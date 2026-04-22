@@ -1,4 +1,4 @@
-﻿name: Docker Publish
+name: Docker Publish
 
 on:
   push:
@@ -104,7 +104,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push GHCR image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: src/SonnetDB/Dockerfile
@@ -118,7 +118,7 @@ jobs:
 
       - name: Build and push Docker Hub image
         if: steps.dockerhub.outputs.enabled == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: src/SonnetDB/Dockerfile
