@@ -30,6 +30,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="System.IO.Hashing" />
     <None Include="PackageReadme.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
