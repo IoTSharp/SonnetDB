@@ -8,7 +8,7 @@
     <PackageVersion Include="System.IO.Hashing" Version="10.0.6" />
     <PackageVersion Include="ModelContextProtocol" Version="1.2.0" />
     <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="1.2.0" />
-    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.5.0" />
     <PackageVersion Include="Microsoft.ML.OnnxRuntime" Version="1.22.1" />
   </ItemGroup>
   <ItemGroup Label="Test">
