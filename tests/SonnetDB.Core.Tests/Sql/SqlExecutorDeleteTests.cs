@@ -88,6 +88,31 @@ public class SqlExecutorDeleteTests : IDisposable
     }
 
     [Fact]
+    public void Delete_TimeRange_WithNowAndDurationExpressions_RemovesExpectedPoints()
+    {
+        using var db = OpenWithSchema(Options());
+
+        const long hourMs = 3_600_000L;
+        var nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        SqlExecutor.Execute(db,
+            $"INSERT INTO cpu (time, host, region, usage, count) VALUES " +
+            $"({nowMs - 36 * hourMs}, 'h1', 'cn', 1.0, 10), " +
+            $"({nowMs - 12 * hourMs}, 'h1', 'cn', 2.0, 20), " +
+            $"({nowMs + 12 * hourMs}, 'h1', 'cn', 3.0, 30)");
+
+        var r = Delete(db,
+            "DELETE FROM cpu WHERE host = 'h1' AND time >= now() - 1d AND time < now() + 1d");
+
+        Assert.Equal(1, r.SeriesAffected);
+        Assert.Equal(2, r.TombstonesAdded);
+
+        var remaining = Select(db, "SELECT time, usage FROM cpu WHERE host = 'h1' ORDER BY time");
+        Assert.Single(remaining.Rows);
+        Assert.Equal(nowMs - 36 * hourMs, remaining.Rows[0][0]);
+        Assert.Equal(1.0, remaining.Rows[0][1]);
+    }
+
+    [Fact]
     public void Delete_OnlyTagFilter_RemovesAllPointsOfSeries()
     {
         using var db = OpenWithSchema(Options());

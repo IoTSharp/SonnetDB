@@ -87,7 +87,8 @@ internal sealed class SonnetDbMcpExplainSqlService
             ?? throw new InvalidOperationException(
                 $"Measurement '{statement.Measurement}' 不存在；请先执行 CREATE MEASUREMENT。");
 
-        var where = DecomposeWhereClause(statement.Where, schema);
+        var nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var where = DecomposeWhereClause(statement.Where, schema, nowMs);
         var matchedSeries = tsdb.Catalog.Find(statement.Measurement, where.TagFilter);
         var fields = ResolveScannedFields(statement, schema);
 
@@ -381,7 +382,7 @@ internal sealed class SonnetDbMcpExplainSqlService
         return Math.Clamp((long)estimate, 1L, descriptor.Count);
     }
 
-    private static ExplainWhereClause DecomposeWhereClause(SqlExpression? where, MeasurementSchema schema)
+    private static ExplainWhereClause DecomposeWhereClause(SqlExpression? where, MeasurementSchema schema, long nowMs)
     {
         ArgumentNullException.ThrowIfNull(schema);
 
@@ -392,7 +393,7 @@ internal sealed class SonnetDbMcpExplainSqlService
         if (where is not null)
         {
             foreach (var leaf in FlattenAnd(where))
-                ApplyWhereLeaf(leaf, schema, tagFilter, ref fromInclusive, ref toInclusive);
+                ApplyWhereLeaf(leaf, schema, tagFilter, ref fromInclusive, ref toInclusive, nowMs);
         }
 
         if (fromInclusive > toInclusive)
@@ -421,7 +422,8 @@ internal sealed class SonnetDbMcpExplainSqlService
         MeasurementSchema schema,
         Dictionary<string, string> tagFilter,
         ref long fromInclusive,
-        ref long toInclusive)
+        ref long toInclusive,
+        long nowMs)
     {
         if (leaf is not BinaryExpression binary || !IsComparisonOperator(binary.Operator))
             throw new InvalidOperationException($"WHERE 仅支持 tag = 'literal' 与 time 比较，且通过 AND 连接。表达式：{leaf}。");
@@ -430,7 +432,7 @@ internal sealed class SonnetDbMcpExplainSqlService
         if (left is IdentifierExpression { Name: var leftName }
             && string.Equals(leftName, "time", StringComparison.OrdinalIgnoreCase))
         {
-            ApplyTimeComparison(op, right, ref fromInclusive, ref toInclusive);
+            ApplyTimeComparison(op, right, ref fromInclusive, ref toInclusive, nowMs);
             return;
         }
 
@@ -466,10 +468,10 @@ internal sealed class SonnetDbMcpExplainSqlService
         SqlBinaryOperator op,
         SqlExpression right,
         ref long fromInclusive,
-        ref long toInclusive)
+        ref long toInclusive,
+        long nowMs)
     {
-        if (right is not LiteralExpression { Kind: SqlLiteralKind.Integer, IntegerValue: var timestamp })
-            throw new InvalidOperationException("WHERE 中 'time' 比较的右值必须是整数字面量（Unix 毫秒）。");
+        var timestamp = TimeExpressionEvaluator.Evaluate(right, nowMs);
 
         switch (op)
         {
@@ -509,7 +511,7 @@ internal sealed class SonnetDbMcpExplainSqlService
     private static (SqlExpression Left, SqlExpression Right, SqlBinaryOperator Operator) NormalizeComparison(
         BinaryExpression expression)
     {
-        if (expression.Left is LiteralExpression && expression.Right is IdentifierExpression)
+        if (expression.Left is not IdentifierExpression && expression.Right is IdentifierExpression)
             return (expression.Right, expression.Left, FlipComparison(expression.Operator));
 
         return (expression.Left, expression.Right, expression.Operator);

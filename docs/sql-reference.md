@@ -205,12 +205,19 @@ DELETE FROM cpu WHERE time >= 1713676800000 AND time <= 1713677400000
 - 后续查询会过滤 tombstone 覆盖的点。
 - compaction 会逐步消化已删除数据。
 
+常见保留策略也可以直接写成相对时间：
+
+```sql
+DELETE FROM cpu
+WHERE time >= now() - 30d
+```
+
 ## WHERE 子句的当前限制
 
 虽然解析器支持更多表达式形态，但当前执行器的稳定支持范围是：
 
 - tag 等值条件，例如 `host = 'server-01'`
-- `time` 的范围比较，例如 `time >= ... AND time < ...`
+- `time` 的范围比较，例如 `time >= 1713676800000 AND time < 1713763200000`，或者 `time >= now() - 1d AND time < now() + 1d`
 - 多个条件使用 `AND` 连接
 
 当前不建议在生产示例中使用：

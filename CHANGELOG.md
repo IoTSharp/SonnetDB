@@ -6,6 +6,7 @@
 ## [Unreleased]
 
 ### Added
+- **WHERE time now()/duration 求值**：`WHERE time` 现在支持 Unix 毫秒整数字面量、duration 字面量以及 `now()` 参与的算术表达式，`SELECT`、`DELETE` 与 `explain_sql` 共享同一求值路径，因此 `time >= now() - 1d`、`time < now() + 1d` 这类查询可以直接执行。
 - **云端 Copilot 直连桥接**：SonnetDB Web 端的 `/v1/copilot/chat` 与 `/v1/copilot/chat/stream` 现已改为只走 `https://ai.sonnetdb.com` 官方云端 Copilot Runtime，本地不再提供知识库 / 技能库 / 本地模型兜底；本地服务仅负责上下文摘要、数据库权限校验、受确认约束的工具执行与 tool result 回传。
 - **sonnetdb.com 账号绑定与唯一 AI Gateway**：Web Admin「Copilot 设置」改为设备码绑定 sonnetdb.com 账号，绑定成功后本地 `.system/ai-config.json` 仅保存 Cloud Access Token / Refresh Token；OSS 端固定通过 `https://ai.sonnetdb.com` 调用平台 AI Gateway，不再支持国内 / 国外节点选择、手动 API Key、`SonnetDBServer_Ai_Example` 或本地模型选择。平台模型列表改为绑定后从 `ai.sonnetdb.com/v1/models` 读取，聊天请求自动使用平台返回的默认模型。
 - **GitHub 协作模板与治理规范**：新增 `.github/ISSUE_TEMPLATE/`（bug/feature/task + config）、`.github/pull_request_template.md`，并新增 `.github/project-management.md` 统一 Milestone / Label 命名、颜色与 Issue 生命周期流转规则。
