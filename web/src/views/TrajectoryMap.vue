@@ -296,11 +296,12 @@ function initMap(): void {
     zoom: 4,
   });
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+  map.once('style.load', renderMap);
   map.on('load', renderMap);
 }
 
 function renderMap(): void {
-  if (!map || !map.loaded()) return;
+  if (!map || !map.isStyleLoaded()) return;
   const features = tracks.value.map((track) => ({
     type: 'Feature' as const,
     properties: { id: track.id, color: track.color },

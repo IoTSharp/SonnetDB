@@ -39,6 +39,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { NSelect, NSpace, NTag, NText, type SelectOption } from 'naive-ui';
 import maplibregl, { type GeoJSONSource, type LngLatBoundsLike, type Map as MapLibreMap } from 'maplibre-gl';
+import { parseGeoPointValue } from '@/utils/sqlValue';
 
 interface Props {
   columns: string[];
@@ -62,7 +63,7 @@ const groupColumn = ref<string | null>(null);
 let map: MapLibreMap | null = null;
 let resizeObserver: ResizeObserver | null = null;
 
-const geoColumns = computed(() => props.columns.filter((column) => props.rows.some((row) => parseGeoPoint(row[column]) !== null)));
+const geoColumns = computed(() => props.columns.filter((column) => props.rows.some((row) => parseGeoPointValue(row[column]) !== null)));
 const geoOptions = computed<SelectOption[]>(() => geoColumns.value.map((column) => ({ label: column, value: column })));
 const timeOptions = computed<SelectOption[]>(() => props.columns.filter((column) => props.rows.some((row) => parseTime(row[column]) !== null)).map((column) => ({ label: column, value: column })));
 const groupOptions = computed<SelectOption[]>(() => props.columns.filter(isGroupColumn).map((column) => ({ label: column, value: column })));
@@ -73,19 +74,6 @@ const mapHint = computed(() => {
   if (geoColumns.value.length === 0) return '未检测到 GEOPOINT / GeoJSON Point 列。';
   return '没有有效经纬度坐标。';
 });
-
-function parseGeoPoint(value: unknown): { lon: number; lat: number } | null {
-  if (!value || typeof value !== 'object') return null;
-  const object = value as Record<string, unknown>;
-  if (object.type === 'Point' && Array.isArray(object.coordinates) && object.coordinates.length >= 2) {
-    const lon = Number(object.coordinates[0]);
-    const lat = Number(object.coordinates[1]);
-    return Number.isFinite(lon) && Number.isFinite(lat) ? { lon, lat } : null;
-  }
-  const lat = Number(object.lat ?? object.Lat ?? object.latitude ?? object.Latitude);
-  const lon = Number(object.lon ?? object.Lon ?? object.lng ?? object.Lng ?? object.longitude ?? object.Longitude);
-  return Number.isFinite(lon) && Number.isFinite(lat) ? { lon, lat } : null;
-}
 
 function parseTime(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -115,7 +103,7 @@ function isGroupColumn(column: string): boolean {
 function buildPoints(): MapPoint[] {
   if (!geoColumn.value) return [];
   return props.rows.flatMap((row, index) => {
-    const point = parseGeoPoint(row[geoColumn.value]);
+    const point = parseGeoPointValue(row[geoColumn.value]);
     if (!point) return [];
     return [{
       ...point,
@@ -145,11 +133,12 @@ function initMap(): void {
     zoom: 3,
   });
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+  map.once('style.load', renderMap);
   map.on('load', renderMap);
 }
 
 function renderMap(): void {
-  if (!map || !map.loaded()) return;
+  if (!map || !map.isStyleLoaded()) return;
   const grouped = groupPoints();
   const lineFeatures = Array.from(grouped.entries()).flatMap(([group, groupPoints], index) => {
     if (!timeColumn.value || groupPoints.length < 2) return [];

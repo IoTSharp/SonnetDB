@@ -79,6 +79,7 @@ import { marked } from 'marked';
 import SqlResultChart from './SqlResultChart.vue';
 import ResultMapPreview from './ResultMapPreview.vue';
 import { rowsToObjects, type SqlResultSet } from '@/api/sql';
+import { formatSqlValue, parseGeoPointValue } from '@/utils/sqlValue';
 
 interface Props {
   index: number;
@@ -102,7 +103,7 @@ const hasRows = computed(() => props.result.hasColumns && visibleRows.value.leng
 const rows = computed(() => rowsToObjects(visibleResult.value));
 
 const hasGeoPoints = computed(() => rows.value.some((row) =>
-  props.result.columns.some((column) => isGeoPointValue(row[column]))));
+  props.result.columns.some((column) => parseGeoPointValue(row[column]) !== null)));
 
 const hasChartData = computed(() => {
   if (!hasRows.value || rows.value.length === 0) return false;
@@ -162,14 +163,6 @@ const emptyText = computed(() => {
   return '语句已执行，没有结果集。';
 });
 
-function isGeoPointValue(value: unknown): boolean {
-  if (!value || typeof value !== 'object') return false;
-  const object = value as Record<string, unknown>;
-  if (object.type === 'Point' && Array.isArray(object.coordinates) && object.coordinates.length >= 2) return true;
-  return (object.lat !== undefined || object.Lat !== undefined || object.latitude !== undefined || object.Latitude !== undefined)
-    && (object.lon !== undefined || object.Lon !== undefined || object.lng !== undefined || object.Lng !== undefined || object.longitude !== undefined || object.Longitude !== undefined);
-}
-
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
@@ -197,7 +190,10 @@ function isTimeLikeColumn(column: string): boolean {
 
 const dataColumns = computed<DataTableColumns<Record<string, unknown>>>(() =>
   props.result.columns.map((c) => ({
-    title: c, key: c, ellipsis: { tooltip: true },
+    title: c,
+    key: c,
+    ellipsis: { tooltip: true },
+    render: (row) => formatSqlValue(row[c]),
   })));
 
 /**
@@ -215,7 +211,7 @@ const markdownSource = computed(() => {
   const slice = visibleRows.value.slice(0, max);
   const escape = (v: unknown): string => {
     if (v === null || v === undefined) return '';
-    return String(v).replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\n/g, ' ');
+    return formatSqlValue(v).replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\n/g, ' ');
   };
 
   const lines: string[] = [];

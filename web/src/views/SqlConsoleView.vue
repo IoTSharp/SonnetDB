@@ -395,6 +395,7 @@ import {
 import { listDatabases } from '@/api/server';
 import { fetchSchema, type MeasurementInfo } from '@/api/schema';
 import { formatSqlDocument } from '@/api/sqlFormat';
+import { formatSqlValue } from '@/utils/sqlValue';
 import SqlEditor from '@/components/SqlEditor.vue';
 import SqlResultPanel from '@/components/SqlResultPanel.vue';
 import TrajectoryMap from '@/views/TrajectoryMap.vue';
@@ -746,17 +747,7 @@ function databaseEmptyText(loaded: boolean, loading: boolean, error: string, key
 }
 
 function stringifyValue(value: unknown): string {
-  if (value === null || value === undefined) return '';
-  if (typeof value === 'string') return value.toLowerCase();
-  if (typeof value === 'number' || typeof value === 'bigint' || typeof value === 'boolean') {
-    return String(value).toLowerCase();
-  }
-  if (value instanceof Date) return value.toISOString().toLowerCase();
-  try {
-    return JSON.stringify(value)?.toLowerCase() ?? String(value).toLowerCase();
-  } catch {
-    return String(value).toLowerCase();
-  }
+  return formatSqlValue(value).toLowerCase();
 }
 
 function makeStatementId(): string {
@@ -1418,7 +1409,7 @@ function downloadVisibleResults(): void {
 
 function buildCsv(rows: ResultRow[], columns: string[]): string {
   const escape = (value: unknown): string => {
-    const text = value === null || value === undefined ? '' : String(value);
+    const text = formatSqlValue(value);
     const normalized = text.replace(/\r?\n/g, ' ');
     return /[",\n]/.test(normalized) ? `"${normalized.replace(/"/g, '""')}"` : normalized;
   };
