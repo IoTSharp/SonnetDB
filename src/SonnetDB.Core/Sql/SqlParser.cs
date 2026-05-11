@@ -72,10 +72,11 @@ public sealed class SqlParser
             TokenKind.KeywordGrant => ParseGrant(),
             TokenKind.KeywordRevoke => ParseRevoke(),
             TokenKind.KeywordShow => ParseShow(),
+            TokenKind.KeywordExplain => ParseExplain(),
             TokenKind.KeywordIssue => ParseIssue(),
             TokenKind.KeywordDescribe => ParseDescribe(),
             TokenKind.KeywordDesc => ParseDescribe(),
-            _ => throw Error("期望 CREATE / INSERT / SELECT / DELETE / DROP / ALTER / GRANT / REVOKE / SHOW / ISSUE / DESCRIBE 关键字"),
+            _ => throw Error("期望 CREATE / INSERT / SELECT / DELETE / DROP / ALTER / GRANT / REVOKE / SHOW / EXPLAIN / ISSUE / DESCRIBE 关键字"),
         };
     }
 
@@ -1179,6 +1180,33 @@ public sealed class SqlParser
             default:
                 throw Error("SHOW 后面期望 USERS / GRANTS / DATABASES / TOKENS / MEASUREMENTS / TABLES");
         }
+    }
+
+    /// <summary>
+    /// <c>EXPLAIN SELECT ...</c> / <c>EXPLAIN SHOW MEASUREMENTS</c> / <c>EXPLAIN DESCRIBE ...</c>。
+    /// 当前仅接受只读语句，避免把写操作伪装成解释计划。
+    /// </summary>
+    private ExplainStatement ParseExplain()
+    {
+        Expect(TokenKind.KeywordExplain);
+
+        SqlStatement statement = Current.Kind switch
+        {
+            TokenKind.KeywordSelect => ParseSelect(),
+            TokenKind.KeywordShow => ParseShow(),
+            TokenKind.KeywordDescribe => ParseDescribe(),
+            TokenKind.KeywordDesc => ParseDescribe(),
+            _ => throw Error("EXPLAIN 后面期望 SELECT / SHOW MEASUREMENTS / SHOW TABLES / DESCRIBE [MEASUREMENT]"),
+        };
+
+        if (statement is not SelectStatement
+            and not ShowMeasurementsStatement
+            and not DescribeMeasurementStatement)
+        {
+            throw Error("EXPLAIN 仅支持 SELECT / SHOW MEASUREMENTS / SHOW TABLES / DESCRIBE [MEASUREMENT]");
+        }
+
+        return new ExplainStatement(statement);
     }
 
     /// <summary>

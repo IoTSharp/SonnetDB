@@ -4,14 +4,19 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { EditorView, keymap, lineNumbers, highlightActiveLine } from '@codemirror/view';
+import { EditorView, keymap, lineNumbers, highlightActiveLine, placeholder } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
-import { bracketMatching, indentOnInput } from '@codemirror/language';
+import {
+  bracketMatching,
+  defaultHighlightStyle,
+  indentOnInput,
+  syntaxHighlighting,
+} from '@codemirror/language';
 import {
   closeBrackets, closeBracketsKeymap, autocompletion, completionKeymap,
 } from '@codemirror/autocomplete';
-import { sql } from '@codemirror/lang-sql';
+import { keywordCompletionSource, schemaCompletionSource, sql, type SQLConfig, type SQLNamespace } from '@codemirror/lang-sql';
 import { SonnetDbSQL } from './sonnetdb-dialect';
 
 export interface ColumnInfo { name: string; role: string; dataType: string; }
@@ -32,13 +37,24 @@ const emit = defineEmits<{
 const editorContainer = ref<HTMLElement | null>(null);
 let view: EditorView | null = null;
 
-function buildSqlSchema(measurements?: MeasurementInfo[]) {
+function buildSqlSchema(measurements?: MeasurementInfo[]): SQLNamespace {
   if (!measurements?.length) return {};
-  const tables: Record<string, string[]> = {};
+  const schemaMap: Record<string, SQLNamespace> = {};
   for (const m of measurements) {
-    tables[m.name] = m.columns.map((c) => c.name);
+    schemaMap[m.name] = {
+      self: {
+        label: m.name,
+        type: 'type',
+        detail: 'measurement',
+      },
+      children: m.columns.map((c) => ({
+        label: c.name,
+        type: c.role.toUpperCase() === 'TAG' ? 'property' : 'variable',
+        detail: `${c.role.toLowerCase()} ${c.dataType}`,
+      })),
+    };
   }
-  return tables;
+  return schemaMap;
 }
 
 function getCursorInfo(editor: EditorView): CursorInfo {
@@ -57,12 +73,13 @@ function emitCursor(editor: EditorView): void {
 }
 
 function createView(el: HTMLElement, initialDoc = props.modelValue) {
-  const tables = buildSqlSchema(props.schema);
-  const sqlLang = sql({
+  const schemaMap = buildSqlSchema(props.schema);
+  const sqlConfig: SQLConfig = {
     dialect: SonnetDbSQL,
-    schema: tables,
+    schema: schemaMap,
     upperCaseKeywords: true,
-  });
+  };
+  const sqlLang = sql(sqlConfig);
 
   const startState = EditorState.create({
     doc: initialDoc,
@@ -70,16 +87,25 @@ function createView(el: HTMLElement, initialDoc = props.modelValue) {
       lineNumbers(),
       history(),
       highlightActiveLine(),
+      sqlLang,
+      syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
       bracketMatching(),
       closeBrackets(),
       indentOnInput(),
-      autocompletion(),
-      sqlLang,
+      placeholder(props.placeholder ?? ''),
+      autocompletion({
+        activateOnTyping: true,
+        activateOnTypingDelay: 60,
+        override: [
+          schemaCompletionSource(sqlConfig),
+          keywordCompletionSource(SonnetDbSQL, true),
+        ],
+      }),
       keymap.of([
+        ...completionKeymap,
         ...closeBracketsKeymap,
         ...defaultKeymap,
         ...historyKeymap,
-        ...completionKeymap,
       ]),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
@@ -100,6 +126,8 @@ function createView(el: HTMLElement, initialDoc = props.modelValue) {
         },
         '.cm-scroller': { overflow: 'auto', minHeight: '100%' },
         '.cm-content': { padding: '8px 0' },
+        '.cm-placeholder': { color: '#8a97a8' },
+        '.cm-tooltip.cm-tooltip-autocomplete': { zIndex: '30' },
         '.cm-focused': { outline: 'none' },
         '&.cm-focused': { borderColor: '#18a058' },
       }),

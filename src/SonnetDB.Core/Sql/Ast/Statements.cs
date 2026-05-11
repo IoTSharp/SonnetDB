@@ -137,3 +137,10 @@ public sealed record ShowMeasurementsStatement : SqlStatement;
 /// </summary>
 /// <param name="Name">目标 measurement 名称。</param>
 public sealed record DescribeMeasurementStatement(string Name) : SqlStatement;
+
+/// <summary>
+/// <c>EXPLAIN &lt;read-only statement&gt;</c>：对只读语句返回估算扫描与命中统计。
+/// 当前仅支持 <c>SELECT</c>、<c>SHOW MEASUREMENTS</c> / <c>SHOW TABLES</c> 与 <c>DESCRIBE [MEASUREMENT]</c>。
+/// </summary>
+/// <param name="Statement">被解释的只读语句。</param>
+public sealed record ExplainStatement(SqlStatement Statement) : SqlStatement;

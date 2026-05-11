@@ -105,7 +105,8 @@ public enum TokenKind
     KeywordToken,
     KeywordIssue,
 
-    // 元数据查询：SHOW MEASUREMENTS / SHOW TABLES / DESCRIBE [MEASUREMENT] <name>
+    // 元数据查询：EXPLAIN / SHOW MEASUREMENTS / SHOW TABLES / DESCRIBE [MEASUREMENT] <name>
+    KeywordExplain,
     KeywordMeasurements,
     KeywordTables,
     KeywordDescribe,

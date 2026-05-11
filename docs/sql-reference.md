@@ -272,6 +272,28 @@ DESC cpu;           -- 等价
 
 若指定 measurement 不存在，会抛出 `InvalidOperationException`。
 
+### `EXPLAIN <read-only statement>`
+
+`EXPLAIN` 返回一组 `key` / `value` 结果行，用于估算查询会扫描的 series、segment、block 与行数。
+
+```sql
+EXPLAIN SELECT usage
+FROM cpu
+WHERE host = 'server-01' AND time >= now() - 1d;
+
+EXPLAIN SHOW MEASUREMENTS;
+EXPLAIN DESCRIBE MEASUREMENT cpu;
+```
+
+当前支持范围：
+
+- `SELECT ...`
+- `SHOW MEASUREMENTS` / `SHOW TABLES`
+- `DESCRIBE [MEASUREMENT] <name>` / `DESC <name>`
+
+当前不支持对 `INSERT`、`DELETE`、`CREATE`、`DROP`、用户/授权/Token 控制面 SQL 做 `EXPLAIN`。
+返回字段包括 `database`、`statement_type`、`measurement`、`matched_series_count`、`estimated_segment_count`、`estimated_block_count`、`estimated_scanned_rows`、`estimated_memtable_rows`、`estimated_segment_rows`、`has_time_filter` 与 `tag_filter_count`。
+
 ## 控制面 SQL
 
 控制面 SQL 仅在服务端模式可用。

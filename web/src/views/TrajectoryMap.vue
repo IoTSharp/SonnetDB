@@ -1,8 +1,8 @@
 ﻿<template>
-  <div class="trajectory-page">
+  <div class="trajectory-page" :class="{ 'trajectory-page--embedded': embedded }">
     <n-card :bordered="false" class="filter-card">
       <n-space vertical :size="14">
-        <div>
+        <div v-if="!embedded">
           <h2>轨迹地图</h2>
           <p>选择数据库、Measurement 和 TAG 后，从 GeoJSON 轨迹端点加载 LineString 并回放。</p>
         </div>
@@ -107,6 +107,14 @@ echarts.use([GridComponent, LegendComponent, TooltipComponent, LineChart, Canvas
 
 type EChartsOption = echarts.ComposeOption<GridComponentOption | LineSeriesOption>;
 
+const props = defineProps<{
+  embedded?: boolean;
+  initialDb?: string;
+  initialMeasurement?: string;
+}>();
+
+const embedded = computed(() => Boolean(props.embedded));
+
 interface TrackPoint {
   trackId: string;
   time: number;
@@ -177,7 +185,11 @@ async function reloadDbs(): Promise<void> {
     return;
   }
   databases.value = result.databases;
-  selectedDb.value ||= result.databases[0] ?? '';
+  if (props.initialDb && result.databases.includes(props.initialDb)) {
+    selectedDb.value = props.initialDb;
+  } else {
+    selectedDb.value ||= result.databases[0] ?? '';
+  }
 }
 
 async function reloadSchema(): Promise<void> {
@@ -185,7 +197,12 @@ async function reloadSchema(): Promise<void> {
   try {
     schema.value = (await fetchSchema(auth.api, selectedDb.value)).measurements;
     const firstGeoMeasurement = geoMeasurements.value[0]?.name ?? '';
-    if (!geoMeasurements.value.some((m) => m.name === selectedMeasurement.value)) {
+    const preferredMeasurement = props.initialMeasurement && geoMeasurements.value.some((m) => m.name === props.initialMeasurement)
+      ? props.initialMeasurement
+      : '';
+    if (preferredMeasurement) {
+      selectedMeasurement.value = preferredMeasurement;
+    } else if (!geoMeasurements.value.some((m) => m.name === selectedMeasurement.value)) {
       selectedMeasurement.value = firstGeoMeasurement;
     }
   } catch (error) {
@@ -478,6 +495,12 @@ onBeforeUnmount(() => {
   gap: 16px;
 }
 
+.trajectory-page--embedded {
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr) 220px;
+}
+
 .filter-card {
   grid-row: 1 / span 2;
   overflow: auto;
@@ -537,6 +560,10 @@ onBeforeUnmount(() => {
   .filter-card {
     grid-row: auto;
   }
+}
+
+.trajectory-page--embedded .filter-card {
+  max-height: none;
 }
 </style>
 

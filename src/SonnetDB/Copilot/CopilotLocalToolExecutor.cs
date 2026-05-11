@@ -249,7 +249,7 @@ internal sealed class CopilotLocalToolExecutor
             throw new SqlExecutionException(
                 sql,
                 "validate",
-                "query_sql 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES 与 DESCRIBE [MEASUREMENT]。");
+                "query_sql 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES、DESCRIBE [MEASUREMENT] 与 EXPLAIN。");
         }
 
         SqlStatement executable = statement;
@@ -520,7 +520,7 @@ internal sealed class CopilotLocalToolExecutor
             or DescribeMeasurementStatement;
 
     private static bool IsReadOnlyStatement(SqlStatement statement)
-        => statement is SelectStatement or ShowMeasurementsStatement or DescribeMeasurementStatement;
+        => statement is SelectStatement or ShowMeasurementsStatement or DescribeMeasurementStatement or ExplainStatement;
 
     private static string GetReadOnlyStatementType(SqlStatement statement)
         => statement switch
@@ -528,6 +528,7 @@ internal sealed class CopilotLocalToolExecutor
             SelectStatement => "select",
             ShowMeasurementsStatement => "show_measurements",
             DescribeMeasurementStatement => "describe_measurement",
+            ExplainStatement => "explain",
             _ => "unknown"
         };
 

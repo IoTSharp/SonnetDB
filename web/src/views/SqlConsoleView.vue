@@ -10,7 +10,27 @@
           <n-text depth="3" class="workbench-context__dsn">{{ connectionLabel }}</n-text>
         </div>
 
-        <div class="workbench-context__badges">
+        <div class="workbench-context__tools">
+          <div class="workbench-mode-switch" role="tablist" aria-label="Workbench mode">
+            <button
+              type="button"
+              class="workbench-mode-switch__button"
+              :class="{ 'is-active': activeWorkbenchTool === 'sql' }"
+              @click="setWorkbenchTool('sql')"
+            >
+              SQL
+            </button>
+            <button
+              type="button"
+              class="workbench-mode-switch__button"
+              :class="{ 'is-active': activeWorkbenchTool === 'trajectory' }"
+              @click="setWorkbenchTool('trajectory')"
+            >
+              Trajectory
+            </button>
+          </div>
+
+          <div class="workbench-context__badges">
           <n-tag
             v-for="badge in accessBadges"
             :key="badge.label"
@@ -20,6 +40,7 @@
           >
             {{ badge.label }}
           </n-tag>
+          </div>
         </div>
       </div>
     </header>
@@ -27,57 +48,111 @@
     <section class="workbench-frame">
       <aside class="schema-sidebar">
         <div class="schema-toolbar">
-          <n-select
-            v-model:value="targetDb"
-            :options="dbOptions"
-            :loading="loadingDbs"
-            size="small"
-            class="schema-toolbar__select"
-            placeholder="database"
-          />
-          <n-button size="small" quaternary :loading="loadingSchema || loadingDbs" title="Refresh schema" @click="refreshWorkbench">↻</n-button>
-          <n-text strong class="schema-toolbar__sql">SQL</n-text>
-        </div>
+          <div v-if="auth.isSuperuser" class="schema-toolbar__create">
+            <n-input
+              v-model:value="newDatabaseName"
+              size="small"
+              clearable
+              placeholder="new database"
+              class="schema-toolbar__create-input"
+              @keyup.enter="createDatabase"
+            />
+            <n-button size="small" type="primary" :loading="databaseActionBusy" :disabled="!canCreateDatabase" @click="createDatabase">
+              Create
+            </n-button>
+            <n-popconfirm
+              :show-icon="false"
+              :positive-button-props="{ type: 'error' }"
+              :negative-button-props="{ tertiary: true }"
+              :disabled="!canDropDatabase"
+              @positive-click="dropActiveDatabase"
+            >
+              <template #trigger>
+                <n-button size="small" tertiary type="error" :disabled="!canDropDatabase || databaseActionBusy">
+                  Drop
+                </n-button>
+              </template>
+              <span>Delete database {{ targetDb === CONTROL_PLANE_KEY ? 'system' : (targetDb || '(none)') }}?</span>
+            </n-popconfirm>
+          </div>
 
-        <div class="schema-search">
-          <n-input
-            v-model:value="schemaFilter"
-            size="small"
-            clearable
-            placeholder="Search"
-          />
+          <div class="schema-toolbar__row">
+            <n-button size="small" quaternary :loading="loadingSchema || loadingDbs" title="Refresh databases" @click="refreshWorkbench">↻</n-button>
+            <n-input
+              v-model:value="schemaFilter"
+              size="small"
+              clearable
+              placeholder="Search databases / measurements"
+              class="schema-toolbar__search"
+            />
+          </div>
         </div>
 
         <n-scrollbar class="schema-tree">
-          <n-alert v-if="targetDb === CONTROL_PLANE_KEY" type="info" :show-icon="false" class="schema-empty-note">
-            System database has no measurement schema.
+          <n-alert v-if="databaseTree.length === 0" type="info" :show-icon="false" class="schema-empty-note">
+            {{ databases.length === 0 ? 'No databases available yet.' : 'No databases match this filter.' }}
           </n-alert>
 
-          <section v-for="group in explorerGroups" :key="group.key" class="schema-group">
-            <button type="button" class="schema-group__head" @click="toggleExplorerGroup(group.key)">
-              <span class="schema-group__caret">{{ openGroups[group.key] ? '⌄' : '›' }}</span>
-              <span class="schema-group__icon">{{ group.icon }}</span>
-              <span class="schema-group__label">{{ group.label }}</span>
-              <span class="schema-group__count">{{ group.count }}</span>
+          <section class="schema-group schema-group--databases">
+            <button type="button" class="schema-group__head" @click="toggleGroup('databases')">
+              <span class="schema-group__caret">{{ openGroups.databases ? '⌄' : '›' }}</span>
+              <span class="schema-group__icon">◫</span>
+              <span class="schema-group__label">DATABASES</span>
+              <span class="schema-group__count">{{ databaseTree.length }}</span>
             </button>
 
-            <div v-if="openGroups[group.key]" class="schema-group__items">
+            <div v-if="openGroups.databases" class="schema-group__items">
               <button
-                v-for="item in group.items"
-                :key="item.key"
+                v-if="auth.isSuperuser && systemTreeNode"
                 type="button"
-                class="schema-item"
-                :class="{ 'is-active': activeExplorerKey === item.key }"
-                :title="item.meta"
-                @click="selectExplorerItem(item)"
-                @dblclick="openExplorerItem(item)"
+                class="schema-item schema-item--database"
+                :class="{ 'is-active': targetDb === CONTROL_PLANE_KEY }"
+                :title="systemTreeNode.meta"
+                @click="selectDatabase(CONTROL_PLANE_KEY)"
               >
-                <span class="schema-item__name">{{ item.name }}</span>
-                <span v-if="item.meta" class="schema-item__meta">{{ item.meta }}</span>
+                <span class="schema-item__name">{{ systemTreeNode.name }}</span>
+                <span class="schema-item__meta">{{ systemTreeNode.meta }}</span>
               </button>
 
-              <div v-if="group.items.length === 0" class="schema-group__empty">
-                {{ group.emptyText }}
+              <div
+                v-for="dbNode in databaseTree"
+                :key="dbNode.name"
+                class="schema-database-node"
+              >
+                <button
+                  type="button"
+                  class="schema-item schema-item--database"
+                  :class="{ 'is-active': targetDb === dbNode.name }"
+                  :title="dbNode.meta"
+                  @click="selectDatabase(dbNode.name)"
+                >
+                  <span
+                    class="schema-item__caret"
+                    @click.stop="toggleDatabaseExpansion(dbNode.name)"
+                  >{{ expandedDatabases[dbNode.name] ? '⌄' : '›' }}</span>
+                  <span class="schema-item__name">{{ dbNode.name }}</span>
+                  <span class="schema-item__meta">{{ dbNode.meta }}</span>
+                </button>
+
+                <div v-if="expandedDatabases[dbNode.name]" class="schema-group__items schema-group__items--children">
+                  <button
+                    v-for="measurement in dbNode.measurements"
+                    :key="`${dbNode.name}:${measurement.name}`"
+                    type="button"
+                    class="schema-item schema-item--measurement"
+                    :class="{ 'is-active': targetDb === dbNode.name && activeExplorerKey === measurement.name }"
+                    :title="measurementMeta(measurement)"
+                    @click="selectMeasurement(dbNode.name, measurement)"
+                    @dblclick="openMeasurement(measurement)"
+                  >
+                    <span class="schema-item__name">{{ measurement.name }}</span>
+                    <span class="schema-item__meta">{{ measurementMeta(measurement) }}</span>
+                  </button>
+
+                  <div v-if="dbNode.measurements.length === 0" class="schema-group__empty">
+                    {{ dbNode.emptyText }}
+                  </div>
+                </div>
               </div>
             </div>
           </section>
@@ -85,158 +160,168 @@
       </aside>
 
       <main class="query-workspace">
-        <div class="query-tabs">
-          <button
-            v-for="tab in sqlConsole.tabs"
-            :key="tab.id"
-            type="button"
-            class="query-tab"
-            :class="{ 'is-active': tab.id === activeTabId }"
-            @click="activeTabId = tab.id"
-          >
-            <span class="query-tab__icon">SQL</span>
-            <span class="query-tab__title">{{ tab.title }}</span>
-            <span
-              v-if="sqlConsole.tabs.length > 1"
-              class="query-tab__close"
-              title="Close tab"
-              @click.stop="closeTab(tab.id)"
-            >×</span>
-          </button>
-          <button type="button" class="query-tab query-tab--add" title="New SQL tab" @click="createTab">+</button>
-        </div>
-
-        <div class="query-toolbar">
-          <n-space align="center" :size="8" :wrap="false">
-            <n-button size="small" type="primary" :loading="running" @click="run">
-              {{ previewPlan ? 'Preview' : 'Run' }}
-            </n-button>
-            <n-button size="small" @click="explainSql">Explain</n-button>
-            <n-button size="small" @click="formatSql">Format</n-button>
-            <n-dropdown trigger="click" placement="bottom-start" :options="quickSqlOptions" @select="onQuickSqlSelect">
-              <n-button size="small">Quick SQL⌄</n-button>
-            </n-dropdown>
-            <n-button size="small" disabled title="SonnetDB 当前版本尚未暴露 active process 列表接口">Processes</n-button>
-          </n-space>
-
-          <div class="query-toolbar__meta">
-            <n-tag size="small" :type="activeTab?.source === 'copilot' ? 'info' : 'default'" :bordered="false">
-              {{ activeTab?.source === 'copilot' ? 'Copilot draft' : 'Manual' }}
-            </n-tag>
-            <n-tag v-if="activeTab?.ranOnce" size="small" type="success" :bordered="false">executed</n-tag>
-          </div>
-        </div>
-
-        <section class="editor-shell">
-          <SqlEditor
-            v-model="sql"
-            :schema="currentSchema"
-            placeholder="SHOW MEASUREMENTS;"
-            @cursor="onEditorCursor"
-          />
-        </section>
-
-        <div class="editor-status">
-          <span>search_path: {{ targetDb === CONTROL_PLANE_KEY ? 'system' : (targetDb || 'public') }}</span>
-          <span>Ln {{ editorCursor.line }}, Col {{ editorCursor.column }}, Pos {{ editorCursor.position }}/{{ editorCursor.length }}</span>
-        </div>
-
-        <section v-if="previewPlan" class="preview-panel">
-          <div class="preview-panel__head">
-            <div>
-              <n-tag size="small" :type="previewPlan.dangerous ? 'error' : 'warning'" :bordered="false">
-                {{ previewPlan.dangerous ? 'Dangerous staged preview' : 'Staged preview' }}
-              </n-tag>
-              <n-text depth="3" class="preview-panel__summary">{{ previewPlan.summary }}</n-text>
-            </div>
-            <n-button size="small" quaternary @click="cancelPreview">Cancel</n-button>
-          </div>
-
-          <div class="preview-panel__body">
-            <article
-              v-for="(statement, index) in previewPlan.statements"
-              :key="`${previewPlan.tabId}:${index}`"
-              class="preview-statement"
+        <template v-if="activeWorkbenchTool === 'sql'">
+          <div class="query-tabs">
+            <button
+              v-for="tab in sqlConsole.tabs"
+              :key="tab.id"
+              type="button"
+              class="query-tab"
+              :class="{ 'is-active': tab.id === activeTabId }"
+              @click="activeTabId = tab.id"
             >
-              <n-tag
-                size="tiny"
-                :type="statement.severity === 'danger' ? 'error' : statement.severity === 'write' ? 'warning' : 'info'"
-                :bordered="false"
+              <span class="query-tab__icon">SQL</span>
+              <span class="query-tab__title">{{ tab.title }}</span>
+              <span
+                v-if="sqlConsole.tabs.length > 1"
+                class="query-tab__close"
+                title="Close tab"
+                @click.stop="closeTab(tab.id)"
+              >×</span>
+            </button>
+            <button type="button" class="query-tab query-tab--add" title="New SQL tab" @click="createTab">+</button>
+          </div>
+
+          <div class="query-toolbar">
+            <n-space align="center" :size="8" :wrap="false">
+              <n-button size="small" type="primary" :loading="running" @click="run">
+                {{ previewPlan ? 'Preview' : 'Run' }}
+              </n-button>
+              <n-button size="small" @click="explainSql">Explain</n-button>
+              <n-button size="small" @click="formatSql">Format</n-button>
+              <n-dropdown trigger="click" placement="bottom-start" :options="quickSqlOptions" @select="onQuickSqlSelect">
+                <n-button size="small">Quick SQL⌄</n-button>
+              </n-dropdown>
+              <n-button size="small" disabled title="SonnetDB 当前版本尚未暴露 active process 列表接口">Processes</n-button>
+            </n-space>
+
+            <div class="query-toolbar__meta">
+              <n-tag size="small" :type="activeTab?.source === 'copilot' ? 'info' : 'default'" :bordered="false">
+                {{ activeTab?.source === 'copilot' ? 'Copilot draft' : 'Manual' }}
+              </n-tag>
+              <n-tag v-if="activeTab?.ranOnce" size="small" type="success" :bordered="false">executed</n-tag>
+            </div>
+          </div>
+
+          <section class="editor-shell">
+            <SqlEditor
+              v-model="sql"
+              :schema="currentSchema"
+              placeholder="SHOW MEASUREMENTS;"
+              @cursor="onEditorCursor"
+            />
+          </section>
+
+          <div class="editor-status">
+            <span>search_path: {{ targetDb === CONTROL_PLANE_KEY ? 'system' : (targetDb || 'public') }}</span>
+            <span>Ln {{ editorCursor.line }}, Col {{ editorCursor.column }}, Pos {{ editorCursor.position }}/{{ editorCursor.length }}</span>
+          </div>
+
+          <section v-if="previewPlan" class="preview-panel">
+            <div class="preview-panel__head">
+              <div>
+                <n-tag size="small" :type="previewPlan.dangerous ? 'error' : 'warning'" :bordered="false">
+                  {{ previewPlan.dangerous ? 'Dangerous staged preview' : 'Staged preview' }}
+                </n-tag>
+                <n-text depth="3" class="preview-panel__summary">{{ previewPlan.summary }}</n-text>
+              </div>
+              <n-button size="small" quaternary @click="cancelPreview">Cancel</n-button>
+            </div>
+
+            <div class="preview-panel__body">
+              <article
+                v-for="(statement, index) in previewPlan.statements"
+                :key="`${previewPlan.tabId}:${index}`"
+                class="preview-statement"
               >
-                {{ statement.label }}
-              </n-tag>
-              <code>{{ statement.sql }}</code>
-            </article>
-          </div>
-
-          <div class="preview-panel__actions">
-            <n-checkbox v-if="previewPlan.dangerous" v-model:checked="dangerConfirmed">
-              I understand this may modify or delete target data.
-            </n-checkbox>
-            <n-text v-if="previewIsStale" depth="3">The preview is stale. Run preview again before executing.</n-text>
-            <n-button
-              size="small"
-              type="primary"
-              :disabled="previewIsStale || (previewPlan.dangerous && !dangerConfirmed)"
-              :loading="running"
-              @click="confirmPreview"
-            >
-              {{ previewPlan.dangerous ? 'Confirm danger run' : 'Confirm run' }}
-            </n-button>
-          </div>
-        </section>
-
-        <section class="result-shell">
-          <div class="result-toolbar">
-            <n-text class="result-toolbar__timer">{{ resultHeaderText }}</n-text>
-            <div class="result-toolbar__actions">
-              <n-input
-                v-model:value="resultFilter"
-                size="small"
-                clearable
-                placeholder="Search result"
-                class="result-search"
-              />
-              <n-button size="small" quaternary title="Copy visible rows as CSV" :disabled="!latestResultSet?.hasColumns" @click="copyVisibleResults">⧉</n-button>
-              <n-button size="small" quaternary title="Export visible rows as CSV" :disabled="!latestResultSet?.hasColumns" @click="downloadVisibleResults">⇩</n-button>
+                <n-tag
+                  size="tiny"
+                  :type="statement.severity === 'danger' ? 'error' : statement.severity === 'write' ? 'warning' : 'info'"
+                  :bordered="false"
+                >
+                  {{ statement.label }}
+                </n-tag>
+                <code>{{ statement.sql }}</code>
+              </article>
             </div>
-          </div>
 
-          <div class="result-grid">
-            <n-alert
-              v-if="errorMsg && !latestResultSet?.error"
-              type="error"
-              :title="errorMsg"
-              closable
-              class="result-alert"
-              @close="clearActiveError"
-            />
-            <n-alert
-              v-if="latestResultSet?.error"
-              type="error"
-              :title="`[${latestResultSet.error.code ?? 'error'}] ${latestResultSet.error.message}`"
-              class="result-alert"
-            />
+            <div class="preview-panel__actions">
+              <n-checkbox v-if="previewPlan.dangerous" v-model:checked="dangerConfirmed">
+                I understand this may modify or delete target data.
+              </n-checkbox>
+              <n-text v-if="previewIsStale" depth="3">The preview is stale. Run preview again before executing.</n-text>
+              <n-button
+                size="small"
+                type="primary"
+                :disabled="previewIsStale || (previewPlan.dangerous && !dangerConfirmed)"
+                :loading="running"
+                @click="confirmPreview"
+              >
+                {{ previewPlan.dangerous ? 'Confirm danger run' : 'Confirm run' }}
+              </n-button>
+            </div>
+          </section>
 
-            <n-data-table
-              v-else-if="latestResultSet?.hasColumns"
-              :columns="resultColumns"
-              :data="filteredResultRows"
-              :row-key="resultRowKey"
-              size="small"
-              :bordered="false"
-              :max-height="420"
-            />
+          <section class="result-shell">
+            <div class="result-toolbar">
+              <n-text class="result-toolbar__timer">{{ resultHeaderText }}</n-text>
+              <div class="result-toolbar__actions">
+                <n-input
+                  v-model:value="resultFilter"
+                  size="small"
+                  clearable
+                  placeholder="Search result"
+                  class="result-search"
+                />
+                <n-button size="small" quaternary title="Copy visible rows as CSV" :disabled="!latestResultSet?.hasColumns" @click="copyVisibleResults">⧉</n-button>
+                <n-button size="small" quaternary title="Export visible rows as CSV" :disabled="!latestResultSet?.hasColumns" @click="downloadVisibleResults">⇩</n-button>
+              </div>
+            </div>
 
-            <n-empty v-else-if="ranOnce" description="Statement executed without rows." />
-            <n-empty v-else description="Run a SQL statement to see results." />
-          </div>
+            <div class="result-grid">
+              <n-alert
+                v-if="errorMsg && !latestResultSet?.error"
+                type="error"
+                :title="errorMsg"
+                closable
+                class="result-alert"
+                @close="clearActiveError"
+              />
+              <n-alert
+                v-if="latestResultSet?.error"
+                type="error"
+                :title="`[${latestResultSet.error.code ?? 'error'}] ${latestResultSet.error.message}`"
+                class="result-alert"
+              />
 
-          <div class="result-status">
-            <span>{{ executionFooterText }}</span>
-            <span>{{ filteredResultRows.length }} rows</span>
-          </div>
-        </section>
+              <n-data-table
+                v-else-if="latestResultSet?.hasColumns"
+                :columns="resultColumns"
+                :data="filteredResultRows"
+                :row-key="resultRowKey"
+                size="small"
+                :bordered="false"
+                :max-height="420"
+              />
+
+              <n-empty v-else-if="ranOnce" description="Statement executed without rows." />
+              <n-empty v-else description="Run a SQL statement to see results." />
+            </div>
+
+            <div class="result-status">
+              <span>{{ executionFooterText }}</span>
+              <span>{{ filteredResultRows.length }} rows</span>
+            </div>
+          </section>
+        </template>
+
+        <TrajectoryMap
+          v-else
+          class="trajectory-workbench"
+          :embedded="true"
+          :initial-db="trajectoryInitialDb"
+          :initial-measurement="trajectoryInitialMeasurement"
+        />
       </main>
     </section>
   </div>
@@ -244,6 +329,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import type { DataTableColumns, DropdownOption } from 'naive-ui';
 import {
   NAlert,
@@ -253,16 +339,18 @@ import {
   NDropdown,
   NEmpty,
   NInput,
+  NPopconfirm,
   NScrollbar,
   NSpace,
-  NSelect,
   NTag,
   NText,
+  useMessage,
 } from 'naive-ui';
 import { useAuthStore } from '@/stores/auth';
 import {
   execControlPlaneSql,
   execDataSql,
+  isValidIdentifier,
   rowsToObjects,
   type SqlResultSet,
 } from '@/api/sql';
@@ -274,13 +362,16 @@ import {
 } from '@/api/sqlMeta';
 import { listDatabases } from '@/api/server';
 import { fetchSchema, type MeasurementInfo } from '@/api/schema';
+import { formatSqlDocument } from '@/api/sqlFormat';
 import SqlEditor from '@/components/SqlEditor.vue';
+import TrajectoryMap from '@/views/TrajectoryMap.vue';
 import {
   CONTROL_PLANE_KEY,
   useSqlConsoleStore,
   type SqlConsoleExecutedStatement,
 } from '@/stores/sqlConsole';
 
+type WorkbenchTool = 'sql' | 'trajectory';
 type StatementSeverity = 'read' | 'write' | 'danger';
 
 interface PlannedStatement {
@@ -301,24 +392,6 @@ interface StagedPreview {
   summary: string;
 }
 
-interface ExplorerItem {
-  key: string;
-  name: string;
-  meta: string;
-  kind: 'measurement' | 'function' | 'procedure' | 'placeholder';
-  sql?: string;
-  measurement?: MeasurementInfo;
-}
-
-interface ExplorerGroup {
-  key: string;
-  label: string;
-  icon: string;
-  count: number;
-  items: ExplorerItem[];
-  emptyText: string;
-}
-
 interface EditorCursorInfo {
   line: number;
   column: number;
@@ -335,12 +408,35 @@ interface AccessBadge {
   type: 'default' | 'info' | 'success' | 'warning' | 'error';
 }
 
+interface DatabaseTreeNode {
+  name: string;
+  meta: string;
+  measurements: MeasurementInfo[];
+  loading: boolean;
+  error: string;
+  emptyText: string;
+}
+
+interface SystemTreeNode {
+  name: string;
+  meta: string;
+}
+
 const auth = useAuthStore();
 const sqlConsole = useSqlConsoleStore();
+const route = useRoute();
+const router = useRouter();
+const message = useMessage();
 
 const databases = ref<string[]>([]);
 const schema = ref<MeasurementInfo[]>([]);
+const schemaByDb = ref<Record<string, MeasurementInfo[]>>({});
+const schemaLoadingByDb = ref<Record<string, boolean>>({});
+const schemaErrorByDb = ref<Record<string, string>>({});
 const schemaFilter = ref('');
+const newDatabaseName = ref('');
+const databaseActionBusy = ref(false);
+const expandedDatabases = ref<Record<string, boolean>>({});
 const loadingDbs = ref(false);
 const loadingSchema = ref(false);
 const runningTabId = ref<string | null>(null);
@@ -355,11 +451,11 @@ const editorCursor = ref<EditorCursorInfo>({
   length: 0,
 });
 const openGroups = ref<Record<string, boolean>>({
-  tables: true,
+  databases: true,
+  measurements: true,
   views: true,
   materialized: true,
-  functions: true,
-  procedures: true,
+  methods: true,
 });
 
 if (!auth.isSuperuser) {
@@ -395,6 +491,9 @@ const currentSchema = computed(() => schema.value);
 const resultSummary = computed(() => activeTab.value?.summary ?? '');
 const errorMsg = computed(() => activeTab.value?.errorMsg ?? '');
 
+const activeWorkbenchTool = computed<WorkbenchTool>(() =>
+  route.query.tool === 'trajectory' ? 'trajectory' : 'sql');
+
 const connectionLabel = computed(() => {
   const host = typeof window !== 'undefined' ? window.location.host : 'localhost';
   const db = targetDb.value === CONTROL_PLANE_KEY ? 'system' : (targetDb.value || 'public');
@@ -423,140 +522,80 @@ const accessBadges = computed<AccessBadge[]>(() => {
   ];
 });
 
-const dbOptions = computed(() => {
-  const options: { label: string; value: string }[] = auth.isSuperuser
-    ? [{ label: 'system （系统库 / 控制面）', value: CONTROL_PLANE_KEY }]
-    : [];
-  return [
-    ...options,
-    ...databases.value.map((d) => ({ label: d, value: d })),
-  ];
-});
+function setWorkbenchTool(tool: WorkbenchTool): void {
+  if (activeWorkbenchTool.value === tool) return;
+  void router.replace({
+    name: 'sql',
+    query: tool === 'trajectory' ? { tool: 'trajectory' } : {},
+  });
+}
 
-const filteredMeasurements = computed(() => {
+const databaseTree = computed<DatabaseTreeNode[]>(() => {
   const keyword = schemaFilter.value.trim().toLowerCase();
-  if (!keyword) return schema.value;
-  return schema.value.filter((measurement) => {
-    if (measurement.name.toLowerCase().includes(keyword)) return true;
-    return measurement.columns.some((column) =>
-      column.name.toLowerCase().includes(keyword)
-      || column.role.toLowerCase().includes(keyword)
-      || column.dataType.toLowerCase().includes(keyword));
+  return databases.value.flatMap((name) => {
+    const measurements = schemaByDb.value[name] ?? [];
+    const loaded = hasCachedSchema(name);
+    const loading = Boolean(schemaLoadingByDb.value[name]);
+    const error = schemaErrorByDb.value[name] ?? '';
+    const dbMatches = !keyword || name.toLowerCase().includes(keyword);
+    const filtered = !keyword || dbMatches
+      ? measurements
+      : measurements.filter((measurement) => measurementMatchesFilter(measurement, keyword));
+
+    if (keyword && !dbMatches && filtered.length === 0) {
+      return [];
+    }
+
+    return [{
+      name,
+      meta: databaseMeta(loaded, loading, error, measurements.length),
+      measurements: filtered,
+      loading,
+      error,
+      emptyText: databaseEmptyText(loaded, loading, error, keyword),
+    }];
   });
 });
 
-const builtinFunctions = computed<ExplorerItem[]>(() => [
-  {
-    key: 'fn-time',
-    name: 'time()',
-    meta: 'windowing helper',
-    kind: 'function',
-    sql: 'SELECT time(1m) FROM measurement;',
-  },
-  {
-    key: 'fn-knn',
-    name: 'knn()',
-    meta: 'vector search',
-    kind: 'function',
-    sql: 'SELECT * FROM measurement ORDER BY knn(vector_col, [0.1, 0.2, 0.3], 5);',
-  },
-  {
-    key: 'fn-cosine',
-    name: 'cosine_distance()',
-    meta: 'similarity',
-    kind: 'function',
-    sql: 'SELECT cosine_distance(vec1, vec2) FROM measurement;',
-  },
-  {
-    key: 'fn-l2',
-    name: 'l2_distance()',
-    meta: 'distance',
-    kind: 'function',
-    sql: 'SELECT l2_distance(vec1, vec2) FROM measurement;',
-  },
-]);
+const systemTreeNode = computed<SystemTreeNode | null>(() => {
+  if (!auth.isSuperuser) return null;
+  const keyword = schemaFilter.value.trim().toLowerCase();
+  if (keyword && !'system control plane'.includes(keyword)) return null;
+  return { name: 'system', meta: 'control plane' };
+});
 
-const builtinProcedures = computed<ExplorerItem[]>(() => [
-  {
-    key: 'proc-show-databases',
-    name: 'show databases',
-    meta: 'control plane',
-    kind: 'procedure',
-    sql: 'SHOW DATABASES;',
-  },
-  {
-    key: 'proc-show-users',
-    name: 'show users',
-    meta: 'admin',
-    kind: 'procedure',
-    sql: 'SHOW USERS;',
-  },
-  {
-    key: 'proc-show-grants',
-    name: 'show grants',
-    meta: 'admin',
-    kind: 'procedure',
-    sql: 'SHOW GRANTS;',
-  },
-]);
+const canCreateDatabase = computed(() => {
+  const name = newDatabaseName.value.trim();
+  return auth.isSuperuser
+    && !databaseActionBusy.value
+    && isValidIdentifier(name)
+    && !databases.value.includes(name);
+});
 
-const filteredFunctions = computed(() => filterExplorerItems(builtinFunctions.value));
-const filteredProcedures = computed(() => filterExplorerItems(builtinProcedures.value));
+const canDropDatabase = computed(() =>
+  auth.isSuperuser
+  && !databaseActionBusy.value
+  && targetDb.value.length > 0
+  && targetDb.value !== CONTROL_PLANE_KEY
+  && databases.value.includes(targetDb.value));
 
-const explorerGroups = computed<ExplorerGroup[]>(() => [
-  {
-    key: 'tables',
-    label: 'TABLES',
-    icon: '▸',
-    count: filteredMeasurements.value.length,
-    items: filteredMeasurements.value.map((measurement) => ({
-      key: measurement.name,
-      name: measurement.name,
-      meta: `${countColumns(measurement, 'TAG')} TAG · ${countColumns(measurement, 'FIELD')} FIELD · ${measurement.columns.length} cols`,
-      kind: 'measurement',
-      measurement,
-      sql: buildSelectDraft(measurement, false),
-    })),
-    emptyText: targetDb.value === CONTROL_PLANE_KEY ? 'No tables in system database.' : 'No measurement found.',
-  },
-  {
-    key: 'views',
-    label: 'VIEWS',
-    icon: '◔',
-    count: 0,
-    items: [],
-    emptyText: 'No views.',
-  },
-  {
-    key: 'materialized',
-    label: 'MATERIALIZED',
-    icon: '◫',
-    count: 0,
-    items: [],
-    emptyText: 'No materialized views.',
-  },
-  {
-    key: 'functions',
-    label: 'FUNCTIONS',
-    icon: 'ƒ',
-    count: filteredFunctions.value.length,
-    items: filteredFunctions.value,
-    emptyText: 'No functions.',
-  },
-  {
-    key: 'procedures',
-    label: 'PROCEDURES',
-    icon: '↦',
-    count: filteredProcedures.value.length,
-    items: filteredProcedures.value,
-    emptyText: 'No procedures.',
-  },
-]);
+const trajectoryInitialDb = computed(() => {
+  if (targetDb.value && targetDb.value !== CONTROL_PLANE_KEY) return targetDb.value;
+  return databases.value[0] ?? '';
+});
+
+const trajectoryInitialMeasurement = computed(() => {
+  if (!trajectoryInitialDb.value) return '';
+  const measurements = schemaByDb.value[trajectoryInitialDb.value] ?? [];
+  const active = measurements.find((measurement) => measurement.name === activeExplorerKey.value);
+  if (active?.columns.some(isGeoField)) return active.name;
+  return measurements.find((measurement) => measurement.columns.some(isGeoField))?.name ?? '';
+});
 
 const selectedMeasurement = computed(() => {
   if (!schema.value.length) return null;
   const byActive = schema.value.find((measurement) => measurement.name === activeExplorerKey.value);
-  return byActive ?? filteredMeasurements.value[0] ?? schema.value[0] ?? null;
+  return byActive ?? schema.value[0] ?? null;
 });
 
 const latestResultItem = computed(() => results.value[results.value.length - 1] ?? null);
@@ -645,6 +684,37 @@ function normalizeSql(value: string): string {
   return splitSqlStatements(value).map((stmt) => stmt.trim()).join('\n;\n');
 }
 
+function hasCachedSchema(db: string): boolean {
+  return Object.prototype.hasOwnProperty.call(schemaByDb.value, db);
+}
+
+function isGeoField(column: { role: string; dataType: string }): boolean {
+  return column.role.toLowerCase() === 'field' && column.dataType.toLowerCase() === 'geopoint';
+}
+
+function measurementMatchesFilter(measurement: MeasurementInfo, keyword: string): boolean {
+  return measurement.name.toLowerCase().includes(keyword)
+    || measurement.columns.some((column) =>
+      column.name.toLowerCase().includes(keyword)
+      || column.role.toLowerCase().includes(keyword)
+      || column.dataType.toLowerCase().includes(keyword));
+}
+
+function databaseMeta(loaded: boolean, loading: boolean, error: string, count: number): string {
+  if (loading) return 'loading schema...';
+  if (error) return error;
+  if (!loaded) return 'click to load measurements';
+  if (count === 0) return 'no measurements';
+  return `${count} measurements`;
+}
+
+function databaseEmptyText(loaded: boolean, loading: boolean, error: string, keyword: string): string {
+  if (loading) return 'Loading schema...';
+  if (error) return error;
+  if (!loaded) return keyword ? 'No matching measurements yet.' : 'Expand this database to load measurements.';
+  return keyword ? 'No matching measurements.' : 'No measurements found.';
+}
+
 function stringifyValue(value: unknown): string {
   if (value === null || value === undefined) return '';
   if (typeof value === 'string') return value.toLowerCase();
@@ -657,14 +727,6 @@ function stringifyValue(value: unknown): string {
   } catch {
     return String(value).toLowerCase();
   }
-}
-
-function filterExplorerItems(items: ExplorerItem[]): ExplorerItem[] {
-  const keyword = schemaFilter.value.trim().toLowerCase();
-  if (!keyword) return items;
-  return items.filter((item) =>
-    [item.name, item.meta, item.sql ?? '']
-      .some((field) => field.toLowerCase().includes(keyword)));
 }
 
 function makeStatementId(): string {
@@ -751,10 +813,55 @@ function countColumns(measurement: MeasurementInfo, role: string): number {
   return measurement.columns.filter((column) => column.role.toUpperCase() === role).length;
 }
 
-function refreshWorkbench(): void {
-  void reloadDbs();
-  if (targetDb.value) {
-    void loadSchema(targetDb.value);
+function measurementMeta(measurement: MeasurementInfo): string {
+  const tags = countColumns(measurement, 'TAG');
+  const fields = countColumns(measurement, 'FIELD');
+  return `${tags} TAG · ${fields} FIELD · ${measurement.columns.length} cols`;
+}
+
+function toggleGroup(key: string): void {
+  openGroups.value[key] = !openGroups.value[key];
+}
+
+function toggleDatabaseExpansion(db: string): void {
+  expandedDatabases.value = {
+    ...expandedDatabases.value,
+    [db]: !expandedDatabases.value[db],
+  };
+  if (expandedDatabases.value[db] && !hasCachedSchema(db) && db !== CONTROL_PLANE_KEY) {
+    void loadSchema(db, false, db === targetDb.value);
+  }
+}
+
+function selectDatabase(db: string): void {
+  if (db === CONTROL_PLANE_KEY && !auth.isSuperuser) return;
+  targetDb.value = db;
+  if (db !== CONTROL_PLANE_KEY) {
+    expandedDatabases.value = {
+      ...expandedDatabases.value,
+      [db]: true,
+    };
+    void loadSchema(db);
+  } else {
+    schema.value = [];
+    activeExplorerKey.value = '';
+  }
+}
+
+function selectMeasurement(db: string, measurement: MeasurementInfo): void {
+  selectDatabase(db);
+  activeExplorerKey.value = measurement.name;
+}
+
+function openMeasurement(measurement: MeasurementInfo): void {
+  setWorkbenchTool('sql');
+  setSqlDraft(buildSelectDraft(measurement, false));
+}
+
+async function refreshWorkbench(): Promise<void> {
+  await reloadDbs();
+  if (targetDb.value && targetDb.value !== CONTROL_PLANE_KEY) {
+    await loadSchema(targetDb.value, true);
   }
 }
 
@@ -772,10 +879,27 @@ async function reloadDbs(): Promise<void> {
       return;
     }
     databases.value = result.databases;
+    syncDatabaseState(result.databases);
     normalizeTarget();
   } finally {
     loadingDbs.value = false;
   }
+}
+
+function syncDatabaseState(currentDatabases: string[]): void {
+  const currentSet = new Set(currentDatabases);
+  schemaByDb.value = Object.fromEntries(
+    Object.entries(schemaByDb.value).filter(([name]) => currentSet.has(name)),
+  );
+  schemaLoadingByDb.value = Object.fromEntries(
+    Object.entries(schemaLoadingByDb.value).filter(([name]) => currentSet.has(name)),
+  );
+  schemaErrorByDb.value = Object.fromEntries(
+    Object.entries(schemaErrorByDb.value).filter(([name]) => currentSet.has(name)),
+  );
+  expandedDatabases.value = Object.fromEntries(
+    Object.entries(expandedDatabases.value).filter(([name]) => currentSet.has(name)),
+  );
 }
 
 function normalizeTarget(): void {
@@ -797,24 +921,112 @@ function normalizeTarget(): void {
   targetDb.value = databases.value[0] ?? '';
 }
 
-async function loadSchema(db: string): Promise<void> {
+async function loadSchema(db: string, force = false, syncActive = true): Promise<void> {
   if (!db || db === CONTROL_PLANE_KEY) {
-    schema.value = [];
-    activeExplorerKey.value = '';
+    if (syncActive && targetDb.value === db) {
+      schema.value = [];
+      activeExplorerKey.value = '';
+    }
     return;
   }
 
+  if (hasCachedSchema(db) && !force) {
+    if (syncActive && targetDb.value === db) {
+      schema.value = schemaByDb.value[db] ?? [];
+      const current = schema.value.find((measurement) => measurement.name === activeExplorerKey.value);
+      activeExplorerKey.value = current?.name ?? schema.value[0]?.name ?? '';
+    }
+    return;
+  }
+
+  schemaLoadingByDb.value = {
+    ...schemaLoadingByDb.value,
+    [db]: true,
+  };
+  schemaErrorByDb.value = {
+    ...schemaErrorByDb.value,
+    [db]: '',
+  };
   loadingSchema.value = true;
   try {
     const resp = await fetchSchema(auth.api, db);
-    schema.value = resp.measurements ?? [];
-    const current = schema.value.find((measurement) => measurement.name === activeExplorerKey.value);
-    activeExplorerKey.value = current?.name ?? schema.value[0]?.name ?? '';
-  } catch {
-    schema.value = [];
-    activeExplorerKey.value = '';
+    const measurements = resp.measurements ?? [];
+    schemaByDb.value = {
+      ...schemaByDb.value,
+      [db]: measurements,
+    };
+    if (syncActive && targetDb.value === db) {
+      schema.value = measurements;
+      const current = measurements.find((measurement) => measurement.name === activeExplorerKey.value);
+      activeExplorerKey.value = current?.name ?? measurements[0]?.name ?? '';
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : '加载 Schema 失败';
+    schemaErrorByDb.value = {
+      ...schemaErrorByDb.value,
+      [db]: errorMessage,
+    };
+    if (syncActive && targetDb.value === db) {
+      schema.value = [];
+      activeExplorerKey.value = '';
+    }
   } finally {
+    schemaLoadingByDb.value = {
+      ...schemaLoadingByDb.value,
+      [db]: false,
+    };
     loadingSchema.value = false;
+  }
+}
+
+async function createDatabase(): Promise<void> {
+  const name = newDatabaseName.value.trim();
+  if (!isValidIdentifier(name)) {
+    message.error('数据库名必须以字母开头，仅包含字母数字下划线。');
+    return;
+  }
+  if (!auth.isSuperuser) {
+    message.error('当前账号没有创建数据库权限。');
+    return;
+  }
+
+  databaseActionBusy.value = true;
+  try {
+    const rs = await execControlPlaneSql(auth.api, `CREATE DATABASE ${name}`);
+    if (rs.error) {
+      message.error(rs.error.message);
+      return;
+    }
+    message.success(`已创建数据库 ${name}`);
+    newDatabaseName.value = '';
+    await reloadDbs();
+    selectDatabase(name);
+  } finally {
+    databaseActionBusy.value = false;
+  }
+}
+
+async function dropActiveDatabase(): Promise<void> {
+  if (!canDropDatabase.value) return;
+  const db = targetDb.value;
+  databaseActionBusy.value = true;
+  try {
+    const rs = await execControlPlaneSql(auth.api, `DROP DATABASE ${db}`);
+    if (rs.error) {
+      message.error(rs.error.message);
+      return;
+    }
+    message.success(`已删除数据库 ${db}`);
+    schemaByDb.value = Object.fromEntries(
+      Object.entries(schemaByDb.value).filter(([name]) => name !== db),
+    );
+    await reloadDbs();
+    normalizeTarget();
+    if (targetDb.value && targetDb.value !== CONTROL_PLANE_KEY) {
+      await loadSchema(targetDb.value, true);
+    }
+  } finally {
+    databaseActionBusy.value = false;
   }
 }
 
@@ -897,26 +1109,6 @@ function buildCreateDraft(measurement: MeasurementInfo): string {
   ].join('\n');
 }
 
-function selectExplorerItem(item: ExplorerItem): void {
-  activeExplorerKey.value = item.key;
-  if (item.kind !== 'measurement' && item.sql) {
-    setSqlDraft(item.sql);
-  }
-}
-
-function openExplorerItem(item: ExplorerItem): void {
-  activeExplorerKey.value = item.key;
-  if (item.kind === 'measurement' && item.measurement) {
-    setSqlDraft(buildSelectDraft(item.measurement, false));
-  } else if (item.sql) {
-    setSqlDraft(item.sql);
-  }
-}
-
-function toggleExplorerGroup(key: string): void {
-  openGroups.value[key] = !openGroups.value[key];
-}
-
 function onEditorCursor(value: EditorCursorInfo): void {
   editorCursor.value = value;
 }
@@ -976,7 +1168,7 @@ async function executeStatements(tabId: string, statements: PlannedStatement[]):
         await reloadDbs();
       }
       if (!statement.meta && isSchemaMutating(statement.sql) && targetDb.value && targetDb.value !== CONTROL_PLANE_KEY) {
-        await loadSchema(targetDb.value);
+        await loadSchema(targetDb.value, true);
       }
 
       sqlConsole.setTabResults(tabId, [...collected], '', '', true);
@@ -1110,25 +1302,9 @@ function explainSql(): void {
 }
 
 function formatSql(): void {
-  const parts = splitSqlStatements(sql.value);
-  if (parts.length === 0) return;
-  const formatted = parts.map((statement) => formatSqlStatement(statement)).join('\n\n');
+  const formatted = formatSqlDocument(sql.value);
+  if (!formatted.trim()) return;
   setSqlDraft(formatted);
-}
-
-function formatSqlStatement(statement: string): string {
-  const tokens = statement.trim().replace(/;+\s*$/u, '').replace(/\s+/g, ' ');
-  if (!tokens) return '';
-
-  const segments = tokens
-    .replace(/\b(FROM|WHERE|GROUP BY|ORDER BY|LIMIT|OFFSET|INNER JOIN|LEFT JOIN|RIGHT JOIN|JOIN|VALUES|SET|RETURNING)\b/gi, '\n$1')
-    .replace(/,\s*/g, ',\n  ')
-    .replace(/\(\s+/g, '(')
-    .replace(/\s+\)/g, ')')
-    .split('\n')
-    .map((line, index) => (index === 0 ? line.trim() : line.trim()));
-
-  return `${segments.join('\n').trim()};`;
 }
 
 function onQuickSqlSelect(key: string | number): void {
@@ -1216,6 +1392,12 @@ function resultRowKey(row: ResultRow): number {
 }
 
 watch(targetDb, (db) => {
+  if (db && db !== CONTROL_PLANE_KEY) {
+    expandedDatabases.value = {
+      ...expandedDatabases.value,
+      [db]: true,
+    };
+  }
   void loadSchema(db);
   if (previewPlan.value && previewPlan.value.db !== db) {
     previewPlan.value = null;
@@ -1241,7 +1423,7 @@ watch(
 onMounted(async () => {
   await reloadDbs();
   if (targetDb.value && targetDb.value !== CONTROL_PLANE_KEY) {
-    await loadSchema(targetDb.value);
+    await loadSchema(targetDb.value, true);
   }
   applyPendingExecution();
 });

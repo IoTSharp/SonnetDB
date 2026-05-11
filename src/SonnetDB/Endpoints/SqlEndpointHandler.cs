@@ -203,7 +203,7 @@ internal static class SqlEndpointHandler
             object? result;
             try
             {
-                result = SqlExecutor.ExecuteStatement(tsdb, parsed, controlPlane);
+                result = SqlExecutor.ExecuteStatement(tsdb, databaseName, parsed, controlPlane);
             }
             catch (ControlPlaneAccessDeniedException ex)
             {
@@ -401,6 +401,7 @@ internal static class SqlEndpointHandler
         (SelectStatement or
         ShowMeasurementsStatement or
         DescribeMeasurementStatement or
+        ExplainStatement or
         ShowDatabasesStatement);
 
     private static void MaybePublishSlow(

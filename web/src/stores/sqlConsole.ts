@@ -93,6 +93,53 @@ function deriveTitle(sql: string, fallback: string): string {
   return text.length > 28 ? `${text.slice(0, 25)}...` : text;
 }
 
+function normalizeResultEnd(end: unknown): SqlResultSet['end'] {
+  if (!end || typeof end !== 'object') return null;
+  const value = end as Record<string, unknown>;
+  return {
+    type: 'end',
+    rowCount: typeof value.rowCount === 'number' ? value.rowCount : 0,
+    recordsAffected: typeof value.recordsAffected === 'number' ? value.recordsAffected : -1,
+    elapsedMs: typeof value.elapsedMs === 'number'
+      ? value.elapsedMs
+      : typeof value.elapsedMilliseconds === 'number'
+        ? value.elapsedMilliseconds
+        : 0,
+  };
+}
+
+function normalizeResultSet(result: Partial<SqlResultSet> | null | undefined): SqlResultSet {
+  const columns = Array.isArray(result?.columns)
+    ? result.columns.filter((column): column is string => typeof column === 'string')
+    : [];
+  const rows = Array.isArray(result?.rows)
+    ? result.rows.filter(Array.isArray) as unknown[][]
+    : [];
+  return {
+    columns,
+    rows,
+    end: normalizeResultEnd(result?.end),
+    error: typeof result?.error?.message === 'string'
+      ? {
+          code: typeof result.error?.code === 'string' ? result.error.code : undefined,
+          message: result.error.message,
+        }
+      : null,
+    hasColumns: typeof result?.hasColumns === 'boolean' ? result.hasColumns : columns.length > 0,
+  };
+}
+
+function normalizeExecutedStatement(input: Partial<SqlConsoleExecutedStatement>): SqlConsoleExecutedStatement {
+  const ts = now();
+  return {
+    id: typeof input.id === 'string' && input.id ? input.id : makeId('stmt'),
+    sql: typeof input.sql === 'string' ? input.sql : '',
+    result: normalizeResultSet(input.result),
+    createdAt: typeof input.createdAt === 'number' ? input.createdAt : ts,
+    source: input.source === 'copilot' ? 'copilot' : input.source === 'meta' ? 'meta' : 'manual',
+  };
+}
+
 function normalizeTab(input: Partial<SqlConsoleTab>, index: number): SqlConsoleTab {
   const fallback = defaultTab();
   const ts = now();
@@ -106,7 +153,9 @@ function normalizeTab(input: Partial<SqlConsoleTab>, index: number): SqlConsoleT
     title: normalizedTitle,
     db: typeof input.db === 'string' ? input.db : '',
     sql: typeof input.sql === 'string' ? normalizeStarterSql(input.sql) : '',
-    results: Array.isArray(input.results) ? input.results : [],
+    results: Array.isArray(input.results)
+      ? input.results.map((item) => normalizeExecutedStatement(item))
+      : [],
     summary: typeof input.summary === 'string' ? input.summary : '',
     errorMsg: typeof input.errorMsg === 'string' ? input.errorMsg : '',
     ranOnce: Boolean(input.ranOnce),
@@ -258,7 +307,7 @@ export const useSqlConsoleStore = defineStore('sqlConsole', () => {
     tab.results.push({
       id: makeId('stmt'),
       sql,
-      result,
+      result: normalizeResultSet(result),
       createdAt: now(),
       source,
     });

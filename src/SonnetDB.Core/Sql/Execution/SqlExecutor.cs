@@ -35,7 +35,7 @@ public static class SqlExecutor
     /// <exception cref="ArgumentNullException">任何参数为 null。</exception>
     /// <exception cref="NotSupportedException">语句类型尚未实现。</exception>
     public static object? Execute(Tsdb tsdb, string sql)
-        => Execute(tsdb, sql, controlPlane: null);
+        => Execute(tsdb, databaseName: null, sql: sql, controlPlane: null);
 
     /// <summary>
     /// 解析并执行单条 SQL 语句，可选传入控制面以支持 CREATE USER / GRANT 等 DDL。
@@ -45,12 +45,23 @@ public static class SqlExecutor
     /// <param name="controlPlane">控制面实现；为 <c>null</c> 时控制面 DDL 抛 <see cref="NotSupportedException"/>。</param>
     /// <returns>语句执行结果对象。</returns>
     public static object? Execute(Tsdb tsdb, string sql, IControlPlane? controlPlane)
+        => Execute(tsdb, databaseName: null, sql: sql, controlPlane: controlPlane);
+
+    /// <summary>
+    /// 解析并执行单条 SQL 语句，可选传入当前数据库名以便 <c>EXPLAIN</c> 结果展示。
+    /// </summary>
+    /// <param name="tsdb">目标数据库实例。</param>
+    /// <param name="databaseName">当前数据库名；嵌入式场景未知时可为 <c>null</c>。</param>
+    /// <param name="sql">单条 SQL 文本。</param>
+    /// <param name="controlPlane">控制面实现；为 <c>null</c> 时控制面 DDL 抛 <see cref="NotSupportedException"/>。</param>
+    /// <returns>语句执行结果对象。</returns>
+    public static object? Execute(Tsdb tsdb, string? databaseName, string sql, IControlPlane? controlPlane = null)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(sql);
 
         var statement = SqlParser.Parse(sql);
-        return ExecuteStatement(tsdb, statement, controlPlane);
+        return ExecuteStatement(tsdb, databaseName, statement, controlPlane);
     }
 
     /// <summary>
@@ -62,7 +73,7 @@ public static class SqlExecutor
     /// <exception cref="ArgumentNullException">任何参数为 null。</exception>
     /// <exception cref="NotSupportedException">语句类型尚未实现。</exception>
     public static object? ExecuteStatement(Tsdb tsdb, SqlStatement statement)
-        => ExecuteStatement(tsdb, statement, controlPlane: null);
+        => ExecuteStatement(tsdb, databaseName: null, statement: statement, controlPlane: null);
 
     /// <summary>
     /// 执行一条已解析的 SQL 语句，可选传入控制面以支持控制面 DDL。
@@ -71,6 +82,16 @@ public static class SqlExecutor
     /// <param name="statement">已解析的语句 AST。</param>
     /// <param name="controlPlane">控制面实现；为 <c>null</c> 时控制面 DDL 抛 <see cref="NotSupportedException"/>。</param>
     public static object? ExecuteStatement(Tsdb tsdb, SqlStatement statement, IControlPlane? controlPlane)
+        => ExecuteStatement(tsdb, databaseName: null, statement: statement, controlPlane: controlPlane);
+
+    /// <summary>
+    /// 执行一条已解析的 SQL 语句，可选传入当前数据库名以便 <c>EXPLAIN</c> 结果展示。
+    /// </summary>
+    /// <param name="tsdb">目标数据库实例。</param>
+    /// <param name="databaseName">当前数据库名；嵌入式场景未知时可为 <c>null</c>。</param>
+    /// <param name="statement">已解析的语句 AST。</param>
+    /// <param name="controlPlane">控制面实现；为 <c>null</c> 时控制面 DDL 抛 <see cref="NotSupportedException"/>。</param>
+    public static object? ExecuteStatement(Tsdb tsdb, string? databaseName, SqlStatement statement, IControlPlane? controlPlane = null)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
@@ -83,6 +104,7 @@ public static class SqlExecutor
             DeleteStatement delete => ExecuteDelete(tsdb, delete),
             ShowMeasurementsStatement => ShowMeasurements(tsdb),
             DescribeMeasurementStatement describe => DescribeMeasurement(tsdb, describe.Name),
+            ExplainStatement explain => ExecuteExplain(tsdb, databaseName, explain),
             CreateUserStatement createUser => ExecuteControlPlane(controlPlane,
                 cp => { cp.CreateUser(createUser.UserName, createUser.Password, createUser.IsSuperuser); return (object)1; }),
             AlterUserPasswordStatement alterUser => ExecuteControlPlane(controlPlane,
@@ -107,6 +129,12 @@ public static class SqlExecutor
             _ => throw new NotSupportedException(
                 $"SQL 语句类型 '{statement.GetType().Name}' 尚未实现。"),
         };
+    }
+
+    private static SelectExecutionResult ExecuteExplain(Tsdb tsdb, string? databaseName, ExplainStatement statement)
+    {
+        var explain = SqlExplainPlanner.Explain(databaseName, tsdb, statement.Statement);
+        return SqlExplainPlanner.ToSelectExecutionResult(explain);
     }
 
     private static SelectExecutionResult ShowMeasurements(Tsdb tsdb)

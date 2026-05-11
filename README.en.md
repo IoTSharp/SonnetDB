@@ -55,7 +55,7 @@ SonnetDB is a time-series database for IoT, industrial telemetry, observability,
 - 🗺️ GeoSpatial stack: `GEOPOINT`, trajectory analytics, geo filters, GeoJSON output
 - 🔐 Control-plane SQL for users, databases, grants, and tokens
 - 🧪 Continuous benchmarks against InfluxDB, TDengine, IoTDB, TimescaleDB, SQLite, and LiteDB
-- 🛠️ Web Admin Workbench: Schema Explorer, SQL Editor, staged preview, Result Grid, with Copilot kept as the original global floating dock
+- 🛠️ Web Admin Workbench: Schema Explorer database tree, SQL Editor, staged preview, Result Grid, Trajectory mode switching, with Copilot kept as the original global floating dock
 
 ## � Why SonnetDB
 
@@ -194,6 +194,8 @@ Data-plane SQL currently supported:
 - `INSERT INTO ... VALUES (...)`
 - `SELECT ... FROM ... [WHERE ...] [GROUP BY time(...)]`
 - `DELETE FROM ... WHERE ...`
+- `SHOW MEASUREMENTS` / `SHOW TABLES` / `DESCRIBE [MEASUREMENT] <name>`
+- `EXPLAIN <read-only statement>` (currently supports `SELECT`, `SHOW MEASUREMENTS` / `SHOW TABLES`, and `DESCRIBE [MEASUREMENT]`)
 
 ### Built-in SQL functions
 
