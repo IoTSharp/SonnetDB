@@ -41,7 +41,7 @@
         </n-space>
       </n-layout-header>
 
-      <n-layout-content content-style="padding:24px;">
+      <n-layout-content :content-style="contentStyle">
         <router-view v-slot="{ Component }">
           <KeepAlive include="SqlConsoleView">
             <component :is="Component" />
@@ -85,7 +85,7 @@ const route = useRoute();
 
 const baseMenu: MenuOption[] = [
   { label: '概览', key: 'dashboard' },
-  { label: 'SQL Console', key: 'sql' },
+  { label: 'Workbench', key: 'sql' },
   { label: '轨迹地图', key: 'trajectory-map' },
   { label: '数据库', key: 'databases' },
   { label: '事件流', key: 'events' },
@@ -104,7 +104,7 @@ const menuOptions = computed<MenuOption[]>(() => (
 
 const titleByKey: Record<string, string> = {
   dashboard: '概览',
-  sql: 'SQL Console',
+  sql: 'Workbench',
   'trajectory-map': '轨迹地图',
   databases: '数据库',
   events: '事件流',
@@ -116,6 +116,9 @@ const titleByKey: Record<string, string> = {
 
 const activeKey = computed(() => (route.name as string | undefined) ?? 'dashboard');
 const activeTitle = computed(() => titleByKey[activeKey.value] ?? '');
+const contentStyle = computed(() => (activeKey.value === 'sql'
+  ? 'padding:16px 16px 18px;'
+  : 'padding:24px;'));
 
 const liveLabel = computed(() => {
   switch (events.status) {

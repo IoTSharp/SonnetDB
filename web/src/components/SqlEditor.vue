@@ -16,6 +16,7 @@ import { SonnetDbSQL } from './sonnetdb-dialect';
 
 export interface ColumnInfo { name: string; role: string; dataType: string; }
 export interface MeasurementInfo { name: string; columns: ColumnInfo[]; }
+export interface CursorInfo { line: number; column: number; position: number; length: number; }
 
 const props = defineProps<{
   modelValue: string;
@@ -25,6 +26,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:modelValue', v: string): void;
+  (e: 'cursor', v: CursorInfo): void;
 }>();
 
 const editorContainer = ref<HTMLElement | null>(null);
@@ -39,7 +41,22 @@ function buildSqlSchema(measurements?: MeasurementInfo[]) {
   return tables;
 }
 
-function createView(el: HTMLElement) {
+function getCursorInfo(editor: EditorView): CursorInfo {
+  const position = editor.state.selection.main.head;
+  const line = editor.state.doc.lineAt(position);
+  return {
+    line: line.number,
+    column: position - line.from + 1,
+    position,
+    length: editor.state.doc.length,
+  };
+}
+
+function emitCursor(editor: EditorView): void {
+  emit('cursor', getCursorInfo(editor));
+}
+
+function createView(el: HTMLElement, initialDoc = props.modelValue) {
   const tables = buildSqlSchema(props.schema);
   const sqlLang = sql({
     dialect: SonnetDbSQL,
@@ -48,7 +65,7 @@ function createView(el: HTMLElement) {
   });
 
   const startState = EditorState.create({
-    doc: props.modelValue,
+    doc: initialDoc,
     extensions: [
       lineNumbers(),
       history(),
@@ -68,17 +85,20 @@ function createView(el: HTMLElement) {
         if (update.docChanged) {
           emit('update:modelValue', update.state.doc.toString());
         }
+        if (update.docChanged || update.selectionSet) {
+          emitCursor(update.view);
+        }
       }),
       EditorView.theme({
         '&': {
-          minHeight: '120px',
-          maxHeight: '400px',
+          minHeight: '100%',
+          height: '100%',
           border: '1px solid #e0e0e6',
-          borderRadius: '3px',
+          borderRadius: '0',
           fontSize: '13px',
           fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace',
         },
-        '.cm-scroller': { overflow: 'auto' },
+        '.cm-scroller': { overflow: 'auto', minHeight: '100%' },
         '.cm-content': { padding: '8px 0' },
         '.cm-focused': { outline: 'none' },
         '&.cm-focused': { borderColor: '#18a058' },
@@ -87,6 +107,7 @@ function createView(el: HTMLElement) {
   });
 
   view = new EditorView({ state: startState, parent: el });
+  emitCursor(view);
 }
 
 onMounted(() => {
@@ -121,12 +142,7 @@ watch(
     if (!editorContainer.value) return;
     const content = view?.state.doc.toString() ?? '';
     view?.destroy();
-    createView(editorContainer.value);
-    if (content) {
-      view?.dispatch({
-        changes: { from: 0, to: 0, insert: content },
-      });
-    }
+    createView(editorContainer.value, content);
   },
   { deep: true },
 );
@@ -135,5 +151,6 @@ watch(
 <style scoped>
 .sql-editor {
   width: 100%;
+  height: 100%;
 }
 </style>

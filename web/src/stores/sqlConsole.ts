@@ -6,6 +6,7 @@ export const CONTROL_PLANE_KEY = '__control_plane__';
 
 const STORAGE_KEY = 'sndb.sql.console.tabs.v1';
 const MaxTabs = 30;
+const DefaultStarterSql = ['SHOW MEASUREMENTS', 'SHOW DATABASES'];
 
 export interface PendingSqlExecution {
   db: string;
@@ -54,7 +55,7 @@ function defaultTab(): SqlConsoleTab {
   const ts = now();
   return {
     id: makeId('sqltab'),
-    title: '查询 1',
+    title: 'SQL 1',
     db: '',
     sql: 'SHOW DATABASES',
     results: [],
@@ -71,6 +72,21 @@ function defaultDataPlaneSql(db: string): string {
   return db ? 'SHOW MEASUREMENTS' : '';
 }
 
+function normalizeStarterSql(sql: string): string {
+  const compact = sql.replace(/[\s;]+/g, '').toUpperCase();
+  if (!compact) return sql;
+
+  for (const starter of DefaultStarterSql) {
+    const token = starter.replace(/\s+/g, '').toUpperCase();
+    const repeatCount = compact.length / token.length;
+    if (repeatCount >= 2 && Number.isInteger(repeatCount) && compact === token.repeat(repeatCount)) {
+      return starter;
+    }
+  }
+
+  return sql;
+}
+
 function deriveTitle(sql: string, fallback: string): string {
   const text = sql.replace(/\s+/g, ' ').trim();
   if (!text) return fallback;
@@ -80,13 +96,16 @@ function deriveTitle(sql: string, fallback: string): string {
 function normalizeTab(input: Partial<SqlConsoleTab>, index: number): SqlConsoleTab {
   const fallback = defaultTab();
   const ts = now();
+  const normalizedTitle = typeof input.title === 'string' && input.title
+    ? input.title.replace(/^查询\s+/u, 'SQL ')
+    : `SQL ${index + 1}`;
   return {
     ...fallback,
     ...input,
     id: typeof input.id === 'string' && input.id ? input.id : makeId('sqltab'),
-    title: typeof input.title === 'string' && input.title ? input.title : `查询 ${index + 1}`,
+    title: normalizedTitle,
     db: typeof input.db === 'string' ? input.db : '',
-    sql: typeof input.sql === 'string' ? input.sql : '',
+    sql: typeof input.sql === 'string' ? normalizeStarterSql(input.sql) : '',
     results: Array.isArray(input.results) ? input.results : [],
     summary: typeof input.summary === 'string' ? input.summary : '',
     errorMsg: typeof input.errorMsg === 'string' ? input.errorMsg : '',
@@ -161,9 +180,9 @@ export const useSqlConsoleStore = defineStore('sqlConsole', () => {
     const ts = now();
     const tab: SqlConsoleTab = {
       id: options.id ?? makeId('sqltab'),
-      title: options.title ?? deriveTitle(options.sql ?? '', `查询 ${tabs.value.length + 1}`),
+      title: options.title ?? deriveTitle(options.sql ?? '', `SQL ${tabs.value.length + 1}`),
       db: options.db ?? activeTab.value?.db ?? '',
-      sql: options.sql ?? '',
+      sql: normalizeStarterSql(options.sql ?? ''),
       results: options.results ?? [],
       summary: options.summary ?? '',
       errorMsg: options.errorMsg ?? '',
@@ -202,7 +221,11 @@ export const useSqlConsoleStore = defineStore('sqlConsole', () => {
   function patchTab(id: string, patch: Partial<Omit<SqlConsoleTab, 'id' | 'createdAt'>>): void {
     const tab = tabs.value.find((item) => item.id === id);
     if (!tab) return;
-    Object.assign(tab, patch, { updatedAt: now() });
+    const nextPatch = { ...patch };
+    if (typeof nextPatch.sql === 'string') {
+      nextPatch.sql = normalizeStarterSql(nextPatch.sql);
+    }
+    Object.assign(tab, nextPatch, { updatedAt: now() });
   }
 
   function patchActiveTab(patch: Partial<Omit<SqlConsoleTab, 'id' | 'createdAt'>>): void {
@@ -260,7 +283,7 @@ export const useSqlConsoleStore = defineStore('sqlConsole', () => {
       if (tab.db !== CONTROL_PLANE_KEY) continue;
 
       Object.assign(tab, {
-        title: `查询 ${i + 1}`,
+        title: `SQL ${i + 1}`,
         db: safeFallbackDb,
         sql: defaultDataPlaneSql(safeFallbackDb),
         results: [],
@@ -278,7 +301,7 @@ export const useSqlConsoleStore = defineStore('sqlConsole', () => {
 
   function queueExecution(execution: PendingSqlExecution): void {
     const tab = createTab({
-      title: execution.title ?? deriveTitle(execution.sql, `查询 ${tabs.value.length + 1}`),
+      title: execution.title ?? deriveTitle(execution.sql, `SQL ${tabs.value.length + 1}`),
       db: execution.db,
       sql: execution.sql,
       source: 'manual',
