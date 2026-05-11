@@ -49,15 +49,7 @@
       <aside class="schema-sidebar">
         <div class="schema-toolbar">
           <div v-if="auth.isSuperuser" class="schema-toolbar__create">
-            <n-input
-              v-model:value="newDatabaseName"
-              size="small"
-              clearable
-              placeholder="new database"
-              class="schema-toolbar__create-input"
-              @keyup.enter="createDatabase"
-            />
-            <n-button size="small" type="primary" :loading="databaseActionBusy" :disabled="!canCreateDatabase" @click="createDatabase">
+            <n-button size="small" type="primary" :loading="databaseActionBusy" @click="openCreateDatabaseDialog">
               Create
             </n-button>
             <n-popconfirm
@@ -87,6 +79,46 @@
             />
           </div>
         </div>
+
+        <n-modal
+          v-model:show="showCreateDatabaseDialog"
+          :mask-closable="!databaseActionBusy"
+          :close-on-esc="!databaseActionBusy"
+        >
+          <n-card
+            title="Create database"
+            :bordered="false"
+            size="small"
+            class="create-database-dialog"
+            role="dialog"
+            aria-modal="true"
+          >
+            <n-space vertical :size="12">
+              <n-text depth="3">Enter a valid database name, then confirm to create it.</n-text>
+              <n-input
+                v-model:value="newDatabaseName"
+                size="small"
+                clearable
+                placeholder="new database"
+                autofocus
+                @keyup.enter="createDatabase"
+              />
+              <n-space justify="end">
+                <n-button tertiary :disabled="databaseActionBusy" @click="closeCreateDatabaseDialog">
+                  Cancel
+                </n-button>
+                <n-button
+                  type="primary"
+                  :loading="databaseActionBusy"
+                  :disabled="!canCreateDatabase"
+                  @click="createDatabase"
+                >
+                  Create
+                </n-button>
+              </n-space>
+            </n-space>
+          </n-card>
+        </n-modal>
 
         <n-scrollbar class="schema-tree">
           <n-alert v-if="databaseTree.length === 0" type="info" :show-icon="false" class="schema-empty-note">
@@ -273,8 +305,8 @@
                   placeholder="Search result"
                   class="result-search"
                 />
-                <n-button size="small" quaternary title="Copy visible rows as CSV" :disabled="!latestResultSet?.hasColumns" @click="copyVisibleResults">⧉</n-button>
-                <n-button size="small" quaternary title="Export visible rows as CSV" :disabled="!latestResultSet?.hasColumns" @click="downloadVisibleResults">⇩</n-button>
+                <n-button size="small" quaternary title="Copy result set as CSV" :disabled="!latestResultSet?.hasColumns" @click="copyVisibleResults">⧉</n-button>
+                <n-button size="small" quaternary title="Export result set as CSV" :disabled="!latestResultSet?.hasColumns" @click="downloadVisibleResults">⇩</n-button>
               </div>
             </div>
 
@@ -294,14 +326,13 @@
                 class="result-alert"
               />
 
-              <n-data-table
+              <SqlResultPanel
                 v-else-if="latestResultSet?.hasColumns"
-                :columns="resultColumns"
-                :data="filteredResultRows"
-                :row-key="resultRowKey"
-                size="small"
-                :bordered="false"
-                :max-height="420"
+                class="result-panel"
+                :index="0"
+                :sql="latestResultItem?.sql ?? ''"
+                :result="latestResultSet"
+                :display-rows="displayedResultRows"
               />
 
               <n-empty v-else-if="ranOnce" description="Statement executed without rows." />
@@ -330,15 +361,16 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import type { DataTableColumns, DropdownOption } from 'naive-ui';
+import type { DropdownOption } from 'naive-ui';
 import {
   NAlert,
   NButton,
   NCheckbox,
-  NDataTable,
+  NCard,
   NDropdown,
   NEmpty,
   NInput,
+  NModal,
   NPopconfirm,
   NScrollbar,
   NSpace,
@@ -364,6 +396,7 @@ import { listDatabases } from '@/api/server';
 import { fetchSchema, type MeasurementInfo } from '@/api/schema';
 import { formatSqlDocument } from '@/api/sqlFormat';
 import SqlEditor from '@/components/SqlEditor.vue';
+import SqlResultPanel from '@/components/SqlResultPanel.vue';
 import TrajectoryMap from '@/views/TrajectoryMap.vue';
 import {
   CONTROL_PLANE_KEY,
@@ -435,6 +468,7 @@ const schemaLoadingByDb = ref<Record<string, boolean>>({});
 const schemaErrorByDb = ref<Record<string, string>>({});
 const schemaFilter = ref('');
 const newDatabaseName = ref('');
+const showCreateDatabaseDialog = ref(false);
 const databaseActionBusy = ref(false);
 const expandedDatabases = ref<Record<string, boolean>>({});
 const loadingDbs = ref(false);
@@ -606,21 +640,17 @@ const latestResultRows = computed<ResultRow[]>(() => {
     .map((row, index) => ({ __rowIndex: index, ...row }));
 });
 
-const filteredResultRows = computed(() => {
+const filteredResultRows = computed<ResultRow[]>(() => {
   const keyword = resultFilter.value.trim().toLowerCase();
   if (!keyword) return latestResultRows.value;
   return latestResultRows.value.filter((row) =>
     Object.values(row).some((value) => stringifyValue(value).includes(keyword)));
 });
 
-const resultColumns = computed<DataTableColumns<ResultRow>>(() => {
-  const cols = latestResultSet.value?.columns ?? [];
-  return cols.map((column) => ({
-    title: column,
-    key: column,
-    ellipsis: { tooltip: true },
-    minWidth: Math.max(120, column.length * 10),
-  }));
+const displayedResultRows = computed(() => {
+  if (!latestResultSet.value?.hasColumns) return [];
+  const columns = latestResultSet.value.columns;
+  return filteredResultRows.value.map((row) => columns.map((column) => row[column]));
 });
 
 const resultHeaderText = computed(() => {
@@ -819,6 +849,18 @@ function measurementMeta(measurement: MeasurementInfo): string {
   return `${tags} TAG · ${fields} FIELD · ${measurement.columns.length} cols`;
 }
 
+function openCreateDatabaseDialog(): void {
+  if (!auth.isSuperuser || databaseActionBusy.value) return;
+  newDatabaseName.value = '';
+  showCreateDatabaseDialog.value = true;
+}
+
+function closeCreateDatabaseDialog(): void {
+  if (databaseActionBusy.value) return;
+  showCreateDatabaseDialog.value = false;
+  newDatabaseName.value = '';
+}
+
 function toggleGroup(key: string): void {
   openGroups.value[key] = !openGroups.value[key];
 }
@@ -999,6 +1041,7 @@ async function createDatabase(): Promise<void> {
     }
     message.success(`已创建数据库 ${name}`);
     newDatabaseName.value = '';
+    showCreateDatabaseDialog.value = false;
     await reloadDbs();
     selectDatabase(name);
   } finally {
@@ -1385,10 +1428,6 @@ function buildCsv(rows: ResultRow[], columns: string[]): string {
     ...rows.map((row) => columns.map((column) => escape(row[column])).join(',')),
   ];
   return `${lines.join('\n')}\n`;
-}
-
-function resultRowKey(row: ResultRow): number {
-  return row.__rowIndex;
 }
 
 watch(targetDb, (db) => {
@@ -1789,6 +1828,10 @@ onMounted(async () => {
   letter-spacing: 0.04em;
 }
 
+.create-database-dialog {
+  width: min(440px, calc(100vw - 32px));
+}
+
 .schema-search {
   padding: 8px 10px;
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
@@ -2112,18 +2155,10 @@ onMounted(async () => {
   flex-wrap: wrap;
 }
 
-.result-search {
-  width: 240px;
-}
-
 .result-grid {
   flex: 1;
   min-height: 0;
   overflow: auto;
-}
-
-.result-grid :deep(.n-data-table) {
-  border-radius: 0;
 }
 
 .result-grid :deep(.n-empty) {
@@ -2131,6 +2166,10 @@ onMounted(async () => {
 }
 
 .result-alert {
+  margin: 12px;
+}
+
+.result-panel {
   margin: 12px;
 }
 
@@ -2172,10 +2211,6 @@ onMounted(async () => {
   .result-toolbar {
     flex-direction: column;
     align-items: stretch;
-  }
-
-  .result-search {
-    width: 100%;
   }
 
   .workbench-context__badges {
