@@ -11,9 +11,10 @@ SonnetDB 在 Milestone 15 支持 `GEOPOINT` 字段、地理空间标量函数、
 | 经纬度提取 | `lat(position)`, `lon(position)` | 返回 `FLOAT64`。 |
 | 距离 / 方位 | `geo_distance`, `geo_bearing` | Haversine 距离（米）与 0–360° 方位角。 |
 | 围栏过滤 | `geo_within`, `geo_bbox` | 圆形 / 矩形空间过滤，支持 PostGIS 风格别名。 |
+| 坐标系转换 | `geo_transform`, `geo_wgs84_to_gcj02`, `geo_gcj02_to_wgs84`, `geo_gcj02_to_bd09`, `geo_bd09_to_gcj02`, `geo_wgs84_to_bd09`, `geo_bd09_to_wgs84` | WGS84 / GCJ-02 / BD-09 互转，支持 `GPS` / `AMap` / `Tencent` / `Baidu` 别名。 |
 | 轨迹聚合 | `trajectory_length`, `trajectory_centroid`, `trajectory_speed_*` | 支持总路程、重心、速度统计与时间桶聚合。 |
 | GeoJSON 输出 | HTTP ndjson / `/trajectory` | Point 输出遵循 GeoJSON `[lon, lat]` 顺序。 |
-| Web Admin | 轨迹地图 / SQL Console 地图视图 | MapLibre GL + OSM 瓦片，可展示轨迹、散点与回放。 |
+| Web Admin | 轨迹地图 / SQL Console 地图视图 | MapLibre GL + OSM / 高德 / 腾讯 / 百度瓦片，可展示轨迹、散点与回放，并支持按数据坐标系自动投影。 |
 | 查询加速 | geohash block pruning | `geo_within` / `geo_bbox` 字面量谓词下跳过不相交 block。 |
 
 ## GEOPOINT 建模
@@ -36,8 +37,26 @@ INSERT INTO vehicle (time, device, trip, position, speed, altitude) VALUES
 
 - SQL `POINT(lat, lon)` 使用 **纬度在前、经度在后**。
 - GeoJSON / MapLibre 使用标准坐标顺序 `[lon, lat]`。
+- SonnetDB 内部 `GEOPOINT`、轨迹 REST 输出和 SQL Console 预览统一使用 WGS84；如果底图使用高德 / 腾讯 / 百度，可以在前端选择 `GCJ-02` 或 `BD-09` 作为数据坐标系。
 - 设备、车辆、用户、行程等低基数维度建议放在 `TAG`。
 - 速度、海拔、电量等随时间变化的采样值建议放在 `FIELD`。
+
+## 坐标系转换
+
+```sql
+SELECT
+  geo_wgs84_to_gcj02(position) AS gcj02_position,
+  geo_gcj02_to_wgs84(geo_wgs84_to_gcj02(position)) AS roundtrip_wgs84,
+  geo_wgs84_to_bd09(position) AS bd09_position,
+  geo_transform(position, 'gps', 'baidu') AS bd09_alias
+FROM vehicle
+WHERE device = 'car-1';
+```
+
+- `geo_transform(point, from, to)` 是通用入口，`from` / `to` 支持 `WGS84`、`GCJ02`、`BD09` 以及 `GPS` / `AMap` / `Tencent` / `Baidu` 别名。
+- `geo_wgs84_to_gcj02` / `geo_gcj02_to_wgs84` 适合国内地图底图与原始 WGS84 数据互转。
+- `geo_gcj02_to_bd09` / `geo_bd09_to_gcj02` 适合高德 / 腾讯 / 百度之间的底图适配。
+- `geo_wgs84_to_bd09` / `geo_bd09_to_wgs84` 提供 WGS84 与百度坐标的直接转换。
 
 ## 空间过滤
 
@@ -122,8 +141,9 @@ GET /v1/db/fleet/geo/vehicle/trajectory?device=truck-01&format=linestring
 
 1. 选择数据库与含 `GEOPOINT` 字段的 Measurement。
 2. 选择 `GEOPOINT` 字段、时间范围和 TAG 过滤。
-3. 点击“加载轨迹”。
-4. 右侧地图展示 OSM 底图、轨迹线、起终点标记；底部时间轴可逐帧回放，并联动速度折线图。
+3. 在“瓦片服务商”下拉框里切换 OSM / 高德 / 腾讯 / 百度。
+4. 点击“加载轨迹”。
+5. 右侧地图展示轨迹线、起终点标记；底部时间轴可逐帧回放，并联动速度折线图。
 
 ### SQL Console 地图视图（PR #75）
 
@@ -138,6 +158,7 @@ WHERE trip = 'trip-a';
 - 未选择时间列时以散点展示。
 - 选择 `time` / `timestamp` 列后按时间排序连线。
 - 可选择低基数字符串 / 数值列作为分组列，展示多设备轨迹对比。
+- 可在“瓦片”下拉框切换 OSM / 高德 / 腾讯 / 百度；在“数据坐标”下拉框切换 WGS84 / GCJ-02 / BD-09。
 - “图表”视图会自动识别 `time` 作为 x 轴，并将数值字段作为 y 轴 series。
 
 ## PR #76 Geohash 段内剪枝

@@ -792,6 +792,25 @@ SELECT
 FROM vehicle WHERE device = 'car-1'
 LIMIT 1;
 
+-- 10-4b 坐标系转换函数（WGS84 / GCJ-02 / BD-09）
+SELECT
+    geo_wgs84_to_gcj02(position) AS gcj02_position,
+    geo_gcj02_to_wgs84(geo_wgs84_to_gcj02(position)) AS roundtrip_wgs84,
+    geo_wgs84_to_bd09(position) AS bd09_position,
+    geo_bd09_to_wgs84(geo_wgs84_to_bd09(position)) AS roundtrip_wgs84_from_bd09
+FROM vehicle
+WHERE device = 'car-1'
+LIMIT 1;
+
+-- 10-4c 通用坐标系转换接口（支持 GPS / AMap / Tencent / Baidu 别名）
+SELECT
+    geo_transform(position, 'gps', 'gcj02') AS gps_to_gcj02,
+    geo_transform(position, 'gcj02', 'wgs84') AS gcj02_to_wgs84,
+    geo_transform(position, 'wgs84', 'baidu') AS wgs84_to_bd09
+FROM vehicle
+WHERE device = 'car-1'
+LIMIT 1;
+
 -- 10-5  ST_ 兼容别名（ST_Distance / ST_Within / ST_DWithin，方便从 PostGIS 迁移）
 SELECT
     ST_Distance(position, POINT(39.9042, 116.4074)) AS dist_from_beijing_m,
@@ -857,6 +876,11 @@ GROUP BY time(2m);
 SELECT trajectory_length(position) AS length_in_east_china_m
 FROM vehicle
 WHERE geo_bbox(position, 30.0, 113.0, 35.0, 122.0);
+
+-- 10-15 SQL Console 地图预览测试：position 需可读、地图可切换瓦片服务商
+SELECT time, device, position, speed
+FROM vehicle
+LIMIT 100;
 
 
 -- ============================================================

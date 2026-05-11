@@ -2,6 +2,20 @@
   <div class="result-map" v-if="mapReady">
     <div class="result-map__toolbar">
       <n-space size="small" align="center" :wrap="true">
+        <span class="result-map__label">瓦片：</span>
+        <n-select
+          size="small"
+          style="min-width: 180px"
+          v-model:value="providerId"
+          :options="providerOptions"
+        />
+        <span class="result-map__label">数据坐标：</span>
+        <n-select
+          size="small"
+          style="min-width: 120px"
+          v-model:value="sourceProjection"
+          :options="sourceProjectionOptions"
+        />
         <span class="result-map__label">坐标列：</span>
         <n-select size="small" style="min-width: 160px" v-model:value="geoColumn" :options="geoOptions" />
         <span class="result-map__label" v-if="timeOptions.length > 0">时间列：</span>
@@ -39,6 +53,8 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { NSelect, NSpace, NTag, NText, type SelectOption } from 'naive-ui';
 import maplibregl, { type GeoJSONSource, type LngLatBoundsLike, type Map as MapLibreMap } from 'maplibre-gl';
+import { useMapTileSettings } from '@/composables/useMapTileSettings';
+import { transformGeoPoint } from '@/utils/geoTransforms';
 import { parseGeoPointValue } from '@/utils/sqlValue';
 
 interface Props {
@@ -60,6 +76,14 @@ const mapEl = ref<HTMLDivElement | null>(null);
 const geoColumn = ref('');
 const timeColumn = ref<string | null>(null);
 const groupColumn = ref<string | null>(null);
+const {
+  providerId,
+  sourceProjection,
+  provider,
+  providerOptions,
+  sourceProjectionOptions,
+  mapStyle,
+} = useMapTileSettings();
 let map: MapLibreMap | null = null;
 let resizeObserver: ResizeObserver | null = null;
 
@@ -105,8 +129,9 @@ function buildPoints(): MapPoint[] {
   return props.rows.flatMap((row, index) => {
     const point = parseGeoPointValue(row[geoColumn.value]);
     if (!point) return [];
+    const projected = transformGeoPoint(point, sourceProjection.value, provider.value.projection);
     return [{
-      ...point,
+      ...projected,
       time: timeColumn.value ? parseTime(row[timeColumn.value]) : index,
       group: groupColumn.value ? String(row[groupColumn.value] ?? 'null') : '结果轨迹',
     }];
@@ -117,18 +142,7 @@ function initMap(): void {
   if (!mapEl.value || map) return;
   map = new maplibregl.Map({
     container: mapEl.value,
-    style: {
-      version: 8,
-      sources: {
-        osm: {
-          type: 'raster',
-          tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-          tileSize: 256,
-          attribution: '© OpenStreetMap contributors',
-        },
-      },
-      layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
-    },
+    style: mapStyle.value,
     center: [116.397, 39.908],
     zoom: 3,
   });
@@ -224,6 +238,12 @@ watch([geoColumn, timeColumn, groupColumn, points], async () => {
   await nextTick();
   if (mapReady.value) initMap();
   renderMap();
+});
+
+watch(providerId, () => {
+  if (!map) return;
+  map.once('style.load', renderMap);
+  map.setStyle(mapStyle.value);
 });
 
 onMounted(() => {

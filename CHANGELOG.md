@@ -6,6 +6,7 @@
 ## [Unreleased]
 
 ### Added
+- **地理坐标系转换与国内瓦片切换**：Web Admin 的轨迹地图和 SQL Console 地图视图现支持 OSM / 高德 / 腾讯 / 百度瓦片下拉切换；SQL 内置 `geo_transform` 以及 `geo_wgs84_to_gcj02`、`geo_gcj02_to_wgs84`、`geo_gcj02_to_bd09`、`geo_bd09_to_gcj02`、`geo_wgs84_to_bd09`、`geo_bd09_to_wgs84` 等坐标系转换函数，并在结果区按当前底图投影自动重投影 `GEOPOINT`。
 - **数据库创建独立对话框**：`web/src/views/SqlConsoleView.vue` 的 Create Database 动作改为先弹出独立对话框，再输入名称并确认创建，避免在侧边栏中直接编辑数据库名。
 - **SQL Console 结果区三视图升级**：`web/src/views/SqlConsoleView.vue` 现直接复用 `SqlResultPanel.vue` 作为结果展示卡片，结果区可在表格 / 图表 / 轨迹地图之间切换；`SqlResultChart.vue` 继续提供时间轴和值轴下拉选择，带明显时间列和数值列的结果会优先默认进入图表视图。
 - **SonnetDB Workbench 首版**：Web Admin 的 `/admin/app/sql` 现已升级为 Workbench，按 Schema Explorer / SQL Editor / Staged Preview / Result Grid 组织布局；继续复用 `GET /v1/db`、`GET /v1/db/{db}/schema`、`POST /v1/db/{db}/sql` 与现有 Copilot stream 协议。写操作会先进入 staged preview，`DELETE` / `DROP` / `GRANT` / `REVOKE` / `USER` / `TOKEN` 类危险操作需要用户勾选确认；Copilot 仍保持右下角全局浮窗，不新增工作台内专栏。
