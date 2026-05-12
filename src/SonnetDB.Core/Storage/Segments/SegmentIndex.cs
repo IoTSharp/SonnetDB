@@ -129,11 +129,18 @@ public sealed class SegmentIndex
     }
 
     /// <summary>
-    /// 测试专用工厂：从一组合成的 <see cref="BlockDescriptor"/> 直接构造 <see cref="SegmentIndex"/>，
-    /// 跳过文件 IO；用于覆盖压缩产生重叠 Block 等难以通过单一 MemTable 复现的场景。
+    /// 测试专用工厂：直接从一组合成的 <see cref="BlockDescriptor"/> 构造 <see cref="SegmentIndex"/>，
+    /// 跳过 <see cref="Build(SegmentReader, long)"/> 所需的段文件 IO 与 <see cref="SegmentReader"/> 实例。
+    /// 用于覆盖单一 <c>MemTable</c> 难以复现的场景，最典型的是压缩（compaction）后产生的
+    /// <c>MaxTimestamp</c> 非单调（block 间时间区间相互重叠）的 (series, field) 桶——
+    /// 这种分布会触发 <see cref="GetBlocks(ulong, string, long, long)"/> 中 prefix-max 二分定位下界后
+    /// 的 <c>MaxTimestamp &gt;= from</c> 微扫描分支。
+    /// 该方法不校验 <paramref name="blocks"/> 元素的内部一致性（如 <c>Index</c> 是否唯一、
+    /// <c>MinTimestamp &lt;= MaxTimestamp</c> 等），与 <see cref="Build(SegmentReader, long)"/>
+    /// 一样仅按 <c>MinTimestamp</c> 升序排序输入并构建 prefix-max 数组。
     /// </summary>
     /// <param name="segmentId">所属段唯一标识符。</param>
-    /// <param name="segmentPath">所属段的文件路径（仅作为属性回填，不要求存在）。</param>
+    /// <param name="segmentPath">所属段的文件路径（仅作为属性回填，不要求文件实际存在）。</param>
     /// <param name="blocks">合成的 Block 列表（无需预先排序）。</param>
     internal static SegmentIndex BuildFromBlocksForTesting(
         long segmentId,
