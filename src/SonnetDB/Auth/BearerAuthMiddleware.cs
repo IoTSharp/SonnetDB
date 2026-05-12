@@ -64,23 +64,26 @@ public static class BearerAuthMiddleware
 
         var header = context.Request.Headers.Authorization.ToString();
         string token;
-        if (string.IsNullOrEmpty(header) || !header.StartsWith("Bearer ", StringComparison.Ordinal))
+        if (!string.IsNullOrEmpty(header) && header.StartsWith("Bearer ", StringComparison.Ordinal))
+        {
+            token = header["Bearer ".Length..].Trim();
+        }
+        else if (!string.IsNullOrEmpty(header) && header.StartsWith("Token ", StringComparison.Ordinal))
+        {
+            // InfluxDB v2 客户端（influx CLI / Telegraf influxdb_v2 output）使用 `Authorization: Token <token>`，
+            // 这里作为 Bearer 的语义等价别名接受，方便 `/write` 与 `/api/v2/write` 直接对接生态工具。
+            token = header["Token ".Length..].Trim();
+        }
+        else if (path.Equals("/v1/events", StringComparison.Ordinal)
+            && context.Request.Query.TryGetValue("access_token", out var qsToken)
+            && !string.IsNullOrWhiteSpace(qsToken))
         {
             // 浏览器 EventSource 无法自定义请求头，因此仅对 SSE 端点放开 query token。
-            if (path.Equals("/v1/events", StringComparison.Ordinal)
-                && context.Request.Query.TryGetValue("access_token", out var qsToken)
-                && !string.IsNullOrWhiteSpace(qsToken))
-            {
-                token = qsToken.ToString().Trim();
-            }
-            else
-            {
-                return StatusCodes.Status401Unauthorized;
-            }
+            token = qsToken.ToString().Trim();
         }
         else
         {
-            token = header["Bearer ".Length..].Trim();
+            return StatusCodes.Status401Unauthorized;
         }
 
         if (string.IsNullOrEmpty(token))

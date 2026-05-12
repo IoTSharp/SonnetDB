@@ -110,13 +110,10 @@ public sealed class MultiSegmentIndex
             if (!seg.OverlapsTimeRange(fromInclusive, toInclusive))
                 continue;
 
-            var blocks = seg.GetBlocks(seriesId);
+            // 段内：使用 SegmentIndex 的 prefix-max 跳跃索引完成 block 级时间剪枝。
+            var blocks = seg.GetBlocks(seriesId, fromInclusive, toInclusive);
             foreach (var block in blocks)
-            {
-                // 进一步过滤时间窗
-                if (block.MinTimestamp <= toInclusive && block.MaxTimestamp >= fromInclusive)
-                    result.Add(new SegmentBlockRef(seg.SegmentId, seg.SegmentPath, block));
-            }
+                result.Add(new SegmentBlockRef(seg.SegmentId, seg.SegmentPath, block));
         }
         return result;
     }
