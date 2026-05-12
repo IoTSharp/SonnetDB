@@ -519,6 +519,19 @@ public static class Program
             await HandleBulkAsync(ctx, registry, grants, metrics, db, m, BulkIngestEndpointHandler.Format.BulkValues).ConfigureAwait(false))
             .WithMetadata(new Microsoft.AspNetCore.Mvc.DisableRequestSizeLimitAttribute());
 
+        // ---- InfluxDB 兼容写入端点：让 Telegraf / EMQX / influx CLI 等生态工具可直接对接 ----
+        // v1: POST /write?db=<db>&precision=<n|u|ms|s>
+        // v2: POST /api/v2/write?bucket=<db>&org=<ignored>&precision=<ns|us|ms|s>
+        // 与 /v1/db/{db}/measurements/{m}/lp 的关键差别：measurement 来自每行 LP，而非 URL。
+        app.MapPost("/write", async (HttpContext ctx) =>
+            await InfluxLineProtocolEndpointHandler.HandleAsync(
+                ctx, registry, grants, metrics, InfluxLineProtocolEndpointHandler.ApiVersion.V1).ConfigureAwait(false))
+            .WithMetadata(new Microsoft.AspNetCore.Mvc.DisableRequestSizeLimitAttribute());
+        app.MapPost("/api/v2/write", async (HttpContext ctx) =>
+            await InfluxLineProtocolEndpointHandler.HandleAsync(
+                ctx, registry, grants, metrics, InfluxLineProtocolEndpointHandler.ApiVersion.V2).ConfigureAwait(false))
+            .WithMetadata(new Microsoft.AspNetCore.Mvc.DisableRequestSizeLimitAttribute());
+
         // ---- 控制面 SQL（无 db 路径；admin 全量、动态用户仅自服务）----
         app.MapMethods("/v1/sql", new[] { "POST" }, (RequestDelegate)(async ctx =>
         {

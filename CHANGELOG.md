@@ -6,6 +6,7 @@
 ## [Unreleased]
 
 ### Added
+- **InfluxDB 兼容写入端点**：`src/SonnetDB` 新增 `POST /write`（v1：`?db=&precision=`）与 `POST /api/v2/write`（v2：`?bucket=&org=&precision=`）两个 InfluxDB Line Protocol 兼容端点，复用现有 `LineProtocolReader` + `BulkIngestor`，让 Telegraf / EMQX / `influx` CLI / Prometheus `influxdb_v2` remote write 等生态工具可直接对接 SonnetDB；与既有 `/v1/db/{db}/measurements/{m}/lp` 的关键差别是 `measurement` 由每行 LP 自行解析（`measurementOverride: null`），符合 InfluxDB 协议语义。支持 `Content-Encoding: gzip` 请求体、`precision` 别名（`n`/`ns`、`u`/`us`/`µs`、`ms`、`s`，缺省 ns），成功返回 `204 No Content`，错误返回 `{ "error", "message" }` JSON；`BearerAuthMiddleware` 同步增加 `Authorization: Token <token>` 别名，与 `Authorization: Bearer <token>` 等价，以兼容 InfluxDB v2 客户端约定。新增 19 个端到端测试覆盖 v1/v2、precision 全别名、gzip、Token 头、measurement 解析、204、400/401/403/404 与 JSON 错误体。
 - **地理坐标系转换与国内瓦片切换**：Web Admin 的轨迹地图和 SQL Console 地图视图现支持 OSM / 高德 / 腾讯 / 百度瓦片下拉切换；SQL 内置 `geo_transform` 以及 `geo_wgs84_to_gcj02`、`geo_gcj02_to_wgs84`、`geo_gcj02_to_bd09`、`geo_bd09_to_gcj02`、`geo_wgs84_to_bd09`、`geo_bd09_to_wgs84` 等坐标系转换函数，并在结果区按当前底图投影自动重投影 `GEOPOINT`。
 - **数据库创建独立对话框**：`web/src/views/SqlConsoleView.vue` 的 Create Database 动作改为先弹出独立对话框，再输入名称并确认创建，避免在侧边栏中直接编辑数据库名。
 - **SQL Console 结果区三视图升级**：`web/src/views/SqlConsoleView.vue` 现直接复用 `SqlResultPanel.vue` 作为结果展示卡片，结果区可在表格 / 图表 / 轨迹地图之间切换；`SqlResultChart.vue` 继续提供时间轴和值轴下拉选择，带明显时间列和数值列的结果会优先默认进入图表视图。
