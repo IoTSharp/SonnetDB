@@ -532,6 +532,13 @@ public static class Program
                 ctx, registry, grants, metrics, InfluxLineProtocolEndpointHandler.ApiVersion.V2).ConfigureAwait(false))
             .WithMetadata(new Microsoft.AspNetCore.Mvc.DisableRequestSizeLimitAttribute());
 
+        // ---- Prometheus Remote Write v1 兼容入站端点 ----
+        // POST /api/v1/prom/write?db=<name>，body = snappy(block) + protobuf(prometheus.WriteRequest)
+        // 让 Prometheus / VictoriaMetrics agent / Grafana Alloy / OpenTelemetry Collector 直接对接 SonnetDB。
+        app.MapPost("/api/v1/prom/write", async (HttpContext ctx) =>
+            await PrometheusRemoteWriteEndpointHandler.HandleAsync(ctx, registry, grants, metrics).ConfigureAwait(false))
+            .WithMetadata(new Microsoft.AspNetCore.Mvc.DisableRequestSizeLimitAttribute());
+
         // ---- 控制面 SQL（无 db 路径；admin 全量、动态用户仅自服务）----
         app.MapMethods("/v1/sql", new[] { "POST" }, (RequestDelegate)(async ctx =>
         {

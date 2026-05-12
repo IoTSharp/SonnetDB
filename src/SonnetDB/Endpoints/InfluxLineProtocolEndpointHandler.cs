@@ -1,14 +1,10 @@
 ﻿using System.Buffers;
-using System.IO.Compression;
 using System.Text;
-using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using SonnetDB.Auth;
-using SonnetDB.Contracts;
 using SonnetDB.Engine;
 using SonnetDB.Hosting;
 using SonnetDB.Ingest;
-using SonnetDB.Json;
 
 namespace SonnetDB.Endpoints;
 
@@ -90,7 +86,7 @@ internal static class InfluxLineProtocolEndpointHandler
         char[]? charBuffer = null;
         try
         {
-            (bodyBuffer, bodyLength) = await ReadBodyAsync(ctx).ConfigureAwait(false);
+            (bodyBuffer, bodyLength) = await EndpointIngestUtils.ReadBodyAsync(ctx, decompressGzip: true).ConfigureAwait(false);
 
             // 空 body：InfluxDB 仍返回 204（与官方 /write 行为一致）。
             if (bodyLength == 0)
@@ -155,87 +151,6 @@ internal static class InfluxLineProtocolEndpointHandler
         };
     }
 
-    /// <summary>
-    /// 读取请求体到 <see cref="ArrayPool{T}"/> 租借的缓冲区。
-    /// 自动处理 <c>Content-Encoding: gzip</c>。返回的 byte[] 由调用方在 finally 中归还。
-    /// </summary>
-    private static async Task<(byte[] Buffer, int Length)> ReadBodyAsync(HttpContext ctx)
-    {
-        var stream = ctx.Request.Body;
-        var encoding = ctx.Request.Headers.ContentEncoding.ToString();
-        bool gzip = !string.IsNullOrEmpty(encoding)
-            && encoding.Contains("gzip", StringComparison.OrdinalIgnoreCase);
-
-        if (gzip)
-        {
-            // gzip 解压后长度未知，使用 4KB 起步、按需翻倍的池缓冲读完整段流。
-            using var gz = new GZipStream(stream, CompressionMode.Decompress, leaveOpen: true);
-            return await ReadAllToPoolAsync(gz, ctx.RequestAborted).ConfigureAwait(false);
-        }
-
-        // 非压缩：优先按 Content-Length 一次性精确租借。
-        if (ctx.Request.ContentLength is long len && len > 0 && len <= int.MaxValue)
-        {
-            int size = (int)len;
-            var buffer = ArrayPool<byte>.Shared.Rent(size);
-            int offset = 0;
-            try
-            {
-                while (offset < size)
-                {
-                    int n = await stream.ReadAsync(buffer.AsMemory(offset, size - offset), ctx.RequestAborted)
-                        .ConfigureAwait(false);
-                    if (n == 0) break;
-                    offset += n;
-                }
-            }
-            catch
-            {
-                ArrayPool<byte>.Shared.Return(buffer);
-                throw;
-            }
-            return (buffer, offset);
-        }
-
-        return await ReadAllToPoolAsync(stream, ctx.RequestAborted).ConfigureAwait(false);
-    }
-
-    /// <summary>从未知长度的流中读完所有字节到 ArrayPool 租借的缓冲区，按需翻倍扩容。</summary>
-    private static async Task<(byte[] Buffer, int Length)> ReadAllToPoolAsync(Stream stream, CancellationToken ct)
-    {
-        var rented = ArrayPool<byte>.Shared.Rent(4096);
-        int total = 0;
-        try
-        {
-            while (true)
-            {
-                if (total == rented.Length)
-                {
-                    var bigger = ArrayPool<byte>.Shared.Rent(rented.Length * 2);
-                    Buffer.BlockCopy(rented, 0, bigger, 0, total);
-                    ArrayPool<byte>.Shared.Return(rented);
-                    rented = bigger;
-                }
-                int n = await stream.ReadAsync(rented.AsMemory(total, rented.Length - total), ct)
-                    .ConfigureAwait(false);
-                if (n == 0) break;
-                total += n;
-            }
-        }
-        catch
-        {
-            ArrayPool<byte>.Shared.Return(rented);
-            throw;
-        }
-        return (rented, total);
-    }
-
-    private static async Task WriteErrorAsync(HttpContext ctx, int statusCode, string code, string message)
-    {
-        if (ctx.Response.HasStarted) return;
-        ctx.Response.StatusCode = statusCode;
-        ctx.Response.ContentType = "application/json; charset=utf-8";
-        await JsonSerializer.SerializeAsync(ctx.Response.Body, new ErrorResponse(code, message),
-            ServerJsonContext.Default.ErrorResponse, ctx.RequestAborted).ConfigureAwait(false);
-    }
+    private static Task WriteErrorAsync(HttpContext ctx, int statusCode, string code, string message)
+        => EndpointIngestUtils.WriteJsonErrorAsync(ctx, statusCode, code, message);
 }
