@@ -76,7 +76,7 @@ internal sealed class SonnetDbMcpTools
 
             if (!IsReadOnlyMcpStatement(statement))
                 return SonnetDbMcpResults.Error(
-                    "query_sql 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES 与 DESCRIBE [MEASUREMENT]。");
+                    "query_sql 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES、DESCRIBE [MEASUREMENT] 与 EXPLAIN。");
 
             SqlStatement executable = statement;
             var canTruncate = false;
@@ -267,11 +267,12 @@ internal sealed class SonnetDbMcpTools
         SelectStatement => "select",
         ShowMeasurementsStatement => "show_measurements",
         DescribeMeasurementStatement => "describe_measurement",
+        ExplainStatement => "explain",
         _ => "unknown",
     };
 
     private static bool IsReadOnlyMcpStatement(SqlStatement statement)
-        => statement is SelectStatement or ShowMeasurementsStatement or DescribeMeasurementStatement;
+        => statement is SelectStatement or ShowMeasurementsStatement or DescribeMeasurementStatement or ExplainStatement;
 
     /// <summary>
     /// 在 Copilot 知识库 <c>__copilot__.docs</c> 上做向量召回（PR #64）。

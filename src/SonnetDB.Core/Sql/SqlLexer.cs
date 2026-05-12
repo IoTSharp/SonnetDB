@@ -45,6 +45,8 @@ public sealed class SqlLexer
         ["and"] = TokenKind.KeywordAnd,
         ["or"] = TokenKind.KeywordOr,
         ["not"] = TokenKind.KeywordNot,
+        ["if"] = TokenKind.KeywordIf,
+        ["exists"] = TokenKind.KeywordExists,
         ["as"] = TokenKind.KeywordAs,
         ["null"] = TokenKind.KeywordNull,
         ["default"] = TokenKind.KeywordDefault,
@@ -88,7 +90,8 @@ public sealed class SqlLexer
         ["token"] = TokenKind.KeywordToken,
         ["issue"] = TokenKind.KeywordIssue,
 
-        // 元数据查询：SHOW MEASUREMENTS / SHOW TABLES / DESCRIBE [MEASUREMENT] <name>
+        // 元数据查询：EXPLAIN / SHOW MEASUREMENTS / SHOW TABLES / DESCRIBE [MEASUREMENT] <name>
+        ["explain"] = TokenKind.KeywordExplain,
         ["measurements"] = TokenKind.KeywordMeasurements,
         ["tables"] = TokenKind.KeywordTables,
         ["describe"] = TokenKind.KeywordDescribe,

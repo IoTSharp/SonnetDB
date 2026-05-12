@@ -24,7 +24,7 @@
           <n-tab name="markdown" tab="文本" />
           <n-tab name="table" tab="表格" />
           <n-tab name="chart" tab="图表" />
-          <n-tab v-if="hasGeoPoints" name="map" tab="地图" />
+          <n-tab v-if="hasGeoPoints" name="map" tab="轨迹地图" />
         </n-tabs>
       </n-space>
     </template>
@@ -64,7 +64,7 @@
           :rows="rows"
         />
       </template>
-      <n-text v-else depth="3">语句已执行，没有结果集。</n-text>
+      <n-text v-else depth="3">{{ emptyText }}</n-text>
     </template>
   </n-card>
 </template>
@@ -79,22 +79,60 @@ import { marked } from 'marked';
 import SqlResultChart from './SqlResultChart.vue';
 import ResultMapPreview from './ResultMapPreview.vue';
 import { rowsToObjects, type SqlResultSet } from '@/api/sql';
+import { formatSqlValue, parseGeoPointValue } from '@/utils/sqlValue';
 
 interface Props {
   index: number;
   sql: string;
   result: SqlResultSet;
+  displayRows?: unknown[][];
 }
 const props = defineProps<Props>();
 
 type View = 'markdown' | 'table' | 'chart' | 'map';
-const view = ref<View>('markdown');
+const view = ref<View>('table');
 
-const hasRows = computed(() => props.result.hasColumns && props.result.rows.length > 0);
+const visibleRows = computed(() => props.displayRows ?? props.result.rows);
+const visibleResult = computed<SqlResultSet>(() => ({
+  ...props.result,
+  rows: visibleRows.value,
+}));
 
-watch([hasRows, () => props.result.columns, () => props.result.rows], () => {
-  if (!hasRows.value) view.value = 'markdown';
-  else if (hasGeoPoints.value) view.value = 'map';
+const hasRows = computed(() => props.result.hasColumns && visibleRows.value.length > 0);
+
+const rows = computed(() => rowsToObjects(visibleResult.value));
+
+const hasGeoPoints = computed(() => rows.value.some((row) =>
+  props.result.columns.some((column) => parseGeoPointValue(row[column]) !== null)));
+
+const hasChartData = computed(() => {
+  if (!hasRows.value || rows.value.length === 0) return false;
+
+  const numericColumns = props.result.columns.filter((column) =>
+    rows.value.some((row) => isFiniteNumber(row[column])));
+
+  if (numericColumns.length === 0) return false;
+
+  return props.result.columns.some((column) => isTimeLikeColumn(column));
+});
+
+watch([hasRows, () => props.result.columns, visibleRows], () => {
+  if (!hasRows.value) {
+    view.value = 'markdown';
+    return;
+  }
+
+  if (hasGeoPoints.value) {
+    view.value = 'map';
+    return;
+  }
+
+  if (hasChartData.value) {
+    view.value = 'chart';
+    return;
+  }
+
+  view.value = 'table';
 }, { immediate: true });
 
 const trimmedSql = computed(() => {
@@ -117,22 +155,45 @@ const statusType = computed<'success' | 'error' | 'info'>(() => {
   return 'info';
 });
 
-const rows = computed(() => rowsToObjects(props.result));
+const emptyText = computed(() => {
+  if (props.displayRows && props.result.rows.length > 0 && visibleRows.value.length === 0) {
+    return '没有匹配的结果行。';
+  }
 
-const hasGeoPoints = computed(() => rows.value.some((row) =>
-  props.result.columns.some((column) => isGeoPointValue(row[column]))));
+  return '语句已执行，没有结果集。';
+});
 
-function isGeoPointValue(value: unknown): boolean {
-  if (!value || typeof value !== 'object') return false;
-  const object = value as Record<string, unknown>;
-  if (object.type === 'Point' && Array.isArray(object.coordinates) && object.coordinates.length >= 2) return true;
-  return (object.lat !== undefined || object.Lat !== undefined || object.latitude !== undefined || object.Latitude !== undefined)
-    && (object.lon !== undefined || object.Lon !== undefined || object.lng !== undefined || object.Lng !== undefined || object.longitude !== undefined || object.Longitude !== undefined);
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function tryParseTime(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const time = Date.parse(value);
+    if (!Number.isNaN(time)) return time;
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function isTimeLikeColumn(column: string): boolean {
+  if (/^(time|ts|timestamp)$/i.test(column)) return true;
+
+  let parsedCount = 0;
+  for (const row of rows.value) {
+    if (tryParseTime(row[column]) !== null) parsedCount += 1;
+  }
+  return parsedCount > rows.value.length / 2;
 }
 
 const dataColumns = computed<DataTableColumns<Record<string, unknown>>>(() =>
   props.result.columns.map((c) => ({
-    title: c, key: c, ellipsis: { tooltip: true },
+    title: c,
+    key: c,
+    ellipsis: { tooltip: true },
+    render: (row) => formatSqlValue(row[c]),
   })));
 
 /**
@@ -147,10 +208,10 @@ const markdownSource = computed(() => {
   if (cols.length === 0) return '_语句执行成功，但没有列。_';
 
   const max = 100;
-  const slice = props.result.rows.slice(0, max);
+  const slice = visibleRows.value.slice(0, max);
   const escape = (v: unknown): string => {
     if (v === null || v === undefined) return '';
-    return String(v).replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\n/g, ' ');
+    return formatSqlValue(v).replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\n/g, ' ');
   };
 
   const lines: string[] = [];
@@ -159,9 +220,9 @@ const markdownSource = computed(() => {
   for (const row of slice) {
     lines.push(`| ${cols.map((_, i) => escape(row[i])).join(' | ')} |`);
   }
-  if (props.result.rows.length > max) {
+  if (visibleRows.value.length > max) {
     lines.push('');
-    lines.push(`_… 仅展示前 ${max} 行，共 ${props.result.rows.length} 行。切换到「表格」或「图表」查看完整结果。_`);
+    lines.push(`_… 仅展示前 ${max} 行，共 ${visibleRows.value.length} 行。切换到「表格」或「图表」查看完整结果。_`);
   }
   return lines.join('\n');
 });

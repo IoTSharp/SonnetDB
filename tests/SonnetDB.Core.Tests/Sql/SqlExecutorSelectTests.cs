@@ -255,6 +255,26 @@ public class SqlExecutorSelectTests : IDisposable
     }
 
     [Fact]
+    public void Select_TimeRange_WithNowAndDurationExpressions_FiltersByRelativeWindow()
+    {
+        using var db = OpenWithSchema(Options());
+
+        const long hourMs = 3_600_000L;
+        var nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        SqlExecutor.Execute(db,
+            $"INSERT INTO cpu (time, host, region, usage, count) VALUES " +
+            $"({nowMs - 36 * hourMs}, 'h1', 'cn', 1.0, 10), " +
+            $"({nowMs - 12 * hourMs}, 'h1', 'cn', 2.0, 20), " +
+            $"({nowMs + 12 * hourMs}, 'h1', 'cn', 3.0, 30)");
+
+        var r = Select(db,
+            "SELECT time, usage FROM cpu WHERE host = 'h1' AND time >= now() - 1d AND time < now() + 1d ORDER BY time");
+
+        Assert.Equal([nowMs - 12 * hourMs, nowMs + 12 * hourMs], r.Rows.Select(row => (long)row[0]!).ToArray());
+        Assert.Equal([2.0, 3.0], r.Rows.Select(row => (double)row[1]!).ToArray());
+    }
+
+    [Fact]
     public void Select_OuterJoinAcrossFields_NullForMissingFields()
     {
         using var db = OpenWithSchema(Options());

@@ -168,6 +168,42 @@ public sealed class ServerEndToEndTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Sql_ExplainSelect_ReturnsKeyValuePlanRows()
+    {
+        using var admin = CreateClient(_adminToken);
+        var dbName = "explainsql";
+        var create = await admin.PostAsync("/v1/db",
+            JsonContent.Create(new CreateDatabaseRequest(dbName), ServerJsonContext.Default.CreateDatabaseRequest));
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+
+        await ExecuteSqlAsync(admin, dbName, "CREATE MEASUREMENT cpu (host TAG, usage FIELD FLOAT)");
+        await ExecuteSqlAsync(admin, dbName,
+            "INSERT INTO cpu (time, host, usage) VALUES (1000, 'h1', 0.5), (2000, 'h1', 0.7), (3000, 'h2', 0.9)");
+
+        var (columns, rows, _) = await ExecuteSelectAsync(admin, dbName,
+            "EXPLAIN SELECT usage FROM cpu WHERE host = 'h1' AND time >= 1000 AND time <= 2000");
+
+        Assert.Equal(new[] { "key", "value" }, columns);
+
+        var values = rows.ToDictionary(
+            row => row[0].GetString()!,
+            row => row[1],
+            StringComparer.Ordinal);
+
+        Assert.Equal(dbName, values["database"].GetString());
+        Assert.Equal("select", values["statement_type"].GetString());
+        Assert.Equal("cpu", values["measurement"].GetString());
+        Assert.Equal(1, values["matched_series_count"].GetInt32());
+        Assert.Equal(0, values["estimated_segment_count"].GetInt32());
+        Assert.Equal(0, values["estimated_block_count"].GetInt32());
+        Assert.Equal(2, values["estimated_scanned_rows"].GetInt64());
+        Assert.Equal(2, values["estimated_memtable_rows"].GetInt64());
+        Assert.Equal(0, values["estimated_segment_rows"].GetInt64());
+        Assert.True(values["has_time_filter"].GetBoolean());
+        Assert.Equal(1, values["tag_filter_count"].GetInt32());
+    }
+
+    [Fact]
     public async Task GeoTrajectory_ReturnsFeatureCollectionAndLineString()
     {
         using var admin = CreateClient(_adminToken);

@@ -882,7 +882,7 @@ internal sealed class CopilotAgent
         if (!IsReadOnlyStatement(statement))
         {
             throw new InvalidOperationException(
-                "explain_sql 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES 与 DESCRIBE [MEASUREMENT]。");
+                "explain_sql 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES、DESCRIBE [MEASUREMENT] 与 EXPLAIN。");
         }
 
         var payload = _explainSqlService.Explain(databaseName, database, statement);
@@ -1217,7 +1217,7 @@ internal sealed class CopilotAgent
             throw new SqlExecutionException(
                 sql,
                 "validate",
-                "query_sql 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES 与 DESCRIBE [MEASUREMENT]。");
+                "query_sql 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES、DESCRIBE [MEASUREMENT] 与 EXPLAIN。");
         }
 
         SqlStatement executable = statement;
@@ -2272,13 +2272,14 @@ internal sealed class CopilotAgent
             || identifier.Equals("needs", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsReadOnlyStatement(SqlStatement statement)
-        => statement is SelectStatement or ShowMeasurementsStatement or DescribeMeasurementStatement;
+        => statement is SelectStatement or ShowMeasurementsStatement or DescribeMeasurementStatement or ExplainStatement;
 
     private static string GetStatementType(SqlStatement statement) => statement switch
     {
         SelectStatement => "select",
         ShowMeasurementsStatement => "show_measurements",
         DescribeMeasurementStatement => "describe_measurement",
+        ExplainStatement => "explain",
         _ => "unknown",
     };
 
