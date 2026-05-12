@@ -54,7 +54,7 @@ jobs:
 
       - name: Extract GHCR metadata
         id: meta-ghcr
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository_owner }}/sonnetdb
           tags: |
@@ -73,7 +73,7 @@ jobs:
       - name: Extract Docker Hub metadata
         id: meta-dockerhub
         if: steps.dockerhub.outputs.enabled == 'true'
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: iotsharp/sonnetdb
           tags: |
