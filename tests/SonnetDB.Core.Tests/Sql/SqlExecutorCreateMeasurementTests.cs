@@ -98,6 +98,34 @@ public class SqlExecutorCreateMeasurementTests : IDisposable
     }
 
     [Fact]
+    public void Execute_CreateMeasurement_IfNotExists_IsIdempotent()
+    {
+        using var db = Tsdb.Open(Options());
+
+        var first = SqlExecutor.Execute(db,
+            "CREATE MEASUREMENT IF NOT EXISTS cpu (host TAG, usage FIELD FLOAT)");
+        var firstSchema = Assert.IsType<MeasurementSchema>(first);
+
+        // 第二次带 IF NOT EXISTS 的相同名称建表必须成功并返回已存在的 schema，不抛异常。
+        var second = SqlExecutor.Execute(db,
+            "CREATE MEASUREMENT IF NOT EXISTS cpu (host TAG, usage FIELD FLOAT)");
+        var secondSchema = Assert.IsType<MeasurementSchema>(second);
+
+        Assert.Same(firstSchema, secondSchema);
+    }
+
+    [Fact]
+    public void Execute_CreateMeasurement_WithoutIfNotExists_ThrowsOnDuplicate()
+    {
+        using var db = Tsdb.Open(Options());
+
+        SqlExecutor.Execute(db, "CREATE MEASUREMENT cpu (host TAG, usage FIELD FLOAT)");
+
+        Assert.ThrowsAny<Exception>(() =>
+            SqlExecutor.Execute(db, "CREATE MEASUREMENT cpu (host TAG, usage FIELD FLOAT)"));
+    }
+
+    [Fact]
     public void CreateMeasurement_DirectApi_PersistsImmediately()
     {
         var schemaFile = TsdbPaths.MeasurementSchemaPath(_root);

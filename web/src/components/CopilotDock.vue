@@ -406,7 +406,7 @@ function hasVisibleCitationsForContent(content: string, citations: CopilotCitati
 
 const ROUTE_LABELS: Record<string, string> = {
   dashboard: '概览',
-  sql: 'SQL Console',
+  sql: 'Workbench',
   chat: 'Copilot Chat',
   databases: '数据库管理',
   events: '事件流',

@@ -35,7 +35,7 @@ jobs:
         with:
           global-json-file: global.json
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
 
       - name: Restore JekyllNet tool
         run: dotnet tool restore
@@ -71,7 +71,7 @@ jobs:
           touch "$RUNNER_TEMP/docs-pages-site/.nojekyll"
 
       - name: Upload GitHub Pages artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           path: ${{ runner.temp }}/docs-pages-site
 

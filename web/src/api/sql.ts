@@ -57,7 +57,16 @@ export function parseNdjson(body: string): SqlResultSet {
         result.columns = o.columns as string[];
         result.hasColumns = true;
       } else if (o.type === 'end') {
-        result.end = o as unknown as SqlEnd;
+        result.end = {
+          type: 'end',
+          rowCount: typeof o.rowCount === 'number' ? o.rowCount : 0,
+          recordsAffected: typeof o.recordsAffected === 'number' ? o.recordsAffected : -1,
+          elapsedMs: typeof o.elapsedMs === 'number'
+            ? o.elapsedMs
+            : typeof o.elapsedMilliseconds === 'number'
+              ? o.elapsedMilliseconds
+              : 0,
+        };
       } else if (typeof o.message === 'string' && (o.code || o.type === 'error')) {
         result.error = o as unknown as SqlError;
       }

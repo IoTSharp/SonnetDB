@@ -45,6 +45,13 @@ public sealed class FunctionRegistryTests
     [InlineData("l2_distance")]
     [InlineData("inner_product")]
     [InlineData("vector_norm")]
+    [InlineData("geo_transform")]
+    [InlineData("geo_wgs84_to_gcj02")]
+    [InlineData("geo_gcj02_to_wgs84")]
+    [InlineData("geo_gcj02_to_bd09")]
+    [InlineData("geo_bd09_to_gcj02")]
+    [InlineData("geo_wgs84_to_bd09")]
+    [InlineData("geo_bd09_to_wgs84")]
     public void TryGetScalar_ResolvesBuiltIns(string name)
     {
         Assert.True(FunctionRegistry.TryGetScalar(name.ToUpperInvariant(), out var function));
@@ -65,6 +72,8 @@ public sealed class FunctionRegistryTests
     [InlineData("trajectory_speed_max", FunctionKind.Aggregate)]
     [InlineData("trajectory_speed_avg", FunctionKind.Aggregate)]
     [InlineData("trajectory_speed_p95", FunctionKind.Aggregate)]
+    [InlineData("geo_transform", FunctionKind.Scalar)]
+    [InlineData("geo_wgs84_to_gcj02", FunctionKind.Scalar)]
     [InlineData("derivative", FunctionKind.Window)]
     [InlineData("ewma", FunctionKind.Window)]
     [InlineData("interpolate", FunctionKind.Window)]

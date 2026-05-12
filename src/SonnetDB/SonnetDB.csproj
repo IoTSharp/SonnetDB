@@ -38,6 +38,7 @@
     <PackageReference Include="Microsoft.Extensions.AI" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime" />
+    <PackageReference Include="Snappier" />
   </ItemGroup>
 
   <ItemGroup>

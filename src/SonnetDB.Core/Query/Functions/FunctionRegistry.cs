@@ -146,6 +146,13 @@ public static class FunctionRegistry
         new BuiltInScalarFunction("geo_within", 4, 4, EvaluateGeoWithin),
         new BuiltInScalarFunction("geo_bbox", 5, 5, EvaluateGeoBbox),
         new BuiltInScalarFunction("geo_speed", 3, 3, EvaluateGeoSpeed),
+        new BuiltInScalarFunction("geo_transform", 3, 3, EvaluateGeoTransform),
+        new BuiltInScalarFunction("geo_wgs84_to_gcj02", 1, 1, static args => GeoCoordinateTransforms.Wgs84ToGcj02(RequireGeoPoint(args[0], "geo_wgs84_to_gcj02"))),
+        new BuiltInScalarFunction("geo_gcj02_to_wgs84", 1, 1, static args => GeoCoordinateTransforms.Gcj02ToWgs84(RequireGeoPoint(args[0], "geo_gcj02_to_wgs84"))),
+        new BuiltInScalarFunction("geo_gcj02_to_bd09", 1, 1, static args => GeoCoordinateTransforms.Gcj02ToBd09(RequireGeoPoint(args[0], "geo_gcj02_to_bd09"))),
+        new BuiltInScalarFunction("geo_bd09_to_gcj02", 1, 1, static args => GeoCoordinateTransforms.Bd09ToGcj02(RequireGeoPoint(args[0], "geo_bd09_to_gcj02"))),
+        new BuiltInScalarFunction("geo_wgs84_to_bd09", 1, 1, static args => GeoCoordinateTransforms.Transform(RequireGeoPoint(args[0], "geo_wgs84_to_bd09"), GeoCoordinateSystem.Wgs84, GeoCoordinateSystem.Bd09)),
+        new BuiltInScalarFunction("geo_bd09_to_wgs84", 1, 1, static args => GeoCoordinateTransforms.Transform(RequireGeoPoint(args[0], "geo_bd09_to_wgs84"), GeoCoordinateSystem.Bd09, GeoCoordinateSystem.Wgs84)),
         new BuiltInScalarFunction("st_distance", 2, 2, EvaluateGeoDistance),
         new BuiltInScalarFunction("st_within", 4, 4, EvaluateGeoWithin),
         new BuiltInScalarFunction("st_dwithin", 4, 4, EvaluateGeoWithin),
@@ -352,6 +359,14 @@ public static class FunctionRegistry
         return HaversineMeters(left, right) / (elapsedMs / 1000d);
     }
 
+    private static object? EvaluateGeoTransform(IReadOnlyList<object?> args)
+    {
+        var point = RequireGeoPoint(args[0], "geo_transform");
+        var from = GeoCoordinateTransforms.ParseCoordinateSystem(RequireString(args[1], "geo_transform"), "geo_transform", "from_system");
+        var to = GeoCoordinateTransforms.ParseCoordinateSystem(RequireString(args[2], "geo_transform"), "geo_transform", "to_system");
+        return GeoCoordinateTransforms.Transform(point, from, to);
+    }
+
     private static double HaversineMeters(GeoPoint left, GeoPoint right)
     {
         const double EarthRadiusMeters = 6_371_008.8d;
@@ -408,6 +423,16 @@ public static class FunctionRegistry
             GeoPoint point => point,
             null => throw new InvalidOperationException($"函数 {functionName} 不接受 NULL 参数。"),
             _ => throw new InvalidOperationException($"函数 {functionName} 需要 GEOPOINT 参数。"),
+        };
+    }
+
+    private static string RequireString(object? value, string functionName)
+    {
+        return value switch
+        {
+            string text when !string.IsNullOrWhiteSpace(text) => text,
+            null => throw new InvalidOperationException($"函数 {functionName} 不接受 NULL 参数。"),
+            _ => throw new InvalidOperationException($"函数 {functionName} 需要字符串参数。"),
         };
     }
 

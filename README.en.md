@@ -55,6 +55,7 @@ SonnetDB is a time-series database for IoT, industrial telemetry, observability,
 - 🗺️ GeoSpatial stack: `GEOPOINT`, trajectory analytics, geo filters, GeoJSON output
 - 🔐 Control-plane SQL for users, databases, grants, and tokens
 - 🧪 Continuous benchmarks against InfluxDB, TDengine, IoTDB, TimescaleDB, SQLite, and LiteDB
+- 🛠️ Web Admin Workbench: Schema Explorer database tree, SQL Editor, staged preview, Result Grid, Trajectory mode switching, with Copilot kept as the original global floating dock
 
 ## � Why SonnetDB
 
@@ -82,7 +83,7 @@ SonnetDB is a time-series database for IoT, industrial telemetry, observability,
 | `src/SonnetDB.Data` | ADO.NET provider for both embedded and remote modes |
 | `src/SonnetDB.Cli` | `sndb` CLI: local/remote connections, profile management (`local`/`remote`/`connect`), and interactive REPL |
 | `src/SonnetDB` | HTTP server, first-run setup, auth/RBAC, SSE, admin UI, `/help` docs |
-| `web` | Admin frontend (SPA dev proxy + published static assets) |
+| `web` | Admin frontend (includes SonnetDB Workbench, global CopilotDock, and published SPA assets) |
 | `docs` | JekyllNet documentation site source, bundled into the Docker image |
 
 ## Current Capabilities
@@ -96,6 +97,8 @@ SonnetDB is a time-series database for IoT, industrial telemetry, observability,
 - CLI access for scripting and ad hoc SQL
 - Bulk ingest fast paths through `CommandType.TableDirect` and HTTP bulk endpoints
 - Server control-plane SQL for users, databases, grants, and tokens
+
+Web Admin Workbench details and the manual acceptance checklist are in [docs/web-workbench.md](docs/web-workbench.md).
 
 ## Quick Start
 
@@ -191,6 +194,8 @@ Data-plane SQL currently supported:
 - `INSERT INTO ... VALUES (...)`
 - `SELECT ... FROM ... [WHERE ...] [GROUP BY time(...)]`
 - `DELETE FROM ... WHERE ...`
+- `SHOW MEASUREMENTS` / `SHOW TABLES` / `DESCRIBE [MEASUREMENT] <name>`
+- `EXPLAIN <read-only statement>` (currently supports `SELECT`, `SHOW MEASUREMENTS` / `SHOW TABLES`, and `DESCRIBE [MEASUREMENT]`)
 
 ### Built-in SQL functions
 
