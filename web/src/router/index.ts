@@ -5,8 +5,6 @@ import LoginView from '@/views/LoginView.vue';
 import AppShell from '@/views/AppShell.vue';
 import DashboardView from '@/views/DashboardView.vue';
 import SqlConsoleView from '@/views/SqlConsoleView.vue';
-import TrajectoryMap from '@/views/TrajectoryMap.vue';
-import DatabasesView from '@/views/DatabasesView.vue';
 import EventsView from '@/views/EventsView.vue';
 import UsersView from '@/views/UsersView.vue';
 import GrantsView from '@/views/GrantsView.vue';
@@ -37,8 +35,8 @@ const router = createRouter({
       children: [
         { path: 'dashboard', name: 'dashboard', component: DashboardView },
         { path: 'sql', name: 'sql', component: SqlConsoleView },
-        { path: 'trajectory-map', name: 'trajectory-map', component: TrajectoryMap },
-        { path: 'databases', name: 'databases', component: DatabasesView },
+        { path: 'trajectory-map', name: 'trajectory-map', redirect: { name: 'sql', query: { tool: 'trajectory' } } },
+        { path: 'databases', name: 'databases', redirect: { name: 'sql' } },
         { path: 'events', name: 'events', component: EventsView },
         { path: 'users', name: 'users', component: UsersView, meta: { admin: true } },
         { path: 'grants', name: 'grants', component: GrantsView, meta: { admin: true } },

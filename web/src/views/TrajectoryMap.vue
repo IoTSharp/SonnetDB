@@ -1,13 +1,16 @@
 ﻿<template>
-  <div class="trajectory-page">
+  <div class="trajectory-page" :class="{ 'trajectory-page--embedded': embedded }">
     <n-card :bordered="false" class="filter-card">
       <n-space vertical :size="14">
-        <div>
+        <div v-if="!embedded">
           <h2>轨迹地图</h2>
           <p>选择数据库、Measurement 和 TAG 后，从 GeoJSON 轨迹端点加载 LineString 并回放。</p>
         </div>
 
         <n-form label-placement="top" size="small">
+          <n-form-item label="瓦片服务商">
+            <n-select v-model:value="providerId" :options="providerOptions" placeholder="选择底图服务商" />
+          </n-form-item>
           <n-form-item label="数据库">
             <n-select v-model:value="selectedDb" :options="dbOptions" filterable placeholder="选择数据库" />
           </n-form-item>
@@ -98,14 +101,24 @@ import * as echarts from 'echarts/core';
 import { GridComponent, LegendComponent, TooltipComponent, type GridComponentOption } from 'echarts/components';
 import { LineChart, type LineSeriesOption } from 'echarts/charts';
 import { CanvasRenderer } from 'echarts/renderers';
+import { useMapTileSettings } from '@/composables/useMapTileSettings';
 import { useAuthStore } from '@/stores/auth';
 import { listDatabases } from '@/api/server';
 import { fetchSchema, type ColumnInfo, type MeasurementInfo } from '@/api/schema';
 import { fetchTrajectory, type GeoJsonFeatureCollection } from '@/api/geo';
+import { transformGeoPoint } from '@/utils/geoTransforms';
 
 echarts.use([GridComponent, LegendComponent, TooltipComponent, LineChart, CanvasRenderer]);
 
 type EChartsOption = echarts.ComposeOption<GridComponentOption | LineSeriesOption>;
+
+const props = defineProps<{
+  embedded?: boolean;
+  initialDb?: string;
+  initialMeasurement?: string;
+}>();
+
+const embedded = computed(() => Boolean(props.embedded));
 
 interface TrackPoint {
   trackId: string;
@@ -127,6 +140,12 @@ const auth = useAuthStore();
 
 const mapEl = ref<HTMLDivElement | null>(null);
 const chartEl = ref<HTMLDivElement | null>(null);
+const {
+  providerId,
+  provider,
+  providerOptions,
+  mapStyle,
+} = useMapTileSettings();
 const selectedDb = ref('');
 const selectedMeasurement = ref('');
 const selectedField = ref('');
@@ -137,7 +156,7 @@ const schema = ref<MeasurementInfo[]>([]);
 const loading = ref(false);
 const errorMsg = ref('');
 const collection = ref<GeoJsonFeatureCollection | null>(null);
-const tracks = ref<TrackLine[]>([]);
+const tracks = computed(() => buildTracks(collection.value));
 const frameIndex = ref(0);
 const playing = ref(false);
 const tagFilters = reactive<Record<string, string>>({});
@@ -177,7 +196,11 @@ async function reloadDbs(): Promise<void> {
     return;
   }
   databases.value = result.databases;
-  selectedDb.value ||= result.databases[0] ?? '';
+  if (props.initialDb && result.databases.includes(props.initialDb)) {
+    selectedDb.value = props.initialDb;
+  } else {
+    selectedDb.value ||= result.databases[0] ?? '';
+  }
 }
 
 async function reloadSchema(): Promise<void> {
@@ -185,7 +208,12 @@ async function reloadSchema(): Promise<void> {
   try {
     schema.value = (await fetchSchema(auth.api, selectedDb.value)).measurements;
     const firstGeoMeasurement = geoMeasurements.value[0]?.name ?? '';
-    if (!geoMeasurements.value.some((m) => m.name === selectedMeasurement.value)) {
+    const preferredMeasurement = props.initialMeasurement && geoMeasurements.value.some((m) => m.name === props.initialMeasurement)
+      ? props.initialMeasurement
+      : '';
+    if (preferredMeasurement) {
+      selectedMeasurement.value = preferredMeasurement;
+    } else if (!geoMeasurements.value.some((m) => m.name === selectedMeasurement.value)) {
       selectedMeasurement.value = firstGeoMeasurement;
     }
   } catch (error) {
@@ -212,7 +240,6 @@ async function loadTrajectory(): Promise<void> {
       return;
     }
     collection.value = result.collection;
-    tracks.value = buildTracks(result.collection);
     frameIndex.value = 0;
     await nextTick();
     renderMap();
@@ -263,33 +290,26 @@ function initMap(): void {
   if (!mapEl.value || map) return;
   map = new maplibregl.Map({
     container: mapEl.value,
-    style: {
-      version: 8,
-      sources: {
-        osm: {
-          type: 'raster',
-          tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-          tileSize: 256,
-          attribution: '© OpenStreetMap contributors',
-        },
-      },
-      layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
-    },
+    style: mapStyle.value,
     center: [116.397, 39.908],
     zoom: 4,
   });
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+  map.once('style.load', renderMap);
   map.on('load', renderMap);
 }
 
 function renderMap(): void {
-  if (!map || !map.loaded()) return;
+  if (!map || !map.isStyleLoaded()) return;
   const features = tracks.value.map((track) => ({
     type: 'Feature' as const,
     properties: { id: track.id, color: track.color },
     geometry: {
       type: 'LineString' as const,
-      coordinates: track.points.map((point) => [point.lon, point.lat]),
+      coordinates: track.points.map((point) => {
+        const projected = projectPoint(point);
+        return [projected.lon, projected.lat];
+      }),
     },
   }));
   const startEndFeatures = tracks.value.flatMap((track) => {
@@ -298,14 +318,26 @@ function renderMap(): void {
     return [start, end].filter(Boolean).map((point, index) => ({
       type: 'Feature' as const,
       properties: { id: track.id, kind: index === 0 ? '起点' : '终点', color: track.color },
-      geometry: { type: 'Point' as const, coordinates: [point.lon, point.lat] },
+      geometry: {
+        type: 'Point' as const,
+        coordinates: (() => {
+          const projected = projectPoint(point);
+          return [projected.lon, projected.lat];
+        })(),
+      },
     }));
   });
   const current = currentPoint.value;
   const cursorFeatures = current ? [{
     type: 'Feature' as const,
     properties: { id: current.trackId },
-    geometry: { type: 'Point' as const, coordinates: [current.lon, current.lat] },
+    geometry: {
+      type: 'Point' as const,
+      coordinates: (() => {
+        const projected = projectPoint(current);
+        return [projected.lon, projected.lat];
+      })(),
+    },
   }] : [];
 
   upsertSource('trajectory-lines', { type: 'FeatureCollection', features });
@@ -355,9 +387,16 @@ function fitTracks(): void {
   if (!map || pointCount.value === 0) return;
   const bounds = new maplibregl.LngLatBounds();
   for (const track of tracks.value) {
-    for (const point of track.points) bounds.extend([point.lon, point.lat]);
+    for (const point of track.points) {
+      const projected = projectPoint(point);
+      bounds.extend([projected.lon, projected.lat]);
+    }
   }
   map.fitBounds(bounds as LngLatBoundsLike, { padding: 56, maxZoom: 15, duration: 500 });
+}
+
+function projectPoint(point: Pick<TrackPoint, 'lat' | 'lon'>): Pick<TrackPoint, 'lat' | 'lon'> {
+  return transformGeoPoint({ lat: point.lat, lon: point.lon }, 'wgs84', provider.value.projection);
 }
 
 function renderChart(): void {
@@ -448,6 +487,12 @@ watch(selectedMeasurement, () => {
   selectedField.value = String(geoFieldOptions.value[0]?.value ?? '');
 });
 
+watch(providerId, () => {
+  if (!map) return;
+  map.once('style.load', renderMap);
+  map.setStyle(mapStyle.value);
+});
+
 watch(frameIndex, () => renderMap());
 watch(playing, (value) => { if (value) startTimer(); else stopTimer(); });
 watch(frameMax, () => { if (frameIndex.value > frameMax.value) frameIndex.value = frameMax.value; });
@@ -476,6 +521,12 @@ onBeforeUnmount(() => {
   grid-template-columns: 360px minmax(0, 1fr);
   grid-template-rows: minmax(520px, calc(100vh - 230px)) 220px;
   gap: 16px;
+}
+
+.trajectory-page--embedded {
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr) 220px;
 }
 
 .filter-card {
@@ -537,6 +588,10 @@ onBeforeUnmount(() => {
   .filter-card {
     grid-row: auto;
   }
+}
+
+.trajectory-page--embedded .filter-card {
+  max-height: none;
 }
 </style>
 

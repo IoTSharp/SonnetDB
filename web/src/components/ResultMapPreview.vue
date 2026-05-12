@@ -2,6 +2,20 @@
   <div class="result-map" v-if="mapReady">
     <div class="result-map__toolbar">
       <n-space size="small" align="center" :wrap="true">
+        <span class="result-map__label">瓦片：</span>
+        <n-select
+          size="small"
+          style="min-width: 180px"
+          v-model:value="providerId"
+          :options="providerOptions"
+        />
+        <span class="result-map__label">数据坐标：</span>
+        <n-select
+          size="small"
+          style="min-width: 120px"
+          v-model:value="sourceProjection"
+          :options="sourceProjectionOptions"
+        />
         <span class="result-map__label">坐标列：</span>
         <n-select size="small" style="min-width: 160px" v-model:value="geoColumn" :options="geoOptions" />
         <span class="result-map__label" v-if="timeOptions.length > 0">时间列：</span>
@@ -39,6 +53,9 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { NSelect, NSpace, NTag, NText, type SelectOption } from 'naive-ui';
 import maplibregl, { type GeoJSONSource, type LngLatBoundsLike, type Map as MapLibreMap } from 'maplibre-gl';
+import { useMapTileSettings } from '@/composables/useMapTileSettings';
+import { transformGeoPoint } from '@/utils/geoTransforms';
+import { parseGeoPointValue } from '@/utils/sqlValue';
 
 interface Props {
   columns: string[];
@@ -59,10 +76,18 @@ const mapEl = ref<HTMLDivElement | null>(null);
 const geoColumn = ref('');
 const timeColumn = ref<string | null>(null);
 const groupColumn = ref<string | null>(null);
+const {
+  providerId,
+  sourceProjection,
+  provider,
+  providerOptions,
+  sourceProjectionOptions,
+  mapStyle,
+} = useMapTileSettings();
 let map: MapLibreMap | null = null;
 let resizeObserver: ResizeObserver | null = null;
 
-const geoColumns = computed(() => props.columns.filter((column) => props.rows.some((row) => parseGeoPoint(row[column]) !== null)));
+const geoColumns = computed(() => props.columns.filter((column) => props.rows.some((row) => parseGeoPointValue(row[column]) !== null)));
 const geoOptions = computed<SelectOption[]>(() => geoColumns.value.map((column) => ({ label: column, value: column })));
 const timeOptions = computed<SelectOption[]>(() => props.columns.filter((column) => props.rows.some((row) => parseTime(row[column]) !== null)).map((column) => ({ label: column, value: column })));
 const groupOptions = computed<SelectOption[]>(() => props.columns.filter(isGroupColumn).map((column) => ({ label: column, value: column })));
@@ -73,19 +98,6 @@ const mapHint = computed(() => {
   if (geoColumns.value.length === 0) return '未检测到 GEOPOINT / GeoJSON Point 列。';
   return '没有有效经纬度坐标。';
 });
-
-function parseGeoPoint(value: unknown): { lon: number; lat: number } | null {
-  if (!value || typeof value !== 'object') return null;
-  const object = value as Record<string, unknown>;
-  if (object.type === 'Point' && Array.isArray(object.coordinates) && object.coordinates.length >= 2) {
-    const lon = Number(object.coordinates[0]);
-    const lat = Number(object.coordinates[1]);
-    return Number.isFinite(lon) && Number.isFinite(lat) ? { lon, lat } : null;
-  }
-  const lat = Number(object.lat ?? object.Lat ?? object.latitude ?? object.Latitude);
-  const lon = Number(object.lon ?? object.Lon ?? object.lng ?? object.Lng ?? object.longitude ?? object.Longitude);
-  return Number.isFinite(lon) && Number.isFinite(lat) ? { lon, lat } : null;
-}
 
 function parseTime(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -115,10 +127,11 @@ function isGroupColumn(column: string): boolean {
 function buildPoints(): MapPoint[] {
   if (!geoColumn.value) return [];
   return props.rows.flatMap((row, index) => {
-    const point = parseGeoPoint(row[geoColumn.value]);
+    const point = parseGeoPointValue(row[geoColumn.value]);
     if (!point) return [];
+    const projected = transformGeoPoint(point, sourceProjection.value, provider.value.projection);
     return [{
-      ...point,
+      ...projected,
       time: timeColumn.value ? parseTime(row[timeColumn.value]) : index,
       group: groupColumn.value ? String(row[groupColumn.value] ?? 'null') : '结果轨迹',
     }];
@@ -129,27 +142,17 @@ function initMap(): void {
   if (!mapEl.value || map) return;
   map = new maplibregl.Map({
     container: mapEl.value,
-    style: {
-      version: 8,
-      sources: {
-        osm: {
-          type: 'raster',
-          tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-          tileSize: 256,
-          attribution: '© OpenStreetMap contributors',
-        },
-      },
-      layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
-    },
+    style: mapStyle.value,
     center: [116.397, 39.908],
     zoom: 3,
   });
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+  map.once('style.load', renderMap);
   map.on('load', renderMap);
 }
 
 function renderMap(): void {
-  if (!map || !map.loaded()) return;
+  if (!map || !map.isStyleLoaded()) return;
   const grouped = groupPoints();
   const lineFeatures = Array.from(grouped.entries()).flatMap(([group, groupPoints], index) => {
     if (!timeColumn.value || groupPoints.length < 2) return [];
@@ -235,6 +238,12 @@ watch([geoColumn, timeColumn, groupColumn, points], async () => {
   await nextTick();
   if (mapReady.value) initMap();
   renderMap();
+});
+
+watch(providerId, () => {
+  if (!map) return;
+  map.once('style.load', renderMap);
+  map.setStyle(mapStyle.value);
 });
 
 onMounted(() => {

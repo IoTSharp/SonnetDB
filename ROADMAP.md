@@ -468,6 +468,10 @@ PR #70（GEOPOINT 类型）
 | #87 | **M9：SQL Console 语法高亮回归**：新增 `web/src/components/sonnetdb-dialect.ts` 定义 `SonnetDbSQL = SQLDialect.define({ ...StandardSQL.spec, keywords + 'measurement|tag|field|...', types + 'vector|float|int|bool|string', builtin + 'knn|time_bucket|forecast|pid_*' })`；SqlEditor 改为使用 `SonnetDbSQL` 方言，lang-sql 内置的关键字补全与高亮自动覆盖 SonnetDB 词汇 | ✅ |
 | #88 | **M10：新手引导 / 提示词模板**：新增 `web/src/copilot/starters.ts` 定义 `COPILOT_STARTERS`（建表 / 写入 / 聚合 / 向量 / 预测 / PID / 排查分类）与 `pickStarters(routeKey)` 路由过滤；CopilotDock 空白态按 grid 展示 starter 卡片，点击填入输入框 | ✅ |
 
+### 已落地补充
+
+- **Web Admin SQL Console 首版升级为 SonnetDB Workbench**：保持原有 `/admin/app/sql` 路由和 Vue + CodeMirror + Naive UI 技术栈不变，把页面重构为 Schema Explorer / SQL Editor / Staged Preview / Result Grid 双栏工作台；读语句可直接执行，写语句必须先 staging，`DELETE` / `DROP` / `GRANT` / `REVOKE` / `USER` / `TOKEN` 类危险操作需要勾选确认。Copilot 继续使用右下角全局 `CopilotDock` 浮窗，不在 Workbench 内单独占栏。
+
 ### 推进顺序
 
 ```

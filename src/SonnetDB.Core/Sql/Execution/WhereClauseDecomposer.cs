@@ -10,8 +10,9 @@ namespace SonnetDB.Sql.Execution;
 /// <list type="bullet">
 ///   <item><description>仅支持顶层由 <c>AND</c> 连接的合取式（不允许 <c>OR</c> / <c>NOT</c>）。</description></item>
 ///   <item><description>每个叶子谓词必须是
-///     <c>tag_col = '字符串字面量'</c> 或 <c>time</c> 与整数字面量的比较（<c>= / != / &lt; / &lt;= / &gt; / &gt;=</c>）。</description></item>
-///   <item><description>不支持 field 列上的过滤；不支持表达式作为右值。</description></item>
+///     <c>tag_col = '字符串字面量'</c> 或 <c>time</c> 与时间表达式的比较（<c>= / != / &lt; / &lt;= / &gt; / &gt;=</c>）。
+///     时间表达式支持 Unix 毫秒整数字面量、duration 字面量以及 <c>now()</c> 参与的算术表达式。</description></item>
+///   <item><description>不支持 field 列上的过滤；time 右值仅支持受限的时间表达式。</description></item>
 /// </list>
 /// </summary>
 /// <param name="TagFilter">tag 列等值过滤集合（已合并去重；同 tag 列重复声明且取值不一致时抛错）。</param>
@@ -36,6 +37,9 @@ internal static class WhereClauseDecomposer
     /// <param name="schema">用于校验 tag 列名是否存在 / 是否真的是 Tag 列。</param>
     /// <exception cref="InvalidOperationException">表达式不在 v1 支持的形态内时抛出。</exception>
     public static WhereClause Decompose(SqlExpression? where, MeasurementSchema schema)
+        => Decompose(where, schema, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+
+    internal static WhereClause Decompose(SqlExpression? where, MeasurementSchema schema, long nowMs)
     {
         ArgumentNullException.ThrowIfNull(schema);
 
@@ -46,7 +50,7 @@ internal static class WhereClauseDecomposer
         if (where is not null)
         {
             foreach (var leaf in FlattenAnd(where))
-                ApplyLeaf(leaf, schema, tagFilter, ref fromInclusive, ref toInclusive);
+                ApplyLeaf(leaf, schema, tagFilter, ref fromInclusive, ref toInclusive, nowMs);
         }
 
         if (fromInclusive > toInclusive)
@@ -81,7 +85,8 @@ internal static class WhereClauseDecomposer
         MeasurementSchema schema,
         Dictionary<string, string> tagFilter,
         ref long fromInclusive,
-        ref long toInclusive)
+        ref long toInclusive,
+        long nowMs)
     {
         if (leaf is not BinaryExpression bin || !IsComparisonOperator(bin.Operator))
         {
@@ -98,7 +103,7 @@ internal static class WhereClauseDecomposer
         if (left is IdentifierExpression { Name: var leftName } &&
             string.Equals(leftName, "time", StringComparison.OrdinalIgnoreCase))
         {
-            ApplyTimeComparison(op, right, ref fromInclusive, ref toInclusive);
+            ApplyTimeComparison(op, right, ref fromInclusive, ref toInclusive, nowMs);
             return;
         }
 
@@ -224,11 +229,10 @@ internal static class WhereClauseDecomposer
         SqlBinaryOperator op,
         SqlExpression right,
         ref long fromInclusive,
-        ref long toInclusive)
+        ref long toInclusive,
+        long nowMs)
     {
-        if (right is not LiteralExpression { Kind: SqlLiteralKind.Integer, IntegerValue: var ts })
-            throw new InvalidOperationException(
-                "WHERE 中 'time' 比较的右值必须是整数字面量（Unix 毫秒）。");
+        var ts = TimeExpressionEvaluator.Evaluate(right, nowMs);
 
         switch (op)
         {
@@ -264,8 +268,8 @@ internal static class WhereClauseDecomposer
     private static (SqlExpression Left, SqlExpression Right, SqlBinaryOperator Op) NormalizeComparison(
         BinaryExpression bin)
     {
-        // 若左侧为字面量、右侧为标识符，则交换并翻转运算符
-        if (bin.Left is LiteralExpression && bin.Right is IdentifierExpression)
+        // 若右侧为标识符、左侧为字面量/时间表达式，则交换并翻转运算符。
+        if (bin.Left is not IdentifierExpression && bin.Right is IdentifierExpression)
             return (bin.Right, bin.Left, FlipComparison(bin.Operator));
         return (bin.Left, bin.Right, bin.Operator);
     }
