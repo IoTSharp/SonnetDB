@@ -35,7 +35,7 @@ jobs:
         with:
           global-json-file: global.json
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
 
       - name: Restore JekyllNet tool
         run: dotnet tool restore
