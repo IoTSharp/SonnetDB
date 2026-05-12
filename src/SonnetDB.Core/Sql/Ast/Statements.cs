@@ -4,13 +4,15 @@
 public abstract record SqlStatement;
 
 /// <summary>
-/// <c>CREATE MEASUREMENT name (col TAG, col FIELD type, ...)</c>。
+/// <c>CREATE MEASUREMENT [IF NOT EXISTS] name (col TAG, col FIELD type, ...)</c>。
 /// </summary>
 /// <param name="Name">measurement 名称。</param>
 /// <param name="Columns">列定义（按声明顺序）。</param>
+/// <param name="IfNotExists">是否带 <c>IF NOT EXISTS</c> 修饰；为 <c>true</c> 时若同名 measurement 已存在则视为成功并复用现有 schema。</param>
 public sealed record CreateMeasurementStatement(
     string Name,
-    IReadOnlyList<ColumnDefinition> Columns) : SqlStatement;
+    IReadOnlyList<ColumnDefinition> Columns,
+    bool IfNotExists = false) : SqlStatement;
 
 /// <summary>
 /// 向量索引声明抽象基类。

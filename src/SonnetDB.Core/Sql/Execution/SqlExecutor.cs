@@ -308,6 +308,16 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
+        // IF NOT EXISTS：同名 measurement 已存在则直接复用，不校验列定义是否一致。
+        if (statement.IfNotExists)
+        {
+            var existing = tsdb.Measurements.TryGet(statement.Name);
+            if (existing is not null)
+            {
+                return existing;
+            }
+        }
+
         RejectUnsupportedDefaults(statement);
 
         var columns = new List<MeasurementColumn>(statement.Columns.Count);

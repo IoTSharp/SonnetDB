@@ -99,6 +99,17 @@ public sealed class SqlParser
     private CreateMeasurementStatement ParseCreateMeasurementBody()
     {
         Expect(TokenKind.KeywordMeasurement);
+
+        // 可选的 IF NOT EXISTS 子句：存在时执行幂等创建语义。
+        var ifNotExists = false;
+        if (Current.Kind == TokenKind.KeywordIf)
+        {
+            Advance();
+            Expect(TokenKind.KeywordNot);
+            Expect(TokenKind.KeywordExists);
+            ifNotExists = true;
+        }
+
         var name = ExpectIdentifierName();
         Expect(TokenKind.LeftParen);
 
@@ -111,7 +122,7 @@ public sealed class SqlParser
         }
 
         Expect(TokenKind.RightParen);
-        return new CreateMeasurementStatement(name, columns);
+        return new CreateMeasurementStatement(name, columns, ifNotExists);
     }
 
     private ColumnDefinition ParseColumnDefinition()

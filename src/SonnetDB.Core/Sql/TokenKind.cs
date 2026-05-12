@@ -59,6 +59,10 @@ public enum TokenKind
     KeywordAnd,
     KeywordOr,
     KeywordNot,
+    /// <summary>IF（用于 IF NOT EXISTS 等条件子句）。</summary>
+    KeywordIf,
+    /// <summary>EXISTS（用于 IF NOT EXISTS 等条件子句）。</summary>
+    KeywordExists,
     KeywordAs,
     KeywordNull,
     KeywordDefault,
