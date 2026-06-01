@@ -376,6 +376,7 @@ SonnetDB/
 
 - [开始使用](docs/getting-started.md)
 - [数据模型](docs/data-model.md)
+- [KV Keyspace](docs/kv-keyspace.md)
 - [SQL 参考](docs/sql-reference.md)
 - [嵌入式与 in-proc API](docs/embedded-api.md)
 - [ADO.NET 参考](docs/ado-net.md)

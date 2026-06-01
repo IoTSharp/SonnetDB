@@ -1,6 +1,7 @@
 ﻿using SonnetDB.Catalog;
 using SonnetDB.Engine.Compaction;
 using SonnetDB.Engine.Retention;
+using SonnetDB.Kv;
 using SonnetDB.Memory;
 using SonnetDB.Model;
 using SonnetDB.Query;
@@ -26,6 +27,7 @@ public sealed class Tsdb : IDisposable
     private readonly WalGroupCommitCoordinator _walGroupCommit;
     private readonly object _writeSync = new();
     private readonly HashSet<ulong> _seriesWithWalRecord;
+    private readonly KvKeyspaceManager _keyspaces;
 
     private WalSegmentSet? _walSet;
     private long _nextSegmentId;
@@ -66,6 +68,11 @@ public sealed class Tsdb : IDisposable
     /// 该实例存在但任何 Register 操作都会抛出。
     /// </summary>
     public UserFunctionRegistry Functions { get; }
+
+    /// <summary>
+    /// 内置 KV Keyspace 管理器，用于打开轻量键值命名空间。
+    /// </summary>
+    public KvKeyspaceManager Keyspaces => _keyspaces;
 
     /// <summary>进程内墓碑集合，支持查询过滤与 Compaction 消化。</summary>
     public TombstoneTable Tombstones { get; private set; } = new TombstoneTable();
@@ -169,6 +176,7 @@ public sealed class Tsdb : IDisposable
             Tombstones,
             options.UseSimdNumericAggregates);
         Functions = new UserFunctionRegistry(options.AllowUserFunctions);
+        _keyspaces = new KvKeyspaceManager(TsdbPaths.KvDir(options.RootDirectory), options.Kv);
         _checkpointLsn = checkpointLsn;
         _lastTombstoneCheckpointUtcTicks = DateTime.UtcNow.Ticks;
     }
@@ -186,7 +194,7 @@ public sealed class Tsdb : IDisposable
         Directory.CreateDirectory(root);
         Directory.CreateDirectory(TsdbPaths.WalDir(root));
         Directory.CreateDirectory(TsdbPaths.SegmentsDir(root));
-
+        Directory.CreateDirectory(TsdbPaths.KvDir(root));
 
         // 加载 measurement schema 集合（文件不存在时返回空集合）
         var measurements = new MeasurementCatalog();
@@ -634,7 +642,14 @@ public sealed class Tsdb : IDisposable
                 }
                 finally
                 {
-                    Segments.Dispose();
+                    try
+                    {
+                        _keyspaces.Dispose();
+                    }
+                    finally
+                    {
+                        Segments.Dispose();
+                    }
                 }
             }
         }
@@ -1033,6 +1048,7 @@ public sealed class Tsdb : IDisposable
                 _walGroupCommit.FlushPending(_walSet);
             _walSet?.Dispose();
             _walGroupCommit.Dispose();
+            _keyspaces.Dispose();
             _walSet = null;
         }
     }

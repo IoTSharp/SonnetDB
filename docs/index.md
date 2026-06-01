@@ -39,6 +39,7 @@ SonnetDB 是一个基于 C# / .NET 10 的时序数据库项目，同时提供嵌
 | 想直接复制一段常用 SQL 模板 | [SQL Cookbook]({{ site.docs_baseurl | default: '/help' }}/sql-cookbook/) |
 | 使用 Web Admin Workbench 浏览 schema、编辑 SQL、做 staged preview | [SonnetDB Workbench]({{ site.docs_baseurl | default: '/help' }}/web-workbench/) |
 | 在进程内直接使用引擎 | [嵌入式与 in-proc API]({{ site.docs_baseurl | default: '/help' }}/embedded-api/) |
+| 使用轻量 KV keyspace 存储 metadata 或小对象 | [KV Keyspace]({{ site.docs_baseurl | default: '/help' }}/kv-keyspace/) |
 | 通过 ADO.NET 访问本地或远程实例 | [ADO.NET 参考]({{ site.docs_baseurl | default: '/help' }}/ado-net/) |
 | 使用 `sndb` 命令行工具 | [CLI 参考]({{ site.docs_baseurl | default: '/help' }}/cli-reference/) |
 | 走 Line Protocol、JSON 或批量 VALUES 快路径 | [批量写入]({{ site.docs_baseurl | default: '/help' }}/bulk-ingest/) |

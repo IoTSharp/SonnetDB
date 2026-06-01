@@ -29,6 +29,9 @@ public static class TsdbPaths
     /// <summary>Segment 子目录名。</summary>
     public const string SegmentsDirName = "segments";
 
+    /// <summary>KV 子目录名。</summary>
+    public const string KvDirName = "kv";
+
     /// <summary>Segment 文件扩展名。</summary>
     public const string SegmentFileExtension = ".SDBSEG";
 
@@ -91,6 +94,14 @@ public static class TsdbPaths
     /// <returns>Segment 目录路径。</returns>
     public static string SegmentsDir(string root) =>
         Path.Combine(root, SegmentsDirName);
+
+    /// <summary>
+    /// 返回 KV 子目录的完整路径：<c>{root}/kv</c>。
+    /// </summary>
+    /// <param name="root">数据库根目录路径。</param>
+    /// <returns>KV 目录路径。</returns>
+    public static string KvDir(string root) =>
+        Path.Combine(root, KvDirName);
 
     /// <summary>
     /// 返回指定 SegmentId 对应的段文件完整路径：

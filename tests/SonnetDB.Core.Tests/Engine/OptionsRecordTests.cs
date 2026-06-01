@@ -1,6 +1,7 @@
 using SonnetDB.Engine;
 using SonnetDB.Engine.Compaction;
 using SonnetDB.Engine.Retention;
+using SonnetDB.Kv;
 using SonnetDB.Memory;
 using SonnetDB.Query.Functions.Control;
 using SonnetDB.Storage.Segments;
@@ -25,6 +26,7 @@ public sealed class OptionsRecordTests
             Compaction = new CompactionPolicy { Enabled = false },
             WalRolling = new WalRollingPolicy { Enabled = false },
             Retention = new RetentionPolicy { Enabled = true, Ttl = TimeSpan.FromDays(7) },
+            Kv = new KvOptions { DefaultScanLimit = 32 },
         };
 
         Assert.Equal("data", options.RootDirectory);
@@ -36,6 +38,7 @@ public sealed class OptionsRecordTests
         Assert.False(options.Compaction.Enabled);
         Assert.False(options.WalRolling.Enabled);
         Assert.True(options.Retention.Enabled);
+        Assert.Equal(32, options.Kv.DefaultScanLimit);
     }
 
     [Fact]

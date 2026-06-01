@@ -119,6 +119,15 @@ public sealed class TsdbPathsTests
         Assert.Equal("wal", TsdbPaths.WalDirName);
         Assert.Equal("active.SDBWAL", TsdbPaths.ActiveWalFileName);
         Assert.Equal("segments", TsdbPaths.SegmentsDirName);
+        Assert.Equal("kv", TsdbPaths.KvDirName);
         Assert.Equal(".SDBSEG", TsdbPaths.SegmentFileExtension);
+    }
+
+    [Fact]
+    public void KvDir_ReturnsCorrectPath()
+    {
+        string root = Path.Combine("data", "db");
+        string expected = Path.Combine(root, "kv");
+        Assert.Equal(expected, TsdbPaths.KvDir(root));
     }
 }

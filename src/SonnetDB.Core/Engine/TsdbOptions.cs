@@ -1,5 +1,6 @@
 ﻿using SonnetDB.Engine.Compaction;
 using SonnetDB.Engine.Retention;
+using SonnetDB.Kv;
 using SonnetDB.Memory;
 using SonnetDB.Storage.Segments;
 using SonnetDB.Wal;
@@ -54,6 +55,9 @@ public sealed record TsdbOptions
 
     /// <summary>Tombstone manifest 周期性 checkpoint 选项。</summary>
     public TombstoneCheckpointOptions TombstoneCheckpoint { get; init; } = TombstoneCheckpointOptions.Default;
+
+    /// <summary>内置 KV Keyspace 存储选项。</summary>
+    public KvOptions Kv { get; init; } = KvOptions.Default;
 
     /// <summary>
     /// 是否允许通过 <c>Tsdb.Functions</c> 注册用户自定义函数（UDF）。
