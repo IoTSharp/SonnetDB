@@ -32,7 +32,27 @@ CREATE TABLE devices (
 - `DATETIME` 可写 Unix 毫秒整数或 ISO-8601 字符串，查询时返回 UTC `DateTime`。
 - `BLOB` 可写 base64 字符串；ADO.NET 参数可直接传 `byte[]`。
 - `JSON` 当前按 UTF-8 字符串存储，不做 JSON schema 校验。
-- 当前不支持 secondary index、外键、唯一约束、JOIN、事务或复杂优化器。
+- 二级索引使用 `CREATE INDEX` 单独声明；当前不支持外键、JOIN 或复杂优化器。
+
+### `CREATE INDEX` / `DROP INDEX`
+
+关系表支持普通二级索引和唯一索引。索引声明随 table schema 持久化，索引内容从 rowstore 派生，打开表或 schema 变更时可重建。
+
+```sql
+CREATE INDEX idx_devices_tenant ON devices (tenant);
+CREATE UNIQUE INDEX ux_devices_serial ON devices (serial);
+CREATE INDEX IF NOT EXISTS idx_devices_site ON devices (site, name);
+
+DROP INDEX idx_devices_site ON devices;
+```
+
+当前行为：
+
+- 索引名在单表内唯一。
+- 索引列必须存在，可包含 1 个或多个列。
+- 唯一索引会在 `INSERT` / `UPDATE` / 轻事务提交时校验现有数据和同批数据冲突。
+- `SELECT` / `UPDATE` / `DELETE` 的 `WHERE` 覆盖索引全部列的等值条件时，可先走二级索引候选行，再执行完整 WHERE 过滤。
+- 索引内容不作为第二份权威数据保存；rowstore 是主数据，索引可重建。
 
 ### 关系表 DML
 
@@ -59,8 +79,28 @@ WHERE id = 2;
 - `INSERT` 按主键插入；主键已存在时返回错误，不会静默覆盖。
 - `UPDATE` 支持更新非主键列；当前不支持更新主键列。
 - `SELECT` 支持 `*`、列投影、字面量投影、`WHERE` 中的 `AND` / `OR` / `NOT`、基础比较和简单数值运算。
-- `WHERE` 覆盖完整主键等值条件时会走主键读取；其它条件走表扫描后过滤。
+- `WHERE` 覆盖完整主键等值条件时会走主键读取；覆盖完整二级索引等值条件时会走二级索引候选行；其它条件走表扫描后过滤。
 - `ORDER BY` 支持结果集中的任意列名；`LIMIT` / `OFFSET` / `FETCH` 语法与 measurement 查询一致。
+
+### 关系表轻事务
+
+`SqlExecutor.ExecuteScript(...)` 和服务端 `/sql/batch` 支持关系表小批量 DML 轻事务：
+
+```sql
+BEGIN;
+INSERT INTO devices (id, name, enabled) VALUES (3, 'valve-03', TRUE);
+UPDATE devices SET enabled = FALSE WHERE id = 1;
+DELETE FROM devices WHERE id = 2;
+COMMIT;
+```
+
+也可以显式写 `BEGIN TRANSACTION`；`ROLLBACK` 会放弃当前轻事务中排队的变更。
+
+当前边界：
+
+- 轻事务只支持单个关系表内的 `INSERT` / `UPDATE` / `DELETE`。
+- 不支持嵌套事务、跨表事务、measurement 写入事务或 DDL 事务。
+- `COMMIT` 时按 rowstore batch 原子应用；如果唯一索引或 NOT NULL 校验失败，已应用的 rowstore / index 变更会回滚。
 
 ### `CREATE MEASUREMENT`
 
@@ -298,6 +338,21 @@ SHOW TABLES;
 | cpu  |
 | mem  |
 
+### `SHOW INDEXES ON <table>`
+
+列出指定关系表的二级索引：
+
+```sql
+SHOW INDEXES ON devices;
+```
+
+| 列 | 类型 | 说明 |
+|----|------|------|
+| `index_name` | string | 索引名 |
+| `is_unique` | bool | 是否唯一索引 |
+| `columns` | string | 逗号分隔的索引列 |
+| `created_utc` | string | UTC ISO-8601 创建时间 |
+
 ### `DESCRIBE TABLE <name>`
 
 描述指定关系表的列结构，按 `CREATE TABLE` 声明顺序返回：
@@ -349,18 +404,19 @@ FROM cpu
 WHERE host = 'server-01' AND time >= now() - 1d;
 
 EXPLAIN SHOW MEASUREMENTS;
+EXPLAIN SHOW INDEXES ON devices;
 EXPLAIN DESCRIBE MEASUREMENT cpu;
 ```
 
 当前支持范围：
 
 - `SELECT ...`
-- `SHOW MEASUREMENTS` / `SHOW TABLES`
+- `SHOW MEASUREMENTS` / `SHOW TABLES` / `SHOW INDEXES ON <table>`
 - `DESCRIBE [MEASUREMENT] <name>` / `DESC <name>`
 - `DESCRIBE TABLE <name>`
 
 当前不支持对 `INSERT`、`DELETE`、`CREATE`、`DROP`、用户/授权/Token 控制面 SQL 做 `EXPLAIN`。
-返回字段包括 `database`、`statement_type`、`measurement`、`matched_series_count`、`estimated_segment_count`、`estimated_block_count`、`estimated_scanned_rows`、`estimated_memtable_rows`、`estimated_segment_rows`、`has_time_filter` 与 `tag_filter_count`。
+返回字段包括 `database`、`statement_type`、`measurement`、`matched_series_count`、`estimated_segment_count`、`estimated_block_count`、`estimated_scanned_rows`、`estimated_memtable_rows`、`estimated_segment_rows`、`has_time_filter`、`tag_filter_count`、`access_path` 与 `index_name`。关系表查询的 `access_path` 可能是 `primary_key`、`secondary_index` 或 `table_scan`。
 
 ## 控制面 SQL
 

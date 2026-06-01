@@ -65,6 +65,50 @@ public static class SqlExecutor
     }
 
     /// <summary>
+    /// 解析并执行一段 SQL 脚本，支持 <c>BEGIN</c> / <c>COMMIT</c> / <c>ROLLBACK</c> 轻事务。
+    /// </summary>
+    /// <param name="tsdb">目标数据库实例。</param>
+    /// <param name="sql">SQL 脚本文本。</param>
+    /// <returns>每条语句的执行结果。</returns>
+    public static IReadOnlyList<object?> ExecuteScript(Tsdb tsdb, string sql)
+        => ExecuteScript(tsdb, databaseName: null, sql: sql, controlPlane: null);
+
+    /// <summary>
+    /// 解析并执行一段 SQL 脚本，支持可选控制面与轻事务。
+    /// </summary>
+    public static IReadOnlyList<object?> ExecuteScript(Tsdb tsdb, string? databaseName, string sql, IControlPlane? controlPlane = null)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(sql);
+
+        var statements = SqlParser.ParseScript(sql);
+        var results = new List<object?>(statements.Count);
+        SqlTransactionContext? transaction = null;
+        foreach (var statement in statements)
+        {
+            if (statement is BeginTransactionStatement && transaction is not null && !transaction.IsCompleted)
+                throw new InvalidOperationException("当前已有活动轻事务，不能嵌套 BEGIN。");
+
+            var result = ExecuteStatement(tsdb, databaseName, statement, controlPlane, transaction);
+            if (result is SqlTransactionContext started)
+            {
+                transaction = started;
+            }
+            else if (statement is CommitTransactionStatement or RollbackTransactionStatement)
+            {
+                transaction = null;
+            }
+
+            results.Add(result);
+        }
+
+        if (transaction is not null && !transaction.IsCompleted)
+            throw new InvalidOperationException("SQL 脚本结束时仍有未提交的轻事务。");
+
+        return results.AsReadOnly();
+    }
+
+    /// <summary>
     /// 执行一条已解析的 SQL 语句。
     /// </summary>
     /// <param name="tsdb">目标数据库实例。</param>
@@ -92,21 +136,42 @@ public static class SqlExecutor
     /// <param name="statement">已解析的语句 AST。</param>
     /// <param name="controlPlane">控制面实现；为 <c>null</c> 时控制面 DDL 抛 <see cref="NotSupportedException"/>。</param>
     public static object? ExecuteStatement(Tsdb tsdb, string? databaseName, SqlStatement statement, IControlPlane? controlPlane = null)
+        => ExecuteStatement(tsdb, databaseName, statement, controlPlane, transaction: null);
+
+    /// <summary>
+    /// 执行一条已解析的 SQL 语句，可选传入轻事务上下文。
+    /// </summary>
+    public static object? ExecuteStatement(
+        Tsdb tsdb,
+        string? databaseName,
+        SqlStatement statement,
+        IControlPlane? controlPlane,
+        SqlTransactionContext? transaction)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
         return statement switch
         {
+            BeginTransactionStatement => new SqlTransactionContext(),
+            CommitTransactionStatement => transaction is null
+                ? throw new InvalidOperationException("COMMIT 前没有活动轻事务。")
+                : TableSqlExecutor.CommitTransaction(tsdb, transaction),
+            RollbackTransactionStatement => RollbackTransaction(transaction),
             CreateMeasurementStatement create => ExecuteCreateMeasurement(tsdb, create),
             CreateTableStatement createTable => TableSqlExecutor.ExecuteCreateTable(tsdb, createTable),
-            InsertStatement insert => ExecuteInsert(tsdb, insert),
+            CreateTableIndexStatement createIndex => TableSqlExecutor.ExecuteCreateIndex(tsdb, createIndex),
+            InsertStatement insert => ExecuteInsert(tsdb, insert, transaction),
             SelectStatement select => ExecuteSelect(tsdb, select),
-            DeleteStatement delete => ExecuteDelete(tsdb, delete),
-            UpdateStatement update => TableSqlExecutor.ExecuteUpdate(tsdb, update),
+            DeleteStatement delete => ExecuteDelete(tsdb, delete, transaction),
+            UpdateStatement update => transaction is null
+                ? TableSqlExecutor.ExecuteUpdate(tsdb, update)
+                : TableSqlExecutor.QueueUpdate(transaction, tsdb, update),
             DropTableStatement dropTable => TableSqlExecutor.ExecuteDropTable(tsdb, dropTable),
+            DropTableIndexStatement dropIndex => TableSqlExecutor.ExecuteDropIndex(tsdb, dropIndex),
             ShowMeasurementsStatement => ShowMeasurements(tsdb),
             ShowTablesStatement => TableSqlExecutor.ShowTables(tsdb),
+            ShowTableIndexesStatement showIndexes => TableSqlExecutor.ShowIndexes(tsdb, showIndexes.TableName),
             DescribeMeasurementStatement describe => DescribeMeasurement(tsdb, describe.Name),
             DescribeTableStatement describeTable => TableSqlExecutor.DescribeTable(tsdb, describeTable.Name),
             ExplainStatement explain => ExecuteExplain(tsdb, databaseName, explain),
@@ -134,6 +199,14 @@ public static class SqlExecutor
             _ => throw new NotSupportedException(
                 $"SQL 语句类型 '{statement.GetType().Name}' 尚未实现。"),
         };
+    }
+
+    private static RowsAffectedExecutionResult RollbackTransaction(SqlTransactionContext? transaction)
+    {
+        if (transaction is null)
+            throw new InvalidOperationException("ROLLBACK 前没有活动轻事务。");
+        transaction.MarkCompleted();
+        return new RowsAffectedExecutionResult("*", 0, "rollback");
     }
 
     private static SelectExecutionResult ExecuteExplain(Tsdb tsdb, string? databaseName, ExplainStatement statement)
@@ -405,13 +478,18 @@ public static class SqlExecutor
     /// <exception cref="ArgumentNullException">任何参数为 null。</exception>
     /// <exception cref="InvalidOperationException">未提供任何 Field / 类型不兼容等校验失败时抛出。</exception>
     public static InsertExecutionResult ExecuteInsert(Tsdb tsdb, InsertStatement statement)
+        => ExecuteInsert(tsdb, statement, transaction: null);
+
+    private static InsertExecutionResult ExecuteInsert(Tsdb tsdb, InsertStatement statement, SqlTransactionContext? transaction)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
         var tableSchema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
         if (tableSchema is not null)
-            return TableSqlExecutor.ExecuteInsert(tsdb, statement, tableSchema);
+            return transaction is null
+                ? TableSqlExecutor.ExecuteInsert(tsdb, statement, tableSchema)
+                : TableSqlExecutor.QueueInsert(transaction, statement, tableSchema);
 
         var schema = tsdb.Measurements.TryGet(statement.Measurement);
 
@@ -544,13 +622,18 @@ public static class SqlExecutor
     /// <exception cref="ArgumentNullException">任何参数为 null。</exception>
     /// <exception cref="InvalidOperationException">measurement 不存在 / WHERE 包含不支持的表达式。</exception>
     public static DeleteExecutionResult ExecuteDelete(Tsdb tsdb, DeleteStatement statement)
+        => ExecuteDelete(tsdb, statement, transaction: null);
+
+    private static DeleteExecutionResult ExecuteDelete(Tsdb tsdb, DeleteStatement statement, SqlTransactionContext? transaction)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
         var tableSchema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
         if (tableSchema is not null)
         {
-            var affected = TableSqlExecutor.ExecuteDelete(tsdb, statement, tableSchema).RowsAffected;
+            var affected = transaction is null
+                ? TableSqlExecutor.ExecuteDelete(tsdb, statement, tableSchema).RowsAffected
+                : TableSqlExecutor.QueueDelete(transaction, tsdb, statement, tableSchema).RowsAffected;
             return new DeleteExecutionResult(
                 statement.Measurement,
                 SeriesAffected: affected,

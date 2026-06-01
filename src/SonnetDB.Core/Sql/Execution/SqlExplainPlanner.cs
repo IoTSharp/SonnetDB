@@ -6,6 +6,7 @@ using SonnetDB.Query;
 using SonnetDB.Query.Functions;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Storage.Format;
+using SonnetDB.Tables;
 
 namespace SonnetDB.Sql.Execution;
 
@@ -23,7 +24,9 @@ public sealed record SqlExplainExecutionResult(
     long EstimatedMemTableRows,
     long EstimatedSegmentRows,
     bool HasTimeFilter,
-    int TagFilterCount);
+    int TagFilterCount,
+    string? AccessPath = null,
+    string? IndexName = null);
 
 /// <summary>
 /// 为只读 SQL 估算查询将扫描的段数、block 数和行数。
@@ -57,6 +60,7 @@ public static class SqlExplainPlanner
         {
             ShowMeasurementsStatement => ExplainShowMeasurements(databaseName, tsdb),
             ShowTablesStatement => ExplainShowTables(databaseName, tsdb),
+            ShowTableIndexesStatement showIndexes => ExplainShowIndexes(databaseName, tsdb, showIndexes.TableName),
             DescribeMeasurementStatement describe => ExplainDescribeMeasurement(databaseName, tsdb, describe.Name),
             DescribeTableStatement describeTable => ExplainDescribeTable(databaseName, tsdb, describeTable.Name),
             SelectStatement select => ExplainSelect(databaseName, tsdb, select),
@@ -72,7 +76,7 @@ public static class SqlExplainPlanner
     {
         ArgumentNullException.ThrowIfNull(result);
 
-        var rows = new List<IReadOnlyList<object?>>(11)
+        var rows = new List<IReadOnlyList<object?>>(13)
         {
             new object?[] { "database", result.Database },
             new object?[] { "statement_type", result.StatementType },
@@ -85,6 +89,8 @@ public static class SqlExplainPlanner
             new object?[] { "estimated_segment_rows", result.EstimatedSegmentRows },
             new object?[] { "has_time_filter", result.HasTimeFilter },
             new object?[] { "tag_filter_count", result.TagFilterCount },
+            new object?[] { "access_path", result.AccessPath },
+            new object?[] { "index_name", result.IndexName },
         };
 
         return new SelectExecutionResult(_keyValueColumns, rows);
@@ -104,7 +110,9 @@ public static class SqlExplainPlanner
             EstimatedMemTableRows: 0,
             EstimatedSegmentRows: 0,
             HasTimeFilter: false,
-            TagFilterCount: 0);
+            TagFilterCount: 0,
+            AccessPath: "catalog",
+            IndexName: null);
     }
 
     private static SqlExplainExecutionResult ExplainShowTables(string? databaseName, Tsdb tsdb)
@@ -121,7 +129,9 @@ public static class SqlExplainPlanner
             EstimatedMemTableRows: 0,
             EstimatedSegmentRows: 0,
             HasTimeFilter: false,
-            TagFilterCount: 0);
+            TagFilterCount: 0,
+            AccessPath: "catalog",
+            IndexName: null);
     }
 
     private static SqlExplainExecutionResult ExplainDescribeMeasurement(
@@ -145,7 +155,35 @@ public static class SqlExplainPlanner
             EstimatedMemTableRows: 0,
             EstimatedSegmentRows: 0,
             HasTimeFilter: false,
-            TagFilterCount: 0);
+            TagFilterCount: 0,
+            AccessPath: "catalog",
+            IndexName: null);
+    }
+
+    private static SqlExplainExecutionResult ExplainShowIndexes(
+        string? databaseName,
+        Tsdb tsdb,
+        string tableName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+
+        var schema = tsdb.Tables.Catalog.TryGet(tableName)
+            ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+
+        return new SqlExplainExecutionResult(
+            Database: databaseName,
+            StatementType: "show_indexes",
+            Measurement: schema.Name,
+            MatchedSeriesCount: 0,
+            EstimatedSegmentCount: 0,
+            EstimatedBlockCount: 0,
+            EstimatedScannedRows: schema.Indexes.Count,
+            EstimatedMemTableRows: 0,
+            EstimatedSegmentRows: 0,
+            HasTimeFilter: false,
+            TagFilterCount: 0,
+            AccessPath: "catalog",
+            IndexName: null);
     }
 
     private static SqlExplainExecutionResult ExplainDescribeTable(
@@ -169,7 +207,9 @@ public static class SqlExplainPlanner
             EstimatedMemTableRows: 0,
             EstimatedSegmentRows: 0,
             HasTimeFilter: false,
-            TagFilterCount: 0);
+            TagFilterCount: 0,
+            AccessPath: "catalog",
+            IndexName: null);
     }
 
     private static SqlExplainExecutionResult ExplainSelect(
@@ -180,7 +220,8 @@ public static class SqlExplainPlanner
         var tableSchema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
         if (tableSchema is not null)
         {
-            int rowCount = tsdb.Tables.Open(tableSchema.Name).Scan().Count;
+            var store = tsdb.Tables.Open(tableSchema.Name);
+            var (accessPath, indexName, rowCount) = ExplainTableAccess(store, tableSchema, statement.Where);
             return new SqlExplainExecutionResult(
                 Database: databaseName,
                 StatementType: "select_table",
@@ -192,7 +233,9 @@ public static class SqlExplainPlanner
                 EstimatedMemTableRows: rowCount,
                 EstimatedSegmentRows: 0,
                 HasTimeFilter: statement.Where is not null,
-                TagFilterCount: 0);
+                TagFilterCount: 0,
+                AccessPath: accessPath,
+                IndexName: indexName);
         }
 
         if (statement.TableValuedFunction is FunctionCallExpression { Name: var tvfName }
@@ -249,7 +292,42 @@ public static class SqlExplainPlanner
             EstimatedMemTableRows: estimatedMemTableRows,
             EstimatedSegmentRows: estimatedSegmentRows,
             HasTimeFilter: where.TimeRange != TimeRange.All,
-            TagFilterCount: where.TagFilter.Count);
+            TagFilterCount: where.TagFilter.Count,
+            AccessPath: where.TagFilter.Count > 0 ? "tag_index" : "measurement_scan",
+            IndexName: null);
+    }
+
+    private static (string AccessPath, string? IndexName, int EstimatedRows) ExplainTableAccess(
+        TableStore store,
+        TableSchema schema,
+        SqlExpression? where)
+    {
+        if (TableSqlExecutor.ChooseBestIndexForWhere(schema, where, out var values) is { } index)
+            return ("secondary_index", index.Name, store.GetByIndex(index, values).Count);
+
+        if (TryHasPrimaryKeyFilter(schema, where))
+            return ("primary_key", "primary", values.Count == 0 ? 0 : 1);
+
+        return ("table_scan", null, store.Scan().Count);
+    }
+
+    private static bool TryHasPrimaryKeyFilter(TableSchema schema, SqlExpression? where)
+    {
+        if (where is null)
+            return false;
+
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var leaf in FlattenAnd(where))
+        {
+            if (leaf is not BinaryExpression { Operator: SqlBinaryOperator.Equal } binary)
+                continue;
+
+            var identifier = binary.Left as IdentifierExpression ?? binary.Right as IdentifierExpression;
+            if (identifier is not null)
+                names.Add(identifier.Name);
+        }
+
+        return schema.PrimaryKey.All(names.Contains);
     }
 
     private static IReadOnlyList<string> ResolveScannedFields(SelectStatement statement, MeasurementSchema schema)

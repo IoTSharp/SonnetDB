@@ -45,6 +45,10 @@ public enum TokenKind
 
     // 关键字
     KeywordCreate,
+    /// <summary>UNIQUE（二级索引唯一性声明）。</summary>
+    KeywordUnique,
+    /// <summary>INDEX（二级索引 DDL）。</summary>
+    KeywordIndex,
     KeywordMeasurement,
     /// <summary>TABLE（关系表 DDL）。</summary>
     KeywordTable,
@@ -138,4 +142,13 @@ public enum TokenKind
     KeywordOffset,
     KeywordFetch,
     KeywordLimit,
+
+    /// <summary>BEGIN 轻事务起始。</summary>
+    KeywordBegin,
+    /// <summary>COMMIT 轻事务提交。</summary>
+    KeywordCommit,
+    /// <summary>ROLLBACK 轻事务回滚。</summary>
+    KeywordRollback,
+    /// <summary>TRANSACTION，可选轻事务修饰词。</summary>
+    KeywordTransaction,
 }

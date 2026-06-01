@@ -49,8 +49,88 @@ public sealed class TableManager : IDisposable
         {
             ThrowIfDisposed();
             Catalog.Add(schema);
-            PersistCatalogLocked();
-            _ = OpenStoreLocked(schema);
+            try
+            {
+                PersistCatalogLocked();
+                _ = OpenStoreLocked(schema);
+            }
+            catch
+            {
+                Catalog.Remove(schema.Name);
+                throw;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 为已有关系表创建二级索引并持久化 schema。
+    /// </summary>
+    /// <param name="tableName">表名。</param>
+    /// <param name="definition">索引声明。</param>
+    /// <returns>新建的索引声明。</returns>
+    public TableIndex CreateIndex(string tableName, TableIndexDefinition definition)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+        ArgumentNullException.ThrowIfNull(definition);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var current = Catalog.TryGet(tableName)
+                ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+            var updated = current.WithIndex(definition);
+            var store = OpenStoreLocked(current);
+            store.ApplySchema(updated);
+            Catalog.LoadOrReplace(updated);
+            try
+            {
+                PersistCatalogLocked();
+            }
+            catch
+            {
+                store.ApplySchema(current);
+                Catalog.LoadOrReplace(current);
+                throw;
+            }
+
+            return updated.TryGetIndex(definition.Name)
+                ?? throw new InvalidOperationException("内部错误：索引创建后未能读取 schema。");
+        }
+    }
+
+    /// <summary>
+    /// 删除关系表二级索引声明。
+    /// </summary>
+    /// <param name="tableName">表名。</param>
+    /// <param name="indexName">索引名。</param>
+    /// <returns>索引存在并删除时返回 true。</returns>
+    public bool DropIndex(string tableName, string indexName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var current = Catalog.TryGet(tableName)
+                ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+            if (current.TryGetIndex(indexName) is null)
+                return false;
+
+            var updated = current.WithoutIndex(indexName);
+            var store = OpenStoreLocked(current);
+            store.ApplySchema(updated);
+            Catalog.LoadOrReplace(updated);
+            try
+            {
+                PersistCatalogLocked();
+            }
+            catch
+            {
+                store.ApplySchema(current);
+                Catalog.LoadOrReplace(current);
+                throw;
+            }
+
+            return true;
         }
     }
 

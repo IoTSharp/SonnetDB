@@ -224,12 +224,14 @@ SonnetDB 采用典型的时序数据建模方式：
 
 - `CREATE MEASUREMENT`
 - `CREATE TABLE ... PRIMARY KEY (...)`
+- `CREATE [UNIQUE] INDEX ... ON table (...)` / `DROP INDEX ... ON table`
 - `INSERT INTO ... VALUES (...)`
 - `SELECT ... FROM ... [WHERE ...] [GROUP BY time(...)]`
 - `UPDATE ... SET ... WHERE ...`（关系表）
 - `DELETE FROM ... WHERE ...`
-- `SHOW MEASUREMENTS` / `SHOW TABLES` / `DESCRIBE [MEASUREMENT] <name>` / `DESCRIBE TABLE <name>`
-- `EXPLAIN <read-only statement>`（当前支持 `SELECT`、`SHOW MEASUREMENTS` / `SHOW TABLES` 与 `DESCRIBE [MEASUREMENT|TABLE]`）
+- `BEGIN [TRANSACTION]` / `COMMIT` / `ROLLBACK`（关系表单表小批量轻事务）
+- `SHOW MEASUREMENTS` / `SHOW TABLES` / `SHOW INDEXES ON table` / `DESCRIBE [MEASUREMENT] <name>` / `DESCRIBE TABLE <name>`
+- `EXPLAIN <read-only statement>`（当前支持 `SELECT`、`SHOW MEASUREMENTS` / `SHOW TABLES` / `SHOW INDEXES` 与 `DESCRIBE [MEASUREMENT|TABLE]`，并返回 table 查询的 `access_path` / `index_name`）
 
 ### 支持的 SQL 函数
 

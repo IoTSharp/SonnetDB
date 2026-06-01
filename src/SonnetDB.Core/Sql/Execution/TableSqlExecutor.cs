@@ -15,6 +15,8 @@ internal static class TableSqlExecutor
         new List<string>(1) { "name" }.AsReadOnly();
     private static readonly IReadOnlyList<string> _describeTableColumns =
         new List<string>(5) { "column_name", "data_type", "is_nullable", "is_primary_key", "ordinal" }.AsReadOnly();
+    private static readonly IReadOnlyList<string> _showIndexColumns =
+        new List<string>(4) { "index_name", "is_unique", "columns", "created_utc" }.AsReadOnly();
 
     public static TableSchema ExecuteCreateTable(Tsdb tsdb, CreateTableStatement statement)
     {
@@ -42,6 +44,21 @@ internal static class TableSqlExecutor
         return schema;
     }
 
+    public static TableIndex ExecuteCreateIndex(Tsdb tsdb, CreateTableIndexStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        var schema = tsdb.Tables.Catalog.TryGet(statement.TableName)
+            ?? throw new InvalidOperationException($"table '{statement.TableName}' 不存在。");
+        if (statement.IfNotExists && schema.TryGetIndex(statement.IndexName) is { } existing)
+            return existing;
+
+        return tsdb.Tables.CreateIndex(
+            statement.TableName,
+            new TableIndexDefinition(statement.IndexName, statement.Columns, statement.IsUnique));
+    }
+
     public static RowsAffectedExecutionResult ExecuteDropTable(Tsdb tsdb, DropTableStatement statement)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
@@ -49,6 +66,15 @@ internal static class TableSqlExecutor
 
         bool removed = tsdb.Tables.Drop(statement.Name);
         return new RowsAffectedExecutionResult(statement.Name, removed ? 1 : 0, "drop_table");
+    }
+
+    public static RowsAffectedExecutionResult ExecuteDropIndex(Tsdb tsdb, DropTableIndexStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        bool removed = tsdb.Tables.DropIndex(statement.TableName, statement.IndexName);
+        return new RowsAffectedExecutionResult(statement.TableName, removed ? 1 : 0, "drop_index");
     }
 
     public static InsertExecutionResult ExecuteInsert(Tsdb tsdb, InsertStatement statement, TableSchema schema)
@@ -60,7 +86,7 @@ internal static class TableSqlExecutor
         var store = tsdb.Tables.Open(schema.Name);
         var bindings = BindInsertColumns(statement, schema);
 
-        int inserted = 0;
+        var rows = new List<IReadOnlyList<object?>>(statement.Rows.Count);
         foreach (var row in statement.Rows)
         {
             var values = new object?[schema.Columns.Count];
@@ -71,11 +97,34 @@ internal static class TableSqlExecutor
             }
 
             ValidateRequiredColumns(schema, values);
-            store.Insert(values);
-            inserted++;
+            rows.Add(values);
         }
 
+        int inserted = store.InsertMany(rows);
         return new InsertExecutionResult(schema.Name, inserted);
+    }
+
+    public static InsertExecutionResult QueueInsert(SqlTransactionContext transaction, InsertStatement statement, TableSchema schema)
+    {
+        ArgumentNullException.ThrowIfNull(transaction);
+        ArgumentNullException.ThrowIfNull(statement);
+        ArgumentNullException.ThrowIfNull(schema);
+
+        var bindings = BindInsertColumns(statement, schema);
+        foreach (var row in statement.Rows)
+        {
+            var values = new object?[schema.Columns.Count];
+            for (int i = 0; i < bindings.Length; i++)
+            {
+                var column = bindings[i];
+                values[column.Ordinal] = ConvertTableValue(row[i], column);
+            }
+
+            ValidateRequiredColumns(schema, values);
+            transaction.AddTableMutation(schema.Name, new TableRowMutation(PrimaryKeyValues: null, values));
+        }
+
+        return new InsertExecutionResult(schema.Name, statement.Rows.Count);
     }
 
     public static SelectExecutionResult ExecuteSelect(Tsdb tsdb, SelectStatement statement, TableSchema schema)
@@ -124,7 +173,7 @@ internal static class TableSqlExecutor
             return new RowsAffectedExecutionResult(schema.Name, deleted, "delete");
         }
 
-        foreach (var row in store.Scan())
+        foreach (var row in LoadCandidateRows(store, schema, statement.Where))
         {
             if (!EvaluateWhere(statement.Where, schema, row.Values))
                 continue;
@@ -147,8 +196,8 @@ internal static class TableSqlExecutor
         var store = tsdb.Tables.Open(schema.Name);
         var assignments = BindAssignments(statement, schema);
 
-        int updated = 0;
-        foreach (var row in store.Scan())
+        var mutations = new List<TableRowMutation>();
+        foreach (var row in LoadCandidateRows(store, schema, statement.Where))
         {
             if (!EvaluateWhere(statement.Where, schema, row.Values))
                 continue;
@@ -158,11 +207,81 @@ internal static class TableSqlExecutor
                 values[assignment.Column.Ordinal] = ConvertTableValue(assignment.Value, assignment.Column);
 
             ValidateRequiredColumns(schema, values);
-            store.Upsert(values);
+            mutations.Add(new TableRowMutation(ExtractPrimaryKeyValues(schema, row.Values), values));
+        }
+
+        int updated = store.ApplyBatch(mutations);
+        return new RowsAffectedExecutionResult(schema.Name, updated, "update");
+    }
+
+    public static RowsAffectedExecutionResult QueueUpdate(SqlTransactionContext transaction, Tsdb tsdb, UpdateStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(transaction);
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        var schema = tsdb.Tables.Catalog.TryGet(statement.TableName)
+            ?? throw new InvalidOperationException($"table '{statement.TableName}' 不存在。");
+        var store = tsdb.Tables.Open(schema.Name);
+        var assignments = BindAssignments(statement, schema);
+
+        int updated = 0;
+        foreach (var row in LoadCandidateRows(store, schema, statement.Where))
+        {
+            if (!EvaluateWhere(statement.Where, schema, row.Values))
+                continue;
+
+            var values = row.Values.ToArray();
+            foreach (var assignment in assignments)
+                values[assignment.Column.Ordinal] = ConvertTableValue(assignment.Value, assignment.Column);
+
+            ValidateRequiredColumns(schema, values);
+            transaction.AddTableMutation(schema.Name, new TableRowMutation(ExtractPrimaryKeyValues(schema, row.Values), values));
             updated++;
         }
 
         return new RowsAffectedExecutionResult(schema.Name, updated, "update");
+    }
+
+    public static RowsAffectedExecutionResult QueueDelete(SqlTransactionContext transaction, Tsdb tsdb, DeleteStatement statement, TableSchema schema)
+    {
+        ArgumentNullException.ThrowIfNull(transaction);
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+        ArgumentNullException.ThrowIfNull(schema);
+
+        var store = tsdb.Tables.Open(schema.Name);
+        int deleted = 0;
+        foreach (var row in LoadCandidateRows(store, schema, statement.Where))
+        {
+            if (!EvaluateWhere(statement.Where, schema, row.Values))
+                continue;
+
+            transaction.AddTableMutation(schema.Name, new TableRowMutation(ExtractPrimaryKeyValues(schema, row.Values), NewValues: null));
+            deleted++;
+        }
+
+        return new RowsAffectedExecutionResult(schema.Name, deleted, "delete");
+    }
+
+    public static RowsAffectedExecutionResult CommitTransaction(Tsdb tsdb, SqlTransactionContext transaction)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(transaction);
+
+        var mutations = transaction.SnapshotTableMutations();
+        if (mutations.Count > 1)
+            throw new NotSupportedException("轻事务当前仅支持单个关系表内的小批量 DML。");
+
+        int affected = 0;
+        foreach (var (tableName, tableMutations) in mutations)
+        {
+            var store = tsdb.Tables.Open(tableName);
+            affected += store.ApplyBatch(tableMutations);
+        }
+
+        transaction.MarkCompleted();
+        return new RowsAffectedExecutionResult("*", affected, "commit");
     }
 
     public static SelectExecutionResult ShowTables(Tsdb tsdb)
@@ -197,6 +316,39 @@ internal static class TableSqlExecutor
         }
 
         return new SelectExecutionResult(_describeTableColumns, rows);
+    }
+
+    public static SelectExecutionResult ShowIndexes(Tsdb tsdb, string tableName)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+
+        var schema = tsdb.Tables.Catalog.TryGet(tableName)
+            ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+        var rows = new List<IReadOnlyList<object?>>(schema.Indexes.Count);
+        foreach (var index in schema.Indexes.OrderBy(static i => i.Name, StringComparer.Ordinal))
+        {
+            rows.Add(new object?[]
+            {
+                index.Name,
+                index.IsUnique,
+                string.Join(",", index.Columns),
+                new DateTime(index.CreatedAtUtcTicks, DateTimeKind.Utc).ToString("o", CultureInfo.InvariantCulture),
+            });
+        }
+
+        return new SelectExecutionResult(_showIndexColumns, rows);
+    }
+
+    public static object? ConvertLiteralForIndex(TableSchema schema, string columnName, SqlExpression expression)
+    {
+        ArgumentNullException.ThrowIfNull(schema);
+        ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
+        ArgumentNullException.ThrowIfNull(expression);
+
+        var column = schema.TryGetColumn(columnName)
+            ?? throw new InvalidOperationException($"table '{schema.Name}' 中不存在列 '{columnName}'。");
+        return ConvertTableValue(expression, column);
     }
 
     private static TableColumn[] BindInsertColumns(InsertStatement statement, TableSchema schema)
@@ -260,6 +412,9 @@ internal static class TableSqlExecutor
             return row is null ? Array.Empty<TableRow>() : [row];
         }
 
+        if (TryExtractSecondaryIndexValues(schema, where, out var index, out var indexValues))
+            return store.GetByIndex(index, indexValues);
+
         return store.Scan();
     }
 
@@ -286,18 +441,8 @@ internal static class TableSqlExecutor
         if (where is null)
             return false;
 
-        var equalityByColumn = new Dictionary<string, SqlExpression>(StringComparer.Ordinal);
-        foreach (var leaf in FlattenAnd(where))
-        {
-            if (leaf is not BinaryExpression { Operator: SqlBinaryOperator.Equal } binary)
-                return false;
-
-            var (identifier, value) = NormalizeIdentifierComparison(binary);
-            if (identifier is null || value is null)
-                return false;
-            if (!equalityByColumn.TryAdd(identifier.Name, value))
-                return false;
-        }
+        if (!TryCollectEqualityExpressions(where, allowNonEquality: false, out var equalityByColumn))
+            return false;
 
         var values = new object?[schema.PrimaryKey.Count];
         if (!allowExtraPredicates && equalityByColumn.Count != schema.PrimaryKey.Count)
@@ -323,6 +468,107 @@ internal static class TableSqlExecutor
 
         keyValues = values;
         return true;
+    }
+
+    internal static TableIndex? ChooseBestIndexForWhere(
+        TableSchema schema,
+        SqlExpression? where,
+        out IReadOnlyList<object?> indexValues)
+    {
+        if (TryExtractPrimaryKeyValues(schema, where, allowExtraPredicates: true, out var primaryKeyValues))
+        {
+            indexValues = primaryKeyValues;
+            return null;
+        }
+
+        if (TryExtractSecondaryIndexValues(schema, where, out var index, out var values))
+        {
+            indexValues = values;
+            return index;
+        }
+
+        indexValues = [];
+        return null;
+    }
+
+    private static bool TryExtractSecondaryIndexValues(
+        TableSchema schema,
+        SqlExpression? where,
+        out TableIndex index,
+        out IReadOnlyList<object?> indexValues)
+    {
+        index = null!;
+        indexValues = [];
+        if (where is null || schema.Indexes.Count == 0)
+            return false;
+
+        if (!TryCollectEqualityExpressions(where, allowNonEquality: true, out var equalityByColumn))
+            return false;
+
+        foreach (var candidate in schema.Indexes.OrderByDescending(static i => i.Columns.Count))
+        {
+            var values = new object?[candidate.Columns.Count];
+            var matched = true;
+            for (int i = 0; i < candidate.Columns.Count; i++)
+            {
+                if (!equalityByColumn.TryGetValue(candidate.Columns[i], out var expression))
+                {
+                    matched = false;
+                    break;
+                }
+
+                var column = schema.TryGetColumn(candidate.Columns[i])
+                    ?? throw new InvalidOperationException($"索引 '{candidate.Name}' 引用了未知列 '{candidate.Columns[i]}'。");
+                try
+                {
+                    values[i] = ConvertTableValue(expression, column);
+                }
+                catch (InvalidOperationException)
+                {
+                    matched = false;
+                    break;
+                }
+            }
+
+            if (!matched)
+                continue;
+
+            index = candidate;
+            indexValues = values;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryCollectEqualityExpressions(
+        SqlExpression where,
+        bool allowNonEquality,
+        out Dictionary<string, SqlExpression> equalityByColumn)
+    {
+        equalityByColumn = new Dictionary<string, SqlExpression>(StringComparer.Ordinal);
+        foreach (var leaf in FlattenAnd(where))
+        {
+            if (leaf is not BinaryExpression { Operator: SqlBinaryOperator.Equal } binary)
+            {
+                if (allowNonEquality)
+                    continue;
+                return false;
+            }
+
+            var (identifier, value) = NormalizeIdentifierComparison(binary);
+            if (identifier is null || value is null)
+            {
+                if (allowNonEquality)
+                    continue;
+                return false;
+            }
+
+            if (!equalityByColumn.TryAdd(identifier.Name, value))
+                return false;
+        }
+
+        return equalityByColumn.Count > 0;
     }
 
     private static (IdentifierExpression? Identifier, SqlExpression? Value) NormalizeIdentifierComparison(BinaryExpression binary)

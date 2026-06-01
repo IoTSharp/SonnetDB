@@ -111,6 +111,9 @@ public sealed class SqlLexer
         ["offset"] = TokenKind.KeywordOffset,
         ["fetch"] = TokenKind.KeywordFetch,
         ["limit"] = TokenKind.KeywordLimit,
+        ["begin"] = TokenKind.KeywordBegin,
+        ["commit"] = TokenKind.KeywordCommit,
+        ["rollback"] = TokenKind.KeywordRollback,
     };
 
     private readonly string _source;

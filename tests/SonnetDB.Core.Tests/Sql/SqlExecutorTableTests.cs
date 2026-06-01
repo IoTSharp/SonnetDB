@@ -37,6 +37,18 @@ public sealed class SqlExecutorTableTests : IDisposable
     }
 
     [Fact]
+    public void ParseCreateIndex_ReturnsAst()
+    {
+        var stmt = Assert.IsType<CreateTableIndexStatement>(SqlParser.Parse(
+            "CREATE UNIQUE INDEX ux_devices_serial ON devices (tenant, serial)"));
+
+        Assert.Equal("ux_devices_serial", stmt.IndexName);
+        Assert.Equal("devices", stmt.TableName);
+        Assert.True(stmt.IsUnique);
+        Assert.Equal(["tenant", "serial"], stmt.Columns);
+    }
+
+    [Fact]
     public void CreateShowDescribeTable_PersistsAcrossReopen()
     {
         using (var db = Tsdb.Open(Options()))
@@ -155,5 +167,163 @@ public sealed class SqlExecutorTableTests : IDisposable
         Assert.Equal(1, dropped.RowsAffected);
         Assert.Empty(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SHOW TABLES")).Rows);
         Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db, "SELECT * FROM devices"));
+    }
+
+    [Fact]
+    public void CreateIndex_PersistsAndSelectUsesIndex()
+    {
+        using (var db = Tsdb.Open(Options()))
+        {
+            SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, tenant STRING, name STRING, PRIMARY KEY (id))");
+            SqlExecutor.Execute(db, "INSERT INTO devices (id, tenant, name) VALUES (1, 'north', 'pump'), (2, 'south', 'fan'), (3, 'north', 'meter')");
+            SqlExecutor.Execute(db, "CREATE INDEX idx_devices_tenant ON devices (tenant)");
+
+            var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+                "SELECT id, name FROM devices WHERE tenant = 'north' ORDER BY id"));
+            Assert.Equal([1L, 3L], result.Rows.Select(static r => (long)r[0]!).ToArray());
+
+            var indexes = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+                "SHOW INDEXES ON devices"));
+            Assert.Equal(new[] { "index_name", "is_unique", "columns", "created_utc" }, indexes.Columns);
+            Assert.Equal("idx_devices_tenant", indexes.Rows.Single()[0]);
+
+            var explain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+                "EXPLAIN SELECT id FROM devices WHERE tenant = 'north'"));
+            var values = explain.Rows.ToDictionary(static r => (string)r[0]!, static r => r[1], StringComparer.Ordinal);
+            Assert.Equal("secondary_index", values["access_path"]);
+            Assert.Equal("idx_devices_tenant", values["index_name"]);
+        }
+
+        using (var reopened = Tsdb.Open(Options()))
+        {
+            var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened,
+                "SELECT id FROM devices WHERE tenant = 'south'"));
+            Assert.Equal(2L, result.Rows.Single()[0]);
+        }
+    }
+
+    [Fact]
+    public void UniqueIndex_RejectsDuplicateAndLeavesRowsUnchanged()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, serial STRING, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE UNIQUE INDEX ux_devices_serial ON devices (serial)");
+        SqlExecutor.Execute(db, "INSERT INTO devices (id, serial, name) VALUES (1, 'A-1', 'pump')");
+
+        Assert.Throws<InvalidOperationException>(() =>
+            SqlExecutor.Execute(db, "INSERT INTO devices (id, serial, name) VALUES (2, 'A-1', 'fan')"));
+
+        var rows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id, name FROM devices WHERE serial = 'A-1'"));
+        Assert.Equal(new object?[] { 1L, "pump" }, rows.Rows.Single());
+    }
+
+    [Fact]
+    public void UpdateAndDelete_MaintainSecondaryIndexes()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, tenant STRING, enabled BOOL, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE INDEX idx_devices_tenant ON devices (tenant)");
+        SqlExecutor.Execute(db, "INSERT INTO devices (id, tenant, enabled) VALUES (1, 'north', TRUE), (2, 'south', TRUE)");
+
+        SqlExecutor.Execute(db, "UPDATE devices SET tenant = 'south' WHERE id = 1");
+
+        var north = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM devices WHERE tenant = 'north'"));
+        Assert.Empty(north.Rows);
+
+        var south = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM devices WHERE tenant = 'south' ORDER BY id"));
+        Assert.Equal([1L, 2L], south.Rows.Select(static r => (long)r[0]!).ToArray());
+
+        SqlExecutor.Execute(db, "DELETE FROM devices WHERE tenant = 'south' AND id = 1");
+        var afterDelete = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM devices WHERE tenant = 'south' ORDER BY id"));
+        Assert.Equal([2L], afterDelete.Rows.Select(static r => (long)r[0]!).ToArray());
+    }
+
+    [Fact]
+    public void MultipleIndexes_OnDifferentColumns_DoNotCrossContaminate()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, tenant STRING, site STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE INDEX idx_devices_tenant ON devices (tenant)");
+        SqlExecutor.Execute(db, "CREATE INDEX idx_devices_site ON devices (site)");
+        SqlExecutor.Execute(db,
+            "INSERT INTO devices (id, tenant, site) VALUES (1, 'north', 'a'), (2, 'south', 'north'), (3, 'north', 'b')");
+
+        var tenant = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM devices WHERE tenant = 'north' ORDER BY id"));
+        Assert.Equal([1L, 3L], tenant.Rows.Select(static r => (long)r[0]!).ToArray());
+
+        var site = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM devices WHERE site = 'north' ORDER BY id"));
+        Assert.Equal([2L], site.Rows.Select(static r => (long)r[0]!).ToArray());
+    }
+
+
+    [Fact]
+    public void ExecuteScript_CommitAndRollback_LightTransaction()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
+
+        var commitResults = SqlExecutor.ExecuteScript(db, """
+            BEGIN;
+            INSERT INTO devices (id, name) VALUES (1, 'pump');
+            INSERT INTO devices (id, name) VALUES (2, 'fan');
+            COMMIT;
+            """);
+        Assert.IsType<RowsAffectedExecutionResult>(commitResults[^1]);
+
+        var committed = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM devices ORDER BY id"));
+        Assert.Equal([1L, 2L], committed.Rows.Select(static r => (long)r[0]!).ToArray());
+
+        SqlExecutor.ExecuteScript(db, """
+            BEGIN;
+            INSERT INTO devices (id, name) VALUES (3, 'meter');
+            ROLLBACK;
+            """);
+
+        var afterRollback = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM devices ORDER BY id"));
+        Assert.Equal([1L, 2L], afterRollback.Rows.Select(static r => (long)r[0]!).ToArray());
+    }
+
+    [Fact]
+    public void ExecuteScript_CommitFailure_RollsBackBatch()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, serial STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE UNIQUE INDEX ux_devices_serial ON devices (serial)");
+
+        Assert.Throws<InvalidOperationException>(() => SqlExecutor.ExecuteScript(db, """
+            BEGIN;
+            INSERT INTO devices (id, serial) VALUES (1, 'A-1');
+            INSERT INTO devices (id, serial) VALUES (2, 'A-1');
+            COMMIT;
+            """));
+
+        var rows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SELECT id FROM devices"));
+        Assert.Empty(rows.Rows);
+    }
+
+    [Fact]
+    public void ExecuteScript_CrossTableTransaction_IsRejectedWithoutWrites()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE TABLE sites (id INT, name STRING, PRIMARY KEY (id))");
+
+        Assert.Throws<NotSupportedException>(() => SqlExecutor.ExecuteScript(db, """
+            BEGIN;
+            INSERT INTO devices (id, name) VALUES (1, 'pump');
+            INSERT INTO sites (id, name) VALUES (1, 'north');
+            COMMIT;
+            """));
+
+        Assert.Empty(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SELECT id FROM devices")).Rows);
+        Assert.Empty(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SELECT id FROM sites")).Rows);
     }
 }

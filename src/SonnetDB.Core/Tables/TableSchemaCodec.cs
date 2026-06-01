@@ -17,7 +17,7 @@ public static class TableSchemaCodec
     private static readonly byte[] _magic = "SDBTBLv1"u8.ToArray();
     private static readonly Encoding _utf8 = Encoding.UTF8;
 
-    private const int _formatVersion = 1;
+    private const int _formatVersion = 2;
     private const int _headerSize = 32;
     private const int _footerSize = 16;
 
@@ -90,7 +90,7 @@ public static class TableSchemaCodec
             var crc = new Crc32();
             var schemas = new List<TableSchema>(tableCount);
             for (int i = 0; i < tableCount; i++)
-                schemas.Add(ReadTable(source, crc, i));
+                schemas.Add(ReadTable(source, crc, i, version));
 
             byte[] footerBuffer = ArrayPool<byte>.Shared.Rent(_footerSize);
             try
@@ -121,7 +121,7 @@ public static class TableSchemaCodec
         }
     }
 
-    private static TableSchema ReadTable(Stream source, Crc32 crc, int tableIndex)
+    private static TableSchema ReadTable(Stream source, Crc32 crc, int tableIndex, int version)
     {
         string name = ReadString(source, crc, $"table {tableIndex} name");
 
@@ -157,7 +157,17 @@ public static class TableSchemaCodec
                 primaryKey.Add(columnName);
         }
 
-        return TableSchema.Create(name, columns, primaryKey, createdAt);
+        var indexes = new List<TableIndexDefinition>();
+        if (version >= 2)
+        {
+            ReadExactSpan(source, countBuffer, $"table {tableIndex} indexCount");
+            crc.Append(countBuffer);
+            int indexCount = BinaryPrimitives.ReadUInt16LittleEndian(countBuffer);
+            for (int i = 0; i < indexCount; i++)
+                indexes.Add(ReadIndex(source, crc, tableIndex, i));
+        }
+
+        return TableSchema.Create(name, columns, primaryKey, indexes, createdAt);
     }
 
     private static void Save(IReadOnlyList<TableSchema> schemas, Stream destination)
@@ -205,6 +215,31 @@ public static class TableSchemaCodec
             totalSize += 2 + length + 2;
         }
 
+        var indexNameLengths = new int[schema.Indexes.Count];
+        var indexColumnNameLengths = new int[schema.Indexes.Count][];
+        totalSize += 2;
+        for (int i = 0; i < schema.Indexes.Count; i++)
+        {
+            var index = schema.Indexes[i];
+            int indexNameLength = _utf8.GetByteCount(index.Name);
+            if (indexNameLength > ushort.MaxValue)
+                throw new InvalidDataException($"Table '{schema.Name}' 的索引 '{index.Name}' 名称过长。");
+            indexNameLengths[i] = indexNameLength;
+            totalSize += 2 + indexNameLength + 1 + 8 + 2;
+
+            var columnLengths = new int[index.Columns.Count];
+            for (int c = 0; c < index.Columns.Count; c++)
+            {
+                int columnLength = _utf8.GetByteCount(index.Columns[c]);
+                if (columnLength > ushort.MaxValue)
+                    throw new InvalidDataException($"Table '{schema.Name}' 的索引 '{index.Name}' 列名过长。");
+                columnLengths[c] = columnLength;
+                totalSize += 2 + columnLength;
+            }
+
+            indexColumnNameLengths[i] = columnLengths;
+        }
+
         byte[] buffer = ArrayPool<byte>.Shared.Rent(totalSize);
         try
         {
@@ -231,6 +266,24 @@ public static class TableSchemaCodec
                 writer.WriteByte(flags);
             }
 
+            writer.WriteUInt16((ushort)schema.Indexes.Count);
+            for (int i = 0; i < schema.Indexes.Count; i++)
+            {
+                var index = schema.Indexes[i];
+                writer.WriteUInt16((ushort)indexNameLengths[i]);
+                int indexNameWritten = _utf8.GetBytes(index.Name, writer.FreeSpan);
+                writer.Advance(indexNameWritten);
+                writer.WriteByte(index.IsUnique ? (byte)1 : (byte)0);
+                writer.WriteInt64(index.CreatedAtUtcTicks);
+                writer.WriteUInt16((ushort)index.Columns.Count);
+                for (int c = 0; c < index.Columns.Count; c++)
+                {
+                    writer.WriteUInt16((ushort)indexColumnNameLengths[i][c]);
+                    int columnWritten = _utf8.GetBytes(index.Columns[c], writer.FreeSpan);
+                    writer.Advance(columnWritten);
+                }
+            }
+
             crc.Append(buffer.AsSpan(0, totalSize));
             destination.Write(buffer, 0, totalSize);
         }
@@ -238,6 +291,34 @@ public static class TableSchemaCodec
         {
             ArrayPool<byte>.Shared.Return(buffer);
         }
+    }
+
+    private static TableIndexDefinition ReadIndex(Stream source, Crc32 crc, int tableIndex, int indexIndex)
+    {
+        string indexName = ReadString(source, crc, $"table {tableIndex} index {indexIndex} name");
+
+        Span<byte> flags = stackalloc byte[1];
+        ReadExactSpan(source, flags, $"table {tableIndex} index {indexIndex} flags");
+        crc.Append(flags);
+        bool isUnique = (flags[0] & 0b0000_0001) != 0;
+
+        Span<byte> createdBuffer = stackalloc byte[8];
+        ReadExactSpan(source, createdBuffer, $"table {tableIndex} index {indexIndex} createdAt");
+        crc.Append(createdBuffer);
+        long createdAt = BinaryPrimitives.ReadInt64LittleEndian(createdBuffer);
+
+        Span<byte> countBuffer = stackalloc byte[2];
+        ReadExactSpan(source, countBuffer, $"table {tableIndex} index {indexIndex} columnCount");
+        crc.Append(countBuffer);
+        int columnCount = BinaryPrimitives.ReadUInt16LittleEndian(countBuffer);
+        if (columnCount <= 0)
+            throw new InvalidDataException($"TableSchema: table {tableIndex} index '{indexName}' has no columns.");
+
+        var columns = new List<string>(columnCount);
+        for (int i = 0; i < columnCount; i++)
+            columns.Add(ReadString(source, crc, $"table {tableIndex} index {indexIndex} column {i} name"));
+
+        return new TableIndexDefinition(indexName, columns.AsReadOnly(), isUnique, createdAt);
     }
 
     private static string ReadString(Stream source, Crc32 crc, string description)

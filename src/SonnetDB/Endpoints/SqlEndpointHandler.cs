@@ -164,6 +164,7 @@ internal static class SqlEndpointHandler
         context.Response.StatusCode = StatusCodes.Status200OK;
         context.Response.ContentType = "application/x-ndjson; charset=utf-8";
         var writerOptions = new JsonWriterOptions { Indented = false, SkipValidation = false };
+        SqlTransactionContext? transaction = null;
 
         for (int s = 0; s < statements.Count; s++)
         {
@@ -203,7 +204,14 @@ internal static class SqlEndpointHandler
             object? result;
             try
             {
-                result = SqlExecutor.ExecuteStatement(tsdb, databaseName, parsed, controlPlane);
+                if (parsed is BeginTransactionStatement && transaction is not null && !transaction.IsCompleted)
+                    throw new InvalidOperationException("当前已有活动轻事务，不能嵌套 BEGIN。");
+
+                result = SqlExecutor.ExecuteStatement(tsdb, databaseName, parsed, controlPlane, transaction);
+                if (result is SqlTransactionContext started)
+                    transaction = started;
+                else if (parsed is CommitTransactionStatement or RollbackTransactionStatement)
+                    transaction = null;
             }
             catch (ControlPlaneAccessDeniedException ex)
             {
@@ -291,6 +299,12 @@ internal static class SqlEndpointHandler
                         break;
                     }
             }
+        }
+
+        if (transaction is not null && !transaction.IsCompleted)
+        {
+            metrics.RecordSqlError();
+            await WriteErrorAsync(context, "sql_error", "SQL batch 结束时仍有未提交的轻事务。").ConfigureAwait(false);
         }
     }
 
@@ -415,6 +429,7 @@ internal static class SqlEndpointHandler
         (SelectStatement or
         ShowMeasurementsStatement or
         ShowTablesStatement or
+        ShowTableIndexesStatement or
         DescribeMeasurementStatement or
         DescribeTableStatement or
         ExplainStatement or

@@ -27,6 +27,21 @@ public sealed record CreateTableStatement(
     IReadOnlyList<string> PrimaryKey,
     bool IfNotExists = false) : SqlStatement;
 
+/// <summary>
+/// <c>CREATE [UNIQUE] INDEX [IF NOT EXISTS] index_name ON table_name (col, ...)</c>。
+/// </summary>
+/// <param name="IndexName">索引名。</param>
+/// <param name="TableName">目标表名。</param>
+/// <param name="Columns">索引列名。</param>
+/// <param name="IsUnique">是否为唯一索引。</param>
+/// <param name="IfNotExists">索引已存在时是否视为成功。</param>
+public sealed record CreateTableIndexStatement(
+    string IndexName,
+    string TableName,
+    IReadOnlyList<string> Columns,
+    bool IsUnique,
+    bool IfNotExists = false) : SqlStatement;
+
 /// <summary>关系表列定义。</summary>
 /// <param name="Name">列名。</param>
 /// <param name="DataType">列数据类型。</param>
@@ -187,6 +202,22 @@ public sealed record UpdateAssignment(string ColumnName, SqlExpression Value);
 public sealed record DropTableStatement(string Name) : SqlStatement;
 
 /// <summary>
+/// <c>DROP INDEX index_name ON table_name</c>：删除关系表二级索引声明。
+/// </summary>
+/// <param name="IndexName">索引名。</param>
+/// <param name="TableName">表名。</param>
+public sealed record DropTableIndexStatement(string IndexName, string TableName) : SqlStatement;
+
+/// <summary><c>BEGIN</c>：开始当前执行器作用域内的轻事务。</summary>
+public sealed record BeginTransactionStatement : SqlStatement;
+
+/// <summary><c>COMMIT</c>：提交当前轻事务。</summary>
+public sealed record CommitTransactionStatement : SqlStatement;
+
+/// <summary><c>ROLLBACK</c>：回滚当前轻事务。</summary>
+public sealed record RollbackTransactionStatement : SqlStatement;
+
+/// <summary>
 /// <c>SHOW MEASUREMENTS</c>：列出当前数据库中所有 measurement。
 /// 返回单列 <c>name</c>(string)，按字典序升序排列。
 /// </summary>
@@ -197,6 +228,12 @@ public sealed record ShowMeasurementsStatement : SqlStatement;
 /// 返回单列 <c>name</c>(string)，按字典序升序排列。
 /// </summary>
 public sealed record ShowTablesStatement : SqlStatement;
+
+/// <summary>
+/// <c>SHOW INDEXES ON table</c>：列出指定关系表的二级索引。
+/// </summary>
+/// <param name="TableName">目标关系表名称。</param>
+public sealed record ShowTableIndexesStatement(string TableName) : SqlStatement;
 
 /// <summary>
 /// <c>DESCRIBE [MEASUREMENT] &lt;name&gt;</c>（兼容别名 <c>DESC</c>）：描述指定 measurement 的列结构。

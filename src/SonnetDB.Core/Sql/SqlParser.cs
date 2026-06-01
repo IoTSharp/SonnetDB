@@ -65,6 +65,9 @@ public sealed class SqlParser
         return Current.Kind switch
         {
             TokenKind.KeywordCreate => ParseCreate(),
+            TokenKind.KeywordBegin => ParseBegin(),
+            TokenKind.KeywordCommit => ParseCommit(),
+            TokenKind.KeywordRollback => ParseRollback(),
             TokenKind.KeywordInsert => ParseInsert(),
             TokenKind.KeywordSelect => ParseSelect(),
             TokenKind.KeywordDelete => ParseDelete(),
@@ -78,7 +81,7 @@ public sealed class SqlParser
             TokenKind.KeywordIssue => ParseIssue(),
             TokenKind.KeywordDescribe => ParseDescribe(),
             TokenKind.KeywordDesc => ParseDescribe(),
-            _ => throw Error("期望 CREATE / INSERT / SELECT / DELETE / UPDATE / DROP / ALTER / GRANT / REVOKE / SHOW / EXPLAIN / ISSUE / DESCRIBE 关键字"),
+            _ => throw Error("期望 CREATE / INSERT / SELECT / DELETE / UPDATE / DROP / ALTER / GRANT / REVOKE / SHOW / EXPLAIN / ISSUE / DESCRIBE / BEGIN / COMMIT / ROLLBACK 关键字"),
         };
     }
 
@@ -87,14 +90,51 @@ public sealed class SqlParser
     private SqlStatement ParseCreate()
     {
         Expect(TokenKind.KeywordCreate);
+        var unique = false;
+        if (Current.Kind == TokenKind.KeywordUnique || IsIdentifier("unique"))
+        {
+            unique = true;
+            Advance();
+        }
+
+        if (IsIndexKeyword())
+            return ParseCreateIndexBody(unique);
+
         return Current.Kind switch
         {
             TokenKind.KeywordMeasurement => ParseCreateMeasurementBody(),
             TokenKind.KeywordTable => ParseCreateTableBody(),
             TokenKind.KeywordUser => ParseCreateUserBody(),
             TokenKind.KeywordDatabase => ParseCreateDatabaseBody(),
-            _ => throw Error("CREATE 后面期望 MEASUREMENT / TABLE / USER / DATABASE"),
+            _ => throw Error("CREATE 后面期望 MEASUREMENT / TABLE / INDEX / USER / DATABASE"),
         };
+    }
+
+    private CreateTableIndexStatement ParseCreateIndexBody(bool unique)
+    {
+        ExpectIndexKeyword("CREATE 后面期望 INDEX");
+
+        var ifNotExists = false;
+        if (Current.Kind == TokenKind.KeywordIf)
+        {
+            Advance();
+            Expect(TokenKind.KeywordNot);
+            Expect(TokenKind.KeywordExists);
+            ifNotExists = true;
+        }
+
+        var indexName = ExpectIdentifierName();
+        Expect(TokenKind.KeywordOn);
+        var tableName = ExpectIdentifierName();
+        Expect(TokenKind.LeftParen);
+        var columns = new List<string> { ExpectColumnName() };
+        while (Current.Kind == TokenKind.Comma)
+        {
+            Advance();
+            columns.Add(ExpectColumnName());
+        }
+        Expect(TokenKind.RightParen);
+        return new CreateTableIndexStatement(indexName, tableName, columns, unique, ifNotExists);
     }
 
     // ── CREATE MEASUREMENT ─────────────────────────────────────────────────
@@ -375,7 +415,7 @@ public sealed class SqlParser
     private VectorIndexSpec ParseVectorIndex()
     {
         Advance();
-        ExpectIdentifier("index", "WITH 后面期望 INDEX");
+        ExpectIndexKeyword("WITH 后面期望 INDEX");
 
         string indexName = ExpectIdentifierName();
         Expect(TokenKind.LeftParen);
@@ -388,6 +428,17 @@ public sealed class SqlParser
             "vamana" => ParseVamanaVectorIndex(),
             _ => throw Error($"未知向量索引类型 '{indexName}'，支持 hnsw / ivf / ivf_pq / vamana"),
         };
+    }
+
+    private void ExpectIndexKeyword(string errorMessage)
+    {
+        if (Current.Kind == TokenKind.KeywordIndex || IsIdentifier("index"))
+        {
+            Advance();
+            return;
+        }
+
+        ExpectIdentifier("index", errorMessage);
     }
 
     private HnswVectorIndexSpec ParseHnswVectorIndex()
@@ -1320,6 +1371,9 @@ public sealed class SqlParser
         => Current.Kind == TokenKind.IdentifierLiteral
            && string.Equals(Current.Text, text, StringComparison.OrdinalIgnoreCase);
 
+    private bool IsIndexKeyword()
+        => Current.Kind == TokenKind.KeywordIndex || IsIdentifier("index");
+
     private void ExpectIdentifier(string text, string errorMessage)
     {
         if (!IsIdentifier(text))
@@ -1362,6 +1416,26 @@ public sealed class SqlParser
             throw Error("语句末尾存在多余内容");
     }
 
+    private BeginTransactionStatement ParseBegin()
+    {
+        Expect(TokenKind.KeywordBegin);
+        if (Current.Kind == TokenKind.KeywordTransaction || IsIdentifier("transaction"))
+            Advance();
+        return new BeginTransactionStatement();
+    }
+
+    private CommitTransactionStatement ParseCommit()
+    {
+        Expect(TokenKind.KeywordCommit);
+        return new CommitTransactionStatement();
+    }
+
+    private RollbackTransactionStatement ParseRollback()
+    {
+        Expect(TokenKind.KeywordRollback);
+        return new RollbackTransactionStatement();
+    }
+
     // ── 控制面 DDL（PR #34a）─────────────────────────────────────────────
 
     /// <summary><c>CREATE USER name WITH PASSWORD 'pwd'</c>。</summary>
@@ -1395,6 +1469,11 @@ public sealed class SqlParser
         Expect(TokenKind.KeywordDrop);
         switch (Current.Kind)
         {
+            case TokenKind.KeywordIndex:
+                Advance();
+                var indexName = ExpectIdentifierName();
+                Expect(TokenKind.KeywordOn);
+                return new DropTableIndexStatement(indexName, ExpectIdentifierName());
             case TokenKind.KeywordTable:
                 Advance();
                 return new DropTableStatement(ExpectIdentifierName());
@@ -1405,7 +1484,15 @@ public sealed class SqlParser
                 Advance();
                 return new DropDatabaseStatement(ExpectIdentifierName());
             default:
-                throw Error("DROP 后面期望 TABLE / USER 或 DATABASE");
+                if (IsIdentifier("index"))
+                {
+                    Advance();
+                    var fallbackIndexName = ExpectIdentifierName();
+                    Expect(TokenKind.KeywordOn);
+                    return new DropTableIndexStatement(fallbackIndexName, ExpectIdentifierName());
+                }
+
+                throw Error("DROP 后面期望 TABLE / INDEX / USER 或 DATABASE");
         }
     }
 
@@ -1508,7 +1595,14 @@ public sealed class SqlParser
                 Advance();
                 return new ShowTablesStatement();
             default:
-                throw Error("SHOW 后面期望 USERS / GRANTS / DATABASES / TOKENS / MEASUREMENTS / TABLES");
+                if (IsIdentifier("indexes"))
+                {
+                    Advance();
+                    Expect(TokenKind.KeywordOn);
+                    return new ShowTableIndexesStatement(ExpectIdentifierName());
+                }
+
+                throw Error("SHOW 后面期望 USERS / GRANTS / DATABASES / TOKENS / MEASUREMENTS / TABLES / INDEXES");
         }
     }
 
@@ -1532,6 +1626,7 @@ public sealed class SqlParser
         if (statement is not SelectStatement
             and not ShowMeasurementsStatement
             and not ShowTablesStatement
+            and not ShowTableIndexesStatement
             and not DescribeMeasurementStatement
             and not DescribeTableStatement)
         {

@@ -29,6 +29,11 @@ public sealed class TableSchemaCodecTests : IDisposable
                 ("metadata", TableColumnType.Json, true),
             ],
             ["id"],
+            indexes:
+            [
+                new TableIndexDefinition("idx_devices_name", ["name"], IsUnique: false, CreatedAtUtcTicks: 5678),
+                new TableIndexDefinition("ux_devices_metadata", ["metadata"], IsUnique: true, CreatedAtUtcTicks: 6789),
+            ],
             createdAtUtcTicks: 1234);
 
         string path = Path.Combine(_root, TableSchemaCodec.FileName);
@@ -43,6 +48,13 @@ public sealed class TableSchemaCodecTests : IDisposable
         Assert.False(loaded.Columns[0].IsNullable);
         Assert.True(loaded.Columns[2].IsNullable);
         Assert.Equal(TableColumnType.Json, loaded.Columns[2].DataType);
+        Assert.Equal(2, loaded.Indexes.Count);
+        Assert.Equal("idx_devices_name", loaded.Indexes[0].Name);
+        Assert.False(loaded.Indexes[0].IsUnique);
+        Assert.Equal(["name"], loaded.Indexes[0].Columns);
+        Assert.Equal(5678, loaded.Indexes[0].CreatedAtUtcTicks);
+        Assert.Equal("ux_devices_metadata", loaded.Indexes[1].Name);
+        Assert.True(loaded.Indexes[1].IsUnique);
     }
 
     [Fact]
