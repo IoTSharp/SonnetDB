@@ -16,7 +16,7 @@ permalink: /sql-cookbook/
 - 时间列固定叫 `time`，表示 Unix 毫秒时间戳。
 - 时序数据建模用 `CREATE MEASUREMENT`；关系表元数据、小对象等可用 `CREATE TABLE ... PRIMARY KEY (...)`。
 - 时间桶聚合只支持 `GROUP BY time(...)`。
-- 当前不支持 `GROUP BY <tag列>`、`JOIN`、`UNION`、`CTE`、`OVER (...)`。
+- 当前不支持 `GROUP BY <tag列>`、多表/外连接 `JOIN`、`UNION`、`CTE`、`OVER (...)`。
 - 想查“这个库里有什么”，时序数据先 `SHOW MEASUREMENTS` / `DESCRIBE MEASUREMENT <name>`，关系表先 `SHOW TABLES` / `DESCRIBE TABLE <name>`。
 
 ## 1. 建库、建用户、授权
@@ -165,7 +165,7 @@ ORDER BY c.time ASC
 LIMIT 10;
 ```
 
-当前仅支持单个 measurement 的别名限定列名，不支持 `JOIN`。
+measurement 单表查询支持别名限定列名；需要把设备、租户、站点等维度补到时序结果时，可使用 MM4 的 measurement JOIN 关系维表。
 
 ### 4.5 分页
 
@@ -184,6 +184,20 @@ WHERE host = 'server-01'
 ORDER BY time ASC
 OFFSET 5 ROWS FETCH NEXT 5 ROWS ONLY;
 ```
+
+### 4.6 时序 JOIN 关系维表
+
+```sql
+SELECT t.time, d.name, d.site, t.value
+FROM temperature AS t
+JOIN devices AS d ON t.device_id = d.id
+WHERE d.tenant = 'tenant-1'
+  AND t.time >= 1713657600000
+ORDER BY t.time DESC
+LIMIT 100;
+```
+
+当前 JOIN 第一版限定为一个 measurement 与一个关系表的 inner 等值 JOIN；measurement 侧连接键必须是 TAG 列。有歧义的列名请使用 `alias.column`。
 
 ## 5. 聚合与时间桶
 

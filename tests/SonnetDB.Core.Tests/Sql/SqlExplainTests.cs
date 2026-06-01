@@ -85,4 +85,19 @@ public sealed class SqlExplainTests : IDisposable
         Assert.True((bool)values["has_time_filter"]!);
         Assert.Equal(1, Convert.ToInt32(values["tag_filter_count"]));
     }
+
+    [Fact]
+    public void Execute_ExplainJoinSelect_ThrowsClearUnsupportedMessage()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE MEASUREMENT cpu (host TAG, usage FIELD FLOAT)");
+        SqlExecutor.Execute(db, "CREATE TABLE hosts (id STRING, site STRING, PRIMARY KEY (id))");
+
+        var statement = SqlParser.Parse(
+            "EXPLAIN SELECT c.time, h.site FROM cpu c JOIN hosts h ON c.host = h.id WHERE h.site = 'north'");
+
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            SqlExecutor.ExecuteStatement(db, "metrics", statement));
+        Assert.Contains("EXPLAIN 暂不支持 JOIN 查询", ex.Message);
+    }
 }

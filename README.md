@@ -227,6 +227,7 @@ SonnetDB 采用典型的时序数据建模方式：
 - `CREATE [UNIQUE] INDEX ... ON table (...)` / `DROP INDEX ... ON table`
 - `INSERT INTO ... VALUES (...)`
 - `SELECT ... FROM ... [WHERE ...] [GROUP BY time(...)]`
+- `SELECT ... FROM measurement JOIN table ON measurement.tag = table.column ...`（MM4 时序 JOIN 关系维表第一版）
 - `UPDATE ... SET ... WHERE ...`（关系表）
 - `DELETE FROM ... WHERE ...`
 - `BEGIN [TRANSACTION]` / `COMMIT` / `ROLLBACK`（关系表单表小批量轻事务）

@@ -606,6 +606,9 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(statement);
         using var _ = SonnetDB.Query.Functions.UserFunctionRegistry.EnterScope(tsdb.Functions);
         var tableSchema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
+        if (statement.Join is not null)
+            return JoinSqlExecutor.Execute(tsdb, statement);
+
         if (tableSchema is not null)
             return TableSqlExecutor.ExecuteSelect(tsdb, statement, tableSchema);
 

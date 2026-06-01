@@ -318,6 +318,25 @@ public class SqlParserTests
     }
 
     [Fact]
+    public void Parse_Select_JoinMeasurementWithTable_ReturnsJoinAst()
+    {
+        var stmt = (SelectStatement)SqlParser.Parse(
+            "SELECT t.time, d.name FROM temperature AS t INNER JOIN devices d ON t.device_id = d.id WHERE d.tenant = 'tenant-1'");
+
+        Assert.Equal("temperature", stmt.Measurement);
+        Assert.Equal("t", stmt.TableAlias);
+
+        Assert.NotNull(stmt.Join);
+        Assert.Equal("devices", stmt.Join!.TableName);
+        Assert.Equal("d", stmt.Join.Alias);
+
+        var on = Assert.IsType<BinaryExpression>(stmt.Join.On);
+        Assert.Equal(SqlBinaryOperator.Equal, on.Operator);
+        Assert.Equal(new IdentifierExpression("device_id", "t"), on.Left);
+        Assert.Equal(new IdentifierExpression("id", "d"), on.Right);
+    }
+
+    [Fact]
     public void Parse_Select_OrderByTimeDesc_ParsesOrderByBeforePagination()
     {
         var stmt = (SelectStatement)SqlParser.Parse("SELECT time, usage FROM cpu ORDER BY time DESC LIMIT 2");
@@ -433,7 +452,7 @@ public class SqlParserTests
     }
 
     [Fact]
-    public void Parse_Select_JoinSyntax_Throws()
+    public void Parse_Select_JoinSyntax_RequiresOn()
     {
         Assert.Throws<SqlParseException>(() => SqlParser.Parse("SELECT * FROM cpu c JOIN memory"));
     }

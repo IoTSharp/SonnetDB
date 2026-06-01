@@ -57,6 +57,10 @@ public enum TokenKind
     KeywordValues,
     KeywordSelect,
     KeywordFrom,
+    /// <summary>JOIN（MM4 时序 measurement JOIN 关系维表）。</summary>
+    KeywordJoin,
+    /// <summary>INNER（可选 INNER JOIN 修饰词）。</summary>
+    KeywordInner,
     KeywordWhere,
     KeywordGroup,
     KeywordBy,

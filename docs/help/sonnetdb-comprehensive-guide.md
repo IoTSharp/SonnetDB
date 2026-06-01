@@ -359,11 +359,19 @@ SELECT time, -usage AS neg FROM cpu;
 -- 标量函数嵌套
 SELECT time, round(abs(usage - 0.5), 2) AS dev FROM cpu;
 
--- 单表别名 + 限定列名（不支持 JOIN）
+-- 单表别名 + 限定列名
 SELECT c.time, c.host, c."usage" FROM cpu AS c
 WHERE c.host = 'server-01'
 ORDER BY c.time ASC
 LIMIT 10;
+
+-- MM4：measurement JOIN 关系维表
+SELECT t.time, d.name, t.value
+FROM temperature AS t
+JOIN devices AS d ON t.device_id = d.id
+WHERE d.tenant = 'tenant-1'
+ORDER BY t.time DESC
+LIMIT 100;
 
 -- 分页：LIMIT / OFFSET 风格
 SELECT * FROM cpu WHERE host = 'server-01'

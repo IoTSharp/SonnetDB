@@ -401,7 +401,7 @@ internal static class TableSqlExecutor
         }
     }
 
-    private static IReadOnlyList<TableRow> LoadCandidateRows(
+    internal static IReadOnlyList<TableRow> LoadCandidateRows(
         TableStore store,
         TableSchema schema,
         SqlExpression? where)
@@ -621,7 +621,7 @@ internal static class TableSqlExecutor
             _ => throw new InvalidOperationException("未知关系表投影类型。"),
         };
 
-    private static bool EvaluateWhere(SqlExpression? expression, TableSchema schema, IReadOnlyList<object?> row)
+    internal static bool EvaluateWhere(SqlExpression? expression, TableSchema schema, IReadOnlyList<object?> row)
     {
         if (expression is null)
             return true;

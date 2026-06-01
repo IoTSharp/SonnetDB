@@ -657,10 +657,11 @@ public sealed class SqlParser
         Expect(TokenKind.KeywordFrom);
 
         // FROM 后允许两种形式：
-        //   1) 普通 measurement 标识符
+        //   1) 普通 measurement/table 标识符
         //   2) 表值函数调用，例如 forecast(measurement, field, horizon, 'algo'[, season])
         string measurement;
         string? tableAlias = null;
+        JoinClause? join = null;
         FunctionCallExpression? tvf = null;
         if (Current.Kind == TokenKind.IdentifierLiteral
             && _index + 1 < _tokens.Count
@@ -681,6 +682,7 @@ public sealed class SqlParser
         {
             measurement = ExpectIdentifierName();
             tableAlias = ParseOptionalTableAlias();
+            join = ParseOptionalJoinClause();
         }
 
         SqlExpression? where = null;
@@ -709,7 +711,8 @@ public sealed class SqlParser
             TableValuedFunction: tvf,
             Pagination: pagination,
             OrderBy: orderBy,
-            TableAlias: tableAlias);
+            TableAlias: tableAlias,
+            Join: join);
     }
 
     private string? ParseOptionalTableAlias()
@@ -728,6 +731,31 @@ public sealed class SqlParser
         }
 
         return null;
+    }
+
+    private JoinClause? ParseOptionalJoinClause()
+    {
+        if (Current.Kind == TokenKind.KeywordInner)
+        {
+            Advance();
+            Expect(TokenKind.KeywordJoin);
+            return ParseJoinClauseTail();
+        }
+
+        if (Current.Kind != TokenKind.KeywordJoin)
+            return null;
+
+        Advance();
+        return ParseJoinClauseTail();
+    }
+
+    private JoinClause ParseJoinClauseTail()
+    {
+        var tableName = ExpectIdentifierName();
+        var alias = ParseOptionalTableAlias() ?? tableName;
+        Expect(TokenKind.KeywordOn);
+        var on = ParseExpression();
+        return new JoinClause(tableName, alias, on);
     }
 
     private OrderBySpec? ParseOptionalOrderBy()

@@ -217,6 +217,12 @@ public static class SqlExplainPlanner
         Tsdb tsdb,
         SelectStatement statement)
     {
+        if (statement.Join is not null)
+        {
+            throw new InvalidOperationException(
+                "EXPLAIN 暂不支持 JOIN 查询；请分别解释左侧 measurement 过滤和右侧关系表过滤。");
+        }
+
         var tableSchema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
         if (tableSchema is not null)
         {

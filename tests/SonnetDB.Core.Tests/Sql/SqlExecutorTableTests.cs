@@ -261,6 +261,84 @@ public sealed class SqlExecutorTableTests : IDisposable
         Assert.Equal([2L], site.Rows.Select(static r => (long)r[0]!).ToArray());
     }
 
+    [Fact]
+    public void Select_JoinMeasurementWithDimensionTable_ReturnsEnrichedRows()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE MEASUREMENT temperature (device_id TAG, value FIELD FLOAT)");
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id STRING, tenant STRING, name STRING, site STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE INDEX idx_devices_tenant ON devices (tenant)");
+        SqlExecutor.Execute(db,
+            "INSERT INTO devices (id, tenant, name, site) VALUES ('dev-1', 'tenant-1', 'Pump A', 'north'), ('dev-2', 'tenant-2', 'Fan B', 'south')");
+        SqlExecutor.Execute(db,
+            "INSERT INTO temperature (time, device_id, value) VALUES (1000, 'dev-1', 20.5), (2000, 'dev-2', 25.0), (3000, 'dev-1', 21.0)");
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT t.time, d.name, d.site, t.value
+            FROM temperature AS t
+            JOIN devices AS d ON t.device_id = d.id
+            WHERE d.tenant = 'tenant-1' AND t.time >= 1000 AND t.time <= 3000
+            ORDER BY t.time DESC
+            """));
+
+        Assert.Equal(new[] { "t.time", "d.name", "d.site", "t.value" }, result.Columns);
+        Assert.Equal(2, result.Rows.Count);
+        Assert.Equal(new object?[] { 3000L, "Pump A", "north", 21.0 }, result.Rows[0]);
+        Assert.Equal(new object?[] { 1000L, "Pump A", "north", 20.5 }, result.Rows[1]);
+    }
+
+    [Fact]
+    public void Select_JoinWithoutQualifiedAmbiguousColumn_Throws()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE MEASUREMENT temperature (device_id TAG, name TAG, value FIELD FLOAT)");
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id STRING, name STRING, PRIMARY KEY (id))");
+
+        Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db, """
+            SELECT name
+            FROM temperature t
+            JOIN devices d ON t.device_id = d.id
+            """));
+    }
+
+    [Fact]
+    public void Select_JoinOnMeasurementField_Throws()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE MEASUREMENT temperature (device_id TAG, value FIELD FLOAT)");
+        SqlExecutor.Execute(db, "CREATE TABLE thresholds (id INT, value FLOAT, PRIMARY KEY (id))");
+
+        var ex = Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db, """
+            SELECT t.time, t.value
+            FROM temperature t
+            JOIN thresholds d ON t.value = d.value
+            """));
+        Assert.Contains("TAG", ex.Message);
+    }
+
+    [Fact]
+    public void Select_Join_TableSideResidualPredicate_IsAppliedAfterIndexLookup()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE MEASUREMENT temperature (device_id TAG, value FIELD FLOAT)");
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id STRING, tenant STRING, enabled BOOL, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE INDEX idx_devices_tenant ON devices (tenant)");
+        SqlExecutor.Execute(db,
+            "INSERT INTO devices (id, tenant, enabled) VALUES ('dev-1', 'tenant-1', FALSE), ('dev-2', 'tenant-1', TRUE)");
+        SqlExecutor.Execute(db,
+            "INSERT INTO temperature (time, device_id, value) VALUES (1000, 'dev-1', 20.5), (2000, 'dev-2', 25.0)");
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT t.time, d.id
+            FROM temperature t
+            JOIN devices d ON t.device_id = d.id
+            WHERE d.tenant = 'tenant-1' AND d.enabled = TRUE
+            """));
+
+        Assert.Single(result.Rows);
+        Assert.Equal(new object?[] { 2000L, "dev-2" }, result.Rows[0]);
+    }
+
 
     [Fact]
     public void ExecuteScript_CommitAndRollback_LightTransaction()

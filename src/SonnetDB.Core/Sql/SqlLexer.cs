@@ -38,6 +38,8 @@ public sealed class SqlLexer
         ["values"] = TokenKind.KeywordValues,
         ["select"] = TokenKind.KeywordSelect,
         ["from"] = TokenKind.KeywordFrom,
+        ["join"] = TokenKind.KeywordJoin,
+        ["inner"] = TokenKind.KeywordInner,
         ["where"] = TokenKind.KeywordWhere,
         ["group"] = TokenKind.KeywordGroup,
         ["by"] = TokenKind.KeywordBy,
@@ -114,6 +116,7 @@ public sealed class SqlLexer
         ["begin"] = TokenKind.KeywordBegin,
         ["commit"] = TokenKind.KeywordCommit,
         ["rollback"] = TokenKind.KeywordRollback,
+        ["transaction"] = TokenKind.KeywordTransaction,
     };
 
     private readonly string _source;

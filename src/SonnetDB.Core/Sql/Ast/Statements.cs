@@ -115,7 +115,7 @@ public sealed record InsertStatement(
     IReadOnlyList<IReadOnlyList<SqlExpression>> Rows) : SqlStatement;
 
 /// <summary>
-/// <c>SELECT projections FROM measurement [WHERE expr] [GROUP BY expr, ...]</c>。
+/// <c>SELECT projections FROM measurement [JOIN table ON expr] [WHERE expr] [GROUP BY expr, ...]</c>。
 /// </summary>
 /// <param name="Projections">投影列表，可包含 <c>*</c> / 函数 / 列引用。</param>
 /// <param name="Measurement">目标 measurement 名称（FROM 是 TVF 时为 TVF 推断的 source measurement，例如 <c>forecast(meter, ...)</c> → <c>meter</c>）。</param>
@@ -124,7 +124,8 @@ public sealed record InsertStatement(
 /// <param name="TableValuedFunction">FROM 子句若为表值函数调用（PR #55 起的 forecast 等）则非 <c>null</c>，否则 <c>null</c>。</param>
 /// <param name="Pagination">可选分页子句；支持 <c>OFFSET/FETCH</c> 与兼容语法 <c>LIMIT</c>。</param>
 /// <param name="OrderBy">可选排序子句；measurement 执行层支持 <c>ORDER BY time [ASC|DESC]</c>，关系表执行层支持结果列名。</param>
-/// <param name="TableAlias">FROM 子句声明的可选单表别名；当前不支持 JOIN。</param>
+/// <param name="TableAlias">FROM 子句声明的可选单表别名。</param>
+/// <param name="Join">可选 JOIN 子句；MM4 第一版仅支持 measurement 与关系维表的 INNER 等值 JOIN。</param>
 public sealed record SelectStatement(
     IReadOnlyList<SelectItem> Projections,
     string Measurement,
@@ -133,7 +134,19 @@ public sealed record SelectStatement(
     FunctionCallExpression? TableValuedFunction = null,
     PaginationSpec? Pagination = null,
     OrderBySpec? OrderBy = null,
-    string? TableAlias = null) : SqlStatement;
+    string? TableAlias = null,
+    JoinClause? Join = null) : SqlStatement;
+
+/// <summary>
+/// <c>JOIN table [AS] alias ON expr</c> 子句。
+/// </summary>
+/// <param name="TableName">被 JOIN 的关系表名。</param>
+/// <param name="Alias">关系表别名；未显式声明时为 <paramref name="TableName"/>。</param>
+/// <param name="On">ON 条件表达式；MM4 第一版要求是 measurement tag 与 table 列之间的等值比较。</param>
+public sealed record JoinClause(
+    string TableName,
+    string Alias,
+    SqlExpression On);
 
 /// <summary>排序方向。</summary>
 public enum SortDirection

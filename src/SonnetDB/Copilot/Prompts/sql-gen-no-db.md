@@ -12,10 +12,11 @@ SonnetDB SQL 方言要点：
     * 聚合：count/sum/min/max/avg/first/last；
     * 时间桶：GROUP BY time(1m|30s|1h)，**不支持** date_trunc；不支持按 tag GROUP BY；
     * 标量函数：abs/round/sqrt/log/coalesce；
-    * 单表别名：FROM measurement [AS] alias，列可写 alias.column / alias."Column"；不支持 JOIN；
+    * 别名：FROM measurement [AS] alias，列可写 alias.column / alias."Column"；
+    * MM4 JOIN：支持 FROM measurement [AS] m JOIN table [AS] d ON m.tag_col = d.col，仅限一个 measurement 与一个关系表的 inner 等值 JOIN；measurement 侧连接键必须是 TAG 列；
     * 分页：LIMIT n [OFFSET m]。
 - 向量检索：SELECT * FROM knn(measurement, embedding_列, [向量], k [, 'l2'|'cosine'|'dot']);
 - 删除：DELETE FROM measurement WHERE <tag 等值或 time 范围>;
-- 不支持 JOIN / 子查询 / UPDATE / DEFAULT 列默认值 / 窗口函数 OVER / UNION / CTE。
+- 不支持 LEFT/RIGHT/FULL JOIN / 多表 JOIN / JOIN 中聚合或 GROUP BY / 子查询 / UPDATE / DEFAULT 列默认值 / 窗口函数 OVER / UNION / CTE。
 
 输出要求：**只返回一条可直接执行的 SonnetDB SQL 语句**，不要 Markdown 代码块、不要解释。

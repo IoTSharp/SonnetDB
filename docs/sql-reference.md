@@ -32,7 +32,7 @@ CREATE TABLE devices (
 - `DATETIME` 可写 Unix 毫秒整数或 ISO-8601 字符串，查询时返回 UTC `DateTime`。
 - `BLOB` 可写 base64 字符串；ADO.NET 参数可直接传 `byte[]`。
 - `JSON` 当前按 UTF-8 字符串存储，不做 JSON schema 校验。
-- 二级索引使用 `CREATE INDEX` 单独声明；当前不支持外键、JOIN 或复杂优化器。
+- 二级索引使用 `CREATE INDEX` 单独声明；当前不支持外键或复杂优化器。
 
 ### `CREATE INDEX` / `DROP INDEX`
 
@@ -101,6 +101,35 @@ COMMIT;
 - 轻事务只支持单个关系表内的 `INSERT` / `UPDATE` / `DELETE`。
 - 不支持嵌套事务、跨表事务、measurement 写入事务或 DDL 事务。
 - `COMMIT` 时按 rowstore batch 原子应用；如果唯一索引或 NOT NULL 校验失败，已应用的 rowstore / index 变更会回滚。
+
+### 时序 JOIN 关系维表
+
+MM4 第一版支持把 measurement 与一个关系表做内连接，用设备、资产、租户、站点等维表补充时序结果：
+
+```sql
+SELECT t.time, d.name, d.site, t.value
+FROM temperature AS t
+JOIN devices AS d ON t.device_id = d.id
+WHERE d.tenant = 'tenant-1'
+  AND t.time >= 1713676800000
+ORDER BY t.time DESC
+LIMIT 100;
+```
+
+当前行为：
+
+- 支持 `JOIN` / `INNER JOIN`，语义为 inner join。
+- JOIN 左侧必须是 measurement，右侧必须是关系表。
+- `ON` 当前仅支持一个等值条件，且 measurement 侧连接键必须是 `TAG` 列；关系表侧可连接主键列或普通列。
+- measurement 侧 `tag = '...'` 和 `time` 范围过滤会先下推到时序查询；关系表侧 `WHERE` 条件会先用主键或二级索引候选行，再做完整过滤。
+- 输出投影支持 `time`、measurement tag / field、table 列和字面量；有歧义的列名必须使用 `alias.column`。
+- `ORDER BY` 可引用 JOIN 结果中的 measurement 或 table 列，并在分页前执行。
+
+当前限制：
+
+- 不支持 `LEFT JOIN` / `RIGHT JOIN` / `FULL JOIN`。
+- 不支持 measurement 与 measurement JOIN、table 与 table JOIN、多表 JOIN、子查询 JOIN。
+- JOIN 查询暂不支持聚合、`GROUP BY`、窗口函数或标量函数投影。
 
 ### `CREATE MEASUREMENT`
 
@@ -202,7 +231,6 @@ SELECT 1 AS ok FROM cpu LIMIT 1
 - 标量函数当前支持 `abs`、`round`、`sqrt`、`log`、`coalesce`。
 - 标量函数当前仅支持出现在 `SELECT` 投影中，可嵌套，也可接收算术表达式参数。
 - 支持 `FROM measurement [AS] alias` 单表别名，以及 `alias.column` / `alias."Column"` 限定列名；执行前会校验限定符必须匹配当前别名。
-- 当前不支持 `JOIN`。
 - `coalesce(...)` 只会在当前结果行存在时参与求值；它不会额外扩展原始查询的时间轴。
 - 结果按时间升序返回。
 

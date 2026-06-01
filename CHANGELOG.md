@@ -7,6 +7,7 @@
 
 ### Added
 
+- **MM4 时序 JOIN 关系维表**：SQL parser / executor 新增 `measurement JOIN table ON measurement.tag = table.column` 第一版，支持 `JOIN` / `INNER JOIN`、双侧别名与限定列名、measurement tag/time 过滤下推、关系表主键 / 二级索引候选行下推、小维表 hash join、JOIN 结果 `ORDER BY` / `LIMIT`；当前限定为一个 measurement 加一个关系表的 inner 等值 JOIN，measurement 侧连接键必须是 TAG 列，暂不支持多表 JOIN、outer join、聚合 / GROUP BY / 窗口函数 JOIN。
 - **MM1 内置 KV Keyspace**：`SonnetDB.Core` 新增独立 `Kv` 模块，`Tsdb.Keyspaces.Open(name)` 可打开轻量 keyspace，支持 `Put` / `Get` / `Delete` / `ScanPrefix`、独立 KV WAL、崩溃恢复、快照和 compaction 段文件；不修改现有时序 `.SDBWAL` / `.SDBSEG` 二进制格式。
 - **MM2 关系表 MVP**：`SonnetDB.Core` 新增 `Tables` 模块与 `Tsdb.Tables` 入口，基于 MM1 `KvKeyspace` 在 `tables/` 目录实现关系表 rowstore；SQL 支持 `CREATE TABLE ... PRIMARY KEY (...)`、`DROP TABLE`、`INSERT`、`SELECT`、`UPDATE`、`DELETE`、`SHOW TABLES` 与 `DESCRIBE TABLE`，覆盖 `INT` / `FLOAT` / `BOOL` / `STRING` / `DATETIME` / `BLOB` / `JSON` 基础类型、主键查找、NOT NULL 校验和 ADO.NET BLOB 读取；不修改现有时序 `.SDBWAL` / `.SDBSEG` 二进制格式。
 - **MM3 二级索引、约束和轻事务**：关系表新增 `CREATE [UNIQUE] INDEX`、`DROP INDEX ... ON`、`SHOW INDEXES ON`、索引 schema 持久化、普通 / 唯一索引 rowstore 维护和 rebuild；`SELECT` / `UPDATE` / `DELETE` 在索引列完整等值谓词下可走二级索引候选行，`EXPLAIN` 返回 `access_path` / `index_name`；`SqlExecutor.ExecuteScript` 和服务端 `/sql/batch` 支持 `BEGIN [TRANSACTION]`、`COMMIT`、`ROLLBACK` 单表小批量 DML 轻事务，提交失败时回滚已应用 rowstore / index 变更。
@@ -29,7 +30,7 @@
 - 新增独立 `OPTIMIZATION_ROADMAP.md`，用于跟踪 `src/SonnetDB.Core` 核心库性能与可靠性优化路线，覆盖写入吞吐、MemTable 热路径、查询索引与缓存、窗口函数、崩溃恢复和现代 C# / Analyzer 六个阶段，并为每项任务提供状态标记、执行顺序、验收标准与可复用提示词。
 - **Copilot Agent 提示词增强**：参考 VS Code Copilot 的行动型助手原则，强化 SonnetDB Copilot 的身份边界、工具优先、上下文事实校验、安全/版权边界、模型回答规则与 SQL 方言纠错约束，避免冒充外部产品或编造数据库结构。
 - **SQL DDL 兼容修饰符（PR 4）**：lexer 新增 `DEFAULT` 关键字；`CREATE MEASUREMENT` parser 接受列级 `NULL` / `NOT NULL` 与 `DEFAULT <expr>` 并在 AST 中保留；执行层对 `DEFAULT` 返回明确 unsupported，`NULL` / `NOT NULL` 保持兼容性 no-op，并在 SQL 文档中说明 SonnetDB 的稀疏字段语义。
-- **SQL 单表别名与限定列名（PR 3）**：SQL lexer 新增 `.` token；parser 支持 `FROM measurement [AS] alias` 与 `alias.column` / `alias."Column"` 列引用；执行器在查询执行前校验限定符必须匹配当前单表别名，继续明确不支持 `JOIN`。
+- **SQL 单表别名与限定列名（PR 3）**：SQL lexer 新增 `.` token；parser 支持 `FROM measurement [AS] alias` 与 `alias.column` / `alias."Column"` 列引用；执行器在查询执行前校验限定符必须匹配当前单表别名。
 - **SQL `ORDER BY time`（PR 2）**：SQL lexer 新增 `ORDER` / `ASC` 关键字识别（`DESC` 复用已有 `DESC` token），`SELECT` AST 增加 `OrderBySpec`，parser 支持 `ORDER BY time [ASC|DESC]`，执行器会在 `LIMIT/OFFSET/FETCH` 前按结果集中的 `time` 列排序，并同步修正分页文档示例。
 - **SQL 兼容性基础（PR 1）**：`SELECT` 现在支持常见探活写法 `SELECT 1 ... LIMIT 1` 的字面量投影；聚合函数 `count` 额外兼容 `count(1)`，语义等同于 `count(*)`，方便 Copilot / ORM 生成 SQL 直接执行。
 - 新增 `connectors/` 连接器目录，预留 C / Go / Rust / Java / ODBC 连接器；首个 C 连接器通过 .NET Native AOT 将 `SonnetDB.Core` 发布为原生共享库，并导出 open / close / execute / result cursor / flush / last_error 等 C ABI 函数，附带 `sonnetdb.h`、C quickstart 示例与 CMake 构建入口（Windows x64/x86/ARM64、Linux x64）。

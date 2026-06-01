@@ -62,7 +62,7 @@ ORDER BY c.time ASC
 LIMIT 10;
 ```
 
-SonnetDB 支持单个 measurement 的别名限定列名，例如 `c.time` 或 `c."usage"`；当前不支持 `JOIN`。
+SonnetDB 支持单个 measurement 的别名限定列名，例如 `c.time` 或 `c."usage"`；从 MM4 起，也支持一个 measurement 与一个关系维表的 inner 等值 JOIN。
 
 ### 6. 分页查询
 
