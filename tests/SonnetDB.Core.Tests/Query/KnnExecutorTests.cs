@@ -22,7 +22,7 @@ public sealed class KnnExecutorTests
         long[] timestamps = [1000L, 2000L, 3000L];
         var annHits = new[]
         {
-            new HnswAnnSearchResult(
+            new VectorSearchResult(
                 PointIndex: 1,
                 Timestamp: 2000L,
                 Distance: VectorDistance.ComputeCosine([1f, 0f], [0.8f, 0.6f])),

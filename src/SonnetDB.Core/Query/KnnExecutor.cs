@@ -160,12 +160,17 @@ internal static class KnnExecutor
                 || block.MinTimestamp > timeRange.ToInclusive)
                 continue;
 
-            if (metric == KnnMetric.Cosine && reader.TryGetVectorIndex(block, out var vectorIndex))
+            if (metric == KnnMetric.Cosine && reader.TryGetVectorIndexReader(block, out var vectorIndex))
             {
                 var data = reader.ReadBlock(block);
                 var timestamps = BlockDecoder.DecodeTimestamps(block, data.TimestampPayload);
                 int candidateLimit = Math.Min(block.Count, Math.Max(k * 8, vectorIndex.Ef * 2));
-                var annHits = vectorIndex.Search(querySpan, data.ValuePayload, timestamps, candidateLimit, metric);
+                var annHits = vectorIndex.Search(
+                    querySpan,
+                    data.ValuePayload,
+                    timestamps,
+                    candidateLimit,
+                    metric);
                 CollectIndexedBlockCandidates(
                     querySpan,
                     data.ValuePayload,
@@ -200,7 +205,7 @@ internal static class KnnExecutor
         ReadOnlySpan<float> queryVector,
         ReadOnlySpan<byte> valPayload,
         ReadOnlySpan<long> timestamps,
-        IReadOnlyList<HnswAnnSearchResult> annHits,
+        IReadOnlyList<VectorSearchResult> annHits,
         int pointCount,
         int k,
         int candidateLimit,
@@ -213,7 +218,7 @@ internal static class KnnExecutor
         ArgumentNullException.ThrowIfNull(candidates);
         ArgumentOutOfRangeException.ThrowIfLessThan(k, 1);
 
-        var acceptedHits = new List<HnswAnnSearchResult>(Math.Min(k, annHits.Count));
+        var acceptedHits = new List<VectorSearchResult>(Math.Min(k, annHits.Count));
         foreach (var hit in annHits)
         {
             if (!timeRange.Contains(hit.Timestamp))
@@ -257,7 +262,7 @@ internal static class KnnExecutor
     }
 
     private static void AddAnnHits(
-        IReadOnlyList<HnswAnnSearchResult> hits,
+        IReadOnlyList<VectorSearchResult> hits,
         ulong seriesId,
         List<(double Dist, long Ts, ulong Sid)> candidates)
     {

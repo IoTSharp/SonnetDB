@@ -577,6 +577,18 @@ public sealed class SegmentReader : IDisposable
         }
     }
 
+    internal bool TryGetVectorIndexReader(in BlockDescriptor descriptor, out IVectorIndexReader reader)
+    {
+        if (TryGetVectorIndex(descriptor, out var index))
+        {
+            reader = new LegacyHnswVectorIndexReader(index);
+            return true;
+        }
+
+        reader = null!;
+        return false;
+    }
+
     /// <summary>
     /// 尝试获取指定 block 对应的扩展聚合 sketch。
     /// </summary>
