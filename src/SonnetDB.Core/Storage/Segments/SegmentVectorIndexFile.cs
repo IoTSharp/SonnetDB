@@ -5,8 +5,8 @@ namespace SonnetDB.Storage.Segments;
 /// <summary>
 /// `.SDBVIDX` 向量索引 section 的读写工具。
 /// <para>
-/// v6 新段把该 section 内嵌在 `.SDBSEG` 的扩展区；V2 section 只保存 DotVector 索引重建元数据，
-/// 实际 HNSW 图由 DotVector 在首次查询时从 SonnetDB block payload 重建并缓存。
+/// v6 新段把该 section 内嵌在 `.SDBSEG` 的扩展区；V2 section 保存 DotVector 索引 blob manifest，
+/// 并在 record 后持久化 DotVector 本地索引 blob。blob 缺失或损坏时，可按 manifest 从 SonnetDB block payload 重建。
 /// </para>
 /// </summary>
 internal static class SegmentVectorIndexFile
@@ -15,14 +15,14 @@ internal static class SegmentVectorIndexFile
     internal static ReadOnlySpan<byte> SectionMagic => Magic;
     private const int FormatVersion = 2;
     private const int HeaderSize = 32;
-    private const int RecordSize = 32;
+    private const int RecordSize = 48;
 
     /// <summary>
     /// 把多个 block 的 DotVector HNSW 索引元数据写入 sidecar 文件。
     /// </summary>
     /// <param name="path">目标 legacy sidecar 文件路径。</param>
-    /// <param name="blocks">待写入的 block 索引元数据集合。</param>
-    public static void Write(string path, IReadOnlyList<VectorIndexBlockMetadata> blocks)
+    /// <param name="blocks">待写入的 block 索引与 blob 集合。</param>
+    public static void Write(string path, IReadOnlyList<VectorIndexBlock> blocks)
     {
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(blocks);
@@ -32,14 +32,23 @@ internal static class SegmentVectorIndexFile
         fs.Flush(true);
     }
 
-    internal static void WriteTo(Stream stream, IReadOnlyList<VectorIndexBlockMetadata> blocks)
+    internal static void WriteTo(Stream stream, IReadOnlyList<VectorIndexBlock> blocks)
     {
         ArgumentNullException.ThrowIfNull(stream);
         ArgumentNullException.ThrowIfNull(blocks);
 
         WriteHeader(stream, blocks.Count);
         foreach (var block in blocks)
-            WriteRecord(stream, block);
+        {
+            var metadata = block.Metadata with { BlobOffset = stream.Position + RecordSize };
+            WriteRecord(stream, metadata);
+            if (metadata.HasPersistentBlob)
+            {
+                if (block.Blob.Length != metadata.BlobLength)
+                    throw new InvalidDataException("SDBVIDX DotVector index blob length does not match manifest.");
+                stream.Write(block.Blob);
+            }
+        }
     }
 
     /// <summary>
@@ -70,6 +79,7 @@ internal static class SegmentVectorIndexFile
                 var metadata = ReadRecord(fs);
                 ValidateBlockIndex(metadata.BlockIndex, descriptors);
                 result[metadata.BlockIndex] = offset;
+                SkipBlob(fs, metadata, fs.Length);
             }
 
             return result;
@@ -207,6 +217,116 @@ internal static class SegmentVectorIndexFile
         }
     }
 
+    internal static IReadOnlyDictionary<int, VectorIndexBlockMetadata> TryLoadEmbeddedManifest(
+        string segmentPath,
+        long extensionOffset,
+        long extensionLength,
+        IReadOnlyList<BlockDescriptor> descriptors)
+    {
+        ArgumentNullException.ThrowIfNull(segmentPath);
+        ArgumentNullException.ThrowIfNull(descriptors);
+
+        if (extensionLength <= 0)
+            return new Dictionary<int, VectorIndexBlockMetadata>();
+
+        long sectionEnd = extensionOffset + extensionLength;
+        try
+        {
+            using var fs = new FileStream(segmentPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            if (extensionOffset < 0 || sectionEnd > fs.Length)
+                return new Dictionary<int, VectorIndexBlockMetadata>();
+
+            fs.Seek(extensionOffset, SeekOrigin.Begin);
+            if (!PeekMagicEquals(fs, Magic))
+                return new Dictionary<int, VectorIndexBlockMetadata>();
+
+            int recordCount = ReadHeader(fs);
+            var result = new Dictionary<int, VectorIndexBlockMetadata>(recordCount);
+            for (int i = 0; i < recordCount; i++)
+            {
+                var metadata = ReadRecord(fs);
+                ValidateBlockIndex(metadata.BlockIndex, descriptors);
+                result[metadata.BlockIndex] = metadata;
+                SkipBlob(fs, metadata, sectionEnd);
+            }
+
+            return result;
+        }
+        catch (Exception ex) when (IsRecoverableVectorIndexReadError(ex))
+        {
+            return new Dictionary<int, VectorIndexBlockMetadata>();
+        }
+    }
+
+    internal static bool TryOpenEmbeddedBlob(
+        string segmentPath,
+        long extensionOffset,
+        long extensionLength,
+        VectorIndexBlockMetadata metadata,
+        out Stream stream)
+    {
+        ArgumentNullException.ThrowIfNull(segmentPath);
+
+        stream = null!;
+        if (!metadata.HasPersistentBlob)
+            return false;
+
+        long extensionEnd = extensionOffset + extensionLength;
+        if (metadata.BlobOffset < extensionOffset || metadata.BlobOffset + metadata.BlobLength > extensionEnd)
+            return false;
+
+        try
+        {
+            var fs = new FileStream(segmentPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            if (extensionOffset < 0 || extensionEnd > fs.Length)
+            {
+                fs.Dispose();
+                return false;
+            }
+
+            fs.Seek(metadata.BlobOffset, SeekOrigin.Begin);
+            stream = fs;
+            return true;
+        }
+        catch (Exception ex) when (IsRecoverableVectorIndexReadError(ex))
+        {
+            stream = null!;
+            return false;
+        }
+    }
+
+    internal static bool TryOpenBlob(string segmentPath, VectorIndexBlockMetadata metadata, out Stream stream)
+    {
+        ArgumentNullException.ThrowIfNull(segmentPath);
+
+        stream = null!;
+        if (!metadata.HasPersistentBlob)
+            return false;
+
+        string path = Engine.TsdbPaths.VectorIndexPathForSegment(segmentPath);
+        if (!File.Exists(path))
+            return false;
+
+        try
+        {
+            var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            if (metadata.BlobOffset < 0 || metadata.BlobOffset + metadata.BlobLength > fs.Length)
+            {
+                fs.Dispose();
+                return false;
+            }
+
+            fs.Seek(metadata.BlobOffset, SeekOrigin.Begin);
+            stream = fs;
+            return true;
+        }
+        catch (Exception ex) when (IsRecoverableVectorIndexReadError(ex))
+        {
+            stream = null!;
+            return false;
+        }
+    }
+
     internal static bool TrySkipEmbeddedSection(Stream stream, long sectionEnd)
     {
         try
@@ -214,7 +334,8 @@ internal static class SegmentVectorIndexFile
             int blockCount = ReadHeader(stream);
             for (int i = 0; i < blockCount; i++)
             {
-                _ = ReadRecord(stream);
+                var metadata = ReadRecord(stream);
+                SkipBlob(stream, metadata, sectionEnd);
                 if (stream.Position > sectionEnd)
                     return false;
             }
@@ -273,6 +394,7 @@ internal static class SegmentVectorIndexFile
             var metadata = ReadRecord(stream);
             ValidateBlockIndex(metadata.BlockIndex, descriptors);
             result[metadata.BlockIndex] = offset;
+            SkipBlob(stream, metadata, sectionEnd);
             if (stream.Position > sectionEnd)
                 throw new InvalidDataException("embedded SDBVIDX section exceeds extension range.");
         }
@@ -290,6 +412,10 @@ internal static class SegmentVectorIndexFile
         BinaryPrimitives.WriteInt32LittleEndian(record[12..16], metadata.M);
         BinaryPrimitives.WriteInt32LittleEndian(record[16..20], metadata.Ef);
         BinaryPrimitives.WriteUInt32LittleEndian(record[20..24], metadata.BlockCrc32);
+        BinaryPrimitives.WriteInt64LittleEndian(record[24..32], metadata.BlobOffset);
+        BinaryPrimitives.WriteInt32LittleEndian(record[32..36], metadata.BlobLength);
+        BinaryPrimitives.WriteUInt32LittleEndian(record[36..40], metadata.BlobCrc32);
+        BinaryPrimitives.WriteInt32LittleEndian(record[40..44], (int)metadata.Flags);
         stream.Write(record);
     }
 
@@ -303,12 +429,29 @@ internal static class SegmentVectorIndexFile
             BinaryPrimitives.ReadInt32LittleEndian(record[8..12]),
             BinaryPrimitives.ReadInt32LittleEndian(record[12..16]),
             BinaryPrimitives.ReadInt32LittleEndian(record[16..20]),
-            BinaryPrimitives.ReadUInt32LittleEndian(record[20..24]));
+            BinaryPrimitives.ReadUInt32LittleEndian(record[20..24]),
+            BinaryPrimitives.ReadInt64LittleEndian(record[24..32]),
+            BinaryPrimitives.ReadInt32LittleEndian(record[32..36]),
+            BinaryPrimitives.ReadUInt32LittleEndian(record[36..40]),
+            (VectorIndexManifestFlags)BinaryPrimitives.ReadInt32LittleEndian(record[40..44]));
 
         if (metadata.Count <= 0 || metadata.Dimension <= 0 || metadata.M < 2 || metadata.Ef <= 0)
             throw new InvalidDataException("SDBVIDX 含有非法的 block 索引参数。");
+        if (metadata.HasPersistentBlob && (metadata.BlobOffset < HeaderSize || metadata.BlobLength <= 0 || metadata.BlobCrc32 == 0))
+            throw new InvalidDataException("SDBVIDX 含有非法的 DotVector index blob manifest。");
 
         return metadata;
+    }
+
+    private static void SkipBlob(Stream stream, VectorIndexBlockMetadata metadata, long sectionEnd)
+    {
+        if (!metadata.HasPersistentBlob)
+            return;
+
+        if (metadata.BlobOffset < stream.Position || metadata.BlobOffset + metadata.BlobLength > sectionEnd)
+            throw new InvalidDataException("SDBVIDX DotVector index blob 越界。");
+
+        stream.Seek(metadata.BlobOffset + metadata.BlobLength, SeekOrigin.Begin);
     }
 
     private static bool PeekMagicEquals(Stream stream, ReadOnlySpan<byte> expectedMagic)
@@ -338,4 +481,11 @@ internal static class SegmentVectorIndexFile
             readTotal += read;
         }
     }
+
+    private static bool IsRecoverableVectorIndexReadError(Exception ex)
+        => ex is IOException
+            or UnauthorizedAccessException
+            or InvalidDataException
+            or ArgumentException
+            or NotSupportedException;
 }

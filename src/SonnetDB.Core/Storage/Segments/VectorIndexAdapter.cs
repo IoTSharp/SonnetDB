@@ -5,6 +5,7 @@ using DotVectorIndexAlgorithm = DotVector.Indexing.VectorIndexAlgorithm;
 using DotVectorIndexBuildInput = DotVector.Indexing.VectorIndexBuildInput;
 using DotVectorIndexHnswOptions = DotVector.Indexing.VectorIndexHnswOptions;
 using DotVectorIndexReader = DotVector.Indexing.IVectorIndexReader;
+using DotVectorLocalIndexBlob = DotVector.Indexing.LocalVectorIndexBlob;
 using DotVectorLocalIndexBuilder = DotVector.Indexing.LocalVectorIndexBuilder;
 using DotVectorKnnMetric = DotVector.Primitives.KnnMetric;
 using DotVectorSearchRequest = DotVector.Indexing.VectorSearchRequest;
@@ -104,6 +105,41 @@ internal sealed class DotVectorHnswVectorIndexBuilder : IVectorIndexBuilder
         return new VectorIndexBuildResult(new DotVectorHnswVectorIndexReader(blockIndex, options.Ef, reader));
     }
 
+    internal static VectorIndexBuildResult BuildFromBlob(
+        int blockIndex,
+        Stream stream,
+        int length,
+        uint expectedCrc32,
+        int expectedCount,
+        int expectedDimension,
+        int expectedEf)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(blockIndex);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(expectedCount);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(expectedDimension);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(expectedEf);
+
+        var reader = DotVectorLocalIndexBlob.Read(stream, length, expectedCrc32);
+        if (reader.Count != expectedCount || reader.Dimension != expectedDimension)
+        {
+            reader.Dispose();
+            throw new InvalidDataException(
+                $"DotVector index blob metadata mismatch: expected count={expectedCount}, dim={expectedDimension}, actual count={reader.Count}, dim={reader.Dimension}.");
+        }
+
+        return new VectorIndexBuildResult(new DotVectorHnswVectorIndexReader(blockIndex, expectedEf, reader));
+    }
+
+    internal static uint WriteBlob(Stream stream, IVectorIndexReader reader)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        ArgumentNullException.ThrowIfNull(reader);
+        if (reader is not DotVectorHnswVectorIndexReader dotVectorReader)
+            throw new NotSupportedException("Only DotVector HNSW vector index readers can be serialized.");
+
+        return DotVectorLocalIndexBlob.Write(stream, dotVectorReader.InnerReader);
+    }
+
     private static float[] CopyVectors(ReadOnlySpan<DataPoint> points, int dimension)
     {
         var vectors = new float[checked(points.Length * dimension)];
@@ -172,6 +208,8 @@ internal sealed class DotVectorHnswVectorIndexReader : IVectorIndexReader
     public int Dimension => _reader.Dimension;
 
     public int Ef { get; }
+
+    internal DotVectorIndexReader InnerReader => _reader;
 
     public long EstimatedBytes => Math.Max(1, checked((long)Count * Dimension * sizeof(float) * 2));
 

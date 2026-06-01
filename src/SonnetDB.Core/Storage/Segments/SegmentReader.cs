@@ -568,6 +568,69 @@ public sealed class SegmentReader : IDisposable
                 return false;
             }
 
+            if (TryLoadVectorIndexReaderFromBlob(metadata, out reader)
+                || (metadata.CanRebuildFromBlockPayload && TryRebuildVectorIndexReaderFromBlock(descriptor, metadata, out reader)))
+            {
+                _vectorIndexCache?.TryAdd(
+                    key,
+                    reader,
+                    reader.EstimatedBytes,
+                    _options.VectorIndexCacheMaxBytes);
+                return true;
+            }
+
+            return false;
+        }
+    }
+
+    private bool TryLoadVectorIndexReaderFromBlob(VectorIndexBlockMetadata metadata, out IVectorIndexReader reader)
+    {
+        reader = null!;
+        if (!metadata.HasPersistentBlob)
+            return false;
+
+        bool opened = _vectorIndexOffsetsEmbedded
+            ? SegmentVectorIndexFile.TryOpenEmbeddedBlob(
+                Path,
+                _embeddedExtensionOffset,
+                _embeddedExtensionLength,
+                metadata,
+                out var blobStream)
+            : SegmentVectorIndexFile.TryOpenBlob(Path, metadata, out blobStream);
+        if (!opened)
+            return false;
+
+        using (blobStream)
+        {
+            try
+            {
+                var buildResult = DotVectorHnswVectorIndexBuilder.BuildFromBlob(
+                    metadata.BlockIndex,
+                    blobStream,
+                    metadata.BlobLength,
+                    metadata.BlobCrc32,
+                    metadata.Count,
+                    metadata.Dimension,
+                    metadata.Ef);
+                reader = buildResult.Reader;
+                return true;
+            }
+            catch (Exception ex) when (IsRecoverableVectorIndexLoadError(ex))
+            {
+                reader = null!;
+                return false;
+            }
+        }
+    }
+
+    private bool TryRebuildVectorIndexReaderFromBlock(
+        in BlockDescriptor descriptor,
+        VectorIndexBlockMetadata metadata,
+        out IVectorIndexReader reader)
+    {
+        reader = null!;
+        try
+        {
             var data = ReadBlock(descriptor);
             var buildResult = DotVectorHnswVectorIndexBuilder.BuildFromPayload(
                 descriptor.Index,
@@ -576,15 +639,21 @@ public sealed class SegmentReader : IDisposable
                 metadata.Dimension,
                 new HnswVectorIndexOptions(metadata.M, metadata.Ef));
             reader = buildResult.Reader;
-
-            _vectorIndexCache?.TryAdd(
-                key,
-                reader,
-                reader.EstimatedBytes,
-                _options.VectorIndexCacheMaxBytes);
             return true;
         }
+        catch (Exception ex) when (IsRecoverableVectorIndexLoadError(ex))
+        {
+            reader = null!;
+            return false;
+        }
     }
+
+    private static bool IsRecoverableVectorIndexLoadError(Exception ex)
+        => ex is IOException
+            or UnauthorizedAccessException
+            or InvalidDataException
+            or ArgumentException
+            or NotSupportedException;
 
     /// <summary>
     /// 尝试获取指定 block 对应的扩展聚合 sketch。
@@ -665,6 +734,13 @@ public sealed class SegmentReader : IDisposable
     internal bool AggregateSketchOffsetsLoaded => _aggregateSketchOffsetsLoaded;
 
     internal bool VectorIndexOffsetsEmbedded => _vectorIndexOffsetsEmbedded;
+
+    internal IReadOnlyDictionary<int, VectorIndexBlockMetadata> VectorIndexManifest
+        => SegmentVectorIndexFile.TryLoadEmbeddedManifest(
+            Path,
+            _embeddedExtensionOffset,
+            _embeddedExtensionLength,
+            _blocks);
 
     internal bool AggregateSketchOffsetsEmbedded => _aggregateSketchOffsetsEmbedded;
 

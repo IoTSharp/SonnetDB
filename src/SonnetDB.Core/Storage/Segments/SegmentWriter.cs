@@ -143,7 +143,7 @@ public sealed class SegmentWriter
         long indexOffset = 0L;
         long footerOffset = 0L;
         var indexEntries = new List<BlockIndexEntry>(sorted.Count);
-        var vectorIndexBlocks = new List<VectorIndexBlockMetadata>();
+        var vectorIndexBlocks = new List<VectorIndexBlock>();
         var aggregateSketchBlocks = new List<BlockAggregateSketch>();
         bool tempFileCreated = false;
         string vectorIndexPath = SonnetDB.Engine.TsdbPaths.VectorIndexPathForSegment(path);
@@ -322,7 +322,7 @@ public sealed class SegmentWriter
         BlockEncoding tsEncoding,
         long blockOffset,
         List<BlockIndexEntry> indexEntries,
-        List<VectorIndexBlockMetadata> vectorIndexBlocks,
+        List<VectorIndexBlock> vectorIndexBlocks,
         List<BlockAggregateSketch> aggregateSketchBlocks,
         IReadOnlyDictionary<SeriesFieldKey, SonnetDB.Catalog.VectorIndexDefinition>? vectorIndexes,
         ref long segMinTs,
@@ -417,13 +417,24 @@ public sealed class SegmentWriter
                 && vectorIndex.Kind == SonnetDB.Catalog.VectorIndexKind.Hnsw)
             {
                 int dimension = points.Span[0].Value.VectorDimension;
-                vectorIndexBlocks.Add(new VectorIndexBlockMetadata(
+                var buildResult = new DotVectorHnswVectorIndexBuilder().Build(new VectorIndexBuildInput(
+                    blockIndex,
+                    points,
+                    vectorIndex));
+                using var blobStream = new MemoryStream();
+                uint blobCrc32 = DotVectorHnswVectorIndexBuilder.WriteBlob(blobStream, buildResult.Reader);
+                var metadata = new VectorIndexBlockMetadata(
                     blockIndex,
                     points.Length,
                     dimension,
                     vectorIndex.Hnsw.M,
                     vectorIndex.Hnsw.Ef,
-                    crc32));
+                    crc32,
+                    BlobOffset: 0,
+                    BlobLength: checked((int)blobStream.Length),
+                    BlobCrc32: blobCrc32,
+                    VectorIndexManifestFlags.PersistentBlob | VectorIndexManifestFlags.RebuildFromBlockPayload);
+                vectorIndexBlocks.Add(new VectorIndexBlock(metadata, blobStream.ToArray()));
             }
 
             if (BlockAggregateSketch.TryBuild(
