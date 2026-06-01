@@ -1,0 +1,221 @@
+using SonnetDB.Kv;
+
+namespace SonnetDB.Documents;
+
+/// <summary>
+/// 管理同一数据库目录下的 JSON 文档集合 schema 与 KV-backed 主数据。
+/// </summary>
+public sealed class DocumentCollectionManager : IDisposable
+{
+    private readonly object _sync = new();
+    private readonly string _rootDirectory;
+    private readonly KvOptions _kvOptions;
+    private readonly Dictionary<string, DocumentCollectionStore> _stores = new(StringComparer.Ordinal);
+    private bool _disposed;
+
+    /// <summary>
+    /// 初始化文档集合管理器。
+    /// </summary>
+    /// <param name="rootDirectory">documents 根目录。</param>
+    /// <param name="kvOptions">底层 KV 选项。</param>
+    public DocumentCollectionManager(string rootDirectory, KvOptions kvOptions)
+    {
+        ArgumentNullException.ThrowIfNull(rootDirectory);
+        ArgumentNullException.ThrowIfNull(kvOptions);
+
+        _rootDirectory = rootDirectory;
+        _kvOptions = kvOptions;
+        Directory.CreateDirectory(_rootDirectory);
+
+        Catalog = new DocumentCollectionCatalog();
+        foreach (var schema in DocumentCollectionSchemaCodec.Load(SchemaPath))
+            Catalog.LoadOrReplace(schema);
+    }
+
+    /// <summary>文档集合 catalog。</summary>
+    public DocumentCollectionCatalog Catalog { get; }
+
+    /// <summary>文档集合 schema 文件路径。</summary>
+    public string SchemaPath => Path.Combine(_rootDirectory, DocumentCollectionSchemaCodec.FileName);
+
+    /// <summary>
+    /// 创建文档集合并持久化 schema。
+    /// </summary>
+    /// <param name="schema">集合 schema。</param>
+    public void Create(DocumentCollectionSchema schema)
+    {
+        ArgumentNullException.ThrowIfNull(schema);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            Catalog.Add(schema);
+            try
+            {
+                PersistCatalogLocked();
+                _ = OpenStoreLocked(schema);
+            }
+            catch
+            {
+                Catalog.Remove(schema.Name);
+                throw;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 为已有文档集合创建 JSON path 索引并持久化 schema。
+    /// </summary>
+    /// <param name="collectionName">集合名。</param>
+    /// <param name="definition">索引声明。</param>
+    /// <returns>新建的索引声明。</returns>
+    public DocumentPathIndex CreateIndex(string collectionName, DocumentPathIndexDefinition definition)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
+        ArgumentNullException.ThrowIfNull(definition);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var current = Catalog.TryGet(collectionName)
+                ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
+
+            var updated = current.WithIndex(definition);
+            var store = OpenStoreLocked(current);
+            store.ApplySchema(updated);
+            Catalog.LoadOrReplace(updated);
+            try
+            {
+                PersistCatalogLocked();
+            }
+            catch
+            {
+                store.ApplySchema(current);
+                Catalog.LoadOrReplace(current);
+                throw;
+            }
+
+            return updated.TryGetIndex(definition.Name)
+                ?? throw new InvalidOperationException("内部错误：文档索引创建后未能读取 schema。");
+        }
+    }
+
+    /// <summary>
+    /// 删除文档集合 JSON path 索引声明。
+    /// </summary>
+    /// <param name="collectionName">集合名。</param>
+    /// <param name="indexName">索引名。</param>
+    /// <returns>索引存在并删除时返回 true。</returns>
+    public bool DropIndex(string collectionName, string indexName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var current = Catalog.TryGet(collectionName)
+                ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
+            if (current.TryGetIndex(indexName) is null)
+                return false;
+
+            var updated = current.WithoutIndex(indexName);
+            var store = OpenStoreLocked(current);
+            store.ApplySchema(updated);
+            Catalog.LoadOrReplace(updated);
+            try
+            {
+                PersistCatalogLocked();
+            }
+            catch
+            {
+                store.ApplySchema(current);
+                Catalog.LoadOrReplace(current);
+                throw;
+            }
+
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// 删除文档集合 schema 与主数据目录。
+    /// </summary>
+    /// <param name="name">集合名。</param>
+    /// <returns>存在并删除时返回 true。</returns>
+    public bool Drop(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            if (!Catalog.Remove(name))
+                return false;
+
+            if (_stores.Remove(name, out var store))
+                store.Dispose();
+
+            PersistCatalogLocked();
+            string collectionDirectory = CollectionDirectory(name);
+            if (Directory.Exists(collectionDirectory))
+                Directory.Delete(collectionDirectory, recursive: true);
+
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// 打开已存在的文档集合。
+    /// </summary>
+    /// <param name="name">集合名。</param>
+    public DocumentCollectionStore Open(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var schema = Catalog.TryGet(name)
+                ?? throw new InvalidOperationException($"document collection '{name}' 不存在。");
+            return OpenStoreLocked(schema);
+        }
+    }
+
+    /// <summary>
+    /// 关闭所有已打开的文档集合 store。
+    /// </summary>
+    public void Dispose()
+    {
+        lock (_sync)
+        {
+            if (_disposed)
+                return;
+
+            _disposed = true;
+            foreach (var store in _stores.Values)
+                store.Dispose();
+            _stores.Clear();
+        }
+    }
+
+    private DocumentCollectionStore OpenStoreLocked(DocumentCollectionSchema schema)
+    {
+        if (_stores.TryGetValue(schema.Name, out var existing))
+            return existing;
+
+        string collectionDirectory = CollectionDirectory(schema.Name);
+        var kv = KvKeyspace.Open("document." + schema.Name, collectionDirectory, _kvOptions);
+        var store = new DocumentCollectionStore(schema, kv);
+        _stores[schema.Name] = store;
+        return store;
+    }
+
+    private string CollectionDirectory(string name) => Path.Combine(_rootDirectory, "collections", EncodeName(name));
+
+    private void PersistCatalogLocked()
+        => DocumentCollectionSchemaCodec.Save(SchemaPath, Catalog.Snapshot());
+
+    private static string EncodeName(string name)
+    {
+        byte[] bytes = System.Text.Encoding.UTF8.GetBytes(name);
+        return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
+}

@@ -35,6 +35,9 @@ public static class TsdbPaths
     /// <summary>关系表子目录名。</summary>
     public const string TablesDirName = "tables";
 
+    /// <summary>JSON 文档集合子目录名。</summary>
+    public const string DocumentsDirName = "documents";
+
     /// <summary>Segment 文件扩展名。</summary>
     public const string SegmentFileExtension = ".SDBSEG";
 
@@ -113,6 +116,14 @@ public static class TsdbPaths
     /// <returns>关系表目录路径。</returns>
     public static string TablesDir(string root) =>
         Path.Combine(root, TablesDirName);
+
+    /// <summary>
+    /// 返回 JSON 文档集合子目录的完整路径：<c>{root}/documents</c>。
+    /// </summary>
+    /// <param name="root">数据库根目录路径。</param>
+    /// <returns>JSON 文档集合目录路径。</returns>
+    public static string DocumentsDir(string root) =>
+        Path.Combine(root, DocumentsDirName);
 
     /// <summary>
     /// 返回指定 SegmentId 对应的段文件完整路径：

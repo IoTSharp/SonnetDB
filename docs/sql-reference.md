@@ -31,7 +31,7 @@ CREATE TABLE devices (
 - 支持类型：`INT`、`FLOAT`、`BOOL`、`STRING`、`DATETIME`、`BLOB`、`JSON`。
 - `DATETIME` 可写 Unix 毫秒整数或 ISO-8601 字符串，查询时返回 UTC `DateTime`。
 - `BLOB` 可写 base64 字符串；ADO.NET 参数可直接传 `byte[]`。
-- `JSON` 当前按 UTF-8 字符串存储，不做 JSON schema 校验。
+- `JSON` 当前按 UTF-8 字符串存储；可用 `json_value(json_col, '$.path')` 做 path 投影和过滤。
 - 二级索引使用 `CREATE INDEX` 单独声明；当前不支持外键或复杂优化器。
 
 ### `CREATE INDEX` / `DROP INDEX`
@@ -79,6 +79,7 @@ WHERE id = 2;
 - `INSERT` 按主键插入；主键已存在时返回错误，不会静默覆盖。
 - `UPDATE` 支持更新非主键列；当前不支持更新主键列。
 - `SELECT` 支持 `*`、列投影、字面量投影、`WHERE` 中的 `AND` / `OR` / `NOT`、基础比较和简单数值运算。
+- 关系表 `JSON` 列支持 `json_value(metadata, '$.site')` 这类 path 表达式；对象或数组结果会以紧凑 JSON 字符串返回。
 - `WHERE` 覆盖完整主键等值条件时会走主键读取；覆盖完整二级索引等值条件时会走二级索引候选行；其它条件走表扫描后过滤。
 - `ORDER BY` 支持结果集中的任意列名；`LIMIT` / `OFFSET` / `FETCH` 语法与 measurement 查询一致。
 
@@ -130,6 +131,54 @@ LIMIT 100;
 - 不支持 `LEFT JOIN` / `RIGHT JOIN` / `FULL JOIN`。
 - 不支持 measurement 与 measurement JOIN、table 与 table JOIN、多表 JOIN、子查询 JOIN。
 - JOIN 查询暂不支持聚合、`GROUP BY`、窗口函数或标量函数投影。
+
+### JSON 文档集合
+
+MM5 第一版支持 JSON 文档集合作为一等数据模型。集合主数据存放在数据库目录的 `documents/` 下，使用 KV-backed 存储、独立 schema 文件和可重建 JSON path 索引；不修改时序 `.SDBWAL` / `.SDBSEG` 格式。
+
+```sql
+CREATE DOCUMENT COLLECTION device_docs;
+
+INSERT INTO device_docs (id, document)
+VALUES
+  ('dev-1', '{"type":"pump","site":"north","metrics":{"temp":21.5}}'),
+  ('dev-2', '{"type":"fan","site":"south","metrics":{"temp":18}}');
+
+SELECT id,
+       json_value(document, '$.type') AS type,
+       json_value(document, '$.metrics.temp') AS temp
+FROM device_docs
+WHERE json_value(document, '$.site') = 'north';
+
+UPDATE device_docs
+SET document = '{"type":"pump","site":"north","metrics":{"temp":22}}'
+WHERE id = 'dev-1';
+
+DELETE FROM device_docs
+WHERE id = 'dev-2';
+```
+
+元数据与索引：
+
+```sql
+SHOW DOCUMENT COLLECTIONS;
+DESCRIBE DOCUMENT COLLECTION device_docs;
+
+CREATE JSON INDEX idx_device_type ON device_docs ('$.type');
+SHOW JSON INDEXES ON device_docs;
+DROP JSON INDEX idx_device_type ON device_docs;
+DROP DOCUMENT COLLECTION device_docs;
+```
+
+当前行为：
+
+- 文档集合固定暴露 `id` 和 `document` / `json` 两个伪列；`SELECT *` 展开为 `id, document`。
+- `INSERT` 需要提供 `id` 与 `document` 或 `json`，JSON 文本会用 `System.Text.Json` 校验并规范化为紧凑 JSON。
+- `UPDATE` 当前仅支持 `SET document = '<json>'`，按命中文档整体替换。
+- `json_value(document, '$.path')` 支持 `$`、点属性、`$['property']` 和数组下标，例如 `$.metrics.temp`、`$['display-name']`、`$.tags[0]`。
+- `CREATE JSON INDEX` 建立基础 path 等值索引；`WHERE json_value(document, '$.type') = 'pump'` 可走该索引，`EXPLAIN` 的 `access_path` 会显示 `json_path_index`。
+- `id = '...'` 会走文档 ID 读取；其它条件走集合扫描后过滤。
+- 第一版不提供 MongoDB 兼容 API、跨文档复杂事务或 JSON schema 校验。
 
 ### `CREATE MEASUREMENT`
 

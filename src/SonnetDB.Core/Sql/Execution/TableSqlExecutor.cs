@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using SonnetDB.Documents;
 using SonnetDB.Engine;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Tables;
@@ -149,7 +150,7 @@ internal static class TableSqlExecutor
 
             var output = new object?[projections.Length];
             for (int i = 0; i < projections.Length; i++)
-                output[i] = EvaluateProjection(projections[i], row.Values);
+                output[i] = EvaluateProjection(projections[i], schema, row.Values);
             filtered.Add(output);
         }
 
@@ -604,6 +605,10 @@ internal static class TableSqlExecutor
                     projections.Add(Projection.Constant(EvaluateLiteral(literal), item.Alias ?? FormatLiteralColumnName(literal)));
                     break;
 
+                case FunctionCallExpression function:
+                    projections.Add(Projection.Expression(item.Alias ?? FormatFunctionColumnName(function), function));
+                    break;
+
                 default:
                     throw new InvalidOperationException(
                         $"关系表 SELECT 暂不支持投影表达式 '{item.Expression.GetType().Name}'。");
@@ -613,11 +618,12 @@ internal static class TableSqlExecutor
         return [.. projections];
     }
 
-    private static object? EvaluateProjection(Projection projection, IReadOnlyList<object?> row)
+    private static object? EvaluateProjection(Projection projection, TableSchema schema, IReadOnlyList<object?> row)
         => projection.Kind switch
         {
             ProjectionKind.Column => row[projection.Column!.Ordinal],
             ProjectionKind.Constant => projection.ConstantValue,
+            ProjectionKind.Expression => EvaluateScalar(projection.ExpressionValue!, schema, row),
             _ => throw new InvalidOperationException("未知关系表投影类型。"),
         };
 
@@ -676,11 +682,26 @@ internal static class TableSqlExecutor
         {
             LiteralExpression literal => EvaluateLiteral(literal),
             IdentifierExpression identifier => GetColumnValue(schema, row, identifier.Name),
+            FunctionCallExpression function => EvaluateFunction(function, schema, row),
             UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => -RequireDouble(EvaluateScalar(unary.Operand, schema, row), "一元负号"),
             BinaryExpression binary when IsArithmeticOperator(binary.Operator) => EvaluateArithmetic(binary, schema, row),
             _ => throw new InvalidOperationException(
                 $"关系表表达式暂不支持 '{expression.GetType().Name}'。"),
         };
+    }
+
+    private static object? EvaluateFunction(FunctionCallExpression function, TableSchema schema, IReadOnlyList<object?> row)
+    {
+        if (!string.Equals(function.Name, "json_value", StringComparison.OrdinalIgnoreCase)
+            || function.IsStar
+            || function.Arguments.Count != 2
+            || function.Arguments[1] is not LiteralExpression { Kind: SqlLiteralKind.String, StringValue: var path })
+        {
+            throw new InvalidOperationException("关系表当前仅支持 json_value(json_column, '$.path') 函数。");
+        }
+
+        var json = EvaluateScalar(function.Arguments[0], schema, row) as string;
+        return JsonPathEvaluator.Evaluate(json, path!);
     }
 
     private static object EvaluateArithmetic(BinaryExpression binary, TableSchema schema, IReadOnlyList<object?> row)
@@ -906,6 +927,14 @@ internal static class TableSqlExecutor
                 yield return identifier;
                 yield break;
 
+            case FunctionCallExpression function:
+                foreach (var argument in function.Arguments)
+                {
+                    foreach (var identifier in EnumerateIdentifierReferences(argument))
+                        yield return identifier;
+                }
+                yield break;
+
             case UnaryExpression unary:
                 foreach (var identifier in EnumerateIdentifierReferences(unary.Operand))
                     yield return identifier;
@@ -1021,6 +1050,12 @@ internal static class TableSqlExecutor
         _ => literal.Kind.ToString(),
     };
 
+    private static string FormatFunctionColumnName(FunctionCallExpression function)
+        => function.Arguments.Count == 2
+            && function.Arguments[1] is LiteralExpression { Kind: SqlLiteralKind.String, StringValue: var path }
+            ? path!
+            : function.Name;
+
     private static InvalidOperationException TypeMismatch(TableColumn column, object value)
         => new($"列 '{column.Name}' 期望 {column.DataType}，实际值类型为 {value.GetType().Name}。");
 
@@ -1030,19 +1065,24 @@ internal static class TableSqlExecutor
     {
         Column,
         Constant,
+        Expression,
     }
 
     private sealed record Projection(
         ProjectionKind Kind,
         string ColumnName,
         TableColumn? Column,
-        object? ConstantValue)
+        object? ConstantValue,
+        SqlExpression? ExpressionValue = null)
     {
         public static Projection ForColumn(TableColumn column, string columnName)
             => new(ProjectionKind.Column, columnName, column, null);
 
         public static Projection Constant(object? value, string columnName)
             => new(ProjectionKind.Constant, columnName, null, value);
+
+        public static Projection Expression(string columnName, SqlExpression expression)
+            => new(ProjectionKind.Expression, columnName, null, null, expression);
     }
 
     private sealed class ScalarComparer : IComparer<object?>

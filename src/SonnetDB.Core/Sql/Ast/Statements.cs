@@ -28,6 +28,15 @@ public sealed record CreateTableStatement(
     bool IfNotExists = false) : SqlStatement;
 
 /// <summary>
+/// <c>CREATE DOCUMENT COLLECTION [IF NOT EXISTS] name</c>。
+/// </summary>
+/// <param name="Name">文档集合名称。</param>
+/// <param name="IfNotExists">是否带 <c>IF NOT EXISTS</c> 修饰；为 <c>true</c> 时同名集合已存在则视为成功。</param>
+public sealed record CreateDocumentCollectionStatement(
+    string Name,
+    bool IfNotExists = false) : SqlStatement;
+
+/// <summary>
 /// <c>CREATE [UNIQUE] INDEX [IF NOT EXISTS] index_name ON table_name (col, ...)</c>。
 /// </summary>
 /// <param name="IndexName">索引名。</param>
@@ -40,6 +49,19 @@ public sealed record CreateTableIndexStatement(
     string TableName,
     IReadOnlyList<string> Columns,
     bool IsUnique,
+    bool IfNotExists = false) : SqlStatement;
+
+/// <summary>
+/// <c>CREATE JSON INDEX [IF NOT EXISTS] index_name ON collection_name ('$.path')</c>。
+/// </summary>
+/// <param name="IndexName">索引名。</param>
+/// <param name="CollectionName">目标文档集合名。</param>
+/// <param name="Path">JSON path 表达式。</param>
+/// <param name="IfNotExists">索引已存在时是否视为成功。</param>
+public sealed record CreateDocumentPathIndexStatement(
+    string IndexName,
+    string CollectionName,
+    string Path,
     bool IfNotExists = false) : SqlStatement;
 
 /// <summary>关系表列定义。</summary>
@@ -215,11 +237,24 @@ public sealed record UpdateAssignment(string ColumnName, SqlExpression Value);
 public sealed record DropTableStatement(string Name) : SqlStatement;
 
 /// <summary>
+/// <c>DROP DOCUMENT COLLECTION name</c>：删除文档集合 schema 与主数据。
+/// </summary>
+/// <param name="Name">目标文档集合名称。</param>
+public sealed record DropDocumentCollectionStatement(string Name) : SqlStatement;
+
+/// <summary>
 /// <c>DROP INDEX index_name ON table_name</c>：删除关系表二级索引声明。
 /// </summary>
 /// <param name="IndexName">索引名。</param>
 /// <param name="TableName">表名。</param>
 public sealed record DropTableIndexStatement(string IndexName, string TableName) : SqlStatement;
+
+/// <summary>
+/// <c>DROP JSON INDEX index_name ON collection_name</c>：删除文档集合 JSON path 索引声明。
+/// </summary>
+/// <param name="IndexName">索引名。</param>
+/// <param name="CollectionName">集合名。</param>
+public sealed record DropDocumentPathIndexStatement(string IndexName, string CollectionName) : SqlStatement;
 
 /// <summary><c>BEGIN</c>：开始当前执行器作用域内的轻事务。</summary>
 public sealed record BeginTransactionStatement : SqlStatement;
@@ -243,10 +278,21 @@ public sealed record ShowMeasurementsStatement : SqlStatement;
 public sealed record ShowTablesStatement : SqlStatement;
 
 /// <summary>
+/// <c>SHOW DOCUMENT COLLECTIONS</c>：列出当前数据库中所有 JSON 文档集合。
+/// </summary>
+public sealed record ShowDocumentCollectionsStatement : SqlStatement;
+
+/// <summary>
 /// <c>SHOW INDEXES ON table</c>：列出指定关系表的二级索引。
 /// </summary>
 /// <param name="TableName">目标关系表名称。</param>
 public sealed record ShowTableIndexesStatement(string TableName) : SqlStatement;
+
+/// <summary>
+/// <c>SHOW JSON INDEXES ON collection</c>：列出指定文档集合的 JSON path 索引。
+/// </summary>
+/// <param name="CollectionName">目标文档集合名称。</param>
+public sealed record ShowDocumentIndexesStatement(string CollectionName) : SqlStatement;
 
 /// <summary>
 /// <c>DESCRIBE [MEASUREMENT] &lt;name&gt;</c>（兼容别名 <c>DESC</c>）：描述指定 measurement 的列结构。
@@ -260,6 +306,12 @@ public sealed record DescribeMeasurementStatement(string Name) : SqlStatement;
 /// </summary>
 /// <param name="Name">目标关系表名称。</param>
 public sealed record DescribeTableStatement(string Name) : SqlStatement;
+
+/// <summary>
+/// <c>DESCRIBE DOCUMENT COLLECTION &lt;name&gt;</c>：描述指定文档集合。
+/// </summary>
+/// <param name="Name">目标文档集合名称。</param>
+public sealed record DescribeDocumentCollectionStatement(string Name) : SqlStatement;
 
 /// <summary>
 /// <c>EXPLAIN &lt;read-only statement&gt;</c>：对只读语句返回估算扫描与命中统计。

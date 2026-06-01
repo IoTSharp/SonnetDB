@@ -52,6 +52,12 @@ public enum TokenKind
     KeywordMeasurement,
     /// <summary>TABLE（关系表 DDL）。</summary>
     KeywordTable,
+    /// <summary>DOCUMENT（JSON 文档集合 DDL）。</summary>
+    KeywordDocument,
+    /// <summary>COLLECTION（JSON 文档集合 DDL）。</summary>
+    KeywordCollection,
+    /// <summary>COLLECTIONS（SHOW DOCUMENT COLLECTIONS）。</summary>
+    KeywordCollections,
     KeywordInsert,
     KeywordInto,
     KeywordValues,

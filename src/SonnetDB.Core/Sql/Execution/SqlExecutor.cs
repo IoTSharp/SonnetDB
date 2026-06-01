@@ -160,20 +160,25 @@ public static class SqlExecutor
             RollbackTransactionStatement => RollbackTransaction(transaction),
             CreateMeasurementStatement create => ExecuteCreateMeasurement(tsdb, create),
             CreateTableStatement createTable => TableSqlExecutor.ExecuteCreateTable(tsdb, createTable),
+            CreateDocumentCollectionStatement createDocumentCollection => DocumentSqlExecutor.ExecuteCreateCollection(tsdb, createDocumentCollection),
             CreateTableIndexStatement createIndex => TableSqlExecutor.ExecuteCreateIndex(tsdb, createIndex),
+            CreateDocumentPathIndexStatement createDocumentIndex => DocumentSqlExecutor.ExecuteCreateIndex(tsdb, createDocumentIndex),
             InsertStatement insert => ExecuteInsert(tsdb, insert, transaction),
             SelectStatement select => ExecuteSelect(tsdb, select),
             DeleteStatement delete => ExecuteDelete(tsdb, delete, transaction),
-            UpdateStatement update => transaction is null
-                ? TableSqlExecutor.ExecuteUpdate(tsdb, update)
-                : TableSqlExecutor.QueueUpdate(transaction, tsdb, update),
+            UpdateStatement update => ExecuteUpdate(tsdb, update, transaction),
             DropTableStatement dropTable => TableSqlExecutor.ExecuteDropTable(tsdb, dropTable),
+            DropDocumentCollectionStatement dropDocumentCollection => DocumentSqlExecutor.ExecuteDropCollection(tsdb, dropDocumentCollection),
             DropTableIndexStatement dropIndex => TableSqlExecutor.ExecuteDropIndex(tsdb, dropIndex),
+            DropDocumentPathIndexStatement dropDocumentIndex => DocumentSqlExecutor.ExecuteDropIndex(tsdb, dropDocumentIndex),
             ShowMeasurementsStatement => ShowMeasurements(tsdb),
             ShowTablesStatement => TableSqlExecutor.ShowTables(tsdb),
+            ShowDocumentCollectionsStatement => DocumentSqlExecutor.ShowCollections(tsdb),
             ShowTableIndexesStatement showIndexes => TableSqlExecutor.ShowIndexes(tsdb, showIndexes.TableName),
+            ShowDocumentIndexesStatement showDocumentIndexes => DocumentSqlExecutor.ShowIndexes(tsdb, showDocumentIndexes.CollectionName),
             DescribeMeasurementStatement describe => DescribeMeasurement(tsdb, describe.Name),
             DescribeTableStatement describeTable => TableSqlExecutor.DescribeTable(tsdb, describeTable.Name),
+            DescribeDocumentCollectionStatement describeDocumentCollection => DocumentSqlExecutor.DescribeCollection(tsdb, describeDocumentCollection.Name),
             ExplainStatement explain => ExecuteExplain(tsdb, databaseName, explain),
             CreateUserStatement createUser => ExecuteControlPlane(controlPlane,
                 cp => { cp.CreateUser(createUser.UserName, createUser.Password, createUser.IsSuperuser); return (object)1; }),
@@ -485,6 +490,14 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
+        var documentSchema = tsdb.Documents.Catalog.TryGet(statement.Measurement);
+        if (documentSchema is not null)
+        {
+            if (transaction is not null)
+                throw new NotSupportedException("轻事务当前不支持文档集合写入。");
+            return DocumentSqlExecutor.ExecuteInsert(tsdb, statement, documentSchema);
+        }
+
         var tableSchema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
         if (tableSchema is not null)
             return transaction is null
@@ -609,6 +622,10 @@ public static class SqlExecutor
         if (statement.Join is not null)
             return JoinSqlExecutor.Execute(tsdb, statement);
 
+        var documentSchema = tsdb.Documents.Catalog.TryGet(statement.Measurement);
+        if (documentSchema is not null)
+            return DocumentSqlExecutor.ExecuteSelect(tsdb, statement, documentSchema);
+
         if (tableSchema is not null)
             return TableSqlExecutor.ExecuteSelect(tsdb, statement, tableSchema);
 
@@ -631,6 +648,14 @@ public static class SqlExecutor
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
+        var documentSchema = tsdb.Documents.Catalog.TryGet(statement.Measurement);
+        if (documentSchema is not null)
+        {
+            if (transaction is not null)
+                throw new NotSupportedException("轻事务当前不支持文档集合删除。");
+            return DocumentSqlExecutor.ExecuteDelete(tsdb, statement, documentSchema);
+        }
+
         var tableSchema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
         if (tableSchema is not null)
         {
@@ -644,6 +669,21 @@ public static class SqlExecutor
         }
 
         return DeleteExecutor.Execute(tsdb, statement);
+    }
+
+    private static RowsAffectedExecutionResult ExecuteUpdate(Tsdb tsdb, UpdateStatement update, SqlTransactionContext? transaction)
+    {
+        var documentSchema = tsdb.Documents.Catalog.TryGet(update.TableName);
+        if (documentSchema is not null)
+        {
+            if (transaction is not null)
+                throw new NotSupportedException("轻事务当前不支持文档集合更新。");
+            return DocumentSqlExecutor.ExecuteUpdate(tsdb, update, documentSchema);
+        }
+
+        return transaction is null
+            ? TableSqlExecutor.ExecuteUpdate(tsdb, update)
+            : TableSqlExecutor.QueueUpdate(transaction, tsdb, update);
     }
 
     private static LiteralExpression AsLiteral(SqlExpression expr, string columnName)

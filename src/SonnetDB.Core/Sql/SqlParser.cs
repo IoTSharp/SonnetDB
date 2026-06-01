@@ -104,9 +104,11 @@ public sealed class SqlParser
         {
             TokenKind.KeywordMeasurement => ParseCreateMeasurementBody(),
             TokenKind.KeywordTable => ParseCreateTableBody(),
+            TokenKind.KeywordDocument => ParseCreateDocumentBody(),
+            TokenKind.KeywordJson => ParseCreateJsonBody(),
             TokenKind.KeywordUser => ParseCreateUserBody(),
             TokenKind.KeywordDatabase => ParseCreateDatabaseBody(),
-            _ => throw Error("CREATE 后面期望 MEASUREMENT / TABLE / INDEX / USER / DATABASE"),
+            _ => throw Error("CREATE 后面期望 MEASUREMENT / TABLE / DOCUMENT COLLECTION / JSON INDEX / INDEX / USER / DATABASE"),
         };
     }
 
@@ -135,6 +137,55 @@ public sealed class SqlParser
         }
         Expect(TokenKind.RightParen);
         return new CreateTableIndexStatement(indexName, tableName, columns, unique, ifNotExists);
+    }
+
+    private CreateDocumentCollectionStatement ParseCreateDocumentBody()
+    {
+        Expect(TokenKind.KeywordDocument);
+        Expect(TokenKind.KeywordCollection);
+        var ifNotExists = ParseOptionalIfNotExists();
+        return new CreateDocumentCollectionStatement(ExpectIdentifierName(), ifNotExists);
+    }
+
+    private CreateDocumentPathIndexStatement ParseCreateJsonBody()
+    {
+        Expect(TokenKind.KeywordJson);
+        if (Current.Kind == TokenKind.KeywordIndex || IsIdentifier("index"))
+        {
+            Advance();
+        }
+        else
+        {
+            throw Error("CREATE JSON 后面期望 INDEX");
+        }
+
+        var ifNotExists = false;
+        if (Current.Kind == TokenKind.KeywordIf)
+        {
+            Advance();
+            Expect(TokenKind.KeywordNot);
+            Expect(TokenKind.KeywordExists);
+            ifNotExists = true;
+        }
+
+        var indexName = ExpectIdentifierName();
+        Expect(TokenKind.KeywordOn);
+        var collectionName = ExpectIdentifierName();
+        Expect(TokenKind.LeftParen);
+        var path = ExpectStringLiteral();
+        Expect(TokenKind.RightParen);
+        return new CreateDocumentPathIndexStatement(indexName, collectionName, path, ifNotExists);
+    }
+
+    private bool ParseOptionalIfNotExists()
+    {
+        if (Current.Kind != TokenKind.KeywordIf)
+            return false;
+
+        Advance();
+        Expect(TokenKind.KeywordNot);
+        Expect(TokenKind.KeywordExists);
+        return true;
     }
 
     // ── CREATE MEASUREMENT ─────────────────────────────────────────────────
@@ -862,7 +913,7 @@ public sealed class SqlParser
         if (Current.Kind == TokenKind.KeywordAs)
         {
             Advance();
-            alias = ExpectIdentifierName();
+            alias = ExpectColumnName();
         }
         else if (Current.Kind == TokenKind.IdentifierLiteral)
         {
@@ -1130,6 +1181,10 @@ public sealed class SqlParser
                 // time 既可以作为列名（time >= 100），也可以作为函数（time(1m)）；
                 // 看下一个 token 是否为 '(' 决定。
                 return ParseIdentifierOrFunctionCall();
+            case TokenKind.KeywordDocument:
+            case TokenKind.KeywordJson:
+            case TokenKind.KeywordCollection:
+                return ParseIdentifierOrFunctionCall();
             case TokenKind.IdentifierLiteral:
                 return ParseIdentifierOrFunctionCall();
             default:
@@ -1184,6 +1239,36 @@ public sealed class SqlParser
         {
             Advance();
             return "time";
+        }
+
+        if (Current.Kind == TokenKind.KeywordDocument)
+        {
+            Advance();
+            return "document";
+        }
+
+        if (Current.Kind == TokenKind.KeywordJson)
+        {
+            Advance();
+            return "json";
+        }
+
+        if (Current.Kind == TokenKind.KeywordCollection)
+        {
+            Advance();
+            return "collection";
+        }
+
+        if (Current.Kind == TokenKind.KeywordTag)
+        {
+            Advance();
+            return "tag";
+        }
+
+        if (Current.Kind == TokenKind.KeywordField)
+        {
+            Advance();
+            return "field";
         }
 
         throw Error("限定列名中 '.' 后面期望列名");
@@ -1427,6 +1512,21 @@ public sealed class SqlParser
             case TokenKind.KeywordKey:
                 Advance();
                 return "key";
+            case TokenKind.KeywordDocument:
+                Advance();
+                return "document";
+            case TokenKind.KeywordJson:
+                Advance();
+                return "json";
+            case TokenKind.KeywordCollection:
+                Advance();
+                return "collection";
+            case TokenKind.KeywordTag:
+                Advance();
+                return "tag";
+            case TokenKind.KeywordField:
+                Advance();
+                return "field";
             default:
                 throw Error("期望列名");
         }
@@ -1502,9 +1602,19 @@ public sealed class SqlParser
                 var indexName = ExpectIdentifierName();
                 Expect(TokenKind.KeywordOn);
                 return new DropTableIndexStatement(indexName, ExpectIdentifierName());
+            case TokenKind.KeywordJson:
+                Advance();
+                ExpectIndexKeyword("DROP JSON 后面期望 INDEX");
+                var jsonIndexName = ExpectIdentifierName();
+                Expect(TokenKind.KeywordOn);
+                return new DropDocumentPathIndexStatement(jsonIndexName, ExpectIdentifierName());
             case TokenKind.KeywordTable:
                 Advance();
                 return new DropTableStatement(ExpectIdentifierName());
+            case TokenKind.KeywordDocument:
+                Advance();
+                Expect(TokenKind.KeywordCollection);
+                return new DropDocumentCollectionStatement(ExpectIdentifierName());
             case TokenKind.KeywordUser:
                 Advance();
                 return new DropUserStatement(ExpectUserName());
@@ -1622,6 +1732,20 @@ public sealed class SqlParser
             case TokenKind.KeywordTables:
                 Advance();
                 return new ShowTablesStatement();
+            case TokenKind.KeywordDocument:
+                Advance();
+                Expect(TokenKind.KeywordCollections);
+                return new ShowDocumentCollectionsStatement();
+            case TokenKind.KeywordJson:
+                Advance();
+                if (IsIdentifier("indexes"))
+                {
+                    Advance();
+                    Expect(TokenKind.KeywordOn);
+                    return new ShowDocumentIndexesStatement(ExpectIdentifierName());
+                }
+
+                throw Error("SHOW JSON 后面期望 INDEXES");
             default:
                 if (IsIdentifier("indexes"))
                 {
@@ -1648,17 +1772,20 @@ public sealed class SqlParser
             TokenKind.KeywordShow => ParseShow(),
             TokenKind.KeywordDescribe => ParseDescribe(),
             TokenKind.KeywordDesc => ParseDescribe(),
-            _ => throw Error("EXPLAIN 后面期望 SELECT / SHOW MEASUREMENTS / SHOW TABLES / DESCRIBE [MEASUREMENT|TABLE]"),
+            _ => throw Error("EXPLAIN 后面期望 SELECT / SHOW MEASUREMENTS / SHOW TABLES / SHOW DOCUMENT COLLECTIONS / DESCRIBE [MEASUREMENT|TABLE|DOCUMENT COLLECTION]"),
         };
 
         if (statement is not SelectStatement
             and not ShowMeasurementsStatement
             and not ShowTablesStatement
             and not ShowTableIndexesStatement
+            and not ShowDocumentCollectionsStatement
+            and not ShowDocumentIndexesStatement
             and not DescribeMeasurementStatement
-            and not DescribeTableStatement)
+            and not DescribeTableStatement
+            and not DescribeDocumentCollectionStatement)
         {
-            throw Error("EXPLAIN 仅支持 SELECT / SHOW MEASUREMENTS / SHOW TABLES / DESCRIBE [MEASUREMENT|TABLE]");
+            throw Error("EXPLAIN 仅支持 SELECT / SHOW MEASUREMENTS / SHOW TABLES / SHOW DOCUMENT COLLECTIONS / DESCRIBE [MEASUREMENT|TABLE|DOCUMENT COLLECTION]");
         }
 
         return new ExplainStatement(statement);
@@ -1675,6 +1802,13 @@ public sealed class SqlParser
         {
             Advance();
             return new DescribeTableStatement(ExpectIdentifierName());
+        }
+
+        if (Current.Kind == TokenKind.KeywordDocument)
+        {
+            Advance();
+            Expect(TokenKind.KeywordCollection);
+            return new DescribeDocumentCollectionStatement(ExpectIdentifierName());
         }
 
         if (Current.Kind == TokenKind.KeywordMeasurement)

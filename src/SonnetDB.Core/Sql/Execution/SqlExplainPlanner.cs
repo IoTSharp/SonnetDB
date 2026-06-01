@@ -60,12 +60,15 @@ public static class SqlExplainPlanner
         {
             ShowMeasurementsStatement => ExplainShowMeasurements(databaseName, tsdb),
             ShowTablesStatement => ExplainShowTables(databaseName, tsdb),
+            ShowDocumentCollectionsStatement => ExplainShowDocumentCollections(databaseName, tsdb),
             ShowTableIndexesStatement showIndexes => ExplainShowIndexes(databaseName, tsdb, showIndexes.TableName),
+            ShowDocumentIndexesStatement showDocumentIndexes => ExplainShowDocumentIndexes(databaseName, tsdb, showDocumentIndexes.CollectionName),
             DescribeMeasurementStatement describe => ExplainDescribeMeasurement(databaseName, tsdb, describe.Name),
             DescribeTableStatement describeTable => ExplainDescribeTable(databaseName, tsdb, describeTable.Name),
+            DescribeDocumentCollectionStatement describeDocumentCollection => ExplainDescribeDocumentCollection(databaseName, tsdb, describeDocumentCollection.Name),
             SelectStatement select => ExplainSelect(databaseName, tsdb, select),
             _ => throw new InvalidOperationException(
-                "EXPLAIN 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES 与 DESCRIBE [MEASUREMENT|TABLE]。"),
+                "EXPLAIN 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES / SHOW DOCUMENT COLLECTIONS / SHOW INDEXES / SHOW JSON INDEXES 与 DESCRIBE [MEASUREMENT|TABLE|DOCUMENT COLLECTION]。"),
         };
     }
 
@@ -134,6 +137,25 @@ public static class SqlExplainPlanner
             IndexName: null);
     }
 
+    private static SqlExplainExecutionResult ExplainShowDocumentCollections(string? databaseName, Tsdb tsdb)
+    {
+        var collectionCount = tsdb.Documents.Catalog.Snapshot().Count;
+        return new SqlExplainExecutionResult(
+            Database: databaseName,
+            StatementType: "show_document_collections",
+            Measurement: null,
+            MatchedSeriesCount: 0,
+            EstimatedSegmentCount: 0,
+            EstimatedBlockCount: 0,
+            EstimatedScannedRows: collectionCount,
+            EstimatedMemTableRows: 0,
+            EstimatedSegmentRows: 0,
+            HasTimeFilter: false,
+            TagFilterCount: 0,
+            AccessPath: "catalog",
+            IndexName: null);
+    }
+
     private static SqlExplainExecutionResult ExplainDescribeMeasurement(
         string? databaseName,
         Tsdb tsdb,
@@ -186,6 +208,32 @@ public static class SqlExplainPlanner
             IndexName: null);
     }
 
+    private static SqlExplainExecutionResult ExplainShowDocumentIndexes(
+        string? databaseName,
+        Tsdb tsdb,
+        string collectionName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
+
+        var schema = tsdb.Documents.Catalog.TryGet(collectionName)
+            ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
+
+        return new SqlExplainExecutionResult(
+            Database: databaseName,
+            StatementType: "show_json_indexes",
+            Measurement: schema.Name,
+            MatchedSeriesCount: 0,
+            EstimatedSegmentCount: 0,
+            EstimatedBlockCount: 0,
+            EstimatedScannedRows: schema.Indexes.Count,
+            EstimatedMemTableRows: 0,
+            EstimatedSegmentRows: 0,
+            HasTimeFilter: false,
+            TagFilterCount: 0,
+            AccessPath: "catalog",
+            IndexName: null);
+    }
+
     private static SqlExplainExecutionResult ExplainDescribeTable(
         string? databaseName,
         Tsdb tsdb,
@@ -212,6 +260,32 @@ public static class SqlExplainPlanner
             IndexName: null);
     }
 
+    private static SqlExplainExecutionResult ExplainDescribeDocumentCollection(
+        string? databaseName,
+        Tsdb tsdb,
+        string collectionName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
+
+        var schema = tsdb.Documents.Catalog.TryGet(collectionName)
+            ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
+
+        return new SqlExplainExecutionResult(
+            Database: databaseName,
+            StatementType: "describe_document_collection",
+            Measurement: schema.Name,
+            MatchedSeriesCount: 0,
+            EstimatedSegmentCount: 0,
+            EstimatedBlockCount: 0,
+            EstimatedScannedRows: schema.Indexes.Count + 1,
+            EstimatedMemTableRows: 0,
+            EstimatedSegmentRows: 0,
+            HasTimeFilter: false,
+            TagFilterCount: 0,
+            AccessPath: "catalog",
+            IndexName: null);
+    }
+
     private static SqlExplainExecutionResult ExplainSelect(
         string? databaseName,
         Tsdb tsdb,
@@ -221,6 +295,26 @@ public static class SqlExplainPlanner
         {
             throw new InvalidOperationException(
                 "EXPLAIN 暂不支持 JOIN 查询；请分别解释左侧 measurement 过滤和右侧关系表过滤。");
+        }
+
+        var documentSchema = tsdb.Documents.Catalog.TryGet(statement.Measurement);
+        if (documentSchema is not null)
+        {
+            var (accessPath, indexName, rowCount) = DocumentSqlExecutor.ExplainAccess(tsdb, documentSchema, statement.Where);
+            return new SqlExplainExecutionResult(
+                Database: databaseName,
+                StatementType: "select_document_collection",
+                Measurement: statement.Measurement,
+                MatchedSeriesCount: 0,
+                EstimatedSegmentCount: 0,
+                EstimatedBlockCount: 0,
+                EstimatedScannedRows: rowCount,
+                EstimatedMemTableRows: rowCount,
+                EstimatedSegmentRows: 0,
+                HasTimeFilter: statement.Where is not null,
+                TagFilterCount: 0,
+                AccessPath: accessPath,
+                IndexName: indexName);
         }
 
         var tableSchema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
