@@ -14,10 +14,10 @@ permalink: /sql-cookbook/
 ## 使用前先记住 5 条
 
 - 时间列固定叫 `time`，表示 Unix 毫秒时间戳。
-- 建表用 `CREATE MEASUREMENT`，不是 `CREATE TABLE`。
+- 时序数据建模用 `CREATE MEASUREMENT`；关系表元数据、小对象等可用 `CREATE TABLE ... PRIMARY KEY (...)`。
 - 时间桶聚合只支持 `GROUP BY time(...)`。
-- 当前不支持 `GROUP BY <tag列>`、`JOIN`、`UPDATE`、`UNION`、`CTE`、`OVER (...)`。
-- 想查“这个库里有什么”，先 `SHOW MEASUREMENTS`，再 `DESCRIBE MEASUREMENT <name>`。
+- 当前不支持 `GROUP BY <tag列>`、`JOIN`、`UNION`、`CTE`、`OVER (...)`。
+- 想查“这个库里有什么”，时序数据先 `SHOW MEASUREMENTS` / `DESCRIBE MEASUREMENT <name>`，关系表先 `SHOW TABLES` / `DESCRIBE TABLE <name>`。
 
 ## 1. 建库、建用户、授权
 
@@ -427,15 +427,15 @@ WHERE source = 's-1';
 不要这样写：
 
 ```sql
-CREATE TABLE cpu (...);                         -- 应改为 CREATE MEASUREMENT
+CREATE TABLE cpu (...);                         -- 时序数据应改为 CREATE MEASUREMENT
 SELECT host, avg(usage) FROM cpu GROUP BY host; -- 当前不支持按 tag GROUP BY
 SELECT time_bucket(time, '1m'), avg(usage) ...; -- 当前公开语法不是这套
 SELECT LAG(usage) OVER (ORDER BY time) ...;     -- 当前不支持 OVER(...)
-UPDATE cpu SET usage = 1.0 WHERE ...;           -- 当前不支持 UPDATE
+UPDATE cpu SET usage = 1.0 WHERE ...;           -- UPDATE 仅支持关系表，不支持 measurement
 ```
 
 如果你拿不准当前能力边界：
 
 - 先看 [SQL 参考]({{ '/sql-reference/' | relative_url }})
-- 再让 Copilot 先 `SHOW MEASUREMENTS` / `DESCRIBE MEASUREMENT`
+- 再让 Copilot 先 `SHOW MEASUREMENTS` / `DESCRIBE MEASUREMENT` 或 `SHOW TABLES` / `DESCRIBE TABLE`
 - 写入或删除前，优先走只读模式先起草 SQL

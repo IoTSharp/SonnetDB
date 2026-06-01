@@ -37,6 +37,12 @@ public enum SqlDataType
     Vector,
     /// <summary>WGS84 地理点；使用 <c>POINT(lat, lon)</c> 写入（PR #70）。</summary>
     GeoPoint,
+    /// <summary>UTC 时间戳；关系表中按 Unix 毫秒持久化。</summary>
+    DateTime,
+    /// <summary>二进制大对象；关系表中以 BLOB 存储。</summary>
+    Blob,
+    /// <summary>JSON 文本；关系表 MVP 中以字符串形式存储和返回。</summary>
+    Json,
 }
 
 /// <summary>SQL 层支持的二元运算符。</summary>

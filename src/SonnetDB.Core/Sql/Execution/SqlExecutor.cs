@@ -99,11 +99,16 @@ public static class SqlExecutor
         return statement switch
         {
             CreateMeasurementStatement create => ExecuteCreateMeasurement(tsdb, create),
+            CreateTableStatement createTable => TableSqlExecutor.ExecuteCreateTable(tsdb, createTable),
             InsertStatement insert => ExecuteInsert(tsdb, insert),
             SelectStatement select => ExecuteSelect(tsdb, select),
             DeleteStatement delete => ExecuteDelete(tsdb, delete),
+            UpdateStatement update => TableSqlExecutor.ExecuteUpdate(tsdb, update),
+            DropTableStatement dropTable => TableSqlExecutor.ExecuteDropTable(tsdb, dropTable),
             ShowMeasurementsStatement => ShowMeasurements(tsdb),
+            ShowTablesStatement => TableSqlExecutor.ShowTables(tsdb),
             DescribeMeasurementStatement describe => DescribeMeasurement(tsdb, describe.Name),
+            DescribeTableStatement describeTable => TableSqlExecutor.DescribeTable(tsdb, describeTable.Name),
             ExplainStatement explain => ExecuteExplain(tsdb, databaseName, explain),
             CreateUserStatement createUser => ExecuteControlPlane(controlPlane,
                 cp => { cp.CreateUser(createUser.UserName, createUser.Password, createUser.IsSuperuser); return (object)1; }),
@@ -363,6 +368,8 @@ public static class SqlExecutor
         SqlDataType.String => FieldType.String,
         SqlDataType.Vector => FieldType.Vector,
         SqlDataType.GeoPoint => FieldType.GeoPoint,
+        SqlDataType.DateTime or SqlDataType.Blob or SqlDataType.Json => throw new NotSupportedException(
+            $"CREATE MEASUREMENT 不支持数据类型 {type}；该类型仅用于关系表 CREATE TABLE。"),
         _ => throw new NotSupportedException($"未知数据类型 {type}。"),
     };
 
@@ -401,6 +408,10 @@ public static class SqlExecutor
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
+
+        var tableSchema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
+        if (tableSchema is not null)
+            return TableSqlExecutor.ExecuteInsert(tsdb, statement, tableSchema);
 
         var schema = tsdb.Measurements.TryGet(statement.Measurement);
 
@@ -516,6 +527,10 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
         using var _ = SonnetDB.Query.Functions.UserFunctionRegistry.EnterScope(tsdb.Functions);
+        var tableSchema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
+        if (tableSchema is not null)
+            return TableSqlExecutor.ExecuteSelect(tsdb, statement, tableSchema);
+
         return SelectExecutor.Execute(tsdb, statement);
     }
 
@@ -532,6 +547,16 @@ public static class SqlExecutor
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
+        var tableSchema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
+        if (tableSchema is not null)
+        {
+            var affected = TableSqlExecutor.ExecuteDelete(tsdb, statement, tableSchema).RowsAffected;
+            return new DeleteExecutionResult(
+                statement.Measurement,
+                SeriesAffected: affected,
+                TombstonesAdded: affected);
+        }
+
         return DeleteExecutor.Execute(tsdb, statement);
     }
 

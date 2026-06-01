@@ -56,10 +56,12 @@ public static class SqlExplainPlanner
         return statement switch
         {
             ShowMeasurementsStatement => ExplainShowMeasurements(databaseName, tsdb),
+            ShowTablesStatement => ExplainShowTables(databaseName, tsdb),
             DescribeMeasurementStatement describe => ExplainDescribeMeasurement(databaseName, tsdb, describe.Name),
+            DescribeTableStatement describeTable => ExplainDescribeTable(databaseName, tsdb, describeTable.Name),
             SelectStatement select => ExplainSelect(databaseName, tsdb, select),
             _ => throw new InvalidOperationException(
-                "EXPLAIN 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES 与 DESCRIBE [MEASUREMENT]。"),
+                "EXPLAIN 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES 与 DESCRIBE [MEASUREMENT|TABLE]。"),
         };
     }
 
@@ -105,6 +107,23 @@ public static class SqlExplainPlanner
             TagFilterCount: 0);
     }
 
+    private static SqlExplainExecutionResult ExplainShowTables(string? databaseName, Tsdb tsdb)
+    {
+        var tableCount = tsdb.Tables.Catalog.Snapshot().Count;
+        return new SqlExplainExecutionResult(
+            Database: databaseName,
+            StatementType: "show_tables",
+            Measurement: null,
+            MatchedSeriesCount: 0,
+            EstimatedSegmentCount: 0,
+            EstimatedBlockCount: 0,
+            EstimatedScannedRows: tableCount,
+            EstimatedMemTableRows: 0,
+            EstimatedSegmentRows: 0,
+            HasTimeFilter: false,
+            TagFilterCount: 0);
+    }
+
     private static SqlExplainExecutionResult ExplainDescribeMeasurement(
         string? databaseName,
         Tsdb tsdb,
@@ -129,11 +148,53 @@ public static class SqlExplainPlanner
             TagFilterCount: 0);
     }
 
+    private static SqlExplainExecutionResult ExplainDescribeTable(
+        string? databaseName,
+        Tsdb tsdb,
+        string tableName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+
+        var schema = tsdb.Tables.Catalog.TryGet(tableName)
+            ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+
+        return new SqlExplainExecutionResult(
+            Database: databaseName,
+            StatementType: "describe_table",
+            Measurement: schema.Name,
+            MatchedSeriesCount: 0,
+            EstimatedSegmentCount: 0,
+            EstimatedBlockCount: 0,
+            EstimatedScannedRows: schema.Columns.Count,
+            EstimatedMemTableRows: 0,
+            EstimatedSegmentRows: 0,
+            HasTimeFilter: false,
+            TagFilterCount: 0);
+    }
+
     private static SqlExplainExecutionResult ExplainSelect(
         string? databaseName,
         Tsdb tsdb,
         SelectStatement statement)
     {
+        var tableSchema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
+        if (tableSchema is not null)
+        {
+            int rowCount = tsdb.Tables.Open(tableSchema.Name).Scan().Count;
+            return new SqlExplainExecutionResult(
+                Database: databaseName,
+                StatementType: "select_table",
+                Measurement: statement.Measurement,
+                MatchedSeriesCount: 0,
+                EstimatedSegmentCount: 0,
+                EstimatedBlockCount: 0,
+                EstimatedScannedRows: rowCount,
+                EstimatedMemTableRows: rowCount,
+                EstimatedSegmentRows: 0,
+                HasTimeFilter: statement.Where is not null,
+                TagFilterCount: 0);
+        }
+
         if (statement.TableValuedFunction is FunctionCallExpression { Name: var tvfName }
             && !string.Equals(tvfName, "forecast", StringComparison.OrdinalIgnoreCase)
             && !string.Equals(tvfName, "knn", StringComparison.OrdinalIgnoreCase))

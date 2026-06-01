@@ -333,8 +333,11 @@ public class SqlParserTests
     [Fact]
     public void Parse_Select_OrderByUnsupportedColumn_Throws()
     {
-        Assert.Throws<SqlParseException>(() =>
-            SqlParser.Parse("SELECT time, usage FROM cpu ORDER BY usage DESC"));
+        var stmt = (SelectStatement)SqlParser.Parse("SELECT time, usage FROM cpu ORDER BY usage DESC");
+
+        var orderBy = Assert.IsType<IdentifierExpression>(stmt.OrderBy!.Expression);
+        Assert.Equal("usage", orderBy.Name);
+        Assert.Equal(SortDirection.Descending, stmt.OrderBy.Direction);
     }
 
     [Fact]
@@ -438,7 +441,7 @@ public class SqlParserTests
     [Fact]
     public void Parse_UnknownStatement_Throws()
     {
-        Assert.Throws<SqlParseException>(() => SqlParser.Parse("UPDATE cpu SET value = 1"));
+        Assert.Throws<SqlParseException>(() => SqlParser.Parse("UPSERT cpu SET value = 1"));
     }
 
     [Fact]

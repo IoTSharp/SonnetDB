@@ -55,7 +55,30 @@ public sealed class SndbDataReader : DbDataReader
 
     /// <inheritdoc />
     public override long GetBytes(int ordinal, long dataOffset, byte[]? buffer, int bufferOffset, int length)
-        => throw new NotSupportedException("SonnetDB 不支持二进制列。");
+    {
+        var value = GetValue(ordinal);
+        if (value is DBNull)
+            throw new InvalidCastException($"列 {ordinal} 的值为 NULL。");
+        if (value is not byte[] bytes)
+            throw new InvalidCastException($"列 {ordinal} 不是二进制列。");
+        if (dataOffset < 0 || dataOffset > bytes.Length)
+            throw new ArgumentOutOfRangeException(nameof(dataOffset));
+        if (buffer is null)
+            return bytes.Length;
+        if (bufferOffset < 0 || bufferOffset > buffer.Length)
+            throw new ArgumentOutOfRangeException(nameof(bufferOffset));
+        if (length < 0)
+            throw new ArgumentOutOfRangeException(nameof(length));
+
+        int available = bytes.Length - (int)dataOffset;
+        int writable = Math.Min(length, buffer.Length - bufferOffset);
+        int count = Math.Min(available, writable);
+        if (count <= 0)
+            return 0;
+
+        bytes.AsSpan((int)dataOffset, count).CopyTo(buffer.AsSpan(bufferOffset, count));
+        return count;
+    }
 
     /// <inheritdoc />
     public override char GetChar(int ordinal) => Convert.ToChar(GetValue(ordinal), CultureInfo.InvariantCulture);

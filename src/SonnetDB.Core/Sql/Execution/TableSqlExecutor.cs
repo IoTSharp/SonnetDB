@@ -1,0 +1,817 @@
+using System.Globalization;
+using System.Text;
+using SonnetDB.Engine;
+using SonnetDB.Sql.Ast;
+using SonnetDB.Tables;
+
+namespace SonnetDB.Sql.Execution;
+
+/// <summary>
+/// 关系表 MVP 的 SQL 执行辅助。表数据存放在 <see cref="TableStore"/> 的 KV-backed rowstore 中。
+/// </summary>
+internal static class TableSqlExecutor
+{
+    private static readonly IReadOnlyList<string> _nameColumns =
+        new List<string>(1) { "name" }.AsReadOnly();
+    private static readonly IReadOnlyList<string> _describeTableColumns =
+        new List<string>(5) { "column_name", "data_type", "is_nullable", "is_primary_key", "ordinal" }.AsReadOnly();
+
+    public static TableSchema ExecuteCreateTable(Tsdb tsdb, CreateTableStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        if (statement.IfNotExists)
+        {
+            var existing = tsdb.Tables.Catalog.TryGet(statement.Name);
+            if (existing is not null)
+                return existing;
+        }
+
+        var columns = new List<(string Name, TableColumnType DataType, bool IsNullable)>(statement.Columns.Count);
+        foreach (var column in statement.Columns)
+        {
+            columns.Add((
+                column.Name,
+                MapTableColumnType(column.DataType),
+                column.Nullability != ColumnNullability.NotNull));
+        }
+
+        var schema = TableSchema.Create(statement.Name, columns, statement.PrimaryKey);
+        tsdb.Tables.Create(schema);
+        return schema;
+    }
+
+    public static RowsAffectedExecutionResult ExecuteDropTable(Tsdb tsdb, DropTableStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        bool removed = tsdb.Tables.Drop(statement.Name);
+        return new RowsAffectedExecutionResult(statement.Name, removed ? 1 : 0, "drop_table");
+    }
+
+    public static InsertExecutionResult ExecuteInsert(Tsdb tsdb, InsertStatement statement, TableSchema schema)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+        ArgumentNullException.ThrowIfNull(schema);
+
+        var store = tsdb.Tables.Open(schema.Name);
+        var bindings = BindInsertColumns(statement, schema);
+
+        int inserted = 0;
+        foreach (var row in statement.Rows)
+        {
+            var values = new object?[schema.Columns.Count];
+            for (int i = 0; i < bindings.Length; i++)
+            {
+                var column = bindings[i];
+                values[column.Ordinal] = ConvertTableValue(row[i], column);
+            }
+
+            ValidateRequiredColumns(schema, values);
+            store.Insert(values);
+            inserted++;
+        }
+
+        return new InsertExecutionResult(schema.Name, inserted);
+    }
+
+    public static SelectExecutionResult ExecuteSelect(Tsdb tsdb, SelectStatement statement, TableSchema schema)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+        ArgumentNullException.ThrowIfNull(schema);
+
+        ValidateTableAliasReferences(statement);
+        if (statement.TableValuedFunction is not null)
+            throw new InvalidOperationException("关系表 SELECT 不支持 FROM 表值函数。");
+        if (statement.GroupBy.Count != 0)
+            throw new InvalidOperationException("关系表 MVP 暂不支持 GROUP BY。");
+
+        var projections = BuildProjections(statement.Projections, schema);
+        var rows = LoadCandidateRows(tsdb.Tables.Open(schema.Name), schema, statement.Where);
+        var filtered = new List<IReadOnlyList<object?>>();
+        foreach (var row in rows)
+        {
+            if (!EvaluateWhere(statement.Where, schema, row.Values))
+                continue;
+
+            var output = new object?[projections.Length];
+            for (int i = 0; i < projections.Length; i++)
+                output[i] = EvaluateProjection(projections[i], row.Values);
+            filtered.Add(output);
+        }
+
+        var result = new SelectExecutionResult(
+            projections.Select(static p => p.ColumnName).ToArray(),
+            filtered);
+        return ApplyPagination(ApplyOrderBy(result, statement.OrderBy), statement.Pagination);
+    }
+
+    public static RowsAffectedExecutionResult ExecuteDelete(Tsdb tsdb, DeleteStatement statement, TableSchema schema)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+        ArgumentNullException.ThrowIfNull(schema);
+
+        var store = tsdb.Tables.Open(schema.Name);
+        int deleted = 0;
+        if (TryExtractPrimaryKeyValues(schema, statement.Where, allowExtraPredicates: false, out var keyValues))
+        {
+            deleted = store.DeleteByPrimaryKey(keyValues) ? 1 : 0;
+            return new RowsAffectedExecutionResult(schema.Name, deleted, "delete");
+        }
+
+        foreach (var row in store.Scan())
+        {
+            if (!EvaluateWhere(statement.Where, schema, row.Values))
+                continue;
+
+            var primaryKeyValues = ExtractPrimaryKeyValues(schema, row.Values);
+            if (store.DeleteByPrimaryKey(primaryKeyValues))
+                deleted++;
+        }
+
+        return new RowsAffectedExecutionResult(schema.Name, deleted, "delete");
+    }
+
+    public static RowsAffectedExecutionResult ExecuteUpdate(Tsdb tsdb, UpdateStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        var schema = tsdb.Tables.Catalog.TryGet(statement.TableName)
+            ?? throw new InvalidOperationException($"table '{statement.TableName}' 不存在。");
+        var store = tsdb.Tables.Open(schema.Name);
+        var assignments = BindAssignments(statement, schema);
+
+        int updated = 0;
+        foreach (var row in store.Scan())
+        {
+            if (!EvaluateWhere(statement.Where, schema, row.Values))
+                continue;
+
+            var values = row.Values.ToArray();
+            foreach (var assignment in assignments)
+                values[assignment.Column.Ordinal] = ConvertTableValue(assignment.Value, assignment.Column);
+
+            ValidateRequiredColumns(schema, values);
+            store.Upsert(values);
+            updated++;
+        }
+
+        return new RowsAffectedExecutionResult(schema.Name, updated, "update");
+    }
+
+    public static SelectExecutionResult ShowTables(Tsdb tsdb)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+
+        var snapshot = tsdb.Tables.Catalog.Snapshot();
+        var rows = new List<IReadOnlyList<object?>>(snapshot.Count);
+        foreach (var schema in snapshot)
+            rows.Add(new object?[] { schema.Name });
+        return new SelectExecutionResult(_nameColumns, rows);
+    }
+
+    public static SelectExecutionResult DescribeTable(Tsdb tsdb, string name)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        var schema = tsdb.Tables.Catalog.TryGet(name)
+            ?? throw new InvalidOperationException($"table '{name}' 不存在。");
+        var rows = new List<IReadOnlyList<object?>>(schema.Columns.Count);
+        foreach (var column in schema.Columns)
+        {
+            rows.Add(new object?[]
+            {
+                column.Name,
+                FormatTableColumnType(column.DataType),
+                column.IsNullable,
+                column.IsPrimaryKey,
+                (long)column.Ordinal,
+            });
+        }
+
+        return new SelectExecutionResult(_describeTableColumns, rows);
+    }
+
+    private static TableColumn[] BindInsertColumns(InsertStatement statement, TableSchema schema)
+    {
+        var bindings = new TableColumn[statement.Columns.Count];
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        for (int i = 0; i < statement.Columns.Count; i++)
+        {
+            var name = statement.Columns[i];
+            if (!seen.Add(name))
+                throw new InvalidOperationException($"INSERT 列列表中列 '{name}' 重复。");
+
+            bindings[i] = schema.TryGetColumn(name)
+                ?? throw new InvalidOperationException($"table '{schema.Name}' 中不存在列 '{name}'。");
+        }
+
+        return bindings;
+    }
+
+    private static BoundAssignment[] BindAssignments(UpdateStatement statement, TableSchema schema)
+    {
+        var assignments = new List<BoundAssignment>(statement.Assignments.Count);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var assignment in statement.Assignments)
+        {
+            if (!seen.Add(assignment.ColumnName))
+                throw new InvalidOperationException($"UPDATE SET 中列 '{assignment.ColumnName}' 重复。");
+
+            var column = schema.TryGetColumn(assignment.ColumnName)
+                ?? throw new InvalidOperationException($"table '{schema.Name}' 中不存在列 '{assignment.ColumnName}'。");
+            if (column.IsPrimaryKey)
+                throw new InvalidOperationException("关系表 MVP 暂不支持更新 PRIMARY KEY 列。");
+
+            assignments.Add(new BoundAssignment(column, assignment.Value));
+        }
+
+        return [.. assignments];
+    }
+
+    private static void ValidateRequiredColumns(TableSchema schema, IReadOnlyList<object?> values)
+    {
+        if (values.Count != schema.Columns.Count)
+            throw new InvalidOperationException("内部错误：行值数量与 schema 列数量不一致。");
+
+        for (int i = 0; i < schema.Columns.Count; i++)
+        {
+            var column = schema.Columns[i];
+            if (values[i] is null && !column.IsNullable)
+                throw new InvalidOperationException($"列 '{column.Name}' 不允许为 NULL。");
+        }
+    }
+
+    private static IReadOnlyList<TableRow> LoadCandidateRows(
+        TableStore store,
+        TableSchema schema,
+        SqlExpression? where)
+    {
+        if (TryExtractPrimaryKeyValues(schema, where, allowExtraPredicates: true, out var keyValues))
+        {
+            var row = store.GetByPrimaryKey(keyValues);
+            return row is null ? Array.Empty<TableRow>() : [row];
+        }
+
+        return store.Scan();
+    }
+
+    private static IReadOnlyList<object?> ExtractPrimaryKeyValues(TableSchema schema, IReadOnlyList<object?> row)
+    {
+        var values = new object?[schema.PrimaryKey.Count];
+        for (int i = 0; i < schema.PrimaryKey.Count; i++)
+        {
+            var column = schema.TryGetColumn(schema.PrimaryKey[i])
+                ?? throw new InvalidOperationException($"PRIMARY KEY 引用了未知列 '{schema.PrimaryKey[i]}'。");
+            values[i] = row[column.Ordinal];
+        }
+
+        return values;
+    }
+
+    private static bool TryExtractPrimaryKeyValues(
+        TableSchema schema,
+        SqlExpression? where,
+        bool allowExtraPredicates,
+        out IReadOnlyList<object?> keyValues)
+    {
+        keyValues = Array.Empty<object?>();
+        if (where is null)
+            return false;
+
+        var equalityByColumn = new Dictionary<string, SqlExpression>(StringComparer.Ordinal);
+        foreach (var leaf in FlattenAnd(where))
+        {
+            if (leaf is not BinaryExpression { Operator: SqlBinaryOperator.Equal } binary)
+                return false;
+
+            var (identifier, value) = NormalizeIdentifierComparison(binary);
+            if (identifier is null || value is null)
+                return false;
+            if (!equalityByColumn.TryAdd(identifier.Name, value))
+                return false;
+        }
+
+        var values = new object?[schema.PrimaryKey.Count];
+        if (!allowExtraPredicates && equalityByColumn.Count != schema.PrimaryKey.Count)
+            return false;
+
+        for (int i = 0; i < schema.PrimaryKey.Count; i++)
+        {
+            var keyColumnName = schema.PrimaryKey[i];
+            if (!equalityByColumn.TryGetValue(keyColumnName, out var expression))
+                return false;
+
+            var column = schema.TryGetColumn(keyColumnName)
+                ?? throw new InvalidOperationException($"PRIMARY KEY 引用了未知列 '{keyColumnName}'。");
+            try
+            {
+                values[i] = ConvertTableValue(expression, column);
+            }
+            catch (InvalidOperationException)
+            {
+                return false;
+            }
+        }
+
+        keyValues = values;
+        return true;
+    }
+
+    private static (IdentifierExpression? Identifier, SqlExpression? Value) NormalizeIdentifierComparison(BinaryExpression binary)
+    {
+        if (binary.Left is IdentifierExpression left)
+            return (left, binary.Right);
+        if (binary.Right is IdentifierExpression right)
+            return (right, binary.Left);
+        return (null, null);
+    }
+
+    private static Projection[] BuildProjections(IReadOnlyList<SelectItem> items, TableSchema schema)
+    {
+        var projections = new List<Projection>(items.Count);
+        foreach (var item in items)
+        {
+            switch (item.Expression)
+            {
+                case StarExpression:
+                    if (item.Alias is not null)
+                        throw new InvalidOperationException("'*' 不允许带 alias。");
+                    foreach (var column in schema.Columns)
+                        projections.Add(Projection.ForColumn(column, column.Name));
+                    break;
+
+                case IdentifierExpression id:
+                    var selectedColumn = schema.TryGetColumn(id.Name)
+                        ?? throw new InvalidOperationException($"SELECT 中引用了未知列 '{id.Name}'。");
+                    projections.Add(Projection.ForColumn(selectedColumn, item.Alias ?? selectedColumn.Name));
+                    break;
+
+                case LiteralExpression literal:
+                    projections.Add(Projection.Constant(EvaluateLiteral(literal), item.Alias ?? FormatLiteralColumnName(literal)));
+                    break;
+
+                default:
+                    throw new InvalidOperationException(
+                        $"关系表 SELECT 暂不支持投影表达式 '{item.Expression.GetType().Name}'。");
+            }
+        }
+
+        return [.. projections];
+    }
+
+    private static object? EvaluateProjection(Projection projection, IReadOnlyList<object?> row)
+        => projection.Kind switch
+        {
+            ProjectionKind.Column => row[projection.Column!.Ordinal],
+            ProjectionKind.Constant => projection.ConstantValue,
+            _ => throw new InvalidOperationException("未知关系表投影类型。"),
+        };
+
+    private static bool EvaluateWhere(SqlExpression? expression, TableSchema schema, IReadOnlyList<object?> row)
+    {
+        if (expression is null)
+            return true;
+
+        return EvaluateBoolean(expression, schema, row);
+    }
+
+    private static bool EvaluateBoolean(SqlExpression expression, TableSchema schema, IReadOnlyList<object?> row)
+    {
+        switch (expression)
+        {
+            case BinaryExpression binary:
+                if (binary.Operator == SqlBinaryOperator.And)
+                    return EvaluateBoolean(binary.Left, schema, row) && EvaluateBoolean(binary.Right, schema, row);
+                if (binary.Operator == SqlBinaryOperator.Or)
+                    return EvaluateBoolean(binary.Left, schema, row) || EvaluateBoolean(binary.Right, schema, row);
+                if (IsComparisonOperator(binary.Operator))
+                    return EvaluateComparison(binary, schema, row);
+                break;
+
+            case UnaryExpression { Operator: SqlUnaryOperator.Not } unary:
+                return !EvaluateBoolean(unary.Operand, schema, row);
+        }
+
+        var value = EvaluateScalar(expression, schema, row);
+        if (value is bool b)
+            return b;
+        throw new InvalidOperationException("WHERE 表达式必须计算为布尔值。");
+    }
+
+    private static bool EvaluateComparison(BinaryExpression binary, TableSchema schema, IReadOnlyList<object?> row)
+    {
+        var left = EvaluateScalar(binary.Left, schema, row);
+        var right = EvaluateScalar(binary.Right, schema, row);
+        int? compare = CompareScalar(left, right);
+
+        return binary.Operator switch
+        {
+            SqlBinaryOperator.Equal => ValuesEqual(left, right),
+            SqlBinaryOperator.NotEqual => !ValuesEqual(left, right),
+            SqlBinaryOperator.LessThan => compare is < 0,
+            SqlBinaryOperator.LessThanOrEqual => compare is <= 0,
+            SqlBinaryOperator.GreaterThan => compare is > 0,
+            SqlBinaryOperator.GreaterThanOrEqual => compare is >= 0,
+            _ => throw new InvalidOperationException($"不支持的比较运算符 {binary.Operator}。"),
+        };
+    }
+
+    private static object? EvaluateScalar(SqlExpression expression, TableSchema schema, IReadOnlyList<object?> row)
+    {
+        return expression switch
+        {
+            LiteralExpression literal => EvaluateLiteral(literal),
+            IdentifierExpression identifier => GetColumnValue(schema, row, identifier.Name),
+            UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => -RequireDouble(EvaluateScalar(unary.Operand, schema, row), "一元负号"),
+            BinaryExpression binary when IsArithmeticOperator(binary.Operator) => EvaluateArithmetic(binary, schema, row),
+            _ => throw new InvalidOperationException(
+                $"关系表表达式暂不支持 '{expression.GetType().Name}'。"),
+        };
+    }
+
+    private static object EvaluateArithmetic(BinaryExpression binary, TableSchema schema, IReadOnlyList<object?> row)
+    {
+        var left = RequireDouble(EvaluateScalar(binary.Left, schema, row), binary.Operator.ToString());
+        var right = RequireDouble(EvaluateScalar(binary.Right, schema, row), binary.Operator.ToString());
+        return binary.Operator switch
+        {
+            SqlBinaryOperator.Add => left + right,
+            SqlBinaryOperator.Subtract => left - right,
+            SqlBinaryOperator.Multiply => left * right,
+            SqlBinaryOperator.Divide => left / right,
+            SqlBinaryOperator.Modulo => left % right,
+            _ => throw new InvalidOperationException($"不支持的算术运算符 {binary.Operator}。"),
+        };
+    }
+
+    private static object? GetColumnValue(TableSchema schema, IReadOnlyList<object?> row, string name)
+    {
+        var column = schema.TryGetColumn(name)
+            ?? throw new InvalidOperationException($"引用了未知列 '{name}'。");
+        return row[column.Ordinal];
+    }
+
+    private static object? ConvertTableValue(SqlExpression expression, TableColumn column)
+    {
+        var value = expression switch
+        {
+            LiteralExpression literal => EvaluateLiteral(literal),
+            UnaryExpression { Operator: SqlUnaryOperator.Negate, Operand: LiteralExpression literal } => NegateLiteral(literal),
+            DurationLiteralExpression duration => duration.Milliseconds,
+            _ => throw new InvalidOperationException(
+                $"列 '{column.Name}' 的值必须是字面量，不支持表达式 ({expression.GetType().Name})。"),
+        };
+
+        return ConvertTableValue(value, column);
+    }
+
+    private static object? ConvertTableValue(object? value, TableColumn column)
+    {
+        if (value is null)
+            return null;
+
+        return column.DataType switch
+        {
+            TableColumnType.Int64 => Convert.ToInt64(value, CultureInfo.InvariantCulture),
+            TableColumnType.Float64 => Convert.ToDouble(value, CultureInfo.InvariantCulture),
+            TableColumnType.Boolean => value is bool b
+                ? b
+                : throw TypeMismatch(column, value),
+            TableColumnType.String => value is string s
+                ? s
+                : throw TypeMismatch(column, value),
+            TableColumnType.Json => value is string json
+                ? json
+                : throw TypeMismatch(column, value),
+            TableColumnType.DateTime => ConvertDateTimeValue(value, column),
+            TableColumnType.Blob => ConvertBlobValue(value, column),
+            _ => throw new NotSupportedException($"不支持的关系表类型 {column.DataType}。"),
+        };
+    }
+
+    private static object ConvertDateTimeValue(object value, TableColumn column)
+    {
+        return value switch
+        {
+            DateTime dt => dt.Kind == DateTimeKind.Unspecified
+                ? DateTime.SpecifyKind(dt, DateTimeKind.Utc)
+                : dt.ToUniversalTime(),
+            DateTimeOffset dto => dto.UtcDateTime,
+            long ms => DateTimeOffset.FromUnixTimeMilliseconds(ms).UtcDateTime,
+            int i32 => DateTimeOffset.FromUnixTimeMilliseconds(i32).UtcDateTime,
+            string s when DateTimeOffset.TryParse(
+                s,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                out var dto) => dto.UtcDateTime,
+            _ => throw TypeMismatch(column, value),
+        };
+    }
+
+    private static object ConvertBlobValue(object value, TableColumn column)
+    {
+        if (value is byte[] bytes)
+            return bytes;
+
+        if (value is not string s)
+            throw TypeMismatch(column, value);
+
+        try
+        {
+            return Convert.FromBase64String(s);
+        }
+        catch (FormatException)
+        {
+            return Encoding.UTF8.GetBytes(s);
+        }
+    }
+
+    private static object? EvaluateLiteral(LiteralExpression literal) => literal.Kind switch
+    {
+        SqlLiteralKind.Null => null,
+        SqlLiteralKind.Boolean => literal.BooleanValue,
+        SqlLiteralKind.Integer => literal.IntegerValue,
+        SqlLiteralKind.Float => literal.FloatValue,
+        SqlLiteralKind.String => literal.StringValue,
+        _ => throw new InvalidOperationException($"不支持的字面量类型 {literal.Kind}。"),
+    };
+
+    private static object NegateLiteral(LiteralExpression literal) => literal.Kind switch
+    {
+        SqlLiteralKind.Integer => checked(-literal.IntegerValue),
+        SqlLiteralKind.Float => -literal.FloatValue,
+        _ => throw new InvalidOperationException("一元负号只能用于数值字面量。"),
+    };
+
+    private static SelectExecutionResult ApplyOrderBy(SelectExecutionResult result, OrderBySpec? orderBy)
+    {
+        if (orderBy is null)
+            return result;
+
+        if (orderBy.Expression is not IdentifierExpression { Name: var name })
+            throw new InvalidOperationException("关系表 ORDER BY 当前仅支持列名。");
+
+        int columnIndex = -1;
+        for (int i = 0; i < result.Columns.Count; i++)
+        {
+            if (string.Equals(result.Columns[i], name, StringComparison.Ordinal))
+            {
+                columnIndex = i;
+                break;
+            }
+        }
+
+        if (columnIndex < 0)
+            throw new InvalidOperationException($"ORDER BY 引用了结果集中不存在的列 '{name}'。");
+
+        var rows = orderBy.Direction == SortDirection.Descending
+            ? result.Rows.OrderByDescending(row => row[columnIndex], ScalarComparer.Instance).ToArray()
+            : result.Rows.OrderBy(row => row[columnIndex], ScalarComparer.Instance).ToArray();
+        return new SelectExecutionResult(result.Columns, rows);
+    }
+
+    private static SelectExecutionResult ApplyPagination(SelectExecutionResult result, PaginationSpec? pagination)
+    {
+        if (pagination is null)
+            return result;
+
+        int offset = pagination.Offset;
+        if (offset >= result.Rows.Count)
+            return new SelectExecutionResult(result.Columns, []);
+
+        int take = pagination.Fetch ?? (result.Rows.Count - offset);
+        if (take <= 0)
+            return new SelectExecutionResult(result.Columns, []);
+
+        return new SelectExecutionResult(
+            result.Columns,
+            result.Rows.Skip(offset).Take(Math.Min(take, result.Rows.Count - offset)).ToArray());
+    }
+
+    private static IEnumerable<SqlExpression> FlattenAnd(SqlExpression expression)
+    {
+        if (expression is BinaryExpression { Operator: SqlBinaryOperator.And } binary)
+        {
+            foreach (var left in FlattenAnd(binary.Left))
+                yield return left;
+            foreach (var right in FlattenAnd(binary.Right))
+                yield return right;
+            yield break;
+        }
+
+        yield return expression;
+    }
+
+    private static void ValidateTableAliasReferences(SelectStatement statement)
+    {
+        foreach (var identifier in EnumerateIdentifierReferences(statement))
+        {
+            if (identifier.Qualifier is null)
+                continue;
+
+            if (statement.TableAlias is null)
+            {
+                throw new InvalidOperationException(
+                    $"限定列名 '{identifier.Qualifier}.{identifier.Name}' 要求 FROM 子句声明单表别名。");
+            }
+
+            if (!string.Equals(identifier.Qualifier, statement.TableAlias, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"限定列名 '{identifier.Qualifier}.{identifier.Name}' 引用了未知别名 '{identifier.Qualifier}'；当前查询只声明了别名 '{statement.TableAlias}'。");
+            }
+        }
+    }
+
+    private static IEnumerable<IdentifierExpression> EnumerateIdentifierReferences(SelectStatement statement)
+    {
+        foreach (var projection in statement.Projections)
+        {
+            foreach (var identifier in EnumerateIdentifierReferences(projection.Expression))
+                yield return identifier;
+        }
+
+        if (statement.Where is not null)
+        {
+            foreach (var identifier in EnumerateIdentifierReferences(statement.Where))
+                yield return identifier;
+        }
+
+        if (statement.OrderBy is not null)
+        {
+            foreach (var identifier in EnumerateIdentifierReferences(statement.OrderBy.Expression))
+                yield return identifier;
+        }
+    }
+
+    private static IEnumerable<IdentifierExpression> EnumerateIdentifierReferences(SqlExpression expression)
+    {
+        switch (expression)
+        {
+            case IdentifierExpression identifier:
+                yield return identifier;
+                yield break;
+
+            case UnaryExpression unary:
+                foreach (var identifier in EnumerateIdentifierReferences(unary.Operand))
+                    yield return identifier;
+                yield break;
+
+            case BinaryExpression binary:
+                foreach (var identifier in EnumerateIdentifierReferences(binary.Left))
+                    yield return identifier;
+                foreach (var identifier in EnumerateIdentifierReferences(binary.Right))
+                    yield return identifier;
+                yield break;
+        }
+    }
+
+    private static bool ValuesEqual(object? left, object? right)
+    {
+        if (left is null || right is null)
+            return left is null && right is null;
+
+        if (left is byte[] leftBytes && right is byte[] rightBytes)
+            return leftBytes.AsSpan().SequenceEqual(rightBytes);
+
+        if (IsNumeric(left) && IsNumeric(right))
+            return Convert.ToDouble(left, CultureInfo.InvariantCulture)
+                .Equals(Convert.ToDouble(right, CultureInfo.InvariantCulture));
+
+        return Equals(left, right);
+    }
+
+    private static int? CompareScalar(object? left, object? right)
+    {
+        if (left is null || right is null)
+            return null;
+
+        if (IsNumeric(left) && IsNumeric(right))
+            return Convert.ToDouble(left, CultureInfo.InvariantCulture)
+                .CompareTo(Convert.ToDouble(right, CultureInfo.InvariantCulture));
+
+        if (left is DateTime leftDate && right is DateTime rightDate)
+            return leftDate.CompareTo(rightDate);
+
+        if (left is string leftString && right is string rightString)
+            return string.Compare(leftString, rightString, StringComparison.Ordinal);
+
+        if (left is bool leftBool && right is bool rightBool)
+            return leftBool.CompareTo(rightBool);
+
+        throw new InvalidOperationException($"无法比较 {left.GetType().Name} 与 {right.GetType().Name}。");
+    }
+
+    private static double RequireDouble(object? value, string operatorName)
+    {
+        if (value is null)
+            throw new InvalidOperationException($"运算 {operatorName} 不接受 NULL 参数。");
+        if (!IsNumeric(value))
+            throw new InvalidOperationException($"运算 {operatorName} 需要数值参数。");
+        return Convert.ToDouble(value, CultureInfo.InvariantCulture);
+    }
+
+    private static bool IsNumeric(object value) => value is
+        byte or sbyte or
+        short or ushort or
+        int or uint or
+        long or ulong or
+        float or double or decimal;
+
+    private static bool IsComparisonOperator(SqlBinaryOperator op) => op is
+        SqlBinaryOperator.Equal or
+        SqlBinaryOperator.NotEqual or
+        SqlBinaryOperator.LessThan or
+        SqlBinaryOperator.LessThanOrEqual or
+        SqlBinaryOperator.GreaterThan or
+        SqlBinaryOperator.GreaterThanOrEqual;
+
+    private static bool IsArithmeticOperator(SqlBinaryOperator op) => op is
+        SqlBinaryOperator.Add or
+        SqlBinaryOperator.Subtract or
+        SqlBinaryOperator.Multiply or
+        SqlBinaryOperator.Divide or
+        SqlBinaryOperator.Modulo;
+
+    private static TableColumnType MapTableColumnType(SqlDataType type) => type switch
+    {
+        SqlDataType.Int64 => TableColumnType.Int64,
+        SqlDataType.Float64 => TableColumnType.Float64,
+        SqlDataType.Boolean => TableColumnType.Boolean,
+        SqlDataType.String => TableColumnType.String,
+        SqlDataType.DateTime => TableColumnType.DateTime,
+        SqlDataType.Blob => TableColumnType.Blob,
+        SqlDataType.Json => TableColumnType.Json,
+        _ => throw new NotSupportedException($"关系表 MVP 暂不支持数据类型 {type}。"),
+    };
+
+    private static string FormatTableColumnType(TableColumnType type) => type switch
+    {
+        TableColumnType.Int64 => "int64",
+        TableColumnType.Float64 => "float64",
+        TableColumnType.Boolean => "boolean",
+        TableColumnType.String => "string",
+        TableColumnType.DateTime => "datetime",
+        TableColumnType.Blob => "blob",
+        TableColumnType.Json => "json",
+        _ => type.ToString().ToLowerInvariant(),
+    };
+
+    private static string FormatLiteralColumnName(LiteralExpression literal) => literal.Kind switch
+    {
+        SqlLiteralKind.Null => "NULL",
+        SqlLiteralKind.Boolean => literal.BooleanValue ? "TRUE" : "FALSE",
+        SqlLiteralKind.Integer => literal.IntegerValue.ToString(CultureInfo.InvariantCulture),
+        SqlLiteralKind.Float => literal.FloatValue.ToString(CultureInfo.InvariantCulture),
+        SqlLiteralKind.String => literal.StringValue ?? string.Empty,
+        _ => literal.Kind.ToString(),
+    };
+
+    private static InvalidOperationException TypeMismatch(TableColumn column, object value)
+        => new($"列 '{column.Name}' 期望 {column.DataType}，实际值类型为 {value.GetType().Name}。");
+
+    private sealed record BoundAssignment(TableColumn Column, SqlExpression Value);
+
+    private enum ProjectionKind
+    {
+        Column,
+        Constant,
+    }
+
+    private sealed record Projection(
+        ProjectionKind Kind,
+        string ColumnName,
+        TableColumn? Column,
+        object? ConstantValue)
+    {
+        public static Projection ForColumn(TableColumn column, string columnName)
+            => new(ProjectionKind.Column, columnName, column, null);
+
+        public static Projection Constant(object? value, string columnName)
+            => new(ProjectionKind.Constant, columnName, null, value);
+    }
+
+    private sealed class ScalarComparer : IComparer<object?>
+    {
+        public static ScalarComparer Instance { get; } = new();
+
+        public int Compare(object? x, object? y)
+        {
+            if (x is null && y is null)
+                return 0;
+            if (x is null)
+                return -1;
+            if (y is null)
+                return 1;
+            return CompareScalar(x, y) ?? 0;
+        }
+    }
+}

@@ -12,6 +12,7 @@ using SonnetDB.Mcp;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
+using SonnetDB.Tables;
 
 namespace SonnetDB.Copilot;
 
@@ -153,7 +154,7 @@ internal sealed class CopilotLocalToolExecutor
             throw new SqlExecutionException(
                 sql,
                 "validate",
-                "explain_sql 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES 与 DESCRIBE [MEASUREMENT]。");
+                "explain_sql 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES 与 DESCRIBE [MEASUREMENT|TABLE]。");
         }
 
         var payload = _explainSqlService.Explain(databaseName, database, statement);
@@ -170,7 +171,7 @@ internal sealed class CopilotLocalToolExecutor
             throw new SqlExecutionException(
                 sql,
                 "validate",
-                "draft_sql 仅支持 CREATE DATABASE、CREATE MEASUREMENT、INSERT、DELETE、SELECT、SHOW MEASUREMENTS 与 DESCRIBE [MEASUREMENT]。");
+                "draft_sql 仅支持 CREATE DATABASE、CREATE MEASUREMENT、CREATE TABLE、DROP TABLE、INSERT、UPDATE、DELETE、SELECT、SHOW MEASUREMENTS / SHOW TABLES 与 DESCRIBE [MEASUREMENT|TABLE]。");
         }
 
         var databaseName = ResolveToolDatabaseName(context, tool, statement);
@@ -195,21 +196,35 @@ internal sealed class CopilotLocalToolExecutor
         if (isWrite && measurement is not null && database is not null &&
             HasDatabasePermission(context, databaseName, DatabasePermission.Read))
         {
-            var existing = database.Measurements.TryGet(measurement);
-            exists = existing is not null;
+            var existingMeasurement = database.Measurements.TryGet(measurement);
+            var existingTable = database.Tables.Catalog.TryGet(measurement);
+            var existing = existingMeasurement is not null || existingTable is not null;
+            exists = existing;
             switch (statement)
             {
-                case CreateMeasurementStatement when exists is true:
+                case CreateMeasurementStatement when existingMeasurement is not null:
                     notes.Add($"measurement '{measurement}' 已经存在；如需追加列，请改用 INSERT 而不是 CREATE。");
                     break;
-                case CreateMeasurementStatement when exists is false:
+                case CreateMeasurementStatement when existingMeasurement is null:
                     notes.Add($"measurement '{measurement}' 当前不存在，可以执行该 CREATE 语句创建。");
                     break;
-                case InsertStatement when exists is false:
-                    notes.Add($"measurement '{measurement}' 尚未创建，执行 INSERT 之前需要先 CREATE MEASUREMENT。");
+                case CreateTableStatement when existingTable is not null:
+                    notes.Add($"关系表 '{measurement}' 已经存在；如需重建，请先确认是否需要 DROP TABLE。");
                     break;
-                case DeleteStatement when exists is false:
-                    notes.Add($"measurement '{measurement}' 不存在，DELETE 不会影响任何数据。");
+                case CreateTableStatement when existingTable is null:
+                    notes.Add($"关系表 '{measurement}' 当前不存在，可以执行该 CREATE TABLE 语句创建。");
+                    break;
+                case InsertStatement when !existing:
+                    notes.Add($"'{measurement}' 尚未创建，执行 INSERT 之前需要先 CREATE MEASUREMENT 或 CREATE TABLE。");
+                    break;
+                case UpdateStatement when existingTable is null:
+                    notes.Add($"关系表 '{measurement}' 不存在，UPDATE 无法执行。");
+                    break;
+                case DeleteStatement when !existing:
+                    notes.Add($"'{measurement}' 不存在，DELETE 不会影响任何数据。");
+                    break;
+                case DropTableStatement when existingTable is null:
+                    notes.Add($"关系表 '{measurement}' 不存在，DROP TABLE 不会删除任何数据。");
                     break;
             }
         }
@@ -249,7 +264,7 @@ internal sealed class CopilotLocalToolExecutor
             throw new SqlExecutionException(
                 sql,
                 "validate",
-                "query_sql 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES、DESCRIBE [MEASUREMENT] 与 EXPLAIN。");
+                "query_sql 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES、DESCRIBE [MEASUREMENT|TABLE] 与 EXPLAIN。");
         }
 
         SqlStatement executable = statement;
@@ -295,7 +310,7 @@ internal sealed class CopilotLocalToolExecutor
             throw new SqlExecutionException(
                 sql,
                 "validate",
-                "execute_sql 仅支持 CREATE DATABASE、CREATE MEASUREMENT、INSERT、DELETE、SELECT、SHOW MEASUREMENTS 与 DESCRIBE [MEASUREMENT]。");
+                "execute_sql 仅支持 CREATE DATABASE、CREATE MEASUREMENT、CREATE TABLE、DROP TABLE、INSERT、UPDATE、DELETE、SELECT、SHOW MEASUREMENTS / SHOW TABLES 与 DESCRIBE [MEASUREMENT|TABLE]。");
         }
 
         var databaseName = ResolveToolDatabaseName(context, tool, statement);
@@ -360,7 +375,13 @@ internal sealed class CopilotLocalToolExecutor
             case DeleteExecutionResult deleteResult:
                 rowsAffected = deleteResult.TombstonesAdded;
                 break;
+            case RowsAffectedExecutionResult affectedResult:
+                rowsAffected = affectedResult.RowsAffected;
+                break;
             case MeasurementSchema schema:
+                rowsAffected = schema.Columns.Count;
+                break;
+            case TableSchema schema:
                 rowsAffected = schema.Columns.Count;
                 break;
             case int affected when statement is CreateDatabaseStatement:
@@ -504,30 +525,47 @@ internal sealed class CopilotLocalToolExecutor
             CreateMeasurementStatement create => ("create_measurement", create.Name, true),
             InsertStatement insert => ("insert", insert.Measurement, true),
             DeleteStatement delete => ("delete", delete.Measurement, true),
+            CreateTableStatement createTable => ("create_table", createTable.Name, true),
+            DropTableStatement dropTable => ("drop_table", dropTable.Name, true),
+            UpdateStatement update => ("update", update.TableName, true),
             SelectStatement select => ("select", select.Measurement, false),
             ShowMeasurementsStatement => ("show_measurements", null, false),
+            ShowTablesStatement => ("show_tables", null, false),
             DescribeMeasurementStatement describe => ("describe_measurement", describe.Name, false),
+            DescribeTableStatement describeTable => ("describe_table", describeTable.Name, false),
             _ => ("unknown", null, false)
         };
 
     private static bool IsDraftableStatement(SqlStatement statement)
         => statement is CreateDatabaseStatement
             or CreateMeasurementStatement
+            or CreateTableStatement
+            or DropTableStatement
             or InsertStatement
+            or UpdateStatement
             or DeleteStatement
             or SelectStatement
             or ShowMeasurementsStatement
-            or DescribeMeasurementStatement;
+            or ShowTablesStatement
+            or DescribeMeasurementStatement
+            or DescribeTableStatement;
 
     private static bool IsReadOnlyStatement(SqlStatement statement)
-        => statement is SelectStatement or ShowMeasurementsStatement or DescribeMeasurementStatement or ExplainStatement;
+        => statement is SelectStatement
+            or ShowMeasurementsStatement
+            or ShowTablesStatement
+            or DescribeMeasurementStatement
+            or DescribeTableStatement
+            or ExplainStatement;
 
     private static string GetReadOnlyStatementType(SqlStatement statement)
         => statement switch
         {
             SelectStatement => "select",
             ShowMeasurementsStatement => "show_measurements",
+            ShowTablesStatement => "show_tables",
             DescribeMeasurementStatement => "describe_measurement",
+            DescribeTableStatement => "describe_table",
             ExplainStatement => "explain",
             _ => "unknown"
         };

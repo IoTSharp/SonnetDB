@@ -204,6 +204,38 @@ public sealed class ServerEndToEndTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Sql_RelationalTableFlow_WorksOverHttp()
+    {
+        using var admin = CreateClient(_adminToken);
+        using var ro = CreateClient(_readOnlyToken);
+        var dbName = "tableflow";
+        var create = await admin.PostAsync("/v1/db",
+            JsonContent.Create(new CreateDatabaseRequest(dbName), ServerJsonContext.Default.CreateDatabaseRequest));
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+
+        await ExecuteSqlAsync(admin, dbName,
+            "CREATE TABLE devices (id INT, name STRING NOT NULL, enabled BOOL, PRIMARY KEY (id))");
+        await ExecuteSqlAsync(admin, dbName,
+            "INSERT INTO devices (id, name, enabled) VALUES (1, 'pump', TRUE), (2, 'fan', FALSE)");
+        await ExecuteSqlAsync(admin, dbName,
+            "UPDATE devices SET name = 'pump-2' WHERE id = 1");
+
+        var (columns, rows, end) = await ExecuteSelectAsync(ro, dbName,
+            "SELECT id, name FROM devices WHERE enabled = TRUE ORDER BY id");
+        Assert.Equal(new[] { "id", "name" }, columns);
+        Assert.Single(rows);
+        Assert.Equal(1L, rows[0][0].GetInt64());
+        Assert.Equal("pump-2", rows[0][1].GetString());
+        Assert.Equal(1, end.RowCount);
+
+        var show = await ExecuteSelectAsync(ro, dbName, "SHOW TABLES");
+        Assert.Equal("devices", Assert.Single(show.Rows)[0].GetString());
+
+        var forbidden = await ExecuteRawAsync(ro, dbName, "DELETE FROM devices WHERE id = 1");
+        Assert.Contains("forbidden", forbidden, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task GeoTrajectory_ReturnsFeatureCollectionAndLineString()
     {
         using var admin = CreateClient(_adminToken);

@@ -20,6 +20,7 @@ internal enum ExecutionFieldTypeKind
     DateTimeOffset,
     Guid,
     GeoPoint,
+    ByteArray,
 }
 
 internal static class ExecutionFieldTypeResolver
@@ -42,6 +43,7 @@ internal static class ExecutionFieldTypeResolver
             DateTimeOffset => ExecutionFieldTypeKind.DateTimeOffset,
             Guid => ExecutionFieldTypeKind.Guid,
             GeoPoint => ExecutionFieldTypeKind.GeoPoint,
+            byte[] => ExecutionFieldTypeKind.ByteArray,
             _ => ExecutionFieldTypeKind.Object,
         };
     }
@@ -64,6 +66,7 @@ internal static class ExecutionFieldTypeResolver
             ExecutionFieldTypeKind.DateTimeOffset => typeof(DateTimeOffset),
             ExecutionFieldTypeKind.Guid => typeof(Guid),
             ExecutionFieldTypeKind.GeoPoint => typeof(GeoPoint),
+            ExecutionFieldTypeKind.ByteArray => typeof(byte[]),
             _ => typeof(object),
         };
     }

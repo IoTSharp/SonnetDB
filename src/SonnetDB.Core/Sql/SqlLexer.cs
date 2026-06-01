@@ -32,6 +32,7 @@ public sealed class SqlLexer
     {
         ["create"] = TokenKind.KeywordCreate,
         ["measurement"] = TokenKind.KeywordMeasurement,
+        ["table"] = TokenKind.KeywordTable,
         ["insert"] = TokenKind.KeywordInsert,
         ["into"] = TokenKind.KeywordInto,
         ["values"] = TokenKind.KeywordValues,
@@ -42,6 +43,8 @@ public sealed class SqlLexer
         ["by"] = TokenKind.KeywordBy,
         ["time"] = TokenKind.KeywordTime,
         ["delete"] = TokenKind.KeywordDelete,
+        ["update"] = TokenKind.KeywordUpdate,
+        ["set"] = TokenKind.KeywordSet,
         ["and"] = TokenKind.KeywordAnd,
         ["or"] = TokenKind.KeywordOr,
         ["not"] = TokenKind.KeywordNot,
@@ -58,6 +61,9 @@ public sealed class SqlLexer
         ["int"] = TokenKind.KeywordInt,
         ["bool"] = TokenKind.KeywordBool,
         ["string"] = TokenKind.KeywordString,
+        ["datetime"] = TokenKind.KeywordDateTime,
+        ["blob"] = TokenKind.KeywordBlob,
+        ["json"] = TokenKind.KeywordJson,
         ["vector"] = TokenKind.KeywordVector,
         ["geopoint"] = TokenKind.KeywordGeoPoint,
 
@@ -75,6 +81,8 @@ public sealed class SqlLexer
         ["database"] = TokenKind.KeywordDatabase,
         ["drop"] = TokenKind.KeywordDrop,
         ["alter"] = TokenKind.KeywordAlter,
+        ["primary"] = TokenKind.KeywordPrimary,
+        ["key"] = TokenKind.KeywordKey,
 
         // PR #34b-1：SHOW 控制面查询
         ["show"] = TokenKind.KeywordShow,
@@ -90,7 +98,7 @@ public sealed class SqlLexer
         ["token"] = TokenKind.KeywordToken,
         ["issue"] = TokenKind.KeywordIssue,
 
-        // 元数据查询：EXPLAIN / SHOW MEASUREMENTS / SHOW TABLES / DESCRIBE [MEASUREMENT] <name>
+        // 元数据查询：EXPLAIN / SHOW MEASUREMENTS / SHOW TABLES / DESCRIBE [MEASUREMENT|TABLE] <name>
         ["explain"] = TokenKind.KeywordExplain,
         ["measurements"] = TokenKind.KeywordMeasurements,
         ["tables"] = TokenKind.KeywordTables,

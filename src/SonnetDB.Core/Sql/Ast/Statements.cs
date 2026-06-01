@@ -15,6 +15,28 @@ public sealed record CreateMeasurementStatement(
     bool IfNotExists = false) : SqlStatement;
 
 /// <summary>
+/// <c>CREATE TABLE [IF NOT EXISTS] name (col TYPE [NULL|NOT NULL], ..., PRIMARY KEY (...))</c>。
+/// </summary>
+/// <param name="Name">关系表名称。</param>
+/// <param name="Columns">列定义（按声明顺序）。</param>
+/// <param name="PrimaryKey">主键列名（按声明顺序）。</param>
+/// <param name="IfNotExists">是否带 <c>IF NOT EXISTS</c> 修饰；为 <c>true</c> 时同名表已存在则视为成功。</param>
+public sealed record CreateTableStatement(
+    string Name,
+    IReadOnlyList<TableColumnDefinition> Columns,
+    IReadOnlyList<string> PrimaryKey,
+    bool IfNotExists = false) : SqlStatement;
+
+/// <summary>关系表列定义。</summary>
+/// <param name="Name">列名。</param>
+/// <param name="DataType">列数据类型。</param>
+/// <param name="Nullability">列空值修饰符；主键列执行时始终强制为 NOT NULL。</param>
+public sealed record TableColumnDefinition(
+    string Name,
+    SqlDataType DataType,
+    ColumnNullability Nullability = ColumnNullability.Unspecified);
+
+/// <summary>
 /// 向量索引声明抽象基类。
 /// </summary>
 public abstract record VectorIndexSpec;
@@ -86,7 +108,7 @@ public sealed record InsertStatement(
 /// <param name="GroupBy">GROUP BY 表达式列表；当未指定 GROUP BY 时为空集合（不为 <c>null</c>）。</param>
 /// <param name="TableValuedFunction">FROM 子句若为表值函数调用（PR #55 起的 forecast 等）则非 <c>null</c>，否则 <c>null</c>。</param>
 /// <param name="Pagination">可选分页子句；支持 <c>OFFSET/FETCH</c> 与兼容语法 <c>LIMIT</c>。</param>
-/// <param name="OrderBy">可选排序子句；当前仅支持 <c>ORDER BY time [ASC|DESC]</c>。</param>
+/// <param name="OrderBy">可选排序子句；measurement 执行层支持 <c>ORDER BY time [ASC|DESC]</c>，关系表执行层支持结果列名。</param>
 /// <param name="TableAlias">FROM 子句声明的可选单表别名；当前不支持 JOIN。</param>
 public sealed record SelectStatement(
     IReadOnlyList<SelectItem> Projections,
@@ -108,7 +130,7 @@ public enum SortDirection
 }
 
 /// <summary>
-/// 排序子句参数：当前仅支持 <c>ORDER BY time [ASC|DESC]</c>。
+/// 排序子句参数。
 /// </summary>
 /// <param name="Expression">排序表达式。</param>
 /// <param name="Direction">排序方向；未显式指定时为升序。</param>
@@ -143,10 +165,38 @@ public sealed record DeleteStatement(
     SqlExpression Where) : SqlStatement;
 
 /// <summary>
-/// <c>SHOW MEASUREMENTS</c>（兼容别名 <c>SHOW TABLES</c>）：列出当前数据库中所有 measurement。
+/// <c>UPDATE table SET col = expr [, ...] WHERE expr</c>。
+/// </summary>
+/// <param name="TableName">目标关系表名称。</param>
+/// <param name="Assignments">SET 子句中的列赋值列表。</param>
+/// <param name="Where">WHERE 表达式（必填）。</param>
+public sealed record UpdateStatement(
+    string TableName,
+    IReadOnlyList<UpdateAssignment> Assignments,
+    SqlExpression Where) : SqlStatement;
+
+/// <summary>UPDATE SET 子句中的一个列赋值。</summary>
+/// <param name="ColumnName">列名。</param>
+/// <param name="Value">赋值表达式。</param>
+public sealed record UpdateAssignment(string ColumnName, SqlExpression Value);
+
+/// <summary>
+/// <c>DROP TABLE name</c>：删除关系表 schema 与 rowstore。
+/// </summary>
+/// <param name="Name">目标关系表名称。</param>
+public sealed record DropTableStatement(string Name) : SqlStatement;
+
+/// <summary>
+/// <c>SHOW MEASUREMENTS</c>：列出当前数据库中所有 measurement。
 /// 返回单列 <c>name</c>(string)，按字典序升序排列。
 /// </summary>
 public sealed record ShowMeasurementsStatement : SqlStatement;
+
+/// <summary>
+/// <c>SHOW TABLES</c>：列出当前数据库中所有关系表。
+/// 返回单列 <c>name</c>(string)，按字典序升序排列。
+/// </summary>
+public sealed record ShowTablesStatement : SqlStatement;
 
 /// <summary>
 /// <c>DESCRIBE [MEASUREMENT] &lt;name&gt;</c>（兼容别名 <c>DESC</c>）：描述指定 measurement 的列结构。
@@ -156,8 +206,14 @@ public sealed record ShowMeasurementsStatement : SqlStatement;
 public sealed record DescribeMeasurementStatement(string Name) : SqlStatement;
 
 /// <summary>
+/// <c>DESCRIBE TABLE &lt;name&gt;</c>：描述指定关系表的列结构。
+/// </summary>
+/// <param name="Name">目标关系表名称。</param>
+public sealed record DescribeTableStatement(string Name) : SqlStatement;
+
+/// <summary>
 /// <c>EXPLAIN &lt;read-only statement&gt;</c>：对只读语句返回估算扫描与命中统计。
-/// 当前仅支持 <c>SELECT</c>、<c>SHOW MEASUREMENTS</c> / <c>SHOW TABLES</c> 与 <c>DESCRIBE [MEASUREMENT]</c>。
+/// 当前仅支持 <c>SELECT</c>、<c>SHOW MEASUREMENTS</c> / <c>SHOW TABLES</c> 与 <c>DESCRIBE [MEASUREMENT|TABLE]</c>。
 /// </summary>
 /// <param name="Statement">被解释的只读语句。</param>
 public sealed record ExplainStatement(SqlStatement Statement) : SqlStatement;

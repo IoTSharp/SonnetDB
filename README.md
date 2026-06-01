@@ -223,11 +223,13 @@ SonnetDB 采用典型的时序数据建模方式：
 当前真实支持的数据面 SQL：
 
 - `CREATE MEASUREMENT`
+- `CREATE TABLE ... PRIMARY KEY (...)`
 - `INSERT INTO ... VALUES (...)`
 - `SELECT ... FROM ... [WHERE ...] [GROUP BY time(...)]`
+- `UPDATE ... SET ... WHERE ...`（关系表）
 - `DELETE FROM ... WHERE ...`
-- `SHOW MEASUREMENTS` / `SHOW TABLES` / `DESCRIBE [MEASUREMENT] <name>`
-- `EXPLAIN <read-only statement>`（当前支持 `SELECT`、`SHOW MEASUREMENTS` / `SHOW TABLES` 与 `DESCRIBE [MEASUREMENT]`）
+- `SHOW MEASUREMENTS` / `SHOW TABLES` / `DESCRIBE [MEASUREMENT] <name>` / `DESCRIBE TABLE <name>`
+- `EXPLAIN <read-only statement>`（当前支持 `SELECT`、`SHOW MEASUREMENTS` / `SHOW TABLES` 与 `DESCRIBE [MEASUREMENT|TABLE]`）
 
 ### 支持的 SQL 函数
 

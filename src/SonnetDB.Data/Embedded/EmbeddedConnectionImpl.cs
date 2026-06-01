@@ -76,21 +76,16 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
         }
 
         var statement = SqlParser.Parse(sql);
-        return statement switch
+        var result = SqlExecutor.ExecuteStatement(_tsdb, statement);
+        return result switch
         {
-            InsertStatement ins => MaterializedExecutionResult.NonQuery(SqlExecutor.ExecuteInsert(_tsdb, ins).RowsInserted),
-            DeleteStatement del => MaterializedExecutionResult.NonQuery(SqlExecutor.ExecuteDelete(_tsdb, del).TombstonesAdded),
-            CreateMeasurementStatement create => ExecuteCreate(_tsdb, create),
-            SelectStatement sel => MaterializedExecutionResult.FromSelect(SqlExecutor.ExecuteSelect(_tsdb, sel)),
-            _ => throw new NotSupportedException(
-                $"语句类型 '{statement.GetType().Name}' 暂不支持。"),
+            SelectExecutionResult select => MaterializedExecutionResult.FromSelect(select),
+            InsertExecutionResult insert => MaterializedExecutionResult.NonQuery(insert.RowsInserted),
+            DeleteExecutionResult delete => MaterializedExecutionResult.NonQuery(delete.TombstonesAdded),
+            RowsAffectedExecutionResult affected => MaterializedExecutionResult.NonQuery(affected.RowsAffected),
+            null => MaterializedExecutionResult.NonQuery(0),
+            _ => MaterializedExecutionResult.NonQuery(0),
         };
-    }
-
-    private static IExecutionResult ExecuteCreate(Tsdb tsdb, CreateMeasurementStatement create)
-    {
-        SqlExecutor.ExecuteCreateMeasurement(tsdb, create);
-        return MaterializedExecutionResult.NonQuery(0);
     }
 
     public IExecutionResult ExecuteBulk(string commandText, SndbParameterCollection parameters)

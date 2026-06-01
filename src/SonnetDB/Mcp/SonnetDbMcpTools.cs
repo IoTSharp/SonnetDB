@@ -52,7 +52,7 @@ internal sealed class SonnetDbMcpTools
 
     /// <summary>
     /// 执行只读 SQL 查询。仅允许 <c>SELECT</c> / <c>SHOW MEASUREMENTS</c> / <c>SHOW TABLES</c> /
-    /// <c>DESCRIBE [MEASUREMENT]</c>，并自动限制最大返回行数。
+    /// <c>DESCRIBE [MEASUREMENT|TABLE]</c>，并自动限制最大返回行数。
     /// </summary>
     [McpServerTool(
         Name = "query_sql",
@@ -76,7 +76,7 @@ internal sealed class SonnetDbMcpTools
 
             if (!IsReadOnlyMcpStatement(statement))
                 return SonnetDbMcpResults.Error(
-                    "query_sql 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES、DESCRIBE [MEASUREMENT] 与 EXPLAIN。");
+                    "query_sql 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES、DESCRIBE [MEASUREMENT|TABLE] 与 EXPLAIN。");
 
             SqlStatement executable = statement;
             var canTruncate = false;
@@ -250,7 +250,7 @@ internal sealed class SonnetDbMcpTools
             if (!IsReadOnlyMcpStatement(statement))
             {
                 return SonnetDbMcpResults.Error(
-                    "explain_sql 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES 与 DESCRIBE [MEASUREMENT]。");
+                    "explain_sql 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES 与 DESCRIBE [MEASUREMENT|TABLE]。");
             }
 
             var payload = explainSqlService.Explain(databaseName, tsdb, statement);
@@ -266,13 +266,20 @@ internal sealed class SonnetDbMcpTools
     {
         SelectStatement => "select",
         ShowMeasurementsStatement => "show_measurements",
+        ShowTablesStatement => "show_tables",
         DescribeMeasurementStatement => "describe_measurement",
+        DescribeTableStatement => "describe_table",
         ExplainStatement => "explain",
         _ => "unknown",
     };
 
     private static bool IsReadOnlyMcpStatement(SqlStatement statement)
-        => statement is SelectStatement or ShowMeasurementsStatement or DescribeMeasurementStatement or ExplainStatement;
+        => statement is SelectStatement
+            or ShowMeasurementsStatement
+            or ShowTablesStatement
+            or DescribeMeasurementStatement
+            or DescribeTableStatement
+            or ExplainStatement;
 
     /// <summary>
     /// 在 Copilot 知识库 <c>__copilot__.docs</c> 上做向量召回（PR #64）。

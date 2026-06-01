@@ -260,6 +260,20 @@ internal static class SqlEndpointHandler
                         MaybePublishSlow(broadcaster, options, databaseName, stmt.Sql, elapsed, 0, del.TombstonesAdded, failed: false);
                         break;
                     }
+                case RowsAffectedExecutionResult affected:
+                    {
+                        if (!canWrite)
+                        {
+                            metrics.RecordSqlError();
+                            MaybePublishSlow(broadcaster, options, databaseName, stmt.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                            await WriteErrorAsync(context, "forbidden", "该语句需要 readwrite 或 admin 角色。").ConfigureAwait(false);
+                            return;
+                        }
+                        var elapsed = sw.Elapsed.TotalMilliseconds;
+                        await WriteEndAsync(context, writerOptions, rowCount: 0, recordsAffected: affected.RowsAffected, elapsed).ConfigureAwait(false);
+                        MaybePublishSlow(broadcaster, options, databaseName, stmt.Sql, elapsed, 0, affected.RowsAffected, failed: false);
+                        break;
+                    }
                 default:
                     {
                         // CREATE MEASUREMENT、CREATE USER 等 DDL：返回受影响行数 0。
@@ -400,7 +414,9 @@ internal static class SqlEndpointHandler
     private static bool RequiresWritePermission(SqlStatement statement) => statement is not
         (SelectStatement or
         ShowMeasurementsStatement or
+        ShowTablesStatement or
         DescribeMeasurementStatement or
+        DescribeTableStatement or
         ExplainStatement or
         ShowDatabasesStatement);
 

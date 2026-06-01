@@ -67,6 +67,8 @@ kv.Delete("device:1001");
 
 KV 使用独立文件格式，不复用时序写入路径的 `.SDBWAL` 或 `.SDBSEG`。因此新增 KV 不改变已有 measurement 的 WAL、Segment、Catalog 二进制格式。
 
+关系表 MVP 基于同一套 KV 存储能力实现，但目录独立放在 `tables/rowstore/<table-name-hex>/`，schema 放在 `tables/tables.tblschema`。这些文件同样不改变时序 measurement 的二进制格式。
+
 ## 崩溃恢复
 
 启动时恢复顺序：

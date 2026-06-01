@@ -290,6 +290,32 @@ public sealed class TsdbAdoApiTests : IDisposable
         Assert.Equal(new GeoPoint(39.9042, 116.4074), Assert.IsType<GeoPoint>(r.GetValue(0)));
     }
 
+    [Fact]
+    public void ExecuteReader_TableBlobColumn_SupportsGetBytes()
+    {
+        using var c = OpenConn();
+        Assert.Equal(0, ExecNonQuery(c, "CREATE TABLE files (id INT, payload BLOB, PRIMARY KEY (id))"));
+
+        using (var ins = c.CreateCommand())
+        {
+            ins.CommandText = "INSERT INTO files (id, payload) VALUES (@id, @payload)";
+            ins.Parameters.AddWithValue("@id", 1L);
+            ins.Parameters.AddWithValue("@payload", new byte[] { 1, 2, 3, 4 });
+            Assert.Equal(1, ins.ExecuteNonQuery());
+        }
+
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT payload FROM files WHERE id = 1";
+        using var r = cmd.ExecuteReader();
+        Assert.Equal(typeof(byte[]), r.GetFieldType(0));
+        Assert.True(r.Read());
+
+        Assert.Equal(4, r.GetBytes(0, 0, null, 0, 0));
+        var buffer = new byte[2];
+        Assert.Equal(2, r.GetBytes(0, 1, buffer, 0, buffer.Length));
+        Assert.Equal(new byte[] { 2, 3 }, buffer);
+    }
+
     // ── Parameters ────────────────────────────────────────────────────────────
 
     [Fact]

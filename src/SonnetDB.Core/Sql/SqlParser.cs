@@ -7,7 +7,8 @@ namespace SonnetDB.Sql;
 /// </summary>
 /// <remarks>
 /// 支持的语句：<c>CREATE MEASUREMENT</c> / <c>INSERT INTO ... VALUES</c> /
-/// <c>SELECT ... FROM ... [WHERE ...] [GROUP BY time(...)]</c> / <c>DELETE FROM ... WHERE ...</c>。
+/// <c>SELECT ... FROM ... [WHERE ...] [GROUP BY time(...)]</c> / <c>DELETE FROM ... WHERE ...</c> /
+/// <c>CREATE TABLE</c> / <c>UPDATE</c> 等关系表 MVP 语句。
 /// 不做任何语义校验（measurement / column 是否存在留给执行层）。
 /// </remarks>
 public sealed class SqlParser
@@ -67,6 +68,7 @@ public sealed class SqlParser
             TokenKind.KeywordInsert => ParseInsert(),
             TokenKind.KeywordSelect => ParseSelect(),
             TokenKind.KeywordDelete => ParseDelete(),
+            TokenKind.KeywordUpdate => ParseUpdate(),
             TokenKind.KeywordDrop => ParseDrop(),
             TokenKind.KeywordAlter => ParseAlterUser(),
             TokenKind.KeywordGrant => ParseGrant(),
@@ -76,7 +78,7 @@ public sealed class SqlParser
             TokenKind.KeywordIssue => ParseIssue(),
             TokenKind.KeywordDescribe => ParseDescribe(),
             TokenKind.KeywordDesc => ParseDescribe(),
-            _ => throw Error("期望 CREATE / INSERT / SELECT / DELETE / DROP / ALTER / GRANT / REVOKE / SHOW / EXPLAIN / ISSUE / DESCRIBE 关键字"),
+            _ => throw Error("期望 CREATE / INSERT / SELECT / DELETE / UPDATE / DROP / ALTER / GRANT / REVOKE / SHOW / EXPLAIN / ISSUE / DESCRIBE 关键字"),
         };
     }
 
@@ -88,9 +90,10 @@ public sealed class SqlParser
         return Current.Kind switch
         {
             TokenKind.KeywordMeasurement => ParseCreateMeasurementBody(),
+            TokenKind.KeywordTable => ParseCreateTableBody(),
             TokenKind.KeywordUser => ParseCreateUserBody(),
             TokenKind.KeywordDatabase => ParseCreateDatabaseBody(),
-            _ => throw Error("CREATE 后面期望 MEASUREMENT / USER / DATABASE"),
+            _ => throw Error("CREATE 后面期望 MEASUREMENT / TABLE / USER / DATABASE"),
         };
     }
 
@@ -123,6 +126,113 @@ public sealed class SqlParser
 
         Expect(TokenKind.RightParen);
         return new CreateMeasurementStatement(name, columns, ifNotExists);
+    }
+
+    // ── CREATE TABLE ───────────────────────────────────────────────────────
+
+    private CreateTableStatement ParseCreateTableBody()
+    {
+        Expect(TokenKind.KeywordTable);
+
+        var ifNotExists = false;
+        if (Current.Kind == TokenKind.KeywordIf)
+        {
+            Advance();
+            Expect(TokenKind.KeywordNot);
+            Expect(TokenKind.KeywordExists);
+            ifNotExists = true;
+        }
+
+        var name = ExpectIdentifierName();
+        Expect(TokenKind.LeftParen);
+
+        var columns = new List<TableColumnDefinition>();
+        var primaryKey = new List<string>();
+        while (true)
+        {
+            if (Current.Kind == TokenKind.KeywordPrimary)
+            {
+                if (primaryKey.Count > 0)
+                    throw Error("PRIMARY KEY 子句重复声明");
+                primaryKey.AddRange(ParsePrimaryKeyClause());
+            }
+            else
+            {
+                columns.Add(ParseTableColumnDefinition());
+            }
+
+            if (Current.Kind == TokenKind.Comma)
+            {
+                Advance();
+                continue;
+            }
+
+            break;
+        }
+
+        Expect(TokenKind.RightParen);
+        return new CreateTableStatement(name, columns, primaryKey, ifNotExists);
+    }
+
+    private TableColumnDefinition ParseTableColumnDefinition()
+    {
+        var columnName = ExpectColumnName();
+        var dataType = ParseTableDataType();
+        ColumnNullability nullability = ColumnNullability.Unspecified;
+
+        while (true)
+        {
+            switch (Current.Kind)
+            {
+                case TokenKind.KeywordNull:
+                    SetNullability(ref nullability, ColumnNullability.Nullable);
+                    Advance();
+                    continue;
+
+                case TokenKind.KeywordNot:
+                    Advance();
+                    Expect(TokenKind.KeywordNull);
+                    SetNullability(ref nullability, ColumnNullability.NotNull);
+                    continue;
+
+                default:
+                    return new TableColumnDefinition(columnName, dataType, nullability);
+            }
+        }
+    }
+
+    private IReadOnlyList<string> ParsePrimaryKeyClause()
+    {
+        Expect(TokenKind.KeywordPrimary);
+        Expect(TokenKind.KeywordKey);
+        Expect(TokenKind.LeftParen);
+        var columns = new List<string> { ExpectColumnName() };
+        while (Current.Kind == TokenKind.Comma)
+        {
+            Advance();
+            columns.Add(ExpectColumnName());
+        }
+        Expect(TokenKind.RightParen);
+        return columns;
+    }
+
+    private SqlDataType ParseTableDataType()
+    {
+        if (Current.Kind == TokenKind.KeywordVector)
+            throw Error("关系表 MVP 暂不支持 VECTOR 类型");
+
+        var token = Current;
+        switch (token.Kind)
+        {
+            case TokenKind.KeywordFloat: Advance(); return SqlDataType.Float64;
+            case TokenKind.KeywordInt: Advance(); return SqlDataType.Int64;
+            case TokenKind.KeywordBool: Advance(); return SqlDataType.Boolean;
+            case TokenKind.KeywordString: Advance(); return SqlDataType.String;
+            case TokenKind.KeywordDateTime: Advance(); return SqlDataType.DateTime;
+            case TokenKind.KeywordBlob: Advance(); return SqlDataType.Blob;
+            case TokenKind.KeywordJson: Advance(); return SqlDataType.Json;
+            default: throw Error("期望关系表数据类型 INT / FLOAT / BOOL / STRING / DATETIME / BLOB / JSON");
+        }
     }
 
     private ColumnDefinition ParseColumnDefinition()
@@ -577,10 +687,9 @@ public sealed class SqlParser
         Advance();
         Expect(TokenKind.KeywordBy);
         var expression = ParseExpression();
-        if (expression is not IdentifierExpression { Name: var name }
-            || !string.Equals(name, "time", StringComparison.OrdinalIgnoreCase))
+        if (expression is not IdentifierExpression)
         {
-            throw Error("当前仅支持 ORDER BY time [ASC|DESC]");
+            throw Error("ORDER BY 当前仅支持列名");
         }
 
         var direction = SortDirection.Ascending;
@@ -726,6 +835,37 @@ public sealed class SqlParser
         Expect(TokenKind.KeywordWhere);
         var where = ParseExpression();
         return new DeleteStatement(measurement, where);
+    }
+
+    // ── UPDATE ─────────────────────────────────────────────────────────────
+
+    private UpdateStatement ParseUpdate()
+    {
+        Expect(TokenKind.KeywordUpdate);
+        var table = ExpectIdentifierName();
+        Expect(TokenKind.KeywordSet);
+
+        var assignments = new List<UpdateAssignment>
+        {
+            ParseUpdateAssignment(),
+        };
+        while (Current.Kind == TokenKind.Comma)
+        {
+            Advance();
+            assignments.Add(ParseUpdateAssignment());
+        }
+
+        Expect(TokenKind.KeywordWhere);
+        var where = ParseExpression();
+        return new UpdateStatement(table, assignments, where);
+    }
+
+    private UpdateAssignment ParseUpdateAssignment()
+    {
+        var column = ExpectColumnName();
+        Expect(TokenKind.Equal);
+        var value = ParseExpression();
+        return new UpdateAssignment(column, value);
     }
 
     // ── 表达式（按优先级从低到高） ──────────────────────────────────────────
@@ -1071,11 +1211,9 @@ public sealed class SqlParser
 
     private string ExpectIdentifierName()
     {
-        if (Current.Kind != TokenKind.IdentifierLiteral)
-            throw Error("期望标识符");
-        var name = Current.Text;
-        Advance();
-        return name;
+        return Current.Kind == TokenKind.IdentifierLiteral
+            ? ExpectIdentifierLiteral()
+            : throw Error("期望标识符");
     }
 
     /// <summary>
@@ -1088,6 +1226,15 @@ public sealed class SqlParser
             return ExpectStringLiteral();
         if (Current.Kind != TokenKind.IdentifierLiteral && !IsKeyword(Current.Kind))
             throw Error("期望用户名");
+        var name = Current.Text;
+        Advance();
+        return name;
+    }
+
+    private string ExpectIdentifierLiteral()
+    {
+        if (Current.Kind != TokenKind.IdentifierLiteral)
+            throw Error("期望标识符");
         var name = Current.Text;
         Advance();
         return name;
@@ -1195,6 +1342,9 @@ public sealed class SqlParser
             case TokenKind.KeywordTime:
                 Advance();
                 return "time";
+            case TokenKind.KeywordKey:
+                Advance();
+                return "key";
             default:
                 throw Error("期望列名");
         }
@@ -1245,6 +1395,9 @@ public sealed class SqlParser
         Expect(TokenKind.KeywordDrop);
         switch (Current.Kind)
         {
+            case TokenKind.KeywordTable:
+                Advance();
+                return new DropTableStatement(ExpectIdentifierName());
             case TokenKind.KeywordUser:
                 Advance();
                 return new DropUserStatement(ExpectUserName());
@@ -1252,7 +1405,7 @@ public sealed class SqlParser
                 Advance();
                 return new DropDatabaseStatement(ExpectIdentifierName());
             default:
-                throw Error("DROP 后面期望 USER 或 DATABASE");
+                throw Error("DROP 后面期望 TABLE / USER 或 DATABASE");
         }
     }
 
@@ -1349,9 +1502,11 @@ public sealed class SqlParser
                 }
                 return new ShowTokensStatement(null);
             case TokenKind.KeywordMeasurements:
-            case TokenKind.KeywordTables:
                 Advance();
                 return new ShowMeasurementsStatement();
+            case TokenKind.KeywordTables:
+                Advance();
+                return new ShowTablesStatement();
             default:
                 throw Error("SHOW 后面期望 USERS / GRANTS / DATABASES / TOKENS / MEASUREMENTS / TABLES");
         }
@@ -1371,14 +1526,16 @@ public sealed class SqlParser
             TokenKind.KeywordShow => ParseShow(),
             TokenKind.KeywordDescribe => ParseDescribe(),
             TokenKind.KeywordDesc => ParseDescribe(),
-            _ => throw Error("EXPLAIN 后面期望 SELECT / SHOW MEASUREMENTS / SHOW TABLES / DESCRIBE [MEASUREMENT]"),
+            _ => throw Error("EXPLAIN 后面期望 SELECT / SHOW MEASUREMENTS / SHOW TABLES / DESCRIBE [MEASUREMENT|TABLE]"),
         };
 
         if (statement is not SelectStatement
             and not ShowMeasurementsStatement
-            and not DescribeMeasurementStatement)
+            and not ShowTablesStatement
+            and not DescribeMeasurementStatement
+            and not DescribeTableStatement)
         {
-            throw Error("EXPLAIN 仅支持 SELECT / SHOW MEASUREMENTS / SHOW TABLES / DESCRIBE [MEASUREMENT]");
+            throw Error("EXPLAIN 仅支持 SELECT / SHOW MEASUREMENTS / SHOW TABLES / DESCRIBE [MEASUREMENT|TABLE]");
         }
 
         return new ExplainStatement(statement);
@@ -1387,10 +1544,16 @@ public sealed class SqlParser
     /// <summary>
     /// <c>DESCRIBE [MEASUREMENT] &lt;name&gt;</c> / <c>DESC [MEASUREMENT] &lt;name&gt;</c>。
     /// </summary>
-    private DescribeMeasurementStatement ParseDescribe()
+    private SqlStatement ParseDescribe()
     {
         // 当前 token 是 DESCRIBE 或 DESC
         Advance();
+        if (Current.Kind == TokenKind.KeywordTable)
+        {
+            Advance();
+            return new DescribeTableStatement(ExpectIdentifierName());
+        }
+
         if (Current.Kind == TokenKind.KeywordMeasurement)
             Advance();
         var name = ExpectIdentifierName();

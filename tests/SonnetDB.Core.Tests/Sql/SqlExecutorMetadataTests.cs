@@ -7,7 +7,7 @@ using Xunit;
 namespace SonnetDB.Core.Tests.Sql;
 
 /// <summary>
-/// 元数据查询语句单元测试：<c>SHOW MEASUREMENTS</c> / <c>SHOW TABLES</c> / <c>DESCRIBE [MEASUREMENT] &lt;name&gt;</c>�?
+/// 元数据查询语句单元测试：<c>SHOW MEASUREMENTS</c> / <c>SHOW TABLES</c> / <c>DESCRIBE [MEASUREMENT|TABLE] &lt;name&gt;</c>。
 /// </summary>
 public class SqlExecutorMetadataTests : IDisposable
 {
@@ -53,19 +53,17 @@ public class SqlExecutorMetadataTests : IDisposable
     }
 
     [Fact]
-    public void ShowTables_IsAliasOf_ShowMeasurements()
+    public void ShowTables_ReturnsRelationTablesOnly()
     {
         using var db = Tsdb.Open(Options());
         SqlExecutor.Execute(db, "CREATE MEASUREMENT cpu (host TAG, usage FIELD FLOAT)");
-        SqlExecutor.Execute(db, "CREATE MEASUREMENT mem (host TAG, used FIELD INT)");
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
 
-        var a = (SelectExecutionResult)SqlExecutor.Execute(db, "SHOW MEASUREMENTS")!;
-        var b = (SelectExecutionResult)SqlExecutor.Execute(db, "SHOW TABLES")!;
+        var measurements = (SelectExecutionResult)SqlExecutor.Execute(db, "SHOW MEASUREMENTS")!;
+        var tables = (SelectExecutionResult)SqlExecutor.Execute(db, "SHOW TABLES")!;
 
-        Assert.Equal(a.Columns, b.Columns);
-        Assert.Equal(
-            a.Rows.Select(r => (string)r[0]!).ToArray(),
-            b.Rows.Select(r => (string)r[0]!).ToArray());
+        Assert.Equal(["cpu"], measurements.Rows.Select(r => (string)r[0]!).ToArray());
+        Assert.Equal(["devices"], tables.Rows.Select(r => (string)r[0]!).ToArray());
     }
 
     [Fact]
@@ -134,10 +132,10 @@ public class SqlExecutorMetadataTests : IDisposable
     }
 
     [Fact]
-    public void ParseShow_Tables_ProducesShowMeasurementsAst()
+    public void ParseShow_Tables_ProducesShowTablesAst()
     {
         var stmt = SqlParser.Parse("SHOW TABLES");
-        Assert.IsType<ShowMeasurementsStatement>(stmt);
+        Assert.IsType<ShowTablesStatement>(stmt);
     }
 
     [Fact]

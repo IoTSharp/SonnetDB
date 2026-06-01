@@ -9,6 +9,59 @@ permalink: /sql-reference/
 
 ## 数据面 SQL
 
+### `CREATE TABLE`
+
+定义关系表 schema。关系表 MVP 使用 KV-backed rowstore 存放在数据库目录的 `tables/` 下，不修改时序 `.SDBWAL` / `.SDBSEG` 格式。
+
+```sql
+CREATE TABLE devices (
+    id INT NOT NULL,
+    name STRING NOT NULL,
+    enabled BOOL,
+    installed_at DATETIME NULL,
+    metadata JSON NULL,
+    payload BLOB NULL,
+    PRIMARY KEY (id)
+)
+```
+
+规则：
+
+- 当前必须声明 `PRIMARY KEY (...)`；主键列会强制为 `NOT NULL`。
+- 支持类型：`INT`、`FLOAT`、`BOOL`、`STRING`、`DATETIME`、`BLOB`、`JSON`。
+- `DATETIME` 可写 Unix 毫秒整数或 ISO-8601 字符串，查询时返回 UTC `DateTime`。
+- `BLOB` 可写 base64 字符串；ADO.NET 参数可直接传 `byte[]`。
+- `JSON` 当前按 UTF-8 字符串存储，不做 JSON schema 校验。
+- 当前不支持 secondary index、外键、唯一约束、JOIN、事务或复杂优化器。
+
+### 关系表 DML
+
+```sql
+INSERT INTO devices (id, name, enabled)
+VALUES (1, 'pump-01', TRUE), (2, 'fan-02', FALSE);
+
+SELECT id, name
+FROM devices
+WHERE enabled = TRUE AND id > 1
+ORDER BY id DESC
+LIMIT 10;
+
+UPDATE devices
+SET name = 'pump-01b'
+WHERE id = 1;
+
+DELETE FROM devices
+WHERE id = 2;
+```
+
+当前行为：
+
+- `INSERT` 按主键插入；主键已存在时返回错误，不会静默覆盖。
+- `UPDATE` 支持更新非主键列；当前不支持更新主键列。
+- `SELECT` 支持 `*`、列投影、字面量投影、`WHERE` 中的 `AND` / `OR` / `NOT`、基础比较和简单数值运算。
+- `WHERE` 覆盖完整主键等值条件时会走主键读取；其它条件走表扫描后过滤。
+- `ORDER BY` 支持结果集中的任意列名；`LIMIT` / `OFFSET` / `FETCH` 语法与 measurement 查询一致。
+
 ### `CREATE MEASUREMENT`
 
 定义 measurement schema：
@@ -233,19 +286,33 @@ WHERE time >= now() - 30d
 
 ### `SHOW MEASUREMENTS` / `SHOW TABLES`
 
-列出当前数据库中所有 measurement，按字典序升序返回单列 `name`。
-`SHOW TABLES` 是 `SHOW MEASUREMENTS` 的兼容别名，便于 DBeaver、DataGrip
-等通用 SQL 工具直接探测表清单。
+`SHOW MEASUREMENTS` 列出当前数据库中所有时序 measurement，`SHOW TABLES` 列出当前数据库中所有关系表。两者都按字典序升序返回单列 `name`。
 
 ```sql
 SHOW MEASUREMENTS;
-SHOW TABLES;        -- 等价
+SHOW TABLES;
 ```
 
 | name |
 |------|
 | cpu  |
 | mem  |
+
+### `DESCRIBE TABLE <name>`
+
+描述指定关系表的列结构，按 `CREATE TABLE` 声明顺序返回：
+
+| 列 | 类型 | 说明 |
+|----|------|------|
+| `column_name` | string | 列名 |
+| `data_type` | string | `int64` / `float64` / `boolean` / `string` / `datetime` / `blob` / `json` |
+| `is_nullable` | bool | 是否允许 `NULL` |
+| `is_primary_key` | bool | 是否属于主键 |
+| `ordinal` | int64 | 声明顺序 |
+
+```sql
+DESCRIBE TABLE devices;
+```
 
 ### `DESCRIBE [MEASUREMENT] <name>` / `DESC <name>`
 
@@ -290,6 +357,7 @@ EXPLAIN DESCRIBE MEASUREMENT cpu;
 - `SELECT ...`
 - `SHOW MEASUREMENTS` / `SHOW TABLES`
 - `DESCRIBE [MEASUREMENT] <name>` / `DESC <name>`
+- `DESCRIBE TABLE <name>`
 
 当前不支持对 `INSERT`、`DELETE`、`CREATE`、`DROP`、用户/授权/Token 控制面 SQL 做 `EXPLAIN`。
 返回字段包括 `database`、`statement_type`、`measurement`、`matched_series_count`、`estimated_segment_count`、`estimated_block_count`、`estimated_scanned_rows`、`estimated_memtable_rows`、`estimated_segment_rows`、`has_time_filter` 与 `tag_filter_count`。

@@ -34,12 +34,12 @@ public sealed class SqlExplainTests : IDisposable
     }
 
     [Fact]
-    public void Parse_ExplainShowTables_MapsToShowMeasurements()
+    public void Parse_ExplainShowTables_WrapsShowTables()
     {
         var explain = Assert.IsType<ExplainStatement>(
             SqlParser.Parse("EXPLAIN SHOW TABLES"));
 
-        Assert.IsType<ShowMeasurementsStatement>(explain.Statement);
+        Assert.IsType<ShowTablesStatement>(explain.Statement);
     }
 
     [Fact]

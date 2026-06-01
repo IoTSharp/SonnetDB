@@ -46,6 +46,8 @@ public enum TokenKind
     // 关键字
     KeywordCreate,
     KeywordMeasurement,
+    /// <summary>TABLE（关系表 DDL）。</summary>
+    KeywordTable,
     KeywordInsert,
     KeywordInto,
     KeywordValues,
@@ -56,6 +58,10 @@ public enum TokenKind
     KeywordBy,
     KeywordTime,
     KeywordDelete,
+    /// <summary>UPDATE（关系表 DML）。</summary>
+    KeywordUpdate,
+    /// <summary>SET（UPDATE SET 子句）。</summary>
+    KeywordSet,
     KeywordAnd,
     KeywordOr,
     KeywordNot,
@@ -74,6 +80,12 @@ public enum TokenKind
     KeywordInt,
     KeywordBool,
     KeywordString,
+    /// <summary>DATETIME 关系表列声明。</summary>
+    KeywordDateTime,
+    /// <summary>BLOB 关系表列声明。</summary>
+    KeywordBlob,
+    /// <summary>JSON 关系表列声明。</summary>
+    KeywordJson,
     /// <summary>VECTOR(dim) 列声明（PR #58 b）。</summary>
     KeywordVector,
     /// <summary>GEOPOINT 列声明（PR #70）。</summary>
@@ -93,6 +105,10 @@ public enum TokenKind
     KeywordDatabase,
     KeywordDrop,
     KeywordAlter,
+    /// <summary>PRIMARY（PRIMARY KEY 子句）。</summary>
+    KeywordPrimary,
+    /// <summary>KEY（PRIMARY KEY 子句）。</summary>
+    KeywordKey,
 
     // PR #34b-1：SHOW 控制面查询
     KeywordShow,
@@ -109,7 +125,7 @@ public enum TokenKind
     KeywordToken,
     KeywordIssue,
 
-    // 元数据查询：EXPLAIN / SHOW MEASUREMENTS / SHOW TABLES / DESCRIBE [MEASUREMENT] <name>
+    // 元数据查询：EXPLAIN / SHOW MEASUREMENTS / SHOW TABLES / DESCRIBE [MEASUREMENT|TABLE] <name>
     KeywordExplain,
     KeywordMeasurements,
     KeywordTables,

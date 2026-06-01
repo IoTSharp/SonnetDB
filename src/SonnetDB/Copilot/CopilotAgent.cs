@@ -14,6 +14,7 @@ using SonnetDB.Mcp;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
+using SonnetDB.Tables;
 
 namespace SonnetDB.Copilot;
 
@@ -882,7 +883,7 @@ internal sealed class CopilotAgent
         if (!IsReadOnlyStatement(statement))
         {
             throw new InvalidOperationException(
-                "explain_sql 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES、DESCRIBE [MEASUREMENT] 与 EXPLAIN。");
+                "explain_sql 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES、DESCRIBE [MEASUREMENT|TABLE] 与 EXPLAIN。");
         }
 
         var payload = _explainSqlService.Explain(databaseName, database, statement);
@@ -907,7 +908,7 @@ internal sealed class CopilotAgent
         if (!IsDraftableStatement(statement))
         {
             throw new InvalidOperationException(
-                "draft_sql 仅支持 CREATE DATABASE、CREATE MEASUREMENT、INSERT、DELETE、SELECT、SHOW MEASUREMENTS 与 DESCRIBE [MEASUREMENT]。");
+                "draft_sql 仅支持 CREATE DATABASE、CREATE MEASUREMENT、CREATE TABLE、DROP TABLE、INSERT、UPDATE、DELETE、SELECT、SHOW MEASUREMENTS / SHOW TABLES 与 DESCRIBE [MEASUREMENT|TABLE]。");
         }
 
         var databaseName = ResolveToolDatabaseName(context, tool, statement);
@@ -931,21 +932,35 @@ internal sealed class CopilotAgent
 
         if (isWrite && measurement is not null && database is not null)
         {
-            var existing = database.Measurements.TryGet(measurement);
-            exists = existing is not null;
+            var existingMeasurement = database.Measurements.TryGet(measurement);
+            var existingTable = database.Tables.Catalog.TryGet(measurement);
+            var existing = existingMeasurement is not null || existingTable is not null;
+            exists = existing;
             switch (statement)
             {
-                case CreateMeasurementStatement when exists is true:
+                case CreateMeasurementStatement when existingMeasurement is not null:
                     notes.Add($"measurement '{measurement}' 已经存在；如需追加列，请改用 INSERT 而不是 CREATE。");
                     break;
-                case CreateMeasurementStatement when exists is false:
+                case CreateMeasurementStatement when existingMeasurement is null:
                     notes.Add($"measurement '{measurement}' 当前不存在，可以执行该 CREATE 语句创建。");
                     break;
-                case InsertStatement when exists is false:
-                    notes.Add($"measurement '{measurement}' 尚未创建，执行 INSERT 之前需要先 CREATE MEASUREMENT。");
+                case CreateTableStatement when existingTable is not null:
+                    notes.Add($"关系表 '{measurement}' 已经存在；如需重建，请先确认是否需要 DROP TABLE。");
                     break;
-                case DeleteStatement when exists is false:
-                    notes.Add($"measurement '{measurement}' 不存在，DELETE 不会影响任何数据。");
+                case CreateTableStatement when existingTable is null:
+                    notes.Add($"关系表 '{measurement}' 当前不存在，可以执行该 CREATE TABLE 语句创建。");
+                    break;
+                case InsertStatement when !existing:
+                    notes.Add($"'{measurement}' 尚未创建，执行 INSERT 之前需要先 CREATE MEASUREMENT 或 CREATE TABLE。");
+                    break;
+                case UpdateStatement when existingTable is null:
+                    notes.Add($"关系表 '{measurement}' 不存在，UPDATE 无法执行。");
+                    break;
+                case DeleteStatement when !existing:
+                    notes.Add($"'{measurement}' 不存在，DELETE 不会影响任何数据。");
+                    break;
+                case DropTableStatement when existingTable is null:
+                    notes.Add($"关系表 '{measurement}' 不存在，DROP TABLE 不会删除任何数据。");
                     break;
             }
         }
@@ -997,7 +1012,7 @@ internal sealed class CopilotAgent
             throw new SqlExecutionException(
                 sql,
                 "validate",
-                "execute_sql 仅支持 CREATE DATABASE、CREATE MEASUREMENT、INSERT、DELETE、SELECT、SHOW MEASUREMENTS 与 DESCRIBE [MEASUREMENT]。");
+                "execute_sql 仅支持 CREATE DATABASE、CREATE MEASUREMENT、CREATE TABLE、DROP TABLE、INSERT、UPDATE、DELETE、SELECT、SHOW MEASUREMENTS / SHOW TABLES 与 DESCRIBE [MEASUREMENT|TABLE]。");
         }
 
         var databaseName = ResolveToolDatabaseName(context, tool, statement);
@@ -1060,7 +1075,13 @@ internal sealed class CopilotAgent
             case DeleteExecutionResult deleteResult:
                 rowsAffected = deleteResult.TombstonesAdded;
                 break;
+            case RowsAffectedExecutionResult affectedResult:
+                rowsAffected = affectedResult.RowsAffected;
+                break;
             case MeasurementSchema schema:
+                rowsAffected = schema.Columns.Count;
+                break;
+            case TableSchema schema:
                 rowsAffected = schema.Columns.Count;
                 break;
             case int affected when statement is CreateDatabaseStatement:
@@ -1088,20 +1109,30 @@ internal sealed class CopilotAgent
             CreateMeasurementStatement create => ("create_measurement", create.Name, true),
             InsertStatement insert => ("insert", insert.Measurement, true),
             DeleteStatement delete => ("delete", delete.Measurement, true),
+            CreateTableStatement createTable => ("create_table", createTable.Name, true),
+            DropTableStatement dropTable => ("drop_table", dropTable.Name, true),
+            UpdateStatement update => ("update", update.TableName, true),
             SelectStatement select => ("select", select.Measurement, false),
             ShowMeasurementsStatement => ("show_measurements", null, false),
+            ShowTablesStatement => ("show_tables", null, false),
             DescribeMeasurementStatement describe => ("describe_measurement", describe.Name, false),
+            DescribeTableStatement describeTable => ("describe_table", describeTable.Name, false),
             _ => ("unknown", null, false),
         };
 
     private static bool IsDraftableStatement(SqlStatement statement)
         => statement is CreateDatabaseStatement
             or CreateMeasurementStatement
+            or CreateTableStatement
+            or DropTableStatement
             or InsertStatement
+            or UpdateStatement
             or DeleteStatement
             or SelectStatement
             or ShowMeasurementsStatement
-            or DescribeMeasurementStatement;
+            or ShowTablesStatement
+            or DescribeMeasurementStatement
+            or DescribeTableStatement;
 
     private async Task<CopilotToolExecutionResult> ExecuteQuerySqlWithRepairAsync(
         CopilotAgentContext context,
@@ -1217,7 +1248,7 @@ internal sealed class CopilotAgent
             throw new SqlExecutionException(
                 sql,
                 "validate",
-                "query_sql 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES、DESCRIBE [MEASUREMENT] 与 EXPLAIN。");
+                "query_sql 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES、DESCRIBE [MEASUREMENT|TABLE] 与 EXPLAIN。");
         }
 
         SqlStatement executable = statement;
@@ -2272,13 +2303,20 @@ internal sealed class CopilotAgent
             || identifier.Equals("needs", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsReadOnlyStatement(SqlStatement statement)
-        => statement is SelectStatement or ShowMeasurementsStatement or DescribeMeasurementStatement or ExplainStatement;
+        => statement is SelectStatement
+            or ShowMeasurementsStatement
+            or ShowTablesStatement
+            or DescribeMeasurementStatement
+            or DescribeTableStatement
+            or ExplainStatement;
 
     private static string GetStatementType(SqlStatement statement) => statement switch
     {
         SelectStatement => "select",
         ShowMeasurementsStatement => "show_measurements",
+        ShowTablesStatement => "show_tables",
         DescribeMeasurementStatement => "describe_measurement",
+        DescribeTableStatement => "describe_table",
         ExplainStatement => "explain",
         _ => "unknown",
     };
@@ -2509,8 +2547,8 @@ internal sealed class CopilotAgent
         - sample_rows(measurement, n?)
         - explain_sql(sql)
         - query_sql(sql, maxRows?)              // 仅 SELECT/SHOW/DESCRIBE
-        - draft_sql(sql)                        // 起草 / 校验 CREATE MEASUREMENT、INSERT、DELETE、SELECT 等 SQL，但不会改写数据
-        - execute_sql(sql, maxRows?)            // 真正执行 CREATE MEASUREMENT / INSERT / DELETE / SELECT；写入需调用方具备写权限
+        - draft_sql(sql)                        // 起草 / 校验 CREATE MEASUREMENT、CREATE TABLE、INSERT、UPDATE、DELETE、SELECT 等 SQL，但不会改写数据
+        - execute_sql(sql, maxRows?)            // 真正执行 CREATE MEASUREMENT / CREATE TABLE / INSERT / UPDATE / DELETE / SELECT；写入需调用方具备写权限
 
         输出必须是严格 JSON，每次只输出 1 个工具（或空数组表示已完成）：
         {"tools":[{"name":"list_databases"}]}
@@ -2521,14 +2559,15 @@ internal sealed class CopilotAgent
         - 只能输出 JSON，不要附加解释、Markdown 或代码块。
         - 每次只输出 1 个工具；如果已有上下文足够回答，输出 {"tools":[]} 表示完成。
         - 如果已有【已执行工具结果】，必须先阅读这些结果再决定下一步，不要重复调用已经成功执行过的工具。
-        - 询问 schema/字段/列结构时，优先 describe_measurement 或 list_measurements。
+        - 询问时序 schema/字段/列结构时，优先 describe_measurement 或 list_measurements；询问关系表清单/结构时，用 query_sql 执行 SHOW TABLES / DESCRIBE TABLE。
         - 用户给出只读 SQL 并询问结果时，优先 query_sql；询问扫描/成本/解释时优先 explain_sql。
-        - 用户描述建表/创建 measurement/写入/删除数据等需求时，按以下顺序逐步推进：
+        - 用户描述时序建模/创建 measurement/写入时序数据/删除数据等需求时，按以下顺序逐步推进：
             步骤 1：若尚未知道数据库是否存在，先调用 list_databases。
             步骤 2：若数据库存在但不确定 measurement 是否已存在，调用 list_measurements。
             步骤 3：调用 draft_sql 起草 CREATE MEASUREMENT（必须覆盖用户提到的所有字段）。
             步骤 4：仅当用户明确说执行/立即建表/直接写入/帮我跑一下时，才调用 execute_sql。
             不要跳过步骤，不要在没有 draft_sql 验证的情况下直接调用 execute_sql。
+        - 用户明确要求创建关系表、主键表、配置表、设备表或元数据表时，使用 CREATE TABLE ... PRIMARY KEY (...)，并先用 query_sql 执行 SHOW TABLES 确认是否已存在，再 draft_sql。
         - 当用户的意图是【创建/新建一个数据库】（"建一个仓库"、"创建数据库"、"新建库"、"create database" 等），不要去 list_measurements / describe_measurement，也不要假设用户想往当前库里建表。优先按以下顺序推进：
             步骤 1：调用 list_databases 确认目标库名是否已存在；如果用户没给名字，跳过该步骤直接进入步骤 2。
             步骤 2：调用 draft_sql 起草 CREATE DATABASE 语句（语法：`CREATE DATABASE <name>`，name 必须是合法标识符；如果用户同时描述了想保存的指标，draft_sql 还需要紧跟一条 CREATE MEASUREMENT，覆盖所有字段）。
@@ -2537,7 +2576,8 @@ internal sealed class CopilotAgent
         - 不要编造不存在的 measurement 名称、列名或函数。
         - SonnetDB 的 CREATE DATABASE 语法：`CREATE DATABASE name`，不支持 IF NOT EXISTS / WITH 选项；同名库已存在时可直接复用。
         - SonnetDB 的 CREATE MEASUREMENT 语法：CREATE MEASUREMENT name (col TAG, col FIELD type, ...)，FIELD 类型只接受 FLOAT / INT / BOOL / STRING / VECTOR(N)，TAG 列固定为 STRING。
-        - SonnetDB 的 INSERT 语法：INSERT INTO measurement (time, tag1, field1, ...) VALUES (1700000000000, 'host-1', 0.42, ...)，time 为毫秒时间戳。
+        - SonnetDB 的 CREATE TABLE 语法：CREATE TABLE name (id INT, name STRING NOT NULL, PRIMARY KEY (id))；关系表类型支持 INT / FLOAT / BOOL / STRING / DATETIME / BLOB / JSON，必须声明 PRIMARY KEY。
+        - SonnetDB 的 INSERT 语法：measurement 写入通常包含 time 毫秒时间戳；关系表 INSERT 按声明列和值写入。
         """;
 
     private const string SqlRepairSystemPrompt =
@@ -2545,7 +2585,7 @@ internal sealed class CopilotAgent
         你是 SonnetDB Copilot 的 SQL 纠错器。
         请根据失败 SQL、错误消息、对话上下文和文档/技能摘要，把 SQL 改写成可执行的只读 SQL。
         规则：
-        - 只允许输出一条 SELECT、SHOW MEASUREMENTS / SHOW TABLES 或 DESCRIBE [MEASUREMENT]。
+        - 只允许输出一条 SELECT、SHOW MEASUREMENTS / SHOW TABLES 或 DESCRIBE [MEASUREMENT|TABLE]。
         - 只能输出 SQL 本身，不要解释、Markdown、代码块或 JSON。
         - 不要编造不存在的 measurement、列名或函数。
         - 不要把 MySQL、PostgreSQL、SQLite 或 InfluxQL 方言改写成 SonnetDB 不支持的语法；必须落回当前 SonnetDB SQL 方言。
