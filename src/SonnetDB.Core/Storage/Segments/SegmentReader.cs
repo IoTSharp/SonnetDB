@@ -4,6 +4,7 @@ using System.IO.Hashing;
 using System.Runtime.InteropServices;
 using System.Text;
 using SonnetDB.Buffers;
+using SonnetDB.Catalog;
 using SonnetDB.Model;
 using SonnetDB.Storage.Format;
 
@@ -515,16 +516,16 @@ public sealed class SegmentReader : IDisposable
     }
 
     /// <summary>
-    /// 尝试获取指定 block 对应的 HNSW 向量索引。
+    /// 尝试获取指定 block 对应的 DotVector HNSW 向量索引 reader。
     /// </summary>
     /// <param name="descriptor">目标 block。</param>
-    /// <param name="index">命中时返回的索引实例。</param>
+    /// <param name="reader">命中时返回的索引 reader。</param>
     /// <returns>存在索引返回 true，否则返回 false。</returns>
-    internal bool TryGetVectorIndex(in BlockDescriptor descriptor, out HnswVectorBlockIndex index)
+    internal bool TryGetVectorIndexReader(in BlockDescriptor descriptor, out IVectorIndexReader reader)
     {
         ThrowIfDisposed();
 
-        index = null!;
+        reader = null!;
         if (descriptor.FieldType != FieldType.Vector
             || descriptor.Index < 0
             || descriptor.Index >= _blocks.Length)
@@ -533,19 +534,19 @@ public sealed class SegmentReader : IDisposable
         }
 
         var key = CreateVectorIndexCacheKey(descriptor);
-        if (_vectorIndexCache is not null && _vectorIndexCache.TryGet(key, out index))
+        if (_vectorIndexCache is not null && _vectorIndexCache.TryGet(key, out reader))
             return true;
 
         lock (_vectorIndexLoadLock)
         {
-            if (_vectorIndexCache is not null && _vectorIndexCache.TryGet(key, out index))
+            if (_vectorIndexCache is not null && _vectorIndexCache.TryGet(key, out reader))
                 return true;
 
             var offsets = EnsureVectorIndexOffsetsLoaded();
             if (!offsets.TryGetValue(descriptor.Index, out long offset))
                 return false;
 
-            HnswVectorBlockIndex loaded;
+            VectorIndexBlockMetadata metadata;
             bool loadedOk = _vectorIndexOffsetsEmbedded
                 ? SegmentVectorIndexFile.TryLoadEmbeddedBlockAt(
                     Path,
@@ -554,39 +555,35 @@ public sealed class SegmentReader : IDisposable
                     _embeddedExtensionLength,
                     _blocks,
                     descriptor.Index,
-                    out loaded)
+                    out metadata)
                 : SegmentVectorIndexFile.TryLoadBlockAt(
                     Path,
                     offset,
                     _blocks,
                     descriptor.Index,
-                    out loaded);
+                    out metadata);
 
-            if (!loadedOk)
+            if (!loadedOk || metadata.BlockCrc32 != descriptor.Crc32)
             {
                 return false;
             }
 
+            var data = ReadBlock(descriptor);
+            var buildResult = DotVectorHnswVectorIndexBuilder.BuildFromPayload(
+                descriptor.Index,
+                data.ValuePayload,
+                metadata.Count,
+                metadata.Dimension,
+                new HnswVectorIndexOptions(metadata.M, metadata.Ef));
+            reader = buildResult.Reader;
+
             _vectorIndexCache?.TryAdd(
                 key,
-                loaded,
-                loaded.EstimatedBytes,
+                reader,
+                reader.EstimatedBytes,
                 _options.VectorIndexCacheMaxBytes);
-            index = loaded;
             return true;
         }
-    }
-
-    internal bool TryGetVectorIndexReader(in BlockDescriptor descriptor, out IVectorIndexReader reader)
-    {
-        if (TryGetVectorIndex(descriptor, out var index))
-        {
-            reader = new LegacyHnswVectorIndexReader(index);
-            return true;
-        }
-
-        reader = null!;
-        return false;
     }
 
     /// <summary>

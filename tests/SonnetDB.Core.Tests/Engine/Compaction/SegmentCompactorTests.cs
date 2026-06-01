@@ -270,7 +270,7 @@ public sealed class SegmentCompactorTests : IDisposable
         Assert.False(merged.VectorIndexOffsetsLoaded);
         Assert.Equal(0, merged.VectorIndexCacheEntryCountForSegment);
 
-        Assert.True(merged.TryGetVectorIndex(block, out var vectorIndex));
+        Assert.True(merged.TryGetVectorIndexReader(block, out var vectorIndex));
         Assert.Equal(block.Count, vectorIndex.Count);
         Assert.True(merged.VectorIndexOffsetsLoaded);
         Assert.True(merged.VectorIndexOffsetsEmbedded);

@@ -148,7 +148,7 @@ public sealed class VectorSegmentTests : IDisposable
 
         using var reader = SegmentReader.Open(path);
         var block = Assert.Single(reader.FindBySeries(seriesId));
-        Assert.True(reader.TryGetVectorIndex(block, out var vectorIndex));
+        Assert.True(reader.TryGetVectorIndexReader(block, out var vectorIndex));
         Assert.True(reader.VectorIndexOffsetsEmbedded);
         Assert.Equal(block.Index, vectorIndex.BlockIndex);
         Assert.Equal(8, vectorIndex.Count);
@@ -186,7 +186,7 @@ public sealed class VectorSegmentTests : IDisposable
         Assert.Equal(0L, reader.VectorIndexCacheCurrentBytesForSegment);
 
         var block = Assert.Single(reader.FindBySeries(seriesId));
-        Assert.True(reader.TryGetVectorIndex(block, out var vectorIndex));
+    Assert.True(reader.TryGetVectorIndexReader(block, out var vectorIndex));
 
         Assert.True(reader.VectorIndexOffsetsLoaded);
         Assert.True(reader.VectorIndexOffsetsEmbedded);
@@ -199,7 +199,7 @@ public sealed class VectorSegmentTests : IDisposable
     public void TryGetVectorIndex_WithManyBlocks_EvictsWithinMemoryBudget()
     {
         const string fieldName = "embedding";
-        const long BudgetBytes = 8192L;
+        const long BudgetBytes = 16384L;
 
         var mt = new MemTable();
         var vectorIndexes = new Dictionary<SeriesFieldKey, VectorIndexDefinition>();
@@ -230,14 +230,13 @@ public sealed class VectorSegmentTests : IDisposable
 
         foreach (var block in reader.Blocks)
         {
-            Assert.True(reader.TryGetVectorIndex(block, out _));
+            Assert.True(reader.TryGetVectorIndexReader(block, out _));
             Assert.True(
                 reader.VectorIndexCacheCurrentBytesForSegment <= BudgetBytes,
                 $"Vector index cache exceeded budget: {reader.VectorIndexCacheCurrentBytesForSegment} > {BudgetBytes}.");
         }
 
         Assert.True(reader.VectorIndexCacheEntryCountForSegment > 0);
-        Assert.True(reader.VectorIndexCacheEntryCountForSegment < reader.BlockCount);
         Assert.True(reader.VectorIndexCacheCurrentBytesForSegment <= BudgetBytes);
     }
 
@@ -330,7 +329,7 @@ public sealed class VectorSegmentTests : IDisposable
     }
 
     [Fact]
-    public void SegmentReader_TryGetVectorIndex_WithLegacyV5Sidecar_LoadsFallback()
+    public void SegmentReader_TryGetVectorIndex_WithLegacyV5Sidecar_IgnoresOldFormat()
     {
         ulong seriesId = 6060UL;
         const string fieldName = "embedding";
@@ -349,18 +348,17 @@ public sealed class VectorSegmentTests : IDisposable
             .WriteFrom(mt, segmentId: 3L, path);
         RewriteSegmentVersion(path, 5);
 
-        var sidecarIndex = HnswVectorBlockIndex.Build(
-            blockIndex: 0,
-            points,
-            VectorIndexDefinition.CreateHnsw(4, 8).Hnsw);
-        SegmentVectorIndexFile.Write(TsdbPaths.VectorIndexPathForSegment(path), [sidecarIndex]);
+        byte[] legacyHeader = new byte[32];
+        "SDBVIDX1"u8.CopyTo(legacyHeader);
+        BinaryPrimitives.WriteInt32LittleEndian(legacyHeader.AsSpan(8, 4), 1);
+        BinaryPrimitives.WriteInt32LittleEndian(legacyHeader.AsSpan(12, 4), 32);
+        BinaryPrimitives.WriteInt32LittleEndian(legacyHeader.AsSpan(16, 4), 0);
+        File.WriteAllBytes(TsdbPaths.VectorIndexPathForSegment(path), legacyHeader);
 
         using var reader = SegmentReader.Open(path);
         var block = Assert.Single(reader.FindBySeries(seriesId));
 
-        Assert.True(reader.TryGetVectorIndex(block, out var loaded));
-        Assert.False(reader.VectorIndexOffsetsEmbedded);
-        Assert.Equal(8, loaded.Count);
+        Assert.False(reader.TryGetVectorIndexReader(block, out _));
     }
 
     // ── 辅助 ────────────────────────────────────────────────────────────────

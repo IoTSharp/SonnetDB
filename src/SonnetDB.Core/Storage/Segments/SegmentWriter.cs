@@ -74,8 +74,6 @@ public sealed class SegmentWriter
     /// <summary>段文件扩展名。</summary>
     public const string FileExtension = ".SDBSEG";
 
-    private static readonly IVectorIndexBuilder VectorIndexBuilder = new LegacyHnswVectorIndexBuilder();
-
     private readonly SegmentWriterOptions _options;
 
     /// <summary>
@@ -145,7 +143,7 @@ public sealed class SegmentWriter
         long indexOffset = 0L;
         long footerOffset = 0L;
         var indexEntries = new List<BlockIndexEntry>(sorted.Count);
-        var vectorIndexBlocks = new List<HnswVectorBlockIndex>();
+        var vectorIndexBlocks = new List<VectorIndexBlockMetadata>();
         var aggregateSketchBlocks = new List<BlockAggregateSketch>();
         bool tempFileCreated = false;
         string vectorIndexPath = SonnetDB.Engine.TsdbPaths.VectorIndexPathForSegment(path);
@@ -324,7 +322,7 @@ public sealed class SegmentWriter
         BlockEncoding tsEncoding,
         long blockOffset,
         List<BlockIndexEntry> indexEntries,
-        List<HnswVectorBlockIndex> vectorIndexBlocks,
+        List<VectorIndexBlockMetadata> vectorIndexBlocks,
         List<BlockAggregateSketch> aggregateSketchBlocks,
         IReadOnlyDictionary<SeriesFieldKey, SonnetDB.Catalog.VectorIndexDefinition>? vectorIndexes,
         ref long segMinTs,
@@ -418,11 +416,14 @@ public sealed class SegmentWriter
                 && vectorIndexes.TryGetValue(bucket.Key, out var vectorIndex)
                 && vectorIndex.Kind == SonnetDB.Catalog.VectorIndexKind.Hnsw)
             {
-                var buildResult = VectorIndexBuilder.Build(new VectorIndexBuildInput(blockIndex, points, vectorIndex));
-                if (buildResult.Reader is LegacyHnswVectorIndexReader legacyReader)
-                    vectorIndexBlocks.Add(legacyReader.InnerIndex);
-                else
-                    throw new InvalidOperationException("当前 segment 格式只能写入 legacy HNSW 向量索引。");
+                int dimension = points.Span[0].Value.VectorDimension;
+                vectorIndexBlocks.Add(new VectorIndexBlockMetadata(
+                    blockIndex,
+                    points.Length,
+                    dimension,
+                    vectorIndex.Hnsw.M,
+                    vectorIndex.Hnsw.Ef,
+                    crc32));
             }
 
             if (BlockAggregateSketch.TryBuild(

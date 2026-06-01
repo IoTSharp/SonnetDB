@@ -78,7 +78,7 @@ internal sealed class HnswVectorIndexCache
         }
     }
 
-    public bool TryGet(HnswVectorIndexCacheKey key, out HnswVectorBlockIndex index)
+    public bool TryGet(HnswVectorIndexCacheKey key, out IVectorIndexReader index)
     {
         lock (_lock)
         {
@@ -99,7 +99,7 @@ internal sealed class HnswVectorIndexCache
 
     public bool TryAdd(
         HnswVectorIndexCacheKey key,
-        HnswVectorBlockIndex index,
+        IVectorIndexReader index,
         long estimatedBytes,
         long maxBytes)
     {
@@ -180,7 +180,7 @@ internal sealed class HnswVectorIndexCache
     {
         public Entry(
             HnswVectorIndexCacheKey key,
-            HnswVectorBlockIndex index,
+            IVectorIndexReader index,
             long estimatedBytes)
         {
             Key = key;
@@ -190,7 +190,7 @@ internal sealed class HnswVectorIndexCache
 
         public HnswVectorIndexCacheKey Key { get; }
 
-        public HnswVectorBlockIndex Index { get; }
+        public IVectorIndexReader Index { get; }
 
         public long EstimatedBytes { get; }
     }

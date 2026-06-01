@@ -15,6 +15,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\..\modules\DotVector\src\DotVector.Core\DotVector.Core.csproj" Condition="Exists('..\..\..\modules\DotVector\src\DotVector.Core\DotVector.Core.csproj')" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="PackageReadme.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 

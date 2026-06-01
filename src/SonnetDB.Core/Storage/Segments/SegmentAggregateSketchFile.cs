@@ -97,7 +97,7 @@ internal static class SegmentAggregateSketchFile
                 if (PeekMagicEquals(fs, Magic))
                     return LoadOffsetsFromCurrentSection(fs, descriptors, extensionEnd);
 
-                if (PeekMagicEquals(fs, "SDBVIDX1"u8))
+                if (PeekMagicEquals(fs, SegmentVectorIndexFile.SectionMagic))
                 {
                     fs.Seek(sectionOffset, SeekOrigin.Begin);
                     if (!SegmentVectorIndexFile.TrySkipEmbeddedSection(fs, extensionEnd))
