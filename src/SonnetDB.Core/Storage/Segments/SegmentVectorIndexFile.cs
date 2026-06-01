@@ -13,9 +13,9 @@ internal static class SegmentVectorIndexFile
 {
     private static readonly byte[] Magic = "SDBVIDX2"u8.ToArray();
     internal static ReadOnlySpan<byte> SectionMagic => Magic;
-    private const int FormatVersion = 2;
+    private const int FormatVersion = 3;
     private const int HeaderSize = 32;
-    private const int RecordSize = 48;
+    private const int RecordSize = 60;
 
     /// <summary>
     /// 把多个 block 的 DotVector HNSW 索引元数据写入 sidecar 文件。
@@ -409,13 +409,17 @@ internal static class SegmentVectorIndexFile
         BinaryPrimitives.WriteInt32LittleEndian(record[0..4], metadata.BlockIndex);
         BinaryPrimitives.WriteInt32LittleEndian(record[4..8], metadata.Count);
         BinaryPrimitives.WriteInt32LittleEndian(record[8..12], metadata.Dimension);
-        BinaryPrimitives.WriteInt32LittleEndian(record[12..16], metadata.M);
-        BinaryPrimitives.WriteInt32LittleEndian(record[16..20], metadata.Ef);
-        BinaryPrimitives.WriteUInt32LittleEndian(record[20..24], metadata.BlockCrc32);
-        BinaryPrimitives.WriteInt64LittleEndian(record[24..32], metadata.BlobOffset);
-        BinaryPrimitives.WriteInt32LittleEndian(record[32..36], metadata.BlobLength);
-        BinaryPrimitives.WriteUInt32LittleEndian(record[36..40], metadata.BlobCrc32);
-        BinaryPrimitives.WriteInt32LittleEndian(record[40..44], (int)metadata.Flags);
+        BinaryPrimitives.WriteInt32LittleEndian(record[12..16], metadata.IndexKind);
+        BinaryPrimitives.WriteInt32LittleEndian(record[16..20], metadata.M);
+        BinaryPrimitives.WriteInt32LittleEndian(record[20..24], metadata.Ef);
+        BinaryPrimitives.WriteInt32LittleEndian(record[24..28], metadata.Extra1);
+        BinaryPrimitives.WriteInt32LittleEndian(record[28..32], metadata.Extra2);
+        BinaryPrimitives.WriteInt32LittleEndian(record[32..36], metadata.Extra3);
+        BinaryPrimitives.WriteUInt32LittleEndian(record[36..40], metadata.BlockCrc32);
+        BinaryPrimitives.WriteInt64LittleEndian(record[40..48], metadata.BlobOffset);
+        BinaryPrimitives.WriteInt32LittleEndian(record[48..52], metadata.BlobLength);
+        BinaryPrimitives.WriteUInt32LittleEndian(record[52..56], metadata.BlobCrc32);
+        BinaryPrimitives.WriteInt32LittleEndian(record[56..60], (int)metadata.Flags);
         stream.Write(record);
     }
 
@@ -429,13 +433,17 @@ internal static class SegmentVectorIndexFile
             BinaryPrimitives.ReadInt32LittleEndian(record[8..12]),
             BinaryPrimitives.ReadInt32LittleEndian(record[12..16]),
             BinaryPrimitives.ReadInt32LittleEndian(record[16..20]),
-            BinaryPrimitives.ReadUInt32LittleEndian(record[20..24]),
-            BinaryPrimitives.ReadInt64LittleEndian(record[24..32]),
+            BinaryPrimitives.ReadInt32LittleEndian(record[20..24]),
+            BinaryPrimitives.ReadInt32LittleEndian(record[24..28]),
+            BinaryPrimitives.ReadInt32LittleEndian(record[28..32]),
             BinaryPrimitives.ReadInt32LittleEndian(record[32..36]),
             BinaryPrimitives.ReadUInt32LittleEndian(record[36..40]),
-            (VectorIndexManifestFlags)BinaryPrimitives.ReadInt32LittleEndian(record[40..44]));
+            BinaryPrimitives.ReadInt64LittleEndian(record[40..48]),
+            BinaryPrimitives.ReadInt32LittleEndian(record[48..52]),
+            BinaryPrimitives.ReadUInt32LittleEndian(record[52..56]),
+            (VectorIndexManifestFlags)BinaryPrimitives.ReadInt32LittleEndian(record[56..60]));
 
-        if (metadata.Count <= 0 || metadata.Dimension <= 0 || metadata.M < 2 || metadata.Ef <= 0)
+        if (metadata.Count <= 0 || metadata.Dimension <= 0 || metadata.IndexKind <= 0 || metadata.M <= 0 || metadata.Ef <= 0)
             throw new InvalidDataException("SDBVIDX 含有非法的 block 索引参数。");
         if (metadata.HasPersistentBlob && (metadata.BlobOffset < HeaderSize || metadata.BlobLength <= 0 || metadata.BlobCrc32 == 0))
             throw new InvalidDataException("SDBVIDX 含有非法的 DotVector index blob manifest。");

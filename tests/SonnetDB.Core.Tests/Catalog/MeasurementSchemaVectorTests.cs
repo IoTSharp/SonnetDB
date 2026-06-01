@@ -41,8 +41,59 @@ public class MeasurementSchemaVectorTests
         var col = schema.TryGetColumn("embedding")!;
         Assert.NotNull(col.VectorIndex);
         Assert.Equal(VectorIndexKind.Hnsw, col.VectorIndex!.Kind);
-        Assert.Equal(16, col.VectorIndex.Hnsw.M);
-        Assert.Equal(200, col.VectorIndex.Hnsw.Ef);
+        var hnsw = col.VectorIndex.Hnsw!;
+        Assert.Equal(16, hnsw.M);
+        Assert.Equal(200, hnsw.Ef);
+    }
+
+    [Fact]
+    public void Create_VectorFieldWithIvfAndVamanaIndexes_Succeeds()
+    {
+        var ivfSchema = MeasurementSchema.Create("docs_ivf", new[]
+        {
+            new MeasurementColumn("source", MeasurementColumnRole.Tag, FieldType.String),
+            new MeasurementColumn(
+                "embedding",
+                MeasurementColumnRole.Field,
+                FieldType.Vector,
+                384,
+                VectorIndexDefinition.CreateIvfFlat(32, 8, 12)),
+        });
+        var vamanaSchema = MeasurementSchema.Create("docs_vamana", new[]
+        {
+            new MeasurementColumn("source", MeasurementColumnRole.Tag, FieldType.String),
+            new MeasurementColumn(
+                "embedding",
+                MeasurementColumnRole.Field,
+                FieldType.Vector,
+                384,
+                VectorIndexDefinition.CreateVamana(32, 75, 1.2f, 4)),
+        });
+
+        Assert.Equal(VectorIndexKind.IvfFlat, ivfSchema.TryGetColumn("embedding")!.VectorIndex!.Kind);
+        Assert.Equal(32, ivfSchema.TryGetColumn("embedding")!.VectorIndex!.Ivf!.NList);
+        Assert.Equal(VectorIndexKind.Vamana, vamanaSchema.TryGetColumn("embedding")!.VectorIndex!.Kind);
+        Assert.Equal(75, vamanaSchema.TryGetColumn("embedding")!.VectorIndex!.Vamana!.SearchListSize);
+    }
+
+    [Fact]
+    public void Create_VectorFieldWithIvfPqIndex_Succeeds()
+    {
+        var schema = MeasurementSchema.Create("docs", new[]
+        {
+            new MeasurementColumn("source", MeasurementColumnRole.Tag, FieldType.String),
+            new MeasurementColumn(
+                "embedding",
+                MeasurementColumnRole.Field,
+                FieldType.Vector,
+                384,
+                VectorIndexDefinition.CreateIvfPq(32, 8, 12, 8, 8)),
+        });
+
+        var index = schema.TryGetColumn("embedding")!.VectorIndex!;
+        Assert.Equal(VectorIndexKind.IvfPq, index.Kind);
+        Assert.Equal(32, index.IvfPq!.NList);
+        Assert.Equal(8, index.IvfPq.M);
     }
 
     [Fact]
@@ -189,8 +240,61 @@ public class MeasurementSchemaVectorTests
             var emb = loaded[0].TryGetColumn("embedding")!;
             Assert.NotNull(emb.VectorIndex);
             Assert.Equal(VectorIndexKind.Hnsw, emb.VectorIndex!.Kind);
-            Assert.Equal(16, emb.VectorIndex.Hnsw.M);
-            Assert.Equal(200, emb.VectorIndex.Hnsw.Ef);
+            var hnsw = emb.VectorIndex.Hnsw!;
+            Assert.Equal(16, hnsw.M);
+            Assert.Equal(200, hnsw.Ef);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Codec_VectorColumnWithAdvancedIndexes_RoundTripsThroughFile()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "sndb-vec-advanced-" + Guid.NewGuid().ToString("N") + ".tslschema");
+        try
+        {
+            var schemas = new[]
+            {
+                MeasurementSchema.Create("ivf_docs", new[]
+                {
+                    new MeasurementColumn("embedding", MeasurementColumnRole.Field, FieldType.Vector, 384,
+                        VectorIndexDefinition.CreateIvfFlat(32, 8, 12)),
+                }),
+                MeasurementSchema.Create("ivfpq_docs", new[]
+                {
+                    new MeasurementColumn("embedding", MeasurementColumnRole.Field, FieldType.Vector, 384,
+                        VectorIndexDefinition.CreateIvfPq(32, 8, 12, 8, 8)),
+                }),
+                MeasurementSchema.Create("vamana_docs", new[]
+                {
+                    new MeasurementColumn("embedding", MeasurementColumnRole.Field, FieldType.Vector, 384,
+                        VectorIndexDefinition.CreateVamana(32, 75, 1.2f, 4)),
+                }),
+            };
+
+            MeasurementSchemaCodec.Save(path, schemas);
+            var loaded = MeasurementSchemaCodec.Load(path);
+
+            var ivf = loaded[0].TryGetColumn("embedding")!.VectorIndex!;
+            Assert.Equal(VectorIndexKind.IvfFlat, ivf.Kind);
+            Assert.Equal(32, ivf.Ivf!.NList);
+            Assert.Equal(8, ivf.Ivf.NProbe);
+            Assert.Equal(12, ivf.Ivf.MaxIterations);
+
+            var ivfPq = loaded[1].TryGetColumn("embedding")!.VectorIndex!;
+            Assert.Equal(VectorIndexKind.IvfPq, ivfPq.Kind);
+            Assert.Equal(8, ivfPq.IvfPq!.M);
+            Assert.Equal(8, ivfPq.IvfPq.NBits);
+
+            var vamana = loaded[2].TryGetColumn("embedding")!.VectorIndex!;
+            Assert.Equal(VectorIndexKind.Vamana, vamana.Kind);
+            Assert.Equal(32, vamana.Vamana!.MaxDegree);
+            Assert.Equal(75, vamana.Vamana.SearchListSize);
+            Assert.Equal(1.2f, vamana.Vamana.Alpha);
+            Assert.Equal(4, vamana.Vamana.BeamWidth);
         }
         finally
         {

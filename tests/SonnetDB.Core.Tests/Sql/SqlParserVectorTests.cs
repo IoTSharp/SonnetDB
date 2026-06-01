@@ -39,6 +39,48 @@ public class SqlParserVectorTests
     }
 
     [Fact]
+    public void Parse_CreateMeasurement_VectorColumnWithIvfIndex_ReturnsAstWithIndex()
+    {
+        var stmt = (CreateMeasurementStatement)SqlParser.Parse(
+            "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(384) WITH INDEX ivf(nlist=32, nprobe=8, max_iterations=12))");
+
+        var column = stmt.Columns[1];
+        var index = Assert.IsType<IvfVectorIndexSpec>(column.VectorIndex);
+        Assert.Equal(32, index.NList);
+        Assert.Equal(8, index.NProbe);
+        Assert.Equal(12, index.MaxIterations);
+    }
+
+    [Fact]
+    public void Parse_CreateMeasurement_VectorColumnWithIvfPqIndex_ReturnsAstWithIndex()
+    {
+        var stmt = (CreateMeasurementStatement)SqlParser.Parse(
+            "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(384) WITH INDEX ivf_pq(nlist=32, nprobe=8, max_iterations=12, m=8, nbits=8))");
+
+        var column = stmt.Columns[1];
+        var index = Assert.IsType<IvfPqVectorIndexSpec>(column.VectorIndex);
+        Assert.Equal(32, index.NList);
+        Assert.Equal(8, index.NProbe);
+        Assert.Equal(12, index.MaxIterations);
+        Assert.Equal(8, index.M);
+        Assert.Equal(8, index.NBits);
+    }
+
+    [Fact]
+    public void Parse_CreateMeasurement_VectorColumnWithVamanaIndex_ReturnsAstWithIndex()
+    {
+        var stmt = (CreateMeasurementStatement)SqlParser.Parse(
+            "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(384) WITH INDEX vamana(max_degree=32, search_list_size=75, alpha=1.2, beam_width=4))");
+
+        var column = stmt.Columns[1];
+        var index = Assert.IsType<VamanaVectorIndexSpec>(column.VectorIndex);
+        Assert.Equal(32, index.MaxDegree);
+        Assert.Equal(75, index.SearchListSize);
+        Assert.Equal(1.2f, index.Alpha);
+        Assert.Equal(4, index.BeamWidth);
+    }
+
+    [Fact]
     public void Parse_CreateMeasurement_NonVectorWithIndex_Throws()
     {
         Assert.Throws<SqlParseException>(() =>

@@ -54,8 +54,9 @@ public class SqlExecutorVectorTests : IDisposable
         var col = schema.TryGetColumn("embedding")!;
         Assert.NotNull(col.VectorIndex);
         Assert.Equal(VectorIndexKind.Hnsw, col.VectorIndex!.Kind);
-        Assert.Equal(16, col.VectorIndex.Hnsw.M);
-        Assert.Equal(200, col.VectorIndex.Hnsw.Ef);
+        var hnsw = col.VectorIndex.Hnsw!;
+        Assert.Equal(16, hnsw.M);
+        Assert.Equal(200, hnsw.Ef);
     }
 
     [Fact]

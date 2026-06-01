@@ -26,6 +26,21 @@ public abstract record VectorIndexSpec;
 /// <param name="Ef">建图与查询默认使用的候选规模。</param>
 public sealed record HnswVectorIndexSpec(int M, int Ef) : VectorIndexSpec;
 
+/// <summary>
+/// IVF-Flat 向量索引声明：<c>WITH INDEX ivf(nlist=64, nprobe=8, max_iterations=25)</c>。
+/// </summary>
+public sealed record IvfVectorIndexSpec(int NList, int NProbe, int MaxIterations) : VectorIndexSpec;
+
+/// <summary>
+/// IVF-PQ 向量索引声明：<c>WITH INDEX ivf_pq(nlist=64, nprobe=8, m=8, nbits=8)</c>。
+/// </summary>
+public sealed record IvfPqVectorIndexSpec(int NList, int NProbe, int MaxIterations, int M, int NBits) : VectorIndexSpec;
+
+/// <summary>
+/// Vamana / DiskANN 向量索引声明：<c>WITH INDEX vamana(max_degree=32, search_list_size=75, alpha=1.2, beam_width=4)</c>。
+/// </summary>
+public sealed record VamanaVectorIndexSpec(int MaxDegree, int SearchListSize, float Alpha, int BeamWidth) : VectorIndexSpec;
+
 /// <summary>列定义。</summary>
 /// <param name="Name">列名。</param>
 /// <param name="Kind">Tag 或 Field。</param>

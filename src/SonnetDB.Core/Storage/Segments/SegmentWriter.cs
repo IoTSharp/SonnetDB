@@ -414,27 +414,40 @@ public sealed class SegmentWriter
             if (isVector
                 && vectorIndexes is not null
                 && vectorIndexes.TryGetValue(bucket.Key, out var vectorIndex)
-                && vectorIndex.Kind == SonnetDB.Catalog.VectorIndexKind.Hnsw)
+                && IsPersistableVectorIndex(vectorIndex))
             {
                 int dimension = points.Span[0].Value.VectorDimension;
                 var buildResult = new DotVectorHnswVectorIndexBuilder().Build(new VectorIndexBuildInput(
                     blockIndex,
                     points,
                     vectorIndex));
-                using var blobStream = new MemoryStream();
-                uint blobCrc32 = DotVectorHnswVectorIndexBuilder.WriteBlob(blobStream, buildResult.Reader);
+                byte[] blob = [];
+                uint blobCrc32 = 0;
+                var flags = VectorIndexManifestFlags.RebuildFromBlockPayload;
+                if (vectorIndex.Kind == SonnetDB.Catalog.VectorIndexKind.Hnsw)
+                {
+                    using var blobStream = new MemoryStream();
+                    blobCrc32 = DotVectorHnswVectorIndexBuilder.WriteBlob(blobStream, buildResult.Reader);
+                    blob = blobStream.ToArray();
+                    flags |= VectorIndexManifestFlags.PersistentBlob;
+                }
+
                 var metadata = new VectorIndexBlockMetadata(
                     blockIndex,
                     points.Length,
                     dimension,
-                    vectorIndex.Hnsw.M,
-                    vectorIndex.Hnsw.Ef,
+                    (int)vectorIndex.Kind,
+                    GetManifestM(vectorIndex),
+                    GetManifestEf(vectorIndex),
+                    GetManifestExtra1(vectorIndex),
+                    GetManifestExtra2(vectorIndex),
+                    GetManifestExtra3(vectorIndex),
                     crc32,
                     BlobOffset: 0,
-                    BlobLength: checked((int)blobStream.Length),
+                    BlobLength: blob.Length,
                     BlobCrc32: blobCrc32,
-                    VectorIndexManifestFlags.PersistentBlob | VectorIndexManifestFlags.RebuildFromBlockPayload);
-                vectorIndexBlocks.Add(new VectorIndexBlock(metadata, blobStream.ToArray()));
+                    flags);
+                vectorIndexBlocks.Add(new VectorIndexBlock(metadata, blob));
             }
 
             if (BlockAggregateSketch.TryBuild(
@@ -451,6 +464,54 @@ public sealed class SegmentWriter
         }
         finally { ArrayPool<byte>.Shared.Return(valBuf); }
     }
+
+    private static bool IsPersistableVectorIndex(SonnetDB.Catalog.VectorIndexDefinition vectorIndex)
+        => vectorIndex.Kind is SonnetDB.Catalog.VectorIndexKind.Hnsw
+            or SonnetDB.Catalog.VectorIndexKind.IvfFlat
+            or SonnetDB.Catalog.VectorIndexKind.IvfPq
+            or SonnetDB.Catalog.VectorIndexKind.Vamana;
+
+    private static int GetManifestM(SonnetDB.Catalog.VectorIndexDefinition vectorIndex)
+        => vectorIndex.Kind switch
+        {
+            SonnetDB.Catalog.VectorIndexKind.Hnsw => vectorIndex.Hnsw?.M ?? throw new InvalidDataException("HNSW vector index options are missing."),
+            SonnetDB.Catalog.VectorIndexKind.IvfFlat => vectorIndex.Ivf?.NList ?? throw new InvalidDataException("IVF vector index options are missing."),
+            SonnetDB.Catalog.VectorIndexKind.IvfPq => vectorIndex.IvfPq?.NList ?? throw new InvalidDataException("IVF-PQ vector index options are missing."),
+            SonnetDB.Catalog.VectorIndexKind.Vamana => vectorIndex.Vamana?.MaxDegree ?? throw new InvalidDataException("Vamana vector index options are missing."),
+            _ => throw new InvalidDataException($"Unsupported vector index kind {vectorIndex.Kind}."),
+        };
+
+    private static int GetManifestEf(SonnetDB.Catalog.VectorIndexDefinition vectorIndex)
+        => vectorIndex.Kind switch
+        {
+            SonnetDB.Catalog.VectorIndexKind.Hnsw => vectorIndex.Hnsw?.Ef ?? throw new InvalidDataException("HNSW vector index options are missing."),
+            SonnetDB.Catalog.VectorIndexKind.IvfFlat => vectorIndex.Ivf?.NProbe ?? throw new InvalidDataException("IVF vector index options are missing."),
+            SonnetDB.Catalog.VectorIndexKind.IvfPq => vectorIndex.IvfPq?.NProbe ?? throw new InvalidDataException("IVF-PQ vector index options are missing."),
+            SonnetDB.Catalog.VectorIndexKind.Vamana => vectorIndex.Vamana?.SearchListSize ?? throw new InvalidDataException("Vamana vector index options are missing."),
+            _ => throw new InvalidDataException($"Unsupported vector index kind {vectorIndex.Kind}."),
+        };
+
+    private static int GetManifestExtra1(SonnetDB.Catalog.VectorIndexDefinition vectorIndex)
+        => vectorIndex.Kind switch
+        {
+            SonnetDB.Catalog.VectorIndexKind.IvfFlat => vectorIndex.Ivf?.MaxIterations ?? throw new InvalidDataException("IVF vector index options are missing."),
+            SonnetDB.Catalog.VectorIndexKind.IvfPq => vectorIndex.IvfPq?.MaxIterations ?? throw new InvalidDataException("IVF-PQ vector index options are missing."),
+            SonnetDB.Catalog.VectorIndexKind.Vamana => BitConverter.SingleToInt32Bits(vectorIndex.Vamana?.Alpha ?? throw new InvalidDataException("Vamana vector index options are missing.")),
+            _ => 0,
+        };
+
+    private static int GetManifestExtra2(SonnetDB.Catalog.VectorIndexDefinition vectorIndex)
+        => vectorIndex.Kind switch
+        {
+            SonnetDB.Catalog.VectorIndexKind.IvfPq => vectorIndex.IvfPq?.M ?? throw new InvalidDataException("IVF-PQ vector index options are missing."),
+            SonnetDB.Catalog.VectorIndexKind.Vamana => vectorIndex.Vamana?.BeamWidth ?? throw new InvalidDataException("Vamana vector index options are missing."),
+            _ => 0,
+        };
+
+    private static int GetManifestExtra3(SonnetDB.Catalog.VectorIndexDefinition vectorIndex)
+        => vectorIndex.Kind == SonnetDB.Catalog.VectorIndexKind.IvfPq
+            ? vectorIndex.IvfPq?.NBits ?? throw new InvalidDataException("IVF-PQ vector index options are missing.")
+            : 0;
 
     /// <summary>
     /// 计算给定数据点的聚合元数据。

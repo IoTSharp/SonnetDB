@@ -121,17 +121,60 @@ public sealed class MeasurementSchema
         switch (vectorIndex.Kind)
         {
             case VectorIndexKind.Hnsw:
-                if (vectorIndex.Hnsw.M < 2)
+                var hnsw = vectorIndex.Hnsw ?? throw new ArgumentException(
+                    $"VECTOR 列 '{columnName}' 的 HNSW 参数缺失。", paramName);
+                if (hnsw.M < 2)
                     throw new ArgumentException(
-                        $"VECTOR 列 '{columnName}' 的 HNSW 参数 m 必须 >= 2，实际为 {vectorIndex.Hnsw.M}。",
+                        $"VECTOR 列 '{columnName}' 的 HNSW 参数 m 必须 >= 2，实际为 {hnsw.M}。",
                         paramName);
-                if (vectorIndex.Hnsw.Ef <= 0)
+                if (hnsw.Ef <= 0)
                     throw new ArgumentException(
-                        $"VECTOR 列 '{columnName}' 的 HNSW 参数 ef 必须 > 0，实际为 {vectorIndex.Hnsw.Ef}。",
+                        $"VECTOR 列 '{columnName}' 的 HNSW 参数 ef 必须 > 0，实际为 {hnsw.Ef}。",
                         paramName);
-                if (vectorIndex.Hnsw.Ef < vectorIndex.Hnsw.M)
+                if (hnsw.Ef < hnsw.M)
                     throw new ArgumentException(
-                        $"VECTOR 列 '{columnName}' 的 HNSW 参数 ef({vectorIndex.Hnsw.Ef}) 必须 >= m({vectorIndex.Hnsw.M})。",
+                        $"VECTOR 列 '{columnName}' 的 HNSW 参数 ef({hnsw.Ef}) 必须 >= m({hnsw.M})。",
+                        paramName);
+                break;
+
+            case VectorIndexKind.IvfFlat:
+                var ivf = vectorIndex.Ivf ?? throw new ArgumentException(
+                    $"VECTOR 列 '{columnName}' 的 IVF 参数缺失。", paramName);
+                ValidateIvf(columnName, ivf.NList, ivf.NProbe, ivf.MaxIterations, paramName);
+                break;
+
+            case VectorIndexKind.IvfPq:
+                var ivfPq = vectorIndex.IvfPq ?? throw new ArgumentException(
+                    $"VECTOR 列 '{columnName}' 的 IVF-PQ 参数缺失。", paramName);
+                ValidateIvf(columnName, ivfPq.NList, ivfPq.NProbe, ivfPq.MaxIterations, paramName);
+                if (ivfPq.M <= 0)
+                    throw new ArgumentException(
+                        $"VECTOR 列 '{columnName}' 的 IVF-PQ 参数 m 必须 > 0，实际为 {ivfPq.M}。",
+                        paramName);
+                if (ivfPq.NBits != 8)
+                    throw new ArgumentException(
+                        $"VECTOR 列 '{columnName}' 的 IVF-PQ 参数 nbits 当前仅支持 8，实际为 {ivfPq.NBits}。",
+                        paramName);
+                break;
+
+            case VectorIndexKind.Vamana:
+                var vamana = vectorIndex.Vamana ?? throw new ArgumentException(
+                    $"VECTOR 列 '{columnName}' 的 Vamana 参数缺失。", paramName);
+                if (vamana.MaxDegree <= 0)
+                    throw new ArgumentException(
+                        $"VECTOR 列 '{columnName}' 的 Vamana 参数 max_degree 必须 > 0，实际为 {vamana.MaxDegree}。",
+                        paramName);
+                if (vamana.SearchListSize < vamana.MaxDegree)
+                    throw new ArgumentException(
+                        $"VECTOR 列 '{columnName}' 的 Vamana 参数 search_list_size({vamana.SearchListSize}) 必须 >= max_degree({vamana.MaxDegree})。",
+                        paramName);
+                if (vamana.Alpha < 1.0f)
+                    throw new ArgumentException(
+                        $"VECTOR 列 '{columnName}' 的 Vamana 参数 alpha 必须 >= 1.0，实际为 {vamana.Alpha}。",
+                        paramName);
+                if (vamana.BeamWidth <= 0)
+                    throw new ArgumentException(
+                        $"VECTOR 列 '{columnName}' 的 Vamana 参数 beam_width 必须 > 0，实际为 {vamana.BeamWidth}。",
                         paramName);
                 break;
 
@@ -139,5 +182,25 @@ public sealed class MeasurementSchema
                 throw new ArgumentException(
                     $"VECTOR 列 '{columnName}' 使用了未知索引类型 {vectorIndex.Kind}。", paramName);
         }
+    }
+
+    private static void ValidateIvf(string columnName, int nList, int nProbe, int maxIterations, string paramName)
+    {
+        if (nList <= 0)
+            throw new ArgumentException(
+                $"VECTOR 列 '{columnName}' 的 IVF 参数 nlist 必须 > 0，实际为 {nList}。",
+                paramName);
+        if (nProbe <= 0)
+            throw new ArgumentException(
+                $"VECTOR 列 '{columnName}' 的 IVF 参数 nprobe 必须 > 0，实际为 {nProbe}。",
+                paramName);
+        if (nProbe > nList)
+            throw new ArgumentException(
+                $"VECTOR 列 '{columnName}' 的 IVF 参数 nprobe({nProbe}) 不能超过 nlist({nList})。",
+                paramName);
+        if (maxIterations <= 0)
+            throw new ArgumentException(
+                $"VECTOR 列 '{columnName}' 的 IVF 参数 max_iterations 必须 > 0，实际为 {maxIterations}。",
+                paramName);
     }
 }

@@ -267,11 +267,21 @@ public sealed class SqlParser
         Advance();
         ExpectIdentifier("index", "WITH 后面期望 INDEX");
 
-        if (!IsIdentifier("hnsw"))
-            throw Error("当前仅支持 WITH INDEX hnsw(...)");
-        Advance();
+        string indexName = ExpectIdentifierName();
         Expect(TokenKind.LeftParen);
 
+        return indexName.ToLowerInvariant() switch
+        {
+            "hnsw" => ParseHnswVectorIndex(),
+            "ivf" or "ivf_flat" => ParseIvfVectorIndex(),
+            "ivf_pq" or "ivfpq" => ParseIvfPqVectorIndex(),
+            "vamana" => ParseVamanaVectorIndex(),
+            _ => throw Error($"未知向量索引类型 '{indexName}'，支持 hnsw / ivf / ivf_pq / vamana"),
+        };
+    }
+
+    private HnswVectorIndexSpec ParseHnswVectorIndex()
+    {
         int? m = null;
         int? ef = null;
         while (true)
@@ -312,6 +322,120 @@ public sealed class SqlParser
             throw Error("HNSW 索引声明必须同时提供 m 与 ef，例如 hnsw(m=16, ef=200)");
 
         return new HnswVectorIndexSpec(m.Value, ef.Value);
+    }
+
+    private IvfVectorIndexSpec ParseIvfVectorIndex()
+    {
+        int? nList = null;
+        int? nProbe = null;
+        int? maxIterations = null;
+        while (true)
+        {
+            string parameterName = ExpectIdentifierName();
+            Expect(TokenKind.Equal);
+            int value = ExpectPositiveInt($"IVF 参数 '{parameterName}' 后面期望正整数");
+
+            if (IsParameter(parameterName, "nlist", "n_list"))
+                AssignOnce(ref nList, value, "IVF 参数 nlist 重复声明");
+            else if (IsParameter(parameterName, "nprobe", "n_probe"))
+                AssignOnce(ref nProbe, value, "IVF 参数 nprobe 重复声明");
+            else if (IsParameter(parameterName, "max_iterations", "maxiterations"))
+                AssignOnce(ref maxIterations, value, "IVF 参数 max_iterations 重复声明");
+            else
+                throw Error($"未知的 IVF 参数 '{parameterName}'，仅支持 nlist / nprobe / max_iterations");
+
+            if (Current.Kind == TokenKind.Comma)
+            {
+                Advance();
+                continue;
+            }
+
+            break;
+        }
+
+        Expect(TokenKind.RightParen);
+        return new IvfVectorIndexSpec(nList ?? 64, nProbe ?? 8, maxIterations ?? 25);
+    }
+
+    private IvfPqVectorIndexSpec ParseIvfPqVectorIndex()
+    {
+        int? nList = null;
+        int? nProbe = null;
+        int? maxIterations = null;
+        int? m = null;
+        int? nBits = null;
+        while (true)
+        {
+            string parameterName = ExpectIdentifierName();
+            Expect(TokenKind.Equal);
+            int value = ExpectPositiveInt($"IVF-PQ 参数 '{parameterName}' 后面期望正整数");
+
+            if (IsParameter(parameterName, "nlist", "n_list"))
+                AssignOnce(ref nList, value, "IVF-PQ 参数 nlist 重复声明");
+            else if (IsParameter(parameterName, "nprobe", "n_probe"))
+                AssignOnce(ref nProbe, value, "IVF-PQ 参数 nprobe 重复声明");
+            else if (IsParameter(parameterName, "max_iterations", "maxiterations"))
+                AssignOnce(ref maxIterations, value, "IVF-PQ 参数 max_iterations 重复声明");
+            else if (IsParameter(parameterName, "m"))
+                AssignOnce(ref m, value, "IVF-PQ 参数 m 重复声明");
+            else if (IsParameter(parameterName, "nbits", "n_bits"))
+                AssignOnce(ref nBits, value, "IVF-PQ 参数 nbits 重复声明");
+            else
+                throw Error($"未知的 IVF-PQ 参数 '{parameterName}'，仅支持 nlist / nprobe / max_iterations / m / nbits");
+
+            if (Current.Kind == TokenKind.Comma)
+            {
+                Advance();
+                continue;
+            }
+
+            break;
+        }
+
+        Expect(TokenKind.RightParen);
+        return new IvfPqVectorIndexSpec(nList ?? 64, nProbe ?? 8, maxIterations ?? 25, m ?? 8, nBits ?? 8);
+    }
+
+    private VamanaVectorIndexSpec ParseVamanaVectorIndex()
+    {
+        int? maxDegree = null;
+        int? searchListSize = null;
+        float? alpha = null;
+        int? beamWidth = null;
+        while (true)
+        {
+            string parameterName = ExpectIdentifierName();
+            Expect(TokenKind.Equal);
+            if (IsParameter(parameterName, "alpha"))
+            {
+                if (alpha is not null)
+                    throw Error("Vamana 参数 alpha 重复声明");
+                alpha = ExpectPositiveFloat($"Vamana 参数 '{parameterName}' 后面期望正数");
+            }
+            else
+            {
+                int value = ExpectPositiveInt($"Vamana 参数 '{parameterName}' 后面期望正整数");
+                if (IsParameter(parameterName, "max_degree", "maxdegree", "r"))
+                    AssignOnce(ref maxDegree, value, "Vamana 参数 max_degree 重复声明");
+                else if (IsParameter(parameterName, "search_list_size", "searchlistsize", "l"))
+                    AssignOnce(ref searchListSize, value, "Vamana 参数 search_list_size 重复声明");
+                else if (IsParameter(parameterName, "beam_width", "beamwidth"))
+                    AssignOnce(ref beamWidth, value, "Vamana 参数 beam_width 重复声明");
+                else
+                    throw Error($"未知的 Vamana 参数 '{parameterName}'，仅支持 max_degree / search_list_size / alpha / beam_width");
+            }
+
+            if (Current.Kind == TokenKind.Comma)
+            {
+                Advance();
+                continue;
+            }
+
+            break;
+        }
+
+        Expect(TokenKind.RightParen);
+        return new VamanaVectorIndexSpec(maxDegree ?? 32, searchListSize ?? 75, alpha ?? 1.2f, beamWidth ?? 4);
     }
 
     // ── INSERT INTO ────────────────────────────────────────────────────────
@@ -1003,6 +1127,46 @@ public sealed class SqlParser
         if (value <= 0)
             throw Error(errorMessage);
         return value;
+    }
+
+    private float ExpectPositiveFloat(string errorMessage)
+    {
+        double value;
+        if (Current.Kind == TokenKind.IntegerLiteral)
+        {
+            value = Current.IntegerValue;
+        }
+        else if (Current.Kind == TokenKind.FloatLiteral)
+        {
+            value = Current.DoubleValue;
+        }
+        else
+        {
+            throw Error(errorMessage);
+        }
+
+        Advance();
+        if (value <= 0 || value > float.MaxValue || double.IsNaN(value) || double.IsInfinity(value))
+            throw Error(errorMessage);
+        return (float)value;
+    }
+
+    private static bool IsParameter(string actual, params ReadOnlySpan<string> expected)
+    {
+        foreach (string candidate in expected)
+        {
+            if (string.Equals(actual, candidate, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
+    }
+
+    private void AssignOnce(ref int? target, int value, string duplicateError)
+    {
+        if (target is not null)
+            throw Error(duplicateError);
+        target = value;
     }
 
     private bool IsIdentifier(string text)

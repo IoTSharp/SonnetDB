@@ -637,7 +637,7 @@ public sealed class SegmentReader : IDisposable
                 data.ValuePayload,
                 metadata.Count,
                 metadata.Dimension,
-                new HnswVectorIndexOptions(metadata.M, metadata.Ef));
+                ToVectorIndexDefinition(metadata));
             reader = buildResult.Reader;
             return true;
         }
@@ -646,6 +646,19 @@ public sealed class SegmentReader : IDisposable
             reader = null!;
             return false;
         }
+    }
+
+    private static VectorIndexDefinition ToVectorIndexDefinition(VectorIndexBlockMetadata metadata)
+    {
+        var kind = (VectorIndexKind)metadata.IndexKind;
+        return kind switch
+        {
+            VectorIndexKind.Hnsw => VectorIndexDefinition.CreateHnsw(metadata.M, metadata.Ef),
+            VectorIndexKind.IvfFlat => VectorIndexDefinition.CreateIvfFlat(metadata.M, metadata.Ef, metadata.Extra1),
+            VectorIndexKind.IvfPq => VectorIndexDefinition.CreateIvfPq(metadata.M, metadata.Ef, metadata.Extra1, metadata.Extra2, metadata.Extra3),
+            VectorIndexKind.Vamana => VectorIndexDefinition.CreateVamana(metadata.M, metadata.Ef, BitConverter.Int32BitsToSingle(metadata.Extra1), metadata.Extra2),
+            _ => throw new InvalidDataException($"SDBVIDX 包含不支持的向量索引类型 {metadata.IndexKind}。"),
+        };
     }
 
     private static bool IsRecoverableVectorIndexLoadError(Exception ex)

@@ -4,7 +4,10 @@ using SonnetDB.Query;
 using DotVectorIndexAlgorithm = DotVector.Indexing.VectorIndexAlgorithm;
 using DotVectorIndexBuildInput = DotVector.Indexing.VectorIndexBuildInput;
 using DotVectorIndexHnswOptions = DotVector.Indexing.VectorIndexHnswOptions;
+using DotVectorIndexIvfOptions = DotVector.Indexing.VectorIndexIvfOptions;
+using DotVectorIndexIvfPqOptions = DotVector.Indexing.VectorIndexIvfPqOptions;
 using DotVectorIndexReader = DotVector.Indexing.IVectorIndexReader;
+using DotVectorIndexVamanaOptions = DotVector.Indexing.VectorIndexVamanaOptions;
 using DotVectorLocalIndexBlob = DotVector.Indexing.LocalVectorIndexBlob;
 using DotVectorLocalIndexBuilder = DotVector.Indexing.LocalVectorIndexBuilder;
 using DotVectorKnnMetric = DotVector.Primitives.KnnMetric;
@@ -52,29 +55,16 @@ internal sealed class DotVectorHnswVectorIndexBuilder : IVectorIndexBuilder
     {
         ArgumentNullException.ThrowIfNull(input.Definition);
 
-        if (input.Definition.Kind != VectorIndexKind.Hnsw)
-            throw new NotSupportedException($"不支持的向量索引类型：{input.Definition.Kind}。");
-
         if (input.Points.IsEmpty)
-            throw new ArgumentException("HNSW 图至少需要 1 个向量点。", nameof(input));
+            throw new ArgumentException("向量索引至少需要 1 个向量点。", nameof(input));
 
         int dimension = input.Points.Span[0].Value.VectorDimension;
         var vectors = CopyVectors(input.Points.Span, dimension);
-        var reader = DotVectorLocalIndexBuilder.Instance.Build(new DotVectorIndexBuildInput(
-            DotVectorIndexAlgorithm.Hnsw,
-            DotVectorKnnMetric.Cosine,
-            vectors,
-            input.Points.Length,
-            dimension,
-            new DotVectorIndexHnswOptions(
-                M: input.Definition.Hnsw.M,
-                EfConstruction: input.Definition.Hnsw.Ef,
-                EfSearch: input.Definition.Hnsw.Ef,
-                Seed: ComputeSeed(input.BlockIndex, input.Points.Length, dimension, input.Definition.Hnsw.M, input.Definition.Hnsw.Ef))));
+        var reader = BuildDotVectorReader(input.BlockIndex, input.Definition, vectors, input.Points.Length, dimension);
 
         return new VectorIndexBuildResult(new DotVectorHnswVectorIndexReader(
             input.BlockIndex,
-            input.Definition.Hnsw.Ef,
+            input.Definition.SearchEf(),
             reader));
     }
 
@@ -83,26 +73,18 @@ internal sealed class DotVectorHnswVectorIndexBuilder : IVectorIndexBuilder
         ReadOnlySpan<byte> valuePayload,
         int count,
         int dimension,
-        HnswVectorIndexOptions options)
+        VectorIndexDefinition definition)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(blockIndex);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(dimension);
 
-        var vectors = CopyVectors(valuePayload, count, dimension);
-        var reader = DotVectorLocalIndexBuilder.Instance.Build(new DotVectorIndexBuildInput(
-            DotVectorIndexAlgorithm.Hnsw,
-            DotVectorKnnMetric.Cosine,
-            vectors,
-            count,
-            dimension,
-            new DotVectorIndexHnswOptions(
-                M: options.M,
-                EfConstruction: options.Ef,
-                EfSearch: options.Ef,
-                Seed: ComputeSeed(blockIndex, count, dimension, options.M, options.Ef))));
+        ArgumentNullException.ThrowIfNull(definition);
 
-        return new VectorIndexBuildResult(new DotVectorHnswVectorIndexReader(blockIndex, options.Ef, reader));
+        var vectors = CopyVectors(valuePayload, count, dimension);
+        var reader = BuildDotVectorReader(blockIndex, definition, vectors, count, dimension);
+
+        return new VectorIndexBuildResult(new DotVectorHnswVectorIndexReader(blockIndex, definition.SearchEf(), reader));
     }
 
     internal static VectorIndexBuildResult BuildFromBlob(
@@ -140,6 +122,84 @@ internal sealed class DotVectorHnswVectorIndexBuilder : IVectorIndexBuilder
         return DotVectorLocalIndexBlob.Write(stream, dotVectorReader.InnerReader);
     }
 
+    private static DotVectorIndexReader BuildDotVectorReader(
+        int blockIndex,
+        VectorIndexDefinition definition,
+        ReadOnlyMemory<float> vectors,
+        int count,
+        int dimension)
+        => DotVectorLocalIndexBuilder.Instance.Build(ToDotVectorInput(blockIndex, definition, vectors, count, dimension));
+
+    private static DotVectorIndexBuildInput ToDotVectorInput(
+        int blockIndex,
+        VectorIndexDefinition definition,
+        ReadOnlyMemory<float> vectors,
+        int count,
+        int dimension)
+    {
+        int seed = ComputeSeed(blockIndex, count, dimension, definition);
+        return definition.Kind switch
+        {
+            VectorIndexKind.Hnsw => new DotVectorIndexBuildInput(
+                DotVectorIndexAlgorithm.Hnsw,
+                DotVectorKnnMetric.Cosine,
+                vectors,
+                count,
+                dimension,
+                Hnsw: ToHnswOptions(definition, seed)),
+
+            VectorIndexKind.IvfFlat => new DotVectorIndexBuildInput(
+                DotVectorIndexAlgorithm.IvfFlat,
+                DotVectorKnnMetric.Cosine,
+                vectors,
+                count,
+                dimension,
+                Ivf: ToIvfOptions(definition, seed)),
+
+            VectorIndexKind.IvfPq => new DotVectorIndexBuildInput(
+                DotVectorIndexAlgorithm.IvfPq,
+                DotVectorKnnMetric.Cosine,
+                vectors,
+                count,
+                dimension,
+                IvfPq: ToIvfPqOptions(definition, seed)),
+
+            VectorIndexKind.Vamana => new DotVectorIndexBuildInput(
+                DotVectorIndexAlgorithm.Vamana,
+                DotVectorKnnMetric.Cosine,
+                vectors,
+                count,
+                dimension,
+                Vamana: ToVamanaOptions(definition, seed)),
+
+            _ => throw new NotSupportedException($"不支持的向量索引类型：{definition.Kind}。"),
+        };
+    }
+
+    private static DotVectorIndexHnswOptions ToHnswOptions(VectorIndexDefinition definition, int seed)
+    {
+        var hnsw = definition.Hnsw ?? throw new InvalidOperationException("HNSW 向量索引参数缺失。");
+        return new DotVectorIndexHnswOptions(hnsw.M, hnsw.Ef, hnsw.Ef, seed);
+    }
+
+    private static DotVectorIndexIvfOptions ToIvfOptions(VectorIndexDefinition definition, int seed)
+    {
+        var ivf = definition.Ivf ?? throw new InvalidOperationException("IVF 向量索引参数缺失。");
+        return new DotVectorIndexIvfOptions(ivf.NList, ivf.NProbe, ivf.MaxIterations, seed);
+    }
+
+    private static DotVectorIndexIvfPqOptions ToIvfPqOptions(VectorIndexDefinition definition, int seed)
+    {
+        var ivfPq = definition.IvfPq ?? throw new InvalidOperationException("IVF-PQ 向量索引参数缺失。");
+        return new DotVectorIndexIvfPqOptions(ivfPq.NList, ivfPq.NProbe, ivfPq.MaxIterations, ivfPq.M, ivfPq.NBits, seed);
+    }
+
+    private static DotVectorIndexVamanaOptions ToVamanaOptions(VectorIndexDefinition definition, int seed)
+    {
+        var vamana = definition.Vamana ?? throw new InvalidOperationException("Vamana 向量索引参数缺失。");
+        return new DotVectorIndexVamanaOptions(vamana.MaxDegree, vamana.SearchListSize, vamana.Alpha, vamana.BeamWidth, seed);
+    }
+
     private static float[] CopyVectors(ReadOnlySpan<DataPoint> points, int dimension)
     {
         var vectors = new float[checked(points.Length * dimension)];
@@ -173,17 +233,61 @@ internal sealed class DotVectorHnswVectorIndexBuilder : IVectorIndexBuilder
         return vectors;
     }
 
-    private static int ComputeSeed(int blockIndex, int count, int dimension, int m, int ef)
+    private static int ComputeSeed(int blockIndex, int count, int dimension, VectorIndexDefinition definition)
     {
         var hash = new HashCode();
         hash.Add(blockIndex);
         hash.Add(count);
         hash.Add(dimension);
-        hash.Add(m);
-        hash.Add(ef);
+        hash.Add(definition.Kind);
+        switch (definition.Kind)
+        {
+            case VectorIndexKind.Hnsw:
+                var hnsw = definition.Hnsw ?? throw new InvalidOperationException("HNSW 向量索引参数缺失。");
+                hash.Add(hnsw.M);
+                hash.Add(hnsw.Ef);
+                break;
+
+            case VectorIndexKind.IvfFlat:
+                var ivf = definition.Ivf ?? throw new InvalidOperationException("IVF 向量索引参数缺失。");
+                hash.Add(ivf.NList);
+                hash.Add(ivf.NProbe);
+                hash.Add(ivf.MaxIterations);
+                break;
+
+            case VectorIndexKind.IvfPq:
+                var ivfPq = definition.IvfPq ?? throw new InvalidOperationException("IVF-PQ 向量索引参数缺失。");
+                hash.Add(ivfPq.NList);
+                hash.Add(ivfPq.NProbe);
+                hash.Add(ivfPq.MaxIterations);
+                hash.Add(ivfPq.M);
+                hash.Add(ivfPq.NBits);
+                break;
+
+            case VectorIndexKind.Vamana:
+                var vamana = definition.Vamana ?? throw new InvalidOperationException("Vamana 向量索引参数缺失。");
+                hash.Add(vamana.MaxDegree);
+                hash.Add(vamana.SearchListSize);
+                hash.Add(vamana.Alpha);
+                hash.Add(vamana.BeamWidth);
+                break;
+        }
         int seed = hash.ToHashCode();
         return seed == 0 ? 1 : seed;
     }
+}
+
+internal static class VectorIndexDefinitionExtensions
+{
+    public static int SearchEf(this VectorIndexDefinition definition)
+        => definition.Kind switch
+        {
+            VectorIndexKind.Hnsw => definition.Hnsw?.Ef ?? throw new InvalidOperationException("HNSW 向量索引参数缺失。"),
+            VectorIndexKind.IvfFlat => definition.Ivf?.NProbe ?? throw new InvalidOperationException("IVF 向量索引参数缺失。"),
+            VectorIndexKind.IvfPq => definition.IvfPq?.NProbe ?? throw new InvalidOperationException("IVF-PQ 向量索引参数缺失。"),
+            VectorIndexKind.Vamana => definition.Vamana?.SearchListSize ?? throw new InvalidOperationException("Vamana 向量索引参数缺失。"),
+            _ => throw new NotSupportedException($"不支持的向量索引类型：{definition.Kind}。"),
+        };
 }
 
 internal sealed class DotVectorHnswVectorIndexReader : IVectorIndexReader

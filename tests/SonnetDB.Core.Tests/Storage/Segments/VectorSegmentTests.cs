@@ -192,6 +192,41 @@ public sealed class VectorSegmentTests : IDisposable
     }
 
     [Fact]
+    public void Segment_WriteWithIvfVectorIndex_EmbedsRebuildOnlyManifest()
+    {
+        ulong seriesId = 4244UL;
+        const string fieldName = "embedding";
+
+        var mt = new MemTable();
+        long lsn = 1L;
+        for (int i = 0; i < 80; i++)
+            mt.Append(seriesId, 1_000L + i, fieldName, FieldValue.FromVector(new[] { (float)i, 1f, 0f }), lsn++);
+
+        string path = Path.Combine(_tempDir, "vector-index-ivf.SDBSEG");
+        var vectorIndexes = new Dictionary<SeriesFieldKey, VectorIndexDefinition>
+        {
+            [new SeriesFieldKey(seriesId, fieldName)] = VectorIndexDefinition.CreateIvfFlat(8, 8, 10),
+        };
+
+        var writer = new SegmentWriter(new SegmentWriterOptions { FsyncOnCommit = false });
+        writer.WriteFrom(mt, segmentId: 18L, path, vectorIndexes);
+
+        using var reader = SegmentReader.Open(path);
+        var block = Assert.Single(reader.FindBySeries(seriesId));
+        var metadata = Assert.Single(reader.VectorIndexManifest).Value;
+
+        Assert.Equal((int)VectorIndexKind.IvfFlat, metadata.IndexKind);
+        Assert.False(metadata.HasPersistentBlob);
+        Assert.True(metadata.CanRebuildFromBlockPayload);
+        Assert.Equal(8, metadata.M);
+        Assert.Equal(8, metadata.Ef);
+        Assert.Equal(10, metadata.Extra1);
+        Assert.True(reader.TryGetVectorIndexReader(block, out var vectorIndex));
+        Assert.Equal(metadata.Count, vectorIndex.Count);
+        Assert.Equal(metadata.Dimension, vectorIndex.Dimension);
+    }
+
+    [Fact]
     public void SegmentReader_Open_WithEmbeddedHnswIndex_DoesNotLoadVectorIndexUntilTryGet()
     {
         ulong seriesId = 5252UL;

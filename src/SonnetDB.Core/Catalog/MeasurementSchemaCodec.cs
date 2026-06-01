@@ -31,11 +31,14 @@ namespace SonnetDB.Catalog;
 ///     byte   DataType                  (1B)  SonnetDB.Storage.Format.FieldType
 ///     // PR #58 b（v2 起）：仅当 DataType == Vector(5) 时追加：
 ///     int32  VectorDimension           (4B)  必须 > 0
-///     // PR #61（v3 起）：仅当 DataType == Vector(5) 时追加：
+///     // PR #61（v3 起）：仅当 DataType == Vector(5) 时追加；v4 起 HNSW 继续兼容 v3 布局，新增算法追加参数块：
 ///     byte   VectorIndexKind           (1B)  0=None, 1=Hnsw
 ///     // 若 VectorIndexKind == 1(Hnsw)：
 ///     int32  HnswM                     (4B)
 ///     int32  HnswEf                    (4B)
+///     // 若 FormatVersion >= 4 且 VectorIndexKind in (2,3,4)：
+///     byte   ParameterLength           (1B)
+///     byte[] ParameterPayload          变长，little-endian int32/float32
 ///
 /// MeasurementSchemaFooter (16B)
 ///   Crc32                              (4B)  整个 MeasurementSchema[] 区域的 CRC32
@@ -45,8 +48,8 @@ namespace SonnetDB.Catalog;
 /// </para>
 /// <para>写入策略：临时文件 + 原子 rename（崩溃安全）。</para>
 /// <para>
-/// 版本兼容：当前写入版本为 v3（见 <see cref="_formatVersion"/>）。v1 文件只能包含非 VECTOR 列；v2
-/// 支持 VECTOR(dim) 但不含索引声明；读取时按版本号决定是否解析维度与索引尾部字段。
+/// 版本兼容：当前写入版本为 v4（见 <see cref="_formatVersion"/>）。v1 文件只能包含非 VECTOR 列；v2
+/// 支持 VECTOR(dim) 但不含索引声明；v3 支持 HNSW；v4 支持 IVF / IVF-PQ / Vamana。
 /// </para>
 /// </summary>
 public static class MeasurementSchemaCodec
@@ -57,7 +60,7 @@ public static class MeasurementSchemaCodec
     private static readonly byte[] _magic = "SDBMEAv1"u8.ToArray();
     private static readonly Encoding _utf8 = Encoding.UTF8;
 
-    private const int _formatVersion = 3;
+    private const int _formatVersion = 4;
     private const int _headerSize = 32;
     private const int _footerSize = 16;
 
@@ -191,6 +194,7 @@ public static class MeasurementSchemaCodec
         Span<byte> dimBuf = stackalloc byte[4];
         Span<byte> indexKindBuf = stackalloc byte[1];
         Span<byte> hnswBuf = stackalloc byte[8];
+        Span<byte> parameterLengthBuf = stackalloc byte[1];
         for (int c = 0; c < columnCount; c++)
         {
             string colName = ReadString(source, crc, fieldDescription: $"measurement {index} column {c} name");
@@ -242,6 +246,18 @@ public static class MeasurementSchemaCodec
                             int m = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(hnswBuf[..4]);
                             int ef = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(hnswBuf[4..]);
                             vectorIndex = VectorIndexDefinition.CreateHnsw(m, ef);
+                            break;
+
+                        case (byte)VectorIndexKind.IvfFlat when version >= 4:
+                            vectorIndex = ReadIvfIndexDefinition(source, crc, parameterLengthBuf, index, c);
+                            break;
+
+                        case (byte)VectorIndexKind.IvfPq when version >= 4:
+                            vectorIndex = ReadIvfPqIndexDefinition(source, crc, parameterLengthBuf, index, c);
+                            break;
+
+                        case (byte)VectorIndexKind.Vamana when version >= 4:
+                            vectorIndex = ReadVamanaIndexDefinition(source, crc, parameterLengthBuf, index, c);
                             break;
 
                         default:
@@ -319,8 +335,9 @@ public static class MeasurementSchemaCodec
             {
                 colSize += 4; // VectorDimension (int32)
                 colSize += 1; // VectorIndexKind
-                if (schema.Columns[i].VectorIndex?.Kind == VectorIndexKind.Hnsw)
-                    colSize += 8; // HnswM + HnswEf
+                var vectorIndex = schema.Columns[i].VectorIndex;
+                if (vectorIndex is not null)
+                    colSize += GetVectorIndexParameterSize(vectorIndex);
             }
             columnSizes[i] = colSize;
             totalSize += colSize;
@@ -356,11 +373,8 @@ public static class MeasurementSchemaCodec
                     writer.WriteInt32(dim);
                     byte indexKind = col.VectorIndex is null ? (byte)0 : (byte)col.VectorIndex.Kind;
                     writer.WriteByte(indexKind);
-                    if (col.VectorIndex?.Kind == VectorIndexKind.Hnsw)
-                    {
-                        writer.WriteInt32(col.VectorIndex.Hnsw.M);
-                        writer.WriteInt32(col.VectorIndex.Hnsw.Ef);
-                    }
+                    if (col.VectorIndex is not null)
+                        WriteVectorIndexParameters(writer, col.VectorIndex);
                 }
             }
 
@@ -370,6 +384,125 @@ public static class MeasurementSchemaCodec
         finally
         {
             ArrayPool<byte>.Shared.Return(buf);
+        }
+    }
+
+    private static VectorIndexDefinition ReadIvfIndexDefinition(
+        Stream source,
+        Crc32 crc,
+        Span<byte> parameterLengthBuf,
+        int measurementIndex,
+        int columnIndex)
+    {
+        Span<byte> payload = stackalloc byte[12];
+        ReadVectorIndexPayload(source, crc, parameterLengthBuf, payload, measurementIndex, columnIndex, "ivf");
+        return VectorIndexDefinition.CreateIvfFlat(
+            System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload[..4]),
+            System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload[4..8]),
+            System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload[8..12]));
+    }
+
+    private static VectorIndexDefinition ReadIvfPqIndexDefinition(
+        Stream source,
+        Crc32 crc,
+        Span<byte> parameterLengthBuf,
+        int measurementIndex,
+        int columnIndex)
+    {
+        Span<byte> payload = stackalloc byte[20];
+        ReadVectorIndexPayload(source, crc, parameterLengthBuf, payload, measurementIndex, columnIndex, "ivf_pq");
+        return VectorIndexDefinition.CreateIvfPq(
+            System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload[..4]),
+            System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload[4..8]),
+            System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload[8..12]),
+            System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload[12..16]),
+            System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload[16..20]));
+    }
+
+    private static VectorIndexDefinition ReadVamanaIndexDefinition(
+        Stream source,
+        Crc32 crc,
+        Span<byte> parameterLengthBuf,
+        int measurementIndex,
+        int columnIndex)
+    {
+        Span<byte> payload = stackalloc byte[16];
+        ReadVectorIndexPayload(source, crc, parameterLengthBuf, payload, measurementIndex, columnIndex, "vamana");
+        return VectorIndexDefinition.CreateVamana(
+            System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload[..4]),
+            System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload[4..8]),
+            System.Buffers.Binary.BinaryPrimitives.ReadSingleLittleEndian(payload[8..12]),
+            System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(payload[12..16]));
+    }
+
+    private static void ReadVectorIndexPayload(
+        Stream source,
+        Crc32 crc,
+        Span<byte> parameterLengthBuf,
+        Span<byte> payload,
+        int measurementIndex,
+        int columnIndex,
+        string indexName)
+    {
+        ReadExactSpan(source, parameterLengthBuf, $"measurement {measurementIndex} column {columnIndex} {indexName} option length");
+        crc.Append(parameterLengthBuf);
+        int length = parameterLengthBuf[0];
+        if (length != payload.Length)
+            throw new InvalidDataException(
+                $"MeasurementSchema: invalid {indexName} option length {length} (expected {payload.Length}).");
+        ReadExactSpan(source, payload, $"measurement {measurementIndex} column {columnIndex} {indexName} options");
+        crc.Append(payload);
+    }
+
+    private static int GetVectorIndexParameterSize(VectorIndexDefinition index)
+        => index.Kind switch
+        {
+            VectorIndexKind.Hnsw => 8,
+            VectorIndexKind.IvfFlat => 1 + 12,
+            VectorIndexKind.IvfPq => 1 + 20,
+            VectorIndexKind.Vamana => 1 + 16,
+            _ => throw new InvalidDataException($"Unsupported vector index kind {index.Kind}."),
+        };
+
+    private static void WriteVectorIndexParameters(SpanWriter writer, VectorIndexDefinition index)
+    {
+        switch (index.Kind)
+        {
+            case VectorIndexKind.Hnsw:
+                var hnsw = index.Hnsw ?? throw new InvalidDataException("HNSW vector index options are missing.");
+                writer.WriteInt32(hnsw.M);
+                writer.WriteInt32(hnsw.Ef);
+                break;
+
+            case VectorIndexKind.IvfFlat:
+                var ivf = index.Ivf ?? throw new InvalidDataException("IVF vector index options are missing.");
+                writer.WriteByte(12);
+                writer.WriteInt32(ivf.NList);
+                writer.WriteInt32(ivf.NProbe);
+                writer.WriteInt32(ivf.MaxIterations);
+                break;
+
+            case VectorIndexKind.IvfPq:
+                var ivfPq = index.IvfPq ?? throw new InvalidDataException("IVF-PQ vector index options are missing.");
+                writer.WriteByte(20);
+                writer.WriteInt32(ivfPq.NList);
+                writer.WriteInt32(ivfPq.NProbe);
+                writer.WriteInt32(ivfPq.MaxIterations);
+                writer.WriteInt32(ivfPq.M);
+                writer.WriteInt32(ivfPq.NBits);
+                break;
+
+            case VectorIndexKind.Vamana:
+                var vamana = index.Vamana ?? throw new InvalidDataException("Vamana vector index options are missing.");
+                writer.WriteByte(16);
+                writer.WriteInt32(vamana.MaxDegree);
+                writer.WriteInt32(vamana.SearchListSize);
+                writer.WriteSingle(vamana.Alpha);
+                writer.WriteInt32(vamana.BeamWidth);
+                break;
+
+            default:
+                throw new InvalidDataException($"Unsupported vector index kind {index.Kind}.");
         }
     }
 
