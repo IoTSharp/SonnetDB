@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using SonnetDB.FullText;
 using SonnetDB.Kv;
 
 namespace SonnetDB.Documents;
@@ -11,15 +12,23 @@ public sealed class DocumentCollectionStore : IDisposable
 {
     private readonly object _sync = new();
     private readonly KvKeyspace _keyspace;
+    private readonly Func<DocumentFullTextIndex, DocumentFullTextIndexStore> _fullTextIndexFactory;
+    private readonly Dictionary<string, DocumentFullTextIndexStore> _fullTextStores = new(StringComparer.Ordinal);
     private DocumentCollectionSchema _schema;
 
-    internal DocumentCollectionStore(DocumentCollectionSchema schema, KvKeyspace keyspace)
+    internal DocumentCollectionStore(
+        DocumentCollectionSchema schema,
+        KvKeyspace keyspace,
+        Func<DocumentFullTextIndex, DocumentFullTextIndexStore> fullTextIndexFactory)
     {
         ArgumentNullException.ThrowIfNull(schema);
         ArgumentNullException.ThrowIfNull(keyspace);
+        ArgumentNullException.ThrowIfNull(fullTextIndexFactory);
         _schema = schema;
         _keyspace = keyspace;
+        _fullTextIndexFactory = fullTextIndexFactory;
         RebuildIndexesLocked();
+        ReconcileFullTextStoresLocked(schema, rebuildAll: false);
     }
 
     /// <summary>文档集合 schema。</summary>
@@ -96,15 +105,7 @@ public sealed class DocumentCollectionStore : IDisposable
     {
         lock (_sync)
         {
-            var entries = _keyspace.ScanPrefix(new byte[] { (byte)'d' }, limit ?? int.MaxValue);
-            var rows = new List<DocumentRow>(entries.Count);
-            foreach (var entry in entries)
-            {
-                string id = DocumentIndexCodec.DecodeIdFromDocumentKey(entry.Key);
-                rows.Add(new DocumentRow(id, Encoding.UTF8.GetString(entry.Value.Span), entry.Version));
-            }
-
-            return rows;
+            return ScanRowsLocked(limit ?? int.MaxValue);
         }
     }
 
@@ -138,6 +139,38 @@ public sealed class DocumentCollectionStore : IDisposable
         }
     }
 
+    /// <summary>
+    /// 按全文索引读取候选文档 ID 和 BM25 分数。
+    /// </summary>
+    /// <param name="index">全文索引声明。</param>
+    /// <param name="field">索引字段或 <c>*</c>。</param>
+    /// <param name="queryText">查询文本。</param>
+    /// <param name="topK">返回前 K 条。</param>
+    public IReadOnlyList<DocumentFullTextSearchHit> SearchFullText(
+        DocumentFullTextIndex index,
+        string field,
+        string queryText,
+        int topK)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        lock (_sync)
+        {
+            var store = OpenFullTextStoreLocked(index, rebuildIfMissing: true);
+            return store.Search(field, queryText, topK);
+        }
+    }
+
+    /// <summary>
+    /// 返回指定全文索引当前可见文档数。
+    /// </summary>
+    /// <param name="index">全文索引声明。</param>
+    public int GetFullTextDocumentCount(DocumentFullTextIndex index)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        lock (_sync)
+            return OpenFullTextStoreLocked(index, rebuildIfMissing: true).DocumentCount;
+    }
+
     internal void ApplySchema(DocumentCollectionSchema schema)
     {
         ArgumentNullException.ThrowIfNull(schema);
@@ -148,11 +181,13 @@ public sealed class DocumentCollectionStore : IDisposable
             try
             {
                 RebuildIndexesLocked();
+                ReconcileFullTextStoresLocked(previous, rebuildAll: true);
             }
             catch
             {
                 _schema = previous;
                 RebuildIndexesLocked();
+                ReconcileFullTextStoresLocked(schema, rebuildAll: true);
                 throw;
             }
         }
@@ -184,6 +219,11 @@ public sealed class DocumentCollectionStore : IDisposable
     {
         foreach (var indexEntry in oldRow is null ? [] : BuildIndexEntries(schema, oldRow))
             _keyspace.Delete(indexEntry.Key);
+        if (oldRow is not null)
+        {
+            foreach (var index in schema.FullTextIndexes)
+                OpenFullTextStoreLocked(index, rebuildIfMissing: false).Delete(oldRow.Id);
+        }
 
         if (newRow is null)
         {
@@ -194,6 +234,8 @@ public sealed class DocumentCollectionStore : IDisposable
         _keyspace.Put(documentKey, Encoding.UTF8.GetBytes(newRow.Json));
         foreach (var indexEntry in BuildIndexEntries(schema, newRow))
             _keyspace.Put(indexEntry.Key, indexEntry.Value);
+        foreach (var index in schema.FullTextIndexes)
+            OpenFullTextStoreLocked(index, rebuildIfMissing: false).Upsert(newRow);
     }
 
     private static IReadOnlyList<IndexEntry> BuildIndexEntries(DocumentCollectionSchema schema, DocumentRow row)
@@ -247,6 +289,46 @@ public sealed class DocumentCollectionStore : IDisposable
             foreach (var indexEntry in BuildIndexEntries(_schema, row))
                 _keyspace.Put(indexEntry.Key, indexEntry.Value);
         }
+    }
+
+    private void ReconcileFullTextStoresLocked(DocumentCollectionSchema previousSchema, bool rebuildAll)
+    {
+        var active = new HashSet<string>(_schema.FullTextIndexes.Select(static i => i.Name), StringComparer.Ordinal);
+        foreach (var stale in _fullTextStores.Keys.Where(name => !active.Contains(name)).ToArray())
+            _fullTextStores.Remove(stale);
+
+        foreach (var index in _schema.FullTextIndexes)
+        {
+            bool existed = previousSchema.TryGetFullTextIndex(index.Name) is not null;
+            var store = OpenFullTextStoreLocked(index, rebuildIfMissing: !rebuildAll);
+            if (rebuildAll && !existed)
+                store.Rebuild(ScanRowsLocked(int.MaxValue));
+        }
+    }
+
+    private DocumentFullTextIndexStore OpenFullTextStoreLocked(DocumentFullTextIndex index, bool rebuildIfMissing)
+    {
+        if (_fullTextStores.TryGetValue(index.Name, out var existing))
+            return existing;
+
+        var store = _fullTextIndexFactory(index);
+        _fullTextStores[index.Name] = store;
+        if (rebuildIfMissing && store.DocumentCount == 0 && ScanRowsLocked(1).Count > 0)
+            store.Rebuild(ScanRowsLocked(int.MaxValue));
+        return store;
+    }
+
+    private IReadOnlyList<DocumentRow> ScanRowsLocked(int limit)
+    {
+        var entries = _keyspace.ScanPrefix(new byte[] { (byte)'d' }, limit);
+        var rows = new List<DocumentRow>(entries.Count);
+        foreach (var entry in entries)
+        {
+            string id = DocumentIndexCodec.DecodeIdFromDocumentKey(entry.Key);
+            rows.Add(new DocumentRow(id, Encoding.UTF8.GetString(entry.Value.Span), entry.Version));
+        }
+
+        return rows;
     }
 
     private sealed record IndexEntry(byte[] Key, byte[] Value);

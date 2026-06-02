@@ -1,4 +1,5 @@
 using SonnetDB.Kv;
+using SonnetDB.FullText;
 
 namespace SonnetDB.Documents;
 
@@ -99,6 +100,42 @@ public sealed class DocumentCollectionManager : IDisposable
     }
 
     /// <summary>
+    /// 为已有文档集合创建全文索引并持久化 schema。
+    /// </summary>
+    /// <param name="collectionName">集合名。</param>
+    /// <param name="definition">全文索引声明。</param>
+    /// <returns>新建的全文索引声明。</returns>
+    public DocumentFullTextIndex CreateFullTextIndex(string collectionName, DocumentFullTextIndexDefinition definition)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
+        ArgumentNullException.ThrowIfNull(definition);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var current = Catalog.TryGet(collectionName)
+                ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
+
+            var updated = current.WithFullTextIndex(definition);
+            var store = OpenStoreLocked(current);
+            store.ApplySchema(updated);
+            Catalog.LoadOrReplace(updated);
+            try
+            {
+                PersistCatalogLocked();
+            }
+            catch
+            {
+                store.ApplySchema(current);
+                Catalog.LoadOrReplace(current);
+                throw;
+            }
+
+            return updated.TryGetFullTextIndex(definition.Name)
+                ?? throw new InvalidOperationException("内部错误：全文索引创建后未能读取 schema。");
+        }
+    }
+
+    /// <summary>
     /// 删除文档集合 JSON path 索引声明。
     /// </summary>
     /// <param name="collectionName">集合名。</param>
@@ -136,6 +173,46 @@ public sealed class DocumentCollectionManager : IDisposable
     }
 
     /// <summary>
+    /// 删除文档集合全文索引声明和派生索引目录。
+    /// </summary>
+    /// <param name="collectionName">集合名。</param>
+    /// <param name="indexName">索引名。</param>
+    /// <returns>索引存在并删除时返回 true。</returns>
+    public bool DropFullTextIndex(string collectionName, string indexName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var current = Catalog.TryGet(collectionName)
+                ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
+            if (current.TryGetFullTextIndex(indexName) is null)
+                return false;
+
+            var updated = current.WithoutFullTextIndex(indexName);
+            var store = OpenStoreLocked(current);
+            store.ApplySchema(updated);
+            Catalog.LoadOrReplace(updated);
+            try
+            {
+                PersistCatalogLocked();
+                string indexDirectory = FullTextIndexDirectory(collectionName, indexName);
+                if (Directory.Exists(indexDirectory))
+                    Directory.Delete(indexDirectory, recursive: true);
+            }
+            catch
+            {
+                store.ApplySchema(current);
+                Catalog.LoadOrReplace(current);
+                throw;
+            }
+
+            return true;
+        }
+    }
+
+    /// <summary>
     /// 删除文档集合 schema 与主数据目录。
     /// </summary>
     /// <param name="name">集合名。</param>
@@ -156,6 +233,9 @@ public sealed class DocumentCollectionManager : IDisposable
             string collectionDirectory = CollectionDirectory(name);
             if (Directory.Exists(collectionDirectory))
                 Directory.Delete(collectionDirectory, recursive: true);
+            string fullTextDirectory = Path.Combine(_rootDirectory, "fulltext", EncodeName(name));
+            if (Directory.Exists(fullTextDirectory))
+                Directory.Delete(fullTextDirectory, recursive: true);
 
             return true;
         }
@@ -201,12 +281,18 @@ public sealed class DocumentCollectionManager : IDisposable
 
         string collectionDirectory = CollectionDirectory(schema.Name);
         var kv = KvKeyspace.Open("document." + schema.Name, collectionDirectory, _kvOptions);
-        var store = new DocumentCollectionStore(schema, kv);
+        var store = new DocumentCollectionStore(
+            schema,
+            kv,
+            index => DocumentFullTextIndexStore.Open(FullTextIndexDirectory(schema.Name, index.Name), index));
         _stores[schema.Name] = store;
         return store;
     }
 
     private string CollectionDirectory(string name) => Path.Combine(_rootDirectory, "collections", EncodeName(name));
+
+    private string FullTextIndexDirectory(string collectionName, string indexName)
+        => Path.Combine(_rootDirectory, "fulltext", EncodeName(collectionName), EncodeName(indexName));
 
     private void PersistCatalogLocked()
         => DocumentCollectionSchemaCodec.Save(SchemaPath, Catalog.Snapshot());

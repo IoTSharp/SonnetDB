@@ -63,12 +63,13 @@ public static class SqlExplainPlanner
             ShowDocumentCollectionsStatement => ExplainShowDocumentCollections(databaseName, tsdb),
             ShowTableIndexesStatement showIndexes => ExplainShowIndexes(databaseName, tsdb, showIndexes.TableName),
             ShowDocumentIndexesStatement showDocumentIndexes => ExplainShowDocumentIndexes(databaseName, tsdb, showDocumentIndexes.CollectionName),
+            ShowFullTextIndexesStatement showFullTextIndexes => ExplainShowFullTextIndexes(databaseName, tsdb, showFullTextIndexes.CollectionName),
             DescribeMeasurementStatement describe => ExplainDescribeMeasurement(databaseName, tsdb, describe.Name),
             DescribeTableStatement describeTable => ExplainDescribeTable(databaseName, tsdb, describeTable.Name),
             DescribeDocumentCollectionStatement describeDocumentCollection => ExplainDescribeDocumentCollection(databaseName, tsdb, describeDocumentCollection.Name),
             SelectStatement select => ExplainSelect(databaseName, tsdb, select),
             _ => throw new InvalidOperationException(
-                "EXPLAIN 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES / SHOW DOCUMENT COLLECTIONS / SHOW INDEXES / SHOW JSON INDEXES 与 DESCRIBE [MEASUREMENT|TABLE|DOCUMENT COLLECTION]。"),
+                "EXPLAIN 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES / SHOW DOCUMENT COLLECTIONS / SHOW INDEXES / SHOW JSON INDEXES / SHOW FULLTEXT INDEXES 与 DESCRIBE [MEASUREMENT|TABLE|DOCUMENT COLLECTION]。"),
         };
     }
 
@@ -234,6 +235,32 @@ public static class SqlExplainPlanner
             IndexName: null);
     }
 
+    private static SqlExplainExecutionResult ExplainShowFullTextIndexes(
+        string? databaseName,
+        Tsdb tsdb,
+        string collectionName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
+
+        var schema = tsdb.Documents.Catalog.TryGet(collectionName)
+            ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
+
+        return new SqlExplainExecutionResult(
+            Database: databaseName,
+            StatementType: "show_fulltext_indexes",
+            Measurement: schema.Name,
+            MatchedSeriesCount: 0,
+            EstimatedSegmentCount: 0,
+            EstimatedBlockCount: 0,
+            EstimatedScannedRows: schema.FullTextIndexes.Count,
+            EstimatedMemTableRows: 0,
+            EstimatedSegmentRows: 0,
+            HasTimeFilter: false,
+            TagFilterCount: 0,
+            AccessPath: "catalog",
+            IndexName: null);
+    }
+
     private static SqlExplainExecutionResult ExplainDescribeTable(
         string? databaseName,
         Tsdb tsdb,
@@ -277,7 +304,7 @@ public static class SqlExplainPlanner
             MatchedSeriesCount: 0,
             EstimatedSegmentCount: 0,
             EstimatedBlockCount: 0,
-            EstimatedScannedRows: schema.Indexes.Count + 1,
+            EstimatedScannedRows: schema.Indexes.Count + schema.FullTextIndexes.Count + 1,
             EstimatedMemTableRows: 0,
             EstimatedSegmentRows: 0,
             HasTimeFilter: false,
@@ -300,10 +327,12 @@ public static class SqlExplainPlanner
         var documentSchema = tsdb.Documents.Catalog.TryGet(statement.Measurement);
         if (documentSchema is not null)
         {
-            var (accessPath, indexName, rowCount) = DocumentSqlExecutor.ExplainAccess(tsdb, documentSchema, statement.Where);
+            var (accessPath, indexName, rowCount) = HybridSearchExecutor.IsHybridSearch(statement)
+                ? HybridSearchExecutor.ExplainAccess(tsdb, statement, documentSchema)
+                : DocumentSqlExecutor.ExplainAccess(tsdb, documentSchema, statement.Where);
             return new SqlExplainExecutionResult(
                 Database: databaseName,
-                StatementType: "select_document_collection",
+                StatementType: HybridSearchExecutor.IsHybridSearch(statement) ? "hybrid_search" : "select_document_collection",
                 Measurement: statement.Measurement,
                 MatchedSeriesCount: 0,
                 EstimatedSegmentCount: 0,

@@ -42,6 +42,8 @@ public enum TokenKind
     Minus,
     Slash,
     Percent,
+    /// <summary><c>=&gt;</c>：函数命名参数分隔符。</summary>
+    Arrow,
 
     // 关键字
     KeywordCreate,
@@ -100,6 +102,10 @@ public enum TokenKind
     KeywordBlob,
     /// <summary>JSON 关系表列声明。</summary>
     KeywordJson,
+    /// <summary>FULLTEXT 索引 DDL。</summary>
+    KeywordFullText,
+    /// <summary>USING 分词器声明。</summary>
+    KeywordUsing,
     /// <summary>VECTOR(dim) 列声明（PR #58 b）。</summary>
     KeywordVector,
     /// <summary>GEOPOINT 列声明（PR #70）。</summary>

@@ -1,6 +1,7 @@
 using System.Globalization;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
+using SonnetDB.FullText;
 using SonnetDB.Sql.Ast;
 
 namespace SonnetDB.Sql.Execution;
@@ -13,9 +14,11 @@ internal static class DocumentSqlExecutor
     private static readonly IReadOnlyList<string> _nameColumns =
         new List<string>(1) { "name" }.AsReadOnly();
     private static readonly IReadOnlyList<string> _describeColumns =
-        new List<string>(5) { "collection_name", "document_count", "index_count", "indexes", "created_utc" }.AsReadOnly();
+        new List<string>(7) { "collection_name", "document_count", "index_count", "indexes", "fulltext_index_count", "fulltext_indexes", "created_utc" }.AsReadOnly();
     private static readonly IReadOnlyList<string> _showIndexColumns =
         new List<string>(3) { "index_name", "path", "created_utc" }.AsReadOnly();
+    private static readonly IReadOnlyList<string> _showFullTextIndexColumns =
+        new List<string>(5) { "index_name", "fields", "tokenizer", "document_count", "created_utc" }.AsReadOnly();
 
     public static DocumentCollectionSchema ExecuteCreateCollection(Tsdb tsdb, CreateDocumentCollectionStatement statement)
     {
@@ -49,6 +52,21 @@ internal static class DocumentSqlExecutor
             new DocumentPathIndexDefinition(statement.IndexName, statement.Path));
     }
 
+    public static DocumentFullTextIndex ExecuteCreateFullTextIndex(Tsdb tsdb, CreateFullTextIndexStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        var schema = tsdb.Documents.Catalog.TryGet(statement.CollectionName)
+            ?? throw new InvalidOperationException($"document collection '{statement.CollectionName}' 不存在。");
+        if (statement.IfNotExists && schema.TryGetFullTextIndex(statement.IndexName) is { } existing)
+            return existing;
+
+        return tsdb.Documents.CreateFullTextIndex(
+            statement.CollectionName,
+            new DocumentFullTextIndexDefinition(statement.IndexName, statement.Fields, statement.Tokenizer));
+    }
+
     public static RowsAffectedExecutionResult ExecuteDropCollection(Tsdb tsdb, DropDocumentCollectionStatement statement)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
@@ -65,6 +83,15 @@ internal static class DocumentSqlExecutor
 
         bool removed = tsdb.Documents.DropIndex(statement.CollectionName, statement.IndexName);
         return new RowsAffectedExecutionResult(statement.CollectionName, removed ? 1 : 0, "drop_json_index");
+    }
+
+    public static RowsAffectedExecutionResult ExecuteDropFullTextIndex(Tsdb tsdb, DropFullTextIndexStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        bool removed = tsdb.Documents.DropFullTextIndex(statement.CollectionName, statement.IndexName);
+        return new RowsAffectedExecutionResult(statement.CollectionName, removed ? 1 : 0, "drop_fulltext_index");
     }
 
     public static InsertExecutionResult ExecuteInsert(Tsdb tsdb, InsertStatement statement, DocumentCollectionSchema schema)
@@ -101,16 +128,23 @@ internal static class DocumentSqlExecutor
 
         var projections = BuildProjections(statement.Projections);
         var store = tsdb.Documents.Open(schema.Name);
-        var rows = LoadCandidateRows(store, schema, statement.Where);
+        var match = TryExtractMatch(schema, statement.Where, statement.Pagination);
+        if (match is not null)
+            match = ResolveFullTextMatch(store, match);
+        var candidateRows = LoadCandidateRows(store, schema, statement.Where, match);
+        var matchScores = match is null
+            ? new Dictionary<string, double>(StringComparer.Ordinal)
+            : match.Hits.ToDictionary(static hit => hit.DocumentId, static hit => hit.Score, StringComparer.Ordinal);
+
         var filtered = new List<IReadOnlyList<object?>>();
-        foreach (var row in rows)
+        foreach (var row in candidateRows)
         {
-            if (!EvaluateWhere(statement.Where, row))
+            if (!EvaluateWhere(statement.Where, row, matchScores))
                 continue;
 
             var output = new object?[projections.Length];
             for (int i = 0; i < projections.Length; i++)
-                output[i] = EvaluateProjection(projections[i], row);
+                output[i] = EvaluateProjection(projections[i], row, matchScores);
             filtered.Add(output);
         }
 
@@ -134,9 +168,15 @@ internal static class DocumentSqlExecutor
         }
         else
         {
-            foreach (var row in LoadCandidateRows(store, schema, statement.Where))
+            var match = TryExtractMatch(schema, statement.Where, pagination: null);
+            if (match is not null)
+                match = ResolveFullTextMatch(store, match);
+            var matchScores = match is null
+                ? new Dictionary<string, double>(StringComparer.Ordinal)
+                : match.Hits.ToDictionary(static hit => hit.DocumentId, static hit => hit.Score, StringComparer.Ordinal);
+            foreach (var row in LoadCandidateRows(store, schema, statement.Where, match))
             {
-                if (!EvaluateWhere(statement.Where, row))
+                if (!EvaluateWhere(statement.Where, row, matchScores))
                     continue;
                 if (store.Delete(row.Id))
                     deleted++;
@@ -160,9 +200,15 @@ internal static class DocumentSqlExecutor
 
         var store = tsdb.Documents.Open(schema.Name);
         int updated = 0;
-        foreach (var row in LoadCandidateRows(store, schema, statement.Where))
+        var match = TryExtractMatch(schema, statement.Where, pagination: null);
+        if (match is not null)
+            match = ResolveFullTextMatch(store, match);
+        var matchScores = match is null
+            ? new Dictionary<string, double>(StringComparer.Ordinal)
+            : match.Hits.ToDictionary(static hit => hit.DocumentId, static hit => hit.Score, StringComparer.Ordinal);
+        foreach (var row in LoadCandidateRows(store, schema, statement.Where, match))
         {
-            if (!EvaluateWhere(statement.Where, row))
+            if (!EvaluateWhere(statement.Where, row, matchScores))
                 continue;
 
             store.Upsert(row.Id, ConvertJson(statement.Assignments[0].Value));
@@ -199,6 +245,8 @@ internal static class DocumentSqlExecutor
                 (long)store.Scan(int.MaxValue).Count,
                 (long)schema.Indexes.Count,
                 string.Join(",", schema.Indexes.Select(static i => $"{i.Name}:{i.Path}")),
+                (long)schema.FullTextIndexes.Count,
+                string.Join(",", schema.FullTextIndexes.Select(static i => $"{i.Name}:{string.Join("|", i.Fields)}:{i.Tokenizer}")),
                 new DateTime(schema.CreatedAtUtcTicks, DateTimeKind.Utc).ToString("o", CultureInfo.InvariantCulture),
             },
         };
@@ -227,6 +275,30 @@ internal static class DocumentSqlExecutor
         return new SelectExecutionResult(_showIndexColumns, rows);
     }
 
+    public static SelectExecutionResult ShowFullTextIndexes(Tsdb tsdb, string collectionName)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
+
+        var schema = tsdb.Documents.Catalog.TryGet(collectionName)
+            ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
+        var store = tsdb.Documents.Open(schema.Name);
+        var rows = new List<IReadOnlyList<object?>>(schema.FullTextIndexes.Count);
+        foreach (var index in schema.FullTextIndexes.OrderBy(static i => i.Name, StringComparer.Ordinal))
+        {
+            rows.Add(new object?[]
+            {
+                index.Name,
+                string.Join(",", index.Fields),
+                index.Tokenizer,
+                (long)store.GetFullTextDocumentCount(index),
+                new DateTime(index.CreatedAtUtcTicks, DateTimeKind.Utc).ToString("o", CultureInfo.InvariantCulture),
+            });
+        }
+
+        return new SelectExecutionResult(_showFullTextIndexColumns, rows);
+    }
+
     public static (string AccessPath, string? IndexName, int EstimatedRows) ExplainAccess(
         Tsdb tsdb,
         DocumentCollectionSchema schema,
@@ -235,6 +307,12 @@ internal static class DocumentSqlExecutor
         var store = tsdb.Documents.Open(schema.Name);
         if (TryExtractId(where, out var id))
             return ("document_id", "primary", store.Get(id) is null ? 0 : 1);
+
+        if (TryExtractMatch(schema, where, pagination: null) is { } match)
+        {
+            match = ResolveFullTextMatch(store, match);
+            return ("fulltext_index", match.Index.Name, match.Hits.Count);
+        }
 
         if (TryChoosePathIndex(schema, where, out var index, out var value))
             return ("json_path_index", index.Name, store.GetByIndex(index, value).Count);
@@ -286,8 +364,22 @@ internal static class DocumentSqlExecutor
     private static IReadOnlyList<DocumentRow> LoadCandidateRows(
         DocumentCollectionStore store,
         DocumentCollectionSchema schema,
-        SqlExpression? where)
+        SqlExpression? where,
+        FullTextMatch? match = null)
     {
+        if (match is not null)
+        {
+            var rows = new List<DocumentRow>(match.Hits.Count);
+            foreach (var hit in match.Hits)
+            {
+                var row = store.Get(hit.DocumentId);
+                if (row is not null)
+                    rows.Add(row);
+            }
+
+            return rows;
+        }
+
         if (TryExtractId(where, out var id))
         {
             var row = store.Get(id);
@@ -299,6 +391,116 @@ internal static class DocumentSqlExecutor
 
         return store.Scan();
     }
+
+    private static FullTextMatch? TryExtractMatch(
+        DocumentCollectionSchema schema,
+        SqlExpression? where,
+        PaginationSpec? pagination)
+    {
+        if (where is null)
+            return null;
+
+        FullTextMatch? found = null;
+        foreach (var leaf in FlattenAnd(where))
+        {
+            if (leaf is FunctionCallExpression function
+                && TryBindMatch(schema, function, pagination, out var match))
+            {
+                if (found is not null)
+                    throw new InvalidOperationException("文档集合 WHERE 当前仅支持一个 match(...) 全文谓词。");
+                found = match;
+                continue;
+            }
+            if (ContainsMatchFunction(leaf))
+                throw new InvalidOperationException("match(...) 必须作为 WHERE 中独立的 AND 谓词使用。");
+        }
+
+        return found;
+    }
+
+    private static bool IsMatchFunction(FunctionCallExpression function)
+        => string.Equals(function.Name, "match", StringComparison.OrdinalIgnoreCase);
+
+    private static bool TryBindMatch(
+        DocumentCollectionSchema schema,
+        FunctionCallExpression function,
+        PaginationSpec? pagination,
+        out FullTextMatch match)
+    {
+        match = null!;
+        if (!IsMatchFunction(function))
+            return false;
+
+        if (function.IsStar || function.Arguments.Count is < 3 or > 4)
+            throw new InvalidOperationException("match(...) 需要 3 到 4 个参数：match(index, field, query[, topK])。");
+
+        if (function.Arguments[0] is not IdentifierExpression { Name: var indexName })
+            throw new InvalidOperationException("match 第 1 个参数必须是全文索引名。");
+        string field;
+        if (function.Arguments[1] is StarExpression)
+        {
+            field = "*";
+        }
+        else if (function.Arguments[1] is IdentifierExpression { Name: var fieldName })
+        {
+            field = fieldName;
+        }
+        else if (function.Arguments[1] is LiteralExpression { Kind: SqlLiteralKind.String, StringValue: var fieldText })
+        {
+            field = fieldText!;
+        }
+        else
+        {
+            throw new InvalidOperationException("match 第 2 个参数必须是全文索引字段名、'*' 或字符串字段名。");
+        }
+        if (function.Arguments[2] is not LiteralExpression { Kind: SqlLiteralKind.String, StringValue: var queryText })
+            throw new InvalidOperationException("match 第 3 个参数必须是查询字符串。");
+
+        var index = schema.TryGetFullTextIndex(indexName)
+            ?? throw new InvalidOperationException($"document collection '{schema.Name}' 中不存在全文索引 '{indexName}'。");
+
+        int topK = DefaultFullTextTopK(pagination);
+        if (function.Arguments.Count == 4)
+        {
+            if (function.Arguments[3] is not LiteralExpression { Kind: SqlLiteralKind.Integer, IntegerValue: var literalTopK })
+                throw new InvalidOperationException("match 第 4 个参数 topK 必须是正整数字面量。");
+            if (literalTopK <= 0 || literalTopK > int.MaxValue)
+                throw new InvalidOperationException("match 第 4 个参数 topK 必须是正整数且不超过 Int32.MaxValue。");
+            topK = (int)literalTopK;
+        }
+
+        match = new FullTextMatch(index, field, queryText!, topK, Hits: []);
+        return true;
+    }
+
+    private static int DefaultFullTextTopK(PaginationSpec? pagination)
+    {
+        if (pagination is null)
+            return 100;
+
+        long topK = pagination.Fetch is int fetch
+            ? (long)pagination.Offset + fetch
+            : (long)pagination.Offset + 100;
+
+        if (topK <= 0)
+            return 0;
+        return topK > int.MaxValue ? int.MaxValue : (int)topK;
+    }
+
+    private static FullTextMatch ResolveFullTextMatch(
+        DocumentCollectionStore store,
+        FullTextMatch match)
+    {
+        var hits = store.SearchFullText(match.Index, match.Field, match.QueryText, match.TopK);
+        return match with { Hits = hits };
+    }
+
+    private sealed record FullTextMatch(
+        DocumentFullTextIndex Index,
+        string Field,
+        string QueryText,
+        int TopK,
+        IReadOnlyList<DocumentFullTextSearchHit> Hits);
 
     private static bool TryExtractId(SqlExpression? where, out string id)
     {
@@ -438,44 +640,58 @@ internal static class DocumentSqlExecutor
         return [.. projections];
     }
 
-    private static object? EvaluateProjection(Projection projection, DocumentRow row)
-        => EvaluateScalar(projection.Expression, row);
+    private static object? EvaluateProjection(
+        Projection projection,
+        DocumentRow row,
+        IReadOnlyDictionary<string, double> matchScores)
+        => EvaluateScalar(projection.Expression, row, matchScores);
 
-    private static bool EvaluateWhere(SqlExpression? expression, DocumentRow row)
+    private static bool EvaluateWhere(
+        SqlExpression? expression,
+        DocumentRow row,
+        IReadOnlyDictionary<string, double> matchScores)
     {
         if (expression is null)
             return true;
 
-        return EvaluateBoolean(expression, row);
+        return EvaluateBoolean(expression, row, matchScores);
     }
 
-    private static bool EvaluateBoolean(SqlExpression expression, DocumentRow row)
+    private static bool EvaluateBoolean(
+        SqlExpression expression,
+        DocumentRow row,
+        IReadOnlyDictionary<string, double> matchScores)
     {
         switch (expression)
         {
             case BinaryExpression binary:
                 if (binary.Operator == SqlBinaryOperator.And)
-                    return EvaluateBoolean(binary.Left, row) && EvaluateBoolean(binary.Right, row);
+                    return EvaluateBoolean(binary.Left, row, matchScores) && EvaluateBoolean(binary.Right, row, matchScores);
                 if (binary.Operator == SqlBinaryOperator.Or)
-                    return EvaluateBoolean(binary.Left, row) || EvaluateBoolean(binary.Right, row);
+                    return EvaluateBoolean(binary.Left, row, matchScores) || EvaluateBoolean(binary.Right, row, matchScores);
+                if (ContainsMatchFunction(binary))
+                    return false;
                 if (IsComparisonOperator(binary.Operator))
-                    return EvaluateComparison(binary, row);
+                    return EvaluateComparison(binary, row, matchScores);
                 break;
 
             case UnaryExpression { Operator: SqlUnaryOperator.Not } unary:
-                return !EvaluateBoolean(unary.Operand, row);
+                return !EvaluateBoolean(unary.Operand, row, matchScores);
         }
 
-        var value = EvaluateScalar(expression, row);
+        var value = EvaluateScalar(expression, row, matchScores);
         if (value is bool b)
             return b;
         throw new InvalidOperationException("WHERE 表达式必须计算为布尔值。");
     }
 
-    private static bool EvaluateComparison(BinaryExpression binary, DocumentRow row)
+    private static bool EvaluateComparison(
+        BinaryExpression binary,
+        DocumentRow row,
+        IReadOnlyDictionary<string, double> matchScores)
     {
-        var left = EvaluateScalar(binary.Left, row);
-        var right = EvaluateScalar(binary.Right, row);
+        var left = EvaluateScalar(binary.Left, row, matchScores);
+        var right = EvaluateScalar(binary.Right, row, matchScores);
         int? compare = CompareScalar(left, right);
 
         return binary.Operator switch
@@ -490,38 +706,57 @@ internal static class DocumentSqlExecutor
         };
     }
 
-    private static object? EvaluateScalar(SqlExpression expression, DocumentRow row)
+    private static object? EvaluateScalar(
+        SqlExpression expression,
+        DocumentRow row,
+        IReadOnlyDictionary<string, double> matchScores)
     {
         return expression switch
         {
             LiteralExpression literal => EvaluateLiteral(literal),
             IdentifierExpression identifier => GetIdentifierValue(identifier, row),
-            FunctionCallExpression function => EvaluateFunction(function, row),
-            UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => -RequireDouble(EvaluateScalar(unary.Operand, row), "一元负号"),
-            BinaryExpression binary when IsArithmeticOperator(binary.Operator) => EvaluateArithmetic(binary, row),
+            FunctionCallExpression function => EvaluateFunction(function, row, matchScores),
+            UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => -RequireDouble(EvaluateScalar(unary.Operand, row, matchScores), "一元负号"),
+            BinaryExpression binary when IsArithmeticOperator(binary.Operator) => EvaluateArithmetic(binary, row, matchScores),
             _ => throw new InvalidOperationException(
                 $"文档集合表达式暂不支持 '{expression.GetType().Name}'。"),
         };
     }
 
-    private static object? EvaluateFunction(FunctionCallExpression function, DocumentRow row)
+    private static object? EvaluateFunction(
+        FunctionCallExpression function,
+        DocumentRow row,
+        IReadOnlyDictionary<string, double> matchScores)
     {
+        if (string.Equals(function.Name, "match", StringComparison.OrdinalIgnoreCase))
+            return matchScores.ContainsKey(row.Id);
+
+        if (string.Equals(function.Name, "bm25_score", StringComparison.OrdinalIgnoreCase))
+        {
+            if (function.IsStar || function.Arguments.Count != 0)
+                throw new InvalidOperationException("bm25_score() 不接受参数。");
+            return matchScores.TryGetValue(row.Id, out double score) ? score : null;
+        }
+
         if (!string.Equals(function.Name, "json_value", StringComparison.OrdinalIgnoreCase)
             || function.IsStar
             || function.Arguments.Count != 2
             || function.Arguments[1] is not LiteralExpression { Kind: SqlLiteralKind.String, StringValue: var path })
         {
-            throw new InvalidOperationException("文档集合当前仅支持 json_value(document, '$.path') 函数。");
+            throw new InvalidOperationException("文档集合当前仅支持 json_value(document, '$.path')、match(...) 与 bm25_score() 函数。");
         }
 
-        var json = EvaluateScalar(function.Arguments[0], row) as string;
+        var json = EvaluateScalar(function.Arguments[0], row, matchScores) as string;
         return JsonPathEvaluator.Evaluate(json, path!);
     }
 
-    private static object EvaluateArithmetic(BinaryExpression binary, DocumentRow row)
+    private static object EvaluateArithmetic(
+        BinaryExpression binary,
+        DocumentRow row,
+        IReadOnlyDictionary<string, double> matchScores)
     {
-        var left = RequireDouble(EvaluateScalar(binary.Left, row), binary.Operator.ToString());
-        var right = RequireDouble(EvaluateScalar(binary.Right, row), binary.Operator.ToString());
+        var left = RequireDouble(EvaluateScalar(binary.Left, row, matchScores), binary.Operator.ToString());
+        var right = RequireDouble(EvaluateScalar(binary.Right, row, matchScores), binary.Operator.ToString());
         return binary.Operator switch
         {
             SqlBinaryOperator.Add => left + right,
@@ -690,6 +925,17 @@ internal static class DocumentSqlExecutor
                 yield break;
 
             case FunctionCallExpression function:
+                if (string.Equals(function.Name, "match", StringComparison.OrdinalIgnoreCase))
+                {
+                    foreach (var argument in function.Arguments.Skip(2))
+                    {
+                        foreach (var identifier in EnumerateIdentifierReferences(argument))
+                            yield return identifier;
+                    }
+
+                    yield break;
+                }
+
                 foreach (var argument in function.Arguments)
                 {
                     foreach (var identifier in EnumerateIdentifierReferences(argument))
@@ -771,6 +1017,31 @@ internal static class DocumentSqlExecutor
         SqlBinaryOperator.Multiply or
         SqlBinaryOperator.Divide or
         SqlBinaryOperator.Modulo;
+
+    private static bool ContainsMatchFunction(SqlExpression expression)
+    {
+        switch (expression)
+        {
+            case FunctionCallExpression function:
+                if (string.Equals(function.Name, "match", StringComparison.OrdinalIgnoreCase))
+                    return true;
+                foreach (var argument in function.Arguments)
+                {
+                    if (ContainsMatchFunction(argument))
+                        return true;
+                }
+                return false;
+
+            case UnaryExpression unary:
+                return ContainsMatchFunction(unary.Operand);
+
+            case BinaryExpression binary:
+                return ContainsMatchFunction(binary.Left) || ContainsMatchFunction(binary.Right);
+
+            default:
+                return false;
+        }
+    }
 
     private static string FormatLiteralColumnName(LiteralExpression literal) => literal.Kind switch
     {

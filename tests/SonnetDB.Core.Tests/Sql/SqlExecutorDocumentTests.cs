@@ -51,10 +51,14 @@ public sealed class SqlExecutorDocumentTests : IDisposable
 
             var describe = Assert.IsType<SelectExecutionResult>(
                 SqlExecutor.Execute(reopened, "DESCRIBE DOCUMENT COLLECTION device_docs"));
-            Assert.Equal(new[] { "collection_name", "document_count", "index_count", "indexes", "created_utc" }, describe.Columns);
+            Assert.Equal(
+                new[] { "collection_name", "document_count", "index_count", "indexes", "fulltext_index_count", "fulltext_indexes", "created_utc" },
+                describe.Columns);
             Assert.Equal("device_docs", describe.Rows.Single()[0]);
             Assert.Equal(1L, describe.Rows.Single()[2]);
             Assert.Equal("idx_device_type:$.type", describe.Rows.Single()[3]);
+            Assert.Equal(0L, describe.Rows.Single()[4]);
+            Assert.Equal(string.Empty, describe.Rows.Single()[5]);
 
             var indexes = Assert.IsType<SelectExecutionResult>(
                 SqlExecutor.Execute(reopened, "SHOW JSON INDEXES ON device_docs"));
@@ -159,6 +163,210 @@ public sealed class SqlExecutorDocumentTests : IDisposable
         var values = explain.Rows.ToDictionary(static r => (string)r[0]!, static r => r[1], StringComparer.Ordinal);
         Assert.Equal("json_path_index", values["access_path"]);
         Assert.Equal("idx_device_type", values["index_name"]);
+    }
+
+    [Fact]
+    public void DocumentCollection_FullTextIndex_SearchesScoresAndPersistsAcrossReopen()
+    {
+        using (var db = Tsdb.Open(Options()))
+        {
+            SqlExecutor.Execute(db, "CREATE DOCUMENT COLLECTION logs");
+            SqlExecutor.Execute(db, """
+                INSERT INTO logs (id, document)
+                VALUES ('log-1', '{"message":"Pump alarm in north station","level":"warn"}'),
+                       ('log-2', '{"message":"Fan alarm cleared","level":"info"}'),
+                       ('log-3', '{"message":"Pump pressure normal","level":"info"}')
+                """);
+            SqlExecutor.Execute(db, "CREATE FULLTEXT INDEX ft_logs_message ON logs ('$.message') USING unicode");
+        }
+
+        using (var reopened = Tsdb.Open(Options()))
+        {
+            var indexes = Assert.IsType<SelectExecutionResult>(
+                SqlExecutor.Execute(reopened, "SHOW FULLTEXT INDEXES ON logs"));
+            Assert.Equal(new[] { "index_name", "fields", "tokenizer", "document_count", "created_utc" }, indexes.Columns);
+            Assert.Equal("ft_logs_message", indexes.Rows.Single()[0]);
+            Assert.Equal("$.message", indexes.Rows.Single()[1]);
+            Assert.Equal("unicode", indexes.Rows.Single()[2]);
+            Assert.Equal(3L, indexes.Rows.Single()[3]);
+
+            var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened, """
+                SELECT id, bm25_score() AS score
+                FROM logs
+                WHERE match(ft_logs_message, '$.message', 'pump alarm', 5)
+                ORDER BY score DESC
+                """));
+
+            Assert.Equal(new[] { "id", "score" }, result.Columns);
+            Assert.Equal(["log-1"], result.Rows.Select(static row => (string)row[0]!).ToArray());
+            Assert.True(Convert.ToDouble(result.Rows.Single()[1]) > 0);
+
+            var explain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened, """
+                EXPLAIN SELECT id FROM logs WHERE match(ft_logs_message, '$.message', 'pump alarm', 5)
+                """));
+            var values = explain.Rows.ToDictionary(static r => (string)r[0]!, static r => r[1], StringComparer.Ordinal);
+            Assert.Equal("select_document_collection", values["statement_type"]);
+            Assert.Equal("fulltext_index", values["access_path"]);
+            Assert.Equal("ft_logs_message", values["index_name"]);
+            Assert.Equal(1L, Convert.ToInt64(values["estimated_scanned_rows"]));
+        }
+    }
+
+    [Fact]
+    public void DocumentCollection_FullTextIndex_TracksUpdateAndDelete()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE DOCUMENT COLLECTION logs");
+        SqlExecutor.Execute(db, """
+            INSERT INTO logs (id, document)
+            VALUES ('log-1', '{"message":"Pump alarm in north station"}'),
+                   ('log-2', '{"message":"Pump alarm in east station"}')
+            """);
+        SqlExecutor.Execute(db, "CREATE FULLTEXT INDEX ft_logs_message ON logs ('$.message') USING unicode");
+
+        SqlExecutor.Execute(db, """
+            UPDATE logs
+            SET document = '{"message":"Fan normal in north station"}'
+            WHERE id = 'log-1'
+            """);
+        SqlExecutor.Execute(db, "DELETE FROM logs WHERE id = 'log-2'");
+
+        var pump = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT id FROM logs WHERE match(ft_logs_message, '$.message', 'pump alarm', 10)
+            """));
+        Assert.Empty(pump.Rows);
+
+        var fan = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT id FROM logs WHERE match(ft_logs_message, '$.message', 'fan normal', 10)
+            """));
+        Assert.Equal(["log-1"], fan.Rows.Select(static row => (string)row[0]!).ToArray());
+
+        var indexes = Assert.IsType<SelectExecutionResult>(
+            SqlExecutor.Execute(db, "SHOW FULLTEXT INDEXES ON logs"));
+        Assert.Equal(1L, indexes.Rows.Single()[3]);
+    }
+
+    [Fact]
+    public void DocumentCollection_FullTextIndex_CanSearchAcrossAllFields()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE DOCUMENT COLLECTION logs");
+        SqlExecutor.Execute(db, """
+            INSERT INTO logs (id, document)
+            VALUES ('log-1', '{"title":"Pump incident","message":"Station north alarm"}'),
+                   ('log-2', '{"title":"Fan incident","message":"Station south alarm"}')
+            """);
+        SqlExecutor.Execute(db, "CREATE FULLTEXT INDEX ft_logs ON logs ('$.title', '$.message') USING unicode");
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT id FROM logs WHERE match(ft_logs, *, 'pump', 10)
+            """));
+
+        Assert.Equal(["log-1"], result.Rows.Select(static row => (string)row[0]!).ToArray());
+    }
+
+    [Fact]
+    public void DocumentCollection_FullTextIndex_RebuildsWhenDerivedDirectoryIsMissing()
+    {
+        using (var db = Tsdb.Open(Options()))
+        {
+            SqlExecutor.Execute(db, "CREATE DOCUMENT COLLECTION logs");
+            SqlExecutor.Execute(db, """
+                INSERT INTO logs (id, document)
+                VALUES ('log-1', '{"message":"Pump alarm in north station"}')
+                """);
+            SqlExecutor.Execute(db, "CREATE FULLTEXT INDEX ft_logs_message ON logs ('$.message') USING unicode");
+        }
+
+        string fullTextRoot = Path.Combine(_root, "documents", "fulltext");
+        Assert.True(Directory.Exists(fullTextRoot));
+        Directory.Delete(fullTextRoot, recursive: true);
+
+        using (var reopened = Tsdb.Open(Options()))
+        {
+            var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened, """
+                SELECT id FROM logs WHERE match(ft_logs_message, '$.message', 'pump alarm', 10)
+                """));
+
+            Assert.Equal(["log-1"], result.Rows.Select(static row => (string)row[0]!).ToArray());
+        }
+    }
+
+    [Fact]
+    public void DocumentCollection_HybridSearch_FusesFullTextAndVectorScores()
+    {
+        using var db = Tsdb.Open(Options());
+        CreateHybridSearchFixture(db);
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT id, bm25_score() AS text_score, vector_distance() AS distance, hybrid_score() AS score
+            FROM hybrid_search(
+                source => logs,
+                text_index => ft_logs_message,
+                text_field => '$.message',
+                text => 'pump alarm',
+                vector_field => '$.embedding',
+                vector => [1, 0, 0],
+                k => 3,
+                text_weight => 0.6,
+                vector_weight => 0.4)
+            ORDER BY score DESC
+            """));
+
+        Assert.Equal(new[] { "id", "text_score", "distance", "score" }, result.Columns);
+        Assert.Equal(["log-1", "log-2", "log-3"], result.Rows.Select(static row => (string)row[0]!).ToArray());
+        Assert.True(Convert.ToDouble(result.Rows[0][3]) > Convert.ToDouble(result.Rows[1][3]));
+        Assert.True(Convert.ToDouble(result.Rows[1][3]) > Convert.ToDouble(result.Rows[2][3]));
+        Assert.Equal(0.0, Convert.ToDouble(result.Rows[0][2]), 6);
+    }
+
+    [Fact]
+    public void DocumentCollection_HybridSearch_AppliesJsonPathFilters()
+    {
+        using var db = Tsdb.Open(Options());
+        CreateHybridSearchFixture(db);
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT id, site, hybrid_score() AS score
+            FROM hybrid_search(source => logs, text => 'pump alarm', vector => [1, 0, 0], k => 10)
+            WHERE site = 'south'
+            ORDER BY score DESC
+            """));
+
+        Assert.Equal(new[] { "id", "site", "score" }, result.Columns);
+        Assert.Equal(["log-2", "log-4"], result.Rows.Select(static row => (string)row[0]!).ToArray());
+        Assert.All(result.Rows, row => Assert.Equal("south", row[1]));
+    }
+
+    [Fact]
+    public void DocumentCollection_HybridSearch_ExplainShowsHybridAccessPath()
+    {
+        using var db = Tsdb.Open(Options());
+        CreateHybridSearchFixture(db);
+
+        var explain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            EXPLAIN SELECT id
+            FROM hybrid_search(source => logs, text => 'pump alarm', vector => [1, 0, 0], k => 2)
+            """));
+
+        var values = explain.Rows.ToDictionary(static r => (string)r[0]!, static r => r[1], StringComparer.Ordinal);
+        Assert.Equal("hybrid_search", values["statement_type"]);
+        Assert.Equal("hybrid_search", values["access_path"]);
+        Assert.Equal("ft_logs_message", values["index_name"]);
+        Assert.True(Convert.ToInt64(values["estimated_scanned_rows"]) >= 2L);
+    }
+
+    private static void CreateHybridSearchFixture(Tsdb db)
+    {
+        SqlExecutor.Execute(db, "CREATE DOCUMENT COLLECTION logs");
+        SqlExecutor.Execute(db, """
+            INSERT INTO logs (id, document)
+            VALUES ('log-1', '{"message":"Pump alarm overheating","site":"north","embedding":[1,0,0]}'),
+                   ('log-2', '{"message":"Pump alarm pressure","site":"south","embedding":[0.7,0.7,0]}'),
+                   ('log-3', '{"message":"Pump maintenance normal","site":"north","embedding":[0.95,0.05,0]}'),
+                   ('log-4', '{"message":"Fan alarm cleared","site":"south","embedding":[0,1,0]}')
+            """);
+        SqlExecutor.Execute(db, "CREATE FULLTEXT INDEX ft_logs_message ON logs ('$.message') USING unicode");
     }
 
     [Fact]

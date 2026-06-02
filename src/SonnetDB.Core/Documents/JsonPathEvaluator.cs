@@ -75,7 +75,14 @@ public static class JsonPathEvaluator
             _ => value.ToString(),
         };
 
-    internal static bool TryResolve(JsonElement root, JsonPath path, out JsonElement value)
+    /// <summary>
+    /// 尝试从 JSON DOM 中按已解析 path 解析元素。
+    /// </summary>
+    /// <param name="root">JSON 根元素。</param>
+    /// <param name="path">已解析 JSON path。</param>
+    /// <param name="value">解析成功时的元素。</param>
+    /// <returns>解析成功返回 true，否则返回 false。</returns>
+    public static bool TryResolve(JsonElement root, JsonPath path, out JsonElement value)
     {
         ArgumentNullException.ThrowIfNull(path);
         value = root;

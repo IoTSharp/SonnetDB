@@ -23,6 +23,64 @@ public class SqlParserTests
     }
 
     [Fact]
+    public void Parse_CreateFullTextIndex_WithTokenizer_ReturnsAst()
+    {
+        var stmt = Assert.IsType<CreateFullTextIndexStatement>(SqlParser.Parse(
+            "CREATE FULLTEXT INDEX IF NOT EXISTS ft_docs ON device_docs (document, '$.message') USING cjk"));
+
+        Assert.Equal("ft_docs", stmt.IndexName);
+        Assert.Equal("device_docs", stmt.CollectionName);
+        Assert.Equal(new[] { "document", "$.message" }, stmt.Fields);
+        Assert.Equal("cjk", stmt.Tokenizer);
+        Assert.True(stmt.IfNotExists);
+    }
+
+    [Fact]
+    public void Parse_ShowDropFullTextIndexes_ReturnsAst()
+    {
+        var show = Assert.IsType<ShowFullTextIndexesStatement>(
+            SqlParser.Parse("SHOW FULLTEXT INDEXES ON device_docs"));
+        Assert.Equal("device_docs", show.CollectionName);
+
+        var drop = Assert.IsType<DropFullTextIndexStatement>(
+            SqlParser.Parse("DROP FULLTEXT INDEX ft_docs ON device_docs"));
+        Assert.Equal("ft_docs", drop.IndexName);
+        Assert.Equal("device_docs", drop.CollectionName);
+    }
+
+    [Fact]
+    public void Parse_MatchWithStarField_ParsesStarArgument()
+    {
+        var stmt = Assert.IsType<SelectStatement>(SqlParser.Parse(
+            "SELECT id FROM device_docs WHERE match(ft_docs, *, 'pump alarm', 5)"));
+
+        var match = Assert.IsType<FunctionCallExpression>(stmt.Where);
+        Assert.Equal("match", match.Name);
+        Assert.False(match.IsStar);
+        Assert.Equal(4, match.Arguments.Count);
+        Assert.IsType<StarExpression>(match.Arguments[1]);
+    }
+
+    [Fact]
+    public void Parse_HybridSearchNamedArguments_ReturnsTvfAst()
+    {
+        var stmt = Assert.IsType<SelectStatement>(SqlParser.Parse("""
+            SELECT id, hybrid_score() AS score
+            FROM hybrid_search(source => docs, text => 'pump alarm', vector => [1, 0, 0], k => 5)
+            WHERE site = 'north'
+            ORDER BY score DESC
+            """));
+
+        Assert.Equal("docs", stmt.Measurement);
+        var tvf = Assert.IsType<FunctionCallExpression>(stmt.TableValuedFunction);
+        Assert.Equal("hybrid_search", tvf.Name);
+        Assert.All(tvf.Arguments, arg => Assert.IsType<NamedArgumentExpression>(arg));
+        var source = Assert.IsType<NamedArgumentExpression>(tvf.Arguments[0]);
+        Assert.Equal("source", source.Name);
+        Assert.Equal(new IdentifierExpression("docs"), source.Value);
+    }
+
+    [Fact]
     public void Parse_CreateMeasurement_TagWithNonStringType_Throws()
     {
         Assert.Throws<SqlParseException>(() =>

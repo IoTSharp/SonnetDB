@@ -180,6 +180,83 @@ DROP DOCUMENT COLLECTION device_docs;
 - `id = '...'` 会走文档 ID 读取；其它条件走集合扫描后过滤。
 - 第一版不提供 MongoDB 兼容 API、跨文档复杂事务或 JSON schema 校验。
 
+### 文档全文索引
+
+MM6 第一批把 DotSearch 接入 JSON 文档集合，全文索引是从 document collection 主数据派生出的可重建索引。当前实现的索引目录由 SonnetDB 托管在 `documents/fulltext/` 下，主数据仍以文档集合为准。
+
+```sql
+CREATE FULLTEXT INDEX ft_logs_message
+ON logs ('$.message')
+USING unicode;
+
+SHOW FULLTEXT INDEXES ON logs;
+DROP FULLTEXT INDEX ft_logs_message ON logs;
+```
+
+字段和分词器：
+
+- 字段可写 `document` / `json`，表示索引整份 JSON；也可写字符串 JSON path，例如 `'$.message'`、`'$.title'`。
+- 支持分词器：`unicode`、`cjk`、`jieba`。不写 `USING` 时默认 `unicode`。
+- 同一个全文索引可包含多个字段，搜索时可指定某个字段，或用 `*` 搜索该索引内全部字段。
+
+查询示例：
+
+```sql
+SELECT id, bm25_score() AS score
+FROM logs
+WHERE match(ft_logs_message, '$.message', 'pump alarm', 20)
+ORDER BY score DESC
+LIMIT 20;
+
+SELECT id
+FROM logs
+WHERE match(ft_logs_all, *, 'pump', 20);
+```
+
+当前行为：
+
+- `match(index_name, field, query[, topK])` 必须作为 `WHERE` 中独立的 `AND` 谓词使用；当前一个查询只支持一个全文谓词。
+- `topK` 省略时默认取 100；带分页时会按 `OFFSET + FETCH/LIMIT` 预取候选，再执行完整 WHERE、排序和分页。
+- `bm25_score()` 只能在包含 `match(...)` 的文档集合查询中用于投影或排序，返回 DotSearch 的 BM25 相关性分数。
+- `INSERT` / `UPDATE` / `DELETE` 会同步维护全文索引；索引目录缺失时会从 document collection 主数据重建。
+- `EXPLAIN SELECT ... WHERE match(...)` 的 `access_path` 会显示 `fulltext_index`，`index_name` 会显示命中的全文索引名。
+
+### 文档 Hybrid Search
+
+MM8 第一批支持在 document collection 上用全文 BM25 与 JSON embedding 数组做融合排序。文档主数据仍归 document collection 管理；全文索引由 DotSearch 派生维护，JSON 向量字段按查询时计算距离。
+
+```sql
+SELECT id,
+       bm25_score() AS text_score,
+       vector_distance() AS distance,
+       hybrid_score() AS score
+FROM hybrid_search(
+  source => logs,
+  text_index => ft_logs_message,
+  text_field => '$.message',
+  text => 'pump alarm',
+  vector_field => '$.embedding',
+  vector => [1, 0, 0],
+  k => 20,
+  text_weight => 0.6,
+  vector_weight => 0.4
+)
+WHERE site = 'north'
+ORDER BY score DESC;
+```
+
+当前行为：
+
+- `source` 必须是 document collection；`text_index` 可省略但集合中必须只有一个全文索引。
+- `text` 是全文查询文本，`vector` 是查询向量；`vector_field` 默认 `$.embedding`，目标 JSON 值必须是 number array。
+- `text_field` 默认 `*`，可指定全文索引中的 JSON path 字段。
+- `metric` 可选，支持 `'cosine'`、`'l2'`、`'inner_product'`；默认 `'cosine'`。
+- `hybrid_score = text_weight * normalized_bm25 + vector_weight * vector_score`；不写权重时两者各占 0.5。
+- 结果伪列支持 `bm25_score()`、`vector_distance()`、`vector_score()`、`hybrid_score()`，也可直接投影 `id`、`document/json` 和 JSON 顶层字段名。
+- `WHERE` 支持对结果伪列或 JSON 顶层字段做基础比较，例如 `site = 'north'`；复杂文档过滤可用 `json_value(document, '$.path')`。
+- `EXPLAIN` 的 `access_path` 会显示 `hybrid_search`，`index_name` 显示使用的全文索引。
+- 第一批限定 document collection 内融合；measurement `knn(...)` 与关系维表 JOIN 的跨模型融合留给后续批次。
+
 ### `CREATE MEASUREMENT`
 
 定义 measurement schema：
@@ -488,12 +565,14 @@ EXPLAIN DESCRIBE MEASUREMENT cpu;
 当前支持范围：
 
 - `SELECT ...`
-- `SHOW MEASUREMENTS` / `SHOW TABLES` / `SHOW INDEXES ON <table>`
+- `SHOW MEASUREMENTS` / `SHOW TABLES` / `SHOW DOCUMENT COLLECTIONS`
+- `SHOW INDEXES ON <table>` / `SHOW JSON INDEXES ON <collection>` / `SHOW FULLTEXT INDEXES ON <collection>`
 - `DESCRIBE [MEASUREMENT] <name>` / `DESC <name>`
 - `DESCRIBE TABLE <name>`
+- `DESCRIBE DOCUMENT COLLECTION <name>`
 
 当前不支持对 `INSERT`、`DELETE`、`CREATE`、`DROP`、用户/授权/Token 控制面 SQL 做 `EXPLAIN`。
-返回字段包括 `database`、`statement_type`、`measurement`、`matched_series_count`、`estimated_segment_count`、`estimated_block_count`、`estimated_scanned_rows`、`estimated_memtable_rows`、`estimated_segment_rows`、`has_time_filter`、`tag_filter_count`、`access_path` 与 `index_name`。关系表查询的 `access_path` 可能是 `primary_key`、`secondary_index` 或 `table_scan`。
+返回字段包括 `database`、`statement_type`、`measurement`、`matched_series_count`、`estimated_segment_count`、`estimated_block_count`、`estimated_scanned_rows`、`estimated_memtable_rows`、`estimated_segment_rows`、`has_time_filter`、`tag_filter_count`、`access_path` 与 `index_name`。关系表查询的 `access_path` 可能是 `primary_key`、`secondary_index` 或 `table_scan`；文档集合查询可能是 `document_id`、`json_path_index`、`fulltext_index` 或 `document_scan`。
 
 ## 控制面 SQL
 

@@ -64,6 +64,21 @@ public sealed record CreateDocumentPathIndexStatement(
     string Path,
     bool IfNotExists = false) : SqlStatement;
 
+/// <summary>
+/// <c>CREATE FULLTEXT INDEX [IF NOT EXISTS] index_name ON collection_name (field, ...) [USING tokenizer]</c>。
+/// </summary>
+/// <param name="IndexName">索引名。</param>
+/// <param name="CollectionName">目标文档集合名。</param>
+/// <param name="Fields">需要写入全文索引的文档伪字段或 JSON path 字段。</param>
+/// <param name="Tokenizer">分词器名称，支持 <c>unicode</c> / <c>cjk</c> / <c>jieba</c>。</param>
+/// <param name="IfNotExists">索引已存在时是否视为成功。</param>
+public sealed record CreateFullTextIndexStatement(
+    string IndexName,
+    string CollectionName,
+    IReadOnlyList<string> Fields,
+    string Tokenizer,
+    bool IfNotExists = false) : SqlStatement;
+
 /// <summary>关系表列定义。</summary>
 /// <param name="Name">列名。</param>
 /// <param name="DataType">列数据类型。</param>
@@ -256,6 +271,13 @@ public sealed record DropTableIndexStatement(string IndexName, string TableName)
 /// <param name="CollectionName">集合名。</param>
 public sealed record DropDocumentPathIndexStatement(string IndexName, string CollectionName) : SqlStatement;
 
+/// <summary>
+/// <c>DROP FULLTEXT INDEX index_name ON collection_name</c>：删除文档集合全文索引声明和派生索引目录。
+/// </summary>
+/// <param name="IndexName">索引名。</param>
+/// <param name="CollectionName">集合名。</param>
+public sealed record DropFullTextIndexStatement(string IndexName, string CollectionName) : SqlStatement;
+
 /// <summary><c>BEGIN</c>：开始当前执行器作用域内的轻事务。</summary>
 public sealed record BeginTransactionStatement : SqlStatement;
 
@@ -293,6 +315,12 @@ public sealed record ShowTableIndexesStatement(string TableName) : SqlStatement;
 /// </summary>
 /// <param name="CollectionName">目标文档集合名称。</param>
 public sealed record ShowDocumentIndexesStatement(string CollectionName) : SqlStatement;
+
+/// <summary>
+/// <c>SHOW FULLTEXT INDEXES ON collection</c>：列出指定文档集合的全文索引。
+/// </summary>
+/// <param name="CollectionName">目标文档集合名称。</param>
+public sealed record ShowFullTextIndexesStatement(string CollectionName) : SqlStatement;
 
 /// <summary>
 /// <c>DESCRIBE [MEASUREMENT] &lt;name&gt;</c>（兼容别名 <c>DESC</c>）：描述指定 measurement 的列结构。

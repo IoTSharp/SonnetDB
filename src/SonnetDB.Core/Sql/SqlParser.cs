@@ -106,9 +106,10 @@ public sealed class SqlParser
             TokenKind.KeywordTable => ParseCreateTableBody(),
             TokenKind.KeywordDocument => ParseCreateDocumentBody(),
             TokenKind.KeywordJson => ParseCreateJsonBody(),
+            TokenKind.KeywordFullText => ParseCreateFullTextBody(),
             TokenKind.KeywordUser => ParseCreateUserBody(),
             TokenKind.KeywordDatabase => ParseCreateDatabaseBody(),
-            _ => throw Error("CREATE 后面期望 MEASUREMENT / TABLE / DOCUMENT COLLECTION / JSON INDEX / INDEX / USER / DATABASE"),
+            _ => throw Error("CREATE 后面期望 MEASUREMENT / TABLE / DOCUMENT COLLECTION / JSON INDEX / FULLTEXT INDEX / INDEX / USER / DATABASE"),
         };
     }
 
@@ -175,6 +176,34 @@ public sealed class SqlParser
         var path = ExpectStringLiteral();
         Expect(TokenKind.RightParen);
         return new CreateDocumentPathIndexStatement(indexName, collectionName, path, ifNotExists);
+    }
+
+    private CreateFullTextIndexStatement ParseCreateFullTextBody()
+    {
+        Expect(TokenKind.KeywordFullText);
+        ExpectIndexKeyword("CREATE FULLTEXT 后面期望 INDEX");
+
+        var ifNotExists = ParseOptionalIfNotExists();
+        var indexName = ExpectIdentifierName();
+        Expect(TokenKind.KeywordOn);
+        var collectionName = ExpectIdentifierName();
+        Expect(TokenKind.LeftParen);
+        var fields = new List<string> { ExpectFullTextFieldName() };
+        while (Current.Kind == TokenKind.Comma)
+        {
+            Advance();
+            fields.Add(ExpectFullTextFieldName());
+        }
+        Expect(TokenKind.RightParen);
+
+        var tokenizer = "unicode";
+        if (Current.Kind == TokenKind.KeywordUsing)
+        {
+            Advance();
+            tokenizer = ExpectFullTextTokenizerName();
+        }
+
+        return new CreateFullTextIndexStatement(indexName, collectionName, fields, tokenizer, ifNotExists);
     }
 
     private bool ParseOptionalIfNotExists()
@@ -724,10 +753,10 @@ public sealed class SqlParser
             if (fnCall is not FunctionCallExpression call || call.IsStar)
                 throw Error("FROM 子句的表值函数调用非法");
             tvf = call;
-            // 第一个参数必须是 source measurement 标识符
-            if (call.Arguments.Count == 0 || call.Arguments[0] is not IdentifierExpression sourceId)
-                throw Error($"表值函数 {name}(...) 第 1 个参数必须是 measurement 列名");
-            measurement = sourceId.Name;
+            // 第一个参数通常是 source measurement 标识符；MM8 hybrid_search 也支持 source => docs 命名参数。
+            if (call.Arguments.Count == 0)
+                throw Error($"表值函数 {name}(...) 第 1 个参数必须是 source 名称");
+            measurement = ResolveTableValuedSourceName(name, call.Arguments[0]);
         }
         else
         {
@@ -764,6 +793,20 @@ public sealed class SqlParser
             OrderBy: orderBy,
             TableAlias: tableAlias,
             Join: join);
+    }
+
+    private string ResolveTableValuedSourceName(string functionName, SqlExpression firstArgument)
+    {
+        if (firstArgument is IdentifierExpression sourceId)
+            return sourceId.Name;
+
+        if (firstArgument is NamedArgumentExpression { Name: var parameterName, Value: IdentifierExpression namedSource }
+            && string.Equals(parameterName, "source", StringComparison.OrdinalIgnoreCase))
+        {
+            return namedSource.Name;
+        }
+
+        throw Error($"表值函数 {functionName}(...) 第 1 个参数必须是 source 名称");
     }
 
     private string? ParseOptionalTableAlias()
@@ -1278,8 +1321,11 @@ public sealed class SqlParser
     {
         Expect(TokenKind.LeftParen);
 
-        // fn(*) 形式
-        if (Current.Kind == TokenKind.Star)
+        // fn(*) 形式。其他位置的 * 作为普通函数参数保留给执行层解释，
+        // 例如 match(ft_index, *, 'query')。
+        if (Current.Kind == TokenKind.Star
+            && _index + 1 < _tokens.Count
+            && _tokens[_index + 1].Kind == TokenKind.RightParen)
         {
             Advance();
             Expect(TokenKind.RightParen);
@@ -1294,14 +1340,56 @@ public sealed class SqlParser
         }
 
         var args = new List<SqlExpression>();
-        args.Add(ParseExpression());
+        args.Add(ParseFunctionArgument());
         while (Current.Kind == TokenKind.Comma)
         {
             Advance();
-            args.Add(ParseExpression());
+            args.Add(ParseFunctionArgument());
         }
         Expect(TokenKind.RightParen);
         return new FunctionCallExpression(name, args);
+    }
+
+    private SqlExpression ParseFunctionArgument()
+    {
+        if (Current.Kind == TokenKind.Star)
+        {
+            Advance();
+            return StarExpression.Instance;
+        }
+
+        if (TryParseNamedArgumentPrefix(out var name))
+        {
+            Expect(TokenKind.Arrow);
+            return new NamedArgumentExpression(name, ParseExpression());
+        }
+
+        return ParseExpression();
+    }
+
+    private bool TryParseNamedArgumentPrefix(out string name)
+    {
+        name = string.Empty;
+        if (_index + 1 >= _tokens.Count || _tokens[_index + 1].Kind != TokenKind.Arrow)
+            return false;
+
+        name = Current.Kind switch
+        {
+            TokenKind.IdentifierLiteral => Current.Text,
+            TokenKind.KeywordVector => Current.Text,
+            TokenKind.KeywordJson => Current.Text,
+            TokenKind.KeywordDocument => Current.Text,
+            TokenKind.KeywordTime => Current.Text,
+            TokenKind.KeywordField => Current.Text,
+            TokenKind.KeywordTag => Current.Text,
+            _ => string.Empty,
+        };
+
+        if (name.Length == 0)
+            return false;
+
+        Advance();
+        return true;
     }
 
     /// <summary>
@@ -1532,6 +1620,28 @@ public sealed class SqlParser
         }
     }
 
+    private string ExpectFullTextFieldName()
+    {
+        if (Current.Kind == TokenKind.StringLiteral)
+            return ExpectStringLiteral();
+
+        return ExpectColumnName();
+    }
+
+    private string ExpectFullTextTokenizerName()
+    {
+        if (Current.Kind == TokenKind.IdentifierLiteral)
+            return ExpectIdentifierName();
+
+        if (Current.Kind == TokenKind.KeywordString)
+        {
+            Advance();
+            return "string";
+        }
+
+        throw Error("USING 后面期望分词器名称");
+    }
+
     private void ConsumeOptionalSemicolon()
     {
         if (Current.Kind == TokenKind.Semicolon)
@@ -1608,6 +1718,12 @@ public sealed class SqlParser
                 var jsonIndexName = ExpectIdentifierName();
                 Expect(TokenKind.KeywordOn);
                 return new DropDocumentPathIndexStatement(jsonIndexName, ExpectIdentifierName());
+            case TokenKind.KeywordFullText:
+                Advance();
+                ExpectIndexKeyword("DROP FULLTEXT 后面期望 INDEX");
+                var fullTextIndexName = ExpectIdentifierName();
+                Expect(TokenKind.KeywordOn);
+                return new DropFullTextIndexStatement(fullTextIndexName, ExpectIdentifierName());
             case TokenKind.KeywordTable:
                 Advance();
                 return new DropTableStatement(ExpectIdentifierName());
@@ -1630,7 +1746,7 @@ public sealed class SqlParser
                     return new DropTableIndexStatement(fallbackIndexName, ExpectIdentifierName());
                 }
 
-                throw Error("DROP 后面期望 TABLE / INDEX / USER 或 DATABASE");
+                throw Error("DROP 后面期望 TABLE / INDEX / JSON INDEX / FULLTEXT INDEX / USER 或 DATABASE");
         }
     }
 
@@ -1746,6 +1862,16 @@ public sealed class SqlParser
                 }
 
                 throw Error("SHOW JSON 后面期望 INDEXES");
+            case TokenKind.KeywordFullText:
+                Advance();
+                if (IsIdentifier("indexes"))
+                {
+                    Advance();
+                    Expect(TokenKind.KeywordOn);
+                    return new ShowFullTextIndexesStatement(ExpectIdentifierName());
+                }
+
+                throw Error("SHOW FULLTEXT 后面期望 INDEXES");
             default:
                 if (IsIdentifier("indexes"))
                 {
@@ -1781,6 +1907,7 @@ public sealed class SqlParser
             and not ShowTableIndexesStatement
             and not ShowDocumentCollectionsStatement
             and not ShowDocumentIndexesStatement
+            and not ShowFullTextIndexesStatement
             and not DescribeMeasurementStatement
             and not DescribeTableStatement
             and not DescribeDocumentCollectionStatement)

@@ -69,6 +69,8 @@ public sealed class SqlLexer
         ["datetime"] = TokenKind.KeywordDateTime,
         ["blob"] = TokenKind.KeywordBlob,
         ["json"] = TokenKind.KeywordJson,
+        ["fulltext"] = TokenKind.KeywordFullText,
+        ["using"] = TokenKind.KeywordUsing,
         ["vector"] = TokenKind.KeywordVector,
         ["geopoint"] = TokenKind.KeywordGeoPoint,
 
@@ -197,7 +199,14 @@ public sealed class SqlLexer
             case '-': _position++; return new Token(TokenKind.Minus, "-", start);
             case '/': _position++; return new Token(TokenKind.Slash, "/", start);
             case '%': _position++; return new Token(TokenKind.Percent, "%", start);
-            case '=': _position++; return new Token(TokenKind.Equal, "=", start);
+            case '=':
+                if (Peek(1) == '>')
+                {
+                    _position += 2;
+                    return new Token(TokenKind.Arrow, "=>", start);
+                }
+                _position++;
+                return new Token(TokenKind.Equal, "=", start);
             case '!':
                 if (Peek(1) == '=') { _position += 2; return new Token(TokenKind.NotEqual, "!=", start); }
                 throw new SqlParseException("无法识别的字符 '!'", start);

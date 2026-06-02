@@ -82,6 +82,13 @@ public sealed record FunctionCallExpression(
     IReadOnlyList<SqlExpression> Arguments,
     bool IsStar = false) : SqlExpression;
 
+/// <summary>函数命名参数，例如 <c>source =&gt; docs</c>。</summary>
+/// <param name="Name">参数名。</param>
+/// <param name="Value">参数值表达式。</param>
+public sealed record NamedArgumentExpression(
+    string Name,
+    SqlExpression Value) : SqlExpression;
+
 /// <summary>二元运算表达式。</summary>
 /// <param name="Operator">运算符。</param>
 /// <param name="Left">左操作数。</param>
