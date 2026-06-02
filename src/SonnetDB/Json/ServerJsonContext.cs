@@ -71,6 +71,8 @@ namespace SonnetDB.Json;
 [JsonSerializable(typeof(BackupVerificationInfo))]
 [JsonSerializable(typeof(RestoreDryRunInfo))]
 [JsonSerializable(typeof(IndexMaintenanceInfo))]
+[JsonSerializable(typeof(QualityAnalysisInfo))]
+[JsonSerializable(typeof(QualityIndexInfo))]
 [JsonSerializable(typeof(List<MeasurementInfo>))]
 [JsonSerializable(typeof(List<ColumnInfo>))]
 [JsonSerializable(typeof(List<VectorIndexInfo>))]
@@ -83,6 +85,7 @@ namespace SonnetDB.Json;
 [JsonSerializable(typeof(List<DocumentFullTextIndexInfo>))]
 [JsonSerializable(typeof(List<IndexLifecycleInfo>))]
 [JsonSerializable(typeof(List<MaintenanceCheckInfo>))]
+[JsonSerializable(typeof(List<QualityIndexInfo>))]
 [JsonSerializable(typeof(List<string>))]
 // ---- AI 公开 API ----
 [JsonSerializable(typeof(AiConfigResponse))]

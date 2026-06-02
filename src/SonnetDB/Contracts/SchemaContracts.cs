@@ -118,7 +118,8 @@ public sealed record MaintenanceResponse(
     List<MaintenanceCheckInfo> Checks,
     BackupVerificationInfo? BackupVerification = null,
     RestoreDryRunInfo? RestoreDryRun = null,
-    IndexMaintenanceInfo? Index = null);
+    IndexMaintenanceInfo? Index = null,
+    QualityAnalysisInfo? QualityAnalysis = null);
 
 /// <summary>维护检查项。</summary>
 public sealed record MaintenanceCheckInfo(
@@ -152,3 +153,26 @@ public sealed record IndexMaintenanceInfo(
     bool Planned,
     bool Rebuildable,
     long? DocumentCount = null);
+
+/// <summary>索引质量分析摘要。</summary>
+public sealed record QualityAnalysisInfo(
+    int TotalIndexes,
+    int RebuildableIndexes,
+    int PlannedIndexes,
+    int IncludedInBackupIndexes,
+    int WarningCount,
+    List<QualityIndexInfo> Indexes,
+    List<MaintenanceCheckInfo> Issues);
+
+/// <summary>单个索引的质量状态。</summary>
+public sealed record QualityIndexInfo(
+    string Id,
+    string Model,
+    string Owner,
+    string Name,
+    string Kind,
+    string State,
+    bool IncludedInBackup,
+    bool Rebuildable,
+    long? DocumentCount = null,
+    string? Detail = null);

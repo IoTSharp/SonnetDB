@@ -821,15 +821,16 @@ public sealed class SqlParser
                 // 第一个参数通常是 source measurement 标识符；MM8 hybrid_search 也支持 source => docs 命名参数。
                 if (call.Arguments.Count == 0)
                     throw Error($"表值函数 {name}(...) 第 1 个参数必须是 source 名称");
-                measurement = ResolveTableValuedSourceName(name, call.Arguments[0]);
+                measurement = ResolveTableValuedSourceName(name, call);
             }
         }
         else
         {
             measurement = ExpectIdentifierName();
             tableAlias = ParseOptionalTableAlias();
-            join = ParseOptionalJoinClause();
         }
+
+        join = ParseOptionalJoinClause();
 
         SqlExpression? where = null;
         if (Current.Kind == TokenKind.KeywordWhere)
@@ -861,10 +862,23 @@ public sealed class SqlParser
             Join: join);
     }
 
-    private string ResolveTableValuedSourceName(string functionName, SqlExpression firstArgument)
+    private string ResolveTableValuedSourceName(string functionName, FunctionCallExpression call)
     {
+        var firstArgument = call.Arguments[0];
         if (firstArgument is IdentifierExpression sourceId)
             return sourceId.Name;
+
+        if (string.Equals(functionName, "hybrid_search", StringComparison.OrdinalIgnoreCase))
+        {
+            foreach (var argument in call.Arguments)
+            {
+                if (argument is NamedArgumentExpression { Name: var name, Value: IdentifierExpression source }
+                    && string.Equals(name, "source", StringComparison.OrdinalIgnoreCase))
+                {
+                    return source.Name;
+                }
+            }
+        }
 
         if (firstArgument is NamedArgumentExpression { Name: var parameterName, Value: IdentifierExpression namedSource }
             && string.Equals(parameterName, "source", StringComparison.OrdinalIgnoreCase))
@@ -1297,6 +1311,7 @@ public sealed class SqlParser
             case TokenKind.KeywordDocument:
             case TokenKind.KeywordJson:
             case TokenKind.KeywordCollection:
+            case TokenKind.KeywordMeasurement:
                 return ParseIdentifierOrFunctionCall();
             case TokenKind.IdentifierLiteral:
                 return ParseIdentifierOrFunctionCall();

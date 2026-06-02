@@ -154,6 +154,34 @@ public sealed class SchemaAndMaintenanceEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Maintenance_QualityAnalysis_ReturnsIndexLifecycleSummary()
+    {
+        using var admin = CreateClient(AdminToken);
+        const string dbName = "mm_quality";
+        await CreateDatabaseAsync(admin, dbName);
+        await SeedMultimodelCatalogAsync(admin, dbName);
+
+        var response = await admin.PostAsync($"/v1/db/{dbName}/maintenance",
+            JsonContent.Create(new MaintenanceRequest("quality_analysis"), ServerJsonContext.Default.MaintenanceRequest));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var root = document.RootElement;
+        Assert.Equal("quality_analysis", root.GetProperty("operation").GetString());
+        Assert.True(root.GetProperty("success").GetBoolean());
+
+        var quality = root.GetProperty("qualityAnalysis");
+        Assert.True(quality.GetProperty("totalIndexes").GetInt32() >= 3);
+        Assert.True(quality.GetProperty("rebuildableIndexes").GetInt32() >= 3);
+        Assert.True(quality.GetProperty("plannedIndexes").GetInt32() >= 1);
+
+        var indexes = quality.GetProperty("indexes").EnumerateArray().ToArray();
+        Assert.Contains(indexes, index => index.GetProperty("id").GetString() == "table:devices:idx_devices_site");
+        Assert.Contains(indexes, index => index.GetProperty("id").GetString() == "document:docs:ft_docs_body");
+        Assert.Contains(indexes, index => index.GetProperty("id").GetString() == "measurement:metrics:embedding");
+    }
+
+    [Fact]
     public async Task Maintenance_BackupPathOperations_RequireServerAdmin()
     {
         using var admin = CreateClient(AdminToken);

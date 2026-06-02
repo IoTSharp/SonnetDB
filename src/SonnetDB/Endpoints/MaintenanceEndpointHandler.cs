@@ -26,6 +26,7 @@ internal static class MaintenanceEndpointHandler
             "backup_verify" => Json(BackupVerify(request)),
             "restore_dry_run" => Json(RestoreDryRun(request)),
             "rebuild_index" => Json(RebuildIndex(tsdb, request)),
+            "quality_analysis" or "quality" => Json(QualityAnalysis(tsdb)),
             _ => Results.Json(
                 Failed(operation, $"未知维护操作 '{request.Operation}'。"),
                 ServerJsonContext.Default.MaintenanceResponse,
@@ -269,6 +270,131 @@ internal static class MaintenanceEndpointHandler
         {
             return Failed("rebuild_index", ex.Message);
         }
+    }
+
+    private static MaintenanceResponse QualityAnalysis(Tsdb tsdb)
+    {
+        var indexes = new List<QualityIndexInfo>();
+        var issues = new List<MaintenanceCheckInfo>();
+
+        foreach (var table in tsdb.Tables.Catalog.Snapshot())
+        {
+            foreach (var index in table.Indexes)
+            {
+                var kind = string.IsNullOrWhiteSpace(index.JsonPath)
+                    ? (index.IsUnique ? "unique_secondary" : "secondary")
+                    : "json_path";
+                indexes.Add(new QualityIndexInfo(
+                    $"table:{table.Name}:{index.Name}",
+                    "table",
+                    table.Name,
+                    index.Name,
+                    kind,
+                    "ok",
+                    IncludedInBackup: false,
+                    Rebuildable: true,
+                    Detail: string.IsNullOrWhiteSpace(index.JsonPath)
+                        ? string.Join(",", index.Columns)
+                        : $"{index.Columns[0]}:{index.JsonPath}"));
+            }
+        }
+
+        foreach (var collection in tsdb.Documents.Catalog.Snapshot())
+        {
+            var store = tsdb.Documents.Open(collection.Name);
+            long documentCount = store.Scan().Count;
+            foreach (var index in collection.Indexes)
+            {
+                indexes.Add(new QualityIndexInfo(
+                    $"document:{collection.Name}:{index.Name}",
+                    "document",
+                    collection.Name,
+                    index.Name,
+                    "json_path",
+                    "ok",
+                    IncludedInBackup: false,
+                    Rebuildable: true,
+                    DocumentCount: documentCount,
+                    Detail: index.Path));
+            }
+
+            foreach (var index in collection.FullTextIndexes)
+            {
+                var state = documentCount == 0 ? "warning" : "ok";
+                indexes.Add(new QualityIndexInfo(
+                    $"document:{collection.Name}:{index.Name}",
+                    "document",
+                    collection.Name,
+                    index.Name,
+                    "fulltext",
+                    state,
+                    IncludedInBackup: false,
+                    Rebuildable: true,
+                    DocumentCount: documentCount,
+                    Detail: $"{index.Tokenizer}:{string.Join(",", index.Fields)}"));
+                if (documentCount == 0)
+                {
+                    issues.Add(new MaintenanceCheckInfo(
+                        $"document:{collection.Name}:{index.Name}",
+                        "warning",
+                        "全文索引所在 document collection 为空，检索质量无法评估。",
+                        0));
+                }
+            }
+        }
+
+        foreach (var measurement in tsdb.Measurements.Snapshot())
+        {
+            foreach (var column in measurement.Columns)
+            {
+                if (column.DataType != FieldType.Vector || column.VectorIndex is null)
+                    continue;
+
+                indexes.Add(new QualityIndexInfo(
+                    $"measurement:{measurement.Name}:{column.Name}",
+                    "measurement",
+                    measurement.Name,
+                    column.Name,
+                    "vector:" + column.VectorIndex.Kind,
+                    "planned",
+                    IncludedInBackup: false,
+                    Rebuildable: true,
+                    Detail: "向量索引随 Segment flush / compaction / restore 生命周期重建。"));
+                issues.Add(new MaintenanceCheckInfo(
+                    $"measurement:{measurement.Name}:{column.Name}",
+                    "info",
+                    "measurement vector index 当前通过 Segment 生命周期维护，管理端仅展示 planned rebuild 状态。"));
+            }
+        }
+
+        if (indexes.Count == 0)
+        {
+            issues.Add(new MaintenanceCheckInfo(
+                "indexes",
+                "warning",
+                "当前数据库没有声明任何二级、全文、JSON path 或向量索引。",
+                0));
+        }
+
+        var analysis = new QualityAnalysisInfo(
+            indexes.Count,
+            indexes.Count(static index => index.Rebuildable),
+            indexes.Count(static index => string.Equals(index.State, "planned", StringComparison.OrdinalIgnoreCase)),
+            indexes.Count(static index => index.IncludedInBackup),
+            issues.Count(static issue => issue.Status is "warning" or "error"),
+            indexes,
+            issues);
+
+        return new MaintenanceResponse(
+            "quality_analysis",
+            issues.Any(static issue => issue.Status == "error") ? "failed" : issues.Count == 0 ? "ok" : "warning",
+            Success: !issues.Any(static issue => issue.Status == "error"),
+            issues.Count == 0 ? "索引质量分析通过。" : "索引质量分析完成，存在提示或警告。",
+            DateTimeOffset.UtcNow,
+            issues.Count == 0
+                ? [new("indexes", "ok", "declared lifecycle indexes", indexes.Count)]
+                : issues,
+            QualityAnalysis: analysis);
     }
 
     private static MaintenanceResponse RebuildIndexResponse(

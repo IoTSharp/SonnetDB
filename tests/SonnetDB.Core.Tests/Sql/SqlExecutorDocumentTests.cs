@@ -395,6 +395,125 @@ public sealed class SqlExecutorDocumentTests : IDisposable
         Assert.True(Convert.ToInt64(values["estimated_scanned_rows"]) >= 2L);
     }
 
+    [Fact]
+    public void HybridSearch_MeasurementKnn_AssociatesDocumentKnowledgeRows()
+    {
+        using var db = Tsdb.Open(Options());
+        CreateMeasurementKnowledgeFixture(db);
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT measurement.device_id AS device,
+                   document_id,
+                   json_value(document, '$.title') AS title,
+                   measurement_distance() AS m_distance,
+                   bm25_score() AS text_score,
+                   hybrid_score() AS score
+            FROM hybrid_search(
+                source => incidents,
+                documents => knowledge,
+                vector_field => embedding,
+                vector => [1, 0, 0],
+                k => 5,
+                measurement_join_tag => device_id,
+                document_join_path => '$.device_id',
+                document_join_index => idx_knowledge_device,
+                text_index => ft_knowledge_body,
+                text_field => '$.body',
+                text => 'pump alarm overheating',
+                measurement_weight => 0.7,
+                text_weight => 0.3)
+            WHERE time >= 1000 AND category = 'fault'
+            ORDER BY score DESC
+            """));
+
+        Assert.Equal(new[] { "device", "document_id", "title", "m_distance", "text_score", "score" }, result.Columns);
+        Assert.Equal(["pump-1", "pump-2"], result.Rows.Select(static row => (string)row[0]!).ToArray());
+        Assert.Equal(["kb-pump-1", "kb-pump-2"], result.Rows.Select(static row => (string)row[1]!).ToArray());
+        Assert.Equal("Pump overheating guide", result.Rows[0][2]);
+        Assert.Equal(0.0, Convert.ToDouble(result.Rows[0][3]), 6);
+        Assert.True(Convert.ToDouble(result.Rows[0][4]) > 0);
+        Assert.True(Convert.ToDouble(result.Rows[0][5]) > Convert.ToDouble(result.Rows[1][5]));
+    }
+
+    [Fact]
+    public void HybridSearch_MeasurementKnn_ExplainShowsCrossModelAccessPath()
+    {
+        using var db = Tsdb.Open(Options());
+        CreateMeasurementKnowledgeFixture(db);
+
+        var explain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            EXPLAIN SELECT document_id
+            FROM hybrid_search(
+                source => incidents,
+                documents => knowledge,
+                vector_field => embedding,
+                vector => [1, 0, 0],
+                measurement_join_tag => device_id,
+                document_join_path => '$.device_id',
+                text => 'pump alarm')
+            """));
+
+        var values = explain.Rows.ToDictionary(static r => (string)r[0]!, static r => r[1], StringComparer.Ordinal);
+        Assert.Equal("hybrid_search", values["statement_type"]);
+        Assert.Equal("hybrid_search_measurement_knn_documents", values["access_path"]);
+        Assert.Contains("embedding", (string)values["index_name"]!);
+        Assert.Contains("ft_knowledge_body", (string)values["index_name"]!);
+    }
+
+    [Fact]
+    public void HybridSearch_MeasurementKnnJoinDimensionTable_PushesRelationFilter()
+    {
+        using var db = Tsdb.Open(Options());
+        CreateMeasurementKnowledgeFixture(db);
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT measurement.device_id AS device,
+                   d.site AS site,
+                   document_id,
+                   hybrid_score() AS score
+            FROM hybrid_search(
+                source => incidents,
+                documents => knowledge,
+                vector_field => embedding,
+                vector => [1, 0, 0],
+                k => 5,
+                measurement_join_tag => device_id,
+                document_join_path => '$.device_id',
+                document_join_index => idx_knowledge_device,
+                text_index => ft_knowledge_body,
+                text_field => '$.body',
+                text => 'pump alarm')
+            JOIN devices d ON measurement.device_id = d.id
+            WHERE d.tenant = 'tenant-1' AND measurement.time >= 1000 AND category = 'fault'
+            ORDER BY score DESC
+            """));
+
+        Assert.Equal(new[] { "device", "site", "document_id", "score" }, result.Columns);
+        Assert.Single(result.Rows);
+        Assert.Equal("pump-1", result.Rows[0][0]);
+        Assert.Equal("north", result.Rows[0][1]);
+        Assert.Equal("kb-pump-1", result.Rows[0][2]);
+        Assert.True(Convert.ToDouble(result.Rows[0][3]) > 0);
+
+        var explain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            EXPLAIN SELECT document_id
+            FROM hybrid_search(
+                source => incidents,
+                documents => knowledge,
+                vector_field => embedding,
+                vector => [1, 0, 0],
+                measurement_join_tag => device_id,
+                document_join_path => '$.device_id',
+                text => 'pump alarm')
+            JOIN devices d ON measurement.device_id = d.id
+            WHERE d.tenant = 'tenant-1'
+            """));
+
+        var values = explain.Rows.ToDictionary(static r => (string)r[0]!, static r => r[1], StringComparer.Ordinal);
+        Assert.Contains("relation_filter:secondary_index", (string)values["access_path"]!);
+        Assert.Contains("idx_devices_tenant", (string)values["index_name"]!);
+    }
+
     private static void CreateHybridSearchFixture(Tsdb db)
     {
         SqlExecutor.Execute(db, "CREATE DOCUMENT COLLECTION logs");
@@ -406,6 +525,36 @@ public sealed class SqlExecutorDocumentTests : IDisposable
                    ('log-4', '{"message":"Fan alarm cleared","site":"south","embedding":[0,1,0]}')
         """);
         SqlExecutor.Execute(db, "CREATE FULLTEXT INDEX ft_logs_message ON logs ('$.message') USING unicode");
+    }
+
+    private static void CreateMeasurementKnowledgeFixture(Tsdb db)
+    {
+        SqlExecutor.Execute(db, "CREATE MEASUREMENT incidents (device_id TAG, embedding FIELD VECTOR(3), severity FIELD FLOAT)");
+        SqlExecutor.Execute(db, """
+            INSERT INTO incidents (device_id, embedding, severity, time)
+            VALUES ('pump-1', [1, 0, 0], 9.0, 1000),
+                   ('pump-2', [0.8, 0.2, 0], 7.5, 2000),
+                   ('fan-1', [0, 1, 0], 3.0, 3000)
+            """);
+
+        SqlExecutor.Execute(db, "CREATE DOCUMENT COLLECTION knowledge");
+        SqlExecutor.Execute(db, """
+            INSERT INTO knowledge (id, document)
+            VALUES ('kb-pump-1', '{"device_id":"pump-1","title":"Pump overheating guide","body":"pump alarm overheating recovery","category":"fault","embedding":[1,0,0]}'),
+                   ('kb-pump-2', '{"device_id":"pump-2","title":"Pump pressure guide","body":"pump alarm pressure inspection","category":"fault","embedding":[0.8,0.2,0]}'),
+                   ('kb-fan-1', '{"device_id":"fan-1","title":"Fan maintenance note","body":"fan maintenance normal","category":"normal","embedding":[0,1,0]}')
+            """);
+        SqlExecutor.Execute(db, "CREATE JSON INDEX idx_knowledge_device ON knowledge ('$.device_id')");
+        SqlExecutor.Execute(db, "CREATE FULLTEXT INDEX ft_knowledge_body ON knowledge ('$.body') USING unicode");
+
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id STRING, tenant STRING, site STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE INDEX idx_devices_tenant ON devices (tenant)");
+        SqlExecutor.Execute(db, """
+            INSERT INTO devices (id, tenant, site)
+            VALUES ('pump-1', 'tenant-1', 'north'),
+                   ('pump-2', 'tenant-2', 'south'),
+                   ('fan-1', 'tenant-1', 'east')
+            """);
     }
 
     private static string EncodeName(string name)

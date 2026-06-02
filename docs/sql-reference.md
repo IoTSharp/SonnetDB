@@ -125,6 +125,7 @@ LIMIT 100;
 - measurement 侧 `tag = '...'` 和 `time` 范围过滤会先下推到时序查询；关系表侧 `WHERE` 条件会先用主键或二级索引候选行，再做完整过滤。
 - 输出投影支持 `time`、measurement tag / field、table 列和字面量；有歧义的列名必须使用 `alias.column`。
 - `ORDER BY` 可引用 JOIN 结果中的 measurement 或 table 列，并在分页前执行。
+- `EXPLAIN` 支持 JOIN 查询，`access_path` 会显示 measurement 与 table 双侧下推路径，例如 `measurement:tag_index;table:secondary_index;join:hash`。
 
 当前限制：
 
@@ -318,6 +319,29 @@ WHERE site = 'north'
 ORDER BY score DESC;
 ```
 
+也可以在 measurement KNN + 知识文档融合结果上连接一个关系维表。Planner 会先把 `d.tenant = ...` 下推给关系表索引，再用命中的 `d.id` 收窄 measurement `measurement_join_tag` 的候选 series：
+
+```sql
+SELECT measurement.device_id AS device,
+       d.site AS site,
+       document_id,
+       hybrid_score() AS score
+FROM hybrid_search(
+  source => incidents,
+  documents => knowledge,
+  vector_field => embedding,
+  vector => [1, 0, 0],
+  measurement_join_tag => device_id,
+  document_join_path => '$.device_id',
+  text => 'pump alarm'
+)
+JOIN devices d ON measurement.device_id = d.id
+WHERE d.tenant = 'tenant-1'
+  AND measurement.time >= 1713676800000
+  AND category = 'fault'
+ORDER BY score DESC;
+```
+
 当前行为：
 
 - `source` 必须是 document collection；`text_index` 可省略但集合中必须只有一个全文索引。
@@ -328,7 +352,48 @@ ORDER BY score DESC;
 - 结果伪列支持 `bm25_score()`、`vector_distance()`、`vector_score()`、`hybrid_score()`，也可直接投影 `id`、`document/json` 和 JSON 顶层字段名。
 - `WHERE` 支持对结果伪列或 JSON 顶层字段做基础比较，例如 `site = 'north'`；复杂文档过滤可用 `json_value(document, '$.path')`。
 - `EXPLAIN` 的 `access_path` 会显示 `hybrid_search`，`index_name` 显示使用的全文索引。
-- 第一批限定 document collection 内融合；measurement `knn(...)` 与关系维表 JOIN 的跨模型融合留给后续批次。
+- document collection 内融合只读取 document collection 主数据和派生全文索引，不会把文档主数据交给 DotSearch 或 DotVector。
+
+### Measurement KNN 与知识文档融合
+
+MM8 第二批支持以 measurement 的 `VECTOR` 字段做 KNN 召回，再通过 measurement tag 与 document collection JSON path 关联知识条目，并可叠加知识文档全文 BM25 与可选知识向量评分：
+
+```sql
+SELECT measurement.device_id AS device,
+       document_id,
+       json_value(document, '$.title') AS title,
+       measurement_distance() AS m_distance,
+       bm25_score() AS text_score,
+       hybrid_score() AS score
+FROM hybrid_search(
+  source => incidents,
+  documents => knowledge,
+  vector_field => embedding,
+  vector => [1, 0, 0],
+  k => 20,
+  measurement_join_tag => device_id,
+  document_join_path => '$.device_id',
+  document_join_index => idx_knowledge_device,
+  text_index => ft_knowledge_body,
+  text_field => '$.body',
+  text => 'pump alarm overheating',
+  measurement_weight => 0.7,
+  text_weight => 0.3
+)
+WHERE time >= 1713676800000 AND category = 'fault'
+ORDER BY score DESC;
+```
+
+当前行为：
+
+- `source` 是带 `VECTOR` 字段的 measurement；`documents` 是关联的 document collection。
+- `vector_field` 默认 `embedding`，也可写 `measurement_vector_field`；`vector` 必须与该列维度一致。
+- `measurement_join_tag` / `join_tag` 指定 measurement TAG，`document_join_path` 指定知识文档 JSON path；若有同 path 的 JSON index 或显式 `document_join_index`，关联会优先走索引。
+- `text` 可选；提供时会用 `text_index` / `text_field` 读取知识文档全文 BM25。未提供 `text` 时仅做 measurement KNN + 关联文档融合。
+- `document_vector_field` 可选；提供时会对知识文档中的 JSON number array 再计算一次向量分数。
+- 结果伪列支持 `measurement_distance()`、`measurement_score()`、`bm25_score()`、`text_score()`、`document_vector_distance()`、`document_vector_score()` 和 `hybrid_score()`；`vector_distance()` / `vector_score()` 在该模式下兼容指向 measurement KNN 分数。
+- `WHERE` 中 measurement `time` / tag 谓词会下推给 KNN；关系维表谓词会先走主键 / 二级索引候选行并收窄 measurement join tag；剩余谓词可过滤知识文档顶层字段、`json_value(document, '$.path')` 或融合分数。
+- `EXPLAIN` 的 `access_path` 会显示 `hybrid_search_measurement_knn_documents`；带关系维表过滤时会追加 `relation_filter:<table_access_path>`。
 
 ### `CREATE MEASUREMENT`
 

@@ -35,27 +35,23 @@ internal static class JoinSqlExecutor
 
         var scope = JoinScope.Create(statement, join, measurementSchema, tableSchema);
         var joinKeys = ResolveJoinKeys(join.On, scope);
-        var where = SplitWhere(statement.Where, scope);
-        var measurementWhere = BuildAnd(where.MeasurementPushdown);
-        var tableWhere = BuildAnd(where.TablePushdown);
-        var residualWhere = BuildAnd(where.Residual);
-
-        var measurementPushdown = WhereClauseDecomposer.Decompose(measurementWhere, measurementSchema);
+        var filterPlan = PlanFilters(statement.Where, scope);
+        var measurementPushdown = filterPlan.MeasurementWhere;
         var matchedSeries = tsdb.Catalog.Find(statement.Measurement, measurementPushdown.TagFilter);
 
         var tableCandidateRows = TableSqlExecutor.LoadCandidateRows(
             tsdb.Tables.Open(tableSchema.Name),
             tableSchema,
-            tableWhere);
+            filterPlan.TableExpression);
         var tableRows = tableCandidateRows
-            .Where(row => TableSqlExecutor.EvaluateWhere(tableWhere, tableSchema, row.Values))
+            .Where(row => TableSqlExecutor.EvaluateWhere(filterPlan.TableExpression, tableSchema, row.Values))
             .ToArray();
         var tableHash = BuildTableHash(tableSchema, joinKeys.TableColumn, tableRows);
 
         var projections = BuildProjections(statement.Projections, scope);
         var measurementFields = CollectRequiredMeasurementFields(
             projections,
-            residualWhere,
+            filterPlan.ResidualExpression,
             statement.OrderBy,
             measurementSchema);
 
@@ -82,7 +78,7 @@ internal static class JoinSqlExecutor
                 foreach (var tableRow in joinedTableRows)
                 {
                     var context = new JoinRowContext(scope, series, timestamp, fieldLookups, tableRow);
-                    if (!EvaluateWhere(residualWhere, context))
+                    if (!EvaluateWhere(filterPlan.ResidualExpression, context))
                         continue;
 
                     var output = new object?[projections.Count];
@@ -105,6 +101,44 @@ internal static class JoinSqlExecutor
             projections.Select(static p => p.ColumnName).ToArray(),
             orderedRows);
         return ApplyPagination(result, statement.Pagination);
+    }
+
+    internal static JoinPlan ExplainPlan(Tsdb tsdb, SelectStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        var join = statement.Join
+            ?? throw new InvalidOperationException("内部错误：JOIN Explain 要求 SELECT 包含 JOIN 子句。");
+        if (statement.TableValuedFunction is not null)
+            throw new InvalidOperationException("MM4 JOIN 暂不支持 FROM 表值函数。");
+
+        var measurementSchema = tsdb.Measurements.TryGet(statement.Measurement)
+            ?? throw new InvalidOperationException(
+                $"JOIN 左侧必须是 measurement，'{statement.Measurement}' 不存在或不是 measurement。");
+        var tableSchema = tsdb.Tables.Catalog.TryGet(join.TableName)
+            ?? throw new InvalidOperationException(
+                $"JOIN 右侧必须是关系表，table '{join.TableName}' 不存在。");
+
+        var scope = JoinScope.Create(statement, join, measurementSchema, tableSchema);
+        _ = ResolveJoinKeys(join.On, scope);
+        var filterPlan = PlanFilters(statement.Where, scope);
+        var matchedSeries = tsdb.Catalog.Find(statement.Measurement, filterPlan.MeasurementWhere.TagFilter);
+        var tableStore = tsdb.Tables.Open(tableSchema.Name);
+        var (tableAccessPath, tableIndexName, tableRows) =
+            ExplainTableAccess(tableStore, tableSchema, filterPlan.TableExpression);
+
+        string measurementAccessPath = filterPlan.MeasurementWhere.TagFilter.Count > 0 ? "tag_index" : "measurement_scan";
+        string accessPath = $"measurement:{measurementAccessPath};table:{tableAccessPath};join:hash";
+        string? indexName = tableIndexName is null ? null : $"{tableSchema.Name}.{tableIndexName}";
+        return new JoinPlan(
+            measurementSchema,
+            tableSchema,
+            filterPlan,
+            matchedSeries.Count,
+            tableRows,
+            accessPath,
+            indexName);
     }
 
     private static JoinKeys ResolveJoinKeys(SqlExpression on, JoinScope scope)
@@ -136,50 +170,56 @@ internal static class JoinSqlExecutor
         return new JoinKeys(measurementColumn, tableColumn);
     }
 
-    private static SplitWhereResult SplitWhere(SqlExpression? where, JoinScope scope)
-    {
-        if (where is null)
-            return new SplitWhereResult([], [], []);
-
-        var measurementPushdown = new List<SqlExpression>();
-        var tablePushdown = new List<SqlExpression>();
-        var residual = new List<SqlExpression>();
-
-        foreach (var leaf in FlattenAnd(where))
+    internal static CrossModelFilterPlan PlanFilters(SqlExpression? where, JoinScope scope)
+        => CrossModelFilterPlanner.Plan(where, scope.MeasurementSchema, leaf =>
         {
-            var sources = ResolveExpressionSources(leaf, scope);
-            if (sources == JoinSource.Measurement)
+            var result = CrossModelFilterSource.None;
+            foreach (var identifier in EnumerateIdentifiers(leaf))
             {
-                try
+                result |= scope.Resolve(identifier).Source switch
                 {
-                    _ = WhereClauseDecomposer.Decompose(leaf, scope.MeasurementSchema);
-                    measurementPushdown.Add(leaf);
-                }
-                catch (InvalidOperationException)
-                {
-                    residual.Add(leaf);
-                }
-                continue;
+                    JoinSource.Measurement => CrossModelFilterSource.Measurement,
+                    JoinSource.Table => CrossModelFilterSource.Table,
+                    _ => CrossModelFilterSource.None,
+                };
             }
 
-            if (sources == JoinSource.Table)
-            {
-                tablePushdown.Add(leaf);
-                continue;
-            }
+            return result;
+        });
 
-            residual.Add(leaf);
-        }
+    internal static (string AccessPath, string? IndexName, int EstimatedRows) ExplainTableAccess(
+        TableStore store,
+        TableSchema schema,
+        SqlExpression? where)
+    {
+        if (TableSqlExecutor.ChooseBestIndexForWhere(schema, where, out var values) is { } index)
+            return (string.IsNullOrWhiteSpace(index.JsonPath) ? "secondary_index" : "json_path_index",
+                index.Name,
+                store.GetByIndex(index, values).Count);
 
-        return new SplitWhereResult(measurementPushdown, tablePushdown, residual);
+        if (TryHasPrimaryKeyFilter(schema, where))
+            return ("primary_key", "primary", values.Count == 0 ? 0 : 1);
+
+        return ("table_scan", null, store.Scan().Count);
     }
 
-    private static JoinSource ResolveExpressionSources(SqlExpression expression, JoinScope scope)
+    private static bool TryHasPrimaryKeyFilter(TableSchema schema, SqlExpression? where)
     {
-        var result = JoinSource.None;
-        foreach (var identifier in EnumerateIdentifiers(expression))
-            result |= scope.Resolve(identifier).Source;
-        return result;
+        if (where is null)
+            return false;
+
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var leaf in CrossModelFilterPlanner.FlattenAnd(where))
+        {
+            if (leaf is not BinaryExpression { Operator: SqlBinaryOperator.Equal } binary)
+                continue;
+
+            var identifier = binary.Left as IdentifierExpression ?? binary.Right as IdentifierExpression;
+            if (identifier is not null)
+                names.Add(identifier.Name);
+        }
+
+        return schema.PrimaryKey.All(names.Contains);
     }
 
     private static IReadOnlyDictionary<JoinKey, IReadOnlyList<TableRow>> BuildTableHash(
@@ -437,31 +477,6 @@ internal static class JoinSqlExecutor
             result.Rows.Skip(offset).Take(Math.Min(take, result.Rows.Count - offset)).ToArray());
     }
 
-    private static IEnumerable<SqlExpression> FlattenAnd(SqlExpression expression)
-    {
-        if (expression is BinaryExpression { Operator: SqlBinaryOperator.And } binary)
-        {
-            foreach (var left in FlattenAnd(binary.Left))
-                yield return left;
-            foreach (var right in FlattenAnd(binary.Right))
-                yield return right;
-            yield break;
-        }
-
-        yield return expression;
-    }
-
-    private static SqlExpression? BuildAnd(IReadOnlyList<SqlExpression> expressions)
-    {
-        if (expressions.Count == 0)
-            return null;
-
-        var current = expressions[0];
-        for (int i = 1; i < expressions.Count; i++)
-            current = new BinaryExpression(SqlBinaryOperator.And, current, expressions[i]);
-        return current;
-    }
-
     private static IEnumerable<IdentifierExpression> EnumerateIdentifiers(SqlExpression expression)
     {
         switch (expression)
@@ -617,10 +632,14 @@ internal static class JoinSqlExecutor
 
     private sealed record JoinKeys(MeasurementColumn MeasurementTag, TableColumn TableColumn);
 
-    private sealed record SplitWhereResult(
-        IReadOnlyList<SqlExpression> MeasurementPushdown,
-        IReadOnlyList<SqlExpression> TablePushdown,
-        IReadOnlyList<SqlExpression> Residual);
+    internal sealed record JoinPlan(
+        MeasurementSchema MeasurementSchema,
+        TableSchema TableSchema,
+        CrossModelFilterPlan FilterPlan,
+        int MatchedSeriesCount,
+        int TableCandidateRows,
+        string AccessPath,
+        string? IndexName);
 
     private sealed record Projection(
         ProjectionKind Kind,
@@ -647,14 +666,14 @@ internal static class JoinSqlExecutor
     private readonly record struct JoinKey(string Value);
 
     [Flags]
-    private enum JoinSource
+    internal enum JoinSource
     {
         None = 0,
         Measurement = 1,
         Table = 2,
     }
 
-    private readonly record struct ResolvedIdentifier(
+    internal readonly record struct ResolvedIdentifier(
         JoinSource Source,
         MeasurementColumn? MeasurementColumn = null,
         TableColumn? TableColumn = null)
@@ -662,7 +681,7 @@ internal static class JoinSqlExecutor
         public static ResolvedIdentifier MeasurementTime { get; } = new(JoinSource.Measurement);
     }
 
-    private sealed class JoinScope
+    internal sealed class JoinScope
     {
         private JoinScope(
             string measurementAlias,

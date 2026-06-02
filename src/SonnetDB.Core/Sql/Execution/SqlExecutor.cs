@@ -624,6 +624,8 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(statement);
         using var _ = SonnetDB.Query.Functions.UserFunctionRegistry.EnterScope(tsdb.Functions);
         var tableSchema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
+        if (HybridSearchExecutor.IsHybridSearch(statement))
+            return HybridSearchExecutor.Execute(tsdb, statement);
         if (statement.Join is not null)
             return JoinSqlExecutor.Execute(tsdb, statement);
         if (statement.TableValuedFunction is FunctionCallExpression { Name: var tvfName }
@@ -632,9 +634,6 @@ public static class SqlExecutor
         {
             return TableValuedFunctionExecutor.Execute(tsdb, statement);
         }
-        if (HybridSearchExecutor.IsHybridSearch(statement))
-            return HybridSearchExecutor.Execute(tsdb, statement);
-
         var documentSchema = tsdb.Documents.Catalog.TryGet(statement.Measurement);
         if (documentSchema is not null)
             return DocumentSqlExecutor.ExecuteSelect(tsdb, statement, documentSchema);

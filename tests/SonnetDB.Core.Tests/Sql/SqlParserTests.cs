@@ -395,6 +395,24 @@ public class SqlParserTests
     }
 
     [Fact]
+    public void Parse_Select_HybridSearchJoinDimensionTable_ReturnsTvfJoinAst()
+    {
+        var stmt = (SelectStatement)SqlParser.Parse("""
+            SELECT measurement.time, d.site
+            FROM hybrid_search(source => incidents, documents => knowledge, vector => [1, 0, 0],
+                               measurement_join_tag => device_id, document_join_path => '$.device_id')
+            JOIN devices d ON measurement.device_id = d.id
+            WHERE d.tenant = 'tenant-1'
+            """);
+
+        Assert.Equal("incidents", stmt.Measurement);
+        Assert.NotNull(stmt.TableValuedFunction);
+        Assert.NotNull(stmt.Join);
+        Assert.Equal("devices", stmt.Join!.TableName);
+        Assert.Equal("d", stmt.Join.Alias);
+    }
+
+    [Fact]
     public void Parse_Select_OrderByTimeDesc_ParsesOrderByBeforePagination()
     {
         var stmt = (SelectStatement)SqlParser.Parse("SELECT time, usage FROM cpu ORDER BY time DESC LIMIT 2");

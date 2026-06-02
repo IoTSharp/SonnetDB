@@ -87,17 +87,30 @@ public sealed class SqlExplainTests : IDisposable
     }
 
     [Fact]
-    public void Execute_ExplainJoinSelect_ThrowsClearUnsupportedMessage()
+    public void Execute_ExplainJoinSelect_ShowsUnifiedPushdownPlan()
     {
         using var db = Tsdb.Open(Options());
         SqlExecutor.Execute(db, "CREATE MEASUREMENT cpu (host TAG, usage FIELD FLOAT)");
         SqlExecutor.Execute(db, "CREATE TABLE hosts (id STRING, site STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE INDEX idx_hosts_site ON hosts (site)");
+        SqlExecutor.Execute(db, "INSERT INTO hosts (id, site) VALUES ('h1', 'north'), ('h2', 'south')");
+        SqlExecutor.Execute(db, "INSERT INTO cpu (time, host, usage) VALUES (1000, 'h1', 0.5), (2000, 'h2', 0.7)");
 
         var statement = SqlParser.Parse(
-            "EXPLAIN SELECT c.time, h.site FROM cpu c JOIN hosts h ON c.host = h.id WHERE h.site = 'north'");
+            "EXPLAIN SELECT c.time, h.site FROM cpu c JOIN hosts h ON c.host = h.id WHERE h.site = 'north' AND c.host = 'h1' AND c.time >= 1000");
 
-        var ex = Assert.Throws<InvalidOperationException>(() =>
+        var result = Assert.IsType<SelectExecutionResult>(
             SqlExecutor.ExecuteStatement(db, "metrics", statement));
-        Assert.Contains("EXPLAIN 暂不支持 JOIN 查询", ex.Message);
+        var values = result.Rows.ToDictionary(
+            row => (string)row[0]!,
+            row => row[1],
+            StringComparer.Ordinal);
+
+        Assert.Equal("select_join", values["statement_type"]);
+        Assert.True((bool)values["has_time_filter"]!);
+        Assert.Equal(1, Convert.ToInt32(values["tag_filter_count"]));
+        Assert.Contains("measurement:tag_index", (string)values["access_path"]!);
+        Assert.Contains("table:secondary_index", (string)values["access_path"]!);
+        Assert.Equal("hosts.idx_hosts_site", values["index_name"]);
     }
 }

@@ -318,21 +318,76 @@ public static class SqlExplainPlanner
         Tsdb tsdb,
         SelectStatement statement)
     {
+        if (HybridSearchExecutor.IsHybridSearch(statement))
+        {
+            var hybridDocumentSchema = tsdb.Documents.Catalog.TryGet(statement.Measurement);
+            if (hybridDocumentSchema is not null)
+            {
+                var (hybridAccessPath, hybridIndexName, hybridRowCount) =
+                    HybridSearchExecutor.ExplainAccess(tsdb, statement, hybridDocumentSchema);
+                return new SqlExplainExecutionResult(
+                    Database: databaseName,
+                    StatementType: "hybrid_search",
+                    Measurement: statement.Measurement,
+                    MatchedSeriesCount: 0,
+                    EstimatedSegmentCount: 0,
+                    EstimatedBlockCount: 0,
+                    EstimatedScannedRows: hybridRowCount,
+                    EstimatedMemTableRows: hybridRowCount,
+                    EstimatedSegmentRows: 0,
+                    HasTimeFilter: statement.Where is not null,
+                    TagFilterCount: 0,
+                    AccessPath: hybridAccessPath,
+                    IndexName: hybridIndexName);
+            }
+
+            var hybridMeasurementSchema = tsdb.Measurements.TryGet(statement.Measurement)
+                ?? throw new InvalidOperationException(
+                    $"Measurement '{statement.Measurement}' 不存在；请先执行 CREATE MEASUREMENT。");
+            var (measurementAccessPath, measurementIndexName, measurementRowCount) =
+                HybridSearchExecutor.ExplainAccess(tsdb, statement, hybridMeasurementSchema);
+            return new SqlExplainExecutionResult(
+                Database: databaseName,
+                StatementType: "hybrid_search",
+                Measurement: statement.Measurement,
+                MatchedSeriesCount: 0,
+                EstimatedSegmentCount: 0,
+                EstimatedBlockCount: 0,
+                EstimatedScannedRows: measurementRowCount,
+                EstimatedMemTableRows: measurementRowCount,
+                EstimatedSegmentRows: 0,
+                HasTimeFilter: statement.Where is not null,
+                TagFilterCount: 0,
+                AccessPath: measurementAccessPath,
+                IndexName: measurementIndexName);
+        }
+
         if (statement.Join is not null)
         {
-            throw new InvalidOperationException(
-                "EXPLAIN 暂不支持 JOIN 查询；请分别解释左侧 measurement 过滤和右侧关系表过滤。");
+            var joinPlan = JoinSqlExecutor.ExplainPlan(tsdb, statement);
+            return new SqlExplainExecutionResult(
+                Database: databaseName,
+                StatementType: "select_join",
+                Measurement: statement.Measurement,
+                MatchedSeriesCount: joinPlan.MatchedSeriesCount,
+                EstimatedSegmentCount: 0,
+                EstimatedBlockCount: 0,
+                EstimatedScannedRows: joinPlan.MatchedSeriesCount + joinPlan.TableCandidateRows,
+                EstimatedMemTableRows: joinPlan.MatchedSeriesCount,
+                EstimatedSegmentRows: 0,
+                HasTimeFilter: joinPlan.FilterPlan.MeasurementWhere.TimeRange != TimeRange.All,
+                TagFilterCount: joinPlan.FilterPlan.MeasurementWhere.TagFilter.Count,
+                AccessPath: joinPlan.AccessPath,
+                IndexName: joinPlan.IndexName);
         }
 
         var documentSchema = tsdb.Documents.Catalog.TryGet(statement.Measurement);
         if (documentSchema is not null)
         {
-            var (accessPath, indexName, rowCount) = HybridSearchExecutor.IsHybridSearch(statement)
-                ? HybridSearchExecutor.ExplainAccess(tsdb, statement, documentSchema)
-                : DocumentSqlExecutor.ExplainAccess(tsdb, documentSchema, statement.Where);
+            var (accessPath, indexName, rowCount) = DocumentSqlExecutor.ExplainAccess(tsdb, documentSchema, statement.Where);
             return new SqlExplainExecutionResult(
                 Database: databaseName,
-                StatementType: HybridSearchExecutor.IsHybridSearch(statement) ? "hybrid_search" : "select_document_collection",
+                StatementType: "select_document_collection",
                 Measurement: statement.Measurement,
                 MatchedSeriesCount: 0,
                 EstimatedSegmentCount: 0,
