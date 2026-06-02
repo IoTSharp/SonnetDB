@@ -37,6 +37,7 @@ export interface TableIndexInfo {
   isUnique: boolean;
   createdUtc: string;
   rebuildable: boolean;
+  jsonPath?: string | null;
 }
 
 export interface TableInfo {

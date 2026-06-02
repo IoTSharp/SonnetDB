@@ -73,7 +73,8 @@ public sealed record BackupSecondaryIndexEntry(
     string Name,
     IReadOnlyList<string> Columns,
     bool IsUnique,
-    bool Rebuildable);
+    bool Rebuildable,
+    string? JsonPath = null);
 
 /// <summary>全文索引摘要。</summary>
 public sealed record BackupFullTextIndexEntry(
@@ -153,3 +154,32 @@ public sealed record BackupVerificationResult(
     bool IsValid,
     int CheckedFiles,
     IReadOnlyList<string> Errors);
+
+/// <summary>恢复 dry-run 结果。</summary>
+public sealed record BackupRestoreDryRunResult(
+    bool IsValid,
+    BackupVerificationResult Verification,
+    int FileCount,
+    long TotalBytes,
+    int IndexCount,
+    bool TargetDirectoryExists,
+    bool TargetDirectoryEmpty,
+    IReadOnlyList<string> Errors);
+
+/// <summary>索引补建结果。</summary>
+public sealed record BackupIndexRebuildResult(
+    int TotalIndexes,
+    int RebuiltIndexes,
+    int PlannedIndexes,
+    int FailedIndexes,
+    IReadOnlyList<BackupIndexRebuildEntry> Entries);
+
+/// <summary>单个索引补建结果。</summary>
+public sealed record BackupIndexRebuildEntry(
+    string Model,
+    string Owner,
+    string Name,
+    string Kind,
+    string Status,
+    string Message,
+    long? DocumentCount = null);

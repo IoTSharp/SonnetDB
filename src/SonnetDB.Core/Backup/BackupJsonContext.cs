@@ -19,6 +19,10 @@ namespace SonnetDB.Backup;
 [JsonSerializable(typeof(BackupFileEntry))]
 [JsonSerializable(typeof(BackupIndexEntry))]
 [JsonSerializable(typeof(BackupVerificationResult))]
+[JsonSerializable(typeof(BackupRestoreDryRunResult))]
+[JsonSerializable(typeof(BackupIndexRebuildResult))]
+[JsonSerializable(typeof(BackupIndexRebuildEntry))]
 [JsonSerializable(typeof(IReadOnlyList<BackupFileEntry>))]
 [JsonSerializable(typeof(IReadOnlyList<BackupIndexEntry>))]
+[JsonSerializable(typeof(IReadOnlyList<BackupIndexRebuildEntry>))]
 internal sealed partial class BackupJsonContext : JsonSerializerContext;

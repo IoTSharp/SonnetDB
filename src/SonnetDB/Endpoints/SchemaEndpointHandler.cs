@@ -77,7 +77,8 @@ internal static class SchemaEndpointHandler
                     index.Columns.ToList(),
                     index.IsUnique,
                     ToDateTimeOffset(index.CreatedAtUtcTicks),
-                    Rebuildable: true));
+                    Rebuildable: true,
+                    JsonPath: index.JsonPath));
             }
 
             result.Add(new TableInfo(
@@ -144,12 +145,15 @@ internal static class SchemaEndpointHandler
                     Model: "table",
                     Owner: table.Name,
                     Name: index.Name,
-                    Kind: index.IsUnique ? "unique_secondary" : "secondary",
+                    Kind: string.IsNullOrWhiteSpace(index.JsonPath)
+                        ? index.IsUnique ? "unique_secondary" : "secondary"
+                        : "json_path",
                     State: "ready",
                     IncludedInBackup: true,
                     Rebuildable: index.Rebuildable,
                     CreatedUtc: index.CreatedUtc,
-                    Columns: index.Columns));
+                    Columns: index.Columns,
+                    Detail: index.JsonPath));
             }
         }
 
@@ -200,7 +204,7 @@ internal static class SchemaEndpointHandler
                     Owner: measurement.Name,
                     Name: column.Name,
                     Kind: "vector:" + column.VectorIndex.Kind,
-                    State: "ready",
+                    State: "planned",
                     IncludedInBackup: true,
                     Rebuildable: true,
                     CreatedUtc: null,

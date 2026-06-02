@@ -51,6 +51,7 @@ export interface TableInfo {
     isUnique: boolean;
     createdUtc: string;
     rebuildable: boolean;
+    jsonPath?: string | null;
   }>;
   createdUtc: string;
 }

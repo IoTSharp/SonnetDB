@@ -347,7 +347,9 @@ internal sealed class CliApplication
             BackupAction.Create => RunBackupCreate(service, options),
             BackupAction.Inspect => RunBackupInspect(service, options),
             BackupAction.Verify => RunBackupVerify(service, options),
+            BackupAction.DryRun => RunBackupRestoreDryRun(service, options),
             BackupAction.Restore => RunBackupRestore(service, options),
+            BackupAction.RebuildIndexes => RunBackupRebuildIndexes(service, options),
             _ => throw new InvalidOperationException("未知的备份命令动作。"),
         };
     }
@@ -403,7 +405,59 @@ internal sealed class CliApplication
         _output.WriteLine("备份已恢复。");
         WriteBackupSummary(manifest);
         _output.WriteLine("恢复目标: " + options.TargetPath);
-        return ExitCodes.Success;
+        if (!options.RebuildIndexes)
+            return ExitCodes.Success;
+
+        using var db = Tsdb.Open(CreateMaintenanceOptions(options.TargetPath!));
+        var rebuild = service.RebuildIndexes(db);
+        WriteIndexRebuildSummary(rebuild);
+        return rebuild.FailedIndexes == 0 ? ExitCodes.Success : ExitCodes.ExecutionFailed;
+    }
+
+    private int RunBackupRestoreDryRun(BackupService service, BackupCommandOptions options)
+    {
+        var dryRun = service.RestoreDryRun(new BackupRestoreOptions
+        {
+            BackupDirectory = options.BackupPath!,
+            TargetDirectory = options.TargetPath!,
+            Overwrite = options.Overwrite,
+            VerifyBeforeRestore = options.VerifyBeforeRestore,
+        });
+
+        var writer = dryRun.IsValid ? _output : _error;
+        writer.WriteLine(dryRun.IsValid ? "恢复 dry-run 通过，未复制任何文件。" : "恢复 dry-run 失败。");
+        writer.WriteLine(FormattableString.Invariant(
+            $"文件: {dryRun.FileCount} 个, {dryRun.TotalBytes} bytes, indexes={dryRun.IndexCount}"));
+        writer.WriteLine(FormattableString.Invariant(
+            $"目标目录: exists={dryRun.TargetDirectoryExists}, empty={dryRun.TargetDirectoryEmpty}, overwrite={options.Overwrite}"));
+        writer.WriteLine(FormattableString.Invariant(
+            $"校验: valid={dryRun.Verification.IsValid}, checked_files={dryRun.Verification.CheckedFiles}"));
+        foreach (string error in dryRun.Errors)
+            writer.WriteLine(" - " + error);
+        return dryRun.IsValid ? ExitCodes.Success : ExitCodes.ExecutionFailed;
+    }
+
+    private int RunBackupRebuildIndexes(BackupService service, BackupCommandOptions options)
+    {
+        using var db = Tsdb.Open(CreateMaintenanceOptions(options.SourcePath!));
+        var result = service.RebuildIndexes(db);
+        WriteIndexRebuildSummary(result);
+        return result.FailedIndexes == 0 ? ExitCodes.Success : ExitCodes.ExecutionFailed;
+    }
+
+    private void WriteIndexRebuildSummary(BackupIndexRebuildResult result)
+    {
+        _output.WriteLine(FormattableString.Invariant(
+            $"索引补建: total={result.TotalIndexes}, rebuilt={result.RebuiltIndexes}, planned={result.PlannedIndexes}, failed={result.FailedIndexes}"));
+        foreach (var entry in result.Entries.OrderBy(static x => x.Model, StringComparer.Ordinal)
+                     .ThenBy(static x => x.Owner, StringComparer.Ordinal)
+                     .ThenBy(static x => x.Name, StringComparer.Ordinal))
+        {
+            string count = entry.DocumentCount is null
+                ? string.Empty
+                : FormattableString.Invariant($", documents={entry.DocumentCount.Value}");
+            _output.WriteLine($"  {entry.Model}/{entry.Owner}/{entry.Name}: {entry.Kind}, {entry.Status}{count}");
+        }
     }
 
     private void WriteBackupSummary(BackupManifest manifest)
@@ -826,7 +880,9 @@ internal sealed class CliApplication
             "create" => BackupAction.Create,
             "inspect" => BackupAction.Inspect,
             "verify" => BackupAction.Verify,
+            "dry-run" or "restore-dry-run" => BackupAction.DryRun,
             "restore" => BackupAction.Restore,
+            "rebuild-indexes" => BackupAction.RebuildIndexes,
             "--help" or "-h" => throw new CliUsageException(BuildBackupHelp()),
             _ => throw new CliUsageException($"未知 backup 动作 '{args[1]}'。"),
         };
@@ -837,13 +893,15 @@ internal sealed class CliApplication
         var overwrite = false;
         var includeFullTextIndexes = true;
         var verifyBeforeRestore = true;
+        var dryRun = false;
+        var rebuildIndexes = false;
 
         for (var i = 2; i < args.Count; i++)
         {
             switch (args[i])
             {
                 case "--path" or "-p":
-                    if (action == BackupAction.Create)
+                    if (action is BackupAction.Create or BackupAction.RebuildIndexes)
                         sourcePath = ReadRequiredValue(args, ref i, "数据库目录");
                     else
                         backupPath = ReadRequiredValue(args, ref i, "备份目录");
@@ -862,11 +920,22 @@ internal sealed class CliApplication
                     includeFullTextIndexes = false; break;
                 case "--no-verify":
                     verifyBeforeRestore = false; break;
+                case "--dry-run":
+                    dryRun = true; break;
+                case "--rebuild-indexes":
+                    rebuildIndexes = true; break;
                 case "--help" or "-h":
                     throw new CliUsageException(BuildBackupHelp());
                 default:
                     throw new CliUsageException($"未知参数 '{args[i]}'。");
             }
+        }
+
+        if (dryRun)
+        {
+            if (action != BackupAction.Restore)
+                throw new CliUsageException("--dry-run 只能用于 backup restore。");
+            action = BackupAction.DryRun;
         }
 
         return ValidateBackupOptions(new BackupCommandOptions(
@@ -876,7 +945,8 @@ internal sealed class CliApplication
             targetPath,
             overwrite,
             includeFullTextIndexes,
-            verifyBeforeRestore));
+            verifyBeforeRestore,
+            rebuildIndexes));
     }
 
     private static BackupCommandOptions ValidateBackupOptions(BackupCommandOptions options)
@@ -891,10 +961,13 @@ internal sealed class CliApplication
             BackupAction.Inspect or BackupAction.Verify => string.IsNullOrWhiteSpace(options.BackupPath)
                 ? throw new CliUsageException("backup inspect/verify 必须通过 --path 指定备份目录。")
                 : options,
-            BackupAction.Restore => string.IsNullOrWhiteSpace(options.BackupPath)
-                ? throw new CliUsageException("backup restore 必须通过 --path 指定备份目录。")
+            BackupAction.DryRun or BackupAction.Restore => string.IsNullOrWhiteSpace(options.BackupPath)
+                ? throw new CliUsageException("backup restore/dry-run 必须通过 --path 指定备份目录。")
                 : string.IsNullOrWhiteSpace(options.TargetPath)
-                    ? throw new CliUsageException("backup restore 必须通过 --target 指定恢复目标目录。")
+                    ? throw new CliUsageException("backup restore/dry-run 必须通过 --target 指定恢复目标目录。")
+                    : options,
+            BackupAction.RebuildIndexes => string.IsNullOrWhiteSpace(options.SourcePath)
+                ? throw new CliUsageException("backup rebuild-indexes 必须通过 --path 指定数据库目录。")
                     : options,
             _ => throw new InvalidOperationException("未知的备份命令动作。"),
         };
@@ -957,7 +1030,9 @@ SonnetDB CLI 0.1.0
   sndb backup  create --path ./data --output ./backup [--overwrite] [--no-fulltext-indexes]
   sndb backup  inspect --path ./backup
   sndb backup  verify --path ./backup
-  sndb backup  restore --path ./backup --target ./restored [--overwrite] [--no-verify]
+  sndb backup  dry-run --path ./backup --target ./restored [--overwrite] [--no-verify]
+  sndb backup  restore --path ./backup --target ./restored [--overwrite] [--no-verify] [--rebuild-indexes]
+  sndb backup  rebuild-indexes --path ./restored
   sndb copilot ingest [--root ./docs]... [--endpoint http://host] [--token t] [--force] [--dry-run]
 
 示例:
@@ -971,7 +1046,8 @@ SonnetDB CLI 0.1.0
   sndb connect --default --command "SELECT count(*) FROM cpu"
   sndb backup create --path ./demo-data --output ./demo-backup
   sndb backup verify --path ./demo-backup
-  sndb backup restore --path ./demo-backup --target ./demo-restored
+  sndb backup dry-run --path ./demo-backup --target ./demo-restored
+  sndb backup restore --path ./demo-backup --target ./demo-restored --rebuild-indexes
 """);
     }
 
@@ -1006,7 +1082,7 @@ SonnetDB CLI 0.1.0
         => "用法: sndb connect <profile-name> [--command \"<sql>\" | --file ./q.sql | --repl]  或  sndb connect --default [...]";
 
     private static string BuildBackupHelp()
-        => "用法: sndb backup create --path ./data --output ./backup [--overwrite] [--no-fulltext-indexes] | inspect --path ./backup | verify --path ./backup | restore --path ./backup --target ./restored [--overwrite] [--no-verify]";
+        => "用法: sndb backup create --path ./data --output ./backup [--overwrite] [--no-fulltext-indexes] | inspect --path ./backup | verify --path ./backup | dry-run --path ./backup --target ./restored [--overwrite] [--no-verify] | restore --path ./backup --target ./restored [--overwrite] [--no-verify] [--rebuild-indexes] | rebuild-indexes --path ./restored";
 }
 
 // ── Option records ────────────────────────────────────────────────────────────
@@ -1051,14 +1127,15 @@ internal readonly record struct BackupCommandOptions(
     string? TargetPath,
     bool Overwrite,
     bool IncludeFullTextIndexes,
-    bool VerifyBeforeRestore);
+    bool VerifyBeforeRestore,
+    bool RebuildIndexes);
 
 // ── Enums ─────────────────────────────────────────────────────────────────────
 
 internal enum ExecMode { Info, Sql, Repl }
 internal enum LocalAction { Use, List, Remove }
 internal enum RemoteAction { Use, List, Remove }
-internal enum BackupAction { Create, Inspect, Verify, Restore }
+internal enum BackupAction { Create, Inspect, Verify, DryRun, Restore, RebuildIndexes }
 
 // ── Exceptions / exit codes ───────────────────────────────────────────────────
 

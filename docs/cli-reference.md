@@ -186,7 +186,9 @@ sndb connect --default --command "SELECT count(*) FROM cpu"
 sndb backup create --path ./demo-data --output ./demo-backup
 sndb backup inspect --path ./demo-backup
 sndb backup verify --path ./demo-backup
-sndb backup restore --path ./demo-backup --target ./demo-restored
+sndb backup dry-run --path ./demo-backup --target ./demo-restored
+sndb backup restore --path ./demo-backup --target ./demo-restored --rebuild-indexes
+sndb backup rebuild-indexes --path ./demo-restored
 ```
 
 ---

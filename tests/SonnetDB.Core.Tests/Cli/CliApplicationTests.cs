@@ -167,6 +167,114 @@ public sealed class CliApplicationTests : IDisposable
     }
 
     [Fact]
+    public void Run_BackupCommands_DryRunRestoreAndRebuildIndexes_CoversMultimodelIndexes()
+    {
+        var app = CreateApp(out var stdout, out var stderr);
+        string backupPath = Path.Combine(_rootDirectory, "mm-backup");
+        string restoredPath = Path.Combine(_rootDirectory, "mm-restored");
+        string sourcePath = Path.Combine(_rootDirectory, "mm-source");
+
+        Assert.Equal(0, app.Run([
+            "local", "--path", sourcePath,
+            "--command", "CREATE TABLE devices (id INT, metadata JSON, PRIMARY KEY (id))"]));
+        stdout.GetStringBuilder().Clear();
+        stderr.GetStringBuilder().Clear();
+
+        Assert.Equal(0, app.Run([
+            "local", "--path", sourcePath,
+            "--command", """INSERT INTO devices (id, metadata) VALUES (1, '{"site":"north"}'), (2, '{"site":"south"}')"""]));
+        stdout.GetStringBuilder().Clear();
+        stderr.GetStringBuilder().Clear();
+
+        Assert.Equal(0, app.Run([
+            "local", "--path", sourcePath,
+            "--command", "CREATE JSON INDEX idx_devices_site ON devices (metadata, '$.site')"]));
+        stdout.GetStringBuilder().Clear();
+        stderr.GetStringBuilder().Clear();
+
+        Assert.Equal(0, app.Run([
+            "local", "--path", sourcePath,
+            "--command", "CREATE DOCUMENT COLLECTION docs"]));
+        stdout.GetStringBuilder().Clear();
+        stderr.GetStringBuilder().Clear();
+
+        Assert.Equal(0, app.Run([
+            "local", "--path", sourcePath,
+            "--command", """INSERT INTO docs (id, document) VALUES ('d1', '{"body":"pump alarm north"}'), ('d2', '{"body":"fan normal"}')"""]));
+        stdout.GetStringBuilder().Clear();
+        stderr.GetStringBuilder().Clear();
+
+        Assert.Equal(0, app.Run([
+            "local", "--path", sourcePath,
+            "--command", "CREATE FULLTEXT INDEX ft_docs_body ON docs ('$.body') USING unicode"]));
+        stdout.GetStringBuilder().Clear();
+        stderr.GetStringBuilder().Clear();
+
+        var backup = app.Run([
+            "backup", "create",
+            "--path", sourcePath,
+            "--output", backupPath,
+            "--no-fulltext-indexes"]);
+        Assert.Equal(0, backup);
+        Assert.Contains("备份已创建", stdout.ToString());
+        Assert.Equal(string.Empty, stderr.ToString());
+        Assert.False(Directory.Exists(Path.Combine(backupPath, "documents", "fulltext")));
+
+        stdout.GetStringBuilder().Clear();
+        stderr.GetStringBuilder().Clear();
+
+        var inspect = app.Run(["backup", "inspect", "--path", backupPath]);
+        Assert.Equal(0, inspect);
+        Assert.Contains("table/devices/idx_devices_site: json_path", stdout.ToString());
+        Assert.Contains("document/docs/ft_docs_body: fulltext, excluded, rebuildable", stdout.ToString());
+        Assert.Equal(string.Empty, stderr.ToString());
+
+        stdout.GetStringBuilder().Clear();
+        stderr.GetStringBuilder().Clear();
+
+        var dryRun = app.Run(["backup", "dry-run", "--path", backupPath, "--target", restoredPath]);
+        Assert.Equal(0, dryRun);
+        Assert.Contains("恢复 dry-run 通过", stdout.ToString());
+        Assert.Contains("indexes=2", stdout.ToString());
+        Assert.False(Directory.Exists(restoredPath));
+        Assert.Equal(string.Empty, stderr.ToString());
+
+        stdout.GetStringBuilder().Clear();
+        stderr.GetStringBuilder().Clear();
+
+        var restore = app.Run([
+            "backup", "restore",
+            "--path", backupPath,
+            "--target", restoredPath,
+            "--rebuild-indexes"]);
+        Assert.Equal(0, restore);
+        Assert.Contains("备份已恢复", stdout.ToString());
+        Assert.Contains("索引补建: total=2, rebuilt=2, planned=0, failed=0", stdout.ToString());
+        Assert.Contains("document/docs/ft_docs_body: fulltext, rebuilt, documents=2", stdout.ToString());
+        Assert.Equal(string.Empty, stderr.ToString());
+
+        stdout.GetStringBuilder().Clear();
+        stderr.GetStringBuilder().Clear();
+
+        var tableQuery = app.Run([
+            "local", "--path", restoredPath,
+            "--command", "SELECT id FROM devices WHERE json_value(metadata, '$.site') = 'south'"]);
+        Assert.Equal(0, tableQuery);
+        Assert.Contains("2", stdout.ToString());
+        Assert.Equal(string.Empty, stderr.ToString());
+
+        stdout.GetStringBuilder().Clear();
+        stderr.GetStringBuilder().Clear();
+
+        var fullTextQuery = app.Run([
+            "local", "--path", restoredPath,
+            "--command", "SELECT id FROM docs WHERE match(ft_docs_body, '$.body', 'pump alarm', 5)"]);
+        Assert.Equal(0, fullTextQuery);
+        Assert.Contains("d1", stdout.ToString());
+        Assert.Equal(string.Empty, stderr.ToString());
+    }
+
+    [Fact]
     public void Run_RemoteCommand_WithoutSql_PrintsRemoteConnectionString()
     {
         var app = CreateApp(out var stdout, out var stderr);

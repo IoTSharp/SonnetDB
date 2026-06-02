@@ -121,8 +121,14 @@ internal static class MaintenanceEndpointHandler
             return Failed("restore_dry_run", "restoreTargetDirectory 不能为空。");
 
         var service = new BackupService();
-        var verification = service.Verify(request.BackupDirectory);
-        if (!verification.IsValid)
+        var dryRun = service.RestoreDryRun(new BackupRestoreOptions
+        {
+            BackupDirectory = request.BackupDirectory,
+            TargetDirectory = request.RestoreTargetDirectory,
+            Overwrite = request.Overwrite,
+        });
+
+        if (!dryRun.Verification.IsValid)
         {
             return new MaintenanceResponse(
                 "restore_dry_run",
@@ -130,44 +136,32 @@ internal static class MaintenanceEndpointHandler
                 Success: false,
                 "备份校验失败，不能执行恢复 dry-run。",
                 DateTimeOffset.UtcNow,
-                [new("backup_verify", "error", "backup verification failed", verification.CheckedFiles)],
-                BackupVerification: new BackupVerificationInfo(false, verification.CheckedFiles, verification.Errors.ToList()));
+                [new("backup_verify", "error", "backup verification failed", dryRun.Verification.CheckedFiles)],
+                BackupVerification: new BackupVerificationInfo(false, dryRun.Verification.CheckedFiles, dryRun.Verification.Errors.ToList()));
         }
 
-        try
-        {
-            var manifest = service.ReadManifest(request.BackupDirectory);
-            string target = Path.GetFullPath(request.RestoreTargetDirectory);
-            bool targetExists = Directory.Exists(target);
-            bool targetEmpty = targetExists && !Directory.EnumerateFileSystemEntries(target).Any();
-            bool targetAllowed = !targetExists || (request.Overwrite && targetEmpty);
-            var dryRun = new RestoreDryRunInfo(
-                targetAllowed,
-                manifest.Files.Count,
-                manifest.Files.Sum(static f => f.SizeBytes),
-                manifest.Indexes.Count,
-                targetExists,
-                targetEmpty);
+        var restoreDryRun = new RestoreDryRunInfo(
+            dryRun.IsValid,
+            dryRun.FileCount,
+            dryRun.TotalBytes,
+            dryRun.IndexCount,
+            dryRun.TargetDirectoryExists,
+            dryRun.TargetDirectoryEmpty);
 
-            return new MaintenanceResponse(
-                "restore_dry_run",
-                targetAllowed ? "ok" : "failed",
-                targetAllowed,
-                targetAllowed
-                    ? "恢复 dry-run 通过，未复制任何文件。"
-                    : "恢复目标目录不满足离线恢复策略。",
-                DateTimeOffset.UtcNow,
-                [
-                    new("backup_verify", "ok", "backup verification passed", verification.CheckedFiles),
-                    new("target_directory", targetAllowed ? "ok" : "error", target)
-                ],
-                BackupVerification: new BackupVerificationInfo(true, verification.CheckedFiles, []),
-                RestoreDryRun: dryRun);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
-        {
-            return Failed("restore_dry_run", ex.Message);
-        }
+        return new MaintenanceResponse(
+            "restore_dry_run",
+            dryRun.IsValid ? "ok" : "failed",
+            dryRun.IsValid,
+            dryRun.IsValid
+                ? "恢复 dry-run 通过，未复制任何文件。"
+                : "恢复目标目录不满足离线恢复策略。",
+            DateTimeOffset.UtcNow,
+            [
+                new("backup_verify", "ok", "backup verification passed", dryRun.Verification.CheckedFiles),
+                new("target_directory", dryRun.IsValid ? "ok" : "error", Path.GetFullPath(request.RestoreTargetDirectory))
+            ],
+            BackupVerification: new BackupVerificationInfo(true, dryRun.Verification.CheckedFiles, []),
+            RestoreDryRun: restoreDryRun);
     }
 
     private static MaintenanceResponse RebuildIndex(Tsdb tsdb, MaintenanceRequest request)
@@ -192,7 +186,7 @@ internal static class MaintenanceEndpointHandler
                     "table",
                     owner,
                     name,
-                    index.IsUnique ? "unique_secondary" : "secondary",
+                    IndexKind(index),
                     mode: "sync",
                     planned: false,
                     rebuildable: true);
@@ -415,6 +409,11 @@ internal static class MaintenanceEndpointHandler
             DateTimeOffset.UtcNow,
             [new("index", planned ? "planned" : "ok", $"{model}/{owner}/{name}")],
             Index: new IndexMaintenanceInfo(model, owner, name, kind, mode, planned, rebuildable, documentCount));
+
+    private static string IndexKind(SonnetDB.Tables.TableIndex index)
+        => string.IsNullOrWhiteSpace(index.JsonPath)
+            ? index.IsUnique ? "unique_secondary" : "secondary"
+            : "json_path";
 
     private static MaintenanceResponse Failed(string operation, string message)
         => new(

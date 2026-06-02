@@ -72,7 +72,17 @@ public sealed class BackupService
         int checkedFiles = 0;
         foreach (var entry in manifest.Files)
         {
-            string path = Path.Combine(backupDirectory, entry.Path);
+            string path;
+            try
+            {
+                path = ResolveManifestPath(backupDirectory, entry.Path);
+            }
+            catch (InvalidDataException ex)
+            {
+                errors.Add(ex.Message);
+                continue;
+            }
+
             if (!File.Exists(path))
             {
                 if (entry.Required)
@@ -94,6 +104,50 @@ public sealed class BackupService
     }
 
     /// <summary>
+    /// 校验备份和恢复目标目录策略，但不复制任何文件。
+    /// </summary>
+    public BackupRestoreDryRunResult RestoreDryRun(BackupRestoreOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.BackupDirectory);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.TargetDirectory);
+
+        var errors = new List<string>();
+        var verification = options.VerifyBeforeRestore
+            ? Verify(options.BackupDirectory)
+            : new BackupVerificationResult(true, 0, Array.Empty<string>());
+        if (options.VerifyBeforeRestore && !verification.IsValid)
+            errors.AddRange(verification.Errors);
+
+        BackupManifest? manifest = null;
+        try
+        {
+            manifest = ReadManifest(options.BackupDirectory);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or InvalidDataException)
+        {
+            errors.Add(ex.Message);
+        }
+
+        if (manifest is not null && !options.VerifyBeforeRestore)
+            ValidateManifestForRestore(manifest, options.BackupDirectory, errors);
+
+        var target = EvaluateTargetDirectory(options.TargetDirectory, options.Overwrite);
+        if (!target.IsAllowed)
+            errors.Add($"恢复目标目录 '{Path.GetFullPath(options.TargetDirectory)}' 已存在且不允许覆盖。");
+
+        return new BackupRestoreDryRunResult(
+            errors.Count == 0,
+            verification,
+            manifest?.Files.Count ?? 0,
+            manifest?.Files.Sum(static f => f.SizeBytes) ?? 0,
+            manifest?.Indexes.Count ?? 0,
+            target.Exists,
+            target.Empty,
+            errors.AsReadOnly());
+    }
+
+    /// <summary>
     /// 将备份离线恢复到新的数据库目录。
     /// </summary>
     public BackupManifest Restore(BackupRestoreOptions options)
@@ -102,24 +156,124 @@ public sealed class BackupService
         ArgumentException.ThrowIfNullOrWhiteSpace(options.BackupDirectory);
         ArgumentException.ThrowIfNullOrWhiteSpace(options.TargetDirectory);
 
+        var dryRun = RestoreDryRun(options);
+        if (!dryRun.IsValid)
+            throw new InvalidDataException("恢复预检失败：" + string.Join("; ", dryRun.Errors));
+
         if (options.VerifyBeforeRestore)
         {
-            var verification = Verify(options.BackupDirectory);
-            if (!verification.IsValid)
-                throw new InvalidDataException("备份校验失败：" + string.Join("; ", verification.Errors));
+            if (!dryRun.Verification.IsValid)
+                throw new InvalidDataException("备份校验失败：" + string.Join("; ", dryRun.Verification.Errors));
         }
 
         var manifest = ReadManifest(options.BackupDirectory);
         PrepareTargetDirectory(options.TargetDirectory, options.Overwrite);
         foreach (var entry in manifest.Files)
         {
-            string source = Path.Combine(options.BackupDirectory, entry.Path);
-            string target = Path.Combine(options.TargetDirectory, entry.Path);
+            string source = ResolveManifestPath(options.BackupDirectory, entry.Path);
+            string target = ResolveManifestPath(options.TargetDirectory, entry.Path);
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             File.Copy(source, target, overwrite: true);
         }
 
         return manifest;
+    }
+
+    /// <summary>
+    /// 从恢复后的主数据同步补建派生索引。
+    /// </summary>
+    public BackupIndexRebuildResult RebuildIndexes(Tsdb tsdb)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+
+        var entries = new List<BackupIndexRebuildEntry>();
+        foreach (var schema in tsdb.Tables.Catalog.Snapshot())
+        {
+            foreach (var index in schema.Indexes)
+            {
+                try
+                {
+                    _ = tsdb.Tables.RebuildIndex(schema.Name, index.Name);
+                    entries.Add(new BackupIndexRebuildEntry(
+                        "table",
+                        schema.Name,
+                        index.Name,
+                        TableIndexKind(index),
+                        "rebuilt",
+                        "table index rebuilt from rowstore."));
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
+                {
+                    entries.Add(FailedIndex("table", schema.Name, index.Name, TableIndexKind(index), ex.Message));
+                }
+            }
+        }
+
+        foreach (var schema in tsdb.Documents.Catalog.Snapshot())
+        {
+            foreach (var index in schema.Indexes)
+            {
+                try
+                {
+                    _ = tsdb.Documents.RebuildIndex(schema.Name, index.Name);
+                    entries.Add(new BackupIndexRebuildEntry(
+                        "document",
+                        schema.Name,
+                        index.Name,
+                        "json_path",
+                        "rebuilt",
+                        "document JSON path index rebuilt from collection data."));
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
+                {
+                    entries.Add(FailedIndex("document", schema.Name, index.Name, "json_path", ex.Message));
+                }
+            }
+
+            foreach (var index in schema.FullTextIndexes)
+            {
+                try
+                {
+                    int documentCount = tsdb.Documents.RebuildFullTextIndex(schema.Name, index.Name);
+                    entries.Add(new BackupIndexRebuildEntry(
+                        "document",
+                        schema.Name,
+                        index.Name,
+                        "fulltext",
+                        "rebuilt",
+                        "document fulltext index rebuilt/touched from collection data.",
+                        documentCount));
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
+                {
+                    entries.Add(FailedIndex("document", schema.Name, index.Name, "fulltext", ex.Message));
+                }
+            }
+        }
+
+        foreach (var schema in tsdb.Measurements.Snapshot())
+        {
+            foreach (var column in schema.Columns)
+            {
+                if (column.DataType != FieldType.Vector || column.VectorIndex is null)
+                    continue;
+
+                entries.Add(new BackupIndexRebuildEntry(
+                    "measurement",
+                    schema.Name,
+                    column.Name,
+                    "vector:" + column.VectorIndex.Kind,
+                    "planned",
+                    "measurement vector index is maintained by Segment flush / compaction / restore lifecycle."));
+            }
+        }
+
+        return new BackupIndexRebuildResult(
+            entries.Count,
+            entries.Count(static entry => string.Equals(entry.Status, "rebuilt", StringComparison.Ordinal)),
+            entries.Count(static entry => string.Equals(entry.Status, "planned", StringComparison.Ordinal)),
+            entries.Count(static entry => string.Equals(entry.Status, "failed", StringComparison.Ordinal)),
+            entries.AsReadOnly());
     }
 
     internal BackupManifest CreateAfterCheckpoint(
@@ -256,7 +410,8 @@ public sealed class BackupService
                     index.Name,
                     index.Columns.ToArray(),
                     index.IsUnique,
-                    Rebuildable: true)).ToArray()))
+                    Rebuildable: true,
+                    JsonPath: index.JsonPath)).ToArray()))
             .ToArray();
 
         var openedKeyspaces = tsdb.Keyspaces.List()
@@ -290,7 +445,7 @@ public sealed class BackupService
                     "table",
                     schema.Name,
                     index.Name,
-                    index.IsUnique ? "unique_secondary" : "secondary",
+                    TableIndexKind(index),
                     Included: true,
                     Rebuildable: true,
                     RelativePath: null));
@@ -445,6 +600,14 @@ public sealed class BackupService
         Directory.CreateDirectory(target);
     }
 
+    private static RestoreTargetEvaluation EvaluateTargetDirectory(string target, bool overwrite)
+    {
+        bool exists = Directory.Exists(target);
+        bool empty = !exists || !Directory.EnumerateFileSystemEntries(target).Any();
+        bool allowed = !exists || (overwrite && empty);
+        return new RestoreTargetEvaluation(exists, empty, allowed);
+    }
+
     private static void WriteManifest(string destination, BackupManifest manifest)
     {
         string path = ManifestPath(destination);
@@ -468,11 +631,59 @@ public sealed class BackupService
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 
+    private static void ValidateManifestForRestore(
+        BackupManifest manifest,
+        string backupDirectory,
+        List<string> errors)
+    {
+        if (manifest.FormatVersion != BackupManifest.CurrentFormatVersion)
+            errors.Add($"Unsupported manifest format version {manifest.FormatVersion}.");
+
+        foreach (var entry in manifest.Files)
+        {
+            try
+            {
+                _ = ResolveManifestPath(backupDirectory, entry.Path);
+            }
+            catch (InvalidDataException ex)
+            {
+                errors.Add(ex.Message);
+            }
+        }
+    }
+
+    private static string ResolveManifestPath(string rootDirectory, string relativePath)
+    {
+        string normalized = NormalizeRelativePath(relativePath);
+        if (Path.IsPathRooted(normalized) || normalized.Split('/').Any(static part => part == ".."))
+            throw new InvalidDataException($"备份 manifest 包含不安全路径：{relativePath}");
+
+        string root = NormalizeFullDirectoryPath(rootDirectory);
+        string path = Path.GetFullPath(Path.Combine(root, normalized));
+        if (!path.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(path, root, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException($"备份 manifest 路径越界：{relativePath}");
+        }
+
+        return path;
+    }
+
+    private static string TableIndexKind(SonnetDB.Tables.TableIndex index)
+        => string.IsNullOrWhiteSpace(index.JsonPath)
+            ? index.IsUnique ? "unique_secondary" : "secondary"
+            : "json_path";
+
+    private static BackupIndexRebuildEntry FailedIndex(string model, string owner, string name, string kind, string message)
+        => new(model, owner, name, kind, "failed", message);
+
     private static string NormalizeRelativePath(string path)
         => path.Replace(Path.DirectorySeparatorChar, '/').Replace(Path.AltDirectorySeparatorChar, '/');
 
     private static string EncodeName(string name)
         => Convert.ToHexString(System.Text.Encoding.UTF8.GetBytes(name)).ToLowerInvariant();
+
+    private readonly record struct RestoreTargetEvaluation(bool Exists, bool Empty, bool IsAllowed);
 }
 
 internal static class BackupTsdbExtensions

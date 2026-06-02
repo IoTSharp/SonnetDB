@@ -47,7 +47,8 @@ public sealed record TableIndexInfo(
     List<string> Columns,
     bool IsUnique,
     DateTimeOffset CreatedUtc,
-    bool Rebuildable);
+    bool Rebuildable,
+    string? JsonPath = null);
 
 /// <summary>一个 JSON 文档集合的 schema 信息。</summary>
 public sealed record DocumentCollectionInfo(

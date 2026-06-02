@@ -59,10 +59,28 @@ sndb backup restore --path ./backups/metrics-20260602 --target ./data/metrics-re
 
 恢复总是写入一个新的数据库目录。目标目录不存在时自动创建；如果目录已存在，必须为空且显式指定 `--overwrite`。
 
+恢复前可以先做 dry-run。该命令会校验 manifest、文件 SHA-256 和目标目录策略，但不会复制文件：
+
+```bash
+sndb backup dry-run --path ./backups/metrics-20260602 --target ./data/metrics-restored
+```
+
 默认恢复前会先执行 `verify`。如需跳过校验：
 
 ```bash
 sndb backup restore --path ./backups/metrics-20260602 --target ./data/metrics-restored --no-verify
+```
+
+如果备份时排除了全文索引，或希望恢复后立即同步补建派生索引，可以使用：
+
+```bash
+sndb backup restore --path ./backups/metrics-20260602 --target ./data/metrics-restored --rebuild-indexes
+```
+
+也可以对已恢复目录单独执行：
+
+```bash
+sndb backup rebuild-indexes --path ./data/metrics-restored
 ```
 
 恢复后可以直接用本地连接打开：
@@ -76,14 +94,15 @@ sndb local --path ./data/metrics-restored --command "SHOW MEASUREMENTS"
 SonnetDB 备份 manifest 区分主数据和派生数据：
 
 - 必需数据：catalog、schema、WAL、segment、tombstone、KV/table/document 主数据。
-- 派生索引：document fulltext index、segment vector index、aggregate sketch 等会记录为可重建。
+- 同步可重建索引：table secondary / table JSON path index、document JSON path index。
+- 派生索引：document fulltext index、segment vector index、aggregate sketch 等会记录为可重建；全文索引可由 `backup rebuild-indexes` 同步补建，measurement vector index 仍按 Segment 生命周期返回 planned 状态。
 
 `sndb backup restore` 负责还原文件。服务端管理面还提供同一数据库下的 HTTP 维护入口：
 
 | Endpoint | 操作 | 说明 |
 | --- | --- | --- |
 | `POST /v1/db/{db}/maintenance` | `health_check` | 读取数据库健康摘要、segment / WAL / catalog / index 计数 |
-| `POST /v1/db/{db}/maintenance` | `rebuild_index` | 重建 table 二级索引和 document JSON path 索引，全文索引触发同步补建，向量索引返回 Segment 生命周期 planned 状态 |
+| `POST /v1/db/{db}/maintenance` | `rebuild_index` | 重建 table secondary / table JSON path / document JSON path 索引，全文索引触发同步补建，向量索引返回 Segment 生命周期 planned 状态 |
 | `POST /v1/db/{db}/maintenance` | `backup_verify` | 复用 manifest SHA-256 校验备份目录，仅 server admin 可调用 |
 | `POST /v1/db/{db}/maintenance` | `restore_dry_run` | 校验备份和目标目录策略但不复制文件，仅 server admin 可调用 |
 
