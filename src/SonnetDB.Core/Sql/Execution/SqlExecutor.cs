@@ -163,7 +163,9 @@ public static class SqlExecutor
             CreateDocumentCollectionStatement createDocumentCollection => DocumentSqlExecutor.ExecuteCreateCollection(tsdb, createDocumentCollection),
             CreateTableIndexStatement createIndex => TableSqlExecutor.ExecuteCreateIndex(tsdb, createIndex),
             CreateDocumentPathIndexStatement createDocumentIndex => DocumentSqlExecutor.ExecuteCreateIndex(tsdb, createDocumentIndex),
+            CreateTableJsonPathIndexStatement createTableJsonIndex => TableSqlExecutor.ExecuteCreateJsonPathIndex(tsdb, createTableJsonIndex),
             CreateFullTextIndexStatement createFullTextIndex => DocumentSqlExecutor.ExecuteCreateFullTextIndex(tsdb, createFullTextIndex),
+            ImportJsonStatement importJson => JsonFileSqlExecutor.ExecuteImport(tsdb, importJson),
             InsertStatement insert => ExecuteInsert(tsdb, insert, transaction),
             SelectStatement select => ExecuteSelect(tsdb, select),
             DeleteStatement delete => ExecuteDelete(tsdb, delete, transaction),
@@ -624,6 +626,12 @@ public static class SqlExecutor
         var tableSchema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
         if (statement.Join is not null)
             return JoinSqlExecutor.Execute(tsdb, statement);
+        if (statement.TableValuedFunction is FunctionCallExpression { Name: var tvfName }
+            && (string.Equals(tvfName, "json_each", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(tvfName, "json_table", StringComparison.OrdinalIgnoreCase)))
+        {
+            return TableValuedFunctionExecutor.Execute(tsdb, statement);
+        }
         if (HybridSearchExecutor.IsHybridSearch(statement))
             return HybridSearchExecutor.Execute(tsdb, statement);
 

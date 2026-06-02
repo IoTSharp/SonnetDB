@@ -180,6 +180,79 @@ DROP DOCUMENT COLLECTION device_docs;
 - `id = '...'` 会走文档 ID 读取；其它条件走集合扫描后过滤。
 - 第一版不提供 MongoDB 兼容 API、跨文档复杂事务或 JSON schema 校验。
 
+### JSON 文件虚拟表与导入
+
+MM5 第二批支持把本地 JSON 文件作为只读虚拟表查询，或导入到 document collection / 关系表。JSON 文件能力用于临时查询、迁移和批量导入；导入完成后的主数据仍由 SonnetDB 的 document collection 或 table 托管。
+
+```sql
+SELECT id,
+       json_value(document, '$.site') AS site
+FROM json_each('/data/devices.json', 'array', '$.id')
+WHERE json_value(document, '$.enabled') = TRUE;
+
+EXPLAIN SELECT id FROM json_each('/data/devices.ndjson', 'lines');
+```
+
+`json_each(...)` 和兼容别名 `json_table(...)` 暴露三列：
+
+- `ordinal`：文件内从 0 开始的行号。
+- `id`：默认读取 `$.id`；也可用第 3 个参数指定 ID path；缺失时使用 `ordinal`。
+- `document`：规范化后的紧凑 JSON 文本。
+
+导入语法：
+
+```sql
+CREATE DOCUMENT COLLECTION device_docs;
+IMPORT JSON '/data/devices.ndjson'
+INTO device_docs
+FORMAT LINES
+ID PATH '$.device.id';
+
+CREATE TABLE devices (
+  id INT,
+  name STRING,
+  metadata JSON,
+  PRIMARY KEY (id)
+);
+
+IMPORT JSON '/data/devices.json'
+INTO devices
+FORMAT ARRAY;
+```
+
+当前行为：
+
+- 格式支持 `AUTO`、`ARRAY` 和 `LINES`；`AUTO` 会识别顶层数组 / 单对象 / JSON Lines。
+- 导入 document collection 时每条记录整体写入 `document`，ID 来自 `ID PATH`、默认 `$.id` 或 `ordinal`。
+- 导入 table 时要求每条记录是对象，并按列名映射到表列；对象 / 数组可写入 `JSON` 列。
+- JSON 文件虚拟表不维护索引；`EXPLAIN` 的 `access_path` 显示 `json_file_virtual_table`。
+
+### 关系表 JSON path 索引
+
+关系表 `JSON` 列也支持基础 path 等值索引：
+
+```sql
+CREATE TABLE devices (
+  id INT,
+  metadata JSON,
+  PRIMARY KEY (id)
+);
+
+CREATE JSON INDEX idx_devices_site
+ON devices (metadata, '$.site');
+
+SELECT id
+FROM devices
+WHERE json_value(metadata, '$.site') = 'north';
+```
+
+当前行为：
+
+- 关系表 JSON path 索引只能引用一个 `JSON` 列和一个 JSON path。
+- 仅支持 `json_value(json_col, '$.path') = literal` 形式的等值下推；其它谓词仍会扫描过滤。
+- path 缺失或结果为 `null` 的行不写入 path 索引。
+- `SHOW INDEXES ON <table>` 的 `columns` 会显示为 `json_col->$.path`；`EXPLAIN` 的 `access_path` 会显示 `json_path_index`。
+
 ### 文档全文索引
 
 MM6 第一批把 DotSearch 接入 JSON 文档集合，全文索引是从 document collection 主数据派生出的可重建索引。当前实现的索引目录由 SonnetDB 托管在 `documents/fulltext/` 下，主数据仍以文档集合为准。
@@ -572,7 +645,7 @@ EXPLAIN DESCRIBE MEASUREMENT cpu;
 - `DESCRIBE DOCUMENT COLLECTION <name>`
 
 当前不支持对 `INSERT`、`DELETE`、`CREATE`、`DROP`、用户/授权/Token 控制面 SQL 做 `EXPLAIN`。
-返回字段包括 `database`、`statement_type`、`measurement`、`matched_series_count`、`estimated_segment_count`、`estimated_block_count`、`estimated_scanned_rows`、`estimated_memtable_rows`、`estimated_segment_rows`、`has_time_filter`、`tag_filter_count`、`access_path` 与 `index_name`。关系表查询的 `access_path` 可能是 `primary_key`、`secondary_index` 或 `table_scan`；文档集合查询可能是 `document_id`、`json_path_index`、`fulltext_index` 或 `document_scan`。
+返回字段包括 `database`、`statement_type`、`measurement`、`matched_series_count`、`estimated_segment_count`、`estimated_block_count`、`estimated_scanned_rows`、`estimated_memtable_rows`、`estimated_segment_rows`、`has_time_filter`、`tag_filter_count`、`access_path` 与 `index_name`。关系表查询的 `access_path` 可能是 `primary_key`、`secondary_index`、`json_path_index` 或 `table_scan`；文档集合查询可能是 `document_id`、`json_path_index`、`fulltext_index` 或 `document_scan`；JSON 文件虚拟表会显示 `json_file_virtual_table`。
 
 ## 控制面 SQL
 

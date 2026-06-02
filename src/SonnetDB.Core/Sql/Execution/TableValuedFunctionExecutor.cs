@@ -31,8 +31,9 @@ internal static class TableValuedFunctionExecutor
         {
             "forecast" => ExecuteForecast(tsdb, statement, call),
             "knn" => ExecuteKnn(tsdb, statement, call),
+            "json_each" or "json_table" => JsonFileSqlExecutor.ExecuteTableValuedFunction(statement, call),
             _ => throw new InvalidOperationException(
-                $"未知表值函数 '{call.Name}'；当前 FROM 子句支持 forecast(...) / knn(...) 及通过 Tsdb.Functions 注册的 UDF。"),
+                $"未知表值函数 '{call.Name}'；当前 FROM 子句支持 forecast(...) / knn(...) / json_each(...) 及通过 Tsdb.Functions 注册的 UDF。"),
         };
     }
 

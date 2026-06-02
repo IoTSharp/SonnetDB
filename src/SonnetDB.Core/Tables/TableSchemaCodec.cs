@@ -17,7 +17,7 @@ public static class TableSchemaCodec
     private static readonly byte[] _magic = "SDBTBLv1"u8.ToArray();
     private static readonly Encoding _utf8 = Encoding.UTF8;
 
-    private const int _formatVersion = 2;
+    private const int _formatVersion = 3;
     private const int _headerSize = 32;
     private const int _footerSize = 16;
 
@@ -164,7 +164,7 @@ public static class TableSchemaCodec
             crc.Append(countBuffer);
             int indexCount = BinaryPrimitives.ReadUInt16LittleEndian(countBuffer);
             for (int i = 0; i < indexCount; i++)
-                indexes.Add(ReadIndex(source, crc, tableIndex, i));
+                indexes.Add(ReadIndex(source, crc, tableIndex, i, version));
         }
 
         return TableSchema.Create(name, columns, primaryKey, indexes, createdAt);
@@ -238,6 +238,10 @@ public static class TableSchemaCodec
             }
 
             indexColumnNameLengths[i] = columnLengths;
+            int jsonPathLength = string.IsNullOrEmpty(index.JsonPath) ? 0 : _utf8.GetByteCount(index.JsonPath);
+            if (jsonPathLength > ushort.MaxValue)
+                throw new InvalidDataException($"Table '{schema.Name}' 的索引 '{index.Name}' JSON path 过长。");
+            totalSize += 2 + jsonPathLength;
         }
 
         byte[] buffer = ArrayPool<byte>.Shared.Rent(totalSize);
@@ -282,6 +286,18 @@ public static class TableSchemaCodec
                     int columnWritten = _utf8.GetBytes(index.Columns[c], writer.FreeSpan);
                     writer.Advance(columnWritten);
                 }
+
+                if (string.IsNullOrEmpty(index.JsonPath))
+                {
+                    writer.WriteUInt16(0);
+                }
+                else
+                {
+                    int jsonPathLength = _utf8.GetByteCount(index.JsonPath);
+                    writer.WriteUInt16((ushort)jsonPathLength);
+                    int pathWritten = _utf8.GetBytes(index.JsonPath, writer.FreeSpan);
+                    writer.Advance(pathWritten);
+                }
             }
 
             crc.Append(buffer.AsSpan(0, totalSize));
@@ -293,7 +309,7 @@ public static class TableSchemaCodec
         }
     }
 
-    private static TableIndexDefinition ReadIndex(Stream source, Crc32 crc, int tableIndex, int indexIndex)
+    private static TableIndexDefinition ReadIndex(Stream source, Crc32 crc, int tableIndex, int indexIndex, int version)
     {
         string indexName = ReadString(source, crc, $"table {tableIndex} index {indexIndex} name");
 
@@ -318,7 +334,15 @@ public static class TableSchemaCodec
         for (int i = 0; i < columnCount; i++)
             columns.Add(ReadString(source, crc, $"table {tableIndex} index {indexIndex} column {i} name"));
 
-        return new TableIndexDefinition(indexName, columns.AsReadOnly(), isUnique, createdAt);
+        string? jsonPath = null;
+        if (version >= 3)
+        {
+            string rawPath = ReadString(source, crc, $"table {tableIndex} index {indexIndex} jsonPath");
+            if (!string.IsNullOrWhiteSpace(rawPath))
+                jsonPath = rawPath;
+        }
+
+        return new TableIndexDefinition(indexName, columns.AsReadOnly(), isUnique, createdAt, jsonPath);
     }
 
     private static string ReadString(Stream source, Crc32 crc, string description)

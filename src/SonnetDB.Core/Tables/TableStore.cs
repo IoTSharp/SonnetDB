@@ -106,11 +106,13 @@ public sealed class TableStore : IDisposable
                 var row = new TableRow(values.ToArray(), primaryKey);
                 foreach (var index in schema.Indexes.Where(static i => i.IsUnique))
                 {
-                    byte[] indexKey = TableIndexCodec.EncodeIndexEntryKey(index, row.Values, schema, primaryKey);
+                    byte[]? indexKey = TableIndexCodec.TryEncodeIndexEntryKey(index, row.Values, schema, primaryKey);
+                    if (indexKey is null)
+                        continue;
                     string uniqueKey = index.Name + ":" + Convert.ToHexString(indexKey);
                     if (!pendingUniqueKeys.Add(uniqueKey))
                         throw new InvalidOperationException($"唯一索引 '{index.Name}' 冲突。");
-                    byte[] prefix = TableIndexCodec.EncodeIndexPrefix(index, row.Values, schema);
+                    byte[] prefix = TableIndexCodec.TryEncodeIndexPrefix(index, row.Values, schema)!;
                     foreach (var entry in _keyspace.ScanPrefix(prefix))
                     {
                         if (entry.Key.Span.SequenceEqual(indexKey))
@@ -295,15 +297,9 @@ public sealed class TableStore : IDisposable
             if (indexColumnValues.Count != index.Columns.Count)
                 throw new ArgumentException("索引值数量与索引列数量不一致。", nameof(indexColumnValues));
 
-            var values = new object?[schema.Columns.Count];
-            for (int i = 0; i < index.Columns.Count; i++)
-            {
-                var column = schema.TryGetColumn(index.Columns[i])
-                    ?? throw new InvalidOperationException($"索引 '{index.Name}' 引用了未知列 '{index.Columns[i]}'。");
-                values[column.Ordinal] = indexColumnValues[i];
-            }
-
-            byte[] prefix = TableIndexCodec.EncodeIndexPrefix(index, values, schema);
+            byte[]? prefix = TableIndexCodec.EncodeLookupPrefix(index, indexColumnValues, schema);
+            if (prefix is null)
+                return [];
             var entries = _keyspace.ScanPrefix(prefix, limit ?? int.MaxValue);
             var rows = new List<TableRow>(entries.Count);
             foreach (var entry in entries)
@@ -379,14 +375,18 @@ public sealed class TableStore : IDisposable
 
         foreach (var index in schema.Indexes.Where(static i => i.IsUnique))
         {
-            byte[] prefix = TableIndexCodec.EncodeIndexPrefix(index, operation.NewRow.Values, schema);
+            byte[]? prefix = TableIndexCodec.TryEncodeIndexPrefix(index, operation.NewRow.Values, schema);
+            if (prefix is null)
+                continue;
             foreach (var entry in _keyspace.ScanPrefix(prefix))
             {
-                byte[] indexKey = TableIndexCodec.EncodeIndexEntryKey(
+                byte[]? indexKey = TableIndexCodec.TryEncodeIndexEntryKey(
                     index,
                     operation.NewRow.Values,
                     schema,
                     operation.NewRow.PrimaryKey.Span);
+                if (indexKey is null)
+                    continue;
                 if (!entry.Key.Span.SequenceEqual(indexKey))
                     continue;
 
@@ -406,7 +406,9 @@ public sealed class TableStore : IDisposable
         string primaryKeyText = Convert.ToHexString(row.PrimaryKey.Span);
         foreach (var index in schema.Indexes.Where(static i => i.IsUnique))
         {
-            byte[] key = TableIndexCodec.EncodeIndexEntryKey(index, row.Values, schema, row.PrimaryKey.Span);
+            byte[]? key = TableIndexCodec.TryEncodeIndexEntryKey(index, row.Values, schema, row.PrimaryKey.Span);
+            if (key is null)
+                continue;
             string scopedKey = index.Name + ":" + Convert.ToHexString(key);
             if (pendingUniqueKeys.TryGetValue(scopedKey, out var existingPrimaryKey)
                 && !string.Equals(existingPrimaryKey, primaryKeyText, StringComparison.Ordinal))
@@ -483,7 +485,9 @@ public sealed class TableStore : IDisposable
         var entries = new List<IndexEntry>(schema.Indexes.Count);
         foreach (var index in schema.Indexes)
         {
-            byte[] key = TableIndexCodec.EncodeIndexEntryKey(index, row.Values, schema, row.PrimaryKey.Span);
+            byte[]? key = TableIndexCodec.TryEncodeIndexEntryKey(index, row.Values, schema, row.PrimaryKey.Span);
+            if (key is null)
+                continue;
             byte[] value = TableIndexCodec.EncodeIndexEntryValue(row.PrimaryKey.Span);
             entries.Add(new IndexEntry(key, value));
         }

@@ -49,6 +49,18 @@ public sealed class SqlExecutorTableTests : IDisposable
     }
 
     [Fact]
+    public void ParseCreateJsonIndex_OnTable_ReturnsAst()
+    {
+        var stmt = Assert.IsType<CreateTableJsonPathIndexStatement>(SqlParser.Parse(
+            "CREATE JSON INDEX idx_devices_site ON devices (metadata, '$.site')"));
+
+        Assert.Equal("idx_devices_site", stmt.IndexName);
+        Assert.Equal("devices", stmt.TableName);
+        Assert.Equal("metadata", stmt.JsonColumnName);
+        Assert.Equal("$.site", stmt.Path);
+    }
+
+    [Fact]
     public void CreateShowDescribeTable_PersistsAcrossReopen()
     {
         using (var db = Tsdb.Open(Options()))
@@ -198,6 +210,50 @@ public sealed class SqlExecutorTableTests : IDisposable
         {
             var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened,
                 "SELECT id FROM devices WHERE tenant = 'south'"));
+            Assert.Equal(2L, result.Rows.Single()[0]);
+        }
+    }
+
+    [Fact]
+    public void CreateJsonPathIndex_OnTable_PersistsAndSelectUsesIndex()
+    {
+        using (var db = Tsdb.Open(Options()))
+        {
+            SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, metadata JSON, PRIMARY KEY (id))");
+            SqlExecutor.Execute(db, """
+                INSERT INTO devices (id, metadata)
+                VALUES (1, '{"site":"north","metrics":{"temp":21.5}}'),
+                       (2, '{"site":"south","metrics":{"temp":18}}'),
+                       (3, '{"site":"north","metrics":{"temp":20}}')
+                """);
+            SqlExecutor.Execute(db, "CREATE JSON INDEX idx_devices_site ON devices (metadata, '$.site')");
+
+            var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+                SELECT id, json_value(metadata, '$.metrics.temp') AS temp
+                FROM devices
+                WHERE json_value(metadata, '$.site') = 'north'
+                ORDER BY id
+                """));
+            Assert.Equal([1L, 3L], result.Rows.Select(static r => (long)r[0]!).ToArray());
+
+            var indexes = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+                "SHOW INDEXES ON devices"));
+            Assert.Equal("idx_devices_site", indexes.Rows.Single()[0]);
+            Assert.Equal("metadata->$.site", indexes.Rows.Single()[2]);
+
+            var explain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+                EXPLAIN SELECT id FROM devices WHERE json_value(metadata, '$.site') = 'north'
+                """));
+            var values = explain.Rows.ToDictionary(static r => (string)r[0]!, static r => r[1], StringComparer.Ordinal);
+            Assert.Equal("json_path_index", values["access_path"]);
+            Assert.Equal("idx_devices_site", values["index_name"]);
+        }
+
+        using (var reopened = Tsdb.Open(Options()))
+        {
+            var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened, """
+                SELECT id FROM devices WHERE json_value(metadata, '$.site') = 'south'
+                """));
             Assert.Equal(2L, result.Rows.Single()[0]);
         }
     }

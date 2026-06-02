@@ -65,6 +65,41 @@ public sealed record CreateDocumentPathIndexStatement(
     bool IfNotExists = false) : SqlStatement;
 
 /// <summary>
+/// <c>CREATE JSON INDEX [IF NOT EXISTS] index_name ON table_name (json_col, '$.path')</c>。
+/// </summary>
+/// <param name="IndexName">索引名。</param>
+/// <param name="TableName">目标关系表名。</param>
+/// <param name="JsonColumnName">JSON 列名。</param>
+/// <param name="Path">JSON path 表达式。</param>
+/// <param name="IfNotExists">索引已存在时是否视为成功。</param>
+public sealed record CreateTableJsonPathIndexStatement(
+    string IndexName,
+    string TableName,
+    string JsonColumnName,
+    string Path,
+    bool IfNotExists = false) : SqlStatement;
+
+/// <summary>
+/// <c>IMPORT JSON 'file.json' INTO target [FORMAT AUTO|ARRAY|LINES] [ID PATH '$.id']</c>。
+/// </summary>
+public sealed record ImportJsonStatement(
+    string FilePath,
+    string TargetName,
+    JsonImportFormat Format = JsonImportFormat.Auto,
+    string? IdPath = null) : SqlStatement;
+
+/// <summary>JSON 文件导入格式。</summary>
+public enum JsonImportFormat
+{
+    /// <summary>自动识别 JSON array / JSON Lines / 单对象。</summary>
+    Auto,
+    /// <summary>顶层 JSON array。</summary>
+    Array,
+    /// <summary>JSON Lines / NDJSON。</summary>
+    Lines,
+}
+
+/// <summary>
 /// <c>CREATE FULLTEXT INDEX [IF NOT EXISTS] index_name ON collection_name (field, ...) [USING tokenizer]</c>。
 /// </summary>
 /// <param name="IndexName">索引名。</param>

@@ -60,6 +60,27 @@ internal static class TableSqlExecutor
             new TableIndexDefinition(statement.IndexName, statement.Columns, statement.IsUnique));
     }
 
+    public static TableIndex ExecuteCreateJsonPathIndex(Tsdb tsdb, CreateTableJsonPathIndexStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        var schema = tsdb.Tables.Catalog.TryGet(statement.TableName)
+            ?? throw new InvalidOperationException($"table '{statement.TableName}' 不存在。");
+        if (statement.IfNotExists && schema.TryGetIndex(statement.IndexName) is { } existing)
+            return existing;
+
+        var column = schema.TryGetColumn(statement.JsonColumnName)
+            ?? throw new InvalidOperationException($"table '{statement.TableName}' 中不存在列 '{statement.JsonColumnName}'。");
+        if (column.DataType != TableColumnType.Json)
+            throw new InvalidOperationException($"JSON path 索引列 '{statement.JsonColumnName}' 必须是 JSON 类型。");
+
+        var path = JsonPath.Parse(statement.Path);
+        return tsdb.Tables.CreateIndex(
+            statement.TableName,
+            new TableIndexDefinition(statement.IndexName, [statement.JsonColumnName], IsUnique: false, JsonPath: path.Text));
+    }
+
     public static RowsAffectedExecutionResult ExecuteDropTable(Tsdb tsdb, DropTableStatement statement)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
@@ -333,7 +354,7 @@ internal static class TableSqlExecutor
             {
                 index.Name,
                 index.IsUnique,
-                string.Join(",", index.Columns),
+                FormatIndexColumns(index),
                 new DateTime(index.CreatedAtUtcTicks, DateTimeKind.Utc).ToString("o", CultureInfo.InvariantCulture),
             });
         }
@@ -503,11 +524,23 @@ internal static class TableSqlExecutor
         if (where is null || schema.Indexes.Count == 0)
             return false;
 
-        if (!TryCollectEqualityExpressions(where, allowNonEquality: true, out var equalityByColumn))
-            return false;
-
         foreach (var candidate in schema.Indexes.OrderByDescending(static i => i.Columns.Count))
         {
+            if (!string.IsNullOrWhiteSpace(candidate.JsonPath))
+            {
+                if (TryExtractJsonPathIndexValue(candidate, where, out var jsonPathValue))
+                {
+                    index = candidate;
+                    indexValues = [jsonPathValue];
+                    return true;
+                }
+
+                continue;
+            }
+
+            if (!TryCollectEqualityExpressions(where, allowNonEquality: true, out var equalityByColumn))
+                return false;
+
             var values = new object?[candidate.Columns.Count];
             var matched = true;
             for (int i = 0; i < candidate.Columns.Count; i++)
@@ -540,6 +573,87 @@ internal static class TableSqlExecutor
         }
 
         return false;
+    }
+
+    private static bool TryExtractJsonPathIndexValue(
+        TableIndex index,
+        SqlExpression? where,
+        out object? value)
+    {
+        value = null;
+        if (where is null || string.IsNullOrWhiteSpace(index.JsonPath) || index.Columns.Count != 1)
+            return false;
+
+        foreach (var leaf in FlattenAnd(where))
+        {
+            if (leaf is not BinaryExpression { Operator: SqlBinaryOperator.Equal } binary)
+                continue;
+
+            if (!TryExtractJsonValueComparison(binary, out var columnName, out var path, out var literalValue))
+                continue;
+
+            if (string.Equals(columnName, index.Columns[0], StringComparison.Ordinal)
+                && string.Equals(path.Text, index.JsonPath, StringComparison.Ordinal))
+            {
+                value = literalValue;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryExtractJsonValueComparison(
+        BinaryExpression binary,
+        out string columnName,
+        out JsonPath path,
+        out object? literalValue)
+    {
+        columnName = string.Empty;
+        path = null!;
+        literalValue = null;
+        if (TryBindJsonValue(binary.Left, out columnName, out path) && TryEvaluateLiteral(binary.Right, out literalValue))
+            return true;
+        if (TryBindJsonValue(binary.Right, out columnName, out path) && TryEvaluateLiteral(binary.Left, out literalValue))
+            return true;
+        return false;
+    }
+
+    private static bool TryBindJsonValue(SqlExpression expression, out string columnName, out JsonPath path)
+    {
+        columnName = string.Empty;
+        path = null!;
+        if (expression is not FunctionCallExpression
+            {
+                Name: var name,
+                IsStar: false,
+                Arguments.Count: 2,
+                Arguments: [IdentifierExpression jsonColumn, LiteralExpression { Kind: SqlLiteralKind.String, StringValue: var pathText }]
+            }
+            || !string.Equals(name, "json_value", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        try
+        {
+            path = JsonPath.Parse(pathText!);
+            columnName = jsonColumn.Name;
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    private static bool TryEvaluateLiteral(SqlExpression expression, out object? value)
+    {
+        value = null;
+        if (expression is not LiteralExpression literal)
+            return false;
+        value = EvaluateLiteral(literal);
+        return true;
     }
 
     private static bool TryCollectEqualityExpressions(
@@ -810,6 +924,11 @@ internal static class TableSqlExecutor
         SqlLiteralKind.String => literal.StringValue,
         _ => throw new InvalidOperationException($"不支持的字面量类型 {literal.Kind}。"),
     };
+
+    private static string FormatIndexColumns(TableIndex index)
+        => string.IsNullOrWhiteSpace(index.JsonPath)
+            ? string.Join(",", index.Columns)
+            : $"{index.Columns[0]}->{index.JsonPath}";
 
     private static object NegateLiteral(LiteralExpression literal) => literal.Kind switch
     {

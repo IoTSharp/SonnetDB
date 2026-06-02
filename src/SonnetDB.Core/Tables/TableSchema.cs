@@ -139,7 +139,7 @@ public sealed class TableSchema
             throw new InvalidOperationException($"table '{Name}' 中索引 '{definition.Name}' 已存在。");
 
         var definitions = Indexes
-            .Select(static i => new TableIndexDefinition(i.Name, i.Columns, i.IsUnique, i.CreatedAtUtcTicks))
+            .Select(static i => new TableIndexDefinition(i.Name, i.Columns, i.IsUnique, i.CreatedAtUtcTicks, i.JsonPath))
             .Append(definition)
             .ToArray();
         return Create(
@@ -163,7 +163,7 @@ public sealed class TableSchema
 
         var definitions = Indexes
             .Where(i => !string.Equals(i.Name, indexName, StringComparison.Ordinal))
-            .Select(static i => new TableIndexDefinition(i.Name, i.Columns, i.IsUnique, i.CreatedAtUtcTicks))
+            .Select(static i => new TableIndexDefinition(i.Name, i.Columns, i.IsUnique, i.CreatedAtUtcTicks, i.JsonPath))
             .ToArray();
         return Create(
             Name,
@@ -193,6 +193,8 @@ public sealed class TableSchema
                 throw new ArgumentException($"关系表 '{tableName}' 中索引 '{index.Name}' 重复。", nameof(indexes));
             if (index.Columns.Count == 0)
                 throw new ArgumentException($"索引 '{index.Name}' 至少需要 1 个列。", nameof(indexes));
+            if (!string.IsNullOrWhiteSpace(index.JsonPath) && index.Columns.Count != 1)
+                throw new ArgumentException($"JSON path 索引 '{index.Name}' 只能引用 1 个 JSON 列。", nameof(indexes));
 
             var seenIndexColumns = new HashSet<string>(StringComparer.Ordinal);
             var indexColumns = new List<string>(index.Columns.Count);
@@ -211,11 +213,19 @@ public sealed class TableSchema
                 indexColumns.Add(column);
             }
 
+            if (!string.IsNullOrWhiteSpace(index.JsonPath))
+            {
+                var column = columns.First(c => string.Equals(c.Name, index.Columns[0], StringComparison.Ordinal));
+                if (column.DataType != TableColumnType.Json)
+                    throw new ArgumentException($"JSON path 索引 '{index.Name}' 的列 '{column.Name}' 必须是 JSON 类型。", nameof(indexes));
+            }
+
             result.Add(new TableIndex(
                 index.Name,
                 indexColumns.AsReadOnly(),
                 index.IsUnique,
-                index.CreatedAtUtcTicks == 0 ? DateTime.UtcNow.Ticks : index.CreatedAtUtcTicks));
+                index.CreatedAtUtcTicks == 0 ? DateTime.UtcNow.Ticks : index.CreatedAtUtcTicks,
+                index.JsonPath));
         }
 
         return result;

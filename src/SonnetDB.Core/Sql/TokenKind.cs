@@ -62,6 +62,12 @@ public enum TokenKind
     KeywordCollections,
     KeywordInsert,
     KeywordInto,
+    /// <summary>IMPORT JSON 文件导入。</summary>
+    KeywordImport,
+    /// <summary>FORMAT 导入格式声明。</summary>
+    KeywordFormat,
+    /// <summary>PATH 导入 ID path 声明。</summary>
+    KeywordPath,
     KeywordValues,
     KeywordSelect,
     KeywordFrom,

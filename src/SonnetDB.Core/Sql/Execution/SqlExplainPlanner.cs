@@ -368,11 +368,32 @@ public static class SqlExplainPlanner
         }
 
         if (statement.TableValuedFunction is FunctionCallExpression { Name: var tvfName }
-            && !string.Equals(tvfName, "forecast", StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(tvfName, "knn", StringComparison.OrdinalIgnoreCase))
+            && (string.Equals(tvfName, "json_each", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(tvfName, "json_table", StringComparison.OrdinalIgnoreCase)))
+        {
+            var (accessPath, indexName, rowCount) = JsonFileSqlExecutor.ExplainAccess(statement);
+            return new SqlExplainExecutionResult(
+                Database: databaseName,
+                StatementType: "json_file_virtual_table",
+                Measurement: statement.Measurement,
+                MatchedSeriesCount: 0,
+                EstimatedSegmentCount: 0,
+                EstimatedBlockCount: 0,
+                EstimatedScannedRows: rowCount,
+                EstimatedMemTableRows: rowCount,
+                EstimatedSegmentRows: 0,
+                HasTimeFilter: statement.Where is not null,
+                TagFilterCount: 0,
+                AccessPath: accessPath,
+                IndexName: indexName);
+        }
+
+        if (statement.TableValuedFunction is FunctionCallExpression { Name: var otherTvfName }
+            && !string.Equals(otherTvfName, "forecast", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(otherTvfName, "knn", StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
-                $"EXPLAIN 暂不支持表值函数 '{tvfName}'；当前仅支持普通 SELECT、forecast(...) 与 knn(...)。");
+                $"EXPLAIN 暂不支持表值函数 '{otherTvfName}'；当前仅支持普通 SELECT、forecast(...) 与 knn(...)。");
         }
 
         var schema = tsdb.Measurements.TryGet(statement.Measurement)
@@ -432,7 +453,9 @@ public static class SqlExplainPlanner
         SqlExpression? where)
     {
         if (TableSqlExecutor.ChooseBestIndexForWhere(schema, where, out var values) is { } index)
-            return ("secondary_index", index.Name, store.GetByIndex(index, values).Count);
+            return (string.IsNullOrWhiteSpace(index.JsonPath) ? "secondary_index" : "json_path_index",
+                index.Name,
+                store.GetByIndex(index, values).Count);
 
         if (TryHasPrimaryKeyFilter(schema, where))
             return ("primary_key", "primary", values.Count == 0 ? 0 : 1);

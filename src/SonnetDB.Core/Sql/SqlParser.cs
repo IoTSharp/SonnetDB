@@ -69,6 +69,7 @@ public sealed class SqlParser
             TokenKind.KeywordCommit => ParseCommit(),
             TokenKind.KeywordRollback => ParseRollback(),
             TokenKind.KeywordInsert => ParseInsert(),
+            TokenKind.KeywordImport => ParseImport(),
             TokenKind.KeywordSelect => ParseSelect(),
             TokenKind.KeywordDelete => ParseDelete(),
             TokenKind.KeywordUpdate => ParseUpdate(),
@@ -81,7 +82,7 @@ public sealed class SqlParser
             TokenKind.KeywordIssue => ParseIssue(),
             TokenKind.KeywordDescribe => ParseDescribe(),
             TokenKind.KeywordDesc => ParseDescribe(),
-            _ => throw Error("期望 CREATE / INSERT / SELECT / DELETE / UPDATE / DROP / ALTER / GRANT / REVOKE / SHOW / EXPLAIN / ISSUE / DESCRIBE / BEGIN / COMMIT / ROLLBACK 关键字"),
+            _ => throw Error("期望 CREATE / INSERT / IMPORT / SELECT / DELETE / UPDATE / DROP / ALTER / GRANT / REVOKE / SHOW / EXPLAIN / ISSUE / DESCRIBE / BEGIN / COMMIT / ROLLBACK 关键字"),
         };
     }
 
@@ -148,7 +149,7 @@ public sealed class SqlParser
         return new CreateDocumentCollectionStatement(ExpectIdentifierName(), ifNotExists);
     }
 
-    private CreateDocumentPathIndexStatement ParseCreateJsonBody()
+    private SqlStatement ParseCreateJsonBody()
     {
         Expect(TokenKind.KeywordJson);
         if (Current.Kind == TokenKind.KeywordIndex || IsIdentifier("index"))
@@ -173,9 +174,22 @@ public sealed class SqlParser
         Expect(TokenKind.KeywordOn);
         var collectionName = ExpectIdentifierName();
         Expect(TokenKind.LeftParen);
-        var path = ExpectStringLiteral();
+        string? columnName = null;
+        string path;
+        if (Current.Kind == TokenKind.StringLiteral)
+        {
+            path = ExpectStringLiteral();
+        }
+        else
+        {
+            columnName = ExpectColumnName();
+            Expect(TokenKind.Comma);
+            path = ExpectStringLiteral();
+        }
         Expect(TokenKind.RightParen);
-        return new CreateDocumentPathIndexStatement(indexName, collectionName, path, ifNotExists);
+        return columnName is null
+            ? new CreateDocumentPathIndexStatement(indexName, collectionName, path, ifNotExists)
+            : new CreateTableJsonPathIndexStatement(indexName, collectionName, columnName, path, ifNotExists);
     }
 
     private CreateFullTextIndexStatement ParseCreateFullTextBody()
@@ -710,6 +724,51 @@ public sealed class SqlParser
         return new InsertStatement(measurement, columns, rows);
     }
 
+    private ImportJsonStatement ParseImport()
+    {
+        Expect(TokenKind.KeywordImport);
+        Expect(TokenKind.KeywordJson);
+        var filePath = ExpectStringLiteral();
+        Expect(TokenKind.KeywordInto);
+        var targetName = ExpectIdentifierName();
+
+        var format = JsonImportFormat.Auto;
+        string? idPath = null;
+        while (Current.Kind is not TokenKind.EndOfFile and not TokenKind.Semicolon)
+        {
+            if (Current.Kind == TokenKind.KeywordFormat)
+            {
+                Advance();
+                format = ParseJsonImportFormat();
+                continue;
+            }
+
+            if (IsIdentifier("id"))
+            {
+                Advance();
+                Expect(TokenKind.KeywordPath);
+                idPath = ExpectStringLiteral();
+                continue;
+            }
+
+            throw Error("IMPORT JSON 后面仅支持 FORMAT <AUTO|ARRAY|LINES> 或 ID PATH '$.path'");
+        }
+
+        return new ImportJsonStatement(filePath, targetName, format, idPath);
+    }
+
+    private JsonImportFormat ParseJsonImportFormat()
+    {
+        var name = ExpectIdentifierName();
+        return name.ToLowerInvariant() switch
+        {
+            "auto" => JsonImportFormat.Auto,
+            "array" => JsonImportFormat.Array,
+            "lines" or "ndjson" or "jsonl" => JsonImportFormat.Lines,
+            _ => throw Error("IMPORT JSON FORMAT 仅支持 AUTO / ARRAY / LINES"),
+        };
+    }
+
     private IReadOnlyList<SqlExpression> ParseValueRow(int expectedColumnCount)
     {
         var rowStart = Current.Position;
@@ -738,7 +797,7 @@ public sealed class SqlParser
 
         // FROM 后允许两种形式：
         //   1) 普通 measurement/table 标识符
-        //   2) 表值函数调用，例如 forecast(measurement, field, horizon, 'algo'[, season])
+        //   2) 表值函数调用，例如 forecast(...) / knn(...) / json_each('file.json')
         string measurement;
         string? tableAlias = null;
         JoinClause? join = null;
@@ -753,10 +812,17 @@ public sealed class SqlParser
             if (fnCall is not FunctionCallExpression call || call.IsStar)
                 throw Error("FROM 子句的表值函数调用非法");
             tvf = call;
-            // 第一个参数通常是 source measurement 标识符；MM8 hybrid_search 也支持 source => docs 命名参数。
-            if (call.Arguments.Count == 0)
-                throw Error($"表值函数 {name}(...) 第 1 个参数必须是 source 名称");
-            measurement = ResolveTableValuedSourceName(name, call.Arguments[0]);
+            if (IsJsonFileTableValuedFunction(name))
+            {
+                measurement = "__json_file__";
+            }
+            else
+            {
+                // 第一个参数通常是 source measurement 标识符；MM8 hybrid_search 也支持 source => docs 命名参数。
+                if (call.Arguments.Count == 0)
+                    throw Error($"表值函数 {name}(...) 第 1 个参数必须是 source 名称");
+                measurement = ResolveTableValuedSourceName(name, call.Arguments[0]);
+            }
         }
         else
         {
@@ -808,6 +874,10 @@ public sealed class SqlParser
 
         throw Error($"表值函数 {functionName}(...) 第 1 个参数必须是 source 名称");
     }
+
+    private static bool IsJsonFileTableValuedFunction(string name)
+        => string.Equals(name, "json_each", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(name, "json_table", StringComparison.OrdinalIgnoreCase);
 
     private string? ParseOptionalTableAlias()
     {

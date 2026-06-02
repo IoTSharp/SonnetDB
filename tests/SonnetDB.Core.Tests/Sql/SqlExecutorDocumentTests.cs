@@ -431,4 +431,93 @@ public sealed class SqlExecutorDocumentTests : IDisposable
         Assert.Equal(new[] { "id", "temp" }, result.Columns);
         Assert.Equal(new object?[] { 1L, 21.5 }, result.Rows.Single());
     }
+
+    [Fact]
+    public void JsonEach_ReadsJsonArrayFile_AsVirtualTable()
+    {
+        string path = Path.Combine(_root, "devices.json");
+        File.WriteAllText(path, """
+            [
+              {"id":"dev-1","site":"north","temp":21.5},
+              {"id":"dev-2","site":"south","temp":18}
+            ]
+            """);
+
+        using var db = Tsdb.Open(Options());
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, $"""
+            SELECT id, json_value(document, '$.temp') AS temp
+            FROM json_each('{EscapeSql(path)}')
+            WHERE json_value(document, '$.site') = 'north'
+            """));
+
+        Assert.Equal(new[] { "id", "temp" }, result.Columns);
+        Assert.Equal(new object?[] { "dev-1", 21.5 }, result.Rows.Single());
+
+        var explain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, $"""
+            EXPLAIN SELECT id FROM json_each('{EscapeSql(path)}')
+            """));
+        var values = explain.Rows.ToDictionary(static r => (string)r[0]!, static r => r[1], StringComparer.Ordinal);
+        Assert.Equal("json_file_virtual_table", values["statement_type"]);
+        Assert.Equal("json_file_virtual_table", values["access_path"]);
+        Assert.Equal(2L, Convert.ToInt64(values["estimated_scanned_rows"]));
+    }
+
+    [Fact]
+    public void ImportJson_IntoDocumentCollection_UsesIdPathAndNormalizesDocuments()
+    {
+        string path = Path.Combine(_root, "logs.ndjson");
+        File.WriteAllText(path, """
+            {"device":{"id":"dev-1"},"site":"north"}
+            {"device":{"id":"dev-2"},"site":"south"}
+            """);
+
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE DOCUMENT COLLECTION device_docs");
+
+        var imported = Assert.IsType<InsertExecutionResult>(SqlExecutor.Execute(db, $"""
+            IMPORT JSON '{EscapeSql(path)}' INTO device_docs FORMAT LINES ID PATH '$.device.id'
+            """));
+        Assert.Equal(2, imported.RowsInserted);
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT id, json_value(document, '$.site') AS site
+            FROM device_docs
+            ORDER BY id
+            """));
+
+        Assert.Equal(["dev-1", "dev-2"], result.Rows.Select(static row => (string)row[0]!).ToArray());
+        Assert.Equal(["north", "south"], result.Rows.Select(static row => (string)row[1]!).ToArray());
+    }
+
+    [Fact]
+    public void ImportJson_IntoTable_MapsObjectPropertiesToColumns()
+    {
+        string path = Path.Combine(_root, "table-devices.json");
+        File.WriteAllText(path, """
+            [
+              {"id":1,"name":"pump","metadata":{"site":"north"}},
+              {"id":2,"name":"fan","metadata":{"site":"south"}}
+            ]
+            """);
+
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, name STRING, metadata JSON, PRIMARY KEY (id))");
+
+        var imported = Assert.IsType<InsertExecutionResult>(SqlExecutor.Execute(db, $"""
+            IMPORT JSON '{EscapeSql(path)}' INTO devices FORMAT ARRAY
+            """));
+        Assert.Equal(2, imported.RowsInserted);
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT id, json_value(metadata, '$.site') AS site
+            FROM devices
+            ORDER BY id
+            """));
+
+        Assert.Equal(new object?[] { 1L, "north" }, result.Rows[0]);
+        Assert.Equal(new object?[] { 2L, "south" }, result.Rows[1]);
+    }
+
+    private static string EscapeSql(string value)
+        => value.Replace("'", "''", StringComparison.Ordinal);
 }
