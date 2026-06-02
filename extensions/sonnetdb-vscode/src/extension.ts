@@ -10,7 +10,10 @@ export function activate(context: vscode.ExtensionContext): void {
   const profiles: SonnetDbConnectionProfile[] = [];
   let activeProfileId: string | undefined;
 
-  const tree = new SonnetDbTreeDataProvider(() => profiles);
+  const tree = new SonnetDbTreeDataProvider(
+    () => profiles,
+    async (profile) => context.secrets.get(getSecretKey(profile.id)),
+  );
   const resultPanel = new QueryResultPanel();
   const copilotPanel = new CopilotPanel();
 

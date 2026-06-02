@@ -171,6 +171,22 @@ public sealed class DocumentCollectionStore : IDisposable
             return OpenFullTextStoreLocked(index, rebuildIfMissing: true).DocumentCount;
     }
 
+    internal int RebuildFullTextIndex(DocumentFullTextIndex index, string indexDirectory)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        ArgumentException.ThrowIfNullOrWhiteSpace(indexDirectory);
+        lock (_sync)
+        {
+            _fullTextStores.Remove(index.Name);
+            if (Directory.Exists(indexDirectory))
+                Directory.Delete(indexDirectory, recursive: true);
+
+            var store = OpenFullTextStoreLocked(index, rebuildIfMissing: false);
+            store.Rebuild(ScanRowsLocked(int.MaxValue));
+            return store.DocumentCount;
+        }
+    }
+
     internal void ApplySchema(DocumentCollectionSchema schema)
     {
         ArgumentNullException.ThrowIfNull(schema);

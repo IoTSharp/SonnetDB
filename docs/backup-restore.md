@@ -78,4 +78,13 @@ SonnetDB 备份 manifest 区分主数据和派生数据：
 - 必需数据：catalog、schema、WAL、segment、tombstone、KV/table/document 主数据。
 - 派生索引：document fulltext index、segment vector index、aggregate sketch 等会记录为可重建。
 
-第一批 `restore` 负责还原文件。索引 rebuild 命令、健康检查、后台重建队列和 Workbench / VS Code UI 入口留给 MM9 后续批次。
+`sndb backup restore` 负责还原文件。服务端管理面还提供同一数据库下的 HTTP 维护入口：
+
+| Endpoint | 操作 | 说明 |
+| --- | --- | --- |
+| `POST /v1/db/{db}/maintenance` | `health_check` | 读取数据库健康摘要、segment / WAL / catalog / index 计数 |
+| `POST /v1/db/{db}/maintenance` | `rebuild_index` | 重建 table 二级索引和 document JSON path 索引，全文索引触发同步补建，向量索引返回 Segment 生命周期 planned 状态 |
+| `POST /v1/db/{db}/maintenance` | `backup_verify` | 复用 manifest SHA-256 校验备份目录，仅 server admin 可调用 |
+| `POST /v1/db/{db}/maintenance` | `restore_dry_run` | 校验备份和目标目录策略但不复制文件，仅 server admin 可调用 |
+
+后台重建队列、定时策略、增量备份、远端对象存储、在线恢复和企业审计审批仍留给后续批次。

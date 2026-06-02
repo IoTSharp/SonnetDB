@@ -598,6 +598,37 @@ public static class Program
             await SchemaEndpointHandler.Handle(db, tsdb).ExecuteAsync(ctx).ConfigureAwait(false);
         });
 
+        // ---- Maintenance API ----
+        app.MapPost("/v1/db/{db}/maintenance", async (HttpContext ctx, string db) =>
+        {
+            if (!TryResolveDatabase(ctx, registry, db, out var tsdb))
+                return;
+
+            var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.MaintenanceRequest).ConfigureAwait(false);
+            if (req is null)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体不可为空。").ConfigureAwait(false);
+                return;
+            }
+
+            var operation = MaintenanceEndpointHandler.NormalizeOperation(req.Operation);
+            if (operation is "backup_verify" or "restore_dry_run" && !DatabaseAccessEvaluator.IsServerAdmin(ctx))
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status403Forbidden, "forbidden",
+                    $"{operation} 需要 server admin 权限。").ConfigureAwait(false);
+                return;
+            }
+
+            var requiredPermission = operation == "health_check"
+                ? DatabasePermission.Read
+                : DatabasePermission.Admin;
+            var databasePermission = DatabaseAccessEvaluator.GetEffectivePermission(ctx, grants, db);
+            if (!await TryRequireDatabasePermissionAsync(ctx, db, databasePermission, requiredPermission).ConfigureAwait(false))
+                return;
+
+            await MaintenanceEndpointHandler.Handle(tsdb, req).ExecuteAsync(ctx).ConfigureAwait(false);
+        });
+
         // ---- AI 助手 ----
         var aiConfigStore = app.Services.GetRequiredService<AiConfigStore>();
         var httpClientFactory = app.Services.GetRequiredService<IHttpClientFactory>();

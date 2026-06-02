@@ -213,6 +213,49 @@ public sealed class DocumentCollectionManager : IDisposable
     }
 
     /// <summary>
+    /// 从文档集合主数据重建指定 JSON path 索引。
+    /// </summary>
+    /// <param name="collectionName">集合名。</param>
+    /// <param name="indexName">索引名。</param>
+    /// <returns>重建后的索引声明。</returns>
+    public DocumentPathIndex RebuildIndex(string collectionName, string indexName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var schema = Catalog.TryGet(collectionName)
+                ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
+            var index = schema.TryGetIndex(indexName)
+                ?? throw new InvalidOperationException($"document collection '{collectionName}' 中 JSON index '{indexName}' 不存在。");
+            OpenStoreLocked(schema).ApplySchema(schema);
+            return index;
+        }
+    }
+
+    /// <summary>
+    /// 从文档集合主数据强制同步重建指定全文索引，并返回当前可见文档数。
+    /// </summary>
+    /// <param name="collectionName">集合名。</param>
+    /// <param name="indexName">全文索引名。</param>
+    /// <returns>全文索引当前可见文档数。</returns>
+    public int RebuildFullTextIndex(string collectionName, string indexName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var schema = Catalog.TryGet(collectionName)
+                ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
+            var index = schema.TryGetFullTextIndex(indexName)
+                ?? throw new InvalidOperationException($"document collection '{collectionName}' 中全文索引 '{indexName}' 不存在。");
+            return OpenStoreLocked(schema).RebuildFullTextIndex(index, FullTextIndexDirectory(collectionName, indexName));
+        }
+    }
+
+    /// <summary>
     /// 删除文档集合 schema 与主数据目录。
     /// </summary>
     /// <param name="name">集合名。</param>

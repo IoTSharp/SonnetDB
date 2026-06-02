@@ -167,21 +167,104 @@
                 </button>
 
                 <div v-if="expandedDatabases[dbNode.name]" class="schema-group__items schema-group__items--children">
-                  <button
-                    v-for="measurement in dbNode.measurements"
-                    :key="`${dbNode.name}:${measurement.name}`"
-                    type="button"
-                    class="schema-item schema-item--measurement"
-                    :class="{ 'is-active': targetDb === dbNode.name && activeExplorerKey === measurement.name }"
-                    :title="measurementMeta(measurement)"
-                    @click="selectMeasurement(dbNode.name, measurement)"
-                    @dblclick="openMeasurement(measurement)"
-                  >
-                    <span class="schema-item__name">{{ measurement.name }}</span>
-                    <span class="schema-item__meta">{{ measurementMeta(measurement) }}</span>
-                  </button>
+                  <div v-if="dbNode.measurements.length > 0" class="schema-child-block">
+                    <div class="schema-child-block__head">
+                      <span>Measurements</span>
+                      <span>{{ dbNode.measurements.length }}</span>
+                    </div>
+                    <button
+                      v-for="measurement in dbNode.measurements"
+                      :key="`${dbNode.name}:measurement:${measurement.name}`"
+                      type="button"
+                      class="schema-item schema-item--measurement"
+                      :class="{ 'is-active': targetDb === dbNode.name && activeExplorerKey === measurement.name }"
+                      :title="measurementMeta(measurement)"
+                      @click="selectMeasurement(dbNode.name, measurement)"
+                      @dblclick="openMeasurement(measurement)"
+                    >
+                      <span class="schema-item__name">{{ measurement.name }}</span>
+                      <span class="schema-item__meta">{{ measurementMeta(measurement) }}</span>
+                    </button>
+                  </div>
 
-                  <div v-if="dbNode.measurements.length === 0" class="schema-group__empty">
+                  <div v-if="dbNode.tables.length > 0" class="schema-child-block">
+                    <div class="schema-child-block__head">
+                      <span>Tables</span>
+                      <span>{{ dbNode.tables.length }}</span>
+                    </div>
+                    <button
+                      v-for="table in dbNode.tables"
+                      :key="`${dbNode.name}:table:${table.name}`"
+                      type="button"
+                      class="schema-item schema-item--table"
+                      :class="{ 'is-active': targetDb === dbNode.name && activeExplorerKey === `table:${table.name}` }"
+                      :title="tableMeta(table)"
+                      @click="selectTable(dbNode.name, table)"
+                      @dblclick="openTable(table)"
+                    >
+                      <span class="schema-item__name">{{ table.name }}</span>
+                      <span class="schema-item__meta">{{ tableMeta(table) }}</span>
+                    </button>
+                  </div>
+
+                  <div v-if="dbNode.documents.length > 0" class="schema-child-block">
+                    <div class="schema-child-block__head">
+                      <span>Documents</span>
+                      <span>{{ dbNode.documents.length }}</span>
+                    </div>
+                    <button
+                      v-for="collection in dbNode.documents"
+                      :key="`${dbNode.name}:document:${collection.name}`"
+                      type="button"
+                      class="schema-item schema-item--document"
+                      :class="{ 'is-active': targetDb === dbNode.name && activeExplorerKey === `document:${collection.name}` }"
+                      :title="documentCollectionMeta(collection)"
+                      @click="selectDocumentCollection(dbNode.name, collection)"
+                      @dblclick="openDocumentCollection(collection)"
+                    >
+                      <span class="schema-item__name">{{ collection.name }}</span>
+                      <span class="schema-item__meta">{{ documentCollectionMeta(collection) }}</span>
+                    </button>
+                  </div>
+
+                  <div v-if="dbNode.indexes.length > 0" class="schema-child-block">
+                    <div class="schema-child-block__head">
+                      <span>Indexes</span>
+                      <span>{{ dbNode.indexes.length }}</span>
+                    </div>
+                    <button
+                      v-for="index in dbNode.indexes"
+                      :key="`${dbNode.name}:index:${index.id}`"
+                      type="button"
+                      class="schema-item schema-item--index"
+                      :class="{ 'is-active': targetDb === dbNode.name && activeExplorerKey === index.id }"
+                      :title="indexMeta(index)"
+                      @click="selectIndex(dbNode.name, index)"
+                      @dblclick="showIndex(index)"
+                    >
+                      <span class="schema-item__name">{{ index.name }}</span>
+                      <span class="schema-item__meta">{{ index.owner }} · {{ indexMeta(index) }}</span>
+                    </button>
+                  </div>
+
+                  <div v-if="dbNode.backupStatus" class="schema-child-block">
+                    <div class="schema-child-block__head">
+                      <span>Backup</span>
+                      <span>{{ dbNode.backupStatus.hasRestoreManifest ? 'manifest' : 'status' }}</span>
+                    </div>
+                    <button
+                      type="button"
+                      class="schema-item schema-item--backup"
+                      :class="{ 'is-active': targetDb === dbNode.name && activeExplorerKey === 'backup-status' }"
+                      :title="backupMeta(dbNode.backupStatus)"
+                      @click="selectBackupStatus(dbNode.name)"
+                    >
+                      <span class="schema-item__name">backup status</span>
+                      <span class="schema-item__meta">{{ backupMeta(dbNode.backupStatus) }}</span>
+                    </button>
+                  </div>
+
+                  <div v-if="dbNode.measurements.length === 0 && dbNode.tables.length === 0 && dbNode.documents.length === 0 && dbNode.indexes.length === 0" class="schema-group__empty">
                     {{ dbNode.emptyText }}
                   </div>
                 </div>
@@ -189,6 +272,44 @@
             </div>
           </section>
         </n-scrollbar>
+
+        <section class="maintenance-panel">
+          <div class="maintenance-panel__head">
+            <span>Maintenance</span>
+            <span>{{ targetDb === CONTROL_PLANE_KEY ? 'system' : (targetDb || 'none') }}</span>
+          </div>
+          <div class="maintenance-panel__actions">
+            <n-button size="tiny" tertiary :loading="maintenanceBusy === 'health_check'" :disabled="!targetDb || targetDb === CONTROL_PLANE_KEY" @click="runHealthCheck">
+              Health
+            </n-button>
+            <n-button size="tiny" tertiary :loading="maintenanceBusy.startsWith('rebuild:')" :disabled="!selectedIndex" @click="rebuildSelectedIndex">
+              Rebuild
+            </n-button>
+          </div>
+          <n-input
+            v-model:value="maintenanceBackupDirectory"
+            size="tiny"
+            clearable
+            placeholder="Backup directory"
+          />
+          <n-input
+            v-model:value="maintenanceRestoreTargetDirectory"
+            size="tiny"
+            clearable
+            placeholder="Restore dry-run target"
+          />
+          <div class="maintenance-panel__actions">
+            <n-button size="tiny" tertiary :loading="maintenanceBusy === 'backup_verify'" :disabled="!maintenanceBackupDirectory.trim() || !auth.isSuperuser" @click="verifyBackup">
+              Verify
+            </n-button>
+            <n-button size="tiny" tertiary :loading="maintenanceBusy === 'restore_dry_run'" :disabled="!maintenanceBackupDirectory.trim() || !maintenanceRestoreTargetDirectory.trim() || !auth.isSuperuser" @click="restoreDryRun">
+              Dry-run
+            </n-button>
+          </div>
+          <p v-if="maintenanceLastResult" class="maintenance-panel__result">
+            {{ maintenanceLastResult.status }} · {{ maintenanceLastResult.message }}
+          </p>
+        </section>
       </aside>
 
       <main class="query-workspace">
@@ -393,7 +514,17 @@ import {
   buildClientErrorResultSet,
 } from '@/api/sqlMeta';
 import { listDatabases } from '@/api/server';
-import { fetchSchema, type MeasurementInfo } from '@/api/schema';
+import {
+  fetchSchema,
+  runMaintenance,
+  type BackupStatusInfo,
+  type DocumentCollectionInfo,
+  type IndexLifecycleInfo,
+  type MaintenanceResponse,
+  type MeasurementInfo,
+  type SchemaResponse,
+  type TableInfo,
+} from '@/api/schema';
 import { formatSqlDocument } from '@/api/sqlFormat';
 import { formatSqlValue } from '@/utils/sqlValue';
 import SqlEditor from '@/components/SqlEditor.vue';
@@ -446,6 +577,10 @@ interface DatabaseTreeNode {
   name: string;
   meta: string;
   measurements: MeasurementInfo[];
+  tables: TableInfo[];
+  documents: DocumentCollectionInfo[];
+  indexes: IndexLifecycleInfo[];
+  backupStatus: BackupStatusInfo | null;
   loading: boolean;
   error: string;
   emptyText: string;
@@ -464,10 +599,14 @@ const message = useMessage();
 
 const databases = ref<string[]>([]);
 const schema = ref<MeasurementInfo[]>([]);
-const schemaByDb = ref<Record<string, MeasurementInfo[]>>({});
+const schemaByDb = ref<Record<string, SchemaResponse>>({});
 const schemaLoadingByDb = ref<Record<string, boolean>>({});
 const schemaErrorByDb = ref<Record<string, string>>({});
 const schemaFilter = ref('');
+const maintenanceBackupDirectory = ref('');
+const maintenanceRestoreTargetDirectory = ref('');
+const maintenanceBusy = ref('');
+const maintenanceLastResult = ref<MaintenanceResponse | null>(null);
 const newDatabaseName = ref('');
 const showCreateDatabaseDialog = ref(false);
 const databaseActionBusy = ref(false);
@@ -522,7 +661,12 @@ const sql = computed({
 const results = computed(() => activeTab.value?.results ?? []);
 const ranOnce = computed(() => activeTab.value?.ranOnce ?? false);
 const running = computed(() => runningTabId.value === activeTab.value?.id);
-const currentSchema = computed(() => schema.value);
+const currentSchemaResponse = computed<SchemaResponse | null>(() => {
+  const db = targetDb.value;
+  if (!db || db === CONTROL_PLANE_KEY) return null;
+  return schemaByDb.value[db] ?? null;
+});
+const currentSchema = computed(() => currentSchemaResponse.value?.measurements ?? schema.value);
 const resultSummary = computed(() => activeTab.value?.summary ?? '');
 const errorMsg = computed(() => activeTab.value?.errorMsg ?? '');
 
@@ -568,23 +712,45 @@ function setWorkbenchTool(tool: WorkbenchTool): void {
 const databaseTree = computed<DatabaseTreeNode[]>(() => {
   const keyword = schemaFilter.value.trim().toLowerCase();
   return databases.value.flatMap((name) => {
-    const measurements = schemaByDb.value[name] ?? [];
+    const dbSchema = schemaByDb.value[name];
+    const measurements = dbSchema?.measurements ?? [];
+    const tables = dbSchema?.tables ?? [];
+    const documents = dbSchema?.documentCollections ?? [];
+    const indexes = dbSchema?.indexes ?? [];
+    const backupStatus = dbSchema?.backupStatus ?? null;
     const loaded = hasCachedSchema(name);
     const loading = Boolean(schemaLoadingByDb.value[name]);
     const error = schemaErrorByDb.value[name] ?? '';
     const dbMatches = !keyword || name.toLowerCase().includes(keyword);
-    const filtered = !keyword || dbMatches
+    const filteredMeasurements = !keyword || dbMatches
       ? measurements
       : measurements.filter((measurement) => measurementMatchesFilter(measurement, keyword));
+    const filteredTables = !keyword || dbMatches
+      ? tables
+      : tables.filter((table) => tableMatchesFilter(table, keyword));
+    const filteredDocuments = !keyword || dbMatches
+      ? documents
+      : documents.filter((collection) => documentCollectionMatchesFilter(collection, keyword));
+    const filteredIndexes = !keyword || dbMatches
+      ? indexes
+      : indexes.filter((index) => indexMatchesFilter(index, keyword));
 
-    if (keyword && !dbMatches && filtered.length === 0) {
+    if (keyword && !dbMatches
+      && filteredMeasurements.length === 0
+      && filteredTables.length === 0
+      && filteredDocuments.length === 0
+      && filteredIndexes.length === 0) {
       return [];
     }
 
     return [{
       name,
-      meta: databaseMeta(loaded, loading, error, measurements.length),
-      measurements: filtered,
+      meta: databaseMeta(loaded, loading, error, measurements.length, tables.length, documents.length, indexes.length),
+      measurements: filteredMeasurements,
+      tables: filteredTables,
+      documents: filteredDocuments,
+      indexes: filteredIndexes,
+      backupStatus,
       loading,
       error,
       emptyText: databaseEmptyText(loaded, loading, error, keyword),
@@ -621,7 +787,7 @@ const trajectoryInitialDb = computed(() => {
 
 const trajectoryInitialMeasurement = computed(() => {
   if (!trajectoryInitialDb.value) return '';
-  const measurements = schemaByDb.value[trajectoryInitialDb.value] ?? [];
+  const measurements = schemaByDb.value[trajectoryInitialDb.value]?.measurements ?? [];
   const active = measurements.find((measurement) => measurement.name === activeExplorerKey.value);
   if (active?.columns.some(isGeoField)) return active.name;
   return measurements.find((measurement) => measurement.columns.some(isGeoField))?.name ?? '';
@@ -631,6 +797,11 @@ const selectedMeasurement = computed(() => {
   if (!schema.value.length) return null;
   const byActive = schema.value.find((measurement) => measurement.name === activeExplorerKey.value);
   return byActive ?? schema.value[0] ?? null;
+});
+
+const selectedIndex = computed(() => {
+  const indexes = currentSchemaResponse.value?.indexes ?? [];
+  return indexes.find((index) => index.id === activeExplorerKey.value) ?? null;
 });
 
 const latestResultItem = computed(() => results.value[results.value.length - 1] ?? null);
@@ -719,6 +890,17 @@ function hasCachedSchema(db: string): boolean {
   return Object.prototype.hasOwnProperty.call(schemaByDb.value, db);
 }
 
+function normalizeActiveExplorerKey(dbSchema: SchemaResponse): string {
+  const key = activeExplorerKey.value;
+  if (!key) return dbSchema.measurements?.[0]?.name ?? '';
+  if (dbSchema.measurements?.some((measurement) => measurement.name === key)) return key;
+  if (dbSchema.tables?.some((table) => `table:${table.name}` === key)) return key;
+  if (dbSchema.documentCollections?.some((collection) => `document:${collection.name}` === key)) return key;
+  if (dbSchema.indexes?.some((index) => index.id === key)) return key;
+  if (key === 'backup-status' && dbSchema.backupStatus) return key;
+  return dbSchema.measurements?.[0]?.name ?? '';
+}
+
 function isGeoField(column: { role: string; dataType: string }): boolean {
   return column.role.toLowerCase() === 'field' && column.dataType.toLowerCase() === 'geopoint';
 }
@@ -731,12 +913,46 @@ function measurementMatchesFilter(measurement: MeasurementInfo, keyword: string)
       || column.dataType.toLowerCase().includes(keyword));
 }
 
-function databaseMeta(loaded: boolean, loading: boolean, error: string, count: number): string {
+function tableMatchesFilter(table: TableInfo, keyword: string): boolean {
+  return table.name.toLowerCase().includes(keyword)
+    || table.columns.some((column) =>
+      column.name.toLowerCase().includes(keyword)
+      || column.dataType.toLowerCase().includes(keyword))
+    || table.indexes.some((index) => index.name.toLowerCase().includes(keyword));
+}
+
+function documentCollectionMatchesFilter(collection: DocumentCollectionInfo, keyword: string): boolean {
+  return collection.name.toLowerCase().includes(keyword)
+    || collection.jsonIndexes.some((index) =>
+      index.name.toLowerCase().includes(keyword) || index.path.toLowerCase().includes(keyword))
+    || collection.fullTextIndexes.some((index) =>
+      index.name.toLowerCase().includes(keyword)
+      || index.fields.some((field) => field.toLowerCase().includes(keyword)));
+}
+
+function indexMatchesFilter(index: IndexLifecycleInfo, keyword: string): boolean {
+  return index.id.toLowerCase().includes(keyword)
+    || index.model.toLowerCase().includes(keyword)
+    || index.owner.toLowerCase().includes(keyword)
+    || index.name.toLowerCase().includes(keyword)
+    || index.kind.toLowerCase().includes(keyword)
+    || index.columns.some((column) => column.toLowerCase().includes(keyword));
+}
+
+function databaseMeta(
+  loaded: boolean,
+  loading: boolean,
+  error: string,
+  measurementCount: number,
+  tableCount: number,
+  documentCount: number,
+  indexCount: number,
+): string {
   if (loading) return 'loading schema...';
   if (error) return error;
-  if (!loaded) return 'click to load measurements';
-  if (count === 0) return 'no measurements';
-  return `${count} measurements`;
+  if (!loaded) return 'click to load schema';
+  if (measurementCount + tableCount + documentCount === 0) return 'empty database';
+  return `${measurementCount}M · ${tableCount}T · ${documentCount}D · ${indexCount}I`;
 }
 
 function databaseEmptyText(loaded: boolean, loading: boolean, error: string, keyword: string): string {
@@ -840,6 +1056,150 @@ function measurementMeta(measurement: MeasurementInfo): string {
   return `${tags} TAG · ${fields} FIELD · ${measurement.columns.length} cols`;
 }
 
+function tableMeta(table: TableInfo): string {
+  return `${table.columns.length} cols · pk ${table.primaryKey.join(', ')} · ${table.indexes.length} idx`;
+}
+
+function documentCollectionMeta(collection: DocumentCollectionInfo): string {
+  return `${collection.jsonIndexes.length} json · ${collection.fullTextIndexes.length} fulltext`;
+}
+
+function indexMeta(index: IndexLifecycleInfo): string {
+  return `${index.kind} · ${index.state}${index.rebuildable ? ' · rebuildable' : ''}`;
+}
+
+function backupMeta(status: BackupStatusInfo | null): string {
+  if (!status) return 'backup status unavailable';
+  const size = status.totalBytes >= 1024 * 1024
+    ? `${(status.totalBytes / 1024 / 1024).toFixed(1)} MiB`
+    : `${Math.max(status.totalBytes, 0)} B`;
+  return `${status.segmentCount} seg · ${status.walFileCount} wal · ${size}`;
+}
+
+function openTable(table: TableInfo): void {
+  setWorkbenchTool('sql');
+  setSqlDraft(`DESCRIBE TABLE ${formatSqlIdentifier(table.name)}`);
+}
+
+function openDocumentCollection(collection: DocumentCollectionInfo): void {
+  setWorkbenchTool('sql');
+  setSqlDraft(`DESCRIBE DOCUMENT COLLECTION ${formatSqlIdentifier(collection.name)}`);
+}
+
+function selectIndex(db: string, index: IndexLifecycleInfo): void {
+  selectDatabase(db);
+  activeExplorerKey.value = index.id;
+}
+
+function showIndex(index: IndexLifecycleInfo): void {
+  setWorkbenchTool('sql');
+  if (index.model === 'table') {
+    setSqlDraft(`SHOW INDEXES ON ${formatSqlIdentifier(index.owner)}`);
+    return;
+  }
+  if (index.kind === 'json_path') {
+    setSqlDraft(`SHOW JSON INDEXES ON ${formatSqlIdentifier(index.owner)}`);
+    return;
+  }
+  if (index.kind === 'fulltext') {
+    setSqlDraft(`SHOW FULLTEXT INDEXES ON ${formatSqlIdentifier(index.owner)}`);
+    return;
+  }
+  setSqlDraft(`DESCRIBE MEASUREMENT ${formatSqlIdentifier(index.owner)}`);
+}
+
+async function runHealthCheck(): Promise<void> {
+  await runMaintenanceAction(
+    'health_check',
+    () => ({ operation: 'health_check' }),
+    (result) => `${result.message} ${result.checks.length} checks`,
+  );
+}
+
+async function rebuildSelectedIndex(): Promise<void> {
+  const index = selectedIndex.value;
+  if (!index) {
+    message.error('请先在左侧选择一个索引。');
+    return;
+  }
+  await runMaintenanceAction(
+    `rebuild:${index.id}`,
+    () => ({
+      operation: 'rebuild_index',
+      targetModel: index.kind === 'fulltext' ? 'document_fulltext' : index.model,
+      targetOwner: index.owner,
+      targetName: index.name,
+    }),
+    (result) => result.index?.planned ? '索引重建计划已返回。' : result.message,
+  );
+}
+
+async function verifyBackup(): Promise<void> {
+  const path = maintenanceBackupDirectory.value.trim();
+  if (!path) {
+    message.error('请填写备份目录。');
+    return;
+  }
+  await runMaintenanceAction(
+    'backup_verify',
+    () => ({ operation: 'backup_verify', backupDirectory: path }),
+    (result) => result.backupVerification?.isValid
+      ? `备份校验通过，检查 ${result.backupVerification.checkedFiles} 个文件。`
+      : result.message,
+  );
+}
+
+async function restoreDryRun(): Promise<void> {
+  const backupDirectory = maintenanceBackupDirectory.value.trim();
+  const restoreTargetDirectory = maintenanceRestoreTargetDirectory.value.trim();
+  if (!backupDirectory || !restoreTargetDirectory) {
+    message.error('请填写备份目录和恢复目标目录。');
+    return;
+  }
+  await runMaintenanceAction(
+    'restore_dry_run',
+    () => ({
+      operation: 'restore_dry_run',
+      backupDirectory,
+      restoreTargetDirectory,
+      overwrite: true,
+    }),
+    (result) => result.restoreDryRun?.isValid
+      ? `恢复 dry-run 通过，${result.restoreDryRun.fileCount} 个文件。`
+      : result.message,
+  );
+}
+
+async function runMaintenanceAction(
+  busyKey: string,
+  requestFactory: () => Parameters<typeof runMaintenance>[2],
+  successText: (result: MaintenanceResponse) => string,
+): Promise<void> {
+  const db = targetDb.value;
+  if (!db || db === CONTROL_PLANE_KEY) {
+    message.error('请先选择业务数据库。');
+    return;
+  }
+
+  maintenanceBusy.value = busyKey;
+  try {
+    const result = await runMaintenance(auth.api, db, requestFactory());
+    maintenanceLastResult.value = result;
+    if (result.success) {
+      message.success(successText(result));
+    } else {
+      message.warning(result.message);
+    }
+    await loadSchema(db, true);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : '维护操作失败';
+    maintenanceLastResult.value = null;
+    message.error(errorMessage);
+  } finally {
+    maintenanceBusy.value = '';
+  }
+}
+
 function openCreateDatabaseDialog(): void {
   if (!auth.isSuperuser || databaseActionBusy.value) return;
   newDatabaseName.value = '';
@@ -884,6 +1244,21 @@ function selectDatabase(db: string): void {
 function selectMeasurement(db: string, measurement: MeasurementInfo): void {
   selectDatabase(db);
   activeExplorerKey.value = measurement.name;
+}
+
+function selectTable(db: string, table: TableInfo): void {
+  selectDatabase(db);
+  activeExplorerKey.value = `table:${table.name}`;
+}
+
+function selectDocumentCollection(db: string, collection: DocumentCollectionInfo): void {
+  selectDatabase(db);
+  activeExplorerKey.value = `document:${collection.name}`;
+}
+
+function selectBackupStatus(db: string): void {
+  selectDatabase(db);
+  activeExplorerKey.value = 'backup-status';
 }
 
 function openMeasurement(measurement: MeasurementInfo): void {
@@ -965,9 +1340,11 @@ async function loadSchema(db: string, force = false, syncActive = true): Promise
 
   if (hasCachedSchema(db) && !force) {
     if (syncActive && targetDb.value === db) {
-      schema.value = schemaByDb.value[db] ?? [];
-      const current = schema.value.find((measurement) => measurement.name === activeExplorerKey.value);
-      activeExplorerKey.value = current?.name ?? schema.value[0]?.name ?? '';
+      const dbSchema = schemaByDb.value[db];
+      schema.value = dbSchema?.measurements ?? [];
+      if (dbSchema) {
+        activeExplorerKey.value = normalizeActiveExplorerKey(dbSchema);
+      }
     }
     return;
   }
@@ -986,12 +1363,17 @@ async function loadSchema(db: string, force = false, syncActive = true): Promise
     const measurements = resp.measurements ?? [];
     schemaByDb.value = {
       ...schemaByDb.value,
-      [db]: measurements,
+      [db]: {
+        measurements,
+        tables: resp.tables ?? [],
+        documentCollections: resp.documentCollections ?? [],
+        indexes: resp.indexes ?? [],
+        backupStatus: resp.backupStatus ?? null,
+      },
     };
     if (syncActive && targetDb.value === db) {
       schema.value = measurements;
-      const current = measurements.find((measurement) => measurement.name === activeExplorerKey.value);
-      activeExplorerKey.value = current?.name ?? measurements[0]?.name ?? '';
+      activeExplorerKey.value = normalizeActiveExplorerKey(schemaByDb.value[db]);
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : '加载 Schema 失败';
@@ -1901,6 +2283,29 @@ onMounted(async () => {
   padding: 4px 0 0 20px;
 }
 
+.schema-group__items--children {
+  gap: 8px;
+}
+
+.schema-child-block {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.schema-child-block__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 8px 1px;
+  color: var(--sndb-ink-soft);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .schema-item {
   display: flex;
   flex-direction: column;
@@ -1951,6 +2356,44 @@ onMounted(async () => {
   padding: 6px 8px;
   color: var(--sndb-ink-soft);
   font-size: 12px;
+}
+
+.maintenance-panel {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  background: #fff;
+}
+
+.maintenance-panel__head,
+.maintenance-panel__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.maintenance-panel__head {
+  color: var(--sndb-ink-soft);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.maintenance-panel__actions > :deep(.n-button) {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.maintenance-panel__result {
+  margin: 0;
+  color: var(--sndb-ink-soft);
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .query-workspace {

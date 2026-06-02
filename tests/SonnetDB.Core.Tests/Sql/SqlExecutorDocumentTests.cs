@@ -1,4 +1,6 @@
 using SonnetDB.Engine;
+using SonnetDB.Documents;
+using SonnetDB.FullText;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
@@ -293,6 +295,43 @@ public sealed class SqlExecutorDocumentTests : IDisposable
     }
 
     [Fact]
+    public void DocumentCollection_FullTextIndex_RebuildDropsStaleDerivedDocuments()
+    {
+        using (var db = Tsdb.Open(Options()))
+        {
+            SqlExecutor.Execute(db, "CREATE DOCUMENT COLLECTION logs");
+            SqlExecutor.Execute(db, """
+                INSERT INTO logs (id, document)
+                VALUES ('log-1', '{"message":"Pump alarm in north station"}')
+                """);
+            SqlExecutor.Execute(db, "CREATE FULLTEXT INDEX ft_logs_message ON logs ('$.message') USING unicode");
+        }
+
+        string fullTextIndexDirectory = Path.Combine(
+            _root,
+            "documents",
+            "fulltext",
+            EncodeName("logs"),
+            EncodeName("ft_logs_message"));
+        var derivedIndex = DocumentFullTextIndexStore.Open(
+            fullTextIndexDirectory,
+            new DocumentFullTextIndex("ft_logs_message", ["$.message"], "unicode", DateTime.UtcNow.Ticks));
+        derivedIndex.Upsert(new DocumentRow("stale", """{"message":"Ghost alarm"}""", Version: 0));
+
+        using var reopened = Tsdb.Open(Options());
+        var before = Assert.IsType<SelectExecutionResult>(
+            SqlExecutor.Execute(reopened, "SHOW FULLTEXT INDEXES ON logs"));
+        Assert.Equal(2L, before.Rows.Single()[3]);
+
+        int documentCount = reopened.Documents.RebuildFullTextIndex("logs", "ft_logs_message");
+        Assert.Equal(1, documentCount);
+
+        var after = Assert.IsType<SelectExecutionResult>(
+            SqlExecutor.Execute(reopened, "SHOW FULLTEXT INDEXES ON logs"));
+        Assert.Equal(1L, after.Rows.Single()[3]);
+    }
+
+    [Fact]
     public void DocumentCollection_HybridSearch_FusesFullTextAndVectorScores()
     {
         using var db = Tsdb.Open(Options());
@@ -365,9 +404,12 @@ public sealed class SqlExecutorDocumentTests : IDisposable
                    ('log-2', '{"message":"Pump alarm pressure","site":"south","embedding":[0.7,0.7,0]}'),
                    ('log-3', '{"message":"Pump maintenance normal","site":"north","embedding":[0.95,0.05,0]}'),
                    ('log-4', '{"message":"Fan alarm cleared","site":"south","embedding":[0,1,0]}')
-            """);
+        """);
         SqlExecutor.Execute(db, "CREATE FULLTEXT INDEX ft_logs_message ON logs ('$.message') USING unicode");
     }
+
+    private static string EncodeName(string name)
+        => Convert.ToHexString(System.Text.Encoding.UTF8.GetBytes(name)).ToLowerInvariant();
 
     [Fact]
     public void TableJsonColumn_JsonValue_UsesSamePathEvaluator()

@@ -185,7 +185,7 @@ export function parseNdjson(body: string): SqlResultSet {
     }
 
     if (record.type === 'end') {
-      result.end = record as SqlResultSet['end'];
+      result.end = record as unknown as SqlResultSet['end'];
       continue;
     }
 

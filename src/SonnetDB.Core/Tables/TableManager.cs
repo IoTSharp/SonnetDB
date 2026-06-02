@@ -135,6 +135,28 @@ public sealed class TableManager : IDisposable
     }
 
     /// <summary>
+    /// 从关系表主数据重建指定二级索引。
+    /// </summary>
+    /// <param name="tableName">表名。</param>
+    /// <param name="indexName">索引名。</param>
+    /// <returns>重建后的索引声明。</returns>
+    public TableIndex RebuildIndex(string tableName, string indexName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var schema = Catalog.TryGet(tableName)
+                ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+            var index = schema.TryGetIndex(indexName)
+                ?? throw new InvalidOperationException($"table '{tableName}' 中索引 '{indexName}' 不存在。");
+            OpenStoreLocked(schema).ApplySchema(schema);
+            return index;
+        }
+    }
+
+    /// <summary>
     /// 删除关系表 schema 与 rowstore 目录。
     /// </summary>
     /// <param name="name">表名。</param>
