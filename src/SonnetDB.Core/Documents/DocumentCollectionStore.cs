@@ -193,6 +193,8 @@ public sealed class DocumentCollectionStore : IDisposable
         }
     }
 
+    internal long CreateSnapshot() => _keyspace.CreateSnapshot();
+
     /// <summary>
     /// 关闭底层 KV keyspace。
     /// </summary>

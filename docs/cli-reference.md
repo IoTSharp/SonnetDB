@@ -40,6 +40,11 @@ sndb remote  remove --profile dev
 
 sndb connect <profile-name> [--command "<sql>" | --file ./q.sql | --repl]
 sndb connect --default      [--command "<sql>" | --file ./q.sql | --repl]
+
+sndb backup create  --path ./data --output ./backup [--overwrite] [--no-fulltext-indexes]
+sndb backup inspect --path ./backup
+sndb backup verify  --path ./backup
+sndb backup restore --path ./backup --target ./restored [--overwrite] [--no-verify]
 ```
 
 ---
@@ -169,6 +174,19 @@ sndb connect dev --repl
 
 # 使用默认 profile 执行 SQL
 sndb connect --default --command "SELECT count(*) FROM cpu"
+```
+
+---
+
+## `backup`
+
+`backup` 是本地数据库目录的离线备份 / 校验 / 恢复入口。完整说明见 [备份与恢复](/backup-restore/)。
+
+```bash
+sndb backup create --path ./demo-data --output ./demo-backup
+sndb backup inspect --path ./demo-backup
+sndb backup verify --path ./demo-backup
+sndb backup restore --path ./demo-backup --target ./demo-restored
 ```
 
 ---

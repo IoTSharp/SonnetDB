@@ -109,6 +109,64 @@ public sealed class CliApplicationTests : IDisposable
     }
 
     [Fact]
+    public void Run_BackupCommands_CreateVerifyRestoreEmbeddedDatabase()
+    {
+        var app = CreateApp(out var stdout, out var stderr);
+        string backupPath = Path.Combine(_rootDirectory, "backup");
+        string restoredPath = Path.Combine(_rootDirectory, "restored");
+        string sourcePath = Path.Combine(_rootDirectory, "source");
+
+        var createMeasurement = app.Run([
+            "local", "--path", sourcePath,
+            "--command", "CREATE MEASUREMENT cpu (host TAG, value FIELD FLOAT)"]);
+        Assert.Equal(0, createMeasurement);
+
+        stdout.GetStringBuilder().Clear();
+        stderr.GetStringBuilder().Clear();
+
+        var insert = app.Run([
+            "local", "--path", sourcePath,
+            "--command", "INSERT INTO cpu(host, value, time) VALUES ('server-1', 63.2, 1776477601000)"]);
+        Assert.Equal(0, insert);
+
+        stdout.GetStringBuilder().Clear();
+        stderr.GetStringBuilder().Clear();
+
+        var backup = app.Run(["backup", "create", "--path", sourcePath, "--output", backupPath]);
+        Assert.Equal(0, backup);
+        Assert.Contains("备份已创建", stdout.ToString());
+        Assert.Equal(string.Empty, stderr.ToString());
+
+        stdout.GetStringBuilder().Clear();
+        stderr.GetStringBuilder().Clear();
+
+        var verify = app.Run(["backup", "verify", "--path", backupPath]);
+        Assert.Equal(0, verify);
+        Assert.Contains("备份校验通过", stdout.ToString());
+        Assert.Equal(string.Empty, stderr.ToString());
+
+        stdout.GetStringBuilder().Clear();
+        stderr.GetStringBuilder().Clear();
+
+        var restore = app.Run(["backup", "restore", "--path", backupPath, "--target", restoredPath]);
+        Assert.Equal(0, restore);
+        Assert.Contains("备份已恢复", stdout.ToString());
+        Assert.Equal(string.Empty, stderr.ToString());
+
+        stdout.GetStringBuilder().Clear();
+        stderr.GetStringBuilder().Clear();
+
+        var query = app.Run([
+            "local", "--path", restoredPath,
+            "--command", "SELECT host, value FROM cpu"]);
+
+        Assert.Equal(0, query);
+        Assert.Contains("server-1", stdout.ToString());
+        Assert.Contains("63.2", stdout.ToString());
+        Assert.Equal(string.Empty, stderr.ToString());
+    }
+
+    [Fact]
     public void Run_RemoteCommand_WithoutSql_PrintsRemoteConnectionString()
     {
         var app = CreateApp(out var stdout, out var stderr);

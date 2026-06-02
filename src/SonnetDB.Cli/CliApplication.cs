@@ -1,6 +1,10 @@
 ﻿using System.Globalization;
 using System.Reflection;
+using SonnetDB.Backup;
 using SonnetDB.Data;
+using SonnetDB.Engine;
+using SonnetDB.Engine.Compaction;
+using SonnetDB.Engine.Retention;
 
 namespace SonnetDB.Cli;
 
@@ -54,6 +58,7 @@ internal sealed class CliApplication
                 "local" => RunLocal(args),
                 "remote" => RunRemote(args),
                 "connect" => RunConnect(args),
+                "backup" => RunBackup(args),
                 "copilot" => new CopilotCommandRunner(_output, _error).Run(args),
                 _ => FailParse($"未知命令 '{command}'。"),
             };
@@ -330,6 +335,113 @@ internal sealed class CliApplication
             _ => throw new InvalidOperationException("未知的执行模式。"),
         };
     }
+
+    // ── backup ───────────────────────────────────────────────────────────────
+
+    private int RunBackup(IReadOnlyList<string> args)
+    {
+        var options = ParseBackupOptions(args);
+        var service = new BackupService();
+        return options.Action switch
+        {
+            BackupAction.Create => RunBackupCreate(service, options),
+            BackupAction.Inspect => RunBackupInspect(service, options),
+            BackupAction.Verify => RunBackupVerify(service, options),
+            BackupAction.Restore => RunBackupRestore(service, options),
+            _ => throw new InvalidOperationException("未知的备份命令动作。"),
+        };
+    }
+
+    private int RunBackupCreate(BackupService service, BackupCommandOptions options)
+    {
+        using var db = Tsdb.Open(CreateMaintenanceOptions(options.SourcePath!));
+        var manifest = service.Create(db, new BackupCreateOptions
+        {
+            DestinationDirectory = options.BackupPath!,
+            Overwrite = options.Overwrite,
+            IncludeFullTextIndexes = options.IncludeFullTextIndexes,
+        });
+
+        _output.WriteLine("备份已创建。");
+        WriteBackupSummary(manifest);
+        return ExitCodes.Success;
+    }
+
+    private int RunBackupInspect(BackupService service, BackupCommandOptions options)
+    {
+        var manifest = service.ReadManifest(options.BackupPath!);
+        WriteBackupSummary(manifest);
+        WriteIndexSummary(manifest);
+        return ExitCodes.Success;
+    }
+
+    private int RunBackupVerify(BackupService service, BackupCommandOptions options)
+    {
+        var result = service.Verify(options.BackupPath!);
+        if (result.IsValid)
+        {
+            _output.WriteLine(FormattableString.Invariant($"备份校验通过：{result.CheckedFiles} 个文件。"));
+            return ExitCodes.Success;
+        }
+
+        _error.WriteLine(FormattableString.Invariant($"备份校验失败：{result.CheckedFiles} 个文件已检查。"));
+        foreach (string error in result.Errors)
+            _error.WriteLine(" - " + error);
+        return ExitCodes.ExecutionFailed;
+    }
+
+    private int RunBackupRestore(BackupService service, BackupCommandOptions options)
+    {
+        var manifest = service.Restore(new BackupRestoreOptions
+        {
+            BackupDirectory = options.BackupPath!,
+            TargetDirectory = options.TargetPath!,
+            Overwrite = options.Overwrite,
+            VerifyBeforeRestore = options.VerifyBeforeRestore,
+        });
+
+        _output.WriteLine("备份已恢复。");
+        WriteBackupSummary(manifest);
+        _output.WriteLine("恢复目标: " + options.TargetPath);
+        return ExitCodes.Success;
+    }
+
+    private void WriteBackupSummary(BackupManifest manifest)
+    {
+        _output.WriteLine(FormattableString.Invariant($"格式: {manifest.DatabaseFormat} / manifest v{manifest.FormatVersion}"));
+        _output.WriteLine("创建时间: " + manifest.CreatedUtc.ToString("O", CultureInfo.InvariantCulture));
+        _output.WriteLine(FormattableString.Invariant(
+            $"一致性: checkpoint_lsn={manifest.Consistency.CheckpointLsn}, next_segment_id={manifest.Consistency.NextSegmentId}, segments={manifest.Consistency.SegmentCount}"));
+        _output.WriteLine(FormattableString.Invariant(
+            $"模型: measurements={manifest.Models.Measurements.Count}, tables={manifest.Models.Tables.Count}, keyspaces={manifest.Models.Keyspaces.Count}, documents={manifest.Models.DocumentCollections.Count}"));
+        _output.WriteLine(FormattableString.Invariant(
+            $"文件: {manifest.Files.Count} 个, {manifest.Consistency.TotalBytes} bytes"));
+    }
+
+    private void WriteIndexSummary(BackupManifest manifest)
+    {
+        if (manifest.Indexes.Count == 0)
+            return;
+
+        _output.WriteLine("索引:");
+        foreach (var index in manifest.Indexes.OrderBy(static x => x.Model, StringComparer.Ordinal)
+                     .ThenBy(static x => x.Owner, StringComparer.Ordinal)
+                     .ThenBy(static x => x.Name, StringComparer.Ordinal))
+        {
+            string included = index.Included ? "included" : "excluded";
+            string rebuildable = index.Rebuildable ? "rebuildable" : "required";
+            _output.WriteLine($"  {index.Model}/{index.Owner}/{index.Name}: {index.Kind}, {included}, {rebuildable}");
+        }
+    }
+
+    private static TsdbOptions CreateMaintenanceOptions(string rootDirectory)
+        => new()
+        {
+            RootDirectory = rootDirectory,
+            BackgroundFlush = new BackgroundFlushOptions { Enabled = false },
+            Compaction = new CompactionPolicy { Enabled = false },
+            Retention = new RetentionPolicy { Enabled = false },
+        };
 
     // ── shared execution ──────────────────────────────────────────────────────
 
@@ -704,6 +816,90 @@ internal sealed class CliApplication
         return new ConnectOptions(profileName, useDefault, mode, sqlText);
     }
 
+    private static BackupCommandOptions ParseBackupOptions(IReadOnlyList<string> args)
+    {
+        if (args.Count < 2)
+            throw new CliUsageException(BuildBackupHelp());
+
+        var action = args[1].ToLowerInvariant() switch
+        {
+            "create" => BackupAction.Create,
+            "inspect" => BackupAction.Inspect,
+            "verify" => BackupAction.Verify,
+            "restore" => BackupAction.Restore,
+            "--help" or "-h" => throw new CliUsageException(BuildBackupHelp()),
+            _ => throw new CliUsageException($"未知 backup 动作 '{args[1]}'。"),
+        };
+
+        string? sourcePath = null;
+        string? backupPath = null;
+        string? targetPath = null;
+        var overwrite = false;
+        var includeFullTextIndexes = true;
+        var verifyBeforeRestore = true;
+
+        for (var i = 2; i < args.Count; i++)
+        {
+            switch (args[i])
+            {
+                case "--path" or "-p":
+                    if (action == BackupAction.Create)
+                        sourcePath = ReadRequiredValue(args, ref i, "数据库目录");
+                    else
+                        backupPath = ReadRequiredValue(args, ref i, "备份目录");
+                    break;
+                case "--source":
+                    sourcePath = ReadRequiredValue(args, ref i, "数据库目录"); break;
+                case "--output" or "-o":
+                    backupPath = ReadRequiredValue(args, ref i, "备份目录"); break;
+                case "--backup":
+                    backupPath = ReadRequiredValue(args, ref i, "备份目录"); break;
+                case "--target" or "-t":
+                    targetPath = ReadRequiredValue(args, ref i, "恢复目标目录"); break;
+                case "--overwrite":
+                    overwrite = true; break;
+                case "--no-fulltext-indexes":
+                    includeFullTextIndexes = false; break;
+                case "--no-verify":
+                    verifyBeforeRestore = false; break;
+                case "--help" or "-h":
+                    throw new CliUsageException(BuildBackupHelp());
+                default:
+                    throw new CliUsageException($"未知参数 '{args[i]}'。");
+            }
+        }
+
+        return ValidateBackupOptions(new BackupCommandOptions(
+            action,
+            sourcePath,
+            backupPath,
+            targetPath,
+            overwrite,
+            includeFullTextIndexes,
+            verifyBeforeRestore));
+    }
+
+    private static BackupCommandOptions ValidateBackupOptions(BackupCommandOptions options)
+    {
+        return options.Action switch
+        {
+            BackupAction.Create => string.IsNullOrWhiteSpace(options.SourcePath)
+                ? throw new CliUsageException("backup create 必须通过 --path 指定数据库目录。")
+                : string.IsNullOrWhiteSpace(options.BackupPath)
+                    ? throw new CliUsageException("backup create 必须通过 --output 指定备份目录。")
+                    : options,
+            BackupAction.Inspect or BackupAction.Verify => string.IsNullOrWhiteSpace(options.BackupPath)
+                ? throw new CliUsageException("backup inspect/verify 必须通过 --path 指定备份目录。")
+                : options,
+            BackupAction.Restore => string.IsNullOrWhiteSpace(options.BackupPath)
+                ? throw new CliUsageException("backup restore 必须通过 --path 指定备份目录。")
+                : string.IsNullOrWhiteSpace(options.TargetPath)
+                    ? throw new CliUsageException("backup restore 必须通过 --target 指定恢复目标目录。")
+                    : options,
+            _ => throw new InvalidOperationException("未知的备份命令动作。"),
+        };
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────
 
     private static void EnsureActionNotSpecified(bool alreadySet, string actionName)
@@ -758,6 +954,10 @@ SonnetDB CLI 0.1.0
   sndb remote  remove --profile dev
   sndb connect <profile-name> [--command "<sql>" | --file ./q.sql | --repl]
   sndb connect --default [--command "<sql>" | --file ./q.sql | --repl]
+  sndb backup  create --path ./data --output ./backup [--overwrite] [--no-fulltext-indexes]
+  sndb backup  inspect --path ./backup
+  sndb backup  verify --path ./backup
+  sndb backup  restore --path ./backup --target ./restored [--overwrite] [--no-verify]
   sndb copilot ingest [--root ./docs]... [--endpoint http://host] [--token t] [--force] [--dry-run]
 
 示例:
@@ -769,6 +969,9 @@ SonnetDB CLI 0.1.0
   sndb connect home
   sndb connect dev --repl
   sndb connect --default --command "SELECT count(*) FROM cpu"
+  sndb backup create --path ./demo-data --output ./demo-backup
+  sndb backup verify --path ./demo-backup
+  sndb backup restore --path ./demo-backup --target ./demo-restored
 """);
     }
 
@@ -801,6 +1004,9 @@ SonnetDB CLI 0.1.0
 
     private static string BuildConnectHelp()
         => "用法: sndb connect <profile-name> [--command \"<sql>\" | --file ./q.sql | --repl]  或  sndb connect --default [...]";
+
+    private static string BuildBackupHelp()
+        => "用法: sndb backup create --path ./data --output ./backup [--overwrite] [--no-fulltext-indexes] | inspect --path ./backup | verify --path ./backup | restore --path ./backup --target ./restored [--overwrite] [--no-verify]";
 }
 
 // ── Option records ────────────────────────────────────────────────────────────
@@ -838,11 +1044,21 @@ internal readonly record struct ConnectOptions(
     ExecMode Mode,
     string? SqlText);
 
+internal readonly record struct BackupCommandOptions(
+    BackupAction Action,
+    string? SourcePath,
+    string? BackupPath,
+    string? TargetPath,
+    bool Overwrite,
+    bool IncludeFullTextIndexes,
+    bool VerifyBeforeRestore);
+
 // ── Enums ─────────────────────────────────────────────────────────────────────
 
 internal enum ExecMode { Info, Sql, Repl }
 internal enum LocalAction { Use, List, Remove }
 internal enum RemoteAction { Use, List, Remove }
+internal enum BackupAction { Create, Inspect, Verify, Restore }
 
 // ── Exceptions / exit codes ───────────────────────────────────────────────────
 

@@ -258,6 +258,21 @@ public sealed class DocumentCollectionManager : IDisposable
     }
 
     /// <summary>
+    /// 为所有文档集合主数据创建 KV 快照，确保备份可独立恢复最近写入。
+    /// </summary>
+    public IReadOnlyList<string> CheckpointAll()
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var names = Catalog.Snapshot().Select(static s => s.Name).ToArray();
+            foreach (string name in names)
+                OpenStoreLocked(Catalog.TryGet(name)!).CreateSnapshot();
+            return names;
+        }
+    }
+
+    /// <summary>
     /// 关闭所有已打开的文档集合 store。
     /// </summary>
     public void Dispose()

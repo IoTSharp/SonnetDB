@@ -74,6 +74,28 @@ public sealed class KvKeyspaceManager : IDisposable
     }
 
     /// <summary>
+    /// 为当前已打开的 keyspace 创建一致快照，并返回成功 checkpoint 的 keyspace 名称。
+    /// </summary>
+    public IReadOnlyList<string> CheckpointOpened()
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var names = new List<string>(_opened.Count);
+            foreach (var pair in _opened.OrderBy(static x => x.Key, StringComparer.Ordinal))
+            {
+                if (pair.Value.IsDisposed)
+                    continue;
+
+                pair.Value.CreateSnapshot();
+                names.Add(pair.Key);
+            }
+
+            return names.AsReadOnly();
+        }
+    }
+
+    /// <summary>
     /// 关闭所有已打开的 keyspace。
     /// </summary>
     public void Dispose()

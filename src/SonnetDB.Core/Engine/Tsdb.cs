@@ -550,6 +550,35 @@ public sealed class Tsdb : IDisposable
     }
 
     /// <summary>
+    /// 在写锁内创建一致备份：先 checkpoint 时序、表、文档和 KV，再由调用方复制文件并生成 manifest。
+    /// </summary>
+    internal SonnetDB.Backup.BackupManifest CreateConsistentBackup(
+        SonnetDB.Backup.BackupCreateOptions options,
+        Func<Tsdb, SonnetDB.Backup.BackupCreateOptions, IReadOnlyList<string>, SonnetDB.Backup.BackupManifest> afterCheckpoint)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(afterCheckpoint);
+
+        lock (_writeSync)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+
+            FlushNowLocked();
+            _walSet?.Sync();
+            TombstoneManifestCodec.Save(TsdbPaths.TombstoneManifestPath(RootDirectory), Tombstones.All);
+            PersistMeasurementSchemasLocked();
+            CatalogFileCodec.Save(Catalog, TsdbPaths.CatalogPath(RootDirectory));
+            _catalogDirty = false;
+
+            Tables.CheckpointAll();
+            Documents.CheckpointAll();
+            var checkpointedKeyspaces = Keyspaces.CheckpointOpened();
+
+            return afterCheckpoint(this, options, checkpointedKeyspaces);
+        }
+    }
+
+    /// <summary>
     /// 关闭数据库：先关闭后台 Flush 线程，再 Flush 剩余 MemTable、保存 catalog、关闭 WAL。
     /// </summary>
     public void Dispose()

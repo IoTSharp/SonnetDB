@@ -342,6 +342,8 @@ public sealed class TableStore : IDisposable
 
     internal void Compact() => _keyspace.Compact();
 
+    internal long CreateSnapshot() => _keyspace.CreateSnapshot();
+
     /// <summary>
     /// 关闭底层 KV keyspace。
     /// </summary>

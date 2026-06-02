@@ -192,6 +192,21 @@ public sealed class TableManager : IDisposable
     }
 
     /// <summary>
+    /// 为所有关系表 rowstore 创建 KV 快照，确保备份可独立恢复最近写入。
+    /// </summary>
+    public IReadOnlyList<string> CheckpointAll()
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var names = Catalog.Snapshot().Select(static s => s.Name).ToArray();
+            foreach (string name in names)
+                OpenStoreLocked(Catalog.TryGet(name)!).CreateSnapshot();
+            return names;
+        }
+    }
+
+    /// <summary>
     /// 关闭所有已打开的关系表 rowstore。
     /// </summary>
     public void Dispose()
