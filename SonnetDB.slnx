@@ -17,6 +17,7 @@
     <Project Path="tests/SonnetDB.Accuracy.Tests/SonnetDB.Accuracy.Tests.csproj" />
     <Project Path="tests/SonnetDB.Benchmarks/SonnetDB.Benchmarks.csproj" />
     <Project Path="tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj" />
+    <Project Path="tests/SonnetDB.IoTSharpCompat.Tests/SonnetDB.IoTSharpCompat.Tests.csproj" />
     <Project Path="tests/SonnetDB.Tests/SonnetDB.Tests.csproj" />
   </Folder>
   <Project Path="docker-compose.dcproj">
