@@ -203,6 +203,15 @@ public sealed class SndbDataReader : DbDataReader
     }
 
     /// <inheritdoc />
+    public override async Task<bool> ReadAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_closed) return false;
+        _hasRow = await _result.ReadNextRowAsync(cancellationToken).ConfigureAwait(false);
+        return _hasRow;
+    }
+
+    /// <inheritdoc />
     public override void Close()
     {
         if (_closed) return;

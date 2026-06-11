@@ -44,6 +44,13 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
         _state = ConnectionState.Open;
     }
 
+    public ValueTask OpenAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Open();
+        return ValueTask.CompletedTask;
+    }
+
     public void Close()
     {
         if (_state == ConnectionState.Closed) return;
@@ -56,10 +63,11 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
 
     public void Dispose() => Close();
 
-    public IExecutionResult Execute(string sql, SndbParameterCollection parameters, CommandBehavior behavior)
+    public IExecutionResult Execute(string sql, SndbParameterCollection parameters, CommandBehavior behavior, object? transactionState)
     {
         if (_tsdb is null || _state != ConnectionState.Open)
             throw new InvalidOperationException("连接未打开。");
+        var transaction = GetTransactionContext(transactionState);
 
         // 客户端拦截 SQL Console 风格元命令：USE / SELECT current_database() / SHOW CURRENT_DATABASE。
         // 嵌入式模式下 "database" 等价于 Data Source 路径，无法切换；USE 视为不支持。
@@ -76,7 +84,10 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
         }
 
         var statement = SqlParser.Parse(sql);
-        var result = SqlExecutor.ExecuteStatement(_tsdb, statement);
+        if (statement is BeginTransactionStatement or CommitTransactionStatement or RollbackTransactionStatement)
+            throw new InvalidOperationException("请通过 SndbConnection.BeginTransaction()/SndbTransaction 控制事务。");
+
+        var result = SqlExecutor.ExecuteStatement(_tsdb, databaseName: null, statement, controlPlane: null, transaction);
         return result switch
         {
             SelectExecutionResult select => MaterializedExecutionResult.FromSelect(select),
@@ -88,10 +99,23 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
         };
     }
 
-    public IExecutionResult ExecuteBulk(string commandText, SndbParameterCollection parameters)
+    public Task<IExecutionResult> ExecuteAsync(
+        string sql,
+        SndbParameterCollection parameters,
+        CommandBehavior behavior,
+        object? transactionState,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(Execute(sql, parameters, behavior, transactionState));
+    }
+
+    public IExecutionResult ExecuteBulk(string commandText, SndbParameterCollection parameters, object? transactionState)
     {
         if (_tsdb is null || _state != ConnectionState.Open)
             throw new InvalidOperationException("连接未打开。");
+        if (transactionState is not null)
+            throw new NotSupportedException("轻事务当前不支持批量入库快路径。");
         ArgumentNullException.ThrowIfNull(commandText);
 
         // 参数：measurement / onerror / flush
@@ -125,6 +149,72 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
         }
     }
 
+    public Task<IExecutionResult> ExecuteBulkAsync(
+        string commandText,
+        SndbParameterCollection parameters,
+        object? transactionState,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(ExecuteBulk(commandText, parameters, transactionState));
+    }
+
+    public object BeginTransaction(IsolationLevel isolationLevel)
+    {
+        if (_tsdb is null || _state != ConnectionState.Open)
+            throw new InvalidOperationException("连接未打开。");
+        if (isolationLevel is not IsolationLevel.Unspecified and not IsolationLevel.ReadCommitted)
+            throw new NotSupportedException("SonnetDB 轻事务当前仅支持默认隔离级别。");
+
+        return new SqlTransactionContext();
+    }
+
+    public void CommitTransaction(object transactionState)
+    {
+        if (_tsdb is null || _state != ConnectionState.Open)
+            throw new InvalidOperationException("连接未打开。");
+        var transaction = GetRequiredTransactionContext(transactionState);
+        if (transaction.IsCompleted)
+            throw new InvalidOperationException("轻事务已结束。");
+
+        SqlExecutor.ExecuteStatement(
+            _tsdb,
+            databaseName: null,
+            new CommitTransactionStatement(),
+            controlPlane: null,
+            transaction);
+    }
+
+    public Task CommitTransactionAsync(object transactionState, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        CommitTransaction(transactionState);
+        return Task.CompletedTask;
+    }
+
+    public void RollbackTransaction(object transactionState)
+    {
+        if (_tsdb is null || _state != ConnectionState.Open)
+            throw new InvalidOperationException("连接未打开。");
+        var transaction = GetRequiredTransactionContext(transactionState);
+        if (transaction.IsCompleted)
+            throw new InvalidOperationException("轻事务已结束。");
+
+        SqlExecutor.ExecuteStatement(
+            _tsdb,
+            databaseName: null,
+            new RollbackTransactionStatement(),
+            controlPlane: null,
+            transaction);
+    }
+
+    public Task RollbackTransactionAsync(object transactionState, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        RollbackTransaction(transactionState);
+        return Task.CompletedTask;
+    }
+
     private static string? TryGetParam(SndbParameterCollection parameters, string name)
     {
         for (int i = 0; i < parameters.Count; i++)
@@ -135,6 +225,18 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
         }
         return null;
     }
+
+    private static SqlTransactionContext? GetTransactionContext(object? transactionState)
+        => transactionState switch
+        {
+            null => null,
+            SqlTransactionContext transaction => transaction,
+            _ => throw new InvalidOperationException("事务状态不是嵌入式 SonnetDB 轻事务。"),
+        };
+
+    private static SqlTransactionContext GetRequiredTransactionContext(object transactionState)
+        => GetTransactionContext(transactionState)
+            ?? throw new InvalidOperationException("事务状态为空。");
 
     /// <summary>
     /// 解析 <c>flush</c> 参数为 <see cref="BulkFlushMode"/>（PR #48）。

@@ -88,10 +88,82 @@ public sealed class TsdbAdoApiTests : IDisposable
     }
 
     [Fact]
-    public void BeginTransaction_NotSupported()
+    public void BeginTransaction_CommitsSingleTableDml()
     {
         using var c = OpenConn();
-        Assert.Throws<NotSupportedException>(() => c.BeginTransaction());
+        ExecNonQuery(c, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
+
+        using var tx = c.BeginTransaction();
+        using (var cmd = c.CreateCommand())
+        {
+            cmd.Transaction = tx;
+            cmd.CommandText = "INSERT INTO devices (id, name) VALUES (1, 'pump'), (2, 'fan')";
+            Assert.Equal(2, cmd.ExecuteNonQuery());
+        }
+        tx.Commit();
+
+        using var sel = c.CreateCommand();
+        sel.CommandText = "SELECT id FROM devices ORDER BY id";
+        using var reader = sel.ExecuteReader();
+        Assert.True(reader.Read());
+        Assert.Equal(1L, reader.GetInt64(0));
+        Assert.True(reader.Read());
+        Assert.Equal(2L, reader.GetInt64(0));
+        Assert.False(reader.Read());
+    }
+
+    [Fact]
+    public void BeginTransaction_RollbackDiscardsSingleTableDml()
+    {
+        using var c = OpenConn();
+        ExecNonQuery(c, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
+
+        using (var tx = c.BeginTransaction())
+        {
+            using var cmd = c.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = "INSERT INTO devices (id, name) VALUES (1, 'pump')";
+            Assert.Equal(1, cmd.ExecuteNonQuery());
+            tx.Rollback();
+        }
+
+        using var sel = c.CreateCommand();
+        sel.CommandText = "SELECT id FROM devices";
+        using var reader = sel.ExecuteReader();
+        Assert.False(reader.Read());
+    }
+
+    [Fact]
+    public void BeginTransaction_CrossTableCommit_IsRejectedWithoutWrites()
+    {
+        using var c = OpenConn();
+        ExecNonQuery(c, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
+        ExecNonQuery(c, "CREATE TABLE sites (id INT, name STRING, PRIMARY KEY (id))");
+
+        using var tx = c.BeginTransaction();
+        using (var cmd = c.CreateCommand())
+        {
+            cmd.Transaction = tx;
+            cmd.CommandText = "INSERT INTO devices (id, name) VALUES (1, 'pump')";
+            Assert.Equal(1, cmd.ExecuteNonQuery());
+            cmd.CommandText = "INSERT INTO sites (id, name) VALUES (1, 'north')";
+            Assert.Equal(1, cmd.ExecuteNonQuery());
+        }
+
+        Assert.Throws<NotSupportedException>(() => tx.Commit());
+
+        Assert.Empty(ReadIds(c, "devices"));
+        Assert.Empty(ReadIds(c, "sites"));
+    }
+
+    [Fact]
+    public void ExecuteNonQuery_SqlTransactionControl_Throws()
+    {
+        using var c = OpenConn();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = "BEGIN";
+
+        Assert.Throws<InvalidOperationException>(() => cmd.ExecuteNonQuery());
     }
 
     // ── ConnectionStringBuilder ───────────────────────────────────────────────
@@ -119,6 +191,52 @@ public sealed class TsdbAdoApiTests : IDisposable
     {
         using var c = OpenConn();
         Assert.Equal(0, ExecNonQuery(c, "CREATE MEASUREMENT cpu (host TAG, value FIELD FLOAT)"));
+    }
+
+    [Fact]
+    public async Task OpenAsync_AndExecuteAsyncMethods_Work()
+    {
+        await using var c = new SndbConnection(ConnString);
+        await c.OpenAsync();
+        Assert.Equal(ConnectionState.Open, c.State);
+
+        await using (var ddl = c.CreateCommand())
+        {
+            ddl.CommandText = "CREATE MEASUREMENT async_cpu (host TAG, value FIELD FLOAT)";
+            Assert.Equal(0, await ddl.ExecuteNonQueryAsync());
+        }
+        await using (var ins = c.CreateCommand())
+        {
+            ins.CommandText = "INSERT INTO async_cpu (time, host, value) VALUES (1000, 'a', 1.5)";
+            Assert.Equal(1, await ins.ExecuteNonQueryAsync());
+        }
+        await using (var scalar = c.CreateCommand())
+        {
+            scalar.CommandText = "SELECT count(*) FROM async_cpu";
+            Assert.Equal(1L, await scalar.ExecuteScalarAsync());
+        }
+        await using (var query = c.CreateCommand())
+        {
+            query.CommandText = "SELECT host, value FROM async_cpu";
+            await using var reader = await query.ExecuteReaderAsync();
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal("a", reader.GetString(0));
+            Assert.Equal(1.5, reader.GetDouble(1));
+            Assert.False(await reader.ReadAsync());
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteNonQueryAsync_CanceledToken_Throws()
+    {
+        await using var c = new SndbConnection(ConnString);
+        await c.OpenAsync();
+        await using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT 1";
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        await Assert.ThrowsAsync<OperationCanceledException>(() => cmd.ExecuteNonQueryAsync(cts.Token));
     }
 
     [Fact]
@@ -509,5 +627,16 @@ public sealed class TsdbAdoApiTests : IDisposable
     {
         using var c = OpenConn();
         Assert.Throws<NotSupportedException>(() => c.ChangeDatabase("foo"));
+    }
+
+    private static long[] ReadIds(SndbConnection connection, string tableName)
+    {
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = $"SELECT id FROM {tableName} ORDER BY id";
+        using var reader = cmd.ExecuteReader();
+        var ids = new List<long>();
+        while (reader.Read())
+            ids.Add(reader.GetInt64(0));
+        return [.. ids];
     }
 }

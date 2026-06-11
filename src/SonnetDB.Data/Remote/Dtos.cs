@@ -13,6 +13,15 @@ internal sealed class SqlRequestBody
 }
 
 /// <summary>
+/// 提交给 <c>POST /v1/db/{db}/sql/batch</c> 的请求体。
+/// </summary>
+internal sealed class SqlBatchRequestBody
+{
+    [JsonPropertyName("statements")]
+    public List<SqlRequestBody> Statements { get; set; } = [];
+}
+
+/// <summary>
 /// ndjson 第一行：列元信息。
 /// </summary>
 internal sealed class ResultMetaLine

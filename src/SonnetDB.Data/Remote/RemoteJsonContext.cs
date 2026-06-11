@@ -12,6 +12,7 @@ namespace SonnetDB.Data.Remote;
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     WriteIndented = false)]
 [JsonSerializable(typeof(SqlRequestBody))]
+[JsonSerializable(typeof(SqlBatchRequestBody))]
 [JsonSerializable(typeof(ResultMetaLine))]
 [JsonSerializable(typeof(ResultEndLine))]
 [JsonSerializable(typeof(ServerErrorBody))]

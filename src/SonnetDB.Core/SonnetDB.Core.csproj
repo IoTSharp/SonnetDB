@@ -16,10 +16,15 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\modules\DotVector\src\DotVector.Core\DotVector.Core.csproj" Condition="Exists('..\..\..\modules\DotVector\src\DotVector.Core\DotVector.Core.csproj')" />
+    <ProjectReference Include="..\..\..\DotVector\src\DotVector.Core\DotVector.Core.csproj" Condition="Exists('..\..\..\DotVector\src\DotVector.Core\DotVector.Core.csproj')" />
     <ProjectReference Include="..\..\..\modules\DotSearch\src\DotSearch.Core\DotSearch.Core.csproj" Condition="Exists('..\..\..\modules\DotSearch\src\DotSearch.Core\DotSearch.Core.csproj')" />
     <ProjectReference Include="..\..\..\modules\DotSearch\src\DotSearch.Tokenizers.Unicode\DotSearch.Tokenizers.Unicode.csproj" Condition="Exists('..\..\..\modules\DotSearch\src\DotSearch.Tokenizers.Unicode\DotSearch.Tokenizers.Unicode.csproj')" />
     <ProjectReference Include="..\..\..\modules\DotSearch\src\DotSearch.Tokenizers.Cjk\DotSearch.Tokenizers.Cjk.csproj" Condition="Exists('..\..\..\modules\DotSearch\src\DotSearch.Tokenizers.Cjk\DotSearch.Tokenizers.Cjk.csproj')" />
     <ProjectReference Include="..\..\..\modules\DotSearch\src\DotSearch.Tokenizers.Jieba\DotSearch.Tokenizers.Jieba.csproj" Condition="Exists('..\..\..\modules\DotSearch\src\DotSearch.Tokenizers.Jieba\DotSearch.Tokenizers.Jieba.csproj')" />
+    <ProjectReference Include="..\..\..\DotSearch\src\DotSearch.Core\DotSearch.Core.csproj" Condition="Exists('..\..\..\DotSearch\src\DotSearch.Core\DotSearch.Core.csproj')" />
+    <ProjectReference Include="..\..\..\DotSearch\src\DotSearch.Tokenizers.Unicode\DotSearch.Tokenizers.Unicode.csproj" Condition="Exists('..\..\..\DotSearch\src\DotSearch.Tokenizers.Unicode\DotSearch.Tokenizers.Unicode.csproj')" />
+    <ProjectReference Include="..\..\..\DotSearch\src\DotSearch.Tokenizers.Cjk\DotSearch.Tokenizers.Cjk.csproj" Condition="Exists('..\..\..\DotSearch\src\DotSearch.Tokenizers.Cjk\DotSearch.Tokenizers.Cjk.csproj')" />
+    <ProjectReference Include="..\..\..\DotSearch\src\DotSearch.Tokenizers.Jieba\DotSearch.Tokenizers.Jieba.csproj" Condition="Exists('..\..\..\DotSearch\src\DotSearch.Tokenizers.Jieba\DotSearch.Tokenizers.Jieba.csproj')" />
   </ItemGroup>
 
   <ItemGroup>

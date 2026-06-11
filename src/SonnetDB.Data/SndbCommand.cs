@@ -22,6 +22,7 @@ namespace SonnetDB.Data;
 public sealed class SndbCommand : DbCommand
 {
     private SndbConnection? _connection;
+    private SndbTransaction? _transaction;
     private string _commandText = string.Empty;
     private CommandType _commandType = CommandType.Text;
     private readonly SndbParameterCollection _parameters = new();
@@ -80,11 +81,15 @@ public sealed class SndbCommand : DbCommand
     /// <inheritdoc />
     protected override DbTransaction? DbTransaction
     {
-        get => null;
+        get => _transaction;
         set
         {
-            if (value != null)
-                throw new NotSupportedException("SonnetDB 不支持事务。");
+            _transaction = value switch
+            {
+                null => null,
+                SndbTransaction transaction => transaction,
+                _ => throw new InvalidCastException("Transaction 必须是 SndbTransaction。"),
+            };
         }
     }
 
@@ -96,6 +101,13 @@ public sealed class SndbCommand : DbCommand
     {
         get => _connection;
         set => _connection = value;
+    }
+
+    /// <summary>强类型事务。</summary>
+    public new SndbTransaction? Transaction
+    {
+        get => _transaction;
+        set => _transaction = value;
     }
 
     /// <inheritdoc />
@@ -141,21 +153,81 @@ public sealed class SndbCommand : DbCommand
     }
 
     private IExecutionResult ExecuteCore(CommandBehavior behavior)
+        => ExecuteCoreAsync(behavior, CancellationToken.None).GetAwaiter().GetResult();
+
+    /// <inheritdoc />
+    public override async Task<int> ExecuteNonQueryAsync(CancellationToken cancellationToken)
     {
+        using var result = await ExecuteCoreAsync(CommandBehavior.Default, cancellationToken).ConfigureAwait(false);
+        if (result.RecordsAffected == -1)
+        {
+            while (result.ReadNextRow())
+                cancellationToken.ThrowIfCancellationRequested();
+        }
+
+        return result.RecordsAffected;
+    }
+
+    /// <inheritdoc />
+    public override async Task<object?> ExecuteScalarAsync(CancellationToken cancellationToken)
+    {
+        using var result = await ExecuteCoreAsync(CommandBehavior.Default, cancellationToken).ConfigureAwait(false);
+        if (result.Columns.Count == 0)
+            return null;
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!result.ReadNextRow())
+            return null;
+        var v = result.GetValue(0);
+        while (result.ReadNextRow())
+            cancellationToken.ThrowIfCancellationRequested();
+        return v;
+    }
+
+    /// <inheritdoc />
+    protected override async Task<DbDataReader> ExecuteDbDataReaderAsync(
+        CommandBehavior behavior,
+        CancellationToken cancellationToken)
+    {
+        var result = await ExecuteCoreAsync(behavior, cancellationToken).ConfigureAwait(false);
+        return new SndbDataReader(result, behavior, _connection);
+    }
+
+    private async Task<IExecutionResult> ExecuteCoreAsync(CommandBehavior behavior, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
         if (_connection is null)
             throw new InvalidOperationException("Command 没有关联 Connection。");
         if (string.IsNullOrWhiteSpace(_commandText))
             throw new InvalidOperationException("CommandText 为空。");
 
         var impl = _connection.GetOpenImpl();
+        var transactionState = _connection.GetTransactionStateForCommand(_transaction);
         if (_commandType == CommandType.TableDirect)
         {
             // 批量入库快路径：CommandText 即 payload（含可选首行 measurement 前缀），
             // 不做 ParameterBinder 的 SQL 字面量替换。
-            return impl.ExecuteBulk(_commandText, _parameters);
+            return await impl.ExecuteBulkAsync(_commandText, _parameters, transactionState, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         var bound = ParameterBinder.Bind(_commandText, _parameters);
-        return impl.Execute(bound, _parameters, behavior);
+        if (IsSqlTransactionControl(bound))
+            throw new InvalidOperationException("请通过 SndbConnection.BeginTransaction()/SndbTransaction 控制事务。");
+        return await impl.ExecuteAsync(bound, _parameters, behavior, transactionState, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static bool IsSqlTransactionControl(string sql)
+    {
+        var text = sql.Trim();
+        while (text.EndsWith(';'))
+            text = text[..^1].TrimEnd();
+
+        return text.Equals("BEGIN", StringComparison.OrdinalIgnoreCase)
+            || text.Equals("BEGIN TRANSACTION", StringComparison.OrdinalIgnoreCase)
+            || text.Equals("COMMIT", StringComparison.OrdinalIgnoreCase)
+            || text.Equals("COMMIT TRANSACTION", StringComparison.OrdinalIgnoreCase)
+            || text.Equals("ROLLBACK", StringComparison.OrdinalIgnoreCase)
+            || text.Equals("ROLLBACK TRANSACTION", StringComparison.OrdinalIgnoreCase);
     }
 }

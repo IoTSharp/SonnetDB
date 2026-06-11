@@ -48,6 +48,12 @@ internal sealed class MaterializedExecutionResult : IExecutionResult
         return true;
     }
 
+    public ValueTask<bool> ReadNextRowAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return ValueTask.FromResult(ReadNextRow());
+    }
+
     public object? GetValue(int ordinal)
     {
         if (_rowIndex < 0 || _rowIndex >= _rows.Count)

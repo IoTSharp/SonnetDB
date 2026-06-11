@@ -20,13 +20,14 @@ namespace SonnetDB.Data;
 /// 内部使用 <see cref="System.Net.Http.HttpClient"/> 调用 <c>POST /v1/db/{db}/sql</c>，
 /// 结果以 ndjson 流式反序列化。
 /// </para>
-/// <para>当前版本不支持事务。</para>
+/// <para>轻事务第一阶段支持单个关系表内的小批量 DML。</para>
 /// </remarks>
 public sealed class SndbConnection : DbConnection
 {
     private string _connectionString = string.Empty;
     private SndbConnectionStringBuilder _builder = new();
     private IConnectionImpl? _impl;
+    private SndbTransaction? _currentTransaction;
     private bool _disposed;
 
     /// <summary>使用空连接字符串构造，必须随后赋值 <see cref="ConnectionString"/> 再 <see cref="Open"/>。</summary>
@@ -118,10 +119,43 @@ public sealed class SndbConnection : DbConnection
     }
 
     /// <inheritdoc />
+    public override async Task OpenAsync(CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (State == ConnectionState.Open)
+            return;
+
+        _impl = _builder.ResolveMode() switch
+        {
+            SndbProviderMode.Embedded => new EmbeddedConnectionImpl(_builder),
+            SndbProviderMode.Remote => new RemoteConnectionImpl(_builder),
+            _ => throw new InvalidOperationException("未知的 SndbProviderMode。"),
+        };
+        try
+        {
+            await _impl.OpenAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            _impl.Dispose();
+            _impl = null;
+            throw;
+        }
+    }
+
+    /// <inheritdoc />
     public override void Close()
     {
+        if (_currentTransaction is { IsCompleted: false } tx)
+        {
+            try { RollbackTransaction(tx); }
+            catch { /* Close best-effort rollback. */ }
+        }
+
         var impl = _impl;
         _impl = null;
+        _currentTransaction = null;
         impl?.Close();
         impl?.Dispose();
     }
@@ -131,7 +165,39 @@ public sealed class SndbConnection : DbConnection
 
     /// <inheritdoc />
     protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel)
-        => throw new NotSupportedException("SonnetDB 当前版本不支持事务。");
+    {
+        var impl = GetOpenImpl();
+        if (_currentTransaction is { IsCompleted: false })
+            throw new InvalidOperationException("当前连接已有活动轻事务。");
+
+        var state = impl.BeginTransaction(isolationLevel);
+        var effectiveIsolation = isolationLevel == IsolationLevel.Unspecified
+            ? IsolationLevel.ReadCommitted
+            : isolationLevel;
+        _currentTransaction = new SndbTransaction(this, effectiveIsolation, state);
+        return _currentTransaction;
+    }
+
+    /// <summary>开始一段 SonnetDB 轻事务。</summary>
+    public new SndbTransaction BeginTransaction()
+        => BeginTransaction(IsolationLevel.Unspecified);
+
+    /// <summary>开始一段 SonnetDB 轻事务。</summary>
+    public new SndbTransaction BeginTransaction(IsolationLevel isolationLevel)
+        => (SndbTransaction)BeginDbTransaction(isolationLevel);
+
+    /// <summary>异步开始一段 SonnetDB 轻事务。</summary>
+    public new ValueTask<SndbTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
+        => BeginTransactionAsync(IsolationLevel.Unspecified, cancellationToken);
+
+    /// <summary>异步开始一段 SonnetDB 轻事务。</summary>
+    public new ValueTask<SndbTransaction> BeginTransactionAsync(
+        IsolationLevel isolationLevel,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return ValueTask.FromResult(BeginTransaction(isolationLevel));
+    }
 
     /// <summary>使用强类型返回 <see cref="SndbCommand"/>。</summary>
     public new SndbCommand CreateCommand() => new() { Connection = this };
@@ -151,5 +217,89 @@ public sealed class SndbConnection : DbConnection
         if (_impl is null || _impl.State != ConnectionState.Open)
             throw new InvalidOperationException("连接未打开。");
         return _impl;
+    }
+
+    internal object? GetTransactionStateForCommand(SndbTransaction? transaction)
+    {
+        if (transaction is null)
+            return null;
+        if (!ReferenceEquals(transaction.Connection, this))
+            throw new InvalidOperationException("Command.Transaction 不属于当前连接。");
+        if (!ReferenceEquals(transaction, _currentTransaction) || transaction.IsCompleted)
+            throw new InvalidOperationException("Command.Transaction 不是当前连接的活动轻事务。");
+
+        return transaction.TransactionState;
+    }
+
+    internal void CommitTransaction(SndbTransaction transaction)
+    {
+        var impl = GetOpenImpl();
+        EnsureCurrentTransaction(transaction);
+        try
+        {
+            impl.CommitTransaction(transaction.TransactionState);
+            transaction.MarkCompletedFromConnection();
+            _currentTransaction = null;
+        }
+        catch
+        {
+            _currentTransaction = null;
+            transaction.MarkCompletedFromConnection();
+            throw;
+        }
+    }
+
+    internal async Task CommitTransactionAsync(SndbTransaction transaction, CancellationToken cancellationToken)
+    {
+        var impl = GetOpenImpl();
+        EnsureCurrentTransaction(transaction);
+        try
+        {
+            await impl.CommitTransactionAsync(transaction.TransactionState, cancellationToken).ConfigureAwait(false);
+            transaction.MarkCompletedFromConnection();
+            _currentTransaction = null;
+        }
+        catch
+        {
+            _currentTransaction = null;
+            transaction.MarkCompletedFromConnection();
+            throw;
+        }
+    }
+
+    internal void RollbackTransaction(SndbTransaction transaction)
+    {
+        var impl = GetOpenImpl();
+        EnsureCurrentTransaction(transaction);
+        try
+        {
+            impl.RollbackTransaction(transaction.TransactionState);
+        }
+        finally
+        {
+            transaction.MarkCompletedFromConnection();
+            _currentTransaction = null;
+        }
+    }
+
+    internal async Task RollbackTransactionAsync(SndbTransaction transaction, CancellationToken cancellationToken)
+    {
+        var impl = GetOpenImpl();
+        EnsureCurrentTransaction(transaction);
+        try
+        {
+            await impl.RollbackTransactionAsync(transaction.TransactionState, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            transaction.MarkCompletedFromConnection();
+            _currentTransaction = null;
+        }
+    }
+
+    private void EnsureCurrentTransaction(SndbTransaction transaction)
+    {
+        if (!ReferenceEquals(transaction, _currentTransaction))
+            throw new InvalidOperationException("事务不是当前连接的活动轻事务。");
     }
 }

@@ -212,6 +212,63 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Remote_Transaction_CommitsViaSqlBatch()
+    {
+        await using var c = new SndbConnection(RemoteConnString());
+        await c.OpenAsync();
+
+        await using (var ddl = c.CreateCommand())
+        {
+            ddl.CommandText = "CREATE TABLE tx_devices (id INT, name STRING, PRIMARY KEY (id))";
+            Assert.Equal(0, await ddl.ExecuteNonQueryAsync());
+        }
+
+        await using (var tx = Assert.IsType<SndbTransaction>(await c.BeginTransactionAsync()))
+        {
+            await using var cmd = c.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = "INSERT INTO tx_devices (id, name) VALUES (1, 'pump')";
+            Assert.Equal(0, await cmd.ExecuteNonQueryAsync());
+            cmd.CommandText = "INSERT INTO tx_devices (id, name) VALUES (2, 'fan')";
+            Assert.Equal(0, await cmd.ExecuteNonQueryAsync());
+            await tx.CommitAsync();
+        }
+
+        Assert.Equal(new long[] { 1L, 2L }, await ReadIdsAsync(c, "tx_devices"));
+    }
+
+    [Fact]
+    public async Task Remote_Transaction_CrossTableCommit_IsRejectedWithoutWrites()
+    {
+        await using var c = new SndbConnection(RemoteConnString());
+        await c.OpenAsync();
+
+        await using (var ddl = c.CreateCommand())
+        {
+            ddl.CommandText = "CREATE TABLE tx_a (id INT, name STRING, PRIMARY KEY (id))";
+            Assert.Equal(0, await ddl.ExecuteNonQueryAsync());
+            ddl.CommandText = "CREATE TABLE tx_b (id INT, name STRING, PRIMARY KEY (id))";
+            Assert.Equal(0, await ddl.ExecuteNonQueryAsync());
+        }
+
+        await using var tx = Assert.IsType<SndbTransaction>(await c.BeginTransactionAsync());
+        await using (var cmd = c.CreateCommand())
+        {
+            cmd.Transaction = tx;
+            cmd.CommandText = "INSERT INTO tx_a (id, name) VALUES (1, 'a')";
+            Assert.Equal(0, await cmd.ExecuteNonQueryAsync());
+            cmd.CommandText = "INSERT INTO tx_b (id, name) VALUES (1, 'b')";
+            Assert.Equal(0, await cmd.ExecuteNonQueryAsync());
+        }
+
+        var ex = await Assert.ThrowsAsync<SndbServerException>(() => tx.CommitAsync());
+        Assert.Equal("sql_error", ex.Error);
+
+        Assert.Empty(await ReadIdsAsync(c, "tx_a"));
+        Assert.Empty(await ReadIdsAsync(c, "tx_b"));
+    }
+
+    [Fact]
     public void Remote_ReadOnlyToken_InsertForbidden()
     {
         // 先用 admin 建表
@@ -261,5 +318,16 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         cmd.CommandText = "SELECT * FROM x";
         var ex = Assert.Throws<SndbServerException>(() => cmd.ExecuteNonQuery());
         Assert.Equal("db_not_found", ex.Error);
+    }
+
+    private static async Task<long[]> ReadIdsAsync(SndbConnection connection, string tableName)
+    {
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = $"SELECT id FROM {tableName} ORDER BY id";
+        await using var reader = await cmd.ExecuteReaderAsync();
+        var ids = new List<long>();
+        while (await reader.ReadAsync())
+            ids.Add(reader.GetInt64(0));
+        return [.. ids];
     }
 }

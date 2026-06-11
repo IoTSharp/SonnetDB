@@ -57,6 +57,13 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         _state = ConnectionState.Open;
     }
 
+    public ValueTask OpenAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Open();
+        return ValueTask.CompletedTask;
+    }
+
     public void Close()
     {
         if (_state == ConnectionState.Closed) return;
@@ -67,10 +74,11 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
 
     public void Dispose() => Close();
 
-    public IExecutionResult Execute(string sql, SndbParameterCollection parameters, CommandBehavior behavior)
+    public IExecutionResult Execute(string sql, SndbParameterCollection parameters, CommandBehavior behavior, object? transactionState)
     {
         if (_http is null || _state != ConnectionState.Open)
             throw new InvalidOperationException("连接未打开。");
+        var transaction = GetTransactionState(transactionState);
 
         // 客户端拦截 SQL Console 风格元命令：USE <db> 切换当前库；SELECT current_database() / SHOW CURRENT_DATABASE 返回当前库。
         // 这两类命令不会发往服务端，避免命中 SqlParser 的"未知关键字"错误。
@@ -83,9 +91,61 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         {
             // 远程模式下 USE 直接修改当前 Database；后续 Execute 会走 /v1/db/<新库>/sql。
             // 不做服务端校验：若库不存在或当前用户无权限，下一条业务 SQL 会自然返回 404 / 403。
+            if (transaction is not null)
+                throw new InvalidOperationException("远程轻事务中不支持 USE 切换数据库。");
             _database = requestedDb;
             return MaterializedExecutionResult.FromSelect(SqlMetaCommand.BuildUseDatabaseResult(requestedDb));
         }
+
+        if (transaction is not null)
+        {
+            transaction.Add(sql);
+            return MaterializedExecutionResult.NonQuery(0);
+        }
+
+        return ExecuteSqlRequest(sql, CancellationToken.None).GetAwaiter().GetResult();
+    }
+
+    public Task<IExecutionResult> ExecuteAsync(
+        string sql,
+        SndbParameterCollection parameters,
+        CommandBehavior behavior,
+        object? transactionState,
+        CancellationToken cancellationToken)
+    {
+        if (_http is null || _state != ConnectionState.Open)
+            throw new InvalidOperationException("连接未打开。");
+        cancellationToken.ThrowIfCancellationRequested();
+        var transaction = GetTransactionState(transactionState);
+
+        var meta = SqlMetaCommand.TryParse(sql, out var requestedDb);
+        if (meta == MetaKind.CurrentDatabase)
+        {
+            return Task.FromResult<IExecutionResult>(
+                MaterializedExecutionResult.FromSelect(SqlMetaCommand.BuildCurrentDatabaseResult(_database)));
+        }
+        if (meta == MetaKind.UseDatabase)
+        {
+            if (transaction is not null)
+                throw new InvalidOperationException("远程轻事务中不支持 USE 切换数据库。");
+            _database = requestedDb;
+            return Task.FromResult<IExecutionResult>(
+                MaterializedExecutionResult.FromSelect(SqlMetaCommand.BuildUseDatabaseResult(requestedDb)));
+        }
+
+        if (transaction is not null)
+        {
+            transaction.Add(sql);
+            return Task.FromResult<IExecutionResult>(MaterializedExecutionResult.NonQuery(0));
+        }
+
+        return ExecuteSqlRequest(sql, cancellationToken);
+    }
+
+    private async Task<IExecutionResult> ExecuteSqlRequest(string sql, CancellationToken cancellationToken)
+    {
+        if (_http is null || _state != ConnectionState.Open)
+            throw new InvalidOperationException("连接未打开。");
 
         var url = $"v1/db/{Uri.EscapeDataString(_database)}/sql";
         var body = new SqlRequestBody { Sql = sql };
@@ -96,15 +156,14 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             Content = new StringContent(json, Encoding.UTF8, "application/json"),
         };
 
-        // 使用 ResponseHeadersRead 以支持流式读取 ndjson 响应体
-        var response = _http.Send(request, HttpCompletionOption.ResponseHeadersRead);
+        var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .ConfigureAwait(false);
         try
         {
             if (!response.IsSuccessStatusCode)
-                throw BuildHttpError(response);
+                throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
 
-            var stream = response.Content.ReadAsStream();
-            // RemoteExecutionResult 拥有 stream 与 response 的所有权
+            var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
             return RemoteExecutionResult.Create(response, stream);
         }
         catch
@@ -115,11 +174,16 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
     }
 
     private static SndbServerException BuildHttpError(HttpResponseMessage response)
+        => BuildHttpErrorAsync(response, CancellationToken.None).GetAwaiter().GetResult();
+
+    private static async Task<SndbServerException> BuildHttpErrorAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
     {
         string body = string.Empty;
         try
         {
-            body = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+            body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         }
         catch { /* ignore */ }
 
@@ -141,10 +205,12 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         return new SndbServerException(error, message, response.StatusCode);
     }
 
-    public IExecutionResult ExecuteBulk(string commandText, SndbParameterCollection parameters)
+    public IExecutionResult ExecuteBulk(string commandText, SndbParameterCollection parameters, object? transactionState)
     {
         if (_http is null || _state != ConnectionState.Open)
             throw new InvalidOperationException("连接未打开。");
+        if (transactionState is not null)
+            throw new NotSupportedException("远程轻事务当前不支持批量入库快路径。");
         ArgumentNullException.ThrowIfNull(commandText);
 
         // 1) 嗅探协议格式 + 切首行 measurement 前缀
@@ -210,6 +276,173 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         return MaterializedExecutionResult.NonQuery((int)body.WrittenRows);
     }
 
+    public Task<IExecutionResult> ExecuteBulkAsync(
+        string commandText,
+        SndbParameterCollection parameters,
+        object? transactionState,
+        CancellationToken cancellationToken)
+    {
+        if (_http is null || _state != ConnectionState.Open)
+            throw new InvalidOperationException("连接未打开。");
+        if (transactionState is not null)
+            throw new NotSupportedException("远程轻事务当前不支持批量入库快路径。");
+        cancellationToken.ThrowIfCancellationRequested();
+        return ExecuteBulkRequestAsync(commandText, parameters, cancellationToken);
+    }
+
+    private async Task<IExecutionResult> ExecuteBulkRequestAsync(
+        string commandText,
+        SndbParameterCollection parameters,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(commandText);
+
+        var format = BulkPayloadDetector.DetectWithPrefix(commandText, out var measurementFromPrefix, out var payload);
+        var measurement = TryGetParam(parameters, "measurement") ?? measurementFromPrefix;
+        if (string.IsNullOrWhiteSpace(measurement))
+        {
+            measurement = format switch
+            {
+                BulkPayloadFormat.Json => TryPeekJsonMeasurement(payload.Span),
+                BulkPayloadFormat.BulkValues => SafePeekBulkMeasurement(payload),
+                _ => null,
+            };
+        }
+        if (string.IsNullOrWhiteSpace(measurement))
+            throw new InvalidOperationException(
+                "远程批量入库必须指定 measurement：可在 payload 首行作为前缀（如 `cpu\\n...`）、" +
+                "通过 cmd.Parameters[\"measurement\"] 提供，或在 JSON 中给出 `m` 字段、在 INSERT 中给出 `INTO <name>`。");
+
+        string suffix = format switch
+        {
+            BulkPayloadFormat.LineProtocol => "lp",
+            BulkPayloadFormat.Json => "json",
+            BulkPayloadFormat.BulkValues => "bulk",
+            _ => throw new InvalidOperationException($"未知协议格式 {format}。"),
+        };
+
+        var url = new StringBuilder();
+        url.Append("v1/db/").Append(Uri.EscapeDataString(_database))
+           .Append("/measurements/").Append(Uri.EscapeDataString(measurement))
+           .Append('/').Append(suffix);
+        var qs = new List<string>();
+        var onerror = TryGetParam(parameters, "onerror");
+        if (!string.IsNullOrEmpty(onerror))
+            qs.Add("onerror=" + Uri.EscapeDataString(onerror));
+        var flush = TryGetParam(parameters, "flush");
+        if (!string.IsNullOrEmpty(flush))
+            qs.Add("flush=" + Uri.EscapeDataString(flush));
+        if (qs.Count > 0)
+            url.Append('?').Append(string.Join('&', qs));
+
+        string contentType = format == BulkPayloadFormat.Json
+            ? "application/json"
+            : "text/plain";
+        using var request = new HttpRequestMessage(HttpMethod.Post, url.ToString())
+        {
+            Content = new StringContent(payload.ToString(), Encoding.UTF8, contentType),
+        };
+
+        using var response = await _http!.SendAsync(request, HttpCompletionOption.ResponseContentRead, cancellationToken)
+            .ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+
+        var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        var body = await JsonSerializer.DeserializeAsync(
+                stream,
+                RemoteJsonContext.Default.BulkIngestResponseBody,
+                cancellationToken)
+            .ConfigureAwait(false)
+            ?? throw new SndbServerException("bulk_ingest_error", "服务端响应体为空。", response.StatusCode);
+        return MaterializedExecutionResult.NonQuery((int)body.WrittenRows);
+    }
+
+    public object BeginTransaction(IsolationLevel isolationLevel)
+    {
+        if (_http is null || _state != ConnectionState.Open)
+            throw new InvalidOperationException("连接未打开。");
+        if (isolationLevel is not IsolationLevel.Unspecified and not IsolationLevel.ReadCommitted)
+            throw new NotSupportedException("SonnetDB 轻事务当前仅支持默认隔离级别。");
+
+        return new RemoteTransactionState();
+    }
+
+    public void CommitTransaction(object transactionState)
+        => CommitTransactionAsync(transactionState, CancellationToken.None).GetAwaiter().GetResult();
+
+    public async Task CommitTransactionAsync(object transactionState, CancellationToken cancellationToken)
+    {
+        var transaction = GetRequiredTransactionState(transactionState);
+        transaction.ThrowIfCompleted();
+
+        var statements = new List<SqlRequestBody>(transaction.Statements.Count + 2)
+        {
+            new() { Sql = "BEGIN" },
+        };
+        statements.AddRange(transaction.Statements.Select(static sql => new SqlRequestBody { Sql = sql }));
+        statements.Add(new SqlRequestBody { Sql = "COMMIT" });
+
+        await ExecuteBatchRequestAsync(statements, cancellationToken).ConfigureAwait(false);
+        transaction.MarkCompleted();
+    }
+
+    public void RollbackTransaction(object transactionState)
+    {
+        var transaction = GetRequiredTransactionState(transactionState);
+        transaction.ThrowIfCompleted();
+        transaction.MarkCompleted();
+    }
+
+    public Task RollbackTransactionAsync(object transactionState, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        RollbackTransaction(transactionState);
+        return Task.CompletedTask;
+    }
+
+    private async Task ExecuteBatchRequestAsync(
+        IReadOnlyList<SqlRequestBody> statements,
+        CancellationToken cancellationToken)
+    {
+        if (_http is null || _state != ConnectionState.Open)
+            throw new InvalidOperationException("连接未打开。");
+
+        var url = $"v1/db/{Uri.EscapeDataString(_database)}/sql/batch";
+        var json = JsonSerializer.Serialize(
+            new SqlBatchRequestBody { Statements = [.. statements] },
+            RemoteJsonContext.Default.SqlBatchRequestBody);
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = new StringContent(json, Encoding.UTF8, "application/json"),
+        };
+        using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseContentRead, cancellationToken)
+            .ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: false);
+        while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
+        {
+            if (line.Length == 0)
+                continue;
+            using var doc = JsonDocument.Parse(line);
+            var root = doc.RootElement;
+            if (root.ValueKind == JsonValueKind.Object
+                && root.TryGetProperty("error", out var errProp)
+                && errProp.ValueKind == JsonValueKind.String)
+            {
+                var error = errProp.GetString() ?? "sql_error";
+                var message = root.TryGetProperty("message", out var msgProp) && msgProp.ValueKind == JsonValueKind.String
+                    ? msgProp.GetString() ?? string.Empty
+                    : string.Empty;
+                throw new SndbServerException(error, message, System.Net.HttpStatusCode.OK);
+            }
+        }
+    }
+
     private static string? TryGetParam(SndbParameterCollection parameters, string name)
     {
         for (int i = 0; i < parameters.Count; i++)
@@ -266,6 +499,18 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         catch (BulkIngestException) { return null; }
     }
 
+    private static RemoteTransactionState? GetTransactionState(object? transactionState)
+        => transactionState switch
+        {
+            null => null,
+            RemoteTransactionState transaction => transaction,
+            _ => throw new InvalidOperationException("事务状态不是远程 SonnetDB 轻事务。"),
+        };
+
+    private static RemoteTransactionState GetRequiredTransactionState(object transactionState)
+        => GetTransactionState(transactionState)
+            ?? throw new InvalidOperationException("事务状态为空。");
+
     /// <summary>
     /// 解析连接字符串中的 <c>Data Source</c>，返回 (baseUrl, databaseFromPath)。
     /// 支持 <c>sonnetdb+http://host:port/dbname</c> / <c>http://host:port/dbname</c>。
@@ -289,6 +534,29 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         var baseUrl = $"{uri.Scheme}://{uri.Authority}/";
         var path = uri.AbsolutePath.Trim('/');
         return (baseUrl, path);
+    }
+}
+
+internal sealed class RemoteTransactionState
+{
+    private readonly List<string> _statements = [];
+    private bool _completed;
+
+    public IReadOnlyList<string> Statements => _statements;
+
+    public void Add(string sql)
+    {
+        ThrowIfCompleted();
+        _statements.Add(sql);
+    }
+
+    public void MarkCompleted()
+        => _completed = true;
+
+    public void ThrowIfCompleted()
+    {
+        if (_completed)
+            throw new InvalidOperationException("轻事务已结束。");
     }
 }
 

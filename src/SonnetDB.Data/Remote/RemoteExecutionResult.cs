@@ -54,53 +54,30 @@ internal sealed class RemoteExecutionResult : IExecutionResult
             }
             if (line.Length == 0) continue;
 
-            using var doc = JsonDocument.Parse(line);
-            var root = doc.RootElement;
-
-            if (root.ValueKind == JsonValueKind.Array)
-            {
-                // 行数据
-                int n = root.GetArrayLength();
-                if (n != _columns.Length)
-                    throw new InvalidDataException($"ndjson 行列数 ({n}) 与 meta ({_columns.Length}) 不一致。");
-                for (int i = 0; i < n; i++)
-                    _currentRow[i] = ReadScalar(root[i]);
+            if (ProcessLine(line))
                 return true;
-            }
+            if (_ended)
+                return false;
+        }
+    }
 
-            if (root.ValueKind == JsonValueKind.Object)
+    public async ValueTask<bool> ReadNextRowAsync(CancellationToken cancellationToken)
+    {
+        if (_ended) return false;
+        while (true)
+        {
+            var line = await _reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
+            if (line is null)
             {
-                if (root.TryGetProperty("type", out var typeProp) && typeProp.ValueKind == JsonValueKind.String)
-                {
-                    var type = typeProp.GetString();
-                    if (type == "end")
-                    {
-                        if (root.TryGetProperty("recordsAffected", out var ra) && ra.ValueKind == JsonValueKind.Number)
-                            RecordsAffected = ra.GetInt32();
-                        // 若 columns 不为空（SELECT），保留 -1
-                        if (_columns.Length > 0) RecordsAffected = -1;
-                        _ended = true;
-                        return false;
-                    }
-                    if (type == "meta")
-                    {
-                        // meta 在 Create 阶段已消费；正常情况下不应再次出现
-                        continue;
-                    }
-                }
-
-                if (root.TryGetProperty("error", out var errProp) && errProp.ValueKind == JsonValueKind.String)
-                {
-                    var error = errProp.GetString() ?? "sql_error";
-                    var message = root.TryGetProperty("message", out var msgProp) && msgProp.ValueKind == JsonValueKind.String
-                        ? msgProp.GetString() ?? string.Empty
-                        : string.Empty;
-                    _ended = true;
-                    throw new SndbServerException(error, message, System.Net.HttpStatusCode.OK);
-                }
+                _ended = true;
+                return false;
             }
+            if (line.Length == 0) continue;
 
-            // 未知行：忽略
+            if (ProcessLine(line))
+                return true;
+            if (_ended)
+                return false;
         }
     }
 
@@ -118,6 +95,52 @@ internal sealed class RemoteExecutionResult : IExecutionResult
         _reader.Dispose();
         _stream.Dispose();
         _response.Dispose();
+    }
+
+    private bool ProcessLine(string line)
+    {
+        using var doc = JsonDocument.Parse(line);
+        var root = doc.RootElement;
+
+        if (root.ValueKind == JsonValueKind.Array)
+        {
+            int n = root.GetArrayLength();
+            if (n != _columns.Length)
+                throw new InvalidDataException($"ndjson 行列数 ({n}) 与 meta ({_columns.Length}) 不一致。");
+            for (int i = 0; i < n; i++)
+                _currentRow[i] = ReadScalar(root[i]);
+            return true;
+        }
+
+        if (root.ValueKind == JsonValueKind.Object)
+        {
+            if (root.TryGetProperty("type", out var typeProp) && typeProp.ValueKind == JsonValueKind.String)
+            {
+                var type = typeProp.GetString();
+                if (type == "end")
+                {
+                    if (root.TryGetProperty("recordsAffected", out var ra) && ra.ValueKind == JsonValueKind.Number)
+                        RecordsAffected = ra.GetInt32();
+                    if (_columns.Length > 0) RecordsAffected = -1;
+                    _ended = true;
+                    return false;
+                }
+                if (type == "meta")
+                    return false;
+            }
+
+            if (root.TryGetProperty("error", out var errProp) && errProp.ValueKind == JsonValueKind.String)
+            {
+                var error = errProp.GetString() ?? "sql_error";
+                var message = root.TryGetProperty("message", out var msgProp) && msgProp.ValueKind == JsonValueKind.String
+                    ? msgProp.GetString() ?? string.Empty
+                    : string.Empty;
+                _ended = true;
+                throw new SndbServerException(error, message, System.Net.HttpStatusCode.OK);
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
