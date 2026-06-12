@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import WelcomeView from '@/views/WelcomeView.vue';
 import SetupView from '@/views/SetupView.vue';
 import LoginView from '@/views/LoginView.vue';
+import AutoLoginView from '@/views/AutoLoginView.vue';
 import AppShell from '@/views/AppShell.vue';
 import DashboardView from '@/views/DashboardView.vue';
 import SqlConsoleView from '@/views/SqlConsoleView.vue';
@@ -25,6 +26,7 @@ const router = createRouter({
     // 首次安装 / 登录页面（匿名，但纳入 /admin 命名空间）
     { path: '/admin/setup', name: 'setup', component: SetupView, meta: { anon: true } },
     { path: '/admin/login', name: 'login', component: LoginView, meta: { anon: true } },
+    { path: '/admin/auto-login', name: 'auto-login', component: AutoLoginView, meta: { anon: true } },
 
     // 管理后台主壳
     {
