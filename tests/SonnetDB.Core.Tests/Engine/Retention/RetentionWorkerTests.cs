@@ -111,6 +111,38 @@ public sealed class RetentionWorkerTests : IDisposable
         Assert.True(db.Segments.SegmentCount < segBefore);
     }
 
+    [Fact]
+    public void RunOnce_DropCommittedButFilesRemain_RestartDoesNotReloadDroppedSegments()
+    {
+        long nowValue = 1000L;
+        var policy = new RetentionPolicy
+        {
+            Enabled = true,
+            TtlInTimestampUnits = 1000,
+            NowFn = () => Volatile.Read(ref nowValue),
+            PollInterval = TimeSpan.FromHours(24),
+        };
+
+        using (var db = Tsdb.Open(MakeOptions(policy, maxPoints: 4)))
+        {
+            db.Write(MakePoint(100L, 1.0));
+            db.Write(MakePoint(200L, 2.0));
+            db.Write(MakePoint(300L, 3.0));
+            db.Write(MakePoint(400L, 4.0));
+            db.FlushNow();
+
+            var droppedIds = db.Segments.Readers.Select(static reader => reader.Header.SegmentId).ToArray();
+            Assert.NotEmpty(droppedIds);
+
+            SegmentReplacementManifest.CommitDroppedSegments(_tempDir, droppedIds);
+        }
+
+        using (var reopened = Tsdb.Open(MakeOptions(policy, maxPoints: 4)))
+        {
+            Assert.Equal(0, reopened.Segments.SegmentCount);
+        }
+    }
+
     // ── 虚拟时钟：写入数据 → 推进时钟 → RunOnce → 部分过期段注入墓碑 ─────────
 
     [Fact]

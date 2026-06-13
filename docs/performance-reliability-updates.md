@@ -56,6 +56,15 @@ permalink: /performance-reliability-updates/
 - Tombstone manifest 增加周期性 checkpoint，可按删除数量或时间间隔保存快照，降低大量删除后崩溃恢复对 WAL 全量 replay 的依赖。
 - `WalSegmentSet.ReplayWithCheckpoint` 改为单遍扫描，并利用 WAL segment `LastLsn` 元数据跳过 checkpoint 之前的整段。
 
+## Compaction 与 Retention 恢复
+
+- 新增 `segment-replacements.sdbmanifest` 作为段替换状态清单，记录 replacement segment、source segments 与 pending/committed 状态；清单采用 tmp 写入、fsync、原子 rename 与 CRC32 校验，不修改 `.SDBSEG` 二进制格式。
+- Compaction 在分配新段后先写 pending 记录；若崩溃发生在新段写完但提交前，启动扫描会跳过 pending target，只加载旧 source 段，避免未提交的新段造成重复。
+- Compaction 新段完整写入后先提交 committed 记录，再发布 `SegmentManager.SwapSegments` 并异步删除旧段；若崩溃发生在 swap 后、delete 前，启动扫描会按 manifest 跳过 superseded source 段，只加载 replacement 段。
+- Retention 整段 drop 也先写 committed drop 记录，再从内存快照移除并删除文件；若删除文件失败或重启前未完成，启动扫描不会重新加载已 drop 的段。
+- 启动时 `Tsdb.Open` 会把 manifest 中出现过的 segment id 纳入 `NextSegmentId` 计算，避免 pending target 尚未落盘时被后续 flush/compaction 复用。
+- 验证结果：`CompactionCrashSafetyTests` 覆盖 pending target、committed replacement 与 SegmentId 复用防护；`RetentionWorkerTests` 覆盖 drop 已提交但文件仍残留的重启恢复；全量 `SonnetDB.Core.Tests` 1925 个测试通过。
+
 ## Catalog、配置与 Analyzer
 
 - 启动后读多写少的 `SeriesCatalog`、`MeasurementCatalog`、`MeasurementSchema` 和 `TagInvertedIndex` 改为发布 `FrozenDictionary` / `FrozenSet` 快照，写入更新时原子替换。

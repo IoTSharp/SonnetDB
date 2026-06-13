@@ -221,13 +221,17 @@ public sealed class Tsdb : IDisposable
         // 加载 catalog（文件不存在时返回空目录）
         var catalog = CatalogFileCodec.Load(TsdbPaths.CatalogPath(root));
 
-        // 扫描已存在的 Segment，计算 NextSegmentId
+        // 扫描已存在的 Segment 与替换清单，计算 NextSegmentId。
+        // 即便 pending compaction 的新段尚未落盘，也不能复用其 SegmentId。
         long nextSegmentId = 1;
         foreach (var (segId, _) in TsdbPaths.EnumerateSegments(root))
         {
             if (segId + 1 > nextSegmentId)
                 nextSegmentId = segId + 1;
         }
+        var segmentReplacementManifest = SegmentReplacementManifest.LoadForRoot(root);
+        if (segmentReplacementManifest.MaxSegmentId + 1 > nextSegmentId)
+            nextSegmentId = segmentReplacementManifest.MaxSegmentId + 1;
 
         // 打开 WAL segment 集合（自动升级 legacy active.SDBWAL）
         string walDir = TsdbPaths.WalDir(root);

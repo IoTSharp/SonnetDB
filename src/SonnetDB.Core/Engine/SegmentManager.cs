@@ -49,7 +49,12 @@ public sealed class SegmentManager : IDisposable
 
         var manager = new SegmentManager(readerOptions);
 
+        var suppressedSegmentIds = SegmentReplacementManifest
+            .LoadForRoot(rootDirectory)
+            .GetSegmentIdsToSuppress(rootDirectory);
+
         var segments = TsdbPaths.EnumerateSegments(rootDirectory)
+            .Where(t => !suppressedSegmentIds.Contains(t.SegmentId))
             .OrderBy(static t => t.SegmentId)
             .ToList();
 

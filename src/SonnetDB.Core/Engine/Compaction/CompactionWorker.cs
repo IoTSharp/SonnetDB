@@ -123,6 +123,10 @@ internal sealed class CompactionWorker : IDisposable
                     var newId = _owner.AllocateSegmentId();
                     var newPath = TsdbPaths.SegmentPath(_owner.RootDirectory, newId);
                     var readerDict = readers.ToDictionary(static r => r.Header.SegmentId);
+                    SegmentReplacementManifest.RecordPendingReplacement(
+                        _owner.RootDirectory,
+                        newId,
+                        plan.SourceSegmentIds);
                     var result = _compactor.Execute(
                         plan,
                         readerDict,
@@ -131,6 +135,11 @@ internal sealed class CompactionWorker : IDisposable
                         _owner.Tombstones,
                         _owner.Catalog,
                         _owner.Measurements);
+
+                    SegmentReplacementManifest.CommitReplacement(
+                        _owner.RootDirectory,
+                        newId,
+                        plan.SourceSegmentIds);
 
                     _owner.Segments.SwapSegments(plan.SourceSegmentIds, newPath);
 

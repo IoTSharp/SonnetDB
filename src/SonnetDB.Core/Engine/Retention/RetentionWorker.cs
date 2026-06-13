@@ -98,6 +98,7 @@ public sealed class RetentionWorker : IDisposable
         // 4. 整段 drop（SegmentManager.DropSegments 原子移除多个段）
         if (plan.SegmentsToDrop.Count > 0)
         {
+            SegmentReplacementManifest.CommitDroppedSegments(_owner.RootDirectory, plan.SegmentsToDrop);
             var dropped = _owner.Segments.DropSegments(plan.SegmentsToDrop);
             droppedSegments = dropped.Count;
 

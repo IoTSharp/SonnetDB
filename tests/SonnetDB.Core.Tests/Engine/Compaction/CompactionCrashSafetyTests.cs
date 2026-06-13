@@ -40,12 +40,11 @@ public sealed class CompactionCrashSafetyTests : IDisposable
         return SegmentReader.Open(SegPath(segId), _readerOpts);
     }
 
-    // ── 崩溃场景 A：Execute 之后、SwapSegments 之前崩溃 ─────────────────────
-    // 结果：新段文件存在（已 rename 完成），旧段仍保留；SegmentManager 快照未更新
-    // 重启后：SegmentManager.Open 扫描目录，会加载新段；旧段也在 → 数据重复但不丢失
+    // ── 崩溃场景 A：Execute 之后、Commit 之前崩溃 ───────────────────────────
+    // 结果：pending manifest 已声明新段尚未提交；重启后跳过新段，仅加载旧段。
 
     [Fact]
-    public void CrashAfterExecuteBeforeSwap_OldSegmentsPreserved()
+    public void CrashAfterExecuteBeforeCommit_PendingReplacementIgnoredOnRestart()
     {
         using var r1 = WriteSegment(1, 50, tsBase: 1000);
         using var r2 = WriteSegment(2, 50, tsBase: 2000);
@@ -54,7 +53,7 @@ public sealed class CompactionCrashSafetyTests : IDisposable
         var readerDict = new Dictionary<long, SegmentReader> { [1] = r1, [2] = r2 };
         var compactor = new SegmentCompactor(new SegmentWriterOptions { FsyncOnCommit = false });
 
-        // 模拟：只执行 Execute，不调用 SwapSegments（模拟崩溃在两者之间）
+        SegmentReplacementManifest.RecordPendingReplacement(_tempDir, 100, plan.SourceSegmentIds);
         var result = compactor.Execute(plan, readerDict, 100, SegPath(100));
 
         // 旧段文件仍在
@@ -63,23 +62,23 @@ public sealed class CompactionCrashSafetyTests : IDisposable
         // 新段文件已落盘
         Assert.True(File.Exists(SegPath(100)), "新段 100 应已落盘");
 
-        // "重启"：扫描目录看到 3 个段（重复但无数据丢失）
+        // "重启"：pending 状态的新段不加载，避免新旧段重复。
         var mgr = SegmentManager.Open(_tempDir);
         int totalPoints = 0;
         foreach (var reader in mgr.Readers)
             foreach (var block in reader.Blocks)
                 totalPoints += block.Count;
 
-        // 数据重复：旧段 50+50=100 + 新段 100 = 200
-        Assert.Equal(200, totalPoints);
+        Assert.Equal(2, mgr.SegmentCount);
+        Assert.Equal(100, totalPoints);
         mgr.Dispose();
     }
 
-    // ── 崩溃场景 B：SwapSegments 之后、Delete 旧段之前崩溃 ───────────────────
-    // 结果：新段已在 manager，旧段文件仍在磁盘；重启后两者都被加载
+    // ── 崩溃场景 B：Commit/Swap 之后、Delete 旧段之前崩溃 ───────────────────
+    // 结果：新段已提交，旧段文件仍在磁盘；重启后旧段被 manifest 过滤。
 
     [Fact]
-    public void CrashAfterSwapBeforeDelete_BothFilesExistOnRestart()
+    public void CrashAfterCommitBeforeDelete_SupersededSegmentsIgnoredOnRestart()
     {
         WriteSegment(1, 30, tsBase: 1000);
         WriteSegment(2, 30, tsBase: 2000);
@@ -95,7 +94,7 @@ public sealed class CompactionCrashSafetyTests : IDisposable
         var compactor = new SegmentCompactor(new SegmentWriterOptions { FsyncOnCommit = false });
         var result = compactor.Execute(plan, readerDict, 100, SegPath(100));
 
-        // 执行 SwapSegments（但不删除旧文件，模拟崩溃在 Delete 之前）
+        SegmentReplacementManifest.CommitReplacement(_tempDir, 100, plan.SourceSegmentIds);
         mgr.SwapSegments(new long[] { 1, 2 }, SegPath(100));
 
         // 不删除旧文件（模拟崩溃）
@@ -104,19 +103,34 @@ public sealed class CompactionCrashSafetyTests : IDisposable
         Assert.True(File.Exists(SegPath(2)), "旧段 2 应仍在磁盘");
         Assert.True(File.Exists(SegPath(100)), "新段 100 应在磁盘");
 
-        // "重启"后：加载 3 个段（有重复数据）
+        // "重启"后：只加载已提交的新段。
         var mgr2 = SegmentManager.Open(_tempDir);
-        Assert.Equal(3, mgr2.SegmentCount); // seg1 + seg2 + seg100
+        Assert.Equal(1, mgr2.SegmentCount);
+        Assert.Equal(100, mgr2.Readers[0].Header.SegmentId);
 
-        // 查询所有点（有重复）
         int totalPoints = 0;
         foreach (var reader in mgr2.Readers)
             foreach (var block in reader.Blocks)
                 totalPoints += block.Count;
 
-        // 重复但不少数据：旧段 30+30=60 + 新段 60 = 120
-        Assert.Equal(120, totalPoints);
+        Assert.Equal(60, totalPoints);
         mgr2.Dispose();
+    }
+
+    [Fact]
+    public void PendingReplacementWithoutSegment_AdvancesNextSegmentIdOnReopen()
+    {
+        WriteSegment(1, 20, tsBase: 1000);
+        SegmentReplacementManifest.RecordPendingReplacement(_tempDir, 100, new long[] { 1 });
+
+        using var db = Tsdb.Open(new TsdbOptions
+        {
+            RootDirectory = _tempDir,
+            BackgroundFlush = new BackgroundFlushOptions { Enabled = false },
+            Compaction = new CompactionPolicy { Enabled = false },
+        });
+
+        Assert.True(db.NextSegmentId > 100);
     }
 
     // ── 临时文件不影响合法段扫描 ─────────────────────────────────────────────
