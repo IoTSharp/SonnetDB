@@ -13,7 +13,7 @@ option(SONNETDB_JAVA_BUILD_EXAMPLES "Build Java connector examples." ON)
 set(SONNETDB_JAVA_NATIVE_LIBRARY "" CACHE FILEPATH "Path to SonnetDB.Native.dll or SonnetDB.Native.so for the run target.")
 
 find_package(Java REQUIRED COMPONENTS Development)
-find_package(JNI REQUIRED)
+find_package(JNI REQUIRED COMPONENTS JVM)
 
 execute_process(
     COMMAND "${Java_JAVA_EXECUTABLE}" -version

@@ -189,11 +189,11 @@ static class ConnectorReleaseTool
         }
 
         WriteSection($"Checking Python connector ({context.Rid})");
-        RequireCommand("python");
+        var python = ResolveCommand("python", "python3");
 
         var environment = CreateNativeEnvironment(context);
         await RunCommandAsync(
-            "python",
+            python,
             [
                 "-m",
                 "py_compile",
@@ -207,7 +207,7 @@ static class ConnectorReleaseTool
         if (!context.SkipSmoke)
         {
             await RunCommandAsync(
-                "python",
+                python,
                 [Path.Combine(context.RepoRoot, "connectors", "python", "examples", "quickstart.py")],
                 context.RepoRoot,
                 environment);
@@ -852,6 +852,19 @@ static class ConnectorReleaseTool
         {
             throw new InvalidOperationException($"Required command was not found: {command}");
         }
+    }
+
+    private static string ResolveCommand(params string[] commands)
+    {
+        foreach (var command in commands)
+        {
+            if (CommandExists(command))
+            {
+                return command;
+            }
+        }
+
+        throw new InvalidOperationException($"Required command was not found: {string.Join(" or ", commands)}");
     }
 
     private static bool CommandExists(string command)
