@@ -831,9 +831,18 @@ public sealed class SqlParser
         //   2) 表值函数调用，例如 forecast(...) / knn(...) / json_each('file.json')
         string measurement;
         string? tableAlias = null;
-        JoinClause? join = null;
+        var joins = new List<JoinClause>();
         FunctionCallExpression? tvf = null;
-        if (Current.Kind == TokenKind.IdentifierLiteral
+        SelectStatement? fromSubquery = null;
+        if (Current.Kind == TokenKind.LeftParen && _index + 1 < _tokens.Count && _tokens[_index + 1].Kind == TokenKind.KeywordSelect)
+        {
+            Advance();
+            fromSubquery = ParseSelect();
+            Expect(TokenKind.RightParen);
+            tableAlias = ParseRequiredTableAlias("FROM 子查询必须声明别名");
+            measurement = tableAlias;
+        }
+        else if (Current.Kind == TokenKind.IdentifierLiteral
             && _index + 1 < _tokens.Count
             && _tokens[_index + 1].Kind == TokenKind.LeftParen)
         {
@@ -866,7 +875,8 @@ public sealed class SqlParser
             tableAlias = ParseOptionalTableAlias();
         }
 
-        join = ParseOptionalJoinClause();
+        while (ParseOptionalJoinClause() is { } parsedJoin)
+            joins.Add(parsedJoin);
 
         SqlExpression? where = null;
         if (Current.Kind == TokenKind.KeywordWhere)
@@ -895,7 +905,9 @@ public sealed class SqlParser
             Pagination: pagination,
             OrderBy: orderBy,
             TableAlias: tableAlias,
-            Join: join);
+            Join: joins.Count == 0 ? null : joins[0],
+            FromSubquery: fromSubquery,
+            Joins: joins);
     }
 
     private string ResolveTableValuedSourceName(string functionName, FunctionCallExpression call)
@@ -947,6 +959,14 @@ public sealed class SqlParser
         return null;
     }
 
+    private string ParseRequiredTableAlias(string errorMessage)
+    {
+        var alias = ParseOptionalTableAlias();
+        if (alias is null)
+            throw Error(errorMessage);
+        return alias;
+    }
+
     private JoinClause? ParseOptionalJoinClause()
     {
         if (Current.Kind == TokenKind.KeywordInner)
@@ -965,11 +985,26 @@ public sealed class SqlParser
 
     private JoinClause ParseJoinClauseTail()
     {
-        var tableName = ExpectIdentifierName();
-        var alias = ParseOptionalTableAlias() ?? tableName;
+        string tableName;
+        SelectStatement? subquery = null;
+        if (Current.Kind == TokenKind.LeftParen && _index + 1 < _tokens.Count && _tokens[_index + 1].Kind == TokenKind.KeywordSelect)
+        {
+            Advance();
+            subquery = ParseSelect();
+            Expect(TokenKind.RightParen);
+            tableName = ParseRequiredTableAlias("JOIN 子查询必须声明别名");
+        }
+        else
+        {
+            tableName = ExpectIdentifierName();
+        }
+
+        var alias = subquery is null
+            ? ParseOptionalTableAlias() ?? tableName
+            : tableName;
         Expect(TokenKind.KeywordOn);
         var on = ParseExpression();
-        return new JoinClause(tableName, alias, on);
+        return new JoinClause(tableName, alias, on, subquery);
     }
 
     private OrderBySpec? ParseOptionalOrderBy()
@@ -1333,6 +1368,12 @@ public sealed class SqlParser
                 return LiteralExpression.Bool(false);
             case TokenKind.LeftParen:
                 Advance();
+                if (Current.Kind == TokenKind.KeywordSelect)
+                {
+                    var subquery = ParseSelect();
+                    Expect(TokenKind.RightParen);
+                    return new SubqueryExpression(subquery);
+                }
                 var inner = ParseExpression();
                 Expect(TokenKind.RightParen);
                 return inner;

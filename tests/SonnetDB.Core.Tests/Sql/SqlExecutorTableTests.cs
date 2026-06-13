@@ -178,6 +178,79 @@ public sealed class SqlExecutorTableTests : IDisposable
     }
 
     [Fact]
+    public void Select_TableJoinAcrossThreeTables_ReturnsQualifiedRows()
+    {
+        using var db = Tsdb.Open(Options());
+        CreateJoinFixture(db);
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            """
+            SELECT d.name AS device, s.name AS site, o.name AS owner
+            FROM devices d
+            JOIN sites s ON d.site_id = s.id
+            JOIN owners o ON s.owner_id = o.id
+            WHERE o.name = 'ops'
+            ORDER BY device
+            """));
+
+        Assert.Equal(["device", "site", "owner"], result.Columns);
+        Assert.Equal(2, result.Rows.Count);
+        Assert.Equal(new object?[] { "boiler", "north", "ops" }, result.Rows[0]);
+        Assert.Equal(new object?[] { "pump", "north", "ops" }, result.Rows[1]);
+    }
+
+    [Fact]
+    public void Select_TableJoinWithSubquerySource_ReturnsRows()
+    {
+        using var db = Tsdb.Open(Options());
+        CreateJoinFixture(db);
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            """
+            SELECT active.name AS device, s.name AS site
+            FROM (SELECT id, name, site_id FROM devices WHERE enabled = TRUE) active
+            JOIN sites s ON active.site_id = s.id
+            ORDER BY device
+            """));
+
+        Assert.Equal(["device", "site"], result.Columns);
+        Assert.Equal([new object?[] { "boiler", "north" }, new object?[] { "pump", "north" }], result.Rows);
+    }
+
+    [Fact]
+    public void Select_TableScalarSubqueryInWhere_ReturnsRows()
+    {
+        using var db = Tsdb.Open(Options());
+        CreateJoinFixture(db);
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT name FROM devices WHERE site_id = (SELECT id FROM sites WHERE name = 'south')"));
+
+        Assert.Equal(["name"], result.Columns);
+        Assert.Equal(new object?[] { "fan" }, result.Rows.Single());
+    }
+
+    [Fact]
+    public void Select_TableGroupByAggregate_ReturnsBuckets()
+    {
+        using var db = Tsdb.Open(Options());
+        CreateJoinFixture(db);
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            """
+            SELECT s.name AS site, count(*) AS device_count, avg(d.temp) AS avg_temp
+            FROM devices d
+            JOIN sites s ON d.site_id = s.id
+            GROUP BY s.name
+            ORDER BY site
+            """));
+
+        Assert.Equal(["site", "device_count", "avg_temp"], result.Columns);
+        Assert.Equal(new object?[] { "north", 2L, 15.25 }, result.Rows[0]);
+        Assert.Equal(new object?[] { "south", 1L, 20.0 }, result.Rows[1]);
+    }
+
+    [Fact]
     public void Delete_WithPrimaryKeyAndExtraPredicate_RespectsAllPredicates()
     {
         using var db = Tsdb.Open(Options());
@@ -191,6 +264,22 @@ public sealed class SqlExecutorTableTests : IDisposable
         var remaining = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
             "SELECT id FROM devices WHERE id = 1"));
         Assert.Single(remaining.Rows);
+    }
+
+    private static void CreateJoinFixture(Tsdb db)
+    {
+        SqlExecutor.Execute(db,
+            "CREATE TABLE owners (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "CREATE TABLE sites (id INT, name STRING, owner_id INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "CREATE TABLE devices (id INT, name STRING, site_id INT, enabled BOOL, temp FLOAT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "INSERT INTO owners (id, name) VALUES (1, 'ops'), (2, 'qa')");
+        SqlExecutor.Execute(db,
+            "INSERT INTO sites (id, name, owner_id) VALUES (10, 'north', 1), (20, 'south', 2)");
+        SqlExecutor.Execute(db,
+            "INSERT INTO devices (id, name, site_id, enabled, temp) VALUES (100, 'pump', 10, TRUE, 12.5), (101, 'fan', 20, FALSE, 20.0), (102, 'boiler', 10, TRUE, 18.0)");
     }
 
     [Fact]

@@ -631,11 +631,22 @@ public static class SqlExecutor
         if (TryExecuteInformationSchemaSelect(tsdb, statement, out var informationSchemaResult))
             return informationSchemaResult;
 
-        var tableSchema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
+        var tableSchema = statement.FromSubquery is null
+            ? tsdb.Tables.Catalog.TryGet(statement.Measurement)
+            : null;
         if (HybridSearchExecutor.IsHybridSearch(statement))
             return HybridSearchExecutor.Execute(tsdb, statement);
-        if (statement.Join is not null)
+        if (RelationalSelectExecutor.NeedsRelationalPath(statement)
+            && (statement.FromSubquery is not null || tableSchema is not null))
+        {
+            return RelationalSelectExecutor.Execute(tsdb, statement);
+        }
+        if (statement.JoinClauses.Count != 0)
+        {
+            if (statement.JoinClauses.Count != 1)
+                throw new InvalidOperationException("measurement JOIN 当前仅支持一个关系维表。");
             return JoinSqlExecutor.Execute(tsdb, statement);
+        }
         if (statement.TableValuedFunction is FunctionCallExpression { Name: var tvfName }
             && (string.Equals(tvfName, "json_each", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(tvfName, "json_table", StringComparison.OrdinalIgnoreCase)))
@@ -660,7 +671,7 @@ public static class SqlExecutor
         result = default!;
         if (!statement.Measurement.StartsWith("information_schema.", StringComparison.OrdinalIgnoreCase))
             return false;
-        if (statement.Join is not null || statement.TableValuedFunction is not null || statement.GroupBy.Count != 0)
+        if (statement.JoinClauses.Count != 0 || statement.TableValuedFunction is not null || statement.GroupBy.Count != 0)
             throw new InvalidOperationException("INFORMATION_SCHEMA 查询不支持 JOIN、表值函数或 GROUP BY。");
 
         var (columns, rows) = statement.Measurement.ToLowerInvariant() switch

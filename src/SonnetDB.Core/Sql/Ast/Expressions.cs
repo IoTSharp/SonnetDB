@@ -89,6 +89,10 @@ public sealed record NamedArgumentExpression(
     string Name,
     SqlExpression Value) : SqlExpression;
 
+/// <summary>标量子查询表达式，例如 <c>(SELECT count(*) FROM devices)</c>。</summary>
+/// <param name="Select">子查询 SELECT 语句。</param>
+public sealed record SubqueryExpression(SelectStatement Select) : SqlExpression;
+
 /// <summary>二元运算表达式。</summary>
 /// <param name="Operator">运算符。</param>
 /// <param name="Left">左操作数。</param>

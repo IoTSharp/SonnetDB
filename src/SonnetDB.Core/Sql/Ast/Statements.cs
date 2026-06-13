@@ -222,7 +222,9 @@ public sealed record InsertStatement(
 /// <param name="Pagination">可选分页子句；支持 <c>OFFSET/FETCH</c> 与兼容语法 <c>LIMIT</c>。</param>
 /// <param name="OrderBy">可选排序子句；measurement 执行层支持 <c>ORDER BY time [ASC|DESC]</c>，关系表执行层支持结果列名。</param>
 /// <param name="TableAlias">FROM 子句声明的可选单表别名。</param>
-/// <param name="Join">可选 JOIN 子句；MM4 第一版仅支持 measurement 与关系维表的 INNER 等值 JOIN。</param>
+/// <param name="Join">可选 JOIN 子句；兼容旧调用方，等价于 <see cref="Joins"/> 第一项。</param>
+/// <param name="FromSubquery">FROM 子句若为子查询则非 <c>null</c>。</param>
+/// <param name="Joins">JOIN 子句列表；为空集合时表示无 JOIN。</param>
 public sealed record SelectStatement(
     IReadOnlyList<SelectItem> Projections,
     string Measurement,
@@ -232,7 +234,14 @@ public sealed record SelectStatement(
     PaginationSpec? Pagination = null,
     OrderBySpec? OrderBy = null,
     string? TableAlias = null,
-    JoinClause? Join = null) : SqlStatement;
+    JoinClause? Join = null,
+    SelectStatement? FromSubquery = null,
+    IReadOnlyList<JoinClause>? Joins = null) : SqlStatement
+{
+    /// <summary>当前 SELECT 的 JOIN 列表。</summary>
+    public IReadOnlyList<JoinClause> JoinClauses { get; } =
+        Joins ?? (Join is null ? Array.Empty<JoinClause>() : new[] { Join });
+}
 
 /// <summary>
 /// <c>JOIN table [AS] alias ON expr</c> 子句。
@@ -243,7 +252,8 @@ public sealed record SelectStatement(
 public sealed record JoinClause(
     string TableName,
     string Alias,
-    SqlExpression On);
+    SqlExpression On,
+    SelectStatement? Subquery = null);
 
 /// <summary>排序方向。</summary>
 public enum SortDirection
