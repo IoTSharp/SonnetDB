@@ -61,14 +61,17 @@ internal static class IoTSharpCompatMatrix
             [
                 new("BlobStorage", "已接入", "Storage.Net IBlobStorage with disk fallback."),
                 new("S3", "需验证", "S3-compatible connection string should match Storage.Net behavior."),
-                new("SonnetDB", "规划接入", "Requires S3-compatible bucket API.")
+                new("SonnetDB", "已接入", "SonnetDB S3-compatible object bucket API plus IoTSharp SonnetDbBlobStorage adapter.")
             ],
             [
                 "object upload download overwrite and delete",
                 "object metadata verify for size etag sha256 content-type",
                 "range read",
                 "multipart upload",
-                "presigned URL"
+                "presigned URL",
+                "object versioning and delete marker",
+                "bucket lifecycle apply",
+                "object audit list"
             ]),
         new(
             "VectorSearch",

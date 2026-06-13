@@ -170,6 +170,71 @@ public sealed class ObjectStorageEndpointTests : IAsyncLifetime
         Assert.Equal("hello world", await get.Content.ReadAsStringAsync());
     }
 
+    [Fact]
+    public async Task ObjectStorage_VersionsLifecycleAndAudit_Work()
+    {
+        using var client = CreateClient();
+        var bucket = "iotsharp-lifecycle";
+        var putBucket = await client.PutAsJsonAsync(
+            $"/v1/db/objects/s3/{bucket}",
+            new ObjectBucketCreateRequest("artifact"),
+            ServerJsonContext.Default.ObjectBucketCreateRequest);
+        Assert.Equal(HttpStatusCode.OK, putBucket.StatusCode);
+
+        var putV1 = await client.PutAsync(
+            $"/v1/db/objects/s3/{bucket}/artifacts/a.bin",
+            new StringContent("v1", Encoding.UTF8, "application/octet-stream"));
+        Assert.Equal(HttpStatusCode.OK, putV1.StatusCode);
+
+        var putV2 = await client.PutAsync(
+            $"/v1/db/objects/s3/{bucket}/artifacts/a.bin",
+            new StringContent("v2", Encoding.UTF8, "application/octet-stream"));
+        Assert.Equal(HttpStatusCode.OK, putV2.StatusCode);
+
+        var versionsBefore = await client.GetAsync($"/v1/db/objects/s3/{bucket}?versions&key=artifacts/a.bin");
+        Assert.Equal(HttpStatusCode.OK, versionsBefore.StatusCode);
+        using (var json = JsonDocument.Parse(await versionsBefore.Content.ReadAsStringAsync()))
+        {
+            Assert.Equal(2, json.RootElement.GetProperty("versions").GetArrayLength());
+        }
+
+        var lifecycle = await client.PutAsJsonAsync(
+            $"/v1/db/objects/s3/{bucket}?lifecycle",
+            new ObjectLifecycleRequest(ExpireNoncurrentAfterDays: 0),
+            ServerJsonContext.Default.ObjectLifecycleRequest);
+        Assert.Equal(HttpStatusCode.OK, lifecycle.StatusCode);
+
+        var apply = await client.PostAsync($"/v1/db/objects/s3/{bucket}?lifecycle", content: null);
+        Assert.Equal(HttpStatusCode.OK, apply.StatusCode);
+        using (var json = JsonDocument.Parse(await apply.Content.ReadAsStringAsync()))
+        {
+            Assert.Equal(1, json.RootElement.GetProperty("removedNoncurrentVersions").GetInt32());
+        }
+
+        var versionsAfter = await client.GetAsync($"/v1/db/objects/s3/{bucket}?versions&key=artifacts/a.bin");
+        Assert.Equal(HttpStatusCode.OK, versionsAfter.StatusCode);
+        using (var json = JsonDocument.Parse(await versionsAfter.Content.ReadAsStringAsync()))
+        {
+            Assert.Single(json.RootElement.GetProperty("versions").EnumerateArray());
+        }
+
+        var get = await client.GetAsync($"/v1/db/objects/s3/{bucket}/artifacts/a.bin");
+        Assert.Equal(HttpStatusCode.OK, get.StatusCode);
+        Assert.Equal("v2", await get.Content.ReadAsStringAsync());
+
+        var audit = await client.GetAsync($"/v1/db/objects/s3/{bucket}?audit&prefix=artifacts/");
+        Assert.Equal(HttpStatusCode.OK, audit.StatusCode);
+        using (var json = JsonDocument.Parse(await audit.Content.ReadAsStringAsync()))
+        {
+            var actions = json.RootElement.GetProperty("entries")
+                .EnumerateArray()
+                .Select(entry => entry.GetProperty("action").GetString())
+                .ToArray();
+            Assert.Contains("object.put", actions);
+            Assert.Contains("object.version.remove", actions);
+        }
+    }
+
     private static async Task PutPartAsync(HttpClient client, string bucket, string uploadId, int partNumber, string content)
     {
         using var request = new HttpRequestMessage(HttpMethod.Put, $"/v1/db/objects/s3/{bucket}/daily/001.bin?uploadId={uploadId}&partNumber={partNumber}")

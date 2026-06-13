@@ -36,6 +36,14 @@ public sealed record SndbObjectListResult(
     IReadOnlyList<SndbObjectInfo> Objects);
 
 /// <summary>
+/// 对象版本列表结果。
+/// </summary>
+public sealed record SndbObjectVersionListResult(
+    string Bucket,
+    string? Key,
+    IReadOnlyList<SndbObjectInfo> Versions);
+
+/// <summary>
 /// 对象读取结果。
 /// </summary>
 public sealed record SndbObjectReadResult(
@@ -76,6 +84,37 @@ public sealed record SndbPresignedObjectUrl(
     string Bucket,
     string Key,
     DateTimeOffset ExpiresUtc);
+
+/// <summary>
+/// Bucket 生命周期策略。
+/// </summary>
+public sealed record SndbBucketLifecycleInfo(
+    string Bucket,
+    int? ExpireCurrentAfterDays,
+    int? ExpireNoncurrentAfterDays,
+    int? ExpireDeleteMarkerAfterDays,
+    DateTimeOffset UpdatedUtc);
+
+/// <summary>
+/// 生命周期执行结果。
+/// </summary>
+public sealed record SndbBucketLifecycleApplyResult(
+    string Bucket,
+    int ExpiredCurrentObjects,
+    int RemovedNoncurrentVersions,
+    int RemovedDeleteMarkers);
+
+/// <summary>
+/// 对象桶审计记录。
+/// </summary>
+public sealed record SndbObjectAuditEntry(
+    string Id,
+    string Action,
+    string Bucket,
+    string? Key,
+    string? VersionId,
+    DateTimeOffset TimestampUtc,
+    IReadOnlyDictionary<string, string> Details);
 
 /// <summary>
 /// 对象读取范围。

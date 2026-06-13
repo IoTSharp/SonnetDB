@@ -639,9 +639,9 @@ extensions/
 | #114 | **SonnetDB.EntityFrameworkCore Provider MVP**：新增 EF Core provider 包，包含 `UseSonnetDB(...)`、SQL generator、type mapping、migrations SQL generator、query translation 基础能力；先通过 provider 自测与最小 `DbContext` CRUD、Identity 子集、迁移创建/回滚测试。 | ✅ |
 | #115 | **IoTSharp EF migrations history 与 ApplicationDbContext 兼容适配**：优先补齐 SonnetDB EF provider 的 migrations history 支持（`__EFMigrationsHistory` 或等价可配置历史表），让 `Database.Migrate()`、迁移升级、回滚、重复执行幂等检查和空库初始化成为 #115 的入口验收；随后在 IoTSharp 增加 `IoTSharp.Data.SonnetDB` storage 扩展，跑通 `ApplicationDbContext` schema 创建、Identity 登录、租户/客户/设备/资产/规则 CRUD、`Include`、分页、常用查询、`StartsWith` / `EndsWith` / `Contains` 到标准 `LIKE` 的查询翻译和 `SaveChanges` 事务；形成不支持清单。 | ✅ |
 | #116 | **KV TTL 与缓存 Provider**：在 KV keyspace 增加 expires-at metadata、惰性过期 + 后台清理、命名空间、批量 get/set/remove、前缀删除和过期统计；新增 EasyCaching provider 与可选 `IDistributedCache` provider；IoTSharp 可新增 `CachingUseIn=SonnetDB` 作为 Redis/LiteDB/InMemory 之外的选择。 | ✅ |
-| #117 | **S3-compatible Bucket API 第一版**：新增 bucket/object metadata 表、multipart upload 会话、etag/sha256、range read、copy object、delete marker、object tags、presigned URL；HTTP API 对齐 S3 常用子集，先覆盖 IoTSharp BlobStorage、固件、附件、工件和备份对象。 | 📋 |
-| #118 | **对象生命周期、版本、审计与配额**：补 bucket policy、retention/lifecycle、object versioning、legal hold 占位、访问审计、容量统计和 quota；Web Admin 增加 Buckets / Objects / Multipart / Audit 页面。 | 📋 |
-| #119 | **IoTSharp SonnetDB Profile**：提供 `appsettings.SonnetDB.json`、Docker Compose、健康检查和配置说明；用户可选择关系库、遥测库、缓存、对象桶走 SonnetDB；保留 PostgreSQL/Redis/S3 等既有 Profile，支持一键切回。 | 📋 |
+| #117 | **S3-compatible Bucket API 第一版**：新增 bucket/object metadata 表、multipart upload 会话、etag/sha256、range read、copy object、delete marker、object tags、presigned URL；HTTP API 对齐 S3 常用子集，先覆盖 IoTSharp BlobStorage、固件、附件、工件和备份对象。 | ✅ |
+| #118 | **对象生命周期、版本、审计与配额**：补 bucket policy、retention/lifecycle、object versioning、legal hold 占位、访问审计、容量统计和 quota；Web Admin 增加 Buckets / Objects / Multipart / Audit 页面。 | 🚧 |
+| #119 | **IoTSharp SonnetDB Profile**：提供 `appsettings.SonnetDB.json`、Docker Compose、健康检查和配置说明；用户可选择关系库、遥测库、缓存、对象桶走 SonnetDB；保留 PostgreSQL/Redis/S3 等既有 Profile，支持一键切回。 | 🚧 |
 | #120 | **迁移、双写与一致性校验工具**：新增 `sndb iotsharp migrate` / `verify` / `rollback` 工具，支持关系库、时序库、缓存 key、对象桶 metadata/content 迁移；支持 IoTSharp 显式选择 SonnetDB 时的双写模式、采样校验、一致性报告和失败回滚。 | 📋 |
 | #121 | **长稳、压测和故障恢复报告**：新增 7x24 小时 IoTSharp SonnetDB Profile 长稳脚本，覆盖 EF Core CRUD、遥测批量写入、缓存 TTL、对象 multipart、备份恢复、断电恢复、升级回滚；输出容量边界、性能曲线和生产建议。 | 📋 |
 | #122 | **大量物理分表文件布局与启动扫描优化**：面向大量 measurement / 大量 segment 场景，设计并实现分层 segment 目录布局（例如按 segmentId 前缀或时间桶拆分）、目录枚举兼容层、备份扫描优化、旧段清理策略和布局迁移工具；保留旧 `segments/{id}.SDBSEG` 读取兼容。 | 📋 |
@@ -679,7 +679,7 @@ extensions/
 - `CachingUseIn=SonnetDB` 可通过 IoTSharp 现有 EasyCaching 调用路径，TTL 行为与 Redis/LiteDB/InMemory 有明确兼容矩阵，并作为新增选择存在；
 - `DataBase=SonnetDB` 可通过 IoTSharp `ApplicationDbContext` 迁移历史表创建、迁移升级/回滚、重复迁移幂等检查、Identity 登录、租户/客户/设备/资产/规则 CRUD 和核心查询；
 - SonnetDB SQL 模式匹配能力必须覆盖 `LIKE`、`NOT LIKE`、`regexp_like` 在 `WHERE` 与 `SELECT` 中的行为，并明确正则超时、模式长度、编译缓存和 scan filter 边界；
-- S3-compatible API 可通过 IoTSharp BlobStorage 的上传、下载、删除、range read、multipart、presigned URL、审计回归；
+- S3-compatible API 已通过 IoTSharp BlobStorage 的上传、下载、删除、range read、multipart、presigned URL、版本、生命周期和审计回归；quota、Web Admin 与跨后端迁移继续推进；
 - 向量搜索可通过 `VECTOR(N)`、KNN、向量索引重建、topK/distance 校验和租户/标签/时间过滤回归；
 - 全文搜索可通过全文索引创建/删除/展示、中文/英文查询、BM25 排序、分页和索引重建回归；
 - 迁移工具支持从 PostgreSQL/MySQL/SQLite + Redis/LiteDB + InfluxDB/TimescaleDB/Taos + 文件系统/S3 迁入，并可生成校验报告；

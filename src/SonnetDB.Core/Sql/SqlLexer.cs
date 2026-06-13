@@ -59,6 +59,7 @@ public sealed class SqlLexer
         ["or"] = TokenKind.KeywordOr,
         ["not"] = TokenKind.KeywordNot,
         ["like"] = TokenKind.KeywordLike,
+        ["regex"] = TokenKind.KeywordRegex,
         ["if"] = TokenKind.KeywordIf,
         ["exists"] = TokenKind.KeywordExists,
         ["as"] = TokenKind.KeywordAs,

@@ -28,6 +28,32 @@ internal static class ObjectStorageEndpointHandler
         try
         {
             var store = new SndbObjectStore(tsdb);
+
+            if (HttpMethods.IsPut(ctx.Request.Method) && ctx.Request.Query.ContainsKey("lifecycle"))
+            {
+                var request = await ReadJsonAsync(ctx, ServerJsonContext.Default.ObjectLifecycleRequest).ConfigureAwait(false);
+                if (request is null)
+                {
+                    await WriteErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "Lifecycle request body is required.").ConfigureAwait(false);
+                    return;
+                }
+
+                var lifecycle = store.SetLifecycle(
+                    bucket,
+                    request.ExpireCurrentAfterDays,
+                    request.ExpireNoncurrentAfterDays,
+                    request.ExpireDeleteMarkerAfterDays);
+                await Results.Json(ToLifecycleResponse(lifecycle), ServerJsonContext.Default.ObjectLifecycleResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+                return;
+            }
+
+            if (HttpMethods.IsPost(ctx.Request.Method) && ctx.Request.Query.ContainsKey("lifecycle"))
+            {
+                var applied = store.ApplyLifecycle(bucket);
+                await Results.Json(ToLifecycleApplyResponse(applied), ServerJsonContext.Default.ObjectLifecycleApplyResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+                return;
+            }
+
             if (HttpMethods.IsPut(ctx.Request.Method))
             {
                 ObjectBucketCreateRequest? request = null;
@@ -56,6 +82,34 @@ internal static class ObjectStorageEndpointHandler
 
                     var listed = store.ListObjects(bucket, ctx.Request.Query["prefix"].ToString(), maxKeys);
                     await Results.Json(ToListResponse(listed), ServerJsonContext.Default.ObjectListResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+                    return;
+                }
+
+                if (ctx.Request.Query.ContainsKey("versions"))
+                {
+                    var versions = store.ListObjectVersions(bucket, ctx.Request.Query["key"].ToString());
+                    await Results.Json(ToVersionListResponse(versions), ServerJsonContext.Default.ObjectVersionListResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+                    return;
+                }
+
+                if (ctx.Request.Query.ContainsKey("lifecycle"))
+                {
+                    var lifecycle = store.GetLifecycle(bucket);
+                    await Results.Json(ToLifecycleResponse(lifecycle), ServerJsonContext.Default.ObjectLifecycleResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+                    return;
+                }
+
+                if (ctx.Request.Query.ContainsKey("audit"))
+                {
+                    int maxEntries = 1000;
+                    if (ctx.Request.Query.TryGetValue("max-entries", out var maxEntryValues)
+                        && int.TryParse(maxEntryValues.ToString(), NumberStyles.None, CultureInfo.InvariantCulture, out int parsedMaxEntries))
+                    {
+                        maxEntries = Math.Clamp(parsedMaxEntries, 1, 10_000);
+                    }
+
+                    var audit = store.ListAudit(bucket, ctx.Request.Query["prefix"].ToString(), maxEntries);
+                    await Results.Json(ToAuditListResponse(bucket, audit), ServerJsonContext.Default.ObjectAuditListResponse).ExecuteAsync(ctx).ConfigureAwait(false);
                     return;
                 }
 
@@ -459,8 +513,32 @@ internal static class ObjectStorageEndpointHandler
     private static ObjectListResponse ToListResponse(SndbObjectListResult result) =>
         new(result.Bucket, result.Prefix, result.MaxKeys, result.Objects.Select(ToObjectResponse).ToArray());
 
+    private static ObjectVersionListResponse ToVersionListResponse(SndbObjectVersionListResult result) =>
+        new(result.Bucket, result.Key, result.Versions.Select(ToObjectResponse).ToArray());
+
     private static PresignedObjectUrlResponse ToPresignedResponse(SndbPresignedObjectUrl url) =>
         new(url.Url, url.Method, url.Bucket, url.Key, url.ExpiresUtc);
+
+    private static ObjectLifecycleResponse ToLifecycleResponse(SndbBucketLifecycleInfo lifecycle) =>
+        new(
+            lifecycle.Bucket,
+            lifecycle.ExpireCurrentAfterDays,
+            lifecycle.ExpireNoncurrentAfterDays,
+            lifecycle.ExpireDeleteMarkerAfterDays,
+            lifecycle.UpdatedUtc);
+
+    private static ObjectLifecycleApplyResponse ToLifecycleApplyResponse(SndbBucketLifecycleApplyResult result) =>
+        new(result.Bucket, result.ExpiredCurrentObjects, result.RemovedNoncurrentVersions, result.RemovedDeleteMarkers);
+
+    private static ObjectAuditListResponse ToAuditListResponse(string bucket, IReadOnlyList<SndbObjectAuditEntry> entries) =>
+        new(bucket, entries.Select(static entry => new ObjectAuditEntryResponse(
+            entry.Id,
+            entry.Action,
+            entry.Bucket,
+            entry.Key,
+            entry.VersionId,
+            entry.TimestampUtc,
+            entry.Details)).ToArray());
 
     private static async Task<T?> ReadJsonAsync<T>(HttpContext ctx, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo)
         where T : class

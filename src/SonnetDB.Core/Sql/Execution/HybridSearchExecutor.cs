@@ -1108,6 +1108,8 @@ internal static class HybridSearchExecutor
             SqlBinaryOperator.GreaterThanOrEqual => compare is >= 0,
             SqlBinaryOperator.Like => LikePatternMatcher.IsMatch(left, right),
             SqlBinaryOperator.NotLike => !LikePatternMatcher.IsMatch(left, right),
+            SqlBinaryOperator.Regex => RegexPatternMatcher.IsMatch(left, right),
+            SqlBinaryOperator.NotRegex => !RegexPatternMatcher.IsMatch(left, right),
             _ => throw new InvalidOperationException($"不支持的比较运算符 {binary.Operator}。"),
         };
     }
@@ -1151,6 +1153,8 @@ internal static class HybridSearchExecutor
             SqlBinaryOperator.GreaterThanOrEqual => compare is >= 0,
             SqlBinaryOperator.Like => LikePatternMatcher.IsMatch(left, right),
             SqlBinaryOperator.NotLike => !LikePatternMatcher.IsMatch(left, right),
+            SqlBinaryOperator.Regex => RegexPatternMatcher.IsMatch(left, right),
+            SqlBinaryOperator.NotRegex => !RegexPatternMatcher.IsMatch(left, right),
             _ => throw new InvalidOperationException($"不支持的比较运算符 {binary.Operator}。"),
         };
     }
@@ -1625,7 +1629,9 @@ internal static class HybridSearchExecutor
         SqlBinaryOperator.GreaterThan or
         SqlBinaryOperator.GreaterThanOrEqual or
         SqlBinaryOperator.Like or
-        SqlBinaryOperator.NotLike;
+        SqlBinaryOperator.NotLike or
+        SqlBinaryOperator.Regex or
+        SqlBinaryOperator.NotRegex;
 
     private static bool IsArithmeticOperator(SqlBinaryOperator op) => op is
         SqlBinaryOperator.Add or

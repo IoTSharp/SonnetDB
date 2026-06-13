@@ -68,6 +68,10 @@ public enum SqlBinaryOperator
     Like,
     /// <summary>NOT LIKE 字符串模式不匹配。</summary>
     NotLike,
+    /// <summary>REGEX 正则表达式匹配。</summary>
+    Regex,
+    /// <summary>NOT REGEX 正则表达式不匹配。</summary>
+    NotRegex,
     /// <summary>加。</summary>
     Add,
     /// <summary>减。</summary>
