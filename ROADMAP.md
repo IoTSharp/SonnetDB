@@ -637,7 +637,7 @@ extensions/
 | #112 | **关系查询能力补齐一：表表 JOIN / 子查询 / 聚合**：在 table executor 增加 table-table inner join、基础 left join、`COUNT/SUM/MIN/MAX/AVG`、`GROUP BY column`、`HAVING`、`IN`、`EXISTS`、简单子查询；保证 IoTSharp 常见 `Include`、权限过滤、分页统计能翻译。当前已落表表连续 `INNER JOIN`、派生表、WHERE 标量子查询和基础 GROUP BY 聚合；outer join / HAVING / IN / EXISTS 留后续 provider 兼容压测补齐。 | ✅ |
 | #113 | **关系事务能力补齐二：跨表小事务与约束**：实现同一数据库内多表 DML 的原子提交与回滚；补唯一约束、外键约束的第一版校验策略、乐观并发列、并发冲突错误码；明确隔离级别边界。 | ✅ |
 | #114 | **SonnetDB.EntityFrameworkCore Provider MVP**：新增 EF Core provider 包，包含 `UseSonnetDB(...)`、SQL generator、type mapping、migrations SQL generator、query translation 基础能力；先通过 provider 自测与最小 `DbContext` CRUD、Identity 子集、迁移创建/回滚测试。 | ✅ |
-| #115 | **IoTSharp EF migrations history 与 ApplicationDbContext 兼容适配**：优先补齐 SonnetDB EF provider 的 migrations history 支持（`__EFMigrationsHistory` 或等价可配置历史表），让 `Database.Migrate()`、迁移升级、回滚、重复执行幂等检查和空库初始化成为 #115 的入口验收；随后在 IoTSharp 增加 `IoTSharp.Data.SonnetDB` storage 扩展，跑通 `ApplicationDbContext` schema 创建、Identity 登录、租户/客户/设备/资产/规则 CRUD、`Include`、分页、常用查询和 `SaveChanges` 事务；形成不支持清单。 | 📋 |
+| #115 | **IoTSharp EF migrations history 与 ApplicationDbContext 兼容适配**：优先补齐 SonnetDB EF provider 的 migrations history 支持（`__EFMigrationsHistory` 或等价可配置历史表），让 `Database.Migrate()`、迁移升级、回滚、重复执行幂等检查和空库初始化成为 #115 的入口验收；随后在 IoTSharp 增加 `IoTSharp.Data.SonnetDB` storage 扩展，跑通 `ApplicationDbContext` schema 创建、Identity 登录、租户/客户/设备/资产/规则 CRUD、`Include`、分页、常用查询、`StartsWith` / `EndsWith` / `Contains` 到标准 `LIKE` 的查询翻译和 `SaveChanges` 事务；形成不支持清单。 | 📋 |
 | #116 | **KV TTL 与缓存 Provider**：在 KV keyspace 增加 expires-at metadata、惰性过期 + 后台清理、命名空间、批量 get/set/remove、前缀删除和过期统计；新增 EasyCaching provider 与可选 `IDistributedCache` provider；IoTSharp 可新增 `CachingUseIn=SonnetDB` 作为 Redis/LiteDB/InMemory 之外的选择。 | 📋 |
 | #117 | **S3-compatible Bucket API 第一版**：新增 bucket/object metadata 表、multipart upload 会话、etag/sha256、range read、copy object、delete marker、object tags、presigned URL；HTTP API 对齐 S3 常用子集，先覆盖 IoTSharp BlobStorage、固件、附件、工件和备份对象。 | 📋 |
 | #118 | **对象生命周期、版本、审计与配额**：补 bucket policy、retention/lifecycle、object versioning、legal hold 占位、访问审计、容量统计和 quota；Web Admin 增加 Buckets / Objects / Multipart / Audit 页面。 | 📋 |
@@ -648,6 +648,7 @@ extensions/
 | #123 | **Compaction manifest 与重复段恢复**：为 compaction 引入 manifest 或等价 superseded segment 状态，记录 source segments、target segment、提交阶段和清理阶段；启动时根据 manifest 忽略或清理被替代旧段，解决 crash after swap before delete 后新旧段同时加载导致重复数据的问题。 | 📋 |
 | #124 | **SegmentManager 增量索引与后台维护成本控制**：将 `AddSegment` / `SwapSegments` 从全量重建索引快照优化为增量更新或分层索引发布；补充大量 segment 下 flush、compaction、retention、query 并发时的 CPU、内存和暂停时间基准。 | 📋 |
 | #125 | **大量 measurement / 长稳专项套件**：新增百万级 series、万级 measurement、海量小 segment、随机重启、后台 flush/compaction/retention 并发、重复数据检测和恢复时间统计；输出“能改善什么、不能改善什么”的容量边界报告。 | 📋 |
+| #126 | **SQL 正则模式查询与 EF 翻译规划**：在 `LIKE` 基线之后引入正则匹配能力，第一阶段支持 `regexp_like(input, pattern[, flags])` 标量函数，可用于 `WHERE` 过滤与 `SELECT` 投影；同时评估 `expr REGEXP pattern`、`expr NOT REGEXP pattern`、`RLIKE` 别名，兼容 MySQL、SQLite 常见写法。第二阶段补 `regexp_substr`、`regexp_replace`、`regexp_instr`，并在 EF provider 中把 `Regex.IsMatch(...)` 翻译为 `regexp_like(...)`。所有正则执行必须设置超时、限制模式长度、缓存编译结果，并在执行计划中明确标注 scan filter；后续可识别 `^literal` 前缀模式做索引剪枝优化。 | 📋 |
 
 ### 推进顺序
 
@@ -669,6 +670,7 @@ extensions/
   → #123（Compaction manifest / 重复段恢复）
   → #124（增量索引 / 后台维护成本）
   → #125（大量 measurement / 长稳专项）
+  → #126（正则模式查询）
 ```
 
 ### 验收标准
@@ -676,6 +678,7 @@ extensions/
 - `TelemetryStorage=SonnetDB` 可通过 IoTSharp 遥测写入、最新值、历史查询和聚合回归；
 - `CachingUseIn=SonnetDB` 可通过 IoTSharp 现有 EasyCaching 调用路径，TTL 行为与 Redis/LiteDB/InMemory 有明确兼容矩阵，并作为新增选择存在；
 - `DataBase=SonnetDB` 可通过 IoTSharp `ApplicationDbContext` 迁移历史表创建、迁移升级/回滚、重复迁移幂等检查、Identity 登录、租户/客户/设备/资产/规则 CRUD 和核心查询；
+- SonnetDB SQL 模式匹配能力必须覆盖 `LIKE`、`NOT LIKE`、`regexp_like` 在 `WHERE` 与 `SELECT` 中的行为，并明确正则超时、模式长度、编译缓存和 scan filter 边界；
 - S3-compatible API 可通过 IoTSharp BlobStorage 的上传、下载、删除、range read、multipart、presigned URL、审计回归；
 - 向量搜索可通过 `VECTOR(N)`、KNN、向量索引重建、topK/distance 校验和租户/标签/时间过滤回归；
 - 全文搜索可通过全文索引创建/删除/展示、中文/英文查询、BM25 排序、分页和索引重建回归；

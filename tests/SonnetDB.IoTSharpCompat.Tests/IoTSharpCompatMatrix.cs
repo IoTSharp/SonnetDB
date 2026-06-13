@@ -116,8 +116,7 @@ internal static class IoTSharpCompatMatrix
     [
         "HealthChecks UI does not yet have durable SonnetDB storage; IoTSharp.Data.SonnetDB currently uses in-memory HealthChecks UI storage.",
         "SonnetDB EF migrations history supports __EFMigrationsHistory and configurable history tables, but distributed cross-process migration locking is not yet implemented.",
-        "IoTSharp.Data.SonnetDB has not yet checked in a full provider-specific production migration baseline; current ApplicationDbContext compatibility uses provider history plus EnsureCreated schema coverage.",
-        "String pattern method translation for StartsWith, EndsWith and Contains is not supported until SonnetDB SQL adds LIKE or equivalent string predicates."
+        "IoTSharp.Data.SonnetDB has not yet checked in a full provider-specific production migration baseline; current ApplicationDbContext compatibility uses provider history plus EnsureCreated schema coverage."
     ];
 }
 

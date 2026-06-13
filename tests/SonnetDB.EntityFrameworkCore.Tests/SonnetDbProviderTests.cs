@@ -132,6 +132,57 @@ public sealed class SonnetDbProviderTests : IDisposable
     }
 
     [Fact]
+    public void QueryTranslation_StringPatterns_UseLike()
+    {
+        using var context = new DeviceContext(CreateOptions<DeviceContext>());
+
+        var sql = context.Devices
+            .Where(item => item.Name.StartsWith("pump")
+                || item.Name.EndsWith("001")
+                || item.Name.Contains("mp-0"))
+            .ToQueryString();
+
+        Assert.Contains("LIKE", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("starts_with", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ends_with", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("contains(", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Query_StringPatterns_FilterRows()
+    {
+        using var context = new DeviceContext(CreateOptions<DeviceContext>());
+
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE \"Devices\" (\"Id\" INT NOT NULL, \"Name\" STRING NOT NULL, \"Enabled\" BOOL NOT NULL, PRIMARY KEY (\"Id\"))");
+
+        context.Devices.AddRange(
+            new Device { Id = 1, Name = "pump-001", Enabled = true },
+            new Device { Id = 2, Name = "pump-002", Enabled = true },
+            new Device { Id = 3, Name = "fan-001", Enabled = true },
+            new Device { Id = 4, Name = "valve-003", Enabled = true });
+        await context.SaveChangesAsync();
+
+        Assert.Equal(new long[] { 1L, 2L }, await context.Devices
+            .Where(item => item.Name.StartsWith("pump"))
+            .OrderBy(item => item.Id)
+            .Select(item => item.Id)
+            .ToArrayAsync());
+
+        Assert.Equal(new long[] { 1L, 3L }, await context.Devices
+            .Where(item => item.Name.EndsWith("001"))
+            .OrderBy(item => item.Id)
+            .Select(item => item.Id)
+            .ToArrayAsync());
+
+        Assert.Equal(new long[] { 1L, 2L }, await context.Devices
+            .Where(item => item.Name.Contains("mp-0"))
+            .OrderBy(item => item.Id)
+            .Select(item => item.Id)
+            .ToArrayAsync());
+    }
+
+    [Fact]
     public void MigrationsSqlGenerator_CreateAndRollback_GeneratesSonnetDbDdl()
     {
         using var context = new DeviceContext(CreateOptions<DeviceContext>());

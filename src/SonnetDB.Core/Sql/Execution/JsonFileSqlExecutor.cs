@@ -394,6 +394,8 @@ internal static class JsonFileSqlExecutor
             SqlBinaryOperator.LessThanOrEqual => compare is <= 0,
             SqlBinaryOperator.GreaterThan => compare is > 0,
             SqlBinaryOperator.GreaterThanOrEqual => compare is >= 0,
+            SqlBinaryOperator.Like => LikePatternMatcher.IsMatch(left, right),
+            SqlBinaryOperator.NotLike => !LikePatternMatcher.IsMatch(left, right),
             _ => throw new InvalidOperationException($"不支持的比较运算符 {binary.Operator}。"),
         };
     }
@@ -498,7 +500,9 @@ internal static class JsonFileSqlExecutor
             or SqlBinaryOperator.LessThan
             or SqlBinaryOperator.LessThanOrEqual
             or SqlBinaryOperator.GreaterThan
-            or SqlBinaryOperator.GreaterThanOrEqual;
+            or SqlBinaryOperator.GreaterThanOrEqual
+            or SqlBinaryOperator.Like
+            or SqlBinaryOperator.NotLike;
 
     private static string FormatFunctionColumnName(FunctionCallExpression function)
         => function.IsStar

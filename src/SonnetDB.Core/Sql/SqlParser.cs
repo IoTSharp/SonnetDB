@@ -1316,6 +1316,25 @@ public sealed class SqlParser
                 continue;
             }
 
+            if (Current.Kind == TokenKind.KeywordLike)
+            {
+                Advance();
+                var right = ParseAdditive();
+                left = new BinaryExpression(SqlBinaryOperator.Like, left, right);
+                continue;
+            }
+
+            if (Current.Kind == TokenKind.KeywordNot
+                && _index + 1 < _tokens.Count
+                && _tokens[_index + 1].Kind == TokenKind.KeywordLike)
+            {
+                Advance();
+                Advance();
+                var right = ParseAdditive();
+                left = new BinaryExpression(SqlBinaryOperator.NotLike, left, right);
+                continue;
+            }
+
             if (TryMapVectorDistance(Current.Kind, out var functionName))
             {
                 Advance();

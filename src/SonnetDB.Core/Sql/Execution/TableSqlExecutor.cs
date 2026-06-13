@@ -927,6 +927,8 @@ internal static class TableSqlExecutor
             SqlBinaryOperator.LessThanOrEqual => compare is <= 0,
             SqlBinaryOperator.GreaterThan => compare is > 0,
             SqlBinaryOperator.GreaterThanOrEqual => compare is >= 0,
+            SqlBinaryOperator.Like => LikePatternMatcher.IsMatch(left, right),
+            SqlBinaryOperator.NotLike => !LikePatternMatcher.IsMatch(left, right),
             _ => throw new InvalidOperationException($"不支持的比较运算符 {binary.Operator}。"),
         };
     }
@@ -961,8 +963,17 @@ internal static class TableSqlExecutor
 
     private static object EvaluateArithmetic(BinaryExpression binary, TableSchema schema, IReadOnlyList<object?> row)
     {
-        var left = RequireDouble(EvaluateScalar(binary.Left, schema, row), binary.Operator.ToString());
-        var right = RequireDouble(EvaluateScalar(binary.Right, schema, row), binary.Operator.ToString());
+        var leftValue = EvaluateScalar(binary.Left, schema, row);
+        var rightValue = EvaluateScalar(binary.Right, schema, row);
+        if (binary.Operator == SqlBinaryOperator.Add
+            && (leftValue is string || rightValue is string))
+        {
+            return Convert.ToString(leftValue, CultureInfo.InvariantCulture)
+                + Convert.ToString(rightValue, CultureInfo.InvariantCulture);
+        }
+
+        var left = RequireDouble(leftValue, binary.Operator.ToString());
+        var right = RequireDouble(rightValue, binary.Operator.ToString());
         return binary.Operator switch
         {
             SqlBinaryOperator.Add => left + right,
@@ -1267,7 +1278,9 @@ internal static class TableSqlExecutor
         SqlBinaryOperator.LessThan or
         SqlBinaryOperator.LessThanOrEqual or
         SqlBinaryOperator.GreaterThan or
-        SqlBinaryOperator.GreaterThanOrEqual;
+        SqlBinaryOperator.GreaterThanOrEqual or
+        SqlBinaryOperator.Like or
+        SqlBinaryOperator.NotLike;
 
     private static bool IsArithmeticOperator(SqlBinaryOperator op) => op is
         SqlBinaryOperator.Add or

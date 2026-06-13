@@ -64,6 +64,10 @@ public enum SqlBinaryOperator
     GreaterThan,
     /// <summary>大于等于。</summary>
     GreaterThanOrEqual,
+    /// <summary>LIKE 字符串模式匹配。</summary>
+    Like,
+    /// <summary>NOT LIKE 字符串模式不匹配。</summary>
+    NotLike,
     /// <summary>加。</summary>
     Add,
     /// <summary>减。</summary>

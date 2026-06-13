@@ -261,7 +261,7 @@ public sealed class ApplicationDbContextSonnetDbCompatTests : IDisposable
         Assert.DoesNotContain(unsupported, item => item.Contains("migrations history has no", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(unsupported, item => item.Contains("distributed cross-process migration locking", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(unsupported, item => item.Contains("production migration baseline", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(unsupported, item => item.Contains("StartsWith", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(unsupported, item => item.Contains("StartsWith", StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task EnsureSchemaAsync()

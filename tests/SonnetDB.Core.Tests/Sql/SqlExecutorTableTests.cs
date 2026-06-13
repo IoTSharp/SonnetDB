@@ -192,6 +192,39 @@ public sealed class SqlExecutorTableTests : IDisposable
     }
 
     [Fact]
+    public void Select_WithLikePredicate_MatchesSqlPatterns()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "INSERT INTO devices (id, name) VALUES (1, 'pump-001'), (2, 'pump-002'), (3, 'fan-001'), (4, 'p_mp-003')");
+
+        var startsWith = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM devices WHERE name LIKE 'pump%' ORDER BY id"));
+        Assert.Equal([1L, 2L], startsWith.Rows.Select(r => (long)r[0]!).ToArray());
+
+        var endsWith = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM devices WHERE name LIKE '%001' ORDER BY id"));
+        Assert.Equal([1L, 3L], endsWith.Rows.Select(r => (long)r[0]!).ToArray());
+
+        var contains = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM devices WHERE name LIKE '%ump-0%' ORDER BY id"));
+        Assert.Equal([1L, 2L], contains.Rows.Select(r => (long)r[0]!).ToArray());
+
+        var singleCharacterWildcard = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM devices WHERE name LIKE 'p_mp%' ORDER BY id"));
+        Assert.Equal([1L, 2L, 4L], singleCharacterWildcard.Rows.Select(r => (long)r[0]!).ToArray());
+
+        var escapedWildcard = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM devices WHERE name LIKE 'p\\_mp%' ORDER BY id"));
+        Assert.Equal([4L], escapedWildcard.Rows.Select(r => (long)r[0]!).ToArray());
+
+        var notLike = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM devices WHERE name NOT LIKE 'pump%' ORDER BY id"));
+        Assert.Equal([3L, 4L], notLike.Rows.Select(r => (long)r[0]!).ToArray());
+    }
+
+    [Fact]
     public void Select_TableJoinAcrossThreeTables_ReturnsQualifiedRows()
     {
         using var db = Tsdb.Open(Options());

@@ -91,6 +91,8 @@ public enum TokenKind
     KeywordAnd,
     KeywordOr,
     KeywordNot,
+    /// <summary>LIKE 字符串模式匹配。</summary>
+    KeywordLike,
     /// <summary>IF（用于 IF NOT EXISTS 等条件子句）。</summary>
     KeywordIf,
     /// <summary>EXISTS（用于 IF NOT EXISTS 等条件子句）。</summary>
