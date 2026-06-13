@@ -1,5 +1,5 @@
-using System.Data.Common;
 using System.Data;
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace SonnetDB.EntityFrameworkCore.Storage.Internal;

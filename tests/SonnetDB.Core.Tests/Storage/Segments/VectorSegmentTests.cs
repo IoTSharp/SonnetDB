@@ -257,7 +257,7 @@ public sealed class VectorSegmentTests : IDisposable
         Assert.Equal(0L, reader.VectorIndexCacheCurrentBytesForSegment);
 
         var block = Assert.Single(reader.FindBySeries(seriesId));
-    Assert.True(reader.TryGetVectorIndexReader(block, out var vectorIndex));
+        Assert.True(reader.TryGetVectorIndexReader(block, out var vectorIndex));
 
         Assert.True(reader.VectorIndexOffsetsLoaded);
         Assert.True(reader.VectorIndexOffsetsEmbedded);

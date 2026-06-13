@@ -1,6 +1,6 @@
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using System.Data.Common;
 using SonnetDB.EntityFrameworkCore.Infrastructure.Internal;
 
 namespace SonnetDB.EntityFrameworkCore.Extensions;

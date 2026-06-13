@@ -8,9 +8,9 @@ using DotVectorIndexIvfOptions = DotVector.Indexing.VectorIndexIvfOptions;
 using DotVectorIndexIvfPqOptions = DotVector.Indexing.VectorIndexIvfPqOptions;
 using DotVectorIndexReader = DotVector.Indexing.IVectorIndexReader;
 using DotVectorIndexVamanaOptions = DotVector.Indexing.VectorIndexVamanaOptions;
+using DotVectorKnnMetric = DotVector.Primitives.KnnMetric;
 using DotVectorLocalIndexBlob = DotVector.Indexing.LocalVectorIndexBlob;
 using DotVectorLocalIndexBuilder = DotVector.Indexing.LocalVectorIndexBuilder;
-using DotVectorKnnMetric = DotVector.Primitives.KnnMetric;
 using DotVectorSearchRequest = DotVector.Indexing.VectorSearchRequest;
 
 namespace SonnetDB.Storage.Segments;

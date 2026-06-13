@@ -279,12 +279,12 @@ public sealed class SchemaAndMaintenanceEndpointTests : IAsyncLifetime
         string backupPath = Path.Combine(_dataRoot!, "backups", dbName);
         string restoreTarget = Path.Combine(_dataRoot!, "restored", dbName);
         using (var db = Tsdb.Open(new TsdbOptions
-               {
-                   RootDirectory = sourcePath,
-                   BackgroundFlush = new BackgroundFlushOptions { Enabled = false },
-                   Compaction = new CompactionPolicy { Enabled = false },
-                   Retention = new RetentionPolicy { Enabled = false },
-               }))
+        {
+            RootDirectory = sourcePath,
+            BackgroundFlush = new BackgroundFlushOptions { Enabled = false },
+            Compaction = new CompactionPolicy { Enabled = false },
+            Retention = new RetentionPolicy { Enabled = false },
+        }))
         {
             SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, site STRING, PRIMARY KEY (id))");
             SqlExecutor.Execute(db, "CREATE INDEX idx_devices_site ON devices (site)");

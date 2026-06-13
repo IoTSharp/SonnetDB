@@ -8,7 +8,9 @@ on:
     paths:
       - '.github/workflows/docker-publish.yml'
       - 'src/SonnetDB/**'
-      - 'src/SonnetDB/**'
+      - 'src/SonnetDB.Core/**'
+      - 'modules/DotSearch/**'
+      - 'modules/DotVector/**'
       - 'web/**'
       - 'docs/**'
       - '.config/dotnet-tools.json'

@@ -1,5 +1,5 @@
-using SonnetDB.Kv;
 using SonnetDB.FullText;
+using SonnetDB.Kv;
 
 namespace SonnetDB.Documents;
 

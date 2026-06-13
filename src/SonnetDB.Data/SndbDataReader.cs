@@ -164,7 +164,7 @@ public sealed class SndbDataReader : DbDataReader
         table.Columns.Add(SchemaTableColumn.ColumnSize, typeof(int));
         table.Columns.Add(SchemaTableColumn.NumericPrecision, typeof(short));
         table.Columns.Add(SchemaTableColumn.NumericScale, typeof(short));
-        table.Columns.Add(SchemaTableColumn.DataType, typeof(Type));
+        table.Columns.Add(SchemaTableColumn.DataType, typeof(object));
         table.Columns.Add(SchemaTableColumn.ProviderType, typeof(int));
         table.Columns.Add(SchemaTableColumn.IsLong, typeof(bool));
         table.Columns.Add(SchemaTableColumn.AllowDBNull, typeof(bool));
