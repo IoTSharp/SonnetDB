@@ -8,6 +8,7 @@
     <Project Path="src/SonnetDB.Cli/SonnetDB.Cli.csproj" />
     <Project Path="src/SonnetDB.Core/SonnetDB.Core.csproj" />
     <Project Path="src/SonnetDB.Data/SonnetDB.Data.csproj" />
+    <Project Path="src/SonnetDB.EntityFrameworkCore/SonnetDB.EntityFrameworkCore.csproj" />
     <Project Path="src/SonnetDB/SonnetDB.csproj" />
   </Folder>
   <Folder Name="/connectors/">
@@ -17,6 +18,7 @@
     <Project Path="tests/SonnetDB.Accuracy.Tests/SonnetDB.Accuracy.Tests.csproj" />
     <Project Path="tests/SonnetDB.Benchmarks/SonnetDB.Benchmarks.csproj" />
     <Project Path="tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj" />
+    <Project Path="tests/SonnetDB.EntityFrameworkCore.Tests/SonnetDB.EntityFrameworkCore.Tests.csproj" />
     <Project Path="tests/SonnetDB.IoTSharpCompat.Tests/SonnetDB.IoTSharpCompat.Tests.csproj" />
     <Project Path="tests/SonnetDB.Tests/SonnetDB.Tests.csproj" />
   </Folder>

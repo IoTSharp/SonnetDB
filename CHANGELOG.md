@@ -7,6 +7,7 @@
 
 ### Added
 
+- **PR #114 SonnetDB.EntityFrameworkCore Provider MVP**：新增独立 `SonnetDB.EntityFrameworkCore` Provider 包，提供 `UseSonnetDB(...)`、关系型服务注册、SonnetDB ADO.NET 连接、SQL 标识符/参数生成、基础类型映射、DML SQL 生成、迁移 SQL 生成与基础查询翻译能力；新增 `tests/SonnetDB.EntityFrameworkCore.Tests`，覆盖 provider 服务注册、最小 `DbContext` CRUD、Identity 常用列子集、`ToQueryString()` SQL 生成以及迁移创建/回滚 DDL。
 - **PR #113 跨表小事务与约束能力补齐**：关系表轻事务从单表扩展为同一数据库内多表 `INSERT` / `UPDATE` / `DELETE` 原子提交与回滚；`CREATE TABLE` 支持表级 `FOREIGN KEY (...) REFERENCES ... (...)` 第一版校验策略和列级 `ROWVERSION` 乐观并发列，DML 提交统一校验主键、唯一索引、外键和并发版本；新增稳定约束错误码 `table_unique_violation`、`table_foreign_key_violation`、`table_concurrency_conflict`，并在 SQL / ADO.NET 文档中明确当前仅支持默认 / `ReadCommitted` 边界，不提供 MVCC、可重复读、序列化隔离或跨数据库事务。
 - **PR #112 表表 JOIN / 子查询 / 聚合能力补齐**：关系表 SELECT 新增多表 `INNER JOIN` 执行路径，支持连续表表 JOIN、`FROM (SELECT ...) alias` / `JOIN (SELECT ...) alias` 派生表、WHERE 中标量子查询，以及关系表 `GROUP BY` 搭配 `count` / `sum` / `min` / `max` / `avg` 聚合；保留既有 measurement JOIN 维表路径不变。
 - **PR #109 IoTSharp 兼容矩阵与基线套件**：新增 `docs/iotsharp-compat-matrix.md`，梳理 IoTSharp 当前 PostgreSQL/MySQL/SQLServer/SQLite/Oracle/Cassandra/ClickHouse、InfluxDB/TimescaleDB/Taos/IoTDB/SonnetDB、Redis/LiteDB/InMemory、BlobStorage/S3 以及向量搜索、全文搜索的兼容状态；新增 `tests/SonnetDB.IoTSharpCompat.Tests` 占位基线套件，固定关系、时序、缓存、对象桶、向量搜索、全文搜索验收用例和迁移/双写/回滚清单。
