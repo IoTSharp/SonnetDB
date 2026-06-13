@@ -682,7 +682,7 @@ public static class Program
             await ObjectStorageEndpointHandler.HandleBucketsAsync(ctx, tsdb).ConfigureAwait(false);
         });
 
-        app.MapMethods("/v1/db/{db}/s3/{bucket}", ["GET", "PUT", "DELETE"], async (HttpContext ctx, string db, string bucket) =>
+        app.MapMethods("/v1/db/{db}/s3/{bucket}", ["GET", "PUT", "POST", "DELETE"], async (HttpContext ctx, string db, string bucket) =>
         {
             var required = HttpMethods.IsGet(ctx.Request.Method) ? DatabasePermission.Read : DatabasePermission.Write;
             if (!await TryResolveObjectStorageAsync(ctx, registry, grants, db, required).ConfigureAwait(false))

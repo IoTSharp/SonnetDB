@@ -8,6 +8,8 @@ namespace SonnetDB.ObjectStorage;
     WriteIndented = false)]
 [JsonSerializable(typeof(SndbBucketRecord))]
 [JsonSerializable(typeof(SndbObjectRecord))]
+[JsonSerializable(typeof(SndbBucketLifecycleRecord))]
+[JsonSerializable(typeof(SndbObjectAuditRecord))]
 [JsonSerializable(typeof(SndbMultipartUploadRecord))]
 [JsonSerializable(typeof(SndbMultipartPartRecord))]
 [JsonSerializable(typeof(SndbPresignedTokenRecord))]
@@ -34,6 +36,22 @@ internal sealed record SndbObjectRecord(
     DateTimeOffset UpdatedUtc,
     Dictionary<string, string> Metadata,
     Dictionary<string, string> Tags);
+
+internal sealed record SndbBucketLifecycleRecord(
+    string Bucket,
+    int? ExpireCurrentAfterDays,
+    int? ExpireNoncurrentAfterDays,
+    int? ExpireDeleteMarkerAfterDays,
+    DateTimeOffset UpdatedUtc);
+
+internal sealed record SndbObjectAuditRecord(
+    string Id,
+    string Action,
+    string Bucket,
+    string? Key,
+    string? VersionId,
+    DateTimeOffset TimestampUtc,
+    Dictionary<string, string> Details);
 
 internal sealed record SndbMultipartUploadRecord(
     string Bucket,

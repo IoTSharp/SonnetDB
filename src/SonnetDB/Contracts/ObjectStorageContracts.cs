@@ -32,6 +32,12 @@ public sealed record ObjectListResponse(
     int MaxKeys,
     IReadOnlyList<ObjectInfoResponse> Objects);
 
+/// <summary>对象版本列表响应。</summary>
+public sealed record ObjectVersionListResponse(
+    string Bucket,
+    string? Key,
+    IReadOnlyList<ObjectInfoResponse> Versions);
+
 /// <summary>复制对象响应。</summary>
 public sealed record ObjectCopyResponse(string ETag, string Sha256, string VersionId);
 
@@ -72,3 +78,39 @@ public sealed record PresignedObjectUrlResponse(
     string Bucket,
     string Key,
     DateTimeOffset ExpiresUtc);
+
+/// <summary>Bucket 生命周期策略请求。</summary>
+public sealed record ObjectLifecycleRequest(
+    int? ExpireCurrentAfterDays = null,
+    int? ExpireNoncurrentAfterDays = null,
+    int? ExpireDeleteMarkerAfterDays = null);
+
+/// <summary>Bucket 生命周期策略响应。</summary>
+public sealed record ObjectLifecycleResponse(
+    string Bucket,
+    int? ExpireCurrentAfterDays,
+    int? ExpireNoncurrentAfterDays,
+    int? ExpireDeleteMarkerAfterDays,
+    DateTimeOffset UpdatedUtc);
+
+/// <summary>Bucket 生命周期执行响应。</summary>
+public sealed record ObjectLifecycleApplyResponse(
+    string Bucket,
+    int ExpiredCurrentObjects,
+    int RemovedNoncurrentVersions,
+    int RemovedDeleteMarkers);
+
+/// <summary>对象桶审计记录响应。</summary>
+public sealed record ObjectAuditEntryResponse(
+    string Id,
+    string Action,
+    string Bucket,
+    string? Key,
+    string? VersionId,
+    DateTimeOffset TimestampUtc,
+    IReadOnlyDictionary<string, string> Details);
+
+/// <summary>对象桶审计列表响应。</summary>
+public sealed record ObjectAuditListResponse(
+    string Bucket,
+    IReadOnlyList<ObjectAuditEntryResponse> Entries);

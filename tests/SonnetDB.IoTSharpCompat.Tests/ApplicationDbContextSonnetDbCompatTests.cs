@@ -23,7 +23,8 @@ public sealed class ApplicationDbContextSonnetDbCompatTests : IDisposable
         services.AddLogging();
         services.AddSingleton<IDataBaseModelBuilderOptions>(static _ => new SonnetDbModelBuilderOptions());
         services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseSonnetDB($"Data Source={_root}"));
+            options.UseSonnetDB($"Data Source={_root}", static builder =>
+                builder.MigrationsAssembly("IoTSharp.Data.SonnetDB")));
         services.AddIdentity<IdentityUser, IdentityRole>()
             .AddEntityFrameworkStores<ApplicationDbContext>()
             .AddDefaultTokenProviders();
@@ -71,6 +72,31 @@ public sealed class ApplicationDbContextSonnetDbCompatTests : IDisposable
         var tableNames = await ReadTableNamesAsync(context);
         Assert.Contains("__EFMigrationsHistory", tableNames);
         Assert.Equal(1, tableNames.Count(item => item == "__EFMigrationsHistory"));
+    }
+
+    [Fact]
+    public async Task Migrate_WithSonnetDbBaseline_CreatesIoTSharpSchemaAndRecordsMigration()
+    {
+        await using var scope = _provider.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        await context.Database.MigrateAsync();
+
+        var tableNames = await ReadTableNamesAsync(context);
+        Assert.Contains("__EFMigrationsHistory", tableNames);
+        Assert.Contains("AspNetUsers", tableNames);
+        Assert.Contains("Tenant", tableNames);
+        Assert.Contains("Customer", tableNames);
+        Assert.Contains("Device", tableNames);
+        Assert.Contains("Assets", tableNames);
+        Assert.Contains("FlowRules", tableNames);
+
+        var migrations = await context.Database.GetAppliedMigrationsAsync();
+        var migrationId = Assert.Single(migrations);
+        Assert.EndsWith("_InitialSonnetDbApplicationDbContext", migrationId, StringComparison.Ordinal);
+
+        await context.Database.MigrateAsync();
+        Assert.Equal([migrationId], (await context.Database.GetAppliedMigrationsAsync()).ToArray());
     }
 
     [Fact]

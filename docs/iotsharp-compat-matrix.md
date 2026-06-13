@@ -47,7 +47,7 @@ IoTSharp 当前通过 `TelemetryStorage` 和 `IStorage` 承载遥测写入、最
 | TimescaleDB | `TelemetryStorage=TimescaleDB` | hypertable、time_bucket 聚合 | PostgreSQL 扩展依赖、聚合 SQL 方言 | SonnetDB 需覆盖 `Mean/Max/Min/Sum/First/Last/Median` 对应能力或不支持清单。 |
 | Taos / TDengine | `TelemetryStorage=Taos` | 超级表、tag、last_row、范围查询 | SQL 拼接、类型映射、聚合差异 | SonnetDB 需验证 tag、latest、批量写和中文/特殊 key 迁移。 |
 | IoTDB | `TelemetryStorage=IoTDB` | storage group、设备路径、聚合查询 | path 编码、类型映射、时间格式 | SonnetDB 需验证设备维度映射、点位类型和聚合结果。 |
-| SonnetDB | `TelemetryStorage=SonnetDB`，`SonnetDBStorage` | 已有遥测适配器，支持 auto-create measurement、write、latest、range、聚合走 IoTSharp 本地聚合 | 当前仅覆盖时序遥测，不覆盖关系/缓存/S3 | #109 后续测试应把该路径纳入真实回归基线。 |
+| SonnetDB | `TelemetryStorage=SonnetDB`，`SonnetDBStorage` | 已有遥测适配器，支持 auto-create measurement、write、latest、range、聚合走 IoTSharp 本地聚合 | 当前仅覆盖时序遥测，不覆盖对象桶迁移/双写 | #109 后续测试应把该路径纳入真实回归基线。 |
 
 时序验收用例：
 
@@ -83,8 +83,8 @@ IoTSharp 当前通过 `StorageFactory.Blobs.FromConnectionString(ConnectionStrin
 | 后端 | IoTSharp 当前入口 | 主要能力 | 风险点 | SonnetDB 基线要求 |
 | --- | --- | --- | --- | --- |
 | BlobStorage / disk | `ConnectionStrings:BlobStorage` 或默认 `disk://.../IoTSharp/` | list、upload、download、modify、delete | 本地磁盘容量、备份、权限 | SonnetDB S3 需覆盖现有 BlobStorageController 行为。 |
-| S3-compatible | Storage.Net 连接串可承载 S3 类后端 | 对象上传下载、外部对象存储 | multipart、etag、range、presigned URL、权限 | #117 起提供 S3-compatible 常用子集，不只做 metadata。 |
-| SonnetDB bucket | 当前未接入 | 规划 bucket/object metadata、content、审计和生命周期 | 大对象写入、range、multipart、一致性 | #117/#118 后再进入 IoTSharp profile。 |
+| S3-compatible | Storage.Net 连接串可承载 S3 类后端 | 对象上传下载、外部对象存储 | multipart、etag、range、presigned URL、权限 | SonnetDB 已提供常用子集；外部 S3 仍保留为并列回滚后端。 |
+| SonnetDB bucket | `ConnectionStrings:BlobStorage=sonnetdb://...`，`SonnetDbBlobStorage` | bucket/object metadata、content、etag/sha256、range、multipart、presigned URL、版本、delete marker、生命周期执行、审计列表 | 大对象压测、跨后端迁移/双写、quota 与 Web Admin | 已可进入 IoTSharp Profile；迁移与长稳继续跟随 #118/#119/#120。 |
 
 对象桶验收用例：
 
@@ -169,4 +169,4 @@ IoTSharp 当前主要是普通字段过滤和 SQLite 大小写搜索配置，未
 - #111 已完成关系表 DDL 与 schema metadata 核心基线：`ALTER TABLE ADD/DROP/RENAME COLUMN`、`ALTER TABLE RENAME TO`、`INFORMATION_SCHEMA.tables/columns/indexes`、`DbDataReader.GetSchemaTable()` 与 `DbConnection.GetSchema()` provider metadata；首版仍明确拒绝主键列变更和被索引列删除。
 - #115 已完成 SonnetDB EF provider 的 migrations history 支持（`__EFMigrationsHistory` 与可配置历史表），并以 `Database.Migrate()`、迁移升级、回滚、重复执行幂等检查、空库初始化、IoTSharp `ApplicationDbContext` schema 创建、Identity 登录、主数据 CRUD、`Include`、分页、常用查询、`LIKE` 字符串模式翻译和 `SaveChanges` 事务作为入口验收。
 - #110 ~ #121 逐步把占位清单替换为真实 adapter、provider、容器化端到端和长稳测试。
-- 在 #116/#117/#119 完成前，不宣称 SonnetDB 已具备 IoTSharp Redis、S3 或关系数据库路径的完整兼容语义；始终作为新增可选后端推进。
+- 在 #116/#117/#119 完成前，不宣称 SonnetDB 已具备 IoTSharp Redis、关系数据库路径或外部 S3 协议的完整兼容语义；SonnetDB bucket 当前作为新增可选后端推进，并保留原 BlobStorage/S3 回滚路径。
