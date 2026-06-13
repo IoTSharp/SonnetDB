@@ -143,6 +143,61 @@ public sealed class SndbDataReader : DbDataReader
     }
 
     /// <inheritdoc />
+    public override DataTable GetSchemaTable()
+    {
+        var table = new DataTable("SchemaTable")
+        {
+            Locale = CultureInfo.InvariantCulture,
+        };
+
+        table.Columns.Add(SchemaTableColumn.ColumnName, typeof(string));
+        table.Columns.Add(SchemaTableColumn.ColumnOrdinal, typeof(int));
+        table.Columns.Add(SchemaTableColumn.ColumnSize, typeof(int));
+        table.Columns.Add(SchemaTableColumn.NumericPrecision, typeof(short));
+        table.Columns.Add(SchemaTableColumn.NumericScale, typeof(short));
+        table.Columns.Add(SchemaTableColumn.DataType, typeof(Type));
+        table.Columns.Add(SchemaTableColumn.ProviderType, typeof(int));
+        table.Columns.Add(SchemaTableColumn.IsLong, typeof(bool));
+        table.Columns.Add(SchemaTableColumn.AllowDBNull, typeof(bool));
+        table.Columns.Add("IsReadOnly", typeof(bool));
+        table.Columns.Add("IsRowVersion", typeof(bool));
+        table.Columns.Add(SchemaTableColumn.IsUnique, typeof(bool));
+        table.Columns.Add(SchemaTableColumn.IsKey, typeof(bool));
+        table.Columns.Add(SchemaTableOptionalColumn.IsAutoIncrement, typeof(bool));
+        table.Columns.Add(SchemaTableOptionalColumn.BaseCatalogName, typeof(string));
+        table.Columns.Add(SchemaTableColumn.BaseSchemaName, typeof(string));
+        table.Columns.Add(SchemaTableColumn.BaseTableName, typeof(string));
+        table.Columns.Add(SchemaTableColumn.BaseColumnName, typeof(string));
+
+        for (int ordinal = 0; ordinal < FieldCount; ordinal++)
+        {
+            var fieldType = GetFieldType(ordinal);
+            var row = table.NewRow();
+            row[SchemaTableColumn.ColumnName] = GetName(ordinal);
+            row[SchemaTableColumn.ColumnOrdinal] = ordinal;
+            row[SchemaTableColumn.ColumnSize] = GetColumnSize(fieldType);
+            row[SchemaTableColumn.NumericPrecision] = GetNumericPrecision(fieldType);
+            row[SchemaTableColumn.NumericScale] = GetNumericScale(fieldType);
+            row[SchemaTableColumn.DataType] = fieldType;
+            row[SchemaTableColumn.ProviderType] = (int)GetProviderType(fieldType);
+            row[SchemaTableColumn.IsLong] = fieldType == typeof(byte[]) || fieldType == typeof(string);
+            row[SchemaTableColumn.AllowDBNull] = true;
+            row["IsReadOnly"] = false;
+            row["IsRowVersion"] = false;
+            row[SchemaTableColumn.IsUnique] = false;
+            row[SchemaTableColumn.IsKey] = false;
+            row[SchemaTableOptionalColumn.IsAutoIncrement] = false;
+            row[SchemaTableOptionalColumn.BaseCatalogName] = _connection?.Database ?? string.Empty;
+            row[SchemaTableColumn.BaseSchemaName] = string.Empty;
+            row[SchemaTableColumn.BaseTableName] = string.Empty;
+            row[SchemaTableColumn.BaseColumnName] = GetName(ordinal);
+            table.Rows.Add(row);
+        }
+
+        return table;
+    }
+
+    /// <inheritdoc />
     public override int GetOrdinal(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
@@ -238,5 +293,52 @@ public sealed class SndbDataReader : DbDataReader
     {
         if (ordinal < 0 || ordinal >= _result.Columns.Count)
             throw new IndexOutOfRangeException($"列序号 {ordinal} 越界（列数 {_result.Columns.Count}）。");
+    }
+
+    private static int GetColumnSize(Type fieldType)
+        => fieldType == typeof(string) || fieldType == typeof(byte[])
+            ? int.MaxValue
+            : fieldType == typeof(Guid)
+                ? 16
+                : -1;
+
+    private static short GetNumericPrecision(Type fieldType)
+        => fieldType == typeof(byte)
+            ? (short)3
+            : fieldType == typeof(short)
+                ? (short)5
+                : fieldType == typeof(int)
+                    ? (short)10
+                    : fieldType == typeof(long)
+                        ? (short)19
+                        : fieldType == typeof(float)
+                            ? (short)7
+                            : fieldType == typeof(double)
+                                ? (short)15
+                                : fieldType == typeof(decimal)
+                                    ? (short)29
+                                    : (short)0;
+
+    private static short GetNumericScale(Type fieldType)
+        => fieldType == typeof(float) || fieldType == typeof(double) || fieldType == typeof(decimal)
+            ? (short)15
+            : (short)0;
+
+    private static DbType GetProviderType(Type fieldType)
+    {
+        if (fieldType == typeof(string)) return DbType.String;
+        if (fieldType == typeof(bool)) return DbType.Boolean;
+        if (fieldType == typeof(byte)) return DbType.Byte;
+        if (fieldType == typeof(short)) return DbType.Int16;
+        if (fieldType == typeof(int)) return DbType.Int32;
+        if (fieldType == typeof(long)) return DbType.Int64;
+        if (fieldType == typeof(float)) return DbType.Single;
+        if (fieldType == typeof(double)) return DbType.Double;
+        if (fieldType == typeof(decimal)) return DbType.Decimal;
+        if (fieldType == typeof(DateTime)) return DbType.DateTime;
+        if (fieldType == typeof(DateTimeOffset)) return DbType.DateTimeOffset;
+        if (fieldType == typeof(Guid)) return DbType.Guid;
+        if (fieldType == typeof(byte[])) return DbType.Binary;
+        return DbType.Object;
     }
 }

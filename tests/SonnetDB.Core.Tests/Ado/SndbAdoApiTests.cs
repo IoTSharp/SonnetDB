@@ -1,4 +1,5 @@
 ﻿using System.Data;
+using System.Data.Common;
 using SonnetDB.Data;
 using SonnetDB.Model;
 using Xunit;
@@ -237,6 +238,41 @@ public sealed class TsdbAdoApiTests : IDisposable
         using var cts = new CancellationTokenSource();
         cts.Cancel();
         await Assert.ThrowsAsync<OperationCanceledException>(() => cmd.ExecuteNonQueryAsync(cts.Token));
+    }
+
+    [Fact]
+    public void DataReader_GetSchemaTable_ReturnsAdoMetadata()
+    {
+        using var c = OpenConn();
+        ExecNonQuery(c, "CREATE TABLE devices (id INT, name STRING NULL, enabled BOOL, PRIMARY KEY (id))");
+        ExecNonQuery(c, "INSERT INTO devices (id, name, enabled) VALUES (1, 'pump', true)");
+
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT id, name, enabled FROM devices";
+        using var reader = cmd.ExecuteReader();
+
+        var schema = reader.GetSchemaTable();
+
+        Assert.NotNull(schema);
+        Assert.Equal(3, schema.Rows.Count);
+        Assert.Contains(SchemaTableColumn.ColumnName, schema.Columns.Cast<DataColumn>().Select(static c => c.ColumnName));
+        Assert.Contains(SchemaTableColumn.DataType, schema.Columns.Cast<DataColumn>().Select(static c => c.ColumnName));
+        Assert.Contains(SchemaTableColumn.AllowDBNull, schema.Columns.Cast<DataColumn>().Select(static c => c.ColumnName));
+
+        Assert.Equal("id", schema.Rows[0][SchemaTableColumn.ColumnName]);
+        Assert.Equal(0, schema.Rows[0][SchemaTableColumn.ColumnOrdinal]);
+        Assert.Equal(typeof(long), schema.Rows[0][SchemaTableColumn.DataType]);
+        Assert.Equal((int)DbType.Int64, schema.Rows[0][SchemaTableColumn.ProviderType]);
+        Assert.True((bool)schema.Rows[0][SchemaTableColumn.AllowDBNull]);
+        Assert.Equal(c.Database, schema.Rows[0][SchemaTableOptionalColumn.BaseCatalogName]);
+
+        Assert.Equal("name", schema.Rows[1][SchemaTableColumn.ColumnName]);
+        Assert.Equal(typeof(string), schema.Rows[1][SchemaTableColumn.DataType]);
+        Assert.Equal((int)DbType.String, schema.Rows[1][SchemaTableColumn.ProviderType]);
+
+        Assert.Equal("enabled", schema.Rows[2][SchemaTableColumn.ColumnName]);
+        Assert.Equal(typeof(bool), schema.Rows[2][SchemaTableColumn.DataType]);
+        Assert.Equal((int)DbType.Boolean, schema.Rows[2][SchemaTableColumn.ProviderType]);
     }
 
     [Fact]
