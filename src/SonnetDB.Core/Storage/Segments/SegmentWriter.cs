@@ -136,6 +136,9 @@ public sealed class SegmentWriter
 
         string tempPath = path + _options.TempFileSuffix;
         var sw = Stopwatch.StartNew();
+        string? directory = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(directory))
+            Directory.CreateDirectory(directory);
 
         // State tracked across phases (declared before try so accessible in return)
         long segMinTs = long.MaxValue;

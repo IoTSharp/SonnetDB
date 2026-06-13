@@ -137,9 +137,8 @@ internal sealed class CompactionWorker : IDisposable
                     // SwapSegments 已 Dispose 旧 reader；删除旧文件（失败不抛）
                     foreach (long oldId in plan.SourceSegmentIds)
                     {
-                        TryDelete(TsdbPaths.SegmentPath(_owner.RootDirectory, oldId));
-                        TryDelete(TsdbPaths.VectorIndexPath(_owner.RootDirectory, oldId));
-                        TryDelete(TsdbPaths.AggregateIndexPath(_owner.RootDirectory, oldId));
+                        foreach (string artifactPath in TsdbPaths.SegmentArtifactPaths(_owner.RootDirectory, oldId))
+                            TryDelete(artifactPath);
                     }
 
                     // 回收已被消化的墓碑（不再覆盖任何活段的墓碑可以丢弃）

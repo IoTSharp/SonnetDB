@@ -7,6 +7,7 @@
 
 ### Added
 
+- **J9 SonnetDB 大量物理分表与文件布局优化**：时序 Segment 新写入路径切换为 `segments/v2/{bucketGroup}/{bucket}/{segmentId}.SDBSEG` 分层目录，避免单个 `segments/` 目录长期堆积海量段文件；启动枚举、durable checkpoint 校验、备份扫描、Compaction / Retention 旧段清理均兼容旧版平铺 `segments/{segmentId}.SDBSEG` 与 legacy sidecar 文件，不修改 `.SDBSEG` 二进制格式。
 - **J3 SonnetDB table MVP 前置能力补齐**：ADO.NET provider 新增 `Tables` / `Columns` / `Indexes` schema metadata 集合，可从嵌入式表 catalog 返回表、列、唯一索引和列序信息；SQL 新增 `REGEX` / `NOT REGEX` 字符串模式查询，关系表、表表 JOIN、文档和 hybrid 查询路径共享同一匹配语义，并补充 ADO.NET / EF Core 验收测试。
 - **PR #117 S3-compatible Bucket API 第一版**：SonnetDB 服务端新增数据库内置对象桶存储，metadata 写入 `__object_storage` KV keyspace，对象内容落盘到数据库目录 `objects/`；提供 bucket/object metadata、etag(MD5)、sha256、range read、copy object、delete marker、object tags、multipart upload、ListObjectsV2 风格列表和 presigned URL。`SonnetDB.Data` 新增 `SndbObjectStorageClient`，统一支持嵌入式与远程 SonnetDB 对象访问；IoTSharp 新增 `SonnetDbBlobStorage` 适配器，可通过 `sonnetdb://?connectionString=...&bucket=...` 让 BlobStorage 使用 SonnetDB 对象桶。
 - **PR #116 KV TTL 与缓存 Provider**：`SonnetDB.Core` 的 KV keyspace 新增 expires-at metadata、惰性过期、`CleanExpired` 后台清理入口、逻辑命名空间、批量 get/set/remove、前缀删除与过期统计；KV WAL / snapshot / segment state 升级到 v2 并兼容 v1 读取。新增 `extensions/SonnetDB.Caching`，提供 SonnetDB KV-backed EasyCaching provider、`IEasyCachingProviderFactory` 适配、可选 `IDistributedCache` provider 和周期过期清理宿主；IoTSharp 可通过 `CachingUseIn=SonnetDB` 作为 Redis / LiteDB / InMemory 之外的缓存选择。

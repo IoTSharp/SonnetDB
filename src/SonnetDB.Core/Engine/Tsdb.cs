@@ -976,8 +976,7 @@ public sealed class Tsdb : IDisposable
 
     private static bool IsCheckpointSegmentPresent(string root, WalCheckpointState state)
     {
-        string segmentPath = TsdbPaths.SegmentPath(root, state.SegmentId);
-        if (!File.Exists(segmentPath))
+        if (!TsdbPaths.TryGetSegmentPath(root, state.SegmentId, out string segmentPath))
             return false;
 
         try
