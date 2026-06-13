@@ -131,6 +131,10 @@ public enum TokenKind
     KeywordDatabase,
     KeywordDrop,
     KeywordAlter,
+    /// <summary>COLUMN（ALTER TABLE 列级 DDL）。</summary>
+    KeywordColumn,
+    /// <summary>RENAME（ALTER TABLE rename DDL）。</summary>
+    KeywordRename,
     /// <summary>PRIMARY（PRIMARY KEY 子句）。</summary>
     KeywordPrimary,
     /// <summary>KEY（PRIMARY KEY 子句）。</summary>

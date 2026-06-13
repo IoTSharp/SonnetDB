@@ -336,6 +336,67 @@ public sealed class TableStore : IDisposable
         }
     }
 
+    internal Action ApplySchemaTransform(
+        TableSchema schema,
+        Func<TableSchema, TableRow, IReadOnlyList<object?>> transform)
+    {
+        ArgumentNullException.ThrowIfNull(schema);
+        ArgumentNullException.ThrowIfNull(transform);
+        lock (_sync)
+        {
+            var previous = _schema;
+            var originalPayloads = _keyspace.ScanPrefix(new byte[] { (byte)'r' }, int.MaxValue)
+                .Select(entry => (Key: entry.Key.ToArray(), Value: entry.Value.ToArray()))
+                .ToArray();
+            var transformedRows = new List<(byte[] Key, byte[] Value)>(originalPayloads.Length);
+
+            try
+            {
+                foreach (var entry in originalPayloads)
+                {
+                    var primaryKey = TableIndexCodec.DecodePrimaryKeyFromRowKey(entry.Key).ToArray();
+                    var row = new TableRow(TableRowCodec.Decode(previous, entry.Value.AsSpan()), primaryKey);
+                    var values = transform(previous, row);
+                    ValidateRow(schema, values);
+
+                    var transformedPrimaryKey = TableKeyCodec.EncodePrimaryKey(schema, values);
+                    if (!transformedPrimaryKey.AsSpan().SequenceEqual(primaryKey))
+                        throw new InvalidOperationException("ALTER TABLE 当前不支持改变 PRIMARY KEY 值或列定义。");
+
+                    transformedRows.Add((entry.Key, TableRowCodec.Encode(schema, values)));
+                }
+
+                foreach (var row in transformedRows)
+                    _keyspace.Put(row.Key, row.Value);
+
+                _schema = schema;
+                RebuildIndexesLocked();
+                return () => RestoreSchemaTransform(previous, originalPayloads);
+            }
+            catch
+            {
+                foreach (var entry in originalPayloads)
+                    _keyspace.Put(entry.Key, entry.Value);
+                _schema = previous;
+                RebuildIndexesLocked();
+                throw;
+            }
+        }
+    }
+
+    private void RestoreSchemaTransform(TableSchema schema, IReadOnlyList<(byte[] Key, byte[] Value)> payloads)
+    {
+        lock (_sync)
+        {
+            foreach (var current in _keyspace.ScanPrefix(new byte[] { (byte)'r' }, int.MaxValue))
+                _keyspace.Delete(current.Key.Span);
+            foreach (var entry in payloads)
+                _keyspace.Put(entry.Key, entry.Value);
+            _schema = schema;
+            RebuildIndexesLocked();
+        }
+    }
+
     internal void Compact() => _keyspace.Compact();
 
     internal long CreateSnapshot() => _keyspace.CreateSnapshot();

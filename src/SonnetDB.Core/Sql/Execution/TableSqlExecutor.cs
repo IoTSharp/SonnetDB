@@ -99,6 +99,55 @@ internal static class TableSqlExecutor
         return new RowsAffectedExecutionResult(statement.TableName, removed ? 1 : 0, "drop_index");
     }
 
+    public static RowsAffectedExecutionResult ExecuteAlterTableAddColumn(Tsdb tsdb, AlterTableAddColumnStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        var dataType = MapTableColumnType(statement.DataType);
+        var isNullable = statement.Nullability != ColumnNullability.NotNull;
+        object? defaultValue = null;
+        if (statement.DefaultExpression is not null)
+        {
+            var tempColumn = new TableColumn(statement.ColumnName, dataType, IsPrimaryKey: false, isNullable, Ordinal: 0);
+            defaultValue = ConvertTableValue(statement.DefaultExpression, tempColumn);
+        }
+        else if (!isNullable)
+        {
+            throw new InvalidOperationException("ALTER TABLE ADD COLUMN 添加 NOT NULL 列时必须提供 DEFAULT。");
+        }
+
+        tsdb.Tables.AlterTableAddColumn(statement.TableName, statement.ColumnName, dataType, isNullable, defaultValue);
+        return new RowsAffectedExecutionResult(statement.TableName, 1, "alter_table_add_column");
+    }
+
+    public static RowsAffectedExecutionResult ExecuteAlterTableDropColumn(Tsdb tsdb, AlterTableDropColumnStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        tsdb.Tables.AlterTableDropColumn(statement.TableName, statement.ColumnName);
+        return new RowsAffectedExecutionResult(statement.TableName, 1, "alter_table_drop_column");
+    }
+
+    public static RowsAffectedExecutionResult ExecuteAlterTableRenameColumn(Tsdb tsdb, AlterTableRenameColumnStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        tsdb.Tables.AlterTableRenameColumn(statement.TableName, statement.OldColumnName, statement.NewColumnName);
+        return new RowsAffectedExecutionResult(statement.TableName, 1, "alter_table_rename_column");
+    }
+
+    public static RowsAffectedExecutionResult ExecuteAlterTableRenameTable(Tsdb tsdb, AlterTableRenameTableStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        tsdb.Tables.RenameTable(statement.OldTableName, statement.NewTableName);
+        return new RowsAffectedExecutionResult(statement.NewTableName, 1, "alter_table_rename_table");
+    }
+
     public static InsertExecutionResult ExecuteInsert(Tsdb tsdb, InsertStatement statement, TableSchema schema)
     {
         ArgumentNullException.ThrowIfNull(tsdb);

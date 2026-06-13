@@ -125,6 +125,41 @@ public class SqlExecutorMetadataTests : IDisposable
     }
 
     [Fact]
+    public void InformationSchema_ReturnsTablesColumnsAndIndexes()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE MEASUREMENT cpu (host TAG, usage FIELD FLOAT)");
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, name STRING, tenant STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE INDEX idx_devices_tenant ON devices (tenant)");
+
+        var tables = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT table_name, table_type
+            FROM information_schema.tables
+            WHERE table_name = 'devices'
+            """));
+        Assert.Equal(new[] { "table_name", "table_type" }, tables.Columns);
+        Assert.Equal(new object?[] { "devices", "BASE TABLE" }, tables.Rows.Single());
+
+        var columns = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT column_name, data_type, is_primary_key
+            FROM information_schema.columns
+            WHERE table_name = 'devices'
+            ORDER BY ordinal_position
+            """));
+        Assert.Equal(
+            ["id", "name", "tenant"],
+            columns.Rows.Select(static r => (string)r[0]!).ToArray());
+        Assert.Equal(new object?[] { "id", "int64", true }, columns.Rows[0]);
+
+        var indexes = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT index_name, column_name, is_unique
+            FROM information_schema.indexes
+            WHERE table_name = 'devices'
+            """));
+        Assert.Equal(new object?[] { "idx_devices_tenant", "tenant", false }, indexes.Rows.Single());
+    }
+
+    [Fact]
     public void ParseShow_Measurements_ProducesShowMeasurementsAst()
     {
         var stmt = SqlParser.Parse("SHOW MEASUREMENTS");

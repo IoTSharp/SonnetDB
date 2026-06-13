@@ -124,6 +124,31 @@ public sealed record TableColumnDefinition(
     ColumnNullability Nullability = ColumnNullability.Unspecified);
 
 /// <summary>
+/// <c>ALTER TABLE table ADD COLUMN col TYPE [NULL|NOT NULL] [DEFAULT expr]</c>。
+/// </summary>
+public sealed record AlterTableAddColumnStatement(
+    string TableName,
+    string ColumnName,
+    SqlDataType DataType,
+    ColumnNullability Nullability = ColumnNullability.Unspecified,
+    SqlExpression? DefaultExpression = null) : SqlStatement;
+
+/// <summary>
+/// <c>ALTER TABLE table DROP COLUMN col</c>。
+/// </summary>
+public sealed record AlterTableDropColumnStatement(string TableName, string ColumnName) : SqlStatement;
+
+/// <summary>
+/// <c>ALTER TABLE table RENAME COLUMN old TO new</c>。
+/// </summary>
+public sealed record AlterTableRenameColumnStatement(string TableName, string OldColumnName, string NewColumnName) : SqlStatement;
+
+/// <summary>
+/// <c>ALTER TABLE old RENAME TO new</c>。
+/// </summary>
+public sealed record AlterTableRenameTableStatement(string OldTableName, string NewTableName) : SqlStatement;
+
+/// <summary>
 /// 向量索引声明抽象基类。
 /// </summary>
 public abstract record VectorIndexSpec;

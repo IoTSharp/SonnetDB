@@ -1,5 +1,6 @@
 ﻿using System.Data;
 using System.Data.Common;
+using System.Globalization;
 using SonnetDB.Data.Embedded;
 using SonnetDB.Data.Internal;
 using SonnetDB.Data.Remote;
@@ -164,6 +165,30 @@ public sealed class SndbConnection : DbConnection
     protected override DbCommand CreateDbCommand() => new SndbCommand { Connection = this };
 
     /// <inheritdoc />
+    public override DataTable GetSchema()
+        => GetSchema(DbMetaDataCollectionNames.MetaDataCollections);
+
+    /// <inheritdoc />
+    public override DataTable GetSchema(string collectionName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
+        if (string.Equals(collectionName, DbMetaDataCollectionNames.MetaDataCollections, StringComparison.OrdinalIgnoreCase))
+            return BuildMetaDataCollectionsSchema();
+        if (string.Equals(collectionName, DbMetaDataCollectionNames.DataSourceInformation, StringComparison.OrdinalIgnoreCase))
+            return BuildDataSourceInformationSchema();
+        if (string.Equals(collectionName, DbMetaDataCollectionNames.DataTypes, StringComparison.OrdinalIgnoreCase))
+            return BuildDataTypesSchema();
+        if (string.Equals(collectionName, DbMetaDataCollectionNames.ReservedWords, StringComparison.OrdinalIgnoreCase))
+            return BuildReservedWordsSchema();
+
+        throw new ArgumentException($"SonnetDB provider metadata collection '{collectionName}' is not supported.", nameof(collectionName));
+    }
+
+    /// <inheritdoc />
+    public override DataTable GetSchema(string collectionName, string?[] restrictionValues)
+        => GetSchema(collectionName);
+
+    /// <inheritdoc />
     protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel)
     {
         var impl = GetOpenImpl();
@@ -301,5 +326,160 @@ public sealed class SndbConnection : DbConnection
     {
         if (!ReferenceEquals(transaction, _currentTransaction))
             throw new InvalidOperationException("事务不是当前连接的活动轻事务。");
+    }
+
+    private static DataTable BuildMetaDataCollectionsSchema()
+    {
+        var table = CreateSchemaTable(DbMetaDataCollectionNames.MetaDataCollections);
+        table.Columns.Add("CollectionName", typeof(string));
+        table.Columns.Add("NumberOfRestrictions", typeof(int));
+        table.Columns.Add("NumberOfIdentifierParts", typeof(int));
+        table.Rows.Add(DbMetaDataCollectionNames.MetaDataCollections, 0, 0);
+        table.Rows.Add(DbMetaDataCollectionNames.DataSourceInformation, 0, 0);
+        table.Rows.Add(DbMetaDataCollectionNames.DataTypes, 0, 0);
+        table.Rows.Add(DbMetaDataCollectionNames.ReservedWords, 0, 0);
+        return table;
+    }
+
+    private DataTable BuildDataSourceInformationSchema()
+    {
+        var table = CreateSchemaTable(DbMetaDataCollectionNames.DataSourceInformation);
+        table.Columns.Add(DbMetaDataColumnNames.CompositeIdentifierSeparatorPattern, typeof(string));
+        table.Columns.Add(DbMetaDataColumnNames.DataSourceProductName, typeof(string));
+        table.Columns.Add(DbMetaDataColumnNames.DataSourceProductVersion, typeof(string));
+        table.Columns.Add(DbMetaDataColumnNames.DataSourceProductVersionNormalized, typeof(string));
+        table.Columns.Add(DbMetaDataColumnNames.GroupByBehavior, typeof(GroupByBehavior));
+        table.Columns.Add(DbMetaDataColumnNames.IdentifierPattern, typeof(string));
+        table.Columns.Add(DbMetaDataColumnNames.IdentifierCase, typeof(IdentifierCase));
+        table.Columns.Add(DbMetaDataColumnNames.OrderByColumnsInSelect, typeof(bool));
+        table.Columns.Add(DbMetaDataColumnNames.ParameterMarkerFormat, typeof(string));
+        table.Columns.Add(DbMetaDataColumnNames.ParameterMarkerPattern, typeof(string));
+        table.Columns.Add(DbMetaDataColumnNames.ParameterNameMaxLength, typeof(int));
+        table.Columns.Add(DbMetaDataColumnNames.ParameterNamePattern, typeof(string));
+        table.Columns.Add(DbMetaDataColumnNames.QuotedIdentifierPattern, typeof(string));
+        table.Columns.Add(DbMetaDataColumnNames.QuotedIdentifierCase, typeof(IdentifierCase));
+        table.Columns.Add(DbMetaDataColumnNames.StatementSeparatorPattern, typeof(string));
+        table.Columns.Add(DbMetaDataColumnNames.StringLiteralPattern, typeof(string));
+        table.Columns.Add(DbMetaDataColumnNames.SupportedJoinOperators, typeof(SupportedJoinOperators));
+
+        table.Rows.Add(
+            "\\.",
+            "SonnetDB",
+            ServerVersion,
+            NormalizeVersion(ServerVersion),
+            GroupByBehavior.MustContainAll,
+            @"^[A-Za-z_][A-Za-z0-9_]*$",
+            IdentifierCase.Sensitive,
+            false,
+            "@{0}",
+            @"^[@:][A-Za-z_][A-Za-z0-9_]*$",
+            128,
+            @"^[A-Za-z_][A-Za-z0-9_]*$",
+            "^\"([^\"\\\\]|\\\\.)*\"$",
+            IdentifierCase.Sensitive,
+            ";",
+            "^'([^']|'')*'$",
+            SupportedJoinOperators.Inner);
+
+        return table;
+    }
+
+    private static DataTable BuildDataTypesSchema()
+    {
+        var table = CreateSchemaTable(DbMetaDataCollectionNames.DataTypes);
+        table.Columns.Add("TypeName", typeof(string));
+        table.Columns.Add("ProviderDbType", typeof(int));
+        table.Columns.Add("ColumnSize", typeof(long));
+        table.Columns.Add("CreateFormat", typeof(string));
+        table.Columns.Add("CreateParameters", typeof(string));
+        table.Columns.Add("DataType", typeof(string));
+        table.Columns.Add("IsAutoIncrementable", typeof(bool));
+        table.Columns.Add("IsBestMatch", typeof(bool));
+        table.Columns.Add("IsCaseSensitive", typeof(bool));
+        table.Columns.Add("IsFixedLength", typeof(bool));
+        table.Columns.Add("IsFixedPrecisionScale", typeof(bool));
+        table.Columns.Add("IsLong", typeof(bool));
+        table.Columns.Add("IsNullable", typeof(bool));
+        table.Columns.Add("IsSearchable", typeof(bool));
+        table.Columns.Add("IsSearchableWithLike", typeof(bool));
+        table.Columns.Add("IsUnsigned", typeof(bool));
+        table.Columns.Add("MaximumScale", typeof(short));
+        table.Columns.Add("MinimumScale", typeof(short));
+        table.Columns.Add("LiteralPrefix", typeof(string));
+        table.Columns.Add("LiteralSuffix", typeof(string));
+
+        AddDataType(table, "INT", DbType.Int64, typeof(long), 19, searchable: true, fixedLength: true);
+        AddDataType(table, "FLOAT", DbType.Double, typeof(double), 15, searchable: true, fixedLength: true, maximumScale: 15);
+        AddDataType(table, "BOOL", DbType.Boolean, typeof(bool), 1, searchable: true, fixedLength: true);
+        AddDataType(table, "STRING", DbType.String, typeof(string), int.MaxValue, searchable: true, searchableWithLike: true, caseSensitive: true, isLong: true, literalPrefix: "'", literalSuffix: "'");
+        AddDataType(table, "DATETIME", DbType.DateTime, typeof(DateTime), 8, searchable: true, fixedLength: true);
+        AddDataType(table, "BLOB", DbType.Binary, typeof(byte[]), int.MaxValue, searchable: false, isLong: true);
+        AddDataType(table, "JSON", DbType.String, typeof(string), int.MaxValue, searchable: true, searchableWithLike: true, caseSensitive: true, isLong: true, literalPrefix: "'", literalSuffix: "'");
+        return table;
+    }
+
+    private static DataTable BuildReservedWordsSchema()
+    {
+        var table = CreateSchemaTable(DbMetaDataCollectionNames.ReservedWords);
+        table.Columns.Add("ReservedWord", typeof(string));
+        foreach (var word in new[]
+        {
+            "ALTER", "BEGIN", "BOOL", "COMMIT", "CREATE", "DATABASE", "DELETE", "DROP",
+            "FLOAT", "FROM", "GROUP", "INDEX", "INSERT", "INT", "JOIN", "JSON", "KEY",
+            "NULL", "PRIMARY", "ROLLBACK", "SELECT", "SET", "STRING", "TABLE", "UPDATE", "WHERE",
+        }.Order(StringComparer.Ordinal))
+        {
+            table.Rows.Add(word);
+        }
+
+        return table;
+    }
+
+    private static DataTable CreateSchemaTable(string name)
+        => new(name) { Locale = CultureInfo.InvariantCulture };
+
+    private static void AddDataType(
+        DataTable table,
+        string typeName,
+        DbType dbType,
+        Type runtimeType,
+        long columnSize,
+        bool searchable,
+        bool searchableWithLike = false,
+        bool fixedLength = false,
+        bool caseSensitive = false,
+        bool isLong = false,
+        short maximumScale = 0,
+        string literalPrefix = "",
+        string literalSuffix = "")
+    {
+        table.Rows.Add(
+            typeName,
+            (int)dbType,
+            columnSize,
+            typeName,
+            string.Empty,
+            runtimeType.FullName ?? runtimeType.Name,
+            false,
+            true,
+            caseSensitive,
+            fixedLength,
+            maximumScale != 0,
+            isLong,
+            true,
+            searchable,
+            searchableWithLike,
+            false,
+            maximumScale,
+            (short)0,
+            literalPrefix,
+            literalSuffix);
+    }
+
+    private static string NormalizeVersion(string version)
+    {
+        if (Version.TryParse(version, out var parsed))
+            return parsed.ToString();
+        return "1.0.0";
     }
 }

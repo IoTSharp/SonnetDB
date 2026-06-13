@@ -276,6 +276,32 @@ public sealed class TsdbAdoApiTests : IDisposable
     }
 
     [Fact]
+    public void Connection_GetSchema_ReturnsProviderManifestMetadata()
+    {
+        using var c = OpenConn();
+
+        var collections = c.GetSchema();
+        Assert.Contains(
+            collections.Rows.Cast<DataRow>(),
+            row => string.Equals((string)row["CollectionName"], DbMetaDataCollectionNames.DataTypes, StringComparison.Ordinal));
+
+        var dataSource = c.GetSchema(DbMetaDataCollectionNames.DataSourceInformation);
+        Assert.Equal("SonnetDB", dataSource.Rows[0][DbMetaDataColumnNames.DataSourceProductName]);
+        Assert.Equal((int)SupportedJoinOperators.Inner, dataSource.Rows[0][DbMetaDataColumnNames.SupportedJoinOperators]);
+
+        var dataTypes = c.GetSchema(DbMetaDataCollectionNames.DataTypes);
+        Assert.Contains(
+            dataTypes.Rows.Cast<DataRow>(),
+            row => string.Equals((string)row["TypeName"], "JSON", StringComparison.Ordinal)
+                   && (int)row["ProviderDbType"] == (int)DbType.String);
+
+        var reservedWords = c.GetSchema(DbMetaDataCollectionNames.ReservedWords);
+        Assert.Contains(
+            reservedWords.Rows.Cast<DataRow>(),
+            row => string.Equals((string)row["ReservedWord"], "ALTER", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void ExecuteNonQuery_Insert_ReturnsRowCount()
     {
         using var c = OpenConn();

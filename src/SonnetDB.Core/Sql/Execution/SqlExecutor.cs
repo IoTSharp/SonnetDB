@@ -3,6 +3,7 @@ using SonnetDB.Engine;
 using SonnetDB.Model;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Storage.Format;
+using SonnetDB.Tables;
 
 namespace SonnetDB.Sql.Execution;
 
@@ -175,6 +176,10 @@ public static class SqlExecutor
             DropTableIndexStatement dropIndex => TableSqlExecutor.ExecuteDropIndex(tsdb, dropIndex),
             DropDocumentPathIndexStatement dropDocumentIndex => DocumentSqlExecutor.ExecuteDropIndex(tsdb, dropDocumentIndex),
             DropFullTextIndexStatement dropFullTextIndex => DocumentSqlExecutor.ExecuteDropFullTextIndex(tsdb, dropFullTextIndex),
+            AlterTableAddColumnStatement alterAddColumn => TableSqlExecutor.ExecuteAlterTableAddColumn(tsdb, alterAddColumn),
+            AlterTableDropColumnStatement alterDropColumn => TableSqlExecutor.ExecuteAlterTableDropColumn(tsdb, alterDropColumn),
+            AlterTableRenameColumnStatement alterRenameColumn => TableSqlExecutor.ExecuteAlterTableRenameColumn(tsdb, alterRenameColumn),
+            AlterTableRenameTableStatement alterRenameTable => TableSqlExecutor.ExecuteAlterTableRenameTable(tsdb, alterRenameTable),
             ShowMeasurementsStatement => ShowMeasurements(tsdb),
             ShowTablesStatement => TableSqlExecutor.ShowTables(tsdb),
             ShowDocumentCollectionsStatement => DocumentSqlExecutor.ShowCollections(tsdb),
@@ -623,6 +628,9 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
         using var _ = SonnetDB.Query.Functions.UserFunctionRegistry.EnterScope(tsdb.Functions);
+        if (TryExecuteInformationSchemaSelect(tsdb, statement, out var informationSchemaResult))
+            return informationSchemaResult;
+
         var tableSchema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
         if (HybridSearchExecutor.IsHybridSearch(statement))
             return HybridSearchExecutor.Execute(tsdb, statement);
@@ -643,6 +651,235 @@ public static class SqlExecutor
 
         return SelectExecutor.Execute(tsdb, statement);
     }
+
+    private static bool TryExecuteInformationSchemaSelect(
+        Tsdb tsdb,
+        SelectStatement statement,
+        out SelectExecutionResult result)
+    {
+        result = default!;
+        if (!statement.Measurement.StartsWith("information_schema.", StringComparison.OrdinalIgnoreCase))
+            return false;
+        if (statement.Join is not null || statement.TableValuedFunction is not null || statement.GroupBy.Count != 0)
+            throw new InvalidOperationException("INFORMATION_SCHEMA 查询不支持 JOIN、表值函数或 GROUP BY。");
+
+        var (columns, rows) = statement.Measurement.ToLowerInvariant() switch
+        {
+            "information_schema.tables" => BuildInformationSchemaTables(tsdb),
+            "information_schema.columns" => BuildInformationSchemaColumns(tsdb),
+            "information_schema.indexes" => BuildInformationSchemaIndexes(tsdb),
+            _ => throw new InvalidOperationException($"未知 INFORMATION_SCHEMA 视图 '{statement.Measurement}'。"),
+        };
+
+        rows = ApplyInformationSchemaWhere(columns, rows, statement.Where);
+        rows = ApplyInformationSchemaOrderBy(columns, rows, statement.OrderBy);
+        (columns, rows) = ApplyInformationSchemaProjection(columns, rows, statement.Projections);
+        rows = ApplyInformationSchemaPagination(rows, statement.Pagination);
+        result = new SelectExecutionResult(columns, rows);
+        return true;
+    }
+
+    private static (IReadOnlyList<string> Columns, IReadOnlyList<IReadOnlyList<object?>> Rows) BuildInformationSchemaTables(Tsdb tsdb)
+    {
+        var columns = new[] { "table_schema", "table_name", "table_type" };
+        var rows = new List<IReadOnlyList<object?>>();
+        foreach (var table in tsdb.Tables.Catalog.Snapshot())
+            rows.Add(new object?[] { "main", table.Name, "BASE TABLE" });
+        foreach (var measurement in tsdb.Measurements.Snapshot())
+            rows.Add(new object?[] { "main", measurement.Name, "MEASUREMENT" });
+        foreach (var collection in tsdb.Documents.Catalog.Snapshot())
+            rows.Add(new object?[] { "main", collection.Name, "DOCUMENT COLLECTION" });
+        return (columns, rows.OrderBy(static r => (string)r[1]!, StringComparer.Ordinal).ToArray());
+    }
+
+    private static (IReadOnlyList<string> Columns, IReadOnlyList<IReadOnlyList<object?>> Rows) BuildInformationSchemaColumns(Tsdb tsdb)
+    {
+        var columns = new[] { "table_schema", "table_name", "column_name", "ordinal_position", "data_type", "is_nullable", "is_primary_key" };
+        var rows = new List<IReadOnlyList<object?>>();
+        foreach (var table in tsdb.Tables.Catalog.Snapshot())
+        {
+            foreach (var column in table.Columns)
+            {
+                rows.Add(new object?[]
+                {
+                    "main",
+                    table.Name,
+                    column.Name,
+                    (long)column.Ordinal + 1,
+                    FormatInformationSchemaTableType(column.DataType),
+                    column.IsNullable ? "YES" : "NO",
+                    column.IsPrimaryKey,
+                });
+            }
+        }
+
+        foreach (var measurement in tsdb.Measurements.Snapshot())
+        {
+            var ordinal = 1L;
+            foreach (var column in measurement.Columns)
+            {
+                rows.Add(new object?[]
+                {
+                    "main",
+                    measurement.Name,
+                    column.Name,
+                    ordinal++,
+                    column.DataType.ToString().ToLowerInvariant(),
+                    "YES",
+                    false,
+                });
+            }
+        }
+
+        return (columns, rows);
+    }
+
+    private static (IReadOnlyList<string> Columns, IReadOnlyList<IReadOnlyList<object?>> Rows) BuildInformationSchemaIndexes(Tsdb tsdb)
+    {
+        var columns = new[] { "table_schema", "table_name", "index_name", "column_name", "ordinal_position", "is_unique" };
+        var rows = new List<IReadOnlyList<object?>>();
+        foreach (var table in tsdb.Tables.Catalog.Snapshot())
+        {
+            foreach (var index in table.Indexes)
+            {
+                for (var i = 0; i < index.Columns.Count; i++)
+                {
+                    rows.Add(new object?[]
+                    {
+                        "main",
+                        table.Name,
+                        index.Name,
+                        index.Columns[i],
+                        (long)i + 1,
+                        index.IsUnique,
+                    });
+                }
+            }
+        }
+
+        return (columns, rows);
+    }
+
+    private static IReadOnlyList<IReadOnlyList<object?>> ApplyInformationSchemaWhere(
+        IReadOnlyList<string> columns,
+        IReadOnlyList<IReadOnlyList<object?>> rows,
+        SqlExpression? where)
+    {
+        if (where is null)
+            return rows;
+
+        return rows.Where(row => EvaluateInformationSchemaPredicate(columns, row, where)).ToArray();
+    }
+
+    private static bool EvaluateInformationSchemaPredicate(
+        IReadOnlyList<string> columns,
+        IReadOnlyList<object?> row,
+        SqlExpression expression)
+    {
+        if (expression is BinaryExpression { Operator: SqlBinaryOperator.And } and)
+            return EvaluateInformationSchemaPredicate(columns, row, and.Left)
+                   && EvaluateInformationSchemaPredicate(columns, row, and.Right);
+        if (expression is not BinaryExpression { Operator: SqlBinaryOperator.Equal } equals)
+            throw new InvalidOperationException("INFORMATION_SCHEMA WHERE 当前仅支持 AND 连接的等值过滤。");
+
+        var (identifier, literal) = equals.Left is IdentifierExpression left && equals.Right is LiteralExpression right
+            ? (left, right)
+            : equals.Right is IdentifierExpression rightId && equals.Left is LiteralExpression leftLiteral
+                ? (rightId, leftLiteral)
+                : throw new InvalidOperationException("INFORMATION_SCHEMA WHERE 当前仅支持列名 = 字面量。");
+
+        var ordinal = FindInformationSchemaColumn(columns, identifier.Name);
+        var expected = EvaluateInformationSchemaLiteral(literal);
+        return Equals(row[ordinal], expected);
+    }
+
+    private static (IReadOnlyList<string> Columns, IReadOnlyList<IReadOnlyList<object?>> Rows) ApplyInformationSchemaProjection(
+        IReadOnlyList<string> columns,
+        IReadOnlyList<IReadOnlyList<object?>> rows,
+        IReadOnlyList<SelectItem> projections)
+    {
+        if (projections.Count == 1 && projections[0].Expression is StarExpression)
+            return (columns, rows);
+
+        var ordinals = new List<int>(projections.Count);
+        var outputColumns = new List<string>(projections.Count);
+        foreach (var projection in projections)
+        {
+            if (projection.Expression is not IdentifierExpression id)
+                throw new InvalidOperationException("INFORMATION_SCHEMA SELECT 当前仅支持 * 或列名投影。");
+            ordinals.Add(FindInformationSchemaColumn(columns, id.Name));
+            outputColumns.Add(projection.Alias ?? id.Name);
+        }
+
+        var projectedRows = rows
+            .Select(row => (IReadOnlyList<object?>)ordinals.Select(ordinal => row[ordinal]).ToArray())
+            .ToArray();
+        return (outputColumns, projectedRows);
+    }
+
+    private static IReadOnlyList<IReadOnlyList<object?>> ApplyInformationSchemaOrderBy(
+        IReadOnlyList<string> columns,
+        IReadOnlyList<IReadOnlyList<object?>> rows,
+        OrderBySpec? orderBy)
+    {
+        if (orderBy is null)
+            return rows;
+        if (orderBy.Expression is not IdentifierExpression id)
+            throw new InvalidOperationException("INFORMATION_SCHEMA ORDER BY 当前仅支持列名。");
+
+        var ordinal = FindInformationSchemaColumn(columns, id.Name);
+        return orderBy.Direction == SortDirection.Descending
+            ? rows.OrderByDescending(row => row[ordinal]).ToArray()
+            : rows.OrderBy(row => row[ordinal]).ToArray();
+    }
+
+    private static IReadOnlyList<IReadOnlyList<object?>> ApplyInformationSchemaPagination(
+        IReadOnlyList<IReadOnlyList<object?>> rows,
+        PaginationSpec? pagination)
+    {
+        if (pagination is null)
+            return rows;
+
+        var skipped = rows.Skip(pagination.Offset);
+        return pagination.Fetch is { } fetch
+            ? skipped.Take(fetch).ToArray()
+            : skipped.ToArray();
+    }
+
+    private static int FindInformationSchemaColumn(IReadOnlyList<string> columns, string name)
+    {
+        for (var i = 0; i < columns.Count; i++)
+        {
+            if (string.Equals(columns[i], name, StringComparison.OrdinalIgnoreCase))
+                return i;
+        }
+
+        throw new InvalidOperationException($"INFORMATION_SCHEMA 中不存在列 '{name}'。");
+    }
+
+    private static string FormatInformationSchemaTableType(TableColumnType type)
+        => type switch
+        {
+            TableColumnType.Int64 => "int64",
+            TableColumnType.Float64 => "float64",
+            TableColumnType.Boolean => "boolean",
+            TableColumnType.String => "string",
+            TableColumnType.DateTime => "datetime",
+            TableColumnType.Blob => "blob",
+            TableColumnType.Json => "json",
+            _ => type.ToString().ToLowerInvariant(),
+        };
+
+    private static object? EvaluateInformationSchemaLiteral(LiteralExpression literal)
+        => literal.Kind switch
+        {
+            SqlLiteralKind.Null => null,
+            SqlLiteralKind.Boolean => literal.BooleanValue,
+            SqlLiteralKind.Integer => literal.IntegerValue,
+            SqlLiteralKind.Float => literal.FloatValue,
+            SqlLiteralKind.String => literal.StringValue,
+            _ => throw new InvalidOperationException($"不支持的字面量类型 {literal.Kind}。"),
+        };
 
     /// <summary>
     /// 执行 DELETE 语句：把 WHERE 中 tag 等值过滤 + 时间窗 落到 PR #20 的 Tombstone 体系。

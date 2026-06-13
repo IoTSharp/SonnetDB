@@ -74,7 +74,7 @@ public sealed class SqlParser
             TokenKind.KeywordDelete => ParseDelete(),
             TokenKind.KeywordUpdate => ParseUpdate(),
             TokenKind.KeywordDrop => ParseDrop(),
-            TokenKind.KeywordAlter => ParseAlterUser(),
+            TokenKind.KeywordAlter => ParseAlter(),
             TokenKind.KeywordGrant => ParseGrant(),
             TokenKind.KeywordRevoke => ParseRevoke(),
             TokenKind.KeywordShow => ParseShow(),
@@ -313,7 +313,31 @@ public sealed class SqlParser
         var columnName = ExpectColumnName();
         var dataType = ParseTableDataType();
         ColumnNullability nullability = ColumnNullability.Unspecified;
+        SqlExpression? defaultExpression = null;
+        ParseTableColumnModifiers(ref nullability, ref defaultExpression);
+        if (defaultExpression is not null)
+            throw Error("CREATE TABLE 当前不支持列 DEFAULT；请在后续 ALTER TABLE ADD COLUMN 中使用 DEFAULT");
 
+        return new TableColumnDefinition(columnName, dataType, nullability);
+    }
+
+    private AlterTableAddColumnStatement ParseAlterTableAddColumn(string tableName)
+    {
+        if (Current.Kind == TokenKind.KeywordColumn)
+            Advance();
+
+        var columnName = ExpectColumnName();
+        var dataType = ParseTableDataType();
+        ColumnNullability nullability = ColumnNullability.Unspecified;
+        SqlExpression? defaultExpression = null;
+        ParseTableColumnModifiers(ref nullability, ref defaultExpression);
+        return new AlterTableAddColumnStatement(tableName, columnName, dataType, nullability, defaultExpression);
+    }
+
+    private void ParseTableColumnModifiers(
+        ref ColumnNullability nullability,
+        ref SqlExpression? defaultExpression)
+    {
         while (true)
         {
             switch (Current.Kind)
@@ -329,8 +353,15 @@ public sealed class SqlParser
                     SetNullability(ref nullability, ColumnNullability.NotNull);
                     continue;
 
+                case TokenKind.KeywordDefault:
+                    if (defaultExpression is not null)
+                        throw Error("DEFAULT 子句重复声明");
+                    Advance();
+                    defaultExpression = ParseExpression();
+                    continue;
+
                 default:
-                    return new TableColumnDefinition(columnName, dataType, nullability);
+                    return;
             }
         }
     }
@@ -827,6 +858,11 @@ public sealed class SqlParser
         else
         {
             measurement = ExpectIdentifierName();
+            while (Current.Kind == TokenKind.Dot)
+            {
+                Advance();
+                measurement += "." + ExpectSchemaObjectPart();
+            }
             tableAlias = ParseOptionalTableAlias();
         }
 
@@ -1553,6 +1589,26 @@ public sealed class SqlParser
             : throw Error("期望标识符");
     }
 
+    private string ExpectSchemaObjectPart()
+    {
+        if (Current.Kind == TokenKind.IdentifierLiteral)
+            return ExpectIdentifierLiteral();
+
+        var name = Current.Kind switch
+        {
+            TokenKind.KeywordTables => "tables",
+            TokenKind.KeywordColumn => "column",
+            TokenKind.KeywordIndex => "index",
+            TokenKind.KeywordCollections => "collections",
+            TokenKind.KeywordMeasurements => "measurements",
+            _ => null,
+        };
+        if (name is null)
+            throw Error("期望 schema 对象名");
+        Advance();
+        return name;
+    }
+
     /// <summary>
     /// 解析用户名：接受标识符、任意关键字，或单引号字符串字面量。
     /// 这样既兼容 <c>alice</c>，也兼容 <c>ops-admin</c> 这类包含非标识符字符的用户名。
@@ -1835,10 +1891,56 @@ public sealed class SqlParser
         }
     }
 
-    /// <summary><c>ALTER USER name WITH PASSWORD 'pwd'</c>。</summary>
-    private AlterUserPasswordStatement ParseAlterUser()
+    private SqlStatement ParseAlter()
     {
         Expect(TokenKind.KeywordAlter);
+        return Current.Kind switch
+        {
+            TokenKind.KeywordTable => ParseAlterTableBody(),
+            TokenKind.KeywordUser => ParseAlterUserBody(),
+            _ => throw Error("ALTER 后面期望 TABLE 或 USER"),
+        };
+    }
+
+    private SqlStatement ParseAlterTableBody()
+    {
+        Expect(TokenKind.KeywordTable);
+        var tableName = ExpectIdentifierName();
+        if (IsIdentifier("add"))
+        {
+            Advance();
+            return ParseAlterTableAddColumn(tableName);
+        }
+
+        if (Current.Kind == TokenKind.KeywordDrop)
+        {
+            Advance();
+            if (Current.Kind == TokenKind.KeywordColumn)
+                Advance();
+            return new AlterTableDropColumnStatement(tableName, ExpectColumnName());
+        }
+
+        if (Current.Kind == TokenKind.KeywordRename)
+        {
+            Advance();
+            if (Current.Kind == TokenKind.KeywordColumn)
+            {
+                Advance();
+                var oldColumn = ExpectColumnName();
+                Expect(TokenKind.KeywordTo);
+                return new AlterTableRenameColumnStatement(tableName, oldColumn, ExpectColumnName());
+            }
+
+            Expect(TokenKind.KeywordTo);
+            return new AlterTableRenameTableStatement(tableName, ExpectIdentifierName());
+        }
+
+        throw Error("ALTER TABLE 后面期望 ADD COLUMN / DROP COLUMN / RENAME COLUMN / RENAME TO");
+    }
+
+    /// <summary><c>ALTER USER name WITH PASSWORD 'pwd'</c>。</summary>
+    private AlterUserPasswordStatement ParseAlterUserBody()
+    {
         Expect(TokenKind.KeywordUser);
         var name = ExpectUserName();
         Expect(TokenKind.KeywordWith);

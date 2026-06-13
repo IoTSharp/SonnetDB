@@ -173,6 +173,87 @@ public sealed class TableSchema
             CreatedAtUtcTicks);
     }
 
+    /// <summary>
+    /// 返回添加列后的新 schema。新增列追加到末尾。
+    /// </summary>
+    public TableSchema WithAddedColumn(string name, TableColumnType dataType, bool isNullable)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        if (_columnsByName.ContainsKey(name))
+            throw new InvalidOperationException($"table '{Name}' 中列 '{name}' 已存在。");
+
+        return Create(
+            Name,
+            Columns.Select(static c => (c.Name, c.DataType, c.IsNullable))
+                .Append((name, dataType, isNullable))
+                .ToArray(),
+            PrimaryKey,
+            IndexDefinitions(),
+            CreatedAtUtcTicks);
+    }
+
+    /// <summary>
+    /// 返回删除列后的新 schema。首版不允许删除主键列或索引引用列。
+    /// </summary>
+    public TableSchema WithoutColumn(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        var column = TryGetColumn(name)
+            ?? throw new InvalidOperationException($"table '{Name}' 中不存在列 '{name}'。");
+        if (column.IsPrimaryKey)
+            throw new InvalidOperationException("ALTER TABLE DROP COLUMN 当前不支持删除 PRIMARY KEY 列。");
+        foreach (var index in Indexes)
+        {
+            if (index.Columns.Any(c => string.Equals(c, name, StringComparison.Ordinal)))
+                throw new InvalidOperationException($"列 '{name}' 被索引 '{index.Name}' 引用，不能删除。");
+        }
+
+        return Create(
+            Name,
+            Columns.Where(c => !string.Equals(c.Name, name, StringComparison.Ordinal))
+                .Select(static c => (c.Name, c.DataType, c.IsNullable))
+                .ToArray(),
+            PrimaryKey,
+            IndexDefinitions(),
+            CreatedAtUtcTicks);
+    }
+
+    /// <summary>
+    /// 返回重命名列后的新 schema。首版不允许重命名主键列。
+    /// </summary>
+    public TableSchema WithRenamedColumn(string oldName, string newName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(oldName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(newName);
+        var column = TryGetColumn(oldName)
+            ?? throw new InvalidOperationException($"table '{Name}' 中不存在列 '{oldName}'。");
+        if (_columnsByName.ContainsKey(newName))
+            throw new InvalidOperationException($"table '{Name}' 中列 '{newName}' 已存在。");
+        if (column.IsPrimaryKey)
+            throw new InvalidOperationException("ALTER TABLE RENAME COLUMN 当前不支持重命名 PRIMARY KEY 列。");
+
+        return Create(
+            Name,
+            Columns.Select(c => string.Equals(c.Name, oldName, StringComparison.Ordinal)
+                    ? (newName, c.DataType, c.IsNullable)
+                    : (c.Name, c.DataType, c.IsNullable))
+                .ToArray(),
+            PrimaryKey,
+            IndexDefinitions(renameColumn: (oldName, newName)),
+            CreatedAtUtcTicks);
+    }
+
+    /// <summary>
+    /// 返回重命名表后的新 schema。
+    /// </summary>
+    public TableSchema WithName(string name)
+        => Create(
+            name,
+            Columns.Select(static c => (c.Name, c.DataType, c.IsNullable)).ToArray(),
+            PrimaryKey,
+            IndexDefinitions(),
+            CreatedAtUtcTicks);
+
     private static List<TableIndex> BuildIndexes(
         string tableName,
         IReadOnlyList<TableColumn> columns,
@@ -230,4 +311,18 @@ public sealed class TableSchema
 
         return result;
     }
+
+    private IReadOnlyList<TableIndexDefinition> IndexDefinitions((string OldName, string NewName)? renameColumn = null)
+        => Indexes.Select(i =>
+        {
+            var columns = i.Columns;
+            if (renameColumn is { } rename)
+            {
+                columns = i.Columns
+                    .Select(c => string.Equals(c, rename.OldName, StringComparison.Ordinal) ? rename.NewName : c)
+                    .ToArray();
+            }
+
+            return new TableIndexDefinition(i.Name, columns, i.IsUnique, i.CreatedAtUtcTicks, i.JsonPath);
+        }).ToArray();
 }

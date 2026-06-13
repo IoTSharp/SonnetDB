@@ -61,6 +61,32 @@ public sealed class SqlExecutorTableTests : IDisposable
     }
 
     [Fact]
+    public void ParseAlterTableAddDropRename_ReturnsAst()
+    {
+        var add = Assert.IsType<AlterTableAddColumnStatement>(SqlParser.Parse(
+            "ALTER TABLE devices ADD COLUMN site STRING NOT NULL DEFAULT 'north'"));
+        Assert.Equal("devices", add.TableName);
+        Assert.Equal("site", add.ColumnName);
+        Assert.Equal(SqlDataType.String, add.DataType);
+        Assert.Equal(ColumnNullability.NotNull, add.Nullability);
+        Assert.IsType<LiteralExpression>(add.DefaultExpression);
+
+        var drop = Assert.IsType<AlterTableDropColumnStatement>(SqlParser.Parse(
+            "ALTER TABLE devices DROP COLUMN site"));
+        Assert.Equal("site", drop.ColumnName);
+
+        var renameColumn = Assert.IsType<AlterTableRenameColumnStatement>(SqlParser.Parse(
+            "ALTER TABLE devices RENAME COLUMN name TO display_name"));
+        Assert.Equal("name", renameColumn.OldColumnName);
+        Assert.Equal("display_name", renameColumn.NewColumnName);
+
+        var renameTable = Assert.IsType<AlterTableRenameTableStatement>(SqlParser.Parse(
+            "ALTER TABLE devices RENAME TO assets"));
+        Assert.Equal("devices", renameTable.OldTableName);
+        Assert.Equal("assets", renameTable.NewTableName);
+    }
+
+    [Fact]
     public void CreateShowDescribeTable_PersistsAcrossReopen()
     {
         using (var db = Tsdb.Open(Options()))
@@ -179,6 +205,80 @@ public sealed class SqlExecutorTableTests : IDisposable
         Assert.Equal(1, dropped.RowsAffected);
         Assert.Empty(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SHOW TABLES")).Rows);
         Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db, "SELECT * FROM devices"));
+    }
+
+    [Fact]
+    public void AlterTable_AddDropRenameColumn_RewritesRowsAndPersists()
+    {
+        using (var db = Tsdb.Open(Options()))
+        {
+            SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, name STRING, enabled BOOL, PRIMARY KEY (id))");
+            SqlExecutor.Execute(db, "INSERT INTO devices (id, name, enabled) VALUES (1, 'pump', TRUE), (2, 'fan', FALSE)");
+
+            SqlExecutor.Execute(db, "ALTER TABLE devices ADD COLUMN site STRING NOT NULL DEFAULT 'north'");
+            var afterAdd = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+                "SELECT id, name, site FROM devices ORDER BY id"));
+            Assert.Equal(new object?[] { 1L, "pump", "north" }, afterAdd.Rows[0]);
+            Assert.Equal(new object?[] { 2L, "fan", "north" }, afterAdd.Rows[1]);
+
+            SqlExecutor.Execute(db, "ALTER TABLE devices RENAME COLUMN name TO display_name");
+            var afterRename = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+                "SELECT display_name, site FROM devices WHERE id = 1"));
+            Assert.Equal(new object?[] { "pump", "north" }, afterRename.Rows.Single());
+
+            SqlExecutor.Execute(db, "ALTER TABLE devices DROP COLUMN enabled");
+            var describe = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "DESCRIBE TABLE devices"));
+            Assert.Equal(["id", "display_name", "site"], describe.Rows.Select(static r => (string)r[0]!).ToArray());
+        }
+
+        using (var reopened = Tsdb.Open(Options()))
+        {
+            var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened,
+                "SELECT id, display_name, site FROM devices ORDER BY id"));
+            Assert.Equal(new object?[] { 1L, "pump", "north" }, result.Rows[0]);
+            Assert.Equal(new object?[] { 2L, "fan", "north" }, result.Rows[1]);
+        }
+    }
+
+    [Fact]
+    public void AlterTable_RenameTable_MovesRowstoreAndPersists()
+    {
+        using (var db = Tsdb.Open(Options()))
+        {
+            SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
+            SqlExecutor.Execute(db, "INSERT INTO devices (id, name) VALUES (1, 'pump')");
+            SqlExecutor.Execute(db, "ALTER TABLE devices RENAME TO assets");
+
+            Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db, "SELECT id FROM devices"));
+            var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SELECT id, name FROM assets"));
+            Assert.Equal(new object?[] { 1L, "pump" }, result.Rows.Single());
+        }
+
+        using (var reopened = Tsdb.Open(Options()))
+        {
+            var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened, "SELECT id, name FROM assets"));
+            Assert.Equal(new object?[] { 1L, "pump" }, result.Rows.Single());
+            Assert.DoesNotContain(
+                Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened, "SHOW TABLES")).Rows,
+                row => string.Equals((string?)row[0], "devices", StringComparison.Ordinal));
+        }
+    }
+
+    [Fact]
+    public void AlterTable_RejectsPrimaryKeyAndIndexedColumnChanges()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, serial STRING, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE INDEX idx_devices_serial ON devices (serial)");
+
+        Assert.Throws<InvalidOperationException>(() =>
+            SqlExecutor.Execute(db, "ALTER TABLE devices DROP COLUMN id"));
+        Assert.Throws<InvalidOperationException>(() =>
+            SqlExecutor.Execute(db, "ALTER TABLE devices RENAME COLUMN id TO device_id"));
+        Assert.Throws<InvalidOperationException>(() =>
+            SqlExecutor.Execute(db, "ALTER TABLE devices DROP COLUMN serial"));
+        Assert.Throws<InvalidOperationException>(() =>
+            SqlExecutor.Execute(db, "ALTER TABLE devices ADD COLUMN required STRING NOT NULL"));
     }
 
     [Fact]

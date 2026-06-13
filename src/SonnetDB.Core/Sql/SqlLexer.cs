@@ -91,6 +91,8 @@ public sealed class SqlLexer
         ["database"] = TokenKind.KeywordDatabase,
         ["drop"] = TokenKind.KeywordDrop,
         ["alter"] = TokenKind.KeywordAlter,
+        ["column"] = TokenKind.KeywordColumn,
+        ["rename"] = TokenKind.KeywordRename,
         ["primary"] = TokenKind.KeywordPrimary,
         ["key"] = TokenKind.KeywordKey,
 

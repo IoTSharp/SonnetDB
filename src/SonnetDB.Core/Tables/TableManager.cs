@@ -134,6 +134,117 @@ public sealed class TableManager : IDisposable
         }
     }
 
+    public void AlterTableAddColumn(string tableName, string columnName, TableColumnType dataType, bool isNullable, object? defaultValue)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var current = Catalog.TryGet(tableName)
+                ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+            var updated = current.WithAddedColumn(columnName, dataType, isNullable);
+            var store = OpenStoreLocked(current);
+            ApplySchemaTransformLocked(current, updated, store, (_, row) =>
+            {
+                var values = new object?[updated.Columns.Count];
+                for (var i = 0; i < row.Values.Count; i++)
+                    values[i] = row.Values[i];
+                values[^1] = defaultValue;
+                return values;
+            });
+        }
+    }
+
+    public void AlterTableDropColumn(string tableName, string columnName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var current = Catalog.TryGet(tableName)
+                ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+            var dropped = current.TryGetColumn(columnName)
+                ?? throw new InvalidOperationException($"table '{tableName}' 中不存在列 '{columnName}'。");
+            var updated = current.WithoutColumn(columnName);
+            var store = OpenStoreLocked(current);
+            ApplySchemaTransformLocked(current, updated, store, (oldSchema, row) =>
+            {
+                var values = new object?[updated.Columns.Count];
+                var target = 0;
+                foreach (var column in oldSchema.Columns)
+                {
+                    if (column.Ordinal == dropped.Ordinal)
+                        continue;
+                    values[target++] = row.Values[column.Ordinal];
+                }
+
+                return values;
+            });
+        }
+    }
+
+    public void AlterTableRenameColumn(string tableName, string oldColumnName, string newColumnName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(oldColumnName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(newColumnName);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var current = Catalog.TryGet(tableName)
+                ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+            var updated = current.WithRenamedColumn(oldColumnName, newColumnName);
+            var store = OpenStoreLocked(current);
+            ApplySchemaTransformLocked(current, updated, store, (_, row) => row.Values.ToArray());
+        }
+    }
+
+    public void RenameTable(string oldName, string newName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(oldName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(newName);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var current = Catalog.TryGet(oldName)
+                ?? throw new InvalidOperationException($"table '{oldName}' 不存在。");
+            if (Catalog.TryGet(newName) is not null)
+                throw new InvalidOperationException($"table '{newName}' 已存在。");
+
+            var updated = current.WithName(newName);
+            var oldDirectory = TableDirectory(oldName);
+            var newDirectory = TableDirectory(newName);
+            if (Directory.Exists(newDirectory))
+                throw new InvalidOperationException($"table '{newName}' 的 rowstore 目录已存在。");
+
+            TableStore? existingStore = null;
+            if (_stores.Remove(oldName, out existingStore))
+                existingStore.Dispose();
+
+            Catalog.Remove(oldName);
+            Catalog.Add(updated);
+            try
+            {
+                if (Directory.Exists(oldDirectory))
+                    Directory.Move(oldDirectory, newDirectory);
+                PersistCatalogLocked();
+                _ = OpenStoreLocked(updated);
+            }
+            catch
+            {
+                if (Directory.Exists(newDirectory) && !Directory.Exists(oldDirectory))
+                    Directory.Move(newDirectory, oldDirectory);
+                Catalog.Remove(newName);
+                Catalog.Add(current);
+                PersistCatalogLocked();
+                _ = OpenStoreLocked(current);
+                throw;
+            }
+        }
+    }
+
     /// <summary>
     /// 从关系表主数据重建指定二级索引。
     /// </summary>
@@ -261,6 +372,26 @@ public sealed class TableManager : IDisposable
 
     private void PersistCatalogLocked()
         => TableSchemaCodec.Save(SchemaPath, Catalog.Snapshot());
+
+    private void ApplySchemaTransformLocked(
+        TableSchema current,
+        TableSchema updated,
+        TableStore store,
+        Func<TableSchema, TableRow, IReadOnlyList<object?>> transform)
+    {
+        var rollback = store.ApplySchemaTransform(updated, transform);
+        Catalog.LoadOrReplace(updated);
+        try
+        {
+            PersistCatalogLocked();
+        }
+        catch
+        {
+            rollback();
+            Catalog.LoadOrReplace(current);
+            throw;
+        }
+    }
 
     private static string EncodeName(string name)
     {
