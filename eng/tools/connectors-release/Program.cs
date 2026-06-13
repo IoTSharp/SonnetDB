@@ -498,7 +498,7 @@ static class ConnectorReleaseTool
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            arguments.AddRange(["-G", "Visual Studio 17 2022"]);
+            arguments.AddRange(["-G", GetVisualStudioCMakeGenerator()]);
             if (!string.IsNullOrWhiteSpace(architecture))
             {
                 arguments.AddRange(["-A", architecture]);
@@ -539,12 +539,15 @@ static class ConnectorReleaseTool
         string workingDirectory,
         IReadOnlyDictionary<string, string>? environment = null)
     {
-        Console.WriteLine($"> {fileName} {string.Join(' ', arguments.Select(QuoteForDisplay))}");
+        var commandLine = $"> {fileName} {string.Join(' ', arguments.Select(QuoteForDisplay))}";
+        Console.WriteLine(commandLine);
 
         var startInfo = new ProcessStartInfo(fileName)
         {
             WorkingDirectory = workingDirectory,
-            UseShellExecute = false
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
         };
 
         foreach (var argument in arguments)
@@ -560,11 +563,50 @@ static class ConnectorReleaseTool
             }
         }
 
+        var recentOutput = new Queue<string>(capacity: 80);
+        object outputLock = new();
+        void RecordOutput(string line, TextWriter writer)
+        {
+            writer.WriteLine(line);
+            lock (outputLock)
+            {
+                if (recentOutput.Count >= 80)
+                {
+                    recentOutput.Dequeue();
+                }
+
+                recentOutput.Enqueue(line);
+            }
+        }
+
         using var process = Process.Start(startInfo) ?? throw new InvalidOperationException($"Cannot start command: {fileName}");
+        Task stdout = Task.Run(async () =>
+        {
+            while (await process.StandardOutput.ReadLineAsync() is { } line)
+            {
+                RecordOutput(line, Console.Out);
+            }
+        });
+        Task stderr = Task.Run(async () =>
+        {
+            while (await process.StandardError.ReadLineAsync() is { } line)
+            {
+                RecordOutput(line, Console.Error);
+            }
+        });
+
         await process.WaitForExitAsync();
+        await Task.WhenAll(stdout, stderr);
         if (process.ExitCode != 0)
         {
-            throw new InvalidOperationException($"{fileName} failed with exit code {process.ExitCode}.");
+            string tail;
+            lock (outputLock)
+            {
+                tail = string.Join(Environment.NewLine, recentOutput);
+            }
+
+            throw new InvalidOperationException(
+                $"{fileName} failed with exit code {process.ExitCode}: {commandLine}{Environment.NewLine}{tail}");
         }
     }
 
@@ -581,6 +623,49 @@ static class ConnectorReleaseTool
             "win-x64" => "x64",
             _ => null
         };
+    }
+
+    private static string GetVisualStudioCMakeGenerator()
+    {
+        var configured = Environment.GetEnvironmentVariable("SONNETDB_CMAKE_VS_GENERATOR");
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            return configured;
+        }
+
+        var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+        var vswhere = Path.Combine(programFilesX86, "Microsoft Visual Studio", "Installer", "vswhere.exe");
+        if (File.Exists(vswhere))
+        {
+            try
+            {
+                using Process process = new()
+                {
+                    StartInfo = new ProcessStartInfo(vswhere)
+                    {
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true
+                    }
+                };
+                process.StartInfo.ArgumentList.Add("-latest");
+                process.StartInfo.ArgumentList.Add("-property");
+                process.StartInfo.ArgumentList.Add("installationVersion");
+                process.Start();
+                string version = process.StandardOutput.ReadToEnd().Trim();
+                process.WaitForExit();
+                if (process.ExitCode == 0 && Version.TryParse(version, out var parsed) && parsed.Major >= 18)
+                {
+                    return "Visual Studio 18 2026";
+                }
+            }
+            catch
+            {
+                // Fall through to the stable VS 2022 generator name.
+            }
+        }
+
+        return "Visual Studio 17 2022";
     }
 
     private static string GetJavaBuildDirectoryName(ReleaseContext context)
