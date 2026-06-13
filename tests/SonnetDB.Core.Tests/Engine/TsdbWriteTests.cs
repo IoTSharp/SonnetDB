@@ -410,10 +410,40 @@ public sealed class TsdbWriteTests : IDisposable
     {
         // Create fake segment files to simulate existing segments
         Directory.CreateDirectory(TsdbPaths.SegmentsDir(_tempDir));
+        Directory.CreateDirectory(Path.GetDirectoryName(TsdbPaths.SegmentPath(_tempDir, 3L))!);
+        Directory.CreateDirectory(Path.GetDirectoryName(TsdbPaths.SegmentPath(_tempDir, 7L))!);
         File.WriteAllBytes(TsdbPaths.SegmentPath(_tempDir, 3L), []);
         File.WriteAllBytes(TsdbPaths.SegmentPath(_tempDir, 7L), []);
 
         using var db = Tsdb.Open(MakeOptions());
         Assert.Equal(8L, db.NextSegmentId);
+    }
+
+    [Fact]
+    public void Open_WithLayeredSegments_LoadsExistingDataAndAllocatesNextId()
+    {
+        {
+            using var db = Tsdb.Open(MakeOptions());
+            db.Write(Point.Create(
+                "metrics",
+                1000L,
+                new Dictionary<string, string> { ["host"] = "srv1" },
+                new Dictionary<string, FieldValue> { ["value"] = FieldValue.FromDouble(1.25) }));
+            var flush = db.FlushNow();
+            Assert.NotNull(flush);
+            Assert.Contains(Path.Combine("segments", "v2"), flush.Path);
+        }
+
+        using var reopened = Tsdb.Open(MakeOptions());
+        Assert.Equal(2L, reopened.NextSegmentId);
+        var seriesId = reopened.Catalog.Snapshot().Single().Id;
+        var points = reopened.Query.Execute(new PointQuery(
+            seriesId,
+            "value",
+            new TimeRange(0, long.MaxValue))).ToList();
+
+        var point = Assert.Single(points);
+        Assert.Equal(1000L, point.Timestamp);
+        Assert.Equal(1.25, point.Value.AsDouble());
     }
 }

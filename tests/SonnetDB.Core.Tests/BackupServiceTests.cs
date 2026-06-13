@@ -1,6 +1,10 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using SonnetDB.Backup;
+using SonnetDB.Engine;
+using SonnetDB.Engine.Compaction;
+using SonnetDB.Model;
+using SonnetDB.Storage.Segments;
 using Xunit;
 
 namespace SonnetDB.Core.Tests.Backup;
@@ -68,6 +72,39 @@ public sealed class BackupServiceTests : IDisposable
         Assert.Contains("恢复预检失败", exception.Message, StringComparison.Ordinal);
         Assert.False(File.Exists(Path.Combine(_rootDirectory, "outside.SDBCAT")));
         Assert.False(Directory.Exists(restoreTarget));
+    }
+
+    [Fact]
+    public void Create_WithLayeredSegments_RecordsNestedSegmentPath()
+    {
+        string dbRoot = Path.Combine(_rootDirectory, "db");
+        string backupDirectory = Path.Combine(_rootDirectory, "backup-layered");
+
+        using (var db = Tsdb.Open(new TsdbOptions
+        {
+            RootDirectory = dbRoot,
+            BackgroundFlush = new BackgroundFlushOptions { Enabled = false },
+            Compaction = new CompactionPolicy { Enabled = false },
+            SegmentWriterOptions = new SegmentWriterOptions { FsyncOnCommit = false },
+        }))
+        {
+            db.Write(Point.Create(
+                "cpu",
+                1000L,
+                new Dictionary<string, string> { ["host"] = "a" },
+                new Dictionary<string, FieldValue> { ["usage"] = FieldValue.FromDouble(42.0) }));
+            db.FlushNow();
+
+            var manifest = new BackupService().Create(db, new BackupCreateOptions
+            {
+                DestinationDirectory = backupDirectory,
+            });
+
+            var segment = Assert.Single(manifest.Files, static file => file.Kind == BackupFileKind.Segment);
+            Assert.StartsWith("segments/v2/", segment.Path, StringComparison.Ordinal);
+            Assert.EndsWith(".SDBSEG", segment.Path, StringComparison.OrdinalIgnoreCase);
+            Assert.True(File.Exists(Path.Combine(backupDirectory, segment.Path.Replace('/', Path.DirectorySeparatorChar))));
+        }
     }
 
     public void Dispose()
