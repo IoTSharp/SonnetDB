@@ -50,6 +50,12 @@ public static class BearerAuthMiddleware
             return null;
         }
 
+        if (path.StartsWith("/s3/", StringComparison.Ordinal)
+            && context.Request.Query.ContainsKey("sndb-presigned"))
+        {
+            return null;
+        }
+
         // SPA / 静态资源：所有不命中数据/控制平面的 GET / HEAD 请求都视为 SPA 页面或静态文件，
         // 由前端在拿到 HTML 后再通过受保护的 /v1/** API 发起真正的鉴权请求。
         // 这覆盖了根路径、/admin/*、/assets/*、/favicon.ico 等所有 SPA 入口。
