@@ -167,6 +167,6 @@ IoTSharp 当前主要是普通字段过滤和 SQLite 大小写搜索配置，未
 - `tests/SonnetDB.IoTSharpCompat.Tests` 先固定能力域、后端清单、验收用例和迁移/回滚清单。
 - #110 已完成 ADO.NET 轻事务、异步 API、取消令牌与远程 `/sql/batch` 事务基线；#113 已将关系表轻事务扩展到同一数据库内多表 DML 原子提交/回滚，并补外键、ROWVERSION 与稳定约束错误码。
 - #111 已完成关系表 DDL 与 schema metadata 核心基线：`ALTER TABLE ADD/DROP/RENAME COLUMN`、`ALTER TABLE RENAME TO`、`INFORMATION_SCHEMA.tables/columns/indexes`、`DbDataReader.GetSchemaTable()` 与 `DbConnection.GetSchema()` provider metadata；首版仍明确拒绝主键列变更和被索引列删除。
-- #115 优先补齐 SonnetDB EF provider 的 migrations history 支持（`__EFMigrationsHistory` 或等价可配置历史表），并把 `Database.Migrate()`、迁移升级、回滚、重复执行幂等检查和空库初始化作为 `DataBase=SonnetDB` 进入 IoTSharp `ApplicationDbContext` 兼容适配前的入口验收。
+- #115 已完成 SonnetDB EF provider 的 migrations history 支持（`__EFMigrationsHistory` 与可配置历史表），并以 `Database.Migrate()`、迁移升级、回滚、重复执行幂等检查、空库初始化、IoTSharp `ApplicationDbContext` schema 创建、Identity 登录、主数据 CRUD、`Include`、分页、常用查询、`LIKE` 字符串模式翻译和 `SaveChanges` 事务作为入口验收。
 - #110 ~ #121 逐步把占位清单替换为真实 adapter、provider、容器化端到端和长稳测试。
 - 在 #116/#117/#119 完成前，不宣称 SonnetDB 已具备 IoTSharp Redis、S3 或关系数据库路径的完整兼容语义；始终作为新增可选后端推进。
