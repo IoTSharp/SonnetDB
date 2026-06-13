@@ -273,6 +273,38 @@ public sealed class SonnetDbProviderTests : IDisposable
         Assert.Equal(2, await CountRowsAsync(context, "__SonnetHistory"));
     }
 
+    [Fact]
+    public async Task AdoSchemaMetadata_AfterEfDdl_ReportsTablesColumnsAndIndexes()
+    {
+        using var context = new DeviceContext(CreateOptions<DeviceContext>());
+
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE \"Devices\" (\"Id\" INT NOT NULL, \"Name\" STRING NOT NULL, \"Enabled\" BOOL NOT NULL, PRIMARY KEY (\"Id\"))");
+        await context.Database.ExecuteSqlRawAsync("CREATE UNIQUE INDEX \"UX_Devices_Name\" ON \"Devices\" (\"Name\")");
+
+        var connection = context.Database.GetDbConnection();
+        await context.Database.OpenConnectionAsync();
+        try
+        {
+            var tables = connection.GetSchema("Tables");
+            Assert.Contains(
+                tables.Rows.Cast<System.Data.DataRow>(),
+                row => string.Equals((string)row["TABLE_NAME"], "Devices", StringComparison.Ordinal));
+
+            var columns = connection.GetSchema("Columns", [null, null, "Devices", null]);
+            Assert.Equal(["Id", "Name", "Enabled"], columns.Rows.Cast<System.Data.DataRow>().Select(row => (string)row["COLUMN_NAME"]).ToArray());
+
+            var indexes = connection.GetSchema("Indexes", [null, null, "Devices", "UX_Devices_Name"]);
+            var index = Assert.Single(indexes.Rows.Cast<System.Data.DataRow>());
+            Assert.True((bool)index["IS_UNIQUE"]);
+            Assert.Equal("Name", index["COLUMN_NAME"]);
+        }
+        finally
+        {
+            await context.Database.CloseConnectionAsync();
+        }
+    }
+
     private DbContextOptions<TContext> CreateOptions<TContext>()
         where TContext : DbContext
         => new DbContextOptionsBuilder<TContext>()

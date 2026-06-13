@@ -1324,6 +1324,14 @@ public sealed class SqlParser
                 continue;
             }
 
+            if (Current.Kind == TokenKind.KeywordRegex)
+            {
+                Advance();
+                var right = ParseAdditive();
+                left = new BinaryExpression(SqlBinaryOperator.Regex, left, right);
+                continue;
+            }
+
             if (Current.Kind == TokenKind.KeywordNot
                 && _index + 1 < _tokens.Count
                 && _tokens[_index + 1].Kind == TokenKind.KeywordLike)
@@ -1332,6 +1340,17 @@ public sealed class SqlParser
                 Advance();
                 var right = ParseAdditive();
                 left = new BinaryExpression(SqlBinaryOperator.NotLike, left, right);
+                continue;
+            }
+
+            if (Current.Kind == TokenKind.KeywordNot
+                && _index + 1 < _tokens.Count
+                && _tokens[_index + 1].Kind == TokenKind.KeywordRegex)
+            {
+                Advance();
+                Advance();
+                var right = ParseAdditive();
+                left = new BinaryExpression(SqlBinaryOperator.NotRegex, left, right);
                 continue;
             }
 

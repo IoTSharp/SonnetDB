@@ -4,6 +4,7 @@ using System.Globalization;
 using SonnetDB.Data.Embedded;
 using SonnetDB.Data.Internal;
 using SonnetDB.Data.Remote;
+using SonnetDB.Tables;
 
 namespace SonnetDB.Data;
 
@@ -25,6 +26,10 @@ namespace SonnetDB.Data;
 /// </remarks>
 public sealed class SndbConnection : DbConnection
 {
+    private const string TablesCollectionName = "Tables";
+    private const string ColumnsCollectionName = "Columns";
+    private const string IndexesCollectionName = "Indexes";
+
     private string _connectionString = string.Empty;
     private SndbConnectionStringBuilder _builder = new();
     private IConnectionImpl? _impl;
@@ -180,13 +185,29 @@ public sealed class SndbConnection : DbConnection
             return BuildDataTypesSchema();
         if (string.Equals(collectionName, DbMetaDataCollectionNames.ReservedWords, StringComparison.OrdinalIgnoreCase))
             return BuildReservedWordsSchema();
+        if (string.Equals(collectionName, TablesCollectionName, StringComparison.OrdinalIgnoreCase))
+            return BuildTablesSchema(restrictionValues: null);
+        if (string.Equals(collectionName, ColumnsCollectionName, StringComparison.OrdinalIgnoreCase))
+            return BuildColumnsSchema(restrictionValues: null);
+        if (string.Equals(collectionName, IndexesCollectionName, StringComparison.OrdinalIgnoreCase))
+            return BuildIndexesSchema(restrictionValues: null);
 
         throw new ArgumentException($"SonnetDB provider metadata collection '{collectionName}' is not supported.", nameof(collectionName));
     }
 
     /// <inheritdoc />
     public override DataTable GetSchema(string collectionName, string?[] restrictionValues)
-        => GetSchema(collectionName);
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
+        if (string.Equals(collectionName, TablesCollectionName, StringComparison.OrdinalIgnoreCase))
+            return BuildTablesSchema(restrictionValues);
+        if (string.Equals(collectionName, ColumnsCollectionName, StringComparison.OrdinalIgnoreCase))
+            return BuildColumnsSchema(restrictionValues);
+        if (string.Equals(collectionName, IndexesCollectionName, StringComparison.OrdinalIgnoreCase))
+            return BuildIndexesSchema(restrictionValues);
+
+        return GetSchema(collectionName);
+    }
 
     /// <inheritdoc />
     protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel)
@@ -338,6 +359,9 @@ public sealed class SndbConnection : DbConnection
         table.Rows.Add(DbMetaDataCollectionNames.DataSourceInformation, 0, 0);
         table.Rows.Add(DbMetaDataCollectionNames.DataTypes, 0, 0);
         table.Rows.Add(DbMetaDataCollectionNames.ReservedWords, 0, 0);
+        table.Rows.Add(TablesCollectionName, 4, 1);
+        table.Rows.Add(ColumnsCollectionName, 4, 1);
+        table.Rows.Add(IndexesCollectionName, 4, 2);
         return table;
     }
 
@@ -380,6 +404,125 @@ public sealed class SndbConnection : DbConnection
             ";",
             "^'([^']|'')*'$",
             SupportedJoinOperators.Inner);
+
+        return table;
+    }
+
+    private DataTable BuildTablesSchema(string?[]? restrictionValues)
+    {
+        var table = CreateSchemaTable(TablesCollectionName);
+        table.Columns.Add("TABLE_CATALOG", typeof(string));
+        table.Columns.Add("TABLE_SCHEMA", typeof(string));
+        table.Columns.Add("TABLE_NAME", typeof(string));
+        table.Columns.Add("TABLE_TYPE", typeof(string));
+        table.Columns.Add("CREATED_UTC", typeof(DateTime));
+
+        var tableNameRestriction = Restriction(restrictionValues, 2);
+        foreach (var schema in SnapshotTables())
+        {
+            if (!MatchesRestriction(schema.Name, tableNameRestriction))
+                continue;
+
+            table.Rows.Add(
+                Database,
+                string.Empty,
+                schema.Name,
+                "BASE TABLE",
+                new DateTime(schema.CreatedAtUtcTicks, DateTimeKind.Utc));
+        }
+
+        return table;
+    }
+
+    private DataTable BuildColumnsSchema(string?[]? restrictionValues)
+    {
+        var table = CreateSchemaTable(ColumnsCollectionName);
+        table.Columns.Add("TABLE_CATALOG", typeof(string));
+        table.Columns.Add("TABLE_SCHEMA", typeof(string));
+        table.Columns.Add("TABLE_NAME", typeof(string));
+        table.Columns.Add("COLUMN_NAME", typeof(string));
+        table.Columns.Add("ORDINAL_POSITION", typeof(int));
+        table.Columns.Add("COLUMN_DEFAULT", typeof(string));
+        table.Columns.Add("IS_NULLABLE", typeof(bool));
+        table.Columns.Add("DATA_TYPE", typeof(string));
+        table.Columns.Add("CHARACTER_MAXIMUM_LENGTH", typeof(int));
+        table.Columns.Add("NUMERIC_PRECISION", typeof(short));
+        table.Columns.Add("NUMERIC_SCALE", typeof(short));
+        table.Columns.Add("IS_PRIMARY_KEY", typeof(bool));
+        table.Columns.Add("IS_ROW_VERSION", typeof(bool));
+
+        var tableNameRestriction = Restriction(restrictionValues, 2);
+        var columnNameRestriction = Restriction(restrictionValues, 3);
+        foreach (var schema in SnapshotTables())
+        {
+            if (!MatchesRestriction(schema.Name, tableNameRestriction))
+                continue;
+
+            foreach (var column in schema.Columns)
+            {
+                if (!MatchesRestriction(column.Name, columnNameRestriction))
+                    continue;
+
+                table.Rows.Add(
+                    Database,
+                    string.Empty,
+                    schema.Name,
+                    column.Name,
+                    column.Ordinal + 1,
+                    DBNull.Value,
+                    column.IsNullable,
+                    FormatTableColumnType(column.DataType),
+                    GetCharacterMaximumLength(column.DataType),
+                    GetNumericPrecision(column.DataType),
+                    GetNumericScale(column.DataType),
+                    column.IsPrimaryKey,
+                    column.IsRowVersion);
+            }
+        }
+
+        return table;
+    }
+
+    private DataTable BuildIndexesSchema(string?[]? restrictionValues)
+    {
+        var table = CreateSchemaTable(IndexesCollectionName);
+        table.Columns.Add("TABLE_CATALOG", typeof(string));
+        table.Columns.Add("TABLE_SCHEMA", typeof(string));
+        table.Columns.Add("TABLE_NAME", typeof(string));
+        table.Columns.Add("INDEX_NAME", typeof(string));
+        table.Columns.Add("IS_UNIQUE", typeof(bool));
+        table.Columns.Add("COLUMN_NAME", typeof(string));
+        table.Columns.Add("ORDINAL_POSITION", typeof(int));
+        table.Columns.Add("JSON_PATH", typeof(string));
+        table.Columns.Add("CREATED_UTC", typeof(DateTime));
+
+        var tableNameRestriction = Restriction(restrictionValues, 2);
+        var indexNameRestriction = Restriction(restrictionValues, 3);
+        foreach (var schema in SnapshotTables())
+        {
+            if (!MatchesRestriction(schema.Name, tableNameRestriction))
+                continue;
+
+            foreach (var index in schema.Indexes)
+            {
+                if (!MatchesRestriction(index.Name, indexNameRestriction))
+                    continue;
+
+                for (var i = 0; i < index.Columns.Count; i++)
+                {
+                    table.Rows.Add(
+                        Database,
+                        string.Empty,
+                        schema.Name,
+                        index.Name,
+                        index.IsUnique,
+                        index.Columns[i],
+                        i + 1,
+                        index.JsonPath ?? string.Empty,
+                        new DateTime(index.CreatedAtUtcTicks, DateTimeKind.Utc));
+                }
+            }
+        }
 
         return table;
     }
@@ -482,4 +625,43 @@ public sealed class SndbConnection : DbConnection
             return parsed.ToString();
         return "1.0.0";
     }
+
+    private IReadOnlyList<TableSchema> SnapshotTables()
+        => UnderlyingTsdb?.Tables.Catalog.Snapshot() ?? Array.Empty<TableSchema>();
+
+    private static string? Restriction(string?[]? restrictionValues, int index)
+        => restrictionValues is not null && restrictionValues.Length > index
+            ? restrictionValues[index]
+            : null;
+
+    private static bool MatchesRestriction(string value, string? restriction)
+        => string.IsNullOrEmpty(restriction)
+            || string.Equals(value, restriction, StringComparison.Ordinal);
+
+    private static string FormatTableColumnType(TableColumnType type) => type switch
+    {
+        TableColumnType.Int64 => "INT",
+        TableColumnType.Float64 => "FLOAT",
+        TableColumnType.Boolean => "BOOL",
+        TableColumnType.String => "STRING",
+        TableColumnType.DateTime => "DATETIME",
+        TableColumnType.Blob => "BLOB",
+        TableColumnType.Json => "JSON",
+        _ => type.ToString().ToUpperInvariant(),
+    };
+
+    private static int GetCharacterMaximumLength(TableColumnType type)
+        => type is TableColumnType.String or TableColumnType.Json or TableColumnType.Blob
+            ? int.MaxValue
+            : -1;
+
+    private static short GetNumericPrecision(TableColumnType type) => type switch
+    {
+        TableColumnType.Int64 => 19,
+        TableColumnType.Float64 => 15,
+        _ => 0,
+    };
+
+    private static short GetNumericScale(TableColumnType type)
+        => type == TableColumnType.Float64 ? (short)15 : (short)0;
 }

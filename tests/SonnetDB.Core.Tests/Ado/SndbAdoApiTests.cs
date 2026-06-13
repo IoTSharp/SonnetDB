@@ -302,6 +302,67 @@ public sealed class TsdbAdoApiTests : IDisposable
     }
 
     [Fact]
+    public void Connection_GetSchema_ReturnsTableColumnAndIndexMetadata()
+    {
+        using var c = OpenConn();
+        ExecNonQuery(c, "CREATE TABLE devices (id INT, name STRING NULL, enabled BOOL, PRIMARY KEY (id))");
+        ExecNonQuery(c, "CREATE UNIQUE INDEX ux_devices_name ON devices (name)");
+
+        var tables = c.GetSchema("Tables");
+        Assert.Contains(
+            tables.Rows.Cast<DataRow>(),
+            row => string.Equals((string)row["TABLE_NAME"], "devices", StringComparison.Ordinal)
+                && string.Equals((string)row["TABLE_TYPE"], "BASE TABLE", StringComparison.Ordinal));
+
+        var columns = c.GetSchema("Columns", [null, null, "devices", null]);
+        Assert.Equal(["id", "name", "enabled"], columns.Rows.Cast<DataRow>().Select(row => (string)row["COLUMN_NAME"]).ToArray());
+        Assert.Contains(
+            columns.Rows.Cast<DataRow>(),
+            row => string.Equals((string)row["COLUMN_NAME"], "id", StringComparison.Ordinal)
+                && (bool)row["IS_PRIMARY_KEY"]
+                && !(bool)row["IS_NULLABLE"]
+                && string.Equals((string)row["DATA_TYPE"], "INT", StringComparison.Ordinal));
+
+        var indexes = c.GetSchema("Indexes", [null, null, "devices", "ux_devices_name"]);
+        var index = Assert.Single(indexes.Rows.Cast<DataRow>());
+        Assert.Equal("ux_devices_name", index["INDEX_NAME"]);
+        Assert.True((bool)index["IS_UNIQUE"]);
+        Assert.Equal("name", index["COLUMN_NAME"]);
+    }
+
+    [Fact]
+    public void ExecuteReader_TableRegexPredicate_FiltersRows()
+    {
+        using var c = OpenConn();
+        ExecNonQuery(c, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
+        ExecNonQuery(c, "INSERT INTO devices (id, name) VALUES (1, 'pump-001'), (2, 'pump-A'), (3, 'fan-001')");
+
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT id FROM devices WHERE name REGEX '^pump-[0-9]+$' ORDER BY id";
+        using var reader = cmd.ExecuteReader();
+
+        Assert.True(reader.Read());
+        Assert.Equal(1L, reader.GetInt64(0));
+        Assert.False(reader.Read());
+    }
+
+    [Fact]
+    public void ExecuteReader_TableNotRegexPredicate_FiltersRows()
+    {
+        using var c = OpenConn();
+        ExecNonQuery(c, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
+        ExecNonQuery(c, "INSERT INTO devices (id, name) VALUES (1, 'pump-001'), (2, 'fan-001')");
+
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT id FROM devices WHERE name NOT REGEX '^pump' ORDER BY id";
+        using var reader = cmd.ExecuteReader();
+
+        Assert.True(reader.Read());
+        Assert.Equal(2L, reader.GetInt64(0));
+        Assert.False(reader.Read());
+    }
+
+    [Fact]
     public void ExecuteNonQuery_Insert_ReturnsRowCount()
     {
         using var c = OpenConn();

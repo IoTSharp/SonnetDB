@@ -93,6 +93,8 @@ public enum TokenKind
     KeywordNot,
     /// <summary>LIKE 字符串模式匹配。</summary>
     KeywordLike,
+    /// <summary>REGEX 正则表达式匹配。</summary>
+    KeywordRegex,
     /// <summary>IF（用于 IF NOT EXISTS 等条件子句）。</summary>
     KeywordIf,
     /// <summary>EXISTS（用于 IF NOT EXISTS 等条件子句）。</summary>
