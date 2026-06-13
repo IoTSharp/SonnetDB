@@ -44,9 +44,19 @@ static class ConnectorReleaseTool
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine(ex.Message);
+            var details = ex.ToString();
+            Console.Error.WriteLine(details);
+            Console.Error.WriteLine($"::error::{EscapeGitHubAnnotation(details)}");
             return 1;
         }
+    }
+
+    private static string EscapeGitHubAnnotation(string value)
+    {
+        return value
+            .Replace("%", "%25", StringComparison.Ordinal)
+            .Replace("\r", "%0D", StringComparison.Ordinal)
+            .Replace("\n", "%0A", StringComparison.Ordinal);
     }
 
     private static void PrintUsage()
