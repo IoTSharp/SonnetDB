@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using SonnetDB.Data;
 using SonnetDB.EntityFrameworkCore.Extensions;
 using Xunit;
 
@@ -33,6 +35,7 @@ public sealed class SonnetDbProviderTests : IDisposable
         Assert.IsAssignableFrom<IRelationalTypeMappingSource>(context.GetService<IRelationalTypeMappingSource>());
         Assert.IsAssignableFrom<IQuerySqlGeneratorFactory>(context.GetService<IQuerySqlGeneratorFactory>());
         Assert.IsAssignableFrom<IMigrationsSqlGenerator>(context.GetService<IMigrationsSqlGenerator>());
+        Assert.IsAssignableFrom<IHistoryRepository>(context.GetService<IHistoryRepository>());
     }
 
     [Fact]
@@ -59,6 +62,28 @@ public sealed class SonnetDbProviderTests : IDisposable
         await context.SaveChangesAsync();
 
         Assert.Empty(await context.Devices.ToListAsync());
+    }
+
+    [Fact]
+    public async Task UseSonnetDB_WithExistingConnection_PerformsCrud()
+    {
+        await using var connection = new SndbConnection($"Data Source={_root}");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<DeviceContext>()
+            .UseSonnetDB(connection)
+            .Options;
+
+        using var context = new DeviceContext(options);
+
+        Assert.Same(connection, context.Database.GetDbConnection());
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE \"Devices\" (\"Id\" INT NOT NULL, \"Name\" STRING NOT NULL, \"Enabled\" BOOL NOT NULL, PRIMARY KEY (\"Id\"))");
+
+        context.Devices.Add(new Device { Id = 10, Name = "gateway", Enabled = true });
+        await context.SaveChangesAsync();
+
+        Assert.Equal("gateway", await context.Devices.Where(item => item.Enabled).Select(item => item.Name).SingleAsync());
     }
 
     [Fact]
@@ -150,11 +175,129 @@ public sealed class SonnetDbProviderTests : IDisposable
         Assert.Contains("DROP TABLE \"Devices\"", downSql.CommandText, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task DatabaseMigrate_WithHistoryTable_InitializesUpgradesRollsBackAndIsIdempotent()
+    {
+        using var context = new MigrationDeviceContext(CreateOptions<MigrationDeviceContext>());
+
+        await context.Database.MigrateAsync();
+
+        Assert.True(await HistoryTableExistsAsync(context, "__EFMigrationsHistory"));
+        Assert.Equal(
+            ["20260613000100_InitialDevices", "20260613000200_AddDeviceEnabled"],
+            (await context.Database.GetAppliedMigrationsAsync()).ToArray());
+        Assert.True(await ColumnExistsAsync(context, "Devices", "Enabled"));
+
+        await context.Database.MigrateAsync();
+        Assert.Equal(2, await CountRowsAsync(context, "__EFMigrationsHistory"));
+
+        var migrator = context.GetService<IMigrator>();
+        await migrator.MigrateAsync("20260613000100_InitialDevices");
+
+        Assert.Equal(["20260613000100_InitialDevices"], (await context.Database.GetAppliedMigrationsAsync()).ToArray());
+        Assert.False(await ColumnExistsAsync(context, "Devices", "Enabled"));
+
+        await context.Database.MigrateAsync();
+        Assert.Equal(
+            ["20260613000100_InitialDevices", "20260613000200_AddDeviceEnabled"],
+            (await context.Database.GetAppliedMigrationsAsync()).ToArray());
+        Assert.True(await ColumnExistsAsync(context, "Devices", "Enabled"));
+    }
+
+    [Fact]
+    public async Task DatabaseMigrate_WithConfiguredHistoryTable_UsesCustomHistoryTable()
+    {
+        using var context = new MigrationDeviceContext(
+            new DbContextOptionsBuilder<MigrationDeviceContext>()
+                .UseSonnetDB(
+                    $"Data Source={_root}",
+                    options => options.MigrationsHistoryTable("__SonnetHistory"))
+                .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning))
+                .Options);
+
+        await context.Database.MigrateAsync();
+
+        Assert.True(await HistoryTableExistsAsync(context, "__SonnetHistory"));
+        Assert.False(await HistoryTableExistsAsync(context, "__EFMigrationsHistory"));
+        Assert.Equal(2, await CountRowsAsync(context, "__SonnetHistory"));
+    }
+
     private DbContextOptions<TContext> CreateOptions<TContext>()
         where TContext : DbContext
         => new DbContextOptionsBuilder<TContext>()
             .UseSonnetDB($"Data Source={_root}")
+            .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning))
             .Options;
+
+    private static async Task<bool> HistoryTableExistsAsync(DbContext context, string tableName)
+    {
+        await using var command = context.Database.GetDbConnection().CreateCommand();
+        command.CommandText = "SHOW TABLES";
+        await context.Database.OpenConnectionAsync();
+        try
+        {
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                if (string.Equals(reader.GetString(0), tableName, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        finally
+        {
+            await context.Database.CloseConnectionAsync();
+        }
+    }
+
+    private static async Task<bool> ColumnExistsAsync(DbContext context, string tableName, string columnName)
+    {
+        await using var command = context.Database.GetDbConnection().CreateCommand();
+        command.CommandText = $"DESCRIBE TABLE \"{tableName}\"";
+        await context.Database.OpenConnectionAsync();
+        try
+        {
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                if (string.Equals(reader.GetString(0), columnName, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        finally
+        {
+            await context.Database.CloseConnectionAsync();
+        }
+    }
+
+    private static async Task<int> CountRowsAsync(DbContext context, string tableName)
+    {
+        await using var command = context.Database.GetDbConnection().CreateCommand();
+        command.CommandText = $"SELECT \"MigrationId\" FROM \"{tableName}\"";
+        await context.Database.OpenConnectionAsync();
+        try
+        {
+            var count = 0;
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                count++;
+            }
+
+            return count;
+        }
+        finally
+        {
+            await context.Database.CloseConnectionAsync();
+        }
+    }
 
     private sealed class DeviceContext(DbContextOptions<DeviceContext> options) : DbContext(options)
     {
@@ -213,4 +356,66 @@ public sealed class SonnetDbProviderTests : IDisposable
 
         public string? ConcurrencyStamp { get; set; }
     }
+}
+
+public sealed class MigrationDeviceContext(DbContextOptions<MigrationDeviceContext> options) : DbContext(options)
+{
+    public DbSet<MigrationDevice> Devices => Set<MigrationDevice>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<MigrationDevice>(entity =>
+        {
+            entity.ToTable("Devices");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Id).HasColumnType("INT").ValueGeneratedNever();
+            entity.Property(item => item.Name).HasColumnType("STRING").IsRequired();
+            entity.Property(item => item.Enabled).HasColumnType("BOOL");
+        });
+    }
+}
+
+public sealed class MigrationDevice
+{
+    public long Id { get; set; }
+
+    public string Name { get; set; } = string.Empty;
+
+    public bool Enabled { get; set; }
+}
+
+[DbContext(typeof(MigrationDeviceContext))]
+[Migration("20260613000100_InitialDevices")]
+public sealed class InitialDevices : Migration
+{
+    protected override void Up(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.CreateTable(
+            name: "Devices",
+            columns: table => new
+            {
+                Id = table.Column<long>(type: "INT", nullable: false),
+                Name = table.Column<string>(type: "STRING", nullable: false)
+            },
+            constraints: table => table.PrimaryKey("PK_Devices", x => x.Id));
+    }
+
+    protected override void Down(MigrationBuilder migrationBuilder)
+        => migrationBuilder.DropTable("Devices");
+}
+
+[DbContext(typeof(MigrationDeviceContext))]
+[Migration("20260613000200_AddDeviceEnabled")]
+public sealed class AddDeviceEnabled : Migration
+{
+    protected override void Up(MigrationBuilder migrationBuilder)
+        => migrationBuilder.AddColumn<bool>(
+            name: "Enabled",
+            table: "Devices",
+            type: "BOOL",
+            nullable: false,
+            defaultValue: false);
+
+    protected override void Down(MigrationBuilder migrationBuilder)
+        => migrationBuilder.DropColumn("Enabled", "Devices");
 }

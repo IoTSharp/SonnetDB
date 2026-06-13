@@ -5,6 +5,7 @@ using IoTSharp.Data;
 using IoTSharp.Data.SonnetDB;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using SonnetDB.EntityFrameworkCore.Extensions;
 using Xunit;
@@ -52,6 +53,24 @@ public sealed class ApplicationDbContextSonnetDbCompatTests : IDisposable
         Assert.Contains("Assets", tableNames);
         Assert.Contains("FlowRules", tableNames);
         Assert.Contains("DeviceRules", tableNames);
+    }
+
+    [Fact]
+    public async Task MigrationsHistory_WithApplicationDbContext_SupportsDefaultHistoryTableCreationAndIdempotency()
+    {
+        await using var scope = _provider.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var history = context.GetService<Microsoft.EntityFrameworkCore.Migrations.IHistoryRepository>();
+
+        Assert.False(await history.ExistsAsync());
+        await history.CreateIfNotExistsAsync();
+        Assert.True(await history.ExistsAsync());
+        Assert.Empty(await history.GetAppliedMigrationsAsync());
+
+        await history.CreateIfNotExistsAsync();
+        var tableNames = await ReadTableNamesAsync(context);
+        Assert.Contains("__EFMigrationsHistory", tableNames);
+        Assert.Equal(1, tableNames.Count(item => item == "__EFMigrationsHistory"));
     }
 
     [Fact]
@@ -238,9 +257,10 @@ public sealed class ApplicationDbContextSonnetDbCompatTests : IDisposable
     {
         var unsupported = IoTSharpCompatMatrix.RelationalSonnetDbUnsupported;
 
-        Assert.Contains(unsupported, item => item.Contains("ShardingCore", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(unsupported, item => item.Contains("HealthChecks UI", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(unsupported, item => item.Contains("migrations history", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(unsupported, item => item.Contains("migrations history has no", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(unsupported, item => item.Contains("distributed cross-process migration locking", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(unsupported, item => item.Contains("production migration baseline", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(unsupported, item => item.Contains("StartsWith", StringComparison.OrdinalIgnoreCase));
     }
 

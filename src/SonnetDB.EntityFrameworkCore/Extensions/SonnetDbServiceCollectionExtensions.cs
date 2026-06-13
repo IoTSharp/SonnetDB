@@ -42,6 +42,7 @@ public static class SonnetDbServiceCollectionExtensions
             .TryAdd<IUpdateSqlGenerator, SonnetDbUpdateSqlGenerator>()
             .TryAdd<IModificationCommandBatchFactory, SonnetDbModificationCommandBatchFactory>()
             .TryAdd<IMigrationsSqlGenerator, SonnetDbMigrationsSqlGenerator>()
+            .TryAdd<IHistoryRepository, SonnetDbHistoryRepository>()
             .TryAddCoreServices();
 
         return serviceCollection;

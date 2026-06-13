@@ -26,7 +26,7 @@ internal static class IoTSharpCompatMatrix
             "TimeSeries",
             [
                 new("SingleTable", "已接入", "TelemetryStorage=SingleTable."),
-                new("Sharding", "已接入", "TelemetryStorage=Sharding."),
+                new("Sharding", "已接入", "TelemetryStorage=Sharding; SonnetDB table sharding minimal CRUD baseline exists."),
                 new("InfluxDB", "已接入", "TelemetryStorage=InfluxDB."),
                 new("TimescaleDB", "已接入", "TelemetryStorage=TimescaleDB."),
                 new("Taos", "已接入", "TelemetryStorage=Taos."),
@@ -114,9 +114,9 @@ internal static class IoTSharpCompatMatrix
 
     public static IReadOnlyList<string> RelationalSonnetDbUnsupported { get; } =
     [
-        "ShardingCore table sharding is not wired to SonnetDB; TelemetryStorage=Sharding must keep using MySQL, SQLServer, Oracle, SQLite or PostgreSQL.",
         "HealthChecks UI does not yet have durable SonnetDB storage; IoTSharp.Data.SonnetDB currently uses in-memory HealthChecks UI storage.",
-        "Full IoTSharp EF Core migrations history has no checked-in IoTSharp.Data.SonnetDB migrations history yet; PR #115 validates schema creation with EnsureCreated and provider DDL, not production migration upgrade/rollback.",
+        "SonnetDB EF migrations history supports __EFMigrationsHistory and configurable history tables, but distributed cross-process migration locking is not yet implemented.",
+        "IoTSharp.Data.SonnetDB has not yet checked in a full provider-specific production migration baseline; current ApplicationDbContext compatibility uses provider history plus EnsureCreated schema coverage.",
         "String pattern method translation for StartsWith, EndsWith and Contains is not supported until SonnetDB SQL adds LIKE or equivalent string predicates."
     ];
 }

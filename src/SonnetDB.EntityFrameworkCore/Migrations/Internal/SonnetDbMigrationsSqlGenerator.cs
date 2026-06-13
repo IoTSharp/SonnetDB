@@ -197,6 +197,70 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
     }
 
     /// <inheritdoc />
+    protected override void Generate(
+        InsertDataOperation operation,
+        IModel? model,
+        MigrationCommandListBuilder builder,
+        bool terminate = true)
+    {
+        for (var row = 0; row < operation.Values.GetLength(0); row++)
+        {
+            builder.Append("INSERT INTO ")
+                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table))
+                .Append(" (")
+                .Append(string.Join(", ", operation.Columns.Select(Dependencies.SqlGenerationHelper.DelimitIdentifier)))
+                .Append(") VALUES (");
+
+            for (var column = 0; column < operation.Columns.Length; column++)
+            {
+                if (column > 0)
+                {
+                    builder.Append(", ");
+                }
+
+                builder.Append(GenerateSqlLiteral(operation.Values.GetValue(row, column)));
+            }
+
+            builder.Append(")");
+
+            if (terminate)
+            {
+                builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+                EndStatement(builder);
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    protected override void Generate(
+        DeleteDataOperation operation,
+        IModel? model,
+        MigrationCommandListBuilder builder)
+    {
+        for (var row = 0; row < operation.KeyValues.GetLength(0); row++)
+        {
+            builder.Append("DELETE FROM ")
+                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table))
+                .Append(" WHERE ");
+
+            for (var column = 0; column < operation.KeyColumns.Length; column++)
+            {
+                if (column > 0)
+                {
+                    builder.Append(" AND ");
+                }
+
+                builder.Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.KeyColumns[column]))
+                    .Append(" = ")
+                    .Append(GenerateSqlLiteral(operation.KeyValues.GetValue(row, column)));
+            }
+
+            builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+            EndStatement(builder);
+        }
+    }
+
+    /// <inheritdoc />
     protected override void ColumnDefinition(
         string? schema,
         string table,
@@ -247,11 +311,14 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
             .Append(")");
     }
 
-    private static string GenerateSqlLiteral(object value)
+    private static string GenerateSqlLiteral(object? value)
         => value switch
         {
             string text => "'" + text.Replace("'", "''", StringComparison.Ordinal) + "'",
             bool boolean => boolean ? "TRUE" : "FALSE",
+            DateTime dateTime => "'" + dateTime.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture) + "'",
+            DateTimeOffset dateTimeOffset => "'" + dateTimeOffset.UtcDateTime.ToString("O", System.Globalization.CultureInfo.InvariantCulture) + "'",
+            byte[] bytes => "'" + Convert.ToBase64String(bytes) + "'",
             null => "NULL",
             _ => Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "NULL"
         };

@@ -42,7 +42,7 @@ IoTSharp 当前通过 `TelemetryStorage` 和 `IStorage` 承载遥测写入、最
 | 后端 | IoTSharp 当前入口 | 主要能力 | 风险点 | SonnetDB 基线要求 |
 | --- | --- | --- | --- | --- |
 | SingleTable | `TelemetryStorage=SingleTable` | EF 单表遥测存储 | 大规模性能有限 | SonnetDB 应覆盖同等写入、最新值和历史查询语义。 |
-| Sharding | `TelemetryStorage=Sharding` | EF 分表，支持 PostgreSQL/MySQL/SQLServer/SQLite/Oracle | 路由、分片周期、跨分片聚合 | 验证按时间范围查询、聚合和分片迁移一致性。 |
+| Sharding | `TelemetryStorage=Sharding` | EF 分表，支持 PostgreSQL/MySQL/SQLServer/SQLite/Oracle；SonnetDB 已有最小 ShardingCore 分表 CRUD 基线 | 路由、分片周期、跨分片聚合、生产迁移 | 继续验证按时间范围查询、聚合、分片迁移和长稳一致性。 |
 | InfluxDB | `TelemetryStorage=InfluxDB` | 原生时序写入、查询、健康检查 | token/bucket 配置、Flux/聚合差异 | SonnetDB 需覆盖写入、latest、range、聚合和 Influx 迁移校验。 |
 | TimescaleDB | `TelemetryStorage=TimescaleDB` | hypertable、time_bucket 聚合 | PostgreSQL 扩展依赖、聚合 SQL 方言 | SonnetDB 需覆盖 `Mean/Max/Min/Sum/First/Last/Median` 对应能力或不支持清单。 |
 | Taos / TDengine | `TelemetryStorage=Taos` | 超级表、tag、last_row、范围查询 | SQL 拼接、类型映射、聚合差异 | SonnetDB 需验证 tag、latest、批量写和中文/特殊 key 迁移。 |
@@ -167,5 +167,6 @@ IoTSharp 当前主要是普通字段过滤和 SQLite 大小写搜索配置，未
 - `tests/SonnetDB.IoTSharpCompat.Tests` 先固定能力域、后端清单、验收用例和迁移/回滚清单。
 - #110 已完成 ADO.NET 轻事务、异步 API、取消令牌与远程 `/sql/batch` 事务基线；#113 已将关系表轻事务扩展到同一数据库内多表 DML 原子提交/回滚，并补外键、ROWVERSION 与稳定约束错误码。
 - #111 已完成关系表 DDL 与 schema metadata 核心基线：`ALTER TABLE ADD/DROP/RENAME COLUMN`、`ALTER TABLE RENAME TO`、`INFORMATION_SCHEMA.tables/columns/indexes`、`DbDataReader.GetSchemaTable()` 与 `DbConnection.GetSchema()` provider metadata；首版仍明确拒绝主键列变更和被索引列删除。
+- #115 优先补齐 SonnetDB EF provider 的 migrations history 支持（`__EFMigrationsHistory` 或等价可配置历史表），并把 `Database.Migrate()`、迁移升级、回滚、重复执行幂等检查和空库初始化作为 `DataBase=SonnetDB` 进入 IoTSharp `ApplicationDbContext` 兼容适配前的入口验收。
 - #110 ~ #121 逐步把占位清单替换为真实 adapter、provider、容器化端到端和长稳测试。
 - 在 #116/#117/#119 完成前，不宣称 SonnetDB 已具备 IoTSharp Redis、S3 或关系数据库路径的完整兼容语义；始终作为新增可选后端推进。
