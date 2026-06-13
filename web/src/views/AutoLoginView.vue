@@ -18,30 +18,62 @@ const auth = useAuthStore();
 const message = ref('正在应用平台授权。');
 
 onMounted(async () => {
-  const username = readQuery('username') || 'admin';
-  const token = readQuery('token');
-  const tokenId = readQuery('tokenId') || 'platform-ticket';
-  const redirect = readQuery('redirect') || '/admin/app/sql';
+  const ticket = readFragment('ticket');
+  const apiBaseUrl = readFragment('api');
+  const redirect = readFragment('redirect') || '/admin/app/sql';
 
-  if (!token) {
+  if (!ticket || !apiBaseUrl) {
     message.value = '授权链接无效，请回到 sonnetdb.com 用户中心重新打开。';
     return;
   }
 
+  const credential = await redeemTicket(apiBaseUrl, ticket);
+  if (!credential) {
+    message.value = '授权票据已过期或已使用，请回到 sonnetdb.com 用户中心重新打开。';
+    return;
+  }
+
   auth.apply({
-    username,
-    token,
-    tokenId,
+    username: credential.username,
+    token: credential.token,
+    tokenId: credential.tokenId,
     isSuperuser: true,
   });
 
   await router.replace(redirect);
 });
 
-function readQuery(key: string): string | null {
-  const value = route.query[key];
-  return typeof value === 'string' && value.trim() ? value.trim() : null;
+function readFragment(key: string): string | null {
+  const fragment = route.hash.startsWith('#') ? route.hash.slice(1) : route.hash;
+  const value = new URLSearchParams(fragment).get(key);
+  return value?.trim() || null;
 }
+
+async function redeemTicket(apiBaseUrl: string, ticket: string): Promise<OpenTicketCredential | null> {
+  try {
+    const response = await fetch(`${apiBaseUrl.replace(/\/+$/, '')}/api/v1/managed-instances/open-ticket/redeem`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ ticket }),
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return (await response.json()) as OpenTicketCredential;
+  } catch {
+    return null;
+  }
+}
+
+type OpenTicketCredential = {
+  username: string;
+  token: string;
+  tokenId: string;
+};
 </script>
 
 <style scoped>

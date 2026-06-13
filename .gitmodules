@@ -1,0 +1,6 @@
+[submodule "modules/DotVector"]
+	path = modules/DotVector
+	url = https://github.com/IoTSharp/DotVector.git
+[submodule "modules/DotSearch"]
+	path = modules/DotSearch
+	url = https://github.com/IoTSharp/DotSearch.git

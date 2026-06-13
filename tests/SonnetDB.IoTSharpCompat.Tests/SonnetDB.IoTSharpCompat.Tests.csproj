@@ -4,6 +4,10 @@
     <IsPackable>false</IsPackable>
     <!-- xUnit / coverlet 大量依赖反射，AOT 分析不适用。 -->
     <IsAotCompatible>false</IsAotCompatible>
+    <IoTSharpSourceRoot Condition="'$(IoTSharpSourceRoot)' == ''">..\..\..\IoTSharp</IoTSharpSourceRoot>
+    <IoTSharpDataProject>$(IoTSharpSourceRoot)\IoTSharp.Data\IoTSharp.Data.csproj</IoTSharpDataProject>
+    <IoTSharpSonnetDbProject>$(IoTSharpSourceRoot)\IoTSharp.Data.Storage\IoTSharp.Data.SonnetDB\IoTSharp.Data.SonnetDB.csproj</IoTSharpSonnetDbProject>
+    <HasIoTSharpSource Condition="Exists('$(IoTSharpDataProject)') And Exists('$(IoTSharpSonnetDbProject)')">true</HasIoTSharpSource>
   </PropertyGroup>
 
   <ItemGroup>
@@ -22,8 +26,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\SonnetDB.EntityFrameworkCore\SonnetDB.EntityFrameworkCore.csproj" />
-    <ProjectReference Include="..\..\..\IoTSharp\IoTSharp.Data.Storage\IoTSharp.Data.SonnetDB\IoTSharp.Data.SonnetDB.csproj" />
-    <ProjectReference Include="..\..\..\IoTSharp\IoTSharp.Data\IoTSharp.Data.csproj" />
+    <ProjectReference Include="$(IoTSharpSonnetDbProject)" Condition="'$(HasIoTSharpSource)' == 'true'" />
+    <ProjectReference Include="$(IoTSharpDataProject)" Condition="'$(HasIoTSharpSource)' == 'true'" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(HasIoTSharpSource)' != 'true'">
+    <Compile Remove="ApplicationDbContextSonnetDbCompatTests.cs" />
+    <Compile Remove="ShardingCoreSonnetDbCompatTests.cs" />
   </ItemGroup>
 
 </Project>
