@@ -1,4 +1,5 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
+using SonnetDB.Data.Kv;
 
 namespace SonnetDB.Data.Remote;
 
@@ -17,4 +18,26 @@ namespace SonnetDB.Data.Remote;
 [JsonSerializable(typeof(ResultEndLine))]
 [JsonSerializable(typeof(ServerErrorBody))]
 [JsonSerializable(typeof(BulkIngestResponseBody))]
+[JsonSerializable(typeof(KvGetRequest))]
+[JsonSerializable(typeof(KvSetRequest))]
+[JsonSerializable(typeof(KvDeleteRequest))]
+[JsonSerializable(typeof(KvGetManyRequest))]
+[JsonSerializable(typeof(KvSetManyRequest))]
+[JsonSerializable(typeof(KvSetManyEntry))]
+[JsonSerializable(typeof(KvDeleteManyRequest))]
+[JsonSerializable(typeof(KvPrefixRequest))]
+[JsonSerializable(typeof(KvCleanExpiredRequest))]
+[JsonSerializable(typeof(KvValueResponse))]
+[JsonSerializable(typeof(KvGetManyResponse))]
+[JsonSerializable(typeof(KvValueItemResponse))]
+[JsonSerializable(typeof(KvSetResponse))]
+[JsonSerializable(typeof(KvSetManyResponse))]
+[JsonSerializable(typeof(KvDeleteResponse))]
+[JsonSerializable(typeof(KvScanResponse))]
+[JsonSerializable(typeof(KvEntryResponse))]
+[JsonSerializable(typeof(List<KvSetManyEntry>))]
+[JsonSerializable(typeof(List<KvValueItemResponse>))]
+[JsonSerializable(typeof(List<KvEntryResponse>))]
+[JsonSerializable(typeof(Dictionary<string, long>))]
+[JsonSerializable(typeof(KvStatsResponse))]
 internal sealed partial class RemoteJsonContext : JsonSerializerContext;

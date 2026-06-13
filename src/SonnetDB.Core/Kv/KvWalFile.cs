@@ -9,8 +9,10 @@ internal sealed class KvWalFile : IDisposable
     private const int HeaderSize = 64;
     private const int RecordHeaderSize = 32;
     private const int MaxStackPayloadBytes = 1024;
-    private const int PayloadPrefixBytes = 8;
+    private const int PayloadPrefixBytesV1 = 8;
+    private const int PayloadPrefixBytesV2 = 16;
     private const int HeaderCrcOffset = 28;
+    private const int CurrentVersion = 2;
 
     private static ReadOnlySpan<byte> Magic => "SDBKVWAL"u8;
 
@@ -70,11 +72,11 @@ internal sealed class KvWalFile : IDisposable
         }
     }
 
-    public long AppendPut(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value)
+    public long AppendPut(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value, DateTimeOffset? expiresAtUtc = null)
     {
         ThrowIfDisposed();
         long sequence = _nextSequence++;
-        AppendRecord(KvWalRecordKind.Put, sequence, key, value);
+        AppendRecord(KvWalRecordKind.Put, sequence, key, value, expiresAtUtc);
         return sequence;
     }
 
@@ -82,7 +84,7 @@ internal sealed class KvWalFile : IDisposable
     {
         ThrowIfDisposed();
         long sequence = _nextSequence++;
-        AppendRecord(KvWalRecordKind.Delete, sequence, key, default);
+        AppendRecord(KvWalRecordKind.Delete, sequence, key, default, expiresAtUtc: null);
         return sequence;
     }
 
@@ -144,10 +146,14 @@ internal sealed class KvWalFile : IDisposable
                 if (expectedPayloadCrc != actualPayloadCrc)
                     yield break;
 
-                if (!TryReadPayload(payload.AsSpan(0, payloadLength), out byte[] key, out byte[]? value))
+                if (!TryReadPayload(
+                    payload.AsSpan(0, payloadLength),
+                    out byte[] key,
+                    out byte[]? value,
+                    out DateTimeOffset? expiresAtUtc))
                     yield break;
 
-                yield return new KvWalRecord(kind, sequence, key, kind == KvWalRecordKind.Put ? value : null);
+                yield return new KvWalRecord(kind, sequence, key, kind == KvWalRecordKind.Put ? value : null, expiresAtUtc);
             }
             finally
             {
@@ -160,10 +166,11 @@ internal sealed class KvWalFile : IDisposable
         KvWalRecordKind kind,
         long sequence,
         ReadOnlySpan<byte> key,
-        ReadOnlySpan<byte> value)
+        ReadOnlySpan<byte> value,
+        DateTimeOffset? expiresAtUtc)
     {
         int valueLength = kind == KvWalRecordKind.Put ? value.Length : -1;
-        int payloadLength = PayloadPrefixBytes + key.Length + Math.Max(valueLength, 0);
+        int payloadLength = PayloadPrefixBytesV2 + key.Length + Math.Max(valueLength, 0);
 
         byte[]? rented = null;
         Span<byte> payload = payloadLength <= MaxStackPayloadBytes
@@ -174,9 +181,10 @@ internal sealed class KvWalFile : IDisposable
         {
             BinaryPrimitives.WriteInt32LittleEndian(payload[..4], key.Length);
             BinaryPrimitives.WriteInt32LittleEndian(payload.Slice(4, 4), valueLength);
-            key.CopyTo(payload.Slice(PayloadPrefixBytes, key.Length));
+            BinaryPrimitives.WriteInt64LittleEndian(payload.Slice(8, 8), expiresAtUtc?.UtcTicks ?? 0);
+            key.CopyTo(payload.Slice(PayloadPrefixBytesV2, key.Length));
             if (valueLength > 0)
-                value.CopyTo(payload.Slice(PayloadPrefixBytes + key.Length, valueLength));
+                value.CopyTo(payload.Slice(PayloadPrefixBytesV2 + key.Length, valueLength));
 
             Span<byte> header = stackalloc byte[RecordHeaderSize];
             BinaryPrimitives.WriteInt32LittleEndian(header[..4], payloadLength);
@@ -200,7 +208,7 @@ internal sealed class KvWalFile : IDisposable
     {
         Span<byte> header = stackalloc byte[HeaderSize];
         Magic.CopyTo(header[..8]);
-        BinaryPrimitives.WriteInt32LittleEndian(header.Slice(8, 4), 1);
+        BinaryPrimitives.WriteInt32LittleEndian(header.Slice(8, 4), CurrentVersion);
         BinaryPrimitives.WriteInt32LittleEndian(header.Slice(12, 4), HeaderSize);
         BinaryPrimitives.WriteInt64LittleEndian(header.Slice(16, 8), DateTime.UtcNow.Ticks);
         BinaryPrimitives.WriteInt64LittleEndian(header.Slice(24, 8), firstSequence);
@@ -219,8 +227,9 @@ internal sealed class KvWalFile : IDisposable
 
         uint expectedCrc = BinaryPrimitives.ReadUInt32LittleEndian(header.Slice(60, 4));
         uint actualCrc = Crc32.HashToUInt32(header[..60]);
+        int version = BinaryPrimitives.ReadInt32LittleEndian(header.Slice(8, 4));
         if (!header[..8].SequenceEqual(Magic) ||
-            BinaryPrimitives.ReadInt32LittleEndian(header.Slice(8, 4)) != 1 ||
+            version is < 1 or > CurrentVersion ||
             BinaryPrimitives.ReadInt32LittleEndian(header.Slice(12, 4)) != HeaderSize ||
             expectedCrc != actualCrc)
         {
@@ -257,7 +266,7 @@ internal sealed class KvWalFile : IDisposable
                 if (expectedPayloadCrc != actualPayloadCrc)
                     break;
 
-                if (!TryReadPayload(payload.AsSpan(0, payloadLength), out _, out _))
+                if (!TryReadPayload(payload.AsSpan(0, payloadLength), out _, out _, out _))
                     break;
 
                 lastSequence = sequence;
@@ -289,7 +298,7 @@ internal sealed class KvWalFile : IDisposable
             return false;
 
         payloadLength = BinaryPrimitives.ReadInt32LittleEndian(header[..4]);
-        if (payloadLength < PayloadPrefixBytes || payloadLength > remainingBytes)
+        if (payloadLength < PayloadPrefixBytesV1 || payloadLength > remainingBytes)
             return false;
 
         byte rawKind = header[4];
@@ -301,12 +310,17 @@ internal sealed class KvWalFile : IDisposable
         return sequence > 0;
     }
 
-    private static bool TryReadPayload(ReadOnlySpan<byte> payload, out byte[] key, out byte[]? value)
+    private static bool TryReadPayload(
+        ReadOnlySpan<byte> payload,
+        out byte[] key,
+        out byte[]? value,
+        out DateTimeOffset? expiresAtUtc)
     {
         key = [];
         value = null;
+        expiresAtUtc = null;
 
-        if (payload.Length < PayloadPrefixBytes)
+        if (payload.Length < PayloadPrefixBytesV1)
             return false;
 
         int keyLength = BinaryPrimitives.ReadInt32LittleEndian(payload[..4]);
@@ -314,13 +328,25 @@ internal sealed class KvWalFile : IDisposable
         if (keyLength <= 0 || valueLength < -1)
             return false;
 
-        int expectedLength = PayloadPrefixBytes + keyLength + Math.Max(valueLength, 0);
-        if (expectedLength != payload.Length)
+        int expectedLengthV1 = PayloadPrefixBytesV1 + keyLength + Math.Max(valueLength, 0);
+        int expectedLengthV2 = PayloadPrefixBytesV2 + keyLength + Math.Max(valueLength, 0);
+        bool isV2 = payload.Length == expectedLengthV2;
+        if (!isV2 && payload.Length != expectedLengthV1)
             return false;
 
-        key = payload.Slice(PayloadPrefixBytes, keyLength).ToArray();
+        int payloadPrefixBytes = isV2 ? PayloadPrefixBytesV2 : PayloadPrefixBytesV1;
+        if (isV2)
+        {
+            long expiresAtUtcTicks = BinaryPrimitives.ReadInt64LittleEndian(payload.Slice(8, 8));
+            if (expiresAtUtcTicks < 0)
+                return false;
+            if (expiresAtUtcTicks > 0)
+                expiresAtUtc = new DateTimeOffset(expiresAtUtcTicks, TimeSpan.Zero);
+        }
+
+        key = payload.Slice(payloadPrefixBytes, keyLength).ToArray();
         if (valueLength >= 0)
-            value = payload.Slice(PayloadPrefixBytes + keyLength, valueLength).ToArray();
+            value = payload.Slice(payloadPrefixBytes + keyLength, valueLength).ToArray();
         return true;
     }
 

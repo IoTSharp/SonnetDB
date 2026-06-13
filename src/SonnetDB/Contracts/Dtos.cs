@@ -108,6 +108,113 @@ public sealed record HealthResponse(string Status, int Databases, double UptimeS
 public sealed record BulkIngestResponse(long WrittenRows, long SkippedRows, double ElapsedMilliseconds);
 
 /// <summary>
+/// KV 单 key 读取请求。
+/// </summary>
+/// <param name="Key">完整 key。调用方负责命名空间前缀。</param>
+public sealed record KvGetRequest(string Key);
+
+/// <summary>
+/// KV 单 key 写入请求。
+/// </summary>
+/// <param name="Key">完整 key。调用方负责命名空间前缀。</param>
+/// <param name="Value">二进制 value。</param>
+/// <param name="ExpiresAtUtc">UTC 过期时间；为空表示永不过期。</param>
+public sealed record KvSetRequest(string Key, byte[] Value, DateTimeOffset? ExpiresAtUtc);
+
+/// <summary>
+/// KV 单 key 删除请求。
+/// </summary>
+/// <param name="Key">完整 key。调用方负责命名空间前缀。</param>
+public sealed record KvDeleteRequest(string Key);
+
+/// <summary>
+/// KV 批量读取请求。
+/// </summary>
+/// <param name="Keys">完整 key 列表。调用方负责命名空间前缀。</param>
+public sealed record KvGetManyRequest(IReadOnlyList<string> Keys);
+
+/// <summary>
+/// KV 批量写入请求。
+/// </summary>
+/// <param name="Entries">完整 key/value 列表。调用方负责命名空间前缀。</param>
+/// <param name="ExpiresAtUtc">本批次共享 UTC 过期时间；为空表示永不过期。</param>
+public sealed record KvSetManyRequest(IReadOnlyList<KvSetManyEntry> Entries, DateTimeOffset? ExpiresAtUtc);
+
+/// <summary>
+/// KV 批量写入条目。
+/// </summary>
+public sealed record KvSetManyEntry(string Key, byte[] Value);
+
+/// <summary>
+/// KV 批量删除请求。
+/// </summary>
+/// <param name="Keys">完整 key 列表。调用方负责命名空间前缀。</param>
+public sealed record KvDeleteManyRequest(IReadOnlyList<string> Keys);
+
+/// <summary>
+/// KV 前缀扫描/删除请求。
+/// </summary>
+/// <param name="Prefix">完整前缀。调用方负责命名空间前缀。</param>
+/// <param name="Limit">最多处理数量。</param>
+public sealed record KvPrefixRequest(string Prefix, int? Limit);
+
+/// <summary>
+/// KV 清理过期 key 请求。
+/// </summary>
+/// <param name="Limit">最多清理数量。</param>
+public sealed record KvCleanExpiredRequest(int? Limit);
+
+/// <summary>
+/// KV 扫描返回的一条记录。
+/// </summary>
+public sealed record KvEntryResponse(string Key, byte[] Value, long Version, DateTimeOffset? ExpiresAtUtc);
+
+/// <summary>
+/// KV 单 key 读取响应。
+/// </summary>
+public sealed record KvValueResponse(bool Found, byte[]? Value, long? Version, DateTimeOffset? ExpiresAtUtc);
+
+/// <summary>
+/// KV 批量读取响应。
+/// </summary>
+public sealed record KvGetManyResponse(IReadOnlyList<KvValueItemResponse> Values);
+
+/// <summary>
+/// KV 批量读取中的单 key 结果。
+/// </summary>
+public sealed record KvValueItemResponse(string Key, bool Found, byte[]? Value, long? Version, DateTimeOffset? ExpiresAtUtc);
+
+/// <summary>
+/// KV 写入响应。
+/// </summary>
+public sealed record KvSetResponse(long Version);
+
+/// <summary>
+/// KV 批量写入响应。
+/// </summary>
+public sealed record KvSetManyResponse(IReadOnlyDictionary<string, long> Versions);
+
+/// <summary>
+/// KV 删除/清理响应。
+/// </summary>
+public sealed record KvDeleteResponse(int Removed);
+
+/// <summary>
+/// KV 前缀扫描响应。
+/// </summary>
+public sealed record KvScanResponse(IReadOnlyList<KvEntryResponse> Entries);
+
+/// <summary>
+/// KV 过期统计响应。
+/// </summary>
+public sealed record KvStatsResponse(
+    int TotalKeys,
+    int ActiveKeys,
+    int ExpiredKeys,
+    int ExpiringKeys,
+    DateTimeOffset? NearestExpiresAtUtc);
+
+/// <summary>
 /// <c>POST /v1/auth/login</c> 请求体。
 /// </summary>
 /// <param name="Username">用户名。</param>

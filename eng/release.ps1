@@ -44,6 +44,7 @@ function Pack-NuGetPackages
 
     Invoke-DotNetPack 'src/SonnetDB.Core/SonnetDB.Core.csproj' $NuGetOutput
     Invoke-DotNetPack 'src/SonnetDB.Data/SonnetDB.Data.csproj' $NuGetOutput
+    Invoke-DotNetPack 'extensions/SonnetDB.Caching/SonnetDB.Caching.csproj' $NuGetOutput
     Invoke-DotNetPack 'src/SonnetDB.Cli/SonnetDB.Cli.csproj' $NuGetOutput
 }
 

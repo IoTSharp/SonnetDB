@@ -27,6 +27,8 @@ SonnetDB is a time-series database for IoT, industrial telemetry, observability,
 [![SonnetDB.Core Downloads](https://img.shields.io/nuget/dt/SonnetDB.Core?label=Downloads)](https://www.nuget.org/packages/SonnetDB.Core)
 [![SonnetDB.Data Version](https://img.shields.io/nuget/v/SonnetDB.Data?label=SonnetDB.Data)](https://www.nuget.org/packages/SonnetDB.Data)
 [![SonnetDB.Data Downloads](https://img.shields.io/nuget/dt/SonnetDB.Data?label=Downloads)](https://www.nuget.org/packages/SonnetDB.Data)
+[![SonnetDB.Caching Version](https://img.shields.io/nuget/v/SonnetDB.Caching?label=SonnetDB.Caching)](https://www.nuget.org/packages/SonnetDB.Caching)
+[![SonnetDB.Caching Downloads](https://img.shields.io/nuget/dt/SonnetDB.Caching?label=Downloads)](https://www.nuget.org/packages/SonnetDB.Caching)
 [![SonnetDB.Cli Version](https://img.shields.io/nuget/v/SonnetDB.Cli?label=SonnetDB.Cli)](https://www.nuget.org/packages/SonnetDB.Cli)
 [![SonnetDB.Cli Downloads](https://img.shields.io/nuget/dt/SonnetDB.Cli?label=Downloads)](https://www.nuget.org/packages/SonnetDB.Cli)
 

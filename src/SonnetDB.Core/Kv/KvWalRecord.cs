@@ -8,12 +8,18 @@ internal enum KvWalRecordKind : byte
 
 internal sealed class KvWalRecord
 {
-    public KvWalRecord(KvWalRecordKind kind, long sequence, byte[] key, byte[]? value)
+    public KvWalRecord(
+        KvWalRecordKind kind,
+        long sequence,
+        byte[] key,
+        byte[]? value,
+        DateTimeOffset? expiresAtUtc = null)
     {
         Kind = kind;
         Sequence = sequence;
         Key = key;
         Value = value;
+        ExpiresAtUtc = expiresAtUtc;
     }
 
     public KvWalRecordKind Kind { get; }
@@ -23,4 +29,6 @@ internal sealed class KvWalRecord
     public byte[] Key { get; }
 
     public byte[]? Value { get; }
+
+    public DateTimeOffset? ExpiresAtUtc { get; }
 }

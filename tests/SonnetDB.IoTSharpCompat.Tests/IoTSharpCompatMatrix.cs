@@ -47,7 +47,7 @@ internal static class IoTSharpCompatMatrix
                 new("LiteDB", "已接入", "CachingUseIn=LiteDB via EasyCaching."),
                 new("InMemory", "已接入", "CachingUseIn=InMemory default."),
                 new("SQLite", "需验证", "CachingUseIn=SQlite enum exists but startup registration is not explicit."),
-                new("SonnetDB", "规划接入", "Requires EasyCaching or IDistributedCache provider.")
+                new("SonnetDB", "已接入", "CachingUseIn=SonnetDB via SonnetDB.Caching EasyCaching provider; optional IDistributedCache provider exists.")
             ],
             [
                 "set get remove exists",

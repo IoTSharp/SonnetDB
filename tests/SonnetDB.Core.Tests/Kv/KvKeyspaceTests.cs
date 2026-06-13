@@ -135,4 +135,111 @@ public sealed class KvKeyspaceTests : IDisposable
         Assert.Throws<ArgumentException>(() => db.Keyspaces.Open("../bad"));
         Assert.Throws<ArgumentException>(() => db.Keyspaces.Open(""));
     }
+
+    [Fact]
+    public void Put_WithExpiresAt_HidesExpiredKeyAndPreservesMetadata()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        var kv = db.Keyspaces.Open("cache");
+        var expiresAt = DateTimeOffset.UtcNow.AddMinutes(10);
+
+        kv.Put("token", Encoding.UTF8.GetBytes("abc"), expiresAt);
+        var entry = kv.GetEntry("token");
+
+        Assert.NotNull(entry);
+        Assert.Equal(expiresAt, entry.ExpiresAtUtc);
+        Assert.Equal("abc", Encoding.UTF8.GetString(entry.Value.Span));
+
+        kv.Put("old", Encoding.UTF8.GetBytes("gone"), DateTimeOffset.UtcNow.AddSeconds(-1));
+        Assert.Null(kv.Get("old"));
+        Assert.Equal(1, kv.Count);
+    }
+
+    [Fact]
+    public void Reopen_AfterWalAndSnapshot_RestoresExpiresAtMetadata()
+    {
+        var expiresAt = DateTimeOffset.UtcNow.AddHours(1);
+        using (var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root }))
+        {
+            var kv = db.Keyspaces.Open("cache");
+            kv.Put("a", [1], expiresAt);
+            kv.CreateSnapshot();
+            kv.Put("b", [2], expiresAt.AddHours(1));
+        }
+
+        using var reopened = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        var restored = reopened.Keyspaces.Open("cache");
+
+        Assert.Equal(expiresAt, restored.GetEntry("a")!.ExpiresAtUtc);
+        Assert.Equal(expiresAt.AddHours(1), restored.GetEntry("b")!.ExpiresAtUtc);
+    }
+
+    [Fact]
+    public void CleanExpired_AndExpirationStats_ReportExpectedCounts()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        var kv = db.Keyspaces.Open("cache");
+        var now = DateTimeOffset.UtcNow;
+
+        kv.Put("alive", [1], now.AddMinutes(1));
+        kv.Put("expired:1", [2], now.AddSeconds(-1));
+        kv.Put("expired:2", [3], now.AddSeconds(-2));
+        kv.Put("forever", [4]);
+
+        var stats = kv.GetExpirationStats(now);
+        Assert.Equal(4, stats.TotalKeys);
+        Assert.Equal(2, stats.ExpiredKeys);
+        Assert.Equal(3, stats.ExpiringKeys);
+        Assert.Equal(now.AddMinutes(1), stats.NearestExpiresAtUtc);
+
+        Assert.Equal(1, kv.CleanExpired(now, limit: 1));
+        Assert.Equal(3, kv.Count);
+        Assert.Equal(1, kv.CleanExpired(now));
+        Assert.Equal(2, kv.Count);
+    }
+
+    [Fact]
+    public void BatchAndPrefixOperations_WorkEndToEnd()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        var kv = db.Keyspaces.Open("cache");
+
+        kv.PutMany(new Dictionary<string, byte[]>
+        {
+            ["tenant:1:a"] = [1],
+            ["tenant:1:b"] = [2],
+            ["tenant:2:a"] = [3],
+        });
+
+        var many = kv.GetMany(["tenant:1:a", "tenant:missing"]);
+        Assert.Equal([1], many["tenant:1:a"]);
+        Assert.Null(many["tenant:missing"]);
+
+        Assert.Equal(2, kv.DeletePrefix("tenant:1:"));
+        Assert.Null(kv.Get("tenant:1:a"));
+        Assert.Equal([3], kv.Get("tenant:2:a"));
+        Assert.Equal(1, kv.DeleteMany(["tenant:2:a", "tenant:2:a"]));
+    }
+
+    [Fact]
+    public void Namespace_QualifiesKeysAndStripsScanResults()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        var kv = db.Keyspaces.Open("cache");
+        var ns = kv.Namespace("iotsharp");
+
+        ns.Put("flow:a", [1]);
+        kv.Put("flow:a", [9]);
+
+        Assert.Equal([1], ns.Get("flow:a"));
+        Assert.Equal([9], kv.Get("flow:a"));
+
+        var rows = ns.ScanPrefix("flow:");
+        Assert.Single(rows);
+        Assert.Equal("flow:a", Encoding.UTF8.GetString(rows[0].Key.Span));
+
+        Assert.Equal(1, ns.DeletePrefix("flow:"));
+        Assert.Null(ns.Get("flow:a"));
+        Assert.NotNull(kv.Get("flow:a"));
+    }
 }

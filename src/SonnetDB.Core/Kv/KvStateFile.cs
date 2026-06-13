@@ -6,7 +6,9 @@ namespace SonnetDB.Kv;
 internal static class KvStateFile
 {
     private const int HeaderSize = 64;
-    private const int EntryPrefixBytes = 16;
+    private const int EntryPrefixBytesV1 = 16;
+    private const int EntryPrefixBytesV2 = 24;
+    private const int CurrentVersion = 2;
 
     private static ReadOnlySpan<byte> SnapshotMagic => "SDBKVSNP"u8;
     private static ReadOnlySpan<byte> SegmentMagic => "SDBKVSEG"u8;
@@ -37,7 +39,7 @@ internal static class KvStateFile
         uint expectedHeaderCrc = BinaryPrimitives.ReadUInt32LittleEndian(header.Slice(60, 4));
         uint actualHeaderCrc = Crc32.HashToUInt32(header[..60]);
         if ((!isSnapshot && !isSegment) ||
-            BinaryPrimitives.ReadInt32LittleEndian(header.Slice(8, 4)) != 1 ||
+            BinaryPrimitives.ReadInt32LittleEndian(header.Slice(8, 4)) is < 1 or > CurrentVersion ||
             BinaryPrimitives.ReadInt32LittleEndian(header.Slice(12, 4)) != HeaderSize ||
             expectedHeaderCrc != actualHeaderCrc)
         {
@@ -50,19 +52,26 @@ internal static class KvStateFile
             throw new InvalidDataException("KV state header contains invalid counters.");
 
         var values = new Dictionary<byte[], KvValueEntry>(count, KvKeyComparer.Instance);
-        byte[] prefixBuffer = new byte[EntryPrefixBytes];
+        int version = BinaryPrimitives.ReadInt32LittleEndian(header.Slice(8, 4));
+        int entryPrefixBytes = version >= 2 ? EntryPrefixBytesV2 : EntryPrefixBytesV1;
+        byte[] prefixBuffer = new byte[entryPrefixBytes];
         byte[] crcBuffer = new byte[4];
         for (int i = 0; i < count; i++)
         {
             Span<byte> prefix = prefixBuffer;
-            if (ReadExact(fs, prefix) < EntryPrefixBytes)
+            if (ReadExact(fs, prefix) < entryPrefixBytes)
                 throw new InvalidDataException("KV state entry prefix is truncated.");
 
             int keyLength = BinaryPrimitives.ReadInt32LittleEndian(prefix[..4]);
             int valueLength = BinaryPrimitives.ReadInt32LittleEndian(prefix.Slice(4, 4));
-            long version = BinaryPrimitives.ReadInt64LittleEndian(prefix.Slice(8, 8));
+            long entryVersion = BinaryPrimitives.ReadInt64LittleEndian(prefix.Slice(8, 8));
+            long expiresAtUtcTicks = entryPrefixBytes >= EntryPrefixBytesV2
+                ? BinaryPrimitives.ReadInt64LittleEndian(prefix.Slice(16, 8))
+                : 0;
             if (keyLength <= 0 || valueLength < 0)
                 throw new InvalidDataException("KV state entry length is invalid.");
+            if (expiresAtUtcTicks < 0)
+                throw new InvalidDataException("KV state entry expires-at is invalid.");
 
             byte[] payload = new byte[keyLength + valueLength];
             if (ReadExact(fs, payload) < payload.Length)
@@ -78,7 +87,10 @@ internal static class KvStateFile
 
             byte[] key = payload.AsSpan(0, keyLength).ToArray();
             byte[] value = payload.AsSpan(keyLength, valueLength).ToArray();
-            values[key] = new KvValueEntry(value, version);
+            DateTimeOffset? expiresAtUtc = expiresAtUtcTicks > 0
+                ? new DateTimeOffset(expiresAtUtcTicks, TimeSpan.Zero)
+                : null;
+            values[key] = new KvValueEntry(value, entryVersion, expiresAtUtc);
         }
 
         return new KvStateSnapshot(sequence, values);
@@ -101,7 +113,7 @@ internal static class KvStateFile
         {
             Span<byte> header = stackalloc byte[HeaderSize];
             magic.CopyTo(header[..8]);
-            BinaryPrimitives.WriteInt32LittleEndian(header.Slice(8, 4), 1);
+            BinaryPrimitives.WriteInt32LittleEndian(header.Slice(8, 4), CurrentVersion);
             BinaryPrimitives.WriteInt32LittleEndian(header.Slice(12, 4), HeaderSize);
             BinaryPrimitives.WriteInt64LittleEndian(header.Slice(16, 8), DateTime.UtcNow.Ticks);
             BinaryPrimitives.WriteInt64LittleEndian(header.Slice(24, 8), sequence);
@@ -110,7 +122,7 @@ internal static class KvStateFile
             fs.Write(header);
 
             var ordered = values.OrderBy(static x => x.Key, KvKeyComparer.Instance);
-            byte[] prefixBuffer = new byte[EntryPrefixBytes];
+            byte[] prefixBuffer = new byte[EntryPrefixBytesV2];
             byte[] crcBuffer = new byte[4];
             foreach (var pair in ordered)
             {
@@ -118,6 +130,7 @@ internal static class KvStateFile
                 BinaryPrimitives.WriteInt32LittleEndian(prefix[..4], pair.Key.Length);
                 BinaryPrimitives.WriteInt32LittleEndian(prefix.Slice(4, 4), pair.Value.Value.Length);
                 BinaryPrimitives.WriteInt64LittleEndian(prefix.Slice(8, 8), pair.Value.Version);
+                BinaryPrimitives.WriteInt64LittleEndian(prefix.Slice(16, 8), pair.Value.ExpiresAtUtc?.UtcTicks ?? 0);
                 fs.Write(prefix);
                 fs.Write(pair.Key);
                 fs.Write(pair.Value.Value);

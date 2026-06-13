@@ -7,6 +7,7 @@
 
 ### Added
 
+- **PR #116 KV TTL 与缓存 Provider**：`SonnetDB.Core` 的 KV keyspace 新增 expires-at metadata、惰性过期、`CleanExpired` 后台清理入口、逻辑命名空间、批量 get/set/remove、前缀删除与过期统计；KV WAL / snapshot / segment state 升级到 v2 并兼容 v1 读取。新增 `extensions/SonnetDB.Caching`，提供 SonnetDB KV-backed EasyCaching provider、`IEasyCachingProviderFactory` 适配、可选 `IDistributedCache` provider 和周期过期清理宿主；IoTSharp 可通过 `CachingUseIn=SonnetDB` 作为 Redis / LiteDB / InMemory 之外的缓存选择。
 - **Milestone 19 规划更新**：在 IoTSharp 生态数据底座路线中，将“SonnetDB EF migrations history”明确前置到 PR #115，要求先补 `__EFMigrationsHistory` 或等价可配置历史表，并以 `Database.Migrate()`、迁移升级/回滚、重复执行幂等检查和空库初始化作为 `DataBase=SonnetDB` 接入 `ApplicationDbContext` 前的入口验收。
 - **PR #114 SonnetDB.EntityFrameworkCore Provider MVP**：新增独立 `SonnetDB.EntityFrameworkCore` Provider 包，提供 `UseSonnetDB(...)`、关系型服务注册、SonnetDB ADO.NET 连接、SQL 标识符/参数生成、基础类型映射、DML SQL 生成、迁移 SQL 生成与基础查询翻译能力；新增 `tests/SonnetDB.EntityFrameworkCore.Tests`，覆盖 provider 服务注册、最小 `DbContext` CRUD、Identity 常用列子集、`ToQueryString()` SQL 生成以及迁移创建/回滚 DDL。
 - **PR #113 跨表小事务与约束能力补齐**：关系表轻事务从单表扩展为同一数据库内多表 `INSERT` / `UPDATE` / `DELETE` 原子提交与回滚；`CREATE TABLE` 支持表级 `FOREIGN KEY (...) REFERENCES ... (...)` 第一版校验策略和列级 `ROWVERSION` 乐观并发列，DML 提交统一校验主键、唯一索引、外键和并发版本；新增稳定约束错误码 `table_unique_violation`、`table_foreign_key_violation`、`table_concurrency_conflict`，并在 SQL / ADO.NET 文档中明确当前仅支持默认 / `ReadCommitted` 边界，不提供 MVCC、可重复读、序列化隔离或跨数据库事务。
