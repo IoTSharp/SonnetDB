@@ -7,6 +7,7 @@
 
 ### Added
 
+- **PR #113 跨表小事务与约束能力补齐**：关系表轻事务从单表扩展为同一数据库内多表 `INSERT` / `UPDATE` / `DELETE` 原子提交与回滚；`CREATE TABLE` 支持表级 `FOREIGN KEY (...) REFERENCES ... (...)` 第一版校验策略和列级 `ROWVERSION` 乐观并发列，DML 提交统一校验主键、唯一索引、外键和并发版本；新增稳定约束错误码 `table_unique_violation`、`table_foreign_key_violation`、`table_concurrency_conflict`，并在 SQL / ADO.NET 文档中明确当前仅支持默认 / `ReadCommitted` 边界，不提供 MVCC、可重复读、序列化隔离或跨数据库事务。
 - **PR #112 表表 JOIN / 子查询 / 聚合能力补齐**：关系表 SELECT 新增多表 `INNER JOIN` 执行路径，支持连续表表 JOIN、`FROM (SELECT ...) alias` / `JOIN (SELECT ...) alias` 派生表、WHERE 中标量子查询，以及关系表 `GROUP BY` 搭配 `count` / `sum` / `min` / `max` / `avg` 聚合；保留既有 measurement JOIN 维表路径不变。
 - **PR #109 IoTSharp 兼容矩阵与基线套件**：新增 `docs/iotsharp-compat-matrix.md`，梳理 IoTSharp 当前 PostgreSQL/MySQL/SQLServer/SQLite/Oracle/Cassandra/ClickHouse、InfluxDB/TimescaleDB/Taos/IoTDB/SonnetDB、Redis/LiteDB/InMemory、BlobStorage/S3 以及向量搜索、全文搜索的兼容状态；新增 `tests/SonnetDB.IoTSharpCompat.Tests` 占位基线套件，固定关系、时序、缓存、对象桶、向量搜索、全文搜索验收用例和迁移/双写/回滚清单。
 - **MM8 Hybrid Search 第二批**：`hybrid_search(...)` 新增 measurement KNN 与 document collection 知识条目关联融合模式，支持 `source => measurement`、`documents => collection`、`measurement_join_tag`、`document_join_path`、可选 `document_join_index`、知识文档全文 BM25 和可选知识向量分数；TVF 后可继续 `JOIN` 关系维表，统一 planner 会把 measurement `time` / tag 谓词下推给 KNN、把 table 侧谓词下推给主键 / 二级索引候选行并用命中的 JOIN key 收窄 measurement join tag；剩余谓词可过滤知识文档字段或融合分数，`EXPLAIN` 返回 `access_path=hybrid_search_measurement_knn_documents`，带维表过滤时追加 `relation_filter:<table_access_path>`。

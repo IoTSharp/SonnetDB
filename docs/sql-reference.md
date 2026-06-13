@@ -16,12 +16,15 @@ permalink: /sql-reference/
 ```sql
 CREATE TABLE devices (
     id INT NOT NULL,
+    site_id INT NULL,
     name STRING NOT NULL,
     enabled BOOL,
+    version INT ROWVERSION,
     installed_at DATETIME NULL,
     metadata JSON NULL,
     payload BLOB NULL,
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    FOREIGN KEY (site_id) REFERENCES sites (id)
 )
 ```
 
@@ -32,7 +35,9 @@ CREATE TABLE devices (
 - `DATETIME` 可写 Unix 毫秒整数或 ISO-8601 字符串，查询时返回 UTC `DateTime`。
 - `BLOB` 可写 base64 字符串；ADO.NET 参数可直接传 `byte[]`。
 - `JSON` 当前按 UTF-8 字符串存储；可用 `json_value(json_col, '$.path')` 做 path 投影和过滤。
-- 二级索引使用 `CREATE INDEX` 单独声明；当前不支持外键或复杂优化器。
+- 二级索引使用 `CREATE INDEX` 单独声明。
+- `FOREIGN KEY (...) REFERENCES parent (...)` 第一版只支持表级声明，引用列必须等于被引用表 `PRIMARY KEY`；外键列任一为 `NULL` 时跳过校验。
+- `ROWVERSION` 只能声明在一个 `INT` 列上；`INSERT` 自动写入 `1`，`UPDATE` 自动递增，可用 `WHERE id = ... AND version = ...` 获得乐观并发冲突检测。
 
 ### `CREATE INDEX` / `DROP INDEX`
 
@@ -99,9 +104,11 @@ COMMIT;
 
 当前边界：
 
-- 轻事务只支持单个关系表内的 `INSERT` / `UPDATE` / `DELETE`。
-- 不支持嵌套事务、跨表事务、measurement 写入事务或 DDL 事务。
-- `COMMIT` 时按 rowstore batch 原子应用；如果唯一索引或 NOT NULL 校验失败，已应用的 rowstore / index 变更会回滚。
+- 轻事务支持同一数据库内多个关系表的 `INSERT` / `UPDATE` / `DELETE` 原子提交与回滚。
+- 不支持嵌套事务、measurement / document 写入事务、DDL 事务或跨数据库事务。
+- `COMMIT` 前会校验 NOT NULL、主键、唯一索引、外键和 ROWVERSION 乐观并发列；任一失败时，不会留下已应用的 rowstore / index 变更。
+- 稳定约束错误码：`table_unique_violation`、`table_foreign_key_violation`、`table_concurrency_conflict`。
+- 隔离级别边界：ADO.NET 仅接受默认 / `ReadCommitted` 轻事务；当前语义是单连接排队、提交时获取表管理器锁并一次性校验/应用，不提供 MVCC、可重复读、序列化隔离或跨进程长事务。
 
 ### 时序 JOIN 关系维表
 

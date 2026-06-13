@@ -21,7 +21,7 @@ namespace SonnetDB.Data;
 /// 内部使用 <see cref="System.Net.Http.HttpClient"/> 调用 <c>POST /v1/db/{db}/sql</c>，
 /// 结果以 ndjson 流式反序列化。
 /// </para>
-/// <para>轻事务第一阶段支持单个关系表内的小批量 DML。</para>
+/// <para>轻事务支持同一数据库内多个关系表的小批量 DML。</para>
 /// </remarks>
 public sealed class SndbConnection : DbConnection
 {

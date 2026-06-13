@@ -12,6 +12,7 @@ using SonnetDB.Json;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
+using SonnetDB.Tables;
 
 namespace SonnetDB.Endpoints;
 
@@ -218,6 +219,13 @@ internal static class SqlEndpointHandler
                 metrics.RecordSqlError();
                 MaybePublishSlow(broadcaster, options, databaseName, stmt.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
                 await WriteErrorAsync(context, "forbidden", ex.Message).ConfigureAwait(false);
+                return;
+            }
+            catch (TableConstraintException ex)
+            {
+                metrics.RecordSqlError();
+                MaybePublishSlow(broadcaster, options, databaseName, stmt.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                await WriteErrorAsync(context, ex.ErrorCode, ex.Message).ConfigureAwait(false);
                 return;
             }
             catch (Exception ex)

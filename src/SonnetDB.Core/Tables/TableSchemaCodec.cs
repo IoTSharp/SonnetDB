@@ -17,7 +17,7 @@ public static class TableSchemaCodec
     private static readonly byte[] _magic = "SDBTBLv1"u8.ToArray();
     private static readonly Encoding _utf8 = Encoding.UTF8;
 
-    private const int _formatVersion = 3;
+    private const int _formatVersion = 4;
     private const int _headerSize = 32;
     private const int _footerSize = 16;
 
@@ -138,6 +138,7 @@ public static class TableSchemaCodec
             throw new InvalidDataException($"TableSchema: table '{name}' has no columns.");
 
         var columns = new List<(string Name, TableColumnType DataType, bool IsNullable)>(columnCount);
+        var rowVersionColumns = new HashSet<string>(StringComparer.Ordinal);
         var primaryKey = new List<string>();
         Span<byte> flags = stackalloc byte[2];
         for (int i = 0; i < columnCount; i++)
@@ -152,9 +153,12 @@ public static class TableSchemaCodec
 
             bool isPrimaryKey = (flags[1] & 0b0000_0001) != 0;
             bool isNullable = (flags[1] & 0b0000_0010) != 0;
+            bool isRowVersion = version >= 4 && (flags[1] & 0b0000_0100) != 0;
             columns.Add((columnName, type, isNullable));
             if (isPrimaryKey)
                 primaryKey.Add(columnName);
+            if (isRowVersion)
+                rowVersionColumns.Add(columnName);
         }
 
         var indexes = new List<TableIndexDefinition>();
@@ -167,7 +171,17 @@ public static class TableSchemaCodec
                 indexes.Add(ReadIndex(source, crc, tableIndex, i, version));
         }
 
-        return TableSchema.Create(name, columns, primaryKey, indexes, createdAt);
+        var foreignKeys = new List<TableForeignKeyDefinition>();
+        if (version >= 4)
+        {
+            ReadExactSpan(source, countBuffer, $"table {tableIndex} foreignKeyCount");
+            crc.Append(countBuffer);
+            int foreignKeyCount = BinaryPrimitives.ReadUInt16LittleEndian(countBuffer);
+            for (int i = 0; i < foreignKeyCount; i++)
+                foreignKeys.Add(ReadForeignKey(source, crc, tableIndex, i));
+        }
+
+        return TableSchema.Create(name, columns, primaryKey, indexes, foreignKeys, rowVersionColumns, createdAt);
     }
 
     private static void Save(IReadOnlyList<TableSchema> schemas, Stream destination)
@@ -244,6 +258,19 @@ public static class TableSchemaCodec
             totalSize += 2 + jsonPathLength;
         }
 
+        totalSize += 2;
+        foreach (var foreignKey in schema.ForeignKeys)
+        {
+            totalSize += CheckedStringSize(foreignKey.Name, $"Table '{schema.Name}' 的外键名称过长。");
+            totalSize += 2;
+            foreach (var column in foreignKey.Columns)
+                totalSize += CheckedStringSize(column, $"Table '{schema.Name}' 的外键 '{foreignKey.Name}' 列名过长。");
+            totalSize += CheckedStringSize(foreignKey.PrincipalTable, $"Table '{schema.Name}' 的外键 '{foreignKey.Name}' 引用表名过长。");
+            totalSize += 2;
+            foreach (var column in foreignKey.PrincipalColumns)
+                totalSize += CheckedStringSize(column, $"Table '{schema.Name}' 的外键 '{foreignKey.Name}' 引用列名过长。");
+        }
+
         byte[] buffer = ArrayPool<byte>.Shared.Rent(totalSize);
         try
         {
@@ -267,6 +294,8 @@ public static class TableSchemaCodec
                     flags |= 0b0000_0001;
                 if (column.IsNullable)
                     flags |= 0b0000_0010;
+                if (column.IsRowVersion)
+                    flags |= 0b0000_0100;
                 writer.WriteByte(flags);
             }
 
@@ -298,6 +327,20 @@ public static class TableSchemaCodec
                     int pathWritten = _utf8.GetBytes(index.JsonPath, writer.FreeSpan);
                     writer.Advance(pathWritten);
                 }
+            }
+
+            writer.WriteUInt16((ushort)schema.ForeignKeys.Count);
+            for (int i = 0; i < schema.ForeignKeys.Count; i++)
+            {
+                var foreignKey = schema.ForeignKeys[i];
+                WriteString(ref writer, foreignKey.Name, $"Table '{schema.Name}' 的外键名称过长。");
+                writer.WriteUInt16((ushort)foreignKey.Columns.Count);
+                foreach (var column in foreignKey.Columns)
+                    WriteString(ref writer, column, $"Table '{schema.Name}' 的外键 '{foreignKey.Name}' 列名过长。");
+                WriteString(ref writer, foreignKey.PrincipalTable, $"Table '{schema.Name}' 的外键 '{foreignKey.Name}' 引用表名过长。");
+                writer.WriteUInt16((ushort)foreignKey.PrincipalColumns.Count);
+                foreach (var column in foreignKey.PrincipalColumns)
+                    WriteString(ref writer, column, $"Table '{schema.Name}' 的外键 '{foreignKey.Name}' 引用列名过长。");
             }
 
             crc.Append(buffer.AsSpan(0, totalSize));
@@ -343,6 +386,52 @@ public static class TableSchemaCodec
         }
 
         return new TableIndexDefinition(indexName, columns.AsReadOnly(), isUnique, createdAt, jsonPath);
+    }
+
+    private static TableForeignKeyDefinition ReadForeignKey(Stream source, Crc32 crc, int tableIndex, int foreignKeyIndex)
+    {
+        string name = ReadString(source, crc, $"table {tableIndex} foreignKey {foreignKeyIndex} name");
+        Span<byte> countBuffer = stackalloc byte[2];
+        ReadExactSpan(source, countBuffer, $"table {tableIndex} foreignKey {foreignKeyIndex} columnCount");
+        crc.Append(countBuffer);
+        int columnCount = BinaryPrimitives.ReadUInt16LittleEndian(countBuffer);
+        if (columnCount <= 0)
+            throw new InvalidDataException($"TableSchema: table {tableIndex} foreignKey '{name}' has no columns.");
+
+        var columns = new List<string>(columnCount);
+        for (int i = 0; i < columnCount; i++)
+            columns.Add(ReadString(source, crc, $"table {tableIndex} foreignKey {foreignKeyIndex} column {i} name"));
+
+        string principalTable = ReadString(source, crc, $"table {tableIndex} foreignKey {foreignKeyIndex} principal table");
+        ReadExactSpan(source, countBuffer, $"table {tableIndex} foreignKey {foreignKeyIndex} principalColumnCount");
+        crc.Append(countBuffer);
+        int principalColumnCount = BinaryPrimitives.ReadUInt16LittleEndian(countBuffer);
+        if (principalColumnCount <= 0)
+            throw new InvalidDataException($"TableSchema: table {tableIndex} foreignKey '{name}' has no principal columns.");
+
+        var principalColumns = new List<string>(principalColumnCount);
+        for (int i = 0; i < principalColumnCount; i++)
+            principalColumns.Add(ReadString(source, crc, $"table {tableIndex} foreignKey {foreignKeyIndex} principal column {i} name"));
+
+        return new TableForeignKeyDefinition(name, columns.AsReadOnly(), principalTable, principalColumns.AsReadOnly());
+    }
+
+    private static int CheckedStringSize(string value, string lengthError)
+    {
+        int length = _utf8.GetByteCount(value);
+        if (length > ushort.MaxValue)
+            throw new InvalidDataException(lengthError);
+        return 2 + length;
+    }
+
+    private static void WriteString(ref SpanWriter writer, string value, string lengthError)
+    {
+        int length = _utf8.GetByteCount(value);
+        if (length > ushort.MaxValue)
+            throw new InvalidDataException(lengthError);
+        writer.WriteUInt16((ushort)length);
+        int written = _utf8.GetBytes(value, writer.FreeSpan);
+        writer.Advance(written);
     }
 
     private static string ReadString(Stream source, Crc32 crc, string description)

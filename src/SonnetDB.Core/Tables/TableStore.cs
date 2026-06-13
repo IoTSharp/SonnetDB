@@ -111,12 +111,12 @@ public sealed class TableStore : IDisposable
                         continue;
                     string uniqueKey = index.Name + ":" + Convert.ToHexString(indexKey);
                     if (!pendingUniqueKeys.Add(uniqueKey))
-                        throw new InvalidOperationException($"唯一索引 '{index.Name}' 冲突。");
+                        throw UniqueViolation(schema, index);
                     byte[] prefix = TableIndexCodec.TryEncodeIndexPrefix(index, row.Values, schema)!;
                     foreach (var entry in _keyspace.ScanPrefix(prefix))
                     {
                         if (entry.Key.Span.SequenceEqual(indexKey))
-                            throw new InvalidOperationException($"唯一索引 '{index.Name}' 冲突。");
+                            throw UniqueViolation(schema, index);
                     }
                 }
 
@@ -152,72 +152,43 @@ public sealed class TableStore : IDisposable
 
         lock (_sync)
         {
-            var schema = _schema;
-            var operations = new List<TableMutationOperation>(mutations.Count);
-            var pendingRowKeys = new HashSet<string>(StringComparer.Ordinal);
-            var pendingUniqueKeys = new Dictionary<string, string>(StringComparer.Ordinal);
-            foreach (var mutation in mutations)
-            {
-                if (mutation.NewValues is not null)
-                    ValidateRow(schema, mutation.NewValues);
-
-                byte[] primaryKey;
-                if (mutation.PrimaryKeyValues is not null)
-                {
-                    primaryKey = TableKeyCodec.EncodePrimaryKeyValues(schema, mutation.PrimaryKeyValues);
-                }
-                else if (mutation.NewValues is not null)
-                {
-                    primaryKey = TableKeyCodec.EncodePrimaryKey(schema, mutation.NewValues);
-                }
-                else
-                {
-                    throw new InvalidOperationException("DELETE mutation 必须提供主键值。");
-                }
-
-                byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
-                string rowKeyText = Convert.ToHexString(rowKey);
-                if (!pendingRowKeys.Add(rowKeyText))
-                    throw new InvalidOperationException($"轻事务中同一行被多次修改：table '{schema.Name}'。");
-
-                var oldRow = TryGetByRowKeyLocked(schema, rowKey);
-                TableRow? newRow = mutation.NewValues is null
-                    ? null
-                    : new TableRow(mutation.NewValues.ToArray(), primaryKey);
-                var operation = new TableMutationOperation(rowKey, oldRow, newRow);
-                if (operation.NewRow is not null)
-                {
-                    ValidateUniqueIndexesLocked(schema, operation);
-                    ValidatePendingUniqueIndexes(schema, operation.NewRow, pendingUniqueKeys);
-                }
-                operations.Add(operation);
-            }
-
-            var applied = new List<RollbackAction>(operations.Count * Math.Max(1, schema.Indexes.Count + 1));
-            var affected = 0;
+            var batch = PrepareBatchLocked(mutations);
             try
             {
-                foreach (var operation in operations)
-                {
-                    if (operation.OldRow is null && operation.NewRow is null)
-                        continue;
-
-                    ApplyMutationLocked(
-                        schema,
-                        operation,
-                        operation.NewRow is null ? null : TableRowCodec.Encode(schema, operation.NewRow.Values),
-                        applied);
-                    affected++;
-                }
+                ApplyPreparedBatchLocked(batch);
             }
             catch
             {
-                RollbackAppliedLocked(applied);
+                RollbackAppliedLocked(batch.Applied);
                 throw;
             }
 
-            return affected;
+            return batch.AffectedRows;
         }
+    }
+
+    internal PreparedTableBatch PrepareBatch(IReadOnlyList<TableRowMutation> mutations)
+    {
+        ArgumentNullException.ThrowIfNull(mutations);
+        lock (_sync)
+            return PrepareBatchLocked(mutations);
+    }
+
+    internal int ApplyPreparedBatch(PreparedTableBatch batch)
+    {
+        ArgumentNullException.ThrowIfNull(batch);
+        lock (_sync)
+        {
+            ApplyPreparedBatchLocked(batch);
+            return batch.AffectedRows;
+        }
+    }
+
+    internal void RollbackPreparedBatch(PreparedTableBatch batch)
+    {
+        ArgumentNullException.ThrowIfNull(batch);
+        lock (_sync)
+            RollbackAppliedLocked(batch.Applied);
     }
 
     /// <summary>
@@ -454,7 +425,7 @@ public sealed class TableStore : IDisposable
                 if (operation.OldRow is not null && entry.Value.Span.SequenceEqual(operation.OldRow.PrimaryKey.Span))
                     continue;
 
-                throw new InvalidOperationException($"唯一索引 '{index.Name}' 冲突。");
+                throw UniqueViolation(schema, index);
             }
         }
     }
@@ -474,7 +445,7 @@ public sealed class TableStore : IDisposable
             if (pendingUniqueKeys.TryGetValue(scopedKey, out var existingPrimaryKey)
                 && !string.Equals(existingPrimaryKey, primaryKeyText, StringComparison.Ordinal))
             {
-                throw new InvalidOperationException($"唯一索引 '{index.Name}' 冲突。");
+                throw UniqueViolation(schema, index);
             }
 
             pendingUniqueKeys[scopedKey] = primaryKeyText;
@@ -588,7 +559,7 @@ public sealed class TableStore : IDisposable
                 if (_keyspace.Get(indexEntry.Key) is not null
                     && TryResolveUniqueIndexConflict(_schema, entries, indexEntry.Key) is { } index)
                 {
-                    throw new InvalidOperationException($"唯一索引 '{index.Name}' 冲突，无法重建索引。");
+                    throw UniqueViolation(_schema, index, "无法重建索引");
                 }
 
                 _keyspace.Put(indexEntry.Key, indexEntry.Value);
@@ -650,9 +621,109 @@ public sealed class TableStore : IDisposable
         applied.Clear();
     }
 
+    private PreparedTableBatch PrepareBatchLocked(IReadOnlyList<TableRowMutation> mutations)
+    {
+        var schema = _schema;
+        var operations = new List<TableMutationOperation>(mutations.Count);
+        var pendingRowKeys = new HashSet<string>(StringComparer.Ordinal);
+        var pendingUniqueKeys = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var mutation in mutations)
+        {
+            if (mutation.NewValues is not null)
+                ValidateRow(schema, mutation.NewValues);
+
+            byte[] primaryKey;
+            bool isInsert = mutation.PrimaryKeyValues is null && mutation.NewValues is not null;
+            if (mutation.PrimaryKeyValues is not null)
+            {
+                primaryKey = TableKeyCodec.EncodePrimaryKeyValues(schema, mutation.PrimaryKeyValues);
+            }
+            else if (mutation.NewValues is not null)
+            {
+                primaryKey = TableKeyCodec.EncodePrimaryKey(schema, mutation.NewValues);
+            }
+            else
+            {
+                throw new InvalidOperationException("DELETE mutation 必须提供主键值。");
+            }
+
+            byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
+            string rowKeyText = Convert.ToHexString(rowKey);
+            if (!pendingRowKeys.Add(rowKeyText))
+                throw new InvalidOperationException($"轻事务中同一行被多次修改：table '{schema.Name}'。");
+
+            var oldRow = TryGetByRowKeyLocked(schema, rowKey);
+            if (isInsert && oldRow is not null)
+                throw new InvalidOperationException($"table '{schema.Name}' 中主键已存在。");
+            ValidateRowVersion(schema, mutation, oldRow);
+            TableRow? newRow = mutation.NewValues is null
+                ? null
+                : new TableRow(mutation.NewValues.ToArray(), primaryKey);
+            var operation = new TableMutationOperation(rowKey, oldRow, newRow);
+            if (operation.NewRow is not null)
+            {
+                ValidateUniqueIndexesLocked(schema, operation);
+                ValidatePendingUniqueIndexes(schema, operation.NewRow, pendingUniqueKeys);
+            }
+            operations.Add(operation);
+        }
+
+        var affected = operations.Count(static operation => operation.OldRow is not null || operation.NewRow is not null);
+        return new PreparedTableBatch(
+            schema,
+            operations,
+            affected,
+            new List<RollbackAction>(operations.Count * Math.Max(1, schema.Indexes.Count + 1)));
+    }
+
+    private void ApplyPreparedBatchLocked(PreparedTableBatch batch)
+    {
+        if (!ReferenceEquals(batch.Schema, _schema))
+            throw new InvalidOperationException($"table '{_schema.Name}' schema 已变化，无法提交已准备的轻事务批次。");
+
+        foreach (var operation in batch.Operations)
+        {
+            if (operation.OldRow is null && operation.NewRow is null)
+                continue;
+
+            ApplyMutationLocked(
+                batch.Schema,
+                operation,
+                operation.NewRow is null ? null : TableRowCodec.Encode(batch.Schema, operation.NewRow.Values),
+                batch.Applied);
+        }
+    }
+
+    private static void ValidateRowVersion(TableSchema schema, TableRowMutation mutation, TableRow? oldRow)
+    {
+        if (schema.RowVersionColumn is not { } column || mutation.ExpectedRowVersion is null)
+            return;
+
+        var actual = oldRow is null || oldRow.Values[column.Ordinal] is null
+            ? 0L
+            : Convert.ToInt64(oldRow.Values[column.Ordinal], System.Globalization.CultureInfo.InvariantCulture);
+        if (actual != mutation.ExpectedRowVersion.Value)
+        {
+            throw new TableConstraintException(
+                TableConstraintException.ConcurrencyConflict,
+                schema.Name,
+                column.Name,
+                $"table '{schema.Name}' 乐观并发冲突：列 '{column.Name}' 当前版本已变化。");
+        }
+    }
+
+    private static TableConstraintException UniqueViolation(TableSchema schema, TableIndex index, string? suffix = null)
+        => new(
+            TableConstraintException.UniqueViolation,
+            schema.Name,
+            index.Name,
+            suffix is null
+                ? $"唯一索引 '{index.Name}' 冲突。"
+                : $"唯一索引 '{index.Name}' 冲突，{suffix}。");
+
     private sealed record IndexEntry(byte[] Key, byte[] Value);
 
-    private sealed record TableMutationOperation(
+    internal sealed record TableMutationOperation(
         byte[] RowKey,
         TableRow? OldRow,
         TableRow? NewRow)
@@ -667,12 +738,31 @@ public sealed class TableStore : IDisposable
             => new(rowKey, oldRow, NewRow: null);
     }
 
-    private sealed record RollbackAction(byte[] Key, byte[]? Value)
+    internal sealed record RollbackAction(byte[] Key, byte[]? Value)
     {
         public static RollbackAction Delete(byte[] key)
             => new(key.ToArray(), null);
 
         public static RollbackAction Put(byte[] key, byte[] value)
             => new(key.ToArray(), value.ToArray());
+    }
+
+    internal sealed record PreparedTableBatch(
+        TableSchema Schema,
+        IReadOnlyList<TableMutationOperation> Operations,
+        int AffectedRows,
+        List<RollbackAction> Applied)
+    {
+        public IReadOnlyList<TableRow> FinalRows
+            => Operations
+                .Where(static operation => operation.NewRow is not null)
+                .Select(static operation => operation.NewRow!)
+                .ToArray();
+
+        public IReadOnlyList<TableRow> DeletedRows
+            => Operations
+                .Where(static operation => operation.OldRow is not null && operation.NewRow is null)
+                .Select(static operation => operation.OldRow!)
+                .ToArray();
     }
 }

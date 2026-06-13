@@ -15,12 +15,14 @@ public sealed class TableSchema
         IReadOnlyList<TableColumn> columns,
         IReadOnlyList<string> primaryKey,
         IReadOnlyList<TableIndex> indexes,
+        IReadOnlyList<TableForeignKey> foreignKeys,
         long createdAtUtcTicks)
     {
         Name = name;
         Columns = columns;
         PrimaryKey = primaryKey;
         Indexes = indexes;
+        ForeignKeys = foreignKeys;
         CreatedAtUtcTicks = createdAtUtcTicks;
         _columnsByName = columns.ToFrozenDictionary(c => c.Name, StringComparer.Ordinal);
         _indexesByName = indexes.ToFrozenDictionary(i => i.Name, StringComparer.Ordinal);
@@ -38,6 +40,9 @@ public sealed class TableSchema
     /// <summary>按创建顺序排列的二级索引声明。</summary>
     public IReadOnlyList<TableIndex> Indexes { get; }
 
+    /// <summary>按创建顺序排列的外键声明。</summary>
+    public IReadOnlyList<TableForeignKey> ForeignKeys { get; }
+
     /// <summary>创建时间 UTC ticks。</summary>
     public long CreatedAtUtcTicks { get; }
 
@@ -53,6 +58,8 @@ public sealed class TableSchema
         IReadOnlyList<(string Name, TableColumnType DataType, bool IsNullable)> columns,
         IReadOnlyList<string> primaryKey,
         IReadOnlyList<TableIndexDefinition>? indexes = null,
+        IReadOnlyList<TableForeignKeyDefinition>? foreignKeys = null,
+        IReadOnlySet<string>? rowVersionColumns = null,
         long createdAtUtcTicks = 0)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -74,7 +81,8 @@ public sealed class TableSchema
                 throw new ArgumentException($"关系表 '{name}' 中列 '{column.Name}' 重复。", nameof(columns));
             if (!Enum.IsDefined(column.DataType))
                 throw new ArgumentException($"关系表 '{name}' 的列 '{column.Name}' 使用了未知类型 {column.DataType}。", nameof(columns));
-            columnList.Add(new TableColumn(column.Name, column.DataType, IsPrimaryKey: false, column.IsNullable, i));
+            bool isRowVersion = rowVersionColumns?.Contains(column.Name) == true;
+            columnList.Add(new TableColumn(column.Name, column.DataType, IsPrimaryKey: false, column.IsNullable, i, isRowVersion));
         }
 
         var primaryKeyList = new List<string>(primaryKey.Count);
@@ -96,13 +104,16 @@ public sealed class TableSchema
                 columnList[i] = column with { IsPrimaryKey = true, IsNullable = false };
         }
 
+        ValidateRowVersionColumns(name, columnList);
         var indexList = BuildIndexes(name, columnList, primaryKeySet, indexes, createdAtUtcTicks);
+        var foreignKeyList = BuildForeignKeys(name, columnList, foreignKeys);
 
         return new TableSchema(
             name,
             columnList.AsReadOnly(),
             primaryKeyList.AsReadOnly(),
             indexList.AsReadOnly(),
+            foreignKeyList.AsReadOnly(),
             createdAtUtcTicks == 0 ? DateTime.UtcNow.Ticks : createdAtUtcTicks);
     }
 
@@ -147,6 +158,8 @@ public sealed class TableSchema
             Columns.Select(static c => (c.Name, c.DataType, c.IsNullable)).ToArray(),
             PrimaryKey,
             definitions,
+            ForeignKeyDefinitions(),
+            RowVersionColumnNames(),
             CreatedAtUtcTicks);
     }
 
@@ -170,6 +183,8 @@ public sealed class TableSchema
             Columns.Select(static c => (c.Name, c.DataType, c.IsNullable)).ToArray(),
             PrimaryKey,
             definitions,
+            ForeignKeyDefinitions(),
+            RowVersionColumnNames(),
             CreatedAtUtcTicks);
     }
 
@@ -189,6 +204,8 @@ public sealed class TableSchema
                 .ToArray(),
             PrimaryKey,
             IndexDefinitions(),
+            ForeignKeyDefinitions(),
+            RowVersionColumnNames(),
             CreatedAtUtcTicks);
     }
 
@@ -207,6 +224,11 @@ public sealed class TableSchema
             if (index.Columns.Any(c => string.Equals(c, name, StringComparison.Ordinal)))
                 throw new InvalidOperationException($"列 '{name}' 被索引 '{index.Name}' 引用，不能删除。");
         }
+        foreach (var foreignKey in ForeignKeys)
+        {
+            if (foreignKey.Columns.Any(c => string.Equals(c, name, StringComparison.Ordinal)))
+                throw new InvalidOperationException($"列 '{name}' 被外键 '{foreignKey.Name}' 引用，不能删除。");
+        }
 
         return Create(
             Name,
@@ -215,6 +237,8 @@ public sealed class TableSchema
                 .ToArray(),
             PrimaryKey,
             IndexDefinitions(),
+            ForeignKeyDefinitions(),
+            RowVersionColumnNames(exceptColumn: name),
             CreatedAtUtcTicks);
     }
 
@@ -240,6 +264,8 @@ public sealed class TableSchema
                 .ToArray(),
             PrimaryKey,
             IndexDefinitions(renameColumn: (oldName, newName)),
+            ForeignKeyDefinitions(renameColumn: (oldName, newName)),
+            RowVersionColumnNames(renameColumn: (oldName, newName)),
             CreatedAtUtcTicks);
     }
 
@@ -252,7 +278,13 @@ public sealed class TableSchema
             Columns.Select(static c => (c.Name, c.DataType, c.IsNullable)).ToArray(),
             PrimaryKey,
             IndexDefinitions(),
+            ForeignKeyDefinitions(),
+            RowVersionColumnNames(),
             CreatedAtUtcTicks);
+
+    /// <summary>返回当前表的乐观并发列；未声明时返回 <c>null</c>。</summary>
+    public TableColumn? RowVersionColumn
+        => Columns.FirstOrDefault(static c => c.IsRowVersion);
 
     private static List<TableIndex> BuildIndexes(
         string tableName,
@@ -312,6 +344,60 @@ public sealed class TableSchema
         return result;
     }
 
+    private static List<TableForeignKey> BuildForeignKeys(
+        string tableName,
+        IReadOnlyList<TableColumn> columns,
+        IReadOnlyList<TableForeignKeyDefinition>? foreignKeys)
+    {
+        var result = new List<TableForeignKey>();
+        if (foreignKeys is null || foreignKeys.Count == 0)
+            return result;
+
+        var columnNames = columns.Select(static c => c.Name).ToHashSet(StringComparer.Ordinal);
+        var seenNames = new HashSet<string>(StringComparer.Ordinal);
+        for (var i = 0; i < foreignKeys.Count; i++)
+        {
+            var foreignKey = foreignKeys[i];
+            var name = string.IsNullOrWhiteSpace(foreignKey.Name)
+                ? $"fk_{tableName}_{i + 1}"
+                : foreignKey.Name;
+            if (!seenNames.Add(name))
+                throw new ArgumentException($"关系表 '{tableName}' 中外键 '{name}' 重复。", nameof(foreignKeys));
+            if (foreignKey.Columns.Count == 0 || foreignKey.PrincipalColumns.Count == 0)
+                throw new ArgumentException($"外键 '{name}' 必须声明本表列和引用列。", nameof(foreignKeys));
+            if (foreignKey.Columns.Count != foreignKey.PrincipalColumns.Count)
+                throw new ArgumentException($"外键 '{name}' 的本表列数与引用列数不一致。", nameof(foreignKeys));
+            ArgumentException.ThrowIfNullOrWhiteSpace(foreignKey.PrincipalTable);
+
+            var seenColumns = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var column in foreignKey.Columns)
+            {
+                ArgumentException.ThrowIfNullOrWhiteSpace(column);
+                if (!columnNames.Contains(column))
+                    throw new ArgumentException($"外键 '{name}' 引用了未知列 '{column}'。", nameof(foreignKeys));
+                if (!seenColumns.Add(column))
+                    throw new ArgumentException($"外键 '{name}' 中列 '{column}' 重复。", nameof(foreignKeys));
+            }
+
+            result.Add(new TableForeignKey(
+                name,
+                foreignKey.Columns.ToArray(),
+                foreignKey.PrincipalTable,
+                foreignKey.PrincipalColumns.ToArray()));
+        }
+
+        return result;
+    }
+
+    private static void ValidateRowVersionColumns(string tableName, IReadOnlyList<TableColumn> columns)
+    {
+        var rowVersionColumns = columns.Where(static c => c.IsRowVersion).ToArray();
+        if (rowVersionColumns.Length > 1)
+            throw new ArgumentException($"关系表 '{tableName}' 最多只能声明一个 ROWVERSION 列。", nameof(columns));
+        if (rowVersionColumns is [var column] && column.DataType != TableColumnType.Int64)
+            throw new ArgumentException($"ROWVERSION 列 '{column.Name}' 必须是 INT 类型。", nameof(columns));
+    }
+
     private IReadOnlyList<TableIndexDefinition> IndexDefinitions((string OldName, string NewName)? renameColumn = null)
         => Indexes.Select(i =>
         {
@@ -325,4 +411,28 @@ public sealed class TableSchema
 
             return new TableIndexDefinition(i.Name, columns, i.IsUnique, i.CreatedAtUtcTicks, i.JsonPath);
         }).ToArray();
+
+    private IReadOnlyList<TableForeignKeyDefinition> ForeignKeyDefinitions((string OldName, string NewName)? renameColumn = null)
+        => ForeignKeys.Select(f =>
+        {
+            var columns = f.Columns;
+            if (renameColumn is { } rename)
+            {
+                columns = f.Columns
+                    .Select(c => string.Equals(c, rename.OldName, StringComparison.Ordinal) ? rename.NewName : c)
+                    .ToArray();
+            }
+
+            return new TableForeignKeyDefinition(f.Name, columns, f.PrincipalTable, f.PrincipalColumns);
+        }).ToArray();
+
+    private IReadOnlySet<string> RowVersionColumnNames(
+        (string OldName, string NewName)? renameColumn = null,
+        string? exceptColumn = null)
+        => Columns
+            .Where(c => c.IsRowVersion && !string.Equals(c.Name, exceptColumn, StringComparison.Ordinal))
+            .Select(c => renameColumn is { } rename && string.Equals(c.Name, rename.OldName, StringComparison.Ordinal)
+                ? rename.NewName
+                : c.Name)
+            .ToHashSet(StringComparer.Ordinal);
 }

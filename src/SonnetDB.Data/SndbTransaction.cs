@@ -4,7 +4,7 @@ using System.Data.Common;
 namespace SonnetDB.Data;
 
 /// <summary>
-/// SonnetDB ADO.NET 轻事务对象。第一阶段聚焦单个关系表内的小批量 DML。
+/// SonnetDB ADO.NET 轻事务对象，支持同一数据库内多个关系表的小批量 DML。
 /// </summary>
 public sealed class SndbTransaction : DbTransaction
 {

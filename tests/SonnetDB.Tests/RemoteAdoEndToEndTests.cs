@@ -238,7 +238,7 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Remote_Transaction_CrossTableCommit_IsRejectedWithoutWrites()
+    public async Task Remote_Transaction_CrossTableCommit_CommitsBothTables()
     {
         await using var c = new SndbConnection(RemoteConnString());
         await c.OpenAsync();
@@ -261,11 +261,10 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
             Assert.Equal(0, await cmd.ExecuteNonQueryAsync());
         }
 
-        var ex = await Assert.ThrowsAsync<SndbServerException>(() => tx.CommitAsync());
-        Assert.Equal("sql_error", ex.Error);
+        await tx.CommitAsync();
 
-        Assert.Empty(await ReadIdsAsync(c, "tx_a"));
-        Assert.Empty(await ReadIdsAsync(c, "tx_b"));
+        Assert.Equal(new long[] { 1L }, await ReadIdsAsync(c, "tx_a"));
+        Assert.Equal(new long[] { 1L }, await ReadIdsAsync(c, "tx_b"));
     }
 
     [Fact]

@@ -139,6 +139,12 @@ public enum TokenKind
     KeywordPrimary,
     /// <summary>KEY（PRIMARY KEY 子句）。</summary>
     KeywordKey,
+    /// <summary>FOREIGN（FOREIGN KEY 子句）。</summary>
+    KeywordForeign,
+    /// <summary>REFERENCES（FOREIGN KEY 引用子句）。</summary>
+    KeywordReferences,
+    /// <summary>ROWVERSION（关系表乐观并发列）。</summary>
+    KeywordRowVersion,
 
     // PR #34b-1：SHOW 控制面查询
     KeywordShow,

@@ -2,6 +2,7 @@ using SonnetDB.Engine;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
+using SonnetDB.Tables;
 using Xunit;
 
 namespace SonnetDB.Core.Tests.Sql;
@@ -34,6 +35,19 @@ public sealed class SqlExecutorTableTests : IDisposable
         Assert.Equal(SqlDataType.Int64, stmt.Columns[0].DataType);
         Assert.Equal(ColumnNullability.NotNull, stmt.Columns[0].Nullability);
         Assert.Equal(["id"], stmt.PrimaryKey);
+    }
+
+    [Fact]
+    public void ParseCreateTable_WithForeignKeyAndRowVersion_ReturnsAst()
+    {
+        var stmt = Assert.IsType<CreateTableStatement>(SqlParser.Parse(
+            "CREATE TABLE devices (id INT, site_id INT, version INT ROWVERSION, PRIMARY KEY (id), FOREIGN KEY (site_id) REFERENCES sites (id))"));
+
+        Assert.True(stmt.Columns.Single(c => c.Name == "version").IsRowVersion);
+        var foreignKey = Assert.Single(stmt.ForeignKeyClauses);
+        Assert.Equal(["site_id"], foreignKey.Columns);
+        Assert.Equal("sites", foreignKey.PrincipalTable);
+        Assert.Equal(["id"], foreignKey.PrincipalColumns);
     }
 
     [Fact]
@@ -455,7 +469,7 @@ public sealed class SqlExecutorTableTests : IDisposable
         SqlExecutor.Execute(db, "CREATE UNIQUE INDEX ux_devices_serial ON devices (serial)");
         SqlExecutor.Execute(db, "INSERT INTO devices (id, serial, name) VALUES (1, 'A-1', 'pump')");
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.ThrowsAny<InvalidOperationException>(() =>
             SqlExecutor.Execute(db, "INSERT INTO devices (id, serial, name) VALUES (2, 'A-1', 'fan')"));
 
         var rows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
@@ -621,7 +635,7 @@ public sealed class SqlExecutorTableTests : IDisposable
         SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, serial STRING, PRIMARY KEY (id))");
         SqlExecutor.Execute(db, "CREATE UNIQUE INDEX ux_devices_serial ON devices (serial)");
 
-        Assert.Throws<InvalidOperationException>(() => SqlExecutor.ExecuteScript(db, """
+        Assert.ThrowsAny<InvalidOperationException>(() => SqlExecutor.ExecuteScript(db, """
             BEGIN;
             INSERT INTO devices (id, serial) VALUES (1, 'A-1');
             INSERT INTO devices (id, serial) VALUES (2, 'A-1');
@@ -633,20 +647,75 @@ public sealed class SqlExecutorTableTests : IDisposable
     }
 
     [Fact]
-    public void ExecuteScript_CrossTableTransaction_IsRejectedWithoutWrites()
+    public void ExecuteScript_CrossTableTransaction_CommitsAtomically()
     {
         using var db = Tsdb.Open(Options());
-        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
         SqlExecutor.Execute(db, "CREATE TABLE sites (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, site_id INT, name STRING, PRIMARY KEY (id), FOREIGN KEY (site_id) REFERENCES sites (id))");
 
-        Assert.Throws<NotSupportedException>(() => SqlExecutor.ExecuteScript(db, """
+        SqlExecutor.ExecuteScript(db, """
             BEGIN;
-            INSERT INTO devices (id, name) VALUES (1, 'pump');
             INSERT INTO sites (id, name) VALUES (1, 'north');
+            INSERT INTO devices (id, site_id, name) VALUES (1, 1, 'pump');
+            COMMIT;
+            """);
+
+        Assert.Equal(1L, Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SELECT id FROM sites")).Rows.Single()[0]);
+        Assert.Equal(1L, Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SELECT id FROM devices")).Rows.Single()[0]);
+    }
+
+    [Fact]
+    public void ExecuteScript_CrossTableConstraintFailure_RollsBackAllTables()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE sites (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, site_id INT, serial STRING, PRIMARY KEY (id), FOREIGN KEY (site_id) REFERENCES sites (id))");
+        SqlExecutor.Execute(db, "CREATE UNIQUE INDEX ux_devices_serial ON devices (serial)");
+        SqlExecutor.Execute(db, "INSERT INTO devices (id, site_id, serial) VALUES (1, NULL, 'A-1')");
+
+        var ex = Assert.Throws<TableConstraintException>(() => SqlExecutor.ExecuteScript(db, """
+            BEGIN;
+            INSERT INTO sites (id, name) VALUES (1, 'north');
+            INSERT INTO devices (id, site_id, serial) VALUES (2, 1, 'A-1');
             COMMIT;
             """));
+        Assert.Equal(TableConstraintException.UniqueViolation, ex.ErrorCode);
 
-        Assert.Empty(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SELECT id FROM devices")).Rows);
         Assert.Empty(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SELECT id FROM sites")).Rows);
+        Assert.Equal([1L], Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SELECT id FROM devices")).Rows.Select(static r => (long)r[0]!).ToArray());
+    }
+
+    [Fact]
+    public void ForeignKey_InsertMissingPrincipal_ReturnsStableErrorCode()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE sites (id INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, site_id INT, PRIMARY KEY (id), FOREIGN KEY (site_id) REFERENCES sites (id))");
+
+        var ex = Assert.Throws<TableConstraintException>(() =>
+            SqlExecutor.Execute(db, "INSERT INTO devices (id, site_id) VALUES (1, 404)"));
+
+        Assert.Equal(TableConstraintException.ForeignKeyViolation, ex.ErrorCode);
+        Assert.Equal("devices", ex.TableName);
+        Assert.Empty(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SELECT id FROM devices")).Rows);
+    }
+
+    [Fact]
+    public void RowVersion_UpdateIncrementsAndStalePredicateReturnsConflictCode()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, name STRING, version INT ROWVERSION, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "INSERT INTO devices (id, name) VALUES (1, 'pump')");
+
+        var inserted = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SELECT version FROM devices WHERE id = 1"));
+        Assert.Equal(1L, inserted.Rows.Single()[0]);
+
+        SqlExecutor.Execute(db, "UPDATE devices SET name = 'pump-2' WHERE id = 1 AND version = 1");
+        var updated = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SELECT version FROM devices WHERE id = 1"));
+        Assert.Equal(2L, updated.Rows.Single()[0]);
+
+        var ex = Assert.Throws<TableConstraintException>(() =>
+            SqlExecutor.Execute(db, "UPDATE devices SET name = 'pump-3' WHERE id = 1 AND version = 1"));
+        Assert.Equal(TableConstraintException.ConcurrencyConflict, ex.ErrorCode);
     }
 }

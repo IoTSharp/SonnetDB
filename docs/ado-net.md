@@ -77,7 +77,8 @@ using var reader = command.ExecuteReader();
 
 - 参数会在客户端安全转义后再发送
 - 字符串中的单引号会正确转义
-- 当前版本不支持事务
+- `BeginTransaction()` / `BeginTransactionAsync()` 支持关系表轻事务；隔离级别仅支持默认值或 `ReadCommitted`
+- 轻事务可在同一数据库内提交多个关系表的 `INSERT` / `UPDATE` / `DELETE`，不支持 DDL、measurement / document 写入、嵌套事务或跨数据库事务
 
 ## 远程模式示例
 
@@ -132,6 +133,9 @@ catch (SndbServerException ex)
 - `forbidden`
 - `db_not_found`
 - `sql_error`
+- `table_unique_violation`
+- `table_foreign_key_violation`
+- `table_concurrency_conflict`
 - `bulk_ingest_error`
 
 ## `ExecuteScalar` 与 `ExecuteReader`

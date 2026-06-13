@@ -27,6 +27,7 @@ public sealed class TableSchemaCodecTests : IDisposable
                 ("id", TableColumnType.Int64, false),
                 ("name", TableColumnType.String, false),
                 ("metadata", TableColumnType.Json, true),
+                ("version", TableColumnType.Int64, false),
             ],
             ["id"],
             indexes:
@@ -34,6 +35,11 @@ public sealed class TableSchemaCodecTests : IDisposable
                 new TableIndexDefinition("idx_devices_name", ["name"], IsUnique: false, CreatedAtUtcTicks: 5678),
                 new TableIndexDefinition("ux_devices_metadata", ["metadata"], IsUnique: true, CreatedAtUtcTicks: 6789),
             ],
+            foreignKeys:
+            [
+                new TableForeignKeyDefinition("fk_devices_sites", ["name"], "sites", ["id"]),
+            ],
+            rowVersionColumns: new HashSet<string>(["version"], StringComparer.Ordinal),
             createdAtUtcTicks: 1234);
 
         string path = Path.Combine(_root, TableSchemaCodec.FileName);
@@ -43,7 +49,7 @@ public sealed class TableSchemaCodecTests : IDisposable
         Assert.Equal("devices", loaded.Name);
         Assert.Equal(1234, loaded.CreatedAtUtcTicks);
         Assert.Equal(["id"], loaded.PrimaryKey);
-        Assert.Equal(3, loaded.Columns.Count);
+        Assert.Equal(4, loaded.Columns.Count);
         Assert.True(loaded.Columns[0].IsPrimaryKey);
         Assert.False(loaded.Columns[0].IsNullable);
         Assert.True(loaded.Columns[2].IsNullable);
@@ -55,6 +61,12 @@ public sealed class TableSchemaCodecTests : IDisposable
         Assert.Equal(5678, loaded.Indexes[0].CreatedAtUtcTicks);
         Assert.Equal("ux_devices_metadata", loaded.Indexes[1].Name);
         Assert.True(loaded.Indexes[1].IsUnique);
+        Assert.True(loaded.Columns[3].IsRowVersion);
+        var foreignKey = Assert.Single(loaded.ForeignKeys);
+        Assert.Equal("fk_devices_sites", foreignKey.Name);
+        Assert.Equal(["name"], foreignKey.Columns);
+        Assert.Equal("sites", foreignKey.PrincipalTable);
+        Assert.Equal(["id"], foreignKey.PrincipalColumns);
     }
 
     [Fact]

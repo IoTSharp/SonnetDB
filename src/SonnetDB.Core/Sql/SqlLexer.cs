@@ -95,6 +95,9 @@ public sealed class SqlLexer
         ["rename"] = TokenKind.KeywordRename,
         ["primary"] = TokenKind.KeywordPrimary,
         ["key"] = TokenKind.KeywordKey,
+        ["foreign"] = TokenKind.KeywordForeign,
+        ["references"] = TokenKind.KeywordReferences,
+        ["rowversion"] = TokenKind.KeywordRowVersion,
 
         // PR #34b-1：SHOW 控制面查询
         ["show"] = TokenKind.KeywordShow,

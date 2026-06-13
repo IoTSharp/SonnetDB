@@ -135,7 +135,7 @@ public sealed class TsdbAdoApiTests : IDisposable
     }
 
     [Fact]
-    public void BeginTransaction_CrossTableCommit_IsRejectedWithoutWrites()
+    public void BeginTransaction_CrossTableCommit_CommitsBothTables()
     {
         using var c = OpenConn();
         ExecNonQuery(c, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
@@ -151,10 +151,10 @@ public sealed class TsdbAdoApiTests : IDisposable
             Assert.Equal(1, cmd.ExecuteNonQuery());
         }
 
-        Assert.Throws<NotSupportedException>(() => tx.Commit());
+        tx.Commit();
 
-        Assert.Empty(ReadIds(c, "devices"));
-        Assert.Empty(ReadIds(c, "sites"));
+        Assert.Equal([1L], ReadIds(c, "devices"));
+        Assert.Equal([1L], ReadIds(c, "sites"));
     }
 
     [Fact]

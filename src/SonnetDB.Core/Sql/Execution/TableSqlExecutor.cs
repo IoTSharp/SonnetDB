@@ -40,7 +40,23 @@ internal static class TableSqlExecutor
                 column.Nullability != ColumnNullability.NotNull));
         }
 
-        var schema = TableSchema.Create(statement.Name, columns, statement.PrimaryKey);
+        var foreignKeys = statement.ForeignKeyClauses
+            .Select(static fk => new TableForeignKeyDefinition(
+                Name: string.Empty,
+                fk.Columns,
+                fk.PrincipalTable,
+                fk.PrincipalColumns))
+            .ToArray();
+        var rowVersionColumns = statement.Columns
+            .Where(static c => c.IsRowVersion)
+            .Select(static c => c.Name)
+            .ToHashSet(StringComparer.Ordinal);
+        var schema = TableSchema.Create(
+            statement.Name,
+            columns,
+            statement.PrimaryKey,
+            foreignKeys: foreignKeys,
+            rowVersionColumns: rowVersionColumns);
         tsdb.Tables.Create(schema);
         return schema;
     }
@@ -154,10 +170,9 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(statement);
         ArgumentNullException.ThrowIfNull(schema);
 
-        var store = tsdb.Tables.Open(schema.Name);
         var bindings = BindInsertColumns(statement, schema);
 
-        var rows = new List<IReadOnlyList<object?>>(statement.Rows.Count);
+        var mutations = new List<TableRowMutation>(statement.Rows.Count);
         foreach (var row in statement.Rows)
         {
             var values = new object?[schema.Columns.Count];
@@ -167,11 +182,16 @@ internal static class TableSqlExecutor
                 values[column.Ordinal] = ConvertTableValue(row[i], column);
             }
 
+            ApplyInsertRowVersion(schema, values);
             ValidateRequiredColumns(schema, values);
-            rows.Add(values);
+            mutations.Add(new TableRowMutation(PrimaryKeyValues: null, values));
         }
 
-        int inserted = store.InsertMany(rows);
+        int inserted = tsdb.Tables.ApplyTransaction(
+            new Dictionary<string, IReadOnlyList<TableRowMutation>>(StringComparer.Ordinal)
+            {
+                [schema.Name] = mutations,
+            });
         return new InsertExecutionResult(schema.Name, inserted);
     }
 
@@ -191,6 +211,7 @@ internal static class TableSqlExecutor
                 values[column.Ordinal] = ConvertTableValue(row[i], column);
             }
 
+            ApplyInsertRowVersion(schema, values);
             ValidateRequiredColumns(schema, values);
             transaction.AddTableMutation(schema.Name, new TableRowMutation(PrimaryKeyValues: null, values));
         }
@@ -236,24 +257,33 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(statement);
         ArgumentNullException.ThrowIfNull(schema);
 
-        var store = tsdb.Tables.Open(schema.Name);
         int deleted = 0;
         if (TryExtractPrimaryKeyValues(schema, statement.Where, allowExtraPredicates: false, out var keyValues))
         {
-            deleted = store.DeleteByPrimaryKey(keyValues) ? 1 : 0;
+            deleted = tsdb.Tables.ApplyTransaction(
+                new Dictionary<string, IReadOnlyList<TableRowMutation>>(StringComparer.Ordinal)
+                {
+                    [schema.Name] = [new TableRowMutation(keyValues, NewValues: null)],
+                });
             return new RowsAffectedExecutionResult(schema.Name, deleted, "delete");
         }
 
+        var store = tsdb.Tables.Open(schema.Name);
+        var mutations = new List<TableRowMutation>();
         foreach (var row in LoadCandidateRows(store, schema, statement.Where))
         {
             if (!EvaluateWhere(statement.Where, schema, row.Values))
                 continue;
 
             var primaryKeyValues = ExtractPrimaryKeyValues(schema, row.Values);
-            if (store.DeleteByPrimaryKey(primaryKeyValues))
-                deleted++;
+            mutations.Add(new TableRowMutation(primaryKeyValues, NewValues: null, ExtractRowVersion(schema, row.Values)));
         }
 
+        deleted = tsdb.Tables.ApplyTransaction(
+            new Dictionary<string, IReadOnlyList<TableRowMutation>>(StringComparer.Ordinal)
+            {
+                [schema.Name] = mutations,
+            });
         return new RowsAffectedExecutionResult(schema.Name, deleted, "delete");
     }
 
@@ -278,10 +308,18 @@ internal static class TableSqlExecutor
                 values[assignment.Column.Ordinal] = ConvertTableValue(assignment.Value, assignment.Column);
 
             ValidateRequiredColumns(schema, values);
-            mutations.Add(new TableRowMutation(ExtractPrimaryKeyValues(schema, row.Values), values));
+            var expectedRowVersion = ExtractRowVersion(schema, row.Values);
+            ApplyUpdateRowVersion(schema, values, expectedRowVersion);
+            mutations.Add(new TableRowMutation(ExtractPrimaryKeyValues(schema, row.Values), values, expectedRowVersion));
         }
 
-        int updated = store.ApplyBatch(mutations);
+        ThrowIfStaleRowVersionPredicate(schema, store, statement.Where, mutations.Count);
+
+        int updated = tsdb.Tables.ApplyTransaction(
+            new Dictionary<string, IReadOnlyList<TableRowMutation>>(StringComparer.Ordinal)
+            {
+                [schema.Name] = mutations,
+            });
         return new RowsAffectedExecutionResult(schema.Name, updated, "update");
     }
 
@@ -307,9 +345,15 @@ internal static class TableSqlExecutor
                 values[assignment.Column.Ordinal] = ConvertTableValue(assignment.Value, assignment.Column);
 
             ValidateRequiredColumns(schema, values);
-            transaction.AddTableMutation(schema.Name, new TableRowMutation(ExtractPrimaryKeyValues(schema, row.Values), values));
+            var expectedRowVersion = ExtractRowVersion(schema, row.Values);
+            ApplyUpdateRowVersion(schema, values, expectedRowVersion);
+            transaction.AddTableMutation(
+                schema.Name,
+                new TableRowMutation(ExtractPrimaryKeyValues(schema, row.Values), values, expectedRowVersion));
             updated++;
         }
+
+        ThrowIfStaleRowVersionPredicate(schema, store, statement.Where, updated);
 
         return new RowsAffectedExecutionResult(schema.Name, updated, "update");
     }
@@ -328,7 +372,9 @@ internal static class TableSqlExecutor
             if (!EvaluateWhere(statement.Where, schema, row.Values))
                 continue;
 
-            transaction.AddTableMutation(schema.Name, new TableRowMutation(ExtractPrimaryKeyValues(schema, row.Values), NewValues: null));
+            transaction.AddTableMutation(
+                schema.Name,
+                new TableRowMutation(ExtractPrimaryKeyValues(schema, row.Values), NewValues: null, ExtractRowVersion(schema, row.Values)));
             deleted++;
         }
 
@@ -340,16 +386,7 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(transaction);
 
-        var mutations = transaction.SnapshotTableMutations();
-        if (mutations.Count > 1)
-            throw new NotSupportedException("轻事务当前仅支持单个关系表内的小批量 DML。");
-
-        int affected = 0;
-        foreach (var (tableName, tableMutations) in mutations)
-        {
-            var store = tsdb.Tables.Open(tableName);
-            affected += store.ApplyBatch(tableMutations);
-        }
+        int affected = tsdb.Tables.ApplyTransaction(transaction.SnapshotTableMutations());
 
         transaction.MarkCompleted();
         return new RowsAffectedExecutionResult("*", affected, "commit");
@@ -469,6 +506,61 @@ internal static class TableSqlExecutor
             var column = schema.Columns[i];
             if (values[i] is null && !column.IsNullable)
                 throw new InvalidOperationException($"列 '{column.Name}' 不允许为 NULL。");
+        }
+    }
+
+    private static void ApplyInsertRowVersion(TableSchema schema, object?[] values)
+    {
+        if (schema.RowVersionColumn is { } column)
+            values[column.Ordinal] = 1L;
+    }
+
+    private static void ApplyUpdateRowVersion(TableSchema schema, object?[] values, long? expectedRowVersion)
+    {
+        if (schema.RowVersionColumn is not { } column)
+            return;
+
+        values[column.Ordinal] = checked((expectedRowVersion ?? 0L) + 1L);
+    }
+
+    private static long? ExtractRowVersion(TableSchema schema, IReadOnlyList<object?> values)
+    {
+        if (schema.RowVersionColumn is not { } column)
+            return null;
+
+        return values[column.Ordinal] is null
+            ? 0L
+            : Convert.ToInt64(values[column.Ordinal], CultureInfo.InvariantCulture);
+    }
+
+    private static void ThrowIfStaleRowVersionPredicate(
+        TableSchema schema,
+        TableStore store,
+        SqlExpression where,
+        int matchedRows)
+    {
+        if (matchedRows != 0 || schema.RowVersionColumn is not { } rowVersionColumn)
+            return;
+        if (!TryExtractPrimaryKeyValues(schema, where, allowExtraPredicates: true, out var keyValues))
+            return;
+        if (!TryCollectEqualityExpressions(where, allowNonEquality: true, out var equalityByColumn))
+            return;
+        if (!equalityByColumn.TryGetValue(rowVersionColumn.Name, out var expectedExpression))
+            return;
+
+        var existing = store.GetByPrimaryKey(keyValues);
+        if (existing is null)
+            return;
+
+        var expected = ConvertTableValue(expectedExpression, rowVersionColumn);
+        var actual = existing.Values[rowVersionColumn.Ordinal];
+        if (!ValuesEqual(expected, actual))
+        {
+            throw new TableConstraintException(
+                TableConstraintException.ConcurrencyConflict,
+                schema.Name,
+                rowVersionColumn.Name,
+                $"table '{schema.Name}' 乐观并发冲突：列 '{rowVersionColumn.Name}' 当前版本已变化。");
         }
     }
 

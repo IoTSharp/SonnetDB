@@ -294,6 +294,52 @@ public sealed class TableManager : IDisposable
     }
 
     /// <summary>
+    /// 在同一数据库内原子提交多表 DML 轻事务。
+    /// </summary>
+    /// <param name="mutationsByTable">按表名分组的行变更。</param>
+    /// <returns>实际影响的行数。</returns>
+    public int ApplyTransaction(IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> mutationsByTable)
+    {
+        ArgumentNullException.ThrowIfNull(mutationsByTable);
+        if (mutationsByTable.Count == 0)
+            return 0;
+
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var prepared = new Dictionary<string, (TableStore Store, TableStore.PreparedTableBatch Batch)>(StringComparer.Ordinal);
+            foreach (var (tableName, mutations) in mutationsByTable)
+            {
+                var schema = Catalog.TryGet(tableName)
+                    ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+                var store = OpenStoreLocked(schema);
+                prepared.Add(tableName, (store, store.PrepareBatch(mutations)));
+            }
+
+            ValidateForeignKeysLocked(prepared);
+
+            var applied = new List<(TableStore Store, TableStore.PreparedTableBatch Batch)>(prepared.Count);
+            try
+            {
+                var affected = 0;
+                foreach (var entry in prepared.Values)
+                {
+                    affected += entry.Store.ApplyPreparedBatch(entry.Batch);
+                    applied.Add(entry);
+                }
+
+                return affected;
+            }
+            catch
+            {
+                for (var i = applied.Count - 1; i >= 0; i--)
+                    applied[i].Store.RollbackPreparedBatch(applied[i].Batch);
+                throw;
+            }
+        }
+    }
+
+    /// <summary>
     /// 打开已存在的关系表。
     /// </summary>
     /// <param name="name">表名。</param>
@@ -372,6 +418,170 @@ public sealed class TableManager : IDisposable
 
     private void PersistCatalogLocked()
         => TableSchemaCodec.Save(SchemaPath, Catalog.Snapshot());
+
+    private void ValidateForeignKeysLocked(
+        IReadOnlyDictionary<string, (TableStore Store, TableStore.PreparedTableBatch Batch)> prepared)
+    {
+        foreach (var (tableName, entry) in prepared)
+        {
+            var schema = entry.Batch.Schema;
+            foreach (var row in entry.Batch.FinalRows)
+            {
+                foreach (var foreignKey in schema.ForeignKeys)
+                    ValidateForeignKeyRowLocked(tableName, row, foreignKey, prepared);
+            }
+        }
+
+        foreach (var principalSchema in Catalog.Snapshot())
+        {
+            if (!prepared.TryGetValue(principalSchema.Name, out var principalEntry))
+                continue;
+            if (principalEntry.Batch.DeletedRows.Count == 0)
+                continue;
+
+            foreach (var childSchema in Catalog.Snapshot())
+            {
+                foreach (var foreignKey in childSchema.ForeignKeys.Where(fk =>
+                    string.Equals(fk.PrincipalTable, principalSchema.Name, StringComparison.Ordinal)))
+                {
+                    ValidatePrincipalDeletesLocked(principalEntry.Batch, childSchema, foreignKey, prepared);
+                }
+            }
+        }
+    }
+
+    private void ValidateForeignKeyRowLocked(
+        string tableName,
+        TableRow row,
+        TableForeignKey foreignKey,
+        IReadOnlyDictionary<string, (TableStore Store, TableStore.PreparedTableBatch Batch)> prepared)
+    {
+        var childSchema = Catalog.TryGet(tableName)
+            ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+        var principalSchema = Catalog.TryGet(foreignKey.PrincipalTable)
+            ?? throw new InvalidOperationException($"外键 '{foreignKey.Name}' 引用的表 '{foreignKey.PrincipalTable}' 不存在。");
+        if (!foreignKey.PrincipalColumns.SequenceEqual(principalSchema.PrimaryKey, StringComparer.Ordinal))
+            throw new NotSupportedException($"外键 '{foreignKey.Name}' 第一版仅支持引用被引用表 PRIMARY KEY。");
+
+        var keyValues = ExtractForeignKeyValues(childSchema, row, foreignKey);
+        if (keyValues is null)
+            return;
+
+        if (!PrincipalExistsAfterTransactionLocked(principalSchema, keyValues, prepared))
+        {
+            throw new TableConstraintException(
+                TableConstraintException.ForeignKeyViolation,
+                tableName,
+                foreignKey.Name,
+                $"外键 '{foreignKey.Name}' 冲突：table '{tableName}' 引用了不存在的 '{foreignKey.PrincipalTable}' 主键。");
+        }
+    }
+
+    private void ValidatePrincipalDeletesLocked(
+        TableStore.PreparedTableBatch principalBatch,
+        TableSchema childSchema,
+        TableForeignKey foreignKey,
+        IReadOnlyDictionary<string, (TableStore Store, TableStore.PreparedTableBatch Batch)> prepared)
+    {
+        var childStore = OpenStoreLocked(childSchema);
+        foreach (var deleted in principalBatch.DeletedRows)
+        {
+            var deletedKeyValues = ExtractPrimaryKeyValues(principalBatch.Schema, deleted);
+            foreach (var childRow in childStore.Scan())
+            {
+                if (prepared.TryGetValue(childSchema.Name, out var childPrepared)
+                    && RowIsDeletedOrReplaced(childPrepared.Batch, childRow))
+                {
+                    continue;
+                }
+
+                var childKeyValues = ExtractForeignKeyValues(childSchema, childRow, foreignKey);
+                if (childKeyValues is not null && ValuesEqual(childKeyValues, deletedKeyValues))
+                    throw ForeignKeyDeleteViolation(childSchema, foreignKey);
+            }
+
+            if (prepared.TryGetValue(childSchema.Name, out var preparedChild))
+            {
+                foreach (var childRow in preparedChild.Batch.FinalRows)
+                {
+                    var childKeyValues = ExtractForeignKeyValues(childSchema, childRow, foreignKey);
+                    if (childKeyValues is not null && ValuesEqual(childKeyValues, deletedKeyValues))
+                        throw ForeignKeyDeleteViolation(childSchema, foreignKey);
+                }
+            }
+        }
+    }
+
+    private bool PrincipalExistsAfterTransactionLocked(
+        TableSchema principalSchema,
+        IReadOnlyList<object?> keyValues,
+        IReadOnlyDictionary<string, (TableStore Store, TableStore.PreparedTableBatch Batch)> prepared)
+    {
+        if (prepared.TryGetValue(principalSchema.Name, out var principalPrepared))
+        {
+            if (principalPrepared.Batch.FinalRows.Any(row => ValuesEqual(ExtractPrimaryKeyValues(principalSchema, row), keyValues)))
+                return true;
+            if (principalPrepared.Batch.DeletedRows.Any(row => ValuesEqual(ExtractPrimaryKeyValues(principalSchema, row), keyValues)))
+                return false;
+        }
+
+        return OpenStoreLocked(principalSchema).GetByPrimaryKey(keyValues) is not null;
+    }
+
+    private static bool RowIsDeletedOrReplaced(TableStore.PreparedTableBatch batch, TableRow row)
+        => batch.DeletedRows.Any(deleted => deleted.PrimaryKey.Span.SequenceEqual(row.PrimaryKey.Span))
+           || batch.FinalRows.Any(updated => updated.PrimaryKey.Span.SequenceEqual(row.PrimaryKey.Span));
+
+    private static IReadOnlyList<object?>? ExtractForeignKeyValues(
+        TableSchema childSchema,
+        TableRow row,
+        TableForeignKey foreignKey)
+    {
+        var values = new object?[foreignKey.Columns.Count];
+        for (var i = 0; i < foreignKey.Columns.Count; i++)
+        {
+            var column = childSchema.TryGetColumn(foreignKey.Columns[i])
+                ?? throw new InvalidOperationException($"外键 '{foreignKey.Name}' 引用了未知列 '{foreignKey.Columns[i]}'。");
+            values[i] = row.Values[column.Ordinal];
+            if (values[i] is null)
+                return null;
+        }
+
+        return values;
+    }
+
+    private static IReadOnlyList<object?> ExtractPrimaryKeyValues(TableSchema schema, TableRow row)
+    {
+        var values = new object?[schema.PrimaryKey.Count];
+        for (var i = 0; i < schema.PrimaryKey.Count; i++)
+        {
+            var column = schema.TryGetColumn(schema.PrimaryKey[i])
+                ?? throw new InvalidOperationException($"PRIMARY KEY 引用了未知列 '{schema.PrimaryKey[i]}'。");
+            values[i] = row.Values[column.Ordinal];
+        }
+
+        return values;
+    }
+
+    private static bool ValuesEqual(IReadOnlyList<object?> left, IReadOnlyList<object?> right)
+    {
+        if (left.Count != right.Count)
+            return false;
+        for (var i = 0; i < left.Count; i++)
+        {
+            if (!Equals(left[i], right[i]))
+                return false;
+        }
+
+        return true;
+    }
+
+    private static TableConstraintException ForeignKeyDeleteViolation(TableSchema childSchema, TableForeignKey foreignKey)
+        => new(
+            TableConstraintException.ForeignKeyViolation,
+            childSchema.Name,
+            foreignKey.Name,
+            $"外键 '{foreignKey.Name}' 冲突：不能删除仍被 table '{childSchema.Name}' 引用的 '{foreignKey.PrincipalTable}' 主键。");
 
     private void ApplySchemaTransformLocked(
         TableSchema current,

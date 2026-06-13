@@ -15,17 +15,32 @@ public sealed record CreateMeasurementStatement(
     bool IfNotExists = false) : SqlStatement;
 
 /// <summary>
-/// <c>CREATE TABLE [IF NOT EXISTS] name (col TYPE [NULL|NOT NULL], ..., PRIMARY KEY (...))</c>。
+/// <c>CREATE TABLE [IF NOT EXISTS] name (col TYPE [NULL|NOT NULL] [ROWVERSION], ..., PRIMARY KEY (...), FOREIGN KEY (...) REFERENCES ... (...))</c>。
 /// </summary>
 /// <param name="Name">关系表名称。</param>
 /// <param name="Columns">列定义（按声明顺序）。</param>
 /// <param name="PrimaryKey">主键列名（按声明顺序）。</param>
 /// <param name="IfNotExists">是否带 <c>IF NOT EXISTS</c> 修饰；为 <c>true</c> 时同名表已存在则视为成功。</param>
+/// <param name="ForeignKeys">表级外键声明。</param>
 public sealed record CreateTableStatement(
     string Name,
     IReadOnlyList<TableColumnDefinition> Columns,
     IReadOnlyList<string> PrimaryKey,
-    bool IfNotExists = false) : SqlStatement;
+    bool IfNotExists = false,
+    IReadOnlyList<TableForeignKeyClause>? ForeignKeys = null) : SqlStatement
+{
+    /// <summary>当前表级外键声明。</summary>
+    public IReadOnlyList<TableForeignKeyClause> ForeignKeyClauses { get; } = ForeignKeys ?? Array.Empty<TableForeignKeyClause>();
+}
+
+/// <summary>关系表表级外键声明。</summary>
+/// <param name="Columns">本表外键列名。</param>
+/// <param name="PrincipalTable">被引用表名。</param>
+/// <param name="PrincipalColumns">被引用列名；第一版要求等于被引用表主键。</param>
+public sealed record TableForeignKeyClause(
+    IReadOnlyList<string> Columns,
+    string PrincipalTable,
+    IReadOnlyList<string> PrincipalColumns);
 
 /// <summary>
 /// <c>CREATE DOCUMENT COLLECTION [IF NOT EXISTS] name</c>。
@@ -118,10 +133,12 @@ public sealed record CreateFullTextIndexStatement(
 /// <param name="Name">列名。</param>
 /// <param name="DataType">列数据类型。</param>
 /// <param name="Nullability">列空值修饰符；主键列执行时始终强制为 NOT NULL。</param>
+/// <param name="IsRowVersion">是否为乐观并发版本列；执行层自动维护。</param>
 public sealed record TableColumnDefinition(
     string Name,
     SqlDataType DataType,
-    ColumnNullability Nullability = ColumnNullability.Unspecified);
+    ColumnNullability Nullability = ColumnNullability.Unspecified,
+    bool IsRowVersion = false);
 
 /// <summary>
 /// <c>ALTER TABLE table ADD COLUMN col TYPE [NULL|NOT NULL] [DEFAULT expr]</c>。

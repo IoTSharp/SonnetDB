@@ -282,6 +282,7 @@ public sealed class SqlParser
 
         var columns = new List<TableColumnDefinition>();
         var primaryKey = new List<string>();
+        var foreignKeys = new List<TableForeignKeyClause>();
         while (true)
         {
             if (Current.Kind == TokenKind.KeywordPrimary)
@@ -289,6 +290,10 @@ public sealed class SqlParser
                 if (primaryKey.Count > 0)
                     throw Error("PRIMARY KEY 子句重复声明");
                 primaryKey.AddRange(ParsePrimaryKeyClause());
+            }
+            else if (Current.Kind == TokenKind.KeywordForeign)
+            {
+                foreignKeys.Add(ParseForeignKeyClause());
             }
             else
             {
@@ -305,7 +310,7 @@ public sealed class SqlParser
         }
 
         Expect(TokenKind.RightParen);
-        return new CreateTableStatement(name, columns, primaryKey, ifNotExists);
+        return new CreateTableStatement(name, columns, primaryKey, ifNotExists, foreignKeys);
     }
 
     private TableColumnDefinition ParseTableColumnDefinition()
@@ -314,11 +319,15 @@ public sealed class SqlParser
         var dataType = ParseTableDataType();
         ColumnNullability nullability = ColumnNullability.Unspecified;
         SqlExpression? defaultExpression = null;
-        ParseTableColumnModifiers(ref nullability, ref defaultExpression);
+        var isRowVersion = false;
+        ParseTableColumnModifiers(ref nullability, ref defaultExpression, ref isRowVersion);
         if (defaultExpression is not null)
             throw Error("CREATE TABLE 当前不支持列 DEFAULT；请在后续 ALTER TABLE ADD COLUMN 中使用 DEFAULT");
 
-        return new TableColumnDefinition(columnName, dataType, nullability);
+        if (isRowVersion && dataType != SqlDataType.Int64)
+            throw Error("ROWVERSION 列必须使用 INT 类型");
+
+        return new TableColumnDefinition(columnName, dataType, nullability, isRowVersion);
     }
 
     private AlterTableAddColumnStatement ParseAlterTableAddColumn(string tableName)
@@ -330,13 +339,17 @@ public sealed class SqlParser
         var dataType = ParseTableDataType();
         ColumnNullability nullability = ColumnNullability.Unspecified;
         SqlExpression? defaultExpression = null;
-        ParseTableColumnModifiers(ref nullability, ref defaultExpression);
+        var isRowVersion = false;
+        ParseTableColumnModifiers(ref nullability, ref defaultExpression, ref isRowVersion);
+        if (isRowVersion)
+            throw Error("ALTER TABLE ADD COLUMN 当前不支持新增 ROWVERSION 列");
         return new AlterTableAddColumnStatement(tableName, columnName, dataType, nullability, defaultExpression);
     }
 
     private void ParseTableColumnModifiers(
         ref ColumnNullability nullability,
-        ref SqlExpression? defaultExpression)
+        ref SqlExpression? defaultExpression,
+        ref bool isRowVersion)
     {
         while (true)
         {
@@ -360,6 +373,17 @@ public sealed class SqlParser
                     defaultExpression = ParseExpression();
                     continue;
 
+                case TokenKind.KeywordRowVersion:
+                    if (isRowVersion)
+                        throw Error("ROWVERSION 子句重复声明");
+                    isRowVersion = true;
+                    if (nullability == ColumnNullability.Nullable)
+                        throw Error("ROWVERSION 列不允许声明 NULL");
+                    if (nullability == ColumnNullability.Unspecified)
+                        nullability = ColumnNullability.NotNull;
+                    Advance();
+                    continue;
+
                 default:
                     return;
             }
@@ -379,6 +403,31 @@ public sealed class SqlParser
         }
         Expect(TokenKind.RightParen);
         return columns;
+    }
+
+    private TableForeignKeyClause ParseForeignKeyClause()
+    {
+        Expect(TokenKind.KeywordForeign);
+        Expect(TokenKind.KeywordKey);
+        Expect(TokenKind.LeftParen);
+        var columns = new List<string> { ExpectColumnName() };
+        while (Current.Kind == TokenKind.Comma)
+        {
+            Advance();
+            columns.Add(ExpectColumnName());
+        }
+        Expect(TokenKind.RightParen);
+        Expect(TokenKind.KeywordReferences);
+        var principalTable = ExpectIdentifierName();
+        Expect(TokenKind.LeftParen);
+        var principalColumns = new List<string> { ExpectColumnName() };
+        while (Current.Kind == TokenKind.Comma)
+        {
+            Advance();
+            principalColumns.Add(ExpectColumnName());
+        }
+        Expect(TokenKind.RightParen);
+        return new TableForeignKeyClause(columns, principalTable, principalColumns);
     }
 
     private SqlDataType ParseTableDataType()
