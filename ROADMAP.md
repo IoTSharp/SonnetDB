@@ -637,13 +637,17 @@ extensions/
 | #112 | **关系查询能力补齐一：表表 JOIN / 子查询 / 聚合**：在 table executor 增加 table-table inner join、基础 left join、`COUNT/SUM/MIN/MAX/AVG`、`GROUP BY column`、`HAVING`、`IN`、`EXISTS`、简单子查询；保证 IoTSharp 常见 `Include`、权限过滤、分页统计能翻译。当前已落表表连续 `INNER JOIN`、派生表、WHERE 标量子查询和基础 GROUP BY 聚合；outer join / HAVING / IN / EXISTS 留后续 provider 兼容压测补齐。 | ✅ |
 | #113 | **关系事务能力补齐二：跨表小事务与约束**：实现同一数据库内多表 DML 的原子提交与回滚；补唯一约束、外键约束的第一版校验策略、乐观并发列、并发冲突错误码；明确隔离级别边界。 | ✅ |
 | #114 | **SonnetDB.EntityFrameworkCore Provider MVP**：新增 EF Core provider 包，包含 `UseSonnetDB(...)`、SQL generator、type mapping、migrations SQL generator、query translation 基础能力；先通过 provider 自测与最小 `DbContext` CRUD、Identity 子集、迁移创建/回滚测试。 | ✅ |
-| #115 | **IoTSharp.ApplicationDbContext 兼容适配**：在 IoTSharp 增加 `IoTSharp.Data.SonnetDB` storage 扩展，跑通 `ApplicationDbContext` schema 创建、Identity 登录、租户/客户/设备/资产/规则 CRUD、`Include`、分页、常用查询和 `SaveChanges` 事务；形成不支持清单。 | 📋 |
+| #115 | **IoTSharp EF migrations history 与 ApplicationDbContext 兼容适配**：优先补齐 SonnetDB EF provider 的 migrations history 支持（`__EFMigrationsHistory` 或等价可配置历史表），让 `Database.Migrate()`、迁移升级、回滚、重复执行幂等检查和空库初始化成为 #115 的入口验收；随后在 IoTSharp 增加 `IoTSharp.Data.SonnetDB` storage 扩展，跑通 `ApplicationDbContext` schema 创建、Identity 登录、租户/客户/设备/资产/规则 CRUD、`Include`、分页、常用查询和 `SaveChanges` 事务；形成不支持清单。 | 📋 |
 | #116 | **KV TTL 与缓存 Provider**：在 KV keyspace 增加 expires-at metadata、惰性过期 + 后台清理、命名空间、批量 get/set/remove、前缀删除和过期统计；新增 EasyCaching provider 与可选 `IDistributedCache` provider；IoTSharp 可新增 `CachingUseIn=SonnetDB` 作为 Redis/LiteDB/InMemory 之外的选择。 | 📋 |
 | #117 | **S3-compatible Bucket API 第一版**：新增 bucket/object metadata 表、multipart upload 会话、etag/sha256、range read、copy object、delete marker、object tags、presigned URL；HTTP API 对齐 S3 常用子集，先覆盖 IoTSharp BlobStorage、固件、附件、工件和备份对象。 | 📋 |
 | #118 | **对象生命周期、版本、审计与配额**：补 bucket policy、retention/lifecycle、object versioning、legal hold 占位、访问审计、容量统计和 quota；Web Admin 增加 Buckets / Objects / Multipart / Audit 页面。 | 📋 |
 | #119 | **IoTSharp SonnetDB Profile**：提供 `appsettings.SonnetDB.json`、Docker Compose、健康检查和配置说明；用户可选择关系库、遥测库、缓存、对象桶走 SonnetDB；保留 PostgreSQL/Redis/S3 等既有 Profile，支持一键切回。 | 📋 |
 | #120 | **迁移、双写与一致性校验工具**：新增 `sndb iotsharp migrate` / `verify` / `rollback` 工具，支持关系库、时序库、缓存 key、对象桶 metadata/content 迁移；支持 IoTSharp 显式选择 SonnetDB 时的双写模式、采样校验、一致性报告和失败回滚。 | 📋 |
 | #121 | **长稳、压测和故障恢复报告**：新增 7x24 小时 IoTSharp SonnetDB Profile 长稳脚本，覆盖 EF Core CRUD、遥测批量写入、缓存 TTL、对象 multipart、备份恢复、断电恢复、升级回滚；输出容量边界、性能曲线和生产建议。 | 📋 |
+| #122 | **大量物理分表文件布局与启动扫描优化**：面向大量 measurement / 大量 segment 场景，设计并实现分层 segment 目录布局（例如按 segmentId 前缀或时间桶拆分）、目录枚举兼容层、备份扫描优化、旧段清理策略和布局迁移工具；保留旧 `segments/{id}.SDBSEG` 读取兼容。 | 📋 |
+| #123 | **Compaction manifest 与重复段恢复**：为 compaction 引入 manifest 或等价 superseded segment 状态，记录 source segments、target segment、提交阶段和清理阶段；启动时根据 manifest 忽略或清理被替代旧段，解决 crash after swap before delete 后新旧段同时加载导致重复数据的问题。 | 📋 |
+| #124 | **SegmentManager 增量索引与后台维护成本控制**：将 `AddSegment` / `SwapSegments` 从全量重建索引快照优化为增量更新或分层索引发布；补充大量 segment 下 flush、compaction、retention、query 并发时的 CPU、内存和暂停时间基准。 | 📋 |
+| #125 | **大量 measurement / 长稳专项套件**：新增百万级 series、万级 measurement、海量小 segment、随机重启、后台 flush/compaction/retention 并发、重复数据检测和恢复时间统计；输出“能改善什么、不能改善什么”的容量边界报告。 | 📋 |
 
 ### 推进顺序
 
@@ -654,26 +658,33 @@ extensions/
   → #112（查询能力）
   → #113（跨表事务 / 约束）
   → #114（EF Core provider MVP）
-  → #115（IoTSharp ApplicationDbContext 兼容）
+  → #115（EF migrations history / IoTSharp ApplicationDbContext 兼容）
   → #116（KV TTL / 缓存 Provider）
   → #117（S3 API）
   → #118（对象治理）
   → #119（SonnetDB Profile）
   → #120（迁移 / 双写 / 回滚）
   → #121（长稳 / 压测 / 报告）
+  → #122（大量物理分表文件布局）
+  → #123（Compaction manifest / 重复段恢复）
+  → #124（增量索引 / 后台维护成本）
+  → #125（大量 measurement / 长稳专项）
 ```
 
 ### 验收标准
 
 - `TelemetryStorage=SonnetDB` 可通过 IoTSharp 遥测写入、最新值、历史查询和聚合回归；
 - `CachingUseIn=SonnetDB` 可通过 IoTSharp 现有 EasyCaching 调用路径，TTL 行为与 Redis/LiteDB/InMemory 有明确兼容矩阵，并作为新增选择存在；
-- `DataBase=SonnetDB` 可通过 IoTSharp `ApplicationDbContext` 迁移、Identity 登录、租户/客户/设备/资产/规则 CRUD 和核心查询；
+- `DataBase=SonnetDB` 可通过 IoTSharp `ApplicationDbContext` 迁移历史表创建、迁移升级/回滚、重复迁移幂等检查、Identity 登录、租户/客户/设备/资产/规则 CRUD 和核心查询；
 - S3-compatible API 可通过 IoTSharp BlobStorage 的上传、下载、删除、range read、multipart、presigned URL、审计回归；
 - 向量搜索可通过 `VECTOR(N)`、KNN、向量索引重建、topK/distance 校验和租户/标签/时间过滤回归；
 - 全文搜索可通过全文索引创建/删除/展示、中文/英文查询、BM25 排序、分页和索引重建回归；
 - 迁移工具支持从 PostgreSQL/MySQL/SQLite + Redis/LiteDB + InfluxDB/TimescaleDB/Taos + 文件系统/S3 迁入，并可生成校验报告；
 - SonnetDB Profile 必须支持双写校验和回滚，不能要求生产环境一次性切换；
 - 长稳报告明确 SonnetDB Profile 的适用规模、单机边界、边缘部署边界和仍建议使用外部 PostgreSQL/Redis/S3 的场景。
+- 大量物理分表场景必须覆盖启动目录扫描、备份枚举、compaction 清理、retention 删除和单目录文件数量上限，不再只以功能测试证明可用。
+- Compaction 恢复必须证明崩溃后不会重复加载 source + target 段；若选择保守恢复，也必须有明确的重复检测与修复流程。
+- 当前不把 IoTSharp 每设备 measurement 改为共享 measurement + `deviceId` TAG 作为默认路线；SonnetDB 侧优化应优先兼容现有物理分表/多 measurement 模式。
 
 ---
 
@@ -700,10 +711,10 @@ extensions/
 | 16 | Copilot 产品化升级（嵌入式 AI 助手 UX） | #78 ~ #88 | ✅ |
 | 17 | 可观测性与运行时可见性（OTel + 结构化日志 + 诊断端点） | #89 ~ #98 | 📋 |
 | 18 | VS Code 数据库扩展（SonnetDB for VS Code） | #99 ~ #108 | 🚧（#99 骨架与规划已落目录） |
-| 19 | IoTSharp 生态数据底座选项（关系 + 时序 + KV/缓存 + S3 + 搜索） | #109 ~ #121 | 🚧（#109 基线已落，#110/#111 已完成） |
+| 19 | IoTSharp 生态数据底座选项（关系 + 时序 + KV/缓存 + S3 + 搜索 + 大量物理分表长稳） | #109 ~ #125 | 🚧（#109 基线已落，#110/#111 已完成） |
 | MM9 | 多模型统一备份、恢复和管理工具第一批 | BackupService + sndb backup | ✅ |
 
-**当前推进顺序**：Milestone 14（Copilot）与 Milestone 16（Copilot 产品化升级）均已合并；当前主线转向 **Milestone 17（可观测性与运行时可见性）**，从 PR #89（Core Meter / ActivitySource 基线）起步。Milestone 15（地理空间）已完成并收尾。**Milestone 18（VS Code 扩展）** 也可并行推进，建议先以 `#99 ~ #103` 打出第一个“远程连接 + Explorer + SQL + 结果视图”闭环。**Milestone 19（IoTSharp 生态数据底座选项）** 已纳入正式规划，建议从 #109 兼容矩阵开始，不跳过 ADO.NET 事务、DDL、EF Core provider 和迁移/回滚验证。SonnetDBEE C5.7 / MM9 的开源核心第一批已提供 `BackupService` 和 `sndb backup create/inspect/verify/restore`，企业级定时、增量、审计和 UI 编排继续由 SonnetDBEE 承接。
+**当前推进顺序**：Milestone 14（Copilot）与 Milestone 16（Copilot 产品化升级）均已合并；当前主线转向 **Milestone 17（可观测性与运行时可见性）**，从 PR #89（Core Meter / ActivitySource 基线）起步。Milestone 15（地理空间）已完成并收尾。**Milestone 18（VS Code 扩展）** 也可并行推进，建议先以 `#99 ~ #103` 打出第一个“远程连接 + Explorer + SQL + 结果视图”闭环。**Milestone 19（IoTSharp 生态数据底座选项）** 已纳入正式规划，建议从 #109 兼容矩阵开始，不跳过 ADO.NET 事务、DDL、EF Core provider、迁移/回滚验证，以及 #122 ~ #125 的大量物理分表、文件布局、compaction 恢复和长稳专项。SonnetDBEE C5.7 / MM9 的开源核心第一批已提供 `BackupService` 和 `sndb backup create/inspect/verify/restore`，企业级定时、增量、审计和 UI 编排继续由 SonnetDBEE 承接。
 
 ---
 
@@ -723,7 +734,7 @@ extensions/
 12. **新增 Milestone 15 — 地理空间类型与轨迹分析**：引入原生 `GEOPOINT` 字段类型（`FieldType.GeoPoint = 6`，lat/lon 各 8 字节 little-endian，`SegmentFormatVersion` v4）；Tier 1 地理标量函数（`geo_distance` / `geo_bearing` / `geo_within` / `geo_bbox` / `geo_speed`，含 PostGIS 兼容别名）；Tier 2 轨迹聚合函数（`trajectory_length` / `trajectory_centroid` / `trajectory_bbox` / 速度统计）；GeoJSON 序列化 + `GET /v1/db/{db}/geo/{measurement}/trajectory` 端点；Vue3 Web Admin 轨迹地图标签页（MapLibre GL + ECharts 时间轴联动）；SQL 控制台三视图（表格 / 图表 / 地图）；Geohash 段内剪枝索引（`SegmentFormatVersion` v5）。全程遵守 Safe-only 与零第三方运行时依赖原则。
 13. **新增 Milestone 17 — 可观测性与运行时可见性**：为 SonnetDB 补齐生产可运维三大支柱（指标 / 追踪 / 日志）。`SonnetDB.Core` 继续堅持**零运行时第三方依赖**，仅用 BCL `System.Diagnostics.Metrics` / `ActivitySource` 提供 Meter 与 Activity；OpenTelemetry SDK / Prometheus Exporter 仅出现在 `src/SonnetDB`（Server 程序集）。附带交付：Slow Query Log 与 Top-N 查询统计、Diagnostic Dump 端点、Health Live/Ready 拆分、Copilot token / tool 调用量指标与服务端会话持久化（M16 M5 二阶段）、Web Admin 内嵌监控面板（零图表第三方）。docker-compose 补 `profile: observability` 依需启动 `otel-collector` + `prometheus` + `grafana` 供本地联调。
 14. **细化原 Milestone 10 的 #40 占位需求为独立的 Milestone 18 — VS Code 数据库扩展**：保留 `#40` 作为 Epic，占位层面明确为“SonnetDB for VS Code”；具体实现拆分为 `#99 ~ #108`，采用 **TypeScript-first + Remote-first** 路线，首版直接复用现有 `/v1/db`、`/v1/db/{db}/schema`、`/v1/db/{db}/sql`、`/v1/copilot/chat/stream` 等 HTTP contract。本地目录支持不走 Node 直嵌引擎，而是后续通过“扩展托管本地 SonnetDB Server”方式接入，降低 VS Code 宿主与 .NET 运行时耦合。
-15. **新增 Milestone 19 — IoTSharp 生态数据底座选项**：把 SonnetDB 从“时序 + 管理后台 + Copilot”扩展为 IoTSharp 的可选数据底座。该里程碑覆盖关系型数据库、时序数据库、KV/缓存、S3-compatible 对象桶、向量搜索和全文搜索六条线，并把 EF Core provider、EasyCaching/IDistributedCache provider、S3 API、搜索索引生命周期、迁移双写、长稳压测作为同等重要的交付物。路线明确要求先做兼容矩阵和回滚策略，避免把不完整 table/KV/搜索能力过早宣称为 PostgreSQL/Redis/S3/搜索后端的生产级完整兼容。
+15. **新增 Milestone 19 — IoTSharp 生态数据底座选项**：把 SonnetDB 从“时序 + 管理后台 + Copilot”扩展为 IoTSharp 的可选数据底座。该里程碑覆盖关系型数据库、时序数据库、KV/缓存、S3-compatible 对象桶、向量搜索、全文搜索和大量物理分表长稳七条线，并把 EF Core provider、EasyCaching/IDistributedCache provider、S3 API、搜索索引生命周期、迁移双写、分层文件布局、compaction manifest、长稳压测作为同等重要的交付物。路线明确要求先做兼容矩阵和回滚策略，避免把不完整 table/KV/搜索能力过早宣称为 PostgreSQL/Redis/S3/搜索后端的生产级完整兼容。
 
 
 
