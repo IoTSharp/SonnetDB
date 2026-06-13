@@ -124,7 +124,16 @@ public sealed class SndbDataReader : DbDataReader
     public override float GetFloat(int ordinal) => Convert.ToSingle(GetValue(ordinal), CultureInfo.InvariantCulture);
 
     /// <inheritdoc />
-    public override Guid GetGuid(int ordinal) => (Guid)GetValue(ordinal);
+    public override Guid GetGuid(int ordinal)
+    {
+        var value = GetValue(ordinal);
+        return value switch
+        {
+            Guid guid => guid,
+            string text => Guid.Parse(text),
+            _ => (Guid)value
+        };
+    }
 
     /// <inheritdoc />
     public override short GetInt16(int ordinal) => Convert.ToInt16(GetValue(ordinal), CultureInfo.InvariantCulture);

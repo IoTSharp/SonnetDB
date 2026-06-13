@@ -261,7 +261,7 @@ public sealed record SelectStatement(
 }
 
 /// <summary>
-/// <c>JOIN table [AS] alias ON expr</c> 子句。
+/// <c>[INNER|LEFT] JOIN table [AS] alias ON expr</c> 子句。
 /// </summary>
 /// <param name="TableName">被 JOIN 的关系表名。</param>
 /// <param name="Alias">关系表别名；未显式声明时为 <paramref name="TableName"/>。</param>
@@ -270,7 +270,17 @@ public sealed record JoinClause(
     string TableName,
     string Alias,
     SqlExpression On,
-    SelectStatement? Subquery = null);
+    SelectStatement? Subquery = null,
+    JoinKind Kind = JoinKind.Inner);
+
+/// <summary>JOIN 类型。</summary>
+public enum JoinKind
+{
+    /// <summary>内连接。</summary>
+    Inner,
+    /// <summary>左外连接。</summary>
+    Left
+}
 
 /// <summary>排序方向。</summary>
 public enum SortDirection

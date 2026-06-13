@@ -18,6 +18,8 @@ public sealed class SonnetDbTypeMappingSource : RelationalTypeMappingSource
     private static readonly StringTypeMapping String = new("STRING", DbType.String);
     private static readonly ByteArrayTypeMapping Bytes = new("BLOB");
     private static readonly DateTimeTypeMapping DateTime = new("DATETIME");
+    private static readonly DateTimeOffsetTypeMapping DateTimeOffset = new("DATETIME", DbType.DateTimeOffset);
+    private static readonly GuidTypeMapping Guid = new("STRING", DbType.Guid);
 
     private static readonly Dictionary<string, RelationalTypeMapping> StoreTypeMappings = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -46,8 +48,8 @@ public sealed class SonnetDbTypeMappingSource : RelationalTypeMappingSource
         [typeof(string)] = String,
         [typeof(byte[])] = Bytes,
         [typeof(DateTime)] = DateTime,
-        [typeof(DateTimeOffset)] = String,
-        [typeof(Guid)] = String
+        [typeof(DateTimeOffset)] = DateTimeOffset,
+        [typeof(Guid)] = Guid
     };
 
     /// <summary>
@@ -65,16 +67,16 @@ public sealed class SonnetDbTypeMappingSource : RelationalTypeMappingSource
     /// <inheritdoc />
     protected override RelationalTypeMapping? FindMapping(in RelationalTypeMappingInfo mappingInfo)
     {
-        if (mappingInfo.StoreTypeName is { } storeType
-            && StoreTypeMappings.TryGetValue(storeType, out var storeTypeMapping))
-        {
-            return storeTypeMapping;
-        }
-
         if (mappingInfo.ClrType is { } clrType
             && ClrTypeMappings.TryGetValue(Nullable.GetUnderlyingType(clrType) ?? clrType, out var clrTypeMapping))
         {
             return clrTypeMapping;
+        }
+
+        if (mappingInfo.StoreTypeName is { } storeType
+            && StoreTypeMappings.TryGetValue(storeType, out var storeTypeMapping))
+        {
+            return storeTypeMapping;
         }
 
         return base.FindMapping(mappingInfo);

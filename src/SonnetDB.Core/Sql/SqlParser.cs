@@ -873,7 +873,17 @@ public sealed class SqlParser
     {
         Expect(TokenKind.KeywordSelect);
         var projections = ParseSelectList();
-        Expect(TokenKind.KeywordFrom);
+
+        if (Current.Kind != TokenKind.KeywordFrom)
+        {
+            return new SelectStatement(
+                projections,
+                string.Empty,
+                Where: null,
+                GroupBy: Array.Empty<SqlExpression>());
+        }
+
+        Advance();
 
         // FROM 后允许两种形式：
         //   1) 普通 measurement/table 标识符
@@ -1022,17 +1032,26 @@ public sealed class SqlParser
         {
             Advance();
             Expect(TokenKind.KeywordJoin);
-            return ParseJoinClauseTail();
+            return ParseJoinClauseTail(JoinKind.Inner);
+        }
+
+        if (Current.Kind == TokenKind.KeywordLeft)
+        {
+            Advance();
+            if (Current.Kind == TokenKind.KeywordOuter)
+                Advance();
+            Expect(TokenKind.KeywordJoin);
+            return ParseJoinClauseTail(JoinKind.Left);
         }
 
         if (Current.Kind != TokenKind.KeywordJoin)
             return null;
 
         Advance();
-        return ParseJoinClauseTail();
+        return ParseJoinClauseTail(JoinKind.Inner);
     }
 
-    private JoinClause ParseJoinClauseTail()
+    private JoinClause ParseJoinClauseTail(JoinKind kind)
     {
         string tableName;
         SelectStatement? subquery = null;
@@ -1053,7 +1072,7 @@ public sealed class SqlParser
             : tableName;
         Expect(TokenKind.KeywordOn);
         var on = ParseExpression();
-        return new JoinClause(tableName, alias, on, subquery);
+        return new JoinClause(tableName, alias, on, subquery, kind);
     }
 
     private OrderBySpec? ParseOptionalOrderBy()
@@ -1439,11 +1458,22 @@ public sealed class SqlParser
             case TokenKind.KeywordCollection:
             case TokenKind.KeywordMeasurement:
                 return ParseIdentifierOrFunctionCall();
+            case TokenKind.KeywordExists:
+                return ParseExistsExpression();
             case TokenKind.IdentifierLiteral:
                 return ParseIdentifierOrFunctionCall();
             default:
                 throw Error("期望表达式");
         }
+    }
+
+    private ExistsExpression ParseExistsExpression()
+    {
+        Expect(TokenKind.KeywordExists);
+        Expect(TokenKind.LeftParen);
+        var subquery = ParseSelect();
+        Expect(TokenKind.RightParen);
+        return new ExistsExpression(subquery);
     }
 
     private SqlExpression ParseIdentifierOrFunctionCall()

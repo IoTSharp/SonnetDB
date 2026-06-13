@@ -75,6 +75,10 @@ public enum TokenKind
     KeywordJoin,
     /// <summary>INNER（可选 INNER JOIN 修饰词）。</summary>
     KeywordInner,
+    /// <summary>LEFT（LEFT JOIN 修饰词）。</summary>
+    KeywordLeft,
+    /// <summary>OUTER（可选 LEFT OUTER JOIN 修饰词）。</summary>
+    KeywordOuter,
     KeywordWhere,
     KeywordGroup,
     KeywordBy,

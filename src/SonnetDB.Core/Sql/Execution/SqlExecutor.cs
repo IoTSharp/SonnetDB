@@ -636,7 +636,9 @@ public static class SqlExecutor
             : null;
         if (HybridSearchExecutor.IsHybridSearch(statement))
             return HybridSearchExecutor.Execute(tsdb, statement);
-        if (RelationalSelectExecutor.NeedsRelationalPath(statement)
+        if (string.IsNullOrEmpty(statement.Measurement) && statement.FromSubquery is null)
+            return RelationalSelectExecutor.Execute(tsdb, statement);
+        if ((RelationalSelectExecutor.NeedsRelationalPath(statement) || statement.JoinClauses.Count != 0)
             && (statement.FromSubquery is not null || tableSchema is not null))
         {
             return RelationalSelectExecutor.Execute(tsdb, statement);

@@ -23,7 +23,7 @@ internal static class RelationalSelectExecutor
         foreach (var join in statement.JoinClauses)
         {
             var right = LoadJoin(tsdb, join);
-            relation = Join(tsdb, relation, right, join.On);
+            relation = Join(tsdb, relation, right, join.On, join.Kind);
         }
 
         if (statement.Where is not null)
@@ -53,6 +53,9 @@ internal static class RelationalSelectExecutor
 
     private static Relation LoadFrom(Tsdb tsdb, SelectStatement statement)
     {
+        if (string.IsNullOrEmpty(statement.Measurement) && statement.FromSubquery is null)
+            return new Relation(Array.Empty<RelColumn>(), [Array.Empty<object?>()]);
+
         var alias = statement.TableAlias ?? statement.Measurement;
         if (statement.FromSubquery is not null)
             return LoadSubquery(tsdb, statement.FromSubquery, alias);
@@ -96,19 +99,30 @@ internal static class RelationalSelectExecutor
         return new Relation(columns, rows);
     }
 
-    private static Relation Join(Tsdb tsdb, Relation left, Relation right, SqlExpression on)
+    private static Relation Join(Tsdb tsdb, Relation left, Relation right, SqlExpression on, JoinKind kind)
     {
         var columns = left.Columns.Concat(right.Columns).ToArray();
         var rows = new List<object?[]>();
         foreach (var leftRow in left.Rows)
         {
+            var matched = false;
             foreach (var rightRow in right.Rows)
             {
                 var row = new object?[leftRow.Length + rightRow.Length];
                 Array.Copy(leftRow, row, leftRow.Length);
                 Array.Copy(rightRow, 0, row, leftRow.Length, rightRow.Length);
                 if (EvaluateBoolean(tsdb, on, columns, row))
+                {
+                    matched = true;
                     rows.Add(row);
+                }
+            }
+
+            if (!matched && kind == JoinKind.Left)
+            {
+                var row = new object?[leftRow.Length + right.Columns.Count];
+                Array.Copy(leftRow, row, leftRow.Length);
+                rows.Add(row);
             }
         }
 
@@ -314,6 +328,7 @@ internal static class RelationalSelectExecutor
             BinaryExpression binary when IsArithmeticOperator(binary.Operator) => EvaluateArithmetic(tsdb, binary, columns, row),
             FunctionCallExpression function => EvaluateFunction(tsdb, function, columns, row),
             SubqueryExpression subquery => EvaluateScalarSubquery(tsdb, subquery),
+            ExistsExpression exists => EvaluateExists(tsdb, exists),
             _ => throw new InvalidOperationException($"关系表表达式暂不支持 '{expression.GetType().Name}'。"),
         };
     }
@@ -371,6 +386,14 @@ internal static class RelationalSelectExecutor
         if (result.Rows.Count > 1)
             throw new InvalidOperationException("标量子查询最多只能返回一行。");
         return result.Rows[0][0];
+    }
+
+    private static bool EvaluateExists(Tsdb? tsdb, ExistsExpression exists)
+    {
+        if (tsdb is null)
+            throw new InvalidOperationException("EXISTS 子查询需要数据库上下文。");
+
+        return SqlExecutor.ExecuteSelect(tsdb, exists.Select).Rows.Count != 0;
     }
 
     private static object? GetColumnValue(
@@ -463,6 +486,7 @@ internal static class RelationalSelectExecutor
         => expression switch
         {
             SubqueryExpression => true,
+            ExistsExpression => true,
             UnaryExpression unary => ContainsSubquery(unary.Operand),
             BinaryExpression binary => ContainsSubquery(binary.Left) || ContainsSubquery(binary.Right),
             FunctionCallExpression function => function.Arguments.Any(ContainsSubquery),

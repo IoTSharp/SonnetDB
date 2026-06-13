@@ -93,6 +93,10 @@ public sealed record NamedArgumentExpression(
 /// <param name="Select">子查询 SELECT 语句。</param>
 public sealed record SubqueryExpression(SelectStatement Select) : SqlExpression;
 
+/// <summary><c>EXISTS (SELECT ...)</c> 谓词表达式。</summary>
+/// <param name="Select">用于判定是否至少返回一行的子查询。</param>
+public sealed record ExistsExpression(SelectStatement Select) : SqlExpression;
+
 /// <summary>二元运算表达式。</summary>
 /// <param name="Operator">运算符。</param>
 /// <param name="Left">左操作数。</param>

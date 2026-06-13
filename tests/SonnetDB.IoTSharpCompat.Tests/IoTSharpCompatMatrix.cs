@@ -111,6 +111,14 @@ internal static class IoTSharpCompatMatrix
         "object rollback by switching BlobStorage or S3 connection string back",
         "search index rebuild from source documents and embeddings"
     ];
+
+    public static IReadOnlyList<string> RelationalSonnetDbUnsupported { get; } =
+    [
+        "ShardingCore table sharding is not wired to SonnetDB; TelemetryStorage=Sharding must keep using MySQL, SQLServer, Oracle, SQLite or PostgreSQL.",
+        "HealthChecks UI does not yet have durable SonnetDB storage; IoTSharp.Data.SonnetDB currently uses in-memory HealthChecks UI storage.",
+        "Full IoTSharp EF Core migrations history has no checked-in IoTSharp.Data.SonnetDB migrations history yet; PR #115 validates schema creation with EnsureCreated and provider DDL, not production migration upgrade/rollback.",
+        "String pattern method translation for StartsWith, EndsWith and Contains is not supported until SonnetDB SQL adds LIKE or equivalent string predicates."
+    ];
 }
 
 internal sealed record CompatDomain(

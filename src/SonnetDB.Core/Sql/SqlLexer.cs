@@ -46,6 +46,8 @@ public sealed class SqlLexer
         ["from"] = TokenKind.KeywordFrom,
         ["join"] = TokenKind.KeywordJoin,
         ["inner"] = TokenKind.KeywordInner,
+        ["left"] = TokenKind.KeywordLeft,
+        ["outer"] = TokenKind.KeywordOuter,
         ["where"] = TokenKind.KeywordWhere,
         ["group"] = TokenKind.KeywordGroup,
         ["by"] = TokenKind.KeywordBy,
