@@ -7,6 +7,7 @@
 
 ### Added
 
+- **CI 依赖源码修复**：SonnetDB 仓库新增 `modules/DotVector` 与 `modules/DotSearch` 子模块，并让 CI / Publish / Docker / CodeQL checkout 递归拉取子模块；`SonnetDB.Core` 优先引用仓库内 `modules/` 下的 DotVector / DotSearch 项目，避免独立 OSS CI 缺少全文和向量引擎源码时报 `CS0246`。同时将 MCP 包版本统一到 1.3.0，并让 IoTSharp 兼容测试在外部 IoTSharp 源码不存在时只编译兼容矩阵基线。
 - **PR #117 S3-compatible Bucket API 第一版**：SonnetDB 服务端新增数据库内置对象桶存储，metadata 写入 `__object_storage` KV keyspace，对象内容落盘到数据库目录 `objects/`；提供 bucket/object metadata、etag(MD5)、sha256、range read、copy object、delete marker、object tags、multipart upload、ListObjectsV2 风格列表和 presigned URL。`SonnetDB.Data` 新增 `SndbObjectStorageClient`，统一支持嵌入式与远程 SonnetDB 对象访问；IoTSharp 新增 `SonnetDbBlobStorage` 适配器，可通过 `sonnetdb://?connectionString=...&bucket=...` 让 BlobStorage 使用 SonnetDB 对象桶。
 - **PR #116 KV TTL 与缓存 Provider**：`SonnetDB.Core` 的 KV keyspace 新增 expires-at metadata、惰性过期、`CleanExpired` 后台清理入口、逻辑命名空间、批量 get/set/remove、前缀删除与过期统计；KV WAL / snapshot / segment state 升级到 v2 并兼容 v1 读取。新增 `extensions/SonnetDB.Caching`，提供 SonnetDB KV-backed EasyCaching provider、`IEasyCachingProviderFactory` 适配、可选 `IDistributedCache` provider 和周期过期清理宿主；IoTSharp 可通过 `CachingUseIn=SonnetDB` 作为 Redis / LiteDB / InMemory 之外的缓存选择。
 - **Milestone 19 规划更新**：在 IoTSharp 生态数据底座路线中，将“SonnetDB EF migrations history”明确前置到 PR #115，要求先补 `__EFMigrationsHistory` 或等价可配置历史表，并以 `Database.Migrate()`、迁移升级/回滚、重复执行幂等检查和空库初始化作为 `DataBase=SonnetDB` 接入 `ApplicationDbContext` 前的入口验收。
