@@ -1,6 +1,6 @@
-﻿# SonnetDB.Data
+﻿# SonnetDB
 
-`SonnetDB.Data` 是 SonnetDB 的 ADO.NET 提供程序，统一支持本地嵌入式和远程 `SonnetDB`。
+`SonnetDB` NuGet 包提供 SonnetDB 的 ADO.NET 访问层。源码项目、程序集和命名空间仍为 `SonnetDB.Data`，统一支持本地嵌入式和远程 SonnetDB 连接。
 
 ## 安装
 

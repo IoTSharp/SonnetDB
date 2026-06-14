@@ -43,7 +43,7 @@ SonnetDB 采用嵌入式优先（Embedded-First）设计理念，可在进程内
 ### 部署选项
 
 - **Docker 镜像**：`iotsharp/sonnetdb:latest`（Docker Hub + ghcr.io）
-- **NuGet 包**：`SonnetDB.Core`（嵌入式引擎）、`SonnetDB.Data`（ADO.NET）、`SonnetDB.Cli`（命令行工具）
+- **NuGet 包**：`SonnetDB.Core`（嵌入式引擎）、`SonnetDB`（ADO.NET，命名空间 `SonnetDB.Data`）、`SonnetDB.EntityFrameworkCore`（EF Core Provider）、`SonnetDB.Cli`（命令行工具）
 - **安装器**：Windows MSI、Linux DEB/RPM
 - **CLI 工具**：`sndb` 命令，支持本地/远程、REPL 模式
 

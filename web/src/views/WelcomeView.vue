@@ -12,9 +12,9 @@
       </div>
       <nav class="hero-nav" aria-label="页面导航">
         <button type="button" class="nav-link" @click="scrollToSection('overview')">产品概览</button>
-        <button type="button" class="nav-link" @click="scrollToSection('database')">核心价值</button>
-        <button type="button" class="nav-link" @click="scrollToSection('capabilities')">重点能力</button>
-        <button type="button" class="nav-link" @click="scrollToSection('roadmap')">能力演进</button>
+        <button type="button" class="nav-link" @click="scrollToSection('database')">产品形态</button>
+        <button type="button" class="nav-link" @click="scrollToSection('capabilities')">当前能力</button>
+        <button type="button" class="nav-link" @click="scrollToSection('roadmap')">开发入口</button>
         <button type="button" class="nav-cta" @click="goManage">进入后台</button>
       </nav>
     </header>
@@ -23,16 +23,15 @@
       <section id="overview" class="hero-panel">
         <div class="hero-copy">
           <div class="hero-eyebrow">产品定位</div>
-          <h1>让设备数据、业务指标与智能分析在一套时序数据库里协同工作。</h1>
+          <h1>一套面向设备数据、业务指标和实时分析的时序数据库。</h1>
           <p class="hero-subtitle">
-            SonnetDB 面向工业设备、传感器网络、车联网和智能运维场景，承接来自采集端、网关与上游系统的数据，
-            在统一时序库中完成存储、控制优化、趋势预测、轨迹分析、语义检索与 Copilot 智能协作，
-            帮助客户更快完成从数据接入到分析、从判断到执行的完整闭环。
+            SonnetDB 支持嵌入式和服务端两种运行方式，提供 SQL、ADO.NET、CLI、HTTP API、Web Admin 和多语言连接器。
+            当前版本已经覆盖时序写入查询、关系表、KV、文档、全文、向量、对象桶、消息队列和智能协作等能力。
           </p>
 
           <div class="hero-actions">
-            <button type="button" class="primary-action" @click="scrollToSection('capabilities')">查看重点能力</button>
-            <button type="button" class="secondary-action" @click="scrollToSection('database')">了解产品价值</button>
+            <button type="button" class="primary-action" @click="scrollToSection('capabilities')">查看当前能力</button>
+            <button type="button" class="secondary-action" @click="scrollToSection('database')">了解产品形态</button>
           </div>
 
           <div class="hero-badges" aria-label="产品要点">
@@ -52,31 +51,31 @@
             </div>
             <div class="stage-grid">
               <section class="stage-card stage-card-large">
-                <span class="stage-kicker">产品价值</span>
-                <strong>从实时数据接入、控制优化到预测分析和智能问答，SonnetDB 帮助客户把时间序列数据真正用起来。</strong>
+                <span class="stage-kicker">当前能力</span>
+                <strong>从时序存储、SQL 查询到多模型扩展和管理后台，SonnetDB 提供一套可直接落地的数据库能力。</strong>
                 <p>
-                  无论是设备遥测、能源监测、车辆轨迹还是业务指标，SonnetDB 都能把上游写入的实时数据、分析能力和智能协作整合到统一平台中。
+                  ADO.NET 提供程序通过 `SonnetDB` NuGet 包发布，源码项目和命名空间仍为 `SonnetDB.Data`。
                 </p>
                 <ul class="stage-list">
-                  <li>帮助设备和传感器场景快速实现速率分析、平滑处理、控制优化和结果回写。</li>
-                  <li>帮助业务和运维团队直接完成预测分析、异常识别、统计聚合和趋势判断。</li>
-                  <li>帮助智能应用落地语义检索、地图轨迹分析和 Copilot 自然语言协作。</li>
+                  <li>时序数据支持 SQL 写入、范围查询、聚合、窗口函数和批量导入。</li>
+                  <li>服务端内置用户、授权、Token、备份恢复、健康检查和 Web Admin。</li>
+                  <li>扩展能力覆盖 KV、关系表、JSON 文档、全文、向量、对象桶和消息队列基础功能。</li>
                 </ul>
               </section>
               <section class="stage-card">
-                <span class="stage-kicker">控制优化</span>
-                <strong>PID 控制与回写闭环</strong>
-                <p>支持控制量计算、自动整定和结果回写，让数据库直接服务设备调优和控制回路优化。</p>
+                <span class="stage-kicker">数据面</span>
+                <strong>SQL 与批量写入</strong>
+                <p>支持 INSERT、SELECT、DELETE、Line Protocol、JSON 和 bulk fast path。</p>
               </section>
               <section class="stage-card">
-                <span class="stage-kicker">预测分析</span>
-                <strong>趋势预测与异常识别</strong>
-                <p>支持预测、异常检测、变点识别、速率分析和多种平滑算法，帮助客户更早发现问题、更快做出判断。</p>
+                <span class="stage-kicker">分析</span>
+                <strong>窗口、预测与 PID</strong>
+                <p>内置统计、分位数、速率、平滑、预测、异常检测和控制函数。</p>
               </section>
               <section class="stage-card stage-card-accent">
-                <span class="stage-kicker">智能与时空</span>
-                <strong>语义检索、轨迹分析与 Copilot</strong>
-                <p>支持智能搜索、地图轨迹分析、设备位置洞察和自然语言问答，让数据平台更接近真正可用的智能产品。</p>
+                <span class="stage-kicker">多模型</span>
+                <strong>时空、搜索与对象</strong>
+                <p>支持 GEOPOINT、轨迹分析、全文检索、向量检索、Hybrid Search 和对象桶。</p>
               </section>
             </div>
           </div>
@@ -85,10 +84,10 @@
 
       <section id="database" class="section-panel">
         <div class="section-heading">
-          <span class="hero-eyebrow">核心价值</span>
-          <h2>一套产品覆盖数据接入、分析决策、控制优化与智能协作。</h2>
+          <span class="hero-eyebrow">产品形态</span>
+          <h2>嵌入式、服务端、工具链和管理后台共用同一套存储与 SQL 能力。</h2>
           <p>
-            SonnetDB 将原本分散在数据库、算法服务、地图系统和智能助手中的能力整合到一起，让客户用更低的系统复杂度获得更高的数据价值。
+            本地进程、远程服务、命令行、Web Admin 和客户端 SDK 可以按场景组合使用。
           </p>
         </div>
 
@@ -103,8 +102,8 @@
 
       <section id="capabilities" class="section-panel">
         <div class="section-heading">
-          <span class="hero-eyebrow">重点能力</span>
-          <h2>围绕设备、传感器、轨迹数据和智能运维打造可直接落地的产品能力。</h2>
+          <span class="hero-eyebrow">当前能力</span>
+          <h2>用简洁 SQL 和标准客户端访问时序、多模型、分析和运维能力。</h2>
         </div>
 
         <div class="feature-grid">
@@ -118,8 +117,8 @@
 
       <section id="roadmap" class="section-panel section-panel-tight">
         <div class="section-heading">
-          <span class="hero-eyebrow">能力演进</span>
-          <h2>产品正持续增强高级分析、智能检索、Copilot 和时空分析能力。</h2>
+          <span class="hero-eyebrow">开发入口</span>
+          <h2>从 NuGet、Docker、CLI 或管理后台开始接入 SonnetDB。</h2>
         </div>
 
         <div class="roadmap-grid">
@@ -145,134 +144,129 @@ const setup = useSetupStore();
 
 const heroHighlights = [
   {
-    title: '控制优化',
-    description: '内置 PID、自动整定、速率分析、平滑处理和控制结果回写能力',
+    title: 'NuGet',
+    description: 'ADO.NET 安装包名为 SonnetDB，命名空间为 SonnetDB.Data',
   },
   {
-    title: '预测分析',
-    description: '支持趋势预测、异常识别、统计分析和丰富的时间窗口计算',
+    title: 'SQL',
+    description: '覆盖时序写入查询、聚合、窗口、关系表和 EXPLAIN',
   },
   {
-    title: '向量时空',
-    description: '支持语义检索、位置分析、轨迹洞察和地图联动展示',
+    title: '多模型',
+    description: '提供 KV、关系表、文档、全文、向量、对象桶和消息队列',
   },
   {
-    title: 'Copilot',
-    description: '用自然语言完成查询、解释、排障和知识检索，降低使用门槛',
+    title: '运维',
+    description: '内置 Web Admin、用户授权、Token、备份恢复和健康检查',
   },
 ];
 
 const databaseCards = [
   {
-    kicker: '控制',
-    title: '设备控制优化',
-    description: '支持 PID 控制、自动整定和控制结果回写，帮助客户更快把时序数据接入控制闭环。',
+    kicker: 'Embedded',
+    title: '嵌入式引擎',
+    description: '应用可以直接打开数据库目录，通过 Tsdb、SQL 执行器或 ADO.NET 在进程内访问。',
   },
   {
-    kicker: '传感器',
-    title: '传感器数据分析',
-    description: '支持速率计算、平滑处理、累计变化、状态持续时长和状态切换分析，适合设备监测与运维场景。',
+    kicker: 'Server',
+    title: 'HTTP 服务端',
+    description: '提供远程 SQL、批量写入、认证授权、控制面 API、事件流、健康检查和指标端点。',
   },
   {
-    kicker: '预测',
-    title: '趋势预测与异常预警',
-    description: '支持时间序列预测、异常检测、变点识别和相似走势分析，帮助客户更早发现风险和机会。',
+    kicker: 'Client',
+    title: '客户端与连接器',
+    description: '支持 ADO.NET、CLI、HTTP API，以及 C、Go、Rust、Java、Python、VB6、PureBasic 等连接器。',
   },
   {
-    kicker: '函数',
-    title: '高级统计与自定义分析',
-    description: '支持分位数、直方图、去重统计、滑动窗口和自定义函数扩展，满足行业化分析需求。',
+    kicker: 'Admin',
+    title: 'Web Admin Workbench',
+    description: '提供首次安装、数据库管理、Schema Explorer、SQL Editor、结果表格、图表、轨迹地图和 Copilot 浮窗。',
   },
   {
-    kicker: '向量',
-    title: '语义检索与相似度分析',
-    description: '支持向量数据、相似度搜索和高性能近邻检索，为知识库、推荐和智能问答提供底座。',
+    kicker: 'Package',
+    title: 'NuGet 包名',
+    description: 'ADO.NET 提供程序由 src/SonnetDB.Data 打包发布，但 NuGet 包名是 SonnetDB。',
   },
   {
-    kicker: '时空',
-    title: '位置数据与轨迹分析',
-    description: '支持地理围栏、距离计算、速度统计、轨迹回放和地图联动，适合车联网、物流和移动设备场景。',
-  },
-  {
-    kicker: 'Copilot',
-    title: 'Copilot 智能协作',
-    description: '把知识库、技能库和智能工具接入数据库工作流，让查询、排障、解释和培训更轻松。',
+    kicker: 'Deploy',
+    title: '发布与部署',
+    description: '提供 NuGet、Docker 镜像、SDK Bundle、Server Bundle、Windows MSI 和 Linux 安装包说明。',
   },
 ];
 
 const capabilityCards = [
   {
     index: '01',
-    title: 'PID 控制与自动整定',
-    description: '既能根据历史数据估算控制参数，也能直接输出控制结果，帮助客户缩短调试和投产周期。',
+    title: '时序写入与查询',
+    description: '支持 measurement、tag、field、time 建模，以及 SQL、Line Protocol、JSON 和批量写入。',
   },
   {
     index: '02',
-    title: '控制结果回写',
-    description: '支持把控制计算结果直接回写到时间序列中，方便做回测、联调和自动化闭环验证。',
+    title: 'SQL 与关系表',
+    description: '支持关系表、索引、约束、小事务、JOIN、子查询、聚合和查询计划解释。',
   },
   {
     index: '03',
-    title: '速率与平滑分析',
-    description: '支持速率、增量、累计、移动平均和指数平滑，让设备数据趋势更容易理解和使用。',
+    title: '分析函数',
+    description: '覆盖基础聚合、分位数、直方图、去重统计、差分、速率、积分、补点和平滑处理。',
   },
   {
     index: '04',
-    title: '预测与异常检测',
-    description: '支持未来趋势预测、异常识别、突变检测和相似走势对比，帮助团队提前响应风险。',
+    title: '预测、异常与 PID',
+    description: '支持 forecast、anomaly、changepoint、pid、pid_series 和 pid_estimate 等内置函数。',
   },
   {
     index: '05',
-    title: '高级统计分析',
-    description: '支持均值以外的分位数、中位数、众数、波动分析、直方图和去重统计，适合更复杂的数据分析需求。',
+    title: '地理空间与轨迹',
+    description: '支持 GEOPOINT、距离、方位、围栏、速度、轨迹长度、重心、外包框和 GeoJSON 输出。',
   },
   {
     index: '06',
-    title: '时间窗口与状态分析',
-    description: '支持补点、插值、状态持续时长和状态切换分析，帮助客户更细致地理解设备运行过程。',
+    title: 'KV、文档与搜索',
+    description: '支持 KV keyspace、JSON 文档集合、JSON path、全文索引、向量 KNN 和 Hybrid Search。',
   },
   {
     index: '07',
-    title: '自定义分析扩展',
-    description: '支持把企业自己的算法和分析逻辑接入 SonnetDB，形成更贴合行业场景的专属能力。',
+    title: '对象桶与消息队列',
+    description: '提供 S3-compatible 对象桶基础能力，以及 SonnetMQ 本地消息队列 MVP。',
   },
   {
     index: '08',
-    title: '语义搜索与知识召回',
-    description: '支持向量检索和相似内容召回，为知识库问答、文档搜索和智能应用提供基础能力。',
+    title: '控制面与运维',
+    description: '支持用户、授权、Token、数据库管理、备份恢复、维护接口、健康检查和指标端点。',
   },
   {
     index: '09',
-    title: '地图与轨迹分析',
-    description: '支持位置筛选、距离测算、轨迹里程、速度统计和地图回放，方便做车辆、人员和设备路径分析。',
+    title: '工具链与连接器',
+    description: '提供 ADO.NET、CLI、Web Admin、Docker、C、Go、Rust、Java、Python、VB6 和 PureBasic 连接器。',
   },
   {
     index: '10',
     title: 'Copilot',
-    description: '通过自然语言帮助客户完成数据查询、结果解释、问题定位和知识检索，显著降低使用门槛。',
+    description: '在 Web Admin 中提供全局浮窗，辅助 SQL 生成、解释、修复、排障和知识检索。',
   },
 ];
 
 const roadmapCards = [
   {
-    milestone: '当前可用',
-    title: '高级分析能力',
-    description: '控制优化、预测分析、高级统计和自定义扩展已经成为 SonnetDB 的核心产品能力。',
+    milestone: 'NuGet',
+    title: 'ADO.NET 提供程序',
+    description: '使用 dotnet add package SonnetDB 安装，然后在代码中引用 SonnetDB.Data 命名空间。',
   },
   {
-    milestone: '持续增强',
-    title: '智能检索能力',
-    description: '语义检索和高性能相似度搜索正在持续增强，为智能问答和知识库应用提供更强支持。',
+    milestone: 'Docker',
+    title: '服务端镜像',
+    description: '使用 iotsharp/sonnetdb:latest 启动服务端，访问 /admin/ 完成首次安装。',
   },
   {
-    milestone: '持续增强',
-    title: 'Copilot 智能协作',
-    description: 'Copilot 将进一步增强自然语言查询、知识检索、运维排障和分析辅助体验。',
+    milestone: 'CLI',
+    title: 'sndb 命令行',
+    description: '使用 SonnetDB.Cli 连接本地或远程数据库，执行 SQL、profile、备份和维护命令。',
   },
   {
-    milestone: '持续增强',
-    title: '时空分析能力',
-    description: '位置数据、轨迹分析、地图联动和时空洞察能力将持续完善，覆盖更多车联网和移动设备场景。',
+    milestone: 'Docs',
+    title: '帮助中心',
+    description: '内置 /help/ 文档覆盖快速开始、SQL、ADO.NET、CLI、批量写入、架构和发布说明。',
   },
 ];
 

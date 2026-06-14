@@ -5,7 +5,7 @@ description: "SonnetDB 当前版本的产品、开发与部署文档总览，覆
 permalink: /
 ---
 
-SonnetDB 是一个基于 C# / .NET 10 的时序数据库项目，同时提供嵌入式引擎、ADO.NET 提供程序、CLI、HTTP 服务端、管理后台和内置帮助中心。
+SonnetDB 是一个基于 C# / .NET 10 的时序数据库项目，提供嵌入式引擎、ADO.NET 提供程序、CLI、HTTP 服务端、管理后台和内置帮助中心。
 
 当前版本的持久化方式是数据库目录中的多文件布局，不再以“单文件数据库”作为产品描述。文档中的示例、目录结构和启动方式都以当前仓库代码为准。
 
@@ -16,16 +16,16 @@ SonnetDB 是一个基于 C# / .NET 10 的时序数据库项目，同时提供嵌
 
 <div class="callout-grid">
   <section class="callout-card">
-    <strong>嵌入式优先</strong>
-    <p>可以直接在进程内打开数据库目录，使用 <code>Tsdb</code>、SQL 执行器或 ADO.NET 访问。</p>
+    <strong>嵌入式与服务端</strong>
+    <p>可在进程内打开数据库目录，也可作为 HTTP 服务运行，并通过同一套 SQL 访问。</p>
   </section>
   <section class="callout-card">
-    <strong>统一访问面</strong>
-    <p>本地嵌入式、远程 HTTP、CLI 和 ADO.NET 共享一套相近的 SQL 与连接方式。</p>
+    <strong>时序与多模型</strong>
+    <p>支持时序、关系表、KV、JSON 文档、全文、向量、对象桶和消息队列基础能力。</p>
   </section>
   <section class="callout-card">
-    <strong>服务端可运维</strong>
-    <p><code>SonnetDB</code> 提供首次安装、用户授权、Token、SSE、帮助文档和管理后台。</p>
+    <strong>分析与运维</strong>
+    <p>内置聚合、窗口、预测、PID、地理空间、权限、Token、备份恢复和管理后台。</p>
   </section>
 </div>
 
@@ -52,9 +52,10 @@ SonnetDB 是一个基于 C# / .NET 10 的时序数据库项目，同时提供嵌
 SonnetDB 现在由四条主线组成：
 
 1. 嵌入式引擎 `SonnetDB`
-2. ADO.NET 提供程序 `SonnetDB.Data`
-3. CLI 工具 `SonnetDB.Cli`
-4. 服务端 `SonnetDB`
+2. ADO.NET 提供程序：NuGet 包 `SonnetDB`，命名空间 `SonnetDB.Data`
+3. EF Core Provider：NuGet 包 `SonnetDB.EntityFrameworkCore`
+4. CLI 工具 `SonnetDB.Cli`
+5. 服务端 `SonnetDB`
 
 这几部分共享同一套底层存储格式和大部分 SQL 行为。服务端额外增加了：
 

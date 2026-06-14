@@ -9,7 +9,7 @@ SonnetDB 当前的发布物主要分为五类：
 
 | 类型 | 产物 | 说明 |
 | --- | --- | --- |
-| NuGet | `SonnetDB.*.nupkg` | 嵌入式核心库、远程 ADO.NET 接入与 CLI 工具包 |
+| NuGet | `SonnetDB.*.nupkg` | 嵌入式核心库、ADO.NET、EF Core Provider、缓存扩展与 CLI 工具包 |
 | SDK Bundle | `sndb-sdk-<version>-<rid>` | 面向开发者，包含 NuGet 包、本地 CLI 与配套文档 |
 | Server Bundle | `sonnetdb-full-<version>-<rid>` | 面向部署者，包含 `SonnetDB`、前端、CLI 与默认启动配置 |
 | Installer | `.msi` / `.deb` / `.rpm` | 面向最终安装的操作系统包 |
@@ -44,6 +44,7 @@ http://127.0.0.1:5080
 
 - `SonnetDB.Core.<version>.nupkg`
 - `SonnetDB.<version>.nupkg`
+- `SonnetDB.EntityFrameworkCore.<version>.nupkg`
 - `SonnetDB.Cli.<version>.nupkg`
 - `sndb-sdk-<version>-win-x64.zip`
 - `sonnetdb-full-<version>-win-x64.zip`

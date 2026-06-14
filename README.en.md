@@ -25,8 +25,10 @@ SonnetDB is a time-series database for IoT, industrial telemetry, observability,
 
 [![SonnetDB.Core Version](https://img.shields.io/nuget/v/SonnetDB.Core?label=SonnetDB.Core)](https://www.nuget.org/packages/SonnetDB.Core)
 [![SonnetDB.Core Downloads](https://img.shields.io/nuget/dt/SonnetDB.Core?label=Downloads)](https://www.nuget.org/packages/SonnetDB.Core)
-[![SonnetDB.Data Version](https://img.shields.io/nuget/v/SonnetDB.Data?label=SonnetDB.Data)](https://www.nuget.org/packages/SonnetDB.Data)
-[![SonnetDB.Data Downloads](https://img.shields.io/nuget/dt/SonnetDB.Data?label=Downloads)](https://www.nuget.org/packages/SonnetDB.Data)
+[![SonnetDB Version](https://img.shields.io/nuget/v/SonnetDB?label=SonnetDB)](https://www.nuget.org/packages/SonnetDB)
+[![SonnetDB Downloads](https://img.shields.io/nuget/dt/SonnetDB?label=Downloads)](https://www.nuget.org/packages/SonnetDB)
+[![SonnetDB.EntityFrameworkCore Version](https://img.shields.io/nuget/v/SonnetDB.EntityFrameworkCore?label=SonnetDB.EntityFrameworkCore)](https://www.nuget.org/packages/SonnetDB.EntityFrameworkCore)
+[![SonnetDB.EntityFrameworkCore Downloads](https://img.shields.io/nuget/dt/SonnetDB.EntityFrameworkCore?label=Downloads)](https://www.nuget.org/packages/SonnetDB.EntityFrameworkCore)
 [![SonnetDB.Caching Version](https://img.shields.io/nuget/v/SonnetDB.Caching?label=SonnetDB.Caching)](https://www.nuget.org/packages/SonnetDB.Caching)
 [![SonnetDB.Caching Downloads](https://img.shields.io/nuget/dt/SonnetDB.Caching?label=Downloads)](https://www.nuget.org/packages/SonnetDB.Caching)
 [![SonnetDB.Cli Version](https://img.shields.io/nuget/v/SonnetDB.Cli?label=SonnetDB.Cli)](https://www.nuget.org/packages/SonnetDB.Cli)
@@ -50,14 +52,14 @@ SonnetDB is a time-series database for IoT, industrial telemetry, observability,
 [![PureBasic Connector](https://img.shields.io/badge/PureBasic-Connector-5A5A5A)](connectors/purebasic/README.md)
 [![Connector Releases](https://img.shields.io/badge/Downloads-GitHub%20Releases-black)](https://github.com/IoTSharp/SonnetDB/releases)
 
-## ✨ Core Capabilities
+## ✨ Current Capabilities
 
-- ⚡ High-throughput ingestion via SQL, Line Protocol, JSON, and bulk fast paths
-- 🧠 Rich SQL features: aggregates, window functions, forecast and control functions (PID)
-- 🗺️ GeoSpatial stack: `GEOPOINT`, trajectory analytics, geo filters, GeoJSON output
-- 🔐 Control-plane SQL for users, databases, grants, and tokens
-- 🧪 Continuous benchmarks against InfluxDB, TDengine, IoTDB, TimescaleDB, SQLite, and LiteDB
-- 🛠️ Web Admin Workbench: Schema Explorer database tree, SQL Editor, staged preview, Result Grid, Trajectory mode switching, with Copilot kept as the original global floating dock
+- **Time-series engine**: measurement / tag / field / time modeling with WAL, MemTable, Segment, compaction, and retention.
+- **SQL data plane**: `CREATE MEASUREMENT`, `INSERT`, `SELECT`, `DELETE`, aggregates, time windows, relational tables, joins, subqueries, and `EXPLAIN`.
+- **Analytics functions**: statistics, percentiles, window diff/rate/smoothing, forecast, anomaly detection, PID control, geospatial, and trajectory functions.
+- **Multi-model extensions**: KV, relational tables, JSON documents, full-text search, vector search, hybrid search, object storage, and local message queue foundations.
+- **Access surfaces**: embedded API, ADO.NET, CLI, HTTP API, Docker image, Web Admin Workbench, and multi-language connectors.
+- **Server control plane**: first-run setup, users, grants, tokens, events, health checks, backup/restore, and maintenance endpoints.
 
 ## � Why SonnetDB
 
@@ -82,7 +84,8 @@ SonnetDB is a time-series database for IoT, industrial telemetry, observability,
 | Component | Purpose |
 | --- | --- |
 | `src/SonnetDB` | Embedded engine: schema, writes, queries, deletes, WAL, MemTable, Segment, compaction, retention |
-| `src/SonnetDB.Data` | ADO.NET provider for both embedded and remote modes |
+| `src/SonnetDB.Data` | ADO.NET provider; NuGet package ID is `SonnetDB`, namespace is `SonnetDB.Data` |
+| `src/SonnetDB.EntityFrameworkCore` | EF Core Provider; NuGet package ID is `SonnetDB.EntityFrameworkCore`, with `UseSonnetDB(...)`, type mapping, query translation, and migrations SQL |
 | `src/SonnetDB.Cli` | `sndb` CLI: local/remote connections, profile management (`local`/`remote`/`connect`), and interactive REPL |
 | `src/SonnetDB` | HTTP server, first-run setup, auth/RBAC, SSE, admin UI, `/help` docs |
 | `web` | Admin frontend (includes SonnetDB Workbench, global CopilotDock, and published SPA assets) |
@@ -95,7 +98,7 @@ SonnetDB is a time-series database for IoT, industrial telemetry, observability,
 - SQL writes with `INSERT`, reads with `SELECT`, deletes with `DELETE`
 - Aggregates with `count`, `sum`, `min`, `max`, `avg`, `first`, `last`
 - Time-bucket aggregation with `GROUP BY time(...)`
-- ADO.NET access for local and remote deployments
+- ADO.NET access for local and remote deployments through NuGet package `SonnetDB` and namespace `SonnetDB.Data`
 - CLI access for scripting and ad hoc SQL
 - Bulk ingest fast paths through `CommandType.TableDirect` and HTTP bulk endpoints
 - Server control-plane SQL for users, databases, grants, and tokens

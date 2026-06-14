@@ -74,6 +74,8 @@
 - **PR #77 — 地理空间基准 + 文档完善**：新增 `GeoQueryBenchmark`，覆盖 `100k` 默认轨迹点和可选 `1M` 档位下的 `geo_within`、`geo_bbox`、`trajectory_length` 与 `GEOPOINT` range scan；README 与 `docs/geo-spatial.md` 补齐地理空间功能矩阵、Web Admin / SQL Console 地图用法、基准运行方式和车辆追踪 / 户外运动 / IoT 地理围栏端到端示例。
 
 ### Changed
+- NuGet 发布链路新增 `SonnetDB.EntityFrameworkCore`：EF Core Provider 现在会随 `eng/release.ps1 -Tasks nuget`、GitHub Publish workflow、SDK Bundle 和发布文档一起输出。
+- 文档统一修正 ADO.NET 提供程序的 NuGet 包名：`src/SonnetDB.Data` 发布为 `SonnetDB`，代码命名空间仍为 `SonnetDB.Data`；根 README、文档首页、综合指南、包说明和产品首页同步收敛当前能力说明。
 - **Block 级跳跃索引（MaxTimestamp 前缀最大值）**：`SegmentIndex` 在 `Build` / `BuildFromBlocksForTesting` 时为每个 `(seriesId, fieldName)` 桶与每个 `seriesId` 桶预计算 `MaxTimestamp` 前缀最大值数组。`GetBlocks(seriesId, fieldName, from, toInclusive)` 中原来"二分上界 + 线性扫描下界 (`MaxTimestamp >= from`)"的实现改为"二分上界 + 在前缀最大值上二分下界 + 仅在 `[lower, upper)` 区间补一次微扫描"，渐近复杂度由 O(upper) 改善为 O(log n + 命中桶数)；新增 `GetBlocks(seriesId, from, toInclusive)` 多 field 单 series 时间窗剪枝重载，`MultiSegmentIndex.LookupCandidates(seriesId, from, to)` 改为转发该重载。压缩产生的重叠 block（`MaxTimestamp` 非单调）下结果集与朴素实现一致。新增 `SegmentIndexSkippingTests` 12 个场景：非重叠窄/宽窗、查询完全前/后于所有 block、边界等值（含单点查询）、压缩重叠场景两例、按 series 多 field 路径、未知 series/field 空返回、64 个随机 block × 300 次随机查询的 fuzz 与朴素 O(n) 实现对拍；`Storage/Segments/SegmentIndex.cs`、`Storage/Segments/MultiSegmentIndex.cs` 不修改文件二进制格式，无新增依赖。
 - **Codec/BlockDecoder V2 专用化快路径**：评估 source generator、静态泛型与手写 fast path 后，选择零依赖、safe-only 的手写专用化；`TimestampCodec` 可直接把 delta-of-delta 时间戳写入 `DataPoint` 目标视图，`ValuePayloadCodecV2` 新增全量与范围 `DecodeInto` 路径，`BlockDecoder` 避免 V2 全量/范围解码中的中间 `long[]` / `FieldValue[]` 分配。新增 `CodecSpecializationBenchmark`，覆盖旧组合路径与生产快路径对比，并补充 V2 range 语义回归测试。
 - **SonnetDB.Core 性能 analyzer 配置**：为核心库启用低噪声性能规则，覆盖热路径 LINQ、重复数组分配、Count/Any、Dictionary 查询、SearchValues 与字符串比较相关建议；高语义取舍规则先以 suggestion 暴露，并修复新增 warning 命中的保留字符搜索与 SQL 元数据列名数组分配点，保持 `TreatWarningsAsErrors` 通过且不新增 suppress。
@@ -102,6 +104,7 @@
 - **WAL catalog checkpoint**：`Tsdb.FlushNowLocked` 不再在每次 Flush 后向新 WAL 重写全量 `CreateSeries` snapshot；当 catalog 出现新增 series 时，Flush 会先原子持久化 `catalog.SDBCAT`，再写 Segment / WAL Checkpoint / 回收旧 WAL segment。崩溃恢复现在由「已 checkpoint 的 series 来自 catalog 文件，checkpoint 之后的新 series 继续来自 WAL `CreateSeries`」共同保证，避免 catalog 大时每次 Flush 产生 O(series_count) WAL 放大。
 
 ### Docs
+- 重写 README 顶部“SonnetDB 是什么”简介，明确 SonnetDB 当前已集成时序数据库、关系型数据库、KV NoSQL、S3 兼容存储桶与本地消息队列能力。
 - 补充 SonnetDB vs IoTDB 对比文档的两种口径说明：新增 2026-05-06 的 `--comparison-server` 同口径“Server vs Server”实测结果（1,000 设备 × 30 字段 × 12 时间点，AB BA AB BA 四轮，SonnetDB Server 平均 22,867 values/sec、IoTDB 11,541 values/sec、约 1.98x），并同步更新根 README、`tests/SonnetDB.Benchmarks/README.md`、`QUICK_START.md` 与专门对比说明，保留旧的嵌入式 vs REST 历史结果但明确标注为不同方法学。
 - 完善 `.agents/skills/sonnetdb-docker-language-build`，将模板 TODO 替换为 Docker-backed Go / Rust / Python / Linux connector 构建与 smoke test 回退流程，并修正技能默认提示词中的技能名。
 - 新增 `docs/blogs/129-132` 连接器系列文章，分别介绍 Go、Rust、Visual Basic 6 与 PureBasic 连接器的 C ABI 复用方式、API 形态、构建/部署要求、CI 策略与适用场景。
@@ -575,13 +578,13 @@
   - 仍保持 `src/SonnetDB` 零第三方运行时依赖（仅 `System.IO.Hashing`），不引入新的 NuGet 包。
 
 - **PR #38：发布 `SonnetDB 0.1.0` 的 NuGet、二进制包、完整服务端包与安装包**
-  - 新增 `src/SonnetDB/PackageReadme.md`、`src/SonnetDB.Data/PackageReadme.md`、`src/SonnetDB.Cli/PackageReadme.md`，并在三个项目文件中补齐 `PackageId`、`PackageReadmeFile`、版本元数据，支持直接生成 `SonnetDB`、`SonnetDB.Data`、`SonnetDB.Cli` 三个 `0.1.0` 包。
+  - 新增 `src/SonnetDB/PackageReadme.md`、`src/SonnetDB.Data/PackageReadme.md`、`src/SonnetDB.Cli/PackageReadme.md`，并在三个项目文件中补齐 `PackageId`、`PackageReadmeFile`、版本元数据；其中 `src/SonnetDB.Data` 项目发布为 `SonnetDB` NuGet 包，程序集和命名空间保持 `SonnetDB.Data`。
   - `SonnetDB.Cli` 从占位程序升级为可用命令行工具：支持 `sndb version`、`sndb sql --connection ... --command|--file ...` 和 `sndb repl --connection ...`，可直接连接本地嵌入式数据库或远程 `SonnetDB`。
   - 新增 `tests/SonnetDB.Core.Tests/Cli/CliApplicationTests.cs`，覆盖 CLI 帮助输出与本地 SQL 执行回归场景。
   - 新增 `src/SonnetDB.Data/Internal/ExecutionFieldTypeResolver.cs`，并为 `SndbDataReader` / `IExecutionResult` / `MaterializedExecutionResult` / `RemoteExecutionResult` 补齐 trim/AOT 注解与显式类型映射，保持 `SonnetDB.Cli` 接入 `SonnetDB.Data` 后仍可 `PublishAot=true` 通过发布。
   - 新增 `docs/releases/README.md`、`docs/releases/sdk-bundle.md`、`docs/releases/server-bundle.md`、`docs/releases/installers.md`，说明 NuGet 包、SDK Bundle、Server Full Bundle、MSI/DEB/RPM 安装包的用途、目录结构、默认启动方式与凭据。
   - 新增跨平台发布脚本 `eng/release.ps1`：
-    - 生成 `SonnetDB` / `SonnetDB.Data` / `SonnetDB.Cli` NuGet 包；
+    - 生成 `SonnetDB.Core` / `SonnetDB` / `SonnetDB.Cli` NuGet 包；
     - 发布 Windows / Linux 原生 AOT CLI 与 Server；
     - 生成 `sndb-sdk-<version>-<rid>` 与 `sonnetdb-full-<version>-<rid>` 压缩包；
     - 自动写入默认本地启动配置、预置管理员 `admin / Admin123!` 与 Bearer Token `sonnetdb-admin-token`；

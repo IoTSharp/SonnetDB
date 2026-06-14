@@ -110,7 +110,8 @@ sndb --help
 
 ```xml
 <PackageReference Include="SonnetDB.Core" Version="1.0.0" />
-<PackageReference Include="SonnetDB.Data" Version="1.0.0" />
+<PackageReference Include="SonnetDB" Version="1.0.0" />
+<PackageReference Include="SonnetDB.EntityFrameworkCore" Version="1.0.0" />
 ```
 
 ---
@@ -1225,7 +1226,7 @@ var options = new TsdbOptions
 ### 15.1 安装
 
 ```xml
-<PackageReference Include="SonnetDB.Data" Version="1.0.0" />
+<PackageReference Include="SonnetDB" Version="1.0.0" />
 ```
 
 ### 15.2 本地嵌入式连接
@@ -1625,7 +1626,8 @@ services:
 | 包名 | 说明 |
 |------|------|
 | SonnetDB.Core | 核心嵌入式引擎 |
-| SonnetDB.Data | ADO.NET 提供程序 |
+| SonnetDB | ADO.NET 提供程序（命名空间 `SonnetDB.Data`） |
+| SonnetDB.EntityFrameworkCore | Entity Framework Core Provider |
 | SonnetDB.Cli | CLI 命令行工具 |
 
 ### 21.4 健康检查
