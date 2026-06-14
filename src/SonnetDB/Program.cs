@@ -16,6 +16,7 @@ using SonnetDB.Hosting;
 using SonnetDB.Json;
 using SonnetDB.Kv;
 using SonnetDB.Mcp;
+using SonnetMQ;
 
 namespace SonnetDB;
 
@@ -199,6 +200,11 @@ public static class Program
         // PR #34a：用户 / 权限 / 控制面存储全局只实例。文件位于 <DataRoot>/.system/。
         var systemDirectory = Path.Combine(serverOptions.DataRoot, ".system");
         Directory.CreateDirectory(systemDirectory);
+        builder.Services.AddSingleton(_ => SonnetMqStore.Open(new SonnetMqOptions
+        {
+            Path = Path.Combine(systemDirectory, "mq"),
+            FlushOnPublish = true,
+        }));
         builder.Services.AddSingleton(_ => new UserStore(systemDirectory));
         builder.Services.AddSingleton(_ => new GrantsStore(systemDirectory));
         builder.Services.AddSingleton(_ => new InstallationStore(systemDirectory));
@@ -671,6 +677,110 @@ public static class Program
                 stats.ExpiringKeys,
                 stats.NearestExpiresAtUtc);
             await Results.Json(response, ServerJsonContext.Default.KvStatsResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+        });
+
+        // ---- SonnetMQ：数据库级轻量消息队列 ----
+        app.MapPost("/v1/db/{db}/mq/{topic}/publish", async (HttpContext ctx, string db, string topic) =>
+        {
+            if (!await TryResolveMqAsync(ctx, registry, grants, db, topic, DatabasePermission.Write).ConfigureAwait(false))
+                return;
+
+            var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.MqPublishRequest).ConfigureAwait(false);
+            if (req is null || req.Payload is null)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体需包含 payload。").ConfigureAwait(false);
+                return;
+            }
+
+            try
+            {
+                var mq = app.Services.GetRequiredService<SonnetMqStore>();
+                long offset = mq.Publish(QualifyMqTopic(db, topic), req.Payload, new SonnetMqPublishOptions(req.Headers));
+                var response = new MqPublishResponse(topic, offset);
+                ctx.Response.StatusCode = StatusCodes.Status201Created;
+                ctx.Response.ContentType = "application/json; charset=utf-8";
+                await JsonSerializer.SerializeAsync(ctx.Response.Body, response, ServerJsonContext.Default.MqPublishResponse, ctx.RequestAborted).ConfigureAwait(false);
+            }
+            catch (ArgumentException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+            }
+            catch (IOException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status500InternalServerError, "mq_io_error", ex.Message).ConfigureAwait(false);
+            }
+            catch (InvalidDataException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status500InternalServerError, "mq_error", ex.Message).ConfigureAwait(false);
+            }
+        });
+
+        app.MapPost("/v1/db/{db}/mq/{topic}/pull", async (HttpContext ctx, string db, string topic) =>
+        {
+            if (!await TryResolveMqAsync(ctx, registry, grants, db, topic, DatabasePermission.Read).ConfigureAwait(false))
+                return;
+
+            var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.MqPullRequest).ConfigureAwait(false);
+            if (req is null || string.IsNullOrWhiteSpace(req.ConsumerGroup))
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体需包含 consumerGroup。").ConfigureAwait(false);
+                return;
+            }
+
+            int maxCount = req.MaxCount is null or <= 0 ? 100 : Math.Min(req.MaxCount.Value, 1000);
+            try
+            {
+                var mq = app.Services.GetRequiredService<SonnetMqStore>();
+                var messages = mq.Pull(QualifyMqTopic(db, topic), req.ConsumerGroup, maxCount)
+                    .Select(message => new MqMessageResponse(
+                        topic,
+                        message.Offset,
+                        message.TimestampUtc,
+                        message.Headers,
+                        message.Payload))
+                    .ToArray();
+                await Results.Json(new MqPullResponse(messages), ServerJsonContext.Default.MqPullResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+            }
+            catch (ArgumentException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+            }
+        });
+
+        app.MapPost("/v1/db/{db}/mq/{topic}/ack", async (HttpContext ctx, string db, string topic) =>
+        {
+            if (!await TryResolveMqAsync(ctx, registry, grants, db, topic, DatabasePermission.Write).ConfigureAwait(false))
+                return;
+
+            var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.MqAckRequest).ConfigureAwait(false);
+            if (req is null || string.IsNullOrWhiteSpace(req.ConsumerGroup))
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体需包含 consumerGroup。").ConfigureAwait(false);
+                return;
+            }
+
+            try
+            {
+                var mq = app.Services.GetRequiredService<SonnetMqStore>();
+                long nextOffset = mq.Ack(QualifyMqTopic(db, topic), req.ConsumerGroup, req.Offset);
+                var response = new MqAckResponse(topic, req.ConsumerGroup, nextOffset);
+                await Results.Json(response, ServerJsonContext.Default.MqAckResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+            }
+            catch (ArgumentException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+            }
+        });
+
+        app.MapPost("/v1/db/{db}/mq/{topic}/stats", async (HttpContext ctx, string db, string topic) =>
+        {
+            if (!await TryResolveMqAsync(ctx, registry, grants, db, topic, DatabasePermission.Read).ConfigureAwait(false))
+                return;
+
+            var mq = app.Services.GetRequiredService<SonnetMqStore>();
+            var stats = mq.GetStats(QualifyMqTopic(db, topic));
+            var response = new MqStatsResponse(topic, stats.MessageCount, stats.NextOffset, stats.ConsumerOffsets);
+            await Results.Json(response, ServerJsonContext.Default.MqStatsResponse).ExecuteAsync(ctx).ConfigureAwait(false);
         });
 
         // ---- S3-compatible Object Storage API ----
@@ -1239,6 +1349,28 @@ public static class Program
         return await TryRequireDatabasePermissionAsync(ctx, db, databasePermission, requiredPermission).ConfigureAwait(false);
     }
 
+    private static async Task<bool> TryResolveMqAsync(
+        HttpContext ctx,
+        TsdbRegistry registry,
+        GrantsStore grants,
+        string db,
+        string topic,
+        DatabasePermission requiredPermission)
+    {
+        if (!TryResolveDatabase(ctx, registry, db, out _))
+            return false;
+
+        if (!IsValidKeyspaceName(topic))
+        {
+            await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request",
+                $"非法 topic 名 '{topic}'。").ConfigureAwait(false);
+            return false;
+        }
+
+        var databasePermission = DatabaseAccessEvaluator.GetEffectivePermission(ctx, grants, db);
+        return await TryRequireDatabasePermissionAsync(ctx, db, databasePermission, requiredPermission).ConfigureAwait(false);
+    }
+
     private static bool IsValidKeyspaceName(string? name)
     {
         if (string.IsNullOrWhiteSpace(name) || name is "." or ".." || name.Length > 128)
@@ -1258,6 +1390,8 @@ public static class Program
 
         return true;
     }
+
+    private static string QualifyMqTopic(string db, string topic) => db + "." + topic;
 
     private static async Task WriteSimpleErrorAsync(HttpContext ctx, int statusCode, string code, string message)
     {

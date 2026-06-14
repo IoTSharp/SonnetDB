@@ -215,6 +215,76 @@ public sealed record KvStatsResponse(
     DateTimeOffset? NearestExpiresAtUtc);
 
 /// <summary>
+/// MQ 发布请求。
+/// </summary>
+/// <param name="Payload">消息体。</param>
+/// <param name="Headers">可选消息头。</param>
+public sealed record MqPublishRequest(byte[] Payload, IReadOnlyDictionary<string, string>? Headers = null);
+
+/// <summary>
+/// MQ 发布响应。
+/// </summary>
+/// <param name="Topic">Topic 名称。</param>
+/// <param name="Offset">写入后的消息 offset。</param>
+public sealed record MqPublishResponse(string Topic, long Offset);
+
+/// <summary>
+/// MQ 拉取请求。
+/// </summary>
+/// <param name="ConsumerGroup">消费者组名称。</param>
+/// <param name="MaxCount">最多返回消息数量。</param>
+public sealed record MqPullRequest(string ConsumerGroup, int? MaxCount = null);
+
+/// <summary>
+/// MQ 消息响应。
+/// </summary>
+/// <param name="Topic">Topic 名称。</param>
+/// <param name="Offset">消息 offset。</param>
+/// <param name="TimestampUtc">服务端写入时间。</param>
+/// <param name="Headers">消息头。</param>
+/// <param name="Payload">消息体。</param>
+public sealed record MqMessageResponse(
+    string Topic,
+    long Offset,
+    DateTimeOffset TimestampUtc,
+    IReadOnlyDictionary<string, string> Headers,
+    byte[] Payload);
+
+/// <summary>
+/// MQ 拉取响应。
+/// </summary>
+/// <param name="Messages">消息列表。</param>
+public sealed record MqPullResponse(IReadOnlyList<MqMessageResponse> Messages);
+
+/// <summary>
+/// MQ 确认请求。
+/// </summary>
+/// <param name="ConsumerGroup">消费者组名称。</param>
+/// <param name="Offset">已处理完成的最后一条 offset。</param>
+public sealed record MqAckRequest(string ConsumerGroup, long Offset);
+
+/// <summary>
+/// MQ 确认响应。
+/// </summary>
+/// <param name="Topic">Topic 名称。</param>
+/// <param name="ConsumerGroup">消费者组名称。</param>
+/// <param name="NextOffset">消费者组下一条待消费 offset。</param>
+public sealed record MqAckResponse(string Topic, string ConsumerGroup, long NextOffset);
+
+/// <summary>
+/// MQ Topic 统计响应。
+/// </summary>
+/// <param name="Topic">Topic 名称。</param>
+/// <param name="MessageCount">已追加消息数量。</param>
+/// <param name="NextOffset">下一条消息 offset。</param>
+/// <param name="ConsumerOffsets">消费者组 offset。</param>
+public sealed record MqStatsResponse(
+    string Topic,
+    long MessageCount,
+    long NextOffset,
+    IReadOnlyDictionary<string, long> ConsumerOffsets);
+
+/// <summary>
 /// <c>POST /v1/auth/login</c> 请求体。
 /// </summary>
 /// <param name="Username">用户名。</param>

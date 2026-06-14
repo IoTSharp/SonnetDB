@@ -7,6 +7,7 @@
 
 ### Added
 
+- **SonnetMQ 本地消息队列 MVP**：新增 `src/SonnetMQ` 零依赖核心库与 `docs/sonnetmq-roadmap.md`，采用 append-only log 提供 topic publish、consumer group pull/ack、单目录/单文件模式与重启 replay，为 IoTSharp 通过 SonnetDB 获得内置 MessageQueue 能力打基础。
 - **J10 SonnetDB Compaction 崩溃恢复与长稳加固**：新增 `segment-replacements.sdbmanifest` 段替换清单，Compaction 在写新段前记录 pending replacement、提交后标记旧段 superseded；启动加载 Segment 时按 manifest 跳过 pending 新段或已 superseded / retention dropped 旧段，避免崩溃后新旧重复段同时进入查询路径；Retention 整段 drop 也先提交清单再发布内存状态，补齐重启可恢复性测试。
 - **J9 SonnetDB 大量物理分表与文件布局优化**：时序 Segment 新写入路径切换为 `segments/v2/{bucketGroup}/{bucket}/{segmentId}.SDBSEG` 分层目录，避免单个 `segments/` 目录长期堆积海量段文件；启动枚举、durable checkpoint 校验、备份扫描、Compaction / Retention 旧段清理均兼容旧版平铺 `segments/{segmentId}.SDBSEG` 与 legacy sidecar 文件，不修改 `.SDBSEG` 二进制格式。
 - **J3 SonnetDB table MVP 前置能力补齐**：ADO.NET provider 新增 `Tables` / `Columns` / `Indexes` schema metadata 集合，可从嵌入式表 catalog 返回表、列、唯一索引和列序信息；SQL 新增 `REGEX` / `NOT REGEX` 字符串模式查询，关系表、表表 JOIN、文档和 hybrid 查询路径共享同一匹配语义，并补充 ADO.NET / EF Core 验收测试。

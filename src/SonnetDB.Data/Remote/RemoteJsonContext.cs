@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using SonnetDB.Data.Kv;
+using SonnetDB.Data.Mq;
 
 namespace SonnetDB.Data.Remote;
 
@@ -40,4 +41,13 @@ namespace SonnetDB.Data.Remote;
 [JsonSerializable(typeof(List<KvEntryResponse>))]
 [JsonSerializable(typeof(Dictionary<string, long>))]
 [JsonSerializable(typeof(KvStatsResponse))]
+[JsonSerializable(typeof(MqPublishRequest))]
+[JsonSerializable(typeof(MqPublishResponse))]
+[JsonSerializable(typeof(MqPullRequest))]
+[JsonSerializable(typeof(MqMessageResponse))]
+[JsonSerializable(typeof(MqPullResponse))]
+[JsonSerializable(typeof(MqAckRequest))]
+[JsonSerializable(typeof(MqAckResponse))]
+[JsonSerializable(typeof(MqStatsResponse))]
+[JsonSerializable(typeof(List<MqMessageResponse>))]
 internal sealed partial class RemoteJsonContext : JsonSerializerContext;
