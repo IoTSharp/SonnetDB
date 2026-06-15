@@ -37,6 +37,9 @@ public interface IDataPlane : IAsyncDisposable
 
     /// <summary>全文检索操作集合。不支持全文检索的后端返回空操作对象。</summary>
     IFullTextOps FullText { get; }
+
+    /// <summary>分析操作集合。不支持分析能力的后端返回空操作对象。</summary>
+    IAnalyticalOps Analytics { get; }
 }
 
 /// <summary>
@@ -172,4 +175,13 @@ public enum Capability : long
 
     /// <summary>全文 typo-tolerant 查询能力。</summary>
     FulltextTypoTolerant = 1L << 46,
+
+    /// <summary>分析按时间桶聚合能力。</summary>
+    AnalyticsGroupByTime = 1L << 47,
+
+    /// <summary>分析 Top-N 分组排序能力。</summary>
+    AnalyticsTopN = 1L << 48,
+
+    /// <summary>分析压缩率指标能力。</summary>
+    AnalyticsCompressionRatio = 1L << 49,
 }

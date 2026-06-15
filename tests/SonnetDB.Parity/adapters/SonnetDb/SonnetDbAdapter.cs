@@ -18,10 +18,11 @@ namespace SonnetDB.Parity.Adapters.SonnetDb;
 /// <remarks>
 /// 连接字符串为 <c>Data Source={tempDir}</c>，<see cref="DisposeAsync"/> 关闭连接并尽力删除临时目录。
 /// </remarks>
-public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps, IKvOps, IObjectOps, IVectorOps, IMqOps, IFullTextOps
+public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps, IKvOps, IObjectOps, IVectorOps, IMqOps, IFullTextOps, IAnalyticalOps
 {
     private readonly string _root;
     private readonly SndbConnection _connection;
+    private readonly Dictionary<string, long> _analyticsLogicalBytes = new(StringComparer.Ordinal);
     private SonnetMqStore _mq;
 
     /// <summary>创建适配器，在系统临时目录下开辟独立子目录并打开嵌入式连接。</summary>
@@ -67,7 +68,13 @@ public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps
         Capability.Fulltext |
         Capability.FulltextFacetFilter |
         Capability.Vector |
-        Capability.HnswFiltered;
+        Capability.HnswFiltered |
+        Capability.Analytics |
+        Capability.AnalyticsGroupByTime |
+        Capability.SqlWindowFunction |
+        Capability.AnalyticsTopN |
+        Capability.AnalyticsCompressionRatio |
+        Capability.AccuracyPercentile;
 
     /// <inheritdoc />
     public IRelationalOps Relational => this;
@@ -89,6 +96,9 @@ public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps
 
     /// <inheritdoc />
     public IFullTextOps FullText => this;
+
+    /// <inheritdoc />
+    public IAnalyticalOps Analytics => this;
 
     /// <inheritdoc />
     public RelationalDialect Dialect => RelationalDialect.SonnetDb;
@@ -212,6 +222,88 @@ public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps
     /// <inheritdoc />
     public Task<RelationalSqlResult> DistinctDeviceCountAsync(string measurement, CancellationToken ct)
         => QueryAsync($"SELECT distinct_count(value) FROM {measurement}", ct);
+
+    /// <inheritdoc />
+    async Task IAnalyticalOps.IngestAsync(IReadOnlyList<AnalyticalRow> rows, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+        foreach (var group in rows.GroupBy(static p => p.Dataset, StringComparer.Ordinal))
+        {
+            await ExecuteAsync($"CREATE MEASUREMENT IF NOT EXISTS {group.Key} (device TAG, region TAG, value FIELD FLOAT)", ct)
+                .ConfigureAwait(false);
+
+            const int BatchSize = 2_000;
+            var batch = new List<string>(BatchSize);
+            long logicalBytes = 0;
+            foreach (var row in group)
+            {
+                batch.Add(string.Create(CultureInfo.InvariantCulture,
+                    $"({row.TimestampMs}, '{EscapeSql(row.Device)}', '{EscapeSql(row.Region)}', {row.Value:G17})"));
+                logicalBytes += EstimateLogicalBytes(row);
+                if (batch.Count == BatchSize)
+                {
+                    await InsertTimeSeriesBatchAsync(group.Key, batch, ct).ConfigureAwait(false);
+                    batch.Clear();
+                }
+            }
+
+            if (batch.Count > 0)
+                await InsertTimeSeriesBatchAsync(group.Key, batch, ct).ConfigureAwait(false);
+            _analyticsLogicalBytes[group.Key] = logicalBytes;
+        }
+    }
+
+    /// <inheritdoc />
+    Task<RelationalSqlResult> IAnalyticalOps.GroupByTimeAverageAsync(string dataset, TimeSpan window, CancellationToken ct)
+        => QueryAsync(
+            $"SELECT avg(value) FROM {dataset} GROUP BY time({(long)window.TotalMilliseconds}ms)",
+            ct);
+
+    /// <inheritdoc />
+    Task<RelationalSqlResult> IAnalyticalOps.WindowAverage7DayAsync(string dataset, CancellationToken ct)
+        => QueryAsync($"SELECT time, moving_average(value, 7) FROM {dataset} ORDER BY time", ct);
+
+    /// <inheritdoc />
+    async Task<RelationalSqlResult> IAnalyticalOps.TopNPerDeviceAsync(string dataset, int topN, CancellationToken ct)
+    {
+        var raw = await QueryAsync($"SELECT time, device, value FROM {dataset}", ct).ConfigureAwait(false);
+        var rows = raw.Rows
+            .GroupBy(static row => Convert.ToString(row.Values[1], CultureInfo.InvariantCulture) ?? string.Empty, StringComparer.Ordinal)
+            .Select(static group => new
+            {
+                Device = group.Key,
+                Total = group.Sum(static row => Convert.ToDouble(row.Values[2], CultureInfo.InvariantCulture)),
+            })
+            .OrderByDescending(static item => item.Total)
+            .ThenBy(static item => item.Device, StringComparer.Ordinal)
+            .Take(topN)
+            .Select(static item => Row(item.Device, item.Total))
+            .ToArray();
+        return Result(["device", "total"], rows);
+    }
+
+    /// <inheritdoc />
+    Task<RelationalSqlResult> IAnalyticalOps.CompressionRatioAsync(string dataset, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        Database.FlushNow();
+        long physicalBytes = Directory.EnumerateFiles(_root, "*", SearchOption.AllDirectories)
+            .Sum(static path => new FileInfo(path).Length);
+        double logicalBytes = Math.Max(_analyticsLogicalBytes.TryGetValue(dataset, out var bytes) ? bytes : physicalBytes, 1L);
+        double ratio = logicalBytes / Math.Max(physicalBytes, 1L);
+        return Task.FromResult(Result(["compression_ratio"], [Row(ratio)]));
+    }
+
+    /// <inheritdoc />
+    async Task<RelationalSqlResult> IAnalyticalOps.PercentilesAsync(string dataset, CancellationToken ct)
+    {
+        var p50 = await QueryAsync($"SELECT percentile(value, 50) FROM {dataset}", ct).ConfigureAwait(false);
+        var p95 = await QueryAsync($"SELECT percentile(value, 95) FROM {dataset}", ct).ConfigureAwait(false);
+        var p99 = await QueryAsync($"SELECT percentile(value, 99) FROM {dataset}", ct).ConfigureAwait(false);
+        return Result(
+            ["p50", "p95", "p99"],
+            [Row(FirstValue(p50), FirstValue(p95), FirstValue(p99))]);
+    }
 
     /// <inheritdoc />
     public Task ResetAsync(string scope, CancellationToken ct)
@@ -626,6 +718,17 @@ public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps
 
     private static MqMessageRecord ToMqMessage(SonnetMqMessage message)
         => new(message.Topic, message.Offset, message.TimestampUtc, message.Headers, message.Payload);
+
+    private static RelationalSqlResult Result(IReadOnlyList<string> columns, IReadOnlyList<RelationalSqlRow> rows)
+        => new(columns, rows, -1);
+
+    private static RelationalSqlRow Row(params object?[] values) => new(values);
+
+    private static object? FirstValue(RelationalSqlResult result)
+        => result.Rows.Count == 0 || result.Rows[0].Values.Count == 0 ? null : result.Rows[0].Values[0];
+
+    private static long EstimateLogicalBytes(AnalyticalRow row)
+        => sizeof(long) + sizeof(double) + row.Device.Length * 2L + row.Region.Length * 2L;
 
     private Task InsertTimeSeriesBatchAsync(string measurement, IReadOnlyList<string> values, CancellationToken ct)
         => ExecuteAsync($"INSERT INTO {measurement} (time, device, region, value) VALUES {string.Join(", ", values)}", ct);

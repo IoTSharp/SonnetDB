@@ -58,6 +58,9 @@ public sealed class MeiliAdapter : IDataPlane, IFullTextOps
     /// <inheritdoc />
     public IFullTextOps FullText => this;
 
+    /// <inheritdoc />
+    public IAnalyticalOps Analytics => UnsupportedAnalyticalOps.Instance;
+
     /// <summary>探测 Meilisearch 是否可达。</summary>
     public static async Task<bool> TryConnectAsync(CancellationToken ct)
     {

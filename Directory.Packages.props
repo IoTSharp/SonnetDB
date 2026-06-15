@@ -35,6 +35,7 @@
     <PackageVersion Include="NATS.Client.Core" Version="2.6.0" />
     <PackageVersion Include="NATS.Client.JetStream" Version="2.6.0" />
     <PackageVersion Include="MeiliSearch" Version="0.18.0" />
+    <PackageVersion Include="ClickHouse.Client" Version="7.14.0" />
   </ItemGroup>
   <ItemGroup Label="Benchmark">
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />

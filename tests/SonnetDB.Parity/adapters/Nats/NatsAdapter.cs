@@ -49,6 +49,9 @@ public sealed class NatsAdapter : IDataPlane, IMqOps
     /// <inheritdoc />
     public IFullTextOps FullText => UnsupportedFullTextOps.Instance;
 
+    /// <inheritdoc />
+    public IAnalyticalOps Analytics => UnsupportedAnalyticalOps.Instance;
+
     /// <summary>探测 NATS 是否可达。</summary>
     public static async Task<bool> TryConnectAsync(CancellationToken ct)
     {
