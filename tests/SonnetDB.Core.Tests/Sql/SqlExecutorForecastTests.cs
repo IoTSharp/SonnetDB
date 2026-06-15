@@ -112,11 +112,35 @@ public sealed class SqlExecutorForecastTests : IDisposable
     }
 
     [Fact]
-    public void Select_ForecastRequiresStarProjection()
+    public void Select_ForecastLinear_ProjectTimeAndValue_ReturnsStableColumns()
+    {
+        using var db = OpenWithLinearSeries();
+        var r = Select(db, "SELECT time, value FROM forecast(meter, value, 5, 'linear') WHERE device='m1'");
+
+        Assert.Equal(new[] { "time", "value" }, r.Columns.ToArray());
+        Assert.Equal(5, r.Rows.Count);
+        Assert.Equal(20_000L, (long)r.Rows[0][0]!);
+        Assert.Equal(50.0, (double)r.Rows[0][1]!, 6);
+    }
+
+    [Fact]
+    public void Select_ForecastLinear_ProjectAlias_PreservesAlias()
+    {
+        using var db = OpenWithLinearSeries();
+        var r = Select(db, "SELECT time AS ts, value AS forecast_value FROM forecast(meter, value, 2, 'linear') WHERE device='m1'");
+
+        Assert.Equal(new[] { "ts", "forecast_value" }, r.Columns.ToArray());
+        Assert.Equal(2, r.Rows.Count);
+        Assert.Equal(20_000L, (long)r.Rows[0][0]!);
+        Assert.Equal(50.0, (double)r.Rows[0][1]!, 6);
+    }
+
+    [Fact]
+    public void Select_ForecastUnknownProjection_Throws()
     {
         using var db = OpenWithLinearSeries();
         Assert.Throws<InvalidOperationException>(() =>
-            SqlExecutor.Execute(db, "SELECT time FROM forecast(meter, value, 5, 'linear') WHERE device='m1'"));
+            SqlExecutor.Execute(db, "SELECT missing FROM forecast(meter, value, 5, 'linear') WHERE device='m1'"));
     }
 
     [Fact]

@@ -84,13 +84,8 @@ internal static class TableValuedFunctionExecutor
         var tagColumns = schema.Columns
             .Where(c => c.Role == MeasurementColumnRole.Tag)
             .ToList();
-        var columnNames = new List<string>(4 + tagColumns.Count) { "time", "value", "lower", "upper" };
-        foreach (var t in tagColumns) columnNames.Add(t.Name);
-
-        // SELECT 列表必须是 *（TVF 输出 schema 由 TVF 自身决定）
-        if (!IsSelectStar(statement.Projections))
-            throw new InvalidOperationException(
-                "forecast(...) 表值函数当前仅支持 SELECT *；请在外层查询投影具体列。");
+        var sourceColumnNames = new List<string>(4 + tagColumns.Count) { "time", "value", "lower", "upper" };
+        foreach (var t in tagColumns) sourceColumnNames.Add(t.Name);
 
         var rows = new List<IReadOnlyList<object?>>();
 
@@ -111,7 +106,7 @@ internal static class TableValuedFunctionExecutor
             var forecast = TimeSeriesForecaster.Forecast(ts, values, horizon, algorithm, season);
             foreach (var p in forecast)
             {
-                var row = new object?[columnNames.Count];
+                var row = new object?[sourceColumnNames.Count];
                 row[0] = p.TimestampMs;
                 row[1] = p.Value;
                 row[2] = p.Lower;
@@ -122,11 +117,62 @@ internal static class TableValuedFunctionExecutor
             }
         }
 
-        return new SelectExecutionResult(columnNames, rows);
+        return ApplyTableValuedProjection("forecast", sourceColumnNames, rows, statement.Projections);
     }
 
     private static bool IsSelectStar(IReadOnlyList<SelectItem> projections)
         => projections.Count == 1 && projections[0].Expression is StarExpression && projections[0].Alias is null;
+
+    private static SelectExecutionResult ApplyTableValuedProjection(
+        string functionName,
+        IReadOnlyList<string> sourceColumns,
+        IReadOnlyList<IReadOnlyList<object?>> sourceRows,
+        IReadOnlyList<SelectItem> projections)
+    {
+        var lookup = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        for (int i = 0; i < sourceColumns.Count; i++)
+            lookup[sourceColumns[i]] = i;
+
+        var projected = new List<TableValuedProjection>();
+        foreach (var item in projections)
+        {
+            switch (item.Expression)
+            {
+                case StarExpression:
+                    if (item.Alias is not null)
+                        throw new InvalidOperationException("'*' 不允许带 alias。");
+                    for (int i = 0; i < sourceColumns.Count; i++)
+                        projected.Add(new TableValuedProjection(sourceColumns[i], i));
+                    break;
+
+                case IdentifierExpression id:
+                    if (!lookup.TryGetValue(id.Name, out var ordinal))
+                    {
+                        throw new InvalidOperationException(
+                            $"{functionName}(...) 表值函数没有输出列 '{id.Name}'。");
+                    }
+                    projected.Add(new TableValuedProjection(item.Alias ?? id.Name, ordinal));
+                    break;
+
+                default:
+                    throw new InvalidOperationException(
+                        $"{functionName}(...) 表值函数投影当前仅支持 * 或输出列名。");
+            }
+        }
+
+        var rows = new List<IReadOnlyList<object?>>(sourceRows.Count);
+        foreach (var sourceRow in sourceRows)
+        {
+            var row = new object?[projected.Count];
+            for (int i = 0; i < projected.Count; i++)
+                row[i] = sourceRow[projected[i].SourceOrdinal];
+            rows.Add(row);
+        }
+
+        return new SelectExecutionResult(projected.Select(static p => p.ColumnName).ToArray(), rows);
+    }
+
+    private sealed record TableValuedProjection(string ColumnName, int SourceOrdinal);
 
     private static int ResolvePositiveIntLiteral(SqlExpression arg, string name)
     {

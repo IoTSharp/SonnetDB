@@ -107,8 +107,10 @@ public static class ResultDiffer
 
             for (var col = 0; col < e.Count; col++)
             {
-                if (!ValuesEqual(e[col], a[col], tolerance))
-                    diffs.Add($"row {row} column {col} mismatch: expected '{e[col] ?? "NULL"}', actual '{a[col] ?? "NULL"}'");
+                var expectedColumnName = expected.Columns.Count > col ? expected.Columns[col] : string.Empty;
+                var actualColumnName = actual.Columns.Count > col ? actual.Columns[col] : string.Empty;
+                if (!ValuesEqual(e[col], a[col], tolerance, expectedColumnName, actualColumnName))
+                    diffs.Add($"row {row} column {col} ({expectedColumnName}) mismatch: expected '{e[col] ?? "NULL"}', actual '{a[col] ?? "NULL"}'");
             }
         }
 
@@ -125,10 +127,23 @@ public static class ResultDiffer
         return Math.Abs((double)expected - actual) / scale <= tolerance.Relative;
     }
 
-    private static bool ValuesEqual(object? expected, object? actual, DiffTolerance tolerance)
+    private static bool ValuesEqual(
+        object? expected,
+        object? actual,
+        DiffTolerance tolerance,
+        string expectedColumnName,
+        string actualColumnName)
     {
         if (expected is null || actual is null)
             return expected is null && actual is null;
+        if ((IsTimeBucketColumn(expectedColumnName) || IsTimeBucketColumn(actualColumnName))
+            && tolerance.TimeBucketMs is { } bucketSizeMs
+            && TryConvertToInt64(expected, out var expectedTime)
+            && TryConvertToInt64(actual, out var actualTime))
+        {
+            return TimeBucketStartsEqual(expectedTime, actualTime, bucketSizeMs);
+        }
+
         if (expected is long expectedLong && actual is long actualLong)
             return WithinTolerance(expectedLong, actualLong, tolerance);
         if (expected is double expectedDouble && actual is double actualDouble)
@@ -140,6 +155,68 @@ public static class ResultDiffer
                 tolerance);
         return Equals(expected, actual);
     }
+
+    private static bool IsTimeBucketColumn(string columnName)
+        => string.Equals(columnName, "time", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(columnName, "bucket", StringComparison.OrdinalIgnoreCase);
+
+    private static bool TimeBucketStartsEqual(long expected, long actual, long bucketSizeMs)
+    {
+        var expectedStart = FloorToBucketStart(expected, bucketSizeMs);
+        var actualStart = FloorToBucketStart(actual, bucketSizeMs);
+        if (expectedStart == actualStart)
+            return true;
+
+        // InfluxDB aggregateWindow and PromQL query_range commonly stamp a window
+        // at its stop/evaluation time. Normalize either side so this contract is
+        // independent from which backend is used as the baseline.
+        return expectedStart == FloorToBucketStart(actual - bucketSizeMs, bucketSizeMs)
+            || FloorToBucketStart(expected - bucketSizeMs, bucketSizeMs) == actualStart;
+    }
+
+    private static long FloorToBucketStart(long timestampMs, long bucketSizeMs)
+    {
+        var remainder = timestampMs % bucketSizeMs;
+        return remainder >= 0
+            ? timestampMs - remainder
+            : timestampMs - remainder - bucketSizeMs;
+    }
+
+    private static bool TryConvertToInt64(object value, out long result)
+    {
+        switch (value)
+        {
+            case byte b:
+                result = b;
+                return true;
+            case short s:
+                result = s;
+                return true;
+            case int i:
+                result = i;
+                return true;
+            case long l:
+                result = l;
+                return true;
+            case float f when IsInteger(f):
+                result = (long)f;
+                return true;
+            case double d when IsInteger(d):
+                result = (long)d;
+                return true;
+            case decimal m when m == decimal.Truncate(m):
+                result = (long)m;
+                return true;
+            default:
+                result = 0;
+                return false;
+        }
+    }
+
+    private static bool IsInteger(double value)
+        => !double.IsNaN(value)
+            && !double.IsInfinity(value)
+            && Math.Abs(value - Math.Round(value)) < 1e-9;
 
     private static bool IsNumeric(object value)
         => value is byte or short or int or long or float or double or decimal;
@@ -168,6 +245,9 @@ public sealed record DiffTolerance(double Relative, double Absolute)
 {
     /// <summary>严格数值合同：相对误差 1e-9，无绝对误差放宽。</summary>
     public static DiffTolerance Strict { get; } = new(1e-9, 0d);
+
+    /// <summary>当列名为 time / bucket 时，用于把窗口 stop/evaluation 时间规范化为 bucket 起始时间。</summary>
+    public long? TimeBucketMs { get; init; }
 }
 
 /// <summary>
