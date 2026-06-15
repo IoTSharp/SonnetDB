@@ -1,0 +1,230 @@
+# SonnetDB Parity 测试栈（Milestone 20 / PR #127）。
+#
+# 用法：
+#   docker compose -f docker-compose.parity.yml --profile light up -d   # 轻量栈（6 服务，~1.5GB）
+#   docker compose -f docker-compose.parity.yml --profile full  up -d   # 全量栈（12 服务，~6-8GB）
+#   docker compose -f docker-compose.parity.yml down -v                 # 一键清空（含 named volumes）
+#
+# PR #127 的冒烟场景仅实际使用 postgres；其余竞品服务定义到位但暂未被场景驱动，
+# 由后续 PR（#129~#134）逐支柱接入。镜像标签全部 pin 到具体版本（不用 :latest）。
+
+name: ${COMPOSE_PROJECT_NAME:-sonnetdb-parity}
+
+networks:
+  parity-net:
+    driver: bridge
+
+volumes:
+  sonnetdb-data:
+  pg-data:
+  redis-data:
+  minio-data:
+  influx-data:
+  vm-data:
+  meili-data:
+  qdrant-data:
+  ch-data:
+
+services:
+  # ── 轻量栈（light + full） ─────────────────────────────────────────────
+  sonnetdb:
+    build:
+      context: ../..
+      dockerfile: src/SonnetDB/Dockerfile
+    image: iotsharp/sonnetdb:parity
+    networks: [parity-net]
+    ports:
+      - "${PARITY_SONNETDB_PORT:-25080}:5080"
+    volumes:
+      - sonnetdb-data:/data
+    environment:
+      SONNETDB_SonnetDBServer__DataRoot: /data
+      SONNETDB_SonnetDBServer__AllowAnonymousProbes: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/5080' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    profiles: [light, full]
+
+  postgres:
+    image: postgres:16.4
+    networks: [parity-net]
+    ports:
+      - "${PARITY_PG_PORT:-25432}:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${PARITY_PG_USER:-parity}
+      POSTGRES_PASSWORD: ${PARITY_PG_PASSWORD:-parity}
+      POSTGRES_DB: ${PARITY_PG_DB:-parity}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PARITY_PG_USER:-parity} -d ${PARITY_PG_DB:-parity}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    profiles: [light, full]
+
+  redis:
+    image: redis:7.4
+    networks: [parity-net]
+    ports:
+      - "${PARITY_REDIS_PORT:-26379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    profiles: [light, full]
+
+  minio:
+    image: minio/minio:RELEASE.2024-09-22T00-33-43Z
+    command: server /data --console-address ":9001"
+    networks: [parity-net]
+    ports:
+      - "${PARITY_MINIO_API_PORT:-25000}:9000"
+      - "${PARITY_MINIO_CONSOLE_PORT:-25090}:9001"
+    volumes:
+      - minio-data:/data
+    environment:
+      MINIO_ROOT_USER: ${PARITY_MINIO_ROOT_USER:-parity}
+      MINIO_ROOT_PASSWORD: ${PARITY_MINIO_ROOT_PASSWORD:-parity12345}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    profiles: [light, full]
+
+  nats:
+    image: nats:2.10
+    command: ["-js", "-m", "8222"]
+    networks: [parity-net]
+    ports:
+      - "${PARITY_NATS_PORT:-24222}:4222"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8222/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    profiles: [light, full]
+
+  # ── 仅 full 栈 ─────────────────────────────────────────────────────────
+  influxdb:
+    image: influxdb:2.7
+    networks: [parity-net]
+    ports:
+      - "${PARITY_INFLUX_PORT:-28086}:8086"
+    volumes:
+      - influx-data:/var/lib/influxdb2
+    healthcheck:
+      test: ["CMD-SHELL", "influx ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    profiles: [full]
+
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:v1.106.1
+    command: ["--storageDataPath=/vm-data"]
+    networks: [parity-net]
+    ports:
+      - "${PARITY_VM_PORT:-28428}:8428"
+    volumes:
+      - vm-data:/vm-data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8428/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    profiles: [full]
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    networks: [parity-net]
+    ports:
+      - "${PARITY_MOSQUITTO_PORT:-21883}:1883"
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -t '$$SYS/#' -C 1 -W 3 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    profiles: [full]
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.10
+    networks: [parity-net]
+    ports:
+      - "${PARITY_MEILI_PORT:-27700}:7700"
+    volumes:
+      - meili-data:/meili_data
+    environment:
+      MEILI_MASTER_KEY: ${PARITY_MEILI_MASTER_KEY:-parity-master-key}
+      MEILI_NO_ANALYTICS: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:7700/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    profiles: [full]
+
+  qdrant:
+    image: qdrant/qdrant:v1.11.5
+    networks: [parity-net]
+    ports:
+      - "${PARITY_QDRANT_PORT:-26333}:6333"
+    volumes:
+      - qdrant-data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/6333' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    profiles: [full]
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    networks: [parity-net]
+    ports:
+      - "${PARITY_CLICKHOUSE_HTTP_PORT:-28123}:8123"
+    volumes:
+      - ch-data:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8123/ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    profiles: [full]
+
+  # ── 测试驱动 harness ───────────────────────────────────────────────────
+  harness:
+    image: mcr.microsoft.com/dotnet/sdk:10.0
+    working_dir: /src
+    volumes:
+      - ../..:/src
+    networks: [parity-net]
+    environment:
+      BACKEND: ${BACKEND:-sonnetdb,postgres}
+      PARITY_PG_HOST: postgres
+      PARITY_PG_PORT: "5432"
+      PARITY_PG_USER: ${PARITY_PG_USER:-parity}
+      PARITY_PG_PASSWORD: ${PARITY_PG_PASSWORD:-parity}
+      PARITY_PG_DB: ${PARITY_PG_DB:-parity}
+    command: ["dotnet", "test", "tests/SonnetDB.Parity/SonnetDB.Parity.csproj", "-c", "Release"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: [light, full]

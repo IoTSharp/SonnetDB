@@ -1,0 +1,20 @@
+# 本地覆盖示例：与 docker-compose.parity.yml 叠加使用。
+#   docker compose -f docker-compose.parity.yml -f docker-compose.parity.override.yml up -d
+#
+# 默认不改变任何行为；按需取消注释以适配本机环境。
+services:
+  # 示例：把 harness 指向已经在跑的外部 Postgres，而不是 compose 内的实例。
+  # harness:
+  #   environment:
+  #     PARITY_PG_HOST: host.docker.internal
+  #     PARITY_PG_PORT: "5432"
+  #   extra_hosts:
+  #     - "host.docker.internal:host-gateway"
+
+  # 示例：给内存吃紧的本机限制 ClickHouse 资源。
+  # clickhouse:
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 2g
+  {}

@@ -343,10 +343,11 @@ public sealed record UpdateStatement(
 public sealed record UpdateAssignment(string ColumnName, SqlExpression Value);
 
 /// <summary>
-/// <c>DROP TABLE name</c>：删除关系表 schema 与 rowstore。
+/// <c>DROP TABLE [IF EXISTS] name</c>：删除关系表 schema 与 rowstore。
 /// </summary>
 /// <param name="Name">目标关系表名称。</param>
-public sealed record DropTableStatement(string Name) : SqlStatement;
+/// <param name="IfExists">是否带 <c>IF EXISTS</c> 修饰；为 <c>true</c> 时表不存在视为成功（0 行受影响），否则报错。</param>
+public sealed record DropTableStatement(string Name, bool IfExists = false) : SqlStatement;
 
 /// <summary>
 /// <c>DROP DOCUMENT COLLECTION name</c>：删除文档集合 schema 与主数据。

@@ -344,6 +344,34 @@ public sealed class SqlExecutorTableTests : IDisposable
     }
 
     [Fact]
+    public void DropTable_MissingTable_Throws()
+    {
+        using var db = Tsdb.Open(Options());
+        Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db, "DROP TABLE ghost"));
+    }
+
+    [Fact]
+    public void DropTableIfExists_MissingTable_NoOp()
+    {
+        using var db = Tsdb.Open(Options());
+        var dropped = Assert.IsType<RowsAffectedExecutionResult>(
+            SqlExecutor.Execute(db, "DROP TABLE IF EXISTS ghost"));
+        Assert.Equal(0, dropped.RowsAffected);
+    }
+
+    [Fact]
+    public void DropTableIfExists_ExistingTable_Drops()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
+
+        var dropped = Assert.IsType<RowsAffectedExecutionResult>(
+            SqlExecutor.Execute(db, "DROP TABLE IF EXISTS devices"));
+        Assert.Equal(1, dropped.RowsAffected);
+        Assert.Empty(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SHOW TABLES")).Rows);
+    }
+
+    [Fact]
     public void AlterTable_AddDropRenameColumn_RewritesRowsAndPersists()
     {
         using (var db = Tsdb.Open(Options()))

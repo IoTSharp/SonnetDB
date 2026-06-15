@@ -1,0 +1,3 @@
+# Parity run 产物（report.json / diff.md）不入库；仅保留目录占位。
+*
+!.gitignore

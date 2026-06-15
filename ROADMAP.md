@@ -691,6 +691,74 @@ extensions/
 
 ---
 
+## Milestone 20 — 多模能力对齐与平移测试 (Parity)
+
+> **目标**：用一份 docker-compose 同时拉起 SonnetDB 与开源组件全家桶（PostgreSQL / Redis / InfluxDB / VictoriaMetrics / MinIO / NATS / Mosquitto / Meilisearch / Qdrant / ClickHouse），用同一份场景脚本两边各跑一遍，证明"一台 SonnetDB 在边缘 / 单机场景能替掉这一组组件"。详细设计见 [docs/parity-roadmap.md](docs/parity-roadmap.md)。
+>
+> **设计原则**：
+>
+> 1. **不做协议兼容**。SonnetDB 走自有 `SndbConnection` / `SndbMqClient` / `SndbObjectStorageClient` / EF Core provider；竞品走它们的官方 .NET 客户端（`Npgsql` / `StackExchange.Redis` / `InfluxDB.Client` / `Minio` / `NATS.Client.Core` / `Meilisearch.Net` / `Qdrant.Client` / `ClickHouse.Client`）。
+> 2. **不做替代主张**。对齐"一台开源组件、单进程、单节点"的能力面，不对齐 Redis Cluster / Kafka / Postgres HA / MinIO 分布式集群。
+> 3. **三类对齐**：能力对齐（同场景两边都跑通）、可靠性对齐（同注入两边恢复语义一致）、算法准确度对齐（同数据两边统计量在容差内）。
+> 4. **分布式留作下一步**。本里程碑不引入复制 / 副本 / Raft；待客户和长稳数据要求后再启动。
+> 5. **够用即可**。性能数字写报告不做 gating；只对"在数量级以内"做健全性检查。
+>
+> **关键产出**：`tests/SonnetDB.Parity/` 测试项目 + `tests/SonnetDB.Parity/docker-compose.parity.yml` + GitHub Actions nightly + README parity badge + 八大支柱 × 至少 3 场景 = 24+ 场景红绿门槛。
+>
+> **连带产出**（不另立 PR）：KV `INCR/DECR/CAS/EXPIRE/PERSIST/TTL`、SonnetMQ `RecordTypeTombstone` 段滚动 + `FlushOnPublish=true` 默认、对象桶 `ListObjectsV2 ContinuationToken` 分页、`tests/SonnetDB.CrashTests/` 真子进程 SIGKILL、README 措辞与代码同步。
+
+### PR 拆分
+
+| PR | 主题 | 状态 |
+|----|------|------|
+| #127 | **Parity 骨架与第一对适配器**：新增 `tests/SonnetDB.Parity/` 测试项目（独立 csproj，`<IsAotCompatible>false</IsAotCompatible>`，不进 `SonnetDB.slnx` AOT 流水线）；新增 `tests/SonnetDB.Parity/docker-compose.parity.yml` 12 服务栈 + `.env` + `light/full` profiles + named volumes + healthchecks；harness 服务（dotnet sdk 镜像跑 `dotnet test`）+ ParityRunner xUnit 驱动 + JSON/Markdown reporter；落地 `IDataPlane` 契约 + `Capability` 标志位 + `ScenarioContext` + `ResultDiffer` + 容差判定基础设施；首对适配器 `SonnetDbAdapter` + `PostgresAdapter`（`Npgsql`），跑通 1 个 hello-world relational 场景作冒烟。 | ✅ |
+| #128 | **关系型场景套件（vs Postgres）**：`scenarios/relational/` 目录新增 `tpcc_lite`（5 仓库 30 分钟）、`fk_cascade_constraint`、`isolation_read_committed`、`subquery_correlated`、`groupby_having`、`information_schema_introspection`、`update_returning_count`、`alter_table_evolution`；输出能力差异表（哪些 SonnetDB SKIPPED 哪些 PASS）。 | 📋 |
+| #129 | **TSDB 场景套件（vs InfluxDB / VictoriaMetrics）+ 算法准确度对齐**：新增 `InfluxAdapter`（`InfluxDB.Client`）+ `VictoriaMetricsAdapter`（Prometheus remote_write + PromQL HTTP）；场景 `ingest_1m_points`、`groupby_time_window`、`derivative_accuracy`、`rate_irate_consistency`、`holt_winters_forecast_recall`、`percentile_p95_tdigest_vs_quantile`、`distinct_count_hll_2pct_error`；准确度判定接入 `ResultDiffer` 容差合同。 | 📋 |
+| #130 | **KV 场景套件（vs Redis）+ 向量套件（vs Qdrant）**：新增 `RedisAdapter`（`StackExchange.Redis`）+ `QdrantAdapter`（`Qdrant.Client`）；KV 场景 `set_get_scan_throughput`、`ttl_accuracy`、`incr_concurrency_16_clients`、`cas_optimistic_lock`、`scan_cursor_10m_keys`；向量场景 `ann_recall_at_10`、`filtered_search`、`upsert_during_query`；连带交付 KV `INCR/DECR/CAS/EXPIRE/PERSIST/TTL` 实现（`KvKeyspace`）+ 后台 expirer worker。 | 📋 |
+| #131 | **对象桶套件（vs MinIO）**：新增 `MinioAdapter`（AWS SDK pointed at MinIO endpoint）；场景 `putget_1gb_object`、`multipart_upload_5gb`、`range_read_offsets`、`list_objects_v2_pagination`、`copy_object`、`delete_marker_versioning`、`presigned_url_lifecycle`；连带交付 `ListObjectsV2 ContinuationToken` 实现 + `DeleteObjects` 批量端点（保留私有 JSON 协议，不引入 SigV4）。 | 📋 |
+| #132 | **MQ 套件（vs NATS JetStream）+ replay 语义对齐**：新增 `NatsAdapter`（`NATS.Client.Core`）；场景 `publish_consume_ack`、`consumer_group_offset`、`replay_after_restart`、`fan_out_10p_10c`、`backpressure_unbounded_producer`；连带交付 SonnetMQ `RecordTypeTombstone(3)` + 段滚动 + 后台 RetentionWorker（time/size 双维度 trim）+ `FlushOnPublish=true` 默认值切换 + `TopicState` 分段化（64MB 切片 + LRU）。 | 📋 |
+| #133 | **全文套件（vs Meilisearch）+ BM25 排序对齐**：新增 `MeiliAdapter`（`Meilisearch.Net`）；场景 `index_1m_documents`、`bm25_ranking_top10_overlap`、`cjk_tokenize_correctness`、`facet_filter_query`、`incremental_update_during_query`、`typo_tolerant_query`；BM25 top-10 重合率 ≥ 0.8 作为判定。 | 📋 |
+| #134 | **分析套件（vs ClickHouse）+ 聚合精度对齐**：新增 `ChAdapter`（`ClickHouse.Client`）；场景 `groupby_time_1b_rows_wallclock`、`window_avg_7day`、`topn_per_device`、`columnar_compression_ratio`、`percentile_accuracy_p50_p95_p99`；明确 SonnetDB 不打吞吐战，但聚合数值必须在容差内。 | 📋 |
+| #135 | **可靠性套件（kill -9 / disk-full / oom / power-loss）**：新增 `tests/SonnetDB.CrashTests/`（真子进程 + `Process.Kill(true)` 注杀，**不再用 `CrashSimulationCloseWal`**）；场景 `crash_kill9_during_fsync`、`crash_kill9_mid_compaction`、`disk_full_during_wal_append`、`oom_protection_memtable_backpressure`、`power_loss_torn_record`、`power_loss_half_renamed_segment`；对齐 Redis AOF / Postgres pg_basebackup / MinIO mc 的恢复语义。连带交付 `MemTable.HardCapBytes` back-pressure（4× MaxBytes 时 `SemaphoreSlim` 阻塞）+ `SegmentCompactor.Execute` `CancellationToken` 检查 + 三个后台 worker `catch` 块路由到 `ReportDiagnostic`（ROADMAP M17 已有 `TsdbDiagnosticEvent` 基础设施）。 | 📋 |
+| #136 | **CI gating + nightly + parity-results 分支 + README badge**：`.github/workflows/parity.yml` 每日 02:00 UTC + manual dispatch；`{light, full}` × `ubuntu-latest` 矩阵；能力 / 可靠性 / 算法准确度三类作为红绿门槛，性能数字 warning only；nightly 结果 push 到 `parity-results` 孤立分支；README 新增 "Parity vs Open-Source Stack" 段落 + 通过率 badge；`tests/SonnetDB.Parity/reports/sample-run.md` 产出可读样例报告。 | 📋 |
+
+### 推进顺序
+
+```text
+#127 (compose 骨架 + IDataPlane + 第一对适配器)
+  → #128 (关系型 vs Postgres)
+  → #129 (TSDB vs InfluxDB/VictoriaMetrics + 算法准确度)
+  → #130 (KV vs Redis + 向量 vs Qdrant，连带 INCR/CAS/TTL 落地)
+  → #131 (对象桶 vs MinIO，连带 ContinuationToken)
+  → #132 (MQ vs NATS，连带 SonnetMQ Tombstone + 段滚动)
+  → #133 (全文 vs Meilisearch)
+  → #134 (分析 vs ClickHouse)
+  → #135 (可靠性套件 + tests/SonnetDB.CrashTests/)
+  → #136 (CI gating + nightly + badge)
+```
+
+### 验收标准
+
+- 八大支柱 × 至少 3 场景 = 24+ 场景全部 PASS（含 SKIPPED 但有 `gap_reason` 字段）。
+- `docker compose --profile full up` 在干净 ubuntu-latest 5 分钟内全部 healthy。
+- nightly 连续 7 天通过率 ≥ 95%（剩下 5% 留给容器抖动）。
+- README 新增 "Parity vs Open-Source Stack" 段落 + 链接到最新 nightly 报告 + 通过率 badge。
+- `tests/SonnetDB.Parity/reports/sample-run.md` 产出可读样例报告（含 24+ 场景表格 + diff 列）。
+- 至少 1 个真实算法精度差异被 parity 抓出来并修复（证明判定有效，不是橡皮图章）。
+- 可靠性套件用 `Process.Kill(true)` 真崩溃，不再依赖 `CrashSimulationCloseWal`；torn-record / 半重命名段 / disk-full 三个剧本必须通过。
+- KV `INCR / DECR / CompareAndSet / EXPIRE / PERSIST / TTL` 与 SonnetMQ `RecordTypeTombstone` + 段滚动作为本里程碑连带产出落地。
+- Parity 项目设 `<IsAotCompatible>false</IsAotCompatible>`，不进 `SonnetDB.slnx`，不污染主仓 AOT 流水线；竞品官方客户端依赖隔离在 adapters 各自 csproj。
+
+### 不做的事
+
+- **不**实现 SigV4 / MQTT 3.1.1 / RESP / Postgres wire / Kafka wire 等协议兼容（永久不做）。
+- **不**测试 aws-cli / mosquitto_pub / redis-cli 直连 SonnetDB（不在能力对齐范围内）。
+- **不**做跨产品迁移工具（属于 [Milestone 19](#milestone-19--iotsharp-生态数据底座选项关系--时序--kvcache--s3--搜索) 的 #120）。
+- **不**做绝对性能 gating（已在 [tests/SonnetDB.Benchmarks](tests/SonnetDB.Benchmarks/) 处理）。
+- **不**引入 Testcontainers / k6 / Gatling / Allure / TestRail，不引入 Java/Go/Python 客户端。
+
+---
+
 ## 里程碑总览
 
 | Milestone | 主题 | PR 范围 | 状态 |
@@ -715,9 +783,10 @@ extensions/
 | 17 | 可观测性与运行时可见性（OTel + 结构化日志 + 诊断端点） | #89 ~ #98 | 📋 |
 | 18 | VS Code 数据库扩展（SonnetDB for VS Code） | #99 ~ #108 | 🚧（#99 骨架与规划已落目录） |
 | 19 | IoTSharp 生态数据底座选项（关系 + 时序 + KV/缓存 + S3 + 搜索 + 大量物理分表长稳） | #109 ~ #125 | 🚧（#109~#117、#122/#123 已完成） |
+| 20 | 多模能力对齐与平移测试（Parity） | #127 ~ #136 | 🚧（#127 ✅ 骨架与第一对适配器已落地） |
 | MM9 | 多模型统一备份、恢复和管理工具第一批 | BackupService + sndb backup | ✅ |
 
-**当前推进顺序**：Milestone 14（Copilot）与 Milestone 16（Copilot 产品化升级）均已合并；当前主线转向 **Milestone 17（可观测性与运行时可见性）**，从 PR #89（Core Meter / ActivitySource 基线）起步。Milestone 15（地理空间）已完成并收尾。**Milestone 18（VS Code 扩展）** 也可并行推进，建议先以 `#99 ~ #103` 打出第一个“远程连接 + Explorer + SQL + 结果视图”闭环。**Milestone 19（IoTSharp 生态数据底座选项）** 已纳入正式规划，#109~#117 与 #122/#123 已完成；后续继续推进对象治理、Profile 周边、增量索引 / 后台维护成本与大量 measurement 长稳专项。SonnetDBEE C5.7 / MM9 的开源核心第一批已提供 `BackupService` 和 `sndb backup create/inspect/verify/restore`，企业级定时、增量、审计和 UI 编排继续由 SonnetDBEE 承接。
+**当前推进顺序**：Milestone 14（Copilot）与 Milestone 16（Copilot 产品化升级）均已合并；当前主线转向 **Milestone 17（可观测性与运行时可见性）**，从 PR #89（Core Meter / ActivitySource 基线）起步。Milestone 15（地理空间）已完成并收尾。**Milestone 18（VS Code 扩展）** 也可并行推进，建议先以 `#99 ~ #103` 打出第一个“远程连接 + Explorer + SQL + 结果视图”闭环。**Milestone 19（IoTSharp 生态数据底座选项）** 已纳入正式规划，#109~#117 与 #122/#123 已完成；后续继续推进对象治理、Profile 周边、增量索引 / 后台维护成本与大量 measurement 长稳专项。SonnetDBEE C5.7 / MM9 的开源核心第一批已提供 `BackupService` 和 `sndb backup create/inspect/verify/restore`，企业级定时、增量、审计和 UI 编排继续由 SonnetDBEE 承接。**Milestone 20（多模能力对齐 Parity）** 已起步，PR #127（compose 骨架 + `IDataPlane` 契约 + SonnetDB/Postgres 第一对适配器 + hello-world 冒烟）已落地，下一步推进 PR #128（关系型场景套件 vs Postgres）。
 
 ---
 
@@ -738,6 +807,7 @@ extensions/
 13. **新增 Milestone 17 — 可观测性与运行时可见性**：为 SonnetDB 补齐生产可运维三大支柱（指标 / 追踪 / 日志）。`SonnetDB.Core` 继续堅持**零运行时第三方依赖**，仅用 BCL `System.Diagnostics.Metrics` / `ActivitySource` 提供 Meter 与 Activity；OpenTelemetry SDK / Prometheus Exporter 仅出现在 `src/SonnetDB`（Server 程序集）。附带交付：Slow Query Log 与 Top-N 查询统计、Diagnostic Dump 端点、Health Live/Ready 拆分、Copilot token / tool 调用量指标与服务端会话持久化（M16 M5 二阶段）、Web Admin 内嵌监控面板（零图表第三方）。docker-compose 补 `profile: observability` 依需启动 `otel-collector` + `prometheus` + `grafana` 供本地联调。
 14. **细化原 Milestone 10 的 #40 占位需求为独立的 Milestone 18 — VS Code 数据库扩展**：保留 `#40` 作为 Epic，占位层面明确为“SonnetDB for VS Code”；具体实现拆分为 `#99 ~ #108`，采用 **TypeScript-first + Remote-first** 路线，首版直接复用现有 `/v1/db`、`/v1/db/{db}/schema`、`/v1/db/{db}/sql`、`/v1/copilot/chat/stream` 等 HTTP contract。本地目录支持不走 Node 直嵌引擎，而是后续通过“扩展托管本地 SonnetDB Server”方式接入，降低 VS Code 宿主与 .NET 运行时耦合。
 15. **新增 Milestone 19 — IoTSharp 生态数据底座选项**：把 SonnetDB 从“时序 + 管理后台 + Copilot”扩展为 IoTSharp 的可选数据底座。该里程碑覆盖关系型数据库、时序数据库、KV/缓存、S3-compatible 对象桶、向量搜索、全文搜索和大量物理分表长稳七条线，并把 EF Core provider、EasyCaching/IDistributedCache provider、S3 API、搜索索引生命周期、迁移双写、分层文件布局、compaction manifest、长稳压测作为同等重要的交付物。路线明确要求先做兼容矩阵和回滚策略，避免把不完整 table/KV/搜索能力过早宣称为 PostgreSQL/Redis/S3/搜索后端的生产级完整兼容。
+16. **新增 Milestone 20 — 多模能力对齐与平移测试 (Parity)**：用一份 docker-compose 同时拉起 SonnetDB 与开源全家桶（PostgreSQL / Redis / InfluxDB / VictoriaMetrics / MinIO / NATS / Mosquitto / Meilisearch / Qdrant / ClickHouse），用同一套 `IDataPlane` 适配器跑同一套场景，证明"一台 SonnetDB 在边缘 / 单机场景能替掉这一组组件"。**显式不做协议兼容**（自有 `SndbConnection` / `SndbMqClient` / `SndbObjectStorageClient` / EF Core provider，竞品走它们的官方 .NET 客户端），**显式不做替代主张**（不对齐 Redis Cluster / Kafka / Postgres HA / MinIO 集群），三类对齐边界为：能力对齐、可靠性对齐、算法准确度对齐；性能数字写报告不做 gating。本里程碑同时连带把 KV `INCR/CAS/EXPIRE/PERSIST/TTL`、SonnetMQ `RecordTypeTombstone` 段滚动 + `FlushOnPublish=true` 默认、对象桶 `ListObjectsV2 ContinuationToken` 分页、`tests/SonnetDB.CrashTests/` 真子进程 SIGKILL 注杀、README 措辞与代码同步落地。详细设计见 [`docs/parity-roadmap.md`](docs/parity-roadmap.md)。
 
 
 

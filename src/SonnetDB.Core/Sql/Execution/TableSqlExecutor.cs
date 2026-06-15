@@ -103,6 +103,9 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(statement);
 
         bool removed = tsdb.Tables.Drop(statement.Name);
+        if (!removed && !statement.IfExists)
+            throw new InvalidOperationException($"table '{statement.Name}' 不存在。");
+
         return new RowsAffectedExecutionResult(statement.Name, removed ? 1 : 0, "drop_table");
     }
 

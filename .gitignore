@@ -10,6 +10,8 @@
 *.userosscache
 *.sln.docstates
 *.env
+# Parity 测试栈需要把 .env 入库（端口/一次性凭证），对 *.env 例外放行
+!tests/SonnetDB.Parity/.env
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs

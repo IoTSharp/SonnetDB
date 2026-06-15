@@ -231,6 +231,16 @@ public sealed class SqlParser
         return true;
     }
 
+    private bool ParseOptionalIfExists()
+    {
+        if (Current.Kind != TokenKind.KeywordIf)
+            return false;
+
+        Advance();
+        Expect(TokenKind.KeywordExists);
+        return true;
+    }
+
     // ── CREATE MEASUREMENT ─────────────────────────────────────────────────
 
     private CreateMeasurementStatement ParseCreateMeasurementBody()
@@ -2025,7 +2035,8 @@ public sealed class SqlParser
                 return new DropFullTextIndexStatement(fullTextIndexName, ExpectIdentifierName());
             case TokenKind.KeywordTable:
                 Advance();
-                return new DropTableStatement(ExpectIdentifierName());
+                var dropTableIfExists = ParseOptionalIfExists();
+                return new DropTableStatement(ExpectIdentifierName(), dropTableIfExists);
             case TokenKind.KeywordDocument:
                 Advance();
                 Expect(TokenKind.KeywordCollection);

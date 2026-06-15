@@ -7,6 +7,8 @@
 
 ### Added
 
+- **SQL `DROP TABLE IF EXISTS`**：关系表 `DROP TABLE` 现支持可选 `IF EXISTS` 修饰；带 `IF EXISTS` 时表不存在视为成功（0 行受影响），不带时表不存在仍报错，与标准 SQL / Postgres 语义一致。
+- **PR #127 Parity 骨架与第一对适配器**：新增独立测试项目 `tests/SonnetDB.Parity`（`<IsAotCompatible>false</IsAotCompatible>`，刻意不进 `SonnetDB.slnx`，避免污染主仓 AOT 流水线），含 `docker-compose.parity.yml` 12 服务栈（sonnetdb + postgres/redis/influxdb/victoriametrics/minio/nats/mosquitto/meilisearch/qdrant/clickhouse + harness，镜像标签全部 pin、healthcheck 齐备、named volumes、`light`/`full` profiles）+ `.env` + 本地 override 模板；落地 `IDataPlane` 契约 + `Capability` `[Flags]` 标志位 + `IScenario` / `ScenarioContext` / `ScenarioResult` + `ResultDiffer` 容差判定 + `BackendSelector` + 源生成 JSON / Markdown reporter + `ParityRunner` xUnit 驱动；首对适配器 `SonnetDbAdapter`（嵌入式 `SndbConnection`，临时目录，无需 docker）+ `PostgresAdapter`（`Npgsql`，不可达时记录 `gap_reason` 并 SKIP 而非 FAIL），跑通 1 个 `relational_hello_world` 关系型冒烟场景。遵循 Parity 路线图约定**不引入** Testcontainers / Verify.Xunit；竞品服务由 docker-compose 直接管理。
 - **SonnetMQ 本地消息队列 MVP**：新增 `src/SonnetMQ` 零依赖核心库与 `docs/sonnetmq-roadmap.md`，采用 append-only log 提供 topic publish、consumer group pull/ack、单目录/单文件模式与重启 replay，为 IoTSharp 通过 SonnetDB 获得内置 MessageQueue 能力打基础。
 - **Docker 发布补齐 SonnetMQ 项目引用**：`src/SonnetDB/Dockerfile` 在 restore 与 publish 阶段同步复制 `src/SonnetMQ`，避免服务端镜像构建时因缺少 `../SonnetMQ/SonnetMQ.csproj` 报 `CS0246`。
 - **J10 SonnetDB Compaction 崩溃恢复与长稳加固**：新增 `segment-replacements.sdbmanifest` 段替换清单，Compaction 在写新段前记录 pending replacement、提交后标记旧段 superseded；启动加载 Segment 时按 manifest 跳过 pending 新段或已 superseded / retention dropped 旧段，避免崩溃后新旧重复段同时进入查询路径；Retention 整段 drop 也先提交清单再发布内存状态，补齐重启可恢复性测试。
