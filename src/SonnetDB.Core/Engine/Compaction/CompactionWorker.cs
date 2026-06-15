@@ -134,7 +134,8 @@ internal sealed class CompactionWorker : IDisposable
                         newPath,
                         _owner.Tombstones,
                         _owner.Catalog,
-                        _owner.Measurements);
+                        _owner.Measurements,
+                        _cts.Token);
 
                     SegmentReplacementManifest.CommitReplacement(
                         _owner.RootDirectory,
@@ -159,6 +160,11 @@ internal sealed class CompactionWorker : IDisposable
                 {
                     Interlocked.Increment(ref _failureCount);
                     Volatile.Write(ref _lastError, ex);
+                    _owner.ReportBackgroundWorkerDiagnostic(
+                        "CompactionWorker.Execute",
+                        TsdbDiagnosticSeverity.Error,
+                        "后台 Compaction 执行失败；异常已被捕获，后续轮询会继续尝试。",
+                        ex);
                 }
             }
         }

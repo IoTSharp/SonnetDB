@@ -165,6 +165,25 @@ public sealed class TsdbWriteTests : IDisposable
     }
 
     [Fact]
+    public void Write_WithHardCapBytesExceeded_ForcesSynchronousFlush()
+    {
+        using var db = Tsdb.Open(MakeOptions(new MemTableFlushPolicy
+        {
+            MaxBytes = long.MaxValue,
+            HardCapBytes = 1,
+            MaxPoints = long.MaxValue,
+            MaxAge = TimeSpan.MaxValue,
+        }));
+
+        db.Write(Point.Create("metric", 1000L,
+            new Dictionary<string, string> { ["host"] = "h" },
+            new Dictionary<string, FieldValue> { ["v"] = FieldValue.FromDouble(1.0) }));
+
+        Assert.Equal(0L, db.MemTable.PointCount);
+        Assert.Equal(1, db.Segments.SegmentCount);
+    }
+
+    [Fact]
     public void WriteMany_WithNewFieldsAndTags_PersistsMeasurementSchemaOnce()
     {
         using var db = Tsdb.Open(MakeOptions());

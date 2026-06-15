@@ -154,4 +154,50 @@ public sealed class BackgroundFlushWorkerTests : IDisposable
 
         Assert.True(db.Segments.SegmentCount >= 1, "后台线程应在 3s 内触发至少一次 Flush");
     }
+
+    [Fact]
+    public void WorkerFlushFailure_RaisesDiagnosticEvent()
+    {
+        var expected = new IOException("background flush boom");
+        var opts = new TsdbOptions
+        {
+            RootDirectory = _tempDir,
+            WalBufferSize = 64 * 1024,
+            FlushPolicy = new MemTableFlushPolicy
+            {
+                MaxPoints = 1,
+                MaxBytes = long.MaxValue,
+                MaxAge = TimeSpan.MaxValue,
+            },
+            SegmentWriterOptions = new SegmentWriterOptions
+            {
+                FsyncOnCommit = false,
+                FailAt = _ => throw expected,
+            },
+            BackgroundFlush = new BackgroundFlushOptions
+            {
+                Enabled = true,
+                PollInterval = TimeSpan.FromMilliseconds(20),
+                ShutdownTimeout = TimeSpan.FromSeconds(10),
+            },
+        };
+
+        using var db = Tsdb.Open(opts);
+        TsdbDiagnosticEvent? diagnostic = null;
+        using var signaled = new ManualResetEventSlim();
+        db.DiagnosticEvent += (_, e) =>
+        {
+            diagnostic = e;
+            signaled.Set();
+        };
+
+        db.Write(MakePoint(1000L, 1.0));
+
+        Assert.True(signaled.Wait(TimeSpan.FromSeconds(3)), "后台 Flush 失败应触发诊断事件。");
+        Assert.NotNull(diagnostic);
+        Assert.Equal("BackgroundFlushWorker.Flush", diagnostic!.Operation);
+        Assert.Equal(TsdbDiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Same(expected, diagnostic.Exception);
+        Assert.Same(expected, db.LastError);
+    }
 }

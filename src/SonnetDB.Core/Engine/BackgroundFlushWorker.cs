@@ -139,6 +139,11 @@ internal sealed class BackgroundFlushWorker : IDisposable
                 {
                     Interlocked.Increment(ref _failureCount);
                     Volatile.Write(ref _lastError, ex);
+                    _owner.ReportBackgroundWorkerDiagnostic(
+                        "BackgroundFlushWorker.Flush",
+                        TsdbDiagnosticSeverity.Error,
+                        "后台 Flush 执行失败；异常已被捕获，后续轮询会继续尝试。",
+                        ex);
                 }
             }
         }

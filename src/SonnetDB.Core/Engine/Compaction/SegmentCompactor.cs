@@ -53,16 +53,18 @@ public sealed class SegmentCompactor
         string newSegmentPath,
         TombstoneTable? tombstones = null,
         SeriesCatalog? seriesCatalog = null,
-        MeasurementCatalog? measurementCatalog = null)
+        MeasurementCatalog? measurementCatalog = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(readers);
         ArgumentNullException.ThrowIfNull(newSegmentPath);
+        cancellationToken.ThrowIfCancellationRequested();
 
         var sw = Stopwatch.StartNew();
 
         // 1. 按 (SeriesId, FieldName) → (FieldType, List<(SegmentReader, BlockDescriptor)>) 分组
-        var groups = CollectGroups(plan, readers);
+        var groups = CollectGroups(plan, readers, cancellationToken);
 
         int inputBlockCount = groups.Values.Sum(static g => g.Blocks.Count);
 
@@ -70,18 +72,23 @@ public sealed class SegmentCompactor
         var seriesList = new List<MemTableSeries>(groups.Count);
         foreach (var (key, group) in groups)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var mts = new MemTableSeries(key, group.FieldType);
-            MergeAndAppend(mts, group.Blocks, readers, tombstones);
+            MergeAndAppend(mts, group.Blocks, readers, tombstones, cancellationToken);
             // 若该桶所有点均被墓碑覆盖，不生成空 Block（SegmentWriter 会跳过空 series）
             if (mts.Count > 0)
                 seriesList.Add(mts);
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
+
         // 3. 写入新段
         IReadOnlyDictionary<SeriesFieldKey, VectorIndexDefinition>? vectorIndexes = null;
         if (seriesCatalog is not null && measurementCatalog is not null)
             vectorIndexes = VectorIndexBuildMap.Build(seriesList, seriesCatalog, measurementCatalog);
+        cancellationToken.ThrowIfCancellationRequested();
         var buildResult = _writer.Write(seriesList, newSegmentId, newSegmentPath, vectorIndexes);
+        cancellationToken.ThrowIfCancellationRequested();
 
         sw.Stop();
         long durationMicros = sw.ElapsedTicks * 1_000_000L / Stopwatch.Frequency;
@@ -103,17 +110,20 @@ public sealed class SegmentCompactor
     /// </summary>
     private static Dictionary<SeriesFieldKey, FieldGroup> CollectGroups(
         CompactionPlan plan,
-        IReadOnlyDictionary<long, SegmentReader> readers)
+        IReadOnlyDictionary<long, SegmentReader> readers,
+        CancellationToken cancellationToken)
     {
         var groups = new Dictionary<SeriesFieldKey, FieldGroup>();
 
         foreach (long segId in plan.SourceSegmentIds)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (!readers.TryGetValue(segId, out var reader))
                 continue;
 
             foreach (var block in reader.Blocks)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var key = new SeriesFieldKey(block.SeriesId, block.FieldName);
                 if (!groups.TryGetValue(key, out var group))
                 {
@@ -142,8 +152,10 @@ public sealed class SegmentCompactor
         MemTableSeries mts,
         List<(long SegId, BlockDescriptor Block)> blockRefs,
         IReadOnlyDictionary<long, SegmentReader> readers,
-        TombstoneTable? tombstones)
+        TombstoneTable? tombstones,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (blockRefs.Count == 0)
             return;
 
@@ -163,6 +175,7 @@ public sealed class SegmentCompactor
                 var points = reader.DecodeBlock(block);
                 foreach (var dp in points)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     if (hasTombstones && IsCoveredByTombstones(dp.Timestamp, tombstoneList!))
                         continue;
                     mts.Append(dp.Timestamp, dp.Value);
@@ -179,6 +192,7 @@ public sealed class SegmentCompactor
 
         for (int i = 0; i < blockRefs.Count; i++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var (segId, block) = blockRefs[i];
             if (!readers.TryGetValue(segId, out var reader))
             {
@@ -196,6 +210,7 @@ public sealed class SegmentCompactor
 
         while (pq.Count > 0)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var entry = pq.Dequeue();
             var dp = decoded[entry.SourceIndex][entry.PointIndex];
 

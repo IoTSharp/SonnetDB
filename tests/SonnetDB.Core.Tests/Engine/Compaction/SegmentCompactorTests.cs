@@ -185,6 +185,24 @@ public sealed class SegmentCompactorTests : IDisposable
             _compactor.Execute(plan, readerDict, 50, outPath));
     }
 
+    [Fact]
+    public void Execute_WithCanceledToken_ThrowsOperationCanceledAndDoesNotWriteOutput()
+    {
+        using var r1 = WriteSegment(1, 1UL, "val", FieldType.Float64, startTs: 1000, count: 5);
+        using var r2 = WriteSegment(2, 1UL, "val", FieldType.Float64, startTs: 2000, count: 5);
+
+        var plan = new CompactionPlan(0, new long[] { 1, 2 }.AsReadOnly());
+        var readerDict = new Dictionary<long, SegmentReader> { [1] = r1, [2] = r2 };
+        string outPath = Path.Combine(_tempDir, "out_canceled.SDBSEG");
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        Assert.Throws<OperationCanceledException>(() =>
+            _compactor.Execute(plan, readerDict, 50, outPath, cancellationToken: cts.Token));
+        Assert.False(File.Exists(outPath));
+    }
+
     // ── 4 种 FieldType round-trip ────────────────────────────────────────────
 
     [Theory]

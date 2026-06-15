@@ -14,6 +14,8 @@ public sealed class MemTableFlushPolicyTests
         var policy = MemTableFlushPolicy.Default;
 
         Assert.Equal(16 * 1024 * 1024L, policy.MaxBytes);
+        Assert.Null(policy.HardCapBytes);
+        Assert.Equal(64 * 1024 * 1024L, policy.ResolveHardCapBytes());
         Assert.Equal(1_000_000L, policy.MaxPoints);
         Assert.Equal(TimeSpan.FromMinutes(5), policy.MaxAge);
     }
@@ -24,13 +26,27 @@ public sealed class MemTableFlushPolicyTests
         var policy = new MemTableFlushPolicy
         {
             MaxBytes = 1024,
+            HardCapBytes = 4096,
             MaxPoints = 100,
             MaxAge = TimeSpan.FromSeconds(30)
         };
 
         Assert.Equal(1024L, policy.MaxBytes);
+        Assert.Equal(4096L, policy.HardCapBytes);
+        Assert.Equal(4096L, policy.ResolveHardCapBytes());
         Assert.Equal(100L, policy.MaxPoints);
         Assert.Equal(TimeSpan.FromSeconds(30), policy.MaxAge);
+    }
+
+    [Fact]
+    public void ResolveHardCapBytes_WhenUnset_UsesFourTimesMaxBytes()
+    {
+        var policy = new MemTableFlushPolicy
+        {
+            MaxBytes = 1234,
+        };
+
+        Assert.Equal(4936L, policy.ResolveHardCapBytes());
     }
 
     [Fact]

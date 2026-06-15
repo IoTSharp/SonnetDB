@@ -317,6 +317,7 @@ public sealed class Tsdb : IDisposable
             ObjectDisposedException.ThrowIf(_disposed, this);
             var normalized = EnsureMeasurementSchemaLocked(point, persistImmediately: true);
             WritePointLocked(normalized);
+            FlushForHardCapIfNeededLocked();
 
             if (_options.SyncWalOnEveryWrite)
                 walSync = _walGroupCommit.Prepare(_walSet!);
@@ -408,6 +409,8 @@ public sealed class Tsdb : IDisposable
                     if (normalized is not null)
                         WritePointLocked(NormalizePointAgainstCurrentSchemaLocked(normalized));
                 }
+
+                FlushForHardCapIfNeededLocked();
             }
 
             if (_options.SyncWalOnEveryWrite && written > 0)
@@ -831,6 +834,13 @@ public sealed class Tsdb : IDisposable
         }
     }
 
+    internal void ReportBackgroundWorkerDiagnostic(
+        string operation,
+        TsdbDiagnosticSeverity severity,
+        string message,
+        Exception? exception)
+        => ReportDiagnostic(operation, severity, message, exception);
+
     internal int CleanExpiredKeyspacesFromBackground(int limitPerKeyspace)
         => Keyspaces.CleanExpiredOpened(DateTimeOffset.UtcNow, limitPerKeyspace);
 
@@ -851,6 +861,18 @@ public sealed class Tsdb : IDisposable
             long lsn = _walSet!.AppendWritePoint(entry.Id, point.Timestamp, fieldName, value);
             MemTable.Append(entry.Id, point.Timestamp, fieldName, value, lsn);
         }
+    }
+
+    private void FlushForHardCapIfNeededLocked()
+    {
+        long hardCapBytes = _options.FlushPolicy.ResolveHardCapBytes();
+        if (hardCapBytes <= 0)
+            return;
+
+        if (MemTable.EstimatedBytes < hardCapBytes)
+            return;
+
+        FlushNowLocked();
     }
 
     private void RemoveMeasurementSegmentsLocked(IReadOnlySet<ulong> removedSeriesIds)

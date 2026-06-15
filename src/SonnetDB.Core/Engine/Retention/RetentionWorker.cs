@@ -172,6 +172,11 @@ public sealed class RetentionWorker : IDisposable
             {
                 Interlocked.Increment(ref _failureCount);
                 Volatile.Write(ref _lastError, ex);
+                _owner.ReportBackgroundWorkerDiagnostic(
+                    "RetentionWorker.RunOnce",
+                    TsdbDiagnosticSeverity.Error,
+                    "后台 Retention 执行失败；异常已被捕获，后续轮询会继续尝试。",
+                    ex);
             }
         }
     }
