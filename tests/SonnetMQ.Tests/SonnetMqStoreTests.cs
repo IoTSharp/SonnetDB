@@ -124,6 +124,102 @@ public sealed class SonnetMqStoreTests : IDisposable
         Assert.Single(reopened.Pull("iot.audit", "audit-sink", 10));
     }
 
+    [Fact]
+    public void Options_DefaultsFlushOnPublish()
+    {
+        var options = new SonnetMqOptions { Path = _root };
+
+        Assert.True(options.FlushOnPublish);
+    }
+
+    [Fact]
+    public void Publish_WithSmallSegmentMaxBytes_RollsSegmentsAndReplays()
+    {
+        var options = new SonnetMqOptions
+        {
+            Path = _root,
+            SegmentMaxBytes = 128,
+            RetentionInterval = TimeSpan.Zero,
+        };
+
+        using (var store = SonnetMqStore.Open(options))
+        {
+            store.PublishMany(
+                "iot.telemetry",
+                Enumerable.Range(0, 12)
+                    .Select(i => new SonnetMqPublishEntry(Encoding.UTF8.GetBytes("payload-" + i)))
+                    .ToArray());
+        }
+
+        string[] segments = Directory.GetFiles(_root, "*.smqseg", SearchOption.AllDirectories);
+        Assert.True(segments.Length > 1);
+
+        using var reopened = SonnetMqStore.Open(options);
+        var messages = reopened.Pull("iot.telemetry", 0, 20);
+
+        Assert.Equal(12, messages.Count);
+        Assert.Equal(Enumerable.Range(0, 12).Select(i => (long)i).ToArray(), messages.Select(m => m.Offset).ToArray());
+    }
+
+    [Fact]
+    public void TombstoneBefore_TrimsMessagesAndSurvivesRestart()
+    {
+        var options = new SonnetMqOptions
+        {
+            Path = _root,
+            SegmentMaxBytes = 256,
+            RetentionInterval = TimeSpan.Zero,
+        };
+
+        using (var store = SonnetMqStore.Open(options))
+        {
+            store.PublishMany(
+                "iot.telemetry",
+                Enumerable.Range(0, 8)
+                    .Select(i => new SonnetMqPublishEntry(Encoding.UTF8.GetBytes(i.ToString())))
+                    .ToArray());
+
+            long firstKept = store.TombstoneBefore("iot.telemetry", 5);
+            var messages = store.Pull("iot.telemetry", 0, 20);
+
+            Assert.Equal(5, firstKept);
+            Assert.Equal([5L, 6L, 7L], messages.Select(m => m.Offset).ToArray());
+        }
+
+        using var reopened = SonnetMqStore.Open(options);
+        var replayed = reopened.Pull("iot.telemetry", 0, 20);
+
+        Assert.Equal([5L, 6L, 7L], replayed.Select(m => m.Offset).ToArray());
+    }
+
+    [Fact]
+    public void TrimRetention_WithMaxBytes_RemovesOldSegments()
+    {
+        var options = new SonnetMqOptions
+        {
+            Path = _root,
+            SegmentMaxBytes = 160,
+            RetentionMaxBytes = 260,
+            RetentionInterval = TimeSpan.Zero,
+        };
+
+        using var store = SonnetMqStore.Open(options);
+        store.PublishMany(
+            "iot.telemetry",
+            Enumerable.Range(0, 20)
+                .Select(i => new SonnetMqPublishEntry(Encoding.UTF8.GetBytes("payload-" + i)))
+                .ToArray());
+
+        int before = Directory.GetFiles(_root, "*.smqseg", SearchOption.AllDirectories).Length;
+        store.TrimRetention();
+        int after = Directory.GetFiles(_root, "*.smqseg", SearchOption.AllDirectories).Length;
+        var remaining = store.Pull("iot.telemetry", 0, 50);
+
+        Assert.True(before > after);
+        Assert.NotEmpty(remaining);
+        Assert.True(remaining[0].Offset > 0);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))

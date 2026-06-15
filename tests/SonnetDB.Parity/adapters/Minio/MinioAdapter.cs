@@ -42,6 +42,9 @@ public sealed class MinioAdapter : IDataPlane, IObjectOps
     /// <inheritdoc />
     public IVectorOps Vector => UnsupportedVectorOps.Instance;
 
+    /// <inheritdoc />
+    public IMqOps Mq => UnsupportedMqOps.Instance;
+
     /// <summary>探测 MinIO 是否可达。</summary>
     public static async Task<bool> TryConnectAsync(CancellationToken ct)
     {

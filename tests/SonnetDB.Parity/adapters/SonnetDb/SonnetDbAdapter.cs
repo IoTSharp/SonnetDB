@@ -7,6 +7,7 @@ using System.Data;
 using System.Data.Common;
 using System.Text;
 using SonnetDB.ObjectStorage;
+using SonnetMQ;
 
 namespace SonnetDB.Parity.Adapters.SonnetDb;
 
@@ -17,10 +18,11 @@ namespace SonnetDB.Parity.Adapters.SonnetDb;
 /// <remarks>
 /// 连接字符串为 <c>Data Source={tempDir}</c>，<see cref="DisposeAsync"/> 关闭连接并尽力删除临时目录。
 /// </remarks>
-public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps, IKvOps, IObjectOps, IVectorOps
+public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps, IKvOps, IObjectOps, IVectorOps, IMqOps
 {
     private readonly string _root;
     private readonly SndbConnection _connection;
+    private SonnetMqStore _mq;
 
     /// <summary>创建适配器，在系统临时目录下开辟独立子目录并打开嵌入式连接。</summary>
     public SonnetDbAdapter()
@@ -29,6 +31,7 @@ public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps
         Directory.CreateDirectory(_root);
         _connection = new SndbConnection($"Data Source={_root}");
         _connection.Open();
+        _mq = OpenMqStore();
     }
 
     /// <inheritdoc />
@@ -58,6 +61,9 @@ public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps
         Capability.KvRangeScan |
         Capability.Object |
         Capability.ObjectMultipart |
+        Capability.Mq |
+        Capability.MqConsumerGroup |
+        Capability.MqReplayFromOffset |
         Capability.Vector |
         Capability.HnswFiltered;
 
@@ -75,6 +81,9 @@ public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps
 
     /// <inheritdoc />
     public IVectorOps Vector => this;
+
+    /// <inheritdoc />
+    public IMqOps Mq => this;
 
     /// <inheritdoc />
     public RelationalDialect Dialect => RelationalDialect.SonnetDb;
@@ -461,8 +470,66 @@ public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps
     }
 
     /// <inheritdoc />
+    public Task ResetTopicAsync(string topic, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        _mq.Dispose();
+        string path = MqPath;
+        if (Directory.Exists(path))
+            Directory.Delete(path, recursive: true);
+        _mq = OpenMqStore();
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task<long> PublishAsync(string topic, byte[] payload, IReadOnlyDictionary<string, string>? headers, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        return Task.FromResult(_mq.Publish(topic, payload, new SonnetMqPublishOptions(headers)));
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<long>> PublishManyAsync(string topic, IReadOnlyList<MqPublishRecord> records, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var entries = records.Select(static r => new SonnetMqPublishEntry(r.Payload, r.Headers)).ToArray();
+        return Task.FromResult(_mq.PublishMany(topic, entries));
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<MqMessageRecord>> PullAsync(string topic, string consumerGroup, int maxCount, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        return Task.FromResult<IReadOnlyList<MqMessageRecord>>(_mq.Pull(topic, consumerGroup, maxCount).Select(ToMqMessage).ToArray());
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<MqMessageRecord>> ReplayAsync(string topic, long offset, int maxCount, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        return Task.FromResult<IReadOnlyList<MqMessageRecord>>(_mq.Pull(topic, offset, maxCount).Select(ToMqMessage).ToArray());
+    }
+
+    /// <inheritdoc />
+    public Task<long> AckAsync(string topic, string consumerGroup, long offset, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        return Task.FromResult(_mq.Ack(topic, consumerGroup, offset));
+    }
+
+    /// <inheritdoc />
+    public Task RestartAsync(CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        _mq.Dispose();
+        _mq = OpenMqStore();
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
+        try { _mq.Dispose(); } catch { /* best-effort close */ }
         try { await _connection.DisposeAsync().ConfigureAwait(false); }
         catch { /* best-effort close */ }
         try { Directory.Delete(_root, recursive: true); } catch { /* best-effort cleanup */ }
@@ -478,6 +545,18 @@ public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps
 
     private Tsdb Database =>
         _connection.UnderlyingTsdb ?? throw new InvalidOperationException("SonnetDB parity adapter must use embedded mode.");
+
+    private string MqPath => Path.Combine(_root, "mq");
+
+    private SonnetMqStore OpenMqStore()
+        => SonnetMqStore.Open(new SonnetMqOptions
+        {
+            Path = MqPath,
+            RetentionInterval = TimeSpan.Zero,
+        });
+
+    private static MqMessageRecord ToMqMessage(SonnetMqMessage message)
+        => new(message.Topic, message.Offset, message.TimestampUtc, message.Headers, message.Payload);
 
     private Task InsertTimeSeriesBatchAsync(string measurement, IReadOnlyList<string> values, CancellationToken ct)
         => ExecuteAsync($"INSERT INTO {measurement} (time, device, region, value) VALUES {string.Join(", ", values)}", ct);

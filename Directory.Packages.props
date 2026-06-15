@@ -32,6 +32,8 @@
     <PackageVersion Include="Qdrant.Client" Version="1.18.1" />
     <PackageVersion Include="StackExchange.Redis" Version="3.0.0" />
     <PackageVersion Include="AWSSDK.S3" Version="4.0.24.4" />
+    <PackageVersion Include="NATS.Client.Core" Version="2.6.0" />
+    <PackageVersion Include="NATS.Client.JetStream" Version="2.6.0" />
   </ItemGroup>
   <ItemGroup Label="Benchmark">
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />

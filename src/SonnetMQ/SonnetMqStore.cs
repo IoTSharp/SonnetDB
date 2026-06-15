@@ -13,21 +13,24 @@ public sealed class SonnetMqStore : IDisposable
     private const ushort Version = 1;
     private const byte RecordTypeMessage = 1;
     private const byte RecordTypeAck = 2;
+    private const byte RecordTypeTombstone = 3;
     private const int HeaderSize = 36;
     private const int MaxNameBytes = 512;
     private const int MaxHeadersBytes = 64 * 1024;
     private const int MaxPayloadBytes = 128 * 1024 * 1024;
+    private const int SegmentFileNameWidth = 20;
 
     private readonly object _sync = new();
-    private readonly FileStream _stream;
     private readonly SonnetMqOptions _options;
     private readonly Dictionary<string, TopicState> _topics = new(StringComparer.Ordinal);
     private readonly int _offsetIndexStride;
+    private Thread? _retentionWorker;
+    private CancellationTokenSource? _retentionCts;
+    private FileStream? _singleFileStream;
     private bool _disposed;
 
-    private SonnetMqStore(FileStream stream, SonnetMqOptions options)
+    private SonnetMqStore(SonnetMqOptions options)
     {
-        _stream = stream;
         _options = options;
         _offsetIndexStride = Math.Max(1, options.OffsetIndexStride);
     }
@@ -41,27 +44,28 @@ public sealed class SonnetMqStore : IDisposable
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentException.ThrowIfNullOrWhiteSpace(options.Path);
+        if (options.SegmentMaxBytes <= HeaderSize)
+            throw new ArgumentOutOfRangeException(nameof(options), "SegmentMaxBytes 必须大于单条记录头长度。");
+        if (options.SegmentCacheSize <= 0)
+            throw new ArgumentOutOfRangeException(nameof(options), "SegmentCacheSize 必须为正数。");
 
-        string logPath = ResolveLogPath(options);
-        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(logPath)!);
-        var stream = new FileStream(
-            logPath,
-            FileMode.OpenOrCreate,
-            FileAccess.ReadWrite,
-            FileShare.Read,
-            bufferSize: 128 * 1024,
-            FileOptions.SequentialScan);
-
-        var store = new SonnetMqStore(stream, options);
+        var store = new SonnetMqStore(options);
         try
         {
+            if (options.OpenMode == SonnetMqOpenMode.SingleFile)
+                store.OpenSingleFile();
+            else
+                Directory.CreateDirectory(store.RootDirectory);
+
             store.Replay();
-            store._stream.Seek(0, SeekOrigin.End);
+            store.SeekWritableSegmentsToEnd();
+            store.TrimRetention();
+            store.StartRetentionWorkerIfNeeded();
             return store;
         }
         catch
         {
-            stream.Dispose();
+            store.Dispose();
             throw;
         }
     }
@@ -81,7 +85,6 @@ public sealed class SonnetMqStore : IDisposable
             throw new ArgumentOutOfRangeException(nameof(payload), payload.Length, "消息体超过 SonnetMQ 当前单条大小上限。");
 
         var entry = new SonnetMqPublishEntry(payload.ToArray(), options?.Headers);
-
         return PublishMany(topic, [entry])[0];
     }
 
@@ -123,12 +126,12 @@ public sealed class SonnetMqStore : IDisposable
                 var publish = prepared[i];
                 long offset = state.NextOffset;
                 var timestamp = DateTimeOffset.UtcNow;
-                WriteRecord(RecordTypeMessage, topicBytes, publish.HeadersBytes, publish.Payload, offset, timestamp.UtcTicks, flush: false);
+                WriteRecord(state, RecordTypeMessage, topicBytes, publish.HeadersBytes, publish.Payload, offset, timestamp.UtcTicks, flush: false);
                 state.Append(new StoredMessage(topic, offset, timestamp, publish.Headers, publish.Payload), _offsetIndexStride);
                 offsets[i] = offset;
             }
 
-            FlushPublishBatchIfNeeded();
+            FlushPublishBatchIfNeeded(state);
             return offsets;
         }
     }
@@ -201,9 +204,52 @@ public sealed class SonnetMqStore : IDisposable
         {
             var state = GetOrCreateTopic(topic);
             long next = Math.Min(offset + 1, state.NextOffset);
-            WriteRecord(RecordTypeAck, topicBytes, consumerBytes, ReadOnlySpan<byte>.Empty, next, DateTimeOffset.UtcNow.UtcTicks);
+            WriteRecord(state, RecordTypeAck, topicBytes, consumerBytes, ReadOnlySpan<byte>.Empty, next, DateTimeOffset.UtcNow.UtcTicks);
             state.SetConsumerOffset(consumerGroup, next);
             return next;
+        }
+    }
+
+    /// <summary>
+    /// 写入 retention tombstone，并删除 tombstone 之前的内存消息和可安全清理的旧段。
+    /// </summary>
+    /// <param name="topic">Topic 名称。</param>
+    /// <param name="beforeOffset">裁剪该 offset 之前的消息，不包含该 offset。</param>
+    /// <returns>实际保留的第一条 offset。</returns>
+    public long TombstoneBefore(string topic, long beforeOffset)
+    {
+        EnsureNotDisposed();
+        ValidateTopic(topic);
+        ArgumentOutOfRangeException.ThrowIfNegative(beforeOffset);
+
+        byte[] topicBytes = EncodeName(topic, nameof(topic));
+        lock (_sync)
+        {
+            var state = GetOrCreateTopic(topic);
+            long cutoff = Math.Min(beforeOffset, state.NextOffset);
+            if (cutoff <= state.TrimmedBeforeOffset)
+                return state.TrimmedBeforeOffset;
+
+            WriteRecord(state, RecordTypeTombstone, topicBytes, ReadOnlySpan<byte>.Empty, ReadOnlySpan<byte>.Empty, cutoff, DateTimeOffset.UtcNow.UtcTicks);
+            state.ApplyTombstone(cutoff, _offsetIndexStride);
+            DeleteRetiredSegments(state);
+            return state.TrimmedBeforeOffset;
+        }
+    }
+
+    /// <summary>
+    /// 按当前 time / size retention 配置同步执行一次裁剪。
+    /// </summary>
+    public void TrimRetention()
+    {
+        EnsureNotDisposed();
+        if (_options.OpenMode == SonnetMqOpenMode.SingleFile)
+            return;
+
+        lock (_sync)
+        {
+            foreach (var state in _topics.Values)
+                TrimTopicRetention(state);
         }
     }
 
@@ -239,38 +285,80 @@ public sealed class SonnetMqStore : IDisposable
         EnsureNotDisposed();
         lock (_sync)
         {
-            _stream.Flush(flushToDisk);
+            if (_options.OpenMode == SonnetMqOpenMode.SingleFile)
+            {
+                _singleFileStream?.Flush(flushToDisk);
+                return;
+            }
+
+            foreach (var topic in _topics.Values)
+                topic.Writer?.Flush(flushToDisk);
         }
     }
 
     /// <inheritdoc />
     public void Dispose()
     {
+        _retentionCts?.Cancel();
+        _retentionWorker?.Join(TimeSpan.FromSeconds(2));
+        _retentionCts?.Dispose();
+
         lock (_sync)
         {
             if (_disposed)
                 return;
 
             _disposed = true;
-            _stream.Dispose();
+            foreach (var topic in _topics.Values)
+                topic.Dispose();
+            _singleFileStream?.Dispose();
         }
     }
 
-    private static string ResolveLogPath(SonnetMqOptions options)
-    {
-        string full = System.IO.Path.GetFullPath(options.Path);
-        if (options.OpenMode == SonnetMqOpenMode.SingleFile)
-            return full;
+    private string RootDirectory => Path.GetFullPath(_options.Path);
 
-        return System.IO.Path.Combine(full, "sonnetmq.log");
+    private void OpenSingleFile()
+    {
+        string logPath = Path.GetFullPath(_options.Path);
+        Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
+        _singleFileStream = OpenLogStream(logPath);
     }
 
     private void Replay()
     {
-        _stream.Seek(0, SeekOrigin.Begin);
+        if (_options.OpenMode == SonnetMqOpenMode.SingleFile)
+        {
+            ReplayStream(_singleFileStream ?? throw new InvalidOperationException("Single-file stream is not open."), null);
+            return;
+        }
+
+        string legacyLogPath = Path.Combine(RootDirectory, "sonnetmq.log");
+        if (File.Exists(legacyLogPath))
+        {
+            using var legacy = File.Open(legacyLogPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            ReplayStream(legacy, null);
+        }
+
+        foreach (string topicDirectory in Directory.EnumerateDirectories(RootDirectory))
+        {
+            string topic = DecodeTopicDirectory(Path.GetFileName(topicDirectory));
+            var state = GetOrCreateTopic(topic);
+            foreach (string segmentPath in EnumerateSegmentPaths(topicDirectory))
+            {
+                long baseOffset = ParseSegmentBaseOffset(segmentPath);
+                state.AddSegment(new SegmentState(segmentPath, baseOffset));
+                using var stream = File.Open(segmentPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                ReplayStream(stream, state);
+            }
+        }
+    }
+
+    private void ReplayStream(Stream stream, TopicState? knownTopicState)
+    {
+        stream.Seek(0, SeekOrigin.Begin);
         Span<byte> header = stackalloc byte[HeaderSize];
 
-        while (TryReadExact(_stream, header))
+        while (TryReadExact(stream, header))
         {
             uint magic = BinaryPrimitives.ReadUInt32LittleEndian(header);
             ushort version = BinaryPrimitives.ReadUInt16LittleEndian(header[4..]);
@@ -291,12 +379,12 @@ public sealed class SonnetMqStore : IDisposable
             byte[] payload = ArrayPool<byte>.Shared.Rent(Math.Max(payloadLength, 1));
             try
             {
-                ReadExactOrThrow(_stream, topicBytes.AsSpan(0, topicLength));
-                ReadExactOrThrow(_stream, metaBytes.AsSpan(0, metaLength));
-                ReadExactOrThrow(_stream, payload.AsSpan(0, payloadLength));
+                ReadExactOrThrow(stream, topicBytes.AsSpan(0, topicLength));
+                ReadExactOrThrow(stream, metaBytes.AsSpan(0, metaLength));
+                ReadExactOrThrow(stream, payload.AsSpan(0, payloadLength));
 
                 string topic = Encoding.UTF8.GetString(topicBytes.AsSpan(0, topicLength));
-                var state = GetOrCreateTopic(topic);
+                var state = knownTopicState ?? GetOrCreateTopic(topic);
 
                 if (type == RecordTypeMessage)
                 {
@@ -308,6 +396,10 @@ public sealed class SonnetMqStore : IDisposable
                 {
                     string consumerGroup = Encoding.UTF8.GetString(metaBytes.AsSpan(0, metaLength));
                     state.SetConsumerOffset(consumerGroup, Math.Min(offsetOrNext, state.NextOffset));
+                }
+                else if (type == RecordTypeTombstone)
+                {
+                    state.ApplyTombstone(offsetOrNext, _offsetIndexStride);
                 }
                 else
                 {
@@ -323,7 +415,20 @@ public sealed class SonnetMqStore : IDisposable
         }
     }
 
+    private void SeekWritableSegmentsToEnd()
+    {
+        if (_options.OpenMode == SonnetMqOpenMode.SingleFile)
+        {
+            _singleFileStream?.Seek(0, SeekOrigin.End);
+            return;
+        }
+
+        foreach (var state in _topics.Values)
+            EnsureWriter(state);
+    }
+
     private void WriteRecord(
+        TopicState state,
         byte type,
         ReadOnlySpan<byte> topic,
         ReadOnlySpan<byte> meta,
@@ -332,6 +437,7 @@ public sealed class SonnetMqStore : IDisposable
         long ticks,
         bool flush = true)
     {
+        FileStream stream = GetWritableStream(state, HeaderSize + topic.Length + meta.Length + payload.Length);
         Span<byte> header = stackalloc byte[HeaderSize];
         BinaryPrimitives.WriteUInt32LittleEndian(header, Magic);
         BinaryPrimitives.WriteUInt16LittleEndian(header[4..], Version);
@@ -343,23 +449,60 @@ public sealed class SonnetMqStore : IDisposable
         BinaryPrimitives.WriteInt64LittleEndian(header[20..], offsetOrNext);
         BinaryPrimitives.WriteInt64LittleEndian(header[28..], ticks);
 
-        _stream.Write(header);
-        _stream.Write(topic);
-        _stream.Write(meta);
-        _stream.Write(payload);
+        stream.Write(header);
+        stream.Write(topic);
+        stream.Write(meta);
+        stream.Write(payload);
         if (flush && (_options.FlushOnPublish || _options.SyncOnPublish))
-            _stream.Flush(_options.SyncOnPublish);
+            stream.Flush(_options.SyncOnPublish);
     }
 
-    private void FlushPublishBatchIfNeeded()
+    private FileStream GetWritableStream(TopicState state, long recordBytes)
+    {
+        if (_options.OpenMode == SonnetMqOpenMode.SingleFile)
+            return _singleFileStream ?? throw new InvalidOperationException("Single-file stream is not open.");
+
+        EnsureWriter(state);
+        if (state.Writer!.Position > 0 && state.Writer.Position + recordBytes > _options.SegmentMaxBytes)
+        {
+            state.Writer.Dispose();
+            state.Writer = null;
+            state.AddSegment(new SegmentState(SegmentPath(state.Topic, state.NextOffset), state.NextOffset));
+            EnsureWriter(state);
+        }
+
+        return state.Writer!;
+    }
+
+    private void EnsureWriter(TopicState state)
+    {
+        if (state.Writer is not null)
+            return;
+
+        Directory.CreateDirectory(TopicDirectory(state.Topic));
+        var segment = state.Segments.Count == 0
+            ? new SegmentState(SegmentPath(state.Topic, state.NextOffset), state.NextOffset)
+            : state.Segments[^1];
+        if (state.Segments.Count == 0)
+            state.AddSegment(segment);
+
+        state.Writer = OpenLogStream(segment.Path);
+        state.Writer.Seek(0, SeekOrigin.End);
+    }
+
+    private void FlushPublishBatchIfNeeded(TopicState state)
     {
         if (_options.FlushOnPublish || _options.SyncOnPublish)
-            _stream.Flush(_options.SyncOnPublish);
+        {
+            var stream = _options.OpenMode == SonnetMqOpenMode.SingleFile ? _singleFileStream : state.Writer;
+            stream?.Flush(_options.SyncOnPublish);
+        }
     }
 
     private static IReadOnlyList<SonnetMqMessage> PullFromState(TopicState state, long offset, int maxCount)
     {
-        int start = state.FindFirstIndexAtOrAfter(offset);
+        long effectiveOffset = Math.Max(offset, state.TrimmedBeforeOffset);
+        int start = state.FindFirstIndexAtOrAfter(effectiveOffset);
         if (start >= state.Messages.Count)
             return [];
 
@@ -379,15 +522,151 @@ public sealed class SonnetMqStore : IDisposable
         return result;
     }
 
+    private void TrimTopicRetention(TopicState state)
+    {
+        long cutoff = state.TrimmedBeforeOffset;
+        if (_options.RetentionMaxAge is { } maxAge)
+        {
+            var threshold = DateTimeOffset.UtcNow - maxAge;
+            foreach (var message in state.Messages)
+            {
+                if (message.TimestampUtc > threshold)
+                    break;
+                cutoff = message.Offset + 1;
+            }
+        }
+
+        if (_options.RetentionMaxBytes is { } maxBytes && maxBytes >= 0)
+        {
+            long total = state.Segments.Where(static s => File.Exists(s.Path)).Sum(static s => new FileInfo(s.Path).Length);
+            foreach (var segment in state.Segments.OrderBy(static s => s.BaseOffset))
+            {
+                if (total <= maxBytes || segment == state.Segments[^1])
+                    break;
+
+                long size = File.Exists(segment.Path) ? new FileInfo(segment.Path).Length : 0;
+                total -= size;
+                cutoff = Math.Max(cutoff, NextSegmentBaseOffset(state, segment));
+            }
+        }
+
+        if (cutoff > state.TrimmedBeforeOffset)
+        {
+            byte[] topicBytes = EncodeName(state.Topic, nameof(state.Topic));
+            WriteRecord(state, RecordTypeTombstone, topicBytes, ReadOnlySpan<byte>.Empty, ReadOnlySpan<byte>.Empty, cutoff, DateTimeOffset.UtcNow.UtcTicks);
+            state.ApplyTombstone(cutoff, _offsetIndexStride);
+            DeleteRetiredSegments(state);
+        }
+    }
+
+    private static long NextSegmentBaseOffset(TopicState state, SegmentState segment)
+    {
+        int index = state.Segments.IndexOf(segment);
+        if (index >= 0 && index + 1 < state.Segments.Count)
+            return state.Segments[index + 1].BaseOffset;
+        return state.NextOffset;
+    }
+
+    private void DeleteRetiredSegments(TopicState state)
+    {
+        if (_options.OpenMode == SonnetMqOpenMode.SingleFile)
+            return;
+
+        for (int i = state.Segments.Count - 2; i >= 0; i--)
+        {
+            var segment = state.Segments[i];
+            if (NextSegmentBaseOffset(state, segment) > state.TrimmedBeforeOffset)
+                continue;
+
+            try { File.Delete(segment.Path); } catch (IOException) { continue; }
+            state.Segments.RemoveAt(i);
+        }
+    }
+
     private TopicState GetOrCreateTopic(string topic)
     {
         if (_topics.TryGetValue(topic, out var state))
             return state;
 
-        state = new TopicState();
+        state = new TopicState(topic);
         _topics.Add(topic, state);
         return state;
     }
+
+    private void RetentionWorkerLoop()
+    {
+        var token = _retentionCts?.Token ?? CancellationToken.None;
+        while (!token.IsCancellationRequested)
+        {
+            try
+            {
+                if (token.WaitHandle.WaitOne(_options.RetentionInterval))
+                    break;
+                TrimRetention();
+            }
+            catch (ObjectDisposedException)
+            {
+                break;
+            }
+            catch (IOException)
+            {
+                // 下一轮继续尝试。Retention 是后台清理，不影响 publish/ack 主路径。
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // 同上，保留给宿主诊断权限问题。
+            }
+        }
+    }
+
+    private void StartRetentionWorkerIfNeeded()
+    {
+        if (_options.OpenMode != SonnetMqOpenMode.Directory || _options.RetentionInterval <= TimeSpan.Zero)
+            return;
+
+        _retentionCts = new CancellationTokenSource();
+        _retentionWorker = new Thread(RetentionWorkerLoop)
+        {
+            IsBackground = true,
+            Name = "SonnetMQ RetentionWorker",
+        };
+        _retentionWorker.Start();
+    }
+
+    private string TopicDirectory(string topic)
+        => Path.Combine(RootDirectory, EncodeTopicDirectory(topic));
+
+    private string SegmentPath(string topic, long baseOffset)
+        => Path.Combine(TopicDirectory(topic), baseOffset.ToString("D" + SegmentFileNameWidth, System.Globalization.CultureInfo.InvariantCulture) + ".smqseg");
+
+    private static IEnumerable<string> EnumerateSegmentPaths(string topicDirectory)
+        => Directory.EnumerateFiles(topicDirectory, "*.smqseg").Order(StringComparer.Ordinal);
+
+    private static long ParseSegmentBaseOffset(string path)
+    {
+        string name = Path.GetFileNameWithoutExtension(path);
+        return long.TryParse(name, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out long value)
+            ? value
+            : 0L;
+    }
+
+    private static FileStream OpenLogStream(string path)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        return new FileStream(
+            path,
+            FileMode.OpenOrCreate,
+            FileAccess.ReadWrite,
+            FileShare.Read,
+            bufferSize: 128 * 1024,
+            FileOptions.SequentialScan);
+    }
+
+    private static string EncodeTopicDirectory(string topic)
+        => Convert.ToHexString(Encoding.UTF8.GetBytes(topic));
+
+    private static string DecodeTopicDirectory(string directoryName)
+        => Encoding.UTF8.GetString(Convert.FromHexString(directoryName));
 
     private static byte[] EncodeName(string value, string parameterName)
     {
@@ -496,24 +775,63 @@ public sealed class SonnetMqStore : IDisposable
 
     private void EnsureNotDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
 
-    private sealed class TopicState
+    private sealed class TopicState : IDisposable
     {
+        public TopicState(string topic)
+        {
+            Topic = topic;
+        }
+
+        public string Topic { get; }
+
         public List<StoredMessage> Messages { get; } = [];
 
         public Dictionary<string, long> ConsumerOffsets { get; } = new(StringComparer.Ordinal);
 
-        private readonly List<OffsetIndexEntry> _offsetIndex = [];
+        public List<SegmentState> Segments { get; } = [];
+
+        public FileStream? Writer { get; set; }
 
         public long NextOffset { get; private set; }
 
+        public long TrimmedBeforeOffset { get; private set; }
+
+        private readonly List<OffsetIndexEntry> _offsetIndex = [];
+
+        public void AddSegment(SegmentState segment)
+        {
+            if (!Segments.Any(s => string.Equals(s.Path, segment.Path, StringComparison.Ordinal)))
+                Segments.Add(segment);
+            Segments.Sort(static (a, b) => a.BaseOffset.CompareTo(b.BaseOffset));
+        }
+
         public void Append(StoredMessage message, int offsetIndexStride)
         {
+            if (message.Offset < TrimmedBeforeOffset)
+            {
+                if (message.Offset >= NextOffset)
+                    NextOffset = message.Offset + 1;
+                return;
+            }
+
             if (Messages.Count == 0 || message.Offset % offsetIndexStride == 0)
                 _offsetIndex.Add(new OffsetIndexEntry(message.Offset, Messages.Count));
 
             Messages.Add(message);
             if (message.Offset >= NextOffset)
                 NextOffset = message.Offset + 1;
+        }
+
+        public void ApplyTombstone(long beforeOffset, int offsetIndexStride)
+        {
+            if (beforeOffset <= TrimmedBeforeOffset)
+                return;
+
+            TrimmedBeforeOffset = beforeOffset;
+            Messages.RemoveAll(m => m.Offset < beforeOffset);
+            foreach (var pair in ConsumerOffsets.ToArray())
+                ConsumerOffsets[pair.Key] = Math.Max(pair.Value, beforeOffset);
+            RebuildOffsetIndex(offsetIndexStride);
         }
 
         public int FindFirstIndexAtOrAfter(long offset)
@@ -545,11 +863,26 @@ public sealed class SonnetMqStore : IDisposable
         }
 
         public long GetConsumerOffset(string consumerGroup)
-            => ConsumerOffsets.TryGetValue(consumerGroup, out long offset) ? offset : 0;
+            => ConsumerOffsets.TryGetValue(consumerGroup, out long offset) ? Math.Max(offset, TrimmedBeforeOffset) : TrimmedBeforeOffset;
 
         public void SetConsumerOffset(string consumerGroup, long nextOffset)
         {
-            ConsumerOffsets[consumerGroup] = Math.Max(nextOffset, GetConsumerOffset(consumerGroup));
+            ConsumerOffsets[consumerGroup] = Math.Max(Math.Max(nextOffset, TrimmedBeforeOffset), GetConsumerOffset(consumerGroup));
+        }
+
+        public void Dispose()
+        {
+            Writer?.Dispose();
+        }
+
+        private void RebuildOffsetIndex(int offsetIndexStride)
+        {
+            _offsetIndex.Clear();
+            for (int i = 0; i < Messages.Count; i++)
+            {
+                if (i == 0 || Messages[i].Offset % offsetIndexStride == 0)
+                    _offsetIndex.Add(new OffsetIndexEntry(Messages[i].Offset, i));
+            }
         }
     }
 
@@ -557,6 +890,8 @@ public sealed class SonnetMqStore : IDisposable
         byte[] Payload,
         byte[] HeadersBytes,
         IReadOnlyDictionary<string, string> Headers);
+
+    private sealed record SegmentState(string Path, long BaseOffset);
 
     private readonly record struct OffsetIndexEntry(long Offset, int MessageIndex);
 

@@ -238,6 +238,8 @@ services:
       PARITY_VM_URL: http://victoriametrics:8428
       PARITY_REDIS_HOST: redis
       PARITY_REDIS_PORT: "6379"
+      PARITY_NATS_URL: nats://nats:4222
+      PARITY_NATS_PORT: "4222"
       PARITY_MINIO_ENDPOINT: http://minio:9000
       PARITY_MINIO_ROOT_USER: ${PARITY_MINIO_ROOT_USER:-parity}
       PARITY_MINIO_ROOT_PASSWORD: ${PARITY_MINIO_ROOT_PASSWORD:-parity12345}
@@ -251,5 +253,7 @@ services:
       postgres:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      nats:
         condition: service_healthy
     profiles: [light, full]

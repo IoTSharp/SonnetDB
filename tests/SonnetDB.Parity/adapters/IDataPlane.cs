@@ -31,6 +31,9 @@ public interface IDataPlane : IAsyncDisposable
 
     /// <summary>向量检索操作集合。不支持向量的后端返回空操作对象。</summary>
     IVectorOps Vector { get; }
+
+    /// <summary>消息队列操作集合。不支持 MQ 的后端返回空操作对象。</summary>
+    IMqOps Mq { get; }
 }
 
 /// <summary>
