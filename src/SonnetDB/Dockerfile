@@ -26,6 +26,7 @@ COPY Directory.Build.props Directory.Packages.props global.json ./
 COPY .config/dotnet-tools.json .config/
 COPY src/SonnetDB/SonnetDB.csproj src/SonnetDB/
 COPY src/SonnetDB.Core/SonnetDB.Core.csproj src/SonnetDB.Core/
+COPY src/SonnetMQ/SonnetMQ.csproj src/SonnetMQ/
 COPY modules/DotSearch/Directory.Build.props modules/DotSearch/Directory.Packages.props modules/DotSearch/
 COPY modules/DotSearch/src/DotSearch.Core/DotSearch.Core.csproj modules/DotSearch/src/DotSearch.Core/
 COPY modules/DotSearch/src/DotSearch.Tokenizers.Cjk/DotSearch.Tokenizers.Cjk.csproj modules/DotSearch/src/DotSearch.Tokenizers.Cjk/
@@ -41,6 +42,7 @@ RUN dotnet tool restore
 # Copy full source and assets needed for the actual build.
 COPY src/SonnetDB/ src/SonnetDB/
 COPY src/SonnetDB.Core/ src/SonnetDB.Core/
+COPY src/SonnetMQ/ src/SonnetMQ/
 COPY modules/DotSearch/src/DotSearch.Core/ modules/DotSearch/src/DotSearch.Core/
 COPY modules/DotSearch/src/DotSearch.Tokenizers.Cjk/ modules/DotSearch/src/DotSearch.Tokenizers.Cjk/
 COPY modules/DotSearch/src/DotSearch.Tokenizers.Jieba/ modules/DotSearch/src/DotSearch.Tokenizers.Jieba/
