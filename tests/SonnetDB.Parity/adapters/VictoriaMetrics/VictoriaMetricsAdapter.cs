@@ -53,6 +53,9 @@ public sealed class VictoriaMetricsAdapter : IDataPlane, ITimeSeriesOps
     /// <inheritdoc />
     public IMqOps Mq => UnsupportedMqOps.Instance;
 
+    /// <inheritdoc />
+    public IFullTextOps FullText => UnsupportedFullTextOps.Instance;
+
     /// <summary>探测 VictoriaMetrics 是否可达。</summary>
     /// <param name="ct">取消令牌。</param>
     /// <returns>可达返回 true。</returns>

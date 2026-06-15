@@ -44,6 +44,9 @@ public sealed class QdrantAdapter : IDataPlane, IVectorOps
     /// <inheritdoc />
     public IMqOps Mq => UnsupportedMqOps.Instance;
 
+    /// <inheritdoc />
+    public IFullTextOps FullText => UnsupportedFullTextOps.Instance;
+
     /// <summary>探测 Qdrant 是否可达。</summary>
     public static async Task<bool> TryConnectAsync(CancellationToken ct)
     {

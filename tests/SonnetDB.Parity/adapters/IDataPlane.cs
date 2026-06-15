@@ -34,6 +34,9 @@ public interface IDataPlane : IAsyncDisposable
 
     /// <summary>消息队列操作集合。不支持 MQ 的后端返回空操作对象。</summary>
     IMqOps Mq { get; }
+
+    /// <summary>全文检索操作集合。不支持全文检索的后端返回空操作对象。</summary>
+    IFullTextOps FullText { get; }
 }
 
 /// <summary>
@@ -160,4 +163,13 @@ public enum Capability : long
 
     /// <summary>去重计数能力（精确或 HLL 近似）。</summary>
     TimeSeriesDistinctCount = 1L << 43,
+
+    /// <summary>全文 CJK 分词或等价中文检索能力。</summary>
+    FulltextCjk = 1L << 44,
+
+    /// <summary>全文 facet/filter 查询能力。</summary>
+    FulltextFacetFilter = 1L << 45,
+
+    /// <summary>全文 typo-tolerant 查询能力。</summary>
+    FulltextTypoTolerant = 1L << 46,
 }

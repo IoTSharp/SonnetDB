@@ -18,7 +18,7 @@ namespace SonnetDB.Parity.Adapters.SonnetDb;
 /// <remarks>
 /// 连接字符串为 <c>Data Source={tempDir}</c>，<see cref="DisposeAsync"/> 关闭连接并尽力删除临时目录。
 /// </remarks>
-public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps, IKvOps, IObjectOps, IVectorOps, IMqOps
+public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps, IKvOps, IObjectOps, IVectorOps, IMqOps, IFullTextOps
 {
     private readonly string _root;
     private readonly SndbConnection _connection;
@@ -64,6 +64,8 @@ public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps
         Capability.Mq |
         Capability.MqConsumerGroup |
         Capability.MqReplayFromOffset |
+        Capability.Fulltext |
+        Capability.FulltextFacetFilter |
         Capability.Vector |
         Capability.HnswFiltered;
 
@@ -84,6 +86,9 @@ public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps
 
     /// <inheritdoc />
     public IMqOps Mq => this;
+
+    /// <inheritdoc />
+    public IFullTextOps FullText => this;
 
     /// <inheritdoc />
     public RelationalDialect Dialect => RelationalDialect.SonnetDb;
@@ -527,6 +532,70 @@ public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps
     }
 
     /// <inheritdoc />
+    public async Task ResetIndexAsync(string index, FullTextIndexOptions options, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        await ExecuteAsync($"DROP DOCUMENT COLLECTION {index}", ct).ConfigureAwait(false);
+        await ExecuteAsync($"CREATE DOCUMENT COLLECTION {index}", ct).ConfigureAwait(false);
+        await ExecuteAsync(
+            $"CREATE FULLTEXT INDEX {FullTextIndexName(index)} ON {index} ('$.title', '$.body', '$.category', '$.tags') USING {options.Tokenizer}",
+            ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task UpsertAsync(string index, IReadOnlyList<FullTextDocument> documents, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(documents);
+        const int BatchSize = 200;
+        var batch = new List<string>(BatchSize);
+        foreach (var document in documents)
+        {
+            batch.Add($"('{EscapeSql(document.Id)}', '{EscapeSql(ToFullTextJson(document))}')");
+            if (batch.Count == BatchSize)
+            {
+                await InsertFullTextBatchAsync(index, batch, ct).ConfigureAwait(false);
+                batch.Clear();
+            }
+        }
+
+        if (batch.Count > 0)
+            await InsertFullTextBatchAsync(index, batch, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public Task DeleteDocumentAsync(string index, string id, CancellationToken ct)
+        => ExecuteAsync($"DELETE FROM {index} WHERE id = '{EscapeSql(id)}'", ct);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<FullTextHit>> SearchAsync(string index, FullTextSearchRequest request, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        string sql = $"""
+            SELECT id, json_value(document, '$.category') AS category, bm25_score() AS score
+            FROM {index}
+            WHERE match({FullTextIndexName(index)}, *, '{EscapeSql(request.Query)}', {request.TopK})
+            """;
+        if (!string.IsNullOrWhiteSpace(request.CategoryFilter))
+            sql += $" AND json_value(document, '$.category') = '{EscapeSql(request.CategoryFilter)}'";
+        sql += "\nORDER BY score DESC";
+
+        var result = await QueryAsync(sql, ct).ConfigureAwait(false);
+        return result.Rows
+            .Select(static row => new FullTextHit(
+                Convert.ToString(row.Values[0], CultureInfo.InvariantCulture) ?? string.Empty,
+                Convert.ToDouble(row.Values[2], CultureInfo.InvariantCulture),
+                Convert.ToString(row.Values[1], CultureInfo.InvariantCulture)))
+            .ToArray();
+    }
+
+    /// <inheritdoc />
+    public async Task<long> CountDocumentsAsync(string index, CancellationToken ct)
+    {
+        var result = await QueryAsync($"SELECT id FROM {index}", ct).ConfigureAwait(false);
+        return result.Rows.Count;
+    }
+
+    /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
         try { _mq.Dispose(); } catch { /* best-effort close */ }
@@ -563,6 +632,22 @@ public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps
 
     private Task InsertVectorBatchAsync(string collection, IReadOnlyList<string> values, CancellationToken ct)
         => ExecuteAsync($"INSERT INTO {collection} (time, category, embedding) VALUES {string.Join(", ", values)}", ct);
+
+    private Task InsertFullTextBatchAsync(string index, IReadOnlyList<string> values, CancellationToken ct)
+        => ExecuteAsync($"INSERT INTO {index} (id, document) VALUES {string.Join(", ", values)}", ct);
+
+    private static string FullTextIndexName(string index) => "ft_" + index;
+
+    private static string ToFullTextJson(FullTextDocument document)
+    {
+        var tags = string.Join(",", document.Tags.Select(static tag => "\"" + EscapeJson(tag) + "\""));
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $$"""{"id":"{{EscapeJson(document.Id)}}","title":"{{EscapeJson(document.Title)}}","body":"{{EscapeJson(document.Body)}}","category":"{{EscapeJson(document.Category)}}","tags":[{{tags}}]}""");
+    }
+
+    private static string EscapeJson(string value)
+        => value.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("\"", "\\\"", StringComparison.Ordinal);
 
     private static string EscapeSql(string value)
         => value.Replace("'", "''", StringComparison.Ordinal);

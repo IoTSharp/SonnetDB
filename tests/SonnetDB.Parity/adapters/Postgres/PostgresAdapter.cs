@@ -64,6 +64,9 @@ public sealed class PostgresAdapter : IDataPlane, IRelationalOps
     public IMqOps Mq => UnsupportedMqOps.Instance;
 
     /// <inheritdoc />
+    public IFullTextOps FullText => UnsupportedFullTextOps.Instance;
+
+    /// <inheritdoc />
     public RelationalDialect Dialect => RelationalDialect.Postgres;
 
     /// <summary>打开底层连接。</summary>
