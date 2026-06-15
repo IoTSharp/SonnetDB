@@ -90,7 +90,7 @@ SonnetDB 是一个基于 C# / .NET 的多模型数据库。它用一套本地引
 
 欢迎扫码加入企业微信群，交流 SonnetDB 使用、开发和落地问题。
 
-<img src="web/public/qr-group.svg" alt="扫描二维码加入 SonnetDB 企业微信群" width="240">
+<img src="web/public/qr-group.png" alt="扫描二维码加入 SonnetDB 企业微信群" width="240">
 
 ## 当前组成
 

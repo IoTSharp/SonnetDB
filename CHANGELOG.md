@@ -7,6 +7,7 @@
 
 ### Added
 
+- README 社群二维码改用 PNG 资源，提升 Gitee README 渲染兼容性。
 - **Milestone 21 规划**：ROADMAP 新增 Document Store 单机能力升级路线，目标达到 MongoDB 单机常用能力子集（CRUD、find/filter/projection/sort、cursor、局部更新、复合/unique/TTL 索引、aggregation、单文档原子性、MongoDB 参考 parity、Web Admin Document Explorer 与长稳报告），并明确不做 MongoDB wire protocol / BSON command / 官方 driver 直连协议兼容。
 - **PR #136 CI gating + nightly parity 报告发布**：新增 `.github/workflows/parity.yml`，按每日 02:00 UTC 与手动触发运行 `{light, full} × ubuntu-latest` parity 矩阵，启动 `docker-compose.parity.yml` 后执行 `tests/SonnetDB.Parity` 与 `tests/SonnetDB.CrashTests`；新增 `tests/SonnetDB.Parity/reports/summarize-parity.ps1` 汇总 JSON / Markdown 报告，能力、可靠性与算法准确度失败作为红绿门槛，带 `performance_gating=warning_only` 的指标只进入 warning；nightly/手动结果会发布到 `parity-results` 孤立分支。README 新增 Parity workflow badge、开源栈对齐段落与最新结果入口，并提交 `tests/SonnetDB.Parity/reports/sample-run.md` 可读样例报告。
 - **PR #135 可靠性套件（kill -9 / disk-full / oom / power-loss）**：新增独立 `tests/SonnetDB.CrashTests`（`<IsAotCompatible>false</IsAotCompatible>`，不进 `SonnetDB.slnx`），通过真子进程 + `Process.Kill(true)` 覆盖 `crash_kill9_during_fsync`、`crash_kill9_mid_compaction`、`disk_full_during_wal_append`、`oom_protection_memtable_backpressure`、`power_loss_torn_record`、`power_loss_half_renamed_segment` 六个恢复场景；连带新增 `MemTableFlushPolicy.HardCapBytes`（默认 `MaxBytes * 4`）同步背压 Flush、`SegmentCompactor.Execute` `CancellationToken` 检查，以及 BackgroundFlush / Compaction / Retention 后台 worker 异常路由到 `Tsdb.DiagnosticEvent`。
