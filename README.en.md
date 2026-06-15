@@ -4,6 +4,8 @@
 
 [![CI](https://github.com/IoTSharp/SonnetDB/actions/workflows/ci.yml/badge.svg)](https://github.com/IoTSharp/SonnetDB/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/IoTSharp/SonnetDB/actions/workflows/codeql.yml/badge.svg)](https://github.com/IoTSharp/SonnetDB/actions/workflows/codeql.yml)
+[![Parity](https://github.com/IoTSharp/SonnetDB/actions/workflows/parity.yml/badge.svg)](https://github.com/IoTSharp/SonnetDB/actions/workflows/parity.yml)
+[![Parity vs OSS](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/IoTSharp/SonnetDB/parity-results/latest.json)](https://github.com/IoTSharp/SonnetDB/tree/parity-results)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/)
 [![GitHub Release](https://img.shields.io/github/v/release/IoTSharp/SonnetDB?label=Release)](https://github.com/IoTSharp/SonnetDB/releases)
@@ -194,6 +196,12 @@ Use [tests/SonnetDB.Benchmarks/README.md](tests/SonnetDB.Benchmarks/README.md) a
 - In the Server-vs-Server write benchmark, SonnetDB Server is about **1.98x** faster than IoTDB on the same machine.
 - Bulk ingest, range query, time-window aggregation, vector recall, and geospatial queries have dedicated benchmarks.
 - WAL, segments, compaction, retention, backup/restore, and index lifecycle updates are tracked in [Recent Performance & Reliability Updates](docs/performance-reliability-updates.md).
+
+## Parity vs Open-Source Stack
+
+SonnetDB continuously checks its multi-model behavior against open-source peers: PostgreSQL, InfluxDB, VictoriaMetrics, Redis, Qdrant, MinIO, NATS JetStream, Meilisearch, and ClickHouse. `.github/workflows/parity.yml` runs the `light` / `full` matrix every day at 02:00 UTC; capability, reliability, and algorithmic accuracy are merge gates, while performance numbers are warning/report only.
+
+The latest nightly output is published to the [`parity-results`](https://github.com/IoTSharp/SonnetDB/tree/parity-results) orphan branch. A readable example is available at [tests/SonnetDB.Parity/reports/sample-run.md](tests/SonnetDB.Parity/reports/sample-run.md), with the broader plan in [docs/parity-roadmap.md](docs/parity-roadmap.md).
 
 ## Design Principles
 

@@ -1,0 +1,235 @@
+name: Parity
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'Parity compose profile to run'
+        required: false
+        default: 'both'
+        type: choice
+        options:
+          - both
+          - light
+          - full
+      publish_results:
+        description: 'Publish the run summary to the parity-results branch'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: parity-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  NUGET_XMLDOC_MODE: skip
+
+jobs:
+  parity:
+    name: Parity (${{ matrix.profile }}, ubuntu-latest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [light, full]
+
+    steps:
+      - name: Skip unselected profile
+        id: selection
+        shell: bash
+        run: |
+          requested="${{ github.event.inputs.profile || 'both' }}"
+          if [[ "$requested" != "both" && "$requested" != "${{ matrix.profile }}" ]]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v6
+        if: steps.selection.outputs.run == 'true'
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-dotnet@v5
+        if: steps.selection.outputs.run == 'true'
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        if: steps.selection.outputs.run == 'true'
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-parity-nuget-${{ hashFiles('**/Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-parity-nuget-
+
+      - name: Restore parity projects
+        if: steps.selection.outputs.run == 'true'
+        run: |
+          dotnet restore tests/SonnetDB.Parity/SonnetDB.Parity.csproj
+          dotnet restore tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj
+
+      - name: Build parity projects
+        if: steps.selection.outputs.run == 'true'
+        run: |
+          dotnet build tests/SonnetDB.Parity/SonnetDB.Parity.csproj --configuration Release --no-restore /warnaserror
+          dotnet build tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj --configuration Release --no-restore /warnaserror
+
+      - name: Start parity stack
+        if: steps.selection.outputs.run == 'true'
+        working-directory: tests/SonnetDB.Parity
+        shell: bash
+        run: |
+          services="sonnetdb postgres redis minio nats"
+          if [[ "${{ matrix.profile }}" == "full" ]]; then
+            services="$services influxdb victoriametrics mosquitto meilisearch qdrant clickhouse"
+          fi
+          docker compose -f docker-compose.parity.yml --profile ${{ matrix.profile }} up -d --wait --wait-timeout 300 $services
+
+      - name: Run parity gates
+        if: steps.selection.outputs.run == 'true'
+        id: parity
+        shell: pwsh
+        continue-on-error: true
+        env:
+          PARITY_REPORT_DIR: ${{ github.workspace }}/artifacts/parity/${{ matrix.profile }}/raw
+          PARITY_PG_HOST: 127.0.0.1
+          PARITY_PG_PORT: 25432
+          PARITY_REDIS_HOST: 127.0.0.1
+          PARITY_REDIS_PORT: 26379
+          PARITY_MINIO_ENDPOINT: http://127.0.0.1:25000
+          PARITY_NATS_URL: nats://127.0.0.1:24222
+          PARITY_INFLUX_URL: http://127.0.0.1:28086
+          PARITY_VM_URL: http://127.0.0.1:28428
+          PARITY_MEILI_URL: http://127.0.0.1:27700
+          PARITY_QDRANT_HOST: 127.0.0.1
+          PARITY_QDRANT_PORT: 26334
+          PARITY_CLICKHOUSE_HOST: 127.0.0.1
+          PARITY_CLICKHOUSE_HTTP_PORT: 28123
+          PARITY_FULLTEXT_DOCUMENTS: ${{ matrix.profile == 'full' && '5000' || '1000' }}
+          PARITY_FULLTEXT_BM25_DOCUMENTS: ${{ matrix.profile == 'full' && '2000' || '500' }}
+          PARITY_ANALYTICS_GROUPBY_DAYS: ${{ matrix.profile == 'full' && '120' || '30' }}
+          PARITY_ANALYTICS_GROUPBY_DEVICES: ${{ matrix.profile == 'full' && '8' || '4' }}
+          PARITY_TPCC_FULL: "0"
+        run: |
+          New-Item -ItemType Directory -Force -Path $env:PARITY_REPORT_DIR | Out-Null
+          dotnet test tests/SonnetDB.Parity/SonnetDB.Parity.csproj `
+            --configuration Release `
+            --no-build `
+            --logger "trx;LogFileName=parity-${{ matrix.profile }}.trx" `
+            --results-directory "artifacts/parity/${{ matrix.profile }}/test-results"
+
+      - name: Run reliability gates
+        if: steps.selection.outputs.run == 'true'
+        id: reliability
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          dotnet test tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj `
+            --configuration Release `
+            --no-build `
+            --logger "trx;LogFileName=reliability-${{ matrix.profile }}.trx" `
+            --results-directory "artifacts/parity/${{ matrix.profile }}/test-results"
+
+      - name: Summarize parity reports
+        if: steps.selection.outputs.run == 'true'
+        shell: pwsh
+        run: |
+          $parityExit = 0
+          $reliabilityExit = 0
+          if ('${{ steps.parity.outcome }}' -ne 'success') { $parityExit = 1 }
+          if ('${{ steps.reliability.outcome }}' -ne 'success') { $reliabilityExit = 1 }
+          ./tests/SonnetDB.Parity/reports/summarize-parity.ps1 `
+            -ReportRoot "artifacts/parity/${{ matrix.profile }}/raw" `
+            -OutputDirectory "artifacts/parity/${{ matrix.profile }}" `
+            -Profile "${{ matrix.profile }}" `
+            -Repository "${{ github.repository }}" `
+            -RunId "${{ github.run_id }}" `
+            -RunNumber "${{ github.run_number }}" `
+            -CommitSha "${{ github.sha }}" `
+            -ParityTestExitCode $parityExit `
+            -ReliabilityTestExitCode $reliabilityExit
+
+      - name: Upload parity reports
+        if: steps.selection.outputs.run == 'true' && always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: parity-${{ matrix.profile }}-reports
+          path: artifacts/parity/${{ matrix.profile }}
+
+      - name: Stop parity stack
+        if: steps.selection.outputs.run == 'true' && always()
+        working-directory: tests/SonnetDB.Parity
+        run: docker compose -f docker-compose.parity.yml --profile ${{ matrix.profile }} down -v
+
+  publish-results:
+    name: Publish parity-results
+    runs-on: ubuntu-latest
+    needs: parity
+    if: always() && (github.event_name == 'schedule' || github.event.inputs.publish_results == 'true')
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Download parity artifacts
+        uses: actions/download-artifact@v6
+        with:
+          pattern: parity-*-reports
+          path: parity-output
+
+      - name: Build branch payload
+        shell: bash
+        run: |
+          rm -rf parity-results
+          mkdir -p parity-results/runs/${{ github.run_id }}
+          cp -R parity-output/. parity-results/runs/${{ github.run_id }}/
+
+          latest="$(find parity-output -path '*full*summary.md' | sort | head -n 1)"
+          if [[ -z "$latest" ]]; then
+            latest="$(find parity-output -name summary.md | sort | head -n 1)"
+          fi
+          if [[ -n "$latest" ]]; then
+            cp "$latest" parity-results/latest.md
+          else
+            printf '# Parity Run\n\nNo summary was produced for this run.\n' > parity-results/latest.md
+          fi
+
+          latest_json="$(find parity-output -path '*full*summary.json' | sort | head -n 1)"
+          if [[ -z "$latest_json" ]]; then
+            latest_json="$(find parity-output -name summary.json | sort | head -n 1)"
+          fi
+          if [[ -n "$latest_json" ]]; then
+            cp "$latest_json" parity-results/latest.json
+          fi
+
+          cat > parity-results/README.md <<'EOF'
+          # SonnetDB Parity Results
+
+          This orphan branch is maintained by `.github/workflows/parity.yml`.
+          `latest.md` contains the newest nightly/manual parity summary.
+          EOF
+
+      - name: Publish orphan branch
+        shell: bash
+        run: |
+          cd parity-results
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan parity-results
+          git add .
+          git commit -m "chore: update parity results for run ${{ github.run_id }}"
+          git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          git push --force origin parity-results
