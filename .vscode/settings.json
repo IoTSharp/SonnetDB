@@ -6,5 +6,6 @@
     ],
     "denyWrite": []
   },
-  "chat.agent.sandbox.enabled": "on"
+  "chat.agent.sandbox.enabled": "on",
+  "cmake.sourceDirectory": "D:/GitHub/SonnetDBEE/SonnetDB/connectors/c"
 }

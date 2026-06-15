@@ -1,11 +1,11 @@
 ﻿---
 layout: default
 title: "SonnetDB 文档中心"
-description: "SonnetDB 当前版本的产品、开发与部署文档总览，覆盖嵌入式、ADO.NET、CLI、服务端与批量写入。"
+description: "SonnetDB 当前版本的产品、开发与部署文档总览，覆盖多模型数据核心、Copilot、Workbench、嵌入式、ADO.NET、CLI、服务端和批量写入。"
 permalink: /
 ---
 
-SonnetDB 是一个基于 C# / .NET 10 的时序数据库项目，提供嵌入式引擎、ADO.NET 提供程序、CLI、HTTP 服务端、管理后台和内置帮助中心。
+SonnetDB 是一个基于 C# / .NET 10 的 AI-native 多模型数据底座。它以时序数据为核心起点，同时提供关系表、KV、JSON 文档、全文检索、向量检索、Hybrid Search、对象桶、本地消息队列、Web Admin Workbench 和 Copilot 智能协作能力。
 
 当前版本的持久化方式是数据库目录中的多文件布局，不再以“单文件数据库”作为产品描述。文档中的示例、目录结构和启动方式都以当前仓库代码为准。
 
@@ -20,12 +20,12 @@ SonnetDB 是一个基于 C# / .NET 10 的时序数据库项目，提供嵌入式
     <p>可在进程内打开数据库目录，也可作为 HTTP 服务运行，并通过同一套 SQL 访问。</p>
   </section>
   <section class="callout-card">
-    <strong>时序与多模型</strong>
-    <p>支持时序、关系表、KV、JSON 文档、全文、向量、对象桶和消息队列基础能力。</p>
+    <strong>多模型数据核心</strong>
+    <p>支持时序、关系表、KV、JSON 文档、全文、向量、Hybrid Search、对象桶和本地消息队列。</p>
   </section>
   <section class="callout-card">
-    <strong>分析与运维</strong>
-    <p>内置聚合、窗口、预测、PID、地理空间、权限、Token、备份恢复和管理后台。</p>
+    <strong>AI、分析与运维</strong>
+    <p>内置聚合、窗口、预测、PID、地理空间、Copilot、权限、Token、备份恢复和管理后台。</p>
   </section>
 </div>
 
@@ -38,6 +38,7 @@ SonnetDB 是一个基于 C# / .NET 10 的时序数据库项目，提供嵌入式
 | 编写 `CREATE/INSERT/SELECT/DELETE` 或控制面 SQL | [SQL 参考]({{ site.docs_baseurl | default: '/help' }}/sql-reference/) |
 | 想直接复制一段常用 SQL 模板 | [SQL Cookbook]({{ site.docs_baseurl | default: '/help' }}/sql-cookbook/) |
 | 使用 Web Admin Workbench 浏览 schema、编辑 SQL、做 staged preview | [SonnetDB Workbench]({{ site.docs_baseurl | default: '/help' }}/web-workbench/) |
+| 了解 Copilot 如何辅助 SQL、排障和知识检索 | [SonnetDB Workbench]({{ site.docs_baseurl | default: '/help' }}/web-workbench/) 和 [Copilot 技能库](https://github.com/IoTSharp/SonnetDB/tree/main/copilot/skills) |
 | 在进程内直接使用引擎 | [嵌入式与 in-proc API]({{ site.docs_baseurl | default: '/help' }}/embedded-api/) |
 | 使用轻量 KV keyspace 存储 metadata 或小对象 | [KV Keyspace]({{ site.docs_baseurl | default: '/help' }}/kv-keyspace/) |
 | 通过 ADO.NET 访问本地或远程实例 | [ADO.NET 参考]({{ site.docs_baseurl | default: '/help' }}/ado-net/) |
@@ -49,13 +50,16 @@ SonnetDB 是一个基于 C# / .NET 10 的时序数据库项目，提供嵌入式
 
 ## 当前产品形态
 
-SonnetDB 现在由四条主线组成：
+SonnetDB 现在由这些主线组成：
 
-1. 嵌入式引擎 `SonnetDB`
-2. ADO.NET 提供程序：NuGet 包 `SonnetDB`，命名空间 `SonnetDB.Data`
-3. EF Core Provider：NuGet 包 `SonnetDB.EntityFrameworkCore`
-4. CLI 工具 `SonnetDB.Cli`
-5. 服务端 `SonnetDB`
+1. 多模型核心库 `SonnetDB.Core`
+2. HTTP 服务端 `SonnetDB`
+3. ADO.NET 提供程序：NuGet 包 `SonnetDB`，命名空间 `SonnetDB.Data`
+4. EF Core Provider：NuGet 包 `SonnetDB.EntityFrameworkCore`
+5. CLI 工具 `SonnetDB.Cli`
+6. 本地消息队列 `SonnetMQ`
+7. Web Admin Workbench 与 CopilotDock
+8. C、Go、Rust、Java、Python、VB6、PureBasic 等连接器
 
 这几部分共享同一套底层存储格式和大部分 SQL 行为。服务端额外增加了：
 
@@ -65,6 +69,8 @@ SonnetDB 现在由四条主线组成：
 - `/help/` 静态帮助中心
 - `/v1/events` SSE 事件流
 - `/healthz` 与 `/metrics`
+- `/mcp/{db}` 工具入口
+- Copilot 云端桥接、上下文摘要和写入审批
 
 ## 文档约定
 

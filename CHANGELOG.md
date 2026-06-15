@@ -74,6 +74,7 @@
 - **PR #77 — 地理空间基准 + 文档完善**：新增 `GeoQueryBenchmark`，覆盖 `100k` 默认轨迹点和可选 `1M` 档位下的 `geo_within`、`geo_bbox`、`trajectory_length` 与 `GEOPOINT` range scan；README 与 `docs/geo-spatial.md` 补齐地理空间功能矩阵、Web Admin / SQL Console 地图用法、基准运行方式和车辆追踪 / 户外运动 / IoT 地理围栏端到端示例。
 
 ### Changed
+- **门面文档叙事收敛**：根 README / README.en 改为“一句话定位 + 能力矩阵 + 使用方式 + 专题文档索引”的简洁结构，剔除长 SQL 函数表、架构细节和基准明细，突出时序、关系、KV、文档、全文、向量、对象存储、消息队列、Copilot、Workbench、MCP 和多语言连接器；文档首页、Workbench 文档和 Web 欢迎页同步从单一时序数据库定位升级为多模型数据底座定位。
 - NuGet 发布链路新增 `SonnetDB.EntityFrameworkCore`：EF Core Provider 现在会随 `eng/release.ps1 -Tasks nuget`、GitHub Publish workflow、SDK Bundle 和发布文档一起输出。
 - 文档统一修正 ADO.NET 提供程序的 NuGet 包名：`src/SonnetDB.Data` 发布为 `SonnetDB`，代码命名空间仍为 `SonnetDB.Data`；根 README、文档首页、综合指南、包说明和产品首页同步收敛当前能力说明。
 - **Block 级跳跃索引（MaxTimestamp 前缀最大值）**：`SegmentIndex` 在 `Build` / `BuildFromBlocksForTesting` 时为每个 `(seriesId, fieldName)` 桶与每个 `seriesId` 桶预计算 `MaxTimestamp` 前缀最大值数组。`GetBlocks(seriesId, fieldName, from, toInclusive)` 中原来"二分上界 + 线性扫描下界 (`MaxTimestamp >= from`)"的实现改为"二分上界 + 在前缀最大值上二分下界 + 仅在 `[lower, upper)` 区间补一次微扫描"，渐近复杂度由 O(upper) 改善为 O(log n + 命中桶数)；新增 `GetBlocks(seriesId, from, toInclusive)` 多 field 单 series 时间窗剪枝重载，`MultiSegmentIndex.LookupCandidates(seriesId, from, to)` 改为转发该重载。压缩产生的重叠 block（`MaxTimestamp` 非单调）下结果集与朴素实现一致。新增 `SegmentIndexSkippingTests` 12 个场景：非重叠窄/宽窗、查询完全前/后于所有 block、边界等值（含单点查询）、压缩重叠场景两例、按 series 多 field 路径、未知 series/field 空返回、64 个随机 block × 300 次随机查询的 fuzz 与朴素 O(n) 实现对拍；`Storage/Segments/SegmentIndex.cs`、`Storage/Segments/MultiSegmentIndex.cs` 不修改文件二进制格式，无新增依赖。

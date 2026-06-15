@@ -7,7 +7,7 @@
         </div>
         <div class="brand-copy">
           <span class="brand-name">SonnetDB</span>
-          <span class="brand-tagline">AI 加持的时序数据库</span>
+          <span class="brand-tagline">AI-native 多模型数据底座</span>
         </div>
       </div>
       <nav class="hero-nav" aria-label="页面导航">
@@ -23,10 +23,10 @@
       <section id="overview" class="hero-panel">
         <div class="hero-copy">
           <div class="hero-eyebrow">产品定位</div>
-          <h1>一套面向设备数据、业务指标和实时分析的时序数据库。</h1>
+          <h1>一套面向设备、业务、搜索和 AI 协作的多模型数据底座。</h1>
           <p class="hero-subtitle">
-            SonnetDB 支持嵌入式和服务端两种运行方式，提供 SQL、ADO.NET、CLI、HTTP API、Web Admin 和多语言连接器。
-            当前版本已经覆盖时序写入查询、关系表、KV、文档、全文、向量、对象桶、消息队列和智能协作等能力。
+            SonnetDB 支持嵌入式和服务端两种运行方式，提供 SQL、ADO.NET、EF Core、CLI、HTTP API、Web Admin、MCP 和多语言连接器。
+            当前版本已经覆盖时序、关系表、KV、文档、全文、向量、Hybrid Search、对象桶、消息队列和 Copilot 智能协作等能力。
           </p>
 
           <div class="hero-actions">
@@ -52,14 +52,14 @@
             <div class="stage-grid">
               <section class="stage-card stage-card-large">
                 <span class="stage-kicker">当前能力</span>
-                <strong>从时序存储、SQL 查询到多模型扩展和管理后台，SonnetDB 提供一套可直接落地的数据库能力。</strong>
+                <strong>从数据存储、SQL 查询到 AI 协作和管理后台，SonnetDB 提供一套可直接落地的数据平台能力。</strong>
                 <p>
                   ADO.NET 提供程序通过 `SonnetDB` NuGet 包发布，源码项目和命名空间仍为 `SonnetDB.Data`。
                 </p>
                 <ul class="stage-list">
                   <li>时序数据支持 SQL 写入、范围查询、聚合、窗口函数和批量导入。</li>
-                  <li>服务端内置用户、授权、Token、备份恢复、健康检查和 Web Admin。</li>
-                  <li>扩展能力覆盖 KV、关系表、JSON 文档、全文、向量、对象桶和消息队列基础功能。</li>
+                  <li>服务端内置用户、授权、Token、备份恢复、健康检查、MCP 和 Web Admin。</li>
+                  <li>扩展能力覆盖 KV、关系表、JSON 文档、全文、向量、对象桶、消息队列和 Copilot。</li>
                 </ul>
               </section>
               <section class="stage-card">
@@ -74,8 +74,8 @@
               </section>
               <section class="stage-card stage-card-accent">
                 <span class="stage-kicker">多模型</span>
-                <strong>时空、搜索与对象</strong>
-                <p>支持 GEOPOINT、轨迹分析、全文检索、向量检索、Hybrid Search 和对象桶。</p>
+                <strong>时空、搜索、对象与 AI</strong>
+                <p>支持 GEOPOINT、轨迹分析、全文检索、向量检索、Hybrid Search、对象桶和 Copilot。</p>
               </section>
             </div>
           </div>
@@ -85,7 +85,7 @@
       <section id="database" class="section-panel">
         <div class="section-heading">
           <span class="hero-eyebrow">产品形态</span>
-          <h2>嵌入式、服务端、工具链和管理后台共用同一套存储与 SQL 能力。</h2>
+          <h2>嵌入式、服务端、工具链、连接器和管理后台共用同一套存储与 SQL 能力。</h2>
           <p>
             本地进程、远程服务、命令行、Web Admin 和客户端 SDK 可以按场景组合使用。
           </p>
@@ -103,7 +103,7 @@
       <section id="capabilities" class="section-panel">
         <div class="section-heading">
           <span class="hero-eyebrow">当前能力</span>
-          <h2>用简洁 SQL 和标准客户端访问时序、多模型、分析和运维能力。</h2>
+          <h2>用简洁 SQL 和标准客户端访问时序、多模型、搜索、AI 和运维能力。</h2>
         </div>
 
         <div class="feature-grid">
@@ -156,8 +156,8 @@ const heroHighlights = [
     description: '提供 KV、关系表、文档、全文、向量、对象桶和消息队列',
   },
   {
-    title: '运维',
-    description: '内置 Web Admin、用户授权、Token、备份恢复和健康检查',
+    title: 'AI + 运维',
+    description: '内置 Web Admin、Copilot、MCP、备份恢复和健康检查',
   },
 ];
 
@@ -170,7 +170,7 @@ const databaseCards = [
   {
     kicker: 'Server',
     title: 'HTTP 服务端',
-    description: '提供远程 SQL、批量写入、认证授权、控制面 API、事件流、健康检查和指标端点。',
+    description: '提供远程 SQL、批量写入、认证授权、控制面 API、事件流、MCP、健康检查和指标端点。',
   },
   {
     kicker: 'Client',
@@ -180,7 +180,7 @@ const databaseCards = [
   {
     kicker: 'Admin',
     title: 'Web Admin Workbench',
-    description: '提供首次安装、数据库管理、Schema Explorer、SQL Editor、结果表格、图表、轨迹地图和 Copilot 浮窗。',
+    description: '提供首次安装、数据库管理、Schema Explorer、SQL Editor、结果表格、图表、轨迹地图、写入审批和 Copilot 浮窗。',
   },
   {
     kicker: 'Package',
@@ -223,7 +223,7 @@ const capabilityCards = [
   {
     index: '06',
     title: 'KV、文档与搜索',
-    description: '支持 KV keyspace、JSON 文档集合、JSON path、全文索引、向量 KNN 和 Hybrid Search。',
+    description: '支持 KV keyspace、JSON 文档集合、JSON path、全文索引、向量 KNN、知识检索和 Hybrid Search。',
   },
   {
     index: '07',
@@ -242,8 +242,8 @@ const capabilityCards = [
   },
   {
     index: '10',
-    title: 'Copilot',
-    description: '在 Web Admin 中提供全局浮窗，辅助 SQL 生成、解释、修复、排障和知识检索。',
+    title: 'Copilot 与 MCP',
+    description: '在 Web Admin 和外部 Agent 中提供 SQL 生成、解释、修复、排障、工具调用和知识检索。',
   },
 ];
 
