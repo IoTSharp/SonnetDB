@@ -15,8 +15,8 @@ public sealed class SegmentManager : IDisposable
 {
     private readonly object _lock = new();
     private readonly SegmentReaderOptions? _readerOptions;
-    private readonly Dictionary<long, SegmentReader> _readerById = new();
-    private SegmentManagerSnapshot _snapshot = new(MultiSegmentIndex.Empty, Array.Empty<SegmentReader>());
+    private readonly Dictionary<long, SegmentReaderLeaseState> _readerById = new();
+    private SegmentManagerSnapshot _snapshot = new(MultiSegmentIndex.Empty, Array.Empty<SegmentReaderLeaseState>());
     private bool _disposed;
 
     /// <summary>当前所有已打开的 <see cref="SegmentReader"/> 快照（按 SegmentId 升序）。</summary>
@@ -63,7 +63,7 @@ public sealed class SegmentManager : IDisposable
             try
             {
                 var reader = SegmentReader.Open(path, readerOptions);
-                manager._readerById[segId] = reader;
+                manager._readerById[segId] = new SegmentReaderLeaseState(reader);
             }
             catch (SegmentCorruptedException)
             {
@@ -92,10 +92,10 @@ public sealed class SegmentManager : IDisposable
 
             var reader = SegmentReader.Open(path, _readerOptions);
             long segId = reader.Header.SegmentId;
-            SegmentReader[] replaced = _readerById.TryGetValue(segId, out var oldReader)
+            SegmentReaderLeaseState[] replaced = _readerById.TryGetValue(segId, out var oldReader)
                 ? [oldReader]
                 : [];
-            _readerById[segId] = reader;
+            _readerById[segId] = new SegmentReaderLeaseState(reader);
             RebuildSnapshotsLocked(replaced);
             return reader;
         }
@@ -115,7 +115,7 @@ public sealed class SegmentManager : IDisposable
         ArgumentNullException.ThrowIfNull(removeIds);
         ArgumentNullException.ThrowIfNull(addedPath);
 
-        List<SegmentReader> toDispose;
+        List<SegmentReaderLeaseState> toDispose;
         SegmentReader newReader;
 
         lock (_lock)
@@ -125,7 +125,7 @@ public sealed class SegmentManager : IDisposable
             newReader = SegmentReader.Open(addedPath, _readerOptions);
             long newSegId = newReader.Header.SegmentId;
 
-            toDispose = new List<SegmentReader>(removeIds.Count);
+            toDispose = new List<SegmentReaderLeaseState>(removeIds.Count);
             foreach (long segId in removeIds)
             {
                 if (_readerById.TryGetValue(segId, out var old))
@@ -135,7 +135,7 @@ public sealed class SegmentManager : IDisposable
                 }
             }
 
-            _readerById[newSegId] = newReader;
+            _readerById[newSegId] = new SegmentReaderLeaseState(newReader);
             RebuildSnapshotsLocked(toDispose);
         }
 
@@ -157,13 +157,13 @@ public sealed class SegmentManager : IDisposable
     {
         ArgumentNullException.ThrowIfNull(ids);
 
-        List<SegmentReader> toDispose;
+        List<SegmentReaderLeaseState> toDispose;
 
         lock (_lock)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
 
-            toDispose = new List<SegmentReader>(ids.Count);
+            toDispose = new List<SegmentReaderLeaseState>(ids.Count);
             foreach (long segId in ids)
             {
                 if (_readerById.TryGetValue(segId, out var old))
@@ -176,7 +176,7 @@ public sealed class SegmentManager : IDisposable
             RebuildSnapshotsLocked(toDispose);
         }
 
-        return toDispose.AsReadOnly();
+        return toDispose.Select(static state => state.Reader).ToArray();
     }
 
     /// <summary>
@@ -205,15 +205,15 @@ public sealed class SegmentManager : IDisposable
     /// </summary>
     public void Dispose()
     {
-        List<SegmentReader> readersToDispose;
+        List<SegmentReaderLeaseState> readersToDispose;
         lock (_lock)
         {
             if (_disposed)
                 return;
             _disposed = true;
-            readersToDispose = new List<SegmentReader>(_readerById.Values);
+            readersToDispose = new List<SegmentReaderLeaseState>(_readerById.Values);
             _readerById.Clear();
-            PublishSnapshotUnsafe(MultiSegmentIndex.Empty, Array.Empty<SegmentReader>(), readersToDispose);
+            PublishSnapshotUnsafe(MultiSegmentIndex.Empty, Array.Empty<SegmentReaderLeaseState>(), readersToDispose);
         }
     }
 
@@ -230,7 +230,7 @@ public sealed class SegmentManager : IDisposable
     /// <summary>
     /// 重建索引快照（调用方必须持有 <c>_lock</c>）。
     /// </summary>
-    private void RebuildSnapshotsLocked(IReadOnlyList<SegmentReader>? readersToDispose = null)
+    private void RebuildSnapshotsLocked(IReadOnlyList<SegmentReaderLeaseState>? readersToDispose = null)
     {
         RebuildSnapshotsUnsafe(readersToDispose);
     }
@@ -238,26 +238,26 @@ public sealed class SegmentManager : IDisposable
     /// <summary>
     /// 重建索引快照（单线程初始化时调用，无需持有锁）。
     /// </summary>
-    private void RebuildSnapshotsUnsafe(IReadOnlyList<SegmentReader>? readersToDispose = null)
+    private void RebuildSnapshotsUnsafe(IReadOnlyList<SegmentReaderLeaseState>? readersToDispose = null)
     {
         var ordered = _readerById
             .OrderBy(static kvp => kvp.Key)
             .ToList();
 
         var indices = new List<SegmentIndex>(ordered.Count);
-        foreach (var (segId, reader) in ordered)
-            indices.Add(SegmentIndex.Build(reader, segId));
+        foreach (var (segId, state) in ordered)
+            indices.Add(SegmentIndex.Build(state.Reader, segId));
 
         var newIndex = new MultiSegmentIndex(indices);
-        var newReaders = (IReadOnlyList<SegmentReader>)ordered.Select(static kvp => kvp.Value).ToArray();
+        var newReaders = (IReadOnlyList<SegmentReaderLeaseState>)ordered.Select(static kvp => kvp.Value).ToArray();
 
-        PublishSnapshotUnsafe(newIndex, newReaders, readersToDispose ?? Array.Empty<SegmentReader>());
+        PublishSnapshotUnsafe(newIndex, newReaders, readersToDispose ?? Array.Empty<SegmentReaderLeaseState>());
     }
 
     private void PublishSnapshotUnsafe(
         MultiSegmentIndex index,
-        IReadOnlyList<SegmentReader> readers,
-        IReadOnlyList<SegmentReader> readersToDispose)
+        IReadOnlyList<SegmentReaderLeaseState> readers,
+        IReadOnlyList<SegmentReaderLeaseState> readersToDispose)
     {
         var oldSnapshot = CurrentSnapshot;
         var newSnapshot = new SegmentManagerSnapshot(index, readers);

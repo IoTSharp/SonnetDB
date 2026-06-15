@@ -7,17 +7,19 @@ internal sealed class SegmentManagerSnapshot
     private int _leaseCount;
     private int _retired;
     private int _disposed;
-    private IReadOnlyList<SegmentReader> _readersToDispose = Array.Empty<SegmentReader>();
+    private IReadOnlyList<SegmentReaderLeaseState> _readersToDispose = Array.Empty<SegmentReaderLeaseState>();
+    private readonly IReadOnlyList<SegmentReaderLeaseState> _readerStates;
 
     public SegmentManagerSnapshot(
         MultiSegmentIndex index,
-        IReadOnlyList<SegmentReader> readers)
+        IReadOnlyList<SegmentReaderLeaseState> readerStates)
     {
         ArgumentNullException.ThrowIfNull(index);
-        ArgumentNullException.ThrowIfNull(readers);
+        ArgumentNullException.ThrowIfNull(readerStates);
 
         Index = index;
-        Readers = readers;
+        _readerStates = readerStates;
+        Readers = readerStates.Select(static state => state.Reader).ToArray();
     }
 
     public MultiSegmentIndex Index { get; }
@@ -35,22 +37,33 @@ internal sealed class SegmentManagerSnapshot
             if (Interlocked.CompareExchange(ref _leaseCount, current + 1, current) != current)
                 continue;
 
-            if (Volatile.Read(ref _retired) == 0)
-                return true;
+            foreach (var state in _readerStates)
+                state.Acquire();
 
-            Release();
-            return false;
+            if (Volatile.Read(ref _retired) != 0)
+            {
+                foreach (var state in _readerStates)
+                    state.Release();
+
+                ReleaseSnapshotLease();
+                return false;
+            }
+
+            return true;
         }
     }
 
     public void Release()
     {
-        int count = Interlocked.Decrement(ref _leaseCount);
+        foreach (var state in _readerStates)
+            state.Release();
+
+        int count = ReleaseSnapshotLease();
         if (count == 0 && Volatile.Read(ref _retired) != 0)
             DisposeRetiredReaders();
     }
 
-    public void Retire(IReadOnlyList<SegmentReader> readersToDispose)
+    public void Retire(IReadOnlyList<SegmentReaderLeaseState> readersToDispose)
     {
         ArgumentNullException.ThrowIfNull(readersToDispose);
 
@@ -62,15 +75,60 @@ internal sealed class SegmentManagerSnapshot
         }
     }
 
+    private int ReleaseSnapshotLease()
+        => Interlocked.Decrement(ref _leaseCount);
+
     private void DisposeRetiredReaders()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
             return;
 
-        foreach (var reader in _readersToDispose)
+        foreach (var state in _readersToDispose)
+            state.Retire();
+    }
+}
+
+internal sealed class SegmentReaderLeaseState
+{
+    private int _leaseCount;
+    private int _retired;
+    private int _disposed;
+
+    public SegmentReaderLeaseState(SegmentReader reader)
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+        Reader = reader;
+    }
+
+    public SegmentReader Reader { get; }
+
+    public void Acquire()
+    {
+        Interlocked.Increment(ref _leaseCount);
+    }
+
+    public void Release()
+    {
+        int count = Interlocked.Decrement(ref _leaseCount);
+        if (count == 0 && Volatile.Read(ref _retired) != 0)
+            DisposeReader();
+    }
+
+    public void Retire()
+    {
+        if (Interlocked.Exchange(ref _retired, 1) == 0
+            && Volatile.Read(ref _leaseCount) == 0)
         {
-            try { reader.Dispose(); } catch { }
+            DisposeReader();
         }
+    }
+
+    private void DisposeReader()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            return;
+
+        try { Reader.Dispose(); } catch { }
     }
 }
 

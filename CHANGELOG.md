@@ -112,6 +112,7 @@
 - 新增 `docs/sql-cookbook.md`，把 `demo.sql` 中高频、当前真实支持的 `CREATE MEASUREMENT`、`INSERT`、`SELECT`、`GROUP BY time(...)`、窗口函数、PID、预测、向量检索、元数据与 `DELETE` 场景整理成可直接复制的 cookbook，并在 `docs/index.md` 与 `docs/sql-reference.md` 中加入入口。
 
 ### Fixed
+- 修复 `QueryEngine` 与 Compaction / Retention 段替换并发时，连续快照复用的旧 `SegmentReader` 可能被后续 swap 提前释放，导致查询偶发 `ObjectDisposedException` 的 CI 回归；`SegmentManager` 现在按 reader 维护租约状态，等待所有持有该 reader 的查询快照释放后再 Dispose。
 - **GitHub Actions 发布链路修复**：修复 Native AOT 下 `SndbDataReader.GetSchemaTable()` 的 `SchemaTableColumn.DataType` 反射裁剪告警；连接器发布 workflow 递归 checkout DotSearch / DotVector 子模块；Dockerfile 显式复制 DotSearch / DotVector 源码并让 Docker 发布路径过滤覆盖 `src/SonnetDB.Core/**` 与 `modules/**`；同步更新 DotSearch Jieba 词典生成 target 的跨平台路径与工具执行方式，避免 Linux CI、连接器发布和镜像构建因缺少依赖源码或 Windows 路径分隔符失败。
 - 修复 Rust connector Linux x64 CI 构建失败：`build.rs` 现在通过 Rust 支持的 `+verbatim` 链接修饰符精确链接 `SonnetDB.Native.so`，避免 `-l:SonnetDB.Native.so` 被 Cargo 解析为 rename 语法并报出 library name must not be empty。
 - **CI 测试稳定性**：为服务端与 Accuracy 测试项目补齐 `coverlet.collector`，修复 `--collect:"XPlat Code Coverage"` 找不到 collector；Accuracy Tests 在 Docker/InfluxDB 不可用时改为显式 no-op 通过并记录原因，避免可选外部依赖缺失导致 CI 失败；SSE db 事件断言改为等待当前测试触发的数据库事件，避免 `__copilot__` 系统库后台事件串扰。
