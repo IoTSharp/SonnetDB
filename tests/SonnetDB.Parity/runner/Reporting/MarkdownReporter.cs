@@ -4,7 +4,7 @@ namespace SonnetDB.Parity.Runner.Reporting;
 
 /// <summary>
 /// 把 <see cref="ParityReport"/> 写为 <c>diff.md</c>，渲染
-/// <c>| Scenario | SonnetDB | Postgres | Diff |</c> 风格的可读对比表。
+/// <c>| Scenario | SonnetDB | ... | Diff |</c> 风格的可读对比表。
 /// </summary>
 public static class MarkdownReporter
 {
@@ -25,25 +25,57 @@ public static class MarkdownReporter
         var sb = new StringBuilder();
         sb.Append("# Parity Run ").Append(report.RunId).Append('\n').Append('\n');
         sb.Append("Started: ").Append(report.StartedAtUtc.ToString("o")).Append('\n').Append('\n');
-        sb.Append("| Scenario | SonnetDB | Postgres | Diff |\n");
-        sb.Append("|---|---|---|---|\n");
+        sb.Append("| Scenario | ");
+        foreach (var backend in report.Backends)
+            sb.Append(EscapeCell(backend)).Append(" | ");
+        sb.Append("Diff |\n");
+        sb.Append("|---|");
+        foreach (var _ in report.Backends)
+            sb.Append("---|");
+        sb.Append("---|\n");
 
         foreach (var scenario in report.Scenarios)
         {
-            var sonnet = Describe(scenario, "sonnetdb");
-            var postgres = Describe(scenario, "postgres");
             var diff = DescribeDiff(scenario);
-            sb.Append("| ").Append(scenario.Name)
-              .Append(" | ").Append(sonnet)
-              .Append(" | ").Append(postgres)
-              .Append(" | ").Append(diff)
-              .Append(" |\n");
+            sb.Append("| ").Append(scenario.Name).Append(" | ");
+            foreach (var backend in report.Backends)
+                sb.Append(Describe(scenario, backend)).Append(" | ");
+            sb.Append(diff).Append(" |\n");
 
             if (scenario.Differences.Count > 0)
             {
                 foreach (var d in scenario.Differences)
-                    sb.Append("| ").Append("&nbsp;").Append(" | ").Append(EscapeCell(d)).Append(" |  |  |\n");
+                {
+                    sb.Append("| ").Append("&nbsp;").Append(" | ");
+                    sb.Append(EscapeCell(d)).Append(" | ");
+                    for (var i = 1; i < report.Backends.Count; i++)
+                        sb.Append(" | ");
+                    sb.Append(" |\n");
+                }
             }
+        }
+
+        sb.Append('\n');
+        sb.Append("## Capability gaps\n\n");
+        sb.Append("| Scenario | Required | ");
+        foreach (var backend in report.Backends)
+            sb.Append(EscapeCell(backend)).Append(" | ");
+        sb.Append("SonnetDB gap |\n");
+        sb.Append("|---|---|");
+        foreach (var _ in report.Backends)
+            sb.Append("---|");
+        sb.Append("---|\n");
+        foreach (var gap in report.CapabilityGaps)
+        {
+            sb.Append("| ").Append(EscapeCell(gap.Scenario))
+              .Append(" | ").Append(EscapeCell(gap.Required))
+              .Append(" | ");
+            foreach (var backend in report.Backends)
+            {
+                gap.BackendStatuses.TryGetValue(backend, out var status);
+                sb.Append(EscapeCell(status ?? "missing")).Append(" | ");
+            }
+            sb.Append(EscapeCell(gap.SonnetDbGap ?? "")).Append(" |\n");
         }
 
         await File.WriteAllTextAsync(path, sb.ToString()).ConfigureAwait(false);

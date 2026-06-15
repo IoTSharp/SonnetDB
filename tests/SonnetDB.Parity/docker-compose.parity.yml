@@ -122,6 +122,13 @@ services:
       - "${PARITY_INFLUX_PORT:-28086}:8086"
     volumes:
       - influx-data:/var/lib/influxdb2
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${PARITY_INFLUX_USER:-admin}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${PARITY_INFLUX_PASSWORD:-password123}
+      DOCKER_INFLUXDB_INIT_ORG: ${PARITY_INFLUX_ORG:-sndb}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${PARITY_INFLUX_BUCKET:-parity}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${PARITY_INFLUX_TOKEN:-parity-token}
     healthcheck:
       test: ["CMD-SHELL", "influx ping || exit 1"]
       interval: 10s
@@ -223,6 +230,14 @@ services:
       PARITY_PG_USER: ${PARITY_PG_USER:-parity}
       PARITY_PG_PASSWORD: ${PARITY_PG_PASSWORD:-parity}
       PARITY_PG_DB: ${PARITY_PG_DB:-parity}
+      PARITY_INFLUX_URL: http://influxdb:8086
+      PARITY_INFLUX_ORG: ${PARITY_INFLUX_ORG:-sndb}
+      PARITY_INFLUX_BUCKET: ${PARITY_INFLUX_BUCKET:-parity}
+      PARITY_INFLUX_TOKEN: ${PARITY_INFLUX_TOKEN:-parity-token}
+      PARITY_VM_URL: http://victoriametrics:8428
+      PARITY_TPCC_WAREHOUSES: ${PARITY_TPCC_WAREHOUSES:-5}
+      PARITY_TPCC_SECONDS: ${PARITY_TPCC_SECONDS:-1800}
+      PARITY_TPCC_FULL: ${PARITY_TPCC_FULL:-0}
     command: ["dotnet", "test", "tests/SonnetDB.Parity/SonnetDB.Parity.csproj", "-c", "Release"]
     depends_on:
       postgres:

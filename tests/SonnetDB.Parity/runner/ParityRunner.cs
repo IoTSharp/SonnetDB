@@ -1,75 +1,73 @@
 using SonnetDB.Parity.Adapters;
+using SonnetDB.Parity.Adapters.Influx;
 using SonnetDB.Parity.Adapters.Postgres;
 using SonnetDB.Parity.Adapters.SonnetDb;
+using SonnetDB.Parity.Adapters.VictoriaMetrics;
 using SonnetDB.Parity.Runner.Reporting;
 using SonnetDB.Parity.Scenarios;
 using SonnetDB.Parity.Scenarios.Relational;
+using SonnetDB.Parity.Scenarios.Tsdb;
 using Xunit;
 
 namespace SonnetDB.Parity.Runner;
 
 /// <summary>
-/// Parity 冒烟驱动（PR #127）。在单个进程内同时实例化 SonnetDB（嵌入式，无需 docker）与
-/// Postgres（竞品）两个适配器，跑同一个关系型场景并内联做容差 diff，同时落地 JSON / Markdown 报告。
+/// Parity 关系型套件驱动。单进程内实例化 SonnetDB（嵌入式）与 Postgres（竞品），
+/// 跑同一批关系型场景并输出 JSON / Markdown 差异报告。
 /// </summary>
-/// <remarks>
-/// SonnetDB 一侧始终被断言通过；Postgres 一侧通过 <see cref="PostgresAdapter.TryConnectAsync"/>
-/// 快速探测，不可达时记录 <c>gap_reason</c> 并 SKIP（不判 FAIL），与 <c>docs/parity-roadmap.md</c>
-/// 的"后端不支持 = SKIPPED 而非 fail"约定一致。
-/// 跨进程分跑 + 报告归并的完整架构留到 PR #136。
-/// </remarks>
 public sealed class ParityRunner
 {
-    /// <summary>关系型 hello-world：SonnetDB 自检通过，且（若 Postgres 可达）两边结果在容差内一致。</summary>
+    /// <summary>关系型场景套件：SonnetDB 自检通过或结构化 SKIP，Postgres 可达时参与 diff。</summary>
     [Fact]
-    public async Task RelationalHelloWorld_SonnetDbMatchesPostgres()
+    public async Task RelationalSuite_SonnetDbMatchesPostgres()
     {
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(2));
         var ct = cts.Token;
 
-        IScenario scenario = new HelloWorldRelationalScenario();
-        var runId = "smoke-" + Guid.NewGuid().ToString("N")[..8];
+        var scenarios = CreateRelationalScenarios();
+        var runId = "relational-" + Guid.NewGuid().ToString("N")[..8];
         var startedAt = DateTimeOffset.UtcNow;
         var reportDir = ResolveReportDirectory(runId);
         var ctx = new ScenarioContext { RunId = runId, ReportDirectory = reportDir, Cancellation = ct };
 
-        var backends = new List<BackendOutcome>();
-        bool? withinTolerance = null;
-        IReadOnlyList<string> differences = [];
+        var reports = new List<ScenarioReport>();
+        var failures = new List<string>();
 
-        try
+        await using var sonnet = new SonnetDbAdapter();
+        var postgresAvailable = await PostgresAdapter.TryConnectAsync(ct);
+
+        foreach (var scenario in scenarios)
         {
-            // ── SonnetDB：始终运行并断言 ──────────────────────────────────────
-            await using var sonnet = new SonnetDbAdapter();
-            var sonnetResult = await scenario.RunAsync(sonnet, ctx);
-            backends.Add(new BackendOutcome(
-                "sonnetdb",
-                sonnetResult.Pass ? "pass" : "fail",
-                sonnetResult.GapReason,
-                sonnetResult.Rows.Count));
+            var sonnetResult = await RunBackendAsync(scenario, sonnet, ctx);
+            var backends = new List<BackendOutcome>
+            {
+                ToOutcome(sonnet.BackendName, sonnetResult),
+            };
 
-            Assert.True(sonnetResult.Pass, "SonnetDB 关系型冒烟自检未通过。");
+            bool? withinTolerance = null;
+            IReadOnlyList<string> differences = [];
 
-            // ── Postgres：可达才跑，否则 SKIP 并记录 gap_reason ───────────────
-            if (await PostgresAdapter.TryConnectAsync(ct))
+            if (!sonnetResult.Pass)
+                failures.Add($"SonnetDB 场景 {scenario.Name} 自检未通过。");
+
+            if (postgresAvailable)
             {
                 await using var pg = new PostgresAdapter();
                 await pg.OpenAsync(ct);
-                var pgResult = await scenario.RunAsync(pg, ctx);
+                var pgResult = await RunBackendAsync(scenario, pg, ctx);
 
-                var diff = ResultDiffer.DiffRows(sonnetResult.Rows, pgResult.Rows);
-                withinTolerance = diff.WithinTolerance;
-                differences = diff.Differences;
+                backends.Add(ToOutcome(pg.BackendName, pgResult));
+                if (!pgResult.Pass)
+                    failures.Add($"Postgres 场景 {scenario.Name} 自检未通过。");
 
-                backends.Add(new BackendOutcome(
-                    "postgres",
-                    pgResult.Pass && diff.WithinTolerance ? "pass" : "fail",
-                    pgResult.GapReason,
-                    pgResult.Rows.Count));
-
-                Assert.True(pgResult.Pass, "Postgres 关系型冒烟自检未通过。");
-                Assert.True(diff.WithinTolerance,
-                    "SonnetDB 与 Postgres 结果超出容差：" + string.Join("; ", diff.Differences));
+                if (sonnetResult.GapReason is null && pgResult.GapReason is null && sonnetResult.Pass && pgResult.Pass)
+                {
+                    var diff = DiffResults(sonnetResult, pgResult);
+                    withinTolerance = diff.WithinTolerance;
+                    differences = diff.Differences;
+                    if (!diff.WithinTolerance)
+                        failures.Add($"SonnetDB 与 Postgres 场景 {scenario.Name} 结果超出容差：" + string.Join("; ", diff.Differences));
+                }
             }
             else
             {
@@ -77,20 +75,232 @@ public sealed class ParityRunner
                     "postgres",
                     "skipped",
                     "postgres unreachable (compose 未启动或 PARITY_PG_* 未配置)",
-                    0));
+                    0,
+                    new Dictionary<string, object?>()));
             }
-        }
-        finally
-        {
-            var report = new ParityReport(
-                runId,
-                startedAt,
-                [new ScenarioReport(scenario.Name, withinTolerance, differences, backends)]);
 
-            await JsonReporter.WriteAsync(report, reportDir);
-            await MarkdownReporter.WriteAsync(report, reportDir);
+            reports.Add(new ScenarioReport(scenario.Name, withinTolerance, differences, backends));
+        }
+
+        var report = new ParityReport(
+            runId,
+            startedAt,
+            reports,
+            BuildCapabilityGaps(scenarios, reports, ["sonnetdb", "postgres"]),
+            ["sonnetdb", "postgres"]);
+
+        await JsonReporter.WriteAsync(report, reportDir);
+        await MarkdownReporter.WriteAsync(report, reportDir);
+
+        Assert.Empty(failures);
+    }
+
+    /// <summary>TSDB 场景套件：SonnetDB 对齐 InfluxDB 与 VictoriaMetrics。</summary>
+    [Fact]
+    public async Task TsdbSuite_SonnetDbMatchesInfluxDbAndVictoriaMetrics()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+        var ct = cts.Token;
+
+        var scenarios = CreateTsdbScenarios();
+        var runId = "tsdb-" + Guid.NewGuid().ToString("N")[..8];
+        var startedAt = DateTimeOffset.UtcNow;
+        var reportDir = ResolveReportDirectory(runId);
+        var ctx = new ScenarioContext { RunId = runId, ReportDirectory = reportDir, Cancellation = ct };
+        var backends = new[] { "sonnetdb", "influxdb", "victoriametrics" };
+
+        var reports = new List<ScenarioReport>();
+        var failures = new List<string>();
+
+        await using var sonnet = new SonnetDbAdapter();
+        var influxAvailable = await InfluxAdapter.TryConnectAsync(ct);
+        var victoriaAvailable = await VictoriaMetricsAdapter.TryConnectAsync(ct);
+
+        foreach (var scenario in scenarios)
+        {
+            var sonnetResult = await RunBackendAsync(scenario, sonnet, ctx);
+            var outcomes = new List<BackendOutcome> { ToOutcome(sonnet.BackendName, sonnetResult) };
+            var differences = new List<string>();
+            bool? withinTolerance = null;
+
+            if (!sonnetResult.Pass)
+                failures.Add($"SonnetDB TSDB 场景 {scenario.Name} 自检未通过。");
+
+            await RunTsdbCompetitorAsync(
+                scenario,
+                ctx,
+                sonnetResult,
+                "influxdb",
+                influxAvailable,
+                static () => new InfluxAdapter(),
+                outcomes,
+                differences,
+                failures,
+                result => withinTolerance = MergeTolerance(withinTolerance, result));
+
+            await RunTsdbCompetitorAsync(
+                scenario,
+                ctx,
+                sonnetResult,
+                "victoriametrics",
+                victoriaAvailable,
+                static () => new VictoriaMetricsAdapter(),
+                outcomes,
+                differences,
+                failures,
+                result => withinTolerance = MergeTolerance(withinTolerance, result));
+
+            reports.Add(new ScenarioReport(scenario.Name, withinTolerance, differences, outcomes));
+        }
+
+        var report = new ParityReport(
+            runId,
+            startedAt,
+            reports,
+            BuildCapabilityGaps(scenarios, reports, backends),
+            backends);
+
+        await JsonReporter.WriteAsync(report, reportDir);
+        await MarkdownReporter.WriteAsync(report, reportDir);
+
+        Assert.Empty(failures);
+    }
+
+    private static IReadOnlyList<IScenario> CreateRelationalScenarios() =>
+    [
+        new HelloWorldRelationalScenario(),
+        new TpccLiteScenario(),
+        new FkCascadeConstraintScenario(),
+        new IsolationReadCommittedScenario(),
+        new SubqueryCorrelatedScenario(),
+        new GroupByHavingScenario(),
+        new InformationSchemaIntrospectionScenario(),
+        new UpdateReturningCountScenario(),
+        new AlterTableEvolutionScenario(),
+    ];
+
+    private static IReadOnlyList<TsdbScenarioBase> CreateTsdbScenarios() =>
+    [
+        new IngestOneMillionPointsScenario(),
+        new GroupByTimeWindowScenario(),
+        new DerivativeAccuracyScenario(),
+        new RateIrateConsistencyScenario(),
+        new HoltWintersForecastRecallScenario(),
+        new PercentileP95Scenario(),
+        new DistinctCountHllScenario(),
+    ];
+
+    private static BackendOutcome ToOutcome(string backend, ScenarioResult result)
+    {
+        var rowCount = result.SqlResult?.Rows.Count ?? result.Rows.Count;
+        return new BackendOutcome(
+            backend,
+            result.GapReason is not null ? "skipped" : result.Pass ? "pass" : "fail",
+            result.GapReason,
+            rowCount,
+            result.Metrics);
+    }
+
+    private static async Task<ScenarioResult> RunBackendAsync(IScenario scenario, IDataPlane plane, ScenarioContext ctx)
+    {
+        try
+        {
+            return await scenario.RunAsync(plane, ctx);
+        }
+        catch (Exception ex)
+        {
+            var result = new ScenarioResult { Pass = false };
+            result.Metrics["exception_type"] = ex.GetType().Name;
+            result.Metrics["exception_message"] = ex.Message;
+            return result;
         }
     }
+
+    private static DiffResult DiffResults(ScenarioResult expected, ScenarioResult actual, DiffTolerance? tolerance = null)
+    {
+        if (expected.SqlResult is not null && actual.SqlResult is not null)
+            return ResultDiffer.DiffSqlResults(expected.SqlResult, actual.SqlResult, tolerance ?? DiffTolerance.Strict);
+        return ResultDiffer.DiffRows(expected.Rows, actual.Rows, tolerance ?? DiffTolerance.Strict);
+    }
+
+    private static async Task RunTsdbCompetitorAsync<TAdapter>(
+        TsdbScenarioBase scenario,
+        ScenarioContext ctx,
+        ScenarioResult sonnetResult,
+        string backendName,
+        bool available,
+        Func<TAdapter> createAdapter,
+        List<BackendOutcome> outcomes,
+        List<string> differences,
+        List<string> failures,
+        Action<bool> setWithinTolerance)
+        where TAdapter : IDataPlane
+    {
+        if (!available)
+        {
+            outcomes.Add(new BackendOutcome(
+                backendName,
+                "skipped",
+                $"{backendName} unreachable (compose full 未启动或 PARITY_* 未配置)",
+                0,
+                new Dictionary<string, object?>()));
+            return;
+        }
+
+        await using var adapter = createAdapter();
+        var result = await RunBackendAsync(scenario, adapter, ctx).ConfigureAwait(false);
+        outcomes.Add(ToOutcome(adapter.BackendName, result));
+        if (!result.Pass)
+            failures.Add($"{backendName} TSDB 场景 {scenario.Name} 自检未通过。");
+
+        if (sonnetResult.GapReason is null && result.GapReason is null && sonnetResult.Pass && result.Pass)
+        {
+            var diff = DiffResults(sonnetResult, result, scenario.Tolerance);
+            setWithinTolerance(diff.WithinTolerance);
+            if (!diff.WithinTolerance)
+            {
+                var prefixed = diff.Differences.Select(d => $"{backendName}: {d}").ToArray();
+                differences.AddRange(prefixed);
+                failures.Add($"SonnetDB 与 {backendName} 场景 {scenario.Name} 结果超出容差：" + string.Join("; ", prefixed));
+            }
+        }
+    }
+
+    private static bool MergeTolerance(bool? current, bool next)
+        => (current ?? true) && next;
+
+    private static IReadOnlyList<CapabilityGap> BuildCapabilityGaps(
+        IReadOnlyList<IScenario> scenarios,
+        IReadOnlyList<ScenarioReport> reports,
+        IReadOnlyList<string> backendNames)
+    {
+        var rows = new List<CapabilityGap>(scenarios.Count);
+        foreach (var scenario in scenarios)
+        {
+            var report = reports.FirstOrDefault(r => string.Equals(r.Name, scenario.Name, StringComparison.Ordinal));
+            if (report is null)
+            {
+                rows.Add(new CapabilityGap(scenario.Name, scenario.Required.ToString(), "missing", new Dictionary<string, string>(), "scenario did not run"));
+                continue;
+            }
+            var sonnet = Find(report, "sonnetdb");
+            var statuses = backendNames.ToDictionary(
+                static b => b,
+                b => Find(report, b)?.Status ?? "missing",
+                StringComparer.OrdinalIgnoreCase);
+            rows.Add(new CapabilityGap(
+                scenario.Name,
+                scenario.Required.ToString(),
+                sonnet?.Status ?? "missing",
+                statuses,
+                sonnet?.GapReason));
+        }
+
+        return rows;
+    }
+
+    private static BackendOutcome? Find(ScenarioReport report, string backend)
+        => report.Backends.FirstOrDefault(b => string.Equals(b.Backend, backend, StringComparison.OrdinalIgnoreCase));
 
     private static string ResolveReportDirectory(string runId)
     {

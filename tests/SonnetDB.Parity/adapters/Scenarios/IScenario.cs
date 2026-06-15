@@ -50,6 +50,9 @@ public sealed class ScenarioResult
     /// <summary>场景产出的行集合（供跨后端 <see cref="Runner.ResultDiffer"/> 比对）。</summary>
     public IReadOnlyList<RelationalRow> Rows { get; set; } = [];
 
+    /// <summary>通用 SQL 场景产出的规范化结果集；旧冒烟场景可继续只填 <see cref="Rows"/>。</summary>
+    public RelationalSqlResult? SqlResult { get; set; }
+
     /// <summary>附带的数值 / 文本指标（写入报告）。</summary>
     public Dictionary<string, object?> Metrics { get; } = new();
 

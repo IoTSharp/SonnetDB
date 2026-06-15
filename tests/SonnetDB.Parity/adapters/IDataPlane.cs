@@ -5,17 +5,23 @@ namespace SonnetDB.Parity.Adapters;
 /// 抽象成若干"支柱"操作集合，使同一份 <see cref="Scenarios.IScenario"/> 能在两边各跑一遍。
 /// </summary>
 /// <remarks>
-/// PR #127 仅落地关系型支柱（<see cref="Relational"/>）。后续 PR（#128+）会按里程碑顺序
-/// 逐步补齐 Ts / Kv / Objects / Mq / Fulltext / Vector / Analytics 等支柱属性，每次新增
-/// 都向后兼容（仅追加成员）。
+/// PR #127 落地关系型支柱（<see cref="Relational"/>）；PR #129 追加 TSDB 支柱
+/// （<see cref="TimeSeries"/>）。后续 PR 会按里程碑顺序继续补齐 Kv / Objects / Mq /
+/// Fulltext / Vector / Analytics 等支柱属性。
 /// </remarks>
 public interface IDataPlane : IAsyncDisposable
 {
+    /// <summary>后端稳定名称（如 <c>sonnetdb</c> / <c>postgres</c>），用于报告与差异表。</summary>
+    string BackendName { get; }
+
     /// <summary>当前后端实际支持的能力位集合，供 runner 判定场景是否应被 SKIP。</summary>
     Capability Capabilities { get; }
 
     /// <summary>关系型操作集合（PR #127）。</summary>
     IRelationalOps Relational { get; }
+
+    /// <summary>时序操作集合（PR #129）。不支持时序的后端返回空操作对象。</summary>
+    ITimeSeriesOps TimeSeries { get; }
 }
 
 /// <summary>
@@ -91,4 +97,55 @@ public enum Capability : long
 
     /// <summary>HNSW 带过滤的向量检索。</summary>
     HnswFiltered = 1L << 26,
+
+    /// <summary>SQL GROUP BY / 聚合过滤能力。</summary>
+    SqlGroupBy = 1L << 27,
+
+    /// <summary>SQL information_schema 元数据视图。</summary>
+    SqlInformationSchema = 1L << 28,
+
+    /// <summary>UPDATE 返回受影响行数。</summary>
+    SqlUpdateCount = 1L << 29,
+
+    /// <summary>ALTER TABLE 演进能力。</summary>
+    SqlAlterTable = 1L << 30,
+
+    /// <summary>默认或显式 READ COMMITTED 可见性边界。</summary>
+    SqlReadCommitted = 1L << 31,
+
+    /// <summary>UPDATE ... RETURNING 结果返回能力。</summary>
+    SqlUpdateReturning = 1L << 32,
+
+    /// <summary>ON DELETE CASCADE 外键级联能力。</summary>
+    SqlCascadeDelete = 1L << 33,
+
+    /// <summary>长时间 TPC-C 类事务压测能力。</summary>
+    RelationalTpccLite = 1L << 34,
+
+    /// <summary>SQL HAVING 聚合过滤能力。</summary>
+    SqlHaving = 1L << 35,
+
+    /// <summary>相关子查询能力。</summary>
+    SqlCorrelatedSubquery = 1L << 36,
+
+    /// <summary>时序 remote_write 或等价批量写入能力。</summary>
+    TimeSeriesRemoteWrite = 1L << 37,
+
+    /// <summary>时序按时间窗口聚合能力。</summary>
+    TimeSeriesGroupByTime = 1L << 38,
+
+    /// <summary>时序 derivative / deriv 变化率能力。</summary>
+    TimeSeriesDerivative = 1L << 39,
+
+    /// <summary>时序 rate / irate 计数器变化率能力。</summary>
+    TimeSeriesRateIrate = 1L << 40,
+
+    /// <summary>Holt-Winters 或等价预测能力。</summary>
+    TimeSeriesHoltWinters = 1L << 41,
+
+    /// <summary>分位数查询或近似分位数聚合能力。</summary>
+    TimeSeriesQuantile = 1L << 42,
+
+    /// <summary>去重计数能力（精确或 HLL 近似）。</summary>
+    TimeSeriesDistinctCount = 1L << 43,
 }

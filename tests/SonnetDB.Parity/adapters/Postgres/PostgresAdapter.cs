@@ -1,3 +1,5 @@
+using System.Data;
+using System.Data.Common;
 using System.Net.Sockets;
 using Npgsql;
 using SonnetDB.Parity.Adapters;
@@ -25,10 +27,32 @@ public sealed class PostgresAdapter : IDataPlane, IRelationalOps
     }
 
     /// <inheritdoc />
-    public Capability Capabilities => Capability.Relational;
+    public string BackendName => "postgres";
+
+    /// <inheritdoc />
+    public Capability Capabilities =>
+        Capability.Relational |
+        Capability.SqlSubquery |
+        Capability.SqlForeignKey |
+        Capability.SqlGroupBy |
+        Capability.SqlInformationSchema |
+        Capability.SqlUpdateCount |
+        Capability.SqlAlterTable |
+        Capability.SqlReadCommitted |
+        Capability.SqlUpdateReturning |
+        Capability.SqlCascadeDelete |
+        Capability.RelationalTpccLite |
+        Capability.SqlHaving |
+        Capability.SqlCorrelatedSubquery;
 
     /// <inheritdoc />
     public IRelationalOps Relational => this;
+
+    /// <inheritdoc />
+    public ITimeSeriesOps TimeSeries => UnsupportedTimeSeriesOps.Instance;
+
+    /// <inheritdoc />
+    public RelationalDialect Dialect => RelationalDialect.Postgres;
 
     /// <summary>打开底层连接。</summary>
     /// <param name="ct">取消令牌。</param>
@@ -91,17 +115,35 @@ public sealed class PostgresAdapter : IDataPlane, IRelationalOps
         => ExecuteAsync("DROP TABLE IF EXISTS devices", ct);
 
     /// <inheritdoc />
+    public async Task<int> ExecuteAsync(string sql, CancellationToken ct)
+    {
+        await using var cmd = _connection.CreateCommand();
+        cmd.CommandText = sql;
+        return await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<RelationalSqlResult> QueryAsync(string sql, CancellationToken ct)
+    {
+        await using var cmd = _connection.CreateCommand();
+        cmd.CommandText = sql;
+        await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        return await RelationalResultMaterializer.ReadAsync(reader, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<IRelationalSession> OpenSessionAsync(CancellationToken ct)
+    {
+        var connection = new NpgsqlConnection(BuildConnectionString());
+        await connection.OpenAsync(ct).ConfigureAwait(false);
+        return new PostgresRelationalSession(connection);
+    }
+
+    /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
         try { await _connection.DisposeAsync().ConfigureAwait(false); }
         catch { /* best-effort close */ }
-    }
-
-    private async Task ExecuteAsync(string sql, CancellationToken ct)
-    {
-        await using var cmd = _connection.CreateCommand();
-        cmd.CommandText = sql;
-        await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
     }
 
     private static string BuildConnectionString()
@@ -119,5 +161,77 @@ public sealed class PostgresAdapter : IDataPlane, IRelationalOps
     {
         var value = Environment.GetEnvironmentVariable(key);
         return string.IsNullOrWhiteSpace(value) ? fallback : value;
+    }
+
+    private sealed class PostgresRelationalSession : IRelationalSession
+    {
+        private readonly NpgsqlConnection _connection;
+        private NpgsqlTransaction? _transaction;
+
+        public PostgresRelationalSession(NpgsqlConnection connection)
+        {
+            _connection = connection;
+        }
+
+        public async Task<int> ExecuteAsync(string sql, CancellationToken ct)
+        {
+            await using var cmd = _connection.CreateCommand();
+            cmd.Transaction = _transaction;
+            cmd.CommandText = sql;
+            return await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+        }
+
+        public async Task<RelationalSqlResult> QueryAsync(string sql, CancellationToken ct)
+        {
+            await using var cmd = _connection.CreateCommand();
+            cmd.Transaction = _transaction;
+            cmd.CommandText = sql;
+            await using DbDataReader reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+            return await RelationalResultMaterializer.ReadAsync(reader, ct).ConfigureAwait(false);
+        }
+
+        public async Task<IRelationalTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken ct)
+        {
+            _transaction = await _connection.BeginTransactionAsync(isolationLevel, ct).ConfigureAwait(false);
+            return new PostgresRelationalTransaction(this, _transaction);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            try { await (_transaction?.DisposeAsync() ?? ValueTask.CompletedTask).ConfigureAwait(false); }
+            finally { await _connection.DisposeAsync().ConfigureAwait(false); }
+        }
+
+        public void ClearTransaction(NpgsqlTransaction transaction)
+        {
+            if (ReferenceEquals(_transaction, transaction))
+                _transaction = null;
+        }
+    }
+
+    private sealed class PostgresRelationalTransaction : IRelationalTransaction
+    {
+        private readonly PostgresRelationalSession _session;
+        private readonly NpgsqlTransaction _transaction;
+
+        public PostgresRelationalTransaction(PostgresRelationalSession session, NpgsqlTransaction transaction)
+        {
+            _session = session;
+            _transaction = transaction;
+        }
+
+        public async Task CommitAsync(CancellationToken ct)
+        {
+            await _transaction.CommitAsync(ct).ConfigureAwait(false);
+            _session.ClearTransaction(_transaction);
+        }
+
+        public async Task RollbackAsync(CancellationToken ct)
+        {
+            await _transaction.RollbackAsync(ct).ConfigureAwait(false);
+            _session.ClearTransaction(_transaction);
+        }
+
+        public ValueTask DisposeAsync() => _transaction.DisposeAsync();
     }
 }
