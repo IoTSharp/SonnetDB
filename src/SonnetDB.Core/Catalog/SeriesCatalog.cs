@@ -120,6 +120,39 @@ public sealed class SeriesCatalog
         => [.. Volatile.Read(ref _snapshot).ByCanonical.Values];
 
     /// <summary>
+    /// 删除指定 measurement 下的全部 series 目录项。
+    /// </summary>
+    /// <param name="measurement">measurement 名称。</param>
+    /// <returns>被删除的目录项快照；若不存在则返回空列表。</returns>
+    public IReadOnlyList<SeriesEntry> RemoveMeasurement(string measurement)
+    {
+        ArgumentNullException.ThrowIfNull(measurement);
+
+        lock (_sync)
+        {
+            var removed = new List<SeriesEntry>();
+            foreach (var entry in _byCanonicalMutable.Values)
+            {
+                if (string.Equals(entry.Measurement, measurement, StringComparison.Ordinal))
+                    removed.Add(entry);
+            }
+
+            if (removed.Count == 0)
+                return [];
+
+            foreach (var entry in removed)
+            {
+                _byCanonicalMutable.Remove(entry.Key.Canonical);
+                _byIdMutable.Remove(entry.Id);
+            }
+
+            PublishSnapshots();
+            _tagIndex.RemoveMeasurement(measurement);
+            return removed.AsReadOnly();
+        }
+    }
+
+    /// <summary>
     /// 清空目录（仅供测试 / 重建用）。
     /// </summary>
     public void Clear()

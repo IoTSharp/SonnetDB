@@ -96,6 +96,28 @@ public sealed class KvKeyspaceManager : IDisposable
     }
 
     /// <summary>
+    /// 清理当前已打开 keyspace 中的过期 key。
+    /// </summary>
+    /// <param name="utcNow">用于判定过期的 UTC 时间。</param>
+    /// <param name="limitPerKeyspace">每个 keyspace 最多清理数量；为空表示不限制。</param>
+    /// <returns>实际清理的 key 总数。</returns>
+    public int CleanExpiredOpened(DateTimeOffset? utcNow = null, int? limitPerKeyspace = null)
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            int removed = 0;
+            foreach (var keyspace in _opened.Values.ToArray())
+            {
+                if (!keyspace.IsDisposed)
+                    removed += keyspace.CleanExpired(utcNow, limitPerKeyspace);
+            }
+
+            return removed;
+        }
+    }
+
+    /// <summary>
     /// 关闭所有已打开的 keyspace。
     /// </summary>
     public void Dispose()

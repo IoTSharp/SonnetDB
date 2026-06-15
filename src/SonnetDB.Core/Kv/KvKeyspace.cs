@@ -3,7 +3,8 @@ using System.Text;
 namespace SonnetDB.Kv;
 
 /// <summary>
-/// SonnetDB 内置 KV Keyspace，提供轻量 <c>Put</c>、<c>Get</c>、<c>Delete</c> 和 prefix scan 能力。
+/// SonnetDB 内置 KV Keyspace，提供轻量 <c>Put</c>、<c>Get</c>、<c>Delete</c>、
+/// prefix scan、原子计数、乐观锁与 TTL 能力。
 /// </summary>
 public sealed class KvKeyspace : IDisposable
 {
@@ -111,13 +112,7 @@ public sealed class KvKeyspace : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
-            long sequence = _wal!.AppendPut(keyCopy, valueCopy, expiresAtUtc);
-            if (_options.SyncWalOnEveryWrite)
-                _wal.Sync();
-
-            _values[keyCopy] = new KvValueEntry(valueCopy, sequence, expiresAtUtc);
-            _lastSequence = sequence;
-            return sequence;
+            return PutLocked(keyCopy, valueCopy, expiresAtUtc);
         }
     }
 
@@ -216,6 +211,246 @@ public sealed class KvKeyspace : IDisposable
 
         value = found;
         return true;
+    }
+
+    /// <summary>
+    /// 原子增加整数 value。key 不存在或已过期时按 0 处理；已有 value 必须是 UTF-8 十进制整数。
+    /// </summary>
+    /// <param name="key">非空 key 字节序列。</param>
+    /// <param name="delta">增量；可为负数。</param>
+    /// <returns>增加后的整数值与写入版本。</returns>
+    public (long Value, long Version) Increment(ReadOnlySpan<byte> key, long delta = 1)
+    {
+        ValidateKey(key, _options);
+        byte[] lookup = key.ToArray();
+
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            DateTimeOffset? expiresAtUtc = null;
+            long current = 0;
+            if (_values.TryGetValue(lookup, out var entry))
+            {
+                if (!TryDeleteExpiredLocked(lookup, entry, DateTimeOffset.UtcNow))
+                {
+                    current = ParseInteger(entry.Value);
+                    expiresAtUtc = entry.ExpiresAtUtc;
+                }
+            }
+
+            long next = checked(current + delta);
+            byte[] value = Encoding.UTF8.GetBytes(next.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            long version = PutLocked(lookup, value, expiresAtUtc);
+            return (next, version);
+        }
+    }
+
+    /// <summary>
+    /// 使用 UTF-8 编码原子增加字符串 key 的整数 value。
+    /// </summary>
+    /// <param name="key">非空字符串 key。</param>
+    /// <param name="delta">增量；可为负数。</param>
+    /// <returns>增加后的整数值与写入版本。</returns>
+    public (long Value, long Version) Increment(string key, long delta = 1)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        return Increment(Encoding.UTF8.GetBytes(key), delta);
+    }
+
+    /// <summary>
+    /// 原子减少整数 value。key 不存在或已过期时按 0 处理；已有 value 必须是 UTF-8 十进制整数。
+    /// </summary>
+    /// <param name="key">非空 key 字节序列。</param>
+    /// <param name="delta">减少量；必须非负。</param>
+    /// <returns>减少后的整数值与写入版本。</returns>
+    public (long Value, long Version) Decrement(ReadOnlySpan<byte> key, long delta = 1)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(delta);
+        return Increment(key, -delta);
+    }
+
+    /// <summary>
+    /// 使用 UTF-8 编码原子减少字符串 key 的整数 value。
+    /// </summary>
+    /// <param name="key">非空字符串 key。</param>
+    /// <param name="delta">减少量；必须非负。</param>
+    /// <returns>减少后的整数值与写入版本。</returns>
+    public (long Value, long Version) Decrement(string key, long delta = 1)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        return Decrement(Encoding.UTF8.GetBytes(key), delta);
+    }
+
+    /// <summary>
+    /// 当 key 当前版本等于期望版本时写入新值；key 不存在时版本视为 0。
+    /// </summary>
+    /// <param name="key">非空 key 字节序列。</param>
+    /// <param name="expectedVersion">期望版本；0 表示仅当 key 不存在时创建。</param>
+    /// <param name="value">要写入的新 value。</param>
+    /// <param name="expiresAtUtc">UTC 过期时间；为空表示永不过期。</param>
+    /// <returns>CAS 操作结果。</returns>
+    public KvCasResult CompareAndSet(
+        ReadOnlySpan<byte> key,
+        long expectedVersion,
+        ReadOnlySpan<byte> value,
+        DateTimeOffset? expiresAtUtc = null)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(expectedVersion);
+        ValidateKey(key, _options);
+        ValidateValue(value, _options);
+        ValidateExpiresAtUtc(expiresAtUtc);
+
+        byte[] lookup = key.ToArray();
+        byte[] valueCopy = value.ToArray();
+
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            long currentVersion = 0;
+            if (_values.TryGetValue(lookup, out var entry))
+            {
+                if (!TryDeleteExpiredLocked(lookup, entry, DateTimeOffset.UtcNow))
+                    currentVersion = entry.Version;
+            }
+
+            if (currentVersion != expectedVersion)
+                return new KvCasResult(false, currentVersion, null);
+
+            long newVersion = PutLocked(lookup, valueCopy, expiresAtUtc);
+            return new KvCasResult(true, currentVersion, newVersion);
+        }
+    }
+
+    /// <summary>
+    /// 使用 UTF-8 编码对字符串 key 执行比较并交换。
+    /// </summary>
+    public KvCasResult CompareAndSet(
+        string key,
+        long expectedVersion,
+        ReadOnlySpan<byte> value,
+        DateTimeOffset? expiresAtUtc = null)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        return CompareAndSet(Encoding.UTF8.GetBytes(key), expectedVersion, value, expiresAtUtc);
+    }
+
+    /// <summary>
+    /// 为已存在 key 设置相对 TTL。key 不存在或已过期时返回 <see langword="false"/>。
+    /// </summary>
+    /// <param name="key">非空 key 字节序列。</param>
+    /// <param name="ttl">相对过期时间；必须大于 0。</param>
+    /// <returns>成功设置 TTL 时为 <see langword="true"/>。</returns>
+    public bool Expire(ReadOnlySpan<byte> key, TimeSpan ttl)
+    {
+        if (ttl <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(ttl), "KV TTL 必须大于 0。");
+        return ExpireAt(key, DateTimeOffset.UtcNow.Add(ttl));
+    }
+
+    /// <summary>
+    /// 使用 UTF-8 编码为字符串 key 设置相对 TTL。
+    /// </summary>
+    public bool Expire(string key, TimeSpan ttl)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        return Expire(Encoding.UTF8.GetBytes(key), ttl);
+    }
+
+    /// <summary>
+    /// 为已存在 key 设置绝对 UTC 过期时间。key 不存在或已过期时返回 <see langword="false"/>。
+    /// </summary>
+    public bool ExpireAt(ReadOnlySpan<byte> key, DateTimeOffset expiresAtUtc)
+    {
+        ValidateKey(key, _options);
+        ValidateUtc(expiresAtUtc, nameof(expiresAtUtc));
+        byte[] lookup = key.ToArray();
+
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            if (!_values.TryGetValue(lookup, out var entry))
+                return false;
+            if (TryDeleteExpiredLocked(lookup, entry, DateTimeOffset.UtcNow))
+                return false;
+
+            PutLocked(lookup, entry.Value.ToArray(), expiresAtUtc);
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// 使用 UTF-8 编码为字符串 key 设置绝对 UTC 过期时间。
+    /// </summary>
+    public bool ExpireAt(string key, DateTimeOffset expiresAtUtc)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        return ExpireAt(Encoding.UTF8.GetBytes(key), expiresAtUtc);
+    }
+
+    /// <summary>
+    /// 移除已存在 key 的过期时间。key 不存在或已过期时返回 <see langword="false"/>。
+    /// </summary>
+    public bool Persist(ReadOnlySpan<byte> key)
+    {
+        ValidateKey(key, _options);
+        byte[] lookup = key.ToArray();
+
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            if (!_values.TryGetValue(lookup, out var entry))
+                return false;
+            if (TryDeleteExpiredLocked(lookup, entry, DateTimeOffset.UtcNow))
+                return false;
+            if (!entry.ExpiresAtUtc.HasValue)
+                return false;
+
+            PutLocked(lookup, entry.Value.ToArray(), expiresAtUtc: null);
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// 使用 UTF-8 编码移除字符串 key 的过期时间。
+    /// </summary>
+    public bool Persist(string key)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        return Persist(Encoding.UTF8.GetBytes(key));
+    }
+
+    /// <summary>
+    /// 查询 key 的剩余 TTL。返回值使用 Redis 风格哨兵：不存在为 -2，永不过期为 -1。
+    /// </summary>
+    public KvTtlResult GetTimeToLive(ReadOnlySpan<byte> key, DateTimeOffset? utcNow = null)
+    {
+        ValidateKey(key, _options);
+        DateTimeOffset now = utcNow ?? DateTimeOffset.UtcNow;
+        ValidateUtc(now, nameof(utcNow));
+        byte[] lookup = key.ToArray();
+
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            if (!_values.TryGetValue(lookup, out var entry))
+                return new KvTtlResult(KvTtlResult.Missing, null);
+            if (TryDeleteExpiredLocked(lookup, entry, now))
+                return new KvTtlResult(KvTtlResult.Missing, null);
+            if (!entry.ExpiresAtUtc.HasValue)
+                return new KvTtlResult(KvTtlResult.NoExpiration, null);
+
+            long remaining = Math.Max(0, (long)Math.Ceiling((entry.ExpiresAtUtc.Value - now).TotalMilliseconds));
+            return new KvTtlResult(remaining, entry.ExpiresAtUtc);
+        }
+    }
+
+    /// <summary>
+    /// 使用 UTF-8 编码查询字符串 key 的剩余 TTL。
+    /// </summary>
+    public KvTtlResult GetTimeToLive(string key, DateTimeOffset? utcNow = null)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        return GetTimeToLive(Encoding.UTF8.GetBytes(key), utcNow);
     }
 
     /// <summary>
@@ -689,6 +924,32 @@ public sealed class KvKeyspace : IDisposable
         _values.Remove(key);
         _lastSequence = sequence;
         return true;
+    }
+
+    private long PutLocked(byte[] keyCopy, byte[] valueCopy, DateTimeOffset? expiresAtUtc)
+    {
+        long sequence = _wal!.AppendPut(keyCopy, valueCopy, expiresAtUtc);
+        if (_options.SyncWalOnEveryWrite)
+            _wal.Sync();
+
+        _values[keyCopy] = new KvValueEntry(valueCopy, sequence, expiresAtUtc);
+        _lastSequence = sequence;
+        return sequence;
+    }
+
+    private static long ParseInteger(byte[] value)
+    {
+        string text = Encoding.UTF8.GetString(value);
+        if (!long.TryParse(
+            text,
+            System.Globalization.NumberStyles.AllowLeadingSign,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out long parsed))
+        {
+            throw new InvalidOperationException("KV value 不是有效的 UTF-8 十进制整数，无法执行 INCR/DECR。");
+        }
+
+        return parsed;
     }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);

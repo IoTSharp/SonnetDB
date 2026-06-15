@@ -93,6 +93,23 @@ internal sealed class TagInvertedIndex
         }
     }
 
+    /// <summary>
+    /// 移除指定 measurement 下的全部索引项。
+    /// </summary>
+    /// <param name="measurement">measurement 名称。</param>
+    public void RemoveMeasurement(string measurement)
+    {
+        ArgumentNullException.ThrowIfNull(measurement);
+
+        lock (_sync)
+        {
+            var changed = _byMeasurement.Remove(measurement);
+            changed |= _byTag.Remove(measurement);
+            if (changed)
+                PublishSnapshot();
+        }
+    }
+
     private void AddMutable(SeriesEntry entry)
     {
         if (!_byMeasurement.TryGetValue(entry.Measurement, out var measurementSet))

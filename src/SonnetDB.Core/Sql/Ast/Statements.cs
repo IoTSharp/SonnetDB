@@ -350,6 +350,13 @@ public sealed record UpdateAssignment(string ColumnName, SqlExpression Value);
 public sealed record DropTableStatement(string Name, bool IfExists = false) : SqlStatement;
 
 /// <summary>
+/// <c>DROP MEASUREMENT [IF EXISTS] name</c>：删除 measurement schema、series catalog 与已落盘时序数据。
+/// </summary>
+/// <param name="Name">目标 measurement 名称。</param>
+/// <param name="IfExists">是否带 <c>IF EXISTS</c> 修饰；为 <c>true</c> 时 measurement 不存在视为成功（0 行受影响）。</param>
+public sealed record DropMeasurementStatement(string Name, bool IfExists = false) : SqlStatement;
+
+/// <summary>
 /// <c>DROP DOCUMENT COLLECTION name</c>：删除文档集合 schema 与主数据。
 /// </summary>
 /// <param name="Name">目标文档集合名称。</param>

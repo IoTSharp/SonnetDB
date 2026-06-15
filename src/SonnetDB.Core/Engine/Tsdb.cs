@@ -42,6 +42,7 @@ public sealed class Tsdb : IDisposable
     private BackgroundFlushWorker? _flushWorker;
     private CompactionWorker? _compactionWorker;
     private RetentionWorker? _retentionWorker;
+    private KvExpirerWorker? _kvExpirerWorker;
     private long _checkpointLsn;
     private long _tombstoneDeletesSinceCheckpoint;
     private long _lastTombstoneCheckpointUtcTicks;
@@ -291,6 +292,12 @@ public sealed class Tsdb : IDisposable
             tsdb._retentionWorker.Start();
         }
 
+        if (options.Kv.ExpirerEnabled)
+        {
+            tsdb._kvExpirerWorker = new KvExpirerWorker(tsdb, options.Kv);
+            tsdb._kvExpirerWorker.Start();
+        }
+
         return tsdb;
     }
 
@@ -510,6 +517,43 @@ public sealed class Tsdb : IDisposable
     }
 
     /// <summary>
+    /// 删除指定 measurement 的 schema、series catalog 与对应时序数据。
+    /// </summary>
+    /// <param name="name">measurement 名称。</param>
+    /// <returns>找到并删除返回 <c>true</c>；不存在返回 <c>false</c>。</returns>
+    public bool DropMeasurement(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+
+        lock (_writeSync)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+
+            if (!Measurements.Contains(name))
+                return false;
+
+            FlushNowLocked();
+
+            var removedSeries = Catalog.RemoveMeasurement(name);
+            var removedSeriesIds = removedSeries.Select(static entry => entry.Id).ToHashSet();
+            foreach (ulong seriesId in removedSeriesIds)
+                _seriesWithWalRecord.Remove(seriesId);
+
+            MemTable.RemoveSeries(removedSeriesIds);
+            RemoveMeasurementSegmentsLocked(removedSeriesIds);
+
+            Measurements.Remove(name);
+            MarkMeasurementSchemasDirty();
+            PersistMeasurementSchemasLocked();
+
+            _catalogDirty = true;
+            PersistCatalogCheckpointLocked();
+
+            return true;
+        }
+    }
+
+    /// <summary>
     /// 主动触发一次 Flush：把 MemTable 写出为 Segment，追加 WAL Checkpoint，Roll WAL，回收旧段，重置 MemTable。
     /// </summary>
     /// <returns>Segment 构建结果；MemTable 为空时返回 null。</returns>
@@ -587,6 +631,9 @@ public sealed class Tsdb : IDisposable
     /// </summary>
     public void Dispose()
     {
+        _kvExpirerWorker?.Dispose();
+        _kvExpirerWorker = null;
+
         // 先关闭 Retention 后台线程（在锁外，防止与内部操作死锁）
         _retentionWorker?.Dispose();
         _retentionWorker = null;
@@ -784,6 +831,9 @@ public sealed class Tsdb : IDisposable
         }
     }
 
+    internal int CleanExpiredKeyspacesFromBackground(int limitPerKeyspace)
+        => Keyspaces.CleanExpiredOpened(DateTimeOffset.UtcNow, limitPerKeyspace);
+
     private void WritePointLocked(Point point)
     {
         var entry = Catalog.GetOrAdd(point);
@@ -800,6 +850,91 @@ public sealed class Tsdb : IDisposable
         {
             long lsn = _walSet!.AppendWritePoint(entry.Id, point.Timestamp, fieldName, value);
             MemTable.Append(entry.Id, point.Timestamp, fieldName, value, lsn);
+        }
+    }
+
+    private void RemoveMeasurementSegmentsLocked(IReadOnlySet<ulong> removedSeriesIds)
+    {
+        if (removedSeriesIds.Count == 0 || Segments.SegmentCount == 0)
+            return;
+
+        var sourceReaders = Segments.Readers.ToArray();
+        foreach (var reader in sourceReaders)
+        {
+            bool hasDroppedSeries = false;
+            bool hasKeptSeries = false;
+            foreach (var block in reader.Blocks)
+            {
+                if (removedSeriesIds.Contains(block.SeriesId))
+                {
+                    hasDroppedSeries = true;
+                    continue;
+                }
+
+                hasKeptSeries = true;
+            }
+
+            if (!hasDroppedSeries)
+                continue;
+
+            long sourceSegmentId = reader.Header.SegmentId;
+            if (!hasKeptSeries)
+            {
+                SegmentReplacementManifest.CommitDroppedSegments(RootDirectory, [sourceSegmentId]);
+                Segments.DropSegments([sourceSegmentId]);
+                foreach (string artifactPath in TsdbPaths.SegmentArtifactPaths(RootDirectory, sourceSegmentId))
+                    TryDeleteSegmentArtifact(artifactPath);
+                continue;
+            }
+
+            long replacementSegmentId = AllocateSegmentId();
+            string replacementPath = TsdbPaths.SegmentPath(RootDirectory, replacementSegmentId);
+
+            SegmentReplacementManifest.RecordPendingReplacement(
+                RootDirectory,
+                replacementSegmentId,
+                [sourceSegmentId]);
+
+            bool touched = MeasurementDropCompactor.RewriteWithoutSeries(
+                this,
+                reader,
+                removedSeriesIds,
+                replacementSegmentId,
+                replacementPath,
+                out var result);
+
+            if (!touched)
+                continue;
+
+            if (result is null)
+            {
+                SegmentReplacementManifest.CommitDroppedSegments(RootDirectory, [sourceSegmentId]);
+                Segments.DropSegments([sourceSegmentId]);
+            }
+            else
+            {
+                SegmentReplacementManifest.CommitReplacement(
+                    RootDirectory,
+                    replacementSegmentId,
+                    [sourceSegmentId]);
+                Segments.SwapSegments([sourceSegmentId], replacementPath);
+            }
+
+            foreach (string artifactPath in TsdbPaths.SegmentArtifactPaths(RootDirectory, sourceSegmentId))
+                TryDeleteSegmentArtifact(artifactPath);
+        }
+    }
+
+    private static void TryDeleteSegmentArtifact(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+        catch
+        {
+            // Windows 上 reader/杀毒软件可能短暂占用旧段；manifest 已提交，启动时会压制旧段。
         }
     }
 

@@ -140,6 +140,45 @@ public sealed class MemTable
         => [.. _series.Values];
 
     /// <summary>
+    /// 移除指定 SeriesId 集合对应的全部内存桶。
+    /// </summary>
+    /// <param name="seriesIds">要移除的 SeriesId 集合。</param>
+    /// <returns>被移除的桶数量。</returns>
+    public int RemoveSeries(IReadOnlySet<ulong> seriesIds)
+    {
+        ArgumentNullException.ThrowIfNull(seriesIds);
+        if (seriesIds.Count == 0)
+            return 0;
+
+        _lifecycleLock.EnterWriteLock();
+        try
+        {
+            var keysToRemove = new List<SeriesFieldKey>();
+            foreach (var key in _series.Keys)
+            {
+                if (seriesIds.Contains(key.SeriesId))
+                    keysToRemove.Add(key);
+            }
+
+            var removed = 0;
+            foreach (var key in keysToRemove)
+            {
+                if (_series.TryRemove(key, out _))
+                    removed++;
+            }
+
+            if (removed > 0)
+                RecomputeStatsLocked();
+
+            return removed;
+        }
+        finally
+        {
+            _lifecycleLock.ExitWriteLock();
+        }
+    }
+
+    /// <summary>
     /// 清空 MemTable（仅供 Flush 完成后调用）。
     /// 清空所有桶、重置计数器与 LSN，刷新 <see cref="CreatedAtUtc"/>。
     /// </summary>
@@ -160,6 +199,36 @@ public sealed class MemTable
         finally
         {
             _lifecycleLock.ExitWriteLock();
+        }
+    }
+
+    private void RecomputeStatsLocked()
+    {
+        long pointCount = 0;
+        long estimatedBytes = 0;
+        long minTimestamp = long.MaxValue;
+        long maxTimestamp = long.MinValue;
+
+        foreach (var bucket in _series.Values)
+        {
+            pointCount += bucket.Count;
+            estimatedBytes += bucket.EstimatedBytes;
+            long bucketMin = bucket.MinTimestamp;
+            long bucketMax = bucket.MaxTimestamp;
+            if (bucketMin < minTimestamp)
+                minTimestamp = bucketMin;
+            if (bucketMax > maxTimestamp)
+                maxTimestamp = bucketMax;
+        }
+
+        Interlocked.Exchange(ref _pointCount, pointCount);
+        Interlocked.Exchange(ref _estimatedBytes, estimatedBytes);
+        Interlocked.Exchange(ref _minTimestamp, minTimestamp);
+        Interlocked.Exchange(ref _maxTimestamp, maxTimestamp);
+        if (pointCount == 0)
+        {
+            Interlocked.Exchange(ref _firstLsn, long.MinValue);
+            Interlocked.Exchange(ref _lastLsn, long.MinValue);
         }
     }
 

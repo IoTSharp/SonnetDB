@@ -171,6 +171,7 @@ public static class SqlExecutor
             SelectStatement select => ExecuteSelect(tsdb, select),
             DeleteStatement delete => ExecuteDelete(tsdb, delete, transaction),
             UpdateStatement update => ExecuteUpdate(tsdb, update, transaction),
+            DropMeasurementStatement dropMeasurement => ExecuteDropMeasurement(tsdb, dropMeasurement),
             DropTableStatement dropTable => TableSqlExecutor.ExecuteDropTable(tsdb, dropTable),
             DropDocumentCollectionStatement dropDocumentCollection => DocumentSqlExecutor.ExecuteDropCollection(tsdb, dropDocumentCollection),
             DropTableIndexStatement dropIndex => TableSqlExecutor.ExecuteDropIndex(tsdb, dropIndex),
@@ -426,6 +427,26 @@ public static class SqlExecutor
 
         var schema = MeasurementSchema.Create(statement.Name, columns);
         return tsdb.CreateMeasurement(schema);
+    }
+
+    /// <summary>
+    /// 执行 <c>DROP MEASUREMENT</c> 语句：删除 schema、series catalog 与对应时序数据。
+    /// </summary>
+    /// <param name="tsdb">目标数据库实例。</param>
+    /// <param name="statement">已解析的 DROP MEASUREMENT 语句。</param>
+    /// <returns>受影响行数结果。</returns>
+    public static RowsAffectedExecutionResult ExecuteDropMeasurement(
+        Tsdb tsdb,
+        DropMeasurementStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        bool removed = tsdb.DropMeasurement(statement.Name);
+        if (!removed && !statement.IfExists)
+            throw new InvalidOperationException($"measurement '{statement.Name}' 不存在。");
+
+        return new RowsAffectedExecutionResult(statement.Name, removed ? 1 : 0, "drop_measurement");
     }
 
     private static void RejectUnsupportedDefaults(CreateMeasurementStatement statement)

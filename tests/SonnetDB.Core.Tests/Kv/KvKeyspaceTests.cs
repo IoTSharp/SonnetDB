@@ -1,5 +1,6 @@
 using System.Text;
 using SonnetDB.Engine;
+using SonnetDB.Kv;
 using Xunit;
 
 namespace SonnetDB.Core.Tests.Kv;
@@ -219,6 +220,83 @@ public sealed class KvKeyspaceTests : IDisposable
         Assert.Null(kv.Get("tenant:1:a"));
         Assert.Equal([3], kv.Get("tenant:2:a"));
         Assert.Equal(1, kv.DeleteMany(["tenant:2:a", "tenant:2:a"]));
+    }
+
+    [Fact]
+    public void IncrementDecrement_WithConcurrentWriters_ProducesAtomicCounter()
+    {
+        using var db = Tsdb.Open(new TsdbOptions
+        {
+            RootDirectory = _root,
+            Kv = KvOptions.Default with { SyncWalOnEveryWrite = false },
+        });
+        var kv = db.Keyspaces.Open("cache");
+
+        Parallel.For(0, 16, _ =>
+        {
+            for (int i = 0; i < 500; i++)
+                kv.Increment("counter");
+        });
+
+        var afterIncrement = kv.Increment("counter", 0);
+        Assert.Equal(8_000, afterIncrement.Value);
+
+        var afterDecrement = kv.Decrement("counter", 125);
+        Assert.Equal(7_875, afterDecrement.Value);
+    }
+
+    [Fact]
+    public void CompareAndSet_WithVersionMismatch_DoesNotOverwrite()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        var kv = db.Keyspaces.Open("cache");
+
+        long version = kv.Put("item", Encoding.UTF8.GetBytes("v1"));
+        var fail = kv.CompareAndSet("item", version + 1, Encoding.UTF8.GetBytes("bad"));
+        var ok = kv.CompareAndSet("item", version, Encoding.UTF8.GetBytes("v2"));
+
+        Assert.False(fail.Succeeded);
+        Assert.Null(fail.NewVersion);
+        Assert.True(ok.Succeeded);
+        Assert.True(ok.NewVersion > version);
+        Assert.Equal("v2", Encoding.UTF8.GetString(kv.Get("item")!));
+    }
+
+    [Fact]
+    public void ExpirePersistAndTtl_FollowRedisSentinelSemantics()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        var kv = db.Keyspaces.Open("cache");
+
+        Assert.Equal(-2, kv.GetTimeToLive("missing").Milliseconds);
+
+        kv.Put("forever", [1]);
+        Assert.Equal(-1, kv.GetTimeToLive("forever").Milliseconds);
+
+        Assert.True(kv.Expire("forever", TimeSpan.FromSeconds(5)));
+        Assert.True(kv.GetTimeToLive("forever").Milliseconds > 0);
+        Assert.True(kv.Persist("forever"));
+        Assert.Equal(-1, kv.GetTimeToLive("forever").Milliseconds);
+    }
+
+    [Fact]
+    public async Task BackgroundExpirer_RemovesOpenedExpiredKeys()
+    {
+        using var db = Tsdb.Open(new TsdbOptions
+        {
+            RootDirectory = _root,
+            Kv = KvOptions.Default with
+            {
+                ExpirerPollInterval = TimeSpan.FromMilliseconds(50),
+                ExpirerBatchSize = 10,
+            },
+        });
+        var kv = db.Keyspaces.Open("cache");
+        kv.Put("short", [1], DateTimeOffset.UtcNow.AddMilliseconds(100));
+
+        await Task.Delay(500);
+
+        Assert.Null(kv.Get("short"));
     }
 
     [Fact]

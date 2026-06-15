@@ -22,6 +22,12 @@ public interface IDataPlane : IAsyncDisposable
 
     /// <summary>时序操作集合（PR #129）。不支持时序的后端返回空操作对象。</summary>
     ITimeSeriesOps TimeSeries { get; }
+
+    /// <summary>KV 操作集合。不支持 KV 的后端返回空操作对象。</summary>
+    IKvOps Kv { get; }
+
+    /// <summary>向量检索操作集合。不支持向量的后端返回空操作对象。</summary>
+    IVectorOps Vector { get; }
 }
 
 /// <summary>

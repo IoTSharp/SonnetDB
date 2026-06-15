@@ -98,6 +98,95 @@ public sealed class SndbKvClient : IDisposable
     }
 
     /// <summary>
+    /// 原子增加整数 key。
+    /// </summary>
+    public async Task<(long Value, long Version)> IncrementAsync(
+        string keyspace,
+        string @namespace,
+        string key,
+        long delta = 1,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ValidateNames(keyspace, @namespace);
+        ArgumentNullException.ThrowIfNull(key);
+
+        if (_embedded is not null)
+            return _embedded.Keyspaces.Open(keyspace).Namespace(@namespace).Increment(key, delta);
+
+        using var response = await PostJsonAsync(
+            KvUrl(keyspace, "incr"),
+            new KvIncrementRequest(Qualify(@namespace, key), delta),
+            RemoteJsonContext.Default.KvIncrementRequest,
+            cancellationToken).ConfigureAwait(false);
+        var body = await ReadJsonAsync(response, RemoteJsonContext.Default.KvIncrementResponse, cancellationToken)
+            .ConfigureAwait(false);
+        return (body.Value, body.Version);
+    }
+
+    /// <summary>
+    /// 原子减少整数 key。
+    /// </summary>
+    public async Task<(long Value, long Version)> DecrementAsync(
+        string keyspace,
+        string @namespace,
+        string key,
+        long delta = 1,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ValidateNames(keyspace, @namespace);
+        ArgumentNullException.ThrowIfNull(key);
+        ArgumentOutOfRangeException.ThrowIfNegative(delta);
+
+        if (_embedded is not null)
+            return _embedded.Keyspaces.Open(keyspace).Namespace(@namespace).Decrement(key, delta);
+
+        using var response = await PostJsonAsync(
+            KvUrl(keyspace, "decr"),
+            new KvIncrementRequest(Qualify(@namespace, key), delta),
+            RemoteJsonContext.Default.KvIncrementRequest,
+            cancellationToken).ConfigureAwait(false);
+        var body = await ReadJsonAsync(response, RemoteJsonContext.Default.KvIncrementResponse, cancellationToken)
+            .ConfigureAwait(false);
+        return (body.Value, body.Version);
+    }
+
+    /// <summary>
+    /// 对 key 执行乐观锁比较并交换。
+    /// </summary>
+    public async Task<SndbKvCasResult> CompareAndSetAsync(
+        string keyspace,
+        string @namespace,
+        string key,
+        long expectedVersion,
+        byte[] value,
+        DateTimeOffset? expiresAtUtc = null,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ValidateNames(keyspace, @namespace);
+        ArgumentNullException.ThrowIfNull(key);
+        ArgumentNullException.ThrowIfNull(value);
+
+        if (_embedded is not null)
+        {
+            var result = _embedded.Keyspaces.Open(keyspace).Namespace(@namespace)
+                .CompareAndSet(key, expectedVersion, value, expiresAtUtc);
+            return new SndbKvCasResult(result.Succeeded, result.CurrentVersion, result.NewVersion);
+        }
+
+        using var response = await PostJsonAsync(
+            KvUrl(keyspace, "cas"),
+            new KvCasRequest(Qualify(@namespace, key), expectedVersion, value, expiresAtUtc),
+            RemoteJsonContext.Default.KvCasRequest,
+            cancellationToken).ConfigureAwait(false);
+        var body = await ReadJsonAsync(response, RemoteJsonContext.Default.KvCasResponse, cancellationToken)
+            .ConfigureAwait(false);
+        return new SndbKvCasResult(body.Succeeded, body.CurrentVersion, body.NewVersion);
+    }
+
+    /// <summary>
     /// 批量读取 key。
     /// </summary>
     public async Task<IReadOnlyDictionary<string, SndbKvEntry?>> GetManyAsync(
@@ -276,6 +365,88 @@ public sealed class SndbKvClient : IDisposable
         var body = await ReadJsonAsync(response, RemoteJsonContext.Default.KvDeleteResponse, cancellationToken)
             .ConfigureAwait(false);
         return body.Removed;
+    }
+
+    /// <summary>
+    /// 为 key 设置绝对 UTC 过期时间。
+    /// </summary>
+    public async Task<bool> ExpireAsync(
+        string keyspace,
+        string @namespace,
+        string key,
+        DateTimeOffset expiresAtUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ValidateNames(keyspace, @namespace);
+        ArgumentNullException.ThrowIfNull(key);
+
+        if (_embedded is not null)
+            return _embedded.Keyspaces.Open(keyspace).Namespace(@namespace).ExpireAt(key, expiresAtUtc);
+
+        using var response = await PostJsonAsync(
+            KvUrl(keyspace, "expire"),
+            new KvExpireRequest(Qualify(@namespace, key), expiresAtUtc),
+            RemoteJsonContext.Default.KvExpireRequest,
+            cancellationToken).ConfigureAwait(false);
+        var body = await ReadJsonAsync(response, RemoteJsonContext.Default.KvBooleanResponse, cancellationToken)
+            .ConfigureAwait(false);
+        return body.Succeeded;
+    }
+
+    /// <summary>
+    /// 移除 key 的过期时间。
+    /// </summary>
+    public async Task<bool> PersistAsync(
+        string keyspace,
+        string @namespace,
+        string key,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ValidateNames(keyspace, @namespace);
+        ArgumentNullException.ThrowIfNull(key);
+
+        if (_embedded is not null)
+            return _embedded.Keyspaces.Open(keyspace).Namespace(@namespace).Persist(key);
+
+        using var response = await PostJsonAsync(
+            KvUrl(keyspace, "persist"),
+            new KvDeleteRequest(Qualify(@namespace, key)),
+            RemoteJsonContext.Default.KvDeleteRequest,
+            cancellationToken).ConfigureAwait(false);
+        var body = await ReadJsonAsync(response, RemoteJsonContext.Default.KvBooleanResponse, cancellationToken)
+            .ConfigureAwait(false);
+        return body.Succeeded;
+    }
+
+    /// <summary>
+    /// 查询 key 的剩余 TTL。key 不存在为 -2，永不过期为 -1。
+    /// </summary>
+    public async Task<SndbKvTtlResult> GetTimeToLiveAsync(
+        string keyspace,
+        string @namespace,
+        string key,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ValidateNames(keyspace, @namespace);
+        ArgumentNullException.ThrowIfNull(key);
+
+        if (_embedded is not null)
+        {
+            var ttl = _embedded.Keyspaces.Open(keyspace).Namespace(@namespace).GetTimeToLive(key);
+            return new SndbKvTtlResult(ttl.Milliseconds, ttl.ExpiresAtUtc);
+        }
+
+        using var response = await PostJsonAsync(
+            KvUrl(keyspace, "ttl"),
+            new KvDeleteRequest(Qualify(@namespace, key)),
+            RemoteJsonContext.Default.KvDeleteRequest,
+            cancellationToken).ConfigureAwait(false);
+        var body = await ReadJsonAsync(response, RemoteJsonContext.Default.KvTtlResponse, cancellationToken)
+            .ConfigureAwait(false);
+        return new SndbKvTtlResult(body.Milliseconds, body.ExpiresAtUtc);
     }
 
     /// <summary>

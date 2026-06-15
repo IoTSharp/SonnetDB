@@ -36,6 +36,24 @@ public sealed class MeasurementCatalog
     }
 
     /// <summary>
+    /// 删除指定 measurement schema。
+    /// </summary>
+    /// <param name="name">measurement 名称（区分大小写）。</param>
+    /// <returns>找到并删除返回 <c>true</c>；不存在返回 <c>false</c>。</returns>
+    public bool Remove(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        lock (_sync)
+        {
+            if (!_mutable.Remove(name))
+                return false;
+
+            PublishSnapshot();
+            return true;
+        }
+    }
+
+    /// <summary>
     /// 直接装载 schema（覆盖已有同名条目）；仅供持久化层在加载时使用。
     /// </summary>
     /// <param name="schema">待装载的 schema。</param>

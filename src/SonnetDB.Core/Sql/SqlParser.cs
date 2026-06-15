@@ -2037,6 +2037,10 @@ public sealed class SqlParser
                 Advance();
                 var dropTableIfExists = ParseOptionalIfExists();
                 return new DropTableStatement(ExpectIdentifierName(), dropTableIfExists);
+            case TokenKind.KeywordMeasurement:
+                Advance();
+                var dropMeasurementIfExists = ParseOptionalIfExists();
+                return new DropMeasurementStatement(ExpectIdentifierName(), dropMeasurementIfExists);
             case TokenKind.KeywordDocument:
                 Advance();
                 Expect(TokenKind.KeywordCollection);
@@ -2056,7 +2060,7 @@ public sealed class SqlParser
                     return new DropTableIndexStatement(fallbackIndexName, ExpectIdentifierName());
                 }
 
-                throw Error("DROP 后面期望 TABLE / INDEX / JSON INDEX / FULLTEXT INDEX / USER 或 DATABASE");
+                throw Error("DROP 后面期望 MEASUREMENT / TABLE / INDEX / JSON INDEX / FULLTEXT INDEX / USER 或 DATABASE");
         }
     }
 

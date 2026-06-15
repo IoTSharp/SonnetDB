@@ -125,6 +125,59 @@ public class SqlExecutorMetadataTests : IDisposable
     }
 
     [Fact]
+    public void DropMeasurement_RemovesSchemaAndData_AndAllowsCleanRecreate()
+    {
+        using var db = Tsdb.Open(Options() with
+        {
+            BackgroundFlush = new BackgroundFlushOptions { Enabled = false },
+            Compaction = new SonnetDB.Engine.Compaction.CompactionPolicy { Enabled = false },
+        });
+        SqlExecutor.Execute(db, "CREATE MEASUREMENT cpu (host TAG, usage FIELD FLOAT)");
+        SqlExecutor.Execute(db, "INSERT INTO cpu (time, host, usage) VALUES (1000, 'h1', 1.5)");
+        db.FlushNow();
+
+        var result = Assert.IsType<RowsAffectedExecutionResult>(
+            SqlExecutor.Execute(db, "DROP MEASUREMENT cpu"));
+
+        Assert.Equal("drop_measurement", result.Operation);
+        Assert.Equal(1, result.RowsAffected);
+        Assert.Empty(((SelectExecutionResult)SqlExecutor.Execute(db, "SHOW MEASUREMENTS")!).Rows);
+        Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db, "DESCRIBE MEASUREMENT cpu"));
+        Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db, "SELECT usage FROM cpu"));
+
+        SqlExecutor.Execute(db, "CREATE MEASUREMENT cpu (host TAG, usage FIELD FLOAT)");
+        SqlExecutor.Execute(db, "INSERT INTO cpu (time, host, usage) VALUES (2000, 'h1', 2.5)");
+
+        var rows = Assert.IsType<SelectExecutionResult>(
+            SqlExecutor.Execute(db, "SELECT time, usage FROM cpu"));
+        Assert.Equal(new object?[] { 2000L, 2.5 }, rows.Rows.Single());
+    }
+
+    [Fact]
+    public void DropMeasurement_IfExists_OnUnknownName_ReturnsZeroRows()
+    {
+        using var db = Tsdb.Open(Options());
+
+        var result = Assert.IsType<RowsAffectedExecutionResult>(
+            SqlExecutor.Execute(db, "DROP MEASUREMENT IF EXISTS missing"));
+
+        Assert.Equal("missing", result.Target);
+        Assert.Equal(0, result.RowsAffected);
+        Assert.Equal("drop_measurement", result.Operation);
+    }
+
+    [Fact]
+    public void DropMeasurement_WithoutIfExists_OnUnknownName_Throws()
+    {
+        using var db = Tsdb.Open(Options());
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => SqlExecutor.Execute(db, "DROP MEASUREMENT missing"));
+
+        Assert.Contains("missing", ex.Message);
+    }
+
+    [Fact]
     public void InformationSchema_ReturnsTablesColumnsAndIndexes()
     {
         using var db = Tsdb.Open(Options());
@@ -187,5 +240,15 @@ public class SqlExecutorMetadataTests : IDisposable
         var stmt = Assert.IsType<DescribeMeasurementStatement>(
             SqlParser.Parse("DESC mem"));
         Assert.Equal("mem", stmt.Name);
+    }
+
+    [Fact]
+    public void ParseDropMeasurement_WithIfExists_CapturesName()
+    {
+        var stmt = Assert.IsType<DropMeasurementStatement>(
+            SqlParser.Parse("DROP MEASUREMENT IF EXISTS cpu"));
+
+        Assert.Equal("cpu", stmt.Name);
+        Assert.True(stmt.IfExists);
     }
 }

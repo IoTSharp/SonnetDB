@@ -23,6 +23,18 @@ public sealed record KvOptions
     /// <summary>单次前缀扫描的默认最大返回行数。</summary>
     public int DefaultScanLimit { get; init; } = 1024;
 
+    /// <summary>是否启用 KV 后台过期清理线程。</summary>
+    public bool ExpirerEnabled { get; init; } = true;
+
+    /// <summary>KV 后台过期清理线程的轮询间隔。</summary>
+    public TimeSpan ExpirerPollInterval { get; init; } = TimeSpan.FromSeconds(1);
+
+    /// <summary>KV 后台过期清理每轮每个已打开 keyspace 最多清理的 key 数。</summary>
+    public int ExpirerBatchSize { get; init; } = 1024;
+
+    /// <summary>KV 后台过期清理线程关闭等待超时。</summary>
+    public TimeSpan ExpirerShutdownTimeout { get; init; } = TimeSpan.FromSeconds(30);
+
     /// <summary>默认 KV 选项实例。</summary>
     public static KvOptions Default { get; } = new();
 }

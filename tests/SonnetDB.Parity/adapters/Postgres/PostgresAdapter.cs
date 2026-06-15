@@ -52,6 +52,12 @@ public sealed class PostgresAdapter : IDataPlane, IRelationalOps
     public ITimeSeriesOps TimeSeries => UnsupportedTimeSeriesOps.Instance;
 
     /// <inheritdoc />
+    public IKvOps Kv => UnsupportedKvOps.Instance;
+
+    /// <inheritdoc />
+    public IVectorOps Vector => UnsupportedVectorOps.Instance;
+
+    /// <inheritdoc />
     public RelationalDialect Dialect => RelationalDialect.Postgres;
 
     /// <summary>打开底层连接。</summary>

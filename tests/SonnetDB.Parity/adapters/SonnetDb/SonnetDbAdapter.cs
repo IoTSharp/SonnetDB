@@ -1,8 +1,11 @@
 using System.Globalization;
 using SonnetDB.Data;
+using SonnetDB.Engine;
+using SonnetDB.Kv;
 using SonnetDB.Parity.Adapters;
 using System.Data;
 using System.Data.Common;
+using System.Text;
 
 namespace SonnetDB.Parity.Adapters.SonnetDb;
 
@@ -13,7 +16,7 @@ namespace SonnetDB.Parity.Adapters.SonnetDb;
 /// <remarks>
 /// 连接字符串为 <c>Data Source={tempDir}</c>，<see cref="DisposeAsync"/> 关闭连接并尽力删除临时目录。
 /// </remarks>
-public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps
+public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps, IKvOps, IVectorOps
 {
     private readonly string _root;
     private readonly SndbConnection _connection;
@@ -47,13 +50,25 @@ public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps
         Capability.TimeSeriesRateIrate |
         Capability.TimeSeriesHoltWinters |
         Capability.TimeSeriesQuantile |
-        Capability.TimeSeriesDistinctCount;
+        Capability.TimeSeriesDistinctCount |
+        Capability.Kv |
+        Capability.KvIncr |
+        Capability.KvCas |
+        Capability.KvRangeScan |
+        Capability.Vector |
+        Capability.HnswFiltered;
 
     /// <inheritdoc />
     public IRelationalOps Relational => this;
 
     /// <inheritdoc />
     public ITimeSeriesOps TimeSeries => this;
+
+    /// <inheritdoc />
+    public IKvOps Kv => this;
+
+    /// <inheritdoc />
+    public IVectorOps Vector => this;
 
     /// <inheritdoc />
     public RelationalDialect Dialect => RelationalDialect.SonnetDb;
@@ -179,6 +194,158 @@ public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps
         => QueryAsync($"SELECT distinct_count(value) FROM {measurement}", ct);
 
     /// <inheritdoc />
+    public Task ResetAsync(string scope, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        Database.Keyspaces.Open("parity_kv").DeletePrefix(scope + ":");
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task SetAsync(string scope, string key, byte[] value, DateTimeOffset? expiresAtUtc, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        Database.Keyspaces.Open("parity_kv").Put(QualifyKv(scope, key), value, expiresAtUtc);
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task<KvRecord?> GetAsync(string scope, string key, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var entry = Database.Keyspaces.Open("parity_kv").GetEntry(QualifyKv(scope, key));
+        return Task.FromResult(entry is null
+            ? null
+            : new KvRecord(key, entry.Value.ToArray(), entry.Version, entry.ExpiresAtUtc));
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<KvRecord>> ScanPrefixAsync(string scope, string prefix, int limit, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var rows = Database.Keyspaces.Open("parity_kv")
+            .ScanPrefix(QualifyKv(scope, prefix), limit)
+            .Select(entry => new KvRecord(UnqualifyKv(scope, entry), entry.Value.ToArray(), entry.Version, entry.ExpiresAtUtc))
+            .ToArray();
+        return Task.FromResult<IReadOnlyList<KvRecord>>(rows);
+    }
+
+    /// <inheritdoc />
+    public Task<long> IncrementAsync(string scope, string key, long delta, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var result = Database.Keyspaces.Open("parity_kv").Increment(QualifyKv(scope, key), delta);
+        return Task.FromResult(result.Value);
+    }
+
+    /// <inheritdoc />
+    public Task<long> DecrementAsync(string scope, string key, long delta, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var result = Database.Keyspaces.Open("parity_kv").Decrement(QualifyKv(scope, key), delta);
+        return Task.FromResult(result.Value);
+    }
+
+    /// <inheritdoc />
+    public Task<KvCasOutcome> CompareAndSetAsync(
+        string scope,
+        string key,
+        long expectedVersion,
+        byte[] value,
+        DateTimeOffset? expiresAtUtc,
+        CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var result = Database.Keyspaces.Open("parity_kv")
+            .CompareAndSet(QualifyKv(scope, key), expectedVersion, value, expiresAtUtc);
+        return Task.FromResult(new KvCasOutcome(result.Succeeded, result.CurrentVersion, result.NewVersion));
+    }
+
+    /// <inheritdoc />
+    public Task<bool> ExpireAsync(string scope, string key, DateTimeOffset expiresAtUtc, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        return Task.FromResult(Database.Keyspaces.Open("parity_kv")
+            .ExpireAt(QualifyKv(scope, key), expiresAtUtc));
+    }
+
+    /// <inheritdoc />
+    public Task<bool> PersistAsync(string scope, string key, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        return Task.FromResult(Database.Keyspaces.Open("parity_kv")
+            .Persist(QualifyKv(scope, key)));
+    }
+
+    /// <inheritdoc />
+    public Task<long> TtlMillisecondsAsync(string scope, string key, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var ttl = Database.Keyspaces.Open("parity_kv")
+            .GetTimeToLive(QualifyKv(scope, key));
+        return Task.FromResult(ttl.Milliseconds);
+    }
+
+    /// <inheritdoc />
+    public async Task ResetCollectionAsync(string collection, int dimension, CancellationToken ct)
+    {
+        if (Database.Measurements.TryGet(collection) is not null)
+            return;
+
+        await ExecuteAsync($"CREATE MEASUREMENT {collection} (category TAG, embedding FIELD VECTOR({dimension}) WITH INDEX hnsw(m=8, ef=32))", ct)
+            .ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task UpsertAsync(string collection, IReadOnlyList<VectorRecord> records, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(records);
+        if (records.Count == 0)
+            return;
+
+        const int BatchSize = 500;
+        var batch = new List<string>(BatchSize);
+        foreach (var record in records)
+        {
+            string vector = string.Join(", ", record.Vector.Select(static v => v.ToString("G9", CultureInfo.InvariantCulture)));
+            batch.Add(string.Create(
+                CultureInfo.InvariantCulture,
+                $"({(long)record.Id}, '{EscapeSql(record.Category)}', [{vector}])"));
+            if (batch.Count == BatchSize)
+            {
+                await InsertVectorBatchAsync(collection, batch, ct).ConfigureAwait(false);
+                batch.Clear();
+            }
+        }
+
+        if (batch.Count > 0)
+            await InsertVectorBatchAsync(collection, batch, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<VectorHit>> SearchAsync(
+        string collection,
+        float[] query,
+        int topK,
+        string? categoryFilter,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        string vector = string.Join(", ", query.Select(static v => v.ToString("G9", CultureInfo.InvariantCulture)));
+        string sql = $"SELECT * FROM knn({collection}, embedding, [{vector}], {topK}, 'cosine')";
+        if (!string.IsNullOrWhiteSpace(categoryFilter))
+            sql += $" WHERE category = '{EscapeSql(categoryFilter)}'";
+
+        var result = await QueryAsync(sql, ct).ConfigureAwait(false);
+        return result.Rows
+            .Select(row => new VectorHit(
+                Convert.ToUInt64(row.Values[0], CultureInfo.InvariantCulture),
+                Convert.ToDouble(row.Values[1], CultureInfo.InvariantCulture),
+                Convert.ToString(row.Values[2], CultureInfo.InvariantCulture)))
+            .ToArray();
+    }
+
+    /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
         try { await _connection.DisposeAsync().ConfigureAwait(false); }
@@ -194,11 +361,26 @@ public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps
         cmd.Parameters.Add(p);
     }
 
+    private Tsdb Database =>
+        _connection.UnderlyingTsdb ?? throw new InvalidOperationException("SonnetDB parity adapter must use embedded mode.");
+
     private Task InsertTimeSeriesBatchAsync(string measurement, IReadOnlyList<string> values, CancellationToken ct)
         => ExecuteAsync($"INSERT INTO {measurement} (time, device, region, value) VALUES {string.Join(", ", values)}", ct);
 
+    private Task InsertVectorBatchAsync(string collection, IReadOnlyList<string> values, CancellationToken ct)
+        => ExecuteAsync($"INSERT INTO {collection} (time, category, embedding) VALUES {string.Join(", ", values)}", ct);
+
     private static string EscapeSql(string value)
         => value.Replace("'", "''", StringComparison.Ordinal);
+
+    private static string QualifyKv(string scope, string key) => scope + ":" + key;
+
+    private static string UnqualifyKv(string scope, KvEntry entry)
+    {
+        string key = Encoding.UTF8.GetString(entry.Key.Span);
+        string prefix = scope + ":";
+        return key.StartsWith(prefix, StringComparison.Ordinal) ? key[prefix.Length..] : key;
+    }
 
     private sealed class SonnetDbRelationalSession : IRelationalSession
     {

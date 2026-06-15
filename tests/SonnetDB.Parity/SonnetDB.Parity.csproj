@@ -14,7 +14,9 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="InfluxDB.Client" />
     <PackageReference Include="Npgsql" />
+    <PackageReference Include="Qdrant.Client" />
     <PackageReference Include="Snappier" />
+    <PackageReference Include="StackExchange.Redis" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

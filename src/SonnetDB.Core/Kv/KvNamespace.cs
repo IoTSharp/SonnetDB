@@ -32,6 +32,49 @@ public sealed class KvNamespace
         _keyspace.Put(Qualify(key), value, expiresAtUtc);
 
     /// <summary>
+    /// 原子增加命名空间内 key 的整数 value。
+    /// </summary>
+    public (long Value, long Version) Increment(string key, long delta = 1) =>
+        _keyspace.Increment(Qualify(key), delta);
+
+    /// <summary>
+    /// 原子减少命名空间内 key 的整数 value。
+    /// </summary>
+    public (long Value, long Version) Decrement(string key, long delta = 1) =>
+        _keyspace.Decrement(Qualify(key), delta);
+
+    /// <summary>
+    /// 对命名空间内 key 执行乐观锁比较并交换。
+    /// </summary>
+    public KvCasResult CompareAndSet(
+        string key,
+        long expectedVersion,
+        ReadOnlySpan<byte> value,
+        DateTimeOffset? expiresAtUtc = null) =>
+        _keyspace.CompareAndSet(Qualify(key), expectedVersion, value, expiresAtUtc);
+
+    /// <summary>
+    /// 为命名空间内 key 设置相对 TTL。
+    /// </summary>
+    public bool Expire(string key, TimeSpan ttl) => _keyspace.Expire(Qualify(key), ttl);
+
+    /// <summary>
+    /// 为命名空间内 key 设置绝对 UTC 过期时间。
+    /// </summary>
+    public bool ExpireAt(string key, DateTimeOffset expiresAtUtc) => _keyspace.ExpireAt(Qualify(key), expiresAtUtc);
+
+    /// <summary>
+    /// 移除命名空间内 key 的过期时间。
+    /// </summary>
+    public bool Persist(string key) => _keyspace.Persist(Qualify(key));
+
+    /// <summary>
+    /// 查询命名空间内 key 的剩余 TTL。
+    /// </summary>
+    public KvTtlResult GetTimeToLive(string key, DateTimeOffset? utcNow = null) =>
+        _keyspace.GetTimeToLive(Qualify(key), utcNow);
+
+    /// <summary>
     /// 读取命名空间内的 key。
     /// </summary>
     public byte[]? Get(string key) => _keyspace.Get(Qualify(key));

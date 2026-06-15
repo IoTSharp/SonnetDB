@@ -908,7 +908,7 @@ internal sealed class CopilotAgent
         if (!IsDraftableStatement(statement))
         {
             throw new InvalidOperationException(
-                "draft_sql 仅支持 CREATE DATABASE、CREATE MEASUREMENT、CREATE TABLE、DROP TABLE、INSERT、UPDATE、DELETE、SELECT、SHOW MEASUREMENTS / SHOW TABLES 与 DESCRIBE [MEASUREMENT|TABLE]。");
+                "draft_sql 仅支持 CREATE DATABASE、CREATE MEASUREMENT、CREATE TABLE、DROP MEASUREMENT、DROP TABLE、INSERT、UPDATE、DELETE、SELECT、SHOW MEASUREMENTS / SHOW TABLES 与 DESCRIBE [MEASUREMENT|TABLE]。");
         }
 
         var databaseName = ResolveToolDatabaseName(context, tool, statement);
@@ -1012,7 +1012,7 @@ internal sealed class CopilotAgent
             throw new SqlExecutionException(
                 sql,
                 "validate",
-                "execute_sql 仅支持 CREATE DATABASE、CREATE MEASUREMENT、CREATE TABLE、DROP TABLE、INSERT、UPDATE、DELETE、SELECT、SHOW MEASUREMENTS / SHOW TABLES 与 DESCRIBE [MEASUREMENT|TABLE]。");
+                "execute_sql 仅支持 CREATE DATABASE、CREATE MEASUREMENT、CREATE TABLE、DROP MEASUREMENT、DROP TABLE、INSERT、UPDATE、DELETE、SELECT、SHOW MEASUREMENTS / SHOW TABLES 与 DESCRIBE [MEASUREMENT|TABLE]。");
         }
 
         var databaseName = ResolveToolDatabaseName(context, tool, statement);
@@ -1110,6 +1110,7 @@ internal sealed class CopilotAgent
             InsertStatement insert => ("insert", insert.Measurement, true),
             DeleteStatement delete => ("delete", delete.Measurement, true),
             CreateTableStatement createTable => ("create_table", createTable.Name, true),
+            DropMeasurementStatement dropMeasurement => ("drop_measurement", dropMeasurement.Name, true),
             DropTableStatement dropTable => ("drop_table", dropTable.Name, true),
             UpdateStatement update => ("update", update.TableName, true),
             SelectStatement select => ("select", select.Measurement, false),
@@ -1124,6 +1125,7 @@ internal sealed class CopilotAgent
         => statement is CreateDatabaseStatement
             or CreateMeasurementStatement
             or CreateTableStatement
+            or DropMeasurementStatement
             or DropTableStatement
             or InsertStatement
             or UpdateStatement

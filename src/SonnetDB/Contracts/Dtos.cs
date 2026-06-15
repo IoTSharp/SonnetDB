@@ -165,6 +165,29 @@ public sealed record KvPrefixRequest(string Prefix, int? Limit);
 public sealed record KvCleanExpiredRequest(int? Limit);
 
 /// <summary>
+/// KV 原子自增 / 自减请求。
+/// </summary>
+/// <param name="Key">完整 key。调用方负责命名空间前缀。</param>
+/// <param name="Delta">增量；INCR 默认为 1，DECR 表示减少量。</param>
+public sealed record KvIncrementRequest(string Key, long Delta = 1);
+
+/// <summary>
+/// KV 比较并交换请求。
+/// </summary>
+/// <param name="Key">完整 key。调用方负责命名空间前缀。</param>
+/// <param name="ExpectedVersion">期望版本；0 表示 key 不存在。</param>
+/// <param name="Value">比较成功后写入的二进制 value。</param>
+/// <param name="ExpiresAtUtc">UTC 过期时间；为空表示永不过期。</param>
+public sealed record KvCasRequest(string Key, long ExpectedVersion, byte[] Value, DateTimeOffset? ExpiresAtUtc);
+
+/// <summary>
+/// KV 绝对过期时间请求。
+/// </summary>
+/// <param name="Key">完整 key。调用方负责命名空间前缀。</param>
+/// <param name="ExpiresAtUtc">UTC 过期时间。</param>
+public sealed record KvExpireRequest(string Key, DateTimeOffset ExpiresAtUtc);
+
+/// <summary>
 /// KV 扫描返回的一条记录。
 /// </summary>
 public sealed record KvEntryResponse(string Key, byte[] Value, long Version, DateTimeOffset? ExpiresAtUtc);
@@ -198,6 +221,26 @@ public sealed record KvSetManyResponse(IReadOnlyDictionary<string, long> Version
 /// KV 删除/清理响应。
 /// </summary>
 public sealed record KvDeleteResponse(int Removed);
+
+/// <summary>
+/// KV 原子自增 / 自减响应。
+/// </summary>
+public sealed record KvIncrementResponse(long Value, long Version);
+
+/// <summary>
+/// KV 比较并交换响应。
+/// </summary>
+public sealed record KvCasResponse(bool Succeeded, long CurrentVersion, long? NewVersion);
+
+/// <summary>
+/// KV 布尔操作响应。
+/// </summary>
+public sealed record KvBooleanResponse(bool Succeeded);
+
+/// <summary>
+/// KV TTL 查询响应。
+/// </summary>
+public sealed record KvTtlResponse(long Milliseconds, DateTimeOffset? ExpiresAtUtc);
 
 /// <summary>
 /// KV 前缀扫描响应。
