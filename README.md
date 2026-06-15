@@ -34,7 +34,7 @@ SonnetDB 是一个基于 C# / .NET 的多模型数据库。它用一套本地引
 | 多语言 | C、Go、Rust、Java、Python、VB6、PureBasic 连接器 |
 | AI / Agent | Web CopilotDock、MCP 工具入口 |
 
-数据库以目录方式持久化，不再定位为单文件数据库。
+
 
 ## 🏷️ 生态下载与版本
 
@@ -85,6 +85,12 @@ SonnetDB 是一个基于 C# / .NET 的多模型数据库。它用一套本地引
 | 在线文档 | https://sonnetdb.com/docs |
 | 开源仓库 | https://github.com/IoTSharp/SonnetDB |
 | 企业版与云平台 | https://sonnetdb.com/platform |
+
+## 💬 交流社群
+
+欢迎扫码加入企业微信群，交流 SonnetDB 使用、开发和落地问题。
+
+<img src="web/public/qr-group.svg" alt="扫描二维码加入 SonnetDB 企业微信群" width="240">
 
 ## 当前组成
 

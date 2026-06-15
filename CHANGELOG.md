@@ -121,6 +121,7 @@
 - **WAL catalog checkpoint**：`Tsdb.FlushNowLocked` 不再在每次 Flush 后向新 WAL 重写全量 `CreateSeries` snapshot；当 catalog 出现新增 series 时，Flush 会先原子持久化 `catalog.SDBCAT`，再写 Segment / WAL Checkpoint / 回收旧 WAL segment。崩溃恢复现在由「已 checkpoint 的 series 来自 catalog 文件，checkpoint 之后的新 series 继续来自 WAL `CreateSeries`」共同保证，避免 catalog 大时每次 Flush 产生 O(series_count) WAL 放大。
 
 ### Docs
+- README 新增企业微信群二维码入口，方便用户扫码加入社群交流。
 - 重写 README 顶部“SonnetDB 是什么”简介，明确 SonnetDB 当前已集成时序数据库、关系型数据库、KV NoSQL、S3 兼容存储桶与本地消息队列能力。
 - 补充 SonnetDB vs IoTDB 对比文档的两种口径说明：新增 2026-05-06 的 `--comparison-server` 同口径“Server vs Server”实测结果（1,000 设备 × 30 字段 × 12 时间点，AB BA AB BA 四轮，SonnetDB Server 平均 22,867 values/sec、IoTDB 11,541 values/sec、约 1.98x），并同步更新根 README、`tests/SonnetDB.Benchmarks/README.md`、`QUICK_START.md` 与专门对比说明，保留旧的嵌入式 vs REST 历史结果但明确标注为不同方法学。
 - 完善 `.agents/skills/sonnetdb-docker-language-build`，将模板 TODO 替换为 Docker-backed Go / Rust / Python / Linux connector 构建与 smoke test 回退流程，并修正技能默认提示词中的技能名。
