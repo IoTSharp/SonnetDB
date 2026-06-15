@@ -33,7 +33,27 @@ public sealed record SndbObjectListResult(
     string Bucket,
     string Prefix,
     int MaxKeys,
+    string? ContinuationToken,
+    string? NextContinuationToken,
+    bool IsTruncated,
     IReadOnlyList<SndbObjectInfo> Objects);
+
+/// <summary>
+/// 批量删除单个对象的结果。
+/// </summary>
+public sealed record SndbObjectDeleteResult(
+    string Key,
+    string VersionId,
+    bool DeleteMarker,
+    string? ErrorCode = null,
+    string? ErrorMessage = null);
+
+/// <summary>
+/// 批量删除结果。
+/// </summary>
+public sealed record SndbObjectDeleteManyResult(
+    string Bucket,
+    IReadOnlyList<SndbObjectDeleteResult> Deleted);
 
 /// <summary>
 /// 对象版本列表结果。

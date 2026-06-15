@@ -36,6 +36,9 @@ public sealed class QdrantAdapter : IDataPlane, IVectorOps
     public IKvOps Kv => UnsupportedKvOps.Instance;
 
     /// <inheritdoc />
+    public IObjectOps Objects => UnsupportedObjectOps.Instance;
+
+    /// <inheritdoc />
     public IVectorOps Vector => this;
 
     /// <summary>探测 Qdrant 是否可达。</summary>

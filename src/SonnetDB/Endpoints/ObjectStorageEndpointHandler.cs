@@ -54,6 +54,20 @@ internal static class ObjectStorageEndpointHandler
                 return;
             }
 
+            if (HttpMethods.IsPost(ctx.Request.Method) && ctx.Request.Query.ContainsKey("delete"))
+            {
+                var request = await ReadJsonAsync(ctx, ServerJsonContext.Default.ObjectDeleteManyRequest).ConfigureAwait(false);
+                if (request is null)
+                {
+                    await WriteErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "DeleteObjects request body is required.").ConfigureAwait(false);
+                    return;
+                }
+
+                var deleted = store.DeleteObjects(bucket, request.Keys);
+                await Results.Json(ToDeleteManyResponse(deleted), ServerJsonContext.Default.ObjectDeleteManyResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+                return;
+            }
+
             if (HttpMethods.IsPut(ctx.Request.Method))
             {
                 ObjectBucketCreateRequest? request = null;
@@ -80,7 +94,11 @@ internal static class ObjectStorageEndpointHandler
                         maxKeys = Math.Clamp(parsedMaxKeys, 1, 10_000);
                     }
 
-                    var listed = store.ListObjects(bucket, ctx.Request.Query["prefix"].ToString(), maxKeys);
+                    var listed = store.ListObjects(
+                        bucket,
+                        ctx.Request.Query["prefix"].ToString(),
+                        maxKeys,
+                        ctx.Request.Query["continuation-token"].ToString());
                     await Results.Json(ToListResponse(listed), ServerJsonContext.Default.ObjectListResponse).ExecuteAsync(ctx).ConfigureAwait(false);
                     return;
                 }
@@ -511,7 +529,24 @@ internal static class ObjectStorageEndpointHandler
         new(info.Bucket, info.Key, info.VersionId, info.ContentType, info.SizeBytes, info.ETag, info.Sha256, info.IsDeleteMarker, info.CreatedUtc, info.UpdatedUtc, info.Metadata, info.Tags);
 
     private static ObjectListResponse ToListResponse(SndbObjectListResult result) =>
-        new(result.Bucket, result.Prefix, result.MaxKeys, result.Objects.Select(ToObjectResponse).ToArray());
+        new(
+            result.Bucket,
+            result.Prefix,
+            result.MaxKeys,
+            result.ContinuationToken,
+            result.NextContinuationToken,
+            result.IsTruncated,
+            result.Objects.Select(ToObjectResponse).ToArray());
+
+    private static ObjectDeleteManyResponse ToDeleteManyResponse(SndbObjectDeleteManyResult result) =>
+        new(
+            result.Bucket,
+            result.Deleted.Select(static item => new ObjectDeleteResultResponse(
+                item.Key,
+                item.VersionId,
+                item.DeleteMarker,
+                item.ErrorCode,
+                item.ErrorMessage)).ToArray());
 
     private static ObjectVersionListResponse ToVersionListResponse(SndbObjectVersionListResult result) =>
         new(result.Bucket, result.Key, result.Versions.Select(ToObjectResponse).ToArray());

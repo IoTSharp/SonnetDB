@@ -155,13 +155,14 @@ public sealed class SndbObjectStore
     /// <summary>
     /// 列出 bucket 内当前可见对象。
     /// </summary>
-    public SndbObjectListResult ListObjects(string bucket, string? prefix = null, int maxKeys = 1000)
+    public SndbObjectListResult ListObjects(string bucket, string? prefix = null, int maxKeys = 1000, string? continuationToken = null)
     {
         EnsureBucket(bucket);
         if (maxKeys <= 0)
             throw new ArgumentOutOfRangeException(nameof(maxKeys));
 
         string normalizedPrefix = prefix?.TrimStart('/') ?? string.Empty;
+        string? afterKey = DecodeContinuationToken(continuationToken);
         var objects = new List<SndbObjectInfo>();
         foreach (var latest in _metadata.ScanPrefix(LatestObjectPrefix(bucket), limit: int.MaxValue))
         {
@@ -178,7 +179,18 @@ public sealed class SndbObjectStore
         }
 
         objects.Sort(static (left, right) => string.CompareOrdinal(left.Key, right.Key));
-        return new SndbObjectListResult(bucket, normalizedPrefix, maxKeys, objects.Take(maxKeys).ToArray());
+        if (!string.IsNullOrEmpty(afterKey))
+        {
+            int startIndex = objects.FindIndex(item => string.CompareOrdinal(item.Key, afterKey) > 0);
+            objects = startIndex < 0 ? [] : objects.GetRange(startIndex, objects.Count - startIndex);
+        }
+
+        bool isTruncated = objects.Count > maxKeys;
+        var page = objects.Take(maxKeys).ToArray();
+        string? nextToken = isTruncated && page.Length > 0
+            ? EncodeContinuationToken(page[^1].Key)
+            : null;
+        return new SndbObjectListResult(bucket, normalizedPrefix, maxKeys, continuationToken, nextToken, isTruncated, page);
     }
 
     /// <summary>
@@ -290,6 +302,42 @@ public sealed class SndbObjectStore
         PersistObjectRecord(record);
         AppendAudit("object.delete_marker", bucket, key, record.VersionId);
         return ToInfo(record);
+    }
+
+    /// <summary>
+    /// 批量删除对象并为每个 key 创建 delete marker。
+    /// </summary>
+    public SndbObjectDeleteManyResult DeleteObjects(string bucket, IReadOnlyList<string> keys)
+    {
+        EnsureBucket(bucket);
+        ArgumentNullException.ThrowIfNull(keys);
+        if (keys.Count == 0)
+            return new SndbObjectDeleteManyResult(bucket, []);
+
+        var deleted = new List<SndbObjectDeleteResult>(keys.Count);
+        foreach (string key in keys)
+        {
+            try
+            {
+                var marker = DeleteObject(bucket, key);
+                deleted.Add(new SndbObjectDeleteResult(key, marker.VersionId, DeleteMarker: true));
+            }
+            catch (Exception ex) when (ex is ArgumentException or SndbObjectStorageException)
+            {
+                deleted.Add(new SndbObjectDeleteResult(
+                    key,
+                    string.Empty,
+                    DeleteMarker: false,
+                    ex is SndbObjectStorageException storage ? storage.Code : "bad_request",
+                    ex.Message));
+            }
+        }
+
+        AppendAudit("object.delete_many", bucket, null, null, new Dictionary<string, string>
+        {
+            ["count"] = deleted.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        });
+        return new SndbObjectDeleteManyResult(bucket, deleted);
     }
 
     /// <summary>
@@ -885,6 +933,26 @@ public sealed class SndbObjectStore
         string padded = key.Replace('-', '+').Replace('_', '/');
         padded = padded.PadRight(padded.Length + ((4 - padded.Length % 4) % 4), '=');
         return Utf8.GetString(Convert.FromBase64String(padded));
+    }
+
+    private static string EncodeContinuationToken(string key) => EscapeKey("v1:" + key);
+
+    private static string? DecodeContinuationToken(string? token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+            return null;
+
+        try
+        {
+            string decoded = UnescapeKey(token.Trim());
+            return decoded.StartsWith("v1:", StringComparison.Ordinal)
+                ? decoded["v1:".Length..]
+                : throw new ArgumentException("Invalid continuation token.", nameof(token));
+        }
+        catch (FormatException ex)
+        {
+            throw new ArgumentException("Invalid continuation token.", nameof(token), ex);
+        }
     }
 
     private static string NormalizeContentType(string? contentType) =>

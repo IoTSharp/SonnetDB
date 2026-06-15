@@ -45,6 +45,9 @@ public sealed class VictoriaMetricsAdapter : IDataPlane, ITimeSeriesOps
     public IKvOps Kv => UnsupportedKvOps.Instance;
 
     /// <inheritdoc />
+    public IObjectOps Objects => UnsupportedObjectOps.Instance;
+
+    /// <inheritdoc />
     public IVectorOps Vector => UnsupportedVectorOps.Instance;
 
     /// <summary>探测 VictoriaMetrics 是否可达。</summary>

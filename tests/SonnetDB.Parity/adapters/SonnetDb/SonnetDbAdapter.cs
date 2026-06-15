@@ -6,6 +6,7 @@ using SonnetDB.Parity.Adapters;
 using System.Data;
 using System.Data.Common;
 using System.Text;
+using SonnetDB.ObjectStorage;
 
 namespace SonnetDB.Parity.Adapters.SonnetDb;
 
@@ -16,7 +17,7 @@ namespace SonnetDB.Parity.Adapters.SonnetDb;
 /// <remarks>
 /// 连接字符串为 <c>Data Source={tempDir}</c>，<see cref="DisposeAsync"/> 关闭连接并尽力删除临时目录。
 /// </remarks>
-public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps, IKvOps, IVectorOps
+public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps, IKvOps, IObjectOps, IVectorOps
 {
     private readonly string _root;
     private readonly SndbConnection _connection;
@@ -55,6 +56,8 @@ public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps
         Capability.KvIncr |
         Capability.KvCas |
         Capability.KvRangeScan |
+        Capability.Object |
+        Capability.ObjectMultipart |
         Capability.Vector |
         Capability.HnswFiltered;
 
@@ -66,6 +69,9 @@ public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps
 
     /// <inheritdoc />
     public IKvOps Kv => this;
+
+    /// <inheritdoc />
+    public IObjectOps Objects => this;
 
     /// <inheritdoc />
     public IVectorOps Vector => this;
@@ -285,6 +291,115 @@ public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps
             .GetTimeToLive(QualifyKv(scope, key));
         return Task.FromResult(ttl.Milliseconds);
     }
+
+    /// <inheritdoc />
+    public Task ResetBucketAsync(string bucket, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var store = new SndbObjectStore(Database);
+        if (store.GetBucket(bucket) is null)
+        {
+            store.CreateBucket(bucket, SndbBucketPurpose.General);
+            return Task.CompletedTask;
+        }
+
+        while (true)
+        {
+            var page = store.ListObjects(bucket, maxKeys: 1000);
+            if (page.Objects.Count == 0)
+                break;
+
+            foreach (var item in page.Objects)
+                store.DeleteObject(bucket, item.Key);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public async Task<ObjectPutResult> PutAsync(string bucket, string key, Stream content, string contentType, CancellationToken ct)
+    {
+        var result = await new SndbObjectStore(Database).PutObjectAsync(bucket, key, content, contentType, cancellationToken: ct).ConfigureAwait(false);
+        return new ObjectPutResult(result.Key, result.SizeBytes, result.ETag);
+    }
+
+    /// <inheritdoc />
+    public async Task<ObjectReadResult?> GetAsync(string bucket, string key, ObjectRange? range, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var read = new SndbObjectStore(Database).OpenRead(
+            bucket,
+            key,
+            range.HasValue ? new SndbObjectRange(range.Value.Offset, range.Value.Length) : null);
+        if (read is null)
+            return null;
+
+        await using (read.Content)
+        {
+            using var output = new MemoryStream();
+            await read.Content.CopyToAsync(output, ct).ConfigureAwait(false);
+            return new ObjectReadResult(output.ToArray(), read.Info.ContentType, read.Length);
+        }
+    }
+
+    /// <inheritdoc />
+    public Task<ObjectListPage> ListAsync(string bucket, string prefix, int maxKeys, string? continuationToken, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var page = new SndbObjectStore(Database).ListObjects(bucket, prefix, maxKeys, continuationToken);
+        return Task.FromResult(new ObjectListPage(
+            page.Objects.Select(static item => new ObjectListItem(item.Key, item.SizeBytes)).ToArray(),
+            page.IsTruncated,
+            page.NextContinuationToken));
+    }
+
+    /// <inheritdoc />
+    public async Task<ObjectPutResult> CopyAsync(string bucket, string sourceKey, string destinationKey, CancellationToken ct)
+    {
+        var result = await new SndbObjectStore(Database).CopyObjectAsync(bucket, sourceKey, bucket, destinationKey, cancellationToken: ct).ConfigureAwait(false);
+        return new ObjectPutResult(result.Key, result.SizeBytes, result.ETag);
+    }
+
+    /// <inheritdoc />
+    public Task DeleteAsync(string bucket, string key, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        new SndbObjectStore(Database).DeleteObject(bucket, key);
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<ObjectDeleteResult>> DeleteManyAsync(string bucket, IReadOnlyList<string> keys, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var result = new SndbObjectStore(Database).DeleteObjects(bucket, keys);
+        return Task.FromResult<IReadOnlyList<ObjectDeleteResult>>(result.Deleted
+            .Select(static item => new ObjectDeleteResult(item.Key, item.DeleteMarker, item.ErrorCode))
+            .ToArray());
+    }
+
+    /// <inheritdoc />
+    public Task<string> InitiateMultipartAsync(string bucket, string key, string contentType, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var upload = new SndbObjectStore(Database).InitiateMultipartUpload(bucket, key, contentType);
+        return Task.FromResult(upload.UploadId);
+    }
+
+    /// <inheritdoc />
+    public Task UploadPartAsync(string bucket, string key, string uploadId, int partNumber, Stream content, CancellationToken ct)
+        => new SndbObjectStore(Database).UploadPartAsync(uploadId, partNumber, content, ct);
+
+    /// <inheritdoc />
+    public async Task<ObjectPutResult> CompleteMultipartAsync(string bucket, string key, string uploadId, IReadOnlyList<int> partNumbers, CancellationToken ct)
+    {
+        var result = await new SndbObjectStore(Database).CompleteMultipartUploadAsync(uploadId, partNumbers, ct).ConfigureAwait(false);
+        return new ObjectPutResult(result.Key, result.SizeBytes, result.ETag);
+    }
+
+    /// <inheritdoc />
+    public Task<string> CreatePresignedGetUrlAsync(string bucket, string key, TimeSpan expiresAfter, CancellationToken ct)
+        => throw new NotSupportedException("嵌入式 SonnetDB parity adapter 没有 HTTP 预签名 URL。");
 
     /// <inheritdoc />
     public async Task ResetCollectionAsync(string collection, int dimension, CancellationToken ct)

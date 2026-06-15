@@ -55,6 +55,9 @@ public sealed class PostgresAdapter : IDataPlane, IRelationalOps
     public IKvOps Kv => UnsupportedKvOps.Instance;
 
     /// <inheritdoc />
+    public IObjectOps Objects => UnsupportedObjectOps.Instance;
+
+    /// <inheritdoc />
     public IVectorOps Vector => UnsupportedVectorOps.Instance;
 
     /// <inheritdoc />

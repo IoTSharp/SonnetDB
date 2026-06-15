@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="AWSSDK.S3" />
     <PackageReference Include="InfluxDB.Client" />
     <PackageReference Include="Npgsql" />
     <PackageReference Include="Qdrant.Client" />

@@ -30,7 +30,26 @@ public sealed record ObjectListResponse(
     string Bucket,
     string Prefix,
     int MaxKeys,
+    string? ContinuationToken,
+    string? NextContinuationToken,
+    bool IsTruncated,
     IReadOnlyList<ObjectInfoResponse> Objects);
+
+/// <summary>批量删除对象请求。</summary>
+public sealed record ObjectDeleteManyRequest(IReadOnlyList<string> Keys);
+
+/// <summary>批量删除单个对象响应。</summary>
+public sealed record ObjectDeleteResultResponse(
+    string Key,
+    string VersionId,
+    bool DeleteMarker,
+    string? ErrorCode,
+    string? ErrorMessage);
+
+/// <summary>批量删除对象响应。</summary>
+public sealed record ObjectDeleteManyResponse(
+    string Bucket,
+    IReadOnlyList<ObjectDeleteResultResponse> Deleted);
 
 /// <summary>对象版本列表响应。</summary>
 public sealed record ObjectVersionListResponse(

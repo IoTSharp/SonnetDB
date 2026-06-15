@@ -51,6 +51,9 @@ public sealed class InfluxAdapter : IDataPlane, ITimeSeriesOps
     public IKvOps Kv => UnsupportedKvOps.Instance;
 
     /// <inheritdoc />
+    public IObjectOps Objects => UnsupportedObjectOps.Instance;
+
+    /// <inheritdoc />
     public IVectorOps Vector => UnsupportedVectorOps.Instance;
 
     /// <summary>探测 InfluxDB 是否可达。</summary>

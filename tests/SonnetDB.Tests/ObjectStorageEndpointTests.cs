@@ -171,6 +171,73 @@ public sealed class ObjectStorageEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ObjectStorage_ListContinuationTokenAndDeleteObjects_Work()
+    {
+        using var client = CreateClient();
+        var bucket = "iotsharp-pages";
+        var putBucket = await client.PutAsJsonAsync(
+            $"/v1/db/objects/s3/{bucket}",
+            new ObjectBucketCreateRequest("artifact"),
+            ServerJsonContext.Default.ObjectBucketCreateRequest);
+        Assert.Equal(HttpStatusCode.OK, putBucket.StatusCode);
+
+        foreach (string key in new[] { "logs/a.txt", "logs/b.txt", "logs/c.txt" })
+        {
+            var put = await client.PutAsync(
+                $"/v1/db/objects/s3/{bucket}/{key}",
+                new StringContent(key, Encoding.UTF8, "text/plain"));
+            Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+        }
+
+        var firstPage = await client.GetAsync($"/v1/db/objects/s3/{bucket}?list-type=2&prefix=logs/&max-keys=2");
+        Assert.Equal(HttpStatusCode.OK, firstPage.StatusCode);
+        string token;
+        using (var json = JsonDocument.Parse(await firstPage.Content.ReadAsStringAsync()))
+        {
+            Assert.True(json.RootElement.GetProperty("isTruncated").GetBoolean());
+            Assert.Equal("logs/a.txt", json.RootElement.GetProperty("objects")[0].GetProperty("key").GetString());
+            Assert.Equal("logs/b.txt", json.RootElement.GetProperty("objects")[1].GetProperty("key").GetString());
+            token = json.RootElement.GetProperty("nextContinuationToken").GetString()!;
+            Assert.False(string.IsNullOrWhiteSpace(token));
+        }
+
+        var secondPage = await client.GetAsync(
+            $"/v1/db/objects/s3/{bucket}?list-type=2&prefix=logs/&max-keys=2&continuation-token={Uri.EscapeDataString(token)}");
+        Assert.Equal(HttpStatusCode.OK, secondPage.StatusCode);
+        using (var json = JsonDocument.Parse(await secondPage.Content.ReadAsStringAsync()))
+        {
+            Assert.False(json.RootElement.GetProperty("isTruncated").GetBoolean());
+            var objects = json.RootElement.GetProperty("objects");
+            Assert.Single(objects.EnumerateArray());
+            Assert.Equal("logs/c.txt", objects[0].GetProperty("key").GetString());
+        }
+
+        var delete = await client.PostAsJsonAsync(
+            $"/v1/db/objects/s3/{bucket}?delete",
+            new ObjectDeleteManyRequest(["logs/a.txt", "logs/c.txt"]),
+            ServerJsonContext.Default.ObjectDeleteManyRequest);
+        Assert.Equal(HttpStatusCode.OK, delete.StatusCode);
+        using (var json = JsonDocument.Parse(await delete.Content.ReadAsStringAsync()))
+        {
+            Assert.Equal(2, json.RootElement.GetProperty("deleted").GetArrayLength());
+            Assert.All(json.RootElement.GetProperty("deleted").EnumerateArray(), item =>
+            {
+                Assert.True(item.GetProperty("deleteMarker").GetBoolean());
+                Assert.False(string.IsNullOrWhiteSpace(item.GetProperty("versionId").GetString()));
+            });
+        }
+
+        var afterDelete = await client.GetAsync($"/v1/db/objects/s3/{bucket}?list-type=2&prefix=logs/&max-keys=10");
+        Assert.Equal(HttpStatusCode.OK, afterDelete.StatusCode);
+        using (var json = JsonDocument.Parse(await afterDelete.Content.ReadAsStringAsync()))
+        {
+            var objects = json.RootElement.GetProperty("objects");
+            Assert.Single(objects.EnumerateArray());
+            Assert.Equal("logs/b.txt", objects[0].GetProperty("key").GetString());
+        }
+    }
+
+    [Fact]
     public async Task ObjectStorage_VersionsLifecycleAndAudit_Work()
     {
         using var client = CreateClient();

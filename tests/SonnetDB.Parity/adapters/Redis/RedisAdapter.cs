@@ -34,6 +34,9 @@ public sealed class RedisAdapter : IDataPlane, IKvOps
     public IKvOps Kv => this;
 
     /// <inheritdoc />
+    public IObjectOps Objects => UnsupportedObjectOps.Instance;
+
+    /// <inheritdoc />
     public IVectorOps Vector => UnsupportedVectorOps.Instance;
 
     /// <summary>探测 Redis 是否可达。</summary>

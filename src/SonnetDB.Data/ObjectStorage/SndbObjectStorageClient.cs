@@ -89,23 +89,43 @@ public sealed class SndbObjectStorageClient : IDisposable
         string? prefix = null,
         int maxKeys = 1000,
         CancellationToken cancellationToken = default)
+        => await ListObjectsAsync(bucket, prefix, maxKeys, continuationToken: null, cancellationToken).ConfigureAwait(false);
+
+    /// <summary>
+    /// 使用 ContinuationToken 列出 bucket 内当前可见对象。
+    /// </summary>
+    public async Task<SndbObjectListResult> ListObjectsAsync(
+        string bucket,
+        string? prefix,
+        int maxKeys,
+        string? continuationToken,
+        CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
         if (_embedded is not null)
-            return new SndbObjectStore(_embedded).ListObjects(bucket, prefix, maxKeys);
+            return new SndbObjectStore(_embedded).ListObjects(bucket, prefix, maxKeys, continuationToken);
 
         string url = BucketUrl(bucket)
             + "?list-type=2&max-keys="
             + maxKeys.ToString(System.Globalization.CultureInfo.InvariantCulture);
         if (!string.IsNullOrWhiteSpace(prefix))
             url += "&prefix=" + Uri.EscapeDataString(prefix.TrimStart('/'));
+        if (!string.IsNullOrWhiteSpace(continuationToken))
+            url += "&continuation-token=" + Uri.EscapeDataString(continuationToken);
 
         using var response = await _http!.GetAsync(url, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
             throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
 
         var body = await ReadJsonAsync(response, SndbObjectClientJsonContext.Default.ObjectListResponse, cancellationToken).ConfigureAwait(false);
-        return new SndbObjectListResult(body.Bucket, body.Prefix, body.MaxKeys, body.Objects.Select(ToInfo).ToArray());
+        return new SndbObjectListResult(
+            body.Bucket,
+            body.Prefix,
+            body.MaxKeys,
+            body.ContinuationToken,
+            body.NextContinuationToken,
+            body.IsTruncated,
+            body.Objects.Select(ToInfo).ToArray());
     }
 
     /// <summary>
@@ -235,6 +255,34 @@ public sealed class SndbObjectStorageClient : IDisposable
 
         using var request = new HttpRequestMessage(HttpMethod.Delete, ObjectUrl(bucket, key));
         using var response = await SendAsync(request, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// 批量删除对象并创建 delete marker。
+    /// </summary>
+    public async Task<SndbObjectDeleteManyResult> DeleteObjectsAsync(
+        string bucket,
+        IReadOnlyList<string> keys,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        if (_embedded is not null)
+            return new SndbObjectStore(_embedded).DeleteObjects(bucket, keys);
+
+        using var response = await PostJsonAsync(
+            BucketUrl(bucket) + "?delete",
+            new ObjectDeleteManyRequest(keys),
+            SndbObjectClientJsonContext.Default.ObjectDeleteManyRequest,
+            cancellationToken).ConfigureAwait(false);
+        var body = await ReadJsonAsync(response, SndbObjectClientJsonContext.Default.ObjectDeleteManyResponse, cancellationToken).ConfigureAwait(false);
+        return new SndbObjectDeleteManyResult(
+            body.Bucket,
+            body.Deleted.Select(static item => new SndbObjectDeleteResult(
+                item.Key,
+                item.VersionId,
+                item.DeleteMarker,
+                item.ErrorCode,
+                item.ErrorMessage)).ToArray());
     }
 
     /// <summary>

@@ -238,6 +238,9 @@ services:
       PARITY_VM_URL: http://victoriametrics:8428
       PARITY_REDIS_HOST: redis
       PARITY_REDIS_PORT: "6379"
+      PARITY_MINIO_ENDPOINT: http://minio:9000
+      PARITY_MINIO_ROOT_USER: ${PARITY_MINIO_ROOT_USER:-parity}
+      PARITY_MINIO_ROOT_PASSWORD: ${PARITY_MINIO_ROOT_PASSWORD:-parity12345}
       PARITY_QDRANT_HOST: qdrant
       PARITY_QDRANT_PORT: "6334"
       PARITY_TPCC_WAREHOUSES: ${PARITY_TPCC_WAREHOUSES:-5}
@@ -246,5 +249,7 @@ services:
     command: ["dotnet", "test", "tests/SonnetDB.Parity/SonnetDB.Parity.csproj", "-c", "Release"]
     depends_on:
       postgres:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     profiles: [light, full]

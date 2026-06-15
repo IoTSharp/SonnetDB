@@ -1,5 +1,6 @@
 using SonnetDB.Parity.Adapters;
 using SonnetDB.Parity.Adapters.Influx;
+using SonnetDB.Parity.Adapters.Minio;
 using SonnetDB.Parity.Adapters.Postgres;
 using SonnetDB.Parity.Adapters.Qdrant;
 using SonnetDB.Parity.Adapters.Redis;
@@ -8,6 +9,7 @@ using SonnetDB.Parity.Adapters.VictoriaMetrics;
 using SonnetDB.Parity.Runner.Reporting;
 using SonnetDB.Parity.Scenarios;
 using SonnetDB.Parity.Scenarios.Kv;
+using SonnetDB.Parity.Scenarios.Object;
 using SonnetDB.Parity.Scenarios.Relational;
 using SonnetDB.Parity.Scenarios.Tsdb;
 using SonnetDB.Parity.Scenarios.Vector;
@@ -288,6 +290,65 @@ public sealed class ParityRunner
         Assert.Empty(failures);
     }
 
+    /// <summary>对象桶场景套件：SonnetDB 对齐 MinIO。</summary>
+    [Fact]
+    public async Task ObjectSuite_SonnetDbMatchesMinio()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+        var ct = cts.Token;
+
+        var scenarios = CreateObjectScenarios();
+        var runId = "object-" + Guid.NewGuid().ToString("N")[..8];
+        var startedAt = DateTimeOffset.UtcNow;
+        var reportDir = ResolveReportDirectory(runId);
+        var ctx = new ScenarioContext { RunId = runId, ReportDirectory = reportDir, Cancellation = ct };
+        var backends = new[] { "sonnetdb", "minio" };
+
+        var reports = new List<ScenarioReport>();
+        var failures = new List<string>();
+
+        await using var sonnet = new SonnetDbAdapter();
+        var minioAvailable = await MinioAdapter.TryConnectAsync(ct);
+
+        foreach (var scenario in scenarios)
+        {
+            var sonnetResult = await RunBackendAsync(scenario, sonnet, ctx);
+            var outcomes = new List<BackendOutcome> { ToOutcome(sonnet.BackendName, sonnetResult) };
+            var differences = new List<string>();
+            bool? withinTolerance = null;
+
+            if (!sonnetResult.Pass)
+                failures.Add($"SonnetDB 对象桶场景 {scenario.Name} 自检未通过。");
+
+            await RunCompetitorAsync(
+                scenario,
+                ctx,
+                sonnetResult,
+                "minio",
+                minioAvailable,
+                static () => new MinioAdapter(),
+                outcomes,
+                differences,
+                failures,
+                result => withinTolerance = result,
+                scenario.Tolerance);
+
+            reports.Add(new ScenarioReport(scenario.Name, withinTolerance, differences, outcomes));
+        }
+
+        var report = new ParityReport(
+            runId,
+            startedAt,
+            reports,
+            BuildCapabilityGaps(scenarios, reports, backends),
+            backends);
+
+        await JsonReporter.WriteAsync(report, reportDir);
+        await MarkdownReporter.WriteAsync(report, reportDir);
+
+        Assert.Empty(failures);
+    }
+
     private static IReadOnlyList<IScenario> CreateRelationalScenarios() =>
     [
         new HelloWorldRelationalScenario(),
@@ -326,6 +387,15 @@ public sealed class ParityRunner
         new AnnRecallAt10Scenario(),
         new FilteredSearchScenario(),
         new UpsertDuringQueryScenario(),
+    ];
+
+    private static IReadOnlyList<ObjectScenarioBase> CreateObjectScenarios() =>
+    [
+        new PutGetObjectScenario(),
+        new MultipartUploadScenario(),
+        new RangeReadOffsetsScenario(),
+        new ListObjectsV2PaginationScenario(),
+        new CopyDeletePresignScenario(),
     ];
 
     private static BackendOutcome ToOutcome(string backend, ScenarioResult result)

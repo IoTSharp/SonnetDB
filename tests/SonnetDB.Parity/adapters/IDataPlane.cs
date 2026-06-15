@@ -26,6 +26,9 @@ public interface IDataPlane : IAsyncDisposable
     /// <summary>KV 操作集合。不支持 KV 的后端返回空操作对象。</summary>
     IKvOps Kv { get; }
 
+    /// <summary>对象桶操作集合。不支持对象桶的后端返回空操作对象。</summary>
+    IObjectOps Objects { get; }
+
     /// <summary>向量检索操作集合。不支持向量的后端返回空操作对象。</summary>
     IVectorOps Vector { get; }
 }

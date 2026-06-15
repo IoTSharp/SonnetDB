@@ -28,7 +28,23 @@ internal sealed record ObjectListResponse(
     string Bucket,
     string Prefix,
     int MaxKeys,
+    string? ContinuationToken,
+    string? NextContinuationToken,
+    bool IsTruncated,
     ObjectInfoResponse[] Objects);
+
+internal sealed record ObjectDeleteManyRequest(IReadOnlyList<string> Keys);
+
+internal sealed record ObjectDeleteResultResponse(
+    string Key,
+    string VersionId,
+    bool DeleteMarker,
+    string? ErrorCode,
+    string? ErrorMessage);
+
+internal sealed record ObjectDeleteManyResponse(
+    string Bucket,
+    ObjectDeleteResultResponse[] Deleted);
 
 internal sealed record ObjectCopyResponse(string ETag, string Sha256, string VersionId);
 
@@ -72,6 +88,9 @@ internal sealed record PresignedObjectUrlResponse(
 [JsonSerializable(typeof(ObjectBucketResponse[]))]
 [JsonSerializable(typeof(ObjectInfoResponse))]
 [JsonSerializable(typeof(ObjectListResponse))]
+[JsonSerializable(typeof(ObjectDeleteManyRequest))]
+[JsonSerializable(typeof(ObjectDeleteResultResponse))]
+[JsonSerializable(typeof(ObjectDeleteManyResponse))]
 [JsonSerializable(typeof(ObjectInfoResponse[]))]
 [JsonSerializable(typeof(ObjectCopyResponse))]
 [JsonSerializable(typeof(ObjectTagsRequest))]
