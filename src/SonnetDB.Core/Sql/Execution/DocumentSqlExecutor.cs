@@ -431,8 +431,8 @@ internal static class DocumentSqlExecutor
         if (!IsMatchFunction(function))
             return false;
 
-        if (function.IsStar || function.Arguments.Count is < 3 or > 4)
-            throw new InvalidOperationException("match(...) 需要 3 到 4 个参数：match(index, field, query[, topK])。");
+        if (function.IsStar || function.Arguments.Count is < 3 or > 5)
+            throw new InvalidOperationException("match(...) 需要 3 到 5 个参数：match(index, field, query[, topK][, mode])。");
 
         if (function.Arguments[0] is not IdentifierExpression { Name: var indexName })
             throw new InvalidOperationException("match 第 1 个参数必须是全文索引名。");
@@ -460,17 +460,48 @@ internal static class DocumentSqlExecutor
             ?? throw new InvalidOperationException($"document collection '{schema.Name}' 中不存在全文索引 '{indexName}'。");
 
         int topK = DefaultFullTextTopK(pagination);
-        if (function.Arguments.Count == 4)
+        FullTextSearchMode mode = FullTextSearchMode.Exact;
+
+        if (function.Arguments.Count >= 4)
         {
-            if (function.Arguments[3] is not LiteralExpression { Kind: SqlLiteralKind.Integer, IntegerValue: var literalTopK })
-                throw new InvalidOperationException("match 第 4 个参数 topK 必须是正整数字面量。");
-            if (literalTopK <= 0 || literalTopK > int.MaxValue)
-                throw new InvalidOperationException("match 第 4 个参数 topK 必须是正整数且不超过 Int32.MaxValue。");
-            topK = (int)literalTopK;
+            // 第 4 个参数可以是 topK（整数字面量）或 mode（字符串字面量）。
+            if (function.Arguments[3] is LiteralExpression { Kind: SqlLiteralKind.Integer, IntegerValue: var literalTopK })
+            {
+                if (literalTopK <= 0 || literalTopK > int.MaxValue)
+                    throw new InvalidOperationException("match 第 4 个参数 topK 必须是正整数且不超过 Int32.MaxValue。");
+                topK = (int)literalTopK;
+
+                if (function.Arguments.Count == 5)
+                {
+                    if (function.Arguments[4] is not LiteralExpression { Kind: SqlLiteralKind.String, StringValue: var modeText })
+                        throw new InvalidOperationException("match 第 5 个参数 mode 必须是字符串字面量（'exact' 或 'fuzzy'）。");
+                    mode = ResolveSearchMode(modeText!);
+                }
+            }
+            else if (function.Arguments[3] is LiteralExpression { Kind: SqlLiteralKind.String, StringValue: var modeText2 })
+            {
+                if (function.Arguments.Count == 5)
+                    throw new InvalidOperationException("match 第 4 个参数为 mode 时不能再传 topK；topK 应放在 mode 之前。");
+                mode = ResolveSearchMode(modeText2!);
+            }
+            else
+            {
+                throw new InvalidOperationException("match 第 4 个参数必须是 topK 整数字面量或 mode 字符串字面量。");
+            }
         }
 
-        match = new FullTextMatch(index, field, queryText!, topK, Hits: []);
+        match = new FullTextMatch(index, field, queryText!, topK, mode, Hits: []);
         return true;
+    }
+
+    private static FullTextSearchMode ResolveSearchMode(string modeText)
+    {
+        return modeText.ToLowerInvariant() switch
+        {
+            "exact" => FullTextSearchMode.Exact,
+            "fuzzy" or "typo" or "typo_tolerant" => FullTextSearchMode.Fuzzy,
+            _ => throw new InvalidOperationException($"match 不支持的检索模式 '{modeText}'；可用：exact / fuzzy。"),
+        };
     }
 
     private static int DefaultFullTextTopK(PaginationSpec? pagination)
@@ -491,7 +522,7 @@ internal static class DocumentSqlExecutor
         DocumentCollectionStore store,
         FullTextMatch match)
     {
-        var hits = store.SearchFullText(match.Index, match.Field, match.QueryText, match.TopK);
+        var hits = store.SearchFullText(match.Index, match.Field, match.QueryText, match.TopK, match.Mode);
         return match with { Hits = hits };
     }
 
@@ -500,6 +531,7 @@ internal static class DocumentSqlExecutor
         string Field,
         string QueryText,
         int TopK,
+        FullTextSearchMode Mode,
         IReadOnlyList<DocumentFullTextSearchHit> Hits);
 
     private static bool TryExtractId(SqlExpression? where, out string id)

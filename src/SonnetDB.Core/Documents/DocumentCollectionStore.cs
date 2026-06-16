@@ -151,12 +151,20 @@ public sealed class DocumentCollectionStore : IDisposable
         string field,
         string queryText,
         int topK)
+        => SearchFullText(index, field, queryText, topK, FullTextSearchMode.Exact);
+
+    public IReadOnlyList<DocumentFullTextSearchHit> SearchFullText(
+        DocumentFullTextIndex index,
+        string field,
+        string queryText,
+        int topK,
+        FullTextSearchMode mode)
     {
         ArgumentNullException.ThrowIfNull(index);
         lock (_sync)
         {
             var store = OpenFullTextStoreLocked(index, rebuildIfMissing: true);
-            return store.Search(field, queryText, topK);
+            return store.Search(field, queryText, topK, mode);
         }
     }
 

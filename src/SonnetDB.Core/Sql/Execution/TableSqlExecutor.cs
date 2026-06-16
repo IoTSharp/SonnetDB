@@ -45,7 +45,8 @@ internal static class TableSqlExecutor
                 Name: string.Empty,
                 fk.Columns,
                 fk.PrincipalTable,
-                fk.PrincipalColumns))
+                fk.PrincipalColumns,
+                fk.OnDelete))
             .ToArray();
         var rowVersionColumns = statement.Columns
             .Where(static c => c.IsRowVersion)

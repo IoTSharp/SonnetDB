@@ -486,6 +486,25 @@ public class SqlExecutorSelectTests : IDisposable
     }
 
     [Fact]
+    public void Select_GroupByTime_WithTimeProjection_ProjectsBucketStart()
+    {
+        // ROADMAP #129.1：GROUP BY time(...) 下允许 SELECT time, agg(...)；time 是桶起始时间。
+        using var db = OpenWithSchema(Options());
+        SqlExecutor.Execute(db,
+            "INSERT INTO cpu (time, host, usage) VALUES " +
+            "(0, 'h1', 1.0), (500, 'h1', 2.0), (1000, 'h1', 3.0), (1500, 'h1', 4.0)");
+
+        var r = Select(db, "SELECT time, avg(usage) FROM cpu GROUP BY time(1000ms)");
+
+        Assert.Equal(new[] { "time", "avg(usage)" }, r.Columns.ToArray());
+        Assert.Equal(2, r.Rows.Count);
+        Assert.Equal(0L, (long)r.Rows[0][0]!);
+        Assert.Equal(1.5, (double)r.Rows[0][1]!);
+        Assert.Equal(1000L, (long)r.Rows[1][0]!);
+        Assert.Equal(3.5, (double)r.Rows[1][1]!);
+    }
+
+    [Fact]
     public void Select_AggregateLookup_IsCaseInsensitive()
     {
         using var db = OpenWithSchema(Options());

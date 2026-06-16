@@ -383,7 +383,8 @@ public sealed class TableSchema
                 name,
                 foreignKey.Columns.ToArray(),
                 foreignKey.PrincipalTable,
-                foreignKey.PrincipalColumns.ToArray()));
+                foreignKey.PrincipalColumns.ToArray(),
+                foreignKey.OnDelete));
         }
 
         return result;
@@ -423,7 +424,7 @@ public sealed class TableSchema
                     .ToArray();
             }
 
-            return new TableForeignKeyDefinition(f.Name, columns, f.PrincipalTable, f.PrincipalColumns);
+            return new TableForeignKeyDefinition(f.Name, columns, f.PrincipalTable, f.PrincipalColumns, f.OnDelete);
         }).ToArray();
 
     private IReadOnlySet<string> RowVersionColumnNames(

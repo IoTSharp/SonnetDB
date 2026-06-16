@@ -82,6 +82,7 @@ public enum TokenKind
     KeywordWhere,
     KeywordGroup,
     KeywordBy,
+    KeywordHaving,
     KeywordTime,
     KeywordDelete,
     /// <summary>UPDATE（关系表 DML）。</summary>
@@ -131,6 +132,7 @@ public enum TokenKind
     KeywordGrant,
     KeywordRevoke,
     KeywordOn,
+    KeywordCascade,
     KeywordTo,
     KeywordWith,
     KeywordRead,

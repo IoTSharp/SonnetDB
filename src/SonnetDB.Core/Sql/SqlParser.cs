@@ -437,7 +437,24 @@ public sealed class SqlParser
             principalColumns.Add(ExpectColumnName());
         }
         Expect(TokenKind.RightParen);
-        return new TableForeignKeyClause(columns, principalTable, principalColumns);
+
+        var onDelete = ForeignKeyAction.NoAction;
+        if (Current.Kind == TokenKind.KeywordOn)
+        {
+            Advance();
+            Expect(TokenKind.KeywordDelete);
+            if (Current.Kind == TokenKind.KeywordCascade)
+            {
+                Advance();
+                onDelete = ForeignKeyAction.Cascade;
+            }
+            else
+            {
+                throw Error("ON DELETE 后期望 CASCADE（v1 仅支持 CASCADE）。");
+            }
+        }
+
+        return new TableForeignKeyClause(columns, principalTable, principalColumns, onDelete);
     }
 
     private SqlDataType ParseTableDataType()
@@ -962,6 +979,13 @@ public sealed class SqlParser
             groupBy = ParseGroupByList();
         }
 
+        SqlExpression? having = null;
+        if (Current.Kind == TokenKind.KeywordHaving)
+        {
+            Advance();
+            having = ParseExpression();
+        }
+
         var orderBy = ParseOptionalOrderBy();
         var pagination = ParseOptionalPagination();
 
@@ -976,7 +1000,8 @@ public sealed class SqlParser
             TableAlias: tableAlias,
             Join: joins.Count == 0 ? null : joins[0],
             FromSubquery: fromSubquery,
-            Joins: joins);
+            Joins: joins,
+            Having: having);
     }
 
     private string ResolveTableValuedSourceName(string functionName, FunctionCallExpression call)

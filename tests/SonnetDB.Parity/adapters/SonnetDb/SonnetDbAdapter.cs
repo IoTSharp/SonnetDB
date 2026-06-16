@@ -42,8 +42,11 @@ public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps
     public Capability Capabilities =>
         Capability.Relational |
         Capability.SqlSubquery |
+        Capability.SqlCorrelatedSubquery |
         Capability.SqlForeignKey |
+        Capability.SqlCascadeDelete |
         Capability.SqlGroupBy |
+        Capability.SqlHaving |
         Capability.SqlInformationSchema |
         Capability.SqlUpdateCount |
         Capability.SqlAlterTable |
@@ -66,6 +69,8 @@ public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps
         Capability.MqConsumerGroup |
         Capability.MqReplayFromOffset |
         Capability.Fulltext |
+        Capability.FulltextCjk |
+        Capability.FulltextTypoTolerant |
         Capability.FulltextFacetFilter |
         Capability.Vector |
         Capability.HnswFiltered |
@@ -662,10 +667,11 @@ public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps
     public async Task<IReadOnlyList<FullTextHit>> SearchAsync(string index, FullTextSearchRequest request, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(request);
+        string modeSuffix = request.TypoTolerant ? ", 'fuzzy'" : string.Empty;
         string sql = $"""
             SELECT id, json_value(document, '$.category') AS category, bm25_score() AS score
             FROM {index}
-            WHERE match({FullTextIndexName(index)}, *, '{EscapeSql(request.Query)}', {request.TopK})
+            WHERE match({FullTextIndexName(index)}, *, '{EscapeSql(request.Query)}', {request.TopK}{modeSuffix})
             """;
         if (!string.IsNullOrWhiteSpace(request.CategoryFilter))
             sql += $" AND json_value(document, '$.category') = '{EscapeSql(request.CategoryFilter)}'";

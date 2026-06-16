@@ -91,6 +91,16 @@ public sealed class DocumentFullTextIndexStore
     /// <param name="queryText">查询文本。</param>
     /// <param name="topK">返回前 K 条。</param>
     public IReadOnlyList<DocumentFullTextSearchHit> Search(string field, string queryText, int topK)
+        => Search(field, queryText, topK, FullTextSearchMode.Exact);
+
+    /// <summary>
+    /// 搜索全文索引，支持显式的检索模式（exact / fuzzy）。
+    /// </summary>
+    /// <param name="field">索引字段名，或 <c>*</c> 表示全部字段。</param>
+    /// <param name="queryText">查询文本。</param>
+    /// <param name="topK">返回前 K 条。</param>
+    /// <param name="mode">检索模式；fuzzy 模式按 Damerau-Levenshtein 距离展开候选 term。</param>
+    public IReadOnlyList<DocumentFullTextSearchHit> Search(string field, string queryText, int topK, FullTextSearchMode mode)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(field);
         ArgumentException.ThrowIfNullOrWhiteSpace(queryText);
@@ -99,7 +109,7 @@ public sealed class DocumentFullTextIndexStore
 
         lock (_sync)
         {
-            DotSearch.Query.Query query = BuildQuery(field, queryText);
+            DotSearch.Query.Query query = BuildQuery(field, queryText, mode);
             var hits = _index.Search(query, topK);
             var result = new DocumentFullTextSearchHit[hits.Count];
             for (int i = 0; i < hits.Count; i++)
@@ -122,7 +132,7 @@ public sealed class DocumentFullTextIndexStore
         }
     }
 
-    private DotSearch.Query.Query BuildQuery(string field, string queryText)
+    private DotSearch.Query.Query BuildQuery(string field, string queryText, FullTextSearchMode mode)
     {
         string[] tokens = Tokenize(queryText, _definition.Tokenizer);
         if (tokens.Length == 0)
@@ -132,7 +142,7 @@ public sealed class DocumentFullTextIndexStore
         {
             var fieldQueries = new DotSearch.Query.Query[_definition.Fields.Count];
             for (int i = 0; i < _definition.Fields.Count; i++)
-                fieldQueries[i] = BuildFieldQuery(_definition.Fields[i], tokens);
+                fieldQueries[i] = BuildFieldQuery(_definition.Fields[i], tokens, mode);
             return fieldQueries.Length == 1 ? fieldQueries[0] : new OrQuery(fieldQueries);
         }
 
@@ -143,11 +153,19 @@ public sealed class DocumentFullTextIndexStore
                 $"全文索引 '{_definition.Name}' 不包含字段 '{normalizedField}'。");
         }
 
-        return BuildFieldQuery(normalizedField, tokens);
+        return BuildFieldQuery(normalizedField, tokens, mode);
     }
 
-    private static DotSearch.Query.Query BuildFieldQuery(string field, IReadOnlyList<string> tokens)
+    private DotSearch.Query.Query BuildFieldQuery(string field, IReadOnlyList<string> tokens, FullTextSearchMode mode)
     {
+        if (mode == FullTextSearchMode.Fuzzy)
+        {
+            var expanded = new DotSearch.Query.Query[tokens.Count];
+            for (int i = 0; i < tokens.Count; i++)
+                expanded[i] = ExpandFuzzyTermQuery(field, tokens[i]);
+            return tokens.Count == 1 ? expanded[0] : new AndQuery(expanded);
+        }
+
         if (tokens.Count == 1)
             return new TermQuery(field, tokens[0]);
 
@@ -155,6 +173,47 @@ public sealed class DocumentFullTextIndexStore
         for (int i = 0; i < tokens.Count; i++)
             clauses[i] = new TermQuery(field, tokens[i]);
         return new AndQuery(clauses);
+    }
+
+    /// <summary>
+    /// 把单个查询 term 展开为字段下所有 Damerau-Levenshtein 距离 ≤ 阈值的索引 term 的 OR。
+    /// 阈值随 term 长度递增：≤2 字符要求精确（容错距离 0），3-4 字符容 1 编辑，≥5 字符容 2 编辑。
+    /// 若展开后无候选，回退到原 term 的 TermQuery，至少不会引入误判。
+    /// </summary>
+    private DotSearch.Query.Query ExpandFuzzyTermQuery(string field, string queryToken)
+    {
+        int maxEdits = ComputeFuzzyMaxEdits(queryToken);
+        if (maxEdits == 0)
+            return new TermQuery(field, queryToken);
+
+        var candidates = _index.EnumerateTerms(field);
+        var matches = new List<string>();
+        foreach (string term in candidates)
+        {
+            // 长度差超过 maxEdits 时编辑距离一定 > maxEdits，直接剪枝避免 O(N²) DP。
+            if (Math.Abs(term.Length - queryToken.Length) > maxEdits)
+                continue;
+            int dist = DamerauLevenshtein.Distance(queryToken, term, maxEdits);
+            if (dist <= maxEdits)
+                matches.Add(term);
+        }
+
+        if (matches.Count == 0)
+            return new TermQuery(field, queryToken);
+        if (matches.Count == 1)
+            return new TermQuery(field, matches[0]);
+
+        var clauses = new DotSearch.Query.Query[matches.Count];
+        for (int i = 0; i < matches.Count; i++)
+            clauses[i] = new TermQuery(field, matches[i]);
+        return new OrQuery(clauses);
+    }
+
+    private static int ComputeFuzzyMaxEdits(string token)
+    {
+        if (token.Length <= 2) return 0;
+        if (token.Length <= 4) return 1;
+        return 2;
     }
 
     private static Document BuildDocument(DocumentFullTextIndex definition, DocumentRow row)
@@ -239,6 +298,61 @@ public sealed class DocumentFullTextIndexStore
             throw new InvalidOperationException(
                 $"全文索引字段 '{field}' 不是 document/json 伪列，也不是有效 JSON path。");
         }
+    }
+}
+
+/// <summary>全文检索模式：精确匹配 vs 拼写容错（fuzzy / typo-tolerant）。</summary>
+public enum FullTextSearchMode
+{
+    /// <summary>精确：每个查询 token 必须存在于索引中（默认）。</summary>
+    Exact,
+    /// <summary>容错：每个查询 token 展开为编辑距离 ≤ 阈值的全部索引 term 的 OR。</summary>
+    Fuzzy,
+}
+
+/// <summary>Damerau-Levenshtein 距离（带相邻字符 transposition）的剪枝实现。</summary>
+internal static class DamerauLevenshtein
+{
+    /// <summary>
+    /// 计算 <paramref name="a"/> 与 <paramref name="b"/> 之间的 Damerau-Levenshtein 距离。
+    /// 当行内最小值已超过 <paramref name="maxDistance"/> 时提前返回 <c>maxDistance + 1</c>
+    /// 作为剪枝信号——上层只需要"是否 ≤ maxDistance"的二值判断，无需精确距离。
+    /// </summary>
+    public static int Distance(string a, string b, int maxDistance)
+    {
+        if (a is null) throw new ArgumentNullException(nameof(a));
+        if (b is null) throw new ArgumentNullException(nameof(b));
+        if (maxDistance < 0) throw new ArgumentOutOfRangeException(nameof(maxDistance));
+
+        int la = a.Length, lb = b.Length;
+        if (Math.Abs(la - lb) > maxDistance) return maxDistance + 1;
+        if (la == 0) return lb;
+        if (lb == 0) return la;
+
+        // 经典动态规划：dp[i][j] = 把 a[..i] 变成 b[..j] 的最小编辑数。
+        // 使用 (la+1) × (lb+1) 数组；la 一般 ≤ 几十，开销可控。
+        var dp = new int[la + 1, lb + 1];
+        for (int i = 0; i <= la; i++) dp[i, 0] = i;
+        for (int j = 0; j <= lb; j++) dp[0, j] = j;
+
+        for (int i = 1; i <= la; i++)
+        {
+            int rowMin = int.MaxValue;
+            for (int j = 1; j <= lb; j++)
+            {
+                int cost = a[i - 1] == b[j - 1] ? 0 : 1;
+                int min = Math.Min(
+                    Math.Min(dp[i - 1, j] + 1, dp[i, j - 1] + 1),
+                    dp[i - 1, j - 1] + cost);
+                if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1])
+                    min = Math.Min(min, dp[i - 2, j - 2] + 1); // transposition
+                dp[i, j] = min;
+                if (min < rowMin) rowMin = min;
+            }
+            if (rowMin > maxDistance) return maxDistance + 1;
+        }
+
+        return dp[la, lb];
     }
 }
 

@@ -1,4 +1,5 @@
 using SonnetDB.Kv;
+using SonnetDB.Sql.Ast;
 
 namespace SonnetDB.Tables;
 
@@ -307,8 +308,11 @@ public sealed class TableManager : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
+            // 在准备 batch 之前展开 ON DELETE CASCADE：递归把所有引用了被删父行的级联子行加入待删队列，
+            // 这样后续 ValidatePrincipalDeletesLocked 看到子行已被该事务删除，不会误报外键违反。
+            var expandedMutations = ExpandCascadeDeletesLocked(mutationsByTable);
             var prepared = new Dictionary<string, (TableStore Store, TableStore.PreparedTableBatch Batch)>(StringComparer.Ordinal);
-            foreach (var (tableName, mutations) in mutationsByTable)
+            foreach (var (tableName, mutations) in expandedMutations)
             {
                 var schema = Catalog.TryGet(tableName)
                     ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
@@ -418,6 +422,111 @@ public sealed class TableManager : IDisposable
 
     private void PersistCatalogLocked()
         => TableSchemaCodec.Save(SchemaPath, Catalog.Snapshot());
+
+    /// <summary>
+    /// 在准备 batch 之前展开 ON DELETE CASCADE 子行删除：从用户提交的纯 DELETE 出发，
+    /// 沿 CASCADE FK 链 BFS 把所有引用了被删父行 PK 的子行加为额外删除。
+    /// 已经在事务里被用户显式删除的子行不会重复加入；其它修改类型的 mutation 原样保留。
+    /// </summary>
+    private IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> ExpandCascadeDeletesLocked(
+        IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> mutationsByTable)
+    {
+        // 先快速检查：catalog 里是否存在任何 CASCADE FK，否则零开销直接原路返回。
+        bool anyCascade = false;
+        foreach (var schema in Catalog.Snapshot())
+        {
+            foreach (var fk in schema.ForeignKeys)
+            {
+                if (fk.OnDelete == ForeignKeyAction.Cascade) { anyCascade = true; break; }
+            }
+            if (anyCascade) break;
+        }
+        if (!anyCascade)
+            return mutationsByTable;
+
+        // 构造可变工作集（保留 mutation 顺序），以及每表"已计划删除"的 PK 集合（HEX 编码）。
+        var working = new Dictionary<string, List<TableRowMutation>>(StringComparer.Ordinal);
+        var pendingDeletePks = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        var queue = new Queue<(string Table, IReadOnlyList<object?> Pk)>();
+
+        foreach (var (tableName, mutations) in mutationsByTable)
+        {
+            var schema = Catalog.TryGet(tableName)
+                ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+            var list = new List<TableRowMutation>(mutations);
+            working[tableName] = list;
+            var deletedSet = new HashSet<string>(StringComparer.Ordinal);
+            pendingDeletePks[tableName] = deletedSet;
+            foreach (var mutation in mutations)
+            {
+                if (mutation.NewValues is null && mutation.PrimaryKeyValues is not null)
+                {
+                    byte[] pkBytes = TableKeyCodec.EncodePrimaryKeyValues(schema, mutation.PrimaryKeyValues);
+                    string pkText = Convert.ToHexString(pkBytes);
+                    if (deletedSet.Add(pkText))
+                        queue.Enqueue((tableName, mutation.PrimaryKeyValues));
+                }
+            }
+        }
+
+        while (queue.Count > 0)
+        {
+            var (parentTable, parentPk) = queue.Dequeue();
+            var parentSchema = Catalog.TryGet(parentTable);
+            if (parentSchema is null) continue;
+
+            foreach (var childSchema in Catalog.Snapshot())
+            {
+                foreach (var fk in childSchema.ForeignKeys)
+                {
+                    if (fk.OnDelete != ForeignKeyAction.Cascade) continue;
+                    if (!string.Equals(fk.PrincipalTable, parentTable, StringComparison.Ordinal)) continue;
+
+                    // 防御性检查：与 ValidateForeignKeyRowLocked 保持一致——若 FK 引用列
+                    // 顺序与父表 PRIMARY KEY 不一致，按 PK 顺序提取的 parentPk 与按 FK 顺序
+                    // 提取的 childFkValues 会逐元素错位，导致级联静默漏删（数据完整性破坏）。
+                    // 当前 schema 校验通常已经在 INSERT 路径上挡住这种 FK，但为防御 ALTER 类
+                    // 漏校验路径，cascade 这一层显式拒绝执行——主动报错而不是错删/漏删。
+                    if (!fk.PrincipalColumns.SequenceEqual(parentSchema.PrimaryKey, StringComparer.Ordinal))
+                        throw new NotSupportedException(
+                            $"外键 '{fk.Name}' ON DELETE CASCADE 要求引用列顺序与父表 PRIMARY KEY 完全一致。");
+
+                    var childStore = OpenStoreLocked(childSchema);
+                    foreach (var childRow in childStore.Scan())
+                    {
+                        var childFkValues = ExtractForeignKeyValues(childSchema, childRow, fk);
+                        if (childFkValues is null) continue;
+                        if (!ValuesEqual(childFkValues, parentPk)) continue;
+
+                        var childPk = ExtractPrimaryKeyValues(childSchema, childRow);
+                        byte[] childPkBytes = TableKeyCodec.EncodePrimaryKeyValues(childSchema, childPk);
+                        string childPkText = Convert.ToHexString(childPkBytes);
+
+                        if (!pendingDeletePks.TryGetValue(childSchema.Name, out var childSet))
+                        {
+                            childSet = new HashSet<string>(StringComparer.Ordinal);
+                            pendingDeletePks[childSchema.Name] = childSet;
+                        }
+                        if (!childSet.Add(childPkText))
+                            continue;
+
+                        if (!working.TryGetValue(childSchema.Name, out var childList))
+                        {
+                            childList = new List<TableRowMutation>();
+                            working[childSchema.Name] = childList;
+                        }
+                        childList.Add(new TableRowMutation(PrimaryKeyValues: childPk, NewValues: null));
+                        queue.Enqueue((childSchema.Name, childPk));
+                    }
+                }
+            }
+        }
+
+        var result = new Dictionary<string, IReadOnlyList<TableRowMutation>>(StringComparer.Ordinal);
+        foreach (var (k, v) in working)
+            result[k] = v;
+        return result;
+    }
 
     private void ValidateForeignKeysLocked(
         IReadOnlyDictionary<string, (TableStore Store, TableStore.PreparedTableBatch Batch)> prepared)

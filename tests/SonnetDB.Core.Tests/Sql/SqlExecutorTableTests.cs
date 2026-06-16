@@ -298,6 +298,288 @@ public sealed class SqlExecutorTableTests : IDisposable
     }
 
     [Fact]
+    public void Select_TableGroupByHaving_FiltersGroupsByAggregate()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db,
+            "CREATE TABLE rel_sales (id INT, region STRING, amount INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "INSERT INTO rel_sales (id, region, amount) VALUES "
+            + "(1, 'north', 70), (2, 'north', 50), (3, 'south', 20), (4, 'west', 200)");
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            """
+            SELECT region, count(*) AS order_count, sum(amount) AS total_amount
+            FROM rel_sales
+            GROUP BY region
+            HAVING sum(amount) >= 100
+            ORDER BY region
+            """));
+
+        Assert.Equal(["region", "order_count", "total_amount"], result.Columns);
+        Assert.Equal(2, result.Rows.Count);
+        Assert.Equal(new object?[] { "north", 2L, 120L }, result.Rows[0]);
+        Assert.Equal(new object?[] { "west", 1L, 200L }, result.Rows[1]);
+    }
+
+    [Fact]
+    public void Select_FullTextFuzzySearch_FindsTypoedQuery()
+    {
+        // Parity #133 TypoTolerantQueryScenario 同构：查询 'pmp alrm' 在 fuzzy 模式下
+        // 应展开到 'pump' / 'alarm' 的编辑距离邻域并命中 typo-1。
+        using var db = Tsdb.Open(Options());
+        const string idx = "rel_typo_idx";
+        SqlExecutor.Execute(db, $"CREATE DOCUMENT COLLECTION {idx}");
+        SqlExecutor.Execute(db,
+            $"CREATE FULLTEXT INDEX ft_{idx} ON {idx} ('$.title', '$.body', '$.category', '$.tags') USING unicode");
+        SqlExecutor.Execute(db,
+            $"INSERT INTO {idx} (id, document) VALUES "
+            + "('typo-1', '{\"title\":\"pump alarm\",\"body\":\"pump alarm pressure station north\",\"category\":\"pump\",\"tags\":[\"north\"]}'),"
+            + "('typo-2', '{\"title\":\"fan normal\",\"body\":\"fan airflow normal station south\",\"category\":\"fan\",\"tags\":[\"south\"]}')");
+
+        // 精确模式应 0 命中（'pmp alrm' 在索引里都不存在）。
+        var exact = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            $"SELECT id FROM {idx} WHERE match(ft_{idx}, *, 'pmp alrm', 5)"));
+        Assert.Empty(exact.Rows);
+
+        // fuzzy 模式应命中 typo-1。
+        var fuzzy = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            $"SELECT id FROM {idx} WHERE match(ft_{idx}, *, 'pmp alrm', 5, 'fuzzy')"));
+        Assert.Contains(fuzzy.Rows, row => Equals(row[0], "typo-1"));
+    }
+
+    [Fact]
+    public void Select_FullTextCjkSearch_FindsExpectedChineseDocument()
+    {
+        // 与 parity #133 CjkTokenizeCorrectnessScenario 同构：CJK bigram 索引 + AND-of-tokens
+        // 查询 "水泵 报警" 应只命中包含两个 bigram 的 cjk-1 文档。
+        using var db = Tsdb.Open(Options());
+        const string idx = "rel_cjk_idx";
+        SqlExecutor.Execute(db, $"CREATE DOCUMENT COLLECTION {idx}");
+        SqlExecutor.Execute(db,
+            $"CREATE FULLTEXT INDEX ft_{idx} ON {idx} ('$.title', '$.body', '$.category', '$.tags') USING cjk");
+        SqlExecutor.Execute(db,
+            $"INSERT INTO {idx} (id, document) VALUES "
+            + "('cjk-1', '{\"title\":\"水泵报警\",\"body\":\"北站水泵压力报警需要检修\",\"category\":\"pump\",\"tags\":[\"north\",\"critical\"]}'),"
+            + "('cjk-2', '{\"title\":\"风机正常\",\"body\":\"南站风机运行正常没有报警\",\"category\":\"fan\",\"tags\":[\"south\",\"info\"]}'),"
+            + "('cjk-3', '{\"title\":\"水泵维护\",\"body\":\"东站水泵震动升高安排维护\",\"category\":\"pump\",\"tags\":[\"east\",\"warning\"]}')");
+
+        var r = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            $"SELECT id FROM {idx} WHERE match(ft_{idx}, *, '水泵 报警', 10)"));
+
+        Assert.Single(r.Rows);
+        Assert.Equal("cjk-1", r.Rows[0][0]);
+    }
+
+    [Fact]
+    public void Delete_Parent_WithOnDeleteCascade_RemovesReferencingChildren()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db,
+            "CREATE TABLE customers (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "CREATE TABLE orders (id INT, customer_id INT, total FLOAT, PRIMARY KEY (id), "
+            + "FOREIGN KEY (customer_id) REFERENCES customers (id) ON DELETE CASCADE)");
+        SqlExecutor.Execute(db,
+            "INSERT INTO customers (id, name) VALUES (1, 'alice'), (2, 'bob')");
+        SqlExecutor.Execute(db,
+            "INSERT INTO orders (id, customer_id, total) VALUES (10, 1, 12.5), (11, 1, 18.0), (20, 2, 7.0)");
+
+        SqlExecutor.Execute(db, "DELETE FROM customers WHERE id = 1");
+
+        var orders = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id, customer_id FROM orders ORDER BY id"));
+
+        Assert.Single(orders.Rows);
+        Assert.Equal(20L, orders.Rows[0][0]);
+        Assert.Equal(2L, orders.Rows[0][1]);
+    }
+
+    [Fact]
+    public void Delete_Parent_WithoutCascade_StillThrowsOnReferencingChild()
+    {
+        // 回归：默认 NoAction 行为不变，仍然拒绝删除有引用的父行。
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db,
+            "CREATE TABLE customers (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "CREATE TABLE orders (id INT, customer_id INT, PRIMARY KEY (id), "
+            + "FOREIGN KEY (customer_id) REFERENCES customers (id))");
+        SqlExecutor.Execute(db, "INSERT INTO customers (id, name) VALUES (1, 'alice')");
+        SqlExecutor.Execute(db, "INSERT INTO orders (id, customer_id) VALUES (10, 1)");
+
+        Assert.Throws<TableConstraintException>(() =>
+            SqlExecutor.Execute(db, "DELETE FROM customers WHERE id = 1"));
+    }
+
+    [Fact]
+    public void Delete_Parent_WithCascade_PropagatesToGrandchildren()
+    {
+        // 多级级联：A → B (CASCADE) → C (CASCADE)；删 A 应一次性清掉 B、C。
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE a (id INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "CREATE TABLE b (id INT, a_id INT, PRIMARY KEY (id), "
+            + "FOREIGN KEY (a_id) REFERENCES a (id) ON DELETE CASCADE)");
+        SqlExecutor.Execute(db,
+            "CREATE TABLE c (id INT, b_id INT, PRIMARY KEY (id), "
+            + "FOREIGN KEY (b_id) REFERENCES b (id) ON DELETE CASCADE)");
+        SqlExecutor.Execute(db, "INSERT INTO a (id) VALUES (1), (2)");
+        SqlExecutor.Execute(db, "INSERT INTO b (id, a_id) VALUES (10, 1), (11, 1), (20, 2)");
+        SqlExecutor.Execute(db, "INSERT INTO c (id, b_id) VALUES (100, 10), (101, 11), (200, 20)");
+
+        SqlExecutor.Execute(db, "DELETE FROM a WHERE id = 1");
+
+        var b = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SELECT id FROM b ORDER BY id"));
+        var c = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SELECT id FROM c ORDER BY id"));
+        Assert.Single(b.Rows);
+        Assert.Equal(20L, b.Rows[0][0]);
+        Assert.Single(c.Rows);
+        Assert.Equal(200L, c.Rows[0][0]);
+    }
+
+    [Fact]
+    public void Delete_Parent_WithCascade_PersistsAcrossReopen()
+    {
+        // 回归：FK ON DELETE 动作必须写入 schema 文件，重新打开 DB 后仍生效。
+        var opts = Options();
+        using (var db = Tsdb.Open(opts))
+        {
+            SqlExecutor.Execute(db, "CREATE TABLE p (id INT, PRIMARY KEY (id))");
+            SqlExecutor.Execute(db,
+                "CREATE TABLE c (id INT, p_id INT, PRIMARY KEY (id), "
+                + "FOREIGN KEY (p_id) REFERENCES p (id) ON DELETE CASCADE)");
+            SqlExecutor.Execute(db, "INSERT INTO p (id) VALUES (1)");
+            SqlExecutor.Execute(db, "INSERT INTO c (id, p_id) VALUES (10, 1), (11, 1)");
+        }
+        using (var db = Tsdb.Open(opts))
+        {
+            SqlExecutor.Execute(db, "DELETE FROM p WHERE id = 1");
+            var c = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SELECT id FROM c"));
+            Assert.Empty(c.Rows);
+        }
+    }
+
+    [Fact]
+    public void Select_TableExistsCorrelatedSubquery_FiltersByOuterColumn()
+    {
+        // ROADMAP #129 后续：EXISTS 中引用外层表列（o.customer_id = c.id）应过滤出
+        // "至少有一笔满足条件订单的客户"。与 Postgres 同语义。
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db,
+            "CREATE TABLE rel_customers (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "CREATE TABLE rel_orders (id INT, customer_id INT, total INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "INSERT INTO rel_customers (id, name) VALUES (1, 'alice'), (2, 'bob'), (3, 'cora')");
+        SqlExecutor.Execute(db,
+            "INSERT INTO rel_orders (id, customer_id, total) VALUES (10, 1, 50), (20, 1, 200), (30, 2, 80)");
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            """
+            SELECT c.name
+            FROM rel_customers c
+            WHERE EXISTS (
+                SELECT 1
+                FROM rel_orders o
+                WHERE o.customer_id = c.id AND o.total >= 100
+            )
+            ORDER BY c.name
+            """));
+
+        Assert.Single(result.Rows);
+        Assert.Equal("alice", result.Rows[0][0]);
+    }
+
+    [Fact]
+    public void Select_TableExistsNonCorrelated_StillWorks()
+    {
+        // 回归：非相关 EXISTS 在加了 outer scope 链后仍按整张表存在性判定。
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db,
+            "CREATE TABLE rel_customers (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "CREATE TABLE rel_orders (id INT, total INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "INSERT INTO rel_customers (id, name) VALUES (1, 'alice'), (2, 'bob')");
+        SqlExecutor.Execute(db,
+            "INSERT INTO rel_orders (id, total) VALUES (10, 200)");
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT name FROM rel_customers WHERE EXISTS (SELECT 1 FROM rel_orders WHERE total >= 100) ORDER BY name"));
+
+        Assert.Equal(2, result.Rows.Count);
+    }
+
+    [Fact]
+    public void Select_TableHavingWithWrappedAggregate_EvaluatesAggregateInline()
+    {
+        // 回归：HAVING 里出现在算术或外层标量函数中的聚合也必须可以求值——
+        // 旧实现只识别顶层裸聚合（HAVING sum(x) >= 100），
+        // HAVING sum(x)+1 > 10 / HAVING abs(sum(x))*2 > 5 都会抛"聚合函数只能出现在投影中"。
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db,
+            "CREATE TABLE rel_sales (id INT, region STRING, amount INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "INSERT INTO rel_sales (id, region, amount) VALUES "
+            + "(1, 'a', 50), (2, 'a', 50), (3, 'b', 200)");
+
+        // sum(amount)+1 → a:101, b:201；筛 > 150 → 仅 b。
+        var arith = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            """
+            SELECT region FROM rel_sales GROUP BY region HAVING sum(amount) + 1 > 150 ORDER BY region
+            """));
+        Assert.Single(arith.Rows);
+        Assert.Equal("b", arith.Rows[0][0]);
+
+        // sum(amount) * 2 > sum(amount) → 两组都成立（正值），但 sum(amount)*2 > 350 → 仅 b。
+        var twoSides = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            """
+            SELECT region FROM rel_sales GROUP BY region HAVING sum(amount) * 2 > 350 ORDER BY region
+            """));
+        Assert.Single(twoSides.Rows);
+        Assert.Equal("b", twoSides.Rows[0][0]);
+    }
+
+    [Fact]
+    public void Select_TableHavingWithAndOr_CombinedPredicates()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db,
+            "CREATE TABLE rel_sales (id INT, region STRING, amount INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "INSERT INTO rel_sales (id, region, amount) VALUES "
+            + "(1, 'a', 10), (2, 'a', 90), (3, 'b', 50), (4, 'c', 200), (5, 'c', 10)");
+
+        // 'a' → sum=100 count=2 (满足); 'b' → sum=50 count=1 (sum 不够); 'c' → sum=210 count=2 (满足)
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            """
+            SELECT region, sum(amount) AS total
+            FROM rel_sales
+            GROUP BY region
+            HAVING sum(amount) >= 100 AND count(*) >= 2
+            ORDER BY region
+            """));
+
+        Assert.Equal(2, result.Rows.Count);
+        Assert.Equal(new object?[] { "a", 100L }, result.Rows[0]);
+        Assert.Equal(new object?[] { "c", 210L }, result.Rows[1]);
+
+        // 严格版：要求 sum >= 120 → 仅 'c'
+        var strict = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            """
+            SELECT region, sum(amount) AS total
+            FROM rel_sales
+            GROUP BY region
+            HAVING sum(amount) >= 120 AND count(*) >= 2
+            ORDER BY region
+            """));
+
+        Assert.Single(strict.Rows);
+        Assert.Equal(new object?[] { "c", 210L }, strict.Rows[0]);
+    }
+
+    [Fact]
     public void Delete_WithPrimaryKeyAndExtraPredicate_RespectsAllPredicates()
     {
         using var db = Tsdb.Open(Options());

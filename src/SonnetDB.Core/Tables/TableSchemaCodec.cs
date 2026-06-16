@@ -3,6 +3,7 @@ using System.Buffers.Binary;
 using System.IO.Hashing;
 using System.Text;
 using SonnetDB.IO;
+using SonnetDB.Sql.Ast;
 
 namespace SonnetDB.Tables;
 
@@ -17,7 +18,7 @@ public static class TableSchemaCodec
     private static readonly byte[] _magic = "SDBTBLv1"u8.ToArray();
     private static readonly Encoding _utf8 = Encoding.UTF8;
 
-    private const int _formatVersion = 4;
+    private const int _formatVersion = 5;
     private const int _headerSize = 32;
     private const int _footerSize = 16;
 
@@ -178,7 +179,7 @@ public static class TableSchemaCodec
             crc.Append(countBuffer);
             int foreignKeyCount = BinaryPrimitives.ReadUInt16LittleEndian(countBuffer);
             for (int i = 0; i < foreignKeyCount; i++)
-                foreignKeys.Add(ReadForeignKey(source, crc, tableIndex, i));
+                foreignKeys.Add(ReadForeignKey(source, crc, tableIndex, i, version));
         }
 
         return TableSchema.Create(name, columns, primaryKey, indexes, foreignKeys, rowVersionColumns, createdAt);
@@ -269,6 +270,7 @@ public static class TableSchemaCodec
             totalSize += 2;
             foreach (var column in foreignKey.PrincipalColumns)
                 totalSize += CheckedStringSize(column, $"Table '{schema.Name}' 的外键 '{foreignKey.Name}' 引用列名过长。");
+            totalSize += 1; // v5+：ON DELETE action byte
         }
 
         byte[] buffer = ArrayPool<byte>.Shared.Rent(totalSize);
@@ -341,6 +343,8 @@ public static class TableSchemaCodec
                 writer.WriteUInt16((ushort)foreignKey.PrincipalColumns.Count);
                 foreach (var column in foreignKey.PrincipalColumns)
                     WriteString(ref writer, column, $"Table '{schema.Name}' 的外键 '{foreignKey.Name}' 引用列名过长。");
+                // v5+：ON DELETE 动作字节（0=NoAction, 1=Cascade）
+                writer.WriteByte((byte)foreignKey.OnDelete);
             }
 
             crc.Append(buffer.AsSpan(0, totalSize));
@@ -388,7 +392,7 @@ public static class TableSchemaCodec
         return new TableIndexDefinition(indexName, columns.AsReadOnly(), isUnique, createdAt, jsonPath);
     }
 
-    private static TableForeignKeyDefinition ReadForeignKey(Stream source, Crc32 crc, int tableIndex, int foreignKeyIndex)
+    private static TableForeignKeyDefinition ReadForeignKey(Stream source, Crc32 crc, int tableIndex, int foreignKeyIndex, int version)
     {
         string name = ReadString(source, crc, $"table {tableIndex} foreignKey {foreignKeyIndex} name");
         Span<byte> countBuffer = stackalloc byte[2];
@@ -413,7 +417,18 @@ public static class TableSchemaCodec
         for (int i = 0; i < principalColumnCount; i++)
             principalColumns.Add(ReadString(source, crc, $"table {tableIndex} foreignKey {foreignKeyIndex} principal column {i} name"));
 
-        return new TableForeignKeyDefinition(name, columns.AsReadOnly(), principalTable, principalColumns.AsReadOnly());
+        var onDelete = ForeignKeyAction.NoAction;
+        if (version >= 5)
+        {
+            Span<byte> actionByte = stackalloc byte[1];
+            ReadExactSpan(source, actionByte, $"table {tableIndex} foreignKey {foreignKeyIndex} onDelete");
+            crc.Append(actionByte);
+            if (actionByte[0] > 1)
+                throw new InvalidDataException($"TableSchema: foreignKey '{name}' has unknown onDelete action {actionByte[0]}.");
+            onDelete = (ForeignKeyAction)actionByte[0];
+        }
+
+        return new TableForeignKeyDefinition(name, columns.AsReadOnly(), principalTable, principalColumns.AsReadOnly(), onDelete);
     }
 
     private static int CheckedStringSize(string value, string lengthError)

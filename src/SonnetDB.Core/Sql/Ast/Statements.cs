@@ -33,14 +33,25 @@ public sealed record CreateTableStatement(
     public IReadOnlyList<TableForeignKeyClause> ForeignKeyClauses { get; } = ForeignKeys ?? Array.Empty<TableForeignKeyClause>();
 }
 
+/// <summary>外键 ON DELETE 引用动作（v1：NoAction / Cascade）。</summary>
+public enum ForeignKeyAction
+{
+    /// <summary>缺省：父表删除时若有子行引用则拒绝（与 RESTRICT 等价）。</summary>
+    NoAction,
+    /// <summary>父表删除时将引用的子行一并删除。</summary>
+    Cascade,
+}
+
 /// <summary>关系表表级外键声明。</summary>
 /// <param name="Columns">本表外键列名。</param>
 /// <param name="PrincipalTable">被引用表名。</param>
 /// <param name="PrincipalColumns">被引用列名；第一版要求等于被引用表主键。</param>
+/// <param name="OnDelete">ON DELETE 动作；缺省 NoAction。</param>
 public sealed record TableForeignKeyClause(
     IReadOnlyList<string> Columns,
     string PrincipalTable,
-    IReadOnlyList<string> PrincipalColumns);
+    IReadOnlyList<string> PrincipalColumns,
+    ForeignKeyAction OnDelete = ForeignKeyAction.NoAction);
 
 /// <summary>
 /// <c>CREATE DOCUMENT COLLECTION [IF NOT EXISTS] name</c>。
@@ -235,6 +246,7 @@ public sealed record InsertStatement(
 /// <param name="Measurement">目标 measurement 名称（FROM 是 TVF 时为 TVF 推断的 source measurement，例如 <c>forecast(meter, ...)</c> → <c>meter</c>）。</param>
 /// <param name="Where">可选 WHERE 表达式。</param>
 /// <param name="GroupBy">GROUP BY 表达式列表；当未指定 GROUP BY 时为空集合（不为 <c>null</c>）。</param>
+/// <param name="Having">可选 HAVING 表达式；在聚合分组之后过滤组，可以引用聚合函数（仅在存在 GROUP BY 或聚合投影时有效）。</param>
 /// <param name="TableValuedFunction">FROM 子句若为表值函数调用（PR #55 起的 forecast 等）则非 <c>null</c>，否则 <c>null</c>。</param>
 /// <param name="Pagination">可选分页子句；支持 <c>OFFSET/FETCH</c> 与兼容语法 <c>LIMIT</c>。</param>
 /// <param name="OrderBy">可选排序子句；measurement 执行层支持 <c>ORDER BY time [ASC|DESC]</c>，关系表执行层支持结果列名。</param>
@@ -253,7 +265,8 @@ public sealed record SelectStatement(
     string? TableAlias = null,
     JoinClause? Join = null,
     SelectStatement? FromSubquery = null,
-    IReadOnlyList<JoinClause>? Joins = null) : SqlStatement
+    IReadOnlyList<JoinClause>? Joins = null,
+    SqlExpression? Having = null) : SqlStatement
 {
     /// <summary>当前 SELECT 的 JOIN 列表。</summary>
     public IReadOnlyList<JoinClause> JoinClauses { get; } =
