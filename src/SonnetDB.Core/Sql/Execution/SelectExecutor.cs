@@ -33,16 +33,11 @@ internal static class SelectExecutor
         var classified = ClassifyProjections(statement.Projections, schema);
 
         bool hasAggregate = classified.Any(p => p.Kind == ProjectionKind.Aggregate);
-        // 当 GROUP BY time(...) 显式存在时，ProjectionKind.Time 投影是"桶起始时间"——
-        // 与聚合列共存是合法的（SELECT time, avg(value) FROM m GROUP BY time(1m)）。
-        // 没有 GROUP BY 时退回到旧行为：Time 仍属非聚合，与聚合混用要报错。
         var groupByTime = ResolveGroupByTime(statement.GroupBy);
-        bool hasNonAggregate = classified.Any(p => p.Kind != ProjectionKind.Aggregate
-            && !(p.Kind == ProjectionKind.Time && groupByTime is not null));
 
-        if (hasAggregate && hasNonAggregate)
+        if (hasAggregate && HasUnsupportedNonAggregateProjection(classified, groupByTime))
             throw new InvalidOperationException(
-                "SELECT 中不允许同时出现聚合函数与非聚合列（v1 不支持 GROUP BY 列）。");
+                "SELECT 中不允许同时出现聚合函数与非聚合列（GROUP BY time(...) 查询中仅允许额外投影 time 作为 bucket 起始时间）。");
 
         if (groupByTime is not null && !hasAggregate)
             throw new InvalidOperationException(
@@ -306,6 +301,24 @@ internal static class SelectExecutor
                 $"SELECT 中引用了未知列 '{name}'。");
         var kind = col.Role == MeasurementColumnRole.Tag ? ProjectionKind.Tag : ProjectionKind.Field;
         return new Projection(alias ?? name, kind, col, null);
+    }
+
+    private static bool HasUnsupportedNonAggregateProjection(
+        IReadOnlyList<Projection> projections,
+        TimeBucketSpec? groupByTime)
+    {
+        foreach (var projection in projections)
+        {
+            if (projection.Kind == ProjectionKind.Aggregate)
+                continue;
+
+            if (groupByTime is not null && projection.Kind == ProjectionKind.Time)
+                continue;
+
+            return true;
+        }
+
+        return false;
     }
 
     private static string FormatFunctionColumnName(FunctionCallExpression fn)
@@ -847,33 +860,22 @@ internal static class SelectExecutor
 
         // 解析每个聚合投影：legacy 7 个聚合走 BucketState 快路径；
         // 扩展聚合（PR #52：stddev / percentile / tdigest_agg / ...）走 IAggregateAccumulator。
-        // 与桶时间投影（ProjectionKind.Time）混排时，aggSpecs 仅收集聚合项；
-        // projectionToAggIndex 记录每个 projection 对应的 aggSpec 下标，-1 表示该 projection 是桶时间。
-        var aggSpecs = new List<AggSpec>(projections.Count);
-        var projectionToAggIndex = new int[projections.Count];
-        for (int pi = 0; pi < projections.Count; pi++)
+        var aggregateProjections = projections
+            .Where(static p => p.Kind == ProjectionKind.Aggregate)
+            .ToList();
+
+        var aggSpecs = aggregateProjections.Select(p =>
         {
-            var p = projections[pi];
-            if (p.Kind == ProjectionKind.Aggregate)
+            var fn = p.Function!;
+            var spec = ResolveAggregateSpec(fn, p.ColumnName, schema);
+            if (spec.LegacyAggregator is Aggregator.First or Aggregator.Last
+                && matchedSeries.Count > 1)
             {
-                var fn = p.Function!;
-                var spec = ResolveAggregateSpec(fn, p.ColumnName, schema);
-                if (spec.LegacyAggregator is Aggregator.First or Aggregator.Last
-                    && matchedSeries.Count > 1)
-                {
-                    throw new InvalidOperationException(
-                        $"{spec.LegacyAggregator} 聚合在多 series 场景下尚未支持（v1）；请用 WHERE 过滤到单一 series。");
-                }
-                projectionToAggIndex[pi] = aggSpecs.Count;
-                aggSpecs.Add(spec);
+                throw new InvalidOperationException(
+                    $"{spec.LegacyAggregator} 聚合在多 series 场景下尚未支持（v1）；请用 WHERE 过滤到单一 series。");
             }
-            else
-            {
-                // 仅 Time 投影允许与聚合混排（由 Execute 入口的 hasNonAggregate 检查保证），
-                // 它在 bucket 输出阶段填入桶起始时间。
-                projectionToAggIndex[pi] = -1;
-            }
-        }
+            return spec;
+        }).ToList();
 
         // 为每个 (bucketStart, specIdx) 维护 AggSlot：legacy 用 BucketState，扩展聚合用 IAggregateAccumulator。
         var bucketAccumulators = new SortedDictionary<long, AggSlot[]>();
@@ -951,13 +953,17 @@ internal static class SelectExecutor
         foreach (var (bucketStart, slots) in bucketAccumulators)
         {
             var row = new object?[projections.Count];
+            var aggregateIndex = 0;
             for (int i = 0; i < projections.Count; i++)
             {
-                int aggIdx = projectionToAggIndex[i];
-                row[i] = aggIdx >= 0
-                    ? slots[aggIdx].Finalize()
-                    : bucketStart; // ProjectionKind.Time，sentinel long.MinValue 由非聚合分支处理
+                row[i] = projections[i].Kind switch
+                {
+                    ProjectionKind.Time => bucketStart,
+                    ProjectionKind.Aggregate => slots[aggregateIndex++].Finalize(),
+                    _ => throw new InvalidOperationException("内部错误：聚合模式仅支持聚合函数与 GROUP BY time(...) 的 time 投影。"),
+                };
             }
+
             rows.Add(row);
         }
 

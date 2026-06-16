@@ -3,9 +3,9 @@
   <PropertyGroup>
     <IsPackable>false</IsPackable>
     <!--
-      Parity 适配器引用竞品官方 .NET 客户端（Npgsql 等），其 trim / AOT 画像不安全；
-      本项目刻意保持 IsAotCompatible=false，且不进 SonnetDB.slnx，避免污染主仓 AOT 流水线。
-      竞品服务由 docker-compose.parity.yml 起，不引入 Testcontainers。
+      Parity adapters reference official competitor .NET clients such as Npgsql.
+      They are intentionally kept out of the main SonnetDB.slnx AOT pipeline.
+      Competitor services are started by docker-compose.parity.yml; no Testcontainers dependency is used.
     -->
     <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>

@@ -34,7 +34,7 @@ SonnetDB is a C# / .NET multi-model database. One local engine, one SQL / API su
 | Multi-language | C, Go, Rust, Java, Python, VB6, and PureBasic connectors |
 | AI / Agent | Web CopilotDock and MCP tool entry points |
 
-SonnetDB persists data as a directory, not as a single-file database.
+
 
 ## 🏷️ Ecosystem Downloads and Versions
 

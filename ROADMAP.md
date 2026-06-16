@@ -713,9 +713,9 @@ extensions/
 |----|------|------|
 | #127 | **Parity 骨架与第一对适配器**：新增 `tests/SonnetDB.Parity/` 测试项目（独立 csproj，`<IsAotCompatible>false</IsAotCompatible>`，不进 `SonnetDB.slnx` AOT 流水线）；新增 `tests/SonnetDB.Parity/docker-compose.parity.yml` 12 服务栈 + `.env` + `light/full` profiles + named volumes + healthchecks；harness 服务（dotnet sdk 镜像跑 `dotnet test`）+ ParityRunner xUnit 驱动 + JSON/Markdown reporter；落地 `IDataPlane` 契约 + `Capability` 标志位 + `ScenarioContext` + `ResultDiffer` + 容差判定基础设施；首对适配器 `SonnetDbAdapter` + `PostgresAdapter`（`Npgsql`），跑通 1 个 hello-world relational 场景作冒烟。 | ✅ |
 | #128 | **关系型场景套件（vs Postgres）**：`scenarios/relational/` 目录新增 `tpcc_lite`（5 仓库 30 分钟）、`fk_cascade_constraint`、`isolation_read_committed`、`subquery_correlated`、`groupby_having`、`information_schema_introspection`、`update_returning_count`、`alter_table_evolution`；输出能力差异表（哪些 SonnetDB SKIPPED 哪些 PASS）。 | ✅ |
-| #129 | **TSDB 场景套件（vs InfluxDB / VictoriaMetrics）+ 算法准确度对齐**：新增 `InfluxAdapter`（`InfluxDB.Client`）+ `VictoriaMetricsAdapter`（Prometheus remote_write + PromQL HTTP）；场景 `ingest_1m_points`、`groupby_time_window`、`derivative_accuracy`、`rate_irate_consistency`、`holt_winters_forecast_recall`、`percentile_p95_tdigest_vs_quantile`、`distinct_count_hll_2pct_error`；准确度判定接入 `ResultDiffer` 容差合同。当前套件如实暴露 SonnetDB 缺陷：`GROUP BY time(...)` 不能投影 bucket 时间、`forecast(...)` TVF 不支持列投影。 | 🚧 |
-| #129.1 | **修复 TSDB parity 缺陷：GROUP BY time bucket 投影**：允许 `SELECT time, avg(v) FROM m GROUP BY time(...)` 返回 bucket 起始时间，或提供稳定等价列名（如 `bucket` / `time`），并与 InfluxDB `aggregateWindow`、PromQL `query_range` 的时间戳语义写入 ResultDiffer 对齐合同。 | 📋 |
-| #129.2 | **修复 TSDB parity 缺陷：forecast TVF 列投影契约**：`forecast(...)` 表值函数需暴露稳定列集合并支持 `SELECT time, value FROM forecast(...)`（或外层投影等价语法），让 Holt-Winters 预测召回可与 InfluxDB Flux `holtWinters` 做同构比较。 | 📋 |
+| #129 | **TSDB 场景套件（vs InfluxDB / VictoriaMetrics）+ 算法准确度对齐**：新增 `InfluxAdapter`（`InfluxDB.Client`）+ `VictoriaMetricsAdapter`（Prometheus remote_write + PromQL HTTP）；场景 `ingest_1m_points`、`groupby_time_window`、`derivative_accuracy`、`rate_irate_consistency`、`holt_winters_forecast_recall`、`percentile_p95_tdigest_vs_quantile`、`distinct_count_hll_2pct_error`；准确度判定接入 `ResultDiffer` 容差合同。首轮暴露的缺陷按 #129.1 / #129.2 拆分修复。 | ✅ |
+| #129.1 | **修复 TSDB parity 缺陷：GROUP BY time bucket 投影**：允许 `SELECT time, avg(v) FROM m GROUP BY time(...)` 返回 bucket 起始时间，或提供稳定等价列名（如 `bucket` / `time`），并与 InfluxDB `aggregateWindow`、PromQL `query_range` 的时间戳语义写入 ResultDiffer 对齐合同。 | ✅ |
+| #129.2 | **修复 TSDB parity 缺陷：forecast TVF 列投影契约**：`forecast(...)` 表值函数需暴露稳定列集合并支持 `SELECT time, value FROM forecast(...)`（或外层投影等价语法），让 Holt-Winters 预测召回可与 InfluxDB Flux `holtWinters` 做同构比较。 | ✅ |
 | #130 | **KV 场景套件（vs Redis）+ 向量套件（vs Qdrant）**：新增 `RedisAdapter`（`StackExchange.Redis`）+ `QdrantAdapter`（`Qdrant.Client`）；KV 场景 `set_get_scan_throughput`、`ttl_accuracy`、`incr_concurrency_16_clients`、`cas_optimistic_lock`、`scan_cursor_10m_keys`；向量场景 `ann_recall_at_10`、`filtered_search`、`upsert_during_query`；连带交付 KV `INCR/DECR/CAS/EXPIRE/PERSIST/TTL` 实现（`KvKeyspace`）+ 后台 expirer worker。 | ✅ |
 | #131 | **对象桶套件（vs MinIO）**：新增 `MinioAdapter`（AWS SDK pointed at MinIO endpoint）；场景 `putget_1gb_object`、`multipart_upload_5gb`、`range_read_offsets`、`list_objects_v2_pagination`、`copy_object`、`delete_marker_versioning`、`presigned_url_lifecycle`；连带交付 `ListObjectsV2 ContinuationToken` 实现 + `DeleteObjects` 批量端点（保留私有 JSON 协议，不引入 SigV4）。 | ✅ |
 | #132 | **MQ 套件（vs NATS JetStream）+ replay 语义对齐**：新增 `NatsAdapter`（`NATS.Client.Core` + `NATS.Client.JetStream`）；场景 `publish_consume_ack`、`consumer_group_offset`、`replay_after_restart`、`fan_out_10p_10c`、`backpressure_unbounded_producer`；连带交付 SonnetMQ `RecordTypeTombstone(3)` + 段滚动 + 后台 RetentionWorker（time/size 双维度 trim）+ `FlushOnPublish=true` 默认值切换 + `TopicState` 分段化（64MB 切片，预留 LRU 读缓存入口）。 | ✅ |
@@ -761,6 +761,79 @@ extensions/
 
 ---
 
+## Milestone 21 — Document Store 单机能力升级（MongoDB-like，不做协议兼容）
+
+> **目标**：把现有 KV-backed `Documents` 能力从"JSON 文档集合 MVP"升级到**MongoDB 单机常用能力子集**：集合 CRUD、文档查询、局部更新、二级索引、聚合、游标分页、单文档原子性和单机可靠性都达到日常应用可用水平。SonnetDB 继续使用自有 SQL / HTTP / `SndbDocumentClient` / ADO.NET 能力面，**明确不实现 MongoDB wire protocol，不承诺官方 MongoDB Driver 直连兼容**。
+>
+> **设计原则**：
+>
+> 1. **不做协议兼容**。不实现 MongoDB wire protocol / BSON command 协议 / replica set 握手；对比 MongoDB 时仅作为参考后端，SonnetDB 走自有 API。
+> 2. **做常用语义兼容**。对齐单机应用最常用的 document CRUD、filter、projection、sort、limit、update operators、index、aggregation 子集，但允许 SQL / JSON API 语法不同。
+> 3. **先单机，后分布式**。本里程碑不做 replica set、sharding、change streams、oplog、read preference、write concern majority。
+> 4. **索引可解释、可重建**。所有 document index 都必须能在 `EXPLAIN`、schema endpoint、maintenance endpoint 和 backup manifest 中呈现，并支持离线 / 在线 rebuild。
+> 5. **存储边界说清楚**。若 KV 底座仍以内存字典为主，本里程碑必须给出容量边界；若引入磁盘有序 KV/LSM，则作为独立 PR 明确文件格式、恢复和 compaction 验收。
+>
+> **关键产出**：`SonnetDB.Documents` 查询/更新/索引执行层升级 + `SndbDocumentClient` + 文档 REST API + MongoDB 参考 parity 场景 + Web Admin Document Explorer + 百万文档长稳报告。
+
+### PR 拆分
+
+| PR | 主题 | 状态 |
+|----|------|------|
+| #137 | **Document API 契约与客户端第一版**：新增 `SndbDocumentClient`（嵌入式 + 远程），提供 `CreateCollection`、`DropCollection`、`InsertOne/Many`、`Find`、`FindOne`、`UpdateOne/Many`、`DeleteOne/Many`、`Count`、`Distinct`；服务端新增 `/v1/db/{db}/documents/{collection}/...` 私有 JSON API；保留 SQL 路径不变，并补齐 OpenAPI/README 示例。 | 📋 |
+| #138 | **Find 查询语义补齐**：新增 document filter AST，支持 `_id`、嵌套 JSON path、`eq/ne/gt/gte/lt/lte/in/nin/exists/contains`、`and/or/not`、数组包含与 null/missing 区分；支持 projection、`sort`、`limit`、`skip` 与稳定结果排序；SQL `SELECT` 与 Document API 共享同一 planner。 | 📋 |
+| #139 | **游标分页与批量读取**：新增 cursor token / continuation token，支持 `find` 分批返回、prefix/index scan 分页、服务端最大 batch size、token 过期与只读快照边界；Web Admin 和客户端统一消费 cursor。 | 📋 |
+| #140 | **局部更新操作符**：实现 `$set`、`$unset`、`$inc`、`$min`、`$max`、`$rename`、`$push`、`$pull`、`$addToSet`、`$currentDate`、upsert 与 multi update；更新前后同步维护 JSON path index / fulltext index / hybrid index，并补齐冲突路径校验。 | 📋 |
+| #141 | **文档索引体系升级**：在现有 JSON path index 基础上新增单字段 / 复合索引、unique index、sparse index、partial index、TTL index；索引 schema 持久化、在线 rebuild、增量维护、`SHOW/DESCRIBE INDEXES`、`EXPLAIN access_path=document_index` 全部落地。 | 📋 |
+| #142 | **Document Query Planner 与代价模型**：根据 filter / sort / projection 选择 `_id`、单字段索引、复合索引、partial index、full scan；支持 index intersection 的第一版或明确不支持并给出 `gap_reason`；`EXPLAIN` 输出候选行估算、过滤下推、排序是否使用索引。 | 📋 |
+| #143 | **Aggregation Pipeline 子集**：Document API 新增 `aggregate`，支持 `$match`、`$project`、`$group`、`$sort`、`$limit`、`$skip`、`$unwind`、`$count`、`$distinct` 等价能力；SQL 侧复用现有聚合函数与 window/extended aggregate 能力，保证数值结果与 MongoDB 参考场景在容差内一致。 | 📋 |
+| #144 | **单文档原子性与批量写轻事务**：明确单文档更新原子提交；同 collection `InsertMany/UpdateMany/DeleteMany` 提供 ordered/unordered 批量语义和可回滚边界；错误码覆盖 duplicate key、validation failed、write conflict、document too large；并发写入保持索引一致。 | 📋 |
+| #145 | **文档校验与 schema governance**：支持 collection validator（JSON Schema 子集或 SonnetDB 自有 schema 表达式）、required/type/range/enum/pattern 校验、validation action（error/warn）、schema evolution 记录；Web Admin 可查看和编辑 validator。 | 📋 |
+| #146 | **磁盘有序 KV / 文档容量专项**：评估并落地 document 主数据和索引所需的磁盘有序结构（LSM/SSTable 或 B+Tree page store 二选一）；目标是不再要求百万级文档全部常驻内存，覆盖冷启动、range scan、compaction、崩溃恢复和 backup/restore。若本 PR 选择延期，必须输出明确容量边界和替代计划。 | 📋 |
+| #147 | **MongoDB 参考 parity 套件**：在 `tests/SonnetDB.Parity` 新增 `MongoAdapter`（官方 MongoDB .NET Driver 仅连接参考 MongoDB 容器）与 `DocumentAdapter`（SonnetDB 自有 API），覆盖 CRUD、filter、projection、sort、update operators、index unique/TTL、aggregation、并发写、崩溃恢复后的索引一致性；报告中明确"语义对齐，不做协议兼容"。 | 📋 |
+| #148 | **Web Admin Document Explorer + 导入导出**：新增 Document Explorer，支持集合列表、索引列表、JSON 查询编辑器、结果表/JSON 双视图、文档编辑、索引 rebuild、JSONL/NDJSON 导入导出；导入支持 `_id` path、批量错误报告和 dry-run。 | 📋 |
+| #149 | **长稳、容量与发布文档**：百万 / 千万文档 profile 长测，输出写入、查询、索引 rebuild、TTL 清理、冷启动、备份恢复、内存占用报告；README / docs 新增 Document Store 能力矩阵、MongoDB-like 迁移指南、明确不支持项和推荐规模。 | 📋 |
+
+### 推进顺序
+
+```text
+#137 (Document API + client 契约)
+  → #138 (Find/filter/projection/sort)
+  → #139 (cursor pagination)
+  → #140 (update operators)
+  → #141 (index体系)
+  → #142 (planner + explain)
+  → #143 (aggregation pipeline 子集)
+  → #144 (原子性 + 批量写轻事务)
+  → #145 (validator / schema governance)
+  → #146 (磁盘有序 KV / 容量专项)
+  → #147 (MongoDB 参考 parity)
+  → #148 (Web Admin + import/export)
+  → #149 (长稳 + 文档)
+```
+
+### 验收标准
+
+- Document API 覆盖常用 CRUD：单条 / 批量 insert、find、update、delete、count、distinct、aggregate。
+- `find` 支持嵌套字段过滤、数组包含、projection、sort、limit/skip 和 cursor 分页；百万文档场景下索引查询不退化为全表扫描。
+- `$set/$unset/$inc/$push/$pull/$addToSet` 等局部更新能正确维护主数据、JSON path index、fulltext index 和 TTL index。
+- 单字段、复合、unique、sparse、partial、TTL index 均可创建、删除、展示、解释、重建，并进入 backup manifest。
+- `EXPLAIN` 能清楚显示 `_id` lookup、document index scan、fulltext candidate、document scan、sort in-memory 等访问路径。
+- Aggregation 子集至少覆盖 `$match → $project → $group → $sort → $limit` 常见链路，并与 MongoDB 参考场景结果一致。
+- 并发写入、崩溃恢复、索引 rebuild、TTL 清理、backup/restore 后文档主数据与索引一致。
+- `tests/SonnetDB.Parity` 的 MongoDB 参考文档场景全部 PASS 或结构化 SKIP，SKIP 必须带明确 `gap_reason`。
+- Web Admin 可完成集合浏览、查询、编辑、索引管理和 JSONL/NDJSON 导入导出。
+- 发布文档必须明确 SonnetDB Document Store 与 MongoDB 的差异、迁移边界和不支持项。
+
+### 不做的事
+
+- **不**实现 MongoDB wire protocol、BSON command 协议、`mongosh` / Compass / 官方 MongoDB Driver 直连 SonnetDB。
+- **不**实现 replica set、sharding、oplog、change streams、transactions across databases、read concern / write concern majority。
+- **不**承诺 MongoDB 查询语言逐字兼容；SonnetDB 可以提供 SQL / JSON API / client builder 三种自有入口。
+- **不**把 MongoDB 作为运行时依赖；MongoDB 只允许出现在 parity / benchmark / migration reference 测试环境中。
+- **不**为了兼容 MongoDB 引入 `src/SonnetDB.Core` 第三方运行时依赖。
+
+---
+
 ## 里程碑总览
 
 | Milestone | 主题 | PR 范围 | 状态 |
@@ -785,10 +858,11 @@ extensions/
 | 17 | 可观测性与运行时可见性（OTel + 结构化日志 + 诊断端点） | #89 ~ #98 | 📋 |
 | 18 | VS Code 数据库扩展（SonnetDB for VS Code） | #99 ~ #108 | 🚧（#99 骨架与规划已落目录） |
 | 19 | IoTSharp 生态数据底座选项（关系 + 时序 + KV/缓存 + S3 + 搜索 + 大量物理分表长稳） | #109 ~ #125 | 🚧（#109~#117、#122/#123 已完成） |
-| 20 | 多模能力对齐与平移测试（Parity） | #127 ~ #136 | 🚧（#127 ✅ 骨架与第一对适配器已落地） |
+| 20 | 多模能力对齐与平移测试（Parity） | #127 ~ #136 | ✅（实现已落地；nightly 稳定率继续按 `parity-results` 监控） |
+| 21 | Document Store 单机能力升级（MongoDB-like，不做协议兼容） | #137 ~ #149 | 📋 |
 | MM9 | 多模型统一备份、恢复和管理工具第一批 | BackupService + sndb backup | ✅ |
 
-**当前推进顺序**：Milestone 14（Copilot）与 Milestone 16（Copilot 产品化升级）均已合并；当前主线转向 **Milestone 17（可观测性与运行时可见性）**，从 PR #89（Core Meter / ActivitySource 基线）起步。Milestone 15（地理空间）已完成并收尾。**Milestone 18（VS Code 扩展）** 也可并行推进，建议先以 `#99 ~ #103` 打出第一个“远程连接 + Explorer + SQL + 结果视图”闭环。**Milestone 19（IoTSharp 生态数据底座选项）** 已纳入正式规划，#109~#117 与 #122/#123 已完成；后续继续推进对象治理、Profile 周边、增量索引 / 后台维护成本与大量 measurement 长稳专项。SonnetDBEE C5.7 / MM9 的开源核心第一批已提供 `BackupService` 和 `sndb backup create/inspect/verify/restore`，企业级定时、增量、审计和 UI 编排继续由 SonnetDBEE 承接。**Milestone 20（多模能力对齐 Parity）** 已起步，PR #127（compose 骨架 + `IDataPlane` 契约 + SonnetDB/Postgres 第一对适配器 + hello-world 冒烟）与 PR #128（关系型场景套件 vs Postgres + 能力差异表）已落地，下一步推进 PR #129（TSDB 场景套件 vs InfluxDB / VictoriaMetrics）。
+**当前推进顺序**：Milestone 14（Copilot）、Milestone 15（地理空间）、Milestone 16（Copilot 产品化升级）与 Milestone 20（Parity #127~#136 实现）均已合并；当前主线应转回 **Milestone 17（可观测性与运行时可见性）**，从 PR #89（Core Meter / ActivitySource 基线）起步。**Milestone 18（VS Code 扩展）** 继续并行推进，建议先以 `#99 ~ #103` 打出第一个“远程连接 + Explorer + SQL + 结果视图”闭环。**Milestone 19（IoTSharp 生态数据底座选项）** 已纳入正式规划，#109~#117 与 #122/#123 已完成；后续继续推进对象治理、Profile 周边、增量索引 / 后台维护成本与大量 measurement 长稳专项。**Milestone 21（Document Store 单机能力升级）** 作为 MongoDB-like 能力线进入规划，建议在 M17 观测底座和 M19 剩余治理项稳定后，从 #137 的 Document API 契约开始派单。SonnetDBEE C5.7 / MM9 的开源核心第一批已提供 `BackupService` 和 `sndb backup create/inspect/verify/restore`，企业级定时、增量、审计和 UI 编排继续由 SonnetDBEE 承接。**Milestone 20** 后续不再按 #129 继续派单，而是通过 `.github/workflows/parity.yml`、`parity-results` 分支与 `tests/SonnetDB.Parity/reports/sample-run.md` 持续暴露能力缺口、SKIP 原因和 nightly 稳定性。
 
 ---
 
@@ -810,3 +884,4 @@ extensions/
 14. **细化原 Milestone 10 的 #40 占位需求为独立的 Milestone 18 — VS Code 数据库扩展**：保留 `#40` 作为 Epic，占位层面明确为“SonnetDB for VS Code”；具体实现拆分为 `#99 ~ #108`，采用 **TypeScript-first + Remote-first** 路线，首版直接复用现有 `/v1/db`、`/v1/db/{db}/schema`、`/v1/db/{db}/sql`、`/v1/copilot/chat/stream` 等 HTTP contract。本地目录支持不走 Node 直嵌引擎，而是后续通过“扩展托管本地 SonnetDB Server”方式接入，降低 VS Code 宿主与 .NET 运行时耦合。
 15. **新增 Milestone 19 — IoTSharp 生态数据底座选项**：把 SonnetDB 从“时序 + 管理后台 + Copilot”扩展为 IoTSharp 的可选数据底座。该里程碑覆盖关系型数据库、时序数据库、KV/缓存、S3-compatible 对象桶、向量搜索、全文搜索和大量物理分表长稳七条线，并把 EF Core provider、EasyCaching/IDistributedCache provider、S3 API、搜索索引生命周期、迁移双写、分层文件布局、compaction manifest、长稳压测作为同等重要的交付物。路线明确要求先做兼容矩阵和回滚策略，避免把不完整 table/KV/搜索能力过早宣称为 PostgreSQL/Redis/S3/搜索后端的生产级完整兼容。
 16. **新增 Milestone 20 — 多模能力对齐与平移测试 (Parity)**：用一份 docker-compose 同时拉起 SonnetDB 与开源全家桶（PostgreSQL / Redis / InfluxDB / VictoriaMetrics / MinIO / NATS / Mosquitto / Meilisearch / Qdrant / ClickHouse），用同一套 `IDataPlane` 适配器跑同一套场景，证明"一台 SonnetDB 在边缘 / 单机场景能替掉这一组组件"。**显式不做协议兼容**（自有 `SndbConnection` / `SndbMqClient` / `SndbObjectStorageClient` / EF Core provider，竞品走它们的官方 .NET 客户端），**显式不做替代主张**（不对齐 Redis Cluster / Kafka / Postgres HA / MinIO 集群），三类对齐边界为：能力对齐、可靠性对齐、算法准确度对齐；性能数字写报告不做 gating。本里程碑同时连带把 KV `INCR/CAS/EXPIRE/PERSIST/TTL`、SonnetMQ `RecordTypeTombstone` 段滚动 + `FlushOnPublish=true` 默认、对象桶 `ListObjectsV2 ContinuationToken` 分页、`tests/SonnetDB.CrashTests/` 真子进程 SIGKILL 注杀、README 措辞与代码同步落地。详细设计见 [`docs/parity-roadmap.md`](docs/parity-roadmap.md)。
+17. **新增 Milestone 21 — Document Store 单机能力升级（MongoDB-like，不做协议兼容）**：在 MM5 JSON 文档能力、MM6 全文索引、MM8 Hybrid Search 与 Milestone 20 parity 基础上，把 SonnetDB Document Store 推进到 MongoDB 单机常用能力子集。范围包括 Document API / client、find filter、projection、sort、cursor、局部更新操作符、复合 / unique / sparse / partial / TTL 索引、aggregation pipeline 子集、单文档原子性、批量写轻事务、validator、MongoDB 参考 parity、Web Admin Document Explorer 与百万文档长稳报告。该里程碑**明确不做 MongoDB wire protocol / BSON command / 官方 driver 直连兼容**，只做语义和能力面对齐。

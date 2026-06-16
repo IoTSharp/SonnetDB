@@ -1,4 +1,5 @@
 using SonnetDB.Parity.Adapters;
+using SonnetDB.Parity.Runner;
 
 namespace SonnetDB.Parity.Scenarios.Tsdb;
 
@@ -12,6 +13,9 @@ public sealed class GroupByTimeWindowScenario : TsdbScenarioBase
 
     /// <inheritdoc />
     public override Capability Required => Capability.TimeSeries | Capability.TimeSeriesGroupByTime;
+
+    /// <inheritdoc />
+    public override DiffTolerance Tolerance => new(1e-9, 1e-9) { TimeBucketMs = 60_000L };
 
     /// <inheritdoc />
     protected override async Task<ScenarioResult> RunTimeSeriesAsync(ITimeSeriesOps ops, ScenarioContext ctx)

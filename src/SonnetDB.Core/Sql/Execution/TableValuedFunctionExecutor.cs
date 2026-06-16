@@ -84,9 +84,8 @@ internal static class TableValuedFunctionExecutor
         var tagColumns = schema.Columns
             .Where(c => c.Role == MeasurementColumnRole.Tag)
             .ToList();
-        var columnNames = new List<string>(4 + tagColumns.Count) { "time", "value", "lower", "upper" };
         // 防御性：tag 列名若与 forecast 内置输出列（time / value / lower / upper）冲突，
-        // 后续 ResolveForecastProjectionPlan 的 OrdinalIgnoreCase 查表会被 tag 覆盖（last-write-wins），
+        // 后续 ApplyTableValuedProjection 的 OrdinalIgnoreCase 查表会被 tag 覆盖（last-write-wins），
         // 导致 SELECT time FROM forecast(...) 返回 tag 而非桶时间——静默错列。
         // 这里在构表阶段显式报错，避免错列结果流回上层。
         foreach (var t in tagColumns)
@@ -99,14 +98,9 @@ internal static class TableValuedFunctionExecutor
                 throw new InvalidOperationException(
                     $"forecast(...) 不允许 tag 列名 '{t.Name}' 与内置输出列 time / value / lower / upper 冲突；请重命名 tag 或加列别名。");
             }
-            columnNames.Add(t.Name);
         }
-
-        // SELECT 列表支持两种形式：
-        //   1) SELECT *        → 输出 TVF 全部列（time/value/lower/upper + tag 列）。
-        //   2) SELECT col[,..] → 列引用必须命中 TVF 输出列名（time/value/lower/upper 或 tag 名），
-        //                        v1 暂不支持外层表达式 / 函数调用 / 字面量列。
-        var projectionPlan = ResolveForecastProjectionPlan(statement.Projections, columnNames);
+        var sourceColumnNames = new List<string>(4 + tagColumns.Count) { "time", "value", "lower", "upper" };
+        foreach (var t in tagColumns) sourceColumnNames.Add(t.Name);
 
         var rows = new List<IReadOnlyList<object?>>();
 
@@ -127,86 +121,73 @@ internal static class TableValuedFunctionExecutor
             var forecast = TimeSeriesForecaster.Forecast(ts, values, horizon, algorithm, season);
             foreach (var p in forecast)
             {
-                var wide = new object?[columnNames.Count];
-                wide[0] = p.TimestampMs;
-                wide[1] = p.Value;
-                wide[2] = p.Lower;
-                wide[3] = p.Upper;
+                var row = new object?[sourceColumnNames.Count];
+                row[0] = p.TimestampMs;
+                row[1] = p.Value;
+                row[2] = p.Lower;
+                row[3] = p.Upper;
                 for (int t = 0; t < tagColumns.Count; t++)
-                    wide[4 + t] = series.Tags.TryGetValue(tagColumns[t].Name, out var tv) ? tv : null;
-                rows.Add(projectionPlan.Apply(wide));
+                    row[4 + t] = series.Tags.TryGetValue(tagColumns[t].Name, out var tv) ? tv : null;
+                rows.Add(row);
             }
         }
 
-        return new SelectExecutionResult(projectionPlan.OutputColumns, rows);
-    }
-
-    /// <summary>
-    /// 解析 forecast(...) 外层 SELECT 投影列表，返回从 TVF 完整宽表到输出投影的映射。
-    /// </summary>
-    private static ForecastProjectionPlan ResolveForecastProjectionPlan(
-        IReadOnlyList<SelectItem> projections,
-        IReadOnlyList<string> wideColumnNames)
-    {
-        if (IsSelectStar(projections))
-            return ForecastProjectionPlan.PassThrough(wideColumnNames);
-
-        var indexLookup = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        for (int i = 0; i < wideColumnNames.Count; i++)
-            indexLookup[wideColumnNames[i]] = i;
-
-        var indices = new int[projections.Count];
-        var outputNames = new string[projections.Count];
-        for (int i = 0; i < projections.Count; i++)
-        {
-            var item = projections[i];
-            if (item.Expression is not IdentifierExpression id)
-                throw new InvalidOperationException(
-                    "forecast(...) 外层 SELECT 仅支持 * 或简单列引用（time / value / lower / upper / tag 列）；"
-                    + "v1 暂不支持表达式或函数调用投影。");
-            if (!indexLookup.TryGetValue(id.Name, out int idx))
-                throw new InvalidOperationException(
-                    $"forecast(...) 不输出列 '{id.Name}'；可用列：{string.Join(", ", wideColumnNames)}。");
-            indices[i] = idx;
-            outputNames[i] = item.Alias ?? id.Name;
-        }
-
-        return new ForecastProjectionPlan(indices, outputNames);
-    }
-
-    private sealed class ForecastProjectionPlan
-    {
-        private readonly int[]? _indices;
-        public IReadOnlyList<string> OutputColumns { get; }
-
-        private ForecastProjectionPlan(IReadOnlyList<string> passThroughColumns)
-        {
-            _indices = null;
-            OutputColumns = passThroughColumns;
-        }
-
-        public ForecastProjectionPlan(int[] indices, IReadOnlyList<string> outputColumns)
-        {
-            _indices = indices;
-            OutputColumns = outputColumns;
-        }
-
-        public static ForecastProjectionPlan PassThrough(IReadOnlyList<string> wideColumns)
-            => new(wideColumns);
-
-        public IReadOnlyList<object?> Apply(object?[] wideRow)
-        {
-            if (_indices is null)
-                return wideRow;
-            var projected = new object?[_indices.Length];
-            for (int i = 0; i < _indices.Length; i++)
-                projected[i] = wideRow[_indices[i]];
-            return projected;
-        }
+        return ApplyTableValuedProjection("forecast", sourceColumnNames, rows, statement.Projections);
     }
 
     private static bool IsSelectStar(IReadOnlyList<SelectItem> projections)
         => projections.Count == 1 && projections[0].Expression is StarExpression && projections[0].Alias is null;
+
+    private static SelectExecutionResult ApplyTableValuedProjection(
+        string functionName,
+        IReadOnlyList<string> sourceColumns,
+        IReadOnlyList<IReadOnlyList<object?>> sourceRows,
+        IReadOnlyList<SelectItem> projections)
+    {
+        var lookup = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        for (int i = 0; i < sourceColumns.Count; i++)
+            lookup[sourceColumns[i]] = i;
+
+        var projected = new List<TableValuedProjection>();
+        foreach (var item in projections)
+        {
+            switch (item.Expression)
+            {
+                case StarExpression:
+                    if (item.Alias is not null)
+                        throw new InvalidOperationException("'*' 不允许带 alias。");
+                    for (int i = 0; i < sourceColumns.Count; i++)
+                        projected.Add(new TableValuedProjection(sourceColumns[i], i));
+                    break;
+
+                case IdentifierExpression id:
+                    if (!lookup.TryGetValue(id.Name, out var ordinal))
+                    {
+                        throw new InvalidOperationException(
+                            $"{functionName}(...) 表值函数没有输出列 '{id.Name}'。");
+                    }
+                    projected.Add(new TableValuedProjection(item.Alias ?? id.Name, ordinal));
+                    break;
+
+                default:
+                    throw new InvalidOperationException(
+                        $"{functionName}(...) 表值函数投影当前仅支持 * 或输出列名。");
+            }
+        }
+
+        var rows = new List<IReadOnlyList<object?>>(sourceRows.Count);
+        foreach (var sourceRow in sourceRows)
+        {
+            var row = new object?[projected.Count];
+            for (int i = 0; i < projected.Count; i++)
+                row[i] = sourceRow[projected[i].SourceOrdinal];
+            rows.Add(row);
+        }
+
+        return new SelectExecutionResult(projected.Select(static p => p.ColumnName).ToArray(), rows);
+    }
+
+    private sealed record TableValuedProjection(string ColumnName, int SourceOrdinal);
 
     private static int ResolvePositiveIntLiteral(SqlExpression arg, string name)
     {
