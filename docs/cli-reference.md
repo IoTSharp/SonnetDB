@@ -209,6 +209,48 @@ sndb repl --connection "Data Source=./demo-data"
 
 ---
 
+## `copilot`
+
+通过 HTTP 调用服务端 Copilot 知识库接口（需要先启动 SonnetDB 服务端，并在其上配置 Copilot 子系统）。**所有命令都不直接读写本地数据库，仅作为远端 REST 端点的客户端**。
+
+```text
+sndb copilot ingest [--root <dir>]... [--endpoint <url>] [--token <bearer>]
+                    [--force] [--dry-run] [--timeout <sec>]
+sndb copilot skills reload [--root <dir>] [--endpoint <url>] [--token <bearer>]
+                           [--force] [--dry-run]
+sndb copilot skills list   [--endpoint <url>]
+sndb copilot skills show <name> [--endpoint <url>]
+```
+
+| 参数 | 说明 |
+| --- | --- |
+| `--root` / `-r` | 指定文档根目录；`ingest` 可重复多次叠加多目录，`skills` 仅取最后一个。省略时使用服务端默认配置。 |
+| `--endpoint` / `--url` | 服务端地址。默认 `http://127.0.0.1:5080`，也可通过环境变量 `SONNETDB_COPILOT_URL` 提供。 |
+| `--token` / `-t` | 服务端要求的 Bearer token（admin 范围）。也可通过环境变量 `SONNETDB_COPILOT_TOKEN` 提供。 |
+| `--force` | 忽略 mtime / fingerprint，强制重新嵌入所有命中文件。 |
+| `--dry-run` | 仅扫描并切片，不实际写入向量库；用于验证根目录是否生效。 |
+| `--timeout` | HTTP 调用超时（秒），默认 600。 |
+
+示例：
+
+```bash
+# 把 ./docs 下的文档增量入库
+sndb copilot ingest --root ./docs
+
+# 强制重建（不看 mtime），并显式指向远端
+sndb copilot ingest --root ./docs --endpoint http://copilot.internal:5080 --force
+
+# 列出当前已注册的 skill
+sndb copilot skills list --endpoint http://copilot.internal:5080
+
+# 查看单个 skill 的注册详情
+sndb copilot skills show query-aggregation
+```
+
+`ingest` 返回的统计字段：`扫描文件 / 重新索引 / 跳过未变 / 清理失效 / 写入分块 / DryRun / 耗时 ms`。
+
+---
+
 ## profile 文件
 
 所有 profile 保存在：

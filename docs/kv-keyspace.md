@@ -39,7 +39,7 @@ kv.Delete("device:1001");
 | API | 说明 |
 | --- | --- |
 | `Tsdb.Keyspaces.Open(name)` | 打开或创建 keyspace。名称只允许字母、数字、点、下划线和短横线。 |
-| `Put(key, value)` | 写入或覆盖 key，返回单调递增版本号。 |
+| `Put(key, value, expiresAtUtc?)` | 写入或覆盖 key，返回单调递增版本号。可选 `DateTimeOffset` 指定到期时间；到期后读到 `false`/`null`，由后台 GC 真正回收。 |
 | `Get(key)` / `TryGet(key, out value)` | 读取当前值，返回 value 副本。 |
 | `Delete(key)` | 删除 key。不存在时返回 `false`。 |
 | `ScanPrefix(prefix, limit)` | 按 key 字节序升序返回当前快照。 |
