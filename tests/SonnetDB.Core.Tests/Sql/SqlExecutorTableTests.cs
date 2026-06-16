@@ -461,6 +461,108 @@ public sealed class SqlExecutorTableTests : IDisposable
     }
 
     [Fact]
+    public void Select_TableGroupBy_MinMaxResultTypes_ConsistentAcrossGroups()
+    {
+        // M3 回归：MIN/MAX 的返回类型应在整个结果集上一致。
+        // 旧实现按 *每组* 看输入：纯整数组返 long，混类型组返 double，
+        // 同一查询的不同行得到 long / double 异质类型——会让上层 ORDER BY、
+        // 跨后端 parity diff 失败。新实现按整个结果集做一次性判定。
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db,
+            "CREATE TABLE rel_mix (id INT, g STRING, v FLOAT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "INSERT INTO rel_mix (id, g, v) VALUES "
+            + "(1, 'a', 1.5), (2, 'a', 2.5), "    // 组 a：含 double
+            + "(3, 'b', 10.0), (4, 'b', 20.0)");  // 组 b：全 double，但同列
+
+        var r = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT g, max(v) FROM rel_mix GROUP BY g ORDER BY g"));
+
+        Assert.Equal(2, r.Rows.Count);
+        // 两行 max(v) 应当类型相同——这里都是 double。
+        Assert.IsType<double>(r.Rows[0][1]);
+        Assert.IsType<double>(r.Rows[1][1]);
+    }
+
+    [Fact]
+    public void Select_TableGroupBy_MinMaxAllIntegral_StaysLongAcrossGroups()
+    {
+        // 对偶回归：全表全 int 时所有组都返 long。
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db,
+            "CREATE TABLE rel_ints (id INT, g STRING, v INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "INSERT INTO rel_ints (id, g, v) VALUES (1, 'a', 5), (2, 'a', 7), (3, 'b', 10)");
+
+        var r = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT g, max(v), sum(v) FROM rel_ints GROUP BY g ORDER BY g"));
+
+        Assert.Equal(2, r.Rows.Count);
+        Assert.IsType<long>(r.Rows[0][1]);
+        Assert.IsType<long>(r.Rows[1][1]);
+        Assert.IsType<long>(r.Rows[0][2]);
+        Assert.IsType<long>(r.Rows[1][2]);
+    }
+
+    [Fact]
+    public void Select_TableGroupBy_SumLongsOverflow_PromotesToDouble()
+    {
+        // M4 回归：long 累加溢出应自动提升为 double，不再抛 OverflowException。
+        // long.MaxValue + 1 会溢出，旧实现 longs.Sum() 抛 checked OverflowException。
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db,
+            "CREATE TABLE rel_big (id INT, v INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            $"INSERT INTO rel_big (id, v) VALUES (1, {long.MaxValue}), (2, 1)");
+
+        var r = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT sum(v) FROM rel_big"));
+
+        Assert.Single(r.Rows);
+        // 升级为 double，值约等于 long.MaxValue + 1。
+        var v = Assert.IsType<double>(r.Rows[0][0]);
+        Assert.True(v > 9.0e18, $"溢出后应升级为 ≈ long.MaxValue+1，实际 {v}");
+    }
+
+    [Fact]
+    public void Select_TableJoinOnReferencesOuterColumn_ResolvesViaOuterScope()
+    {
+        // M2 回归：相关子查询里 JOIN ON 引用外层列时，
+        // 旧实现的 Join() 不传 outerScope —— ON 条件解析"外层标识符"会抛"未知列"。
+        // 这里构造一个子查询：从 orders JOIN line_items，ON 引用外层 customers.id。
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db,
+            "CREATE TABLE customers (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "CREATE TABLE orders (id INT, customer_id INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "CREATE TABLE line_items (id INT, order_id INT, qty INT, PRIMARY KEY (id))");
+
+        SqlExecutor.Execute(db,
+            "INSERT INTO customers (id, name) VALUES (1, 'alice'), (2, 'bob')");
+        SqlExecutor.Execute(db,
+            "INSERT INTO orders (id, customer_id) VALUES (10, 1), (20, 2)");
+        SqlExecutor.Execute(db,
+            "INSERT INTO line_items (id, order_id, qty) VALUES (100, 10, 5), (200, 20, 1)");
+
+        // 子查询 JOIN ON 用了 c.id —— 来自外层 customers 别名 c。
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            """
+            SELECT c.name
+            FROM customers c
+            WHERE EXISTS (
+                SELECT 1
+                FROM orders o
+                JOIN line_items l ON l.order_id = o.id AND o.customer_id = c.id
+                WHERE l.qty >= 3
+            )
+            """));
+
+        Assert.Single(result.Rows);
+        Assert.Equal("alice", result.Rows[0][0]);
+    }
+
+    [Fact]
     public void Select_TableExistsCorrelatedSubquery_FiltersByOuterColumn()
     {
         // ROADMAP #129 后续：EXISTS 中引用外层表列（o.customer_id = c.id）应过滤出

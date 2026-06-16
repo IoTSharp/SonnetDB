@@ -34,7 +34,7 @@ internal static class RelationalSelectExecutor
         foreach (var join in statement.JoinClauses)
         {
             var right = LoadJoin(tsdb, join);
-            relation = Join(tsdb, relation, right, join.On, join.Kind);
+            relation = Join(tsdb, relation, right, join.On, join.Kind, outerScope);
         }
 
         if (statement.Where is not null)
@@ -122,7 +122,7 @@ internal static class RelationalSelectExecutor
         return new Relation(columns, rows);
     }
 
-    private static Relation Join(Tsdb tsdb, Relation left, Relation right, SqlExpression on, JoinKind kind)
+    private static Relation Join(Tsdb tsdb, Relation left, Relation right, SqlExpression on, JoinKind kind, RelationalScope? outerScope = null)
     {
         var columns = left.Columns.Concat(right.Columns).ToArray();
         var rows = new List<object?[]>();
@@ -134,7 +134,10 @@ internal static class RelationalSelectExecutor
                 var row = new object?[leftRow.Length + rightRow.Length];
                 Array.Copy(leftRow, row, leftRow.Length);
                 Array.Copy(rightRow, 0, row, leftRow.Length, rightRow.Length);
-                if (EvaluateBoolean(tsdb, on, columns, row))
+                // M2 修复：JOIN ON 中如果出现引用外层列的标量子查询 / EXISTS，
+                // 旧实现丢掉 outerScope —— 那种写法会在 GetColumnValue 里报"未知列"。
+                // 现在把当前 SELECT 的 outerScope 透传给 JOIN ON 求值。
+                if (EvaluateBoolean(tsdb, on, columns, row, outerScope))
                 {
                     matched = true;
                     rows.Add(row);
@@ -197,6 +200,22 @@ internal static class RelationalSelectExecutor
             groups.Add(new GroupKey([]), []);
 
         var rows = new List<IReadOnlyList<object?>>(groups.Count);
+
+        // 预先决定每个聚合 spec 的输入是不是"全行全空非空值都是整数类型"。
+        // 这个判断必须跨所有组、整个结果集计算一次，否则不同组各自看自己的子集会得到
+        // 不一致的结论：A 组返回 long 120、B 组返回 double 120.0，同一列异质类型。
+        bool[]? allIntegralByProjection = null;
+        for (int i = 0; i < projections.Count; i++)
+        {
+            if (projections[i].Aggregate is null) continue;
+            allIntegralByProjection ??= new bool[projections.Count];
+            allIntegralByProjection[i] = IsAggregateInputAllIntegral(
+                tsdb,
+                projections[i].Aggregate!,
+                relation.Columns,
+                relation.Rows);
+        }
+
         foreach (var group in groups.Values)
         {
             var representative = group.Count == 0
@@ -215,12 +234,37 @@ internal static class RelationalSelectExecutor
                 var projection = projections[i];
                 output[i] = projection.Aggregate is null
                     ? EvaluateScalar(tsdb, projection.Expression, relation.Columns, representative)
-                    : EvaluateAggregate(tsdb, projection.Aggregate, relation.Columns, group);
+                    : EvaluateAggregate(tsdb, projection.Aggregate, relation.Columns, group,
+                        allIntegralInput: allIntegralByProjection?[i] ?? false);
             }
             rows.Add(output);
         }
 
         return new SelectExecutionResult(projections.Select(static p => p.Name).ToArray(), rows);
+    }
+
+    /// <summary>
+    /// 判定某个聚合的输入表达式在 <paramref name="allRows"/> 全集合上是否只产出整数（或 null）。
+    /// 这是为了让 sum/min/max 的返回类型在整张结果集上保持一致（M3 修复）：要么全 long，要么全 double。
+    /// </summary>
+    private static bool IsAggregateInputAllIntegral(
+        Tsdb tsdb,
+        AggregateSpec aggregate,
+        IReadOnlyList<RelColumn> columns,
+        IReadOnlyList<object?[]> allRows)
+    {
+        var fn = aggregate.Function;
+        if (fn.IsStar) return true; // count(*) 不关心输入类型
+        if (fn.Arguments.Count == 0) return true;
+
+        foreach (var row in allRows)
+        {
+            var v = EvaluateScalar(tsdb, fn.Arguments[0], columns, row);
+            if (v is null) continue;
+            if (v is not (byte or short or int or long))
+                return false;
+        }
+        return true;
     }
 
     /// <summary>
@@ -413,7 +457,8 @@ internal static class RelationalSelectExecutor
         Tsdb tsdb,
         AggregateSpec aggregate,
         IReadOnlyList<RelColumn> columns,
-        IReadOnlyList<object?[]> rows)
+        IReadOnlyList<object?[]> rows,
+        bool allIntegralInput = false)
     {
         var fn = aggregate.Function;
         var name = fn.Name.ToLowerInvariant();
@@ -431,17 +476,15 @@ internal static class RelationalSelectExecutor
             .Where(static value => value is not null)
             .ToArray();
 
-        // 保留整数类型：当所有非空输入都是 byte/short/int/long 时，sum/min/max 保留 long——
-        // 与 Postgres 等关系库一致，便于跨后端 parity 直接比对（否则 long 120 vs double 120 会 diff）。
-        bool allIntegral = rawValues.Length > 0 && rawValues.All(static v =>
-            v is byte or short or int or long);
-
-        if (allIntegral && (name == "sum" || name == "min" || name == "max"))
+        // 保留整数类型：当调用方已确认所有非空输入跨整个结果集都是 byte/short/int/long 时，
+        // sum/min/max 在所有组上一致返回 long——与 Postgres 等关系库一致，避免同列异质类型
+        // （组 A 返回 long 120，组 B 因有一个 double 返回 120.0）。
+        if (allIntegralInput && rawValues.Length > 0 && (name == "sum" || name == "min" || name == "max"))
         {
             long[] longs = rawValues.Select(static v => Convert.ToInt64(v)).ToArray();
             return name switch
             {
-                "sum" => longs.Sum(),
+                "sum" => SumLongsWithOverflowPromotion(longs),
                 "min" => longs.Min(),
                 "max" => longs.Max(),
                 _ => throw new InvalidOperationException($"unreachable: integral aggregate {name}"),
@@ -460,6 +503,30 @@ internal static class RelationalSelectExecutor
             "avg" => values.Length == 0 ? null : values.Average(),
             _ => throw new InvalidOperationException($"关系表聚合暂不支持函数 '{fn.Name}'。"),
         };
+    }
+
+    /// <summary>
+    /// 累加 long 数组；若任意中间结果溢出 <see cref="long"/> 范围，自动提升为 <see cref="double"/>
+    /// 并继续累加剩余元素——避免向上层抛 <see cref="OverflowException"/>，匹配 Postgres
+    /// sum(bigint) -&gt; numeric 的"溢出即扩位"语义；M4 修复 LINQ <c>longs.Sum()</c> 的 checked 行为。
+    /// </summary>
+    private static object SumLongsWithOverflowPromotion(long[] longs)
+    {
+        long sum = 0;
+        for (int i = 0; i < longs.Length; i++)
+        {
+            try
+            {
+                sum = checked(sum + longs[i]);
+            }
+            catch (OverflowException)
+            {
+                double promoted = sum;
+                for (; i < longs.Length; i++) promoted += longs[i];
+                return promoted;
+            }
+        }
+        return sum;
     }
 
     private static bool EvaluateBoolean(

@@ -334,8 +334,15 @@ internal static class TableValuedFunctionExecutor
                     string fname = fieldColumns[fi].Name;
                     foreach (var p in QueryPoints(tsdb, sid, fname, range))
                     {
-                        if (tsSet.Contains(p.Timestamp))
-                            fieldLookup[(sid, fname, p.Timestamp)] = p.Value;
+                        if (!tsSet.Contains(p.Timestamp))
+                            continue;
+                        // M7 修复：同一 (sid, field, ts) 出现多次时（重复写入 / 段间未压缩）
+                        // 旧的"每行单点查询"路径用 fieldPoints[0]——即"首次匹配的值"——作为返回。
+                        // 这里也只接受首个，避免批量扫描把后续覆盖默默写回去导致结果集
+                        // 表现不一致。压缩前后行为一致。
+                        var key = (sid, fname, p.Timestamp);
+                        if (!fieldLookup.ContainsKey(key))
+                            fieldLookup[key] = p.Value;
                     }
                 }
             }

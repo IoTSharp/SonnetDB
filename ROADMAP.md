@@ -885,3 +885,17 @@ extensions/
 15. **新增 Milestone 19 — IoTSharp 生态数据底座选项**：把 SonnetDB 从“时序 + 管理后台 + Copilot”扩展为 IoTSharp 的可选数据底座。该里程碑覆盖关系型数据库、时序数据库、KV/缓存、S3-compatible 对象桶、向量搜索、全文搜索和大量物理分表长稳七条线，并把 EF Core provider、EasyCaching/IDistributedCache provider、S3 API、搜索索引生命周期、迁移双写、分层文件布局、compaction manifest、长稳压测作为同等重要的交付物。路线明确要求先做兼容矩阵和回滚策略，避免把不完整 table/KV/搜索能力过早宣称为 PostgreSQL/Redis/S3/搜索后端的生产级完整兼容。
 16. **新增 Milestone 20 — 多模能力对齐与平移测试 (Parity)**：用一份 docker-compose 同时拉起 SonnetDB 与开源全家桶（PostgreSQL / Redis / InfluxDB / VictoriaMetrics / MinIO / NATS / Mosquitto / Meilisearch / Qdrant / ClickHouse），用同一套 `IDataPlane` 适配器跑同一套场景，证明"一台 SonnetDB 在边缘 / 单机场景能替掉这一组组件"。**显式不做协议兼容**（自有 `SndbConnection` / `SndbMqClient` / `SndbObjectStorageClient` / EF Core provider，竞品走它们的官方 .NET 客户端），**显式不做替代主张**（不对齐 Redis Cluster / Kafka / Postgres HA / MinIO 集群），三类对齐边界为：能力对齐、可靠性对齐、算法准确度对齐；性能数字写报告不做 gating。本里程碑同时连带把 KV `INCR/CAS/EXPIRE/PERSIST/TTL`、SonnetMQ `RecordTypeTombstone` 段滚动 + `FlushOnPublish=true` 默认、对象桶 `ListObjectsV2 ContinuationToken` 分页、`tests/SonnetDB.CrashTests/` 真子进程 SIGKILL 注杀、README 措辞与代码同步落地。详细设计见 [`docs/parity-roadmap.md`](docs/parity-roadmap.md)。
 17. **新增 Milestone 21 — Document Store 单机能力升级（MongoDB-like，不做协议兼容）**：在 MM5 JSON 文档能力、MM6 全文索引、MM8 Hybrid Search 与 Milestone 20 parity 基础上，把 SonnetDB Document Store 推进到 MongoDB 单机常用能力子集。范围包括 Document API / client、find filter、projection、sort、cursor、局部更新操作符、复合 / unique / sparse / partial / TTL 索引、aggregation pipeline 子集、单文档原子性、批量写轻事务、validator、MongoDB 参考 parity、Web Admin Document Explorer 与百万文档长稳报告。该里程碑**明确不做 MongoDB wire protocol / BSON command / 官方 driver 直连兼容**，只做语义和能力面对齐。
+
+
+## 性能优化待办（2026 审计后回收的中等优先项）
+
+以下是一次完整审计后留下的纯性能优化点；功能上是对的，只是热路径里有可优化的常数因子或代数复杂度。每项都有目标位置和现状成本，便于后续按需安排。
+
+| 编号 | 位置 | 现状 | 建议改造 | 估时 |
+|------|------|------|---------|------|
+| P1 | `src/SonnetDB.Core/Query/KnnExecutor.cs:103` | 每个候选都调用 `TombstoneTable.IsCovered` —— 内部锁 + `ToArray()` 快照 | 提到 ScanSegment 之前一次性拿快照（已在 KnnExecutor 顶层做 GetForSeriesField 检查），把候选过滤改成直接遍历该快照 | 15 分钟 |
+| P2 | `src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.cs` 子查询路径 | 同一个子查询 SELECT 子树在每个外层行上重新执行；只要不引用外层列就能 memoize | 对 ExistsExpression / SubqueryExpression 加 `Cache<SelectStatement, IReadOnlyList<...>\>`，先做一次 "是否相关" 静态判定；非相关查询执行 0 或 1 次 | 30 分钟 |
+| P3 | `src/SonnetDB.Core/FullText/DocumentFullTextIndexStore.cs` ExpandFuzzyTermQuery | 模糊扩展时把 tombstoned term 也参与编辑距离计算 | 让 DotSearch 的 EnumerateTerms 暴露一份 "未 tombstone" 视图，或者在 PersistentFullTextIndex 端先过滤；当前简单做法是上层把展开候选再用一次 Search 验证 | 10 分钟 |
+| P4 | `src/SonnetDB.Core/Tables/TableManager.cs` ExpandCascadeDeletesLocked | BFS 每一步都对子表做 `childStore.Scan()` 全表线性扫描——O(parents × FKs × N) | 在子表 FK 列上建临时哈希索引（`Dictionary<keyBytes, List<row>>`），或直接给 FK 列建持久化二级索引，cascade 改成索引查找 | 60 分钟 |
+
+这些不阻塞功能正确性，不影响 parity 通过率，并且在小数据量上不会被察觉。当任一线上场景遇到瓶颈时（高基数 KNN / 重相关子查询 / 高基数 fuzzy / 万行级 cascade）按需挑出来做。
