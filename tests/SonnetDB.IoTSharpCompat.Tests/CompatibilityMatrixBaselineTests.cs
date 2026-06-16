@@ -2,6 +2,13 @@ namespace SonnetDB.IoTSharpCompat.Tests;
 
 using Xunit;
 
+/// <summary>
+/// 静态兼容矩阵（<see cref="IoTSharpCompatMatrix"/>）的内容一致性测试——
+/// 仅验证文档表自身条目齐全，不会运行 SonnetDB、不触达任何后端、
+/// 也不证明 SonnetDB 与所列后端真正兼容。计入"通过测试数"时应排除。
+/// 通过 <c>Category=Documentation</c> trait 过滤：<c>dotnet test --filter "Category!=Documentation"</c>。
+/// </summary>
+[Trait("Category", "Documentation")]
 public sealed class CompatibilityMatrixBaselineTests
 {
     [Fact]

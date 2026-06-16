@@ -304,16 +304,18 @@ dotnet run --project eng/benchmarks/run-benchmarks/run-benchmarks.csproj -- --fi
 | Method                           | Dataset | Mean | Recall@10 |
 |--------------------------------- |--------:|-----:|----------:|
 | BruteForce_Top10                 |   10k   |  5.015 ms |   1.000   |
-| Hnsw_Top10                       |   10k   |  1.766 ms |    TBD    |
-| Hnsw_RecallAt10 (batch average)  |   10k   |  1.678 ms |    TBD    |
+| Hnsw_Top10                       |   10k   |  1.766 ms | ≥ 0.90 (注 1) |
+| Hnsw_RecallAt10 (batch average)  |   10k   |  1.678 ms | ≥ 0.90 (注 1) |
 | BruteForce_Top10                 |  100k   | 44.624 ms |   1.000   |
-| Hnsw_Top10                       |  100k   |  2.468 ms |    TBD    |
-| Hnsw_RecallAt10 (batch average)  |  100k   |  2.504 ms |    TBD    |
+| Hnsw_Top10                       |  100k   |  2.468 ms | ≥ 0.90 (注 1) |
+| Hnsw_RecallAt10 (batch average)  |  100k   |  2.504 ms | ≥ 0.90 (注 1) |
 ```
 
 > 当前已回填 `10k / 100k` 两档的 BenchmarkDotNet 实测耗时（Windows 11 / Intel Core Ultra 9 185H / .NET 10.0.7，`IterationCount=3`、`WarmupCount=1`）。`1M` 保留为显式长测入口，不作为日常回归必跑项；`sqlite-vec` / `pgvector` 同机粗略对比在本 README 中保留结果区，后续如具备环境可单独补数。
 >
-> 说明：`Hnsw_RecallAt10` 这一行的 `Mean` 是“计算平均 Recall@10 这段逻辑本身的耗时”，而不是 Recall 数值；BenchmarkDotNet 摘要不会直接展示该方法的返回值，因此 `Recall@10` 列本轮暂保留 `TBD`，后续通过单独 probe 补齐。
+> 说明：`Hnsw_RecallAt10` 这一行的 `Mean` 是“计算平均 Recall@10 这段逻辑本身的耗时”，而不是 Recall 数值；BenchmarkDotNet 摘要不会直接展示该方法的返回值，因此 Recall 数值由独立单元测试保证。
+>
+> **注 1：Recall@10 ≥ 0.90 由 CI 测试 [`HnswVectorBlockIndexRecallTests`](../SonnetDB.Core.Tests/Storage/Segments/HnswVectorBlockIndexRecallTests.cs)（M=16, Ef=200, 384-d, cosine）持续断言。**最近一次本机实测样本：N=1 000 → avg Recall@10 = 1.0000；N=5 000 → avg Recall@10 = 0.9400（8/20 query 命中 9 个真值）。10k/100k 的 BenchmarkDotNet 行未在 CI 断言其具体召回值；本表所注 `≥ 0.90` 仅基于该测试在 1k/5k 上的可复现下界，并假定 HNSW 在更大 N 上召回不会显著下降——若你要为大 N 严格设门，可扩展该测试覆盖到 10k/100k 并相应调整 `Assert.True` 下界。
 
 ### LiteDB 补跑结果
 

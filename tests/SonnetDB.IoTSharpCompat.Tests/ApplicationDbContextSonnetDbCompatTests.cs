@@ -279,8 +279,10 @@ public sealed class ApplicationDbContextSonnetDbCompatTests : IDisposable
     }
 
     [Fact]
+    [Trait("Category", "Documentation")]
     public void UnsupportedList_ForApplicationDbContextCompat_DocumentsCurrentBoundaries()
     {
+        // 文档表一致性检查；不运行 SonnetDB。
         var unsupported = IoTSharpCompatMatrix.RelationalSonnetDbUnsupported;
 
         Assert.Contains(unsupported, item => item.Contains("HealthChecks UI", StringComparison.OrdinalIgnoreCase));

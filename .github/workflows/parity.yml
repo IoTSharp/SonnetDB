@@ -168,6 +168,19 @@ jobs:
           name: parity-${{ matrix.profile }}-reports
           path: artifacts/parity/${{ matrix.profile }}
 
+      - name: Gate parity result
+        if: steps.selection.outputs.run == 'true'
+        shell: pwsh
+        run: |
+          $failed = @()
+          if ('${{ steps.parity.outcome }}' -ne 'success') { $failed += 'parity' }
+          if ('${{ steps.reliability.outcome }}' -ne 'success') { $failed += 'reliability' }
+          if ($failed.Count -gt 0) {
+            Write-Error "Parity gate failed: $($failed -join ', '). See uploaded reports."
+            exit 1
+          }
+          Write-Host "Parity gate passed."
+
       - name: Stop parity stack
         if: steps.selection.outputs.run == 'true' && always()
         working-directory: tests/SonnetDB.Parity

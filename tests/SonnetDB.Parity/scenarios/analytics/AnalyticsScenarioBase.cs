@@ -42,13 +42,24 @@ public abstract class AnalyticsScenarioBase : IScenario
     protected string Dataset(ScenarioContext ctx, string suffix)
         => ("p134_" + ctx.RunId.Replace("-", "_", StringComparison.Ordinal) + "_" + suffix).ToLowerInvariant();
 
-    /// <summary>构造 SQL 结果场景响应。</summary>
+    /// <summary>
+    /// 构造 SQL 结果场景响应。
+    /// 至少要求返回非空 rows——本套件所有场景输入都是确定性 <see cref="BuildRows"/> 数据，
+    /// 0 行明确说明分析查询要么未实现、要么静默失败，不能记作通过。
+    /// 调用方可后续覆写更严格的断言（如行数上下界、值域）。
+    /// </summary>
     protected static ScenarioResult FromResult(RelationalSqlResult result)
     {
+        ArgumentNullException.ThrowIfNull(result);
+
+        bool pass = result.Rows.Count > 0;
         var scenario = new ScenarioResult
         {
-            Pass = true,
+            Pass = pass,
             SqlResult = result,
+            GapReason = pass
+                ? null
+                : "analytical query returned 0 rows; expected non-empty result from deterministic dataset",
         };
         scenario.Metrics["row_count"] = result.Rows.Count;
         return scenario;
