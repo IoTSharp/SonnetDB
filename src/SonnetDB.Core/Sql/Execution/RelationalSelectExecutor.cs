@@ -349,37 +349,37 @@ internal static class RelationalSelectExecutor
         switch (expression)
         {
             case FunctionCallExpression aggCall when IsAggregateFunction(aggCall.Name):
-            {
-                var value = EvaluateAggregate(tsdb, new AggregateSpec(aggCall), columns, group);
-                return WrapValueAsLiteral(value);
-            }
-            case BinaryExpression binary:
-            {
-                var left = InlineAggregates(tsdb, binary.Left, columns, group);
-                var right = InlineAggregates(tsdb, binary.Right, columns, group);
-                if (ReferenceEquals(left, binary.Left) && ReferenceEquals(right, binary.Right))
-                    return expression;
-                return binary with { Left = left, Right = right };
-            }
-            case UnaryExpression unary:
-            {
-                var operand = InlineAggregates(tsdb, unary.Operand, columns, group);
-                if (ReferenceEquals(operand, unary.Operand))
-                    return expression;
-                return unary with { Operand = operand };
-            }
-            case FunctionCallExpression scalarCall when !scalarCall.IsStar:
-            {
-                var args = new SqlExpression[scalarCall.Arguments.Count];
-                bool changed = false;
-                for (int i = 0; i < scalarCall.Arguments.Count; i++)
                 {
-                    args[i] = InlineAggregates(tsdb, scalarCall.Arguments[i], columns, group);
-                    if (!ReferenceEquals(args[i], scalarCall.Arguments[i]))
-                        changed = true;
+                    var value = EvaluateAggregate(tsdb, new AggregateSpec(aggCall), columns, group);
+                    return WrapValueAsLiteral(value);
                 }
-                return changed ? scalarCall with { Arguments = args } : expression;
-            }
+            case BinaryExpression binary:
+                {
+                    var left = InlineAggregates(tsdb, binary.Left, columns, group);
+                    var right = InlineAggregates(tsdb, binary.Right, columns, group);
+                    if (ReferenceEquals(left, binary.Left) && ReferenceEquals(right, binary.Right))
+                        return expression;
+                    return binary with { Left = left, Right = right };
+                }
+            case UnaryExpression unary:
+                {
+                    var operand = InlineAggregates(tsdb, unary.Operand, columns, group);
+                    if (ReferenceEquals(operand, unary.Operand))
+                        return expression;
+                    return unary with { Operand = operand };
+                }
+            case FunctionCallExpression scalarCall when !scalarCall.IsStar:
+                {
+                    var args = new SqlExpression[scalarCall.Arguments.Count];
+                    bool changed = false;
+                    for (int i = 0; i < scalarCall.Arguments.Count; i++)
+                    {
+                        args[i] = InlineAggregates(tsdb, scalarCall.Arguments[i], columns, group);
+                        if (!ReferenceEquals(args[i], scalarCall.Arguments[i]))
+                            changed = true;
+                    }
+                    return changed ? scalarCall with { Arguments = args } : expression;
+                }
             default:
                 return expression;
         }
