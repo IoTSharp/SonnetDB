@@ -85,12 +85,28 @@ internal static class TableValuedFunctionExecutor
             .Where(c => c.Role == MeasurementColumnRole.Tag)
             .ToList();
         var columnNames = new List<string>(4 + tagColumns.Count) { "time", "value", "lower", "upper" };
-        foreach (var t in tagColumns) columnNames.Add(t.Name);
+        // 防御性：tag 列名若与 forecast 内置输出列（time / value / lower / upper）冲突，
+        // 后续 ResolveForecastProjectionPlan 的 OrdinalIgnoreCase 查表会被 tag 覆盖（last-write-wins），
+        // 导致 SELECT time FROM forecast(...) 返回 tag 而非桶时间——静默错列。
+        // 这里在构表阶段显式报错，避免错列结果流回上层。
+        foreach (var t in tagColumns)
+        {
+            if (string.Equals(t.Name, "time", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(t.Name, "value", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(t.Name, "lower", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(t.Name, "upper", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"forecast(...) 不允许 tag 列名 '{t.Name}' 与内置输出列 time / value / lower / upper 冲突；请重命名 tag 或加列别名。");
+            }
+            columnNames.Add(t.Name);
+        }
 
-        // SELECT 列表必须是 *（TVF 输出 schema 由 TVF 自身决定）
-        if (!IsSelectStar(statement.Projections))
-            throw new InvalidOperationException(
-                "forecast(...) 表值函数当前仅支持 SELECT *；请在外层查询投影具体列。");
+        // SELECT 列表支持两种形式：
+        //   1) SELECT *        → 输出 TVF 全部列（time/value/lower/upper + tag 列）。
+        //   2) SELECT col[,..] → 列引用必须命中 TVF 输出列名（time/value/lower/upper 或 tag 名），
+        //                        v1 暂不支持外层表达式 / 函数调用 / 字面量列。
+        var projectionPlan = ResolveForecastProjectionPlan(statement.Projections, columnNames);
 
         var rows = new List<IReadOnlyList<object?>>();
 
@@ -111,18 +127,82 @@ internal static class TableValuedFunctionExecutor
             var forecast = TimeSeriesForecaster.Forecast(ts, values, horizon, algorithm, season);
             foreach (var p in forecast)
             {
-                var row = new object?[columnNames.Count];
-                row[0] = p.TimestampMs;
-                row[1] = p.Value;
-                row[2] = p.Lower;
-                row[3] = p.Upper;
+                var wide = new object?[columnNames.Count];
+                wide[0] = p.TimestampMs;
+                wide[1] = p.Value;
+                wide[2] = p.Lower;
+                wide[3] = p.Upper;
                 for (int t = 0; t < tagColumns.Count; t++)
-                    row[4 + t] = series.Tags.TryGetValue(tagColumns[t].Name, out var tv) ? tv : null;
-                rows.Add(row);
+                    wide[4 + t] = series.Tags.TryGetValue(tagColumns[t].Name, out var tv) ? tv : null;
+                rows.Add(projectionPlan.Apply(wide));
             }
         }
 
-        return new SelectExecutionResult(columnNames, rows);
+        return new SelectExecutionResult(projectionPlan.OutputColumns, rows);
+    }
+
+    /// <summary>
+    /// 解析 forecast(...) 外层 SELECT 投影列表，返回从 TVF 完整宽表到输出投影的映射。
+    /// </summary>
+    private static ForecastProjectionPlan ResolveForecastProjectionPlan(
+        IReadOnlyList<SelectItem> projections,
+        IReadOnlyList<string> wideColumnNames)
+    {
+        if (IsSelectStar(projections))
+            return ForecastProjectionPlan.PassThrough(wideColumnNames);
+
+        var indexLookup = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        for (int i = 0; i < wideColumnNames.Count; i++)
+            indexLookup[wideColumnNames[i]] = i;
+
+        var indices = new int[projections.Count];
+        var outputNames = new string[projections.Count];
+        for (int i = 0; i < projections.Count; i++)
+        {
+            var item = projections[i];
+            if (item.Expression is not IdentifierExpression id)
+                throw new InvalidOperationException(
+                    "forecast(...) 外层 SELECT 仅支持 * 或简单列引用（time / value / lower / upper / tag 列）；"
+                    + "v1 暂不支持表达式或函数调用投影。");
+            if (!indexLookup.TryGetValue(id.Name, out int idx))
+                throw new InvalidOperationException(
+                    $"forecast(...) 不输出列 '{id.Name}'；可用列：{string.Join(", ", wideColumnNames)}。");
+            indices[i] = idx;
+            outputNames[i] = item.Alias ?? id.Name;
+        }
+
+        return new ForecastProjectionPlan(indices, outputNames);
+    }
+
+    private sealed class ForecastProjectionPlan
+    {
+        private readonly int[]? _indices;
+        public IReadOnlyList<string> OutputColumns { get; }
+
+        private ForecastProjectionPlan(IReadOnlyList<string> passThroughColumns)
+        {
+            _indices = null;
+            OutputColumns = passThroughColumns;
+        }
+
+        public ForecastProjectionPlan(int[] indices, IReadOnlyList<string> outputColumns)
+        {
+            _indices = indices;
+            OutputColumns = outputColumns;
+        }
+
+        public static ForecastProjectionPlan PassThrough(IReadOnlyList<string> wideColumns)
+            => new(wideColumns);
+
+        public IReadOnlyList<object?> Apply(object?[] wideRow)
+        {
+            if (_indices is null)
+                return wideRow;
+            var projected = new object?[_indices.Length];
+            for (int i = 0; i < _indices.Length; i++)
+                projected[i] = wideRow[_indices[i]];
+            return projected;
+        }
     }
 
     private static bool IsSelectStar(IReadOnlyList<SelectItem> projections)
@@ -246,7 +326,39 @@ internal static class TableValuedFunctionExecutor
             queryArray.AsMemory(),
             k,
             metric,
-            where.TimeRange);
+            where.TimeRange,
+            tsdb.Tombstones);
+
+        // 字段值预批量读取：按 (SeriesId × FieldColumn) 各发一次 QueryPoints，覆盖
+        // 该 series 全部命中时间戳的最小-最大区间，避免原"每行每列一次精确点查"造成的
+        // rows × fields 次往返；命中时间戳作为 HashSet 过滤，保证仅保留真正需要的点。
+        Dictionary<(ulong Sid, string Field, long Ts), FieldValue>? fieldLookup = null;
+        if (fieldColumns.Count > 0 && knnResults.Count > 0)
+        {
+            fieldLookup = new Dictionary<(ulong, string, long), FieldValue>(knnResults.Count * fieldColumns.Count);
+            foreach (var bySeries in knnResults.GroupBy(static r => r.SeriesId))
+            {
+                ulong sid = bySeries.Key;
+                long minTs = long.MaxValue, maxTs = long.MinValue;
+                var tsSet = new HashSet<long>();
+                foreach (var hit in bySeries)
+                {
+                    if (hit.Timestamp < minTs) minTs = hit.Timestamp;
+                    if (hit.Timestamp > maxTs) maxTs = hit.Timestamp;
+                    tsSet.Add(hit.Timestamp);
+                }
+                var range = new TimeRange(minTs, maxTs);
+                for (int fi = 0; fi < fieldColumns.Count; fi++)
+                {
+                    string fname = fieldColumns[fi].Name;
+                    foreach (var p in QueryPoints(tsdb, sid, fname, range))
+                    {
+                        if (tsSet.Contains(p.Timestamp))
+                            fieldLookup[(sid, fname, p.Timestamp)] = p.Value;
+                    }
+                }
+            }
+        }
 
         // 构建结果行
         var rows = new List<IReadOnlyList<object?>>(knnResults.Count);
@@ -267,14 +379,13 @@ internal static class TableValuedFunctionExecutor
                     : null;
             }
 
-            // field 列（按精确时间戳查询）
-            // TODO：多字段 measurement 时每列单独查询性能不佳；后续可在一次扫描中同时收集所有字段值（PR #6x）。
-            var exactRange = new TimeRange(result.Timestamp, result.Timestamp);
+            // field 列：从预构建的字典常数级查询。
             for (int fi = 0; fi < fieldColumns.Count; fi++)
             {
-                var fieldPoints = QueryPoints(tsdb, result.SeriesId, fieldColumns[fi].Name, exactRange);
-                row[2 + tagColumns.Count + fi] = fieldPoints.Count > 0
-                    ? ConvertFieldValue(fieldPoints[0].Value)
+                string fname = fieldColumns[fi].Name;
+                row[2 + tagColumns.Count + fi] = fieldLookup is not null
+                    && fieldLookup.TryGetValue((result.SeriesId, fname, result.Timestamp), out var fv)
+                    ? ConvertFieldValue(fv)
                     : null;
             }
 

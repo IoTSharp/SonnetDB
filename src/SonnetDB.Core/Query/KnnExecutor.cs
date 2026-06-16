@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using SonnetDB.Catalog;
+using SonnetDB.Engine;
 using SonnetDB.Memory;
 using SonnetDB.Model;
 using SonnetDB.Storage.Format;
@@ -31,6 +32,10 @@ internal static class KnnExecutor
     /// <param name="k">返回最近邻数量上限（≥ 1）。</param>
     /// <param name="metric">距离度量方式。</param>
     /// <param name="timeRange">时间范围过滤（闭区间，毫秒 UTC）。</param>
+    /// <param name="tombstones">
+    /// 墓碑集合，用于过滤已被逻辑删除的点；为 null 时不过滤。
+    /// 必须显式传入（通常为 <c>tsdb.Tombstones</c>），避免漏过滤已删除向量。
+    /// </param>
     /// <returns>
     /// 按距离升序排列的最近邻结果列表，长度 ≤ <paramref name="k"/>。
     /// 若无候选点则返回空列表。
@@ -43,7 +48,8 @@ internal static class KnnExecutor
         ReadOnlyMemory<float> queryVector,
         int k,
         KnnMetric metric,
-        TimeRange timeRange)
+        TimeRange timeRange,
+        TombstoneTable? tombstones)
     {
         ArgumentNullException.ThrowIfNull(memTable);
         ArgumentNullException.ThrowIfNull(segmentReaders);
@@ -75,7 +81,7 @@ internal static class KnnExecutor
                         || reader.MinTimestamp > timeRange.ToInclusive)
                         continue;
 
-                    ScanSegment(reader, series.Id, vectorField, queryVector, k, metric, timeRange, localCandidates);
+                    ScanSegment(reader, series.Id, vectorField, queryVector, k, metric, timeRange, tombstones, localCandidates);
                 }
 
                 return localCandidates;
@@ -92,16 +98,37 @@ internal static class KnnExecutor
         if (allCandidates.Count == 0)
             return [];
 
-        // 按距离升序排序，取前 k 条。
-        // TODO：候选量远大于 k 时可改用 O(N log k) 的 max-heap 维护，减少排序开销（PR #6x 优化）。
-        allCandidates.Sort(static (a, b) => a.Dist.CompareTo(b.Dist));
-
-        int take = Math.Min(k, allCandidates.Count);
-        var results = new KnnSearchResult[take];
-        for (int i = 0; i < take; i++)
+        // 过滤已被逻辑删除（墓碑覆盖）的点，语义与 QueryEngine 点查一致。
+        // 压缩前墓碑仍在 TombstoneTable 中，若不在此过滤会返回已删除的向量。
+        if (tombstones is not null && tombstones.Count > 0)
         {
-            var (dist, ts, sid) = allCandidates[i];
-            results[i] = new KnnSearchResult(ts, sid, dist);
+            allCandidates.RemoveAll(c => tombstones.IsCovered(c.Sid, vectorField, c.Ts));
+            if (allCandidates.Count == 0)
+                return [];
+        }
+
+        // 按距离选 top-k：用大小 ≤ k 的最大堆（PriorityQueue + 反向 comparer），
+        // O(N log k) 代替原 List.Sort 的 O(N log N)；N 远大于 k 时显著降低排序开销。
+        // 堆顶始终是当前 top-k 里距离最远的候选；新候选触发 EnqueueDequeue 自动淘汰更远者。
+        int take = Math.Min(k, allCandidates.Count);
+        var heap = new PriorityQueue<(long Ts, ulong Sid), double>(
+            initialCapacity: take,
+            comparer: Comparer<double>.Create(static (a, b) => b.CompareTo(a)));
+
+        foreach (var c in CollectionsMarshal.AsSpan(allCandidates))
+        {
+            if (heap.Count < take)
+                heap.Enqueue((c.Ts, c.Sid), c.Dist);
+            else
+                heap.EnqueueDequeue((c.Ts, c.Sid), c.Dist);
+        }
+
+        // 堆按距离降序 dequeue，结果需升序——从数组末尾倒序填回。
+        var results = new KnnSearchResult[take];
+        for (int i = take - 1; i >= 0; i--)
+        {
+            heap.TryDequeue(out var element, out double dist);
+            results[i] = new KnnSearchResult(element.Ts, element.Sid, dist);
         }
 
         return results;
@@ -143,9 +170,18 @@ internal static class KnnExecutor
         int k,
         KnnMetric metric,
         TimeRange timeRange,
+        TombstoneTable? tombstones,
         List<(double Dist, long Ts, ulong Sid)> candidates)
     {
         var querySpan = queryVector.Span;
+
+        // 此 series/field 上若存在墓碑，ANN sidecar 路径返回的候选可能在后续墓碑过滤后剩余 < k——
+        // ANN 内部按 candidateLimit (≈ k*8) 截断后再喂给上层去重，若大量候选恰好是已删除点，
+        // 调用方拿到的最终结果会少于用户请求的 K。为保正确性，本段强制走精确扫描；
+        // 没有墓碑的常见路径仍享受 ANN 加速。
+        bool hasTombstonesForSeriesField = tombstones is not null
+            && tombstones.Count > 0
+            && tombstones.GetForSeriesField(seriesId, vectorField).Count > 0;
 
         foreach (var block in reader.Blocks)
         {
@@ -160,7 +196,9 @@ internal static class KnnExecutor
                 || block.MinTimestamp > timeRange.ToInclusive)
                 continue;
 
-            if (metric == KnnMetric.Cosine && reader.TryGetVectorIndexReader(block, out var vectorIndex))
+            if (metric == KnnMetric.Cosine
+                && !hasTombstonesForSeriesField
+                && reader.TryGetVectorIndexReader(block, out var vectorIndex))
             {
                 var data = reader.ReadBlock(block);
                 var timestamps = BlockDecoder.DecodeTimestamps(block, data.TimestampPayload);

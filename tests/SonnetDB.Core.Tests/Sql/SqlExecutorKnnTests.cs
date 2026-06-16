@@ -332,6 +332,88 @@ public sealed class SqlExecutorKnnTests : IDisposable
         Assert.Contains("absent", ex.Message);
     }
 
+    // ── 墓碑过滤（回归：删除后 KNN 不应再返回已删除向量） ──────────────────────
+
+    [Fact]
+    public void Knn_AfterDelete_DoesNotReturnTombstonedVector()
+    {
+        using var db = OpenDb();
+        SqlExecutor.Execute(db, "INSERT INTO docs (source, embedding, time) VALUES " +
+            "('a', [1, 0, 0], 1000), " +
+            "('b', [0.9, 0.1, 0], 2000), " +
+            "('c', [0, 1, 0], 3000)");
+
+        // 删除最近的 'a'：cosine 距离 0
+        SqlExecutor.Execute(db,
+            "DELETE FROM docs WHERE source = 'a' AND time >= 1000 AND time <= 1000");
+
+        var r = Select(db, "SELECT * FROM knn(docs, embedding, [1, 0, 0], 3)");
+
+        Assert.DoesNotContain(r.Rows, row => (long)row[0]! == 1000L);
+        Assert.Equal(2, r.Rows.Count);
+        Assert.Equal(2000L, (long)r.Rows[0][0]!);
+    }
+
+    [Fact]
+    public void Knn_AfterDeleteOnHnswSegment_DoesNotReturnTombstonedVector()
+    {
+        using (var db = OpenDbWithHnsw())
+        {
+            SqlExecutor.Execute(db, "INSERT INTO docs (source, embedding, time) VALUES " +
+                "('a', [1, 0, 0], 1000), " +
+                "('b', [0.9, 0.1, 0], 2000), " +
+                "('c', [0.8, 0.2, 0], 3000), " +
+                "('d', [0, 1, 0], 4000)");
+            Assert.NotNull(db.FlushNow());
+        }
+
+        using var reopened = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.Execute(reopened,
+            "DELETE FROM docs WHERE source = 'a' AND time >= 1000 AND time <= 1000");
+
+        var r = Select(reopened, "SELECT * FROM knn(docs, embedding, [1, 0, 0], 4)");
+
+        Assert.DoesNotContain(r.Rows, row => (long)row[0]! == 1000L);
+        Assert.Equal(3, r.Rows.Count);
+        Assert.Equal("b", r.Rows[0][2]);
+    }
+
+    [Fact]
+    public void Knn_AnnSegmentWithManyTombstones_StillReturnsKResults()
+    {
+        // 回归：ANN sidecar 候选量 = max(k*8, ef*2)；若其中大部分是已删除的点，
+        // 旧路径会让最终结果数 < k。修复后：检测到此 series/field 有墓碑就放弃 ANN 走精确扫描。
+        // 这里插入 32 个向量到 HNSW 索引段，然后删掉 query 最近邻的前 8 个，
+        // 验证 k=4 仍然能命中 4 条幸存向量。
+        using (var db = OpenDbWithHnsw())
+        {
+            for (int i = 0; i < 32; i++)
+            {
+                double dx = i * 0.01d;
+                SqlExecutor.Execute(db, "INSERT INTO docs (source, embedding, time) VALUES " +
+                    $"('s{i:D2}', [{1.0 - dx}, {dx}, 0], {1000 + i * 1000})");
+            }
+            Assert.NotNull(db.FlushNow());
+        }
+
+        using var reopened = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        // 删除 query 最近的 8 个（time 1000..8000）
+        for (long ts = 1000; ts <= 8000; ts += 1000)
+            SqlExecutor.Execute(reopened,
+                $"DELETE FROM docs WHERE source = 's{(ts / 1000 - 1):D2}' AND time >= {ts} AND time <= {ts}");
+
+        var r = Select(reopened, "SELECT * FROM knn(docs, embedding, [1, 0, 0], 4)");
+
+        Assert.Equal(4, r.Rows.Count);
+        // 应当从 s08 开始（前 8 个已删除）。
+        Assert.Equal("s08", r.Rows[0][2]);
+        Assert.All(r.Rows, row =>
+        {
+            long ts = (long)row[0]!;
+            Assert.True(ts >= 9000, $"墓碑 ts={ts} 不应出现在结果里");
+        });
+    }
+
     // ── 度量别名 ─────────────────────────────────────────────────────────────
 
     [Fact]

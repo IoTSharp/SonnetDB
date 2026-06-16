@@ -180,7 +180,8 @@ internal static class HybridSearchExecutor
             options.QueryVector.AsMemory(),
             options.MeasurementCandidateLimit,
             options.Metric,
-            filterPlan.MeasurementWhere.TimeRange);
+            filterPlan.MeasurementWhere.TimeRange,
+            tsdb.Tombstones);
         if (knnResults.Count == 0)
             return [];
 

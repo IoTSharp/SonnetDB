@@ -364,6 +364,13 @@ INSERT INTO doc_indexed (time, source, title, embedding) VALUES
     (1713657617000, 'wiki',  '观测性告警手册',     [0.20, 0.30, 0.25, 0.35]);
 
 -- 3-13  车辆轨迹数据（多车辆、多城市路线，用于地图轨迹测试）
+-- 含 GEOPOINT 字段，地理空间查询样例见第十部分；建表须在写入前完成。
+CREATE MEASUREMENT vehicle (
+    device   TAG,
+    position FIELD GEOPOINT,
+    speed    FIELD FLOAT
+);
+
 INSERT INTO vehicle (time, device, position, speed) VALUES
     (1713657600000, 'car-1', POINT(31.2989, 120.5853), 0),
     (1713657660000, 'car-1', POINT(31.3856, 120.9810), 35),
@@ -764,12 +771,8 @@ FROM documents WHERE source = 'wiki';
 -- 轨迹聚合（长度、质心、包络矩形、速度分位数）
 -- ============================================================
 
--- 10-1  创建含 GEOPOINT 字段的车辆轨迹表
-CREATE MEASUREMENT vehicle (
-    device   TAG,
-    position FIELD GEOPOINT,
-    speed    FIELD FLOAT
-);
+-- 10-1  车辆轨迹表 vehicle 已在第三部分（3-13 前）创建并写入数据，
+--       这里直接使用，不再重复建表。
 
 -- 10-2  车辆轨迹数据已在第三部分统一写入，这里保留后续地图查询样例。
 

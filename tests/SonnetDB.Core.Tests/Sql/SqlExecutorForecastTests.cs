@@ -112,11 +112,24 @@ public sealed class SqlExecutorForecastTests : IDisposable
     }
 
     [Fact]
-    public void Select_ForecastRequiresStarProjection()
+    public void Select_ForecastProjectsColumns_FromTvfWideSchema()
+    {
+        // ROADMAP #129.2：forecast(...) 外层支持显式列引用，输出按投影顺序裁剪。
+        using var db = OpenWithLinearSeries();
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT time, value FROM forecast(meter, value, 5, 'linear') WHERE device='m1'"));
+        Assert.Equal(new[] { "time", "value" }, result.Columns.ToArray());
+        Assert.Equal(5, result.Rows.Count);
+        Assert.All(result.Rows, row => Assert.Equal(2, row.Count));
+    }
+
+    [Fact]
+    public void Select_ForecastUnknownColumn_Throws()
     {
         using var db = OpenWithLinearSeries();
-        Assert.Throws<InvalidOperationException>(() =>
-            SqlExecutor.Execute(db, "SELECT time FROM forecast(meter, value, 5, 'linear') WHERE device='m1'"));
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            SqlExecutor.Execute(db, "SELECT bogus FROM forecast(meter, value, 5, 'linear') WHERE device='m1'"));
+        Assert.Contains("bogus", ex.Message);
     }
 
     [Fact]

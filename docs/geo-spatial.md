@@ -71,17 +71,18 @@ SELECT count(position)
 FROM vehicle
 WHERE geo_bbox(position, 31.21, 121.45, 31.25, 121.50);
 
--- PostGIS 风格别名
+-- PostGIS 风格别名（注意：SonnetDB 的 ST_DWithin 采用 (point, lat, lon, radius_m) 四参形式，
+-- 圆心以经纬度标量给出，而非 POINT 字面量）
 SELECT time, position
 FROM vehicle
-WHERE ST_DWithin(position, POINT(31.2304, 121.4737), 1500);
+WHERE ST_DWithin(position, 31.2304, 121.4737, 1500);
 ```
 
 函数语义：
 
 - `geo_distance(p1, p2)` / `ST_Distance(p1, p2)`：返回两点 Haversine 距离（米）。
 - `geo_bearing(p1, p2)`：返回从 `p1` 指向 `p2` 的方位角（0–360°）。
-- `geo_within(p, lat, lon, radius_m)`：判断点是否落在圆形围栏内。
+- `geo_within(p, lat, lon, radius_m)` / `ST_DWithin(p, lat, lon, radius_m)`：判断点是否落在圆形围栏内。
 - `geo_bbox(p, lat_min, lon_min, lat_max, lon_max)`：判断点是否落在矩形框内。
 - `geo_speed(p1, p2, elapsed_ms)`：返回两点之间平均速度（m/s）。
 

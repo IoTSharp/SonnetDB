@@ -83,8 +83,21 @@ public static class WalSegmentLayout
             string name = Path.GetFileName(file);
             if (TryParseStartLsn(name, out long lsn))
             {
-                long len = 0;
-                try { len = new FileInfo(file).Length; } catch { }
+                long len;
+                try
+                {
+                    len = new FileInfo(file).Length;
+                }
+                catch (FileNotFoundException)
+                {
+                    // 段在 Enumerate 与 stat 之间被删除（如并发轮转），安全跳过。
+                    continue;
+                }
+                catch (DirectoryNotFoundException)
+                {
+                    continue;
+                }
+                // 其余 I/O 错误（锁定/权限）不可吞掉：把长度当 0 会让恢复误判段为空，可能丢数据。
                 var info = new WalSegmentInfo(lsn, file, len);
                 if (TryReadLastLsnFooter(file, out long lastLsn))
                     info = info with { HasLastLsn = true, LastLsn = lastLsn };
