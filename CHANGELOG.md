@@ -133,6 +133,7 @@
 - 新增 `docs/sql-cookbook.md`，把 `demo.sql` 中高频、当前真实支持的 `CREATE MEASUREMENT`、`INSERT`、`SELECT`、`GROUP BY time(...)`、窗口函数、PID、预测、向量检索、元数据与 `DELETE` 场景整理成可直接复制的 cookbook，并在 `docs/index.md` 与 `docs/sql-reference.md` 中加入入口。
 
 ### Fixed
+- **CI Format Check 行尾规范化**：新增 `.gitattributes` 固定 C# 文件使用 LF 行尾，并归一化 `src/SonnetDB/Endpoints` 相关文件，补齐 file-scoped namespace 后空行，避免 `dotnet format --verify-no-changes --severity warn` 在 GitHub Actions 中因 CRLF / whitespace 失败。
 - **Parity workflow startup diagnostics**：修复 parity compose 中 SonnetDB 容器 healthcheck 依赖 runtime 镜像未安装的 `bash`，改为使用镜像内已有的 `curl /healthz`；GitHub Actions 的 `Start parity stack` 失败时现在会保存 `docker compose ps` 与容器日志到 `artifacts/parity/<profile>/stack-diagnostics`，避免后续只报 “No files were found” 而丢失根因。
 - **CI restore vulnerability gate**：`tests/SonnetDB.Benchmarks` 显式引用 `SQLitePCLRaw.bundle_e_sqlite3 3.0.3`，让 `Microsoft.Data.Sqlite` 的 native SQLite provider 解析到 `SourceGear.sqlite3 3.50.4.5`，避免 GitHub Actions 在 `dotnet build SonnetDB.slnx --configuration Release` restore 阶段因 `SQLitePCLRaw.lib.e_sqlite3 2.1.11` 的 NU1903 高危漏洞告警失败。
 - 修复 `QueryEngine` 与 Compaction / Retention 段替换并发时，连续快照复用的旧 `SegmentReader` 可能被后续 swap 提前释放，导致查询偶发 `ObjectDisposedException` 的 CI 回归；`SegmentManager` 现在按 reader 维护租约状态，等待所有持有该 reader 的查询快照释放后再 Dispose。

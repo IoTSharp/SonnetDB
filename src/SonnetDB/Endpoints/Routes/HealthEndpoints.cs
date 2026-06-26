@@ -14,6 +14,7 @@ using SonnetDB.Kv;
 using SonnetDB.Mcp;
 
 namespace SonnetDB.Endpoints;
+
 internal static partial class SonnetDbEndpoints
 {
     private static void MapHealthEndpoints(this WebApplication app)
