@@ -3,8 +3,8 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
-    <RootNamespace>SonnetDB.Studio.Host</RootNamespace>
-    <AssemblyName>SonnetDB.Studio.Host</AssemblyName>
+    <RootNamespace>SonnetDB.Studio</RootNamespace>
+    <AssemblyName>SonnetDB.Studio</AssemblyName>
     <Description>SonnetDB Studio desktop shell powered by NativeWebHost.</Description>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <IsAotCompatible>false</IsAotCompatible>

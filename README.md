@@ -104,7 +104,7 @@ SonnetDB 是一个基于 C# / .NET 的多模型数据库。它用一套本地引
 | `src/SonnetMQ` | 零依赖本地消息队列核心库，提供 topic publish、consumer group pull/ack 和重启 replay |
 | `extensions/SonnetDB.Caching` | 基于 SonnetDB KV keyspace 的缓存 Provider，可用于 IoTSharp / EasyCaching / IDistributedCache 场景 |
 | `web` | 管理后台前端（包含 SonnetDB Studio、全局 CopilotDock 与 SPA 发布静态资源） |
-| `src/SonnetDB.Studio.Host` | 基于 NativeWebHost 的 SonnetDB Studio 桌面壳 |
+| `src/SonnetDB.Studio` | 基于 NativeWebHost 的 SonnetDB Studio 桌面壳 |
 | `docs` | JekyllNet 文档站点源码；构建镜像时会生成并打包到 `/help` |
 
 ## 快速开始

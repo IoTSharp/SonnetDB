@@ -9,7 +9,7 @@ permalink: /web-workbench/
 
 SonnetDB Studio 是 Web Admin 里的核心工作界面，当前语义入口为 `/admin/app/studio`，兼容入口为 `/admin/app/sql`。它把数据库浏览、SQL 编辑、写入预览、结果分析、轨迹地图和 Copilot 智能协作放在同一个操作面里，让 SonnetDB 不只是一个后端引擎，也是一套可以直接交付给开发者、运维人员和数据使用者的管理工作台。
 
-Studio 沿用 Vue + CodeMirror + Naive UI 技术栈，并复用服务端已经存在的数据库列表、schema、SQL 执行、事件和 Copilot stream 协议。它不要求额外部署 BI 或数据库管理工具，启动 SonnetDB Server 后即可使用。桌面客户端通过 `SonnetDB.Studio.Host` 使用 NativeWebHost 打开同一套 Studio 入口。
+Studio 沿用 Vue + CodeMirror + Naive UI 技术栈，并复用服务端已经存在的数据库列表、schema、SQL 执行、事件和 Copilot stream 协议。它不要求额外部署 BI 或数据库管理工具，启动 SonnetDB Server 后即可使用。桌面客户端通过 `SonnetDB.Studio` 使用 NativeWebHost 打开同一套 Studio 入口。
 
 ## 适合完成的工作
 

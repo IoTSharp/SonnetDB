@@ -1,7 +1,7 @@
 using NativeWebHost;
 using NativeWebHost.Windows;
 
-namespace SonnetDB.Studio.Host;
+namespace SonnetDB.Studio;
 
 /// <summary>
 /// SonnetDB Studio 桌面宿主入口。
