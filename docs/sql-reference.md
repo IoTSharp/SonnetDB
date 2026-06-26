@@ -277,7 +277,7 @@ DROP FULLTEXT INDEX ft_logs_message ON logs;
 字段和分词器：
 
 - 字段可写 `document` / `json`，表示索引整份 JSON；也可写字符串 JSON path，例如 `'$.message'`、`'$.title'`。
-- 支持分词器：`unicode`、`cjk`、`jieba`。不写 `USING` 时默认 `unicode`。
+- 支持分词器：`unicode`、`cjk`、`jieba`。不写 `USING` 时默认 `unicode`。`jieba` 使用 SonnetDB.Core 内置中等中文词库；外部词库加载、`.dat` 编译和索引重建要求见 [全文中文词库](fulltext-dictionaries.md)。
 - 同一个全文索引可包含多个字段，搜索时可指定某个字段，或用 `*` 搜索该索引内全部字段。
 
 查询示例：

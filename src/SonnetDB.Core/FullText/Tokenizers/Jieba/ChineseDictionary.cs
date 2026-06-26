@@ -17,6 +17,7 @@ public sealed class ChineseDictionary
 
     private readonly Dictionary<string, int> _frequencies;
     private readonly DoubleArrayTrie? _trie;
+    private readonly CompactDictionary? _compact;
     private readonly long _totalFrequency;
 
     private ChineseDictionary(Dictionary<string, int> frequencies)
@@ -39,10 +40,69 @@ public sealed class ChineseDictionary
         MaxTermLength = maxTermLength;
     }
 
+    private ChineseDictionary(CompactDictionary compact, int count, long totalFrequency, int maxTermLength)
+    {
+        _frequencies = new Dictionary<string, int>(0, StringComparer.Ordinal);
+        _compact = compact;
+        Count = count;
+        _totalFrequency = Math.Max(totalFrequency, 1);
+        MaxTermLength = maxTermLength;
+    }
+
     /// <summary>
-    /// 内嵌种子词典实例。
+    /// 默认内嵌词典实例。
     /// </summary>
     public static ChineseDictionary Default => _default.Value;
+
+    /// <summary>
+    /// 从一个或多个 Jieba 风格文本词库创建中文词典。
+    /// </summary>
+    /// <param name="dictionaryPaths">词库文件路径，顺序靠后的文件可覆盖前面文件中的同名词频。</param>
+    /// <returns>合并后的中文词典。</returns>
+    /// <remarks>
+    /// 支持 <c>词项&lt;TAB&gt;词频</c>、<c>词项 词频</c> 和 cppjieba 的 <c>词项 词频 词性</c> 格式。
+    /// 词典变更会改变全文索引 token；对既有索引应用新词典后需要重建全文索引。
+    /// </remarks>
+    public static ChineseDictionary FromTextFiles(params string[] dictionaryPaths)
+        => FromTextFiles((IEnumerable<string>)dictionaryPaths);
+
+    /// <summary>
+    /// 从一个或多个 Jieba 风格文本词库创建中文词典。
+    /// </summary>
+    /// <param name="dictionaryPaths">词库文件路径，顺序靠后的文件可覆盖前面文件中的同名词频。</param>
+    /// <returns>合并后的中文词典。</returns>
+    /// <remarks>
+    /// 支持 <c>词项&lt;TAB&gt;词频</c>、<c>词项 词频</c> 和 cppjieba 的 <c>词项 词频 词性</c> 格式。
+    /// 词典变更会改变全文索引 token；对既有索引应用新词典后需要重建全文索引。
+    /// </remarks>
+    public static ChineseDictionary FromTextFiles(IEnumerable<string> dictionaryPaths)
+    {
+        var terms = ChineseDictionaryCompiler.LoadTerms(dictionaryPaths);
+        return FromTerms(terms);
+    }
+
+    /// <summary>
+    /// 从已编译的 SonnetDB DAT 词典文件创建中文词典。
+    /// </summary>
+    /// <param name="compiledDictionaryPath">DAT 词典文件路径。</param>
+    /// <returns>中文词典。</returns>
+    public static ChineseDictionary FromCompiledFile(string compiledDictionaryPath)
+        => ChineseDictionaryCompiler.LoadCompiled(compiledDictionaryPath);
+
+    /// <summary>
+    /// 从词项集合创建中文词典。
+    /// </summary>
+    /// <param name="terms">词项与词频。</param>
+    /// <returns>中文词典。</returns>
+    public static ChineseDictionary FromTerms(IReadOnlyDictionary<string, int> terms)
+    {
+        ArgumentNullException.ThrowIfNull(terms);
+        Dictionary<string, int> map = new(terms, StringComparer.Ordinal);
+        int maxLen = 0;
+        foreach (string term in map.Keys)
+            maxLen = Math.Max(maxLen, term.Length);
+        return new ChineseDictionary(map) { Count = map.Count, MaxTermLength = maxLen };
+    }
 
     /// <summary>
     /// 词项总数。
@@ -58,7 +118,13 @@ public sealed class ChineseDictionary
     /// 查询某个词项的频次；未登录词返回 0。
     /// </summary>
     public int GetFrequency(string term)
-        => _trie is { } trie ? trie.GetFrequency(term.AsSpan()) : _frequencies.TryGetValue(term, out int v) ? v : 0;
+    {
+        if (_compact is { } compact)
+            return compact.GetFrequency(term.AsSpan());
+        if (_trie is { } trie)
+            return trie.GetFrequency(term.AsSpan());
+        return _frequencies.TryGetValue(term, out int v) ? v : 0;
+    }
 
     /// <summary>
     /// 是否已登录该词项。
@@ -78,8 +144,7 @@ public sealed class ChineseDictionary
         {
             if (datStream is not null)
             {
-                DoubleArrayTrie trie = DoubleArrayTrie.Read(datStream, out int count, out long totalFrequency, out int maxTermLength);
-                return new ChineseDictionary(trie, count, totalFrequency, maxTermLength);
+                return ReadCompiled(datStream);
             }
         }
 
@@ -119,5 +184,25 @@ public sealed class ChineseDictionary
 
         ChineseDictionary dict = new(map) { Count = map.Count, MaxTermLength = maxLen };
         return dict;
+    }
+
+    internal static ChineseDictionary ReadCompiled(Stream stream)
+    {
+        byte[] data;
+        using (MemoryStream ms = new())
+        {
+            stream.CopyTo(ms);
+            data = ms.ToArray();
+        }
+
+        if (data.Length >= 8 && data.AsSpan(0, 8).SequenceEqual("DSDAT002"u8))
+        {
+            CompactDictionary compact = CompactDictionary.Read(data, out int count, out long totalFrequency, out int maxTermLength);
+            return new ChineseDictionary(compact, count, totalFrequency, maxTermLength);
+        }
+
+        using MemoryStream legacy = new(data);
+        DoubleArrayTrie trie = DoubleArrayTrie.Read(legacy, out int legacyCount, out long legacyTotalFrequency, out int legacyMaxTermLength);
+        return new ChineseDictionary(trie, legacyCount, legacyTotalFrequency, legacyMaxTermLength);
     }
 }

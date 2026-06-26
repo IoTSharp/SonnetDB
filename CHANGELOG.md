@@ -7,6 +7,7 @@
 
 ### Added
 
+- **Jieba 默认中文词库与外部词库 API**：`SonnetDB.Core` 内置中文词库从最小示例词表升级为基于 `cppjieba` `dict/jieba.dict.utf8` 转换的中等规模词库，并记录 upstream commit 与 MIT third-party notice；新增 `ChineseDictionary.FromTextFiles(...)`、`ChineseDictionary.FromCompiledFile(...)` 和 `ChineseDictionaryCompiler.Compile(...)`，支持加载多个 Jieba/cppjieba 风格词库并编译为紧凑 `.dat` 缓存。`docs/fulltext-dictionaries.md` 说明词库格式、授权来源、Core/Server 分发边界和词库变更后需要重建全文索引。
 - **搜索与向量引擎合并路线**：新增 `docs/search-vector-engine-consolidation-roadmap.md`，明确 DotSearch / DotVector 进入合并维护期。后续 BM25、分词、距离计算、HNSW / IVF / Vamana、量化和索引序列化逐步收编到 `SonnetDB.Core`，`Microsoft.Extensions.VectorData` adapter 迁移到 `SonnetDB.Data`；不再继续扩张独立 DotSearch / DotVector 产品线。
 - **DotSearch 合并 Phase 1 完成**：DotSearch core、Unicode / CJK / Jieba 分词器源码已物理并入 `src/SonnetDB.Core/FullText`；`SonnetDB.Core.csproj` 不再引用 `modules/DotSearch`，并负责生成和内嵌 Jieba `dict.txt` / `dict.dat`（保留旧 logical name）；DotSearch core/tokenizer 测试迁入 `tests/SonnetDB.Core.Tests/FullText`。
 - **DotVector 合并 Phase 2 源码第一刀**：DotVector primitives、SIMD 距离计算、量化、HNSW / IVF / IVF-PQ / Vamana indexing 和本地 index blob 编解码已并入 `src/SonnetDB.Core/Vector`；`SonnetDB.Core.csproj` 移除对 `modules/DotVector` 的 `ProjectReference` 并补充 `System.Numerics.Tensors` 包引用；关键向量算法测试迁入 `tests/SonnetDB.Core.Tests/Vector`。
