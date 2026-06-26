@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Library</OutputType>
@@ -23,9 +23,9 @@
   <ItemGroup>
     <Compile Remove="FullText\Tools\DictionaryCompiler\**\*.cs" />
     <EmbeddedResource Include="FullText\Tokenizers\Jieba\Resources\dict.txt"
-                      LogicalName="DotSearch.Tokenizers.Jieba.Resources.dict.txt" />
+                      LogicalName="SonnetDB.FullText.Tokenizers.Jieba.Resources.dict.txt" />
     <EmbeddedResource Include="FullText\Tokenizers\Jieba\Resources\Generated\dict.dat"
-                      LogicalName="DotSearch.Tokenizers.Jieba.Resources.dict.dat"
+                      LogicalName="SonnetDB.FullText.Tokenizers.Jieba.Resources.dict.dat"
                       Condition="Exists('FullText\Tokenizers\Jieba\Resources\Generated\dict.dat')" />
   </ItemGroup>
 

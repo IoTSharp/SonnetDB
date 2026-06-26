@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace DotSearch.Index;
+namespace SonnetDB.FullText.Index;
 
 /// <summary>
 /// 待索引文档：由若干字段组成，每个字段是字符串。

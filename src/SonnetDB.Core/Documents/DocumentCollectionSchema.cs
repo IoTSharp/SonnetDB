@@ -249,7 +249,7 @@ public sealed record DocumentPathIndexDefinition(
 /// JSON 文档集合全文索引声明。
 /// </summary>
 /// <param name="Name">索引名，在单集合内唯一。</param>
-/// <param name="Fields">写入 DotSearch 文档的字段列表；支持 <c>document</c> / <c>json</c> 和 JSON path。</param>
+/// <param name="Fields">写入 SonnetDB 全文文档的字段列表；支持 <c>document</c> / <c>json</c> 和 JSON path。</param>
 /// <param name="Tokenizer">分词器名称。</param>
 /// <param name="CreatedAtUtcTicks">创建时间 UTC ticks。</param>
 public sealed record DocumentFullTextIndex(
@@ -262,7 +262,7 @@ public sealed record DocumentFullTextIndex(
 /// 创建或加载全文索引时使用的轻量声明。
 /// </summary>
 /// <param name="Name">索引名。</param>
-/// <param name="Fields">写入 DotSearch 文档的字段列表。</param>
+/// <param name="Fields">写入 SonnetDB 全文文档的字段列表。</param>
 /// <param name="Tokenizer">分词器名称。</param>
 /// <param name="CreatedAtUtcTicks">创建时间 UTC ticks；为 0 时使用当前时间。</param>
 public sealed record DocumentFullTextIndexDefinition(

@@ -1,7 +1,7 @@
-using DotSearch.Tokenization;
+using SonnetDB.FullText.Tokenization;
 using Xunit;
 
-namespace DotSearch.Core.Tests;
+namespace SonnetDB.Core.Tests.FullText;
 
 public class TokenFilterTests
 {

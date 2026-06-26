@@ -1,7 +1,7 @@
 using System;
-using DotSearch.Tokenization;
+using SonnetDB.FullText.Tokenization;
 
-namespace DotSearch.Tokenizers.Jieba;
+namespace SonnetDB.FullText.Tokenizers.Jieba;
 
 /// <summary>
 /// 基于词典 + 最大概率动态规划的中文分词器。

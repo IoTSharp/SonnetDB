@@ -1,6 +1,6 @@
 using System;
 
-namespace DotSearch.Scoring;
+namespace SonnetDB.FullText.Scoring;
 
 /// <summary>
 /// BM25 评分公式实现。

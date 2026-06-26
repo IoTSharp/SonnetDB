@@ -1,4 +1,4 @@
-namespace DotSearch.Tokenization;
+namespace SonnetDB.FullText.Tokenization;
 
 /// <summary>
 /// 分词结果接收器。

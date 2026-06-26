@@ -1,6 +1,6 @@
-using DotSearch.Index;
+using SonnetDB.FullText.Index;
 
-namespace DotSearch.Storage;
+namespace SonnetDB.FullText.Storage;
 
 internal sealed class SegmentDocument
 {

@@ -1,18 +1,18 @@
 using System.Globalization;
 using System.Text.Json;
-using DotSearch.Index;
-using DotSearch.Query;
-using DotSearch.Storage;
-using DotSearch.Tokenization;
-using DotSearch.Tokenizers.Cjk;
-using DotSearch.Tokenizers.Jieba;
-using DotSearch.Tokenizers.Unicode;
+using SonnetDB.FullText.Index;
+using SonnetDB.FullText.Query;
+using SonnetDB.FullText.Storage;
+using SonnetDB.FullText.Tokenization;
+using SonnetDB.FullText.Tokenizers.Cjk;
+using SonnetDB.FullText.Tokenizers.Jieba;
+using SonnetDB.FullText.Tokenizers.Unicode;
 using SonnetDB.Documents;
 
 namespace SonnetDB.FullText;
 
 /// <summary>
-/// 文档集合全文索引的 DotSearch-backed 派生索引。
+/// 文档集合全文索引的 SonnetDB-backed 派生索引。
 /// </summary>
 public sealed class DocumentFullTextIndexStore
 {
@@ -47,7 +47,7 @@ public sealed class DocumentFullTextIndexStore
     /// <summary>
     /// 打开全文索引目录。
     /// </summary>
-    /// <param name="directory">DotSearch 持久化目录。</param>
+    /// <param name="directory">SonnetDB 全文索引持久化目录。</param>
     /// <param name="definition">全文索引声明。</param>
     public static DocumentFullTextIndexStore Open(string directory, DocumentFullTextIndex definition)
     {
@@ -109,7 +109,7 @@ public sealed class DocumentFullTextIndexStore
 
         lock (_sync)
         {
-            DotSearch.Query.Query query = BuildQuery(field, queryText, mode);
+            SonnetDB.FullText.Query.Query query = BuildQuery(field, queryText, mode);
             var hits = _index.Search(query, topK);
             var result = new DocumentFullTextSearchHit[hits.Count];
             for (int i = 0; i < hits.Count; i++)
@@ -132,7 +132,7 @@ public sealed class DocumentFullTextIndexStore
         }
     }
 
-    private DotSearch.Query.Query BuildQuery(string field, string queryText, FullTextSearchMode mode)
+    private SonnetDB.FullText.Query.Query BuildQuery(string field, string queryText, FullTextSearchMode mode)
     {
         string[] tokens = Tokenize(queryText, _definition.Tokenizer);
         if (tokens.Length == 0)
@@ -140,7 +140,7 @@ public sealed class DocumentFullTextIndexStore
 
         if (field == "*")
         {
-            var fieldQueries = new DotSearch.Query.Query[_definition.Fields.Count];
+            var fieldQueries = new SonnetDB.FullText.Query.Query[_definition.Fields.Count];
             for (int i = 0; i < _definition.Fields.Count; i++)
                 fieldQueries[i] = BuildFieldQuery(_definition.Fields[i], tokens, mode);
             return fieldQueries.Length == 1 ? fieldQueries[0] : new OrQuery(fieldQueries);
@@ -156,11 +156,11 @@ public sealed class DocumentFullTextIndexStore
         return BuildFieldQuery(normalizedField, tokens, mode);
     }
 
-    private DotSearch.Query.Query BuildFieldQuery(string field, IReadOnlyList<string> tokens, FullTextSearchMode mode)
+    private SonnetDB.FullText.Query.Query BuildFieldQuery(string field, IReadOnlyList<string> tokens, FullTextSearchMode mode)
     {
         if (mode == FullTextSearchMode.Fuzzy)
         {
-            var expanded = new DotSearch.Query.Query[tokens.Count];
+            var expanded = new SonnetDB.FullText.Query.Query[tokens.Count];
             for (int i = 0; i < tokens.Count; i++)
                 expanded[i] = ExpandFuzzyTermQuery(field, tokens[i]);
             return tokens.Count == 1 ? expanded[0] : new AndQuery(expanded);
@@ -169,7 +169,7 @@ public sealed class DocumentFullTextIndexStore
         if (tokens.Count == 1)
             return new TermQuery(field, tokens[0]);
 
-        var clauses = new DotSearch.Query.Query[tokens.Count];
+        var clauses = new SonnetDB.FullText.Query.Query[tokens.Count];
         for (int i = 0; i < tokens.Count; i++)
             clauses[i] = new TermQuery(field, tokens[i]);
         return new AndQuery(clauses);
@@ -180,7 +180,7 @@ public sealed class DocumentFullTextIndexStore
     /// 阈值随 term 长度递增：≤2 字符要求精确（容错距离 0），3-4 字符容 1 编辑，≥5 字符容 2 编辑。
     /// 若展开后无候选，回退到原 term 的 TermQuery，至少不会引入误判。
     /// </summary>
-    private DotSearch.Query.Query ExpandFuzzyTermQuery(string field, string queryToken)
+    private SonnetDB.FullText.Query.Query ExpandFuzzyTermQuery(string field, string queryToken)
     {
         int maxEdits = ComputeFuzzyMaxEdits(queryToken);
         if (maxEdits == 0)
@@ -203,7 +203,7 @@ public sealed class DocumentFullTextIndexStore
         if (matches.Count == 1)
             return new TermQuery(field, matches[0]);
 
-        var clauses = new DotSearch.Query.Query[matches.Count];
+        var clauses = new SonnetDB.FullText.Query.Query[matches.Count];
         for (int i = 0; i < matches.Count; i++)
             clauses[i] = new TermQuery(field, matches[i]);
         return new OrQuery(clauses);

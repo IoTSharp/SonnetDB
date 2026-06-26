@@ -1,6 +1,6 @@
 using System.Collections.ObjectModel;
 
-namespace DotSearch.Scoring;
+namespace SonnetDB.FullText.Scoring;
 
 /// <summary>
 /// BM25F 字段权重配置。

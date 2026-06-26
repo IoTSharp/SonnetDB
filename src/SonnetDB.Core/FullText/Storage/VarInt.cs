@@ -1,4 +1,4 @@
-namespace DotSearch.Storage;
+namespace SonnetDB.FullText.Storage;
 
 internal static class VarInt
 {

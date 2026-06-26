@@ -1,8 +1,8 @@
 using System.Buffers.Binary;
 using System.Text;
-using DotSearch.Index;
+using SonnetDB.FullText.Index;
 
-namespace DotSearch.Storage;
+namespace SonnetDB.FullText.Storage;
 
 internal static class SegmentFile
 {

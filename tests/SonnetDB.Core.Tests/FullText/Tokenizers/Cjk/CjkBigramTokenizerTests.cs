@@ -1,8 +1,8 @@
-using DotSearch.Tokenization;
-using DotSearch.Tokenizers.Cjk;
+using SonnetDB.FullText.Tokenization;
+using SonnetDB.FullText.Tokenizers.Cjk;
 using Xunit;
 
-namespace DotSearch.Tokenizers.Cjk.Tests;
+namespace SonnetDB.FullText.Tokenizers.Cjk.Tests;
 
 public class CjkBigramTokenizerTests
 {

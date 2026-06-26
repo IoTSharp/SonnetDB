@@ -108,9 +108,16 @@ SonnetDB SQL / ADO.NET / HTTP / Studio / CLI / VS Code / Copilot
 
 ### Phase 5：命名空间清理
 
-- 新代码不再新增 `DotSearch.*` / `DotVector.*` 引用。
-- 逐步收敛到 `SonnetDB.FullText.*` / `SonnetDB.Vector.*`。
-- 保持旧格式读取能力，但新文档和错误消息改为 SonnetDB 内置引擎叙事。
+状态：已完成。
+
+已完成：
+
+- `src/SonnetDB.Core/FullText` 内部命名空间从 `DotSearch.*` 收敛到 `SonnetDB.FullText.*`。
+- Jieba embedded resource logical name 从 `DotSearch.Tokenizers.Jieba.Resources.*` 收敛到 `SonnetDB.FullText.Tokenizers.Jieba.Resources.*`。
+- 全文核心、tokenizer 测试命名空间同步收敛到 `SonnetDB.Core.Tests.FullText.*`。
+- 当前 SQL 参考、parity 文档和 IoTSharp 兼容矩阵改为 SonnetDB 内置全文 / 向量引擎叙事。
+
+验收：当前源码和测试不再包含 `DotSearch.*` / `DotVector.*` 命名空间引用；`dotnet build SonnetDB.slnx --configuration Release /warnaserror` 与 `SonnetDB.Core.Tests` 通过。
 
 ## 4. 底线
 

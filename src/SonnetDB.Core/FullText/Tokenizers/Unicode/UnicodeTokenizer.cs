@@ -1,7 +1,7 @@
 using System.Globalization;
-using DotSearch.Tokenization;
+using SonnetDB.FullText.Tokenization;
 
-namespace DotSearch.Tokenizers.Unicode;
+namespace SonnetDB.FullText.Tokenizers.Unicode;
 
 /// <summary>
 /// 默认 Unicode 分词器：按 Unicode 类别识别词边界，对字母/数字按连续段切分，
@@ -12,7 +12,7 @@ namespace DotSearch.Tokenizers.Unicode;
 /// <list type="bullet">
 ///   <item>纯托管、零分配、AOT 友好。</item>
 ///   <item>适配大多数欧美语言；中日韩等字符按单字符 token 输出，
-///         若需要 CJK 二元切分请改用 <c>DotSearch.Tokenizers.Cjk</c>。</item>
+///         若需要 CJK 二元切分请改用 <c>SonnetDB.FullText.Tokenizers.Cjk</c>。</item>
 /// </list>
 /// </remarks>
 public sealed class UnicodeTokenizer : ITokenizer

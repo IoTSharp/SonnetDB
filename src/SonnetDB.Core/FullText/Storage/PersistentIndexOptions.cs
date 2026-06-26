@@ -1,6 +1,6 @@
-namespace DotSearch.Storage;
+namespace SonnetDB.FullText.Storage;
 
-using DotSearch.Scoring;
+using SonnetDB.FullText.Scoring;
 
 /// <summary>
 /// 持久化索引选项。

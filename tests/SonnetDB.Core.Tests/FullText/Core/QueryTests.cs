@@ -1,14 +1,15 @@
-using DotSearch.Query;
+using SonnetDB.FullText.Query;
 using Xunit;
+using FullTextQuery = SonnetDB.FullText.Query.Query;
 
-namespace DotSearch.Core.Tests;
+namespace SonnetDB.Core.Tests.FullText;
 
 public class QueryTests
 {
     [Fact]
     public void Or_query_snapshots_clauses()
     {
-        Query.Query[] clauses =
+        FullTextQuery[] clauses =
         [
             new TermQuery("body", "alpha"),
         ];
@@ -23,7 +24,7 @@ public class QueryTests
     [Fact]
     public void And_query_rejects_null_clause()
     {
-        Query.Query?[] clauses =
+        FullTextQuery?[] clauses =
         [
             new TermQuery("body", "alpha"),
             null,

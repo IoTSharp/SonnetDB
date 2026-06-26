@@ -3,7 +3,7 @@ using System.Text;
 
 if (args.Length != 2)
 {
-    Console.Error.WriteLine("Usage: DotSearch.DictionaryCompiler <input-dict.txt> <output-dict.dat>");
+    Console.Error.WriteLine("Usage: SonnetDB.FullText.DictionaryCompiler <input-dict.txt> <output-dict.dat>");
     return 2;
 }
 

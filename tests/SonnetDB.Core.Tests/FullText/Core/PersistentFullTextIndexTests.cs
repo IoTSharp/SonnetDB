@@ -1,27 +1,28 @@
-using DotSearch.Index;
-using DotSearch.Query;
-using DotSearch.Storage;
-using DotSearch.Tokenizers.Unicode;
+using SonnetDB.FullText.Index;
+using SonnetDB.FullText.Query;
+using SonnetDB.FullText.Storage;
+using SonnetDB.FullText.Tokenizers.Unicode;
 using Xunit;
+using FullTextQuery = SonnetDB.FullText.Query.Query;
 
-namespace DotSearch.Core.Tests;
+namespace SonnetDB.Core.Tests.FullText;
 
 public sealed class PersistentFullTextIndexTests : IDisposable
 {
-    private readonly string _directory = Path.Combine(Path.GetTempPath(), "dotsearch-tests", Guid.NewGuid().ToString("N"));
+    private readonly string _directory = Path.Combine(Path.GetTempPath(), "sonnetdb-fulltext-tests", Guid.NewGuid().ToString("N"));
 
     [Fact]
     public void Index_persists_documents_and_restores_after_reopen()
     {
         PersistentFullTextIndex index = Open();
-        index.Index(new Document(new DocumentId("1")).Set("body", "hello dotsearch"));
-        index.Index(new Document(new DocumentId("2")).Set("body", "hello dotvector"));
+        index.Index(new Document(new DocumentId("1")).Set("body", "hello sonnetdb"));
+        index.Index(new Document(new DocumentId("2")).Set("body", "hello vector"));
 
         Assert.True(File.Exists(Path.Combine(_directory, "manifest.json")));
         Assert.Equal(2, Directory.GetFiles(Path.Combine(_directory, "segments"), "*.seg").Length);
 
         PersistentFullTextIndex reopened = Open();
-        IReadOnlyList<SearchHit> hits = reopened.Search(new TermQuery("body", "dotsearch"), topK: 10);
+        IReadOnlyList<SearchHit> hits = reopened.Search(new TermQuery("body", "sonnetdb"), topK: 10);
 
         Assert.Single(hits);
         Assert.Equal("1", hits[0].DocumentId.Value);
@@ -109,12 +110,12 @@ public sealed class PersistentFullTextIndexTests : IDisposable
         index.Index(new Document(new DocumentId("b")).Set("body", "alpha"));
         index.Index(new Document(new DocumentId("c")).Set("body", "gamma"));
 
-        AndQuery and = new(new Query.Query[]
+        AndQuery and = new(new FullTextQuery[]
         {
             new TermQuery("body", "alpha"),
             new TermQuery("body", "beta"),
         });
-        OrQuery or = new(new Query.Query[]
+        OrQuery or = new(new FullTextQuery[]
         {
             new TermQuery("body", "beta"),
             new TermQuery("body", "gamma"),

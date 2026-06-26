@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace DotSearch.Storage;
+namespace SonnetDB.FullText.Storage;
 
 internal sealed class SegmentManifestEntry
 {

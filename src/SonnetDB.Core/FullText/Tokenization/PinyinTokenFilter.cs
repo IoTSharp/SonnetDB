@@ -1,4 +1,4 @@
-namespace DotSearch.Tokenization;
+namespace SonnetDB.FullText.Tokenization;
 
 /// <summary>
 /// 用静态映射把中文 token 转为拼音 token 的过滤器。

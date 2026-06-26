@@ -1,8 +1,8 @@
-using DotSearch.Index;
-using DotSearch.Scoring;
-using DotSearch.Tokenization;
+using SonnetDB.FullText.Index;
+using SonnetDB.FullText.Scoring;
+using SonnetDB.FullText.Tokenization;
 
-namespace DotSearch.Storage;
+namespace SonnetDB.FullText.Storage;
 
 /// <summary>
 /// 单目录持久化全文索引。每次写入生成一个不可变段，通过 manifest 记录活动段与 tombstone。

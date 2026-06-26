@@ -263,7 +263,7 @@ WHERE json_value(metadata, '$.site') = 'north';
 
 ### 文档全文索引
 
-MM6 第一批把 DotSearch 接入 JSON 文档集合，全文索引是从 document collection 主数据派生出的可重建索引。当前实现的索引目录由 SonnetDB 托管在 `documents/fulltext/` 下，主数据仍以文档集合为准。
+MM6 第一批把 SonnetDB 内置全文引擎接入 JSON 文档集合，全文索引是从 document collection 主数据派生出的可重建索引。当前实现的索引目录由 SonnetDB 托管在 `documents/fulltext/` 下，主数据仍以文档集合为准。
 
 ```sql
 CREATE FULLTEXT INDEX ft_logs_message
@@ -298,13 +298,13 @@ WHERE match(ft_logs_all, *, 'pump', 20);
 
 - `match(index_name, field, query[, topK])` 必须作为 `WHERE` 中独立的 `AND` 谓词使用；当前一个查询只支持一个全文谓词。
 - `topK` 省略时默认取 100；带分页时会按 `OFFSET + FETCH/LIMIT` 预取候选，再执行完整 WHERE、排序和分页。
-- `bm25_score()` 只能在包含 `match(...)` 的文档集合查询中用于投影或排序，返回 DotSearch 的 BM25 相关性分数。
+- `bm25_score()` 只能在包含 `match(...)` 的文档集合查询中用于投影或排序，返回 SonnetDB 全文引擎的 BM25 相关性分数。
 - `INSERT` / `UPDATE` / `DELETE` 会同步维护全文索引；索引目录缺失时会从 document collection 主数据重建。
 - `EXPLAIN SELECT ... WHERE match(...)` 的 `access_path` 会显示 `fulltext_index`，`index_name` 会显示命中的全文索引名。
 
 ### 文档 Hybrid Search
 
-MM8 第一批支持在 document collection 上用全文 BM25 与 JSON embedding 数组做融合排序。文档主数据仍归 document collection 管理；全文索引由 DotSearch 派生维护，JSON 向量字段按查询时计算距离。
+MM8 第一批支持在 document collection 上用全文 BM25 与 JSON embedding 数组做融合排序。文档主数据仍归 document collection 管理；全文索引由 SonnetDB 内置全文引擎派生维护，JSON 向量字段按查询时计算距离。
 
 ```sql
 SELECT id,
@@ -359,7 +359,7 @@ ORDER BY score DESC;
 - 结果伪列支持 `bm25_score()`、`vector_distance()`、`vector_score()`、`hybrid_score()`，也可直接投影 `id`、`document/json` 和 JSON 顶层字段名。
 - `WHERE` 支持对结果伪列或 JSON 顶层字段做基础比较，例如 `site = 'north'`；复杂文档过滤可用 `json_value(document, '$.path')`。
 - `EXPLAIN` 的 `access_path` 会显示 `hybrid_search`，`index_name` 显示使用的全文索引。
-- document collection 内融合只读取 document collection 主数据和派生全文索引，不会把文档主数据交给 DotSearch 或 DotVector。
+- document collection 内融合只读取 document collection 主数据和派生全文索引，不会把文档主数据交给外部全文或向量数据库。
 
 ### 文档向量搜索
 

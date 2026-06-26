@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using System.Text;
 
-namespace DotSearch.Tokenizers.Jieba;
+namespace SonnetDB.FullText.Tokenizers.Jieba;
 
 internal sealed class DoubleArrayTrie
 {

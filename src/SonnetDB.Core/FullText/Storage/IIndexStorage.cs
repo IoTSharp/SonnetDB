@@ -1,4 +1,4 @@
-namespace DotSearch.Storage;
+namespace SonnetDB.FullText.Storage;
 
 /// <summary>
 /// 索引持久化存储抽象。

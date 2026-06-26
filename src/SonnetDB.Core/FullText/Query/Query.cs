@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace DotSearch.Query;
+namespace SonnetDB.FullText.Query;
 
 /// <summary>
 /// 查询节点抽象基类。AST 不可变。

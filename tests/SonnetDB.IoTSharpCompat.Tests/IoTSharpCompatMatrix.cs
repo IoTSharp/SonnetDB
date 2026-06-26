@@ -92,7 +92,7 @@ internal static class IoTSharpCompatMatrix
             [
                 new("FullTextIndex", "规划接入", "SonnetDB document collection fulltext indexes are available."),
                 new("BM25", "规划接入", "SonnetDB exposes bm25_score for ordering."),
-                new("ChineseTokenizer", "规划接入", "DotSearch CJK/Jieba tokenizer path must be validated.")
+                new("ChineseTokenizer", "规划接入", "SonnetDB CJK/Jieba tokenizer path must be validated.")
             ],
             [
                 "create drop and show fulltext index",

@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 
-namespace DotSearch.Tokenizers.Jieba;
+namespace SonnetDB.FullText.Tokenizers.Jieba;
 
 /// <summary>
 /// 中文分词词典：词项 → 词频。
@@ -73,7 +73,7 @@ public sealed class ChineseDictionary
     private static ChineseDictionary LoadEmbedded()
     {
         Assembly asm = typeof(ChineseDictionary).Assembly;
-        const string DatResourceName = "DotSearch.Tokenizers.Jieba.Resources.dict.dat";
+        const string DatResourceName = "SonnetDB.FullText.Tokenizers.Jieba.Resources.dict.dat";
         using (Stream? datStream = asm.GetManifestResourceStream(DatResourceName))
         {
             if (datStream is not null)
@@ -83,7 +83,7 @@ public sealed class ChineseDictionary
             }
         }
 
-        const string ResourceName = "DotSearch.Tokenizers.Jieba.Resources.dict.txt";
+        const string ResourceName = "SonnetDB.FullText.Tokenizers.Jieba.Resources.dict.txt";
         using Stream? stream = asm.GetManifestResourceStream(ResourceName)
             ?? throw new InvalidOperationException($"Embedded resource '{ResourceName}' not found.");
         using StreamReader reader = new(stream);

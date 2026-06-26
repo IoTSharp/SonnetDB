@@ -1,9 +1,10 @@
-using DotSearch.Index;
-using DotSearch.Query;
-using DotSearch.Tokenizers.Unicode;
+using SonnetDB.FullText.Index;
+using SonnetDB.FullText.Query;
+using SonnetDB.FullText.Tokenizers.Unicode;
 using Xunit;
+using FullTextQuery = SonnetDB.FullText.Query.Query;
 
-namespace DotSearch.Core.Tests;
+namespace SonnetDB.Core.Tests.FullText;
 
 public class InMemoryFullTextIndexTests
 {
@@ -11,10 +12,10 @@ public class InMemoryFullTextIndexTests
     public void Index_then_search_term_returns_hit()
     {
         InMemoryFullTextIndex index = new(new UnicodeTokenizer());
-        index.Index(new Document(new DocumentId("1")).Set("body", "Hello DotSearch world"));
-        index.Index(new Document(new DocumentId("2")).Set("body", "Goodbye DotVector"));
+        index.Index(new Document(new DocumentId("1")).Set("body", "Hello SonnetDB world"));
+        index.Index(new Document(new DocumentId("2")).Set("body", "Goodbye vector engine"));
 
-        IReadOnlyList<SearchHit> hits = index.Search(new TermQuery("body", "dotsearch"), topK: 10);
+        IReadOnlyList<SearchHit> hits = index.Search(new TermQuery("body", "sonnetdb"), topK: 10);
 
         Assert.Single(hits);
         Assert.Equal("1", hits[0].DocumentId.Value);
@@ -29,7 +30,7 @@ public class InMemoryFullTextIndexTests
         index.Index(new Document(new DocumentId("b")).Set("body", "alpha gamma"));
         index.Index(new Document(new DocumentId("c")).Set("body", "beta gamma"));
 
-        AndQuery and = new(new Query.Query[]
+        AndQuery and = new(new FullTextQuery[]
         {
             new TermQuery("body", "alpha"),
             new TermQuery("body", "beta"),
@@ -48,7 +49,7 @@ public class InMemoryFullTextIndexTests
         index.Index(new Document(new DocumentId("b")).Set("body", "alpha"));
         index.Index(new Document(new DocumentId("c")).Set("body", "gamma"));
 
-        OrQuery or = new(new Query.Query[]
+        OrQuery or = new(new FullTextQuery[]
         {
             new TermQuery("body", "alpha"),
             new TermQuery("body", "beta"),
@@ -169,7 +170,7 @@ public class InMemoryFullTextIndexTests
     {
         InMemoryFullTextIndex index = new(
             new UnicodeTokenizer(),
-            bm25f: new DotSearch.Scoring.Bm25FOptions(new Dictionary<string, double>
+            bm25f: new SonnetDB.FullText.Scoring.Bm25FOptions(new Dictionary<string, double>
             {
                 ["title"] = 4.0,
                 ["body"] = 1.0,
@@ -177,7 +178,7 @@ public class InMemoryFullTextIndexTests
         index.Index(new Document(new DocumentId("title-hit")).Set("title", "alpha").Set("body", "noise"));
         index.Index(new Document(new DocumentId("body-hit")).Set("title", "noise").Set("body", "alpha alpha alpha alpha"));
 
-        OrQuery query = new(new Query.Query[]
+        OrQuery query = new(new FullTextQuery[]
         {
             new TermQuery("title", "alpha"),
             new TermQuery("body", "alpha"),

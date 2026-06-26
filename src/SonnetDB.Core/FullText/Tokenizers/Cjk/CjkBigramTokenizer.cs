@@ -1,7 +1,7 @@
 using System.Globalization;
-using DotSearch.Tokenization;
+using SonnetDB.FullText.Tokenization;
 
-namespace DotSearch.Tokenizers.Cjk;
+namespace SonnetDB.FullText.Tokenizers.Cjk;
 
 /// <summary>
 /// CJK 二元（bigram）分词器：对 CJK 字符做相邻字符两两组合，对非 CJK 字符按

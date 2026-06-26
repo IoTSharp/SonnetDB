@@ -1,4 +1,4 @@
-namespace DotSearch.Tokenization;
+namespace SonnetDB.FullText.Tokenization;
 
 /// <summary>
 /// 分词器抽象（AOT 友好）。

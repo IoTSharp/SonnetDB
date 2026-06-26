@@ -1,4 +1,4 @@
-namespace DotSearch.Scoring;
+namespace SonnetDB.FullText.Scoring;
 
 /// <summary>
 /// BM25 评分参数。

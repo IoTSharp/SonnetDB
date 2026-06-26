@@ -1,4 +1,4 @@
-namespace DotSearch.Index;
+namespace SonnetDB.FullText.Index;
 
 internal static class PositionMatcher
 {

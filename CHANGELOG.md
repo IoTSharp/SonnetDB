@@ -13,6 +13,7 @@
 - **DotVector 合并 Phase 2 命名空间清理**：`src/SonnetDB.Core/Vector`、`Query.VectorDistance`、Segment 向量索引 adapter 和对应向量测试已从 `DotVector.*` 缓冲命名空间收敛到 `SonnetDB.Vector.*` / `SonnetDB.Core.Tests.Vector.*`；注释和错误消息改为 SonnetDB 内置向量引擎表述，DotVector 独立 collection/query/filter/persistence 相关语义仍留 Phase 3 VectorData 或 Phase 4 归档处理。
 - **VectorData 迁移 Phase 3**：`SonnetDB.Data` 新增 `SonnetDB.Data.VectorData` adapter、DI 扩展和 `Microsoft.Extensions.VectorData.Abstractions` 依赖；默认把 VectorData collection 映射为 SonnetDB `DOCUMENT COLLECTION`，使用 document `id` + JSON document 保存记录和 embedding，不把通用 VectorData collection 映射到时序 `measurement`。`SonnetDB.Core` 新增 `vector_search(...)` document collection 纯向量 TVF、EXPLAIN 支持和测试覆盖，`PackageReadme` / SQL 参考同步补充用法。
 - **搜索与向量合并 Phase 4 完成**：移除 `modules/DotSearch` / `modules/DotVector` 子模块登记，CI / CodeQL / Publish / Docker / connectors release workflow 不再递归 checkout 旧模块；Dockerfile 删除旧模块复制步骤，release script 和发布文档不再生成或列出独立 DotSearch / DotVector NuGet 包。干净 checkout 可直接构建 SonnetDB 内置全文与向量引擎。
+- **搜索与向量合并 Phase 5 完成**：`src/SonnetDB.Core/FullText` 内部命名空间、Jieba 资源 logical name、测试命名空间和当前文档叙事从 `DotSearch.*` 收敛到 `SonnetDB.FullText.*` / SonnetDB 内置全文引擎；当前源码和测试不再新增 `DotSearch.*` / `DotVector.*` 引用。
 
 ## [2.5.0] - 2026-06-26
 

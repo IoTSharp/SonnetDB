@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace DotSearch.Tokenization;
+namespace SonnetDB.FullText.Tokenization;
 
 /// <summary>
 /// 收集分词结果到列表的 <see cref="ITokenSink"/> 实现，主要用于测试。

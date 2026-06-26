@@ -1,8 +1,8 @@
-using DotSearch.Tokenization;
-using DotSearch.Tokenizers.Jieba;
+using SonnetDB.FullText.Tokenization;
+using SonnetDB.FullText.Tokenizers.Jieba;
 using Xunit;
 
-namespace DotSearch.Tokenizers.Jieba.Tests;
+namespace SonnetDB.FullText.Tokenizers.Jieba.Tests;
 
 public class ChineseTokenizerTests
 {
@@ -40,9 +40,9 @@ public class ChineseTokenizerTests
     {
         ChineseTokenizer t = new();
         CollectingTokenSink sink = new();
-        t.Tokenize("DotSearch 是 中国 IoT 项目".AsSpan(), sink);
+        t.Tokenize("SonnetDB 是 中国 IoT 项目".AsSpan(), sink);
         string[] tokens = sink.Tokens.Select(x => x.Text).ToArray();
-        Assert.Contains("dotsearch", tokens);
+        Assert.Contains("sonnetdb", tokens);
         Assert.Contains("中国", tokens);
         Assert.Contains("iot", tokens);
     }

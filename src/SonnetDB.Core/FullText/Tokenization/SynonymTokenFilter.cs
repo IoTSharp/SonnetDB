@@ -1,4 +1,4 @@
-namespace DotSearch.Tokenization;
+namespace SonnetDB.FullText.Tokenization;
 
 /// <summary>
 /// 基于词表的同义词 token 过滤器。

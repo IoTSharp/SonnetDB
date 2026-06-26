@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using DotSearch.Scoring;
-using DotSearch.Tokenization;
+using SonnetDB.FullText.Scoring;
+using SonnetDB.FullText.Tokenization;
 
-namespace DotSearch.Index;
+namespace SonnetDB.FullText.Index;
 
 /// <summary>
 /// 单段、内存常驻的倒排索引。

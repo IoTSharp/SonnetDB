@@ -38,8 +38,8 @@
 | KV / 缓存 | Redis 7 | — | `SonnetDB.Caching` + `KvKeyspace` |
 | 对象桶 (Object) | MinIO | — | `SndbObjectStorageClient` |
 | 消息 (MQ) | NATS JetStream 2.10 | Mosquitto 2.0（功能对照） | `SndbMqClient` |
-| 全文 (FT) | Meilisearch 1.10 | — | `DotSearch` + `DocumentFullTextIndexStore` |
-| 向量 (Vector) | Qdrant 1.11 | — | `DotVector` + `VectorIndexAdapter` (HNSW) |
+| 全文 (FT) | Meilisearch 1.10 | — | SonnetDB 内置全文引擎 + `DocumentFullTextIndexStore` |
+| 向量 (Vector) | Qdrant 1.11 | — | SonnetDB 内置向量引擎 + `VectorIndexAdapter` |
 | 分析 (Analytics) | ClickHouse 24.8 | — | SQL `GROUP BY` + window functions |
 
 ## 测试架构

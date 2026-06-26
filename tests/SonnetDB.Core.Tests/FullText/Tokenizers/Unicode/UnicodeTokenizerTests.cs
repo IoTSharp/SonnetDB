@@ -1,8 +1,8 @@
-using DotSearch.Tokenization;
-using DotSearch.Tokenizers.Unicode;
+using SonnetDB.FullText.Tokenization;
+using SonnetDB.FullText.Tokenizers.Unicode;
 using Xunit;
 
-namespace DotSearch.Tokenizers.Unicode.Tests;
+namespace SonnetDB.FullText.Tokenizers.Unicode.Tests;
 
 public class UnicodeTokenizerTests
 {

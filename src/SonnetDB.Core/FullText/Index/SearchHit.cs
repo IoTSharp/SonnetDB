@@ -1,4 +1,4 @@
-namespace DotSearch.Index;
+namespace SonnetDB.FullText.Index;
 
 /// <summary>
 /// 单条命中：文档主键 + 评分。

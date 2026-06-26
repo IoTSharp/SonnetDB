@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace DotSearch.Index;
+namespace SonnetDB.FullText.Index;
 
 /// <summary>
 /// 全文索引接口。

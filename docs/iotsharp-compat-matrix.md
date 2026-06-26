@@ -113,13 +113,13 @@ IoTSharp 当前开源主平台未发现独立向量搜索后端入口；SonnetDB
 
 ## 全文搜索矩阵
 
-IoTSharp 当前主要是普通字段过滤和 SQLite 大小写搜索配置，未发现独立全文索引服务入口；SonnetDB 已通过 DotSearch 支持 document collection 全文索引、`match(...)`、`bm25_score()` 与 explain 访问路径。
+IoTSharp 当前主要是普通字段过滤和 SQLite 大小写搜索配置，未发现独立全文索引服务入口；SonnetDB 已通过内置全文引擎支持 document collection 全文索引、`match(...)`、`bm25_score()` 与 explain 访问路径。
 
 | 能力 | IoTSharp 当前状态 | SonnetDB 当前状态 | 基线要求 |
 | --- | --- | --- | --- |
 | 普通搜索 | 控制器/EF 查询中的字段过滤 | 关系表/文档集合查询 | 保持现有名称、标签、属性筛选能力。 |
 | 全文索引 | 未作为独立后端接入 | `CREATE FULLTEXT INDEX`、`match(...)` | 支持设备/资产/规则/知识文档搜索，索引可重建。 |
-| 中文分词 | 未统一抽象 | DotSearch CJK/Jieba adapter | 验证中文、英文、混合 token 和大小写。 |
+| 中文分词 | 未统一抽象 | SonnetDB CJK/Jieba tokenizer | 验证中文、英文、混合 token 和大小写。 |
 | BM25 排序 | 未接入 | `bm25_score()` | 结果排序稳定，支持分页和 explain。 |
 
 全文搜索验收用例：
