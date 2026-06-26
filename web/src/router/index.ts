@@ -36,6 +36,7 @@ const router = createRouter({
       redirect: { name: 'dashboard' },
       children: [
         { path: 'dashboard', name: 'dashboard', component: DashboardView },
+        { path: 'studio', redirect: { name: 'sql' } },
         { path: 'sql', name: 'sql', component: SqlConsoleView },
         { path: 'trajectory-map', name: 'trajectory-map', redirect: { name: 'sql', query: { tool: 'trajectory' } } },
         { path: 'databases', name: 'databases', redirect: { name: 'sql' } },

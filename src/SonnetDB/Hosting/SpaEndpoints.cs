@@ -8,7 +8,7 @@ using Microsoft.Extensions.FileProviders;
 namespace SonnetDB.Hosting;
 
 /// <summary>
-/// 配置统一的 Vue SPA：根路径 <c>/</c> 承载产品官网，<c>/admin/*</c> 承载管理后台。
+/// 配置统一的 Vue SPA：根路径 <c>/</c> 承载产品官网，<c>/admin/*</c> 承载 SonnetDB Studio。
 /// 开发期通过 SpaProxy 走 Vite dev server；发布期直接用 wwwroot 下的构建产物 + SPA fallback。
 /// </summary>
 internal static class SpaEndpoints
@@ -29,7 +29,7 @@ internal static class SpaEndpoints
     ];
 
     /// <summary>
-    /// 注册 SPA 相关路由（产品首页、管理后台、客户端路由 fallback）。
+    /// 注册 SPA 相关路由（产品首页、Studio、客户端路由 fallback）。
     /// </summary>
     /// <param name="app">当前 web 应用。</param>
     public static void MapSpa(this WebApplication app)
@@ -197,7 +197,7 @@ $$"""
         ctx.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
         ctx.Response.ContentType = "text/plain; charset=utf-8";
         await ctx.Response.WriteAsync(
-            "SonnetDB SPA static files are missing. Run `npm install && npm run build` in `web`, or publish the server with `dotnet publish src/SonnetDB/SonnetDB.csproj`."
+            "SonnetDB Studio static files are missing. Run `npm install && npm run build` in `web`, or publish the server with `dotnet publish src/SonnetDB/SonnetDB.csproj`."
         ).ConfigureAwait(false);
     }
 }

@@ -179,7 +179,7 @@ const databaseCards = [
   },
   {
     kicker: 'Admin',
-    title: 'Web Admin Workbench',
+    title: 'SonnetDB Studio',
     description: '提供首次安装、数据库管理、Schema Explorer、SQL Editor、结果表格、图表、轨迹地图、写入审批和 Copilot 浮窗。',
   },
   {

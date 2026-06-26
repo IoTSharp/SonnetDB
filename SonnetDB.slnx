@@ -9,6 +9,7 @@
     <Project Path="src/SonnetDB.Core/SonnetDB.Core.csproj" />
     <Project Path="src/SonnetDB.Data/SonnetDB.Data.csproj" />
     <Project Path="src/SonnetDB.EntityFrameworkCore/SonnetDB.EntityFrameworkCore.csproj" />
+    <Project Path="src/SonnetDB.Studio.Host/SonnetDB.Studio.Host.csproj" />
     <Project Path="src/SonnetDB/SonnetDB.csproj" />
     <Project Path="src/SonnetMQ/SonnetMQ.csproj" />
   </Folder>

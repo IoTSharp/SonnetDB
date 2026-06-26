@@ -4,14 +4,14 @@
       <div class="workbench-context__main">
         <div class="workbench-context__identity">
           <div class="workbench-context__title-row">
-            <n-text class="workbench-context__title">SonnetDB Workbench</n-text>
+            <n-text class="workbench-context__title">SonnetDB Studio</n-text>
             <n-text depth="3" class="workbench-context__note">Local Development</n-text>
           </div>
           <n-text depth="3" class="workbench-context__dsn">{{ connectionLabel }}</n-text>
         </div>
 
         <div class="workbench-context__tools">
-          <div class="workbench-mode-switch" role="tablist" aria-label="Workbench mode">
+          <div class="workbench-mode-switch" role="tablist" aria-label="Studio mode">
             <button
               type="button"
               class="workbench-mode-switch__button"

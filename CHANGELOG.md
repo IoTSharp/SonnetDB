@@ -7,6 +7,7 @@
 
 ### Added
 
+- **SonnetDB Studio 主线确立**：现有 Vue Workbench 正式升级为 SonnetDB Studio，新增 `/admin/app/studio` 语义入口并保留 `/admin/app/sql` 兼容；`src/SonnetDB.Studio.Host` 新增基于 NativeWebHost / WebView2 的 Windows 桌面壳，默认打开同机 SonnetDB Server，也可通过 `--server-url` 指向远程实例。
 - README 社群二维码改用 PNG 资源，提升 Gitee README 渲染兼容性。
 - **Milestone 22 规划**：ROADMAP 新增 Agent Memory / Codebase Intelligence 路线，定位为 SonnetDB 对外提供的代码知识库与 MCP Memory 后端能力，覆盖 Code Memory 标准 schema、Git/files/chunks ingest、C# 符号与调用边索引、只读 MCP typed tools、Hybrid Search、Agent Memory 持久化 API、Web Admin Explorer、VS Code / Copilot 接入样例与规模报告，并明确语言解析器和 Git 扫描依赖不进入 `src/SonnetDB.Core`。
 - **Milestone 21 规划**：ROADMAP 新增 Document Store 单机能力升级路线，目标达到 MongoDB 单机常用能力子集（CRUD、find/filter/projection/sort、cursor、局部更新、复合/unique/TTL 索引、aggregation、单文档原子性、MongoDB 参考 parity、Web Admin Document Explorer 与长稳报告），并明确不做 MongoDB wire protocol / BSON command / 官方 driver 直连协议兼容。
