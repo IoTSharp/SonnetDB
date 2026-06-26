@@ -42,11 +42,6 @@ function Pack-NuGetPackages
     Write-Section "Packing NuGet packages"
     Reset-Directory $NuGetOutput
 
-    Invoke-DotNetPack 'modules/DotVector/src/DotVector.Core/DotVector.Core.csproj' $NuGetOutput
-    Invoke-DotNetPack 'modules/DotSearch/src/DotSearch.Core/DotSearch.Core.csproj' $NuGetOutput
-    Invoke-DotNetPack 'modules/DotSearch/src/DotSearch.Tokenizers.Unicode/DotSearch.Tokenizers.Unicode.csproj' $NuGetOutput
-    Invoke-DotNetPack 'modules/DotSearch/src/DotSearch.Tokenizers.Cjk/DotSearch.Tokenizers.Cjk.csproj' $NuGetOutput
-    Invoke-DotNetPack 'modules/DotSearch/src/DotSearch.Tokenizers.Jieba/DotSearch.Tokenizers.Jieba.csproj' $NuGetOutput
     Invoke-DotNetPack 'src/SonnetMQ/SonnetMQ.csproj' $NuGetOutput
     Invoke-DotNetPack 'src/SonnetDB.Core/SonnetDB.Core.csproj' $NuGetOutput
     Invoke-DotNetPack 'src/SonnetDB.Data/SonnetDB.Data.csproj' $NuGetOutput
@@ -426,9 +421,6 @@ function Write-SdkBundleReadme
 - `packages/SonnetDB.Caching.__VERSION__.nupkg`
 - `packages/SonnetDB.Cli.__VERSION__.nupkg`
 - `packages/SonnetMQ.__VERSION__.nupkg`
-- `packages/DotVector.Core.__VERSION__.nupkg`
-- `packages/DotSearch.Core.__VERSION__.nupkg`
-- `packages/DotSearch.Tokenizers.*.__VERSION__.nupkg`
 - `cli/` 原生命令行工具
 - `docs/` 发布与使用说明
 

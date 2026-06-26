@@ -1,17 +1,17 @@
 using SonnetDB.Catalog;
 using SonnetDB.Model;
 using SonnetDB.Query;
-using DotVectorIndexAlgorithm = DotVector.Indexing.VectorIndexAlgorithm;
-using DotVectorIndexBuildInput = DotVector.Indexing.VectorIndexBuildInput;
-using DotVectorIndexHnswOptions = DotVector.Indexing.VectorIndexHnswOptions;
-using DotVectorIndexIvfOptions = DotVector.Indexing.VectorIndexIvfOptions;
-using DotVectorIndexIvfPqOptions = DotVector.Indexing.VectorIndexIvfPqOptions;
-using DotVectorIndexReader = DotVector.Indexing.IVectorIndexReader;
-using DotVectorIndexVamanaOptions = DotVector.Indexing.VectorIndexVamanaOptions;
-using DotVectorKnnMetric = DotVector.Primitives.KnnMetric;
-using DotVectorLocalIndexBlob = DotVector.Indexing.LocalVectorIndexBlob;
-using DotVectorLocalIndexBuilder = DotVector.Indexing.LocalVectorIndexBuilder;
-using DotVectorSearchRequest = DotVector.Indexing.VectorSearchRequest;
+using CoreVectorIndexAlgorithm = SonnetDB.Vector.Indexing.VectorIndexAlgorithm;
+using CoreVectorIndexBuildInput = SonnetDB.Vector.Indexing.VectorIndexBuildInput;
+using CoreVectorIndexHnswOptions = SonnetDB.Vector.Indexing.VectorIndexHnswOptions;
+using CoreVectorIndexIvfOptions = SonnetDB.Vector.Indexing.VectorIndexIvfOptions;
+using CoreVectorIndexIvfPqOptions = SonnetDB.Vector.Indexing.VectorIndexIvfPqOptions;
+using CoreVectorIndexReader = SonnetDB.Vector.Indexing.IVectorIndexReader;
+using CoreVectorIndexVamanaOptions = SonnetDB.Vector.Indexing.VectorIndexVamanaOptions;
+using CoreVectorKnnMetric = SonnetDB.Vector.Primitives.KnnMetric;
+using CoreVectorLocalIndexBlob = SonnetDB.Vector.Indexing.LocalVectorIndexBlob;
+using CoreVectorLocalIndexBuilder = SonnetDB.Vector.Indexing.LocalVectorIndexBuilder;
+using CoreVectorSearchRequest = SonnetDB.Vector.Indexing.VectorSearchRequest;
 
 namespace SonnetDB.Storage.Segments;
 
@@ -49,7 +49,7 @@ internal sealed record VectorIndexBuildResult(IVectorIndexReader Reader);
 
 internal readonly record struct VectorSearchResult(int PointIndex, long Timestamp, double Distance);
 
-internal sealed class DotVectorHnswVectorIndexBuilder : IVectorIndexBuilder
+internal sealed class LocalVectorIndexBuilderAdapter : IVectorIndexBuilder
 {
     public VectorIndexBuildResult Build(VectorIndexBuildInput input)
     {
@@ -60,9 +60,9 @@ internal sealed class DotVectorHnswVectorIndexBuilder : IVectorIndexBuilder
 
         int dimension = input.Points.Span[0].Value.VectorDimension;
         var vectors = CopyVectors(input.Points.Span, dimension);
-        var reader = BuildDotVectorReader(input.BlockIndex, input.Definition, vectors, input.Points.Length, dimension);
+        var reader = BuildLocalVectorReader(input.BlockIndex, input.Definition, vectors, input.Points.Length, dimension);
 
-        return new VectorIndexBuildResult(new DotVectorHnswVectorIndexReader(
+        return new VectorIndexBuildResult(new LocalVectorIndexReaderAdapter(
             input.BlockIndex,
             input.Definition.SearchEf(),
             reader));
@@ -82,9 +82,9 @@ internal sealed class DotVectorHnswVectorIndexBuilder : IVectorIndexBuilder
         ArgumentNullException.ThrowIfNull(definition);
 
         var vectors = CopyVectors(valuePayload, count, dimension);
-        var reader = BuildDotVectorReader(blockIndex, definition, vectors, count, dimension);
+        var reader = BuildLocalVectorReader(blockIndex, definition, vectors, count, dimension);
 
-        return new VectorIndexBuildResult(new DotVectorHnswVectorIndexReader(blockIndex, definition.SearchEf(), reader));
+        return new VectorIndexBuildResult(new LocalVectorIndexReaderAdapter(blockIndex, definition.SearchEf(), reader));
     }
 
     internal static VectorIndexBuildResult BuildFromBlob(
@@ -101,36 +101,36 @@ internal sealed class DotVectorHnswVectorIndexBuilder : IVectorIndexBuilder
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(expectedDimension);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(expectedEf);
 
-        var reader = DotVectorLocalIndexBlob.Read(stream, length, expectedCrc32);
+        var reader = CoreVectorLocalIndexBlob.Read(stream, length, expectedCrc32);
         if (reader.Count != expectedCount || reader.Dimension != expectedDimension)
         {
             reader.Dispose();
             throw new InvalidDataException(
-                $"DotVector index blob metadata mismatch: expected count={expectedCount}, dim={expectedDimension}, actual count={reader.Count}, dim={reader.Dimension}.");
+                $"SonnetDB vector index blob metadata mismatch: expected count={expectedCount}, dim={expectedDimension}, actual count={reader.Count}, dim={reader.Dimension}.");
         }
 
-        return new VectorIndexBuildResult(new DotVectorHnswVectorIndexReader(blockIndex, expectedEf, reader));
+        return new VectorIndexBuildResult(new LocalVectorIndexReaderAdapter(blockIndex, expectedEf, reader));
     }
 
     internal static uint WriteBlob(Stream stream, IVectorIndexReader reader)
     {
         ArgumentNullException.ThrowIfNull(stream);
         ArgumentNullException.ThrowIfNull(reader);
-        if (reader is not DotVectorHnswVectorIndexReader dotVectorReader)
-            throw new NotSupportedException("Only DotVector HNSW vector index readers can be serialized.");
+        if (reader is not LocalVectorIndexReaderAdapter localReader)
+            throw new NotSupportedException("Only SonnetDB local vector index readers can be serialized.");
 
-        return DotVectorLocalIndexBlob.Write(stream, dotVectorReader.InnerReader);
+        return CoreVectorLocalIndexBlob.Write(stream, localReader.InnerReader);
     }
 
-    private static DotVectorIndexReader BuildDotVectorReader(
+    private static CoreVectorIndexReader BuildLocalVectorReader(
         int blockIndex,
         VectorIndexDefinition definition,
         ReadOnlyMemory<float> vectors,
         int count,
         int dimension)
-        => DotVectorLocalIndexBuilder.Instance.Build(ToDotVectorInput(blockIndex, definition, vectors, count, dimension));
+        => CoreVectorLocalIndexBuilder.Instance.Build(ToLocalVectorInput(blockIndex, definition, vectors, count, dimension));
 
-    private static DotVectorIndexBuildInput ToDotVectorInput(
+    private static CoreVectorIndexBuildInput ToLocalVectorInput(
         int blockIndex,
         VectorIndexDefinition definition,
         ReadOnlyMemory<float> vectors,
@@ -140,33 +140,33 @@ internal sealed class DotVectorHnswVectorIndexBuilder : IVectorIndexBuilder
         int seed = ComputeSeed(blockIndex, count, dimension, definition);
         return definition.Kind switch
         {
-            VectorIndexKind.Hnsw => new DotVectorIndexBuildInput(
-                DotVectorIndexAlgorithm.Hnsw,
-                DotVectorKnnMetric.Cosine,
+            VectorIndexKind.Hnsw => new CoreVectorIndexBuildInput(
+                CoreVectorIndexAlgorithm.Hnsw,
+                CoreVectorKnnMetric.Cosine,
                 vectors,
                 count,
                 dimension,
                 Hnsw: ToHnswOptions(definition, seed)),
 
-            VectorIndexKind.IvfFlat => new DotVectorIndexBuildInput(
-                DotVectorIndexAlgorithm.IvfFlat,
-                DotVectorKnnMetric.Cosine,
+            VectorIndexKind.IvfFlat => new CoreVectorIndexBuildInput(
+                CoreVectorIndexAlgorithm.IvfFlat,
+                CoreVectorKnnMetric.Cosine,
                 vectors,
                 count,
                 dimension,
                 Ivf: ToIvfOptions(definition, seed)),
 
-            VectorIndexKind.IvfPq => new DotVectorIndexBuildInput(
-                DotVectorIndexAlgorithm.IvfPq,
-                DotVectorKnnMetric.Cosine,
+            VectorIndexKind.IvfPq => new CoreVectorIndexBuildInput(
+                CoreVectorIndexAlgorithm.IvfPq,
+                CoreVectorKnnMetric.Cosine,
                 vectors,
                 count,
                 dimension,
                 IvfPq: ToIvfPqOptions(definition, seed)),
 
-            VectorIndexKind.Vamana => new DotVectorIndexBuildInput(
-                DotVectorIndexAlgorithm.Vamana,
-                DotVectorKnnMetric.Cosine,
+            VectorIndexKind.Vamana => new CoreVectorIndexBuildInput(
+                CoreVectorIndexAlgorithm.Vamana,
+                CoreVectorKnnMetric.Cosine,
                 vectors,
                 count,
                 dimension,
@@ -176,28 +176,28 @@ internal sealed class DotVectorHnswVectorIndexBuilder : IVectorIndexBuilder
         };
     }
 
-    private static DotVectorIndexHnswOptions ToHnswOptions(VectorIndexDefinition definition, int seed)
+    private static CoreVectorIndexHnswOptions ToHnswOptions(VectorIndexDefinition definition, int seed)
     {
         var hnsw = definition.Hnsw ?? throw new InvalidOperationException("HNSW 向量索引参数缺失。");
-        return new DotVectorIndexHnswOptions(hnsw.M, hnsw.Ef, hnsw.Ef, seed);
+        return new CoreVectorIndexHnswOptions(hnsw.M, hnsw.Ef, hnsw.Ef, seed);
     }
 
-    private static DotVectorIndexIvfOptions ToIvfOptions(VectorIndexDefinition definition, int seed)
+    private static CoreVectorIndexIvfOptions ToIvfOptions(VectorIndexDefinition definition, int seed)
     {
         var ivf = definition.Ivf ?? throw new InvalidOperationException("IVF 向量索引参数缺失。");
-        return new DotVectorIndexIvfOptions(ivf.NList, ivf.NProbe, ivf.MaxIterations, seed);
+        return new CoreVectorIndexIvfOptions(ivf.NList, ivf.NProbe, ivf.MaxIterations, seed);
     }
 
-    private static DotVectorIndexIvfPqOptions ToIvfPqOptions(VectorIndexDefinition definition, int seed)
+    private static CoreVectorIndexIvfPqOptions ToIvfPqOptions(VectorIndexDefinition definition, int seed)
     {
         var ivfPq = definition.IvfPq ?? throw new InvalidOperationException("IVF-PQ 向量索引参数缺失。");
-        return new DotVectorIndexIvfPqOptions(ivfPq.NList, ivfPq.NProbe, ivfPq.MaxIterations, ivfPq.M, ivfPq.NBits, seed);
+        return new CoreVectorIndexIvfPqOptions(ivfPq.NList, ivfPq.NProbe, ivfPq.MaxIterations, ivfPq.M, ivfPq.NBits, seed);
     }
 
-    private static DotVectorIndexVamanaOptions ToVamanaOptions(VectorIndexDefinition definition, int seed)
+    private static CoreVectorIndexVamanaOptions ToVamanaOptions(VectorIndexDefinition definition, int seed)
     {
         var vamana = definition.Vamana ?? throw new InvalidOperationException("Vamana 向量索引参数缺失。");
-        return new DotVectorIndexVamanaOptions(vamana.MaxDegree, vamana.SearchListSize, vamana.Alpha, vamana.BeamWidth, seed);
+        return new CoreVectorIndexVamanaOptions(vamana.MaxDegree, vamana.SearchListSize, vamana.Alpha, vamana.BeamWidth, seed);
     }
 
     private static float[] CopyVectors(ReadOnlySpan<DataPoint> points, int dimension)
@@ -290,11 +290,11 @@ internal static class VectorIndexDefinitionExtensions
         };
 }
 
-internal sealed class DotVectorHnswVectorIndexReader : IVectorIndexReader
+internal sealed class LocalVectorIndexReaderAdapter : IVectorIndexReader
 {
-    private readonly DotVectorIndexReader _reader;
+    private readonly CoreVectorIndexReader _reader;
 
-    public DotVectorHnswVectorIndexReader(int blockIndex, int ef, DotVectorIndexReader reader)
+    public LocalVectorIndexReaderAdapter(int blockIndex, int ef, CoreVectorIndexReader reader)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(blockIndex);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(ef);
@@ -313,7 +313,7 @@ internal sealed class DotVectorHnswVectorIndexReader : IVectorIndexReader
 
     public int Ef { get; }
 
-    internal DotVectorIndexReader InnerReader => _reader;
+    internal CoreVectorIndexReader InnerReader => _reader;
 
     public long EstimatedBytes => Math.Max(1, checked((long)Count * Dimension * sizeof(float) * 2));
 
@@ -327,10 +327,10 @@ internal sealed class DotVectorHnswVectorIndexReader : IVectorIndexReader
         if (resultLimit <= 0 || Count == 0 || metric != KnnMetric.Cosine || queryVector.Length != Dimension)
             return [];
 
-        var hits = _reader.Search(new DotVectorSearchRequest(
+        var hits = _reader.Search(new CoreVectorSearchRequest(
             queryVector.ToArray(),
             Math.Min(resultLimit, Count),
-            DotVectorKnnMetric.Cosine));
+            CoreVectorKnnMetric.Cosine));
 
         if (hits.Count == 0)
             return [];

@@ -655,6 +655,8 @@ public static class SqlExecutor
         var tableSchema = statement.FromSubquery is null
             ? tsdb.Tables.Catalog.TryGet(statement.Measurement)
             : null;
+        if (DocumentVectorSearchExecutor.IsVectorSearch(statement))
+            return DocumentVectorSearchExecutor.Execute(tsdb, statement);
         if (HybridSearchExecutor.IsHybridSearch(statement))
             return HybridSearchExecutor.Execute(tsdb, statement);
         if (string.IsNullOrEmpty(statement.Measurement) && statement.FromSubquery is null)

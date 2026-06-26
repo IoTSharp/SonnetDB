@@ -361,6 +361,35 @@ ORDER BY score DESC;
 - `EXPLAIN` 的 `access_path` 会显示 `hybrid_search`，`index_name` 显示使用的全文索引。
 - document collection 内融合只读取 document collection 主数据和派生全文索引，不会把文档主数据交给 DotSearch 或 DotVector。
 
+### 文档向量搜索
+
+`vector_search(...)` 用于在 document collection 上执行纯向量检索，不要求全文索引或文本查询。它主要服务 `SonnetDB.Data.VectorData` adapter，也可直接在 SQL 中使用。
+
+```sql
+SELECT id,
+       json_value(document, '$.title') AS title,
+       vector_distance() AS distance,
+       vector_score() AS score
+FROM vector_search(
+  source => logs,
+  vector_field => '$.embedding',
+  vector => [1, 0, 0],
+  k => 20,
+  metric => 'cosine'
+)
+WHERE site = 'north'
+ORDER BY distance;
+```
+
+当前行为：
+
+- `source` 必须是 document collection；`vector_search` 不把通用记录映射到 measurement。
+- `vector_field` 默认 `$.embedding`，目标 JSON 值必须是 number array，并且维度必须与查询向量一致。
+- `metric` 可选，支持 `'cosine'`、`'l2'`、`'inner_product'`；默认 `'cosine'`。
+- 结果伪列支持 `vector_distance()`、`vector_score()`，也可投影 `id`、`document/json` 和 JSON 顶层字段名。
+- `WHERE` 支持对结果伪列或 JSON 顶层字段做基础比较；复杂路径可用 `json_value(document, '$.path')`。
+- `EXPLAIN` 的 `access_path` 会显示 `document_vector_scan`，`index_name` 显示使用的 JSON vector path。
+
 ### Measurement KNN 与知识文档融合
 
 MM8 第二批支持以 measurement 的 `VECTOR` 字段做 KNN 召回，再通过 measurement tag 与 document collection JSON path 关联知识条目，并可叠加知识文档全文 BM25 与可选知识向量评分：

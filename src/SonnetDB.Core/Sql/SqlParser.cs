@@ -944,7 +944,7 @@ public sealed class SqlParser
             }
             else
             {
-                // 第一个参数通常是 source measurement 标识符；MM8 hybrid_search 也支持 source => docs 命名参数。
+                // 第一个参数通常是 source 标识符；hybrid_search / vector_search 也支持 source => docs 命名参数。
                 if (call.Arguments.Count == 0)
                     throw Error($"表值函数 {name}(...) 第 1 个参数必须是 source 名称");
                 measurement = ResolveTableValuedSourceName(name, call);
@@ -1010,7 +1010,8 @@ public sealed class SqlParser
         if (firstArgument is IdentifierExpression sourceId)
             return sourceId.Name;
 
-        if (string.Equals(functionName, "hybrid_search", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(functionName, "hybrid_search", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(functionName, "vector_search", StringComparison.OrdinalIgnoreCase))
         {
             foreach (var argument in call.Arguments)
             {
@@ -1018,6 +1019,16 @@ public sealed class SqlParser
                     && string.Equals(name, "source", StringComparison.OrdinalIgnoreCase))
                 {
                     return source.Name;
+                }
+
+                if (argument is NamedArgumentExpression
+                    {
+                        Name: var literalName,
+                        Value: LiteralExpression { Kind: SqlLiteralKind.String, StringValue: var sourceName }
+                    }
+                    && string.Equals(literalName, "source", StringComparison.OrdinalIgnoreCase))
+                {
+                    return sourceName!;
                 }
             }
         }

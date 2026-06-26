@@ -396,6 +396,44 @@ public sealed class SqlExecutorDocumentTests : IDisposable
     }
 
     [Fact]
+    public void DocumentCollection_VectorSearch_RanksAndFiltersJsonDocuments()
+    {
+        using var db = Tsdb.Open(Options());
+        CreateHybridSearchFixture(db);
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT id, site, vector_distance() AS distance, vector_score() AS score
+            FROM vector_search(source => logs, vector_field => '$.embedding', vector => [1, 0, 0], k => 4)
+            WHERE site = 'north'
+            ORDER BY distance
+            """));
+
+        Assert.Equal(new[] { "id", "site", "distance", "score" }, result.Columns);
+        Assert.Equal(["log-1", "log-3"], result.Rows.Select(static row => (string)row[0]!).ToArray());
+        Assert.All(result.Rows, static row => Assert.Equal("north", row[1]));
+        Assert.Equal(0.0, Convert.ToDouble(result.Rows[0][2]), 6);
+        Assert.True(Convert.ToDouble(result.Rows[0][3]) > Convert.ToDouble(result.Rows[1][3]));
+    }
+
+    [Fact]
+    public void DocumentCollection_VectorSearch_ExplainShowsDocumentVectorScan()
+    {
+        using var db = Tsdb.Open(Options());
+        CreateHybridSearchFixture(db);
+
+        var explain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            EXPLAIN SELECT id
+            FROM vector_search(source => logs, vector_field => '$.embedding', vector => [1, 0, 0], k => 2)
+            """));
+
+        var values = explain.Rows.ToDictionary(static r => (string)r[0]!, static r => r[1], StringComparer.Ordinal);
+        Assert.Equal("vector_search", values["statement_type"]);
+        Assert.Equal("document_vector_scan", values["access_path"]);
+        Assert.Equal("$.embedding", values["index_name"]);
+        Assert.Equal(4L, Convert.ToInt64(values["estimated_scanned_rows"]));
+    }
+
+    [Fact]
     public void HybridSearch_MeasurementKnn_AssociatesDocumentKnowledgeRows()
     {
         using var db = Tsdb.Open(Options());

@@ -52,8 +52,6 @@ http://127.0.0.1:5080
 - `SonnetDB.Caching.<version>.nupkg`
 - `SonnetDB.Cli.<version>.nupkg`
 - `SonnetMQ.<version>.nupkg`
-- `DotSearch.*.<version>.nupkg`
-- `DotVector.Core.<version>.nupkg`
 - `sndb-sdk-<version>-win-x64.zip`
 - `sonnetdb-full-<version>-win-x64.zip`
 - `sonnetdb-<version>-win-x64.msi`

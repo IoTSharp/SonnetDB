@@ -318,6 +318,29 @@ public static class SqlExplainPlanner
         Tsdb tsdb,
         SelectStatement statement)
     {
+        if (DocumentVectorSearchExecutor.IsVectorSearch(statement))
+        {
+            var vectorSearchSchema = tsdb.Documents.Catalog.TryGet(statement.Measurement)
+                ?? throw new InvalidOperationException(
+                    $"vector_search(...) 的 source '{statement.Measurement}' 必须是 document collection。");
+            var (accessPath, indexName, estimatedRows) =
+                DocumentVectorSearchExecutor.ExplainAccess(tsdb, statement, vectorSearchSchema);
+            return new SqlExplainExecutionResult(
+                Database: databaseName,
+                StatementType: "vector_search",
+                Measurement: statement.Measurement,
+                MatchedSeriesCount: 0,
+                EstimatedSegmentCount: 0,
+                EstimatedBlockCount: 0,
+                EstimatedScannedRows: estimatedRows,
+                EstimatedMemTableRows: estimatedRows,
+                EstimatedSegmentRows: 0,
+                HasTimeFilter: statement.Where is not null,
+                TagFilterCount: 0,
+                AccessPath: accessPath,
+                IndexName: indexName);
+        }
+
         if (HybridSearchExecutor.IsHybridSearch(statement))
         {
             var hybridDocumentSchema = tsdb.Documents.Catalog.TryGet(statement.Measurement);

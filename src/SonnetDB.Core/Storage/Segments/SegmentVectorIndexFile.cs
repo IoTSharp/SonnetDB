@@ -5,8 +5,8 @@ namespace SonnetDB.Storage.Segments;
 /// <summary>
 /// `.SDBVIDX` 向量索引 section 的读写工具。
 /// <para>
-/// v6 新段把该 section 内嵌在 `.SDBSEG` 的扩展区；V2 section 保存 DotVector 索引 blob manifest，
-/// 并在 record 后持久化 DotVector 本地索引 blob。blob 缺失或损坏时，可按 manifest 从 SonnetDB block payload 重建。
+/// v6 新段把该 section 内嵌在 `.SDBSEG` 的扩展区；V2 section 保存 SonnetDB 向量索引 blob manifest，
+/// 并在 record 后持久化 SonnetDB 本地向量索引 blob。blob 缺失或损坏时，可按 manifest 从 SonnetDB block payload 重建。
 /// </para>
 /// </summary>
 internal static class SegmentVectorIndexFile
@@ -18,7 +18,7 @@ internal static class SegmentVectorIndexFile
     private const int RecordSize = 60;
 
     /// <summary>
-    /// 把多个 block 的 DotVector HNSW 索引元数据写入 sidecar 文件。
+    /// 把多个 block 的 SonnetDB HNSW 向量索引元数据写入 sidecar 文件。
     /// </summary>
     /// <param name="path">目标 legacy sidecar 文件路径。</param>
     /// <param name="blocks">待写入的 block 索引与 blob 集合。</param>
@@ -45,7 +45,7 @@ internal static class SegmentVectorIndexFile
             if (metadata.HasPersistentBlob)
             {
                 if (block.Blob.Length != metadata.BlobLength)
-                    throw new InvalidDataException("SDBVIDX DotVector index blob length does not match manifest.");
+                    throw new InvalidDataException("SDBVIDX SonnetDB vector index blob length does not match manifest.");
                 stream.Write(block.Blob);
             }
         }
@@ -121,7 +121,7 @@ internal static class SegmentVectorIndexFile
     }
 
     /// <summary>
-    /// 尝试从指定 sidecar 偏移读取单个 block 的 DotVector 索引元数据。
+    /// 尝试从指定 sidecar 偏移读取单个 block 的 SonnetDB 向量索引元数据。
     /// </summary>
     /// <param name="segmentPath">段文件路径。</param>
     /// <param name="offset">legacy sidecar 内索引起始偏移。</param>
@@ -446,7 +446,7 @@ internal static class SegmentVectorIndexFile
         if (metadata.Count <= 0 || metadata.Dimension <= 0 || metadata.IndexKind <= 0 || metadata.M <= 0 || metadata.Ef <= 0)
             throw new InvalidDataException("SDBVIDX 含有非法的 block 索引参数。");
         if (metadata.HasPersistentBlob && (metadata.BlobOffset < HeaderSize || metadata.BlobLength <= 0 || metadata.BlobCrc32 == 0))
-            throw new InvalidDataException("SDBVIDX 含有非法的 DotVector index blob manifest。");
+            throw new InvalidDataException("SDBVIDX 含有非法的 SonnetDB vector index blob manifest。");
 
         return metadata;
     }
@@ -457,7 +457,7 @@ internal static class SegmentVectorIndexFile
             return;
 
         if (metadata.BlobOffset < stream.Position || metadata.BlobOffset + metadata.BlobLength > sectionEnd)
-            throw new InvalidDataException("SDBVIDX DotVector index blob 越界。");
+            throw new InvalidDataException("SDBVIDX SonnetDB vector index blob 越界。");
 
         stream.Seek(metadata.BlobOffset + metadata.BlobLength, SeekOrigin.Begin);
     }

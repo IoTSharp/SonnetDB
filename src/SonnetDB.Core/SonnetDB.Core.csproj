@@ -8,31 +8,36 @@
     <Title>SonnetDB.Core</Title>
     <Description>SonnetDB 嵌入式单文件时序数据库核心库，提供本地存储引擎、SQL 执行器与时序查询能力。</Description>
     <PackageReadmeFile>PackageReadme.md</PackageReadmeFile>
-    <DotVectorModuleRoot>..\..\modules\DotVector</DotVectorModuleRoot>
-    <DotVectorModuleRoot Condition="!Exists('$(DotVectorModuleRoot)\src\DotVector.Core\DotVector.Core.csproj') And Exists('..\..\..\modules\DotVector\src\DotVector.Core\DotVector.Core.csproj')">..\..\..\modules\DotVector</DotVectorModuleRoot>
-    <DotVectorModuleRoot Condition="!Exists('$(DotVectorModuleRoot)\src\DotVector.Core\DotVector.Core.csproj') And Exists('..\..\..\DotVector\src\DotVector.Core\DotVector.Core.csproj')">..\..\..\DotVector</DotVectorModuleRoot>
-    <DotSearchModuleRoot>..\..\modules\DotSearch</DotSearchModuleRoot>
-    <DotSearchModuleRoot Condition="!Exists('$(DotSearchModuleRoot)\src\DotSearch.Core\DotSearch.Core.csproj') And Exists('..\..\..\modules\DotSearch\src\DotSearch.Core\DotSearch.Core.csproj')">..\..\..\modules\DotSearch</DotSearchModuleRoot>
-    <DotSearchModuleRoot Condition="!Exists('$(DotSearchModuleRoot)\src\DotSearch.Core\DotSearch.Core.csproj') And Exists('..\..\..\DotSearch\src\DotSearch.Core\DotSearch.Core.csproj')">..\..\..\DotSearch</DotSearchModuleRoot>
+    <JiebaDictionaryCompilerProject>$(MSBuildThisFileDirectory)FullText\Tools\DictionaryCompiler\SonnetDB.FullText.DictionaryCompiler.csproj</JiebaDictionaryCompilerProject>
+    <JiebaDictionaryCompilerOutput>$(MSBuildThisFileDirectory)FullText\Tools\DictionaryCompiler\bin\$(Configuration)\$(TargetFramework)\</JiebaDictionaryCompilerOutput>
+    <JiebaDictionaryCompilerDll>$(JiebaDictionaryCompilerOutput)SonnetDB.FullText.DictionaryCompiler.dll</JiebaDictionaryCompilerDll>
+    <JiebaDictionaryText>$(MSBuildThisFileDirectory)FullText\Tokenizers\Jieba\Resources\dict.txt</JiebaDictionaryText>
+    <JiebaDictionaryDat>$(MSBuildThisFileDirectory)FullText\Tokenizers\Jieba\Resources\Generated\dict.dat</JiebaDictionaryDat>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="System.IO.Hashing" />
+    <PackageReference Include="System.Numerics.Tensors" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="$(DotVectorModuleRoot)\src\DotVector.Core\DotVector.Core.csproj" Condition="Exists('$(DotVectorModuleRoot)\src\DotVector.Core\DotVector.Core.csproj')" />
-    <ProjectReference Include="$(DotSearchModuleRoot)\src\DotSearch.Core\DotSearch.Core.csproj" Condition="Exists('$(DotSearchModuleRoot)\src\DotSearch.Core\DotSearch.Core.csproj')" />
-    <ProjectReference Include="$(DotSearchModuleRoot)\src\DotSearch.Tokenizers.Unicode\DotSearch.Tokenizers.Unicode.csproj" Condition="Exists('$(DotSearchModuleRoot)\src\DotSearch.Tokenizers.Unicode\DotSearch.Tokenizers.Unicode.csproj')" />
-    <ProjectReference Include="$(DotSearchModuleRoot)\src\DotSearch.Tokenizers.Cjk\DotSearch.Tokenizers.Cjk.csproj" Condition="Exists('$(DotSearchModuleRoot)\src\DotSearch.Tokenizers.Cjk\DotSearch.Tokenizers.Cjk.csproj')" />
-    <ProjectReference Include="$(DotSearchModuleRoot)\src\DotSearch.Tokenizers.Jieba\DotSearch.Tokenizers.Jieba.csproj" Condition="Exists('$(DotSearchModuleRoot)\src\DotSearch.Tokenizers.Jieba\DotSearch.Tokenizers.Jieba.csproj')" />
+    <Compile Remove="FullText\Tools\DictionaryCompiler\**\*.cs" />
+    <EmbeddedResource Include="FullText\Tokenizers\Jieba\Resources\dict.txt"
+                      LogicalName="DotSearch.Tokenizers.Jieba.Resources.dict.txt" />
+    <EmbeddedResource Include="FullText\Tokenizers\Jieba\Resources\Generated\dict.dat"
+                      LogicalName="DotSearch.Tokenizers.Jieba.Resources.dict.dat"
+                      Condition="Exists('FullText\Tokenizers\Jieba\Resources\Generated\dict.dat')" />
   </ItemGroup>
 
-  <Target Name="WarnMissingLocalSearchModules" BeforeTargets="ResolveReferences">
-    <Warning Condition="!Exists('$(DotVectorModuleRoot)\src\DotVector.Core\DotVector.Core.csproj')"
-             Text="DotVector local project was not found. Expected modules/DotVector under SonnetDB, ../modules/DotVector, or ../DotVector relative to this repository." />
-    <Warning Condition="!Exists('$(DotSearchModuleRoot)\src\DotSearch.Core\DotSearch.Core.csproj')"
-             Text="DotSearch local project was not found. Expected modules/DotSearch under SonnetDB, ../modules/DotSearch, or ../DotSearch relative to this repository." />
+  <Target Name="CompileChineseDictionary"
+          BeforeTargets="BeforeBuild"
+          Inputs="$(JiebaDictionaryText);$(MSBuildThisFileDirectory)FullText\Tools\DictionaryCompiler\Program.cs"
+          Outputs="$(JiebaDictionaryDat)">
+    <MakeDir Directories="$(MSBuildThisFileDirectory)FullText\Tokenizers\Jieba\Resources\Generated" />
+    <MSBuild Projects="$(JiebaDictionaryCompilerProject)"
+             Targets="Restore;Build"
+             Properties="Configuration=$(Configuration);TargetFramework=$(TargetFramework);RuntimeIdentifier=;SelfContained=false;PublishAot=false;OutputPath=$(JiebaDictionaryCompilerOutput)" />
+    <Exec Command="dotnet &quot;$(JiebaDictionaryCompilerDll)&quot; &quot;$(JiebaDictionaryText)&quot; &quot;$(JiebaDictionaryDat)&quot;" />
   </Target>
 
   <ItemGroup>

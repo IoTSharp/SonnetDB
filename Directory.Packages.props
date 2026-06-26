@@ -6,6 +6,7 @@
     <PackageVersion Include="Microsoft.AspNetCore.SpaProxy" Version="10.0.9" />
     <PackageVersion Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
     <PackageVersion Include="System.IO.Hashing" Version="10.0.9" />
+    <PackageVersion Include="System.Numerics.Tensors" Version="10.0.9" />
     <PackageVersion Include="ModelContextProtocol" Version="1.4.0" />
     <PackageVersion Include="Microsoft.Extensions.AI" Version="10.7.0" />
     <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="1.4.0" />
@@ -15,6 +16,7 @@
     <PackageVersion Include="Microsoft.Extensions.Caching.Abstractions" Version="10.0.9" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.9" />
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.Extensions.VectorData.Abstractions" Version="10.7.0" />
     <PackageVersion Include="Microsoft.ML.OnnxRuntime" Version="1.27.0" />
     <PackageVersion Include="EasyCaching.Core" Version="1.9.2" />
     <!-- Snappy block-format 解压（Prometheus Remote Write 入站端点用），纯托管、AOT 友好。 -->

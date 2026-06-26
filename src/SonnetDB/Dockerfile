@@ -27,14 +27,6 @@ COPY .config/dotnet-tools.json .config/
 COPY src/SonnetDB/SonnetDB.csproj src/SonnetDB/
 COPY src/SonnetDB.Core/SonnetDB.Core.csproj src/SonnetDB.Core/
 COPY src/SonnetMQ/SonnetMQ.csproj src/SonnetMQ/
-COPY modules/DotSearch/Directory.Build.props modules/DotSearch/Directory.Packages.props modules/DotSearch/
-COPY modules/DotSearch/src/DotSearch.Core/DotSearch.Core.csproj modules/DotSearch/src/DotSearch.Core/
-COPY modules/DotSearch/src/DotSearch.Tokenizers.Cjk/DotSearch.Tokenizers.Cjk.csproj modules/DotSearch/src/DotSearch.Tokenizers.Cjk/
-COPY modules/DotSearch/src/DotSearch.Tokenizers.Jieba/DotSearch.Tokenizers.Jieba.csproj modules/DotSearch/src/DotSearch.Tokenizers.Jieba/
-COPY modules/DotSearch/src/DotSearch.Tokenizers.Unicode/DotSearch.Tokenizers.Unicode.csproj modules/DotSearch/src/DotSearch.Tokenizers.Unicode/
-COPY modules/DotSearch/tools/DotSearch.DictionaryCompiler/DotSearch.DictionaryCompiler.csproj modules/DotSearch/tools/DotSearch.DictionaryCompiler/
-COPY modules/DotVector/Directory.Build.props modules/DotVector/Directory.Packages.props modules/DotVector/
-COPY modules/DotVector/src/DotVector.Core/DotVector.Core.csproj modules/DotVector/src/DotVector.Core/
 
 RUN dotnet restore src/SonnetDB/SonnetDB.csproj
 RUN dotnet tool restore
@@ -43,12 +35,6 @@ RUN dotnet tool restore
 COPY src/SonnetDB/ src/SonnetDB/
 COPY src/SonnetDB.Core/ src/SonnetDB.Core/
 COPY src/SonnetMQ/ src/SonnetMQ/
-COPY modules/DotSearch/src/DotSearch.Core/ modules/DotSearch/src/DotSearch.Core/
-COPY modules/DotSearch/src/DotSearch.Tokenizers.Cjk/ modules/DotSearch/src/DotSearch.Tokenizers.Cjk/
-COPY modules/DotSearch/src/DotSearch.Tokenizers.Jieba/ modules/DotSearch/src/DotSearch.Tokenizers.Jieba/
-COPY modules/DotSearch/src/DotSearch.Tokenizers.Unicode/ modules/DotSearch/src/DotSearch.Tokenizers.Unicode/
-COPY modules/DotSearch/tools/DotSearch.DictionaryCompiler/ modules/DotSearch/tools/DotSearch.DictionaryCompiler/
-COPY modules/DotVector/src/DotVector.Core/ modules/DotVector/src/DotVector.Core/
 COPY docs/ docs/
 COPY web/ web/
 

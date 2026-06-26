@@ -42,4 +42,56 @@ while (reader.Read())
 }
 ```
 
+## Microsoft.Extensions.VectorData
+
+`SonnetDB.Data.VectorData` 提供 `Microsoft.Extensions.VectorData` adapter。默认情况下，一个 VectorData collection 会映射为 SonnetDB `DOCUMENT COLLECTION`：record key 存为文档 `id`，数据字段和向量字段存入 JSON document，向量搜索通过 `vector_search(...)` 读取 JSON number array。
+
+```csharp
+using Microsoft.Extensions.VectorData;
+using SonnetDB.Data;
+using SonnetDB.Data.VectorData;
+
+await using var connection = new SndbConnection("Data Source=./demo-data");
+using var store = new SonnetDBVectorStore(connection);
+
+var collection = store.GetCollection<string, KnowledgeRecord>("knowledge");
+await collection.EnsureCollectionExistsAsync();
+
+await collection.UpsertAsync(new KnowledgeRecord
+{
+    Id = "kb-1",
+    Title = "Pump alarm guide",
+    Site = "north",
+    Embedding = [1, 0, 0],
+});
+
+var results = await collection
+    .SearchAsync(
+        new ReadOnlyMemory<float>([1, 0, 0]),
+        top: 5,
+        new VectorSearchOptions<KnowledgeRecord>
+        {
+            IncludeVectors = true,
+            Filter = record => record.Site == "north",
+        })
+    .ToArrayAsync();
+
+public sealed class KnowledgeRecord
+{
+    [VectorStoreKey]
+    public string Id { get; set; } = string.Empty;
+
+    [VectorStoreData]
+    public string Title { get; set; } = string.Empty;
+
+    [VectorStoreData]
+    public string Site { get; set; } = string.Empty;
+
+    [VectorStoreVector(3, DistanceFunction = DistanceFunction.CosineDistance)]
+    public float[] Embedding { get; set; } = [];
+}
+```
+
+`measurement` 仍用于时序数据和时序 `VECTOR(N)` 列；通用 VectorData collection 不默认映射到 measurement，避免把非时序记录强行绑定到时间轴。
+
 发布包和默认示例配置见仓库根目录 `docs/releases/`。

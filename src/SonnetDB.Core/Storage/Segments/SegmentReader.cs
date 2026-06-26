@@ -516,7 +516,7 @@ public sealed class SegmentReader : IDisposable
     }
 
     /// <summary>
-    /// 尝试获取指定 block 对应的 DotVector HNSW 向量索引 reader。
+    /// 尝试获取指定 block 对应的 SonnetDB HNSW 向量索引 reader。
     /// </summary>
     /// <param name="descriptor">目标 block。</param>
     /// <param name="reader">命中时返回的索引 reader。</param>
@@ -604,7 +604,7 @@ public sealed class SegmentReader : IDisposable
         {
             try
             {
-                var buildResult = DotVectorHnswVectorIndexBuilder.BuildFromBlob(
+                var buildResult = LocalVectorIndexBuilderAdapter.BuildFromBlob(
                     metadata.BlockIndex,
                     blobStream,
                     metadata.BlobLength,
@@ -632,7 +632,7 @@ public sealed class SegmentReader : IDisposable
         try
         {
             var data = ReadBlock(descriptor);
-            var buildResult = DotVectorHnswVectorIndexBuilder.BuildFromPayload(
+            var buildResult = LocalVectorIndexBuilderAdapter.BuildFromPayload(
                 descriptor.Index,
                 data.ValuePayload,
                 metadata.Count,

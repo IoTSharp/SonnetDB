@@ -11,7 +11,7 @@ namespace SonnetDB.Query;
 /// </summary>
 internal static class NumericAggregateVector
 {
-    public static bool IsSupported => BitConverter.IsLittleEndian && Vector.IsHardwareAccelerated;
+    public static bool IsSupported => BitConverter.IsLittleEndian && System.Numerics.Vector.IsHardwareAccelerated;
 
     public static NumericAggregateVectorResult AggregateScalar(
         FieldType fieldType,
@@ -95,12 +95,12 @@ internal static class NumericAggregateVector
         for (; i < vectorEnd; i += vectorWidth)
         {
             var current = new Vector<double>(slice.Slice(i, vectorWidth));
-            if (!Vector.EqualsAll(current, current))
+            if (!System.Numerics.Vector.EqualsAll(current, current))
                 return false;
 
             sumVector += current;
-            minVector = Vector.Min(minVector, current);
-            maxVector = Vector.Max(maxVector, current);
+            minVector = System.Numerics.Vector.Min(minVector, current);
+            maxVector = System.Numerics.Vector.Max(maxVector, current);
         }
 
         double sum = 0d;
@@ -156,9 +156,9 @@ internal static class NumericAggregateVector
         for (; i < vectorEnd; i += vectorWidth)
         {
             var current = new Vector<long>(slice.Slice(i, vectorWidth));
-            sumVector += Vector.ConvertToDouble(current);
-            minVector = Vector.Min(minVector, current);
-            maxVector = Vector.Max(maxVector, current);
+            sumVector += System.Numerics.Vector.ConvertToDouble(current);
+            minVector = System.Numerics.Vector.Min(minVector, current);
+            maxVector = System.Numerics.Vector.Max(maxVector, current);
         }
 
         double sum = 0d;

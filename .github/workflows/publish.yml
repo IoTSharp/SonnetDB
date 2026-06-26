@@ -30,8 +30,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
-        with:
-          submodules: recursive
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -84,8 +82,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
-        with:
-          submodules: recursive
 
       - uses: actions/setup-dotnet@v5
         with:

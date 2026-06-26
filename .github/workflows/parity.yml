@@ -57,8 +57,6 @@ jobs:
 
       - uses: actions/checkout@v7
         if: steps.selection.outputs.run == 'true'
-        with:
-          submodules: recursive
 
       - uses: actions/setup-dotnet@v5
         if: steps.selection.outputs.run == 'true'

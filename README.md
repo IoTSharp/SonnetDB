@@ -98,7 +98,7 @@ SonnetDB 是一个基于 C# / .NET 的多模型数据库。它用一套本地引
 | --- | --- |
 | `src/SonnetDB.Core` | 多模型核心库，包含时序、关系表、KV、文档、搜索、对象存储适配、备份恢复和底层持久化能力 |
 | `src/SonnetDB` | HTTP 服务端、首次安装流程、认证授权、SSE、MCP、Admin UI、Copilot 桥接和内置 `/help` 文档站点 |
-| `src/SonnetDB.Data` | ADO.NET 提供程序，NuGet 包名为 `SonnetDB`，命名空间为 `SonnetDB.Data` |
+| `src/SonnetDB.Data` | ADO.NET 提供程序，NuGet 包名为 `SonnetDB`，命名空间为 `SonnetDB.Data`；后续承接 `Microsoft.Extensions.VectorData` 的 SonnetDB adapter |
 | `src/SonnetDB.EntityFrameworkCore` | EF Core Provider，NuGet 包名为 `SonnetDB.EntityFrameworkCore`，提供 `UseSonnetDB(...)`、类型映射、查询翻译和 migrations SQL |
 | `src/SonnetDB.Cli` | 命令行工具 `sndb`：本地/远程连接、profile 管理（`local`/`remote`/`connect`）、交互式 REPL |
 | `src/SonnetMQ` | 零依赖本地消息队列核心库，提供 topic publish、consumer group pull/ack 和重启 replay |
@@ -106,6 +106,8 @@ SonnetDB 是一个基于 C# / .NET 的多模型数据库。它用一套本地引
 | `web` | 管理后台前端（包含 SonnetDB Studio、全局 CopilotDock 与 SPA 发布静态资源） |
 | `src/SonnetDB.Studio` | 基于 NativeWebHost 的 SonnetDB Studio 桌面壳 |
 | `docs` | JekyllNet 文档站点源码；构建镜像时会生成并打包到 `/help` |
+
+DotSearch / DotVector 进入合并维护期。BM25、分词、距离计算、HNSW / IVF / Vamana、量化和索引序列化能力将逐步收编为 `SonnetDB.Core` 内部引擎；VectorData 适配迁移到 `SonnetDB.Data`。路线见 [搜索与向量引擎合并路线图](docs/search-vector-engine-consolidation-roadmap.md)。
 
 ## 快速开始
 

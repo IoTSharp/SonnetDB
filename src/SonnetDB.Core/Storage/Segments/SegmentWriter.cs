@@ -420,7 +420,7 @@ public sealed class SegmentWriter
                 && IsPersistableVectorIndex(vectorIndex))
             {
                 int dimension = points.Span[0].Value.VectorDimension;
-                var buildResult = new DotVectorHnswVectorIndexBuilder().Build(new VectorIndexBuildInput(
+                var buildResult = new LocalVectorIndexBuilderAdapter().Build(new VectorIndexBuildInput(
                     blockIndex,
                     points,
                     vectorIndex));
@@ -430,7 +430,7 @@ public sealed class SegmentWriter
                 if (vectorIndex.Kind == SonnetDB.Catalog.VectorIndexKind.Hnsw)
                 {
                     using var blobStream = new MemoryStream();
-                    blobCrc32 = DotVectorHnswVectorIndexBuilder.WriteBlob(blobStream, buildResult.Reader);
+                    blobCrc32 = LocalVectorIndexBuilderAdapter.WriteBlob(blobStream, buildResult.Reader);
                     blob = blobStream.ToArray();
                     flags |= VectorIndexManifestFlags.PersistentBlob;
                 }

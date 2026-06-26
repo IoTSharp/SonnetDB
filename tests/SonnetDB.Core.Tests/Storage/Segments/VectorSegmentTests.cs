@@ -156,7 +156,7 @@ public sealed class VectorSegmentTests : IDisposable
     }
 
     [Fact]
-    public void Segment_WriteWithHnswVectorIndex_EmbedsPersistentDotVectorBlobManifest()
+    public void Segment_WriteWithHnswVectorIndex_EmbedsPersistentSonnetDbVectorBlobManifest()
     {
         ulong seriesId = 4243UL;
         const string fieldName = "embedding";
