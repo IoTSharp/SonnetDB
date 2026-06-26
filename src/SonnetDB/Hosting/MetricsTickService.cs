@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using SonnetDB.Configuration;
 using SonnetDB.Contracts;
 using SonnetDB.Endpoints;
@@ -20,7 +21,7 @@ internal sealed class MetricsTickService : BackgroundService
     /// <summary>
     /// 构造后台服务。
     /// </summary>
-    public MetricsTickService(EventBroadcaster broadcaster, ServerMetrics metrics, TsdbRegistry registry, ServerOptions options)
+    public MetricsTickService(EventBroadcaster broadcaster, ServerMetrics metrics, TsdbRegistry registry, IOptions<ServerOptions> options)
     {
         ArgumentNullException.ThrowIfNull(broadcaster);
         ArgumentNullException.ThrowIfNull(metrics);
@@ -29,7 +30,7 @@ internal sealed class MetricsTickService : BackgroundService
         _broadcaster = broadcaster;
         _metrics = metrics;
         _registry = registry;
-        var seconds = Math.Max(1, options.MetricsTickSeconds);
+        var seconds = Math.Max(1, options.Value.MetricsTickSeconds);
         _interval = TimeSpan.FromSeconds(seconds);
     }
 

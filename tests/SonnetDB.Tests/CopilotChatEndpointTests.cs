@@ -46,8 +46,7 @@ public sealed class CopilotChatEndpointTests : IAsyncLifetime
         options.Copilot.Skills.AutoIngestOnStartup = false;
         _cloud = new FakeCloudGatewayClient();
 
-        _app = Program.BuildApp(
-            ["--Kestrel:Endpoints:Http:Url=http://127.0.0.1:0"],
+        _app = TestServerHost.Build(
             options,
             services => services.AddSingleton<ICopilotCloudGatewayClient>(_cloud));
         await _app.StartAsync();

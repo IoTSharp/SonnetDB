@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
@@ -44,7 +44,7 @@ public sealed class BulkIngestEndpointTests : IAsyncLifetime
                 [_readOnlyToken] = ServerRoles.ReadOnly,
             },
         };
-        _app = Program.BuildApp(["--Kestrel:Endpoints:Http:Url=http://127.0.0.1:0"], options);
+        _app = TestServerHost.Build(options);
         await _app.StartAsync();
         var addresses = _app.Services.GetRequiredService<IServer>()
             .Features.Get<IServerAddressesFeature>()

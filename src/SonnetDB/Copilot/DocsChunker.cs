@@ -1,6 +1,8 @@
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Options;
+using SonnetDB.Configuration;
 
 namespace SonnetDB.Copilot;
 
@@ -23,11 +25,12 @@ internal sealed partial class DocsChunker
     private readonly int _chunkSize;
     private readonly int _chunkOverlap;
 
-    public DocsChunker(Configuration.CopilotDocsOptions options)
+    public DocsChunker(IOptions<ServerOptions> options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        _chunkSize = options.ChunkSize <= 0 ? 800 : options.ChunkSize;
-        _chunkOverlap = options.ChunkOverlap < 0 ? 0 : options.ChunkOverlap;
+        var docs = options.Value.Copilot.Docs;
+        _chunkSize = docs.ChunkSize <= 0 ? 800 : docs.ChunkSize;
+        _chunkOverlap = docs.ChunkOverlap < 0 ? 0 : docs.ChunkOverlap;
     }
 
     public IReadOnlyList<DocsChunk> Chunk(DocsSourceFile sourceFile)

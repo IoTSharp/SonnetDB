@@ -126,8 +126,7 @@ public sealed class DocsIngestorTests
         options.Copilot.Chat.ApiKey = "chat-key";
         options.Copilot.Chat.Model = "chat-model";
 
-        return Program.BuildApp(
-            [],
+        return TestServerHost.Build(
             options,
             services =>
             {

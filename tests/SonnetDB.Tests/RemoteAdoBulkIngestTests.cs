@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -38,7 +38,7 @@ public sealed class RemoteAdoBulkIngestTests : IAsyncLifetime
                 [_readOnlyToken] = ServerRoles.ReadOnly,
             },
         };
-        _app = Program.BuildApp(["--Kestrel:Endpoints:Http:Url=http://127.0.0.1:0"], options);
+        _app = TestServerHost.Build(options);
         await _app.StartAsync();
         var addr = _app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()
             ?? throw new InvalidOperationException("Kestrel 未暴露监听地址。");

@@ -71,8 +71,7 @@ public sealed class CopilotEvalSuiteTests : IAsyncLifetime
         options.Copilot.Skills.AutoIngestOnStartup = false;
 
         _chatProvider = new ScriptedChatProvider(_scenarios, _jsonOptions);
-        _app = Program.BuildApp(
-            [],
+        _app = TestServerHost.Build(
             options,
             services =>
             {

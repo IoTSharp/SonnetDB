@@ -3,7 +3,7 @@
 #   docker build -f src/SonnetDB/Dockerfile -t iotsharp/sonnetdb .
 #
 # Run:
-#   docker run -p 5080:5080 -e SONNETDB_SonnetDBServer__Tokens__mytoken=admin iotsharp/sonnetdb
+#   docker run -p 5080:5080 -v sonnetdb-data:/data iotsharp/sonnetdb
 
 FROM node:24-bookworm-slim AS node-tooling
 
@@ -63,7 +63,12 @@ RUN dotnet publish src/SonnetDB/SonnetDB.csproj \
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=build /app/publish ./
+COPY --from=build /repo/src/SonnetDB/appsettings.Container.json ./appsettings.json
 
 # 把源码里的知识库素材随镜像一起发布，让 CopilotDocsIngestionService /
 # CopilotSkillsIngestionService 在容器首次启动时即可把 docs / 技能向量化进
@@ -76,9 +81,5 @@ COPY copilot/ /app/copilot/
 RUN mkdir -p /data
 
 EXPOSE 5080
-
-ENV SONNETDB_SonnetDBServer__DataRoot=/data
-ENV SONNETDB_SonnetDBServer__AutoLoadExistingDatabases=true
-ENV SONNETDB_SonnetDBServer__AllowAnonymousProbes=true
 
 ENTRYPOINT ["dotnet", "SonnetDB.dll"]

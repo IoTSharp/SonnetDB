@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using SonnetDB.Configuration;
 
 namespace SonnetDB.Copilot;
@@ -19,9 +20,10 @@ public sealed class CopilotReadiness
 {
     private readonly ServerOptions _serverOptions;
 
-    public CopilotReadiness(ServerOptions serverOptions)
+    public CopilotReadiness(IOptions<ServerOptions> serverOptions)
     {
-        _serverOptions = serverOptions;
+        ArgumentNullException.ThrowIfNull(serverOptions);
+        _serverOptions = serverOptions.Value;
     }
 
     public CopilotReadinessResult Evaluate()

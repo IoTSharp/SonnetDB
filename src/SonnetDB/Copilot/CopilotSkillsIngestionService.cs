@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using SonnetDB.Configuration;
 
 namespace SonnetDB.Copilot;
@@ -18,16 +19,16 @@ internal sealed class CopilotSkillsIngestionService : BackgroundService
     private readonly ILogger<CopilotSkillsIngestionService> _logger;
 
     public CopilotSkillsIngestionService(
-        CopilotOptions copilot,
+        IOptions<ServerOptions> serverOptions,
         CopilotReadiness readiness,
         SkillRegistry registry,
         ILogger<CopilotSkillsIngestionService> logger)
     {
-        ArgumentNullException.ThrowIfNull(copilot);
+        ArgumentNullException.ThrowIfNull(serverOptions);
         ArgumentNullException.ThrowIfNull(readiness);
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(logger);
-        _copilot = copilot;
+        _copilot = serverOptions.Value.Copilot;
         _readiness = readiness;
         _registry = registry;
         _logger = logger;

@@ -1,13 +1,12 @@
 using System.Net;
 using System.Net.Http.Headers;
-using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using SonnetDB;
 using SonnetDB.Configuration;
 using SonnetDB.Contracts;
@@ -27,7 +26,7 @@ public sealed class CopilotInfrastructureTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         var options = CreateServerOptions();
-        _app = Program.BuildApp(["--Kestrel:Endpoints:Http:Url=http://127.0.0.1:0"], options);
+        _app = TestServerHost.Build(options);
         await _app.StartAsync();
 
         var addresses = _app.Services.GetRequiredService<IServer>()
@@ -77,7 +76,7 @@ public sealed class CopilotInfrastructureTests : IAsyncLifetime
         var options = CreateServerOptions();
         options.Copilot.Enabled = false;
 
-        var readiness = new CopilotReadiness(options).Evaluate();
+        var readiness = new CopilotReadiness(Options.Create(options)).Evaluate();
 
         Assert.False(readiness.Enabled);
         Assert.False(readiness.Ready);
@@ -97,7 +96,7 @@ public sealed class CopilotInfrastructureTests : IAsyncLifetime
         options.Copilot.Chat.ApiKey = "chat-key";
         options.Copilot.Chat.Model = "chat-model";
 
-        var readiness = new CopilotReadiness(options).Evaluate();
+        var readiness = new CopilotReadiness(Options.Create(options)).Evaluate();
 
         Assert.True(readiness.Enabled);
         Assert.True(readiness.EmbeddingReady);
@@ -116,7 +115,7 @@ public sealed class CopilotInfrastructureTests : IAsyncLifetime
         options.Copilot.Chat.ApiKey = "chat-key";
         options.Copilot.Chat.Model = "chat-model";
 
-        var readiness = new CopilotReadiness(options).Evaluate();
+        var readiness = new CopilotReadiness(Options.Create(options)).Evaluate();
 
         Assert.Equal("builtin", options.Copilot.Embedding.Provider);
         Assert.True(readiness.EmbeddingReady);
@@ -157,7 +156,7 @@ public sealed class CopilotInfrastructureTests : IAsyncLifetime
         options.Copilot.Chat.ApiKey = "chat-key";
         options.Copilot.Chat.Model = "chat-model";
 
-        var readiness = new CopilotReadiness(options).Evaluate();
+        var readiness = new CopilotReadiness(Options.Create(options)).Evaluate();
 
         Assert.True(readiness.Enabled);
         Assert.False(readiness.EmbeddingReady);
@@ -276,32 +275,55 @@ public sealed class CopilotInfrastructureTests : IAsyncLifetime
     }
 
     [Fact]
-    public void LoadServerOptions_ParsesCopilotConfiguration_FromConfigurationTree()
+    public async Task BuildApp_BindsServerOptions_FromConfiguration()
     {
-        var values = new Dictionary<string, string?>
+        var configRoot = CreateTempDirectory();
+        var dataRoot = CreateTempDirectory();
+        var appsettings = new
         {
-            ["SonnetDBServer:DataRoot"] = CreateTempDirectory(),
-            ["SonnetDBServer:AllowAnonymousProbes"] = "true",
-            ["SonnetDBServer:AutoLoadExistingDatabases"] = "false",
-            ["SonnetDBServer:Copilot:Enabled"] = "false",
-            ["SonnetDBServer:Copilot:Embedding:Provider"] = "openai",
-            ["SonnetDBServer:Copilot:Embedding:Endpoint"] = "https://embedding.example/v1/",
-            ["SonnetDBServer:Copilot:Embedding:ApiKey"] = "embedding-secret",
-            ["SonnetDBServer:Copilot:Embedding:Model"] = "text-embedding-3-small",
-            ["SonnetDBServer:Copilot:Embedding:TimeoutSeconds"] = "42",
-            ["SonnetDBServer:Copilot:Chat:Provider"] = "openai",
-            ["SonnetDBServer:Copilot:Chat:Endpoint"] = "https://chat.example/v1/",
-            ["SonnetDBServer:Copilot:Chat:ApiKey"] = "chat-secret",
-            ["SonnetDBServer:Copilot:Chat:Model"] = "gpt-like-chat",
-            ["SonnetDBServer:Copilot:Chat:TimeoutSeconds"] = "24",
+            SonnetDBServer = new
+            {
+                DataRoot = dataRoot,
+                AllowAnonymousProbes = true,
+                AutoLoadExistingDatabases = false,
+                Tokens = new Dictionary<string, string> { ["admin-token"] = "admin" },
+                Copilot = new
+                {
+                    Enabled = false,
+                    Embedding = new
+                    {
+                        Provider = "openai",
+                        Endpoint = "https://embedding.example/v1/",
+                        ApiKey = "embedding-secret",
+                        Model = "text-embedding-3-small",
+                        TimeoutSeconds = 42,
+                    },
+                    Chat = new
+                    {
+                        Provider = "openai",
+                        Endpoint = "https://chat.example/v1/",
+                        ApiKey = "chat-secret",
+                        Model = "gpt-like-chat",
+                        TimeoutSeconds = 24,
+                    },
+                    Docs = new
+                    {
+                        AutoIngestOnStartup = true,
+                        Roots = new[] { "./docs-a", "./docs-b" },
+                        ChunkSize = 512,
+                        ChunkOverlap = 64,
+                    },
+                },
+            },
         };
+        File.WriteAllText(Path.Combine(configRoot, "appsettings.json"), JsonSerializer.Serialize(appsettings));
 
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(values)
-            .Build();
+        await using var app = Program.BuildApp(["--contentRoot", configRoot]);
+        var options = app.Services.GetRequiredService<IOptions<ServerOptions>>().Value;
 
-        var options = InvokeLoadServerOptions(configuration);
-
+        Assert.False(options.AutoLoadExistingDatabases);
+        Assert.True(options.AllowAnonymousProbes);
+        Assert.Equal(ServerRoles.Admin, options.Tokens["admin-token"]);
         Assert.False(options.Copilot.Enabled);
         Assert.Equal("openai", options.Copilot.Embedding.Provider);
         Assert.Equal("https://embedding.example/v1/", options.Copilot.Embedding.Endpoint);
@@ -313,6 +335,10 @@ public sealed class CopilotInfrastructureTests : IAsyncLifetime
         Assert.Equal("chat-secret", options.Copilot.Chat.ApiKey);
         Assert.Equal("gpt-like-chat", options.Copilot.Chat.Model);
         Assert.Equal(24, options.Copilot.Chat.TimeoutSeconds);
+        Assert.True(options.Copilot.Docs.AutoIngestOnStartup);
+        Assert.Equal(["./docs-a", "./docs-b"], options.Copilot.Docs.Roots);
+        Assert.Equal(512, options.Copilot.Docs.ChunkSize);
+        Assert.Equal(64, options.Copilot.Docs.ChunkOverlap);
     }
 
     [Fact]
@@ -476,14 +502,6 @@ public sealed class CopilotInfrastructureTests : IAsyncLifetime
         File.WriteAllText(path, content);
         _tempFiles.Add(path);
         return path;
-    }
-
-    private static ServerOptions InvokeLoadServerOptions(IConfiguration configuration)
-    {
-        var method = typeof(Program).GetMethod("LoadServerOptions", BindingFlags.Static | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Program.LoadServerOptions was not found.");
-        return (ServerOptions)(method.Invoke(null, [configuration])
-            ?? throw new InvalidOperationException("Program.LoadServerOptions returned null."));
     }
 
     private static async Task<HttpRequestMessage> CloneRequestAsync(HttpRequestMessage request)

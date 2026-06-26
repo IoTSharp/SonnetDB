@@ -5,12 +5,6 @@ services:
       - "5080:5080"
     volumes:
       - sonnetdb-data:/data
-    environment:
-      SONNETDB_SonnetDBServer__DataRoot: /data
-      SONNETDB_SonnetDBServer__AutoLoadExistingDatabases: "true"
-      SONNETDB_SonnetDBServer__AllowAnonymousProbes: "true"
-      # 首次启动后通过 /admin/ 完成初始化向导，或直接设置初始 Bearer Token：
-      # SONNETDB_SonnetDBServer__Tokens__mytoken: admin
     restart: unless-stopped
 
 volumes:
