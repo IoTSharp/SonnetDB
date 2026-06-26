@@ -1,6 +1,6 @@
 # 搜索与向量引擎合并路线图
 
-> 2026-06-26 决策：DotSearch / DotVector 不再作为 SonnetDB 之外的独立产品线继续扩张。两者的算法、索引和分词能力逐步收编为 `SonnetDB.Core` 内部引擎；面向 `Microsoft.Extensions.VectorData` 的 SonnetDB 适配迁移到 `SonnetDB.Data`。
+> 2026-06-26 决策：DotSearch / DotVector 不再作为 SonnetDB 之外的独立产品线继续扩张。两者的算法、索引和分词能力已收编为 `SonnetDB.Core` 内部引擎；面向 `Microsoft.Extensions.VectorData` 的 SonnetDB 适配已迁移到 `SonnetDB.Data`。
 
 ## 1. 目标
 
@@ -41,7 +41,7 @@ SonnetDB SQL / ADO.NET / HTTP / Studio / CLI / VS Code / Copilot
 ### Phase 0：决策落档
 
 - 更新 README / ROADMAP / CHANGELOG。
-- 明确 DotSearch / DotVector 进入合并维护期。
+- 明确 DotSearch / DotVector 完成合并归档后的维护边界。
 - 后续新全文 / 向量能力默认进入 SonnetDB，不再优先派到独立仓库。
 
 ### Phase 1：全文引擎并入 `SonnetDB.Core`
@@ -69,9 +69,9 @@ SonnetDB SQL / ADO.NET / HTTP / Studio / CLI / VS Code / Copilot
 - 将 primitives / compute / quantization / HNSW / IVF / IVF-PQ / Vamana / local index blob 测试迁移到 `tests/SonnetDB.Core.Tests/Vector`。
 - `src/SonnetDB.Core/Vector`、`VectorDistance`、Segment 向量索引 adapter、注释和错误消息已收敛到 `SonnetDB.Vector.*` / SonnetDB 内置向量引擎叙事。
 
-剩余任务：
+归档边界：
 
-- DotVector 独立 collection/query/filter/persistence 测试暂不迁入；相关语义在 Phase 3 VectorData 或 Phase 4 归档时处理。
+- DotVector 独立 collection/query/filter/persistence 测试不再迁入；纯向量库语义已随旧模块归档，SonnetDB 对外以 table / document / `VECTOR` 列和 VectorData adapter 建模。
 
 验收：`VECTOR(dim)`、`knn(...)`、HNSW / IVF / IVF-PQ / Vamana、`SDBVIDX2` blob 与重建测试通过。
 
