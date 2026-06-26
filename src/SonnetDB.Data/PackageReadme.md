@@ -5,7 +5,7 @@
 ## 安装
 
 ```bash
-dotnet add package SonnetDB --version 0.1.0
+dotnet add package SonnetDB
 ```
 
 ## 本地嵌入式连接

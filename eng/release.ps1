@@ -1,7 +1,7 @@
 ﻿param(
     [ValidateSet('nuget', 'bundles', 'installers', 'all')]
     [string[]]$Tasks = @('all'),
-    [string]$Version = '0.1.0',
+    [string]$Version = '0.0.0-dev',
     [string]$Rid,
     [string]$Configuration = 'Release',
     [string]$OutputRoot,
@@ -42,6 +42,12 @@ function Pack-NuGetPackages
     Write-Section "Packing NuGet packages"
     Reset-Directory $NuGetOutput
 
+    Invoke-DotNetPack 'modules/DotVector/src/DotVector.Core/DotVector.Core.csproj' $NuGetOutput
+    Invoke-DotNetPack 'modules/DotSearch/src/DotSearch.Core/DotSearch.Core.csproj' $NuGetOutput
+    Invoke-DotNetPack 'modules/DotSearch/src/DotSearch.Tokenizers.Unicode/DotSearch.Tokenizers.Unicode.csproj' $NuGetOutput
+    Invoke-DotNetPack 'modules/DotSearch/src/DotSearch.Tokenizers.Cjk/DotSearch.Tokenizers.Cjk.csproj' $NuGetOutput
+    Invoke-DotNetPack 'modules/DotSearch/src/DotSearch.Tokenizers.Jieba/DotSearch.Tokenizers.Jieba.csproj' $NuGetOutput
+    Invoke-DotNetPack 'src/SonnetMQ/SonnetMQ.csproj' $NuGetOutput
     Invoke-DotNetPack 'src/SonnetDB.Core/SonnetDB.Core.csproj' $NuGetOutput
     Invoke-DotNetPack 'src/SonnetDB.Data/SonnetDB.Data.csproj' $NuGetOutput
     Invoke-DotNetPack 'src/SonnetDB.EntityFrameworkCore/SonnetDB.EntityFrameworkCore.csproj' $NuGetOutput
@@ -417,13 +423,21 @@ function Write-SdkBundleReadme
 - `packages/SonnetDB.Core.__VERSION__.nupkg`
 - `packages/SonnetDB.__VERSION__.nupkg`
 - `packages/SonnetDB.EntityFrameworkCore.__VERSION__.nupkg`
+- `packages/SonnetDB.Caching.__VERSION__.nupkg`
 - `packages/SonnetDB.Cli.__VERSION__.nupkg`
+- `packages/SonnetMQ.__VERSION__.nupkg`
+- `packages/DotVector.Core.__VERSION__.nupkg`
+- `packages/DotSearch.Core.__VERSION__.nupkg`
+- `packages/DotSearch.Tokenizers.*.__VERSION__.nupkg`
 - `cli/` 原生命令行工具
 - `docs/` 发布与使用说明
 
 快速命令：
 
 ```text
+dotnet add package SonnetDB.Core
+dotnet add package SonnetDB
+dotnet add package SonnetDB.EntityFrameworkCore
 __COMMAND__ version
 __COMMAND__ sql --connection "Data Source=./demo-data" --command "SELECT count(*) FROM cpu"
 ```

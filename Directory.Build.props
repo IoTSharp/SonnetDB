@@ -5,11 +5,11 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <VersionPrefix>1.0.0</VersionPrefix>
+    <VersionPrefix>0.0.0-dev</VersionPrefix>
     <PackageVersion Condition="'$(PackageVersion)' == ''">$(VersionPrefix)</PackageVersion>
     <Version Condition="'$(Version)' == ''">$(PackageVersion)</Version>
-    <AssemblyVersion Condition="'$(AssemblyVersion)' == ''">1.0.0.0</AssemblyVersion>
-    <FileVersion Condition="'$(FileVersion)' == ''">1.0.0.0</FileVersion>
+    <AssemblyVersion Condition="'$(AssemblyVersion)' == ''">0.0.0.0</AssemblyVersion>
+    <FileVersion Condition="'$(FileVersion)' == ''">0.0.0.0</FileVersion>
     <InformationalVersion Condition="'$(InformationalVersion)' == ''">$(Version)</InformationalVersion>
     <!--
       AOT / Trim 分析：核心库与生产程序集启用，测试与基准项目通过本地 csproj 显式关闭。
@@ -21,11 +21,20 @@
     <Product>SonnetDB</Product>
     <Copyright>Copyright (c) maikebing</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/maikebing/SonnetDB</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/maikebing/SonnetDB</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/IoTSharp/SonnetDB</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/IoTSharp/SonnetDB</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>sonnetdb;timeseries;tsdb;database;embedded;ado.net</PackageTags>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageIcon>favicon.png</PackageIcon>
     <RepositoryCommit Condition="'$(GITHUB_SHA)' != ''">$(GITHUB_SHA)</RepositoryCommit>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)web\public\favicon.png"
+          Condition="Exists('$(MSBuildThisFileDirectory)web\public\favicon.png')"
+          Pack="true"
+          PackagePath="\"
+          Visible="false" />
+  </ItemGroup>
 </Project>

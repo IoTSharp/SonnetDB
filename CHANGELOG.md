@@ -5,6 +5,8 @@
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-06-26
+
 ### Added
 
 - **SonnetDB Studio 主线确立**：现有 Vue Workbench 正式升级为 SonnetDB Studio，新增 `/admin/app/studio` 语义入口并保留 `/admin/app/sql` 兼容；`src/SonnetDB.Studio` 新增基于 NativeWebHost / WebView2 的 Windows 桌面壳，默认打开同机 SonnetDB Server，也可通过 `--server-url` 指向远程实例。
@@ -1064,7 +1066,8 @@
 
 ---
 
-[Unreleased]: https://github.com/maikebing/SonnetDB/compare/HEAD...HEAD
+[Unreleased]: https://github.com/IoTSharp/SonnetDB/compare/v2.5.0...HEAD
+[2.5.0]: https://github.com/IoTSharp/SonnetDB/releases/tag/v2.5.0
 [0.1.0]: https://github.com/maikebing/SonnetDB/releases/tag/v0.1.0
 [0.2.0]: https://github.com/maikebing/SonnetDB/releases/tag/v0.2.0
 [0.3.0]: https://github.com/maikebing/SonnetDB/releases/tag/v0.3.0

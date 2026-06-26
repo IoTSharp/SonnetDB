@@ -5,7 +5,7 @@
 ## 安装
 
 ```bash
-dotnet add package SonnetDB.EntityFrameworkCore --version 0.1.0
+dotnet add package SonnetDB.EntityFrameworkCore
 ```
 
 ## 最小示例

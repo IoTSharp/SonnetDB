@@ -10,7 +10,7 @@ permalink: /cli-reference/
 作为全局工具：
 
 ```bash
-dotnet tool install --global SonnetDB.Cli --version 0.1.0
+dotnet tool install --global SonnetDB.Cli
 ```
 
 如果你在仓库源码里直接运行，也可以使用：

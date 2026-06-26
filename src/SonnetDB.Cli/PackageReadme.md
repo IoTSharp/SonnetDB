@@ -5,7 +5,7 @@
 ## 安装
 
 ```bash
-dotnet tool install --global SonnetDB.Cli --version 0.1.0
+dotnet tool install --global SonnetDB.Cli
 ```
 
 ## 示例

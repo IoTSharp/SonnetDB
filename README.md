@@ -197,7 +197,7 @@ connection.Open();
 
 ```bash
 # 安装
-dotnet tool install --global SonnetDB.Cli --version 0.1.0
+dotnet tool install --global SonnetDB.Cli
 
 # 本地直接使用
 sndb local --path ./demo-data --command "SELECT count(*) FROM cpu"

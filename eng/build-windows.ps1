@@ -36,7 +36,7 @@ function Get-DefaultVersion
 
     if ([string]::IsNullOrWhiteSpace($versionPrefix))
     {
-        return '1.0.0'
+        return '0.0.0-dev'
     }
 
     return $versionPrefix

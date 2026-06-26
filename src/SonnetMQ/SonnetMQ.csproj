@@ -7,6 +7,12 @@
     <PackageId>SonnetMQ</PackageId>
     <Title>SonnetMQ</Title>
     <Description>SonnetDB 生态内置的零依赖本地消息队列核心库，提供 append-only topic log、消费者 offset 与 ack 语义。</Description>
+    <PackageTags>sonnetdb;sonnetmq;message-queue;embedded;append-only</PackageTags>
+    <PackageReadmeFile>PackageReadme.md</PackageReadmeFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="PackageReadme.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
 
 </Project>

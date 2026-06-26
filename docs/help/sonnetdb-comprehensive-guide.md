@@ -7,7 +7,7 @@ permalink: /help/comprehensive-guide/
 
 # SonnetDB 全面指南
 
-> 版本 1.0.0 · 开源时序数据库 · MIT 许可证
+> 版本 2.5.0 · 开源时序数据库 · MIT 许可证
 > GitHub: https://github.com/maikebing/SonnetDB
 
 ---
@@ -109,9 +109,9 @@ sndb --help
 ### 2.5 NuGet 引用（嵌入式）
 
 ```xml
-<PackageReference Include="SonnetDB.Core" Version="1.0.0" />
-<PackageReference Include="SonnetDB" Version="1.0.0" />
-<PackageReference Include="SonnetDB.EntityFrameworkCore" Version="1.0.0" />
+<PackageReference Include="SonnetDB.Core" />
+<PackageReference Include="SonnetDB" />
+<PackageReference Include="SonnetDB.EntityFrameworkCore" />
 ```
 
 ---
@@ -1226,7 +1226,7 @@ var options = new TsdbOptions
 ### 15.1 安装
 
 ```xml
-<PackageReference Include="SonnetDB" Version="1.0.0" />
+<PackageReference Include="SonnetDB" />
 ```
 
 ### 15.2 本地嵌入式连接
@@ -1776,5 +1776,5 @@ MIT 许可证，完全开源免费。
 
 ---
 
-> © 2026 maikebing · SonnetDB v1.0.0 · MIT License
+> © 2026 maikebing · SonnetDB v2.5.0 · MIT License
 > GitHub: https://github.com/maikebing/SonnetDB

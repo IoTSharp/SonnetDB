@@ -30,12 +30,16 @@ http://127.0.0.1:5080
 - `/healthz`
 - `/metrics`
 
+## 当前发布说明
+
+- [SonnetDB 2.5.0]({{ site.docs_baseurl | default: '/help' }}/releases/2-5-0/)
+
 ## 本地 Windows 打包
 
 在 Windows 开发机上可使用一键脚本同时生成 NuGet 包与 `win-x64` ZIP Bundle：
 
 ```powershell
-.\eng\build-windows.ps1 -Version 1.0.0
+.\eng\build-windows.ps1 -Version <version>
 ```
 
 默认最终产物会汇总到 `artifacts/windows/final/`，并同时生成 Windows MSI（需本机已安装 WiX CLI）。`publish/`、`staging/`、`nuget/`、`bundles/`、`installers/` 等中间目录会在汇总后自动清理。如只验证 .NET 发布链路、不重建管理后台前端，可追加 `-SkipAdminUi`；如暂不生成 MSI，可追加 `-SkipInstaller`。
@@ -45,7 +49,11 @@ http://127.0.0.1:5080
 - `SonnetDB.Core.<version>.nupkg`
 - `SonnetDB.<version>.nupkg`
 - `SonnetDB.EntityFrameworkCore.<version>.nupkg`
+- `SonnetDB.Caching.<version>.nupkg`
 - `SonnetDB.Cli.<version>.nupkg`
+- `SonnetMQ.<version>.nupkg`
+- `DotSearch.*.<version>.nupkg`
+- `DotVector.Core.<version>.nupkg`
 - `sndb-sdk-<version>-win-x64.zip`
 - `sonnetdb-full-<version>-win-x64.zip`
 - `sonnetdb-<version>-win-x64.msi`
@@ -54,7 +62,7 @@ http://127.0.0.1:5080
 MSI 默认安装并启动 `SonnetDB` Windows 服务，数据目录默认为 `C:\ProgramData\SonnetDB\data`，并把安装目录加入系统 `PATH`，让 `sndb` 可在任意目录使用。安装时可覆盖：
 
 ```powershell
-msiexec /i sonnetdb-1.0.0-win-x64.msi DATAROOT="D:\sonnetdb-data"
+msiexec /i sonnetdb-<version>-win-x64.msi DATAROOT="D:\sonnetdb-data"
 ```
 
 ## 推荐阅读顺序

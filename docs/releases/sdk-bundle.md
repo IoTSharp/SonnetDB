@@ -12,17 +12,22 @@ SDK Bundle 面向开发者，目标是“一次下载，直接拥有完整开发
 - `packages/SonnetDB.Core.<version>.nupkg`
 - `packages/SonnetDB.<version>.nupkg`
 - `packages/SonnetDB.EntityFrameworkCore.<version>.nupkg`
+- `packages/SonnetDB.Caching.<version>.nupkg`
 - `packages/SonnetDB.Cli.<version>.nupkg`
+- `packages/SonnetMQ.<version>.nupkg`
+- `packages/DotVector.Core.<version>.nupkg`
+- `packages/DotSearch.Core.<version>.nupkg`
+- `packages/DotSearch.Tokenizers.*.<version>.nupkg`
 - `cli/` 本地命令行工具
 - `docs/` 使用说明
 
 ## 常见使用方式
 
 ```bash
-dotnet add package SonnetDB.Core --version <version>
-dotnet add package SonnetDB --version <version>
-dotnet add package SonnetDB.EntityFrameworkCore --version <version>
-dotnet tool install --global SonnetDB.Cli --version <version>
+dotnet add package SonnetDB.Core
+dotnet add package SonnetDB
+dotnet add package SonnetDB.EntityFrameworkCore
+dotnet tool install --global SonnetDB.Cli
 ```
 
 本地 CLI 示例：

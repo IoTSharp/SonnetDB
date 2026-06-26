@@ -67,7 +67,7 @@ static class ConnectorReleaseTool
 
         Options:
           --tasks <list>          build, package, or all. Default: all.
-          --version <version>     Package version, usually the tag without leading v. Default: 0.1.0.
+          --version <version>     Package version, usually the tag without leading v. Default: 0.0.0-dev.
           --rid <rid>             linux-x64, win-x64, or win-x86. Default: current OS x64 RID.
           --configuration <name>  Build configuration. Default: Release.
           --output-root <path>    Package output root. Default: artifacts/release/connectors.
@@ -1072,7 +1072,7 @@ sealed class ReleaseOptions
     public static ReleaseOptions Parse(string[] args)
     {
         var tasks = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "build", "package" };
-        var version = "0.1.0";
+        var version = "0.0.0-dev";
         var rid = DefaultRid();
         var configuration = "Release";
         string? outputRoot = null;

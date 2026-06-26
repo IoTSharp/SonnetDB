@@ -17,7 +17,7 @@ permalink: /embedded-api/
 ## 安装
 
 ```bash
-dotnet add package SonnetDB.Core --version 0.1.0
+dotnet add package SonnetDB.Core
 ```
 
 ## 用 SQL 执行最小示例

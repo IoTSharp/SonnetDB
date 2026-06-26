@@ -25,7 +25,7 @@ public sealed class CliApplicationTests : IDisposable
         var exitCode = app.Run([]);
 
         Assert.Equal(0, exitCode);
-        Assert.Contains("SonnetDB CLI 0.1.0", stdout.ToString());
+        Assert.Contains("SonnetDB CLI", stdout.ToString());
         Assert.Contains("sndb local", stdout.ToString());
         Assert.Contains("sndb remote", stdout.ToString());
         Assert.Contains("sndb connect", stdout.ToString());

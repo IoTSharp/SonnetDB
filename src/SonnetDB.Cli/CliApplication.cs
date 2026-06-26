@@ -1009,7 +1009,7 @@ internal sealed class CliApplication
     {
         _output.WriteLine(
             """
-SonnetDB CLI 0.1.0
+SonnetDB CLI __VERSION__
 
 用法:
   sndb version
@@ -1048,16 +1048,18 @@ SonnetDB CLI 0.1.0
   sndb backup verify --path ./demo-backup
   sndb backup dry-run --path ./demo-backup --target ./demo-restored
   sndb backup restore --path ./demo-backup --target ./demo-restored --rebuild-indexes
-""");
+""".Replace("__VERSION__", GetVersion(), StringComparison.Ordinal));
     }
 
     private void WriteVersion()
+        => _output.WriteLine($"SonnetDB CLI {GetVersion()}");
+
+    private static string GetVersion()
     {
-        var version = typeof(CliApplication).Assembly
+        return typeof(CliApplication).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
             ?? typeof(CliApplication).Assembly.GetName().Version?.ToString()
-            ?? "0.1.0";
-        _output.WriteLine($"SonnetDB CLI {version}");
+            ?? "0.0.0-dev";
     }
 
     private static bool IsHelp(string arg)
