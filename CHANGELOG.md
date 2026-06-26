@@ -92,6 +92,7 @@
 - **PR #77 — 地理空间基准 + 文档完善**：新增 `GeoQueryBenchmark`，覆盖 `100k` 默认轨迹点和可选 `1M` 档位下的 `geo_within`、`geo_bbox`、`trajectory_length` 与 `GEOPOINT` range scan；README 与 `docs/geo-spatial.md` 补齐地理空间功能矩阵、Web Admin / SQL Console 地图用法、基准运行方式和车辆追踪 / 户外运动 / IoT 地理围栏端到端示例。
 
 ### Changed
+- **NuGet / Actions dependency refresh**：按 NuGet latest stable 与当前 GitHub dependency PR 批量升级中央包版本，覆盖 .NET 10.0.9 系列、`Microsoft.Extensions.AI 10.7.0`、`ModelContextProtocol 1.4.0`、`Microsoft.ML.OnnxRuntime 1.27.0`、`Microsoft.NET.Test.Sdk 18.7.0`、`Testcontainers 4.12.0`、`coverlet.collector 10.0.1`、`AWSSDK.S3 4.0.25.3`、`NATS.Client 2.8.2`、`StackExchange.Redis 3.0.7`、`MeiliSearch 0.20.0`、`InfluxDB.Client 5.1.0`、`Npgsql 10.0.3` 等；GitHub workflows 的 `actions/checkout` 同步升级到 `v7`。
 - **门面文档叙事收敛**：根 README / README.en 改为“一句话定位 + 能力矩阵 + 使用方式 + 专题文档索引”的简洁结构，剔除长 SQL 函数表、架构细节和基准明细，突出时序、关系、KV、文档、全文、向量、对象存储、消息队列、Copilot、Workbench、MCP 和多语言连接器；文档首页、Workbench 文档和 Web 欢迎页同步从单一时序数据库定位升级为多模型数据底座定位。
 - NuGet 发布链路新增 `SonnetDB.EntityFrameworkCore`：EF Core Provider 现在会随 `eng/release.ps1 -Tasks nuget`、GitHub Publish workflow、SDK Bundle 和发布文档一起输出。
 - 文档统一修正 ADO.NET 提供程序的 NuGet 包名：`src/SonnetDB.Data` 发布为 `SonnetDB`，代码命名空间仍为 `SonnetDB.Data`；根 README、文档首页、综合指南、包说明和产品首页同步收敛当前能力说明。
@@ -132,6 +133,8 @@
 - 新增 `docs/sql-cookbook.md`，把 `demo.sql` 中高频、当前真实支持的 `CREATE MEASUREMENT`、`INSERT`、`SELECT`、`GROUP BY time(...)`、窗口函数、PID、预测、向量检索、元数据与 `DELETE` 场景整理成可直接复制的 cookbook，并在 `docs/index.md` 与 `docs/sql-reference.md` 中加入入口。
 
 ### Fixed
+- **Parity workflow startup diagnostics**：修复 parity compose 中 SonnetDB 容器 healthcheck 依赖 runtime 镜像未安装的 `bash`，改为使用镜像内已有的 `curl /healthz`；GitHub Actions 的 `Start parity stack` 失败时现在会保存 `docker compose ps` 与容器日志到 `artifacts/parity/<profile>/stack-diagnostics`，避免后续只报 “No files were found” 而丢失根因。
+- **CI restore vulnerability gate**：`tests/SonnetDB.Benchmarks` 显式引用 `SQLitePCLRaw.bundle_e_sqlite3 3.0.3`，让 `Microsoft.Data.Sqlite` 的 native SQLite provider 解析到 `SourceGear.sqlite3 3.50.4.5`，避免 GitHub Actions 在 `dotnet build SonnetDB.slnx --configuration Release` restore 阶段因 `SQLitePCLRaw.lib.e_sqlite3 2.1.11` 的 NU1903 高危漏洞告警失败。
 - 修复 `QueryEngine` 与 Compaction / Retention 段替换并发时，连续快照复用的旧 `SegmentReader` 可能被后续 swap 提前释放，导致查询偶发 `ObjectDisposedException` 的 CI 回归；`SegmentManager` 现在按 reader 维护租约状态，等待所有持有该 reader 的查询快照释放后再 Dispose。
 - **GitHub Actions 发布链路修复**：修复 Native AOT 下 `SndbDataReader.GetSchemaTable()` 的 `SchemaTableColumn.DataType` 反射裁剪告警；连接器发布 workflow 递归 checkout DotSearch / DotVector 子模块；Dockerfile 显式复制 DotSearch / DotVector 源码并让 Docker 发布路径过滤覆盖 `src/SonnetDB.Core/**` 与 `modules/**`；同步更新 DotSearch Jieba 词典生成 target 的跨平台路径与工具执行方式，避免 Linux CI、连接器发布和镜像构建因缺少依赖源码或 Windows 路径分隔符失败。
 - 修复 Rust connector Linux x64 CI 构建失败：`build.rs` 现在通过 Rust 支持的 `+verbatim` 链接修饰符精确链接 `SonnetDB.Native.so`，避免 `-l:SonnetDB.Native.so` 被 Cargo 解析为 rename 语法并报出 library name must not be empty。

@@ -55,7 +55,7 @@ jobs:
             echo "run=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         if: steps.selection.outputs.run == 'true'
         with:
           submodules: recursive
@@ -95,7 +95,14 @@ jobs:
           if [[ "${{ matrix.profile }}" == "full" ]]; then
             services="$services influxdb victoriametrics mosquitto meilisearch qdrant clickhouse"
           fi
-          docker compose -f docker-compose.parity.yml --profile ${{ matrix.profile }} up -d --wait --wait-timeout 300 $services
+          if ! docker compose -f docker-compose.parity.yml --profile ${{ matrix.profile }} up -d --wait --wait-timeout 300 $services; then
+            diagnostics="${GITHUB_WORKSPACE}/artifacts/parity/${{ matrix.profile }}/stack-diagnostics"
+            mkdir -p "$diagnostics"
+            docker compose -f docker-compose.parity.yml --profile ${{ matrix.profile }} ps -a > "$diagnostics/compose-ps.txt" || true
+            docker compose -f docker-compose.parity.yml --profile ${{ matrix.profile }} logs --no-color --tail=200 > "$diagnostics/compose-logs.txt" || true
+            echo "Parity stack failed to become healthy. Diagnostics were written to $diagnostics."
+            exit 1
+          fi
 
       - name: Run parity gates
         if: steps.selection.outputs.run == 'true'
@@ -192,7 +199,7 @@ jobs:
     needs: parity
     if: always() && (github.event_name == 'schedule' || github.event.inputs.publish_results == 'true')
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 

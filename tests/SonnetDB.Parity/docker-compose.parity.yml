@@ -41,7 +41,7 @@ services:
       SONNETDB_SonnetDBServer__DataRoot: /data
       SONNETDB_SonnetDBServer__AllowAnonymousProbes: "true"
     healthcheck:
-      test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/5080' || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:5080/healthz >/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 20

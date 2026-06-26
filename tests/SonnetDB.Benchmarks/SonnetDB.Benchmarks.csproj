@@ -10,6 +10,7 @@
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" />
     <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" />
     <PackageReference Include="InfluxDB.Client" />
     <PackageReference Include="LiteDB" />
     <PackageReference Include="Npgsql" />
