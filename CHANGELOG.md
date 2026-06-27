@@ -26,6 +26,7 @@
 
 ### Changed
 
+- **Milestone 21 规划收敛**：ROADMAP 将 Document Store 单机能力升级收敛为纯能力 / 功能交付，Milestone 21 仅保留 #137~#146（Document API、find、cursor、局部更新、索引、planner、aggregation、原子性、validator 执行能力与文档容量底座）；原 #145 中的 Studio schema governance 与原 #148 Document Explorer / 导入导出迁入 Milestone 24，原 #147 MongoDB 参考 parity 与原 #149 长稳、容量、发布文档迁入 Milestone 25。
 - **SonnetMQ 合并进 Core**：本地消息队列源码从独立 `src/SonnetMQ` 项目移动到 `src/SonnetDB.Core/Mq`，`SonnetDB` 服务端、`SonnetDB.Data` 与 Parity 测试统一通过 `SonnetDB.Core` 引用 MQ 能力；发布脚本、Dockerfile 和解决方案不再构建或打包独立 `SonnetMQ` 项目。本次仅调整项目边界，不修改 SonnetMQ 日志文件格式。
 
 ## [2.5.0] - 2026-06-26
