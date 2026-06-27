@@ -65,7 +65,7 @@ IoTSharp 当前通过 `CachingUseIn` 和 EasyCaching provider 选择缓存后端
 | --- | --- | --- | --- | --- |
 | InMemory | `CachingUseIn=InMemory` | 进程内缓存，默认轻量路径 | 重启丢失，多实例不共享 | SonnetDB provider 需提供同等 API，并明确持久化/共享语义。 |
 | Redis | `CachingUseIn=Redis` | 分布式缓存、健康检查 | TTL、连接池、网络故障、集群差异 | SonnetDB 需补 TTL、惰性过期、后台清理、批量操作和故障语义。 |
-| LiteDB | `CachingUseIn=LiteDB` | 本地持久化缓存 | 文件锁、TTL 行为、并发 | SonnetDB 需验证本地单文件缓存体验和重启恢复。 |
+| LiteDB | `CachingUseIn=LiteDB` | 本地持久化缓存 | 文件锁、TTL 行为、并发 | SonnetDB 需验证本地目录型持久化缓存体验和重启恢复。 |
 | SQLite | `CachingUseIn=SQlite` 枚举存在 | 当前启动逻辑未显式注册 SQLite provider | 入口不完整 | 作为不支持项记录，不纳入首批 SonnetDB 缓存选项目标。 |
 | SonnetDB | 当前未有 `CachingUseIn=SonnetDB` | 规划 EasyCaching / `IDistributedCache` provider | TTL 与并发语义未落地 | #116 前不得宣称已达到 Redis/LiteDB/InMemory 的兼容语义。 |
 

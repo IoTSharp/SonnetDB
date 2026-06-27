@@ -6,11 +6,13 @@ using SonnetDB.Configuration;
 namespace SonnetDB.Hosting;
 
 /// <summary>
-/// 鎶婃瀯寤哄悗鐨勫府鍔╂枃妗ｆ寕杞藉埌 <c>/help/*</c>銆?/// </summary>
+/// 把构建后的帮助文档挂载到 <c>/help/*</c>。
+/// </summary>
 internal static class HelpDocsEndpoints
 {
     /// <summary>
-    /// 娉ㄥ唽甯姪鏂囨。璺敱锛?c>GET /help</c> 鍜?c>GET /help/{**path}</c>銆?    /// </summary>
+    /// 注册帮助文档路由：<c>GET /help</c> 和 <c>GET /help/{**path}</c>。
+    /// </summary>
     public static void MapHelpDocs(this IEndpointRouteBuilder app, ServerOptions serverOptions)
     {
         var helpRoot = ResolveHelpRoot(serverOptions);

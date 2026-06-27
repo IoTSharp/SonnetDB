@@ -26,7 +26,8 @@ public sealed class ServerOptions
     public bool AllowAnonymousProbes { get; set; } = true;
 
     /// <summary>
-    /// 甯姪鏂囨。闈欐€佺珯鐐规牴鐩綍銆傝嫢涓虹┖锛屽垯榛樿浣跨敤 <c>AppContext.BaseDirectory/wwwroot/help</c>銆?    /// </summary>
+    /// 帮助文档静态站点根目录。若为空，则默认使用 <c>AppContext.BaseDirectory/wwwroot/help</c>。
+    /// </summary>
     public string? HelpDocsRoot { get; set; }
 
     /// <summary>

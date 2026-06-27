@@ -2,6 +2,10 @@
 
 `SonnetDB.Cli` 是 SonnetDB 的命令行工具包，安装后命令名为 `sndb`。
 
+CLI 的本地路径参数和连接字符串都指向 SonnetDB 数据库目录，而不是单个数据库文件。服务端、嵌入式和 CLI 使用同一套目录布局与 SQL 语义。
+
+`SonnetDB.Cli` NuGet 包按 .NET tool 分发；如需原生可执行文件，请使用仓库发布的 Native AOT CLI / Server bundle。
+
 ## 安装
 
 ```bash

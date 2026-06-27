@@ -9,7 +9,8 @@ using Xunit;
 namespace SonnetDB.Tests;
 
 /// <summary>
-/// /help 甯姪鏂囨。闈欐€佺珯鐐圭鍒扮娴嬭瘯銆?/// </summary>
+/// /help 帮助文档静态站点端到端测试。
+/// </summary>
 public sealed class HelpDocsEndToEndTests : IAsyncLifetime
 {
     private WebApplication? _app;

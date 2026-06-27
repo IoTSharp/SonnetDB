@@ -2,6 +2,10 @@
 
 `SonnetDB` NuGet 包提供 SonnetDB 的 ADO.NET 访问层。源码项目、程序集和命名空间仍为 `SonnetDB.Data`，统一支持本地嵌入式和远程 SonnetDB 连接。
 
+本地嵌入式连接的 `Data Source=./demo-data` 指向数据库目录，不是单个数据库文件。目录布局与 `SonnetDB.Core` 一致，适合随应用进程内打开；远程连接则通过 HTTP 访问 SonnetDB Server。
+
+本包未声明 `IsAotCompatible=true`。ADO.NET 基类和 `DbDataReader.GetSchemaTable()` 等路径在 BCL 内部存在反射边界；需要 Native AOT 的嵌入式场景建议直接使用 `SonnetDB.Core` 的 `Tsdb` API。远程客户端内部使用 source-generated JSON 上下文，但包级别仍按 ADO.NET 兼容边界声明为非 AOT 包。
+
 ## 安装
 
 ```bash

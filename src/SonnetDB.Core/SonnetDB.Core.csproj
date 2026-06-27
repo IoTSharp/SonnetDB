@@ -6,7 +6,7 @@
     <AssemblyName>SonnetDB.Core</AssemblyName>
     <PackageId>SonnetDB.Core</PackageId>
     <Title>SonnetDB.Core</Title>
-    <Description>SonnetDB 嵌入式单文件时序数据库核心库，提供本地存储引擎、SQL 执行器与时序查询能力。</Description>
+    <Description>SonnetDB 嵌入式多模型数据库核心库，打开本地数据库目录并提供 SQL、时序、关系表、KV、文档、搜索、向量和本地消息队列能力。</Description>
     <PackageReadmeFile>PackageReadme.md</PackageReadmeFile>
     <JiebaDictionaryCompilerProject>$(MSBuildThisFileDirectory)FullText\Tools\DictionaryCompiler\SonnetDB.FullText.DictionaryCompiler.csproj</JiebaDictionaryCompilerProject>
     <JiebaDictionaryCompilerOutput>$(MSBuildThisFileDirectory)FullText\Tools\DictionaryCompiler\bin\$(Configuration)\$(TargetFramework)\</JiebaDictionaryCompilerOutput>

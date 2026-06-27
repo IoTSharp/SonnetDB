@@ -6,9 +6,9 @@
 
 ## 项目目标
 
-**SonnetDB** 是一个使用 C# / .NET 10 实现的嵌入式单文件时序数据库，目标是：
+**SonnetDB** 是一个使用 C# / .NET 10 实现的嵌入式多模型数据库，目标是：
 
-> 可以通过 SQL 语句进行 `INSERT` 和 `SELECT` 时序数据，单文件持久化，零外部依赖，嵌入式进程内运行。
+> 可以通过 SQL 语句进行 `INSERT` 和 `SELECT` 时序数据，以数据库目录为持久化边界，嵌入式进程内运行，并可扩展到服务端、多模型和 AI Copilot 场景。
 
 当前 Milestone：**Milestone 16 — Copilot 产品化升级（嵌入式 AI 助手 UX）**（详见 [ROADMAP.md](ROADMAP.md)）。
 

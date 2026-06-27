@@ -9,6 +9,7 @@
     <Description>SonnetDB 的 Entity Framework Core 关系型 Provider，提供 UseSonnetDB、SQL 生成、类型映射、迁移 SQL 和基础查询翻译。</Description>
     <PackageReadmeFile>PackageReadme.md</PackageReadmeFile>
     <PackageTags>sonnetdb;entity-framework-core;efcore;database;provider</PackageTags>
+    <!-- EF Core Provider 依赖 EF Core 与 ADO.NET provider 的运行时模型，不声明 Native AOT 兼容。 -->
     <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>
 

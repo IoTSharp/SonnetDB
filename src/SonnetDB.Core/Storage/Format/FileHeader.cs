@@ -5,7 +5,7 @@ using SonnetDB.Buffers;
 namespace SonnetDB.Storage.Format;
 
 /// <summary>
-/// SonnetDB 单文件容器的文件头（固定 64 字节，第一版仅定义、未使用）。
+/// SonnetDB 预留容器文件头（固定 64 字节，当前目录型持久化未使用）。
 /// <para>
 /// 二进制布局（little-endian）：
 /// <code>
@@ -41,7 +41,7 @@ public struct FileHeader
     /// <summary>文件最后修改时间（UTC Ticks）。</summary>
     public long LastModifiedUtcTicks;
 
-    /// <summary>页大小预留字段（单文件容器使用，第一版填 0）。</summary>
+    /// <summary>页大小预留字段（当前目录型持久化填 0）。</summary>
     public long PageSize;
 
     /// <summary>实例标识（GUID 字节，第一版可填 0 或随机）。</summary>

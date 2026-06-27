@@ -2,6 +2,10 @@
 
 `SonnetDB.Caching` provides EasyCaching and `IDistributedCache` providers backed by SonnetDB KV keyspaces.
 
+Local SonnetDB connection strings point to a database directory, not a single database file. Remote connection strings access SonnetDB Server over HTTP through `SonnetDB.Data`.
+
+This extension is not marked as Native AOT compatible because it depends on external caching abstractions and `SonnetDB.Data`, which keeps the ADO.NET boundary non-AOT.
+
 ## Features
 
 - EasyCaching provider registration.
