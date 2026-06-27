@@ -211,6 +211,14 @@ var hits = await documents.FindAsync("device_docs", new SndbDocumentFindOptions(
     Limit: 20));
 
 Console.WriteLine(hits[0].Json);
+
+var page = await documents.FindPageAsync("device_docs", new SndbDocumentFindOptions(Limit: 100));
+while (page.HasMore)
+{
+    page = await documents.FindPageAsync("device_docs", new SndbDocumentFindOptions(
+        Limit: 100,
+        ContinuationToken: page.ContinuationToken));
+}
 ```
 
 远程模式使用同一连接字符串格式：

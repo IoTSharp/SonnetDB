@@ -86,7 +86,7 @@ paths:
                 $ref: '#/components/schemas/DocumentWriteResponse'
   /v1/db/{db}/documents/{collection}/find:
     post:
-      summary: Find documents with filter, projection, sort, limit, and skip.
+      summary: Find documents with filter, projection, sort, limit, skip, and cursor pagination.
       parameters:
         - $ref: '#/components/parameters/db'
         - $ref: '#/components/parameters/collection'
@@ -307,11 +307,16 @@ components:
         limit:
           type: integer
           minimum: 1
+          maximum: 1000
           description: Values above 1000 are clamped by the server in this first version.
         skip:
           type: integer
           minimum: 0
           default: 0
+        continuationToken:
+          type: string
+          nullable: true
+          description: Token returned by a previous find response. Cannot be combined with skip.
     DocumentFilter:
       type: object
       description: Recursive filter AST. Leaf paths accept _id/id, document/json, or JSON path such as $.metrics.temp.
@@ -384,6 +389,24 @@ components:
           nullable: true
         skip:
           type: integer
+        continuationToken:
+          type: string
+          nullable: true
+          description: Token for the next page. Null means there are no more documents.
+        hasMore:
+          type: boolean
+        batchSize:
+          type: integer
+          nullable: true
+        snapshotVersion:
+          type: integer
+          format: int64
+          nullable: true
+          description: Read-only snapshot boundary captured by the cursor.
+        cursorExpiresAtUtc:
+          type: string
+          format: date-time
+          nullable: true
     DocumentFindOneResponse:
       type: object
       properties:

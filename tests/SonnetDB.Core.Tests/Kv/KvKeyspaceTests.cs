@@ -57,6 +57,22 @@ public sealed class KvKeyspaceTests : IDisposable
     }
 
     [Fact]
+    public void ScanPrefixAfter_WithContinuationKey_ReturnsNextPage()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        var kv = db.Keyspaces.Open("assets");
+
+        kv.Put("device:1", [1]);
+        kv.Put("device:2", [2]);
+        kv.Put("device:3", [3]);
+        kv.Put("site:1", [9]);
+
+        var rows = kv.ScanPrefixAfter("device:", "device:1", limit: 2);
+
+        Assert.Equal(["device:2", "device:3"], rows.Select(static row => Encoding.UTF8.GetString(row.Key.Span)).ToArray());
+    }
+
+    [Fact]
     public void Reopen_AfterWalOnlyWrites_ReplaysPutAndDelete()
     {
         using (var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root }))

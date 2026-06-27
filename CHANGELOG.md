@@ -7,6 +7,7 @@
 
 ### Added
 
+- **PR #139 Document cursor 分页与批量读取**：Document find 新增 `continuationToken` / `hasMore` / `batchSize` / `snapshotVersion` / `cursorExpiresAtUtc` 响应字段，服务器强制最大 batch size 1000；`SndbDocumentClient.FindPageAsync` 统一支持嵌入式与远程分页读取，token 绑定 collection、查询形状、只读快照版本和 15 分钟过期时间，普通 scan 走底层 key 续扫，高级 filter/projection/sort/id 查询走稳定偏移续页；Web Admin 新增 `api/documents.ts` 统一消费入口，OpenAPI、README 与 SQL 参考同步更新。
 - **PR #137 Document API 契约与客户端第一版**：`SonnetDB.Data` 新增 `SndbDocumentClient`，统一支持嵌入式与远程 SonnetDB 文档集合访问，覆盖 `CreateCollection`、`DropCollection`、`InsertOne/Many`、`Find`、`FindOne`、`UpdateOne/Many`（整文档替换）、`DeleteOne/Many`、`Count`、`Distinct`。服务端新增私有 JSON API `/v1/db/{db}/documents/{collection}/...`，复用现有数据库权限模型；保留 SQL 路径不变，并把首版 find 高级语义、cursor、局部更新操作符与批量写事务边界交由 #138 ~ #144 分步补齐。
 - **PR #138 Find 查询语义补齐**：`SonnetDB.Core` 新增共享 `DocumentQueryPlanner` 与 document filter AST，SQL `SELECT` 与 `SndbDocumentClient` / `/documents/{collection}/find` 复用同一套 `_id`、嵌套 JSON path、`eq/ne/gt/gte/lt/lte/in/nin/exists/contains`、`and/or/not`、数组 contains、null/missing 区分、projection、sort、limit/skip 与稳定排序语义；OpenAPI、README 与 SQL 参考同步更新，cursor 分页、局部更新操作符和索引体系升级仍留给 #139 ~ #142。
 - **Jieba 默认中文词库与外部词库 API**：`SonnetDB.Core` 内置中文词库从最小示例词表升级为基于 `cppjieba` `dict/jieba.dict.utf8` 转换的中等规模词库，并记录 upstream commit 与 MIT third-party notice；新增 `ChineseDictionary.FromTextFiles(...)`、`ChineseDictionary.FromCompiledFile(...)` 和 `ChineseDictionaryCompiler.Compile(...)`，支持加载多个 Jieba/cppjieba 风格词库并编译为紧凑 `.dat` 缓存。`docs/fulltext-dictionaries.md` 说明词库格式、授权来源、Core/Server 分发边界和词库变更后需要重建全文索引。

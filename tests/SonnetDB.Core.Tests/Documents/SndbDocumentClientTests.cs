@@ -98,6 +98,61 @@ public sealed class SndbDocumentClientTests : IDisposable
     }
 
     [Fact]
+    public async Task DocumentClient_FindPageAsync_WithCursor_ReturnsBatches()
+    {
+        using var client = new SndbDocumentClient(new SndbConnectionStringBuilder
+        {
+            DataSource = _root,
+        }.ConnectionString);
+
+        await client.CreateCollectionAsync("devices");
+        await client.InsertManyAsync("devices", [
+            new KeyValuePair<string, string>("dev-1", """{"site":"north","score":1}"""),
+            new KeyValuePair<string, string>("dev-2", """{"site":"north","score":2}"""),
+            new KeyValuePair<string, string>("dev-3", """{"site":"north","score":3}"""),
+        ]);
+
+        var first = await client.FindPageAsync("devices", new SndbDocumentFindOptions(Limit: 2));
+        Assert.Equal(["dev-1", "dev-2"], first.Documents.Select(static doc => doc.Id).ToArray());
+        Assert.True(first.HasMore);
+        Assert.NotNull(first.ContinuationToken);
+        Assert.NotNull(first.CursorExpiresAtUtc);
+
+        var second = await client.FindPageAsync("devices", new SndbDocumentFindOptions(
+            Limit: 2,
+            ContinuationToken: first.ContinuationToken));
+        Assert.Equal(["dev-3"], second.Documents.Select(static doc => doc.Id).ToArray());
+        Assert.False(second.HasMore);
+        Assert.Null(second.ContinuationToken);
+    }
+
+    [Fact]
+    public async Task DocumentClient_FindPageAsync_WithChangedSnapshot_RejectsCursor()
+    {
+        using var client = new SndbDocumentClient(new SndbConnectionStringBuilder
+        {
+            DataSource = _root,
+        }.ConnectionString);
+
+        await client.CreateCollectionAsync("devices");
+        await client.InsertManyAsync("devices", [
+            new KeyValuePair<string, string>("dev-1", """{"site":"north","score":1}"""),
+            new KeyValuePair<string, string>("dev-2", """{"site":"north","score":2}"""),
+        ]);
+
+        var first = await client.FindPageAsync("devices", new SndbDocumentFindOptions(Limit: 1));
+        Assert.True(first.HasMore);
+
+        await client.InsertOneAsync("devices", "dev-3", """{"site":"north","score":3}""");
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            client.FindPageAsync("devices", new SndbDocumentFindOptions(
+                Limit: 1,
+                ContinuationToken: first.ContinuationToken)));
+        Assert.Contains("snapshot is stale", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task DocumentClient_FindOptions_ExistsDistinguishesNullFromMissing()
     {
         using var client = new SndbDocumentClient(new SndbConnectionStringBuilder

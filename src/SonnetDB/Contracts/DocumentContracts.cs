@@ -42,7 +42,8 @@ public sealed record DocumentFindRequest(
     int Skip = 0,
     DocumentFilterContract? Filter = null,
     IReadOnlyList<DocumentProjectionContract>? Projection = null,
-    IReadOnlyList<DocumentSortContract>? Sort = null);
+    IReadOnlyList<DocumentSortContract>? Sort = null,
+    string? ContinuationToken = null);
 
 /// <summary>
 /// Document API 过滤表达式。
@@ -96,7 +97,12 @@ public sealed record DocumentFindResponse(
     IReadOnlyList<DocumentItemResponse> Documents,
     int Count,
     int? Limit,
-    int Skip);
+    int Skip,
+    string? ContinuationToken = null,
+    bool HasMore = false,
+    int? BatchSize = null,
+    long? SnapshotVersion = null,
+    DateTimeOffset? CursorExpiresAtUtc = null);
 
 /// <summary>
 /// 单文档查询响应。

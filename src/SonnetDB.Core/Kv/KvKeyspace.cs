@@ -564,6 +564,29 @@ public sealed class KvKeyspace : IDisposable
     /// <returns>按 key 字节序升序排列的结果快照。</returns>
     public IReadOnlyList<KvEntry> ScanPrefix(ReadOnlySpan<byte> prefix, int? limit = null)
     {
+        return ScanPrefixAfter(prefix, afterKey: null, limit);
+    }
+
+    /// <summary>
+    /// 按 key 前缀扫描当前内存视图，并从指定 key 之后继续读取。
+    /// </summary>
+    /// <param name="prefix">key 前缀；为空时扫描全部 key。</param>
+    /// <param name="afterKey">上一页最后一个 key；为 null 时从前缀起点开始。</param>
+    /// <param name="limit">最大返回行数；小于等于 0 时返回空集合。</param>
+    /// <returns>按 key 字节序升序排列的结果快照。</returns>
+    public IReadOnlyList<KvEntry> ScanPrefixAfter(
+        ReadOnlySpan<byte> prefix,
+        ReadOnlySpan<byte> afterKey,
+        int? limit = null)
+    {
+        return ScanPrefixAfter(prefix, afterKey.IsEmpty ? null : afterKey.ToArray(), limit);
+    }
+
+    private IReadOnlyList<KvEntry> ScanPrefixAfter(
+        ReadOnlySpan<byte> prefix,
+        byte[]? afterKey,
+        int? limit)
+    {
         int take = limit ?? _options.DefaultScanLimit;
         if (take <= 0)
             return Array.Empty<KvEntry>();
@@ -578,6 +601,8 @@ public sealed class KvKeyspace : IDisposable
             foreach (var pair in _values.OrderBy(static x => x.Key, KvKeyComparer.Instance))
             {
                 if (!pair.Key.AsSpan().StartsWith(prefixCopy))
+                    continue;
+                if (afterKey is not null && KvKeyComparer.Instance.Compare(pair.Key, afterKey) <= 0)
                     continue;
 
                 if (TryDeleteExpiredLocked(pair.Key, pair.Value, now))
@@ -606,6 +631,18 @@ public sealed class KvKeyspace : IDisposable
     {
         ArgumentNullException.ThrowIfNull(prefix);
         return ScanPrefix(Encoding.UTF8.GetBytes(prefix), limit);
+    }
+
+    /// <summary>
+    /// 使用 UTF-8 编码按字符串前缀扫描，并从指定 key 之后继续读取。
+    /// </summary>
+    public IReadOnlyList<KvEntry> ScanPrefixAfter(string prefix, string? afterKey, int? limit = null)
+    {
+        ArgumentNullException.ThrowIfNull(prefix);
+        return ScanPrefixAfter(
+            Encoding.UTF8.GetBytes(prefix),
+            string.IsNullOrEmpty(afterKey) ? null : Encoding.UTF8.GetBytes(afterKey),
+            limit);
     }
 
     /// <summary>

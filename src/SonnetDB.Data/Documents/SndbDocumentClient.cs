@@ -13,6 +13,7 @@ namespace SonnetDB.Data.Documents;
 public sealed class SndbDocumentClient : IDisposable
 {
     private const int DefaultFindLimit = 100;
+    private static readonly TimeSpan CursorTtl = TimeSpan.FromMinutes(15);
     private readonly SndbConnectionStringBuilder _builder;
     private HttpClient? _http;
     private Tsdb? _embedded;
@@ -177,42 +178,31 @@ public sealed class SndbDocumentClient : IDisposable
         SndbDocumentFindOptions? options = null,
         CancellationToken cancellationToken = default)
     {
+        var page = await FindPageAsync(collection, options, cancellationToken).ConfigureAwait(false);
+        return page.Documents;
+    }
+
+    /// <summary>
+    /// 分页查询文档，并返回 continuation token。
+    /// </summary>
+    /// <param name="collection">文档集合名称。</param>
+    /// <param name="options">查询选项；ContinuationToken 不为空时继续读取下一页。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>当前页文档与下一页 token。</returns>
+    public async Task<SndbDocumentPage> FindPageAsync(
+        string collection,
+        SndbDocumentFindOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
         ThrowIfDisposed();
         ValidateCollection(collection);
         options ??= new SndbDocumentFindOptions();
+        int limit = NormalizeFindLimit(options.Limit);
 
         if (_embedded is not null)
         {
             var store = _embedded.Documents.Open(collection);
-            IReadOnlyList<DocumentRow> rows;
-            if (HasAdvancedQuery(options))
-            {
-                var queryResult = DocumentQueryPlanner.Execute(
-                    store,
-                    store.Schema,
-                    new DocumentQuery(
-                        Filter: MergeClientFilters(options),
-                        Projection: ToCoreProjection(options.Projection),
-                        Sort: ToCoreSort(options.Sort),
-                        Limit: options.Limit ?? DefaultFindLimit,
-                        Skip: options.Skip));
-                return queryResult.Items.Select(static item => new SndbDocument(item.Id, item.Json, item.Version)).ToArray();
-            }
-            else if (!string.IsNullOrWhiteSpace(options.Id))
-            {
-                var row = store.Get(options.Id);
-                rows = row is null ? [] : [row];
-            }
-            else if (options.Ids is { Count: > 0 })
-            {
-                rows = store.GetMany(options.Ids);
-            }
-            else
-            {
-                rows = store.Scan(options.Limit ?? DefaultFindLimit, options.Skip);
-            }
-
-            return rows.Select(static row => new SndbDocument(row.Id, row.Json, row.Version)).ToArray();
+            return FindEmbeddedPage(collection, store, options, limit);
         }
 
         using var response = await PostJsonAsync(
@@ -224,12 +214,13 @@ public sealed class SndbDocumentClient : IDisposable
                 options.Skip,
                 options.Filter,
                 options.Projection,
-                options.Sort),
+                options.Sort,
+                options.ContinuationToken),
             SndbDocumentClientJsonContext.Default.DocumentFindRequest,
             cancellationToken).ConfigureAwait(false);
         var body = await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentFindResponse, cancellationToken)
             .ConfigureAwait(false);
-        return body.Documents.Select(ToDocument).ToArray();
+        return ToPage(body, limit);
     }
 
     /// <summary>
@@ -595,6 +586,155 @@ public sealed class SndbDocumentClient : IDisposable
 
     private static SndbDocument ToDocument(DocumentItemResponse response) =>
         new(response.Id, response.Document.GetRawText(), response.Version);
+
+    private static SndbDocumentPage ToPage(DocumentFindResponse response, int requestedLimit) =>
+        new(
+            response.Collection,
+            response.Documents.Select(ToDocument).ToArray(),
+            response.ContinuationToken,
+            response.HasMore,
+            response.BatchSize ?? response.Limit ?? requestedLimit,
+            response.SnapshotVersion,
+            response.CursorExpiresAtUtc);
+
+    private static SndbDocumentPage FindEmbeddedPage(
+        string collection,
+        DocumentCollectionStore store,
+        SndbDocumentFindOptions options,
+        int limit)
+    {
+        var query = new DocumentQuery(
+            Filter: MergeClientFilters(options),
+            Projection: ToCoreProjection(options.Projection),
+            Sort: ToCoreSort(options.Sort),
+            Limit: limit,
+            Skip: options.Skip);
+        string fingerprint = DocumentCursorToken.Fingerprint(collection, query);
+        DocumentCursorState? cursor = DecodeCursor(options.ContinuationToken, collection, fingerprint, store.LastVersion);
+
+        if (!HasAdvancedQuery(options) && !string.IsNullOrWhiteSpace(options.Id))
+        {
+            var row = store.Get(options.Id);
+            var idRows = row is null ? Array.Empty<DocumentRow>() : new[] { row };
+            int effectiveSkip = cursor?.Offset ?? options.Skip;
+            var idPageRows = idRows.Skip(effectiveSkip).Take(limit + 1).ToArray();
+            return BuildEmbeddedPage(
+                collection,
+                fingerprint,
+                store.LastVersion,
+                limit,
+                idPageRows.Take(limit).Select(static item => new SndbDocument(item.Id, item.Json, item.Version)).ToArray(),
+                idPageRows.Length > limit,
+                checked(effectiveSkip + Math.Min(idPageRows.Length, limit)),
+                nextLastId: null);
+        }
+
+        if (!HasAdvancedQuery(options) && options.Ids is { Count: > 0 })
+        {
+            int effectiveSkip = cursor?.Offset ?? options.Skip;
+            var idsPageRows = store.GetMany(options.Ids).Skip(effectiveSkip).Take(limit + 1).ToArray();
+            return BuildEmbeddedPage(
+                collection,
+                fingerprint,
+                store.LastVersion,
+                limit,
+                idsPageRows.Take(limit).Select(static item => new SndbDocument(item.Id, item.Json, item.Version)).ToArray(),
+                idsPageRows.Length > limit,
+                checked(effectiveSkip + Math.Min(idsPageRows.Length, limit)),
+                nextLastId: null);
+        }
+
+        if (HasAdvancedQuery(options) || !string.IsNullOrWhiteSpace(options.Id) || options.Ids is { Count: > 0 })
+        {
+            int effectiveSkip = cursor?.Offset ?? options.Skip;
+            var result = DocumentQueryPlanner.Execute(
+                store,
+                store.Schema,
+                query with { Limit = limit + 1, Skip = effectiveSkip });
+            var pageItems = result.Items.Take(limit).ToArray();
+            bool hasMore = result.Items.Count > limit;
+            return BuildEmbeddedPage(
+                collection,
+                fingerprint,
+                store.LastVersion,
+                limit,
+                pageItems.Select(static item => new SndbDocument(item.Id, item.Json, item.Version)).ToArray(),
+                hasMore,
+                checked(effectiveSkip + pageItems.Length),
+                nextLastId: null);
+        }
+
+        IReadOnlyList<DocumentRow> scanRows = cursor is null
+            ? store.Scan(limit + 1, options.Skip)
+            : store.ScanAfter(cursor.LastId, limit + 1);
+        var scanPageRows = scanRows.Take(limit).Select(static row => new SndbDocument(row.Id, row.Json, row.Version)).ToArray();
+        return BuildEmbeddedPage(
+            collection,
+            fingerprint,
+            store.LastVersion,
+            limit,
+            scanPageRows,
+            scanRows.Count > limit,
+            checked((cursor?.Offset ?? options.Skip) + scanPageRows.Length),
+            scanPageRows.Length == 0 ? cursor?.LastId : scanPageRows[^1].Id);
+    }
+
+    private static DocumentCursorState? DecodeCursor(
+        string? token,
+        string collection,
+        string fingerprint,
+        long currentVersion)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+            return null;
+
+        var state = DocumentCursorToken.Decode(token);
+        if (!string.Equals(state.Collection, collection, StringComparison.Ordinal)
+            || !string.Equals(state.QueryFingerprint, fingerprint, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("document cursor token does not match this find request.");
+        }
+
+        if (state.ExpiresAtUtc <= DateTimeOffset.UtcNow)
+            throw new InvalidOperationException("document cursor token has expired.");
+        if (state.SnapshotVersion != currentVersion)
+            throw new InvalidOperationException("document cursor snapshot is stale; restart the find request.");
+
+        return state;
+    }
+
+    private static SndbDocumentPage BuildEmbeddedPage(
+        string collection,
+        string fingerprint,
+        long snapshotVersion,
+        int limit,
+        IReadOnlyList<SndbDocument> documents,
+        bool hasMore,
+        int nextOffset,
+        string? nextLastId)
+    {
+        DateTimeOffset? expiresAt = hasMore ? DateTimeOffset.UtcNow.Add(CursorTtl) : null;
+        string? token = hasMore
+            ? DocumentCursorToken.Encode(new DocumentCursorState(
+                collection,
+                fingerprint,
+                snapshotVersion,
+                expiresAt!.Value,
+                nextOffset,
+                nextLastId))
+            : null;
+
+        return new SndbDocumentPage(collection, documents, token, hasMore, limit, snapshotVersion, expiresAt);
+    }
+
+    private static int NormalizeFindLimit(int? limit)
+    {
+        if (limit is null)
+            return DefaultFindLimit;
+        if (limit <= 0)
+            throw new ArgumentOutOfRangeException(nameof(limit), "limit must be greater than 0.");
+        return limit.Value;
+    }
 
     private static bool HasAdvancedQuery(SndbDocumentFindOptions options)
         => options.Filter is not null

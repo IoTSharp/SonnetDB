@@ -24,7 +24,27 @@ public sealed record SndbDocumentFindOptions(
     int Skip = 0,
     SndbDocumentFilter? Filter = null,
     IReadOnlyList<SndbDocumentProjection>? Projection = null,
-    IReadOnlyList<SndbDocumentSort>? Sort = null);
+    IReadOnlyList<SndbDocumentSort>? Sort = null,
+    string? ContinuationToken = null);
+
+/// <summary>
+/// 文档分页查询结果。
+/// </summary>
+/// <param name="Collection">文档集合名称。</param>
+/// <param name="Documents">当前页文档。</param>
+/// <param name="ContinuationToken">下一页 continuation token；没有更多数据时为 null。</param>
+/// <param name="HasMore">是否还有下一页。</param>
+/// <param name="BatchSize">本次请求采用的 batch size。</param>
+/// <param name="SnapshotVersion">创建 token 时绑定的只读快照版本。</param>
+/// <param name="CursorExpiresAtUtc">token 的 UTC 过期时间；没有下一页时为 null。</param>
+public sealed record SndbDocumentPage(
+    string Collection,
+    IReadOnlyList<SndbDocument> Documents,
+    string? ContinuationToken,
+    bool HasMore,
+    int BatchSize,
+    long? SnapshotVersion,
+    DateTimeOffset? CursorExpiresAtUtc);
 
 /// <summary>
 /// 文档客户端过滤表达式。
@@ -98,7 +118,8 @@ internal sealed record DocumentFindRequest(
     int Skip = 0,
     SndbDocumentFilter? Filter = null,
     IReadOnlyList<SndbDocumentProjection>? Projection = null,
-    IReadOnlyList<SndbDocumentSort>? Sort = null);
+    IReadOnlyList<SndbDocumentSort>? Sort = null,
+    string? ContinuationToken = null);
 
 internal sealed record DocumentItemResponse(string Id, JsonElement Document, long Version);
 
@@ -107,7 +128,12 @@ internal sealed record DocumentFindResponse(
     IReadOnlyList<DocumentItemResponse> Documents,
     int Count,
     int? Limit,
-    int Skip);
+    int Skip,
+    string? ContinuationToken = null,
+    bool HasMore = false,
+    int? BatchSize = null,
+    long? SnapshotVersion = null,
+    DateTimeOffset? CursorExpiresAtUtc = null);
 
 internal sealed record DocumentFindOneResponse(
     string Collection,

@@ -36,4 +36,5 @@ namespace SonnetDB.Data.Documents;
 [JsonSerializable(typeof(List<SndbDocumentFilter>))]
 [JsonSerializable(typeof(List<SndbDocumentProjection>))]
 [JsonSerializable(typeof(List<SndbDocumentSort>))]
+[JsonSerializable(typeof(SndbDocumentPage))]
 internal sealed partial class SndbDocumentClientJsonContext : JsonSerializerContext;

@@ -19,6 +19,7 @@ internal static partial class SonnetDbEndpoints
 {
     private const int DefaultDocumentFindLimit = 100;
     private const int MaxDocumentFindLimit = 1000;
+    private static readonly TimeSpan DocumentCursorTtl = TimeSpan.FromMinutes(15);
 
     private static void MapDocumentEndpoints(this WebApplication app)
     {
@@ -124,13 +125,10 @@ internal static partial class SonnetDbEndpoints
 
             registry.TryGet(db, out var tsdb);
             var store = tsdb.Documents.Open(collection);
-            DocumentItemResponse[] docs;
+            DocumentFindPage page;
             try
             {
-                var rows = FindRows(store, req);
-                docs = rows is not null
-                    ? rows.Select(ToDocumentItemResponse).ToArray()
-                    : FindRowsByQuery(store, req).Select(ToDocumentItemResponse).ToArray();
+                page = FindDocumentPage(collection, store, req);
             }
             catch (ArgumentException ex)
             {
@@ -144,7 +142,17 @@ internal static partial class SonnetDbEndpoints
             }
 
             await Results.Json(
-                new DocumentFindResponse(collection, docs, docs.Length, req.Limit, req.Skip),
+                new DocumentFindResponse(
+                    collection,
+                    page.Documents,
+                    page.Documents.Count,
+                    page.Limit,
+                    req.Skip,
+                    page.ContinuationToken,
+                    page.HasMore,
+                    page.Limit,
+                    page.SnapshotVersion,
+                    page.CursorExpiresAtUtc),
                 ServerJsonContext.Default.DocumentFindResponse).ExecuteAsync(ctx).ConfigureAwait(false);
         });
 
@@ -357,6 +365,11 @@ internal static partial class SonnetDbEndpoints
             await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", $"limit 不能超过 {MaxDocumentFindLimit}。").ConfigureAwait(false);
             return false;
         }
+        if (!string.IsNullOrWhiteSpace(req.ContinuationToken) && req.Skip != 0)
+        {
+            await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "continuationToken cannot be combined with skip.").ConfigureAwait(false);
+            return false;
+        }
         if (!string.IsNullOrWhiteSpace(req.Id) && req.Ids is { Count: > 0 })
         {
             await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "id 与 ids 不能同时提供。").ConfigureAwait(false);
@@ -366,35 +379,139 @@ internal static partial class SonnetDbEndpoints
         return true;
     }
 
-    private static IReadOnlyList<DocumentRow>? FindRows(DocumentCollectionStore store, DocumentFindRequest req)
+    private static DocumentFindPage FindDocumentPage(string collection, DocumentCollectionStore store, DocumentFindRequest req)
     {
-        if (HasAdvancedDocumentQuery(req))
-            return null;
+        int limit = NormalizeLimit(req.Limit) ?? DefaultDocumentFindLimit;
+        var query = BuildDocumentQuery(req, limit);
+        string fingerprint = DocumentCursorToken.Fingerprint(collection, query);
+        DocumentCursorState? cursor = DecodeAndValidateCursor(req.ContinuationToken, collection, fingerprint, store.LastVersion);
 
-        if (!string.IsNullOrWhiteSpace(req.Id))
+        if (!HasAdvancedDocumentQuery(req) && !string.IsNullOrWhiteSpace(req.Id))
         {
             var row = store.Get(req.Id);
-            return row is null ? [] : [row];
+            var idRows = row is null ? Array.Empty<DocumentRow>() : new[] { row };
+            int effectiveSkip = cursor?.Offset ?? req.Skip;
+            var idPageRows = idRows.Skip(effectiveSkip).Take(limit + 1).ToArray();
+            return BuildPage(
+                collection,
+                fingerprint,
+                store.LastVersion,
+                limit,
+                idPageRows.Take(limit).ToArray(),
+                idPageRows.Length > limit,
+                nextOffset: checked(effectiveSkip + Math.Min(idPageRows.Length, limit)),
+                nextLastId: null);
         }
 
-        if (req.Ids is { Count: > 0 })
-            return store.GetMany(req.Ids);
+        if (!HasAdvancedDocumentQuery(req) && req.Ids is { Count: > 0 })
+        {
+            int effectiveSkip = cursor?.Offset ?? req.Skip;
+            var idsPageRows = store.GetMany(req.Ids).Skip(effectiveSkip).Take(limit + 1).ToArray();
+            return BuildPage(
+                collection,
+                fingerprint,
+                store.LastVersion,
+                limit,
+                idsPageRows.Take(limit).ToArray(),
+                idsPageRows.Length > limit,
+                nextOffset: checked(effectiveSkip + Math.Min(idsPageRows.Length, limit)),
+                nextLastId: null);
+        }
 
-        return store.Scan(NormalizeLimit(req.Limit) ?? DefaultDocumentFindLimit, req.Skip);
+        if (HasAdvancedDocumentQuery(req) || !string.IsNullOrWhiteSpace(req.Id) || req.Ids is { Count: > 0 })
+        {
+            int effectiveSkip = cursor?.Offset ?? req.Skip;
+            var pageQuery = query with { Limit = limit + 1, Skip = effectiveSkip };
+            var result = DocumentQueryPlanner.Execute(store, store.Schema, pageQuery);
+            var pageItems = result.Items.Take(limit).ToArray();
+            bool hasMore = result.Items.Count > limit;
+            return BuildPage(
+                collection,
+                fingerprint,
+                store.LastVersion,
+                limit,
+                pageItems.Select(static item => new DocumentRow(item.Id, item.Json, item.Version)).ToArray(),
+                hasMore,
+                nextOffset: checked(effectiveSkip + pageItems.Length),
+                nextLastId: null);
+        }
+
+        IReadOnlyList<DocumentRow> scanRows = cursor is null
+            ? store.Scan(limit + 1, req.Skip)
+            : store.ScanAfter(cursor.LastId, limit + 1);
+        var scanPageRows = scanRows.Take(limit).ToArray();
+        bool scanHasMore = scanRows.Count > limit;
+        return BuildPage(
+            collection,
+            fingerprint,
+            store.LastVersion,
+            limit,
+            scanPageRows,
+            scanHasMore,
+            nextOffset: checked((cursor?.Offset ?? req.Skip) + scanPageRows.Length),
+            nextLastId: scanPageRows.Length == 0 ? cursor?.LastId : scanPageRows[^1].Id);
     }
 
-    private static IReadOnlyList<DocumentRow> FindRowsByQuery(DocumentCollectionStore store, DocumentFindRequest req)
-    {
-        var query = new DocumentQuery(
+    private static DocumentQuery BuildDocumentQuery(DocumentFindRequest req, int limit)
+        => new(
             Filter: MergeRequestFilters(req),
             Projection: ToCoreProjection(req.Projection),
             Sort: ToCoreSort(req.Sort),
-            Limit: NormalizeLimit(req.Limit) ?? DefaultDocumentFindLimit,
+            Limit: limit,
             Skip: req.Skip);
-        var result = DocumentQueryPlanner.Execute(store, store.Schema, query);
-        return result.Items
-            .Select(static item => new DocumentRow(item.Id, item.Json, item.Version))
-            .ToArray();
+
+    private static DocumentCursorState? DecodeAndValidateCursor(
+        string? token,
+        string collection,
+        string fingerprint,
+        long currentVersion)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+            return null;
+
+        var state = DocumentCursorToken.Decode(token);
+        if (!string.Equals(state.Collection, collection, StringComparison.Ordinal)
+            || !string.Equals(state.QueryFingerprint, fingerprint, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("document cursor token does not match this find request.");
+        }
+
+        if (state.ExpiresAtUtc <= DateTimeOffset.UtcNow)
+            throw new InvalidOperationException("document cursor token has expired.");
+        if (state.SnapshotVersion != currentVersion)
+            throw new InvalidOperationException("document cursor snapshot is stale; restart the find request.");
+
+        return state;
+    }
+
+    private static DocumentFindPage BuildPage(
+        string collection,
+        string fingerprint,
+        long snapshotVersion,
+        int limit,
+        IReadOnlyList<DocumentRow> rows,
+        bool hasMore,
+        int nextOffset,
+        string? nextLastId)
+    {
+        DateTimeOffset? expiresAt = hasMore ? DateTimeOffset.UtcNow.Add(DocumentCursorTtl) : null;
+        string? token = hasMore
+            ? DocumentCursorToken.Encode(new DocumentCursorState(
+                collection,
+                fingerprint,
+                snapshotVersion,
+                expiresAt!.Value,
+                nextOffset,
+                nextLastId))
+            : null;
+
+        return new DocumentFindPage(
+            rows.Select(ToDocumentItemResponse).ToArray(),
+            limit,
+            hasMore,
+            token,
+            snapshotVersion,
+            expiresAt);
     }
 
     private static bool HasAdvancedDocumentQuery(DocumentFindRequest req)
@@ -563,4 +680,12 @@ internal static partial class SonnetDbEndpoints
                 DoubleValue: Convert.ToDouble(value, System.Globalization.CultureInfo.InvariantCulture)),
             _ => new JsonElementValue(ScalarKind.String, StringValue: value.ToString()),
         };
+
+    private sealed record DocumentFindPage(
+        IReadOnlyList<DocumentItemResponse> Documents,
+        int Limit,
+        bool HasMore,
+        string? ContinuationToken,
+        long SnapshotVersion,
+        DateTimeOffset? CursorExpiresAtUtc);
 }

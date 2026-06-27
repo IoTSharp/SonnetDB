@@ -41,6 +41,9 @@ public sealed class DocumentCollectionStore : IDisposable
         }
     }
 
+    /// <summary>当前集合底层 KV 视图的最新版本。</summary>
+    public long LastVersion => _keyspace.LastSequence;
+
     /// <summary>
     /// 按文档 ID 插入或覆盖 JSON 文档。
     /// </summary>
@@ -155,6 +158,23 @@ public sealed class DocumentCollectionStore : IDisposable
     }
 
     /// <summary>
+    /// 从指定文档 ID 之后继续扫描集合。
+    /// </summary>
+    /// <param name="afterId">上一页最后一个文档 ID；为 null 时从集合开头扫描。</param>
+    /// <param name="limit">最多返回行数。</param>
+    /// <returns>按文档 ID 字节序升序排列的文档列表。</returns>
+    public IReadOnlyList<DocumentRow> ScanAfter(string? afterId, int? limit = null)
+    {
+        lock (_sync)
+        {
+            if (string.IsNullOrEmpty(afterId))
+                return ScanRowsLocked(limit ?? int.MaxValue);
+
+            return ScanRowsAfterLocked(afterId, limit ?? int.MaxValue);
+        }
+    }
+
+    /// <summary>
     /// 返回当前集合的文档数量。
     /// </summary>
     /// <returns>当前集合中的文档数量。</returns>
@@ -219,6 +239,46 @@ public sealed class DocumentCollectionStore : IDisposable
 
             byte[] prefix = DocumentIndexCodec.EncodeIndexPrefix(index, scalar);
             var entries = _keyspace.ScanPrefix(prefix, limit ?? int.MaxValue);
+            var rows = new List<DocumentRow>(entries.Count);
+            foreach (var entry in entries)
+            {
+                string id = DocumentIndexCodec.DecodeIndexEntryValue(entry.Value.Span);
+                var row = GetLocked(id);
+                if (row is not null)
+                    rows.Add(row);
+            }
+
+            return rows;
+        }
+    }
+
+    /// <summary>
+    /// 按 JSON path 索引从指定文档 ID 之后继续读取候选文档。
+    /// </summary>
+    /// <param name="index">JSON path 索引声明。</param>
+    /// <param name="value">path 等值过滤值。</param>
+    /// <param name="afterId">上一页最后一个文档 ID；为 null 时从索引前缀起点读取。</param>
+    /// <param name="limit">最多返回行数。</param>
+    public IReadOnlyList<DocumentRow> GetByIndexAfter(
+        DocumentPathIndex index,
+        object? value,
+        string? afterId,
+        int? limit = null)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        lock (_sync)
+        {
+            string? scalar = JsonPathEvaluator.ToIndexScalar(value);
+            if (scalar is null)
+                return [];
+
+            byte[] prefix = DocumentIndexCodec.EncodeIndexPrefix(index, scalar);
+            byte[]? afterKey = string.IsNullOrEmpty(afterId)
+                ? null
+                : DocumentIndexCodec.EncodeIndexEntryKey(index, scalar, afterId);
+            var entries = afterKey is null
+                ? _keyspace.ScanPrefix(prefix, limit ?? int.MaxValue)
+                : _keyspace.ScanPrefixAfter(prefix, afterKey, limit ?? int.MaxValue);
             var rows = new List<DocumentRow>(entries.Count);
             foreach (var entry in entries)
             {
@@ -457,6 +517,20 @@ public sealed class DocumentCollectionStore : IDisposable
         var entries = _keyspace.ScanPrefix(new byte[] { (byte)'d' }, take);
         var rows = new List<DocumentRow>(entries.Count);
         foreach (var entry in entries.Skip(skip))
+        {
+            string id = DocumentIndexCodec.DecodeIdFromDocumentKey(entry.Key);
+            rows.Add(new DocumentRow(id, Encoding.UTF8.GetString(entry.Value.Span), entry.Version));
+        }
+
+        return rows;
+    }
+
+    private IReadOnlyList<DocumentRow> ScanRowsAfterLocked(string afterId, int limit)
+    {
+        byte[] afterKey = DocumentIndexCodec.EncodeDocumentKey(afterId);
+        var entries = _keyspace.ScanPrefixAfter(new byte[] { (byte)'d' }, afterKey, limit);
+        var rows = new List<DocumentRow>(entries.Count);
+        foreach (var entry in entries)
         {
             string id = DocumentIndexCodec.DecodeIdFromDocumentKey(entry.Key);
             rows.Add(new DocumentRow(id, Encoding.UTF8.GetString(entry.Value.Span), entry.Version));

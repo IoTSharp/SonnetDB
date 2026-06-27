@@ -236,6 +236,61 @@ public sealed class DocumentEndpointTests : IAsyncLifetime
         Assert.Equal(["dev-1"], existsBody!.Documents.Select(static x => x.Id).ToArray());
     }
 
+    [Fact]
+    public async Task DocumentApi_FindCursorPagination_ReturnsContinuationToken()
+    {
+        using var admin = CreateClient(AdminToken);
+        var create = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/pagedocs",
+            new DocumentCollectionCreateRequest(),
+            ServerJsonContext.Default.DocumentCollectionCreateRequest);
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+
+        using var d1 = JsonDocument.Parse("""{"site":"north","score":1}""");
+        using var d2 = JsonDocument.Parse("""{"site":"north","score":2}""");
+        using var d3 = JsonDocument.Parse("""{"site":"south","score":3}""");
+        var insert = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/pagedocs/insert-many",
+            new DocumentInsertManyRequest([
+                new DocumentWriteItem("dev-1", d1.RootElement.Clone()),
+                new DocumentWriteItem("dev-2", d2.RootElement.Clone()),
+                new DocumentWriteItem("dev-3", d3.RootElement.Clone()),
+            ]),
+            ServerJsonContext.Default.DocumentInsertManyRequest);
+        Assert.Equal(HttpStatusCode.OK, insert.StatusCode);
+
+        var first = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/pagedocs/find",
+            new DocumentFindRequest(Limit: 2),
+            ServerJsonContext.Default.DocumentFindRequest);
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        var firstBody = await first.Content.ReadFromJsonAsync(ServerJsonContext.Default.DocumentFindResponse);
+        Assert.NotNull(firstBody);
+        Assert.Equal(["dev-1", "dev-2"], firstBody!.Documents.Select(static x => x.Id).ToArray());
+        Assert.True(firstBody.HasMore);
+        Assert.NotNull(firstBody.ContinuationToken);
+        Assert.NotNull(firstBody.CursorExpiresAtUtc);
+
+        var second = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/pagedocs/find",
+            new DocumentFindRequest(Limit: 2, ContinuationToken: firstBody.ContinuationToken),
+            ServerJsonContext.Default.DocumentFindRequest);
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        var secondBody = await second.Content.ReadFromJsonAsync(ServerJsonContext.Default.DocumentFindResponse);
+        Assert.Equal(["dev-3"], secondBody!.Documents.Select(static x => x.Id).ToArray());
+        Assert.False(secondBody.HasMore);
+
+        using var north = JsonDocument.Parse("\"north\"");
+        var mismatched = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/pagedocs/find",
+            new DocumentFindRequest(
+                Limit: 2,
+                Filter: new DocumentFilterContract("$.site", "eq", north.RootElement.Clone()),
+                ContinuationToken: firstBody.ContinuationToken),
+            ServerJsonContext.Default.DocumentFindRequest);
+        Assert.Equal(HttpStatusCode.BadRequest, mismatched.StatusCode);
+    }
+
     private HttpClient CreateClient(string token)
     {
         var client = new HttpClient { BaseAddress = new Uri(_baseUrl!) };
