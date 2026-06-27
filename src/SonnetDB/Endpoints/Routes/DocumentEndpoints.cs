@@ -185,11 +185,39 @@ internal static partial class SonnetDbEndpoints
                 return;
             }
 
-            if (!await ValidateDocumentIdAsync(ctx, req.Id).ConfigureAwait(false))
-                return;
-
             registry.TryGet(db, out var tsdb);
             var store = tsdb.Documents.Open(collection);
+            if (req.Update is not null)
+            {
+                try
+                {
+                    var result = store.UpdateOne(
+                        MergeUpdateRequestFilters(req.Id, req.Filter),
+                        ToCoreUpdate(req.Update),
+                        req.Upsert,
+                        req.UpsertId ?? req.Id);
+                    await Results.Json(
+                        new DocumentWriteResponse(collection, Inserted: result.Inserted, Matched: result.Matched, Modified: result.Modified),
+                        ServerJsonContext.Default.DocumentWriteResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+                }
+                catch (ArgumentException ex)
+                {
+                    await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+                }
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(req.Id) || req.Document is null)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "update-one 需要提供 id 和 document，或提供 update 操作符。").ConfigureAwait(false);
+                return;
+            }
+            if (!await ValidateDocumentIdAsync(ctx, req.Id).ConfigureAwait(false))
+                return;
             if (store.Get(req.Id) is null)
             {
                 await Results.Json(new DocumentWriteResponse(collection), ServerJsonContext.Default.DocumentWriteResponse)
@@ -197,7 +225,7 @@ internal static partial class SonnetDbEndpoints
                 return;
             }
 
-            store.Upsert(req.Id, req.Document.GetRawText());
+            store.Upsert(req.Id, req.Document.Value.GetRawText());
             await Results.Json(new DocumentWriteResponse(collection, Matched: 1, Modified: 1), ServerJsonContext.Default.DocumentWriteResponse)
                 .ExecuteAsync(ctx).ConfigureAwait(false);
         });
@@ -215,6 +243,36 @@ internal static partial class SonnetDbEndpoints
 
             registry.TryGet(db, out var tsdb);
             var store = tsdb.Documents.Open(collection);
+            if (req.Update is not null)
+            {
+                try
+                {
+                    var result = store.UpdateMany(
+                        ToCoreFilter(req.Filter),
+                        ToCoreUpdate(req.Update),
+                        req.Upsert,
+                        req.UpsertId);
+                    await Results.Json(
+                        new DocumentWriteResponse(collection, Inserted: result.Inserted, Matched: result.Matched, Modified: result.Modified),
+                        ServerJsonContext.Default.DocumentWriteResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+                }
+                catch (ArgumentException ex)
+                {
+                    await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+                }
+                return;
+            }
+
+            if (req.Documents is null)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "update-many 需要提供 documents 或 update 操作符。").ConfigureAwait(false);
+                return;
+            }
+
             int matched = 0;
             foreach (var item in req.Documents)
             {
@@ -537,6 +595,22 @@ internal static partial class SonnetDbEndpoints
         };
     }
 
+    private static DocumentFilter? MergeUpdateRequestFilters(string? id, DocumentFilterContract? filter)
+    {
+        var filters = new List<DocumentFilter>();
+        if (!string.IsNullOrWhiteSpace(id))
+            filters.Add(new DocumentFieldFilter(DocumentFieldRef.Id, DocumentFilterOperator.Equal, id));
+        if (ToCoreFilter(filter) is { } coreFilter)
+            filters.Add(coreFilter);
+
+        return filters.Count switch
+        {
+            0 => null,
+            1 => filters[0],
+            _ => new DocumentAndFilter(filters),
+        };
+    }
+
     private static DocumentFilter? ToCoreFilter(DocumentFilterContract? filter)
     {
         if (filter is null)
@@ -657,6 +731,19 @@ internal static partial class SonnetDbEndpoints
             return value.Value.GetBoolean();
         return false;
     }
+
+    private static DocumentUpdate ToCoreUpdate(DocumentUpdateContract update)
+        => new(
+            update.Set,
+            update.Unset,
+            update.Inc,
+            update.Min,
+            update.Max,
+            update.Rename,
+            update.Push,
+            update.Pull,
+            update.AddToSet,
+            update.CurrentDate);
 
     private static int? NormalizeLimit(int? limit)
         => limit is null ? null : Math.Min(limit.Value, MaxDocumentFindLimit);

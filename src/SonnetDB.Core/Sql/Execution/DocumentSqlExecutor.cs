@@ -16,7 +16,7 @@ internal static class DocumentSqlExecutor
     private static readonly IReadOnlyList<string> _describeColumns =
         new List<string>(7) { "collection_name", "document_count", "index_count", "indexes", "fulltext_index_count", "fulltext_indexes", "created_utc" }.AsReadOnly();
     private static readonly IReadOnlyList<string> _showIndexColumns =
-        new List<string>(3) { "index_name", "path", "created_utc" }.AsReadOnly();
+        new List<string>(9) { "index_name", "paths", "is_unique", "is_sparse", "is_partial", "partial_filter", "is_ttl", "ttl_seconds", "created_utc" }.AsReadOnly();
     private static readonly IReadOnlyList<string> _showFullTextIndexColumns =
         new List<string>(5) { "index_name", "fields", "tokenizer", "document_count", "created_utc" }.AsReadOnly();
 
@@ -37,7 +37,7 @@ internal static class DocumentSqlExecutor
         return schema;
     }
 
-    public static DocumentPathIndex ExecuteCreateIndex(Tsdb tsdb, CreateDocumentPathIndexStatement statement)
+    public static DocumentPathIndex ExecuteCreateIndex(Tsdb tsdb, CreateDocumentIndexStatement statement)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
@@ -49,7 +49,13 @@ internal static class DocumentSqlExecutor
 
         return tsdb.Documents.CreateIndex(
             statement.CollectionName,
-            new DocumentPathIndexDefinition(statement.IndexName, statement.Path));
+            new DocumentPathIndexDefinition(
+                statement.IndexName,
+                statement.Paths,
+                IsUnique: statement.IsUnique,
+                IsSparse: statement.IsSparse,
+                PartialFilter: BindPartialFilter(statement.PartialFilter),
+                TtlSeconds: statement.TtlSeconds));
     }
 
     public static DocumentFullTextIndex ExecuteCreateFullTextIndex(Tsdb tsdb, CreateFullTextIndexStatement statement)
@@ -258,7 +264,7 @@ internal static class DocumentSqlExecutor
                 schema.Name,
                 (long)store.Scan(int.MaxValue).Count,
                 (long)schema.Indexes.Count,
-                string.Join(",", schema.Indexes.Select(static i => $"{i.Name}:{i.Path}")),
+                string.Join(",", schema.Indexes.Select(FormatIndexSummary)),
                 (long)schema.FullTextIndexes.Count,
                 string.Join(",", schema.FullTextIndexes.Select(static i => $"{i.Name}:{string.Join("|", i.Fields)}:{i.Tokenizer}")),
                 new DateTime(schema.CreatedAtUtcTicks, DateTimeKind.Utc).ToString("o", CultureInfo.InvariantCulture),
@@ -281,7 +287,13 @@ internal static class DocumentSqlExecutor
             rows.Add(new object?[]
             {
                 index.Name,
-                index.Path,
+                string.Join(",", index.Paths),
+                index.IsUnique,
+                index.IsSparse,
+                index.PartialFilter is not null,
+                FormatPartialFilter(index.PartialFilter),
+                index.IsTtl,
+                index.TtlSeconds,
                 new DateTime(index.CreatedAtUtcTicks, DateTimeKind.Utc).ToString("o", CultureInfo.InvariantCulture),
             });
         }
@@ -328,8 +340,8 @@ internal static class DocumentSqlExecutor
             return ("fulltext_index", match.Index.Name, match.Hits.Count);
         }
 
-        if (TryChoosePathIndex(schema, where, out var index, out var value))
-            return ("json_path_index", index.Name, store.GetByIndex(index, value).Count);
+        if (TryChoosePathIndex(schema, where, out var index, out var values))
+            return ("document_index", index.Name, store.GetByIndex(index, values).Count);
 
         return ("document_scan", null, store.Scan().Count);
     }
@@ -400,8 +412,8 @@ internal static class DocumentSqlExecutor
             return row is null ? Array.Empty<DocumentRow>() : [row];
         }
 
-        if (TryChoosePathIndex(schema, where, out var index, out var value))
-            return store.GetByIndex(index, value);
+        if (TryChoosePathIndex(schema, where, out var index, out var values))
+            return store.GetByIndex(index, values);
 
         return store.Scan();
     }
@@ -602,32 +614,134 @@ internal static class DocumentSqlExecutor
         DocumentCollectionSchema schema,
         SqlExpression? where,
         out DocumentPathIndex index,
-        out object? value)
+        out IReadOnlyList<object?> values)
     {
         index = null!;
-        value = null;
+        values = [];
         if (where is null || schema.Indexes.Count == 0)
             return false;
 
-        foreach (var leaf in FlattenAnd(where))
+        var leaves = FlattenAnd(where).ToArray();
+        var equalityByPath = new Dictionary<string, object?>(StringComparer.Ordinal);
+        foreach (var leaf in leaves)
         {
             if (leaf is not BinaryExpression { Operator: SqlBinaryOperator.Equal } binary)
                 continue;
 
-            if (TryExtractJsonValueComparison(binary, out var path, out value))
+            if (TryExtractJsonValueComparison(binary, out var path, out var literalValue))
+                equalityByPath[path.Text] = literalValue;
+        }
+
+        foreach (var candidate in schema.Indexes.OrderByDescending(static i => i.Paths.Count))
+        {
+            if (!CanUsePartialIndex(candidate, leaves))
+                continue;
+
+            var candidateValues = new object?[candidate.Paths.Count];
+            bool matched = true;
+            for (int i = 0; i < candidate.Paths.Count; i++)
             {
-                foreach (var candidate in schema.Indexes)
+                if (!equalityByPath.TryGetValue(candidate.Paths[i], out candidateValues[i]))
                 {
-                    if (string.Equals(candidate.Path, path.Text, StringComparison.Ordinal))
-                    {
-                        index = candidate;
-                        return true;
-                    }
+                    matched = false;
+                    break;
                 }
             }
+
+            if (!matched)
+                continue;
+            if (candidate.IsSparse && candidateValues.Any(static value => value is null))
+                continue;
+
+            index = candidate;
+            values = candidateValues;
+            return true;
         }
 
         return false;
+    }
+
+    private static bool CanUsePartialIndex(DocumentPathIndex index, IReadOnlyList<SqlExpression> leaves)
+        => index.PartialFilter is null
+           || leaves.Any(leaf => LeafSatisfiesPartialFilter(index.PartialFilter, leaf));
+
+    private static bool LeafSatisfiesPartialFilter(DocumentIndexPartialFilter filter, SqlExpression leaf)
+    {
+        if (filter.Operator == DocumentIndexPartialFilterOperator.Exists
+            && leaf is FunctionCallExpression existsFunction
+            && TryBindExistsPartialFilter(existsFunction, out var existsPath, out var existsValue))
+        {
+            bool expected = filter.ValueScalar is null or "true";
+            return string.Equals(existsPath.Text, filter.Path, StringComparison.Ordinal)
+                   && existsValue == expected;
+        }
+
+        if (filter.Operator == DocumentIndexPartialFilterOperator.Exists
+            && leaf is BinaryExpression comparison
+            && TryExtractJsonValueComparison(comparison, out var comparisonPath, out _))
+        {
+            bool expected = filter.ValueScalar is null or "true";
+            return expected
+                   && ComparisonImpliesPathExists(comparison)
+                   && string.Equals(comparisonPath.Text, filter.Path, StringComparison.Ordinal);
+        }
+
+        if (leaf is not BinaryExpression binary
+            || !TryExtractJsonValueComparison(binary, out var path, out var value)
+            || !string.Equals(path.Text, filter.Path, StringComparison.Ordinal)
+            || !TryMapPartialFilterOperator(binary.Operator, out var mapped))
+        {
+            return false;
+        }
+
+        string? scalar = JsonPathEvaluator.ToIndexScalar(value);
+        return mapped == filter.Operator
+               && scalar is not null
+               && string.Equals(scalar, filter.ValueScalar, StringComparison.Ordinal);
+    }
+
+    private static bool ComparisonImpliesPathExists(BinaryExpression binary)
+    {
+        if (!TryExtractJsonValueComparison(binary, out _, out var value))
+            return false;
+
+        return binary.Operator switch
+        {
+            SqlBinaryOperator.Equal => value is not null,
+            SqlBinaryOperator.NotEqual => false,
+            SqlBinaryOperator.GreaterThan
+                or SqlBinaryOperator.GreaterThanOrEqual
+                or SqlBinaryOperator.LessThan
+                or SqlBinaryOperator.LessThanOrEqual => true,
+            _ => false,
+        };
+    }
+
+    private static bool TryMapPartialFilterOperator(
+        SqlBinaryOperator source,
+        out DocumentIndexPartialFilterOperator target)
+    {
+        switch (source)
+        {
+            case SqlBinaryOperator.Equal:
+                target = DocumentIndexPartialFilterOperator.Equal;
+                return true;
+            case SqlBinaryOperator.GreaterThan:
+                target = DocumentIndexPartialFilterOperator.GreaterThan;
+                return true;
+            case SqlBinaryOperator.GreaterThanOrEqual:
+                target = DocumentIndexPartialFilterOperator.GreaterThanOrEqual;
+                return true;
+            case SqlBinaryOperator.LessThan:
+                target = DocumentIndexPartialFilterOperator.LessThan;
+                return true;
+            case SqlBinaryOperator.LessThanOrEqual:
+                target = DocumentIndexPartialFilterOperator.LessThanOrEqual;
+                return true;
+            default:
+                target = default;
+                return false;
+        }
     }
 
     private static bool TryExtractJsonValueComparison(
@@ -669,6 +783,96 @@ internal static class DocumentSqlExecutor
         {
             return false;
         }
+    }
+
+    private static DocumentIndexPartialFilter? BindPartialFilter(SqlExpression? expression)
+    {
+        if (expression is null)
+            return null;
+
+        if (expression is FunctionCallExpression existsFunction
+            && TryBindExistsPartialFilter(existsFunction, out var existsPath, out var existsValue))
+        {
+            return new DocumentIndexPartialFilter(
+                existsPath.Text,
+                DocumentIndexPartialFilterOperator.Exists,
+                existsValue ? "true" : "false");
+        }
+
+        if (expression is not BinaryExpression binary)
+            throw new InvalidOperationException("文档 partial index WHERE 仅支持 json_value(document, '$.path') 与字面量比较。");
+
+        if (!TryExtractJsonValueComparison(binary, out var path, out var value))
+            throw new InvalidOperationException("文档 partial index WHERE 仅支持 json_value(document, '$.path') 与字面量比较。");
+
+        return new DocumentIndexPartialFilter(
+            path.Text,
+            binary.Operator switch
+            {
+                SqlBinaryOperator.Equal => DocumentIndexPartialFilterOperator.Equal,
+                SqlBinaryOperator.NotEqual => DocumentIndexPartialFilterOperator.NotEqual,
+                SqlBinaryOperator.GreaterThan => DocumentIndexPartialFilterOperator.GreaterThan,
+                SqlBinaryOperator.GreaterThanOrEqual => DocumentIndexPartialFilterOperator.GreaterThanOrEqual,
+                SqlBinaryOperator.LessThan => DocumentIndexPartialFilterOperator.LessThan,
+                SqlBinaryOperator.LessThanOrEqual => DocumentIndexPartialFilterOperator.LessThanOrEqual,
+                _ => throw new InvalidOperationException("文档 partial index WHERE 仅支持 = / != / > / >= / < / <=。"),
+            },
+            JsonPathEvaluator.ToIndexScalar(value));
+    }
+
+    private static bool TryBindExistsPartialFilter(
+        FunctionCallExpression function,
+        out JsonPath path,
+        out bool exists)
+    {
+        path = null!;
+        exists = true;
+        if (!string.Equals(function.Name, "exists", StringComparison.OrdinalIgnoreCase)
+            || function.IsStar
+            || function.Arguments.Count != 1
+            || !TryBindJsonValue(function.Arguments[0], out path))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static string FormatIndexSummary(DocumentPathIndex index)
+    {
+        var flags = new List<string>(4);
+        if (index.IsUnique)
+            flags.Add("unique");
+        if (index.IsSparse)
+            flags.Add("sparse");
+        if (index.PartialFilter is not null)
+            flags.Add("partial");
+        if (index.IsTtl)
+            flags.Add($"ttl={index.TtlSeconds}");
+
+        string flagText = flags.Count == 0 ? string.Empty : $"[{string.Join("|", flags)}]";
+        return $"{index.Name}:{string.Join("|", index.Paths)}{flagText}";
+    }
+
+    private static string? FormatPartialFilter(DocumentIndexPartialFilter? filter)
+    {
+        if (filter is null)
+            return null;
+
+        string op = filter.Operator switch
+        {
+            DocumentIndexPartialFilterOperator.Exists => "exists",
+            DocumentIndexPartialFilterOperator.Equal => "=",
+            DocumentIndexPartialFilterOperator.NotEqual => "!=",
+            DocumentIndexPartialFilterOperator.GreaterThan => ">",
+            DocumentIndexPartialFilterOperator.GreaterThanOrEqual => ">=",
+            DocumentIndexPartialFilterOperator.LessThan => "<",
+            DocumentIndexPartialFilterOperator.LessThanOrEqual => "<=",
+            _ => filter.Operator.ToString(),
+        };
+        return filter.Operator == DocumentIndexPartialFilterOperator.Exists
+            ? $"{filter.Path} exists {filter.ValueScalar ?? "true"}"
+            : $"{filter.Path} {op} {filter.ValueScalar}";
     }
 
     private static bool TryBuildDocumentFilter(SqlExpression? expression, out DocumentFilter? filter)

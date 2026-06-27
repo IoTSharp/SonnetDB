@@ -70,11 +70,45 @@ public sealed record CreateDocumentCollectionStatement(
 /// <param name="Columns">索引列名。</param>
 /// <param name="IsUnique">是否为唯一索引。</param>
 /// <param name="IfNotExists">索引已存在时是否视为成功。</param>
+/// <param name="DocumentOptions">文档集合索引专用选项；关系表索引执行时忽略。</param>
 public sealed record CreateTableIndexStatement(
     string IndexName,
     string TableName,
     IReadOnlyList<string> Columns,
     bool IsUnique,
+    bool IfNotExists = false,
+    DocumentIndexOptions? DocumentOptions = null) : SqlStatement;
+
+/// <summary>
+/// 普通 <c>CREATE INDEX</c> 用于文档集合时的专用选项。
+/// </summary>
+/// <param name="IsSparse">是否为 sparse index。</param>
+/// <param name="TtlSeconds">TTL 保留秒数。</param>
+/// <param name="PartialFilter">partial index 过滤条件。</param>
+public sealed record DocumentIndexOptions(
+    bool IsSparse = false,
+    long? TtlSeconds = null,
+    SqlExpression? PartialFilter = null);
+
+/// <summary>
+/// <c>CREATE [UNIQUE] [SPARSE] [TTL] INDEX [IF NOT EXISTS] index_name ON collection_name ('$.path', ...)</c>。
+/// </summary>
+/// <param name="IndexName">索引名。</param>
+/// <param name="CollectionName">目标文档集合名。</param>
+/// <param name="Paths">JSON path 列表。</param>
+/// <param name="IsUnique">是否为唯一索引。</param>
+/// <param name="IsSparse">是否为 sparse 索引。</param>
+/// <param name="TtlSeconds">TTL 保留秒数。</param>
+/// <param name="PartialFilter">partial index 过滤条件。</param>
+/// <param name="IfNotExists">索引已存在时是否视为成功。</param>
+public sealed record CreateDocumentIndexStatement(
+    string IndexName,
+    string CollectionName,
+    IReadOnlyList<string> Paths,
+    bool IsUnique = false,
+    bool IsSparse = false,
+    long? TtlSeconds = null,
+    SqlExpression? PartialFilter = null,
     bool IfNotExists = false) : SqlStatement;
 
 /// <summary>

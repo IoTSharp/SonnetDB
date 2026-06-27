@@ -1,4 +1,5 @@
 ﻿using System.Text.Json.Serialization;
+using System.Text.Json;
 using SonnetDB.Contracts;
 using SonnetDB.Copilot;
 using SonnetDB.Mcp;
@@ -69,6 +70,7 @@ namespace SonnetDB.Json;
 [JsonSerializable(typeof(DocumentItemResponse))]
 [JsonSerializable(typeof(DocumentFindResponse))]
 [JsonSerializable(typeof(DocumentFindOneResponse))]
+[JsonSerializable(typeof(DocumentUpdateContract))]
 [JsonSerializable(typeof(DocumentUpdateOneRequest))]
 [JsonSerializable(typeof(DocumentUpdateManyRequest))]
 [JsonSerializable(typeof(DocumentDeleteOneRequest))]
@@ -83,6 +85,9 @@ namespace SonnetDB.Json;
 [JsonSerializable(typeof(List<DocumentFilterContract>))]
 [JsonSerializable(typeof(List<DocumentProjectionContract>))]
 [JsonSerializable(typeof(List<DocumentSortContract>))]
+[JsonSerializable(typeof(IReadOnlyDictionary<string, JsonElement>))]
+[JsonSerializable(typeof(Dictionary<string, JsonElement>))]
+[JsonSerializable(typeof(IReadOnlyDictionary<string, string>))]
 [JsonSerializable(typeof(MqPublishRequest))]
 [JsonSerializable(typeof(MqPublishResponse))]
 [JsonSerializable(typeof(MqPullRequest))]

@@ -64,7 +64,9 @@ public sealed class SqlExecutorDocumentTests : IDisposable
 
             var indexes = Assert.IsType<SelectExecutionResult>(
                 SqlExecutor.Execute(reopened, "SHOW JSON INDEXES ON device_docs"));
-            Assert.Equal(new[] { "index_name", "path", "created_utc" }, indexes.Columns);
+            Assert.Equal(
+                new[] { "index_name", "paths", "is_unique", "is_sparse", "is_partial", "partial_filter", "is_ttl", "ttl_seconds", "created_utc" },
+                indexes.Columns);
             Assert.Equal("idx_device_type", indexes.Rows.Single()[0]);
             Assert.Equal("$.type", indexes.Rows.Single()[1]);
         }
@@ -163,8 +165,193 @@ public sealed class SqlExecutorDocumentTests : IDisposable
             EXPLAIN SELECT id FROM device_docs WHERE json_value(document, '$.type') = 'pump'
             """));
         var values = explain.Rows.ToDictionary(static r => (string)r[0]!, static r => r[1], StringComparer.Ordinal);
-        Assert.Equal("json_path_index", values["access_path"]);
+        Assert.Equal("document_index", values["access_path"]);
         Assert.Equal("idx_device_type", values["index_name"]);
+    }
+
+    [Fact]
+    public void DocumentCollection_AdvancedIndexes_SupportCompositeUniqueSparsePartialAndTtl()
+    {
+        using (var db = Tsdb.Open(Options()))
+        {
+            SqlExecutor.Execute(db, "CREATE DOCUMENT COLLECTION device_docs");
+            SqlExecutor.Execute(db, """
+                INSERT INTO device_docs (id, document)
+                VALUES ('dev-1', '{"tenant":"t1","site":"north","serial":"s1","active":true,"expiresAt":"2000-01-01T00:00:00Z"}'),
+                       ('dev-2', '{"tenant":"t1","site":"south","active":false,"expiresAt":"2999-01-01T00:00:00Z"}'),
+                       ('dev-3', '{"tenant":"t2","site":"north","serial":"s3","active":true,"expiresAt":"2999-01-01T00:00:00Z"}')
+                """);
+
+            SqlExecutor.Execute(db, "CREATE TTL INDEX idx_docs_expires ON device_docs ('$.expiresAt') WITH ttl_seconds = 1");
+            SqlExecutor.Execute(db, "CREATE INDEX idx_docs_tenant_site ON device_docs ('$.tenant', '$.site')");
+            SqlExecutor.Execute(db, "CREATE UNIQUE SPARSE INDEX ux_docs_serial ON device_docs ('$.serial')");
+            SqlExecutor.Execute(db, "CREATE SPARSE INDEX idx_docs_active_site ON device_docs ('$.site') WHERE json_value(document, '$.active') = true");
+
+            var duplicate = Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db, """
+                INSERT INTO device_docs (id, document)
+                VALUES ('dev-dup', '{"tenant":"t3","site":"west","serial":"s3","expiresAt":"2999-01-01T00:00:00Z"}')
+                """));
+            Assert.Contains("唯一索引 'ux_docs_serial' 冲突", duplicate.Message, StringComparison.Ordinal);
+
+            var explain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+                EXPLAIN SELECT id
+                FROM device_docs
+                WHERE json_value(document, '$.tenant') = 't1'
+                  AND json_value(document, '$.site') = 'south'
+                """));
+            var values = explain.Rows.ToDictionary(static r => (string)r[0]!, static r => r[1], StringComparer.Ordinal);
+            Assert.Equal("document_index", values["access_path"]);
+            Assert.Equal("idx_docs_tenant_site", values["index_name"]);
+
+            var show = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SHOW JSON INDEXES ON device_docs"));
+            var rows = show.Rows.ToDictionary(static r => (string)r[0]!, StringComparer.Ordinal);
+            Assert.Equal("$.tenant,$.site", rows["idx_docs_tenant_site"][1]);
+            Assert.True((bool)rows["ux_docs_serial"][2]!);
+            Assert.True((bool)rows["ux_docs_serial"][3]!);
+            Assert.True((bool)rows["idx_docs_active_site"][4]!);
+            Assert.Equal("$.active = true", rows["idx_docs_active_site"][5]);
+            Assert.True((bool)rows["idx_docs_expires"][6]!);
+            Assert.Equal(1L, rows["idx_docs_expires"][7]);
+
+            var alive = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+                "SELECT id FROM device_docs ORDER BY id"));
+            Assert.Equal(["dev-2", "dev-3"], alive.Rows.Select(static row => (string)row[0]!).ToArray());
+        }
+
+        using (var reopened = Tsdb.Open(Options()))
+        {
+            var indexes = Assert.IsType<SelectExecutionResult>(
+                SqlExecutor.Execute(reopened, "SHOW JSON INDEXES ON device_docs"));
+            Assert.Equal(4, indexes.Rows.Count);
+            Assert.Contains(indexes.Rows, static row => string.Equals((string)row[0]!, "idx_docs_tenant_site", StringComparison.Ordinal));
+        }
+    }
+
+    [Fact]
+    public void DocumentCollection_PartialIndex_IsUsedOnlyWhenFilterImpliesPredicate()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE DOCUMENT COLLECTION device_docs");
+        SqlExecutor.Execute(db, """
+            INSERT INTO device_docs (id, document)
+            VALUES ('dev-1', '{"site":"north","active":true}'),
+                   ('dev-2', '{"site":"north","active":false}'),
+                   ('dev-3', '{"site":"south","active":true}')
+            """);
+        SqlExecutor.Execute(db, """
+            CREATE SPARSE INDEX idx_docs_active_site ON device_docs ('$.site')
+            WHERE json_value(document, '$.active') = true
+            """);
+
+        var unconstrained = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT id
+            FROM device_docs
+            WHERE json_value(document, '$.site') = 'north'
+            ORDER BY id
+            """));
+        Assert.Equal(["dev-1", "dev-2"], unconstrained.Rows.Select(static row => (string)row[0]!).ToArray());
+
+        var unconstrainedExplain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            EXPLAIN SELECT id
+            FROM device_docs
+            WHERE json_value(document, '$.site') = 'north'
+            """));
+        var unconstrainedValues = unconstrainedExplain.Rows.ToDictionary(static r => (string)r[0]!, static r => r[1], StringComparer.Ordinal);
+        Assert.Equal("document_scan", unconstrainedValues["access_path"]);
+
+        var constrained = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT id
+            FROM device_docs
+            WHERE json_value(document, '$.site') = 'north'
+              AND json_value(document, '$.active') = true
+            """));
+        Assert.Equal(["dev-1"], constrained.Rows.Select(static row => (string)row[0]!).ToArray());
+
+        var constrainedExplain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            EXPLAIN SELECT id
+            FROM device_docs
+            WHERE json_value(document, '$.site') = 'north'
+              AND json_value(document, '$.active') = true
+            """));
+        var constrainedValues = constrainedExplain.Rows.ToDictionary(static r => (string)r[0]!, static r => r[1], StringComparer.Ordinal);
+        Assert.Equal("document_index", constrainedValues["access_path"]);
+        Assert.Equal("idx_docs_active_site", constrainedValues["index_name"]);
+    }
+
+    [Fact]
+    public void DocumentCollection_DocumentIndex_NullLookupMatchesJsonNull()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE DOCUMENT COLLECTION device_docs");
+        SqlExecutor.Execute(db, """
+            INSERT INTO device_docs (id, document)
+            VALUES ('dev-null', '{"site":null}'),
+                   ('dev-missing', '{"type":"pump"}'),
+                   ('dev-north', '{"site":"north"}')
+            """);
+        SqlExecutor.Execute(db, "CREATE INDEX idx_docs_site ON device_docs ('$.site')");
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT id
+            FROM device_docs
+            WHERE json_value(document, '$.site') = NULL
+            ORDER BY id
+            """));
+        Assert.Equal(["dev-null"], result.Rows.Select(static row => (string)row[0]!).ToArray());
+
+        var explain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            EXPLAIN SELECT id
+            FROM device_docs
+            WHERE json_value(document, '$.site') = NULL
+            """));
+        var values = explain.Rows.ToDictionary(static r => (string)r[0]!, static r => r[1], StringComparer.Ordinal);
+        Assert.Equal("document_index", values["access_path"]);
+        Assert.Equal("idx_docs_site", values["index_name"]);
+
+        SqlExecutor.Execute(db, "CREATE DOCUMENT COLLECTION sparse_docs");
+        SqlExecutor.Execute(db, """
+            INSERT INTO sparse_docs (id, document)
+            VALUES ('dev-null', '{"site":null}'),
+                   ('dev-missing', '{"type":"pump"}'),
+                   ('dev-north', '{"site":"north"}')
+            """);
+        SqlExecutor.Execute(db, "CREATE SPARSE INDEX idx_sparse_site ON sparse_docs ('$.site')");
+
+        var sparse = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT id
+            FROM sparse_docs
+            WHERE json_value(document, '$.site') = NULL
+            ORDER BY id
+            """));
+        Assert.Equal(["dev-null"], sparse.Rows.Select(static row => (string)row[0]!).ToArray());
+
+        var sparseExplain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            EXPLAIN SELECT id
+            FROM sparse_docs
+            WHERE json_value(document, '$.site') = NULL
+            """));
+        var sparseValues = sparseExplain.Rows.ToDictionary(static r => (string)r[0]!, static r => r[1], StringComparer.Ordinal);
+        Assert.Equal("document_scan", sparseValues["access_path"]);
+    }
+
+    [Fact]
+    public void DocumentCollection_CreateUniqueIndex_WithExistingDuplicates_RejectsAndKeepsSchema()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE DOCUMENT COLLECTION device_docs");
+        SqlExecutor.Execute(db, """
+            INSERT INTO device_docs (id, document)
+            VALUES ('dev-1', '{"serial":"s1"}'),
+                   ('dev-2', '{"serial":"s1"}')
+            """);
+
+        var duplicate = Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db,
+            "CREATE UNIQUE INDEX ux_docs_serial ON device_docs ('$.serial')"));
+        Assert.Contains("ux_docs_serial", duplicate.Message, StringComparison.Ordinal);
+
+        var indexes = Assert.IsType<SelectExecutionResult>(
+            SqlExecutor.Execute(db, "SHOW JSON INDEXES ON device_docs"));
+        Assert.Empty(indexes.Rows);
     }
 
     [Fact]

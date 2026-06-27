@@ -220,13 +220,13 @@ public sealed class BackupService
                         "document",
                         schema.Name,
                         index.Name,
-                        "json_path",
+                        DocumentIndexKind(index),
                         "rebuilt",
-                        "document JSON path index rebuilt from collection data."));
+                        "document index rebuilt from collection data."));
                 }
                 catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
                 {
-                    entries.Add(FailedIndex("document", schema.Name, index.Name, "json_path", ex.Message));
+                    entries.Add(FailedIndex("document", schema.Name, index.Name, DocumentIndexKind(index), ex.Message));
                 }
             }
 
@@ -460,7 +460,7 @@ public sealed class BackupService
                     "document",
                     schema.Name,
                     index.Name,
-                    "json_path",
+                    DocumentIndexKind(index),
                     Included: true,
                     Rebuildable: true,
                     RelativePath: null));
@@ -673,6 +673,19 @@ public sealed class BackupService
         => string.IsNullOrWhiteSpace(index.JsonPath)
             ? index.IsUnique ? "unique_secondary" : "secondary"
             : "json_path";
+
+    private static string DocumentIndexKind(DocumentPathIndex index)
+    {
+        if (index.IsTtl)
+            return "ttl";
+        if (index.IsUnique)
+            return "unique_document";
+        if (index.PartialFilter is not null)
+            return "partial_document";
+        if (index.IsSparse)
+            return "sparse_document";
+        return index.Paths.Count > 1 ? "compound_document" : "document";
+    }
 
     private static BackupIndexRebuildEntry FailedIndex(string model, string owner, string name, string kind, string message)
         => new(model, owner, name, kind, "failed", message);

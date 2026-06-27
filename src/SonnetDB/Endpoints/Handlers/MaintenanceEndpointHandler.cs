@@ -1,5 +1,6 @@
 ﻿using SonnetDB.Backup;
 using SonnetDB.Contracts;
+using SonnetDB.Documents;
 using SonnetDB.Engine;
 using SonnetDB.Json;
 using SonnetDB.Storage.Format;
@@ -218,7 +219,7 @@ internal static class MaintenanceEndpointHandler
                 if (model is not "document_fulltext" && jsonIndex is not null)
                 {
                     _ = tsdb.Documents.RebuildIndex(owner, name);
-                    return RebuildIndexResponse("document", owner, name, "json_path", "sync", planned: false, rebuildable: true);
+                    return RebuildIndexResponse("document", owner, name, DocumentIndexKind(jsonIndex), "sync", planned: false, rebuildable: true);
                 }
 
                 if (fullTextIndex is not null)
@@ -304,12 +305,12 @@ internal static class MaintenanceEndpointHandler
                     "document",
                     collection.Name,
                     index.Name,
-                    "json_path",
+                    DocumentIndexKind(index),
                     "ok",
                     IncludedInBackup: false,
                     Rebuildable: true,
                     DocumentCount: documentCount,
-                    Detail: index.Path));
+                    Detail: FormatDocumentIndexDetail(index)));
             }
 
             foreach (var index in collection.FullTextIndexes)
@@ -414,6 +415,36 @@ internal static class MaintenanceEndpointHandler
         => string.IsNullOrWhiteSpace(index.JsonPath)
             ? index.IsUnique ? "unique_secondary" : "secondary"
             : "json_path";
+
+    private static string DocumentIndexKind(DocumentPathIndex index)
+    {
+        if (index.IsTtl)
+            return "ttl";
+        if (index.IsUnique)
+            return "unique_document";
+        if (index.PartialFilter is not null)
+            return "partial_document";
+        if (index.IsSparse)
+            return "sparse_document";
+        return index.Paths.Count > 1 ? "compound_document" : "document";
+    }
+
+    private static string FormatDocumentIndexDetail(DocumentPathIndex index)
+    {
+        var parts = new List<string>
+        {
+            "paths=" + string.Join(",", index.Paths),
+        };
+        if (index.IsUnique)
+            parts.Add("unique=true");
+        if (index.IsSparse)
+            parts.Add("sparse=true");
+        if (index.PartialFilter is not null)
+            parts.Add($"partial={index.PartialFilter.Path}:{index.PartialFilter.Operator}:{index.PartialFilter.ValueScalar}");
+        if (index.IsTtl)
+            parts.Add("ttl_seconds=" + index.TtlSeconds);
+        return string.Join(";", parts);
+    }
 
     private static MaintenanceResponse Failed(string operation, string message)
         => new(

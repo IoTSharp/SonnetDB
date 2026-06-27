@@ -99,7 +99,11 @@ public sealed class SchemaAndMaintenanceEndpointTests : IAsyncLifetime
 
         var collection = Assert.Single(root.GetProperty("documentCollections").EnumerateArray());
         Assert.Equal("docs", collection.GetProperty("name").GetString());
-        Assert.Equal("idx_docs_site", Assert.Single(collection.GetProperty("jsonIndexes").EnumerateArray()).GetProperty("name").GetString());
+        var documentIndex = Assert.Single(collection.GetProperty("jsonIndexes").EnumerateArray());
+        Assert.Equal("idx_docs_site", documentIndex.GetProperty("name").GetString());
+        Assert.Equal("$.site", documentIndex.GetProperty("path").GetString());
+        Assert.Equal("$.site", Assert.Single(documentIndex.GetProperty("paths").EnumerateArray()).GetString());
+        Assert.False(documentIndex.GetProperty("isUnique").GetBoolean());
         Assert.Equal("ft_docs_body", Assert.Single(collection.GetProperty("fullTextIndexes").EnumerateArray()).GetProperty("name").GetString());
 
         var indexes = root.GetProperty("indexes").EnumerateArray().ToArray();
@@ -107,6 +111,9 @@ public sealed class SchemaAndMaintenanceEndpointTests : IAsyncLifetime
         Assert.Contains(indexes, index =>
             index.GetProperty("id").GetString() == "table:devices:idx_devices_metadata_site"
             && index.GetProperty("kind").GetString() == "json_path");
+        Assert.Contains(indexes, index =>
+            index.GetProperty("id").GetString() == "document:docs:idx_docs_site"
+            && index.GetProperty("kind").GetString() == "document");
         Assert.Contains(indexes, index => index.GetProperty("id").GetString() == "document:docs:ft_docs_body");
         var vectorIndex = indexes.Single(index => index.GetProperty("id").GetString() == "measurement:metrics:embedding");
         Assert.Equal("planned", vectorIndex.GetProperty("state").GetString());
@@ -181,7 +188,7 @@ public sealed class SchemaAndMaintenanceEndpointTests : IAsyncLifetime
         {
             var index = document.RootElement.GetProperty("index");
             Assert.Equal("document", index.GetProperty("model").GetString());
-            Assert.Equal("json_path", index.GetProperty("kind").GetString());
+            Assert.Equal("document", index.GetProperty("kind").GetString());
             Assert.Equal("sync", index.GetProperty("mode").GetString());
             Assert.False(index.GetProperty("planned").GetBoolean());
         }

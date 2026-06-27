@@ -64,7 +64,7 @@ public sealed class DocumentCollectionManager : IDisposable
     }
 
     /// <summary>
-    /// 为已有文档集合创建 JSON path 索引并持久化 schema。
+    /// 为已有文档集合创建文档二级索引并持久化 schema。
     /// </summary>
     /// <param name="collectionName">集合名。</param>
     /// <param name="definition">索引声明。</param>
@@ -136,7 +136,7 @@ public sealed class DocumentCollectionManager : IDisposable
     }
 
     /// <summary>
-    /// 删除文档集合 JSON path 索引声明。
+    /// 删除文档集合二级索引声明。
     /// </summary>
     /// <param name="collectionName">集合名。</param>
     /// <param name="indexName">索引名。</param>
@@ -213,7 +213,7 @@ public sealed class DocumentCollectionManager : IDisposable
     }
 
     /// <summary>
-    /// 从文档集合主数据重建指定 JSON path 索引。
+    /// 从文档集合主数据重建指定文档二级索引。
     /// </summary>
     /// <param name="collectionName">集合名。</param>
     /// <param name="indexName">索引名。</param>
@@ -228,7 +228,7 @@ public sealed class DocumentCollectionManager : IDisposable
             var schema = Catalog.TryGet(collectionName)
                 ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
             var index = schema.TryGetIndex(indexName)
-                ?? throw new InvalidOperationException($"document collection '{collectionName}' 中 JSON index '{indexName}' 不存在。");
+                ?? throw new InvalidOperationException($"document collection '{collectionName}' 中索引 '{indexName}' 不存在。");
             OpenStoreLocked(schema).ApplySchema(schema);
             return index;
         }

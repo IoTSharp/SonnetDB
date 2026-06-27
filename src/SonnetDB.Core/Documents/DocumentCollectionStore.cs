@@ -29,6 +29,7 @@ public sealed class DocumentCollectionStore : IDisposable
         _fullTextIndexFactory = fullTextIndexFactory;
         RebuildIndexesLocked();
         ReconcileFullTextStoresLocked(schema, rebuildAll: false);
+        PurgeExpiredDocumentsLocked();
     }
 
     /// <summary>文档集合 schema。</summary>
@@ -57,6 +58,7 @@ public sealed class DocumentCollectionStore : IDisposable
         string normalized = JsonPathEvaluator.NormalizeJson(json);
         lock (_sync)
         {
+            PurgeExpiredDocumentsLocked();
             var schema = _schema;
             byte[] documentKey = DocumentIndexCodec.EncodeDocumentKey(id);
             var old = TryGetByDocumentKeyLocked(documentKey);
@@ -75,6 +77,7 @@ public sealed class DocumentCollectionStore : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         lock (_sync)
         {
+            PurgeExpiredDocumentsLocked();
             return TryGetByDocumentKeyLocked(DocumentIndexCodec.EncodeDocumentKey(id));
         }
     }
@@ -89,6 +92,7 @@ public sealed class DocumentCollectionStore : IDisposable
         ArgumentNullException.ThrowIfNull(ids);
         lock (_sync)
         {
+            PurgeExpiredDocumentsLocked();
             var rows = new List<DocumentRow>();
             foreach (string id in ids)
             {
@@ -124,6 +128,58 @@ public sealed class DocumentCollectionStore : IDisposable
     }
 
     /// <summary>
+    /// 对匹配到的第一条文档执行局部更新，可选在未匹配时插入新文档。
+    /// </summary>
+    /// <param name="filter">文档过滤条件；为 null 时匹配集合中的第一条文档。</param>
+    /// <param name="update">局部更新操作符集合。</param>
+    /// <param name="upsert">未匹配文档时是否插入新文档。</param>
+    /// <param name="upsertId">upsert 新文档 ID；为 null 时尝试从 <paramref name="filter"/> 的 ID 等值条件推断。</param>
+    /// <returns>更新执行结果。</returns>
+    public DocumentUpdateResult UpdateOne(
+        DocumentFilter? filter,
+        DocumentUpdate update,
+        bool upsert = false,
+        string? upsertId = null)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+        lock (_sync)
+        {
+            PurgeExpiredDocumentsLocked();
+            var matches = FindMatchingRowsLocked(filter, limit: 1);
+            if (matches.Count == 0)
+                return UpsertFromUpdateLocked(filter, update, upsert, upsertId);
+
+            return ApplyUpdateRowsLocked(matches, update);
+        }
+    }
+
+    /// <summary>
+    /// 对所有匹配文档执行局部更新，可选在未匹配时插入新文档。
+    /// </summary>
+    /// <param name="filter">文档过滤条件；为 null 时匹配全部文档。</param>
+    /// <param name="update">局部更新操作符集合。</param>
+    /// <param name="upsert">未匹配文档时是否插入新文档。</param>
+    /// <param name="upsertId">upsert 新文档 ID；为 null 时尝试从 <paramref name="filter"/> 的 ID 等值条件推断。</param>
+    /// <returns>更新执行结果。</returns>
+    public DocumentUpdateResult UpdateMany(
+        DocumentFilter? filter,
+        DocumentUpdate update,
+        bool upsert = false,
+        string? upsertId = null)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+        lock (_sync)
+        {
+            PurgeExpiredDocumentsLocked();
+            var matches = FindMatchingRowsLocked(filter, limit: int.MaxValue);
+            if (matches.Count == 0)
+                return UpsertFromUpdateLocked(filter, update, upsert, upsertId);
+
+            return ApplyUpdateRowsLocked(matches, update);
+        }
+    }
+
+    /// <summary>
     /// 按文档 ID 批量删除 JSON 文档。
     /// </summary>
     /// <param name="ids">文档 ID 序列。</param>
@@ -153,6 +209,7 @@ public sealed class DocumentCollectionStore : IDisposable
         ArgumentOutOfRangeException.ThrowIfNegative(skip);
         lock (_sync)
         {
+            PurgeExpiredDocumentsLocked();
             return ScanRowsLocked(limit ?? int.MaxValue, skip);
         }
     }
@@ -167,6 +224,7 @@ public sealed class DocumentCollectionStore : IDisposable
     {
         lock (_sync)
         {
+            PurgeExpiredDocumentsLocked();
             if (string.IsNullOrEmpty(afterId))
                 return ScanRowsLocked(limit ?? int.MaxValue);
 
@@ -181,7 +239,10 @@ public sealed class DocumentCollectionStore : IDisposable
     public int Count()
     {
         lock (_sync)
+        {
+            PurgeExpiredDocumentsLocked();
             return ScanRowsLocked(int.MaxValue).Count;
+        }
     }
 
     /// <summary>
@@ -201,6 +262,7 @@ public sealed class DocumentCollectionStore : IDisposable
         var parsedPath = JsonPath.Parse(path);
         lock (_sync)
         {
+            PurgeExpiredDocumentsLocked();
             var rows = ids is null
                 ? ScanRowsLocked(int.MaxValue)
                 : GetManyLocked(ids);
@@ -229,23 +291,48 @@ public sealed class DocumentCollectionStore : IDisposable
     /// <param name="value">path 等值过滤值。</param>
     /// <param name="limit">最多返回行数。</param>
     public IReadOnlyList<DocumentRow> GetByIndex(DocumentPathIndex index, object? value, int? limit = null)
+        => GetByIndex(index, new[] { value }, limit);
+
+    /// <summary>
+    /// 按文档二级索引读取候选文档。
+    /// </summary>
+    /// <param name="index">文档二级索引声明。</param>
+    /// <param name="values">与索引 path 数量一致的等值谓词值。</param>
+    /// <param name="limit">最多返回行数。</param>
+    public IReadOnlyList<DocumentRow> GetByIndex(DocumentPathIndex index, IReadOnlyList<object?> values, int? limit = null)
     {
         ArgumentNullException.ThrowIfNull(index);
+        ArgumentNullException.ThrowIfNull(values);
         lock (_sync)
         {
-            string? scalar = JsonPathEvaluator.ToIndexScalar(value);
-            if (scalar is null)
+            PurgeExpiredDocumentsLocked();
+
+            var partSets = EncodeLookupPartSets(index, values);
+            if (partSets.Count == 0)
                 return [];
 
-            byte[] prefix = DocumentIndexCodec.EncodeIndexPrefix(index, scalar);
-            var entries = _keyspace.ScanPrefix(prefix, limit ?? int.MaxValue);
-            var rows = new List<DocumentRow>(entries.Count);
-            foreach (var entry in entries)
+            int take = limit ?? int.MaxValue;
+            var rows = new List<DocumentRow>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var parts in partSets)
             {
-                string id = DocumentIndexCodec.DecodeIndexEntryValue(entry.Value.Span);
-                var row = GetLocked(id);
-                if (row is not null)
-                    rows.Add(row);
+                byte[] prefix = DocumentIndexCodec.EncodeIndexPrefix(index, parts);
+                var entries = _keyspace.ScanPrefix(prefix, take - rows.Count);
+                foreach (var entry in entries)
+                {
+                    string id = DocumentIndexCodec.DecodeIndexEntryValue(entry.Value.Span);
+                    if (!seen.Add(id))
+                        continue;
+
+                    var row = GetLocked(id);
+                    if (row is not null)
+                        rows.Add(row);
+                    if (rows.Count >= take)
+                        break;
+                }
+
+                if (rows.Count >= take)
+                    break;
             }
 
             return rows;
@@ -268,24 +355,38 @@ public sealed class DocumentCollectionStore : IDisposable
         ArgumentNullException.ThrowIfNull(index);
         lock (_sync)
         {
-            string? scalar = JsonPathEvaluator.ToIndexScalar(value);
-            if (scalar is null)
+            PurgeExpiredDocumentsLocked();
+            var partSets = EncodeLookupPartSets(index, new[] { value });
+            if (partSets.Count == 0)
                 return [];
 
-            byte[] prefix = DocumentIndexCodec.EncodeIndexPrefix(index, scalar);
-            byte[]? afterKey = string.IsNullOrEmpty(afterId)
-                ? null
-                : DocumentIndexCodec.EncodeIndexEntryKey(index, scalar, afterId);
-            var entries = afterKey is null
-                ? _keyspace.ScanPrefix(prefix, limit ?? int.MaxValue)
-                : _keyspace.ScanPrefixAfter(prefix, afterKey, limit ?? int.MaxValue);
-            var rows = new List<DocumentRow>(entries.Count);
-            foreach (var entry in entries)
+            int take = limit ?? int.MaxValue;
+            var rows = new List<DocumentRow>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var parts in partSets)
             {
-                string id = DocumentIndexCodec.DecodeIndexEntryValue(entry.Value.Span);
-                var row = GetLocked(id);
-                if (row is not null)
-                    rows.Add(row);
+                byte[] prefix = DocumentIndexCodec.EncodeIndexPrefix(index, parts);
+                byte[]? afterKey = string.IsNullOrEmpty(afterId)
+                    ? null
+                    : DocumentIndexCodec.EncodeIndexEntryKey(index, parts, afterId);
+                var entries = afterKey is null
+                    ? _keyspace.ScanPrefix(prefix, take - rows.Count)
+                    : _keyspace.ScanPrefixAfter(prefix, afterKey, take - rows.Count);
+                foreach (var entry in entries)
+                {
+                    string id = DocumentIndexCodec.DecodeIndexEntryValue(entry.Value.Span);
+                    if (!seen.Add(id))
+                        continue;
+
+                    var row = GetLocked(id);
+                    if (row is not null)
+                        rows.Add(row);
+                    if (rows.Count >= take)
+                        break;
+                }
+
+                if (rows.Count >= take)
+                    break;
             }
 
             return rows;
@@ -316,6 +417,7 @@ public sealed class DocumentCollectionStore : IDisposable
         ArgumentNullException.ThrowIfNull(index);
         lock (_sync)
         {
+            PurgeExpiredDocumentsLocked();
             var store = OpenFullTextStoreLocked(index, rebuildIfMissing: true);
             return store.Search(field, queryText, topK, mode);
         }
@@ -329,7 +431,10 @@ public sealed class DocumentCollectionStore : IDisposable
     {
         ArgumentNullException.ThrowIfNull(index);
         lock (_sync)
+        {
+            PurgeExpiredDocumentsLocked();
             return OpenFullTextStoreLocked(index, rebuildIfMissing: true).DocumentCount;
+        }
     }
 
     internal int RebuildFullTextIndex(DocumentFullTextIndex index, string indexDirectory)
@@ -338,6 +443,7 @@ public sealed class DocumentCollectionStore : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(indexDirectory);
         lock (_sync)
         {
+            PurgeExpiredDocumentsLocked();
             _fullTextStores.Remove(index.Name);
             if (Directory.Exists(indexDirectory))
                 Directory.Delete(indexDirectory, recursive: true);
@@ -396,6 +502,9 @@ public sealed class DocumentCollectionStore : IDisposable
         DocumentRow? newRow,
         byte[] documentKey)
     {
+        if (newRow is not null)
+            ValidateUniqueIndexesLocked(schema, oldRow, newRow);
+
         foreach (var indexEntry in oldRow is null ? [] : BuildIndexEntries(schema, oldRow))
             _keyspace.Delete(indexEntry.Key);
         if (oldRow is not null)
@@ -426,13 +535,76 @@ public sealed class DocumentCollectionStore : IDisposable
         var entries = new List<IndexEntry>(schema.Indexes.Count);
         foreach (var index in schema.Indexes)
         {
-            var path = JsonPath.Parse(index.Path);
-            if (!JsonPathEvaluator.TryResolve(document.RootElement, path, out var element))
+            if (!ShouldIndexDocument(index, document.RootElement))
                 continue;
+
+            var values = BuildIndexKeyParts(index, document.RootElement);
+            if (values is null)
+                continue;
+
+            entries.Add(new IndexEntry(
+                index,
+                DocumentIndexCodec.EncodeIndexEntryKey(index, values, row.Id),
+                DocumentIndexCodec.EncodeIndexEntryValue(row.Id)));
+        }
+
+        return entries;
+    }
+
+    private void ValidateUniqueIndexesLocked(DocumentCollectionSchema schema, DocumentRow? oldRow, DocumentRow newRow)
+    {
+        if (!schema.Indexes.Any(static i => i.IsUnique))
+            return;
+
+        using var document = JsonDocument.Parse(newRow.Json);
+        foreach (var index in schema.Indexes.Where(static i => i.IsUnique))
+        {
+            if (!ShouldIndexDocument(index, document.RootElement))
+                continue;
+
+            var values = BuildIndexKeyParts(index, document.RootElement);
+            if (values is null)
+                continue;
+
+            byte[] key = DocumentIndexCodec.EncodeIndexEntryKey(index, values, newRow.Id);
+            byte[]? existing = _keyspace.Get(key);
+            if (existing is null)
+                continue;
+
+            string existingId = DocumentIndexCodec.DecodeIndexEntryValue(existing);
+            if (oldRow is not null && string.Equals(existingId, oldRow.Id, StringComparison.Ordinal))
+                continue;
+
+            throw new InvalidOperationException($"文档集合 '{schema.Name}' 的唯一索引 '{index.Name}' 冲突。");
+        }
+    }
+
+    private static IReadOnlyList<DocumentIndexKeyPart>? BuildIndexKeyParts(DocumentPathIndex index, JsonElement root)
+    {
+        var values = new DocumentIndexKeyPart[index.Paths.Count];
+        for (int i = 0; i < index.Paths.Count; i++)
+        {
+            var path = JsonPath.Parse(index.Paths[i]);
+            if (!JsonPathEvaluator.TryResolve(root, path, out var element))
+            {
+                if (index.IsSparse)
+                    return null;
+
+                values[i] = DocumentIndexKeyPart.Missing;
+                continue;
+            }
+
+            if (element.ValueKind == JsonValueKind.Null)
+            {
+                if (index.IsSparse)
+                    return null;
+
+                values[i] = DocumentIndexKeyPart.Null;
+                continue;
+            }
 
             object? value = element.ValueKind switch
             {
-                JsonValueKind.Null => null,
                 JsonValueKind.True => true,
                 JsonValueKind.False => false,
                 JsonValueKind.String => element.GetString(),
@@ -443,14 +615,90 @@ public sealed class DocumentCollectionStore : IDisposable
 
             string? scalar = JsonPathEvaluator.ToIndexScalar(value);
             if (scalar is null)
-                continue;
+            {
+                if (index.IsSparse)
+                    return null;
 
-            entries.Add(new IndexEntry(
-                DocumentIndexCodec.EncodeIndexEntryKey(index, scalar, row.Id),
-                DocumentIndexCodec.EncodeIndexEntryValue(row.Id)));
+                values[i] = DocumentIndexKeyPart.Null;
+                continue;
+            }
+
+            values[i] = DocumentIndexKeyPart.FromScalar(scalar);
         }
 
-        return entries;
+        return values;
+    }
+
+    private static bool ShouldIndexDocument(DocumentPathIndex index, JsonElement root)
+    {
+        if (index.PartialFilter is null)
+            return true;
+
+        return MatchesPartialFilter(root, index.PartialFilter);
+    }
+
+    private static bool MatchesPartialFilter(JsonElement root, DocumentIndexPartialFilter filter)
+    {
+        bool exists = JsonPathEvaluator.TryResolve(root, JsonPath.Parse(filter.Path), out var element);
+        if (filter.Operator == DocumentIndexPartialFilterOperator.Exists)
+            return filter.ValueScalar is null or "true" ? exists : !exists;
+        if (!exists)
+            return false;
+
+        string? actual = JsonPathEvaluator.ToIndexScalar(JsonPathEvaluator.ConvertElement(element));
+        string? expected = filter.ValueScalar;
+        int comparison = string.Compare(actual, expected, StringComparison.Ordinal);
+        return filter.Operator switch
+        {
+            DocumentIndexPartialFilterOperator.Equal => string.Equals(actual, expected, StringComparison.Ordinal),
+            DocumentIndexPartialFilterOperator.NotEqual => !string.Equals(actual, expected, StringComparison.Ordinal),
+            DocumentIndexPartialFilterOperator.GreaterThan => comparison > 0,
+            DocumentIndexPartialFilterOperator.GreaterThanOrEqual => comparison >= 0,
+            DocumentIndexPartialFilterOperator.LessThan => comparison < 0,
+            DocumentIndexPartialFilterOperator.LessThanOrEqual => comparison <= 0,
+            _ => false,
+        };
+    }
+
+    private static IReadOnlyList<IReadOnlyList<DocumentIndexKeyPart>> EncodeLookupPartSets(DocumentPathIndex index, IReadOnlyList<object?> values)
+    {
+        if (values.Count != index.Paths.Count)
+            throw new ArgumentException("索引值数量与索引 path 数量不一致。", nameof(values));
+
+        var partSets = new List<DocumentIndexKeyPart[]> { new DocumentIndexKeyPart[values.Count] };
+        for (int i = 0; i < values.Count; i++)
+        {
+            var variants = EncodeLookupPartVariants(index, values[i]);
+            if (variants.Count == 0)
+                return [];
+
+            int existingCount = partSets.Count;
+            for (int variantIndex = 1; variantIndex < variants.Count; variantIndex++)
+            {
+                for (int setIndex = 0; setIndex < existingCount; setIndex++)
+                    partSets.Add((DocumentIndexKeyPart[])partSets[setIndex].Clone());
+            }
+
+            for (int setIndex = 0; setIndex < partSets.Count; setIndex++)
+                partSets[setIndex][i] = variants[setIndex / existingCount];
+        }
+
+        return partSets;
+    }
+
+    private static IReadOnlyList<DocumentIndexKeyPart> EncodeLookupPartVariants(DocumentPathIndex index, object? value)
+    {
+        if (value is not null)
+        {
+            string? scalar = JsonPathEvaluator.ToIndexScalar(value);
+            return scalar is null
+                ? [DocumentIndexKeyPart.Null]
+                : [DocumentIndexKeyPart.FromScalar(scalar)];
+        }
+
+        return index.IsSparse
+            ? []
+            : [DocumentIndexKeyPart.Null];
     }
 
     private void RebuildIndexesLocked()
@@ -466,8 +714,74 @@ public sealed class DocumentCollectionStore : IDisposable
             string id = DocumentIndexCodec.DecodeIdFromDocumentKey(rowEntry.Key);
             var row = new DocumentRow(id, Encoding.UTF8.GetString(rowEntry.Value.Span), rowEntry.Version);
             foreach (var indexEntry in BuildIndexEntries(_schema, row))
+            {
+                if (indexEntry.Index.IsUnique && _keyspace.Get(indexEntry.Key) is not null)
+                {
+                    throw new InvalidOperationException($"文档集合 '{_schema.Name}' 的唯一索引 '{indexEntry.Index.Name}' 冲突，无法重建索引。");
+                }
+
                 _keyspace.Put(indexEntry.Key, indexEntry.Value);
+            }
         }
+    }
+
+    private void PurgeExpiredDocumentsLocked()
+    {
+        var ttlIndexes = _schema.Indexes.Where(static i => i.IsTtl).ToArray();
+        if (ttlIndexes.Length == 0)
+            return;
+
+        long nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var expired = new List<DocumentRow>();
+        foreach (var row in ScanRowsLocked(int.MaxValue))
+        {
+            if (IsExpired(row, ttlIndexes, nowMs))
+                expired.Add(row);
+        }
+
+        foreach (var row in expired)
+            ApplyMutationLocked(_schema, row, newRow: null, DocumentIndexCodec.EncodeDocumentKey(row.Id));
+    }
+
+    private static bool IsExpired(DocumentRow row, IReadOnlyList<DocumentPathIndex> ttlIndexes, long nowMs)
+    {
+        using var document = JsonDocument.Parse(row.Json);
+        foreach (var index in ttlIndexes)
+        {
+            string ttlPath = index.TtlPath ?? index.Path;
+            if (!JsonPathEvaluator.TryResolve(document.RootElement, JsonPath.Parse(ttlPath), out var element))
+                continue;
+            if (!TryReadUnixMilliseconds(element, out long timestampMs))
+                continue;
+
+            long ttlMs = checked(index.TtlSeconds!.Value * 1000L);
+            if (timestampMs + ttlMs <= nowMs)
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryReadUnixMilliseconds(JsonElement element, out long timestampMs)
+    {
+        timestampMs = 0;
+        if (element.ValueKind == JsonValueKind.Number && element.TryGetInt64(out timestampMs))
+            return true;
+        if (element.ValueKind != JsonValueKind.String)
+            return false;
+
+        string? text = element.GetString();
+        if (string.IsNullOrWhiteSpace(text))
+            return false;
+        if (long.TryParse(text, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out timestampMs))
+            return true;
+        if (DateTimeOffset.TryParse(text, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var dto))
+        {
+            timestampMs = dto.ToUnixTimeMilliseconds();
+            return true;
+        }
+
+        return false;
     }
 
     private void ReconcileFullTextStoresLocked(DocumentCollectionSchema previousSchema, bool rebuildAll)
@@ -511,6 +825,69 @@ public sealed class DocumentCollectionStore : IDisposable
         return rows;
     }
 
+    private IReadOnlyList<DocumentRow> FindMatchingRowsLocked(DocumentFilter? filter, int limit)
+    {
+        var rows = new List<DocumentRow>();
+        foreach (var row in ScanRowsLocked(int.MaxValue))
+        {
+            if (!DocumentQueryPlanner.Matches(filter, row))
+                continue;
+
+            rows.Add(row);
+            if (rows.Count >= limit)
+                break;
+        }
+
+        return rows;
+    }
+
+    private DocumentUpdateResult ApplyUpdateRowsLocked(IReadOnlyList<DocumentRow> rows, DocumentUpdate update)
+    {
+        int modified = 0;
+        var schema = _schema;
+        foreach (var row in rows)
+        {
+            string updated = DocumentUpdateExecutor.Apply(row.Json, update);
+            if (string.Equals(row.Json, updated, StringComparison.Ordinal))
+                continue;
+
+            ApplyMutationLocked(
+                schema,
+                row,
+                new DocumentRow(row.Id, updated, Version: 0),
+                DocumentIndexCodec.EncodeDocumentKey(row.Id));
+            modified++;
+        }
+
+        return new DocumentUpdateResult(rows.Count, modified, Inserted: 0);
+    }
+
+    private DocumentUpdateResult UpsertFromUpdateLocked(
+        DocumentFilter? filter,
+        DocumentUpdate update,
+        bool upsert,
+        string? upsertId)
+    {
+        if (!upsert)
+            return new DocumentUpdateResult(Matched: 0, Modified: 0, Inserted: 0);
+
+        string id = upsertId ?? DocumentUpdateExecutor.TryInferUpsertId(filter)
+            ?? throw new InvalidOperationException("document update upsert 需要提供 upsertId 或 _id/id 等值过滤条件。");
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        byte[] documentKey = DocumentIndexCodec.EncodeDocumentKey(id);
+        if (TryGetByDocumentKeyLocked(documentKey) is not null)
+            throw new InvalidOperationException($"document update upsertId '{id}' 已存在，但过滤条件未匹配该文档。");
+
+        string seed = DocumentUpdateExecutor.BuildUpsertSeed(filter);
+        string updated = DocumentUpdateExecutor.Apply(seed, update);
+        ApplyMutationLocked(
+            _schema,
+            oldRow: null,
+            new DocumentRow(id, updated, Version: 0),
+            documentKey);
+        return new DocumentUpdateResult(Matched: 0, Modified: 0, Inserted: 1);
+    }
+
     private IReadOnlyList<DocumentRow> ScanRowsLocked(int limit, int skip = 0)
     {
         int take = limit == int.MaxValue ? int.MaxValue : checked(skip + limit);
@@ -539,5 +916,5 @@ public sealed class DocumentCollectionStore : IDisposable
         return rows;
     }
 
-    private sealed record IndexEntry(byte[] Key, byte[] Value);
+    private sealed record IndexEntry(DocumentPathIndex Index, byte[] Key, byte[] Value);
 }

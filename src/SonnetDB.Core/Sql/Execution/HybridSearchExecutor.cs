@@ -932,11 +932,19 @@ internal static class HybridSearchExecutor
 
         if (indexName is not null)
         {
-            return schema.TryGetIndex(indexName)
+            var index = schema.TryGetIndex(indexName)
                 ?? throw new InvalidOperationException($"document collection '{schema.Name}' 中不存在 JSON 索引 '{indexName}'。");
+            if (index.Paths.Count != 1 || !string.Equals(index.Path, documentJoinPath.Text, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"document_join_index '{indexName}' 必须是 path '{documentJoinPath.Text}' 的单字段文档索引。");
+            }
+
+            return index;
         }
 
         return schema.Indexes.FirstOrDefault(index =>
+            index.Paths.Count == 1 &&
             string.Equals(index.Path, documentJoinPath.Text, StringComparison.Ordinal));
     }
 

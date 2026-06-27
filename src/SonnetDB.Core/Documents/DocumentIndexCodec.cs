@@ -31,28 +31,44 @@ internal static class DocumentIndexCodec
     }
 
     public static byte[] EncodeIndexPrefix(DocumentPathIndex index, string scalar)
+        => EncodeIndexPrefix(index, [DocumentIndexKeyPart.FromScalar(scalar)]);
+
+    public static byte[] EncodeIndexPrefix(DocumentPathIndex index, IReadOnlyList<DocumentIndexKeyPart> values)
     {
+        ArgumentNullException.ThrowIfNull(index);
+        ArgumentNullException.ThrowIfNull(values);
+        if (values.Count != index.Paths.Count)
+            throw new ArgumentException("索引值数量与索引 path 数量不一致。", nameof(values));
+
         byte[] indexNameBytes = _utf8.GetBytes(index.Name);
-        byte[] scalarBytes = _utf8.GetBytes(scalar);
         if (indexNameBytes.Length > ushort.MaxValue)
             throw new InvalidOperationException($"文档索引 '{index.Name}' 名称过长。");
 
-        var key = new byte[1 + 2 + indexNameBytes.Length + 4 + scalarBytes.Length];
+        int totalSize = 1 + 2 + indexNameBytes.Length;
+        foreach (var value in values)
+            totalSize += GetEncodedPartSize(value);
+
+        var key = new byte[totalSize];
         int offset = 0;
         key[offset++] = (byte)'i';
         BinaryPrimitives.WriteUInt16BigEndian(key.AsSpan(offset, 2), (ushort)indexNameBytes.Length);
         offset += 2;
         indexNameBytes.CopyTo(key.AsSpan(offset));
         offset += indexNameBytes.Length;
-        BinaryPrimitives.WriteInt32BigEndian(key.AsSpan(offset, 4), scalarBytes.Length);
-        offset += 4;
-        scalarBytes.CopyTo(key.AsSpan(offset));
+        foreach (var value in values)
+            offset += WriteEncodedPart(key.AsSpan(offset), value);
         return key;
     }
 
     public static byte[] EncodeIndexEntryKey(DocumentPathIndex index, string scalar, string id)
+        => EncodeIndexEntryKey(index, [DocumentIndexKeyPart.FromScalar(scalar)], id);
+
+    public static byte[] EncodeIndexEntryKey(DocumentPathIndex index, IReadOnlyList<DocumentIndexKeyPart> values, string id)
     {
-        byte[] prefix = EncodeIndexPrefix(index, scalar);
+        byte[] prefix = EncodeIndexPrefix(index, values);
+        if (index.IsUnique)
+            return prefix;
+
         byte[] idBytes = _utf8.GetBytes(id);
         var key = new byte[prefix.Length + 4 + idBytes.Length];
         prefix.CopyTo(key);
@@ -66,4 +82,48 @@ internal static class DocumentIndexCodec
 
     public static string DecodeIndexEntryValue(ReadOnlySpan<byte> value)
         => _utf8.GetString(value);
+
+    private static int GetEncodedPartSize(DocumentIndexKeyPart value)
+        => value.Kind == DocumentIndexKeyPartKind.Scalar
+            ? 1 + 4 + _utf8.GetByteCount(value.Scalar!)
+            : 1;
+
+    private static int WriteEncodedPart(Span<byte> destination, DocumentIndexKeyPart value)
+    {
+        destination[0] = value.Kind switch
+        {
+            DocumentIndexKeyPartKind.Missing => (byte)0,
+            DocumentIndexKeyPartKind.Null => (byte)1,
+            DocumentIndexKeyPartKind.Scalar => (byte)2,
+            _ => throw new InvalidOperationException($"未知文档索引值类型 {value.Kind}。"),
+        };
+
+        if (value.Kind != DocumentIndexKeyPartKind.Scalar)
+            return 1;
+
+        byte[] bytes = _utf8.GetBytes(value.Scalar!);
+        BinaryPrimitives.WriteInt32BigEndian(destination.Slice(1, 4), bytes.Length);
+        bytes.CopyTo(destination.Slice(5));
+        return 5 + bytes.Length;
+    }
+}
+
+internal readonly record struct DocumentIndexKeyPart(DocumentIndexKeyPartKind Kind, string? Scalar)
+{
+    public static DocumentIndexKeyPart Missing { get; } = new(DocumentIndexKeyPartKind.Missing, null);
+
+    public static DocumentIndexKeyPart Null { get; } = new(DocumentIndexKeyPartKind.Null, null);
+
+    public static DocumentIndexKeyPart FromScalar(string scalar)
+    {
+        ArgumentNullException.ThrowIfNull(scalar);
+        return new DocumentIndexKeyPart(DocumentIndexKeyPartKind.Scalar, scalar);
+    }
+}
+
+internal enum DocumentIndexKeyPartKind
+{
+    Missing,
+    Null,
+    Scalar,
 }

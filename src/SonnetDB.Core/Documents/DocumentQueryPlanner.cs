@@ -137,11 +137,11 @@ public static class DocumentQueryPlanner
                 "primary");
         }
 
-        if (TryChoosePathIndex(schema, filter, out var index, out var value))
+        if (TryChoosePathIndex(schema, filter, out var index, out var values))
         {
             return new AccessPlan(
-                store.GetByIndex(index, value),
-                "json_path_index",
+                store.GetByIndex(index, values),
+                "document_index",
                 index.Name);
         }
 
@@ -172,14 +172,16 @@ public static class DocumentQueryPlanner
         DocumentCollectionSchema schema,
         DocumentFilter? filter,
         out DocumentPathIndex index,
-        out object? value)
+        out IReadOnlyList<object?> values)
     {
         index = null!;
-        value = null;
+        values = [];
         if (schema.Indexes.Count == 0)
             return false;
 
-        foreach (var leaf in FlattenAnd(filter))
+        var leaves = FlattenAnd(filter).ToArray();
+        var equalityByPath = new Dictionary<string, object?>(StringComparer.Ordinal);
+        foreach (var leaf in leaves)
         {
             if (leaf is not DocumentFieldFilter
                 {
@@ -193,18 +195,102 @@ public static class DocumentQueryPlanner
             }
 
             string normalized = JsonPath.Parse(fieldFilter.Field.Path).Text;
-            foreach (var candidate in schema.Indexes)
+            equalityByPath[normalized] = filterValue;
+        }
+
+        foreach (var candidate in schema.Indexes.OrderByDescending(static i => i.Paths.Count))
+        {
+            if (!CanUsePartialIndex(candidate, leaves))
+                continue;
+
+            var candidateValues = new object?[candidate.Paths.Count];
+            bool matched = true;
+            for (int i = 0; i < candidate.Paths.Count; i++)
             {
-                if (string.Equals(candidate.Path, normalized, StringComparison.Ordinal))
+                if (!equalityByPath.TryGetValue(candidate.Paths[i], out candidateValues[i]))
                 {
-                    index = candidate;
-                    value = filterValue;
-                    return true;
+                    matched = false;
+                    break;
                 }
             }
+
+            if (!matched)
+                continue;
+            if (candidate.IsSparse && candidateValues.Any(static value => value is null))
+                continue;
+
+            index = candidate;
+            values = candidateValues;
+            return true;
         }
 
         return false;
+    }
+
+    private static bool CanUsePartialIndex(DocumentPathIndex index, IReadOnlyList<DocumentFilter> leaves)
+        => index.PartialFilter is null
+           || leaves.Any(leaf => LeafSatisfiesPartialFilter(index.PartialFilter, leaf));
+
+    private static bool LeafSatisfiesPartialFilter(DocumentIndexPartialFilter filter, DocumentFilter leaf)
+    {
+        if (leaf is not DocumentFieldFilter
+            {
+                Field.Kind: DocumentFieldKind.JsonPath,
+                Field.Path: not null,
+            } field)
+        {
+            return false;
+        }
+
+        string normalizedPath = JsonPath.Parse(field.Field.Path).Text;
+        if (!string.Equals(normalizedPath, filter.Path, StringComparison.Ordinal))
+            return false;
+
+        if (filter.Operator == DocumentIndexPartialFilterOperator.Exists)
+        {
+            bool expected = filter.ValueScalar is null or "true";
+            if (field.Operator == DocumentFilterOperator.Exists)
+            {
+                bool actual = field.Value is not bool b || b;
+                return actual == expected;
+            }
+
+            return expected;
+        }
+
+        return TryMapPartialFilterOperator(field.Operator, out var mapped)
+               && mapped == filter.Operator
+               && string.Equals(JsonPathEvaluator.ToIndexScalar(field.Value), filter.ValueScalar, StringComparison.Ordinal);
+    }
+
+    private static bool TryMapPartialFilterOperator(
+        DocumentFilterOperator source,
+        out DocumentIndexPartialFilterOperator target)
+    {
+        switch (source)
+        {
+            case DocumentFilterOperator.Equal:
+                target = DocumentIndexPartialFilterOperator.Equal;
+                return true;
+            case DocumentFilterOperator.NotEqual:
+                target = DocumentIndexPartialFilterOperator.NotEqual;
+                return true;
+            case DocumentFilterOperator.GreaterThan:
+                target = DocumentIndexPartialFilterOperator.GreaterThan;
+                return true;
+            case DocumentFilterOperator.GreaterThanOrEqual:
+                target = DocumentIndexPartialFilterOperator.GreaterThanOrEqual;
+                return true;
+            case DocumentFilterOperator.LessThan:
+                target = DocumentIndexPartialFilterOperator.LessThan;
+                return true;
+            case DocumentFilterOperator.LessThanOrEqual:
+                target = DocumentIndexPartialFilterOperator.LessThanOrEqual;
+                return true;
+            default:
+                target = default;
+                return false;
+        }
     }
 
     private static IEnumerable<DocumentFilter> FlattenAnd(DocumentFilter? filter)

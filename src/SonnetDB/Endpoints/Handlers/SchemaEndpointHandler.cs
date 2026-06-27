@@ -1,4 +1,5 @@
 ﻿using SonnetDB.Contracts;
+using SonnetDB.Documents;
 using SonnetDB.Engine;
 using SonnetDB.Json;
 using SonnetDB.Storage.Format;
@@ -105,7 +106,14 @@ internal static class SchemaEndpointHandler
                     index.Name,
                     index.Path,
                     ToDateTimeOffset(index.CreatedAtUtcTicks),
-                    Rebuildable: true));
+                    Rebuildable: true,
+                    Paths: index.Paths.ToList(),
+                    IsUnique: index.IsUnique,
+                    IsSparse: index.IsSparse,
+                    IsPartial: index.PartialFilter is not null,
+                    PartialFilter: FormatDocumentPartialFilter(index.PartialFilter),
+                    IsTtl: index.IsTtl,
+                    TtlSeconds: index.TtlSeconds));
             }
 
             var fullTextIndexes = new List<DocumentFullTextIndexInfo>(schema.FullTextIndexes.Count);
@@ -166,12 +174,13 @@ internal static class SchemaEndpointHandler
                     Model: "document",
                     Owner: collection.Name,
                     Name: index.Name,
-                    Kind: "json_path",
+                    Kind: DocumentIndexKind(index),
                     State: "ready",
                     IncludedInBackup: true,
                     Rebuildable: index.Rebuildable,
                     CreatedUtc: index.CreatedUtc,
-                    Columns: [index.Path]));
+                    Columns: index.Paths ?? [index.Path],
+                    Detail: FormatDocumentIndexDetail(index)));
             }
 
             foreach (var index in collection.FullTextIndexes)
@@ -282,6 +291,57 @@ internal static class SchemaEndpointHandler
 
     private static DateTimeOffset ToDateTimeOffset(long ticks)
         => new(new DateTime(ticks, DateTimeKind.Utc));
+
+    private static string DocumentIndexKind(DocumentJsonIndexInfo index)
+    {
+        if (index.IsTtl)
+            return "ttl";
+        if (index.IsUnique)
+            return "unique_document";
+        if (index.IsPartial)
+            return "partial_document";
+        if (index.IsSparse)
+            return "sparse_document";
+        return index.Paths is { Count: > 1 } ? "compound_document" : "document";
+    }
+
+    private static string FormatDocumentIndexDetail(DocumentJsonIndexInfo index)
+    {
+        var parts = new List<string>
+        {
+            "paths=" + string.Join(",", index.Paths ?? [index.Path]),
+        };
+        if (index.IsUnique)
+            parts.Add("unique=true");
+        if (index.IsSparse)
+            parts.Add("sparse=true");
+        if (!string.IsNullOrWhiteSpace(index.PartialFilter))
+            parts.Add("partial=" + index.PartialFilter);
+        if (index.IsTtl)
+            parts.Add("ttl_seconds=" + index.TtlSeconds);
+        return string.Join(";", parts);
+    }
+
+    private static string? FormatDocumentPartialFilter(DocumentIndexPartialFilter? filter)
+    {
+        if (filter is null)
+            return null;
+
+        string op = filter.Operator switch
+        {
+            DocumentIndexPartialFilterOperator.Exists => "exists",
+            DocumentIndexPartialFilterOperator.Equal => "=",
+            DocumentIndexPartialFilterOperator.NotEqual => "!=",
+            DocumentIndexPartialFilterOperator.GreaterThan => ">",
+            DocumentIndexPartialFilterOperator.GreaterThanOrEqual => ">=",
+            DocumentIndexPartialFilterOperator.LessThan => "<",
+            DocumentIndexPartialFilterOperator.LessThanOrEqual => "<=",
+            _ => filter.Operator.ToString(),
+        };
+        return filter.Operator == DocumentIndexPartialFilterOperator.Exists
+            ? $"{filter.Path} exists {filter.ValueScalar ?? "true"}"
+            : $"{filter.Path} {op} {filter.ValueScalar}";
+    }
 
     private static int CountFiles(string directory, string searchPattern)
         => Directory.Exists(directory)

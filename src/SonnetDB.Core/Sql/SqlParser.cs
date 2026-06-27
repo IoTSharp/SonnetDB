@@ -98,8 +98,19 @@ public sealed class SqlParser
             Advance();
         }
 
+        var sparse = false;
+        var ttl = false;
+        while (Current.Kind is TokenKind.KeywordSparse or TokenKind.KeywordTtl || IsIdentifier("sparse") || IsIdentifier("ttl"))
+        {
+            if (Current.Kind == TokenKind.KeywordSparse || IsIdentifier("sparse"))
+                sparse = true;
+            else
+                ttl = true;
+            Advance();
+        }
+
         if (IsIndexKeyword())
-            return ParseCreateIndexBody(unique);
+            return ParseCreateIndexBody(unique, sparse, ttl);
 
         return Current.Kind switch
         {
@@ -114,7 +125,7 @@ public sealed class SqlParser
         };
     }
 
-    private CreateTableIndexStatement ParseCreateIndexBody(bool unique)
+    private CreateTableIndexStatement ParseCreateIndexBody(bool unique, bool sparse, bool ttl)
     {
         ExpectIndexKeyword("CREATE 后面期望 INDEX");
 
@@ -131,14 +142,29 @@ public sealed class SqlParser
         Expect(TokenKind.KeywordOn);
         var tableName = ExpectIdentifierName();
         Expect(TokenKind.LeftParen);
-        var columns = new List<string> { ExpectColumnName() };
+        var columns = new List<string> { ExpectIndexColumnOrPath() };
         while (Current.Kind == TokenKind.Comma)
         {
             Advance();
-            columns.Add(ExpectColumnName());
+            columns.Add(ExpectIndexColumnOrPath());
         }
         Expect(TokenKind.RightParen);
-        return new CreateTableIndexStatement(indexName, tableName, columns, unique, ifNotExists);
+
+        long? ttlSeconds = null;
+        if (ttl)
+            ttlSeconds = ParseOptionalTtlSeconds();
+
+        SqlExpression? partialFilter = null;
+        if (Current.Kind == TokenKind.KeywordWhere)
+        {
+            Advance();
+            partialFilter = ParseExpression();
+        }
+
+        DocumentIndexOptions? documentOptions = sparse || ttlSeconds is not null || partialFilter is not null
+            ? new DocumentIndexOptions(sparse, ttlSeconds, partialFilter)
+            : null;
+        return new CreateTableIndexStatement(indexName, tableName, columns, unique, ifNotExists, documentOptions);
     }
 
     private CreateDocumentCollectionStatement ParseCreateDocumentBody()
@@ -188,7 +214,7 @@ public sealed class SqlParser
         }
         Expect(TokenKind.RightParen);
         return columnName is null
-            ? new CreateDocumentPathIndexStatement(indexName, collectionName, path, ifNotExists)
+            ? new CreateDocumentIndexStatement(indexName, collectionName, [path], IfNotExists: ifNotExists)
             : new CreateTableJsonPathIndexStatement(indexName, collectionName, columnName, path, ifNotExists);
     }
 
@@ -1963,6 +1989,34 @@ public sealed class SqlParser
             default:
                 throw Error("期望列名");
         }
+    }
+
+    private string ExpectIndexColumnOrPath()
+    {
+        if (Current.Kind == TokenKind.StringLiteral)
+            return ExpectStringLiteral();
+
+        return ExpectColumnName();
+    }
+
+    private long? ParseOptionalTtlSeconds()
+    {
+        if (Current.Kind != TokenKind.KeywordWith)
+            throw Error("TTL INDEX 需要 WITH ttl_seconds = <seconds>");
+
+        Advance();
+        if (Current.Kind == TokenKind.LeftParen)
+            Advance();
+
+        string parameterName = ExpectIdentifierName();
+        if (!IsParameter(parameterName, "ttl_seconds", "expire_after_seconds", "seconds"))
+            throw Error("TTL INDEX WITH 后面期望 ttl_seconds 参数");
+        Expect(TokenKind.Equal);
+        int ttlSeconds = ExpectPositiveInt("ttl_seconds 必须是正整数");
+
+        if (Current.Kind == TokenKind.RightParen)
+            Advance();
+        return ttlSeconds;
     }
 
     private string ExpectFullTextFieldName()

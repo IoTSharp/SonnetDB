@@ -285,7 +285,7 @@ public sealed class SndbDocumentClient : IDisposable
         using var document = JsonDocument.Parse(json);
         using var response = await PostJsonAsync(
             CollectionActionUrl(collection, "update-one"),
-            new DocumentUpdateOneRequest(id, document.RootElement.Clone()),
+            new DocumentUpdateOneRequest(Id: id, Document: document.RootElement.Clone()),
             SndbDocumentClientJsonContext.Default.DocumentUpdateOneRequest,
             cancellationToken).ConfigureAwait(false);
         return ToWriteResult(await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentWriteResponse, cancellationToken).ConfigureAwait(false));
@@ -327,6 +327,90 @@ public sealed class SndbDocumentClient : IDisposable
         using var response = await PostJsonAsync(
             CollectionActionUrl(collection, "update-many"),
             payload.Request,
+            SndbDocumentClientJsonContext.Default.DocumentUpdateManyRequest,
+            cancellationToken).ConfigureAwait(false);
+        return ToWriteResult(await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentWriteResponse, cancellationToken).ConfigureAwait(false));
+    }
+
+    /// <summary>
+    /// 对匹配到的一条文档执行局部更新操作符，可选在未匹配时 upsert。
+    /// </summary>
+    /// <param name="collection">文档集合名称。</param>
+    /// <param name="filter">过滤条件；为空时按 <paramref name="id"/> 匹配。</param>
+    /// <param name="update">局部更新操作符集合。</param>
+    /// <param name="id">可选文档 ID；提供时会与 <paramref name="filter"/> 做 AND 合并。</param>
+    /// <param name="upsert">未匹配时是否插入新文档。</param>
+    /// <param name="upsertId">upsert 新文档 ID；为空时从 <paramref name="id"/> 或过滤条件推断。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>文档更新结果。</returns>
+    public async Task<SndbDocumentWriteResult> UpdateOneAsync(
+        string collection,
+        SndbDocumentFilter? filter,
+        SndbDocumentUpdate update,
+        string? id = null,
+        bool upsert = false,
+        string? upsertId = null,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ValidateCollection(collection);
+        ArgumentNullException.ThrowIfNull(update);
+        if (!string.IsNullOrWhiteSpace(id))
+            ValidateId(id);
+
+        if (_embedded is not null)
+        {
+            var result = _embedded.Documents.Open(collection).UpdateOne(
+                MergeClientFilters(id, filter),
+                ToCoreUpdate(update),
+                upsert,
+                upsertId ?? id);
+            return new SndbDocumentWriteResult(collection, result.Inserted, result.Matched, result.Modified, 0);
+        }
+
+        using var response = await PostJsonAsync(
+            CollectionActionUrl(collection, "update-one"),
+            new DocumentUpdateOneRequest(id, null, filter, update, upsert, upsertId),
+            SndbDocumentClientJsonContext.Default.DocumentUpdateOneRequest,
+            cancellationToken).ConfigureAwait(false);
+        return ToWriteResult(await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentWriteResponse, cancellationToken).ConfigureAwait(false));
+    }
+
+    /// <summary>
+    /// 对所有匹配文档执行局部更新操作符，可选在未匹配时 upsert。
+    /// </summary>
+    /// <param name="collection">文档集合名称。</param>
+    /// <param name="filter">过滤条件；为空时匹配全部文档。</param>
+    /// <param name="update">局部更新操作符集合。</param>
+    /// <param name="upsert">未匹配时是否插入新文档。</param>
+    /// <param name="upsertId">upsert 新文档 ID；为空时从过滤条件推断。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>文档更新结果。</returns>
+    public async Task<SndbDocumentWriteResult> UpdateManyAsync(
+        string collection,
+        SndbDocumentFilter? filter,
+        SndbDocumentUpdate update,
+        bool upsert = false,
+        string? upsertId = null,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ValidateCollection(collection);
+        ArgumentNullException.ThrowIfNull(update);
+
+        if (_embedded is not null)
+        {
+            var result = _embedded.Documents.Open(collection).UpdateMany(
+                ToCoreFilter(filter),
+                ToCoreUpdate(update),
+                upsert,
+                upsertId);
+            return new SndbDocumentWriteResult(collection, result.Inserted, result.Matched, result.Modified, 0);
+        }
+
+        using var response = await PostJsonAsync(
+            CollectionActionUrl(collection, "update-many"),
+            new DocumentUpdateManyRequest(null, filter, update, upsert, upsertId),
             SndbDocumentClientJsonContext.Default.DocumentUpdateManyRequest,
             cancellationToken).ConfigureAwait(false);
         return ToWriteResult(await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentWriteResponse, cancellationToken).ConfigureAwait(false));
@@ -759,6 +843,22 @@ public sealed class SndbDocumentClient : IDisposable
         };
     }
 
+    private static DocumentFilter? MergeClientFilters(string? id, SndbDocumentFilter? filter)
+    {
+        var filters = new List<DocumentFilter>();
+        if (!string.IsNullOrWhiteSpace(id))
+            filters.Add(new DocumentFieldFilter(DocumentFieldRef.Id, DocumentFilterOperator.Equal, id));
+        if (ToCoreFilter(filter) is { } coreFilter)
+            filters.Add(coreFilter);
+
+        return filters.Count switch
+        {
+            0 => null,
+            1 => filters[0],
+            _ => new DocumentAndFilter(filters),
+        };
+    }
+
     private static DocumentFilter? ToCoreFilter(SndbDocumentFilter? filter)
     {
         if (filter is null)
@@ -876,6 +976,19 @@ public sealed class SndbDocumentClient : IDisposable
             return value.Value.GetBoolean();
         return false;
     }
+
+    private static DocumentUpdate ToCoreUpdate(SndbDocumentUpdate update)
+        => new(
+            update.Set,
+            update.Unset,
+            update.Inc,
+            update.Min,
+            update.Max,
+            update.Rename,
+            update.Push,
+            update.Pull,
+            update.AddToSet,
+            update.CurrentDate);
 
     private static object? ToObject(JsonElementValue value)
         => value.Kind switch

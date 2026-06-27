@@ -162,8 +162,15 @@ public static class SqlExecutor
             CreateMeasurementStatement create => ExecuteCreateMeasurement(tsdb, create),
             CreateTableStatement createTable => TableSqlExecutor.ExecuteCreateTable(tsdb, createTable),
             CreateDocumentCollectionStatement createDocumentCollection => DocumentSqlExecutor.ExecuteCreateCollection(tsdb, createDocumentCollection),
-            CreateTableIndexStatement createIndex => TableSqlExecutor.ExecuteCreateIndex(tsdb, createIndex),
-            CreateDocumentPathIndexStatement createDocumentIndex => DocumentSqlExecutor.ExecuteCreateIndex(tsdb, createDocumentIndex),
+            CreateTableIndexStatement createIndex => ExecuteCreateIndex(tsdb, createIndex),
+            CreateDocumentIndexStatement createDocumentIndex => DocumentSqlExecutor.ExecuteCreateIndex(tsdb, createDocumentIndex),
+            CreateDocumentPathIndexStatement createDocumentIndex => DocumentSqlExecutor.ExecuteCreateIndex(
+                tsdb,
+                new CreateDocumentIndexStatement(
+                    createDocumentIndex.IndexName,
+                    createDocumentIndex.CollectionName,
+                    [createDocumentIndex.Path],
+                    IfNotExists: createDocumentIndex.IfNotExists)),
             CreateTableJsonPathIndexStatement createTableJsonIndex => TableSqlExecutor.ExecuteCreateJsonPathIndex(tsdb, createTableJsonIndex),
             CreateFullTextIndexStatement createFullTextIndex => DocumentSqlExecutor.ExecuteCreateFullTextIndex(tsdb, createFullTextIndex),
             ImportJsonStatement importJson => JsonFileSqlExecutor.ExecuteImport(tsdb, importJson),
@@ -223,6 +230,27 @@ public static class SqlExecutor
             throw new InvalidOperationException("ROLLBACK 前没有活动轻事务。");
         transaction.MarkCompleted();
         return new RowsAffectedExecutionResult("*", 0, "rollback");
+    }
+
+    private static object ExecuteCreateIndex(Tsdb tsdb, CreateTableIndexStatement statement)
+    {
+        if (tsdb.Documents.Catalog.TryGet(statement.TableName) is not null
+            || statement.Columns.Any(static c => c.StartsWith('$')))
+        {
+            return DocumentSqlExecutor.ExecuteCreateIndex(
+                tsdb,
+                new CreateDocumentIndexStatement(
+                    statement.IndexName,
+                    statement.TableName,
+                    statement.Columns,
+                    statement.IsUnique,
+                    statement.DocumentOptions?.IsSparse ?? false,
+                    statement.DocumentOptions?.TtlSeconds,
+                    statement.DocumentOptions?.PartialFilter,
+                    statement.IfNotExists));
+        }
+
+        return TableSqlExecutor.ExecuteCreateIndex(tsdb, statement);
     }
 
     private static SelectExecutionResult ExecuteExplain(Tsdb tsdb, string? databaseName, ExplainStatement statement)

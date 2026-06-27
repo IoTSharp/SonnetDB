@@ -49,6 +49,10 @@ public enum TokenKind
     KeywordCreate,
     /// <summary>UNIQUE（二级索引唯一性声明）。</summary>
     KeywordUnique,
+    /// <summary>SPARSE（文档索引稀疏声明）。</summary>
+    KeywordSparse,
+    /// <summary>TTL（文档 TTL 索引声明）。</summary>
+    KeywordTtl,
     /// <summary>INDEX（二级索引 DDL）。</summary>
     KeywordIndex,
     KeywordMeasurement,

@@ -78,6 +78,31 @@ public sealed record SndbDocumentProjection(string? Name = null, string? Path = 
 public sealed record SndbDocumentSort(string Path, bool Descending = false);
 
 /// <summary>
+/// SonnetDB 文档局部更新操作符集合。
+/// </summary>
+/// <param name="Set">对应 $set。</param>
+/// <param name="Unset">对应 $unset。</param>
+/// <param name="Inc">对应 $inc。</param>
+/// <param name="Min">对应 $min。</param>
+/// <param name="Max">对应 $max。</param>
+/// <param name="Rename">对应 $rename。</param>
+/// <param name="Push">对应 $push。</param>
+/// <param name="Pull">对应 $pull。</param>
+/// <param name="AddToSet">对应 $addToSet。</param>
+/// <param name="CurrentDate">对应 $currentDate。</param>
+public sealed record SndbDocumentUpdate(
+    IReadOnlyDictionary<string, JsonElement>? Set = null,
+    IReadOnlyDictionary<string, JsonElement>? Unset = null,
+    IReadOnlyDictionary<string, JsonElement>? Inc = null,
+    IReadOnlyDictionary<string, JsonElement>? Min = null,
+    IReadOnlyDictionary<string, JsonElement>? Max = null,
+    IReadOnlyDictionary<string, string>? Rename = null,
+    IReadOnlyDictionary<string, JsonElement>? Push = null,
+    IReadOnlyDictionary<string, JsonElement>? Pull = null,
+    IReadOnlyDictionary<string, JsonElement>? AddToSet = null,
+    IReadOnlyDictionary<string, JsonElement>? CurrentDate = null);
+
+/// <summary>
 /// 文档写操作结果。
 /// </summary>
 /// <param name="Collection">文档集合名称。</param>
@@ -140,9 +165,20 @@ internal sealed record DocumentFindOneResponse(
     bool Found,
     DocumentItemResponse? Document);
 
-internal sealed record DocumentUpdateOneRequest(string Id, JsonElement Document);
+internal sealed record DocumentUpdateOneRequest(
+    string? Id = null,
+    JsonElement? Document = null,
+    SndbDocumentFilter? Filter = null,
+    SndbDocumentUpdate? Update = null,
+    bool Upsert = false,
+    string? UpsertId = null);
 
-internal sealed record DocumentUpdateManyRequest(IReadOnlyList<DocumentWriteItem> Documents);
+internal sealed record DocumentUpdateManyRequest(
+    IReadOnlyList<DocumentWriteItem>? Documents = null,
+    SndbDocumentFilter? Filter = null,
+    SndbDocumentUpdate? Update = null,
+    bool Upsert = false,
+    string? UpsertId = null);
 
 internal sealed record DocumentDeleteOneRequest(string Id);
 

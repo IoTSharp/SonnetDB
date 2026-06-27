@@ -116,17 +116,61 @@ public sealed record DocumentFindOneResponse(
     DocumentItemResponse? Document);
 
 /// <summary>
-/// 单文档整体替换请求。
+/// 文档局部更新操作符请求体。
 /// </summary>
-/// <param name="Id">文档 ID。</param>
-/// <param name="Document">新的 JSON 文档主体。</param>
-public sealed record DocumentUpdateOneRequest(string Id, JsonElement Document);
+/// <param name="Set">对应 $set。</param>
+/// <param name="Unset">对应 $unset。</param>
+/// <param name="Inc">对应 $inc。</param>
+/// <param name="Min">对应 $min。</param>
+/// <param name="Max">对应 $max。</param>
+/// <param name="Rename">对应 $rename。</param>
+/// <param name="Push">对应 $push。</param>
+/// <param name="Pull">对应 $pull。</param>
+/// <param name="AddToSet">对应 $addToSet。</param>
+/// <param name="CurrentDate">对应 $currentDate。</param>
+public sealed record DocumentUpdateContract(
+    IReadOnlyDictionary<string, JsonElement>? Set = null,
+    IReadOnlyDictionary<string, JsonElement>? Unset = null,
+    IReadOnlyDictionary<string, JsonElement>? Inc = null,
+    IReadOnlyDictionary<string, JsonElement>? Min = null,
+    IReadOnlyDictionary<string, JsonElement>? Max = null,
+    IReadOnlyDictionary<string, string>? Rename = null,
+    IReadOnlyDictionary<string, JsonElement>? Push = null,
+    IReadOnlyDictionary<string, JsonElement>? Pull = null,
+    IReadOnlyDictionary<string, JsonElement>? AddToSet = null,
+    IReadOnlyDictionary<string, JsonElement>? CurrentDate = null);
 
 /// <summary>
-/// 批量整体替换文档请求。第一版不执行 upsert，仅替换已存在文档。
+/// 单文档整体替换或局部更新请求。
 /// </summary>
-/// <param name="Documents">要替换的文档列表。</param>
-public sealed record DocumentUpdateManyRequest(IReadOnlyList<DocumentWriteItem> Documents);
+/// <param name="Id">文档 ID；局部更新时可与 <paramref name="Filter"/> 合并。</param>
+/// <param name="Document">整体替换时新的 JSON 文档主体。</param>
+/// <param name="Filter">局部更新时使用的过滤条件。</param>
+/// <param name="Update">局部更新操作符；为空时保持整体替换语义。</param>
+/// <param name="Upsert">局部更新未匹配时是否插入新文档。</param>
+/// <param name="UpsertId">upsert 插入的新文档 ID；为空时从 <paramref name="Id"/> 或过滤条件推断。</param>
+public sealed record DocumentUpdateOneRequest(
+    string? Id = null,
+    JsonElement? Document = null,
+    DocumentFilterContract? Filter = null,
+    DocumentUpdateContract? Update = null,
+    bool Upsert = false,
+    string? UpsertId = null);
+
+/// <summary>
+/// 批量整体替换或局部更新文档请求。
+/// </summary>
+/// <param name="Documents">整体替换时要替换的文档列表。</param>
+/// <param name="Filter">局部更新时使用的过滤条件。</param>
+/// <param name="Update">局部更新操作符；为空时保持整体替换语义。</param>
+/// <param name="Upsert">局部更新未匹配时是否插入新文档。</param>
+/// <param name="UpsertId">upsert 插入的新文档 ID；为空时从过滤条件推断。</param>
+public sealed record DocumentUpdateManyRequest(
+    IReadOnlyList<DocumentWriteItem>? Documents = null,
+    DocumentFilterContract? Filter = null,
+    DocumentUpdateContract? Update = null,
+    bool Upsert = false,
+    string? UpsertId = null);
 
 /// <summary>
 /// 单文档删除请求。

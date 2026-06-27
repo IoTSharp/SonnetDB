@@ -175,4 +175,109 @@ public sealed class SndbDocumentClientTests : IDisposable
             Filter: new SndbDocumentFilter("$.nullable", "eq", nullValue.RootElement.Clone())));
         Assert.Equal(["null-value"], equalsNull.Select(static d => d.Id).ToArray());
     }
+
+    [Fact]
+    public async Task DocumentClient_UpdateOperators_ModifyDocumentsAndSupportUpsert()
+    {
+        using var client = new SndbDocumentClient(new SndbConnectionStringBuilder
+        {
+            DataSource = _root,
+        }.ConnectionString);
+
+        await client.CreateCollectionAsync("devices");
+        await client.InsertManyAsync("devices", [
+            new KeyValuePair<string, string>("dev-1", """{"site":"north","score":5,"min":10,"max":10,"name":"pump","tags":["hot"],"old":"legacy"}"""),
+            new KeyValuePair<string, string>("dev-2", """{"site":"north","score":1,"tags":["cold"]}"""),
+        ]);
+
+        using var ok = JsonDocument.Parse("\"ok\"");
+        using var unset = JsonDocument.Parse("true");
+        using var inc = JsonDocument.Parse("2");
+        using var min = JsonDocument.Parse("7");
+        using var max = JsonDocument.Parse("12");
+        using var pushed = JsonDocument.Parse("\"new\"");
+        using var pulled = JsonDocument.Parse("\"hot\"");
+        using var setValue = JsonDocument.Parse("\"new\"");
+        using var currentDate = JsonDocument.Parse("true");
+
+        var updated = await client.UpdateOneAsync(
+            "devices",
+            filter: null,
+            new SndbDocumentUpdate(
+                Set: new Dictionary<string, JsonElement> { ["$.status"] = ok.RootElement.Clone() },
+                Unset: new Dictionary<string, JsonElement> { ["$.old"] = unset.RootElement.Clone() },
+                Inc: new Dictionary<string, JsonElement> { ["$.score"] = inc.RootElement.Clone() },
+                Min: new Dictionary<string, JsonElement> { ["$.min"] = min.RootElement.Clone() },
+                Max: new Dictionary<string, JsonElement> { ["$.max"] = max.RootElement.Clone() },
+                Rename: new Dictionary<string, string> { ["$.name"] = "$.kind" },
+                Push: new Dictionary<string, JsonElement> { ["$.events"] = pushed.RootElement.Clone() },
+                Pull: new Dictionary<string, JsonElement> { ["$.tags"] = pulled.RootElement.Clone() },
+                AddToSet: new Dictionary<string, JsonElement> { ["$.labels"] = setValue.RootElement.Clone() },
+                CurrentDate: new Dictionary<string, JsonElement> { ["$.updatedAt"] = currentDate.RootElement.Clone() }),
+            id: "dev-1");
+
+        Assert.Equal(1, updated.Matched);
+        Assert.Equal(1, updated.Modified);
+        var doc = await client.FindOneAsync("devices", "dev-1");
+        Assert.NotNull(doc);
+        using (var parsed = JsonDocument.Parse(doc!.Json))
+        {
+            var root = parsed.RootElement;
+            Assert.Equal("ok", root.GetProperty("status").GetString());
+            Assert.False(root.TryGetProperty("old", out _));
+            Assert.Equal(7, root.GetProperty("score").GetInt32());
+            Assert.Equal(7, root.GetProperty("min").GetInt32());
+            Assert.Equal(12, root.GetProperty("max").GetInt32());
+            Assert.Equal("pump", root.GetProperty("kind").GetString());
+            Assert.Empty(root.GetProperty("tags").EnumerateArray());
+            var events = root.GetProperty("events").EnumerateArray().Select(static x => x.GetString()).ToArray();
+            var labels = root.GetProperty("labels").EnumerateArray().Select(static x => x.GetString()).ToArray();
+            Assert.Equal("new", Assert.Single(events));
+            Assert.Equal("new", Assert.Single(labels));
+            Assert.True(DateTimeOffset.TryParse(root.GetProperty("updatedAt").GetString(), out _));
+        }
+
+        using var site = JsonDocument.Parse("\"north\"");
+        using var one = JsonDocument.Parse("1");
+        var multi = await client.UpdateManyAsync(
+            "devices",
+            new SndbDocumentFilter("$.site", "eq", site.RootElement.Clone()),
+            new SndbDocumentUpdate(Inc: new Dictionary<string, JsonElement> { ["$.visits"] = one.RootElement.Clone() }));
+        Assert.Equal(2, multi.Matched);
+        Assert.Equal(2, multi.Modified);
+
+        using var east = JsonDocument.Parse("\"east\"");
+        using var created = JsonDocument.Parse("\"yes\"");
+        var upsert = await client.UpdateOneAsync(
+            "devices",
+            new SndbDocumentFilter("$.site", "eq", east.RootElement.Clone()),
+            new SndbDocumentUpdate(Set: new Dictionary<string, JsonElement> { ["$.created"] = created.RootElement.Clone() }),
+            upsert: true,
+            upsertId: "dev-3");
+        Assert.Equal(1, upsert.Inserted);
+        Assert.Equal("""{"site":"east","created":"yes"}""", (await client.FindOneAsync("devices", "dev-3"))!.Json);
+    }
+
+    [Fact]
+    public async Task DocumentClient_UpdateOperators_WithConflictingPaths_Throws()
+    {
+        using var client = new SndbDocumentClient(new SndbConnectionStringBuilder
+        {
+            DataSource = _root,
+        }.ConnectionString);
+
+        await client.CreateCollectionAsync("devices");
+        await client.InsertOneAsync("devices", "dev-1", """{"metrics":{"temp":20}}""");
+        using var value = JsonDocument.Parse("1");
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            client.UpdateOneAsync(
+                "devices",
+                filter: null,
+                new SndbDocumentUpdate(
+                    Set: new Dictionary<string, JsonElement> { ["$.metrics"] = value.RootElement.Clone() },
+                    Inc: new Dictionary<string, JsonElement> { ["$.metrics.temp"] = value.RootElement.Clone() }),
+                id: "dev-1"));
+        Assert.Contains("路径冲突", ex.Message, StringComparison.Ordinal);
+    }
 }

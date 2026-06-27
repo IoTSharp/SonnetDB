@@ -17,7 +17,7 @@ public static class DocumentCollectionSchemaCodec
     private static readonly byte[] _magic = "SDBDOCv1"u8.ToArray();
     private static readonly Encoding _utf8 = Encoding.UTF8;
 
-    private const int FormatVersion = 2;
+    private const int FormatVersion = 3;
     private const int MinFormatVersion = 1;
     private const int HeaderSize = 32;
     private const int FooterSize = 16;
@@ -125,54 +125,85 @@ public static class DocumentCollectionSchemaCodec
     private static DocumentCollectionSchema ReadCollection(Stream source, Crc32 crc, int collectionIndex, int version)
     {
         string name = ReadString(source, crc, $"collection {collectionIndex} name");
-
-        Span<byte> createdBuffer = stackalloc byte[8];
-        ReadExactSpan(source, createdBuffer, $"collection {collectionIndex} createdAt");
-        crc.Append(createdBuffer);
-        long createdAt = BinaryPrimitives.ReadInt64LittleEndian(createdBuffer);
-
-        Span<byte> countBuffer = stackalloc byte[2];
-        ReadExactSpan(source, countBuffer, $"collection {collectionIndex} indexCount");
-        crc.Append(countBuffer);
-        int indexCount = BinaryPrimitives.ReadUInt16LittleEndian(countBuffer);
+        long createdAt = ReadInt64(source, crc, $"collection {collectionIndex} createdAt");
+        int indexCount = ReadUInt16(source, crc, $"collection {collectionIndex} indexCount");
 
         var indexes = new List<DocumentPathIndexDefinition>(indexCount);
         for (int i = 0; i < indexCount; i++)
         {
-            string indexName = ReadString(source, crc, $"collection {collectionIndex} index {i} name");
-            string path = ReadString(source, crc, $"collection {collectionIndex} index {i} path");
-            ReadExactSpan(source, createdBuffer, $"collection {collectionIndex} index {i} createdAt");
-            crc.Append(createdBuffer);
-            long indexCreatedAt = BinaryPrimitives.ReadInt64LittleEndian(createdBuffer);
-            indexes.Add(new DocumentPathIndexDefinition(indexName, path, indexCreatedAt));
+            indexes.Add(version >= 3
+                ? ReadDocumentIndex(source, crc, collectionIndex, i)
+                : ReadLegacyDocumentIndex(source, crc, collectionIndex, i));
         }
 
         var fullTextIndexes = new List<DocumentFullTextIndexDefinition>();
         if (version >= 2)
         {
-            ReadExactSpan(source, countBuffer, $"collection {collectionIndex} fulltextIndexCount");
-            crc.Append(countBuffer);
-            int fullTextIndexCount = BinaryPrimitives.ReadUInt16LittleEndian(countBuffer);
+            int fullTextIndexCount = ReadUInt16(source, crc, $"collection {collectionIndex} fulltextIndexCount");
             for (int i = 0; i < fullTextIndexCount; i++)
             {
                 string indexName = ReadString(source, crc, $"collection {collectionIndex} fulltext index {i} name");
                 string tokenizer = ReadString(source, crc, $"collection {collectionIndex} fulltext index {i} tokenizer");
-
-                ReadExactSpan(source, countBuffer, $"collection {collectionIndex} fulltext index {i} fieldCount");
-                crc.Append(countBuffer);
-                int fieldCount = BinaryPrimitives.ReadUInt16LittleEndian(countBuffer);
+                int fieldCount = ReadUInt16(source, crc, $"collection {collectionIndex} fulltext index {i} fieldCount");
                 var fields = new string[fieldCount];
                 for (int fieldIndex = 0; fieldIndex < fieldCount; fieldIndex++)
                     fields[fieldIndex] = ReadString(source, crc, $"collection {collectionIndex} fulltext index {i} field {fieldIndex}");
 
-                ReadExactSpan(source, createdBuffer, $"collection {collectionIndex} fulltext index {i} createdAt");
-                crc.Append(createdBuffer);
-                long indexCreatedAt = BinaryPrimitives.ReadInt64LittleEndian(createdBuffer);
+                long indexCreatedAt = ReadInt64(source, crc, $"collection {collectionIndex} fulltext index {i} createdAt");
                 fullTextIndexes.Add(new DocumentFullTextIndexDefinition(indexName, Array.AsReadOnly(fields), tokenizer, indexCreatedAt));
             }
         }
 
         return DocumentCollectionSchema.Create(name, indexes, fullTextIndexes, createdAt);
+    }
+
+    private static DocumentPathIndexDefinition ReadLegacyDocumentIndex(Stream source, Crc32 crc, int collectionIndex, int index)
+    {
+        string indexName = ReadString(source, crc, $"collection {collectionIndex} index {index} name");
+        string path = ReadString(source, crc, $"collection {collectionIndex} index {index} path");
+        long indexCreatedAt = ReadInt64(source, crc, $"collection {collectionIndex} index {index} createdAt");
+        return new DocumentPathIndexDefinition(indexName, path, indexCreatedAt);
+    }
+
+    private static DocumentPathIndexDefinition ReadDocumentIndex(Stream source, Crc32 crc, int collectionIndex, int index)
+    {
+        string indexName = ReadString(source, crc, $"collection {collectionIndex} index {index} name");
+        int pathCount = ReadUInt16(source, crc, $"collection {collectionIndex} index {index} pathCount");
+        var paths = new string[pathCount];
+        for (int pathIndex = 0; pathIndex < pathCount; pathIndex++)
+            paths[pathIndex] = ReadString(source, crc, $"collection {collectionIndex} index {index} path {pathIndex}");
+
+        byte flags = ReadByte(source, crc, $"collection {collectionIndex} index {index} flags");
+        var partialFilter = ReadPartialFilter(source, crc, collectionIndex, index);
+        string? ttlPath = ReadNullableString(source, crc, $"collection {collectionIndex} index {index} ttlPath");
+        long? ttlSeconds = ReadNullableInt64(source, crc, $"collection {collectionIndex} index {index} ttlSeconds");
+        long indexCreatedAt = ReadInt64(source, crc, $"collection {collectionIndex} index {index} createdAt");
+
+        return new DocumentPathIndexDefinition(
+            indexName,
+            Array.AsReadOnly(paths),
+            indexCreatedAt,
+            IsUnique: (flags & 0b0000_0001) != 0,
+            IsSparse: (flags & 0b0000_0010) != 0,
+            partialFilter,
+            ttlPath,
+            ttlSeconds);
+    }
+
+    private static DocumentIndexPartialFilter? ReadPartialFilter(Stream source, Crc32 crc, int collectionIndex, int index)
+    {
+        byte hasFilter = ReadByte(source, crc, $"collection {collectionIndex} index {index} partialFilter");
+        if (hasFilter == 0)
+            return null;
+        if (hasFilter != 1)
+            throw new InvalidDataException("DocumentCollectionSchema: invalid partial filter marker.");
+
+        string path = ReadString(source, crc, $"collection {collectionIndex} index {index} partialFilter path");
+        byte operatorByte = ReadByte(source, crc, $"collection {collectionIndex} index {index} partialFilter operator");
+        if (!Enum.IsDefined(typeof(DocumentIndexPartialFilterOperator), (int)operatorByte))
+            throw new InvalidDataException("DocumentCollectionSchema: invalid partial filter operator.");
+        string? value = ReadNullableString(source, crc, $"collection {collectionIndex} index {index} partialFilter value");
+        return new DocumentIndexPartialFilter(path, (DocumentIndexPartialFilterOperator)operatorByte, value);
     }
 
     private static void Save(IReadOnlyList<DocumentCollectionSchema> schemas, Stream destination)
@@ -205,121 +236,63 @@ public static class DocumentCollectionSchemaCodec
 
     private static void WriteCollection(Stream destination, DocumentCollectionSchema schema, Crc32 crc)
     {
-        int nameLength = _utf8.GetByteCount(schema.Name);
-        if (nameLength > ushort.MaxValue)
-            throw new InvalidDataException($"Document collection '{schema.Name}' 名称过长。");
+        using var body = new MemoryStream();
+        WriteString(body, schema.Name);
+        WriteInt64(body, schema.CreatedAtUtcTicks);
+        WriteUInt16(body, schema.Indexes.Count, $"Document collection '{schema.Name}' index count");
 
-        int totalSize = 2 + nameLength + 8 + 2;
-        var indexNameLengths = new int[schema.Indexes.Count];
-        var indexPathLengths = new int[schema.Indexes.Count];
-        for (int i = 0; i < schema.Indexes.Count; i++)
+        foreach (var index in schema.Indexes)
         {
-            var index = schema.Indexes[i];
-            int indexNameLength = _utf8.GetByteCount(index.Name);
-            int indexPathLength = _utf8.GetByteCount(index.Path);
-            if (indexNameLength > ushort.MaxValue)
-                throw new InvalidDataException($"Document collection '{schema.Name}' 的索引 '{index.Name}' 名称过长。");
-            if (indexPathLength > ushort.MaxValue)
-                throw new InvalidDataException($"Document collection '{schema.Name}' 的索引 '{index.Name}' path 过长。");
+            WriteString(body, index.Name);
+            WriteUInt16(body, index.Paths.Count, $"Document index '{index.Name}' path count");
+            foreach (string path in index.Paths)
+                WriteString(body, path);
 
-            indexNameLengths[i] = indexNameLength;
-            indexPathLengths[i] = indexPathLength;
-            totalSize += 2 + indexNameLength + 2 + indexPathLength + 8;
+            byte flags = 0;
+            if (index.IsUnique)
+                flags |= 0b0000_0001;
+            if (index.IsSparse)
+                flags |= 0b0000_0010;
+            body.WriteByte(flags);
+            WritePartialFilter(body, index.PartialFilter);
+            WriteNullableString(body, index.TtlPath);
+            WriteNullableInt64(body, index.TtlSeconds);
+            WriteInt64(body, index.CreatedAtUtcTicks);
         }
 
-        totalSize += 2;
-        var fullTextIndexNameLengths = new int[schema.FullTextIndexes.Count];
-        var fullTextTokenizerLengths = new int[schema.FullTextIndexes.Count];
-        var fullTextFieldLengths = new int[schema.FullTextIndexes.Count][];
-        for (int i = 0; i < schema.FullTextIndexes.Count; i++)
+        WriteUInt16(body, schema.FullTextIndexes.Count, $"Document collection '{schema.Name}' fulltext index count");
+        foreach (var index in schema.FullTextIndexes)
         {
-            var index = schema.FullTextIndexes[i];
-            int indexNameLength = _utf8.GetByteCount(index.Name);
-            int tokenizerLength = _utf8.GetByteCount(index.Tokenizer);
-            if (indexNameLength > ushort.MaxValue)
-                throw new InvalidDataException($"Document collection '{schema.Name}' 的全文索引 '{index.Name}' 名称过长。");
-            if (tokenizerLength > ushort.MaxValue)
-                throw new InvalidDataException($"Document collection '{schema.Name}' 的全文索引 '{index.Name}' tokenizer 过长。");
-            if (index.Fields.Count > ushort.MaxValue)
-                throw new InvalidDataException($"Document collection '{schema.Name}' 的全文索引 '{index.Name}' 字段过多。");
-
-            fullTextIndexNameLengths[i] = indexNameLength;
-            fullTextTokenizerLengths[i] = tokenizerLength;
-            fullTextFieldLengths[i] = new int[index.Fields.Count];
-            totalSize += 2 + indexNameLength + 2 + tokenizerLength + 2 + 8;
-            for (int fieldIndex = 0; fieldIndex < index.Fields.Count; fieldIndex++)
-            {
-                int fieldLength = _utf8.GetByteCount(index.Fields[fieldIndex]);
-                if (fieldLength > ushort.MaxValue)
-                    throw new InvalidDataException($"Document collection '{schema.Name}' 的全文索引 '{index.Name}' 字段名过长。");
-                fullTextFieldLengths[i][fieldIndex] = fieldLength;
-                totalSize += 2 + fieldLength;
-            }
+            WriteString(body, index.Name);
+            WriteString(body, index.Tokenizer);
+            WriteUInt16(body, index.Fields.Count, $"Document fulltext index '{index.Name}' field count");
+            foreach (string field in index.Fields)
+                WriteString(body, field);
+            WriteInt64(body, index.CreatedAtUtcTicks);
         }
 
-        byte[] buffer = ArrayPool<byte>.Shared.Rent(totalSize);
-        try
+        byte[] bytes = body.ToArray();
+        crc.Append(bytes);
+        destination.Write(bytes, 0, bytes.Length);
+    }
+
+    private static void WritePartialFilter(Stream destination, DocumentIndexPartialFilter? filter)
+    {
+        if (filter is null)
         {
-            buffer.AsSpan(0, totalSize).Clear();
-            var writer = new SpanWriter(buffer.AsSpan(0, totalSize));
-            writer.WriteUInt16((ushort)nameLength);
-            int written = _utf8.GetBytes(schema.Name, writer.FreeSpan);
-            writer.Advance(written);
-            writer.WriteInt64(schema.CreatedAtUtcTicks);
-            writer.WriteUInt16((ushort)schema.Indexes.Count);
-
-            for (int i = 0; i < schema.Indexes.Count; i++)
-            {
-                var index = schema.Indexes[i];
-                writer.WriteUInt16((ushort)indexNameLengths[i]);
-                int indexNameWritten = _utf8.GetBytes(index.Name, writer.FreeSpan);
-                writer.Advance(indexNameWritten);
-
-                writer.WriteUInt16((ushort)indexPathLengths[i]);
-                int indexPathWritten = _utf8.GetBytes(index.Path, writer.FreeSpan);
-                writer.Advance(indexPathWritten);
-
-                writer.WriteInt64(index.CreatedAtUtcTicks);
-            }
-
-            writer.WriteUInt16((ushort)schema.FullTextIndexes.Count);
-            for (int i = 0; i < schema.FullTextIndexes.Count; i++)
-            {
-                var index = schema.FullTextIndexes[i];
-                writer.WriteUInt16((ushort)fullTextIndexNameLengths[i]);
-                int indexNameWritten = _utf8.GetBytes(index.Name, writer.FreeSpan);
-                writer.Advance(indexNameWritten);
-
-                writer.WriteUInt16((ushort)fullTextTokenizerLengths[i]);
-                int tokenizerWritten = _utf8.GetBytes(index.Tokenizer, writer.FreeSpan);
-                writer.Advance(tokenizerWritten);
-
-                writer.WriteUInt16((ushort)index.Fields.Count);
-                for (int fieldIndex = 0; fieldIndex < index.Fields.Count; fieldIndex++)
-                {
-                    writer.WriteUInt16((ushort)fullTextFieldLengths[i][fieldIndex]);
-                    int fieldWritten = _utf8.GetBytes(index.Fields[fieldIndex], writer.FreeSpan);
-                    writer.Advance(fieldWritten);
-                }
-
-                writer.WriteInt64(index.CreatedAtUtcTicks);
-            }
-
-            crc.Append(buffer.AsSpan(0, totalSize));
-            destination.Write(buffer, 0, totalSize);
+            destination.WriteByte(0);
+            return;
         }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(buffer);
-        }
+
+        destination.WriteByte(1);
+        WriteString(destination, filter.Path);
+        destination.WriteByte((byte)filter.Operator);
+        WriteNullableString(destination, filter.ValueScalar);
     }
 
     private static string ReadString(Stream source, Crc32 crc, string description)
     {
-        Span<byte> lengthBuffer = stackalloc byte[2];
-        ReadExactSpan(source, lengthBuffer, description + " length");
-        crc.Append(lengthBuffer);
-        int length = BinaryPrimitives.ReadUInt16LittleEndian(lengthBuffer);
+        int length = ReadUInt16(source, crc, description + " length");
         if (length == 0)
             return string.Empty;
 
@@ -336,6 +309,107 @@ public static class DocumentCollectionSchemaCodec
         {
             ArrayPool<byte>.Shared.Return(buffer);
         }
+    }
+
+    private static string? ReadNullableString(Stream source, Crc32 crc, string description)
+    {
+        byte marker = ReadByte(source, crc, description + " marker");
+        if (marker == 0)
+            return null;
+        if (marker != 1)
+            throw new InvalidDataException($"DocumentCollectionSchema: invalid nullable string marker for {description}.");
+        return ReadString(source, crc, description);
+    }
+
+    private static long ReadInt64(Stream source, Crc32 crc, string description)
+    {
+        Span<byte> buffer = stackalloc byte[8];
+        ReadExactSpan(source, buffer, description);
+        crc.Append(buffer);
+        return BinaryPrimitives.ReadInt64LittleEndian(buffer);
+    }
+
+    private static long? ReadNullableInt64(Stream source, Crc32 crc, string description)
+    {
+        byte marker = ReadByte(source, crc, description + " marker");
+        if (marker == 0)
+            return null;
+        if (marker != 1)
+            throw new InvalidDataException($"DocumentCollectionSchema: invalid nullable int64 marker for {description}.");
+        return ReadInt64(source, crc, description);
+    }
+
+    private static int ReadUInt16(Stream source, Crc32 crc, string description)
+    {
+        Span<byte> buffer = stackalloc byte[2];
+        ReadExactSpan(source, buffer, description);
+        crc.Append(buffer);
+        return BinaryPrimitives.ReadUInt16LittleEndian(buffer);
+    }
+
+    private static byte ReadByte(Stream source, Crc32 crc, string description)
+    {
+        Span<byte> buffer = stackalloc byte[1];
+        ReadExactSpan(source, buffer, description);
+        crc.Append(buffer);
+        return buffer[0];
+    }
+
+    private static void WriteString(Stream destination, string value)
+    {
+        int length = _utf8.GetByteCount(value);
+        if (length > ushort.MaxValue)
+            throw new InvalidDataException("DocumentCollectionSchema: string value is too long.");
+
+        Span<byte> lengthBytes = stackalloc byte[2];
+        BinaryPrimitives.WriteUInt16LittleEndian(lengthBytes, (ushort)length);
+        destination.Write(lengthBytes);
+        if (length == 0)
+            return;
+
+        byte[] bytes = _utf8.GetBytes(value);
+        destination.Write(bytes, 0, bytes.Length);
+    }
+
+    private static void WriteNullableString(Stream destination, string? value)
+    {
+        if (value is null)
+        {
+            destination.WriteByte(0);
+            return;
+        }
+
+        destination.WriteByte(1);
+        WriteString(destination, value);
+    }
+
+    private static void WriteInt64(Stream destination, long value)
+    {
+        Span<byte> buffer = stackalloc byte[8];
+        BinaryPrimitives.WriteInt64LittleEndian(buffer, value);
+        destination.Write(buffer);
+    }
+
+    private static void WriteNullableInt64(Stream destination, long? value)
+    {
+        if (value is null)
+        {
+            destination.WriteByte(0);
+            return;
+        }
+
+        destination.WriteByte(1);
+        WriteInt64(destination, value.Value);
+    }
+
+    private static void WriteUInt16(Stream destination, int value, string description)
+    {
+        if (value is < 0 or > ushort.MaxValue)
+            throw new InvalidDataException($"{description} is out of range.");
+
+        Span<byte> buffer = stackalloc byte[2];
+        BinaryPrimitives.WriteUInt16LittleEndian(buffer, (ushort)value);
+        destination.Write(buffer);
     }
 
     private static void ReadExactSpan(Stream source, Span<byte> buffer, string description)

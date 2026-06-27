@@ -62,7 +62,14 @@ public sealed record DocumentJsonIndexInfo(
     string Name,
     string Path,
     DateTimeOffset CreatedUtc,
-    bool Rebuildable);
+    bool Rebuildable,
+    List<string>? Paths = null,
+    bool IsUnique = false,
+    bool IsSparse = false,
+    bool IsPartial = false,
+    string? PartialFilter = null,
+    bool IsTtl = false,
+    long? TtlSeconds = null);
 
 /// <summary>文档全文索引信息。</summary>
 public sealed record DocumentFullTextIndexInfo(

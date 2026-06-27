@@ -31,6 +31,9 @@ public sealed class SqlLexer
     private static readonly Dictionary<string, TokenKind> _keywords = new(StringComparer.OrdinalIgnoreCase)
     {
         ["create"] = TokenKind.KeywordCreate,
+        ["unique"] = TokenKind.KeywordUnique,
+        ["sparse"] = TokenKind.KeywordSparse,
+        ["ttl"] = TokenKind.KeywordTtl,
         ["measurement"] = TokenKind.KeywordMeasurement,
         ["table"] = TokenKind.KeywordTable,
         ["document"] = TokenKind.KeywordDocument,

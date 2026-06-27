@@ -291,10 +291,112 @@ public sealed class DocumentEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, mismatched.StatusCode);
     }
 
+    [Fact]
+    public async Task DocumentApi_UpdateOperators_MaintainJsonAndFullTextIndexes()
+    {
+        using var admin = CreateClient(AdminToken);
+        var create = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/updateindexed",
+            new DocumentCollectionCreateRequest(),
+            ServerJsonContext.Default.DocumentCollectionCreateRequest);
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+
+        using var first = JsonDocument.Parse("""{"site":"north","message":"legacy alarm","tags":["hot"],"score":1}""");
+        var insert = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/updateindexed/insert-one",
+            new DocumentWriteItem("dev-1", first.RootElement.Clone()),
+            ServerJsonContext.Default.DocumentWriteItem);
+        Assert.Equal(HttpStatusCode.OK, insert.StatusCode);
+
+        var jsonIndex = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/sql",
+            new SqlRequest("CREATE JSON INDEX idx_update_site ON updateindexed ('$.site')"),
+            ServerJsonContext.Default.SqlRequest);
+        Assert.Equal(HttpStatusCode.OK, jsonIndex.StatusCode);
+
+        var fullText = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/sql",
+            new SqlRequest("CREATE FULLTEXT INDEX ft_update_message ON updateindexed ('$.message')"),
+            ServerJsonContext.Default.SqlRequest);
+        Assert.Equal(HttpStatusCode.OK, fullText.StatusCode);
+
+        using var east = JsonDocument.Parse("\"east\"");
+        using var message = JsonDocument.Parse("\"fresh pump event\"");
+        using var inc = JsonDocument.Parse("4");
+        using var addTag = JsonDocument.Parse("\"new\"");
+        var update = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/updateindexed/update-one",
+            new DocumentUpdateOneRequest(
+                Id: "dev-1",
+                Update: new DocumentUpdateContract(
+                    Set: new Dictionary<string, JsonElement>
+                    {
+                        ["$.site"] = east.RootElement.Clone(),
+                        ["$.message"] = message.RootElement.Clone(),
+                    },
+                    Inc: new Dictionary<string, JsonElement> { ["$.score"] = inc.RootElement.Clone() },
+                    AddToSet: new Dictionary<string, JsonElement> { ["$.tags"] = addTag.RootElement.Clone() })),
+            ServerJsonContext.Default.DocumentUpdateOneRequest);
+        Assert.Equal(HttpStatusCode.OK, update.StatusCode);
+        var updateBody = await update.Content.ReadFromJsonAsync(ServerJsonContext.Default.DocumentWriteResponse);
+        Assert.Equal(1, updateBody!.Matched);
+        Assert.Equal(1, updateBody.Modified);
+
+        var indexed = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/sql",
+            new SqlRequest("""
+                SELECT id, json_value(document, '$.score') AS score
+                FROM updateindexed
+                WHERE json_value(document, '$.site') = 'east'
+                """),
+            ServerJsonContext.Default.SqlRequest);
+        Assert.Equal(HttpStatusCode.OK, indexed.StatusCode);
+        var indexedRows = await ReadSqlRowsAsync(indexed);
+        Assert.Single(indexedRows);
+        Assert.Equal("dev-1", indexedRows[0][0].GetString());
+        Assert.Equal(5, indexedRows[0][1].GetInt32());
+
+        var oldSite = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/sql",
+            new SqlRequest("SELECT id FROM updateindexed WHERE json_value(document, '$.site') = 'north'"),
+            ServerJsonContext.Default.SqlRequest);
+        Assert.Equal(HttpStatusCode.OK, oldSite.StatusCode);
+        Assert.Empty(await ReadSqlRowsAsync(oldSite));
+
+        var fullTextQuery = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/sql",
+            new SqlRequest("""
+                SELECT id
+                FROM updateindexed
+                WHERE match(ft_update_message, '$.message', 'fresh')
+                """),
+            ServerJsonContext.Default.SqlRequest);
+        Assert.Equal(HttpStatusCode.OK, fullTextQuery.StatusCode);
+        var fullTextRows = await ReadSqlRowsAsync(fullTextQuery);
+        Assert.Single(fullTextRows);
+        Assert.Equal("dev-1", fullTextRows[0][0].GetString());
+    }
+
     private HttpClient CreateClient(string token)
     {
         var client = new HttpClient { BaseAddress = new Uri(_baseUrl!) };
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return client;
+    }
+
+    private static async Task<List<JsonElement>> ReadSqlRowsAsync(HttpResponseMessage response)
+    {
+        var text = await response.Content.ReadAsStringAsync();
+        var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.True(lines.Length >= 2, text);
+
+        var rows = new List<JsonElement>();
+        for (int i = 1; i < lines.Length - 1; i++)
+        {
+            using var document = JsonDocument.Parse(lines[i]);
+            rows.Add(document.RootElement.Clone());
+        }
+
+        return rows;
     }
 }
