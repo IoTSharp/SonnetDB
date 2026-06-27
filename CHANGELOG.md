@@ -16,6 +16,10 @@
 - **搜索与向量合并 Phase 4 完成**：移除 `modules/DotSearch` / `modules/DotVector` 子模块登记，CI / CodeQL / Publish / Docker / connectors release workflow 不再递归 checkout 旧模块；Dockerfile 删除旧模块复制步骤，release script 和发布文档不再生成或列出独立 DotSearch / DotVector NuGet 包。干净 checkout 可直接构建 SonnetDB 内置全文与向量引擎。
 - **搜索与向量合并 Phase 5 完成**：`src/SonnetDB.Core/FullText` 内部命名空间、Jieba 资源 logical name、测试命名空间和当前文档叙事从 `DotSearch.*` 收敛到 `SonnetDB.FullText.*` / SonnetDB 内置全文引擎；当前源码和测试不再新增 `DotSearch.*` / `DotVector.*` 引用。
 
+### Changed
+
+- **SonnetMQ 合并进 Core**：本地消息队列源码从独立 `src/SonnetMQ` 项目移动到 `src/SonnetDB.Core/Mq`，`SonnetDB` 服务端、`SonnetDB.Data` 与 Parity 测试统一通过 `SonnetDB.Core` 引用 MQ 能力；发布脚本、Dockerfile 和解决方案不再构建或打包独立 `SonnetMQ` 项目。本次仅调整项目边界，不修改 SonnetMQ 日志文件格式。
+
 ## [2.5.0] - 2026-06-26
 
 ### Added

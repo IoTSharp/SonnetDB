@@ -42,7 +42,6 @@ function Pack-NuGetPackages
     Write-Section "Packing NuGet packages"
     Reset-Directory $NuGetOutput
 
-    Invoke-DotNetPack 'src/SonnetMQ/SonnetMQ.csproj' $NuGetOutput
     Invoke-DotNetPack 'src/SonnetDB.Core/SonnetDB.Core.csproj' $NuGetOutput
     Invoke-DotNetPack 'src/SonnetDB.Data/SonnetDB.Data.csproj' $NuGetOutput
     Invoke-DotNetPack 'src/SonnetDB.EntityFrameworkCore/SonnetDB.EntityFrameworkCore.csproj' $NuGetOutput
@@ -420,7 +419,6 @@ function Write-SdkBundleReadme
 - `packages/SonnetDB.EntityFrameworkCore.__VERSION__.nupkg`
 - `packages/SonnetDB.Caching.__VERSION__.nupkg`
 - `packages/SonnetDB.Cli.__VERSION__.nupkg`
-- `packages/SonnetMQ.__VERSION__.nupkg`
 - `cli/` 原生命令行工具
 - `docs/` 发布与使用说明
 

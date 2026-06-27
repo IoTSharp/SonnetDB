@@ -90,12 +90,11 @@ SonnetDB is a C# / .NET multi-model database. One local engine, one SQL / API su
 
 | Component | Purpose |
 | --- | --- |
-| `src/SonnetDB.Core` | Multi-model core library: time-series, relational tables, KV, documents, search, object-storage adapter, backup/restore, and persistence |
+| `src/SonnetDB.Core` | Multi-model core library: time-series, relational tables, KV, documents, search, object-storage adapter, local message queue, backup/restore, and persistence |
 | `src/SonnetDB` | HTTP server, first-run setup, auth/RBAC, SSE, MCP, Admin UI, Copilot bridge, and bundled `/help` docs |
 | `src/SonnetDB.Data` | ADO.NET provider; NuGet package ID is `SonnetDB`, namespace is `SonnetDB.Data` |
 | `src/SonnetDB.EntityFrameworkCore` | EF Core Provider; NuGet package ID is `SonnetDB.EntityFrameworkCore`, with `UseSonnetDB(...)`, type mapping, query translation, and migrations SQL |
 | `src/SonnetDB.Cli` | `sndb` CLI: local/remote connections, profile management (`local`/`remote`/`connect`), and interactive REPL |
-| `src/SonnetMQ` | Zero-dependency local message queue core with topic publish, consumer group pull/ack, and restart replay |
 | `extensions/SonnetDB.Caching` | Cache provider backed by SonnetDB KV keyspaces for IoTSharp / EasyCaching / IDistributedCache scenarios |
 | `web` | Admin frontend (includes SonnetDB Workbench, global CopilotDock, and published SPA assets) |
 | `docs` | JekyllNet documentation site source, bundled into the Docker image |

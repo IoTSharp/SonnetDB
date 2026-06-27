@@ -2,7 +2,7 @@ using System.Text;
 using SonnetMQ;
 using Xunit;
 
-namespace SonnetMQ.Tests;
+namespace SonnetDB.Core.Tests.Mq;
 
 public sealed class SonnetMqStoreTests : IDisposable
 {

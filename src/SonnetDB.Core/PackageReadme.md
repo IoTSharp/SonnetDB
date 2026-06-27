@@ -1,6 +1,6 @@
 ﻿# SonnetDB.Core
 
-`SonnetDB.Core` 是 SonnetDB 的核心引擎包，适合嵌入式本地时序存储场景。
+`SonnetDB.Core` 是 SonnetDB 的多模型核心引擎包，适合嵌入式本地数据库场景，包含时序、关系表、KV、文档、搜索、向量、对象存储适配和 SonnetMQ 本地消息队列能力。
 
 ## 安装
 

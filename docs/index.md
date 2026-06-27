@@ -58,9 +58,8 @@ SonnetDB 现在由这些主线组成：
 3. ADO.NET 提供程序：NuGet 包 `SonnetDB`，命名空间 `SonnetDB.Data`
 4. EF Core Provider：NuGet 包 `SonnetDB.EntityFrameworkCore`
 5. CLI 工具 `SonnetDB.Cli`
-6. 本地消息队列 `SonnetMQ`
-7. SonnetDB Studio 与 CopilotDock
-8. C、Go、Rust、Java、Python、VB6、PureBasic 等连接器
+6. SonnetDB Studio 与 CopilotDock
+7. C、Go、Rust、Java、Python、VB6、PureBasic 等连接器
 
 这几部分共享同一套底层存储格式和大部分 SQL 行为。服务端额外增加了：
 

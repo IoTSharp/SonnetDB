@@ -29,7 +29,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SonnetDB.Core\SonnetDB.Core.csproj" />
-    <ProjectReference Include="..\SonnetMQ\SonnetMQ.csproj" />
   </ItemGroup>
 
   <ItemGroup>

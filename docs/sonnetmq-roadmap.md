@@ -11,7 +11,7 @@ SonnetMQ 是 SonnetDB 生态内置的本地消息队列能力，目标是让 IoT
 
 ## 第一阶段：本地模式 MVP
 
-- 新增 `src/SonnetMQ` 核心库。
+- 在 `src/SonnetDB.Core/Mq` 内提供 SonnetMQ 本地队列核心能力。
 - 提供 `SonnetMqStore.Open`、`Publish`、`Pull`、`Ack`、`GetStats`。
 - 文件格式采用 `sonnetmq.log` append-only record，消息和 ack 统一顺序记录。
 - `SonnetDB` 服务宿主暴露 `/v1/db/{db}/mq/{topic}/publish|pull|ack|stats`。
