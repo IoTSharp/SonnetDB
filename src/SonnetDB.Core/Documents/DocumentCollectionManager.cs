@@ -387,6 +387,21 @@ public sealed class DocumentCollectionManager : IDisposable
     }
 
     /// <summary>
+    /// 为所有文档集合主数据和二级索引创建磁盘有序 KV 段，降低冷启动后的常驻 value 内存。
+    /// </summary>
+    public IReadOnlyList<string> CompactAll()
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var names = Catalog.Snapshot().Select(static s => s.Name).ToArray();
+            foreach (string name in names)
+                OpenStoreLocked(Catalog.TryGet(name)!).Compact();
+            return names;
+        }
+    }
+
+    /// <summary>
     /// 关闭所有已打开的文档集合 store。
     /// </summary>
     public void Dispose()

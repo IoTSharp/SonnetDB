@@ -136,6 +136,74 @@ public sealed class KvKeyspaceTests : IDisposable
     }
 
     [Fact]
+    public void Compact_Reopen_UsesDiskOrderedSegmentForPrefixScan()
+    {
+        using (var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root }))
+        {
+            var kv = db.Keyspaces.Open("docs");
+            kv.Put("doc:003", Encoding.UTF8.GetBytes("three"));
+            kv.Put("doc:001", Encoding.UTF8.GetBytes("one"));
+            kv.Put("doc:002", Encoding.UTF8.GetBytes("two"));
+            kv.Compact();
+        }
+
+        using var reopened = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        var restored = reopened.Keyspaces.Open("docs");
+
+        var firstPage = restored.ScanPrefix("doc:", limit: 2);
+        Assert.Equal(["doc:001", "doc:002"], firstPage.Select(static row => Encoding.UTF8.GetString(row.Key.Span)).ToArray());
+
+        var nextPage = restored.ScanPrefixAfter("doc:", "doc:002", limit: 2);
+        Assert.Single(nextPage);
+        Assert.Equal("doc:003", Encoding.UTF8.GetString(nextPage[0].Key.Span));
+        Assert.Equal("three", Encoding.UTF8.GetString(nextPage[0].Value.Span));
+    }
+
+    [Fact]
+    public void Compact_ReopenLaterWal_OverlaysDiskSegment()
+    {
+        using (var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root }))
+        {
+            var kv = db.Keyspaces.Open("docs");
+            kv.Put("doc:001", Encoding.UTF8.GetBytes("old"));
+            kv.Put("doc:002", Encoding.UTF8.GetBytes("two"));
+            kv.Compact();
+            kv.Put("doc:001", Encoding.UTF8.GetBytes("new"));
+            Assert.True(kv.Delete("doc:002"));
+            kv.Put("doc:003", Encoding.UTF8.GetBytes("three"));
+        }
+
+        using var reopened = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        var restored = reopened.Keyspaces.Open("docs");
+
+        Assert.Equal("new", Encoding.UTF8.GetString(restored.Get("doc:001")!));
+        Assert.Null(restored.Get("doc:002"));
+        Assert.Equal("three", Encoding.UTF8.GetString(restored.Get("doc:003")!));
+        Assert.Equal(["doc:001", "doc:003"], restored.ScanPrefix("doc:", int.MaxValue)
+            .Select(static row => Encoding.UTF8.GetString(row.Key.Span))
+            .ToArray());
+    }
+
+    [Fact]
+    public void Compact_CrashAfterDelete_DoesNotReviveDiskKey()
+    {
+        using (var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root }))
+        {
+            var kv = db.Keyspaces.Open("docs");
+            kv.Put("doc:001", Encoding.UTF8.GetBytes("one"));
+            kv.Compact();
+            Assert.True(kv.Delete("doc:001"));
+            db.CrashSimulationCloseWal();
+        }
+
+        using var reopened = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        var restored = reopened.Keyspaces.Open("docs");
+
+        Assert.Null(restored.Get("doc:001"));
+        Assert.Empty(restored.ScanPrefix("doc:", int.MaxValue));
+    }
+
+    [Fact]
     public void KeyspaceManager_List_ReturnsExistingKeyspaces()
     {
         using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });

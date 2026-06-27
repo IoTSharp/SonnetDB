@@ -11,6 +11,7 @@ public sealed class KvKeyspace : IDisposable
     private readonly object _sync = new();
     private readonly Dictionary<byte[], KvValueEntry> _values;
     private readonly KvOptions _options;
+    private KvDiskState? _diskState;
     private KvWalFile? _wal;
     private long _lastSequence;
     private bool _disposed;
@@ -20,6 +21,7 @@ public sealed class KvKeyspace : IDisposable
         string rootDirectory,
         KvOptions options,
         Dictionary<byte[], KvValueEntry> values,
+        KvDiskState? diskState,
         long lastSequence,
         KvWalFile wal)
     {
@@ -27,6 +29,7 @@ public sealed class KvKeyspace : IDisposable
         RootDirectory = rootDirectory;
         _options = options;
         _values = values;
+        _diskState = diskState;
         _lastSequence = lastSequence;
         _wal = wal;
     }
@@ -43,7 +46,7 @@ public sealed class KvKeyspace : IDisposable
         get
         {
             lock (_sync)
-                return _values.Count;
+                return CountVisibleLocked();
         }
     }
 
@@ -92,12 +95,12 @@ public sealed class KvKeyspace : IDisposable
             if (record.Sequence <= state.Sequence)
                 continue;
 
-            ApplyRecord(state.Values, record);
+            ApplyRecord(state, record);
             lastSequence = Math.Max(lastSequence, record.Sequence);
         }
 
         var wal = KvWalFile.Open(walPath, lastSequence + 1, options.WalBufferSize);
-        return new KvKeyspace(name, rootDirectory, options, state.Values, lastSequence, wal);
+        return new KvKeyspace(name, rootDirectory, options, state.Values, state.DiskState, lastSequence, wal);
     }
 
     /// <summary>
@@ -147,7 +150,7 @@ public sealed class KvKeyspace : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
-            if (!_values.TryGetValue(lookup, out var entry))
+            if (!TryGetEntryLocked(lookup, out var entry))
                 return null;
 
             if (TryDeleteExpiredLocked(lookup, entry, DateTimeOffset.UtcNow))
@@ -170,7 +173,7 @@ public sealed class KvKeyspace : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
-            if (!_values.TryGetValue(lookup, out var entry))
+            if (!TryGetEntryLocked(lookup, out var entry))
                 return null;
 
             if (TryDeleteExpiredLocked(lookup, entry, DateTimeOffset.UtcNow))
@@ -235,7 +238,7 @@ public sealed class KvKeyspace : IDisposable
             ThrowIfDisposed();
             DateTimeOffset? expiresAtUtc = null;
             long current = 0;
-            if (_values.TryGetValue(lookup, out var entry))
+            if (TryGetEntryLocked(lookup, out var entry))
             {
                 if (!TryDeleteExpiredLocked(lookup, entry, DateTimeOffset.UtcNow))
                 {
@@ -313,7 +316,7 @@ public sealed class KvKeyspace : IDisposable
         {
             ThrowIfDisposed();
             long currentVersion = 0;
-            if (_values.TryGetValue(lookup, out var entry))
+            if (TryGetEntryLocked(lookup, out var entry))
             {
                 if (!TryDeleteExpiredLocked(lookup, entry, DateTimeOffset.UtcNow))
                     currentVersion = entry.Version;
@@ -374,7 +377,7 @@ public sealed class KvKeyspace : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
-            if (!_values.TryGetValue(lookup, out var entry))
+            if (!TryGetEntryLocked(lookup, out var entry))
                 return false;
             if (TryDeleteExpiredLocked(lookup, entry, DateTimeOffset.UtcNow))
                 return false;
@@ -404,7 +407,7 @@ public sealed class KvKeyspace : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
-            if (!_values.TryGetValue(lookup, out var entry))
+            if (!TryGetEntryLocked(lookup, out var entry))
                 return false;
             if (TryDeleteExpiredLocked(lookup, entry, DateTimeOffset.UtcNow))
                 return false;
@@ -438,7 +441,7 @@ public sealed class KvKeyspace : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
-            if (!_values.TryGetValue(lookup, out var entry))
+            if (!TryGetEntryLocked(lookup, out var entry))
                 return new KvTtlResult(KvTtlResult.Missing, null);
             if (TryDeleteExpiredLocked(lookup, entry, now))
                 return new KvTtlResult(KvTtlResult.Missing, null);
@@ -472,7 +475,7 @@ public sealed class KvKeyspace : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
-            if (!_values.TryGetValue(lookup, out var entry))
+            if (!TryGetEntryLocked(lookup, out var entry))
                 return false;
 
             if (TryDeleteExpiredLocked(lookup, entry, DateTimeOffset.UtcNow))
@@ -602,15 +605,10 @@ public sealed class KvKeyspace : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
-            var rows = new List<KvEntry>(Math.Min(take, _values.Count));
+            var rows = new List<KvEntry>(Math.Min(take, CountVisibleLocked()));
             DateTimeOffset now = DateTimeOffset.UtcNow;
-            foreach (var pair in _values.OrderBy(static x => x.Key, KvKeyComparer.Instance))
+            foreach (var pair in EnumerateVisibleEntriesLocked(prefixCopy, afterKey))
             {
-                if (!pair.Key.AsSpan().StartsWith(prefixCopy))
-                    continue;
-                if (afterKey is not null && KvKeyComparer.Instance.Compare(pair.Key, afterKey) <= 0)
-                    continue;
-
                 if (TryDeleteExpiredLocked(pair.Key, pair.Value, now))
                     continue;
 
@@ -668,12 +666,9 @@ public sealed class KvKeyspace : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
-            var keys = _values
-                .Keys
-                .Where(key => key.AsSpan().StartsWith(prefixCopy))
-                .Order(KvKeyComparer.Instance)
+            var keys = EnumerateVisibleEntriesLocked(prefixCopy, afterKey: null, readDiskValues: false)
+                .Select(static pair => pair.Key.ToArray())
                 .Take(take)
-                .Select(static key => key.ToArray())
                 .ToArray();
 
             int removed = 0;
@@ -746,9 +741,12 @@ public sealed class KvKeyspace : IDisposable
             int expired = 0;
             int expiring = 0;
             DateTimeOffset? nearest = null;
+            int total = 0;
 
-            foreach (var entry in _values.Values)
+            foreach (var pair in EnumerateVisibleEntriesLocked(prefix: [], afterKey: null, readDiskValues: false))
             {
+                var entry = pair.Value;
+                total++;
                 if (!entry.ExpiresAtUtc.HasValue)
                     continue;
 
@@ -765,8 +763,8 @@ public sealed class KvKeyspace : IDisposable
             }
 
             return new KvExpirationStats(
-                _values.Count,
-                _values.Count - expired,
+                total,
+                total - expired,
                 expired,
                 expiring,
                 nearest);
@@ -785,8 +783,16 @@ public sealed class KvKeyspace : IDisposable
             CleanExpiredLocked(DateTimeOffset.UtcNow, int.MaxValue);
             _wal!.Sync();
             long sequence = _lastSequence;
-            KvStateFile.SaveSnapshot(SnapshotPath(RootDirectory, sequence), sequence, _values);
+            string snapshotPath = SnapshotPath(RootDirectory, sequence);
+            KvStateFile.SaveSnapshot(
+                snapshotPath,
+                sequence,
+                EnumerateVisibleEntriesLocked(prefix: [], afterKey: null),
+                CountVisibleLocked());
+            var newDiskState = KvStateFile.OpenDiskState(snapshotPath);
             ResetWalLocked(sequence + 1);
+            _values.Clear();
+            ReplaceDiskStateLocked(newDiskState);
             DeleteOlderFiles(SnapshotsDirectory(RootDirectory), "*.SDBKVSNP", sequence);
             return sequence;
         }
@@ -804,8 +810,16 @@ public sealed class KvKeyspace : IDisposable
             CleanExpiredLocked(DateTimeOffset.UtcNow, int.MaxValue);
             _wal!.Sync();
             long sequence = _lastSequence;
-            KvStateFile.SaveSegment(SegmentPath(RootDirectory, sequence), sequence, _values);
+            string segmentPath = SegmentPath(RootDirectory, sequence);
+            KvStateFile.SaveSegment(
+                segmentPath,
+                sequence,
+                EnumerateVisibleEntriesLocked(prefix: [], afterKey: null),
+                CountVisibleLocked());
+            var newDiskState = KvStateFile.OpenDiskState(segmentPath);
             ResetWalLocked(sequence + 1);
+            _values.Clear();
+            ReplaceDiskStateLocked(newDiskState);
             DeleteOlderFiles(SegmentsDirectory(RootDirectory), "*.SDBKVSEG", sequence);
             DeleteOlderFiles(SnapshotsDirectory(RootDirectory), "*.SDBKVSNP", sequence);
             return sequence;
@@ -824,7 +838,9 @@ public sealed class KvKeyspace : IDisposable
 
             _disposed = true;
             _wal?.Dispose();
+            _diskState?.Dispose();
             _wal = null;
+            _diskState = null;
         }
     }
 
@@ -845,18 +861,30 @@ public sealed class KvKeyspace : IDisposable
 
     private static KvStateSnapshot LoadLatestState(string rootDirectory)
     {
-        var candidates = new List<(long Sequence, string Path)>();
-        AddStateCandidates(candidates, SnapshotsDirectory(rootDirectory), "*.SDBKVSNP");
-        AddStateCandidates(candidates, SegmentsDirectory(rootDirectory), "*.SDBKVSEG");
+        var candidates = new List<(long Sequence, bool IsSegment, string Path)>();
+        AddStateCandidates(candidates, SnapshotsDirectory(rootDirectory), "*.SDBKVSNP", isSegment: false);
+        AddStateCandidates(candidates, SegmentsDirectory(rootDirectory), "*.SDBKVSEG", isSegment: true);
 
         if (candidates.Count == 0)
-            return new KvStateSnapshot(0, new Dictionary<byte[], KvValueEntry>(KvKeyComparer.Instance));
+            return new KvStateSnapshot(0, new Dictionary<byte[], KvValueEntry>(KvKeyComparer.Instance), diskState: null);
 
-        var latest = candidates.OrderByDescending(static x => x.Sequence).First();
-        return KvStateFile.Load(latest.Path);
+        var latest = candidates
+            .OrderByDescending(static x => x.Sequence)
+            .ThenByDescending(static x => x.IsSegment)
+            .First();
+
+        var diskState = KvStateFile.OpenDiskState(latest.Path);
+        return new KvStateSnapshot(
+            diskState.Sequence,
+            new Dictionary<byte[], KvValueEntry>(KvKeyComparer.Instance),
+            diskState);
     }
 
-    private static void AddStateCandidates(List<(long Sequence, string Path)> candidates, string directory, string pattern)
+    private static void AddStateCandidates(
+        List<(long Sequence, bool IsSegment, string Path)> candidates,
+        string directory,
+        string pattern,
+        bool isSegment)
     {
         if (!Directory.Exists(directory))
             return;
@@ -865,19 +893,22 @@ public sealed class KvKeyspace : IDisposable
         {
             string name = Path.GetFileNameWithoutExtension(file);
             if (long.TryParse(name, out long sequence))
-                candidates.Add((sequence, file));
+                candidates.Add((sequence, isSegment, file));
         }
     }
 
-    private static void ApplyRecord(Dictionary<byte[], KvValueEntry> values, KvWalRecord record)
+    private static void ApplyRecord(KvStateSnapshot state, KvWalRecord record)
     {
         if (record.Kind == KvWalRecordKind.Put)
         {
-            values[record.Key] = new KvValueEntry(record.Value ?? [], record.Sequence, record.ExpiresAtUtc);
+            state.Values[record.Key] = new KvValueEntry(record.Value ?? [], record.Sequence, record.ExpiresAtUtc);
             return;
         }
 
-        values.Remove(record.Key);
+        if (state.DiskState is not null && state.DiskState.Contains(record.Key))
+            state.Values[record.Key] = KvValueEntry.Deleted(record.Sequence);
+        else
+            state.Values.Remove(record.Key);
     }
 
     private static void ValidateKey(ReadOnlySpan<byte> key, KvOptions options)
@@ -938,11 +969,10 @@ public sealed class KvKeyspace : IDisposable
 
     private int CleanExpiredLocked(DateTimeOffset utcNow, int limit)
     {
-        var keys = _values
+        var keys = EnumerateVisibleEntriesLocked(prefix: [], afterKey: null, readDiskValues: false)
             .Where(pair => pair.Value.IsExpired(utcNow))
-            .OrderBy(static pair => pair.Key, KvKeyComparer.Instance)
-            .Take(limit)
             .Select(static pair => pair.Key.ToArray())
+            .Take(limit)
             .ToArray();
 
         int removed = 0;
@@ -957,14 +987,18 @@ public sealed class KvKeyspace : IDisposable
 
     private bool DeleteExistingLocked(byte[] key)
     {
-        if (!_values.ContainsKey(key))
+        if (!TryGetEntryLocked(key, out _))
             return false;
 
         long sequence = _wal!.AppendDelete(key);
         if (_options.SyncWalOnEveryWrite)
             _wal.Sync();
 
-        _values.Remove(key);
+        if (_diskState is not null && _diskState.Contains(key))
+            _values[key.ToArray()] = KvValueEntry.Deleted(sequence);
+        else
+            _values.Remove(key);
+
         _lastSequence = sequence;
         return true;
     }
@@ -978,6 +1012,111 @@ public sealed class KvKeyspace : IDisposable
         _values[keyCopy] = new KvValueEntry(valueCopy, sequence, expiresAtUtc);
         _lastSequence = sequence;
         return sequence;
+    }
+
+    private bool TryGetEntryLocked(ReadOnlySpan<byte> key, out KvValueEntry entry)
+    {
+        if (_values.TryGetValue(key.ToArray(), out entry!))
+            return !entry.IsDeleted;
+
+        entry = _diskState?.Get(key)!;
+        return entry is not null;
+    }
+
+    private int CountVisibleLocked()
+    {
+        int count = _diskState?.Count ?? 0;
+        foreach (var pair in _values)
+        {
+            bool existsOnDisk = _diskState?.Contains(pair.Key) == true;
+            if (pair.Value.IsDeleted)
+            {
+                if (existsOnDisk)
+                    count--;
+                continue;
+            }
+
+            if (!existsOnDisk)
+                count++;
+        }
+
+        return count;
+    }
+
+    private IEnumerable<KeyValuePair<byte[], KvValueEntry>> EnumerateVisibleEntriesLocked(
+        byte[] prefix,
+        byte[]? afterKey,
+        bool readDiskValues = true)
+    {
+        using var memory = _values
+            .Where(pair => !pair.Value.IsDeleted
+                && pair.Key.AsSpan().StartsWith(prefix)
+                && (afterKey is null || KvKeyComparer.Instance.Compare(pair.Key, afterKey) > 0))
+            .OrderBy(static pair => pair.Key, KvKeyComparer.Instance)
+            .GetEnumerator();
+
+        using var disk = (_diskState?.ScanPrefixAfter(prefix, afterKey)
+                ?? Enumerable.Empty<KvDiskIndexEntry>())
+            .GetEnumerator();
+
+        bool hasMemory = memory.MoveNext();
+        bool hasDisk = disk.MoveNext();
+        while (hasMemory || hasDisk)
+        {
+            if (!hasDisk)
+            {
+                yield return new KeyValuePair<byte[], KvValueEntry>(
+                    memory.Current.Key,
+                    memory.Current.Value);
+                hasMemory = memory.MoveNext();
+                continue;
+            }
+
+            if (!hasMemory)
+            {
+                var diskEntry = disk.Current;
+                if (!_values.ContainsKey(diskEntry.Key))
+                    yield return new KeyValuePair<byte[], KvValueEntry>(
+                        diskEntry.Key,
+                        readDiskValues ? _diskState!.Read(diskEntry) : diskEntry.ToValueEntry());
+                hasDisk = disk.MoveNext();
+                continue;
+            }
+
+            int comparison = KvKeyComparer.Instance.Compare(memory.Current.Key, disk.Current.Key);
+            if (comparison < 0)
+            {
+                yield return new KeyValuePair<byte[], KvValueEntry>(
+                    memory.Current.Key,
+                    memory.Current.Value);
+                hasMemory = memory.MoveNext();
+                continue;
+            }
+
+            if (comparison == 0)
+            {
+                yield return new KeyValuePair<byte[], KvValueEntry>(
+                    memory.Current.Key,
+                    memory.Current.Value);
+                hasMemory = memory.MoveNext();
+                hasDisk = disk.MoveNext();
+                continue;
+            }
+
+            var currentDisk = disk.Current;
+            if (!_values.ContainsKey(currentDisk.Key))
+                yield return new KeyValuePair<byte[], KvValueEntry>(
+                    currentDisk.Key,
+                    readDiskValues ? _diskState!.Read(currentDisk) : currentDisk.ToValueEntry());
+            hasDisk = disk.MoveNext();
+        }
+    }
+
+    private void ReplaceDiskStateLocked(KvDiskState? diskState)
+    {
+        var old = _diskState;
+        _diskState = diskState;
+        old?.Dispose();
     }
 
     private static long ParseInteger(byte[] value)

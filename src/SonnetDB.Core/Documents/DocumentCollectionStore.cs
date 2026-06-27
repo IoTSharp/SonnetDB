@@ -683,6 +683,8 @@ public sealed class DocumentCollectionStore : IDisposable
 
     internal long CreateSnapshot() => _keyspace.CreateSnapshot();
 
+    internal long Compact() => _keyspace.Compact();
+
     /// <summary>
     /// 关闭底层 KV keyspace。
     /// </summary>

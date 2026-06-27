@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using SonnetDB.Backup;
+using SonnetDB.Documents;
 using SonnetDB.Engine;
 using SonnetDB.Engine.Compaction;
 using SonnetDB.Model;
@@ -105,6 +106,63 @@ public sealed class BackupServiceTests : IDisposable
             Assert.EndsWith(".SDBSEG", segment.Path, StringComparison.OrdinalIgnoreCase);
             Assert.True(File.Exists(Path.Combine(backupDirectory, segment.Path.Replace('/', Path.DirectorySeparatorChar))));
         }
+    }
+
+    [Fact]
+    public void CreateRestore_WithDocumentCollection_UsesOrderedKvSegmentAndRestoresIndexes()
+    {
+        string dbRoot = Path.Combine(_rootDirectory, "db-documents");
+        string backupDirectory = Path.Combine(_rootDirectory, "backup-documents");
+        string restoreRoot = Path.Combine(_rootDirectory, "restored-documents");
+
+        using (var db = Tsdb.Open(new TsdbOptions
+        {
+            RootDirectory = dbRoot,
+            BackgroundFlush = new BackgroundFlushOptions { Enabled = false },
+            Compaction = new CompactionPolicy { Enabled = false },
+        }))
+        {
+            db.Documents.Create(DocumentCollectionSchema.Create("devices"));
+            db.Documents.CreateIndex(
+                "devices",
+                new DocumentPathIndexDefinition("idx_type", ["$.type"]));
+            var store = db.Documents.Open("devices");
+            store.Insert("b", """{"type":"sensor","site":"west"}""");
+            store.Insert("a", """{"type":"sensor","site":"east"}""");
+            store.Insert("c", """{"type":"gateway","site":"west"}""");
+
+            var manifest = new BackupService().Create(db, new BackupCreateOptions
+            {
+                DestinationDirectory = backupDirectory,
+            });
+
+            Assert.Contains(manifest.Files, static file =>
+                file.Kind == BackupFileKind.Document &&
+                file.Path.Contains("documents/collections/", StringComparison.Ordinal) &&
+                file.Path.EndsWith(".SDBKVSEG", StringComparison.OrdinalIgnoreCase));
+        }
+
+        new BackupService().Restore(new BackupRestoreOptions
+        {
+            BackupDirectory = backupDirectory,
+            TargetDirectory = restoreRoot,
+        });
+
+        using var restored = Tsdb.Open(new TsdbOptions
+        {
+            RootDirectory = restoreRoot,
+            BackgroundFlush = new BackgroundFlushOptions { Enabled = false },
+            Compaction = new CompactionPolicy { Enabled = false },
+        });
+        var restoredStore = restored.Documents.Open("devices");
+        var rows = restoredStore.Scan();
+
+        Assert.Equal(["a", "b", "c"], rows.Select(static row => row.Id).ToArray());
+        Assert.Equal(["a", "b"], restoredStore.GetByIndex(
+                restoredStore.Schema.TryGetIndex("idx_type")!,
+                "sensor")
+            .Select(static row => row.Id)
+            .ToArray());
     }
 
     public void Dispose()

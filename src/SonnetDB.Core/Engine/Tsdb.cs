@@ -622,7 +622,7 @@ public sealed class Tsdb : IDisposable
             _catalogDirty = false;
 
             Tables.CheckpointAll();
-            Documents.CheckpointAll();
+            Documents.CompactAll();
             var checkpointedKeyspaces = Keyspaces.CheckpointOpened();
 
             return afterCheckpoint(this, options, checkpointedKeyspaces);
