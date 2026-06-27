@@ -129,8 +129,6 @@ internal static class DocumentSqlExecutor
         ValidateAliasReferences(statement);
         if (statement.TableValuedFunction is not null)
             throw new InvalidOperationException("文档集合 SELECT 不支持 FROM 表值函数。");
-        if (statement.GroupBy.Count != 0)
-            throw new InvalidOperationException("文档集合暂不支持 GROUP BY。");
 
         var projections = BuildProjections(statement.Projections);
         var store = tsdb.Documents.Open(schema.Name);
@@ -141,6 +139,13 @@ internal static class DocumentSqlExecutor
         var matchScores = match is null
             ? new Dictionary<string, double>(StringComparer.Ordinal)
             : match.Hits.ToDictionary(static hit => hit.DocumentId, static hit => hit.Score, StringComparer.Ordinal);
+
+        if (statement.GroupBy.Count != 0 || statement.Having is not null || ContainsAggregate(projections))
+        {
+            var aggregateRows = LoadCandidateRows(store, schema, statement.Where, match);
+            var aggregateResult = ExecuteAggregateProjection(statement, aggregateRows, projections, matchScores);
+            return ApplyPagination(ApplyOrderBy(aggregateResult, statement.OrderBy), statement.Pagination);
+        }
 
         IReadOnlyList<DocumentRow> rows;
         bool plannerAppliedOrderByAndPagination = false;
@@ -521,6 +526,247 @@ internal static class DocumentSqlExecutor
         }
 
         return filtered;
+    }
+
+    private static SelectExecutionResult ExecuteAggregateProjection(
+        SelectStatement statement,
+        IReadOnlyList<DocumentRow> rows,
+        Projection[] projections,
+        IReadOnlyDictionary<string, double> matchScores)
+    {
+        ValidateAggregateProjection(statement, projections);
+
+        var filteredRows = rows
+            .Where(row => EvaluateWhere(statement.Where, row, matchScores))
+            .ToArray();
+        var groups = new Dictionary<DocumentGroupKey, List<DocumentRow>>();
+        foreach (var row in filteredRows)
+        {
+            var keyValues = statement.GroupBy
+                .Select(group => EvaluateScalar(group, row, matchScores))
+                .ToArray();
+            var key = new DocumentGroupKey(keyValues);
+            if (!groups.TryGetValue(key, out var bucket))
+            {
+                bucket = new List<DocumentRow>();
+                groups.Add(key, bucket);
+            }
+
+            bucket.Add(row);
+        }
+
+        if (groups.Count == 0 && statement.GroupBy.Count == 0)
+            groups.Add(new DocumentGroupKey([]), []);
+
+        var resultRows = new List<IReadOnlyList<object?>>(groups.Count);
+        foreach (var group in groups.Values)
+        {
+            var representative = group.Count == 0
+                ? new DocumentRow(string.Empty, "{}", Version: 0)
+                : group[0];
+
+            if (statement.Having is not null
+                && !EvaluateHavingPredicate(statement.Having, representative, group, matchScores))
+            {
+                continue;
+            }
+
+            var output = new object?[projections.Length];
+            for (int i = 0; i < projections.Length; i++)
+            {
+                output[i] = projections[i].Expression is FunctionCallExpression function
+                    && IsAggregateFunction(function.Name)
+                        ? EvaluateAggregate(function, group, matchScores)
+                        : EvaluateScalar(projections[i].Expression, representative, matchScores);
+            }
+
+            resultRows.Add(output);
+        }
+
+        return new SelectExecutionResult(
+            projections.Select(static projection => projection.ColumnName).ToArray(),
+            resultRows);
+    }
+
+    private static void ValidateAggregateProjection(SelectStatement statement, Projection[] projections)
+    {
+        foreach (var projection in projections)
+        {
+            if (projection.Expression is FunctionCallExpression function && IsAggregateFunction(function.Name))
+                continue;
+            if (statement.GroupBy.Any(group => ExpressionEquals(group, projection.Expression)))
+                continue;
+
+            throw new InvalidOperationException("文档集合聚合 SELECT 中的非聚合投影必须出现在 GROUP BY 中。");
+        }
+    }
+
+    private static bool EvaluateHavingPredicate(
+        SqlExpression expression,
+        DocumentRow representative,
+        IReadOnlyList<DocumentRow> group,
+        IReadOnlyDictionary<string, double> matchScores)
+    {
+        if (expression is BinaryExpression binary)
+        {
+            if (binary.Operator == SqlBinaryOperator.And)
+                return EvaluateHavingPredicate(binary.Left, representative, group, matchScores)
+                    && EvaluateHavingPredicate(binary.Right, representative, group, matchScores);
+            if (binary.Operator == SqlBinaryOperator.Or)
+                return EvaluateHavingPredicate(binary.Left, representative, group, matchScores)
+                    || EvaluateHavingPredicate(binary.Right, representative, group, matchScores);
+            if (IsComparisonOperator(binary.Operator))
+            {
+                var left = EvaluateHavingScalar(binary.Left, representative, group, matchScores);
+                var right = EvaluateHavingScalar(binary.Right, representative, group, matchScores);
+                int? compare = CompareScalar(left, right);
+                return binary.Operator switch
+                {
+                    SqlBinaryOperator.Equal => ValuesEqual(left, right),
+                    SqlBinaryOperator.NotEqual => !ValuesEqual(left, right),
+                    SqlBinaryOperator.LessThan => compare is < 0,
+                    SqlBinaryOperator.LessThanOrEqual => compare is <= 0,
+                    SqlBinaryOperator.GreaterThan => compare is > 0,
+                    SqlBinaryOperator.GreaterThanOrEqual => compare is >= 0,
+                    SqlBinaryOperator.Like => LikePatternMatcher.IsMatch(left, right),
+                    SqlBinaryOperator.NotLike => !LikePatternMatcher.IsMatch(left, right),
+                    SqlBinaryOperator.Regex => RegexPatternMatcher.IsMatch(left, right),
+                    SqlBinaryOperator.NotRegex => !RegexPatternMatcher.IsMatch(left, right),
+                    _ => throw new InvalidOperationException($"HAVING 不支持的比较运算符 {binary.Operator}。"),
+                };
+            }
+        }
+        else if (expression is UnaryExpression { Operator: SqlUnaryOperator.Not } unary)
+        {
+            return !EvaluateHavingPredicate(unary.Operand, representative, group, matchScores);
+        }
+
+        var value = EvaluateHavingScalar(expression, representative, group, matchScores);
+        if (value is bool b)
+            return b;
+        throw new InvalidOperationException("HAVING 表达式必须计算为布尔值。");
+    }
+
+    private static object? EvaluateHavingScalar(
+        SqlExpression expression,
+        DocumentRow representative,
+        IReadOnlyList<DocumentRow> group,
+        IReadOnlyDictionary<string, double> matchScores)
+    {
+        var inlined = InlineAggregates(expression, group, matchScores);
+        return EvaluateScalar(inlined, representative, matchScores);
+    }
+
+    private static SqlExpression InlineAggregates(
+        SqlExpression expression,
+        IReadOnlyList<DocumentRow> group,
+        IReadOnlyDictionary<string, double> matchScores)
+    {
+        return expression switch
+        {
+            FunctionCallExpression function when IsAggregateFunction(function.Name) =>
+                LiteralFromValue(EvaluateAggregate(function, group, matchScores)),
+            BinaryExpression binary => new BinaryExpression(
+                binary.Operator,
+                InlineAggregates(binary.Left, group, matchScores),
+                InlineAggregates(binary.Right, group, matchScores)),
+            UnaryExpression unary => new UnaryExpression(
+                unary.Operator,
+                InlineAggregates(unary.Operand, group, matchScores)),
+            FunctionCallExpression function when !function.IsStar => function with
+            {
+                Arguments = function.Arguments.Select(argument => InlineAggregates(argument, group, matchScores)).ToArray(),
+            },
+            _ => expression,
+        };
+    }
+
+    private static object? EvaluateAggregate(
+        FunctionCallExpression function,
+        IReadOnlyList<DocumentRow> group,
+        IReadOnlyDictionary<string, double> matchScores)
+    {
+        string name = function.Name.ToLowerInvariant();
+        if (name == "count")
+        {
+            if (function.IsStar || function.Arguments.Count == 0)
+                return (long)group.Count;
+            RequireArgumentCount(function, 1);
+            return group.LongCount(row => EvaluateScalar(function.Arguments[0], row, matchScores) is not null);
+        }
+
+        RequireArgumentCount(function, 1);
+        var values = group
+            .Select(row => EvaluateScalar(function.Arguments[0], row, matchScores))
+            .Where(static value => value is not null)
+            .ToArray();
+
+        return name switch
+        {
+            "sum" => SumValues(values),
+            "avg" => values.Length == 0 ? null : values.Average(ToDouble),
+            "min" => values.Length == 0 ? null : values.Min(ScalarComparer.Instance),
+            "max" => values.Length == 0 ? null : values.Max(ScalarComparer.Instance),
+            "first" => values.Length == 0 ? null : values[0],
+            "last" => values.Length == 0 ? null : values[^1],
+            _ => throw new InvalidOperationException($"文档集合不支持聚合函数 '{function.Name}'。"),
+        };
+    }
+
+    private static object SumValues(IReadOnlyList<object?> values)
+    {
+        bool allIntegral = true;
+        double sum = 0;
+        foreach (var value in values)
+        {
+            if (value is null)
+                continue;
+            if (!IsNumeric(value))
+                throw new InvalidOperationException("sum 聚合函数只能用于数值表达式。");
+            allIntegral &= value is byte or sbyte or short or ushort or int or uint or long;
+            sum += Convert.ToDouble(value, CultureInfo.InvariantCulture);
+        }
+
+        return allIntegral ? (long)sum : sum;
+    }
+
+    private static double ToDouble(object? value)
+    {
+        if (value is null)
+            return 0;
+        if (!IsNumeric(value))
+            throw new InvalidOperationException("avg 聚合函数只能用于数值表达式。");
+        return Convert.ToDouble(value, CultureInfo.InvariantCulture);
+    }
+
+    private static LiteralExpression LiteralFromValue(object? value)
+        => value switch
+        {
+            null => LiteralExpression.Null(),
+            bool b => LiteralExpression.Bool(b),
+            byte or sbyte or short or ushort or int or uint or long => LiteralExpression.Integer(
+                Convert.ToInt64(value, CultureInfo.InvariantCulture)),
+            float or double or decimal => LiteralExpression.Float(Convert.ToDouble(value, CultureInfo.InvariantCulture)),
+            _ => LiteralExpression.String(Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty),
+        };
+
+    private static bool ContainsAggregate(Projection[] projections)
+        => projections.Any(static projection =>
+            projection.Expression is FunctionCallExpression function && IsAggregateFunction(function.Name));
+
+    private static bool IsAggregateFunction(string name)
+        => name.Equals("count", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("sum", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("avg", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("min", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("max", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("first", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("last", StringComparison.OrdinalIgnoreCase);
+
+    private static void RequireArgumentCount(FunctionCallExpression function, int count)
+    {
+        if (function.IsStar || function.Arguments.Count != count)
+            throw new InvalidOperationException($"{function.Name} 聚合函数需要 {count} 个参数。");
     }
 
     private static FullTextMatch? TryExtractMatch(
@@ -1492,6 +1738,18 @@ internal static class DocumentSqlExecutor
             foreach (var identifier in EnumerateIdentifierReferences(statement.OrderBy.Expression))
                 yield return identifier;
         }
+
+        foreach (var groupBy in statement.GroupBy)
+        {
+            foreach (var identifier in EnumerateIdentifierReferences(groupBy))
+                yield return identifier;
+        }
+
+        if (statement.Having is not null)
+        {
+            foreach (var identifier in EnumerateIdentifierReferences(statement.Having))
+                yield return identifier;
+        }
     }
 
     private static IEnumerable<IdentifierExpression> EnumerateIdentifierReferences(SqlExpression expression)
@@ -1625,6 +1883,35 @@ internal static class DocumentSqlExecutor
         }
     }
 
+    private static bool ExpressionEquals(SqlExpression left, SqlExpression right)
+    {
+        if (ReferenceEquals(left, right))
+            return true;
+        if (left.GetType() != right.GetType())
+            return false;
+
+        return (left, right) switch
+        {
+            (IdentifierExpression l, IdentifierExpression r) =>
+                string.Equals(l.Name, r.Name, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(l.Qualifier, r.Qualifier, StringComparison.OrdinalIgnoreCase),
+            (LiteralExpression l, LiteralExpression r) => ValuesEqual(EvaluateLiteral(l), EvaluateLiteral(r)),
+            (FunctionCallExpression l, FunctionCallExpression r) =>
+                string.Equals(l.Name, r.Name, StringComparison.OrdinalIgnoreCase)
+                && l.IsStar == r.IsStar
+                && l.Arguments.Count == r.Arguments.Count
+                && l.Arguments.Zip(r.Arguments).All(pair => ExpressionEquals(pair.First, pair.Second)),
+            (UnaryExpression l, UnaryExpression r) =>
+                l.Operator == r.Operator && ExpressionEquals(l.Operand, r.Operand),
+            (BinaryExpression l, BinaryExpression r) =>
+                l.Operator == r.Operator
+                && ExpressionEquals(l.Left, r.Left)
+                && ExpressionEquals(l.Right, r.Right),
+            (StarExpression, StarExpression) => true,
+            _ => Equals(left, right),
+        };
+    }
+
     private static string FormatLiteralColumnName(LiteralExpression literal) => literal.Kind switch
     {
         SqlLiteralKind.Null => "NULL",
@@ -1642,6 +1929,54 @@ internal static class DocumentSqlExecutor
             : function.Name;
 
     private sealed record Projection(string ColumnName, SqlExpression Expression);
+
+    private sealed class DocumentGroupKey : IEquatable<DocumentGroupKey>
+    {
+        private readonly object?[] _values;
+
+        public DocumentGroupKey(object?[] values)
+        {
+            _values = values;
+        }
+
+        public bool Equals(DocumentGroupKey? other)
+        {
+            if (other is null || other._values.Length != _values.Length)
+                return false;
+
+            for (int i = 0; i < _values.Length; i++)
+            {
+                if (!ValuesEqual(_values[i], other._values[i]))
+                    return false;
+            }
+
+            return true;
+        }
+
+        public override bool Equals(object? obj) => Equals(obj as DocumentGroupKey);
+
+        public override int GetHashCode()
+        {
+            var hash = new HashCode();
+            foreach (var value in _values)
+            {
+                if (value is null)
+                {
+                    hash.Add(0);
+                }
+                else if (IsNumeric(value))
+                {
+                    hash.Add(Convert.ToDouble(value, CultureInfo.InvariantCulture));
+                }
+                else
+                {
+                    hash.Add(value);
+                }
+            }
+
+            return hash.ToHashCode();
+        }
+    }
 
     private sealed class ScalarComparer : IComparer<object?>
     {

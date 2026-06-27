@@ -235,9 +235,28 @@ POST   /v1/db/{db}/documents/{collection}/distinct
 
 // distinct：按 JSON path 返回标量 distinct 值
 { "path": "$.site" }
+
+// aggregate：SonnetDB-native JSON aggregation pipeline
+{
+  "pipeline": [
+    { "$match": { "path": "$.score", "op": "gte", "value": 5 } },
+    {
+      "$group": {
+        "keys": [{ "name": "site", "path": "$.site" }],
+        "accumulators": [
+          { "name": "count", "op": "count" },
+          { "name": "total", "op": "sum", "path": "$.score" },
+          { "name": "avgScore", "op": "avg", "path": "$.score" }
+        ]
+      }
+    },
+    { "$sort": [{ "path": "$.total", "descending": true }] }
+  ]
+}
 ```
 
 `filter` 操作符支持 `eq/ne/gt/gte/lt/lte/in/nin/exists/contains` 与 `and/or/not` 组合；`path` 可写 `_id` / `id`、`document` / `json` 或 JSON path。`exists` 会区分 path 缺失与 JSON `null`：path 存在且值为 `null` 时仍视为存在。
+`aggregate` 支持 `$match` / `$project` / `$group` / `$sort` / `$limit` / `$skip` / `$unwind` / `$count` / `$distinct` 等价阶段；`$group.accumulators[].op` 支持 `count`、`sum`、`avg`、`min`、`max`、`first`、`last`、`distinct`。SQL 侧也可以直接在 document collection 上使用 `GROUP BY json_value(document, '$.path')` 与 `count/sum/avg/min/max/first/last`。
 
 find 支持 cursor 分页：首个请求传 `limit`（服务器最大 batch size 为 1000），响应中的 `continuationToken` 不为空时，把它原样放入下一次 find 请求即可继续读取；续页 token 绑定 collection、查询形状、只读快照版本和 15 分钟过期时间，不能与 `skip` 混用。写入导致集合版本变化后，旧 token 会被拒绝，需要重新发起首个 find 请求。当前 Document API 契约刻意不实现 MongoDB wire protocol / BSON command，也不承诺官方 MongoDB Driver 直连；局部更新操作符和批量写事务语义会在 Milestone 21 后续 PR 中补齐。OpenAPI 片段见 [document-api.yaml](openapi/document-api.yaml)。
 

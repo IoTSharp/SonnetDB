@@ -544,6 +544,43 @@ public sealed class SndbDocumentClient : IDisposable
         return new SndbDocumentDistinctResult(collection, body.Path, body.Values.Select(ToObject).ToArray());
     }
 
+    /// <summary>
+    /// 执行文档聚合管线。
+    /// </summary>
+    /// <param name="collection">文档集合名称。</param>
+    /// <param name="pipeline">按顺序执行的聚合阶段。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>聚合输出文档列表。</returns>
+    public async Task<SndbDocumentAggregateResult> AggregateAsync(
+        string collection,
+        IReadOnlyList<SndbDocumentAggregateStage> pipeline,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ValidateCollection(collection);
+        ArgumentNullException.ThrowIfNull(pipeline);
+        if (pipeline.Count == 0)
+            throw new InvalidOperationException("document aggregate pipeline 不能为空。");
+
+        if (_embedded is not null)
+        {
+            var result = _embedded.Documents.Open(collection).Aggregate(ToCoreAggregation(pipeline));
+            return new SndbDocumentAggregateResult(collection, result.Documents, result.Documents.Count);
+        }
+
+        using var response = await PostJsonAsync(
+            CollectionActionUrl(collection, "aggregate"),
+            new DocumentAggregateRequest(pipeline),
+            SndbDocumentClientJsonContext.Default.DocumentAggregateRequest,
+            cancellationToken).ConfigureAwait(false);
+        var body = await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentAggregateResponse, cancellationToken)
+            .ConfigureAwait(false);
+        return new SndbDocumentAggregateResult(
+            body.Collection,
+            body.Documents.Select(static document => document.GetRawText()).ToArray(),
+            body.Count);
+    }
+
     /// <inheritdoc />
     public void Dispose()
     {
@@ -989,6 +1026,91 @@ public sealed class SndbDocumentClient : IDisposable
             update.Pull,
             update.AddToSet,
             update.CurrentDate);
+
+    private static DocumentAggregationPipeline ToCoreAggregation(IReadOnlyList<SndbDocumentAggregateStage> pipeline)
+        => new(pipeline.Select(ToCoreAggregationStage).ToArray());
+
+    private static DocumentAggregationStage ToCoreAggregationStage(SndbDocumentAggregateStage stage)
+    {
+        int setCount = CountAggregationStageProperties(stage);
+        if (setCount != 1)
+            throw new InvalidOperationException("aggregate pipeline 的每个 stage 必须且只能包含一个 $xxx 属性。");
+
+        if (stage.Match is not null)
+            return new DocumentMatchStage(ToRequiredCoreFilter(stage.Match));
+        if (stage.Project is not null)
+            return new DocumentProjectStage(ToCoreProjection(stage.Project)
+                ?? throw new InvalidOperationException("$project 需要至少一个投影字段。"));
+        if (stage.Group is not null)
+            return ToCoreGroupStage(stage.Group);
+        if (stage.Sort is not null)
+            return new DocumentSortStage(ToCoreSort(stage.Sort));
+        if (stage.Limit is not null)
+            return new DocumentLimitStage(stage.Limit.Value);
+        if (stage.Skip is not null)
+            return new DocumentSkipStage(stage.Skip.Value);
+        if (stage.Unwind is not null)
+            return new DocumentUnwindStage(
+                ToCoreField(stage.Unwind.Path),
+                stage.Unwind.Name,
+                stage.Unwind.PreserveNullAndEmptyArrays);
+        if (stage.Count is not null)
+            return new DocumentCountStage(string.IsNullOrWhiteSpace(stage.Count) ? "count" : stage.Count);
+        if (stage.Distinct is not null)
+            return new DocumentDistinctStage(
+                ToCoreField(stage.Distinct.Path),
+                string.IsNullOrWhiteSpace(stage.Distinct.Name) ? "value" : stage.Distinct.Name,
+                stage.Distinct.Limit);
+
+        throw new InvalidOperationException("aggregate pipeline stage 为空。");
+    }
+
+    private static int CountAggregationStageProperties(SndbDocumentAggregateStage stage)
+    {
+        int count = 0;
+        if (stage.Match is not null) count++;
+        if (stage.Project is not null) count++;
+        if (stage.Group is not null) count++;
+        if (stage.Sort is not null) count++;
+        if (stage.Limit is not null) count++;
+        if (stage.Skip is not null) count++;
+        if (stage.Unwind is not null) count++;
+        if (stage.Count is not null) count++;
+        if (stage.Distinct is not null) count++;
+        return count;
+    }
+
+    private static DocumentGroupStage ToCoreGroupStage(SndbDocumentAggregateGroup group)
+    {
+        var keys = group.Keys is { Count: > 0 }
+            ? group.Keys.Select(static key => new DocumentAggregationGroupKey(key.Name, ToCoreField(key.Path))).ToArray()
+            : Array.Empty<DocumentAggregationGroupKey>();
+        var accumulators = group.Accumulators is { Count: > 0 }
+            ? group.Accumulators.Select(static accumulator => new DocumentAggregationAccumulator(
+                accumulator.Name,
+                ParseAccumulatorOperator(accumulator.Op),
+                string.IsNullOrWhiteSpace(accumulator.Path) ? null : ToCoreField(accumulator.Path))).ToArray()
+            : Array.Empty<DocumentAggregationAccumulator>();
+
+        if (keys.Length == 0 && accumulators.Length == 0)
+            throw new InvalidOperationException("$group 至少需要一个 key 或 accumulator。");
+
+        return new DocumentGroupStage(keys, accumulators);
+    }
+
+    private static DocumentAggregationAccumulatorOperator ParseAccumulatorOperator(string op)
+        => op.ToLowerInvariant() switch
+        {
+            "count" => DocumentAggregationAccumulatorOperator.Count,
+            "sum" => DocumentAggregationAccumulatorOperator.Sum,
+            "avg" or "average" => DocumentAggregationAccumulatorOperator.Average,
+            "min" => DocumentAggregationAccumulatorOperator.Min,
+            "max" => DocumentAggregationAccumulatorOperator.Max,
+            "first" => DocumentAggregationAccumulatorOperator.First,
+            "last" => DocumentAggregationAccumulatorOperator.Last,
+            "distinct" => DocumentAggregationAccumulatorOperator.Distinct,
+            _ => throw new InvalidOperationException($"不支持的 document aggregate accumulator '{op}'。"),
+        };
 
     private static object? ToObject(JsonElementValue value)
         => value.Kind switch

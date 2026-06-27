@@ -443,6 +443,35 @@ public sealed class SqlExecutorDocumentTests : IDisposable
     }
 
     [Fact]
+    public void DocumentCollection_SelectGroupByAggregate_ReturnsGroups()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE DOCUMENT COLLECTION device_docs");
+        SqlExecutor.Execute(db, """
+            INSERT INTO device_docs (id, document)
+            VALUES ('dev-1', '{"site":"north","kind":"pump","score":7}'),
+                   ('dev-2', '{"site":"south","kind":"fan","score":3}'),
+                   ('dev-3', '{"site":"north","kind":"pump","score":9}')
+            """);
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT json_value(document, '$.site') AS site,
+                   count(*) AS rows,
+                   sum(json_value(document, '$.score')) AS total,
+                   avg(json_value(document, '$.score')) AS avg_score,
+                   first(json_value(document, '$.kind')) AS first_kind
+            FROM device_docs
+            GROUP BY json_value(document, '$.site')
+            HAVING sum(json_value(document, '$.score')) >= 10
+            ORDER BY total DESC
+            """));
+
+        Assert.Equal(["site", "rows", "total", "avg_score", "first_kind"], result.Columns);
+        Assert.Single(result.Rows);
+        Assert.Equal(new object?[] { "north", 2L, 16.0, 8.0, "pump" }, result.Rows[0]);
+    }
+
+    [Fact]
     public void DocumentCollection_FullTextIndex_SearchesScoresAndPersistsAcrossReopen()
     {
         using (var db = Tsdb.Open(Options()))

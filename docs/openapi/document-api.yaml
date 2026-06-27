@@ -238,6 +238,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DocumentDistinctResponse'
+  /v1/db/{db}/documents/{collection}/aggregate:
+    post:
+      summary: Run a document aggregation pipeline.
+      description: >
+        Supports SonnetDB-native JSON pipeline stages equivalent to $match,
+        $project, $group, $sort, $limit, $skip, $unwind, $count, and $distinct.
+      parameters:
+        - $ref: '#/components/parameters/db'
+        - $ref: '#/components/parameters/collection'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentAggregateRequest'
+      responses:
+        '200':
+          description: Aggregated documents.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentAggregateResponse'
 components:
   parameters:
     db:
@@ -513,3 +535,111 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/JsonElementValue'
+    DocumentAggregateRequest:
+      type: object
+      required: [pipeline]
+      properties:
+        pipeline:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentAggregateStage'
+    DocumentAggregateStage:
+      type: object
+      description: Exactly one $xxx property must be present.
+      properties:
+        $match:
+          $ref: '#/components/schemas/DocumentFilter'
+        $project:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentProjection'
+        $group:
+          $ref: '#/components/schemas/DocumentAggregateGroup'
+        $sort:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentSort'
+        $limit:
+          type: integer
+          minimum: 1
+        $skip:
+          type: integer
+          minimum: 0
+        $unwind:
+          $ref: '#/components/schemas/DocumentAggregateUnwind'
+        $count:
+          type: string
+          default: count
+        $distinct:
+          $ref: '#/components/schemas/DocumentAggregateDistinct'
+    DocumentAggregateGroup:
+      type: object
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentAggregateGroupKey'
+        accumulators:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentAggregateAccumulator'
+    DocumentAggregateGroupKey:
+      type: object
+      required: [name, path]
+      properties:
+        name:
+          type: string
+        path:
+          type: string
+          example: $.site
+    DocumentAggregateAccumulator:
+      type: object
+      required: [name, op]
+      properties:
+        name:
+          type: string
+        op:
+          type: string
+          enum: [count, sum, avg, average, min, max, first, last, distinct]
+        path:
+          type: string
+          nullable: true
+          example: $.score
+    DocumentAggregateUnwind:
+      type: object
+      required: [path]
+      properties:
+        path:
+          type: string
+          example: $.tags
+        name:
+          type: string
+          nullable: true
+        preserveNullAndEmptyArrays:
+          type: boolean
+          default: false
+    DocumentAggregateDistinct:
+      type: object
+      required: [path]
+      properties:
+        path:
+          type: string
+          example: $.site
+        name:
+          type: string
+          default: value
+        limit:
+          type: integer
+          minimum: 1
+    DocumentAggregateResponse:
+      type: object
+      properties:
+        collection:
+          type: string
+        documents:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        count:
+          type: integer

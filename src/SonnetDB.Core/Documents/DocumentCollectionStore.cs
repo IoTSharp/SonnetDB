@@ -285,6 +285,21 @@ public sealed class DocumentCollectionStore : IDisposable
     }
 
     /// <summary>
+    /// 执行文档聚合管线。
+    /// </summary>
+    /// <param name="pipeline">聚合管线定义。</param>
+    /// <returns>聚合输出文档。</returns>
+    public DocumentAggregationResult Aggregate(DocumentAggregationPipeline pipeline)
+    {
+        ArgumentNullException.ThrowIfNull(pipeline);
+        lock (_sync)
+        {
+            PurgeExpiredDocumentsLocked();
+            return DocumentAggregationExecutor.Execute(ScanRowsLocked(int.MaxValue), pipeline);
+        }
+    }
+
+    /// <summary>
     /// 按 JSON path 索引读取候选文档。
     /// </summary>
     /// <param name="index">JSON path 索引声明。</param>

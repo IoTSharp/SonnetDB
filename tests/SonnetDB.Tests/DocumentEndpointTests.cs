@@ -292,6 +292,56 @@ public sealed class DocumentEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task DocumentApi_AggregateEndpoint_RunsPipeline()
+    {
+        using var admin = CreateClient(AdminToken);
+        var create = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/aggdocs",
+            new DocumentCollectionCreateRequest(),
+            ServerJsonContext.Default.DocumentCollectionCreateRequest);
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+
+        using var d1 = JsonDocument.Parse("""{"site":"north","score":7,"kind":"pump"}""");
+        using var d2 = JsonDocument.Parse("""{"site":"south","score":3,"kind":"fan"}""");
+        using var d3 = JsonDocument.Parse("""{"site":"north","score":9,"kind":"pump"}""");
+        var insert = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/aggdocs/insert-many",
+            new DocumentInsertManyRequest([
+                new DocumentWriteItem("dev-1", d1.RootElement.Clone()),
+                new DocumentWriteItem("dev-2", d2.RootElement.Clone()),
+                new DocumentWriteItem("dev-3", d3.RootElement.Clone()),
+            ]),
+            ServerJsonContext.Default.DocumentInsertManyRequest);
+        Assert.Equal(HttpStatusCode.OK, insert.StatusCode);
+
+        using var minScore = JsonDocument.Parse("5");
+        var aggregate = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/aggdocs/aggregate",
+            new DocumentAggregateRequest([
+                new DocumentAggregateStageContract(Match: new DocumentFilterContract("$.score", "gte", minScore.RootElement.Clone())),
+                new DocumentAggregateStageContract(Group: new DocumentAggregateGroupContract(
+                    Keys: [new DocumentAggregateGroupKeyContract("site", "$.site")],
+                    Accumulators: [
+                        new DocumentAggregateAccumulatorContract("count", "count"),
+                        new DocumentAggregateAccumulatorContract("total", "sum", "$.score"),
+                        new DocumentAggregateAccumulatorContract("firstKind", "first", "$.kind"),
+                    ])),
+                new DocumentAggregateStageContract(Sort: [new DocumentSortContract("$.total", Descending: true)]),
+            ]),
+            ServerJsonContext.Default.DocumentAggregateRequest);
+
+        Assert.Equal(HttpStatusCode.OK, aggregate.StatusCode);
+        var body = await aggregate.Content.ReadFromJsonAsync(ServerJsonContext.Default.DocumentAggregateResponse);
+        Assert.NotNull(body);
+        Assert.Equal(1, body!.Count);
+        var row = Assert.Single(body.Documents);
+        Assert.Equal("north", row.GetProperty("site").GetString());
+        Assert.Equal(2, row.GetProperty("count").GetInt32());
+        Assert.Equal(16, row.GetProperty("total").GetInt32());
+        Assert.Equal("pump", row.GetProperty("firstKind").GetString());
+    }
+
+    [Fact]
     public async Task DocumentApi_UpdateOperators_MaintainJsonAndFullTextIndexes()
     {
         using var admin = CreateClient(AdminToken);

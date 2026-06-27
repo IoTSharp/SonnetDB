@@ -177,6 +177,61 @@ public sealed class SndbDocumentClientTests : IDisposable
     }
 
     [Fact]
+    public async Task DocumentClient_AggregatePipeline_GroupsUnwindsAndDistincts()
+    {
+        using var client = new SndbDocumentClient(new SndbConnectionStringBuilder
+        {
+            DataSource = _root,
+        }.ConnectionString);
+
+        await client.CreateCollectionAsync("devices");
+        await client.InsertManyAsync("devices", [
+            new KeyValuePair<string, string>("dev-1", """{"site":"north","kind":"pump","score":7,"tags":["hot","critical"]}"""),
+            new KeyValuePair<string, string>("dev-2", """{"site":"south","kind":"fan","score":3,"tags":["cold"]}"""),
+            new KeyValuePair<string, string>("dev-3", """{"site":"north","kind":"pump","score":9,"tags":["hot"]}"""),
+        ]);
+
+        using var minScore = JsonDocument.Parse("5");
+        var grouped = await client.AggregateAsync("devices", [
+            new SndbDocumentAggregateStage(Match: new SndbDocumentFilter("$.score", "gte", minScore.RootElement.Clone())),
+            new SndbDocumentAggregateStage(Unwind: new SndbDocumentAggregateUnwind("$.tags", "tag")),
+            new SndbDocumentAggregateStage(Group: new SndbDocumentAggregateGroup(
+                Keys: [new SndbDocumentAggregateGroupKey("site", "$.site")],
+                Accumulators: [
+                    new SndbDocumentAggregateAccumulator("total", "sum", "$.score"),
+                    new SndbDocumentAggregateAccumulator("avgScore", "avg", "$.score"),
+                    new SndbDocumentAggregateAccumulator("rows", "count"),
+                    new SndbDocumentAggregateAccumulator("tags", "distinct", "$.tag"),
+                ])),
+            new SndbDocumentAggregateStage(Sort: [new SndbDocumentSort("$.total", Descending: true)]),
+        ]);
+
+        Assert.Equal(1, grouped.Count);
+        using (var doc = JsonDocument.Parse(Assert.Single(grouped.Documents)))
+        {
+            var root = doc.RootElement;
+            Assert.Equal("north", root.GetProperty("site").GetString());
+            Assert.Equal(23, root.GetProperty("total").GetInt32());
+            Assert.Equal(3, root.GetProperty("rows").GetInt32());
+            Assert.Equal(23d / 3d, root.GetProperty("avgScore").GetDouble(), precision: 9);
+            Assert.Equal(["hot", "critical"], root.GetProperty("tags").EnumerateArray().Select(static x => x.GetString()!).ToArray());
+        }
+
+        var distinct = await client.AggregateAsync("devices", [
+            new SndbDocumentAggregateStage(Distinct: new SndbDocumentAggregateDistinct("$.site", "site")),
+            new SndbDocumentAggregateStage(Sort: [new SndbDocumentSort("$.site")]),
+        ]);
+
+        Assert.Equal(["north", "south"], distinct.Documents
+            .Select(static json =>
+            {
+                using var doc = JsonDocument.Parse(json);
+                return doc.RootElement.GetProperty("site").GetString()!;
+            })
+            .ToArray());
+    }
+
+    [Fact]
     public async Task DocumentClient_UpdateOperators_ModifyDocumentsAndSupportUpsert()
     {
         using var client = new SndbDocumentClient(new SndbConnectionStringBuilder

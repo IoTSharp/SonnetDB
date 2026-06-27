@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace SonnetDB.Data.Documents;
 
@@ -128,6 +129,86 @@ public sealed record SndbDocumentDistinctResult(
     string Path,
     IReadOnlyList<object?> Values);
 
+/// <summary>
+/// 文档聚合管线阶段。每个阶段对象只能设置一个 `$xxx` 属性。
+/// </summary>
+/// <param name="Match">`$match` 阶段。</param>
+/// <param name="Project">`$project` 阶段。</param>
+/// <param name="Group">`$group` 阶段。</param>
+/// <param name="Sort">`$sort` 阶段。</param>
+/// <param name="Limit">`$limit` 阶段。</param>
+/// <param name="Skip">`$skip` 阶段。</param>
+/// <param name="Unwind">`$unwind` 阶段。</param>
+/// <param name="Count">`$count` 阶段输出字段名。</param>
+/// <param name="Distinct">`$distinct` 等价阶段。</param>
+public sealed record SndbDocumentAggregateStage(
+    [property: JsonPropertyName("$match")] SndbDocumentFilter? Match = null,
+    [property: JsonPropertyName("$project")] IReadOnlyList<SndbDocumentProjection>? Project = null,
+    [property: JsonPropertyName("$group")] SndbDocumentAggregateGroup? Group = null,
+    [property: JsonPropertyName("$sort")] IReadOnlyList<SndbDocumentSort>? Sort = null,
+    [property: JsonPropertyName("$limit")] int? Limit = null,
+    [property: JsonPropertyName("$skip")] int? Skip = null,
+    [property: JsonPropertyName("$unwind")] SndbDocumentAggregateUnwind? Unwind = null,
+    [property: JsonPropertyName("$count")] string? Count = null,
+    [property: JsonPropertyName("$distinct")] SndbDocumentAggregateDistinct? Distinct = null);
+
+/// <summary>
+/// 文档 `$group` 阶段定义。
+/// </summary>
+/// <param name="Keys">分组键；为空时表示全局分组。</param>
+/// <param name="Accumulators">聚合函数定义。</param>
+public sealed record SndbDocumentAggregateGroup(
+    IReadOnlyList<SndbDocumentAggregateGroupKey>? Keys = null,
+    IReadOnlyList<SndbDocumentAggregateAccumulator>? Accumulators = null);
+
+/// <summary>
+/// 文档 `$group` 分组键。
+/// </summary>
+/// <param name="Name">输出字段名。</param>
+/// <param name="Path">输入字段路径，可为 `_id` / `id` / `document` / `json` 或 JSON path。</param>
+public sealed record SndbDocumentAggregateGroupKey(string Name, string Path);
+
+/// <summary>
+/// 文档 `$group` 聚合函数。
+/// </summary>
+/// <param name="Name">输出字段名。</param>
+/// <param name="Op">函数名：count/sum/avg/min/max/first/last/distinct。</param>
+/// <param name="Path">输入字段路径；count 可不传。</param>
+public sealed record SndbDocumentAggregateAccumulator(string Name, string Op, string? Path = null);
+
+/// <summary>
+/// 文档 `$unwind` 阶段定义。
+/// </summary>
+/// <param name="Path">要展开的数组字段路径。</param>
+/// <param name="Name">可选输出别名；为空时替换原字段。</param>
+/// <param name="PreserveNullAndEmptyArrays">字段缺失、null 或空数组时是否保留原文档。</param>
+public sealed record SndbDocumentAggregateUnwind(
+    string Path,
+    string? Name = null,
+    bool PreserveNullAndEmptyArrays = false);
+
+/// <summary>
+/// 文档 `$distinct` 等价阶段定义。
+/// </summary>
+/// <param name="Path">去重字段路径。</param>
+/// <param name="Name">输出字段名。</param>
+/// <param name="Limit">最多返回的去重值数量。</param>
+public sealed record SndbDocumentAggregateDistinct(
+    string Path,
+    string Name = "value",
+    int? Limit = null);
+
+/// <summary>
+/// 文档聚合管线结果。
+/// </summary>
+/// <param name="Collection">文档集合名称。</param>
+/// <param name="Documents">聚合输出的紧凑 JSON 文档。</param>
+/// <param name="Count">输出文档数量。</param>
+public sealed record SndbDocumentAggregateResult(
+    string Collection,
+    IReadOnlyList<string> Documents,
+    int Count);
+
 internal sealed record DocumentCollectionCreateRequest(bool IfNotExists = true);
 
 internal sealed record DocumentCollectionOperationResponse(string Collection, string Status);
@@ -204,6 +285,13 @@ internal sealed record DocumentDistinctResponse(
     string Collection,
     string Path,
     IReadOnlyList<JsonElementValue> Values);
+
+internal sealed record DocumentAggregateRequest(IReadOnlyList<SndbDocumentAggregateStage> Pipeline);
+
+internal sealed record DocumentAggregateResponse(
+    string Collection,
+    IReadOnlyList<JsonElement> Documents,
+    int Count);
 
 internal sealed record JsonElementValue(
     ScalarKind Kind,

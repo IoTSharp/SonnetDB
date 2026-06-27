@@ -364,6 +364,40 @@ internal static partial class SonnetDbEndpoints
                 new DocumentDistinctResponse(collection, req.Path, values.Select(ToJsonElementValue).ToArray()),
                 ServerJsonContext.Default.DocumentDistinctResponse).ExecuteAsync(ctx).ConfigureAwait(false);
         });
+
+        app.MapPost("/v1/db/{db}/documents/{collection}/aggregate", async (HttpContext ctx, string db, string collection) =>
+        {
+            if (!await TryResolveDocumentCollectionAsync(ctx, registry, grants, db, collection, DatabasePermission.Read, mustExist: true).ConfigureAwait(false))
+                return;
+            var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.DocumentAggregateRequest).ConfigureAwait(false);
+            if (req is null || req.Pipeline is not { Count: > 0 })
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "aggregate 需要提供非空 pipeline。").ConfigureAwait(false);
+                return;
+            }
+
+            registry.TryGet(db, out var tsdb);
+            DocumentAggregationResult result;
+            try
+            {
+                result = tsdb.Documents.Open(collection).Aggregate(ToCoreAggregation(req));
+            }
+            catch (ArgumentException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+                return;
+            }
+            catch (InvalidOperationException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+                return;
+            }
+
+            var documents = result.Documents.Select(ParseJsonElement).ToArray();
+            await Results.Json(
+                new DocumentAggregateResponse(collection, documents, documents.Length),
+                ServerJsonContext.Default.DocumentAggregateResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+        });
     }
 
     private static async Task<bool> TryResolveDocumentCollectionAsync(
@@ -745,6 +779,91 @@ internal static partial class SonnetDbEndpoints
             update.AddToSet,
             update.CurrentDate);
 
+    private static DocumentAggregationPipeline ToCoreAggregation(DocumentAggregateRequest req)
+        => new(req.Pipeline.Select(ToCoreAggregationStage).ToArray());
+
+    private static DocumentAggregationStage ToCoreAggregationStage(DocumentAggregateStageContract stage)
+    {
+        int setCount = CountAggregationStageProperties(stage);
+        if (setCount != 1)
+            throw new InvalidOperationException("aggregate pipeline 的每个 stage 必须且只能包含一个 $xxx 属性。");
+
+        if (stage.Match is not null)
+            return new DocumentMatchStage(ToRequiredCoreFilter(stage.Match));
+        if (stage.Project is not null)
+            return new DocumentProjectStage(ToCoreProjection(stage.Project)
+                ?? throw new InvalidOperationException("$project 需要至少一个投影字段。"));
+        if (stage.Group is not null)
+            return ToCoreGroupStage(stage.Group);
+        if (stage.Sort is not null)
+            return new DocumentSortStage(ToCoreSort(stage.Sort));
+        if (stage.Limit is not null)
+            return new DocumentLimitStage(stage.Limit.Value);
+        if (stage.Skip is not null)
+            return new DocumentSkipStage(stage.Skip.Value);
+        if (stage.Unwind is not null)
+            return new DocumentUnwindStage(
+                ToCoreField(stage.Unwind.Path),
+                stage.Unwind.Name,
+                stage.Unwind.PreserveNullAndEmptyArrays);
+        if (stage.Count is not null)
+            return new DocumentCountStage(string.IsNullOrWhiteSpace(stage.Count) ? "count" : stage.Count);
+        if (stage.Distinct is not null)
+            return new DocumentDistinctStage(
+                ToCoreField(stage.Distinct.Path),
+                string.IsNullOrWhiteSpace(stage.Distinct.Name) ? "value" : stage.Distinct.Name,
+                stage.Distinct.Limit);
+
+        throw new InvalidOperationException("aggregate pipeline stage 为空。");
+    }
+
+    private static int CountAggregationStageProperties(DocumentAggregateStageContract stage)
+    {
+        int count = 0;
+        if (stage.Match is not null) count++;
+        if (stage.Project is not null) count++;
+        if (stage.Group is not null) count++;
+        if (stage.Sort is not null) count++;
+        if (stage.Limit is not null) count++;
+        if (stage.Skip is not null) count++;
+        if (stage.Unwind is not null) count++;
+        if (stage.Count is not null) count++;
+        if (stage.Distinct is not null) count++;
+        return count;
+    }
+
+    private static DocumentGroupStage ToCoreGroupStage(DocumentAggregateGroupContract group)
+    {
+        var keys = group.Keys is { Count: > 0 }
+            ? group.Keys.Select(static key => new DocumentAggregationGroupKey(key.Name, ToCoreField(key.Path))).ToArray()
+            : Array.Empty<DocumentAggregationGroupKey>();
+        var accumulators = group.Accumulators is { Count: > 0 }
+            ? group.Accumulators.Select(static accumulator => new DocumentAggregationAccumulator(
+                accumulator.Name,
+                ParseAccumulatorOperator(accumulator.Op),
+                string.IsNullOrWhiteSpace(accumulator.Path) ? null : ToCoreField(accumulator.Path))).ToArray()
+            : Array.Empty<DocumentAggregationAccumulator>();
+
+        if (keys.Length == 0 && accumulators.Length == 0)
+            throw new InvalidOperationException("$group 至少需要一个 key 或 accumulator。");
+
+        return new DocumentGroupStage(keys, accumulators);
+    }
+
+    private static DocumentAggregationAccumulatorOperator ParseAccumulatorOperator(string op)
+        => op.ToLowerInvariant() switch
+        {
+            "count" => DocumentAggregationAccumulatorOperator.Count,
+            "sum" => DocumentAggregationAccumulatorOperator.Sum,
+            "avg" or "average" => DocumentAggregationAccumulatorOperator.Average,
+            "min" => DocumentAggregationAccumulatorOperator.Min,
+            "max" => DocumentAggregationAccumulatorOperator.Max,
+            "first" => DocumentAggregationAccumulatorOperator.First,
+            "last" => DocumentAggregationAccumulatorOperator.Last,
+            "distinct" => DocumentAggregationAccumulatorOperator.Distinct,
+            _ => throw new InvalidOperationException($"不支持的 document aggregate accumulator '{op}'。"),
+        };
+
     private static int? NormalizeLimit(int? limit)
         => limit is null ? null : Math.Min(limit.Value, MaxDocumentFindLimit);
 
@@ -767,6 +886,12 @@ internal static partial class SonnetDbEndpoints
                 DoubleValue: Convert.ToDouble(value, System.Globalization.CultureInfo.InvariantCulture)),
             _ => new JsonElementValue(ScalarKind.String, StringValue: value.ToString()),
         };
+
+    private static JsonElement ParseJsonElement(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.Clone();
+    }
 
     private sealed record DocumentFindPage(
         IReadOnlyList<DocumentItemResponse> Documents,
