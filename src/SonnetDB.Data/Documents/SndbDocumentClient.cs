@@ -46,6 +46,7 @@ public sealed class SndbDocumentClient : IDisposable
     public async Task<string> CreateCollectionAsync(
         string collection,
         bool ifNotExists = true,
+        SndbDocumentValidator? validator = null,
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -60,13 +61,15 @@ public sealed class SndbDocumentClient : IDisposable
                 return "exists";
             }
 
-            _embedded.Documents.Create(DocumentCollectionSchema.Create(collection));
+            _embedded.Documents.Create(DocumentCollectionSchema.Create(
+                collection,
+                validator: ToCoreValidator(validator)));
             return "created";
         }
 
         using var response = await PostJsonAsync(
             CollectionUrl(collection),
-            new DocumentCollectionCreateRequest(ifNotExists),
+            new DocumentCollectionCreateRequest(ifNotExists, validator),
             SndbDocumentClientJsonContext.Default.DocumentCollectionCreateRequest,
             cancellationToken).ConfigureAwait(false);
         var body = await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentCollectionOperationResponse, cancellationToken)
@@ -95,6 +98,64 @@ public sealed class SndbDocumentClient : IDisposable
         if (!response.IsSuccessStatusCode)
             throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
         var body = await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentCollectionOperationResponse, cancellationToken)
+            .ConfigureAwait(false);
+        return string.Equals(body.Status, "dropped", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 设置或替换文档集合 validator。
+    /// </summary>
+    /// <param name="collection">文档集合名称。</param>
+    /// <param name="validator">validator 声明。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>validator 操作响应。</returns>
+    public async Task<SndbDocumentValidatorResponse> SetValidatorAsync(
+        string collection,
+        SndbDocumentValidator validator,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ValidateCollection(collection);
+        ArgumentNullException.ThrowIfNull(validator);
+
+        if (_embedded is not null)
+        {
+            var updated = _embedded.Documents.SetValidator(collection, ToCoreValidator(validator)
+                ?? throw new InvalidOperationException("validator 不可为空。"));
+            return new SndbDocumentValidatorResponse(collection, "updated", ToClientValidator(updated));
+        }
+
+        using var content = JsonContent.Create(validator, SndbDocumentClientJsonContext.Default.SndbDocumentValidator);
+        using var response = await _http!.PutAsync(CollectionActionUrl(collection, "validator"), content, cancellationToken)
+            .ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+        var body = await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentValidatorResponse, cancellationToken)
+            .ConfigureAwait(false);
+        return new SndbDocumentValidatorResponse(body.Collection, body.Status, body.Validator);
+    }
+
+    /// <summary>
+    /// 删除文档集合 validator。
+    /// </summary>
+    /// <param name="collection">文档集合名称。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>validator 存在并被删除时返回 true。</returns>
+    public async Task<bool> DropValidatorAsync(string collection, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ValidateCollection(collection);
+
+        if (_embedded is not null)
+            return _embedded.Documents.DropValidator(collection);
+
+        using var request = new HttpRequestMessage(HttpMethod.Delete, CollectionActionUrl(collection, "validator"));
+        using var response = await _http!.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return false;
+        if (!response.IsSuccessStatusCode)
+            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+        var body = await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentValidatorResponse, cancellationToken)
             .ConfigureAwait(false);
         return string.Equals(body.Status, "dropped", StringComparison.Ordinal);
     }
@@ -348,12 +409,12 @@ public sealed class SndbDocumentClient : IDisposable
 
         if (_embedded is not null)
         {
-            var result = _embedded.Documents.Open(collection).UpdateOne(
+            var result = _embedded.Documents.Open(collection).UpdateOneWrite(
                 MergeClientFilters(id, filter),
                 ToCoreUpdate(update),
                 upsert,
                 upsertId ?? id);
-            return new SndbDocumentWriteResult(collection, result.Inserted, result.Matched, result.Modified, 0);
+            return ToClientWriteResult(collection, result);
         }
 
         return ToWriteResult(await PostWriteJsonAsync(
@@ -387,12 +448,12 @@ public sealed class SndbDocumentClient : IDisposable
 
         if (_embedded is not null)
         {
-            var result = _embedded.Documents.Open(collection).UpdateMany(
+            var result = _embedded.Documents.Open(collection).UpdateManyWrite(
                 ToCoreFilter(filter),
                 ToCoreUpdate(update),
                 upsert,
                 upsertId);
-            return new SndbDocumentWriteResult(collection, result.Inserted, result.Matched, result.Modified, 0);
+            return ToClientWriteResult(collection, result);
         }
 
         return ToWriteResult(await PostWriteJsonAsync(
@@ -748,7 +809,8 @@ public sealed class SndbDocumentClient : IDisposable
                 error.Index,
                 error.Id,
                 error.Code,
-                error.Message)).ToArray());
+                error.Message,
+                error.Severity)).ToArray());
 
     private static SndbDocumentWriteResult ToClientWriteResult(string collection, DocumentWriteResult result) =>
         new(
@@ -761,7 +823,8 @@ public sealed class SndbDocumentClient : IDisposable
                 error.Index,
                 error.Id,
                 error.Code,
-                error.Message)).ToArray());
+                error.Message,
+                error.Severity)).ToArray());
 
     private static SndbDocument ToDocument(DocumentItemResponse response) =>
         new(response.Id, response.Document.GetRawText(), response.Version);
@@ -775,6 +838,110 @@ public sealed class SndbDocumentClient : IDisposable
             response.BatchSize ?? response.Limit ?? requestedLimit,
             response.SnapshotVersion,
             response.CursorExpiresAtUtc);
+
+    private static DocumentValidatorDefinition? ToCoreValidator(SndbDocumentValidator? validator)
+    {
+        if (validator is null)
+            return null;
+
+        return new DocumentValidatorDefinition(
+            validator.Rules.Select(ToCoreValidatorRule).ToArray(),
+            ParseValidationAction(validator.ValidationAction));
+    }
+
+    private static DocumentValidatorRuleDefinition ToCoreValidatorRule(SndbDocumentValidatorRule rule)
+    {
+        var types = new List<DocumentValidatorValueType>();
+        if (!string.IsNullOrWhiteSpace(rule.Type))
+            types.Add(ParseValidatorValueType(rule.Type));
+        if (rule.Types is not null)
+            types.AddRange(rule.Types.Select(ParseValidatorValueType));
+
+        return new DocumentValidatorRuleDefinition(
+            rule.Path,
+            rule.Required,
+            types,
+            rule.Minimum,
+            rule.Maximum,
+            rule.Enum?.Select(static value => DocumentValidatorExecutor.ToComparableJson(value)).ToArray(),
+            rule.Pattern);
+    }
+
+    private static SndbDocumentValidator ToClientValidator(DocumentValidator validator)
+        => new(
+            validator.Rules.Select(static rule => new SndbDocumentValidatorRule(
+                rule.Path,
+                rule.Required,
+                rule.Types.Count == 1 ? FormatValidatorValueType(rule.Types[0]) : null,
+                rule.Types.Count > 1 ? rule.Types.Select(FormatValidatorValueType).ToArray() : null,
+                rule.Minimum,
+                rule.Maximum,
+                rule.EnumValues.Select(ParseJsonElementFromComparableValue).ToArray(),
+                rule.Pattern)).ToArray(),
+            validator.Action == DocumentValidationAction.Warn ? "warn" : "error");
+
+    private static DocumentValidationAction ParseValidationAction(string? action)
+        => (action ?? "error").ToLowerInvariant() switch
+        {
+            "error" => DocumentValidationAction.Error,
+            "warn" => DocumentValidationAction.Warn,
+            _ => throw new ArgumentException($"不支持的 validationAction '{action}'。"),
+        };
+
+    private static DocumentValidatorValueType ParseValidatorValueType(string type)
+        => type.ToLowerInvariant() switch
+        {
+            "string" => DocumentValidatorValueType.String,
+            "number" => DocumentValidatorValueType.Number,
+            "integer" or "int" => DocumentValidatorValueType.Integer,
+            "boolean" or "bool" => DocumentValidatorValueType.Boolean,
+            "object" => DocumentValidatorValueType.Object,
+            "array" => DocumentValidatorValueType.Array,
+            "null" => DocumentValidatorValueType.Null,
+            _ => throw new ArgumentException($"不支持的 validator type '{type}'。"),
+        };
+
+    private static string FormatValidatorValueType(DocumentValidatorValueType type)
+        => type switch
+        {
+            DocumentValidatorValueType.String => "string",
+            DocumentValidatorValueType.Number => "number",
+            DocumentValidatorValueType.Integer => "integer",
+            DocumentValidatorValueType.Boolean => "boolean",
+            DocumentValidatorValueType.Object => "object",
+            DocumentValidatorValueType.Array => "array",
+            DocumentValidatorValueType.Null => "null",
+            _ => throw new ArgumentOutOfRangeException(nameof(type), type, "不支持的 validator type。"),
+        };
+
+    private static JsonElement ParseJsonElementFromComparableValue(string value)
+    {
+        if (string.Equals(value, "true", StringComparison.Ordinal)
+            || string.Equals(value, "false", StringComparison.Ordinal)
+            || string.Equals(value, "null", StringComparison.Ordinal)
+            || double.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _))
+        {
+            try
+            {
+                using var scalar = JsonDocument.Parse(value);
+                return scalar.RootElement.Clone();
+            }
+            catch (JsonException)
+            {
+            }
+        }
+
+        using var text = JsonDocument.Parse(ToJsonStringLiteral(value));
+        return text.RootElement.Clone();
+    }
+
+    private static string ToJsonStringLiteral(string value)
+    {
+        var buffer = new System.Buffers.ArrayBufferWriter<byte>();
+        using (var writer = new Utf8JsonWriter(buffer))
+            writer.WriteStringValue(value);
+        return System.Text.Encoding.UTF8.GetString(buffer.WrittenSpan);
+    }
 
     private static SndbDocumentPage FindEmbeddedPage(
         string collection,

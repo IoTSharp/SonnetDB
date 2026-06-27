@@ -136,6 +136,77 @@ public sealed class DocumentCollectionManager : IDisposable
     }
 
     /// <summary>
+    /// 设置或替换已有文档集合的 validator，并持久化 schema。
+    /// </summary>
+    /// <param name="collectionName">集合名。</param>
+    /// <param name="definition">validator 声明。</param>
+    /// <returns>更新后的 validator。</returns>
+    public DocumentValidator SetValidator(string collectionName, DocumentValidatorDefinition definition)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
+        ArgumentNullException.ThrowIfNull(definition);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var current = Catalog.TryGet(collectionName)
+                ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
+
+            var updated = current.WithValidator(definition);
+            var store = OpenStoreLocked(current);
+            store.ApplySchema(updated);
+            Catalog.LoadOrReplace(updated);
+            try
+            {
+                PersistCatalogLocked();
+            }
+            catch
+            {
+                store.ApplySchema(current);
+                Catalog.LoadOrReplace(current);
+                throw;
+            }
+
+            return updated.Validator
+                ?? throw new InvalidOperationException("内部错误：文档 validator 设置后未能读取 schema。");
+        }
+    }
+
+    /// <summary>
+    /// 删除已有文档集合的 validator，并持久化 schema。
+    /// </summary>
+    /// <param name="collectionName">集合名。</param>
+    /// <returns>validator 存在并删除时返回 true。</returns>
+    public bool DropValidator(string collectionName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var current = Catalog.TryGet(collectionName)
+                ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
+            if (current.Validator is null)
+                return false;
+
+            var updated = current.WithoutValidator();
+            var store = OpenStoreLocked(current);
+            store.ApplySchema(updated);
+            Catalog.LoadOrReplace(updated);
+            try
+            {
+                PersistCatalogLocked();
+            }
+            catch
+            {
+                store.ApplySchema(current);
+                Catalog.LoadOrReplace(current);
+                throw;
+            }
+
+            return true;
+        }
+    }
+
+    /// <summary>
     /// 删除文档集合二级索引声明。
     /// </summary>
     /// <param name="collectionName">集合名。</param>

@@ -65,12 +65,53 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DocumentWriteResponse'
+        '400':
+          description: Validation failure or invalid document.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentWriteResponse'
         '409':
           description: Duplicate key or write conflict.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DocumentWriteResponse'
+  /v1/db/{db}/documents/{collection}/validator:
+    put:
+      summary: Set or replace collection validator.
+      parameters:
+        - $ref: '#/components/parameters/db'
+        - $ref: '#/components/parameters/collection'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentValidator'
+      responses:
+        '200':
+          description: Validator updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentValidatorResponse'
+        '400':
+          description: Invalid validator.
+    delete:
+      summary: Drop collection validator.
+      parameters:
+        - $ref: '#/components/parameters/db'
+        - $ref: '#/components/parameters/collection'
+      responses:
+        '200':
+          description: Validator dropped.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentValidatorResponse'
+        '404':
+          description: Validator or collection does not exist.
   /v1/db/{db}/documents/{collection}/insert-many:
     post:
       summary: Insert many documents.
@@ -335,6 +376,9 @@ components:
         ifNotExists:
           type: boolean
           default: true
+        validator:
+          $ref: '#/components/schemas/DocumentValidator'
+          nullable: true
     DocumentCollectionOperationResponse:
       type: object
       properties:
@@ -536,6 +580,10 @@ components:
           enum: [duplicate_key, validation_failed, write_conflict, document_too_large]
         message:
           type: string
+        severity:
+          type: string
+          enum: [error, warning]
+          default: error
     DocumentWriteResponse:
       type: object
       properties:
@@ -554,6 +602,60 @@ components:
           nullable: true
           items:
             $ref: '#/components/schemas/DocumentWriteError'
+    DocumentValidator:
+      type: object
+      required: [rules]
+      properties:
+        validationAction:
+          type: string
+          enum: [error, warn]
+          default: error
+        rules:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/DocumentValidatorRule'
+    DocumentValidatorRule:
+      type: object
+      required: [path]
+      properties:
+        path:
+          type: string
+          example: $.site
+        required:
+          type: boolean
+          default: false
+        type:
+          type: string
+          enum: [string, number, integer, boolean, object, array, 'null']
+        types:
+          type: array
+          items:
+            type: string
+            enum: [string, number, integer, boolean, object, array, 'null']
+        minimum:
+          type: number
+          format: double
+        maximum:
+          type: number
+          format: double
+        enum:
+          type: array
+          items: {}
+        pattern:
+          type: string
+          description: Regular expression applied to string values.
+    DocumentValidatorResponse:
+      type: object
+      properties:
+        collection:
+          type: string
+        status:
+          type: string
+          enum: [updated, dropped, missing]
+        validator:
+          $ref: '#/components/schemas/DocumentValidator'
+          nullable: true
     DocumentCountRequest:
       type: object
       properties:

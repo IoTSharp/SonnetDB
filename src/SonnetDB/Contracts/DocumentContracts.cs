@@ -7,7 +7,10 @@ namespace SonnetDB.Contracts;
 /// 创建文档集合的请求体。
 /// </summary>
 /// <param name="IfNotExists">集合已存在时是否直接返回 existing 状态。</param>
-public sealed record DocumentCollectionCreateRequest(bool IfNotExists = true);
+/// <param name="Validator">可选集合 validator。</param>
+public sealed record DocumentCollectionCreateRequest(
+    bool IfNotExists = true,
+    DocumentValidatorContract? Validator = null);
 
 /// <summary>
 /// 文档集合生命周期操作响应。
@@ -39,6 +42,18 @@ public static class DocumentWriteErrorCodes
 
     /// <summary>文档或派生索引项超过底层存储允许的大小。</summary>
     public const string DocumentTooLarge = "document_too_large";
+}
+
+/// <summary>
+/// 文档写入错误或警告级别。
+/// </summary>
+public static class DocumentWriteErrorSeverity
+{
+    /// <summary>会阻止写入的错误。</summary>
+    public const string Error = "error";
+
+    /// <summary>不会阻止写入的警告。</summary>
+    public const string Warning = "warning";
 }
 
 /// <summary>
@@ -213,11 +228,13 @@ public sealed record DocumentDeleteManyRequest(IReadOnlyList<string> Ids, bool O
 /// <param name="Id">发生错误的文档 ID；请求 ID 无效时为 null。</param>
 /// <param name="Code">稳定错误码。</param>
 /// <param name="Message">面向调用方的错误说明。</param>
+/// <param name="Severity">错误或警告级别。</param>
 public sealed record DocumentWriteErrorResponse(
     int Index,
     string? Id,
     string Code,
-    string Message);
+    string Message,
+    string Severity = DocumentWriteErrorSeverity.Error);
 
 /// <summary>
 /// 文档写操作响应。
@@ -234,6 +251,47 @@ public sealed record DocumentWriteResponse(
     int Modified = 0,
     int Deleted = 0,
     IReadOnlyList<DocumentWriteErrorResponse>? Errors = null);
+
+/// <summary>
+/// 文档集合 validator 请求体。
+/// </summary>
+/// <param name="Rules">字段校验规则。</param>
+/// <param name="ValidationAction">校验失败动作：error 或 warn。</param>
+public sealed record DocumentValidatorContract(
+    IReadOnlyList<DocumentValidatorRuleContract> Rules,
+    string ValidationAction = "error");
+
+/// <summary>
+/// 文档集合 validator 字段规则。
+/// </summary>
+/// <param name="Path">JSON path。</param>
+/// <param name="Required">字段是否必填。</param>
+/// <param name="Type">单个允许类型。</param>
+/// <param name="Types">多个允许类型。</param>
+/// <param name="Minimum">数值下界。</param>
+/// <param name="Maximum">数值上界。</param>
+/// <param name="Enum">允许的枚举值。</param>
+/// <param name="Pattern">字符串正则表达式。</param>
+public sealed record DocumentValidatorRuleContract(
+    string Path,
+    bool Required = false,
+    string? Type = null,
+    IReadOnlyList<string>? Types = null,
+    double? Minimum = null,
+    double? Maximum = null,
+    IReadOnlyList<JsonElement>? Enum = null,
+    string? Pattern = null);
+
+/// <summary>
+/// 文档集合 validator 操作响应。
+/// </summary>
+/// <param name="Collection">集合名。</param>
+/// <param name="Status">updated / dropped / missing。</param>
+/// <param name="Validator">当前 validator；删除后为空。</param>
+public sealed record DocumentValidatorResponse(
+    string Collection,
+    string Status,
+    DocumentValidatorContract? Validator = null);
 
 /// <summary>
 /// 文档计数请求。

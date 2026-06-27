@@ -211,6 +211,23 @@ public sealed record AlterTableRenameColumnStatement(string TableName, string Ol
 public sealed record AlterTableRenameTableStatement(string OldTableName, string NewTableName) : SqlStatement;
 
 /// <summary>
+/// <c>ALTER DOCUMENT COLLECTION name SET VALIDATOR '{...}' [VALIDATION ACTION ERROR|WARN]</c>。
+/// </summary>
+/// <param name="CollectionName">目标文档集合名。</param>
+/// <param name="ValidatorJson">validator JSON 定义。</param>
+/// <param name="ValidationAction">校验失败动作；为空时使用 validator JSON 或默认 error。</param>
+public sealed record AlterDocumentCollectionSetValidatorStatement(
+    string CollectionName,
+    string ValidatorJson,
+    string? ValidationAction = null) : SqlStatement;
+
+/// <summary>
+/// <c>ALTER DOCUMENT COLLECTION name DROP VALIDATOR</c>。
+/// </summary>
+/// <param name="CollectionName">目标文档集合名。</param>
+public sealed record AlterDocumentCollectionDropValidatorStatement(string CollectionName) : SqlStatement;
+
+/// <summary>
 /// 向量索引声明抽象基类。
 /// </summary>
 public abstract record VectorIndexSpec;

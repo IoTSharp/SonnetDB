@@ -63,6 +63,9 @@ public sealed class DocumentCollectionStore : IDisposable
             byte[] documentKey = DocumentIndexCodec.EncodeDocumentKey(id);
             var old = TryGetByDocumentKeyLocked(documentKey);
             var newRow = new DocumentRow(id, normalized, Version: 0);
+            var validation = ValidateDocumentForWrite(schema, newRow);
+            if (!validation.IsValid && schema.Validator?.Action == DocumentValidationAction.Error)
+                throw new InvalidOperationException(DocumentValidatorExecutor.FormatFailures(validation.Failures));
             ApplyMutationLocked(schema, old, newRow, documentKey);
         }
     }
@@ -192,6 +195,26 @@ public sealed class DocumentCollectionStore : IDisposable
         bool upsert = false,
         string? upsertId = null)
     {
+        var result = UpdateOneWrite(filter, update, upsert, upsertId);
+        if (result.HasErrors)
+            throw new InvalidOperationException(result.Errors.First(static error => error.Severity == DocumentWriteErrorSeverity.Error).Message);
+        return result.ToUpdateResult();
+    }
+
+    /// <summary>
+    /// 对匹配到的第一条文档执行局部更新，并以统一写入结果返回 validator 错误或警告。
+    /// </summary>
+    /// <param name="filter">文档过滤条件；为 null 时匹配集合中的第一条文档。</param>
+    /// <param name="update">局部更新操作符集合。</param>
+    /// <param name="upsert">未匹配文档时是否插入新文档。</param>
+    /// <param name="upsertId">upsert 新文档 ID；为 null 时尝试从 <paramref name="filter"/> 的 ID 等值条件推断。</param>
+    /// <returns>统一文档写入结果。</returns>
+    public DocumentWriteResult UpdateOneWrite(
+        DocumentFilter? filter,
+        DocumentUpdate update,
+        bool upsert = false,
+        string? upsertId = null)
+    {
         ArgumentNullException.ThrowIfNull(update);
         lock (_sync)
         {
@@ -213,6 +236,26 @@ public sealed class DocumentCollectionStore : IDisposable
     /// <param name="upsertId">upsert 新文档 ID；为 null 时尝试从 <paramref name="filter"/> 的 ID 等值条件推断。</param>
     /// <returns>更新执行结果。</returns>
     public DocumentUpdateResult UpdateMany(
+        DocumentFilter? filter,
+        DocumentUpdate update,
+        bool upsert = false,
+        string? upsertId = null)
+    {
+        var result = UpdateManyWrite(filter, update, upsert, upsertId);
+        if (result.HasErrors)
+            throw new InvalidOperationException(result.Errors.First(static error => error.Severity == DocumentWriteErrorSeverity.Error).Message);
+        return result.ToUpdateResult();
+    }
+
+    /// <summary>
+    /// 对所有匹配文档执行局部更新，并以统一写入结果返回 validator 错误或警告。
+    /// </summary>
+    /// <param name="filter">文档过滤条件；为 null 时匹配全部文档。</param>
+    /// <param name="update">局部更新操作符集合。</param>
+    /// <param name="upsert">未匹配文档时是否插入新文档。</param>
+    /// <param name="upsertId">upsert 新文档 ID；为 null 时尝试从 <paramref name="filter"/> 的 ID 等值条件推断。</param>
+    /// <returns>统一文档写入结果。</returns>
+    public DocumentWriteResult UpdateManyWrite(
         DocumentFilter? filter,
         DocumentUpdate update,
         bool upsert = false,
@@ -665,6 +708,7 @@ public sealed class DocumentCollectionStore : IDisposable
     {
         var schema = _schema;
         var errors = new List<DocumentWriteError>();
+        var warnings = new List<DocumentWriteError>();
         var operations = new List<PendingDocumentMutation>();
         var inputIds = new HashSet<string>(StringComparer.Ordinal);
         var plannedUniqueIdsByKey = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -682,12 +726,15 @@ public sealed class DocumentCollectionStore : IDisposable
                 plannedUniqueIdsByKey,
                 out var operation,
                 out bool itemMatched,
-                out var error))
+                out var error,
+                out var warning))
             {
                 if (itemMatched)
                     matched++;
                 if (operation is not null)
                     operations.Add(operation);
+                if (warning is not null)
+                    warnings.Add(warning);
             }
             else
             {
@@ -703,8 +750,8 @@ public sealed class DocumentCollectionStore : IDisposable
             ApplyPlannedMutationLocked(schema, operation);
 
         return mode == DocumentWriteBatchMode.Insert
-            ? new DocumentWriteResult(inserted: operations.Count, errors: errors)
-            : new DocumentWriteResult(matched: matched, modified: operations.Count, errors: errors);
+            ? new DocumentWriteResult(inserted: operations.Count, errors: Combine(errors, warnings))
+            : new DocumentWriteResult(matched: matched, modified: operations.Count, errors: Combine(errors, warnings));
     }
 
     private bool TryPrepareWriteRequestLocked(
@@ -716,11 +763,13 @@ public sealed class DocumentCollectionStore : IDisposable
         IDictionary<string, string> plannedUniqueIdsByKey,
         out PendingDocumentMutation? mutation,
         out bool matched,
-        out DocumentWriteError? error)
+        out DocumentWriteError? error,
+        out DocumentWriteError? warning)
     {
         mutation = null;
         matched = false;
         error = null;
+        warning = null;
 
         if (string.IsNullOrWhiteSpace(request.Id))
         {
@@ -828,6 +877,30 @@ public sealed class DocumentCollectionStore : IDisposable
 
         matched = old is not null;
         var newRow = new DocumentRow(request.Id, normalized, Version: 0);
+        var validation = ValidateDocumentForWrite(schema, newRow);
+        if (!validation.IsValid)
+        {
+            string message = DocumentValidatorExecutor.FormatFailures(validation.Failures);
+            if (schema.Validator?.Action == DocumentValidationAction.Warn)
+            {
+                warning = new DocumentWriteError(
+                    index,
+                    request.Id,
+                    DocumentWriteErrorCodes.ValidationFailed,
+                    message,
+                    DocumentWriteErrorSeverity.Warning);
+            }
+            else
+            {
+                error = new DocumentWriteError(
+                    index,
+                    request.Id,
+                    DocumentWriteErrorCodes.ValidationFailed,
+                    message);
+                return false;
+            }
+        }
+
         try
         {
             PrepareMutationLocked(schema, old, newRow, documentKey, plannedUniqueIdsByKey);
@@ -1275,40 +1348,58 @@ public sealed class DocumentCollectionStore : IDisposable
         return rows;
     }
 
-    private DocumentUpdateResult ApplyUpdateRowsLocked(IReadOnlyList<DocumentRow> rows, DocumentUpdate update)
+    private DocumentWriteResult ApplyUpdateRowsLocked(IReadOnlyList<DocumentRow> rows, DocumentUpdate update)
     {
         var schema = _schema;
         var operations = new List<PendingDocumentMutation>(rows.Count);
+        var warnings = new List<DocumentWriteError>();
+        int itemIndex = 0;
         foreach (var row in rows)
         {
             string updated = DocumentUpdateExecutor.Apply(row.Json, update);
             if (string.Equals(row.Json, updated, StringComparison.Ordinal))
+            {
+                itemIndex++;
                 continue;
+            }
 
             var documentKey = DocumentIndexCodec.EncodeDocumentKey(row.Id);
             var newRow = new DocumentRow(row.Id, updated, Version: 0);
-            PrepareMutationLocked(
-                schema,
-                row,
-                newRow,
-                documentKey);
+            var validation = ValidateDocumentForWrite(schema, newRow);
+            if (!validation.IsValid)
+            {
+                var writeError = new DocumentWriteError(
+                    itemIndex,
+                    row.Id,
+                    DocumentWriteErrorCodes.ValidationFailed,
+                    DocumentValidatorExecutor.FormatFailures(validation.Failures),
+                    schema.Validator?.Action == DocumentValidationAction.Warn
+                        ? DocumentWriteErrorSeverity.Warning
+                        : DocumentWriteErrorSeverity.Error);
+                if (writeError.Severity == DocumentWriteErrorSeverity.Error)
+                    return new DocumentWriteResult(matched: itemIndex + 1, modified: 0, errors: [writeError]);
+                warnings.Add(writeError);
+            }
+
+            PrepareMutationLocked(schema, row, newRow, documentKey);
             operations.Add(new PendingDocumentMutation(-1, row, newRow, documentKey));
+            itemIndex++;
         }
 
         foreach (var operation in operations)
             ApplyPlannedMutationLocked(schema, operation);
 
-        return new DocumentUpdateResult(rows.Count, operations.Count, Inserted: 0);
+        return new DocumentWriteResult(matched: rows.Count, modified: operations.Count, errors: warnings);
     }
 
-    private DocumentUpdateResult UpsertFromUpdateLocked(
+    private DocumentWriteResult UpsertFromUpdateLocked(
         DocumentFilter? filter,
         DocumentUpdate update,
         bool upsert,
         string? upsertId)
     {
         if (!upsert)
-            return new DocumentUpdateResult(Matched: 0, Modified: 0, Inserted: 0);
+            return new DocumentWriteResult(matched: 0, modified: 0, inserted: 0);
 
         string id = upsertId ?? DocumentUpdateExecutor.TryInferUpsertId(filter)
             ?? throw new InvalidOperationException("document update upsert 需要提供 upsertId 或 _id/id 等值过滤条件。");
@@ -1320,13 +1411,45 @@ public sealed class DocumentCollectionStore : IDisposable
         string seed = DocumentUpdateExecutor.BuildUpsertSeed(filter);
         string updated = DocumentUpdateExecutor.Apply(seed, update);
         var newRow = new DocumentRow(id, updated, Version: 0);
+        var validation = ValidateDocumentForWrite(_schema, newRow);
+        DocumentWriteError? warning = null;
+        if (!validation.IsValid)
+        {
+            var writeError = new DocumentWriteError(
+                0,
+                id,
+                DocumentWriteErrorCodes.ValidationFailed,
+                DocumentValidatorExecutor.FormatFailures(validation.Failures),
+                _schema.Validator?.Action == DocumentValidationAction.Warn
+                    ? DocumentWriteErrorSeverity.Warning
+                    : DocumentWriteErrorSeverity.Error);
+            if (writeError.Severity == DocumentWriteErrorSeverity.Error)
+                return new DocumentWriteResult(errors: [writeError]);
+            warning = writeError;
+        }
+
         PrepareMutationLocked(
             _schema,
             oldRow: null,
             newRow,
             documentKey);
         ApplyPlannedMutationLocked(_schema, new PendingDocumentMutation(-1, OldRow: null, newRow, documentKey));
-        return new DocumentUpdateResult(Matched: 0, Modified: 0, Inserted: 1);
+        return new DocumentWriteResult(inserted: 1, errors: warning is null ? null : [warning]);
+    }
+
+    private static DocumentValidationResult ValidateDocumentForWrite(DocumentCollectionSchema schema, DocumentRow row)
+        => DocumentValidatorExecutor.Validate(schema.Validator, row.Json);
+
+    private static IReadOnlyList<DocumentWriteError> Combine(
+        IReadOnlyList<DocumentWriteError> errors,
+        IReadOnlyList<DocumentWriteError> warnings)
+    {
+        if (errors.Count == 0)
+            return warnings;
+        if (warnings.Count == 0)
+            return errors;
+
+        return errors.Concat(warnings).ToArray();
     }
 
     private IReadOnlyList<DocumentRow> ScanRowsLocked(int limit, int skip = 0)

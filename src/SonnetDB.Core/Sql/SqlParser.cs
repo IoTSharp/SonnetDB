@@ -2160,9 +2160,41 @@ public sealed class SqlParser
         return Current.Kind switch
         {
             TokenKind.KeywordTable => ParseAlterTableBody(),
+            TokenKind.KeywordDocument => ParseAlterDocumentBody(),
             TokenKind.KeywordUser => ParseAlterUserBody(),
-            _ => throw Error("ALTER 后面期望 TABLE 或 USER"),
+            _ => throw Error("ALTER 后面期望 TABLE / DOCUMENT COLLECTION 或 USER"),
         };
+    }
+
+    private SqlStatement ParseAlterDocumentBody()
+    {
+        Expect(TokenKind.KeywordDocument);
+        Expect(TokenKind.KeywordCollection);
+        var collectionName = ExpectIdentifierName();
+        if (Current.Kind == TokenKind.KeywordSet)
+        {
+            Advance();
+            ExpectIdentifier("validator", "ALTER DOCUMENT COLLECTION SET 后面期望 VALIDATOR");
+            string validatorJson = ExpectStringLiteral();
+            string? validationAction = null;
+            if (IsIdentifier("validation"))
+            {
+                Advance();
+                ExpectIdentifier("action", "VALIDATION 后面期望 ACTION");
+                validationAction = ExpectIdentifierName();
+            }
+
+            return new AlterDocumentCollectionSetValidatorStatement(collectionName, validatorJson, validationAction);
+        }
+
+        if (Current.Kind == TokenKind.KeywordDrop)
+        {
+            Advance();
+            ExpectIdentifier("validator", "ALTER DOCUMENT COLLECTION DROP 后面期望 VALIDATOR");
+            return new AlterDocumentCollectionDropValidatorStatement(collectionName);
+        }
+
+        throw Error("ALTER DOCUMENT COLLECTION 后面期望 SET VALIDATOR / DROP VALIDATOR");
     }
 
     private SqlStatement ParseAlterTableBody()

@@ -17,7 +17,7 @@ public static class DocumentCollectionSchemaCodec
     private static readonly byte[] _magic = "SDBDOCv1"u8.ToArray();
     private static readonly Encoding _utf8 = Encoding.UTF8;
 
-    private const int FormatVersion = 3;
+    private const int FormatVersion = 4;
     private const int MinFormatVersion = 1;
     private const int HeaderSize = 32;
     private const int FooterSize = 16;
@@ -154,7 +154,11 @@ public static class DocumentCollectionSchemaCodec
             }
         }
 
-        return DocumentCollectionSchema.Create(name, indexes, fullTextIndexes, createdAt);
+        var validator = version >= 4
+            ? ReadValidator(source, crc, collectionIndex)
+            : null;
+
+        return DocumentCollectionSchema.Create(name, indexes, fullTextIndexes, createdAt, validator);
     }
 
     private static DocumentPathIndexDefinition ReadLegacyDocumentIndex(Stream source, Crc32 crc, int collectionIndex, int index)
@@ -271,9 +275,97 @@ public static class DocumentCollectionSchemaCodec
             WriteInt64(body, index.CreatedAtUtcTicks);
         }
 
+        WriteValidator(body, schema.Validator);
+
         byte[] bytes = body.ToArray();
         crc.Append(bytes);
         destination.Write(bytes, 0, bytes.Length);
+    }
+
+    private static DocumentValidatorDefinition? ReadValidator(Stream source, Crc32 crc, int collectionIndex)
+    {
+        byte hasValidator = ReadByte(source, crc, $"collection {collectionIndex} validator");
+        if (hasValidator == 0)
+            return null;
+        if (hasValidator != 1)
+            throw new InvalidDataException("DocumentCollectionSchema: invalid validator marker.");
+
+        byte actionByte = ReadByte(source, crc, $"collection {collectionIndex} validator action");
+        if (!Enum.IsDefined(typeof(DocumentValidationAction), (int)actionByte))
+            throw new InvalidDataException("DocumentCollectionSchema: invalid validator action.");
+        long createdAt = ReadInt64(source, crc, $"collection {collectionIndex} validator createdAt");
+        long updatedAt = ReadInt64(source, crc, $"collection {collectionIndex} validator updatedAt");
+        int ruleCount = ReadUInt16(source, crc, $"collection {collectionIndex} validator ruleCount");
+        var rules = new List<DocumentValidatorRuleDefinition>(ruleCount);
+        for (int ruleIndex = 0; ruleIndex < ruleCount; ruleIndex++)
+        {
+            string path = ReadString(source, crc, $"collection {collectionIndex} validator rule {ruleIndex} path");
+            byte required = ReadByte(source, crc, $"collection {collectionIndex} validator rule {ruleIndex} required");
+            if (required is not (0 or 1))
+                throw new InvalidDataException("DocumentCollectionSchema: invalid validator required marker.");
+
+            int typeCount = ReadUInt16(source, crc, $"collection {collectionIndex} validator rule {ruleIndex} typeCount");
+            var types = new DocumentValidatorValueType[typeCount];
+            for (int typeIndex = 0; typeIndex < typeCount; typeIndex++)
+            {
+                byte typeByte = ReadByte(source, crc, $"collection {collectionIndex} validator rule {ruleIndex} type {typeIndex}");
+                if (!Enum.IsDefined(typeof(DocumentValidatorValueType), (int)typeByte))
+                    throw new InvalidDataException("DocumentCollectionSchema: invalid validator value type.");
+                types[typeIndex] = (DocumentValidatorValueType)typeByte;
+            }
+
+            double? minimum = ReadNullableDouble(source, crc, $"collection {collectionIndex} validator rule {ruleIndex} minimum");
+            double? maximum = ReadNullableDouble(source, crc, $"collection {collectionIndex} validator rule {ruleIndex} maximum");
+            int enumCount = ReadUInt16(source, crc, $"collection {collectionIndex} validator rule {ruleIndex} enumCount");
+            var enumValues = new string[enumCount];
+            for (int enumIndex = 0; enumIndex < enumCount; enumIndex++)
+                enumValues[enumIndex] = ReadString(source, crc, $"collection {collectionIndex} validator rule {ruleIndex} enum {enumIndex}");
+            string? pattern = ReadNullableString(source, crc, $"collection {collectionIndex} validator rule {ruleIndex} pattern");
+
+            rules.Add(new DocumentValidatorRuleDefinition(
+                path,
+                required == 1,
+                Array.AsReadOnly(types),
+                minimum,
+                maximum,
+                Array.AsReadOnly(enumValues),
+                pattern));
+        }
+
+        return new DocumentValidatorDefinition(
+            rules.AsReadOnly(),
+            (DocumentValidationAction)actionByte,
+            createdAt,
+            updatedAt);
+    }
+
+    private static void WriteValidator(Stream destination, DocumentValidator? validator)
+    {
+        if (validator is null)
+        {
+            destination.WriteByte(0);
+            return;
+        }
+
+        destination.WriteByte(1);
+        destination.WriteByte((byte)validator.Action);
+        WriteInt64(destination, validator.CreatedAtUtcTicks);
+        WriteInt64(destination, validator.UpdatedAtUtcTicks);
+        WriteUInt16(destination, validator.Rules.Count, "Document validator rule count");
+        foreach (var rule in validator.Rules)
+        {
+            WriteString(destination, rule.Path);
+            destination.WriteByte(rule.Required ? (byte)1 : (byte)0);
+            WriteUInt16(destination, rule.Types.Count, $"Document validator rule '{rule.Path}' type count");
+            foreach (var type in rule.Types)
+                destination.WriteByte((byte)type);
+            WriteNullableDouble(destination, rule.Minimum);
+            WriteNullableDouble(destination, rule.Maximum);
+            WriteUInt16(destination, rule.EnumValues.Count, $"Document validator rule '{rule.Path}' enum count");
+            foreach (string value in rule.EnumValues)
+                WriteString(destination, value);
+            WriteNullableString(destination, rule.Pattern);
+        }
     }
 
     private static void WritePartialFilter(Stream destination, DocumentIndexPartialFilter? filter)
@@ -339,6 +431,12 @@ public static class DocumentCollectionSchemaCodec
         return ReadInt64(source, crc, description);
     }
 
+    private static double? ReadNullableDouble(Stream source, Crc32 crc, string description)
+    {
+        long? bits = ReadNullableInt64(source, crc, description);
+        return bits is null ? null : BitConverter.Int64BitsToDouble(bits.Value);
+    }
+
     private static int ReadUInt16(Stream source, Crc32 crc, string description)
     {
         Span<byte> buffer = stackalloc byte[2];
@@ -400,6 +498,18 @@ public static class DocumentCollectionSchemaCodec
 
         destination.WriteByte(1);
         WriteInt64(destination, value.Value);
+    }
+
+    private static void WriteNullableDouble(Stream destination, double? value)
+    {
+        if (value is null)
+        {
+            destination.WriteByte(0);
+            return;
+        }
+
+        destination.WriteByte(1);
+        WriteInt64(destination, BitConverter.DoubleToInt64Bits(value.Value));
     }
 
     private static void WriteUInt16(Stream destination, int value, string description)

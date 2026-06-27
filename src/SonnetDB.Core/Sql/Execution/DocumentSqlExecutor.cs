@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
 using SonnetDB.FullText;
@@ -14,7 +15,7 @@ internal static class DocumentSqlExecutor
     private static readonly IReadOnlyList<string> _nameColumns =
         new List<string>(1) { "name" }.AsReadOnly();
     private static readonly IReadOnlyList<string> _describeColumns =
-        new List<string>(7) { "collection_name", "document_count", "index_count", "indexes", "fulltext_index_count", "fulltext_indexes", "created_utc" }.AsReadOnly();
+        new List<string>(10) { "collection_name", "document_count", "index_count", "indexes", "fulltext_index_count", "fulltext_indexes", "validator_enabled", "validation_action", "validator_rules", "created_utc" }.AsReadOnly();
     private static readonly IReadOnlyList<string> _showIndexColumns =
         new List<string>(9) { "index_name", "paths", "is_unique", "is_sparse", "is_partial", "partial_filter", "is_ttl", "ttl_seconds", "created_utc" }.AsReadOnly();
     private static readonly IReadOnlyList<string> _showFullTextIndexColumns =
@@ -100,6 +101,25 @@ internal static class DocumentSqlExecutor
         return new RowsAffectedExecutionResult(statement.CollectionName, removed ? 1 : 0, "drop_fulltext_index");
     }
 
+    public static RowsAffectedExecutionResult ExecuteSetValidator(Tsdb tsdb, AlterDocumentCollectionSetValidatorStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        var definition = ParseValidatorDefinition(statement.ValidatorJson, statement.ValidationAction);
+        tsdb.Documents.SetValidator(statement.CollectionName, definition);
+        return new RowsAffectedExecutionResult(statement.CollectionName, 1, "set_document_validator");
+    }
+
+    public static RowsAffectedExecutionResult ExecuteDropValidator(Tsdb tsdb, AlterDocumentCollectionDropValidatorStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        bool removed = tsdb.Documents.DropValidator(statement.CollectionName);
+        return new RowsAffectedExecutionResult(statement.CollectionName, removed ? 1 : 0, "drop_document_validator");
+    }
+
     public static InsertExecutionResult ExecuteInsert(Tsdb tsdb, InsertStatement statement, DocumentCollectionSchema schema)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
@@ -109,15 +129,14 @@ internal static class DocumentSqlExecutor
         int idColumn = FindRequiredColumn(statement.Columns, "id");
         int documentColumn = FindRequiredDocumentColumn(statement.Columns);
         var store = tsdb.Documents.Open(schema.Name);
-
-        foreach (var row in statement.Rows)
-        {
-            string id = ConvertId(row[idColumn]);
-            string json = ConvertJson(row[documentColumn]);
-            var result = store.Insert(id, json);
-            if (result.HasErrors)
-                throw new InvalidOperationException(result.Errors[0].Message);
-        }
+        var requests = statement.Rows
+            .Select(row => new DocumentWriteRequest(
+                ConvertId(row[idColumn]),
+                ConvertJson(row[documentColumn])))
+            .ToArray();
+        var result = store.InsertMany(requests, ordered: true);
+        if (result.HasErrors)
+            throw new InvalidOperationException(result.Errors.First(static error => error.Severity == DocumentWriteErrorSeverity.Error).Message);
 
         return new InsertExecutionResult(schema.Name, statement.Rows.Count);
     }
@@ -276,6 +295,9 @@ internal static class DocumentSqlExecutor
                 string.Join(",", schema.Indexes.Select(FormatIndexSummary)),
                 (long)schema.FullTextIndexes.Count,
                 string.Join(",", schema.FullTextIndexes.Select(static i => $"{i.Name}:{string.Join("|", i.Fields)}:{i.Tokenizer}")),
+                schema.Validator is not null,
+                schema.Validator?.Action == DocumentValidationAction.Warn ? "warn" : schema.Validator is null ? null : "error",
+                schema.Validator is null ? null : string.Join(",", schema.Validator.Rules.Select(static r => r.Path)),
                 new DateTime(schema.CreatedAtUtcTicks, DateTimeKind.Utc).ToString("o", CultureInfo.InvariantCulture),
             },
         };
@@ -434,6 +456,112 @@ internal static class DocumentSqlExecutor
             Candidates: [candidate],
             GapReason: null);
     }
+
+    private static DocumentValidatorDefinition ParseValidatorDefinition(string json, string? validationActionOverride)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(json);
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object)
+            throw new InvalidOperationException("document validator 必须是 JSON object。");
+
+        string action = validationActionOverride
+            ?? (root.TryGetProperty("validationAction", out var actionElement) && actionElement.ValueKind == JsonValueKind.String
+                ? actionElement.GetString()!
+                : "error");
+
+        if (!root.TryGetProperty("rules", out var rulesElement) || rulesElement.ValueKind != JsonValueKind.Array)
+            throw new InvalidOperationException("document validator 需要 rules 数组。");
+
+        var rules = new List<DocumentValidatorRuleDefinition>();
+        foreach (var ruleElement in rulesElement.EnumerateArray())
+        {
+            if (ruleElement.ValueKind != JsonValueKind.Object)
+                throw new InvalidOperationException("document validator rule 必须是 JSON object。");
+            if (!ruleElement.TryGetProperty("path", out var pathElement) || pathElement.ValueKind != JsonValueKind.String)
+                throw new InvalidOperationException("document validator rule 需要 string path。");
+
+            bool required = ruleElement.TryGetProperty("required", out var requiredElement)
+                && requiredElement.ValueKind is JsonValueKind.True or JsonValueKind.False
+                && requiredElement.GetBoolean();
+            var types = ReadValidatorTypes(ruleElement);
+            double? minimum = ReadOptionalDouble(ruleElement, "minimum");
+            double? maximum = ReadOptionalDouble(ruleElement, "maximum");
+            var enumValues = ReadEnumValues(ruleElement);
+            string? pattern = ruleElement.TryGetProperty("pattern", out var patternElement) && patternElement.ValueKind == JsonValueKind.String
+                ? patternElement.GetString()
+                : null;
+
+            rules.Add(new DocumentValidatorRuleDefinition(
+                pathElement.GetString()!,
+                required,
+                types,
+                minimum,
+                maximum,
+                enumValues,
+                pattern));
+        }
+
+        return new DocumentValidatorDefinition(rules, ParseValidationAction(action));
+    }
+
+    private static IReadOnlyList<DocumentValidatorValueType> ReadValidatorTypes(JsonElement ruleElement)
+    {
+        var types = new List<DocumentValidatorValueType>();
+        if (ruleElement.TryGetProperty("type", out var typeElement) && typeElement.ValueKind == JsonValueKind.String)
+            types.Add(ParseValidatorValueType(typeElement.GetString()!));
+        if (ruleElement.TryGetProperty("types", out var typesElement) && typesElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in typesElement.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.String)
+                    throw new InvalidOperationException("document validator rule types 必须是 string 数组。");
+                types.Add(ParseValidatorValueType(item.GetString()!));
+            }
+        }
+
+        return types;
+    }
+
+    private static IReadOnlyList<string> ReadEnumValues(JsonElement ruleElement)
+    {
+        if (!ruleElement.TryGetProperty("enum", out var enumElement) || enumElement.ValueKind != JsonValueKind.Array)
+            return Array.Empty<string>();
+
+        return enumElement.EnumerateArray()
+            .Select(static item => DocumentValidatorExecutor.ToComparableJson(item))
+            .ToArray();
+    }
+
+    private static double? ReadOptionalDouble(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var property) || property.ValueKind == JsonValueKind.Null)
+            return null;
+        if (property.ValueKind != JsonValueKind.Number)
+            throw new InvalidOperationException($"document validator rule {propertyName} 必须是 number。");
+        return property.GetDouble();
+    }
+
+    private static DocumentValidationAction ParseValidationAction(string action)
+        => action.ToLowerInvariant() switch
+        {
+            "error" => DocumentValidationAction.Error,
+            "warn" => DocumentValidationAction.Warn,
+            _ => throw new InvalidOperationException($"不支持的 validationAction '{action}'。"),
+        };
+
+    private static DocumentValidatorValueType ParseValidatorValueType(string type)
+        => type.ToLowerInvariant() switch
+        {
+            "string" => DocumentValidatorValueType.String,
+            "number" => DocumentValidatorValueType.Number,
+            "integer" or "int" => DocumentValidatorValueType.Integer,
+            "boolean" or "bool" => DocumentValidatorValueType.Boolean,
+            "object" => DocumentValidatorValueType.Object,
+            "array" => DocumentValidatorValueType.Array,
+            "null" => DocumentValidatorValueType.Null,
+            _ => throw new InvalidOperationException($"不支持的 validator type '{type}'。"),
+        };
 
     private static bool HasAdditionalFullTextResidual(SqlExpression? where)
         => where is not null

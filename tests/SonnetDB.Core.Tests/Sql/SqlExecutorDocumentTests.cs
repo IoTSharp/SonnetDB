@@ -54,13 +54,14 @@ public sealed class SqlExecutorDocumentTests : IDisposable
             var describe = Assert.IsType<SelectExecutionResult>(
                 SqlExecutor.Execute(reopened, "DESCRIBE DOCUMENT COLLECTION device_docs"));
             Assert.Equal(
-                new[] { "collection_name", "document_count", "index_count", "indexes", "fulltext_index_count", "fulltext_indexes", "created_utc" },
+                new[] { "collection_name", "document_count", "index_count", "indexes", "fulltext_index_count", "fulltext_indexes", "validator_enabled", "validation_action", "validator_rules", "created_utc" },
                 describe.Columns);
             Assert.Equal("device_docs", describe.Rows.Single()[0]);
             Assert.Equal(1L, describe.Rows.Single()[2]);
             Assert.Equal("idx_device_type:$.type", describe.Rows.Single()[3]);
             Assert.Equal(0L, describe.Rows.Single()[4]);
             Assert.Equal(string.Empty, describe.Rows.Single()[5]);
+            Assert.Equal(false, describe.Rows.Single()[6]);
 
             var indexes = Assert.IsType<SelectExecutionResult>(
                 SqlExecutor.Execute(reopened, "SHOW JSON INDEXES ON device_docs"));
@@ -70,6 +71,76 @@ public sealed class SqlExecutorDocumentTests : IDisposable
             Assert.Equal("idx_device_type", indexes.Rows.Single()[0]);
             Assert.Equal("$.type", indexes.Rows.Single()[1]);
         }
+    }
+
+    [Fact]
+    public void DocumentCollection_ValidatorSql_ErrorRejectsAndPersists()
+    {
+        using (var db = Tsdb.Open(Options()))
+        {
+            SqlExecutor.Execute(db, "CREATE DOCUMENT COLLECTION device_docs");
+            var set = Assert.IsType<RowsAffectedExecutionResult>(SqlExecutor.Execute(db, """
+                ALTER DOCUMENT COLLECTION device_docs
+                SET VALIDATOR '{"rules":[{"path":"$.site","required":true,"type":"string","enum":["north","south"]},{"path":"$.score","type":"number","minimum":0,"maximum":100},{"path":"$.code","type":"string","pattern":"^[A-Z]{2}-[0-9]+$"}]}'
+                VALIDATION ACTION ERROR
+                """));
+            Assert.Equal(1, set.RowsAffected);
+
+            SqlExecutor.Execute(db, """
+                INSERT INTO device_docs (id, document)
+                VALUES ('ok', '{"site":"north","score":99,"code":"AB-1"}')
+                """);
+
+            var ex = Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db, """
+                INSERT INTO device_docs (id, document)
+                VALUES ('bad', '{"site":"west","score":101,"code":"oops"}')
+                """));
+            Assert.Contains("$.site", ex.Message, StringComparison.Ordinal);
+            Assert.Contains("$.score", ex.Message, StringComparison.Ordinal);
+            Assert.Contains("$.code", ex.Message, StringComparison.Ordinal);
+        }
+
+        using (var reopened = Tsdb.Open(Options()))
+        {
+            var describe = Assert.IsType<SelectExecutionResult>(
+                SqlExecutor.Execute(reopened, "DESCRIBE DOCUMENT COLLECTION device_docs"));
+            Assert.Equal(true, describe.Rows.Single()[6]);
+            Assert.Equal("error", describe.Rows.Single()[7]);
+            Assert.Contains("$.site", (string)describe.Rows.Single()[8]!);
+
+            var ex = Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(reopened, """
+                UPDATE device_docs
+                SET document = '{"score":5,"code":"AB-2"}'
+                WHERE id = 'ok'
+                """));
+            Assert.Contains("$.site", ex.Message, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void DocumentCollection_ValidatorSql_WarnAllowsAndReportsWarning()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE DOCUMENT COLLECTION device_docs");
+        SqlExecutor.Execute(db, """
+            ALTER DOCUMENT COLLECTION device_docs
+            SET VALIDATOR '{"rules":[{"path":"$.site","required":true,"type":"string"}]}'
+            VALIDATION ACTION WARN
+            """);
+
+        var store = db.Documents.Open("device_docs");
+        var result = store.Insert("bad", """{"score":1}""");
+
+        Assert.False(result.HasErrors);
+        Assert.True(result.HasWarnings);
+        Assert.Equal(DocumentWriteErrorCodes.ValidationFailed, Assert.Single(result.Errors).Code);
+        Assert.Equal(DocumentWriteErrorSeverity.Warning, Assert.Single(result.Errors).Severity);
+        Assert.NotNull(store.Get("bad"));
+
+        var drop = Assert.IsType<RowsAffectedExecutionResult>(
+            SqlExecutor.Execute(db, "ALTER DOCUMENT COLLECTION device_docs DROP VALIDATOR"));
+        Assert.Equal(1, drop.RowsAffected);
+        Assert.Null(db.Documents.Catalog.TryGet("device_docs")!.Validator);
     }
 
     [Fact]

@@ -97,6 +97,18 @@ public static class SndbDocumentWriteErrorCodes
 }
 
 /// <summary>
+/// 文档写入错误或警告级别。
+/// </summary>
+public static class SndbDocumentWriteErrorSeverity
+{
+    /// <summary>会阻止写入的错误。</summary>
+    public const string Error = "error";
+
+    /// <summary>不会阻止写入的警告。</summary>
+    public const string Warning = "warning";
+}
+
+/// <summary>
 /// SonnetDB 文档局部更新操作符集合。
 /// </summary>
 /// <param name="Set">对应 $set。</param>
@@ -138,7 +150,10 @@ public sealed record SndbDocumentWriteResult(
     IReadOnlyList<SndbDocumentWriteError>? Errors = null)
 {
     /// <summary>是否包含批量单项错误。</summary>
-    public bool HasErrors => Errors is { Count: > 0 };
+    public bool HasErrors => Errors?.Any(static error => string.Equals(error.Severity, SndbDocumentWriteErrorSeverity.Error, StringComparison.Ordinal)) == true;
+
+    /// <summary>是否包含批量单项警告。</summary>
+    public bool HasWarnings => Errors?.Any(static error => string.Equals(error.Severity, SndbDocumentWriteErrorSeverity.Warning, StringComparison.Ordinal)) == true;
 }
 
 /// <summary>
@@ -148,11 +163,54 @@ public sealed record SndbDocumentWriteResult(
 /// <param name="Id">发生错误的文档 ID；请求 ID 无效时为 null。</param>
 /// <param name="Code">稳定错误码。</param>
 /// <param name="Message">面向调用方的错误说明。</param>
+/// <param name="Severity">错误或警告级别。</param>
 public sealed record SndbDocumentWriteError(
     int Index,
     string? Id,
     string Code,
-    string Message);
+    string Message,
+    string Severity = SndbDocumentWriteErrorSeverity.Error);
+
+/// <summary>
+/// SonnetDB 文档集合 validator。
+/// </summary>
+/// <param name="Rules">字段校验规则。</param>
+/// <param name="ValidationAction">校验失败动作：error 或 warn。</param>
+public sealed record SndbDocumentValidator(
+    IReadOnlyList<SndbDocumentValidatorRule> Rules,
+    string ValidationAction = "error");
+
+/// <summary>
+/// SonnetDB 文档集合 validator 字段规则。
+/// </summary>
+/// <param name="Path">JSON path。</param>
+/// <param name="Required">字段是否必填。</param>
+/// <param name="Type">单个允许类型。</param>
+/// <param name="Types">多个允许类型。</param>
+/// <param name="Minimum">数值下界。</param>
+/// <param name="Maximum">数值上界。</param>
+/// <param name="Enum">允许的枚举值。</param>
+/// <param name="Pattern">字符串正则表达式。</param>
+public sealed record SndbDocumentValidatorRule(
+    string Path,
+    bool Required = false,
+    string? Type = null,
+    IReadOnlyList<string>? Types = null,
+    double? Minimum = null,
+    double? Maximum = null,
+    IReadOnlyList<JsonElement>? Enum = null,
+    string? Pattern = null);
+
+/// <summary>
+/// SonnetDB 文档集合 validator 操作响应。
+/// </summary>
+/// <param name="Collection">集合名。</param>
+/// <param name="Status">updated / dropped / missing。</param>
+/// <param name="Validator">当前 validator；删除后为空。</param>
+public sealed record SndbDocumentValidatorResponse(
+    string Collection,
+    string Status,
+    SndbDocumentValidator? Validator = null);
 
 /// <summary>
 /// 文档 distinct 查询结果。
@@ -245,7 +303,9 @@ public sealed record SndbDocumentAggregateResult(
     IReadOnlyList<string> Documents,
     int Count);
 
-internal sealed record DocumentCollectionCreateRequest(bool IfNotExists = true);
+internal sealed record DocumentCollectionCreateRequest(
+    bool IfNotExists = true,
+    SndbDocumentValidator? Validator = null);
 
 internal sealed record DocumentCollectionOperationResponse(string Collection, string Status);
 
@@ -308,7 +368,8 @@ internal sealed record DocumentWriteErrorResponse(
     int Index,
     string? Id,
     string Code,
-    string Message);
+    string Message,
+    string Severity = SndbDocumentWriteErrorSeverity.Error);
 
 internal sealed record DocumentWriteResponse(
     string Collection,
@@ -317,6 +378,11 @@ internal sealed record DocumentWriteResponse(
     int Modified = 0,
     int Deleted = 0,
     IReadOnlyList<DocumentWriteErrorResponse>? Errors = null);
+
+internal sealed record DocumentValidatorResponse(
+    string Collection,
+    string Status,
+    SndbDocumentValidator? Validator = null);
 
 internal sealed record DocumentCountRequest(IReadOnlyList<string>? Ids = null);
 

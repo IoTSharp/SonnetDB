@@ -429,4 +429,70 @@ public sealed class SndbDocumentClientTests : IDisposable
         Assert.Equal(SndbDocumentWriteErrorCodes.ValidationFailed, Assert.Single(result.Errors!).Code);
         Assert.Empty(await client.FindAsync("devices"));
     }
+
+    [Fact]
+    public async Task DocumentClient_ValidatorError_RejectsOrderedAndAllowsUnorderedValidItems()
+    {
+        using var client = new SndbDocumentClient(new SndbConnectionStringBuilder
+        {
+            DataSource = _root,
+        }.ConnectionString);
+
+        await client.CreateCollectionAsync("devices");
+        var updated = await client.SetValidatorAsync("devices", new SndbDocumentValidator([
+            new SndbDocumentValidatorRule("$.site", Required: true, Type: "string"),
+            new SndbDocumentValidatorRule("$.score", Type: "number", Minimum: 0, Maximum: 10),
+        ]));
+        Assert.Equal("updated", updated.Status);
+        Assert.Equal("error", updated.Validator!.ValidationAction);
+
+        var ordered = await client.InsertManyAsync("devices", [
+            new KeyValuePair<string, string>("dev-1", """{"site":"north","score":1}"""),
+            new KeyValuePair<string, string>("bad", """{"site":"north","score":99}"""),
+        ]);
+
+        Assert.True(ordered.HasErrors);
+        Assert.Equal(SndbDocumentWriteErrorCodes.ValidationFailed, Assert.Single(ordered.Errors!).Code);
+        Assert.Null(await client.FindOneAsync("devices", "dev-1"));
+
+        var unordered = await client.InsertManyAsync("devices", [
+            new KeyValuePair<string, string>("dev-1", """{"site":"north","score":1}"""),
+            new KeyValuePair<string, string>("bad", """{"site":"north","score":99}"""),
+            new KeyValuePair<string, string>("dev-2", """{"site":"south","score":2}"""),
+        ], ordered: false);
+
+        Assert.Equal(2, unordered.Inserted);
+        Assert.True(unordered.HasErrors);
+        Assert.Equal(SndbDocumentWriteErrorCodes.ValidationFailed, Assert.Single(unordered.Errors!).Code);
+        Assert.NotNull(await client.FindOneAsync("devices", "dev-1"));
+        Assert.Null(await client.FindOneAsync("devices", "bad"));
+        Assert.NotNull(await client.FindOneAsync("devices", "dev-2"));
+    }
+
+    [Fact]
+    public async Task DocumentClient_ValidatorWarn_AllowsWriteAndReturnsWarning()
+    {
+        using var client = new SndbDocumentClient(new SndbConnectionStringBuilder
+        {
+            DataSource = _root,
+        }.ConnectionString);
+
+        await client.CreateCollectionAsync("devices");
+        await client.SetValidatorAsync("devices", new SndbDocumentValidator([
+            new SndbDocumentValidatorRule("$.site", Required: true, Type: "string"),
+        ], ValidationAction: "warn"));
+
+        var result = await client.InsertOneAsync("devices", "bad", """{"score":1}""");
+
+        Assert.False(result.HasErrors);
+        Assert.True(result.HasWarnings);
+        var warning = Assert.Single(result.Errors!);
+        Assert.Equal(SndbDocumentWriteErrorCodes.ValidationFailed, warning.Code);
+        Assert.Equal(SndbDocumentWriteErrorSeverity.Warning, warning.Severity);
+        Assert.NotNull(await client.FindOneAsync("devices", "bad"));
+
+        Assert.True(await client.DropValidatorAsync("devices"));
+        var afterDrop = await client.InsertOneAsync("devices", "free", """{"score":2}""");
+        Assert.False(afterDrop.HasErrors);
+    }
 }

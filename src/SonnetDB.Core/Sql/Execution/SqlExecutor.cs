@@ -188,6 +188,8 @@ public static class SqlExecutor
             AlterTableDropColumnStatement alterDropColumn => TableSqlExecutor.ExecuteAlterTableDropColumn(tsdb, alterDropColumn),
             AlterTableRenameColumnStatement alterRenameColumn => TableSqlExecutor.ExecuteAlterTableRenameColumn(tsdb, alterRenameColumn),
             AlterTableRenameTableStatement alterRenameTable => TableSqlExecutor.ExecuteAlterTableRenameTable(tsdb, alterRenameTable),
+            AlterDocumentCollectionSetValidatorStatement setValidator => DocumentSqlExecutor.ExecuteSetValidator(tsdb, setValidator),
+            AlterDocumentCollectionDropValidatorStatement dropValidator => DocumentSqlExecutor.ExecuteDropValidator(tsdb, dropValidator),
             ShowMeasurementsStatement => ShowMeasurements(tsdb),
             ShowTablesStatement => TableSqlExecutor.ShowTables(tsdb),
             ShowDocumentCollectionsStatement => DocumentSqlExecutor.ShowCollections(tsdb),

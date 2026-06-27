@@ -511,6 +511,80 @@ public sealed class DocumentEndpointTests : IAsyncLifetime
         Assert.Equal(["dev-1", "dev-2", "existing"], findBody!.Documents.Select(static x => x.Id).Order(StringComparer.Ordinal).ToArray());
     }
 
+    [Fact]
+    public async Task DocumentApi_Validator_ErrorAndWarnActions_Work()
+    {
+        using var admin = CreateClient(AdminToken);
+        var create = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/validateddocs",
+            new DocumentCollectionCreateRequest(),
+            ServerJsonContext.Default.DocumentCollectionCreateRequest);
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+
+        var set = await admin.PutAsJsonAsync(
+            "/v1/db/docapi/documents/validateddocs/validator",
+            new DocumentValidatorContract([
+                new DocumentValidatorRuleContract("$.site", Required: true, Type: "string"),
+                new DocumentValidatorRuleContract("$.score", Type: "number", Minimum: 0, Maximum: 10),
+            ]),
+            ServerJsonContext.Default.DocumentValidatorContract);
+        Assert.Equal(HttpStatusCode.OK, set.StatusCode);
+        var setBody = await set.Content.ReadFromJsonAsync(ServerJsonContext.Default.DocumentValidatorResponse);
+        Assert.Equal("updated", setBody!.Status);
+        Assert.Equal("error", setBody.Validator!.ValidationAction);
+
+        using var invalid = JsonDocument.Parse("""{"site":"north","score":99}""");
+        var rejected = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/validateddocs/insert-one",
+            new DocumentWriteItem("bad", invalid.RootElement.Clone()),
+            ServerJsonContext.Default.DocumentWriteItem);
+        Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+        var rejectedBody = await rejected.Content.ReadFromJsonAsync(ServerJsonContext.Default.DocumentWriteResponse);
+        var rejectedError = Assert.Single(rejectedBody!.Errors!);
+        Assert.Equal("validation_failed", rejectedError.Code);
+        Assert.Equal("error", rejectedError.Severity);
+
+        var warn = await admin.PutAsJsonAsync(
+            "/v1/db/docapi/documents/validateddocs/validator",
+            new DocumentValidatorContract([
+                new DocumentValidatorRuleContract("$.site", Required: true, Type: "string"),
+            ], ValidationAction: "warn"),
+            ServerJsonContext.Default.DocumentValidatorContract);
+        Assert.Equal(HttpStatusCode.OK, warn.StatusCode);
+
+        using var warningDoc = JsonDocument.Parse("""{"score":1}""");
+        var warningWrite = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/validateddocs/insert-one",
+            new DocumentWriteItem("warned", warningDoc.RootElement.Clone()),
+            ServerJsonContext.Default.DocumentWriteItem);
+        Assert.Equal(HttpStatusCode.OK, warningWrite.StatusCode);
+        var warningBody = await warningWrite.Content.ReadFromJsonAsync(ServerJsonContext.Default.DocumentWriteResponse);
+        var warning = Assert.Single(warningBody!.Errors!);
+        Assert.Equal("validation_failed", warning.Code);
+        Assert.Equal("warning", warning.Severity);
+        Assert.Equal(1, warningBody.Inserted);
+
+        var drop = await admin.DeleteAsync("/v1/db/docapi/documents/validateddocs/validator");
+        Assert.Equal(HttpStatusCode.OK, drop.StatusCode);
+
+        var createWithValidator = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/createvalidateddocs",
+            new DocumentCollectionCreateRequest(Validator: new DocumentValidatorContract([
+                new DocumentValidatorRuleContract("$.site", Required: true, Type: "string"),
+            ])),
+            ServerJsonContext.Default.DocumentCollectionCreateRequest);
+        Assert.Equal(HttpStatusCode.Created, createWithValidator.StatusCode);
+
+        using var createdInvalid = JsonDocument.Parse("""{"score":2}""");
+        var createdRejected = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/createvalidateddocs/insert-one",
+            new DocumentWriteItem("bad", createdInvalid.RootElement.Clone()),
+            ServerJsonContext.Default.DocumentWriteItem);
+        Assert.Equal(HttpStatusCode.BadRequest, createdRejected.StatusCode);
+        var createdRejectedBody = await createdRejected.Content.ReadFromJsonAsync(ServerJsonContext.Default.DocumentWriteResponse);
+        Assert.Equal("validation_failed", Assert.Single(createdRejectedBody!.Errors!).Code);
+    }
+
     private HttpClient CreateClient(string token)
     {
         var client = new HttpClient { BaseAddress = new Uri(_baseUrl!) };

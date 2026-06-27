@@ -1,9 +1,10 @@
 using System.Collections.Frozen;
+using System.Text.RegularExpressions;
 
 namespace SonnetDB.Documents;
 
 /// <summary>
-/// JSON 文档集合 schema，包含集合名称、创建时间、二级索引与全文索引声明。
+/// JSON 文档集合 schema，包含集合名称、创建时间、二级索引、全文索引与 validator 声明。
 /// </summary>
 public sealed class DocumentCollectionSchema
 {
@@ -14,12 +15,14 @@ public sealed class DocumentCollectionSchema
         string name,
         IReadOnlyList<DocumentPathIndex> indexes,
         IReadOnlyList<DocumentFullTextIndex> fullTextIndexes,
-        long createdAtUtcTicks)
+        long createdAtUtcTicks,
+        DocumentValidator? validator)
     {
         Name = name;
         Indexes = indexes;
         FullTextIndexes = fullTextIndexes;
         CreatedAtUtcTicks = createdAtUtcTicks;
+        Validator = validator;
         _indexesByName = indexes.ToFrozenDictionary(i => i.Name, StringComparer.Ordinal);
         _fullTextIndexesByName = fullTextIndexes.ToFrozenDictionary(i => i.Name, StringComparer.Ordinal);
     }
@@ -36,6 +39,9 @@ public sealed class DocumentCollectionSchema
     /// <summary>创建时间 UTC ticks。</summary>
     public long CreatedAtUtcTicks { get; }
 
+    /// <summary>可选的集合写入 validator。</summary>
+    public DocumentValidator? Validator { get; }
+
     /// <summary>
     /// 创建并校验文档集合 schema。
     /// </summary>
@@ -43,11 +49,13 @@ public sealed class DocumentCollectionSchema
     /// <param name="indexes">文档二级索引声明。</param>
     /// <param name="fullTextIndexes">全文索引声明。</param>
     /// <param name="createdAtUtcTicks">创建时间 UTC ticks；为 0 时使用当前时间。</param>
+    /// <param name="validator">可选文档 validator 声明。</param>
     public static DocumentCollectionSchema Create(
         string name,
         IReadOnlyList<DocumentPathIndexDefinition>? indexes = null,
         IReadOnlyList<DocumentFullTextIndexDefinition>? fullTextIndexes = null,
-        long createdAtUtcTicks = 0)
+        long createdAtUtcTicks = 0,
+        DocumentValidatorDefinition? validator = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
@@ -130,7 +138,8 @@ public sealed class DocumentCollectionSchema
             name,
             indexList.AsReadOnly(),
             fullTextIndexList.AsReadOnly(),
-            createdAtUtcTicks == 0 ? DateTime.UtcNow.Ticks : createdAtUtcTicks);
+            createdAtUtcTicks == 0 ? DateTime.UtcNow.Ticks : createdAtUtcTicks,
+            NormalizeValidator(validator));
     }
 
     /// <summary>
@@ -169,7 +178,7 @@ public sealed class DocumentCollectionSchema
             .Append(definition)
             .ToArray();
 
-        return Create(Name, definitions, FullTextIndexDefinitions(), CreatedAtUtcTicks);
+        return Create(Name, definitions, FullTextIndexDefinitions(), CreatedAtUtcTicks, ValidatorDefinition());
     }
 
     /// <summary>
@@ -187,7 +196,7 @@ public sealed class DocumentCollectionSchema
             .Select(ToDefinition)
             .ToArray();
 
-        return Create(Name, definitions, FullTextIndexDefinitions(), CreatedAtUtcTicks);
+        return Create(Name, definitions, FullTextIndexDefinitions(), CreatedAtUtcTicks, ValidatorDefinition());
     }
 
     /// <summary>
@@ -205,7 +214,7 @@ public sealed class DocumentCollectionSchema
             .Append(definition)
             .ToArray();
 
-        return Create(Name, IndexDefinitions(), definitions, CreatedAtUtcTicks);
+        return Create(Name, IndexDefinitions(), definitions, CreatedAtUtcTicks, ValidatorDefinition());
     }
 
     /// <summary>
@@ -223,8 +232,33 @@ public sealed class DocumentCollectionSchema
             .Select(static i => new DocumentFullTextIndexDefinition(i.Name, i.Fields, i.Tokenizer, i.CreatedAtUtcTicks))
             .ToArray();
 
-        return Create(Name, IndexDefinitions(), definitions, CreatedAtUtcTicks);
+        return Create(Name, IndexDefinitions(), definitions, CreatedAtUtcTicks, ValidatorDefinition());
     }
+
+    /// <summary>
+    /// 返回设置指定 validator 后的新 schema。
+    /// </summary>
+    /// <param name="definition">validator 声明。</param>
+    public DocumentCollectionSchema WithValidator(DocumentValidatorDefinition definition)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        long createdAt = Validator?.CreatedAtUtcTicks ?? DateTime.UtcNow.Ticks;
+        long updatedAt = definition.UpdatedAtUtcTicks == 0 ? DateTime.UtcNow.Ticks : definition.UpdatedAtUtcTicks;
+        var normalized = definition with
+        {
+            CreatedAtUtcTicks = definition.CreatedAtUtcTicks == 0 ? createdAt : definition.CreatedAtUtcTicks,
+            UpdatedAtUtcTicks = updatedAt,
+        };
+        return Create(Name, IndexDefinitions(), FullTextIndexDefinitions(), CreatedAtUtcTicks, normalized);
+    }
+
+    /// <summary>
+    /// 返回删除 validator 后的新 schema。
+    /// </summary>
+    public DocumentCollectionSchema WithoutValidator()
+        => Validator is null
+            ? this
+            : Create(Name, IndexDefinitions(), FullTextIndexDefinitions(), CreatedAtUtcTicks);
 
     private IReadOnlyList<DocumentPathIndexDefinition> IndexDefinitions()
         => Indexes.Select(ToDefinition).ToArray();
@@ -233,6 +267,22 @@ public sealed class DocumentCollectionSchema
         => FullTextIndexes
             .Select(static i => new DocumentFullTextIndexDefinition(i.Name, i.Fields, i.Tokenizer, i.CreatedAtUtcTicks))
             .ToArray();
+
+    private DocumentValidatorDefinition? ValidatorDefinition()
+        => Validator is null
+            ? null
+            : new DocumentValidatorDefinition(
+                Validator.Rules.Select(static rule => new DocumentValidatorRuleDefinition(
+                    rule.Path,
+                    rule.Required,
+                    rule.Types,
+                    rule.Minimum,
+                    rule.Maximum,
+                    rule.EnumValues,
+                    rule.Pattern)).ToArray(),
+                Validator.Action,
+                Validator.CreatedAtUtcTicks,
+                Validator.UpdatedAtUtcTicks);
 
     private static DocumentPathIndexDefinition ToDefinition(DocumentPathIndex index)
         => new(
@@ -266,6 +316,96 @@ public sealed class DocumentCollectionSchema
             JsonPath.Parse(filter.Path).Text,
             filter.Operator,
             filter.ValueScalar);
+    }
+
+    private static DocumentValidator? NormalizeValidator(DocumentValidatorDefinition? validator)
+    {
+        if (validator is null)
+            return null;
+        if (!Enum.IsDefined(validator.Action))
+            throw new ArgumentException("validator validationAction 必须是 error 或 warn。", nameof(validator));
+        if (validator.Rules.Count == 0)
+            throw new ArgumentException("validator 至少需要一条字段规则。", nameof(validator));
+
+        var rules = new List<DocumentValidatorRule>(validator.Rules.Count);
+        var seenPaths = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var rule in validator.Rules)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(rule.Path);
+            string path = JsonPath.Parse(rule.Path).Text;
+            if (!seenPaths.Add(path))
+                throw new ArgumentException($"validator 中 path '{path}' 重复。", nameof(validator));
+            if (rule.Minimum is { } min && rule.Maximum is { } max && min > max)
+                throw new ArgumentException($"validator path '{path}' 的 minimum 不能大于 maximum。", nameof(validator));
+
+            var types = NormalizeValidatorTypes(rule.Types, path);
+            var enumValues = NormalizeEnumValues(rule.EnumValues);
+            string? pattern = string.IsNullOrWhiteSpace(rule.Pattern) ? null : rule.Pattern;
+            if (pattern is not null)
+            {
+                try
+                {
+                    _ = Regex.IsMatch(string.Empty, pattern, RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(250));
+                }
+                catch (ArgumentException ex)
+                {
+                    throw new ArgumentException($"validator path '{path}' 的 pattern 无效：{ex.Message}", nameof(validator), ex);
+                }
+            }
+
+            rules.Add(new DocumentValidatorRule(
+                path,
+                rule.Required,
+                types,
+                rule.Minimum,
+                rule.Maximum,
+                enumValues,
+                pattern));
+        }
+
+        long now = DateTime.UtcNow.Ticks;
+        return new DocumentValidator(
+            rules.AsReadOnly(),
+            validator.Action,
+            validator.CreatedAtUtcTicks == 0 ? now : validator.CreatedAtUtcTicks,
+            validator.UpdatedAtUtcTicks == 0 ? now : validator.UpdatedAtUtcTicks);
+    }
+
+    private static IReadOnlyList<DocumentValidatorValueType> NormalizeValidatorTypes(
+        IReadOnlyList<DocumentValidatorValueType>? types,
+        string path)
+    {
+        if (types is null || types.Count == 0)
+            return Array.Empty<DocumentValidatorValueType>();
+
+        var values = new List<DocumentValidatorValueType>(types.Count);
+        var seen = new HashSet<DocumentValidatorValueType>();
+        foreach (var type in types)
+        {
+            if (!Enum.IsDefined(type))
+                throw new ArgumentException($"validator path '{path}' 包含不支持的 type。", nameof(types));
+            if (seen.Add(type))
+                values.Add(type);
+        }
+
+        return values.AsReadOnly();
+    }
+
+    private static IReadOnlyList<string> NormalizeEnumValues(IReadOnlyList<string>? values)
+    {
+        if (values is null || values.Count == 0)
+            return Array.Empty<string>();
+
+        var result = new List<string>(values.Count);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string value in values)
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            if (seen.Add(value))
+                result.Add(value);
+        }
+
+        return result.AsReadOnly();
     }
 }
 

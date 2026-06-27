@@ -19,6 +19,18 @@ public static class DocumentWriteErrorCodes
 }
 
 /// <summary>
+/// 文档写入错误或警告级别。
+/// </summary>
+public static class DocumentWriteErrorSeverity
+{
+    /// <summary>会阻止写入的错误。</summary>
+    public const string Error = "error";
+
+    /// <summary>不会阻止写入的警告。</summary>
+    public const string Warning = "warning";
+}
+
+/// <summary>
 /// 单个文档写入请求。
 /// </summary>
 /// <param name="Id">文档 ID。</param>
@@ -36,11 +48,13 @@ public sealed record DocumentWriteRequest(
 /// <param name="Id">发生错误的文档 ID；请求 ID 无效时为 null。</param>
 /// <param name="Code">稳定错误码。</param>
 /// <param name="Message">面向调用方的错误说明。</param>
+/// <param name="Severity">错误或警告级别。</param>
 public sealed record DocumentWriteError(
     int Index,
     string? Id,
     string Code,
-    string Message);
+    string Message,
+    string Severity = DocumentWriteErrorSeverity.Error);
 
 /// <summary>
 /// 文档写入执行结果。
@@ -85,7 +99,12 @@ public sealed class DocumentWriteResult
     public IReadOnlyList<DocumentWriteError> Errors { get; }
 
     /// <summary>是否包含单项写入错误。</summary>
-    public bool HasErrors => Errors.Count != 0;
+    public bool HasErrors => Errors.Any(static error => string.Equals(error.Severity, DocumentWriteErrorSeverity.Error, StringComparison.Ordinal));
+
+    /// <summary>是否包含单项写入警告。</summary>
+    public bool HasWarnings => Errors.Any(static error => string.Equals(error.Severity, DocumentWriteErrorSeverity.Warning, StringComparison.Ordinal));
 
     internal int Affected => Inserted + Modified + Deleted;
+
+    internal DocumentUpdateResult ToUpdateResult() => new(Matched, Modified, Inserted);
 }

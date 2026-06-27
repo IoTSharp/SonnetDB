@@ -49,11 +49,74 @@ internal static partial class SonnetDbEndpoints
                 return;
             }
 
-            tsdb.Documents.Create(DocumentCollectionSchema.Create(collection));
+            try
+            {
+                tsdb.Documents.Create(DocumentCollectionSchema.Create(
+                    collection,
+                    validator: ToCoreValidator(req.Validator)));
+            }
+            catch (ArgumentException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+                return;
+            }
+            catch (InvalidOperationException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+                return;
+            }
+
             await Results.Json(
                 new DocumentCollectionOperationResponse(collection, "created"),
                 ServerJsonContext.Default.DocumentCollectionOperationResponse,
                 statusCode: StatusCodes.Status201Created).ExecuteAsync(ctx).ConfigureAwait(false);
+        });
+
+        app.MapPut("/v1/db/{db}/documents/{collection}/validator", async (HttpContext ctx, string db, string collection) =>
+        {
+            if (!await TryResolveDocumentCollectionAsync(ctx, registry, grants, db, collection, DatabasePermission.Write, mustExist: true).ConfigureAwait(false))
+                return;
+            var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.DocumentValidatorContract).ConfigureAwait(false);
+            if (req is null)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体不可为空。").ConfigureAwait(false);
+                return;
+            }
+
+            registry.TryGet(db, out var tsdb);
+            DocumentValidator validator;
+            try
+            {
+                validator = tsdb.Documents.SetValidator(collection, ToCoreValidator(req)
+                    ?? throw new InvalidOperationException("validator 不可为空。"));
+            }
+            catch (ArgumentException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+                return;
+            }
+            catch (InvalidOperationException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+                return;
+            }
+
+            await Results.Json(
+                new DocumentValidatorResponse(collection, "updated", ToContractValidator(validator)),
+                ServerJsonContext.Default.DocumentValidatorResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+        });
+
+        app.MapDelete("/v1/db/{db}/documents/{collection}/validator", async (HttpContext ctx, string db, string collection) =>
+        {
+            if (!await TryResolveDocumentCollectionAsync(ctx, registry, grants, db, collection, DatabasePermission.Write, mustExist: true).ConfigureAwait(false))
+                return;
+
+            registry.TryGet(db, out var tsdb);
+            bool dropped = tsdb.Documents.DropValidator(collection);
+            await Results.Json(
+                new DocumentValidatorResponse(collection, dropped ? "dropped" : "missing"),
+                ServerJsonContext.Default.DocumentValidatorResponse,
+                statusCode: dropped ? StatusCodes.Status200OK : StatusCodes.Status404NotFound).ExecuteAsync(ctx).ConfigureAwait(false);
         });
 
         app.MapDelete("/v1/db/{db}/documents/{collection}", async (HttpContext ctx, string db, string collection) =>
@@ -183,12 +246,12 @@ internal static partial class SonnetDbEndpoints
             {
                 try
                 {
-                    var result = store.UpdateOne(
+                    var result = store.UpdateOneWrite(
                         MergeUpdateRequestFilters(req.Id, req.Filter),
                         ToCoreUpdate(req.Update),
                         req.Upsert,
                         req.UpsertId ?? req.Id);
-                    await WriteDocumentWriteResponseAsync(ctx, collection, ToWriteResult(result)).ConfigureAwait(false);
+                    await WriteDocumentWriteResponseAsync(ctx, collection, result).ConfigureAwait(false);
                 }
                 catch (ArgumentException ex)
                 {
@@ -229,12 +292,12 @@ internal static partial class SonnetDbEndpoints
             {
                 try
                 {
-                    var result = store.UpdateMany(
+                    var result = store.UpdateManyWrite(
                         ToCoreFilter(req.Filter),
                         ToCoreUpdate(req.Update),
                         req.Upsert,
                         req.UpsertId);
-                    await WriteDocumentWriteResponseAsync(ctx, collection, ToWriteResult(result)).ConfigureAwait(false);
+                    await WriteDocumentWriteResponseAsync(ctx, collection, result).ConfigureAwait(false);
                 }
                 catch (ArgumentException ex)
                 {
@@ -428,7 +491,10 @@ internal static partial class SonnetDbEndpoints
         if (result.Inserted + result.Modified + result.Deleted > 0)
             return StatusCodes.Status207MultiStatus;
 
-        string code = result.Errors[0].Code;
+        string code = result.Errors.First(static error => string.Equals(
+            error.Severity,
+            SonnetDB.Documents.DocumentWriteErrorSeverity.Error,
+            StringComparison.Ordinal)).Code;
         return code switch
         {
             SonnetDB.Documents.DocumentWriteErrorCodes.DuplicateKey
@@ -438,9 +504,6 @@ internal static partial class SonnetDbEndpoints
             _ => StatusCodes.Status400BadRequest,
         };
     }
-
-    private static DocumentWriteResult ToWriteResult(DocumentUpdateResult result) =>
-        new(inserted: result.Inserted, matched: result.Matched, modified: result.Modified);
 
     private static DocumentWriteResponse ToContractWriteResponse(string collection, DocumentWriteResult result) =>
         new(
@@ -455,7 +518,110 @@ internal static partial class SonnetDbEndpoints
                     error.Index,
                     error.Id,
                     error.Code,
-                    error.Message)).ToArray());
+                    error.Message,
+                    error.Severity)).ToArray());
+
+    private static DocumentValidatorDefinition? ToCoreValidator(DocumentValidatorContract? validator)
+    {
+        if (validator is null)
+            return null;
+
+        return new DocumentValidatorDefinition(
+            validator.Rules.Select(ToCoreValidatorRule).ToArray(),
+            ParseValidationAction(validator.ValidationAction));
+    }
+
+    private static DocumentValidatorRuleDefinition ToCoreValidatorRule(DocumentValidatorRuleContract rule)
+    {
+        var types = new List<DocumentValidatorValueType>();
+        if (!string.IsNullOrWhiteSpace(rule.Type))
+            types.Add(ParseValidatorValueType(rule.Type));
+        if (rule.Types is not null)
+            types.AddRange(rule.Types.Select(ParseValidatorValueType));
+
+        return new DocumentValidatorRuleDefinition(
+            rule.Path,
+            rule.Required,
+            types,
+            rule.Minimum,
+            rule.Maximum,
+            rule.Enum?.Select(static value => DocumentValidatorExecutor.ToComparableJson(value)).ToArray(),
+            rule.Pattern);
+    }
+
+    private static DocumentValidatorContract ToContractValidator(DocumentValidator validator)
+        => new(
+            validator.Rules.Select(static rule => new DocumentValidatorRuleContract(
+                rule.Path,
+                rule.Required,
+                rule.Types.Count == 1 ? FormatValidatorValueType(rule.Types[0]) : null,
+                rule.Types.Count > 1 ? rule.Types.Select(FormatValidatorValueType).ToArray() : null,
+                rule.Minimum,
+                rule.Maximum,
+                rule.EnumValues.Select(ParseJsonElementFromComparableValue).ToArray(),
+                rule.Pattern)).ToArray(),
+            validator.Action == DocumentValidationAction.Warn ? "warn" : "error");
+
+    private static DocumentValidationAction ParseValidationAction(string? action)
+        => (action ?? "error").ToLowerInvariant() switch
+        {
+            "error" => DocumentValidationAction.Error,
+            "warn" => DocumentValidationAction.Warn,
+            _ => throw new ArgumentException($"不支持的 validationAction '{action}'。"),
+        };
+
+    private static DocumentValidatorValueType ParseValidatorValueType(string type)
+        => type.ToLowerInvariant() switch
+        {
+            "string" => DocumentValidatorValueType.String,
+            "number" => DocumentValidatorValueType.Number,
+            "integer" or "int" => DocumentValidatorValueType.Integer,
+            "boolean" or "bool" => DocumentValidatorValueType.Boolean,
+            "object" => DocumentValidatorValueType.Object,
+            "array" => DocumentValidatorValueType.Array,
+            "null" => DocumentValidatorValueType.Null,
+            _ => throw new ArgumentException($"不支持的 validator type '{type}'。"),
+        };
+
+    private static string FormatValidatorValueType(DocumentValidatorValueType type)
+        => type switch
+        {
+            DocumentValidatorValueType.String => "string",
+            DocumentValidatorValueType.Number => "number",
+            DocumentValidatorValueType.Integer => "integer",
+            DocumentValidatorValueType.Boolean => "boolean",
+            DocumentValidatorValueType.Object => "object",
+            DocumentValidatorValueType.Array => "array",
+            DocumentValidatorValueType.Null => "null",
+            _ => throw new ArgumentOutOfRangeException(nameof(type), type, "不支持的 validator type。"),
+        };
+
+    private static JsonElement ParseJsonElementFromComparableValue(string value)
+    {
+        if (string.Equals(value, "true", StringComparison.Ordinal)
+            || string.Equals(value, "false", StringComparison.Ordinal)
+            || string.Equals(value, "null", StringComparison.Ordinal)
+            || double.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _))
+        {
+            try
+            {
+                return ParseJsonElement(value);
+            }
+            catch (JsonException)
+            {
+            }
+        }
+
+        return ParseJsonElement(ToJsonStringLiteral(value));
+    }
+
+    private static string ToJsonStringLiteral(string value)
+    {
+        var buffer = new System.Buffers.ArrayBufferWriter<byte>();
+        using (var writer = new Utf8JsonWriter(buffer))
+            writer.WriteStringValue(value);
+        return System.Text.Encoding.UTF8.GetString(buffer.WrittenSpan);
+    }
 
     private static async Task<bool> ValidateFindRequestAsync(HttpContext ctx, DocumentFindRequest req)
     {
