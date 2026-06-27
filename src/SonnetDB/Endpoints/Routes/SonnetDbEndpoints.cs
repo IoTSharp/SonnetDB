@@ -13,6 +13,7 @@ internal static partial class SonnetDbEndpoints
         app.MapSetupEndpoints();
         app.MapDatabaseEndpoints();
         app.MapSqlEndpoints();
+        app.MapDocumentEndpoints();
         app.MapKvEndpoints();
         app.MapMqEndpoints();
         app.MapObjectStorageEndpoints();

@@ -194,7 +194,27 @@ using var connection = new SndbConnection(
 connection.Open();
 ```
 
-### 4. 通过 CLI 访问
+### 4. 通过 Document Client 访问
+
+```csharp
+using SonnetDB.Data.Documents;
+
+using var documents = new SndbDocumentClient("Data Source=./demo-data");
+await documents.CreateCollectionAsync("device_docs");
+await documents.InsertOneAsync("device_docs", "dev-1", """{"site":"north","kind":"pump"}""");
+
+var doc = await documents.FindOneAsync("device_docs", "dev-1");
+Console.WriteLine(doc?.Json);
+```
+
+远程模式使用同一连接字符串格式：
+
+```csharp
+using var documents = new SndbDocumentClient(
+    "Data Source=sonnetdb+http://127.0.0.1:5080/metrics;Token=your-token");
+```
+
+### 5. 通过 CLI 访问
 
 ```bash
 # 安装

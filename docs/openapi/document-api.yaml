@@ -1,0 +1,435 @@
+openapi: 3.0.3
+info:
+  title: SonnetDB Document API
+  version: 0.0.0-dev
+  description: >
+    Private JSON API for SonnetDB document collections. This contract is
+    intentionally SonnetDB-native and does not implement MongoDB wire protocol
+    or BSON command compatibility.
+paths:
+  /v1/db/{db}/documents/{collection}:
+    post:
+      summary: Create a document collection.
+      parameters:
+        - $ref: '#/components/parameters/db'
+        - $ref: '#/components/parameters/collection'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentCollectionCreateRequest'
+      responses:
+        '200':
+          description: Collection already exists.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentCollectionOperationResponse'
+        '201':
+          description: Collection created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentCollectionOperationResponse'
+    delete:
+      summary: Drop a document collection.
+      parameters:
+        - $ref: '#/components/parameters/db'
+        - $ref: '#/components/parameters/collection'
+      responses:
+        '200':
+          description: Collection dropped.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentCollectionOperationResponse'
+        '404':
+          description: Collection does not exist.
+  /v1/db/{db}/documents/{collection}/insert-one:
+    post:
+      summary: Insert or replace one document.
+      parameters:
+        - $ref: '#/components/parameters/db'
+        - $ref: '#/components/parameters/collection'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentWriteItem'
+      responses:
+        '200':
+          description: Write result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentWriteResponse'
+  /v1/db/{db}/documents/{collection}/insert-many:
+    post:
+      summary: Insert or replace many documents.
+      parameters:
+        - $ref: '#/components/parameters/db'
+        - $ref: '#/components/parameters/collection'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentInsertManyRequest'
+      responses:
+        '200':
+          description: Write result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentWriteResponse'
+  /v1/db/{db}/documents/{collection}/find:
+    post:
+      summary: Find documents by id, ids, or bounded collection scan.
+      parameters:
+        - $ref: '#/components/parameters/db'
+        - $ref: '#/components/parameters/collection'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentFindRequest'
+      responses:
+        '200':
+          description: Matching documents.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentFindResponse'
+  /v1/db/{db}/documents/{collection}/find-one:
+    post:
+      summary: Find one document by id.
+      parameters:
+        - $ref: '#/components/parameters/db'
+        - $ref: '#/components/parameters/collection'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentFindRequest'
+      responses:
+        '200':
+          description: Single document lookup result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentFindOneResponse'
+  /v1/db/{db}/documents/{collection}/update-one:
+    post:
+      summary: Replace one existing document.
+      description: First version performs whole-document replacement only; no update operators or upsert.
+      parameters:
+        - $ref: '#/components/parameters/db'
+        - $ref: '#/components/parameters/collection'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentUpdateOneRequest'
+      responses:
+        '200':
+          description: Write result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentWriteResponse'
+  /v1/db/{db}/documents/{collection}/update-many:
+    post:
+      summary: Replace many existing documents.
+      description: First version performs whole-document replacement only; missing ids are skipped.
+      parameters:
+        - $ref: '#/components/parameters/db'
+        - $ref: '#/components/parameters/collection'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentUpdateManyRequest'
+      responses:
+        '200':
+          description: Write result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentWriteResponse'
+  /v1/db/{db}/documents/{collection}/delete-one:
+    post:
+      summary: Delete one document by id.
+      parameters:
+        - $ref: '#/components/parameters/db'
+        - $ref: '#/components/parameters/collection'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentDeleteOneRequest'
+      responses:
+        '200':
+          description: Write result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentWriteResponse'
+  /v1/db/{db}/documents/{collection}/delete-many:
+    post:
+      summary: Delete many documents by id.
+      parameters:
+        - $ref: '#/components/parameters/db'
+        - $ref: '#/components/parameters/collection'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentDeleteManyRequest'
+      responses:
+        '200':
+          description: Write result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentWriteResponse'
+  /v1/db/{db}/documents/{collection}/count:
+    post:
+      summary: Count documents.
+      parameters:
+        - $ref: '#/components/parameters/db'
+        - $ref: '#/components/parameters/collection'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentCountRequest'
+      responses:
+        '200':
+          description: Document count.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentCountResponse'
+  /v1/db/{db}/documents/{collection}/distinct:
+    post:
+      summary: Return distinct scalar values for a JSON path.
+      parameters:
+        - $ref: '#/components/parameters/db'
+        - $ref: '#/components/parameters/collection'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentDistinctRequest'
+      responses:
+        '200':
+          description: Distinct values.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentDistinctResponse'
+components:
+  parameters:
+    db:
+      name: db
+      in: path
+      required: true
+      schema:
+        type: string
+    collection:
+      name: collection
+      in: path
+      required: true
+      schema:
+        type: string
+  schemas:
+    DocumentCollectionCreateRequest:
+      type: object
+      properties:
+        ifNotExists:
+          type: boolean
+          default: true
+    DocumentCollectionOperationResponse:
+      type: object
+      properties:
+        collection:
+          type: string
+        status:
+          type: string
+    DocumentWriteItem:
+      type: object
+      required: [id, document]
+      properties:
+        id:
+          type: string
+        document:
+          type: object
+          additionalProperties: true
+    DocumentInsertManyRequest:
+      type: object
+      required: [documents]
+      properties:
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentWriteItem'
+    DocumentFindRequest:
+      type: object
+      properties:
+        id:
+          type: string
+        ids:
+          type: array
+          items:
+            type: string
+        limit:
+          type: integer
+          minimum: 1
+          description: Values above 1000 are clamped by the server in this first version.
+        skip:
+          type: integer
+          minimum: 0
+          default: 0
+    DocumentItemResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        document:
+          type: object
+          additionalProperties: true
+        version:
+          type: integer
+          format: int64
+    DocumentFindResponse:
+      type: object
+      properties:
+        collection:
+          type: string
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentItemResponse'
+        count:
+          type: integer
+        limit:
+          type: integer
+          nullable: true
+        skip:
+          type: integer
+    DocumentFindOneResponse:
+      type: object
+      properties:
+        collection:
+          type: string
+        found:
+          type: boolean
+        document:
+          allOf:
+            - $ref: '#/components/schemas/DocumentItemResponse'
+          nullable: true
+    DocumentUpdateOneRequest:
+      allOf:
+        - $ref: '#/components/schemas/DocumentWriteItem'
+    DocumentUpdateManyRequest:
+      allOf:
+        - $ref: '#/components/schemas/DocumentInsertManyRequest'
+    DocumentDeleteOneRequest:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+    DocumentDeleteManyRequest:
+      type: object
+      required: [ids]
+      properties:
+        ids:
+          type: array
+          items:
+            type: string
+    DocumentWriteResponse:
+      type: object
+      properties:
+        collection:
+          type: string
+        inserted:
+          type: integer
+        matched:
+          type: integer
+        modified:
+          type: integer
+        deleted:
+          type: integer
+    DocumentCountRequest:
+      type: object
+      properties:
+        ids:
+          type: array
+          items:
+            type: string
+    DocumentCountResponse:
+      type: object
+      properties:
+        collection:
+          type: string
+        count:
+          type: integer
+          format: int64
+    DocumentDistinctRequest:
+      type: object
+      required: [path]
+      properties:
+        path:
+          type: string
+          example: $.site
+        ids:
+          type: array
+          items:
+            type: string
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 1000
+    JsonElementValue:
+      type: object
+      properties:
+        kind:
+          type: integer
+          description: '0 = Null, 1 = String, 2 = Integer, 3 = Double, 4 = Boolean.'
+          enum: [0, 1, 2, 3, 4]
+        stringValue:
+          type: string
+          nullable: true
+        integerValue:
+          type: integer
+          format: int64
+          nullable: true
+        doubleValue:
+          type: number
+          format: double
+          nullable: true
+        booleanValue:
+          type: boolean
+          nullable: true
+    DocumentDistinctResponse:
+      type: object
+      properties:
+        collection:
+          type: string
+        path:
+          type: string
+        values:
+          type: array
+          items:
+            $ref: '#/components/schemas/JsonElementValue'

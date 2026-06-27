@@ -188,6 +188,41 @@ DROP DOCUMENT COLLECTION device_docs;
 - `id = '...'` 会走文档 ID 读取；其它条件走集合扫描后过滤。
 - 第一版不提供 MongoDB 兼容 API、跨文档复杂事务或 JSON schema 校验。
 
+Document Store 也提供私有 JSON HTTP API 与 `SndbDocumentClient`，用于不想拼 SQL 的应用代码。端点统一位于 `/v1/db/{db}/documents/{collection}` 下，读操作需要数据库 `Read` 权限，写操作需要 `Write` 权限：
+
+```http
+POST   /v1/db/{db}/documents/{collection}
+DELETE /v1/db/{db}/documents/{collection}
+POST   /v1/db/{db}/documents/{collection}/insert-one
+POST   /v1/db/{db}/documents/{collection}/insert-many
+POST   /v1/db/{db}/documents/{collection}/find
+POST   /v1/db/{db}/documents/{collection}/find-one
+POST   /v1/db/{db}/documents/{collection}/update-one
+POST   /v1/db/{db}/documents/{collection}/update-many
+POST   /v1/db/{db}/documents/{collection}/delete-one
+POST   /v1/db/{db}/documents/{collection}/delete-many
+POST   /v1/db/{db}/documents/{collection}/count
+POST   /v1/db/{db}/documents/{collection}/distinct
+```
+
+```json
+// insert-one
+{ "id": "dev-1", "document": { "site": "north", "kind": "pump" } }
+
+// find：第一版支持 id、ids 或 limit/skip 扫描
+{ "id": "dev-1" }
+{ "ids": ["dev-1", "dev-2"] }
+{ "limit": 100, "skip": 0 }
+
+// update-one：第一版为整文档替换，不是 $set/$inc 局部更新
+{ "id": "dev-1", "document": { "site": "north", "kind": "pump", "status": "ok" } }
+
+// distinct：按 JSON path 返回标量 distinct 值
+{ "path": "$.site" }
+```
+
+当前 Document API 契约刻意不实现 MongoDB wire protocol / BSON command，也不承诺官方 MongoDB Driver 直连；复杂 filter/projection/sort、cursor 分页、局部更新操作符和批量写事务语义会在 Milestone 21 后续 PR 中补齐。OpenAPI 片段见 [document-api.yaml](openapi/document-api.yaml)。
+
 ### JSON 文件虚拟表与导入
 
 MM5 第二批支持把本地 JSON 文件作为只读虚拟表查询，或导入到 document collection / 关系表。JSON 文件能力用于临时查询、迁移和批量导入；导入完成后的主数据仍由 SonnetDB 的 document collection 或 table 托管。

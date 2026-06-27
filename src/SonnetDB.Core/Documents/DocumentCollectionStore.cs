@@ -77,6 +77,29 @@ public sealed class DocumentCollectionStore : IDisposable
     }
 
     /// <summary>
+    /// 按文档 ID 顺序批量读取 JSON 文档。
+    /// </summary>
+    /// <param name="ids">文档 ID 序列。</param>
+    /// <returns>按请求 ID 顺序返回的已存在文档。</returns>
+    public IReadOnlyList<DocumentRow> GetMany(IEnumerable<string> ids)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        lock (_sync)
+        {
+            var rows = new List<DocumentRow>();
+            foreach (string id in ids)
+            {
+                ArgumentException.ThrowIfNullOrWhiteSpace(id);
+                var row = TryGetByDocumentKeyLocked(DocumentIndexCodec.EncodeDocumentKey(id));
+                if (row is not null)
+                    rows.Add(row);
+            }
+
+            return rows;
+        }
+    }
+
+    /// <summary>
     /// 按文档 ID 删除 JSON 文档。
     /// </summary>
     /// <param name="id">文档 ID。</param>
@@ -98,14 +121,84 @@ public sealed class DocumentCollectionStore : IDisposable
     }
 
     /// <summary>
+    /// 按文档 ID 批量删除 JSON 文档。
+    /// </summary>
+    /// <param name="ids">文档 ID 序列。</param>
+    /// <returns>实际删除的文档数量。</returns>
+    public int DeleteMany(IEnumerable<string> ids)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        int deleted = 0;
+        foreach (string id in ids)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(id);
+            if (Delete(id))
+                deleted++;
+        }
+
+        return deleted;
+    }
+
+    /// <summary>
     /// 扫描当前集合的所有文档，按文档 ID 字节序升序返回。
     /// </summary>
     /// <param name="limit">最多返回行数。</param>
-    public IReadOnlyList<DocumentRow> Scan(int? limit = null)
+    /// <param name="skip">跳过的行数。</param>
+    /// <returns>按文档 ID 字节序升序排列的文档列表。</returns>
+    public IReadOnlyList<DocumentRow> Scan(int? limit = null, int skip = 0)
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(skip);
         lock (_sync)
         {
-            return ScanRowsLocked(limit ?? int.MaxValue);
+            return ScanRowsLocked(limit ?? int.MaxValue, skip);
+        }
+    }
+
+    /// <summary>
+    /// 返回当前集合的文档数量。
+    /// </summary>
+    /// <returns>当前集合中的文档数量。</returns>
+    public int Count()
+    {
+        lock (_sync)
+            return ScanRowsLocked(int.MaxValue).Count;
+    }
+
+    /// <summary>
+    /// 读取指定 JSON path 上的 distinct 标量值。
+    /// </summary>
+    /// <param name="path">JSON path 表达式。</param>
+    /// <param name="limit">最多返回的 distinct 值数量。</param>
+    /// <param name="ids">可选的文档 ID 限定；为空时扫描整个集合。</param>
+    /// <returns>按扫描顺序去重后的 path 标量值列表。</returns>
+    public IReadOnlyList<object?> Distinct(string path, int? limit = null, IEnumerable<string>? ids = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        int take = limit ?? int.MaxValue;
+        if (take <= 0)
+            return [];
+
+        var parsedPath = JsonPath.Parse(path);
+        lock (_sync)
+        {
+            var rows = ids is null
+                ? ScanRowsLocked(int.MaxValue)
+                : GetManyLocked(ids);
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            var values = new List<object?>();
+            foreach (var row in rows)
+            {
+                object? value = JsonPathEvaluator.Evaluate(row.Json, parsedPath);
+                string key = JsonPathEvaluator.ToIndexScalar(value) ?? "<null>";
+                if (!seen.Add(key))
+                    continue;
+
+                values.Add(value);
+                if (values.Count >= take)
+                    break;
+            }
+
+            return values;
         }
     }
 
@@ -229,12 +322,12 @@ public sealed class DocumentCollectionStore : IDisposable
 
     private DocumentRow? TryGetByDocumentKeyLocked(ReadOnlySpan<byte> documentKey)
     {
-        byte[]? payload = _keyspace.Get(documentKey);
-        if (payload is null)
+        var entry = _keyspace.GetEntry(documentKey);
+        if (entry is null)
             return null;
 
         string id = DocumentIndexCodec.DecodeIdFromDocumentKey(documentKey.ToArray());
-        return new DocumentRow(id, Encoding.UTF8.GetString(payload), Version: 0);
+        return new DocumentRow(id, Encoding.UTF8.GetString(entry.Value.Span), entry.Version);
     }
 
     private void ApplyMutationLocked(
@@ -344,11 +437,26 @@ public sealed class DocumentCollectionStore : IDisposable
         return store;
     }
 
-    private IReadOnlyList<DocumentRow> ScanRowsLocked(int limit)
+    private IReadOnlyList<DocumentRow> GetManyLocked(IEnumerable<string> ids)
     {
-        var entries = _keyspace.ScanPrefix(new byte[] { (byte)'d' }, limit);
+        var rows = new List<DocumentRow>();
+        foreach (string id in ids)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(id);
+            var row = TryGetByDocumentKeyLocked(DocumentIndexCodec.EncodeDocumentKey(id));
+            if (row is not null)
+                rows.Add(row);
+        }
+
+        return rows;
+    }
+
+    private IReadOnlyList<DocumentRow> ScanRowsLocked(int limit, int skip = 0)
+    {
+        int take = limit == int.MaxValue ? int.MaxValue : checked(skip + limit);
+        var entries = _keyspace.ScanPrefix(new byte[] { (byte)'d' }, take);
         var rows = new List<DocumentRow>(entries.Count);
-        foreach (var entry in entries)
+        foreach (var entry in entries.Skip(skip))
         {
             string id = DocumentIndexCodec.DecodeIdFromDocumentKey(entry.Key);
             rows.Add(new DocumentRow(id, Encoding.UTF8.GetString(entry.Value.Span), entry.Version));
