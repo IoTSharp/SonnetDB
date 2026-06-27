@@ -114,7 +114,9 @@ internal static class DocumentSqlExecutor
         {
             string id = ConvertId(row[idColumn]);
             string json = ConvertJson(row[documentColumn]);
-            store.Upsert(id, json);
+            var result = store.Insert(id, json);
+            if (result.HasErrors)
+                throw new InvalidOperationException(result.Errors[0].Message);
         }
 
         return new InsertExecutionResult(schema.Name, statement.Rows.Count);
@@ -236,7 +238,9 @@ internal static class DocumentSqlExecutor
             if (!EvaluateWhere(statement.Where, row, matchScores))
                 continue;
 
-            store.Upsert(row.Id, ConvertJson(statement.Assignments[0].Value));
+            var result = store.Replace(row.Id, ConvertJson(statement.Assignments[0].Value));
+            if (result.HasErrors)
+                throw new InvalidOperationException(result.Errors[0].Message);
             updated++;
         }
 

@@ -66,6 +66,12 @@ public sealed class KvKeyspace : IDisposable
         }
     }
 
+    internal void ValidateWrite(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value)
+    {
+        ValidateKey(key, _options);
+        ValidateValue(value, _options);
+    }
+
     internal static KvKeyspace Open(string name, string rootDirectory, KvOptions options)
     {
         ArgumentNullException.ThrowIfNull(name);

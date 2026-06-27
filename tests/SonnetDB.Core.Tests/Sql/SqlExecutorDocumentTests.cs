@@ -119,6 +119,27 @@ public sealed class SqlExecutorDocumentTests : IDisposable
     }
 
     [Fact]
+    public void DocumentCollection_InsertDuplicateId_DoesNotOverwriteExistingDocument()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE DOCUMENT COLLECTION device_docs");
+        SqlExecutor.Execute(db, """
+            INSERT INTO device_docs (id, document)
+            VALUES ('dev-1', '{"site":"north"}')
+            """);
+
+        var ex = Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db, """
+            INSERT INTO device_docs (id, document)
+            VALUES ('dev-1', '{"site":"south"}')
+            """));
+
+        Assert.Contains("dev-1", ex.Message, StringComparison.Ordinal);
+        var selected = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT document FROM device_docs WHERE id = 'dev-1'"));
+        Assert.Equal("""{"site":"north"}""", selected.Rows.Single()[0]);
+    }
+
+    [Fact]
     public void DocumentCollection_SelectSupportsQualifiedDocumentPseudoColumn()
     {
         using var db = Tsdb.Open(Options());

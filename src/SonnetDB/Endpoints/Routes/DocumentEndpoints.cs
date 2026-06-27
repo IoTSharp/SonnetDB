@@ -83,9 +83,8 @@ internal static partial class SonnetDbEndpoints
                 return;
 
             registry.TryGet(db, out var tsdb);
-            tsdb.Documents.Open(collection).Upsert(req.Id, req.Document.GetRawText());
-            await Results.Json(new DocumentWriteResponse(collection, Inserted: 1), ServerJsonContext.Default.DocumentWriteResponse)
-                .ExecuteAsync(ctx).ConfigureAwait(false);
+            var result = tsdb.Documents.Open(collection).Insert(req.Id, req.Document.GetRawText());
+            await WriteDocumentWriteResponseAsync(ctx, collection, result).ConfigureAwait(false);
         });
 
         app.MapPost("/v1/db/{db}/documents/{collection}/insert-many", async (HttpContext ctx, string db, string collection) =>
@@ -101,17 +100,10 @@ internal static partial class SonnetDbEndpoints
 
             registry.TryGet(db, out var tsdb);
             var store = tsdb.Documents.Open(collection);
-            int inserted = 0;
-            foreach (var item in req.Documents)
-            {
-                if (!await ValidateDocumentIdAsync(ctx, item.Id).ConfigureAwait(false))
-                    return;
-                store.Upsert(item.Id, item.Document.GetRawText());
-                inserted++;
-            }
-
-            await Results.Json(new DocumentWriteResponse(collection, Inserted: inserted), ServerJsonContext.Default.DocumentWriteResponse)
-                .ExecuteAsync(ctx).ConfigureAwait(false);
+            var result = store.InsertMany(
+                req.Documents.Select(static item => new DocumentWriteRequest(item.Id, item.Document.GetRawText())),
+                req.Ordered);
+            await WriteDocumentWriteResponseAsync(ctx, collection, result).ConfigureAwait(false);
         });
 
         app.MapPost("/v1/db/{db}/documents/{collection}/find", async (HttpContext ctx, string db, string collection) =>
@@ -196,9 +188,7 @@ internal static partial class SonnetDbEndpoints
                         ToCoreUpdate(req.Update),
                         req.Upsert,
                         req.UpsertId ?? req.Id);
-                    await Results.Json(
-                        new DocumentWriteResponse(collection, Inserted: result.Inserted, Matched: result.Matched, Modified: result.Modified),
-                        ServerJsonContext.Default.DocumentWriteResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+                    await WriteDocumentWriteResponseAsync(ctx, collection, ToWriteResult(result)).ConfigureAwait(false);
                 }
                 catch (ArgumentException ex)
                 {
@@ -218,16 +208,8 @@ internal static partial class SonnetDbEndpoints
             }
             if (!await ValidateDocumentIdAsync(ctx, req.Id).ConfigureAwait(false))
                 return;
-            if (store.Get(req.Id) is null)
-            {
-                await Results.Json(new DocumentWriteResponse(collection), ServerJsonContext.Default.DocumentWriteResponse)
-                    .ExecuteAsync(ctx).ConfigureAwait(false);
-                return;
-            }
-
-            store.Upsert(req.Id, req.Document.Value.GetRawText());
-            await Results.Json(new DocumentWriteResponse(collection, Matched: 1, Modified: 1), ServerJsonContext.Default.DocumentWriteResponse)
-                .ExecuteAsync(ctx).ConfigureAwait(false);
+            var replaceResult = store.Replace(req.Id, req.Document.Value.GetRawText());
+            await WriteDocumentWriteResponseAsync(ctx, collection, replaceResult).ConfigureAwait(false);
         });
 
         app.MapPost("/v1/db/{db}/documents/{collection}/update-many", async (HttpContext ctx, string db, string collection) =>
@@ -252,9 +234,7 @@ internal static partial class SonnetDbEndpoints
                         ToCoreUpdate(req.Update),
                         req.Upsert,
                         req.UpsertId);
-                    await Results.Json(
-                        new DocumentWriteResponse(collection, Inserted: result.Inserted, Matched: result.Matched, Modified: result.Modified),
-                        ServerJsonContext.Default.DocumentWriteResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+                    await WriteDocumentWriteResponseAsync(ctx, collection, ToWriteResult(result)).ConfigureAwait(false);
                 }
                 catch (ArgumentException ex)
                 {
@@ -273,20 +253,10 @@ internal static partial class SonnetDbEndpoints
                 return;
             }
 
-            int matched = 0;
-            foreach (var item in req.Documents)
-            {
-                if (!await ValidateDocumentIdAsync(ctx, item.Id).ConfigureAwait(false))
-                    return;
-                if (store.Get(item.Id) is null)
-                    continue;
-
-                store.Upsert(item.Id, item.Document.GetRawText());
-                matched++;
-            }
-
-            await Results.Json(new DocumentWriteResponse(collection, Matched: matched, Modified: matched), ServerJsonContext.Default.DocumentWriteResponse)
-                .ExecuteAsync(ctx).ConfigureAwait(false);
+            var replaceManyResult = store.ReplaceMany(
+                req.Documents.Select(static item => new DocumentWriteRequest(item.Id, item.Document.GetRawText())),
+                req.Ordered);
+            await WriteDocumentWriteResponseAsync(ctx, collection, replaceManyResult).ConfigureAwait(false);
         });
 
         app.MapPost("/v1/db/{db}/documents/{collection}/delete-one", async (HttpContext ctx, string db, string collection) =>
@@ -318,9 +288,8 @@ internal static partial class SonnetDbEndpoints
             }
 
             registry.TryGet(db, out var tsdb);
-            int deleted = tsdb.Documents.Open(collection).DeleteMany(req.Ids);
-            await Results.Json(new DocumentWriteResponse(collection, Deleted: deleted), ServerJsonContext.Default.DocumentWriteResponse)
-                .ExecuteAsync(ctx).ConfigureAwait(false);
+            var result = tsdb.Documents.Open(collection).DeleteMany(req.Ids, req.Ordered);
+            await WriteDocumentWriteResponseAsync(ctx, collection, result).ConfigureAwait(false);
         });
 
         app.MapPost("/v1/db/{db}/documents/{collection}/count", async (HttpContext ctx, string db, string collection) =>
@@ -439,6 +408,54 @@ internal static partial class SonnetDbEndpoints
         await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "document id 不能为空。").ConfigureAwait(false);
         return false;
     }
+
+    private static async Task WriteDocumentWriteResponseAsync(
+        HttpContext ctx,
+        string collection,
+        DocumentWriteResult result)
+    {
+        int statusCode = GetDocumentWriteStatusCode(result);
+        await Results.Json(
+            ToContractWriteResponse(collection, result),
+            ServerJsonContext.Default.DocumentWriteResponse,
+            statusCode: statusCode).ExecuteAsync(ctx).ConfigureAwait(false);
+    }
+
+    private static int GetDocumentWriteStatusCode(DocumentWriteResult result)
+    {
+        if (!result.HasErrors)
+            return StatusCodes.Status200OK;
+        if (result.Inserted + result.Modified + result.Deleted > 0)
+            return StatusCodes.Status207MultiStatus;
+
+        string code = result.Errors[0].Code;
+        return code switch
+        {
+            SonnetDB.Documents.DocumentWriteErrorCodes.DuplicateKey
+                or SonnetDB.Documents.DocumentWriteErrorCodes.WriteConflict => StatusCodes.Status409Conflict,
+            SonnetDB.Documents.DocumentWriteErrorCodes.ValidationFailed
+                or SonnetDB.Documents.DocumentWriteErrorCodes.DocumentTooLarge => StatusCodes.Status400BadRequest,
+            _ => StatusCodes.Status400BadRequest,
+        };
+    }
+
+    private static DocumentWriteResult ToWriteResult(DocumentUpdateResult result) =>
+        new(inserted: result.Inserted, matched: result.Matched, modified: result.Modified);
+
+    private static DocumentWriteResponse ToContractWriteResponse(string collection, DocumentWriteResult result) =>
+        new(
+            collection,
+            result.Inserted,
+            result.Matched,
+            result.Modified,
+            result.Deleted,
+            result.Errors.Count == 0
+                ? null
+                : result.Errors.Select(static error => new DocumentWriteErrorResponse(
+                    error.Index,
+                    error.Id,
+                    error.Code,
+                    error.Message)).ToArray());
 
     private static async Task<bool> ValidateFindRequestAsync(HttpContext ctx, DocumentFindRequest req)
     {

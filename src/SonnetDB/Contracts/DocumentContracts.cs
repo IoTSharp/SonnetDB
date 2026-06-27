@@ -24,10 +24,30 @@ public sealed record DocumentCollectionOperationResponse(string Collection, stri
 public sealed record DocumentWriteItem(string Id, JsonElement Document);
 
 /// <summary>
+/// 文档写入错误码常量。
+/// </summary>
+public static class DocumentWriteErrorCodes
+{
+    /// <summary>文档 ID 或唯一索引键已存在。</summary>
+    public const string DuplicateKey = "duplicate_key";
+
+    /// <summary>写入内容未通过参数、JSON 或更新操作校验。</summary>
+    public const string ValidationFailed = "validation_failed";
+
+    /// <summary>调用方声明的预期版本与当前文档版本不一致。</summary>
+    public const string WriteConflict = "write_conflict";
+
+    /// <summary>文档或派生索引项超过底层存储允许的大小。</summary>
+    public const string DocumentTooLarge = "document_too_large";
+}
+
+/// <summary>
 /// 批量写入 JSON 文档请求。
 /// </summary>
 /// <param name="Documents">要写入的文档列表。</param>
-public sealed record DocumentInsertManyRequest(IReadOnlyList<DocumentWriteItem> Documents);
+public sealed record DocumentInsertManyRequest(
+    IReadOnlyList<DocumentWriteItem> Documents,
+    bool Ordered = true);
 
 /// <summary>
 /// 文档查询请求。第一版仅支持按 ID / ID 列表或集合顺序扫描。
@@ -171,7 +191,8 @@ public sealed record DocumentUpdateManyRequest(
     DocumentFilterContract? Filter = null,
     DocumentUpdateContract? Update = null,
     bool Upsert = false,
-    string? UpsertId = null);
+    string? UpsertId = null,
+    bool Ordered = true);
 
 /// <summary>
 /// 单文档删除请求。
@@ -183,7 +204,20 @@ public sealed record DocumentDeleteOneRequest(string Id);
 /// 批量删除文档请求。
 /// </summary>
 /// <param name="Ids">要删除的文档 ID 列表。</param>
-public sealed record DocumentDeleteManyRequest(IReadOnlyList<string> Ids);
+public sealed record DocumentDeleteManyRequest(IReadOnlyList<string> Ids, bool Ordered = true);
+
+/// <summary>
+/// 文档批量写中的单项错误。
+/// </summary>
+/// <param name="Index">原始批量请求中的零基序号。</param>
+/// <param name="Id">发生错误的文档 ID；请求 ID 无效时为 null。</param>
+/// <param name="Code">稳定错误码。</param>
+/// <param name="Message">面向调用方的错误说明。</param>
+public sealed record DocumentWriteErrorResponse(
+    int Index,
+    string? Id,
+    string Code,
+    string Message);
 
 /// <summary>
 /// 文档写操作响应。
@@ -198,7 +232,8 @@ public sealed record DocumentWriteResponse(
     int Inserted = 0,
     int Matched = 0,
     int Modified = 0,
-    int Deleted = 0);
+    int Deleted = 0,
+    IReadOnlyList<DocumentWriteErrorResponse>? Errors = null);
 
 /// <summary>
 /// 文档计数请求。

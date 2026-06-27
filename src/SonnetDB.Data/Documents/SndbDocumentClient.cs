@@ -119,17 +119,16 @@ public sealed class SndbDocumentClient : IDisposable
 
         if (_embedded is not null)
         {
-            _embedded.Documents.Open(collection).Upsert(id, json);
-            return new SndbDocumentWriteResult(collection, Inserted: 1, Matched: 0, Modified: 0, Deleted: 0);
+            var result = _embedded.Documents.Open(collection).Insert(id, json);
+            return ToClientWriteResult(collection, result);
         }
 
         using var document = JsonDocument.Parse(json);
-        using var response = await PostJsonAsync(
+        return ToWriteResult(await PostWriteJsonAsync(
             CollectionActionUrl(collection, "insert-one"),
             new DocumentWriteItem(id, document.RootElement.Clone()),
             SndbDocumentClientJsonContext.Default.DocumentWriteItem,
-            cancellationToken).ConfigureAwait(false);
-        return ToWriteResult(await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentWriteResponse, cancellationToken).ConfigureAwait(false));
+            cancellationToken).ConfigureAwait(false));
     }
 
     /// <summary>
@@ -142,6 +141,7 @@ public sealed class SndbDocumentClient : IDisposable
     public async Task<SndbDocumentWriteResult> InsertManyAsync(
         string collection,
         IEnumerable<KeyValuePair<string, string>> documents,
+        bool ordered = true,
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -151,19 +151,18 @@ public sealed class SndbDocumentClient : IDisposable
         var items = MaterializeWriteItems(documents);
         if (_embedded is not null)
         {
-            var store = _embedded.Documents.Open(collection);
-            foreach (var item in items)
-                store.Upsert(item.Id, item.Json);
-            return new SndbDocumentWriteResult(collection, items.Count, 0, 0, 0);
+            var result = _embedded.Documents.Open(collection).InsertMany(
+                items.Select(static item => new DocumentWriteRequest(item.Id, item.Json)),
+                ordered);
+            return ToClientWriteResult(collection, result);
         }
 
-        using var payload = BuildInsertManyRequest(items);
-        using var response = await PostJsonAsync(
+        using var payload = BuildInsertManyRequest(items, ordered);
+        return ToWriteResult(await PostWriteJsonAsync(
             CollectionActionUrl(collection, "insert-many"),
             payload.Request,
             SndbDocumentClientJsonContext.Default.DocumentInsertManyRequest,
-            cancellationToken).ConfigureAwait(false);
-        return ToWriteResult(await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentWriteResponse, cancellationToken).ConfigureAwait(false));
+            cancellationToken).ConfigureAwait(false));
     }
 
     /// <summary>
@@ -276,19 +275,15 @@ public sealed class SndbDocumentClient : IDisposable
         if (_embedded is not null)
         {
             var store = _embedded.Documents.Open(collection);
-            if (store.Get(id) is null)
-                return new SndbDocumentWriteResult(collection, 0, 0, 0, 0);
-            store.Upsert(id, json);
-            return new SndbDocumentWriteResult(collection, 0, 1, 1, 0);
+            return ToClientWriteResult(collection, store.Replace(id, json));
         }
 
         using var document = JsonDocument.Parse(json);
-        using var response = await PostJsonAsync(
+        return ToWriteResult(await PostWriteJsonAsync(
             CollectionActionUrl(collection, "update-one"),
             new DocumentUpdateOneRequest(Id: id, Document: document.RootElement.Clone()),
             SndbDocumentClientJsonContext.Default.DocumentUpdateOneRequest,
-            cancellationToken).ConfigureAwait(false);
-        return ToWriteResult(await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentWriteResponse, cancellationToken).ConfigureAwait(false));
+            cancellationToken).ConfigureAwait(false));
     }
 
     /// <summary>
@@ -301,6 +296,7 @@ public sealed class SndbDocumentClient : IDisposable
     public async Task<SndbDocumentWriteResult> UpdateManyAsync(
         string collection,
         IEnumerable<KeyValuePair<string, string>> documents,
+        bool ordered = true,
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -310,26 +306,18 @@ public sealed class SndbDocumentClient : IDisposable
         var items = MaterializeWriteItems(documents);
         if (_embedded is not null)
         {
-            var store = _embedded.Documents.Open(collection);
-            int modified = 0;
-            foreach (var item in items)
-            {
-                if (store.Get(item.Id) is null)
-                    continue;
-                store.Upsert(item.Id, item.Json);
-                modified++;
-            }
-
-            return new SndbDocumentWriteResult(collection, 0, modified, modified, 0);
+            var result = _embedded.Documents.Open(collection).ReplaceMany(
+                items.Select(static item => new DocumentWriteRequest(item.Id, item.Json)),
+                ordered);
+            return ToClientWriteResult(collection, result);
         }
 
-        using var payload = BuildUpdateManyRequest(items);
-        using var response = await PostJsonAsync(
+        using var payload = BuildUpdateManyRequest(items, ordered);
+        return ToWriteResult(await PostWriteJsonAsync(
             CollectionActionUrl(collection, "update-many"),
             payload.Request,
             SndbDocumentClientJsonContext.Default.DocumentUpdateManyRequest,
-            cancellationToken).ConfigureAwait(false);
-        return ToWriteResult(await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentWriteResponse, cancellationToken).ConfigureAwait(false));
+            cancellationToken).ConfigureAwait(false));
     }
 
     /// <summary>
@@ -368,12 +356,11 @@ public sealed class SndbDocumentClient : IDisposable
             return new SndbDocumentWriteResult(collection, result.Inserted, result.Matched, result.Modified, 0);
         }
 
-        using var response = await PostJsonAsync(
+        return ToWriteResult(await PostWriteJsonAsync(
             CollectionActionUrl(collection, "update-one"),
             new DocumentUpdateOneRequest(id, null, filter, update, upsert, upsertId),
             SndbDocumentClientJsonContext.Default.DocumentUpdateOneRequest,
-            cancellationToken).ConfigureAwait(false);
-        return ToWriteResult(await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentWriteResponse, cancellationToken).ConfigureAwait(false));
+            cancellationToken).ConfigureAwait(false));
     }
 
     /// <summary>
@@ -408,12 +395,11 @@ public sealed class SndbDocumentClient : IDisposable
             return new SndbDocumentWriteResult(collection, result.Inserted, result.Matched, result.Modified, 0);
         }
 
-        using var response = await PostJsonAsync(
+        return ToWriteResult(await PostWriteJsonAsync(
             CollectionActionUrl(collection, "update-many"),
             new DocumentUpdateManyRequest(null, filter, update, upsert, upsertId),
             SndbDocumentClientJsonContext.Default.DocumentUpdateManyRequest,
-            cancellationToken).ConfigureAwait(false);
-        return ToWriteResult(await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentWriteResponse, cancellationToken).ConfigureAwait(false));
+            cancellationToken).ConfigureAwait(false));
     }
 
     /// <summary>
@@ -438,12 +424,11 @@ public sealed class SndbDocumentClient : IDisposable
             return new SndbDocumentWriteResult(collection, 0, 0, 0, deleted);
         }
 
-        using var response = await PostJsonAsync(
+        return ToWriteResult(await PostWriteJsonAsync(
             CollectionActionUrl(collection, "delete-one"),
             new DocumentDeleteOneRequest(id),
             SndbDocumentClientJsonContext.Default.DocumentDeleteOneRequest,
-            cancellationToken).ConfigureAwait(false);
-        return ToWriteResult(await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentWriteResponse, cancellationToken).ConfigureAwait(false));
+            cancellationToken).ConfigureAwait(false));
     }
 
     /// <summary>
@@ -456,6 +441,7 @@ public sealed class SndbDocumentClient : IDisposable
     public async Task<SndbDocumentWriteResult> DeleteManyAsync(
         string collection,
         IEnumerable<string> ids,
+        bool ordered = true,
         CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -465,16 +451,15 @@ public sealed class SndbDocumentClient : IDisposable
 
         if (_embedded is not null)
         {
-            int deleted = _embedded.Documents.Open(collection).DeleteMany(idList);
-            return new SndbDocumentWriteResult(collection, 0, 0, 0, deleted);
+            var result = _embedded.Documents.Open(collection).DeleteMany(idList, ordered);
+            return ToClientWriteResult(collection, result);
         }
 
-        using var response = await PostJsonAsync(
+        return ToWriteResult(await PostWriteJsonAsync(
             CollectionActionUrl(collection, "delete-many"),
-            new DocumentDeleteManyRequest(idList),
+            new DocumentDeleteManyRequest(idList, ordered),
             SndbDocumentClientJsonContext.Default.DocumentDeleteManyRequest,
-            cancellationToken).ConfigureAwait(false);
-        return ToWriteResult(await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentWriteResponse, cancellationToken).ConfigureAwait(false));
+            cancellationToken).ConfigureAwait(false));
     }
 
     /// <summary>
@@ -631,6 +616,41 @@ public sealed class SndbDocumentClient : IDisposable
         return response;
     }
 
+    private async Task<DocumentWriteResponse> PostWriteJsonAsync<T>(
+        string url,
+        T value,
+        System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo,
+        CancellationToken cancellationToken)
+    {
+        using var content = JsonContent.Create(value, typeInfo);
+        using var response = await _http!.PostAsync(url, content, cancellationToken).ConfigureAwait(false);
+        if (response.IsSuccessStatusCode)
+            return await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentWriteResponse, cancellationToken).ConfigureAwait(false);
+
+        string body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        if (response.StatusCode is System.Net.HttpStatusCode.BadRequest or System.Net.HttpStatusCode.Conflict)
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(body);
+                if (document.RootElement.TryGetProperty("errors", out var errors)
+                    && errors.ValueKind == JsonValueKind.Array)
+                {
+                    var writeResponse = JsonSerializer.Deserialize(
+                        body,
+                        SndbDocumentClientJsonContext.Default.DocumentWriteResponse);
+                    if (writeResponse is not null)
+                        return writeResponse;
+                }
+            }
+            catch (JsonException)
+            {
+            }
+        }
+
+        throw BuildHttpError(response, body);
+    }
+
     private static async Task<T> ReadJsonAsync<T>(
         HttpResponseMessage response,
         System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo,
@@ -648,6 +668,21 @@ public sealed class SndbDocumentClient : IDisposable
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
             var error = await JsonSerializer.DeserializeAsync(stream, RemoteJsonContext.Default.ServerErrorBody, cancellationToken)
                 .ConfigureAwait(false);
+            if (error is not null)
+                return new SndbServerException(error.Error, error.Message, response.StatusCode);
+        }
+        catch
+        {
+        }
+
+        return new SndbServerException("http_error", response.ReasonPhrase ?? "SonnetDB HTTP error.", response.StatusCode);
+    }
+
+    private static SndbServerException BuildHttpError(HttpResponseMessage response, string body)
+    {
+        try
+        {
+            var error = JsonSerializer.Deserialize(body, RemoteJsonContext.Default.ServerErrorBody);
             if (error is not null)
                 return new SndbServerException(error.Error, error.Message, response.StatusCode);
         }
@@ -676,7 +711,7 @@ public sealed class SndbDocumentClient : IDisposable
         return result;
     }
 
-    private static InsertManyPayload BuildInsertManyRequest(IReadOnlyList<WriteItem> items)
+    private static InsertManyPayload BuildInsertManyRequest(IReadOnlyList<WriteItem> items, bool ordered)
     {
         var documents = new JsonDocument[items.Count];
         var requestItems = new DocumentWriteItem[items.Count];
@@ -686,10 +721,10 @@ public sealed class SndbDocumentClient : IDisposable
             requestItems[i] = new DocumentWriteItem(items[i].Id, documents[i].RootElement.Clone());
         }
 
-        return new InsertManyPayload(new DocumentInsertManyRequest(requestItems), documents);
+        return new InsertManyPayload(new DocumentInsertManyRequest(requestItems, ordered), documents);
     }
 
-    private static UpdateManyPayload BuildUpdateManyRequest(IReadOnlyList<WriteItem> items)
+    private static UpdateManyPayload BuildUpdateManyRequest(IReadOnlyList<WriteItem> items, bool ordered)
     {
         var documents = new JsonDocument[items.Count];
         var requestItems = new DocumentWriteItem[items.Count];
@@ -699,11 +734,34 @@ public sealed class SndbDocumentClient : IDisposable
             requestItems[i] = new DocumentWriteItem(items[i].Id, documents[i].RootElement.Clone());
         }
 
-        return new UpdateManyPayload(new DocumentUpdateManyRequest(requestItems), documents);
+        return new UpdateManyPayload(new DocumentUpdateManyRequest(requestItems, Ordered: ordered), documents);
     }
 
     private static SndbDocumentWriteResult ToWriteResult(DocumentWriteResponse response) =>
-        new(response.Collection, response.Inserted, response.Matched, response.Modified, response.Deleted);
+        new(
+            response.Collection,
+            response.Inserted,
+            response.Matched,
+            response.Modified,
+            response.Deleted,
+            response.Errors?.Select(static error => new SndbDocumentWriteError(
+                error.Index,
+                error.Id,
+                error.Code,
+                error.Message)).ToArray());
+
+    private static SndbDocumentWriteResult ToClientWriteResult(string collection, DocumentWriteResult result) =>
+        new(
+            collection,
+            result.Inserted,
+            result.Matched,
+            result.Modified,
+            result.Deleted,
+            result.Errors.Select(static error => new SndbDocumentWriteError(
+                error.Index,
+                error.Id,
+                error.Code,
+                error.Message)).ToArray());
 
     private static SndbDocument ToDocument(DocumentItemResponse response) =>
         new(response.Id, response.Document.GetRawText(), response.Version);

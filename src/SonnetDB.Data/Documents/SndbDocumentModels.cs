@@ -79,6 +79,24 @@ public sealed record SndbDocumentProjection(string? Name = null, string? Path = 
 public sealed record SndbDocumentSort(string Path, bool Descending = false);
 
 /// <summary>
+/// 文档写入错误码常量。
+/// </summary>
+public static class SndbDocumentWriteErrorCodes
+{
+    /// <summary>文档 ID 或唯一索引键已存在。</summary>
+    public const string DuplicateKey = "duplicate_key";
+
+    /// <summary>写入内容未通过参数、JSON 或更新操作校验。</summary>
+    public const string ValidationFailed = "validation_failed";
+
+    /// <summary>调用方声明的预期版本与当前文档版本不一致。</summary>
+    public const string WriteConflict = "write_conflict";
+
+    /// <summary>文档或派生索引项超过底层存储允许的大小。</summary>
+    public const string DocumentTooLarge = "document_too_large";
+}
+
+/// <summary>
 /// SonnetDB 文档局部更新操作符集合。
 /// </summary>
 /// <param name="Set">对应 $set。</param>
@@ -116,7 +134,25 @@ public sealed record SndbDocumentWriteResult(
     int Inserted,
     int Matched,
     int Modified,
-    int Deleted);
+    int Deleted,
+    IReadOnlyList<SndbDocumentWriteError>? Errors = null)
+{
+    /// <summary>是否包含批量单项错误。</summary>
+    public bool HasErrors => Errors is { Count: > 0 };
+}
+
+/// <summary>
+/// 文档批量写中的单项错误。
+/// </summary>
+/// <param name="Index">原始批量请求中的零基序号。</param>
+/// <param name="Id">发生错误的文档 ID；请求 ID 无效时为 null。</param>
+/// <param name="Code">稳定错误码。</param>
+/// <param name="Message">面向调用方的错误说明。</param>
+public sealed record SndbDocumentWriteError(
+    int Index,
+    string? Id,
+    string Code,
+    string Message);
 
 /// <summary>
 /// 文档 distinct 查询结果。
@@ -215,7 +251,9 @@ internal sealed record DocumentCollectionOperationResponse(string Collection, st
 
 internal sealed record DocumentWriteItem(string Id, JsonElement Document);
 
-internal sealed record DocumentInsertManyRequest(IReadOnlyList<DocumentWriteItem> Documents);
+internal sealed record DocumentInsertManyRequest(
+    IReadOnlyList<DocumentWriteItem> Documents,
+    bool Ordered = true);
 
 internal sealed record DocumentFindRequest(
     string? Id = null,
@@ -259,18 +297,26 @@ internal sealed record DocumentUpdateManyRequest(
     SndbDocumentFilter? Filter = null,
     SndbDocumentUpdate? Update = null,
     bool Upsert = false,
-    string? UpsertId = null);
+    string? UpsertId = null,
+    bool Ordered = true);
 
 internal sealed record DocumentDeleteOneRequest(string Id);
 
-internal sealed record DocumentDeleteManyRequest(IReadOnlyList<string> Ids);
+internal sealed record DocumentDeleteManyRequest(IReadOnlyList<string> Ids, bool Ordered = true);
+
+internal sealed record DocumentWriteErrorResponse(
+    int Index,
+    string? Id,
+    string Code,
+    string Message);
 
 internal sealed record DocumentWriteResponse(
     string Collection,
     int Inserted = 0,
     int Matched = 0,
     int Modified = 0,
-    int Deleted = 0);
+    int Deleted = 0,
+    IReadOnlyList<DocumentWriteErrorResponse>? Errors = null);
 
 internal sealed record DocumentCountRequest(IReadOnlyList<string>? Ids = null);
 

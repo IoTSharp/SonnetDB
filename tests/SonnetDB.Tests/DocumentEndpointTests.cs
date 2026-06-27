@@ -159,6 +159,9 @@ public sealed class DocumentEndpointTests : IAsyncLifetime
 
         var update = await client.UpdateOneAsync("clientdocs", "a", """{"category":"alpha","score":3}""");
         Assert.Equal(1, update.Modified);
+        var duplicate = await client.InsertOneAsync("clientdocs", "a", """{"category":"duplicate"}""");
+        Assert.True(duplicate.HasErrors);
+        Assert.Equal("duplicate_key", Assert.Single(duplicate.Errors!).Code);
         var deleted = await client.DeleteManyAsync("clientdocs", ["b", "missing"]);
         Assert.Equal(1, deleted.Deleted);
 
@@ -425,6 +428,87 @@ public sealed class DocumentEndpointTests : IAsyncLifetime
         var fullTextRows = await ReadSqlRowsAsync(fullTextQuery);
         Assert.Single(fullTextRows);
         Assert.Equal("dev-1", fullTextRows[0][0].GetString());
+    }
+
+    [Fact]
+    public async Task DocumentApi_BulkWriteOrderedDuplicate_ReturnsConflictAndRollsBack()
+    {
+        using var admin = CreateClient(AdminToken);
+        var create = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/bulkdocs",
+            new DocumentCollectionCreateRequest(),
+            ServerJsonContext.Default.DocumentCollectionCreateRequest);
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+
+        using var existing = JsonDocument.Parse("""{"site":"north"}""");
+        var seed = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/bulkdocs/insert-one",
+            new DocumentWriteItem("existing", existing.RootElement.Clone()),
+            ServerJsonContext.Default.DocumentWriteItem);
+        Assert.Equal(HttpStatusCode.OK, seed.StatusCode);
+
+        using var first = JsonDocument.Parse("""{"site":"east"}""");
+        using var duplicate = JsonDocument.Parse("""{"site":"duplicate"}""");
+        var insert = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/bulkdocs/insert-many",
+            new DocumentInsertManyRequest([
+                new DocumentWriteItem("dev-1", first.RootElement.Clone()),
+                new DocumentWriteItem("existing", duplicate.RootElement.Clone()),
+            ]),
+            ServerJsonContext.Default.DocumentInsertManyRequest);
+
+        Assert.Equal(HttpStatusCode.Conflict, insert.StatusCode);
+        var body = await insert.Content.ReadFromJsonAsync(ServerJsonContext.Default.DocumentWriteResponse);
+        Assert.Equal("duplicate_key", Assert.Single(body!.Errors!).Code);
+
+        var find = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/bulkdocs/find",
+            new DocumentFindRequest(Limit: 10),
+            ServerJsonContext.Default.DocumentFindRequest);
+        var findBody = await find.Content.ReadFromJsonAsync(ServerJsonContext.Default.DocumentFindResponse);
+        Assert.Equal(["existing"], findBody!.Documents.Select(static x => x.Id).ToArray());
+    }
+
+    [Fact]
+    public async Task DocumentApi_BulkWriteUnorderedDuplicate_ReturnsMultiStatusAndCommitsValidItems()
+    {
+        using var admin = CreateClient(AdminToken);
+        var create = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/unordereddocs",
+            new DocumentCollectionCreateRequest(),
+            ServerJsonContext.Default.DocumentCollectionCreateRequest);
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+
+        using var existing = JsonDocument.Parse("""{"site":"north"}""");
+        var seed = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/unordereddocs/insert-one",
+            new DocumentWriteItem("existing", existing.RootElement.Clone()),
+            ServerJsonContext.Default.DocumentWriteItem);
+        Assert.Equal(HttpStatusCode.OK, seed.StatusCode);
+
+        using var first = JsonDocument.Parse("""{"site":"east"}""");
+        using var duplicate = JsonDocument.Parse("""{"site":"duplicate"}""");
+        using var second = JsonDocument.Parse("""{"site":"west"}""");
+        var insert = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/unordereddocs/insert-many",
+            new DocumentInsertManyRequest([
+                new DocumentWriteItem("dev-1", first.RootElement.Clone()),
+                new DocumentWriteItem("existing", duplicate.RootElement.Clone()),
+                new DocumentWriteItem("dev-2", second.RootElement.Clone()),
+            ], Ordered: false),
+            ServerJsonContext.Default.DocumentInsertManyRequest);
+
+        Assert.Equal((HttpStatusCode)207, insert.StatusCode);
+        var body = await insert.Content.ReadFromJsonAsync(ServerJsonContext.Default.DocumentWriteResponse);
+        Assert.Equal(2, body!.Inserted);
+        Assert.Equal("duplicate_key", Assert.Single(body.Errors!).Code);
+
+        var find = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/unordereddocs/find",
+            new DocumentFindRequest(Limit: 10),
+            ServerJsonContext.Default.DocumentFindRequest);
+        var findBody = await find.Content.ReadFromJsonAsync(ServerJsonContext.Default.DocumentFindResponse);
+        Assert.Equal(["dev-1", "dev-2", "existing"], findBody!.Documents.Select(static x => x.Id).Order(StringComparer.Ordinal).ToArray());
     }
 
     private HttpClient CreateClient(string token)

@@ -335,4 +335,98 @@ public sealed class SndbDocumentClientTests : IDisposable
                 id: "dev-1"));
         Assert.Contains("路径冲突", ex.Message, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task DocumentClient_InsertMany_OrderedDuplicate_RollsBackBatch()
+    {
+        using var client = new SndbDocumentClient(new SndbConnectionStringBuilder
+        {
+            DataSource = _root,
+        }.ConnectionString);
+
+        await client.CreateCollectionAsync("devices");
+        await client.InsertOneAsync("devices", "existing", """{"site":"north"}""");
+
+        var result = await client.InsertManyAsync("devices", [
+            new KeyValuePair<string, string>("dev-1", """{"site":"east"}"""),
+            new KeyValuePair<string, string>("existing", """{"site":"duplicate"}"""),
+        ]);
+
+        Assert.True(result.HasErrors);
+        Assert.Equal(SndbDocumentWriteErrorCodes.DuplicateKey, Assert.Single(result.Errors!).Code);
+        Assert.Null(await client.FindOneAsync("devices", "dev-1"));
+        Assert.Equal("""{"site":"north"}""", (await client.FindOneAsync("devices", "existing"))!.Json);
+    }
+
+    [Fact]
+    public async Task DocumentClient_InsertMany_UnorderedDuplicate_CommitsValidItems()
+    {
+        using var client = new SndbDocumentClient(new SndbConnectionStringBuilder
+        {
+            DataSource = _root,
+        }.ConnectionString);
+
+        await client.CreateCollectionAsync("devices");
+        await client.InsertOneAsync("devices", "existing", """{"site":"north"}""");
+
+        var result = await client.InsertManyAsync("devices", [
+            new KeyValuePair<string, string>("dev-1", """{"site":"east"}"""),
+            new KeyValuePair<string, string>("existing", """{"site":"duplicate"}"""),
+            new KeyValuePair<string, string>("dev-2", """{"site":"west"}"""),
+        ], ordered: false);
+
+        Assert.Equal(2, result.Inserted);
+        Assert.True(result.HasErrors);
+        Assert.Equal(SndbDocumentWriteErrorCodes.DuplicateKey, Assert.Single(result.Errors!).Code);
+        Assert.NotNull(await client.FindOneAsync("devices", "dev-1"));
+        Assert.NotNull(await client.FindOneAsync("devices", "dev-2"));
+        Assert.Equal("""{"site":"north"}""", (await client.FindOneAsync("devices", "existing"))!.Json);
+    }
+
+    [Fact]
+    public async Task DocumentClient_UpdateMany_OrderedDuplicateId_RollsBackBatch()
+    {
+        using var client = new SndbDocumentClient(new SndbConnectionStringBuilder
+        {
+            DataSource = _root,
+        }.ConnectionString);
+
+        await client.CreateCollectionAsync("devices");
+        await client.InsertManyAsync("devices", [
+            new KeyValuePair<string, string>("dev-1", """{"site":"north"}"""),
+            new KeyValuePair<string, string>("dev-2", """{"site":"south"}"""),
+        ]);
+
+        var result = await client.UpdateManyAsync("devices", [
+            new KeyValuePair<string, string>("dev-1", """{"site":"east"}"""),
+            new KeyValuePair<string, string>("dev-1", """{"site":"duplicate"}"""),
+        ]);
+
+        Assert.True(result.HasErrors);
+        Assert.Equal(SndbDocumentWriteErrorCodes.DuplicateKey, Assert.Single(result.Errors!).Code);
+        Assert.Equal("""{"site":"north"}""", (await client.FindOneAsync("devices", "dev-1"))!.Json);
+        Assert.Equal("""{"site":"south"}""", (await client.FindOneAsync("devices", "dev-2"))!.Json);
+    }
+
+    [Fact]
+    public async Task DocumentClient_DeleteMany_UnorderedInvalidId_CommitsValidItems()
+    {
+        using var client = new SndbDocumentClient(new SndbConnectionStringBuilder
+        {
+            DataSource = _root,
+        }.ConnectionString);
+
+        await client.CreateCollectionAsync("devices");
+        await client.InsertManyAsync("devices", [
+            new KeyValuePair<string, string>("dev-1", """{"site":"north"}"""),
+            new KeyValuePair<string, string>("dev-2", """{"site":"south"}"""),
+        ]);
+
+        var result = await client.DeleteManyAsync("devices", ["dev-1", "", "dev-2"], ordered: false);
+
+        Assert.Equal(2, result.Deleted);
+        Assert.True(result.HasErrors);
+        Assert.Equal(SndbDocumentWriteErrorCodes.ValidationFailed, Assert.Single(result.Errors!).Code);
+        Assert.Empty(await client.FindAsync("devices"));
+    }
 }

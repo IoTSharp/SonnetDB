@@ -68,6 +68,57 @@ public sealed class DocumentCollectionStore : IDisposable
     }
 
     /// <summary>
+    /// 按文档 ID 插入一条新 JSON 文档；ID 已存在时返回 duplicate_key。
+    /// </summary>
+    /// <param name="id">文档 ID。</param>
+    /// <param name="json">JSON 文本文档。</param>
+    /// <returns>文档写入结果。</returns>
+    public DocumentWriteResult Insert(string id, string json)
+        => InsertMany([new DocumentWriteRequest(id, json)], ordered: true);
+
+    /// <summary>
+    /// 批量插入 JSON 文档。
+    /// </summary>
+    /// <param name="documents">待插入文档列表。</param>
+    /// <param name="ordered">为 true 时任一错误都会阻止本批提交；为 false 时跳过失败项并提交其余有效项。</param>
+    /// <returns>文档写入结果，包含稳定错误码。</returns>
+    public DocumentWriteResult InsertMany(IEnumerable<DocumentWriteRequest> documents, bool ordered = true)
+    {
+        ArgumentNullException.ThrowIfNull(documents);
+        lock (_sync)
+        {
+            PurgeExpiredDocumentsLocked();
+            return ExecuteWriteBatchLocked(documents, ordered, DocumentWriteBatchMode.Insert);
+        }
+    }
+
+    /// <summary>
+    /// 按文档 ID 整体替换一条已存在 JSON 文档；文档不存在时不写入。
+    /// </summary>
+    /// <param name="id">文档 ID。</param>
+    /// <param name="json">新的 JSON 文本文档。</param>
+    /// <param name="expectedVersion">可选的预期文档版本；不匹配时返回 write_conflict。</param>
+    /// <returns>文档写入结果。</returns>
+    public DocumentWriteResult Replace(string id, string json, long? expectedVersion = null)
+        => ReplaceMany([new DocumentWriteRequest(id, json, expectedVersion)], ordered: true);
+
+    /// <summary>
+    /// 批量整体替换已存在 JSON 文档；不存在的 ID 会按未匹配处理。
+    /// </summary>
+    /// <param name="documents">待替换文档列表。</param>
+    /// <param name="ordered">为 true 时任一错误都会阻止本批提交；为 false 时跳过失败项并提交其余有效项。</param>
+    /// <returns>文档写入结果，包含稳定错误码。</returns>
+    public DocumentWriteResult ReplaceMany(IEnumerable<DocumentWriteRequest> documents, bool ordered = true)
+    {
+        ArgumentNullException.ThrowIfNull(documents);
+        lock (_sync)
+        {
+            PurgeExpiredDocumentsLocked();
+            return ExecuteWriteBatchLocked(documents, ordered, DocumentWriteBatchMode.Replace);
+        }
+    }
+
+    /// <summary>
     /// 按文档 ID 读取 JSON 文档。
     /// </summary>
     /// <param name="id">文档 ID。</param>
@@ -187,15 +238,65 @@ public sealed class DocumentCollectionStore : IDisposable
     public int DeleteMany(IEnumerable<string> ids)
     {
         ArgumentNullException.ThrowIfNull(ids);
-        int deleted = 0;
-        foreach (string id in ids)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(id);
-            if (Delete(id))
-                deleted++;
-        }
+        return DeleteMany(ids, ordered: true).Deleted;
+    }
 
-        return deleted;
+    /// <summary>
+    /// 按文档 ID 批量删除 JSON 文档。
+    /// </summary>
+    /// <param name="ids">文档 ID 序列。</param>
+    /// <param name="ordered">为 true 时任一校验错误都会阻止本批提交；为 false 时跳过失败项并提交其余有效项。</param>
+    /// <returns>文档写入结果，包含稳定错误码。</returns>
+    public DocumentWriteResult DeleteMany(IEnumerable<string> ids, bool ordered)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        lock (_sync)
+        {
+            PurgeExpiredDocumentsLocked();
+            var errors = new List<DocumentWriteError>();
+            var operations = new List<PendingDocumentMutation>();
+            var seenIds = new HashSet<string>(StringComparer.Ordinal);
+            int index = 0;
+            foreach (string id in ids)
+            {
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    errors.Add(new DocumentWriteError(
+                        index,
+                        id,
+                        DocumentWriteErrorCodes.ValidationFailed,
+                        "document id 不能为空。"));
+                    if (ordered)
+                        return new DocumentWriteResult(errors: errors);
+                    index++;
+                    continue;
+                }
+
+                if (!seenIds.Add(id))
+                {
+                    errors.Add(new DocumentWriteError(
+                        index,
+                        id,
+                        DocumentWriteErrorCodes.DuplicateKey,
+                        $"批量删除中重复的 document id '{id}'。"));
+                    if (ordered)
+                        return new DocumentWriteResult(errors: errors);
+                    index++;
+                    continue;
+                }
+
+                byte[] documentKey = DocumentIndexCodec.EncodeDocumentKey(id);
+                var old = TryGetByDocumentKeyLocked(documentKey);
+                if (old is not null)
+                    operations.Add(new PendingDocumentMutation(index, old, NewRow: null, documentKey));
+                index++;
+            }
+
+            foreach (var operation in operations)
+                ApplyPlannedMutationLocked(_schema, operation);
+
+            return new DocumentWriteResult(deleted: operations.Count, errors: errors);
+        }
     }
 
     /// <summary>
@@ -557,34 +658,281 @@ public sealed class DocumentCollectionStore : IDisposable
         return new DocumentRow(id, Encoding.UTF8.GetString(entry.Value.Span), entry.Version);
     }
 
+    private DocumentWriteResult ExecuteWriteBatchLocked(
+        IEnumerable<DocumentWriteRequest> documents,
+        bool ordered,
+        DocumentWriteBatchMode mode)
+    {
+        var schema = _schema;
+        var errors = new List<DocumentWriteError>();
+        var operations = new List<PendingDocumentMutation>();
+        var inputIds = new HashSet<string>(StringComparer.Ordinal);
+        var plannedUniqueIdsByKey = new Dictionary<string, string>(StringComparer.Ordinal);
+        int matched = 0;
+        int index = 0;
+
+        foreach (var document in documents)
+        {
+            if (TryPrepareWriteRequestLocked(
+                schema,
+                document,
+                index,
+                mode,
+                inputIds,
+                plannedUniqueIdsByKey,
+                out var operation,
+                out bool itemMatched,
+                out var error))
+            {
+                if (itemMatched)
+                    matched++;
+                if (operation is not null)
+                    operations.Add(operation);
+            }
+            else
+            {
+                errors.Add(error!);
+                if (ordered)
+                    return new DocumentWriteResult(errors: errors);
+            }
+
+            index++;
+        }
+
+        foreach (var operation in operations)
+            ApplyPlannedMutationLocked(schema, operation);
+
+        return mode == DocumentWriteBatchMode.Insert
+            ? new DocumentWriteResult(inserted: operations.Count, errors: errors)
+            : new DocumentWriteResult(matched: matched, modified: operations.Count, errors: errors);
+    }
+
+    private bool TryPrepareWriteRequestLocked(
+        DocumentCollectionSchema schema,
+        DocumentWriteRequest request,
+        int index,
+        DocumentWriteBatchMode mode,
+        ISet<string> inputIds,
+        IDictionary<string, string> plannedUniqueIdsByKey,
+        out PendingDocumentMutation? mutation,
+        out bool matched,
+        out DocumentWriteError? error)
+    {
+        mutation = null;
+        matched = false;
+        error = null;
+
+        if (string.IsNullOrWhiteSpace(request.Id))
+        {
+            error = new DocumentWriteError(
+                index,
+                request.Id,
+                DocumentWriteErrorCodes.ValidationFailed,
+                "document id 不能为空。");
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Json))
+        {
+            error = new DocumentWriteError(
+                index,
+                request.Id,
+                DocumentWriteErrorCodes.ValidationFailed,
+                "document JSON 不能为空。");
+            return false;
+        }
+
+        if (request.ExpectedVersion is < 0)
+        {
+            error = new DocumentWriteError(
+                index,
+                request.Id,
+                DocumentWriteErrorCodes.ValidationFailed,
+                "expectedVersion 不能为负数。");
+            return false;
+        }
+
+        if (!inputIds.Add(request.Id))
+        {
+            error = new DocumentWriteError(
+                index,
+                request.Id,
+                DocumentWriteErrorCodes.DuplicateKey,
+                $"批量写中重复的 document id '{request.Id}'。");
+            return false;
+        }
+
+        string normalized;
+        try
+        {
+            normalized = JsonPathEvaluator.NormalizeJson(request.Json);
+        }
+        catch (JsonException ex)
+        {
+            error = new DocumentWriteError(
+                index,
+                request.Id,
+                DocumentWriteErrorCodes.ValidationFailed,
+                ex.Message);
+            return false;
+        }
+        catch (ArgumentException ex)
+        {
+            error = new DocumentWriteError(
+                index,
+                request.Id,
+                DocumentWriteErrorCodes.ValidationFailed,
+                ex.Message);
+            return false;
+        }
+
+        byte[] documentKey;
+        try
+        {
+            documentKey = DocumentIndexCodec.EncodeDocumentKey(request.Id);
+        }
+        catch (ArgumentException ex)
+        {
+            error = new DocumentWriteError(
+                index,
+                request.Id,
+                DocumentWriteErrorCodes.ValidationFailed,
+                ex.Message);
+            return false;
+        }
+
+        var old = TryGetByDocumentKeyLocked(documentKey);
+        if (mode == DocumentWriteBatchMode.Insert && old is not null)
+        {
+            error = new DocumentWriteError(
+                index,
+                request.Id,
+                DocumentWriteErrorCodes.DuplicateKey,
+                $"document id '{request.Id}' 已存在。");
+            return false;
+        }
+
+        if (request.ExpectedVersion.HasValue
+            && (old?.Version ?? 0) != request.ExpectedVersion.Value)
+        {
+            error = new DocumentWriteError(
+                index,
+                request.Id,
+                DocumentWriteErrorCodes.WriteConflict,
+                $"document id '{request.Id}' version mismatch.");
+            return false;
+        }
+
+        if (mode == DocumentWriteBatchMode.Replace && old is null)
+            return true;
+
+        matched = old is not null;
+        var newRow = new DocumentRow(request.Id, normalized, Version: 0);
+        try
+        {
+            PrepareMutationLocked(schema, old, newRow, documentKey, plannedUniqueIdsByKey);
+            TrackPlannedUniqueKeys(schema, newRow, plannedUniqueIdsByKey);
+        }
+        catch (ArgumentOutOfRangeException ex)
+        {
+            error = new DocumentWriteError(
+                index,
+                request.Id,
+                DocumentWriteErrorCodes.DocumentTooLarge,
+                ex.Message);
+            return false;
+        }
+        catch (ArgumentException ex)
+        {
+            error = new DocumentWriteError(
+                index,
+                request.Id,
+                DocumentWriteErrorCodes.ValidationFailed,
+                ex.Message);
+            return false;
+        }
+        catch (InvalidOperationException ex)
+        {
+            error = new DocumentWriteError(
+                index,
+                request.Id,
+                DocumentWriteErrorCodes.DuplicateKey,
+                ex.Message);
+            return false;
+        }
+
+        mutation = new PendingDocumentMutation(index, old, newRow, documentKey);
+        return true;
+    }
+
+    private static void TrackPlannedUniqueKeys(
+        DocumentCollectionSchema schema,
+        DocumentRow row,
+        IDictionary<string, string> plannedUniqueIdsByKey)
+    {
+        if (!schema.Indexes.Any(static i => i.IsUnique))
+            return;
+
+        using var document = JsonDocument.Parse(row.Json);
+        foreach (var index in schema.Indexes.Where(static i => i.IsUnique))
+        {
+            if (!ShouldIndexDocument(index, document.RootElement))
+                continue;
+
+            var values = BuildIndexKeyParts(index, document.RootElement);
+            if (values is null)
+                continue;
+
+            byte[] key = DocumentIndexCodec.EncodeIndexEntryKey(index, values, row.Id);
+            plannedUniqueIdsByKey[Convert.ToBase64String(key)] = row.Id;
+        }
+    }
+
     private void ApplyMutationLocked(
         DocumentCollectionSchema schema,
         DocumentRow? oldRow,
         DocumentRow? newRow,
         byte[] documentKey)
     {
-        if (newRow is not null)
-            ValidateUniqueIndexesLocked(schema, oldRow, newRow);
+        PrepareMutationLocked(schema, oldRow, newRow, documentKey);
+        ApplyPlannedMutationLocked(schema, new PendingDocumentMutation(-1, oldRow, newRow, documentKey));
+    }
 
-        foreach (var indexEntry in oldRow is null ? [] : BuildIndexEntries(schema, oldRow))
+    private void PrepareMutationLocked(
+        DocumentCollectionSchema schema,
+        DocumentRow? oldRow,
+        DocumentRow? newRow,
+        byte[] documentKey,
+        IDictionary<string, string>? pendingUniqueIdsByKey = null)
+    {
+        if (newRow is null)
+            return;
+
+        ValidateUniqueIndexesLocked(schema, oldRow, newRow, pendingUniqueIdsByKey);
+        ValidateMutationSize(schema, newRow, documentKey);
+    }
+
+    private void ApplyPlannedMutationLocked(DocumentCollectionSchema schema, PendingDocumentMutation mutation)
+    {
+        foreach (var indexEntry in mutation.OldRow is null ? [] : BuildIndexEntries(schema, mutation.OldRow))
             _keyspace.Delete(indexEntry.Key);
-        if (oldRow is not null)
+        if (mutation.OldRow is not null)
         {
             foreach (var index in schema.FullTextIndexes)
-                OpenFullTextStoreLocked(index, rebuildIfMissing: false).Delete(oldRow.Id);
+                OpenFullTextStoreLocked(index, rebuildIfMissing: false).Delete(mutation.OldRow.Id);
         }
 
-        if (newRow is null)
+        if (mutation.NewRow is null)
         {
-            _keyspace.Delete(documentKey);
+            _keyspace.Delete(mutation.DocumentKey);
             return;
         }
 
-        _keyspace.Put(documentKey, Encoding.UTF8.GetBytes(newRow.Json));
-        foreach (var indexEntry in BuildIndexEntries(schema, newRow))
+        _keyspace.Put(mutation.DocumentKey, Encoding.UTF8.GetBytes(mutation.NewRow.Json));
+        foreach (var indexEntry in BuildIndexEntries(schema, mutation.NewRow))
             _keyspace.Put(indexEntry.Key, indexEntry.Value);
         foreach (var index in schema.FullTextIndexes)
-            OpenFullTextStoreLocked(index, rebuildIfMissing: false).Upsert(newRow);
+            OpenFullTextStoreLocked(index, rebuildIfMissing: false).Upsert(mutation.NewRow);
     }
 
     private static IReadOnlyList<IndexEntry> BuildIndexEntries(DocumentCollectionSchema schema, DocumentRow row)
@@ -612,7 +960,11 @@ public sealed class DocumentCollectionStore : IDisposable
         return entries;
     }
 
-    private void ValidateUniqueIndexesLocked(DocumentCollectionSchema schema, DocumentRow? oldRow, DocumentRow newRow)
+    private void ValidateUniqueIndexesLocked(
+        DocumentCollectionSchema schema,
+        DocumentRow? oldRow,
+        DocumentRow newRow,
+        IDictionary<string, string>? pendingUniqueIdsByKey = null)
     {
         if (!schema.Indexes.Any(static i => i.IsUnique))
             return;
@@ -628,6 +980,15 @@ public sealed class DocumentCollectionStore : IDisposable
                 continue;
 
             byte[] key = DocumentIndexCodec.EncodeIndexEntryKey(index, values, newRow.Id);
+            string keyText = Convert.ToBase64String(key);
+            if (pendingUniqueIdsByKey is not null
+                && pendingUniqueIdsByKey.TryGetValue(keyText, out string? pendingId)
+                && !string.Equals(pendingId, newRow.Id, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"document collection '{schema.Name}' unique index '{index.Name}' duplicate key.");
+            }
+
             byte[]? existing = _keyspace.Get(key);
             if (existing is null)
                 continue;
@@ -638,6 +999,13 @@ public sealed class DocumentCollectionStore : IDisposable
 
             throw new InvalidOperationException($"文档集合 '{schema.Name}' 的唯一索引 '{index.Name}' 冲突。");
         }
+    }
+
+    private void ValidateMutationSize(DocumentCollectionSchema schema, DocumentRow row, byte[] documentKey)
+    {
+        _keyspace.ValidateWrite(documentKey, Encoding.UTF8.GetBytes(row.Json));
+        foreach (var indexEntry in BuildIndexEntries(schema, row))
+            _keyspace.ValidateWrite(indexEntry.Key, indexEntry.Value);
     }
 
     private static IReadOnlyList<DocumentIndexKeyPart>? BuildIndexKeyParts(DocumentPathIndex index, JsonElement root)
@@ -804,7 +1172,9 @@ public sealed class DocumentCollectionStore : IDisposable
         }
 
         foreach (var row in expired)
-            ApplyMutationLocked(_schema, row, newRow: null, DocumentIndexCodec.EncodeDocumentKey(row.Id));
+            ApplyPlannedMutationLocked(
+                _schema,
+                new PendingDocumentMutation(-1, row, NewRow: null, DocumentIndexCodec.EncodeDocumentKey(row.Id)));
     }
 
     private static bool IsExpired(DocumentRow row, IReadOnlyList<DocumentPathIndex> ttlIndexes, long nowMs)
@@ -907,23 +1277,28 @@ public sealed class DocumentCollectionStore : IDisposable
 
     private DocumentUpdateResult ApplyUpdateRowsLocked(IReadOnlyList<DocumentRow> rows, DocumentUpdate update)
     {
-        int modified = 0;
         var schema = _schema;
+        var operations = new List<PendingDocumentMutation>(rows.Count);
         foreach (var row in rows)
         {
             string updated = DocumentUpdateExecutor.Apply(row.Json, update);
             if (string.Equals(row.Json, updated, StringComparison.Ordinal))
                 continue;
 
-            ApplyMutationLocked(
+            var documentKey = DocumentIndexCodec.EncodeDocumentKey(row.Id);
+            var newRow = new DocumentRow(row.Id, updated, Version: 0);
+            PrepareMutationLocked(
                 schema,
                 row,
-                new DocumentRow(row.Id, updated, Version: 0),
-                DocumentIndexCodec.EncodeDocumentKey(row.Id));
-            modified++;
+                newRow,
+                documentKey);
+            operations.Add(new PendingDocumentMutation(-1, row, newRow, documentKey));
         }
 
-        return new DocumentUpdateResult(rows.Count, modified, Inserted: 0);
+        foreach (var operation in operations)
+            ApplyPlannedMutationLocked(schema, operation);
+
+        return new DocumentUpdateResult(rows.Count, operations.Count, Inserted: 0);
     }
 
     private DocumentUpdateResult UpsertFromUpdateLocked(
@@ -944,11 +1319,13 @@ public sealed class DocumentCollectionStore : IDisposable
 
         string seed = DocumentUpdateExecutor.BuildUpsertSeed(filter);
         string updated = DocumentUpdateExecutor.Apply(seed, update);
-        ApplyMutationLocked(
+        var newRow = new DocumentRow(id, updated, Version: 0);
+        PrepareMutationLocked(
             _schema,
             oldRow: null,
-            new DocumentRow(id, updated, Version: 0),
+            newRow,
             documentKey);
+        ApplyPlannedMutationLocked(_schema, new PendingDocumentMutation(-1, OldRow: null, newRow, documentKey));
         return new DocumentUpdateResult(Matched: 0, Modified: 0, Inserted: 1);
     }
 
@@ -980,5 +1357,17 @@ public sealed class DocumentCollectionStore : IDisposable
         return rows;
     }
 
+    private sealed record PendingDocumentMutation(
+        int Index,
+        DocumentRow? OldRow,
+        DocumentRow? NewRow,
+        byte[] DocumentKey);
+
     private sealed record IndexEntry(DocumentPathIndex Index, byte[] Key, byte[] Value);
+
+    private enum DocumentWriteBatchMode
+    {
+        Insert,
+        Replace,
+    }
 }
