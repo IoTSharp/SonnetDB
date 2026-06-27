@@ -14,6 +14,9 @@ namespace SonnetDB.Data.Documents;
 [JsonSerializable(typeof(DocumentWriteItem))]
 [JsonSerializable(typeof(DocumentInsertManyRequest))]
 [JsonSerializable(typeof(DocumentFindRequest))]
+[JsonSerializable(typeof(SndbDocumentFilter))]
+[JsonSerializable(typeof(SndbDocumentProjection))]
+[JsonSerializable(typeof(SndbDocumentSort))]
 [JsonSerializable(typeof(DocumentItemResponse))]
 [JsonSerializable(typeof(DocumentFindResponse))]
 [JsonSerializable(typeof(DocumentFindOneResponse))]
@@ -30,4 +33,7 @@ namespace SonnetDB.Data.Documents;
 [JsonSerializable(typeof(List<DocumentWriteItem>))]
 [JsonSerializable(typeof(List<DocumentItemResponse>))]
 [JsonSerializable(typeof(List<JsonElementValue>))]
+[JsonSerializable(typeof(List<SndbDocumentFilter>))]
+[JsonSerializable(typeof(List<SndbDocumentProjection>))]
+[JsonSerializable(typeof(List<SndbDocumentSort>))]
 internal sealed partial class SndbDocumentClientJsonContext : JsonSerializerContext;

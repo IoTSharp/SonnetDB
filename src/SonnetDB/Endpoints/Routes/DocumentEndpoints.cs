@@ -123,8 +123,26 @@ internal static partial class SonnetDbEndpoints
                 return;
 
             registry.TryGet(db, out var tsdb);
-            var rows = FindRows(tsdb.Documents.Open(collection), req);
-            var docs = rows.Select(ToDocumentItemResponse).ToArray();
+            var store = tsdb.Documents.Open(collection);
+            DocumentItemResponse[] docs;
+            try
+            {
+                var rows = FindRows(store, req);
+                docs = rows is not null
+                    ? rows.Select(ToDocumentItemResponse).ToArray()
+                    : FindRowsByQuery(store, req).Select(ToDocumentItemResponse).ToArray();
+            }
+            catch (ArgumentException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+                return;
+            }
+            catch (InvalidOperationException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+                return;
+            }
+
             await Results.Json(
                 new DocumentFindResponse(collection, docs, docs.Length, req.Limit, req.Skip),
                 ServerJsonContext.Default.DocumentFindResponse).ExecuteAsync(ctx).ConfigureAwait(false);
@@ -348,8 +366,11 @@ internal static partial class SonnetDbEndpoints
         return true;
     }
 
-    private static IReadOnlyList<DocumentRow> FindRows(DocumentCollectionStore store, DocumentFindRequest req)
+    private static IReadOnlyList<DocumentRow>? FindRows(DocumentCollectionStore store, DocumentFindRequest req)
     {
+        if (HasAdvancedDocumentQuery(req))
+            return null;
+
         if (!string.IsNullOrWhiteSpace(req.Id))
         {
             var row = store.Get(req.Id);
@@ -360,6 +381,164 @@ internal static partial class SonnetDbEndpoints
             return store.GetMany(req.Ids);
 
         return store.Scan(NormalizeLimit(req.Limit) ?? DefaultDocumentFindLimit, req.Skip);
+    }
+
+    private static IReadOnlyList<DocumentRow> FindRowsByQuery(DocumentCollectionStore store, DocumentFindRequest req)
+    {
+        var query = new DocumentQuery(
+            Filter: MergeRequestFilters(req),
+            Projection: ToCoreProjection(req.Projection),
+            Sort: ToCoreSort(req.Sort),
+            Limit: NormalizeLimit(req.Limit) ?? DefaultDocumentFindLimit,
+            Skip: req.Skip);
+        var result = DocumentQueryPlanner.Execute(store, store.Schema, query);
+        return result.Items
+            .Select(static item => new DocumentRow(item.Id, item.Json, item.Version))
+            .ToArray();
+    }
+
+    private static bool HasAdvancedDocumentQuery(DocumentFindRequest req)
+        => req.Filter is not null
+            || req.Projection is { Count: > 0 }
+            || req.Sort is { Count: > 0 };
+
+    private static DocumentFilter? MergeRequestFilters(DocumentFindRequest req)
+    {
+        var filters = new List<DocumentFilter>();
+        if (!string.IsNullOrWhiteSpace(req.Id))
+            filters.Add(new DocumentFieldFilter(DocumentFieldRef.Id, DocumentFilterOperator.Equal, req.Id));
+        if (req.Ids is { Count: > 0 })
+            filters.Add(new DocumentFieldFilter(DocumentFieldRef.Id, DocumentFilterOperator.In, req.Ids));
+        if (ToCoreFilter(req.Filter) is { } filter)
+            filters.Add(filter);
+
+        return filters.Count switch
+        {
+            0 => null,
+            1 => filters[0],
+            _ => new DocumentAndFilter(filters),
+        };
+    }
+
+    private static DocumentFilter? ToCoreFilter(DocumentFilterContract? filter)
+    {
+        if (filter is null)
+            return null;
+
+        if (filter.And is { Count: > 0 })
+            return new DocumentAndFilter(filter.And.Select(ToRequiredCoreFilter).ToArray());
+        if (filter.Or is { Count: > 0 })
+            return new DocumentOrFilter(filter.Or.Select(ToRequiredCoreFilter).ToArray());
+        if (filter.Not is not null)
+            return new DocumentNotFilter(ToRequiredCoreFilter(filter.Not));
+
+        var op = ParseFilterOperator(filter.Op);
+        return new DocumentFieldFilter(
+            ToCoreField(filter.Path),
+            op,
+            op == DocumentFilterOperator.Exists
+                ? ToBooleanOrDefault(filter.Value)
+                : ToCoreValue(filter.Value));
+    }
+
+    private static DocumentFilter ToRequiredCoreFilter(DocumentFilterContract filter)
+        => ToCoreFilter(filter) ?? throw new InvalidOperationException("document filter 不能为空。");
+
+    private static DocumentProjection? ToCoreProjection(IReadOnlyList<DocumentProjectionContract>? projection)
+    {
+        if (projection is not { Count: > 0 })
+            return null;
+
+        return new DocumentProjection(projection
+            .Select(static item =>
+            {
+                var field = ToCoreField(item.Path);
+                return new DocumentProjectionField(item.Name ?? DefaultProjectionName(field), field);
+            })
+            .ToArray());
+    }
+
+    private static IReadOnlyList<DocumentSort> ToCoreSort(IReadOnlyList<DocumentSortContract>? sort)
+        => sort is { Count: > 0 }
+            ? sort.Select(static item => new DocumentSort(ToCoreField(item.Path), item.Descending)).ToArray()
+            : Array.Empty<DocumentSort>();
+
+    private static DocumentFieldRef ToCoreField(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)
+            || string.Equals(path, "_id", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(path, "id", StringComparison.OrdinalIgnoreCase))
+        {
+            return DocumentFieldRef.Id;
+        }
+
+        if (string.Equals(path, "document", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(path, "json", StringComparison.OrdinalIgnoreCase))
+        {
+            return DocumentFieldRef.Document;
+        }
+
+        return DocumentFieldRef.JsonPath(path);
+    }
+
+    private static string DefaultProjectionName(DocumentFieldRef field)
+    {
+        if (field.Kind == DocumentFieldKind.Id)
+            return "_id";
+        if (field.Kind == DocumentFieldKind.Document)
+            return "document";
+
+        string path = field.Path!;
+        int dot = path.LastIndexOf('.');
+        int bracket = path.LastIndexOf('[');
+        int start = Math.Max(dot, bracket) + 1;
+        return path[start..].TrimEnd(']').Trim('\'');
+    }
+
+    private static DocumentFilterOperator ParseFilterOperator(string? op)
+        => (op ?? "eq").ToLowerInvariant() switch
+        {
+            "eq" => DocumentFilterOperator.Equal,
+            "ne" => DocumentFilterOperator.NotEqual,
+            "gt" => DocumentFilterOperator.GreaterThan,
+            "gte" => DocumentFilterOperator.GreaterThanOrEqual,
+            "lt" => DocumentFilterOperator.LessThan,
+            "lte" => DocumentFilterOperator.LessThanOrEqual,
+            "in" => DocumentFilterOperator.In,
+            "nin" => DocumentFilterOperator.NotIn,
+            "exists" => DocumentFilterOperator.Exists,
+            "contains" => DocumentFilterOperator.Contains,
+            _ => throw new InvalidOperationException($"不支持的 document filter op '{op}'。"),
+        };
+
+    private static object? ToCoreValue(JsonElement? value)
+    {
+        if (value is null)
+            return null;
+
+        return ToCoreValue(value.Value);
+    }
+
+    private static object? ToCoreValue(JsonElement value)
+        => value.ValueKind switch
+        {
+            JsonValueKind.Null => null,
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.String => value.GetString(),
+            JsonValueKind.Number => value.TryGetInt64(out long longValue) ? longValue : value.GetDouble(),
+            JsonValueKind.Array => value.EnumerateArray().Select(ToCoreValue).ToArray(),
+            JsonValueKind.Object => value.GetRawText(),
+            _ => null,
+        };
+
+    private static bool ToBooleanOrDefault(JsonElement? value)
+    {
+        if (value is null || value.Value.ValueKind == JsonValueKind.Null)
+            return true;
+        if (value.Value.ValueKind == JsonValueKind.True || value.Value.ValueKind == JsonValueKind.False)
+            return value.Value.GetBoolean();
+        return false;
     }
 
     private static int? NormalizeLimit(int? limit)

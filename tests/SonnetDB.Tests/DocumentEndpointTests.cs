@@ -176,6 +176,66 @@ public sealed class DocumentEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Forbidden, ex.StatusCode);
     }
 
+    [Fact]
+    public async Task DocumentApi_FindFilterProjectionSort_Work()
+    {
+        using var admin = CreateClient(AdminToken);
+        var create = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/querydocs",
+            new DocumentCollectionCreateRequest(),
+            ServerJsonContext.Default.DocumentCollectionCreateRequest);
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+
+        using var d1 = JsonDocument.Parse("""{"site":"north","score":7,"tags":["hot","critical"],"metrics":{"temp":22},"nullable":null}""");
+        using var d2 = JsonDocument.Parse("""{"site":"south","score":3,"tags":["cold"],"metrics":{"temp":18}}""");
+        using var d3 = JsonDocument.Parse("""{"site":"north","score":9,"tags":["hot"],"metrics":{"temp":24}}""");
+        var insert = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/querydocs/insert-many",
+            new DocumentInsertManyRequest([
+                new DocumentWriteItem("dev-1", d1.RootElement.Clone()),
+                new DocumentWriteItem("dev-2", d2.RootElement.Clone()),
+                new DocumentWriteItem("dev-3", d3.RootElement.Clone()),
+            ]),
+            ServerJsonContext.Default.DocumentInsertManyRequest);
+        Assert.Equal(HttpStatusCode.OK, insert.StatusCode);
+
+        using var north = JsonDocument.Parse("\"north\"");
+        using var minScore = JsonDocument.Parse("5");
+        using var hot = JsonDocument.Parse("\"hot\"");
+        var find = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/querydocs/find",
+            new DocumentFindRequest(
+                Limit: 10,
+                Filter: new DocumentFilterContract(And: [
+                    new DocumentFilterContract("$.site", "eq", north.RootElement.Clone()),
+                    new DocumentFilterContract("$.score", "gte", minScore.RootElement.Clone()),
+                    new DocumentFilterContract("$.tags", "contains", hot.RootElement.Clone()),
+                ]),
+                Projection: [
+                    new DocumentProjectionContract("_id", "_id"),
+                    new DocumentProjectionContract("temp", "$.metrics.temp"),
+                ],
+                Sort: [new DocumentSortContract("$.score", Descending: true)]),
+            ServerJsonContext.Default.DocumentFindRequest);
+        Assert.Equal(HttpStatusCode.OK, find.StatusCode);
+
+        var body = await find.Content.ReadFromJsonAsync(ServerJsonContext.Default.DocumentFindResponse);
+        Assert.NotNull(body);
+        Assert.Equal(["dev-3", "dev-1"], body!.Documents.Select(static x => x.Id).ToArray());
+        Assert.Equal("""{"_id":"dev-3","temp":24}""", body.Documents[0].Document.GetRawText());
+        Assert.Equal("""{"_id":"dev-1","temp":22}""", body.Documents[1].Document.GetRawText());
+
+        var exists = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/querydocs/find",
+            new DocumentFindRequest(
+                Filter: new DocumentFilterContract("$.nullable", "exists"),
+                Projection: [new DocumentProjectionContract("_id", "_id")]),
+            ServerJsonContext.Default.DocumentFindRequest);
+        Assert.Equal(HttpStatusCode.OK, exists.StatusCode);
+        var existsBody = await exists.Content.ReadFromJsonAsync(ServerJsonContext.Default.DocumentFindResponse);
+        Assert.Equal(["dev-1"], existsBody!.Documents.Select(static x => x.Id).ToArray());
+    }
+
     private HttpClient CreateClient(string token)
     {
         var client = new HttpClient { BaseAddress = new Uri(_baseUrl!) };

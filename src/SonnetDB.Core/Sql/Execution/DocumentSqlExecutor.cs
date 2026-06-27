@@ -131,27 +131,41 @@ internal static class DocumentSqlExecutor
         var match = TryExtractMatch(schema, statement.Where, statement.Pagination);
         if (match is not null)
             match = ResolveFullTextMatch(store, match);
-        var candidateRows = LoadCandidateRows(store, schema, statement.Where, match);
+
         var matchScores = match is null
             ? new Dictionary<string, double>(StringComparer.Ordinal)
             : match.Hits.ToDictionary(static hit => hit.DocumentId, static hit => hit.Score, StringComparer.Ordinal);
 
-        var filtered = new List<IReadOnlyList<object?>>();
-        foreach (var row in candidateRows)
+        IReadOnlyList<DocumentRow> rows;
+        bool plannerAppliedOrderByAndPagination = false;
+        if (match is null
+            && TryBuildDocumentFilter(statement.Where, out var filter)
+            && TryBuildDocumentSort(projections, statement.OrderBy, out var sort))
         {
-            if (!EvaluateWhere(statement.Where, row, matchScores))
-                continue;
-
-            var output = new object?[projections.Length];
-            for (int i = 0; i < projections.Length; i++)
-                output[i] = EvaluateProjection(projections[i], row, matchScores);
-            filtered.Add(output);
+            var queryResult = DocumentQueryPlanner.Execute(
+                store,
+                schema,
+                new DocumentQuery(
+                    Filter: filter,
+                    Sort: sort,
+                    Limit: statement.Pagination?.Fetch,
+                    Skip: statement.Pagination?.Offset ?? 0));
+            rows = queryResult.Items
+                .Select(static item => new DocumentRow(item.Id, item.Json, item.Version))
+                .ToArray();
+            plannerAppliedOrderByAndPagination = true;
+        }
+        else
+        {
+            rows = LoadCandidateRows(store, schema, statement.Where, match);
         }
 
         var result = new SelectExecutionResult(
             projections.Select(static p => p.ColumnName).ToArray(),
-            filtered);
-        return ApplyPagination(ApplyOrderBy(result, statement.OrderBy), statement.Pagination);
+            ProjectRows(rows, projections, statement.Where, matchScores));
+        return plannerAppliedOrderByAndPagination
+            ? result
+            : ApplyPagination(ApplyOrderBy(result, statement.OrderBy), statement.Pagination);
     }
 
     public static DeleteExecutionResult ExecuteDelete(Tsdb tsdb, DeleteStatement statement, DocumentCollectionSchema schema)
@@ -390,6 +404,27 @@ internal static class DocumentSqlExecutor
             return store.GetByIndex(index, value);
 
         return store.Scan();
+    }
+
+    private static List<IReadOnlyList<object?>> ProjectRows(
+        IReadOnlyList<DocumentRow> rows,
+        Projection[] projections,
+        SqlExpression? where,
+        IReadOnlyDictionary<string, double> matchScores)
+    {
+        var filtered = new List<IReadOnlyList<object?>>();
+        foreach (var row in rows)
+        {
+            if (!EvaluateWhere(where, row, matchScores))
+                continue;
+
+            var output = new object?[projections.Length];
+            for (int i = 0; i < projections.Length; i++)
+                output[i] = EvaluateProjection(projections[i], row, matchScores);
+            filtered.Add(output);
+        }
+
+        return filtered;
     }
 
     private static FullTextMatch? TryExtractMatch(
@@ -634,6 +669,211 @@ internal static class DocumentSqlExecutor
         {
             return false;
         }
+    }
+
+    private static bool TryBuildDocumentFilter(SqlExpression? expression, out DocumentFilter? filter)
+    {
+        filter = null;
+        if (expression is null)
+            return true;
+
+        switch (expression)
+        {
+            case BinaryExpression binary:
+                if (binary.Operator == SqlBinaryOperator.And)
+                {
+                    if (!TryBuildDocumentFilter(binary.Left, out var left)
+                        || !TryBuildDocumentFilter(binary.Right, out var right)
+                        || left is null
+                        || right is null)
+                    {
+                        return false;
+                    }
+
+                    filter = MergeAnd(left, right);
+                    return true;
+                }
+
+                if (binary.Operator == SqlBinaryOperator.Or)
+                {
+                    if (!TryBuildDocumentFilter(binary.Left, out var left)
+                        || !TryBuildDocumentFilter(binary.Right, out var right)
+                        || left is null
+                        || right is null)
+                    {
+                        return false;
+                    }
+
+                    filter = MergeOr(left, right);
+                    return true;
+                }
+
+                return TryBuildFieldFilter(binary, out filter);
+
+            case UnaryExpression { Operator: SqlUnaryOperator.Not } unary:
+                if (!TryBuildDocumentFilter(unary.Operand, out var child) || child is null)
+                    return false;
+                filter = new DocumentNotFilter(child);
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    private static bool TryBuildFieldFilter(BinaryExpression binary, out DocumentFilter? filter)
+    {
+        filter = null;
+        if (!TryMapDocumentOperator(binary.Operator, out var op))
+            return false;
+
+        if (TryBindDocumentField(binary.Left, out var leftField)
+            && TryEvaluateLiteral(binary.Right, out var rightValue))
+        {
+            filter = new DocumentFieldFilter(leftField, op, rightValue);
+            return true;
+        }
+
+        if (TryBindDocumentField(binary.Right, out var rightField)
+            && TryEvaluateLiteral(binary.Left, out var leftValue)
+            && TryFlipDocumentOperator(op, out var flipped))
+        {
+            filter = new DocumentFieldFilter(rightField, flipped, leftValue);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryBindDocumentField(SqlExpression expression, out DocumentFieldRef field)
+    {
+        field = null!;
+        switch (expression)
+        {
+            case IdentifierExpression id when string.Equals(id.Name, "id", StringComparison.OrdinalIgnoreCase):
+                field = DocumentFieldRef.Id;
+                return true;
+
+            case IdentifierExpression id when IsDocumentColumn(id.Name):
+                field = DocumentFieldRef.Document;
+                return true;
+
+            case FunctionCallExpression function when TryBindJsonValue(function, out var path):
+                field = DocumentFieldRef.JsonPath(path.Text);
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    private static bool TryMapDocumentOperator(SqlBinaryOperator op, out DocumentFilterOperator mapped)
+    {
+        switch (op)
+        {
+            case SqlBinaryOperator.Equal:
+                mapped = DocumentFilterOperator.Equal;
+                return true;
+            case SqlBinaryOperator.NotEqual:
+                mapped = DocumentFilterOperator.NotEqual;
+                return true;
+            case SqlBinaryOperator.LessThan:
+                mapped = DocumentFilterOperator.LessThan;
+                return true;
+            case SqlBinaryOperator.LessThanOrEqual:
+                mapped = DocumentFilterOperator.LessThanOrEqual;
+                return true;
+            case SqlBinaryOperator.GreaterThan:
+                mapped = DocumentFilterOperator.GreaterThan;
+                return true;
+            case SqlBinaryOperator.GreaterThanOrEqual:
+                mapped = DocumentFilterOperator.GreaterThanOrEqual;
+                return true;
+            default:
+                mapped = default;
+                return false;
+        }
+    }
+
+    private static bool TryFlipDocumentOperator(DocumentFilterOperator op, out DocumentFilterOperator flipped)
+    {
+        switch (op)
+        {
+            case DocumentFilterOperator.Equal:
+            case DocumentFilterOperator.NotEqual:
+                flipped = op;
+                return true;
+            case DocumentFilterOperator.LessThan:
+                flipped = DocumentFilterOperator.GreaterThan;
+                return true;
+            case DocumentFilterOperator.LessThanOrEqual:
+                flipped = DocumentFilterOperator.GreaterThanOrEqual;
+                return true;
+            case DocumentFilterOperator.GreaterThan:
+                flipped = DocumentFilterOperator.LessThan;
+                return true;
+            case DocumentFilterOperator.GreaterThanOrEqual:
+                flipped = DocumentFilterOperator.LessThanOrEqual;
+                return true;
+            default:
+                flipped = default;
+                return false;
+        }
+    }
+
+    private static DocumentFilter MergeAnd(DocumentFilter left, DocumentFilter right)
+    {
+        var filters = new List<DocumentFilter>();
+        if (left is DocumentAndFilter leftAnd)
+            filters.AddRange(leftAnd.Filters);
+        else
+            filters.Add(left);
+        if (right is DocumentAndFilter rightAnd)
+            filters.AddRange(rightAnd.Filters);
+        else
+            filters.Add(right);
+        return new DocumentAndFilter(filters);
+    }
+
+    private static DocumentFilter MergeOr(DocumentFilter left, DocumentFilter right)
+    {
+        var filters = new List<DocumentFilter>();
+        if (left is DocumentOrFilter leftOr)
+            filters.AddRange(leftOr.Filters);
+        else
+            filters.Add(left);
+        if (right is DocumentOrFilter rightOr)
+            filters.AddRange(rightOr.Filters);
+        else
+            filters.Add(right);
+        return new DocumentOrFilter(filters);
+    }
+
+    private static bool TryBuildDocumentSort(
+        Projection[] projections,
+        OrderBySpec? orderBy,
+        out IReadOnlyList<DocumentSort> sort)
+    {
+        sort = Array.Empty<DocumentSort>();
+        if (orderBy is null)
+            return true;
+
+        if (orderBy.Expression is not IdentifierExpression { Name: var name })
+            return false;
+
+        foreach (var projection in projections)
+        {
+            if (!string.Equals(projection.ColumnName, name, StringComparison.Ordinal))
+                continue;
+
+            if (!TryBindDocumentField(projection.Expression, out var field))
+                return false;
+
+            sort = new[] { new DocumentSort(field, orderBy.Direction == SortDirection.Descending) };
+            return true;
+        }
+
+        return false;
     }
 
     private static Projection[] BuildProjections(IReadOnlyList<SelectItem> items)

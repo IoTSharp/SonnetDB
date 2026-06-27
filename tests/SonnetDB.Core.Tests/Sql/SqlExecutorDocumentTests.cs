@@ -168,6 +168,32 @@ public sealed class SqlExecutorDocumentTests : IDisposable
     }
 
     [Fact]
+    public void DocumentCollection_SelectUsesSharedFindPlanner_ForFilterSortPagination()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE DOCUMENT COLLECTION device_docs");
+        SqlExecutor.Execute(db, """
+            INSERT INTO device_docs (id, document)
+            VALUES ('dev-1', '{"site":"north","score":7,"metrics":{"temp":22}}'),
+                   ('dev-2', '{"site":"south","score":3,"metrics":{"temp":18}}'),
+                   ('dev-3', '{"site":"north","score":9,"metrics":{"temp":24}}'),
+                   ('dev-4', '{"site":"east","score":9,"metrics":{"temp":20}}')
+            """);
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT id, json_value(document, '$.score') AS score
+            FROM device_docs
+            WHERE json_value(document, '$.score') >= 7
+              AND NOT json_value(document, '$.site') = 'east'
+            ORDER BY score DESC
+            LIMIT 1 OFFSET 1
+            """));
+
+        Assert.Equal(new[] { "id", "score" }, result.Columns);
+        Assert.Equal(new object?[] { "dev-1", 7.0 }, result.Rows.Single());
+    }
+
+    [Fact]
     public void DocumentCollection_FullTextIndex_SearchesScoresAndPersistsAcrossReopen()
     {
         using (var db = Tsdb.Open(Options()))

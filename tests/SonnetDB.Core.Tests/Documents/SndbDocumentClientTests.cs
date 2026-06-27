@@ -1,5 +1,6 @@
 using SonnetDB.Data;
 using SonnetDB.Data.Documents;
+using System.Text.Json;
 using Xunit;
 
 namespace SonnetDB.Core.Tests.Documents;
@@ -58,5 +59,65 @@ public sealed class SndbDocumentClientTests : IDisposable
         Assert.Equal(["dev-2"], (await client.FindAsync("devices")).Select(static x => x.Id).ToArray());
 
         Assert.True(await client.DropCollectionAsync("devices"));
+    }
+
+    [Fact]
+    public async Task DocumentClient_FindOptions_FilterProjectionSort_ReturnsProjectedDocuments()
+    {
+        using var client = new SndbDocumentClient(new SndbConnectionStringBuilder
+        {
+            DataSource = _root,
+        }.ConnectionString);
+
+        await client.CreateCollectionAsync("devices");
+        await client.InsertManyAsync("devices", [
+            new KeyValuePair<string, string>("dev-1", """{"site":"north","kind":"pump","score":7,"tags":["hot","critical"],"metrics":{"temp":22},"nullable":null}"""),
+            new KeyValuePair<string, string>("dev-2", """{"site":"south","kind":"fan","score":3,"tags":["cold"],"metrics":{"temp":18}}"""),
+            new KeyValuePair<string, string>("dev-3", """{"site":"north","kind":"pump","score":9,"tags":["hot"],"metrics":{"temp":24}}"""),
+        ]);
+
+        using var site = JsonDocument.Parse("\"north\"");
+        using var minScore = JsonDocument.Parse("5");
+        using var tag = JsonDocument.Parse("\"hot\"");
+        var docs = await client.FindAsync("devices", new SndbDocumentFindOptions(
+            Filter: new SndbDocumentFilter(And: [
+                new SndbDocumentFilter("$.site", "eq", site.RootElement.Clone()),
+                new SndbDocumentFilter("$.score", "gte", minScore.RootElement.Clone()),
+                new SndbDocumentFilter("$.tags", "contains", tag.RootElement.Clone()),
+            ]),
+            Projection: [
+                new SndbDocumentProjection("_id", "_id"),
+                new SndbDocumentProjection("temp", "$.metrics.temp"),
+            ],
+            Sort: [new SndbDocumentSort("$.score", Descending: true)],
+            Limit: 10));
+
+        Assert.Equal(["dev-3", "dev-1"], docs.Select(static d => d.Id).ToArray());
+        Assert.Equal("""{"_id":"dev-3","temp":24}""", docs[0].Json);
+        Assert.Equal("""{"_id":"dev-1","temp":22}""", docs[1].Json);
+    }
+
+    [Fact]
+    public async Task DocumentClient_FindOptions_ExistsDistinguishesNullFromMissing()
+    {
+        using var client = new SndbDocumentClient(new SndbConnectionStringBuilder
+        {
+            DataSource = _root,
+        }.ConnectionString);
+
+        await client.CreateCollectionAsync("devices");
+        await client.InsertManyAsync("devices", [
+            new KeyValuePair<string, string>("null-value", """{"nullable":null}"""),
+            new KeyValuePair<string, string>("missing", """{"other":1}"""),
+        ]);
+
+        var exists = await client.FindAsync("devices", new SndbDocumentFindOptions(
+            Filter: new SndbDocumentFilter("$.nullable", "exists")));
+        Assert.Equal(["null-value"], exists.Select(static d => d.Id).ToArray());
+
+        using var nullValue = JsonDocument.Parse("null");
+        var equalsNull = await client.FindAsync("devices", new SndbDocumentFindOptions(
+            Filter: new SndbDocumentFilter("$.nullable", "eq", nullValue.RootElement.Clone())));
+        Assert.Equal(["null-value"], equalsNull.Select(static d => d.Id).ToArray());
     }
 }

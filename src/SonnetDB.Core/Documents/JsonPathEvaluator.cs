@@ -45,6 +45,45 @@ public static class JsonPathEvaluator
     }
 
     /// <summary>
+    /// 尝试从 JSON 文本中读取指定 path 的值，并区分 JSON null 与 path 缺失。
+    /// </summary>
+    /// <param name="json">JSON 文本文档。</param>
+    /// <param name="path">JSON path 文本。</param>
+    /// <param name="value">path 存在时返回稳定 SQL 标量或 JSON 文本。</param>
+    /// <returns>path 存在返回 true；path 缺失或 JSON 文本为 null 返回 false。</returns>
+    public static bool TryEvaluate(string? json, string path, out object? value)
+    {
+        value = null;
+        if (json is null)
+            return false;
+
+        var parsedPath = JsonPath.Parse(path);
+        return TryEvaluate(json, parsedPath, out value);
+    }
+
+    /// <summary>
+    /// 尝试从 JSON 文本中读取指定 path 的值，并区分 JSON null 与 path 缺失。
+    /// </summary>
+    /// <param name="json">JSON 文本文档。</param>
+    /// <param name="path">已解析 JSON path。</param>
+    /// <param name="value">path 存在时返回稳定 SQL 标量或 JSON 文本。</param>
+    /// <returns>path 存在返回 true；path 缺失或 JSON 文本为 null 返回 false。</returns>
+    public static bool TryEvaluate(string? json, JsonPath path, out object? value)
+    {
+        value = null;
+        if (json is null)
+            return false;
+
+        ArgumentNullException.ThrowIfNull(path);
+        using var document = JsonDocument.Parse(json);
+        if (!TryResolve(document.RootElement, path, out var element))
+            return false;
+
+        value = ConvertElement(element);
+        return true;
+    }
+
+    /// <summary>
     /// 将 JSON 文本规范化为紧凑 UTF-8 JSON 字符串。
     /// </summary>
     /// <param name="json">JSON 文本。</param>
@@ -112,7 +151,7 @@ public static class JsonPathEvaluator
         return true;
     }
 
-    private static object? ConvertElement(JsonElement element)
+    internal static object? ConvertElement(JsonElement element)
     {
         return element.ValueKind switch
         {

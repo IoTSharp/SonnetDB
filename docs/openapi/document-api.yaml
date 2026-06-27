@@ -86,7 +86,7 @@ paths:
                 $ref: '#/components/schemas/DocumentWriteResponse'
   /v1/db/{db}/documents/{collection}/find:
     post:
-      summary: Find documents by id, ids, or bounded collection scan.
+      summary: Find documents with filter, projection, sort, limit, and skip.
       parameters:
         - $ref: '#/components/parameters/db'
         - $ref: '#/components/parameters/collection'
@@ -288,10 +288,22 @@ components:
       properties:
         id:
           type: string
+          description: Legacy shortcut for _id equality. Can be combined with filter.
         ids:
           type: array
+          description: Legacy shortcut for _id IN. Can be combined with filter.
           items:
             type: string
+        filter:
+          $ref: '#/components/schemas/DocumentFilter'
+        projection:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentProjection'
+        sort:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentSort'
         limit:
           type: integer
           minimum: 1
@@ -300,6 +312,51 @@ components:
           type: integer
           minimum: 0
           default: 0
+    DocumentFilter:
+      type: object
+      description: Recursive filter AST. Leaf paths accept _id/id, document/json, or JSON path such as $.metrics.temp.
+      properties:
+        path:
+          type: string
+          example: $.site
+        op:
+          type: string
+          enum: [eq, ne, gt, gte, lt, lte, in, nin, exists, contains]
+          default: eq
+        value:
+          nullable: true
+          description: Scalar, array, object, or null value used by the operator.
+        and:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentFilter'
+        or:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentFilter'
+        not:
+          $ref: '#/components/schemas/DocumentFilter'
+    DocumentProjection:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Output property name. If omitted, the server derives a name from path.
+        path:
+          type: string
+          description: _id/id, document/json, or JSON path.
+          example: $.metrics.temp
+    DocumentSort:
+      type: object
+      required: [path]
+      properties:
+        path:
+          type: string
+          description: _id/id, document/json, or JSON path.
+          example: $.score
+        descending:
+          type: boolean
+          default: false
     DocumentItemResponse:
       type: object
       properties:

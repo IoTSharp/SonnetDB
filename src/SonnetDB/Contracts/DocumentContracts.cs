@@ -39,7 +39,41 @@ public sealed record DocumentFindRequest(
     string? Id = null,
     IReadOnlyList<string>? Ids = null,
     int? Limit = null,
-    int Skip = 0);
+    int Skip = 0,
+    DocumentFilterContract? Filter = null,
+    IReadOnlyList<DocumentProjectionContract>? Projection = null,
+    IReadOnlyList<DocumentSortContract>? Sort = null);
+
+/// <summary>
+/// Document API 过滤表达式。
+/// </summary>
+/// <param name="Path">JSON path；也可传 <c>_id</c>、<c>id</c>、<c>document</c>。</param>
+/// <param name="Op">操作符：eq/ne/gt/gte/lt/lte/in/nin/exists/contains。</param>
+/// <param name="Value">比较值。</param>
+/// <param name="And">AND 子表达式列表。</param>
+/// <param name="Or">OR 子表达式列表。</param>
+/// <param name="Not">NOT 子表达式。</param>
+public sealed record DocumentFilterContract(
+    string? Path = null,
+    string? Op = null,
+    JsonElement? Value = null,
+    IReadOnlyList<DocumentFilterContract>? And = null,
+    IReadOnlyList<DocumentFilterContract>? Or = null,
+    DocumentFilterContract? Not = null);
+
+/// <summary>
+/// Document API 投影字段。
+/// </summary>
+/// <param name="Name">输出字段名；为空时从 path 推断。</param>
+/// <param name="Path">JSON path；也可传 <c>_id</c>、<c>id</c>、<c>document</c>。</param>
+public sealed record DocumentProjectionContract(string? Name = null, string? Path = null);
+
+/// <summary>
+/// Document API 排序字段。
+/// </summary>
+/// <param name="Path">JSON path；也可传 <c>_id</c>、<c>id</c>、<c>document</c>。</param>
+/// <param name="Descending">是否降序。</param>
+public sealed record DocumentSortContract(string Path, bool Descending = false);
 
 /// <summary>
 /// HTTP API 返回的一条 JSON 文档。

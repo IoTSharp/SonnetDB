@@ -21,7 +21,41 @@ public sealed record SndbDocumentFindOptions(
     string? Id = null,
     IReadOnlyList<string>? Ids = null,
     int? Limit = null,
-    int Skip = 0);
+    int Skip = 0,
+    SndbDocumentFilter? Filter = null,
+    IReadOnlyList<SndbDocumentProjection>? Projection = null,
+    IReadOnlyList<SndbDocumentSort>? Sort = null);
+
+/// <summary>
+/// 文档客户端过滤表达式。
+/// </summary>
+/// <param name="Path">JSON path；也可传 <c>_id</c>、<c>id</c>、<c>document</c>。</param>
+/// <param name="Op">操作符：eq/ne/gt/gte/lt/lte/in/nin/exists/contains。</param>
+/// <param name="Value">比较值。</param>
+/// <param name="And">AND 子表达式列表。</param>
+/// <param name="Or">OR 子表达式列表。</param>
+/// <param name="Not">NOT 子表达式。</param>
+public sealed record SndbDocumentFilter(
+    string? Path = null,
+    string? Op = null,
+    JsonElement? Value = null,
+    IReadOnlyList<SndbDocumentFilter>? And = null,
+    IReadOnlyList<SndbDocumentFilter>? Or = null,
+    SndbDocumentFilter? Not = null);
+
+/// <summary>
+/// 文档客户端投影字段。
+/// </summary>
+/// <param name="Name">输出字段名；为空时从 path 推断。</param>
+/// <param name="Path">JSON path；也可传 <c>_id</c>、<c>id</c>、<c>document</c>。</param>
+public sealed record SndbDocumentProjection(string? Name = null, string? Path = null);
+
+/// <summary>
+/// 文档客户端排序字段。
+/// </summary>
+/// <param name="Path">JSON path；也可传 <c>_id</c>、<c>id</c>、<c>document</c>。</param>
+/// <param name="Descending">是否降序。</param>
+public sealed record SndbDocumentSort(string Path, bool Descending = false);
 
 /// <summary>
 /// 文档写操作结果。
@@ -61,7 +95,10 @@ internal sealed record DocumentFindRequest(
     string? Id = null,
     IReadOnlyList<string>? Ids = null,
     int? Limit = null,
-    int Skip = 0);
+    int Skip = 0,
+    SndbDocumentFilter? Filter = null,
+    IReadOnlyList<SndbDocumentProjection>? Projection = null,
+    IReadOnlyList<SndbDocumentSort>? Sort = null);
 
 internal sealed record DocumentItemResponse(string Id, JsonElement Document, long Version);
 

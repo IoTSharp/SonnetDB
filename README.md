@@ -197,14 +197,20 @@ connection.Open();
 ### 4. 通过 Document Client 访问
 
 ```csharp
+using System.Text.Json;
 using SonnetDB.Data.Documents;
 
 using var documents = new SndbDocumentClient("Data Source=./demo-data");
 await documents.CreateCollectionAsync("device_docs");
-await documents.InsertOneAsync("device_docs", "dev-1", """{"site":"north","kind":"pump"}""");
+await documents.InsertOneAsync("device_docs", "dev-1", """{"site":"north","kind":"pump","score":9}""");
 
-var doc = await documents.FindOneAsync("device_docs", "dev-1");
-Console.WriteLine(doc?.Json);
+var hits = await documents.FindAsync("device_docs", new SndbDocumentFindOptions(
+    Filter: new SndbDocumentFilter("$.site", "eq", JsonDocument.Parse("\"north\"").RootElement.Clone()),
+    Projection: [new SndbDocumentProjection("_id", "_id"), new SndbDocumentProjection("score", "$.score")],
+    Sort: [new SndbDocumentSort("$.score", Descending: true)],
+    Limit: 20));
+
+Console.WriteLine(hits[0].Json);
 ```
 
 远程模式使用同一连接字符串格式：

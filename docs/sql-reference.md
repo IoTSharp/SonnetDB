@@ -209,10 +209,26 @@ POST   /v1/db/{db}/documents/{collection}/distinct
 // insert-one
 { "id": "dev-1", "document": { "site": "north", "kind": "pump" } }
 
-// find：第一版支持 id、ids 或 limit/skip 扫描
+// find：支持 id/ids 快捷条件、filter AST、projection、sort、limit/skip
 { "id": "dev-1" }
 { "ids": ["dev-1", "dev-2"] }
 { "limit": 100, "skip": 0 }
+{
+  "filter": {
+    "and": [
+      { "path": "$.site", "op": "eq", "value": "north" },
+      { "path": "$.score", "op": "gte", "value": 5 },
+      { "path": "$.tags", "op": "contains", "value": "hot" }
+    ]
+  },
+  "projection": [
+    { "name": "_id", "path": "_id" },
+    { "name": "temp", "path": "$.metrics.temp" }
+  ],
+  "sort": [{ "path": "$.score", "descending": true }],
+  "limit": 20,
+  "skip": 0
+}
 
 // update-one：第一版为整文档替换，不是 $set/$inc 局部更新
 { "id": "dev-1", "document": { "site": "north", "kind": "pump", "status": "ok" } }
@@ -221,7 +237,7 @@ POST   /v1/db/{db}/documents/{collection}/distinct
 { "path": "$.site" }
 ```
 
-当前 Document API 契约刻意不实现 MongoDB wire protocol / BSON command，也不承诺官方 MongoDB Driver 直连；复杂 filter/projection/sort、cursor 分页、局部更新操作符和批量写事务语义会在 Milestone 21 后续 PR 中补齐。OpenAPI 片段见 [document-api.yaml](openapi/document-api.yaml)。
+`filter` 操作符支持 `eq/ne/gt/gte/lt/lte/in/nin/exists/contains` 与 `and/or/not` 组合；`path` 可写 `_id` / `id`、`document` / `json` 或 JSON path。`exists` 会区分 path 缺失与 JSON `null`：path 存在且值为 `null` 时仍视为存在。当前 Document API 契约刻意不实现 MongoDB wire protocol / BSON command，也不承诺官方 MongoDB Driver 直连；cursor 分页、局部更新操作符和批量写事务语义会在 Milestone 21 后续 PR 中补齐。OpenAPI 片段见 [document-api.yaml](openapi/document-api.yaml)。
 
 ### JSON 文件虚拟表与导入
 
