@@ -138,6 +138,52 @@ public sealed record DocumentProjectionField(string Name, DocumentFieldRef Field
 public sealed record DocumentSort(DocumentFieldRef Field, bool Descending = false);
 
 /// <summary>
+/// 文档查询规划结果，描述最终访问路径、候选计划与未实现能力缺口。
+/// </summary>
+/// <param name="AccessPath">最终选择的访问路径。</param>
+/// <param name="IndexName">最终选择的索引名；全表扫描时为 null。</param>
+/// <param name="EstimatedCandidateRows">访问路径产生的候选行估算。</param>
+/// <param name="EstimatedOutputRows">应用剩余过滤条件后的输出行估算。</param>
+/// <param name="FilterPushdown">是否把部分过滤条件下推到访问路径。</param>
+/// <param name="FilterPushdownFields">已下推的字段或 JSON path 列表。</param>
+/// <param name="ResidualFilterFields">仍需逐行计算的字段或 JSON path 列表。</param>
+/// <param name="SortUsesIndex">排序是否可由所选访问路径的天然顺序满足。</param>
+/// <param name="ProjectionCoveredByIndex">投影是否可完全由索引覆盖。</param>
+/// <param name="Candidates">规划器评估过的候选访问路径。</param>
+/// <param name="GapReason">未实现优化的原因；没有缺口时为 null。</param>
+public sealed record DocumentQueryPlan(
+    string AccessPath,
+    string? IndexName,
+    int EstimatedCandidateRows,
+    int EstimatedOutputRows,
+    bool FilterPushdown,
+    IReadOnlyList<string> FilterPushdownFields,
+    IReadOnlyList<string> ResidualFilterFields,
+    bool SortUsesIndex,
+    bool ProjectionCoveredByIndex,
+    IReadOnlyList<DocumentQueryPlanCandidate> Candidates,
+    string? GapReason);
+
+/// <summary>
+/// 文档查询规划候选访问路径。
+/// </summary>
+/// <param name="AccessPath">候选访问路径。</param>
+/// <param name="IndexName">候选索引名；全表扫描时为 null。</param>
+/// <param name="EstimatedCandidateRows">候选路径产生的候选行估算。</param>
+/// <param name="Cost">候选路径的代价分数，数值越小越优。</param>
+/// <param name="Selected">该候选是否被最终选中。</param>
+/// <param name="FilterPushdownFields">该候选可下推的字段或 JSON path 列表。</param>
+/// <param name="RejectReason">候选未被选中的原因；被选中时为 null。</param>
+public sealed record DocumentQueryPlanCandidate(
+    string AccessPath,
+    string? IndexName,
+    int EstimatedCandidateRows,
+    int Cost,
+    bool Selected,
+    IReadOnlyList<string> FilterPushdownFields,
+    string? RejectReason);
+
+/// <summary>
 /// 文档查询命中项。
 /// </summary>
 /// <param name="Id">文档 ID。</param>

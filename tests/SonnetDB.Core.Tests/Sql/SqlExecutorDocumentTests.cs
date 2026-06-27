@@ -279,6 +279,68 @@ public sealed class SqlExecutorDocumentTests : IDisposable
     }
 
     [Fact]
+    public void DocumentCollection_ExplainDocumentPlanner_ShowsCostPushdownSortAndPrefixIndex()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE DOCUMENT COLLECTION device_docs");
+        SqlExecutor.Execute(db, """
+            INSERT INTO device_docs (id, document)
+            VALUES ('dev-1', '{"tenant":"t1","site":"north","score":7}'),
+                   ('dev-2', '{"tenant":"t1","site":"south","score":3}'),
+                   ('dev-3', '{"tenant":"t2","site":"north","score":9}')
+            """);
+        SqlExecutor.Execute(db, "CREATE INDEX idx_docs_tenant_site ON device_docs ('$.tenant', '$.site')");
+
+        var explain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            EXPLAIN SELECT id, json_value(document, '$.tenant') AS tenant
+            FROM device_docs
+            WHERE json_value(document, '$.tenant') = 't1'
+            ORDER BY id
+            """));
+        var values = explain.Rows.ToDictionary(static r => (string)r[0]!, static r => r[1], StringComparer.Ordinal);
+
+        Assert.Equal("document_index_prefix", values["access_path"]);
+        Assert.Equal("idx_docs_tenant_site", values["index_name"]);
+        Assert.Equal(2L, Convert.ToInt64(values["estimated_candidate_rows"]));
+        Assert.Equal(2L, Convert.ToInt64(values["estimated_output_rows"]));
+        Assert.True((bool)values["filter_pushdown"]!);
+        Assert.Equal("$.tenant", values["filter_pushdown_fields"]);
+        Assert.Equal(string.Empty, values["residual_filter_fields"]);
+        Assert.False((bool)values["sort_uses_index"]!);
+        Assert.True((bool)values["projection_covered_by_index"]!);
+        Assert.Contains("*document_index_prefix:idx_docs_tenant_site", (string)values["candidate_plans"]!);
+        Assert.Equal("sort_requires_in_memory_order_by", values["gap_reason"]);
+    }
+
+    [Fact]
+    public void DocumentCollection_ExplainDocumentPlanner_ReportsIndexIntersectionGap()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE DOCUMENT COLLECTION device_docs");
+        SqlExecutor.Execute(db, """
+            INSERT INTO device_docs (id, document)
+            VALUES ('dev-1', '{"site":"north","kind":"pump"}'),
+                   ('dev-2', '{"site":"north","kind":"fan"}'),
+                   ('dev-3', '{"site":"south","kind":"pump"}')
+            """);
+        SqlExecutor.Execute(db, "CREATE INDEX idx_docs_site ON device_docs ('$.site')");
+        SqlExecutor.Execute(db, "CREATE INDEX idx_docs_kind ON device_docs ('$.kind')");
+
+        var explain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            EXPLAIN SELECT id
+            FROM device_docs
+            WHERE json_value(document, '$.site') = 'north'
+              AND json_value(document, '$.kind') = 'pump'
+            """));
+        var values = explain.Rows.ToDictionary(static r => (string)r[0]!, static r => r[1], StringComparer.Ordinal);
+
+        Assert.Equal("document_index", values["access_path"]);
+        Assert.Equal("index_intersection_not_supported", values["gap_reason"]);
+        Assert.Contains("document_index:idx_docs_site", (string)values["candidate_plans"]!);
+        Assert.Contains("document_index:idx_docs_kind", (string)values["candidate_plans"]!);
+    }
+
+    [Fact]
     public void DocumentCollection_DocumentIndex_NullLookupMatchesJsonNull()
     {
         using var db = Tsdb.Open(Options());

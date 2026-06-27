@@ -1,4 +1,5 @@
 using SonnetDB.Catalog;
+using SonnetDB.Documents;
 using SonnetDB.Engine;
 using SonnetDB.Memory;
 using SonnetDB.Model;
@@ -26,7 +27,8 @@ public sealed record SqlExplainExecutionResult(
     bool HasTimeFilter,
     int TagFilterCount,
     string? AccessPath = null,
-    string? IndexName = null);
+    string? IndexName = null,
+    DocumentQueryPlan? DocumentPlan = null);
 
 /// <summary>
 /// 为只读 SQL 估算查询将扫描的段数、block 数和行数。
@@ -80,7 +82,7 @@ public static class SqlExplainPlanner
     {
         ArgumentNullException.ThrowIfNull(result);
 
-        var rows = new List<IReadOnlyList<object?>>(13)
+        var rows = new List<IReadOnlyList<object?>>(22)
         {
             new object?[] { "database", result.Database },
             new object?[] { "statement_type", result.StatementType },
@@ -97,8 +99,31 @@ public static class SqlExplainPlanner
             new object?[] { "index_name", result.IndexName },
         };
 
+        if (result.DocumentPlan is { } documentPlan)
+        {
+            rows.Add(new object?[] { "estimated_candidate_rows", documentPlan.EstimatedCandidateRows });
+            rows.Add(new object?[] { "estimated_output_rows", documentPlan.EstimatedOutputRows });
+            rows.Add(new object?[] { "filter_pushdown", documentPlan.FilterPushdown });
+            rows.Add(new object?[] { "filter_pushdown_fields", string.Join(",", documentPlan.FilterPushdownFields) });
+            rows.Add(new object?[] { "residual_filter_fields", string.Join(",", documentPlan.ResidualFilterFields) });
+            rows.Add(new object?[] { "sort_uses_index", documentPlan.SortUsesIndex });
+            rows.Add(new object?[] { "projection_covered_by_index", documentPlan.ProjectionCoveredByIndex });
+            rows.Add(new object?[] { "candidate_plans", FormatDocumentPlanCandidates(documentPlan.Candidates) });
+            rows.Add(new object?[] { "gap_reason", documentPlan.GapReason });
+        }
+
         return new SelectExecutionResult(_keyValueColumns, rows);
     }
+
+    private static string FormatDocumentPlanCandidates(IReadOnlyList<DocumentQueryPlanCandidate> candidates)
+        => string.Join(
+            ";",
+            candidates.Select(static candidate =>
+                $"{(candidate.Selected ? "*" : string.Empty)}{candidate.AccessPath}"
+                + $"{(candidate.IndexName is null ? string.Empty : ":" + candidate.IndexName)}"
+                + $" rows={candidate.EstimatedCandidateRows} cost={candidate.Cost}"
+                + $"{(candidate.FilterPushdownFields.Count == 0 ? string.Empty : " pushdown=" + string.Join("|", candidate.FilterPushdownFields))}"
+                + $"{(candidate.RejectReason is null ? string.Empty : " reason=" + candidate.RejectReason)}"));
 
     private static SqlExplainExecutionResult ExplainShowMeasurements(string? databaseName, Tsdb tsdb)
     {
@@ -407,7 +432,7 @@ public static class SqlExplainPlanner
         var documentSchema = tsdb.Documents.Catalog.TryGet(statement.Measurement);
         if (documentSchema is not null)
         {
-            var (accessPath, indexName, rowCount) = DocumentSqlExecutor.ExplainAccess(tsdb, documentSchema, statement.Where);
+            var documentPlan = DocumentSqlExecutor.ExplainPlan(tsdb, documentSchema, statement);
             return new SqlExplainExecutionResult(
                 Database: databaseName,
                 StatementType: "select_document_collection",
@@ -415,13 +440,14 @@ public static class SqlExplainPlanner
                 MatchedSeriesCount: 0,
                 EstimatedSegmentCount: 0,
                 EstimatedBlockCount: 0,
-                EstimatedScannedRows: rowCount,
-                EstimatedMemTableRows: rowCount,
+                EstimatedScannedRows: documentPlan.EstimatedCandidateRows,
+                EstimatedMemTableRows: documentPlan.EstimatedCandidateRows,
                 EstimatedSegmentRows: 0,
                 HasTimeFilter: statement.Where is not null,
                 TagFilterCount: 0,
-                AccessPath: accessPath,
-                IndexName: indexName);
+                AccessPath: documentPlan.AccessPath,
+                IndexName: documentPlan.IndexName,
+                DocumentPlan: documentPlan);
         }
 
         var tableSchema = tsdb.Tables.Catalog.TryGet(statement.Measurement);

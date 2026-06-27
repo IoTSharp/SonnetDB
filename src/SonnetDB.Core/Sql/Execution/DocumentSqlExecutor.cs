@@ -346,6 +346,90 @@ internal static class DocumentSqlExecutor
         return ("document_scan", null, store.Scan().Count);
     }
 
+    public static DocumentQueryPlan ExplainPlan(
+        Tsdb tsdb,
+        DocumentCollectionSchema schema,
+        SelectStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(schema);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        var store = tsdb.Documents.Open(schema.Name);
+        if (TryExtractMatch(schema, statement.Where, statement.Pagination) is { } match)
+        {
+            match = ResolveFullTextMatch(store, match);
+            return BuildFullTextExplainPlan(match, HasAdditionalFullTextResidual(statement.Where));
+        }
+
+        var projections = BuildProjections(statement.Projections);
+        if (TryBuildDocumentFilter(statement.Where, out var filter)
+            && TryBuildDocumentSort(projections, statement.OrderBy, out var sort))
+        {
+            return DocumentQueryPlanner.Explain(
+                store,
+                schema,
+                new DocumentQuery(
+                    Filter: filter,
+                    Projection: TryBuildDocumentProjection(projections),
+                    Sort: sort,
+                    Limit: statement.Pagination?.Fetch,
+                    Skip: statement.Pagination?.Offset ?? 0));
+        }
+
+        var (accessPath, indexName, estimatedRows) = ExplainAccess(tsdb, schema, statement.Where);
+        return new DocumentQueryPlan(
+            accessPath,
+            indexName,
+            estimatedRows,
+            estimatedRows,
+            FilterPushdown: indexName is not null,
+            FilterPushdownFields: indexName is null ? Array.Empty<string>() : [indexName],
+            ResidualFilterFields: statement.Where is null ? Array.Empty<string>() : ["where"],
+            SortUsesIndex: statement.OrderBy is null && accessPath is ("document_id" or "document_scan"),
+            ProjectionCoveredByIndex: false,
+            Candidates:
+            [
+                new DocumentQueryPlanCandidate(
+                    accessPath,
+                    indexName,
+                    estimatedRows,
+                    estimatedRows,
+                    Selected: true,
+                    indexName is null ? Array.Empty<string>() : [indexName],
+                    RejectReason: null),
+            ],
+            GapReason: "sql_expression_not_supported_by_shared_document_planner");
+    }
+
+    private static DocumentQueryPlan BuildFullTextExplainPlan(FullTextMatch match, bool hasResidualFilter)
+    {
+        var candidate = new DocumentQueryPlanCandidate(
+            "fulltext_index",
+            match.Index.Name,
+            match.Hits.Count,
+            match.Hits.Count,
+            Selected: true,
+            [match.Index.Name],
+            RejectReason: null);
+        return new DocumentQueryPlan(
+            "fulltext_index",
+            match.Index.Name,
+            match.Hits.Count,
+            match.Hits.Count,
+            FilterPushdown: true,
+            FilterPushdownFields: [match.Index.Name],
+            ResidualFilterFields: hasResidualFilter ? ["where"] : Array.Empty<string>(),
+            SortUsesIndex: false,
+            ProjectionCoveredByIndex: false,
+            Candidates: [candidate],
+            GapReason: null);
+    }
+
+    private static bool HasAdditionalFullTextResidual(SqlExpression? where)
+        => where is not null
+           && FlattenAnd(where).Any(static leaf => !ContainsMatchFunction(leaf));
+
     private static int FindRequiredColumn(IReadOnlyList<string> columns, string name)
     {
         for (int i = 0; i < columns.Count; i++)
@@ -1078,6 +1162,20 @@ internal static class DocumentSqlExecutor
         }
 
         return false;
+    }
+
+    private static DocumentProjection? TryBuildDocumentProjection(Projection[] projections)
+    {
+        var fields = new List<DocumentProjectionField>(projections.Length);
+        foreach (var projection in projections)
+        {
+            if (!TryBindDocumentField(projection.Expression, out var field))
+                return null;
+
+            fields.Add(new DocumentProjectionField(projection.ColumnName, field));
+        }
+
+        return fields.Count == 0 ? null : new DocumentProjection(fields);
     }
 
     private static Projection[] BuildProjections(IReadOnlyList<SelectItem> items)

@@ -27,7 +27,7 @@ public static class DocumentQueryPlanner
         ArgumentNullException.ThrowIfNull(query);
         ValidateQuery(query);
 
-        var plan = ChooseAccessPath(store, schema, query.Filter);
+        var plan = ChooseAccessPath(store, schema, query);
         var matches = new List<DocumentRow>();
         foreach (var row in plan.Rows)
         {
@@ -42,7 +42,7 @@ public static class DocumentQueryPlanner
         foreach (var row in paged)
             items.Add(new DocumentQueryItem(row.Id, ProjectJson(row, query.Projection), row.Version));
 
-        return new DocumentQueryResult(items, matchedCount, plan.AccessPath, plan.IndexName);
+        return new DocumentQueryResult(items, matchedCount, plan.Plan.AccessPath, plan.Plan.IndexName);
     }
 
     /// <summary>
@@ -60,8 +60,28 @@ public static class DocumentQueryPlanner
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(schema);
 
-        var plan = ChooseAccessPath(store, schema, filter);
-        return (plan.AccessPath, plan.IndexName, plan.Rows.Count);
+        var plan = Explain(store, schema, new DocumentQuery(Filter: filter));
+        return (plan.AccessPath, plan.IndexName, plan.EstimatedCandidateRows);
+    }
+
+    /// <summary>
+    /// 解释文档查询的访问路径、代价与未实现优化缺口。
+    /// </summary>
+    /// <param name="store">文档集合存储。</param>
+    /// <param name="schema">文档集合 schema。</param>
+    /// <param name="query">查询计划。</param>
+    /// <returns>文档查询规划结果。</returns>
+    public static DocumentQueryPlan Explain(
+        DocumentCollectionStore store,
+        DocumentCollectionSchema schema,
+        DocumentQuery query)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(schema);
+        ArgumentNullException.ThrowIfNull(query);
+        ValidateQuery(query);
+
+        return ChooseAccessPath(store, schema, query).Plan;
     }
 
     /// <summary>
@@ -126,27 +146,302 @@ public static class DocumentQueryPlanner
     private static AccessPlan ChooseAccessPath(
         DocumentCollectionStore store,
         DocumentCollectionSchema schema,
-        DocumentFilter? filter)
+        DocumentQuery query)
     {
-        if (TryExtractIdEquals(filter, out string id))
+        var candidates = BuildAccessCandidates(store, schema, query).ToArray();
+        var selected = candidates
+            .OrderBy(static candidate => candidate.Cost)
+            .ThenByDescending(static candidate => candidate.FilterPushdownFields.Count)
+            .ThenBy(static candidate => candidate.IndexName, StringComparer.Ordinal)
+            .First();
+        var rows = selected.Rows;
+        int outputRows = CountMatches(query.Filter, rows);
+        var selectedCandidate = new DocumentQueryPlanCandidate(
+            selected.AccessPath,
+            selected.IndexName,
+            selected.Rows.Count,
+            selected.Cost,
+            Selected: true,
+            selected.FilterPushdownFields,
+            RejectReason: null);
+        var planCandidates = candidates
+            .Select(candidate => ReferenceEquals(candidate, selected)
+                ? selectedCandidate
+                : new DocumentQueryPlanCandidate(
+                    candidate.AccessPath,
+                    candidate.IndexName,
+                    candidate.Rows.Count,
+                    candidate.Cost,
+                    Selected: false,
+                    candidate.FilterPushdownFields,
+                    candidate.RejectReason ?? BuildRejectReason(candidate, selected)))
+            .OrderBy(static candidate => candidate.Cost)
+            .ThenBy(static candidate => candidate.IndexName, StringComparer.Ordinal)
+            .ToArray();
+        var pushed = new HashSet<string>(selected.FilterPushdownFields, StringComparer.Ordinal);
+        var residual = CollectFilterFields(query.Filter)
+            .Where(field => !pushed.Contains(field))
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        var plan = new DocumentQueryPlan(
+            selected.AccessPath,
+            selected.IndexName,
+            selected.Rows.Count,
+            outputRows,
+            selected.FilterPushdownFields.Count > 0,
+            selected.FilterPushdownFields,
+            residual,
+            SortUsesIndex(selected, query.Sort),
+            ProjectionCoveredByIndex(selected, query.Projection),
+            planCandidates,
+            BuildGapReason(schema, query, selected));
+
+        return new AccessPlan(rows, plan);
+    }
+
+    private static IEnumerable<AccessCandidate> BuildAccessCandidates(
+        DocumentCollectionStore store,
+        DocumentCollectionSchema schema,
+        DocumentQuery query)
+    {
+        if (TryExtractIdEquals(query.Filter, out string id))
         {
             var row = store.Get(id);
-            return new AccessPlan(
-                row is null ? Array.Empty<DocumentRow>() : [row],
+            IReadOnlyList<DocumentRow> rows = row is null ? Array.Empty<DocumentRow>() : [row];
+            yield return new AccessCandidate(
+                rows,
                 "document_id",
-                "primary");
+                "primary",
+                Math.Max(0, rows.Count - 1),
+                [FormatField(DocumentFieldRef.Id)],
+                RejectReason: null);
         }
-
-        if (TryChoosePathIndex(schema, filter, out var index, out var values))
+        else if (TryExtractIdSet(query.Filter, out var ids))
         {
-            return new AccessPlan(
-                store.GetByIndex(index, values),
-                "document_index",
-                index.Name);
+            var rows = store.GetMany(ids);
+            yield return new AccessCandidate(
+                rows,
+                "document_id_set",
+                "primary",
+                rows.Count,
+                [FormatField(DocumentFieldRef.Id)],
+                RejectReason: null);
         }
 
-        return new AccessPlan(store.Scan(), "document_scan", null);
+        var leaves = FlattenAnd(query.Filter).ToArray();
+        var equalityByPath = ExtractEqualityByPath(leaves);
+        foreach (var index in schema.Indexes)
+        {
+            if (!CanUsePartialIndex(index, leaves))
+                continue;
+
+            var prefixValues = BuildIndexPrefixValues(index, equalityByPath);
+            if (prefixValues.Count == 0)
+                continue;
+
+            if (index.IsSparse && prefixValues.Any(static value => value is null))
+                continue;
+
+            var rows = prefixValues.Count == index.Paths.Count
+                ? store.GetByIndex(index, prefixValues)
+                : store.GetByIndexPrefix(index, prefixValues);
+            var pushedFields = index.Paths.Take(prefixValues.Count).ToArray();
+            int residualPenalty = Math.Max(0, CollectFilterFields(query.Filter).Count() - pushedFields.Length);
+            yield return new AccessCandidate(
+                rows,
+                prefixValues.Count == index.Paths.Count ? "document_index" : "document_index_prefix",
+                index.Name,
+                rows.Count + residualPenalty,
+                pushedFields,
+                RejectReason: null);
+        }
+
+        var scanRows = store.Scan();
+        yield return new AccessCandidate(
+            scanRows,
+            "document_scan",
+            null,
+            scanRows.Count,
+            Array.Empty<string>(),
+            RejectReason: null);
     }
+
+    private static Dictionary<string, object?> ExtractEqualityByPath(IReadOnlyList<DocumentFilter> leaves)
+    {
+        var equalityByPath = new Dictionary<string, object?>(StringComparer.Ordinal);
+        foreach (var leaf in leaves)
+        {
+            if (leaf is not DocumentFieldFilter
+                {
+                    Field.Kind: DocumentFieldKind.JsonPath,
+                    Field.Path: not null,
+                    Operator: DocumentFilterOperator.Equal,
+                    Value: var filterValue,
+                } fieldFilter)
+            {
+                continue;
+            }
+
+            string normalized = JsonPath.Parse(fieldFilter.Field.Path).Text;
+            equalityByPath[normalized] = filterValue;
+        }
+
+        return equalityByPath;
+    }
+
+    private static IReadOnlyList<object?> BuildIndexPrefixValues(
+        DocumentPathIndex index,
+        IReadOnlyDictionary<string, object?> equalityByPath)
+    {
+        var values = new List<object?>(index.Paths.Count);
+        foreach (string path in index.Paths)
+        {
+            if (!equalityByPath.TryGetValue(path, out var value))
+                break;
+
+            values.Add(value);
+        }
+
+        return values;
+    }
+
+    private static int CountMatches(DocumentFilter? filter, IReadOnlyList<DocumentRow> rows)
+    {
+        int count = 0;
+        foreach (var row in rows)
+        {
+            if (Matches(filter, row))
+                count++;
+        }
+
+        return count;
+    }
+
+    private static IEnumerable<string> CollectFilterFields(DocumentFilter? filter)
+    {
+        if (filter is null)
+            yield break;
+
+        switch (filter)
+        {
+            case DocumentAndFilter and:
+                foreach (var child in and.Filters)
+                {
+                    foreach (var field in CollectFilterFields(child))
+                        yield return field;
+                }
+                yield break;
+
+            case DocumentOrFilter or:
+                foreach (var child in or.Filters)
+                {
+                    foreach (var field in CollectFilterFields(child))
+                        yield return field;
+                }
+                yield break;
+
+            case DocumentNotFilter not:
+                foreach (var field in CollectFilterFields(not.Filter))
+                    yield return field;
+                yield break;
+
+            case DocumentFieldFilter field:
+                yield return FormatField(field.Field);
+                yield break;
+        }
+    }
+
+    private static string BuildRejectReason(AccessCandidate candidate, AccessCandidate selected)
+        => candidate.Rows.Count > selected.Rows.Count
+            ? "higher_candidate_rows"
+            : "higher_or_equal_cost";
+
+    private static string? BuildGapReason(
+        DocumentCollectionSchema schema,
+        DocumentQuery query,
+        AccessCandidate selected)
+    {
+        if (HasIndexIntersectionOpportunity(schema, query.Filter, selected))
+            return "index_intersection_not_supported";
+
+        if (!SortUsesIndex(selected, query.Sort) && query.Sort.Count > 0)
+            return "sort_requires_in_memory_order_by";
+
+        if (!ProjectionCoveredByIndex(selected, query.Projection) && query.Projection is { Fields.Count: > 0 })
+            return "projection_not_covered_by_index";
+
+        return null;
+    }
+
+    private static bool HasIndexIntersectionOpportunity(
+        DocumentCollectionSchema schema,
+        DocumentFilter? filter,
+        AccessCandidate selected)
+    {
+        var equalityByPath = ExtractEqualityByPath(FlattenAnd(filter).ToArray());
+        if (equalityByPath.Count < 2)
+            return false;
+
+        int usableSingleFieldIndexes = 0;
+        foreach (var index in schema.Indexes)
+        {
+            if (index.Paths.Count != 1)
+                continue;
+            if (!equalityByPath.ContainsKey(index.Path))
+                continue;
+            if (string.Equals(index.Name, selected.IndexName, StringComparison.Ordinal))
+                continue;
+
+            usableSingleFieldIndexes++;
+        }
+
+        return usableSingleFieldIndexes >= 2
+               || (usableSingleFieldIndexes >= 1 && selected.AccessPath is "document_index" or "document_index_prefix");
+    }
+
+    private static bool SortUsesIndex(AccessCandidate selected, IReadOnlyList<DocumentSort> sort)
+    {
+        if (sort.Count == 0)
+            return selected.AccessPath is "document_id" or "document_scan";
+
+        if (selected.Rows.Count <= 1)
+            return true;
+
+        if (sort.Count != 1 || sort[0].Descending)
+            return false;
+
+        return sort[0].Field.Kind == DocumentFieldKind.Id
+               && selected.AccessPath is "document_id" or "document_scan";
+    }
+
+    private static bool ProjectionCoveredByIndex(AccessCandidate selected, DocumentProjection? projection)
+    {
+        if (projection is null || projection.Fields.Count == 0)
+            return false;
+
+        var pushed = new HashSet<string>(selected.FilterPushdownFields, StringComparer.Ordinal);
+        foreach (var field in projection.Fields)
+        {
+            string formatted = FormatField(field.Field);
+            if (!string.Equals(formatted, "_id", StringComparison.Ordinal)
+                && !pushed.Contains(formatted))
+            {
+                return false;
+            }
+        }
+
+        return selected.AccessPath is "document_id" or "document_index" or "document_index_prefix";
+    }
+
+    private static string FormatField(DocumentFieldRef field)
+        => field.Kind switch
+        {
+            DocumentFieldKind.Id => "_id",
+            DocumentFieldKind.Document => "document",
+            DocumentFieldKind.JsonPath => JsonPath.Parse(RequirePath(field)).Text,
+            _ => field.Kind.ToString(),
+        };
 
     private static bool TryExtractIdEquals(DocumentFilter? filter, out string id)
     {
@@ -168,59 +463,30 @@ public static class DocumentQueryPlanner
         return false;
     }
 
-    private static bool TryChoosePathIndex(
-        DocumentCollectionSchema schema,
-        DocumentFilter? filter,
-        out DocumentPathIndex index,
-        out IReadOnlyList<object?> values)
+    private static bool TryExtractIdSet(DocumentFilter? filter, out IReadOnlyList<string> ids)
     {
-        index = null!;
-        values = [];
-        if (schema.Indexes.Count == 0)
-            return false;
-
-        var leaves = FlattenAnd(filter).ToArray();
-        var equalityByPath = new Dictionary<string, object?>(StringComparer.Ordinal);
-        foreach (var leaf in leaves)
+        ids = Array.Empty<string>();
+        foreach (var leaf in FlattenAnd(filter))
         {
             if (leaf is not DocumentFieldFilter
                 {
-                    Field.Kind: DocumentFieldKind.JsonPath,
-                    Field.Path: not null,
-                    Operator: DocumentFilterOperator.Equal,
-                    Value: var filterValue,
-                } fieldFilter)
+                    Field.Kind: DocumentFieldKind.Id,
+                    Operator: DocumentFilterOperator.In,
+                    Value: var value,
+                })
             {
                 continue;
             }
 
-            string normalized = JsonPath.Parse(fieldFilter.Field.Path).Text;
-            equalityByPath[normalized] = filterValue;
-        }
-
-        foreach (var candidate in schema.Indexes.OrderByDescending(static i => i.Paths.Count))
-        {
-            if (!CanUsePartialIndex(candidate, leaves))
+            var values = EnumerateFilterValues(value)
+                .OfType<string>()
+                .Where(static id => !string.IsNullOrWhiteSpace(id))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            if (values.Length == 0)
                 continue;
 
-            var candidateValues = new object?[candidate.Paths.Count];
-            bool matched = true;
-            for (int i = 0; i < candidate.Paths.Count; i++)
-            {
-                if (!equalityByPath.TryGetValue(candidate.Paths[i], out candidateValues[i]))
-                {
-                    matched = false;
-                    break;
-                }
-            }
-
-            if (!matched)
-                continue;
-            if (candidate.IsSparse && candidateValues.Any(static value => value is null))
-                continue;
-
-            index = candidate;
-            values = candidateValues;
+            ids = values;
             return true;
         }
 
@@ -621,8 +887,15 @@ public static class DocumentQueryPlanner
 
     private sealed record AccessPlan(
         IReadOnlyList<DocumentRow> Rows,
+        DocumentQueryPlan Plan);
+
+    private sealed record AccessCandidate(
+        IReadOnlyList<DocumentRow> Rows,
         string AccessPath,
-        string? IndexName);
+        string? IndexName,
+        int Cost,
+        IReadOnlyList<string> FilterPushdownFields,
+        string? RejectReason);
 
     private readonly struct SortValue
     {

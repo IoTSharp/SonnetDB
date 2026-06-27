@@ -340,6 +340,52 @@ public sealed class DocumentCollectionStore : IDisposable
     }
 
     /// <summary>
+    /// 按文档二级索引的等值前缀读取候选文档。
+    /// </summary>
+    /// <param name="index">文档二级索引声明。</param>
+    /// <param name="values">从索引首列开始连续匹配的等值谓词值。</param>
+    /// <param name="limit">最多返回行数。</param>
+    public IReadOnlyList<DocumentRow> GetByIndexPrefix(DocumentPathIndex index, IReadOnlyList<object?> values, int? limit = null)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        ArgumentNullException.ThrowIfNull(values);
+        lock (_sync)
+        {
+            PurgeExpiredDocumentsLocked();
+
+            var partSets = EncodeLookupPartSets(index, values, allowPrefix: true);
+            if (partSets.Count == 0)
+                return [];
+
+            int take = limit ?? int.MaxValue;
+            var rows = new List<DocumentRow>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var parts in partSets)
+            {
+                byte[] prefix = DocumentIndexCodec.EncodeIndexPrefix(index, parts);
+                var entries = _keyspace.ScanPrefix(prefix, take - rows.Count);
+                foreach (var entry in entries)
+                {
+                    string id = DocumentIndexCodec.DecodeIndexEntryValue(entry.Value.Span);
+                    if (!seen.Add(id))
+                        continue;
+
+                    var row = GetLocked(id);
+                    if (row is not null)
+                        rows.Add(row);
+                    if (rows.Count >= take)
+                        break;
+                }
+
+                if (rows.Count >= take)
+                    break;
+            }
+
+            return rows;
+        }
+    }
+
+    /// <summary>
     /// 按 JSON path 索引从指定文档 ID 之后继续读取候选文档。
     /// </summary>
     /// <param name="index">JSON path 索引声明。</param>
@@ -660,9 +706,12 @@ public sealed class DocumentCollectionStore : IDisposable
         };
     }
 
-    private static IReadOnlyList<IReadOnlyList<DocumentIndexKeyPart>> EncodeLookupPartSets(DocumentPathIndex index, IReadOnlyList<object?> values)
+    private static IReadOnlyList<IReadOnlyList<DocumentIndexKeyPart>> EncodeLookupPartSets(
+        DocumentPathIndex index,
+        IReadOnlyList<object?> values,
+        bool allowPrefix = false)
     {
-        if (values.Count != index.Paths.Count)
+        if (allowPrefix ? values.Count > index.Paths.Count : values.Count != index.Paths.Count)
             throw new ArgumentException("索引值数量与索引 path 数量不一致。", nameof(values));
 
         var partSets = new List<DocumentIndexKeyPart[]> { new DocumentIndexKeyPart[values.Count] };

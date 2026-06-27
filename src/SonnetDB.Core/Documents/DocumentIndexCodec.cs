@@ -37,7 +37,7 @@ internal static class DocumentIndexCodec
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(values);
-        if (values.Count != index.Paths.Count)
+        if (values.Count > index.Paths.Count)
             throw new ArgumentException("索引值数量与索引 path 数量不一致。", nameof(values));
 
         byte[] indexNameBytes = _utf8.GetBytes(index.Name);
@@ -65,6 +65,9 @@ internal static class DocumentIndexCodec
 
     public static byte[] EncodeIndexEntryKey(DocumentPathIndex index, IReadOnlyList<DocumentIndexKeyPart> values, string id)
     {
+        if (values.Count != index.Paths.Count)
+            throw new ArgumentException("Index entry value count must match the index path count.", nameof(values));
+
         byte[] prefix = EncodeIndexPrefix(index, values);
         if (index.IsUnique)
             return prefix;
