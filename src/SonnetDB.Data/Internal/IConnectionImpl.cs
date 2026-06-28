@@ -1,6 +1,7 @@
 ﻿using System.Data;
 using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
+using SonnetDB.Tables;
 
 namespace SonnetDB.Data.Internal;
 
@@ -54,6 +55,9 @@ internal interface IConnectionImpl : IDisposable
 
     /// <summary>异步提交一段轻事务。</summary>
     Task CommitTransactionAsync(object transactionState, CancellationToken cancellationToken);
+
+    /// <summary>读取关系表 schema 快照，供 ADO.NET 元数据 API 使用。</summary>
+    IReadOnlyList<TableSchema> SnapshotTables();
 
     /// <summary>回滚一段轻事务。</summary>
     void RollbackTransaction(object transactionState);

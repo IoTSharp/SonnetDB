@@ -7,6 +7,9 @@
 
 ### Added
 
+- **Data parity：embedded/remote ADO.NET schema 矩阵**：`SndbConnection.GetSchema("Tables"|"Columns"|"Indexes")` 在远程模式下改为通过 `/v1/db/{db}/schema` 读取真实关系表 schema，不再因缺少本地 `UnderlyingTsdb` 返回空集合；新增 embedded/remote 双模式矩阵测试覆盖表、列、唯一索引元数据一致性。
+- **EF remote hardening**：`SonnetDbDatabaseCreator` 对远程连接明确实现 `Create` / `Delete` / `Exists` 语义，`Create` / `Delete` 走 `/v1/db` 控制面，`Exists` 通过远程 schema 探测真实数据库存在性；新增真实 Kestrel 远程 EF 生命周期测试。
+- **缓存双模式测试**：新增 SonnetDB.Caching embedded/remote E2E 覆盖 EasyCaching provider、`IDistributedCache`、TTL 过期、janitor `CleanExpired` 与 prefix remove，固定缓存扩展在本地目录与远程 HTTP KV API 下的语义一致性。
 - **PR #146 磁盘有序 KV / 文档容量底座**：KV state/segment 文件升级到 v3 并支持按 key/offset 打开磁盘有序段，冷启动只加载 key metadata 与 WAL overlay，不再把 compact 后的 document 主数据和 JSON path 索引 value 全量常驻内存；`ScanPrefix` / `ScanPrefixAfter` 通过磁盘段与 WAL overlay 有序合并，`Compact()` 会生成单个 SSTable-like 段并截断 WAL，删除 tombstone 可阻止崩溃恢复后旧磁盘 key 复活。Document backup checkpoint 改为对集合主数据执行 compact，backup/restore 覆盖 `.SDBKVSEG` 有序段恢复与索引一致性。
 - **PR #145 文档校验执行能力**：Document Store 新增 collection validator 执行层与 schema 持久化（`documents.docschema` v4，兼容读取 v1~v3），支持 required/type/range/enum/pattern 校验与 validation action `error` / `warn`；`Insert`、`InsertMany`、整体替换、局部 update/upsert 统一在提交前执行 validator，error 拒绝写入并返回稳定 `validation_failed`，warn 允许写入并返回 `severity=warning`。SQL 新增 `ALTER DOCUMENT COLLECTION ... SET/DROP VALIDATOR`，HTTP 新增 `/documents/{collection}/validator`，`SndbDocumentClient` 新增 `SetValidatorAsync` / `DropValidatorAsync`，OpenAPI 与测试同步覆盖。
 - **PR #144 单文档原子性与批量写轻事务**：Document Store 写路径新增 `DocumentWriteResult` / 稳定错误码与批量预检提交边界，`InsertMany`、整体替换型 `UpdateMany`、`DeleteMany` 支持 ordered/unordered 语义；ordered 批次在 duplicate key、validation failed、write conflict、document too large 时整体拒绝提交，unordered 批次提交有效项并返回 per-item `errors`。HTTP Document API 与 `SndbDocumentClient` 同步暴露 `ordered` 参数、错误数组与 207 partial success 响应，单文档 insert/update/delete 继续通过同一 mutation 路径同步维护 JSON path index 与 fulltext index。

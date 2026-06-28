@@ -7,6 +7,7 @@ using System.Text.Json;
 using SonnetDB.Data.Embedded;
 using SonnetDB.Data.Internal;
 using SonnetDB.Ingest;
+using SonnetDB.Tables;
 
 namespace SonnetDB.Data.Remote;
 
@@ -387,6 +388,33 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         transaction.MarkCompleted();
     }
 
+    public IReadOnlyList<TableSchema> SnapshotTables()
+        => SnapshotTablesAsync(CancellationToken.None).GetAwaiter().GetResult();
+
+    private async Task<IReadOnlyList<TableSchema>> SnapshotTablesAsync(CancellationToken cancellationToken)
+    {
+        if (_http is null || _state != ConnectionState.Open)
+            throw new InvalidOperationException("连接未打开。");
+
+        var url = $"v1/db/{Uri.EscapeDataString(_database)}/schema";
+        using var response = await _http.GetAsync(url, HttpCompletionOption.ResponseContentRead, cancellationToken)
+            .ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        var body = await JsonSerializer.DeserializeAsync(
+                stream,
+                RemoteJsonContext.Default.RemoteSchemaResponse,
+                cancellationToken)
+            .ConfigureAwait(false)
+            ?? throw new InvalidDataException("SonnetDB schema response body is empty.");
+
+        return (body.Tables ?? [])
+            .Select(ToTableSchema)
+            .ToArray();
+    }
+
     public void RollbackTransaction(object transactionState)
     {
         var transaction = GetRequiredTransactionState(transactionState);
@@ -510,6 +538,50 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
     private static RemoteTransactionState GetRequiredTransactionState(object transactionState)
         => GetTransactionState(transactionState)
             ?? throw new InvalidOperationException("事务状态为空。");
+
+    private static TableSchema ToTableSchema(RemoteTableInfo table)
+    {
+        var columns = table.Columns
+            .OrderBy(static column => column.Ordinal)
+            .Select(static column => (
+                column.Name,
+                ParseTableColumnType(column.DataType),
+                column.IsNullable))
+            .ToArray();
+        var indexes = table.Indexes
+            .Select(static index => new TableIndexDefinition(
+                index.Name,
+                index.Columns,
+                index.IsUnique,
+                index.CreatedUtc.UtcDateTime.Ticks,
+                index.JsonPath))
+            .ToArray();
+
+        return TableSchema.Create(
+            table.Name,
+            columns,
+            table.PrimaryKey,
+            indexes,
+            createdAtUtcTicks: table.CreatedUtc.UtcDateTime.Ticks);
+    }
+
+    private static TableColumnType ParseTableColumnType(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        return value.Trim().ToUpperInvariant() switch
+        {
+            "INT" or "INT64" or "INTEGER" or "BIGINT" => TableColumnType.Int64,
+            "FLOAT" or "FLOAT64" or "DOUBLE" or "REAL" => TableColumnType.Float64,
+            "BOOL" or "BOOLEAN" => TableColumnType.Boolean,
+            "STRING" or "TEXT" => TableColumnType.String,
+            "DATETIME" or "TIMESTAMP" => TableColumnType.DateTime,
+            "BLOB" or "BINARY" => TableColumnType.Blob,
+            "JSON" => TableColumnType.Json,
+            _ => Enum.TryParse<TableColumnType>(value, ignoreCase: true, out var parsed)
+                ? parsed
+                : throw new InvalidDataException($"远程 schema 返回未知表列类型 '{value}'。"),
+        };
+    }
 
     /// <summary>
     /// 解析连接字符串中的 <c>Data Source</c>，返回 (baseUrl, databaseFromPath)。

@@ -77,3 +77,46 @@ internal sealed class BulkIngestResponseBody
     [JsonPropertyName("elapsedMilliseconds")]
     public double ElapsedMilliseconds { get; set; }
 }
+
+internal sealed record RemoteSchemaResponse(
+    List<RemoteMeasurementInfo> Measurements,
+    List<RemoteTableInfo>? Tables = null);
+
+internal sealed record RemoteMeasurementInfo(
+    string Name,
+    List<RemoteColumnInfo> Columns);
+
+internal sealed record RemoteColumnInfo(
+    string Name,
+    string Role,
+    string DataType,
+    int? VectorDimension = null,
+    RemoteVectorIndexInfo? VectorIndex = null);
+
+internal sealed record RemoteVectorIndexInfo(
+    string Kind,
+    List<RemoteKeyValueInfo> Options);
+
+internal sealed record RemoteKeyValueInfo(string Key, string Value);
+
+internal sealed record RemoteTableInfo(
+    string Name,
+    List<RemoteTableColumnInfo> Columns,
+    List<string> PrimaryKey,
+    List<RemoteTableIndexInfo> Indexes,
+    DateTimeOffset CreatedUtc);
+
+internal sealed record RemoteTableColumnInfo(
+    string Name,
+    string DataType,
+    bool IsPrimaryKey,
+    bool IsNullable,
+    int Ordinal);
+
+internal sealed record RemoteTableIndexInfo(
+    string Name,
+    List<string> Columns,
+    bool IsUnique,
+    DateTimeOffset CreatedUtc,
+    bool Rebuildable,
+    string? JsonPath = null);

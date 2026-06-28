@@ -27,6 +27,7 @@
     <ProjectReference Include="..\..\src\SonnetDB.Core\SonnetDB.Core.csproj" />
     <ProjectReference Include="..\..\src\SonnetDB\SonnetDB.csproj" />
     <ProjectReference Include="..\..\src\SonnetDB.Data\SonnetDB.Data.csproj" />
+    <ProjectReference Include="..\..\extensions\SonnetDB.Caching\SonnetDB.Caching.csproj" />
   </ItemGroup>
 
   <ItemGroup>

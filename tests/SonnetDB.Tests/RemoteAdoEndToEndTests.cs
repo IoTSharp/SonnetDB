@@ -77,6 +77,19 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         return c;
     }
 
+    private SndbConnection OpenAdoSchemaMatrixConnection(string mode)
+    {
+        if (string.Equals(mode, "remote", StringComparison.Ordinal))
+            return OpenRemote();
+
+        var path = Path.Combine(
+            _dataRoot ?? Path.GetTempPath(),
+            "embedded-ado-schema-matrix-" + Guid.NewGuid().ToString("N"));
+        var connection = new SndbConnection($"Data Source={path}");
+        connection.Open();
+        return connection;
+    }
+
     [Fact]
     public void ConnectionString_Scheme_DispatchesToRemote()
     {
@@ -134,6 +147,49 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         Assert.Equal(2000L, r.GetInt64(0));
         Assert.False(r.Read());
         Assert.Equal(-1, r.RecordsAffected);
+    }
+
+    [Theory]
+    [InlineData("embedded")]
+    [InlineData("remote")]
+    public void AdoGetSchema_EmbeddedAndRemote_ReturnsTablesColumnsAndIndexes(string mode)
+    {
+        using var connection = OpenAdoSchemaMatrixConnection(mode);
+        using (var ddl = connection.CreateCommand())
+        {
+            ddl.CommandText = "CREATE TABLE schema_devices (id INT, name STRING NULL, enabled BOOL, PRIMARY KEY (id))";
+            Assert.Equal(0, ddl.ExecuteNonQuery());
+            ddl.CommandText = "CREATE UNIQUE INDEX ux_schema_devices_name ON schema_devices (name)";
+            Assert.Equal(0, ddl.ExecuteNonQuery());
+        }
+
+        var collections = connection.GetSchema();
+        Assert.Contains(
+            collections.Rows.Cast<DataRow>(),
+            row => string.Equals((string)row["CollectionName"], "Tables", StringComparison.Ordinal));
+
+        var tables = connection.GetSchema("Tables", [null, null, "schema_devices", null]);
+        var table = Assert.Single(tables.Rows.Cast<DataRow>());
+        Assert.Equal(connection.Database, table["TABLE_CATALOG"]);
+        Assert.Equal("schema_devices", table["TABLE_NAME"]);
+        Assert.Equal("BASE TABLE", table["TABLE_TYPE"]);
+
+        var columns = connection.GetSchema("Columns", [null, null, "schema_devices", null]);
+        Assert.Equal(
+            ["id", "name", "enabled"],
+            columns.Rows.Cast<DataRow>().Select(static row => (string)row["COLUMN_NAME"]).ToArray());
+        Assert.Contains(
+            columns.Rows.Cast<DataRow>(),
+            row => string.Equals((string)row["COLUMN_NAME"], "id", StringComparison.Ordinal)
+                && (bool)row["IS_PRIMARY_KEY"]
+                && !(bool)row["IS_NULLABLE"]
+                && string.Equals((string)row["DATA_TYPE"], "INT", StringComparison.Ordinal));
+
+        var indexes = connection.GetSchema("Indexes", [null, null, "schema_devices", "ux_schema_devices_name"]);
+        var index = Assert.Single(indexes.Rows.Cast<DataRow>());
+        Assert.Equal("ux_schema_devices_name", index["INDEX_NAME"]);
+        Assert.True((bool)index["IS_UNIQUE"]);
+        Assert.Equal("name", index["COLUMN_NAME"]);
     }
 
     [Fact]

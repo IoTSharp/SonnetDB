@@ -627,7 +627,12 @@ public sealed class SndbConnection : DbConnection
     }
 
     private IReadOnlyList<TableSchema> SnapshotTables()
-        => UnderlyingTsdb?.Tables.Catalog.Snapshot() ?? Array.Empty<TableSchema>();
+    {
+        if (_impl is null || _impl.State != ConnectionState.Open)
+            return Array.Empty<TableSchema>();
+
+        return _impl.SnapshotTables();
+    }
 
     private static string? Restriction(string?[]? restrictionValues, int index)
         => restrictionValues is not null && restrictionValues.Length > index

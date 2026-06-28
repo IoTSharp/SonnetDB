@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -5,6 +7,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.DependencyInjection;
+using SonnetDB.Configuration;
 using SonnetDB.Data;
 using SonnetDB.EntityFrameworkCore.Extensions;
 using Xunit;
@@ -302,6 +306,62 @@ public sealed class SonnetDbProviderTests : IDisposable
         finally
         {
             await context.Database.CloseConnectionAsync();
+        }
+    }
+
+    [Fact]
+    public async Task RemoteDatabaseCreator_CreateDeleteExists_UsesServerControlPlane()
+    {
+        const string token = "ef-remote-admin";
+        const string database = "ef_remote_lifecycle";
+        var dataRoot = Path.Combine(Path.GetTempPath(), "sndb-ef-remote-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dataRoot);
+
+        await using var app = EfTestServerHost.Build(new ServerOptions
+        {
+            DataRoot = dataRoot,
+            AutoLoadExistingDatabases = true,
+            AllowAnonymousProbes = true,
+            Tokens = new Dictionary<string, string>
+            {
+                [token] = ServerRoles.Admin,
+            },
+        });
+
+        try
+        {
+            await app.StartAsync();
+            var addresses = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()
+                ?? throw new InvalidOperationException("Kestrel 未暴露监听地址。");
+            var baseUrl = addresses.Addresses.First();
+            var connectionString = $"Data Source=sonnetdb+http://{new Uri(baseUrl).Authority}/{database};Token={token};Timeout=30";
+
+            using var context = new DeviceContext(
+                new DbContextOptionsBuilder<DeviceContext>()
+                    .UseSonnetDB(connectionString)
+                    .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning))
+                    .Options);
+
+            var creator = context.Database.GetService<IRelationalDatabaseCreator>();
+            Assert.False(await creator.ExistsAsync());
+
+            await creator.CreateAsync();
+            Assert.True(await creator.ExistsAsync());
+
+            await context.Database.ExecuteSqlRawAsync(
+                "CREATE TABLE \"Devices\" (\"Id\" INT NOT NULL, \"Name\" STRING NOT NULL, \"Enabled\" BOOL NOT NULL, PRIMARY KEY (\"Id\"))");
+            Assert.True(await creator.HasTablesAsync());
+
+            await creator.DeleteAsync();
+            Assert.False(await creator.ExistsAsync());
+        }
+        finally
+        {
+            await app.StopAsync();
+            if (Directory.Exists(dataRoot))
+            {
+                try { Directory.Delete(dataRoot, recursive: true); } catch { /* best-effort */ }
+            }
         }
     }
 

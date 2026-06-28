@@ -24,6 +24,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\SonnetDB.EntityFrameworkCore\SonnetDB.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="..\..\src\SonnetDB\SonnetDB.csproj" />
+    <ProjectReference Include="..\..\src\SonnetDB.Data\SonnetDB.Data.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
 </Project>

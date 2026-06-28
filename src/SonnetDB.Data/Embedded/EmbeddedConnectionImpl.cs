@@ -6,6 +6,7 @@ using SonnetDB.Ingest;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
+using SonnetDB.Tables;
 
 namespace SonnetDB.Data.Embedded;
 
@@ -190,6 +191,14 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
         cancellationToken.ThrowIfCancellationRequested();
         CommitTransaction(transactionState);
         return Task.CompletedTask;
+    }
+
+    public IReadOnlyList<TableSchema> SnapshotTables()
+    {
+        if (_tsdb is null || _state != ConnectionState.Open)
+            throw new InvalidOperationException("连接未打开。");
+
+        return _tsdb.Tables.Catalog.Snapshot();
     }
 
     public void RollbackTransaction(object transactionState)
