@@ -988,6 +988,38 @@ extensions/
 
 ---
 
+## Milestone 27 — Industrial Data Agent 与 AI-ready 产品化路线
+
+> **目标**：把 SonnetDB 的对外门面从“多模型数据库”收敛为“面向 .NET 工业边缘应用的本地优先数据引擎”，并把 Copilot 从通用 SQL 助手推进到可被生产场景理解、演示和集成的 **Industrial Data Agent**。本里程碑优先做产品定位、AI-ready 文档、工业 Demo、Agent 工具边界和 provider-neutral 能力，不改动核心二进制格式。
+
+> **边界**：
+> 1. 多模型能力仍然保留，但作为能力矩阵描述，不再作为 README 第一屏的唯一定位。
+> 2. Copilot / Agent 的第一责任是读取 schema、生成 SonnetDB 方言 SQL、执行只读分析、解释结果和请求写入审批；不绕过现有权限模型。
+> 3. AI provider 必须走抽象层，不把 SonnetDB 绑定到 GPT、Claude、Gemini、DeepSeek、Qwen、Ollama 或任一单一供应商。
+> 4. 工业 Demo 以 MQTT / HTTP ingest、设备异常、维修建议和 IoTSharp 生态集成为主，不把 SonnetDB 宣传为分布式云 TSDB 或大型集群平台。
+
+### PR 拆分
+
+| PR | 主题 | 状态 |
+|----|------|------|
+| #182 | **AI-ready 门面文档第一批**：README / README.en 第一屏改为 `.NET industrial edge local-first data engine`；新增 `llms.txt`、`docs/industrial-ai-applications.md`，让开发者和 AI Agent 明确 SonnetDB 适合工业边缘、IoT telemetry、本地数据引擎、Copilot / MCP 场景。 | 🚧 |
+| #183 | **Industrial Data Agent 工具契约**：梳理并稳定 MCP / Copilot 工具命名、参数和权限边界，形成 `list_databases`、`list_measurements`、`describe_measurement`、`sample_rows`、`draft_sql`、`query_sql`、`explain_sql`、`execute_sql` 的 typed contract 文档；新增只读诊断工具 `analyze_measurement_anomaly` 的设计稿或最小实现。 | 📋 |
+| #184 | **工业异常分析 Demo**：新增 MQTT / HTTP ingest 示例，演示设备温度 / 电流 / 振动写入 SonnetDB，再通过 Copilot / MCP 提问“哪台设备今天最异常？”并生成报告；README、docs 和视频脚本统一使用同一数据模型。 | 📋 |
+| #185 | **Provider-neutral Copilot 配置回归**：把 Chat / Embedding provider 抽象文档化并补齐 OpenAI-compatible、Azure OpenAI、国内兼容网关、本地 Ollama / vLLM 的配置样例；Web Admin 模型选择器明确区分“平台默认模型”“自定义模型”“本地模型”。 | 📋 |
+| #186 | **写入审批二阶段**：Copilot 生成写 SQL 时统一进入 staged preview，Web Admin 对 `CREATE / INSERT / UPDATE / DELETE / DROP / GRANT / REVOKE` 展示 SQL diff、影响范围和二次确认；服务端继续以权限和 `mode=read-write` 作为上限。 | 📋 |
+| #187 | **Agent eval 与成本指标**：新增 Industrial Data Agent eval 场景（异常设备、慢查询、schema 建模、维修建议、写入审批），并在 Copilot 指标中记录 provider、model、tool 调用数、失败原因和近似 token 成本，便于企业按成本选择模型。 | 📋 |
+| #188 | **IoTSharp + SonnetDB 联合样例**：给 IoTSharp / SonnetDB 组合补一个边缘节点样例：设备接入、SonnetDB 本地存储、Studio 查看、Copilot 诊断、备份恢复和私有化部署说明。 | 📋 |
+
+### 验收标准
+
+- README 第一屏、docs 首页、`llms.txt` 和工业 AI 文档对 SonnetDB 的第一定位保持一致。
+- AI / Agent 能从 `llms.txt` 找到 SQL 参考、工业应用文档、Studio / Copilot 文档和 Roadmap。
+- Industrial Data Agent Demo 可以从样例数据跑到自然语言分析结果，且所有写操作都需要审批。
+- Provider 文档必须说明 OpenAI-compatible 抽象、本地模型路线和不绑定单一供应商的原则。
+- 本里程碑不修改 `.SDBSEG` / `.SDBWAL` / KV / Document 等二进制格式。
+
+---
+
 ## 里程碑总览
 
 | Milestone | 主题 | PR 范围 | 状态 |
@@ -1019,9 +1051,10 @@ extensions/
 | 24 | SonnetDB Studio 管理体验升级（Document 管理面） | #170 ~ #172 | 📋 |
 | 25 | Document Store 验收、文档与发布治理 | #173 ~ #174 | 📋 |
 | 26 | 连接器路线独立化（C ABI + 多模型 API） | #175 ~ #181 | 🚧（#175/#176/#177/#178 已完成） |
+| 27 | Industrial Data Agent 与 AI-ready 产品化路线 | #182 ~ #188 | 🚧（#182 已落第一批文档） |
 | MM9 | 多模型统一备份、恢复和管理工具第一批 | BackupService + sndb backup | ✅ |
 
-**当前推进顺序**：Milestone 14（Copilot）、Milestone 15（地理空间）、Milestone 16（Copilot 产品化升级）与 Milestone 20（Parity #127~#136 实现）均已合并；新增 **Milestone 23（搜索与向量引擎合并）** 作为当前结构收敛主线，先完成 DotSearch / DotVector 收编，降低独立模块维护成本，再回到 Milestone 17 的可观测性增强。**Milestone 18（VS Code 扩展）** 继续并行推进，建议先以 `#99 ~ #103` 打出第一个“远程连接 + Explorer + SQL + 结果视图”闭环。**Milestone 19（IoTSharp 生态数据底座选项）** 已纳入正式规划，#109~#117 与 #122/#123 已完成；后续继续推进对象治理、Profile 周边、增量索引 / 后台维护成本与大量 measurement 长稳专项。**Milestone 21（Document Store 单机能力升级）** 已完成 #137~#146；Studio 管理面进入 **Milestone 24**，MongoDB 参考 parity、长稳、容量报告和发布文档进入 **Milestone 25**。**Milestone 22（Agent Memory / Codebase Intelligence）** 作为面向 Agent 生态的对外数据库能力线进入规划，建议在 M18 VS Code 基础闭环与 M21 Document/Hybrid Search 能力稳定后，从 #150 的标准 schema 与文档开始派单。SonnetDBEE C5.7 / MM9 的开源核心第一批已提供 `BackupService` 和 `sndb backup create/inspect/verify/restore`，企业级定时、增量、审计和 UI 编排继续由 SonnetDBEE 承接。**Milestone 20** 后续不再按 #129 继续派单，而是通过 `.github/workflows/parity.yml`、`parity-results` 分支与 `tests/SonnetDB.Parity/reports/sample-run.md` 持续暴露能力缺口、SKIP 原因和 nightly 稳定性。
+**当前推进顺序**：Milestone 14（Copilot）、Milestone 15（地理空间）、Milestone 16（Copilot 产品化升级）与 Milestone 20（Parity #127~#136 实现）均已合并；新增 **Milestone 27（Industrial Data Agent 与 AI-ready 产品化路线）** 作为当前对外门面与中长期 AI 产品路线，先完成 README / `llms.txt` / 工业 AI 文档，再推进工具契约、工业 Demo、provider-neutral、本地模型和写入审批二阶段。**Milestone 23（搜索与向量引擎合并）** 已完成，后续回到 Milestone 17 的可观测性增强。**Milestone 18（VS Code 扩展）** 继续并行推进，建议先以 `#99 ~ #103` 打出第一个“远程连接 + Explorer + SQL + 结果视图”闭环。**Milestone 19（IoTSharp 生态数据底座选项）** 已纳入正式规划，#109~#117 与 #122/#123 已完成；后续继续推进对象治理、Profile 周边、增量索引 / 后台维护成本与大量 measurement 长稳专项。**Milestone 21（Document Store 单机能力升级）** 已完成 #137~#146；Studio 管理面进入 **Milestone 24**，MongoDB 参考 parity、长稳、容量报告和发布文档进入 **Milestone 25**。**Milestone 22（Agent Memory / Codebase Intelligence）** 作为面向 Agent 生态的对外数据库能力线进入规划，建议在 M18 VS Code 基础闭环与 M21 Document/Hybrid Search 能力稳定后，从 #150 的标准 schema 与文档开始派单。SonnetDBEE C5.7 / MM9 的开源核心第一批已提供 `BackupService` 和 `sndb backup create/inspect/verify/restore`，企业级定时、增量、审计和 UI 编排继续由 SonnetDBEE 承接。**Milestone 20** 后续不再按 #129 继续派单，而是通过 `.github/workflows/parity.yml`、`parity-results` 分支与 `tests/SonnetDB.Parity/reports/sample-run.md` 持续暴露能力缺口、SKIP 原因和 nightly 稳定性。
 
 ---
 

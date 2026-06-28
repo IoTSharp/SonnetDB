@@ -12,7 +12,18 @@
 
 ## 🚀 What Is SonnetDB
 
-SonnetDB is a C# / .NET multi-model database. One local engine, one SQL / API surface, and one Web Admin provide:
+**SonnetDB is a local-first data engine for .NET industrial edge applications.**
+
+It brings time-series data, SQL tables, KV / cache, JSON documents, full-text and vector search, object storage, lightweight messaging, and an AI Copilot into one engine that persists data as a database directory and can run embedded or as a server, so industrial software teams do not need to deploy a pile of separate data components.
+
+SonnetDB is designed for practical edge workloads:
+
+- device gateways, data collectors, offline loggers, and Windows industrial PCs.
+- local data foundations for lightweight MES / SCADA / maintenance systems.
+- private, weakly connected, or edge-side .NET industrial software.
+- industrial data analysis and diagnostics workflows called by Copilot / MCP / agents.
+
+One local engine, one SQL / API surface, and one Web Admin provide:
 
 | Capability | What it is for |
 | --- | --- |
@@ -33,8 +44,6 @@ SonnetDB is a C# / .NET multi-model database. One local engine, one SQL / API su
 | CLI | `sndb` for local / remote SQL, backup, and maintenance |
 | Multi-language | C, Go, Rust, Java, Python, VB6, and PureBasic connectors |
 | AI / Agent | Web CopilotDock and MCP tool entry points |
-
-
 
 ## 🏷️ Ecosystem Downloads and Versions
 
@@ -71,11 +80,11 @@ SonnetDB is a C# / .NET multi-model database. One local engine, one SQL / API su
 
 ## ✨ Core Traits
 
-- **One deployment, many data capabilities**: time-series, relational, KV, documents, search, objects, queues, and Copilot work together in one product.
-- **Embedded + server modes**: embed it inside an app, or run it as an HTTP service.
-- **SQL first**: writes, queries, aggregates, joins, full-text, vector search, permissions, and management operations converge on SQL / APIs.
-- **Built-in control plane**: users, grants, tokens, backup/restore, events, metrics, Admin UI, Workbench, and Copilot.
-- **Built for integration**: NuGet, Docker, CLI, ADO.NET, EF Core, multi-language connectors, and MCP tool entry points.
+- **Industrial edge first**: built for device metrics, factory LANs, edge gateways, offline collection, local diagnostics, and private deployments.
+- **One process, many data capabilities**: time-series, relational, KV, documents, search, objects, queues, and Copilot work together in one product.
+- **Embedded + server modes**: small apps can call `Tsdb.Open(...)` in process; larger deployments can run Docker / HTTP Server / Web Admin.
+- **Agent-ready**: CopilotDock, MCP tools, schema inspection, SQL drafting, read-only analysis, and write approval make SonnetDB usable from Industrial Data Agents.
+- **Native .NET integration**: NuGet, ADO.NET, EF Core, `IDistributedCache`, CLI, and multi-language connectors.
 
 ## 🌐 Website & Resources
 
@@ -180,6 +189,7 @@ README keeps the product overview and shortest setup path. Detailed material liv
 | Time-series modeling and measurement / tag / field / time | [Data Model](docs/data-model.md) |
 | SQL grammar, functions, control-plane SQL | [SQL Reference](docs/sql-reference.md), [SQL Cookbook](docs/sql-cookbook.md) |
 | Web Admin, SQL Workbench, Copilot | [SonnetDB Workbench](docs/web-workbench.md) |
+| Industrial AI applications and agent workflows | [Building Industrial AI Applications with SonnetDB](docs/industrial-ai-applications.md) |
 | Embedded API, ADO.NET, EF Core, CLI | [Embedded API](docs/embedded-api.md), [ADO.NET](docs/ado-net.md), [CLI](docs/cli-reference.md) |
 | Bulk ingest, Line Protocol, JSON ingest | [Bulk Ingest](docs/bulk-ingest.md) |
 | KV, documents, full-text, vector, Hybrid Search | [KV Keyspace](docs/kv-keyspace.md), [Vector Search](docs/vector-search.md) |
@@ -206,14 +216,17 @@ The latest nightly output is published to the [`parity-results`](https://github.
 
 - Safe-only core: no `unsafe`.
 - A database is persisted as a directory, not positioned as a single-file database.
+- The product front door is a local-first data engine for .NET industrial edge applications; multi-model storage is the capability set, not the first-line positioning.
 - Embedded and server modes share SQL / API semantics.
 - Management capabilities are built into Server, Web Admin, CLI, and Copilot.
+- AI capabilities should serve industrial data query, diagnostics, and operations through Copilot, MCP, and provider abstractions without binding SonnetDB to one model vendor.
 
 ## Related Files
 
 - [ROADMAP.md](ROADMAP.md)
 - [CHANGELOG.md](CHANGELOG.md)
 - [AGENTS.md](AGENTS.md)
+- [llms.txt](llms.txt)
 
 ## License
 

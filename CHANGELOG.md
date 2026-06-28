@@ -7,6 +7,7 @@
 
 ### Added
 
+- **AI-ready 门面文档与 Industrial Data Agent 路线（PR #182）**：新增 `llms.txt` 与 `docs/industrial-ai-applications.md`，明确 SonnetDB 优先定位为“面向 .NET 工业边缘应用的本地优先数据引擎”，并把 Industrial Data Agent、MCP 工具契约、工业异常分析 Demo、provider-neutral、本地模型、写入审批二阶段和 IoTSharp 联合样例纳入新增 Milestone 27 规划。
 - **连接器路线独立化 + C ABI 远程连接底座**：新增 Milestone 26 与 `connectors/README.md` 路线说明，明确 C ABI 当前继续 SQL-only，后续按 bulk / KV / Document / Object / MQ 分组扩展；`SonnetDB.Native` 改为引用 `SonnetDB.Data`，`sonnetdb_open` 可接受完整连接字符串或旧式本地目录，为 C/Go/Rust/Java/Python 等连接器同时支持嵌入式与远程 SQL 连接打底。
 - **C ABI bulk ingest 分组（PR #176）**：`connectors/c` 新增 `sonnetdb_bulk_create` / `sonnetdb_bulk_execute` / `sonnetdb_bulk_free` 与 `measurement`、`onerror`、`flush` 配置函数，覆盖 Line Protocol、JSON points 与 Bulk VALUES payload；Native 层通过 `SonnetDB.Data` `CommandType.TableDirect` 统一走嵌入式和远程 bulk 路径，C quickstart 与连接器文档同步演示独立 bulk handle 用法。
 - **C ABI KV 分组（PR #177）**：`connectors/c` 新增 `sonnetdb_kv_open` / `sonnetdb_kv_close` 以及 get/set/delete、scan prefix、ttl/expire/persist、incr、cas、entry/scan value-copy 函数组；Native 层复用 `SonnetDB.Data.Kv.SndbKvClient` 统一嵌入式与远程 KV 路径，并让嵌入式 KV 客户端复用共享 `Tsdb` 注册表，避免同进程 SQL connection 与 KV handle 重复打开同一目录。Go/Rust/Python/Java 连接器同步增加 idiomatic KV wrapper，quickstart 与连接器文档演示 KV handle、二进制 value 拷贝和 scan cursor 用法。
@@ -38,6 +39,7 @@
 
 ### Changed
 
+- README / README.en 与 docs 首页第一屏从“多模型数据库”主叙事改为“.NET 工业边缘本地数据引擎”主叙事；多模型能力保留为能力矩阵，Copilot / MCP / Agent 描述收敛到工业数据查询、诊断、维修建议和写入审批场景。
 - 统一 SonnetDB 当前文案边界：NuGet Description、PackageReadme、Copilot SQL prompt、协作规范与 IoTSharp 兼容矩阵不再把产品描述为“单文件数据库”，改为数据库目录持久化；同时明确 Core / ADO.NET / EF Core / CLI / Caching 的 Native AOT 声明边界，并修复帮助文档相关 XML 注释乱码。
 - **Milestone 21 规划收敛**：ROADMAP 将 Document Store 单机能力升级收敛为纯能力 / 功能交付，Milestone 21 仅保留 #137~#146（Document API、find、cursor、局部更新、索引、planner、aggregation、原子性、validator 执行能力与文档容量底座）；原 #145 中的 Studio schema governance 与原 #148 Document Explorer / 导入导出迁入 Milestone 24，原 #147 MongoDB 参考 parity 与原 #149 长稳、容量、发布文档迁入 Milestone 25。
 - **SonnetMQ 合并进 Core**：本地消息队列源码从独立 `src/SonnetMQ` 项目移动到 `src/SonnetDB.Core/Mq`，`SonnetDB` 服务端、`SonnetDB.Data` 与 Parity 测试统一通过 `SonnetDB.Core` 引用 MQ 能力；发布脚本、Dockerfile 和解决方案不再构建或打包独立 `SonnetMQ` 项目。本次仅调整项目边界，不修改 SonnetMQ 日志文件格式。
