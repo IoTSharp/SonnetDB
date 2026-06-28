@@ -39,6 +39,7 @@
 
 ### Changed
 
+- **ROADMAP 归档精简**：主 `ROADMAP.md` 移除 Milestone 0 ~ 16 的早期详细正文，仅保留摘要表和当前 / 未来路线；历史 PR 拆分、设计说明、示例与路线差异说明迁入 `docs/roadmap-history.md`。
 - README / README.en 与 docs 首页第一屏从“多模型数据库”主叙事改为“.NET 工业边缘本地数据引擎”主叙事；多模型能力保留为能力矩阵，Copilot / MCP / Agent 描述收敛到工业数据查询、诊断、维修建议和写入审批场景。
 - 统一 SonnetDB 当前文案边界：NuGet Description、PackageReadme、Copilot SQL prompt、协作规范与 IoTSharp 兼容矩阵不再把产品描述为“单文件数据库”，改为数据库目录持久化；同时明确 Core / ADO.NET / EF Core / CLI / Caching 的 Native AOT 声明边界，并修复帮助文档相关 XML 注释乱码。
 - **Milestone 21 规划收敛**：ROADMAP 将 Document Store 单机能力升级收敛为纯能力 / 功能交付，Milestone 21 仅保留 #137~#146（Document API、find、cursor、局部更新、索引、planner、aggregation、原子性、validator 执行能力与文档容量底座）；原 #145 中的 Studio schema governance 与原 #148 Document Explorer / 导入导出迁入 Milestone 24，原 #147 MongoDB 参考 parity 与原 #149 长稳、容量、发布文档迁入 Milestone 25。
