@@ -17,6 +17,8 @@ The initial ABI intentionally keeps only opaque handles and primitive values:
 - open an Object Storage bucket handle
 - create/list/delete buckets, put/head/get/list/delete objects, and run multipart upload basics
 - stream object content through chunk writer/reader handles so large values do not cross the ABI as one buffer
+- open an MQ topic handle
+- publish messages, pull by consumer group, ack offsets, and read topic stats
 - read result metadata and rows
 - read typed values as `int64`, `double`, `bool`, or UTF-8 text
 - fetch the last error for the current native thread
@@ -41,7 +43,7 @@ sonnetdb_connection* embedded = sonnetdb_open("Data Source=./data-c;Mode=Embedde
 sonnetdb_connection* remote = sonnetdb_open("Data Source=sonnetdb+http://127.0.0.1:5080/metrics;Token=...;Mode=Remote");
 ```
 
-The SQL ABI remains stable. Bulk ingest, Document, and KV access are exposed as their own function groups, and future Object storage and MQ APIs should follow the same pattern so existing SQL connectors remain stable.
+The SQL ABI remains stable. Bulk ingest, Document, KV, Object Storage, and MQ access are exposed as their own function groups so existing SQL connectors remain stable.
 
 ## Bulk Ingest
 
@@ -186,6 +188,47 @@ Return conventions:
 - `sonnetdb_obj_reader_read` returns bytes read, `0` at EOF, and `-1` on error.
 - JSON arguments such as `metadata_json`, `tags_json`, `keys_json`, and `part_numbers_json` are UTF-8 JSON objects or arrays.
 
+## Message Queue Topics
+
+MQ access uses an opaque `sonnetdb_mq` handle opened from an existing connection and a topic name. The native layer calls `SonnetDB.Data.Mq.SndbMqClient`, so embedded and remote connections share the same topic, consumer group, offset, and ack semantics.
+
+```c
+sonnetdb_mq* mq = sonnetdb_mq_open(conn, "events.demo");
+const char* payload = "pump online";
+int64_t offset = sonnetdb_mq_publish(
+    mq,
+    payload,
+    11,
+    "{\"source\":\"c\"}");
+
+sonnetdb_mq_pull_result* pull = sonnetdb_mq_pull(mq, "workers", 10);
+while (sonnetdb_mq_pull_next(pull) == 1) {
+    char buffer[128];
+    int64_t len = sonnetdb_mq_pull_payload_length(pull);
+    sonnetdb_mq_pull_copy_payload(pull, buffer, sizeof(buffer));
+    buffer[len] = '\0';
+    printf("%lld %s\n", (long long)sonnetdb_mq_pull_offset(pull), buffer);
+}
+sonnetdb_mq_ack(mq, "workers", offset);
+sonnetdb_mq_pull_result_free(pull);
+sonnetdb_mq_close(mq);
+```
+
+Semantics:
+
+- offsets are monotonically increasing per topic and start at `0`.
+- `sonnetdb_mq_pull(queue, consumer_group, max_count)` reads from that group's next unacked offset; `max_count <= 0` uses the client default of `100`.
+- `sonnetdb_mq_ack(queue, consumer_group, offset)` marks all messages through `offset` as processed and returns the group's next offset.
+- headers are passed as optional UTF-8 JSON objects and are returned from pull messages as compact JSON.
+- payloads are binary buffers; pull payload copy helpers return the full required byte length and truncate only when the caller buffer is smaller.
+- `sonnetdb_mq_stats` returns JSON with `topic`, `messageCount`, `nextOffset`, and `consumerOffsets`.
+
+Return conventions:
+
+- `sonnetdb_mq_publish` and `sonnetdb_mq_ack` return an offset, or `-1` on error.
+- functions returning `sonnetdb_mq*`, `sonnetdb_mq_pull_result*`, or `sonnetdb_mq_result*` return `NULL` on error and set `last_error`.
+- strings returned by `sonnetdb_mq_pull_topic` are owned by the pull result handle and remain valid until `sonnetdb_mq_pull_result_free`.
+
 ## Build With CMake
 
 The CMake build publishes the .NET Native AOT library and then links the C quickstart against it.
@@ -242,5 +285,6 @@ The example demonstrates:
 - using Document collection create/insert/find/update/aggregate/delete through JSON payloads
 - using KV set/get/ttl/incr/cas/scan/delete through a KV handle
 - using Object Storage bucket/object put/range/list/delete and multipart upload through chunk handles
+- using MQ publish/pull/ack/stats through a topic handle
 - selecting rows through the result cursor
 - closing all native handles

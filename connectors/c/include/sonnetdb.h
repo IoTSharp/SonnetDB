@@ -25,6 +25,9 @@ typedef struct sonnetdb_obj sonnetdb_obj;
 typedef struct sonnetdb_obj_result sonnetdb_obj_result;
 typedef struct sonnetdb_obj_writer sonnetdb_obj_writer;
 typedef struct sonnetdb_obj_reader sonnetdb_obj_reader;
+typedef struct sonnetdb_mq sonnetdb_mq;
+typedef struct sonnetdb_mq_pull_result sonnetdb_mq_pull_result;
+typedef struct sonnetdb_mq_result sonnetdb_mq_result;
 
 typedef enum sonnetdb_value_type {
     SONNETDB_TYPE_NULL = 0,
@@ -118,6 +121,26 @@ SONNETDB_API int64_t sonnetdb_obj_reader_size_bytes(sonnetdb_obj_reader* reader)
 SONNETDB_API int64_t sonnetdb_obj_reader_offset(sonnetdb_obj_reader* reader);
 SONNETDB_API int64_t sonnetdb_obj_reader_length(sonnetdb_obj_reader* reader);
 SONNETDB_API int32_t sonnetdb_obj_reader_is_range(sonnetdb_obj_reader* reader);
+
+SONNETDB_API sonnetdb_mq* sonnetdb_mq_open(sonnetdb_connection* connection, const char* topic);
+SONNETDB_API void sonnetdb_mq_close(sonnetdb_mq* queue);
+SONNETDB_API int64_t sonnetdb_mq_publish(sonnetdb_mq* queue, const void* payload, int32_t payload_length, const char* headers_json);
+SONNETDB_API sonnetdb_mq_pull_result* sonnetdb_mq_pull(sonnetdb_mq* queue, const char* consumer_group, int32_t max_count);
+SONNETDB_API int64_t sonnetdb_mq_ack(sonnetdb_mq* queue, const char* consumer_group, int64_t offset);
+SONNETDB_API sonnetdb_mq_result* sonnetdb_mq_stats(sonnetdb_mq* queue);
+SONNETDB_API void sonnetdb_mq_pull_result_free(sonnetdb_mq_pull_result* pull);
+SONNETDB_API int32_t sonnetdb_mq_pull_result_message_count(sonnetdb_mq_pull_result* pull);
+SONNETDB_API int32_t sonnetdb_mq_pull_next(sonnetdb_mq_pull_result* pull);
+SONNETDB_API const char* sonnetdb_mq_pull_topic(sonnetdb_mq_pull_result* pull);
+SONNETDB_API int64_t sonnetdb_mq_pull_offset(sonnetdb_mq_pull_result* pull);
+SONNETDB_API int64_t sonnetdb_mq_pull_timestamp_unix_ms(sonnetdb_mq_pull_result* pull);
+SONNETDB_API int32_t sonnetdb_mq_pull_headers_json_length(sonnetdb_mq_pull_result* pull);
+SONNETDB_API int32_t sonnetdb_mq_pull_copy_headers_json(sonnetdb_mq_pull_result* pull, char* buffer, int32_t buffer_length);
+SONNETDB_API int64_t sonnetdb_mq_pull_payload_length(sonnetdb_mq_pull_result* pull);
+SONNETDB_API int32_t sonnetdb_mq_pull_copy_payload(sonnetdb_mq_pull_result* pull, void* buffer, int32_t buffer_length);
+SONNETDB_API void sonnetdb_mq_result_free(sonnetdb_mq_result* result);
+SONNETDB_API int32_t sonnetdb_mq_result_json_length(sonnetdb_mq_result* result);
+SONNETDB_API int32_t sonnetdb_mq_result_copy_json(sonnetdb_mq_result* result, char* buffer, int32_t buffer_length);
 
 SONNETDB_API int32_t sonnetdb_result_records_affected(sonnetdb_result* result);
 SONNETDB_API int32_t sonnetdb_result_column_count(sonnetdb_result* result);

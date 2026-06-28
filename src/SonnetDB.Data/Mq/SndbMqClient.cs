@@ -167,7 +167,8 @@ public sealed class SndbMqClient : IDisposable
 
         _disposed = true;
         _http?.Dispose();
-        _embedded?.Dispose();
+        if (_embedded is { } embedded)
+            SharedSndbMqRegistry.Release(embedded);
     }
 
     private void Open()
@@ -178,7 +179,7 @@ public sealed class SndbMqClient : IDisposable
                 throw new InvalidOperationException("MQ 客户端缺少 Data Source。");
 
             _database = _builder.DataSource;
-            _embedded = SonnetMqStore.Open(new SonnetMqOptions { Path = Path.Combine(_builder.DataSource, ".system", "mq") });
+            _embedded = SharedSndbMqRegistry.Acquire(new SonnetMqOptions { Path = Path.Combine(_builder.DataSource, ".system", "mq") });
             return;
         }
 

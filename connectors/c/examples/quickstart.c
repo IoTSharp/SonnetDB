@@ -88,6 +88,33 @@ static void require_obj_reader(sonnetdb_obj_reader* reader)
     }
 }
 
+static void require_mq(sonnetdb_mq* queue)
+{
+    if (queue == NULL)
+    {
+        print_last_error();
+        exit(1);
+    }
+}
+
+static void require_mq_pull(sonnetdb_mq_pull_result* pull)
+{
+    if (pull == NULL)
+    {
+        print_last_error();
+        exit(1);
+    }
+}
+
+static void require_mq_result(sonnetdb_mq_result* result)
+{
+    if (result == NULL)
+    {
+        print_last_error();
+        exit(1);
+    }
+}
+
 static void print_doc_json(const char* label, sonnetdb_doc_result* result)
 {
     int32_t required = sonnetdb_doc_result_json_length(result);
@@ -148,6 +175,34 @@ static void print_obj_json(const char* label, sonnetdb_obj_result* result)
     char* json = copy_obj_json(result);
     printf("%s: %s\n", label, json);
     free(json);
+}
+
+static void print_mq_json(const char* label, sonnetdb_mq_result* result)
+{
+    int32_t required = sonnetdb_mq_result_json_length(result);
+    if (required < 0)
+    {
+        print_last_error();
+        exit(1);
+    }
+
+    char* buffer = (char*)malloc((size_t)required + 1);
+    if (buffer == NULL)
+    {
+        fprintf(stderr, "out of memory\n");
+        exit(1);
+    }
+
+    int32_t copied = sonnetdb_mq_result_copy_json(result, buffer, required + 1);
+    if (copied < 0)
+    {
+        free(buffer);
+        print_last_error();
+        exit(1);
+    }
+
+    printf("%s: %s\n", label, buffer);
+    free(buffer);
 }
 
 static void extract_json_string(const char* json, const char* property, char* buffer, size_t buffer_length)
@@ -561,6 +616,119 @@ int main(void)
     print_obj_json("object delete many", obj_result);
     sonnetdb_obj_result_free(obj_result);
     sonnetdb_obj_close(objects);
+
+    sonnetdb_mq* queue = sonnetdb_mq_open(connection, "events.demo");
+    require_mq(queue);
+
+    const char* message1 = "pump online";
+    int64_t offset1 = sonnetdb_mq_publish(
+        queue,
+        message1,
+        (int32_t)strlen(message1),
+        "{\"source\":\"c-quickstart\",\"kind\":\"status\"}");
+    if (offset1 < 0)
+    {
+        print_last_error();
+        sonnetdb_mq_close(queue);
+        sonnetdb_close(connection);
+        return 1;
+    }
+
+    const char* message2 = "fan offline";
+    int64_t offset2 = sonnetdb_mq_publish(
+        queue,
+        message2,
+        (int32_t)strlen(message2),
+        NULL);
+    if (offset2 < 0)
+    {
+        print_last_error();
+        sonnetdb_mq_close(queue);
+        sonnetdb_close(connection);
+        return 1;
+    }
+    printf("mq published offsets: %lld, %lld\n", (long long)offset1, (long long)offset2);
+
+    sonnetdb_mq_pull_result* pull = sonnetdb_mq_pull(queue, "quickstart-consumer", 10);
+    require_mq_pull(pull);
+    printf("mq pulled messages: %d\n", sonnetdb_mq_pull_result_message_count(pull));
+
+    int64_t last_offset = -1;
+    while ((next = sonnetdb_mq_pull_next(pull)) == 1)
+    {
+        int64_t payload_length = sonnetdb_mq_pull_payload_length(pull);
+        if (payload_length < 0 || payload_length >= (int64_t)sizeof(value_buffer))
+        {
+            fprintf(stderr, "unexpected mq payload length: %lld\n", (long long)payload_length);
+            sonnetdb_mq_pull_result_free(pull);
+            sonnetdb_mq_close(queue);
+            sonnetdb_close(connection);
+            return 1;
+        }
+
+        int32_t copied = sonnetdb_mq_pull_copy_payload(pull, value_buffer, (int32_t)sizeof(value_buffer));
+        if (copied < 0)
+        {
+            print_last_error();
+            sonnetdb_mq_pull_result_free(pull);
+            sonnetdb_mq_close(queue);
+            sonnetdb_close(connection);
+            return 1;
+        }
+        value_buffer[payload_length] = '\0';
+
+        int32_t headers_required = sonnetdb_mq_pull_headers_json_length(pull);
+        if (headers_required < 0 || headers_required >= (int32_t)sizeof(object_buffer))
+        {
+            fprintf(stderr, "unexpected mq headers length: %d\n", headers_required);
+            sonnetdb_mq_pull_result_free(pull);
+            sonnetdb_mq_close(queue);
+            sonnetdb_close(connection);
+            return 1;
+        }
+        int32_t headers_copied = sonnetdb_mq_pull_copy_headers_json(pull, object_buffer, headers_required + 1);
+        if (headers_copied < 0)
+        {
+            print_last_error();
+            sonnetdb_mq_pull_result_free(pull);
+            sonnetdb_mq_close(queue);
+            sonnetdb_close(connection);
+            return 1;
+        }
+
+        last_offset = sonnetdb_mq_pull_offset(pull);
+        printf("mq %s[%lld] at %lld: %s headers=%s\n",
+               sonnetdb_mq_pull_topic(pull),
+               (long long)last_offset,
+               (long long)sonnetdb_mq_pull_timestamp_unix_ms(pull),
+               value_buffer,
+               object_buffer);
+    }
+    if (next < 0)
+    {
+        print_last_error();
+        sonnetdb_mq_pull_result_free(pull);
+        sonnetdb_mq_close(queue);
+        sonnetdb_close(connection);
+        return 1;
+    }
+    sonnetdb_mq_pull_result_free(pull);
+
+    int64_t next_offset = sonnetdb_mq_ack(queue, "quickstart-consumer", last_offset);
+    if (next_offset < 0)
+    {
+        print_last_error();
+        sonnetdb_mq_close(queue);
+        sonnetdb_close(connection);
+        return 1;
+    }
+    printf("mq ack next offset: %lld\n", (long long)next_offset);
+
+    sonnetdb_mq_result* mq_stats = sonnetdb_mq_stats(queue);
+    require_mq_result(mq_stats);
+    print_mq_json("mq stats", mq_stats);
+    sonnetdb_mq_result_free(mq_stats);
+    sonnetdb_mq_close(queue);
 
     result = sonnetdb_execute(
         connection,

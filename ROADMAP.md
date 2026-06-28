@@ -976,7 +976,7 @@ extensions/
 | #177 | **C ABI KV 分组**：新增 keyspace open、get/set/delete、scan prefix、ttl、incr、cas 基础函数；语言连接器包装为各自 idiomatic API。 | ✅ |
 | #178 | **C ABI Document 分组**：新增 collection CRUD、find page、insert/update/delete、aggregate 的 JSON payload 函数；保持 JSON/UTF-8 边界，不暴露内部 document 类型。 | ✅ |
 | #179 | **C ABI Object Storage 分组**：新增 bucket/object put/get/range/list/delete 与 multipart 基础函数；大对象采用 streaming/chunk handle，避免一次性内存复制。 | ✅ |
-| #180 | **C ABI MQ 分组**：新增 topic publish/pull/ack/stats 函数；明确 offset、consumer group、ack 语义并对齐 `SndbMqClient`。 | 📋 |
+| #180 | **C ABI MQ 分组**：新增 topic publish/pull/ack/stats 函数；明确 offset、consumer group、ack 语义并对齐 `SndbMqClient`。 | ✅ |
 | #181 | **上层语言连接器同步包装**：Go / Rust / Java / Python 优先同步 bulk + KV + Document；VB6 / PureBasic 作为源码级示例按能力选择性暴露。 | 📋 |
 
 ### 验收标准

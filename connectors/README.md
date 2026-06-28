@@ -67,9 +67,15 @@ Object Storage is exposed as a bucket/object function group with JSON metadata r
 - multipart basics: `sonnetdb_obj_multipart_initiate`, `sonnetdb_obj_multipart_upload_part`, `sonnetdb_obj_multipart_complete`, `sonnetdb_obj_multipart_abort`
 - JSON result copy helpers: `sonnetdb_obj_result_*`
 
-The next connector milestones should continue extending the ABI by adding separate, focused function groups instead of widening `sonnetdb_execute`:
+MQ access is exposed as a topic function group with binary payload copy helpers and JSON stats:
 
-- MQ API
+- `sonnetdb_mq_open` / `sonnetdb_mq_close`
+- `sonnetdb_mq_publish`
+- `sonnetdb_mq_pull` / `sonnetdb_mq_ack`
+- `sonnetdb_mq_pull_*` cursor and message-copy helpers
+- `sonnetdb_mq_stats` plus `sonnetdb_mq_result_*` JSON result copy helpers
+
+The next connector milestones should continue extending higher-level language bindings over these focused C ABI groups instead of widening `sonnetdb_execute`.
 
 Each group should first land in the C ABI, then be wrapped by Go, Rust, Java, Python, PureBasic, VB6, and future ODBC layers as appropriate. The C ABI must keep opaque handles and primitive/UTF-8 payloads at the boundary; it should not expose C# objects, internal engine pointers, or on-disk structs.
 

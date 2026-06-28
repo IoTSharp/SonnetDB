@@ -11,6 +11,7 @@ using System.Text.Json.Serialization;
 using SonnetDB.Data;
 using SonnetDB.Data.Documents;
 using SonnetDB.Data.Kv;
+using SonnetDB.Data.Mq;
 using SonnetDB.Data.ObjectStorage;
 using SonnetDB.Model;
 using SonnetDB.ObjectStorage;
@@ -1410,6 +1411,275 @@ internal sealed class NativeObjectResult
 [JsonSerializable(typeof(List<int>))]
 internal sealed partial class NativeObjectJsonContext : JsonSerializerContext;
 
+internal sealed class NativeMessageQueue : IDisposable
+{
+    private readonly SndbMqClient _client;
+    private readonly string _topic;
+    private bool _disposed;
+
+    public NativeMessageQueue(NativeConnection connection, string topic)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentException.ThrowIfNullOrWhiteSpace(topic);
+
+        _client = new SndbMqClient(connection.ConnectionString);
+        _topic = topic;
+    }
+
+    public long Publish(byte[] payload, string? headersJson)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(payload);
+        return _client.PublishAsync(_topic, payload, ReadStringMap(headersJson)).GetAwaiter().GetResult();
+    }
+
+    public NativeMessageQueuePull Pull(string consumerGroup, int maxCount)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(consumerGroup);
+        var messages = _client.PullAsync(_topic, consumerGroup, maxCount <= 0 ? 100 : maxCount)
+            .GetAwaiter()
+            .GetResult()
+            .Select(NativeMessageQueueMessage.From)
+            .ToArray();
+        return new NativeMessageQueuePull(messages);
+    }
+
+    public long Ack(string consumerGroup, long offset)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(consumerGroup);
+        ArgumentOutOfRangeException.ThrowIfNegative(offset);
+        return _client.AckAsync(_topic, consumerGroup, offset).GetAwaiter().GetResult();
+    }
+
+    public NativeMessageQueueResult GetStats()
+    {
+        ThrowIfDisposed();
+        var stats = _client.GetStatsAsync(_topic).GetAwaiter().GetResult();
+        return NativeMessageQueueResult.FromStats(stats);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _disposed = true;
+        _client.Dispose();
+    }
+
+    private static IReadOnlyDictionary<string, string>? ReadStringMap(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return null;
+        var map = JsonSerializer.Deserialize(json, NativeMessageQueueJsonContext.Default.DictionaryStringString);
+        return map is { Count: > 0 } ? map : null;
+    }
+
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+    }
+}
+
+internal sealed class NativeMessageQueuePull : IDisposable
+{
+    private readonly IReadOnlyList<NativeMessageQueueMessage> _messages;
+    private int _index = -1;
+    private bool _disposed;
+
+    public NativeMessageQueuePull(IReadOnlyList<NativeMessageQueueMessage> messages)
+    {
+        _messages = messages;
+    }
+
+    public int MessageCount
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return _messages.Count;
+        }
+    }
+
+    public int MoveNext()
+    {
+        ThrowIfDisposed();
+        if (_index + 1 >= _messages.Count)
+            return 0;
+
+        _index++;
+        return 1;
+    }
+
+    public NativeMessageQueueMessage Current
+    {
+        get
+        {
+            ThrowIfDisposed();
+            if (_index < 0 || _index >= _messages.Count)
+                throw new InvalidOperationException("MQ pull cursor is not positioned on a message.");
+            return _messages[_index];
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        foreach (var message in _messages)
+            message.Dispose();
+        _disposed = true;
+    }
+
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+    }
+}
+
+internal sealed class NativeMessageQueueMessage : IDisposable
+{
+    private readonly Dictionary<int, IntPtr> _textPointers = new();
+    private readonly string _headersJson;
+    private bool _disposed;
+
+    private NativeMessageQueueMessage(
+        string topic,
+        long offset,
+        DateTimeOffset timestampUtc,
+        IReadOnlyDictionary<string, string> headers,
+        byte[] payload)
+    {
+        Topic = topic;
+        Offset = offset;
+        TimestampUtc = timestampUtc;
+        Headers = headers;
+        Payload = payload;
+        _headersJson = JsonSerializer.Serialize(headers, NativeMessageQueueJsonContext.Default.IReadOnlyDictionaryStringString);
+    }
+
+    public string Topic { get; }
+
+    public long Offset { get; }
+
+    public DateTimeOffset TimestampUtc { get; }
+
+    public IReadOnlyDictionary<string, string> Headers { get; }
+
+    public byte[] Payload { get; }
+
+    public static NativeMessageQueueMessage From(SndbMqMessage message)
+        => new(message.Topic, message.Offset, message.TimestampUtc, message.Headers, message.Payload);
+
+    public IntPtr GetTopic()
+    {
+        ThrowIfDisposed();
+        return GetTextPointer(0, Topic);
+    }
+
+    public long GetTimestampUnixMs()
+    {
+        ThrowIfDisposed();
+        return TimestampUtc.ToUnixTimeMilliseconds();
+    }
+
+    public int GetHeadersJsonLength()
+    {
+        ThrowIfDisposed();
+        return Encoding.UTF8.GetByteCount(_headersJson);
+    }
+
+    public int CopyHeadersJson(IntPtr buffer, int bufferLength)
+    {
+        ThrowIfDisposed();
+        return SonnetDbNativeExports.CopyUtf8(_headersJson, buffer, bufferLength);
+    }
+
+    public long GetPayloadLength()
+    {
+        ThrowIfDisposed();
+        return Payload.LongLength;
+    }
+
+    public int CopyPayload(IntPtr buffer, int bufferLength)
+    {
+        ThrowIfDisposed();
+        return SonnetDbNativeExports.CopyBytes(Payload, buffer, bufferLength);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        foreach (var ptr in _textPointers.Values)
+            Marshal.FreeCoTaskMem(ptr);
+        _textPointers.Clear();
+        _disposed = true;
+    }
+
+    private IntPtr GetTextPointer(int key, string value)
+    {
+        if (_textPointers.TryGetValue(key, out var ptr))
+            return ptr;
+
+        ptr = Marshal.StringToCoTaskMemUTF8(value);
+        _textPointers.Add(key, ptr);
+        return ptr;
+    }
+
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+    }
+}
+
+internal sealed class NativeMessageQueueResult
+{
+    private NativeMessageQueueResult(string json)
+    {
+        Json = json;
+    }
+
+    public string Json { get; }
+
+    public int JsonLength => Encoding.UTF8.GetByteCount(Json);
+
+    public int CopyJson(IntPtr buffer, int bufferLength)
+        => SonnetDbNativeExports.CopyUtf8(Json, buffer, bufferLength);
+
+    public static NativeMessageQueueResult FromStats(SndbMqStats stats)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = false }))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("topic", stats.Topic);
+            writer.WriteNumber("messageCount", stats.MessageCount);
+            writer.WriteNumber("nextOffset", stats.NextOffset);
+            writer.WritePropertyName("consumerOffsets");
+            writer.WriteStartObject();
+            foreach (var pair in stats.ConsumerOffsets)
+                writer.WriteNumber(pair.Key, pair.Value);
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+        }
+
+        return new NativeMessageQueueResult(Encoding.UTF8.GetString(stream.ToArray()));
+    }
+}
+
+[JsonSourceGenerationOptions(
+    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    WriteIndented = false)]
+[JsonSerializable(typeof(Dictionary<string, string>))]
+[JsonSerializable(typeof(IReadOnlyDictionary<string, string>))]
+internal sealed partial class NativeMessageQueueJsonContext : JsonSerializerContext;
+
 internal sealed class NativeKv : IDisposable
 {
     private readonly SndbKvClient _client;
@@ -2468,6 +2738,217 @@ internal static class SonnetDbNativeExports
     public static int ObjectReaderIsRange(IntPtr reader)
         => InvokeObjectReader(reader, static r => r.IsRange, -1);
 
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_mq_open", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr MessageQueueOpen(IntPtr connection, IntPtr topic)
+    {
+        try
+        {
+            ClearError();
+            var nativeConnection = GetTarget<NativeConnection>(connection, nameof(connection));
+            var topicText = ReadUtf8(topic, nameof(topic));
+            var queue = new NativeMessageQueue(nativeConnection, topicText);
+            return GCHandle.ToIntPtr(GCHandle.Alloc(queue));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_mq_close", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static void MessageQueueClose(IntPtr queue)
+    {
+        GCHandle handle = default;
+        bool hasHandle = false;
+
+        try
+        {
+            ClearError();
+            if (queue == IntPtr.Zero)
+                return;
+
+            handle = GCHandle.FromIntPtr(queue);
+            hasHandle = true;
+            if (handle.Target is IDisposable disposable)
+                disposable.Dispose();
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+        }
+        finally
+        {
+            if (hasHandle)
+                handle.Free();
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_mq_publish", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static long MessageQueuePublish(IntPtr queue, IntPtr payload, int payloadLength, IntPtr headersJson)
+    {
+        try
+        {
+            ClearError();
+            var nativeQueue = GetTarget<NativeMessageQueue>(queue, nameof(queue));
+            return nativeQueue.Publish(
+                ReadBytes(payload, payloadLength, nameof(payload)),
+                ReadOptionalUtf8(headersJson));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return -1;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_mq_pull", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr MessageQueuePull(IntPtr queue, IntPtr consumerGroup, int maxCount)
+    {
+        try
+        {
+            ClearError();
+            var nativeQueue = GetTarget<NativeMessageQueue>(queue, nameof(queue));
+            var pull = nativeQueue.Pull(ReadUtf8(consumerGroup, nameof(consumerGroup)), maxCount);
+            return GCHandle.ToIntPtr(GCHandle.Alloc(pull));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_mq_ack", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static long MessageQueueAck(IntPtr queue, IntPtr consumerGroup, long offset)
+    {
+        try
+        {
+            ClearError();
+            var nativeQueue = GetTarget<NativeMessageQueue>(queue, nameof(queue));
+            return nativeQueue.Ack(ReadUtf8(consumerGroup, nameof(consumerGroup)), offset);
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return -1;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_mq_stats", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr MessageQueueStats(IntPtr queue)
+    {
+        try
+        {
+            ClearError();
+            var result = GetTarget<NativeMessageQueue>(queue, nameof(queue)).GetStats();
+            return GCHandle.ToIntPtr(GCHandle.Alloc(result));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_mq_pull_result_free", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static void MessageQueuePullResultFree(IntPtr pull)
+    {
+        GCHandle handle = default;
+        bool hasHandle = false;
+
+        try
+        {
+            ClearError();
+            if (pull == IntPtr.Zero)
+                return;
+
+            handle = GCHandle.FromIntPtr(pull);
+            hasHandle = true;
+            if (handle.Target is IDisposable disposable)
+                disposable.Dispose();
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+        }
+        finally
+        {
+            if (hasHandle)
+                handle.Free();
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_mq_pull_result_message_count", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int MessageQueuePullResultMessageCount(IntPtr pull)
+        => InvokeMessageQueuePull(pull, static p => p.MessageCount, -1);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_mq_pull_next", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int MessageQueuePullNext(IntPtr pull)
+        => InvokeMessageQueuePull(pull, static p => p.MoveNext(), -1);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_mq_pull_topic", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr MessageQueuePullTopic(IntPtr pull)
+        => InvokeMessageQueueMessage(pull, static m => m.GetTopic(), IntPtr.Zero);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_mq_pull_offset", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static long MessageQueuePullOffset(IntPtr pull)
+        => InvokeMessageQueueMessage(pull, static m => m.Offset, -1L);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_mq_pull_timestamp_unix_ms", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static long MessageQueuePullTimestampUnixMs(IntPtr pull)
+        => InvokeMessageQueueMessage(pull, static m => m.GetTimestampUnixMs(), -1L);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_mq_pull_headers_json_length", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int MessageQueuePullHeadersJsonLength(IntPtr pull)
+        => InvokeMessageQueueMessage(pull, static m => m.GetHeadersJsonLength(), -1);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_mq_pull_copy_headers_json", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int MessageQueuePullCopyHeadersJson(IntPtr pull, IntPtr buffer, int bufferLength)
+        => InvokeMessageQueueMessage(pull, m => m.CopyHeadersJson(buffer, bufferLength), -1);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_mq_pull_payload_length", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static long MessageQueuePullPayloadLength(IntPtr pull)
+        => InvokeMessageQueueMessage(pull, static m => m.GetPayloadLength(), -1L);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_mq_pull_copy_payload", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int MessageQueuePullCopyPayload(IntPtr pull, IntPtr buffer, int bufferLength)
+        => InvokeMessageQueueMessage(pull, m => m.CopyPayload(buffer, bufferLength), -1);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_mq_result_free", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static void MessageQueueResultFree(IntPtr result)
+    {
+        GCHandle handle = default;
+        bool hasHandle = false;
+
+        try
+        {
+            ClearError();
+            if (result == IntPtr.Zero)
+                return;
+
+            handle = GCHandle.FromIntPtr(result);
+            hasHandle = true;
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+        }
+        finally
+        {
+            if (hasHandle)
+                handle.Free();
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_mq_result_json_length", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int MessageQueueResultJsonLength(IntPtr result)
+        => InvokeMessageQueueResult(result, static r => r.JsonLength, -1);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_mq_result_copy_json", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int MessageQueueResultCopyJson(IntPtr result, IntPtr buffer, int bufferLength)
+        => InvokeMessageQueueResult(result, r => r.CopyJson(buffer, bufferLength), -1);
+
     [UnmanagedCallersOnly(EntryPoint = "sonnetdb_kv_open", CallConvs = new[] { typeof(CallConvCdecl) })]
     public static IntPtr KvOpen(IntPtr connection, IntPtr keyspace, IntPtr @namespace)
     {
@@ -2981,6 +3462,51 @@ internal static class SonnetDbNativeExports
             ClearError();
             var nativeWriter = GetTarget<NativeObjectWriteBuffer>(writer, nameof(writer));
             return action(nativeWriter);
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return errorValue;
+        }
+    }
+
+    private static TReturn InvokeMessageQueuePull<TReturn>(IntPtr pull, Func<NativeMessageQueuePull, TReturn> action, TReturn errorValue)
+    {
+        try
+        {
+            ClearError();
+            var nativePull = GetTarget<NativeMessageQueuePull>(pull, nameof(pull));
+            return action(nativePull);
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return errorValue;
+        }
+    }
+
+    private static TReturn InvokeMessageQueueMessage<TReturn>(IntPtr pull, Func<NativeMessageQueueMessage, TReturn> action, TReturn errorValue)
+    {
+        try
+        {
+            ClearError();
+            var nativePull = GetTarget<NativeMessageQueuePull>(pull, nameof(pull));
+            return action(nativePull.Current);
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return errorValue;
+        }
+    }
+
+    private static TReturn InvokeMessageQueueResult<TReturn>(IntPtr result, Func<NativeMessageQueueResult, TReturn> action, TReturn errorValue)
+    {
+        try
+        {
+            ClearError();
+            var nativeResult = GetTarget<NativeMessageQueueResult>(result, nameof(result));
+            return action(nativeResult);
         }
         catch (Exception ex)
         {
