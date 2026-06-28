@@ -1,6 +1,6 @@
 # SonnetMQ 路线图
 
-SonnetMQ 是 SonnetDB 生态内置的本地消息队列能力，目标是让 IoTSharp 在单机、边缘网关和轻量私有化部署中无需额外依赖 Kafka、RabbitMQ 或 ZeroMQ，即可获得可持久化、可确认、可追踪的队列语义。
+SonnetMQ 是 SonnetDB 生态内置的本地消息队列能力，目标是在单机、边缘网关和轻量私有化部署中提供可持久化、可确认、可追踪的队列语义。具体上层项目是否把它接成事件总线，由对应项目仓库维护。
 
 ## 设计原则
 
@@ -15,7 +15,7 @@ SonnetMQ 是 SonnetDB 生态内置的本地消息队列能力，目标是让 IoT
 - 提供 `SonnetMqStore.Open`、`Publish`、`Pull`、`Ack`、`GetStats`。
 - 文件格式采用 `sonnetmq.log` append-only record，消息和 ack 统一顺序记录。
 - `SonnetDB` 服务宿主暴露 `/v1/db/{db}/mq/{topic}/publish|pull|ack|stats`。
-- `SonnetDB.Data` 增加 `SndbMqClient`，IoTSharp 可通过现有连接字符串直接调用。
+- `SonnetDB.Data` 增加 `SndbMqClient`，上层应用可通过现有连接字符串调用。
 
 ## 第二阶段：吞吐与恢复优化
 
@@ -29,7 +29,7 @@ SonnetMQ 是 SonnetDB 生态内置的本地消息队列能力，目标是让 IoT
 
 - 增加 Server-Sent Events 或长轮询订阅，降低消费者空轮询成本。
 - 引入可选二进制帧协议，使用 `Span<byte>` / `PipeReader` / `PipeWriter` 处理请求。
-- 对 IoTSharp EventBus 增加 SonnetMQ provider。
+- 提供通用 .NET 接入样例；上层项目专用 EventBus provider 在对应项目仓库规划。
 - 提供迁移适配层：Kafka-like topic/offset API、RabbitMQ-like ack API。
 
 ## 第四阶段：可靠性与运维
@@ -43,6 +43,6 @@ SonnetMQ 是 SonnetDB 生态内置的本地消息队列能力，目标是让 IoT
 
 - 多消费者组互不影响 offset。
 - 服务重启后消息和 ack 位置可恢复。
-- IoTSharp 可用 `SonnetDB.Data` 发布和消费消息。
+- 上层应用可用 `SonnetDB.Data` 发布和消费消息。
 - ReadOnly token 不可 publish/ack，ReadWrite token 可 publish/ack/pull。
 - 本地核心库不引入第三方运行时依赖，不使用 `unsafe`。

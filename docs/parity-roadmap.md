@@ -23,7 +23,7 @@
 ## 不在 Parity 里做的
 
 - **协议层互操作测试**（aws-cli / mosquitto_pub / redis-cli 直连 SonnetDB）— 永久不做。
-- **跨产品迁移工具**（这是 [Milestone 19](../ROADMAP.md#milestone-19) #120 的范畴）。
+- **上层产品专用迁移工具**（SonnetDB 只保留 [Milestone 19](../ROADMAP.md#milestone-19--生态适配底座能力关系--kvcache--对象桶--大量-measurement) 的通用迁移与校验原语）。
 - **绝对性能 benchmark**（已在 [tests/SonnetDB.Benchmarks](../tests/SonnetDB.Benchmarks/) 处理，本里程碑只做"数量级"健全性检查）。
 - **Schema 迁移、数据回填**（Parity 跑在干净 volume 上）。
 
@@ -250,9 +250,9 @@ assertions:
 ## 与其他里程碑的关系
 
 - **不依赖** [Milestone 17 可观测性](../ROADMAP.md#milestone-17--可观测性与运行时可见性-observability--runtime-visibility)：parity 报告自己输出 metrics，不要求 OTel 已经接通。
-- **依赖** [Milestone 19 PR #117 S3 API](../ROADMAP.md#milestone-19--iotsharp-生态数据底座选项关系--时序--kvcache--s3--搜索) 已完成（已 ✅）：对象套件需要 SonnetDB 自己有可工作的 multipart / range read。
+- **依赖** [Milestone 19 PR #117 对象桶 API](../ROADMAP.md#milestone-19--生态适配底座能力关系--kvcache--对象桶--大量-measurement) 已完成（已 ✅）：对象套件需要 SonnetDB 自己有可工作的 multipart / range read。
 - **依赖** [Milestone 12 函数](../ROADMAP.md#milestone-12--函数与算子扩展pid--forecast--udf) 已完成（已 ✅）：算法准确度套件需要 t-digest / HLL / window functions。
-- **服务于** [Milestone 19 PR #121 长稳报告](../ROADMAP.md#milestone-19--iotsharp-生态数据底座选项关系--时序--kvcache--s3--搜索)：parity 框架直接复用为 IoTSharp Profile 长稳跑分平台。
+- **服务于** [Milestone 19 PR #121 通用长稳报告](../ROADMAP.md#milestone-19--生态适配底座能力关系--kvcache--对象桶--大量-measurement)：parity 框架复用为 SonnetDB 通用能力长稳跑分平台；上层 Profile 长稳由对应项目维护。
 - **不冲突** [Milestone 18 VS Code 扩展](../ROADMAP.md#milestone-18--vs-code-数据库扩展sonnetdb-for-vs-code)：完全独立，可并行推进。
 
 ## 附录：场景示例（KV TTL 准确度）

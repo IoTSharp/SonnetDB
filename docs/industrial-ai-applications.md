@@ -112,7 +112,7 @@ docker run --rm -p 5080:5080 -v ./sonnetdb-data:/data iotsharp/sonnetdb:latest
 - MQTT / HTTP ingest -> SonnetDB -> Copilot 问答。
 - 设备异常检测和维修建议。
 - 轻量 MES / SCADA 本地数据侧车。
-- IoTSharp + SonnetDB 的边缘数据底座组合。
+- 上层工业平台 + SonnetDB 的边缘数据底座组合；具体 IoTSharp 联合样例在 IoTSharp 仓库维护。
 - 私有化部署中的本地模型 / 云模型切换。
 
 ## 产品路线
@@ -133,4 +133,4 @@ docker run --rm -p 5080:5080 -v ./sonnetdb-data:/data iotsharp/sonnetdb:latest
 
 - Chat / embedding provider 不绑定单一模型供应商。
 - 支持 OpenAI-compatible 网关、云端模型、本地 Ollama / vLLM 和私有化模型部署。
-- 与 IoTSharp、Windows 服务安装器、离线激活、审计、备份、监控和企业支持路线协同。
+- 与上层工业平台、Windows 服务安装器、离线激活、审计、备份、监控和企业支持路线协同。
