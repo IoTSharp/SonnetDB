@@ -381,21 +381,23 @@ extensions/
 
 ---
 
-## Milestone 22 — Agent Memory / Codebase Intelligence（代码知识库与 MCP Memory 后端）
+## Milestone 22 — Agent Memory / Codebase Intelligence（应用层候选，非内置路线）
 
-> **目标**：把 SonnetDB 从“被 Agent 连接的数据库”推进到**Agent 的长期记忆和代码知识底座**。用户可以把任意 Git 仓库、设计文档、ADR、CI 变更、代码评审记录和 Agent 会话摄入到 SonnetDB，用 SQL / HTTP / MCP 查询“代码是什么、谁调用谁、为什么这么设计、改这里会影响哪里”。这不是仅供 SonnetDB 自己 Copilot 使用的内部索引，而是 SonnetDB 对外提供的原生工作负载与产品能力。
+> **当前状态**：⏸️ 应用层候选，暂停内置派单。该方向更像“基于 SonnetDB 构建的 Code Memory / Agent Memory 应用”，不是 SonnetDB Core / Server / Studio 必须内置的数据库能力；#150~#159 不再作为 SonnetDB 内置路线派单。
 >
-> **背景**：`codebase-memory-mcp` 展示了“代码库结构记忆 + MCP 工具”对 Agent 开发效率的价值：相比逐文件读取，Agent 更需要结构化的符号、调用边、文件变更、架构摘要与决策记录。SonnetDB 已经具备时序、关系、KV、文档、全文、向量、Hybrid Search 与 MCP 能力，本里程碑将这些能力组合成可复用的 **Code Memory Backend**。
+> **目标（应用视角）**：验证用户能否把 Git 仓库、设计文档、ADR、CI 变更、代码评审记录和 Agent 会话作为上层应用数据摄入 SonnetDB，并用 SQL / HTTP / MCP 查询“代码是什么、谁调用谁、为什么这么设计、改这里会影响哪里”。SonnetDB 的职责是提供通用数据引擎能力，不直接承诺内置 Code Memory 产品。
+>
+> **重新定位**：M22 若继续保留，应进入 `examples/`、独立应用仓库、插件或 Solution Accelerator，用来展示 SonnetDB 的 Document / FullText / Vector / Hybrid Search / MCP 组合能力。只有当应用验证出通用数据库能力缺口时，才拆出独立 Core / Server / Studio PR；不得因为 Code Memory 应用本身而把 Roslyn、Git 扫描、专用 code schema、专用 MCP tools 或 Code Memory Explorer 默认塞进 SonnetDB 内置产品面。
 >
 > **设计原则**：
 >
-> 1. **数据库能力优先**。SonnetDB 负责 schema、存储、查询、全文/向量/混合检索、MCP 暴露和权限治理；语言解析器只是 ingest 辅助，不反过来绑架核心架构。
-> 2. **对外产品形态**。CLI、HTTP API、MCP tools、VS Code 扩展和 Web Admin 都面向用户自己的仓库；SonnetDB Copilot 只是第一个 dogfooding 客户。
-> 3. **Core 零依赖边界不破坏**。`src/SonnetDB.Core` 不引入 tree-sitter、Roslyn、libgit2 等大型运行时依赖；代码解析与 Git 扫描放在 CLI、独立 ingest 工具、扩展包或示例连接器中。
+> 1. **应用优先，不内置优先**。Code Memory schema、ingest、MCP tools 和 UI 默认属于上层应用，不进入 SonnetDB 默认产品面。
+> 2. **数据库能力抽象优先**。若应用暴露出共性能力缺口，应沉淀为通用 Document / FullText / Vector / Hybrid Search / MCP / 权限能力，而不是沉淀为 codebase 专用 API。
+> 3. **Core 零依赖边界不破坏**。`src/SonnetDB.Core` 不引入 tree-sitter、Roslyn、libgit2 等大型运行时依赖；代码解析与 Git 扫描放在独立应用、插件、扩展包或示例工具中。
 > 4. **结构化优先，向量补充**。文件、符号、调用边、引用边、commit、ADR、会话、工具调用都以结构化表/文档/边表落库；embedding 用于语义召回，不替代确定性的 symbol / edge 查询。
 > 5. **安全只读默认**。MCP memory tools 默认只读，按 project/repo/branch/owner 隔离；代码片段读取要有大小限制、路径白名单和审计事件。
 >
-> **关键产出**：Code Memory 标准 schema + `sndb memory ingest` + 增量索引状态 + MCP Memory Server tools + Hybrid Search 示例 + Web Admin Code Memory Explorer + VS Code / Copilot 接入样例。
+> **候选产出**：独立 Code Memory 应用方案、示例 schema、独立 ingest 工具、独立 MCP Memory Server、Hybrid Search 示例和 VS Code / Copilot 接入样例；不默认新增 SonnetDB 内置 CLI 命令、Server 专用端点或 Studio 页面。
 
 ### 数据模型草案
 
@@ -408,22 +410,24 @@ extensions/
 | Git 演化 | `code_commits`、`code_changes` | commit 时间线、作者、文件变更、热点模块、变更趋势 |
 | 决策与记忆 | `code_decisions`、`agent_memories`、`agent_tool_events` | ADR、设计决策、review 结论、Agent 会话摘要和工具调用审计 |
 
-### PR 拆分
+### 应用化候选拆分（暂停内置派单）
 
 | PR | 主题 | 状态 |
 |----|------|------|
-| #150 | **Code Memory 标准 schema 与能力矩阵**：新增 `docs/code-memory.md`，定义 repo/file/symbol/edge/chunk/commit/decision/memory 的标准 schema、索引建议、权限模型、规模边界和与 Document / FullText / Vector / Hybrid Search 的映射；提供一组可直接运行的 `CREATE TABLE` / `CREATE DOCUMENT COLLECTION` / `CREATE FULLTEXT INDEX` / `VECTOR` 示例。 | 📋 |
-| #151 | **`sndb memory ingest` 第一版（Git + 文件 + 文档块）**：CLI 新增 `sndb memory ingest --repo <path> --project <name> --db <db>`，扫描 Git 工作区、README/docs/source 文件，写入 repo/file/chunk/commit 基础数据；支持 include/exclude glob、最大文件大小、dry-run、fingerprint 增量、进度输出和取消。解析器第一版只做语言识别与文本切片，不要求完整 AST。 | 📋 |
-| #152 | **C# 符号索引器（Roslyn 可选工具层）**：在 CLI/独立工具层引入可选 Roslyn 分析路径，提取 namespace/type/member/public API/test method/Minimal API route 等符号与定义位置；不进入 `src/SonnetDB.Core` 运行时依赖；输出写入 `code_symbols` / `code_symbol_locations`。 | 📋 |
-| #153 | **调用边与引用边第一版**：基于 C# 编译语义模型提取 calls/references/implements/tests/imports/routes_to 边，落入 `code_edges`；提供 `EXPLAIN` / 统计视图展示每次索引的边数量、失败文件和不支持语法；对大型仓库支持分批提交和断点续跑。 | 📋 |
-| #154 | **Code Memory 查询 API 与 MCP tools**：服务端新增只读 HTTP/MCP 工具 `code_search`、`symbol_search`、`code_callers`、`code_callees`、`code_impact`、`code_snippet`、`decision_search`，统一权限、row limit、snippet limit 与 structured content 返回；默认不开放任意图查询语言。 | 📋 |
-| #155 | **Hybrid Search 与排序融合**：把 `code_chunks` 接入全文 BM25 + embedding KNN + metadata filter 融合，支持按 repo/branch/path/language/symbol/time 过滤；新增示例查询“找慢查询相关实现”“找 WAL replay 设计与测试”“找最近改动过的 API”。 | 📋 |
-| #156 | **Agent Memory 持久化 API**：新增面向 Agent 的 memory 写入/读取契约，覆盖 conversation summary、tool event、decision note、todo、review finding、source citation；支持 TTL、owner/project/repo 隔离、敏感内容脱敏 hooks 和审计事件。 | 📋 |
-| #157 | **Web Admin Code Memory Explorer**：新增 Code Memory 页面，支持 repo/project 列表、索引状态、文件/符号搜索、调用关系邻接列表、影响分析结果、代码片段引用、ADR/decision 检索与手动重建索引。 | 📋 |
-| #158 | **VS Code / Copilot 接入样例**：在 SonnetDB for VS Code 路线中消费 Code Memory API/MCP tools，支持“解释当前符号”“查找调用者”“改动影响分析”“把当前 diff 写入 memory”；提供第三方 MCP Host 配置示例。 | 📋 |
-| #159 | **规模、可靠性与发布文档**：用 SonnetDB 自身仓库、IoTSharp 仓库和一个中大型开源 C# 仓库做 profile，输出 ingest 时间、索引大小、查询延迟、Hybrid Search 命中率、增量重建成本和恢复测试报告；README 增加 Agent Memory / Codebase Intelligence 能力矩阵。 | 📋 |
+| #150 | **Code Memory 应用方案与 schema 草案**：若保留，仅在示例 / 独立应用文档中定义 repo/file/symbol/edge/chunk/commit/decision/memory schema、索引建议、权限模型、规模边界和与 Document / FullText / Vector / Hybrid Search 的映射；不作为 SonnetDB 内置 schema 或默认文档主线。 | ⏸️ 应用化候选 |
+| #151 | **独立 ingest 工具第一版（Git + 文件 + 文档块）**：作为应用 CLI / 示例工具扫描 Git 工作区、README/docs/source 文件，写入 repo/file/chunk/commit 基础数据；不新增 SonnetDB 内置 `sndb memory` 命令。 | ⏸️ 应用化候选 |
+| #152 | **C# 符号索引器（Roslyn 可选应用层）**：在独立应用 / 工具层引入可选 Roslyn 分析路径，输出写入应用自定义 schema；不进入 `src/SonnetDB.Core` 或默认 CLI 运行时依赖。 | ⏸️ 应用化候选 |
+| #153 | **调用边与引用边第一版**：作为应用层索引能力提取 calls/references/implements/tests/imports/routes_to 边；若需要通用图查询能力，另行论证为独立数据库能力。 | ⏸️ 应用化候选 |
+| #154 | **独立 Code Memory MCP tools**：由应用自带 MCP Server 暴露 `code_search`、`symbol_search`、`code_callers`、`code_callees`、`code_impact`、`code_snippet`、`decision_search`；不新增 SonnetDB Server 内置专用端点。 | ⏸️ 应用化候选 |
+| #155 | **Hybrid Search 示例与排序融合**：把 `code_chunks` 作为应用数据接入全文 BM25 + embedding KNN + metadata filter 融合，用于验证 SonnetDB 通用检索能力。 | ⏸️ 应用化候选 |
+| #156 | **Agent Memory 应用 API**：面向 Agent 的 memory 写入/读取契约保留在上层应用；若后续证明为通用需求，再抽象为 SonnetDB 通用审计 / conversation / memory 能力。 | ⏸️ 应用化候选 |
+| #157 | **Code Memory Explorer 应用 UI**：作为独立应用 UI 或示例页面展示 repo/project、索引状态、文件/符号搜索和影响分析；不默认进入 SonnetDB Studio / Web Admin。 | ⏸️ 应用化候选 |
+| #158 | **VS Code / Copilot 接入样例**：在扩展或示例中消费独立 Code Memory MCP / API，展示“解释当前符号”“查找调用者”“改动影响分析”等应用场景。 | ⏸️ 应用化候选 |
+| #159 | **应用规模与验证报告**：用 SonnetDB 自身仓库、IoTSharp 仓库和一个中大型开源 C# 仓库做 profile，输出应用层 ingest / 查询 / 增量成本报告；不作为 SonnetDB 核心发布门槛。 | ⏸️ 应用化候选 |
 
-### 推进顺序
+### 原草案推进顺序（暂停）
+
+> 当前不按以下顺序派单；仅保留为后续重新论证时的历史草案。
 
 ```text
 #150 (schema + docs)
@@ -538,6 +542,8 @@ extensions/
 
 ## Milestone 27 — Industrial Data Agent 与 AI-ready 产品化路线
 
+> **当前状态**：⚠️ 滞后。#182 已落第一批 AI-ready 门面文档，但 #183~#188 尚未形成工具契约、工业 Demo、provider-neutral 配置、本地模型、写入审批二阶段与 eval / 成本指标闭环，后续派单应优先追赶这些缺口。
+
 > **目标**：把 SonnetDB 的对外门面从“多模型数据库”收敛为“面向 .NET 工业边缘应用的本地优先数据引擎”，并把 Copilot 从通用 SQL 助手推进到可被生产场景理解、演示和集成的 **Industrial Data Agent**。本里程碑优先做产品定位、AI-ready 文档、工业 Demo、Agent 工具边界和 provider-neutral 能力，不改动核心二进制格式。
 
 > **边界**：
@@ -593,16 +599,16 @@ extensions/
 | 18 | VS Code 数据库扩展（SonnetDB for VS Code） | #99 ~ #108 | 🚧（#99 骨架与规划已落目录） |
 | 19 | IoTSharp 生态数据底座选项（关系 + 时序 + KV/缓存 + S3 + 搜索 + 大量物理分表长稳） | #109 ~ #125 | 🚧（#109~#117、#122/#123 已完成） |
 | 20 | 多模能力对齐与平移测试（Parity） | #127 ~ #136 | ✅（实现已落地；nightly 稳定率继续按 `parity-results` 监控） |
-| 21 | Document Store 单机能力升级（MongoDB-like，不做协议兼容） | #137 ~ #146 | 🚧（#137~#144 已完成） |
-| 22 | Agent Memory / Codebase Intelligence（代码知识库与 MCP Memory 后端） | #150 ~ #159 | 📋 |
+| 21 | Document Store 单机能力升级（MongoDB-like，不做协议兼容） | #137 ~ #146 | ✅ |
+| 22 | Agent Memory / Codebase Intelligence（应用层候选，非内置路线） | #150 ~ #159 | ⏸️ 应用层候选 / 暂停内置派单 |
 | 23 | 搜索与向量引擎合并（DotSearch / DotVector 收编） | #160 ~ #169 | ✅ |
 | 24 | SonnetDB Studio 管理体验升级（Document 管理面） | #170 ~ #172 | 📋 |
 | 25 | Document Store 验收、文档与发布治理 | #173 ~ #174 | 📋 |
-| 26 | 连接器路线独立化（C ABI + 多模型 API） | #175 ~ #181 | 🚧（#175/#176/#177/#178 已完成） |
-| 27 | Industrial Data Agent 与 AI-ready 产品化路线 | #182 ~ #188 | 🚧（#182 已落第一批文档） |
+| 26 | 连接器路线独立化（C ABI + 多模型 API） | #175 ~ #181 | ✅ |
+| 27 | Industrial Data Agent 与 AI-ready 产品化路线 | #182 ~ #188 | ⚠️ 滞后（#182 已落第一批文档；#183~#188 待追赶） |
 | MM9 | 多模型统一备份、恢复和管理工具第一批 | BackupService + sndb backup | ✅ |
 
-**当前推进顺序**：Milestone 14（Copilot）、Milestone 15（地理空间）、Milestone 16（Copilot 产品化升级）与 Milestone 20（Parity #127~#136 实现）均已合并；新增 **Milestone 27（Industrial Data Agent 与 AI-ready 产品化路线）** 作为当前对外门面与中长期 AI 产品路线，先完成 README / `llms.txt` / 工业 AI 文档，再推进工具契约、工业 Demo、provider-neutral、本地模型和写入审批二阶段。**Milestone 23（搜索与向量引擎合并）** 已完成，后续回到 Milestone 17 的可观测性增强。**Milestone 18（VS Code 扩展）** 继续并行推进，建议先以 `#99 ~ #103` 打出第一个“远程连接 + Explorer + SQL + 结果视图”闭环。**Milestone 19（IoTSharp 生态数据底座选项）** 已纳入正式规划，#109~#117 与 #122/#123 已完成；后续继续推进对象治理、Profile 周边、增量索引 / 后台维护成本与大量 measurement 长稳专项。**Milestone 21（Document Store 单机能力升级）** 已完成 #137~#146；Studio 管理面进入 **Milestone 24**，MongoDB 参考 parity、长稳、容量报告和发布文档进入 **Milestone 25**。**Milestone 22（Agent Memory / Codebase Intelligence）** 作为面向 Agent 生态的对外数据库能力线进入规划，建议在 M18 VS Code 基础闭环与 M21 Document/Hybrid Search 能力稳定后，从 #150 的标准 schema 与文档开始派单。SonnetDBEE C5.7 / MM9 的开源核心第一批已提供 `BackupService` 和 `sndb backup create/inspect/verify/restore`，企业级定时、增量、审计和 UI 编排继续由 SonnetDBEE 承接。**Milestone 20** 后续不再按 #129 继续派单，而是通过 `.github/workflows/parity.yml`、`parity-results` 分支与 `tests/SonnetDB.Parity/reports/sample-run.md` 持续暴露能力缺口、SKIP 原因和 nightly 稳定性。
+**当前推进顺序**：Milestone 14（Copilot）、Milestone 15（地理空间）、Milestone 16（Copilot 产品化升级）、Milestone 20（Parity #127~#136 实现）、Milestone 21（Document Store 单机能力升级 #137~#146）、Milestone 23（搜索与向量引擎合并）与 Milestone 26（连接器路线独立化 #175~#181）均已完成或收口。**Milestone 27（Industrial Data Agent 与 AI-ready 产品化路线）** 仍是对外门面与中长期 AI 产品主线，但当前状态为**滞后**：#182 已落第一批文档，#183~#188 需要优先追赶工具契约、工业 Demo、provider-neutral、本地模型、写入审批二阶段、eval 与成本指标；同时并行推进 **Milestone 17（可观测性与运行时可见性）** 的 OTel / 结构化日志 / 诊断端点 / Copilot 服务端会话持久化，以及 **Milestone 18（VS Code 扩展）** 的 `#99 ~ #103` “远程连接 + Explorer + SQL + 结果视图”闭环。**Milestone 19（IoTSharp 生态数据底座选项）** 已纳入正式规划，#109~#117 与 #122/#123 已完成；后续继续推进对象治理、Profile 周边、增量索引 / 后台维护成本与大量 measurement 长稳专项。Studio 管理面进入 **Milestone 24**，MongoDB 参考 parity、长稳、容量报告和发布文档进入 **Milestone 25**。**Milestone 22（Agent Memory / Codebase Intelligence）** 重新定位为基于 SonnetDB 的上层应用 / 示例方案候选，暂停 #150~#159 内置派单；只有应用验证出通用数据库能力缺口时，才拆成独立 Core / Server / Studio PR。SonnetDBEE C5.7 / MM9 的开源核心第一批已提供 `BackupService` 和 `sndb backup create/inspect/verify/restore`，企业级定时、增量、审计和 UI 编排继续由 SonnetDBEE 承接。**Milestone 20** 后续不再按 #129 继续派单，而是通过 `.github/workflows/parity.yml`、`parity-results` 分支与 `tests/SonnetDB.Parity/reports/sample-run.md` 持续暴露能力缺口、SKIP 原因和 nightly 稳定性。
 
 
 ---

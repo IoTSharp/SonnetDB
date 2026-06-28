@@ -10,9 +10,9 @@
 
 > 可以通过 SQL 语句进行 `INSERT` 和 `SELECT` 时序数据，以数据库目录为持久化边界，嵌入式进程内运行，并可扩展到服务端、多模型和 AI Copilot 场景。
 
-当前 Milestone：**Milestone 16 — Copilot 产品化升级（嵌入式 AI 助手 UX）**（详见 [ROADMAP.md](ROADMAP.md)）。
+当前推进：**Milestone 27 — Industrial Data Agent 与 AI-ready 产品化路线** 是对外门面与中长期 AI 产品主线，但当前状态为**滞后**；**Milestone 17 — 可观测性与运行时可见性**、**Milestone 18 — VS Code 数据库扩展** 并行推进（详见 [ROADMAP.md](ROADMAP.md)）。
 
-> 进行中子任务：M2（SQL 生成走 Copilot Agent + SonnetDB 方言）→ M3（文案统一）→ M4（全局 CopilotDock 浮窗）→ M5（会话历史）→ M6（页面上下文感知）→ M7（权限选择 + 写审批）→ M8（模型选择器）→ M9（SQL Console 高亮回归）→ M10（新手引导 / 提示词模板）。M1（内置零依赖 embedding）与 M1.5（知识库可视化端点）已完成。
+> 当前派单焦点：M27 优先追赶 #183~#188（工具契约、工业 Demo、provider-neutral、本地模型、写入审批二阶段、eval 与成本指标），避免 AI-ready 对外门面长期只停留在 #182 文档第一批；M17 通过 #89~#98 补齐 OTel、结构化日志、诊断端点、Copilot 服务端会话持久化与 Web Admin 监控面板；M18 优先以 #99~#103 打通“远程连接 + Explorer + SQL + 结果视图”闭环。M22 重新定位为“基于 SonnetDB 的上层应用 / 示例方案候选”，不作为 SonnetDB 内置里程碑，暂停 #150~#159 内置派单；只有沉淀出可复用数据库能力缺口时，才拆成独立 Core / Server / Studio PR。M14、M15、M16、M20、M21、M23、M26 已完成或收口；M24/M25 承接 Document 管理面与发布治理，不再把旧 M16 子任务作为当前派单目标。
 
 ---
 
