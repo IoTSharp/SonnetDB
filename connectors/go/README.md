@@ -5,7 +5,9 @@ The Go connector is a cgo wrapper over the stable SonnetDB C ABI from `connector
 It exposes:
 
 - `sonnetdb.Open` / `Connection.Execute` / `Connection.ExecuteNonQuery`
+- `Connection.ExecuteBulk` with measurement/onerror/flush options
 - `Connection.OpenKV` with get/set/delete/scan/ttl/incr/CAS helpers
+- `Connection.OpenDocumentCollection` with create/drop/insert/update/delete/find/aggregate helpers
 - forward-only result cursors with typed getters
 - `Connection.Flush`, `sonnetdb.Version`, and `sonnetdb.LastError`
 - a `database/sql` driver registered as `sonnetdb`
@@ -98,6 +100,26 @@ cas, err := kv.CAS("edge-1", version, []byte("offline"))
 rows, err := kv.ScanPrefix("edge-", 100)
 _, _, _, _ = entry, counter, counterVersion, cas
 _ = rows
+```
+
+## Bulk And Document API
+
+```go
+rows, err := connection.ExecuteBulk(
+    "ignored,host=edge-2 usage=0.81 1710000002000",
+    sonnetdb.BulkOptions{Measurement: "cpu", OnError: "failfast", Flush: "false"})
+
+documents, err := connection.OpenDocumentCollection("devices")
+if err != nil {
+    return err
+}
+defer documents.Close()
+
+created, err := documents.CreateCollection(`{"ifNotExists":true}`)
+inserted, err := documents.Insert(`{"id":"dev-1","document":{"site":"north","score":7}}`)
+page, err := documents.FindPage(`{"limit":10}`)
+_, _, _ = rows, created, inserted
+_ = page
 ```
 
 ## database/sql

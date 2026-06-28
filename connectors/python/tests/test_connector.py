@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 import shutil
+import json
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -90,6 +91,62 @@ class SonnetDbPythonConnectorTests(unittest.TestCase):
                 self.assertTrue(kv.delete("device:edge-1"))
                 self.assertIsNone(kv.get("device:edge-1"))
                 self.assertEqual(-2, kv.ttl("device:edge-1").milliseconds)
+
+    def test_bulk_and_document_wrappers(self) -> None:
+        data_dir = self.make_temp_dir()
+        self.addCleanup(self.best_effort_cleanup, data_dir)
+        with sonnetdb.connect(data_dir) as connection:
+            connection.execute_non_query("CREATE MEASUREMENT cpu (host TAG, usage FIELD FLOAT)")
+
+            rows = connection.execute_bulk(
+                "ignored,host=edge-2 usage=0.81 1710000002000\n"
+                "ignored,host=edge-2 usage=0.86 1710000003000",
+                measurement="cpu",
+                on_error="failfast",
+                flush="false",
+            )
+            self.assertEqual(2, rows)
+
+            with connection.open_document_collection("devices") as documents:
+                created = json.loads(documents.create_collection('{"ifNotExists":true}'))
+                self.assertEqual("devices", created["collection"])
+
+                inserted = json.loads(
+                    documents.insert(
+                        '{"documents":['
+                        '{"id":"dev-1","document":{"site":"north","score":7}},'
+                        '{"id":"dev-2","document":{"site":"south","score":3}}'
+                        '],"ordered":true}'
+                    )
+                )
+                self.assertEqual(2, inserted["inserted"])
+
+                page = json.loads(
+                    documents.find_page(
+                        '{"limit":10,"filter":{"path":"$.site","op":"eq","value":"north"}}'
+                    )
+                )
+                self.assertEqual(1, page["count"])
+
+                updated = json.loads(
+                    documents.update(
+                        '{"id":"dev-1","update":{"set":{"$.status":"ok"},"inc":{"$.score":1}}}'
+                    )
+                )
+                self.assertEqual(1, updated["modified"])
+
+                aggregate = json.loads(
+                    documents.aggregate(
+                        '[{"$match":{"path":"$.site","op":"eq","value":"north"}},'
+                        '{"$group":{"keys":[{"name":"site","path":"$.site"}],'
+                        '"accumulators":[{"name":"rows","op":"count"},'
+                        '{"name":"total","op":"sum","path":"$.score"}]}}]'
+                    )
+                )
+                self.assertEqual(1, aggregate["count"])
+
+                deleted = json.loads(documents.delete('{"ids":["dev-2"],"ordered":true}'))
+                self.assertEqual(1, deleted["deleted"])
 
     def test_rejects_parameters_until_native_abi_supports_them(self) -> None:
         data_dir = self.make_temp_dir()

@@ -5,7 +5,9 @@ The Rust connector wraps the stable SonnetDB C ABI from `connectors/c` with a sm
 It exposes:
 
 - `Connection::open` / `Connection::execute` / `Connection::execute_non_query`
+- `Connection::execute_bulk` with measurement/on_error/flush options
 - `Connection::open_kv` with get/set/delete/scan/ttl/incr/compare-and-set helpers
+- `Connection::open_document_collection` with create/drop/insert/update/delete/find/aggregate helpers
 - `ResultSet` forward-only cursors with typed getters
 - `Connection::flush`, `sonnetdb::version`, and `sonnetdb::last_error`
 - hand-maintained FFI bindings for `connectors/c/include/sonnetdb.h`
@@ -72,4 +74,22 @@ let entry = kv.get("edge-1")?;
 let (counter, counter_version) = kv.incr("counter", 1)?;
 let cas = kv.compare_and_set("edge-1", version, b"offline", None)?;
 let rows = kv.scan_prefix("edge-", 100)?;
+```
+
+## Bulk And Document API
+
+```rust
+let rows = connection.execute_bulk(
+    "ignored,host=edge-2 usage=0.81 1710000002000",
+    Some(&sonnetdb::BulkOptions {
+        measurement: Some("cpu".into()),
+        on_error: Some("failfast".into()),
+        flush: Some("false".into()),
+    }),
+)?;
+
+let documents = connection.open_document_collection("devices")?;
+let created = documents.create_collection(Some("{\"ifNotExists\":true}"))?;
+let inserted = documents.insert("{\"id\":\"dev-1\",\"document\":{\"site\":\"north\",\"score\":7}}")?;
+let page = documents.find_page(Some("{\"limit\":10}"))?;
 ```

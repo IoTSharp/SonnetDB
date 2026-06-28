@@ -14,6 +14,12 @@
 typedef void* (*sonnetdb_open_fn)(const char*);
 typedef void (*sonnetdb_close_fn)(void*);
 typedef void* (*sonnetdb_execute_fn)(void*, const char*);
+typedef void* (*sonnetdb_bulk_create_fn)(const char*);
+typedef int32_t (*sonnetdb_bulk_set_measurement_fn)(void*, const char*);
+typedef int32_t (*sonnetdb_bulk_set_onerror_fn)(void*, const char*);
+typedef int32_t (*sonnetdb_bulk_set_flush_fn)(void*, const char*);
+typedef void* (*sonnetdb_bulk_execute_fn)(void*, void*);
+typedef void (*sonnetdb_bulk_free_fn)(void*);
 typedef void (*sonnetdb_result_free_fn)(void*);
 typedef int32_t (*sonnetdb_result_records_affected_fn)(void*);
 typedef int32_t (*sonnetdb_result_column_count_fn)(void*);
@@ -48,6 +54,14 @@ typedef int32_t (*sonnetdb_kv_scan_copy_value_fn)(void*, void*, int32_t);
 typedef int64_t (*sonnetdb_kv_scan_version_fn)(void*);
 typedef int64_t (*sonnetdb_kv_scan_expires_at_unix_ms_fn)(void*);
 typedef void (*sonnetdb_kv_scan_free_fn)(void*);
+typedef void* (*sonnetdb_doc_open_fn)(void*, const char*);
+typedef void (*sonnetdb_doc_close_fn)(void*);
+typedef void* (*sonnetdb_doc_create_collection_fn)(void*, const char*);
+typedef int32_t (*sonnetdb_doc_drop_collection_fn)(void*);
+typedef void* (*sonnetdb_doc_json_fn)(void*, const char*);
+typedef void (*sonnetdb_doc_result_free_fn)(void*);
+typedef int32_t (*sonnetdb_doc_result_json_length_fn)(void*);
+typedef int32_t (*sonnetdb_doc_result_copy_json_fn)(void*, char*, int32_t);
 typedef int32_t (*sonnetdb_flush_fn)(void*);
 typedef int32_t (*sonnetdb_version_fn)(char*, int32_t);
 typedef int32_t (*sonnetdb_last_error_fn)(char*, int32_t);
@@ -55,6 +69,12 @@ typedef int32_t (*sonnetdb_last_error_fn)(char*, int32_t);
 static sonnetdb_open_fn p_sonnetdb_open;
 static sonnetdb_close_fn p_sonnetdb_close;
 static sonnetdb_execute_fn p_sonnetdb_execute;
+static sonnetdb_bulk_create_fn p_sonnetdb_bulk_create;
+static sonnetdb_bulk_set_measurement_fn p_sonnetdb_bulk_set_measurement;
+static sonnetdb_bulk_set_onerror_fn p_sonnetdb_bulk_set_onerror;
+static sonnetdb_bulk_set_flush_fn p_sonnetdb_bulk_set_flush;
+static sonnetdb_bulk_execute_fn p_sonnetdb_bulk_execute;
+static sonnetdb_bulk_free_fn p_sonnetdb_bulk_free;
 static sonnetdb_result_free_fn p_sonnetdb_result_free;
 static sonnetdb_result_records_affected_fn p_sonnetdb_result_records_affected;
 static sonnetdb_result_column_count_fn p_sonnetdb_result_column_count;
@@ -89,6 +109,18 @@ static sonnetdb_kv_scan_copy_value_fn p_sonnetdb_kv_scan_copy_value;
 static sonnetdb_kv_scan_version_fn p_sonnetdb_kv_scan_version;
 static sonnetdb_kv_scan_expires_at_unix_ms_fn p_sonnetdb_kv_scan_expires_at_unix_ms;
 static sonnetdb_kv_scan_free_fn p_sonnetdb_kv_scan_free;
+static sonnetdb_doc_open_fn p_sonnetdb_doc_open;
+static sonnetdb_doc_close_fn p_sonnetdb_doc_close;
+static sonnetdb_doc_create_collection_fn p_sonnetdb_doc_create_collection;
+static sonnetdb_doc_drop_collection_fn p_sonnetdb_doc_drop_collection;
+static sonnetdb_doc_json_fn p_sonnetdb_doc_insert;
+static sonnetdb_doc_json_fn p_sonnetdb_doc_update;
+static sonnetdb_doc_json_fn p_sonnetdb_doc_delete;
+static sonnetdb_doc_json_fn p_sonnetdb_doc_find_page;
+static sonnetdb_doc_json_fn p_sonnetdb_doc_aggregate;
+static sonnetdb_doc_result_free_fn p_sonnetdb_doc_result_free;
+static sonnetdb_doc_result_json_length_fn p_sonnetdb_doc_result_json_length;
+static sonnetdb_doc_result_copy_json_fn p_sonnetdb_doc_result_copy_json;
 static sonnetdb_flush_fn p_sonnetdb_flush;
 static sonnetdb_version_fn p_sonnetdb_version;
 static sonnetdb_last_error_fn p_sonnetdb_last_error;
@@ -162,6 +194,35 @@ static jbyteArray copy_bytes(JNIEnv* env, void* handle, int64_t (*length_fn)(voi
         return NULL;
     }
     return array;
+}
+
+static jstring copy_doc_json(JNIEnv* env, void* result, const char* fallback)
+{
+    int32_t required = p_sonnetdb_doc_result_json_length(result);
+    if (required < 0)
+    {
+        throw_last_error(env, fallback);
+        return NULL;
+    }
+
+    char* buffer = (char*)malloc((size_t)required + 1);
+    if (buffer == NULL)
+    {
+        throw_sonnet(env, "Out of memory.");
+        return NULL;
+    }
+
+    int32_t copied = p_sonnetdb_doc_result_copy_json(result, buffer, required + 1);
+    if (copied < 0)
+    {
+        free(buffer);
+        throw_last_error(env, fallback);
+        return NULL;
+    }
+
+    jstring value = (*env)->NewStringUTF(env, buffer);
+    free(buffer);
+    return value;
 }
 
 static void* byte_array_elements(JNIEnv* env, jbyteArray value, jbyte** bytes, jsize* length)
@@ -276,6 +337,12 @@ JNIEXPORT void JNICALL Java_com_sonnetdb_jni_SonnetDbJni_initialize(
     RESOLVE_SYMBOL(p_sonnetdb_open, sonnetdb_open_fn, "sonnetdb_open");
     RESOLVE_SYMBOL(p_sonnetdb_close, sonnetdb_close_fn, "sonnetdb_close");
     RESOLVE_SYMBOL(p_sonnetdb_execute, sonnetdb_execute_fn, "sonnetdb_execute");
+    RESOLVE_SYMBOL(p_sonnetdb_bulk_create, sonnetdb_bulk_create_fn, "sonnetdb_bulk_create");
+    RESOLVE_SYMBOL(p_sonnetdb_bulk_set_measurement, sonnetdb_bulk_set_measurement_fn, "sonnetdb_bulk_set_measurement");
+    RESOLVE_SYMBOL(p_sonnetdb_bulk_set_onerror, sonnetdb_bulk_set_onerror_fn, "sonnetdb_bulk_set_onerror");
+    RESOLVE_SYMBOL(p_sonnetdb_bulk_set_flush, sonnetdb_bulk_set_flush_fn, "sonnetdb_bulk_set_flush");
+    RESOLVE_SYMBOL(p_sonnetdb_bulk_execute, sonnetdb_bulk_execute_fn, "sonnetdb_bulk_execute");
+    RESOLVE_SYMBOL(p_sonnetdb_bulk_free, sonnetdb_bulk_free_fn, "sonnetdb_bulk_free");
     RESOLVE_SYMBOL(p_sonnetdb_result_free, sonnetdb_result_free_fn, "sonnetdb_result_free");
     RESOLVE_SYMBOL(p_sonnetdb_result_records_affected, sonnetdb_result_records_affected_fn, "sonnetdb_result_records_affected");
     RESOLVE_SYMBOL(p_sonnetdb_result_column_count, sonnetdb_result_column_count_fn, "sonnetdb_result_column_count");
@@ -310,6 +377,18 @@ JNIEXPORT void JNICALL Java_com_sonnetdb_jni_SonnetDbJni_initialize(
     RESOLVE_SYMBOL(p_sonnetdb_kv_scan_version, sonnetdb_kv_scan_version_fn, "sonnetdb_kv_scan_version");
     RESOLVE_SYMBOL(p_sonnetdb_kv_scan_expires_at_unix_ms, sonnetdb_kv_scan_expires_at_unix_ms_fn, "sonnetdb_kv_scan_expires_at_unix_ms");
     RESOLVE_SYMBOL(p_sonnetdb_kv_scan_free, sonnetdb_kv_scan_free_fn, "sonnetdb_kv_scan_free");
+    RESOLVE_SYMBOL(p_sonnetdb_doc_open, sonnetdb_doc_open_fn, "sonnetdb_doc_open");
+    RESOLVE_SYMBOL(p_sonnetdb_doc_close, sonnetdb_doc_close_fn, "sonnetdb_doc_close");
+    RESOLVE_SYMBOL(p_sonnetdb_doc_create_collection, sonnetdb_doc_create_collection_fn, "sonnetdb_doc_create_collection");
+    RESOLVE_SYMBOL(p_sonnetdb_doc_drop_collection, sonnetdb_doc_drop_collection_fn, "sonnetdb_doc_drop_collection");
+    RESOLVE_SYMBOL(p_sonnetdb_doc_insert, sonnetdb_doc_json_fn, "sonnetdb_doc_insert");
+    RESOLVE_SYMBOL(p_sonnetdb_doc_update, sonnetdb_doc_json_fn, "sonnetdb_doc_update");
+    RESOLVE_SYMBOL(p_sonnetdb_doc_delete, sonnetdb_doc_json_fn, "sonnetdb_doc_delete");
+    RESOLVE_SYMBOL(p_sonnetdb_doc_find_page, sonnetdb_doc_json_fn, "sonnetdb_doc_find_page");
+    RESOLVE_SYMBOL(p_sonnetdb_doc_aggregate, sonnetdb_doc_json_fn, "sonnetdb_doc_aggregate");
+    RESOLVE_SYMBOL(p_sonnetdb_doc_result_free, sonnetdb_doc_result_free_fn, "sonnetdb_doc_result_free");
+    RESOLVE_SYMBOL(p_sonnetdb_doc_result_json_length, sonnetdb_doc_result_json_length_fn, "sonnetdb_doc_result_json_length");
+    RESOLVE_SYMBOL(p_sonnetdb_doc_result_copy_json, sonnetdb_doc_result_copy_json_fn, "sonnetdb_doc_result_copy_json");
     RESOLVE_SYMBOL(p_sonnetdb_flush, sonnetdb_flush_fn, "sonnetdb_flush");
     RESOLVE_SYMBOL(p_sonnetdb_version, sonnetdb_version_fn, "sonnetdb_version");
     RESOLVE_SYMBOL(p_sonnetdb_last_error, sonnetdb_last_error_fn, "sonnetdb_last_error");
@@ -371,6 +450,77 @@ JNIEXPORT jlong JNICALL Java_com_sonnetdb_jni_SonnetDbJni_execute(
         return 0;
     }
     return (jlong)(intptr_t)result;
+}
+
+JNIEXPORT jint JNICALL Java_com_sonnetdb_jni_SonnetDbJni_bulkExecute(
+    JNIEnv* env,
+    jclass cls,
+    jlong connection,
+    jstring payload,
+    jstring measurement,
+    jstring onError,
+    jstring flush)
+{
+    (void)cls;
+    const char* payload_chars = (*env)->GetStringUTFChars(env, payload, NULL);
+    if (payload_chars == NULL)
+    {
+        return -1;
+    }
+
+    void* bulk = p_sonnetdb_bulk_create(payload_chars);
+    (*env)->ReleaseStringUTFChars(env, payload, payload_chars);
+    if (bulk == NULL)
+    {
+        throw_last_error(env, "sonnetdb_bulk_create failed.");
+        return -1;
+    }
+
+    jstring options[3] = { measurement, onError, flush };
+    int32_t (*setters[3])(void*, const char*) = {
+        p_sonnetdb_bulk_set_measurement,
+        p_sonnetdb_bulk_set_onerror,
+        p_sonnetdb_bulk_set_flush
+    };
+    const char* errors[3] = {
+        "sonnetdb_bulk_set_measurement failed.",
+        "sonnetdb_bulk_set_onerror failed.",
+        "sonnetdb_bulk_set_flush failed."
+    };
+    for (int i = 0; i < 3; i++)
+    {
+        if (options[i] == NULL)
+        {
+            continue;
+        }
+
+        const char* value = (*env)->GetStringUTFChars(env, options[i], NULL);
+        if (value == NULL)
+        {
+            p_sonnetdb_bulk_free(bulk);
+            return -1;
+        }
+        if (value[0] != '\0' && setters[i](bulk, value) != 0)
+        {
+            (*env)->ReleaseStringUTFChars(env, options[i], value);
+            p_sonnetdb_bulk_free(bulk);
+            throw_last_error(env, errors[i]);
+            return -1;
+        }
+        (*env)->ReleaseStringUTFChars(env, options[i], value);
+    }
+
+    void* result = p_sonnetdb_bulk_execute((void*)(intptr_t)connection, bulk);
+    p_sonnetdb_bulk_free(bulk);
+    if (result == NULL)
+    {
+        throw_last_error(env, "sonnetdb_bulk_execute failed.");
+        return -1;
+    }
+
+    int32_t affected = p_sonnetdb_result_records_affected(result);
+    p_sonnetdb_result_free(result);
+    return (jint)affected;
 }
 
 JNIEXPORT void JNICALL Java_com_sonnetdb_jni_SonnetDbJni_resultFree(
@@ -884,6 +1034,139 @@ JNIEXPORT void JNICALL Java_com_sonnetdb_jni_SonnetDbJni_kvScanFree(JNIEnv* env,
     {
         p_sonnetdb_kv_scan_free((void*)(intptr_t)scan);
     }
+}
+
+JNIEXPORT jlong JNICALL Java_com_sonnetdb_jni_SonnetDbJni_docOpen(
+    JNIEnv* env,
+    jclass cls,
+    jlong connection,
+    jstring collection)
+{
+    (void)cls;
+    const char* chars = (*env)->GetStringUTFChars(env, collection, NULL);
+    if (chars == NULL)
+    {
+        return 0;
+    }
+
+    void* document = p_sonnetdb_doc_open((void*)(intptr_t)connection, chars);
+    (*env)->ReleaseStringUTFChars(env, collection, chars);
+    if (document == NULL)
+    {
+        throw_last_error(env, "sonnetdb_doc_open failed.");
+        return 0;
+    }
+    return (jlong)(intptr_t)document;
+}
+
+JNIEXPORT void JNICALL Java_com_sonnetdb_jni_SonnetDbJni_docClose(JNIEnv* env, jclass cls, jlong document)
+{
+    (void)env;
+    (void)cls;
+    if (document != 0)
+    {
+        p_sonnetdb_doc_close((void*)(intptr_t)document);
+    }
+}
+
+static jstring doc_json_call(JNIEnv* env, jlong document, jstring payloadJson, sonnetdb_doc_json_fn fn, const char* fallback)
+{
+    const char* chars = NULL;
+    if (payloadJson != NULL)
+    {
+        chars = (*env)->GetStringUTFChars(env, payloadJson, NULL);
+        if (chars == NULL)
+        {
+            return NULL;
+        }
+    }
+
+    void* result = fn((void*)(intptr_t)document, chars);
+    if (chars != NULL)
+    {
+        (*env)->ReleaseStringUTFChars(env, payloadJson, chars);
+    }
+    if (result == NULL)
+    {
+        throw_last_error(env, fallback);
+        return NULL;
+    }
+
+    jstring json = copy_doc_json(env, result, fallback);
+    p_sonnetdb_doc_result_free(result);
+    return json;
+}
+
+JNIEXPORT jstring JNICALL Java_com_sonnetdb_jni_SonnetDbJni_docCreateCollection(
+    JNIEnv* env,
+    jclass cls,
+    jlong document,
+    jstring optionsJson)
+{
+    (void)cls;
+    return doc_json_call(env, document, optionsJson, p_sonnetdb_doc_create_collection, "sonnetdb_doc_create_collection failed.");
+}
+
+JNIEXPORT jboolean JNICALL Java_com_sonnetdb_jni_SonnetDbJni_docDropCollection(JNIEnv* env, jclass cls, jlong document)
+{
+    (void)cls;
+    int32_t code = p_sonnetdb_doc_drop_collection((void*)(intptr_t)document);
+    if (code < 0)
+    {
+        throw_last_error(env, "sonnetdb_doc_drop_collection failed.");
+        return JNI_FALSE;
+    }
+    return code == 1 ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jstring JNICALL Java_com_sonnetdb_jni_SonnetDbJni_docInsert(
+    JNIEnv* env,
+    jclass cls,
+    jlong document,
+    jstring payloadJson)
+{
+    (void)cls;
+    return doc_json_call(env, document, payloadJson, p_sonnetdb_doc_insert, "sonnetdb_doc_insert failed.");
+}
+
+JNIEXPORT jstring JNICALL Java_com_sonnetdb_jni_SonnetDbJni_docUpdate(
+    JNIEnv* env,
+    jclass cls,
+    jlong document,
+    jstring payloadJson)
+{
+    (void)cls;
+    return doc_json_call(env, document, payloadJson, p_sonnetdb_doc_update, "sonnetdb_doc_update failed.");
+}
+
+JNIEXPORT jstring JNICALL Java_com_sonnetdb_jni_SonnetDbJni_docDelete(
+    JNIEnv* env,
+    jclass cls,
+    jlong document,
+    jstring payloadJson)
+{
+    (void)cls;
+    return doc_json_call(env, document, payloadJson, p_sonnetdb_doc_delete, "sonnetdb_doc_delete failed.");
+}
+
+JNIEXPORT jstring JNICALL Java_com_sonnetdb_jni_SonnetDbJni_docFindPage(
+    JNIEnv* env,
+    jclass cls,
+    jlong document,
+    jstring payloadJson)
+{
+    (void)cls;
+    return doc_json_call(env, document, payloadJson, p_sonnetdb_doc_find_page, "sonnetdb_doc_find_page failed.");
+}
+
+JNIEXPORT jstring JNICALL Java_com_sonnetdb_jni_SonnetDbJni_docAggregate(
+    JNIEnv* env,
+    jclass cls,
+    jlong document,
+    jstring payloadJson)
+{
+    (void)cls;
+    return doc_json_call(env, document, payloadJson, p_sonnetdb_doc_aggregate, "sonnetdb_doc_aggregate failed.");
 }
 
 JNIEXPORT void JNICALL Java_com_sonnetdb_jni_SonnetDbJni_flush(JNIEnv* env, jclass cls, jlong connection)

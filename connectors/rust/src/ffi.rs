@@ -13,6 +13,21 @@ pub struct sonnetdb_result {
 }
 
 #[repr(C)]
+pub struct sonnetdb_bulk {
+    _private: [u8; 0],
+}
+
+#[repr(C)]
+pub struct sonnetdb_doc {
+    _private: [u8; 0],
+}
+
+#[repr(C)]
+pub struct sonnetdb_doc_result {
+    _private: [u8; 0],
+}
+
+#[repr(C)]
 pub struct sonnetdb_kv {
     _private: [u8; 0],
 }
@@ -44,6 +59,60 @@ extern "C" {
         sql: *const c_char,
     ) -> *mut sonnetdb_result;
     pub fn sonnetdb_result_free(result: *mut sonnetdb_result);
+
+    pub fn sonnetdb_bulk_create(payload: *const c_char) -> *mut sonnetdb_bulk;
+    pub fn sonnetdb_bulk_set_measurement(
+        bulk: *mut sonnetdb_bulk,
+        measurement: *const c_char,
+    ) -> c_int;
+    pub fn sonnetdb_bulk_set_onerror(
+        bulk: *mut sonnetdb_bulk,
+        onerror: *const c_char,
+    ) -> c_int;
+    pub fn sonnetdb_bulk_set_flush(bulk: *mut sonnetdb_bulk, flush: *const c_char) -> c_int;
+    pub fn sonnetdb_bulk_execute(
+        connection: *mut sonnetdb_connection,
+        bulk: *mut sonnetdb_bulk,
+    ) -> *mut sonnetdb_result;
+    pub fn sonnetdb_bulk_free(bulk: *mut sonnetdb_bulk);
+
+    pub fn sonnetdb_doc_open(
+        connection: *mut sonnetdb_connection,
+        collection: *const c_char,
+    ) -> *mut sonnetdb_doc;
+    pub fn sonnetdb_doc_close(document: *mut sonnetdb_doc);
+    pub fn sonnetdb_doc_create_collection(
+        document: *mut sonnetdb_doc,
+        options_json: *const c_char,
+    ) -> *mut sonnetdb_doc_result;
+    pub fn sonnetdb_doc_drop_collection(document: *mut sonnetdb_doc) -> c_int;
+    pub fn sonnetdb_doc_insert(
+        document: *mut sonnetdb_doc,
+        payload_json: *const c_char,
+    ) -> *mut sonnetdb_doc_result;
+    pub fn sonnetdb_doc_update(
+        document: *mut sonnetdb_doc,
+        payload_json: *const c_char,
+    ) -> *mut sonnetdb_doc_result;
+    pub fn sonnetdb_doc_delete(
+        document: *mut sonnetdb_doc,
+        payload_json: *const c_char,
+    ) -> *mut sonnetdb_doc_result;
+    pub fn sonnetdb_doc_find_page(
+        document: *mut sonnetdb_doc,
+        payload_json: *const c_char,
+    ) -> *mut sonnetdb_doc_result;
+    pub fn sonnetdb_doc_aggregate(
+        document: *mut sonnetdb_doc,
+        payload_json: *const c_char,
+    ) -> *mut sonnetdb_doc_result;
+    pub fn sonnetdb_doc_result_free(result: *mut sonnetdb_doc_result);
+    pub fn sonnetdb_doc_result_json_length(result: *mut sonnetdb_doc_result) -> c_int;
+    pub fn sonnetdb_doc_result_copy_json(
+        result: *mut sonnetdb_doc_result,
+        buffer: *mut c_char,
+        buffer_length: c_int,
+    ) -> c_int;
 
     pub fn sonnetdb_result_records_affected(result: *mut sonnetdb_result) -> c_int;
     pub fn sonnetdb_result_column_count(result: *mut sonnetdb_result) -> c_int;

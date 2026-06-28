@@ -7,6 +7,8 @@ It supports two native backends:
 - `jni` (default): Java 8 compatible. Uses the small `SonnetDB.Java.Native` JNI bridge, which loads `SonnetDB.Native`.
 - `ffm`: JDK 21+ optional backend. Uses the Foreign Function & Memory API from the multi-release jar.
 
+Both backends expose SQL, bulk ingest, KV, and Document collection APIs synchronously over the same C ABI groups.
+
 ## Runtime Selection
 
 Select the backend with:
@@ -143,5 +145,22 @@ try (SonnetDbConnection connection = SonnetDbConnection.open("./data-java");
         "edge-1",
         version,
         "offline".getBytes(StandardCharsets.UTF_8));
+}
+```
+
+## Bulk And Document API
+
+```java
+try (SonnetDbConnection connection = SonnetDbConnection.open("./data-java")) {
+    int rows = connection.executeBulk(
+        "ignored,host=edge-2 usage=0.81 1710000002000",
+        new SonnetDbBulkOptions("cpu", "failfast", "false"));
+
+    try (SonnetDbDocumentCollection documents = connection.openDocumentCollection("devices")) {
+        String created = documents.createCollection("{\"ifNotExists\":true}");
+        String inserted = documents.insert(
+            "{\"id\":\"dev-1\",\"document\":{\"site\":\"north\",\"score\":7}}");
+        String page = documents.findPage("{\"limit\":10}");
+    }
 }
 ```

@@ -30,6 +30,8 @@ public interface NativeBackend {
      */
     long execute(long connection, String sql);
 
+    int bulkExecute(long connection, String payload, String measurement, String onError, String flush);
+
     /**
      * 释放结果。
      *
@@ -200,6 +202,24 @@ public interface NativeBackend {
     long kvScanExpiresAtUnixMs(long scan);
 
     void kvScanFree(long scan);
+
+    long docOpen(long connection, String collection);
+
+    void docClose(long document);
+
+    String docCreateCollection(long document, String optionsJson);
+
+    boolean docDropCollection(long document);
+
+    String docInsert(long document, String payloadJson);
+
+    String docUpdate(long document, String payloadJson);
+
+    String docDelete(long document, String payloadJson);
+
+    String docFindPage(long document, String payloadJson);
+
+    String docAggregate(long document, String payloadJson);
 
     /**
      * 主动 Flush。

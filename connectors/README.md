@@ -79,6 +79,8 @@ The next connector milestones should continue extending higher-level language bi
 
 Each group should first land in the C ABI, then be wrapped by Go, Rust, Java, Python, PureBasic, VB6, and future ODBC layers as appropriate. The C ABI must keep opaque handles and primitive/UTF-8 payloads at the boundary; it should not expose C# objects, internal engine pointers, or on-disk structs.
 
+Go, Rust, Java, and Python now expose synchronous wrappers for the SQL, bulk ingest, KV, and Document groups. Object Storage and MQ remain available through the C ABI first and can be promoted into higher-level language APIs in follow-up connector milestones.
+
 ## CI Policy for Legacy BASIC Connectors
 
 The VB6 and PureBasic connectors are kept as source-level integrations and local-build examples.

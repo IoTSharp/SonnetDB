@@ -41,6 +41,61 @@ func main() {
 	}
 	fmt.Println("inserted rows:", inserted)
 
+	bulkRows, err := connection.ExecuteBulk(
+		"ignored,host=edge-2 usage=0.81 1710000002000\n"+
+			"ignored,host=edge-2 usage=0.86 1710000003000",
+		sonnetdb.BulkOptions{
+			Measurement: "cpu",
+			OnError:     "failfast",
+			Flush:       "false",
+		})
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("bulk rows:", bulkRows)
+
+	documents, err := connection.OpenDocumentCollection("devices")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer documents.Close()
+
+	docJSON, err := documents.CreateCollection(`{"ifNotExists":true}`)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("doc create:", docJSON)
+
+	docJSON, err = documents.Insert(`{"documents":[{"id":"dev-1","document":{"site":"north","kind":"pump","score":7}},{"id":"dev-2","document":{"site":"south","kind":"fan","score":3}}],"ordered":true}`)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("doc insert:", docJSON)
+
+	docJSON, err = documents.FindPage(`{"limit":10,"filter":{"path":"$.site","op":"eq","value":"north"}}`)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("doc find:", docJSON)
+
+	docJSON, err = documents.Update(`{"id":"dev-1","update":{"set":{"$.status":"ok"},"inc":{"$.score":1}}}`)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("doc update:", docJSON)
+
+	docJSON, err = documents.Aggregate(`[{"$match":{"path":"$.site","op":"eq","value":"north"}},{"$group":{"keys":[{"name":"site","path":"$.site"}],"accumulators":[{"name":"rows","op":"count"},{"name":"total","op":"sum","path":"$.score"}]}}]`)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("doc aggregate:", docJSON)
+
+	docJSON, err = documents.Delete(`{"ids":["dev-2"],"ordered":true}`)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("doc delete:", docJSON)
+
 	kv, err := connection.OpenKV("app-cache", "quickstart")
 	if err != nil {
 		log.Fatal(err)

@@ -5,7 +5,9 @@ The Python connector is a dependency-free `ctypes` wrapper over the stable Sonne
 It exposes:
 
 - `sonnetdb.connect` / `Connection.execute` / `Connection.execute_non_query`
+- `Connection.execute_bulk()` with measurement/on_error/flush options
 - `Connection.open_kv()` with get/set/delete/scan/ttl/incr/CAS helpers
+- `Connection.open_document_collection()` with create/drop/insert/update/delete/find/aggregate helpers
 - forward-only result cursors with typed getters and tuple iteration
 - `Connection.flush`, `sonnetdb.version`, and `sonnetdb.last_error`
 - a light DB-API-style `Connection.cursor()` facade
@@ -78,6 +80,25 @@ with sonnetdb.connect("./data-python") as connection:
         counter, counter_version = kv.incr("counter", 1)
         cas = kv.cas("edge-1", version, b"offline")
         rows = kv.scan_prefix("edge-", 100)
+```
+
+## Bulk And Document API
+
+```python
+with sonnetdb.connect("./data-python") as connection:
+    rows = connection.execute_bulk(
+        "ignored,host=edge-2 usage=0.81 1710000002000",
+        measurement="cpu",
+        on_error="failfast",
+        flush="false",
+    )
+
+    with connection.open_document_collection("devices") as documents:
+        created = documents.create_collection('{"ifNotExists":true}')
+        inserted = documents.insert(
+            '{"id":"dev-1","document":{"site":"north","score":7}}'
+        )
+        page = documents.find_page('{"limit":10}')
 ```
 
 ## DB-API-Style Cursor

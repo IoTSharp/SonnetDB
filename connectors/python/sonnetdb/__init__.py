@@ -77,6 +77,15 @@ class KvCasResult:
     new_version: int
 
 
+@dataclass(frozen=True)
+class BulkOptions:
+    """Options for one synchronous bulk ingest operation."""
+
+    measurement: str = ""
+    on_error: str = ""
+    flush: str = ""
+
+
 class _NativeLibrary:
     def __init__(self, library_path: str | os.PathLike[str] | None = None) -> None:
         path = _resolve_library_path(library_path)
@@ -99,6 +108,64 @@ class _NativeLibrary:
 
         dll.sonnetdb_result_free.argtypes = [ctypes.c_void_p]
         dll.sonnetdb_result_free.restype = None
+
+        dll.sonnetdb_bulk_create.argtypes = [ctypes.c_char_p]
+        dll.sonnetdb_bulk_create.restype = ctypes.c_void_p
+
+        dll.sonnetdb_bulk_set_measurement.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+        dll.sonnetdb_bulk_set_measurement.restype = ctypes.c_int32
+
+        dll.sonnetdb_bulk_set_onerror.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+        dll.sonnetdb_bulk_set_onerror.restype = ctypes.c_int32
+
+        dll.sonnetdb_bulk_set_flush.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+        dll.sonnetdb_bulk_set_flush.restype = ctypes.c_int32
+
+        dll.sonnetdb_bulk_execute.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        dll.sonnetdb_bulk_execute.restype = ctypes.c_void_p
+
+        dll.sonnetdb_bulk_free.argtypes = [ctypes.c_void_p]
+        dll.sonnetdb_bulk_free.restype = None
+
+        dll.sonnetdb_doc_open.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+        dll.sonnetdb_doc_open.restype = ctypes.c_void_p
+
+        dll.sonnetdb_doc_close.argtypes = [ctypes.c_void_p]
+        dll.sonnetdb_doc_close.restype = None
+
+        dll.sonnetdb_doc_create_collection.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+        dll.sonnetdb_doc_create_collection.restype = ctypes.c_void_p
+
+        dll.sonnetdb_doc_drop_collection.argtypes = [ctypes.c_void_p]
+        dll.sonnetdb_doc_drop_collection.restype = ctypes.c_int32
+
+        dll.sonnetdb_doc_insert.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+        dll.sonnetdb_doc_insert.restype = ctypes.c_void_p
+
+        dll.sonnetdb_doc_update.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+        dll.sonnetdb_doc_update.restype = ctypes.c_void_p
+
+        dll.sonnetdb_doc_delete.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+        dll.sonnetdb_doc_delete.restype = ctypes.c_void_p
+
+        dll.sonnetdb_doc_find_page.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+        dll.sonnetdb_doc_find_page.restype = ctypes.c_void_p
+
+        dll.sonnetdb_doc_aggregate.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+        dll.sonnetdb_doc_aggregate.restype = ctypes.c_void_p
+
+        dll.sonnetdb_doc_result_free.argtypes = [ctypes.c_void_p]
+        dll.sonnetdb_doc_result_free.restype = None
+
+        dll.sonnetdb_doc_result_json_length.argtypes = [ctypes.c_void_p]
+        dll.sonnetdb_doc_result_json_length.restype = ctypes.c_int32
+
+        dll.sonnetdb_doc_result_copy_json.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_int32,
+        ]
+        dll.sonnetdb_doc_result_copy_json.restype = ctypes.c_int32
 
         dll.sonnetdb_result_records_affected.argtypes = [ctypes.c_void_p]
         dll.sonnetdb_result_records_affected.restype = ctypes.c_int32
@@ -307,6 +374,40 @@ class Connection:
         with self.execute(sql) as result:
             return result.records_affected
 
+    def execute_bulk(
+        self,
+        payload: str,
+        *,
+        measurement: str = "",
+        on_error: str = "",
+        flush: str = "",
+    ) -> int:
+        """Synchronously ingest a bulk payload and return the affected row count."""
+
+        handle = self._require_handle()
+        if not payload:
+            raise InterfaceError("bulk payload must not be empty")
+
+        bulk = self._native._dll.sonnetdb_bulk_create(_encode_utf8(payload))
+        if not bulk:
+            raise DatabaseError(self._native.last_error() or "sonnetdb_bulk_create failed.")
+        try:
+            self._set_bulk_option(
+                bulk,
+                "sonnetdb_bulk_set_measurement",
+                measurement,
+            )
+            self._set_bulk_option(bulk, "sonnetdb_bulk_set_onerror", on_error)
+            self._set_bulk_option(bulk, "sonnetdb_bulk_set_flush", flush)
+
+            result = self._native._dll.sonnetdb_bulk_execute(handle, bulk)
+            if not result:
+                raise DatabaseError(self._native.last_error() or "sonnetdb_bulk_execute failed.")
+            with Result(self._native, result) as cursor:
+                return cursor.records_affected
+        finally:
+            self._native._dll.sonnetdb_bulk_free(bulk)
+
     def query(self, sql: str) -> list[tuple[Any, ...]]:
         """Execute SQL and return all rows as tuples."""
 
@@ -340,6 +441,17 @@ class Connection:
             raise DatabaseError(self._native.last_error() or "sonnetdb_kv_open failed.")
         return KeyValueStore(self._native, native_handle)
 
+    def open_document_collection(self, collection: str) -> "DocumentCollection":
+        """Open a document collection handle."""
+
+        handle = self._require_handle()
+        if not collection:
+            raise InterfaceError("collection must not be empty")
+        native_handle = self._native._dll.sonnetdb_doc_open(handle, _encode_utf8(collection))
+        if not native_handle:
+            raise DatabaseError(self._native.last_error() or "sonnetdb_doc_open failed.")
+        return DocumentCollection(self._native, native_handle)
+
     def commit(self) -> None:
         """DB-API compatibility method mapped to ``flush``."""
 
@@ -370,6 +482,13 @@ class Connection:
         if self._handle is None:
             raise InterfaceError("SonnetDB connection is closed")
         return self._handle
+
+    def _set_bulk_option(self, bulk: int, name: str, value: str) -> None:
+        if not value:
+            return
+        func = getattr(self._native._dll, name)
+        if int(func(bulk, _encode_utf8(value))) != 0:
+            raise DatabaseError(self._native.last_error() or f"{name} failed.")
 
     def __enter__(self) -> "Connection":
         self._require_handle()
@@ -866,6 +985,117 @@ class KeyValueStore:
             pass
 
 
+class DocumentCollection:
+    """Document collection handle backed by the native C ABI."""
+
+    def __init__(self, native: _NativeLibrary, handle: int) -> None:
+        self._native = native
+        self._handle: int | None = handle
+
+    def create_collection(self, options_json: str = "") -> str:
+        """Create the collection and return the native JSON response."""
+
+        return self._execute_json(
+            "sonnetdb_doc_create_collection",
+            options_json,
+            required=False,
+        )
+
+    def drop_collection(self) -> bool:
+        """Drop the collection and return whether it existed."""
+
+        handle = self._require_handle()
+        code = int(self._native._dll.sonnetdb_doc_drop_collection(handle))
+        if code < 0:
+            raise DatabaseError(self._native.last_error() or "sonnetdb_doc_drop_collection failed.")
+        return code == 1
+
+    def insert(self, payload_json: str) -> str:
+        """Insert one or more documents from a JSON request."""
+
+        return self._execute_json("sonnetdb_doc_insert", payload_json)
+
+    def update(self, payload_json: str) -> str:
+        """Update documents from a JSON request."""
+
+        return self._execute_json("sonnetdb_doc_update", payload_json)
+
+    def delete(self, payload_json: str) -> str:
+        """Delete documents from a JSON request."""
+
+        return self._execute_json("sonnetdb_doc_delete", payload_json)
+
+    def find_page(self, payload_json: str = "") -> str:
+        """Find a page of documents and return the native JSON response."""
+
+        return self._execute_json("sonnetdb_doc_find_page", payload_json, required=False)
+
+    def aggregate(self, payload_json: str) -> str:
+        """Run a document aggregation pipeline and return the native JSON response."""
+
+        return self._execute_json("sonnetdb_doc_aggregate", payload_json)
+
+    def close(self) -> None:
+        """Release the native document handle. Calling close twice is safe."""
+
+        if self._handle is None:
+            return
+        handle = self._handle
+        self._handle = None
+        self._native._dll.sonnetdb_doc_close(handle)
+        message = self._native.last_error()
+        if message:
+            raise DatabaseError(message)
+
+    @property
+    def closed(self) -> bool:
+        """Whether this document collection handle has been closed."""
+
+        return self._handle is None
+
+    def _execute_json(self, name: str, payload_json: str, *, required: bool = True) -> str:
+        handle = self._require_handle()
+        if required and not payload_json:
+            raise InterfaceError("document JSON payload must not be empty")
+
+        func = getattr(self._native._dll, name)
+        result = func(handle, _encode_utf8(payload_json) if payload_json else None)
+        if not result:
+            raise DatabaseError(self._native.last_error() or f"{name} failed.")
+        try:
+            return self._copy_result_json(result, name)
+        finally:
+            self._native._dll.sonnetdb_doc_result_free(result)
+
+    def _copy_result_json(self, result: int, name: str) -> str:
+        length = int(self._native._dll.sonnetdb_doc_result_json_length(result))
+        if length < 0:
+            raise DatabaseError(self._native.last_error() or f"{name} result length failed.")
+        buffer = ctypes.create_string_buffer(length + 1)
+        copied = int(self._native._dll.sonnetdb_doc_result_copy_json(result, buffer, length + 1))
+        if copied < 0:
+            raise DatabaseError(self._native.last_error() or f"{name} result copy failed.")
+        return buffer.value.decode("utf-8")
+
+    def _require_handle(self) -> int:
+        if self._handle is None:
+            raise InterfaceError("SonnetDB document collection is closed")
+        return self._handle
+
+    def __enter__(self) -> "DocumentCollection":
+        self._require_handle()
+        return self
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        self.close()
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
+
+
 class Cursor:
     """Small DB-API-style cursor wrapper over ``Connection.execute``."""
 
@@ -1082,9 +1312,11 @@ def _checked_byte_length(value: bytes) -> int:
 
 
 __all__ = [
+    "BulkOptions",
     "Connection",
     "Cursor",
     "DatabaseError",
+    "DocumentCollection",
     "Error",
     "InterfaceError",
     "KeyValueStore",

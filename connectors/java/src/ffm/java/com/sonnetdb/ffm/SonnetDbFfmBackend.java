@@ -22,6 +22,12 @@ public final class SonnetDbFfmBackend implements NativeBackend {
     private static final MethodHandle OPEN;
     private static final MethodHandle CLOSE;
     private static final MethodHandle EXECUTE;
+    private static final MethodHandle BULK_CREATE;
+    private static final MethodHandle BULK_SET_MEASUREMENT;
+    private static final MethodHandle BULK_SET_ONERROR;
+    private static final MethodHandle BULK_SET_FLUSH;
+    private static final MethodHandle BULK_EXECUTE;
+    private static final MethodHandle BULK_FREE;
     private static final MethodHandle RESULT_FREE;
     private static final MethodHandle RECORDS_AFFECTED;
     private static final MethodHandle COLUMN_COUNT;
@@ -56,6 +62,18 @@ public final class SonnetDbFfmBackend implements NativeBackend {
     private static final MethodHandle KV_SCAN_VERSION;
     private static final MethodHandle KV_SCAN_EXPIRES_AT_UNIX_MS;
     private static final MethodHandle KV_SCAN_FREE;
+    private static final MethodHandle DOC_OPEN;
+    private static final MethodHandle DOC_CLOSE;
+    private static final MethodHandle DOC_CREATE_COLLECTION;
+    private static final MethodHandle DOC_DROP_COLLECTION;
+    private static final MethodHandle DOC_INSERT;
+    private static final MethodHandle DOC_UPDATE;
+    private static final MethodHandle DOC_DELETE;
+    private static final MethodHandle DOC_FIND_PAGE;
+    private static final MethodHandle DOC_AGGREGATE;
+    private static final MethodHandle DOC_RESULT_FREE;
+    private static final MethodHandle DOC_RESULT_JSON_LENGTH;
+    private static final MethodHandle DOC_RESULT_COPY_JSON;
     private static final MethodHandle FLUSH;
     private static final MethodHandle VERSION;
     private static final MethodHandle LAST_ERROR;
@@ -66,6 +84,12 @@ public final class SonnetDbFfmBackend implements NativeBackend {
         OPEN = downcall("sonnetdb_open", FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS));
         CLOSE = downcall("sonnetdb_close", FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
         EXECUTE = downcall("sonnetdb_execute", FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        BULK_CREATE = downcall("sonnetdb_bulk_create", FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        BULK_SET_MEASUREMENT = downcall("sonnetdb_bulk_set_measurement", FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        BULK_SET_ONERROR = downcall("sonnetdb_bulk_set_onerror", FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        BULK_SET_FLUSH = downcall("sonnetdb_bulk_set_flush", FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        BULK_EXECUTE = downcall("sonnetdb_bulk_execute", FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        BULK_FREE = downcall("sonnetdb_bulk_free", FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
         RESULT_FREE = downcall("sonnetdb_result_free", FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
         RECORDS_AFFECTED = downcall("sonnetdb_result_records_affected", FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
         COLUMN_COUNT = downcall("sonnetdb_result_column_count", FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
@@ -100,6 +124,18 @@ public final class SonnetDbFfmBackend implements NativeBackend {
         KV_SCAN_VERSION = downcall("sonnetdb_kv_scan_version", FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
         KV_SCAN_EXPIRES_AT_UNIX_MS = downcall("sonnetdb_kv_scan_expires_at_unix_ms", FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
         KV_SCAN_FREE = downcall("sonnetdb_kv_scan_free", FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
+        DOC_OPEN = downcall("sonnetdb_doc_open", FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        DOC_CLOSE = downcall("sonnetdb_doc_close", FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
+        DOC_CREATE_COLLECTION = downcall("sonnetdb_doc_create_collection", FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        DOC_DROP_COLLECTION = downcall("sonnetdb_doc_drop_collection", FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        DOC_INSERT = downcall("sonnetdb_doc_insert", FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        DOC_UPDATE = downcall("sonnetdb_doc_update", FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        DOC_DELETE = downcall("sonnetdb_doc_delete", FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        DOC_FIND_PAGE = downcall("sonnetdb_doc_find_page", FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        DOC_AGGREGATE = downcall("sonnetdb_doc_aggregate", FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        DOC_RESULT_FREE = downcall("sonnetdb_doc_result_free", FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
+        DOC_RESULT_JSON_LENGTH = downcall("sonnetdb_doc_result_json_length", FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        DOC_RESULT_COPY_JSON = downcall("sonnetdb_doc_result_copy_json", FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
         FLUSH = downcall("sonnetdb_flush", FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
         VERSION = downcall("sonnetdb_version", FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
         LAST_ERROR = downcall("sonnetdb_last_error", FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
@@ -152,6 +188,38 @@ public final class SonnetDbFfmBackend implements NativeBackend {
             throw ex;
         } catch (Throwable ex) {
             throw new SonnetDbException("Failed to call sonnetdb_execute.", ex);
+        }
+    }
+
+    @Override
+    public int bulkExecute(long connection, String payload, String measurement, String onError, String flush) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment payloadAddress = arena.allocateUtf8String(payload);
+            MemorySegment bulk = (MemorySegment) BULK_CREATE.invoke(payloadAddress);
+            if (isNull(bulk)) {
+                throw failure("sonnetdb_bulk_create");
+            }
+
+            try {
+                setBulkOption(arena, bulk, BULK_SET_MEASUREMENT, measurement, "sonnetdb_bulk_set_measurement");
+                setBulkOption(arena, bulk, BULK_SET_ONERROR, onError, "sonnetdb_bulk_set_onerror");
+                setBulkOption(arena, bulk, BULK_SET_FLUSH, flush, "sonnetdb_bulk_set_flush");
+                MemorySegment result = (MemorySegment) BULK_EXECUTE.invoke(MemorySegment.ofAddress(connection), bulk);
+                if (isNull(result)) {
+                    throw failure("sonnetdb_bulk_execute");
+                }
+                try {
+                    return recordsAffected(result.address());
+                } finally {
+                    resultFree(result.address());
+                }
+            } finally {
+                BULK_FREE.invoke(bulk);
+            }
+        } catch (SonnetDbException ex) {
+            throw ex;
+        } catch (Throwable ex) {
+            throw new SonnetDbException("Failed to call sonnetdb_bulk_execute.", ex);
         }
     }
 
@@ -524,6 +592,73 @@ public final class SonnetDbFfmBackend implements NativeBackend {
     }
 
     @Override
+    public long docOpen(long connection, String collection) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment collectionAddress = arena.allocateUtf8String(collection);
+            MemorySegment document = (MemorySegment) DOC_OPEN.invoke(
+                MemorySegment.ofAddress(connection),
+                collectionAddress);
+            if (isNull(document)) {
+                throw failure("sonnetdb_doc_open");
+            }
+            return document.address();
+        } catch (SonnetDbException ex) {
+            throw ex;
+        } catch (Throwable ex) {
+            throw new SonnetDbException("Failed to call sonnetdb_doc_open.", ex);
+        }
+    }
+
+    @Override
+    public void docClose(long document) {
+        invokeAddressVoid(DOC_CLOSE, document, "sonnetdb_doc_close");
+    }
+
+    @Override
+    public String docCreateCollection(long document, String optionsJson) {
+        return invokeDocumentJson(
+            DOC_CREATE_COLLECTION,
+            document,
+            optionsJson,
+            false,
+            "sonnetdb_doc_create_collection");
+    }
+
+    @Override
+    public boolean docDropCollection(long document) {
+        int code = invokeAddressInt(DOC_DROP_COLLECTION, document, "sonnetdb_doc_drop_collection");
+        if (code < 0) {
+            throw failure("sonnetdb_doc_drop_collection");
+        }
+        return code == 1;
+    }
+
+    @Override
+    public String docInsert(long document, String payloadJson) {
+        return invokeDocumentJson(DOC_INSERT, document, payloadJson, true, "sonnetdb_doc_insert");
+    }
+
+    @Override
+    public String docUpdate(long document, String payloadJson) {
+        return invokeDocumentJson(DOC_UPDATE, document, payloadJson, true, "sonnetdb_doc_update");
+    }
+
+    @Override
+    public String docDelete(long document, String payloadJson) {
+        return invokeDocumentJson(DOC_DELETE, document, payloadJson, true, "sonnetdb_doc_delete");
+    }
+
+    @Override
+    public String docFindPage(long document, String payloadJson) {
+        return invokeDocumentJson(DOC_FIND_PAGE, document, payloadJson, false, "sonnetdb_doc_find_page");
+    }
+
+    @Override
+    public String docAggregate(long document, String payloadJson) {
+        return invokeDocumentJson(DOC_AGGREGATE, document, payloadJson, true, "sonnetdb_doc_aggregate");
+    }
+
+    @Override
     public void flush(long connection) {
         try {
             int code = (int) FLUSH.invoke(MemorySegment.ofAddress(connection));
@@ -583,6 +718,53 @@ public final class SonnetDbFfmBackend implements NativeBackend {
         }
     }
 
+    private static void setBulkOption(
+        Arena arena,
+        MemorySegment bulk,
+        MethodHandle handle,
+        String value,
+        String functionName) throws Throwable {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+
+        MemorySegment address = arena.allocateUtf8String(value);
+        int code = (int) handle.invoke(bulk, address);
+        if (code != 0) {
+            throw failure(functionName);
+        }
+    }
+
+    private static String invokeDocumentJson(
+        MethodHandle handle,
+        long document,
+        String payloadJson,
+        boolean required,
+        String functionName) {
+        if (required && (payloadJson == null || payloadJson.isEmpty())) {
+            throw new SonnetDbException("Document JSON payload must not be empty.");
+        }
+
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment payloadAddress = payloadJson == null || payloadJson.isEmpty()
+                ? MemorySegment.NULL
+                : arena.allocateUtf8String(payloadJson);
+            MemorySegment result = (MemorySegment) handle.invoke(MemorySegment.ofAddress(document), payloadAddress);
+            if (isNull(result)) {
+                throw failure(functionName);
+            }
+            try {
+                return copyDocumentJson(result, functionName);
+            } finally {
+                DOC_RESULT_FREE.invoke(result);
+            }
+        } catch (SonnetDbException ex) {
+            throw ex;
+        } catch (Throwable ex) {
+            throw new SonnetDbException("Failed to call " + functionName + ".", ex);
+        }
+    }
+
     private static void invokeAddressVoid(MethodHandle handle, long argument, String functionName) {
         if (argument == 0L) {
             return;
@@ -621,6 +803,22 @@ public final class SonnetDbFfmBackend implements NativeBackend {
             throw ex;
         } catch (Throwable ex) {
             throw new SonnetDbException("Failed to call " + functionName + ".", ex);
+        }
+    }
+
+    private static String copyDocumentJson(MemorySegment result, String functionName) throws Throwable {
+        int required = (int) DOC_RESULT_JSON_LENGTH.invoke(result);
+        if (required < 0) {
+            throw failure(functionName);
+        }
+
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment buffer = arena.allocate((long) required + 1);
+            int copied = (int) DOC_RESULT_COPY_JSON.invoke(result, buffer, required + 1);
+            if (copied < 0) {
+                throw failure(functionName);
+            }
+            return buffer.getUtf8String(0);
         }
     }
 

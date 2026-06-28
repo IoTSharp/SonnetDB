@@ -33,6 +33,11 @@ public final class SonnetDbFfmBackend implements NativeBackend {
     }
 
     @Override
+    public int bulkExecute(long connection, String payload, String measurement, String onError, String flush) {
+        throw unsupported();
+    }
+
+    @Override
     public void resultFree(long result) {
         throw unsupported();
     }
@@ -195,6 +200,51 @@ public final class SonnetDbFfmBackend implements NativeBackend {
 
     @Override
     public void kvScanFree(long scan) {
+        throw unsupported();
+    }
+
+    @Override
+    public long docOpen(long connection, String collection) {
+        throw unsupported();
+    }
+
+    @Override
+    public void docClose(long document) {
+        throw unsupported();
+    }
+
+    @Override
+    public String docCreateCollection(long document, String optionsJson) {
+        throw unsupported();
+    }
+
+    @Override
+    public boolean docDropCollection(long document) {
+        throw unsupported();
+    }
+
+    @Override
+    public String docInsert(long document, String payloadJson) {
+        throw unsupported();
+    }
+
+    @Override
+    public String docUpdate(long document, String payloadJson) {
+        throw unsupported();
+    }
+
+    @Override
+    public String docDelete(long document, String payloadJson) {
+        throw unsupported();
+    }
+
+    @Override
+    public String docFindPage(long document, String payloadJson) {
+        throw unsupported();
+    }
+
+    @Override
+    public String docAggregate(long document, String payloadJson) {
         throw unsupported();
     }
 

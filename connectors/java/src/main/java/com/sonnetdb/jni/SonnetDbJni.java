@@ -15,6 +15,13 @@ final class SonnetDbJni {
 
     static native long execute(long connection, String sql);
 
+    static native int bulkExecute(
+        long connection,
+        String payload,
+        String measurement,
+        String onError,
+        String flush);
+
     static native void resultFree(long result);
 
     static native int recordsAffected(long result);
@@ -84,6 +91,24 @@ final class SonnetDbJni {
     static native long kvScanExpiresAtUnixMs(long scan);
 
     static native void kvScanFree(long scan);
+
+    static native long docOpen(long connection, String collection);
+
+    static native void docClose(long document);
+
+    static native String docCreateCollection(long document, String optionsJson);
+
+    static native boolean docDropCollection(long document);
+
+    static native String docInsert(long document, String payloadJson);
+
+    static native String docUpdate(long document, String payloadJson);
+
+    static native String docDelete(long document, String payloadJson);
+
+    static native String docFindPage(long document, String payloadJson);
+
+    static native String docAggregate(long document, String payloadJson);
 
     static native void flush(long connection);
 

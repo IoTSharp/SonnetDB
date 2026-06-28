@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import tempfile
+import json
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -23,6 +24,49 @@ def main() -> None:
             "(1710000001000, 'edge-1', 0.73)"
         )
         print("inserted rows:", inserted)
+
+        bulk_rows = connection.execute_bulk(
+            "ignored,host=edge-2 usage=0.81 1710000002000\n"
+            "ignored,host=edge-2 usage=0.86 1710000003000",
+            measurement="cpu",
+            on_error="failfast",
+            flush="false",
+        )
+        print("bulk rows:", bulk_rows)
+
+        with connection.open_document_collection("devices") as documents:
+            print_json("doc create", documents.create_collection('{"ifNotExists":true}'))
+            print_json(
+                "doc insert",
+                documents.insert(
+                    '{"documents":['
+                    '{"id":"dev-1","document":{"site":"north","kind":"pump","score":7}},'
+                    '{"id":"dev-2","document":{"site":"south","kind":"fan","score":3}}'
+                    '],"ordered":true}'
+                ),
+            )
+            print_json(
+                "doc find",
+                documents.find_page(
+                    '{"limit":10,"filter":{"path":"$.site","op":"eq","value":"north"}}'
+                ),
+            )
+            print_json(
+                "doc update",
+                documents.update(
+                    '{"id":"dev-1","update":{"set":{"$.status":"ok"},"inc":{"$.score":1}}}'
+                ),
+            )
+            print_json(
+                "doc aggregate",
+                documents.aggregate(
+                    '[{"$match":{"path":"$.site","op":"eq","value":"north"}},'
+                    '{"$group":{"keys":[{"name":"site","path":"$.site"}],'
+                    '"accumulators":[{"name":"rows","op":"count"},'
+                    '{"name":"total","op":"sum","path":"$.score"}]}}]'
+                ),
+            )
+            print_json("doc delete", documents.delete('{"ids":["dev-2"],"ordered":true}'))
 
         with connection.open_kv("app-cache", "quickstart") as kv:
             version = kv.set("device:edge-1", b"online")
@@ -50,6 +94,10 @@ def main() -> None:
                 print(f"{timestamp}\t{host}\t{usage:.3f}")
 
     print("data directory:", data_dir)
+
+
+def print_json(label: str, payload: str) -> None:
+    print(f"{label}: {json.dumps(json.loads(payload), separators=(',', ':'))}")
 
 
 if __name__ == "__main__":

@@ -6,9 +6,7 @@ import com.sonnetdb.internal.NativeBackendLoader;
 import java.util.Objects;
 
 /**
- * SonnetDB Java 连接对象。
- *
- * <p>该类型通过 SonnetDB C ABI 打开本地嵌入式数据库目录，并执行 SQL。</p>
+ * SonnetDB connection facade.
  */
 public final class SonnetDbConnection implements AutoCloseable {
     private static final NativeBackend Backend = NativeBackendLoader.load();
@@ -20,10 +18,7 @@ public final class SonnetDbConnection implements AutoCloseable {
     }
 
     /**
-     * 打开一个 SonnetDB 嵌入式数据库目录。
-     *
-     * @param dataSource 数据库根目录路径。
-     * @return 已打开的连接。
+     * Opens a SonnetDB data source.
      */
     public static SonnetDbConnection open(String dataSource) {
         Objects.requireNonNull(dataSource, "dataSource");
@@ -31,19 +26,14 @@ public final class SonnetDbConnection implements AutoCloseable {
     }
 
     /**
-     * 返回底层 SonnetDB native library 版本。
-     *
-     * @return 版本字符串。
+     * Returns the loaded SonnetDB native library version.
      */
     public static String version() {
         return Backend.version();
     }
 
     /**
-     * 执行一条 SQL 语句。
-     *
-     * @param sql SQL 文本。
-     * @return 查询或非查询结果句柄；调用方必须关闭。
+     * Executes one SQL statement.
      */
     public SonnetDbResult execute(String sql) {
         Objects.requireNonNull(sql, "sql");
@@ -52,10 +42,7 @@ public final class SonnetDbConnection implements AutoCloseable {
     }
 
     /**
-     * 执行非查询 SQL，并返回受影响行数。
-     *
-     * @param sql SQL 文本。
-     * @return INSERT 返回写入行数；DELETE 返回墓碑数；SELECT 返回 -1。
+     * Executes SQL and returns the affected row count.
      */
     public int executeNonQuery(String sql) {
         try (SonnetDbResult result = execute(sql)) {
@@ -64,21 +51,47 @@ public final class SonnetDbConnection implements AutoCloseable {
     }
 
     /**
-     * 打开 KV keyspace 的 root namespace。
-     *
-     * @param keyspace keyspace 名称。
-     * @return KV 句柄；调用方必须关闭。
+     * Synchronously ingests a bulk payload and returns the affected row count.
+     */
+    public int executeBulk(String payload) {
+        return executeBulk(payload, new SonnetDbBulkOptions());
+    }
+
+    /**
+     * Synchronously ingests a bulk payload and returns the affected row count.
+     */
+    public int executeBulk(String payload, SonnetDbBulkOptions options) {
+        Objects.requireNonNull(payload, "payload");
+        Objects.requireNonNull(options, "options");
+        ensureOpen();
+        return Backend.bulkExecute(
+            handle,
+            payload,
+            options.measurement(),
+            options.onError(),
+            options.flush());
+    }
+
+    /**
+     * Opens a document collection handle.
+     */
+    public SonnetDbDocumentCollection openDocumentCollection(String collection) {
+        Objects.requireNonNull(collection, "collection");
+        ensureOpen();
+        return new SonnetDbDocumentCollection(
+            Backend,
+            Backend.docOpen(handle, collection));
+    }
+
+    /**
+     * Opens the root namespace for a KV keyspace.
      */
     public SonnetDbKeyValueStore openKeyValueStore(String keyspace) {
         return openKeyValueStore(keyspace, "");
     }
 
     /**
-     * 打开 KV keyspace/namespace。
-     *
-     * @param keyspace keyspace 名称。
-     * @param namespaceName 逻辑命名空间；空字符串表示 root namespace。
-     * @return KV 句柄；调用方必须关闭。
+     * Opens a KV keyspace/namespace handle.
      */
     public SonnetDbKeyValueStore openKeyValueStore(String keyspace, String namespaceName) {
         Objects.requireNonNull(keyspace, "keyspace");
@@ -90,7 +103,7 @@ public final class SonnetDbConnection implements AutoCloseable {
     }
 
     /**
-     * 主动触发一次 Flush。
+     * Forces pending data to durable storage.
      */
     public void flush() {
         ensureOpen();
@@ -98,7 +111,7 @@ public final class SonnetDbConnection implements AutoCloseable {
     }
 
     /**
-     * 关闭连接。
+     * Closes the connection.
      */
     @Override
     public void close() {

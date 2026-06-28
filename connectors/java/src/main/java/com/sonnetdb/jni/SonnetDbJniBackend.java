@@ -37,6 +37,11 @@ public final class SonnetDbJniBackend implements NativeBackend {
     }
 
     @Override
+    public int bulkExecute(long connection, String payload, String measurement, String onError, String flush) {
+        return SonnetDbJni.bulkExecute(connection, payload, measurement, onError, flush);
+    }
+
+    @Override
     public void resultFree(long result) {
         SonnetDbJni.resultFree(result);
     }
@@ -203,6 +208,51 @@ public final class SonnetDbJniBackend implements NativeBackend {
     }
 
     @Override
+    public long docOpen(long connection, String collection) {
+        return SonnetDbJni.docOpen(connection, collection);
+    }
+
+    @Override
+    public void docClose(long document) {
+        SonnetDbJni.docClose(document);
+    }
+
+    @Override
+    public String docCreateCollection(long document, String optionsJson) {
+        return SonnetDbJni.docCreateCollection(document, optionsJson);
+    }
+
+    @Override
+    public boolean docDropCollection(long document) {
+        return SonnetDbJni.docDropCollection(document);
+    }
+
+    @Override
+    public String docInsert(long document, String payloadJson) {
+        return SonnetDbJni.docInsert(document, payloadJson);
+    }
+
+    @Override
+    public String docUpdate(long document, String payloadJson) {
+        return SonnetDbJni.docUpdate(document, payloadJson);
+    }
+
+    @Override
+    public String docDelete(long document, String payloadJson) {
+        return SonnetDbJni.docDelete(document, payloadJson);
+    }
+
+    @Override
+    public String docFindPage(long document, String payloadJson) {
+        return SonnetDbJni.docFindPage(document, optionsOrEmpty(payloadJson));
+    }
+
+    @Override
+    public String docAggregate(long document, String payloadJson) {
+        return SonnetDbJni.docAggregate(document, payloadJson);
+    }
+
+    @Override
     public void flush(long connection) {
         SonnetDbJni.flush(connection);
     }
@@ -225,6 +275,10 @@ public final class SonnetDbJniBackend implements NativeBackend {
         return path == null || path.trim().isEmpty()
             ? null
             : new File(path).getAbsolutePath();
+    }
+
+    private static String optionsOrEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private static void loadJniLibrary() {

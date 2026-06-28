@@ -96,6 +96,19 @@ pub enum Value {
     Text(String),
 }
 
+/// Options for one synchronous bulk ingest operation.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct BulkOptions {
+    /// Optional measurement override.
+    pub measurement: Option<String>,
+
+    /// Optional error handling mode, such as `skip` or `failfast`.
+    pub on_error: Option<String>,
+
+    /// Optional flush mode, such as `false`, `async`, `true`, or `sync`.
+    pub flush: Option<String>,
+}
+
 /// Materialized KV entry.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KvEntry {
@@ -174,6 +187,32 @@ impl Connection {
         result.records_affected()
     }
 
+    /// Ingests a bulk payload synchronously and returns the affected row count.
+    pub fn execute_bulk(
+        &self,
+        payload: impl AsRef<str>,
+        options: Option<&BulkOptions>,
+    ) -> Result<i32> {
+        let handle = self.handle()?;
+        let payload = to_c_string(payload.as_ref(), "payload")?;
+        let bulk = unsafe { ffi::sonnetdb_bulk_create(payload.as_ptr()) };
+        let bulk = NonNull::new(bulk).ok_or_else(|| last_error_or("sonnetdb_bulk_create failed."))?;
+        let result = match configure_bulk(bulk, options) {
+            Ok(()) => unsafe { ffi::sonnetdb_bulk_execute(handle.as_ptr(), bulk.as_ptr()) },
+            Err(error) => {
+                unsafe { ffi::sonnetdb_bulk_free(bulk.as_ptr()) };
+                return Err(error);
+            }
+        };
+        unsafe { ffi::sonnetdb_bulk_free(bulk.as_ptr()) };
+
+        let result = NonNull::new(result).ok_or_else(|| last_error_or("sonnetdb_bulk_execute failed."))?;
+        let result_set = ResultSet {
+            handle: Some(result),
+        };
+        result_set.records_affected()
+    }
+
     /// Forces pending data to durable storage through the native engine.
     pub fn flush(&self) -> Result<()> {
         let handle = self.handle()?;
@@ -182,6 +221,20 @@ impl Connection {
             return Err(last_error_or("sonnetdb_flush failed."));
         }
         Ok(())
+    }
+
+    /// Opens a document collection handle.
+    pub fn open_document_collection(
+        &self,
+        collection: impl AsRef<str>,
+    ) -> Result<DocumentCollection> {
+        let handle = self.handle()?;
+        let collection = to_c_string(collection.as_ref(), "collection")?;
+        let document = unsafe { ffi::sonnetdb_doc_open(handle.as_ptr(), collection.as_ptr()) };
+        let document = NonNull::new(document).ok_or_else(|| last_error_or("sonnetdb_doc_open failed."))?;
+        Ok(DocumentCollection {
+            handle: Some(document),
+        })
     }
 
     /// Opens a KV keyspace handle. Pass `None` or an empty string for the root namespace.
@@ -224,6 +277,145 @@ impl Connection {
 }
 
 impl Drop for Connection {
+    fn drop(&mut self) {
+        let _ = self.close_inner();
+    }
+}
+
+/// Document collection handle backed by the native C ABI.
+pub struct DocumentCollection {
+    handle: Option<NonNull<ffi::sonnetdb_doc>>,
+}
+
+impl DocumentCollection {
+    /// Creates the collection and returns the native JSON response.
+    pub fn create_collection(&self, options_json: Option<&str>) -> Result<String> {
+        self.execute_json(
+            DocumentOperation::CreateCollection,
+            options_json,
+            false,
+            "sonnetdb_doc_create_collection failed.",
+        )
+    }
+
+    /// Drops the collection and returns whether it existed.
+    pub fn drop_collection(&self) -> Result<bool> {
+        let handle = self.handle()?;
+        let code = unsafe { ffi::sonnetdb_doc_drop_collection(handle.as_ptr()) };
+        bool_from_code(code, "sonnetdb_doc_drop_collection failed.")
+    }
+
+    /// Inserts one or more documents from a JSON request.
+    pub fn insert(&self, payload_json: impl AsRef<str>) -> Result<String> {
+        self.execute_json(
+            DocumentOperation::Insert,
+            Some(payload_json.as_ref()),
+            true,
+            "sonnetdb_doc_insert failed.",
+        )
+    }
+
+    /// Updates documents from a JSON request.
+    pub fn update(&self, payload_json: impl AsRef<str>) -> Result<String> {
+        self.execute_json(
+            DocumentOperation::Update,
+            Some(payload_json.as_ref()),
+            true,
+            "sonnetdb_doc_update failed.",
+        )
+    }
+
+    /// Deletes documents from a JSON request.
+    pub fn delete(&self, payload_json: impl AsRef<str>) -> Result<String> {
+        self.execute_json(
+            DocumentOperation::Delete,
+            Some(payload_json.as_ref()),
+            true,
+            "sonnetdb_doc_delete failed.",
+        )
+    }
+
+    /// Finds a page of documents and returns the native JSON response.
+    pub fn find_page(&self, payload_json: Option<&str>) -> Result<String> {
+        self.execute_json(
+            DocumentOperation::FindPage,
+            payload_json,
+            false,
+            "sonnetdb_doc_find_page failed.",
+        )
+    }
+
+    /// Runs an aggregation pipeline and returns the native JSON response.
+    pub fn aggregate(&self, payload_json: impl AsRef<str>) -> Result<String> {
+        self.execute_json(
+            DocumentOperation::Aggregate,
+            Some(payload_json.as_ref()),
+            true,
+            "sonnetdb_doc_aggregate failed.",
+        )
+    }
+
+    /// Closes the native document handle. Dropping the handle also closes it.
+    pub fn close(mut self) -> Result<()> {
+        self.close_inner()
+    }
+
+    fn execute_json(
+        &self,
+        operation: DocumentOperation,
+        payload_json: Option<&str>,
+        required: bool,
+        fallback: &str,
+    ) -> Result<String> {
+        let handle = self.handle()?;
+        let payload = match payload_json {
+            Some(value) if !value.is_empty() => Some(to_c_string(value, "payload_json")?),
+            Some(_) if required => return Err(Error::new("payload_json must not be empty.")),
+            _ => None,
+        };
+        let payload_ptr = payload
+            .as_ref()
+            .map_or(std::ptr::null(), |value| value.as_ptr());
+
+        let result = unsafe {
+            match operation {
+                DocumentOperation::CreateCollection => {
+                    ffi::sonnetdb_doc_create_collection(handle.as_ptr(), payload_ptr)
+                }
+                DocumentOperation::Insert => ffi::sonnetdb_doc_insert(handle.as_ptr(), payload_ptr),
+                DocumentOperation::Update => ffi::sonnetdb_doc_update(handle.as_ptr(), payload_ptr),
+                DocumentOperation::Delete => ffi::sonnetdb_doc_delete(handle.as_ptr(), payload_ptr),
+                DocumentOperation::FindPage => ffi::sonnetdb_doc_find_page(handle.as_ptr(), payload_ptr),
+                DocumentOperation::Aggregate => ffi::sonnetdb_doc_aggregate(handle.as_ptr(), payload_ptr),
+            }
+        };
+        let result = NonNull::new(result).ok_or_else(|| last_error_or(fallback))?;
+        let json = copy_document_json(result, fallback);
+        unsafe { ffi::sonnetdb_doc_result_free(result.as_ptr()) };
+        json
+    }
+
+    fn handle(&self) -> Result<NonNull<ffi::sonnetdb_doc>> {
+        self.handle
+            .ok_or_else(|| Error::new("SonnetDB document collection is closed."))
+    }
+
+    fn close_inner(&mut self) -> Result<()> {
+        let Some(handle) = self.handle.take() else {
+            return Ok(());
+        };
+
+        unsafe { ffi::sonnetdb_doc_close(handle.as_ptr()) };
+        let message = last_error();
+        if message.is_empty() {
+            Ok(())
+        } else {
+            Err(Error::new(message))
+        }
+    }
+}
+
+impl Drop for DocumentCollection {
     fn drop(&mut self) {
         let _ = self.close_inner();
     }
@@ -625,6 +817,15 @@ pub fn last_error() -> String {
     copy_utf8_raw(ffi::sonnetdb_last_error).unwrap_or_default()
 }
 
+enum DocumentOperation {
+    CreateCollection,
+    Insert,
+    Update,
+    Delete,
+    FindPage,
+    Aggregate,
+}
+
 fn to_c_string(value: &str, name: &str) -> Result<CString> {
     CString::new(value).map_err(|_| Error::new(format!("{name} must not contain NUL bytes.")))
 }
@@ -644,6 +845,74 @@ fn bool_from_code(code: c_int, fallback: &str) -> Result<bool> {
         return Err(last_error_or(fallback));
     }
     Ok(code == 1)
+}
+
+fn configure_bulk(bulk: NonNull<ffi::sonnetdb_bulk>, options: Option<&BulkOptions>) -> Result<()> {
+    let Some(options) = options else {
+        return Ok(());
+    };
+
+    set_bulk_string(
+        bulk,
+        options.measurement.as_deref(),
+        ffi::sonnetdb_bulk_set_measurement,
+        "sonnetdb_bulk_set_measurement failed.",
+    )?;
+    set_bulk_string(
+        bulk,
+        options.on_error.as_deref(),
+        ffi::sonnetdb_bulk_set_onerror,
+        "sonnetdb_bulk_set_onerror failed.",
+    )?;
+    set_bulk_string(
+        bulk,
+        options.flush.as_deref(),
+        ffi::sonnetdb_bulk_set_flush,
+        "sonnetdb_bulk_set_flush failed.",
+    )
+}
+
+fn set_bulk_string(
+    bulk: NonNull<ffi::sonnetdb_bulk>,
+    value: Option<&str>,
+    setter: unsafe extern "C" fn(*mut ffi::sonnetdb_bulk, *const c_char) -> c_int,
+    fallback: &str,
+) -> Result<()> {
+    let Some(value) = value.filter(|value| !value.is_empty()) else {
+        return Ok(());
+    };
+    let value = to_c_string(value, "bulk option")?;
+    let code = unsafe { setter(bulk.as_ptr(), value.as_ptr()) };
+    if code != 0 {
+        return Err(last_error_or(fallback));
+    }
+    Ok(())
+}
+
+fn copy_document_json(
+    result: NonNull<ffi::sonnetdb_doc_result>,
+    fallback: &str,
+) -> Result<String> {
+    let required = unsafe { ffi::sonnetdb_doc_result_json_length(result.as_ptr()) };
+    if required < 0 {
+        return Err(last_error_or(fallback));
+    }
+    if required == c_int::MAX {
+        return Err(Error::new("Document JSON response length is out of range."));
+    }
+
+    let length = usize::try_from(required)
+        .map_err(|_| Error::new("Document JSON response length is out of range."))?;
+    let mut buffer = vec![0 as c_char; length + 1];
+    let copied = unsafe {
+        ffi::sonnetdb_doc_result_copy_json(result.as_ptr(), buffer.as_mut_ptr(), required + 1)
+    };
+    if copied < 0 {
+        return Err(last_error_or(fallback));
+    }
+    Ok(unsafe { CStr::from_ptr(buffer.as_ptr()) }
+        .to_string_lossy()
+        .into_owned())
 }
 
 fn materialize_kv_entry(entry: NonNull<ffi::sonnetdb_kv_entry>) -> Result<KvEntry> {

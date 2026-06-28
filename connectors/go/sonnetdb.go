@@ -92,9 +92,21 @@ type Connection struct {
 	handle *C.sonnetdb_connection
 }
 
+// BulkOptions configures one bulk ingest operation.
+type BulkOptions struct {
+	Measurement string
+	OnError     string
+	Flush       string
+}
+
 // KV is a SonnetDB keyspace/namespace handle backed by the native C ABI.
 type KV struct {
 	handle *C.sonnetdb_kv
+}
+
+// DocumentCollection is a SonnetDB document collection handle backed by the native C ABI.
+type DocumentCollection struct {
+	handle *C.sonnetdb_doc
 }
 
 // KVEntry is a materialized key/value entry.
@@ -218,6 +230,44 @@ func (c *Connection) ExecuteNonQuery(sql string) (int, error) {
 	return result.RecordsAffected()
 }
 
+// ExecuteBulk ingests a bulk payload synchronously and returns the affected row count.
+func (c *Connection) ExecuteBulk(payload string, options ...BulkOptions) (int, error) {
+	handle, err := c.ensureOpen()
+	if err != nil {
+		return 0, err
+	}
+	if payload == "" {
+		return 0, errors.New("sonnetdb: bulk payload must not be empty")
+	}
+
+	cPayload := C.CString(payload)
+	defer C.sonnetdb_go_free(cPayload)
+
+	bulk := C.sonnetdb_bulk_create(cPayload)
+	if bulk == nil {
+		return 0, lastError("sonnetdb_bulk_create failed")
+	}
+	defer C.sonnetdb_bulk_free(bulk)
+
+	if len(options) > 0 {
+		if err := configureBulk(bulk, options[0]); err != nil {
+			return 0, err
+		}
+	}
+
+	result := C.sonnetdb_bulk_execute(handle, bulk)
+	if result == nil {
+		return 0, lastError("sonnetdb_bulk_execute failed")
+	}
+
+	cursor := &Result{handle: result}
+	affected, err := cursor.RecordsAffected()
+	if closeErr := cursor.Close(); err == nil && closeErr != nil {
+		err = closeErr
+	}
+	return affected, err
+}
+
 // Flush forces pending data to durable storage through the native engine.
 func (c *Connection) Flush() error {
 	handle, err := c.ensureOpen()
@@ -228,6 +278,31 @@ func (c *Connection) Flush() error {
 		return lastError("sonnetdb_flush failed")
 	}
 	return nil
+}
+
+// OpenDocumentCollection opens a document collection handle.
+func (c *Connection) OpenDocumentCollection(collection string) (*DocumentCollection, error) {
+	handle, err := c.ensureOpen()
+	if err != nil {
+		return nil, err
+	}
+	if collection == "" {
+		return nil, errors.New("sonnetdb: document collection must not be empty")
+	}
+
+	cCollection := C.CString(collection)
+	defer C.sonnetdb_go_free(cCollection)
+
+	docHandle := C.sonnetdb_doc_open(handle, cCollection)
+	if docHandle == nil {
+		return nil, lastError("sonnetdb_doc_open failed")
+	}
+
+	documents := &DocumentCollection{handle: docHandle}
+	runtime.SetFinalizer(documents, func(value *DocumentCollection) {
+		_ = value.Close()
+	})
+	return documents, nil
 }
 
 // OpenKV opens a KV keyspace handle. The optional namespace scopes keys with a
@@ -530,6 +605,74 @@ func (kv *KV) CAS(key string, expectedVersion int64, value []byte, expiresAtUnix
 	}, nil
 }
 
+// Close releases the native document collection handle. Calling Close more than once is safe.
+func (d *DocumentCollection) Close() error {
+	if d == nil || d.handle == nil {
+		return nil
+	}
+
+	handle := d.handle
+	d.handle = nil
+	runtime.SetFinalizer(d, nil)
+	C.sonnetdb_doc_close(handle)
+	if message := LastError(); message != "" {
+		return &Error{Message: message}
+	}
+	return nil
+}
+
+// CreateCollection creates the collection and returns the native JSON response.
+func (d *DocumentCollection) CreateCollection(optionsJSON ...string) (string, error) {
+	payload := ""
+	if len(optionsJSON) > 0 {
+		payload = optionsJSON[0]
+	}
+	return d.executeDocumentJSON(documentCreateCollection, payload, false, "sonnetdb_doc_create_collection failed")
+}
+
+// DropCollection drops the collection and returns whether it existed.
+func (d *DocumentCollection) DropCollection() (bool, error) {
+	handle, err := d.ensureOpen()
+	if err != nil {
+		return false, err
+	}
+
+	code := int(C.sonnetdb_doc_drop_collection(handle))
+	if code < 0 {
+		return false, lastError("sonnetdb_doc_drop_collection failed")
+	}
+	return code == 1, nil
+}
+
+// Insert inserts one or more documents from a JSON request and returns the native JSON response.
+func (d *DocumentCollection) Insert(payloadJSON string) (string, error) {
+	return d.executeDocumentJSON(documentInsert, payloadJSON, true, "sonnetdb_doc_insert failed")
+}
+
+// Update updates documents from a JSON request and returns the native JSON response.
+func (d *DocumentCollection) Update(payloadJSON string) (string, error) {
+	return d.executeDocumentJSON(documentUpdate, payloadJSON, true, "sonnetdb_doc_update failed")
+}
+
+// Delete deletes documents from a JSON request and returns the native JSON response.
+func (d *DocumentCollection) Delete(payloadJSON string) (string, error) {
+	return d.executeDocumentJSON(documentDelete, payloadJSON, true, "sonnetdb_doc_delete failed")
+}
+
+// FindPage finds a page of documents and returns the native JSON response.
+func (d *DocumentCollection) FindPage(payloadJSON ...string) (string, error) {
+	payload := ""
+	if len(payloadJSON) > 0 {
+		payload = payloadJSON[0]
+	}
+	return d.executeDocumentJSON(documentFindPage, payload, false, "sonnetdb_doc_find_page failed")
+}
+
+// Aggregate runs a document aggregation pipeline and returns the native JSON response.
+func (d *DocumentCollection) Aggregate(payloadJSON string) (string, error) {
+	return d.executeDocumentJSON(documentAggregate, payloadJSON, true, "sonnetdb_doc_aggregate failed")
+}
+
 // Close releases the native result handle. Calling Close more than once is safe.
 func (r *Result) Close() error {
 	if r == nil || r.handle == nil {
@@ -755,11 +898,120 @@ func (kv *KV) ensureOpen() (*C.sonnetdb_kv, error) {
 	return kv.handle, nil
 }
 
+func (d *DocumentCollection) ensureOpen() (*C.sonnetdb_doc, error) {
+	if d == nil || d.handle == nil {
+		return nil, ErrClosed
+	}
+	return d.handle, nil
+}
+
 func (r *Result) ensureOpen() (*C.sonnetdb_result, error) {
 	if r == nil || r.handle == nil {
 		return nil, ErrClosed
 	}
 	return r.handle, nil
+}
+
+type documentOperation int
+
+const (
+	documentCreateCollection documentOperation = iota
+	documentInsert
+	documentUpdate
+	documentDelete
+	documentFindPage
+	documentAggregate
+)
+
+func configureBulk(bulk *C.sonnetdb_bulk, options BulkOptions) error {
+	if err := setBulkString(bulk, options.Measurement, "sonnetdb_bulk_set_measurement", func(value *C.char) C.int32_t {
+		return C.sonnetdb_bulk_set_measurement(bulk, value)
+	}); err != nil {
+		return err
+	}
+	if err := setBulkString(bulk, options.OnError, "sonnetdb_bulk_set_onerror", func(value *C.char) C.int32_t {
+		return C.sonnetdb_bulk_set_onerror(bulk, value)
+	}); err != nil {
+		return err
+	}
+	return setBulkString(bulk, options.Flush, "sonnetdb_bulk_set_flush", func(value *C.char) C.int32_t {
+		return C.sonnetdb_bulk_set_flush(bulk, value)
+	})
+}
+
+func setBulkString(_ *C.sonnetdb_bulk, value string, fallback string, setter func(*C.char) C.int32_t) error {
+	if value == "" {
+		return nil
+	}
+
+	cValue := C.CString(value)
+	defer C.sonnetdb_go_free(cValue)
+	if setter(cValue) != 0 {
+		return lastError(fallback)
+	}
+	return nil
+}
+
+func (d *DocumentCollection) executeDocumentJSON(operation documentOperation, payload string, required bool, fallback string) (string, error) {
+	handle, err := d.ensureOpen()
+	if err != nil {
+		return "", err
+	}
+	if required && payload == "" {
+		return "", errors.New("sonnetdb: document JSON payload must not be empty")
+	}
+
+	var cPayload *C.char
+	if payload != "" {
+		cPayload = C.CString(payload)
+		defer C.sonnetdb_go_free(cPayload)
+	}
+
+	var result *C.sonnetdb_doc_result
+	switch operation {
+	case documentCreateCollection:
+		result = C.sonnetdb_doc_create_collection(handle, cPayload)
+	case documentInsert:
+		result = C.sonnetdb_doc_insert(handle, cPayload)
+	case documentUpdate:
+		result = C.sonnetdb_doc_update(handle, cPayload)
+	case documentDelete:
+		result = C.sonnetdb_doc_delete(handle, cPayload)
+	case documentFindPage:
+		result = C.sonnetdb_doc_find_page(handle, cPayload)
+	case documentAggregate:
+		result = C.sonnetdb_doc_aggregate(handle, cPayload)
+	default:
+		return "", errors.New("sonnetdb: unknown document operation")
+	}
+	if result == nil {
+		return "", lastError(fallback)
+	}
+	defer C.sonnetdb_doc_result_free(result)
+
+	return copyDocumentJSON(result, fallback)
+}
+
+func copyDocumentJSON(result *C.sonnetdb_doc_result, fallback string) (string, error) {
+	required := int(C.sonnetdb_doc_result_json_length(result))
+	if required < 0 {
+		return "", lastError(fallback)
+	}
+	if required >= maxInt32 {
+		return "", errors.New("sonnetdb: document JSON response is out of range")
+	}
+
+	buffer := C.sonnetdb_go_alloc(C.int32_t(required + 1))
+	if buffer == nil {
+		return "", errors.New("sonnetdb: cannot allocate document JSON buffer")
+	}
+	defer C.sonnetdb_go_free(buffer)
+
+	copied := int(C.sonnetdb_doc_result_copy_json(result, buffer, C.int32_t(required+1)))
+	if copied < 0 {
+		return "", lastError(fallback)
+	}
+	return C.GoString(buffer), nil
 }
 
 func materializeKVEntry(entry *C.sonnetdb_kv_entry) (*KVEntry, error) {
