@@ -15,6 +15,7 @@ extern "C" {
 
 typedef struct sonnetdb_connection sonnetdb_connection;
 typedef struct sonnetdb_result sonnetdb_result;
+typedef struct sonnetdb_bulk sonnetdb_bulk;
 
 typedef enum sonnetdb_value_type {
     SONNETDB_TYPE_NULL = 0,
@@ -29,6 +30,13 @@ SONNETDB_API void sonnetdb_close(sonnetdb_connection* connection);
 
 SONNETDB_API sonnetdb_result* sonnetdb_execute(sonnetdb_connection* connection, const char* sql);
 SONNETDB_API void sonnetdb_result_free(sonnetdb_result* result);
+
+SONNETDB_API sonnetdb_bulk* sonnetdb_bulk_create(const char* payload);
+SONNETDB_API int32_t sonnetdb_bulk_set_measurement(sonnetdb_bulk* bulk, const char* measurement);
+SONNETDB_API int32_t sonnetdb_bulk_set_onerror(sonnetdb_bulk* bulk, const char* onerror);
+SONNETDB_API int32_t sonnetdb_bulk_set_flush(sonnetdb_bulk* bulk, const char* flush);
+SONNETDB_API sonnetdb_result* sonnetdb_bulk_execute(sonnetdb_connection* connection, sonnetdb_bulk* bulk);
+SONNETDB_API void sonnetdb_bulk_free(sonnetdb_bulk* bulk);
 
 SONNETDB_API int32_t sonnetdb_result_records_affected(sonnetdb_result* result);
 SONNETDB_API int32_t sonnetdb_result_column_count(sonnetdb_result* result);

@@ -1,6 +1,6 @@
 # SonnetDB C Connector
 
-The C connector publishes `SonnetDB.Native` as a native shared library through .NET Native AOT and exposes a small C ABI. Internally, the native layer uses `SonnetDB.Data`, so the same SQL-only ABI can open both embedded databases and remote SonnetDB servers.
+The C connector publishes `SonnetDB.Native` as a native shared library through .NET Native AOT and exposes a small C ABI. Internally, the native layer uses `SonnetDB.Data`, so the same ABI can open both embedded databases and remote SonnetDB servers.
 
 ## ABI Scope
 
@@ -8,6 +8,8 @@ The initial ABI intentionally keeps only opaque handles and primitive values:
 
 - open and close a connection from either a `SonnetDB.Data` connection string or a plain embedded database directory
 - execute one SQL statement
+- create and execute a bulk ingest handle for Line Protocol, JSON points, or Bulk VALUES payloads
+- set bulk ingest options: `measurement`, `onerror`, and `flush`
 - read result metadata and rows
 - read typed values as `int64`, `double`, `bool`, or UTF-8 text
 - fetch the last error for the current native thread
@@ -15,7 +17,7 @@ The initial ABI intentionally keeps only opaque handles and primitive values:
 
 The ABI does not expose SonnetDB file format structs, C# objects, or internal engine pointers.
 
-`sonnetdb_flush` remains an embedded durability helper. Remote writes should use SQL semantics or the future bulk/API-specific connector functions.
+`sonnetdb_flush` remains an embedded durability helper. Remote bulk writes should use `sonnetdb_bulk_execute` with `sonnetdb_bulk_set_flush`.
 
 ## Connection Strings
 
@@ -32,7 +34,36 @@ sonnetdb_connection* embedded = sonnetdb_open("Data Source=./data-c;Mode=Embedde
 sonnetdb_connection* remote = sonnetdb_open("Data Source=sonnetdb+http://127.0.0.1:5080/metrics;Token=...;Mode=Remote");
 ```
 
-The current C ABI is still SQL-only. Bulk ingest, KV, Document, Object storage, and MQ APIs should be added as separate ABI groups so existing SQL connectors remain stable.
+The SQL ABI remains stable. Bulk ingest is exposed as its own function group, and future KV, Document, Object storage, and MQ APIs should follow the same pattern so existing SQL connectors remain stable.
+
+## Bulk Ingest
+
+Bulk ingest uses an opaque `sonnetdb_bulk` handle. The payload is passed as UTF-8 text and is dispatched through `SonnetDB.Data` `CommandType.TableDirect`, which means embedded and remote connections share the same ingest path.
+
+```c
+sonnetdb_bulk* bulk = sonnetdb_bulk_create(
+    "ignored,host=edge-2 usage=0.81 1710000002000\n"
+    "ignored,host=edge-2 usage=0.86 1710000003000");
+sonnetdb_bulk_set_measurement(bulk, "cpu");
+sonnetdb_bulk_set_onerror(bulk, "skip");
+sonnetdb_bulk_set_flush(bulk, "false");
+sonnetdb_result* result = sonnetdb_bulk_execute(conn, bulk);
+printf("bulk rows: %d\n", sonnetdb_result_records_affected(result));
+sonnetdb_result_free(result);
+sonnetdb_bulk_free(bulk);
+```
+
+Supported payloads:
+
+- Line Protocol
+- JSON points
+- Bulk VALUES: `INSERT INTO measurement(columns...) VALUES (...)`
+
+Options:
+
+- `measurement`: overrides the payload measurement or supplies the endpoint path for remote Line Protocol.
+- `onerror`: use `skip` to skip malformed rows; any other value uses fail-fast behavior.
+- `flush`: `false` / unset means no explicit flush, `async` signals background flush, `true` / `sync` performs a synchronous flush.
 
 ## Build With CMake
 
@@ -86,5 +117,6 @@ The example demonstrates:
 - opening an embedded database directory
 - creating a measurement
 - inserting rows
+- writing a Line Protocol payload through the bulk handle
 - selecting rows through the result cursor
 - closing all native handles

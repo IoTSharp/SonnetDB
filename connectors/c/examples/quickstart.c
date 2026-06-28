@@ -22,6 +22,15 @@ static void require_result(sonnetdb_result* result)
     }
 }
 
+static void require_ok(int32_t rc)
+{
+    if (rc != 0)
+    {
+        print_last_error();
+        exit(1);
+    }
+}
+
 int main(void)
 {
     sonnetdb_connection* connection = sonnetdb_open("./data-c");
@@ -44,6 +53,25 @@ int main(void)
         "(1710000001000, 'edge-1', 0.73)");
     require_result(result);
     printf("inserted rows: %d\n", sonnetdb_result_records_affected(result));
+    sonnetdb_result_free(result);
+
+    sonnetdb_bulk* bulk = sonnetdb_bulk_create(
+        "ignored,host=edge-2 usage=0.81 1710000002000\n"
+        "ignored,host=edge-2 usage=0.86 1710000003000");
+    if (bulk == NULL)
+    {
+        print_last_error();
+        sonnetdb_close(connection);
+        return 1;
+    }
+
+    require_ok(sonnetdb_bulk_set_measurement(bulk, "cpu"));
+    require_ok(sonnetdb_bulk_set_onerror(bulk, "failfast"));
+    require_ok(sonnetdb_bulk_set_flush(bulk, "false"));
+    result = sonnetdb_bulk_execute(connection, bulk);
+    sonnetdb_bulk_free(bulk);
+    require_result(result);
+    printf("bulk rows: %d\n", sonnetdb_result_records_affected(result));
     sonnetdb_result_free(result);
 
     result = sonnetdb_execute(

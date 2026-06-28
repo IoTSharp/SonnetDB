@@ -73,13 +73,15 @@ endif()
 
 file(GLOB_RECURSE SONNETDB_NATIVE_SOURCE_FILES CONFIGURE_DEPENDS
     "${SONNETDB_NATIVE_PROJECT_DIR}/*.cs"
-    "${SONNETDB_REPO_ROOT}/src/SonnetDB.Core/*.cs")
+    "${SONNETDB_REPO_ROOT}/src/SonnetDB.Core/*.cs"
+    "${SONNETDB_REPO_ROOT}/src/SonnetDB.Data/*.cs")
 
 set(SONNETDB_DOTNET_BUILD_FILES
     "${SONNETDB_REPO_ROOT}/Directory.Build.props"
     "${SONNETDB_REPO_ROOT}/Directory.Packages.props"
     "${SONNETDB_NATIVE_PROJECT}"
-    "${SONNETDB_REPO_ROOT}/src/SonnetDB.Core/SonnetDB.Core.csproj")
+    "${SONNETDB_REPO_ROOT}/src/SonnetDB.Core/SonnetDB.Core.csproj"
+    "${SONNETDB_REPO_ROOT}/src/SonnetDB.Data/SonnetDB.Data.csproj")
 
 add_custom_command(
     OUTPUT "${SONNETDB_NATIVE_STAMP}"

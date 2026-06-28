@@ -14,16 +14,107 @@ function Write-Section {
     Write-Host "== $Name =="
 }
 
-function Find-Command {
+function Get-CommandSource {
     param([string]$Name)
     $command = Get-Command $Name -ErrorAction SilentlyContinue
     if ($null -eq $command) {
-        Write-Host "missing: $Name"
-        return $false
+        return $null
     }
 
-    Write-Host "found:   $Name -> $($command.Source)"
-    return $true
+    return $command.Source
+}
+
+function Write-ToolFound {
+    param(
+        [string]$Name,
+        [string]$Source,
+        [string]$Origin = "PATH"
+    )
+
+    if ($Origin -eq "PATH") {
+        Write-Host "found:   $Name -> $Source"
+    }
+    else {
+        Write-Host "found:   $Name ($Origin) -> $Source"
+    }
+}
+
+function Write-ToolMissing {
+    param([string]$Name)
+    Write-Host "missing: $Name"
+}
+
+function Find-VsWhere {
+    $candidates = @(
+        "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe",
+        "$env:ProgramFiles\Microsoft Visual Studio\Installer\vswhere.exe"
+    )
+
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate) {
+            return $candidate
+        }
+    }
+
+    return $null
+}
+
+function Get-VisualStudioInstances {
+    $vswhere = Find-VsWhere
+    if ($null -eq $vswhere) {
+        return @()
+    }
+
+    $json = & $vswhere -all -products * -format json
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($json)) {
+        return @()
+    }
+
+    return @($json | ConvertFrom-Json)
+}
+
+function Find-VisualStudioToolchain {
+    $instances = @(Get-VisualStudioInstances)
+    if ($instances.Count -eq 0) {
+        return $null
+    }
+
+    $preferred = @(
+        $instances | Where-Object { $_.installationVersion -like "18.*" } | Sort-Object -Property installationVersion -Descending
+        $instances | Where-Object { $_.installationVersion -notlike "18.*" } | Sort-Object -Property installationVersion -Descending
+    )
+
+    foreach ($instance in $preferred) {
+        $root = [string]$instance.installationPath
+        if ([string]::IsNullOrWhiteSpace($root) -or -not (Test-Path -LiteralPath $root)) {
+            continue
+        }
+
+        $cmake = Join-Path $root "Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
+        if (-not (Test-Path -LiteralPath $cmake)) {
+            $cmake = $null
+        }
+
+        $cl = $null
+        $msvcRoot = Join-Path $root "VC\Tools\MSVC"
+        if (Test-Path -LiteralPath $msvcRoot) {
+            $cl = Get-ChildItem -LiteralPath $msvcRoot -Directory |
+                Sort-Object -Property Name -Descending |
+                ForEach-Object { Join-Path $_.FullName "bin\Hostx64\x64\cl.exe" } |
+                Where-Object { Test-Path -LiteralPath $_ } |
+                Select-Object -First 1
+        }
+
+        return [pscustomobject]@{
+            DisplayName = [string]$instance.displayName
+            Version = [string]$instance.installationVersion
+            Path = $root
+            CMake = $cmake
+            Cl = $cl
+        }
+    }
+
+    return $null
 }
 
 function Invoke-Step {
@@ -41,13 +132,66 @@ $repoRoot = Resolve-Path (Join-Path $scriptDir "..\..\..\..")
 Set-Location $repoRoot
 
 Write-Section "Toolchain"
-$hasDotnet = Find-Command dotnet
-$hasJava = Find-Command java
-$hasJavac = Find-Command javac
-$hasCmake = Find-Command cmake
-$hasCl = Find-Command cl
-$hasGcc = Find-Command gcc
-$hasClang = Find-Command clang
+$vsToolchain = Find-VisualStudioToolchain
+if ($null -ne $vsToolchain) {
+    Write-Host "found:   Visual Studio -> $($vsToolchain.DisplayName) $($vsToolchain.Version) at $($vsToolchain.Path)"
+}
+else {
+    Write-Host "missing: Visual Studio instance discoverable by vswhere"
+}
+
+$dotnetCommand = Get-CommandSource dotnet
+$javaCommand = Get-CommandSource java
+$javacCommand = Get-CommandSource javac
+$cmakeCommand = Get-CommandSource cmake
+$clCommand = Get-CommandSource cl
+$gccCommand = Get-CommandSource gcc
+$clangCommand = Get-CommandSource clang
+
+if ($null -eq $cmakeCommand -and $null -ne $vsToolchain -and -not [string]::IsNullOrWhiteSpace($vsToolchain.CMake)) {
+    $cmakeCommand = $vsToolchain.CMake
+    Write-ToolFound "cmake" $cmakeCommand "VS bundled"
+}
+elseif ($null -ne $cmakeCommand) {
+    Write-ToolFound "cmake" $cmakeCommand
+}
+else {
+    Write-ToolMissing "cmake"
+}
+
+if ($null -eq $clCommand -and $null -ne $vsToolchain -and -not [string]::IsNullOrWhiteSpace($vsToolchain.Cl)) {
+    $clCommand = $vsToolchain.Cl
+    Write-ToolFound "cl" $clCommand "VS bundled"
+}
+elseif ($null -ne $clCommand) {
+    Write-ToolFound "cl" $clCommand
+}
+else {
+    Write-ToolMissing "cl"
+}
+
+foreach ($tool in @(
+    @{ Name = "dotnet"; Source = $dotnetCommand },
+    @{ Name = "java"; Source = $javaCommand },
+    @{ Name = "javac"; Source = $javacCommand },
+    @{ Name = "gcc"; Source = $gccCommand },
+    @{ Name = "clang"; Source = $clangCommand }
+)) {
+    if ($null -ne $tool.Source) {
+        Write-ToolFound $tool.Name $tool.Source
+    }
+    else {
+        Write-ToolMissing $tool.Name
+    }
+}
+
+$hasDotnet = $null -ne $dotnetCommand
+$hasJava = $null -ne $javaCommand
+$hasJavac = $null -ne $javacCommand
+$hasCmake = $null -ne $cmakeCommand
+$hasCl = $null -ne $clCommand
+$hasGcc = $null -ne $gccCommand
+$hasClang = $null -ne $clangCommand
 
 if ($hasJava) {
     & java -version
@@ -58,7 +202,7 @@ if ($hasJavac) {
 }
 
 if ($hasCmake) {
-    & cmake --version
+    & $cmakeCommand --version
 }
 
 if ($RunNativePublish) {
@@ -141,7 +285,7 @@ if ($RunCMake) {
     $javaBuild = "artifacts/connectors/java/windows-x64-$suffix"
 
     Invoke-Step "C connector CMake configure" {
-        & cmake -S "connectors/c" `
+        & $cmakeCommand -S "connectors/c" `
             -B $cBuild `
             -G $VisualStudioGenerator `
             -A x64 `
@@ -149,7 +293,7 @@ if ($RunCMake) {
     }
 
     Invoke-Step "C connector CMake build" {
-        & cmake --build $cBuild --config Release
+        & $cmakeCommand --build $cBuild --config Release
     }
 
     $nativeLibraryPath = Join-Path (Resolve-Path $cBuild) "Release/SonnetDB.Native.dll"
@@ -158,7 +302,7 @@ if ($RunCMake) {
     }
 
     Invoke-Step "Java connector CMake configure" {
-        & cmake -S "connectors/java" `
+        & $cmakeCommand -S "connectors/java" `
             -B $javaBuild `
             -G $VisualStudioGenerator `
             -A x64 `
@@ -167,15 +311,15 @@ if ($RunCMake) {
     }
 
     Invoke-Step "Java connector CMake build" {
-        & cmake --build $javaBuild --config Release
+        & $cmakeCommand --build $javaBuild --config Release
     }
 
     Invoke-Step "Java JNI quickstart" {
-        & cmake --build $javaBuild --target run_sonnetdb_java_quickstart --config Release
+        & $cmakeCommand --build $javaBuild --target run_sonnetdb_java_quickstart --config Release
     }
 
     Invoke-Step "Java FFM quickstart" {
-        & cmake --build $javaBuild --target run_sonnetdb_java_quickstart_ffm --config Release
+        & $cmakeCommand --build $javaBuild --target run_sonnetdb_java_quickstart_ffm --config Release
     }
 }
 

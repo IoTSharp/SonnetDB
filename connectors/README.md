@@ -19,7 +19,7 @@ The first implemented connector is the C connector because it defines the small 
 
 Connectors have their own product route. They are not just embedded-engine samples.
 
-The native C ABI remains the shared foundation for languages that need a stable binary boundary. The first supported ABI surface is intentionally SQL-only:
+The native C ABI remains the shared foundation for languages that need a stable binary boundary. The first supported ABI surface covered SQL:
 
 - `sonnetdb_open` / `sonnetdb_close`
 - `sonnetdb_execute`
@@ -33,9 +33,16 @@ The native C ABI remains the shared foundation for languages that need a stable 
 Data Source=sonnetdb+http://127.0.0.1:5080/metrics;Token=...;Mode=Remote
 ```
 
-The next connector milestones should extend the ABI by adding separate, focused function groups instead of widening `sonnetdb_execute`:
+Bulk ingest now follows that rule as a separate function group:
 
-- bulk ingest API
+- `sonnetdb_bulk_create` / `sonnetdb_bulk_free`
+- `sonnetdb_bulk_set_measurement`
+- `sonnetdb_bulk_set_onerror`
+- `sonnetdb_bulk_set_flush`
+- `sonnetdb_bulk_execute`
+
+The next connector milestones should continue extending the ABI by adding separate, focused function groups instead of widening `sonnetdb_execute`:
+
 - KV API
 - Document API
 - Object storage API

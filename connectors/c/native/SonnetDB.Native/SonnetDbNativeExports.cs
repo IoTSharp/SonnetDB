@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Data;
 using System.Globalization;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -37,6 +38,19 @@ internal sealed class NativeConnection : IDisposable
         command.CommandText = sql;
         using var reader = command.ExecuteReader();
         return NativeResult.From(reader);
+    }
+
+    public NativeResult ExecuteBulk(NativeBulk bulk)
+    {
+        ArgumentNullException.ThrowIfNull(bulk);
+        var connection = _connection ?? throw new ObjectDisposedException(nameof(NativeConnection));
+        using var command = connection.CreateCommand();
+        command.CommandType = CommandType.TableDirect;
+        command.CommandText = bulk.Payload;
+        AddBulkParameter(command, "measurement", bulk.Measurement);
+        AddBulkParameter(command, "onerror", bulk.OnError);
+        AddBulkParameter(command, "flush", bulk.Flush);
+        return NativeResult.NonQuery(command.ExecuteNonQuery());
     }
 
     public void Flush()
@@ -85,6 +99,14 @@ internal sealed class NativeConnection : IDisposable
         {
             return false;
         }
+    }
+
+    private static void AddBulkParameter(SndbCommand command, string name, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return;
+
+        command.Parameters.AddWithValue(name, value);
     }
 }
 
@@ -255,7 +277,7 @@ internal sealed class NativeResult : IDisposable
         _disposed = true;
     }
 
-    private static NativeResult NonQuery(int recordsAffected)
+    public static NativeResult NonQuery(int recordsAffected)
         => new(Array.Empty<string>(), Array.Empty<IReadOnlyList<object?>>(), recordsAffected);
 
     private object? GetCurrentValue(int ordinal)
@@ -318,6 +340,41 @@ internal sealed class NativeResult : IDisposable
         sb.Append(']');
         return sb.ToString();
     }
+}
+
+internal sealed class NativeBulk
+{
+    public NativeBulk(string payload)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(payload);
+        Payload = payload;
+    }
+
+    public string Payload { get; }
+
+    public string? Measurement { get; private set; }
+
+    public string? OnError { get; private set; }
+
+    public string? Flush { get; private set; }
+
+    public void SetMeasurement(string? measurement)
+    {
+        Measurement = NormalizeOptional(measurement);
+    }
+
+    public void SetOnError(string? onError)
+    {
+        OnError = NormalizeOptional(onError);
+    }
+
+    public void SetFlush(string? flush)
+    {
+        Flush = NormalizeOptional(flush);
+    }
+
+    private static string? NormalizeOptional(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value;
 }
 
 internal static class SonnetDbNativeExports
@@ -385,6 +442,115 @@ internal static class SonnetDbNativeExports
         {
             SetError(ex);
             return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_bulk_create", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr BulkCreate(IntPtr payload)
+    {
+        try
+        {
+            ClearError();
+            var text = ReadUtf8(payload, nameof(payload));
+            var bulk = new NativeBulk(text);
+            return GCHandle.ToIntPtr(GCHandle.Alloc(bulk));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_bulk_set_measurement", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int BulkSetMeasurement(IntPtr bulk, IntPtr measurement)
+    {
+        try
+        {
+            ClearError();
+            GetTarget<NativeBulk>(bulk, nameof(bulk)).SetMeasurement(ReadOptionalUtf8(measurement));
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return -1;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_bulk_set_onerror", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int BulkSetOnError(IntPtr bulk, IntPtr onError)
+    {
+        try
+        {
+            ClearError();
+            GetTarget<NativeBulk>(bulk, nameof(bulk)).SetOnError(ReadOptionalUtf8(onError));
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return -1;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_bulk_set_flush", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int BulkSetFlush(IntPtr bulk, IntPtr flush)
+    {
+        try
+        {
+            ClearError();
+            GetTarget<NativeBulk>(bulk, nameof(bulk)).SetFlush(ReadOptionalUtf8(flush));
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return -1;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_bulk_execute", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr BulkExecute(IntPtr connection, IntPtr bulk)
+    {
+        try
+        {
+            ClearError();
+            var nativeConnection = GetTarget<NativeConnection>(connection, nameof(connection));
+            var nativeBulk = GetTarget<NativeBulk>(bulk, nameof(bulk));
+            var result = nativeConnection.ExecuteBulk(nativeBulk);
+            return GCHandle.ToIntPtr(GCHandle.Alloc(result));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_bulk_free", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static void BulkFree(IntPtr bulk)
+    {
+        GCHandle handle = default;
+        bool hasHandle = false;
+
+        try
+        {
+            ClearError();
+            if (bulk == IntPtr.Zero)
+                return;
+
+            handle = GCHandle.FromIntPtr(bulk);
+            hasHandle = true;
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+        }
+        finally
+        {
+            if (hasHandle)
+                handle.Free();
         }
     }
 
@@ -524,6 +690,9 @@ internal static class SonnetDbNativeExports
         return Marshal.PtrToStringUTF8(pointer)
             ?? throw new ArgumentException("UTF-8 string pointer is invalid.", parameterName);
     }
+
+    private static string? ReadOptionalUtf8(IntPtr pointer)
+        => pointer == IntPtr.Zero ? null : Marshal.PtrToStringUTF8(pointer);
 
     private static int CopyUtf8(string value, IntPtr buffer, int bufferLength)
     {

@@ -34,7 +34,8 @@ Use `"Visual Studio 17 2022"` when the machine has VS2022 instead of VS2026.
 
 - Required for all fallback checks: `dotnet`, `java`, `javac`.
 - Required for CMake quickstarts: `cmake` plus a C compiler/linker.
-- On Windows, prefer VS2026 Build Tools with C++ workload. VS2022 Build Tools is also acceptable.
+- On this workstation, Visual Studio Professional 2026 is installed at `C:\Program Files\Microsoft Visual Studio\18\Professional`; its bundled CMake lives under `Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe`, and MSVC `cl.exe` lives under `VC\Tools\MSVC\...\bin\Hostx64\x64\cl.exe`. Do not report CMake/MSVC as unavailable only because a normal PowerShell session lacks them on `PATH`; use `vswhere` or this skill's helper script to discover the VS-bundled tools.
+- On Windows, prefer VS2026 Build Tools/Professional with C++ workload. VS2022 Build Tools is also acceptable.
 - Current C connector presets may target `Visual Studio 17 2022`; when only VS2026 is installed, use the helper script with `-VisualStudioGenerator "Visual Studio 18 2026"` or configure CMake manually with `-G "Visual Studio 18 2026" -A x64`.
 
 ## Manual Commands
