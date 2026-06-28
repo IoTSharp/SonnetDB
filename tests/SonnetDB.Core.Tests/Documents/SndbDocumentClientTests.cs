@@ -62,6 +62,26 @@ public sealed class SndbDocumentClientTests : IDisposable
     }
 
     [Fact]
+    public async Task DocumentClient_WithOpenAdoConnection_ReusesEmbeddedDatabase()
+    {
+        var connectionString = new SndbConnectionStringBuilder
+        {
+            DataSource = _root,
+        }.ConnectionString;
+        using var connection = new SndbConnection(connectionString);
+        connection.Open();
+
+        using var client = new SndbDocumentClient(connectionString);
+        Assert.Equal("created", await client.CreateCollectionAsync("devices"));
+        var inserted = await client.InsertOneAsync("devices", "dev-1", """{"site":"north"}""");
+        Assert.Equal(1, inserted.Inserted);
+
+        var document = await client.FindOneAsync("devices", "dev-1");
+        Assert.NotNull(document);
+        Assert.Equal("""{"site":"north"}""", document!.Json);
+    }
+
+    [Fact]
     public async Task DocumentClient_FindOptions_FilterProjectionSort_ReturnsProjectedDocuments()
     {
         using var client = new SndbDocumentClient(new SndbConnectionStringBuilder

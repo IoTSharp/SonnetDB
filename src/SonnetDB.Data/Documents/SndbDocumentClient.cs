@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using SonnetDB.Data.Embedded;
 using SonnetDB.Data.Remote;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
@@ -635,7 +636,10 @@ public sealed class SndbDocumentClient : IDisposable
 
         _disposed = true;
         _http?.Dispose();
-        _embedded?.Dispose();
+        var embedded = _embedded;
+        _embedded = null;
+        if (embedded is not null)
+            SharedSndbRegistry.Release(embedded);
     }
 
     private void Open()
@@ -646,7 +650,7 @@ public sealed class SndbDocumentClient : IDisposable
                 throw new InvalidOperationException("文档客户端缺少 Data Source。");
 
             _database = _builder.DataSource;
-            _embedded = Tsdb.Open(new TsdbOptions { RootDirectory = _builder.DataSource });
+            _embedded = SharedSndbRegistry.Acquire(new TsdbOptions { RootDirectory = _builder.DataSource });
             return;
         }
 
