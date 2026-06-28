@@ -1,12 +1,11 @@
+using System.Data.Common;
 using System.Globalization;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
-using SonnetDB.Catalog;
-using SonnetDB.Engine;
+using SonnetDB.Data;
 using SonnetDB.Model;
-using SonnetDB.Sql.Execution;
 
 namespace SonnetDB.Native;
 
@@ -21,40 +20,71 @@ internal enum NativeValueType
 
 internal sealed class NativeConnection : IDisposable
 {
-    private Tsdb? _tsdb;
+    private SndbConnection? _connection;
 
-    public NativeConnection(string dataSource)
+    public NativeConnection(string connectionStringOrDataSource)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(dataSource);
-        _tsdb = Tsdb.Open(new TsdbOptions { RootDirectory = NormalizeDataSource(dataSource) });
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionStringOrDataSource);
+        _connection = new SndbConnection(BuildConnectionString(connectionStringOrDataSource));
+        _connection.Open();
     }
 
     public NativeResult Execute(string sql)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sql);
-        var tsdb = _tsdb ?? throw new ObjectDisposedException(nameof(NativeConnection));
-        return NativeResult.From(SqlExecutor.Execute(tsdb, sql));
+        var connection = _connection ?? throw new ObjectDisposedException(nameof(NativeConnection));
+        using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        using var reader = command.ExecuteReader();
+        return NativeResult.From(reader);
     }
 
     public void Flush()
     {
-        var tsdb = _tsdb ?? throw new ObjectDisposedException(nameof(NativeConnection));
+        var connection = _connection ?? throw new ObjectDisposedException(nameof(NativeConnection));
+        if (connection.UnderlyingTsdb is not { } tsdb)
+            throw new NotSupportedException("sonnetdb_flush is only available for embedded connections.");
+
         tsdb.FlushNow();
     }
 
     public void Dispose()
     {
-        var tsdb = _tsdb;
-        _tsdb = null;
-        tsdb?.Dispose();
+        var connection = _connection;
+        _connection = null;
+        connection?.Dispose();
     }
 
-    private static string NormalizeDataSource(string dataSource)
+    private static string BuildConnectionString(string connectionStringOrDataSource)
     {
-        const string prefix = "sonnetdb://";
-        return dataSource.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-            ? dataSource[prefix.Length..]
-            : dataSource;
+        if (LooksLikeConnectionString(connectionStringOrDataSource))
+            return connectionStringOrDataSource;
+
+        var builder = new SndbConnectionStringBuilder
+        {
+            DataSource = connectionStringOrDataSource,
+        };
+        return builder.ConnectionString;
+    }
+
+    private static bool LooksLikeConnectionString(string value)
+    {
+        if (!value.Contains('=', StringComparison.Ordinal))
+            return false;
+
+        try
+        {
+            var builder = new SndbConnectionStringBuilder(value);
+            return builder.ContainsKey("Data Source")
+                || builder.ContainsKey("Mode")
+                || builder.ContainsKey("Database")
+                || builder.ContainsKey("Token")
+                || builder.ContainsKey("Timeout");
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
     }
 }
 
@@ -88,19 +118,30 @@ internal sealed class NativeResult : IDisposable
         }
     }
 
-    public static NativeResult From(object? result)
-        => result switch
+    public static NativeResult From(DbDataReader reader)
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+
+        var columns = new string[reader.FieldCount];
+        for (int i = 0; i < columns.Length; i++)
+            columns[i] = reader.GetName(i);
+
+        var rows = new List<IReadOnlyList<object?>>();
+        while (reader.Read())
         {
-            SelectExecutionResult select => new NativeResult(select.Columns, select.Rows, -1),
-            InsertExecutionResult insert => NonQuery(insert.RowsInserted),
-            DeleteExecutionResult delete => NonQuery(delete.TombstonesAdded),
-            MeasurementSchema => NonQuery(0),
-            int affected => NonQuery(affected),
-            long affected => NonQuery(checked((int)affected)),
-            null => NonQuery(0),
-            _ => throw new NotSupportedException(
-                $"SQL result type '{result.GetType().Name}' is not supported by the native C ABI."),
-        };
+            var values = new object[columns.Length];
+            reader.GetValues(values);
+            var row = new object?[columns.Length];
+            for (int i = 0; i < values.Length; i++)
+            {
+                row[i] = values[i] is DBNull ? null : values[i];
+            }
+
+            rows.Add(row);
+        }
+
+        return new NativeResult(columns, rows, reader.RecordsAffected);
+    }
 
     public IntPtr GetColumnName(int ordinal)
     {
@@ -252,6 +293,9 @@ internal sealed class NativeResult : IDisposable
             double d => d.ToString("G17", CultureInfo.InvariantCulture),
             float f => f.ToString("G9", CultureInfo.InvariantCulture),
             decimal m => m.ToString(CultureInfo.InvariantCulture),
+            DateTime dt => dt.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture),
+            DateTimeOffset dto => dto.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture),
+            byte[] bytes => Convert.ToBase64String(bytes),
             byte or sbyte or short or ushort or int or uint or long or ulong
                 => Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty,
             GeoPoint geo => string.Create(
@@ -430,8 +474,8 @@ internal static class SonnetDbNativeExports
         try
         {
             ClearError();
-            var version = typeof(Tsdb).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-                ?? typeof(Tsdb).Assembly.GetName().Version?.ToString()
+            var version = typeof(SndbConnection).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+                ?? typeof(SndbConnection).Assembly.GetName().Version?.ToString()
                 ?? "0.0.0";
             return CopyUtf8(version, buffer, bufferLength);
         }

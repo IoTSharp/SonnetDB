@@ -959,6 +959,35 @@ extensions/
 
 ---
 
+## Milestone 26 — 连接器路线独立化（C ABI + 多模型 API）
+
+> **目标**：把连接器从“嵌入式示例”升级为独立产品路线。C ABI 继续作为跨语言稳定底座，当前保持 SQL-only；随后按 bulk / KV / Document / Object / MQ 分组扩展，不把多模型能力塞进单个 `execute` 函数。
+
+> **边界**：
+> 1. C ABI 只暴露 opaque handle、primitive、UTF-8 / byte buffer，不暴露 C# 对象、内部 engine 指针或磁盘格式结构体。
+> 2. 先保证 `sonnetdb_open` 能通过 `SonnetDB.Data` 同时支持嵌入式与远程连接；若 NativeAOT 因项目引用失败，才使用链接文件方式引入必要 Data 层源码。
+> 3. 新能力必须以独立 ABI 函数组落地，再由 Go / Rust / Java / Python / VB6 / PureBasic 等语言包装。
+> 4. 不做 Redis / MongoDB / S3 / Kafka / Postgres wire protocol 兼容；连接器走 SonnetDB 自有 API。
+
+| PR | 主题 | 状态 |
+|----|------|------|
+| #175 | **C ABI 底座改为 `SonnetDB.Data`**：`SonnetDB.Native` 引用 `SonnetDB.Data`，`sonnetdb_open` 接受完整连接字符串或旧式本地目录；当前 ABI 仍只覆盖 SQL 执行、result cursor、typed getter、flush、version 与 last_error。 | 🚧 |
+| #176 | **C ABI bulk ingest 分组**：新增 bulk handle / payload 写入函数，覆盖 LP / JSON / Bulk VALUES，支持 measurement、onerror、flush 参数；嵌入式和远程均走 `SonnetDB.Data` 的 bulk 路径。 | 📋 |
+| #177 | **C ABI KV 分组**：新增 keyspace open、get/set/delete、scan prefix、ttl、incr、cas 基础函数；语言连接器包装为各自 idiomatic API。 | 📋 |
+| #178 | **C ABI Document 分组**：新增 collection CRUD、find page、insert/update/delete、aggregate 的 JSON payload 函数；保持 JSON/UTF-8 边界，不暴露内部 document 类型。 | 📋 |
+| #179 | **C ABI Object Storage 分组**：新增 bucket/object put/get/range/list/delete 与 multipart 基础函数；大对象采用 streaming/chunk handle，避免一次性内存复制。 | 📋 |
+| #180 | **C ABI MQ 分组**：新增 topic publish/pull/ack/stats 函数；明确 offset、consumer group、ack 语义并对齐 `SndbMqClient`。 | 📋 |
+| #181 | **上层语言连接器同步包装**：Go / Rust / Java / Python 优先同步 bulk + KV + Document；VB6 / PureBasic 作为源码级示例按能力选择性暴露。 | 📋 |
+
+### 验收标准
+
+- C ABI SQL-only 旧 quickstart 不改代码仍能运行。
+- C ABI 可以通过 `Data Source=sonnetdb+http://...;Mode=Remote` 连接远程服务执行 SQL。
+- 每个新增 ABI 分组都有 C quickstart 和至少一个上层语言 smoke。
+- NativeAOT publish、CMake quickstart、Java JNI/FFM quickstart 在 Windows/Linux 能继续通过可用工具链验证。
+
+---
+
 ## 里程碑总览
 
 | Milestone | 主题 | PR 范围 | 状态 |
@@ -989,6 +1018,7 @@ extensions/
 | 23 | 搜索与向量引擎合并（DotSearch / DotVector 收编） | #160 ~ #169 | ✅ |
 | 24 | SonnetDB Studio 管理体验升级（Document 管理面） | #170 ~ #172 | 📋 |
 | 25 | Document Store 验收、文档与发布治理 | #173 ~ #174 | 📋 |
+| 26 | 连接器路线独立化（C ABI + 多模型 API） | #175 ~ #181 | 🚧（#175 进行中） |
 | MM9 | 多模型统一备份、恢复和管理工具第一批 | BackupService + sndb backup | ✅ |
 
 **当前推进顺序**：Milestone 14（Copilot）、Milestone 15（地理空间）、Milestone 16（Copilot 产品化升级）与 Milestone 20（Parity #127~#136 实现）均已合并；新增 **Milestone 23（搜索与向量引擎合并）** 作为当前结构收敛主线，先完成 DotSearch / DotVector 收编，降低独立模块维护成本，再回到 Milestone 17 的可观测性增强。**Milestone 18（VS Code 扩展）** 继续并行推进，建议先以 `#99 ~ #103` 打出第一个“远程连接 + Explorer + SQL + 结果视图”闭环。**Milestone 19（IoTSharp 生态数据底座选项）** 已纳入正式规划，#109~#117 与 #122/#123 已完成；后续继续推进对象治理、Profile 周边、增量索引 / 后台维护成本与大量 measurement 长稳专项。**Milestone 21（Document Store 单机能力升级）** 已完成 #137~#146；Studio 管理面进入 **Milestone 24**，MongoDB 参考 parity、长稳、容量报告和发布文档进入 **Milestone 25**。**Milestone 22（Agent Memory / Codebase Intelligence）** 作为面向 Agent 生态的对外数据库能力线进入规划，建议在 M18 VS Code 基础闭环与 M21 Document/Hybrid Search 能力稳定后，从 #150 的标准 schema 与文档开始派单。SonnetDBEE C5.7 / MM9 的开源核心第一批已提供 `BackupService` 和 `sndb backup create/inspect/verify/restore`，企业级定时、增量、审计和 UI 编排继续由 SonnetDBEE 承接。**Milestone 20** 后续不再按 #129 继续派单，而是通过 `.github/workflows/parity.yml`、`parity-results` 分支与 `tests/SonnetDB.Parity/reports/sample-run.md` 持续暴露能力缺口、SKIP 原因和 nightly 稳定性。

@@ -7,6 +7,7 @@
 
 ### Added
 
+- **连接器路线独立化 + C ABI 远程连接底座**：新增 Milestone 26 与 `connectors/README.md` 路线说明，明确 C ABI 当前继续 SQL-only，后续按 bulk / KV / Document / Object / MQ 分组扩展；`SonnetDB.Native` 改为引用 `SonnetDB.Data`，`sonnetdb_open` 可接受完整连接字符串或旧式本地目录，为 C/Go/Rust/Java/Python 等连接器同时支持嵌入式与远程 SQL 连接打底。
 - **Data parity：embedded/remote ADO.NET schema 矩阵**：`SndbConnection.GetSchema("Tables"|"Columns"|"Indexes")` 在远程模式下改为通过 `/v1/db/{db}/schema` 读取真实关系表 schema，不再因缺少本地 `UnderlyingTsdb` 返回空集合；新增 embedded/remote 双模式矩阵测试覆盖表、列、唯一索引元数据一致性。
 - **EF remote hardening**：`SonnetDbDatabaseCreator` 对远程连接明确实现 `Create` / `Delete` / `Exists` 语义，`Create` / `Delete` 走 `/v1/db` 控制面，`Exists` 通过远程 schema 探测真实数据库存在性；新增真实 Kestrel 远程 EF 生命周期测试。
 - **缓存双模式测试**：新增 SonnetDB.Caching embedded/remote E2E 覆盖 EasyCaching provider、`IDistributedCache`、TTL 过期、janitor `CleanExpired` 与 prefix remove，固定缓存扩展在本地目录与远程 HTTP KV API 下的语义一致性。

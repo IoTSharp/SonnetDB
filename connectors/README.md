@@ -15,6 +15,34 @@ The connector layout follows the same layering used by mature time-series databa
 
 The first implemented connector is the C connector because it defines the small native surface that higher-level connectors can wrap without depending on .NET-specific types.
 
+## Connector Roadmap
+
+Connectors have their own product route. They are not just embedded-engine samples.
+
+The native C ABI remains the shared foundation for languages that need a stable binary boundary. The first supported ABI surface is intentionally SQL-only:
+
+- `sonnetdb_open` / `sonnetdb_close`
+- `sonnetdb_execute`
+- result cursor metadata and typed getters
+- `sonnetdb_flush`
+- `sonnetdb_version` / `sonnetdb_last_error`
+
+`sonnetdb_open` now accepts either a full `SonnetDB.Data` connection string or the older plain embedded data directory. This keeps existing local examples working while allowing remote connections such as:
+
+```text
+Data Source=sonnetdb+http://127.0.0.1:5080/metrics;Token=...;Mode=Remote
+```
+
+The next connector milestones should extend the ABI by adding separate, focused function groups instead of widening `sonnetdb_execute`:
+
+- bulk ingest API
+- KV API
+- Document API
+- Object storage API
+- MQ API
+
+Each group should first land in the C ABI, then be wrapped by Go, Rust, Java, Python, PureBasic, VB6, and future ODBC layers as appropriate. The C ABI must keep opaque handles and primitive/UTF-8 payloads at the boundary; it should not expose C# objects, internal engine pointers, or on-disk structs.
+
 ## CI Policy for Legacy BASIC Connectors
 
 The VB6 and PureBasic connectors are kept as source-level integrations and local-build examples.

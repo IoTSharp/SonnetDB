@@ -12,7 +12,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\..\src\SonnetDB.Core\SonnetDB.Core.csproj" />
+    <ProjectReference Include="..\..\..\..\src\SonnetDB.Data\SonnetDB.Data.csproj" />
   </ItemGroup>
 
 </Project>
