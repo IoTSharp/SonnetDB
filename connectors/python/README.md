@@ -5,6 +5,7 @@ The Python connector is a dependency-free `ctypes` wrapper over the stable Sonne
 It exposes:
 
 - `sonnetdb.connect` / `Connection.execute` / `Connection.execute_non_query`
+- `Connection.open_kv()` with get/set/delete/scan/ttl/incr/CAS helpers
 - forward-only result cursors with typed getters and tuple iteration
 - `Connection.flush`, `sonnetdb.version`, and `sonnetdb.last_error`
 - a light DB-API-style `Connection.cursor()` facade
@@ -65,6 +66,18 @@ with sonnetdb.connect("./data-python") as connection:
         print(result.columns)
         for timestamp, host, usage in result:
             print(timestamp, host, usage)
+```
+
+## KV API
+
+```python
+with sonnetdb.connect("./data-python") as connection:
+    with connection.open_kv("app-cache", "devices") as kv:
+        version = kv.set("edge-1", b"online")
+        entry = kv.get("edge-1")
+        counter, counter_version = kv.incr("counter", 1)
+        cas = kv.cas("edge-1", version, b"offline")
+        rows = kv.scan_prefix("edge-", 100)
 ```
 
 ## DB-API-Style Cursor

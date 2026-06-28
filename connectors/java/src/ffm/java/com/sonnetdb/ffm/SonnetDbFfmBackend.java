@@ -32,6 +32,30 @@ public final class SonnetDbFfmBackend implements NativeBackend {
     private static final MethodHandle VALUE_DOUBLE;
     private static final MethodHandle VALUE_BOOL;
     private static final MethodHandle VALUE_TEXT;
+    private static final MethodHandle KV_OPEN;
+    private static final MethodHandle KV_CLOSE;
+    private static final MethodHandle KV_GET;
+    private static final MethodHandle KV_SET;
+    private static final MethodHandle KV_DELETE;
+    private static final MethodHandle KV_SCAN_PREFIX;
+    private static final MethodHandle KV_TTL;
+    private static final MethodHandle KV_EXPIRE_AT;
+    private static final MethodHandle KV_PERSIST;
+    private static final MethodHandle KV_INCR;
+    private static final MethodHandle KV_CAS;
+    private static final MethodHandle KV_ENTRY_FREE;
+    private static final MethodHandle KV_ENTRY_KEY;
+    private static final MethodHandle KV_ENTRY_VALUE_LENGTH;
+    private static final MethodHandle KV_ENTRY_COPY_VALUE;
+    private static final MethodHandle KV_ENTRY_VERSION;
+    private static final MethodHandle KV_ENTRY_EXPIRES_AT_UNIX_MS;
+    private static final MethodHandle KV_SCAN_NEXT;
+    private static final MethodHandle KV_SCAN_KEY;
+    private static final MethodHandle KV_SCAN_VALUE_LENGTH;
+    private static final MethodHandle KV_SCAN_COPY_VALUE;
+    private static final MethodHandle KV_SCAN_VERSION;
+    private static final MethodHandle KV_SCAN_EXPIRES_AT_UNIX_MS;
+    private static final MethodHandle KV_SCAN_FREE;
     private static final MethodHandle FLUSH;
     private static final MethodHandle VERSION;
     private static final MethodHandle LAST_ERROR;
@@ -52,6 +76,30 @@ public final class SonnetDbFfmBackend implements NativeBackend {
         VALUE_DOUBLE = downcall("sonnetdb_result_value_double", FunctionDescriptor.of(ValueLayout.JAVA_DOUBLE, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
         VALUE_BOOL = downcall("sonnetdb_result_value_bool", FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
         VALUE_TEXT = downcall("sonnetdb_result_value_text", FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        KV_OPEN = downcall("sonnetdb_kv_open", FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        KV_CLOSE = downcall("sonnetdb_kv_close", FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
+        KV_GET = downcall("sonnetdb_kv_get", FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        KV_SET = downcall("sonnetdb_kv_set", FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG));
+        KV_DELETE = downcall("sonnetdb_kv_delete", FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        KV_SCAN_PREFIX = downcall("sonnetdb_kv_scan_prefix", FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        KV_TTL = downcall("sonnetdb_kv_ttl", FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        KV_EXPIRE_AT = downcall("sonnetdb_kv_expire_at", FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG));
+        KV_PERSIST = downcall("sonnetdb_kv_persist", FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        KV_INCR = downcall("sonnetdb_kv_incr", FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        KV_CAS = downcall("sonnetdb_kv_cas", FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        KV_ENTRY_FREE = downcall("sonnetdb_kv_entry_free", FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
+        KV_ENTRY_KEY = downcall("sonnetdb_kv_entry_key", FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        KV_ENTRY_VALUE_LENGTH = downcall("sonnetdb_kv_entry_value_length", FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
+        KV_ENTRY_COPY_VALUE = downcall("sonnetdb_kv_entry_copy_value", FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        KV_ENTRY_VERSION = downcall("sonnetdb_kv_entry_version", FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
+        KV_ENTRY_EXPIRES_AT_UNIX_MS = downcall("sonnetdb_kv_entry_expires_at_unix_ms", FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
+        KV_SCAN_NEXT = downcall("sonnetdb_kv_scan_next", FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+        KV_SCAN_KEY = downcall("sonnetdb_kv_scan_key", FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+        KV_SCAN_VALUE_LENGTH = downcall("sonnetdb_kv_scan_value_length", FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
+        KV_SCAN_COPY_VALUE = downcall("sonnetdb_kv_scan_copy_value", FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+        KV_SCAN_VERSION = downcall("sonnetdb_kv_scan_version", FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
+        KV_SCAN_EXPIRES_AT_UNIX_MS = downcall("sonnetdb_kv_scan_expires_at_unix_ms", FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
+        KV_SCAN_FREE = downcall("sonnetdb_kv_scan_free", FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
         FLUSH = downcall("sonnetdb_flush", FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
         VERSION = downcall("sonnetdb_version", FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
         LAST_ERROR = downcall("sonnetdb_last_error", FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
@@ -212,6 +260,270 @@ public final class SonnetDbFfmBackend implements NativeBackend {
     }
 
     @Override
+    public long kvOpen(long connection, String keyspace, String namespaceName) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment keyspaceAddress = arena.allocateUtf8String(keyspace);
+            MemorySegment namespaceAddress = namespaceName == null || namespaceName.isBlank()
+                ? MemorySegment.NULL
+                : arena.allocateUtf8String(namespaceName);
+            MemorySegment kv = (MemorySegment) KV_OPEN.invoke(
+                MemorySegment.ofAddress(connection),
+                keyspaceAddress,
+                namespaceAddress);
+            if (isNull(kv)) {
+                throw failure("sonnetdb_kv_open");
+            }
+            return kv.address();
+        } catch (SonnetDbException ex) {
+            throw ex;
+        } catch (Throwable ex) {
+            throw new SonnetDbException("Failed to call sonnetdb_kv_open.", ex);
+        }
+    }
+
+    @Override
+    public void kvClose(long kv) {
+        if (kv == 0L) {
+            return;
+        }
+        try {
+            KV_CLOSE.invoke(MemorySegment.ofAddress(kv));
+        } catch (Throwable ex) {
+            throw new SonnetDbException("Failed to call sonnetdb_kv_close.", ex);
+        }
+    }
+
+    @Override
+    public long kvGet(long kv, String key) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment keyAddress = arena.allocateUtf8String(key);
+            MemorySegment entry = (MemorySegment) KV_GET.invoke(MemorySegment.ofAddress(kv), keyAddress);
+            if (isNull(entry)) {
+                String message = lastError();
+                if (message != null && !message.isBlank()) {
+                    throw new SonnetDbException(message);
+                }
+                return 0L;
+            }
+            return entry.address();
+        } catch (SonnetDbException ex) {
+            throw ex;
+        } catch (Throwable ex) {
+            throw new SonnetDbException("Failed to call sonnetdb_kv_get.", ex);
+        }
+    }
+
+    @Override
+    public long kvSet(long kv, String key, byte[] value, long expiresAtUnixMs) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment keyAddress = arena.allocateUtf8String(key);
+            MemorySegment valueAddress = allocateBytes(arena, value);
+            long version = (long) KV_SET.invoke(
+                MemorySegment.ofAddress(kv),
+                keyAddress,
+                valueAddress,
+                value.length,
+                expiresAtUnixMs);
+            if (version < 0) {
+                throw failure("sonnetdb_kv_set");
+            }
+            return version;
+        } catch (SonnetDbException ex) {
+            throw ex;
+        } catch (Throwable ex) {
+            throw new SonnetDbException("Failed to call sonnetdb_kv_set.", ex);
+        }
+    }
+
+    @Override
+    public boolean kvDelete(long kv, String key) {
+        return invokeKvBoolean(KV_DELETE, kv, key, "sonnetdb_kv_delete");
+    }
+
+    @Override
+    public long kvScanPrefix(long kv, String prefix, int limit) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment prefixAddress = arena.allocateUtf8String(prefix);
+            MemorySegment scan = (MemorySegment) KV_SCAN_PREFIX.invoke(
+                MemorySegment.ofAddress(kv),
+                prefixAddress,
+                limit);
+            if (isNull(scan)) {
+                throw failure("sonnetdb_kv_scan_prefix");
+            }
+            return scan.address();
+        } catch (SonnetDbException ex) {
+            throw ex;
+        } catch (Throwable ex) {
+            throw new SonnetDbException("Failed to call sonnetdb_kv_scan_prefix.", ex);
+        }
+    }
+
+    @Override
+    public long kvTtl(long kv, String key, long[] expiresAtUnixMs) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment keyAddress = arena.allocateUtf8String(key);
+            MemorySegment expires = arena.allocate(ValueLayout.JAVA_LONG);
+            expires.set(ValueLayout.JAVA_LONG, 0, -1L);
+            long milliseconds = (long) KV_TTL.invoke(MemorySegment.ofAddress(kv), keyAddress, expires);
+            if (milliseconds < -2) {
+                throw failure("sonnetdb_kv_ttl");
+            }
+            if (expiresAtUnixMs != null && expiresAtUnixMs.length > 0) {
+                expiresAtUnixMs[0] = expires.get(ValueLayout.JAVA_LONG, 0);
+            }
+            return milliseconds;
+        } catch (SonnetDbException ex) {
+            throw ex;
+        } catch (Throwable ex) {
+            throw new SonnetDbException("Failed to call sonnetdb_kv_ttl.", ex);
+        }
+    }
+
+    @Override
+    public boolean kvExpireAt(long kv, String key, long expiresAtUnixMs) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment keyAddress = arena.allocateUtf8String(key);
+            int code = (int) KV_EXPIRE_AT.invoke(MemorySegment.ofAddress(kv), keyAddress, expiresAtUnixMs);
+            if (code < 0) {
+                throw failure("sonnetdb_kv_expire_at");
+            }
+            return code == 1;
+        } catch (SonnetDbException ex) {
+            throw ex;
+        } catch (Throwable ex) {
+            throw new SonnetDbException("Failed to call sonnetdb_kv_expire_at.", ex);
+        }
+    }
+
+    @Override
+    public boolean kvPersist(long kv, String key) {
+        return invokeKvBoolean(KV_PERSIST, kv, key, "sonnetdb_kv_persist");
+    }
+
+    @Override
+    public void kvIncr(long kv, String key, long delta, long[] valueAndVersion) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment keyAddress = arena.allocateUtf8String(key);
+            MemorySegment value = arena.allocate(ValueLayout.JAVA_LONG);
+            MemorySegment version = arena.allocate(ValueLayout.JAVA_LONG);
+            int code = (int) KV_INCR.invoke(
+                MemorySegment.ofAddress(kv),
+                keyAddress,
+                delta,
+                value,
+                version);
+            if (code != 0) {
+                throw failure("sonnetdb_kv_incr");
+            }
+            if (valueAndVersion != null && valueAndVersion.length >= 2) {
+                valueAndVersion[0] = value.get(ValueLayout.JAVA_LONG, 0);
+                valueAndVersion[1] = version.get(ValueLayout.JAVA_LONG, 0);
+            }
+        } catch (SonnetDbException ex) {
+            throw ex;
+        } catch (Throwable ex) {
+            throw new SonnetDbException("Failed to call sonnetdb_kv_incr.", ex);
+        }
+    }
+
+    @Override
+    public boolean kvCas(
+        long kv,
+        String key,
+        long expectedVersion,
+        byte[] value,
+        long expiresAtUnixMs,
+        long[] currentAndNewVersion) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment keyAddress = arena.allocateUtf8String(key);
+            MemorySegment valueAddress = allocateBytes(arena, value);
+            MemorySegment current = arena.allocate(ValueLayout.JAVA_LONG);
+            MemorySegment next = arena.allocate(ValueLayout.JAVA_LONG);
+            int code = (int) KV_CAS.invoke(
+                MemorySegment.ofAddress(kv),
+                keyAddress,
+                expectedVersion,
+                valueAddress,
+                value.length,
+                expiresAtUnixMs,
+                current,
+                next);
+            if (code < 0) {
+                throw failure("sonnetdb_kv_cas");
+            }
+            if (currentAndNewVersion != null && currentAndNewVersion.length >= 2) {
+                currentAndNewVersion[0] = current.get(ValueLayout.JAVA_LONG, 0);
+                currentAndNewVersion[1] = next.get(ValueLayout.JAVA_LONG, 0);
+            }
+            return code == 1;
+        } catch (SonnetDbException ex) {
+            throw ex;
+        } catch (Throwable ex) {
+            throw new SonnetDbException("Failed to call sonnetdb_kv_cas.", ex);
+        }
+    }
+
+    @Override
+    public void kvEntryFree(long entry) {
+        invokeAddressVoid(KV_ENTRY_FREE, entry, "sonnetdb_kv_entry_free");
+    }
+
+    @Override
+    public String kvEntryKey(long entry) {
+        return invokeAddressString(KV_ENTRY_KEY, entry, "sonnetdb_kv_entry_key");
+    }
+
+    @Override
+    public byte[] kvEntryValue(long entry) {
+        return copyBytes(entry, KV_ENTRY_VALUE_LENGTH, KV_ENTRY_COPY_VALUE, "sonnetdb_kv_entry_copy_value");
+    }
+
+    @Override
+    public long kvEntryVersion(long entry) {
+        return invokeAddressLong(KV_ENTRY_VERSION, entry, "sonnetdb_kv_entry_version");
+    }
+
+    @Override
+    public long kvEntryExpiresAtUnixMs(long entry) {
+        return invokeAddressLong(KV_ENTRY_EXPIRES_AT_UNIX_MS, entry, "sonnetdb_kv_entry_expires_at_unix_ms");
+    }
+
+    @Override
+    public boolean kvScanNext(long scan) {
+        int code = invokeAddressInt(KV_SCAN_NEXT, scan, "sonnetdb_kv_scan_next");
+        if (code < 0) {
+            throw failure("sonnetdb_kv_scan_next");
+        }
+        return code == 1;
+    }
+
+    @Override
+    public String kvScanKey(long scan) {
+        return invokeAddressString(KV_SCAN_KEY, scan, "sonnetdb_kv_scan_key");
+    }
+
+    @Override
+    public byte[] kvScanValue(long scan) {
+        return copyBytes(scan, KV_SCAN_VALUE_LENGTH, KV_SCAN_COPY_VALUE, "sonnetdb_kv_scan_copy_value");
+    }
+
+    @Override
+    public long kvScanVersion(long scan) {
+        return invokeAddressLong(KV_SCAN_VERSION, scan, "sonnetdb_kv_scan_version");
+    }
+
+    @Override
+    public long kvScanExpiresAtUnixMs(long scan) {
+        return invokeAddressLong(KV_SCAN_EXPIRES_AT_UNIX_MS, scan, "sonnetdb_kv_scan_expires_at_unix_ms");
+    }
+
+    @Override
+    public void kvScanFree(long scan) {
+        invokeAddressVoid(KV_SCAN_FREE, scan, "sonnetdb_kv_scan_free");
+    }
+
+    @Override
     public void flush(long connection) {
         try {
             int code = (int) FLUSH.invoke(MemorySegment.ofAddress(connection));
@@ -248,6 +560,98 @@ public final class SonnetDbFfmBackend implements NativeBackend {
             if (value < 0) {
                 throw failure(functionName);
             }
+            return value;
+        } catch (SonnetDbException ex) {
+            throw ex;
+        } catch (Throwable ex) {
+            throw new SonnetDbException("Failed to call " + functionName + ".", ex);
+        }
+    }
+
+    private static boolean invokeKvBoolean(MethodHandle handle, long kv, String key, String functionName) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment keyAddress = arena.allocateUtf8String(key);
+            int code = (int) handle.invoke(MemorySegment.ofAddress(kv), keyAddress);
+            if (code < 0) {
+                throw failure(functionName);
+            }
+            return code == 1;
+        } catch (SonnetDbException ex) {
+            throw ex;
+        } catch (Throwable ex) {
+            throw new SonnetDbException("Failed to call " + functionName + ".", ex);
+        }
+    }
+
+    private static void invokeAddressVoid(MethodHandle handle, long argument, String functionName) {
+        if (argument == 0L) {
+            return;
+        }
+        try {
+            handle.invoke(MemorySegment.ofAddress(argument));
+        } catch (Throwable ex) {
+            throw new SonnetDbException("Failed to call " + functionName + ".", ex);
+        }
+    }
+
+    private static int invokeAddressInt(MethodHandle handle, long argument, String functionName) {
+        try {
+            return (int) handle.invoke(MemorySegment.ofAddress(argument));
+        } catch (Throwable ex) {
+            throw new SonnetDbException("Failed to call " + functionName + ".", ex);
+        }
+    }
+
+    private static long invokeAddressLong(MethodHandle handle, long argument, String functionName) {
+        try {
+            return (long) handle.invoke(MemorySegment.ofAddress(argument));
+        } catch (Throwable ex) {
+            throw new SonnetDbException("Failed to call " + functionName + ".", ex);
+        }
+    }
+
+    private static String invokeAddressString(MethodHandle handle, long argument, String functionName) {
+        try {
+            MemorySegment address = (MemorySegment) handle.invoke(MemorySegment.ofAddress(argument));
+            if (isNull(address)) {
+                throw failure(functionName);
+            }
+            return readUtf8(address);
+        } catch (SonnetDbException ex) {
+            throw ex;
+        } catch (Throwable ex) {
+            throw new SonnetDbException("Failed to call " + functionName + ".", ex);
+        }
+    }
+
+    private static MemorySegment allocateBytes(Arena arena, byte[] value) {
+        if (value.length == 0) {
+            return MemorySegment.NULL;
+        }
+
+        MemorySegment segment = arena.allocate(value.length);
+        segment.asByteBuffer().put(value);
+        return segment;
+    }
+
+    private static byte[] copyBytes(long handle, MethodHandle lengthHandle, MethodHandle copyHandle, String functionName) {
+        try (Arena arena = Arena.ofConfined()) {
+            long required = (long) lengthHandle.invoke(MemorySegment.ofAddress(handle));
+            if (required < 0 || required > Integer.MAX_VALUE) {
+                throw failure(functionName);
+            }
+
+            byte[] value = new byte[(int) required];
+            if (required == 0) {
+                return value;
+            }
+
+            MemorySegment buffer = arena.allocate(required);
+            int copied = (int) copyHandle.invoke(MemorySegment.ofAddress(handle), buffer, (int) required);
+            if (copied < 0) {
+                throw failure(functionName);
+            }
+            buffer.asByteBuffer().get(value);
             return value;
         } catch (SonnetDbException ex) {
             throw ex;

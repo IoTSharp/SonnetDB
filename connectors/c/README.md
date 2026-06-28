@@ -10,6 +10,8 @@ The initial ABI intentionally keeps only opaque handles and primitive values:
 - execute one SQL statement
 - create and execute a bulk ingest handle for Line Protocol, JSON points, or Bulk VALUES payloads
 - set bulk ingest options: `measurement`, `onerror`, and `flush`
+- open a KV keyspace/namespace handle
+- get, set, delete, scan prefix, TTL, increment, and CAS KV entries
 - read result metadata and rows
 - read typed values as `int64`, `double`, `bool`, or UTF-8 text
 - fetch the last error for the current native thread
@@ -34,7 +36,7 @@ sonnetdb_connection* embedded = sonnetdb_open("Data Source=./data-c;Mode=Embedde
 sonnetdb_connection* remote = sonnetdb_open("Data Source=sonnetdb+http://127.0.0.1:5080/metrics;Token=...;Mode=Remote");
 ```
 
-The SQL ABI remains stable. Bulk ingest is exposed as its own function group, and future KV, Document, Object storage, and MQ APIs should follow the same pattern so existing SQL connectors remain stable.
+The SQL ABI remains stable. Bulk ingest and KV access are exposed as their own function groups, and future Document, Object storage, and MQ APIs should follow the same pattern so existing SQL connectors remain stable.
 
 ## Bulk Ingest
 
@@ -64,6 +66,40 @@ Options:
 - `measurement`: overrides the payload measurement or supplies the endpoint path for remote Line Protocol.
 - `onerror`: use `skip` to skip malformed rows; any other value uses fail-fast behavior.
 - `flush`: `false` / unset means no explicit flush, `async` signals background flush, `true` / `sync` performs a synchronous flush.
+
+## KV Keyspace
+
+KV access uses an opaque `sonnetdb_kv` handle opened from an existing connection. The keyspace name is required; the namespace pointer may be `NULL` or an empty string for the root namespace. Values are binary buffers, while keys and namespaces are UTF-8 strings.
+
+```c
+sonnetdb_kv* kv = sonnetdb_kv_open(conn, "app-cache", "quickstart");
+const char* value = "online";
+int64_t version = sonnetdb_kv_set(kv, "device:edge-1", value, 6, -1);
+
+sonnetdb_kv_entry* entry = sonnetdb_kv_get(kv, "device:edge-1");
+char buffer[64];
+int32_t required = sonnetdb_kv_entry_copy_value(entry, buffer, sizeof(buffer));
+printf("%s version=%lld bytes=%d\n",
+       sonnetdb_kv_entry_key(entry),
+       (long long)sonnetdb_kv_entry_version(entry),
+       required);
+sonnetdb_kv_entry_free(entry);
+
+int64_t counter = 0;
+int64_t counter_version = 0;
+sonnetdb_kv_incr(kv, "counter", 1, &counter, &counter_version);
+sonnetdb_kv_close(kv);
+```
+
+Return conventions:
+
+- `sonnetdb_kv_set` returns the written version, or `-1` on error.
+- `sonnetdb_kv_get` returns `NULL` for a missing key and leaves `last_error` empty; errors also return `NULL` but set `last_error`.
+- `sonnetdb_kv_delete`, `sonnetdb_kv_expire_at`, `sonnetdb_kv_persist`, and `sonnetdb_kv_cas` return `1` for success, `0` for a normal no-op or CAS miss, and `-1` for errors.
+- `sonnetdb_kv_scan_prefix` treats `limit <= 0` as the keyspace default scan limit.
+- `sonnetdb_kv_ttl` returns Redis-style TTL milliseconds: `-2` for missing keys, `-1` for no expiration, and `-3` on error.
+- Value copy helpers return the full required byte length. If the provided buffer is smaller, the value is truncated to the buffer length.
+- Strings returned by `sonnetdb_kv_entry_key` and `sonnetdb_kv_scan_key` are owned by the entry/scan handle and remain valid until that handle is freed.
 
 ## Build With CMake
 
@@ -118,5 +154,6 @@ The example demonstrates:
 - creating a measurement
 - inserting rows
 - writing a Line Protocol payload through the bulk handle
+- using KV set/get/ttl/incr/cas/scan/delete through a KV handle
 - selecting rows through the result cursor
 - closing all native handles

@@ -3,7 +3,7 @@
 mod ffi;
 
 use std::error;
-use std::ffi::{c_char, c_int, CStr, CString};
+use std::ffi::{c_char, c_int, c_void, CStr, CString};
 use std::fmt;
 use std::path::Path;
 use std::ptr::NonNull;
@@ -96,6 +96,45 @@ pub enum Value {
     Text(String),
 }
 
+/// Materialized KV entry.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KvEntry {
+    /// Entry key without namespace prefix.
+    pub key: String,
+
+    /// Binary value bytes.
+    pub value: Vec<u8>,
+
+    /// Monotonic write version.
+    pub version: i64,
+
+    /// UTC expiration time in Unix milliseconds, or -1 when the key does not expire.
+    pub expires_at_unix_ms: i64,
+}
+
+/// Redis-style KV TTL result.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct KvTtl {
+    /// Remaining milliseconds, -2 for missing keys, -1 for no expiration.
+    pub milliseconds: i64,
+
+    /// UTC expiration time in Unix milliseconds, or -1 when absent.
+    pub expires_at_unix_ms: i64,
+}
+
+/// KV compare-and-set result.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct KvCasResult {
+    /// Whether the value was swapped.
+    pub swapped: bool,
+
+    /// Version observed before the CAS decision.
+    pub current_version: i64,
+
+    /// New version after a successful swap, or -1 on mismatch.
+    pub new_version: i64,
+}
+
 /// Embedded SonnetDB connection backed by the native C ABI.
 pub struct Connection {
     handle: Option<NonNull<ffi::sonnetdb_connection>>,
@@ -145,6 +184,20 @@ impl Connection {
         Ok(())
     }
 
+    /// Opens a KV keyspace handle. Pass `None` or an empty string for the root namespace.
+    pub fn open_kv(&self, keyspace: impl AsRef<str>, namespace: Option<&str>) -> Result<Kv> {
+        let handle = self.handle()?;
+        let keyspace = to_c_string(keyspace.as_ref(), "keyspace")?;
+        let namespace = match namespace {
+            Some(value) if !value.is_empty() => Some(to_c_string(value, "namespace")?),
+            _ => None,
+        };
+        let namespace_ptr = namespace.as_ref().map_or(std::ptr::null(), |value| value.as_ptr());
+        let kv = unsafe { ffi::sonnetdb_kv_open(handle.as_ptr(), keyspace.as_ptr(), namespace_ptr) };
+        let kv = NonNull::new(kv).ok_or_else(|| last_error_or("sonnetdb_kv_open failed."))?;
+        Ok(Kv { handle: Some(kv) })
+    }
+
     /// Closes the native connection. Dropping the connection also closes it.
     pub fn close(mut self) -> Result<()> {
         self.close_inner()
@@ -171,6 +224,211 @@ impl Connection {
 }
 
 impl Drop for Connection {
+    fn drop(&mut self) {
+        let _ = self.close_inner();
+    }
+}
+
+/// KV keyspace/namespace handle backed by the native C ABI.
+pub struct Kv {
+    handle: Option<NonNull<ffi::sonnetdb_kv>>,
+}
+
+impl Kv {
+    /// Reads a KV entry, returning `None` when the key is missing.
+    pub fn get(&self, key: impl AsRef<str>) -> Result<Option<KvEntry>> {
+        let handle = self.handle()?;
+        let key = to_c_string(key.as_ref(), "key")?;
+        let entry = unsafe { ffi::sonnetdb_kv_get(handle.as_ptr(), key.as_ptr()) };
+        let Some(entry) = NonNull::new(entry) else {
+            let message = last_error();
+            return if message.is_empty() {
+                Ok(None)
+            } else {
+                Err(Error::new(message))
+            };
+        };
+
+        let materialized = match materialize_kv_entry(entry) {
+            Ok(value) => value,
+            Err(error) => {
+                unsafe { ffi::sonnetdb_kv_entry_free(entry.as_ptr()) };
+                return Err(error);
+            }
+        };
+        unsafe { ffi::sonnetdb_kv_entry_free(entry.as_ptr()) };
+        Ok(Some(materialized))
+    }
+
+    /// Writes a binary value and returns the written version. Use `None` for no expiration.
+    pub fn set(
+        &self,
+        key: impl AsRef<str>,
+        value: impl AsRef<[u8]>,
+        expires_at_unix_ms: Option<i64>,
+    ) -> Result<i64> {
+        let handle = self.handle()?;
+        let key = to_c_string(key.as_ref(), "key")?;
+        let value = value.as_ref();
+        let length = checked_byte_length(value)?;
+        let version = unsafe {
+            ffi::sonnetdb_kv_set(
+                handle.as_ptr(),
+                key.as_ptr(),
+                value.as_ptr().cast::<c_void>(),
+                length,
+                expires_at_unix_ms.unwrap_or(-1),
+            )
+        };
+        if version < 0 {
+            return Err(last_error_or("sonnetdb_kv_set failed."));
+        }
+        Ok(version)
+    }
+
+    /// Deletes a key and returns whether a value was removed.
+    pub fn delete(&self, key: impl AsRef<str>) -> Result<bool> {
+        let handle = self.handle()?;
+        let key = to_c_string(key.as_ref(), "key")?;
+        let code = unsafe { ffi::sonnetdb_kv_delete(handle.as_ptr(), key.as_ptr()) };
+        bool_from_code(code, "sonnetdb_kv_delete failed.")
+    }
+
+    /// Scans entries matching a prefix. `limit <= 0` uses the keyspace default limit.
+    pub fn scan_prefix(&self, prefix: impl AsRef<str>, limit: i32) -> Result<Vec<KvEntry>> {
+        let handle = self.handle()?;
+        let prefix = to_c_string(prefix.as_ref(), "prefix")?;
+        let scan = unsafe { ffi::sonnetdb_kv_scan_prefix(handle.as_ptr(), prefix.as_ptr(), limit) };
+        let scan = NonNull::new(scan).ok_or_else(|| last_error_or("sonnetdb_kv_scan_prefix failed."))?;
+        let mut entries = Vec::new();
+        loop {
+            let next = unsafe { ffi::sonnetdb_kv_scan_next(scan.as_ptr()) };
+            if next < 0 {
+                unsafe { ffi::sonnetdb_kv_scan_free(scan.as_ptr()) };
+                return Err(last_error_or("sonnetdb_kv_scan_next failed."));
+            }
+            if next == 0 {
+                unsafe { ffi::sonnetdb_kv_scan_free(scan.as_ptr()) };
+                return Ok(entries);
+            }
+            match materialize_kv_scan_entry(scan) {
+                Ok(entry) => entries.push(entry),
+                Err(error) => {
+                    unsafe { ffi::sonnetdb_kv_scan_free(scan.as_ptr()) };
+                    return Err(error);
+                }
+            }
+        }
+    }
+
+    /// Returns the remaining TTL in milliseconds.
+    pub fn ttl(&self, key: impl AsRef<str>) -> Result<KvTtl> {
+        let handle = self.handle()?;
+        let key = to_c_string(key.as_ref(), "key")?;
+        let mut expires = -1;
+        let milliseconds = unsafe { ffi::sonnetdb_kv_ttl(handle.as_ptr(), key.as_ptr(), &mut expires) };
+        if milliseconds < -2 {
+            return Err(last_error_or("sonnetdb_kv_ttl failed."));
+        }
+        Ok(KvTtl {
+            milliseconds,
+            expires_at_unix_ms: expires,
+        })
+    }
+
+    /// Sets an absolute UTC expiration time in Unix milliseconds.
+    pub fn expire_at(&self, key: impl AsRef<str>, expires_at_unix_ms: i64) -> Result<bool> {
+        let handle = self.handle()?;
+        let key = to_c_string(key.as_ref(), "key")?;
+        let code = unsafe { ffi::sonnetdb_kv_expire_at(handle.as_ptr(), key.as_ptr(), expires_at_unix_ms) };
+        bool_from_code(code, "sonnetdb_kv_expire_at failed.")
+    }
+
+    /// Removes a key expiration.
+    pub fn persist(&self, key: impl AsRef<str>) -> Result<bool> {
+        let handle = self.handle()?;
+        let key = to_c_string(key.as_ref(), "key")?;
+        let code = unsafe { ffi::sonnetdb_kv_persist(handle.as_ptr(), key.as_ptr()) };
+        bool_from_code(code, "sonnetdb_kv_persist failed.")
+    }
+
+    /// Atomically increments a UTF-8 integer value.
+    pub fn incr(&self, key: impl AsRef<str>, delta: i64) -> Result<(i64, i64)> {
+        let handle = self.handle()?;
+        let key = to_c_string(key.as_ref(), "key")?;
+        let mut value = 0;
+        let mut version = 0;
+        let code = unsafe {
+            ffi::sonnetdb_kv_incr(handle.as_ptr(), key.as_ptr(), delta, &mut value, &mut version)
+        };
+        if code != 0 {
+            return Err(last_error_or("sonnetdb_kv_incr failed."));
+        }
+        Ok((value, version))
+    }
+
+    /// Compares a key version and swaps in a new value on match.
+    pub fn compare_and_set(
+        &self,
+        key: impl AsRef<str>,
+        expected_version: i64,
+        value: impl AsRef<[u8]>,
+        expires_at_unix_ms: Option<i64>,
+    ) -> Result<KvCasResult> {
+        let handle = self.handle()?;
+        let key = to_c_string(key.as_ref(), "key")?;
+        let value = value.as_ref();
+        let length = checked_byte_length(value)?;
+        let mut current_version = 0;
+        let mut new_version = -1;
+        let code = unsafe {
+            ffi::sonnetdb_kv_cas(
+                handle.as_ptr(),
+                key.as_ptr(),
+                expected_version,
+                value.as_ptr().cast::<c_void>(),
+                length,
+                expires_at_unix_ms.unwrap_or(-1),
+                &mut current_version,
+                &mut new_version,
+            )
+        };
+        if code < 0 {
+            return Err(last_error_or("sonnetdb_kv_cas failed."));
+        }
+        Ok(KvCasResult {
+            swapped: code == 1,
+            current_version,
+            new_version,
+        })
+    }
+
+    /// Closes the native KV handle. Dropping the handle also closes it.
+    pub fn close(mut self) -> Result<()> {
+        self.close_inner()
+    }
+
+    fn handle(&self) -> Result<NonNull<ffi::sonnetdb_kv>> {
+        self.handle
+            .ok_or_else(|| Error::new("SonnetDB KV handle is closed."))
+    }
+
+    fn close_inner(&mut self) -> Result<()> {
+        let Some(handle) = self.handle.take() else {
+            return Ok(());
+        };
+
+        unsafe { ffi::sonnetdb_kv_close(handle.as_ptr()) };
+        let message = last_error();
+        if message.is_empty() {
+            Ok(())
+        } else {
+            Err(Error::new(message))
+        }
+    }
+}
+
+impl Drop for Kv {
     fn drop(&mut self) {
         let _ = self.close_inner();
     }
@@ -374,6 +632,86 @@ fn to_c_string(value: &str, name: &str) -> Result<CString> {
 fn checked_ordinal(ordinal: usize) -> Result<c_int> {
     c_int::try_from(ordinal)
         .map_err(|_| Error::new(format!("Column ordinal {ordinal} is out of range.")))
+}
+
+fn checked_byte_length(value: &[u8]) -> Result<c_int> {
+    c_int::try_from(value.len())
+        .map_err(|_| Error::new(format!("Byte length {} is out of range.", value.len())))
+}
+
+fn bool_from_code(code: c_int, fallback: &str) -> Result<bool> {
+    if code < 0 {
+        return Err(last_error_or(fallback));
+    }
+    Ok(code == 1)
+}
+
+fn materialize_kv_entry(entry: NonNull<ffi::sonnetdb_kv_entry>) -> Result<KvEntry> {
+    let key = unsafe { ffi::sonnetdb_kv_entry_key(entry.as_ptr()) };
+    if key.is_null() {
+        return Err(last_error_or("sonnetdb_kv_entry_key failed."));
+    }
+    let value = copy_kv_entry_value(entry)?;
+    Ok(KvEntry {
+        key: unsafe { CStr::from_ptr(key) }.to_string_lossy().into_owned(),
+        value,
+        version: unsafe { ffi::sonnetdb_kv_entry_version(entry.as_ptr()) },
+        expires_at_unix_ms: unsafe { ffi::sonnetdb_kv_entry_expires_at_unix_ms(entry.as_ptr()) },
+    })
+}
+
+fn materialize_kv_scan_entry(scan: NonNull<ffi::sonnetdb_kv_scan>) -> Result<KvEntry> {
+    let key = unsafe { ffi::sonnetdb_kv_scan_key(scan.as_ptr()) };
+    if key.is_null() {
+        return Err(last_error_or("sonnetdb_kv_scan_key failed."));
+    }
+    let value = copy_kv_scan_value(scan)?;
+    Ok(KvEntry {
+        key: unsafe { CStr::from_ptr(key) }.to_string_lossy().into_owned(),
+        value,
+        version: unsafe { ffi::sonnetdb_kv_scan_version(scan.as_ptr()) },
+        expires_at_unix_ms: unsafe { ffi::sonnetdb_kv_scan_expires_at_unix_ms(scan.as_ptr()) },
+    })
+}
+
+fn copy_kv_entry_value(entry: NonNull<ffi::sonnetdb_kv_entry>) -> Result<Vec<u8>> {
+    let required = unsafe { ffi::sonnetdb_kv_entry_value_length(entry.as_ptr()) };
+    if required < 0 {
+        return Err(last_error_or("sonnetdb_kv_entry_value_length failed."));
+    }
+    let length = usize::try_from(required).map_err(|_| Error::new("KV value length is out of range."))?;
+    let mut value = vec![0u8; length];
+    let copied = unsafe {
+        ffi::sonnetdb_kv_entry_copy_value(
+            entry.as_ptr(),
+            value.as_mut_ptr().cast::<c_void>(),
+            checked_byte_length(&value)?,
+        )
+    };
+    if copied < 0 {
+        return Err(last_error_or("sonnetdb_kv_entry_copy_value failed."));
+    }
+    Ok(value)
+}
+
+fn copy_kv_scan_value(scan: NonNull<ffi::sonnetdb_kv_scan>) -> Result<Vec<u8>> {
+    let required = unsafe { ffi::sonnetdb_kv_scan_value_length(scan.as_ptr()) };
+    if required < 0 {
+        return Err(last_error_or("sonnetdb_kv_scan_value_length failed."));
+    }
+    let length = usize::try_from(required).map_err(|_| Error::new("KV value length is out of range."))?;
+    let mut value = vec![0u8; length];
+    let copied = unsafe {
+        ffi::sonnetdb_kv_scan_copy_value(
+            scan.as_ptr(),
+            value.as_mut_ptr().cast::<c_void>(),
+            checked_byte_length(&value)?,
+        )
+    };
+    if copied < 0 {
+        return Err(last_error_or("sonnetdb_kv_scan_copy_value failed."));
+    }
+    Ok(value)
 }
 
 fn last_error_or(fallback: &str) -> Error {

@@ -24,6 +24,24 @@ def main() -> None:
         )
         print("inserted rows:", inserted)
 
+        with connection.open_kv("app-cache", "quickstart") as kv:
+            version = kv.set("device:edge-1", b"online")
+            entry = kv.get("device:edge-1")
+            if entry is not None:
+                print(f"kv {entry.key} = {entry.value.decode()} (version {entry.version})")
+
+            counter, counter_version = kv.incr("counter", 3)
+            print(f"kv counter: {counter} (version {counter_version})")
+
+            cas = kv.cas("device:edge-1", version, b"offline")
+            print(
+                "kv cas swapped: "
+                f"{cas.swapped} (current {cas.current_version}, new {cas.new_version})"
+            )
+
+            for row in kv.scan_prefix("device:", 10):
+                print(f"kv scan {row.key} = {row.value.decode()}")
+
         with connection.execute(
             "SELECT time, host, usage FROM cpu WHERE host = 'edge-1' LIMIT 10"
         ) as result:

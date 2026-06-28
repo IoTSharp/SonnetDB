@@ -26,11 +26,12 @@ import "C"
 import (
 	"errors"
 	"fmt"
-	"math"
 	"runtime"
+	"unsafe"
 )
 
 const nativeStringBufferSize = 4096
+const maxInt32 = 1<<31 - 1
 
 // ErrClosed is returned when an operation is attempted on a closed native handle.
 var ErrClosed = errors.New("sonnetdb: native handle is closed")
@@ -89,6 +90,33 @@ type Value any
 // Connection is an embedded SonnetDB connection backed by the native C ABI.
 type Connection struct {
 	handle *C.sonnetdb_connection
+}
+
+// KV is a SonnetDB keyspace/namespace handle backed by the native C ABI.
+type KV struct {
+	handle *C.sonnetdb_kv
+}
+
+// KVEntry is a materialized key/value entry.
+type KVEntry struct {
+	Key             string
+	Value           []byte
+	Version         int64
+	ExpiresAtUnixMs int64
+}
+
+// KVTTL is a Redis-style TTL result. Milliseconds is -2 for missing keys and -1
+// for keys without expiration.
+type KVTTL struct {
+	Milliseconds    int64
+	ExpiresAtUnixMs int64
+}
+
+// KVCASResult describes a compare-and-set operation.
+type KVCASResult struct {
+	Swapped        bool
+	CurrentVersion int64
+	NewVersion     int64
 }
 
 // Result is a forward-only cursor over one SQL execution result.
@@ -200,6 +228,306 @@ func (c *Connection) Flush() error {
 		return lastError("sonnetdb_flush failed")
 	}
 	return nil
+}
+
+// OpenKV opens a KV keyspace handle. The optional namespace scopes keys with a
+// logical prefix; omit it or pass an empty string for the root namespace.
+func (c *Connection) OpenKV(keyspace string, namespace ...string) (*KV, error) {
+	handle, err := c.ensureOpen()
+	if err != nil {
+		return nil, err
+	}
+	if keyspace == "" {
+		return nil, errors.New("sonnetdb: keyspace must not be empty")
+	}
+
+	ns := ""
+	if len(namespace) > 0 {
+		ns = namespace[0]
+	}
+
+	cKeyspace := C.CString(keyspace)
+	defer C.sonnetdb_go_free(cKeyspace)
+
+	var cNamespace *C.char
+	if ns != "" {
+		cNamespace = C.CString(ns)
+		defer C.sonnetdb_go_free(cNamespace)
+	}
+
+	kvHandle := C.sonnetdb_kv_open(handle, cKeyspace, cNamespace)
+	if kvHandle == nil {
+		return nil, lastError("sonnetdb_kv_open failed")
+	}
+
+	kv := &KV{handle: kvHandle}
+	runtime.SetFinalizer(kv, func(value *KV) {
+		_ = value.Close()
+	})
+	return kv, nil
+}
+
+// Close releases the native KV handle. Calling Close more than once is safe.
+func (kv *KV) Close() error {
+	if kv == nil || kv.handle == nil {
+		return nil
+	}
+
+	handle := kv.handle
+	kv.handle = nil
+	runtime.SetFinalizer(kv, nil)
+	C.sonnetdb_kv_close(handle)
+	if message := LastError(); message != "" {
+		return &Error{Message: message}
+	}
+	return nil
+}
+
+// Get returns a materialized KV entry, or nil when the key is missing.
+func (kv *KV) Get(key string) (*KVEntry, error) {
+	handle, err := kv.ensureOpen()
+	if err != nil {
+		return nil, err
+	}
+	if key == "" {
+		return nil, errors.New("sonnetdb: key must not be empty")
+	}
+
+	cKey := C.CString(key)
+	defer C.sonnetdb_go_free(cKey)
+
+	entry := C.sonnetdb_kv_get(handle, cKey)
+	if entry == nil {
+		if message := LastError(); message != "" {
+			return nil, &Error{Message: message}
+		}
+		return nil, nil
+	}
+	defer C.sonnetdb_kv_entry_free(entry)
+
+	return materializeKVEntry(entry)
+}
+
+// Set writes a binary value and returns the written version. expiresAtUnixMs is
+// optional; omit it or pass a negative value for no expiration.
+func (kv *KV) Set(key string, value []byte, expiresAtUnixMs ...int64) (int64, error) {
+	handle, err := kv.ensureOpen()
+	if err != nil {
+		return 0, err
+	}
+	if key == "" {
+		return 0, errors.New("sonnetdb: key must not be empty")
+	}
+	length, err := checkedByteLength(value)
+	if err != nil {
+		return 0, err
+	}
+
+	expires := int64(-1)
+	if len(expiresAtUnixMs) > 0 {
+		expires = expiresAtUnixMs[0]
+	}
+
+	cKey := C.CString(key)
+	defer C.sonnetdb_go_free(cKey)
+
+	var ptr unsafe.Pointer
+	if len(value) > 0 {
+		ptr = unsafe.Pointer(&value[0])
+	}
+
+	version := int64(C.sonnetdb_kv_set(handle, cKey, ptr, C.int32_t(length), C.int64_t(expires)))
+	if version < 0 {
+		return 0, lastError("sonnetdb_kv_set failed")
+	}
+	return version, nil
+}
+
+// Delete removes a key and returns whether an existing key was removed.
+func (kv *KV) Delete(key string) (bool, error) {
+	handle, err := kv.ensureOpen()
+	if err != nil {
+		return false, err
+	}
+	if key == "" {
+		return false, errors.New("sonnetdb: key must not be empty")
+	}
+
+	cKey := C.CString(key)
+	defer C.sonnetdb_go_free(cKey)
+
+	code := int(C.sonnetdb_kv_delete(handle, cKey))
+	if code < 0 {
+		return false, lastError("sonnetdb_kv_delete failed")
+	}
+	return code == 1, nil
+}
+
+// ScanPrefix returns a materialized snapshot of entries matching prefix. Pass
+// limit <= 0 to use the keyspace default.
+func (kv *KV) ScanPrefix(prefix string, limit int) ([]KVEntry, error) {
+	handle, err := kv.ensureOpen()
+	if err != nil {
+		return nil, err
+	}
+	if limit > maxInt32 {
+		return nil, errors.New("sonnetdb: scan limit is out of range")
+	}
+
+	cPrefix := C.CString(prefix)
+	defer C.sonnetdb_go_free(cPrefix)
+
+	scan := C.sonnetdb_kv_scan_prefix(handle, cPrefix, C.int32_t(limit))
+	if scan == nil {
+		return nil, lastError("sonnetdb_kv_scan_prefix failed")
+	}
+	defer C.sonnetdb_kv_scan_free(scan)
+
+	var entries []KVEntry
+	for {
+		next := int(C.sonnetdb_kv_scan_next(scan))
+		if next < 0 {
+			return nil, lastError("sonnetdb_kv_scan_next failed")
+		}
+		if next == 0 {
+			return entries, nil
+		}
+
+		entry, err := materializeKVScanEntry(scan)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, *entry)
+	}
+}
+
+// TTL returns the remaining key TTL in milliseconds.
+func (kv *KV) TTL(key string) (KVTTL, error) {
+	handle, err := kv.ensureOpen()
+	if err != nil {
+		return KVTTL{}, err
+	}
+	if key == "" {
+		return KVTTL{}, errors.New("sonnetdb: key must not be empty")
+	}
+
+	cKey := C.CString(key)
+	defer C.sonnetdb_go_free(cKey)
+
+	var expires C.int64_t
+	ms := int64(C.sonnetdb_kv_ttl(handle, cKey, &expires))
+	if ms < -2 {
+		return KVTTL{}, lastError("sonnetdb_kv_ttl failed")
+	}
+	return KVTTL{Milliseconds: ms, ExpiresAtUnixMs: int64(expires)}, nil
+}
+
+// ExpireAt sets an absolute UTC expiration time in Unix milliseconds.
+func (kv *KV) ExpireAt(key string, expiresAtUnixMs int64) (bool, error) {
+	handle, err := kv.ensureOpen()
+	if err != nil {
+		return false, err
+	}
+	if key == "" {
+		return false, errors.New("sonnetdb: key must not be empty")
+	}
+
+	cKey := C.CString(key)
+	defer C.sonnetdb_go_free(cKey)
+
+	code := int(C.sonnetdb_kv_expire_at(handle, cKey, C.int64_t(expiresAtUnixMs)))
+	if code < 0 {
+		return false, lastError("sonnetdb_kv_expire_at failed")
+	}
+	return code == 1, nil
+}
+
+// Persist removes a key expiration.
+func (kv *KV) Persist(key string) (bool, error) {
+	handle, err := kv.ensureOpen()
+	if err != nil {
+		return false, err
+	}
+	if key == "" {
+		return false, errors.New("sonnetdb: key must not be empty")
+	}
+
+	cKey := C.CString(key)
+	defer C.sonnetdb_go_free(cKey)
+
+	code := int(C.sonnetdb_kv_persist(handle, cKey))
+	if code < 0 {
+		return false, lastError("sonnetdb_kv_persist failed")
+	}
+	return code == 1, nil
+}
+
+// Incr atomically increments a UTF-8 integer value.
+func (kv *KV) Incr(key string, delta int64) (value int64, version int64, err error) {
+	handle, err := kv.ensureOpen()
+	if err != nil {
+		return 0, 0, err
+	}
+	if key == "" {
+		return 0, 0, errors.New("sonnetdb: key must not be empty")
+	}
+
+	cKey := C.CString(key)
+	defer C.sonnetdb_go_free(cKey)
+
+	var nativeValue C.int64_t
+	var nativeVersion C.int64_t
+	if C.sonnetdb_kv_incr(handle, cKey, C.int64_t(delta), &nativeValue, &nativeVersion) != 0 {
+		return 0, 0, lastError("sonnetdb_kv_incr failed")
+	}
+	return int64(nativeValue), int64(nativeVersion), nil
+}
+
+// CAS writes value only when the current version matches expectedVersion.
+func (kv *KV) CAS(key string, expectedVersion int64, value []byte, expiresAtUnixMs ...int64) (KVCASResult, error) {
+	handle, err := kv.ensureOpen()
+	if err != nil {
+		return KVCASResult{}, err
+	}
+	if key == "" {
+		return KVCASResult{}, errors.New("sonnetdb: key must not be empty")
+	}
+	length, err := checkedByteLength(value)
+	if err != nil {
+		return KVCASResult{}, err
+	}
+
+	expires := int64(-1)
+	if len(expiresAtUnixMs) > 0 {
+		expires = expiresAtUnixMs[0]
+	}
+
+	cKey := C.CString(key)
+	defer C.sonnetdb_go_free(cKey)
+
+	var ptr unsafe.Pointer
+	if len(value) > 0 {
+		ptr = unsafe.Pointer(&value[0])
+	}
+	var current C.int64_t
+	var next C.int64_t
+	code := int(C.sonnetdb_kv_cas(
+		handle,
+		cKey,
+		C.int64_t(expectedVersion),
+		ptr,
+		C.int32_t(length),
+		C.int64_t(expires),
+		&current,
+		&next))
+	if code < 0 {
+		return KVCASResult{}, lastError("sonnetdb_kv_cas failed")
+	}
+	return KVCASResult{
+		Swapped:        code == 1,
+		CurrentVersion: int64(current),
+		NewVersion:     int64(next),
+	}, nil
 }
 
 // Close releases the native result handle. Calling Close more than once is safe.
@@ -420,6 +748,13 @@ func (c *Connection) ensureOpen() (*C.sonnetdb_connection, error) {
 	return c.handle, nil
 }
 
+func (kv *KV) ensureOpen() (*C.sonnetdb_kv, error) {
+	if kv == nil || kv.handle == nil {
+		return nil, ErrClosed
+	}
+	return kv.handle, nil
+}
+
 func (r *Result) ensureOpen() (*C.sonnetdb_result, error) {
 	if r == nil || r.handle == nil {
 		return nil, ErrClosed
@@ -427,8 +762,87 @@ func (r *Result) ensureOpen() (*C.sonnetdb_result, error) {
 	return r.handle, nil
 }
 
+func materializeKVEntry(entry *C.sonnetdb_kv_entry) (*KVEntry, error) {
+	key := C.sonnetdb_kv_entry_key(entry)
+	if key == nil {
+		return nil, lastError("sonnetdb_kv_entry_key failed")
+	}
+
+	value, err := copyKVEntryValue(entry)
+	if err != nil {
+		return nil, err
+	}
+
+	return &KVEntry{
+		Key:             C.GoString(key),
+		Value:           value,
+		Version:         int64(C.sonnetdb_kv_entry_version(entry)),
+		ExpiresAtUnixMs: int64(C.sonnetdb_kv_entry_expires_at_unix_ms(entry)),
+	}, nil
+}
+
+func materializeKVScanEntry(scan *C.sonnetdb_kv_scan) (*KVEntry, error) {
+	key := C.sonnetdb_kv_scan_key(scan)
+	if key == nil {
+		return nil, lastError("sonnetdb_kv_scan_key failed")
+	}
+
+	value, err := copyKVScanValue(scan)
+	if err != nil {
+		return nil, err
+	}
+
+	return &KVEntry{
+		Key:             C.GoString(key),
+		Value:           value,
+		Version:         int64(C.sonnetdb_kv_scan_version(scan)),
+		ExpiresAtUnixMs: int64(C.sonnetdb_kv_scan_expires_at_unix_ms(scan)),
+	}, nil
+}
+
+func copyKVEntryValue(entry *C.sonnetdb_kv_entry) ([]byte, error) {
+	required := int(C.sonnetdb_kv_entry_value_length(entry))
+	if required < 0 {
+		return nil, lastError("sonnetdb_kv_entry_value_length failed")
+	}
+	value := make([]byte, required)
+	var ptr unsafe.Pointer
+	if len(value) > 0 {
+		ptr = unsafe.Pointer(&value[0])
+	}
+	copied := int(C.sonnetdb_kv_entry_copy_value(entry, ptr, C.int32_t(required)))
+	if copied < 0 {
+		return nil, lastError("sonnetdb_kv_entry_copy_value failed")
+	}
+	return value, nil
+}
+
+func copyKVScanValue(scan *C.sonnetdb_kv_scan) ([]byte, error) {
+	required := int(C.sonnetdb_kv_scan_value_length(scan))
+	if required < 0 {
+		return nil, lastError("sonnetdb_kv_scan_value_length failed")
+	}
+	value := make([]byte, required)
+	var ptr unsafe.Pointer
+	if len(value) > 0 {
+		ptr = unsafe.Pointer(&value[0])
+	}
+	copied := int(C.sonnetdb_kv_scan_copy_value(scan, ptr, C.int32_t(required)))
+	if copied < 0 {
+		return nil, lastError("sonnetdb_kv_scan_copy_value failed")
+	}
+	return value, nil
+}
+
+func checkedByteLength(value []byte) (int, error) {
+	if len(value) > maxInt32 {
+		return 0, errors.New("sonnetdb: value length is out of range")
+	}
+	return len(value), nil
+}
+
 func validateOrdinal(ordinal int) error {
-	if ordinal < 0 || ordinal > math.MaxInt32 {
+	if ordinal < 0 || ordinal > maxInt32 {
 		return fmt.Errorf("sonnetdb: column ordinal %d is out of range", ordinal)
 	}
 	return nil
@@ -464,7 +878,7 @@ func copyNativeString(kind nativeStringKind) (string, error) {
 }
 
 func readNativeString(kind nativeStringKind, length int) (string, int, error) {
-	if length <= 0 || length > math.MaxInt32 {
+	if length <= 0 || length > maxInt32 {
 		return "", 0, errors.New("sonnetdb: native string buffer length is out of range")
 	}
 

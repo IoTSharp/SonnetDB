@@ -12,6 +12,7 @@ import os
 import platform
 from enum import IntEnum
 from pathlib import Path
+from dataclasses import dataclass
 from typing import Any, Iterable, Iterator, Sequence
 
 apilevel = "2.0"
@@ -47,6 +48,33 @@ class ValueType(IntEnum):
     DOUBLE = 2
     BOOL = 3
     TEXT = 4
+
+
+@dataclass(frozen=True)
+class KvEntry:
+    """Materialized KV entry."""
+
+    key: str
+    value: bytes
+    version: int
+    expires_at_unix_ms: int
+
+
+@dataclass(frozen=True)
+class KvTtl:
+    """Redis-style KV TTL result."""
+
+    milliseconds: int
+    expires_at_unix_ms: int
+
+
+@dataclass(frozen=True)
+class KvCasResult:
+    """KV compare-and-set result."""
+
+    swapped: bool
+    current_version: int
+    new_version: int
 
 
 class _NativeLibrary:
@@ -98,6 +126,119 @@ class _NativeLibrary:
 
         dll.sonnetdb_result_value_text.argtypes = [ctypes.c_void_p, ctypes.c_int32]
         dll.sonnetdb_result_value_text.restype = ctypes.c_void_p
+
+        dll.sonnetdb_kv_open.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p]
+        dll.sonnetdb_kv_open.restype = ctypes.c_void_p
+
+        dll.sonnetdb_kv_close.argtypes = [ctypes.c_void_p]
+        dll.sonnetdb_kv_close.restype = None
+
+        dll.sonnetdb_kv_get.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+        dll.sonnetdb_kv_get.restype = ctypes.c_void_p
+
+        dll.sonnetdb_kv_set.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.c_void_p,
+            ctypes.c_int32,
+            ctypes.c_int64,
+        ]
+        dll.sonnetdb_kv_set.restype = ctypes.c_int64
+
+        dll.sonnetdb_kv_delete.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+        dll.sonnetdb_kv_delete.restype = ctypes.c_int32
+
+        dll.sonnetdb_kv_scan_prefix.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.c_int32,
+        ]
+        dll.sonnetdb_kv_scan_prefix.restype = ctypes.c_void_p
+
+        dll.sonnetdb_kv_ttl.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.POINTER(ctypes.c_int64),
+        ]
+        dll.sonnetdb_kv_ttl.restype = ctypes.c_int64
+
+        dll.sonnetdb_kv_expire_at.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.c_int64,
+        ]
+        dll.sonnetdb_kv_expire_at.restype = ctypes.c_int32
+
+        dll.sonnetdb_kv_persist.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+        dll.sonnetdb_kv_persist.restype = ctypes.c_int32
+
+        dll.sonnetdb_kv_incr.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.c_int64,
+            ctypes.POINTER(ctypes.c_int64),
+            ctypes.POINTER(ctypes.c_int64),
+        ]
+        dll.sonnetdb_kv_incr.restype = ctypes.c_int32
+
+        dll.sonnetdb_kv_cas.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.c_int64,
+            ctypes.c_void_p,
+            ctypes.c_int32,
+            ctypes.c_int64,
+            ctypes.POINTER(ctypes.c_int64),
+            ctypes.POINTER(ctypes.c_int64),
+        ]
+        dll.sonnetdb_kv_cas.restype = ctypes.c_int32
+
+        dll.sonnetdb_kv_entry_free.argtypes = [ctypes.c_void_p]
+        dll.sonnetdb_kv_entry_free.restype = None
+
+        dll.sonnetdb_kv_entry_key.argtypes = [ctypes.c_void_p]
+        dll.sonnetdb_kv_entry_key.restype = ctypes.c_void_p
+
+        dll.sonnetdb_kv_entry_value_length.argtypes = [ctypes.c_void_p]
+        dll.sonnetdb_kv_entry_value_length.restype = ctypes.c_int64
+
+        dll.sonnetdb_kv_entry_copy_value.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_int32,
+        ]
+        dll.sonnetdb_kv_entry_copy_value.restype = ctypes.c_int32
+
+        dll.sonnetdb_kv_entry_version.argtypes = [ctypes.c_void_p]
+        dll.sonnetdb_kv_entry_version.restype = ctypes.c_int64
+
+        dll.sonnetdb_kv_entry_expires_at_unix_ms.argtypes = [ctypes.c_void_p]
+        dll.sonnetdb_kv_entry_expires_at_unix_ms.restype = ctypes.c_int64
+
+        dll.sonnetdb_kv_scan_next.argtypes = [ctypes.c_void_p]
+        dll.sonnetdb_kv_scan_next.restype = ctypes.c_int32
+
+        dll.sonnetdb_kv_scan_key.argtypes = [ctypes.c_void_p]
+        dll.sonnetdb_kv_scan_key.restype = ctypes.c_void_p
+
+        dll.sonnetdb_kv_scan_value_length.argtypes = [ctypes.c_void_p]
+        dll.sonnetdb_kv_scan_value_length.restype = ctypes.c_int64
+
+        dll.sonnetdb_kv_scan_copy_value.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_int32,
+        ]
+        dll.sonnetdb_kv_scan_copy_value.restype = ctypes.c_int32
+
+        dll.sonnetdb_kv_scan_version.argtypes = [ctypes.c_void_p]
+        dll.sonnetdb_kv_scan_version.restype = ctypes.c_int64
+
+        dll.sonnetdb_kv_scan_expires_at_unix_ms.argtypes = [ctypes.c_void_p]
+        dll.sonnetdb_kv_scan_expires_at_unix_ms.restype = ctypes.c_int64
+
+        dll.sonnetdb_kv_scan_free.argtypes = [ctypes.c_void_p]
+        dll.sonnetdb_kv_scan_free.restype = None
 
         dll.sonnetdb_flush.argtypes = [ctypes.c_void_p]
         dll.sonnetdb_flush.restype = ctypes.c_int32
@@ -183,6 +324,21 @@ class Connection:
         """Create a light DB-API-style cursor."""
 
         return Cursor(self)
+
+    def open_kv(self, keyspace: str, namespace: str = "") -> "KeyValueStore":
+        """Open a KV keyspace/namespace handle."""
+
+        handle = self._require_handle()
+        if not keyspace:
+            raise InterfaceError("keyspace must not be empty")
+        native_handle = self._native._dll.sonnetdb_kv_open(
+            handle,
+            _encode_utf8(keyspace),
+            _encode_utf8(namespace) if namespace else None,
+        )
+        if not native_handle:
+            raise DatabaseError(self._native.last_error() or "sonnetdb_kv_open failed.")
+        return KeyValueStore(self._native, native_handle)
 
     def commit(self) -> None:
         """DB-API compatibility method mapped to ``flush``."""
@@ -451,6 +607,265 @@ class Result(Iterator[tuple[Any, ...]]):
             pass
 
 
+class KeyValueStore:
+    """KV keyspace/namespace handle backed by the native C ABI."""
+
+    def __init__(self, native: _NativeLibrary, handle: int) -> None:
+        self._native = native
+        self._handle: int | None = handle
+
+    def get(self, key: str) -> KvEntry | None:
+        """Read a KV entry, or ``None`` when the key is missing."""
+
+        handle = self._require_handle()
+        if not key:
+            raise InterfaceError("key must not be empty")
+        entry = self._native._dll.sonnetdb_kv_get(handle, _encode_utf8(key))
+        if not entry:
+            message = self._native.last_error()
+            if message:
+                raise DatabaseError(message)
+            return None
+        try:
+            return self._entry_from_handle(entry)
+        finally:
+            self._native._dll.sonnetdb_kv_entry_free(entry)
+
+    def set(
+        self,
+        key: str,
+        value: bytes | bytearray | memoryview,
+        expires_at_unix_ms: int = -1,
+    ) -> int:
+        """Write a binary value and return the written version."""
+
+        handle = self._require_handle()
+        if not key:
+            raise InterfaceError("key must not be empty")
+        buffer = bytes(value)
+        native_buffer = ctypes.create_string_buffer(buffer, len(buffer)) if buffer else None
+        ptr = ctypes.cast(native_buffer, ctypes.c_void_p) if native_buffer is not None else None
+        version = int(
+            self._native._dll.sonnetdb_kv_set(
+                handle,
+                _encode_utf8(key),
+                ptr,
+                _checked_byte_length(buffer),
+                int(expires_at_unix_ms),
+            )
+        )
+        if version < 0:
+            raise DatabaseError(self._native.last_error() or "sonnetdb_kv_set failed.")
+        return version
+
+    def delete(self, key: str) -> bool:
+        """Delete a key and return whether a value was removed."""
+
+        code = self._bool_call("sonnetdb_kv_delete", key)
+        return code
+
+    def scan_prefix(self, prefix: str = "", limit: int = 0) -> list[KvEntry]:
+        """Scan a prefix into a materialized list. ``limit <= 0`` uses the default."""
+
+        handle = self._require_handle()
+        scan = self._native._dll.sonnetdb_kv_scan_prefix(
+            handle,
+            _encode_utf8(prefix),
+            _checked_int32(limit, "limit"),
+        )
+        if not scan:
+            raise DatabaseError(self._native.last_error() or "sonnetdb_kv_scan_prefix failed.")
+        try:
+            entries: list[KvEntry] = []
+            while True:
+                next_row = int(self._native._dll.sonnetdb_kv_scan_next(scan))
+                if next_row < 0:
+                    raise DatabaseError(self._native.last_error() or "sonnetdb_kv_scan_next failed.")
+                if next_row == 0:
+                    return entries
+                entries.append(self._entry_from_scan(scan))
+        finally:
+            self._native._dll.sonnetdb_kv_scan_free(scan)
+
+    def ttl(self, key: str) -> KvTtl:
+        """Return remaining TTL in milliseconds."""
+
+        handle = self._require_handle()
+        if not key:
+            raise InterfaceError("key must not be empty")
+        expires = ctypes.c_int64(-1)
+        milliseconds = int(
+            self._native._dll.sonnetdb_kv_ttl(handle, _encode_utf8(key), ctypes.byref(expires))
+        )
+        if milliseconds < -2:
+            raise DatabaseError(self._native.last_error() or "sonnetdb_kv_ttl failed.")
+        return KvTtl(milliseconds, int(expires.value))
+
+    def expire_at(self, key: str, expires_at_unix_ms: int) -> bool:
+        """Set an absolute UTC expiration time in Unix milliseconds."""
+
+        return self._bool_call("sonnetdb_kv_expire_at", key, int(expires_at_unix_ms))
+
+    def persist(self, key: str) -> bool:
+        """Remove a key expiration."""
+
+        return self._bool_call("sonnetdb_kv_persist", key)
+
+    def incr(self, key: str, delta: int = 1) -> tuple[int, int]:
+        """Atomically increment a UTF-8 integer value and return value/version."""
+
+        handle = self._require_handle()
+        if not key:
+            raise InterfaceError("key must not be empty")
+        value = ctypes.c_int64(0)
+        version = ctypes.c_int64(0)
+        code = int(
+            self._native._dll.sonnetdb_kv_incr(
+                handle,
+                _encode_utf8(key),
+                int(delta),
+                ctypes.byref(value),
+                ctypes.byref(version),
+            )
+        )
+        if code != 0:
+            raise DatabaseError(self._native.last_error() or "sonnetdb_kv_incr failed.")
+        return int(value.value), int(version.value)
+
+    def cas(
+        self,
+        key: str,
+        expected_version: int,
+        value: bytes | bytearray | memoryview,
+        expires_at_unix_ms: int = -1,
+    ) -> KvCasResult:
+        """Compare a key version and swap in a new value on match."""
+
+        handle = self._require_handle()
+        if not key:
+            raise InterfaceError("key must not be empty")
+        buffer = bytes(value)
+        native_buffer = ctypes.create_string_buffer(buffer, len(buffer)) if buffer else None
+        ptr = ctypes.cast(native_buffer, ctypes.c_void_p) if native_buffer is not None else None
+        current = ctypes.c_int64(0)
+        new = ctypes.c_int64(-1)
+        code = int(
+            self._native._dll.sonnetdb_kv_cas(
+                handle,
+                _encode_utf8(key),
+                int(expected_version),
+                ptr,
+                _checked_byte_length(buffer),
+                int(expires_at_unix_ms),
+                ctypes.byref(current),
+                ctypes.byref(new),
+            )
+        )
+        if code < 0:
+            raise DatabaseError(self._native.last_error() or "sonnetdb_kv_cas failed.")
+        return KvCasResult(code == 1, int(current.value), int(new.value))
+
+    def close(self) -> None:
+        """Release the native KV handle. Calling close twice is safe."""
+
+        if self._handle is None:
+            return
+        handle = self._handle
+        self._handle = None
+        self._native._dll.sonnetdb_kv_close(handle)
+        message = self._native.last_error()
+        if message:
+            raise DatabaseError(message)
+
+    @property
+    def closed(self) -> bool:
+        """Whether this KV handle has been closed."""
+
+        return self._handle is None
+
+    def _bool_call(self, name: str, key: str, *extra: int) -> bool:
+        handle = self._require_handle()
+        if not key:
+            raise InterfaceError("key must not be empty")
+        func = getattr(self._native._dll, name)
+        code = int(func(handle, _encode_utf8(key), *extra))
+        if code < 0:
+            raise DatabaseError(self._native.last_error() or f"{name} failed.")
+        return code == 1
+
+    def _entry_from_handle(self, entry: int) -> KvEntry:
+        key = self._native._dll.sonnetdb_kv_entry_key(entry)
+        if not key:
+            raise DatabaseError(self._native.last_error() or "sonnetdb_kv_entry_key failed.")
+        return KvEntry(
+            _decode_pointer(key),
+            self._copy_entry_value(entry),
+            int(self._native._dll.sonnetdb_kv_entry_version(entry)),
+            int(self._native._dll.sonnetdb_kv_entry_expires_at_unix_ms(entry)),
+        )
+
+    def _entry_from_scan(self, scan: int) -> KvEntry:
+        key = self._native._dll.sonnetdb_kv_scan_key(scan)
+        if not key:
+            raise DatabaseError(self._native.last_error() or "sonnetdb_kv_scan_key failed.")
+        return KvEntry(
+            _decode_pointer(key),
+            self._copy_scan_value(scan),
+            int(self._native._dll.sonnetdb_kv_scan_version(scan)),
+            int(self._native._dll.sonnetdb_kv_scan_expires_at_unix_ms(scan)),
+        )
+
+    def _copy_entry_value(self, entry: int) -> bytes:
+        length = int(self._native._dll.sonnetdb_kv_entry_value_length(entry))
+        if length < 0:
+            raise DatabaseError(
+                self._native.last_error() or "sonnetdb_kv_entry_value_length failed."
+            )
+        if length == 0:
+            return b""
+        buffer = ctypes.create_string_buffer(length)
+        copied = int(self._native._dll.sonnetdb_kv_entry_copy_value(entry, buffer, length))
+        if copied < 0:
+            raise DatabaseError(
+                self._native.last_error() or "sonnetdb_kv_entry_copy_value failed."
+            )
+        return bytes(buffer.raw)
+
+    def _copy_scan_value(self, scan: int) -> bytes:
+        length = int(self._native._dll.sonnetdb_kv_scan_value_length(scan))
+        if length < 0:
+            raise DatabaseError(
+                self._native.last_error() or "sonnetdb_kv_scan_value_length failed."
+            )
+        if length == 0:
+            return b""
+        buffer = ctypes.create_string_buffer(length)
+        copied = int(self._native._dll.sonnetdb_kv_scan_copy_value(scan, buffer, length))
+        if copied < 0:
+            raise DatabaseError(
+                self._native.last_error() or "sonnetdb_kv_scan_copy_value failed."
+            )
+        return bytes(buffer.raw)
+
+    def _require_handle(self) -> int:
+        if self._handle is None:
+            raise InterfaceError("SonnetDB KV handle is closed")
+        return self._handle
+
+    def __enter__(self) -> "KeyValueStore":
+        self._require_handle()
+        return self
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        self.close()
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
+
+
 class Cursor:
     """Small DB-API-style cursor wrapper over ``Connection.execute``."""
 
@@ -656,12 +1071,26 @@ def _checked_ordinal(ordinal: int) -> int:
     return int(ordinal)
 
 
+def _checked_int32(value: int, name: str) -> int:
+    if value < -2_147_483_648 or value > 2_147_483_647:
+        raise InterfaceError(f"{name} {value} is out of range")
+    return int(value)
+
+
+def _checked_byte_length(value: bytes) -> int:
+    return _checked_int32(len(value), "byte length")
+
+
 __all__ = [
     "Connection",
     "Cursor",
     "DatabaseError",
     "Error",
     "InterfaceError",
+    "KeyValueStore",
+    "KvCasResult",
+    "KvEntry",
+    "KvTtl",
     "NotSupportedError",
     "Result",
     "ValueType",

@@ -130,3 +130,18 @@ try (SonnetDbConnection connection = SonnetDbConnection.open("./data-java");
     }
 }
 ```
+
+## KV API
+
+```java
+try (SonnetDbConnection connection = SonnetDbConnection.open("./data-java");
+     SonnetDbKeyValueStore kv = connection.openKeyValueStore("app-cache", "devices")) {
+    long version = kv.set("edge-1", "online".getBytes(StandardCharsets.UTF_8));
+    SonnetDbKvEntry entry = kv.get("edge-1");
+    long[] counter = kv.increment("counter", 1);
+    SonnetDbKvCasResult cas = kv.compareAndSet(
+        "edge-1",
+        version,
+        "offline".getBytes(StandardCharsets.UTF_8));
+}
+```

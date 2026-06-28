@@ -116,6 +116,92 @@ public interface NativeBackend {
     String valueText(long result, int ordinal);
 
     /**
+     * 打开 KV keyspace/namespace 句柄。
+     */
+    long kvOpen(long connection, String keyspace, String namespaceName);
+
+    /**
+     * 关闭 KV 句柄。
+     */
+    void kvClose(long kv);
+
+    /**
+     * 读取 KV entry；缺失时返回 0。
+     */
+    long kvGet(long kv, String key);
+
+    /**
+     * 写入 KV value 并返回写入版本。
+     */
+    long kvSet(long kv, String key, byte[] value, long expiresAtUnixMs);
+
+    /**
+     * 删除 KV key。
+     */
+    boolean kvDelete(long kv, String key);
+
+    /**
+     * 前缀扫描 KV key。
+     */
+    long kvScanPrefix(long kv, String prefix, int limit);
+
+    /**
+     * 查询 KV TTL。
+     */
+    long kvTtl(long kv, String key, long[] expiresAtUnixMs);
+
+    /**
+     * 设置 KV 绝对过期时间。
+     */
+    boolean kvExpireAt(long kv, String key, long expiresAtUnixMs);
+
+    /**
+     * 移除 KV 过期时间。
+     */
+    boolean kvPersist(long kv, String key);
+
+    /**
+     * 原子递增 KV 整数值。
+     */
+    void kvIncr(long kv, String key, long delta, long[] valueAndVersion);
+
+    /**
+     * KV CAS。
+     */
+    boolean kvCas(
+        long kv,
+        String key,
+        long expectedVersion,
+        byte[] value,
+        long expiresAtUnixMs,
+        long[] currentAndNewVersion);
+
+    /**
+     * 释放 KV entry 句柄。
+     */
+    void kvEntryFree(long entry);
+
+    String kvEntryKey(long entry);
+
+    byte[] kvEntryValue(long entry);
+
+    long kvEntryVersion(long entry);
+
+    long kvEntryExpiresAtUnixMs(long entry);
+
+    boolean kvScanNext(long scan);
+
+    String kvScanKey(long scan);
+
+    byte[] kvScanValue(long scan);
+
+    long kvScanVersion(long scan);
+
+    long kvScanExpiresAtUnixMs(long scan);
+
+    void kvScanFree(long scan);
+
+    /**
      * 主动 Flush。
      *
      * @param connection native connection 句柄。

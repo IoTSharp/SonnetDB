@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using SonnetDB.Data.Embedded;
 using SonnetDB.Data.Remote;
 using SonnetDB.Engine;
 
@@ -14,7 +15,7 @@ public sealed class SndbKvClient : IDisposable
 {
     private readonly SndbConnectionStringBuilder _builder;
     private HttpClient? _http;
-    private SonnetDB.Engine.Tsdb? _embedded;
+    private Tsdb? _embedded;
     private string _database = string.Empty;
     private bool _disposed;
 
@@ -555,7 +556,10 @@ public sealed class SndbKvClient : IDisposable
 
         _disposed = true;
         _http?.Dispose();
-        _embedded?.Dispose();
+        var embedded = _embedded;
+        _embedded = null;
+        if (embedded is not null)
+            SharedSndbRegistry.Release(embedded);
     }
 
     private void Open()
@@ -566,7 +570,7 @@ public sealed class SndbKvClient : IDisposable
                 throw new InvalidOperationException("KV 客户端缺少 Data Source。");
 
             _database = _builder.DataSource;
-            _embedded = Tsdb.Open(new TsdbOptions { RootDirectory = _builder.DataSource });
+            _embedded = SharedSndbRegistry.Acquire(new TsdbOptions { RootDirectory = _builder.DataSource });
             return;
         }
 

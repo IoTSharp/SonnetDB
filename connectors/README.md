@@ -41,9 +41,17 @@ Bulk ingest now follows that rule as a separate function group:
 - `sonnetdb_bulk_set_flush`
 - `sonnetdb_bulk_execute`
 
+KV access follows the same pattern with its own keyspace handle:
+
+- `sonnetdb_kv_open` / `sonnetdb_kv_close`
+- `sonnetdb_kv_get` / `sonnetdb_kv_set` / `sonnetdb_kv_delete`
+- `sonnetdb_kv_scan_prefix`
+- `sonnetdb_kv_ttl` / `sonnetdb_kv_expire_at` / `sonnetdb_kv_persist`
+- `sonnetdb_kv_incr` / `sonnetdb_kv_cas`
+- `sonnetdb_kv_entry_*` / `sonnetdb_kv_scan_*` metadata and value-copy helpers
+
 The next connector milestones should continue extending the ABI by adding separate, focused function groups instead of widening `sonnetdb_execute`:
 
-- KV API
 - Document API
 - Object storage API
 - MQ API

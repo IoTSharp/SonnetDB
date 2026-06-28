@@ -1,11 +1,12 @@
-using System.Data.Common;
 using System.Data;
+using System.Data.Common;
 using System.Globalization;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using SonnetDB.Data;
+using SonnetDB.Data.Kv;
 using SonnetDB.Model;
 
 namespace SonnetDB.Native;
@@ -26,9 +27,12 @@ internal sealed class NativeConnection : IDisposable
     public NativeConnection(string connectionStringOrDataSource)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionStringOrDataSource);
-        _connection = new SndbConnection(BuildConnectionString(connectionStringOrDataSource));
+        ConnectionString = BuildConnectionString(connectionStringOrDataSource);
+        _connection = new SndbConnection(ConnectionString);
         _connection.Open();
     }
+
+    public string ConnectionString { get; }
 
     public NativeResult Execute(string sql)
     {
@@ -377,6 +381,234 @@ internal sealed class NativeBulk
         => string.IsNullOrWhiteSpace(value) ? null : value;
 }
 
+internal sealed class NativeKv : IDisposable
+{
+    private readonly SndbKvClient _client;
+    private readonly string _keyspace;
+    private readonly string _namespace;
+    private bool _disposed;
+
+    public NativeKv(NativeConnection connection, string keyspace, string? @namespace)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentException.ThrowIfNullOrWhiteSpace(keyspace);
+
+        _client = new SndbKvClient(connection.ConnectionString);
+        _keyspace = keyspace;
+        _namespace = @namespace ?? string.Empty;
+    }
+
+    public NativeKvEntry? Get(string key)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(key);
+        var entry = _client.GetAsync(_keyspace, _namespace, key).GetAwaiter().GetResult();
+        return entry is null ? null : NativeKvEntry.From(entry);
+    }
+
+    public long Set(string key, byte[] value, DateTimeOffset? expiresAtUtc)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(key);
+        ArgumentNullException.ThrowIfNull(value);
+        return _client.SetAsync(_keyspace, _namespace, key, value, expiresAtUtc).GetAwaiter().GetResult();
+    }
+
+    public bool Delete(string key)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(key);
+        return _client.RemoveAsync(_keyspace, _namespace, key).GetAwaiter().GetResult();
+    }
+
+    public NativeKvScan ScanPrefix(string prefix, int limit)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(prefix);
+        var entries = _client.ScanPrefixAsync(
+            _keyspace,
+            _namespace,
+            prefix,
+            limit <= 0 ? null : limit).GetAwaiter().GetResult();
+        return new NativeKvScan(entries.Select(NativeKvEntry.From).ToArray());
+    }
+
+    public SndbKvTtlResult GetTimeToLive(string key)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(key);
+        return _client.GetTimeToLiveAsync(_keyspace, _namespace, key).GetAwaiter().GetResult();
+    }
+
+    public (long Value, long Version) Increment(string key, long delta)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(key);
+        return _client.IncrementAsync(_keyspace, _namespace, key, delta).GetAwaiter().GetResult();
+    }
+
+    public SndbKvCasResult CompareAndSet(string key, long expectedVersion, byte[] value, DateTimeOffset? expiresAtUtc)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(key);
+        ArgumentNullException.ThrowIfNull(value);
+        return _client.CompareAndSetAsync(_keyspace, _namespace, key, expectedVersion, value, expiresAtUtc)
+            .GetAwaiter()
+            .GetResult();
+    }
+
+    public bool Expire(string key, DateTimeOffset expiresAtUtc)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(key);
+        return _client.ExpireAsync(_keyspace, _namespace, key, expiresAtUtc).GetAwaiter().GetResult();
+    }
+
+    public bool Persist(string key)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(key);
+        return _client.PersistAsync(_keyspace, _namespace, key).GetAwaiter().GetResult();
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _disposed = true;
+        _client.Dispose();
+    }
+
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+    }
+}
+
+internal sealed class NativeKvEntry : IDisposable
+{
+    private readonly Dictionary<int, IntPtr> _textPointers = new();
+    private bool _disposed;
+
+    private NativeKvEntry(string key, byte[] value, long version, DateTimeOffset? expiresAtUtc)
+    {
+        Key = key;
+        Value = value;
+        Version = version;
+        ExpiresAtUtc = expiresAtUtc;
+    }
+
+    public string Key { get; }
+
+    public byte[] Value { get; }
+
+    public long Version { get; }
+
+    public DateTimeOffset? ExpiresAtUtc { get; }
+
+    public static NativeKvEntry From(SndbKvEntry entry)
+        => new(entry.Key, entry.Value, entry.Version, entry.ExpiresAtUtc);
+
+    public IntPtr GetKey()
+    {
+        ThrowIfDisposed();
+        return GetTextPointer(0, Key);
+    }
+
+    public long GetValueLength()
+    {
+        ThrowIfDisposed();
+        return Value.LongLength;
+    }
+
+    public int CopyValue(IntPtr buffer, int bufferLength)
+    {
+        ThrowIfDisposed();
+        return SonnetDbNativeExports.CopyBytes(Value, buffer, bufferLength);
+    }
+
+    public long GetExpiresAtUnixMilliseconds()
+    {
+        ThrowIfDisposed();
+        return ExpiresAtUtc?.ToUnixTimeMilliseconds() ?? -1;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        foreach (var ptr in _textPointers.Values)
+            Marshal.FreeCoTaskMem(ptr);
+        _textPointers.Clear();
+        _disposed = true;
+    }
+
+    private IntPtr GetTextPointer(int key, string value)
+    {
+        if (_textPointers.TryGetValue(key, out var ptr))
+            return ptr;
+
+        ptr = Marshal.StringToCoTaskMemUTF8(value);
+        _textPointers.Add(key, ptr);
+        return ptr;
+    }
+
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+    }
+}
+
+internal sealed class NativeKvScan : IDisposable
+{
+    private readonly IReadOnlyList<NativeKvEntry> _entries;
+    private int _index = -1;
+    private bool _disposed;
+
+    public NativeKvScan(IReadOnlyList<NativeKvEntry> entries)
+    {
+        _entries = entries;
+    }
+
+    public int MoveNext()
+    {
+        ThrowIfDisposed();
+        if (_index + 1 >= _entries.Count)
+            return 0;
+
+        _index++;
+        return 1;
+    }
+
+    public NativeKvEntry Current
+    {
+        get
+        {
+            ThrowIfDisposed();
+            if (_index < 0 || _index >= _entries.Count)
+                throw new InvalidOperationException("KV scan is not positioned on an entry.");
+            return _entries[_index];
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        foreach (var entry in _entries)
+            entry.Dispose();
+        _disposed = true;
+    }
+
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+    }
+}
+
 internal static class SonnetDbNativeExports
 {
     [ThreadStatic]
@@ -554,6 +786,335 @@ internal static class SonnetDbNativeExports
         }
     }
 
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_kv_open", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr KvOpen(IntPtr connection, IntPtr keyspace, IntPtr @namespace)
+    {
+        try
+        {
+            ClearError();
+            var nativeConnection = GetTarget<NativeConnection>(connection, nameof(connection));
+            var keyspaceText = ReadUtf8(keyspace, nameof(keyspace));
+            var namespaceText = ReadOptionalUtf8(@namespace);
+            var kv = new NativeKv(nativeConnection, keyspaceText, namespaceText);
+            return GCHandle.ToIntPtr(GCHandle.Alloc(kv));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_kv_close", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static void KvClose(IntPtr kv)
+    {
+        GCHandle handle = default;
+        bool hasHandle = false;
+
+        try
+        {
+            ClearError();
+            if (kv == IntPtr.Zero)
+                return;
+
+            handle = GCHandle.FromIntPtr(kv);
+            hasHandle = true;
+            if (handle.Target is IDisposable disposable)
+                disposable.Dispose();
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+        }
+        finally
+        {
+            if (hasHandle)
+                handle.Free();
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_kv_get", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr KvGet(IntPtr kv, IntPtr key)
+    {
+        try
+        {
+            ClearError();
+            var nativeKv = GetTarget<NativeKv>(kv, nameof(kv));
+            var entry = nativeKv.Get(ReadUtf8(key, nameof(key)));
+            return entry is null ? IntPtr.Zero : GCHandle.ToIntPtr(GCHandle.Alloc(entry));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_kv_set", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static long KvSet(IntPtr kv, IntPtr key, IntPtr value, int valueLength, long expiresAtUnixMs)
+    {
+        try
+        {
+            ClearError();
+            var nativeKv = GetTarget<NativeKv>(kv, nameof(kv));
+            var keyText = ReadUtf8(key, nameof(key));
+            var valueBytes = ReadBytes(value, valueLength, nameof(value));
+            return nativeKv.Set(keyText, valueBytes, FromOptionalUnixMilliseconds(expiresAtUnixMs));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return -1;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_kv_delete", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int KvDelete(IntPtr kv, IntPtr key)
+    {
+        try
+        {
+            ClearError();
+            var nativeKv = GetTarget<NativeKv>(kv, nameof(kv));
+            return nativeKv.Delete(ReadUtf8(key, nameof(key))) ? 1 : 0;
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return -1;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_kv_scan_prefix", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr KvScanPrefix(IntPtr kv, IntPtr prefix, int limit)
+    {
+        try
+        {
+            ClearError();
+            var nativeKv = GetTarget<NativeKv>(kv, nameof(kv));
+            var scan = nativeKv.ScanPrefix(ReadUtf8(prefix, nameof(prefix)), limit);
+            return GCHandle.ToIntPtr(GCHandle.Alloc(scan));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_kv_ttl", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static long KvTimeToLive(IntPtr kv, IntPtr key, IntPtr expiresAtUnixMs)
+    {
+        try
+        {
+            ClearError();
+            var nativeKv = GetTarget<NativeKv>(kv, nameof(kv));
+            var ttl = nativeKv.GetTimeToLive(ReadUtf8(key, nameof(key)));
+            WriteInt64(expiresAtUnixMs, ttl.ExpiresAtUtc?.ToUnixTimeMilliseconds() ?? -1);
+            return ttl.Milliseconds;
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return -3;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_kv_expire_at", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int KvExpireAt(IntPtr kv, IntPtr key, long expiresAtUnixMs)
+    {
+        try
+        {
+            ClearError();
+            var nativeKv = GetTarget<NativeKv>(kv, nameof(kv));
+            if (expiresAtUnixMs < 0)
+                throw new ArgumentOutOfRangeException(nameof(expiresAtUnixMs), "expires_at_unix_ms must be non-negative.");
+
+            return nativeKv.Expire(ReadUtf8(key, nameof(key)), DateTimeOffset.FromUnixTimeMilliseconds(expiresAtUnixMs)) ? 1 : 0;
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return -1;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_kv_persist", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int KvPersist(IntPtr kv, IntPtr key)
+    {
+        try
+        {
+            ClearError();
+            var nativeKv = GetTarget<NativeKv>(kv, nameof(kv));
+            return nativeKv.Persist(ReadUtf8(key, nameof(key))) ? 1 : 0;
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return -1;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_kv_incr", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int KvIncrement(IntPtr kv, IntPtr key, long delta, IntPtr value, IntPtr version)
+    {
+        try
+        {
+            ClearError();
+            var nativeKv = GetTarget<NativeKv>(kv, nameof(kv));
+            var result = nativeKv.Increment(ReadUtf8(key, nameof(key)), delta);
+            WriteInt64(value, result.Value);
+            WriteInt64(version, result.Version);
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return -1;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_kv_cas", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int KvCompareAndSet(
+        IntPtr kv,
+        IntPtr key,
+        long expectedVersion,
+        IntPtr value,
+        int valueLength,
+        long expiresAtUnixMs,
+        IntPtr currentVersion,
+        IntPtr newVersion)
+    {
+        try
+        {
+            ClearError();
+            var nativeKv = GetTarget<NativeKv>(kv, nameof(kv));
+            var result = nativeKv.CompareAndSet(
+                ReadUtf8(key, nameof(key)),
+                expectedVersion,
+                ReadBytes(value, valueLength, nameof(value)),
+                FromOptionalUnixMilliseconds(expiresAtUnixMs));
+            WriteInt64(currentVersion, result.CurrentVersion);
+            WriteInt64(newVersion, result.NewVersion ?? -1);
+            return result.Succeeded ? 1 : 0;
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return -1;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_kv_entry_free", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static void KvEntryFree(IntPtr entry)
+    {
+        GCHandle handle = default;
+        bool hasHandle = false;
+
+        try
+        {
+            ClearError();
+            if (entry == IntPtr.Zero)
+                return;
+
+            handle = GCHandle.FromIntPtr(entry);
+            hasHandle = true;
+            if (handle.Target is IDisposable disposable)
+                disposable.Dispose();
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+        }
+        finally
+        {
+            if (hasHandle)
+                handle.Free();
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_kv_entry_key", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr KvEntryKey(IntPtr entry)
+        => InvokeKvEntry(entry, static e => e.GetKey(), IntPtr.Zero);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_kv_entry_value_length", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static long KvEntryValueLength(IntPtr entry)
+        => InvokeKvEntry(entry, static e => e.GetValueLength(), -1L);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_kv_entry_copy_value", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int KvEntryCopyValue(IntPtr entry, IntPtr buffer, int bufferLength)
+        => InvokeKvEntry(entry, e => e.CopyValue(buffer, bufferLength), -1);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_kv_entry_version", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static long KvEntryVersion(IntPtr entry)
+        => InvokeKvEntry(entry, static e => e.Version, -1L);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_kv_entry_expires_at_unix_ms", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static long KvEntryExpiresAtUnixMs(IntPtr entry)
+        => InvokeKvEntry(entry, static e => e.GetExpiresAtUnixMilliseconds(), -1L);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_kv_scan_next", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int KvScanNext(IntPtr scan)
+    {
+        try
+        {
+            ClearError();
+            return GetTarget<NativeKvScan>(scan, nameof(scan)).MoveNext();
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return -1;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_kv_scan_key", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr KvScanKey(IntPtr scan)
+        => InvokeKvScan(scan, static s => s.Current.GetKey(), IntPtr.Zero);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_kv_scan_value_length", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static long KvScanValueLength(IntPtr scan)
+        => InvokeKvScan(scan, static s => s.Current.GetValueLength(), -1L);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_kv_scan_copy_value", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int KvScanCopyValue(IntPtr scan, IntPtr buffer, int bufferLength)
+        => InvokeKvScan(scan, s => s.Current.CopyValue(buffer, bufferLength), -1);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_kv_scan_version", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static long KvScanVersion(IntPtr scan)
+        => InvokeKvScan(scan, static s => s.Current.Version, -1L);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_kv_scan_expires_at_unix_ms", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static long KvScanExpiresAtUnixMs(IntPtr scan)
+        => InvokeKvScan(scan, static s => s.Current.GetExpiresAtUnixMilliseconds(), -1L);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_kv_scan_free", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static void KvScanFree(IntPtr scan)
+    {
+        GCHandle handle = default;
+        bool hasHandle = false;
+
+        try
+        {
+            ClearError();
+            if (scan == IntPtr.Zero)
+                return;
+
+            handle = GCHandle.FromIntPtr(scan);
+            hasHandle = true;
+            if (handle.Target is IDisposable disposable)
+                disposable.Dispose();
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+        }
+        finally
+        {
+            if (hasHandle)
+                handle.Free();
+        }
+    }
+
     [UnmanagedCallersOnly(EntryPoint = "sonnetdb_result_free", CallConvs = new[] { typeof(CallConvCdecl) })]
     public static void ResultFree(IntPtr result)
     {
@@ -671,6 +1232,36 @@ internal static class SonnetDbNativeExports
         }
     }
 
+    private static TReturn InvokeKvEntry<TReturn>(IntPtr entry, Func<NativeKvEntry, TReturn> action, TReturn errorValue)
+    {
+        try
+        {
+            ClearError();
+            var nativeEntry = GetTarget<NativeKvEntry>(entry, nameof(entry));
+            return action(nativeEntry);
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return errorValue;
+        }
+    }
+
+    private static TReturn InvokeKvScan<TReturn>(IntPtr scan, Func<NativeKvScan, TReturn> action, TReturn errorValue)
+    {
+        try
+        {
+            ClearError();
+            var nativeScan = GetTarget<NativeKvScan>(scan, nameof(scan));
+            return action(nativeScan);
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return errorValue;
+        }
+    }
+
     private static T GetTarget<T>(IntPtr handle, string parameterName)
         where T : class
     {
@@ -694,6 +1285,29 @@ internal static class SonnetDbNativeExports
     private static string? ReadOptionalUtf8(IntPtr pointer)
         => pointer == IntPtr.Zero ? null : Marshal.PtrToStringUTF8(pointer);
 
+    private static byte[] ReadBytes(IntPtr pointer, int length, string parameterName)
+    {
+        if (length < 0)
+            throw new ArgumentOutOfRangeException(nameof(length), "Byte length cannot be negative.");
+        if (length == 0)
+            return Array.Empty<byte>();
+        if (pointer == IntPtr.Zero)
+            throw new ArgumentNullException(parameterName);
+
+        byte[] bytes = new byte[length];
+        Marshal.Copy(pointer, bytes, 0, length);
+        return bytes;
+    }
+
+    private static DateTimeOffset? FromOptionalUnixMilliseconds(long value)
+        => value < 0 ? null : DateTimeOffset.FromUnixTimeMilliseconds(value);
+
+    private static void WriteInt64(IntPtr pointer, long value)
+    {
+        if (pointer != IntPtr.Zero)
+            Marshal.WriteInt64(pointer, value);
+    }
+
     private static int CopyUtf8(string value, IntPtr buffer, int bufferLength)
     {
         if (buffer == IntPtr.Zero || bufferLength <= 0)
@@ -705,6 +1319,19 @@ internal static class SonnetDbNativeExports
             Marshal.Copy(bytes, 0, buffer, copyLength);
         Marshal.WriteByte(buffer, copyLength, 0);
         return bytes.Length;
+    }
+
+    public static int CopyBytes(byte[] value, IntPtr buffer, int bufferLength)
+    {
+        if (bufferLength < 0)
+            throw new ArgumentOutOfRangeException(nameof(bufferLength), "Buffer length cannot be negative.");
+        if (buffer == IntPtr.Zero || bufferLength == 0)
+            return value.Length;
+
+        int copyLength = Math.Min(value.Length, bufferLength);
+        if (copyLength > 0)
+            Marshal.Copy(value, 0, buffer, copyLength);
+        return value.Length;
     }
 
     private static void ClearError()

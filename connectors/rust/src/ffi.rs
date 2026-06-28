@@ -12,6 +12,21 @@ pub struct sonnetdb_result {
     _private: [u8; 0],
 }
 
+#[repr(C)]
+pub struct sonnetdb_kv {
+    _private: [u8; 0],
+}
+
+#[repr(C)]
+pub struct sonnetdb_kv_entry {
+    _private: [u8; 0],
+}
+
+#[repr(C)]
+pub struct sonnetdb_kv_scan {
+    _private: [u8; 0],
+}
+
 pub type sonnetdb_value_type = c_int;
 
 pub const SONNETDB_TYPE_NULL: sonnetdb_value_type = 0;
@@ -55,6 +70,76 @@ extern "C" {
         result: *mut sonnetdb_result,
         ordinal: c_int,
     ) -> *const c_char;
+
+    pub fn sonnetdb_kv_open(
+        connection: *mut sonnetdb_connection,
+        keyspace: *const c_char,
+        namespace: *const c_char,
+    ) -> *mut sonnetdb_kv;
+    pub fn sonnetdb_kv_close(kv: *mut sonnetdb_kv);
+    pub fn sonnetdb_kv_get(kv: *mut sonnetdb_kv, key: *const c_char) -> *mut sonnetdb_kv_entry;
+    pub fn sonnetdb_kv_set(
+        kv: *mut sonnetdb_kv,
+        key: *const c_char,
+        value: *const std::ffi::c_void,
+        value_length: c_int,
+        expires_at_unix_ms: i64,
+    ) -> i64;
+    pub fn sonnetdb_kv_delete(kv: *mut sonnetdb_kv, key: *const c_char) -> c_int;
+    pub fn sonnetdb_kv_scan_prefix(
+        kv: *mut sonnetdb_kv,
+        prefix: *const c_char,
+        limit: c_int,
+    ) -> *mut sonnetdb_kv_scan;
+    pub fn sonnetdb_kv_ttl(
+        kv: *mut sonnetdb_kv,
+        key: *const c_char,
+        expires_at_unix_ms: *mut i64,
+    ) -> i64;
+    pub fn sonnetdb_kv_expire_at(
+        kv: *mut sonnetdb_kv,
+        key: *const c_char,
+        expires_at_unix_ms: i64,
+    ) -> c_int;
+    pub fn sonnetdb_kv_persist(kv: *mut sonnetdb_kv, key: *const c_char) -> c_int;
+    pub fn sonnetdb_kv_incr(
+        kv: *mut sonnetdb_kv,
+        key: *const c_char,
+        delta: i64,
+        value: *mut i64,
+        version: *mut i64,
+    ) -> c_int;
+    pub fn sonnetdb_kv_cas(
+        kv: *mut sonnetdb_kv,
+        key: *const c_char,
+        expected_version: i64,
+        value: *const std::ffi::c_void,
+        value_length: c_int,
+        expires_at_unix_ms: i64,
+        current_version: *mut i64,
+        new_version: *mut i64,
+    ) -> c_int;
+    pub fn sonnetdb_kv_entry_free(entry: *mut sonnetdb_kv_entry);
+    pub fn sonnetdb_kv_entry_key(entry: *mut sonnetdb_kv_entry) -> *const c_char;
+    pub fn sonnetdb_kv_entry_value_length(entry: *mut sonnetdb_kv_entry) -> i64;
+    pub fn sonnetdb_kv_entry_copy_value(
+        entry: *mut sonnetdb_kv_entry,
+        buffer: *mut std::ffi::c_void,
+        buffer_length: c_int,
+    ) -> c_int;
+    pub fn sonnetdb_kv_entry_version(entry: *mut sonnetdb_kv_entry) -> i64;
+    pub fn sonnetdb_kv_entry_expires_at_unix_ms(entry: *mut sonnetdb_kv_entry) -> i64;
+    pub fn sonnetdb_kv_scan_next(scan: *mut sonnetdb_kv_scan) -> c_int;
+    pub fn sonnetdb_kv_scan_key(scan: *mut sonnetdb_kv_scan) -> *const c_char;
+    pub fn sonnetdb_kv_scan_value_length(scan: *mut sonnetdb_kv_scan) -> i64;
+    pub fn sonnetdb_kv_scan_copy_value(
+        scan: *mut sonnetdb_kv_scan,
+        buffer: *mut std::ffi::c_void,
+        buffer_length: c_int,
+    ) -> c_int;
+    pub fn sonnetdb_kv_scan_version(scan: *mut sonnetdb_kv_scan) -> i64;
+    pub fn sonnetdb_kv_scan_expires_at_unix_ms(scan: *mut sonnetdb_kv_scan) -> i64;
+    pub fn sonnetdb_kv_scan_free(scan: *mut sonnetdb_kv_scan);
 
     pub fn sonnetdb_flush(connection: *mut sonnetdb_connection) -> c_int;
     pub fn sonnetdb_version(buffer: *mut c_char, buffer_length: c_int) -> c_int;

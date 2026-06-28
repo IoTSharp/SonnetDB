@@ -41,6 +41,44 @@ func main() {
 	}
 	fmt.Println("inserted rows:", inserted)
 
+	kv, err := connection.OpenKV("app-cache", "quickstart")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer kv.Close()
+
+	version, err := kv.Set("device:edge-1", []byte("online"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	entry, err := kv.Get("device:edge-1")
+	if err != nil {
+		log.Fatal(err)
+	}
+	if entry != nil {
+		fmt.Printf("kv %s = %s (version %d)\n", entry.Key, string(entry.Value), entry.Version)
+	}
+
+	counter, counterVersion, err := kv.Incr("counter", 3)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("kv counter: %d (version %d)\n", counter, counterVersion)
+
+	cas, err := kv.CAS("device:edge-1", version, []byte("offline"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("kv cas swapped: %t (current %d, new %d)\n", cas.Swapped, cas.CurrentVersion, cas.NewVersion)
+
+	entries, err := kv.ScanPrefix("device:", 10)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, row := range entries {
+		fmt.Printf("kv scan %s = %s\n", row.Key, string(row.Value))
+	}
+
 	result, err := connection.Execute("SELECT time, host, usage FROM cpu WHERE host = 'edge-1' LIMIT 10")
 	if err != nil {
 		log.Fatal(err)

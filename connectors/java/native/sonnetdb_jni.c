@@ -1,4 +1,5 @@
 #include <jni.h>
+#include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,6 +24,30 @@ typedef int64_t (*sonnetdb_result_value_int64_fn)(void*, int32_t);
 typedef double (*sonnetdb_result_value_double_fn)(void*, int32_t);
 typedef int32_t (*sonnetdb_result_value_bool_fn)(void*, int32_t);
 typedef const char* (*sonnetdb_result_value_text_fn)(void*, int32_t);
+typedef void* (*sonnetdb_kv_open_fn)(void*, const char*, const char*);
+typedef void (*sonnetdb_kv_close_fn)(void*);
+typedef void* (*sonnetdb_kv_get_fn)(void*, const char*);
+typedef int64_t (*sonnetdb_kv_set_fn)(void*, const char*, const void*, int32_t, int64_t);
+typedef int32_t (*sonnetdb_kv_delete_fn)(void*, const char*);
+typedef void* (*sonnetdb_kv_scan_prefix_fn)(void*, const char*, int32_t);
+typedef int64_t (*sonnetdb_kv_ttl_fn)(void*, const char*, int64_t*);
+typedef int32_t (*sonnetdb_kv_expire_at_fn)(void*, const char*, int64_t);
+typedef int32_t (*sonnetdb_kv_persist_fn)(void*, const char*);
+typedef int32_t (*sonnetdb_kv_incr_fn)(void*, const char*, int64_t, int64_t*, int64_t*);
+typedef int32_t (*sonnetdb_kv_cas_fn)(void*, const char*, int64_t, const void*, int32_t, int64_t, int64_t*, int64_t*);
+typedef void (*sonnetdb_kv_entry_free_fn)(void*);
+typedef const char* (*sonnetdb_kv_entry_key_fn)(void*);
+typedef int64_t (*sonnetdb_kv_entry_value_length_fn)(void*);
+typedef int32_t (*sonnetdb_kv_entry_copy_value_fn)(void*, void*, int32_t);
+typedef int64_t (*sonnetdb_kv_entry_version_fn)(void*);
+typedef int64_t (*sonnetdb_kv_entry_expires_at_unix_ms_fn)(void*);
+typedef int32_t (*sonnetdb_kv_scan_next_fn)(void*);
+typedef const char* (*sonnetdb_kv_scan_key_fn)(void*);
+typedef int64_t (*sonnetdb_kv_scan_value_length_fn)(void*);
+typedef int32_t (*sonnetdb_kv_scan_copy_value_fn)(void*, void*, int32_t);
+typedef int64_t (*sonnetdb_kv_scan_version_fn)(void*);
+typedef int64_t (*sonnetdb_kv_scan_expires_at_unix_ms_fn)(void*);
+typedef void (*sonnetdb_kv_scan_free_fn)(void*);
 typedef int32_t (*sonnetdb_flush_fn)(void*);
 typedef int32_t (*sonnetdb_version_fn)(char*, int32_t);
 typedef int32_t (*sonnetdb_last_error_fn)(char*, int32_t);
@@ -40,6 +65,30 @@ static sonnetdb_result_value_int64_fn p_sonnetdb_result_value_int64;
 static sonnetdb_result_value_double_fn p_sonnetdb_result_value_double;
 static sonnetdb_result_value_bool_fn p_sonnetdb_result_value_bool;
 static sonnetdb_result_value_text_fn p_sonnetdb_result_value_text;
+static sonnetdb_kv_open_fn p_sonnetdb_kv_open;
+static sonnetdb_kv_close_fn p_sonnetdb_kv_close;
+static sonnetdb_kv_get_fn p_sonnetdb_kv_get;
+static sonnetdb_kv_set_fn p_sonnetdb_kv_set;
+static sonnetdb_kv_delete_fn p_sonnetdb_kv_delete;
+static sonnetdb_kv_scan_prefix_fn p_sonnetdb_kv_scan_prefix;
+static sonnetdb_kv_ttl_fn p_sonnetdb_kv_ttl;
+static sonnetdb_kv_expire_at_fn p_sonnetdb_kv_expire_at;
+static sonnetdb_kv_persist_fn p_sonnetdb_kv_persist;
+static sonnetdb_kv_incr_fn p_sonnetdb_kv_incr;
+static sonnetdb_kv_cas_fn p_sonnetdb_kv_cas;
+static sonnetdb_kv_entry_free_fn p_sonnetdb_kv_entry_free;
+static sonnetdb_kv_entry_key_fn p_sonnetdb_kv_entry_key;
+static sonnetdb_kv_entry_value_length_fn p_sonnetdb_kv_entry_value_length;
+static sonnetdb_kv_entry_copy_value_fn p_sonnetdb_kv_entry_copy_value;
+static sonnetdb_kv_entry_version_fn p_sonnetdb_kv_entry_version;
+static sonnetdb_kv_entry_expires_at_unix_ms_fn p_sonnetdb_kv_entry_expires_at_unix_ms;
+static sonnetdb_kv_scan_next_fn p_sonnetdb_kv_scan_next;
+static sonnetdb_kv_scan_key_fn p_sonnetdb_kv_scan_key;
+static sonnetdb_kv_scan_value_length_fn p_sonnetdb_kv_scan_value_length;
+static sonnetdb_kv_scan_copy_value_fn p_sonnetdb_kv_scan_copy_value;
+static sonnetdb_kv_scan_version_fn p_sonnetdb_kv_scan_version;
+static sonnetdb_kv_scan_expires_at_unix_ms_fn p_sonnetdb_kv_scan_expires_at_unix_ms;
+static sonnetdb_kv_scan_free_fn p_sonnetdb_kv_scan_free;
 static sonnetdb_flush_fn p_sonnetdb_flush;
 static sonnetdb_version_fn p_sonnetdb_version;
 static sonnetdb_last_error_fn p_sonnetdb_last_error;
@@ -79,6 +128,60 @@ static void throw_last_error(JNIEnv* env, const char* fallback)
     {
         throw_sonnet(env, buffer);
     }
+}
+
+static jbyteArray copy_bytes(JNIEnv* env, void* handle, int64_t (*length_fn)(void*), int32_t (*copy_fn)(void*, void*, int32_t))
+{
+    int64_t required = length_fn(handle);
+    if (required < 0 || required > INT32_MAX)
+    {
+        throw_last_error(env, "KV value length is invalid.");
+        return NULL;
+    }
+
+    jbyteArray array = (*env)->NewByteArray(env, (jsize)required);
+    if (array == NULL)
+    {
+        return NULL;
+    }
+    if (required == 0)
+    {
+        return array;
+    }
+
+    jbyte* bytes = (*env)->GetByteArrayElements(env, array, NULL);
+    if (bytes == NULL)
+    {
+        return NULL;
+    }
+    int32_t copied = copy_fn(handle, bytes, (int32_t)required);
+    (*env)->ReleaseByteArrayElements(env, array, bytes, 0);
+    if (copied < 0)
+    {
+        throw_last_error(env, "KV value copy failed.");
+        return NULL;
+    }
+    return array;
+}
+
+static void* byte_array_elements(JNIEnv* env, jbyteArray value, jbyte** bytes, jsize* length)
+{
+    *bytes = NULL;
+    *length = 0;
+    if (value == NULL)
+    {
+        throw_sonnet(env, "KV value cannot be null.");
+        return NULL;
+    }
+
+    *length = (*env)->GetArrayLength(env, value);
+    if (*length == 0)
+    {
+        return NULL;
+    }
+
+    *bytes = (*env)->GetByteArrayElements(env, value, NULL);
+    return *bytes;
 }
 
 #ifdef _WIN32
@@ -183,6 +286,30 @@ JNIEXPORT void JNICALL Java_com_sonnetdb_jni_SonnetDbJni_initialize(
     RESOLVE_SYMBOL(p_sonnetdb_result_value_double, sonnetdb_result_value_double_fn, "sonnetdb_result_value_double");
     RESOLVE_SYMBOL(p_sonnetdb_result_value_bool, sonnetdb_result_value_bool_fn, "sonnetdb_result_value_bool");
     RESOLVE_SYMBOL(p_sonnetdb_result_value_text, sonnetdb_result_value_text_fn, "sonnetdb_result_value_text");
+    RESOLVE_SYMBOL(p_sonnetdb_kv_open, sonnetdb_kv_open_fn, "sonnetdb_kv_open");
+    RESOLVE_SYMBOL(p_sonnetdb_kv_close, sonnetdb_kv_close_fn, "sonnetdb_kv_close");
+    RESOLVE_SYMBOL(p_sonnetdb_kv_get, sonnetdb_kv_get_fn, "sonnetdb_kv_get");
+    RESOLVE_SYMBOL(p_sonnetdb_kv_set, sonnetdb_kv_set_fn, "sonnetdb_kv_set");
+    RESOLVE_SYMBOL(p_sonnetdb_kv_delete, sonnetdb_kv_delete_fn, "sonnetdb_kv_delete");
+    RESOLVE_SYMBOL(p_sonnetdb_kv_scan_prefix, sonnetdb_kv_scan_prefix_fn, "sonnetdb_kv_scan_prefix");
+    RESOLVE_SYMBOL(p_sonnetdb_kv_ttl, sonnetdb_kv_ttl_fn, "sonnetdb_kv_ttl");
+    RESOLVE_SYMBOL(p_sonnetdb_kv_expire_at, sonnetdb_kv_expire_at_fn, "sonnetdb_kv_expire_at");
+    RESOLVE_SYMBOL(p_sonnetdb_kv_persist, sonnetdb_kv_persist_fn, "sonnetdb_kv_persist");
+    RESOLVE_SYMBOL(p_sonnetdb_kv_incr, sonnetdb_kv_incr_fn, "sonnetdb_kv_incr");
+    RESOLVE_SYMBOL(p_sonnetdb_kv_cas, sonnetdb_kv_cas_fn, "sonnetdb_kv_cas");
+    RESOLVE_SYMBOL(p_sonnetdb_kv_entry_free, sonnetdb_kv_entry_free_fn, "sonnetdb_kv_entry_free");
+    RESOLVE_SYMBOL(p_sonnetdb_kv_entry_key, sonnetdb_kv_entry_key_fn, "sonnetdb_kv_entry_key");
+    RESOLVE_SYMBOL(p_sonnetdb_kv_entry_value_length, sonnetdb_kv_entry_value_length_fn, "sonnetdb_kv_entry_value_length");
+    RESOLVE_SYMBOL(p_sonnetdb_kv_entry_copy_value, sonnetdb_kv_entry_copy_value_fn, "sonnetdb_kv_entry_copy_value");
+    RESOLVE_SYMBOL(p_sonnetdb_kv_entry_version, sonnetdb_kv_entry_version_fn, "sonnetdb_kv_entry_version");
+    RESOLVE_SYMBOL(p_sonnetdb_kv_entry_expires_at_unix_ms, sonnetdb_kv_entry_expires_at_unix_ms_fn, "sonnetdb_kv_entry_expires_at_unix_ms");
+    RESOLVE_SYMBOL(p_sonnetdb_kv_scan_next, sonnetdb_kv_scan_next_fn, "sonnetdb_kv_scan_next");
+    RESOLVE_SYMBOL(p_sonnetdb_kv_scan_key, sonnetdb_kv_scan_key_fn, "sonnetdb_kv_scan_key");
+    RESOLVE_SYMBOL(p_sonnetdb_kv_scan_value_length, sonnetdb_kv_scan_value_length_fn, "sonnetdb_kv_scan_value_length");
+    RESOLVE_SYMBOL(p_sonnetdb_kv_scan_copy_value, sonnetdb_kv_scan_copy_value_fn, "sonnetdb_kv_scan_copy_value");
+    RESOLVE_SYMBOL(p_sonnetdb_kv_scan_version, sonnetdb_kv_scan_version_fn, "sonnetdb_kv_scan_version");
+    RESOLVE_SYMBOL(p_sonnetdb_kv_scan_expires_at_unix_ms, sonnetdb_kv_scan_expires_at_unix_ms_fn, "sonnetdb_kv_scan_expires_at_unix_ms");
+    RESOLVE_SYMBOL(p_sonnetdb_kv_scan_free, sonnetdb_kv_scan_free_fn, "sonnetdb_kv_scan_free");
     RESOLVE_SYMBOL(p_sonnetdb_flush, sonnetdb_flush_fn, "sonnetdb_flush");
     RESOLVE_SYMBOL(p_sonnetdb_version, sonnetdb_version_fn, "sonnetdb_version");
     RESOLVE_SYMBOL(p_sonnetdb_last_error, sonnetdb_last_error_fn, "sonnetdb_last_error");
@@ -347,6 +474,416 @@ JNIEXPORT jstring JNICALL Java_com_sonnetdb_jni_SonnetDbJni_valueText(JNIEnv* en
         return NULL;
     }
     return (*env)->NewStringUTF(env, value);
+}
+
+JNIEXPORT jlong JNICALL Java_com_sonnetdb_jni_SonnetDbJni_kvOpen(
+    JNIEnv* env,
+    jclass cls,
+    jlong connection,
+    jstring keyspace,
+    jstring namespaceName)
+{
+    (void)cls;
+    const char* keyspace_chars = (*env)->GetStringUTFChars(env, keyspace, NULL);
+    if (keyspace_chars == NULL)
+    {
+        return 0;
+    }
+
+    const char* namespace_chars = NULL;
+    if (namespaceName != NULL)
+    {
+        namespace_chars = (*env)->GetStringUTFChars(env, namespaceName, NULL);
+        if (namespace_chars == NULL)
+        {
+            (*env)->ReleaseStringUTFChars(env, keyspace, keyspace_chars);
+            return 0;
+        }
+    }
+
+    void* kv = p_sonnetdb_kv_open((void*)(intptr_t)connection, keyspace_chars, namespace_chars);
+    if (namespace_chars != NULL)
+    {
+        (*env)->ReleaseStringUTFChars(env, namespaceName, namespace_chars);
+    }
+    (*env)->ReleaseStringUTFChars(env, keyspace, keyspace_chars);
+
+    if (kv == NULL)
+    {
+        throw_last_error(env, "sonnetdb_kv_open failed.");
+        return 0;
+    }
+    return (jlong)(intptr_t)kv;
+}
+
+JNIEXPORT void JNICALL Java_com_sonnetdb_jni_SonnetDbJni_kvClose(JNIEnv* env, jclass cls, jlong kv)
+{
+    (void)env;
+    (void)cls;
+    if (kv != 0)
+    {
+        p_sonnetdb_kv_close((void*)(intptr_t)kv);
+    }
+}
+
+JNIEXPORT jlong JNICALL Java_com_sonnetdb_jni_SonnetDbJni_kvGet(
+    JNIEnv* env,
+    jclass cls,
+    jlong kv,
+    jstring key)
+{
+    (void)cls;
+    const char* chars = (*env)->GetStringUTFChars(env, key, NULL);
+    if (chars == NULL)
+    {
+        return 0;
+    }
+
+    void* entry = p_sonnetdb_kv_get((void*)(intptr_t)kv, chars);
+    (*env)->ReleaseStringUTFChars(env, key, chars);
+    if (entry == NULL)
+    {
+        char buffer[4096];
+        buffer[0] = '\0';
+        p_sonnetdb_last_error(buffer, (int32_t)sizeof(buffer));
+        if (buffer[0] != '\0')
+        {
+            throw_sonnet(env, buffer);
+        }
+        return 0;
+    }
+    return (jlong)(intptr_t)entry;
+}
+
+JNIEXPORT jlong JNICALL Java_com_sonnetdb_jni_SonnetDbJni_kvSet(
+    JNIEnv* env,
+    jclass cls,
+    jlong kv,
+    jstring key,
+    jbyteArray value,
+    jlong expiresAtUnixMs)
+{
+    (void)cls;
+    const char* chars = (*env)->GetStringUTFChars(env, key, NULL);
+    if (chars == NULL)
+    {
+        return -1;
+    }
+
+    jbyte* bytes;
+    jsize length;
+    void* value_ptr = byte_array_elements(env, value, &bytes, &length);
+    if ((*env)->ExceptionCheck(env))
+    {
+        (*env)->ReleaseStringUTFChars(env, key, chars);
+        return -1;
+    }
+
+    int64_t version = p_sonnetdb_kv_set((void*)(intptr_t)kv, chars, value_ptr, (int32_t)length, expiresAtUnixMs);
+    if (bytes != NULL)
+    {
+        (*env)->ReleaseByteArrayElements(env, value, bytes, JNI_ABORT);
+    }
+    (*env)->ReleaseStringUTFChars(env, key, chars);
+    if (version < 0)
+    {
+        throw_last_error(env, "sonnetdb_kv_set failed.");
+    }
+    return (jlong)version;
+}
+
+JNIEXPORT jboolean JNICALL Java_com_sonnetdb_jni_SonnetDbJni_kvDelete(JNIEnv* env, jclass cls, jlong kv, jstring key)
+{
+    (void)cls;
+    const char* chars = (*env)->GetStringUTFChars(env, key, NULL);
+    if (chars == NULL)
+    {
+        return JNI_FALSE;
+    }
+
+    int32_t code = p_sonnetdb_kv_delete((void*)(intptr_t)kv, chars);
+    (*env)->ReleaseStringUTFChars(env, key, chars);
+    if (code < 0)
+    {
+        throw_last_error(env, "sonnetdb_kv_delete failed.");
+        return JNI_FALSE;
+    }
+    return code == 1 ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jlong JNICALL Java_com_sonnetdb_jni_SonnetDbJni_kvScanPrefix(
+    JNIEnv* env,
+    jclass cls,
+    jlong kv,
+    jstring prefix,
+    jint limit)
+{
+    (void)cls;
+    const char* chars = (*env)->GetStringUTFChars(env, prefix, NULL);
+    if (chars == NULL)
+    {
+        return 0;
+    }
+
+    void* scan = p_sonnetdb_kv_scan_prefix((void*)(intptr_t)kv, chars, limit);
+    (*env)->ReleaseStringUTFChars(env, prefix, chars);
+    if (scan == NULL)
+    {
+        throw_last_error(env, "sonnetdb_kv_scan_prefix failed.");
+        return 0;
+    }
+    return (jlong)(intptr_t)scan;
+}
+
+JNIEXPORT jlong JNICALL Java_com_sonnetdb_jni_SonnetDbJni_kvTtl(
+    JNIEnv* env,
+    jclass cls,
+    jlong kv,
+    jstring key,
+    jlongArray expiresAtUnixMs)
+{
+    (void)cls;
+    const char* chars = (*env)->GetStringUTFChars(env, key, NULL);
+    if (chars == NULL)
+    {
+        return -3;
+    }
+
+    int64_t expires = -1;
+    int64_t ttl = p_sonnetdb_kv_ttl((void*)(intptr_t)kv, chars, &expires);
+    (*env)->ReleaseStringUTFChars(env, key, chars);
+    if (ttl < -2)
+    {
+        throw_last_error(env, "sonnetdb_kv_ttl failed.");
+        return -3;
+    }
+    if (expiresAtUnixMs != NULL && (*env)->GetArrayLength(env, expiresAtUnixMs) > 0)
+    {
+        jlong out = (jlong)expires;
+        (*env)->SetLongArrayRegion(env, expiresAtUnixMs, 0, 1, &out);
+    }
+    return (jlong)ttl;
+}
+
+JNIEXPORT jboolean JNICALL Java_com_sonnetdb_jni_SonnetDbJni_kvExpireAt(
+    JNIEnv* env,
+    jclass cls,
+    jlong kv,
+    jstring key,
+    jlong expiresAtUnixMs)
+{
+    (void)cls;
+    const char* chars = (*env)->GetStringUTFChars(env, key, NULL);
+    if (chars == NULL)
+    {
+        return JNI_FALSE;
+    }
+    int32_t code = p_sonnetdb_kv_expire_at((void*)(intptr_t)kv, chars, expiresAtUnixMs);
+    (*env)->ReleaseStringUTFChars(env, key, chars);
+    if (code < 0)
+    {
+        throw_last_error(env, "sonnetdb_kv_expire_at failed.");
+        return JNI_FALSE;
+    }
+    return code == 1 ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jboolean JNICALL Java_com_sonnetdb_jni_SonnetDbJni_kvPersist(JNIEnv* env, jclass cls, jlong kv, jstring key)
+{
+    (void)cls;
+    const char* chars = (*env)->GetStringUTFChars(env, key, NULL);
+    if (chars == NULL)
+    {
+        return JNI_FALSE;
+    }
+    int32_t code = p_sonnetdb_kv_persist((void*)(intptr_t)kv, chars);
+    (*env)->ReleaseStringUTFChars(env, key, chars);
+    if (code < 0)
+    {
+        throw_last_error(env, "sonnetdb_kv_persist failed.");
+        return JNI_FALSE;
+    }
+    return code == 1 ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL Java_com_sonnetdb_jni_SonnetDbJni_kvIncr(
+    JNIEnv* env,
+    jclass cls,
+    jlong kv,
+    jstring key,
+    jlong delta,
+    jlongArray valueAndVersion)
+{
+    (void)cls;
+    const char* chars = (*env)->GetStringUTFChars(env, key, NULL);
+    if (chars == NULL)
+    {
+        return;
+    }
+    int64_t value = 0;
+    int64_t version = 0;
+    int32_t code = p_sonnetdb_kv_incr((void*)(intptr_t)kv, chars, delta, &value, &version);
+    (*env)->ReleaseStringUTFChars(env, key, chars);
+    if (code != 0)
+    {
+        throw_last_error(env, "sonnetdb_kv_incr failed.");
+        return;
+    }
+    if (valueAndVersion != NULL && (*env)->GetArrayLength(env, valueAndVersion) >= 2)
+    {
+        jlong out[2] = { (jlong)value, (jlong)version };
+        (*env)->SetLongArrayRegion(env, valueAndVersion, 0, 2, out);
+    }
+}
+
+JNIEXPORT jboolean JNICALL Java_com_sonnetdb_jni_SonnetDbJni_kvCas(
+    JNIEnv* env,
+    jclass cls,
+    jlong kv,
+    jstring key,
+    jlong expectedVersion,
+    jbyteArray value,
+    jlong expiresAtUnixMs,
+    jlongArray currentAndNewVersion)
+{
+    (void)cls;
+    const char* chars = (*env)->GetStringUTFChars(env, key, NULL);
+    if (chars == NULL)
+    {
+        return JNI_FALSE;
+    }
+    jbyte* bytes;
+    jsize length;
+    void* value_ptr = byte_array_elements(env, value, &bytes, &length);
+    if ((*env)->ExceptionCheck(env))
+    {
+        (*env)->ReleaseStringUTFChars(env, key, chars);
+        return JNI_FALSE;
+    }
+
+    int64_t current = 0;
+    int64_t next = -1;
+    int32_t code = p_sonnetdb_kv_cas(
+        (void*)(intptr_t)kv,
+        chars,
+        expectedVersion,
+        value_ptr,
+        (int32_t)length,
+        expiresAtUnixMs,
+        &current,
+        &next);
+    if (bytes != NULL)
+    {
+        (*env)->ReleaseByteArrayElements(env, value, bytes, JNI_ABORT);
+    }
+    (*env)->ReleaseStringUTFChars(env, key, chars);
+    if (code < 0)
+    {
+        throw_last_error(env, "sonnetdb_kv_cas failed.");
+        return JNI_FALSE;
+    }
+    if (currentAndNewVersion != NULL && (*env)->GetArrayLength(env, currentAndNewVersion) >= 2)
+    {
+        jlong out[2] = { (jlong)current, (jlong)next };
+        (*env)->SetLongArrayRegion(env, currentAndNewVersion, 0, 2, out);
+    }
+    return code == 1 ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL Java_com_sonnetdb_jni_SonnetDbJni_kvEntryFree(JNIEnv* env, jclass cls, jlong entry)
+{
+    (void)env;
+    (void)cls;
+    if (entry != 0)
+    {
+        p_sonnetdb_kv_entry_free((void*)(intptr_t)entry);
+    }
+}
+
+JNIEXPORT jstring JNICALL Java_com_sonnetdb_jni_SonnetDbJni_kvEntryKey(JNIEnv* env, jclass cls, jlong entry)
+{
+    (void)cls;
+    const char* key = p_sonnetdb_kv_entry_key((void*)(intptr_t)entry);
+    if (key == NULL)
+    {
+        throw_last_error(env, "sonnetdb_kv_entry_key failed.");
+        return NULL;
+    }
+    return (*env)->NewStringUTF(env, key);
+}
+
+JNIEXPORT jbyteArray JNICALL Java_com_sonnetdb_jni_SonnetDbJni_kvEntryValue(JNIEnv* env, jclass cls, jlong entry)
+{
+    (void)cls;
+    return copy_bytes(env, (void*)(intptr_t)entry, p_sonnetdb_kv_entry_value_length, p_sonnetdb_kv_entry_copy_value);
+}
+
+JNIEXPORT jlong JNICALL Java_com_sonnetdb_jni_SonnetDbJni_kvEntryVersion(JNIEnv* env, jclass cls, jlong entry)
+{
+    (void)env;
+    (void)cls;
+    return (jlong)p_sonnetdb_kv_entry_version((void*)(intptr_t)entry);
+}
+
+JNIEXPORT jlong JNICALL Java_com_sonnetdb_jni_SonnetDbJni_kvEntryExpiresAtUnixMs(JNIEnv* env, jclass cls, jlong entry)
+{
+    (void)env;
+    (void)cls;
+    return (jlong)p_sonnetdb_kv_entry_expires_at_unix_ms((void*)(intptr_t)entry);
+}
+
+JNIEXPORT jboolean JNICALL Java_com_sonnetdb_jni_SonnetDbJni_kvScanNext(JNIEnv* env, jclass cls, jlong scan)
+{
+    (void)cls;
+    int32_t code = p_sonnetdb_kv_scan_next((void*)(intptr_t)scan);
+    if (code < 0)
+    {
+        throw_last_error(env, "sonnetdb_kv_scan_next failed.");
+        return JNI_FALSE;
+    }
+    return code == 1 ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jstring JNICALL Java_com_sonnetdb_jni_SonnetDbJni_kvScanKey(JNIEnv* env, jclass cls, jlong scan)
+{
+    (void)cls;
+    const char* key = p_sonnetdb_kv_scan_key((void*)(intptr_t)scan);
+    if (key == NULL)
+    {
+        throw_last_error(env, "sonnetdb_kv_scan_key failed.");
+        return NULL;
+    }
+    return (*env)->NewStringUTF(env, key);
+}
+
+JNIEXPORT jbyteArray JNICALL Java_com_sonnetdb_jni_SonnetDbJni_kvScanValue(JNIEnv* env, jclass cls, jlong scan)
+{
+    (void)cls;
+    return copy_bytes(env, (void*)(intptr_t)scan, p_sonnetdb_kv_scan_value_length, p_sonnetdb_kv_scan_copy_value);
+}
+
+JNIEXPORT jlong JNICALL Java_com_sonnetdb_jni_SonnetDbJni_kvScanVersion(JNIEnv* env, jclass cls, jlong scan)
+{
+    (void)env;
+    (void)cls;
+    return (jlong)p_sonnetdb_kv_scan_version((void*)(intptr_t)scan);
+}
+
+JNIEXPORT jlong JNICALL Java_com_sonnetdb_jni_SonnetDbJni_kvScanExpiresAtUnixMs(JNIEnv* env, jclass cls, jlong scan)
+{
+    (void)env;
+    (void)cls;
+    return (jlong)p_sonnetdb_kv_scan_expires_at_unix_ms((void*)(intptr_t)scan);
+}
+
+JNIEXPORT void JNICALL Java_com_sonnetdb_jni_SonnetDbJni_kvScanFree(JNIEnv* env, jclass cls, jlong scan)
+{
+    (void)env;
+    (void)cls;
+    if (scan != 0)
+    {
+        p_sonnetdb_kv_scan_free((void*)(intptr_t)scan);
+    }
 }
 
 JNIEXPORT void JNICALL Java_com_sonnetdb_jni_SonnetDbJni_flush(JNIEnv* env, jclass cls, jlong connection)

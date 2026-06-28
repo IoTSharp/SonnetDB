@@ -87,6 +87,122 @@ public final class SonnetDbJniBackend implements NativeBackend {
     }
 
     @Override
+    public long kvOpen(long connection, String keyspace, String namespaceName) {
+        return SonnetDbJni.kvOpen(connection, keyspace, namespaceName);
+    }
+
+    @Override
+    public void kvClose(long kv) {
+        SonnetDbJni.kvClose(kv);
+    }
+
+    @Override
+    public long kvGet(long kv, String key) {
+        return SonnetDbJni.kvGet(kv, key);
+    }
+
+    @Override
+    public long kvSet(long kv, String key, byte[] value, long expiresAtUnixMs) {
+        return SonnetDbJni.kvSet(kv, key, value, expiresAtUnixMs);
+    }
+
+    @Override
+    public boolean kvDelete(long kv, String key) {
+        return SonnetDbJni.kvDelete(kv, key);
+    }
+
+    @Override
+    public long kvScanPrefix(long kv, String prefix, int limit) {
+        return SonnetDbJni.kvScanPrefix(kv, prefix, limit);
+    }
+
+    @Override
+    public long kvTtl(long kv, String key, long[] expiresAtUnixMs) {
+        return SonnetDbJni.kvTtl(kv, key, expiresAtUnixMs);
+    }
+
+    @Override
+    public boolean kvExpireAt(long kv, String key, long expiresAtUnixMs) {
+        return SonnetDbJni.kvExpireAt(kv, key, expiresAtUnixMs);
+    }
+
+    @Override
+    public boolean kvPersist(long kv, String key) {
+        return SonnetDbJni.kvPersist(kv, key);
+    }
+
+    @Override
+    public void kvIncr(long kv, String key, long delta, long[] valueAndVersion) {
+        SonnetDbJni.kvIncr(kv, key, delta, valueAndVersion);
+    }
+
+    @Override
+    public boolean kvCas(
+        long kv,
+        String key,
+        long expectedVersion,
+        byte[] value,
+        long expiresAtUnixMs,
+        long[] currentAndNewVersion) {
+        return SonnetDbJni.kvCas(kv, key, expectedVersion, value, expiresAtUnixMs, currentAndNewVersion);
+    }
+
+    @Override
+    public void kvEntryFree(long entry) {
+        SonnetDbJni.kvEntryFree(entry);
+    }
+
+    @Override
+    public String kvEntryKey(long entry) {
+        return SonnetDbJni.kvEntryKey(entry);
+    }
+
+    @Override
+    public byte[] kvEntryValue(long entry) {
+        return SonnetDbJni.kvEntryValue(entry);
+    }
+
+    @Override
+    public long kvEntryVersion(long entry) {
+        return SonnetDbJni.kvEntryVersion(entry);
+    }
+
+    @Override
+    public long kvEntryExpiresAtUnixMs(long entry) {
+        return SonnetDbJni.kvEntryExpiresAtUnixMs(entry);
+    }
+
+    @Override
+    public boolean kvScanNext(long scan) {
+        return SonnetDbJni.kvScanNext(scan);
+    }
+
+    @Override
+    public String kvScanKey(long scan) {
+        return SonnetDbJni.kvScanKey(scan);
+    }
+
+    @Override
+    public byte[] kvScanValue(long scan) {
+        return SonnetDbJni.kvScanValue(scan);
+    }
+
+    @Override
+    public long kvScanVersion(long scan) {
+        return SonnetDbJni.kvScanVersion(scan);
+    }
+
+    @Override
+    public long kvScanExpiresAtUnixMs(long scan) {
+        return SonnetDbJni.kvScanExpiresAtUnixMs(scan);
+    }
+
+    @Override
+    public void kvScanFree(long scan) {
+        SonnetDbJni.kvScanFree(scan);
+    }
+
+    @Override
     public void flush(long connection) {
         SonnetDbJni.flush(connection);
     }

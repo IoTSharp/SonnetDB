@@ -1,9 +1,13 @@
 package com.sonnetdb.examples;
 
 import com.sonnetdb.SonnetDbConnection;
+import com.sonnetdb.SonnetDbKeyValueStore;
+import com.sonnetdb.SonnetDbKvCasResult;
+import com.sonnetdb.SonnetDbKvEntry;
 import com.sonnetdb.SonnetDbResult;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -30,6 +34,31 @@ public final class Quickstart {
                     "(1710000000000, 'edge-1', 0.42)," +
                     "(1710000001000, 'edge-1', 0.73)");
             System.out.println("inserted rows: " + inserted);
+
+            try (SonnetDbKeyValueStore kv = connection.openKeyValueStore("app-cache", "quickstart")) {
+                long version = kv.set("device:edge-1", "online".getBytes(StandardCharsets.UTF_8));
+                SonnetDbKvEntry entry = kv.get("device:edge-1");
+                if (entry != null) {
+                    System.out.println("kv " + entry.key() + " = "
+                        + new String(entry.value(), StandardCharsets.UTF_8)
+                        + " (version " + entry.version() + ")");
+                }
+
+                long[] counter = kv.increment("counter", 3);
+                System.out.println("kv counter: " + counter[0] + " (version " + counter[1] + ")");
+
+                SonnetDbKvCasResult cas = kv.compareAndSet(
+                    "device:edge-1",
+                    version,
+                    "offline".getBytes(StandardCharsets.UTF_8));
+                System.out.println("kv cas swapped: " + cas.swapped()
+                    + " (current " + cas.currentVersion() + ", new " + cas.newVersion() + ")");
+
+                for (SonnetDbKvEntry row : kv.scanPrefix("device:", 10)) {
+                    System.out.println("kv scan " + row.key() + " = "
+                        + new String(row.value(), StandardCharsets.UTF_8));
+                }
+            }
 
             try (SonnetDbResult result = connection.execute(
                 "SELECT time, host, usage FROM cpu WHERE host = 'edge-1' LIMIT 10")) {

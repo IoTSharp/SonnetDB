@@ -83,6 +83,122 @@ public final class SonnetDbFfmBackend implements NativeBackend {
     }
 
     @Override
+    public long kvOpen(long connection, String keyspace, String namespaceName) {
+        throw unsupported();
+    }
+
+    @Override
+    public void kvClose(long kv) {
+        throw unsupported();
+    }
+
+    @Override
+    public long kvGet(long kv, String key) {
+        throw unsupported();
+    }
+
+    @Override
+    public long kvSet(long kv, String key, byte[] value, long expiresAtUnixMs) {
+        throw unsupported();
+    }
+
+    @Override
+    public boolean kvDelete(long kv, String key) {
+        throw unsupported();
+    }
+
+    @Override
+    public long kvScanPrefix(long kv, String prefix, int limit) {
+        throw unsupported();
+    }
+
+    @Override
+    public long kvTtl(long kv, String key, long[] expiresAtUnixMs) {
+        throw unsupported();
+    }
+
+    @Override
+    public boolean kvExpireAt(long kv, String key, long expiresAtUnixMs) {
+        throw unsupported();
+    }
+
+    @Override
+    public boolean kvPersist(long kv, String key) {
+        throw unsupported();
+    }
+
+    @Override
+    public void kvIncr(long kv, String key, long delta, long[] valueAndVersion) {
+        throw unsupported();
+    }
+
+    @Override
+    public boolean kvCas(
+        long kv,
+        String key,
+        long expectedVersion,
+        byte[] value,
+        long expiresAtUnixMs,
+        long[] currentAndNewVersion) {
+        throw unsupported();
+    }
+
+    @Override
+    public void kvEntryFree(long entry) {
+        throw unsupported();
+    }
+
+    @Override
+    public String kvEntryKey(long entry) {
+        throw unsupported();
+    }
+
+    @Override
+    public byte[] kvEntryValue(long entry) {
+        throw unsupported();
+    }
+
+    @Override
+    public long kvEntryVersion(long entry) {
+        throw unsupported();
+    }
+
+    @Override
+    public long kvEntryExpiresAtUnixMs(long entry) {
+        throw unsupported();
+    }
+
+    @Override
+    public boolean kvScanNext(long scan) {
+        throw unsupported();
+    }
+
+    @Override
+    public String kvScanKey(long scan) {
+        throw unsupported();
+    }
+
+    @Override
+    public byte[] kvScanValue(long scan) {
+        throw unsupported();
+    }
+
+    @Override
+    public long kvScanVersion(long scan) {
+        throw unsupported();
+    }
+
+    @Override
+    public long kvScanExpiresAtUnixMs(long scan) {
+        throw unsupported();
+    }
+
+    @Override
+    public void kvScanFree(long scan) {
+        throw unsupported();
+    }
+
+    @Override
     public void flush(long connection) {
         throw unsupported();
     }

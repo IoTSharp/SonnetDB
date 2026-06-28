@@ -64,6 +64,32 @@ public final class SonnetDbConnection implements AutoCloseable {
     }
 
     /**
+     * 打开 KV keyspace 的 root namespace。
+     *
+     * @param keyspace keyspace 名称。
+     * @return KV 句柄；调用方必须关闭。
+     */
+    public SonnetDbKeyValueStore openKeyValueStore(String keyspace) {
+        return openKeyValueStore(keyspace, "");
+    }
+
+    /**
+     * 打开 KV keyspace/namespace。
+     *
+     * @param keyspace keyspace 名称。
+     * @param namespaceName 逻辑命名空间；空字符串表示 root namespace。
+     * @return KV 句柄；调用方必须关闭。
+     */
+    public SonnetDbKeyValueStore openKeyValueStore(String keyspace, String namespaceName) {
+        Objects.requireNonNull(keyspace, "keyspace");
+        Objects.requireNonNull(namespaceName, "namespaceName");
+        ensureOpen();
+        return new SonnetDbKeyValueStore(
+            Backend,
+            Backend.kvOpen(handle, keyspace, namespaceName));
+    }
+
+    /**
      * 主动触发一次 Flush。
      */
     public void flush() {

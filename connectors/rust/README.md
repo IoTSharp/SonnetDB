@@ -5,6 +5,7 @@ The Rust connector wraps the stable SonnetDB C ABI from `connectors/c` with a sm
 It exposes:
 
 - `Connection::open` / `Connection::execute` / `Connection::execute_non_query`
+- `Connection::open_kv` with get/set/delete/scan/ttl/incr/compare-and-set helpers
 - `ResultSet` forward-only cursors with typed getters
 - `Connection::flush`, `sonnetdb::version`, and `sonnetdb::last_error`
 - hand-maintained FFI bindings for `connectors/c/include/sonnetdb.h`
@@ -60,4 +61,15 @@ while result.next()? {
     let usage = result.get_f64(2)?;
     println!("{ts}\t{host}\t{usage:.3}");
 }
+```
+
+## KV API
+
+```rust
+let kv = connection.open_kv("app-cache", Some("devices"))?;
+let version = kv.set("edge-1", b"online", None)?;
+let entry = kv.get("edge-1")?;
+let (counter, counter_version) = kv.incr("counter", 1)?;
+let cas = kv.compare_and_set("edge-1", version, b"offline", None)?;
+let rows = kv.scan_prefix("edge-", 100)?;
 ```

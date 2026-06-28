@@ -5,6 +5,7 @@ The Go connector is a cgo wrapper over the stable SonnetDB C ABI from `connector
 It exposes:
 
 - `sonnetdb.Open` / `Connection.Execute` / `Connection.ExecuteNonQuery`
+- `Connection.OpenKV` with get/set/delete/scan/ttl/incr/CAS helpers
 - forward-only result cursors with typed getters
 - `Connection.Flush`, `sonnetdb.Version`, and `sonnetdb.LastError`
 - a `database/sql` driver registered as `sonnetdb`
@@ -79,6 +80,24 @@ for {
     usage, _ := result.Double(2)
     fmt.Println(ts, host, usage)
 }
+```
+
+## KV API
+
+```go
+kv, err := connection.OpenKV("app-cache", "devices")
+if err != nil {
+    return err
+}
+defer kv.Close()
+
+version, err := kv.Set("edge-1", []byte("online"))
+entry, err := kv.Get("edge-1")
+counter, counterVersion, err := kv.Incr("counter", 1)
+cas, err := kv.CAS("edge-1", version, []byte("offline"))
+rows, err := kv.ScanPrefix("edge-", 100)
+_, _, _, _ = entry, counter, counterVersion, cas
+_ = rows
 ```
 
 ## database/sql

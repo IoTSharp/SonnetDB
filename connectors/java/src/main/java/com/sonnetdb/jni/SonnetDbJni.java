@@ -35,6 +35,56 @@ final class SonnetDbJni {
 
     static native String valueText(long result, int ordinal);
 
+    static native long kvOpen(long connection, String keyspace, String namespaceName);
+
+    static native void kvClose(long kv);
+
+    static native long kvGet(long kv, String key);
+
+    static native long kvSet(long kv, String key, byte[] value, long expiresAtUnixMs);
+
+    static native boolean kvDelete(long kv, String key);
+
+    static native long kvScanPrefix(long kv, String prefix, int limit);
+
+    static native long kvTtl(long kv, String key, long[] expiresAtUnixMs);
+
+    static native boolean kvExpireAt(long kv, String key, long expiresAtUnixMs);
+
+    static native boolean kvPersist(long kv, String key);
+
+    static native void kvIncr(long kv, String key, long delta, long[] valueAndVersion);
+
+    static native boolean kvCas(
+        long kv,
+        String key,
+        long expectedVersion,
+        byte[] value,
+        long expiresAtUnixMs,
+        long[] currentAndNewVersion);
+
+    static native void kvEntryFree(long entry);
+
+    static native String kvEntryKey(long entry);
+
+    static native byte[] kvEntryValue(long entry);
+
+    static native long kvEntryVersion(long entry);
+
+    static native long kvEntryExpiresAtUnixMs(long entry);
+
+    static native boolean kvScanNext(long scan);
+
+    static native String kvScanKey(long scan);
+
+    static native byte[] kvScanValue(long scan);
+
+    static native long kvScanVersion(long scan);
+
+    static native long kvScanExpiresAtUnixMs(long scan);
+
+    static native void kvScanFree(long scan);
+
     static native void flush(long connection);
 
     static native String version();
