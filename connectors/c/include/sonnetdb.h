@@ -16,9 +16,15 @@ extern "C" {
 typedef struct sonnetdb_connection sonnetdb_connection;
 typedef struct sonnetdb_result sonnetdb_result;
 typedef struct sonnetdb_bulk sonnetdb_bulk;
+typedef struct sonnetdb_doc sonnetdb_doc;
+typedef struct sonnetdb_doc_result sonnetdb_doc_result;
 typedef struct sonnetdb_kv sonnetdb_kv;
 typedef struct sonnetdb_kv_entry sonnetdb_kv_entry;
 typedef struct sonnetdb_kv_scan sonnetdb_kv_scan;
+typedef struct sonnetdb_obj sonnetdb_obj;
+typedef struct sonnetdb_obj_result sonnetdb_obj_result;
+typedef struct sonnetdb_obj_writer sonnetdb_obj_writer;
+typedef struct sonnetdb_obj_reader sonnetdb_obj_reader;
 
 typedef enum sonnetdb_value_type {
     SONNETDB_TYPE_NULL = 0,
@@ -40,6 +46,19 @@ SONNETDB_API int32_t sonnetdb_bulk_set_onerror(sonnetdb_bulk* bulk, const char* 
 SONNETDB_API int32_t sonnetdb_bulk_set_flush(sonnetdb_bulk* bulk, const char* flush);
 SONNETDB_API sonnetdb_result* sonnetdb_bulk_execute(sonnetdb_connection* connection, sonnetdb_bulk* bulk);
 SONNETDB_API void sonnetdb_bulk_free(sonnetdb_bulk* bulk);
+
+SONNETDB_API sonnetdb_doc* sonnetdb_doc_open(sonnetdb_connection* connection, const char* collection);
+SONNETDB_API void sonnetdb_doc_close(sonnetdb_doc* document);
+SONNETDB_API sonnetdb_doc_result* sonnetdb_doc_create_collection(sonnetdb_doc* document, const char* options_json);
+SONNETDB_API int32_t sonnetdb_doc_drop_collection(sonnetdb_doc* document);
+SONNETDB_API sonnetdb_doc_result* sonnetdb_doc_insert(sonnetdb_doc* document, const char* payload_json);
+SONNETDB_API sonnetdb_doc_result* sonnetdb_doc_update(sonnetdb_doc* document, const char* payload_json);
+SONNETDB_API sonnetdb_doc_result* sonnetdb_doc_delete(sonnetdb_doc* document, const char* payload_json);
+SONNETDB_API sonnetdb_doc_result* sonnetdb_doc_find_page(sonnetdb_doc* document, const char* payload_json);
+SONNETDB_API sonnetdb_doc_result* sonnetdb_doc_aggregate(sonnetdb_doc* document, const char* payload_json);
+SONNETDB_API void sonnetdb_doc_result_free(sonnetdb_doc_result* result);
+SONNETDB_API int32_t sonnetdb_doc_result_json_length(sonnetdb_doc_result* result);
+SONNETDB_API int32_t sonnetdb_doc_result_copy_json(sonnetdb_doc_result* result, char* buffer, int32_t buffer_length);
 
 SONNETDB_API sonnetdb_kv* sonnetdb_kv_open(sonnetdb_connection* connection, const char* keyspace, const char* ns);
 SONNETDB_API void sonnetdb_kv_close(sonnetdb_kv* kv);
@@ -65,6 +84,40 @@ SONNETDB_API int32_t sonnetdb_kv_scan_copy_value(sonnetdb_kv_scan* scan, void* b
 SONNETDB_API int64_t sonnetdb_kv_scan_version(sonnetdb_kv_scan* scan);
 SONNETDB_API int64_t sonnetdb_kv_scan_expires_at_unix_ms(sonnetdb_kv_scan* scan);
 SONNETDB_API void sonnetdb_kv_scan_free(sonnetdb_kv_scan* scan);
+
+SONNETDB_API sonnetdb_obj* sonnetdb_obj_open(sonnetdb_connection* connection, const char* bucket);
+SONNETDB_API void sonnetdb_obj_close(sonnetdb_obj* object_storage);
+SONNETDB_API sonnetdb_obj_result* sonnetdb_obj_list_buckets(sonnetdb_obj* object_storage);
+SONNETDB_API sonnetdb_obj_result* sonnetdb_obj_create_bucket(sonnetdb_obj* object_storage, const char* purpose);
+SONNETDB_API int32_t sonnetdb_obj_delete_bucket(sonnetdb_obj* object_storage);
+SONNETDB_API sonnetdb_obj_writer* sonnetdb_obj_writer_create(const char* content_type, const char* metadata_json, const char* tags_json);
+SONNETDB_API int32_t sonnetdb_obj_writer_write(sonnetdb_obj_writer* writer, const void* buffer, int32_t buffer_length);
+SONNETDB_API int64_t sonnetdb_obj_writer_length(sonnetdb_obj_writer* writer);
+SONNETDB_API void sonnetdb_obj_writer_free(sonnetdb_obj_writer* writer);
+SONNETDB_API sonnetdb_obj_result* sonnetdb_obj_put(sonnetdb_obj* object_storage, const char* key, sonnetdb_obj_writer* writer);
+SONNETDB_API sonnetdb_obj_reader* sonnetdb_obj_get(sonnetdb_obj* object_storage, const char* key, int64_t offset, int64_t length);
+SONNETDB_API sonnetdb_obj_result* sonnetdb_obj_head(sonnetdb_obj* object_storage, const char* key);
+SONNETDB_API sonnetdb_obj_result* sonnetdb_obj_list(sonnetdb_obj* object_storage, const char* prefix, int32_t max_keys, const char* continuation_token);
+SONNETDB_API sonnetdb_obj_result* sonnetdb_obj_delete(sonnetdb_obj* object_storage, const char* key);
+SONNETDB_API sonnetdb_obj_result* sonnetdb_obj_delete_many(sonnetdb_obj* object_storage, const char* keys_json);
+SONNETDB_API sonnetdb_obj_result* sonnetdb_obj_multipart_initiate(sonnetdb_obj* object_storage, const char* key, const char* content_type, const char* metadata_json, const char* tags_json);
+SONNETDB_API sonnetdb_obj_result* sonnetdb_obj_multipart_upload_part(sonnetdb_obj* object_storage, const char* key, const char* upload_id, int32_t part_number, sonnetdb_obj_writer* writer);
+SONNETDB_API sonnetdb_obj_result* sonnetdb_obj_multipart_complete(sonnetdb_obj* object_storage, const char* key, const char* upload_id, const char* part_numbers_json);
+SONNETDB_API sonnetdb_obj_result* sonnetdb_obj_multipart_abort(sonnetdb_obj* object_storage, const char* key, const char* upload_id);
+SONNETDB_API void sonnetdb_obj_result_free(sonnetdb_obj_result* result);
+SONNETDB_API int32_t sonnetdb_obj_result_json_length(sonnetdb_obj_result* result);
+SONNETDB_API int32_t sonnetdb_obj_result_copy_json(sonnetdb_obj_result* result, char* buffer, int32_t buffer_length);
+SONNETDB_API void sonnetdb_obj_reader_free(sonnetdb_obj_reader* reader);
+SONNETDB_API int32_t sonnetdb_obj_reader_read(sonnetdb_obj_reader* reader, void* buffer, int32_t buffer_length);
+SONNETDB_API const char* sonnetdb_obj_reader_bucket(sonnetdb_obj_reader* reader);
+SONNETDB_API const char* sonnetdb_obj_reader_key(sonnetdb_obj_reader* reader);
+SONNETDB_API const char* sonnetdb_obj_reader_content_type(sonnetdb_obj_reader* reader);
+SONNETDB_API const char* sonnetdb_obj_reader_etag(sonnetdb_obj_reader* reader);
+SONNETDB_API const char* sonnetdb_obj_reader_sha256(sonnetdb_obj_reader* reader);
+SONNETDB_API int64_t sonnetdb_obj_reader_size_bytes(sonnetdb_obj_reader* reader);
+SONNETDB_API int64_t sonnetdb_obj_reader_offset(sonnetdb_obj_reader* reader);
+SONNETDB_API int64_t sonnetdb_obj_reader_length(sonnetdb_obj_reader* reader);
+SONNETDB_API int32_t sonnetdb_obj_reader_is_range(sonnetdb_obj_reader* reader);
 
 SONNETDB_API int32_t sonnetdb_result_records_affected(sonnetdb_result* result);
 SONNETDB_API int32_t sonnetdb_result_column_count(sonnetdb_result* result);

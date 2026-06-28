@@ -50,10 +50,25 @@ KV access follows the same pattern with its own keyspace handle:
 - `sonnetdb_kv_incr` / `sonnetdb_kv_cas`
 - `sonnetdb_kv_entry_*` / `sonnetdb_kv_scan_*` metadata and value-copy helpers
 
+Document access is also exposed as a separate JSON/UTF-8 group:
+
+- `sonnetdb_doc_open` / `sonnetdb_doc_close`
+- `sonnetdb_doc_create_collection` / `sonnetdb_doc_drop_collection`
+- `sonnetdb_doc_insert` / `sonnetdb_doc_update` / `sonnetdb_doc_delete`
+- `sonnetdb_doc_find_page` / `sonnetdb_doc_aggregate`
+- `sonnetdb_doc_result_*` JSON result copy helpers
+
+Object Storage is exposed as a bucket/object function group with JSON metadata results and streaming content handles:
+
+- `sonnetdb_obj_open` / `sonnetdb_obj_close`
+- bucket operations: `sonnetdb_obj_list_buckets`, `sonnetdb_obj_create_bucket`, `sonnetdb_obj_delete_bucket`
+- object operations: `sonnetdb_obj_put`, `sonnetdb_obj_get`, `sonnetdb_obj_head`, `sonnetdb_obj_list`, `sonnetdb_obj_delete`, `sonnetdb_obj_delete_many`
+- chunk handles: `sonnetdb_obj_writer_*` and `sonnetdb_obj_reader_*`
+- multipart basics: `sonnetdb_obj_multipart_initiate`, `sonnetdb_obj_multipart_upload_part`, `sonnetdb_obj_multipart_complete`, `sonnetdb_obj_multipart_abort`
+- JSON result copy helpers: `sonnetdb_obj_result_*`
+
 The next connector milestones should continue extending the ABI by adding separate, focused function groups instead of widening `sonnetdb_execute`:
 
-- Document API
-- Object storage API
 - MQ API
 
 Each group should first land in the C ABI, then be wrapped by Go, Rust, Java, Python, PureBasic, VB6, and future ODBC layers as appropriate. The C ABI must keep opaque handles and primitive/UTF-8 payloads at the boundary; it should not expose C# objects, internal engine pointers, or on-disk structs.

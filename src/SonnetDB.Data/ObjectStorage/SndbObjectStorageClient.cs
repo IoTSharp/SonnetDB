@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using SonnetDB.Data.Embedded;
 using SonnetDB.Data.Remote;
 using SonnetDB.Engine;
 using SonnetDB.ObjectStorage;
@@ -28,11 +29,35 @@ public sealed class SndbObjectStorageClient : IDisposable
         Open();
     }
 
-    /// <summary>当前连接模式。</summary>
+    /// <summary>
+    /// 当前连接模式。
+    /// </summary>
     public SndbProviderMode ProviderMode => _builder.ResolveMode();
 
-    /// <summary>远程数据库名或嵌入式数据目录。</summary>
+    /// <summary>
+    /// 远程数据库名或嵌入式数据目录。
+    /// </summary>
     public string Database => _database;
+
+    /// <summary>
+    /// 列出所有 bucket。
+    /// </summary>
+    public async Task<IReadOnlyList<SndbBucketInfo>> ListBucketsAsync(CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        if (_embedded is not null)
+            return new SndbObjectStore(_embedded).ListBuckets();
+
+        using var response = await _http!.GetAsync($"v1/db/{Uri.EscapeDataString(_database)}/s3", cancellationToken)
+            .ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+
+        var body = await ReadJsonAsync(response, SndbObjectClientJsonContext.Default.ObjectBucketResponseArray, cancellationToken)
+            .ConfigureAwait(false);
+        return body.Select(static bucket => new SndbBucketInfo(bucket.Name, bucket.Purpose, bucket.CreatedUtc, bucket.UpdatedUtc))
+            .ToArray();
+    }
 
     /// <summary>
     /// 创建 bucket。
@@ -50,6 +75,25 @@ public sealed class SndbObjectStorageClient : IDisposable
             cancellationToken).ConfigureAwait(false);
         var body = await ReadJsonAsync(response, SndbObjectClientJsonContext.Default.ObjectBucketResponse, cancellationToken).ConfigureAwait(false);
         return new SndbBucketInfo(body.Name, body.Purpose, body.CreatedUtc, body.UpdatedUtc);
+    }
+
+    /// <summary>
+    /// 删除空 bucket。
+    /// </summary>
+    public async Task<bool> DeleteBucketAsync(string bucket, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        if (_embedded is not null)
+            return new SndbObjectStore(_embedded).DeleteBucket(bucket);
+
+        using var request = new HttpRequestMessage(HttpMethod.Delete, BucketUrl(bucket));
+        using var response = await _http!.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .ConfigureAwait(false);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return false;
+        if (!response.IsSuccessStatusCode)
+            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+        return true;
     }
 
     /// <summary>
@@ -377,6 +421,26 @@ public sealed class SndbObjectStorageClient : IDisposable
     }
 
     /// <summary>
+    /// 终止 multipart upload。
+    /// </summary>
+    public async Task AbortMultipartUploadAsync(
+        string bucket,
+        string key,
+        string uploadId,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        if (_embedded is not null)
+        {
+            new SndbObjectStore(_embedded).AbortMultipartUpload(uploadId);
+            return;
+        }
+
+        using var request = new HttpRequestMessage(HttpMethod.Delete, ObjectUrl(bucket, key) + "?uploadId=" + Uri.EscapeDataString(uploadId));
+        using var response = await SendAsync(request, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// 创建预签名 URL。
     /// </summary>
     public async Task<SndbPresignedObjectUrl> CreatePresignedUrlAsync(
@@ -388,7 +452,7 @@ public sealed class SndbObjectStorageClient : IDisposable
     {
         ThrowIfDisposed();
         if (_embedded is not null)
-            throw new NotSupportedException("嵌入式对象存储没有 HTTP 预签名 URL。");
+            throw new NotSupportedException("嵌入式对象存储不支持 HTTP 预签名 URL。");
 
         using var response = await PostJsonAsync(
             ObjectUrl(bucket, key) + "?presign",
@@ -407,7 +471,10 @@ public sealed class SndbObjectStorageClient : IDisposable
 
         _disposed = true;
         _http?.Dispose();
-        _embedded?.Dispose();
+        var embedded = _embedded;
+        _embedded = null;
+        if (embedded is not null)
+            SharedSndbRegistry.Release(embedded);
     }
 
     private void Open()
@@ -418,7 +485,7 @@ public sealed class SndbObjectStorageClient : IDisposable
                 throw new InvalidOperationException("对象存储客户端缺少 Data Source。");
 
             _database = _builder.DataSource;
-            _embedded = Tsdb.Open(new TsdbOptions { RootDirectory = _builder.DataSource });
+            _embedded = SharedSndbRegistry.Acquire(new TsdbOptions { RootDirectory = _builder.DataSource });
             return;
         }
 

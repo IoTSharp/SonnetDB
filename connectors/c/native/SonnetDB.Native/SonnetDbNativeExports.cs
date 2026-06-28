@@ -2,12 +2,18 @@ using System.Data;
 using System.Data.Common;
 using System.Globalization;
 using System.Reflection;
+using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using SonnetDB.Data;
+using SonnetDB.Data.Documents;
 using SonnetDB.Data.Kv;
+using SonnetDB.Data.ObjectStorage;
 using SonnetDB.Model;
+using SonnetDB.ObjectStorage;
 
 namespace SonnetDB.Native;
 
@@ -380,6 +386,1029 @@ internal sealed class NativeBulk
     private static string? NormalizeOptional(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value;
 }
+
+internal sealed class NativeDocument : IDisposable
+{
+    private readonly SndbDocumentClient _client;
+    private readonly string _collection;
+    private bool _disposed;
+
+    public NativeDocument(NativeConnection connection, string collection)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentException.ThrowIfNullOrWhiteSpace(collection);
+
+        _client = new SndbDocumentClient(connection.ConnectionString);
+        _collection = collection;
+    }
+
+    public NativeDocumentResult CreateCollection(string? optionsJson)
+    {
+        ThrowIfDisposed();
+        var options = Read(optionsJson, NativeDocumentJsonContext.Default.NativeDocumentCollectionOptions)
+            ?? new NativeDocumentCollectionOptions();
+        string status = _client.CreateCollectionAsync(_collection, options.IfNotExists, options.Validator)
+            .GetAwaiter()
+            .GetResult();
+        return NativeDocumentResult.FromCollectionOperation(_collection, status);
+    }
+
+    public bool DropCollection()
+    {
+        ThrowIfDisposed();
+        return _client.DropCollectionAsync(_collection).GetAwaiter().GetResult();
+    }
+
+    public NativeDocumentResult Insert(string payloadJson)
+    {
+        ThrowIfDisposed();
+        var request = ReadRequired(payloadJson, NativeDocumentJsonContext.Default.NativeDocumentInsertRequest);
+        SndbDocumentWriteResult result;
+        if (request.Documents is { Count: > 0 })
+        {
+            result = _client.InsertManyAsync(
+                _collection,
+                request.Documents.Select(static item => new KeyValuePair<string, string>(item.Id, item.Document.GetRawText())),
+                request.Ordered).GetAwaiter().GetResult();
+        }
+        else
+        {
+            result = _client.InsertOneAsync(
+                _collection,
+                RequireText(request.Id, "document insert payload must include 'id'."),
+                RequireDocument(request.Document, "document insert payload must include 'document'.").GetRawText())
+                .GetAwaiter()
+                .GetResult();
+        }
+
+        return NativeDocumentResult.FromWrite(result);
+    }
+
+    public NativeDocumentResult Update(string payloadJson)
+    {
+        ThrowIfDisposed();
+        var request = ReadRequired(payloadJson, NativeDocumentJsonContext.Default.NativeDocumentUpdateRequest);
+        SndbDocumentWriteResult result;
+        if (request.Documents is { Count: > 0 })
+        {
+            result = _client.UpdateManyAsync(
+                _collection,
+                request.Documents.Select(static item => new KeyValuePair<string, string>(item.Id, item.Document.GetRawText())),
+                request.Ordered).GetAwaiter().GetResult();
+        }
+        else if (request.Update is not null)
+        {
+            if (request.Multi)
+            {
+                result = _client.UpdateManyAsync(
+                    _collection,
+                    request.Filter,
+                    request.Update,
+                    request.Upsert,
+                    request.UpsertId).GetAwaiter().GetResult();
+            }
+            else
+            {
+                result = _client.UpdateOneAsync(
+                    _collection,
+                    request.Filter,
+                    request.Update,
+                    request.Id,
+                    request.Upsert,
+                    request.UpsertId).GetAwaiter().GetResult();
+            }
+        }
+        else
+        {
+            result = _client.UpdateOneAsync(
+                _collection,
+                RequireText(request.Id, "document update payload must include 'id' when replacing one document."),
+                RequireDocument(request.Document, "document update payload must include 'document' when replacing one document.").GetRawText())
+                .GetAwaiter()
+                .GetResult();
+        }
+
+        return NativeDocumentResult.FromWrite(result);
+    }
+
+    public NativeDocumentResult Delete(string payloadJson)
+    {
+        ThrowIfDisposed();
+        var request = ReadRequired(payloadJson, NativeDocumentJsonContext.Default.NativeDocumentDeleteRequest);
+        SndbDocumentWriteResult result;
+        if (request.Ids is { Count: > 0 })
+        {
+            result = _client.DeleteManyAsync(_collection, request.Ids, request.Ordered)
+                .GetAwaiter()
+                .GetResult();
+        }
+        else
+        {
+            result = _client.DeleteOneAsync(
+                _collection,
+                RequireText(request.Id, "document delete payload must include 'id' or 'ids'."))
+                .GetAwaiter()
+                .GetResult();
+        }
+
+        return NativeDocumentResult.FromWrite(result);
+    }
+
+    public NativeDocumentResult FindPage(string? payloadJson)
+    {
+        ThrowIfDisposed();
+        var options = Read(payloadJson, NativeDocumentJsonContext.Default.SndbDocumentFindOptions)
+            ?? new SndbDocumentFindOptions();
+        var page = _client.FindPageAsync(_collection, options).GetAwaiter().GetResult();
+        return NativeDocumentResult.FromPage(page);
+    }
+
+    public NativeDocumentResult Aggregate(string payloadJson)
+    {
+        ThrowIfDisposed();
+        var pipeline = ReadAggregatePipeline(payloadJson);
+        var result = _client.AggregateAsync(_collection, pipeline).GetAwaiter().GetResult();
+        return NativeDocumentResult.FromAggregate(result);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _disposed = true;
+        _client.Dispose();
+    }
+
+    private static T? Read<T>(string? json, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return default;
+        return JsonSerializer.Deserialize(json, typeInfo);
+    }
+
+    private static T ReadRequired<T>(string json, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo)
+        => JsonSerializer.Deserialize(json, typeInfo)
+            ?? throw new InvalidDataException("document JSON payload is empty.");
+
+    private static IReadOnlyList<SndbDocumentAggregateStage> ReadAggregatePipeline(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        if (document.RootElement.ValueKind == JsonValueKind.Array)
+        {
+            var pipeline = JsonSerializer.Deserialize(
+                json,
+                NativeDocumentJsonContext.Default.ListSndbDocumentAggregateStage);
+            return pipeline is { Count: > 0 }
+                ? pipeline
+                : throw new InvalidOperationException("document aggregate payload must contain at least one stage.");
+        }
+
+        var request = JsonSerializer.Deserialize(
+            json,
+            NativeDocumentJsonContext.Default.NativeDocumentAggregateRequest)
+            ?? throw new InvalidDataException("document aggregate JSON payload is empty.");
+        return request.Pipeline is { Count: > 0 }
+            ? request.Pipeline
+            : throw new InvalidOperationException("document aggregate payload must contain a non-empty 'pipeline'.");
+    }
+
+    private static string RequireText(string? value, string message)
+        => string.IsNullOrWhiteSpace(value) ? throw new InvalidOperationException(message) : value;
+
+    private static JsonElement RequireDocument(JsonElement? document, string message)
+        => document is null || document.Value.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null
+            ? throw new InvalidOperationException(message)
+            : document.Value;
+
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+    }
+}
+
+internal sealed class NativeDocumentResult
+{
+    private NativeDocumentResult(string json)
+    {
+        Json = json;
+    }
+
+    public string Json { get; }
+
+    public int JsonLength => Encoding.UTF8.GetByteCount(Json);
+
+    public int CopyJson(IntPtr buffer, int bufferLength)
+        => SonnetDbNativeExports.CopyUtf8(Json, buffer, bufferLength);
+
+    public static NativeDocumentResult FromCollectionOperation(string collection, string status)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = CreateWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("collection", collection);
+            writer.WriteString("status", status);
+            writer.WriteEndObject();
+        }
+
+        return FromStream(stream);
+    }
+
+    public static NativeDocumentResult FromWrite(SndbDocumentWriteResult result)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = CreateWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("collection", result.Collection);
+            writer.WriteNumber("inserted", result.Inserted);
+            writer.WriteNumber("matched", result.Matched);
+            writer.WriteNumber("modified", result.Modified);
+            writer.WriteNumber("deleted", result.Deleted);
+            if (result.Errors is { Count: > 0 })
+            {
+                writer.WritePropertyName("errors");
+                writer.WriteStartArray();
+                foreach (var error in result.Errors)
+                {
+                    writer.WriteStartObject();
+                    writer.WriteNumber("index", error.Index);
+                    WriteNullableString(writer, "id", error.Id);
+                    writer.WriteString("code", error.Code);
+                    writer.WriteString("message", error.Message);
+                    writer.WriteString("severity", error.Severity);
+                    writer.WriteEndObject();
+                }
+                writer.WriteEndArray();
+            }
+            writer.WriteEndObject();
+        }
+
+        return FromStream(stream);
+    }
+
+    public static NativeDocumentResult FromPage(SndbDocumentPage page)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = CreateWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("collection", page.Collection);
+            writer.WritePropertyName("documents");
+            writer.WriteStartArray();
+            foreach (var document in page.Documents)
+                WriteDocument(writer, document);
+            writer.WriteEndArray();
+            writer.WriteNumber("count", page.Documents.Count);
+            WriteNullableString(writer, "continuationToken", page.ContinuationToken);
+            writer.WriteBoolean("hasMore", page.HasMore);
+            writer.WriteNumber("batchSize", page.BatchSize);
+            WriteNullableNumber(writer, "snapshotVersion", page.SnapshotVersion);
+            WriteNullableDateTimeOffset(writer, "cursorExpiresAtUtc", page.CursorExpiresAtUtc);
+            writer.WriteEndObject();
+        }
+
+        return FromStream(stream);
+    }
+
+    public static NativeDocumentResult FromAggregate(SndbDocumentAggregateResult result)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = CreateWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("collection", result.Collection);
+            writer.WritePropertyName("documents");
+            writer.WriteStartArray();
+            foreach (var document in result.Documents)
+                writer.WriteRawValue(document);
+            writer.WriteEndArray();
+            writer.WriteNumber("count", result.Count);
+            writer.WriteEndObject();
+        }
+
+        return FromStream(stream);
+    }
+
+    private static Utf8JsonWriter CreateWriter(Stream stream)
+        => new(stream, new JsonWriterOptions { Indented = false });
+
+    private static NativeDocumentResult FromStream(MemoryStream stream)
+        => new(Encoding.UTF8.GetString(stream.ToArray()));
+
+    private static void WriteDocument(Utf8JsonWriter writer, SndbDocument document)
+    {
+        writer.WriteStartObject();
+        writer.WriteString("id", document.Id);
+        writer.WritePropertyName("document");
+        writer.WriteRawValue(document.Json);
+        writer.WriteNumber("version", document.Version);
+        writer.WriteEndObject();
+    }
+
+    private static void WriteNullableString(Utf8JsonWriter writer, string name, string? value)
+    {
+        if (value is null)
+            writer.WriteNull(name);
+        else
+            writer.WriteString(name, value);
+    }
+
+    private static void WriteNullableNumber(Utf8JsonWriter writer, string name, long? value)
+    {
+        if (value is null)
+            writer.WriteNull(name);
+        else
+            writer.WriteNumber(name, value.Value);
+    }
+
+    private static void WriteNullableDateTimeOffset(Utf8JsonWriter writer, string name, DateTimeOffset? value)
+    {
+        if (value is null)
+            writer.WriteNull(name);
+        else
+            writer.WriteString(name, value.Value.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture));
+    }
+}
+
+internal sealed record NativeDocumentCollectionOptions(
+    bool IfNotExists = true,
+    SndbDocumentValidator? Validator = null);
+
+internal sealed record NativeDocumentWriteItem(string Id, JsonElement Document);
+
+internal sealed record NativeDocumentInsertRequest(
+    string? Id = null,
+    JsonElement? Document = null,
+    IReadOnlyList<NativeDocumentWriteItem>? Documents = null,
+    bool Ordered = true);
+
+internal sealed record NativeDocumentUpdateRequest(
+    string? Id = null,
+    JsonElement? Document = null,
+    IReadOnlyList<NativeDocumentWriteItem>? Documents = null,
+    SndbDocumentFilter? Filter = null,
+    SndbDocumentUpdate? Update = null,
+    bool Upsert = false,
+    string? UpsertId = null,
+    bool Ordered = true,
+    bool Multi = false);
+
+internal sealed record NativeDocumentDeleteRequest(
+    string? Id = null,
+    IReadOnlyList<string>? Ids = null,
+    bool Ordered = true);
+
+internal sealed record NativeDocumentAggregateRequest(
+    IReadOnlyList<SndbDocumentAggregateStage> Pipeline);
+
+[JsonSourceGenerationOptions(
+    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    WriteIndented = false)]
+[JsonSerializable(typeof(NativeDocumentCollectionOptions))]
+[JsonSerializable(typeof(NativeDocumentInsertRequest))]
+[JsonSerializable(typeof(NativeDocumentUpdateRequest))]
+[JsonSerializable(typeof(NativeDocumentDeleteRequest))]
+[JsonSerializable(typeof(NativeDocumentAggregateRequest))]
+[JsonSerializable(typeof(NativeDocumentWriteItem))]
+[JsonSerializable(typeof(SndbDocumentFindOptions))]
+[JsonSerializable(typeof(SndbDocumentFilter))]
+[JsonSerializable(typeof(SndbDocumentProjection))]
+[JsonSerializable(typeof(SndbDocumentSort))]
+[JsonSerializable(typeof(SndbDocumentUpdate))]
+[JsonSerializable(typeof(SndbDocumentValidator))]
+[JsonSerializable(typeof(SndbDocumentValidatorRule))]
+[JsonSerializable(typeof(SndbDocumentAggregateStage))]
+[JsonSerializable(typeof(SndbDocumentAggregateGroup))]
+[JsonSerializable(typeof(SndbDocumentAggregateGroupKey))]
+[JsonSerializable(typeof(SndbDocumentAggregateAccumulator))]
+[JsonSerializable(typeof(SndbDocumentAggregateUnwind))]
+[JsonSerializable(typeof(SndbDocumentAggregateDistinct))]
+[JsonSerializable(typeof(List<NativeDocumentWriteItem>))]
+[JsonSerializable(typeof(List<SndbDocumentFilter>))]
+[JsonSerializable(typeof(List<SndbDocumentProjection>))]
+[JsonSerializable(typeof(List<SndbDocumentSort>))]
+[JsonSerializable(typeof(List<SndbDocumentValidatorRule>))]
+[JsonSerializable(typeof(List<SndbDocumentAggregateStage>))]
+[JsonSerializable(typeof(List<SndbDocumentAggregateGroupKey>))]
+[JsonSerializable(typeof(List<SndbDocumentAggregateAccumulator>))]
+[JsonSerializable(typeof(List<string>))]
+[JsonSerializable(typeof(IReadOnlyDictionary<string, JsonElement>))]
+[JsonSerializable(typeof(Dictionary<string, JsonElement>))]
+[JsonSerializable(typeof(IReadOnlyDictionary<string, string>))]
+internal sealed partial class NativeDocumentJsonContext : JsonSerializerContext;
+
+internal sealed class NativeObjectStorage : IDisposable
+{
+    private readonly SndbObjectStorageClient _client;
+    private readonly string _bucket;
+    private bool _disposed;
+
+    public NativeObjectStorage(NativeConnection connection, string bucket)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentException.ThrowIfNullOrWhiteSpace(bucket);
+
+        _client = new SndbObjectStorageClient(connection.ConnectionString);
+        _bucket = bucket;
+    }
+
+    public string Bucket => _bucket;
+
+    public NativeObjectResult ListBuckets()
+    {
+        ThrowIfDisposed();
+        var buckets = _client.ListBucketsAsync().GetAwaiter().GetResult();
+        return NativeObjectResult.FromBuckets(buckets);
+    }
+
+    public NativeObjectResult CreateBucket(string? purpose)
+    {
+        ThrowIfDisposed();
+        return NativeObjectResult.FromBucket(_client.CreateBucketAsync(_bucket, NormalizeOptional(purpose)).GetAwaiter().GetResult());
+    }
+
+    public bool DeleteBucket()
+    {
+        ThrowIfDisposed();
+        return _client.DeleteBucketAsync(_bucket).GetAwaiter().GetResult();
+    }
+
+    public NativeObjectResult PutObject(string key, NativeObjectWriteBuffer writeBuffer)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ArgumentNullException.ThrowIfNull(writeBuffer);
+
+        using var content = writeBuffer.OpenRead();
+        return NativeObjectResult.FromObject(_client.PutObjectAsync(
+            _bucket,
+            key,
+            content,
+            writeBuffer.ContentType,
+            writeBuffer.Metadata,
+            writeBuffer.Tags).GetAwaiter().GetResult());
+    }
+
+    public NativeObjectReader? OpenReader(string key, long offset, long length)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        if (offset < 0)
+            throw new ArgumentOutOfRangeException(nameof(offset), "offset must be non-negative.");
+
+        SndbObjectRange? range = offset > 0 || length >= 0
+            ? new SndbObjectRange(offset, length < 0 ? null : length)
+            : null;
+        var result = _client.OpenReadAsync(_bucket, key, range).GetAwaiter().GetResult();
+        return result is null ? null : new NativeObjectReader(result);
+    }
+
+    public NativeObjectResult? HeadObject(string key)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        var info = _client.HeadObjectAsync(_bucket, key).GetAwaiter().GetResult();
+        return info is null ? null : NativeObjectResult.FromObject(info);
+    }
+
+    public NativeObjectResult ListObjects(string? prefix, int maxKeys, string? continuationToken)
+    {
+        ThrowIfDisposed();
+        var result = _client.ListObjectsAsync(
+            _bucket,
+            NormalizeOptional(prefix),
+            maxKeys <= 0 ? 1000 : maxKeys,
+            NormalizeOptional(continuationToken)).GetAwaiter().GetResult();
+        return NativeObjectResult.FromList(result);
+    }
+
+    public NativeObjectResult DeleteObject(string key)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        _client.DeleteObjectAsync(_bucket, key).GetAwaiter().GetResult();
+        return NativeObjectResult.FromDelete(_bucket, key);
+    }
+
+    public NativeObjectResult DeleteObjects(string keysJson)
+    {
+        ThrowIfDisposed();
+        var keys = JsonSerializer.Deserialize(keysJson, NativeObjectJsonContext.Default.ListString)
+            ?? throw new InvalidDataException("object delete JSON payload is empty.");
+        return NativeObjectResult.FromDeleteMany(_client.DeleteObjectsAsync(_bucket, keys).GetAwaiter().GetResult());
+    }
+
+    public NativeObjectResult InitiateMultipart(string key, string? contentType, string? metadataJson, string? tagsJson)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        var upload = _client.InitiateMultipartUploadAsync(
+            _bucket,
+            key,
+            NormalizeOptional(contentType),
+            ReadStringMap(metadataJson),
+            ReadStringMap(tagsJson)).GetAwaiter().GetResult();
+        return NativeObjectResult.FromMultipartUpload(upload);
+    }
+
+    public NativeObjectResult UploadPart(string key, string uploadId, int partNumber, NativeObjectWriteBuffer writeBuffer)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ArgumentException.ThrowIfNullOrWhiteSpace(uploadId);
+        ArgumentNullException.ThrowIfNull(writeBuffer);
+
+        using var content = writeBuffer.OpenRead();
+        var part = _client.UploadPartAsync(_bucket, key, uploadId, partNumber, content).GetAwaiter().GetResult();
+        return NativeObjectResult.FromMultipartPart(_bucket, key, uploadId, part);
+    }
+
+    public NativeObjectResult CompleteMultipart(string key, string uploadId, string partNumbersJson)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ArgumentException.ThrowIfNullOrWhiteSpace(uploadId);
+        var partNumbers = JsonSerializer.Deserialize(partNumbersJson, NativeObjectJsonContext.Default.ListInt32)
+            ?? throw new InvalidDataException("multipart complete JSON payload is empty.");
+        return NativeObjectResult.FromObject(_client.CompleteMultipartUploadAsync(_bucket, key, uploadId, partNumbers).GetAwaiter().GetResult());
+    }
+
+    public void AbortMultipart(string key, string uploadId)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ArgumentException.ThrowIfNullOrWhiteSpace(uploadId);
+        _client.AbortMultipartUploadAsync(_bucket, key, uploadId).GetAwaiter().GetResult();
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _disposed = true;
+        _client.Dispose();
+    }
+
+    private static IReadOnlyDictionary<string, string>? ReadStringMap(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return null;
+        var map = JsonSerializer.Deserialize(json, NativeObjectJsonContext.Default.DictionaryStringString);
+        return map is { Count: > 0 } ? map : null;
+    }
+
+    private static string? NormalizeOptional(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value;
+
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+    }
+}
+
+internal sealed class NativeObjectWriteBuffer : IDisposable
+{
+    private readonly string _path;
+    private FileStream? _stream;
+    private bool _completed;
+    private bool _disposed;
+
+    public NativeObjectWriteBuffer(string? contentType, string? metadataJson, string? tagsJson)
+    {
+        _path = Path.Combine(Path.GetTempPath(), "sonnetdb-native-object-" + Guid.NewGuid().ToString("N") + ".tmp");
+        _stream = new FileStream(_path, FileMode.CreateNew, FileAccess.Write, FileShare.Read, bufferSize: 64 * 1024);
+        ContentType = string.IsNullOrWhiteSpace(contentType) ? null : contentType;
+        Metadata = ReadStringMap(metadataJson);
+        Tags = ReadStringMap(tagsJson);
+    }
+
+    public string? ContentType { get; }
+
+    public IReadOnlyDictionary<string, string>? Metadata { get; }
+
+    public IReadOnlyDictionary<string, string>? Tags { get; }
+
+    public long Length
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return _stream?.Length ?? new FileInfo(_path).Length;
+        }
+    }
+
+    public void Write(byte[] bytes)
+    {
+        ThrowIfDisposed();
+        if (_completed)
+            throw new InvalidOperationException("object write handle is already completed.");
+        _stream!.Write(bytes, 0, bytes.Length);
+    }
+
+    public FileStream OpenRead()
+    {
+        ThrowIfDisposed();
+        if (!_completed)
+            Complete();
+        return new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 64 * 1024, FileOptions.DeleteOnClose);
+    }
+
+    public void Complete()
+    {
+        ThrowIfDisposed();
+        if (_completed)
+            return;
+
+        _stream!.Flush();
+        _stream.Dispose();
+        _stream = null;
+        _completed = true;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _stream?.Dispose();
+        TryDelete(_path);
+        _disposed = true;
+    }
+
+    private static IReadOnlyDictionary<string, string>? ReadStringMap(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return null;
+        var map = JsonSerializer.Deserialize(json, NativeObjectJsonContext.Default.DictionaryStringString);
+        return map is { Count: > 0 } ? map : null;
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+    }
+}
+
+internal sealed class NativeObjectReader : IDisposable
+{
+    private readonly SndbObjectReadResult _result;
+    private readonly Dictionary<int, IntPtr> _textPointers = new();
+    private bool _disposed;
+
+    public NativeObjectReader(SndbObjectReadResult result)
+    {
+        _result = result;
+    }
+
+    public long Offset
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return _result.Offset;
+        }
+    }
+
+    public long Length
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return _result.Length;
+        }
+    }
+
+    public int IsRange
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return _result.IsRange ? 1 : 0;
+        }
+    }
+
+    public IntPtr GetBucket() => GetTextPointer(0, _result.Info.Bucket);
+
+    public IntPtr GetKey() => GetTextPointer(1, _result.Info.Key);
+
+    public IntPtr GetContentType() => GetTextPointer(2, _result.Info.ContentType);
+
+    public IntPtr GetETag() => GetTextPointer(3, _result.Info.ETag);
+
+    public IntPtr GetSha256() => GetTextPointer(4, _result.Info.Sha256);
+
+    public long GetSizeBytes()
+    {
+        ThrowIfDisposed();
+        return _result.Info.SizeBytes;
+    }
+
+    public int Read(IntPtr buffer, int bufferLength)
+    {
+        ThrowIfDisposed();
+        if (bufferLength < 0)
+            throw new ArgumentOutOfRangeException(nameof(bufferLength), "Buffer length cannot be negative.");
+        if (buffer == IntPtr.Zero || bufferLength == 0)
+            return 0;
+
+        byte[] rented = ArrayPool<byte>.Shared.Rent(bufferLength);
+        try
+        {
+            int read = _result.Content.Read(rented, 0, bufferLength);
+            if (read > 0)
+                Marshal.Copy(rented, 0, buffer, read);
+            return read;
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(rented);
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        foreach (var ptr in _textPointers.Values)
+            Marshal.FreeCoTaskMem(ptr);
+        _textPointers.Clear();
+        _result.Content.Dispose();
+        _disposed = true;
+    }
+
+    private IntPtr GetTextPointer(int key, string value)
+    {
+        ThrowIfDisposed();
+        if (_textPointers.TryGetValue(key, out var ptr))
+            return ptr;
+
+        ptr = Marshal.StringToCoTaskMemUTF8(value);
+        _textPointers.Add(key, ptr);
+        return ptr;
+    }
+
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+    }
+}
+
+internal sealed class NativeObjectResult
+{
+    private NativeObjectResult(string json)
+    {
+        Json = json;
+    }
+
+    public string Json { get; }
+
+    public int JsonLength => Encoding.UTF8.GetByteCount(Json);
+
+    public int CopyJson(IntPtr buffer, int bufferLength)
+        => SonnetDbNativeExports.CopyUtf8(Json, buffer, bufferLength);
+
+    public static NativeObjectResult FromBuckets(IReadOnlyList<SndbBucketInfo> buckets)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = CreateWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WritePropertyName("buckets");
+            writer.WriteStartArray();
+            foreach (var bucket in buckets)
+                WriteBucket(writer, bucket);
+            writer.WriteEndArray();
+            writer.WriteNumber("count", buckets.Count);
+            writer.WriteEndObject();
+        }
+
+        return FromStream(stream);
+    }
+
+    public static NativeObjectResult FromBucket(SndbBucketInfo bucket)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = CreateWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WritePropertyName("bucket");
+            WriteBucket(writer, bucket);
+            writer.WriteEndObject();
+        }
+
+        return FromStream(stream);
+    }
+
+    public static NativeObjectResult FromObject(SndbObjectInfo info)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = CreateWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WritePropertyName("object");
+            WriteObject(writer, info);
+            writer.WriteEndObject();
+        }
+
+        return FromStream(stream);
+    }
+
+    public static NativeObjectResult FromList(SndbObjectListResult result)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = CreateWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("bucket", result.Bucket);
+            writer.WriteString("prefix", result.Prefix);
+            writer.WriteNumber("maxKeys", result.MaxKeys);
+            WriteNullableString(writer, "continuationToken", result.ContinuationToken);
+            WriteNullableString(writer, "nextContinuationToken", result.NextContinuationToken);
+            writer.WriteBoolean("isTruncated", result.IsTruncated);
+            writer.WritePropertyName("objects");
+            writer.WriteStartArray();
+            foreach (var item in result.Objects)
+                WriteObject(writer, item);
+            writer.WriteEndArray();
+            writer.WriteNumber("count", result.Objects.Count);
+            writer.WriteEndObject();
+        }
+
+        return FromStream(stream);
+    }
+
+    public static NativeObjectResult FromDelete(string bucket, string key)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = CreateWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("bucket", bucket);
+            writer.WriteString("key", key);
+            writer.WriteString("status", "deleted");
+            writer.WriteEndObject();
+        }
+
+        return FromStream(stream);
+    }
+
+    public static NativeObjectResult FromDeleteMany(SndbObjectDeleteManyResult result)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = CreateWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("bucket", result.Bucket);
+            writer.WritePropertyName("deleted");
+            writer.WriteStartArray();
+            foreach (var item in result.Deleted)
+            {
+                writer.WriteStartObject();
+                writer.WriteString("key", item.Key);
+                writer.WriteString("versionId", item.VersionId);
+                writer.WriteBoolean("deleteMarker", item.DeleteMarker);
+                WriteNullableString(writer, "errorCode", item.ErrorCode);
+                WriteNullableString(writer, "errorMessage", item.ErrorMessage);
+                writer.WriteEndObject();
+            }
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+        }
+
+        return FromStream(stream);
+    }
+
+    public static NativeObjectResult FromMultipartUpload(SndbMultipartUploadInfo upload)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = CreateWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("bucket", upload.Bucket);
+            writer.WriteString("key", upload.Key);
+            writer.WriteString("uploadId", upload.UploadId);
+            writer.WriteString("contentType", upload.ContentType);
+            writer.WriteString("initiatedUtc", upload.InitiatedUtc.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture));
+            writer.WriteString("expiresUtc", upload.ExpiresUtc.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture));
+            WriteStringMap(writer, "metadata", upload.Metadata);
+            WriteStringMap(writer, "tags", upload.Tags);
+            writer.WriteEndObject();
+        }
+
+        return FromStream(stream);
+    }
+
+    public static NativeObjectResult FromMultipartPart(string bucket, string key, string uploadId, SndbMultipartPartInfo part)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = CreateWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("bucket", bucket);
+            writer.WriteString("key", key);
+            writer.WriteString("uploadId", uploadId);
+            writer.WriteNumber("partNumber", part.PartNumber);
+            writer.WriteNumber("sizeBytes", part.SizeBytes);
+            writer.WriteString("etag", part.ETag);
+            writer.WriteString("sha256", part.Sha256);
+            writer.WriteEndObject();
+        }
+
+        return FromStream(stream);
+    }
+
+    public static NativeObjectResult FromMultipartAbort(string bucket, string key, string uploadId)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = CreateWriter(stream))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("bucket", bucket);
+            writer.WriteString("key", key);
+            writer.WriteString("uploadId", uploadId);
+            writer.WriteString("status", "aborted");
+            writer.WriteEndObject();
+        }
+
+        return FromStream(stream);
+    }
+
+    private static Utf8JsonWriter CreateWriter(Stream stream)
+        => new(stream, new JsonWriterOptions { Indented = false });
+
+    private static NativeObjectResult FromStream(MemoryStream stream)
+        => new(Encoding.UTF8.GetString(stream.ToArray()));
+
+    private static void WriteBucket(Utf8JsonWriter writer, SndbBucketInfo bucket)
+    {
+        writer.WriteStartObject();
+        writer.WriteString("name", bucket.Name);
+        writer.WriteString("purpose", bucket.Purpose);
+        writer.WriteString("createdUtc", bucket.CreatedUtc.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture));
+        writer.WriteString("updatedUtc", bucket.UpdatedUtc.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture));
+        writer.WriteEndObject();
+    }
+
+    private static void WriteObject(Utf8JsonWriter writer, SndbObjectInfo info)
+    {
+        writer.WriteStartObject();
+        writer.WriteString("bucket", info.Bucket);
+        writer.WriteString("key", info.Key);
+        writer.WriteString("versionId", info.VersionId);
+        writer.WriteString("contentType", info.ContentType);
+        writer.WriteNumber("sizeBytes", info.SizeBytes);
+        writer.WriteString("etag", info.ETag);
+        writer.WriteString("sha256", info.Sha256);
+        writer.WriteBoolean("isDeleteMarker", info.IsDeleteMarker);
+        writer.WriteString("createdUtc", info.CreatedUtc.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture));
+        writer.WriteString("updatedUtc", info.UpdatedUtc.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture));
+        WriteStringMap(writer, "metadata", info.Metadata);
+        WriteStringMap(writer, "tags", info.Tags);
+        writer.WriteEndObject();
+    }
+
+    private static void WriteStringMap(Utf8JsonWriter writer, string name, IReadOnlyDictionary<string, string> values)
+    {
+        writer.WritePropertyName(name);
+        writer.WriteStartObject();
+        foreach (var pair in values)
+            writer.WriteString(pair.Key, pair.Value);
+        writer.WriteEndObject();
+    }
+
+    private static void WriteNullableString(Utf8JsonWriter writer, string name, string? value)
+    {
+        if (value is null)
+            writer.WriteNull(name);
+        else
+            writer.WriteString(name, value);
+    }
+}
+
+[JsonSourceGenerationOptions(
+    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    WriteIndented = false)]
+[JsonSerializable(typeof(Dictionary<string, string>))]
+[JsonSerializable(typeof(List<string>))]
+[JsonSerializable(typeof(List<int>))]
+internal sealed partial class NativeObjectJsonContext : JsonSerializerContext;
 
 internal sealed class NativeKv : IDisposable
 {
@@ -785,6 +1814,659 @@ internal static class SonnetDbNativeExports
                 handle.Free();
         }
     }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_doc_open", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr DocumentOpen(IntPtr connection, IntPtr collection)
+    {
+        try
+        {
+            ClearError();
+            var nativeConnection = GetTarget<NativeConnection>(connection, nameof(connection));
+            var collectionText = ReadUtf8(collection, nameof(collection));
+            var document = new NativeDocument(nativeConnection, collectionText);
+            return GCHandle.ToIntPtr(GCHandle.Alloc(document));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_doc_close", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static void DocumentClose(IntPtr document)
+    {
+        GCHandle handle = default;
+        bool hasHandle = false;
+
+        try
+        {
+            ClearError();
+            if (document == IntPtr.Zero)
+                return;
+
+            handle = GCHandle.FromIntPtr(document);
+            hasHandle = true;
+            if (handle.Target is IDisposable disposable)
+                disposable.Dispose();
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+        }
+        finally
+        {
+            if (hasHandle)
+                handle.Free();
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_doc_create_collection", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr DocumentCreateCollection(IntPtr document, IntPtr optionsJson)
+    {
+        try
+        {
+            ClearError();
+            var nativeDocument = GetTarget<NativeDocument>(document, nameof(document));
+            var result = nativeDocument.CreateCollection(ReadOptionalUtf8(optionsJson));
+            return GCHandle.ToIntPtr(GCHandle.Alloc(result));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_doc_drop_collection", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int DocumentDropCollection(IntPtr document)
+    {
+        try
+        {
+            ClearError();
+            return GetTarget<NativeDocument>(document, nameof(document)).DropCollection() ? 1 : 0;
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return -1;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_doc_insert", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr DocumentInsert(IntPtr document, IntPtr payloadJson)
+    {
+        try
+        {
+            ClearError();
+            var nativeDocument = GetTarget<NativeDocument>(document, nameof(document));
+            var result = nativeDocument.Insert(ReadUtf8(payloadJson, nameof(payloadJson)));
+            return GCHandle.ToIntPtr(GCHandle.Alloc(result));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_doc_update", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr DocumentUpdate(IntPtr document, IntPtr payloadJson)
+    {
+        try
+        {
+            ClearError();
+            var nativeDocument = GetTarget<NativeDocument>(document, nameof(document));
+            var result = nativeDocument.Update(ReadUtf8(payloadJson, nameof(payloadJson)));
+            return GCHandle.ToIntPtr(GCHandle.Alloc(result));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_doc_delete", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr DocumentDelete(IntPtr document, IntPtr payloadJson)
+    {
+        try
+        {
+            ClearError();
+            var nativeDocument = GetTarget<NativeDocument>(document, nameof(document));
+            var result = nativeDocument.Delete(ReadUtf8(payloadJson, nameof(payloadJson)));
+            return GCHandle.ToIntPtr(GCHandle.Alloc(result));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_doc_find_page", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr DocumentFindPage(IntPtr document, IntPtr payloadJson)
+    {
+        try
+        {
+            ClearError();
+            var nativeDocument = GetTarget<NativeDocument>(document, nameof(document));
+            var result = nativeDocument.FindPage(ReadOptionalUtf8(payloadJson));
+            return GCHandle.ToIntPtr(GCHandle.Alloc(result));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_doc_aggregate", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr DocumentAggregate(IntPtr document, IntPtr payloadJson)
+    {
+        try
+        {
+            ClearError();
+            var nativeDocument = GetTarget<NativeDocument>(document, nameof(document));
+            var result = nativeDocument.Aggregate(ReadUtf8(payloadJson, nameof(payloadJson)));
+            return GCHandle.ToIntPtr(GCHandle.Alloc(result));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_doc_result_free", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static void DocumentResultFree(IntPtr result)
+    {
+        GCHandle handle = default;
+        bool hasHandle = false;
+
+        try
+        {
+            ClearError();
+            if (result == IntPtr.Zero)
+                return;
+
+            handle = GCHandle.FromIntPtr(result);
+            hasHandle = true;
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+        }
+        finally
+        {
+            if (hasHandle)
+                handle.Free();
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_doc_result_json_length", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int DocumentResultJsonLength(IntPtr result)
+        => InvokeDocumentResult(result, static r => r.JsonLength, -1);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_doc_result_copy_json", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int DocumentResultCopyJson(IntPtr result, IntPtr buffer, int bufferLength)
+        => InvokeDocumentResult(result, r => r.CopyJson(buffer, bufferLength), -1);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_open", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr ObjectOpen(IntPtr connection, IntPtr bucket)
+    {
+        try
+        {
+            ClearError();
+            var nativeConnection = GetTarget<NativeConnection>(connection, nameof(connection));
+            var bucketText = ReadUtf8(bucket, nameof(bucket));
+            var storage = new NativeObjectStorage(nativeConnection, bucketText);
+            return GCHandle.ToIntPtr(GCHandle.Alloc(storage));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_close", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static void ObjectClose(IntPtr storage)
+    {
+        GCHandle handle = default;
+        bool hasHandle = false;
+
+        try
+        {
+            ClearError();
+            if (storage == IntPtr.Zero)
+                return;
+
+            handle = GCHandle.FromIntPtr(storage);
+            hasHandle = true;
+            if (handle.Target is IDisposable disposable)
+                disposable.Dispose();
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+        }
+        finally
+        {
+            if (hasHandle)
+                handle.Free();
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_list_buckets", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr ObjectListBuckets(IntPtr storage)
+    {
+        try
+        {
+            ClearError();
+            var result = GetTarget<NativeObjectStorage>(storage, nameof(storage)).ListBuckets();
+            return GCHandle.ToIntPtr(GCHandle.Alloc(result));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_create_bucket", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr ObjectCreateBucket(IntPtr storage, IntPtr purpose)
+    {
+        try
+        {
+            ClearError();
+            var result = GetTarget<NativeObjectStorage>(storage, nameof(storage))
+                .CreateBucket(ReadOptionalUtf8(purpose));
+            return GCHandle.ToIntPtr(GCHandle.Alloc(result));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_delete_bucket", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int ObjectDeleteBucket(IntPtr storage)
+    {
+        try
+        {
+            ClearError();
+            return GetTarget<NativeObjectStorage>(storage, nameof(storage)).DeleteBucket() ? 1 : 0;
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return -1;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_writer_create", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr ObjectWriterCreate(IntPtr contentType, IntPtr metadataJson, IntPtr tagsJson)
+    {
+        try
+        {
+            ClearError();
+            var writer = new NativeObjectWriteBuffer(
+                ReadOptionalUtf8(contentType),
+                ReadOptionalUtf8(metadataJson),
+                ReadOptionalUtf8(tagsJson));
+            return GCHandle.ToIntPtr(GCHandle.Alloc(writer));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_writer_write", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int ObjectWriterWrite(IntPtr writer, IntPtr buffer, int bufferLength)
+    {
+        try
+        {
+            ClearError();
+            var nativeWriter = GetTarget<NativeObjectWriteBuffer>(writer, nameof(writer));
+            nativeWriter.Write(ReadBytes(buffer, bufferLength, nameof(buffer)));
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return -1;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_writer_length", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static long ObjectWriterLength(IntPtr writer)
+        => InvokeObjectWriter(writer, static w => w.Length, -1L);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_writer_free", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static void ObjectWriterFree(IntPtr writer)
+    {
+        GCHandle handle = default;
+        bool hasHandle = false;
+
+        try
+        {
+            ClearError();
+            if (writer == IntPtr.Zero)
+                return;
+
+            handle = GCHandle.FromIntPtr(writer);
+            hasHandle = true;
+            if (handle.Target is IDisposable disposable)
+                disposable.Dispose();
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+        }
+        finally
+        {
+            if (hasHandle)
+                handle.Free();
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_put", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr ObjectPut(IntPtr storage, IntPtr key, IntPtr writer)
+    {
+        try
+        {
+            ClearError();
+            var nativeStorage = GetTarget<NativeObjectStorage>(storage, nameof(storage));
+            var nativeWriter = GetTarget<NativeObjectWriteBuffer>(writer, nameof(writer));
+            var result = nativeStorage.PutObject(ReadUtf8(key, nameof(key)), nativeWriter);
+            return GCHandle.ToIntPtr(GCHandle.Alloc(result));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_get", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr ObjectGet(IntPtr storage, IntPtr key, long offset, long length)
+    {
+        try
+        {
+            ClearError();
+            var nativeStorage = GetTarget<NativeObjectStorage>(storage, nameof(storage));
+            var reader = nativeStorage.OpenReader(ReadUtf8(key, nameof(key)), offset, length);
+            return reader is null ? IntPtr.Zero : GCHandle.ToIntPtr(GCHandle.Alloc(reader));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_head", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr ObjectHead(IntPtr storage, IntPtr key)
+    {
+        try
+        {
+            ClearError();
+            var nativeStorage = GetTarget<NativeObjectStorage>(storage, nameof(storage));
+            var result = nativeStorage.HeadObject(ReadUtf8(key, nameof(key)));
+            return result is null ? IntPtr.Zero : GCHandle.ToIntPtr(GCHandle.Alloc(result));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_list", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr ObjectList(IntPtr storage, IntPtr prefix, int maxKeys, IntPtr continuationToken)
+    {
+        try
+        {
+            ClearError();
+            var nativeStorage = GetTarget<NativeObjectStorage>(storage, nameof(storage));
+            var result = nativeStorage.ListObjects(
+                ReadOptionalUtf8(prefix),
+                maxKeys,
+                ReadOptionalUtf8(continuationToken));
+            return GCHandle.ToIntPtr(GCHandle.Alloc(result));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_delete", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr ObjectDelete(IntPtr storage, IntPtr key)
+    {
+        try
+        {
+            ClearError();
+            var nativeStorage = GetTarget<NativeObjectStorage>(storage, nameof(storage));
+            var result = nativeStorage.DeleteObject(ReadUtf8(key, nameof(key)));
+            return GCHandle.ToIntPtr(GCHandle.Alloc(result));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_delete_many", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr ObjectDeleteMany(IntPtr storage, IntPtr keysJson)
+    {
+        try
+        {
+            ClearError();
+            var nativeStorage = GetTarget<NativeObjectStorage>(storage, nameof(storage));
+            var result = nativeStorage.DeleteObjects(ReadUtf8(keysJson, nameof(keysJson)));
+            return GCHandle.ToIntPtr(GCHandle.Alloc(result));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_multipart_initiate", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr ObjectMultipartInitiate(IntPtr storage, IntPtr key, IntPtr contentType, IntPtr metadataJson, IntPtr tagsJson)
+    {
+        try
+        {
+            ClearError();
+            var nativeStorage = GetTarget<NativeObjectStorage>(storage, nameof(storage));
+            var result = nativeStorage.InitiateMultipart(
+                ReadUtf8(key, nameof(key)),
+                ReadOptionalUtf8(contentType),
+                ReadOptionalUtf8(metadataJson),
+                ReadOptionalUtf8(tagsJson));
+            return GCHandle.ToIntPtr(GCHandle.Alloc(result));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_multipart_upload_part", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr ObjectMultipartUploadPart(IntPtr storage, IntPtr key, IntPtr uploadId, int partNumber, IntPtr writer)
+    {
+        try
+        {
+            ClearError();
+            var nativeStorage = GetTarget<NativeObjectStorage>(storage, nameof(storage));
+            var nativeWriter = GetTarget<NativeObjectWriteBuffer>(writer, nameof(writer));
+            var result = nativeStorage.UploadPart(
+                ReadUtf8(key, nameof(key)),
+                ReadUtf8(uploadId, nameof(uploadId)),
+                partNumber,
+                nativeWriter);
+            return GCHandle.ToIntPtr(GCHandle.Alloc(result));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_multipart_complete", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr ObjectMultipartComplete(IntPtr storage, IntPtr key, IntPtr uploadId, IntPtr partNumbersJson)
+    {
+        try
+        {
+            ClearError();
+            var nativeStorage = GetTarget<NativeObjectStorage>(storage, nameof(storage));
+            var result = nativeStorage.CompleteMultipart(
+                ReadUtf8(key, nameof(key)),
+                ReadUtf8(uploadId, nameof(uploadId)),
+                ReadUtf8(partNumbersJson, nameof(partNumbersJson)));
+            return GCHandle.ToIntPtr(GCHandle.Alloc(result));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_multipart_abort", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr ObjectMultipartAbort(IntPtr storage, IntPtr key, IntPtr uploadId)
+    {
+        try
+        {
+            ClearError();
+            var nativeStorage = GetTarget<NativeObjectStorage>(storage, nameof(storage));
+            var keyText = ReadUtf8(key, nameof(key));
+            var uploadIdText = ReadUtf8(uploadId, nameof(uploadId));
+            nativeStorage.AbortMultipart(keyText, uploadIdText);
+            var result = NativeObjectResult.FromMultipartAbort(
+                nativeStorage.Bucket,
+                keyText,
+                uploadIdText);
+            return GCHandle.ToIntPtr(GCHandle.Alloc(result));
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return IntPtr.Zero;
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_result_free", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static void ObjectResultFree(IntPtr result)
+    {
+        GCHandle handle = default;
+        bool hasHandle = false;
+
+        try
+        {
+            ClearError();
+            if (result == IntPtr.Zero)
+                return;
+
+            handle = GCHandle.FromIntPtr(result);
+            hasHandle = true;
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+        }
+        finally
+        {
+            if (hasHandle)
+                handle.Free();
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_result_json_length", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int ObjectResultJsonLength(IntPtr result)
+        => InvokeObjectResult(result, static r => r.JsonLength, -1);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_result_copy_json", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int ObjectResultCopyJson(IntPtr result, IntPtr buffer, int bufferLength)
+        => InvokeObjectResult(result, r => r.CopyJson(buffer, bufferLength), -1);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_reader_free", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static void ObjectReaderFree(IntPtr reader)
+    {
+        GCHandle handle = default;
+        bool hasHandle = false;
+
+        try
+        {
+            ClearError();
+            if (reader == IntPtr.Zero)
+                return;
+
+            handle = GCHandle.FromIntPtr(reader);
+            hasHandle = true;
+            if (handle.Target is IDisposable disposable)
+                disposable.Dispose();
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+        }
+        finally
+        {
+            if (hasHandle)
+                handle.Free();
+        }
+    }
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_reader_read", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int ObjectReaderRead(IntPtr reader, IntPtr buffer, int bufferLength)
+        => InvokeObjectReader(reader, r => r.Read(buffer, bufferLength), -1);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_reader_bucket", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr ObjectReaderBucket(IntPtr reader)
+        => InvokeObjectReader(reader, static r => r.GetBucket(), IntPtr.Zero);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_reader_key", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr ObjectReaderKey(IntPtr reader)
+        => InvokeObjectReader(reader, static r => r.GetKey(), IntPtr.Zero);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_reader_content_type", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr ObjectReaderContentType(IntPtr reader)
+        => InvokeObjectReader(reader, static r => r.GetContentType(), IntPtr.Zero);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_reader_etag", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr ObjectReaderETag(IntPtr reader)
+        => InvokeObjectReader(reader, static r => r.GetETag(), IntPtr.Zero);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_reader_sha256", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static IntPtr ObjectReaderSha256(IntPtr reader)
+        => InvokeObjectReader(reader, static r => r.GetSha256(), IntPtr.Zero);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_reader_size_bytes", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static long ObjectReaderSizeBytes(IntPtr reader)
+        => InvokeObjectReader(reader, static r => r.GetSizeBytes(), -1L);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_reader_offset", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static long ObjectReaderOffset(IntPtr reader)
+        => InvokeObjectReader(reader, static r => r.Offset, -1L);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_reader_length", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static long ObjectReaderLength(IntPtr reader)
+        => InvokeObjectReader(reader, static r => r.Length, -1L);
+
+    [UnmanagedCallersOnly(EntryPoint = "sonnetdb_obj_reader_is_range", CallConvs = new[] { typeof(CallConvCdecl) })]
+    public static int ObjectReaderIsRange(IntPtr reader)
+        => InvokeObjectReader(reader, static r => r.IsRange, -1);
 
     [UnmanagedCallersOnly(EntryPoint = "sonnetdb_kv_open", CallConvs = new[] { typeof(CallConvCdecl) })]
     public static IntPtr KvOpen(IntPtr connection, IntPtr keyspace, IntPtr @namespace)
@@ -1247,6 +2929,66 @@ internal static class SonnetDbNativeExports
         }
     }
 
+    private static TReturn InvokeDocumentResult<TReturn>(IntPtr result, Func<NativeDocumentResult, TReturn> action, TReturn errorValue)
+    {
+        try
+        {
+            ClearError();
+            var nativeResult = GetTarget<NativeDocumentResult>(result, nameof(result));
+            return action(nativeResult);
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return errorValue;
+        }
+    }
+
+    private static TReturn InvokeObjectResult<TReturn>(IntPtr result, Func<NativeObjectResult, TReturn> action, TReturn errorValue)
+    {
+        try
+        {
+            ClearError();
+            var nativeResult = GetTarget<NativeObjectResult>(result, nameof(result));
+            return action(nativeResult);
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return errorValue;
+        }
+    }
+
+    private static TReturn InvokeObjectReader<TReturn>(IntPtr reader, Func<NativeObjectReader, TReturn> action, TReturn errorValue)
+    {
+        try
+        {
+            ClearError();
+            var nativeReader = GetTarget<NativeObjectReader>(reader, nameof(reader));
+            return action(nativeReader);
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return errorValue;
+        }
+    }
+
+    private static TReturn InvokeObjectWriter<TReturn>(IntPtr writer, Func<NativeObjectWriteBuffer, TReturn> action, TReturn errorValue)
+    {
+        try
+        {
+            ClearError();
+            var nativeWriter = GetTarget<NativeObjectWriteBuffer>(writer, nameof(writer));
+            return action(nativeWriter);
+        }
+        catch (Exception ex)
+        {
+            SetError(ex);
+            return errorValue;
+        }
+    }
+
     private static TReturn InvokeKvScan<TReturn>(IntPtr scan, Func<NativeKvScan, TReturn> action, TReturn errorValue)
     {
         try
@@ -1308,7 +3050,7 @@ internal static class SonnetDbNativeExports
             Marshal.WriteInt64(pointer, value);
     }
 
-    private static int CopyUtf8(string value, IntPtr buffer, int bufferLength)
+    public static int CopyUtf8(string value, IntPtr buffer, int bufferLength)
     {
         if (buffer == IntPtr.Zero || bufferLength <= 0)
             return Encoding.UTF8.GetByteCount(value);

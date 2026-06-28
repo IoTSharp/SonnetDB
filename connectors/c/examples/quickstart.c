@@ -52,6 +52,134 @@ static void require_entry(sonnetdb_kv_entry* entry)
     }
 }
 
+static void require_doc_result(sonnetdb_doc_result* result)
+{
+    if (result == NULL)
+    {
+        print_last_error();
+        exit(1);
+    }
+}
+
+static void require_obj_result(sonnetdb_obj_result* result)
+{
+    if (result == NULL)
+    {
+        print_last_error();
+        exit(1);
+    }
+}
+
+static void require_obj_writer(sonnetdb_obj_writer* writer)
+{
+    if (writer == NULL)
+    {
+        print_last_error();
+        exit(1);
+    }
+}
+
+static void require_obj_reader(sonnetdb_obj_reader* reader)
+{
+    if (reader == NULL)
+    {
+        print_last_error();
+        exit(1);
+    }
+}
+
+static void print_doc_json(const char* label, sonnetdb_doc_result* result)
+{
+    int32_t required = sonnetdb_doc_result_json_length(result);
+    if (required < 0)
+    {
+        print_last_error();
+        exit(1);
+    }
+
+    char* buffer = (char*)malloc((size_t)required + 1);
+    if (buffer == NULL)
+    {
+        fprintf(stderr, "out of memory\n");
+        exit(1);
+    }
+
+    int32_t copied = sonnetdb_doc_result_copy_json(result, buffer, required + 1);
+    if (copied < 0)
+    {
+        free(buffer);
+        print_last_error();
+        exit(1);
+    }
+
+    printf("%s: %s\n", label, buffer);
+    free(buffer);
+}
+
+static char* copy_obj_json(sonnetdb_obj_result* result)
+{
+    int32_t required = sonnetdb_obj_result_json_length(result);
+    if (required < 0)
+    {
+        print_last_error();
+        exit(1);
+    }
+
+    char* buffer = (char*)malloc((size_t)required + 1);
+    if (buffer == NULL)
+    {
+        fprintf(stderr, "out of memory\n");
+        exit(1);
+    }
+
+    int32_t copied = sonnetdb_obj_result_copy_json(result, buffer, required + 1);
+    if (copied < 0)
+    {
+        free(buffer);
+        print_last_error();
+        exit(1);
+    }
+
+    return buffer;
+}
+
+static void print_obj_json(const char* label, sonnetdb_obj_result* result)
+{
+    char* json = copy_obj_json(result);
+    printf("%s: %s\n", label, json);
+    free(json);
+}
+
+static void extract_json_string(const char* json, const char* property, char* buffer, size_t buffer_length)
+{
+    char pattern[64];
+    snprintf(pattern, sizeof(pattern), "\"%s\":\"", property);
+    const char* start = strstr(json, pattern);
+    if (start == NULL)
+    {
+        fprintf(stderr, "missing JSON property: %s\n", property);
+        exit(1);
+    }
+
+    start += strlen(pattern);
+    const char* end = strchr(start, '"');
+    if (end == NULL)
+    {
+        fprintf(stderr, "unterminated JSON property: %s\n", property);
+        exit(1);
+    }
+
+    size_t length = (size_t)(end - start);
+    if (length >= buffer_length)
+    {
+        fprintf(stderr, "JSON property is too long: %s\n", property);
+        exit(1);
+    }
+
+    memcpy(buffer, start, length);
+    buffer[length] = '\0';
+}
+
 static void copy_kv_value(sonnetdb_kv_entry* entry, char* buffer, size_t buffer_length)
 {
     int32_t required = sonnetdb_kv_entry_copy_value(entry, buffer, (int32_t)(buffer_length - 1));
@@ -132,6 +260,73 @@ int main(void)
     require_result(result);
     printf("bulk rows: %d\n", sonnetdb_result_records_affected(result));
     sonnetdb_result_free(result);
+
+    sonnetdb_doc* documents = sonnetdb_doc_open(connection, "devices");
+    if (documents == NULL)
+    {
+        print_last_error();
+        sonnetdb_close(connection);
+        return 1;
+    }
+
+    sonnetdb_doc_result* doc_result = sonnetdb_doc_create_collection(documents, "{\"ifNotExists\":true}");
+    require_doc_result(doc_result);
+    print_doc_json("doc create", doc_result);
+    sonnetdb_doc_result_free(doc_result);
+
+    doc_result = sonnetdb_doc_insert(
+        documents,
+        "{\"documents\":["
+        "{\"id\":\"dev-1\",\"document\":{\"site\":\"north\",\"kind\":\"pump\",\"score\":7}},"
+        "{\"id\":\"dev-2\",\"document\":{\"site\":\"south\",\"kind\":\"fan\",\"score\":3}}"
+        "],\"ordered\":true}");
+    require_doc_result(doc_result);
+    print_doc_json("doc insert", doc_result);
+    sonnetdb_doc_result_free(doc_result);
+
+    doc_result = sonnetdb_doc_find_page(
+        documents,
+        "{\"limit\":10,"
+        "\"filter\":{\"path\":\"$.site\",\"op\":\"eq\",\"value\":\"north\"},"
+        "\"projection\":[{\"name\":\"_id\",\"path\":\"_id\"},{\"name\":\"score\",\"path\":\"$.score\"}],"
+        "\"sort\":[{\"path\":\"$.score\",\"descending\":true}]}");
+    require_doc_result(doc_result);
+    print_doc_json("doc find", doc_result);
+    sonnetdb_doc_result_free(doc_result);
+
+    doc_result = sonnetdb_doc_update(
+        documents,
+        "{\"id\":\"dev-1\",\"update\":{\"set\":{\"$.status\":\"ok\"},\"inc\":{\"$.score\":1}}}");
+    require_doc_result(doc_result);
+    print_doc_json("doc update", doc_result);
+    sonnetdb_doc_result_free(doc_result);
+
+    doc_result = sonnetdb_doc_aggregate(
+        documents,
+        "["
+        "{\"$match\":{\"path\":\"$.site\",\"op\":\"eq\",\"value\":\"north\"}},"
+        "{\"$group\":{\"keys\":[{\"name\":\"site\",\"path\":\"$.site\"}],"
+        "\"accumulators\":[{\"name\":\"rows\",\"op\":\"count\"},{\"name\":\"total\",\"op\":\"sum\",\"path\":\"$.score\"}]}}"
+        "]");
+    require_doc_result(doc_result);
+    print_doc_json("doc aggregate", doc_result);
+    sonnetdb_doc_result_free(doc_result);
+
+    doc_result = sonnetdb_doc_delete(documents, "{\"ids\":[\"dev-2\"],\"ordered\":true}");
+    require_doc_result(doc_result);
+    print_doc_json("doc delete", doc_result);
+    sonnetdb_doc_result_free(doc_result);
+
+    int32_t dropped = sonnetdb_doc_drop_collection(documents);
+    if (dropped < 0)
+    {
+        print_last_error();
+        sonnetdb_doc_close(documents);
+        sonnetdb_close(connection);
+        return 1;
+    }
+    printf("doc dropped: %d\n", dropped);
+    sonnetdb_doc_close(documents);
 
     sonnetdb_kv* kv = sonnetdb_kv_open(connection, "app-cache", "quickstart");
     if (kv == NULL)
@@ -268,6 +463,104 @@ int main(void)
         return 1;
     }
     sonnetdb_kv_close(kv);
+
+    sonnetdb_obj* objects = sonnetdb_obj_open(connection, "artifacts");
+    if (objects == NULL)
+    {
+        print_last_error();
+        sonnetdb_close(connection);
+        return 1;
+    }
+
+    sonnetdb_obj_result* obj_result = sonnetdb_obj_create_bucket(objects, "artifact");
+    require_obj_result(obj_result);
+    print_obj_json("object bucket", obj_result);
+    sonnetdb_obj_result_free(obj_result);
+
+    obj_result = sonnetdb_obj_list_buckets(objects);
+    require_obj_result(obj_result);
+    print_obj_json("object buckets", obj_result);
+    sonnetdb_obj_result_free(obj_result);
+
+    sonnetdb_obj_writer* writer = sonnetdb_obj_writer_create(
+        "text/plain",
+        "{\"source\":\"c-quickstart\"}",
+        "{\"kind\":\"demo\"}");
+    require_obj_writer(writer);
+    const char* chunk1 = "hello ";
+    const char* chunk2 = "object storage";
+    require_ok(sonnetdb_obj_writer_write(writer, chunk1, (int32_t)strlen(chunk1)));
+    require_ok(sonnetdb_obj_writer_write(writer, chunk2, (int32_t)strlen(chunk2)));
+    obj_result = sonnetdb_obj_put(objects, "logs/hello.txt", writer);
+    sonnetdb_obj_writer_free(writer);
+    require_obj_result(obj_result);
+    print_obj_json("object put", obj_result);
+    sonnetdb_obj_result_free(obj_result);
+
+    sonnetdb_obj_reader* reader = sonnetdb_obj_get(objects, "logs/hello.txt", 6, 6);
+    require_obj_reader(reader);
+    char object_buffer[64];
+    int32_t object_read = sonnetdb_obj_reader_read(reader, object_buffer, (int32_t)(sizeof(object_buffer) - 1));
+    if (object_read < 0)
+    {
+        print_last_error();
+        sonnetdb_obj_reader_free(reader);
+        sonnetdb_obj_close(objects);
+        sonnetdb_close(connection);
+        return 1;
+    }
+    object_buffer[object_read] = '\0';
+    printf("object range %s/%s: %s (%lld bytes total)\n",
+           sonnetdb_obj_reader_bucket(reader),
+           sonnetdb_obj_reader_key(reader),
+           object_buffer,
+           (long long)sonnetdb_obj_reader_size_bytes(reader));
+    sonnetdb_obj_reader_free(reader);
+
+    obj_result = sonnetdb_obj_list(objects, "logs/", 10, NULL);
+    require_obj_result(obj_result);
+    print_obj_json("object list", obj_result);
+    sonnetdb_obj_result_free(obj_result);
+
+    obj_result = sonnetdb_obj_multipart_initiate(objects, "logs/multipart.txt", "text/plain", NULL, NULL);
+    require_obj_result(obj_result);
+    char* multipart_json = copy_obj_json(obj_result);
+    char upload_id[160];
+    extract_json_string(multipart_json, "uploadId", upload_id, sizeof(upload_id));
+    printf("object multipart uploadId: %s\n", upload_id);
+    free(multipart_json);
+    sonnetdb_obj_result_free(obj_result);
+
+    writer = sonnetdb_obj_writer_create("text/plain", NULL, NULL);
+    require_obj_writer(writer);
+    const char* part1 = "part-one ";
+    require_ok(sonnetdb_obj_writer_write(writer, part1, (int32_t)strlen(part1)));
+    obj_result = sonnetdb_obj_multipart_upload_part(objects, "logs/multipart.txt", upload_id, 1, writer);
+    sonnetdb_obj_writer_free(writer);
+    require_obj_result(obj_result);
+    print_obj_json("object multipart part1", obj_result);
+    sonnetdb_obj_result_free(obj_result);
+
+    writer = sonnetdb_obj_writer_create("text/plain", NULL, NULL);
+    require_obj_writer(writer);
+    const char* part2 = "part-two";
+    require_ok(sonnetdb_obj_writer_write(writer, part2, (int32_t)strlen(part2)));
+    obj_result = sonnetdb_obj_multipart_upload_part(objects, "logs/multipart.txt", upload_id, 2, writer);
+    sonnetdb_obj_writer_free(writer);
+    require_obj_result(obj_result);
+    print_obj_json("object multipart part2", obj_result);
+    sonnetdb_obj_result_free(obj_result);
+
+    obj_result = sonnetdb_obj_multipart_complete(objects, "logs/multipart.txt", upload_id, "[1,2]");
+    require_obj_result(obj_result);
+    print_obj_json("object multipart complete", obj_result);
+    sonnetdb_obj_result_free(obj_result);
+
+    obj_result = sonnetdb_obj_delete_many(objects, "[\"logs/hello.txt\",\"logs/multipart.txt\"]");
+    require_obj_result(obj_result);
+    print_obj_json("object delete many", obj_result);
+    sonnetdb_obj_result_free(obj_result);
+    sonnetdb_obj_close(objects);
 
     result = sonnetdb_execute(
         connection,
