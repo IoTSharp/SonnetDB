@@ -664,7 +664,11 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
         }
 
         _mergeScheduled = true;
-        _backgroundMergeTask = Task.Run(MergeSegments);
+        _backgroundMergeTask = Task.Factory.StartNew(
+            MergeSegments,
+            CancellationToken.None,
+            TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach,
+            TaskScheduler.Default);
     }
 
     private static void DeleteOldSegments(IEnumerable<string> paths)

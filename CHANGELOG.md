@@ -49,6 +49,7 @@
 
 ### Fixed
 
+- 持久化全文索引后台合并改用专用长运行任务启动，避免高并发 CI 测试下因线程池调度延迟导致等待 merge task 超时。
 - 持久化全文索引后台合并测试改为等待实际 merge task 完成后再断言段文件数量，避免 CI 线程调度较慢时误判失败。
 - Go connector quickstart now keeps the native library version string and KV CAS version number in separate variables, fixing the `go test ./...` compile failure in connector release builds.
 - Accuracy Tests 在 Docker / InfluxDB 2.x 不可用时不再因 Testcontainers fixture 构造失败而整组失败，改为沿用既有跳过路径输出原因并让主 CI 继续执行。
