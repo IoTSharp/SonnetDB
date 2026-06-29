@@ -40,6 +40,7 @@
 ### Changed
 
 - CI workflows now use `actions/cache@v6` for NuGet package caching.
+- README / README.en 第一屏介绍改为产品门面叙事，避免使用“收敛到一个……”这类内部路线图表达。
 - **路线图状态校准**：`AGENTS.md` 当前推进口径从旧 Milestone 16 调整为 Milestone 27 / 17 / 18 并行推进，并明确 M27 当前滞后、需优先追赶 #183~#188；`ROADMAP.md` 总览同步将 Milestone 21 与 Milestone 26 标记为完成，将 Milestone 27 标记为滞后，将 Milestone 22 从 SonnetDB 内置路线降级为“基于 SonnetDB 的上层应用 / 示例方案候选”，暂停 #150~#159 内置派单，并在当前推进顺序中明确 M21、M26 已收口、M22 只有沉淀出通用数据库能力缺口时才拆 Core / Server / Studio PR，避免后续 AI 协作继续按旧目标派单。
 - **ROADMAP 归档精简**：主 `ROADMAP.md` 移除 Milestone 0 ~ 16 的早期详细正文，仅保留摘要表和当前 / 未来路线；历史 PR 拆分、设计说明、示例与路线差异说明迁入 `docs/roadmap-history.md`。
 - README / README.en 与 docs 首页第一屏从“多模型数据库”主叙事改为“.NET 工业边缘本地数据引擎”主叙事；多模型能力保留为能力矩阵，Copilot / MCP / Agent 描述收敛到工业数据查询、诊断、维修建议和写入审批场景。

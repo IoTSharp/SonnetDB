@@ -14,7 +14,7 @@
 
 **SonnetDB is a local-first data engine for .NET industrial edge applications.**
 
-It brings time-series data, SQL tables, KV / cache, JSON documents, full-text and vector search, object storage, lightweight messaging, and an AI Copilot into one engine that persists data as a database directory and can run embedded or as a server, so industrial software teams do not need to deploy a pile of separate data components.
+SonnetDB provides a local data foundation for industrial software: a database is persisted as a directory, can run inside a .NET process, and can also be deployed as a server. It exposes SQL, APIs, and Web Admin entry points for time-series ingestion, relational tables, KV / cache, JSON documents, search, objects, lightweight messaging, and AI Copilot workflows, so teams can start with SonnetDB and enable the capabilities they need.
 
 SonnetDB is designed for practical edge workloads:
 
