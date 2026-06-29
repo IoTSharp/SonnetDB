@@ -21,6 +21,7 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
 
     private IndexManifest _manifest;
     private bool _mergeScheduled;
+    private Task? _backgroundMergeTask;
 
     private PersistentFullTextIndex(
         string directory,
@@ -231,6 +232,17 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
             DeleteOldSegments(oldPaths);
             return true;
         }
+    }
+
+    internal bool WaitForBackgroundMerge(TimeSpan timeout)
+    {
+        Task? task;
+        lock (_lock)
+        {
+            task = _backgroundMergeTask;
+        }
+
+        return task is null || task.Wait(timeout);
     }
 
     private void LoadSegments()
@@ -652,7 +664,7 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
         }
 
         _mergeScheduled = true;
-        _ = Task.Run(MergeSegments);
+        _backgroundMergeTask = Task.Run(MergeSegments);
     }
 
     private static void DeleteOldSegments(IEnumerable<string> paths)

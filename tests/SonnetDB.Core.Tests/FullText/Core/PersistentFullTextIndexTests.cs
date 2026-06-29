@@ -94,7 +94,8 @@ public sealed class PersistentFullTextIndexTests : IDisposable
         index.Index(new Document(new DocumentId("1")).Set("body", "alpha"));
         index.Index(new Document(new DocumentId("2")).Set("body", "beta"));
 
-        WaitUntil(() => Directory.GetFiles(Path.Combine(_directory, "segments"), "*.seg").Length == 1);
+        Assert.True(index.WaitForBackgroundMerge(TimeSpan.FromSeconds(10)));
+        Assert.Single(Directory.GetFiles(Path.Combine(_directory, "segments"), "*.seg"));
 
         PersistentFullTextIndex reopened = Open();
         Assert.Single(reopened.Search(new TermQuery("body", "alpha"), topK: 10));
@@ -161,18 +162,4 @@ public sealed class PersistentFullTextIndexTests : IDisposable
             options: new PersistentIndexOptions { EnableBackgroundMerge = false });
     }
 
-    private static void WaitUntil(Func<bool> condition)
-    {
-        DateTime deadline = DateTime.UtcNow.AddSeconds(5);
-        while (DateTime.UtcNow < deadline)
-        {
-            if (condition())
-            {
-                return;
-            }
-            Thread.Sleep(20);
-        }
-
-        Assert.True(condition());
-    }
 }
