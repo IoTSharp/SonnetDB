@@ -16,11 +16,11 @@ func main() {
 		log.Fatal(err)
 	}
 
-	version, err := sonnetdb.Version()
+	nativeVersion, err := sonnetdb.Version()
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("SonnetDB native version:", version)
+	fmt.Println("SonnetDB native version:", nativeVersion)
 
 	connection, err := sonnetdb.Open(dataDir)
 	if err != nil {
@@ -102,7 +102,7 @@ func main() {
 	}
 	defer kv.Close()
 
-	version, err := kv.Set("device:edge-1", []byte("online"))
+	kvVersion, err := kv.Set("device:edge-1", []byte("online"))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func main() {
 	}
 	fmt.Printf("kv counter: %d (version %d)\n", counter, counterVersion)
 
-	cas, err := kv.CAS("device:edge-1", version, []byte("offline"))
+	cas, err := kv.CAS("device:edge-1", kvVersion, []byte("offline"))
 	if err != nil {
 		log.Fatal(err)
 	}

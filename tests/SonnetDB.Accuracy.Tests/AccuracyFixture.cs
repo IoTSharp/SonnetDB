@@ -23,20 +23,7 @@ public sealed class AccuracyFixture : IAsyncLifetime
     private const ushort InfluxPort = 8086;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    private readonly IContainer _influxContainer = new ContainerBuilder("influxdb:2.7")
-        .WithImagePullPolicy(PullPolicy.Missing)
-        .WithPortBinding(InfluxPort, true)
-        .WithEnvironment("DOCKER_INFLUXDB_INIT_MODE", "setup")
-        .WithEnvironment("DOCKER_INFLUXDB_INIT_USERNAME", "admin")
-        .WithEnvironment("DOCKER_INFLUXDB_INIT_PASSWORD", "password123")
-        .WithEnvironment("DOCKER_INFLUXDB_INIT_ORG", AccuracyDataSet.InfluxOrg)
-        .WithEnvironment("DOCKER_INFLUXDB_INIT_BUCKET", AccuracyDataSet.InfluxBucket)
-        .WithEnvironment("DOCKER_INFLUXDB_INIT_ADMIN_TOKEN", AccuracyDataSet.InfluxAdminToken)
-        .WithWaitStrategy(Wait.ForUnixContainer().UntilHttpRequestIsSucceeded(request => request
-            .ForPort(InfluxPort)
-            .ForPath("/health")))
-        .Build();
-
+    private IContainer? _influxContainer;
     private WebApplication? _app;
     private HttpClient? _sonnetClient;
     private HttpClient? _influxWriteClient;
@@ -69,9 +56,12 @@ public sealed class AccuracyFixture : IAsyncLifetime
     {
         try
         {
-            await _influxContainer.StartAsync().ConfigureAwait(false);
+            var influxContainer = BuildInfluxContainer();
+            _influxContainer = influxContainer;
 
-            var influxBaseUrl = $"http://{_influxContainer.Hostname}:{_influxContainer.GetMappedPublicPort(InfluxPort)}";
+            await influxContainer.StartAsync().ConfigureAwait(false);
+
+            var influxBaseUrl = $"http://{influxContainer.Hostname}:{influxContainer.GetMappedPublicPort(InfluxPort)}";
             _influxWriteClient = new HttpClient { BaseAddress = new Uri(influxBaseUrl) };
             _influxWriteClient.DefaultRequestHeaders.Authorization =
                 new AuthenticationHeaderValue("Token", AccuracyDataSet.InfluxAdminToken);
@@ -138,7 +128,8 @@ public sealed class AccuracyFixture : IAsyncLifetime
             await _app.DisposeAsync().ConfigureAwait(false);
         }
 
-        await _influxContainer.DisposeAsync().ConfigureAwait(false);
+        if (_influxContainer is not null)
+            await _influxContainer.DisposeAsync().ConfigureAwait(false);
 
         if (_dataRoot is not null && Directory.Exists(_dataRoot))
         {
@@ -246,6 +237,21 @@ public sealed class AccuracyFixture : IAsyncLifetime
 
     private static string BuildSkipReason(Exception ex)
         => $"Docker 或 InfluxDB 2.x 测试环境不可用，已跳过 Accuracy Tests。{ex.GetType().Name}: {ex.Message}";
+
+    private static IContainer BuildInfluxContainer()
+        => new ContainerBuilder("influxdb:2.7")
+            .WithImagePullPolicy(PullPolicy.Missing)
+            .WithPortBinding(InfluxPort, true)
+            .WithEnvironment("DOCKER_INFLUXDB_INIT_MODE", "setup")
+            .WithEnvironment("DOCKER_INFLUXDB_INIT_USERNAME", "admin")
+            .WithEnvironment("DOCKER_INFLUXDB_INIT_PASSWORD", "password123")
+            .WithEnvironment("DOCKER_INFLUXDB_INIT_ORG", AccuracyDataSet.InfluxOrg)
+            .WithEnvironment("DOCKER_INFLUXDB_INIT_BUCKET", AccuracyDataSet.InfluxBucket)
+            .WithEnvironment("DOCKER_INFLUXDB_INIT_ADMIN_TOKEN", AccuracyDataSet.InfluxAdminToken)
+            .WithWaitStrategy(Wait.ForUnixContainer().UntilHttpRequestIsSucceeded(request => request
+                .ForPort(InfluxPort)
+                .ForPath("/health")))
+            .Build();
 }
 
 public sealed record SqlQueryResult(IReadOnlyList<string> Columns, IReadOnlyList<JsonElement> Rows)

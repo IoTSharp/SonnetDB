@@ -1,6 +1,6 @@
+using System.Text.Json;
 using SonnetDB.Data;
 using SonnetDB.Data.Documents;
-using System.Text.Json;
 using Xunit;
 
 namespace SonnetDB.Core.Tests.Documents;

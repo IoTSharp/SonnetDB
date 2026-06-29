@@ -112,33 +112,33 @@ public sealed class JacobiSvdTests
         // A = X^T · Y : A[j,k] = Σ_i X[i,j] · Y[i,k]
         float[] a = new float[d * d];
         for (int i = 0; i < n; i++)
-        for (int j = 0; j < d; j++)
-        for (int k = 0; k < d; k++)
-            a[j * d + k] += x[i * d + j] * y[i * d + k];
+            for (int j = 0; j < d; j++)
+                for (int k = 0; k < d; k++)
+                    a[j * d + k] += x[i * d + j] * y[i * d + k];
 
         float[] r = new float[d * d];
         JacobiSvd.SolveOrthogonalProcrustes(d, a, r);
 
         // R 应等于 Q（最大化 tr(R · A) = tr(R · n·Q^T) 当 R = Q）
         for (int i = 0; i < d; i++)
-        for (int j = 0; j < d; j++)
-        {
-            Assert.Equal(q[i * d + j], r[i * d + j], 2);
-        }
+            for (int j = 0; j < d; j++)
+            {
+                Assert.Equal(q[i * d + j], r[i * d + j], 2);
+            }
     }
 
     private static void AssertOrthogonal(ReadOnlySpan<float> matrix, int d, float tol)
     {
         // Q^T · Q ≈ I
         for (int i = 0; i < d; i++)
-        for (int j = 0; j < d; j++)
-        {
-            float sum = 0f;
-            for (int k = 0; k < d; k++) sum += matrix[k * d + i] * matrix[k * d + j];
-            float expected = i == j ? 1f : 0f;
-            Assert.True(MathF.Abs(sum - expected) < tol,
-                $"非正交：(Q^T Q)[{i},{j}] = {sum}, 期望 {expected}");
-        }
+            for (int j = 0; j < d; j++)
+            {
+                float sum = 0f;
+                for (int k = 0; k < d; k++) sum += matrix[k * d + i] * matrix[k * d + j];
+                float expected = i == j ? 1f : 0f;
+                Assert.True(MathF.Abs(sum - expected) < tol,
+                    $"非正交：(Q^T Q)[{i},{j}] = {sum}, 期望 {expected}");
+            }
     }
 
     private static void AssertReconstruct(
@@ -151,12 +151,12 @@ public sealed class JacobiSvdTests
     {
         // 验证 M ≈ U · diag(S) · V^T : M[i,j] = Σ_k U[i,k] · S[k] · V[j,k]
         for (int i = 0; i < d; i++)
-        for (int j = 0; j < d; j++)
-        {
-            float sum = 0f;
-            for (int k = 0; k < d; k++) sum += u[i * d + k] * s[k] * v[j * d + k];
-            Assert.True(MathF.Abs(sum - m[i * d + j]) < tol,
-                $"重建偏差超阈：[{i},{j}] = {sum}, 期望 {m[i * d + j]}");
-        }
+            for (int j = 0; j < d; j++)
+            {
+                float sum = 0f;
+                for (int k = 0; k < d; k++) sum += u[i * d + k] * s[k] * v[j * d + k];
+                Assert.True(MathF.Abs(sum - m[i * d + j]) < tol,
+                    $"重建偏差超阈：[{i},{j}] = {sum}, 期望 {m[i * d + j]}");
+            }
     }
 }

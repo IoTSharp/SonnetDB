@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using SonnetDB.Documents;
 using SonnetDB.FullText.Index;
 using SonnetDB.FullText.Query;
 using SonnetDB.FullText.Storage;
@@ -7,7 +8,6 @@ using SonnetDB.FullText.Tokenization;
 using SonnetDB.FullText.Tokenizers.Cjk;
 using SonnetDB.FullText.Tokenizers.Jieba;
 using SonnetDB.FullText.Tokenizers.Unicode;
-using SonnetDB.Documents;
 
 namespace SonnetDB.FullText;
 

@@ -36,7 +36,7 @@ jobs:
         run: dotnet --info
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/Directory.Packages.props', '**/*.csproj') }}
@@ -96,7 +96,7 @@ jobs:
           global-json-file: global.json
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/Directory.Packages.props', '**/*.csproj') }}

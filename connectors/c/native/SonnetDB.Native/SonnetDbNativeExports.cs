@@ -1,8 +1,8 @@
+using System.Buffers;
 using System.Data;
 using System.Data.Common;
 using System.Globalization;
 using System.Reflection;
-using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
