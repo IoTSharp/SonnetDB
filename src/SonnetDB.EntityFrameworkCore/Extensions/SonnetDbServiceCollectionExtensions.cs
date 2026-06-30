@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.EntityFrameworkCore.Update;
+using Microsoft.EntityFrameworkCore.ValueGeneration;
 using Microsoft.Extensions.DependencyInjection;
 using SonnetDB.EntityFrameworkCore.Diagnostics.Internal;
 using SonnetDB.EntityFrameworkCore.Metadata.Conventions.Internal;
@@ -12,6 +13,7 @@ using SonnetDB.EntityFrameworkCore.Migrations.Internal;
 using SonnetDB.EntityFrameworkCore.Query.Internal;
 using SonnetDB.EntityFrameworkCore.Storage.Internal;
 using SonnetDB.EntityFrameworkCore.Update.Internal;
+using SonnetDB.EntityFrameworkCore.ValueGeneration.Internal;
 
 namespace SonnetDB.EntityFrameworkCore.Extensions;
 
@@ -44,6 +46,7 @@ public static class SonnetDbServiceCollectionExtensions
             .TryAdd<IModificationCommandBatchFactory, SonnetDbModificationCommandBatchFactory>()
             .TryAdd<IMigrationsSqlGenerator, SonnetDbMigrationsSqlGenerator>()
             .TryAdd<IHistoryRepository, SonnetDbHistoryRepository>()
+            .TryAdd<IValueGeneratorSelector, SonnetDbValueGeneratorSelector>()
             .TryAddCoreServices();
 
         return serviceCollection;

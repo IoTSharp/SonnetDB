@@ -122,6 +122,52 @@ public sealed class ApplicationDbContextSonnetDbCompatTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveChanges_WithApplicationRelationship_GeneratesGuidPrimaryKey()
+    {
+        await EnsureSchemaAsync();
+        await using var scope = _provider.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
+
+        var tenant = new Tenant
+        {
+            Id = Guid.NewGuid(),
+            Name = "tenant-generated",
+            Email = "tenant-generated@example.test"
+        };
+        var customer = new Customer
+        {
+            Id = Guid.NewGuid(),
+            Name = "customer-generated",
+            Email = "customer-generated@example.test",
+            Tenant = tenant
+        };
+        context.AddRange(tenant, customer);
+        await context.SaveChangesAsync();
+
+        var user = new IdentityUser
+        {
+            UserName = "relationship@example.test",
+            Email = "relationship@example.test"
+        };
+        var created = await users.CreateAsync(user, "P@ssword1!");
+        Assert.True(created.Succeeded, string.Join("; ", created.Errors.Select(static item => item.Description)));
+
+        var relationship = new Relationship
+        {
+            IdentityUser = user,
+            Tenant = tenant,
+            Customer = customer
+        };
+
+        context.Add(relationship);
+        await context.SaveChangesAsync();
+
+        Assert.NotEqual(Guid.Empty, relationship.Id);
+        Assert.Equal(relationship.Id, await context.Relationship.Select(item => item.Id).SingleAsync());
+    }
+
+    [Fact]
     public async Task ControlPlaneCrud_WithApplicationDbContext_SupportsIncludesPagingQueriesAndDelete()
     {
         await EnsureSchemaAsync();
