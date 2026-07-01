@@ -297,6 +297,23 @@ public class SqlParserTests
     }
 
     [Fact]
+    public void Parse_Select_IsNullAndInPredicates_ReturnAst()
+    {
+        var stmt = (SelectStatement)SqlParser.Parse(
+            "SELECT p.Id FROM Produces AS p WHERE NOT (p.Deleted) AND p.ProduceToken IS NOT NULL AND p.Id IN (SELECT d.ProduceId FROM Device AS d)");
+
+        var and = Assert.IsType<BinaryExpression>(stmt.Where);
+        var inExpression = Assert.IsType<InExpression>(and.Right);
+        Assert.False(inExpression.Negated);
+        Assert.NotNull(inExpression.Subquery);
+
+        var leftAnd = Assert.IsType<BinaryExpression>(and.Left);
+        var isNotNull = Assert.IsType<BinaryExpression>(leftAnd.Right);
+        Assert.Equal(SqlBinaryOperator.NotEqual, isNotNull.Operator);
+        Assert.Equal(LiteralExpression.Null(), isNotNull.Right);
+    }
+
+    [Fact]
     public void Parse_Select_ParenthesesOverridePrecedence()
     {
         var stmt = (SelectStatement)SqlParser.Parse(

@@ -192,6 +192,63 @@ public sealed class SqlExecutorTableTests : IDisposable
     }
 
     [Fact]
+    public void Select_EfStyleIsNotNullPredicate_ReturnsRows()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, """
+            CREATE TABLE Produces (
+                Id STRING,
+                ProduceToken STRING NULL,
+                DefaultIdentityType INT,
+                Deleted BOOL,
+                PRIMARY KEY (Id))
+            """);
+        SqlExecutor.Execute(db, """
+            INSERT INTO Produces (Id, ProduceToken, DefaultIdentityType, Deleted)
+            VALUES ('p1', 'token-1', 1, FALSE),
+                   ('p2', NULL, 1, FALSE),
+                   ('p3', 'token-3', 1, TRUE)
+            """);
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT "p"."Id", "p"."ProduceToken", "p"."DefaultIdentityType"
+            FROM "Produces" AS "p"
+            WHERE NOT ("p"."Deleted") AND "p"."ProduceToken" IS NOT NULL
+            """));
+
+        Assert.Single(result.Rows);
+        Assert.Equal(new object?[] { "p1", "token-1", 1L }, result.Rows[0]);
+    }
+
+    [Fact]
+    public void Select_EfStyleInSubqueryWithLeftJoin_ReturnsRows()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE Tenant (Id STRING, PRIMARY KEY (Id))");
+        SqlExecutor.Execute(db, "CREATE TABLE Device (Id STRING, TenantId STRING, Deleted BOOL, PRIMARY KEY (Id))");
+        SqlExecutor.Execute(db, "CREATE TABLE DeviceIdentities (Id STRING, DeviceId STRING, PRIMARY KEY (Id))");
+        SqlExecutor.Execute(db, "INSERT INTO Tenant (Id) VALUES ('tenant-1'), ('tenant-2')");
+        SqlExecutor.Execute(db, """
+            INSERT INTO Device (Id, TenantId, Deleted)
+            VALUES ('dev-1', 'tenant-1', FALSE),
+                   ('dev-2', 'tenant-1', TRUE),
+                   ('dev-3', 'tenant-2', FALSE)
+            """);
+        SqlExecutor.Execute(db, "INSERT INTO DeviceIdentities (Id, DeviceId) VALUES ('i1', 'dev-1'), ('i2', 'dev-3')");
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT COUNT(*)
+            FROM "Device" AS "d"
+            LEFT JOIN "Tenant" AS "t" ON "d"."TenantId" = "t"."Id"
+            WHERE "t"."Id" = 'tenant-1' AND NOT ("d"."Deleted") AND "d"."Id" IN (
+                SELECT "d0"."DeviceId"
+                FROM "DeviceIdentities" AS "d0")
+            """));
+
+        Assert.Equal(1L, result.Rows.Single()[0]);
+    }
+
+    [Fact]
     public void Select_WithLikePredicate_MatchesSqlPatterns()
     {
         using var db = Tsdb.Open(Options());

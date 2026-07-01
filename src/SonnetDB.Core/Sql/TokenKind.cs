@@ -84,6 +84,10 @@ public enum TokenKind
     /// <summary>OUTER（可选 LEFT OUTER JOIN 修饰词）。</summary>
     KeywordOuter,
     KeywordWhere,
+    /// <summary>IS（NULL 判定谓词）。</summary>
+    KeywordIs,
+    /// <summary>IN（集合或子查询成员谓词）。</summary>
+    KeywordIn,
     KeywordGroup,
     KeywordBy,
     KeywordHaving,

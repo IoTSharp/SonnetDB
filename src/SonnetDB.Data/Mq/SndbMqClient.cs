@@ -1,4 +1,3 @@
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using SonnetDB.Data.Remote;
@@ -188,13 +187,10 @@ public sealed class SndbMqClient : IDisposable
         if (string.IsNullOrWhiteSpace(_database))
             throw new InvalidOperationException("远程 MQ 客户端缺少数据库名。");
 
-        _http = new HttpClient
-        {
-            BaseAddress = new Uri(baseUrl, UriKind.Absolute),
-            Timeout = TimeSpan.FromSeconds(_builder.Timeout),
-        };
-        if (!string.IsNullOrWhiteSpace(_builder.Token))
-            _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _builder.Token);
+        _http = RemoteHttpClientFactory.Create(
+            new Uri(baseUrl, UriKind.Absolute),
+            _builder.Token,
+            TimeSpan.FromSeconds(_builder.Timeout));
     }
 
     private async Task<HttpResponseMessage> PostJsonAsync<T>(

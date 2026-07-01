@@ -1404,6 +1404,24 @@ public sealed class SqlParser
                 continue;
             }
 
+            if (Current.Kind == TokenKind.KeywordIs)
+            {
+                Advance();
+                var negated = false;
+                if (Current.Kind == TokenKind.KeywordNot)
+                {
+                    Advance();
+                    negated = true;
+                }
+
+                Expect(TokenKind.KeywordNull);
+                left = new BinaryExpression(
+                    negated ? SqlBinaryOperator.NotEqual : SqlBinaryOperator.Equal,
+                    left,
+                    LiteralExpression.Null());
+                continue;
+            }
+
             if (Current.Kind == TokenKind.KeywordNot
                 && _index + 1 < _tokens.Count
                 && _tokens[_index + 1].Kind == TokenKind.KeywordLike)
@@ -1426,6 +1444,19 @@ public sealed class SqlParser
                 continue;
             }
 
+            if (Current.Kind == TokenKind.KeywordIn
+                || (Current.Kind == TokenKind.KeywordNot
+                    && _index + 1 < _tokens.Count
+                    && _tokens[_index + 1].Kind == TokenKind.KeywordIn))
+            {
+                var negated = Current.Kind == TokenKind.KeywordNot;
+                if (negated)
+                    Advance();
+                Expect(TokenKind.KeywordIn);
+                left = ParseInPredicate(left, negated);
+                continue;
+            }
+
             if (TryMapVectorDistance(Current.Kind, out var functionName))
             {
                 Advance();
@@ -1437,6 +1468,26 @@ public sealed class SqlParser
             break;
         }
         return left;
+    }
+
+    private InExpression ParseInPredicate(SqlExpression value, bool negated)
+    {
+        Expect(TokenKind.LeftParen);
+        if (Current.Kind == TokenKind.KeywordSelect)
+        {
+            var subquery = ParseSelect();
+            Expect(TokenKind.RightParen);
+            return new InExpression(value, Array.Empty<SqlExpression>(), subquery, negated);
+        }
+
+        var values = new List<SqlExpression> { ParseExpression() };
+        while (Current.Kind == TokenKind.Comma)
+        {
+            Advance();
+            values.Add(ParseExpression());
+        }
+        Expect(TokenKind.RightParen);
+        return new InExpression(value, values, Subquery: null, negated);
     }
 
     private static bool TryMapComparison(TokenKind kind, out SqlBinaryOperator op)

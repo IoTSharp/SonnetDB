@@ -909,6 +909,9 @@ internal static class TableSqlExecutor
 
             case UnaryExpression { Operator: SqlUnaryOperator.Not } unary:
                 return !EvaluateBoolean(unary.Operand, schema, row);
+
+            case InExpression inExpression:
+                return EvaluateIn(inExpression, schema, row);
         }
 
         var value = EvaluateScalar(expression, schema, row);
@@ -937,6 +940,16 @@ internal static class TableSqlExecutor
             SqlBinaryOperator.NotRegex => !RegexPatternMatcher.IsMatch(left, right),
             _ => throw new InvalidOperationException($"不支持的比较运算符 {binary.Operator}。"),
         };
+    }
+
+    private static bool EvaluateIn(InExpression expression, TableSchema schema, IReadOnlyList<object?> row)
+    {
+        if (expression.Subquery is not null)
+            throw new InvalidOperationException("单表执行路径不支持 IN 子查询。");
+
+        var value = EvaluateScalar(expression.Value, schema, row);
+        var matched = expression.Values.Any(item => ValuesEqual(value, EvaluateScalar(item, schema, row)));
+        return expression.Negated ? !matched : matched;
     }
 
     private static object? EvaluateScalar(SqlExpression expression, TableSchema schema, IReadOnlyList<object?> row)
@@ -1222,6 +1235,21 @@ internal static class TableSqlExecutor
                     yield return identifier;
                 foreach (var identifier in EnumerateIdentifierReferences(binary.Right))
                     yield return identifier;
+                yield break;
+
+            case InExpression inExpression:
+                foreach (var identifier in EnumerateIdentifierReferences(inExpression.Value))
+                    yield return identifier;
+                foreach (var item in inExpression.Values)
+                {
+                    foreach (var identifier in EnumerateIdentifierReferences(item))
+                        yield return identifier;
+                }
+                if (inExpression.Subquery is not null)
+                {
+                    foreach (var identifier in EnumerateIdentifierReferences(inExpression.Subquery))
+                        yield return identifier;
+                }
                 yield break;
         }
     }

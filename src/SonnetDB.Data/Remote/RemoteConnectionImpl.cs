@@ -1,7 +1,6 @@
 ﻿using System.Data;
 using System.Data.Common;
 using System.Net;
-using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using SonnetDB.Data.Embedded;
@@ -47,13 +46,10 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             throw new InvalidOperationException(
                 "远程连接缺少数据库名：请在 Data Source URL 路径中提供（如 sonnetdb+http://host/db），或显式设置 'Database='。");
 
-        _http = new HttpClient
-        {
-            BaseAddress = new Uri(baseUrl, UriKind.Absolute),
-            Timeout = TimeSpan.FromSeconds(_builder.Timeout),
-        };
-        if (!string.IsNullOrWhiteSpace(_builder.Token))
-            _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _builder.Token);
+        _http = RemoteHttpClientFactory.Create(
+            new Uri(baseUrl, UriKind.Absolute),
+            _builder.Token,
+            TimeSpan.FromSeconds(_builder.Timeout));
 
         _state = ConnectionState.Open;
     }

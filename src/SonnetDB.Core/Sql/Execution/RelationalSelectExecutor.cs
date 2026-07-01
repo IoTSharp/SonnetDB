@@ -319,6 +319,10 @@ internal static class RelationalSelectExecutor
         {
             return !EvaluateHavingPredicate(tsdb, unary.Operand, columns, representative, group);
         }
+        else if (expression is InExpression inExpression)
+        {
+            return EvaluateIn(tsdb, inExpression, columns, representative);
+        }
 
         var value = EvaluateHavingScalar(tsdb, expression, columns, representative, group);
         if (value is bool b)
@@ -559,6 +563,9 @@ internal static class RelationalSelectExecutor
 
             case UnaryExpression { Operator: SqlUnaryOperator.Not } unary:
                 return !EvaluateBoolean(tsdb, unary.Operand, columns, row, outerScope);
+
+            case InExpression inExpression:
+                return EvaluateIn(tsdb, inExpression, columns, row, outerScope);
         }
 
         var value = EvaluateScalar(tsdb, expression, columns, row, outerScope);
@@ -591,6 +598,37 @@ internal static class RelationalSelectExecutor
             SqlBinaryOperator.NotRegex => !RegexPatternMatcher.IsMatch(left, right),
             _ => throw new InvalidOperationException($"不支持的比较运算符 {binary.Operator}。"),
         };
+    }
+
+    private static bool EvaluateIn(
+        Tsdb? tsdb,
+        InExpression expression,
+        IReadOnlyList<RelColumn> columns,
+        IReadOnlyList<object?> row,
+        RelationalScope? outerScope = null)
+    {
+        var value = EvaluateScalar(tsdb, expression.Value, columns, row, outerScope);
+        bool matched;
+
+        if (expression.Subquery is not null)
+        {
+            if (tsdb is null)
+                throw new InvalidOperationException("IN 子查询需要数据库上下文。");
+
+            var inner = new RelationalScope(columns, row, outerScope);
+            var result = Execute(tsdb, expression.Subquery, inner);
+            if (result.Columns.Count != 1)
+                throw new InvalidOperationException("IN 子查询必须只返回一列。");
+            matched = result.Rows.Any(candidate => ValuesEqual(value, candidate[0]));
+        }
+        else
+        {
+            matched = expression.Values.Any(item => ValuesEqual(
+                value,
+                EvaluateScalar(tsdb, item, columns, row, outerScope)));
+        }
+
+        return expression.Negated ? !matched : matched;
     }
 
     private static object? EvaluateScalar(
@@ -838,6 +876,9 @@ internal static class RelationalSelectExecutor
             ExistsExpression => true,
             UnaryExpression unary => ContainsSubquery(unary.Operand),
             BinaryExpression binary => ContainsSubquery(binary.Left) || ContainsSubquery(binary.Right),
+            InExpression inExpression => inExpression.Subquery is not null
+                || ContainsSubquery(inExpression.Value)
+                || inExpression.Values.Any(ContainsSubquery),
             FunctionCallExpression function => function.Arguments.Any(ContainsSubquery),
             NamedArgumentExpression named => ContainsSubquery(named.Value),
             _ => false,

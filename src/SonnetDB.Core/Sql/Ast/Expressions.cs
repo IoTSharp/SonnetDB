@@ -106,6 +106,17 @@ public sealed record BinaryExpression(
     SqlExpression Left,
     SqlExpression Right) : SqlExpression;
 
+/// <summary><c>value [NOT] IN (...)</c> 谓词表达式。</summary>
+/// <param name="Value">待匹配的左侧表达式。</param>
+/// <param name="Values">常量/表达式列表；当使用子查询时为空。</param>
+/// <param name="Subquery">可选右侧子查询。</param>
+/// <param name="Negated">是否为 <c>NOT IN</c>。</param>
+public sealed record InExpression(
+    SqlExpression Value,
+    IReadOnlyList<SqlExpression> Values,
+    SelectStatement? Subquery = null,
+    bool Negated = false) : SqlExpression;
+
 /// <summary>一元运算表达式（NOT / 取负）。</summary>
 /// <param name="Operator">一元运算符。</param>
 /// <param name="Operand">操作数。</param>
