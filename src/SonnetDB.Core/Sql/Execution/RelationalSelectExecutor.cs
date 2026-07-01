@@ -45,13 +45,22 @@ internal static class RelationalSelectExecutor
             relation = relation with { Rows = filteredRows };
         }
 
-        var projected = (ContainsAggregate(statement.Projections)
-                || statement.GroupBy.Count > 0
-                || statement.Having is not null)
-            ? ExecuteAggregateProjection(tsdb, statement, relation, outerScope)
-            : ExecuteRawProjection(tsdb, statement, relation, outerScope);
+        if (ContainsAggregate(statement.Projections)
+            || statement.GroupBy.Count > 0
+            || statement.Having is not null)
+        {
+            var aggregateProjection = ExecuteAggregateProjection(tsdb, statement, relation, outerScope);
+            return ApplyPagination(ApplyOrderBy(aggregateProjection, statement.OrderByList), statement.Pagination);
+        }
 
-        return ApplyPagination(ApplyOrderBy(projected, statement.OrderByList), statement.Pagination);
+        var canApplyRelationOrderBy = CanApplyRelationOrderBy(statement.OrderByList, relation);
+        var orderedRelation = canApplyRelationOrderBy
+            ? ApplyRelationOrderBy(tsdb, relation, statement.OrderByList, outerScope)
+            : relation;
+        var projected = ExecuteRawProjection(tsdb, statement, orderedRelation, outerScope);
+        if (statement.OrderByList.Count > 0 && !canApplyRelationOrderBy)
+            projected = ApplyOrderBy(projected, statement.OrderByList);
+        return ApplyPagination(projected, statement.Pagination);
     }
 
     /// <summary>
@@ -180,6 +189,29 @@ internal static class RelationalSelectExecutor
         }
 
         return new SelectExecutionResult(projections.Select(static p => p.Name).ToArray(), rows);
+    }
+
+    private static bool CanApplyRelationOrderBy(IReadOnlyList<OrderBySpec> orderBy, Relation relation)
+        => orderBy.All(order => order.Expression is IdentifierExpression id && TryResolveInRelation(relation, id) is not null);
+
+    private static int? TryResolveInRelation(Relation relation, IdentifierExpression identifier)
+    {
+        int? matchIndex = null;
+        int matchCount = 0;
+        for (int i = 0; i < relation.Columns.Count; i++)
+        {
+            var column = relation.Columns[i];
+            if (!string.Equals(column.Name, identifier.Name, StringComparison.Ordinal))
+                continue;
+            if (identifier.Qualifier is not null
+                && !string.Equals(column.Qualifier, identifier.Qualifier, StringComparison.OrdinalIgnoreCase))
+                continue;
+            matchIndex = i;
+            matchCount++;
+            if (matchCount > 1)
+                return null;
+        }
+        return matchCount == 1 ? matchIndex : null;
     }
 
     private static SelectExecutionResult ExecuteAggregateProjection(
@@ -817,7 +849,7 @@ internal static class RelationalSelectExecutor
             // 两种形式都试一遍，避免相关子查询写法因 ORDER BY 失配而被拒绝。
             string qualified = id.Qualifier is null ? id.Name : $"{id.Qualifier}.{id.Name}";
             int columnIndex = FindResultColumn(result.Columns, qualified);
-            if (columnIndex < 0 && id.Qualifier is not null)
+            if (columnIndex < 0)
                 columnIndex = FindResultColumn(result.Columns, id.Name);
 
             if (columnIndex < 0)
@@ -830,6 +862,52 @@ internal static class RelationalSelectExecutor
             .OrderBy(row => row, new ResultRowSortComparer(sortItems))
             .ToArray();
         return new SelectExecutionResult(result.Columns, rows);
+    }
+
+    private static Relation ApplyRelationOrderBy(
+        Tsdb tsdb,
+        Relation relation,
+        IReadOnlyList<OrderBySpec> orderBy,
+        RelationalScope? outerScope)
+    {
+        if (orderBy.Count == 0)
+            return relation;
+
+        var rows = relation.Rows
+            .Select(row => new RelationSortRow(
+                row,
+                orderBy
+                    .Select(order => EvaluateScalar(tsdb, order.Expression, relation.Columns, row, outerScope))
+                    .ToArray()))
+            .OrderBy(row => row, new RelationSortComparer(orderBy.Select(static order => order.Direction).ToArray()))
+            .Select(static row => row.Row)
+            .ToArray();
+
+        return relation with { Rows = rows };
+    }
+
+    private sealed record RelationSortRow(object?[] Row, IReadOnlyList<object?> SortValues);
+
+    private sealed class RelationSortComparer(IReadOnlyList<SortDirection> directions) : IComparer<RelationSortRow>
+    {
+        public int Compare(RelationSortRow? x, RelationSortRow? y)
+        {
+            if (ReferenceEquals(x, y))
+                return 0;
+            if (x is null)
+                return -1;
+            if (y is null)
+                return 1;
+
+            for (int i = 0; i < directions.Count; i++)
+            {
+                var comparison = ScalarComparer.Instance.Compare(x.SortValues[i], y.SortValues[i]);
+                if (comparison != 0)
+                    return directions[i] == SortDirection.Descending ? -comparison : comparison;
+            }
+
+            return 0;
+        }
     }
 
     private sealed class ResultRowSortComparer(IReadOnlyList<(int ColumnIndex, SortDirection Direction)> sortItems)

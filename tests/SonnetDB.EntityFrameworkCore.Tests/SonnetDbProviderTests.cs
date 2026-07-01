@@ -238,6 +238,48 @@ public sealed class SonnetDbProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task Query_FilteredIncludeProjectionWithSplitQuery_Executes()
+    {
+        using var context = new ProduceContext(
+            new DbContextOptionsBuilder<ProduceContext>()
+                .UseSonnetDB($"Data Source={_root}", options => options.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery))
+                .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning))
+                .Options);
+
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE \"Produces\" (\"Id\" INT NOT NULL, \"Name\" STRING NOT NULL, \"Deleted\" BOOL NOT NULL, PRIMARY KEY (\"Id\"))");
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE \"Devices\" (\"Id\" INT NOT NULL, \"Name\" STRING NOT NULL, \"Deleted\" BOOL NOT NULL, \"ProduceId\" INT NULL, PRIMARY KEY (\"Id\"), FOREIGN KEY (\"ProduceId\") REFERENCES \"Produces\" (\"Id\"))");
+
+        context.Produces.AddRange(
+            new Produce { Id = 1, Name = "alpha", Deleted = false },
+            new Produce { Id = 2, Name = "beta", Deleted = false });
+        context.Devices.AddRange(
+            new ProduceDevice { Id = 10, Name = "a-1", Deleted = false, ProduceId = 1 },
+            new ProduceDevice { Id = 11, Name = "a-2", Deleted = true, ProduceId = 1 },
+            new ProduceDevice { Id = 20, Name = "b-1", Deleted = false, ProduceId = 2 });
+        await context.SaveChangesAsync();
+
+        var page = await context.Produces
+            .Include(item => item.Devices.Where(device => !device.Deleted))
+            .Where(item => !item.Deleted)
+            .OrderBy(item => item.Name)
+            .Skip(0)
+            .Take(10)
+            .Select(item => new ProduceListItem
+            {
+                Id = item.Id,
+                Name = item.Name,
+                Devices = item.Devices
+            })
+            .ToListAsync();
+
+        Assert.Equal([1L, 2L], page.Select(item => item.Id).ToArray());
+        Assert.Contains(page[0].Devices, device => device.Name == "a-1");
+        Assert.Contains(page[1].Devices, device => device.Name == "b-1");
+    }
+
+    [Fact]
     public void MigrationsSqlGenerator_CreateAndRollback_GeneratesSonnetDbDdl()
     {
         using var context = new DeviceContext(CreateOptions<DeviceContext>());
@@ -517,6 +559,69 @@ public sealed class SonnetDbProviderTests : IDisposable
         public string Name { get; set; } = string.Empty;
 
         public bool Enabled { get; set; }
+    }
+
+    private sealed class ProduceContext(DbContextOptions<ProduceContext> options) : DbContext(options)
+    {
+        public DbSet<Produce> Produces => Set<Produce>();
+
+        public DbSet<ProduceDevice> Devices => Set<ProduceDevice>();
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<Produce>(entity =>
+            {
+                entity.ToTable("Produces");
+                entity.HasKey(item => item.Id);
+                entity.Property(item => item.Id).HasColumnType("INT").ValueGeneratedNever();
+                entity.Property(item => item.Name).HasColumnType("STRING").IsRequired();
+                entity.Property(item => item.Deleted).HasColumnType("BOOL");
+                entity.HasMany(item => item.Devices)
+                    .WithOne()
+                    .HasForeignKey(item => item.ProduceId);
+            });
+
+            modelBuilder.Entity<ProduceDevice>(entity =>
+            {
+                entity.ToTable("Devices");
+                entity.HasKey(item => item.Id);
+                entity.Property(item => item.Id).HasColumnType("INT").ValueGeneratedNever();
+                entity.Property(item => item.Name).HasColumnType("STRING").IsRequired();
+                entity.Property(item => item.Deleted).HasColumnType("BOOL");
+                entity.Property(item => item.ProduceId).HasColumnType("INT");
+            });
+        }
+    }
+
+    private sealed class Produce
+    {
+        public long Id { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+
+        public bool Deleted { get; set; }
+
+        public List<ProduceDevice> Devices { get; set; } = [];
+    }
+
+    private sealed class ProduceDevice
+    {
+        public long Id { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+
+        public bool Deleted { get; set; }
+
+        public long? ProduceId { get; set; }
+    }
+
+    private sealed class ProduceListItem
+    {
+        public long Id { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+
+        public List<ProduceDevice> Devices { get; set; } = [];
     }
 
     private sealed class IdentitySubsetContext(DbContextOptions<IdentitySubsetContext> options) : DbContext(options)
