@@ -1607,6 +1607,8 @@ public sealed class SqlParser
             case TokenKind.KeywordFalse:
                 Advance();
                 return LiteralExpression.Bool(false);
+            case TokenKind.KeywordCase:
+                return ParseCaseExpression();
             case TokenKind.LeftParen:
                 Advance();
                 if (Current.Kind == TokenKind.KeywordSelect)
@@ -1638,6 +1640,31 @@ public sealed class SqlParser
             default:
                 throw Error("期望表达式");
         }
+    }
+
+    private CaseExpression ParseCaseExpression()
+    {
+        Expect(TokenKind.KeywordCase);
+        var whenClauses = new List<CaseWhenClause>();
+        do
+        {
+            Expect(TokenKind.KeywordWhen);
+            var condition = ParseExpression();
+            Expect(TokenKind.KeywordThen);
+            var result = ParseExpression();
+            whenClauses.Add(new CaseWhenClause(condition, result));
+        }
+        while (Current.Kind == TokenKind.KeywordWhen);
+
+        SqlExpression? elseExpression = null;
+        if (Current.Kind == TokenKind.KeywordElse)
+        {
+            Advance();
+            elseExpression = ParseExpression();
+        }
+
+        Expect(TokenKind.KeywordEnd);
+        return new CaseExpression(whenClauses, elseExpression);
     }
 
     private ExistsExpression ParseExistsExpression()

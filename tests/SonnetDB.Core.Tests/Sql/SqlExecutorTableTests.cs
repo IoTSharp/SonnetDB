@@ -192,6 +192,37 @@ public sealed class SqlExecutorTableTests : IDisposable
     }
 
     [Fact]
+    public void Select_WithNumericConstantWhere_EvaluatesAsBoolean()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "INSERT INTO devices (id, name) VALUES (1, 'pump'), (2, 'fan')");
+
+        var falseResult = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM devices WHERE 0"));
+        Assert.Empty(falseResult.Rows);
+
+        var trueResult = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM devices WHERE 1 ORDER BY id"));
+        Assert.Equal([1L, 2L], trueResult.Rows.Select(row => (long)row[0]!).ToArray());
+    }
+
+    [Fact]
+    public void Select_WithLowerFunction_FiltersRows()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "INSERT INTO devices (id, name) VALUES (1, 'Pump'), (2, 'fan')");
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM devices WHERE LOWER(name) = 'pump'"));
+
+        Assert.Equal(1L, result.Rows.Single()[0]);
+    }
+
+    [Fact]
     public void Select_OrderByMultipleColumns_SortsRows()
     {
         using var db = Tsdb.Open(Options());

@@ -211,6 +211,129 @@ public sealed class SonnetDbProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task Query_ConditionalProjection_UsesCaseExpressionAndExecutes()
+    {
+        using var context = new DeviceContext(CreateOptions<DeviceContext>());
+
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE \"Devices\" (\"Id\" INT NOT NULL, \"Name\" STRING NOT NULL, \"Enabled\" BOOL NOT NULL, PRIMARY KEY (\"Id\"))");
+
+        context.Devices.AddRange(
+            new Device { Id = 1, Name = "pump-001", Enabled = true },
+            new Device { Id = 2, Name = "pump-002", Enabled = false });
+        await context.SaveChangesAsync();
+
+        var sql = context.Devices
+            .OrderBy(item => item.Id)
+            .Select(item => new
+            {
+                item.Id,
+                VisibleName = item.Enabled ? string.Empty : item.Name
+            })
+            .ToQueryString();
+
+        Assert.Contains("CASE", sql, StringComparison.OrdinalIgnoreCase);
+
+        var rows = await context.Devices
+            .OrderBy(item => item.Id)
+            .Select(item => new
+            {
+                item.Id,
+                VisibleName = item.Enabled ? string.Empty : item.Name
+            })
+            .ToArrayAsync();
+
+        Assert.Equal(string.Empty, rows[0].VisibleName);
+        Assert.Equal("pump-002", rows[1].VisibleName);
+    }
+
+    [Fact]
+    public async Task Query_SkipTakeProjection_WithNonZeroOffset_Executes()
+    {
+        using var context = new DeviceContext(CreateOptions<DeviceContext>());
+
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE \"Devices\" (\"Id\" INT NOT NULL, \"Name\" STRING NOT NULL, \"Enabled\" BOOL NOT NULL, PRIMARY KEY (\"Id\"))");
+
+        context.Devices.AddRange(
+            new Device { Id = 1, Name = "pump-001", Enabled = true },
+            new Device { Id = 2, Name = "pump-002", Enabled = true },
+            new Device { Id = 3, Name = "fan-001", Enabled = true },
+            new Device { Id = 4, Name = "meter-001", Enabled = false });
+        await context.SaveChangesAsync();
+
+        var sql = context.Devices
+            .Where(item => item.Enabled)
+            .OrderBy(item => item.Id)
+            .Skip(1)
+            .Take(1)
+            .Select(item => new { item.Id, item.Name })
+            .ToQueryString();
+
+        Assert.Contains("LIMIT", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("OFFSET", sql, StringComparison.OrdinalIgnoreCase);
+
+        var page = await context.Devices
+            .Where(item => item.Enabled)
+            .OrderBy(item => item.Id)
+            .Skip(1)
+            .Take(1)
+            .Select(item => new { item.Id, item.Name })
+            .ToArrayAsync();
+
+        var row = Assert.Single(page);
+        Assert.Equal(2, row.Id);
+        Assert.Equal("pump-002", row.Name);
+    }
+
+    [Fact]
+    public async Task Query_ConstantFalseWhere_UsesBooleanLiteralAndExecutes()
+    {
+        using var context = new DeviceContext(CreateOptions<DeviceContext>());
+
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE \"Devices\" (\"Id\" INT NOT NULL, \"Name\" STRING NOT NULL, \"Enabled\" BOOL NOT NULL, PRIMARY KEY (\"Id\"))");
+
+        context.Devices.Add(new Device { Id = 1, Name = "pump-001", Enabled = true });
+        await context.SaveChangesAsync();
+
+        var sql = context.Devices
+            .Where(_ => false)
+            .ToQueryString();
+
+        Assert.Contains("FALSE", sql, StringComparison.OrdinalIgnoreCase);
+
+        var rows = await context.Devices
+            .Where(_ => false)
+            .ToArrayAsync();
+
+        Assert.Empty(rows);
+    }
+
+    [Fact]
+    public async Task Query_StringToLower_UsesLowerFunctionAndExecutes()
+    {
+        using var context = new DeviceContext(CreateOptions<DeviceContext>());
+
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE \"Devices\" (\"Id\" INT NOT NULL, \"Name\" STRING NOT NULL, \"Enabled\" BOOL NOT NULL, PRIMARY KEY (\"Id\"))");
+
+        context.Devices.AddRange(
+            new Device { Id = 1, Name = "Pump-001", Enabled = true },
+            new Device { Id = 2, Name = "fan-001", Enabled = true });
+        await context.SaveChangesAsync();
+
+        var sql = context.Devices
+            .Where(item => item.Name.ToLower() == "pump-001")
+            .ToQueryString();
+
+        Assert.Contains("LOWER", sql, StringComparison.OrdinalIgnoreCase);
+
+        var device = await context.Devices.SingleAsync(item => item.Name.ToLower() == "pump-001");
+        Assert.Equal(1, device.Id);
+    }
+
+    [Fact]
     public async Task Query_MultiColumnOrderByWithSkipTake_Executes()
     {
         using var context = new DeviceContext(CreateOptions<DeviceContext>());

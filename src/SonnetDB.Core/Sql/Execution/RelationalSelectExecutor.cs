@@ -601,9 +601,43 @@ internal static class RelationalSelectExecutor
         }
 
         var value = EvaluateScalar(tsdb, expression, columns, row, outerScope);
-        if (value is bool b)
-            return b;
+        if (TryConvertToBoolean(value, out var boolean))
+            return boolean;
         throw new InvalidOperationException("WHERE / ON 表达式必须计算为布尔值。");
+    }
+
+    private static bool TryConvertToBoolean(object? value, out bool result)
+    {
+        switch (value)
+        {
+            case bool boolean:
+                result = boolean;
+                return true;
+            case byte number:
+                result = number != 0;
+                return true;
+            case short number:
+                result = number != 0;
+                return true;
+            case int number:
+                result = number != 0;
+                return true;
+            case long number:
+                result = number != 0;
+                return true;
+            case float number:
+                result = number != 0;
+                return true;
+            case double number:
+                result = number != 0;
+                return true;
+            case decimal number:
+                result = number != 0;
+                return true;
+            default:
+                result = false;
+                return false;
+        }
     }
 
     private static bool EvaluateComparison(
@@ -677,11 +711,30 @@ internal static class RelationalSelectExecutor
             IdentifierExpression identifier => GetColumnValue(columns, row, identifier, outerScope),
             UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => -RequireDouble(EvaluateScalar(tsdb, unary.Operand, columns, row, outerScope), "一元负号"),
             BinaryExpression binary when IsArithmeticOperator(binary.Operator) => EvaluateArithmetic(tsdb, binary, columns, row, outerScope),
+            CaseExpression caseExpression => EvaluateCase(tsdb, caseExpression, columns, row, outerScope),
             FunctionCallExpression function => EvaluateFunction(tsdb, function, columns, row, outerScope),
             SubqueryExpression subquery => EvaluateScalarSubquery(tsdb, subquery, columns, row, outerScope),
             ExistsExpression exists => EvaluateExists(tsdb, exists, columns, row, outerScope),
             _ => throw new InvalidOperationException($"关系表表达式暂不支持 '{expression.GetType().Name}'。"),
         };
+    }
+
+    private static object? EvaluateCase(
+        Tsdb? tsdb,
+        CaseExpression expression,
+        IReadOnlyList<RelColumn> columns,
+        IReadOnlyList<object?> row,
+        RelationalScope? outerScope = null)
+    {
+        foreach (var when in expression.WhenClauses)
+        {
+            if (EvaluateBoolean(tsdb, when.Condition, columns, row, outerScope))
+                return EvaluateScalar(tsdb, when.Result, columns, row, outerScope);
+        }
+
+        return expression.Else is null
+            ? null
+            : EvaluateScalar(tsdb, expression.Else, columns, row, outerScope);
     }
 
     private static object EvaluateArithmetic(
@@ -723,16 +776,32 @@ internal static class RelationalSelectExecutor
         if (IsAggregateFunction(function.Name))
             throw new InvalidOperationException($"聚合函数 '{function.Name}' 只能出现在聚合投影中。");
 
-        if (!string.Equals(function.Name, "json_value", StringComparison.OrdinalIgnoreCase)
-            || function.IsStar
-            || function.Arguments.Count != 2
-            || function.Arguments[1] is not LiteralExpression { Kind: SqlLiteralKind.String, StringValue: var path })
+        if (function.IsStar)
         {
-            throw new InvalidOperationException("关系表当前仅支持 json_value(json_column, '$.path') 函数。");
+            throw new InvalidOperationException($"关系表函数 {function.Name}(*) 非法。");
         }
 
-        var json = EvaluateScalar(tsdb, function.Arguments[0], columns, row, outerScope) as string;
-        return JsonPathEvaluator.Evaluate(json, path!);
+        if (string.Equals(function.Name, "json_value", StringComparison.OrdinalIgnoreCase)
+            && function.Arguments.Count == 2
+            && function.Arguments[1] is LiteralExpression { Kind: SqlLiteralKind.String, StringValue: var path })
+        {
+            var json = EvaluateScalar(tsdb, function.Arguments[0], columns, row, outerScope) as string;
+            return JsonPathEvaluator.Evaluate(json, path!);
+        }
+
+        if (string.Equals(function.Name, "lower", StringComparison.OrdinalIgnoreCase)
+            && function.Arguments.Count == 1)
+        {
+            return EvaluateScalar(tsdb, function.Arguments[0], columns, row, outerScope)?.ToString()?.ToLowerInvariant();
+        }
+
+        if (string.Equals(function.Name, "upper", StringComparison.OrdinalIgnoreCase)
+            && function.Arguments.Count == 1)
+        {
+            return EvaluateScalar(tsdb, function.Arguments[0], columns, row, outerScope)?.ToString()?.ToUpperInvariant();
+        }
+
+        throw new InvalidOperationException("关系表当前仅支持 json_value(json_column, '$.path')、lower(value)、upper(value) 函数。");
     }
 
     /// <summary>
@@ -986,6 +1055,9 @@ internal static class RelationalSelectExecutor
             InExpression inExpression => inExpression.Subquery is not null
                 || ContainsSubquery(inExpression.Value)
                 || inExpression.Values.Any(ContainsSubquery),
+            CaseExpression caseExpression => caseExpression.WhenClauses.Any(when =>
+                    ContainsSubquery(when.Condition) || ContainsSubquery(when.Result))
+                || (caseExpression.Else is not null && ContainsSubquery(caseExpression.Else)),
             FunctionCallExpression function => function.Arguments.Any(ContainsSubquery),
             NamedArgumentExpression named => ContainsSubquery(named.Value),
             _ => false,

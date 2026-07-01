@@ -117,6 +117,20 @@ public sealed record InExpression(
     SelectStatement? Subquery = null,
     bool Negated = false) : SqlExpression;
 
+/// <summary><c>CASE WHEN ... THEN ... [ELSE ...] END</c> 条件表达式。</summary>
+/// <param name="WhenClauses">按顺序判断的 WHEN/THEN 分支。</param>
+/// <param name="Else">可选 ELSE 表达式；省略时结果为 NULL。</param>
+public sealed record CaseExpression(
+    IReadOnlyList<CaseWhenClause> WhenClauses,
+    SqlExpression? Else = null) : SqlExpression;
+
+/// <summary>CASE 表达式的单个 WHEN/THEN 分支。</summary>
+/// <param name="Condition">WHEN 条件。</param>
+/// <param name="Result">THEN 结果。</param>
+public sealed record CaseWhenClause(
+    SqlExpression Condition,
+    SqlExpression Result);
+
 /// <summary>一元运算表达式（NOT / 取负）。</summary>
 /// <param name="Operator">一元运算符。</param>
 /// <param name="Operand">操作数。</param>

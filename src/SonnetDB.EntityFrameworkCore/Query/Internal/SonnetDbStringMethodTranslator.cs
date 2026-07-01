@@ -13,6 +13,8 @@ public sealed class SonnetDbStringMethodTranslator : IMethodCallTranslator
     private static readonly MethodInfo _startsWith = typeof(string).GetRuntimeMethod(nameof(string.StartsWith), [typeof(string)])!;
     private static readonly MethodInfo _endsWith = typeof(string).GetRuntimeMethod(nameof(string.EndsWith), [typeof(string)])!;
     private static readonly MethodInfo _contains = typeof(string).GetRuntimeMethod(nameof(string.Contains), [typeof(string)])!;
+    private static readonly MethodInfo _toLower = typeof(string).GetRuntimeMethod(nameof(string.ToLower), Type.EmptyTypes)!;
+    private static readonly MethodInfo _toUpper = typeof(string).GetRuntimeMethod(nameof(string.ToUpper), Type.EmptyTypes)!;
 
     private readonly ISqlExpressionFactory _sqlExpressionFactory;
 
@@ -32,7 +34,39 @@ public sealed class SonnetDbStringMethodTranslator : IMethodCallTranslator
         IReadOnlyList<SqlExpression> arguments,
         IDiagnosticsLogger<Microsoft.EntityFrameworkCore.DbLoggerCategory.Query> logger)
     {
-        if (instance is null || arguments.Count != 1)
+        if (instance is null)
+        {
+            return null;
+        }
+
+        if (arguments.Count == 0)
+        {
+            if (method == _toLower)
+            {
+                return _sqlExpressionFactory.Function(
+                    "LOWER",
+                    [instance],
+                    nullable: true,
+                    argumentsPropagateNullability: [true],
+                    method.ReturnType,
+                    instance.TypeMapping);
+            }
+
+            if (method == _toUpper)
+            {
+                return _sqlExpressionFactory.Function(
+                    "UPPER",
+                    [instance],
+                    nullable: true,
+                    argumentsPropagateNullability: [true],
+                    method.ReturnType,
+                    instance.TypeMapping);
+            }
+
+            return null;
+        }
+
+        if (arguments.Count != 1)
         {
             return null;
         }

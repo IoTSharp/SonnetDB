@@ -868,6 +868,10 @@ internal static class TableSqlExecutor
                     projections.Add(Projection.Expression(item.Alias ?? FormatFunctionColumnName(function), function));
                     break;
 
+                case CaseExpression caseExpression:
+                    projections.Add(Projection.Expression(item.Alias ?? "case", caseExpression));
+                    break;
+
                 default:
                     throw new InvalidOperationException(
                         $"关系表 SELECT 暂不支持投影表达式 '{item.Expression.GetType().Name}'。");
@@ -915,9 +919,43 @@ internal static class TableSqlExecutor
         }
 
         var value = EvaluateScalar(expression, schema, row);
-        if (value is bool b)
-            return b;
+        if (TryConvertToBoolean(value, out var boolean))
+            return boolean;
         throw new InvalidOperationException("WHERE 表达式必须计算为布尔值。");
+    }
+
+    private static bool TryConvertToBoolean(object? value, out bool result)
+    {
+        switch (value)
+        {
+            case bool boolean:
+                result = boolean;
+                return true;
+            case byte number:
+                result = number != 0;
+                return true;
+            case short number:
+                result = number != 0;
+                return true;
+            case int number:
+                result = number != 0;
+                return true;
+            case long number:
+                result = number != 0;
+                return true;
+            case float number:
+                result = number != 0;
+                return true;
+            case double number:
+                result = number != 0;
+                return true;
+            case decimal number:
+                result = number != 0;
+                return true;
+            default:
+                result = false;
+                return false;
+        }
     }
 
     private static bool EvaluateComparison(BinaryExpression binary, TableSchema schema, IReadOnlyList<object?> row)
@@ -961,23 +999,51 @@ internal static class TableSqlExecutor
             FunctionCallExpression function => EvaluateFunction(function, schema, row),
             UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => -RequireDouble(EvaluateScalar(unary.Operand, schema, row), "一元负号"),
             BinaryExpression binary when IsArithmeticOperator(binary.Operator) => EvaluateArithmetic(binary, schema, row),
+            CaseExpression caseExpression => EvaluateCase(caseExpression, schema, row),
             _ => throw new InvalidOperationException(
                 $"关系表表达式暂不支持 '{expression.GetType().Name}'。"),
         };
     }
 
-    private static object? EvaluateFunction(FunctionCallExpression function, TableSchema schema, IReadOnlyList<object?> row)
+    private static object? EvaluateCase(CaseExpression expression, TableSchema schema, IReadOnlyList<object?> row)
     {
-        if (!string.Equals(function.Name, "json_value", StringComparison.OrdinalIgnoreCase)
-            || function.IsStar
-            || function.Arguments.Count != 2
-            || function.Arguments[1] is not LiteralExpression { Kind: SqlLiteralKind.String, StringValue: var path })
+        foreach (var when in expression.WhenClauses)
         {
-            throw new InvalidOperationException("关系表当前仅支持 json_value(json_column, '$.path') 函数。");
+            if (EvaluateBoolean(when.Condition, schema, row))
+                return EvaluateScalar(when.Result, schema, row);
         }
 
-        var json = EvaluateScalar(function.Arguments[0], schema, row) as string;
-        return JsonPathEvaluator.Evaluate(json, path!);
+        return expression.Else is null ? null : EvaluateScalar(expression.Else, schema, row);
+    }
+
+    private static object? EvaluateFunction(FunctionCallExpression function, TableSchema schema, IReadOnlyList<object?> row)
+    {
+        if (function.IsStar)
+        {
+            throw new InvalidOperationException($"关系表函数 {function.Name}(*) 非法。");
+        }
+
+        if (string.Equals(function.Name, "json_value", StringComparison.OrdinalIgnoreCase)
+            && function.Arguments.Count == 2
+            && function.Arguments[1] is LiteralExpression { Kind: SqlLiteralKind.String, StringValue: var path })
+        {
+            var json = EvaluateScalar(function.Arguments[0], schema, row) as string;
+            return JsonPathEvaluator.Evaluate(json, path!);
+        }
+
+        if (string.Equals(function.Name, "lower", StringComparison.OrdinalIgnoreCase)
+            && function.Arguments.Count == 1)
+        {
+            return EvaluateScalar(function.Arguments[0], schema, row)?.ToString()?.ToLowerInvariant();
+        }
+
+        if (string.Equals(function.Name, "upper", StringComparison.OrdinalIgnoreCase)
+            && function.Arguments.Count == 1)
+        {
+            return EvaluateScalar(function.Arguments[0], schema, row)?.ToString()?.ToUpperInvariant();
+        }
+
+        throw new InvalidOperationException("关系表当前仅支持 json_value(json_column, '$.path')、lower(value)、upper(value) 函数。");
     }
 
     private static object EvaluateArithmetic(BinaryExpression binary, TableSchema schema, IReadOnlyList<object?> row)
@@ -1277,6 +1343,21 @@ internal static class TableSqlExecutor
                 if (inExpression.Subquery is not null)
                 {
                     foreach (var identifier in EnumerateIdentifierReferences(inExpression.Subquery))
+                        yield return identifier;
+                }
+                yield break;
+
+            case CaseExpression caseExpression:
+                foreach (var when in caseExpression.WhenClauses)
+                {
+                    foreach (var identifier in EnumerateIdentifierReferences(when.Condition))
+                        yield return identifier;
+                    foreach (var identifier in EnumerateIdentifierReferences(when.Result))
+                        yield return identifier;
+                }
+                if (caseExpression.Else is not null)
+                {
+                    foreach (var identifier in EnumerateIdentifierReferences(caseExpression.Else))
                         yield return identifier;
                 }
                 yield break;

@@ -113,6 +113,16 @@ public enum TokenKind
     KeywordDefault,
     KeywordTrue,
     KeywordFalse,
+    /// <summary>CASE 条件表达式。</summary>
+    KeywordCase,
+    /// <summary>WHEN 条件分支。</summary>
+    KeywordWhen,
+    /// <summary>THEN 条件结果。</summary>
+    KeywordThen,
+    /// <summary>ELSE 默认结果。</summary>
+    KeywordElse,
+    /// <summary>END 结束 CASE 表达式。</summary>
+    KeywordEnd,
     KeywordTag,
     KeywordField,
     KeywordFloat,

@@ -1,5 +1,7 @@
 using System.Data;
+using System.Net;
 using Microsoft.EntityFrameworkCore.Migrations;
+using SonnetDB.Data.Remote;
 
 namespace SonnetDB.EntityFrameworkCore.Migrations.Internal;
 
@@ -53,6 +55,10 @@ public sealed class SonnetDbHistoryRepository : HistoryRepository
 
             return false;
         }
+        catch (SndbServerException ex) when (IsDatabaseNotFound(ex))
+        {
+            return false;
+        }
         finally
         {
             if (wasClosed)
@@ -85,6 +91,10 @@ public sealed class SonnetDbHistoryRepository : HistoryRepository
                 }
             }
 
+            return false;
+        }
+        catch (SndbServerException ex) when (IsDatabaseNotFound(ex))
+        {
             return false;
         }
         finally
@@ -142,6 +152,10 @@ public sealed class SonnetDbHistoryRepository : HistoryRepository
             + "));"
             + Environment.NewLine;
     }
+
+    private static bool IsDatabaseNotFound(SndbServerException ex)
+        => ex.StatusCode == HttpStatusCode.NotFound
+            && string.Equals(ex.Error, "db_not_found", StringComparison.Ordinal);
 
     private sealed class NoopMigrationsDatabaseLock(IHistoryRepository historyRepository) : IMigrationsDatabaseLock
     {
