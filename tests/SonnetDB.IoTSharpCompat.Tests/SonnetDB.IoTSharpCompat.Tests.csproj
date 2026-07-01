@@ -4,7 +4,7 @@
     <IsPackable>false</IsPackable>
     <!-- xUnit / coverlet 大量依赖反射，AOT 分析不适用。 -->
     <IsAotCompatible>false</IsAotCompatible>
-    <IoTSharpSourceRoot Condition="'$(IoTSharpSourceRoot)' == ''">..\..\..\IoTSharp</IoTSharpSourceRoot>
+    <IoTSharpSourceRoot Condition="'$(IoTSharpSourceRoot)' == ''">..\..\..</IoTSharpSourceRoot>
     <IoTSharpDataProject>$(IoTSharpSourceRoot)\IoTSharp.Data\IoTSharp.Data.csproj</IoTSharpDataProject>
     <IoTSharpSonnetDbProject>$(IoTSharpSourceRoot)\IoTSharp.Data.Storage\IoTSharp.Data.SonnetDB\IoTSharp.Data.SonnetDB.csproj</IoTSharpSonnetDbProject>
     <HasIoTSharpSource Condition="Exists('$(IoTSharpDataProject)') And Exists('$(IoTSharpSonnetDbProject)')">true</HasIoTSharpSource>

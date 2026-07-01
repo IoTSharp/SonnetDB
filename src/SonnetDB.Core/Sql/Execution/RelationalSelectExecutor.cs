@@ -114,12 +114,20 @@ internal static class RelationalSelectExecutor
     {
         var result = SqlExecutor.ExecuteSelect(tsdb, subquery);
         var columns = result.Columns
-            .Select(column => new RelColumn(alias, column, column))
+            .Select(column => new RelColumn(alias, NormalizeSubqueryColumnName(column), column))
             .ToArray();
         var rows = result.Rows
             .Select(row => row.ToArray())
             .ToArray();
         return new Relation(columns, rows);
+    }
+
+    private static string NormalizeSubqueryColumnName(string column)
+    {
+        var dot = column.LastIndexOf('.');
+        return dot > -1 && dot < column.Length - 1
+            ? column[(dot + 1)..]
+            : column;
     }
 
     private static Relation Join(Tsdb tsdb, Relation left, Relation right, SqlExpression on, JoinKind kind, RelationalScope? outerScope = null)

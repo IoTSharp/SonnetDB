@@ -274,6 +274,30 @@ public sealed class ApplicationDbContextSonnetDbCompatTests : IDisposable
             .ToListAsync();
         Assert.Equal(["pump-001"], paged);
 
+        var deviceListProjection = await context.Device
+            .Include(item => item.DeviceIdentity)
+            .Where(item => item.Customer.Id == customer.Id && !item.Deleted && item.Tenant.Id == tenant.Id)
+            .Skip(0)
+            .Take(10)
+            .Select(item => new
+            {
+                item.Id,
+                item.Name,
+                IdentityId = item.DeviceIdentity.IdentityId,
+                IdentityType = item.DeviceIdentity.IdentityType,
+                TenantId = item.Tenant.Id,
+                TenantName = item.Tenant.Name,
+                CustomerId = item.Customer.Id,
+                CustomerName = item.Customer.Name,
+                item.Timeout
+            })
+            .ToListAsync();
+        var projected = Assert.Single(deviceListProjection);
+        Assert.Equal("pump-001", projected.Name);
+        Assert.Equal("token-pump-001", projected.IdentityId);
+        Assert.Equal("tenant-a", projected.TenantName);
+        Assert.Equal("customer-a", projected.CustomerName);
+
         var assetQuery = context.Assets.Where(item => item.Tenant == tenant && item.Name == "line-a");
         Assert.True(await assetQuery.AnyAsync());
         Assert.Equal(1, await context.FlowRules.CountAsync(item => item.MountType == EventType.Telemetry));

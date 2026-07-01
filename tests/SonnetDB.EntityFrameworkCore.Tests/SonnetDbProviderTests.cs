@@ -187,6 +187,30 @@ public sealed class SonnetDbProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task Query_SkipTakeProjection_Executes()
+    {
+        using var context = new DeviceContext(CreateOptions<DeviceContext>());
+
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE \"Devices\" (\"Id\" INT NOT NULL, \"Name\" STRING NOT NULL, \"Enabled\" BOOL NOT NULL, PRIMARY KEY (\"Id\"))");
+
+        context.Devices.AddRange(
+            new Device { Id = 1, Name = "pump-001", Enabled = true },
+            new Device { Id = 2, Name = "pump-002", Enabled = true },
+            new Device { Id = 3, Name = "fan-001", Enabled = false });
+        await context.SaveChangesAsync();
+
+        var page = await context.Devices
+            .Where(item => item.Enabled)
+            .Skip(0)
+            .Take(10)
+            .Select(item => new { item.Id, item.Name })
+            .ToArrayAsync();
+
+        Assert.Equal([1L, 2L], page.Select(item => item.Id).ToArray());
+    }
+
+    [Fact]
     public void MigrationsSqlGenerator_CreateAndRollback_GeneratesSonnetDbDdl()
     {
         using var context = new DeviceContext(CreateOptions<DeviceContext>());
