@@ -1,7 +1,7 @@
 using System.Data;
 using System.Net;
 using Microsoft.EntityFrameworkCore.Migrations;
-using SonnetDB.Data.Remote;
+using SonnetDB.Data;
 
 namespace SonnetDB.EntityFrameworkCore.Migrations.Internal;
 
