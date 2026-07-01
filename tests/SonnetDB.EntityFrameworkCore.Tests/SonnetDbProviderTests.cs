@@ -247,7 +247,7 @@ public sealed class SonnetDbProviderTests : IDisposable
                 .Options);
 
         await context.Database.ExecuteSqlRawAsync(
-            "CREATE TABLE \"Produces\" (\"Id\" INT NOT NULL, \"Name\" STRING NOT NULL, \"Deleted\" BOOL NOT NULL, PRIMARY KEY (\"Id\"))");
+            "CREATE TABLE \"Produces\" (\"Id\" INT NOT NULL, \"Name\" STRING NOT NULL, \"Deleted\" BOOL NOT NULL, \"CustomerId\" INT NULL, \"TenantId\" INT NULL, PRIMARY KEY (\"Id\"))");
         await context.Database.ExecuteSqlRawAsync(
             "CREATE TABLE \"Devices\" (\"Id\" INT NOT NULL, \"Name\" STRING NOT NULL, \"Deleted\" BOOL NOT NULL, \"ProduceId\" INT NULL, PRIMARY KEY (\"Id\"), FOREIGN KEY (\"ProduceId\") REFERENCES \"Produces\" (\"Id\"))");
 
@@ -277,6 +277,66 @@ public sealed class SonnetDbProviderTests : IDisposable
         Assert.Equal([1L, 2L], page.Select(item => item.Id).ToArray());
         Assert.Contains(page[0].Devices, device => device.Name == "a-1");
         Assert.Contains(page[1].Devices, device => device.Name == "b-1");
+    }
+
+    [Fact]
+    public async Task Query_IoTSharpProduceListShape_Executes()
+    {
+        using var context = new ProduceContext(
+            new DbContextOptionsBuilder<ProduceContext>()
+                .UseSonnetDB($"Data Source={_root}", options => options.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery))
+                .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning))
+                .Options);
+
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE \"Customers\" (\"Id\" INT NOT NULL, \"Name\" STRING NOT NULL, PRIMARY KEY (\"Id\"))");
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE \"Tenants\" (\"Id\" INT NOT NULL, \"Name\" STRING NOT NULL, PRIMARY KEY (\"Id\"))");
+        await context.Database.ExecuteSqlRawAsync("""
+            CREATE TABLE "Produces" (
+                "Id" INT NOT NULL,
+                "Name" STRING NOT NULL,
+                "Deleted" BOOL NOT NULL,
+                "CustomerId" INT NULL,
+                "TenantId" INT NULL,
+                PRIMARY KEY ("Id"),
+                FOREIGN KEY ("CustomerId") REFERENCES "Customers" ("Id"),
+                FOREIGN KEY ("TenantId") REFERENCES "Tenants" ("Id"))
+            """);
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE \"Devices\" (\"Id\" INT NOT NULL, \"Name\" STRING NOT NULL, \"Deleted\" BOOL NOT NULL, \"ProduceId\" INT NULL, PRIMARY KEY (\"Id\"), FOREIGN KEY (\"ProduceId\") REFERENCES \"Produces\" (\"Id\"))");
+
+        context.Customers.Add(new ProduceCustomer { Id = 100, Name = "customer" });
+        context.Tenants.Add(new ProduceTenant { Id = 200, Name = "tenant" });
+        context.Produces.AddRange(
+            new Produce { Id = 1, Name = "alpha", Deleted = false, CustomerId = 100, TenantId = 200 },
+            new Produce { Id = 2, Name = "beta", Deleted = false, CustomerId = 100, TenantId = 200 },
+            new Produce { Id = 3, Name = "deleted", Deleted = true, CustomerId = 100, TenantId = 200 });
+        context.Devices.AddRange(
+            new ProduceDevice { Id = 10, Name = "a-1", Deleted = false, ProduceId = 1 },
+            new ProduceDevice { Id = 11, Name = "a-2", Deleted = true, ProduceId = 1 },
+            new ProduceDevice { Id = 20, Name = "b-1", Deleted = false, ProduceId = 2 });
+        await context.SaveChangesAsync();
+
+        var query = context.Produces.Include(item => item.Devices.Where(device => !device.Deleted));
+        var total = await query.CountAsync(item =>
+            item.Customer!.Id == 100 &&
+            item.Tenant!.Id == 200 &&
+            !item.Deleted);
+        var page = await query
+            .Where(item => item.Customer!.Id == 100 && item.Tenant!.Id == 200 && !item.Deleted)
+            .Skip(0)
+            .Take(20)
+            .Select(item => new ProduceListItem
+            {
+                Id = item.Id,
+                Name = item.Name,
+                Devices = item.Devices
+            })
+            .ToListAsync();
+
+        Assert.Equal(2, total);
+        Assert.Equal([1L, 2L], page.Select(item => item.Id).ToArray());
     }
 
     [Fact]
@@ -567,8 +627,28 @@ public sealed class SonnetDbProviderTests : IDisposable
 
         public DbSet<ProduceDevice> Devices => Set<ProduceDevice>();
 
+        public DbSet<ProduceCustomer> Customers => Set<ProduceCustomer>();
+
+        public DbSet<ProduceTenant> Tenants => Set<ProduceTenant>();
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            modelBuilder.Entity<ProduceCustomer>(entity =>
+            {
+                entity.ToTable("Customers");
+                entity.HasKey(item => item.Id);
+                entity.Property(item => item.Id).HasColumnType("INT").ValueGeneratedNever();
+                entity.Property(item => item.Name).HasColumnType("STRING").IsRequired();
+            });
+
+            modelBuilder.Entity<ProduceTenant>(entity =>
+            {
+                entity.ToTable("Tenants");
+                entity.HasKey(item => item.Id);
+                entity.Property(item => item.Id).HasColumnType("INT").ValueGeneratedNever();
+                entity.Property(item => item.Name).HasColumnType("STRING").IsRequired();
+            });
+
             modelBuilder.Entity<Produce>(entity =>
             {
                 entity.ToTable("Produces");
@@ -576,9 +656,17 @@ public sealed class SonnetDbProviderTests : IDisposable
                 entity.Property(item => item.Id).HasColumnType("INT").ValueGeneratedNever();
                 entity.Property(item => item.Name).HasColumnType("STRING").IsRequired();
                 entity.Property(item => item.Deleted).HasColumnType("BOOL");
+                entity.Property(item => item.CustomerId).HasColumnType("INT");
+                entity.Property(item => item.TenantId).HasColumnType("INT");
                 entity.HasMany(item => item.Devices)
                     .WithOne()
                     .HasForeignKey(item => item.ProduceId);
+                entity.HasOne(item => item.Customer)
+                    .WithMany()
+                    .HasForeignKey(item => item.CustomerId);
+                entity.HasOne(item => item.Tenant)
+                    .WithMany()
+                    .HasForeignKey(item => item.TenantId);
             });
 
             modelBuilder.Entity<ProduceDevice>(entity =>
@@ -601,7 +689,29 @@ public sealed class SonnetDbProviderTests : IDisposable
 
         public bool Deleted { get; set; }
 
+        public long? CustomerId { get; set; }
+
+        public ProduceCustomer? Customer { get; set; }
+
+        public long? TenantId { get; set; }
+
+        public ProduceTenant? Tenant { get; set; }
+
         public List<ProduceDevice> Devices { get; set; } = [];
+    }
+
+    private sealed class ProduceCustomer
+    {
+        public long Id { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class ProduceTenant
+    {
+        public long Id { get; set; }
+
+        public string Name { get; set; } = string.Empty;
     }
 
     private sealed class ProduceDevice
