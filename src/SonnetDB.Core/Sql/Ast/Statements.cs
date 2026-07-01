@@ -300,7 +300,8 @@ public sealed record InsertStatement(
 /// <param name="Having">可选 HAVING 表达式；在聚合分组之后过滤组，可以引用聚合函数（仅在存在 GROUP BY 或聚合投影时有效）。</param>
 /// <param name="TableValuedFunction">FROM 子句若为表值函数调用（PR #55 起的 forecast 等）则非 <c>null</c>，否则 <c>null</c>。</param>
 /// <param name="Pagination">可选分页子句；支持 <c>OFFSET/FETCH</c> 与兼容语法 <c>LIMIT</c>。</param>
-/// <param name="OrderBy">可选排序子句；measurement 执行层支持 <c>ORDER BY time [ASC|DESC]</c>，关系表执行层支持结果列名。</param>
+/// <param name="OrderBy">可选排序子句；为兼容旧调用方，指向 <paramref name="OrderByItems"/> 的第一项。</param>
+/// <param name="OrderByItems">完整排序列表；measurement 执行层当前使用第一项，关系表执行层支持多列结果列名排序。</param>
 /// <param name="TableAlias">FROM 子句声明的可选单表别名。</param>
 /// <param name="Join">可选 JOIN 子句；兼容旧调用方，等价于 <see cref="Joins"/> 第一项。</param>
 /// <param name="FromSubquery">FROM 子句若为子查询则非 <c>null</c>。</param>
@@ -317,11 +318,16 @@ public sealed record SelectStatement(
     JoinClause? Join = null,
     SelectStatement? FromSubquery = null,
     IReadOnlyList<JoinClause>? Joins = null,
-    SqlExpression? Having = null) : SqlStatement
+    SqlExpression? Having = null,
+    IReadOnlyList<OrderBySpec>? OrderByItems = null) : SqlStatement
 {
     /// <summary>当前 SELECT 的 JOIN 列表。</summary>
     public IReadOnlyList<JoinClause> JoinClauses { get; } =
         Joins ?? (Join is null ? Array.Empty<JoinClause>() : new[] { Join });
+
+    /// <summary>当前 SELECT 的完整 ORDER BY 列表。</summary>
+    public IReadOnlyList<OrderBySpec> OrderByList { get; } =
+        OrderByItems ?? (OrderBy is null ? Array.Empty<OrderBySpec>() : new[] { OrderBy });
 }
 
 /// <summary>

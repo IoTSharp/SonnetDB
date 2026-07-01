@@ -453,6 +453,22 @@ public class SqlParserTests
     }
 
     [Fact]
+    public void Parse_Select_OrderByMultipleColumns_ParsesCompleteList()
+    {
+        var stmt = (SelectStatement)SqlParser.Parse("SELECT id, tenant FROM devices ORDER BY tenant ASC, id DESC LIMIT 10");
+
+        Assert.Equal(2, stmt.OrderByList.Count);
+        var tenant = Assert.IsType<IdentifierExpression>(stmt.OrderByList[0].Expression);
+        Assert.Equal("tenant", tenant.Name);
+        Assert.Equal(SortDirection.Ascending, stmt.OrderByList[0].Direction);
+        var id = Assert.IsType<IdentifierExpression>(stmt.OrderByList[1].Expression);
+        Assert.Equal("id", id.Name);
+        Assert.Equal(SortDirection.Descending, stmt.OrderByList[1].Direction);
+        Assert.Same(stmt.OrderBy, stmt.OrderByList[0]);
+        Assert.Equal(10, stmt.Pagination!.Fetch);
+    }
+
+    [Fact]
     public void Parse_Select_OffsetFetch_ParsesPagination()
     {
         var stmt = (SelectStatement)SqlParser.Parse(

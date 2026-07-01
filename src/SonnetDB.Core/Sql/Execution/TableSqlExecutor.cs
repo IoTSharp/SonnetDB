@@ -252,7 +252,7 @@ internal static class TableSqlExecutor
         var result = new SelectExecutionResult(
             projections.Select(static p => p.ColumnName).ToArray(),
             filtered);
-        return ApplyPagination(ApplyOrderBy(result, statement.OrderBy), statement.Pagination);
+        return ApplyPagination(ApplyOrderBy(result, statement.OrderByList), statement.Pagination);
     }
 
     public static RowsAffectedExecutionResult ExecuteDelete(Tsdb tsdb, DeleteStatement statement, TableSchema schema)
@@ -1108,31 +1108,60 @@ internal static class TableSqlExecutor
         _ => throw new InvalidOperationException("一元负号只能用于数值字面量。"),
     };
 
-    private static SelectExecutionResult ApplyOrderBy(SelectExecutionResult result, OrderBySpec? orderBy)
+    private static SelectExecutionResult ApplyOrderBy(SelectExecutionResult result, IReadOnlyList<OrderBySpec> orderBy)
     {
-        if (orderBy is null)
+        if (orderBy.Count == 0)
             return result;
 
-        if (orderBy.Expression is not IdentifierExpression { Name: var name })
-            throw new InvalidOperationException("关系表 ORDER BY 当前仅支持列名。");
-
-        int columnIndex = -1;
-        for (int i = 0; i < result.Columns.Count; i++)
-        {
-            if (string.Equals(result.Columns[i], name, StringComparison.Ordinal))
+        var sortItems = orderBy.Select(order =>
             {
-                columnIndex = i;
-                break;
-            }
-        }
+                if (order.Expression is not IdentifierExpression { Name: var name })
+                    throw new InvalidOperationException("关系表 ORDER BY 当前仅支持列名。");
 
-        if (columnIndex < 0)
-            throw new InvalidOperationException($"ORDER BY 引用了结果集中不存在的列 '{name}'。");
+                int columnIndex = -1;
+                for (int i = 0; i < result.Columns.Count; i++)
+                {
+                    if (string.Equals(result.Columns[i], name, StringComparison.Ordinal))
+                    {
+                        columnIndex = i;
+                        break;
+                    }
+                }
 
-        var rows = orderBy.Direction == SortDirection.Descending
-            ? result.Rows.OrderByDescending(row => row[columnIndex], ScalarComparer.Instance).ToArray()
-            : result.Rows.OrderBy(row => row[columnIndex], ScalarComparer.Instance).ToArray();
+                if (columnIndex < 0)
+                    throw new InvalidOperationException($"ORDER BY 引用了结果集中不存在的列 '{name}'。");
+
+                return (ColumnIndex: columnIndex, order.Direction);
+            })
+            .ToArray();
+
+        var rows = result.Rows
+            .OrderBy(row => row, new ResultRowSortComparer(sortItems))
+            .ToArray();
         return new SelectExecutionResult(result.Columns, rows);
+    }
+
+    private sealed class ResultRowSortComparer(IReadOnlyList<(int ColumnIndex, SortDirection Direction)> sortItems)
+        : IComparer<IReadOnlyList<object?>>
+    {
+        public int Compare(IReadOnlyList<object?>? x, IReadOnlyList<object?>? y)
+        {
+            if (ReferenceEquals(x, y))
+                return 0;
+            if (x is null)
+                return -1;
+            if (y is null)
+                return 1;
+
+            foreach (var item in sortItems)
+            {
+                var comparison = ScalarComparer.Instance.Compare(x[item.ColumnIndex], y[item.ColumnIndex]);
+                if (comparison != 0)
+                    return item.Direction == SortDirection.Descending ? -comparison : comparison;
+            }
+
+            return 0;
+        }
     }
 
     private static SelectExecutionResult ApplyPagination(SelectExecutionResult result, PaginationSpec? pagination)

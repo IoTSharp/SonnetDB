@@ -211,6 +211,33 @@ public sealed class SonnetDbProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task Query_MultiColumnOrderByWithSkipTake_Executes()
+    {
+        using var context = new DeviceContext(CreateOptions<DeviceContext>());
+
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE \"Devices\" (\"Id\" INT NOT NULL, \"Name\" STRING NOT NULL, \"Enabled\" BOOL NOT NULL, PRIMARY KEY (\"Id\"))");
+
+        context.Devices.AddRange(
+            new Device { Id = 1, Name = "pump", Enabled = true },
+            new Device { Id = 2, Name = "fan", Enabled = true },
+            new Device { Id = 3, Name = "pump", Enabled = true },
+            new Device { Id = 4, Name = "meter", Enabled = false });
+        await context.SaveChangesAsync();
+
+        var page = await context.Devices
+            .Where(item => item.Enabled)
+            .OrderBy(item => item.Name)
+            .ThenByDescending(item => item.Id)
+            .Skip(0)
+            .Take(10)
+            .Select(item => new { item.Id, item.Name })
+            .ToArrayAsync();
+
+        Assert.Equal([2L, 3L, 1L], page.Select(item => item.Id).ToArray());
+    }
+
+    [Fact]
     public void MigrationsSqlGenerator_CreateAndRollback_GeneratesSonnetDbDdl()
     {
         using var context = new DeviceContext(CreateOptions<DeviceContext>());

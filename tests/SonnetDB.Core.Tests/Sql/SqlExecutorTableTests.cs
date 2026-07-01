@@ -192,6 +192,25 @@ public sealed class SqlExecutorTableTests : IDisposable
     }
 
     [Fact]
+    public void Select_OrderByMultipleColumns_SortsRows()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, tenant STRING, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, """
+            INSERT INTO devices (id, tenant, name)
+            VALUES (1, 'north', 'pump'),
+                   (2, 'south', 'fan'),
+                   (3, 'north', 'valve'),
+                   (4, 'south', 'meter')
+            """);
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id, tenant FROM devices ORDER BY tenant ASC, id DESC"));
+
+        Assert.Equal([3L, 1L, 4L, 2L], result.Rows.Select(row => (long)row[0]!).ToArray());
+    }
+
+    [Fact]
     public void Select_EfStyleIsNotNullPredicate_ReturnsRows()
     {
         using var db = Tsdb.Open(Options());

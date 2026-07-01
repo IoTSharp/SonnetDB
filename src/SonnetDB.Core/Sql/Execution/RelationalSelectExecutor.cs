@@ -51,7 +51,7 @@ internal static class RelationalSelectExecutor
             ? ExecuteAggregateProjection(tsdb, statement, relation, outerScope)
             : ExecuteRawProjection(tsdb, statement, relation, outerScope);
 
-        return ApplyPagination(ApplyOrderBy(projected, statement.OrderBy), statement.Pagination);
+        return ApplyPagination(ApplyOrderBy(projected, statement.OrderByList), statement.Pagination);
     }
 
     /// <summary>
@@ -802,28 +802,57 @@ internal static class RelationalSelectExecutor
         return matchCount == 1 ? matchIndex : null;
     }
 
-    private static SelectExecutionResult ApplyOrderBy(SelectExecutionResult result, OrderBySpec? orderBy)
+    private static SelectExecutionResult ApplyOrderBy(SelectExecutionResult result, IReadOnlyList<OrderBySpec> orderBy)
     {
-        if (orderBy is null)
+        if (orderBy.Count == 0)
             return result;
-        if (orderBy.Expression is not IdentifierExpression id)
-            throw new InvalidOperationException("关系型 ORDER BY 当前仅支持结果列名。");
 
-        // ORDER BY 可能以 qualifier.name 形式书写（ORDER BY c.name）；与之匹配的结果列名
-        // 可能是 "c.name"（由 FormatExpressionName 生成）或裸 "name"（用户用了 alias）。
-        // 两种形式都试一遍，避免相关子查询写法因 ORDER BY 失配而被拒绝。
-        string qualified = id.Qualifier is null ? id.Name : $"{id.Qualifier}.{id.Name}";
-        int columnIndex = FindResultColumn(result.Columns, qualified);
-        if (columnIndex < 0 && id.Qualifier is not null)
-            columnIndex = FindResultColumn(result.Columns, id.Name);
+        var sortItems = orderBy.Select(order =>
+        {
+            if (order.Expression is not IdentifierExpression id)
+                throw new InvalidOperationException("关系型 ORDER BY 当前仅支持结果列名。");
 
-        if (columnIndex < 0)
-            throw new InvalidOperationException($"ORDER BY 引用了结果集中不存在的列 '{qualified}'。");
+            // ORDER BY 可能以 qualifier.name 形式书写（ORDER BY c.name）；与之匹配的结果列名
+            // 可能是 "c.name"（由 FormatExpressionName 生成）或裸 "name"（用户用了 alias）。
+            // 两种形式都试一遍，避免相关子查询写法因 ORDER BY 失配而被拒绝。
+            string qualified = id.Qualifier is null ? id.Name : $"{id.Qualifier}.{id.Name}";
+            int columnIndex = FindResultColumn(result.Columns, qualified);
+            if (columnIndex < 0 && id.Qualifier is not null)
+                columnIndex = FindResultColumn(result.Columns, id.Name);
 
-        var rows = orderBy.Direction == SortDirection.Descending
-            ? result.Rows.OrderByDescending(row => row[columnIndex], ScalarComparer.Instance).ToArray()
-            : result.Rows.OrderBy(row => row[columnIndex], ScalarComparer.Instance).ToArray();
+            if (columnIndex < 0)
+                throw new InvalidOperationException($"ORDER BY 引用了结果集中不存在的列 '{qualified}'。");
+
+            return (ColumnIndex: columnIndex, order.Direction);
+        }).ToArray();
+
+        var rows = result.Rows
+            .OrderBy(row => row, new ResultRowSortComparer(sortItems))
+            .ToArray();
         return new SelectExecutionResult(result.Columns, rows);
+    }
+
+    private sealed class ResultRowSortComparer(IReadOnlyList<(int ColumnIndex, SortDirection Direction)> sortItems)
+        : IComparer<IReadOnlyList<object?>>
+    {
+        public int Compare(IReadOnlyList<object?>? x, IReadOnlyList<object?>? y)
+        {
+            if (ReferenceEquals(x, y))
+                return 0;
+            if (x is null)
+                return -1;
+            if (y is null)
+                return 1;
+
+            foreach (var item in sortItems)
+            {
+                var comparison = ScalarComparer.Instance.Compare(x[item.ColumnIndex], y[item.ColumnIndex]);
+                if (comparison != 0)
+                    return item.Direction == SortDirection.Descending ? -comparison : comparison;
+            }
+
+            return 0;
+        }
     }
 
     private static int FindResultColumn(IReadOnlyList<string> columns, string name)

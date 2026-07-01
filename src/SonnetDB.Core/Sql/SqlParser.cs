@@ -1012,7 +1012,8 @@ public sealed class SqlParser
             having = ParseExpression();
         }
 
-        var orderBy = ParseOptionalOrderBy();
+        var orderByItems = ParseOptionalOrderBy();
+        var orderBy = orderByItems.Count > 0 ? orderByItems[0] : null;
         var pagination = ParseOptionalPagination();
 
         return new SelectStatement(
@@ -1027,7 +1028,8 @@ public sealed class SqlParser
             Join: joins.Count == 0 ? null : joins[0],
             FromSubquery: fromSubquery,
             Joins: joins,
-            Having: having);
+            Having: having,
+            OrderByItems: orderByItems);
     }
 
     private string ResolveTableValuedSourceName(string functionName, FunctionCallExpression call)
@@ -1147,31 +1149,41 @@ public sealed class SqlParser
         return new JoinClause(tableName, alias, on, subquery, kind);
     }
 
-    private OrderBySpec? ParseOptionalOrderBy()
+    private IReadOnlyList<OrderBySpec> ParseOptionalOrderBy()
     {
         if (Current.Kind != TokenKind.KeywordOrder)
-            return null;
+            return Array.Empty<OrderBySpec>();
 
         Advance();
         Expect(TokenKind.KeywordBy);
-        var expression = ParseExpression();
-        if (expression is not IdentifierExpression)
+        var items = new List<OrderBySpec>();
+        while (true)
         {
-            throw Error("ORDER BY 当前仅支持列名");
-        }
+            var expression = ParseExpression();
+            if (expression is not IdentifierExpression)
+            {
+                throw Error("ORDER BY 当前仅支持列名");
+            }
 
-        var direction = SortDirection.Ascending;
-        if (Current.Kind == TokenKind.KeywordAsc)
-        {
+            var direction = SortDirection.Ascending;
+            if (Current.Kind == TokenKind.KeywordAsc)
+            {
+                Advance();
+            }
+            else if (Current.Kind == TokenKind.KeywordDesc)
+            {
+                Advance();
+                direction = SortDirection.Descending;
+            }
+
+            items.Add(new OrderBySpec(expression, direction));
+            if (Current.Kind != TokenKind.Comma)
+                break;
+
             Advance();
         }
-        else if (Current.Kind == TokenKind.KeywordDesc)
-        {
-            Advance();
-            direction = SortDirection.Descending;
-        }
 
-        return new OrderBySpec(expression, direction);
+        return items;
     }
 
     private PaginationSpec? ParseOptionalPagination()
