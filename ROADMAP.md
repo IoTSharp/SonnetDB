@@ -192,6 +192,7 @@ extensions/
 | #124 | **SegmentManager 增量索引与后台维护成本控制**：将 `AddSegment` / `SwapSegments` 从全量重建索引快照优化为增量更新或分层索引发布；补充大量 segment 下 flush、compaction、retention、query 并发时的 CPU、内存和暂停时间基准。 | 📋 |
 | #125 | **大量 measurement / 长稳专项套件**：新增百万级 series、万级 measurement、海量小 segment、随机重启、后台 flush/compaction/retention 并发、重复数据检测和恢复时间统计；输出“能改善什么、不能改善什么”的容量边界报告。 | 📋 |
 | #126 | **SQL 正则模式查询与 EF 翻译规划**：在 `LIKE` 基线之后引入正则匹配能力，第一阶段支持 `regexp_like(input, pattern[, flags])` 标量函数，可用于 `WHERE` 过滤与 `SELECT` 投影；同时评估 `expr REGEXP pattern`、`expr NOT REGEXP pattern`、`RLIKE` 别名，兼容 MySQL、SQLite 常见写法。第二阶段补 `regexp_substr`、`regexp_replace`、`regexp_instr`，并在 EF provider 中把 `Regex.IsMatch(...)` 翻译为 `regexp_like(...)`。所有正则执行必须设置超时、限制模式长度、缓存编译结果，并在执行计划中明确标注 scan filter；后续可识别 `^literal` 前缀模式做索引剪枝优化。 | 📋 |
+| #126.1 | **关系表大批量删除、逻辑删除与后台收缩**：补齐 rowstore / table executor 的批量删除快路径，避免 `DELETE FROM ... WHERE ...` 对大表逐行阻塞 HTTP/Kestrel 和前台事务。默认路线采用逻辑删除或 tombstone 标记，前台删除只写入删除标记、索引可见性变更和轻量统计；后台 compaction/vacuum/shrink 任务根据 CPU、IO、内存、活跃连接数和业务时段限速执行，逐步回收 WAL、snapshot、segment/rowstore 空间。新增 `TRUNCATE TABLE` / `DROP TABLE DATA` 等受权限保护的整表清空原语，用于测试重置和明确的运维场景，并提供可取消、可观测、可恢复的任务状态。 | 📋 |
 
 ### 推进顺序
 
@@ -214,6 +215,7 @@ extensions/
   → #124（增量索引 / 后台维护成本）
   → #125（大量 measurement / 长稳专项）
   → #126（正则模式查询）
+  → #126.1（关系表大批量删除 / 逻辑删除 / 后台收缩）
 ```
 
 ### 验收标准
@@ -229,6 +231,8 @@ extensions/
 - 长稳报告明确 SonnetDB 自身的适用规模、单机边界、边缘部署边界和仍建议使用外部专用组件的场景。
 - 大量物理分表场景必须覆盖启动目录扫描、备份枚举、compaction 清理、retention 删除和单目录文件数量上限，不再只以功能测试证明可用。
 - Compaction 恢复必须证明崩溃后不会重复加载 source + target 段；若选择保守恢复，也必须有明确的重复检测与修复流程。
+- 关系表大批量删除必须覆盖 IoTSharp 设备重建场景：3000+ 设备、数万最新值和相关身份/属性数据的删除请求不得长时间占用前台 HTTP 请求；删除后查询可见性应立即符合语义，物理空间允许由后台清理逐步回收，并能通过指标看到待清理字节数、清理速率、节流原因和最近错误。
+- 后台清理/收缩必须支持资源感知调度：在 CPU、IO、内存或活跃查询压力高时自动降速或暂停，在空闲窗口继续推进；崩溃或重启后能从 manifest/checkpoint 恢复，不重复删除、不破坏索引和统计。
 - 当前不把 IoTSharp 每设备 measurement 改为共享 measurement + `deviceId` TAG 作为默认路线；SonnetDB 侧优化应优先兼容现有物理分表/多 measurement 模式。
 
 ---
