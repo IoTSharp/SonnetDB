@@ -43,11 +43,107 @@ internal static class SelectExecutor
             throw new InvalidOperationException(
                 "GROUP BY time(...) 仅在聚合查询中有效。");
 
+        if (!hasAggregate
+            && groupByTime is null
+            && TryExecuteLatestPointFastPath(
+                tsdb,
+                classified,
+                matchedSeries,
+                where,
+                statement.OrderBy,
+                statement.Pagination,
+                out var latestResult))
+        {
+            return latestResult;
+        }
+
         SelectExecutionResult result = hasAggregate
             ? ExecuteAggregate(tsdb, schema, classified, matchedSeries, where, groupByTime)
             : ExecuteRaw(tsdb, schema, classified, matchedSeries, where);
 
         return ApplyPagination(ApplyOrderBy(result, statement.OrderBy), statement.Pagination);
+    }
+
+    private static bool TryExecuteLatestPointFastPath(
+        Tsdb tsdb,
+        IReadOnlyList<Projection> projections,
+        IReadOnlyList<SeriesEntry> matchedSeries,
+        WhereClause where,
+        OrderBySpec? orderBy,
+        PaginationSpec? pagination,
+        out SelectExecutionResult result)
+    {
+        result = null!;
+
+        if (matchedSeries.Count != 1
+            || where.GeoFilters.Count != 0
+            || orderBy is not { Direction: SortDirection.Descending }
+            || orderBy.Expression is not IdentifierExpression { Name: var orderColumn }
+            || !string.Equals(orderColumn, "time", StringComparison.OrdinalIgnoreCase)
+            || pagination is not { Offset: 0, Fetch: 1 })
+        {
+            return false;
+        }
+
+        if (!HasProjectionKind(projections, ProjectionKind.Time)
+            || HasProjectionKind(projections, ProjectionKind.Aggregate)
+            || HasProjectionKind(projections, ProjectionKind.Scalar)
+            || HasProjectionKind(projections, ProjectionKind.Window))
+        {
+            return false;
+        }
+
+        MeasurementColumn? fieldColumn = null;
+        for (int i = 0; i < projections.Count; i++)
+        {
+            var projection = projections[i];
+            if (projection.Kind != ProjectionKind.Field)
+                continue;
+
+            if (fieldColumn is not null)
+                return false;
+
+            fieldColumn = projection.Column;
+        }
+
+        if (fieldColumn is null)
+            return false;
+
+        var series = matchedSeries[0];
+        var columns = projections.Select(static p => p.ColumnName).ToList();
+        if (!tsdb.Query.TryGetLatestPoint(series.Id, fieldColumn.Name, where.TimeRange, out var latestPoint))
+        {
+            result = new SelectExecutionResult(columns, []);
+            return true;
+        }
+
+        var row = new object?[projections.Count];
+        for (int i = 0; i < projections.Count; i++)
+        {
+            var projection = projections[i];
+            row[i] = projection.Kind switch
+            {
+                ProjectionKind.Time => latestPoint.Timestamp,
+                ProjectionKind.Tag => series.Tags.TryGetValue(projection.Column!.Name, out var tagValue) ? tagValue : null,
+                ProjectionKind.Field => UnboxFieldValue(projection.Column!, latestPoint.Value),
+                ProjectionKind.Constant => projection.ConstantValue,
+                _ => throw new InvalidOperationException("内部错误：latest fast-path 收到了不支持的投影类型。"),
+            };
+        }
+
+        result = new SelectExecutionResult(columns, new List<IReadOnlyList<object?>> { row });
+        return true;
+    }
+
+    private static bool HasProjectionKind(IReadOnlyList<Projection> projections, ProjectionKind kind)
+    {
+        for (int i = 0; i < projections.Count; i++)
+        {
+            if (projections[i].Kind == kind)
+                return true;
+        }
+
+        return false;
     }
 
     private static void ValidateTableAliasReferences(SelectStatement statement)

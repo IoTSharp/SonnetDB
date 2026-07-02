@@ -31,10 +31,29 @@ public sealed class ServerOptions
     public string? HelpDocsRoot { get; set; }
 
     /// <summary>
-    /// 慢查询阈值（毫秒）。单条 SQL 实际耗时超过该值会通过 SSE
-    /// <c>/v1/events</c> 广播 <c>slow_query</c> 事件。默认 <c>500</c>。
+    /// 是否启用慢查询事件。关闭后不再通过 SSE <c>/v1/events</c> 广播
+    /// <c>slow_query</c> 事件。默认 <c>true</c>。
     /// </summary>
-    public int SlowQueryThresholdMs { get; set; } = 500;
+    public bool SlowQueryEnabled { get; set; } = true;
+
+    /// <summary>
+    /// 慢查询基础阈值（毫秒）。单条 SQL 实际耗时达到该值会通过 SSE
+    /// <c>/v1/events</c> 广播 <c>slow_query</c> 事件。默认 <c>10000</c>。
+    /// 设置为 <c>0</c> 表示记录全部 SQL，设置为负数表示关闭慢查询事件。
+    /// </summary>
+    public int SlowQueryThresholdMs { get; set; } = 10_000;
+
+    /// <summary>
+    /// 慢查询警告级阈值（毫秒）。达到该值的事件 <c>severity</c> 为
+    /// <c>warning</c>。默认 <c>30000</c>；小于等于 0 表示不启用该级别。
+    /// </summary>
+    public int SlowQueryWarningThresholdMs { get; set; } = 30_000;
+
+    /// <summary>
+    /// 慢查询严重级阈值（毫秒）。达到该值的事件 <c>severity</c> 为
+    /// <c>critical</c>。默认 <c>60000</c>；小于等于 0 表示不启用该级别。
+    /// </summary>
+    public int SlowQueryCriticalThresholdMs { get; set; } = 60_000;
 
     /// <summary>
     /// SSE <c>metrics</c> 通道的快照推送周期（秒）。默认 <c>5</c>。

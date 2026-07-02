@@ -120,6 +120,7 @@ public sealed class SseEndToEndTests : IAsyncLifetime
         {
             Assert.Equal(dbName, doc.RootElement.GetProperty("database").GetString());
             Assert.False(doc.RootElement.GetProperty("failed").GetBoolean());
+            Assert.Equal(SlowQuerySeverity.Slow, doc.RootElement.GetProperty("severity").GetString());
         }
 
         // 5) metrics tick = 1s，等 ≤ 3 秒应能收到至少一次 metrics
@@ -173,6 +174,7 @@ public sealed class SseEndToEndTests : IAsyncLifetime
         {
             Assert.Equal(_visibleDb, doc.RootElement.GetProperty("database").GetString());
             Assert.Contains("visible_cpu", doc.RootElement.GetProperty("sql").GetString());
+            Assert.Equal(SlowQuerySeverity.Slow, doc.RootElement.GetProperty("severity").GetString());
         }
 
         await CreateDatabaseAsync(admin, "gamma");

@@ -460,14 +460,28 @@ internal static class SqlEndpointHandler
     {
         if (broadcaster is null || options is null)
             return;
+        if (!options.SlowQueryEnabled)
+            return;
+        if (options.SlowQueryThresholdMs < 0)
+            return;
         if (broadcaster.SubscriberCount == 0)
             return;
-        if (elapsedMs < options.SlowQueryThresholdMs)
+        if (options.SlowQueryThresholdMs > 0 && elapsedMs < options.SlowQueryThresholdMs)
             return;
         var truncated = sql.Length > _slowQuerySqlMaxLength
             ? sql[.._slowQuerySqlMaxLength]
             : sql;
-        var payload = new SlowQueryEvent(database, truncated, elapsedMs, rowCount, recordsAffected, failed);
+        var severity = GetSlowQuerySeverity(options, elapsedMs);
+        var payload = new SlowQueryEvent(database, truncated, elapsedMs, rowCount, recordsAffected, failed, severity);
         broadcaster.Publish(ServerEventFactory.SlowQuery(payload));
+    }
+
+    private static string GetSlowQuerySeverity(ServerOptions options, double elapsedMs)
+    {
+        if (options.SlowQueryCriticalThresholdMs > 0 && elapsedMs >= options.SlowQueryCriticalThresholdMs)
+            return SlowQuerySeverity.Critical;
+        if (options.SlowQueryWarningThresholdMs > 0 && elapsedMs >= options.SlowQueryWarningThresholdMs)
+            return SlowQuerySeverity.Warning;
+        return SlowQuerySeverity.Slow;
     }
 }

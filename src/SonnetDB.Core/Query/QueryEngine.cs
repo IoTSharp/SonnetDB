@@ -142,6 +142,133 @@ public sealed class QueryEngine
         }
     }
 
+    /// <summary>
+    /// 在指定 (series, field, time-range) 内读取最新点；用于 <c>ORDER BY time DESC LIMIT 1</c> 等最新值查询。
+    /// </summary>
+    public bool TryGetLatestPoint(
+        ulong seriesId,
+        string fieldName,
+        TimeRange range,
+        out DataPoint point)
+    {
+        ArgumentNullException.ThrowIfNull(fieldName);
+
+        point = default;
+        long from = range.FromInclusive;
+        long to = range.ToInclusive;
+        if (from > to)
+            return false;
+
+        IReadOnlyList<Tombstone> tombstones = GetTombstonesForQueryRange(seriesId, fieldName, from, to);
+        bool hasBest = false;
+        var best = default(DataPoint);
+
+        var key = new SeriesFieldKey(seriesId, fieldName);
+        var bucket = _memTable.TryGet(in key);
+        FieldType? memFieldType = bucket?.FieldType;
+        if (bucket is not null && TryGetLatestFromMemTable(bucket, from, to, tombstones, out var memPoint))
+        {
+            best = memPoint;
+            hasBest = true;
+        }
+
+        using (var snapshotLease = _segments.AcquireSnapshot())
+        {
+            var snapshot = snapshotLease.Snapshot;
+            var candidates = snapshot.Index.LookupCandidates(seriesId, fieldName, from, to);
+            if (candidates.Count > 0)
+            {
+                var orderedCandidates = new List<SegmentBlockRef>(candidates.Count);
+                for (int i = 0; i < candidates.Count; i++)
+                    orderedCandidates.Add(candidates[i]);
+
+                orderedCandidates.Sort(static (x, y) =>
+                    y.Descriptor.MaxTimestamp.CompareTo(x.Descriptor.MaxTimestamp));
+
+                var readers = BuildReaderMap(snapshot);
+                foreach (var blockRef in orderedCandidates)
+                {
+                    if (hasBest && blockRef.Descriptor.MaxTimestamp < best.Timestamp)
+                        break;
+
+                    ThrowIfFieldTypeMismatch(memFieldType, blockRef);
+
+                    if (!readers.TryGetValue(blockRef.SegmentId, out var reader))
+                        continue;
+
+                    var slice = reader.DecodeBlockRange(blockRef.Descriptor, from, to);
+                    if (TryGetLatestFromDecoded(slice, tombstones, out var segmentPoint)
+                        && (!hasBest || segmentPoint.Timestamp > best.Timestamp))
+                    {
+                        best = segmentPoint;
+                        hasBest = true;
+                    }
+                }
+            }
+        }
+
+        if (!hasBest)
+            return false;
+
+        point = best;
+        return true;
+    }
+
+    private IReadOnlyList<Tombstone> GetTombstonesForQueryRange(
+        ulong seriesId,
+        string fieldName,
+        long from,
+        long toInclusive)
+    {
+        if (_tombstones is null)
+            return Array.Empty<Tombstone>();
+
+        var tombstoneList = _tombstones.GetForSeriesField(seriesId, fieldName);
+        return tombstoneList.Count == 0
+            ? Array.Empty<Tombstone>()
+            : FilterTombstonesForQueryRange(tombstoneList, from, toInclusive);
+    }
+
+    private static bool TryGetLatestFromDecoded(
+        ReadOnlySpan<DataPoint> points,
+        IReadOnlyList<Tombstone> tombstones,
+        out DataPoint point)
+    {
+        point = default;
+        for (int i = points.Length - 1; i >= 0; i--)
+        {
+            var candidate = points[i];
+            if (tombstones.Count > 0 && IsCoveredByTombstones(candidate.Timestamp, tombstones))
+                continue;
+
+            point = candidate;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryGetLatestFromMemTable(
+        MemTableSeries bucket,
+        long from,
+        long toInclusive,
+        IReadOnlyList<Tombstone> tombstones,
+        out DataPoint point)
+    {
+        point = default;
+        if (!bucket.TryGetLatest(from, toInclusive, out var latest))
+            return false;
+
+        if (tombstones.Count == 0 || !IsCoveredByTombstones(latest.Timestamp, tombstones))
+        {
+            point = latest;
+            return true;
+        }
+
+        var slice = bucket.SnapshotRange(from, toInclusive);
+        return TryGetLatestFromDecoded(slice.Span, tombstones, out point);
+    }
+
     private static IReadOnlyList<Tombstone> FilterTombstonesForQueryRange(
         IReadOnlyList<Tombstone> tombstones,
         long from,

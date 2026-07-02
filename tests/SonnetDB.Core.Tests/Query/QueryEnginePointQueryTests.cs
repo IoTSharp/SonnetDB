@@ -149,6 +149,94 @@ public sealed class QueryEnginePointQueryTests : IDisposable
         Assert.Equal(1009L, results[9].Timestamp);
     }
 
+    [Fact]
+    public void TryGetLatestPoint_MemTableOnly_ReturnsLatestPoint()
+    {
+        using var db = Tsdb.Open(_opts);
+
+        for (int i = 0; i < 100; i++)
+            db.Write(MakePoint("m", 1000L + i, "f", FieldValue.FromDouble(i)));
+
+        var entry = db.Catalog.Snapshot().First();
+        var found = db.Query.TryGetLatestPoint(entry.Id, "f", TimeRange.All, out var latest);
+
+        Assert.True(found);
+        Assert.Equal(1099L, latest.Timestamp);
+        Assert.Equal(99.0, latest.Value.AsDouble());
+    }
+
+    [Fact]
+    public void TryGetLatestPoint_AfterFlush_ReturnsLatestSegmentPoint()
+    {
+        using var db = Tsdb.Open(_opts);
+
+        for (int i = 0; i < 50; i++)
+            db.Write(MakePoint("m", 2000L + i, "f", FieldValue.FromDouble(i)));
+
+        db.FlushNow();
+
+        var entry = db.Catalog.Snapshot().First();
+        var found = db.Query.TryGetLatestPoint(entry.Id, "f", TimeRange.All, out var latest);
+
+        Assert.True(found);
+        Assert.Equal(2049L, latest.Timestamp);
+        Assert.Equal(49.0, latest.Value.AsDouble());
+    }
+
+    [Fact]
+    public void TryGetLatestPoint_CrossMemTableAndSegment_ReturnsNewestPoint()
+    {
+        using var db = Tsdb.Open(_opts);
+
+        for (int i = 0; i < 50; i++)
+            db.Write(MakePoint("m", 1000L + i, "f", FieldValue.FromDouble(i)));
+        db.FlushNow();
+
+        for (int i = 0; i < 50; i++)
+            db.Write(MakePoint("m", 2000L + i, "f", FieldValue.FromDouble(i + 100)));
+
+        var entry = db.Catalog.Snapshot().First();
+        var found = db.Query.TryGetLatestPoint(entry.Id, "f", TimeRange.All, out var latest);
+
+        Assert.True(found);
+        Assert.Equal(2049L, latest.Timestamp);
+        Assert.Equal(149.0, latest.Value.AsDouble());
+    }
+
+    [Fact]
+    public void TryGetLatestPoint_WithTimeRange_ReturnsLatestPointInRange()
+    {
+        using var db = Tsdb.Open(_opts);
+
+        for (int i = 0; i < 100; i++)
+            db.Write(MakePoint("m", 1000L + i, "f", FieldValue.FromDouble(i)));
+
+        var entry = db.Catalog.Snapshot().First();
+        var found = db.Query.TryGetLatestPoint(entry.Id, "f", new TimeRange(1020L, 1049L), out var latest);
+
+        Assert.True(found);
+        Assert.Equal(1049L, latest.Timestamp);
+        Assert.Equal(49.0, latest.Value.AsDouble());
+    }
+
+    [Fact]
+    public void TryGetLatestPoint_SkipsTombstonedLatestPoint()
+    {
+        using var db = Tsdb.Open(_opts);
+
+        for (int i = 0; i < 10; i++)
+            db.Write(MakePoint("m", 1000L + i, "f", FieldValue.FromDouble(i)));
+
+        var entry = db.Catalog.Snapshot().First();
+        db.Delete(entry.Id, "f", 1009L, 1009L);
+
+        var found = db.Query.TryGetLatestPoint(entry.Id, "f", TimeRange.All, out var latest);
+
+        Assert.True(found);
+        Assert.Equal(1008L, latest.Timestamp);
+        Assert.Equal(8.0, latest.Value.AsDouble());
+    }
+
     // ── 空数据集 ─────────────────────────────────────────────────────────────
 
     [Fact]

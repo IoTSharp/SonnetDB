@@ -48,13 +48,30 @@ public sealed record MetricsSnapshotEvent(
 /// <param name="RowCount">返回行数（非 SELECT 为 0）。</param>
 /// <param name="RecordsAffected">受影响行数（非 SELECT 时有效；SELECT 为 -1）。</param>
 /// <param name="Failed">是否因异常失败。</param>
+/// <param name="Severity">慢查询等级：<c>slow</c> / <c>warning</c> / <c>critical</c>。</param>
 public sealed record SlowQueryEvent(
     string Database,
     string Sql,
     double ElapsedMs,
     long RowCount,
     int RecordsAffected,
-    bool Failed);
+    bool Failed,
+    string Severity);
+
+/// <summary>
+/// 慢查询事件严重等级。
+/// </summary>
+public static class SlowQuerySeverity
+{
+    /// <summary>达到基础慢查询阈值。</summary>
+    public const string Slow = "slow";
+
+    /// <summary>达到警告级阈值。</summary>
+    public const string Warning = "warning";
+
+    /// <summary>达到严重级阈值。</summary>
+    public const string Critical = "critical";
+}
 
 /// <summary>
 /// 数据库生命周期事件（CREATE / DROP）。

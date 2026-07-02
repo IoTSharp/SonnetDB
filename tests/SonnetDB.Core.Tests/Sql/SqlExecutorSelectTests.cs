@@ -183,6 +183,33 @@ public class SqlExecutorSelectTests : IDisposable
     }
 
     [Fact]
+    public void Select_OrderByTimeDescLimitOne_SingleSeriesField_ReturnsLatestPoint()
+    {
+        using var db = OpenWithSchema(Options());
+        Seed(db);
+
+        var r = Select(db, "SELECT time, usage FROM cpu WHERE host = 'h1' ORDER BY time DESC LIMIT 1");
+
+        Assert.Single(r.Rows);
+        Assert.Equal(3000L, r.Rows[0][0]);
+        Assert.Equal(3.0, r.Rows[0][1]);
+    }
+
+    [Fact]
+    public void Select_OrderByTimeDescLimitOne_AfterFlush_ReturnsLatestPoint()
+    {
+        using var db = OpenWithSchema(Options());
+        Seed(db);
+        db.FlushNow();
+
+        var r = Select(db, "SELECT time, usage FROM cpu WHERE host = 'h1' ORDER BY time DESC LIMIT 1");
+
+        Assert.Single(r.Rows);
+        Assert.Equal(3000L, r.Rows[0][0]);
+        Assert.Equal(3.0, r.Rows[0][1]);
+    }
+
+    [Fact]
     public void Select_OrderByTimeAsc_AppliesBeforeOffset()
     {
         using var db = OpenWithSchema(Options());

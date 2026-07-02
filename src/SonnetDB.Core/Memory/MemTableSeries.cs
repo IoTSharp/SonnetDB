@@ -289,6 +289,43 @@ public sealed class MemTableSeries
         return CopyRange(published.Span, fromInclusive, toInclusive);
     }
 
+    /// <summary>
+    /// 尝试在指定时间窗内读取最新点；命中时不复制整个范围。
+    /// </summary>
+    public bool TryGetLatest(long fromInclusive, long toInclusive, out DataPoint point)
+    {
+        point = default;
+        if (fromInclusive > toInclusive)
+            return false;
+
+        var cached = Volatile.Read(ref _snapshotCache);
+        if (cached != null && cached.Version == Volatile.Read(ref _version))
+            return TryGetLatest(cached.Memory.Span, fromInclusive, toInclusive, out point);
+
+        long version;
+        DataPoint[] snapshot;
+        lock (_sync)
+        {
+            int count = _points.Count;
+            if (count == 0 || _maxTimestamp < fromInclusive || _minTimestamp > toInclusive)
+                return false;
+
+            cached = _snapshotCache;
+            version = _version;
+            if (cached != null && cached.Version == version)
+                return TryGetLatest(cached.Memory.Span, fromInclusive, toInclusive, out point);
+
+            if (_isSorted)
+                return TryGetLatest(_points, fromInclusive, toInclusive, out point);
+
+            snapshot = _points.ToArray();
+        }
+
+        var sorted = WrapSnapshot(StableSorted(snapshot));
+        var published = TryPublishSnapshot(version, sorted);
+        return TryGetLatest(published.Span, fromInclusive, toInclusive, out point);
+    }
+
     private static ReadOnlyMemory<DataPoint> CopyRange(
         IReadOnlyList<DataPoint> sorted, long fromInclusive, long toInclusive)
     {
@@ -316,6 +353,44 @@ public sealed class MemTableSeries
         var result = new DataPoint[length];
         sorted.Slice(start, length).CopyTo(result);
         return WrapSnapshot(result);
+    }
+
+    private static bool TryGetLatest(
+        IReadOnlyList<DataPoint> sorted,
+        long fromInclusive,
+        long toInclusive,
+        out DataPoint point)
+    {
+        point = default;
+        int end = UpperBound(sorted, toInclusive, 0);
+        if (end <= 0)
+            return false;
+
+        var candidate = sorted[end - 1];
+        if (candidate.Timestamp < fromInclusive)
+            return false;
+
+        point = candidate;
+        return true;
+    }
+
+    private static bool TryGetLatest(
+        ReadOnlySpan<DataPoint> sorted,
+        long fromInclusive,
+        long toInclusive,
+        out DataPoint point)
+    {
+        point = default;
+        int end = UpperBound(sorted, toInclusive, 0);
+        if (end <= 0)
+            return false;
+
+        var candidate = sorted[end - 1];
+        if (candidate.Timestamp < fromInclusive)
+            return false;
+
+        point = candidate;
+        return true;
     }
 
     // ── 私有辅助 ──────────────────────────────────────────────────────────────
