@@ -503,7 +503,81 @@ public sealed class SonnetDbProviderTests : IDisposable
         Assert.Contains("CREATE TABLE \"Devices\"", upSql.CommandText, StringComparison.Ordinal);
         Assert.Contains("\"Id\" INT NOT NULL", upSql.CommandText, StringComparison.Ordinal);
         Assert.Contains("PRIMARY KEY (\"Id\")", upSql.CommandText, StringComparison.Ordinal);
-        Assert.Contains("DROP TABLE \"Devices\"", downSql.CommandText, StringComparison.Ordinal);
+        Assert.Contains("DROP TABLE IF EXISTS \"Devices\"", downSql.CommandText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MigrationsSqlGenerator_CreateIndex_UsesIdempotentSonnetDbDdl()
+    {
+        using var context = new DeviceContext(CreateOptions<DeviceContext>());
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var createIndex = new CreateIndexOperation
+        {
+            Name = "IX_Devices_Name",
+            Table = "Devices",
+            Columns = ["Name"]
+        };
+
+        var sql = Assert.Single(generator.Generate([createIndex]));
+
+        Assert.Contains("CREATE INDEX IF NOT EXISTS \"IX_Devices_Name\" ON \"Devices\" (\"Name\")", sql.CommandText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MigrationsSqlGenerator_DropForeignKey_GeneratesSonnetDbAlterTable()
+    {
+        using var context = new DeviceContext(CreateOptions<DeviceContext>());
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var dropForeignKey = new DropForeignKeyOperation
+        {
+            Name = "FK_Device_AuthorizedKeys_AuthorizedKeyId",
+            Table = "Device"
+        };
+
+        var sql = Assert.Single(generator.Generate([dropForeignKey]));
+
+        Assert.Contains(
+            "ALTER TABLE \"Device\" DROP CONSTRAINT \"FK_Device_AuthorizedKeys_AuthorizedKeyId\"",
+            sql.CommandText,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MigrationsSqlGenerator_DropIndex_IncludesTableName()
+    {
+        using var context = new DeviceContext(CreateOptions<DeviceContext>());
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var dropIndex = new DropIndexOperation
+        {
+            Name = "IX_Device_AuthorizedKeyId",
+            Table = "Device"
+        };
+
+        var sql = Assert.Single(generator.Generate([dropIndex]));
+
+        Assert.Contains(
+            "DROP INDEX \"IX_Device_AuthorizedKeyId\" ON \"Device\"",
+            sql.CommandText,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MigrationsSqlGenerator_DropColumn_UsesIdempotentSonnetDbDdl()
+    {
+        using var context = new DeviceContext(CreateOptions<DeviceContext>());
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var dropColumn = new DropColumnOperation
+        {
+            Name = "AuthorizedKeyId",
+            Table = "Device"
+        };
+
+        var sql = Assert.Single(generator.Generate([dropColumn]));
+
+        Assert.Contains(
+            "ALTER TABLE \"Device\" DROP COLUMN IF EXISTS \"AuthorizedKeyId\"",
+            sql.CommandText,
+            StringComparison.Ordinal);
     }
 
     [Fact]

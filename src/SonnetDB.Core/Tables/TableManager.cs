@@ -135,6 +135,43 @@ public sealed class TableManager : IDisposable
         }
     }
 
+    /// <summary>
+    /// 删除关系表外键约束声明。
+    /// </summary>
+    /// <param name="tableName">表名。</param>
+    /// <param name="constraintName">外键约束名。</param>
+    /// <returns>外键存在并删除时返回 true。</returns>
+    public bool DropForeignKey(string tableName, string constraintName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(constraintName);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var current = Catalog.TryGet(tableName)
+                ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+            var updated = current.WithoutForeignKey(constraintName);
+            if (ReferenceEquals(updated, current))
+                return false;
+
+            var store = OpenStoreLocked(current);
+            store.ApplySchema(updated);
+            Catalog.LoadOrReplace(updated);
+            try
+            {
+                PersistCatalogLocked();
+            }
+            catch
+            {
+                store.ApplySchema(current);
+                Catalog.LoadOrReplace(current);
+                throw;
+            }
+
+            return true;
+        }
+    }
+
     public void AlterTableAddColumn(string tableName, string columnName, TableColumnType dataType, bool isNullable, object? defaultValue)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);

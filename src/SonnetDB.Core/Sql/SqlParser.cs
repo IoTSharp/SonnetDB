@@ -2301,8 +2301,23 @@ public sealed class SqlParser
         {
             Advance();
             if (Current.Kind == TokenKind.KeywordColumn)
+            {
                 Advance();
-            return new AlterTableDropColumnStatement(tableName, ExpectColumnName());
+                var dropColumnIfExists = ParseOptionalIfExists();
+                return new AlterTableDropColumnStatement(tableName, ExpectColumnName(), dropColumnIfExists);
+            }
+
+            if (IsIdentifier("constraint"))
+            {
+                Advance();
+                return new AlterTableDropConstraintStatement(tableName, ExpectIdentifierName());
+            }
+
+            var dropColumnIfExistsWithoutColumnKeyword = ParseOptionalIfExists();
+            return new AlterTableDropColumnStatement(
+                tableName,
+                ExpectColumnName(),
+                dropColumnIfExistsWithoutColumnKeyword);
         }
 
         if (Current.Kind == TokenKind.KeywordRename)
@@ -2320,7 +2335,7 @@ public sealed class SqlParser
             return new AlterTableRenameTableStatement(tableName, ExpectIdentifierName());
         }
 
-        throw Error("ALTER TABLE 后面期望 ADD COLUMN / DROP COLUMN / RENAME COLUMN / RENAME TO");
+        throw Error("ALTER TABLE 后面期望 ADD COLUMN / DROP COLUMN / DROP CONSTRAINT / RENAME COLUMN / RENAME TO");
     }
 
     /// <summary><c>ALTER USER name WITH PASSWORD 'pwd'</c>。</summary>

@@ -186,6 +186,7 @@ public static class SqlExecutor
             DropFullTextIndexStatement dropFullTextIndex => DocumentSqlExecutor.ExecuteDropFullTextIndex(tsdb, dropFullTextIndex),
             AlterTableAddColumnStatement alterAddColumn => TableSqlExecutor.ExecuteAlterTableAddColumn(tsdb, alterAddColumn),
             AlterTableDropColumnStatement alterDropColumn => TableSqlExecutor.ExecuteAlterTableDropColumn(tsdb, alterDropColumn),
+            AlterTableDropConstraintStatement alterDropConstraint => TableSqlExecutor.ExecuteAlterTableDropConstraint(tsdb, alterDropConstraint),
             AlterTableRenameColumnStatement alterRenameColumn => TableSqlExecutor.ExecuteAlterTableRenameColumn(tsdb, alterRenameColumn),
             AlterTableRenameTableStatement alterRenameTable => TableSqlExecutor.ExecuteAlterTableRenameTable(tsdb, alterRenameTable),
             AlterDocumentCollectionSetValidatorStatement setValidator => DocumentSqlExecutor.ExecuteSetValidator(tsdb, setValidator),

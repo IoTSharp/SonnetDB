@@ -71,7 +71,7 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
         MigrationCommandListBuilder builder,
         bool terminate = true)
     {
-        builder.Append("DROP TABLE ")
+        builder.Append("DROP TABLE IF EXISTS ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name));
 
         if (terminate)
@@ -109,7 +109,7 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
     {
         builder.Append("ALTER TABLE ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table))
-            .Append(" DROP COLUMN ")
+            .Append(" DROP COLUMN IF EXISTS ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name));
 
         if (terminate)
@@ -164,7 +164,7 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
             builder.Append("UNIQUE ");
         }
 
-        builder.Append("INDEX ")
+        builder.Append("INDEX IF NOT EXISTS ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
             .Append(" ON ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table))
@@ -186,7 +186,30 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
         MigrationCommandListBuilder builder,
         bool terminate = true)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operation.Table);
+
         builder.Append("DROP INDEX ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
+            .Append(" ON ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table));
+
+        if (terminate)
+        {
+            builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+            EndStatement(builder);
+        }
+    }
+
+    /// <inheritdoc />
+    protected override void Generate(
+        DropForeignKeyOperation operation,
+        IModel? model,
+        MigrationCommandListBuilder builder,
+        bool terminate = true)
+    {
+        builder.Append("ALTER TABLE ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table))
+            .Append(" DROP CONSTRAINT ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name));
 
         if (terminate)

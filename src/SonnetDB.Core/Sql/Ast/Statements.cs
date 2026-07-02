@@ -196,9 +196,17 @@ public sealed record AlterTableAddColumnStatement(
     SqlExpression? DefaultExpression = null) : SqlStatement;
 
 /// <summary>
-/// <c>ALTER TABLE table DROP COLUMN col</c>。
+/// <c>ALTER TABLE table DROP COLUMN [IF EXISTS] col</c>。
 /// </summary>
-public sealed record AlterTableDropColumnStatement(string TableName, string ColumnName) : SqlStatement;
+/// <param name="TableName">目标关系表名称。</param>
+/// <param name="ColumnName">目标列名。</param>
+/// <param name="IfExists">是否带 <c>IF EXISTS</c> 修饰；为 <c>true</c> 时列不存在视为成功。</param>
+public sealed record AlterTableDropColumnStatement(string TableName, string ColumnName, bool IfExists = false) : SqlStatement;
+
+/// <summary>
+/// <c>ALTER TABLE table DROP CONSTRAINT constraint</c>。
+/// </summary>
+public sealed record AlterTableDropConstraintStatement(string TableName, string ConstraintName) : SqlStatement;
 
 /// <summary>
 /// <c>ALTER TABLE table RENAME COLUMN old TO new</c>。

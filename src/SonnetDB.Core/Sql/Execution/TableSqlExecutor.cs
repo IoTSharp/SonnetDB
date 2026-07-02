@@ -146,8 +146,25 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
+        if (statement.IfExists)
+        {
+            var schema = tsdb.Tables.Catalog.TryGet(statement.TableName)
+                ?? throw new InvalidOperationException($"table '{statement.TableName}' 不存在。");
+            if (schema.TryGetColumn(statement.ColumnName) is null)
+                return new RowsAffectedExecutionResult(statement.TableName, 0, "alter_table_drop_column");
+        }
+
         tsdb.Tables.AlterTableDropColumn(statement.TableName, statement.ColumnName);
         return new RowsAffectedExecutionResult(statement.TableName, 1, "alter_table_drop_column");
+    }
+
+    public static RowsAffectedExecutionResult ExecuteAlterTableDropConstraint(Tsdb tsdb, AlterTableDropConstraintStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        bool removed = tsdb.Tables.DropForeignKey(statement.TableName, statement.ConstraintName);
+        return new RowsAffectedExecutionResult(statement.TableName, removed ? 1 : 0, "alter_table_drop_constraint");
     }
 
     public static RowsAffectedExecutionResult ExecuteAlterTableRenameColumn(Tsdb tsdb, AlterTableRenameColumnStatement statement)

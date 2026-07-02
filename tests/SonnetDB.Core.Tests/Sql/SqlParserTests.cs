@@ -36,6 +36,39 @@ public class SqlParserTests
     }
 
     [Fact]
+    public void Parse_CreateTableIndex_IfNotExistsWithQuotedIdentifiers_ReturnsAst()
+    {
+        var stmt = Assert.IsType<CreateTableIndexStatement>(SqlParser.Parse(
+            "CREATE INDEX IF NOT EXISTS \"IX_Devices_Name\" ON \"Devices\" (\"Name\")"));
+
+        Assert.Equal("IX_Devices_Name", stmt.IndexName);
+        Assert.Equal("Devices", stmt.TableName);
+        Assert.Equal(new[] { "Name" }, stmt.Columns);
+        Assert.True(stmt.IfNotExists);
+    }
+
+    [Fact]
+    public void Parse_AlterTableDropConstraint_ReturnsAst()
+    {
+        var stmt = Assert.IsType<AlterTableDropConstraintStatement>(SqlParser.Parse(
+            "ALTER TABLE \"Device\" DROP CONSTRAINT \"FK_Device_AuthorizedKeys_AuthorizedKeyId\""));
+
+        Assert.Equal("Device", stmt.TableName);
+        Assert.Equal("FK_Device_AuthorizedKeys_AuthorizedKeyId", stmt.ConstraintName);
+    }
+
+    [Fact]
+    public void Parse_AlterTableDropColumnIfExists_ReturnsAst()
+    {
+        var stmt = Assert.IsType<AlterTableDropColumnStatement>(SqlParser.Parse(
+            "ALTER TABLE \"Device\" DROP COLUMN IF EXISTS \"AuthorizedKeyId\""));
+
+        Assert.Equal("Device", stmt.TableName);
+        Assert.Equal("AuthorizedKeyId", stmt.ColumnName);
+        Assert.True(stmt.IfExists);
+    }
+
+    [Fact]
     public void Parse_ShowDropFullTextIndexes_ReturnsAst()
     {
         var show = Assert.IsType<ShowFullTextIndexesStatement>(

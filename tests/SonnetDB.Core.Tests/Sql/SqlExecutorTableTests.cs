@@ -937,6 +937,20 @@ public sealed class SqlExecutorTableTests : IDisposable
     }
 
     [Fact]
+    public void AlterTable_DropColumnIfExists_MissingColumnNoOps()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
+
+        var result = Assert.IsType<RowsAffectedExecutionResult>(SqlExecutor.Execute(db,
+            "ALTER TABLE devices DROP COLUMN IF EXISTS authorized_key_id"));
+
+        Assert.Equal(0, result.RowsAffected);
+        var schema = db.Tables.Catalog.TryGet("devices")!;
+        Assert.NotNull(schema.TryGetColumn("name"));
+    }
+
+    [Fact]
     public void CreateIndex_PersistsAndSelectUsesIndex()
     {
         using (var db = Tsdb.Open(Options()))
@@ -967,6 +981,42 @@ public sealed class SqlExecutorTableTests : IDisposable
                 "SELECT id FROM devices WHERE tenant = 'south'"));
             Assert.Equal(2L, result.Rows.Single()[0]);
         }
+    }
+
+    [Fact]
+    public void CreateIndex_IfNotExists_IsIdempotent()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE INDEX idx_devices_name ON devices (name)");
+
+        var result = Assert.IsType<TableIndex>(SqlExecutor.Execute(db,
+            "CREATE INDEX IF NOT EXISTS idx_devices_name ON devices (name)"));
+
+        Assert.Equal("idx_devices_name", result.Name);
+        Assert.Equal(new[] { "name" }, result.Columns);
+    }
+
+    [Fact]
+    public void AlterTable_DropConstraint_RemovesForeignKeyAndAllowsColumnDrop()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE AuthorizedKeys (Id STRING, PRIMARY KEY (Id))");
+        SqlExecutor.Execute(db, """
+            CREATE TABLE Device (
+                Id STRING,
+                AuthorizedKeyId STRING,
+                PRIMARY KEY (Id),
+                FOREIGN KEY (AuthorizedKeyId) REFERENCES AuthorizedKeys (Id)
+            )
+            """);
+
+        SqlExecutor.Execute(db, "ALTER TABLE Device DROP CONSTRAINT FK_Device_AuthorizedKeys_AuthorizedKeyId");
+        SqlExecutor.Execute(db, "ALTER TABLE Device DROP COLUMN AuthorizedKeyId");
+
+        var schema = db.Tables.Catalog.TryGet("Device")!;
+        Assert.Empty(schema.ForeignKeys);
+        Assert.Null(schema.TryGetColumn("AuthorizedKeyId"));
     }
 
     [Fact]

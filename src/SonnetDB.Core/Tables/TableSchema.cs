@@ -140,6 +140,17 @@ public sealed class TableSchema
     }
 
     /// <summary>
+    /// 尝试按约束名查找外键声明。
+    /// </summary>
+    /// <param name="name">外键约束名。</param>
+    /// <returns>找到时返回外键声明；否则返回 null。</returns>
+    public TableForeignKey? TryGetForeignKey(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        return ForeignKeys.FirstOrDefault(f => string.Equals(f.Name, name, StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// 返回添加指定索引后的新 schema。
     /// </summary>
     /// <param name="definition">索引声明。</param>
@@ -184,6 +195,34 @@ public sealed class TableSchema
             PrimaryKey,
             definitions,
             ForeignKeyDefinitions(),
+            RowVersionColumnNames(),
+            CreatedAtUtcTicks);
+    }
+
+    /// <summary>
+    /// 返回删除指定外键后的新 schema；兼容 EF Core 默认外键命名规则。
+    /// </summary>
+    /// <param name="constraintName">外键约束名。</param>
+    /// <returns>外键存在时返回新 schema；否则返回当前实例。</returns>
+    public TableSchema WithoutForeignKey(string constraintName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(constraintName);
+        var target = ForeignKeys.FirstOrDefault(f =>
+            string.Equals(f.Name, constraintName, StringComparison.Ordinal)
+            || string.Equals(BuildEfForeignKeyName(Name, f), constraintName, StringComparison.Ordinal));
+        if (target is null)
+            return this;
+
+        var definitions = ForeignKeys
+            .Where(f => !string.Equals(f.Name, target.Name, StringComparison.Ordinal))
+            .Select(static f => new TableForeignKeyDefinition(f.Name, f.Columns, f.PrincipalTable, f.PrincipalColumns, f.OnDelete))
+            .ToArray();
+        return Create(
+            Name,
+            Columns.Select(static c => (c.Name, c.DataType, c.IsNullable)).ToArray(),
+            PrimaryKey,
+            IndexDefinitions(),
+            definitions,
             RowVersionColumnNames(),
             CreatedAtUtcTicks);
     }
@@ -436,4 +475,7 @@ public sealed class TableSchema
                 ? rename.NewName
                 : c.Name)
             .ToHashSet(StringComparer.Ordinal);
+
+    private static string BuildEfForeignKeyName(string tableName, TableForeignKey foreignKey)
+        => "FK_" + tableName + "_" + foreignKey.PrincipalTable + "_" + string.Join("_", foreignKey.Columns);
 }
