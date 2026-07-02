@@ -105,7 +105,7 @@ public sealed class SonnetMqStoreTests : IDisposable
 
         Assert.Single(messages);
         Assert.Equal("b", Encoding.UTF8.GetString(messages[0].Payload));
-        Assert.Equal(2, stats.MessageCount);
+        Assert.Equal(1, stats.MessageCount);
         Assert.Equal(2, stats.NextOffset);
         Assert.Equal(1, stats.ConsumerOffsets["device-agent"]);
     }
@@ -190,6 +190,56 @@ public sealed class SonnetMqStoreTests : IDisposable
         var replayed = reopened.Pull("iot.telemetry", 0, 20);
 
         Assert.Equal([5L, 6L, 7L], replayed.Select(m => m.Offset).ToArray());
+    }
+
+    [Fact]
+    public void AckRetention_TrimsMessagesAcknowledgedByAllConsumers()
+    {
+        var options = new SonnetMqOptions
+        {
+            Path = _root,
+            AckRetentionMinOffsetDelta = 1,
+            RetentionInterval = TimeSpan.Zero,
+        };
+
+        using var store = SonnetMqStore.Open(options);
+        store.PublishMany(
+            "iot.telemetry",
+            Enumerable.Range(0, 3)
+                .Select(i => new SonnetMqPublishEntry(Encoding.UTF8.GetBytes(i.ToString())))
+                .ToArray());
+
+        store.Ack("iot.telemetry", "iotsharp", 1);
+        var remaining = store.Pull("iot.telemetry", 0, 10);
+        var stats = store.GetStats("iot.telemetry");
+
+        Assert.Equal([2L], remaining.Select(m => m.Offset).ToArray());
+        Assert.Equal(1, stats.MessageCount);
+        Assert.Equal(3, stats.NextOffset);
+    }
+
+    [Fact]
+    public void AckRetention_DoesNotTrimPastSlowestConsumer()
+    {
+        var options = new SonnetMqOptions
+        {
+            Path = _root,
+            AckRetentionMinOffsetDelta = 1,
+            RetentionInterval = TimeSpan.Zero,
+        };
+
+        using var store = SonnetMqStore.Open(options);
+        store.PublishMany(
+            "iot.telemetry",
+            Enumerable.Range(0, 3)
+                .Select(i => new SonnetMqPublishEntry(Encoding.UTF8.GetBytes(i.ToString())))
+                .ToArray());
+
+        store.Ack("iot.telemetry", "slow", 0);
+        store.Ack("iot.telemetry", "fast", 2);
+        var remaining = store.Pull("iot.telemetry", 0, 10);
+
+        Assert.Equal([1L, 2L], remaining.Select(m => m.Offset).ToArray());
     }
 
     [Fact]

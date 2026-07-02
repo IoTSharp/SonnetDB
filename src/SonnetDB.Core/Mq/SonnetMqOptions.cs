@@ -56,6 +56,16 @@ public sealed record SonnetMqOptions
     public TimeSpan RetentionInterval { get; init; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
+    /// 是否基于所有消费者组已确认的最小 offset 裁剪已消费消息。
+    /// </summary>
+    public bool TrimAcknowledgedMessages { get; init; } = true;
+
+    /// <summary>
+    /// Ack retention 每次推进 tombstone 的最小 offset 间隔，用于避免逐条 ack 产生 tombstone 写放大。
+    /// </summary>
+    public long AckRetentionMinOffsetDelta { get; init; } = 1024;
+
+    /// <summary>
     /// 每个 Topic 最多保持打开的历史段读取句柄数量。当前实现仅主动保持写入段打开，此值保留给 LRU 读缓存策略。
     /// </summary>
     public int SegmentCacheSize { get; init; } = 8;

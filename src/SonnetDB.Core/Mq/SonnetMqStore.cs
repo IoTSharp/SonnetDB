@@ -206,6 +206,7 @@ public sealed class SonnetMqStore : IDisposable
             long next = Math.Min(offset + 1, state.NextOffset);
             WriteRecord(state, RecordTypeAck, topicBytes, consumerBytes, ReadOnlySpan<byte>.Empty, next, DateTimeOffset.UtcNow.UtcTicks);
             state.SetConsumerOffset(consumerGroup, next);
+            TrimAcknowledgedMessages(state, force: false);
             return next;
         }
     }
@@ -249,7 +250,10 @@ public sealed class SonnetMqStore : IDisposable
         lock (_sync)
         {
             foreach (var state in _topics.Values)
+            {
+                TrimAcknowledgedMessages(state, force: true);
                 TrimTopicRetention(state);
+            }
         }
     }
 
@@ -557,6 +561,26 @@ public sealed class SonnetMqStore : IDisposable
             state.ApplyTombstone(cutoff, _offsetIndexStride);
             DeleteRetiredSegments(state);
         }
+    }
+
+    private void TrimAcknowledgedMessages(TopicState state, bool force)
+    {
+        if (!_options.TrimAcknowledgedMessages || state.ConsumerOffsets.Count == 0)
+            return;
+
+        long cutoff = state.ConsumerOffsets.Values.Min();
+        cutoff = Math.Min(cutoff, state.NextOffset);
+        if (cutoff <= state.TrimmedBeforeOffset)
+            return;
+
+        long minDelta = Math.Max(1, _options.AckRetentionMinOffsetDelta);
+        if (!force && cutoff - state.TrimmedBeforeOffset < minDelta)
+            return;
+
+        byte[] topicBytes = EncodeName(state.Topic, nameof(state.Topic));
+        WriteRecord(state, RecordTypeTombstone, topicBytes, ReadOnlySpan<byte>.Empty, ReadOnlySpan<byte>.Empty, cutoff, DateTimeOffset.UtcNow.UtcTicks);
+        state.ApplyTombstone(cutoff, _offsetIndexStride);
+        DeleteRetiredSegments(state);
     }
 
     private static long NextSegmentBaseOffset(TopicState state, SegmentState segment)
