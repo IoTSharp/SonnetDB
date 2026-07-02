@@ -572,6 +572,198 @@ extensions/
 
 ---
 
+## Milestone 28 — 可靠性、并发正确性与热路径加固（Reliability / Concurrency / Performance Hardening）
+
+> **背景**：2026 年对 SonnetDB 做了一轮跨子系统深度审计（存储/持久化、索引、SQL 引擎、并发/性能四条线并行走查），共确认 54 项缺陷与优化点。其中若干在 **Windows 默认配置**下会真实丢数据或使数据"复活"，另有一批 SQL 层"返回错误结果 / 崩进程"的正确性 bug。本里程碑把这些发现按"先止血、再正确、再吞吐、再能力"的顺序拆成可逐一交付的 PR，逐步收口。
+>
+> **核心判断**：引擎架构方向正确（LSM 写路径、不可变 segment、CRC 校验、reader-lease 快照隔离、SIMD 聚合、有界 LRU 缓存底子都在），但多处为了吞吐牺牲了持久性与并发正确性，且这些取舍没有在默认值或文档中充分暴露。本里程碑不是重写，而是把这些取舍**要么修正、要么显式化并文档化**。
+>
+> **设计原则**：
+>
+> 1. **数据安全优先于吞吐**。P0 阶段所有改动以"不丢数据、不复活、不损坏"为唯一验收硬门槛，即使牺牲写吞吐也先修正，再在 P2 用双缓冲把吞吐补回来。
+> 2. **不破坏二进制格式**。段头/尾 CRC（#195）走版本化可选字段或新 footer 版本，保留旧库读取兼容；`FileHeader.Version` 升级必须携带向后兼容读路径。
+> 3. **复用既有机制**。后台 worker 的并发修复直接复用查询路径已验证的 `AcquireSnapshot()` 租约，不发明新同步原语。
+> 4. **每个 PR 自带回归测试**。崩溃/掉电类缺陷必须有 `tests/SonnetDB.CrashTests/`（M20 #135 已建，真子进程 `Process.Kill(true)`）覆盖；SQL 正确性缺陷必须有确定性单测，附"修复前返回错误结果"的证据用例。
+> 5. **默认值变更需显式声明**。凡改动默认持久性/并发语义（如 group-commit 默认开、Delete 强制 sync）都要在 CHANGELOG、`docs/architecture.md` 写入路径章节和 `TsdbOptions` XML 注释三处同步说明。
+>
+> **不变约束**：不引入 `src/SonnetDB.Core` 第三方运行时依赖；不改动对外 SQL / HTTP / ADO.NET / Document API 契约（能力增强除外）；Windows 目录 fsync 通过 P/Invoke `CreateFile(FILE_FLAG_BACKUP_SEMANTICS)` + `FlushFileBuffers` 实现，隔离在平台适配层。
+
+### 阶段总览
+
+| 阶段 | 主题 | PR 范围 | 目标 |
+|------|------|---------|------|
+| **P0** | 数据可靠性止血（Critical / 高危持久性 + 并发正确性） | #189 ~ #196 | 消除"会丢数据 / 复活 / 损坏 / 索引不可加载"的整类问题 |
+| **P1** | 正确性与稳定性（SQL 错误结果 + 崩溃 + worker 静默死亡） | #197 ~ #203 | 消除"返回错误结果 / StackOverflow / 后台线程静默停摆" |
+| **P2** | 写路径吞吐（锁内 I/O + 每点分配 + O(N²) 维护） | #204 ~ #211 | 把 P0 牺牲的写吞吐补回并超越，去除代数复杂度陷阱 |
+| **P3** | 查询与 SQL 能力（plan cache + 下推 + join + 能力缺口） | #212 ~ #220 | 让 SQL/关系路径达到日常应用与 EF Core 可用水平 |
+| **P4** | 索引与向量能力（文档惰性 scan + FTS 写放大 + 向量度量/ANN） | #221 ~ #229 | 让二级索引真正被使用、向量非 cosine/文档集合可加速 |
+
+### P0 — 数据可靠性止血
+
+| PR | 标题与范围 | 关联发现 | 状态 |
+|----|------------|----------|------|
+| #189 | **Windows 目录 fsync + segment 落盘早于 WAL 回收**：实现真实目录 flush（P/Invoke `FlushFileBuffers` on dir handle），替换 `FlushDirectoryBestEffort` 在 Windows 上的空操作；保证 flush 路径中 segment 改名 + 目录项落盘**先于** WAL `RecycleUpTo` 删除旧段。同一目录 flush 修复应用到所有原子改名写入器（catalog / tombstone manifest / replacement manifest / checkpoint）。 | 存储 S2、S6 | 📋 |
+| #190 | **Flush 改 add-then-reset**：`FlushNowLocked` 调整为"先 `Segments.AddSegment` 发布新 segment reader，再 `memTable.Reset()`"，消除并发查询在 Reset→Add 窗口内数据既不在 MemTable 也不在已发布 segment 的瞬时丢数据。 | 存储 S3 / 并发 C2(正确性部分) | 📋 |
+| #191 | **后台 worker 走租约 + maintenance 串行锁**：Compaction / Retention / `DropMeasurement` 全部改为 `using var lease = Segments.AcquireSnapshot()` 读租约，消除 reader use-after-dispose；引入一把 maintenance 串行锁序列化 Compaction 与 Retention 对 `SegmentManager` 的并发变更，杜绝"compaction 把 retention 刚删的过期点重新写回"的数据复活；`DropMeasurement` 补 try/catch。 | 存储 S5、S9 / 并发 C1 | 📋 |
+| #192 | **FTS manifest 原子改写 + 缺失重建 + fsync**：`ManifestFile.Save` 改为 temp → fsync → `File.Replace` 原子覆盖（杜绝 delete-then-move 中间窗口）；`LoadOrCreate` 在 manifest 缺失但 segment 文件存在时从 segment 重建而非静默建空；segment/manifest 写入补 fsync（内容 + 目录项）。 | 索引 I1、I15 | 📋 |
+| #193 | **HNSW 快照跳过 tombstone**：`PopulateFromSnapshot` 重建 `_keyToRow` 时跳过 tombstoned 行（或 last-writer-wins），最好快照序列化阶段直接排除 tombstone；修复"删除后重插同 key 的持久化向量索引无法加载（ArgumentException）"。 | 索引 I4 | 📋 |
+| #194 | **Delete 强制持久化**：`Delete` 路径无条件 WAL sync（不受 `SyncWalOnEveryWrite` 影响）或同步持久化 tombstone manifest，消除"已持久化数据被删后崩溃恢复复活"。 | 存储 S4 | 📋 |
+| #195 | **段头/尾自校验 CRC**：为 `SegmentHeader` / `SegmentFooter`（含 v6 mini-footer 的 IndexOffset/IndexCount/FileLength/SegmentId）增加覆盖头尾字段的 CRC，open 时校验；位翻转若仍满足布局等式不再静默定位错误索引。走版本化字段，保留旧库读取兼容。 | 存储 S8 | 📋 |
+| #196 | **默认持久性语义决策 + 文档化**：决策并落地默认写入持久性——将 WAL group-commit 设为默认开（含 append 后至少 flush 到 OS），或显式声明"segment flush 前写入非持久"的窗口语义；在 CHANGELOG、`docs/architecture.md` 写入路径章节、`TsdbOptions` XML 注释三处同步说明，消除类注释"含 fsync 持久化"与实际行为的矛盾。 | 存储 S1、S2(文档) | 📋 |
+
+### P1 — 正确性与稳定性
+
+| PR | 标题与范围 | 关联发现 | 状态 |
+|----|------------|----------|------|
+| #197 | **SQL NULL 三值逻辑修正**：任一操作数为 NULL 的比较（`=` / `!=` / `<>` / `<` / `>` 等）判 UNKNOWN（行被排除），仅 `IS [NOT] NULL` 检查 null；修复 `NULL != 5` 判 TRUE、`NULL = NULL` 判 TRUE。统一应用到 WHERE / JOIN ON / HAVING 三条关系执行路径（TableSqlExecutor / RelationalSelectExecutor / JoinSqlExecutor）。 | SQL Q1 | 📋 |
+| #198 | **`count(*)` 语义修正**：`count(*)` 定义为按时间戳并集的行/时刻计数，而非遍历每个字段列逐点累加（当前 3 字段 × N 时刻返回 3N）。 | SQL Q14 | 📋 |
+| #199 | **事务覆盖时序 / 文档写**：`BEGIN` 内的 measurement `INSERT` 与 document DML 纳入事务缓冲以支持 ROLLBACK，或在事务上下文内显式拒绝（measurement 写当前直接绕过 transaction 立即持久化，ROLLBACK 只翻标志位）。 | SQL Q2 | 📋 |
+| #200 | **解析器递归深度限制**：在 `ParsePrimary` / `ParseNot` / `ParseUnary` 跟踪嵌套深度，超过上限（如 200）抛 `SqlParseException`；杜绝深层括号 / `NOT NOT NOT…` / `------x` 触发不可捕获的 StackOverflow 崩溃整个宿主进程。 | SQL Q3 | 📋 |
+| #201 | **后台 worker 异常兜底统一**：`CompactionWorker` 把 plan 获取步骤（`Segments.Readers` + `CompactionPlanner.Plan`）纳入 per-iteration try/catch，杜绝瞬时抛出逃逸 `WorkerLoop` 致 compaction 永久静默停摆；`KvExpirerWorker` 补 `ReportBackgroundWorkerDiagnostic` 诊断事件（与其余三个 worker 对齐）。 | 并发 C6、C11 | 📋 |
+| #202 | **`WriteMany(Span)` 批内 backpressure**：大批量写入在批内分块检查硬顶（`MemTableFlushPolicy.HardCapBytes`），或限制单批大小并在 chunk 之间让出锁；杜绝百万点单批在一次 `_writeSync` 持有内无限撑大 MemTable/WAL 致 OOM 且阻塞所有写入者。 | 并发 C4 | 📋 |
+| #203 | **durability fsync 移出写锁 + 关闭时排空 group-commit**：`SyncWalOnEveryWrite=true` 且 group-commit 关闭（或 window=0）时，把 `walSet.Sync()` 移到 `_writeSync` 之外执行（锁内捕获 sync 目标，锁外 fsync + Wait），消除"所有写入者串行排在 fsync 后"的吞吐悬崖；`Dispose` 前排空 pending group-commit，避免延迟 `Sync()` 在 WAL 已 dispose 后抛 ODE 到已返回的 `Write` 调用方。 | 存储 S10、S11 / 并发 C5 | 📋 |
+
+### P2 — 写路径吞吐
+
+| PR | 标题与范围 | 关联发现 | 状态 |
+|----|------------|----------|------|
+| #204 | **MemTable 双缓冲，flush 移出 `_writeSync`**：经典 LSM double-buffer——短锁内 swap 出新 MemTable 并捕获 WAL 位置，密封的旧表在**锁外**编码 + 落盘；写入者对新表并发写入，不再被整个 flush（编码 16MB + 写文件 + 2×fsync + WAL roll/recycle）阻塞。预计为写吞吐最大单项提升。 | 并发 C2 | 📋 |
+| #205 | **消除锁内每点堆分配 + 去枚举器装箱**：`EnsureMeasurementSchemaLocked` 仅在真检测到 schema 变化时才 copy-on-write（当前稳态每点 `new List(schema.Columns)` 后丢弃）；具体化或以 struct 枚举器暴露 `Point.Fields` / `Point.Tags`，消除 `IReadOnlyDictionary` foreach 的枚举器装箱，缩短 `_writeSync` 临界区、降低 GC 压力。 | 并发 C3 | 📋 |
+| #206 | **MemTable 写路径同步开销精简**：在写入已被 `_writeSync` 串行化的前提下，减轻单写者路径的 `ReaderWriterLockSlim` + `ConcurrentDictionary.GetOrAdd` + per-bucket 锁 + 多次 `Interlocked` 冗余（这些机制只为 lock-free 读者需要）；保留读者安全语义。 | 并发 C10 | 📋 |
+| #207 | **SegmentManager 增量索引**：`AddSegment` / `SwapSegments` / `DropSegments` 从全量重建所有 segment 索引（`SegmentIndex.Build` for all + `OrderBy().ToList()`）改为向 `MultiSegmentIndex` 增量增删单段索引；消除 flush 时 O(总 block 数)、segment 多时趋 O(N²) 的成本。与 M19 #124 目标一致，本 PR 落地。 | 并发 C7 | 📋 |
+| #208 | **TombstoneTable 查询免拷贝**：`IsCovered` / `GetForSeriesField` 维护 per-key 不可变快照（比照现有 `_allSnapshot`），查询热路径 lock-free 返回，消除每次调用锁内 `list.ToArray()`。 | 并发 C8 | 📋 |
+| #209 | **Catalog 快照发布防抖**：高基数写入时 `TagInvertedIndex` / `SeriesCatalog` 的单条 `Add` 不再每次全量重建整棵 `FrozenDictionary`/`FrozenSet`（当前 O(N²) + 大量瞬时分配）；改为合并/防抖发布或用不需全量 refreeze 的并发结构。 | 索引 I5 | 📋 |
+| #210 | **SegmentReplacementManifest 修剪与快照化**：修剪 source 与 replacement 都已不存在的 Committed 记录；启动时一次性快照 readability 而非对每条 committed replacement 都开 SegmentReader；避免会话内 O(N²) 重写与线性增长的启动成本。 | 存储 S7 | 📋 |
+| #211 | **孤儿文件清理 + WAL footer 不变式收口**：启动时扫描并重试清理 manifest 标记为 suppressed 的死 `.SDBSEG`/索引文件（当前删除吞异常致磁盘泄漏）；把 `WriteLastLsnFooterIfDirty` 依赖"`_stream.Flush()` 先清空缓冲"的隐式不变式显式化（走同一 stream 或文档化断言），防未来改动破坏 WAL 帧。 | 存储 S12、S13 | 📋 |
+
+### P3 — 查询与 SQL 能力
+
+| PR | 标题与范围 | 关联发现 | 状态 |
+|----|------------|----------|------|
+| #212 | **SQL plan / parse 缓存**：按 SQL 文本（结合 schema 版本）缓存已解析 AST（有界 LRU），消除每次 `Execute` 重新 lex+parse 的分配与 CPU；为高频轮询同一 query 形状的仪表盘场景显著降本。 | SQL Q7 | 📋 |
+| #213 | **参数化查询 / 绑定变量**：新增位置 `?` / 命名 `@p` 占位符，贯穿 lexer→AST→executor；消除应用层字符串拼接的注入风险，并让 plan cache 对不同参数值复用。 | SQL Q10 | 📋 |
+| #214 | **LIMIT / Top-N 下推**：`Offset+Fetch` 下推到 scan/sort；`ORDER BY … LIMIT k` 用有界堆而非全量物化+排序（当前百万点全量物化排序后切片）。 | SQL Q6 | 📋 |
+| #215 | **关系 JOIN hash join**：识别等值连接键，对 build 侧建哈希表（复用 `JoinSqlExecutor.BuildTableHash` 思路），替换关系路径全物化嵌套循环笛卡尔积（两张 1 万行表 = 1 亿次谓词求值）。 | SQL Q9 | 📋 |
+| #216 | **相关子查询去关联 / memoize**：对 `IN(subquery)` / `EXISTS` / 标量子查询先做"是否引用外层列"静态判定；非相关子查询执行 0/1 次并缓存，相关子查询去关联为 semi/anti-join 或哈希内表；消除每外层行重扫内表 O(n_outer × n_inner)。（与末尾性能待办 P2 合并落地。） | SQL Q8 | 📋 |
+| #217 | **时序 WHERE 字段谓词 + OR**：`WhereClauseDecomposer` 增加按数据点求值的残差字段谓词（比照 JOIN 路径已有能力）并支持 OR；让 `WHERE temp > 30`、`WHERE tag='a' OR tag='b'` 可用（当前直接抛"不在 v1 支持范围"）。对 IoT 时序库是 table-stakes。 | SQL Q5 | 📋 |
+| #218 | **事务隔离 / read-your-writes**：事务内 SELECT 叠加本事务已缓冲的 insert/update（当前读提交态、看不到自身缓冲写）；明确并文档化隔离级别。 | SQL Q4 | 📋 |
+| #219 | **关系 SQL 语义补齐**：`DISTINCT` 加关键字并实现或显式拒绝（当前静默误解析为列别名）；统一未加引号标识符大小写策略（关系/JOIN 路径当前 Ordinal 大小写敏感，与 projection 的 OrdinalIgnoreCase 不一致）；DELETE 支持按字段/值定向删除（当前对匹配 series 无差别 tombstone 所有字段列）；聚合返回类型改由 schema 静态类型决定而非额外全量预扫，避免 `Convert.ToDouble` 把整型/浮点混淆与大 long 精度丢失。 | SQL Q11、Q12、Q13、Q15 | 📋 |
+| #220 | **QueryEngine 流式合并**：大范围扫描在租约内 block-by-block 流式 merge/yield 并限制解码工作集，替换"先把全部候选 block 解码进 `List<DataPoint[]>` 再合并"的 LOH 堆峰值；decode cache 命中避免每次整份拷贝。 | 并发 C9 | 📋 |
+
+### P4 — 索引与向量能力
+
+| PR | 标题与范围 | 关联发现 | 状态 |
+|----|------------|----------|------|
+| #221 | **文档查询惰性 scan**：`DocumentQueryPlanner` 的全表 `store.Scan()` 候选改惰性，仅在真被选中时才物化（当前 `ChooseAccessPath` 的 `.ToArray()` 强制反序列化全集合，即便选了 `_id`/索引路径也付 O(collection)）。 | 索引 I2 | 📋 |
+| #222 | **FTS 批量成段 + 增量语料统计**：`PersistentFullTextIndex.Index` 批量写入较大 segment 而非每文档一个单文档 segment + 全量改写 manifest（当前 O(N²)）；`ScoreTerm`/`GetFieldStats` 用增量维护的 docCount/totalLength 而非每查询遍历所有 segment。 | 索引 I3 | 📋 |
+| #223 | **向量度量贯通 + efConstruction 独立**：`VectorIndexAdapter` 把声明的度量（L2 / InnerProduct）贯通到建图与查询（当前一律按 cosine 建图且 ANN gate 仅 cosine，非 cosine 索引白占空间且仍暴力扫）；`efConstruction` 与 `efSearch` 解耦，默认 construction 更高，避免小 search-ef 把低质量图永久烤进持久化 blob。 | 索引 I7、I9 | 📋 |
+| #224 | **向量 KNN 用 block skip-index**：`KnnExecutor.ScanSegment` 经 `MultiSegmentIndex`/`SegmentIndex.GetBlocks(series, from, to)` 做 series/时间范围 prefix-max 剪枝，替换 `foreach reader.Blocks` 全块逐一过滤（O(总 block 数)）。 | 索引 I8 | 📋 |
+| #225 | **compaction 向量索引 catalog 必需**：对含 VECTOR 列的段，`SegmentCompactor`/`SegmentWriter` 的 `seriesCatalog`+`measurementCatalog` 由可选改为必需或加断言，避免调用方省略致 compacted 向量块无索引段、静默退化为暴力扫。 | 索引 I11 | 📋 |
+| #226 | **HNSW ef 补偿 tombstone + 重建回收**：搜索按 tombstone 比例放大 ef 或持续搜索至收集满 topK 个存活结果（当前 `ef=max(EfSearch,topK)` 过滤 tombstone 后可能欠返回）；提供周期性 compaction/rebuild 物理丢弃 tombstoned 行并重指 `_entryPoint`，回收 churn 下的无界内存增长。 | 索引 I6、I14 | 📋 |
+| #227 | **文档集合持久 ANN 索引**：为 document collection 的 `vector_search` 提供持久化 per-collection ANN 索引或至少缓存已解析向量，替换全表 `store.Scan()` + 每行 `JsonDocument.Parse` + 距离的 O(N·dim) 暴力扫。 | 索引 I12 | 📋 |
+| #228 | **删除遗留 `HnswVectorBlockIndex`**：删除或明确隔离仍被测试维护的死代码 `HnswVectorBlockIndex`（图质量更差、O(n·ef²) 建图），统一到 `HnswIndex<int>`，消除误用风险。 | 索引 I13 | 📋 |
+| #229 | **文档索引原子维护 + 崩溃重建校验**：验证 document 二级索引在 insert/update 时与主数据原子写入、崩溃后随集合重建（当前 planner 依赖索引"过包含"再用 `Matches` 复检，一旦"欠包含"会静默漏行）；补一个覆盖扫描一致性校验。 | 索引 I10（疑似，需先验证） | 📋 |
+
+### 推进顺序
+
+```text
+P0 止血：#189（Win 目录 fsync + 顺序）→ #190（add-then-reset）→ #191（worker 租约 + 串行锁）
+        → #192（FTS manifest 原子）→ #193（HNSW 快照跳 tombstone）→ #194（Delete 持久化）
+        → #195（段头尾 CRC）→ #196（默认持久性决策 + 文档）
+P1 正确：#197（NULL 三值）→ #198（count(*)）→ #199（事务覆盖）→ #200（解析递归上限）
+        → #201（worker 兜底）→ #202（批内 backpressure）→ #203（fsync 移出锁 + 排空）
+P2 吞吐：#204（MemTable 双缓冲）→ #205（去锁内分配/装箱）→ #206（写路径同步精简）
+        → #207（增量段索引）→ #208（tombstone 免拷贝）→ #209（catalog 防抖）
+        → #210（manifest 修剪）→ #211（孤儿清理 + WAL footer 不变式）
+P3 查询：#212（plan cache）→ #213（参数化）→ #214（LIMIT 下推）→ #215（hash join）
+        → #216（子查询去关联）→ #217（时序 WHERE 字段/OR）→ #218（事务隔离）
+        → #219（DISTINCT/大小写/DELETE/聚合类型）→ #220（流式合并）
+P4 索引：#221（文档惰性 scan）→ #222（FTS 批量成段）→ #223（向量度量/efConstruction）
+        → #224（KNN skip-index）→ #225（compaction 向量 catalog）→ #226（HNSW ef/回收）
+        → #227（文档 ANN）→ #228（删遗留 HNSW）→ #229（文档索引原子性）
+```
+
+> **阶段间可并行度**：P0 内 #189~#196 相互独立，可并行推进但建议 #189/#190/#191 最先（数据安全影响面最大）。P1~P4 各阶段建议顺序推进，但 P3/P4 的能力增强类 PR 与 P2 吞吐类 PR 之间无强依赖，可按团队带宽穿插。
+
+### 缺陷完整附录（54 项，确保无遗漏）
+
+> 编号规则：**S**=存储/持久化（13）、**I**=索引（15）、**Q**=SQL 引擎（15）、**C**=并发/性能（11）。严重度：🔴 Critical（丢数据/损坏/崩溃）、🟠 High、🟡 Medium、⚪ Low。"—" 表示该发现已并入同一 PR。
+
+| 编号 | 严重度 | 位置 | 缺陷摘要 | 修复 PR |
+|------|--------|------|----------|---------|
+| S1 | 🔴 | `Engine/TsdbOptions.cs:30`、`Wal/WalWriter.cs:286` | `SyncWalOnEveryWrite=false` 默认，append 只入 BufferedStream 未交 OS，进程 crash 丢一个 flush 窗口的已确认写 | #196 |
+| S2 | 🔴 | `Engine/FlushCoordinator.cs:83`、`Wal/WalCheckpointFile.cs:144` | Windows 目录 fsync 空操作，segment 落盘早于 WAL 回收的顺序不受保护，掉电永久丢数据 | #189 |
+| S3 | 🔴 | `Engine/FlushCoordinator.cs:110`、`Engine/Tsdb.cs:807` | Flush 先 Reset MemTable 再发布 segment，窗口内并发查询丢数据 | #190 |
+| S4 | 🟠 | `Engine/Tsdb.cs:441` | Delete 默认非持久，已持久化数据被删后崩溃恢复复活 | #194 |
+| S5 | 🟠 | `Engine/Compaction/CompactionWorker.cs:113`、`Engine/Retention/RetentionWorker.cs:83` | Compaction/Retention 不持 reader 租约直接读 readers → use-after-dispose | #191 |
+| S6 | 🟠 | `Catalog/CatalogFileCodec.cs:50`、`Engine/SegmentReplacementManifest.cs:328` | catalog/tombstone/replacement/checkpoint 原子改名从不做目录 fsync（Windows） | #189 |
+| S7 | 🟡 | `Engine/SegmentReplacementManifest.cs:130`、`Engine/SegmentManager.cs:52` | replacement manifest 无限增长，启动 O(N) 重开 reader、每 compaction O(N) 重写 → O(N²) | #210 |
+| S8 | 🟡 | `Storage/Format/SegmentFooter.cs:57`、`SegmentHeader.cs:102` | 段头/尾无自校验 CRC，位翻转静默错定位索引 | #195 |
+| S9 | 🟡 | `Engine/Retention/RetentionWorker.cs:78` | Retention plan→drop 与 compaction 非原子，phantom id 污染 manifest | #191 |
+| S10 | 🟡 | `Engine/WalGroupCommitCoordinator.cs:28`、`Engine/Tsdb.cs:322` | group-commit window=0/禁用时在 `_writeSync` 内 fsync，串行化所有写入者 | #203 |
+| S11 | ⚪ | `Engine/WalGroupCommitCoordinator.cs:81` | 关闭时延迟 `Sync()` 在 WAL dispose 后抛 ODE 到已返回的 Write 调用方 | #203 |
+| S12 | ⚪ | `Engine/Tsdb.cs:950`、`Engine/Compaction/CompactionWorker.cs:173` | 旧文件删除吞异常，孤儿 segment/索引文件累积泄漏磁盘 | #211 |
+| S13 | ⚪ | `Wal/WalWriter.cs:353` | `WriteLastLsnFooterIfDirty` 依赖隐式缓冲清空不变式，脆弱 | #211 |
+| I1 | 🔴 | `FullText/Storage/ManifestFile.cs:64` | FTS manifest delete-then-move，崩溃丢整个全文索引且重启静默建空 | #192 |
+| I2 | 🟠 | `Documents/DocumentQueryPlanner.cs:260` | 每次文档查询强制全集合 `Scan()` 反序列化，即便选了索引路径 | #221 |
+| I3 | 🟠 | `FullText/Storage/PersistentFullTextIndex.cs:77` | 每文档一个单文档 segment + 全量改写 manifest（O(N²）），查询遍历所有 segment | #222 |
+| I4 | 🟠 | `Vector/Index/Hnsw/HnswIndex.cs:393` | HNSW 删除后重插同 key，快照往返 `_keyToRow.Add` 重复键异常 → 索引不可加载 | #193 |
+| I5 | 🟠 | `Catalog/TagInvertedIndex.cs:148`、`Catalog/SeriesCatalog.cs:213` | 每新增 series 全量重建 Frozen 结构，高基数 ingest O(N²) | #209 |
+| I6 | 🟡 | `Vector/Index/Hnsw/HnswIndex.cs:270` | HNSW 不为 tombstone 放大 ef，有删除时欠返回 topK | #226 |
+| I7 | 🟡 | `Storage/Segments/VectorIndexAdapter.cs:141`、`Query/KnnExecutor.cs:199` | 非 cosine 向量索引按 cosine 建且 ANN gate 仅 cosine，白占空间不加速 | #223 |
+| I8 | 🟡 | `Query/KnnExecutor.cs:186` | 向量 KNN 不用 block skip-index，每 series 全块扫 | #224 |
+| I9 | 🟡 | `Storage/Segments/VectorIndexAdapter.cs:179` | efConstruction 被 search ef 绑死，低 search-ef 永久烤进低质量图 | #223 |
+| I10 | 🟡(疑似) | `Documents/DocumentQueryPlanner.cs:31` | 文档索引若"欠包含"（写入未原子/崩溃未重建）静默漏行；需先验证维护路径 | #229 |
+| I11 | 🟡 | `Engine/Compaction/SegmentCompactor.cs:86`、`Storage/Segments/SegmentWriter.cs:417` | compaction 向量索引仅在两个 catalog 都提供时构建，否则静默退化暴力扫 | #225 |
+| I12 | 🟡 | `Sql/Execution/DocumentVectorSearchExecutor.cs:97` | 文档 `vector_search` 全表暴力 + 每行 JSON parse，O(N·dim) | #227 |
+| I13 | ⚪ | `Storage/Segments/HnswVectorBlockIndex.cs:696` | 遗留死代码 HNSW，图质量差 O(n·ef²) 建图，误用风险 | #228 |
+| I14 | ⚪ | `Vector/Index/Hnsw/HnswIndex.cs:222` | HNSW tombstone-only 删除从不回收内存，`_entryPoint` 不重指 | #226 |
+| I15 | ⚪ | `FullText/Storage/SegmentFile.cs:79` | FTS segment/manifest 写入无 fsync，掉电不保证持久 | #192 |
+| Q1 | 🔴 | `Sql/Execution/TableSqlExecutor.cs:986`（RelationalSelect/Join 同型） | 三值逻辑坏：`NULL != 5` 判 TRUE、`NULL = NULL` 判 TRUE，返回错误行 | #197 |
+| Q2 | 🔴 | `Sql/Execution/SqlExecutor.cs:678` | 事务不覆盖 measurement/document 写，ROLLBACK 仍持久保留 | #199 |
+| Q3 | 🔴 | `Sql/SqlParser.cs:1612`（ParseNot/ParseUnary 同型） | 解析器递归无深度限制，深层括号/NOT 链触发 StackOverflow 崩进程 | #200 |
+| Q4 | 🟠 | `Sql/Execution/SqlExecutor.cs:80`、`TableSqlExecutor.cs:588` | 事务内无隔离/无 read-your-writes，看不到自身缓冲写 | #218 |
+| Q5 | 🟠 | `Sql/Execution/WhereClauseDecomposer.cs:70` | 时序 WHERE 不能按字段值过滤、不支持 OR | #217 |
+| Q6 | 🟠 | `Sql/Execution/SelectExecutor.cs:274`、`TableSqlExecutor.cs:1250` | LIMIT 不下推，先全量物化+排序再切片 | #214 |
+| Q7 | 🟠 | `Sql/Execution/SqlExecutor.cs:64` | 无 plan/parse 缓存，每次 Execute 重新 lex+parse | #212 |
+| Q8 | 🟠 | `Sql/Execution/RelationalSelectExecutor.cs:679/811/832` | 相关子查询/EXISTS/IN 每外层行重扫内表 O(n_outer×n_inner) | #216 |
+| Q9 | 🟠 | `Sql/Execution/RelationalSelectExecutor.cs:110` | 关系 JOIN 全物化嵌套循环笛卡尔积，无 hash join | #215 |
+| Q10 | 🟡 | 整个 SQL 入口（`SqlExecutor.cs:38`） | 无参数化/绑定变量，应用被迫拼字符串 → 注入回到应用层 | #213 |
+| Q11 | 🟡 | `Sql/SqlParser.cs:1249` | `DISTINCT` 非关键字，`SELECT DISTINCT x` 静默误解析为列别名 | #219 |
+| Q12 | 🟡 | `Sql/Execution/RelationalSelectExecutor.cs:856` | 关系/JOIN 标量求值 Ordinal 大小写敏感，与 projection 不一致 | #219 |
+| Q13 | 🟡 | `Sql/Execution/DeleteExecutor.cs:26` | 时序 DELETE 无字段定向，无差别删所有字段 | #219 |
+| Q14 | 🟡 | `Sql/Execution/SelectExecutor.cs:983` | `count(*)` 数 field-value 非行，3 字段返回 3N | #198 |
+| Q15 | 🟡 | `Sql/Execution/RelationalSelectExecutor.cs:290` | 聚合类型判定额外全量预扫 + `Convert.ToDouble` 混淆整型/浮点、丢 long 精度 | #219 |
+| C1 | 🟠 | `Engine/Compaction/CompactionWorker.cs:113`、`Tsdb.cs:883` | 维护 worker 绕过 reader 租约 → use-after-dispose；无串行锁致 retention 被 compaction 撤销（数据复活）；DropMeasurement 无 try/catch | #191 |
+| C2 | 🟠 | `Engine/Tsdb.cs:827`、`FlushCoordinator.cs:50` | 整个 segment flush 在全局 `_writeSync` 内，阻塞所有写入者 | #204 |
+| C3 | 🟠 | `Engine/Tsdb.cs:976`（859/981/996/1050 装箱） | 锁内每点 `new List(schema.Columns)` + `IReadOnlyDictionary` foreach 装箱枚举器 | #205 |
+| C4 | 🟠 | `Engine/Tsdb.cs:402` | `WriteMany(Span)` 整批只在末尾一次 backpressure → OOM 风险 | #202 |
+| C5 | 🟡 | `Engine/Tsdb.cs:322`、`WalGroupCommitCoordinator.cs:28` | group-commit 禁用时 fsync 在 `_writeSync` 内（与 S10 同源） | #203 |
+| C6 | 🟡 | `Engine/Compaction/CompactionWorker.cs:113` | plan 步骤在 try/catch 外，瞬时抛出致 compaction 后台线程静默死亡 | #201 |
+| C7 | 🟡 | `Engine/SegmentManager.cs:241` | 每 flush/compaction 全量重建所有 segment 索引，趋 O(N²) | #207 |
+| C8 | 🟡 | `Engine/TombstoneTable.cs:83/100` | `IsCovered`/`GetForSeriesField` 每查询锁内 `ToArray()` | #208 |
+| C9 | 🟡 | `Query/QueryEngine.cs:93`、`Storage/Segments/SegmentReader.cs:480` | 大扫描先全量解码进 `List<DataPoint[]>` 再合并，LOH 堆峰值；缓存命中每次整拷贝 | #220 |
+| C10 | 🟡 | `Memory/MemTable.cs:58` | 单写者路径冗余 RWLock+ConcurrentDictionary+bucket 锁+多次 Interlocked | #206 |
+| C11 | ⚪ | `Engine/KvExpirerWorker.cs:93` | KV expirer 吞异常无诊断事件，反复失败不可见 | #201 |
+
+### 验收标准
+
+- **P0**：`tests/SonnetDB.CrashTests/` 新增剧本证明——(a) Windows 掉电后 segment 与 WAL 不会同时丢失已 flush 数据；(b) flush 期间并发查询不返回不完整结果；(c) Compaction+Retention 并发下无 `ObjectDisposedException` 且过期数据不复活；(d) FTS manifest 崩溃后索引可从 segment 重建；(e) HNSW 删除+重插后持久化索引可正常加载；(f) Delete 后崩溃恢复数据不复活；(g) 段头/尾位翻转被 CRC 检出。默认持久性语义在 CHANGELOG + architecture.md + XML 注释三处一致。
+- **P1**：每个 SQL 正确性缺陷有"修复前返回错误结果 / 崩溃"的确定性回归用例；`NULL != 0` 不再返回 null 行，`count(*)` 返回行数，`BEGIN…ROLLBACK` 不再持久化时序/文档写，深层嵌套 SQL 抛 `SqlParseException` 而非崩溃；Compaction/KvExpirer 后台异常可在诊断事件观测。
+- **P2**：`tests/SonnetDB.Benchmarks` 显示写吞吐在双缓冲后不再随 flush 周期性塌陷；持续 ingest 下 P99 写延迟显著下降；高基数 series（百万级）ingest 不再 O(N²)；`WriteMany` 大批量不 OOM。基准数字进报告不做主 CI gating。
+- **P3**：plan cache 命中路径不再重复 parse；参数化查询贯通 lexer→executor；`ORDER BY…LIMIT k` 内存与延迟不随数据量线性增长；等值 JOIN 走 hash；`WHERE temp>30`、`WHERE a OR b` 可用；EF Core 关系查询翻译在这些能力上回归通过。
+- **P4**：文档索引点查不再 O(collection)；FTS 批量写不再 N 文件 + O(N²) manifest；声明 L2/IP 的向量索引真正走对应度量的 ANN；文档集合 `vector_search` 有可用加速路径；遗留 `HnswVectorBlockIndex` 移除后测试全绿。
+
+### 不做的事
+
+- **不**引入分布式复制 / 副本 / Raft / 多写节点（超出单机可靠性范围）。
+- **不**为兼容而在 `src/SonnetDB.Core` 引入第三方运行时依赖（Windows 目录 fsync 只用 BCL P/Invoke）。
+- **不**在本里程碑重写 SQL 引擎为完整成本模型优化器；P3 只做规则级下推、plan cache、hash join 与能力补齐，成本模型留后续里程碑论证。
+- **不**改动对外 SQL / HTTP / ADO.NET / Document API 已有契约语义（三值逻辑等属修正错误行为，需在 CHANGELOG 明确"行为变更"并给迁移说明）。
+- **不**把默认持久性从"性能优先"切到"每写 fsync"而不给关闭开关——#196 的决策必须保留可配置项与明确的吞吐/持久性权衡文档。
+
+---
+
 ## 里程碑总览
 
 | Milestone | 主题 | PR 范围 | 状态 |
@@ -604,9 +796,10 @@ extensions/
 | 25 | Document Store 验收、文档与发布治理 | #173 ~ #174 | 📋 |
 | 26 | 连接器路线独立化（C ABI + 多模型 API） | #175 ~ #181 | ✅ |
 | 27 | Industrial Data Agent 与 AI-ready 产品化路线 | #182 ~ #188 | ⚠️ 滞后（#182 已落第一批文档；#183~#188 待追赶） |
+| 28 | 可靠性、并发正确性与热路径加固（P0~P4 分阶段） | #189 ~ #229 | 📋 计划中（审计后 54 项缺陷分 P0 止血 → P1 正确 → P2 吞吐 → P3 查询 → P4 索引） |
 | MM9 | 多模型统一备份、恢复和管理工具第一批 | BackupService + sndb backup | ✅ |
 
-**当前推进顺序**：Milestone 14（Copilot）、Milestone 15（地理空间）、Milestone 16（Copilot 产品化升级）、Milestone 20（Parity #127~#136 实现）、Milestone 21（Document Store 单机能力升级 #137~#146）、Milestone 23（搜索与向量引擎合并）与 Milestone 26（连接器路线独立化 #175~#181）均已完成或收口。**Milestone 27（Industrial Data Agent 与 AI-ready 产品化路线）** 仍是对外门面与中长期 AI 产品主线，但当前状态为**滞后**：#182 已落第一批文档，#183~#188 需要优先追赶工具契约、工业 Demo、provider-neutral、本地模型、写入审批二阶段、eval 与成本指标；同时并行推进 **Milestone 17（可观测性与运行时可见性）** 的 OTel / 结构化日志 / 诊断端点 / Copilot 服务端会话持久化，以及 **Milestone 18（VS Code 扩展）** 的 `#99 ~ #103` “远程连接 + Explorer + SQL + 结果视图”闭环。**Milestone 19（生态适配底座能力）** 只保留 SonnetDB 通用数据库能力，#109~#117 与 #122/#123 已完成；IoTSharp 专属 Profile、兼容矩阵、灰度、双写、回滚和长稳验收已迁入 IoTSharp 仓库 RD-10。后续继续推进对象治理、通用迁移/校验原语、增量索引 / 后台维护成本与大量 measurement 长稳专项。Studio 管理面进入 **Milestone 24**，MongoDB 参考 parity、长稳、容量报告和发布文档进入 **Milestone 25**。**Milestone 22（Agent Memory / Codebase Intelligence）** 重新定位为基于 SonnetDB 的上层应用 / 示例方案候选，暂停 #150~#159 内置派单；只有应用验证出通用数据库能力缺口时，才拆成独立 Core / Server / Studio PR。SonnetDBEE C5.7 / MM9 的开源核心第一批已提供 `BackupService` 和 `sndb backup create/inspect/verify/restore`，企业级定时、增量、审计和 UI 编排继续由 SonnetDBEE 承接。**Milestone 20** 后续不再按 #129 继续派单，而是通过 `.github/workflows/parity.yml`、`parity-results` 分支与 `tests/SonnetDB.Parity/reports/sample-run.md` 持续暴露能力缺口、SKIP 原因和 nightly 稳定性。
+**当前推进顺序**：Milestone 14（Copilot）、Milestone 15（地理空间）、Milestone 16（Copilot 产品化升级）、Milestone 20（Parity #127~#136 实现）、Milestone 21（Document Store 单机能力升级 #137~#146）、Milestone 23（搜索与向量引擎合并）与 Milestone 26（连接器路线独立化 #175~#181）均已完成或收口。**Milestone 28（可靠性、并发正确性与热路径加固 #189~#229）** 是 2026 跨子系统深度审计后新增的加固主线，优先级最高：先做 **P0 数据可靠性止血**（#189~#196，Windows 目录 fsync / flush add-then-reset / 后台 worker 租约 / FTS manifest 原子 / HNSW 快照 / Delete 持久化 / 段头尾 CRC / 默认持久性决策），再依次推进 P1 正确性（#197~#203）、P2 写吞吐（#204~#211）、P3 查询与 SQL 能力（#212~#220）、P4 索引与向量能力（#221~#229）。**Milestone 27（Industrial Data Agent 与 AI-ready 产品化路线）** 仍是对外门面与中长期 AI 产品主线，但当前状态为**滞后**：#182 已落第一批文档，#183~#188 需要优先追赶工具契约、工业 Demo、provider-neutral、本地模型、写入审批二阶段、eval 与成本指标；同时并行推进 **Milestone 17（可观测性与运行时可见性）** 的 OTel / 结构化日志 / 诊断端点 / Copilot 服务端会话持久化，以及 **Milestone 18（VS Code 扩展）** 的 `#99 ~ #103` “远程连接 + Explorer + SQL + 结果视图”闭环。**Milestone 19（生态适配底座能力）** 只保留 SonnetDB 通用数据库能力，#109~#117 与 #122/#123 已完成；IoTSharp 专属 Profile、兼容矩阵、灰度、双写、回滚和长稳验收已迁入 IoTSharp 仓库 RD-10。后续继续推进对象治理、通用迁移/校验原语、增量索引 / 后台维护成本与大量 measurement 长稳专项（其中 #124 增量索引与 Milestone 28 #207 目标一致，以 M28 为落地口径）。Studio 管理面进入 **Milestone 24**，MongoDB 参考 parity、长稳、容量报告和发布文档进入 **Milestone 25**。**Milestone 22（Agent Memory / Codebase Intelligence）** 重新定位为基于 SonnetDB 的上层应用 / 示例方案候选，暂停 #150~#159 内置派单；只有应用验证出通用数据库能力缺口时，才拆成独立 Core / Server / Studio PR。SonnetDBEE C5.7 / MM9 的开源核心第一批已提供 `BackupService` 和 `sndb backup create/inspect/verify/restore`，企业级定时、增量、审计和 UI 编排继续由 SonnetDBEE 承接。**Milestone 20** 后续不再按 #129 继续派单，而是通过 `.github/workflows/parity.yml`、`parity-results` 分支与 `tests/SonnetDB.Parity/reports/sample-run.md` 持续暴露能力缺口、SKIP 原因和 nightly 稳定性。
 
 
 ---
@@ -623,3 +816,5 @@ extensions/
 | P4 | `src/SonnetDB.Core/Tables/TableManager.cs` ExpandCascadeDeletesLocked | BFS 每一步都对子表做 `childStore.Scan()` 全表线性扫描——O(parents × FKs × N) | 在子表 FK 列上建临时哈希索引（`Dictionary<keyBytes, List<row>>`），或直接给 FK 列建持久化二级索引，cascade 改成索引查找 | 60 分钟 |
 
 这些不阻塞功能正确性，不影响 parity 通过率，并且在小数据量上不会被察觉。当任一线上场景遇到瓶颈时（高基数 KNN / 重相关子查询 / 高基数 fuzzy / 万行级 cascade）按需挑出来做。
+
+> **与 Milestone 28 的关系**：本表是上一轮审计遗留的独立性能小项，其中 P2（子查询 memoize）已被 [Milestone 28](#milestone-28--可靠性并发正确性与热路径加固reliability--concurrency--performance-hardening) 的 #216 吸收合并落地；P1（KnnExecutor tombstone 快照）与 M28 #208/#226 相邻，可一并处理。P3（fuzzy tombstone 视图）与 P4（cascade delete 哈希索引）不在 M28 范围内，保留在本表按需推进。Milestone 28 是 2026 年更完整一轮跨子系统审计（54 项）的成果，涵盖数据可靠性、并发正确性、SQL 正确性与更广的热路径，优先级高于本表。

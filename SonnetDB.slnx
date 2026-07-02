@@ -11,6 +11,7 @@
     <Project Path="src/SonnetDB.EntityFrameworkCore/SonnetDB.EntityFrameworkCore.csproj" />
     <Project Path="src/SonnetDB.Studio/SonnetDB.Studio.csproj" />
     <Project Path="src/SonnetDB/SonnetDB.csproj" />
+    <Project Path="src/Testcontainers.SonnetDB/Testcontainers.SonnetDB.csproj" />
   </Folder>
   <Folder Name="/connectors/">
     <Project Path="connectors/c/native/SonnetDB.Native/SonnetDB.Native.csproj" />

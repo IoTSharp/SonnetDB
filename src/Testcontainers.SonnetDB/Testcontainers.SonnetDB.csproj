@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework></TargetFramework>
+    <TargetFrameworks>netstandard2.0;netstandard2.1;net8.0;net9.0;net10.0</TargetFrameworks>
+    <OutputType>Library</OutputType>
+    <RootNamespace>Testcontainers.SonnetDB</RootNamespace>
+    <AssemblyName>Testcontainers.SonnetDB</AssemblyName>
+    <PackageId>Testcontainers.SonnetDB</PackageId>
+    <Title>Testcontainers.SonnetDB</Title>
+    <Description>SonnetDB 的 Testcontainers for .NET 模块，用于在集成测试中启动临时 SonnetDB Server 容器并生成远程连接字符串。</Description>
+    <PackageReadmeFile>PackageReadme.md</PackageReadmeFile>
+    <PackageTags>sonnetdb;testcontainers;docker;testing;database</PackageTags>
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Testcontainers" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="PackageReadme.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+</Project>

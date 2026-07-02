@@ -7,6 +7,7 @@
 
 ### Added
 
+- **Testcontainers.SonnetDB 模块**：新增 `Testcontainers.SonnetDB` NuGet 包，提供 `SonnetDbBuilder` / `SonnetDbContainer` / `SonnetDbConfiguration`，默认启动 `iotsharp/sonnetdb:latest`、等待 `/healthz`、自动创建默认数据库，并生成远程 ADO.NET 连接字符串。
 - **AI-ready 门面文档与 Industrial Data Agent 路线（PR #182）**：新增 `llms.txt` 与 `docs/industrial-ai-applications.md`，明确 SonnetDB 优先定位为“面向 .NET 工业边缘应用的本地优先数据引擎”，并把 Industrial Data Agent、MCP 工具契约、工业异常分析 Demo、provider-neutral、本地模型、写入审批二阶段和 IoTSharp 联合样例纳入新增 Milestone 27 规划。
 - **连接器路线独立化 + C ABI 远程连接底座**：新增 Milestone 26 与 `connectors/README.md` 路线说明，明确 C ABI 当前继续 SQL-only，后续按 bulk / KV / Document / Object / MQ 分组扩展；`SonnetDB.Native` 改为引用 `SonnetDB.Data`，`sonnetdb_open` 可接受完整连接字符串或旧式本地目录，为 C/Go/Rust/Java/Python 等连接器同时支持嵌入式与远程 SQL 连接打底。
 - **C ABI bulk ingest 分组（PR #176）**：`connectors/c` 新增 `sonnetdb_bulk_create` / `sonnetdb_bulk_execute` / `sonnetdb_bulk_free` 与 `measurement`、`onerror`、`flush` 配置函数，覆盖 Line Protocol、JSON points 与 Bulk VALUES payload；Native 层通过 `SonnetDB.Data` `CommandType.TableDirect` 统一走嵌入式和远程 bulk 路径，C quickstart 与连接器文档同步演示独立 bulk handle 用法。
