@@ -588,9 +588,24 @@ public static class SqlExecutor
                 throw new InvalidOperationException($"INSERT 列列表中列 '{name}' 重复。");
 
             var col = schema?.TryGetColumn(name);
+            var inferredRole = schema is not null && !schema.TagColumns.Any()
+                ? MeasurementColumnRole.Field
+                : InferUnknownColumnRole(statement.Rows, i, name);
             bindings[i] = col is null
-                ? ColumnBinding.Inferred(name, InferUnknownColumnRole(statement.Rows, i, name))
+                ? ColumnBinding.Inferred(name, inferredRole)
                 : ColumnBinding.Schema(col);
+        }
+
+        if (schema is not null && !HasFieldBinding(bindings, timeColumnIndex))
+        {
+            for (int i = 0; i < bindings.Length; i++)
+            {
+                if (i == timeColumnIndex)
+                    continue;
+
+                if (bindings[i].Column is null && bindings[i].Role == MeasurementColumnRole.Tag)
+                    bindings[i] = ColumnBinding.Inferred(bindings[i].Name, MeasurementColumnRole.Field);
+            }
         }
 
         int written = 0;
@@ -1006,8 +1021,20 @@ public static class SqlExecutor
         return expr switch
         {
             LiteralExpression lit => lit,
+            UnaryExpression { Operator: SqlUnaryOperator.Negate, Operand: LiteralExpression lit } => NegateLiteral(lit, columnName),
             _ => throw new InvalidOperationException(
                 $"列 '{columnName}' 的 VALUES 必须是字面量，不支持表达式 ({expr.GetType().Name})。"),
+        };
+    }
+
+    private static LiteralExpression NegateLiteral(LiteralExpression literal, string columnName)
+    {
+        return literal.Kind switch
+        {
+            SqlLiteralKind.Integer => LiteralExpression.Integer(-literal.IntegerValue),
+            SqlLiteralKind.Float => LiteralExpression.Float(-literal.FloatValue),
+            _ => throw new InvalidOperationException(
+                $"列 '{columnName}' 的 VALUES 只支持对数值字面量使用一元负号，实际为 {literal.Kind}。"),
         };
     }
 
@@ -1132,6 +1159,17 @@ public static class SqlExecutor
             throw new InvalidOperationException(
                 $"无法从全 NULL 列 '{columnName}' 推断 TAG / FIELD。");
         return MeasurementColumnRole.Tag;
+    }
+
+    private static bool HasFieldBinding(IReadOnlyList<ColumnBinding> bindings, int timeColumnIndex)
+    {
+        for (int i = 0; i < bindings.Count; i++)
+        {
+            if (i != timeColumnIndex && bindings[i].Role == MeasurementColumnRole.Field)
+                return true;
+        }
+
+        return false;
     }
 
     /// <summary>

@@ -137,6 +137,21 @@ public class SqlExecutorInsertTests : IDisposable
     }
 
     [Fact]
+    public void Insert_NegativeNumericValue_WritesPoint()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE MEASUREMENT telemetry (file_msgqueue_size FIELD FLOAT)");
+
+        var result = Assert.IsType<InsertExecutionResult>(SqlExecutor.Execute(db,
+            "INSERT INTO telemetry (time, file_msgqueue_size) VALUES (1, -0.25)"));
+
+        Assert.Equal(1, result.RowsInserted);
+        var seriesId = SeriesId.Compute(new SeriesKey("telemetry", new Dictionary<string, string>()));
+        var point = db.Query.Execute(new PointQuery(seriesId, "file_msgqueue_size", TimeRange.All)).Single();
+        Assert.Equal(-0.25, point.Value.AsDouble());
+    }
+
+    [Fact]
     public void Insert_MeasurementMissing_AutoCreatesSchema()
     {
         using var db = Tsdb.Open(Options());
@@ -164,6 +179,51 @@ public class SqlExecutorInsertTests : IDisposable
         Assert.Equal(MeasurementColumnRole.Tag, schema.TryGetColumn("rack")!.Role);
         Assert.Equal(MeasurementColumnRole.Field, schema.TryGetColumn("temperature")!.Role);
         Assert.Equal(FieldType.Float64, schema.TryGetColumn("temperature")!.DataType);
+    }
+
+    [Fact]
+    public void Insert_UnknownStringOnlyColumn_OnExistingMeasurement_TreatsColumnAsField()
+    {
+        using var db = OpenWithSchema(Options());
+
+        var result = Assert.IsType<InsertExecutionResult>(SqlExecutor.Execute(db,
+            "INSERT INTO cpu (time, PARAM_M1BLACK) VALUES (1, '202606301810')"));
+
+        Assert.Equal(1, result.RowsInserted);
+        var schema = db.Measurements.TryGet("cpu")!;
+        var column = schema.TryGetColumn("PARAM_M1BLACK");
+        Assert.NotNull(column);
+        Assert.Equal(MeasurementColumnRole.Field, column!.Role);
+        Assert.Equal(FieldType.String, column.DataType);
+
+        var seriesId = SeriesId.Compute(new SeriesKey("cpu", new Dictionary<string, string>()));
+        var point = db.Query.Execute(new PointQuery(seriesId, "PARAM_M1BLACK", TimeRange.All)).Single();
+        Assert.Equal("202606301810", point.Value.AsString());
+    }
+
+    [Fact]
+    public void Insert_UnknownStringColumn_OnTaglessMeasurement_TreatsColumnAsFieldEvenWhenBlank()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE MEASUREMENT telemetry (cpuheadinfo FIELD STRING)");
+
+        var result = Assert.IsType<InsertExecutionResult>(SqlExecutor.Execute(db,
+            "INSERT INTO telemetry (time, cpuheadinfo, wdsIPAddress, cpuRate) VALUES (1, '2026063021', '', 36.5)"));
+
+        Assert.Equal(1, result.RowsInserted);
+        var schema = db.Measurements.TryGet("telemetry")!;
+        var ipColumn = schema.TryGetColumn("wdsIPAddress");
+        var cpuRateColumn = schema.TryGetColumn("cpuRate");
+        Assert.NotNull(ipColumn);
+        Assert.Equal(MeasurementColumnRole.Field, ipColumn!.Role);
+        Assert.Equal(FieldType.String, ipColumn.DataType);
+        Assert.NotNull(cpuRateColumn);
+        Assert.Equal(MeasurementColumnRole.Field, cpuRateColumn!.Role);
+        Assert.Equal(FieldType.Float64, cpuRateColumn.DataType);
+
+        var seriesId = SeriesId.Compute(new SeriesKey("telemetry", new Dictionary<string, string>()));
+        var ip = db.Query.Execute(new PointQuery(seriesId, "wdsIPAddress", TimeRange.All)).Single();
+        Assert.Equal(string.Empty, ip.Value.AsString());
     }
 
     [Fact]
