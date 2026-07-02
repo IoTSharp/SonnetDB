@@ -641,6 +641,70 @@ public sealed class SonnetDbProviderTests : IDisposable
         }
     }
 
+    [Fact]
+    public async Task RemoteDatabaseMigrate_WithExistingHistorySkipsAlreadyAppliedMigration()
+    {
+        const string token = "ef-remote-admin";
+        var database = "ef_remote_migration_history_" + Guid.NewGuid().ToString("N");
+        var dataRoot = Path.Combine(Path.GetTempPath(), "sndb-ef-remote-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dataRoot);
+
+        await using var app = EfTestServerHost.Build(new ServerOptions
+        {
+            DataRoot = dataRoot,
+            AutoLoadExistingDatabases = true,
+            AllowAnonymousProbes = true,
+            Tokens = new Dictionary<string, string>
+            {
+                [token] = ServerRoles.Admin,
+            },
+        });
+
+        try
+        {
+            await app.StartAsync();
+            var addresses = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()
+                ?? throw new InvalidOperationException("Kestrel 未暴露监听地址。");
+            var baseUrl = addresses.Addresses.First();
+            var connectionString = $"Data Source=sonnetdb+http://{new Uri(baseUrl).Authority}/{database};Token={token};Timeout=30";
+
+            using var context = new MigrationDeviceContext(
+                new DbContextOptionsBuilder<MigrationDeviceContext>()
+                    .UseSonnetDB(connectionString)
+                    .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning))
+                    .Options);
+
+            var creator = context.Database.GetService<IRelationalDatabaseCreator>();
+            await creator.CreateAsync();
+            await context.Database.ExecuteSqlRawAsync(
+                "CREATE TABLE \"Devices\" (\"Id\" INT NOT NULL, \"Name\" STRING NOT NULL, PRIMARY KEY (\"Id\"))");
+            await context.Database.ExecuteSqlRawAsync(
+                "CREATE TABLE \"__EFMigrationsHistory\" (\"MigrationId\" STRING NOT NULL, \"ProductVersion\" STRING NOT NULL, PRIMARY KEY (\"MigrationId\"))");
+            await context.Database.ExecuteSqlRawAsync(
+                "INSERT INTO \"__EFMigrationsHistory\" (\"MigrationId\", \"ProductVersion\") VALUES ('20260613000100_InitialDevices', '10.0.9')");
+
+            Assert.Equal(
+                ["20260613000100_InitialDevices"],
+                (await context.Database.GetAppliedMigrationsAsync()).ToArray());
+            Assert.Equal(
+                ["20260613000200_AddDeviceEnabled"],
+                (await context.Database.GetPendingMigrationsAsync()).ToArray());
+
+            await context.Database.MigrateAsync();
+
+            Assert.True(await ColumnExistsAsync(context, "Devices", "Enabled"));
+            Assert.Equal(2, await CountRowsAsync(context, "__EFMigrationsHistory"));
+        }
+        finally
+        {
+            await app.StopAsync();
+            if (Directory.Exists(dataRoot))
+            {
+                try { Directory.Delete(dataRoot, recursive: true); } catch { /* best-effort */ }
+            }
+        }
+    }
+
     private DbContextOptions<TContext> CreateOptions<TContext>()
         where TContext : DbContext
         => new DbContextOptionsBuilder<TContext>()

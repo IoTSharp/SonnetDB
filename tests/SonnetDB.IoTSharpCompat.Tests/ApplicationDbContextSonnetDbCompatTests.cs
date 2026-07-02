@@ -91,12 +91,16 @@ public sealed class ApplicationDbContextSonnetDbCompatTests : IDisposable
         Assert.Contains("Assets", tableNames);
         Assert.Contains("FlowRules", tableNames);
 
-        var migrations = await context.Database.GetAppliedMigrationsAsync();
-        var migrationId = Assert.Single(migrations);
-        Assert.EndsWith("_InitialSonnetDbApplicationDbContext", migrationId, StringComparison.Ordinal);
+        var migrations = (await context.Database.GetAppliedMigrationsAsync()).ToArray();
+        Assert.Equal(
+            [
+                "20260613145712_InitialSonnetDbApplicationDbContext",
+                "20260702090000_AddDeviceLatestQueryIndexes"
+            ],
+            migrations);
 
         await context.Database.MigrateAsync();
-        Assert.Equal([migrationId], (await context.Database.GetAppliedMigrationsAsync()).ToArray());
+        Assert.Equal(migrations, (await context.Database.GetAppliedMigrationsAsync()).ToArray());
     }
 
     [Fact]

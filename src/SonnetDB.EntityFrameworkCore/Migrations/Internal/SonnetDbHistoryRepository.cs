@@ -115,6 +115,88 @@ public sealed class SonnetDbHistoryRepository : HistoryRepository
         => BuildCreateScript(ifNotExists: false);
 
     /// <inheritdoc />
+    public override IReadOnlyList<HistoryRow> GetAppliedMigrations()
+    {
+        var connection = Dependencies.Connection.DbConnection;
+        var wasClosed = connection.State == ConnectionState.Closed;
+        if (wasClosed)
+        {
+            connection.Open();
+        }
+
+        try
+        {
+            if (!Exists())
+            {
+                return [];
+            }
+
+            using var command = connection.CreateCommand();
+            command.CommandText = BuildAppliedMigrationsSql();
+            using var reader = command.ExecuteReader();
+            var rows = new List<HistoryRow>();
+            while (reader.Read())
+            {
+                rows.Add(new HistoryRow(reader.GetString(0), reader.GetString(1)));
+            }
+
+            return rows;
+        }
+        catch (SndbServerException ex) when (IsDatabaseNotFound(ex) || IsHistoryTableNotFound(ex))
+        {
+            return [];
+        }
+        finally
+        {
+            if (wasClosed)
+            {
+                connection.Close();
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    public override async Task<IReadOnlyList<HistoryRow>> GetAppliedMigrationsAsync(CancellationToken cancellationToken = default)
+    {
+        var connection = Dependencies.Connection.DbConnection;
+        var wasClosed = connection.State == ConnectionState.Closed;
+        if (wasClosed)
+        {
+            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        try
+        {
+            if (!await ExistsAsync(cancellationToken).ConfigureAwait(false))
+            {
+                return [];
+            }
+
+            await using var command = connection.CreateCommand();
+            command.CommandText = BuildAppliedMigrationsSql();
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            var rows = new List<HistoryRow>();
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                rows.Add(new HistoryRow(reader.GetString(0), reader.GetString(1)));
+            }
+
+            return rows;
+        }
+        catch (SndbServerException ex) when (IsDatabaseNotFound(ex) || IsHistoryTableNotFound(ex))
+        {
+            return [];
+        }
+        finally
+        {
+            if (wasClosed)
+            {
+                await connection.CloseAsync().ConfigureAwait(false);
+            }
+        }
+    }
+
+    /// <inheritdoc />
     public override IMigrationsDatabaseLock AcquireDatabaseLock()
         => new NoopMigrationsDatabaseLock(this);
 
@@ -153,9 +235,28 @@ public sealed class SonnetDbHistoryRepository : HistoryRepository
             + Environment.NewLine;
     }
 
+    private string BuildAppliedMigrationsSql()
+    {
+        var helper = Dependencies.SqlGenerationHelper;
+        return "SELECT "
+            + helper.DelimitIdentifier(MigrationIdColumnName)
+            + ", "
+            + helper.DelimitIdentifier(ProductVersionColumnName)
+            + " FROM "
+            + helper.DelimitIdentifier(TableName)
+            + " ORDER BY "
+            + helper.DelimitIdentifier(MigrationIdColumnName)
+            + Dependencies.SqlGenerationHelper.StatementTerminator;
+    }
+
     private static bool IsDatabaseNotFound(SndbServerException ex)
         => ex.StatusCode == HttpStatusCode.NotFound
             && string.Equals(ex.Error, "db_not_found", StringComparison.Ordinal);
+
+    private bool IsHistoryTableNotFound(SndbServerException ex)
+        => string.Equals(ex.Error, "sql_error", StringComparison.Ordinal)
+            && ex.ServerMessage.Contains(TableName, StringComparison.Ordinal)
+            && ex.ServerMessage.Contains("不存在", StringComparison.Ordinal);
 
     private sealed class NoopMigrationsDatabaseLock(IHistoryRepository historyRepository) : IMigrationsDatabaseLock
     {
