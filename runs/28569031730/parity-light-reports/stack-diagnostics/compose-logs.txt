@@ -1,0 +1,114 @@
+redis-1     | 1:C 02 Jul 2026 06:04:21.599 # WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. Being disabled, it can also cause failures without low memory condition, see https://github.com/jemalloc/jemalloc/issues/1328. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.
+redis-1     | 1:C 02 Jul 2026 06:04:21.599 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
+redis-1     | 1:C 02 Jul 2026 06:04:21.600 * Redis version=7.4.9, bits=64, commit=00000000, modified=0, pid=1, just started
+redis-1     | 1:C 02 Jul 2026 06:04:21.600 # Warning: no config file specified, using the default config. In order to specify a config file use redis-server /path/to/redis.conf
+redis-1     | 1:M 02 Jul 2026 06:04:21.600 * monotonic clock: POSIX clock_gettime
+redis-1     | 1:M 02 Jul 2026 06:04:21.601 * Running mode=standalone, port=6379.
+redis-1     | 1:M 02 Jul 2026 06:04:21.602 * Server initialized
+redis-1     | 1:M 02 Jul 2026 06:04:21.602 * Ready to accept connections tcp
+sonnetdb-1  | warn: Microsoft.AspNetCore.Server.Kestrel[0]
+sonnetdb-1  |       Overriding address(es) 'http://*:8080'. Binding to endpoints defined via IConfiguration and/or UseKestrel() instead.
+sonnetdb-1  | info: Microsoft.Hosting.Lifetime[14]
+postgres-1  | The files belonging to this database system will be owned by user "postgres".
+sonnetdb-1  |       Now listening on: http://0.0.0.0:5080
+sonnetdb-1  | info: Microsoft.Hosting.Lifetime[0]
+sonnetdb-1  |       Application started. Press Ctrl+C to shut down.
+sonnetdb-1  | info: Microsoft.Hosting.Lifetime[0]
+sonnetdb-1  |       Hosting environment: Production
+sonnetdb-1  | info: Microsoft.Hosting.Lifetime[0]
+sonnetdb-1  |       Content root path: /app
+nats-1      | [1] 2026/07/02 06:04:21.585168 [INF] Starting nats-server
+postgres-1  | This user must also own the server process.
+minio-1     | ERRO: Calculating checksum failed: open minio: no such file or directory
+postgres-1  | 
+postgres-1  | The database cluster will be initialized with locale "en_US.utf8".
+postgres-1  | The default database encoding has accordingly been set to "UTF8".
+postgres-1  | The default text search configuration will be set to "english".
+postgres-1  | 
+postgres-1  | Data page checksums are disabled.
+postgres-1  | 
+postgres-1  | fixing permissions on existing directory /var/lib/postgresql/data ... ok
+postgres-1  | creating subdirectories ... ok
+postgres-1  | selecting dynamic shared memory implementation ... posix
+postgres-1  | selecting default max_connections ... 100
+postgres-1  | selecting default shared_buffers ... 128MB
+postgres-1  | selecting default time zone ... Etc/UTC
+postgres-1  | creating configuration files ... ok
+postgres-1  | running bootstrap script ... ok
+postgres-1  | performing post-bootstrap initialization ... ok
+postgres-1  | syncing data to disk ... ok
+postgres-1  | initdb: warning: enabling "trust" authentication for local connections
+postgres-1  | 
+postgres-1  | initdb: hint: You can change this by editing pg_hba.conf or using the option -A, or --auth-local and --auth-host, the next time you run initdb.
+postgres-1  | 
+postgres-1  | Success. You can now start the database server using:
+postgres-1  | 
+postgres-1  |     pg_ctl -D /var/lib/postgresql/data -l logfile start
+postgres-1  | 
+nats-1      | [1] 2026/07/02 06:04:21.585515 [INF]   Version:  2.10.29
+nats-1      | [1] 2026/07/02 06:04:21.585596 [INF]   Git:      [f91ddd8]
+nats-1      | [1] 2026/07/02 06:04:21.585621 [INF]   Name:     NBOV6KUPOACJNG6UD5TEUXEC5CV6242Y4KVYHHOO2QH6BZ4Z7TDPCFQB
+postgres-1  | waiting for server to start....2026-07-02 06:04:22.346 UTC [48] LOG:  starting PostgreSQL 16.4 (Debian 16.4-1.pgdg120+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14) 12.2.0, 64-bit
+postgres-1  | 2026-07-02 06:04:22.346 UTC [48] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+postgres-1  | 2026-07-02 06:04:22.350 UTC [51] LOG:  database system was shut down at 2026-07-02 06:04:22 UTC
+postgres-1  | 2026-07-02 06:04:22.354 UTC [48] LOG:  database system is ready to accept connections
+postgres-1  |  done
+postgres-1  | server started
+postgres-1  | CREATE DATABASE
+postgres-1  | 
+postgres-1  | 
+postgres-1  | /usr/local/bin/docker-entrypoint.sh: ignoring /docker-entrypoint-initdb.d/*
+postgres-1  | 
+postgres-1  | 2026-07-02 06:04:22.533 UTC [48] LOG:  received fast shutdown request
+postgres-1  | waiting for server to shut down....2026-07-02 06:04:22.534 UTC [48] LOG:  aborting any active transactions
+postgres-1  | 2026-07-02 06:04:22.536 UTC [48] LOG:  background worker "logical replication launcher" (PID 54) exited with exit code 1
+postgres-1  | 2026-07-02 06:04:22.536 UTC [49] LOG:  shutting down
+nats-1      | [1] 2026/07/02 06:04:21.585641 [INF]   Node:     7O0EgntO
+nats-1      | [1] 2026/07/02 06:04:21.585683 [INF]   ID:       NBOV6KUPOACJNG6UD5TEUXEC5CV6242Y4KVYHHOO2QH6BZ4Z7TDPCFQB
+nats-1      | [1] 2026/07/02 06:04:21.588429 [INF] Starting http monitor on 0.0.0.0:8222
+nats-1      | [1] 2026/07/02 06:04:21.588607 [INF] Starting JetStream
+nats-1      | [1] 2026/07/02 06:04:21.588701 [WRN] Temporary storage directory used, data could be lost on system reboot
+nats-1      | [1] 2026/07/02 06:04:21.589166 [INF]     _ ___ _____ ___ _____ ___ ___   _   __  __
+nats-1      | [1] 2026/07/02 06:04:21.589236 [INF]  _ | | __|_   _/ __|_   _| _ \ __| /_\ |  \/  |
+nats-1      | [1] 2026/07/02 06:04:21.589273 [INF] | || | _|  | | \__ \ | | |   / _| / _ \| |\/| |
+nats-1      | [1] 2026/07/02 06:04:21.589305 [INF]  \__/|___| |_| |___/ |_| |_|_\___/_/ \_\_|  |_|
+nats-1      | [1] 2026/07/02 06:04:21.589341 [INF] 
+nats-1      | [1] 2026/07/02 06:04:21.589375 [INF]          https://docs.nats.io/jetstream
+nats-1      | [1] 2026/07/02 06:04:21.589377 [INF] 
+nats-1      | [1] 2026/07/02 06:04:21.589379 [INF] ---------------- JETSTREAM ----------------
+nats-1      | [1] 2026/07/02 06:04:21.589384 [INF]   Max Memory:      11.71 GB
+nats-1      | [1] 2026/07/02 06:04:21.589387 [INF]   Max Storage:     63.43 GB
+nats-1      | [1] 2026/07/02 06:04:21.589389 [INF]   Store Directory: "/tmp/nats/jetstream"
+nats-1      | [1] 2026/07/02 06:04:21.589391 [INF] -------------------------------------------
+nats-1      | [1] 2026/07/02 06:04:21.589715 [INF] Listening for client connections on 0.0.0.0:4222
+nats-1      | [1] 2026/07/02 06:04:21.589887 [INF] Server is ready
+minio-1     | INFO: Formatting 1st pool, 1 set(s), 1 drives per set.
+minio-1     | INFO: WARNING: Host local has more than 0 drives of set. A host failure will result in data becoming unavailable.
+minio-1     | MinIO Object Storage Server
+minio-1     | Copyright: 2015-2026 MinIO, Inc.
+minio-1     | License: GNU AGPLv3 - https://www.gnu.org/licenses/agpl-3.0.html
+minio-1     | Version: RELEASE.2024-09-22T00-33-43Z (go1.22.7 linux/amd64)
+minio-1     | 
+minio-1     | API: http://172.18.0.4:9000  http://127.0.0.1:9000 
+minio-1     | WebUI: http://172.18.0.4:9001 http://127.0.0.1:9001  
+minio-1     | 
+minio-1     | Docs: https://docs.min.io
+minio-1     | INFO: 
+minio-1     |  You are running an older version of MinIO released 11 months before the latest release 
+minio-1     |  Update: Run `mc admin update ALIAS` 
+minio-1     | 
+minio-1     | 
+postgres-1  | 2026-07-02 06:04:22.537 UTC [49] LOG:  checkpoint starting: shutdown immediate
+postgres-1  | 2026-07-02 06:04:22.553 UTC [49] LOG:  checkpoint complete: wrote 922 buffers (5.6%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.012 s, sync=0.003 s, total=0.017 s; sync files=301, longest=0.002 s, average=0.001 s; distance=4255 kB, estimate=4255 kB; lsn=0/19120F8, redo lsn=0/19120F8
+postgres-1  | 2026-07-02 06:04:22.560 UTC [48] LOG:  database system is shut down
+postgres-1  |  done
+postgres-1  | server stopped
+postgres-1  | 
+postgres-1  | PostgreSQL init process complete; ready for start up.
+postgres-1  | 
+postgres-1  | 2026-07-02 06:04:22.655 UTC [1] LOG:  starting PostgreSQL 16.4 (Debian 16.4-1.pgdg120+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14) 12.2.0, 64-bit
+postgres-1  | 2026-07-02 06:04:22.655 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+postgres-1  | 2026-07-02 06:04:22.655 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+postgres-1  | 2026-07-02 06:04:22.656 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+postgres-1  | 2026-07-02 06:04:22.659 UTC [64] LOG:  database system was shut down at 2026-07-02 06:04:22 UTC
+postgres-1  | 2026-07-02 06:04:22.663 UTC [1] LOG:  database system is ready to accept connections

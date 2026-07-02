@@ -1,0 +1,269 @@
+mosquitto-1  | 1782972267: mosquitto version 2.0.22 starting
+mosquitto-1  | 1782972267: Config loaded from /mosquitto/config/mosquitto.conf.
+mosquitto-1  | 1782972267: Starting in local only mode. Connections will only be possible from clients running on this machine.
+mosquitto-1  | 1782972267: Create a configuration file which defines a listener to allow remote access.
+mosquitto-1  | 1782972267: For more details see https://mosquitto.org/documentation/authentication-methods/
+mosquitto-1  | 1782972267: Opening ipv4 listen socket on port 1883.
+mosquitto-1  | 1782972267: Opening ipv6 listen socket on port 1883.
+mosquitto-1  | 1782972267: mosquitto version 2.0.22 running
+mosquitto-1  | 1782972277: New connection from ::1:51156 on port 1883.
+mosquitto-1  | 1782972277: New client connected from ::1:51156 as auto-0B1081F5-9C3C-A207-1985-07BD20C1089A (p2, c1, k60).
+mosquitto-1  | 1782972277: Client auto-0B1081F5-9C3C-A207-1985-07BD20C1089A closed its connection.
+mosquitto-1  | 1782972287: New connection from ::1:42824 on port 1883.
+mosquitto-1  | 1782972287: New client connected from ::1:42824 as auto-DDD72D3B-821C-FE30-1AE9-4326BD9537F9 (p2, c1, k60).
+mosquitto-1  | 1782972287: Client auto-DDD72D3B-821C-FE30-1AE9-4326BD9537F9 closed its connection.
+mosquitto-1  | 1782972297: New connection from ::1:38820 on port 1883.
+mosquitto-1  | 1782972297: New client connected from ::1:38820 as auto-F99F4928-4FD7-4005-3316-4A0C805BF29E (p2, c1, k60).
+mosquitto-1  | 1782972297: Client auto-F99F4928-4FD7-4005-3316-4A0C805BF29E closed its connection.
+mosquitto-1  | 1782972307: New connection from ::1:39530 on port 1883.
+mosquitto-1  | 1782972307: New client connected from ::1:39530 as auto-6CA354E0-FFD7-724D-8453-26A5D7B888AB (p2, c1, k60).
+mosquitto-1  | 1782972307: Client auto-6CA354E0-FFD7-724D-8453-26A5D7B888AB closed its connection.
+mosquitto-1  | 1782972317: New connection from ::1:48066 on port 1883.
+mosquitto-1  | 1782972317: New client connected from ::1:48066 as auto-F02686F0-D7D6-FDB3-8FFB-2C1CF74F5B68 (p2, c1, k60).
+mosquitto-1  | 1782972317: Client auto-F02686F0-D7D6-FDB3-8FFB-2C1CF74F5B68 closed its connection.
+mosquitto-1  | 1782972327: New connection from ::1:55736 on port 1883.
+mosquitto-1  | 1782972327: New client connected from ::1:55736 as auto-4CF00E1B-F7D7-8B05-3C54-FE01FCEA289A (p2, c1, k60).
+mosquitto-1  | 1782972327: Client auto-4CF00E1B-F7D7-8B05-3C54-FE01FCEA289A closed its connection.
+mosquitto-1  | 1782972337: New connection from ::1:41328 on port 1883.
+mosquitto-1  | 1782972337: New client connected from ::1:41328 as auto-8CC7B9B7-A7A6-6A34-D5DC-19DA956281DC (p2, c1, k60).
+mosquitto-1  | 1782972337: Client auto-8CC7B9B7-A7A6-6A34-D5DC-19DA956281DC closed its connection.
+mosquitto-1  | 1782972347: New connection from ::1:42268 on port 1883.
+mosquitto-1  | 1782972347: New client connected from ::1:42268 as auto-41F5B846-3578-3EAE-9541-AB41B521F920 (p2, c1, k60).
+mosquitto-1  | 1782972347: Client auto-41F5B846-3578-3EAE-9541-AB41B521F920 closed its connection.
+mosquitto-1  | 1782972357: New connection from ::1:40802 on port 1883.
+mosquitto-1  | 1782972357: New client connected from ::1:40802 as auto-981C9A6E-A9EA-710A-D484-74833713E80E (p2, c1, k60).
+mosquitto-1  | 1782972357: Client auto-981C9A6E-A9EA-710A-D484-74833713E80E closed its connection.
+redis-1      | 1:C 02 Jul 2026 06:04:26.873 # WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. Being disabled, it can also cause failures without low memory condition, see https://github.com/jemalloc/jemalloc/issues/1328. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.
+redis-1      | 1:C 02 Jul 2026 06:04:26.873 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
+redis-1      | 1:C 02 Jul 2026 06:04:26.873 * Redis version=7.4.9, bits=64, commit=00000000, modified=0, pid=1, just started
+redis-1      | 1:C 02 Jul 2026 06:04:26.873 # Warning: no config file specified, using the default config. In order to specify a config file use redis-server /path/to/redis.conf
+redis-1      | 1:M 02 Jul 2026 06:04:26.873 * monotonic clock: POSIX clock_gettime
+redis-1      | 1:M 02 Jul 2026 06:04:26.874 * Running mode=standalone, port=6379.
+redis-1      | 1:M 02 Jul 2026 06:04:26.874 * Server initialized
+redis-1      | 1:M 02 Jul 2026 06:04:26.874 * Ready to accept connections tcp
+nats-1       | [1] 2026/07/02 06:04:26.824356 [INF] Starting nats-server
+nats-1       | [1] 2026/07/02 06:04:26.824460 [INF]   Version:  2.10.29
+nats-1       | [1] 2026/07/02 06:04:26.824464 [INF]   Git:      [f91ddd8]
+nats-1       | [1] 2026/07/02 06:04:26.824467 [INF]   Name:     NCLC3BDGNF5VFTHAKQNAVNEUWAUVP3E4QM5ZTG2EKUSOBDJLFS22LIV4
+nats-1       | [1] 2026/07/02 06:04:26.824470 [INF]   Node:     LmfAU4X4
+nats-1       | [1] 2026/07/02 06:04:26.824473 [INF]   ID:       NCLC3BDGNF5VFTHAKQNAVNEUWAUVP3E4QM5ZTG2EKUSOBDJLFS22LIV4
+nats-1       | [1] 2026/07/02 06:04:26.825608 [INF] Starting http monitor on 0.0.0.0:8222
+nats-1       | [1] 2026/07/02 06:04:26.825789 [INF] Starting JetStream
+nats-1       | [1] 2026/07/02 06:04:26.825806 [WRN] Temporary storage directory used, data could be lost on system reboot
+nats-1       | [1] 2026/07/02 06:04:26.826419 [INF]     _ ___ _____ ___ _____ ___ ___   _   __  __
+nats-1       | [1] 2026/07/02 06:04:26.826433 [INF]  _ | | __|_   _/ __|_   _| _ \ __| /_\ |  \/  |
+nats-1       | [1] 2026/07/02 06:04:26.826435 [INF] | || | _|  | | \__ \ | | |   / _| / _ \| |\/| |
+nats-1       | [1] 2026/07/02 06:04:26.826437 [INF]  \__/|___| |_| |___/ |_| |_|_\___/_/ \_\_|  |_|
+nats-1       | [1] 2026/07/02 06:04:26.826440 [INF] 
+nats-1       | [1] 2026/07/02 06:04:26.826442 [INF]          https://docs.nats.io/jetstream
+nats-1       | [1] 2026/07/02 06:04:26.826444 [INF] 
+nats-1       | [1] 2026/07/02 06:04:26.826446 [INF] ---------------- JETSTREAM ----------------
+nats-1       | [1] 2026/07/02 06:04:26.826451 [INF]   Max Memory:      11.71 GB
+nats-1       | [1] 2026/07/02 06:04:26.826455 [INF]   Max Storage:     62.44 GB
+nats-1       | [1] 2026/07/02 06:04:26.826457 [INF]   Store Directory: "/tmp/nats/jetstream"
+nats-1       | [1] 2026/07/02 06:04:26.826462 [INF] -------------------------------------------
+nats-1       | [1] 2026/07/02 06:04:26.826914 [INF] Listening for client connections on 0.0.0.0:4222
+nats-1       | [1] 2026/07/02 06:04:26.827108 [INF] Server is ready
+clickhouse-1  | /entrypoint.sh: neither CLICKHOUSE_USER nor CLICKHOUSE_PASSWORD is set, disabling network access for user 'default'
+clickhouse-1  | Processing configuration file '/etc/clickhouse-server/config.xml'.
+clickhouse-1  | Merging configuration file '/etc/clickhouse-server/config.d/docker_related_config.xml'.
+clickhouse-1  | Logging trace to /var/log/clickhouse-server/clickhouse-server.log
+clickhouse-1  | Logging errors to /var/log/clickhouse-server/clickhouse-server.err.log
+sonnetdb-1    | warn: Microsoft.AspNetCore.Server.Kestrel[0]
+sonnetdb-1    |       Overriding address(es) 'http://*:8080'. Binding to endpoints defined via IConfiguration and/or UseKestrel() instead.
+sonnetdb-1    | info: Microsoft.Hosting.Lifetime[14]
+sonnetdb-1    |       Now listening on: http://0.0.0.0:5080
+sonnetdb-1    | info: Microsoft.Hosting.Lifetime[0]
+sonnetdb-1    |       Application started. Press Ctrl+C to shut down.
+sonnetdb-1    | info: Microsoft.Hosting.Lifetime[0]
+sonnetdb-1    |       Hosting environment: Production
+sonnetdb-1    | info: Microsoft.Hosting.Lifetime[0]
+sonnetdb-1    |       Content root path: /app
+minio-1       | ERRO: Calculating checksum failed: open minio: no such file or directory
+minio-1       | INFO: Formatting 1st pool, 1 set(s), 1 drives per set.
+minio-1       | INFO: WARNING: Host local has more than 0 drives of set. A host failure will result in data becoming unavailable.
+minio-1       | MinIO Object Storage Server
+minio-1       | Copyright: 2015-2026 MinIO, Inc.
+minio-1       | License: GNU AGPLv3 - https://www.gnu.org/licenses/agpl-3.0.html
+minio-1       | Version: RELEASE.2024-09-22T00-33-43Z (go1.22.7 linux/amd64)
+minio-1       | 
+minio-1       | API: http://172.18.0.9:9000  http://127.0.0.1:9000 
+minio-1       | WebUI: http://172.18.0.9:9001 http://127.0.0.1:9001  
+minio-1       | 
+minio-1       | Docs: https://docs.min.io
+minio-1       | INFO: 
+minio-1       |  You are running an older version of MinIO released 11 months before the latest release 
+minio-1       |  Update: Run `mc admin update ALIAS` 
+minio-1       | 
+minio-1       | 
+victoriametrics-1  | 2026-07-02T06:04:26.695Z	info	VictoriaMetrics/lib/logger/flag.go:12	build version: victoria-metrics-20241115-224431-tags-v1.106.1-0-g4b74baf696
+victoriametrics-1  | 2026-07-02T06:04:26.695Z	info	VictoriaMetrics/lib/logger/flag.go:13	command-line flags
+victoriametrics-1  | 2026-07-02T06:04:26.695Z	info	VictoriaMetrics/lib/logger/flag.go:20	  -storageDataPath="/vm-data"
+victoriametrics-1  | 2026-07-02T06:04:26.695Z	info	VictoriaMetrics/app/victoria-metrics/main.go:73	starting VictoriaMetrics at "[:8428]"...
+victoriametrics-1  | 2026-07-02T06:04:26.695Z	info	VictoriaMetrics/app/vmstorage/main.go:107	opening storage at "/vm-data" with -retentionPeriod=1
+victoriametrics-1  | 2026-07-02T06:04:26.697Z	info	VictoriaMetrics/lib/memory/memory.go:42	limiting caches to 10059853824 bytes, leaving 6706569216 bytes to the OS according to -memory.allowedPercent=60
+victoriametrics-1  | 2026-07-02T06:04:26.758Z	info	VictoriaMetrics/app/vmstorage/main.go:121	successfully opened storage "/vm-data" in 0.062 seconds; partsCount: 0; blocksCount: 0; rowsCount: 0; sizeBytes: 0
+victoriametrics-1  | 2026-07-02T06:04:26.758Z	info	VictoriaMetrics/app/vmselect/promql/rollup_result_cache.go:127	loading rollupResult cache from "/vm-data/cache/rollupResult"...
+victoriametrics-1  | 2026-07-02T06:04:26.760Z	info	VictoriaMetrics/app/vmselect/promql/rollup_result_cache.go:156	loaded rollupResult cache from "/vm-data/cache/rollupResult" in 0.002 seconds; entriesCount: 0, sizeBytes: 0
+victoriametrics-1  | 2026-07-02T06:04:26.760Z	info	VictoriaMetrics/app/vmselect/prometheus/prometheus.go:1282	limiting -search.maxUniqueTimeseries to 4191605 according to -search.maxConcurrentRequests=8 and remaining memory=6706569216 bytes. To increase the limit, reduce -search.maxConcurrentRequests or increase memory available to the process.
+victoriametrics-1  | 2026-07-02T06:04:26.760Z	info	VictoriaMetrics/app/victoria-metrics/main.go:84	started VictoriaMetrics in 0.065 seconds
+victoriametrics-1  | 2026-07-02T06:04:26.761Z	info	VictoriaMetrics/lib/httpserver/httpserver.go:132	started server at http://0.0.0.0:8428/
+victoriametrics-1  | 2026-07-02T06:04:26.761Z	info	VictoriaMetrics/lib/httpserver/httpserver.go:133	pprof handlers are exposed at http://0.0.0.0:8428/debug/pprof/
+influxdb-1         | {
+influxdb-1         |   "bolt-path": "/var/lib/influxdb2/influxd.bolt",
+influxdb-1         |   "engine-path": "/var/lib/influxdb2/engine",
+influxdb-1         |   "nats-port": 4222,
+influxdb-1         |   "http-bind-address": ":9999"
+influxdb-1         | }
+influxdb-1         | 2026-07-02T06:04:27.035991637Z	info	booting influxd server in the background	{"system": "docker"}
+influxdb-1         | ts=2026-07-02T06:04:27.334594Z lvl=info msg="Welcome to InfluxDB" log_id=13pMhVHW000 version=v2.7.12 commit=ec9dcde5d6 build_date=2025-05-20T22:48:39Z log_level=info
+influxdb-1         | ts=2026-07-02T06:04:27.334670Z lvl=warn msg="nats-port argument is deprecated and unused" log_id=13pMhVHW000
+influxdb-1         | ts=2026-07-02T06:04:27.337555Z lvl=info msg="Resources opened" log_id=13pMhVHW000 service=bolt path=/var/lib/influxdb2/influxd.bolt
+influxdb-1         | ts=2026-07-02T06:04:27.337634Z lvl=info msg="Resources opened" log_id=13pMhVHW000 service=sqlite path=/var/lib/influxdb2/influxd.sqlite
+influxdb-1         | ts=2026-07-02T06:04:27.338485Z lvl=info msg="Bringing up metadata migrations" log_id=13pMhVHW000 service="KV migrations" migration_count=20
+influxdb-1         | ts=2026-07-02T06:04:27.387285Z lvl=info msg="Bringing up metadata migrations" log_id=13pMhVHW000 service="SQL migrations" migration_count=8
+influxdb-1         | ts=2026-07-02T06:04:27.422280Z lvl=info msg="Using data dir" log_id=13pMhVHW000 service=storage-engine service=store path=/var/lib/influxdb2/engine/data
+influxdb-1         | ts=2026-07-02T06:04:27.422420Z lvl=info msg="Compaction settings" log_id=13pMhVHW000 service=storage-engine service=store max_concurrent_compactions=2 throughput_bytes_per_second=50331648 throughput_bytes_per_second_burst=50331648
+influxdb-1         | ts=2026-07-02T06:04:27.422433Z lvl=info msg="Open store (start)" log_id=13pMhVHW000 service=storage-engine service=store op_name=tsdb_open op_event=start
+influxdb-1         | ts=2026-07-02T06:04:27.422508Z lvl=info msg="Open store (end)" log_id=13pMhVHW000 service=storage-engine service=store op_name=tsdb_open op_event=end op_elapsed=0.075ms
+influxdb-1         | ts=2026-07-02T06:04:27.422801Z lvl=info msg="Starting retention policy enforcement service" log_id=13pMhVHW000 service=retention check_interval=30m
+influxdb-1         | ts=2026-07-02T06:04:27.422830Z lvl=info msg="Starting precreation service" log_id=13pMhVHW000 service=shard-precreation check_interval=10m advance_period=30m
+influxdb-1         | ts=2026-07-02T06:04:27.424381Z lvl=info msg="Starting query controller" log_id=13pMhVHW000 service=storage-reads concurrency_quota=1024 initial_memory_bytes_quota_per_query=9223372036854775807 memory_bytes_quota_per_query=9223372036854775807 max_memory_bytes=0 queue_size=1024
+influxdb-1         | ts=2026-07-02T06:04:27.427641Z lvl=info msg="Configuring InfluxQL statement executor (zeros indicate unlimited)." log_id=13pMhVHW000 max_select_point=0 max_select_series=0 max_select_buckets=0
+influxdb-1         | ts=2026-07-02T06:04:27.433219Z lvl=info msg=Starting log_id=13pMhVHW000 service=telemetry interval=8h
+influxdb-1         | ts=2026-07-02T06:04:27.434911Z lvl=info msg=Listening log_id=13pMhVHW000 service=tcp-listener transport=http addr=:9999 port=9999
+influxdb-1         | 2026-07-02T06:04:28.049707942Z	info	pinging influxd...	{"system": "docker", "ping_attempt": "0"}
+influxdb-1         | 2026-07-02T06:04:28.057163136Z	info	got response from influxd, proceeding	{"system": "docker", "total_pings": "1"}
+influxdb-1         | User	Organization	Bucket
+influxdb-1         | admin	sndb		parity
+influxdb-1         | 2026-07-02T06:04:28.160963875Z	info	Executing user-provided scripts	{"system": "docker", "script_dir": "/docker-entrypoint-initdb.d"}
+influxdb-1         | 2026-07-02T06:04:28.162930367Z	info	initialization complete, shutting down background influxd	{"system": "docker"}
+influxdb-1         | 2026-07-02T06:04:28.251657880Z	info	found existing boltdb file, skipping setup wrapper	{"system": "docker", "bolt_path": "/var/lib/influxdb2/influxd.bolt"}
+influxdb-1         | ts=2026-07-02T06:04:28.330467Z lvl=info msg="Welcome to InfluxDB" log_id=13pMhZAW000 version=v2.7.12 commit=ec9dcde5d6 build_date=2025-05-20T22:48:39Z log_level=info
+influxdb-1         | ts=2026-07-02T06:04:28.330511Z lvl=warn msg="nats-port argument is deprecated and unused" log_id=13pMhZAW000
+influxdb-1         | ts=2026-07-02T06:04:28.331079Z lvl=info msg="Resources opened" log_id=13pMhZAW000 service=bolt path=/var/lib/influxdb2/influxd.bolt
+influxdb-1         | ts=2026-07-02T06:04:28.331211Z lvl=info msg="Resources opened" log_id=13pMhZAW000 service=sqlite path=/var/lib/influxdb2/influxd.sqlite
+influxdb-1         | ts=2026-07-02T06:04:28.333227Z lvl=info msg="Checking InfluxDB metadata for prior version." log_id=13pMhZAW000 bolt_path=/var/lib/influxdb2/influxd.bolt
+influxdb-1         | ts=2026-07-02T06:04:28.333321Z lvl=info msg="Using data dir" log_id=13pMhZAW000 service=storage-engine service=store path=/var/lib/influxdb2/engine/data
+influxdb-1         | ts=2026-07-02T06:04:28.333342Z lvl=info msg="Compaction settings" log_id=13pMhZAW000 service=storage-engine service=store max_concurrent_compactions=2 throughput_bytes_per_second=50331648 throughput_bytes_per_second_burst=50331648
+meilisearch-1      | 
+meilisearch-1      | 888b     d888          d8b 888 d8b                                            888
+qdrant-1           |            _                 _    
+qdrant-1           |   __ _  __| |_ __ __ _ _ __ | |_  
+qdrant-1           |  / _` |/ _` | '__/ _` | '_ \| __| 
+qdrant-1           | | (_| | (_| | | | (_| | | | | |_  
+qdrant-1           |  \__, |\__,_|_|  \__,_|_| |_|\__| 
+qdrant-1           |     |_|                           
+qdrant-1           | 
+qdrant-1           | Version: 1.11.5, build: dee106d7
+qdrant-1           | Access web UI at http://localhost:6333/dashboard
+qdrant-1           | 
+qdrant-1           | 2026-07-02T06:04:27.019067Z  INFO storage::content_manager::consensus::persistent: Initializing new raft state at ./storage/raft_state.json    
+qdrant-1           | 2026-07-02T06:04:27.031946Z  INFO qdrant: Distributed mode disabled    
+qdrant-1           | 2026-07-02T06:04:27.031976Z  INFO qdrant: Telemetry reporting enabled, id: 50e08916-6624-439e-b000-a632cf128f6d    
+qdrant-1           | 2026-07-02T06:04:27.035505Z  INFO qdrant::actix: TLS disabled for REST API    
+qdrant-1           | 2026-07-02T06:04:27.035813Z  INFO qdrant::tonic: Qdrant gRPC listening on 6334    
+influxdb-1         | ts=2026-07-02T06:04:28.333348Z lvl=info msg="Open store (start)" log_id=13pMhZAW000 service=storage-engine service=store op_name=tsdb_open op_event=start
+influxdb-1         | ts=2026-07-02T06:04:28.333403Z lvl=info msg="Open store (end)" log_id=13pMhZAW000 service=storage-engine service=store op_name=tsdb_open op_event=end op_elapsed=0.055ms
+influxdb-1         | ts=2026-07-02T06:04:28.333436Z lvl=info msg="Starting retention policy enforcement service" log_id=13pMhZAW000 service=retention check_interval=30m
+influxdb-1         | ts=2026-07-02T06:04:28.333446Z lvl=info msg="Starting precreation service" log_id=13pMhZAW000 service=shard-precreation check_interval=10m advance_period=30m
+influxdb-1         | ts=2026-07-02T06:04:28.334041Z lvl=info msg="Starting query controller" log_id=13pMhZAW000 service=storage-reads concurrency_quota=1024 initial_memory_bytes_quota_per_query=9223372036854775807 memory_bytes_quota_per_query=9223372036854775807 max_memory_bytes=0 queue_size=1024
+influxdb-1         | ts=2026-07-02T06:04:28.335449Z lvl=info msg="Configuring InfluxQL statement executor (zeros indicate unlimited)." log_id=13pMhZAW000 max_select_point=0 max_select_series=0 max_select_buckets=0
+influxdb-1         | ts=2026-07-02T06:04:28.338606Z lvl=info msg=Starting log_id=13pMhZAW000 service=telemetry interval=8h
+influxdb-1         | ts=2026-07-02T06:04:28.338659Z lvl=info msg=Listening log_id=13pMhZAW000 service=tcp-listener transport=http addr=:8086 port=8086
+meilisearch-1      | 8888b   d8888          Y8P 888 Y8P                                            888
+meilisearch-1      | 88888b.d88888              888                                                888
+meilisearch-1      | 888Y88888P888  .d88b.  888 888 888 .d8888b   .d88b.   8888b.  888d888 .d8888b 88888b.
+meilisearch-1      | 888 Y888P 888 d8P  Y8b 888 888 888 88K      d8P  Y8b     "88b 888P"  d88P"    888 "88b
+meilisearch-1      | 888  Y8P  888 88888888 888 888 888 "Y8888b. 88888888 .d888888 888    888      888  888
+meilisearch-1      | 888   "   888 Y8b.     888 888 888      X88 Y8b.     888  888 888    Y88b.    888  888
+meilisearch-1      | 888       888  "Y8888  888 888 888  88888P'  "Y8888  "Y888888 888     "Y8888P 888  888
+meilisearch-1      | 
+meilisearch-1      | Config file path:	"none"
+meilisearch-1      | Database path:		"./data.ms"
+meilisearch-1      | Server listening on:	"http://0.0.0.0:7700"
+meilisearch-1      | Environment:		"development"
+meilisearch-1      | Commit SHA:		"cf5aa630d2fd262ccbac86ad007da451fa4d72c6"
+meilisearch-1      | Commit date:		"2024-10-10T13:25:55Z"
+meilisearch-1      | Package version:	"1.10.3"
+meilisearch-1      | Anonymous telemetry:	"Disabled"
+qdrant-1           | 2026-07-02T06:04:27.037001Z  INFO qdrant::tonic: TLS disabled for gRPC API    
+qdrant-1           | 2026-07-02T06:04:27.037032Z  INFO qdrant::actix: Qdrant HTTP listening on 6333    
+qdrant-1           | 2026-07-02T06:04:27.037047Z  INFO actix_server::builder: Starting 3 workers
+qdrant-1           | 2026-07-02T06:04:27.037052Z  INFO actix_server::server: Actix runtime found; starting in Actix runtime
+postgres-1         | The files belonging to this database system will be owned by user "postgres".
+postgres-1         | This user must also own the server process.
+postgres-1         | 
+meilisearch-1      | 
+meilisearch-1      | A master key has been set. Requests to Meilisearch won't be authorized unless you provide an authentication key.
+meilisearch-1      | 
+meilisearch-1      | Check out Meilisearch Cloud!	https://www.meilisearch.com/cloud?utm_campaign=oss&utm_source=engine&utm_medium=cli
+meilisearch-1      | Documentation:			https://www.meilisearch.com/docs
+meilisearch-1      | Source code:			https://github.com/meilisearch/meilisearch
+meilisearch-1      | Discord:			https://discord.meilisearch.com
+meilisearch-1      | 
+meilisearch-1      | [2m2026-07-02T06:04:26.942138Z[0m [32m INFO[0m [2mactix_server::builder[0m[2m:[0m starting 2 workers
+postgres-1         | The database cluster will be initialized with locale "en_US.utf8".
+meilisearch-1      | [2m2026-07-02T06:04:26.942198Z[0m [32m INFO[0m [2mactix_server::server[0m[2m:[0m Actix runtime found; starting in Actix runtime
+postgres-1         | The default database encoding has accordingly been set to "UTF8".
+meilisearch-1      | [2m2026-07-02T06:04:31.988879Z[0m [32m INFO[0m [1mHTTP request[0m[1m{[0m[3mmethod[0m[2m=[0mGET [3mhost[0m[2m=[0m"localhost:7700" [3mroute[0m[2m=[0m/health [3mquery_parameters[0m[2m=[0m [3muser_agent[0m[2m=[0mcurl/8.10.1 [3mstatus_code[0m[2m=[0m200[1m}[0m[2m:[0m [2mmeilisearch[0m[2m:[0m close [3mtime.busy[0m[2m=[0m193µs [3mtime.idle[0m[2m=[0m18.1µs
+meilisearch-1      | [2m2026-07-02T06:04:42.038700Z[0m [32m INFO[0m [1mHTTP request[0m[1m{[0m[3mmethod[0m[2m=[0mGET [3mhost[0m[2m=[0m"localhost:7700" [3mroute[0m[2m=[0m/health [3mquery_parameters[0m[2m=[0m [3muser_agent[0m[2m=[0mcurl/8.10.1 [3mstatus_code[0m[2m=[0m200[1m}[0m[2m:[0m [2mmeilisearch[0m[2m:[0m close [3mtime.busy[0m[2m=[0m48.7µs [3mtime.idle[0m[2m=[0m13.0µs
+meilisearch-1      | [2m2026-07-02T06:04:52.083674Z[0m [32m INFO[0m [1mHTTP request[0m[1m{[0m[3mmethod[0m[2m=[0mGET [3mhost[0m[2m=[0m"localhost:7700" [3mroute[0m[2m=[0m/health [3mquery_parameters[0m[2m=[0m [3muser_agent[0m[2m=[0mcurl/8.10.1 [3mstatus_code[0m[2m=[0m200[1m}[0m[2m:[0m [2mmeilisearch[0m[2m:[0m close [3mtime.busy[0m[2m=[0m74.4µs [3mtime.idle[0m[2m=[0m17.4µs
+meilisearch-1      | [2m2026-07-02T06:05:02.131494Z[0m [32m INFO[0m [1mHTTP request[0m[1m{[0m[3mmethod[0m[2m=[0mGET [3mhost[0m[2m=[0m"localhost:7700" [3mroute[0m[2m=[0m/health [3mquery_parameters[0m[2m=[0m [3muser_agent[0m[2m=[0mcurl/8.10.1 [3mstatus_code[0m[2m=[0m200[1m}[0m[2m:[0m [2mmeilisearch[0m[2m:[0m close [3mtime.busy[0m[2m=[0m96.1µs [3mtime.idle[0m[2m=[0m17.0µs
+meilisearch-1      | [2m2026-07-02T06:05:12.182494Z[0m [32m INFO[0m [1mHTTP request[0m[1m{[0m[3mmethod[0m[2m=[0mGET [3mhost[0m[2m=[0m"localhost:7700" [3mroute[0m[2m=[0m/health [3mquery_parameters[0m[2m=[0m [3muser_agent[0m[2m=[0mcurl/8.10.1 [3mstatus_code[0m[2m=[0m200[1m}[0m[2m:[0m [2mmeilisearch[0m[2m:[0m close [3mtime.busy[0m[2m=[0m60.7µs [3mtime.idle[0m[2m=[0m15.5µs
+meilisearch-1      | [2m2026-07-02T06:05:22.229917Z[0m [32m INFO[0m [1mHTTP request[0m[1m{[0m[3mmethod[0m[2m=[0mGET [3mhost[0m[2m=[0m"localhost:7700" [3mroute[0m[2m=[0m/health [3mquery_parameters[0m[2m=[0m [3muser_agent[0m[2m=[0mcurl/8.10.1 [3mstatus_code[0m[2m=[0m200[1m}[0m[2m:[0m [2mmeilisearch[0m[2m:[0m close [3mtime.busy[0m[2m=[0m56.0µs [3mtime.idle[0m[2m=[0m21.1µs
+meilisearch-1      | [2m2026-07-02T06:05:32.285141Z[0m [32m INFO[0m [1mHTTP request[0m[1m{[0m[3mmethod[0m[2m=[0mGET [3mhost[0m[2m=[0m"localhost:7700" [3mroute[0m[2m=[0m/health [3mquery_parameters[0m[2m=[0m [3muser_agent[0m[2m=[0mcurl/8.10.1 [3mstatus_code[0m[2m=[0m200[1m}[0m[2m:[0m [2mmeilisearch[0m[2m:[0m close [3mtime.busy[0m[2m=[0m71.8µs [3mtime.idle[0m[2m=[0m17.6µs
+meilisearch-1      | [2m2026-07-02T06:05:42.335834Z[0m [32m INFO[0m [1mHTTP request[0m[1m{[0m[3mmethod[0m[2m=[0mGET [3mhost[0m[2m=[0m"localhost:7700" [3mroute[0m[2m=[0m/health [3mquery_parameters[0m[2m=[0m [3muser_agent[0m[2m=[0mcurl/8.10.1 [3mstatus_code[0m[2m=[0m200[1m}[0m[2m:[0m [2mmeilisearch[0m[2m:[0m close [3mtime.busy[0m[2m=[0m89.5µs [3mtime.idle[0m[2m=[0m15.1µs
+meilisearch-1      | [2m2026-07-02T06:05:52.398026Z[0m [32m INFO[0m [1mHTTP request[0m[1m{[0m[3mmethod[0m[2m=[0mGET [3mhost[0m[2m=[0m"localhost:7700" [3mroute[0m[2m=[0m/health [3mquery_parameters[0m[2m=[0m [3muser_agent[0m[2m=[0mcurl/8.10.1 [3mstatus_code[0m[2m=[0m200[1m}[0m[2m:[0m [2mmeilisearch[0m[2m:[0m close [3mtime.busy[0m[2m=[0m58.3µs [3mtime.idle[0m[2m=[0m14.6µs
+meilisearch-1      | [2m2026-07-02T06:06:02.458196Z[0m [32m INFO[0m [1mHTTP request[0m[1m{[0m[3mmethod[0m[2m=[0mGET [3mhost[0m[2m=[0m"localhost:7700" [3mroute[0m[2m=[0m/health [3mquery_parameters[0m[2m=[0m [3muser_agent[0m[2m=[0mcurl/8.10.1 [3mstatus_code[0m[2m=[0m200[1m}[0m[2m:[0m [2mmeilisearch[0m[2m:[0m close [3mtime.busy[0m[2m=[0m61.3µs [3mtime.idle[0m[2m=[0m121µs
+postgres-1         | The default text search configuration will be set to "english".
+postgres-1         | 
+postgres-1         | Data page checksums are disabled.
+postgres-1         | 
+postgres-1         | fixing permissions on existing directory /var/lib/postgresql/data ... ok
+postgres-1         | creating subdirectories ... ok
+postgres-1         | selecting dynamic shared memory implementation ... posix
+postgres-1         | selecting default max_connections ... 100
+postgres-1         | selecting default shared_buffers ... 128MB
+postgres-1         | selecting default time zone ... Etc/UTC
+postgres-1         | creating configuration files ... ok
+postgres-1         | running bootstrap script ... ok
+postgres-1         | performing post-bootstrap initialization ... ok
+postgres-1         | syncing data to disk ... ok
+postgres-1         | 
+postgres-1         | 
+postgres-1         | Success. You can now start the database server using:
+postgres-1         | 
+postgres-1         |     pg_ctl -D /var/lib/postgresql/data -l logfile start
+postgres-1         | initdb: warning: enabling "trust" authentication for local connections
+postgres-1         | initdb: hint: You can change this by editing pg_hba.conf or using the option -A, or --auth-local and --auth-host, the next time you run initdb.
+postgres-1         | 
+postgres-1         | waiting for server to start....2026-07-02 06:04:27.898 UTC [49] LOG:  starting PostgreSQL 16.4 (Debian 16.4-1.pgdg120+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14) 12.2.0, 64-bit
+postgres-1         | 2026-07-02 06:04:27.898 UTC [49] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+postgres-1         | 2026-07-02 06:04:27.901 UTC [52] LOG:  database system was shut down at 2026-07-02 06:04:27 UTC
+postgres-1         | 2026-07-02 06:04:27.905 UTC [49] LOG:  database system is ready to accept connections
+postgres-1         |  done
+postgres-1         | server started
+postgres-1         | CREATE DATABASE
+postgres-1         | 
+postgres-1         | 
+postgres-1         | /usr/local/bin/docker-entrypoint.sh: ignoring /docker-entrypoint-initdb.d/*
+postgres-1         | 
+postgres-1         | 2026-07-02 06:04:28.093 UTC [49] LOG:  received fast shutdown request
+postgres-1         | waiting for server to shut down....2026-07-02 06:04:28.094 UTC [49] LOG:  aborting any active transactions
+postgres-1         | 2026-07-02 06:04:28.096 UTC [49] LOG:  background worker "logical replication launcher" (PID 55) exited with exit code 1
+postgres-1         | 2026-07-02 06:04:28.098 UTC [50] LOG:  shutting down
+postgres-1         | 2026-07-02 06:04:28.098 UTC [50] LOG:  checkpoint starting: shutdown immediate
+postgres-1         | 2026-07-02 06:04:28.118 UTC [50] LOG:  checkpoint complete: wrote 922 buffers (5.6%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.015 s, sync=0.003 s, total=0.020 s; sync files=301, longest=0.001 s, average=0.001 s; distance=4255 kB, estimate=4255 kB; lsn=0/19120F8, redo lsn=0/19120F8
+postgres-1         | 2026-07-02 06:04:28.125 UTC [49] LOG:  database system is shut down
+postgres-1         |  done
+postgres-1         | server stopped
+postgres-1         | 
+postgres-1         | PostgreSQL init process complete; ready for start up.
+postgres-1         | 
+postgres-1         | 2026-07-02 06:04:28.221 UTC [1] LOG:  starting PostgreSQL 16.4 (Debian 16.4-1.pgdg120+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14) 12.2.0, 64-bit
+postgres-1         | 2026-07-02 06:04:28.221 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+postgres-1         | 2026-07-02 06:04:28.221 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+postgres-1         | 2026-07-02 06:04:28.222 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+postgres-1         | 2026-07-02 06:04:28.226 UTC [65] LOG:  database system was shut down at 2026-07-02 06:04:28 UTC
+postgres-1         | 2026-07-02 06:04:28.232 UTC [1] LOG:  database system is ready to accept connections

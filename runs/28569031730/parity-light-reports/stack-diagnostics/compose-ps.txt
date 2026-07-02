@@ -1,0 +1,6 @@
+NAME                         IMAGE                                      COMMAND                  SERVICE    CREATED              STATUS                          PORTS
+sonnetdb-parity-minio-1      minio/minio:RELEASE.2024-09-22T00-33-43Z   "/usr/bin/docker-ent…"   minio      About a minute ago   Up About a minute (healthy)     0.0.0.0:25000->9000/tcp, [::]:25000->9000/tcp, 0.0.0.0:25090->9001/tcp, [::]:25090->9001/tcp
+sonnetdb-parity-nats-1       nats:2.10                                  "/nats-server -js -m…"   nats       About a minute ago   Up About a minute (unhealthy)   6222/tcp, 8222/tcp, 0.0.0.0:24222->4222/tcp, [::]:24222->4222/tcp
+sonnetdb-parity-postgres-1   postgres:16.4                              "docker-entrypoint.s…"   postgres   About a minute ago   Up About a minute (healthy)     0.0.0.0:25432->5432/tcp, [::]:25432->5432/tcp
+sonnetdb-parity-redis-1      redis:7.4                                  "docker-entrypoint.s…"   redis      About a minute ago   Up About a minute (healthy)     0.0.0.0:26379->6379/tcp, [::]:26379->6379/tcp
+sonnetdb-parity-sonnetdb-1   iotsharp/sonnetdb:parity                   "dotnet SonnetDB.dll"    sonnetdb   About a minute ago   Up About a minute (healthy)     0.0.0.0:25080->5080/tcp, [::]:25080->5080/tcp
