@@ -3,24 +3,24 @@
 /// <summary>
 /// 进程内 Tombstone 集合：按 (SeriesId, FieldName) 索引，提供"某点是否被覆盖"的常数级判定。
 /// <para>
-/// 线程安全：lock 写 + Volatile 读快照。每次写操作后重建只读快照，读操作无锁。
+/// 线程安全：lock 写 + Volatile 读快照。每次写操作后重建 per-key 与全量两份只读快照，
+/// 读操作（<see cref="IsCovered"/> / <see cref="GetForSeriesField"/> / <see cref="All"/>）无锁、免拷贝（C8）。
 /// </para>
 /// </summary>
 public sealed class TombstoneTable
 {
+    private static readonly IReadOnlyDictionary<(ulong SeriesId, string FieldName), Tombstone[]> EmptyByKey
+        = new Dictionary<(ulong, string), Tombstone[]>();
+
     private readonly object _lock = new();
+    // 权威可变集合（仅写侧在 _lock 内访问）。
     private readonly Dictionary<(ulong SeriesId, string FieldName), List<Tombstone>> _byKey = new();
+    // 只读快照：读侧无锁访问。per-key 数组不可变，命中即直接返回，不再每次调用 ToArray。
+    private IReadOnlyDictionary<(ulong SeriesId, string FieldName), Tombstone[]> _byKeySnapshot = EmptyByKey;
     private IReadOnlyList<Tombstone> _allSnapshot = [];
 
     /// <summary>当前墓碑总数。</summary>
-    public int Count
-    {
-        get
-        {
-            lock (_lock)
-                return _allSnapshot.Count;
-        }
-    }
+    public int Count => Volatile.Read(ref _allSnapshot).Count;
 
     /// <summary>当前所有墓碑的只读快照（不可变，可无锁读取）。</summary>
     public IReadOnlyList<Tombstone> All => Volatile.Read(ref _allSnapshot);
@@ -70,20 +70,13 @@ public sealed class TombstoneTable
     /// <returns>若点被任何墓碑覆盖则返回 <c>true</c>，否则返回 <c>false</c>。</returns>
     public bool IsCovered(ulong seriesId, string fieldName, long timestamp)
     {
-        var snapshot = Volatile.Read(ref _allSnapshot);
-        if (snapshot.Count == 0)
+        var byKey = Volatile.Read(ref _byKeySnapshot);
+        if (byKey.Count == 0)
             return false;
 
-        // 锁内对桶列表做数组快照，避免锁外遍历时被写入方 List.Add 修改导致枚举异常
-        Tombstone[] bucket;
-        lock (_lock)
-        {
-            if (!_byKey.TryGetValue((seriesId, fieldName), out var list))
-                return false;
-            bucket = list.ToArray();
-        }
-
-        return IsCoveredByArray(timestamp, bucket);
+        // 无锁读取不可变 per-key 数组：命中即直接扫描，不加锁、不拷贝。
+        return byKey.TryGetValue((seriesId, fieldName), out var bucket)
+            && IsCoveredByArray(timestamp, bucket);
     }
 
     /// <summary>
@@ -94,12 +87,9 @@ public sealed class TombstoneTable
     /// <returns>该 (seriesId, fieldName) 对应的墓碑只读列表；若无则返回空列表。</returns>
     public IReadOnlyList<Tombstone> GetForSeriesField(ulong seriesId, string fieldName)
     {
-        lock (_lock)
-        {
-            if (_byKey.TryGetValue((seriesId, fieldName), out var list))
-                return list.ToArray();
-        }
-        return [];
+        var byKey = Volatile.Read(ref _byKeySnapshot);
+        // 命中返回不可变数组（读侧不会修改），未命中返回空——均无锁、免拷贝。
+        return byKey.TryGetValue((seriesId, fieldName), out var bucket) ? bucket : [];
     }
 
     /// <summary>
@@ -160,12 +150,20 @@ public sealed class TombstoneTable
         return false;
     }
 
-    /// <summary>重建全量只读快照，调用方必须持有 _lock。</summary>
+    /// <summary>重建 per-key 与全量两份只读快照，调用方必须持有 _lock。</summary>
     private void RebuildSnapshot()
     {
         var all = new List<Tombstone>();
-        foreach (var list in _byKey.Values)
-            all.AddRange(list);
+        var byKey = new Dictionary<(ulong SeriesId, string FieldName), Tombstone[]>(_byKey.Count);
+        foreach (var (key, list) in _byKey)
+        {
+            var arr = list.ToArray();
+            byKey[key] = arr;
+            all.AddRange(arr);
+        }
+
+        // 先发布 per-key，再发布全量：读侧两者各自独立无锁读取，无需二者原子一致。
+        Volatile.Write(ref _byKeySnapshot, byKey);
         Volatile.Write(ref _allSnapshot, all.AsReadOnly());
     }
 }

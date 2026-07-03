@@ -172,6 +172,48 @@ public sealed class TombstoneTableTests
     }
 
     [Fact]
+    public void GetForSeriesField_RepeatedCallsWithoutMutation_ReturnSameInstance()
+    {
+        // C8：per-key 快照免拷贝——未发生写操作时重复调用应返回同一不可变数组实例，
+        // 而非每次 ToArray 新分配。
+        var table = new TombstoneTable();
+        table.Add(MakeTombstone(1UL, "f", 1, 10, 1));
+        table.Add(MakeTombstone(1UL, "f", 20, 30, 2));
+
+        var first = table.GetForSeriesField(1UL, "f");
+        var second = table.GetForSeriesField(1UL, "f");
+
+        Assert.Same(first, second);
+        Assert.Equal(2, first.Count);
+    }
+
+    [Fact]
+    public void GetForSeriesField_AfterMutation_ReturnsFreshSnapshot()
+    {
+        // 写操作后必须发布新的 per-key 快照，旧引用保持不变（不可变），新引用反映变更。
+        var table = new TombstoneTable();
+        var t1 = MakeTombstone(1UL, "f", 1, 10, 1);
+        table.Add(t1);
+
+        var before = table.GetForSeriesField(1UL, "f");
+        Assert.Single(before);
+
+        table.Add(MakeTombstone(1UL, "f", 20, 30, 2));
+        var after = table.GetForSeriesField(1UL, "f");
+
+        Assert.NotSame(before, after);
+        Assert.Single(before);      // 旧快照不可变，不受后续写影响
+        Assert.Equal(2, after.Count);
+
+        table.RemoveAll([t1]);
+        var afterRemove = table.GetForSeriesField(1UL, "f");
+        Assert.Single(afterRemove);
+        Assert.DoesNotContain(t1, afterRemove);
+        Assert.False(table.IsCovered(1UL, "f", 5)); // t1 覆盖窗 [1,10] 已移除
+        Assert.True(table.IsCovered(1UL, "f", 25)); // 剩余 [20,30] 仍覆盖
+    }
+
+    [Fact]
     public async Task Concurrent_WritersAndReaders_NoThrow()
     {
         var table = new TombstoneTable();
