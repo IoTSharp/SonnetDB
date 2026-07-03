@@ -122,48 +122,7 @@ public sealed class QueryEngine
 
         var key = new SeriesFieldKey(query.SeriesId, query.FieldName);
 
-        // 单次租约拿到 {active + sealing MemTable + segments} 一致视图（SuperVersion）。
-        List<ReadOnlyMemory<DataPoint>> memSlices;
-        FieldType? memFieldType;
-        List<DataPoint[]> segmentSlices;
-        using (var snapshotLease = _segments.AcquireSnapshot())
-        {
-            memSlices = CollectMemTableSlices(in snapshotLease, in key, from, to, out memFieldType);
-
-            var snapshot = snapshotLease.Snapshot;
-            var candidates = snapshot.Index.LookupCandidates(
-                query.SeriesId, query.FieldName, from, to);
-            var readers = BuildReaderMap(snapshot);
-
-            segmentSlices = new List<DataPoint[]>(candidates.Count);
-            foreach (var blockRef in candidates)
-            {
-                if (query.GeoFilter is not null
-                    && blockRef.Descriptor.HasGeoHashRange
-                    && !GeoHash32.Overlaps(
-                        blockRef.Descriptor.GeoHashMin,
-                        blockRef.Descriptor.GeoHashMax,
-                        query.GeoFilter.HashMin,
-                        query.GeoFilter.HashMax))
-                {
-                    continue;
-                }
-
-                ThrowIfFieldTypeMismatch(memFieldType, blockRef);
-
-                if (!readers.TryGetValue(blockRef.SegmentId, out var reader))
-                    continue;
-
-                var slice = reader.DecodeBlockRange(blockRef.Descriptor, from, to);
-                if (slice.Length > 0)
-                    segmentSlices.Add(slice);
-            }
-        }
-
-        // 4. N 路有序合并（MemTable 侧可能多路：sealing + active）
-        var merged = BlockSourceMerger.Merge(memSlices, segmentSlices);
-
-        // 5/6. 应用墓碑过滤与 Limit。Limit 必须在 tombstone 过滤之后计数。
+        // 墓碑集合与查询范围无关，可在进入租约前一次取好。
         IReadOnlyList<Tombstone> tombstones = Array.Empty<Tombstone>();
         if (_tombstones is not null)
         {
@@ -172,9 +131,50 @@ public sealed class QueryEngine
                 tombstones = FilterTombstonesForQueryRange(tombstoneList, from, to);
         }
 
+        // 单次租约拿到 {active + sealing MemTable + segments} 一致视图（SuperVersion）。
+        // 关键：租约必须在整个流式合并期间保持——段 block 惰性解码发生在下方 foreach 内，
+        // 依赖 reader 存活。iterator 被消费完 / 提前 break 时，using 释放租约（#220 C9）。
+        using var snapshotLease = _segments.AcquireSnapshot();
+
+        var memSlices = CollectMemTableSlices(in snapshotLease, in key, from, to, out var memFieldType);
+
+        var snapshot = snapshotLease.Snapshot;
+        var candidates = snapshot.Index.LookupCandidates(query.SeriesId, query.FieldName, from, to);
+        var readers = BuildReaderMap(snapshot);
+
+        // 构建惰性 block 源：只捕获 (reader, descriptor)，解码推迟到该 block 抵达合并前沿，
+        // 从而把解码工作集限制为 overlap depth，而非候选 block 总数（LOH 峰值消除）。
+        var segmentBlocks = new List<BlockSourceMerger.LazyBlock>(candidates.Count);
+        foreach (var blockRef in candidates)
+        {
+            if (query.GeoFilter is not null
+                && blockRef.Descriptor.HasGeoHashRange
+                && !GeoHash32.Overlaps(
+                    blockRef.Descriptor.GeoHashMin,
+                    blockRef.Descriptor.GeoHashMax,
+                    query.GeoFilter.HashMin,
+                    query.GeoFilter.HashMax))
+            {
+                continue;
+            }
+
+            ThrowIfFieldTypeMismatch(memFieldType, blockRef);
+
+            if (!readers.TryGetValue(blockRef.SegmentId, out var reader))
+                continue;
+
+            var descriptor = blockRef.Descriptor;
+            long lowerBound = Math.Max(from, descriptor.MinTimestamp);
+            segmentBlocks.Add(new BlockSourceMerger.LazyBlock(
+                lowerBound,
+                () => reader.DecodeBlockRangeView(descriptor, from, to)));
+        }
+
+        // N 路流式有序合并（MemTable 侧可能多路：sealing + active）+ 墓碑过滤 + Limit。
+        // Limit 必须在 tombstone 过滤之后计数。
         int emitted = 0;
         int? limit = query.Limit;
-        foreach (var dp in merged)
+        foreach (var dp in BlockSourceMerger.Merge(memSlices, segmentBlocks))
         {
             if (tombstones.Count > 0 && IsCoveredByTombstones(dp.Timestamp, tombstones))
                 continue;
@@ -250,8 +250,8 @@ public sealed class QueryEngine
                     if (!readers.TryGetValue(blockRef.SegmentId, out var reader))
                         continue;
 
-                    var slice = reader.DecodeBlockRange(blockRef.Descriptor, from, to);
-                    if (TryGetLatestFromDecoded(slice, tombstones, out var segmentPoint)
+                    var slice = reader.DecodeBlockRangeView(blockRef.Descriptor, from, to);
+                    if (TryGetLatestFromDecoded(slice.Span, tombstones, out var segmentPoint)
                         && (!hasBest || segmentPoint.Timestamp > best.Timestamp))
                     {
                         best = segmentPoint;

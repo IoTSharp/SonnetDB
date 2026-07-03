@@ -516,6 +516,43 @@ public sealed class SegmentReader : IDisposable
     }
 
     /// <summary>
+    /// 解码并按 [<paramref name="from"/>, <paramref name="toInclusive"/>] 时间裁剪，返回零拷贝视图。
+    /// <para>
+    /// 与 <see cref="DecodeBlockRange"/> 的区别：解码缓存命中时返回缓存数组的子区间 <see cref="ReadOnlyMemory{DataPoint}"/>
+    /// 视图（不复制），而非每次分配裁剪副本；未命中但可缓存时缓存整块并返回其视图。缓存数组不可变
+    /// （<see cref="DataPoint"/> 为只读结构，缓存替换只新建数组、不改动已发布数组），故视图在被持有期间始终有效。
+    /// 返回值仅供只读消费。
+    /// </para>
+    /// </summary>
+    /// <param name="descriptor">目标 Block 描述符。</param>
+    /// <param name="from">起始时间戳（含，毫秒 UTC）。</param>
+    /// <param name="toInclusive">结束时间戳（含，毫秒 UTC）。</param>
+    /// <returns>在时间范围内的 DataPoint 只读内存视图（可能为空）。</returns>
+    /// <exception cref="ObjectDisposedException">Reader 已被释放。</exception>
+    /// <exception cref="SegmentCorruptedException">Block CRC32 校验失败时抛出（当 VerifyBlockCrc = true）。</exception>
+    internal ReadOnlyMemory<DataPoint> DecodeBlockRangeView(in BlockDescriptor descriptor, long from, long toInclusive)
+    {
+        if (_decodeCache is not null)
+        {
+            var key = CreateDecodeCacheKey(descriptor);
+            if (_decodeCache.TryGet(key, out var cached))
+                return SliceDecodedRange(cached, from, toInclusive);
+
+            long estimatedBytes = EstimateDecodedBlockBytes(descriptor);
+            if (_decodeCache.CanStore(estimatedBytes))
+            {
+                var fullData = ReadBlock(descriptor);
+                var decoded = BlockDecoder.Decode(descriptor, fullData.TimestampPayload, fullData.ValuePayload);
+                _decodeCache.TryAdd(key, decoded, estimatedBytes);
+                return SliceDecodedRange(decoded, from, toInclusive);
+            }
+        }
+
+        var data = ReadBlock(descriptor);
+        return BlockDecoder.DecodeRange(descriptor, data.TimestampPayload, data.ValuePayload, from, toInclusive);
+    }
+
+    /// <summary>
     /// 尝试获取指定 block 对应的 SonnetDB HNSW 向量索引 reader。
     /// </summary>
     /// <param name="descriptor">目标 block。</param>
@@ -1051,6 +1088,23 @@ public sealed class SegmentReader : IDisposable
         var result = new DataPoint[length];
         Array.Copy(points, start, result, 0, length);
         return result;
+    }
+
+    /// <summary>
+    /// 与 <see cref="CopyDecodedRange"/> 同样二分裁剪 [from, toInclusive]，但返回 <paramref name="points"/> 的
+    /// 零拷贝子区间视图（不新建数组）。仅供只读消费；<paramref name="points"/> 必须是不可变的解码缓存数组。
+    /// </summary>
+    private static ReadOnlyMemory<DataPoint> SliceDecodedRange(DataPoint[] points, long from, long toInclusive)
+    {
+        if (points.Length == 0)
+            return ReadOnlyMemory<DataPoint>.Empty;
+
+        int start = LowerBound(points, from);
+        int end = UpperBound(points, toInclusive);
+        if (start >= end)
+            return ReadOnlyMemory<DataPoint>.Empty;
+
+        return new ReadOnlyMemory<DataPoint>(points, start, end - start);
     }
 
     private static int LowerBound(DataPoint[] points, long timestamp)
