@@ -142,22 +142,7 @@ internal static class WalCheckpointFile
     }
 
     internal static void FlushDirectoryBestEffort(string directory)
-    {
-        if (directory.Length == 0 || OperatingSystem.IsWindows())
-            return;
-
-        try
-        {
-            using var fs = new FileStream(directory, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            fs.Flush(true);
-        }
-        catch (IOException)
-        {
-        }
-        catch (UnauthorizedAccessException)
-        {
-        }
-    }
+        => DirectoryFsync.FlushBestEffort(directory);
 }
 
 internal readonly record struct WalCheckpointState(

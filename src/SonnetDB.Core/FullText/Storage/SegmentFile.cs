@@ -76,13 +76,14 @@ internal static class SegmentFile
                     previousDocId = posting.Key;
                 }
             }
+
+            stream.Flush();
+            stream.Flush(flushToDisk: true); // fsync 段内容，确保原子改名后段文件完整可读
         }
 
-        if (File.Exists(path))
-        {
-            File.Delete(path);
-        }
-        File.Move(tempPath, path);
+        // 原子改名：绝不 delete-then-move（中途崩溃会丢失段文件）。#192
+        File.Move(tempPath, path, overwrite: true);
+        SonnetDB.Wal.DirectoryFsync.FlushBestEffort(segmentsDirectory);
 
         return Read(path);
     }

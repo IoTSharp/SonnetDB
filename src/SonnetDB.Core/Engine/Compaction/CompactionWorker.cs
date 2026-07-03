@@ -109,63 +109,92 @@ internal sealed class CompactionWorker : IDisposable
             if (_cts.IsCancellationRequested)
                 break;
 
-            // 获取当前 readers 快照
-            var readers = _owner.Segments.Readers;
-            var plans = CompactionPlanner.Plan(readers, _policy);
-
-            foreach (var plan in plans)
+            // 整轮在维护串行锁内执行，序列化与 Retention / DropMeasurement 的段变更（防过期数据复活）；
+            // 外层 try/catch 兜住 plan 获取与 lease 获取阶段的异常，避免后台线程静默死亡（C6）。
+            try
             {
-                if (_cts.IsCancellationRequested)
-                    break;
+                _owner.RunUnderMaintenanceLock(RunCompactionRound);
+            }
+            catch (Exception ex)
+            {
+                Interlocked.Increment(ref _failureCount);
+                Volatile.Write(ref _lastError, ex);
+                _owner.ReportBackgroundWorkerDiagnostic(
+                    "CompactionWorker.Plan",
+                    TsdbDiagnosticSeverity.Error,
+                    "后台 Compaction 规划阶段失败；异常已被捕获，后续轮询会继续尝试。",
+                    ex);
+            }
+        }
+    }
 
-                try
+    /// <summary>
+    /// 在维护锁内执行一轮 compaction：持读租约拿到稳定的 readers（防 use-after-dispose），
+    /// 规划并逐个执行 plan。调用方（<see cref="WorkerLoop"/>）已在 <c>_maintenanceSync</c> 内。
+    /// </summary>
+    private void RunCompactionRound()
+    {
+        // 持租约：lease 期间被合并的旧 reader 不会被并发 Swap/Drop 物理 Dispose，
+        // 保证 _compactor.Execute 解码 block 时不会踩到 ObjectDisposedException（#191）。
+        using var lease = _owner.AcquireReadSnapshot();
+        var readers = lease.Readers;
+        var plans = CompactionPlanner.Plan(readers, _policy);
+        if (plans.Count == 0)
+            return;
+
+        var readerDict = readers.ToDictionary(static r => r.Header.SegmentId);
+
+        foreach (var plan in plans)
+        {
+            if (_cts.IsCancellationRequested)
+                break;
+
+            try
+            {
+                var newId = _owner.AllocateSegmentId();
+                var newPath = TsdbPaths.SegmentPath(_owner.RootDirectory, newId);
+                SegmentReplacementManifest.RecordPendingReplacement(
+                    _owner.RootDirectory,
+                    newId,
+                    plan.SourceSegmentIds);
+                var result = _compactor.Execute(
+                    plan,
+                    readerDict,
+                    newId,
+                    newPath,
+                    _owner.Tombstones,
+                    _owner.Catalog,
+                    _owner.Measurements,
+                    _cts.Token);
+
+                SegmentReplacementManifest.CommitReplacement(
+                    _owner.RootDirectory,
+                    newId,
+                    plan.SourceSegmentIds);
+
+                _owner.Segments.SwapSegments(plan.SourceSegmentIds, newPath);
+
+                // SwapSegments 已把旧 reader 标记 retire（本 lease 释放后才真正 Dispose）；删除旧文件（失败不抛）
+                foreach (long oldId in plan.SourceSegmentIds)
                 {
-                    var newId = _owner.AllocateSegmentId();
-                    var newPath = TsdbPaths.SegmentPath(_owner.RootDirectory, newId);
-                    var readerDict = readers.ToDictionary(static r => r.Header.SegmentId);
-                    SegmentReplacementManifest.RecordPendingReplacement(
-                        _owner.RootDirectory,
-                        newId,
-                        plan.SourceSegmentIds);
-                    var result = _compactor.Execute(
-                        plan,
-                        readerDict,
-                        newId,
-                        newPath,
-                        _owner.Tombstones,
-                        _owner.Catalog,
-                        _owner.Measurements,
-                        _cts.Token);
-
-                    SegmentReplacementManifest.CommitReplacement(
-                        _owner.RootDirectory,
-                        newId,
-                        plan.SourceSegmentIds);
-
-                    _owner.Segments.SwapSegments(plan.SourceSegmentIds, newPath);
-
-                    // SwapSegments 已 Dispose 旧 reader；删除旧文件（失败不抛）
-                    foreach (long oldId in plan.SourceSegmentIds)
-                    {
-                        foreach (string artifactPath in TsdbPaths.SegmentArtifactPaths(_owner.RootDirectory, oldId))
-                            TryDelete(artifactPath);
-                    }
-
-                    // 回收已被消化的墓碑（不再覆盖任何活段的墓碑可以丢弃）
-                    RecycleDiscardedTombstones();
-
-                    Interlocked.Increment(ref _executedCount);
+                    foreach (string artifactPath in TsdbPaths.SegmentArtifactPaths(_owner.RootDirectory, oldId))
+                        TryDelete(artifactPath);
                 }
-                catch (Exception ex)
-                {
-                    Interlocked.Increment(ref _failureCount);
-                    Volatile.Write(ref _lastError, ex);
-                    _owner.ReportBackgroundWorkerDiagnostic(
-                        "CompactionWorker.Execute",
-                        TsdbDiagnosticSeverity.Error,
-                        "后台 Compaction 执行失败；异常已被捕获，后续轮询会继续尝试。",
-                        ex);
-                }
+
+                // 回收已被消化的墓碑（不再覆盖任何活段的墓碑可以丢弃）
+                RecycleDiscardedTombstones();
+
+                Interlocked.Increment(ref _executedCount);
+            }
+            catch (Exception ex)
+            {
+                Interlocked.Increment(ref _failureCount);
+                Volatile.Write(ref _lastError, ex);
+                _owner.ReportBackgroundWorkerDiagnostic(
+                    "CompactionWorker.Execute",
+                    TsdbDiagnosticSeverity.Error,
+                    "后台 Compaction 执行失败；异常已被捕获，后续轮询会继续尝试。",
+                    ex);
             }
         }
     }

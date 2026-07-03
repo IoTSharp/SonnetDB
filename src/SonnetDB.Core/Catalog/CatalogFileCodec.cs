@@ -63,6 +63,9 @@ public static class CatalogFileCodec
         }
 
         File.Move(tmpPath, path, overwrite: true);
+        // 目录 fsync：使原子改名对崩溃/掉电可见（catalog 必须早于 WAL 回收持久化，
+        // 否则被回收的 CreateSeries 记录无法通过 catalog 文件解析 SeriesId）。#189
+        SonnetDB.Wal.DirectoryFsync.FlushBestEffort(Path.GetDirectoryName(path) ?? string.Empty);
     }
 
     /// <summary>

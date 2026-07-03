@@ -72,23 +72,35 @@ public sealed class RetentionWorker : IDisposable
 
     /// <summary>
     /// 立即同步执行一次 Retention 扫描（用于测试 / 管理接口）。
-    /// <para>线程安全；不可与 <see cref="Dispose"/> 并发调用。</para>
+    /// <para>在维护串行锁内执行，与 Compaction / DropMeasurement 互斥；线程安全；不可与 <see cref="Dispose"/> 并发调用。</para>
     /// </summary>
     /// <returns>本次执行的统计信息。</returns>
     public RetentionExecutionStats RunOnce()
     {
+        RetentionExecutionStats stats = default!;
+        _owner.RunUnderMaintenanceLock(() => stats = RunOnceUnderMaintenanceLock());
+        return stats;
+    }
+
+    /// <summary>
+    /// 执行一次 Retention 扫描本体；调用方已持有 <c>_maintenanceSync</c>。
+    /// 持读租约计算 plan，保证与并发 Compaction/Drop 的 reader 生命周期安全。
+    /// </summary>
+    private RetentionExecutionStats RunOnceUnderMaintenanceLock()
+    {
         var sw = System.Diagnostics.Stopwatch.StartNew();
 
-        // 1. 获取当前 readers 快照
-        var snapshot = _owner.Segments.Readers;
-
-        // 2. 计算 plan（无副作用）
-        var plan = RetentionPlanner.Plan(snapshot, _owner.Tombstones, _policy);
+        RetentionPlan plan;
+        // 持租约取 readers 并规划（plan 只读 reader 元数据，不解码 block）。
+        using (var lease = _owner.AcquireReadSnapshot())
+        {
+            plan = RetentionPlanner.Plan(lease.Readers, _owner.Tombstones, _policy);
+        }
 
         int droppedSegments = 0;
         int injectedTombstones = 0;
 
-        // 3. 注入墓碑（在 _writeSync 锁内逐条调用 Tsdb.Delete，复用 WAL + TombstoneTable 路径）
+        // 3. 注入墓碑（Tsdb.Delete 内部取 _writeSync；锁序 _maintenanceSync → _writeSync 一致，无死锁）
         foreach (var inject in plan.TombstonesToInject)
         {
             _owner.Delete(inject.SeriesId, inject.FieldName, inject.FromTimestamp, inject.ToTimestamp);

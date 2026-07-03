@@ -105,6 +105,8 @@ public static class MeasurementSchemaCodec
         }
 
         File.Move(tmpPath, path, overwrite: true);
+        // 目录 fsync：使原子改名对崩溃/掉电可见（measurement schema 与 CREATE 语义的崩溃安全性）。#189
+        SonnetDB.Wal.DirectoryFsync.FlushBestEffort(Path.GetDirectoryName(path) ?? string.Empty);
     }
 
     // ── 私有实现 ──────────────────────────────────────────────────────────────

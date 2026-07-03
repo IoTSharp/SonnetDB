@@ -31,7 +31,19 @@ internal sealed class FlushPump : IDisposable
             SegmentId = segmentId;
         }
 
-        /// <summary>被密封、待落盘的不可变 MemTable。</summary>
+        private FlushRequest()
+        {
+            SealedTable = null!;
+            IsBarrier = true;
+        }
+
+        /// <summary>创建一个 barrier 请求：不做任何 flush，仅在泵按序处理到它时 set 完成句柄。</summary>
+        public static FlushRequest Barrier() => new();
+
+        /// <summary>是否为 FIFO barrier（<see cref="Drain"/> 用；泵遇到时不 flush，只 set 完成）。</summary>
+        public bool IsBarrier { get; }
+
+        /// <summary>被密封、待落盘的不可变 MemTable（barrier 时为 null）。</summary>
         public MemTable SealedTable { get; }
 
         /// <summary>
@@ -87,6 +99,21 @@ internal sealed class FlushPump : IDisposable
         _queue.Add(request);
     }
 
+    /// <summary>
+    /// 阻塞直到当前已入队的所有 flush 请求全部处理完成（FIFO barrier）。
+    /// 入队一个 barrier 请求（<see cref="FlushRequest.IsBarrier"/>），泵按序处理到它时说明其之前的
+    /// 请求都已完成；等待该 barrier 的完成句柄即可。用于 DropMeasurement / backup 等需要"所有在飞
+    /// flush 已发布为段"再继续的路径。调用方不应持有会被泵获取的锁（泵不取 _writeSync，故安全）。
+    /// </summary>
+    public void Drain()
+    {
+        if (_disposed)
+            return;
+        var barrier = FlushRequest.Barrier();
+        _queue.Add(barrier);
+        barrier.Completion.Task.GetAwaiter().GetResult();
+    }
+
     /// <summary>停止入队，等待泵处理完已入队请求并退出线程。</summary>
     public void Dispose()
     {
@@ -104,6 +131,13 @@ internal sealed class FlushPump : IDisposable
     {
         foreach (var request in _queue.GetConsumingEnumerable())
         {
+            // barrier：不 flush，仅标记完成（FIFO 保证其之前的请求都已处理完）。
+            if (request.IsBarrier)
+            {
+                request.Completion.TrySetResult();
+                continue;
+            }
+
             try
             {
                 _owner.ExecutePumpFlush(request);

@@ -28,6 +28,11 @@ public sealed class Tsdb : IDisposable
     private readonly FlushCoordinator _flushCoordinator;
     private readonly WalGroupCommitCoordinator _walGroupCommit;
     private readonly object _writeSync = new();
+    // 维护操作串行锁：序列化 Compaction / Retention / DropMeasurement 的段读-规划-执行-替换，
+    // 防止"compaction 把 retention 刚删的过期数据重新物化"以及后台 worker 无租约读段导致的
+    // use-after-dispose（#191）。锁序约定：_maintenanceSync（外）→ _writeSync（内）。
+    // 任何同时需要两把锁的路径都必须先取 _maintenanceSync；写路径只取 _writeSync，flush 泵两把都不取。
+    private readonly object _maintenanceSync = new();
     private MemTable _activeMemTable;
     private readonly HashSet<ulong> _seriesWithWalRecord;
     private readonly KvKeyspaceManager _keyspaces;
@@ -143,6 +148,20 @@ public sealed class Tsdb : IDisposable
     /// 避免"先读 MemTable、再读段"的两次独立读跨越 flush 边界。用完必须 Dispose 释放租约。
     /// </summary>
     internal SegmentManagerSnapshotLease AcquireReadSnapshot() => Segments.AcquireSnapshot();
+
+    /// <summary>
+    /// 在维护串行锁（<c>_maintenanceSync</c>）内执行 <paramref name="action"/>。
+    /// 序列化 Compaction / Retention / DropMeasurement，杜绝它们的段变更相互交错
+    /// （如 compaction 重新物化 retention 刚删的过期数据）。锁序：_maintenanceSync 先于 _writeSync。
+    /// </summary>
+    internal void RunUnderMaintenanceLock(Action action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        lock (_maintenanceSync)
+        {
+            action();
+        }
+    }
 
     /// <summary>
     /// 线程安全地分配下一个 SegmentId（单调递增）。
@@ -547,6 +566,9 @@ public sealed class Tsdb : IDisposable
     {
         ArgumentNullException.ThrowIfNull(name);
 
+        // 先取维护锁（外），再取写锁（内）：与 Compaction / Retention 互斥，杜绝它们并发变更段集合
+        // 导致的 use-after-dispose / 数据复活；锁序 _maintenanceSync → _writeSync 全局一致。
+        lock (_maintenanceSync)
         lock (_writeSync)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -906,6 +928,10 @@ public sealed class Tsdb : IDisposable
     {
         var request = SealAndEnqueueLocked();
         request?.Completion.Task.GetAwaiter().GetResult();
+        // 排空泵：等待所有在飞 flush（可能是本次 seal 之前由后台 worker 入队的）全部发布为段。
+        // DropMeasurement / backup 依赖"所有 drop 相关数据已落为可见段"再扫描移除；仅等自身 seal
+        // 在活跃表为空（seal 返回 null）时不足以覆盖先前入队的请求，故显式 Drain。泵不取 _writeSync，无死锁。
+        _flushPump?.Drain();
     }
     internal void OnPumpFlushFailed(FlushPump.FlushRequest request, Exception ex)
     {
@@ -1031,7 +1057,11 @@ public sealed class Tsdb : IDisposable
         if (removedSeriesIds.Count == 0 || Segments.SegmentCount == 0)
             return;
 
-        var sourceReaders = Segments.Readers.ToArray();
+        // 持读租约：即便本方法已在 _maintenanceSync 内（与其它维护操作互斥），仍持租约保证
+        // MeasurementDropCompactor.RewriteWithoutSeries 解码 block 期间 reader 不被回收（防御性，与
+        // Compaction 路径一致）。
+        using var lease = Segments.AcquireSnapshot();
+        var sourceReaders = lease.Readers.ToArray();
         foreach (var reader in sourceReaders)
         {
             bool hasDroppedSeries = false;
