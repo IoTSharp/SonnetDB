@@ -222,6 +222,49 @@ public sealed class MemTableTests
     }
 
     [Fact]
+    public async Task Append_ConcurrentReadersDuringAppend_RemainLockFreeSafe()
+    {
+        // C10 回归：移除内部 ReaderWriterLockSlim 后，读者（SnapshotAll/TryGet/PointCount/GetBySeries）
+        // 与 Append 并发仍须无锁安全，不抛 InvalidOperationException（枚举被修改的集合）等异常。
+        var table = new MemTable();
+        const int pointsPerSeries = 2000;
+        const int seriesCount = 16;
+        using var stop = new CancellationTokenSource();
+
+        var writer = Task.Run(() =>
+        {
+            for (int i = 0; i < pointsPerSeries; i++)
+            {
+                for (ulong s = 1; s <= seriesCount; s++)
+                    table.Append(s, 1000L + i, "v", FieldValue.FromDouble(i), i + 1);
+            }
+            stop.Cancel();
+        });
+
+        var readers = Enumerable.Range(0, 4).Select(_ => Task.Run(() =>
+        {
+            long sink = 0;
+            while (!stop.IsCancellationRequested)
+            {
+                // 枚举全部桶快照 + 逐 series 读取 + 读取统计量，全部应无异常。
+                foreach (var bucket in table.SnapshotAll())
+                    sink += bucket.Count;
+                sink += table.GetBySeries(3).Count;
+                sink += table.TryGet(new SeriesFieldKey(5, "v"))?.Count ?? 0;
+                sink += table.PointCount;
+                sink += table.EstimatedBytes;
+            }
+            return sink;
+        })).ToArray();
+
+        await writer;
+        await Task.WhenAll(readers);
+
+        Assert.Equal((long)pointsPerSeries * seriesCount, table.PointCount);
+        Assert.Equal(seriesCount, table.SeriesCount);
+    }
+
+    [Fact]
     public void ShouldFlush_MaxBytes_ReturnsTrue()
     {
         var table = new MemTable();

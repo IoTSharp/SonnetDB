@@ -42,6 +42,7 @@
 
 - **M28 P2 写路径吞吐批次**：
   (#205) `EnsureMeasurementSchemaLocked` 稳态不再每点 `new List(schema.Columns)` 后丢弃，改为仅在真检测到新列 / int→float 提升时才 copy-on-write；`WritePointLocked` 对 `Dictionary` 支持的 `Point.Fields` 走 struct 枚举器，消除 `IReadOnlyDictionary` foreach 的枚举器装箱。缩短 `_writeSync` 临界区、降低写入热路径 GC 压力（C3）。
+  (#206) 移除 `MemTable` 内部 `ReaderWriterLockSlim` 生命周期门：`Append` / `Reset` / `RemoveSeries` 三个写侧操作已由调用方 `_writeSync` 串行化（Reset 在 double-buffering 下已无生产调用方），该 RWLock 纯属冗余，`Append` 热路径每点省一对 enter/exit read-lock。读者无锁安全语义保留（`ConcurrentDictionary` + 每桶锁 + `Interlocked` 统计量不动），新增读者与 `Append` 并发压测回归（C10）。
 - **写入持久性默认加固（M28 #196）**：新增 `TsdbOptions.FlushWalToOsOnWrite`（默认 `true`），每次写入后把 WAL 缓冲 flush 到 OS（不 fsync）。**行为变更**：此前默认下 WAL 记录仅停留在进程内 BufferedStream，直到 segment flush / roll / dispose 才交给 OS——普通进程崩溃（非掉电）也会丢失最近一个 flush 窗口内的已确认写；现在默认下进程崩溃不再丢已确认写（数据已在 OS page cache），仅掉电/内核崩溃可能丢。持久性分三级：`FlushWalToOsOnWrite=false`（极限吞吐，最弱）＜ 默认 `true`（进程崩溃安全）＜ `SyncWalOnEveryWrite=true`（每批 fsync，掉电安全）。开销为一次用户态→内核态拷贝，远低于 fsync。需要极限写吞吐可显式设为 `false`。
 - CI workflows now use `actions/cache@v6` for NuGet package caching.
 - README / README.en 第一屏介绍改为产品门面叙事，避免使用“收敛到一个……”这类内部路线图表达。
