@@ -145,7 +145,7 @@ internal static class RelationalSelectExecutor
     private static Relation LoadTable(Tsdb tsdb, TableSchema schema, string alias)
     {
         var columns = schema.Columns
-            .Select(column => new RelColumn(alias, column.Name, column.Name))
+            .Select(column => new RelColumn(alias, column.Name, column.Name, column.DataType))
             .ToArray();
         // read-your-writes：叠加当前 ambient 轻事务对本表的缓冲写（#218）。
         var rows = TableSqlExecutor.LoadSelectCandidateRows(tsdb.Tables.Open(schema.Name), schema, where: null)
@@ -456,10 +456,10 @@ internal static class RelationalSelectExecutor
         for (int i = 0; i < relation.Columns.Count; i++)
         {
             var column = relation.Columns[i];
-            if (!string.Equals(column.Name, identifier.Name, StringComparison.Ordinal))
+            if (!NameEquals(column.Name, identifier.Name))
                 continue;
             if (identifier.Qualifier is not null
-                && !string.Equals(column.Qualifier, identifier.Qualifier, StringComparison.OrdinalIgnoreCase))
+                && !QualifierEquals(column.Qualifier, identifier.Qualifier))
                 continue;
             matchIndex = i;
             matchCount++;
@@ -504,11 +504,15 @@ internal static class RelationalSelectExecutor
         {
             if (projections[i].Aggregate is null) continue;
             allIntegralByProjection ??= new bool[projections.Count];
-            allIntegralByProjection[i] = IsAggregateInputAllIntegral(
-                tsdb,
-                projections[i].Aggregate!,
-                relation.Columns,
-                relation.Rows);
+            // Q15：优先用 schema 静态类型判定聚合输入是否整型——命中即省去全量预扫，
+            // 且对大 long 保持整型累加不丢精度。仅当输入表达式静态类型未知
+            // （算术 / 函数派生列 / 子查询列）时才回退逐行预扫。
+            allIntegralByProjection[i] = InferAggregateInputIntegral(projections[i].Aggregate!, relation.Columns)
+                ?? IsAggregateInputAllIntegral(
+                    tsdb,
+                    projections[i].Aggregate!,
+                    relation.Columns,
+                    relation.Rows);
         }
 
         foreach (var group in groups.Values)
@@ -560,6 +564,74 @@ internal static class RelationalSelectExecutor
                 return false;
         }
         return true;
+    }
+
+    /// <summary>
+    /// 用 schema 静态类型判定聚合输入是否整型（Q15）。返回 <c>true</c>/<c>false</c> 表示可静态定论；
+    /// <c>null</c> 表示输入表达式静态类型未知（算术 / 函数派生 / 子查询列等），需回退逐行预扫。
+    /// <c>count(*)</c> 与常量输入按整型处理。
+    /// </summary>
+    private static bool? InferAggregateInputIntegral(AggregateSpec aggregate, IReadOnlyList<RelColumn> columns)
+    {
+        var fn = aggregate.Function;
+        if (fn.IsStar) return true;
+        if (fn.Arguments.Count == 0) return true;
+        return InferExpressionIntegral(fn.Arguments[0], columns);
+    }
+
+    /// <summary>推断标量表达式的静态数值类别：整型 true、浮点 false、无法静态判定 null。</summary>
+    private static bool? InferExpressionIntegral(SqlExpression expression, IReadOnlyList<RelColumn> columns)
+    {
+        switch (expression)
+        {
+            case LiteralExpression { Kind: SqlLiteralKind.Integer }:
+                return true;
+            case LiteralExpression { Kind: SqlLiteralKind.Float }:
+                return false;
+            case IdentifierExpression id:
+                var idx = TryResolveColumnIndex(columns, id);
+                if (idx is null) return null;
+                return columns[idx.Value].StaticType switch
+                {
+                    TableColumnType.Int64 => true,
+                    TableColumnType.Float64 => false,
+                    // 非数值列（string/bool/…）交给聚合本身求值时报错，此处不声明整型倾向。
+                    _ => null,
+                };
+            case UnaryExpression { Operator: SqlUnaryOperator.Negate } unary:
+                return InferExpressionIntegral(unary.Operand, columns);
+            case BinaryExpression binary when IsArithmeticOperator(binary.Operator):
+                // 除法可能产生非整数结果，静态无法保证整型。
+                if (binary.Operator == SqlBinaryOperator.Divide)
+                    return false;
+                var left = InferExpressionIntegral(binary.Left, columns);
+                var right = InferExpressionIntegral(binary.Right, columns);
+                if (left is null || right is null) return null;
+                return left.Value && right.Value;
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>解析标识符到列下标（唯一命中返回下标，0/多命中返回 null），用于静态类型推断。</summary>
+    private static int? TryResolveColumnIndex(IReadOnlyList<RelColumn> columns, IdentifierExpression identifier)
+    {
+        int? matchIndex = null;
+        int matchCount = 0;
+        for (int i = 0; i < columns.Count; i++)
+        {
+            var column = columns[i];
+            if (!NameEquals(column.Name, identifier.Name))
+                continue;
+            if (identifier.Qualifier is not null
+                && !QualifierEquals(column.Qualifier, identifier.Qualifier))
+                continue;
+            matchIndex = i;
+            matchCount++;
+            if (matchCount > 1)
+                return null;
+        }
+        return matchCount == 1 ? matchIndex : null;
     }
 
     /// <summary>
@@ -1224,10 +1296,10 @@ internal static class RelationalSelectExecutor
         for (int i = 0; i < columns.Count; i++)
         {
             var column = columns[i];
-            if (!string.Equals(column.Name, identifier.Name, StringComparison.Ordinal))
+            if (!NameEquals(column.Name, identifier.Name))
                 continue;
             if (identifier.Qualifier is not null
-                && !string.Equals(column.Qualifier, identifier.Qualifier, StringComparison.OrdinalIgnoreCase))
+                && !QualifierEquals(column.Qualifier, identifier.Qualifier))
                 continue;
             matches.Add(i);
         }
@@ -1273,10 +1345,10 @@ internal static class RelationalSelectExecutor
         for (int i = 0; i < scope.Columns.Count; i++)
         {
             var column = scope.Columns[i];
-            if (!string.Equals(column.Name, identifier.Name, StringComparison.Ordinal))
+            if (!NameEquals(column.Name, identifier.Name))
                 continue;
             if (identifier.Qualifier is not null
-                && !string.Equals(column.Qualifier, identifier.Qualifier, StringComparison.OrdinalIgnoreCase))
+                && !QualifierEquals(column.Qualifier, identifier.Qualifier))
                 continue;
             matchIndex = i;
             matchCount++;
@@ -1394,7 +1466,7 @@ internal static class RelationalSelectExecutor
     {
         for (int i = 0; i < columns.Count; i++)
         {
-            if (string.Equals(columns[i], name, StringComparison.Ordinal))
+            if (NameEquals(columns[i], name))
                 return i;
         }
         return -1;
@@ -1465,8 +1537,8 @@ internal static class RelationalSelectExecutor
         => left switch
         {
             IdentifierExpression l when right is IdentifierExpression r =>
-                string.Equals(l.Name, r.Name, StringComparison.Ordinal)
-                && string.Equals(l.Qualifier, r.Qualifier, StringComparison.OrdinalIgnoreCase),
+                NameEquals(l.Name, r.Name)
+                && QualifierEquals(l.Qualifier, r.Qualifier),
             _ => Equals(left, right),
         };
 
@@ -1577,13 +1649,27 @@ internal static class RelationalSelectExecutor
     };
 
     private static string FormatStarColumnName(RelColumn column, Relation relation)
-        => relation.Columns.Count(candidate => string.Equals(candidate.Name, column.Name, StringComparison.Ordinal)) > 1
+        => relation.Columns.Count(candidate => NameEquals(candidate.Name, column.Name)) > 1
             ? $"{column.Qualifier}.{column.Name}"
             : column.Name;
 
+    /// <summary>
+    /// 未加引号标识符的列名比较：大小写不敏感（<see cref="StringComparison.OrdinalIgnoreCase"/>），
+    /// 与本执行器的限定符（qualifier）比较策略以及 measurement / 关系表投影路径保持一致（Q12）。
+    /// </summary>
+    private static bool NameEquals(string left, string right)
+        => string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+
+    private static bool QualifierEquals(string? left, string? right)
+        => string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+
     private sealed record Relation(IReadOnlyList<RelColumn> Columns, IReadOnlyList<object?[]> Rows);
 
-    private sealed record RelColumn(string Qualifier, string Name, string OutputName);
+    /// <summary>
+    /// 关系列描述。<see cref="StaticType"/> 为该列的 schema 静态类型（关系表列已知；子查询 /
+    /// 表达式派生列为 null），用于聚合返回类型判定（Q15），避免额外全量预扫。
+    /// </summary>
+    private sealed record RelColumn(string Qualifier, string Name, string OutputName, TableColumnType? StaticType = null);
 
     private sealed record Projection(string Name, SqlExpression Expression, AggregateSpec? Aggregate = null);
 

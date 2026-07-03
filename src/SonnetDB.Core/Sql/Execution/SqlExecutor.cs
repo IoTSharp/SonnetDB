@@ -1,4 +1,5 @@
-﻿using SonnetDB.Catalog;
+﻿using System.Globalization;
+using SonnetDB.Catalog;
 using SonnetDB.Engine;
 using SonnetDB.Model;
 using SonnetDB.Sql.Ast;
@@ -722,6 +723,107 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
         using var _ = SonnetDB.Query.Functions.UserFunctionRegistry.EnterScope(tsdb.Functions);
+
+        if (!statement.Distinct)
+            return ExecuteSelectDispatch(tsdb, statement);
+
+        // DISTINCT 在单一收敛点去重，覆盖 measurement / 关系 / 文档等所有 SELECT 路径。
+        // 标准 SQL 求值顺序为 SELECT → DISTINCT → LIMIT，故先剥离分页交由子执行器算出全量投影行，
+        // 去重后再施加 LIMIT/OFFSET；否则"先分页再去重"会少返回不足 k 行的去重结果。
+        // ORDER BY 仍由子执行器施加于去重前全集，稳定去重保序 —— 对 ORDER BY 键 ⊆ 投影列的
+        // 常见场景与标准结果一致。
+        var pagination = statement.Pagination;
+        var dispatched = pagination is null ? statement : statement with { Pagination = null };
+        var result = ApplyDistinct(ExecuteSelectDispatch(tsdb, dispatched));
+        return pagination is null ? result : ApplyResultPagination(result, pagination);
+    }
+
+    private static SelectExecutionResult ApplyDistinct(SelectExecutionResult result)
+    {
+        var seen = new HashSet<IReadOnlyList<object?>>(DistinctRowComparer.Instance);
+        var deduped = new List<IReadOnlyList<object?>>(result.Rows.Count);
+        foreach (var row in result.Rows)
+        {
+            if (seen.Add(row))
+                deduped.Add(row);
+        }
+        return deduped.Count == result.Rows.Count
+            ? result
+            : new SelectExecutionResult(result.Columns, deduped);
+    }
+
+    private static SelectExecutionResult ApplyResultPagination(SelectExecutionResult result, PaginationSpec pagination)
+    {
+        int offset = pagination.Offset;
+        if (offset >= result.Rows.Count)
+            return new SelectExecutionResult(result.Columns, []);
+        var skipped = result.Rows.Skip(offset);
+        var taken = pagination.Fetch is { } fetch ? skipped.Take(fetch) : skipped;
+        return new SelectExecutionResult(result.Columns, taken.ToArray());
+    }
+
+    /// <summary>
+    /// SELECT DISTINCT 行去重比较器：逐列结构相等。数值按"整型 vs 浮点"两个规范化命名空间比较
+    /// （整型统一装箱为 <see cref="long"/>，浮点为 <see cref="double"/>），避免把大 long 折成 double
+    /// 时的精度误合并；<see cref="byte"/>[] 按内容序列比较。
+    /// </summary>
+    private sealed class DistinctRowComparer : IEqualityComparer<IReadOnlyList<object?>>
+    {
+        public static readonly DistinctRowComparer Instance = new();
+
+        public bool Equals(IReadOnlyList<object?>? x, IReadOnlyList<object?>? y)
+        {
+            if (x is null || y is null)
+                return ReferenceEquals(x, y);
+            if (x.Count != y.Count)
+                return false;
+            for (int i = 0; i < x.Count; i++)
+            {
+                var a = Normalize(x[i]);
+                var b = Normalize(y[i]);
+                if (a is byte[] ab && b is byte[] bb)
+                {
+                    if (!ab.AsSpan().SequenceEqual(bb))
+                        return false;
+                }
+                else if (!Equals(a, b))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        public int GetHashCode(IReadOnlyList<object?> row)
+        {
+            var hash = new HashCode();
+            foreach (var value in row)
+            {
+                var n = Normalize(value);
+                if (n is byte[] bytes)
+                {
+                    hash.AddBytes(bytes);
+                }
+                else
+                {
+                    hash.Add(n);
+                }
+            }
+            return hash.ToHashCode();
+        }
+
+        private static object? Normalize(object? value) => value switch
+        {
+            null => null,
+            byte or sbyte or short or ushort or int or uint or long => Convert.ToInt64(value, CultureInfo.InvariantCulture),
+            ulong u => u <= long.MaxValue ? (long)u : (double)u,
+            float or double or decimal => Convert.ToDouble(value, CultureInfo.InvariantCulture),
+            _ => value,
+        };
+    }
+
+    private static SelectExecutionResult ExecuteSelectDispatch(Tsdb tsdb, SelectStatement statement)
+    {
         if (TryExecuteInformationSchemaSelect(tsdb, statement, out var informationSchemaResult))
             return informationSchemaResult;
 

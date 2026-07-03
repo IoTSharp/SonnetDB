@@ -817,6 +817,59 @@ internal static class SelectExecutor
         return lookups;
     }
 
+    /// <summary>
+    /// 收集某 series 上残差 WHERE 谓词逐点求值确定为 TRUE 的时间戳集合（#219 值定向 DELETE 复用）。
+    /// 语义与 #217 物化路径完全一致：tag/time 已由 <paramref name="where"/> 下推过滤，此处只对时间窗内
+    /// 所有 field 列出现过的时间戳并集逐点求值残差三值 Kleene，仅保留确定 TRUE 的时刻。
+    /// </summary>
+    internal static IReadOnlyList<long> CollectResidualMatchedTimestamps(
+        Tsdb tsdb,
+        MeasurementSchema schema,
+        SeriesEntry series,
+        WhereClause where)
+    {
+        if (where.Residual is null)
+            throw new InvalidOperationException("内部错误：无残差谓词时不应走逐点匹配路径。");
+
+        var residualFieldCols = GetResidualFieldDependencies(where.Residual, schema)
+            .Distinct(StringComparer.Ordinal).ToList();
+        var residualLookups = BuildResidualLookups(tsdb, series, where.TimeRange, residualFieldCols);
+
+        // 时间窗内该 series 所有 field 列写过的时间戳并集 = 候选行/时刻集合。
+        var candidateTimestamps = new HashSet<long>();
+        foreach (var col in schema.FieldColumns)
+        {
+            var geoFilters = where.GeoFilters
+                .Where(f => string.Equals(f.FieldName, col.Name, StringComparison.Ordinal))
+                .ToArray();
+            foreach (var dp in QueryPoints(tsdb, series.Id, col.Name, where.TimeRange, geoFilters))
+                candidateTimestamps.Add(dp.Timestamp);
+        }
+
+        var matched = new List<long>();
+        foreach (var ts in candidateTimestamps)
+        {
+            if (ResidualHoldsAtPoint(where.Residual, ts, series, residualLookups))
+                matched.Add(ts);
+        }
+        return matched;
+    }
+
+    /// <summary>
+    /// 校验残差谓词只引用已知列（time / tag / field）。DELETE 用它在无数据时也能对未知列硬报错，
+    /// 而非静默零删除（逐点路径在无候选点时不会触发未知列错误）。
+    /// </summary>
+    internal static void ValidateResidualColumns(SqlExpression residual, MeasurementSchema schema)
+    {
+        foreach (var name in CollectIdentifierNames(residual))
+        {
+            if (string.Equals(name, "time", StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (schema.TryGetColumn(name) is null)
+                throw new InvalidOperationException($"WHERE 中引用了未知列 '{name}'。");
+        }
+    }
+
     private static object? EvaluateScalarProjection(
         Projection projection,
         long timestamp,

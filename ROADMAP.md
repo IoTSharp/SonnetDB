@@ -647,7 +647,7 @@ extensions/
 | #216 | **相关子查询去关联 / memoize**：对 `IN(subquery)` / `EXISTS` / 标量子查询先做"是否引用外层列"静态判定；非相关子查询执行 0/1 次并缓存，相关子查询去关联为 semi/anti-join 或哈希内表；消除每外层行重扫内表 O(n_outer × n_inner)。（与末尾性能待办 P2 合并落地。） | SQL Q8 | ✅（运行时相关性探针 + per-查询记忆表：非相关子查询整段外层扫描只执行一次并缓存；相关子查询探针置位→不缓存逐行执行。基于运行时观测，杜绝误缓存。去关联为 semi/anti-join 留后续。） |
 | #217 | **时序 WHERE 字段谓词 + OR**：`WhereClauseDecomposer` 增加按数据点求值的残差字段谓词（比照 JOIN 路径已有能力）并支持 OR；让 `WHERE temp > 30`、`WHERE tag='a' OR tag='b'` 可用（当前直接抛"不在 v1 支持范围"）。对 IoT 时序库是 table-stakes。 | SQL Q5 | ✅（不可下推谓词收集为残差合取，扫描路径逐点三值 Kleene 求值，仅保留确定 TRUE 的点；tag/time 仍下推为等值过滤+时间窗；有残差时禁用 latest / 流式窗口 / 扩展聚合 sidecar 快路径改走物化路径；`EXPLAIN` 复用同一分解器；DELETE 遇残差显式拒绝，字段级定向删除留 #219） |
 | #218 | **事务隔离 / read-your-writes**：事务内 SELECT 叠加本事务已缓冲的 insert/update（当前读提交态、看不到自身缓冲写）；明确并文档化隔离级别。 | SQL Q4 | ✅（`SqlTransactionContext` ambient `AsyncLocal` 作用域；关系表 SELECT 读路径在已提交基线上按主键叠加本事务缓冲写，覆盖直接查询/聚合/子查询；隔离级别=读已提交+本事务 read-your-writes；ADO `BeginTransaction()` 透明获得；measurement/document 事务写已由 #199 拒绝故不涉及） |
-| #219 | **关系 SQL 语义补齐**：`DISTINCT` 加关键字并实现或显式拒绝（当前静默误解析为列别名）；统一未加引号标识符大小写策略（关系/JOIN 路径当前 Ordinal 大小写敏感，与 projection 的 OrdinalIgnoreCase 不一致）；DELETE 支持按字段/值定向删除（当前对匹配 series 无差别 tombstone 所有字段列）；聚合返回类型改由 schema 静态类型决定而非额外全量预扫，避免 `Convert.ToDouble` 把整型/浮点混淆与大 long 精度丢失。 | SQL Q11、Q12、Q13、Q15 | 📋 |
+| #219 | **关系 SQL 语义补齐**：`DISTINCT` 加关键字并实现或显式拒绝（当前静默误解析为列别名）；统一未加引号标识符大小写策略（关系/JOIN 路径当前 Ordinal 大小写敏感，与 projection 的 OrdinalIgnoreCase 不一致）；DELETE 支持按字段/值定向删除（当前对匹配 series 无差别 tombstone 所有字段列）；聚合返回类型改由 schema 静态类型决定而非额外全量预扫，避免 `Convert.ToDouble` 把整型/浮点混淆与大 long 精度丢失。 | SQL Q11、Q12、Q13、Q15 | ✅（`DISTINCT` 加关键字 + AST `Distinct` 标志，在 `ExecuteSelect` 单一收敛点结构化去重覆盖所有 SELECT 路径，标准顺序 SELECT→DISTINCT→LIMIT，去重比较器按"整型/浮点"两命名空间规范化避免大 long 折 double 误合并；关系/JOIN 列名比较全部经 `NameEquals`/`QualifierEquals` 统一为 OrdinalIgnoreCase，与投影一致；DELETE 遇残差（字段谓词/OR/IN）复用 #217 逐点三值 Kleene 求值，按命中时刻对该 series 所有 field 列单点 `[ts,ts]` 定向删除，未知列静态预校验硬报错；关系聚合输入类型由 `RelColumn.StaticType`（schema 静态类型）静态推断整型/浮点，命中即省全量预扫并对大 long 保持整型累加，仅表达式派生列回退逐行预扫） |
 | #220 | **QueryEngine 流式合并**：大范围扫描在租约内 block-by-block 流式 merge/yield 并限制解码工作集，替换"先把全部候选 block 解码进 `List<DataPoint[]>` 再合并"的 LOH 堆峰值；decode cache 命中避免每次整份拷贝。 | 并发 C9 | 📋 |
 
 ### P4 — 索引与向量能力
@@ -729,11 +729,11 @@ P4 索引：#221（文档惰性 scan）→ #222（FTS 批量成段）→ #223（
 | Q8 | 🟠 | `Sql/Execution/RelationalSelectExecutor.cs:679/811/832` | 相关子查询/EXISTS/IN 每外层行重扫内表 O(n_outer×n_inner) | #216 |
 | Q9 | 🟠 | `Sql/Execution/RelationalSelectExecutor.cs:110` | 关系 JOIN 全物化嵌套循环笛卡尔积，无 hash join | #215 |
 | Q10 | 🟡 | 整个 SQL 入口（`SqlExecutor.cs:38`） | 无参数化/绑定变量，应用被迫拼字符串 → 注入回到应用层 | #213 |
-| Q11 | 🟡 | `Sql/SqlParser.cs:1249` | `DISTINCT` 非关键字，`SELECT DISTINCT x` 静默误解析为列别名 | #219 |
-| Q12 | 🟡 | `Sql/Execution/RelationalSelectExecutor.cs:856` | 关系/JOIN 标量求值 Ordinal 大小写敏感，与 projection 不一致 | #219 |
-| Q13 | 🟡 | `Sql/Execution/DeleteExecutor.cs:26` | 时序 DELETE 无字段定向，无差别删所有字段 | #219 |
+| Q11 | ✅ | `Sql/SqlParser.cs:1249` | `DISTINCT` 非关键字，`SELECT DISTINCT x` 静默误解析为列别名 | #219 |
+| Q12 | ✅ | `Sql/Execution/RelationalSelectExecutor.cs:856` | 关系/JOIN 标量求值 Ordinal 大小写敏感，与 projection 不一致 | #219 |
+| Q13 | ✅ | `Sql/Execution/DeleteExecutor.cs:26` | 时序 DELETE 无字段定向，无差别删所有字段 | #219 |
 | Q14 | 🟡 | `Sql/Execution/SelectExecutor.cs:983` | `count(*)` 数 field-value 非行，3 字段返回 3N | #198 |
-| Q15 | 🟡 | `Sql/Execution/RelationalSelectExecutor.cs:290` | 聚合类型判定额外全量预扫 + `Convert.ToDouble` 混淆整型/浮点、丢 long 精度 | #219 |
+| Q15 | ✅ | `Sql/Execution/RelationalSelectExecutor.cs:290` | 聚合类型判定额外全量预扫 + `Convert.ToDouble` 混淆整型/浮点、丢 long 精度 | #219 |
 | C1 | 🟠 | `Engine/Compaction/CompactionWorker.cs:113`、`Tsdb.cs:883` | 维护 worker 绕过 reader 租约 → use-after-dispose；无串行锁致 retention 被 compaction 撤销（数据复活）；DropMeasurement 无 try/catch | #191 |
 | C2 | 🟠 | `Engine/Tsdb.cs:827`、`FlushCoordinator.cs:50` | 整个 segment flush 在全局 `_writeSync` 内，阻塞所有写入者 | #204 |
 | C3 | 🟠 | `Engine/Tsdb.cs:976`（859/981/996/1050 装箱） | 锁内每点 `new List(schema.Columns)` + `IReadOnlyDictionary` foreach 装箱枚举器 | #205 |

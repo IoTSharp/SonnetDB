@@ -206,19 +206,90 @@ public class SqlExecutorDeleteTests : IDisposable
     }
 
     [Fact]
-    public void Delete_OrInWhere_Throws()
+    public void Delete_UnknownColumnInResidual_Throws()
     {
+        // 残差引用未知列（既非 tag 也非 field）应在逐点求值时报错。
         using var db = OpenWithSchema(Options());
+        Seed(db);
         Assert.Throws<InvalidOperationException>(() =>
-            SqlExecutor.Execute(db, "DELETE FROM cpu WHERE host = 'h1' OR host = 'h2'"));
+            SqlExecutor.Execute(db, "DELETE FROM cpu WHERE bogus > 1 OR host = 'h1'"));
     }
 
     [Fact]
-    public void Delete_FieldInWhere_Throws()
+    public void Delete_FieldPredicate_DeletesOnlyMatchingPoints()
+    {
+        // #219 Q13：字段谓词 DELETE 逐点求值残差、按命中时刻定向删整行（所有 field 列）。
+        using var db = OpenWithSchema(Options());
+        Seed(db);
+
+        // h1: usage=1,2,3 @ 1000,2000,3000；h2: usage=5,6 @ 1500,2500。
+        // usage > 2 命中 h1@3000、h2@1500、h2@2500 → 3 个时刻 × 2 field = 6 墓碑。
+        var r = Delete(db, "DELETE FROM cpu WHERE usage > 2");
+
+        Assert.Equal("cpu", r.Measurement);
+        Assert.Equal(2, r.SeriesAffected);
+        Assert.Equal(6, r.TombstonesAdded);
+
+        var remaining = Select(db, "SELECT time, usage FROM cpu ORDER BY time");
+        // 剩 h1@1000(1.0)、h1@2000(2.0)。
+        Assert.Equal(2, remaining.Rows.Count);
+        Assert.Equal([1000L, 2000L], remaining.Rows.Select(row => (long)row[0]!));
+    }
+
+    [Fact]
+    public void Delete_FieldPredicate_DeletesEntireRowAcrossAllFields()
     {
         using var db = OpenWithSchema(Options());
-        Assert.Throws<InvalidOperationException>(() =>
-            SqlExecutor.Execute(db, "DELETE FROM cpu WHERE usage > 0"));
+        Seed(db);
+
+        // count = 20 只命中 h1@2000；该时刻整行删除（usage 与 count 都被 tombstone）。
+        Delete(db, "DELETE FROM cpu WHERE count = 20");
+
+        var usage = Select(db, "SELECT time FROM cpu WHERE host = 'h1'");
+        Assert.Equal([1000L, 3000L], usage.Rows.Select(row => (long)row[0]!));
+    }
+
+    [Fact]
+    public void Delete_FieldPredicateWithTagAndTime_CombinesPushdownAndResidual()
+    {
+        using var db = OpenWithSchema(Options());
+        Seed(db);
+
+        // tag host='h1' + time<=2000 下推，usage>1 残差逐点 → 命中 h1@2000（usage=2）。
+        var r = Delete(db, "DELETE FROM cpu WHERE host = 'h1' AND time <= 2000 AND usage > 1");
+
+        Assert.Equal(1, r.SeriesAffected);
+        Assert.Equal(2, r.TombstonesAdded);
+
+        var remaining = Select(db, "SELECT time FROM cpu WHERE host = 'h1' ORDER BY time");
+        Assert.Equal([1000L, 3000L], remaining.Rows.Select(row => (long)row[0]!));
+    }
+
+    [Fact]
+    public void Delete_OrPredicate_DeletesMatchingSeries()
+    {
+        using var db = OpenWithSchema(Options());
+        Seed(db);
+
+        // host='h1' OR host='h2' 顶层 OR → 残差；两 series 全部时刻均命中。
+        var r = Delete(db, "DELETE FROM cpu WHERE host = 'h1' OR host = 'h2'");
+
+        Assert.Equal(2, r.SeriesAffected);
+        var remaining = Select(db, "SELECT time FROM cpu");
+        Assert.Empty(remaining.Rows);
+    }
+
+    [Fact]
+    public void Delete_FieldPredicate_NoMatch_DeletesNothing()
+    {
+        using var db = OpenWithSchema(Options());
+        Seed(db);
+
+        var r = Delete(db, "DELETE FROM cpu WHERE usage > 1000");
+
+        Assert.Equal(0, r.SeriesAffected);
+        Assert.Equal(0, r.TombstonesAdded);
+        Assert.Equal(5, Select(db, "SELECT time FROM cpu").Rows.Count);
     }
 
     [Fact]

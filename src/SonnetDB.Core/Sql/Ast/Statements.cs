@@ -327,7 +327,8 @@ public sealed record SelectStatement(
     SelectStatement? FromSubquery = null,
     IReadOnlyList<JoinClause>? Joins = null,
     SqlExpression? Having = null,
-    IReadOnlyList<OrderBySpec>? OrderByItems = null) : SqlStatement
+    IReadOnlyList<OrderBySpec>? OrderByItems = null,
+    bool Distinct = false) : SqlStatement
 {
     /// <summary>当前 SELECT 的 JOIN 列表。</summary>
     public IReadOnlyList<JoinClause> JoinClauses { get; } =

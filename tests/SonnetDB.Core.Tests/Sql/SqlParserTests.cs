@@ -214,6 +214,19 @@ public class SqlParserTests
         Assert.Null(stmt.Projections[0].Alias);
         Assert.Null(stmt.Where);
         Assert.Empty(stmt.GroupBy);
+        Assert.False(stmt.Distinct);
+    }
+
+    [Fact]
+    public void Parse_SelectDistinct_SetsFlagAndParsesColumn()
+    {
+        // #219 Q11：DISTINCT 是关键字，不再被误解析为列别名。
+        var stmt = (SelectStatement)SqlParser.Parse("SELECT DISTINCT region FROM cpu");
+        Assert.True(stmt.Distinct);
+        Assert.Single(stmt.Projections);
+        var id = Assert.IsType<IdentifierExpression>(stmt.Projections[0].Expression);
+        Assert.Equal("region", id.Name);
+        Assert.Null(stmt.Projections[0].Alias);
     }
 
     [Fact]

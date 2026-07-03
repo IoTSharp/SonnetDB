@@ -950,6 +950,12 @@ public sealed class SqlParser
     private SelectStatement ParseSelect()
     {
         Expect(TokenKind.KeywordSelect);
+        bool distinct = false;
+        if (Current.Kind == TokenKind.KeywordDistinct)
+        {
+            Advance();
+            distinct = true;
+        }
         var projections = ParseSelectList();
 
         if (Current.Kind != TokenKind.KeywordFrom)
@@ -958,7 +964,8 @@ public sealed class SqlParser
                 projections,
                 string.Empty,
                 Where: null,
-                GroupBy: Array.Empty<SqlExpression>());
+                GroupBy: Array.Empty<SqlExpression>(),
+                Distinct: distinct);
         }
 
         Advance();
@@ -1054,7 +1061,8 @@ public sealed class SqlParser
             FromSubquery: fromSubquery,
             Joins: joins,
             Having: having,
-            OrderByItems: orderByItems);
+            OrderByItems: orderByItems,
+            Distinct: distinct);
     }
 
     private string ResolveTableValuedSourceName(string functionName, FunctionCallExpression call)

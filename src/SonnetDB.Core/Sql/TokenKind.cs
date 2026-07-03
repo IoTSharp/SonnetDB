@@ -80,6 +80,8 @@ public enum TokenKind
     KeywordPath,
     KeywordValues,
     KeywordSelect,
+    /// <summary>DISTINCT（SELECT DISTINCT 去重）。</summary>
+    KeywordDistinct,
     KeywordFrom,
     /// <summary>JOIN（MM4 时序 measurement JOIN 关系维表）。</summary>
     KeywordJoin,

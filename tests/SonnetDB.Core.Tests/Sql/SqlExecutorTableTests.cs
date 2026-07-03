@@ -1772,4 +1772,147 @@ public sealed class SqlExecutorTableTests : IDisposable
         var all = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SELECT id FROM devices ORDER BY id"));
         Assert.Equal([1L, 2L], all.Rows.Select(static r => (long)r[0]!));
     }
+
+    // ── #219 Q11：SELECT DISTINCT ───────────────────────────────────────────
+
+    [Fact]
+    public void SelectDistinct_RelationalTable_DeduplicatesRows()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE rel_dd (id INT, region STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "INSERT INTO rel_dd (id, region) VALUES (1, 'cn'), (2, 'cn'), (3, 'us'), (4, 'cn')");
+
+        var r = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT DISTINCT region FROM rel_dd ORDER BY region"));
+
+        Assert.Equal(["cn", "us"], r.Rows.Select(static row => (string)row[0]!));
+    }
+
+    [Fact]
+    public void SelectDistinct_MultiColumn_DeduplicatesOnTuple()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE rel_dd2 (id INT, a STRING, b INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "INSERT INTO rel_dd2 (id, a, b) VALUES (1, 'x', 1), (2, 'x', 1), (3, 'x', 2), (4, 'y', 1)");
+
+        var r = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT DISTINCT a, b FROM rel_dd2"));
+
+        Assert.Equal(3, r.Rows.Count);
+    }
+
+    [Fact]
+    public void SelectDistinct_WithLimit_DedupesBeforePaging()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE rel_dd3 (id INT, region STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "INSERT INTO rel_dd3 (id, region) VALUES (1, 'a'), (2, 'a'), (3, 'b'), (4, 'c')");
+
+        // 去重后有 3 个 region（a,b,c）；LIMIT 2 施加在去重之后 → 恰 2 行。
+        var r = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT DISTINCT region FROM rel_dd3 ORDER BY region LIMIT 2"));
+
+        Assert.Equal(["a", "b"], r.Rows.Select(static row => (string)row[0]!));
+    }
+
+    [Fact]
+    public void SelectDistinct_Star_MeasurementPath_Deduplicates()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE MEASUREMENT cpu (host TAG, usage FIELD FLOAT)");
+        // 同一 (time, host, usage) 只会存一份；用两个 host 制造重复 usage 值行去重于投影列。
+        SqlExecutor.Execute(db,
+            "INSERT INTO cpu (time, host, usage) VALUES (1000, 'h1', 1.0), (2000, 'h2', 1.0), (3000, 'h1', 2.0)");
+
+        var r = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT DISTINCT usage FROM cpu"));
+
+        Assert.Equal(2, r.Rows.Count);
+    }
+
+    // ── #219 Q12：关系路径未加引号标识符大小写不敏感 ───────────────────────
+
+    [Fact]
+    public void RelationalSelect_ColumnReference_IsCaseInsensitive()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE rel_case (id INT, Amount INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "INSERT INTO rel_case (id, Amount) VALUES (1, 10), (2, 20), (3, 30)");
+
+        // 走关系聚合路径（sum 触发 NeedsRelationalPath）；用不同大小写引用 Amount。
+        var r = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT sum(AMOUNT) FROM rel_case WHERE amount > 10"));
+
+        Assert.Equal(50L, r.Rows[0][0]);
+    }
+
+    [Fact]
+    public void RelationalJoin_KeyColumn_IsCaseInsensitive()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE rel_c (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE TABLE rel_o (id INT, Customer_Id INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "INSERT INTO rel_c (id, name) VALUES (1, 'alice'), (2, 'bob')");
+        SqlExecutor.Execute(db, "INSERT INTO rel_o (id, Customer_Id) VALUES (10, 1), (20, 1), (30, 2)");
+
+        var r = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT c.name, count(*) FROM rel_c c JOIN rel_o o ON c.ID = o.customer_id GROUP BY c.name ORDER BY c.name"));
+
+        Assert.Equal(2, r.Rows.Count);
+        Assert.Equal("alice", r.Rows[0][0]);
+        Assert.Equal(2L, r.Rows[0][1]);
+    }
+
+    // ── #219 Q15：聚合返回类型由 schema 静态类型决定 ──────────────────────
+
+    [Fact]
+    public void RelationalAggregate_IntColumn_ReturnsLongWithoutPrescan()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE rel_q15 (id INT, v INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "INSERT INTO rel_q15 (id, v) VALUES (1, 5), (2, 7), (3, 11)");
+
+        var r = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT sum(v), min(v), max(v) FROM rel_q15"));
+
+        Assert.IsType<long>(r.Rows[0][0]);
+        Assert.IsType<long>(r.Rows[0][1]);
+        Assert.IsType<long>(r.Rows[0][2]);
+        Assert.Equal(23L, r.Rows[0][0]);
+    }
+
+    [Fact]
+    public void RelationalAggregate_FloatColumn_ReturnsDouble()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE rel_q15f (id INT, v FLOAT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "INSERT INTO rel_q15f (id, v) VALUES (1, 1.5), (2, 2.5)");
+
+        var r = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT sum(v), max(v) FROM rel_q15f"));
+
+        Assert.IsType<double>(r.Rows[0][0]);
+        Assert.IsType<double>(r.Rows[0][1]);
+    }
+
+    [Fact]
+    public void RelationalAggregate_BigLongColumn_KeepsIntegralPrecision()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE rel_q15big (id INT, v INT, PRIMARY KEY (id))");
+        // 两个大 long 之和仍在 long 范围内：静态类型判定应保持整型累加，不经 double 丢精度。
+        long a = 9_000_000_000_000_000_001L;
+        long b = 2L;
+        SqlExecutor.Execute(db, $"INSERT INTO rel_q15big (id, v) VALUES (1, {a}), (2, {b})");
+
+        var r = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT sum(v) FROM rel_q15big"));
+
+        var sum = Assert.IsType<long>(r.Rows[0][0]);
+        Assert.Equal(a + b, sum);
+    }
 }
