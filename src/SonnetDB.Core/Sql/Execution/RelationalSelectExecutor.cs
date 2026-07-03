@@ -50,7 +50,7 @@ internal static class RelationalSelectExecutor
             || statement.Having is not null)
         {
             var aggregateProjection = ExecuteAggregateProjection(tsdb, statement, relation, outerScope);
-            return ApplyPagination(ApplyOrderBy(aggregateProjection, statement.OrderByList), statement.Pagination);
+            return ApplyOrderByAndPagination(aggregateProjection, statement.OrderByList, statement.Pagination);
         }
 
         var canApplyRelationOrderBy = CanApplyRelationOrderBy(statement.OrderByList, relation);
@@ -59,7 +59,7 @@ internal static class RelationalSelectExecutor
             : relation;
         var projected = ExecuteRawProjection(tsdb, statement, orderedRelation, outerScope);
         if (statement.OrderByList.Count > 0 && !canApplyRelationOrderBy)
-            projected = ApplyOrderBy(projected, statement.OrderByList);
+            return ApplyOrderByAndPagination(projected, statement.OrderByList, statement.Pagination);
         return ApplyPagination(projected, statement.Pagination);
     }
 
@@ -980,10 +980,16 @@ internal static class RelationalSelectExecutor
         return matchCount == 1 ? matchIndex : null;
     }
 
-    private static SelectExecutionResult ApplyOrderBy(SelectExecutionResult result, IReadOnlyList<OrderBySpec> orderBy)
+    /// <summary>
+    /// 融合 ORDER BY 与分页（#214）：ORDER BY + Fetch 上限时走有界 Top-N，避免全量排序仅取 k 行。
+    /// </summary>
+    private static SelectExecutionResult ApplyOrderByAndPagination(
+        SelectExecutionResult result,
+        IReadOnlyList<OrderBySpec> orderBy,
+        PaginationSpec? pagination)
     {
         if (orderBy.Count == 0)
-            return result;
+            return ApplyPagination(result, pagination);
 
         var sortItems = orderBy.Select(order =>
         {
@@ -1004,9 +1010,8 @@ internal static class RelationalSelectExecutor
             return (ColumnIndex: columnIndex, order.Direction);
         }).ToArray();
 
-        var rows = result.Rows
-            .OrderBy(row => row, new ResultRowSortComparer(sortItems))
-            .ToArray();
+        var comparer = new ResultRowSortComparer(sortItems);
+        var rows = TopN.OrderByThenPaginate(result.Rows, comparer, pagination?.Offset ?? 0, pagination?.Fetch);
         return new SelectExecutionResult(result.Columns, rows);
     }
 

@@ -269,7 +269,7 @@ internal static class TableSqlExecutor
         var result = new SelectExecutionResult(
             projections.Select(static p => p.ColumnName).ToArray(),
             filtered);
-        return ApplyPagination(ApplyOrderBy(result, statement.OrderByList), statement.Pagination);
+        return ApplyOrderByAndPagination(result, statement.OrderByList, statement.Pagination);
     }
 
     public static RowsAffectedExecutionResult ExecuteDelete(Tsdb tsdb, DeleteStatement statement, TableSchema schema)
@@ -1242,12 +1242,32 @@ internal static class TableSqlExecutor
         _ => throw new InvalidOperationException("一元负号只能用于数值字面量。"),
     };
 
-    private static SelectExecutionResult ApplyOrderBy(SelectExecutionResult result, IReadOnlyList<OrderBySpec> orderBy)
+    /// <summary>
+    /// 融合 ORDER BY 与分页（#214）：有 ORDER BY + Fetch 上限时走有界 Top-N，避免全量排序百万行仅取 k 行。
+    /// 无 ORDER BY 时仅分页；无分页时仅排序。
+    /// </summary>
+    private static SelectExecutionResult ApplyOrderByAndPagination(
+        SelectExecutionResult result,
+        IReadOnlyList<OrderBySpec> orderBy,
+        PaginationSpec? pagination)
     {
         if (orderBy.Count == 0)
-            return result;
+            return ApplyPagination(result, pagination);
 
-        var sortItems = orderBy.Select(order =>
+        var sortItems = ResolveSortItems(result, orderBy);
+        var comparer = new ResultRowSortComparer(sortItems);
+
+        int offset = pagination?.Offset ?? 0;
+        int? fetch = pagination?.Fetch;
+
+        var rows = TopN.OrderByThenPaginate(result.Rows, comparer, offset, fetch);
+        return new SelectExecutionResult(result.Columns, rows);
+    }
+
+    private static (int ColumnIndex, SortDirection Direction)[] ResolveSortItems(
+        SelectExecutionResult result,
+        IReadOnlyList<OrderBySpec> orderBy)
+        => orderBy.Select(order =>
             {
                 if (order.Expression is not IdentifierExpression { Name: var name })
                     throw new InvalidOperationException("关系表 ORDER BY 当前仅支持列名。");
@@ -1268,12 +1288,6 @@ internal static class TableSqlExecutor
                 return (ColumnIndex: columnIndex, order.Direction);
             })
             .ToArray();
-
-        var rows = result.Rows
-            .OrderBy(row => row, new ResultRowSortComparer(sortItems))
-            .ToArray();
-        return new SelectExecutionResult(result.Columns, rows);
-    }
 
     private sealed class ResultRowSortComparer(IReadOnlyList<(int ColumnIndex, SortDirection Direction)> sortItems)
         : IComparer<IReadOnlyList<object?>>

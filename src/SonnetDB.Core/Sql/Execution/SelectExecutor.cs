@@ -20,7 +20,7 @@ internal static class SelectExecutor
         ValidateTableAliasReferences(statement);
 
         if (statement.TableValuedFunction is not null)
-            return ApplyPagination(ApplyOrderBy(TableValuedFunctionExecutor.Execute(tsdb, statement), statement.OrderBy), statement.Pagination);
+            return ApplyOrderByAndPagination(TableValuedFunctionExecutor.Execute(tsdb, statement), statement.OrderBy, statement.Pagination);
 
         var schema = tsdb.Measurements.TryGet(statement.Measurement)
             ?? throw new InvalidOperationException(
@@ -61,7 +61,7 @@ internal static class SelectExecutor
             ? ExecuteAggregate(tsdb, schema, classified, matchedSeries, where, groupByTime)
             : ExecuteRaw(tsdb, schema, classified, matchedSeries, where);
 
-        return ApplyPagination(ApplyOrderBy(result, statement.OrderBy), statement.Pagination);
+        return ApplyOrderByAndPagination(result, statement.OrderBy, statement.Pagination);
     }
 
     private static bool TryExecuteLatestPointFastPath(
@@ -233,10 +233,16 @@ internal static class SelectExecutor
         }
     }
 
-    private static SelectExecutionResult ApplyOrderBy(SelectExecutionResult result, OrderBySpec? orderBy)
+    /// <summary>
+    /// 融合 ORDER BY time 与分页（#214）：有 Fetch 上限时走有界 Top-N，避免全量排序仅取 k 行。
+    /// </summary>
+    private static SelectExecutionResult ApplyOrderByAndPagination(
+        SelectExecutionResult result,
+        OrderBySpec? orderBy,
+        PaginationSpec? pagination)
     {
         if (orderBy is null)
-            return result;
+            return ApplyPagination(result, pagination);
 
         if (orderBy.Expression is not IdentifierExpression { Name: var name }
             || !string.Equals(name, "time", StringComparison.OrdinalIgnoreCase))
@@ -257,11 +263,24 @@ internal static class SelectExecutor
         if (timeColumnIndex < 0)
             throw new InvalidOperationException("ORDER BY time 要求 SELECT 结果中包含 time 列。");
 
-        var orderedRows = orderBy.Direction == SortDirection.Descending
-            ? result.Rows.OrderByDescending(row => RequireOrderByTimestamp(row[timeColumnIndex])).ToList()
-            : result.Rows.OrderBy(row => RequireOrderByTimestamp(row[timeColumnIndex])).ToList();
+        bool descending = orderBy.Direction == SortDirection.Descending;
+        var comparer = new TimeColumnComparer(timeColumnIndex, descending);
 
-        return new SelectExecutionResult(result.Columns, orderedRows);
+        var rows = TopN.OrderByThenPaginate(result.Rows, comparer, pagination?.Offset ?? 0, pagination?.Fetch);
+        return new SelectExecutionResult(result.Columns, rows);
+    }
+
+    private sealed class TimeColumnComparer(int timeColumnIndex, bool descending)
+        : IComparer<IReadOnlyList<object?>>
+    {
+        public int Compare(IReadOnlyList<object?>? x, IReadOnlyList<object?>? y)
+        {
+            if (ReferenceEquals(x, y)) return 0;
+            if (x is null) return -1;
+            if (y is null) return 1;
+            int c = RequireOrderByTimestamp(x[timeColumnIndex]).CompareTo(RequireOrderByTimestamp(y[timeColumnIndex]));
+            return descending ? -c : c;
+        }
     }
 
     private static long RequireOrderByTimestamp(object? value)
