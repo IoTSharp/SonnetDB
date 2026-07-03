@@ -68,7 +68,9 @@ public sealed class FlushCoordinatorWithSegmentSetTests : IDisposable
         // Flush 后 RecycleUpTo 应清理旧 segment，只剩 active
         Assert.True(walSet.Segments.Count < segCountBeforeFlush, $"Expected fewer segments after flush; before={segCountBeforeFlush}, after={walSet.Segments.Count}");
         Assert.Single(walSet.Segments);
-        Assert.Equal(0, (int)memTable.PointCount);
+        // 新契约：FlushCoordinator 不再 Reset MemTable（清空由 Tsdb 层原子 swap 完成）。
+        // 此处只验证段编码与 WAL 回收；MemTable 的数据在协调器视角保持不变。
+        Assert.Equal(1, (int)memTable.PointCount);
     }
 
     [Fact]
@@ -93,8 +95,8 @@ public sealed class FlushCoordinatorWithSegmentSetTests : IDisposable
         // 这是正确的行为：checkpoint 已被 Sync 到磁盘并提供了崩溃恢复保证，之后旧段被安全清理
         Assert.Single(walSet.Segments);
 
-        // MemTable 已清空
-        Assert.Equal(0, (int)memTable.PointCount);
+        // 新契约：FlushCoordinator 不再 Reset MemTable（清空由 Tsdb 层原子 swap 完成）。
+        Assert.Equal(5, (int)memTable.PointCount);
     }
 
     [Fact]

@@ -28,6 +28,7 @@ public sealed class Tsdb : IDisposable
     private readonly FlushCoordinator _flushCoordinator;
     private readonly WalGroupCommitCoordinator _walGroupCommit;
     private readonly object _writeSync = new();
+    private MemTable _activeMemTable;
     private readonly HashSet<ulong> _seriesWithWalRecord;
     private readonly KvKeyspaceManager _keyspaces;
     private readonly TableManager _tables;
@@ -57,8 +58,12 @@ public sealed class Tsdb : IDisposable
     /// <summary>当前 Measurement schema 集合（线程安全）。</summary>
     public MeasurementCatalog Measurements { get; }
 
-    /// <summary>当前内存层（MemTable）。</summary>
-    public MemTable MemTable { get; }
+    /// <summary>
+    /// 当前活跃内存层（MemTable）。Flush 时会被原子替换为新的空实例，因此本属性每次读取
+    /// 返回"当前"活跃表；查询侧不直接用它，而是通过 <see cref="Segments"/> 的统一快照
+    /// 同时拿到 active + sealing MemTable 与段集合，保证读一致（修 #190）。
+    /// </summary>
+    public MemTable MemTable => _activeMemTable;
 
     /// <summary>段集合与索引快照管理器。</summary>
     public SegmentManager Segments { get; }
@@ -129,9 +134,14 @@ public sealed class Tsdb : IDisposable
 
     /// <summary>后台 Flush 策略（供 BackgroundFlushWorker 访问）。</summary>
     internal MemTableFlushPolicy BackgroundFlushPolicy => _options.FlushPolicy;
-
-    /// <summary>Compaction 写入选项（供 CompactionWorker 访问）。</summary>
     internal SegmentWriterOptions CompactionWriterOptions => _options.SegmentWriterOptions;
+
+    /// <summary>
+    /// 获取一次统一读快照租约：一次调用原子拿到 {active + sealing MemTable + 段读取器} 一致视图。
+    /// 供需要同时读 MemTable 与段的执行器（KNN / hybrid / TVF / explain）使用，
+    /// 避免"先读 MemTable、再读段"的两次独立读跨越 flush 边界。用完必须 Dispose 释放租约。
+    /// </summary>
+    internal SegmentManagerSnapshotLease AcquireReadSnapshot() => Segments.AcquireSnapshot();
 
     /// <summary>
     /// 线程安全地分配下一个 SegmentId（单调递增）。
@@ -176,7 +186,7 @@ public sealed class Tsdb : IDisposable
         _options = options;
         Catalog = catalog;
         Measurements = measurements;
-        MemTable = memTable;
+        _activeMemTable = memTable;
         _walSet = walSet;
         _nextSegmentId = nextSegmentId;
         _seriesWithWalRecord = seriesWithWalRecord;
@@ -671,15 +681,21 @@ public sealed class Tsdb : IDisposable
                         {
                             PersistMeasurementSchemasLocked();
                             PersistCatalogCheckpointLocked();
+                            var flushing = _activeMemTable;
+                            long lsnBeforeFlush = flushing.LastLsn;
                             var result = _flushCoordinator.Flush(
-                                MemTable,
+                                flushing,
                                 walSetToDispose,
                                 _nextSegmentId++,
                                 Tombstones,
                                 Catalog,
                                 Measurements);
                             if (result != null)
-                                _checkpointLsn = MemTable.LastLsn;
+                            {
+                                _checkpointLsn = lsnBeforeFlush;
+                                // 关闭路径不发布段索引（进程即将退出），换空表保持不变式一致。
+                                _activeMemTable = new MemTable();
+                            }
                         }
                         catch (Exception ex)
                         {
@@ -783,7 +799,8 @@ public sealed class Tsdb : IDisposable
         _walGroupCommit.FlushPending(_walSet);
         PersistMeasurementSchemasLocked();
 
-        if (MemTable.PointCount == 0)
+        var flushing = _activeMemTable;
+        if (flushing.PointCount == 0)
         {
             PersistCatalogCheckpointLocked();
             return null;
@@ -793,10 +810,12 @@ public sealed class Tsdb : IDisposable
         // 这样旧 WAL segment 中的 CreateSeries 被回收后，segment 中的 SeriesId 仍能通过 catalog 文件解析。
         PersistCatalogCheckpointLocked();
 
-        long lsnBeforeFlush = MemTable.LastLsn;
+        long lsnBeforeFlush = flushing.LastLsn;
         long segId = _nextSegmentId++;
+        // FlushCoordinator 只负责把 flushing 表编码落盘 + WAL checkpoint/roll/recycle，不再 Reset；
+        // 清空由下面的原子 swap（换成新空表）完成。
         var result = _flushCoordinator.Flush(
-            MemTable,
+            flushing,
             _walSet,
             segId,
             Tombstones,
@@ -813,9 +832,21 @@ public sealed class Tsdb : IDisposable
             if (lsnBeforeFlush != long.MinValue)
                 _checkpointLsn = lsnBeforeFlush;
 
-            // 仅在非关闭路径（非 Dispose 内部调用）时更新索引快照
-            if (!_disposed)
-                Segments.AddSegment(result.Path);
+            if (_disposed)
+            {
+                // 关闭路径：不发布段索引（进程即将退出），仅换空表保持不变式。
+                _activeMemTable = new MemTable();
+            }
+            else
+            {
+                // 关键原子步骤：接入新段 + 把活跃表换成新空实例，在 SegmentManager 内一次
+                // Volatile.Write 完成。发布前查询看到 {旧活跃表(含数据) + 旧段}，发布后看到
+                // {新空表 + 含新段的段集合}——数据在切换瞬间从 MemTable 原子转移到 segment，
+                // 绝不出现"两处都无"（修 #190）或"两处都有"。
+                var fresh = new MemTable();
+                Segments.AddSegmentAndSwapActive(result.Path, fresh);
+                _activeMemTable = fresh;
+            }
         }
 
         return result;

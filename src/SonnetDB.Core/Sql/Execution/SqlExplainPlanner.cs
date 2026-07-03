@@ -514,13 +514,19 @@ public static class SqlExplainPlanner
         var estimatedMemTableRows = 0L;
         var estimatedBlockCount = 0;
 
+        // 单次租约拿到 {MemTable(active+sealing) + 段索引} 一致视图。
+        using var readSnapshot = tsdb.AcquireReadSnapshot();
+        var memTables = readSnapshot.AllMemTables();
+        var index = readSnapshot.Snapshot.Index;
+
         foreach (var series in matchedSeries)
         {
             foreach (var fieldName in fields)
             {
-                estimatedMemTableRows += CountMemTableRows(tsdb.MemTable, series.Id, fieldName, where.TimeRange);
+                foreach (var memTable in memTables)
+                    estimatedMemTableRows += CountMemTableRows(memTable, series.Id, fieldName, where.TimeRange);
 
-                var candidates = tsdb.Segments.Index.LookupCandidates(
+                var candidates = index.LookupCandidates(
                     series.Id,
                     fieldName,
                     where.TimeRange.FromInclusive,

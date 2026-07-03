@@ -41,7 +41,7 @@ internal static class KnnExecutor
     /// 若无候选点则返回空列表。
     /// </returns>
     public static IReadOnlyList<KnnSearchResult> Execute(
-        MemTable memTable,
+        IReadOnlyList<MemTable> memTables,
         IReadOnlyList<SegmentReader> segmentReaders,
         IReadOnlyList<SeriesEntry> matchedSeries,
         string vectorField,
@@ -51,7 +51,7 @@ internal static class KnnExecutor
         TimeRange timeRange,
         TombstoneTable? tombstones)
     {
-        ArgumentNullException.ThrowIfNull(memTable);
+        ArgumentNullException.ThrowIfNull(memTables);
         ArgumentNullException.ThrowIfNull(segmentReaders);
         ArgumentNullException.ThrowIfNull(matchedSeries);
         ArgumentNullException.ThrowIfNull(vectorField);
@@ -70,8 +70,9 @@ internal static class KnnExecutor
             () => new List<(double Dist, long Ts, ulong Sid)>(),
             (series, _, localCandidates) =>
             {
-                // 1. 扫描 MemTable
-                ScanMemTable(memTable, series.Id, vectorField, queryVector, metric, timeRange, localCandidates);
+                // 1. 扫描全部 MemTable（active + sealing）
+                foreach (var memTable in memTables)
+                    ScanMemTable(memTable, series.Id, vectorField, queryVector, metric, timeRange, localCandidates);
 
                 // 2. 扫描 Segments（段级时间窗剪枝）
                 foreach (var reader in segmentReaders)

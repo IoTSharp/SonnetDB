@@ -1,21 +1,28 @@
-﻿using SonnetDB.Storage.Segments;
+﻿using SonnetDB.Memory;
+using SonnetDB.Storage.Segments;
 
 namespace SonnetDB.Engine;
 
 /// <summary>
-/// 已打开的 <see cref="SegmentReader"/> 集合的所有者。
+/// 已打开的 <see cref="SegmentReader"/> 集合的所有者，同时作为引擎读快照（SuperVersion）的唯一原子发布者。
 /// <list type="bullet">
 ///   <item><description>启动时扫描 segments/ 目录，构建初始集合 + 索引快照；</description></item>
 ///   <item><description>Flush 完成后，调用 <see cref="AddSegment"/> 接入新段，重建索引快照（原子替换）；</description></item>
+///   <item><description>持有当前 active / sealing <see cref="MemTable"/> 引用，随每次快照发布一并原子切换，</description></item>
+///   <item><description>使查询通过单次 <see cref="AcquireSnapshot"/> 拿到 {active + sealing MemTable + segments} 一致视图；</description></item>
 ///   <item><description>进程关闭或显式 Dispose 时关闭所有 <see cref="SegmentReader"/>。</description></item>
 /// </list>
 /// 线程安全：内部 lock 保护"重建+替换"，读取通过 volatile 字段做无锁读。
 /// </summary>
 public sealed class SegmentManager : IDisposable
 {
+    private static readonly IReadOnlyList<MemTable> EmptyMemTables = Array.Empty<MemTable>();
+
     private readonly object _lock = new();
     private readonly SegmentReaderOptions? _readerOptions;
     private readonly Dictionary<long, SegmentReaderLeaseState> _readerById = new();
+    private MemTable? _activeMemTable;
+    private IReadOnlyList<MemTable> _sealingMemTables = EmptyMemTables;
     private SegmentManagerSnapshot _snapshot = new(MultiSegmentIndex.Empty, Array.Empty<SegmentReaderLeaseState>());
     private bool _disposed;
 
@@ -228,6 +235,80 @@ public sealed class SegmentManager : IDisposable
     }
 
     /// <summary>
+    /// 设置初始活跃 <see cref="MemTable"/> 并发布，使查询能通过统一快照读到它。
+    /// 仅在引擎构造时调用一次（此时无并发读者）。
+    /// </summary>
+    /// <param name="activeMemTable">初始活跃 MemTable。</param>
+    /// <exception cref="ArgumentNullException"><paramref name="activeMemTable"/> 为 null 时抛出。</exception>
+    internal void InitializeActiveMemTable(MemTable activeMemTable)
+    {
+        ArgumentNullException.ThrowIfNull(activeMemTable);
+        lock (_lock)
+        {
+            _activeMemTable = activeMemTable;
+            _sealingMemTables = EmptyMemTables;
+            RepublishMemTablesLocked();
+        }
+    }
+
+    /// <summary>
+    /// 原子地接入 flush 产出的新段，并把活跃 MemTable 替换为新的空实例——两步在同一次
+    /// <see cref="Volatile.Write"/> 中完成。这样 flush 期间旧 MemTable 一直是活跃查询源，
+    /// 发布瞬间数据从 MemTable 原子地转移到 segment，查询绝不会看到"两处都无"（修 #190）
+    /// 或"两处都有"。Phase 1 在 <c>_writeSync</c> 内同步调用，sealing 列表保持为空。
+    /// </summary>
+    /// <param name="path">新段文件的完整路径。</param>
+    /// <param name="freshActive">替换进来的新空 MemTable。</param>
+    /// <returns>已打开的新段 <see cref="SegmentReader"/> 实例。</returns>
+    /// <exception cref="ArgumentNullException">任何参数为 null 时抛出。</exception>
+    /// <exception cref="ObjectDisposedException">实例已关闭时抛出。</exception>
+    internal SegmentReader AddSegmentAndSwapActive(string path, MemTable freshActive)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(freshActive);
+
+        lock (_lock)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+
+            var reader = SegmentReader.Open(path, _readerOptions);
+            long segId = reader.Header.SegmentId;
+            SegmentReaderLeaseState[] replaced = _readerById.TryGetValue(segId, out var oldReader)
+                ? [oldReader]
+                : [];
+            _readerById[segId] = new SegmentReaderLeaseState(reader);
+            _activeMemTable = freshActive;
+            RebuildSnapshotsLocked(replaced);
+            return reader;
+        }
+    }
+
+    /// <summary>当前活跃 MemTable（无锁读取，来自已发布快照）。</summary>
+    internal MemTable? ActiveMemTable => CurrentSnapshot.ActiveMemTable;
+
+    /// <summary>
+    /// 在不改动段集合的前提下，用当前 memtable 字段重新发布一份快照（调用方必须持有 <c>_lock</c>）。
+    /// 复用现有 reader 状态，不重建段索引（memtable 切换不影响段索引）。
+    /// </summary>
+    private void RepublishMemTablesLocked()
+    {
+        var current = CurrentSnapshot;
+        var newSnapshot = new SegmentManagerSnapshot(
+            current.Index,
+            SnapshotReaderStatesLocked(),
+            _activeMemTable,
+            _sealingMemTables);
+        Volatile.Write(ref _snapshot, newSnapshot);
+        // 段读取器未变化，旧快照无需 Retire 任何 reader（沿用共享 SegmentReaderLeaseState 实例）。
+    }
+
+    private SegmentReaderLeaseState[] SnapshotReaderStatesLocked()
+        => _readerById
+            .OrderBy(static kvp => kvp.Key)
+            .Select(static kvp => kvp.Value)
+            .ToArray();
+
+    /// <summary>
     /// 重建索引快照（调用方必须持有 <c>_lock</c>）。
     /// </summary>
     private void RebuildSnapshotsLocked(IReadOnlyList<SegmentReaderLeaseState>? readersToDispose = null)
@@ -260,7 +341,7 @@ public sealed class SegmentManager : IDisposable
         IReadOnlyList<SegmentReaderLeaseState> readersToDispose)
     {
         var oldSnapshot = CurrentSnapshot;
-        var newSnapshot = new SegmentManagerSnapshot(index, readers);
+        var newSnapshot = new SegmentManagerSnapshot(index, readers, _activeMemTable, _sealingMemTables);
         Volatile.Write(ref _snapshot, newSnapshot);
         oldSnapshot.Retire(readersToDispose);
     }

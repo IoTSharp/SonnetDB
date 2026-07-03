@@ -106,8 +106,9 @@ public sealed class FlushCoordinator
         // 保证包含 Checkpoint 记录的 segment 也能被正确回收
         walSet.RecycleUpTo(checkpointRecordLsn);
 
-        // 步骤 6：重置 MemTable
-        memTable.Reset();
+        // 注：MemTable 的清空不在此处进行。调用方（Tsdb.FlushNowLocked）在本方法返回后，
+        // 通过 SegmentManager 一次原子发布"接入新段 + 换成新空 MemTable"，
+        // 使 flush 期间旧数据始终恰好可见一次（修 #190）。
 
         return result;
     }

@@ -23,7 +23,6 @@ namespace SonnetDB.Query;
 /// </summary>
 public sealed class QueryEngine
 {
-    private readonly MemTable _memTable;
     private readonly SegmentManager _segments;
     private readonly SeriesCatalog _catalog;
     private readonly TombstoneTable? _tombstones;
@@ -33,8 +32,8 @@ public sealed class QueryEngine
     /// <summary>
     /// 初始化 <see cref="QueryEngine"/> 实例。
     /// </summary>
-    /// <param name="memTable">内存层数据源。</param>
-    /// <param name="segments">段集合与索引快照管理器。</param>
+    /// <param name="memTable">内存层数据源；构造时登记为 <paramref name="segments"/> 的初始活跃 MemTable，此后查询统一从段快照读取 active/sealing MemTable。</param>
+    /// <param name="segments">段集合与索引快照管理器（同时承载 MemTable 维度）。</param>
     /// <param name="catalog">序列目录。</param>
     /// <param name="tombstones">可选的墓碑集合，用于查询时过滤被删除的数据点；为 null 时不过滤。</param>
     /// <exception cref="ArgumentNullException"><paramref name="memTable"/>、<paramref name="segments"/> 或 <paramref name="catalog"/> 为 null 时抛出。</exception>
@@ -54,11 +53,57 @@ public sealed class QueryEngine
         ArgumentNullException.ThrowIfNull(segments);
         ArgumentNullException.ThrowIfNull(catalog);
 
-        _memTable = memTable;
         _segments = segments;
         _catalog = catalog;
         _tombstones = tombstones;
         _useSimdNumericAggregates = useSimdNumericAggregates;
+
+        // 把传入的 MemTable 登记为统一快照的初始活跃 MemTable；此后所有读取都从快照取，
+        // 不再持有独立 _memTable 引用，避免 flush 换表后引用陈旧（原子快照，修 #190）。
+        segments.InitializeActiveMemTable(memTable);
+    }
+
+    /// <summary>
+    /// 从一次已获取的段快照租约中，收集指定 (series, field) 在所有 MemTable（active + sealing）
+    /// 上的排序切片，并输出统一的字段类型（用于与段块做类型一致性校验）。
+    /// </summary>
+    private static List<ReadOnlyMemory<DataPoint>> CollectMemTableSlices(
+        in SegmentManagerSnapshotLease lease,
+        in SeriesFieldKey key,
+        long from,
+        long to,
+        out FieldType? memFieldType)
+    {
+        memFieldType = null;
+        var slices = new List<ReadOnlyMemory<DataPoint>>();
+
+        // 顺序：先 sealing（较旧），后 active（最新）——保证同时间戳稳定合并时最新写入在后。
+        foreach (var sealing in lease.SealingMemTables)
+            AppendBucketSlice(sealing, in key, from, to, slices, ref memFieldType);
+
+        var active = lease.ActiveMemTable;
+        if (active is not null)
+            AppendBucketSlice(active, in key, from, to, slices, ref memFieldType);
+
+        return slices;
+    }
+
+    private static void AppendBucketSlice(
+        MemTable memTable,
+        in SeriesFieldKey key,
+        long from,
+        long to,
+        List<ReadOnlyMemory<DataPoint>> slices,
+        ref FieldType? memFieldType)
+    {
+        var bucket = memTable.TryGet(in key);
+        if (bucket is null)
+            return;
+
+        memFieldType ??= bucket.FieldType;
+        var slice = bucket.SnapshotRange(from, to);
+        if (slice.Length > 0)
+            slices.Add(slice);
     }
 
     /// <summary>
@@ -75,16 +120,16 @@ public sealed class QueryEngine
         long from = query.Range.FromInclusive;
         long to = query.Range.ToInclusive;
 
-        // 1. 从 MemTable 取切片
         var key = new SeriesFieldKey(query.SeriesId, query.FieldName);
-        var bucket = _memTable.TryGet(in key);
-        ReadOnlyMemory<DataPoint>? memSlice = bucket?.SnapshotRange(from, to);
-        FieldType? memFieldType = bucket?.FieldType;
 
-        // 3. 解码每个候选 Block
+        // 单次租约拿到 {active + sealing MemTable + segments} 一致视图（SuperVersion）。
+        List<ReadOnlyMemory<DataPoint>> memSlices;
+        FieldType? memFieldType;
         List<DataPoint[]> segmentSlices;
         using (var snapshotLease = _segments.AcquireSnapshot())
         {
+            memSlices = CollectMemTableSlices(in snapshotLease, in key, from, to, out memFieldType);
+
             var snapshot = snapshotLease.Snapshot;
             var candidates = snapshot.Index.LookupCandidates(
                 query.SeriesId, query.FieldName, from, to);
@@ -115,8 +160,8 @@ public sealed class QueryEngine
             }
         }
 
-        // 4. N 路有序合并
-        var merged = BlockSourceMerger.Merge(memSlice, segmentSlices);
+        // 4. N 路有序合并（MemTable 侧可能多路：sealing + active）
+        var merged = BlockSourceMerger.Merge(memSlices, segmentSlices);
 
         // 5/6. 应用墓碑过滤与 Limit。Limit 必须在 tombstone 过滤之后计数。
         IReadOnlyList<Tombstone> tombstones = Array.Empty<Tombstone>();
@@ -164,16 +209,25 @@ public sealed class QueryEngine
         var best = default(DataPoint);
 
         var key = new SeriesFieldKey(seriesId, fieldName);
-        var bucket = _memTable.TryGet(in key);
-        FieldType? memFieldType = bucket?.FieldType;
-        if (bucket is not null && TryGetLatestFromMemTable(bucket, from, to, tombstones, out var memPoint))
-        {
-            best = memPoint;
-            hasBest = true;
-        }
 
         using (var snapshotLease = _segments.AcquireSnapshot())
         {
+            FieldType? memFieldType = null;
+            foreach (var memTable in EnumerateMemTables(in snapshotLease))
+            {
+                var bucket = memTable.TryGet(in key);
+                if (bucket is null)
+                    continue;
+
+                memFieldType ??= bucket.FieldType;
+                if (TryGetLatestFromMemTable(bucket, from, to, tombstones, out var memPoint)
+                    && (!hasBest || memPoint.Timestamp > best.Timestamp))
+                {
+                    best = memPoint;
+                    hasBest = true;
+                }
+            }
+
             var snapshot = snapshotLease.Snapshot;
             var candidates = snapshot.Index.LookupCandidates(seriesId, fieldName, from, to);
             if (candidates.Count > 0)
@@ -212,6 +266,20 @@ public sealed class QueryEngine
 
         point = best;
         return true;
+    }
+
+    /// <summary>
+    /// 按合并优先级枚举一次租约内的全部 MemTable：先 sealing（较旧），后 active（最新）。
+    /// </summary>
+    private static IReadOnlyList<MemTable> EnumerateMemTables(in SegmentManagerSnapshotLease lease)
+    {
+        var sealing = lease.SealingMemTables;
+        var active = lease.ActiveMemTable;
+        var result = new List<MemTable>(sealing.Count + (active is null ? 0 : 1));
+        result.AddRange(sealing);
+        if (active is not null)
+            result.Add(active);
+        return result;
     }
 
     private IReadOnlyList<Tombstone> GetTombstonesForQueryRange(
@@ -473,39 +541,29 @@ public sealed class QueryEngine
     {
         using var snapshotLease = _segments.AcquireSnapshot();
         var snapshot = snapshotLease.Snapshot;
-        return ExecuteAggregateFast(query, snapshot.Index, BuildReaderMap(snapshot));
+        return ExecuteAggregateFast(query, snapshot.Index, BuildReaderMap(snapshot), EnumerateMemTables(in snapshotLease));
     }
 
     private IReadOnlyList<AggregateBucket> ExecuteAggregateFast(
         AggregateQuery query,
         MultiSegmentIndex index,
-        Dictionary<long, SegmentReader> readers)
+        Dictionary<long, SegmentReader> readers,
+        IReadOnlyList<MemTable> memTables)
     {
         long from = query.Range.FromInclusive;
         long to = query.Range.ToInclusive;
 
         var key = new SeriesFieldKey(query.SeriesId, query.FieldName);
-        var bucket = _memTable.TryGet(in key);
-        FieldType? memFieldType = bucket?.FieldType;
-
-        // MemTable 快路径前置条件：bucket 存在 + 数值字段 + 完整落在查询范围内 + 不需要 First/Last 精确值。
-        // ShouldUsePointAggregatePath 已经把 First/Last 与有 tombstone 的场景排除掉了，这里走到的都是可元数据合并的聚合。
-        bool memUseAggregateOnly = false;
-        int memAggCount = 0;
-        long memAggMinTs = 0, memAggMaxTs = 0;
-        double memAggSum = 0, memAggMin = 0, memAggMax = 0;
-        if (bucket is not null
-            && bucket.TryGetNumericAggregateSnapshot(
-                out memAggCount, out memAggMinTs, out memAggMaxTs,
-                out memAggSum, out memAggMin, out memAggMax)
-            && memAggMinTs >= from && memAggMaxTs <= to)
+        FieldType? memFieldType = null;
+        foreach (var memTable in memTables)
         {
-            memUseAggregateOnly = true;
+            var b = memTable.TryGet(in key);
+            if (b is not null)
+            {
+                memFieldType = b.FieldType;
+                break;
+            }
         }
-
-        ReadOnlyMemory<DataPoint>? memSlice = memUseAggregateOnly
-            ? null
-            : bucket?.SnapshotRange(from, to);
 
         var candidates = index.LookupCandidates(
             query.SeriesId, query.FieldName, from, to);
@@ -521,15 +579,9 @@ public sealed class QueryEngine
             var state = new AggregateState(bucketStart, bucketEnd);
             bool useObservedStart = query.Range.FromInclusive == long.MinValue;
 
-            if (memUseAggregateOnly)
-            {
-                state.AddMemTableAggregate(
-                    memAggCount, memAggMinTs, memAggSum, memAggMin, memAggMax, useObservedStart);
-            }
-            else
-            {
-                AddDecodedPointsToGlobal(memSlice, ref state, useObservedStart);
-            }
+            foreach (var memTable in memTables)
+                AddMemTableToGlobal(memTable, in key, from, to, useObservedStart, ref state);
+
             AddSegmentBlocksToGlobal(
                 candidates,
                 readers,
@@ -548,24 +600,8 @@ public sealed class QueryEngine
 
         var buckets = new Dictionary<long, AggregateState>();
 
-        // MemTable 桶聚合快路径：只有当 MemTable 切片整体落在同一个查询桶内才能合并。
-        if (memUseAggregateOnly
-            && TimeBucket.Floor(memAggMinTs, query.BucketSizeMs)
-                == TimeBucket.Floor(memAggMaxTs, query.BucketSizeMs))
-        {
-            long bStart = TimeBucket.Floor(memAggMinTs, query.BucketSizeMs);
-            ref var st = ref CollectionsMarshal.GetValueRefOrAddDefault(buckets, bStart, out bool exists);
-            if (!exists)
-                st = new AggregateState(bStart, bStart + query.BucketSizeMs);
-            st.AddMemTableAggregate(
-                memAggCount, memAggMinTs, memAggSum, memAggMin, memAggMax, useObservedStart: false);
-        }
-        else
-        {
-            // 跨桶或非数值字段：回退到逐点路径。
-            var slice = memSlice ?? bucket?.SnapshotRange(from, to);
-            AddDecodedPointsToBuckets(slice, query.BucketSizeMs, buckets);
-        }
+        foreach (var memTable in memTables)
+            AddMemTableToBuckets(memTable, in key, from, to, query.BucketSizeMs, buckets);
 
         AddSegmentBlocksToBuckets(
             candidates, readers, memFieldType, query.Range, query.BucketSizeMs, query.Aggregator, buckets);
@@ -581,6 +617,67 @@ public sealed class QueryEngine
             result.Add(buckets[bucketStart].ToBucket(query.Aggregator));
 
         return result;
+    }
+
+    /// <summary>把单个 MemTable 对某 (series,field) 的贡献并入全局单桶聚合状态。</summary>
+    private static void AddMemTableToGlobal(
+        MemTable memTable,
+        in SeriesFieldKey key,
+        long from,
+        long to,
+        bool useObservedStart,
+        ref AggregateState state)
+    {
+        var bucket = memTable.TryGet(in key);
+        if (bucket is null)
+            return;
+
+        // MemTable 快路径：数值字段 + 切片整体落在查询范围内 → 直接用运行期聚合，免逐点。
+        if (bucket.TryGetNumericAggregateSnapshot(
+                out int memAggCount, out long memAggMinTs, out long memAggMaxTs,
+                out double memAggSum, out double memAggMin, out double memAggMax)
+            && memAggMinTs >= from && memAggMaxTs <= to)
+        {
+            state.AddMemTableAggregate(
+                memAggCount, memAggMinTs, memAggSum, memAggMin, memAggMax, useObservedStart);
+        }
+        else
+        {
+            AddDecodedPointsToGlobal(bucket.SnapshotRange(from, to), ref state, useObservedStart);
+        }
+    }
+
+    /// <summary>把单个 MemTable 对某 (series,field) 的贡献并入分桶聚合字典。</summary>
+    private static void AddMemTableToBuckets(
+        MemTable memTable,
+        in SeriesFieldKey key,
+        long from,
+        long to,
+        long bucketSizeMs,
+        Dictionary<long, AggregateState> buckets)
+    {
+        var bucket = memTable.TryGet(in key);
+        if (bucket is null)
+            return;
+
+        if (bucket.TryGetNumericAggregateSnapshot(
+                out int memAggCount, out long memAggMinTs, out long memAggMaxTs,
+                out double memAggSum, out double memAggMin, out double memAggMax)
+            && memAggMinTs >= from && memAggMaxTs <= to
+            && TimeBucket.Floor(memAggMinTs, bucketSizeMs) == TimeBucket.Floor(memAggMaxTs, bucketSizeMs))
+        {
+            long bStart = TimeBucket.Floor(memAggMinTs, bucketSizeMs);
+            ref var st = ref CollectionsMarshal.GetValueRefOrAddDefault(buckets, bStart, out bool exists);
+            if (!exists)
+                st = new AggregateState(bStart, bStart + bucketSizeMs);
+            st.AddMemTableAggregate(
+                memAggCount, memAggMinTs, memAggSum, memAggMin, memAggMax, useObservedStart: false);
+        }
+        else
+        {
+            // 跨桶或非数值字段：回退到逐点路径。
+            AddDecodedPointsToBuckets(bucket.SnapshotRange(from, to), bucketSizeMs, buckets);
+        }
     }
 
     /// <summary>
@@ -610,6 +707,7 @@ public sealed class QueryEngine
         var snapshot = snapshotLease.Snapshot;
         var index = snapshot.Index;
         var readers = BuildReaderMap(snapshot);
+        var memTables = EnumerateMemTables(in snapshotLease);
 
         foreach (var seriesId in seriesIds)
         {
@@ -618,7 +716,7 @@ public sealed class QueryEngine
             // 仍走完整的快/慢路径分流；ShouldUsePointAggregatePath 依赖 tombstones，会按 series 单独决定。
             IReadOnlyList<AggregateBucket> buckets = ShouldUsePointAggregatePath(q)
                 ? Execute(q).ToList().AsReadOnly()
-                : ExecuteAggregateFast(q, index, readers);
+                : ExecuteAggregateFast(q, index, readers, memTables);
 
             result[seriesId] = buckets;
         }
@@ -657,13 +755,20 @@ public sealed class QueryEngine
         }
 
         var key = new SeriesFieldKey(seriesId, fieldName);
-        var bucket = _memTable.TryGet(in key);
-        ReadOnlyMemory<DataPoint>? memSlice = bucket?.SnapshotRange(range.FromInclusive, range.ToInclusive);
-        FieldType? memFieldType = bucket?.FieldType;
-        observedCount += AddDecodedPointsToAccumulator(memSlice, accumulator);
 
         using (var snapshotLease = _segments.AcquireSnapshot())
         {
+            FieldType? memFieldType = null;
+            foreach (var memTable in EnumerateMemTables(in snapshotLease))
+            {
+                var bucket = memTable.TryGet(in key);
+                if (bucket is null)
+                    continue;
+                memFieldType ??= bucket.FieldType;
+                observedCount += AddDecodedPointsToAccumulator(
+                    bucket.SnapshotRange(range.FromInclusive, range.ToInclusive), accumulator);
+            }
+
             var snapshot = snapshotLease.Snapshot;
             var candidates = snapshot.Index.LookupCandidates(
                 seriesId, fieldName, range.FromInclusive, range.ToInclusive);

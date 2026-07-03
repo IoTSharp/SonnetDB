@@ -56,7 +56,7 @@ public sealed class FlushCoordinatorTests : IDisposable
     }
 
     [Fact]
-    public void Flush_NonEmptyMemTable_CreatesSegment_ResetsMemTable()
+    public void Flush_NonEmptyMemTable_CreatesSegment_DoesNotResetMemTable()
     {
         var options = MakeOptions();
         var coordinator = new FlushCoordinator(options);
@@ -78,12 +78,12 @@ public sealed class FlushCoordinatorTests : IDisposable
         string expectedSegPath = TsdbPaths.SegmentPath(_tempDir, 1L);
         Assert.True(File.Exists(expectedSegPath));
 
-        // MemTable 应已清空
-        Assert.Equal(0, (int)memTable.PointCount);
-        Assert.Equal(0, memTable.SeriesCount);
-        Assert.Equal(0L, memTable.EstimatedBytes);
-        Assert.Equal(long.MaxValue, memTable.MinTimestamp);
-        Assert.Equal(long.MinValue, memTable.MaxTimestamp);
+        // 新契约：FlushCoordinator 不再 Reset MemTable（清空由 Tsdb 层原子 swap 完成，修 #190）。
+        // 协调器视角下 MemTable 的数据保持不变。
+        Assert.Equal(2, (int)memTable.PointCount);
+        Assert.Equal(1, memTable.SeriesCount);
+        Assert.Equal(1000L, memTable.MinTimestamp);
+        Assert.Equal(2000L, memTable.MaxTimestamp);
     }
 
     [Fact]
@@ -114,8 +114,8 @@ public sealed class FlushCoordinatorTests : IDisposable
             var walSegments = WalSegmentLayout.Enumerate(TsdbPaths.WalDir(root2));
             Assert.True(walSegments.Count >= 1, "Should have at least the active segment");
 
-            // MemTable 已清空
-            Assert.Equal(0, (int)memTable2.PointCount);
+            // 新契约：FlushCoordinator 不再 Reset MemTable（清空由 Tsdb 层原子 swap 完成）。
+            Assert.Equal(3, (int)memTable2.PointCount);
         }
 
         try { Directory.Delete(root2, recursive: true); } catch { }

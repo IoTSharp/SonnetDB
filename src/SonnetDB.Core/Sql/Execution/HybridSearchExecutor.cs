@@ -172,16 +172,21 @@ internal static class HybridSearchExecutor
         foreach (var series in matchedSeries)
             seriesById[series.Id] = series;
 
-        var knnResults = KnnExecutor.Execute(
-            tsdb.MemTable,
-            tsdb.Segments.Readers,
-            matchedSeries,
-            options.VectorColumn.Name,
-            options.QueryVector.AsMemory(),
-            options.MeasurementCandidateLimit,
-            options.Metric,
-            filterPlan.MeasurementWhere.TimeRange,
-            tsdb.Tombstones);
+        // 单次租约拿到 {MemTable(active+sealing) + 段读取器} 一致视图，避免跨越 flush 边界。
+        IReadOnlyList<KnnSearchResult> knnResults;
+        using (var readSnapshot = tsdb.AcquireReadSnapshot())
+        {
+            knnResults = KnnExecutor.Execute(
+                readSnapshot.AllMemTables(),
+                readSnapshot.Readers,
+                matchedSeries,
+                options.VectorColumn.Name,
+                options.QueryVector.AsMemory(),
+                options.MeasurementCandidateLimit,
+                options.Metric,
+                filterPlan.MeasurementWhere.TimeRange,
+                tsdb.Tombstones);
+        }
         if (knnResults.Count == 0)
             return [];
 

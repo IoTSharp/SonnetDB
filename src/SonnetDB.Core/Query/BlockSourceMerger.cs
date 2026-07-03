@@ -23,6 +23,87 @@ internal static class BlockSourceMerger
     /// <param name="memTableSlice">MemTable 切片（已按时间升序排列）；null 表示无 MemTable 数据。</param>
     /// <param name="segmentSlices">Segment Block 解码后的数组列表（每项已按时间升序排列，顺序对应 SegmentId 升序）。</param>
     /// <returns>按时间戳升序（同 ts 则按 SegmentId 升序，再 MemTable 最后）的 DataPoint 序列。</returns>
+    /// <summary>
+    /// 按时间戳升序合并多个 MemTable 切片与多个 Segment Block 切片。
+    /// <para>
+    /// 输入路顺序（决定同时间戳的稳定优先级，InputIndex 小者先）：先所有 segment 切片
+    /// （SegmentId 升序），后所有 MemTable 切片（sealing 在前、active 在后）。
+    /// </para>
+    /// </summary>
+    /// <param name="memTableSlices">MemTable 侧切片列表（各自已按时间升序）；空列表表示无 MemTable 数据。</param>
+    /// <param name="segmentSlices">Segment Block 解码后的数组列表（各自已按时间升序，顺序对应 SegmentId 升序）。</param>
+    /// <returns>按时间戳升序合并后的 DataPoint 序列。</returns>
+    public static IEnumerable<DataPoint> Merge(
+        IReadOnlyList<ReadOnlyMemory<DataPoint>> memTableSlices,
+        IReadOnlyList<DataPoint[]> segmentSlices)
+    {
+        int totalInputs = segmentSlices.Count + memTableSlices.Count;
+        if (totalInputs == 0)
+            yield break;
+
+        var lengths = new int[totalInputs];
+        for (int i = 0; i < segmentSlices.Count; i++)
+            lengths[i] = segmentSlices[i].Length;
+        for (int i = 0; i < memTableSlices.Count; i++)
+            lengths[segmentSlices.Count + i] = memTableSlices[i].Length;
+
+        var cursors = new int[totalInputs];
+        var heap = new List<(long Timestamp, int InputIndex)>(totalInputs);
+        for (int i = 0; i < totalInputs; i++)
+        {
+            if (lengths[i] > 0)
+                heap.Add((GetTimestampMulti(i, 0, segmentSlices, memTableSlices), i));
+        }
+
+        BuildMinHeap(heap);
+
+        while (heap.Count > 0)
+        {
+            var (_, inputIdx) = heap[0];
+            yield return GetPointMulti(inputIdx, cursors[inputIdx], segmentSlices, memTableSlices);
+
+            cursors[inputIdx]++;
+            if (cursors[inputIdx] < lengths[inputIdx])
+            {
+                long nextTs = GetTimestampMulti(inputIdx, cursors[inputIdx], segmentSlices, memTableSlices);
+                heap[0] = (nextTs, inputIdx);
+            }
+            else
+            {
+                int last = heap.Count - 1;
+                heap[0] = heap[last];
+                heap.RemoveAt(last);
+            }
+
+            SiftDown(heap, 0);
+        }
+    }
+
+    private static long GetTimestampMulti(
+        int inputIndex,
+        int position,
+        IReadOnlyList<DataPoint[]> segmentSlices,
+        IReadOnlyList<ReadOnlyMemory<DataPoint>> memTableSlices)
+    {
+        if (inputIndex < segmentSlices.Count)
+            return segmentSlices[inputIndex][position].Timestamp;
+        return memTableSlices[inputIndex - segmentSlices.Count].Span[position].Timestamp;
+    }
+
+    private static DataPoint GetPointMulti(
+        int inputIndex,
+        int position,
+        IReadOnlyList<DataPoint[]> segmentSlices,
+        IReadOnlyList<ReadOnlyMemory<DataPoint>> memTableSlices)
+    {
+        if (inputIndex < segmentSlices.Count)
+            return segmentSlices[inputIndex][position];
+        return memTableSlices[inputIndex - segmentSlices.Count].Span[position];
+    }
+
+    /// <summary>
+    /// 兼容重载：单个可选 MemTable 切片 + 多个 Segment 切片。
+    /// </summary>
     public static IEnumerable<DataPoint> Merge(
         ReadOnlyMemory<DataPoint>? memTableSlice,
         IReadOnlyList<DataPoint[]> segmentSlices)

@@ -298,17 +298,21 @@ internal static class TableValuedFunctionExecutor
         foreach (var tc in tagColumns) columnNames.Add(tc.Name);
         foreach (var fc in fieldColumns) columnNames.Add(fc.Name);
 
-        // 执行 KNN 搜索
-        var knnResults = KnnExecutor.Execute(
-            tsdb.MemTable,
-            tsdb.Segments.Readers,
-            matchedSeries,
-            vectorCol.Name,
-            queryArray.AsMemory(),
-            k,
-            metric,
-            where.TimeRange,
-            tsdb.Tombstones);
+        // 执行 KNN 搜索：单次租约拿到 {MemTable(active+sealing) + 段读取器} 一致视图。
+        IReadOnlyList<KnnSearchResult> knnResults;
+        using (var readSnapshot = tsdb.AcquireReadSnapshot())
+        {
+            knnResults = KnnExecutor.Execute(
+                readSnapshot.AllMemTables(),
+                readSnapshot.Readers,
+                matchedSeries,
+                vectorCol.Name,
+                queryArray.AsMemory(),
+                k,
+                metric,
+                where.TimeRange,
+                tsdb.Tombstones);
+        }
 
         // 字段值预批量读取：按 (SeriesId × FieldColumn) 各发一次 QueryPoints，覆盖
         // 该 series 全部命中时间戳的最小-最大区间，避免原"每行每列一次精确点查"造成的

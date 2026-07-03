@@ -21,7 +21,7 @@ public sealed class BlockSourceMergerTests
     [Fact]
     public void Merge_EmptyInput_ReturnsEmpty()
     {
-        var result = BlockSourceMerger.Merge(null, Array.Empty<DataPoint[]>()).ToList();
+        var result = BlockSourceMerger.Merge((ReadOnlyMemory<DataPoint>?)null, Array.Empty<DataPoint[]>()).ToList();
         Assert.Empty(result);
     }
 
@@ -41,7 +41,7 @@ public sealed class BlockSourceMergerTests
     public void Merge_OnlySegments_ReturnsInOrder()
     {
         var seg1 = MakePoints(2L, 4L, 6L);
-        var result = BlockSourceMerger.Merge(null, new[] { seg1 }).ToList();
+        var result = BlockSourceMerger.Merge((ReadOnlyMemory<DataPoint>?)null, new[] { seg1 }).ToList();
 
         Assert.Equal(3, result.Count);
         Assert.Equal(2L, result[0].Timestamp);
@@ -67,7 +67,7 @@ public sealed class BlockSourceMergerTests
     public void Merge_EmptyMemTable_HandlesNull()
     {
         var seg1 = MakePoints(10L, 20L, 30L);
-        var result = BlockSourceMerger.Merge(null, new[] { seg1 }).ToList();
+        var result = BlockSourceMerger.Merge((ReadOnlyMemory<DataPoint>?)null, new[] { seg1 }).ToList();
         Assert.Equal(3, result.Count);
     }
 
