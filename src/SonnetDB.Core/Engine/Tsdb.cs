@@ -1068,11 +1068,23 @@ public sealed class Tsdb : IDisposable
             _catalogDirty = true;
         }
 
-        // 每个字段写入 WAL 和 MemTable
-        foreach (var (fieldName, value) in point.Fields)
+        // 每个字段写入 WAL 和 MemTable。热路径：绝大多数 Point 的 Fields 实为 Dictionary，
+        // 直接用其 struct 枚举器遍历，避免 IReadOnlyDictionary foreach 装箱枚举器（C3）。
+        if (point.Fields is Dictionary<string, FieldValue> concreteFields)
         {
-            long lsn = _walSet!.AppendWritePoint(entry.Id, point.Timestamp, fieldName, value);
-            MemTable.Append(entry.Id, point.Timestamp, fieldName, value, lsn);
+            foreach (var (fieldName, value) in concreteFields)
+            {
+                long lsn = _walSet!.AppendWritePoint(entry.Id, point.Timestamp, fieldName, value);
+                MemTable.Append(entry.Id, point.Timestamp, fieldName, value, lsn);
+            }
+        }
+        else
+        {
+            foreach (var (fieldName, value) in point.Fields)
+            {
+                long lsn = _walSet!.AppendWritePoint(entry.Id, point.Timestamp, fieldName, value);
+                MemTable.Append(entry.Id, point.Timestamp, fieldName, value, lsn);
+            }
         }
     }
 
@@ -1204,7 +1216,9 @@ public sealed class Tsdb : IDisposable
             return point;
         }
 
-        var columns = new List<MeasurementColumn>(schema.Columns);
+        // 稳态（无新列 / 无类型提升）不复制 schema.Columns：仅在真检测到变化时才 copy-on-write，
+        // 消除每点 new List(schema.Columns) 后丢弃的锁内分配（C3）。
+        List<MeasurementColumn>? columns = null;
         var changed = false;
         var promotedIntToFloat = false;
         Dictionary<string, FieldValue>? normalizedFields = null;
@@ -1214,6 +1228,7 @@ public sealed class Tsdb : IDisposable
             var column = schema.TryGetColumn(tagName);
             if (column is null)
             {
+                columns ??= new List<MeasurementColumn>(schema.Columns);
                 columns.Add(new MeasurementColumn(tagName, MeasurementColumnRole.Tag, Storage.Format.FieldType.String));
                 changed = true;
                 continue;
@@ -1229,6 +1244,7 @@ public sealed class Tsdb : IDisposable
             var column = schema.TryGetColumn(fieldName);
             if (column is null)
             {
+                columns ??= new List<MeasurementColumn>(schema.Columns);
                 columns.Add(CreateFieldColumn(fieldName, value));
                 changed = true;
                 continue;
@@ -1241,6 +1257,7 @@ public sealed class Tsdb : IDisposable
             var normalized = NormalizeFieldValue(schema.Name, column, value, out var promoted);
             if (promoted)
             {
+                columns ??= new List<MeasurementColumn>(schema.Columns);
                 ReplaceColumn(columns, fieldName, column with { DataType = Storage.Format.FieldType.Float64 });
                 changed = true;
                 promotedIntToFloat = true;
@@ -1262,7 +1279,7 @@ public sealed class Tsdb : IDisposable
             if (promotedIntToFloat && MemTable.PointCount > 0)
                 SealAndEnqueueLocked();
 
-            var updated = MeasurementSchema.Create(schema.Name, columns, schema.CreatedAtUtcTicks);
+            var updated = MeasurementSchema.Create(schema.Name, columns!, schema.CreatedAtUtcTicks);
             Measurements.LoadOrReplace(updated);
             MarkMeasurementSchemasDirty();
             if (persistImmediately)
