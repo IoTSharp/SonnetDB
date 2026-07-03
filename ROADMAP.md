@@ -615,7 +615,7 @@ extensions/
 
 | PR | 标题与范围 | 关联发现 | 状态 |
 |----|------------|----------|------|
-| #197 | **SQL NULL 三值逻辑修正**：任一操作数为 NULL 的比较（`=` / `!=` / `<>` / `<` / `>` 等）判 UNKNOWN（行被排除），仅 `IS [NOT] NULL` 检查 null；修复 `NULL != 5` 判 TRUE、`NULL = NULL` 判 TRUE。统一应用到 WHERE / JOIN ON / HAVING 三条关系执行路径（TableSqlExecutor / RelationalSelectExecutor / JoinSqlExecutor）。 | SQL Q1 | 📋 |
+| #197 | **SQL NULL 三值逻辑修正**：任一操作数为 NULL 的比较（`=` / `!=` / `<>` / `<` / `>` 等）判 UNKNOWN（行被排除），仅 `IS [NOT] NULL` 检查 null；修复 `NULL != 5` 判 TRUE、`NULL = NULL` 判 TRUE。统一应用到 WHERE / JOIN ON / HAVING 三条关系执行路径（TableSqlExecutor / RelationalSelectExecutor / JoinSqlExecutor）。 | SQL Q1 | ✅ |
 | #198 | **`count(*)` 语义修正**：`count(*)` 定义为按时间戳并集的行/时刻计数，而非遍历每个字段列逐点累加（当前 3 字段 × N 时刻返回 3N）。 | SQL Q14 | 📋 |
 | #199 | **事务覆盖时序 / 文档写**：`BEGIN` 内的 measurement `INSERT` 与 document DML 纳入事务缓冲以支持 ROLLBACK，或在事务上下文内显式拒绝（measurement 写当前直接绕过 transaction 立即持久化，ROLLBACK 只翻标志位）。 | SQL Q2 | 📋 |
 | #200 | **解析器递归深度限制**：在 `ParsePrimary` / `ParseNot` / `ParseUnary` 跟踪嵌套深度，超过上限（如 200）抛 `SqlParseException`；杜绝深层括号 / `NOT NOT NOT…` / `------x` 触发不可捕获的 StackOverflow 崩溃整个宿主进程。 | SQL Q3 | 📋 |

@@ -1320,4 +1320,128 @@ public sealed class SqlExecutorTableTests : IDisposable
             SqlExecutor.Execute(db, "UPDATE devices SET name = 'pump-3' WHERE id = 1 AND version = 1"));
         Assert.Equal(TableConstraintException.ConcurrencyConflict, ex.ErrorCode);
     }
+
+    private void SeedNullSemanticsTable(Tsdb db)
+    {
+        SqlExecutor.Execute(db, """
+            CREATE TABLE t (
+                id INT,
+                v INT NULL,
+                s STRING NULL,
+                PRIMARY KEY (id))
+            """);
+        SqlExecutor.Execute(db, """
+            INSERT INTO t (id, v, s)
+            VALUES (1, 5, 'a'),
+                   (2, NULL, NULL),
+                   (3, 10, 'b')
+            """);
+    }
+
+    [Fact]
+    public void Where_NullEqualsLiteral_IsUnknown_ExcludesRow()
+    {
+        using var db = Tsdb.Open(Options());
+        SeedNullSemanticsTable(db);
+
+        // v = 5 matches only row 1; row 2 (v IS NULL) is UNKNOWN, not TRUE.
+        var result = Assert.IsType<SelectExecutionResult>(
+            SqlExecutor.Execute(db, "SELECT id FROM t WHERE v = 5"));
+        Assert.Equal([1L], result.Rows.Select(r => r[0]));
+    }
+
+    [Fact]
+    public void Where_NullNotEqualsLiteral_IsUnknown_ExcludesRow()
+    {
+        using var db = Tsdb.Open(Options());
+        SeedNullSemanticsTable(db);
+
+        // v != 5 must NOT return row 2 (NULL). Old buggy behavior returned it.
+        var result = Assert.IsType<SelectExecutionResult>(
+            SqlExecutor.Execute(db, "SELECT id FROM t WHERE v != 5"));
+        Assert.Equal([3L], result.Rows.Select(r => r[0]));
+    }
+
+    [Fact]
+    public void Where_NullEqualsNull_IsUnknown_ExcludesRow()
+    {
+        using var db = Tsdb.Open(Options());
+        SeedNullSemanticsTable(db);
+
+        // v = s compares two nullable columns; row 2 has both NULL but NULL = NULL is UNKNOWN.
+        var result = Assert.IsType<SelectExecutionResult>(
+            SqlExecutor.Execute(db, "SELECT id FROM t WHERE v = v"));
+        Assert.Equal([1L, 3L], result.Rows.Select(r => r[0]).OrderBy(x => x));
+    }
+
+    [Fact]
+    public void Where_IsNull_MatchesOnlyNullRows()
+    {
+        using var db = Tsdb.Open(Options());
+        SeedNullSemanticsTable(db);
+
+        var result = Assert.IsType<SelectExecutionResult>(
+            SqlExecutor.Execute(db, "SELECT id FROM t WHERE v IS NULL"));
+        Assert.Equal([2L], result.Rows.Select(r => r[0]));
+    }
+
+    [Fact]
+    public void Where_IsNotNull_ExcludesNullRows()
+    {
+        using var db = Tsdb.Open(Options());
+        SeedNullSemanticsTable(db);
+
+        var result = Assert.IsType<SelectExecutionResult>(
+            SqlExecutor.Execute(db, "SELECT id FROM t WHERE v IS NOT NULL"));
+        Assert.Equal([1L, 3L], result.Rows.Select(r => r[0]).OrderBy(x => x));
+    }
+
+    [Fact]
+    public void Where_NotOfNullComparison_StaysUnknown_ExcludesRow()
+    {
+        using var db = Tsdb.Open(Options());
+        SeedNullSemanticsTable(db);
+
+        // NOT (v = 5): row 1 -> NOT TRUE = FALSE; row 2 -> NOT UNKNOWN = UNKNOWN (excluded);
+        // row 3 -> NOT FALSE = TRUE. Only row 3 survives.
+        var result = Assert.IsType<SelectExecutionResult>(
+            SqlExecutor.Execute(db, "SELECT id FROM t WHERE NOT (v = 5)"));
+        Assert.Equal([3L], result.Rows.Select(r => r[0]));
+    }
+
+    [Fact]
+    public void Where_OrWithUnknown_TrueBranchStillMatches()
+    {
+        using var db = Tsdb.Open(Options());
+        SeedNullSemanticsTable(db);
+
+        // (v = 5) OR (id = 2): row 2's v=5 is UNKNOWN but id=2 is TRUE, so row 2 matches.
+        var result = Assert.IsType<SelectExecutionResult>(
+            SqlExecutor.Execute(db, "SELECT id FROM t WHERE v = 5 OR id = 2"));
+        Assert.Equal([1L, 2L], result.Rows.Select(r => r[0]).OrderBy(x => x));
+    }
+
+    [Fact]
+    public void Where_NullInList_NoMatch_IsUnknown()
+    {
+        using var db = Tsdb.Open(Options());
+        SeedNullSemanticsTable(db);
+
+        // v IN (1, 2): row 2 (v NULL) is UNKNOWN; no row matches those literals.
+        var result = Assert.IsType<SelectExecutionResult>(
+            SqlExecutor.Execute(db, "SELECT id FROM t WHERE v IN (1, 2)"));
+        Assert.Empty(result.Rows);
+    }
+
+    [Fact]
+    public void Where_NotInWithNullValue_IsUnknown_ExcludesRow()
+    {
+        using var db = Tsdb.Open(Options());
+        SeedNullSemanticsTable(db);
+
+        // v NOT IN (5): row 2 (v NULL) must be excluded (UNKNOWN), row 3 (v=10) included.
+        var result = Assert.IsType<SelectExecutionResult>(
+            SqlExecutor.Execute(db, "SELECT id FROM t WHERE v NOT IN (5)"));
+        Assert.Equal([3L], result.Rows.Select(r => r[0]));
+    }
 }

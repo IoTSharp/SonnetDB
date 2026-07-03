@@ -912,30 +912,57 @@ internal static class TableSqlExecutor
         if (expression is null)
             return true;
 
+        // 三值逻辑：仅当谓词确定为 TRUE 时保留该行；UNKNOWN（NULL 传播）与 FALSE 一样排除。
         return EvaluateBoolean(expression, schema, row);
     }
 
     private static bool EvaluateBoolean(SqlExpression expression, TableSchema schema, IReadOnlyList<object?> row)
+        => EvaluateKleene(expression, schema, row) == true;
+
+    private static bool? EvaluateKleene(SqlExpression expression, TableSchema schema, IReadOnlyList<object?> row)
     {
         switch (expression)
         {
             case BinaryExpression binary:
                 if (binary.Operator == SqlBinaryOperator.And)
-                    return EvaluateBoolean(binary.Left, schema, row) && EvaluateBoolean(binary.Right, schema, row);
+                {
+                    var left = EvaluateKleene(binary.Left, schema, row);
+                    if (left == false) return false;
+                    var right = EvaluateKleene(binary.Right, schema, row);
+                    if (right == false) return false;
+                    return left is null || right is null ? null : true;
+                }
                 if (binary.Operator == SqlBinaryOperator.Or)
-                    return EvaluateBoolean(binary.Left, schema, row) || EvaluateBoolean(binary.Right, schema, row);
+                {
+                    var left = EvaluateKleene(binary.Left, schema, row);
+                    if (left == true) return true;
+                    var right = EvaluateKleene(binary.Right, schema, row);
+                    if (right == true) return true;
+                    return left is null || right is null ? null : false;
+                }
                 if (IsComparisonOperator(binary.Operator))
                     return EvaluateComparison(binary, schema, row);
                 break;
 
             case UnaryExpression { Operator: SqlUnaryOperator.Not } unary:
-                return !EvaluateBoolean(unary.Operand, schema, row);
+                {
+                    var operand = EvaluateKleene(unary.Operand, schema, row);
+                    return operand is null ? null : !operand;
+                }
+
+            case IsNullExpression isNull:
+                {
+                    var isNullValue = EvaluateScalar(isNull.Operand, schema, row) is null;
+                    return isNull.Negated ? !isNullValue : isNullValue;
+                }
 
             case InExpression inExpression:
                 return EvaluateIn(inExpression, schema, row);
         }
 
         var value = EvaluateScalar(expression, schema, row);
+        if (value is null)
+            return null;
         if (TryConvertToBoolean(value, out var boolean))
             return boolean;
         throw new InvalidOperationException("WHERE 表达式必须计算为布尔值。");
@@ -975,10 +1002,15 @@ internal static class TableSqlExecutor
         }
     }
 
-    private static bool EvaluateComparison(BinaryExpression binary, TableSchema schema, IReadOnlyList<object?> row)
+    private static bool? EvaluateComparison(BinaryExpression binary, TableSchema schema, IReadOnlyList<object?> row)
     {
         var left = EvaluateScalar(binary.Left, schema, row);
         var right = EvaluateScalar(binary.Right, schema, row);
+
+        // 三值逻辑：任一操作数为 NULL，比较结果为 UNKNOWN。检测 NULL 只能用 IS [NOT] NULL。
+        if (left is null || right is null)
+            return null;
+
         int? compare = CompareScalar(left, right);
 
         return binary.Operator switch
@@ -997,14 +1029,33 @@ internal static class TableSqlExecutor
         };
     }
 
-    private static bool EvaluateIn(InExpression expression, TableSchema schema, IReadOnlyList<object?> row)
+    private static bool? EvaluateIn(InExpression expression, TableSchema schema, IReadOnlyList<object?> row)
     {
         if (expression.Subquery is not null)
             throw new InvalidOperationException("单表执行路径不支持 IN 子查询。");
 
         var value = EvaluateScalar(expression.Value, schema, row);
-        var matched = expression.Values.Any(item => ValuesEqual(value, EvaluateScalar(item, schema, row)));
-        return expression.Negated ? !matched : matched;
+        if (value is null)
+            return null;
+
+        var sawNull = false;
+        foreach (var item in expression.Values)
+        {
+            var candidate = EvaluateScalar(item, schema, row);
+            if (candidate is null)
+            {
+                sawNull = true;
+                continue;
+            }
+
+            if (ValuesEqual(value, candidate))
+                return expression.Negated ? false : true;
+        }
+
+        // 无匹配：若列表内出现 NULL，结果为 UNKNOWN；否则为确定的 not-in。
+        if (sawNull)
+            return null;
+        return expression.Negated ? true : false;
     }
 
     private static object? EvaluateScalar(SqlExpression expression, TableSchema schema, IReadOnlyList<object?> row)

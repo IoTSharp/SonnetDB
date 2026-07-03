@@ -137,3 +137,15 @@ public sealed record CaseWhenClause(
 public sealed record UnaryExpression(
     SqlUnaryOperator Operator,
     SqlExpression Operand) : SqlExpression;
+
+/// <summary>
+/// <c>expr IS [NOT] NULL</c> 空值判定谓词。
+/// 与普通比较不同，本谓词永远返回明确的 TRUE / FALSE（绝不产生三值逻辑中的 UNKNOWN），
+/// 是唯一允许直接检测 <c>NULL</c> 的表达式；解析器把 <c>IS [NOT] NULL</c> 归约到此节点，
+/// 而不再退化成 <c>= NULL</c> / <c>!= NULL</c> 比较（后者按三值逻辑判 UNKNOWN）。
+/// </summary>
+/// <param name="Operand">被判定的操作数表达式。</param>
+/// <param name="Negated">是否为 <c>IS NOT NULL</c>。</param>
+public sealed record IsNullExpression(
+    SqlExpression Operand,
+    bool Negated = false) : SqlExpression;

@@ -1427,10 +1427,7 @@ public sealed class SqlParser
                 }
 
                 Expect(TokenKind.KeywordNull);
-                left = new BinaryExpression(
-                    negated ? SqlBinaryOperator.NotEqual : SqlBinaryOperator.Equal,
-                    left,
-                    LiteralExpression.Null());
+                left = new IsNullExpression(left, negated);
                 continue;
             }
 

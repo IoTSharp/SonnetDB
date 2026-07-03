@@ -372,6 +372,9 @@ internal static class JsonFileSqlExecutor
                 break;
             case UnaryExpression { Operator: SqlUnaryOperator.Not } unary:
                 return !EvaluateBoolean(unary.Operand, row);
+            case IsNullExpression isNull:
+                var isNullValue = EvaluateScalar(isNull.Operand, row) is null;
+                return isNull.Negated ? !isNullValue : isNullValue;
         }
 
         var value = EvaluateScalar(expression, row);

@@ -382,32 +382,63 @@ internal static class JoinSqlExecutor
     }
 
     private static bool EvaluateBoolean(SqlExpression expression, JoinRowContext context)
+        => EvaluateKleene(expression, context) == true;
+
+    private static bool? EvaluateKleene(SqlExpression expression, JoinRowContext context)
     {
         switch (expression)
         {
             case BinaryExpression binary:
                 if (binary.Operator == SqlBinaryOperator.And)
-                    return EvaluateBoolean(binary.Left, context) && EvaluateBoolean(binary.Right, context);
+                {
+                    var left = EvaluateKleene(binary.Left, context);
+                    if (left == false) return false;
+                    var right = EvaluateKleene(binary.Right, context);
+                    if (right == false) return false;
+                    return left is null || right is null ? null : true;
+                }
                 if (binary.Operator == SqlBinaryOperator.Or)
-                    return EvaluateBoolean(binary.Left, context) || EvaluateBoolean(binary.Right, context);
+                {
+                    var left = EvaluateKleene(binary.Left, context);
+                    if (left == true) return true;
+                    var right = EvaluateKleene(binary.Right, context);
+                    if (right == true) return true;
+                    return left is null || right is null ? null : false;
+                }
                 if (IsComparisonOperator(binary.Operator))
                     return EvaluateComparison(binary, context);
                 break;
 
             case UnaryExpression { Operator: SqlUnaryOperator.Not } unary:
-                return !EvaluateBoolean(unary.Operand, context);
+                {
+                    var operand = EvaluateKleene(unary.Operand, context);
+                    return operand is null ? null : !operand;
+                }
+
+            case IsNullExpression isNull:
+                {
+                    var isNullValue = EvaluateScalar(isNull.Operand, context) is null;
+                    return isNull.Negated ? !isNullValue : isNullValue;
+                }
         }
 
         var value = EvaluateScalar(expression, context);
+        if (value is null)
+            return null;
         if (value is bool b)
             return b;
         throw new InvalidOperationException("JOIN WHERE 表达式必须计算为布尔值。");
     }
 
-    private static bool EvaluateComparison(BinaryExpression binary, JoinRowContext context)
+    private static bool? EvaluateComparison(BinaryExpression binary, JoinRowContext context)
     {
         var left = EvaluateScalar(binary.Left, context);
         var right = EvaluateScalar(binary.Right, context);
+
+        // 三值逻辑：任一操作数为 NULL，比较结果为 UNKNOWN。检测 NULL 只能用 IS [NOT] NULL。
+        if (left is null || right is null)
+            return null;
+
         int? compare = CompareScalar(left, right);
 
         return binary.Operator switch

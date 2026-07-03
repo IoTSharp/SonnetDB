@@ -317,19 +317,39 @@ internal static class RelationalSelectExecutor
         IReadOnlyList<RelColumn> columns,
         IReadOnlyList<object?> representative,
         IReadOnlyList<object?[]> group)
+        => EvaluateHavingKleene(tsdb, expression, columns, representative, group) == true;
+
+    private static bool? EvaluateHavingKleene(
+        Tsdb tsdb,
+        SqlExpression expression,
+        IReadOnlyList<RelColumn> columns,
+        IReadOnlyList<object?> representative,
+        IReadOnlyList<object?[]> group)
     {
         if (expression is BinaryExpression binary)
         {
             if (binary.Operator == SqlBinaryOperator.And)
-                return EvaluateHavingPredicate(tsdb, binary.Left, columns, representative, group)
-                    && EvaluateHavingPredicate(tsdb, binary.Right, columns, representative, group);
+            {
+                var left = EvaluateHavingKleene(tsdb, binary.Left, columns, representative, group);
+                if (left == false) return false;
+                var right = EvaluateHavingKleene(tsdb, binary.Right, columns, representative, group);
+                if (right == false) return false;
+                return left is null || right is null ? null : true;
+            }
             if (binary.Operator == SqlBinaryOperator.Or)
-                return EvaluateHavingPredicate(tsdb, binary.Left, columns, representative, group)
-                    || EvaluateHavingPredicate(tsdb, binary.Right, columns, representative, group);
+            {
+                var left = EvaluateHavingKleene(tsdb, binary.Left, columns, representative, group);
+                if (left == true) return true;
+                var right = EvaluateHavingKleene(tsdb, binary.Right, columns, representative, group);
+                if (right == true) return true;
+                return left is null || right is null ? null : false;
+            }
             if (IsComparisonOperator(binary.Operator))
             {
                 var left = EvaluateHavingScalar(tsdb, binary.Left, columns, representative, group);
                 var right = EvaluateHavingScalar(tsdb, binary.Right, columns, representative, group);
+                if (left is null || right is null)
+                    return null;
                 int? compare = CompareScalar(left, right);
                 return binary.Operator switch
                 {
@@ -349,7 +369,13 @@ internal static class RelationalSelectExecutor
         }
         else if (expression is UnaryExpression { Operator: SqlUnaryOperator.Not } unary)
         {
-            return !EvaluateHavingPredicate(tsdb, unary.Operand, columns, representative, group);
+            var operand = EvaluateHavingKleene(tsdb, unary.Operand, columns, representative, group);
+            return operand is null ? null : !operand;
+        }
+        else if (expression is IsNullExpression isNull)
+        {
+            var isNullValue = EvaluateHavingScalar(tsdb, isNull.Operand, columns, representative, group) is null;
+            return isNull.Negated ? !isNullValue : isNullValue;
         }
         else if (expression is InExpression inExpression)
         {
@@ -357,6 +383,8 @@ internal static class RelationalSelectExecutor
         }
 
         var value = EvaluateHavingScalar(tsdb, expression, columns, representative, group);
+        if (value is null)
+            return null;
         if (value is bool b)
             return b;
         throw new InvalidOperationException("HAVING 表达式必须计算为布尔值。");
@@ -579,28 +607,57 @@ internal static class RelationalSelectExecutor
         IReadOnlyList<RelColumn> columns,
         IReadOnlyList<object?> row,
         RelationalScope? outerScope = null)
+        => EvaluateKleene(tsdb, expression, columns, row, outerScope) == true;
+
+    private static bool? EvaluateKleene(
+        Tsdb? tsdb,
+        SqlExpression expression,
+        IReadOnlyList<RelColumn> columns,
+        IReadOnlyList<object?> row,
+        RelationalScope? outerScope = null)
     {
         switch (expression)
         {
             case BinaryExpression binary:
                 if (binary.Operator == SqlBinaryOperator.And)
-                    return EvaluateBoolean(tsdb, binary.Left, columns, row, outerScope)
-                        && EvaluateBoolean(tsdb, binary.Right, columns, row, outerScope);
+                {
+                    var left = EvaluateKleene(tsdb, binary.Left, columns, row, outerScope);
+                    if (left == false) return false;
+                    var right = EvaluateKleene(tsdb, binary.Right, columns, row, outerScope);
+                    if (right == false) return false;
+                    return left is null || right is null ? null : true;
+                }
                 if (binary.Operator == SqlBinaryOperator.Or)
-                    return EvaluateBoolean(tsdb, binary.Left, columns, row, outerScope)
-                        || EvaluateBoolean(tsdb, binary.Right, columns, row, outerScope);
+                {
+                    var left = EvaluateKleene(tsdb, binary.Left, columns, row, outerScope);
+                    if (left == true) return true;
+                    var right = EvaluateKleene(tsdb, binary.Right, columns, row, outerScope);
+                    if (right == true) return true;
+                    return left is null || right is null ? null : false;
+                }
                 if (IsComparisonOperator(binary.Operator))
                     return EvaluateComparison(tsdb, binary, columns, row, outerScope);
                 break;
 
             case UnaryExpression { Operator: SqlUnaryOperator.Not } unary:
-                return !EvaluateBoolean(tsdb, unary.Operand, columns, row, outerScope);
+                {
+                    var operand = EvaluateKleene(tsdb, unary.Operand, columns, row, outerScope);
+                    return operand is null ? null : !operand;
+                }
+
+            case IsNullExpression isNull:
+                {
+                    var isNullValue = EvaluateScalar(tsdb, isNull.Operand, columns, row, outerScope) is null;
+                    return isNull.Negated ? !isNullValue : isNullValue;
+                }
 
             case InExpression inExpression:
                 return EvaluateIn(tsdb, inExpression, columns, row, outerScope);
         }
 
         var value = EvaluateScalar(tsdb, expression, columns, row, outerScope);
+        if (value is null)
+            return null;
         if (TryConvertToBoolean(value, out var boolean))
             return boolean;
         throw new InvalidOperationException("WHERE / ON 表达式必须计算为布尔值。");
@@ -640,7 +697,7 @@ internal static class RelationalSelectExecutor
         }
     }
 
-    private static bool EvaluateComparison(
+    private static bool? EvaluateComparison(
         Tsdb? tsdb,
         BinaryExpression binary,
         IReadOnlyList<RelColumn> columns,
@@ -649,6 +706,11 @@ internal static class RelationalSelectExecutor
     {
         var left = EvaluateScalar(tsdb, binary.Left, columns, row, outerScope);
         var right = EvaluateScalar(tsdb, binary.Right, columns, row, outerScope);
+
+        // 三值逻辑：任一操作数为 NULL，比较结果为 UNKNOWN。检测 NULL 只能用 IS [NOT] NULL。
+        if (left is null || right is null)
+            return null;
+
         int? compare = CompareScalar(left, right);
         return binary.Operator switch
         {
@@ -666,7 +728,7 @@ internal static class RelationalSelectExecutor
         };
     }
 
-    private static bool EvaluateIn(
+    private static bool? EvaluateIn(
         Tsdb? tsdb,
         InExpression expression,
         IReadOnlyList<RelColumn> columns,
@@ -674,8 +736,21 @@ internal static class RelationalSelectExecutor
         RelationalScope? outerScope = null)
     {
         var value = EvaluateScalar(tsdb, expression.Value, columns, row, outerScope);
-        bool matched;
+        if (value is null)
+            return null;
 
+        var sawNull = false;
+        bool Matches(object? candidate)
+        {
+            if (candidate is null)
+            {
+                sawNull = true;
+                return false;
+            }
+            return ValuesEqual(value, candidate);
+        }
+
+        bool matched;
         if (expression.Subquery is not null)
         {
             if (tsdb is null)
@@ -685,14 +760,16 @@ internal static class RelationalSelectExecutor
             var result = Execute(tsdb, expression.Subquery, inner);
             if (result.Columns.Count != 1)
                 throw new InvalidOperationException("IN 子查询必须只返回一列。");
-            matched = result.Rows.Any(candidate => ValuesEqual(value, candidate[0]));
+            matched = result.Rows.Any(candidate => Matches(candidate[0]));
         }
         else
         {
-            matched = expression.Values.Any(item => ValuesEqual(
-                value,
+            matched = expression.Values.Any(item => Matches(
                 EvaluateScalar(tsdb, item, columns, row, outerScope)));
         }
+
+        if (!matched && sawNull)
+            return null;
 
         return expression.Negated ? !matched : matched;
     }

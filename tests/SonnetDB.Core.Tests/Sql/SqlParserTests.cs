@@ -341,9 +341,10 @@ public class SqlParserTests
         Assert.NotNull(inExpression.Subquery);
 
         var leftAnd = Assert.IsType<BinaryExpression>(and.Left);
-        var isNotNull = Assert.IsType<BinaryExpression>(leftAnd.Right);
-        Assert.Equal(SqlBinaryOperator.NotEqual, isNotNull.Operator);
-        Assert.Equal(LiteralExpression.Null(), isNotNull.Right);
+        var isNotNull = Assert.IsType<IsNullExpression>(leftAnd.Right);
+        Assert.True(isNotNull.Negated);
+        var tokenRef = Assert.IsType<IdentifierExpression>(isNotNull.Operand);
+        Assert.Equal("ProduceToken", tokenRef.Name);
     }
 
     [Fact]

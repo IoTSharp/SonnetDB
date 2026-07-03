@@ -772,6 +772,11 @@ internal static class DocumentSqlExecutor
         {
             return !EvaluateHavingPredicate(unary.Operand, representative, group, matchScores);
         }
+        else if (expression is IsNullExpression isNull)
+        {
+            var isNullValue = EvaluateHavingScalar(isNull.Operand, representative, group, matchScores) is null;
+            return isNull.Negated ? !isNullValue : isNullValue;
+        }
 
         var value = EvaluateHavingScalar(expression, representative, group, matchScores);
         if (value is bool b)
@@ -1629,6 +1634,11 @@ internal static class DocumentSqlExecutor
 
             case UnaryExpression { Operator: SqlUnaryOperator.Not } unary:
                 return !EvaluateBoolean(unary.Operand, row, matchScores);
+
+            // 文档模型沿用 Mongo 风格的 = NULL 空值等值语义；IS [NOT] NULL 走独立节点。
+            case IsNullExpression isNull:
+                var isNullValue = EvaluateScalar(isNull.Operand, row, matchScores) is null;
+                return isNull.Negated ? !isNullValue : isNullValue;
         }
 
         var value = EvaluateScalar(expression, row, matchScores);
@@ -1916,6 +1926,11 @@ internal static class DocumentSqlExecutor
                     yield return identifier;
                 yield break;
 
+            case IsNullExpression isNull:
+                foreach (var identifier in EnumerateIdentifierReferences(isNull.Operand))
+                    yield return identifier;
+                yield break;
+
             case BinaryExpression binary:
                 foreach (var identifier in EnumerateIdentifierReferences(binary.Left))
                     yield return identifier;
@@ -2007,6 +2022,9 @@ internal static class DocumentSqlExecutor
             case UnaryExpression unary:
                 return ContainsMatchFunction(unary.Operand);
 
+            case IsNullExpression isNull:
+                return ContainsMatchFunction(isNull.Operand);
+
             case BinaryExpression binary:
                 return ContainsMatchFunction(binary.Left) || ContainsMatchFunction(binary.Right);
 
@@ -2035,6 +2053,8 @@ internal static class DocumentSqlExecutor
                 && l.Arguments.Zip(r.Arguments).All(pair => ExpressionEquals(pair.First, pair.Second)),
             (UnaryExpression l, UnaryExpression r) =>
                 l.Operator == r.Operator && ExpressionEquals(l.Operand, r.Operand),
+            (IsNullExpression l, IsNullExpression r) =>
+                l.Negated == r.Negated && ExpressionEquals(l.Operand, r.Operand),
             (BinaryExpression l, BinaryExpression r) =>
                 l.Operator == r.Operator
                 && ExpressionEquals(l.Left, r.Left)
