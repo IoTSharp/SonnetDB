@@ -66,6 +66,7 @@
   (#198) measurement `count(*)` / `count(1)` 语义修正为计"行/时刻"数——按 series 取所有 field 列写过的时间戳并集去重，而非旧实现遍历每个 field 列逐点累加（M 个 field × N 时刻误返 M×N）；`GROUP BY time(...)` 下按桶分别取时间戳并集，多 series 分别计入。`count(field)` 仍只计该字段有值的时刻数。
   (#199) 轻事务上下文内的 measurement（时序）`INSERT` / `DELETE` 从"静默直写、ROLLBACK 无法撤销"改为显式抛 `NotSupportedException`（与文档集合写入一致），杜绝"`BEGIN` 内写 measurement、`ROLLBACK` 后数据仍在"的假回滚；被拒绝时同批已排队的关系表变更也不会提交。
   (#200) SQL 解析器新增表达式递归深度上限（200）：深层括号 `((((…))))`、`NOT NOT NOT…`、`------x` 等自递归输入超限时抛 `SqlParseException`，而非触发不可捕获的 `StackOverflowException` 直接终止宿主进程；扁平 `AND`/`OR` 长链走循环不受影响。
+  (#201) `KvExpirerWorker` 后台过期清理失败时补发 `ReportBackgroundWorkerDiagnostic` 诊断事件（`KvExpirerWorker.CleanExpired` / Error），与 Flush / Compaction / Retention 三个 worker 对齐，杜绝反复失败静默不可见（C11）。（CompactionWorker 的 plan 步骤 try/catch 兜底 C6 已在 P0 #191 落地。）
 - 持久化全文索引后台合并改用专用长运行任务启动，避免高并发 CI 测试下因线程池调度延迟导致等待 merge task 超时。
 - 持久化全文索引后台合并测试改为等待实际 merge task 完成后再断言段文件数量，避免 CI 线程调度较慢时误判失败。
 - Go connector quickstart now keeps the native library version string and KV CAS version number in separate variables, fixing the `go test ./...` compile failure in connector release builds.

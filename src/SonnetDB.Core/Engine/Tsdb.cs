@@ -1021,7 +1021,14 @@ public sealed class Tsdb : IDisposable
         => ReportDiagnostic(operation, severity, message, exception);
 
     internal int CleanExpiredKeyspacesFromBackground(int limitPerKeyspace)
-        => Keyspaces.CleanExpiredOpened(DateTimeOffset.UtcNow, limitPerKeyspace);
+    {
+        // 测试注入点：模拟后台过期清理抛出，验证 KvExpirerWorker 的诊断兜底（C11）。
+        _kvExpirerFaultHook?.Invoke();
+        return Keyspaces.CleanExpiredOpened(DateTimeOffset.UtcNow, limitPerKeyspace);
+    }
+
+    /// <summary>仅供测试注入 KV 过期清理故障；生产恒为 null。</summary>
+    internal Action? _kvExpirerFaultHook;
 
     private void WritePointLocked(Point point)
     {

@@ -94,6 +94,11 @@ internal sealed class KvExpirerWorker : IDisposable
             {
                 Interlocked.Increment(ref _failureCount);
                 Volatile.Write(ref _lastError, ex);
+                _owner.ReportBackgroundWorkerDiagnostic(
+                    "KvExpirerWorker.CleanExpired",
+                    TsdbDiagnosticSeverity.Error,
+                    "后台 KV 过期清理失败；异常已被捕获，后续轮询会继续尝试。",
+                    ex);
             }
         }
     }

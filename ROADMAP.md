@@ -619,7 +619,7 @@ extensions/
 | #198 | **`count(*)` 语义修正**：`count(*)` 定义为按时间戳并集的行/时刻计数，而非遍历每个字段列逐点累加（当前 3 字段 × N 时刻返回 3N）。 | SQL Q14 | ✅ |
 | #199 | **事务覆盖时序 / 文档写**：`BEGIN` 内的 measurement `INSERT` 与 document DML 纳入事务缓冲以支持 ROLLBACK，或在事务上下文内显式拒绝（measurement 写当前直接绕过 transaction 立即持久化，ROLLBACK 只翻标志位）。 | SQL Q2 | ✅ |
 | #200 | **解析器递归深度限制**：在 `ParsePrimary` / `ParseNot` / `ParseUnary` 跟踪嵌套深度，超过上限（如 200）抛 `SqlParseException`；杜绝深层括号 / `NOT NOT NOT…` / `------x` 触发不可捕获的 StackOverflow 崩溃整个宿主进程。 | SQL Q3 | ✅ |
-| #201 | **后台 worker 异常兜底统一**：`CompactionWorker` 把 plan 获取步骤（`Segments.Readers` + `CompactionPlanner.Plan`）纳入 per-iteration try/catch，杜绝瞬时抛出逃逸 `WorkerLoop` 致 compaction 永久静默停摆；`KvExpirerWorker` 补 `ReportBackgroundWorkerDiagnostic` 诊断事件（与其余三个 worker 对齐）。 | 并发 C6、C11 | 📋 |
+| #201 | **后台 worker 异常兜底统一**：`CompactionWorker` 把 plan 获取步骤（`Segments.Readers` + `CompactionPlanner.Plan`）纳入 per-iteration try/catch，杜绝瞬时抛出逃逸 `WorkerLoop` 致 compaction 永久静默停摆；`KvExpirerWorker` 补 `ReportBackgroundWorkerDiagnostic` 诊断事件（与其余三个 worker 对齐）。 | 并发 C6、C11 | ✅ |
 | #202 | **`WriteMany(Span)` 批内 backpressure**：大批量写入在批内分块检查硬顶（`MemTableFlushPolicy.HardCapBytes`），或限制单批大小并在 chunk 之间让出锁；杜绝百万点单批在一次 `_writeSync` 持有内无限撑大 MemTable/WAL 致 OOM 且阻塞所有写入者。 | 并发 C4 | 📋 |
 | #203 | **durability fsync 移出写锁 + 关闭时排空 group-commit**：`SyncWalOnEveryWrite=true` 且 group-commit 关闭（或 window=0）时，把 `walSet.Sync()` 移到 `_writeSync` 之外执行（锁内捕获 sync 目标，锁外 fsync + Wait），消除"所有写入者串行排在 fsync 后"的吞吐悬崖；`Dispose` 前排空 pending group-commit，避免延迟 `Sync()` 在 WAL 已 dispose 后抛 ODE 到已返回的 `Write` 调用方。 | 存储 S10、S11 / 并发 C5 | 📋 |
 

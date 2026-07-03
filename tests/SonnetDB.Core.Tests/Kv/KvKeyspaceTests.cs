@@ -384,6 +384,38 @@ public sealed class KvKeyspaceTests : IDisposable
     }
 
     [Fact]
+    public void BackgroundExpirer_Failure_RaisesDiagnosticEvent()
+    {
+        using var db = Tsdb.Open(new TsdbOptions
+        {
+            RootDirectory = _root,
+            Kv = KvOptions.Default with
+            {
+                ExpirerPollInterval = TimeSpan.FromMilliseconds(20),
+                ExpirerShutdownTimeout = TimeSpan.FromSeconds(10),
+            },
+        });
+
+        var expected = new InvalidOperationException("kv expirer boom");
+        TsdbDiagnosticEvent? diagnostic = null;
+        using var signaled = new ManualResetEventSlim();
+        db.DiagnosticEvent += (_, e) =>
+        {
+            diagnostic = e;
+            signaled.Set();
+        };
+
+        // 注入后台过期清理故障：worker 必须捕获并上报诊断事件，而不是静默失败。
+        db._kvExpirerFaultHook = () => throw expected;
+
+        Assert.True(signaled.Wait(TimeSpan.FromSeconds(3)), "后台 KV 过期清理失败应触发诊断事件。");
+        Assert.NotNull(diagnostic);
+        Assert.Equal("KvExpirerWorker.CleanExpired", diagnostic!.Operation);
+        Assert.Equal(TsdbDiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Same(expected, diagnostic.Exception);
+    }
+
+    [Fact]
     public void Namespace_QualifiesKeysAndStripsScanResults()
     {
         using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
