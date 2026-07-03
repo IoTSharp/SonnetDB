@@ -141,6 +141,17 @@ internal static class RelationalSelectExecutor
 
     private static Relation Join(Tsdb tsdb, Relation left, Relation right, SqlExpression on, JoinKind kind, RelationalScope? outerScope = null)
     {
+        // #215：等值连接走哈希连接（O(N+M)），替换全物化嵌套循环笛卡尔积（O(N×M)）。
+        // 仅当 ON 能拆出至少一组 left_col = right_col 等值键、且无相关子查询等复杂依赖时启用；
+        // 否则回退嵌套循环。残差（非等值）合取项在候选对上再求值，保持语义完全一致。
+        if (TryPlanHashJoin(left, right, on, out var keyPairs, out var residual))
+            return HashJoin(tsdb, left, right, keyPairs, residual, kind, outerScope);
+
+        return NestedLoopJoin(tsdb, left, right, on, kind, outerScope);
+    }
+
+    private static Relation NestedLoopJoin(Tsdb tsdb, Relation left, Relation right, SqlExpression on, JoinKind kind, RelationalScope? outerScope)
+    {
         var columns = left.Columns.Concat(right.Columns).ToArray();
         var rows = new List<object?[]>();
         foreach (var leftRow in left.Rows)
@@ -170,6 +181,215 @@ internal static class RelationalSelectExecutor
         }
 
         return new Relation(columns, rows);
+    }
+
+    /// <summary>一组等值连接键：左关系列下标 = 右关系列下标。</summary>
+    private readonly record struct JoinKeyPair(int LeftColumnIndex, int RightColumnIndex);
+
+    /// <summary>
+    /// 尝试把 ON 谓词规划为哈希连接：拆出顶层 AND 合取，识别形如 <c>left_col = right_col</c> 的等值项
+    /// （两侧均为唯一可解析的裸列引用，一侧属左关系、一侧属右关系）。至少一组等值键才启用哈希连接；
+    /// 其余合取项作为残差 <paramref name="residual"/> 在候选对上再求值。含相关子查询等无法静态判定的项则整体放弃。
+    /// </summary>
+    private static bool TryPlanHashJoin(
+        Relation left,
+        Relation right,
+        SqlExpression on,
+        out List<JoinKeyPair> keyPairs,
+        out List<SqlExpression> residual)
+    {
+        keyPairs = [];
+        residual = [];
+
+        foreach (var conjunct in FlattenAndExpr(on))
+        {
+            if (conjunct is BinaryExpression { Operator: SqlBinaryOperator.Equal, Left: var l, Right: var r }
+                && l is IdentifierExpression li
+                && r is IdentifierExpression ri
+                && TryBindSide(left, right, li, out int lLeftIdx, out int lRightIdx)
+                && TryBindSide(left, right, ri, out int rLeftIdx, out int rRightIdx))
+            {
+                // 一侧解析到左关系、另一侧解析到右关系，才是可哈希的等值连接键。
+                if (lLeftIdx >= 0 && rRightIdx >= 0)
+                {
+                    keyPairs.Add(new JoinKeyPair(lLeftIdx, rRightIdx));
+                    continue;
+                }
+                if (lRightIdx >= 0 && rLeftIdx >= 0)
+                {
+                    keyPairs.Add(new JoinKeyPair(rLeftIdx, lRightIdx));
+                    continue;
+                }
+                // 两侧同属一关系（如 l.a = l.b）：不是连接键，作为残差保留。
+                residual.Add(conjunct);
+                continue;
+            }
+
+            // 非等值 / 非裸列比较：只有当它不引用无法静态解析的东西时才作残差；
+            // 含子查询的项无法安全下推到候选对上（可能依赖外层），放弃哈希连接走嵌套循环。
+            if (ContainsSubquery(conjunct))
+            {
+                keyPairs = [];
+                residual = [];
+                return false;
+            }
+            residual.Add(conjunct);
+        }
+
+        return keyPairs.Count > 0;
+    }
+
+    /// <summary>
+    /// 判定标识符是解析到左关系还是右关系（唯一命中）。返回 true 且 leftIndex/rightIndex 之一 &gt;= 0。
+    /// 两个关系都命中（歧义）或都不命中则返回 false。
+    /// </summary>
+    private static bool TryBindSide(Relation left, Relation right, IdentifierExpression id, out int leftIndex, out int rightIndex)
+    {
+        leftIndex = TryResolveInRelation(left, id) ?? -1;
+        rightIndex = TryResolveInRelation(right, id) ?? -1;
+        // 恰好命中一侧才可用（避免歧义列）。
+        return (leftIndex >= 0) ^ (rightIndex >= 0);
+    }
+
+    private static Relation HashJoin(
+        Tsdb tsdb,
+        Relation left,
+        Relation right,
+        List<JoinKeyPair> keyPairs,
+        List<SqlExpression> residual,
+        JoinKind kind,
+        RelationalScope? outerScope)
+    {
+        var columns = left.Columns.Concat(right.Columns).ToArray();
+        var rows = new List<object?[]>();
+
+        // build 侧：对右关系按连接键建哈希（key 含 NULL 的行不入表——NULL 不参与等值匹配）。
+        var buildTable = new Dictionary<JoinValueKey, List<object?[]>>();
+        foreach (var rightRow in right.Rows)
+        {
+            if (TryMakeKey(rightRow, keyPairs, useRight: true, out var key))
+            {
+                if (!buildTable.TryGetValue(key, out var bucket))
+                {
+                    bucket = [];
+                    buildTable.Add(key, bucket);
+                }
+                bucket.Add(rightRow);
+            }
+        }
+
+        bool hasResidual = residual.Count > 0;
+        foreach (var leftRow in left.Rows)
+        {
+            bool matched = false;
+            if (TryMakeKey(leftRow, keyPairs, useRight: false, out var probeKey)
+                && buildTable.TryGetValue(probeKey, out var candidates))
+            {
+                foreach (var rightRow in candidates)
+                {
+                    var row = new object?[leftRow.Length + rightRow.Length];
+                    Array.Copy(leftRow, row, leftRow.Length);
+                    Array.Copy(rightRow, 0, row, leftRow.Length, rightRow.Length);
+
+                    if (hasResidual && !ResidualHolds(tsdb, residual, columns, row, outerScope))
+                        continue;
+
+                    matched = true;
+                    rows.Add(row);
+                }
+            }
+
+            if (!matched && kind == JoinKind.Left)
+            {
+                var row = new object?[leftRow.Length + right.Columns.Count];
+                Array.Copy(leftRow, row, leftRow.Length);
+                rows.Add(row);
+            }
+        }
+
+        return new Relation(columns, rows);
+    }
+
+    private static bool ResidualHolds(Tsdb tsdb, List<SqlExpression> residual, IReadOnlyList<RelColumn> columns, IReadOnlyList<object?> row, RelationalScope? outerScope)
+    {
+        foreach (var conjunct in residual)
+        {
+            if (!EvaluateBoolean(tsdb, conjunct, columns, row, outerScope))
+                return false;
+        }
+        return true;
+    }
+
+    /// <summary>提取一行在连接键上的取值构成哈希 key；任一键值为 NULL 返回 false（NULL 不匹配）。</summary>
+    private static bool TryMakeKey(IReadOnlyList<object?> row, List<JoinKeyPair> keyPairs, bool useRight, out JoinValueKey key)
+    {
+        var values = new object?[keyPairs.Count];
+        for (int i = 0; i < keyPairs.Count; i++)
+        {
+            int idx = useRight ? keyPairs[i].RightColumnIndex : keyPairs[i].LeftColumnIndex;
+            var v = row[idx];
+            if (v is null)
+            {
+                key = default;
+                return false;
+            }
+            values[i] = v;
+        }
+        key = new JoinValueKey(values);
+        return true;
+    }
+
+    /// <summary>多列连接键的值组合，基于 <see cref="ValuesEqual"/> / 归一化数值实现相等与哈希。</summary>
+    private readonly struct JoinValueKey : IEquatable<JoinValueKey>
+    {
+        private readonly object?[] _values;
+        public JoinValueKey(object?[] values) => _values = values;
+
+        public bool Equals(JoinValueKey other)
+        {
+            if (_values.Length != other._values.Length)
+                return false;
+            for (int i = 0; i < _values.Length; i++)
+            {
+                if (!ValuesEqual(_values[i], other._values[i]))
+                    return false;
+            }
+            return true;
+        }
+
+        public override bool Equals(object? obj) => obj is JoinValueKey k && Equals(k);
+
+        public override int GetHashCode()
+        {
+            var hash = new HashCode();
+            foreach (var v in _values)
+                hash.Add(NormalizeForHash(v));
+            return hash.ToHashCode();
+        }
+
+        // 数值统一按 double 归一化，使 1 (int) 与 1.0 (double) 落同一桶（与 ValuesEqual 的数值相等一致）。
+        private static object NormalizeForHash(object? v) => v switch
+        {
+            null => 0,
+            byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal
+                => Convert.ToDouble(v, System.Globalization.CultureInfo.InvariantCulture),
+            _ => v,
+        };
+    }
+
+    private static IEnumerable<SqlExpression> FlattenAndExpr(SqlExpression expression)
+    {
+        if (expression is BinaryExpression { Operator: SqlBinaryOperator.And } and)
+        {
+            foreach (var l in FlattenAndExpr(and.Left))
+                yield return l;
+            foreach (var r in FlattenAndExpr(and.Right))
+                yield return r;
+        }
+        else
+        {
+            yield return expression;
+        }
     }
 
     private static SelectExecutionResult ExecuteRawProjection(

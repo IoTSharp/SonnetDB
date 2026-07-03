@@ -1499,4 +1499,87 @@ public sealed class SqlExecutorTableTests : IDisposable
             SqlExecutor.Execute(db, "SELECT id FROM t WHERE v NOT IN (5)"));
         Assert.Equal([3L], result.Rows.Select(r => r[0]));
     }
+
+    // ── 哈希连接（#215）─────────────────────────────────────────────────────
+
+    [Fact]
+    public void HashJoin_OneToMany_DuplicateKeys_EmitsAllMatches()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE sites (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, site_id INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "INSERT INTO sites (id, name) VALUES (1, 'north'), (2, 'south')");
+        // 多台设备指向同一 site（一对多）：北 3 台、南 1 台。
+        SqlExecutor.Execute(db, "INSERT INTO devices (id, site_id) VALUES (10, 1), (11, 1), (12, 1), (13, 2)");
+
+        var r = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT d.id, s.name
+            FROM devices d JOIN sites s ON d.site_id = s.id
+            ORDER BY d.id
+            """));
+
+        Assert.Equal(4, r.Rows.Count);
+        Assert.Equal(new object?[] { 10L, "north" }, r.Rows[0]);
+        Assert.Equal(new object?[] { 11L, "north" }, r.Rows[1]);
+        Assert.Equal(new object?[] { 12L, "north" }, r.Rows[2]);
+        Assert.Equal(new object?[] { 13L, "south" }, r.Rows[3]);
+    }
+
+    [Fact]
+    public void HashJoin_NullKey_DoesNotMatch()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE sites (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, site_id INT NULL, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "INSERT INTO sites (id, name) VALUES (1, 'north')");
+        SqlExecutor.Execute(db, "INSERT INTO devices (id, site_id) VALUES (10, 1), (11, NULL)");
+
+        // INNER JOIN：NULL 键不匹配，只返回 device 10。
+        var inner = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT d.id FROM devices d JOIN sites s ON d.site_id = s.id ORDER BY d.id
+            """));
+        Assert.Equal([10L], inner.Rows.Select(r => (long)r[0]!));
+
+        // LEFT JOIN：NULL 键的 device 11 仍出现，右侧列为 NULL。
+        var left = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT d.id, s.name FROM devices d LEFT JOIN sites s ON d.site_id = s.id ORDER BY d.id
+            """));
+        Assert.Equal(2, left.Rows.Count);
+        Assert.Equal(new object?[] { 10L, "north" }, left.Rows[0]);
+        Assert.Equal(new object?[] { 11L, null }, left.Rows[1]);
+    }
+
+    [Fact]
+    public void HashJoin_WithResidualNonEquiPredicate_FiltersMatches()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE a (id INT, k INT, v INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE TABLE b (id INT, k INT, w INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "INSERT INTO a (id, k, v) VALUES (1, 5, 100), (2, 5, 10)");
+        SqlExecutor.Execute(db, "INSERT INTO b (id, k, w) VALUES (1, 5, 50)");
+
+        // ON a.k = b.k AND a.v > b.w：等值键 k 走哈希，残差 a.v > b.w 在候选对上再过滤。
+        var r = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT a.id FROM a JOIN b ON a.k = b.k AND a.v > b.w ORDER BY a.id
+            """));
+        // a1 (v=100 > 50) 命中；a2 (v=10 > 50 假) 被残差过滤。
+        Assert.Equal([1L], r.Rows.Select(row => (long)row[0]!));
+    }
+
+    [Fact]
+    public void HashJoin_MultiColumnKey_MatchesOnBothColumns()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE a (id INT, x INT, y INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE TABLE b (id INT, x INT, y INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "INSERT INTO a (id, x, y) VALUES (1, 1, 2), (2, 1, 3)");
+        SqlExecutor.Execute(db, "INSERT INTO b (id, x, y) VALUES (10, 1, 2), (11, 1, 9)");
+
+        var r = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT a.id, b.id FROM a JOIN b ON a.x = b.x AND a.y = b.y ORDER BY a.id
+            """));
+        // 仅 (a1,b10) 在 (x,y)=(1,2) 上双列匹配。
+        Assert.Single(r.Rows);
+        Assert.Equal(new object?[] { 1L, 10L }, r.Rows[0]);
+    }
 }

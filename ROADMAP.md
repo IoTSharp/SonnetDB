@@ -643,7 +643,7 @@ extensions/
 | #212 | **SQL plan / parse 缓存**：按 SQL 文本（结合 schema 版本）缓存已解析 AST（有界 LRU），消除每次 `Execute` 重新 lex+parse 的分配与 CPU；为高频轮询同一 query 形状的仪表盘场景显著降本。 | SQL Q7 | ✅（`SqlParser.Parse` 进程级 512 条 LRU，按 SQL 文本 key；解析与 schema 无关且 AST 不可变，无需 schema 版本参与；所有 Parse 调用方透明受益） |
 | #213 | **参数化查询 / 绑定变量**：新增位置 `?` / 命名 `@p` 占位符，贯穿 lexer→AST→executor；消除应用层字符串拼接的注入风险，并让 plan cache 对不同参数值复用。 | SQL Q10 | ✅（`TokenKind.Parameter` + `ParameterExpression` + `SqlParameterBinder` 值绑定；嵌入式 ADO 走 Core AST 绑定，远程因线协议仅 SQL 字符串仍客户端安全替换） |
 | #214 | **LIMIT / Top-N 下推**：`Offset+Fetch` 下推到 scan/sort；`ORDER BY … LIMIT k` 用有界堆而非全量物化+排序（当前百万点全量物化排序后切片）。 | SQL Q6 | ✅（`TopN` 有界堆 O(N log K) 融合 ORDER BY + 分页；measurement / 关系表 / 关系子查询三路径统一走 `ApplyOrderByAndPagination`，稳定序保持） |
-| #215 | **关系 JOIN hash join**：识别等值连接键，对 build 侧建哈希表（复用 `JoinSqlExecutor.BuildTableHash` 思路），替换关系路径全物化嵌套循环笛卡尔积（两张 1 万行表 = 1 亿次谓词求值）。 | SQL Q9 | 📋 |
+| #215 | **关系 JOIN hash join**：识别等值连接键，对 build 侧建哈希表（复用 `JoinSqlExecutor.BuildTableHash` 思路），替换关系路径全物化嵌套循环笛卡尔积（两张 1 万行表 = 1 亿次谓词求值）。 | SQL Q9 | ✅（`TryPlanHashJoin` 拆等值键建哈希探测，残差非等值项候选对上再过滤，含子查询 ON 回退嵌套循环；NULL 键不匹配 / LEFT 未命中保留 / 多列键 / 数值跨类型一致） |
 | #216 | **相关子查询去关联 / memoize**：对 `IN(subquery)` / `EXISTS` / 标量子查询先做"是否引用外层列"静态判定；非相关子查询执行 0/1 次并缓存，相关子查询去关联为 semi/anti-join 或哈希内表；消除每外层行重扫内表 O(n_outer × n_inner)。（与末尾性能待办 P2 合并落地。） | SQL Q8 | 📋 |
 | #217 | **时序 WHERE 字段谓词 + OR**：`WhereClauseDecomposer` 增加按数据点求值的残差字段谓词（比照 JOIN 路径已有能力）并支持 OR；让 `WHERE temp > 30`、`WHERE tag='a' OR tag='b'` 可用（当前直接抛"不在 v1 支持范围"）。对 IoT 时序库是 table-stakes。 | SQL Q5 | 📋 |
 | #218 | **事务隔离 / read-your-writes**：事务内 SELECT 叠加本事务已缓冲的 insert/update（当前读提交态、看不到自身缓冲写）；明确并文档化隔离级别。 | SQL Q4 | 📋 |
