@@ -270,6 +270,27 @@ public sealed class SonnetMqStoreTests : IDisposable
         Assert.True(remaining[0].Offset > 0);
     }
 
+    [Fact]
+    public void ListTopicStats_ReturnsAllTopicsInNameOrder()
+    {
+        using var store = Open();
+        Assert.Empty(store.ListTopicStats());
+
+        store.Publish("iot.telemetry", Encoding.UTF8.GetBytes("a"));
+        store.Publish("iot.telemetry", Encoding.UTF8.GetBytes("b"));
+        store.Publish("iot.commands", Encoding.UTF8.GetBytes("c"));
+        store.Ack("iot.commands", "rules", 0);
+
+        var stats = store.ListTopicStats();
+
+        Assert.Equal(["iot.commands", "iot.telemetry"], stats.Select(s => s.Topic).ToArray());
+        var telemetry = stats.Single(s => s.Topic == "iot.telemetry");
+        Assert.Equal(2, telemetry.MessageCount);
+        Assert.Equal(2, telemetry.NextOffset);
+        var commands = stats.Single(s => s.Topic == "iot.commands");
+        Assert.Equal(1, commands.ConsumerOffsets["rules"]);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))

@@ -268,16 +268,36 @@ public sealed class SonnetMqStore : IDisposable
         ValidateTopic(topic);
 
         lock (_sync)
-        {
-            if (!_topics.TryGetValue(topic, out var state))
-                return new SonnetMqTopicStats(topic, 0, 0, new Dictionary<string, long>(StringComparer.Ordinal));
+            return GetStatsLocked(topic);
+    }
 
-            return new SonnetMqTopicStats(
-                topic,
-                state.Messages.Count,
-                state.NextOffset,
-                new Dictionary<string, long>(state.ConsumerOffsets, StringComparer.Ordinal));
+    /// <summary>
+    /// 枚举当前所有 topic 的统计快照。只读，不改变任何队列状态。
+    /// </summary>
+    /// <returns>按 topic 名称升序排列的统计快照。</returns>
+    public IReadOnlyList<SonnetMqTopicStats> ListTopicStats()
+    {
+        EnsureNotDisposed();
+
+        lock (_sync)
+        {
+            return _topics.Keys
+                .Order(StringComparer.Ordinal)
+                .Select(GetStatsLocked)
+                .ToArray();
         }
+    }
+
+    private SonnetMqTopicStats GetStatsLocked(string topic)
+    {
+        if (!_topics.TryGetValue(topic, out var state))
+            return new SonnetMqTopicStats(topic, 0, 0, new Dictionary<string, long>(StringComparer.Ordinal));
+
+        return new SonnetMqTopicStats(
+            topic,
+            state.Messages.Count,
+            state.NextOffset,
+            new Dictionary<string, long>(state.ConsumerOffsets, StringComparer.Ordinal));
     }
 
     /// <summary>

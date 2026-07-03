@@ -327,6 +327,205 @@ public sealed record MqStatsResponse(
     long NextOffset,
     IReadOnlyDictionary<string, long> ConsumerOffsets);
 
+// ---- M29 A #245 多模型只读管理契约 ----
+
+/// <summary>
+/// KV keyspace 列表响应。
+/// </summary>
+/// <param name="Keyspaces">按名称升序排列的 keyspace 名称。</param>
+public sealed record KvKeyspaceListResponse(IReadOnlyList<string> Keyspaces);
+
+/// <summary>
+/// KV 游标扫描请求。
+/// </summary>
+/// <param name="Prefix">key 前缀；为空时扫描全部 key。</param>
+/// <param name="Cursor">上一页返回的 <see cref="KvScanCursorResponse.NextCursor"/>；首页为空。</param>
+/// <param name="Limit">单页最大返回行数；默认 100，上限 1000。</param>
+public sealed record KvScanCursorRequest(string? Prefix = null, string? Cursor = null, int? Limit = null);
+
+/// <summary>
+/// KV 游标扫描响应。
+/// </summary>
+/// <param name="Entries">本页记录，按 key 字节序升序。</param>
+/// <param name="NextCursor">下一页游标；无更多数据时为 null。</param>
+/// <param name="HasMore">是否可能还有下一页。</param>
+public sealed record KvScanCursorResponse(
+    IReadOnlyList<KvEntryResponse> Entries,
+    string? NextCursor,
+    bool HasMore);
+
+/// <summary>
+/// 向量索引统计响应。
+/// </summary>
+/// <param name="Indexes">当前数据库声明的全部向量索引。</param>
+public sealed record VectorIndexStatResponse(IReadOnlyList<VectorIndexStat> Indexes);
+
+/// <summary>
+/// 单个向量索引的声明级统计。
+/// </summary>
+/// <param name="Measurement">所属 measurement。</param>
+/// <param name="Column">向量列名。</param>
+/// <param name="Kind">索引类型（Hnsw / IvfFlat / IvfPq / Vamana）。</param>
+/// <param name="Dimension">向量维度；未声明时为 null。</param>
+/// <param name="Metric">距离度量。当前引擎构建时固定为 cosine。</param>
+/// <param name="Params">图参数（如 HNSW m / ef）。</param>
+public sealed record VectorIndexStat(
+    string Measurement,
+    string Column,
+    string Kind,
+    int? Dimension,
+    string Metric,
+    IReadOnlyList<KeyValueInfo> Params);
+
+/// <summary>
+/// 向量检索预览请求。走既有 <c>knn(...)</c> data-plane，不新增查询语义。
+/// </summary>
+/// <param name="Measurement">目标 measurement。</param>
+/// <param name="Column">向量列名。</param>
+/// <param name="Query">查询向量。</param>
+/// <param name="TopK">返回前 K 条；默认 10，上限 100。</param>
+public sealed record VectorSearchPreviewRequest(
+    string Measurement,
+    string Column,
+    float[] Query,
+    int? TopK = null);
+
+/// <summary>
+/// 向量检索预览响应。
+/// </summary>
+/// <param name="Hits">命中列表，按距离升序。</param>
+public sealed record VectorSearchPreviewResponse(IReadOnlyList<VectorSearchPreviewHit> Hits);
+
+/// <summary>
+/// 向量检索预览命中项。
+/// </summary>
+/// <param name="TimestampUtc">命中点时间戳（UTC ticks）。</param>
+/// <param name="Distance">与查询向量的距离。</param>
+public sealed record VectorSearchPreviewHit(long TimestampUtc, double Distance);
+
+/// <summary>
+/// 全文索引统计响应。
+/// </summary>
+/// <param name="Indexes">当前数据库全部文档集合上的全文索引。</param>
+public sealed record FullTextIndexStatResponse(IReadOnlyList<FullTextIndexStat> Indexes);
+
+/// <summary>
+/// 单个全文索引统计。
+/// </summary>
+/// <param name="Collection">所属文档集合。</param>
+/// <param name="Name">索引名。</param>
+/// <param name="Fields">被索引字段。</param>
+/// <param name="Tokenizer">分词器 / analyzer 名称。</param>
+/// <param name="DocumentCount">当前可见文档数。</param>
+public sealed record FullTextIndexStat(
+    string Collection,
+    string Name,
+    IReadOnlyList<string> Fields,
+    string Tokenizer,
+    int DocumentCount);
+
+/// <summary>
+/// 全文检索预览请求（BM25）。走既有全文检索 data-plane，不新增查询语义。
+/// </summary>
+/// <param name="Collection">文档集合。</param>
+/// <param name="Index">全文索引名。</param>
+/// <param name="Field">检索字段，或 <c>*</c>。</param>
+/// <param name="Query">查询文本。</param>
+/// <param name="TopK">返回前 K 条；默认 10，上限 100。</param>
+/// <param name="Mode">检索模式：exact（默认）/ fuzzy。</param>
+public sealed record FullTextSearchPreviewRequest(
+    string Collection,
+    string Index,
+    string Field,
+    string Query,
+    int? TopK = null,
+    string? Mode = null);
+
+/// <summary>
+/// 全文检索预览响应。
+/// </summary>
+/// <param name="Hits">命中列表，按 BM25 分数降序。</param>
+public sealed record FullTextSearchPreviewResponse(IReadOnlyList<FullTextSearchPreviewHit> Hits);
+
+/// <summary>
+/// 全文检索预览命中项。
+/// </summary>
+/// <param name="DocumentId">文档 id。</param>
+/// <param name="Score">BM25 相关性分数。</param>
+public sealed record FullTextSearchPreviewHit(string DocumentId, double Score);
+
+/// <summary>
+/// 分词器 analyze 请求。
+/// </summary>
+/// <param name="Tokenizer">分词器名称：unicode / cjk / jieba。</param>
+/// <param name="Text">待分词文本。</param>
+public sealed record FullTextAnalyzeRequest(string Tokenizer, string Text);
+
+/// <summary>
+/// 分词器 analyze 响应。
+/// </summary>
+/// <param name="Tokens">切词结果。</param>
+public sealed record FullTextAnalyzeResponse(IReadOnlyList<FullTextTokenInfo> Tokens);
+
+/// <summary>
+/// 单个切词结果。
+/// </summary>
+/// <param name="Text">词元文本。</param>
+/// <param name="StartOffset">在原文中的起始字符偏移。</param>
+/// <param name="EndOffset">在原文中的结束字符偏移。</param>
+/// <param name="PositionIncrement">相对上一个词元的位置增量。</param>
+public sealed record FullTextTokenInfo(
+    string Text,
+    int StartOffset,
+    int EndOffset,
+    int PositionIncrement);
+
+/// <summary>
+/// MQ topic 列表响应。
+/// </summary>
+/// <param name="Topics">当前数据库下的全部 topic。</param>
+public sealed record MqTopicListResponse(IReadOnlyList<MqTopicInfo> Topics);
+
+/// <summary>
+/// 单个 MQ topic 概览。
+/// </summary>
+/// <param name="Topic">Topic 名称（不含数据库前缀）。</param>
+/// <param name="MessageCount">当前保留的消息数量。</param>
+/// <param name="NextOffset">下一条消息 offset（高水位）。</param>
+public sealed record MqTopicInfo(string Topic, long MessageCount, long NextOffset);
+
+/// <summary>
+/// MQ topic offset / 消费 lag 响应。
+/// </summary>
+/// <param name="Topic">Topic 名称。</param>
+/// <param name="NextOffset">下一条消息 offset（高水位）。</param>
+/// <param name="Consumers">各消费者组的已提交 offset 与 lag。</param>
+public sealed record MqOffsetsResponse(
+    string Topic,
+    long NextOffset,
+    IReadOnlyList<MqConsumerLag> Consumers);
+
+/// <summary>
+/// 单个消费者组的 offset / lag。
+/// </summary>
+/// <param name="ConsumerGroup">消费者组名称。</param>
+/// <param name="CommittedOffset">已提交（下一条待消费）offset。</param>
+/// <param name="Lag">落后高水位的消息数（NextOffset − CommittedOffset）。</param>
+public sealed record MqConsumerLag(string ConsumerGroup, long CommittedOffset, long Lag);
+
+/// <summary>
+/// MQ 按 offset 浏览请求。只读，不改变任何消费者组状态。
+/// </summary>
+/// <param name="FromOffset">起始 offset；默认从 0 开始。</param>
+/// <param name="MaxCount">最多返回消息数量；默认 100，上限 1000。</param>
+public sealed record MqBrowseRequest(long? FromOffset = null, int? MaxCount = null);
+
+/// <summary>
+/// MQ 按 offset 浏览响应。
+/// </summary>
+/// <param name="Messages">消息列表，按 offset 升序。</param>
+public sealed record MqBrowseResponse(IReadOnlyList<MqMessageResponse> Messages);
+
 /// <summary>
 /// <c>POST /v1/auth/login</c> 请求体。
 /// </summary>

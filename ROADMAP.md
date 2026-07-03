@@ -127,6 +127,8 @@ PR #89（Core Meter / Activity 基线）
 
 `#104`（Copilot 面板）可以在查询闭环后立即接入；`#105`（托管本地模式）可与 `#104` 并行，但不应阻塞首个可用版本。
 
+> **与 Milestone 29 的关系**：本里程碑保留 VS Code 扩展交付主线（#99~#108）。Milestone 29 的 #259 在 A/B/C 工作台契约（#245）落地后，负责**补完本里程碑 #103 结果三视图 + #104 Copilot 面板**（`streamCopilot` 客户端已实现只差接线），并把 Explorer 扩展为消费 M29 契约做 KV / 向量 / 全文 / MQ **只读浏览**；VS Code 定位开发者只读 + SQL 执行子集，完整 per-model 编辑体验以 Web Admin 旗舰为准。
+
 ### 目录约定
 
 ```text
@@ -471,6 +473,8 @@ extensions/
 > **目标**：把 Document Store 已经具备的集合、索引、validator、维护端点和导入导出能力组织成 SonnetDB Studio 里的可用管理体验。本里程碑只做 Studio / Web Admin / 桌面壳相关的管理面，不把新的 Document Store 引擎能力塞回 Milestone 21。
 >
 > **边界**：管理 UI 可以消费 Milestone 21 暴露的 HTTP API、schema endpoint、maintenance endpoint 和 Document API；若发现后端缺少必要只读 metadata，可以补最小 server contract，但不在本里程碑新增查询语义、索引语义或存储格式。
+>
+> **与 Milestone 29 的关系**：本里程碑（#170~#172）是**文档模型的专属管理面**，仍在本里程碑交付；Milestone 29（多模型统一管理工作台）的 #257 只负责把本里程碑的 Document Explorer / Validator / 导入导出**接入统一外壳与共享结果 / 写审批框架**，不重复实现文档管理能力。
 
 ### PR 拆分
 
@@ -857,6 +861,114 @@ P5b 接入：#235（通用二进制帧 + MQ service / HTTP-2）→ #236（HTTP-2
 
 ---
 
+## Milestone 29 — 多模型统一管理工作台（Multi-Model Management Workbench）
+
+> **背景**：SonnetDB 已是覆盖 8 种数据模型的多模态库（时序 / 关系 SQL / 文档 / KV / 全文 / 向量 / 对象存储 / 消息队列 SonnetMQ），但管理工具只覆盖了「时序 + SQL」一条线。当前唯一成型的 UI 是 `web/`（Vue3 + Naive UI + ECharts + CodeMirror）Web Admin：有 Dashboard、SQL Console（即 Studio 工作台）、schema 树、结果表/图、Trajectory 地图、Events 监控（SSE）、Users/Grants/Tokens、Copilot；`src/SonnetDB.Studio` 只是把 `web/dist` 打包进 WebView2 的桌面壳，**无任何独立能力**；VS Code 扩展（M18）大部分仍是脚手架（只有 Explorer 树 + SQL 执行客户端能跑）。对照 pgAdmin / SSMS / Navicat / DBeaver（关系）、RedisInsight（KV）、Kafka UI / RabbitMQ Management / EMQX Dashboard（MQ）、Milvus Attu / Qdrant / Weaviate Console（向量）、Kibana / OpenSearch Dashboards（全文）、MinIO Console（对象）、MongoDB Compass（文档），SonnetDB 缺一整批 per-model 管理工作台。
+>
+> **核心策略**：把「管理工具」从三个孤立工程重构为「一张能力矩阵 × 三个交付面」——(1) **Web Admin 旗舰**，逐模型做到对标单品级别（**本里程碑推进优先级最高的交付面**）；(2) **Studio 桌面** = 打包的 Web Admin + 桌面原生桥（原生文件对话框、磁盘连接库、本地 data-root 托管 server）；(3) **VS Code** = 开发者子集，复用同一批 HTTP 契约。世界级多模态管理工具 = 统一 Explorer + 外壳 + 每模型一个专用工作台，各自向该模型最好的单品看齐；三面共享同一套 server contract、权限模型与写审批框架，不各写各的。
+>
+> **边界**（与 M24 / M28 一致）：本里程碑只做**管理面 + 最小只读 metadata / browse 契约**。UI 消费 M19 / M21 / M23 / M28 已交付的引擎能力与 HTTP API；发现后端缺必要只读 metadata 时可补最小 server contract，但**不新增任何查询语义、索引语义、存储格式或写入语义**——所有写操作复用既有 data-plane API（SQL / Document / KV / Object / MQ 端点）。**文档模型管理面仍归 M24（#170~#172）**，**对象存储后端治理仍归 M19 #118**；本里程碑只把它们接入统一外壳并补齐对象浏览体验，不重复造引擎能力。`SonnetDB.Core` 零第三方依赖不变；契约新增走 Server 层。
+
+### 能力矩阵（现状 → 目标工作台 → 对标单品）
+
+| 模型 | 现有管理 UI | 目标工作台 | 对标单品 | 归属 PR |
+|---|---|---|---|---|
+| 时序 measurement | ✅ schema 树 + SQL Console + Trajectory 地图/图 | 保持并接入统一外壳 | InfluxDB UI / Grafana | #246（并入外壳） |
+| 关系 SQL 表 | ⚠️ 仅能写 SQL，无数据网格 / 行内编辑 | 数据网格 + 行内编辑 + 可视化 EXPLAIN + 表设计器 + ER + 导入导出 | pgAdmin / SSMS / Navicat / DBeaver | #248~#250 |
+| 文档集合 | ⚠️ 树可见 + `documents/find` API，无浏览器 | Document Explorer（**M24 交付**，本里程碑接入外壳） | MongoDB Compass | M24 #170~#172 + #257 |
+| KV keyspace | ❌ 无 | keyspace 前缀树 + TTL 查看/编辑 + 类型化值查看 + 批量 / 前缀删 + 过期统计 | RedisInsight / AnotherRedisDesktopManager | #245 契约 + #251 |
+| 全文索引 | ⚠️ 索引可见可 rebuild，无检索 UI | BM25 检索 + 高亮 + 分词器（Jieba/CJK）预览 + 模糊 / 短语构建器 | Kibana / OpenSearch Dashboards | #245 契约 + #255 |
+| 向量索引 | ❌ 无（仅 schema 类型可见） | ANN 检索 playground（文本→embed / 原始向量→Top-K + score + 过滤）+ 索引统计 + HNSW 参数 | Milvus Attu / Qdrant / Weaviate Console | #245 契约 + #254 |
+| 对象桶 | ❌ 无（M19 #118 治理页 🚧） | 桶浏览 + 对象上传 / 下载 / 预览 + 前缀导航 + 版本 / 生命周期 / 保留 + presigned URL + 审计 | MinIO Console / S3 Browser | M19 #118 后端 + #256 |
+| 消息队列 SonnetMQ | ❌ 无 | topic / 消息浏览（按 offset / 时间 seek + header）+ 发布测试 + 消费 / 订阅 lag + ack + 吞吐 + DLQ / retention | Kafka UI / RabbitMQ Management / EMQX Dashboard | #245 契约 + #252~#253 |
+
+### 阶段总览
+
+| 阶段 | 主题 | PR 范围 | 目标 |
+|------|------|---------|------|
+| **A** | 管理契约与统一外壳 | #245 ~ #247 | 补齐 KV / 向量 / 全文 / MQ / 对象只读 metadata + browse 契约；Web Admin 左侧改统一多模型 Explorer；连接库 + 统一结果面板 / 写审批框架 |
+| **B** | 关系工作台（对标 pgAdmin/SSMS/Navicat） | #248 ~ #250 | 数据网格 + 行内编辑 + 可视化 EXPLAIN + 表设计器 + ER + 导入导出 |
+| **C** | KV / MQ / 向量 / 全文 工作台 | #251 ~ #255 | 四个缺失模型的专用管理工作台，各自对标其最佳单品 |
+| **D** | 对象桶与文档收口 | #256 ~ #257 | 对象桶浏览器（收编 M19 #118 UI）；文档浏览器（M24）接入统一外壳与共享框架 |
+| **E** | Studio 桌面原生桥 + VS Code 消费 + 收口 | #258 ~ #260 | 桌面原生能力；VS Code 复用同契约做多模型只读浏览；能力矩阵文档 + 三面 parity |
+
+### A — 管理契约与统一外壳
+
+| PR | 标题与范围 | 状态 |
+|----|------------|------|
+| #245 | **管理契约补齐（只读 metadata + browse endpoints）**：为当前无管理端点或端点过薄的模型补最小只读契约——KV keyspace `scan`（前缀/分隔符 + TTL + 类型 + 游标分页）与 keyspace 统计；向量索引 `stat`（度量/维度/图参数 ef/M/efConstruction）与 `search-preview`；全文索引 `stat`（doc/term 数、分词器）与 `search-preview`（BM25 + 高亮 + 分词器 analyze）；MQ topic `list` / `offsets` / `browse`（按 offset/时间 seek，含 header）/ `lag`；对象 bucket / object `list` 与 metadata。全部**读优先**、游标分页、走既有 Bearer + 三角色鉴权；写操作复用既有 data-plane API 不新增。`SonnetDB.Core` 不动，Server 层落地。 | ✅ |
+| #246 | **统一多模型 Explorer + 连接库**：把 Web Admin 左侧导航从「时序/表/文档/索引/备份」扩展为覆盖 8 模型的统一树（Connection → Database → {Measurements / Tables / Collections / KV Keyspaces / Vector Indexes / FullText Indexes / MQ Topics / Buckets}）；每类节点的右键菜单路由到对应工作台；新增可持久化的连接库（Remote / Managed-local，token 走既有安全存储），活动连接与数据库选择全局一致，复用 SQL Console / CopilotDock 的 db 选择与权限状态。 | 📋 |
+| #247 | **统一结果面板 + 写审批 / 历史 / 导出框架**：抽出跨模型共享的结果面板（Table / Raw / JSON / Chart 四视图，复用 `SqlResultPanel` / `SqlResultChart`）与**写审批框架**（staged preview → danger confirm → dry-run，比照 SQL Console 既有危险确认与 M24 写审批），供 B~D 各工作台统一挂载；统一 query/操作历史与 CSV/JSON 导出钩子；所有写、导入、rebuild、删除动作至少有 preview / dry-run / confirm 之一。 | 📋 |
+
+> **#245 落地说明**：Server 层新增 `ManagementContractEndpoints`，已交付 KV `keyspaces`/`scan`（base64 游标分页）、向量 `indexes`/`search-preview`（复用既有 `knn(...)` data-plane）、全文 `indexes`/`search-preview`/`analyze`、MQ `topics`/`offsets`（含 lag）/`browse`（按 offset 只读）。**对象** bucket/object list 与 metadata **已由既有 S3 端点覆盖**，本 PR 不重复实现。相对"`SonnetDB.Core` 不动"的初始约束，仅新增一个只读枚举方法 `SonnetMqStore.ListTopicStats()`（MQ topic 私有集合无其他公开枚举入口，纯读、不改任何队列语义）。**本 PR 范围外、留待后续里程碑**（Core 无公开 API）：全文 term 数与 BM25 高亮、MQ 按时间 seek、向量索引 live count 与 per-index 有效度量（当前引擎构建固定 cosine，已如实回显）。写/删/rebuild 一律不在本 PR，留给 #247 写审批框架 + 既有 data-plane。
+
+### B — 关系工作台（对标 pgAdmin / SSMS / Navicat / DBeaver）
+
+| PR | 标题与范围 | 状态 |
+|----|------------|------|
+| #248 | **关系数据网格 + 行内编辑**：表数据网格，游标分页、列排序 / 过滤、单元格类型化渲染；行内 INSERT / UPDATE / DELETE 经生成的**参数化 SQL**（复用 M28 #213）提交，编辑批次走 #247 staged preview + 事务确认（复用 M19 #110/#113 事务）；主键/唯一约束冲突走既有错误码回显。只调既有 SQL 端点，不新增查询语义。 | 📋 |
+| #249 | **可视化 EXPLAIN + 表设计器 + 索引管理**：把既有 SQL `EXPLAIN` 计划渲染为可视化计划树（scan / filter / join / topN / 下推标注，复用 M28 #214~#217/#220 的 EXPLAIN 输出）；表设计器以可视化编辑生成 `CREATE TABLE` / `ALTER TABLE ADD/DROP/RENAME COLUMN` / `RENAME TABLE` DDL（复用 M19 #111 能力与其明确拒绝项），DDL 保存前 preview + confirm；索引查看 / 创建 / rebuild。 | 📋 |
+| #250 | **关系导入导出 + ER 图**：CSV / JSON 导入导出（列映射、dry-run、批量错误报告、进度、取消）；基于 `INFORMATION_SCHEMA`（M19 #111）绘制 ER 图（表 / 列 / 主外键关系）；DDL 脚本导出。导入写入走 #247 写审批。 | 📋 |
+
+### C — KV / MQ / 向量 / 全文 工作台
+
+| PR | 标题与范围 | 状态 |
+|----|------------|------|
+| #251 | **KV 浏览器（对标 RedisInsight）**：消费 #245 `scan` 契约做按前缀 / 分隔符的 keyspace 树扫描（游标分页，避免全量拉取）；TTL 显示与编辑（复用 M19 #116 TTL）；按类型的值查看 / 编辑；批量 get/set/remove、前缀删除、命名空间切换、过期统计。写与前缀删走 #247 写审批。 | 📋 |
+| #252 | **SonnetMQ 控制台一（topic + 消息浏览 + 发布）**：topic 列表 + offset / 分区 / retention 概览；消息浏览器支持按 offset / 时间 seek、查看 header 与 payload（消费 #245 `browse`）；发布测试消息（复用既有 MQ 发布端点）；依赖 **M28 P5a（#231~#234）** 提供的 per-topic 统计与冷数据可读性。 | 📋 |
+| #253 | **SonnetMQ 控制台二（消费 / 订阅监控 + 吞吐 + DLQ）**：消费者 / 订阅 lag 与 ack 监控、消费进度可视化；吞吐 / 积压曲线（复用 M17 metrics + Events SSE）；DLQ 查看与 retention 策略展示。依赖 #245 `lag` 契约与 M28 P5a MQ 统计，随 P5b #236 推送订阅落地可展示实时推送状态。 | 📋 |
+| #254 | **向量检索 playground（对标 Milvus Attu / Qdrant）**：向量索引 / 集合统计（维度、行数、度量 L2/IP/cosine、HNSW ef/M/efConstruction，复用 M28 #223/#226 参数暴露）；ANN 检索 playground——文本经 Copilot embed 或直接粘原始 `float[]`，返回 Top-K + score + 元数据过滤（消费 #245 `search-preview` + 既有向量检索端点）；度量方式与图参数只读展示，不改索引语义。 | 📋 |
+| #255 | **全文检索 playground（对标 Kibana / OpenSearch Dashboards）**：全文索引列表 + 统计（doc/term 数、分词器）；BM25 检索 UI 带高亮、评分与分页；分词器 / analyzer 预览（Jieba/CJK，展示切词结果）；模糊 / 短语 / 布尔查询构建器（消费 #245 `search-preview` + 既有全文检索端点）；索引 rebuild 走 #247 写审批。 | 📋 |
+
+### D — 对象桶与文档收口
+
+| PR | 标题与范围 | 状态 |
+|----|------------|------|
+| #256 | **对象桶浏览器（对标 MinIO Console，收编 M19 #118 UI）**：桶列表 / 创建 / 删除；对象浏览（前缀导航、上传 / 下载 / 预览、range read）；multipart 会话查看；版本 / 生命周期 / 保留 / legal hold 展示与编辑；presigned URL 生成；访问审计与容量 / quota 统计。**后端能力复用 M19 #118**（bucket policy / lifecycle / versioning / audit / quota）；本 PR 把 #118 规划的 Buckets / Objects / Multipart / Audit 页面**收编进统一外壳的对象工作台**，#118 只保留后端治理能力交付。 | 📋 |
+| #257 | **文档浏览器接入统一外壳**：把 **M24（#170~#172）** 的 Document Explorer / Validator Governance / 导入导出接入 #246 统一 Explorer 与 #247 共享结果 / 写审批框架，确保文档模型与其余模型的连接选择、权限状态、结果面板、写审批一致；**不新增文档引擎能力**（引擎与专属管理语义仍归 M24 / M21）。 | 📋 |
+
+### E — Studio 桌面原生桥 + VS Code 消费 + 收口
+
+| PR | 标题与范围 | 状态 |
+|----|------------|------|
+| #258 | **Studio 桌面原生桥**：`SonnetDB.Studio`（`NativeWebHost` WebView2 壳）从纯 WebView 升级为带原生桥——原生文件打开 / 保存对话框（供导入导出、对象上传下载、备份恢复）、磁盘持久化连接库、本地 `data root` 托管 SonnetDB Server 启动 / 停止 / 健康检查（对齐 M18 #105 托管本地模式思路）、原生菜单。Web Admin 检测到运行在 Studio 壳内时启用原生能力，浏览器内优雅降级。 | 📋 |
+| #259 | **VS Code 多模型消费（复用 M29 契约）**：VS Code 扩展先补完 **M18 #103（结果 Table/Raw/Chart 三视图）+ #104（Copilot 面板，客户端 `streamCopilot` 已写好只差接线）**，再把 Explorer 与结果面板扩展为消费 #245 契约做 **KV / 向量 / 全文 / MQ 只读浏览**；写操作与完整工作台仍以 Web Admin 为主，VS Code 定位开发者只读 + SQL 执行子集。与 **M18 交叉引用**：M18 保留 VS Code 交付主线，多模型浏览契约由本 PR 落地。 | 📋 |
+| #260 | **管理工作台收口 + 文档 + 三面 parity**：汇总能力矩阵文档（模型 → 工作台 → 对标单品 → 交付面覆盖度）；`docs/` 增管理工具章节与截图；Web Admin / Studio 桌面 / VS Code 三面能力 parity 表（谁支持哪些模型的浏览 / 查询 / 编辑 / 导入导出 / 监控）；各工作台 e2e smoke。 | 📋 |
+
+### 推进顺序
+
+```text
+Web Admin 旗舰优先（用户决策 2026-07-04）：
+A 外壳：#245（管理契约补齐）→ #246（统一多模型 Explorer + 连接库）→ #247（统一结果 + 写审批框架）
+B 关系：#248（数据网格 + 行内编辑）→ #249（可视化 EXPLAIN + 表设计器）→ #250（导入导出 + ER）
+C 四模型：#251（KV 浏览器）→ #252（MQ 控制台一）→ #253（MQ 控制台二）→ #254（向量 playground）→ #255（全文 playground）
+D 收口：#256（对象桶浏览器，收编 M19 #118 UI）→ #257（文档浏览器接入外壳）
+E 三面：#258（Studio 桌面原生桥）∥ #259（VS Code 多模型消费）→ #260（收口 + 文档 + parity）
+```
+
+> **阶段间依赖与并行度**：**A（#245~#247）是所有 per-model 工作台的地基，必须最先**——#245 契约是 #251~#256 的前置，#246/#247 外壳与框架是 B~D 所有工作台的挂载点。B / C / D 各工作台在 A 落地后**相互独立可并行 / 穿插**（各消费自己的 #245 契约 + 挂 #247 框架）。跨里程碑依赖：**#252/#253 MQ 控制台依赖 M28 P5a（#231~#234）** 的 per-topic 统计与冷数据可读性、`#253` 实时推送状态随 P5b `#236` 落地增强；**#254 向量 playground** 依赖 M28 #223/#226 的 HNSW 参数与度量暴露；**#256 对象桶** 依赖 M19 #118 后端治理能力；**#257 文档** 依赖 M24 #170~#172。E 的 #258 桌面桥可在任一模型工作台落地后并行；#259 VS Code 需先补完 M18 #103/#104；#260 收口最后。
+
+### 验收标准
+
+- **A**：KV / 向量 / 全文 / MQ / 对象都有可用的只读 metadata + browse 契约（游标分页、走既有鉴权）；Web Admin 左侧统一 Explorer 能展开全部 8 模型对象并路由到对应工作台；连接库可持久化多连接、token 不落明文；统一结果面板与写审批框架被至少一个工作台复用。
+- **B**：关系表可在数据网格中浏览、排序、过滤、分页，并完成行内 INSERT/UPDATE/DELETE（参数化 SQL + 事务确认）；可视化 EXPLAIN 展示计划树；表设计器生成的 DDL 与 M19 #111 能力一致且保存前 preview；CSV/JSON 导入导出与 ER 图可用。
+- **C**：KV 浏览器能按前缀树扫描、看 / 改 TTL、批量与前缀删除；MQ 控制台能列 topic、按 offset/时间浏览消息含 header、发布测试消息、观测消费 / 订阅 lag 与吞吐；向量 playground 能对索引做 ANN 检索返回 Top-K + score 并展示 HNSW 参数；全文 playground 能做 BM25 检索带高亮并预览分词结果。
+- **D**：对象桶浏览器能浏览桶 / 对象、上传下载预览、看版本 / 生命周期 / 审计、生成 presigned URL；文档浏览器（M24）与其余模型共享同一连接选择、权限状态、结果面板与写审批框架。
+- **E**：Studio 桌面壳提供原生文件对话框、磁盘连接库与本地托管 server；VS Code 补完 #103/#104 并能只读浏览 KV / 向量 / 全文 / MQ；能力矩阵文档与三面 parity 表齐备。
+- **全局**：所有写 / 导入 / rebuild / 删除动作至少有 preview / dry-run / confirm 之一；本里程碑未新增任何引擎查询 / 写入 / 索引 / 存储语义，所有写走既有 data-plane API。
+
+### 不做的事
+
+- **不**新增任何模型的引擎查询 / 写入 / 索引 / 存储语义——本里程碑是管理面 + 只读 metadata / browse 契约，写复用既有 data-plane API（与 M24 边界一致）。
+- **不**把文档引擎能力塞回本里程碑——文档管理面（Explorer / Validator / 导入导出）仍归 **M24 #170~#172**，本里程碑（#257）只做接入。
+- **不**把对象存储后端治理（bucket policy / lifecycle / versioning / audit / quota）塞进本里程碑——仍归 **M19 #118**，本里程碑（#256）只收编其 UI 页面进统一对象工作台。
+- **不**在 `SonnetDB.Core` 引入第三方依赖；管理契约与 UI 均走 Server / 前端层。
+- **不**替换任何现有 Web Admin 页面或 REST 端点——统一 Explorer / 工作台是**扩展与整合**，SQL Console / Dashboard / Events / Users / Copilot 保留。
+- **不**在 VS Code 做完整 per-model 编辑工作台——VS Code 定位开发者只读浏览 + SQL 执行子集，完整编辑体验以 Web Admin 旗舰为准。
+- **不**做多节点 / 集群管理面（监控与备份编排的分布式形态由 SonnetDBEE 承接，本里程碑限单机 / 单连接管理）。
+
+---
+
 ## 里程碑总览
 
 | Milestone | 主题 | PR 范围 | 状态 |
@@ -890,9 +1002,10 @@ P5b 接入：#235（通用二进制帧 + MQ service / HTTP-2）→ #236（HTTP-2
 | 26 | 连接器路线独立化（C ABI + 多模型 API） | #175 ~ #181 | ✅ |
 | 27 | Industrial Data Agent 与 AI-ready 产品化路线 | #182 ~ #188 | ⚠️ 滞后（#182 已落第一批文档；#183~#188 待追赶） |
 | 28 | 可靠性、并发正确性与热路径加固（P0~P5 分阶段） | #189 ~ #244 | 🚧（P0~P3 ✅；P4 索引与向量、P5 MQ 硬化 + 全模型高吞吐接入（自定义帧 over HTTP/2 + MQTT broker/client）计划中；审计 54 项 + P5 新增 MQ/N 专项） |
+| 29 | 多模型统一管理工作台（Multi-Model Management Workbench） | #245 ~ #260 | 📋（Web Admin 旗舰优先；A 外壳→B 关系→C KV/MQ/向量/全文→D 对象/文档收口→E 桌面/VS Code；文档管理面归 M24、对象后端归 M19 #118） |
 | MM9 | 多模型统一备份、恢复和管理工具第一批 | BackupService + sndb backup | ✅ |
 
-**当前推进顺序**：Milestone 14（Copilot）、Milestone 15（地理空间）、Milestone 16（Copilot 产品化升级）、Milestone 20（Parity #127~#136 实现）、Milestone 21（Document Store 单机能力升级 #137~#146）、Milestone 23（搜索与向量引擎合并）与 Milestone 26（连接器路线独立化 #175~#181）均已完成或收口。**Milestone 28（可靠性、并发正确性与热路径加固 #189~#229）** 是 2026 跨子系统深度审计后新增的加固主线，优先级最高：先做 **P0 数据可靠性止血**（#189~#196，Windows 目录 fsync / flush add-then-reset / 后台 worker 租约 / FTS manifest 原子 / HNSW 快照 / Delete 持久化 / 段头尾 CRC / 默认持久性决策），再依次推进 P1 正确性（#197~#203）、P2 写吞吐（#204~#211）、P3 查询与 SQL 能力（#212~#220）、P4 索引与向量能力（#221~#229）。**Milestone 27（Industrial Data Agent 与 AI-ready 产品化路线）** 仍是对外门面与中长期 AI 产品主线，但当前状态为**滞后**：#182 已落第一批文档，#183~#188 需要优先追赶工具契约、工业 Demo、provider-neutral、本地模型、写入审批二阶段、eval 与成本指标；同时并行推进 **Milestone 17（可观测性与运行时可见性）** 的 OTel / 结构化日志 / 诊断端点 / Copilot 服务端会话持久化，以及 **Milestone 18（VS Code 扩展）** 的 `#99 ~ #103` “远程连接 + Explorer + SQL + 结果视图”闭环。**Milestone 19（生态适配底座能力）** 只保留 SonnetDB 通用数据库能力，#109~#117 与 #122/#123 已完成；IoTSharp 专属 Profile、兼容矩阵、灰度、双写、回滚和长稳验收已迁入 IoTSharp 仓库 RD-10。后续继续推进对象治理、通用迁移/校验原语、增量索引 / 后台维护成本与大量 measurement 长稳专项（其中 #124 增量索引与 Milestone 28 #207 目标一致，以 M28 为落地口径）。Studio 管理面进入 **Milestone 24**，MongoDB 参考 parity、长稳、容量报告和发布文档进入 **Milestone 25**。**Milestone 22（Agent Memory / Codebase Intelligence）** 重新定位为基于 SonnetDB 的上层应用 / 示例方案候选，暂停 #150~#159 内置派单；只有应用验证出通用数据库能力缺口时，才拆成独立 Core / Server / Studio PR。SonnetDBEE C5.7 / MM9 的开源核心第一批已提供 `BackupService` 和 `sndb backup create/inspect/verify/restore`，企业级定时、增量、审计和 UI 编排继续由 SonnetDBEE 承接。**Milestone 20** 后续不再按 #129 继续派单，而是通过 `.github/workflows/parity.yml`、`parity-results` 分支与 `tests/SonnetDB.Parity/reports/sample-run.md` 持续暴露能力缺口、SKIP 原因和 nightly 稳定性。
+**当前推进顺序**：Milestone 14（Copilot）、Milestone 15（地理空间）、Milestone 16（Copilot 产品化升级）、Milestone 20（Parity #127~#136 实现）、Milestone 21（Document Store 单机能力升级 #137~#146）、Milestone 23（搜索与向量引擎合并）与 Milestone 26（连接器路线独立化 #175~#181）均已完成或收口。**Milestone 28（可靠性、并发正确性与热路径加固 #189~#229）** 是 2026 跨子系统深度审计后新增的加固主线，优先级最高：先做 **P0 数据可靠性止血**（#189~#196，Windows 目录 fsync / flush add-then-reset / 后台 worker 租约 / FTS manifest 原子 / HNSW 快照 / Delete 持久化 / 段头尾 CRC / 默认持久性决策），再依次推进 P1 正确性（#197~#203）、P2 写吞吐（#204~#211）、P3 查询与 SQL 能力（#212~#220）、P4 索引与向量能力（#221~#229）。**Milestone 27（Industrial Data Agent 与 AI-ready 产品化路线）** 仍是对外门面与中长期 AI 产品主线，但当前状态为**滞后**：#182 已落第一批文档，#183~#188 需要优先追赶工具契约、工业 Demo、provider-neutral、本地模型、写入审批二阶段、eval 与成本指标；同时并行推进 **Milestone 17（可观测性与运行时可见性）** 的 OTel / 结构化日志 / 诊断端点 / Copilot 服务端会话持久化，以及 **Milestone 18（VS Code 扩展）** 的 `#99 ~ #103` “远程连接 + Explorer + SQL + 结果视图”闭环。**Milestone 19（生态适配底座能力）** 只保留 SonnetDB 通用数据库能力，#109~#117 与 #122/#123 已完成；IoTSharp 专属 Profile、兼容矩阵、灰度、双写、回滚和长稳验收已迁入 IoTSharp 仓库 RD-10。后续继续推进对象治理、通用迁移/校验原语、增量索引 / 后台维护成本与大量 measurement 长稳专项（其中 #124 增量索引与 Milestone 28 #207 目标一致，以 M28 为落地口径）。Studio 管理面进入 **Milestone 24**，MongoDB 参考 parity、长稳、容量报告和发布文档进入 **Milestone 25**。**Milestone 29（多模型统一管理工作台 #245~#260）** 是在 Web Admin 已有「时序 + SQL」管理面基础上，把管理工具从三个孤立工程重构为「一张能力矩阵 × 三个交付面（Web Admin 旗舰 / Studio 桌面 / VS Code）」，逐模型补齐 KV / MQ / 向量 / 全文 / 对象 / 关系数据网格等对标 pgAdmin / RedisInsight / Kafka UI / Attu / Kibana / MinIO Console 的专用工作台；**Web Admin 旗舰优先**，先做 A 阶段管理契约 + 统一外壳（#245~#247）再逐工作台推进；文档管理面仍归 M24、对象后端治理仍归 M19 #118，M29 只做接入与收编，且不新增任何引擎语义。**Milestone 22（Agent Memory / Codebase Intelligence）** 重新定位为基于 SonnetDB 的上层应用 / 示例方案候选，暂停 #150~#159 内置派单；只有应用验证出通用数据库能力缺口时，才拆成独立 Core / Server / Studio PR。SonnetDBEE C5.7 / MM9 的开源核心第一批已提供 `BackupService` 和 `sndb backup create/inspect/verify/restore`，企业级定时、增量、审计和 UI 编排继续由 SonnetDBEE 承接。**Milestone 20** 后续不再按 #129 继续派单，而是通过 `.github/workflows/parity.yml`、`parity-results` 分支与 `tests/SonnetDB.Parity/reports/sample-run.md` 持续暴露能力缺口、SKIP 原因和 nightly 稳定性。
 
 
 ---
