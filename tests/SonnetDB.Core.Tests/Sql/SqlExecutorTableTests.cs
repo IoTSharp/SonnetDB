@@ -1231,6 +1231,61 @@ public sealed class SqlExecutorTableTests : IDisposable
     }
 
     [Fact]
+    public void LightTransaction_MeasurementInsert_IsRejected()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE MEASUREMENT cpu (host TAG, usage FIELD FLOAT)");
+
+        // measurement 写入无法被轻事务 ROLLBACK 撤销，必须在事务上下文内显式拒绝，
+        // 而不是静默写入造成"ROLLBACK 后数据仍在"的假回滚。
+        Assert.ThrowsAny<NotSupportedException>(() => SqlExecutor.ExecuteScript(db, """
+            BEGIN;
+            INSERT INTO cpu (time, host, usage) VALUES (1000, 'h1', 1.0);
+            COMMIT;
+            """));
+
+        var rows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SELECT * FROM cpu"));
+        // 拒绝后不应有任何时序数据落库。
+        Assert.Empty(rows.Rows);
+    }
+
+    [Fact]
+    public void LightTransaction_MeasurementDelete_IsRejected()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE MEASUREMENT cpu (host TAG, usage FIELD FLOAT)");
+        SqlExecutor.Execute(db, "INSERT INTO cpu (time, host, usage) VALUES (1000, 'h1', 1.0)");
+
+        Assert.ThrowsAny<NotSupportedException>(() => SqlExecutor.ExecuteScript(db, """
+            BEGIN;
+            DELETE FROM cpu WHERE host = 'h1';
+            COMMIT;
+            """));
+
+        // 被拒绝的删除不应生效。
+        var rows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SELECT count(*) FROM cpu"));
+        Assert.Equal(1L, rows.Rows.Single()[0]);
+    }
+
+    [Fact]
+    public void LightTransaction_MeasurementInsertRejection_DoesNotCommitBufferedTableWrites()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE MEASUREMENT cpu (host TAG, usage FIELD FLOAT)");
+
+        // 事务内先排队一条表写入，再触发被拒绝的 measurement 写入：整批不得提交。
+        Assert.ThrowsAny<NotSupportedException>(() => SqlExecutor.ExecuteScript(db, """
+            BEGIN;
+            INSERT INTO devices (id, name) VALUES (1, 'pump');
+            INSERT INTO cpu (time, host, usage) VALUES (1000, 'h1', 1.0);
+            COMMIT;
+            """));
+
+        Assert.Empty(Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SELECT id FROM devices")).Rows);
+    }
+
+    [Fact]
     public void ExecuteScript_CommitFailure_RollsBackBatch()
     {
         using var db = Tsdb.Open(Options());

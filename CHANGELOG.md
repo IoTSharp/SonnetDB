@@ -64,6 +64,7 @@
 - **M28 P1 正确性批次**：
   (#197) SQL 关系执行路径改用三值逻辑（Kleene）——任一操作数为 NULL 的比较（`=` / `!=` / `<` / `>` 等）判 UNKNOWN 而非 TRUE/FALSE，修复 `NULL != 5` 误判 TRUE、`NULL = NULL` 误判 TRUE 返回错误行；`AND`/`OR`/`NOT`/`IN` 按三值语义传播，`IS [NOT] NULL` 拆出独立 `IsNullExpression` AST 节点作为唯一的 NULL 检测入口（解析器不再把 `IS NULL` 退化成 `= NULL`）。统一应用到 WHERE / JOIN ON / HAVING 三条关系路径（TableSqlExecutor / RelationalSelectExecutor / JoinSqlExecutor）；文档集合仍保留 Mongo 风格 `field = NULL` 空值等值语义不变。
   (#198) measurement `count(*)` / `count(1)` 语义修正为计"行/时刻"数——按 series 取所有 field 列写过的时间戳并集去重，而非旧实现遍历每个 field 列逐点累加（M 个 field × N 时刻误返 M×N）；`GROUP BY time(...)` 下按桶分别取时间戳并集，多 series 分别计入。`count(field)` 仍只计该字段有值的时刻数。
+  (#199) 轻事务上下文内的 measurement（时序）`INSERT` / `DELETE` 从"静默直写、ROLLBACK 无法撤销"改为显式抛 `NotSupportedException`（与文档集合写入一致），杜绝"`BEGIN` 内写 measurement、`ROLLBACK` 后数据仍在"的假回滚；被拒绝时同批已排队的关系表变更也不会提交。
 - 持久化全文索引后台合并改用专用长运行任务启动，避免高并发 CI 测试下因线程池调度延迟导致等待 merge task 超时。
 - 持久化全文索引后台合并测试改为等待实际 merge task 完成后再断言段文件数量，避免 CI 线程调度较慢时误判失败。
 - Go connector quickstart now keeps the native library version string and KV CAS version number in separate variables, fixing the `go test ./...` compile failure in connector release builds.

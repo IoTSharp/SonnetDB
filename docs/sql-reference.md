@@ -105,7 +105,7 @@ COMMIT;
 当前边界：
 
 - 轻事务支持同一数据库内多个关系表的 `INSERT` / `UPDATE` / `DELETE` 原子提交与回滚。
-- 不支持嵌套事务、measurement / document 写入事务、DDL 事务或跨数据库事务。
+- 不支持嵌套事务、measurement / document 写入事务、DDL 事务或跨数据库事务。在事务上下文内执行 measurement（时序）`INSERT` / `DELETE` 或文档集合写入会抛 `NotSupportedException`（这类写入直接落 WAL/tombstone，`ROLLBACK` 无法撤销，故显式拒绝而非静默写入造成"假回滚"）。
 - `COMMIT` 前会校验 NOT NULL、主键、唯一索引、外键和 ROWVERSION 乐观并发列；任一失败时，不会留下已应用的 rowstore / index 变更。
 - 稳定约束错误码：`table_unique_violation`、`table_foreign_key_violation`、`table_concurrency_conflict`。
 - 隔离级别边界：ADO.NET 仅接受默认 / `ReadCommitted` 轻事务；当前语义是单连接排队、提交时获取表管理器锁并一次性校验/应用，不提供 MVCC、可重复读、序列化隔离或跨进程长事务。

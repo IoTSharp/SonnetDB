@@ -566,6 +566,11 @@ public static class SqlExecutor
                 ? TableSqlExecutor.ExecuteInsert(tsdb, statement, tableSchema)
                 : TableSqlExecutor.QueueInsert(transaction, statement, tableSchema);
 
+        // measurement 写入直接落 WAL/MemTable，不进事务缓冲；轻事务 ROLLBACK 无法撤销它，
+        // 因此在事务上下文内显式拒绝，避免"ROLLBACK 后数据仍在"的假回滚（与文档写入一致）。
+        if (transaction is not null)
+            throw new NotSupportedException("轻事务当前不支持 measurement（时序）写入，请在事务外执行 INSERT。");
+
         var schema = tsdb.Measurements.TryGet(statement.Measurement);
 
         // 解析列绑定：(timeColumnIndex, columnBindings[])
@@ -998,6 +1003,11 @@ public static class SqlExecutor
                 SeriesAffected: affected,
                 TombstonesAdded: affected);
         }
+
+        // measurement 删除直接落 tombstone/WAL，不进事务缓冲；轻事务 ROLLBACK 无法撤销，
+        // 因此在事务上下文内显式拒绝（与 measurement INSERT / 文档删除一致）。
+        if (transaction is not null)
+            throw new NotSupportedException("轻事务当前不支持 measurement（时序）删除，请在事务外执行 DELETE。");
 
         return DeleteExecutor.Execute(tsdb, statement);
     }
