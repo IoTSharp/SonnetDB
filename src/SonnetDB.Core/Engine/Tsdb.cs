@@ -55,6 +55,12 @@ public sealed class Tsdb : IDisposable
     private long _lastTombstoneCheckpointUtcTicks;
     private Exception? _lastError;
 
+    /// <summary>
+    /// <see cref="WriteMany(ReadOnlySpan{Point})"/> 单次持锁处理的最大点数。超大批量按此粒度分块，
+    /// 使硬上限背压能在批内周期性触发、块间释放写锁，避免单批无界撑大 MemTable/WAL（C4）。
+    /// </summary>
+    private const int WriteManyChunkSize = 8192;
+
     /// <summary>数据库根目录路径。</summary>
     public string RootDirectory => _options.RootDirectory;
 
@@ -406,9 +412,10 @@ public sealed class Tsdb : IDisposable
     /// 批量写入多个 Point（高吞吐快路径）。
     /// </summary>
     /// <remarks>
-    /// 与 <see cref="WriteMany(IEnumerable{Point})"/> 不同，本重载在整批操作期间仅获取一次
-    /// <c>_writeSync</c> 锁，并在批末统一调用一次 <see cref="BackgroundFlushWorker.Signal"/>，
-    /// 显著降低 N 次入锁 / 信号开销。WAL 记录格式与逐点写入完全一致，向后兼容旧库。
+    /// 与 <see cref="WriteMany(IEnumerable{Point})"/> 不同，本重载按 <see cref="WriteManyChunkSize"/>
+    /// 分块处理：每块只获取一次 <c>_writeSync</c> 锁、块末 <see cref="BackgroundFlushWorker.Signal"/>
+    /// 一次，显著降低逐点入锁 / 信号开销；块间释放写锁并在锁外施加硬上限背压，避免单批无界撑大
+    /// MemTable/WAL。中小批量（≤ 一块）仍是单次入锁。WAL 记录格式与逐点写入完全一致，向后兼容旧库。
     /// </remarks>
     /// <param name="points">要写入的数据点连续切片。</param>
     /// <returns>成功写入的点数量（不含 null 跳过）。</returns>
@@ -418,6 +425,26 @@ public sealed class Tsdb : IDisposable
         if (points.IsEmpty)
             return 0;
 
+        // 分块处理超大批量：每块单独入锁、写入、检查硬上限并在锁外施加背压，块间释放 _writeSync。
+        // 这样单批百万点不会在一次持锁内无界撑大 MemTable/WAL 致 OOM 且长时间阻塞其它写入者（C4）。
+        int totalWritten = 0;
+        int offset = 0;
+        while (offset < points.Length)
+        {
+            int chunkLength = Math.Min(WriteManyChunkSize, points.Length - offset);
+            totalWritten += WriteManyChunk(points.Slice(offset, chunkLength));
+            offset += chunkLength;
+        }
+
+        return totalWritten;
+    }
+
+    /// <summary>
+    /// 单块批量写入：与整批写入语义一致，但只处理 <paramref name="chunk"/> 一段，
+    /// 便于 <see cref="WriteMany(ReadOnlySpan{Point})"/> 在块间释放锁并施加硬上限背压。
+    /// </summary>
+    private int WriteManyChunk(ReadOnlySpan<Point> chunk)
+    {
         int written = 0;
         WalGroupCommitTicket walSync = default;
         FlushPump.FlushRequest? hardCapFlush = null;
@@ -425,11 +452,11 @@ public sealed class Tsdb : IDisposable
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
 
-            var normalizedPoints = new Point?[points.Length];
+            var normalizedPoints = new Point?[chunk.Length];
 
-            for (int i = 0; i < points.Length; i++)
+            for (int i = 0; i < chunk.Length; i++)
             {
-                var point = points[i];
+                var point = chunk[i];
                 if (point is null)
                     continue;
 

@@ -184,6 +184,38 @@ public sealed class TsdbWriteTests : IDisposable
     }
 
     [Fact]
+    public void WriteMany_LargeBatchWithHardCap_FlushesMidBatchAndBoundsMemTable()
+    {
+        // 硬上限极小：每块（8192 点）写完后都应触发同步 flush，MemTable 不会累积整批。
+        using var db = Tsdb.Open(MakeOptions(new MemTableFlushPolicy
+        {
+            MaxBytes = long.MaxValue,
+            HardCapBytes = 1,
+            MaxPoints = long.MaxValue,
+            MaxAge = TimeSpan.MaxValue,
+        }));
+
+        // 超过一个 chunk（8192）以确保批内多次分块 + 多次 flush。
+        const int total = 8192 * 3 + 100;
+        var points = new Point[total];
+        for (int i = 0; i < total; i++)
+        {
+            points[i] = Point.Create("metric", 1000L + i,
+                new Dictionary<string, string> { ["host"] = "h" },
+                new Dictionary<string, FieldValue> { ["v"] = FieldValue.FromDouble(i) });
+        }
+
+        int written = db.WriteMany(points);
+
+        Assert.Equal(total, written);
+        // 每块结束都因 HardCapBytes=1 被 seal+flush，批末 MemTable 应为空。
+        Assert.Equal(0L, db.MemTable.PointCount);
+        // 分块数（至少 4 块）各自 flush，段数应远大于 1（证明批内多次 flush，而非批末一次）。
+        Assert.True(db.Segments.SegmentCount >= 4,
+            $"期望批内多次分块 flush 产生 >= 4 段，实际 {db.Segments.SegmentCount}。");
+    }
+
+    [Fact]
     public void WriteMany_WithNewFieldsAndTags_PersistsMeasurementSchemaOnce()
     {
         using var db = Tsdb.Open(MakeOptions());
