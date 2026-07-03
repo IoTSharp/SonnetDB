@@ -131,6 +131,10 @@ internal sealed class SegmentReplacementManifest
     {
         ArgumentNullException.ThrowIfNull(root);
 
+        // 一次性快照磁盘上现存的段 id，避免对每条 committed replacement 都做 File.Exists + 打开
+        // SegmentReader（S7）：只有当 id 确实在盘上时，才付出一次 reader 打开验证 header 的代价。
+        var existingSegmentIds = SnapshotExistingSegmentIds(root);
+
         var suppressed = new HashSet<long>();
         foreach (var record in _records)
         {
@@ -141,7 +145,8 @@ internal sealed class SegmentReplacementManifest
                 continue;
             }
 
-            if (record.ReplacementSegmentId > 0 && !IsReplacementSegmentReadable(root, record.ReplacementSegmentId))
+            if (record.ReplacementSegmentId > 0
+                && !IsReplacementSegmentReadable(root, record.ReplacementSegmentId, existingSegmentIds))
             {
                 suppressed.Add(record.ReplacementSegmentId);
                 continue;
@@ -152,6 +157,23 @@ internal sealed class SegmentReplacementManifest
         }
 
         return suppressed;
+    }
+
+    private static HashSet<long> SnapshotExistingSegmentIds(string root)
+    {
+        var ids = new HashSet<long>();
+        foreach (var (segmentId, _) in TsdbPaths.EnumerateSegments(root))
+            ids.Add(segmentId);
+        return ids;
+    }
+
+    private static bool IsReplacementSegmentReadable(string root, long segmentId, HashSet<long> existingSegmentIds)
+    {
+        // 盘上根本没有该段：无需打开 reader，直接判为不可读。
+        if (!existingSegmentIds.Contains(segmentId))
+            return false;
+
+        return IsReplacementSegmentReadable(root, segmentId);
     }
 
     private static bool IsReplacementSegmentReadable(string root, long segmentId)
@@ -185,7 +207,47 @@ internal sealed class SegmentReplacementManifest
         {
             var records = Load(path).Records.ToList();
             mutate(records);
+            PruneObsoleteRecords(root, records);
             Save(path, new SegmentReplacementManifest(records.AsReadOnly()));
+        }
+    }
+
+    /// <summary>
+    /// 修剪已无意义的 Committed 记录：当一条 committed replacement 的 replacement 段与全部 source 段
+    /// 都已不在盘上时，它不再需要抑制任何段（source 文件已物理删除、启动枚举不到，无法复活），
+    /// 可安全丢弃。避免 committed 记录无限累积导致每次 Mutate 重写 O(N)、会话内趋 O(N²)（S7）。
+    /// Pending 记录一律保留（其 replacement 可能仍待落盘或崩溃中断，需继续抑制）。
+    /// </summary>
+    private static void PruneObsoleteRecords(string root, List<SegmentReplacementRecord> records)
+    {
+        if (records.Count == 0)
+            return;
+
+        var existingSegmentIds = SnapshotExistingSegmentIds(root);
+
+        for (int i = records.Count - 1; i >= 0; i--)
+        {
+            var record = records[i];
+            if (record.State != SegmentReplacementState.Committed)
+                continue;
+
+            bool replacementAlive = record.ReplacementSegmentId > 0
+                && existingSegmentIds.Contains(record.ReplacementSegmentId);
+            if (replacementAlive)
+                continue;
+
+            bool anySourceAlive = false;
+            foreach (long sourceId in record.SourceSegmentIds)
+            {
+                if (existingSegmentIds.Contains(sourceId))
+                {
+                    anySourceAlive = true;
+                    break;
+                }
+            }
+
+            if (!anySourceAlive)
+                records.RemoveAt(i);
         }
     }
 

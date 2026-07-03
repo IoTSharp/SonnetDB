@@ -633,7 +633,7 @@ extensions/
 | #207 | **SegmentManager 增量索引**：`AddSegment` / `SwapSegments` / `DropSegments` 从全量重建所有 segment 索引（`SegmentIndex.Build` for all + `OrderBy().ToList()`）改为向 `MultiSegmentIndex` 增量增删单段索引；消除 flush 时 O(总 block 数)、segment 多时趋 O(N²) 的成本。与 M19 #124 目标一致，本 PR 落地。 | 并发 C7 | ✅ |
 | #208 | **TombstoneTable 查询免拷贝**：`IsCovered` / `GetForSeriesField` 维护 per-key 不可变快照（比照现有 `_allSnapshot`），查询热路径 lock-free 返回，消除每次调用锁内 `list.ToArray()`。 | 并发 C8 | ✅ |
 | #209 | **Catalog 快照发布防抖**：高基数写入时 `TagInvertedIndex` / `SeriesCatalog` 的单条 `Add` 不再每次全量重建整棵 `FrozenDictionary`/`FrozenSet`（当前 O(N²) + 大量瞬时分配）；改为合并/防抖发布或用不需全量 refreeze 的并发结构。 | 索引 I5 | ✅（改多级 `ConcurrentDictionary` 原地增量插入，读者无锁立即可见；单条插入 O(N) 冻结→O(1) 摊还） |
-| #210 | **SegmentReplacementManifest 修剪与快照化**：修剪 source 与 replacement 都已不存在的 Committed 记录；启动时一次性快照 readability 而非对每条 committed replacement 都开 SegmentReader；避免会话内 O(N²) 重写与线性增长的启动成本。 | 存储 S7 | 📋 |
+| #210 | **SegmentReplacementManifest 修剪与快照化**：修剪 source 与 replacement 都已不存在的 Committed 记录；启动时一次性快照 readability 而非对每条 committed replacement 都开 SegmentReader；避免会话内 O(N²) 重写与线性增长的启动成本。 | 存储 S7 | ✅ |
 | #211 | **孤儿文件清理 + WAL footer 不变式收口**：启动时扫描并重试清理 manifest 标记为 suppressed 的死 `.SDBSEG`/索引文件（当前删除吞异常致磁盘泄漏）；把 `WriteLastLsnFooterIfDirty` 依赖"`_stream.Flush()` 先清空缓冲"的隐式不变式显式化（走同一 stream 或文档化断言），防未来改动破坏 WAL 帧。 | 存储 S12、S13 | 📋 |
 
 ### P3 — 查询与 SQL 能力
