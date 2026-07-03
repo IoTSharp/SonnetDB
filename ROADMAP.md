@@ -594,7 +594,7 @@ extensions/
 |------|------|---------|------|
 | **P0** | 数据可靠性止血（Critical / 高危持久性 + 并发正确性） | #189 ~ #196 | ✅ 已完成——消除"会丢数据 / 复活 / 损坏 / 索引不可加载"的整类问题 |
 | **P1** | 正确性与稳定性（SQL 错误结果 + 崩溃 + worker 静默死亡） | #197 ~ #203 | ✅ 已完成——消除"返回错误结果 / StackOverflow / 后台线程静默停摆" |
-| **P2** | 写路径吞吐（锁内 I/O + 每点分配 + O(N²) 维护） | #204 ~ #211 | 把 P0 牺牲的写吞吐补回并超越，去除代数复杂度陷阱 |
+| **P2** | 写路径吞吐（锁内 I/O + 每点分配 + O(N²) 维护） | #204 ~ #211 | ✅ 已完成——把 P0 牺牲的写吞吐补回并超越，去除代数复杂度陷阱 |
 | **P3** | 查询与 SQL 能力（plan cache + 下推 + join + 能力缺口） | #212 ~ #220 | 让 SQL/关系路径达到日常应用与 EF Core 可用水平 |
 | **P4** | 索引与向量能力（文档惰性 scan + FTS 写放大 + 向量度量/ANN） | #221 ~ #229 | 让二级索引真正被使用、向量非 cosine/文档集合可加速 |
 
@@ -634,7 +634,7 @@ extensions/
 | #208 | **TombstoneTable 查询免拷贝**：`IsCovered` / `GetForSeriesField` 维护 per-key 不可变快照（比照现有 `_allSnapshot`），查询热路径 lock-free 返回，消除每次调用锁内 `list.ToArray()`。 | 并发 C8 | ✅ |
 | #209 | **Catalog 快照发布防抖**：高基数写入时 `TagInvertedIndex` / `SeriesCatalog` 的单条 `Add` 不再每次全量重建整棵 `FrozenDictionary`/`FrozenSet`（当前 O(N²) + 大量瞬时分配）；改为合并/防抖发布或用不需全量 refreeze 的并发结构。 | 索引 I5 | ✅（改多级 `ConcurrentDictionary` 原地增量插入，读者无锁立即可见；单条插入 O(N) 冻结→O(1) 摊还） |
 | #210 | **SegmentReplacementManifest 修剪与快照化**：修剪 source 与 replacement 都已不存在的 Committed 记录；启动时一次性快照 readability 而非对每条 committed replacement 都开 SegmentReader；避免会话内 O(N²) 重写与线性增长的启动成本。 | 存储 S7 | ✅ |
-| #211 | **孤儿文件清理 + WAL footer 不变式收口**：启动时扫描并重试清理 manifest 标记为 suppressed 的死 `.SDBSEG`/索引文件（当前删除吞异常致磁盘泄漏）；把 `WriteLastLsnFooterIfDirty` 依赖"`_stream.Flush()` 先清空缓冲"的隐式不变式显式化（走同一 stream 或文档化断言），防未来改动破坏 WAL 帧。 | 存储 S12、S13 | 📋 |
+| #211 | **孤儿文件清理 + WAL footer 不变式收口**：启动时扫描并重试清理 manifest 标记为 suppressed 的死 `.SDBSEG`/索引文件（当前删除吞异常致磁盘泄漏）；把 `WriteLastLsnFooterIfDirty` 依赖"`_stream.Flush()` 先清空缓冲"的隐式不变式显式化（走同一 stream 或文档化断言），防未来改动破坏 WAL 帧。 | 存储 S12、S13 | ✅ |
 
 ### P3 — 查询与 SQL 能力
 

@@ -138,4 +138,46 @@ public sealed class SegmentReplacementManifestTests : IDisposable
         Assert.True(records.Count <= 2,
             $"manifest 记录数应被修剪保持有界，实际 {records.Count}。");
     }
+
+    [Fact]
+    public void Open_DeletesSuppressedOrphanSegmentFiles()
+    {
+        // S12：committed replacement 的源段文件在上次删除失败后残留（崩溃 / 文件锁），
+        // 且被 manifest 抑制不再加载。SegmentManager.Open 应在启动时清理这些孤儿文件。
+        WriteSegment(1);
+        WriteSegment(2);
+        WriteSegment(100); // replacement 可读
+
+        SegmentReplacementManifest.CommitReplacement(_tempDir, 100, new long[] { 1, 2 });
+
+        // 源段文件仍在盘上（模拟删除失败残留的孤儿）。
+        Assert.True(File.Exists(SegPath(1)));
+        Assert.True(File.Exists(SegPath(2)));
+
+        using var mgr = SegmentManager.Open(_tempDir, SegmentReaderOptions.Default);
+
+        // 只加载 replacement；被抑制的源段孤儿文件应被清理删除。
+        Assert.Equal(1, mgr.SegmentCount);
+        Assert.False(File.Exists(SegPath(1)), "被抑制的孤儿源段 1 应被清理");
+        Assert.False(File.Exists(SegPath(2)), "被抑制的孤儿源段 2 应被清理");
+        Assert.True(File.Exists(SegPath(100)), "活的 replacement 段 100 应保留");
+    }
+
+    [Fact]
+    public void Open_DeletesUnreadableSuppressedReplacementFile()
+    {
+        // committed 但 replacement 段损坏/不完整（被抑制）：其残留文件也应被清理，源段保留可加载。
+        WriteSegment(1);
+        WriteSegment(2);
+        // 写一个"损坏"的 replacement 文件（非法内容，SegmentReader.Open 会失败）。
+        File.WriteAllBytes(SegPath(100), new byte[] { 0, 1, 2, 3, 4 });
+
+        SegmentReplacementManifest.CommitReplacement(_tempDir, 100, new long[] { 1, 2 });
+
+        using var mgr = SegmentManager.Open(_tempDir, SegmentReaderOptions.Default);
+
+        // replacement 不可读 → 抑制并清理；源段保留加载（数据不丢）。
+        Assert.False(File.Exists(SegPath(100)), "不可读的被抑制 replacement 应被清理");
+        Assert.Equal(2, mgr.SegmentCount);
+    }
 }

@@ -350,10 +350,23 @@ public sealed class WalWriter : IDisposable
             _fileStream!.Flush(true);
     }
 
+    /// <summary>
+    /// 把 LastLsn footer 直接写到底层 <see cref="_fileStream"/> 的 <see cref="_bytesWritten"/> 偏移处。
+    /// <para>
+    /// S13 不变式：本方法绕过 <see cref="_stream"/>（BufferedStream）直接定位 <see cref="_fileStream"/>，
+    /// 因此**必须**保证 BufferedStream 已无缓冲数据，否则 footer 会写到错误偏移、损坏 WAL 帧。
+    /// 为不依赖调用点的隐式顺序（原先仅靠 <see cref="FlushCore"/> 先调 <c>_stream.Flush()</c>），
+    /// 本方法在写 footer 前自行 <c>_stream.Flush()</c>（FlushCore 已 flush 时此调用为廉价 no-op），
+    /// 使不变式显式且自足。
+    /// </para>
+    /// </summary>
     private void WriteLastLsnFooterIfDirty()
     {
         if (!_footerDirty)
             return;
+
+        // 显式收口 S13 不变式：确保 BufferedStream 已排空，footer 偏移才与 _bytesWritten 一致。
+        _stream!.Flush();
 
         Span<byte> footerBuffer = stackalloc byte[FormatSizes.WalLastLsnFooterSize];
         var footer = WalLastLsnFooter.CreateNew(_nextLsn - 1, _bytesWritten);

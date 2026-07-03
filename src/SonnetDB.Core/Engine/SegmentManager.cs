@@ -81,8 +81,46 @@ public sealed class SegmentManager : IDisposable
             }
         }
 
+        // S12：清理被 manifest 抑制、但因上次删除失败（Windows 文件锁等）残留在盘上的死段文件及其
+        // 向量/聚合索引 sidecar。此前这些孤儿文件被 Open 跳过加载后就再无人删除，永久泄漏磁盘；
+        // 现在启动时重试清理。删除仍失败的文件下次启动会再次尝试（幂等）。
+        CleanupSuppressedOrphans(rootDirectory, suppressedSegmentIds);
+
         manager.RebuildSnapshotsUnsafe();
         return manager;
+    }
+
+    /// <summary>
+    /// 删除被 manifest 抑制的死段在盘上的残留文件（段主文件 + 向量 / 聚合索引 sidecar）。
+    /// 逐文件尝试删除，失败（如仍被占用）不抛出——下次启动会再次重试，保证最终清理（S12）。
+    /// </summary>
+    private static void CleanupSuppressedOrphans(string rootDirectory, IReadOnlySet<long> suppressedSegmentIds)
+    {
+        if (suppressedSegmentIds.Count == 0)
+            return;
+
+        foreach (long segId in suppressedSegmentIds)
+        {
+            if (segId <= 0)
+                continue;
+
+            foreach (string artifactPath in TsdbPaths.SegmentArtifactPaths(rootDirectory, segId))
+            {
+                try
+                {
+                    if (File.Exists(artifactPath))
+                        File.Delete(artifactPath);
+                }
+                catch (IOException)
+                {
+                    // 文件仍被占用等瞬时错误：留待下次启动重试，不阻塞引擎启动。
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    // 权限 / 只读等瞬时错误：同上，下次启动重试。
+                }
+            }
+        }
     }
 
     /// <summary>
