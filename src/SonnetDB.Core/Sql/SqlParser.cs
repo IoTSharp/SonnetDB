@@ -37,12 +37,27 @@ public sealed class SqlParser
     }
 
     /// <summary>
-    /// 解析单条 SQL 语句（支持末尾分号）。
+    /// 已解析单语句 AST 的进程级有界 LRU 缓存（#212）。解析与 schema 无关且 AST 不可变，
+    /// 按 SQL 文本缓存并复用是安全的；高频轮询同一 query 形状可跳过重复 lex+parse。
+    /// </summary>
+    private static readonly SqlParseCache ParseCache = new(capacity: 512);
+
+    /// <summary>
+    /// 解析单条 SQL 语句（支持末尾分号）。命中进程级解析缓存时直接返回已缓存的不可变 AST。
     /// </summary>
     /// <param name="source">SQL 源文本。</param>
     /// <returns>解析得到的语句 AST。</returns>
     /// <exception cref="SqlParseException">词法或语法错误时抛出。</exception>
     public static SqlStatement Parse(string source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return ParseCache.GetOrParse(source, ParseUncached);
+    }
+
+    /// <summary>清空进程级解析缓存（仅供测试）。</summary>
+    internal static void ClearParseCache() => ParseCache.Clear();
+
+    private static SqlStatement ParseUncached(string source)
     {
         var tokens = SqlLexer.Tokenize(source);
         var parser = new SqlParser(tokens);

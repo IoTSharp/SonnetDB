@@ -640,7 +640,7 @@ extensions/
 
 | PR | 标题与范围 | 关联发现 | 状态 |
 |----|------------|----------|------|
-| #212 | **SQL plan / parse 缓存**：按 SQL 文本（结合 schema 版本）缓存已解析 AST（有界 LRU），消除每次 `Execute` 重新 lex+parse 的分配与 CPU；为高频轮询同一 query 形状的仪表盘场景显著降本。 | SQL Q7 | 📋 |
+| #212 | **SQL plan / parse 缓存**：按 SQL 文本（结合 schema 版本）缓存已解析 AST（有界 LRU），消除每次 `Execute` 重新 lex+parse 的分配与 CPU；为高频轮询同一 query 形状的仪表盘场景显著降本。 | SQL Q7 | ✅（`SqlParser.Parse` 进程级 512 条 LRU，按 SQL 文本 key；解析与 schema 无关且 AST 不可变，无需 schema 版本参与；所有 Parse 调用方透明受益） |
 | #213 | **参数化查询 / 绑定变量**：新增位置 `?` / 命名 `@p` 占位符，贯穿 lexer→AST→executor；消除应用层字符串拼接的注入风险，并让 plan cache 对不同参数值复用。 | SQL Q10 | 📋 |
 | #214 | **LIMIT / Top-N 下推**：`Offset+Fetch` 下推到 scan/sort；`ORDER BY … LIMIT k` 用有界堆而非全量物化+排序（当前百万点全量物化排序后切片）。 | SQL Q6 | 📋 |
 | #215 | **关系 JOIN hash join**：识别等值连接键，对 build 侧建哈希表（复用 `JoinSqlExecutor.BuildTableHash` 思路），替换关系路径全物化嵌套循环笛卡尔积（两张 1 万行表 = 1 亿次谓词求值）。 | SQL Q9 | 📋 |

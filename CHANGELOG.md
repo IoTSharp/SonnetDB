@@ -40,6 +40,8 @@
 
 ### Changed
 
+- **M28 P3 查询与 SQL 能力批次**：
+  (#212) `SqlParser.Parse` 新增进程级有界 LRU 解析缓存（默认 512 条，按 SQL 文本 key）：解析纯语法、与 schema 无关且 AST 不可变，故按文本缓存并跨调用复用安全，命中直接返回已解析的不可变 AST。消除高频轮询同一 query 形状（仪表盘等）每次 `Execute` 重复 lex+parse 的分配与 CPU；超长（> 8 KB）单条 SQL 与语法错误不入缓存。所有走 `SqlParser.Parse` 的路径（嵌入式、ADO、HTTP、MCP、Copilot）透明受益（Q7）。
 - **M28 P2 写路径吞吐批次**：
   (#205) `EnsureMeasurementSchemaLocked` 稳态不再每点 `new List(schema.Columns)` 后丢弃，改为仅在真检测到新列 / int→float 提升时才 copy-on-write；`WritePointLocked` 对 `Dictionary` 支持的 `Point.Fields` 走 struct 枚举器，消除 `IReadOnlyDictionary` foreach 的枚举器装箱。缩短 `_writeSync` 临界区、降低写入热路径 GC 压力（C3）。
   (#206) 移除 `MemTable` 内部 `ReaderWriterLockSlim` 生命周期门：`Append` / `Reset` / `RemoveSeries` 三个写侧操作已由调用方 `_writeSync` 串行化（Reset 在 double-buffering 下已无生产调用方），该 RWLock 纯属冗余，`Append` 热路径每点省一对 enter/exit read-lock。读者无锁安全语义保留（`ConcurrentDictionary` + 每桶锁 + `Interlocked` 统计量不动），新增读者与 `Append` 并发压测回归（C10）。
