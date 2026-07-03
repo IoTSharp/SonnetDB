@@ -640,19 +640,25 @@ public class SqlExecutorSelectTests : IDisposable
     }
 
     [Fact]
-    public void Select_OrInWhere_Throws()
+    public void Select_OrInWhere_ReturnsUnionAcrossTags()
     {
+        // #217：顶层 OR 走残差逐点求值——匹配 host='h1' 或 'h2' 的全部行。
         using var db = OpenWithSchema(Options());
-        Assert.Throws<InvalidOperationException>(() =>
-            SqlExecutor.Execute(db, "SELECT * FROM cpu WHERE host = 'h1' OR host = 'h2'"));
+        Seed(db);
+        var r = Select(db, "SELECT time FROM cpu WHERE host = 'h1' OR host = 'h2'");
+        // h1 有 3 行、h2 有 2 行，共 5 行。
+        Assert.Equal(5, r.Rows.Count);
     }
 
     [Fact]
-    public void Select_FieldInWhere_Throws()
+    public void Select_FieldInWhere_FiltersByFieldValue()
     {
+        // #217：字段谓词 usage > 2 走残差逐点求值。
         using var db = OpenWithSchema(Options());
-        Assert.Throws<InvalidOperationException>(() =>
-            SqlExecutor.Execute(db, "SELECT * FROM cpu WHERE usage > 0"));
+        Seed(db);
+        var r = Select(db, "SELECT usage FROM cpu WHERE usage > 2.0");
+        // usage 值：h1={1,2,3}, h2={5,6} → > 2 的有 {3,5,6} 三行。
+        Assert.Equal([3.0, 5.0, 6.0], r.Rows.Select(row => (double)row[0]!).OrderBy(x => x));
     }
 
     [Fact]
@@ -681,11 +687,87 @@ public class SqlExecutorSelectTests : IDisposable
     }
 
     [Fact]
-    public void Select_TagInequality_Throws()
+    public void Select_TagInequality_FiltersByResidual()
+    {
+        // #217：非等值 tag 比较（host != 'h1'）走残差逐点求值。
+        using var db = OpenWithSchema(Options());
+        Seed(db);
+        var r = Select(db, "SELECT time FROM cpu WHERE host != 'h1'");
+        // 仅 h2 的 2 行。
+        Assert.Equal(2, r.Rows.Count);
+    }
+
+    [Fact]
+    public void Select_MixedTagTimeAndFieldResidual()
+    {
+        // #217：tag（下推）+ time（下推）+ 字段谓词（残差）混合。
+        using var db = OpenWithSchema(Options());
+        Seed(db);
+        var r = Select(db, "SELECT time, usage FROM cpu WHERE host = 'h1' AND time >= 2000 AND usage > 2.0");
+        // h1 中 time>=2000 且 usage>2 → 只有 time=3000/usage=3。
+        Assert.Single(r.Rows);
+        Assert.Equal(3000L, r.Rows[0][0]);
+        Assert.Equal(3.0, r.Rows[0][1]);
+    }
+
+    [Fact]
+    public void Select_FieldAndField_Residual()
     {
         using var db = OpenWithSchema(Options());
-        Assert.Throws<InvalidOperationException>(() =>
-            SqlExecutor.Execute(db, "SELECT * FROM cpu WHERE host != 'h1'"));
+        Seed(db);
+        // usage > 1 AND count >= 30：h1 {u,c}={(1,10),(2,20),(3,30)}，h2={(5,50),(6,60)}。
+        // usage>1 且 count>=30 → h1@3000(3,30), h2@1500(5,50), h2@2500(6,60) 共 3 行。
+        var r = Select(db, "SELECT time FROM cpu WHERE usage > 1.0 AND count >= 30");
+        Assert.Equal([1500L, 2500L, 3000L], r.Rows.Select(row => (long)row[0]!).OrderBy(x => x));
+    }
+
+    [Fact]
+    public void Select_FieldResidual_SkipsNullField()
+    {
+        // #217：残差字段谓词按三值逻辑跳过该字段缺失（NULL）的时刻。
+        using var db = OpenWithSchema(Options());
+        // ok 字段只在 t=1000 写入；其余时刻 ok 缺失（NULL）。
+        SqlExecutor.Execute(db, "INSERT INTO cpu (time, host, usage, ok) VALUES (1000, 'h1', 5.0, TRUE)");
+        SqlExecutor.Execute(db, "INSERT INTO cpu (time, host, usage) VALUES (2000, 'h1', 6.0)");
+
+        var r = Select(db, "SELECT time FROM cpu WHERE ok = TRUE");
+        // 只有 t=1000 的 ok 有值且为 TRUE；t=2000 的 ok 为 NULL → UNKNOWN → 排除。
+        Assert.Single(r.Rows);
+        Assert.Equal(1000L, r.Rows[0][0]);
+    }
+
+    [Fact]
+    public void Select_Aggregate_WithFieldResidual()
+    {
+        using var db = OpenWithSchema(Options());
+        Seed(db);
+        // avg(usage) WHERE usage > 2：h1 usage>2 = {3}, h2 = {5,6} → avg(3,5,6)=4.666...
+        var r = Select(db, "SELECT avg(usage) FROM cpu WHERE usage > 2.0");
+        Assert.Single(r.Rows);
+        Assert.Equal((3.0 + 5.0 + 6.0) / 3.0, (double)r.Rows[0][0]!, 6);
+    }
+
+    [Fact]
+    public void Select_CountStar_WithFieldResidual()
+    {
+        using var db = OpenWithSchema(Options());
+        Seed(db);
+        // count(*) WHERE usage > 2：usage>2 的行 = {h1@3000, h2@1500, h2@2500} = 3。
+        var r = Select(db, "SELECT count(*) FROM cpu WHERE usage > 2.0");
+        Assert.Equal(3L, r.Rows.Single()[0]);
+    }
+
+    [Fact]
+    public void Select_LatestFastPathDisabled_WithResidual_ReturnsCorrectLatestMatch()
+    {
+        // #217：ORDER BY time DESC LIMIT 1 + 字段残差时，latest 快路径须禁用，返回正确的最新匹配点。
+        using var db = OpenWithSchema(Options());
+        Seed(db);  // h1 usage {1000:1, 2000:2, 3000:3}
+        // 最新的点是 3000(usage=3)，但加 usage < 3 后最新匹配应为 2000(usage=2)。
+        var r = Select(db, "SELECT time, usage FROM cpu WHERE host = 'h1' AND usage < 3.0 ORDER BY time DESC LIMIT 1");
+        Assert.Single(r.Rows);
+        Assert.Equal(2000L, r.Rows[0][0]);
+        Assert.Equal(2.0, r.Rows[0][1]);
     }
 
     [Fact]

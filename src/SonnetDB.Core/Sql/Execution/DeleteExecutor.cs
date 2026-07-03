@@ -16,6 +16,13 @@ internal static class DeleteExecutor
                 $"Measurement '{statement.Measurement}' 不存在；请先执行 CREATE MEASUREMENT。");
 
         var where = WhereClauseDecomposer.Decompose(statement.Where, schema);
+
+        // DELETE 通过 (series, field, 时间窗) 墓碑删除，无法表达"仅删残差字段谓词命中的点"；
+        // 残差（字段谓词 / OR / 未知列比较等）在此显式拒绝（按点定向删除见 ROADMAP #219）。
+        if (where.Residual is not null)
+            throw new InvalidOperationException(
+                "DELETE 的 WHERE 仅支持 tag 等值与 time 比较（AND 连接）；字段谓词 / OR / 非等值 tag 比较暂不支持。");
+
         var matchedSeries = tsdb.Catalog.Find(statement.Measurement, where.TagFilter);
 
         long from = where.TimeRange.FromInclusive;

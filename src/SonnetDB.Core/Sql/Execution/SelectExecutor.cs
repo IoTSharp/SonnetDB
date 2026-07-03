@@ -1,4 +1,5 @@
 ﻿using SonnetDB.Catalog;
+using System.Globalization;
 using SonnetDB.Engine;
 using SonnetDB.Model;
 using SonnetDB.Query;
@@ -77,6 +78,7 @@ internal static class SelectExecutor
 
         if (matchedSeries.Count != 1
             || where.GeoFilters.Count != 0
+            || where.Residual is not null
             || orderBy is not { Direction: SortDirection.Descending }
             || orderBy.Expression is not IdentifierExpression { Name: var orderColumn }
             || !string.Equals(orderColumn, "time", StringComparison.OrdinalIgnoreCase)
@@ -476,14 +478,18 @@ internal static class SelectExecutor
             }
         }
         bool useStreamingWindowPath = CanUseStreamingWindowPath(windowEvaluators);
+        // 有残差谓词时强制走物化路径：残差会跳过部分时间戳，流式窗口状态按 ts 连续推进会被破坏（#217）。
+        if (where.Residual is not null)
+            useStreamingWindowPath = false;
 
-        // 收集 raw 模式中所有需要查询的 field 列
+        // 收集 raw 模式中所有需要查询的 field 列（含残差谓词引用的 field 列）。
         var fieldCols = projections
             .Where(p => p.Kind == ProjectionKind.Field)
             .Select(p => p.Column!.Name)
             .Concat(GetScalarFieldDependencies(projections))
             .Concat(windowEvaluators.OfType<IWindowEvaluator>().Select(e => e.FieldName))
             .Concat(where.GeoFilters.Select(f => f.FieldName))
+            .Concat(GetResidualFieldDependencies(where.Residual, schema))
             .Distinct(StringComparer.Ordinal)
             .ToList();
 
@@ -532,7 +538,7 @@ internal static class SelectExecutor
             }
             else
             {
-                AppendMaterializedRawRows(rows, projections, windowEvaluators, timestampSet, series, fieldLookups);
+                AppendMaterializedRawRows(rows, projections, windowEvaluators, timestampSet, series, fieldLookups, where.Residual);
             }
         }
 
@@ -610,7 +616,8 @@ internal static class SelectExecutor
         IReadOnlyList<IWindowEvaluator?> windowEvaluators,
         SortedSet<long> timestampSet,
         SeriesEntry series,
-        Dictionary<string, Dictionary<long, FieldValue>> fieldLookups)
+        Dictionary<string, Dictionary<long, FieldValue>> fieldLookups,
+        SqlExpression? residual)
     {
         var timestamps = timestampSet.ToArray();
 
@@ -640,6 +647,11 @@ internal static class SelectExecutor
         for (int rowIdx = 0; rowIdx < timestamps.Length; rowIdx++)
         {
             long ts = timestamps[rowIdx];
+
+            // #217：残差谓词逐点过滤——仅保留在该时间戳上确定为 TRUE 的行。
+            if (residual is not null && !ResidualHoldsAtPoint(residual, ts, series, fieldLookups))
+                continue;
+
             var row = new object?[projections.Count];
             for (int i = 0; i < projections.Count; i++)
             {
@@ -736,6 +748,75 @@ internal static class SelectExecutor
         }
     }
 
+    /// <summary>
+    /// 收集残差谓词引用的 field 列名（#217）——这些列需查询进 fieldLookups 供逐点求值。
+    /// 只产出 schema 中确实是 FIELD 角色的列；tag 列（常量于 SeriesEntry）与 <c>time</c> 不产出。
+    /// </summary>
+    private static IEnumerable<string> GetResidualFieldDependencies(SqlExpression? residual, MeasurementSchema schema)
+    {
+        if (residual is null)
+            yield break;
+
+        foreach (var name in CollectIdentifierNames(residual))
+        {
+            if (string.Equals(name, "time", StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (schema.TryGetColumn(name) is { Role: MeasurementColumnRole.Field })
+                yield return name;
+        }
+    }
+
+    /// <summary>递归收集表达式中出现的全部标识符名（含残差可能出现的 IS NULL / IN / NOT / 比较等节点）。</summary>
+    private static IEnumerable<string> CollectIdentifierNames(SqlExpression expression)
+    {
+        switch (expression)
+        {
+            case IdentifierExpression id:
+                yield return id.Name;
+                yield break;
+            case BinaryExpression binary:
+                foreach (var n in CollectIdentifierNames(binary.Left)) yield return n;
+                foreach (var n in CollectIdentifierNames(binary.Right)) yield return n;
+                yield break;
+            case UnaryExpression unary:
+                foreach (var n in CollectIdentifierNames(unary.Operand)) yield return n;
+                yield break;
+            case IsNullExpression isNull:
+                foreach (var n in CollectIdentifierNames(isNull.Operand)) yield return n;
+                yield break;
+            case InExpression inExpr:
+                foreach (var n in CollectIdentifierNames(inExpr.Value)) yield return n;
+                foreach (var item in inExpr.Values)
+                    foreach (var n in CollectIdentifierNames(item)) yield return n;
+                yield break;
+            case FunctionCallExpression fn:
+                foreach (var arg in fn.Arguments)
+                    foreach (var n in CollectIdentifierNames(arg)) yield return n;
+                yield break;
+            default:
+                yield break;
+        }
+    }
+
+    /// <summary>为某 series 构建残差引用 field 列的 ts→FieldValue 查表，供聚合路径逐点残差求值（#217）。</summary>
+    private static Dictionary<string, Dictionary<long, FieldValue>> BuildResidualLookups(
+        Tsdb tsdb,
+        SeriesEntry series,
+        TimeRange timeRange,
+        IReadOnlyList<string> residualFieldCols)
+    {
+        var lookups = new Dictionary<string, Dictionary<long, FieldValue>>(StringComparer.Ordinal);
+        foreach (var fname in residualFieldCols)
+        {
+            var pts = QueryPoints(tsdb, series.Id, fname, timeRange);
+            var dict = new Dictionary<long, FieldValue>(pts.Count);
+            foreach (var dp in pts)
+                dict[dp.Timestamp] = dp.Value;
+            lookups[fname] = dict;
+        }
+        return lookups;
+    }
+
     private static object? EvaluateScalarProjection(
         Projection projection,
         long timestamp,
@@ -801,6 +882,164 @@ internal static class SelectExecutor
             args[i] = EvaluateScalarArgument(function.Arguments[i], timestamp, series, fieldLookups);
         return scalarFunction.Evaluate(args);
     }
+
+    // ── 残差谓词逐点求值（#217，三值 Kleene 逻辑）──────────────────────────────
+
+    /// <summary>
+    /// 在某数据点 (timestamp) 上求值残差 WHERE 谓词，仅当结果确定为 TRUE 时保留该点；
+    /// UNKNOWN（NULL 传播）与 FALSE 一样丢弃（与 #197 关系路径三值语义一致）。
+    /// </summary>
+    private static bool ResidualHoldsAtPoint(
+        SqlExpression residual,
+        long timestamp,
+        SeriesEntry series,
+        IReadOnlyDictionary<string, Dictionary<long, FieldValue>> fieldLookups)
+        => EvaluateResidualKleene(residual, timestamp, series, fieldLookups) == true;
+
+    private static bool? EvaluateResidualKleene(
+        SqlExpression expression,
+        long timestamp,
+        SeriesEntry series,
+        IReadOnlyDictionary<string, Dictionary<long, FieldValue>> fieldLookups)
+    {
+        switch (expression)
+        {
+            case BinaryExpression binary:
+                if (binary.Operator == SqlBinaryOperator.And)
+                {
+                    var l = EvaluateResidualKleene(binary.Left, timestamp, series, fieldLookups);
+                    if (l == false) return false;
+                    var r = EvaluateResidualKleene(binary.Right, timestamp, series, fieldLookups);
+                    if (r == false) return false;
+                    return l is null || r is null ? null : true;
+                }
+                if (binary.Operator == SqlBinaryOperator.Or)
+                {
+                    var l = EvaluateResidualKleene(binary.Left, timestamp, series, fieldLookups);
+                    if (l == true) return true;
+                    var r = EvaluateResidualKleene(binary.Right, timestamp, series, fieldLookups);
+                    if (r == true) return true;
+                    return l is null || r is null ? null : false;
+                }
+                if (IsResidualComparisonOperator(binary.Operator))
+                    return EvaluateResidualComparison(binary, timestamp, series, fieldLookups);
+                break;
+
+            case UnaryExpression { Operator: SqlUnaryOperator.Not } notExpr:
+                {
+                    var operand = EvaluateResidualKleene(notExpr.Operand, timestamp, series, fieldLookups);
+                    return operand is null ? null : !operand;
+                }
+
+            case IsNullExpression isNull:
+                {
+                    var isNullValue = EvaluateScalarArgument(isNull.Operand, timestamp, series, fieldLookups) is null;
+                    return isNull.Negated ? !isNullValue : isNullValue;
+                }
+
+            case InExpression inExpr:
+                return EvaluateResidualIn(inExpr, timestamp, series, fieldLookups);
+        }
+
+        var value = EvaluateScalarArgument(expression, timestamp, series, fieldLookups);
+        if (value is null)
+            return null;
+        if (value is bool b)
+            return b;
+        throw new InvalidOperationException("WHERE 残差谓词必须计算为布尔值。");
+    }
+
+    private static bool? EvaluateResidualComparison(
+        BinaryExpression binary,
+        long timestamp,
+        SeriesEntry series,
+        IReadOnlyDictionary<string, Dictionary<long, FieldValue>> fieldLookups)
+    {
+        var left = EvaluateScalarArgument(binary.Left, timestamp, series, fieldLookups);
+        var right = EvaluateScalarArgument(binary.Right, timestamp, series, fieldLookups);
+
+        // 三值逻辑：任一操作数为 NULL，比较结果为 UNKNOWN。检测 NULL 用 IS [NOT] NULL。
+        if (left is null || right is null)
+            return null;
+
+        int? compare = CompareResidualValues(left, right);
+        return binary.Operator switch
+        {
+            SqlBinaryOperator.Equal => ResidualValuesEqual(left, right),
+            SqlBinaryOperator.NotEqual => !ResidualValuesEqual(left, right),
+            SqlBinaryOperator.LessThan => compare is < 0,
+            SqlBinaryOperator.LessThanOrEqual => compare is <= 0,
+            SqlBinaryOperator.GreaterThan => compare is > 0,
+            SqlBinaryOperator.GreaterThanOrEqual => compare is >= 0,
+            SqlBinaryOperator.Like => LikePatternMatcher.IsMatch(left, right),
+            SqlBinaryOperator.NotLike => !LikePatternMatcher.IsMatch(left, right),
+            SqlBinaryOperator.Regex => RegexPatternMatcher.IsMatch(left, right),
+            SqlBinaryOperator.NotRegex => !RegexPatternMatcher.IsMatch(left, right),
+            _ => throw new InvalidOperationException($"WHERE 残差不支持比较运算符 {binary.Operator}。"),
+        };
+    }
+
+    private static bool? EvaluateResidualIn(
+        InExpression expression,
+        long timestamp,
+        SeriesEntry series,
+        IReadOnlyDictionary<string, Dictionary<long, FieldValue>> fieldLookups)
+    {
+        if (expression.Subquery is not null)
+            throw new InvalidOperationException("measurement WHERE 不支持 IN 子查询。");
+
+        var value = EvaluateScalarArgument(expression.Value, timestamp, series, fieldLookups);
+        if (value is null)
+            return null;
+
+        var sawNull = false;
+        foreach (var item in expression.Values)
+        {
+            var candidate = EvaluateScalarArgument(item, timestamp, series, fieldLookups);
+            if (candidate is null) { sawNull = true; continue; }
+            if (ResidualValuesEqual(value, candidate))
+                return expression.Negated ? false : true;
+        }
+
+        if (sawNull)
+            return null;
+        return expression.Negated ? true : false;
+    }
+
+    private static bool IsResidualComparisonOperator(SqlBinaryOperator op) => op is
+        SqlBinaryOperator.Equal or SqlBinaryOperator.NotEqual or
+        SqlBinaryOperator.LessThan or SqlBinaryOperator.LessThanOrEqual or
+        SqlBinaryOperator.GreaterThan or SqlBinaryOperator.GreaterThanOrEqual or
+        SqlBinaryOperator.Like or SqlBinaryOperator.NotLike or
+        SqlBinaryOperator.Regex or SqlBinaryOperator.NotRegex;
+
+    private static bool ResidualValuesEqual(object? left, object? right)
+    {
+        if (left is null || right is null)
+            return left is null && right is null;
+        if (IsResidualNumeric(left) && IsResidualNumeric(right))
+            return Convert.ToDouble(left, CultureInfo.InvariantCulture)
+                .Equals(Convert.ToDouble(right, CultureInfo.InvariantCulture));
+        return Equals(left, right);
+    }
+
+    private static int? CompareResidualValues(object? left, object? right)
+    {
+        if (left is null || right is null)
+            return null;
+        if (IsResidualNumeric(left) && IsResidualNumeric(right))
+            return Convert.ToDouble(left, CultureInfo.InvariantCulture)
+                .CompareTo(Convert.ToDouble(right, CultureInfo.InvariantCulture));
+        if (left is string ls && right is string rs)
+            return string.Compare(ls, rs, StringComparison.Ordinal);
+        if (left is bool lb && right is bool rb)
+            return lb.CompareTo(rb);
+        return null;
+    }
+
+    private static bool IsResidualNumeric(object value) => value is
+        byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal;
+
 
     private static object? EvaluateLiteral(LiteralExpression literal) => literal.Kind switch
     {
@@ -995,6 +1234,11 @@ internal static class SelectExecutor
         // 为每个 (bucketStart, specIdx) 维护 AggSlot：legacy 用 BucketState，扩展聚合用 IAggregateAccumulator。
         var bucketAccumulators = new SortedDictionary<long, AggSlot[]>();
 
+        // #217：残差谓词按数据点过滤——预建每 series 的 ts→FieldValue 查表（含残差引用的 field 列）。
+        var residualFieldCols = where.Residual is null
+            ? []
+            : GetResidualFieldDependencies(where.Residual, schema).Distinct(StringComparer.Ordinal).ToList();
+
         for (int specIdx = 0; specIdx < aggSpecs.Count; specIdx++)
         {
             var spec = aggSpecs[specIdx];
@@ -1011,6 +1255,9 @@ internal static class SelectExecutor
 
             foreach (var series in matchedSeries)
             {
+                // 残差查表（每 series 构建一次，供逐点残差求值）。
+                var residualLookups = BuildResidualLookups(tsdb, series, where.TimeRange, residualFieldCols);
+
                 foreach (var fname in fields)
                 {
                     var col = schema.TryGetColumn(fname);
@@ -1019,7 +1266,8 @@ internal static class SelectExecutor
                         .Where(f => string.Equals(f.FieldName, fname, StringComparison.Ordinal))
                         .ToArray();
 
-                    if (CanUseExtendedAggregateSketchPath(spec, bucketSizeMs, geoFilters))
+                    // 有残差时禁用扩展聚合 sidecar 快路径（它绕过逐点迭代，无法应用残差过滤）。
+                    if (where.Residual is null && CanUseExtendedAggregateSketchPath(spec, bucketSizeMs, geoFilters))
                     {
                         bool existed = bucketAccumulators.TryGetValue(long.MinValue, out var slots);
                         slots ??= CreateAggSlots(aggSpecs);
@@ -1041,6 +1289,11 @@ internal static class SelectExecutor
                     var points = QueryPoints(tsdb, series.Id, fname, where.TimeRange, geoFilters);
                     foreach (var dp in points)
                     {
+                        // 残差逐点过滤：仅纳入残差在该时间戳上确定为 TRUE 的点。
+                        if (where.Residual is not null
+                            && !ResidualHoldsAtPoint(where.Residual, dp.Timestamp, series, residualLookups))
+                            continue;
+
                         long bucketStart = bucketSizeMs > 0
                             ? TimeBucket.Floor(dp.Timestamp, bucketSizeMs)
                             : long.MinValue;
@@ -1105,6 +1358,10 @@ internal static class SelectExecutor
     {
         var fieldNames = schema.FieldColumns.Select(c => c.Name).ToList();
 
+        var residualFieldCols = where.Residual is null
+            ? []
+            : GetResidualFieldDependencies(where.Residual, schema).Distinct(StringComparer.Ordinal).ToList();
+
         foreach (var series in matchedSeries)
         {
             // 每个 bucket 下该 series 所有 field 列出现过的时间戳并集 = 行/时刻集合。
@@ -1132,6 +1389,9 @@ internal static class SelectExecutor
                 }
             }
 
+            // #217：残差谓词过滤——count(*) 只计残差在该时刻确定为 TRUE 的行。
+            var residualLookups = BuildResidualLookups(tsdb, series, where.TimeRange, residualFieldCols);
+
             foreach (var (bucketStart, timestamps) in bucketTimestamps)
             {
                 if (!bucketAccumulators.TryGetValue(bucketStart, out var slots))
@@ -1141,7 +1401,12 @@ internal static class SelectExecutor
                 }
 
                 foreach (var ts in timestamps)
+                {
+                    if (where.Residual is not null
+                        && !ResidualHoldsAtPoint(where.Residual, ts, series, residualLookups))
+                        continue;
                     slots[specIdx].UpdateCount(ts);
+                }
             }
         }
     }

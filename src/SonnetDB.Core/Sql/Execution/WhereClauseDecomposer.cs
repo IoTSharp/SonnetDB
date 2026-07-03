@@ -17,10 +17,15 @@ namespace SonnetDB.Sql.Execution;
 /// </summary>
 /// <param name="TagFilter">tag 列等值过滤集合（已合并去重；同 tag 列重复声明且取值不一致时抛错）。</param>
 /// <param name="TimeRange">从 <c>time</c> 比较推导出的闭区间时间窗。</param>
+/// <param name="Residual">
+/// 无法下推为 tag/time/geo 的剩余谓词（字段比较、顶层 OR、非等值 tag 比较等）合取；由扫描路径
+/// 按数据点逐点三值求值过滤。为 null 表示无残差（全部谓词已下推）。
+/// </param>
 internal readonly record struct WhereClause(
     IReadOnlyDictionary<string, string> TagFilter,
     TimeRange TimeRange,
-    IReadOnlyList<GeoPointWhereFilter> GeoFilters);
+    IReadOnlyList<GeoPointWhereFilter> GeoFilters,
+    SqlExpression? Residual = null);
 
 internal readonly record struct GeoPointWhereFilter(
     string FieldName,
@@ -46,11 +51,12 @@ internal static class WhereClauseDecomposer
         var tagFilter = new Dictionary<string, string>(StringComparer.Ordinal);
         long fromInclusive = long.MinValue;
         long toInclusive = long.MaxValue;
+        var residualLeaves = new List<SqlExpression>();
 
         if (where is not null)
         {
             foreach (var leaf in FlattenAnd(where))
-                ApplyLeaf(leaf, schema, tagFilter, ref fromInclusive, ref toInclusive, nowMs);
+                ApplyLeaf(leaf, schema, tagFilter, ref fromInclusive, ref toInclusive, nowMs, residualLeaves);
         }
 
         if (fromInclusive > toInclusive)
@@ -64,7 +70,19 @@ internal static class WhereClauseDecomposer
                 TryAddGeoFilter(leaf, schema, geoFilters);
         }
 
-        return new WhereClause(tagFilter, new TimeRange(fromInclusive, toInclusive), geoFilters);
+        var residual = CombineAnd(residualLeaves);
+        return new WhereClause(tagFilter, new TimeRange(fromInclusive, toInclusive), geoFilters, residual);
+    }
+
+    /// <summary>把残差叶子按 AND 合并为单个表达式；空列表返回 null。</summary>
+    private static SqlExpression? CombineAnd(IReadOnlyList<SqlExpression> leaves)
+    {
+        if (leaves.Count == 0)
+            return null;
+        var combined = leaves[0];
+        for (int i = 1; i < leaves.Count; i++)
+            combined = new BinaryExpression(SqlBinaryOperator.And, combined, leaves[i]);
+        return combined;
     }
 
     private static IEnumerable<SqlExpression> FlattenAnd(SqlExpression expr)
@@ -86,39 +104,38 @@ internal static class WhereClauseDecomposer
         Dictionary<string, string> tagFilter,
         ref long fromInclusive,
         ref long toInclusive,
-        long nowMs)
+        long nowMs,
+        List<SqlExpression> residualLeaves)
     {
         if (leaf is not BinaryExpression bin || !IsComparisonOperator(bin.Operator))
         {
+            // geo 谓词由 TryAddGeoFilter 第二遍处理，这里跳过不重复。
             if (TryIsSupportedGeoPredicate(leaf, schema))
                 return;
 
-            throw NotSupported(leaf, "WHERE 仅支持 tag = 'literal'、time 比较与 geo_within/geo_bbox 谓词，且通过 AND 连接。");
+            // 其余（顶层 OR、NOT、IS NULL、IN、函数布尔等）无法下推 → 残差逐点求值（#217）。
+            residualLeaves.Add(leaf);
+            return;
         }
 
         // 规范化：把字面量放到右侧。
         var (left, right, op) = NormalizeComparison(bin);
 
-        // time vs literal
+        // time vs literal：可下推为时间窗。
         if (left is IdentifierExpression { Name: var leftName } &&
-            string.Equals(leftName, "time", StringComparison.OrdinalIgnoreCase))
+            string.Equals(leftName, "time", StringComparison.OrdinalIgnoreCase) &&
+            IsTimeComparableLiteral(right))
         {
             ApplyTimeComparison(op, right, ref fromInclusive, ref toInclusive, nowMs);
             return;
         }
 
-        // tag_col = 'literal'
+        // tag_col = 'literal'：可下推为 tag 等值过滤（仅顶层 AND 的等值 tag 比较到达此处）。
         if (op == SqlBinaryOperator.Equal &&
             left is IdentifierExpression { Name: var tagName } &&
-            right is LiteralExpression { Kind: SqlLiteralKind.String, StringValue: var tagVal })
+            right is LiteralExpression { Kind: SqlLiteralKind.String, StringValue: var tagVal } &&
+            schema.TryGetColumn(tagName) is { Role: MeasurementColumnRole.Tag })
         {
-            var col = schema.TryGetColumn(tagName)
-                ?? throw new InvalidOperationException(
-                    $"WHERE 中引用了未知列 '{tagName}'。");
-            if (col.Role != MeasurementColumnRole.Tag)
-                throw new InvalidOperationException(
-                    $"WHERE 中只支持 tag 列等值过滤；'{tagName}' 是 {col.Role} 列。");
-
             if (tagFilter.TryGetValue(tagName, out var existing))
             {
                 if (!string.Equals(existing, tagVal, StringComparison.Ordinal))
@@ -132,8 +149,17 @@ internal static class WhereClauseDecomposer
             return;
         }
 
-        throw NotSupported(leaf, "WHERE 谓词不在 v1 支持范围内。");
+        // 其余比较（字段比较、非等值 tag 比较、tag 比非字符串等）→ 残差逐点求值。
+        residualLeaves.Add(leaf);
     }
+
+    /// <summary>time 右值是否可下推为时间窗（整数 / duration / now() 时间表达式）；否则退回残差。</summary>
+    private static bool IsTimeComparableLiteral(SqlExpression right)
+        => right is LiteralExpression { Kind: SqlLiteralKind.Integer }
+            or DurationLiteralExpression
+            or BinaryExpression
+            or FunctionCallExpression
+            or UnaryExpression;
 
     private static bool TryAddGeoFilter(
         SqlExpression leaf,
@@ -292,7 +318,4 @@ internal static class WhereClauseDecomposer
         or SqlBinaryOperator.LessThanOrEqual
         or SqlBinaryOperator.GreaterThan
         or SqlBinaryOperator.GreaterThanOrEqual;
-
-    private static InvalidOperationException NotSupported(SqlExpression expr, string detail)
-        => new($"{detail} 表达式：{expr}。");
 }

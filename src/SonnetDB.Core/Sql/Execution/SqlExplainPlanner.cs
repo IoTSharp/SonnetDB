@@ -844,23 +844,10 @@ public static class SqlExplainPlanner
         MeasurementSchema schema,
         long nowMs)
     {
-        ArgumentNullException.ThrowIfNull(schema);
-
-        var tagFilter = new Dictionary<string, string>(StringComparer.Ordinal);
-        long fromInclusive = long.MinValue;
-        long toInclusive = long.MaxValue;
-
-        if (where is not null)
-        {
-            foreach (var leaf in FlattenAnd(where))
-                ApplyWhereLeaf(leaf, schema, tagFilter, ref fromInclusive, ref toInclusive, nowMs);
-        }
-
-        if (fromInclusive > toInclusive)
-            throw new InvalidOperationException(
-                $"WHERE 子句的时间窗为空：[from={fromInclusive}, to={toInclusive}]。");
-
-        return new ExplainWhereClause(tagFilter, new TimeRange(fromInclusive, toInclusive));
+        // 复用执行路径的分解器（#217：支持残差字段谓词 / OR），保证 EXPLAIN 与实际执行一致，
+        // 不再在此重复一份会对字段谓词抛错的分解逻辑。
+        var decomposed = WhereClauseDecomposer.Decompose(where, schema, nowMs);
+        return new ExplainWhereClause(decomposed.TagFilter, decomposed.TimeRange);
     }
 
     private static IEnumerable<SqlExpression> FlattenAnd(SqlExpression expression)
@@ -876,123 +863,4 @@ public static class SqlExplainPlanner
 
         yield return expression;
     }
-
-    private static void ApplyWhereLeaf(
-        SqlExpression leaf,
-        MeasurementSchema schema,
-        Dictionary<string, string> tagFilter,
-        ref long fromInclusive,
-        ref long toInclusive,
-        long nowMs)
-    {
-        if (leaf is not BinaryExpression binary || !IsComparisonOperator(binary.Operator))
-            throw new InvalidOperationException($"WHERE 仅支持 tag = 'literal' 与 time 比较，且通过 AND 连接。表达式：{leaf}。");
-
-        var (left, right, op) = NormalizeComparison(binary);
-        if (left is IdentifierExpression { Name: var leftName }
-            && string.Equals(leftName, "time", StringComparison.OrdinalIgnoreCase))
-        {
-            ApplyTimeComparison(op, right, ref fromInclusive, ref toInclusive, nowMs);
-            return;
-        }
-
-        if (op == SqlBinaryOperator.Equal
-            && left is IdentifierExpression { Name: var tagName }
-            && right is LiteralExpression { Kind: SqlLiteralKind.String, StringValue: var tagValue })
-        {
-            var column = schema.TryGetColumn(tagName)
-                ?? throw new InvalidOperationException($"WHERE 中引用了未知列 '{tagName}'。");
-            if (column.Role != MeasurementColumnRole.Tag)
-                throw new InvalidOperationException($"WHERE 中只支持 tag 列等值过滤；'{tagName}' 是 {column.Role} 列。");
-
-            if (tagFilter.TryGetValue(tagName, out var existing))
-            {
-                if (!string.Equals(existing, tagValue, StringComparison.Ordinal))
-                {
-                    throw new InvalidOperationException(
-                        $"WHERE 中 tag '{tagName}' 被同时约束为 '{existing}' 和 '{tagValue}'，结果集为空。");
-                }
-            }
-            else
-            {
-                tagFilter[tagName] = tagValue!;
-            }
-
-            return;
-        }
-
-        throw new InvalidOperationException($"WHERE 谓词不在 v1 支持范围内。表达式：{leaf}。");
-    }
-
-    private static void ApplyTimeComparison(
-        SqlBinaryOperator op,
-        SqlExpression right,
-        ref long fromInclusive,
-        ref long toInclusive,
-        long nowMs)
-    {
-        var timestamp = TimeExpressionEvaluator.Evaluate(right, nowMs);
-
-        switch (op)
-        {
-            case SqlBinaryOperator.Equal:
-                if (timestamp > fromInclusive) fromInclusive = timestamp;
-                if (timestamp < toInclusive) toInclusive = timestamp;
-                return;
-
-            case SqlBinaryOperator.GreaterThanOrEqual:
-                if (timestamp > fromInclusive) fromInclusive = timestamp;
-                return;
-
-            case SqlBinaryOperator.GreaterThan:
-                if (timestamp == long.MaxValue)
-                    throw new InvalidOperationException("'time > long.MaxValue' 永远为假。");
-                if (timestamp + 1 > fromInclusive) fromInclusive = timestamp + 1;
-                return;
-
-            case SqlBinaryOperator.LessThanOrEqual:
-                if (timestamp < toInclusive) toInclusive = timestamp;
-                return;
-
-            case SqlBinaryOperator.LessThan:
-                if (timestamp == long.MinValue)
-                    throw new InvalidOperationException("'time < long.MinValue' 永远为假。");
-                if (timestamp - 1 < toInclusive) toInclusive = timestamp - 1;
-                return;
-
-            case SqlBinaryOperator.NotEqual:
-                throw new InvalidOperationException("WHERE 中暂不支持 'time != X'（v1）。");
-
-            default:
-                throw new InvalidOperationException($"不支持的 time 比较运算符 {op}。");
-        }
-    }
-
-    private static (SqlExpression Left, SqlExpression Right, SqlBinaryOperator Operator) NormalizeComparison(
-        BinaryExpression expression)
-    {
-        if (expression.Left is not IdentifierExpression && expression.Right is IdentifierExpression)
-            return (expression.Right, expression.Left, FlipComparison(expression.Operator));
-
-        return (expression.Left, expression.Right, expression.Operator);
-    }
-
-    private static SqlBinaryOperator FlipComparison(SqlBinaryOperator op) => op switch
-    {
-        SqlBinaryOperator.Equal => SqlBinaryOperator.Equal,
-        SqlBinaryOperator.NotEqual => SqlBinaryOperator.NotEqual,
-        SqlBinaryOperator.LessThan => SqlBinaryOperator.GreaterThan,
-        SqlBinaryOperator.LessThanOrEqual => SqlBinaryOperator.GreaterThanOrEqual,
-        SqlBinaryOperator.GreaterThan => SqlBinaryOperator.LessThan,
-        SqlBinaryOperator.GreaterThanOrEqual => SqlBinaryOperator.LessThanOrEqual,
-        _ => op,
-    };
-
-    private static bool IsComparisonOperator(SqlBinaryOperator op) => op is
-        SqlBinaryOperator.Equal or
-        SqlBinaryOperator.NotEqual or
-        SqlBinaryOperator.LessThan or
-        SqlBinaryOperator.LessThanOrEqual or
-        SqlBinaryOperator.GreaterThan or
-        SqlBinaryOperator.GreaterThanOrEqual;
 }

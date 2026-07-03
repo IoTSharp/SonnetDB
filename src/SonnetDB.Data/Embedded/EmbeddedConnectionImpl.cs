@@ -117,13 +117,11 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
     /// <summary>
     /// 把 ADO <see cref="SndbParameterCollection"/> 转成 Core <see cref="SqlParameters"/>（#213）。
     /// 每个参数同时按出现顺序登记为位置参数、按名称（去前缀）登记为命名参数，
-    /// 使 <c>?</c> 与 <c>@name</c> / <c>:name</c> 两种占位符都能解析到值。无参数时返回 null（不做绑定）。
+    /// 使 <c>?</c> 与 <c>@name</c> / <c>:name</c> 两种占位符都能解析到值。始终返回非 null 实例，
+    /// 使即便未提供任何参数也会走绑定：SQL 中残留的未绑定占位符会被明确报错，而非静默漏过。
     /// </summary>
-    private static SqlParameters? ToSqlParameters(SndbParameterCollection parameters)
+    private static SqlParameters ToSqlParameters(SndbParameterCollection parameters)
     {
-        if (parameters.Count == 0)
-            return null;
-
         var result = new SqlParameters();
         foreach (var p in parameters.Items)
         {

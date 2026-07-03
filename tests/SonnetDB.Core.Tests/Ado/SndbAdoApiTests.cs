@@ -654,13 +654,15 @@ public sealed class TsdbAdoApiTests : IDisposable
     [Fact]
     public void Parameters_NullValueRendersSqlNull()
     {
-        // null 参数会被替换成 NULL；DELETE 使用 NULL tag 比较应抛错（解析层），保证替换安全
+        // null 参数渲染为 SQL NULL；host = NULL 按三值逻辑为 UNKNOWN（#217 残差逐点求值），返回 0 行。
         using var c = OpenConn();
         EnsureCpuSchema(c);
+        ExecNonQuery(c, "INSERT INTO cpu (time, host, value) VALUES (1000, 'a', 1)");
         using var cmd = c.CreateCommand();
         cmd.CommandText = "SELECT host FROM cpu WHERE host = @h";
         cmd.Parameters.AddWithValue("@h", null);
-        Assert.ThrowsAny<Exception>(() => cmd.ExecuteReader());
+        using var r = cmd.ExecuteReader();
+        Assert.False(r.Read());
     }
 
     [Fact]

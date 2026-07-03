@@ -26,7 +26,7 @@ public static class SqlParameterBinder
     /// <param name="statement">可能含 <see cref="ParameterExpression"/> 的语句 AST。</param>
     /// <param name="parameters">参数值集合。</param>
     /// <returns>已绑定的语句 AST（若无变化则为原实例）。</returns>
-    /// <exception cref="SqlParseException">占位符缺少对应参数值时抛出。</exception>
+    /// <exception cref="InvalidOperationException">占位符缺少对应参数值时抛出。</exception>
     public static SqlStatement Bind(SqlStatement statement, SqlParameters? parameters)
     {
         ArgumentNullException.ThrowIfNull(statement);
@@ -175,7 +175,7 @@ public static class SqlParameterBinder
                 if (!p.TryResolve(param.Ordinal, param.Name, out var value))
                 {
                     string label = param.Name is null ? $"位置参数 #{param.Ordinal + 1}" : $"@{param.Name}";
-                    throw new SqlParseException($"未提供参数 {label} 的值。", 0);
+                    throw new InvalidOperationException($"未提供参数 {label} 的值。");
                 }
                 return ToLiteral(value);
 
