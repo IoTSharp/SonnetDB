@@ -37,10 +37,13 @@ internal static class RelationalSelectExecutor
             relation = Join(tsdb, relation, right, join.On, join.Kind, outerScope);
         }
 
+        // #216：本层查询的子查询记忆表——非相关子查询整段外层扫描只执行一次并缓存。
+        var memo = new SubqueryMemo();
+
         if (statement.Where is not null)
         {
             var filteredRows = relation.Rows
-                .Where(row => EvaluateBoolean(tsdb, statement.Where, relation.Columns, row, outerScope))
+                .Where(row => EvaluateBoolean(tsdb, statement.Where, relation.Columns, row, outerScope, memo))
                 .ToArray();
             relation = relation with { Rows = filteredRows };
         }
@@ -70,7 +73,39 @@ internal static class RelationalSelectExecutor
     private sealed record RelationalScope(
         IReadOnlyList<RelColumn> Columns,
         IReadOnlyList<object?> Row,
-        RelationalScope? Parent = null);
+        RelationalScope? Parent = null,
+        CorrelationProbe? Probe = null);
+
+    /// <summary>
+    /// 相关性探针（#216）：子查询执行期间若通过外层作用域链解析到任何列，则被 <see cref="Trip"/> 置位。
+    /// 一次完整子查询执行后仍未置位，说明该子查询与当前外层行无关（非相关），其结果可被缓存复用。
+    /// </summary>
+    private sealed class CorrelationProbe
+    {
+        public bool Tripped { get; private set; }
+        public void Trip() => Tripped = true;
+    }
+
+    /// <summary>
+    /// 子查询结果记忆表（#216）：按子查询 <see cref="SelectStatement"/> AST 节点身份缓存。
+    /// 非相关子查询整段外层扫描只执行一次；已判定为相关的子查询记入 <see cref="_correlated"/>，此后每行照常执行。
+    /// 生命周期 = 一次顶层关系查询执行（跨其全部外层行）。
+    /// </summary>
+    private sealed class SubqueryMemo
+    {
+        private readonly Dictionary<SelectStatement, SelectExecutionResult> _cache = new(ReferenceEqualityComparer.Instance);
+        private readonly HashSet<SelectStatement> _correlated = new(ReferenceEqualityComparer.Instance);
+
+        public bool TryGetCached(SelectStatement subquery, out SelectExecutionResult result)
+            => _cache.TryGetValue(subquery, out result!);
+
+        public bool IsKnownCorrelated(SelectStatement subquery) => _correlated.Contains(subquery);
+
+        public void CacheNonCorrelated(SelectStatement subquery, SelectExecutionResult result)
+            => _cache[subquery] = result;
+
+        public void MarkCorrelated(SelectStatement subquery) => _correlated.Add(subquery);
+    }
 
     public static bool NeedsRelationalPath(SelectStatement statement)
     {
@@ -826,56 +861,58 @@ internal static class RelationalSelectExecutor
         SqlExpression expression,
         IReadOnlyList<RelColumn> columns,
         IReadOnlyList<object?> row,
-        RelationalScope? outerScope = null)
-        => EvaluateKleene(tsdb, expression, columns, row, outerScope) == true;
+        RelationalScope? outerScope = null,
+        SubqueryMemo? memo = null)
+        => EvaluateKleene(tsdb, expression, columns, row, outerScope, memo) == true;
 
     private static bool? EvaluateKleene(
         Tsdb? tsdb,
         SqlExpression expression,
         IReadOnlyList<RelColumn> columns,
         IReadOnlyList<object?> row,
-        RelationalScope? outerScope = null)
+        RelationalScope? outerScope = null,
+        SubqueryMemo? memo = null)
     {
         switch (expression)
         {
             case BinaryExpression binary:
                 if (binary.Operator == SqlBinaryOperator.And)
                 {
-                    var left = EvaluateKleene(tsdb, binary.Left, columns, row, outerScope);
+                    var left = EvaluateKleene(tsdb, binary.Left, columns, row, outerScope, memo);
                     if (left == false) return false;
-                    var right = EvaluateKleene(tsdb, binary.Right, columns, row, outerScope);
+                    var right = EvaluateKleene(tsdb, binary.Right, columns, row, outerScope, memo);
                     if (right == false) return false;
                     return left is null || right is null ? null : true;
                 }
                 if (binary.Operator == SqlBinaryOperator.Or)
                 {
-                    var left = EvaluateKleene(tsdb, binary.Left, columns, row, outerScope);
+                    var left = EvaluateKleene(tsdb, binary.Left, columns, row, outerScope, memo);
                     if (left == true) return true;
-                    var right = EvaluateKleene(tsdb, binary.Right, columns, row, outerScope);
+                    var right = EvaluateKleene(tsdb, binary.Right, columns, row, outerScope, memo);
                     if (right == true) return true;
                     return left is null || right is null ? null : false;
                 }
                 if (IsComparisonOperator(binary.Operator))
-                    return EvaluateComparison(tsdb, binary, columns, row, outerScope);
+                    return EvaluateComparison(tsdb, binary, columns, row, outerScope, memo);
                 break;
 
             case UnaryExpression { Operator: SqlUnaryOperator.Not } unary:
                 {
-                    var operand = EvaluateKleene(tsdb, unary.Operand, columns, row, outerScope);
+                    var operand = EvaluateKleene(tsdb, unary.Operand, columns, row, outerScope, memo);
                     return operand is null ? null : !operand;
                 }
 
             case IsNullExpression isNull:
                 {
-                    var isNullValue = EvaluateScalar(tsdb, isNull.Operand, columns, row, outerScope) is null;
+                    var isNullValue = EvaluateScalar(tsdb, isNull.Operand, columns, row, outerScope, memo) is null;
                     return isNull.Negated ? !isNullValue : isNullValue;
                 }
 
             case InExpression inExpression:
-                return EvaluateIn(tsdb, inExpression, columns, row, outerScope);
+                return EvaluateIn(tsdb, inExpression, columns, row, outerScope, memo);
         }
 
-        var value = EvaluateScalar(tsdb, expression, columns, row, outerScope);
+        var value = EvaluateScalar(tsdb, expression, columns, row, outerScope, memo);
         if (value is null)
             return null;
         if (TryConvertToBoolean(value, out var boolean))
@@ -922,10 +959,11 @@ internal static class RelationalSelectExecutor
         BinaryExpression binary,
         IReadOnlyList<RelColumn> columns,
         IReadOnlyList<object?> row,
-        RelationalScope? outerScope = null)
+        RelationalScope? outerScope = null,
+        SubqueryMemo? memo = null)
     {
-        var left = EvaluateScalar(tsdb, binary.Left, columns, row, outerScope);
-        var right = EvaluateScalar(tsdb, binary.Right, columns, row, outerScope);
+        var left = EvaluateScalar(tsdb, binary.Left, columns, row, outerScope, memo);
+        var right = EvaluateScalar(tsdb, binary.Right, columns, row, outerScope, memo);
 
         // 三值逻辑：任一操作数为 NULL，比较结果为 UNKNOWN。检测 NULL 只能用 IS [NOT] NULL。
         if (left is null || right is null)
@@ -953,9 +991,10 @@ internal static class RelationalSelectExecutor
         InExpression expression,
         IReadOnlyList<RelColumn> columns,
         IReadOnlyList<object?> row,
-        RelationalScope? outerScope = null)
+        RelationalScope? outerScope = null,
+        SubqueryMemo? memo = null)
     {
-        var value = EvaluateScalar(tsdb, expression.Value, columns, row, outerScope);
+        var value = EvaluateScalar(tsdb, expression.Value, columns, row, outerScope, memo);
         if (value is null)
             return null;
 
@@ -976,8 +1015,7 @@ internal static class RelationalSelectExecutor
             if (tsdb is null)
                 throw new InvalidOperationException("IN 子查询需要数据库上下文。");
 
-            var inner = new RelationalScope(columns, row, outerScope);
-            var result = Execute(tsdb, expression.Subquery, inner);
+            var result = ExecuteSubqueryMemoized(tsdb, expression.Subquery, columns, row, outerScope, memo);
             if (result.Columns.Count != 1)
                 throw new InvalidOperationException("IN 子查询必须只返回一列。");
             matched = result.Rows.Any(candidate => Matches(candidate[0]));
@@ -985,7 +1023,7 @@ internal static class RelationalSelectExecutor
         else
         {
             matched = expression.Values.Any(item => Matches(
-                EvaluateScalar(tsdb, item, columns, row, outerScope)));
+                EvaluateScalar(tsdb, item, columns, row, outerScope, memo)));
         }
 
         if (!matched && sawNull)
@@ -994,24 +1032,58 @@ internal static class RelationalSelectExecutor
         return expression.Negated ? !matched : matched;
     }
 
+    /// <summary>
+    /// 执行子查询并记忆化（#216）：命中 memo 缓存直接复用；否则带相关性探针执行一次，
+    /// 探针未置位（未读任何外层列）则缓存为非相关，供本层后续外层行复用；置位则标记相关、每行照常执行。
+    /// memo 为 null（聚合/投影等无外层行迭代的上下文）时退化为普通执行。
+    /// </summary>
+    private static SelectExecutionResult ExecuteSubqueryMemoized(
+        Tsdb tsdb,
+        SelectStatement subquery,
+        IReadOnlyList<RelColumn> columns,
+        IReadOnlyList<object?> row,
+        RelationalScope? outerScope,
+        SubqueryMemo? memo)
+    {
+        if (memo is not null && memo.TryGetCached(subquery, out var cached))
+            return cached;
+
+        if (memo is null || memo.IsKnownCorrelated(subquery))
+        {
+            var inner = new RelationalScope(columns, row, outerScope);
+            return Execute(tsdb, subquery, inner);
+        }
+
+        // 首次评估：挂探针执行；未触外层则缓存为非相关。
+        var probe = new CorrelationProbe();
+        var probedScope = new RelationalScope(columns, row, outerScope, probe);
+        var result = Execute(tsdb, subquery, probedScope);
+        if (probe.Tripped)
+            memo.MarkCorrelated(subquery);
+        else
+            memo.CacheNonCorrelated(subquery, result);
+        return result;
+    }
+
     private static object? EvaluateScalar(
         Tsdb? tsdb,
         SqlExpression expression,
         IReadOnlyList<RelColumn> columns,
         IReadOnlyList<object?> row,
-        RelationalScope? outerScope = null)
+        RelationalScope? outerScope = null,
+        SubqueryMemo? memo = null)
     {
         return expression switch
         {
             LiteralExpression literal => EvaluateLiteral(literal),
             DurationLiteralExpression duration => duration.Milliseconds,
             IdentifierExpression identifier => GetColumnValue(columns, row, identifier, outerScope),
-            UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => -RequireDouble(EvaluateScalar(tsdb, unary.Operand, columns, row, outerScope), "一元负号"),
-            BinaryExpression binary when IsArithmeticOperator(binary.Operator) => EvaluateArithmetic(tsdb, binary, columns, row, outerScope),
-            CaseExpression caseExpression => EvaluateCase(tsdb, caseExpression, columns, row, outerScope),
+            UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => -RequireDouble(EvaluateScalar(tsdb, unary.Operand, columns, row, outerScope, memo), "一元负号"),
+            BinaryExpression binary when IsArithmeticOperator(binary.Operator) => EvaluateArithmetic(tsdb, binary, columns, row, outerScope, memo),
+            CaseExpression caseExpression => EvaluateCase(tsdb, caseExpression, columns, row, outerScope, memo),
             FunctionCallExpression function => EvaluateFunction(tsdb, function, columns, row, outerScope),
-            SubqueryExpression subquery => EvaluateScalarSubquery(tsdb, subquery, columns, row, outerScope),
-            ExistsExpression exists => EvaluateExists(tsdb, exists, columns, row, outerScope),
+            SubqueryExpression subquery => EvaluateScalarSubquery(tsdb, subquery, columns, row, outerScope, memo),
+            ExistsExpression exists => EvaluateExists(tsdb, exists, columns, row, outerScope, memo),
             _ => throw new InvalidOperationException($"关系表表达式暂不支持 '{expression.GetType().Name}'。"),
         };
     }
@@ -1021,17 +1093,18 @@ internal static class RelationalSelectExecutor
         CaseExpression expression,
         IReadOnlyList<RelColumn> columns,
         IReadOnlyList<object?> row,
-        RelationalScope? outerScope = null)
+        RelationalScope? outerScope = null,
+        SubqueryMemo? memo = null)
     {
         foreach (var when in expression.WhenClauses)
         {
-            if (EvaluateBoolean(tsdb, when.Condition, columns, row, outerScope))
-                return EvaluateScalar(tsdb, when.Result, columns, row, outerScope);
+            if (EvaluateBoolean(tsdb, when.Condition, columns, row, outerScope, memo))
+                return EvaluateScalar(tsdb, when.Result, columns, row, outerScope, memo);
         }
 
         return expression.Else is null
             ? null
-            : EvaluateScalar(tsdb, expression.Else, columns, row, outerScope);
+            : EvaluateScalar(tsdb, expression.Else, columns, row, outerScope, memo);
     }
 
     private static object EvaluateArithmetic(
@@ -1039,10 +1112,11 @@ internal static class RelationalSelectExecutor
         BinaryExpression binary,
         IReadOnlyList<RelColumn> columns,
         IReadOnlyList<object?> row,
-        RelationalScope? outerScope = null)
+        RelationalScope? outerScope = null,
+        SubqueryMemo? memo = null)
     {
-        var leftValue = EvaluateScalar(tsdb, binary.Left, columns, row, outerScope);
-        var rightValue = EvaluateScalar(tsdb, binary.Right, columns, row, outerScope);
+        var leftValue = EvaluateScalar(tsdb, binary.Left, columns, row, outerScope, memo);
+        var rightValue = EvaluateScalar(tsdb, binary.Right, columns, row, outerScope, memo);
         if (binary.Operator == SqlBinaryOperator.Add
             && (leftValue is string || rightValue is string))
         {
@@ -1110,13 +1184,13 @@ internal static class RelationalSelectExecutor
         SubqueryExpression subquery,
         IReadOnlyList<RelColumn> columns,
         IReadOnlyList<object?> row,
-        RelationalScope? outerScope = null)
+        RelationalScope? outerScope = null,
+        SubqueryMemo? memo = null)
     {
         if (tsdb is null)
             throw new InvalidOperationException("ON / WHERE 中的子查询需要数据库上下文。");
 
-        var inner = new RelationalScope(columns, row, outerScope);
-        var result = Execute(tsdb, subquery.Select, inner);
+        var result = ExecuteSubqueryMemoized(tsdb, subquery.Select, columns, row, outerScope, memo);
         if (result.Columns.Count != 1)
             throw new InvalidOperationException("标量子查询必须只返回一列。");
         if (result.Rows.Count == 0)
@@ -1131,13 +1205,13 @@ internal static class RelationalSelectExecutor
         ExistsExpression exists,
         IReadOnlyList<RelColumn> columns,
         IReadOnlyList<object?> row,
-        RelationalScope? outerScope = null)
+        RelationalScope? outerScope = null,
+        SubqueryMemo? memo = null)
     {
         if (tsdb is null)
             throw new InvalidOperationException("EXISTS 子查询需要数据库上下文。");
 
-        var inner = new RelationalScope(columns, row, outerScope);
-        return Execute(tsdb, exists.Select, inner).Rows.Count != 0;
+        return ExecuteSubqueryMemoized(tsdb, exists.Select, columns, row, outerScope, memo).Rows.Count != 0;
     }
 
     private static object? GetColumnValue(
@@ -1166,7 +1240,19 @@ internal static class RelationalSelectExecutor
             {
                 int? outerHit = TryResolveInScope(scope, identifier);
                 if (outerHit.HasValue)
+                {
+                    // #216：命中某外层作用域 = 相关子查询。置位从起点到命中层（含）路径上的所有探针，
+                    // 使这些层判定为相关、不缓存该子查询结果。
+                    var probeScope = outerScope;
+                    while (probeScope is not null)
+                    {
+                        probeScope.Probe?.Trip();
+                        if (ReferenceEquals(probeScope, scope))
+                            break;
+                        probeScope = probeScope.Parent;
+                    }
                     return scope.Row[outerHit.Value];
+                }
                 scope = scope.Parent;
             }
             throw new InvalidOperationException(identifier.Qualifier is null

@@ -1582,4 +1582,80 @@ public sealed class SqlExecutorTableTests : IDisposable
         Assert.Single(r.Rows);
         Assert.Equal(new object?[] { 1L, 10L }, r.Rows[0]);
     }
+
+    // ── 子查询记忆化（#216）─────────────────────────────────────────────────
+
+    [Fact]
+    public void NonCorrelatedInSubquery_OverManyOuterRows_ReturnsCorrectRows()
+    {
+        // 非相关 IN 子查询整段外层扫描只执行一次（记忆化）；结果对所有外层行必须正确。
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE items (id INT, kind STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE TABLE allowed (kind STRING, PRIMARY KEY (kind))");
+        SqlExecutor.Execute(db, "INSERT INTO allowed (kind) VALUES ('a'), ('c')");
+        SqlExecutor.Execute(db, """
+            INSERT INTO items (id, kind) VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'a'), (5, 'd')
+            """);
+
+        var r = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT id FROM items WHERE kind IN (SELECT kind FROM allowed) ORDER BY id
+            """));
+        Assert.Equal([1L, 3L, 4L], r.Rows.Select(row => (long)row[0]!));
+    }
+
+    [Fact]
+    public void NonCorrelatedScalarSubquery_ReusedAcrossRows_IsCorrect()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE nums (id INT, v INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "INSERT INTO nums (id, v) VALUES (1, 10), (2, 20), (3, 30), (4, 40)");
+
+        // v > (SELECT avg-ish 常量子查询)：非相关标量子查询，跨行复用同一结果。
+        var r = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT id FROM nums WHERE v > (SELECT v FROM nums WHERE id = 2) ORDER BY id
+            """));
+        // v > 20 → id 3,4。
+        Assert.Equal([3L, 4L], r.Rows.Select(row => (long)row[0]!));
+    }
+
+    [Fact]
+    public void CorrelatedScalarSubquery_NotMemoized_PerRowResultCorrect()
+    {
+        // 相关标量子查询（引用外层列）绝不能被记忆化——每行须独立求值。
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE dept (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE TABLE emp (id INT, dept_id INT, salary INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "INSERT INTO dept (id, name) VALUES (1, 'eng'), (2, 'ops')");
+        SqlExecutor.Execute(db, """
+            INSERT INTO emp (id, dept_id, salary) VALUES
+                (10, 1, 100), (11, 1, 300), (12, 2, 50), (13, 2, 40)
+            """);
+
+        // 每个部门内 salary 高于本部门首个员工 salary 的员工。
+        // 相关：子查询 WHERE e2.dept_id = e.dept_id 引用外层 e。
+        var r = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT e.id
+            FROM emp e
+            WHERE e.salary > (SELECT min(e2.salary) FROM emp e2 WHERE e2.dept_id = e.dept_id)
+            ORDER BY e.id
+            """));
+        // eng 最低=100 → 11(300); ops 最低=40 → 12(50)。
+        Assert.Equal([11L, 12L], r.Rows.Select(row => (long)row[0]!));
+    }
+
+    [Fact]
+    public void CorrelatedExists_NotMemoized_FiltersPerOuterRow()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE cust (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE TABLE ord (id INT, cust_id INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "INSERT INTO cust (id, name) VALUES (1, 'a'), (2, 'b'), (3, 'c')");
+        SqlExecutor.Execute(db, "INSERT INTO ord (id, cust_id) VALUES (10, 1), (20, 3)");
+
+        // 有订单的客户：相关 EXISTS 引用外层 c.id，须逐行求值。
+        var r = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT c.name FROM cust c WHERE EXISTS (SELECT 1 FROM ord o WHERE o.cust_id = c.id) ORDER BY c.name
+            """));
+        Assert.Equal(["a", "c"], r.Rows.Select(row => (string)row[0]!));
+    }
 }
