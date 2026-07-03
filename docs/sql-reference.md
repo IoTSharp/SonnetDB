@@ -659,6 +659,8 @@ SELECT count(*) FROM cpu WHERE host = 'server-01'
 SELECT count(1) FROM cpu WHERE host = 'server-01'
 ```
 
+> `count(*)` 计的是**行/时刻**数：同一 series 下多个 field 列写在同一时间戳算作一行，不同时间戳（含只写了部分 field 的稀疏行）取并集去重。多 series 场景下不同 series 的同一时间戳属于不同的行。`count(field)` 则只计该 field 列有值的时刻数。
+
 ### `GROUP BY time(...)`
 
 按时间桶聚合：

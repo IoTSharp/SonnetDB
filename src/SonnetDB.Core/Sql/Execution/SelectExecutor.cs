@@ -979,19 +979,22 @@ internal static class SelectExecutor
         for (int specIdx = 0; specIdx < aggSpecs.Count; specIdx++)
         {
             var spec = aggSpecs[specIdx];
-            // count(*) 时跨所有 field 列累加
-            var fields = spec.IsCountStar
-                ? schema.FieldColumns.Select(c => c.Name).ToList()
-                : [spec.FieldName!];
+
+            if (spec.IsCountStar)
+            {
+                // count(*) 语义：计"行/时刻"数，而非逐 field 列累加 field 值点。
+                AccumulateCountStar(
+                    tsdb, schema, matchedSeries, where, bucketSizeMs, aggSpecs, specIdx, bucketAccumulators);
+                continue;
+            }
+
+            var fields = new[] { spec.FieldName! };
 
             foreach (var series in matchedSeries)
             {
                 foreach (var fname in fields)
                 {
                     var col = schema.TryGetColumn(fname);
-                    // count(*) 时跨所有 field 列累加，但跳过非数值复合字段（语义上不参与数值统计）
-                    if (spec.IsCountStar && col is not null && col.DataType is FieldType.String or FieldType.Vector or FieldType.GeoPoint)
-                        continue;
 
                     var geoFilters = where.GeoFilters
                         .Where(f => string.Equals(f.FieldName, fname, StringComparison.Ordinal))
@@ -1029,9 +1032,8 @@ internal static class SelectExecutor
                             bucketAccumulators[bucketStart] = slots;
                         }
 
-                        // count(*) 不需要数值；其他聚合需要把字段值转为 double
-                        bool needsValue = !(spec.IsCountStar
-                            || spec.LegacyAggregator == Aggregator.Count);
+                        // count(field) 只需时间戳；其他聚合需要把字段值转为 double
+                        bool needsValue = spec.LegacyAggregator != Aggregator.Count;
                         if (!needsValue)
                         {
                             slots[specIdx].UpdateCount(dp.Timestamp);
@@ -1065,6 +1067,64 @@ internal static class SelectExecutor
 
         var columnNames = projections.Select(p => p.ColumnName).ToList();
         return new SelectExecutionResult(columnNames, rows);
+    }
+
+    /// <summary>
+    /// <c>count(*)</c> 语义：计"行/时刻"数——把每个 series 下所有 field 列写过的时间戳取并集去重后计数，
+    /// 而非旧实现遍历每个 field 列逐点累加（M 个 field × N 时刻会误返 M×N）。多 series 场景下不同
+    /// series 的同一时间戳属于不同的行，分别计入。GROUP BY time(...) 时按桶分别取时间戳并集。
+    /// </summary>
+    private static void AccumulateCountStar(
+        Tsdb tsdb,
+        MeasurementSchema schema,
+        IReadOnlyList<SeriesEntry> matchedSeries,
+        WhereClause where,
+        long bucketSizeMs,
+        IReadOnlyList<AggSpec> aggSpecs,
+        int specIdx,
+        SortedDictionary<long, AggSlot[]> bucketAccumulators)
+    {
+        var fieldNames = schema.FieldColumns.Select(c => c.Name).ToList();
+
+        foreach (var series in matchedSeries)
+        {
+            // 每个 bucket 下该 series 所有 field 列出现过的时间戳并集 = 行/时刻集合。
+            var bucketTimestamps = new Dictionary<long, HashSet<long>>();
+
+            foreach (var fname in fieldNames)
+            {
+                var geoFilters = where.GeoFilters
+                    .Where(f => string.Equals(f.FieldName, fname, StringComparison.Ordinal))
+                    .ToArray();
+
+                var points = QueryPoints(tsdb, series.Id, fname, where.TimeRange, geoFilters);
+                foreach (var dp in points)
+                {
+                    long bucketStart = bucketSizeMs > 0
+                        ? TimeBucket.Floor(dp.Timestamp, bucketSizeMs)
+                        : long.MinValue;
+
+                    if (!bucketTimestamps.TryGetValue(bucketStart, out var set))
+                    {
+                        set = [];
+                        bucketTimestamps[bucketStart] = set;
+                    }
+                    set.Add(dp.Timestamp);
+                }
+            }
+
+            foreach (var (bucketStart, timestamps) in bucketTimestamps)
+            {
+                if (!bucketAccumulators.TryGetValue(bucketStart, out var slots))
+                {
+                    slots = CreateAggSlots(aggSpecs);
+                    bucketAccumulators[bucketStart] = slots;
+                }
+
+                foreach (var ts in timestamps)
+                    slots[specIdx].UpdateCount(ts);
+            }
+        }
     }
 
     private static AggSlot[] CreateAggSlots(IReadOnlyList<AggSpec> aggSpecs)

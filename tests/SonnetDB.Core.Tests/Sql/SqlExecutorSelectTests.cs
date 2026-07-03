@@ -398,7 +398,7 @@ public class SqlExecutorSelectTests : IDisposable
     // ── 聚合模式 ───────────────────────────────────────────────────────────
 
     [Fact]
-    public void Select_CountStar_ReturnsTotalAcrossAllFields()
+    public void Select_CountStar_CountsRowsNotFieldValues()
     {
         using var db = OpenWithSchema(Options());
         Seed(db);
@@ -406,8 +406,9 @@ public class SqlExecutorSelectTests : IDisposable
         var r = Select(db, "SELECT count(*) FROM cpu WHERE host = 'h1'");
 
         Assert.Single(r.Rows);
-        // h1 共 3 条，每条都写了 usage 和 count → 6 个 field 值
-        Assert.Equal(6L, r.Rows[0][0]);
+        // h1 有 3 个时刻（行），尽管每行写了 usage 与 count 两个 field。
+        // 旧实现按 field 值点累加会返回 6；count(*) 计行数应为 3。
+        Assert.Equal(3L, r.Rows[0][0]);
     }
 
     [Fact]
@@ -420,7 +421,51 @@ public class SqlExecutorSelectTests : IDisposable
 
         Assert.Equal(["count(1)"], r.Columns);
         Assert.Single(r.Rows);
-        Assert.Equal(6L, r.Rows[0][0]);
+        Assert.Equal(3L, r.Rows[0][0]);
+    }
+
+    [Fact]
+    public void Select_CountStar_UnionsSparseFieldTimestamps()
+    {
+        using var db = OpenWithSchema(Options());
+        // 稀疏写入：t=1000 只有 usage，t=2000 只有 count，t=3000 两者都有。
+        // 行/时刻并集 = {1000, 2000, 3000} = 3；旧实现按 field 点累加会得 4。
+        SqlExecutor.Execute(db, "INSERT INTO cpu (time, host, region, usage) VALUES (1000, 'h1', 'cn', 1.0)");
+        SqlExecutor.Execute(db, "INSERT INTO cpu (time, host, region, count) VALUES (2000, 'h1', 'cn', 20)");
+        SqlExecutor.Execute(db, "INSERT INTO cpu (time, host, region, usage, count) VALUES (3000, 'h1', 'cn', 3.0, 30)");
+
+        var r = Select(db, "SELECT count(*) FROM cpu WHERE host = 'h1'");
+
+        Assert.Single(r.Rows);
+        Assert.Equal(3L, r.Rows[0][0]);
+    }
+
+    [Fact]
+    public void Select_CountStar_AcrossMultipleSeries_CountsAllRows()
+    {
+        using var db = OpenWithSchema(Options());
+        Seed(db);
+
+        // h1 有 3 个时刻，h2 有 2 个时刻，跨 series 共 5 行。
+        var r = Select(db, "SELECT count(*) FROM cpu");
+
+        Assert.Single(r.Rows);
+        Assert.Equal(5L, r.Rows[0][0]);
+    }
+
+    [Fact]
+    public void Select_CountStar_GroupByTime_CountsRowsPerBucket()
+    {
+        using var db = OpenWithSchema(Options());
+        Seed(db);
+
+        // 1s 桶：h1 的 1000/2000/3000 落 [1000,2000,3000) 三个桶各 1 行，加上 h2 的 1500→1000桶、2500→2000桶。
+        var r = Select(db, "SELECT time, count(*) FROM cpu GROUP BY time(1000ms)");
+
+        var byBucket = r.Rows.ToDictionary(row => (long)row[0]!, row => (long)row[1]!);
+        Assert.Equal(2L, byBucket[1000]); // h1@1000 + h2@1500
+        Assert.Equal(2L, byBucket[2000]); // h1@2000 + h2@2500
+        Assert.Equal(1L, byBucket[3000]); // h1@3000
     }
 
     [Fact]
