@@ -9,10 +9,9 @@ namespace SonnetDB.Data;
 /// </summary>
 /// <remarks>
 /// <para>
-/// 参数支持 <c>@name</c> / <c>:name</c> 两种占位符；执行前由 <see cref="ParameterBinder"/>
-/// 把占位符替换为安全的字面量（字符串值会用单引号包裹并把内部 <c>'</c> 转义为 <c>''</c>），
-/// 不会修改 SQL 中字符串字面量内的内容。绑定逻辑在嵌入式与远程下完全一致，
-/// 便于客户端和服务器对参数语义保持兼容。
+/// 参数支持位置 <c>?</c> 与命名 <c>@name</c> / <c>:name</c> 占位符（#213）。嵌入式模式下参数值
+/// 直接绑定进已解析的 AST（值绑定而非字符串拼接，从根上防注入，并可复用解析缓存）；远程模式因
+/// 线协议只接受 SQL 字符串，仍在客户端把命名占位符按安全字面量替换后发送，保留既有类型序列化保真度。
 /// </para>
 /// <para>
 /// <see cref="ExecuteNonQuery"/> 返回值约定：INSERT 返回写入行数；DELETE 返回新增墓碑数；
@@ -210,10 +209,11 @@ public sealed class SndbCommand : DbCommand
                 .ConfigureAwait(false);
         }
 
-        var bound = ParameterBinder.Bind(_commandText, _parameters);
-        if (IsSqlTransactionControl(bound))
+        // #213：不再在此处做字符串字面量替换。原始 SQL + 参数下沉给具体连接实现：
+        // 嵌入式走 Core AST 值绑定（防注入 + 复用解析缓存）；远程仍在其 impl 内按需绑定。
+        if (IsSqlTransactionControl(_commandText))
             throw new InvalidOperationException("请通过 SndbConnection.BeginTransaction()/SndbTransaction 控制事务。");
-        return await impl.ExecuteAsync(bound, _parameters, behavior, transactionState, cancellationToken)
+        return await impl.ExecuteAsync(_commandText, _parameters, behavior, transactionState, cancellationToken)
             .ConfigureAwait(false);
     }
 

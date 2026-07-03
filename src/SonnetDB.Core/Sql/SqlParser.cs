@@ -15,6 +15,7 @@ public sealed class SqlParser
 {
     private readonly IReadOnlyList<Token> _tokens;
     private int _index;
+    private int _parameterOrdinal;
 
     /// <summary>
     /// 表达式递归下降的深度上限。超过即抛 <see cref="SqlParseException"/>，
@@ -1669,6 +1670,13 @@ public sealed class SqlParser
             case TokenKind.DurationLiteral:
                 Advance();
                 return new DurationLiteralExpression(token.IntegerValue);
+            case TokenKind.Parameter:
+                Advance();
+                // 位置参数 ? 的 Text 为空 → Name=null；命名参数 @p/:p 的 Text 为参数名。
+                // 无论命名或位置，都按出现顺序分配 Ordinal（支持位置绑定 / 命名回退）。
+                return new ParameterExpression(
+                    _parameterOrdinal++,
+                    string.IsNullOrEmpty(token.Text) ? null : token.Text);
             case TokenKind.KeywordNull:
                 Advance();
                 return LiteralExpression.Null();

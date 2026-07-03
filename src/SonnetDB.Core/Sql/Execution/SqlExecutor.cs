@@ -57,11 +57,30 @@ public static class SqlExecutor
     /// <param name="controlPlane">控制面实现；为 <c>null</c> 时控制面 DDL 抛 <see cref="NotSupportedException"/>。</param>
     /// <returns>语句执行结果对象。</returns>
     public static object? Execute(Tsdb tsdb, string? databaseName, string sql, IControlPlane? controlPlane = null)
+        => Execute(tsdb, databaseName, sql, parameters: null, controlPlane);
+
+    /// <summary>
+    /// 解析并执行单条参数化 SQL 语句（#213）。占位符 <c>?</c> / <c>@name</c> / <c>:name</c> 由
+    /// <paramref name="parameters"/> 值绑定后执行；解析结果可命中解析缓存并对不同参数值复用。
+    /// </summary>
+    /// <param name="tsdb">目标数据库实例。</param>
+    /// <param name="databaseName">当前数据库名；未知可为 <c>null</c>。</param>
+    /// <param name="sql">单条 SQL 文本，可含参数占位符。</param>
+    /// <param name="parameters">参数值集合；为 <c>null</c> 时不做参数绑定。</param>
+    /// <param name="controlPlane">控制面实现；为 <c>null</c> 时控制面 DDL 抛 <see cref="NotSupportedException"/>。</param>
+    /// <returns>语句执行结果对象。</returns>
+    public static object? Execute(
+        Tsdb tsdb,
+        string? databaseName,
+        string sql,
+        SqlParameters? parameters,
+        IControlPlane? controlPlane = null)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(sql);
 
         var statement = SqlParser.Parse(sql);
+        statement = SqlParameterBinder.Bind(statement, parameters);
         return ExecuteStatement(tsdb, databaseName, statement, controlPlane);
     }
 

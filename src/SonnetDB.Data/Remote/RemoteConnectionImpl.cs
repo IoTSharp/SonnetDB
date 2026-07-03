@@ -77,6 +77,10 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             throw new InvalidOperationException("连接未打开。");
         var transaction = GetTransactionState(transactionState);
 
+        // #213：远程线协议仅接受 SQL 字符串（无结构化参数字段），故命名参数仍在客户端做字面量替换后再发送，
+        // 保留 byte[]/DateTime/GeoPoint 等类型的既有序列化保真度；SndbCommand 不再预替换，此处补上。
+        sql = ParameterBinder.Bind(sql, parameters);
+
         // 客户端拦截 SQL Console 风格元命令：USE <db> 切换当前库；SELECT current_database() / SHOW CURRENT_DATABASE 返回当前库。
         // 这两类命令不会发往服务端，避免命中 SqlParser 的"未知关键字"错误。
         var meta = SqlMetaCommand.TryParse(sql, out var requestedDb);
@@ -114,6 +118,9 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             throw new InvalidOperationException("连接未打开。");
         cancellationToken.ThrowIfCancellationRequested();
         var transaction = GetTransactionState(transactionState);
+
+        // #213：远程仍在客户端做参数字面量替换（线协议只接受 SQL 字符串），SndbCommand 不再预替换。
+        sql = ParameterBinder.Bind(sql, parameters);
 
         var meta = SqlMetaCommand.TryParse(sql, out var requestedDb);
         if (meta == MetaKind.CurrentDatabase)

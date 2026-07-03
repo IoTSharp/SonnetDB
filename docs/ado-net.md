@@ -58,7 +58,7 @@ while (reader.Read())
 
 ## 参数化查询
 
-参数名支持 `@name` 和 `:name`：
+支持位置占位符 `?` 与命名占位符 `@name` / `:name`：
 
 ```csharp
 using SonnetDB.Data;
@@ -66,17 +66,25 @@ using SonnetDB.Data;
 using var connection = new SndbConnection("Data Source=./demo-data");
 connection.Open();
 
+// 命名参数
 using var command = connection.CreateCommand();
 command.CommandText = "SELECT host FROM cpu WHERE host = @host";
 command.Parameters.AddWithValue("@host", "server-01");
-
 using var reader = command.ExecuteReader();
+
+// 位置参数（按添加顺序绑定）
+using var q = connection.CreateCommand();
+q.CommandText = "SELECT id FROM devices WHERE name = ? AND active = ?";
+q.Parameters.AddWithValue("p0", "pump");
+q.Parameters.AddWithValue("p1", true);
+using var r = q.ExecuteReader();
 ```
 
 说明：
 
-- 参数会在客户端安全转义后再发送
-- 字符串中的单引号会正确转义
+- **嵌入式模式**：参数值直接绑定进已解析的 SQL AST（值绑定而非字符串拼接），从根上防注入，并可复用解析缓存（同一 query 形状不同参数值只解析一次）。
+- **远程模式**：因线协议仅接受 SQL 字符串，命名参数仍在客户端安全转义为字面量后再发送；字符串中的单引号会正确转义。
+- 参数类型映射：`byte[]` → BLOB（Base64）、`DateTime`/`DateTimeOffset` → Unix 毫秒、`GeoPoint` → `POINT(lat, lon)`、`null` → SQL `NULL`，数值/布尔/字符串各归对应字面量。
 - `BeginTransaction()` / `BeginTransactionAsync()` 支持关系表轻事务；隔离级别仅支持默认值或 `ReadCommitted`
 - 轻事务可在同一数据库内提交多个关系表的 `INSERT` / `UPDATE` / `DELETE`，不支持 DDL、measurement / document 写入、嵌套事务或跨数据库事务
 

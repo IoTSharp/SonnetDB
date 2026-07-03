@@ -15,6 +15,12 @@ public enum TokenKind
     StringLiteral,
     DurationLiteral,
 
+    /// <summary>
+    /// 参数占位符：位置参数 <c>?</c>（<see cref="Token.Text"/> 为空，序号按出现顺序隐式分配）
+    /// 或命名参数 <c>@name</c> / <c>:name</c>（<see cref="Token.Text"/> 为去前缀后的参数名）。
+    /// </summary>
+    Parameter,
+
     // 标点
     LeftParen,
     RightParen,

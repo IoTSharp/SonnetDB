@@ -88,6 +88,9 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
         if (statement is BeginTransactionStatement or CommitTransactionStatement or RollbackTransactionStatement)
             throw new InvalidOperationException("请通过 SndbConnection.BeginTransaction()/SndbTransaction 控制事务。");
 
+        // #213：把 ADO 参数值绑定进已解析 AST（值绑定而非字符串拼接，防注入 + 复用解析缓存）。
+        statement = SqlParameterBinder.Bind(statement, ToSqlParameters(parameters));
+
         var result = SqlExecutor.ExecuteStatement(_tsdb, databaseName: null, statement, controlPlane: null, transaction);
         return result switch
         {
@@ -109,6 +112,27 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(Execute(sql, parameters, behavior, transactionState));
+    }
+
+    /// <summary>
+    /// 把 ADO <see cref="SndbParameterCollection"/> 转成 Core <see cref="SqlParameters"/>（#213）。
+    /// 每个参数同时按出现顺序登记为位置参数、按名称（去前缀）登记为命名参数，
+    /// 使 <c>?</c> 与 <c>@name</c> / <c>:name</c> 两种占位符都能解析到值。无参数时返回 null（不做绑定）。
+    /// </summary>
+    private static SqlParameters? ToSqlParameters(SndbParameterCollection parameters)
+    {
+        if (parameters.Count == 0)
+            return null;
+
+        var result = new SqlParameters();
+        foreach (var p in parameters.Items)
+        {
+            result.AddPositional(p.Value);
+            var name = SndbParameterCollection.NormalizeName(p.ParameterName);
+            if (!string.IsNullOrEmpty(name))
+                result.AddNamed(name, p.Value);
+        }
+        return result;
     }
 
     public IExecutionResult ExecuteBulk(string commandText, SndbParameterCollection parameters, object? transactionState)

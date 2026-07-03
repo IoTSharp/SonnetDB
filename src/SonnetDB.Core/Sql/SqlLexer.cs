@@ -205,6 +205,15 @@ public sealed class SqlLexer
         if (ch == '"')
             return ScanQuotedIdentifier(start);
 
+        // 参数占位符：位置 '?' 或命名 '@name' / ':name'（#213）
+        if (ch == '?')
+        {
+            _position++;
+            return new Token(TokenKind.Parameter, string.Empty, start);
+        }
+        if ((ch == '@' || ch == ':') && IsIdentifierStart(Peek(1)))
+            return ScanNamedParameter(start);
+
         if (!_operatorOrPunctuationStarts.Contains(ch))
             throw new SqlParseException($"无法识别的字符 '{ch}'", start);
 
@@ -273,6 +282,19 @@ public sealed class SqlLexer
         return _keywords.TryGetValue(text, out var keyword)
             ? new Token(keyword, text, start)
             : new Token(TokenKind.IdentifierLiteral, text, start);
+    }
+
+    /// <summary>
+    /// 扫描命名参数 <c>@name</c> / <c>:name</c>：跳过前缀符，把参数名（去前缀）放入 <see cref="Token.Text"/>。
+    /// 调用前已确认下一个字符是标识符起始字符。
+    /// </summary>
+    private Token ScanNamedParameter(int start)
+    {
+        _position++; // 跳过 '@' / ':' 前缀
+        int nameStart = _position;
+        AdvanceIdentifierContinue();
+        var name = _source.Substring(nameStart, _position - nameStart);
+        return new Token(TokenKind.Parameter, name, start);
     }
 
     private Token ScanQuotedIdentifier(int start)

@@ -66,6 +66,15 @@ public sealed record GeoPointLiteralExpression(double Lat, double Lon) : SqlExpr
 /// <param name="Qualifier">可选限定符，例如 <c>alias.column</c> 中的 <c>alias</c>。</param>
 public sealed record IdentifierExpression(string Name, string? Qualifier = null) : SqlExpression;
 
+/// <summary>
+/// 参数占位符表达式（#213）：位置参数 <c>?</c> 或命名参数 <c>@name</c> / <c>:name</c>。
+/// 解析阶段产出此节点（与具体参数值无关，故带占位符的 AST 可被解析缓存跨不同参数值复用）；
+/// 执行前由 <c>SqlParameterBinder</c> 用实际值重写为 <see cref="LiteralExpression"/>。
+/// </summary>
+/// <param name="Ordinal">位置序号（从 0 起，按占位符在 SQL 中出现顺序分配；命名参数也分配序号以支持按序绑定）。</param>
+/// <param name="Name">命名参数名（去 <c>@</c>/<c>:</c> 前缀）；位置参数 <c>?</c> 为 <c>null</c>。</param>
+public sealed record ParameterExpression(int Ordinal, string? Name = null) : SqlExpression;
+
 /// <summary><c>*</c> 通配符（仅出现在 SELECT 列表或 COUNT(*) 中）。</summary>
 public sealed record StarExpression : SqlExpression
 {

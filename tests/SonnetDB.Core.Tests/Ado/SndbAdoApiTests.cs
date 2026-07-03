@@ -663,6 +663,57 @@ public sealed class TsdbAdoApiTests : IDisposable
         Assert.ThrowsAny<Exception>(() => cmd.ExecuteReader());
     }
 
+    [Fact]
+    public void Parameters_Positional_QuestionMark_BindsByOrder()
+    {
+        // #213：嵌入式经 Core AST 值绑定支持位置参数 ?，按参数添加顺序绑定。
+        using var c = OpenConn();
+        ExecNonQuery(c, "CREATE TABLE devices (id INT, name STRING, active BOOL, PRIMARY KEY (id))");
+        ExecNonQuery(c, "INSERT INTO devices (id, name, active) VALUES (1, 'pump', TRUE), (2, 'fan', FALSE)");
+
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT id FROM devices WHERE name = ? AND active = ?";
+        cmd.Parameters.AddWithValue("p0", "pump");
+        cmd.Parameters.AddWithValue("p1", true);
+        using var r = cmd.ExecuteReader();
+        Assert.True(r.Read());
+        Assert.Equal(1L, r.GetInt64(0));
+        Assert.False(r.Read());
+    }
+
+    [Fact]
+    public void Parameters_Positional_InsertThenQuery()
+    {
+        using var c = OpenConn();
+        ExecNonQuery(c, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
+
+        using var ins = c.CreateCommand();
+        ins.CommandText = "INSERT INTO devices (id, name) VALUES (?, ?)";
+        ins.Parameters.AddWithValue("a", 7);
+        ins.Parameters.AddWithValue("b", "meter");
+        Assert.Equal(1, ins.ExecuteNonQuery());
+
+        using var sel = c.CreateCommand();
+        sel.CommandText = "SELECT name FROM devices WHERE id = ?";
+        sel.Parameters.AddWithValue("a", 7);
+        Assert.Equal("meter", sel.ExecuteScalar());
+    }
+
+    [Fact]
+    public void Parameters_Positional_InjectionAttempt_IsInert()
+    {
+        using var c = OpenConn();
+        ExecNonQuery(c, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
+        ExecNonQuery(c, "INSERT INTO devices (id, name) VALUES (1, 'pump')");
+
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT id FROM devices WHERE name = ?";
+        cmd.Parameters.AddWithValue("p", "pump' OR '1'='1");
+        using var r = cmd.ExecuteReader();
+        // 注入串作为字面量值绑定，不匹配任何行。
+        Assert.False(r.Read());
+    }
+
     // ── Command lifecycle ─────────────────────────────────────────────────────
 
     [Fact]
