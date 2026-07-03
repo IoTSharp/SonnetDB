@@ -141,6 +141,66 @@ public sealed class SegmentManagerTests : IDisposable
         Assert.False(mgr.RemoveSegment(999L));
     }
 
+    // ── 增量段索引缓存（C7）─────────────────────────────────────────────────
+
+    [Fact]
+    public void AddSegment_ReplacingSameId_RebuildsIndexFromNewReader()
+    {
+        // 同一 segId 先写 series 0xAA，再用不同内容（series 0xBB）覆盖重写并 AddSegment。
+        // 增量索引缓存必须在替换时作废旧索引，否则会查到已不存在的 0xAA、查不到新的 0xBB。
+        WriteSegment(1L, 0xAAUL, "f", 1000L, 2000L);
+        using var mgr = SegmentManager.Open(_tempDir);
+        Assert.NotEmpty(mgr.Index.LookupCandidates(0xAAUL, "f", 1000L, 2000L));
+
+        // 覆盖重写 segId=1 的段文件为不同 series，然后 AddSegment 触发替换。
+        var mt = new MemTable();
+        mt.Append(0xBBUL, 1500L, "f", FieldValue.FromDouble(1.0), 1L);
+        _writer.WriteFrom(mt, 1L, SegPath(1L));
+        mgr.AddSegment(SegPath(1L));
+
+        Assert.Empty(mgr.Index.LookupCandidates(0xAAUL, "f", 1000L, 2000L));
+        Assert.NotEmpty(mgr.Index.LookupCandidates(0xBBUL, "f", 1000L, 2000L));
+        Assert.Equal(1, mgr.SegmentCount);
+    }
+
+    [Fact]
+    public void SwapSegments_RemovedSegmentsPrunedFromIndex_AddedIsQueryable()
+    {
+        WriteSegment(1L, 0x1UL, "f", 1000L, 2000L);
+        WriteSegment(2L, 0x2UL, "f", 3000L, 4000L);
+        using var mgr = SegmentManager.Open(_tempDir);
+
+        // 合并 1、2 → 新段 3（series 0x3）。移除的段索引应从缓存修剪，未变段沿用缓存。
+        var mt = new MemTable();
+        mt.Append(0x3UL, 1500L, "f", FieldValue.FromDouble(1.0), 1L);
+        _writer.WriteFrom(mt, 3L, SegPath(3L));
+        mgr.SwapSegments([1L, 2L], SegPath(3L));
+
+        Assert.Equal(1, mgr.SegmentCount);
+        Assert.Empty(mgr.Index.LookupCandidates(0x1UL, "f", 1000L, 2000L));
+        Assert.Empty(mgr.Index.LookupCandidates(0x2UL, "f", 3000L, 4000L));
+        Assert.NotEmpty(mgr.Index.LookupCandidates(0x3UL, "f", 1000L, 2000L));
+    }
+
+    [Fact]
+    public void AddManySegments_EachRemainsQueryable_IncrementalIndexConsistent()
+    {
+        using var mgr = SegmentManager.Open(_tempDir);
+
+        const int count = 12;
+        for (int i = 1; i <= count; i++)
+        {
+            var mt = new MemTable();
+            mt.Append((ulong)i, 1000L + i, "f", FieldValue.FromDouble(i), 1L);
+            _writer.WriteFrom(mt, i, SegPath(i));
+            mgr.AddSegment(SegPath(i));
+        }
+
+        Assert.Equal(count, mgr.SegmentCount);
+        for (int i = 1; i <= count; i++)
+            Assert.NotEmpty(mgr.Index.LookupCandidates((ulong)i, "f", 1000L, 2000L));
+    }
+
     // ── Dispose ──────────────────────────────────────────────────────────────
 
     [Fact]

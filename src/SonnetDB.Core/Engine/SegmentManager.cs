@@ -21,6 +21,9 @@ public sealed class SegmentManager : IDisposable
     private readonly object _lock = new();
     private readonly SegmentReaderOptions? _readerOptions;
     private readonly Dictionary<long, SegmentReaderLeaseState> _readerById = new();
+    // 每段 SegmentIndex 缓存：段内容不可变，SegmentIndex.Build 对固定 (reader, segId) 确定，
+    // 故只在段首次加入时构建一次，add/swap/drop 时增量复用未变段的索引，避免每次全量重建（C7）。
+    private readonly Dictionary<long, SegmentIndex> _indexById = new();
     private MemTable? _activeMemTable;
     private IReadOnlyList<MemTable> _sealingMemTables = EmptyMemTables;
     private SegmentManagerSnapshot _snapshot = new(MultiSegmentIndex.Empty, Array.Empty<SegmentReaderLeaseState>());
@@ -103,6 +106,7 @@ public sealed class SegmentManager : IDisposable
                 ? [oldReader]
                 : [];
             _readerById[segId] = new SegmentReaderLeaseState(reader);
+            _indexById.Remove(segId); // 同 id 段被替换：作废旧索引缓存，让 rebuild 用新 reader 重建。
             RebuildSnapshotsLocked(replaced);
             return reader;
         }
@@ -143,6 +147,7 @@ public sealed class SegmentManager : IDisposable
             }
 
             _readerById[newSegId] = new SegmentReaderLeaseState(newReader);
+            _indexById.Remove(newSegId); // 防御：新段 id 若与缓存冲突则作废，rebuild 以新 reader 重建。
             RebuildSnapshotsLocked(toDispose);
         }
 
@@ -220,6 +225,7 @@ public sealed class SegmentManager : IDisposable
             _disposed = true;
             readersToDispose = new List<SegmentReaderLeaseState>(_readerById.Values);
             _readerById.Clear();
+            _indexById.Clear();
             PublishSnapshotUnsafe(MultiSegmentIndex.Empty, Array.Empty<SegmentReaderLeaseState>(), readersToDispose);
         }
     }
@@ -277,6 +283,7 @@ public sealed class SegmentManager : IDisposable
                 ? [oldReader]
                 : [];
             _readerById[segId] = new SegmentReaderLeaseState(reader);
+            _indexById.Remove(segId); // 同 id 段被替换：作废旧索引缓存。
             _activeMemTable = freshActive;
             RebuildSnapshotsLocked(replaced);
             return reader;
@@ -345,6 +352,7 @@ public sealed class SegmentManager : IDisposable
                 ? [oldReader]
                 : [];
             _readerById[segId] = new SegmentReaderLeaseState(reader);
+            _indexById.Remove(segId); // 同 id 段被替换：作废旧索引缓存。
             RemoveSealedLocked(sealedTable);
             RebuildSnapshotsLocked(replaced);
             return reader;
@@ -436,6 +444,8 @@ public sealed class SegmentManager : IDisposable
 
     /// <summary>
     /// 重建索引快照（单线程初始化时调用，无需持有锁）。
+    /// 增量复用 <see cref="_indexById"/> 缓存：未变段的 <see cref="SegmentIndex"/> 直接复用，
+    /// 仅新加入的段调用一次 <see cref="SegmentIndex.Build"/>；已移除段从缓存修剪（C7）。
     /// </summary>
     private void RebuildSnapshotsUnsafe(IReadOnlyList<SegmentReaderLeaseState>? readersToDispose = null)
     {
@@ -443,9 +453,35 @@ public sealed class SegmentManager : IDisposable
             .OrderBy(static kvp => kvp.Key)
             .ToList();
 
+        // 修剪缓存中不再存在的段索引（swap/drop 移除的段）。
+        if (_indexById.Count > ordered.Count)
+        {
+            var liveIds = new HashSet<long>(ordered.Count);
+            foreach (var (segId, _) in ordered)
+                liveIds.Add(segId);
+
+            List<long>? staleIds = null;
+            foreach (var cachedId in _indexById.Keys)
+            {
+                if (!liveIds.Contains(cachedId))
+                    (staleIds ??= []).Add(cachedId);
+            }
+
+            if (staleIds is not null)
+                foreach (var staleId in staleIds)
+                    _indexById.Remove(staleId);
+        }
+
         var indices = new List<SegmentIndex>(ordered.Count);
         foreach (var (segId, state) in ordered)
-            indices.Add(SegmentIndex.Build(state.Reader, segId));
+        {
+            if (!_indexById.TryGetValue(segId, out var index))
+            {
+                index = SegmentIndex.Build(state.Reader, segId);
+                _indexById[segId] = index;
+            }
+            indices.Add(index);
+        }
 
         var newIndex = new MultiSegmentIndex(indices);
         var newReaders = (IReadOnlyList<SegmentReaderLeaseState>)ordered.Select(static kvp => kvp.Value).ToArray();
