@@ -142,4 +142,102 @@ public sealed class TsdbFlushAtomicityTests : IDisposable
         Assert.Equal(10, count);
         Assert.Equal(1, db.Segments.SegmentCount);
     }
+
+    // ── Phase 2：flush 移出写锁（#204 / C2）────────────────────────────────────
+
+    [Fact]
+    public void ConcurrentFlushNow_SingleFlight_NoCorruption()
+    {
+        using var db = Tsdb.Open(MakeOptions());
+        var seriesId = SeriesIdFor();
+
+        // 多线程并发写 + 并发 FlushNow：single-flight 泵串行处理，段 ID 顺序发布、无损坏。
+        long ts = 0;
+        var writers = new List<Thread>();
+        for (int t = 0; t < 4; t++)
+        {
+            var writer = new Thread(() =>
+            {
+                for (int i = 0; i < 500; i++)
+                    db.Write(MakePoint(Interlocked.Increment(ref ts), i));
+            });
+            writers.Add(writer);
+            writer.Start();
+        }
+
+        var flushers = new List<Thread>();
+        for (int t = 0; t < 3; t++)
+        {
+            var flusher = new Thread(() =>
+            {
+                for (int i = 0; i < 20; i++)
+                    db.FlushNow();
+            });
+            flushers.Add(flusher);
+            flusher.Start();
+        }
+
+        foreach (var w in writers) w.Join();
+        foreach (var f in flushers) f.Join();
+
+        // 最终 flush 后总数守恒：2000 点全部可查，无重复无丢失。
+        db.FlushNow();
+        int count = db.Query.Execute(new PointQuery(seriesId, "v", TimeRange.All)).Count();
+        Assert.Equal(2000, count);
+    }
+
+    [Fact]
+    public void Dispose_DrainsInFlightFlush_NoDataLoss()
+    {
+        var opts = MakeOptions();
+
+        using (var db = Tsdb.Open(opts))
+        {
+            for (int i = 0; i < 500; i++)
+                db.Write(MakePoint(i, i));
+
+            // 触发后台异步 flush（不等待），随即 Dispose——Dispose 必须排空在飞 flush + 落盘剩余数据。
+            db.SignalFlush();
+            // 立即 Dispose（可能 flush 尚在泵中）
+        }
+
+        // 重开：全部 500 点应可恢复（要么在段、要么 WAL replay），不丢。
+        using var db2 = Tsdb.Open(opts);
+        var seriesId = SeriesIdFor();
+        int count = db2.Query.Execute(new PointQuery(seriesId, "v", TimeRange.All)).Count();
+        Assert.Equal(500, count);
+    }
+
+    [Fact]
+    public void IntToFloatPromotion_UnderFlush_NoTypeMismatch_NoLoss()
+    {
+        using var db = Tsdb.Open(MakeOptions());
+
+        // 先写 Int64 值。
+        for (int i = 0; i < 50; i++)
+            db.Write(Point.Create("mixed", i,
+                new Dictionary<string, string> { ["host"] = "s1" },
+                new Dictionary<string, FieldValue> { ["val"] = FieldValue.FromLong(i) }));
+
+        // 写一个 Float64 值触发 int→float 提升：应密封旧 Int64 表（异步落段），新表接 Float64，
+        // 不抛 FieldType mismatch。
+        db.Write(Point.Create("mixed", 100,
+            new Dictionary<string, string> { ["host"] = "s1" },
+            new Dictionary<string, FieldValue> { ["val"] = FieldValue.FromDouble(1.5) }));
+
+        // 继续写 Float64。
+        for (int i = 101; i < 150; i++)
+            db.Write(Point.Create("mixed", i,
+                new Dictionary<string, string> { ["host"] = "s1" },
+                new Dictionary<string, FieldValue> { ["val"] = FieldValue.FromDouble(i) }));
+
+        db.FlushNow();
+
+        var seriesId = SeriesId.Compute(new SeriesKey("mixed",
+            new Dictionary<string, string> { ["host"] = "s1" }));
+        var points = db.Query.Execute(new PointQuery(seriesId, "val", TimeRange.All)).ToList();
+
+        // 50 个 Int64 + 1 + 49 个 Float64 = 100 点，全部可查（跨源 int/float 兼容）。
+        Assert.Equal(100, points.Count);
+    }
 }

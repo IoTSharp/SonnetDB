@@ -195,7 +195,8 @@ public sealed class BackgroundFlushWorkerTests : IDisposable
 
         Assert.True(signaled.Wait(TimeSpan.FromSeconds(3)), "后台 Flush 失败应触发诊断事件。");
         Assert.NotNull(diagnostic);
-        Assert.Equal("BackgroundFlushWorker.Flush", diagnostic!.Operation);
+        // Phase 2：flush 的编码落盘在 flush 泵线程执行，失败诊断来源为 FlushPump.Flush。
+        Assert.Equal("FlushPump.Flush", diagnostic!.Operation);
         Assert.Equal(TsdbDiagnosticSeverity.Error, diagnostic.Severity);
         Assert.Same(expected, diagnostic.Exception);
         Assert.Same(expected, db.LastError);

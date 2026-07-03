@@ -287,6 +287,124 @@ public sealed class SegmentManager : IDisposable
     internal MemTable? ActiveMemTable => CurrentSnapshot.ActiveMemTable;
 
     /// <summary>
+    /// Phase 2 密封：把当前活跃 MemTable 换成新空实例，并把旧实例追加到 sealing 列表，
+    /// 一次原子发布。返回被密封的旧 MemTable，供 flush 泵在锁外编码落盘。发布后查询把
+    /// sealing 表一并合并，保证 flush 期间旧数据恰好可见一次（无漏无重）。
+    /// <para>此方法 O(1)，不做任何 I/O；由 <c>Tsdb</c> 在 <c>_writeSync</c> 内调用。</para>
+    /// </summary>
+    /// <param name="freshActive">替换进来的新空 MemTable。</param>
+    /// <returns>被密封的旧活跃 MemTable；当前无活跃 MemTable 时返回 null（不应发生）。</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="freshActive"/> 为 null 时抛出。</exception>
+    /// <exception cref="ObjectDisposedException">实例已关闭时抛出。</exception>
+    internal MemTable? SealActiveAndSwap(MemTable freshActive)
+    {
+        ArgumentNullException.ThrowIfNull(freshActive);
+
+        lock (_lock)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+
+            var sealedTable = _activeMemTable;
+            _activeMemTable = freshActive;
+            if (sealedTable is not null)
+            {
+                var next = new List<MemTable>(_sealingMemTables.Count + 1);
+                next.AddRange(_sealingMemTables);
+                next.Add(sealedTable);
+                _sealingMemTables = next;
+            }
+
+            RepublishMemTablesLocked();
+            return sealedTable;
+        }
+    }
+
+    /// <summary>
+    /// Phase 2 完成发布：接入 flush 产出的新段，并把对应的已密封 MemTable 从 sealing 列表移除，
+    /// 一次原子发布。发布前查询看到 {…sealing(含该表) + 旧段}，发布后看到 {…sealing(不含) + 含新段}，
+    /// 数据在切换瞬间从 sealing MemTable 原子转移到 segment（无漏无重）。
+    /// <para>由 flush 泵在锁外调用（仅取 SegmentManager 自身的 <c>_lock</c>，不涉及 <c>_writeSync</c>）。</para>
+    /// </summary>
+    /// <param name="path">新段文件的完整路径。</param>
+    /// <param name="sealedTable">已完成 flush 的 sealing MemTable（将被移除）。</param>
+    /// <returns>已打开的新段 <see cref="SegmentReader"/> 实例。</returns>
+    /// <exception cref="ArgumentNullException">任何参数为 null 时抛出。</exception>
+    /// <exception cref="ObjectDisposedException">实例已关闭时抛出。</exception>
+    internal SegmentReader PublishSegmentAndReleaseSealed(string path, MemTable sealedTable)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(sealedTable);
+
+        lock (_lock)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+
+            var reader = SegmentReader.Open(path, _readerOptions);
+            long segId = reader.Header.SegmentId;
+            SegmentReaderLeaseState[] replaced = _readerById.TryGetValue(segId, out var oldReader)
+                ? [oldReader]
+                : [];
+            _readerById[segId] = new SegmentReaderLeaseState(reader);
+            RemoveSealedLocked(sealedTable);
+            RebuildSnapshotsLocked(replaced);
+            return reader;
+        }
+    }
+
+    /// <summary>
+    /// Phase 2 关闭路径：把已密封 MemTable 从 sealing 列表移除并重新发布（不接入新段）。
+    /// 用于 flush 失败或 Dispose 排空时保持不变式一致。
+    /// </summary>
+    /// <param name="sealedTable">要移除的 sealing MemTable。</param>
+    internal void ReleaseSealed(MemTable sealedTable)
+    {
+        ArgumentNullException.ThrowIfNull(sealedTable);
+        lock (_lock)
+        {
+            if (_disposed)
+                return;
+            if (RemoveSealedLocked(sealedTable))
+                RepublishMemTablesLocked();
+        }
+    }
+
+    private bool RemoveSealedLocked(MemTable sealedTable)
+    {
+        int idx = -1;
+        for (int i = 0; i < _sealingMemTables.Count; i++)
+        {
+            if (ReferenceEquals(_sealingMemTables[i], sealedTable))
+            {
+                idx = i;
+                break;
+            }
+        }
+
+        if (idx < 0)
+            return false;
+
+        if (_sealingMemTables.Count == 1)
+        {
+            _sealingMemTables = EmptyMemTables;
+        }
+        else
+        {
+            var next = new List<MemTable>(_sealingMemTables.Count - 1);
+            for (int i = 0; i < _sealingMemTables.Count; i++)
+            {
+                if (i != idx)
+                    next.Add(_sealingMemTables[i]);
+            }
+            _sealingMemTables = next;
+        }
+
+        return true;
+    }
+
+    /// <summary>当前 sealing（正在 flush）的 MemTable 数量（无锁读取）。</summary>
+    internal int SealingCount => CurrentSnapshot.SealingMemTables.Count;
+
+    /// <summary>
     /// 在不改动段集合的前提下，用当前 memtable 字段重新发布一份快照（调用方必须持有 <c>_lock</c>）。
     /// 复用现有 reader 状态，不重建段索引（memtable 切换不影响段索引）。
     /// </summary>

@@ -41,6 +41,7 @@ public sealed class Tsdb : IDisposable
     private long _measurementSchemaPersistCount;
     private bool _disposed;
     private BackgroundFlushWorker? _flushWorker;
+    private FlushPump? _flushPump;
     private CompactionWorker? _compactionWorker;
     private RetentionWorker? _retentionWorker;
     private KvExpirerWorker? _kvExpirerWorker;
@@ -193,6 +194,7 @@ public sealed class Tsdb : IDisposable
         _catalogDirty = catalogDirty;
         Segments = segmentManager;
         _flushCoordinator = new FlushCoordinator(options);
+        _flushPump = new FlushPump(this);
         _walGroupCommit = new WalGroupCommitCoordinator(options.WalGroupCommit);
         Query = new QueryEngine(
             memTable,
@@ -322,18 +324,22 @@ public sealed class Tsdb : IDisposable
         ArgumentNullException.ThrowIfNull(point);
 
         WalGroupCommitTicket walSync = default;
+        FlushPump.FlushRequest? hardCapFlush;
         lock (_writeSync)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             var normalized = EnsureMeasurementSchemaLocked(point, persistImmediately: true);
             WritePointLocked(normalized);
-            FlushForHardCapIfNeededLocked();
+            hardCapFlush = FlushForHardCapIfNeededLocked();
 
             if (_options.SyncWalOnEveryWrite)
                 walSync = _walGroupCommit.Prepare(_walSet!);
         }
 
         walSync.Wait();
+
+        // 锁外应用硬上限背压：sealing 积压过多时等待，避免无界内存/磁盘增长。
+        ApplyFlushBackpressure(hardCapFlush);
 
         // 锁外向后台线程发送非阻塞信号
         _flushWorker?.Signal();
@@ -393,6 +399,7 @@ public sealed class Tsdb : IDisposable
 
         int written = 0;
         WalGroupCommitTicket walSync = default;
+        FlushPump.FlushRequest? hardCapFlush = null;
         lock (_writeSync)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -420,7 +427,7 @@ public sealed class Tsdb : IDisposable
                         WritePointLocked(NormalizePointAgainstCurrentSchemaLocked(normalized));
                 }
 
-                FlushForHardCapIfNeededLocked();
+                hardCapFlush = FlushForHardCapIfNeededLocked();
             }
 
             if (_options.SyncWalOnEveryWrite && written > 0)
@@ -428,6 +435,8 @@ public sealed class Tsdb : IDisposable
         }
 
         walSync.Wait();
+
+        ApplyFlushBackpressure(hardCapFlush);
 
         if (written > 0)
             _flushWorker?.Signal();
@@ -545,7 +554,7 @@ public sealed class Tsdb : IDisposable
             if (!Measurements.Contains(name))
                 return false;
 
-            FlushNowLocked();
+            SealAndWaitLocked();
 
             var removedSeries = Catalog.RemoveMeasurement(name);
             var removedSeriesIds = removedSeries.Select(static entry => entry.Id).ToHashSet();
@@ -573,11 +582,9 @@ public sealed class Tsdb : IDisposable
     /// <exception cref="ObjectDisposedException">实例已关闭时抛出。</exception>
     public SegmentBuildResult? FlushNow()
     {
-        lock (_writeSync)
-        {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            return FlushNowLocked();
-        }
+        // 密封在 _writeSync 内 O(1) 完成，编码落盘由 flush 泵在锁外执行；此处同步等待其完成，
+        // 保持"FlushNow 返回时数据已落盘"的既有契约。
+        return FlushNowAndWait()?.Result;
     }
 
     /// <summary>
@@ -624,7 +631,7 @@ public sealed class Tsdb : IDisposable
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
 
-            FlushNowLocked();
+            SealAndWaitLocked();
             _walSet?.Sync();
             TombstoneManifestCodec.Save(TsdbPaths.TombstoneManifestPath(RootDirectory), Tombstones.All);
             PersistMeasurementSchemasLocked();
@@ -658,6 +665,11 @@ public sealed class Tsdb : IDisposable
         // 再关闭后台 Flush 线程（在锁外，防止与 InternalFlushFromBackground 死锁）
         _flushWorker?.Dispose();
         _flushWorker = null;
+
+        // 排空 flush 泵：等待所有已入队的密封表落盘完成（此时 _walSet 仍有效）。
+        // 必须在关闭 WAL 之前，否则在飞 flush 会因 WAL 被释放而失败/丢数据。
+        _flushPump?.Dispose();
+        _flushPump = null;
 
         lock (_writeSync)
         {
@@ -789,71 +801,174 @@ public sealed class Tsdb : IDisposable
     // ── 内部辅助 ─────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// 执行 Flush（调用方必须持有 _writeSync 锁）。
+    /// Phase 2 密封（调用方必须持有 _writeSync 锁）：把当前活跃 MemTable 换成新空实例、
+    /// 追加 WAL checkpoint 前的 catalog 持久化，并把密封表 + sealLsn + segId 打包入 flush 泵队列。
+    /// 本方法只做 O(1) 的 swap/入队与少量 catalog I/O，<b>不</b>执行编码落盘或 WAL 回收（由泵在锁外做）。
     /// </summary>
-    private SegmentBuildResult? FlushNowLocked()
+    /// <returns>已入队的 flush 请求；活跃表为空或引擎已关闭时返回 null。</returns>
+    private FlushPump.FlushRequest? SealAndEnqueueLocked()
     {
-        if (_walSet == null)
+        if (_walSet == null || _flushPump == null)
             return null;
 
         _walGroupCommit.FlushPending(_walSet);
         PersistMeasurementSchemasLocked();
 
-        var flushing = _activeMemTable;
-        if (flushing.PointCount == 0)
+        var sealing = _activeMemTable;
+        if (sealing.PointCount == 0)
         {
             PersistCatalogCheckpointLocked();
             return null;
         }
 
-        // WAL 回收前必须先持久化完整 catalog snapshot。
+        // WAL 回收前必须先持久化完整 catalog snapshot（泵稍后会回收旧 WAL segment）。
         // 这样旧 WAL segment 中的 CreateSeries 被回收后，segment 中的 SeriesId 仍能通过 catalog 文件解析。
         PersistCatalogCheckpointLocked();
 
-        long lsnBeforeFlush = flushing.LastLsn;
+        long sealLsn = sealing.LastLsn;
         long segId = _nextSegmentId++;
-        // FlushCoordinator 只负责把 flushing 表编码落盘 + WAL checkpoint/roll/recycle，不再 Reset；
-        // 清空由下面的原子 swap（换成新空表）完成。
-        var result = _flushCoordinator.Flush(
-            flushing,
-            _walSet,
-            segId,
+
+        // 在 _writeSync 内只做 Roll（不追加 checkpoint）：把被密封数据与 seal 之后的并发写入用 roll
+        // 边界干净隔开——被密封数据完整落在 roll 之前的段（lastLsn = sealLsn），并发写入落到新 active 段
+        // （startLsn = sealLsn+1）。checkpoint 记录必须等段编码成功后才由泵追加（崩溃安全：编码失败时
+        // 不能存在"数据已落盘"的 checkpoint，否则 replay 会跳过尚未真正落盘的数据）。
+        // Roll 必须在锁内、任何后续 append 之前完成，故放在这里。
+        _walSet.Roll();
+
+        // 原子密封：换新空表 + 旧表进 sealing 列表（SegmentManager 一次 Volatile.Write 发布）。
+        var fresh = new MemTable();
+        var sealed_ = Segments.SealActiveAndSwap(fresh);
+        _activeMemTable = fresh;
+
+        // 理论上 sealed_ 就是 sealing；防御式取真实密封表。
+        var request = new FlushPump.FlushRequest(sealed_ ?? sealing, sealLsn, segId);
+        _flushPump.Enqueue(request);
+        return request;
+    }
+
+    /// <summary>
+    /// 由 flush 泵线程调用（锁外）：把已密封的 MemTable 编码落盘 + WAL checkpoint/roll/recycle，
+    /// 然后原子发布新段并从 sealing 列表移除该表。全程不获取 <c>_writeSync</c>。
+    /// </summary>
+    internal void ExecutePumpFlush(FlushPump.FlushRequest request)
+    {
+        // 捕获 WAL 引用；若已进入 Dispose 且 WAL 已释放，则跳过（Dispose 会先排空泵，通常不会走到）。
+        var walSet = _walSet;
+        if (walSet == null)
+        {
+            Segments.ReleaseSealed(request.SealedTable);
+            return;
+        }
+
+        var result = _flushCoordinator.FlushSealed(
+            request.SealedTable,
+            walSet,
+            request.SealLsn,
+            request.SegmentId,
             Tombstones,
             Catalog,
             Measurements);
 
-        // Flush 成功后旧 WAL segment 可能已回收；完整 catalog 已在回收前持久化。
-        if (result != null)
+        if (result == null)
         {
-            if (Tombstones.Count > 0)
-                MarkTombstoneManifestCheckpointedLocked(DateTime.UtcNow.Ticks);
-
-            // 更新 CheckpointLsn（在锁内完成）
-            if (lsnBeforeFlush != long.MinValue)
-                _checkpointLsn = lsnBeforeFlush;
-
-            if (_disposed)
-            {
-                // 关闭路径：不发布段索引（进程即将退出），仅换空表保持不变式。
-                _activeMemTable = new MemTable();
-            }
-            else
-            {
-                // 关键原子步骤：接入新段 + 把活跃表换成新空实例，在 SegmentManager 内一次
-                // Volatile.Write 完成。发布前查询看到 {旧活跃表(含数据) + 旧段}，发布后看到
-                // {新空表 + 含新段的段集合}——数据在切换瞬间从 MemTable 原子转移到 segment，
-                // 绝不出现"两处都无"（修 #190）或"两处都有"。
-                var fresh = new MemTable();
-                Segments.AddSegmentAndSwapActive(result.Path, fresh);
-                _activeMemTable = fresh;
-            }
+            // 空表（不应发生，密封前已判空）：仅从 sealing 移除。
+            Segments.ReleaseSealed(request.SealedTable);
+            return;
         }
 
-        return result;
+        // 原子发布：接入新段 + 从 sealing 移除该表（SegmentManager 一次 Volatile.Write）。
+        Segments.PublishSegmentAndReleaseSealed(result.Path, request.SealedTable);
+        request.Result = result;
+
+        // 更新 checkpoint LSN（无锁；FIFO 单泵保证 sealLsn 单调，CAS 提升即可）。
+        // 关键：泵<b>绝不</b>获取 _writeSync，从而与"持 _writeSync 触发 flush"的路径无锁序环。
+        long prev = Interlocked.Read(ref _checkpointLsn);
+        while (request.SealLsn > prev)
+        {
+            long witnessed = Interlocked.CompareExchange(ref _checkpointLsn, request.SealLsn, prev);
+            if (witnessed == prev)
+                break;
+            prev = witnessed;
+        }
+        if (Tombstones.Count > 0)
+        {
+            Interlocked.Exchange(ref _tombstoneDeletesSinceCheckpoint, 0);
+            Interlocked.Exchange(ref _lastTombstoneCheckpointUtcTicks, DateTime.UtcNow.Ticks);
+        }
     }
 
     /// <summary>
-    /// 由后台 Flush 线程调用的 Flush 入口。与同步 FlushNow 共享 _writeSync 锁，保证互斥。
+    /// 在已持有 <c>_writeSync</c> 的上下文里密封并<b>同步等待</b>该次 flush 完成。
+    /// 因为 flush 泵绝不获取 <c>_writeSync</c>（checkpoint 更新走 Interlocked），故此处持锁等待
+    /// 不会死锁。用于 DropMeasurement / backup 等要求"flush 完成后再继续"且已在写锁内的低频路径。
+    /// </summary>
+    private void SealAndWaitLocked()
+    {
+        var request = SealAndEnqueueLocked();
+        request?.Completion.Task.GetAwaiter().GetResult();
+    }
+    internal void OnPumpFlushFailed(FlushPump.FlushRequest request, Exception ex)
+    {
+        try
+        {
+            Segments.ReleaseSealed(request.SealedTable);
+        }
+        catch
+        {
+            // 忽略：引擎可能正在关闭。
+        }
+
+        Volatile.Write(ref _lastError, ex);
+        ReportDiagnostic(
+            "FlushPump.Flush",
+            TsdbDiagnosticSeverity.Error,
+            "后台 flush 泵执行失败；密封表已从 sealing 移除，数据仍可由 WAL replay 恢复。",
+            ex);
+    }
+
+    /// <summary>
+    /// 触发一次 flush 并<b>同步等待</b>其落盘完成（用于 FlushNow / backup / schema 提升 / Dispose）。
+    /// 在 <c>_writeSync</c> 内密封入队，<b>锁外</b>等待泵完成，避免持锁等待造成锁序问题。
+    /// </summary>
+    /// <returns>已完成的 flush 请求；活跃表为空时返回 null。</returns>
+    private FlushPump.FlushRequest? FlushNowAndWait()
+    {
+        FlushPump.FlushRequest? request;
+        lock (_writeSync)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            request = SealAndEnqueueLocked();
+        }
+
+        if (request == null)
+            return null;
+
+        request.Completion.Task.GetAwaiter().GetResult();
+        return request;
+    }
+
+    /// <summary>
+    /// 硬上限触发的 flush：同步等待其落盘完成（内存红线，写入者必须停下抽干）。
+    /// 调用方<b>不应</b>持有 <c>_writeSync</c>（在锁外调用）。
+    /// </summary>
+    private static void ApplyFlushBackpressure(FlushPump.FlushRequest? hardCapFlush)
+    {
+        if (hardCapFlush == null)
+            return;
+
+        try
+        {
+            hardCapFlush.Completion.Task.GetAwaiter().GetResult();
+        }
+        catch
+        {
+            // flush 失败已在 OnPumpFlushFailed 上报；此处不再抛，写入路径继续。
+        }
+    }
+
+    /// <summary>
+    /// 由后台 Flush 线程调用的 Flush 入口：仅在 <c>_writeSync</c> 内 O(1) 密封入队后立即返回，
+    /// 编码落盘由 flush 泵在锁外异步完成——后台线程不再被整个 flush 阻塞（Phase 2 核心）。
     /// </summary>
     internal void InternalFlushFromBackground()
     {
@@ -861,7 +976,7 @@ public sealed class Tsdb : IDisposable
         {
             if (_disposed)
                 return;
-            FlushNowLocked();
+            SealAndEnqueueLocked();
         }
     }
 
@@ -894,16 +1009,21 @@ public sealed class Tsdb : IDisposable
         }
     }
 
-    private void FlushForHardCapIfNeededLocked()
+    /// <summary>
+    /// 硬上限背压：活跃 MemTable 超过硬上限（内存紧急阈值）时，在 <c>_writeSync</c> 内密封入队（O(1)），
+    /// 返回该请求供调用方在锁外<b>同步等待</b>其落盘完成——硬上限意味着内存压力已达红线，
+    /// 必须让写入者停下等待抽干，而非继续堆积。返回 null 表示未触发。
+    /// </summary>
+    private FlushPump.FlushRequest? FlushForHardCapIfNeededLocked()
     {
         long hardCapBytes = _options.FlushPolicy.ResolveHardCapBytes();
         if (hardCapBytes <= 0)
-            return;
+            return null;
 
         if (MemTable.EstimatedBytes < hardCapBytes)
-            return;
+            return null;
 
-        FlushNowLocked();
+        return SealAndEnqueueLocked();
     }
 
     private void RemoveMeasurementSegmentsLocked(IReadOnlySet<ulong> removedSeriesIds)
@@ -1055,8 +1175,12 @@ public sealed class Tsdb : IDisposable
 
         if (changed)
         {
+            // int→float 提升：先密封当前含旧 Int64 数据的活跃表（换成新空表），使随后写入的
+            // Float64 落到新表，同一 key 不会在单个 MemTable 内混型（避免 MemTable.Append 抛异常）。
+            // 密封是 O(1)，旧表的落盘由 flush 泵异步完成；查询侧 IsIntFloatCompatible 容忍 MemTable↔段
+            // 之间的 int/float 跨源混型，故无需在此同步等待落盘。
             if (promotedIntToFloat && MemTable.PointCount > 0)
-                FlushNowLocked();
+                SealAndEnqueueLocked();
 
             var updated = MeasurementSchema.Create(schema.Name, columns, schema.CreatedAtUtcTicks);
             Measurements.LoadOrReplace(updated);
@@ -1291,6 +1415,11 @@ public sealed class Tsdb : IDisposable
     /// </summary>
     internal void CrashSimulationCloseWal()
     {
+        // 模拟崩溃：停掉 flush 泵线程（不排空——崩溃语义下在飞 flush 视为丢失，靠 WAL replay 恢复），
+        // 再直接关闭 WAL，不保存 catalog、不 flush。
+        _flushPump?.Dispose();
+        _flushPump = null;
+
         lock (_writeSync)
         {
             if (_disposed)
