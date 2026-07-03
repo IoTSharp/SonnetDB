@@ -1,32 +1,34 @@
-using System.Collections.Frozen;
-using System.Threading;
+using System.Collections.Concurrent;
 using SonnetDB.Model;
 
 namespace SonnetDB.Catalog;
 
 /// <summary>
 /// 序列目录：维护 SeriesKey ↔ SeriesId ↔ <see cref="SeriesEntry"/> 的双向映射。
-/// 线程安全：读路径读取冻结快照，写路径在同步块内维护 builder 并原子发布新快照。
+/// 线程安全：读路径无锁读取 <see cref="ConcurrentDictionary{TKey,TValue}"/>，写路径在 <c>_sync</c> 内
+/// 协调 id 计算 / 碰撞检查 / 双表插入。
 /// </summary>
 /// <remarks>
 /// <para>
 /// 并发幂等性保证：<see cref="GetOrAdd(string,IReadOnlyDictionary{string,string})"/> 对同一
 /// <see cref="SeriesKey"/> 的多次调用（包括并发调用）返回同一 <see cref="SeriesEntry"/> 实例。
-/// miss 路径会进入写锁重新检查 mutable builder，只有第一个调用方创建并发布新快照。
+/// miss 路径会进入写锁重新检查，只有第一个调用方创建并插入。
+/// </para>
+/// <para>
+/// I5：高基数写入下不再每新增一条 series 就全量 <c>ToFrozenDictionary()</c> 重建快照
+/// （原实现每 Add O(N)、整体 O(N²) 且大量瞬时分配）；改为原地增量插入并发字典，读者立即可见。
 /// </para>
 /// </remarks>
 public sealed class SeriesCatalog
 {
     private readonly object _sync = new();
 
-    private readonly Dictionary<string, SeriesEntry> _byCanonicalMutable = new(StringComparer.Ordinal);
-    private readonly Dictionary<ulong, SeriesEntry> _byIdMutable = new();
+    private readonly ConcurrentDictionary<string, SeriesEntry> _byCanonical = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<ulong, SeriesEntry> _byId = new();
     private readonly TagInvertedIndex _tagIndex = new();
 
-    private CatalogSnapshot _snapshot = CatalogSnapshot.Empty;
-
     /// <summary>目录中的序列数量。</summary>
-    public int Count => Volatile.Read(ref _snapshot).ByCanonical.Count;
+    public int Count => _byCanonical.Count;
 
     /// <summary>
     /// 取得或创建一条 series 目录项。同一 <see cref="SeriesKey"/> 重复调用幂等。
@@ -61,10 +63,7 @@ public sealed class SeriesCatalog
     /// <param name="id">序列唯一标识（XxHash64 值）。</param>
     /// <returns>找到的 <see cref="SeriesEntry"/>，未命中返回 null。</returns>
     public SeriesEntry? TryGet(ulong id)
-    {
-        var snapshot = Volatile.Read(ref _snapshot);
-        return snapshot.ById.TryGetValue(id, out var entry) ? entry : null;
-    }
+        => _byId.TryGetValue(id, out var entry) ? entry : null;
 
     /// <summary>
     /// 按 <see cref="SeriesKey"/> 查找；未命中返回 null。
@@ -72,10 +71,7 @@ public sealed class SeriesCatalog
     /// <param name="key">规范化序列键。</param>
     /// <returns>找到的 <see cref="SeriesEntry"/>，未命中返回 null。</returns>
     public SeriesEntry? TryGet(in SeriesKey key)
-    {
-        var snapshot = Volatile.Read(ref _snapshot);
-        return snapshot.ByCanonical.TryGetValue(key.Canonical, out var entry) ? entry : null;
-    }
+        => _byCanonical.TryGetValue(key.Canonical, out var entry) ? entry : null;
 
     /// <summary>
     /// 按 measurement 和部分 tag 过滤匹配的 series。
@@ -96,11 +92,10 @@ public sealed class SeriesCatalog
         if (candidateIds.Count == 0)
             return [];
 
-        var byId = Volatile.Read(ref _snapshot).ById;
         var results = new List<SeriesEntry>(candidateIds.Count);
         foreach (var id in candidateIds)
         {
-            if (!byId.TryGetValue(id, out var entry))
+            if (!_byId.TryGetValue(id, out var entry))
                 continue;
             // 防御性二次校验：measurement 与 tag 过滤全部命中才返回。
             if (!string.Equals(entry.Measurement, measurement, StringComparison.Ordinal))
@@ -117,7 +112,7 @@ public sealed class SeriesCatalog
     /// </summary>
     /// <returns>包含所有目录项的只读列表。</returns>
     public IReadOnlyList<SeriesEntry> Snapshot()
-        => [.. Volatile.Read(ref _snapshot).ByCanonical.Values];
+        => [.. _byCanonical.Values];
 
     /// <summary>
     /// 删除指定 measurement 下的全部 series 目录项。
@@ -131,7 +126,7 @@ public sealed class SeriesCatalog
         lock (_sync)
         {
             var removed = new List<SeriesEntry>();
-            foreach (var entry in _byCanonicalMutable.Values)
+            foreach (var entry in _byCanonical.Values)
             {
                 if (string.Equals(entry.Measurement, measurement, StringComparison.Ordinal))
                     removed.Add(entry);
@@ -142,11 +137,10 @@ public sealed class SeriesCatalog
 
             foreach (var entry in removed)
             {
-                _byCanonicalMutable.Remove(entry.Key.Canonical);
-                _byIdMutable.Remove(entry.Id);
+                _byCanonical.TryRemove(entry.Key.Canonical, out _);
+                _byId.TryRemove(entry.Id, out _);
             }
 
-            PublishSnapshots();
             _tagIndex.RemoveMeasurement(measurement);
             return removed.AsReadOnly();
         }
@@ -159,9 +153,8 @@ public sealed class SeriesCatalog
     {
         lock (_sync)
         {
-            _byCanonicalMutable.Clear();
-            _byIdMutable.Clear();
-            PublishSnapshots();
+            _byCanonical.Clear();
+            _byId.Clear();
             _tagIndex.Clear();
         }
     }
@@ -181,18 +174,17 @@ public sealed class SeriesCatalog
 
     private SeriesEntry GetOrAddInternal(SeriesKey key)
     {
-        // 快速路径：已存在。
-        var byCanonical = Volatile.Read(ref _snapshot).ByCanonical;
-        if (byCanonical.TryGetValue(key.Canonical, out var existing))
+        // 快速路径：已存在（无锁读并发字典）。
+        if (_byCanonical.TryGetValue(key.Canonical, out var existing))
             return existing;
 
         lock (_sync)
         {
-            if (_byCanonicalMutable.TryGetValue(key.Canonical, out existing))
+            if (_byCanonical.TryGetValue(key.Canonical, out existing))
                 return existing;
 
             ulong id = SeriesId.Compute(key);
-            if (_byIdMutable.TryGetValue(id, out var idEntry))
+            if (_byId.TryGetValue(id, out var idEntry))
             {
                 if (!string.Equals(idEntry.Key.Canonical, key.Canonical, StringComparison.Ordinal))
                 {
@@ -200,24 +192,20 @@ public sealed class SeriesCatalog
                         $"SeriesId hash collision detected for series: {key.Canonical}");
                 }
 
-                _byCanonicalMutable[key.Canonical] = idEntry;
-                PublishSnapshots();
+                _byCanonical[key.Canonical] = idEntry;
                 return idEntry;
             }
 
             long createdAt = DateTime.UtcNow.Ticks;
             var entry = new SeriesEntry(id, key, key.Measurement, key.Tags, createdAt);
 
-            _byCanonicalMutable.Add(key.Canonical, entry);
-            _byIdMutable.Add(id, entry);
-            PublishSnapshots();
+            // 先发布 byId 再发布 byCanonical：经 canonical 命中的读者随后按 id 解析必然也命中。
+            _byId[id] = entry;
+            _byCanonical[key.Canonical] = entry;
             _tagIndex.Add(entry);
             return entry;
         }
     }
-
-    private void PublishSnapshots()
-        => Volatile.Write(ref _snapshot, CatalogSnapshot.Create(_byCanonicalMutable, _byIdMutable));
 
     /// <summary>
     /// 从持久化加载时直接注入条目（跳过 GetOrAdd 路径以保留原始 CreatedAtUtcTicks）。
@@ -228,7 +216,7 @@ public sealed class SeriesCatalog
         ArgumentNullException.ThrowIfNull(entry);
         lock (_sync)
         {
-            if (_byCanonicalMutable.TryGetValue(entry.Key.Canonical, out var existing))
+            if (_byCanonical.TryGetValue(entry.Key.Canonical, out var existing))
             {
                 if (existing.Id != entry.Id)
                 {
@@ -238,7 +226,7 @@ public sealed class SeriesCatalog
                 return;
             }
 
-            if (_byIdMutable.TryGetValue(entry.Id, out var idEntry))
+            if (_byId.TryGetValue(entry.Id, out var idEntry))
             {
                 if (!string.Equals(idEntry.Key.Canonical, entry.Key.Canonical, StringComparison.Ordinal))
                 {
@@ -246,21 +234,19 @@ public sealed class SeriesCatalog
                         $"SeriesId hash collision detected for series: {entry.Key.Canonical}");
                 }
 
-                _byCanonicalMutable.Add(entry.Key.Canonical, idEntry);
-                PublishSnapshots();
+                _byCanonical[entry.Key.Canonical] = idEntry;
                 _tagIndex.Add(idEntry);
                 return;
             }
 
-            _byCanonicalMutable.Add(entry.Key.Canonical, entry);
-            _byIdMutable.Add(entry.Id, entry);
-            PublishSnapshots();
+            _byId[entry.Id] = entry;
+            _byCanonical[entry.Key.Canonical] = entry;
             _tagIndex.Add(entry);
         }
     }
 
     /// <summary>
-    /// 从持久化批量注入条目，并在批量完成后只发布一次新快照。
+    /// 从持久化批量注入条目，并在批量完成后只发布一次索引。
     /// </summary>
     /// <param name="entries">要注入的目录项集合。</param>
     internal void LoadEntries(IReadOnlyList<SeriesEntry> entries)
@@ -275,7 +261,7 @@ public sealed class SeriesCatalog
             foreach (var entry in entries)
             {
                 ArgumentNullException.ThrowIfNull(entry);
-                if (_byCanonicalMutable.TryGetValue(entry.Key.Canonical, out var existing))
+                if (_byCanonical.TryGetValue(entry.Key.Canonical, out var existing))
                 {
                     if (existing.Id != entry.Id)
                     {
@@ -285,7 +271,7 @@ public sealed class SeriesCatalog
                     continue;
                 }
 
-                if (_byIdMutable.TryGetValue(entry.Id, out var idEntry))
+                if (_byId.TryGetValue(entry.Id, out var idEntry))
                 {
                     if (!string.Equals(idEntry.Key.Canonical, entry.Key.Canonical, StringComparison.Ordinal))
                     {
@@ -293,47 +279,20 @@ public sealed class SeriesCatalog
                             $"SeriesId hash collision detected for series: {entry.Key.Canonical}");
                     }
 
-                    _byCanonicalMutable.Add(entry.Key.Canonical, idEntry);
+                    _byCanonical[entry.Key.Canonical] = idEntry;
                     indexedEntries.Add(idEntry);
                     continue;
                 }
 
-                _byCanonicalMutable.Add(entry.Key.Canonical, entry);
-                _byIdMutable.Add(entry.Id, entry);
+                _byId[entry.Id] = entry;
+                _byCanonical[entry.Key.Canonical] = entry;
                 indexedEntries.Add(entry);
             }
 
             if (indexedEntries.Count == 0)
                 return;
 
-            PublishSnapshots();
             _tagIndex.AddRange(indexedEntries);
         }
-    }
-
-    private sealed class CatalogSnapshot
-    {
-        internal static readonly CatalogSnapshot Empty = Create(
-            new Dictionary<string, SeriesEntry>(0, StringComparer.Ordinal),
-            new Dictionary<ulong, SeriesEntry>(0));
-
-        internal FrozenDictionary<string, SeriesEntry> ByCanonical { get; }
-
-        internal FrozenDictionary<ulong, SeriesEntry> ById { get; }
-
-        private CatalogSnapshot(
-            FrozenDictionary<string, SeriesEntry> byCanonical,
-            FrozenDictionary<ulong, SeriesEntry> byId)
-        {
-            ByCanonical = byCanonical;
-            ById = byId;
-        }
-
-        internal static CatalogSnapshot Create(
-            Dictionary<string, SeriesEntry> byCanonical,
-            Dictionary<ulong, SeriesEntry> byId)
-            => new(
-                byCanonical.ToFrozenDictionary(StringComparer.Ordinal),
-                byId.ToFrozenDictionary());
     }
 }

@@ -45,6 +45,7 @@
   (#206) 移除 `MemTable` 内部 `ReaderWriterLockSlim` 生命周期门：`Append` / `Reset` / `RemoveSeries` 三个写侧操作已由调用方 `_writeSync` 串行化（Reset 在 double-buffering 下已无生产调用方），该 RWLock 纯属冗余，`Append` 热路径每点省一对 enter/exit read-lock。读者无锁安全语义保留（`ConcurrentDictionary` + 每桶锁 + `Interlocked` 统计量不动），新增读者与 `Append` 并发压测回归（C10）。
   (#207) `SegmentManager` 段索引改增量维护：新增 `_indexById` 缓存，`AddSegment` / `SwapSegments` / `DropSegments` 只为新段调用一次 `SegmentIndex.Build`、复用未变段的索引、修剪已移除段，替换同 id 段时作废旧缓存。消除每次 flush 全量重建所有段索引（O(总 block 数)、段多时趋 O(N²)）的成本（C7）。
   (#208) `TombstoneTable` 查询免拷贝：维护 per-key 不可变 `Tombstone[]` 快照并 `Volatile` 发布，`IsCovered` / `GetForSeriesField` 改为无锁读取对应数组，消除每次查询锁内 `list.ToArray()` 的分配与锁竞争（C8）；写侧仍在 `_lock` 内重建 per-key 与全量两份快照。
+  (#209) `SeriesCatalog` / `TagInvertedIndex` 高基数写入去 O(N²)：不再每新增一条 series 就全量 `ToFrozenDictionary()` / `ToFrozenSet()` 重建快照，改为多级 `ConcurrentDictionary`（`SeriesId` 集合用 `ConcurrentDictionary<ulong,byte>` 充当并发 set）原地增量插入，查询无锁读取、写者立即可见。单条插入从 O(N) 全量冻结降到 O(1) 摊还，消除高基数 ingest 的代数复杂度陷阱与大量瞬时分配（I5）。
 - **写入持久性默认加固（M28 #196）**：新增 `TsdbOptions.FlushWalToOsOnWrite`（默认 `true`），每次写入后把 WAL 缓冲 flush 到 OS（不 fsync）。**行为变更**：此前默认下 WAL 记录仅停留在进程内 BufferedStream，直到 segment flush / roll / dispose 才交给 OS——普通进程崩溃（非掉电）也会丢失最近一个 flush 窗口内的已确认写；现在默认下进程崩溃不再丢已确认写（数据已在 OS page cache），仅掉电/内核崩溃可能丢。持久性分三级：`FlushWalToOsOnWrite=false`（极限吞吐，最弱）＜ 默认 `true`（进程崩溃安全）＜ `SyncWalOnEveryWrite=true`（每批 fsync，掉电安全）。开销为一次用户态→内核态拷贝，远低于 fsync。需要极限写吞吐可显式设为 `false`。
 - CI workflows now use `actions/cache@v6` for NuGet package caching.
 - README / README.en 第一屏介绍改为产品门面叙事，避免使用“收敛到一个……”这类内部路线图表达。

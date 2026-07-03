@@ -296,4 +296,27 @@ public sealed class SeriesCatalogTests
         Assert.Equal(count, catalog.Count);
         Assert.Equal(count / 6, catalog.Find("cpu", Tags(("bucket", "3"))).Count);
     }
+
+    [Fact]
+    public void GetOrAdd_HighCardinality_EachEntryImmediatelyVisibleById_KeyAndFind()
+    {
+        // I5：改增量并发字典后，每新增一条 series 必须对随后读立即可见（不能因防抖/批延迟丢可见性）。
+        var catalog = CreateCatalog();
+        const int count = 5000;
+
+        for (int i = 0; i < count; i++)
+        {
+            var tags = Tags(("host", "h" + i), ("dc", (i % 4).ToString()));
+            var entry = catalog.GetOrAdd("cpu", tags);
+
+            // 刚加入即刻按 id / key / Find 三条读路径都应命中同一实例。
+            Assert.Same(entry, catalog.TryGet(entry.Id));
+            var key = entry.Key;
+            Assert.Same(entry, catalog.TryGet(in key));
+            Assert.Contains(entry, catalog.Find("cpu", tags));
+        }
+
+        Assert.Equal(count, catalog.Count);
+        Assert.Equal(count / 4, catalog.Find("cpu", Tags(("dc", "2"))).Count);
+    }
 }
