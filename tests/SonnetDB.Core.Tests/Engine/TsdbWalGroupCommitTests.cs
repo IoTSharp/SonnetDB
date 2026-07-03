@@ -123,6 +123,50 @@ public sealed class TsdbWalGroupCommitTests : IDisposable
         Assert.Equal(pointCount, (int)reopened.MemTable.PointCount);
     }
 
+    [Fact]
+    public void DirectSync_WindowZero_SyncsEveryWrite()
+    {
+        // window=0 走直写路径：fsync 被推迟到 _writeSync 之外执行（S10/C5），但每写仍必须同步一次。
+        using var db = Tsdb.Open(MakeOptions(TimeSpan.Zero));
+        db.CreateMeasurement(CreateMetricSchema());
+
+        db.Write(CreateMetricPoint(0, "h1"));
+        db.Write(CreateMetricPoint(1, "h1"));
+        db.Write(CreateMetricPoint(2, "h1"));
+
+        // 三次独立写各一次 fsync（无 group-commit 合并）。
+        Assert.Equal(3L, db.WalSyncCount);
+        Assert.Equal(3, (int)db.MemTable.PointCount);
+    }
+
+    [Fact]
+    public void DirectSync_WindowZero_CrashRecovery_ReplaysAllWalRecords()
+    {
+        var options = MakeOptions(TimeSpan.Zero);
+
+        var db = Tsdb.Open(options);
+        db.CreateMeasurement(CreateMetricSchema());
+        for (int i = 0; i < 16; i++)
+            db.Write(CreateMetricPoint(i, "h1"));
+
+        db.CrashSimulationCloseWal();
+
+        using var reopened = Tsdb.Open(options);
+        Assert.Equal(16, (int)reopened.MemTable.PointCount);
+    }
+
+    [Fact]
+    public void DirectSync_WindowZero_DisposeWithPendingWrites_DoesNotThrow()
+    {
+        // 直写 ticket 的推迟 fsync 若与 Dispose 竞争，应静默跳过 ODE 而非抛给调用方（S11）。
+        var db = Tsdb.Open(MakeOptions(TimeSpan.Zero));
+        db.CreateMeasurement(CreateMetricSchema());
+        db.Write(CreateMetricPoint(0, "h1"));
+
+        // 正常 Dispose 不应抛异常。
+        db.Dispose();
+    }
+
     private static MeasurementSchema CreateMetricSchema()
         => MeasurementSchema.Create(
             "metric",

@@ -68,6 +68,7 @@
   (#200) SQL 解析器新增表达式递归深度上限（200）：深层括号 `((((…))))`、`NOT NOT NOT…`、`------x` 等自递归输入超限时抛 `SqlParseException`，而非触发不可捕获的 `StackOverflowException` 直接终止宿主进程；扁平 `AND`/`OR` 长链走循环不受影响。
   (#201) `KvExpirerWorker` 后台过期清理失败时补发 `ReportBackgroundWorkerDiagnostic` 诊断事件（`KvExpirerWorker.CleanExpired` / Error），与 Flush / Compaction / Retention 三个 worker 对齐，杜绝反复失败静默不可见（C11）。（CompactionWorker 的 plan 步骤 try/catch 兜底 C6 已在 P0 #191 落地。）
   (#202) `WriteMany(ReadOnlySpan<Point>)` 超大批量改为按 8192 点分块：每块单独入锁、写入、检查硬上限并在锁外施加背压，块间释放 `_writeSync`。杜绝百万点单批在一次持锁内无界撑大 MemTable/WAL 致 OOM 且长时间阻塞所有写入者（C4）；中小批量仍是单次入锁，快路径开销不变。
+  (#203) `SyncWalOnEveryWrite=true` 且 group-commit 禁用 / `FlushWindow=0` 时，把 WAL `Sync()` 从 `_writeSync` 锁内移到锁外执行（`Prepare` 返回携带 `WalSegmentSet` 的 ticket，`Wait()` 在释放写锁后 fsync），消除"所有写入者串行排在 fsync 后"的吞吐悬崖（S10/C5）；推迟 fsync 若与 `Dispose` 竞争抛 `ObjectDisposedException` 则静默跳过（`Dispose` 自身会 fsync active writer 保证持久性），不再把 ODE 泄漏给写入调用方（S11）。
 - 持久化全文索引后台合并改用专用长运行任务启动，避免高并发 CI 测试下因线程池调度延迟导致等待 merge task 超时。
 - 持久化全文索引后台合并测试改为等待实际 merge task 完成后再断言段文件数量，避免 CI 线程调度较慢时误判失败。
 - Go connector quickstart now keeps the native library version string and KV CAS version number in separate variables, fixing the `go test ./...` compile failure in connector release builds.

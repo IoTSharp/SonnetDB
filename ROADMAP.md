@@ -593,7 +593,7 @@ extensions/
 | 阶段 | 主题 | PR 范围 | 目标 |
 |------|------|---------|------|
 | **P0** | 数据可靠性止血（Critical / 高危持久性 + 并发正确性） | #189 ~ #196 | ✅ 已完成——消除"会丢数据 / 复活 / 损坏 / 索引不可加载"的整类问题 |
-| **P1** | 正确性与稳定性（SQL 错误结果 + 崩溃 + worker 静默死亡） | #197 ~ #203 | 消除"返回错误结果 / StackOverflow / 后台线程静默停摆" |
+| **P1** | 正确性与稳定性（SQL 错误结果 + 崩溃 + worker 静默死亡） | #197 ~ #203 | ✅ 已完成——消除"返回错误结果 / StackOverflow / 后台线程静默停摆" |
 | **P2** | 写路径吞吐（锁内 I/O + 每点分配 + O(N²) 维护） | #204 ~ #211 | 把 P0 牺牲的写吞吐补回并超越，去除代数复杂度陷阱 |
 | **P3** | 查询与 SQL 能力（plan cache + 下推 + join + 能力缺口） | #212 ~ #220 | 让 SQL/关系路径达到日常应用与 EF Core 可用水平 |
 | **P4** | 索引与向量能力（文档惰性 scan + FTS 写放大 + 向量度量/ANN） | #221 ~ #229 | 让二级索引真正被使用、向量非 cosine/文档集合可加速 |
@@ -621,7 +621,7 @@ extensions/
 | #200 | **解析器递归深度限制**：在 `ParsePrimary` / `ParseNot` / `ParseUnary` 跟踪嵌套深度，超过上限（如 200）抛 `SqlParseException`；杜绝深层括号 / `NOT NOT NOT…` / `------x` 触发不可捕获的 StackOverflow 崩溃整个宿主进程。 | SQL Q3 | ✅ |
 | #201 | **后台 worker 异常兜底统一**：`CompactionWorker` 把 plan 获取步骤（`Segments.Readers` + `CompactionPlanner.Plan`）纳入 per-iteration try/catch，杜绝瞬时抛出逃逸 `WorkerLoop` 致 compaction 永久静默停摆；`KvExpirerWorker` 补 `ReportBackgroundWorkerDiagnostic` 诊断事件（与其余三个 worker 对齐）。 | 并发 C6、C11 | ✅ |
 | #202 | **`WriteMany(Span)` 批内 backpressure**：大批量写入在批内分块检查硬顶（`MemTableFlushPolicy.HardCapBytes`），或限制单批大小并在 chunk 之间让出锁；杜绝百万点单批在一次 `_writeSync` 持有内无限撑大 MemTable/WAL 致 OOM 且阻塞所有写入者。 | 并发 C4 | ✅ |
-| #203 | **durability fsync 移出写锁 + 关闭时排空 group-commit**：`SyncWalOnEveryWrite=true` 且 group-commit 关闭（或 window=0）时，把 `walSet.Sync()` 移到 `_writeSync` 之外执行（锁内捕获 sync 目标，锁外 fsync + Wait），消除"所有写入者串行排在 fsync 后"的吞吐悬崖；`Dispose` 前排空 pending group-commit，避免延迟 `Sync()` 在 WAL 已 dispose 后抛 ODE 到已返回的 `Write` 调用方。 | 存储 S10、S11 / 并发 C5 | 📋 |
+| #203 | **durability fsync 移出写锁 + 关闭时排空 group-commit**：`SyncWalOnEveryWrite=true` 且 group-commit 关闭（或 window=0）时，把 `walSet.Sync()` 移到 `_writeSync` 之外执行（锁内捕获 sync 目标，锁外 fsync + Wait），消除"所有写入者串行排在 fsync 后"的吞吐悬崖；`Dispose` 前排空 pending group-commit，避免延迟 `Sync()` 在 WAL 已 dispose 后抛 ODE 到已返回的 `Write` 调用方。 | 存储 S10、S11 / 并发 C5 | ✅ |
 
 ### P2 — 写路径吞吐
 
