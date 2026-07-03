@@ -16,6 +16,15 @@ public sealed class SqlParser
     private readonly IReadOnlyList<Token> _tokens;
     private int _index;
 
+    /// <summary>
+    /// 表达式递归下降的深度上限。超过即抛 <see cref="SqlParseException"/>，
+    /// 杜绝深层括号 / <c>NOT NOT NOT…</c> / <c>------x</c> / 嵌套函数调用触发不可捕获的
+    /// <see cref="StackOverflowException"/>（.NET 中 SO 会直接终止整个宿主进程，无法 catch）。
+    /// </summary>
+    private const int MaxExpressionDepth = 200;
+
+    private int _expressionDepth;
+
     /// <summary>构造解析器实例。</summary>
     /// <param name="tokens">已经词法化的 token 序列（必须以 EOF 结尾）。</param>
     public SqlParser(IReadOnlyList<Token> tokens)
@@ -1351,7 +1360,31 @@ public sealed class SqlParser
     // ── 表达式（按优先级从低到高） ──────────────────────────────────────────
 
     /// <summary>解析单个表达式（公开供测试 / 子表达式调试使用）。</summary>
-    public SqlExpression ParseExpression() => ParseOr();
+    public SqlExpression ParseExpression()
+    {
+        EnterExpression();
+        try
+        {
+            return ParseOr();
+        }
+        finally
+        {
+            _expressionDepth--;
+        }
+    }
+
+    /// <summary>
+    /// 进入一层表达式递归前自增深度并校验上限。<see cref="ParseExpression"/> 是括号、子查询、
+    /// 函数实参、IN 列表、CASE 分支等所有再入点的公共入口；<see cref="ParseNot"/> /
+    /// <see cref="ParseUnary"/> 会自递归绕过它，故各自单独调用本方法。
+    /// </summary>
+    private void EnterExpression()
+    {
+        if (++_expressionDepth > MaxExpressionDepth)
+            throw new SqlParseException(
+                $"表达式嵌套深度超过上限 {MaxExpressionDepth}，疑似深层括号 / NOT / 一元运算链或恶意输入。",
+                Current.Position);
+    }
 
     private SqlExpression ParseOr()
     {
@@ -1382,7 +1415,16 @@ public sealed class SqlParser
         if (Current.Kind == TokenKind.KeywordNot)
         {
             Advance();
-            return new UnaryExpression(SqlUnaryOperator.Not, ParseNot());
+            // NOT 链会自递归绕过 ParseExpression，单独计入深度以防 `NOT NOT NOT…` 撑爆栈。
+            EnterExpression();
+            try
+            {
+                return new UnaryExpression(SqlUnaryOperator.Not, ParseNot());
+            }
+            finally
+            {
+                _expressionDepth--;
+            }
         }
         return ParseComparison();
     }
@@ -1568,12 +1610,29 @@ public sealed class SqlParser
         if (Current.Kind == TokenKind.Minus)
         {
             Advance();
-            return new UnaryExpression(SqlUnaryOperator.Negate, ParseUnary());
+            // 一元 +/- 链会自递归绕过 ParseExpression，单独计入深度以防 `------x` 撑爆栈。
+            EnterExpression();
+            try
+            {
+                return new UnaryExpression(SqlUnaryOperator.Negate, ParseUnary());
+            }
+            finally
+            {
+                _expressionDepth--;
+            }
         }
         if (Current.Kind == TokenKind.Plus)
         {
             Advance();
-            return ParseUnary();
+            EnterExpression();
+            try
+            {
+                return ParseUnary();
+            }
+            finally
+            {
+                _expressionDepth--;
+            }
         }
         return ParsePrimary();
     }

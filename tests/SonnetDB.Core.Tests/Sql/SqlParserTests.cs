@@ -616,4 +616,45 @@ public class SqlParserTests
         Assert.IsType<InsertStatement>(stmts[1]);
         Assert.IsType<SelectStatement>(stmts[2]);
     }
+
+    // ── 递归深度上限（防 StackOverflow 崩进程）─────────────────────────────
+
+    [Fact]
+    public void Parse_DeeplyNestedParentheses_ThrowsInsteadOfStackOverflow()
+    {
+        var where = new string('(', 5000) + "1 = 1" + new string(')', 5000);
+        Assert.Throws<SqlParseException>(() => SqlParser.Parse($"SELECT * FROM cpu WHERE {where}"));
+    }
+
+    [Fact]
+    public void Parse_DeepNotChain_ThrowsInsteadOfStackOverflow()
+    {
+        var where = string.Concat(Enumerable.Repeat("NOT ", 5000)) + "ok";
+        Assert.Throws<SqlParseException>(() => SqlParser.Parse($"SELECT * FROM cpu WHERE {where}"));
+    }
+
+    [Fact]
+    public void Parse_DeepUnaryMinusChain_ThrowsInsteadOfStackOverflow()
+    {
+        var expr = new string('-', 5000) + "1";
+        Assert.Throws<SqlParseException>(() => SqlParser.Parse($"SELECT * FROM cpu WHERE value > {expr}"));
+    }
+
+    [Fact]
+    public void Parse_ModeratelyNestedExpression_StillParses()
+    {
+        // 远低于上限（200）的合法嵌套必须正常解析，不能误伤。
+        var where = new string('(', 50) + "value > 1" + new string(')', 50);
+        var stmt = (SelectStatement)SqlParser.Parse($"SELECT * FROM cpu WHERE {where}");
+        Assert.NotNull(stmt.Where);
+    }
+
+    [Fact]
+    public void Parse_LongFlatAndChain_StillParses()
+    {
+        // 扁平 AND 链走 while 循环而非递归，长链不应触发深度上限。
+        var predicates = string.Join(" AND ", Enumerable.Range(0, 500).Select(i => $"v{i} = {i}"));
+        var stmt = (SelectStatement)SqlParser.Parse($"SELECT * FROM cpu WHERE {predicates}");
+        Assert.NotNull(stmt.Where);
+    }
 }
