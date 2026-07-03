@@ -1658,4 +1658,118 @@ public sealed class SqlExecutorTableTests : IDisposable
             """));
         Assert.Equal(["a", "c"], r.Rows.Select(row => (string)row[0]!));
     }
+
+    // ── #218 事务隔离 / read-your-writes ──────────────────────────────────────
+
+    [Fact]
+    public void LightTransaction_SelectSeesBufferedInsert()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "INSERT INTO devices (id, name) VALUES (1, 'pump')");
+
+        var results = SqlExecutor.ExecuteScript(db, """
+            BEGIN;
+            INSERT INTO devices (id, name) VALUES (2, 'fan');
+            SELECT id FROM devices ORDER BY id;
+            COMMIT;
+            """);
+
+        // 事务内的 SELECT 应看到已提交的行 + 本事务缓冲的插入行。
+        var inTxn = Assert.IsType<SelectExecutionResult>(results[2]);
+        Assert.Equal([1L, 2L], inTxn.Rows.Select(static r => (long)r[0]!));
+    }
+
+    [Fact]
+    public void LightTransaction_SelectSeesBufferedUpdate()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "INSERT INTO devices (id, name) VALUES (1, 'pump')");
+
+        var results = SqlExecutor.ExecuteScript(db, """
+            BEGIN;
+            UPDATE devices SET name = 'renamed' WHERE id = 1;
+            SELECT name FROM devices WHERE id = 1;
+            COMMIT;
+            """);
+
+        var inTxn = Assert.IsType<SelectExecutionResult>(results[2]);
+        Assert.Equal("renamed", inTxn.Rows.Single()[0]);
+    }
+
+    [Fact]
+    public void LightTransaction_SelectSeesBufferedDelete()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "INSERT INTO devices (id, name) VALUES (1, 'pump'), (2, 'fan')");
+
+        var results = SqlExecutor.ExecuteScript(db, """
+            BEGIN;
+            DELETE FROM devices WHERE id = 1;
+            SELECT id FROM devices ORDER BY id;
+            COMMIT;
+            """);
+
+        var inTxn = Assert.IsType<SelectExecutionResult>(results[2]);
+        Assert.Equal([2L], inTxn.Rows.Select(static r => (long)r[0]!));
+    }
+
+    [Fact]
+    public void LightTransaction_BufferedWritesInvisibleOutsideTransaction()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "INSERT INTO devices (id, name) VALUES (1, 'pump')");
+
+        // 事务缓冲的插入在 ROLLBACK 后不可见——read-your-writes 只在事务内叠加，不落库。
+        SqlExecutor.ExecuteScript(db, """
+            BEGIN;
+            INSERT INTO devices (id, name) VALUES (2, 'fan');
+            ROLLBACK;
+            """);
+
+        var after = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SELECT id FROM devices ORDER BY id"));
+        Assert.Equal([1L], after.Rows.Select(static r => (long)r[0]!));
+    }
+
+    [Fact]
+    public void LightTransaction_ReadYourWrites_VisibleThroughAggregateAndSubquery()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "INSERT INTO devices (id, name) VALUES (1, 'pump')");
+
+        var results = SqlExecutor.ExecuteScript(db, """
+            BEGIN;
+            INSERT INTO devices (id, name) VALUES (2, 'fan'), (3, 'valve');
+            SELECT count(*) AS n FROM devices;
+            SELECT id FROM devices WHERE id IN (SELECT id FROM devices WHERE id > 1) ORDER BY id;
+            COMMIT;
+            """);
+
+        // 聚合走关系路径，也应看到缓冲写：3 行。
+        var count = Assert.IsType<SelectExecutionResult>(results[2]);
+        Assert.Equal(3L, count.Rows.Single()[0]);
+
+        // 子查询同样在事务作用域内，缓冲写对内外层都可见。
+        var sub = Assert.IsType<SelectExecutionResult>(results[3]);
+        Assert.Equal([2L, 3L], sub.Rows.Select(static r => (long)r[0]!));
+    }
+
+    [Fact]
+    public void NonTransactionalSelect_UnaffectedByOverlay()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "INSERT INTO devices (id, name) VALUES (1, 'pump'), (2, 'fan')");
+
+        // 无事务的普通 SELECT 走既有 PK / 索引 / scan 快路径，不受 overlay 影响。
+        var byPk = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SELECT name FROM devices WHERE id = 2"));
+        Assert.Equal("fan", byPk.Rows.Single()[0]);
+
+        var all = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SELECT id FROM devices ORDER BY id"));
+        Assert.Equal([1L, 2L], all.Rows.Select(static r => (long)r[0]!));
+    }
 }

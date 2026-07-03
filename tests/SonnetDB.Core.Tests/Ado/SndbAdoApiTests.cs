@@ -114,6 +114,45 @@ public sealed class TsdbAdoApiTests : IDisposable
     }
 
     [Fact]
+    public void BeginTransaction_SelectSeesOwnBufferedWrites()
+    {
+        // #218：同一事务内的 SELECT 应看到本事务尚未提交的缓冲写（read-your-writes）。
+        using var c = OpenConn();
+        ExecNonQuery(c, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
+        ExecNonQuery(c, "INSERT INTO devices (id, name) VALUES (1, 'pump')");
+
+        using var tx = c.BeginTransaction();
+        using (var cmd = c.CreateCommand())
+        {
+            cmd.Transaction = tx;
+            cmd.CommandText = "INSERT INTO devices (id, name) VALUES (2, 'fan')";
+            Assert.Equal(1, cmd.ExecuteNonQuery());
+        }
+
+        using (var sel = c.CreateCommand())
+        {
+            sel.Transaction = tx;
+            sel.CommandText = "SELECT id FROM devices ORDER BY id";
+            using var reader = sel.ExecuteReader();
+            Assert.True(reader.Read());
+            Assert.Equal(1L, reader.GetInt64(0));
+            Assert.True(reader.Read());
+            Assert.Equal(2L, reader.GetInt64(0));
+            Assert.False(reader.Read());
+        }
+
+        tx.Rollback();
+
+        // ROLLBACK 后缓冲写不可见。
+        using var after = c.CreateCommand();
+        after.CommandText = "SELECT id FROM devices ORDER BY id";
+        using var afterReader = after.ExecuteReader();
+        Assert.True(afterReader.Read());
+        Assert.Equal(1L, afterReader.GetInt64(0));
+        Assert.False(afterReader.Read());
+    }
+
+    [Fact]
     public void BeginTransaction_RollbackDiscardsSingleTableDml()
     {
         using var c = OpenConn();

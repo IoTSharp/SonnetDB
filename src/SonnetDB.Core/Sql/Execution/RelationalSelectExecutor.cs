@@ -147,8 +147,8 @@ internal static class RelationalSelectExecutor
         var columns = schema.Columns
             .Select(column => new RelColumn(alias, column.Name, column.Name))
             .ToArray();
-        var rows = tsdb.Tables.Open(schema.Name)
-            .Scan()
+        // read-your-writes：叠加当前 ambient 轻事务对本表的缓冲写（#218）。
+        var rows = TableSqlExecutor.LoadSelectCandidateRows(tsdb.Tables.Open(schema.Name), schema, where: null)
             .Select(row => row.Values.ToArray())
             .ToArray();
         return new Relation(columns, rows);

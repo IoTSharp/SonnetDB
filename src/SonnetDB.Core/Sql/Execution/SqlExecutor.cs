@@ -171,6 +171,9 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
+        // read-your-writes：把活动轻事务设为 ambient，供 SELECT 读路径叠加本事务缓冲写（#218）。
+        using var _ = SqlTransactionContext.EnterScope(transaction);
+
         return statement switch
         {
             BeginTransactionStatement => new SqlTransactionContext(),

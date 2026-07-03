@@ -646,7 +646,7 @@ extensions/
 | #215 | **关系 JOIN hash join**：识别等值连接键，对 build 侧建哈希表（复用 `JoinSqlExecutor.BuildTableHash` 思路），替换关系路径全物化嵌套循环笛卡尔积（两张 1 万行表 = 1 亿次谓词求值）。 | SQL Q9 | ✅（`TryPlanHashJoin` 拆等值键建哈希探测，残差非等值项候选对上再过滤，含子查询 ON 回退嵌套循环；NULL 键不匹配 / LEFT 未命中保留 / 多列键 / 数值跨类型一致） |
 | #216 | **相关子查询去关联 / memoize**：对 `IN(subquery)` / `EXISTS` / 标量子查询先做"是否引用外层列"静态判定；非相关子查询执行 0/1 次并缓存，相关子查询去关联为 semi/anti-join 或哈希内表；消除每外层行重扫内表 O(n_outer × n_inner)。（与末尾性能待办 P2 合并落地。） | SQL Q8 | ✅（运行时相关性探针 + per-查询记忆表：非相关子查询整段外层扫描只执行一次并缓存；相关子查询探针置位→不缓存逐行执行。基于运行时观测，杜绝误缓存。去关联为 semi/anti-join 留后续。） |
 | #217 | **时序 WHERE 字段谓词 + OR**：`WhereClauseDecomposer` 增加按数据点求值的残差字段谓词（比照 JOIN 路径已有能力）并支持 OR；让 `WHERE temp > 30`、`WHERE tag='a' OR tag='b'` 可用（当前直接抛"不在 v1 支持范围"）。对 IoT 时序库是 table-stakes。 | SQL Q5 | ✅（不可下推谓词收集为残差合取，扫描路径逐点三值 Kleene 求值，仅保留确定 TRUE 的点；tag/time 仍下推为等值过滤+时间窗；有残差时禁用 latest / 流式窗口 / 扩展聚合 sidecar 快路径改走物化路径；`EXPLAIN` 复用同一分解器；DELETE 遇残差显式拒绝，字段级定向删除留 #219） |
-| #218 | **事务隔离 / read-your-writes**：事务内 SELECT 叠加本事务已缓冲的 insert/update（当前读提交态、看不到自身缓冲写）；明确并文档化隔离级别。 | SQL Q4 | 📋 |
+| #218 | **事务隔离 / read-your-writes**：事务内 SELECT 叠加本事务已缓冲的 insert/update（当前读提交态、看不到自身缓冲写）；明确并文档化隔离级别。 | SQL Q4 | ✅（`SqlTransactionContext` ambient `AsyncLocal` 作用域；关系表 SELECT 读路径在已提交基线上按主键叠加本事务缓冲写，覆盖直接查询/聚合/子查询；隔离级别=读已提交+本事务 read-your-writes；ADO `BeginTransaction()` 透明获得；measurement/document 事务写已由 #199 拒绝故不涉及） |
 | #219 | **关系 SQL 语义补齐**：`DISTINCT` 加关键字并实现或显式拒绝（当前静默误解析为列别名）；统一未加引号标识符大小写策略（关系/JOIN 路径当前 Ordinal 大小写敏感，与 projection 的 OrdinalIgnoreCase 不一致）；DELETE 支持按字段/值定向删除（当前对匹配 series 无差别 tombstone 所有字段列）；聚合返回类型改由 schema 静态类型决定而非额外全量预扫，避免 `Convert.ToDouble` 把整型/浮点混淆与大 long 精度丢失。 | SQL Q11、Q12、Q13、Q15 | 📋 |
 | #220 | **QueryEngine 流式合并**：大范围扫描在租约内 block-by-block 流式 merge/yield 并限制解码工作集，替换"先把全部候选 block 解码进 `List<DataPoint[]>` 再合并"的 LOH 堆峰值；decode cache 命中避免每次整份拷贝。 | 并发 C9 | 📋 |
 
@@ -722,7 +722,7 @@ P4 索引：#221（文档惰性 scan）→ #222（FTS 批量成段）→ #223（
 | Q1 | 🔴 | `Sql/Execution/TableSqlExecutor.cs:986`（RelationalSelect/Join 同型） | 三值逻辑坏：`NULL != 5` 判 TRUE、`NULL = NULL` 判 TRUE，返回错误行 | #197 |
 | Q2 | 🔴 | `Sql/Execution/SqlExecutor.cs:678` | 事务不覆盖 measurement/document 写，ROLLBACK 仍持久保留 | #199 |
 | Q3 | 🔴 | `Sql/SqlParser.cs:1612`（ParseNot/ParseUnary 同型） | 解析器递归无深度限制，深层括号/NOT 链触发 StackOverflow 崩进程 | #200 |
-| Q4 | 🟠 | `Sql/Execution/SqlExecutor.cs:80`、`TableSqlExecutor.cs:588` | 事务内无隔离/无 read-your-writes，看不到自身缓冲写 | #218 |
+| Q4 | ✅ | `Sql/Execution/SqlExecutor.cs:80`、`TableSqlExecutor.cs:588` | 事务内无隔离/无 read-your-writes，看不到自身缓冲写 | #218 |
 | Q5 | ✅ | `Sql/Execution/WhereClauseDecomposer.cs:70` | 时序 WHERE 不能按字段值过滤、不支持 OR | #217 |
 | Q6 | 🟠 | `Sql/Execution/SelectExecutor.cs:274`、`TableSqlExecutor.cs:1250` | LIMIT 不下推，先全量物化+排序再切片 | #214 |
 | Q7 | 🟠 | `Sql/Execution/SqlExecutor.cs:64` | 无 plan/parse 缓存，每次 Execute 重新 lex+parse | #212 |

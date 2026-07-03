@@ -253,7 +253,7 @@ internal static class TableSqlExecutor
             throw new InvalidOperationException("关系表 MVP 暂不支持 GROUP BY。");
 
         var projections = BuildProjections(statement.Projections, schema);
-        var rows = LoadCandidateRows(tsdb.Tables.Open(schema.Name), schema, statement.Where);
+        var rows = LoadSelectCandidateRows(tsdb.Tables.Open(schema.Name), schema, statement.Where);
         var filtered = new List<IReadOnlyList<object?>>();
         foreach (var row in rows)
         {
@@ -600,6 +600,73 @@ internal static class TableSqlExecutor
             return store.GetByIndex(index, indexValues);
 
         return store.Scan();
+    }
+
+    /// <summary>
+    /// SELECT 候选行加载：在已提交基线上叠加当前 ambient 轻事务对本表的缓冲写（read-your-writes，#218）。
+    /// 无活动事务、事务已结束或该表无缓冲写时走既有 PK/二级索引/scan 快路径；一旦本表有缓冲写，
+    /// 则改为全表 scan 后叠加缓冲变更（快路径可能漏掉尚未提交的插入行或返回被缓冲更新覆盖前的旧值），
+    /// 由调用方 WHERE 再过滤。仅用于 SELECT 读路径，不改变 queue update/delete 的候选加载。
+    /// </summary>
+    internal static IReadOnlyList<TableRow> LoadSelectCandidateRows(
+        TableStore store,
+        TableSchema schema,
+        SqlExpression? where)
+    {
+        var transaction = SqlTransactionContext.Current;
+        if (transaction is not null && transaction.TryGetBufferedMutations(schema.Name, out var buffered))
+            return ApplyMutationOverlay(schema, store.Scan(), buffered);
+
+        return LoadCandidateRows(store, schema, where);
+    }
+
+    /// <summary>
+    /// 把轻事务缓冲的 insert/update/delete 叠加到已提交基线行上（按主键合并，保序追加新插入）。
+    /// 主键编码复用 <see cref="TableKeyCodec"/>，与 COMMIT 时 <see cref="TableStore.ApplyBatch"/> 的键语义一致。
+    /// </summary>
+    private static IReadOnlyList<TableRow> ApplyMutationOverlay(
+        TableSchema schema,
+        IReadOnlyList<TableRow> baseRows,
+        IReadOnlyList<TableRowMutation> mutations)
+    {
+        var order = new List<string>(baseRows.Count + mutations.Count);
+        var byKey = new Dictionary<string, TableRow>(baseRows.Count + mutations.Count, StringComparer.Ordinal);
+
+        foreach (var row in baseRows)
+        {
+            var key = Convert.ToHexString(TableKeyCodec.EncodePrimaryKey(schema, row.Values));
+            if (byKey.TryAdd(key, row))
+                order.Add(key);
+            else
+                byKey[key] = row;
+        }
+
+        foreach (var mutation in mutations)
+        {
+            if (mutation.NewValues is not null)
+            {
+                var pk = mutation.PrimaryKeyValues is not null
+                    ? TableKeyCodec.EncodePrimaryKeyValues(schema, mutation.PrimaryKeyValues)
+                    : TableKeyCodec.EncodePrimaryKey(schema, mutation.NewValues);
+                var key = Convert.ToHexString(pk);
+                var newRow = new TableRow(mutation.NewValues.ToArray(), pk);
+                if (byKey.TryAdd(key, newRow))
+                    order.Add(key);
+                else
+                    byKey[key] = newRow;
+            }
+            else
+            {
+                var key = Convert.ToHexString(TableKeyCodec.EncodePrimaryKeyValues(schema, mutation.PrimaryKeyValues!));
+                byKey.Remove(key);
+            }
+        }
+
+        var result = new List<TableRow>(order.Count);
+        foreach (var key in order)
+            if (byKey.TryGetValue(key, out var row))
+                result.Add(row);
+        return result;
     }
 
     private static IReadOnlyList<object?> ExtractPrimaryKeyValues(TableSchema schema, IReadOnlyList<object?> row)
