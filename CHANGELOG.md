@@ -7,7 +7,7 @@
 
 ### Added
 
-- **Testcontainers.SonnetDB 模块**：新增 `Testcontainers.SonnetDB` NuGet 包，提供 `SonnetDbBuilder` / `SonnetDbContainer` / `SonnetDbConfiguration`，默认启动 `iotsharp/sonnetdb:latest`、等待 `/healthz`、自动创建默认数据库，并生成远程 ADO.NET 连接字符串。
+- **M28 P5a #230 SonnetMQ 吞吐/延迟基准基线**：`tests/SonnetDB.Benchmarks` 新增 `MqThroughputBenchmark`（BenchmarkDotNet `RunStrategy.Monitoring`，覆盖单/多 topic、`Publish` 单条 vs `PublishMany` 批量、pull+ack 回环、64B/1KB/16KB payload）与 `MqLatencyBenchmark`（独立 runner，`dotnet run -c Release -- --mq-latency`，采样 publish 尾延迟输出 P50/P90/P99/P99.9/max，对比 no-flush / os-flush / fsync-durable 三档持久性）。为 P5a #231~#234（去全局锁、零拷贝写、组提交、冷数据下沉）建立对照基线；基线数字已确认 `SyncOnPublish=true` 每写 fsync 相对默认 os-flush 有约两个数量级的 P50 延迟惩罚（MQ0）。
 - **AI-ready 门面文档与 Industrial Data Agent 路线（PR #182）**：新增 `llms.txt` 与 `docs/industrial-ai-applications.md`，明确 SonnetDB 优先定位为“面向 .NET 工业边缘应用的本地优先数据引擎”，并把 Industrial Data Agent、MCP 工具契约、工业异常分析 Demo、provider-neutral、本地模型、写入审批二阶段和 IoTSharp 联合样例纳入新增 Milestone 27 规划。
 - **连接器路线独立化 + C ABI 远程连接底座**：新增 Milestone 26 与 `connectors/README.md` 路线说明，明确 C ABI 当前继续 SQL-only，后续按 bulk / KV / Document / Object / MQ 分组扩展；`SonnetDB.Native` 改为引用 `SonnetDB.Data`，`sonnetdb_open` 可接受完整连接字符串或旧式本地目录，为 C/Go/Rust/Java/Python 等连接器同时支持嵌入式与远程 SQL 连接打底。
 - **C ABI bulk ingest 分组（PR #176）**：`connectors/c` 新增 `sonnetdb_bulk_create` / `sonnetdb_bulk_execute` / `sonnetdb_bulk_free` 与 `measurement`、`onerror`、`flush` 配置函数，覆盖 Line Protocol、JSON points 与 Bulk VALUES payload；Native 层通过 `SonnetDB.Data` `CommandType.TableDirect` 统一走嵌入式和远程 bulk 路径，C quickstart 与连接器文档同步演示独立 bulk handle 用法。
