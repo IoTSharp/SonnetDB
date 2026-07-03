@@ -597,7 +597,7 @@ extensions/
 | **P2** | 写路径吞吐（锁内 I/O + 每点分配 + O(N²) 维护） | #204 ~ #211 | ✅ 已完成——把 P0 牺牲的写吞吐补回并超越，去除代数复杂度陷阱 |
 | **P3** | 查询与 SQL 能力（plan cache + 下推 + join + 能力缺口） | #212 ~ #220 | ✅ 已完成——让 SQL/关系路径达到日常应用与 EF Core 可用水平 |
 | **P4** | 索引与向量能力（文档惰性 scan + FTS 写放大 + 向量度量/ANN） | #221 ~ #229 | 让二级索引真正被使用、向量非 cosine/文档集合可加速 |
-| **P5** | 消息队列吞吐 + 全模型高吞吐接入（MQ 硬化 + 通用二进制帧/裸 TCP·HTTP-2 覆盖 MQ/时序/关系/向量） | #230 ~ #242 | 消除 MQ 单锁/无界内存/每写 flush；通用帧层消灭全模型 JSON/Base64 税、支持推送订阅与流式结果集 |
+| **P5** | 消息队列吞吐 + 全模型高吞吐接入（MQ 硬化 + 自定义二进制帧 over HTTP/2 覆盖 MQ/时序/关系/向量 + MQTT 设备接入） | #230 ~ #243 | 消除 MQ 单锁/无界内存/每写 flush；通用帧层消灭全模型 JSON/Base64 税、支持推送订阅与流式结果集；IoT 设备走 MQTT |
 
 ### P0 — 数据可靠性止血
 
@@ -674,15 +674,24 @@ extensions/
 > **两段式结构**：
 >
 > - **P5a MQ 热路径硬化（#230~#234）**：基准先行，然后去全局锁、零拷贝写、组提交、冷数据下沉。纯 `SonnetDB.Core` 内改动，与接入层解耦。
-> - **P5b 全模型高吞吐接入（#235~#242）**：设计**通用二进制帧**（帧头带 `service`+`op`+`stream-id` 多路复用字段），先落 MQ，再逐个模型接入（时序批量写 → SQL 流式结果集 → 向量检索），HTTP/2 与裸 TCP 两种传输并存、共享同一帧编解码。
+> - **P5b 全模型高吞吐接入（#235~#243）**：设计**通用二进制帧**（帧头带 `service`+`op`+`stream-id` 多路复用字段），**承载于 Kestrel HTTP/2**（复用现有鉴权/路由/TLS/流控/多路复用，Core 与 Server 均零第三方依赖），先落 MQ，再逐个模型接入（时序列式批量写 → SQL 流式结果集 → 向量检索 → KV/对象/文档）；IoT 设备侧兼容 **MQTT 订阅**。**不做裸 TCP**——评估表明其相对 HTTP/2 的收益（小消息高频约 1.2~2×）不足以抵消重写分帧/鉴权/心跳/TLS/流控的复杂度，且本仓 #230 基线显示传输层开销（个位数 µs）被 store 的锁/flush（几十~几百 µs）碾压，传输不是当前瓶颈。
+>
+> **行业对标依据（2026-07 走查主流数据库 / MQ / 时序库线协议）**：
+>
+> - **二进制 + 长度分帧是铁律**：PostgreSQL(pgwire)、MySQL、MongoDB(OP_MSG+BSON)、Redis(RESP)、Cassandra(CQL)、Kafka、Pulsar、TDengine(taosc)、IoTDB(Thrift) 的数据面**无一用 HTTP/1.1+JSON**。→ 印证 #235 二进制帧方向，收益主要来自**消灭 JSON/Base64**，与本仓 #230 基线一致（传输层开销是个位数 µs，被 store 的锁/flush 几十~几百 µs 碾压）。
+> - **时序写入收敛到列式批 + Line Protocol**：IoTDB `insertTablet`(列式 Tablet)、TDengine STMT binary、PG `COPY BINARY`、InfluxDB Line Protocol——**没有一个用行式 JSON**。IoTDB/TDengine/QuestDB 都兼容 InfluxDB Line Protocol（本仓已有 `InfluxLineProtocolEndpointHandler`）。→ 支撑 #237 列式二进制批量写。
+> - **新系统的传输在倒向 HTTP/2，而非自造裸 TCP**：InfluxDB v3(IOx) 从 HTTP 演进选了 **Arrow Flight SQL over gRPC(HTTP/2) + 列式 Arrow**（大 payload 走列式二进制、控制面走 RPC）；etcd、Google Pub/Sub 走 gRPC(HTTP/2)；连 TDengine 都为跨语言易用补了 **WebSocket** 层。裸 TCP 自定义协议（pgwire/taosc/Kafka）多是十余年历史资产 + 巨量分帧/流控/TLS/心跳工程投入。→ SonnetDB 处境最像 InfluxDB v3，故传输选 **HTTP/2**；帧内大 payload 学 Arrow Flight「控制面 RPC + 数据面列式二进制」的分层。
+> - **设备接入普遍内建 MQTT**：IoTDB、TDengine 都内建 MQTT 服务供设备直连。IoTSharp 是 IoT 场景，设备侧真正在说 MQTT。→ 新增 #242 MQTT 订阅接入。
+>
+> **传输决策（自定义 HTTP/2 帧，非 gRPC，非裸 TCP）**：评估 gRPC(grpc-dotnet 纯托管、无 C/C++ native、可省跨语言 codegen) vs 自定义 HTTP/2 帧后，选**自定义帧**——理由：(a) SonnetDB 重负载是**列式时序批与向量 `float[]`**，protobuf 行式 field-tag 编码对其不友好，塞进 `bytes` 字段等于绕过 protobuf（这正是 InfluxDB 用 Arrow Flight 而非裸 gRPC 的原因），自定义帧对列式/向量零拷贝**完全自由**；(b) 维持 **Core 与 Server 双零第三方依赖**的一贯约束；(c) 代价是跨语言客户端需自写（#241 保留），但本仓已有 C ABI 连接器底座可承接。
 >
 > **设计原则**：
 >
-> 1. **复用引擎已验证的机制**。MQ 组提交借鉴 `WalGroupCommitCoordinator` 窗口化批量 fsync；冷数据下沉借鉴 segment reader 按需读取；推送订阅借鉴既有 `SseEndpointHandler`。不发明新原语。
-> 2. **纯 C# + BCL，Core 零第三方依赖不变**。向量化 I/O 用 `System.IO.RandomAccess`；进程内解耦/背压用 `System.Threading.Channels`；帧编解码用 `System.IO.Pipelines` / `System.Buffers`。裸 TCP 与 HTTP 端都建在 Kestrel（`ConnectionHandler` / HTTP/2）之上，不引入 gRPC / MQTT / AMQP 或第三方 MQ 运行时。
-> 3. **通用帧、多路复用、双传输并存**。二进制帧头携带 `service`（mq/tsdb/sql/vector/kv/object/doc）+ `op`（publish/pull/ingest/query/search…）+ `stream-id`（一条连接多请求交错），一套编解码同时服务 HTTP/2（复用现有鉴权路由）与裸 TCP（极限吞吐长连接推送）。帧协议一次设计，各模型逐 PR 挂载 opcode。
-> 4. **契约新增而非替换**。二进制帧与裸 TCP 是**并列新增**，所有现有 REST/JSON 端点保留向后兼容；选型交由客户端按 `docs/` 矩阵决定。契约在 CHANGELOG + `docs/` 标注「新增」。
-> 5. **先基准后优化**。`tests/SonnetDB.Benchmarks` 当前**完全没有** MQ 基准；每段第一件事是建立吞吐/延迟/编码开销基准，用数字驱动，避免拍脑袋优化。
+> 1. **复用引擎与传输已验证的机制**。MQ 组提交借鉴 `WalGroupCommitCoordinator` 窗口化批量 fsync；冷数据下沉借鉴 segment reader 按需读取；推送/流式借鉴既有 `SseEndpointHandler` 并走 **HTTP/2 流**（多路复用、流控、TLS 由 Kestrel 提供，不自造）。不发明新原语、不重造传输层能力。
+> 2. **Core 纯 C# + BCL 零第三方依赖不变；传输承载于 Kestrel HTTP/2**。帧编解码用 `System.IO.Pipelines` / `System.Buffers`；向量化 I/O 用 `System.IO.RandomAccess`；进程内解耦/背压用 `System.Threading.Channels`。二进制帧作为 HTTP/2 请求/响应体或长生命周期 HTTP/2 流传输，鉴权/路由/TLS/多路复用复用 Kestrel。**不引入 gRPC / 裸 TCP / AMQP / 第三方 MQ 运行时**；**MQTT 设备接入允许在 Server 层引入成熟托管库（如 MQTTnet）**——QoS/retain/will/session 协议细节多、自造不划算，且 `SonnetDB.Core` 仍保持零依赖。
+> 3. **通用帧、多路复用、payload 自由**。二进制帧头携带 `service`（mq/tsdb/sql/vector/kv/object/doc）+ `op` + `stream-id`（一条 HTTP/2 连接多请求交错）+ 长度；帧体承载各 service 自定义的列式/二进制编码（时序列式批、向量 `float[]` `MemoryMarshal`、SQL 列式结果块），零 JSON/Base64。帧协议一次设计，各模型逐 PR 挂载 opcode。
+> 4. **契约新增而非替换**。二进制帧、MQTT 都是**并列新增**，所有现有 REST/JSON 端点保留向后兼容；选型交由客户端按 `docs/` 矩阵决定。契约在 CHANGELOG + `docs/` 标注「新增」。
+> 5. **先基准后优化**。每段第一件事是建立吞吐/延迟/编码开销基准（P5a #230 已完成 MQ 基线），用数字驱动，避免拍脑袋优化。
 
 **P5a — MQ 热路径硬化**
 
@@ -694,18 +703,21 @@ extensions/
 | #233 | **MQ group-commit 组提交**：`FlushOnPublish=true` 默认导致每条消息一次 `Flush` 系统调用，抵消 128KB BufferedStream 的批量意义。引入借鉴 `WalGroupCommitCoordinator` 的窗口化批量刷盘协调器：并发 publish 合并到一个 flush 窗口，`fsync` 在段锁外执行；新增批量 publish 入口（当前 REST 端点只调单条 `Publish`）。默认持久性语义（窗口大小、丢窗口风险）三处文档化，比照 #196。 | MQ4 | 📋 |
 | #234 | **MQ 冷数据下沉，修复无界内存**：`TopicState.Messages` 全量常驻 + `PullFromState` 只读内存、段文件从不被读、`SegmentCacheSize` 未实现——高吞吐长期运行 OOM。落地按需段读取：内存只保留「热尾部」+ offset 稀疏索引，Pull 冷 offset 时经 `RandomAccess`/`MemoryMappedFile` 从段文件读并走有界 LRU（`SegmentCacheSize`），比照引擎 segment reader 有界缓存。 | MQ3 | 📋 |
 
-**P5b — 全模型高吞吐接入（二进制帧 + 裸 TCP / HTTP-2）**
+**P5b — 全模型高吞吐接入（自定义二进制帧 over HTTP/2 + MQTT 设备接入）**
+
+> 传输统一为**自定义二进制帧承载于 Kestrel HTTP/2**（复用鉴权/路由/TLS/多路复用/流控），不做裸 TCP、不引入 gRPC；帧体各 service 自定义列式/二进制编码，零 JSON/Base64。IoT 设备侧另开 **MQTT** 接入（允许 Server 层用成熟托管库，Core 仍零依赖）。
 
 | PR | 标题与范围 | 关联发现 | 状态 |
 |----|------------|----------|------|
-| #235 | **通用二进制帧协议 + 编码基准**：定义 length-prefixed 二进制帧（`System.IO.Pipelines` + `System.Buffers`），帧头含 `service`(mq/tsdb/sql/vector/kv/object/doc) + `op` + `stream-id`(多路复用) + 长度；payload 走原始字节零 Base64。先落 **MQ** 的 publish/pull/ack opcode 作为首个 service，新增 HTTP/2 二进制端点（`application/x-sonnetdb-frame`）复用现有 Bearer + 三角色鉴权与路由。基准对比帧 vs JSON+Base64 的体积与 CPU。REST 保留。 | N1、N2 | 📋 |
-| #236 | **裸 TCP 传输 + 推送订阅**：在 Kestrel `ConnectionHandler` 上建裸 TCP 端口，复用 #235 帧编解码；长连接内 `System.Threading.Channels` 做 producer/consumer 解耦与背压，MQ 消费由**轮询**改为**服务端推送**（新消息到达即投递，比照 `SseEndpointHandler` 但走二进制帧）。裸 TCP 与 HTTP/2 并存、共享帧编解码与后端；鉴权、心跳、优雅关闭自实现（零第三方）。 | N3、N4 | 📋 |
-| #237 | **时序批量写接入帧协议**：为帧加 `tsdb` service 的 `ingest`/`write-many` opcode，把 measurement 批量写从 HTTP+JSON（`/v1/db/{db}/ingest`）扩展出二进制帧路径——点位以列式/紧凑二进制编码直传，避免大批量 JSON 序列化；复用 P0/P2 已硬化的 `WriteMany` 背压路径。基准对比二进制帧 ingest vs JSON/InfluxLine 吞吐。 | N5 | 📋 |
-| #238 | **SQL/关系查询流式结果集**：为帧加 `sql` service 的 `query` opcode，大结果集经 `System.IO.Pipelines` 二进制列式**流式**回传（分块 yield，不先全量物化 JSON），复用 P3 #220 流式合并成果；`stream-id` 支持一条连接并发多查询。基准对比大结果集二进制流 vs JSON 数组。 | N6 | 📋 |
+| #235 | **通用二进制帧协议 + 编解码 + MQ service + 编码基准**：定义 length-prefixed 二进制帧（`System.IO.Pipelines` + `System.Buffers`），帧头含 `service`(mq/tsdb/sql/vector/kv/object/doc) + `op` + `stream-id`(多路复用) + `flags` + 长度；帧体走各 service 自定义二进制编码，零 Base64。承载于 Kestrel HTTP/2 端点（`application/x-sonnetdb-frame`），复用现有 Bearer + 三角色鉴权与路由。**首个 service 落 MQ** 的 publish/pull/ack opcode。基准对比帧 vs JSON+Base64 的体积与 CPU（扩展 #230 的 MQ 基准）。REST 全保留。 | N1、N2 | 📋 |
+| #236 | **HTTP/2 流式推送订阅（MQ）**：MQ 消费从**轮询**升级为基于 HTTP/2 长生命周期流的**服务端推送**——新消息到达即经帧投递，比照既有 `SseEndpointHandler` 但走二进制帧；服务端用 `System.Threading.Channels` 做 producer/consumer 解耦与背压，`stream-id` 支持一条连接多订阅交错。复用 Kestrel HTTP/2 流控，不自造连接管理。 | N3 | 📋 |
+| #237 | **时序列式批量写接入帧协议**：为帧加 `tsdb` service 的 `ingest`/`write-many` opcode，measurement 批量写以**列式紧凑二进制**直传（对齐 IoTDB Tablet / PG COPY BINARY / InfluxDB Line Protocol 的列式批思路，非行式 JSON），避免大批量 JSON 序列化；复用 P0/P2 已硬化的 `WriteMany` 背压路径。基准对比列式帧 ingest vs JSON / InfluxLine 吞吐。 | N5 | 📋 |
+| #238 | **SQL/关系查询流式结果集**：为帧加 `sql` service 的 `query` opcode，大结果集经 HTTP/2 流 + `System.IO.Pipelines` **列式二进制分块流式**回传（不先全量物化 JSON），复用 P3 #220 流式合并成果；`stream-id` 支持一条连接并发多查询。基准对比列式二进制流 vs JSON 数组的体积/延迟/峰值内存。 | N6 | 📋 |
 | #239 | **向量检索接入帧协议**：为帧加 `vector` service 的 `search`/`insert` opcode，向量 `float[]` 以紧凑二进制（`ReadOnlySpan<float>` 直接 `MemoryMarshal`）传输，消灭 JSON 数字文本编码（比 Base64 更浪费）；KNN 结果集走 #238 流式回传。基准对比二进制向量 vs JSON 数字数组的体积与 CPU。 | N7 | 📋 |
-| #240 | **KV / 对象 / 文档接入帧协议**：为帧加 `kv`/`object`/`doc` service 的 get/put/scan opcode，二进制 value / 对象字节 / BSON-like 文档走原始字节零 Base64；对象大 blob 走 #236 流式分块。补齐全模型二进制覆盖。 | N8 | 📋 |
-| #241 | **客户端 SDK 帧协议贯通**：`SonnetDB.Data` 的 ADO / MQ / 向量 / 文档客户端在检测到服务端支持时优先走二进制帧（HTTP/2 或裸 TCP），回落 REST/JSON；连接字符串加传输选项（`Protocol=frame-tcp` / `frame-http2` / `rest`）。保持嵌入式路径不变。 | N2、N3 | 📋 |
-| #242 | **全模型接入收口 + 文档 + parity**：汇总 #230/#235/#237~#239 基准的吞吐/延迟/体积对照进报告；补 `docs/` 接入协议章节（帧格式、service/op 矩阵、REST vs 帧-HTTP2 vs 帧-TCP 选型矩阵、推送订阅与流式结果集用法）；`tests/SonnetDB.Parity` 补各 service 二进制帧与 REST 的等价性平移测试，确保两条路径语义一致。 | MQ0、N1~N8 | 📋 |
+| #240 | **KV / 对象 / 文档接入帧协议**：为帧加 `kv`/`object`/`doc` service 的 get/put/scan opcode，二进制 value / 对象字节 / BSON-like 文档走原始字节零 Base64；对象大 blob 走 #238 的 HTTP/2 流式分块。补齐全模型二进制覆盖。 | N8 | 📋 |
+| #241 | **客户端 SDK 帧协议贯通**：`SonnetDB.Data` 的 ADO / MQ / 向量 / 文档客户端在检测到服务端支持时优先走二进制帧（HTTP/2），回落 REST/JSON；连接字符串加传输选项（`Protocol=frame-http2` / `rest`）。保持嵌入式路径不变。跨语言（Go/Rust/Java/Python）经既有 C ABI 连接器底座逐步承接帧协议。 | N2 | 📋 |
+| #242 | **MQTT 设备接入（发布→时序/MQ 落库，订阅→推送）**：Server 层引入成熟托管 MQTT 库（如 MQTTnet，`SonnetDB.Core` 仍零依赖），对齐 IoTDB/TDengine 内建 MQTT 的设备直连能力——设备 MQTT `PUBLISH` 按 topic 规则落 measurement 或 SonnetMQ；设备 `SUBSCRIBE` 复用 #236 推送管线。复用现有 Bearer/权限模型做 MQTT 鉴权（username/password 或 token）。QoS 0/1、retain、LWT 支持范围在 `docs/` 明确。 | N9 | 📋 |
+| #243 | **全模型接入收口 + 文档 + parity**：汇总 #230/#235/#237~#239 基准的吞吐/延迟/体积对照进报告；补 `docs/` 接入协议章节（帧格式、service/op 矩阵、REST vs 帧-HTTP2 选型矩阵、推送订阅与流式结果集用法、MQTT topic 映射规则与 QoS 范围）；`tests/SonnetDB.Parity` 补各 service 二进制帧与 REST 的等价性平移测试，确保两条路径语义一致。 | MQ0、N1~N9 | 📋 |
 
 ### 推进顺序
 
@@ -726,12 +738,12 @@ P4 索引：#221（文档惰性 scan）→ #222（FTS 批量成段）→ #223（
         → #227（文档 ANN）→ #228（删遗留 HNSW）→ #229（文档索引原子性）
 P5a MQ：#230（MQ 基准基线）→ #231（去全局锁 per-topic 分片）→ #232（写路径零拷贝 + RandomAccess）
         → #233（group-commit 组提交 + 批量入口）→ #234（冷数据下沉修无界内存）
-P5b 接入：#235（通用二进制帧 + MQ service / HTTP-2）→ #236（裸 TCP + 推送订阅）→ #237（时序批量写接入）
+P5b 接入：#235（通用二进制帧 + MQ service / HTTP-2）→ #236（HTTP-2 流式推送订阅）→ #237（时序列式批量写）
         → #238（SQL 流式结果集）→ #239（向量检索接入）→ #240（KV/对象/文档接入）
-        → #241（客户端 SDK 帧贯通）→ #242（全模型收口 + 文档 + parity）
+        → #241（客户端 SDK 帧贯通）→ #242（MQTT 设备接入）→ #243（全模型收口 + 文档 + parity）
 ```
 
-> **阶段间可并行度**：P0 内 #189~#196 相互独立，可并行推进但建议 #189/#190/#191 最先（数据安全影响面最大）。P1~P4 各阶段建议顺序推进，但 P3/P4 的能力增强类 PR 与 P2 吞吐类 PR 之间无强依赖，可按团队带宽穿插。P5（#230~#242）独立于 P0~P4；内部约束：**P5a（#230~#234）纯 Core MQ 硬化与 P5b 接入层解耦，可并行**；P5a 内 #230 基准必须最先；P5b 内 **#235 通用帧编解码是 #236~#240 所有 service 接入的前置**，#236 裸 TCP 与各 service opcode（#237~#240）之间无强依赖可穿插，#241 SDK 贯通需至少一个 service 落地后，#242 收口最后。
+> **阶段间可并行度**：P0 内 #189~#196 相互独立，可并行推进但建议 #189/#190/#191 最先（数据安全影响面最大）。P1~P4 各阶段建议顺序推进，但 P3/P4 的能力增强类 PR 与 P2 吞吐类 PR 之间无强依赖，可按团队带宽穿插。P5（#230~#243）独立于 P0~P4；内部约束：**P5a（#230~#234）纯 Core MQ 硬化与 P5b 接入层解耦，可并行**；P5a 内 #230 基准必须最先；P5b 内 **#235 通用帧编解码是 #236~#240 所有 service 接入的前置**，各 service opcode（#237~#240）之间无强依赖可穿插，#236 推送订阅依赖 #235，#241 SDK 贯通需至少一个 service 落地后，#242 MQTT 可与 #237~#241 并行（复用 #236 推送管线），#243 收口最后。
 
 ### 缺陷完整附录（54 项，确保无遗漏）
 
@@ -810,12 +822,12 @@ P5b 接入：#235（通用二进制帧 + MQ service / HTTP-2）→ #236（裸 TC
 | MQ7 | 🟠 | `Mq/SonnetMqStore.cs:250-257/545/551` | Retention worker 持全局锁做 `File.Exists`/`FileInfo.Length` 文件系统调用，裁剪期全线阻塞 | #231 |
 | N1 | 🔴 | `Contracts/Dtos.cs:265`、`Mq/SndbMqClient.cs` | MQ payload 经 JSON+Base64 编码（+33% 体积 + 发布/拉取各一次 CPU 编解码税） | #235 |
 | N2 | 🟠 | `Endpoints/Routes/MessageQueueEndpoints.cs` | 无 HTTP/2 二进制端点，无多路复用 / 流式帧 | #235 |
-| N3 | 🟠 | `Endpoints/Routes/MessageQueueEndpoints.cs:61` | 消费纯轮询无推送，已有 `SseEndpointHandler` 但 MQ 未接 | #236 |
-| N4 | 🟡 | `src/SonnetDB/`（Kestrel 配置） | 无裸 TCP / `ConnectionHandler` 高吞吐长连接通道 | #236 |
-| N5 | 🟠 | `Endpoints/Routes/IngestionEndpoints.cs` | 时序批量写走 HTTP+JSON，大批量点位付全量 JSON 序列化开销 | #237 |
+| N3 | 🟠 | `Endpoints/Routes/MessageQueueEndpoints.cs:61` | 消费纯轮询无推送，未走 HTTP/2 流式推送（可比照 `SseEndpointHandler` 但用二进制帧） | #236 |
+| N5 | 🟠 | `Endpoints/Routes/IngestionEndpoints.cs` | 时序批量写走 HTTP+JSON 行式，非列式二进制批（对标 IoTDB Tablet / PG COPY BINARY） | #237 |
 | N6 | 🟠 | `Endpoints/Routes/SqlEndpoints.cs`、`Json/NdjsonRowWriter.cs` | SQL/关系结果集全量物化 JSON 回传，大结果集序列化瓶颈、无流式 | #238 |
 | N7 | 🔴 | `Endpoints/Routes/*`（向量 query/insert） | 向量 `float[]` 经 JSON 数字文本编解码，比 Base64 更浪费（每 float 变文本） | #239 |
 | N8 | 🟡 | `Endpoints/Routes/KeyValueEndpoints.cs`、`ObjectStorageEndpoints.cs`、`DocumentEndpoints.cs` | KV value / 对象 blob / 文档二进制负载经 JSON+Base64，无原始字节路径 | #240 |
+| N9 | 🟠 | `src/SonnetDB/`（无 MQTT broker） | 无 MQTT 设备接入，IoT 设备无法直连发布/订阅（对标 IoTDB/TDengine 内建 MQTT） | #242 |
 
 ### 验收标准
 
@@ -825,7 +837,7 @@ P5b 接入：#235（通用二进制帧 + MQ service / HTTP-2）→ #236（裸 TC
 - **P3**：plan cache 命中路径不再重复 parse；参数化查询贯通 lexer→executor；`ORDER BY…LIMIT k` 内存与延迟不随数据量线性增长；等值 JOIN 走 hash；`WHERE temp>30`、`WHERE a OR b` 可用；EF Core 关系查询翻译在这些能力上回归通过。
 - **P4**：文档索引点查不再 O(collection)；FTS 批量写不再 N 文件 + O(N²) manifest；声明 L2/IP 的向量索引真正走对应度量的 ANN；文档集合 `vector_search` 有可用加速路径；遗留 `HnswVectorBlockIndex` 移除后测试全绿。
 - **P5a（MQ 硬化）**：`tests/SonnetDB.Benchmarks` 显示——多 topic 并发 publish 吞吐随 topic 数近线性扩展（去全局锁后不再互相阻塞）；单条 publish 分配数与拷贝次数下降（零冗余 `ToArray`、空 header 免分配）；group-commit 下持续 publish 的 P99 延迟显著优于每写 flush；长期高吞吐运行内存有界（冷数据下沉，不再 OOM）。MQ 默认持久性语义在 CHANGELOG + `docs/` + XML 注释三处一致。
-- **P5b（全模型接入）**：通用二进制帧覆盖 MQ/时序/关系/向量/KV/对象/文档各 service，帧头 `service`+`op`+`stream-id` 多路复用可用；相比 JSON/Base64——MQ/对象 payload 与向量 `float[]` 的线上体积与 CPU 明显下降，大 SQL 结果集走流式二进制不再全量物化；裸 TCP 推送订阅端到端延迟低于轮询、支持一条连接并发多请求；每个 service 的二进制帧路径与 REST 路径通过 `tests/SonnetDB.Parity` 等价性平移；客户端 SDK 能协商传输并回落 REST。REST/JSON 端点全部保留向后兼容。基准数字进报告不做主 CI gating。
+- **P5b（全模型接入）**：通用二进制帧 over HTTP/2 覆盖 MQ/时序/关系/向量/KV/对象/文档各 service，帧头 `service`+`op`+`stream-id` 多路复用可用；相比 JSON/Base64——MQ/对象 payload 与向量 `float[]` 的线上体积与 CPU 明显下降，时序批量写走列式二进制、大 SQL 结果集走流式二进制不再全量物化；HTTP/2 流式推送订阅端到端延迟低于轮询、支持一条连接并发多请求/多订阅；MQTT 设备可发布落库并订阅推送；每个 service 的二进制帧路径与 REST 路径通过 `tests/SonnetDB.Parity` 等价性平移；客户端 SDK 能协商传输并回落 REST。REST/JSON 端点全部保留向后兼容。基准数字进报告不做主 CI gating。
 
 ### 不做的事
 
@@ -834,9 +846,10 @@ P5b 接入：#235（通用二进制帧 + MQ service / HTTP-2）→ #236（裸 TC
 - **不**在本里程碑重写 SQL 引擎为完整成本模型优化器；P3 只做规则级下推、plan cache、hash join 与能力补齐，成本模型留后续里程碑论证。
 - **不**改动对外 SQL / HTTP / ADO.NET / Document API 已有契约语义（三值逻辑等属修正错误行为，需在 CHANGELOG 明确"行为变更"并给迁移说明）。
 - **不**把默认持久性从"性能优先"切到"每写 fsync"而不给关闭开关——#196 的决策必须保留可配置项与明确的吞吐/持久性权衡文档。
-- **不**为 P5 接入协议引入 gRPC / MQTT / AMQP 或任何第三方 MQ 运行时；裸 TCP 与 HTTP/2 端都建在 Kestrel（`ConnectionHandler` / HTTP/2）之上，帧编解码用 BCL（`System.IO.Pipelines`/`System.Buffers`），`src/SonnetDB.Core` 零第三方依赖不变。
+- **不**为 P5b 引入 gRPC、裸 TCP 或 AMQP；传输统一为**自定义二进制帧 over Kestrel HTTP/2**（复用鉴权/路由/TLS/流控/多路复用），帧编解码用 BCL（`System.IO.Pipelines`/`System.Buffers`）。裸 TCP 经评估收益（约 1.2~2×）不抵重写分帧/心跳/TLS 的复杂度且传输非当前瓶颈；gRPC 的 protobuf 行式编码对列式/向量负载不友好且引入第三方栈——故均不采用。
+- **MQTT 例外**：#242 MQTT 设备接入允许在 **Server 层**引入成熟托管库（如 MQTTnet，运行时纯 C#、无 native），因 QoS/retain/will/session 协议细节多、自造不划算；`src/SonnetDB.Core` 零第三方依赖不变。
 - **不**为 P5 引入分布式 broker / 分区副本 / 跨节点消费者组 rebalance；SonnetMQ 保持单机嵌入式队列定位，per-topic 锁分片只解并发不引入集群。
-- **不**删除任何现有 REST/JSON 端点（MQ/时序/SQL/向量/KV/对象/文档）；二进制帧与裸 TCP 是**并列新增**，JSON/Base64 路径全部保留向后兼容，选型交由客户端按 `docs/` 矩阵决定。
+- **不**删除任何现有 REST/JSON 端点（MQ/时序/SQL/向量/KV/对象/文档）；二进制帧与 MQTT 是**并列新增**，JSON/Base64 路径全部保留向后兼容，选型交由客户端按 `docs/` 矩阵决定。
 - **不**为 P5b 新帧协议改动任何模型引擎的查询/写入语义；帧层只是传输编码，`service`/`op` opcode 一一映射到既有 API 行为，不借机改语义。
 
 ---
@@ -873,7 +886,7 @@ P5b 接入：#235（通用二进制帧 + MQ service / HTTP-2）→ #236（裸 TC
 | 25 | Document Store 验收、文档与发布治理 | #173 ~ #174 | 📋 |
 | 26 | 连接器路线独立化（C ABI + 多模型 API） | #175 ~ #181 | ✅ |
 | 27 | Industrial Data Agent 与 AI-ready 产品化路线 | #182 ~ #188 | ⚠️ 滞后（#182 已落第一批文档；#183~#188 待追赶） |
-| 28 | 可靠性、并发正确性与热路径加固（P0~P5 分阶段） | #189 ~ #242 | 🚧（P0~P3 ✅；P4 索引与向量、P5 MQ 硬化 + 全模型高吞吐接入计划中；审计 54 项 + P5 新增 MQ/N 专项） |
+| 28 | 可靠性、并发正确性与热路径加固（P0~P5 分阶段） | #189 ~ #243 | 🚧（P0~P3 ✅；P4 索引与向量、P5 MQ 硬化 + 全模型高吞吐接入（自定义帧 over HTTP/2 + MQTT）计划中；审计 54 项 + P5 新增 MQ/N 专项） |
 | MM9 | 多模型统一备份、恢复和管理工具第一批 | BackupService + sndb backup | ✅ |
 
 **当前推进顺序**：Milestone 14（Copilot）、Milestone 15（地理空间）、Milestone 16（Copilot 产品化升级）、Milestone 20（Parity #127~#136 实现）、Milestone 21（Document Store 单机能力升级 #137~#146）、Milestone 23（搜索与向量引擎合并）与 Milestone 26（连接器路线独立化 #175~#181）均已完成或收口。**Milestone 28（可靠性、并发正确性与热路径加固 #189~#229）** 是 2026 跨子系统深度审计后新增的加固主线，优先级最高：先做 **P0 数据可靠性止血**（#189~#196，Windows 目录 fsync / flush add-then-reset / 后台 worker 租约 / FTS manifest 原子 / HNSW 快照 / Delete 持久化 / 段头尾 CRC / 默认持久性决策），再依次推进 P1 正确性（#197~#203）、P2 写吞吐（#204~#211）、P3 查询与 SQL 能力（#212~#220）、P4 索引与向量能力（#221~#229）。**Milestone 27（Industrial Data Agent 与 AI-ready 产品化路线）** 仍是对外门面与中长期 AI 产品主线，但当前状态为**滞后**：#182 已落第一批文档，#183~#188 需要优先追赶工具契约、工业 Demo、provider-neutral、本地模型、写入审批二阶段、eval 与成本指标；同时并行推进 **Milestone 17（可观测性与运行时可见性）** 的 OTel / 结构化日志 / 诊断端点 / Copilot 服务端会话持久化，以及 **Milestone 18（VS Code 扩展）** 的 `#99 ~ #103` “远程连接 + Explorer + SQL + 结果视图”闭环。**Milestone 19（生态适配底座能力）** 只保留 SonnetDB 通用数据库能力，#109~#117 与 #122/#123 已完成；IoTSharp 专属 Profile、兼容矩阵、灰度、双写、回滚和长稳验收已迁入 IoTSharp 仓库 RD-10。后续继续推进对象治理、通用迁移/校验原语、增量索引 / 后台维护成本与大量 measurement 长稳专项（其中 #124 增量索引与 Milestone 28 #207 目标一致，以 M28 为落地口径）。Studio 管理面进入 **Milestone 24**，MongoDB 参考 parity、长稳、容量报告和发布文档进入 **Milestone 25**。**Milestone 22（Agent Memory / Codebase Intelligence）** 重新定位为基于 SonnetDB 的上层应用 / 示例方案候选，暂停 #150~#159 内置派单；只有应用验证出通用数据库能力缺口时，才拆成独立 Core / Server / Studio PR。SonnetDBEE C5.7 / MM9 的开源核心第一批已提供 `BackupService` 和 `sndb backup create/inspect/verify/restore`，企业级定时、增量、审计和 UI 编排继续由 SonnetDBEE 承接。**Milestone 20** 后续不再按 #129 继续派单，而是通过 `.github/workflows/parity.yml`、`parity-results` 分支与 `tests/SonnetDB.Parity/reports/sample-run.md` 持续暴露能力缺口、SKIP 原因和 nightly 稳定性。
