@@ -26,8 +26,28 @@ public sealed record TsdbOptions
 
     /// <summary>
     /// 是否在每次 Append 后自动 fsync WAL（持久性最强；默认 false，由 Flush 时刻保证）。
+    /// <para>
+    /// 语义分级（从弱到强）：
+    /// <list type="bullet">
+    ///   <item><description><see cref="SyncWalOnEveryWrite"/>=false 且 <see cref="FlushWalToOsOnWrite"/>=false：
+    ///     WAL 记录仅进程内 BufferedStream，直到 segment flush / roll / dispose 才落盘——普通进程 crash 也会
+    ///     丢失最近一个 flush 窗口内的已确认写（最高吞吐，最弱持久性）。</description></item>
+    ///   <item><description><see cref="FlushWalToOsOnWrite"/>=true（默认）：每次写入后把 WAL 交给 OS
+    ///     （flush BufferedStream，不 fsync）——普通进程 crash 不丢已确认写（数据已在 OS page cache），
+    ///     仅掉电/内核崩溃可能丢；开销远低于 fsync（#196）。</description></item>
+    ///   <item><description><see cref="SyncWalOnEveryWrite"/>=true：每批写入 fsync（group-commit 批处理）——
+    ///     掉电也不丢已确认写（最强持久性，写延迟最高）。</description></item>
+    /// </list>
+    /// </para>
     /// </summary>
     public bool SyncWalOnEveryWrite { get; init; } = false;
+
+    /// <summary>
+    /// 是否在每次写入后把 WAL 缓冲区 flush 到 OS（不 fsync）。默认 <c>true</c>：普通进程 crash 不丢
+    /// 已确认写。开销为一次用户态→内核态拷贝，远低于 fsync；仅当 <see cref="SyncWalOnEveryWrite"/>=false
+    /// 时生效（后者已包含更强的 fsync）。设为 <c>false</c> 可换取极限写吞吐，但牺牲进程崩溃的持久性（#196）。
+    /// </summary>
+    public bool FlushWalToOsOnWrite { get; init; } = true;
 
     /// <summary>WAL group-commit 配置，仅在 <see cref="SyncWalOnEveryWrite"/> 为 <c>true</c> 时生效。</summary>
     public WalGroupCommitOptions WalGroupCommit { get; init; } = WalGroupCommitOptions.Default;

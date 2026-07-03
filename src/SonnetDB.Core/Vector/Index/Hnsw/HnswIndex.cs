@@ -394,8 +394,22 @@ public sealed class HnswIndex<TKey> : IIndex<TKey>, IDisposable
     {
         _vectors.AddRange(snapshot.Vectors);
         _keys.AddRange(snapshot.Keys);
+
+        // 先登记 tombstone，再构建 _keyToRow 时跳过 tombstoned 行（#194→#193）：
+        // 删除后重插同一 key 会让快照中该 key 出现在两行（旧 tombstoned 行 + 新活跃行），
+        // 若对所有行无差别 _keyToRow.Add 会因重复 key 抛 ArgumentException 导致索引无法加载。
+        // tombstoned 行的 key 不应存在于活跃映射（Remove 已将其移除），故跳过。
+        foreach (int row in snapshot.Tombstones)
+            _tombstones.Add(row);
+
         for (int row = 0; row < snapshot.Keys.Length; row++)
-            _keyToRow.Add(snapshot.Keys[row], row);
+        {
+            if (_tombstones.Contains(row))
+                continue;
+            // 防御：若同一活跃 key 因历史数据异常重复出现，保留最后一次（last-writer-wins），不抛。
+            _keyToRow[snapshot.Keys[row]] = row;
+        }
+
         _levels.AddRange(snapshot.Levels);
         foreach (var rowLayers in snapshot.Neighbors)
         {
@@ -404,8 +418,6 @@ public sealed class HnswIndex<TKey> : IIndex<TKey>, IDisposable
                 layers[layer] = new List<int>(rowLayers[layer]);
             _neighbors.Add(layers);
         }
-        foreach (int row in snapshot.Tombstones)
-            _tombstones.Add(row);
         _entryPoint = snapshot.EntryPoint;
         _entryLevel = snapshot.EntryLevel;
     }

@@ -52,9 +52,42 @@ public sealed class CrashReliabilityTests : IDisposable
     }
 
     [Fact]
-    public void disk_full_during_wal_append_PreservesPreviouslySyncedRecords()
+    public void crash_kill9_after_delete_DeletedRangeStaysDeleted()
     {
-        string root = NewScenarioRoot();
+        // #194：写入不同步，落段后删除 [50,100]，随即 kill -9。Delete 已强制 fsync WAL Delete 记录，
+        // 且单条删除未触发 manifest checkpoint，故恢复只能靠 WAL Delete 记录——删除必须存活，数据不复活。
+        string root = RunKillScenario("crash_kill9_after_delete", TimeSpan.FromMilliseconds(300));
+
+        using var db = Tsdb.Open(MakeOptions(root, compactionEnabled: false));
+
+        var entry = Assert.Single(db.Catalog.Find("del", new Dictionary<string, string> { ["host"] = "h" }));
+
+        // 被删区间 [50,100] 恢复后仍为空（未复活）。
+        int deletedRange = db.Query.Execute(
+            new PointQuery(entry.Id, "v", new TimeRange(50L, 100L))).Count();
+        Assert.Equal(0, deletedRange);
+
+        // 未删数据仍在：总数 = 200 - 51 = 149。
+        int total = db.Query.Execute(new PointQuery(entry.Id, "v", TimeRange.All)).Count();
+        Assert.Equal(149, total);
+    }
+
+    [Fact]
+    public void crash_kill9_os_flushed_writes_AckedWritesSurviveProcessCrash()
+    {
+        // #196：默认 FlushWalToOsOnWrite=true，写入不 fsync 也不落段，但每写 flush 到 OS。
+        // 进程被 kill -9（非掉电）→ OS page cache 存活 → 重开 WAL replay 应恢复全部 300 个已确认写。
+        string root = RunKillScenario("crash_kill9_os_flushed_writes", TimeSpan.FromMilliseconds(300));
+
+        using var db = Tsdb.Open(MakeOptions(root, compactionEnabled: false));
+
+        int total = QueryPointCount(db, "osflush", "h");
+        Assert.Equal(300, total);
+    }
+
+    [Fact]
+    public void disk_full_during_wal_append_PreservesPreviouslySyncedRecords()
+    {        string root = NewScenarioRoot();
         using (var db = Tsdb.Open(MakeOptions(root)))
         {
             db.Write(MakePoint("disk_full", 1_000L, "h", 1.0));

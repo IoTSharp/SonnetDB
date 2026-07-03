@@ -841,6 +841,14 @@ public sealed class SegmentReader : IDisposable
             return false;
         }
 
+        // #195：footer 自校验（仅当 v6+ 且 FooterChecksum 非 0）。旧版本（v2~v5）或未写该校验的
+        // 旧 v6 文件 FooterChecksum==0，跳过以保持向后读兼容。检出满足布局等式但字段被位翻转的静默损坏。
+        if (footer.FormatVersion >= TsdbMagic.SegmentFormatVersion && !footer.VerifyFooterChecksum())
+        {
+            error = $"SegmentFooter 自校验 CRC 失败（footer 字段疑似损坏，FooterChecksum=0x{footer.FooterChecksum:X8}）";
+            return false;
+        }
+
         return TryValidateFooterLayout(path, length, footerStart, footer, out error);
     }
 

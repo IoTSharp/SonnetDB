@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO.Hashing;
 using System.Runtime.InteropServices;
 using System.Text;
+using SonnetDB.Buffers;
 using SonnetDB.Memory;
 using SonnetDB.Model;
 using SonnetDB.Storage.Format;
@@ -505,6 +506,56 @@ public sealed class SegmentReaderTests : IDisposable
 
         Assert.Throws<SegmentCorruptedException>(() =>
             SegmentReader.Open(path, new SegmentReaderOptions { VerifyIndexCrc = true }));
+    }
+
+    // ── #195：Footer 自校验 CRC ────────────────────────────────────────────────
+
+    [Fact]
+    public void FooterChecksum_FreshV6Segment_IsPresentAndValid()
+    {
+        string path = TempPath();
+        var mt = new MemTable();
+        mt.Append(1UL, 0L, "v", FieldValue.FromDouble(1.0), 1L);
+        _writer.WriteFrom(mt, 1L, path);
+
+        byte[] bytes = File.ReadAllBytes(path);
+        var footer = MemoryMarshal.Read<SegmentFooter>(bytes.AsSpan(bytes.Length - FormatSizes.SegmentFooterSize));
+
+        // 新写入的 v6 段应携带非 0 的 footer 自校验，且自洽。
+        Assert.Equal(TsdbMagic.SegmentFormatVersion, footer.FormatVersion);
+        Assert.NotEqual(0u, footer.FooterChecksum);
+        Assert.True(footer.VerifyFooterChecksum());
+    }
+
+    [Fact]
+    public void FooterChecksum_CoveredFieldBitFlip_IsDetected()
+    {
+        // 直接在结构层验证：翻转覆盖区内任一字段（IndexOffset），自校验必须失败。
+        var footer = SegmentFooter.CreateNew(indexCount: 3, indexOffset: 128, fileLength: 4096);
+        footer.Crc32 = 0xDEADBEEF;
+        footer.ComputeAndSetFooterChecksum();
+        Assert.True(footer.VerifyFooterChecksum());
+
+        var flipped = footer;
+        flipped.IndexOffset ^= 0x100; // 位翻转，可能仍满足某些布局等式
+        Assert.False(flipped.VerifyFooterChecksum());
+
+        var flippedLen = footer;
+        flippedLen.FileLength ^= 0x1;
+        Assert.False(flippedLen.VerifyFooterChecksum());
+
+        var flippedCount = footer;
+        flippedCount.IndexCount ^= 0x1;
+        Assert.False(flippedCount.VerifyFooterChecksum());
+    }
+
+    [Fact]
+    public void FooterChecksum_LegacyZeroChecksum_SkipsVerification()
+    {
+        // 旧文件语义：FooterChecksum==0 视为无该校验，直接通过（向后读兼容）。
+        var footer = SegmentFooter.CreateNew(indexCount: 1, indexOffset: 128, fileLength: 256);
+        Assert.Equal(0u, footer.FooterChecksum);
+        Assert.True(footer.VerifyFooterChecksum());
     }
 
     [Fact]

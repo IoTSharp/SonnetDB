@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using SonnetDB.Buffers;
 
 namespace SonnetDB.Storage.Format;
@@ -57,14 +58,21 @@ public struct SegmentFooter
     /// <summary>CRC32 校验值（预留，Milestone 3 中填写，当前填 0）。</summary>
     public uint Crc32;
 
-    /// <summary>保留字段（0）。</summary>
-    public int Reserved0;
+    /// <summary>
+    /// Footer 自校验 CRC32（#195）：覆盖本结构前 36 字节（Magic..Crc32）。写入时始终填写，
+    /// 读取时仅当非 0 才校验——旧版本（≤v6）文件此字段为 0，跳过校验以保持向后读兼容。
+    /// 用于检出"满足布局等式但字段被位翻转（如 IndexOffset/FileLength/IndexCount）"的静默损坏。
+    /// </summary>
+    public uint FooterChecksum;
 
     /// <summary>保留字节（全 0）。</summary>
     public InlineBytes16 Reserved16;
 
     /// <summary>保留字节（全 0）。</summary>
     public InlineBytes8 Reserved8;
+
+    /// <summary>Footer 自校验 CRC 覆盖的字节长度（Magic..Crc32，不含 FooterChecksum 起的保留区）。</summary>
+    internal const int FooterChecksumCoveredLength = 36;
 
     /// <summary>
     /// 创建一个新的 <see cref="SegmentFooter"/>，填写 magic、版本号及索引信息。
@@ -108,5 +116,33 @@ public struct SegmentFooter
                 return true;
         }
         return false;
+    }
+
+    /// <summary>
+    /// 计算并写入 Footer 自校验 CRC（覆盖前 <see cref="FooterChecksumCoveredLength"/> 字节）。写段时调用。
+    /// </summary>
+    public void ComputeAndSetFooterChecksum()
+    {
+        Span<byte> buffer = stackalloc byte[Unsafe.SizeOf<SegmentFooter>()];
+        FooterChecksum = 0;
+        MemoryMarshal.Write(buffer, in this);
+        FooterChecksum = System.IO.Hashing.Crc32.HashToUInt32(buffer[..FooterChecksumCoveredLength]);
+    }
+
+    /// <summary>
+    /// 校验 Footer 自校验 CRC。旧文件（<see cref="FooterChecksum"/> == 0）视为"无该校验"直接通过，
+    /// 保持向后读兼容；非 0 时必须与重算值一致，否则说明 footer 字段发生静默损坏（#195）。
+    /// </summary>
+    /// <returns>校验通过（或旧文件无校验）返回 <c>true</c>。</returns>
+    public readonly bool VerifyFooterChecksum()
+    {
+        if (FooterChecksum == 0)
+            return true; // 旧版本无 footer 自校验：跳过（向后兼容）。
+
+        SegmentFooter copy = this;
+        copy.FooterChecksum = 0;
+        Span<byte> buffer = stackalloc byte[Unsafe.SizeOf<SegmentFooter>()];
+        MemoryMarshal.Write(buffer, in copy);
+        return System.IO.Hashing.Crc32.HashToUInt32(buffer[..FooterChecksumCoveredLength]) == FooterChecksum;
     }
 }

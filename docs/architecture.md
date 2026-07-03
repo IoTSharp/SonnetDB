@@ -53,6 +53,20 @@ Application / Service / Tooling
 - 崩溃恢复依赖 WAL replay
 - 读写职责分离，segment 保持不可变
 
+### 写入持久性分级
+
+WAL 落盘强度由两个选项决定，从弱到强分三级：
+
+| 配置 | 语义 | 进程崩溃 | 掉电 / 内核崩溃 | 代价 |
+| --- | --- | --- | --- | --- |
+| `FlushWalToOsOnWrite=false` | WAL 仅停留在进程内 BufferedStream，直到 segment flush / roll / dispose 才交给 OS | 丢失最近一个 flush 窗口的已确认写 | 丢失 | 最低（极限吞吐） |
+| `FlushWalToOsOnWrite=true`（**默认**） | 每次写入后把 WAL 缓冲 flush 到 OS（page cache），不 fsync | **不丢**已确认写 | 可能丢 | 一次用户态→内核态拷贝 |
+| `SyncWalOnEveryWrite=true` | 每批写入 fsync（group-commit 2ms 窗口批处理） | 不丢 | **不丢**已确认写 | 每批一次 fsync（写延迟最高） |
+
+- **Flush 本身** 始终做 segment 文件 fsync + 目录 fsync（含 Windows，见 `DirectoryFsync`），并保证 segment 落盘早于 WAL 回收，因此已 flush 的数据在任何崩溃下都不丢。
+- **Delete** 无条件同步 WAL（不受上表影响），保证删除不会因崩溃而"复活"。
+- 需要极限写吞吐、可接受进程崩溃丢最近写的场景，显式设 `FlushWalToOsOnWrite=false`。
+
 ## 查询路径
 
 查询侧主要由 `QueryEngine` 负责：

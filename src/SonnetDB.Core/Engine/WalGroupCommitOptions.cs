@@ -1,7 +1,8 @@
 namespace SonnetDB.Engine;
 
 /// <summary>
-/// WAL group-commit 配置。仅在 <see cref="TsdbOptions.SyncWalOnEveryWrite"/> 为 <c>true</c> 时生效。
+/// WAL group-commit 配置。用于写入路径（当 <see cref="TsdbOptions.SyncWalOnEveryWrite"/> 为 <c>true</c> 时）
+/// 以及始终强制同步的 Delete 路径（#194）：同一时间窗口内的多个请求共享一次 WAL fsync。
 /// </summary>
 public sealed record WalGroupCommitOptions
 {

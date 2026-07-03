@@ -247,6 +247,20 @@ public sealed class WalSegmentSet : IDisposable
     }
 
     /// <summary>
+    /// 把 active segment 的写缓冲区 flush 到 OS（不 fsync）。使已 append 的 WAL 记录进入内核
+    /// page cache，从而普通进程崩溃后可恢复；掉电仍可能丢失。开销远低于 <see cref="Sync"/>（#196）。
+    /// </summary>
+    /// <exception cref="ObjectDisposedException">实例已关闭时抛出。</exception>
+    public void FlushToOs()
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            _activeWriter!.Flush();
+        }
+    }
+
+    /// <summary>
     /// 主动滚动：关闭当前 active segment 并以 NextLsn 打开新 segment。
     /// 若当前 active segment 只含文件头（无记录），跳过滚动（避免产生空 segment）。
     /// </summary>

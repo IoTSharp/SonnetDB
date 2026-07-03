@@ -353,6 +353,8 @@ public sealed class Tsdb : IDisposable
 
             if (_options.SyncWalOnEveryWrite)
                 walSync = _walGroupCommit.Prepare(_walSet!);
+            else
+                FlushWalToOsIfEnabledLocked();
         }
 
         walSync.Wait();
@@ -451,6 +453,8 @@ public sealed class Tsdb : IDisposable
 
             if (_options.SyncWalOnEveryWrite && written > 0)
                 walSync = _walGroupCommit.Prepare(_walSet!);
+            else if (written > 0)
+                FlushWalToOsIfEnabledLocked();
         }
 
         walSync.Wait();
@@ -465,8 +469,9 @@ public sealed class Tsdb : IDisposable
 
     /// <summary>
     /// 删除某 (seriesId, fieldName) 在 [fromTimestamp, toTimestamp] 时间窗内的所有点。
-    /// 在 WAL 中追加 Delete 记录，并将墓碑加入内存 <see cref="Tombstones"/> 集合。
-    /// manifest 将在下次 FlushNow / Compaction / Dispose 时持久化；崩溃时 WAL replay 兜底。
+    /// 在 WAL 中追加 Delete 记录并<b>同步落盘</b>（不受 <see cref="TsdbOptions.SyncWalOnEveryWrite"/> 影响，#194），
+    /// 将墓碑加入内存 <see cref="Tombstones"/> 集合；manifest 为恢复加速的可选快照，WAL 为权威恢复来源。
+    /// 强制同步保证崩溃后删除不丢失、已落段的被删数据不会复活。
     /// </summary>
     /// <param name="seriesId">目标序列 ID（XxHash64 值）。</param>
     /// <param name="fieldName">目标字段名称（非空）。</param>
@@ -496,8 +501,10 @@ public sealed class Tsdb : IDisposable
             _tombstoneDeletesSinceCheckpoint++;
             MaybeCheckpointTombstoneManifestLocked(DateTime.UtcNow.Ticks);
 
-            if (_options.SyncWalOnEveryWrite)
-                walSync = _walGroupCommit.Prepare(_walSet!);
+            // Delete 无条件同步 WAL（不受 SyncWalOnEveryWrite 影响）：删除必须持久化，否则崩溃后
+            // buffered 的 Delete 记录丢失、周期 manifest 又未 checkpoint 时，已落段的被删数据会"复活"
+            // （比丢写更危险）。删除频率远低于写入，强制 fsync 代价可接受；group-commit 会批处理并发删除。#194
+            walSync = _walGroupCommit.Prepare(_walSet!);
         }
 
         walSync.Wait();
@@ -1036,9 +1043,18 @@ public sealed class Tsdb : IDisposable
     }
 
     /// <summary>
+    /// 若启用（默认）且未走每写 fsync，则把 WAL 缓冲 flush 到 OS（不 fsync），使普通进程崩溃后
+    /// 已确认写可恢复（#196）。调用方须持有 <c>_writeSync</c>；开销为一次用户态→内核态拷贝。
+    /// </summary>
+    private void FlushWalToOsIfEnabledLocked()
+    {
+        if (_options.FlushWalToOsOnWrite && _walSet is not null)
+            _walSet.FlushToOs();
+    }
+
+    /// <summary>
     /// 硬上限背压：活跃 MemTable 超过硬上限（内存紧急阈值）时，在 <c>_writeSync</c> 内密封入队（O(1)），
-    /// 返回该请求供调用方在锁外<b>同步等待</b>其落盘完成——硬上限意味着内存压力已达红线，
-    /// 必须让写入者停下等待抽干，而非继续堆积。返回 null 表示未触发。
+    /// 返回该请求供调用方在锁外<b>同步等待</b>其落盘完成。返回 null 表示未触发。
     /// </summary>
     private FlushPump.FlushRequest? FlushForHardCapIfNeededLocked()
     {

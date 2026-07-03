@@ -146,6 +146,31 @@ public sealed class HnswIndexTests
         for (int i = 0; i < n; i++) { Assert.NotEqual(2, buf[i].Item1); }
     }
 
+    // ── #193：删除后重插同 key，快照往返（持久化重载）不应因重复 key 抛异常 ────────
+    [Fact]
+    public void Snapshot_RoundTrip_AfterDeleteAndReinsertSameKey_Reloads()
+    {
+        using var index = new HnswIndex<int>(3, Metric.L2, DeterministicOptions());
+        index.Add(1, new float[] { 0f, 0f, 0f });
+        index.Add(2, new float[] { 1f, 0f, 0f });   // key 2 → row 1
+        Assert.True(index.Remove(2));                // row 1 tombstoned，_keys 仍保留 key 2
+        index.Add(2, new float[] { 0f, 1f, 0f });    // key 2 重插 → 新 row 2；快照中 key 2 出现在两行
+
+        // 快照往返：修复前 PopulateFromSnapshot 会对重复 key 2 无差别 _keyToRow.Add → ArgumentException。
+        var snapshot = index.CreateSnapshot();
+        using var reloaded = HnswIndex<int>.FromSnapshot(snapshot); // 不应抛
+
+        Assert.Equal(2, reloaded.Count);            // key 1 + 重插的 key 2（tombstoned 行不计）
+        Assert.True(reloaded.ContainsKey(1));
+        Assert.True(reloaded.ContainsKey(2));
+
+        // 重插的 key 2 指向新向量 (0,1,0)：查询该点应命中 key 2。
+        var buf = new (int, float)[3];
+        int n = reloaded.Search(new float[] { 0f, 1f, 0f }, 3, buf);
+        Assert.True(n >= 1);
+        Assert.Contains(buf[..n], r => r.Item1 == 2);
+    }
+
     [Fact]
     public void Concurrent_Reads_AreSafe()
     {

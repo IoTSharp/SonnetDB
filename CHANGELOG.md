@@ -40,6 +40,7 @@
 
 ### Changed
 
+- **写入持久性默认加固（M28 #196）**：新增 `TsdbOptions.FlushWalToOsOnWrite`（默认 `true`），每次写入后把 WAL 缓冲 flush 到 OS（不 fsync）。**行为变更**：此前默认下 WAL 记录仅停留在进程内 BufferedStream，直到 segment flush / roll / dispose 才交给 OS——普通进程崩溃（非掉电）也会丢失最近一个 flush 窗口内的已确认写；现在默认下进程崩溃不再丢已确认写（数据已在 OS page cache），仅掉电/内核崩溃可能丢。持久性分三级：`FlushWalToOsOnWrite=false`（极限吞吐，最弱）＜ 默认 `true`（进程崩溃安全）＜ `SyncWalOnEveryWrite=true`（每批 fsync，掉电安全）。开销为一次用户态→内核态拷贝，远低于 fsync。需要极限写吞吐可显式设为 `false`。
 - CI workflows now use `actions/cache@v6` for NuGet package caching.
 - README / README.en 第一屏介绍改为产品门面叙事，避免使用“收敛到一个……”这类内部路线图表达。
 - **路线图状态校准**：`AGENTS.md` 当前推进口径从旧 Milestone 16 调整为 Milestone 27 / 17 / 18 并行推进，并明确 M27 当前滞后、需优先追赶 #183~#188；`ROADMAP.md` 总览同步将 Milestone 21 与 Milestone 26 标记为完成，将 Milestone 27 标记为滞后，将 Milestone 22 从 SonnetDB 内置路线降级为“基于 SonnetDB 的上层应用 / 示例方案候选”，暂停 #150~#159 内置派单，并在当前推进顺序中明确 M21、M26 已收口、M22 只有沉淀出通用数据库能力缺口时才拆 Core / Server / Studio PR，避免后续 AI 协作继续按旧目标派单。
@@ -51,6 +52,15 @@
 
 ### Fixed
 
+- **M28 P0 数据可靠性止血批次**：一轮跨子系统审计后修复一组崩溃/并发数据安全缺陷——
+  (#189) `DirectoryFsync` 在 Windows 用 `CreateFileW(FILE_FLAG_BACKUP_SEMANTICS)`+`FlushFileBuffers` 实现真实目录 fsync（替换旧空操作），保证 segment 改名 + 目录项落盘早于 WAL 回收，并补 catalog / measurement schema 改名后的目录 flush；
+  (#190/#204) MemTable 双缓冲统一快照（SegmentManager 作为 {active+sealing MemTable+segments} 单一原子发布者），消除 flush 期间"数据两处都无"的并发查询丢数据窗口，并把 flush 编码落盘移出全局写锁（FlushPump 单线程泵）；
+  (#191) Compaction / Retention / DropMeasurement 走读租约 + maintenance 串行锁，消除后台 worker use-after-dispose 与"compaction 复活 retention 刚删数据"；并修复 DropMeasurement/backup 未排空 flush 泵导致在飞 flush 漏删的竞态；
+  (#192) 全文索引 manifest / segment 写入改原子 `File.Move(overwrite)`+fsync，manifest 缺失时从段文件重建而非静默建空；
+  (#193) HNSW 快照重载跳过 tombstone 行，修复"删除后重插同 key 的持久化向量索引无法加载"；
+  (#194) Delete 无条件同步 WAL，消除"已落段数据被删后崩溃复活"；
+  (#195) SegmentFooter 增加版本门控的自校验 CRC，检出满足布局等式的字段位翻转。
+  新增 `SonnetDB.CrashTests` 真 kill-9 delete 场景与多项并发/崩溃回归测试。
 - 持久化全文索引后台合并改用专用长运行任务启动，避免高并发 CI 测试下因线程池调度延迟导致等待 merge task 超时。
 - 持久化全文索引后台合并测试改为等待实际 merge task 完成后再断言段文件数量，避免 CI 线程调度较慢时误判失败。
 - Go connector quickstart now keeps the native library version string and KV CAS version number in separate variables, fixing the `go test ./...` compile failure in connector release builds.

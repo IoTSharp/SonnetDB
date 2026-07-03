@@ -262,6 +262,7 @@ public sealed class SegmentWriter
 
             var footer = SegmentFooter.CreateNew(indexEntries.Count, indexOffset, fileLength);
             footer.Crc32 = indexCrc32;
+            footer.ComputeAndSetFooterChecksum(); // #195：footer 自校验，检出满足布局等式的字段位翻转
             WriteStructToStream(bs, in footer);
 
             // ─── 阶段 F：Seek(0) 回填 SegmentHeader ───────────────────────
