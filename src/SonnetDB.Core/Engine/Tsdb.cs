@@ -1,4 +1,5 @@
 ﻿using SonnetDB.Catalog;
+using SonnetDB.Diagnostics;
 using SonnetDB.Documents;
 using SonnetDB.Engine.Compaction;
 using SonnetDB.Engine.Retention;
@@ -10,6 +11,7 @@ using SonnetDB.Query.Functions;
 using SonnetDB.Storage.Segments;
 using SonnetDB.Tables;
 using SonnetDB.Wal;
+using System.Diagnostics;
 
 namespace SonnetDB.Engine;
 
@@ -54,6 +56,7 @@ public sealed class Tsdb : IDisposable
     private long _tombstoneDeletesSinceCheckpoint;
     private long _lastTombstoneCheckpointUtcTicks;
     private Exception? _lastError;
+    private long _meterRegistration;
 
     /// <summary>
     /// <see cref="WriteMany(ReadOnlySpan{Point})"/> 单次持锁处理的最大点数。超大批量按此粒度分块，
@@ -147,6 +150,9 @@ public sealed class Tsdb : IDisposable
     /// <summary>后台 Flush 策略（供 BackgroundFlushWorker 访问）。</summary>
     internal MemTableFlushPolicy BackgroundFlushPolicy => _options.FlushPolicy;
     internal SegmentWriterOptions CompactionWriterOptions => _options.SegmentWriterOptions;
+
+    /// <summary>flush 泵当前排队中（含正在处理）的请求数；供 <see cref="SonnetDbMeter"/> 观测。</summary>
+    internal long FlushPumpPendingCount => _flushPump?.PendingCount ?? 0;
 
     /// <summary>
     /// 获取一次统一读快照租约：一次调用原子拿到 {active + sealing MemTable + 段读取器} 一致视图。
@@ -335,6 +341,8 @@ public sealed class Tsdb : IDisposable
             tsdb._kvExpirerWorker.Start();
         }
 
+        tsdb._meterRegistration = SonnetDbMeter.RegisterEngine(tsdb);
+
         return tsdb;
     }
 
@@ -347,6 +355,8 @@ public sealed class Tsdb : IDisposable
     public void Write(Point point)
     {
         ArgumentNullException.ThrowIfNull(point);
+
+        long startTimestamp = SonnetDbMeter.WriteDuration.Enabled ? Stopwatch.GetTimestamp() : 0;
 
         WalGroupCommitTicket walSync = default;
         FlushPump.FlushRequest? hardCapFlush;
@@ -370,6 +380,10 @@ public sealed class Tsdb : IDisposable
 
         // 锁外向后台线程发送非阻塞信号
         _flushWorker?.Signal();
+
+        SonnetDbMeter.WritePoints.Add(1);
+        if (startTimestamp != 0)
+            SonnetDbMeter.WriteDuration.Record(Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds);
     }
 
     /// <summary>
@@ -445,6 +459,8 @@ public sealed class Tsdb : IDisposable
     /// </summary>
     private int WriteManyChunk(ReadOnlySpan<Point> chunk)
     {
+        long startTimestamp = SonnetDbMeter.WriteDuration.Enabled ? Stopwatch.GetTimestamp() : 0;
+
         int written = 0;
         WalGroupCommitTicket walSync = default;
         FlushPump.FlushRequest? hardCapFlush = null;
@@ -489,7 +505,13 @@ public sealed class Tsdb : IDisposable
         ApplyFlushBackpressure(hardCapFlush);
 
         if (written > 0)
+        {
             _flushWorker?.Signal();
+            SonnetDbMeter.WritePoints.Add(written);
+        }
+
+        if (startTimestamp != 0)
+            SonnetDbMeter.WriteDuration.Record(Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds);
 
         return written;
     }
@@ -707,6 +729,8 @@ public sealed class Tsdb : IDisposable
     /// </summary>
     public void Dispose()
     {
+        SonnetDbMeter.UnregisterEngine(_meterRegistration);
+
         _kvExpirerWorker?.Dispose();
         _kvExpirerWorker = null;
 
@@ -916,14 +940,30 @@ public sealed class Tsdb : IDisposable
             return;
         }
 
-        var result = _flushCoordinator.FlushSealed(
-            request.SealedTable,
-            walSet,
-            request.SealLsn,
-            request.SegmentId,
-            Tombstones,
-            Catalog,
-            Measurements);
+        using var activity = SonnetDbActivitySource.StartOperation("sonnetdb.flush", "flush");
+        activity?.SetTag("sonnetdb.segment.id", request.SegmentId);
+        long startTimestamp = Stopwatch.GetTimestamp();
+        long flushedPoints = request.SealedTable.PointCount;
+
+        SegmentBuildResult? result;
+        try
+        {
+            result = _flushCoordinator.FlushSealed(
+                request.SealedTable,
+                walSet,
+                request.SealLsn,
+                request.SegmentId,
+                Tombstones,
+                Catalog,
+                Measurements);
+        }
+        catch (Exception ex)
+        {
+            SonnetDbActivitySource.RecordFailure(activity, ex);
+            SonnetDbMeter.FlushDuration.Record(
+                Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds, SonnetDbMeter.OutcomeError);
+            throw;
+        }
 
         if (result == null)
         {
@@ -935,6 +975,11 @@ public sealed class Tsdb : IDisposable
         // 原子发布：接入新段 + 从 sealing 移除该表（SegmentManager 一次 Volatile.Write）。
         Segments.PublishSegmentAndReleaseSealed(result.Path, request.SealedTable);
         request.Result = result;
+
+        SonnetDbMeter.FlushDuration.Record(
+            Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds, SonnetDbMeter.OutcomeOk);
+        SonnetDbMeter.FlushPoints.Add(flushedPoints);
+        SonnetDbMeter.FlushBytes.Add(result.TotalBytes);
 
         // 更新 checkpoint LSN（无锁；FIFO 单泵保证 sealLsn 单调，CAS 提升即可）。
         // 关键：泵<b>绝不</b>获取 _writeSync，从而与"持 _writeSync 触发 flush"的路径无锁序环。

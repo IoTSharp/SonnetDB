@@ -425,6 +425,10 @@ public sealed class SegmentReader : IDisposable
     {
         ThrowIfDisposed();
 
+        Diagnostics.SonnetDbMeter.SegmentBlockReads.Add(1);
+        Diagnostics.SonnetDbMeter.SegmentBlockReadBytes.Add(
+            descriptor.FieldNameUtf8Length + descriptor.TimestampPayloadLength + descriptor.ValuePayloadLength);
+
         var source = _source!;
 
         int headerSize = descriptor.HeaderSize == 0 ? FormatSizes.BlockHeaderSize : descriptor.HeaderSize;

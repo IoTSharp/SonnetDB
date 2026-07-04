@@ -149,9 +149,14 @@ internal sealed class CompactionWorker : IDisposable
             if (_cts.IsCancellationRequested)
                 break;
 
+            using var activity = Diagnostics.SonnetDbActivitySource.StartOperation("sonnetdb.compaction", "compaction");
+            long startTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+
             try
             {
                 var newId = _owner.AllocateSegmentId();
+                activity?.SetTag("sonnetdb.segment.id", newId);
+                activity?.SetTag("sonnetdb.compaction.source.count", plan.SourceSegmentIds.Count);
                 var newPath = TsdbPaths.SegmentPath(_owner.RootDirectory, newId);
                 SegmentReplacementManifest.RecordPendingReplacement(
                     _owner.RootDirectory,
@@ -185,11 +190,18 @@ internal sealed class CompactionWorker : IDisposable
                 RecycleDiscardedTombstones();
 
                 Interlocked.Increment(ref _executedCount);
+                Diagnostics.SonnetDbMeter.CompactionDuration.Record(
+                    System.Diagnostics.Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds,
+                    Diagnostics.SonnetDbMeter.OutcomeOk);
             }
             catch (Exception ex)
             {
                 Interlocked.Increment(ref _failureCount);
                 Volatile.Write(ref _lastError, ex);
+                Diagnostics.SonnetDbActivitySource.RecordFailure(activity, ex);
+                Diagnostics.SonnetDbMeter.CompactionDuration.Record(
+                    System.Diagnostics.Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds,
+                    Diagnostics.SonnetDbMeter.OutcomeError);
                 _owner.ReportBackgroundWorkerDiagnostic(
                     "CompactionWorker.Execute",
                     TsdbDiagnosticSeverity.Error,

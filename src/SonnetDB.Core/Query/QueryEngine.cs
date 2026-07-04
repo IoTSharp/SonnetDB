@@ -1,7 +1,9 @@
 ﻿using System.Buffers;
 using System.Buffers.Binary;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using SonnetDB.Catalog;
+using SonnetDB.Diagnostics;
 using SonnetDB.Engine;
 using SonnetDB.Memory;
 using SonnetDB.Model;
@@ -117,73 +119,89 @@ public sealed class QueryEngine
     {
         ArgumentNullException.ThrowIfNull(query);
 
-        long from = query.Range.FromInclusive;
-        long to = query.Range.ToInclusive;
-
-        var key = new SeriesFieldKey(query.SeriesId, query.FieldName);
-
-        // 墓碑集合与查询范围无关，可在进入租约前一次取好。
-        IReadOnlyList<Tombstone> tombstones = Array.Empty<Tombstone>();
-        if (_tombstones is not null)
+        // 计量覆盖整个流式枚举周期（含提前 break：finally 在枚举器 Dispose 时运行）。
+        // 未监听时 StartOperation 返回 null、Enabled=false 短路，近零开销（M17 #89）。
+        using var activity = SonnetDbActivitySource.StartOperation("sonnetdb.query.points", "points");
+        long startTimestamp = SonnetDbMeter.QueryDuration.Enabled ? Stopwatch.GetTimestamp() : 0;
+        try
         {
-            var tombstoneList = _tombstones.GetForSeriesField(query.SeriesId, query.FieldName);
-            if (tombstoneList.Count > 0)
-                tombstones = FilterTombstonesForQueryRange(tombstoneList, from, to);
-        }
+            long from = query.Range.FromInclusive;
+            long to = query.Range.ToInclusive;
 
-        // 单次租约拿到 {active + sealing MemTable + segments} 一致视图（SuperVersion）。
-        // 关键：租约必须在整个流式合并期间保持——段 block 惰性解码发生在下方 foreach 内，
-        // 依赖 reader 存活。iterator 被消费完 / 提前 break 时，using 释放租约（#220 C9）。
-        using var snapshotLease = _segments.AcquireSnapshot();
+            var key = new SeriesFieldKey(query.SeriesId, query.FieldName);
 
-        var memSlices = CollectMemTableSlices(in snapshotLease, in key, from, to, out var memFieldType);
-
-        var snapshot = snapshotLease.Snapshot;
-        var candidates = snapshot.Index.LookupCandidates(query.SeriesId, query.FieldName, from, to);
-        var readers = BuildReaderMap(snapshot);
-
-        // 构建惰性 block 源：只捕获 (reader, descriptor)，解码推迟到该 block 抵达合并前沿，
-        // 从而把解码工作集限制为 overlap depth，而非候选 block 总数（LOH 峰值消除）。
-        var segmentBlocks = new List<BlockSourceMerger.LazyBlock>(candidates.Count);
-        foreach (var blockRef in candidates)
-        {
-            if (query.GeoFilter is not null
-                && blockRef.Descriptor.HasGeoHashRange
-                && !GeoHash32.Overlaps(
-                    blockRef.Descriptor.GeoHashMin,
-                    blockRef.Descriptor.GeoHashMax,
-                    query.GeoFilter.HashMin,
-                    query.GeoFilter.HashMax))
+            // 墓碑集合与查询范围无关，可在进入租约前一次取好。
+            IReadOnlyList<Tombstone> tombstones = Array.Empty<Tombstone>();
+            if (_tombstones is not null)
             {
-                continue;
+                var tombstoneList = _tombstones.GetForSeriesField(query.SeriesId, query.FieldName);
+                if (tombstoneList.Count > 0)
+                    tombstones = FilterTombstonesForQueryRange(tombstoneList, from, to);
             }
 
-            ThrowIfFieldTypeMismatch(memFieldType, blockRef);
+            // 单次租约拿到 {active + sealing MemTable + segments} 一致视图（SuperVersion）。
+            // 关键：租约必须在整个流式合并期间保持——段 block 惰性解码发生在下方 foreach 内，
+            // 依赖 reader 存活。iterator 被消费完 / 提前 break 时，using 释放租约（#220 C9）。
+            using var snapshotLease = _segments.AcquireSnapshot();
 
-            if (!readers.TryGetValue(blockRef.SegmentId, out var reader))
-                continue;
+            var memSlices = CollectMemTableSlices(in snapshotLease, in key, from, to, out var memFieldType);
 
-            var descriptor = blockRef.Descriptor;
-            long lowerBound = Math.Max(from, descriptor.MinTimestamp);
-            segmentBlocks.Add(new BlockSourceMerger.LazyBlock(
-                lowerBound,
-                () => reader.DecodeBlockRangeView(descriptor, from, to)));
+            var snapshot = snapshotLease.Snapshot;
+            var candidates = snapshot.Index.LookupCandidates(query.SeriesId, query.FieldName, from, to);
+            var readers = BuildReaderMap(snapshot);
+
+            // 构建惰性 block 源：只捕获 (reader, descriptor)，解码推迟到该 block 抵达合并前沿，
+            // 从而把解码工作集限制为 overlap depth，而非候选 block 总数（LOH 峰值消除）。
+            var segmentBlocks = new List<BlockSourceMerger.LazyBlock>(candidates.Count);
+            foreach (var blockRef in candidates)
+            {
+                if (query.GeoFilter is not null
+                    && blockRef.Descriptor.HasGeoHashRange
+                    && !GeoHash32.Overlaps(
+                        blockRef.Descriptor.GeoHashMin,
+                        blockRef.Descriptor.GeoHashMax,
+                        query.GeoFilter.HashMin,
+                        query.GeoFilter.HashMax))
+                {
+                    continue;
+                }
+
+                ThrowIfFieldTypeMismatch(memFieldType, blockRef);
+
+                if (!readers.TryGetValue(blockRef.SegmentId, out var reader))
+                    continue;
+
+                var descriptor = blockRef.Descriptor;
+                long lowerBound = Math.Max(from, descriptor.MinTimestamp);
+                segmentBlocks.Add(new BlockSourceMerger.LazyBlock(
+                    lowerBound,
+                    () => reader.DecodeBlockRangeView(descriptor, from, to)));
+            }
+
+            // N 路流式有序合并（MemTable 侧可能多路：sealing + active）+ 墓碑过滤 + Limit。
+            // Limit 必须在 tombstone 过滤之后计数。
+            int emitted = 0;
+            int? limit = query.Limit;
+            foreach (var dp in BlockSourceMerger.Merge(memSlices, segmentBlocks))
+            {
+                if (tombstones.Count > 0 && IsCoveredByTombstones(dp.Timestamp, tombstones))
+                    continue;
+
+                if (limit.HasValue && emitted >= limit.Value)
+                    yield break;
+
+                yield return dp;
+                emitted++;
+            }
         }
-
-        // N 路流式有序合并（MemTable 侧可能多路：sealing + active）+ 墓碑过滤 + Limit。
-        // Limit 必须在 tombstone 过滤之后计数。
-        int emitted = 0;
-        int? limit = query.Limit;
-        foreach (var dp in BlockSourceMerger.Merge(memSlices, segmentBlocks))
+        finally
         {
-            if (tombstones.Count > 0 && IsCoveredByTombstones(dp.Timestamp, tombstones))
-                continue;
-
-            if (limit.HasValue && emitted >= limit.Value)
-                yield break;
-
-            yield return dp;
-            emitted++;
+            if (startTimestamp != 0)
+            {
+                SonnetDbMeter.QueryDuration.Record(
+                    Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds,
+                    SonnetDbMeter.OperationPoints);
+            }
         }
     }
 
@@ -405,10 +423,39 @@ public sealed class QueryEngine
     {
         ArgumentNullException.ThrowIfNull(query);
 
-        if (ShouldUsePointAggregatePath(query))
-            return ExecuteAggregateViaPoints(query);
+        var buckets = ShouldUsePointAggregatePath(query)
+            ? ExecuteAggregateViaPoints(query)
+            : ExecuteAggregateFast(query);
 
-        return ExecuteAggregateFast(query);
+        return InstrumentAggregate(buckets);
+    }
+
+    /// <summary>
+    /// 聚合查询计量包装：覆盖整个流式枚举周期（含提前中止）。未监听时直接透传原枚举，零包装开销。
+    /// </summary>
+    private static IEnumerable<AggregateBucket> InstrumentAggregate(IEnumerable<AggregateBucket> buckets)
+    {
+        if (!SonnetDbMeter.QueryDuration.Enabled && !SonnetDbActivitySource.Source.HasListeners())
+            return buckets;
+
+        return Enumerate(buckets);
+
+        static IEnumerable<AggregateBucket> Enumerate(IEnumerable<AggregateBucket> source)
+        {
+            using var activity = SonnetDbActivitySource.StartOperation("sonnetdb.query.aggregate", "aggregate");
+            long startTimestamp = Stopwatch.GetTimestamp();
+            try
+            {
+                foreach (var bucket in source)
+                    yield return bucket;
+            }
+            finally
+            {
+                SonnetDbMeter.QueryDuration.Record(
+                    Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds,
+                    SonnetDbMeter.OperationAggregate);
+            }
+        }
     }
 
     private IEnumerable<AggregateBucket> ExecuteAggregateViaPoints(AggregateQuery query)
