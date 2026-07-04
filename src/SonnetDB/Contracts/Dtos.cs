@@ -272,6 +272,26 @@ public sealed record MqPublishRequest(byte[] Payload, IReadOnlyDictionary<string
 public sealed record MqPublishResponse(string Topic, long Offset);
 
 /// <summary>
+/// MQ 批量发布单条消息。
+/// </summary>
+/// <param name="Payload">消息体。</param>
+/// <param name="Headers">可选消息头。</param>
+public sealed record MqPublishBatchEntry(byte[] Payload, IReadOnlyDictionary<string, string>? Headers = null);
+
+/// <summary>
+/// MQ 批量发布请求：同一 topic 下的多条消息共享一次刷盘。
+/// </summary>
+/// <param name="Messages">消息集合，按顺序分配连续 offset。</param>
+public sealed record MqPublishBatchRequest(IReadOnlyList<MqPublishBatchEntry> Messages);
+
+/// <summary>
+/// MQ 批量发布响应。
+/// </summary>
+/// <param name="Topic">Topic 名称。</param>
+/// <param name="Offsets">按输入顺序分配的 offset。</param>
+public sealed record MqPublishBatchResponse(string Topic, IReadOnlyList<long> Offsets);
+
+/// <summary>
 /// MQ 拉取请求。
 /// </summary>
 /// <param name="ConsumerGroup">消费者组名称。</param>

@@ -58,6 +58,54 @@ internal static partial class SonnetDbEndpoints
             }
         });
 
+        app.MapPost("/v1/db/{db}/mq/{topic}/publish-batch", async (HttpContext ctx, string db, string topic) =>
+        {
+            if (!await TryResolveMqAsync(ctx, registry, grants, db, topic, DatabasePermission.Write).ConfigureAwait(false))
+                return;
+
+            var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.MqPublishBatchRequest).ConfigureAwait(false);
+            if (req is null || req.Messages is null || req.Messages.Count == 0)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体需包含非空 messages。").ConfigureAwait(false);
+                return;
+            }
+
+            var entries = new SonnetMqPublishEntry[req.Messages.Count];
+            for (int i = 0; i < req.Messages.Count; i++)
+            {
+                var message = req.Messages[i];
+                if (message?.Payload is null)
+                {
+                    await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "批量消息每条都需包含 payload。").ConfigureAwait(false);
+                    return;
+                }
+
+                entries[i] = new SonnetMqPublishEntry(message.Payload, message.Headers);
+            }
+
+            try
+            {
+                var mq = app.Services.GetRequiredService<SonnetMqStore>();
+                var offsets = mq.PublishMany(QualifyMqTopic(db, topic), entries);
+                var response = new MqPublishBatchResponse(topic, offsets);
+                ctx.Response.StatusCode = StatusCodes.Status201Created;
+                ctx.Response.ContentType = "application/json; charset=utf-8";
+                await JsonSerializer.SerializeAsync(ctx.Response.Body, response, ServerJsonContext.Default.MqPublishBatchResponse, ctx.RequestAborted).ConfigureAwait(false);
+            }
+            catch (ArgumentException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+            }
+            catch (IOException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status500InternalServerError, "mq_io_error", ex.Message).ConfigureAwait(false);
+            }
+            catch (InvalidDataException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status500InternalServerError, "mq_error", ex.Message).ConfigureAwait(false);
+            }
+        });
+
         app.MapPost("/v1/db/{db}/mq/{topic}/pull", async (HttpContext ctx, string db, string topic) =>
         {
             if (!await TryResolveMqAsync(ctx, registry, grants, db, topic, DatabasePermission.Read).ConfigureAwait(false))

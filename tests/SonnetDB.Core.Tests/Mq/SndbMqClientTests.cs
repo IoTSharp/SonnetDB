@@ -32,6 +32,27 @@ public sealed class SndbMqClientTests : IDisposable
         Assert.Equal(1, stats.ConsumerOffsets["workers"]);
     }
 
+    [Fact]
+    public async Task PublishManyAsync_EmbeddedBatch_ReturnsContiguousOffsetsInOrder()
+    {
+        string connectionString = $"Data Source={_root};Mode=Embedded";
+        using var client = new SndbMqClient(connectionString);
+
+        var offsets = await client.PublishManyAsync(
+            "events.batch",
+            [
+                new SndbMqPublishEntry(Encoding.UTF8.GetBytes("a")),
+                new SndbMqPublishEntry(Encoding.UTF8.GetBytes("b"), new Dictionary<string, string> { ["k"] = "v" }),
+                new SndbMqPublishEntry(Encoding.UTF8.GetBytes("c")),
+            ]);
+
+        var messages = await client.PullAsync("events.batch", "workers", 10);
+
+        Assert.Equal([0L, 1L, 2L], offsets);
+        Assert.Equal(["a", "b", "c"], messages.Select(m => Encoding.UTF8.GetString(m.Payload)).ToArray());
+        Assert.Equal("v", messages[1].Headers["k"]);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))

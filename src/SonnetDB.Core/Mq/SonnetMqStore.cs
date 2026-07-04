@@ -131,9 +131,16 @@ public sealed class SonnetMqStore : IDisposable
     {
         byte[] topicBytes = EncodeName(topic, nameof(topic));
         var state = GetOrCreateTopic(topic);
+
+        bool groupCommit = _options.GroupCommitPublish
+            && _options.OpenMode != SonnetMqOpenMode.SingleFile
+            && (_options.FlushOnPublish || _options.SyncOnPublish);
+
+        long mySeq;
+        long[] offsets;
         lock (state.SyncRoot)
         {
-            var offsets = new long[prepared.Length];
+            offsets = new long[prepared.Length];
             for (int i = 0; i < prepared.Length; i++)
             {
                 var publish = prepared[i];
@@ -144,8 +151,40 @@ public sealed class SonnetMqStore : IDisposable
                 offsets[i] = offset;
             }
 
-            FlushPublishBatchIfNeeded(state);
-            return offsets;
+            state.AppendedSeq += prepared.Length;
+            mySeq = state.AppendedSeq;
+
+            // 未启用组提交（含单文件模式）：沿用逐次内联刷盘，锁内完成，语义与逐条刷盘一致。
+            if (!groupCommit)
+            {
+                FlushPublishBatchIfNeeded(state);
+                return offsets;
+            }
+        }
+
+        // 组提交 leader-flush：在 SyncRoot 外合并刷盘，仅刷盘瞬间借回 SyncRoot 序列化于写入者。
+        CommitPublishFlush(state, mySeq);
+        return offsets;
+    }
+
+    private void CommitPublishFlush(TopicState state, long mySeq)
+    {
+        // 快路径：我的字节已被此前某个 leader 刷盘覆盖，直接返回（零系统调用）。
+        if (Volatile.Read(ref state.FlushedSeq) >= mySeq)
+            return;
+
+        lock (state.FlushRoot)
+        {
+            // 等待 FlushRoot 期间已被覆盖：并发发布者的刷盘顺带带走了我的字节。
+            if (state.FlushedSeq >= mySeq)
+                return;
+
+            lock (state.SyncRoot)
+            {
+                long target = state.AppendedSeq;
+                state.Writer?.Flush(_options.SyncOnPublish);
+                Volatile.Write(ref state.FlushedSeq, target);
+            }
         }
     }
 
@@ -526,6 +565,11 @@ public sealed class SonnetMqStore : IDisposable
         EnsureWriter(state);
         if (state.Writer!.Position > 0 && state.Writer.Position + recordBytes > _options.SegmentMaxBytes)
         {
+            // 组提交下滚段前先把旧段刷到所配置持久层：Dispose 仅 OS-flush 缓冲，不 fsync。
+            // 若不在此 fsync，SyncOnPublish 时旧段里延迟刷盘的记录可能被后续「刷新段」的 leader
+            // 误判为已持久（FlushedSeq 覆盖），实则只在 OS 页缓存 → 掉电丢失（比照旧逐条内联 fsync 语义）。
+            if (_options.SyncOnPublish)
+                state.Writer.Flush(flushToDisk: true);
             state.Writer.Dispose();
             state.Writer = null;
             state.AddSegment(new SegmentState(SegmentPath(state.Topic, state.NextOffset), state.NextOffset));
@@ -896,6 +940,19 @@ public sealed class SonnetMqStore : IDisposable
         /// 该 topic 的写/读串行化锁。目录模式下每个 topic 独占一把；单文件模式下所有 topic 共享同一把（共用底层流）。
         /// </summary>
         public object SyncRoot { get; }
+
+        /// <summary>
+        /// 组提交 leader 选举锁。同一时刻只有一个 leader 执行刷盘。锁序固定为 <see cref="FlushRoot"/>（外）→
+        /// <see cref="SyncRoot"/>（内）：leader 仅在真正调用 <c>Flush</c> 的瞬间再取 <see cref="SyncRoot"/>，
+        /// 序列化于写入者（FileStream 非线程安全）；写入者只取 <see cref="SyncRoot"/>，不涉及 <see cref="FlushRoot"/>。
+        /// </summary>
+        public object FlushRoot { get; } = new();
+
+        /// <summary>已追加（延迟刷盘）的记录序号，SyncRoot 保护，单调递增。</summary>
+        public long AppendedSeq;
+
+        /// <summary>已刷盘到所配置持久层的最高 <see cref="AppendedSeq"/>，SyncRoot 保护。</summary>
+        public long FlushedSeq;
 
         public string Topic { get; }
 

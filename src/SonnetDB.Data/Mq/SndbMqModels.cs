@@ -28,9 +28,24 @@ public sealed record SndbMqStats(
     long NextOffset,
     IReadOnlyDictionary<string, long> ConsumerOffsets);
 
+/// <summary>
+/// SonnetDB MQ 批量发布条目。
+/// </summary>
+/// <param name="Payload">消息体。</param>
+/// <param name="Headers">可选消息头。</param>
+public sealed record SndbMqPublishEntry(
+    ReadOnlyMemory<byte> Payload,
+    IReadOnlyDictionary<string, string>? Headers = null);
+
 internal sealed record MqPublishRequest(byte[] Payload, IReadOnlyDictionary<string, string>? Headers = null);
 
 internal sealed record MqPublishResponse(string Topic, long Offset);
+
+internal sealed record MqPublishBatchEntry(byte[] Payload, IReadOnlyDictionary<string, string>? Headers = null);
+
+internal sealed record MqPublishBatchRequest(IReadOnlyList<MqPublishBatchEntry> Messages);
+
+internal sealed record MqPublishBatchResponse(string Topic, IReadOnlyList<long> Offsets);
 
 internal sealed record MqPullRequest(string ConsumerGroup, int? MaxCount = null);
 

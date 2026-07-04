@@ -67,6 +67,52 @@ public sealed class SndbMqClient : IDisposable
     }
 
     /// <summary>
+    /// 批量发布同一 topic 下的多条消息，共享一次刷盘。
+    /// </summary>
+    /// <param name="topic">Topic 名称。</param>
+    /// <param name="messages">消息集合，按顺序分配连续 offset。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>按输入顺序分配的 offset。</returns>
+    public async Task<IReadOnlyList<long>> PublishManyAsync(
+        string topic,
+        IReadOnlyList<SndbMqPublishEntry> messages,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(topic);
+        ArgumentNullException.ThrowIfNull(messages);
+        if (messages.Count == 0)
+            return [];
+
+        if (_embedded is not null)
+        {
+            var entries = new SonnetMqPublishEntry[messages.Count];
+            for (int i = 0; i < messages.Count; i++)
+            {
+                var message = messages[i] ?? throw new ArgumentException("批量消息不能包含 null。", nameof(messages));
+                entries[i] = new SonnetMqPublishEntry(message.Payload, message.Headers);
+            }
+
+            return _embedded.PublishMany(topic, entries);
+        }
+
+        var payload = new MqPublishBatchEntry[messages.Count];
+        for (int i = 0; i < messages.Count; i++)
+        {
+            var message = messages[i] ?? throw new ArgumentException("批量消息不能包含 null。", nameof(messages));
+            payload[i] = new MqPublishBatchEntry(message.Payload.ToArray(), message.Headers);
+        }
+
+        using var response = await PostJsonAsync(
+            MqUrl(topic, "publish-batch"),
+            new MqPublishBatchRequest(payload),
+            RemoteJsonContext.Default.MqPublishBatchRequest,
+            cancellationToken).ConfigureAwait(false);
+        var body = await ReadJsonAsync(response, RemoteJsonContext.Default.MqPublishBatchResponse, cancellationToken).ConfigureAwait(false);
+        return body.Offsets;
+    }
+
+    /// <summary>
     /// 拉取消息。
     /// </summary>
     /// <param name="topic">Topic 名称。</param>

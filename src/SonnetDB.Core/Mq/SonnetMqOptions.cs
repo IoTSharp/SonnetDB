@@ -31,6 +31,22 @@ public sealed record SonnetMqOptions
     public bool SyncOnPublish { get; init; }
 
     /// <summary>
+    /// 是否启用发布组提交（leader-flush 合并刷盘）。默认启用。
+    /// <para>
+    /// 启用后，并发发布到同一 topic 的多个 publish 会把各自的落盘/ fsync 合并到一次刷盘：
+    /// 一个「leader」执行一次 <c>Flush</c> 覆盖此刻已追加的全部记录，其字节已被覆盖的并发发布者
+    /// 直接跳过自己的刷盘系统调用。合并窗口 = 该次刷盘（<see cref="FlushOnPublish"/> 的 OS flush 或
+    /// <see cref="SyncOnPublish"/> 的 fsync）本身的在途时长，<b>不引入任何定时等待</b>——单发布者无争用
+    /// 时立即刷盘，延迟与逐条刷盘一致；仅在并发争用下减少刷盘次数。
+    /// </para>
+    /// <para>
+    /// 持久性语义不变：每个 publish 仍在其数据被刷盘到所配置的持久层（OS 页缓存或磁盘）后才返回。
+    /// 关闭时回退为每次 publish 各自刷盘（严格逐条隔离）。单文件模式（所有 topic 共享一个流）始终逐条刷盘。
+    /// </para>
+    /// </summary>
+    public bool GroupCommitPublish { get; init; } = true;
+
+    /// <summary>
     /// Topic 内 offset 稀疏索引步长。值越小 pull 定位越快，但内存占用越高。
     /// </summary>
     public int OffsetIndexStride { get; init; } = 1024;

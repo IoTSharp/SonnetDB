@@ -360,6 +360,89 @@ public sealed class SonnetMqStoreTests : IDisposable
         Assert.Equal(headers, replayed[0].Headers);
     }
 
+    [Fact]
+    public void ConcurrentDurablePublish_WithGroupCommit_PersistsEveryMessageAcrossRestart()
+    {
+        var options = new SonnetMqOptions
+        {
+            Path = _root,
+            SyncOnPublish = true,
+            GroupCommitPublish = true,
+            RetentionInterval = TimeSpan.Zero,
+        };
+
+        const int writers = 8;
+        const int perWriter = 250;
+        using (var store = SonnetMqStore.Open(options))
+        {
+            Parallel.For(0, writers, _ =>
+            {
+                for (int i = 0; i < perWriter; i++)
+                    store.Publish("iot.telemetry", Encoding.UTF8.GetBytes("x"));
+            });
+
+            Assert.Equal(writers * perWriter, store.GetStats("iot.telemetry").NextOffset);
+        }
+
+        // 组提交 leader-flush 后，所有已返回的 publish 必须在重开后可见（fsync 覆盖不丢消息）。
+        using var reopened = SonnetMqStore.Open(options);
+        var replayed = reopened.Pull("iot.telemetry", 0, writers * perWriter + 10);
+        Assert.Equal(writers * perWriter, replayed.Count);
+        Assert.Equal(
+            Enumerable.Range(0, writers * perWriter).Select(i => (long)i).ToArray(),
+            replayed.Select(m => m.Offset).ToArray());
+    }
+
+    [Fact]
+    public void Publish_WithGroupCommitDisabled_StillPersistsAndReplays()
+    {
+        var options = new SonnetMqOptions
+        {
+            Path = _root,
+            SyncOnPublish = true,
+            GroupCommitPublish = false,
+            RetentionInterval = TimeSpan.Zero,
+        };
+
+        using (var store = SonnetMqStore.Open(options))
+        {
+            store.Publish("iot.telemetry", Encoding.UTF8.GetBytes("a"));
+            store.Publish("iot.telemetry", Encoding.UTF8.GetBytes("b"));
+        }
+
+        using var reopened = SonnetMqStore.Open(options);
+        var replayed = reopened.Pull("iot.telemetry", 0, 10);
+        Assert.Equal(["a", "b"], replayed.Select(m => Encoding.UTF8.GetString(m.Payload)).ToArray());
+    }
+
+    [Fact]
+    public void ConcurrentDurablePublish_WithSegmentRolling_PersistsEveryMessageAcrossRestart()
+    {
+        var options = new SonnetMqOptions
+        {
+            Path = _root,
+            SyncOnPublish = true,
+            GroupCommitPublish = true,
+            SegmentMaxBytes = 256,
+            RetentionInterval = TimeSpan.Zero,
+        };
+
+        const int writers = 6;
+        const int perWriter = 200;
+        using (var store = SonnetMqStore.Open(options))
+        {
+            Parallel.For(0, writers, _ =>
+            {
+                for (int i = 0; i < perWriter; i++)
+                    store.Publish("iot.telemetry", Encoding.UTF8.GetBytes("payload"));
+            });
+        }
+
+        // 跨段滚动 + 组提交：旧段在滚动前 fsync，重开后不丢任何消息。
+        using var reopened = SonnetMqStore.Open(options);
+        Assert.Equal(writers * perWriter, reopened.Pull("iot.telemetry", 0, writers * perWriter + 10).Count);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))
