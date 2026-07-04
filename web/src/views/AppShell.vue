@@ -87,6 +87,7 @@ const baseMenu: MenuOption[] = [
   { label: '概览', key: 'dashboard' },
   { label: 'Studio', key: 'sql' },
   { label: '事件流', key: 'events' },
+  { label: '监控', key: 'monitoring' },
 ];
 
 const adminMenu: MenuOption[] = [
@@ -104,6 +105,7 @@ const titleByKey: Record<string, string> = {
   dashboard: '概览',
   sql: 'Studio',
   events: '事件流',
+  monitoring: '监控',
   users: '用户',
   grants: '权限',
   tokens: 'Token',

@@ -17,7 +17,7 @@ namespace SonnetDB.Endpoints;
 
 internal static partial class SonnetDbEndpoints
 {
-    private static void MapHealthEndpoints(this WebApplication app)
+    private static void MapHealthEndpoints(this WebApplication app, ServerOptions serverOptions)
     {
         var registry = app.Services.GetRequiredService<TsdbRegistry>();
         var metrics = app.Services.GetRequiredService<ServerMetrics>();
@@ -30,11 +30,21 @@ internal static partial class SonnetDbEndpoints
             return Results.Json(resp, ServerJsonContext.Default.HealthResponse);
         });
 
-        app.MapGet("/metrics", (HttpContext ctx) =>
+        // M17 #91：启用 Prometheus exporter 时 /metrics 由 OpenTelemetry 拉取端点接管，
+        // 暴露 SonnetDB.Core/SonnetDB.Server Meter + ASP.NET Core 指标（含 histogram bucket）；
+        // 关闭（默认）时保留原有最小指标集文本端点（向后兼容既有 scrape 配置）。
+        if (serverOptions.Observability.Prometheus.Enabled)
         {
-            ctx.Response.ContentType = "text/plain; version=0.0.4; charset=utf-8";
-            return ctx.Response.WriteAsync(PrometheusFormatter.Render(metrics, registry));
-        });
+            app.MapPrometheusScrapingEndpoint("/metrics");
+        }
+        else
+        {
+            app.MapGet("/metrics", (HttpContext ctx) =>
+            {
+                ctx.Response.ContentType = "text/plain; version=0.0.4; charset=utf-8";
+                return ctx.Response.WriteAsync(PrometheusFormatter.Render(metrics, registry));
+            });
+        }
 
     }
 }

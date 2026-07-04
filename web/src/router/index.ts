@@ -7,6 +7,7 @@ import AppShell from '@/views/AppShell.vue';
 import DashboardView from '@/views/DashboardView.vue';
 import SqlConsoleView from '@/views/SqlConsoleView.vue';
 import EventsView from '@/views/EventsView.vue';
+import MonitoringView from '@/views/MonitoringView.vue';
 import UsersView from '@/views/UsersView.vue';
 import GrantsView from '@/views/GrantsView.vue';
 import TokensView from '@/views/TokensView.vue';
@@ -41,6 +42,7 @@ const router = createRouter({
         { path: 'trajectory-map', name: 'trajectory-map', redirect: { name: 'sql', query: { tool: 'trajectory' } } },
         { path: 'databases', name: 'databases', redirect: { name: 'sql' } },
         { path: 'events', name: 'events', component: EventsView },
+        { path: 'monitoring', name: 'monitoring', component: MonitoringView },
         { path: 'users', name: 'users', component: UsersView, meta: { admin: true } },
         { path: 'grants', name: 'grants', component: GrantsView, meta: { admin: true } },
         { path: 'tokens', name: 'tokens', component: TokensView, meta: { admin: true } },

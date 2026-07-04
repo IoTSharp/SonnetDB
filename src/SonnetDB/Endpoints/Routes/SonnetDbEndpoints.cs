@@ -9,7 +9,7 @@ internal static partial class SonnetDbEndpoints
     public static void MapSonnetDbEndpoints(this WebApplication app, ServerOptions serverOptions)
     {
         app.MapWebEndpoints(serverOptions);
-        app.MapHealthEndpoints();
+        app.MapHealthEndpoints(serverOptions);
         app.MapSetupEndpoints();
         app.MapDatabaseEndpoints();
         app.MapSqlEndpoints();

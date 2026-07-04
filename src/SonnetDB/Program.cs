@@ -228,6 +228,8 @@ public static class Program
     /// OTLP 导出走标准 <c>OTEL_EXPORTER_OTLP_ENDPOINT</c> 环境变量（未设置则不导出）；
     /// Console exporter 仅 Development 环境启用。Resource 自动携带
     /// <c>service.name=sonnetdb</c> / <c>service.version</c> / <c>service.instance.id</c> / <c>host.name</c>。
+    /// M17 #91：<c>Observability:Prometheus:Enabled=true</c> 时追加 Prometheus exporter，
+    /// <c>/metrics</c> 由 <c>MapPrometheusScrapingEndpoint</c> 接管（见 HealthEndpoints）。
     /// </summary>
     private static void ConfigureOpenTelemetry(WebApplicationBuilder builder)
     {
@@ -237,6 +239,8 @@ public static class Program
             ?? "unknown";
         bool hasOtlpEndpoint = !string.IsNullOrWhiteSpace(
             Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT"));
+        bool prometheusEnabled = builder.Configuration
+            .GetValue<bool>("SonnetDBServer:Observability:Prometheus:Enabled");
 
         builder.Services.AddOpenTelemetry()
             .ConfigureResource(resource => resource
@@ -255,6 +259,8 @@ public static class Program
 
                 if (hasOtlpEndpoint)
                     metrics.AddOtlpExporter();
+                if (prometheusEnabled)
+                    metrics.AddPrometheusExporter();
             })
             .WithTracing(tracing =>
             {
