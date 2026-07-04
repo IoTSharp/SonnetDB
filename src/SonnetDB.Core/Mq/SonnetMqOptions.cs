@@ -82,7 +82,28 @@ public sealed record SonnetMqOptions
     public long AckRetentionMinOffsetDelta { get; init; } = 1024;
 
     /// <summary>
-    /// 每个 Topic 最多保持打开的历史段读取句柄数量。当前实现仅主动保持写入段打开，此值保留给 LRU 读缓存策略。
+    /// 冷读时每个 Topic 最多保持打开的历史段只读句柄数量（LRU 上限）。
+    /// <para>
+    /// 目录模式下，当被驱逐的冷 offset 触发按需读盘时，其所在段以只读 <c>SafeFileHandle</c> 打开并缓存，
+    /// 超过该上限按最近最少使用关闭最久未用句柄。活跃写入段不进入该只读缓存（避免与写句柄冲突）。
+    /// 单文件模式不使用该缓存（全量常驻内存）。
+    /// </para>
     /// </summary>
     public int SegmentCacheSize { get; init; } = 8;
+
+    /// <summary>
+    /// 单个 Topic 常驻内存「热尾部」的 payload 累计字节上限（仅目录模式生效），默认 64 MiB。
+    /// <para>
+    /// 追加消息使热尾 payload 超过该上限时，从内存头部驱逐最老消息，仅保留有界的近期热尾 + offset
+    /// 稀疏位置索引；被驱逐的冷 offset 在 <c>Pull</c> 时经位置索引定位、通过 <see cref="SegmentCacheSize"/>
+    /// 有界只读句柄 LRU 从段文件按需读盘。这把长期高吞吐（消费者跟不上或无消费者）topic 的内存占用
+    /// 从「随消息数无界增长」改为「有界」，修复 OOM。
+    /// </para>
+    /// <para>
+    /// 默认值较大，因此常规小规模负载全部保持全量常驻、行为不变，仅在真实积压超过该阈值时才触发冷读。
+    /// 冷读不改变对外 offset / retention / replay / durability 语义。<b>单文件模式不生效</b>（共享单流、
+    /// 无 per-topic 段边界，延续全量常驻惯例）。
+    /// </para>
+    /// </summary>
+    public long HotTailMaxBytes { get; init; } = 64L * 1024L * 1024L;
 }

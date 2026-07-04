@@ -443,6 +443,184 @@ public sealed class SonnetMqStoreTests : IDisposable
         Assert.Equal(writers * perWriter, reopened.Pull("iot.telemetry", 0, writers * perWriter + 10).Count);
     }
 
+    [Fact]
+    public void ColdPull_AfterEviction_ReturnsCorrectPayloadsFromSegments()
+    {
+        // 小 HotTailMaxBytes 强制驱逐后，冷 offset 经位置索引 + 有界句柄 LRU 从段文件读回，
+        // payload / offset / headers 与热尾时期完全一致。
+        var options = new SonnetMqOptions
+        {
+            Path = _root,
+            HotTailMaxBytes = 128, // 极小热尾 → 大量驱逐
+            OffsetIndexStride = 4,
+            RetentionInterval = TimeSpan.Zero,
+        };
+
+        using var store = SonnetMqStore.Open(options);
+        var payloads = Enumerable.Range(0, 40)
+            .Select(i => Encoding.UTF8.GetBytes("cold-payload-" + i))
+            .ToArray();
+
+        store.PublishMany(
+            "iot.telemetry",
+            payloads.Select(p => new SonnetMqPublishEntry(p)).ToArray());
+
+        // 从最早 offset 读回：全部命中冷 offset（含 offset 0）。
+        var cold = store.Pull("iot.telemetry", 0, 40);
+        Assert.Equal(40, cold.Count);
+        for (int i = 0; i < 40; i++)
+        {
+            Assert.Equal(i, cold[i].Offset);
+            Assert.Equal(payloads[i], cold[i].Payload);
+        }
+    }
+
+    [Fact]
+    public void ColdPull_CrossesColdHotBoundary_InSingleCall()
+    {
+        // 小 HotTailMaxBytes + 小 SegmentMaxBytes → 冷段 + 热尾同存；从被驱逐的 offset 连续拉 maxCount 条
+        // 跨越冷/热边界，内容与 offset 连续、无重复无遗漏。
+        var options = new SonnetMqOptions
+        {
+            Path = _root,
+            HotTailMaxBytes = 256,
+            SegmentMaxBytes = 512,
+            OffsetIndexStride = 4,
+            RetentionInterval = TimeSpan.Zero,
+        };
+
+        using var store = SonnetMqStore.Open(options);
+        var payloads = Enumerable.Range(0, 60)
+            .Select(i => Encoding.UTF8.GetBytes("mix-" + i.ToString("D3")))
+            .ToArray();
+
+        store.PublishMany(
+            "iot.telemetry",
+            payloads.Select(p => new SonnetMqPublishEntry(p)).ToArray());
+
+        var mixed = store.Pull("iot.telemetry", 0, 60);
+        Assert.Equal(60, mixed.Count);
+        Assert.Equal(
+            Enumerable.Range(0, 60).Select(i => (long)i).ToArray(),
+            mixed.Select(m => m.Offset).ToArray());
+        for (int i = 0; i < 60; i++)
+            Assert.Equal(payloads[i], mixed[i].Payload);
+    }
+
+    [Fact]
+    public void ColdPull_SpansManySegments_RespectsSegmentCacheBound()
+    {
+        // 段数 ≫ SegmentCacheSize 时冷读跨全部段仍然正确返回，句柄 LRU 按容量关闭最久未用。
+        var options = new SonnetMqOptions
+        {
+            Path = _root,
+            HotTailMaxBytes = 64, // 极小热尾
+            SegmentMaxBytes = 200, // 每段仅容几条
+            SegmentCacheSize = 2, // 极小 LRU 容量
+            OffsetIndexStride = 2,
+            RetentionInterval = TimeSpan.Zero,
+        };
+
+        using var store = SonnetMqStore.Open(options);
+        var payloads = Enumerable.Range(0, 32)
+            .Select(i => Encoding.UTF8.GetBytes("seg-" + i))
+            .ToArray();
+
+        store.PublishMany(
+            "iot.telemetry",
+            payloads.Select(p => new SonnetMqPublishEntry(p)).ToArray());
+
+        string[] segments = Directory.GetFiles(_root, "*.smqseg", SearchOption.AllDirectories);
+        Assert.True(segments.Length > options.SegmentCacheSize, "测试前提：段数应 > SegmentCacheSize 才能真正压 LRU");
+
+        var all = store.Pull("iot.telemetry", 0, 40);
+        Assert.Equal(32, all.Count);
+        for (int i = 0; i < 32; i++)
+        {
+            Assert.Equal(i, all[i].Offset);
+            Assert.Equal(payloads[i], all[i].Payload);
+        }
+    }
+
+    [Fact]
+    public void ColdPull_AfterRestart_ReplaysBoundedAndReadsColdFromDisk()
+    {
+        // 驱逐后重启，replay 依然填充位置索引且 payload 不丢：pull 冷 offset 仍然返回原 payload。
+        var options = new SonnetMqOptions
+        {
+            Path = _root,
+            HotTailMaxBytes = 128,
+            SegmentMaxBytes = 256,
+            OffsetIndexStride = 4,
+            RetentionInterval = TimeSpan.Zero,
+        };
+
+        var payloads = Enumerable.Range(0, 24)
+            .Select(i => Encoding.UTF8.GetBytes("restart-" + i))
+            .ToArray();
+
+        using (var store = SonnetMqStore.Open(options))
+        {
+            store.PublishMany(
+                "iot.telemetry",
+                payloads.Select(p => new SonnetMqPublishEntry(p)).ToArray());
+            Assert.Equal(24, store.GetStats("iot.telemetry").NextOffset);
+        }
+
+        using var reopened = SonnetMqStore.Open(options);
+        var replayed = reopened.Pull("iot.telemetry", 0, 30);
+        Assert.Equal(24, replayed.Count);
+        for (int i = 0; i < 24; i++)
+        {
+            Assert.Equal(i, replayed[i].Offset);
+            Assert.Equal(payloads[i], replayed[i].Payload);
+        }
+    }
+
+    [Fact]
+    public void TrimRetention_ByAge_DiscardsFullyExpiredSegmentsAndKeepsActive()
+    {
+        // 按段粒度：Sleep 使旧段整段超龄 → cutoff 推进至该段之后 baseOffset；活跃段永不裁剪。
+        var options = new SonnetMqOptions
+        {
+            Path = _root,
+            SegmentMaxBytes = 200,
+            RetentionMaxAge = TimeSpan.FromMilliseconds(150),
+            RetentionInterval = TimeSpan.Zero,
+        };
+
+        using var store = SonnetMqStore.Open(options);
+        store.PublishMany(
+            "iot.telemetry",
+            Enumerable.Range(0, 12)
+                .Select(i => new SonnetMqPublishEntry(Encoding.UTF8.GetBytes("old-" + i)))
+                .ToArray());
+
+        string[] segmentsBefore = Directory.GetFiles(_root, "*.smqseg", SearchOption.AllDirectories);
+        Assert.True(segmentsBefore.Length >= 2, "测试前提：应产生多个段");
+
+        Thread.Sleep(400);
+        // 追加一批新记录 → 落在新活跃段（活跃段的最新记录必然新鲜、不裁）。
+        store.PublishMany(
+            "iot.telemetry",
+            Enumerable.Range(0, 3)
+                .Select(i => new SonnetMqPublishEntry(Encoding.UTF8.GetBytes("fresh-" + i)))
+                .ToArray());
+
+        store.TrimRetention();
+
+        var stats = store.GetStats("iot.telemetry");
+        Assert.True(stats.NextOffset - stats.MessageCount > 0, "按段粒度裁剪后应有 TrimmedBeforeOffset 推进");
+
+        // 活跃段仍在，剩余消息可读、offset 单调、payload 正确。
+        string[] segmentsAfter = Directory.GetFiles(_root, "*.smqseg", SearchOption.AllDirectories);
+        Assert.True(segmentsAfter.Length >= 1);
+        var remaining = store.Pull("iot.telemetry", 0, 50);
+        Assert.NotEmpty(remaining);
+        for (int i = 1; i < remaining.Count; i++)
+            Assert.Equal(remaining[i - 1].Offset + 1, remaining[i].Offset);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))

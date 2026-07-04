@@ -3,6 +3,7 @@ using System.Buffers.Binary;
 using System.Buffers.Text;
 using System.Collections.Concurrent;
 using System.Text;
+using Microsoft.Win32.SafeHandles;
 
 namespace SonnetMQ;
 
@@ -27,6 +28,8 @@ public sealed class SonnetMqStore : IDisposable
     private readonly ConcurrentDictionary<string, TopicState> _topics = new(StringComparer.Ordinal);
     private readonly object? _singleFileLock;
     private readonly int _offsetIndexStride;
+    private readonly long _residentHotTailMaxBytes;
+    private readonly SegmentHandleCache _handleCache;
     private Thread? _retentionWorker;
     private CancellationTokenSource? _retentionCts;
     private FileStream? _singleFileStream;
@@ -36,9 +39,14 @@ public sealed class SonnetMqStore : IDisposable
     {
         _options = options;
         _offsetIndexStride = Math.Max(1, options.OffsetIndexStride);
+        // 单文件模式（共享单流、无 per-topic 段边界）保持全量常驻，热尾上限视为无穷；目录模式启用有界热尾。
+        _residentHotTailMaxBytes = options.OpenMode == SonnetMqOpenMode.SingleFile
+            ? long.MaxValue
+            : Math.Max(1, options.HotTailMaxBytes);
         // 单文件模式下所有 topic 共享同一个 FileStream，必须串行化到同一把锁（并复用为 Dispose/Flush 的全局锁）；
         // 目录模式下每个 topic 各持一把锁（见 TopicState.SyncRoot），topic 间互不阻塞。
         _singleFileLock = options.OpenMode == SonnetMqOpenMode.SingleFile ? _globalSync : null;
+        _handleCache = new SegmentHandleCache(Math.Max(1, options.SegmentCacheSize));
     }
 
     /// <summary>
@@ -146,8 +154,12 @@ public sealed class SonnetMqStore : IDisposable
                 var publish = prepared[i];
                 long offset = state.NextOffset;
                 var timestamp = DateTimeOffset.UtcNow;
-                WriteRecord(state, RecordTypeMessage, topicBytes, publish.HeadersBytes, publish.Payload, offset, timestamp.UtcTicks, flush: false);
-                state.Append(new StoredMessage(topic, offset, timestamp, publish.Headers, publish.Payload), _offsetIndexStride);
+                var location = WriteRecordAt(state, RecordTypeMessage, topicBytes, publish.HeadersBytes, publish.Payload, offset, timestamp.UtcTicks, flush: false);
+                state.Append(
+                    new StoredMessage(topic, offset, timestamp, publish.Headers, publish.Payload, ColdReadable: location.SegmentBaseOffset >= 0),
+                    location,
+                    _offsetIndexStride,
+                    _residentHotTailMaxBytes);
                 offsets[i] = offset;
             }
 
@@ -287,7 +299,7 @@ public sealed class SonnetMqStore : IDisposable
                 return state.TrimmedBeforeOffset;
 
             WriteRecord(state, RecordTypeTombstone, topicBytes, ReadOnlySpan<byte>.Empty, ReadOnlySpan<byte>.Empty, cutoff, DateTimeOffset.UtcNow.UtcTicks);
-            state.ApplyTombstone(cutoff, _offsetIndexStride);
+            state.ApplyTombstone(cutoff);
             DeleteRetiredSegments(state);
             return state.TrimmedBeforeOffset;
         }
@@ -352,7 +364,7 @@ public sealed class SonnetMqStore : IDisposable
     private static SonnetMqTopicStats SnapshotStats(TopicState state)
         => new(
             state.Topic,
-            state.Messages.Count,
+            state.NextOffset - state.TrimmedBeforeOffset,
             state.NextOffset,
             new Dictionary<string, long>(state.ConsumerOffsets, StringComparer.Ordinal));
 
@@ -397,6 +409,8 @@ public sealed class SonnetMqStore : IDisposable
                 state.Dispose();
         }
 
+        _handleCache.Dispose();
+
         lock (_globalSync)
             _singleFileStream?.Dispose();
     }
@@ -434,15 +448,16 @@ public sealed class SonnetMqStore : IDisposable
                 long baseOffset = ParseSegmentBaseOffset(segmentPath);
                 state.AddSegment(new SegmentState(segmentPath, baseOffset));
                 using var stream = File.Open(segmentPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                ReplayStream(stream, state);
+                ReplayStream(stream, state, baseOffset);
             }
         }
     }
 
-    private void ReplayStream(Stream stream, TopicState? knownTopicState)
+    private void ReplayStream(Stream stream, TopicState? knownTopicState, long segmentBaseOffset = -1)
     {
         stream.Seek(0, SeekOrigin.Begin);
         Span<byte> header = stackalloc byte[HeaderSize];
+        long recordPosition = 0;
 
         while (TryReadExact(stream, header))
         {
@@ -476,7 +491,11 @@ public sealed class SonnetMqStore : IDisposable
                 {
                     var headers = DecodeHeaders(metaBytes.AsSpan(0, metaLength));
                     var body = payload.AsSpan(0, payloadLength).ToArray();
-                    state.Append(new StoredMessage(topic, offsetOrNext, new DateTimeOffset(ticks, TimeSpan.Zero), headers, body), _offsetIndexStride);
+                    state.Append(
+                        new StoredMessage(topic, offsetOrNext, new DateTimeOffset(ticks, TimeSpan.Zero), headers, body, ColdReadable: segmentBaseOffset >= 0),
+                        new RecordLocation(segmentBaseOffset, recordPosition),
+                        _offsetIndexStride,
+                        _residentHotTailMaxBytes);
                 }
                 else if (type == RecordTypeAck)
                 {
@@ -485,7 +504,7 @@ public sealed class SonnetMqStore : IDisposable
                 }
                 else if (type == RecordTypeTombstone)
                 {
-                    state.ApplyTombstone(offsetOrNext, _offsetIndexStride);
+                    state.ApplyTombstone(offsetOrNext);
                 }
                 else
                 {
@@ -498,6 +517,8 @@ public sealed class SonnetMqStore : IDisposable
                 ArrayPool<byte>.Shared.Return(metaBytes);
                 ArrayPool<byte>.Shared.Return(payload);
             }
+
+            recordPosition += HeaderSize + topicLength + metaLength + payloadLength;
         }
     }
 
@@ -522,8 +543,26 @@ public sealed class SonnetMqStore : IDisposable
         long offsetOrNext,
         long ticks,
         bool flush = true)
+        => WriteRecordAt(state, type, topic, meta, payload, offsetOrNext, ticks, flush);
+
+    /// <summary>
+    /// 写入一条记录，返回其在所属段文件内的起始字节位置与所属段 baseOffset（供消息记录填充位置索引）。
+    /// 非消息记录（ack/tombstone）调用方忽略返回值。
+    /// </summary>
+    private RecordLocation WriteRecordAt(
+        TopicState state,
+        byte type,
+        ReadOnlySpan<byte> topic,
+        ReadOnlySpan<byte> meta,
+        ReadOnlySpan<byte> payload,
+        long offsetOrNext,
+        long ticks,
+        bool flush = true)
     {
         FileStream stream = GetWritableStream(state, HeaderSize + topic.Length + meta.Length + payload.Length);
+        // 单文件模式无 per-topic 段边界、不可冷读：SegmentBaseOffset=-1 哨兵（Append 据此跳过位置索引并钉住常驻）。
+        long segmentBaseOffset = _options.OpenMode == SonnetMqOpenMode.SingleFile ? -1 : state.Segments[^1].BaseOffset;
+        long position = stream.Position;
 
         // MQ5：把定长头 + topic + meta 合并进一个租借缓冲区一次写出，payload 单独直写（大 payload 免二次拷贝）。
         int prefixLength = HeaderSize + topic.Length + meta.Length;
@@ -555,6 +594,8 @@ public sealed class SonnetMqStore : IDisposable
 
         if (flush && (_options.FlushOnPublish || _options.SyncOnPublish))
             stream.Flush(_options.SyncOnPublish);
+
+        return new RecordLocation(segmentBaseOffset, position);
     }
 
     private FileStream GetWritableStream(TopicState state, long recordBytes)
@@ -604,9 +645,21 @@ public sealed class SonnetMqStore : IDisposable
         }
     }
 
-    private static IReadOnlyList<SonnetMqMessage> PullFromState(TopicState state, long offset, int maxCount)
+    private IReadOnlyList<SonnetMqMessage> PullFromState(TopicState state, long offset, int maxCount)
     {
         long effectiveOffset = Math.Max(offset, state.TrimmedBeforeOffset);
+        if (effectiveOffset >= state.NextOffset)
+            return [];
+
+        // 目标命中常驻热尾（keeping-up 消费者）：纯内存路径，零回归。
+        if (state.IsHot(effectiveOffset))
+            return PullHot(state, effectiveOffset, maxCount);
+
+        return PullColdThenHot(state, effectiveOffset, maxCount);
+    }
+
+    private static IReadOnlyList<SonnetMqMessage> PullHot(TopicState state, long effectiveOffset, int maxCount)
+    {
         int start = state.FindFirstIndexAtOrAfter(effectiveOffset);
         if (start >= state.Messages.Count)
             return [];
@@ -614,17 +667,170 @@ public sealed class SonnetMqStore : IDisposable
         int count = Math.Min(maxCount, state.Messages.Count - start);
         var result = new SonnetMqMessage[count];
         for (int i = 0; i < count; i++)
+            result[i] = ToMessage(state.Messages[start + i]);
+        return result;
+    }
+
+    private static SonnetMqMessage ToMessage(StoredMessage message)
+        => new(message.Topic, message.Offset, message.TimestampUtc, message.Headers, message.Payload.ToArray());
+
+    /// <summary>
+    /// 冷读：目标 offset 已被逐出常驻热尾，经稀疏位置索引取锚点、通过有界只读句柄 LRU 从段文件按需读盘，
+    /// 从锚点顺序解码跳到目标 offset，再连续读 maxCount 条；跨越冷/热边界时无缝续读常驻热尾。
+    /// 单文件模式不驱逐（全量常驻），故不会走到此路径。
+    /// </summary>
+    private IReadOnlyList<SonnetMqMessage> PullColdThenHot(TopicState state, long effectiveOffset, int maxCount)
+    {
+        if (!state.TryGetColdAnchor(effectiveOffset, out var anchor))
+            return state.IsHot(effectiveOffset) ? PullHot(state, effectiveOffset, maxCount) : [];
+
+        // 冷读前把写缓冲推到 OS 页缓存，确保尚未刷盘的已逐出记录在磁盘可见（RandomAccess 读页缓存）。
+        state.Writer?.Flush(flushToDisk: false);
+
+        var results = new List<SonnetMqMessage>(Math.Min(maxCount, 1024));
+        long next = effectiveOffset;
+        int segmentIndex = FindSegmentIndex(state, anchor.SegmentBaseOffset);
+        long position = anchor.FilePosition;
+
+        while (results.Count < maxCount && next < state.NextOffset)
         {
-            var message = state.Messages[start + i];
-            result[i] = new SonnetMqMessage(
-                message.Topic,
-                message.Offset,
-                message.TimestampUtc,
-                message.Headers,
-                message.Payload.ToArray());
+            // 一旦推进到常驻热尾起点，剩余部分直接走内存，避免读已在内存的记录。
+            if (state.IsHot(next))
+            {
+                foreach (var message in PullHot(state, next, maxCount - results.Count))
+                    results.Add(message);
+                break;
+            }
+
+            if (segmentIndex < 0 || segmentIndex >= state.Segments.Count)
+                break;
+
+            var segment = state.Segments[segmentIndex];
+            SafeFileHandle handle = _handleCache.Acquire(segment.Path);
+            long length = RandomAccess.GetLength(handle);
+
+            bool advancedSegment = false;
+            while (results.Count < maxCount && position < length)
+            {
+                if (!TryReadRecordAt(handle, position, length, out var record, out long nextPosition))
+                    break;
+                position = nextPosition;
+
+                if (record.Type != RecordTypeMessage)
+                    continue;
+                if (record.Offset < next)
+                    continue;
+                if (state.IsHot(record.Offset))
+                {
+                    // 到达热尾边界：跳出内层，外层循环转内存续读。
+                    advancedSegment = true;
+                    break;
+                }
+
+                results.Add(new SonnetMqMessage(
+                    state.Topic,
+                    record.Offset,
+                    new DateTimeOffset(record.Ticks, TimeSpan.Zero),
+                    record.Headers,
+                    record.Payload));
+                next = record.Offset + 1;
+            }
+
+            if (advancedSegment)
+                continue;
+
+            // 当前段读尽仍未满足：续读下一段（跨段冷读）。
+            segmentIndex++;
+            position = 0;
         }
 
-        return result;
+        return results;
+    }
+
+    private static int FindSegmentIndex(TopicState state, long baseOffset)
+    {
+        for (int i = 0; i < state.Segments.Count; i++)
+        {
+            if (state.Segments[i].BaseOffset == baseOffset)
+                return i;
+        }
+        return -1;
+    }
+
+    /// <summary>
+    /// 从只读句柄 + 文件位置解码一条记录（与 <see cref="ReplayStream"/> 字段解析同构，数据源换成句柄）。
+    /// </summary>
+    private static bool TryReadRecordAt(SafeFileHandle handle, long position, long length, out ColdRecord record, out long nextPosition)
+    {
+        record = default;
+        nextPosition = position;
+        if (position + HeaderSize > length)
+            return false;
+
+        Span<byte> header = stackalloc byte[HeaderSize];
+        if (RandomAccess.Read(handle, header, position) != HeaderSize)
+            return false;
+
+        uint magic = BinaryPrimitives.ReadUInt32LittleEndian(header);
+        ushort version = BinaryPrimitives.ReadUInt16LittleEndian(header[4..]);
+        byte type = header[6];
+        int topicLength = BinaryPrimitives.ReadInt32LittleEndian(header[8..]);
+        int metaLength = BinaryPrimitives.ReadInt32LittleEndian(header[12..]);
+        int payloadLength = BinaryPrimitives.ReadInt32LittleEndian(header[16..]);
+        long offsetOrNext = BinaryPrimitives.ReadInt64LittleEndian(header[20..]);
+        long ticks = BinaryPrimitives.ReadInt64LittleEndian(header[28..]);
+
+        if (magic != Magic || version != Version || topicLength < 0 || metaLength < 0 || payloadLength < 0)
+            throw new InvalidDataException("SonnetMQ segment header is invalid.");
+        if (topicLength > MaxNameBytes || metaLength > MaxHeadersBytes || payloadLength > MaxPayloadBytes)
+            throw new InvalidDataException("SonnetMQ segment record exceeds configured bounds.");
+
+        long bodyPosition = position + HeaderSize;
+        long recordEnd = bodyPosition + topicLength + metaLength + payloadLength;
+        if (recordEnd > length)
+            return false;
+
+        nextPosition = recordEnd;
+        if (type != RecordTypeMessage)
+        {
+            record = new ColdRecord(type, offsetOrNext, ticks, EmptyHeaders.Instance, []);
+            return true;
+        }
+
+        // 跳过 topic，读 meta + payload。
+        var headers = EmptyHeaders.Instance as IReadOnlyDictionary<string, string>;
+        if (metaLength > 0)
+        {
+            byte[] metaBytes = ArrayPool<byte>.Shared.Rent(metaLength);
+            try
+            {
+                ReadExactAt(handle, metaBytes.AsSpan(0, metaLength), bodyPosition + topicLength);
+                headers = DecodeHeaders(metaBytes.AsSpan(0, metaLength));
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(metaBytes);
+            }
+        }
+
+        byte[] payload = payloadLength == 0 ? [] : new byte[payloadLength];
+        if (payloadLength > 0)
+            ReadExactAt(handle, payload, bodyPosition + topicLength + metaLength);
+
+        record = new ColdRecord(type, offsetOrNext, ticks, headers, payload);
+        return true;
+    }
+
+    private static void ReadExactAt(SafeFileHandle handle, Span<byte> destination, long position)
+    {
+        int read = 0;
+        while (read < destination.Length)
+        {
+            int n = RandomAccess.Read(handle, destination[read..], position + read);
+            if (n == 0)
+                throw new InvalidDataException("SonnetMQ segment has a truncated record.");
+            read += n;
+        }
     }
 
     private void TrimTopicRetention(TopicState state)
@@ -632,12 +838,19 @@ public sealed class SonnetMqStore : IDisposable
         long cutoff = state.TrimmedBeforeOffset;
         if (_options.RetentionMaxAge is { } maxAge)
         {
-            var threshold = DateTimeOffset.UtcNow - maxAge;
-            foreach (var message in state.Messages)
+            // 按段粒度：丢弃「整段最新记录都已超龄」的非活跃段（与 RetentionMaxBytes 的按段裁剪一致，
+            // 也与 Kafka 时间保留一致），无需常驻每条时间戳。段最新记录 ticks = 顺序扫描取最大（ticks 随发布单调）。
+            long threshold = (DateTimeOffset.UtcNow - maxAge).UtcTicks;
+            for (int i = 0; i < state.Segments.Count; i++)
             {
-                if (message.TimestampUtc > threshold)
-                    break;
-                cutoff = message.Offset + 1;
+                var segment = state.Segments[i];
+                if (segment == state.Segments[^1])
+                    break; // 活跃段永不按时间裁剪。
+
+                if (!TryGetSegmentNewestTicks(segment, out long newestTicks) || newestTicks >= threshold)
+                    break; // 该段仍有未超龄记录 → 之后的段更新，停止。
+
+                cutoff = Math.Max(cutoff, NextSegmentBaseOffset(state, segment));
             }
         }
 
@@ -659,9 +872,33 @@ public sealed class SonnetMqStore : IDisposable
         {
             byte[] topicBytes = EncodeName(state.Topic, nameof(state.Topic));
             WriteRecord(state, RecordTypeTombstone, topicBytes, ReadOnlySpan<byte>.Empty, ReadOnlySpan<byte>.Empty, cutoff, DateTimeOffset.UtcNow.UtcTicks);
-            state.ApplyTombstone(cutoff, _offsetIndexStride);
+            state.ApplyTombstone(cutoff);
             DeleteRetiredSegments(state);
         }
+    }
+
+    /// <summary>顺序扫描一个段，返回其消息记录的最大 ticks（ticks 随发布单调，即最新记录时间戳）。段无消息记录返回 false。</summary>
+    private bool TryGetSegmentNewestTicks(SegmentState segment, out long newestTicks)
+    {
+        newestTicks = 0;
+        if (!File.Exists(segment.Path))
+            return false;
+
+        SafeFileHandle handle = _handleCache.Acquire(segment.Path);
+        long length = RandomAccess.GetLength(handle);
+        long position = 0;
+        bool any = false;
+        while (TryReadRecordAt(handle, position, length, out var record, out long nextPosition))
+        {
+            position = nextPosition;
+            if (record.Type == RecordTypeMessage)
+            {
+                newestTicks = record.Ticks;
+                any = true;
+            }
+        }
+
+        return any;
     }
 
     private void TrimAcknowledgedMessages(TopicState state, bool force)
@@ -680,7 +917,7 @@ public sealed class SonnetMqStore : IDisposable
 
         byte[] topicBytes = EncodeName(state.Topic, nameof(state.Topic));
         WriteRecord(state, RecordTypeTombstone, topicBytes, ReadOnlySpan<byte>.Empty, ReadOnlySpan<byte>.Empty, cutoff, DateTimeOffset.UtcNow.UtcTicks);
-        state.ApplyTombstone(cutoff, _offsetIndexStride);
+        state.ApplyTombstone(cutoff);
         DeleteRetiredSegments(state);
     }
 
@@ -703,8 +940,10 @@ public sealed class SonnetMqStore : IDisposable
             if (NextSegmentBaseOffset(state, segment) > state.TrimmedBeforeOffset)
                 continue;
 
+            _handleCache.Invalidate(segment.Path);
             try { File.Delete(segment.Path); } catch (IOException) { continue; }
             state.Segments.RemoveAt(i);
+            state.RemoveSegmentIndexEntries(segment.BaseOffset);
         }
     }
 
@@ -956,6 +1195,7 @@ public sealed class SonnetMqStore : IDisposable
 
         public string Topic { get; }
 
+        /// <summary>常驻内存的「热尾部」——最近发布、尚未因超 <c>HotTailMaxBytes</c> 被驱逐的消息，按 offset 升序。</summary>
         public List<StoredMessage> Messages { get; } = [];
 
         public Dictionary<string, long> ConsumerOffsets { get; } = new(StringComparer.Ordinal);
@@ -968,6 +1208,10 @@ public sealed class SonnetMqStore : IDisposable
 
         public long TrimmedBeforeOffset { get; private set; }
 
+        /// <summary>热尾内第一条消息的 offset；&lt; 此 offset 的消息已被驱逐、需冷读。等于 <see cref="NextOffset"/> 表示热尾为空。</summary>
+        public long HotTailStartOffset { get; private set; }
+
+        private long _residentPayloadBytes;
         private readonly List<OffsetIndexEntry> _offsetIndex = [];
 
         public void AddSegment(SegmentState segment)
@@ -977,7 +1221,7 @@ public sealed class SonnetMqStore : IDisposable
             Segments.Sort(static (a, b) => a.BaseOffset.CompareTo(b.BaseOffset));
         }
 
-        public void Append(StoredMessage message, int offsetIndexStride)
+        public void Append(StoredMessage message, RecordLocation location, int offsetIndexStride, long hotTailMaxBytes)
         {
             if (message.Offset < TrimmedBeforeOffset)
             {
@@ -986,40 +1230,120 @@ public sealed class SonnetMqStore : IDisposable
                 return;
             }
 
-            if (Messages.Count == 0 || message.Offset % offsetIndexStride == 0)
-                _offsetIndex.Add(new OffsetIndexEntry(message.Offset, Messages.Count));
+            // 位置索引按 stride 采样（含每段首条），驱逐后仍可据此定位冷 offset → 从锚点顺序扫描。
+            // 无段来源（单文件模式 / legacy 日志）的记录不可冷读，不入位置索引（也不会被驱逐）。
+            if (location.SegmentBaseOffset >= 0
+                && (_offsetIndex.Count == 0
+                    || message.Offset % offsetIndexStride == 0
+                    || _offsetIndex[^1].SegmentBaseOffset != location.SegmentBaseOffset))
+            {
+                _offsetIndex.Add(new OffsetIndexEntry(message.Offset, location.SegmentBaseOffset, location.FilePosition));
+            }
+
+            if (Messages.Count == 0)
+                HotTailStartOffset = message.Offset;
 
             Messages.Add(message);
+            _residentPayloadBytes += message.Payload.Length;
             if (message.Offset >= NextOffset)
                 NextOffset = message.Offset + 1;
+
+            EvictHotTailIfNeeded(hotTailMaxBytes);
         }
 
-        public void ApplyTombstone(long beforeOffset, int offsetIndexStride)
+        /// <summary>
+        /// 热尾 payload 超上限时从头部驱逐最老消息；始终至少保留最后一条（保证 keeping-up 消费者热路径）。
+        /// 不可冷读的消息（legacy 日志来源，无段位置）被钉住不驱逐——驱逐它们将导致不可达。
+        /// </summary>
+        private void EvictHotTailIfNeeded(long hotTailMaxBytes)
+        {
+            if (_residentPayloadBytes <= hotTailMaxBytes)
+                return;
+
+            int evict = 0;
+            while (evict < Messages.Count - 1
+                && _residentPayloadBytes > hotTailMaxBytes
+                && Messages[evict].ColdReadable)
+            {
+                _residentPayloadBytes -= Messages[evict].Payload.Length;
+                evict++;
+            }
+
+            if (evict == 0)
+                return;
+
+            Messages.RemoveRange(0, evict);
+            HotTailStartOffset = Messages.Count > 0 ? Messages[0].Offset : NextOffset;
+        }
+
+        public void ApplyTombstone(long beforeOffset)
         {
             if (beforeOffset <= TrimmedBeforeOffset)
                 return;
 
+            long removedBytes = 0;
+            int keptFrom = Messages.Count;
+            for (int i = 0; i < Messages.Count; i++)
+            {
+                if (Messages[i].Offset >= beforeOffset)
+                {
+                    keptFrom = i;
+                    break;
+                }
+                removedBytes += Messages[i].Payload.Length;
+            }
+
             TrimmedBeforeOffset = beforeOffset;
-            Messages.RemoveAll(m => m.Offset < beforeOffset);
+            if (keptFrom > 0)
+            {
+                Messages.RemoveRange(0, keptFrom);
+                _residentPayloadBytes -= removedBytes;
+            }
+            HotTailStartOffset = Messages.Count > 0 ? Messages[0].Offset : NextOffset;
+
+            // 位置索引条目按「所属段被删除」清理（见 RemoveSegmentIndexEntries），此处不按 offset 删——
+            // 稀疏采样下 cutoff 之上第一条冷消息可能仍需 cutoff 之下最近的锚点向前扫描定位。
             foreach (var pair in ConsumerOffsets.ToArray())
                 ConsumerOffsets[pair.Key] = Math.Max(pair.Value, beforeOffset);
-            RebuildOffsetIndex(offsetIndexStride);
         }
+
+        /// <summary>段被物理删除后清理其全部位置索引锚点（其 offset 均已 &lt; TrimmedBeforeOffset，不再可达）。</summary>
+        public void RemoveSegmentIndexEntries(long segmentBaseOffset)
+            => _offsetIndex.RemoveAll(e => e.SegmentBaseOffset == segmentBaseOffset);
+
+        /// <summary>目标 offset 是否命中常驻热尾（无需冷读）。</summary>
+        public bool IsHot(long offset) => Messages.Count > 0 && offset >= HotTailStartOffset;
 
         public int FindFirstIndexAtOrAfter(long offset)
         {
-            if (Messages.Count == 0)
-                return 0;
+            // Messages 按 offset 升序，直接二分（热尾窗口内不再依赖稀疏索引）。
+            int lo = 0;
+            int hi = Messages.Count;
+            while (lo < hi)
+            {
+                int mid = lo + ((hi - lo) / 2);
+                if (Messages[mid].Offset < offset)
+                    lo = mid + 1;
+                else
+                    hi = mid;
+            }
 
-            int start = 0;
+            return lo;
+        }
+
+        /// <summary>二分位置索引，取 offset ≤ target 的最近锚点（段 baseOffset + 文件位置）作为冷读入口。</summary>
+        public bool TryGetColdAnchor(long targetOffset, out OffsetIndexEntry anchor)
+        {
+            anchor = default;
             int left = 0;
             int right = _offsetIndex.Count - 1;
+            int found = -1;
             while (left <= right)
             {
                 int middle = left + ((right - left) / 2);
-                if (_offsetIndex[middle].Offset <= offset)
+                if (_offsetIndex[middle].Offset <= targetOffset)
                 {
-                    start = _offsetIndex[middle].MessageIndex;
+                    found = middle;
                     left = middle + 1;
                 }
                 else
@@ -1028,10 +1352,11 @@ public sealed class SonnetMqStore : IDisposable
                 }
             }
 
-            while (start < Messages.Count && Messages[start].Offset < offset)
-                start++;
+            if (found < 0)
+                return false;
 
-            return start;
+            anchor = _offsetIndex[found];
+            return true;
         }
 
         public long GetConsumerOffset(string consumerGroup)
@@ -1046,16 +1371,6 @@ public sealed class SonnetMqStore : IDisposable
         {
             Writer?.Dispose();
         }
-
-        private void RebuildOffsetIndex(int offsetIndexStride)
-        {
-            _offsetIndex.Clear();
-            for (int i = 0; i < Messages.Count; i++)
-            {
-                if (i == 0 || Messages[i].Offset % offsetIndexStride == 0)
-                    _offsetIndex.Add(new OffsetIndexEntry(Messages[i].Offset, i));
-            }
-        }
     }
 
     private sealed record PreparedPublish(
@@ -1065,14 +1380,97 @@ public sealed class SonnetMqStore : IDisposable
 
     private sealed record SegmentState(string Path, long BaseOffset);
 
-    private readonly record struct OffsetIndexEntry(long Offset, int MessageIndex);
+    private readonly record struct OffsetIndexEntry(long Offset, long SegmentBaseOffset, long FilePosition);
+
+    private readonly record struct RecordLocation(long SegmentBaseOffset, long FilePosition);
+
+    private readonly record struct ColdRecord(
+        byte Type,
+        long Offset,
+        long Ticks,
+        IReadOnlyDictionary<string, string> Headers,
+        byte[] Payload);
+
+    /// <summary>
+    /// 有界只读段句柄 LRU，落地 <see cref="SonnetMqOptions.SegmentCacheSize"/>。冷读复用已打开句柄，
+    /// 超容量按最近最少使用关闭最久未用句柄。只读句柄可并发 <c>RandomAccess.Read</c>，无需与写序列化；
+    /// 自持一把锁保护 LRU 结构本身。
+    /// </summary>
+    private sealed class SegmentHandleCache : IDisposable
+    {
+        private readonly int _capacity;
+        private readonly object _sync = new();
+        private readonly LinkedList<string> _lru = new();
+        private readonly Dictionary<string, (SafeFileHandle Handle, LinkedListNode<string> Node)> _entries =
+            new(StringComparer.Ordinal);
+        private bool _disposed;
+
+        public SegmentHandleCache(int capacity) => _capacity = capacity;
+
+        public SafeFileHandle Acquire(string path)
+        {
+            lock (_sync)
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                if (_entries.TryGetValue(path, out var existing))
+                {
+                    _lru.Remove(existing.Node);
+                    _lru.AddFirst(existing.Node);
+                    return existing.Handle;
+                }
+
+                var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                var node = _lru.AddFirst(path);
+                _entries[path] = (handle, node);
+                EvictIfNeeded();
+                return handle;
+            }
+        }
+
+        public void Invalidate(string path)
+        {
+            lock (_sync)
+            {
+                if (_entries.Remove(path, out var entry))
+                {
+                    _lru.Remove(entry.Node);
+                    entry.Handle.Dispose();
+                }
+            }
+        }
+
+        private void EvictIfNeeded()
+        {
+            while (_entries.Count > _capacity && _lru.Last is { } last)
+            {
+                _lru.RemoveLast();
+                if (_entries.Remove(last.Value, out var entry))
+                    entry.Handle.Dispose();
+            }
+        }
+
+        public void Dispose()
+        {
+            lock (_sync)
+            {
+                if (_disposed)
+                    return;
+                _disposed = true;
+                foreach (var entry in _entries.Values)
+                    entry.Handle.Dispose();
+                _entries.Clear();
+                _lru.Clear();
+            }
+        }
+    }
 
     private sealed record StoredMessage(
         string Topic,
         long Offset,
         DateTimeOffset TimestampUtc,
         IReadOnlyDictionary<string, string> Headers,
-        byte[] Payload);
+        byte[] Payload,
+        bool ColdReadable);
 
     private sealed class EmptyHeaders : IReadOnlyDictionary<string, string>
     {
