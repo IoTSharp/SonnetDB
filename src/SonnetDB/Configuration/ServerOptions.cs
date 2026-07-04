@@ -61,9 +61,35 @@ public sealed class ServerOptions
     public int MetricsTickSeconds { get; set; } = 5;
 
     /// <summary>
+    /// 可观测性配置（M17）。绑定路径：<c>"SonnetDBServer:Observability"</c>。
+    /// </summary>
+    public ObservabilityOptions Observability { get; set; } = new();
+
+    /// <summary>
     /// Copilot 子系统配置。
     /// </summary>
     public CopilotOptions Copilot { get; set; } = new();
+}
+
+/// <summary>
+/// 可观测性配置（M17 #90/#91）。指标 / 追踪默认开启（无导出目标时近零开销）；
+/// Prometheus 端点默认关闭，需显式启用。
+/// </summary>
+public sealed class ObservabilityOptions
+{
+    /// <summary>Prometheus 拉取端点配置。</summary>
+    public PrometheusOptions Prometheus { get; set; } = new();
+}
+
+/// <summary>
+/// Prometheus 拉取端点配置。启用后 <c>/metrics</c> 由 OpenTelemetry Prometheus exporter 接管，
+/// 暴露 <c>SonnetDB.Core</c> / <c>SonnetDB.Server</c> Meter 与 ASP.NET Core 指标；
+/// 关闭（默认）时保留原有最小指标集文本端点。
+/// </summary>
+public sealed class PrometheusOptions
+{
+    /// <summary>是否启用 OpenTelemetry Prometheus 拉取端点。默认 <c>false</c>。</summary>
+    public bool Enabled { get; set; }
 }
 
 /// <summary>

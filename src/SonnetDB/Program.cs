@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -7,10 +8,15 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using OpenTelemetry;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using SonnetDB.Auth;
 using SonnetDB.Configuration;
 using SonnetDB.Contracts;
 using SonnetDB.Copilot;
+using SonnetDB.Diagnostics;
 using SonnetDB.Endpoints;
 using SonnetDB.Hosting;
 using SonnetDB.Json;
@@ -81,6 +87,8 @@ public static class Program
 
     private static void Configure(WebApplicationBuilder builder)
     {
+        ConfigureOpenTelemetry(builder);
+
         builder.Services.Configure<JsonOptions>(o =>
         {
             o.SerializerOptions.Converters.Add(new GeoJsonConverter());
@@ -213,6 +221,54 @@ public static class Program
         var systemDirectory = Path.Combine(serverOptions.DataRoot, ".system");
         Directory.CreateDirectory(systemDirectory);
         return systemDirectory;
+    }
+
+    /// <summary>
+    /// M17 #90：OpenTelemetry 引导。指标 / 追踪默认开启（订阅 Core 的 BCL Meter / ActivitySource）；
+    /// OTLP 导出走标准 <c>OTEL_EXPORTER_OTLP_ENDPOINT</c> 环境变量（未设置则不导出）；
+    /// Console exporter 仅 Development 环境启用。Resource 自动携带
+    /// <c>service.name=sonnetdb</c> / <c>service.version</c> / <c>service.instance.id</c> / <c>host.name</c>。
+    /// </summary>
+    private static void ConfigureOpenTelemetry(WebApplicationBuilder builder)
+    {
+        string serviceVersion = typeof(Program).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+            ?? typeof(Program).Assembly.GetName().Version?.ToString()
+            ?? "unknown";
+        bool hasOtlpEndpoint = !string.IsNullOrWhiteSpace(
+            Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT"));
+
+        builder.Services.AddOpenTelemetry()
+            .ConfigureResource(resource => resource
+                .AddService(
+                    serviceName: "sonnetdb",
+                    serviceVersion: serviceVersion,
+                    serviceInstanceId: Environment.MachineName + ":" + Environment.ProcessId)
+                .AddAttributes([new KeyValuePair<string, object>("host.name", Environment.MachineName)]))
+            .WithMetrics(metrics =>
+            {
+                metrics
+                    .AddMeter(SonnetDbMeter.MeterName)
+                    .AddMeter("SonnetDB.Server")
+                    .AddAspNetCoreInstrumentation()
+                    .AddHttpClientInstrumentation();
+
+                if (hasOtlpEndpoint)
+                    metrics.AddOtlpExporter();
+            })
+            .WithTracing(tracing =>
+            {
+                tracing
+                    .AddSource(SonnetDbActivitySource.SourceName)
+                    .AddSource("SonnetDB.Copilot")
+                    .AddAspNetCoreInstrumentation()
+                    .AddHttpClientInstrumentation();
+
+                if (hasOtlpEndpoint)
+                    tracing.AddOtlpExporter();
+                if (builder.Environment.IsDevelopment())
+                    tracing.AddConsoleExporter();
+            });
     }
 
     private static void ConfigureMiddleware(WebApplication app, ServerOptions serverOptions)
