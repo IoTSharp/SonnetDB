@@ -291,6 +291,51 @@ public sealed class SonnetMqStoreTests : IDisposable
         Assert.Equal(1, commands.ConsumerOffsets["rules"]);
     }
 
+    [Fact]
+    public void ConcurrentPublish_SameTopic_ProducesContiguousUniqueOffsets()
+    {
+        using var store = Open();
+        const int writers = 8;
+        const int perWriter = 500;
+
+        var offsets = new System.Collections.Concurrent.ConcurrentBag<long>();
+        Parallel.For(0, writers, _ =>
+        {
+            for (int i = 0; i < perWriter; i++)
+                offsets.Add(store.Publish("iot.telemetry", Encoding.UTF8.GetBytes("x")));
+        });
+
+        var ordered = offsets.OrderBy(o => o).ToArray();
+        Assert.Equal(writers * perWriter, ordered.Length);
+        Assert.Equal(Enumerable.Range(0, writers * perWriter).Select(i => (long)i).ToArray(), ordered);
+        Assert.Equal(writers * perWriter, store.GetStats("iot.telemetry").NextOffset);
+    }
+
+    [Fact]
+    public void ConcurrentPublish_DistinctTopics_KeepsPerTopicOffsetsIndependent()
+    {
+        using var store = Open();
+        const int topics = 6;
+        const int perTopic = 400;
+
+        Parallel.For(0, topics, t =>
+        {
+            string topic = "iot.topic-" + t;
+            for (int i = 0; i < perTopic; i++)
+                store.Publish(topic, Encoding.UTF8.GetBytes(i.ToString()));
+        });
+
+        var stats = store.ListTopicStats();
+        Assert.Equal(topics, stats.Count);
+        foreach (var s in stats)
+        {
+            Assert.Equal(perTopic, s.MessageCount);
+            Assert.Equal(perTopic, s.NextOffset);
+            var messages = store.Pull(s.Topic, 0, perTopic + 10);
+            Assert.Equal(Enumerable.Range(0, perTopic).Select(i => (long)i).ToArray(), messages.Select(m => m.Offset).ToArray());
+        }
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))

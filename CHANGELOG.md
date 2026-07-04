@@ -41,6 +41,7 @@
 
 ### Changed
 
+- **M28 P5a #231 SonnetMQ 去全局锁：per-topic 锁分片**：`SonnetMqStore` 此前用单一 `_sync` 锁串行化所有 topic 的 Publish/Pull/Ack/Stats/Trim，零并发分片。改为顶层 `ConcurrentDictionary<string, TopicState>` 无锁查找 + 每个 `TopicState` 自持一把 `SyncRoot`（Kafka partition 思路），topic 间发布/拉取互不阻塞（MQ1）；`TrimRetention` / retention worker 只锁被裁剪的单个 topic，`File.Exists` / `FileInfo.Length` 等文件系统调用不再持锁阻塞其它 topic 主路径（MQ7）。单 topic 内 publish 顺序与 offset 单调性保持不变（同一 `SyncRoot` 串行）。**SingleFile 模式**下所有 topic 共享同一底层 `FileStream`，故其 `SyncRoot` 统一回退到全局锁以保证流写入串行；目录模式（服务端默认）享受真正的 per-topic 并发。新增同 topic 并发 publish 产出连续唯一 offset、跨 topic 并发 publish 各自 offset 独立两项并发测试（MQ1、MQ7）。
 - **M28 P3 查询与 SQL 能力批次**：
   (#212) `SqlParser.Parse` 新增进程级有界 LRU 解析缓存（默认 512 条，按 SQL 文本 key）：解析纯语法、与 schema 无关且 AST 不可变，故按文本缓存并跨调用复用安全，命中直接返回已解析的不可变 AST。消除高频轮询同一 query 形状（仪表盘等）每次 `Execute` 重复 lex+parse 的分配与 CPU；超长（> 8 KB）单条 SQL 与语法错误不入缓存。所有走 `SqlParser.Parse` 的路径（嵌入式、ADO、HTTP、MCP、Copilot）透明受益（Q7）。
   (#213) 参数化查询 / 绑定变量：新增位置 `?` 与命名 `@name` / `:name` 占位符，贯穿 lexer（`TokenKind.Parameter`）→ AST（`ParameterExpression`）→ `SqlParameterBinder` 值绑定 → `SqlExecutor.Execute(..., SqlParameters)` 重载。带占位符的 AST 与参数值无关，可命中解析缓存并对不同参数值复用；执行前把 CLR 值绑定为字面量节点（`byte[]`→Base64、`DateTime`→Unix 毫秒、`GeoPoint`→`POINT(...)`、`null`→SQL NULL）。嵌入式 ADO 改走 Core AST 值绑定（防注入，不再字符串拼接）；远程因线协议仅接受 SQL 字符串，仍在客户端安全替换命名参数（Q10）。

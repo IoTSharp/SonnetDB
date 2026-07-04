@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Collections.Concurrent;
 using System.Text;
 
 namespace SonnetMQ;
@@ -20,9 +21,10 @@ public sealed class SonnetMqStore : IDisposable
     private const int MaxPayloadBytes = 128 * 1024 * 1024;
     private const int SegmentFileNameWidth = 20;
 
-    private readonly object _sync = new();
+    private readonly object _globalSync = new();
     private readonly SonnetMqOptions _options;
-    private readonly Dictionary<string, TopicState> _topics = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, TopicState> _topics = new(StringComparer.Ordinal);
+    private readonly object? _singleFileLock;
     private readonly int _offsetIndexStride;
     private Thread? _retentionWorker;
     private CancellationTokenSource? _retentionCts;
@@ -33,6 +35,9 @@ public sealed class SonnetMqStore : IDisposable
     {
         _options = options;
         _offsetIndexStride = Math.Max(1, options.OffsetIndexStride);
+        // 单文件模式下所有 topic 共享同一个 FileStream，必须串行化到同一把锁（并复用为 Dispose/Flush 的全局锁）；
+        // 目录模式下每个 topic 各持一把锁（见 TopicState.SyncRoot），topic 间互不阻塞。
+        _singleFileLock = options.OpenMode == SonnetMqOpenMode.SingleFile ? _globalSync : null;
     }
 
     /// <summary>
@@ -117,9 +122,9 @@ public sealed class SonnetMqStore : IDisposable
                 new Dictionary<string, string>(headers, StringComparer.Ordinal));
         }
 
-        lock (_sync)
+        var state = GetOrCreateTopic(topic);
+        lock (state.SyncRoot)
         {
-            var state = GetOrCreateTopic(topic);
             var offsets = new long[prepared.Length];
             for (int i = 0; i < prepared.Length; i++)
             {
@@ -150,11 +155,11 @@ public sealed class SonnetMqStore : IDisposable
         ValidateConsumerGroup(consumerGroup);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxCount);
 
-        lock (_sync)
-        {
-            if (!_topics.TryGetValue(topic, out var state))
-                return [];
+        if (!_topics.TryGetValue(topic, out var state))
+            return [];
 
+        lock (state.SyncRoot)
+        {
             long next = state.GetConsumerOffset(consumerGroup);
             return PullFromState(state, next, maxCount);
         }
@@ -174,13 +179,11 @@ public sealed class SonnetMqStore : IDisposable
         ArgumentOutOfRangeException.ThrowIfNegative(offset);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxCount);
 
-        lock (_sync)
-        {
-            if (!_topics.TryGetValue(topic, out var state))
-                return [];
+        if (!_topics.TryGetValue(topic, out var state))
+            return [];
 
+        lock (state.SyncRoot)
             return PullFromState(state, offset, maxCount);
-        }
     }
 
     /// <summary>
@@ -200,9 +203,9 @@ public sealed class SonnetMqStore : IDisposable
         byte[] topicBytes = EncodeName(topic, nameof(topic));
         byte[] consumerBytes = EncodeName(consumerGroup, nameof(consumerGroup));
 
-        lock (_sync)
+        var state = GetOrCreateTopic(topic);
+        lock (state.SyncRoot)
         {
-            var state = GetOrCreateTopic(topic);
             long next = Math.Min(offset + 1, state.NextOffset);
             WriteRecord(state, RecordTypeAck, topicBytes, consumerBytes, ReadOnlySpan<byte>.Empty, next, DateTimeOffset.UtcNow.UtcTicks);
             state.SetConsumerOffset(consumerGroup, next);
@@ -224,9 +227,9 @@ public sealed class SonnetMqStore : IDisposable
         ArgumentOutOfRangeException.ThrowIfNegative(beforeOffset);
 
         byte[] topicBytes = EncodeName(topic, nameof(topic));
-        lock (_sync)
+        var state = GetOrCreateTopic(topic);
+        lock (state.SyncRoot)
         {
-            var state = GetOrCreateTopic(topic);
             long cutoff = Math.Min(beforeOffset, state.NextOffset);
             if (cutoff <= state.TrimmedBeforeOffset)
                 return state.TrimmedBeforeOffset;
@@ -247,9 +250,10 @@ public sealed class SonnetMqStore : IDisposable
         if (_options.OpenMode == SonnetMqOpenMode.SingleFile)
             return;
 
-        lock (_sync)
+        // MQ7：只锁被裁剪的单个 topic，文件系统调用不再阻塞其它 topic 的 publish/pull。
+        foreach (var state in _topics.Values)
         {
-            foreach (var state in _topics.Values)
+            lock (state.SyncRoot)
             {
                 TrimAcknowledgedMessages(state, force: true);
                 TrimTopicRetention(state);
@@ -267,8 +271,11 @@ public sealed class SonnetMqStore : IDisposable
         EnsureNotDisposed();
         ValidateTopic(topic);
 
-        lock (_sync)
-            return GetStatsLocked(topic);
+        if (!_topics.TryGetValue(topic, out var state))
+            return new SonnetMqTopicStats(topic, 0, 0, new Dictionary<string, long>(StringComparer.Ordinal));
+
+        lock (state.SyncRoot)
+            return SnapshotStats(state);
     }
 
     /// <summary>
@@ -279,26 +286,23 @@ public sealed class SonnetMqStore : IDisposable
     {
         EnsureNotDisposed();
 
-        lock (_sync)
+        var result = new List<SonnetMqTopicStats>(_topics.Count);
+        foreach (var state in _topics.Values)
         {
-            return _topics.Keys
-                .Order(StringComparer.Ordinal)
-                .Select(GetStatsLocked)
-                .ToArray();
+            lock (state.SyncRoot)
+                result.Add(SnapshotStats(state));
         }
+
+        result.Sort(static (a, b) => string.CompareOrdinal(a.Topic, b.Topic));
+        return result;
     }
 
-    private SonnetMqTopicStats GetStatsLocked(string topic)
-    {
-        if (!_topics.TryGetValue(topic, out var state))
-            return new SonnetMqTopicStats(topic, 0, 0, new Dictionary<string, long>(StringComparer.Ordinal));
-
-        return new SonnetMqTopicStats(
-            topic,
+    private static SonnetMqTopicStats SnapshotStats(TopicState state)
+        => new(
+            state.Topic,
             state.Messages.Count,
             state.NextOffset,
             new Dictionary<string, long>(state.ConsumerOffsets, StringComparer.Ordinal));
-    }
 
     /// <summary>
     /// 将当前写缓冲刷新到文件。
@@ -307,16 +311,17 @@ public sealed class SonnetMqStore : IDisposable
     public void Flush(bool flushToDisk = false)
     {
         EnsureNotDisposed();
-        lock (_sync)
+        if (_options.OpenMode == SonnetMqOpenMode.SingleFile)
         {
-            if (_options.OpenMode == SonnetMqOpenMode.SingleFile)
-            {
+            lock (_globalSync)
                 _singleFileStream?.Flush(flushToDisk);
-                return;
-            }
+            return;
+        }
 
-            foreach (var topic in _topics.Values)
-                topic.Writer?.Flush(flushToDisk);
+        foreach (var state in _topics.Values)
+        {
+            lock (state.SyncRoot)
+                state.Writer?.Flush(flushToDisk);
         }
     }
 
@@ -327,16 +332,21 @@ public sealed class SonnetMqStore : IDisposable
         _retentionWorker?.Join(TimeSpan.FromSeconds(2));
         _retentionCts?.Dispose();
 
-        lock (_sync)
+        lock (_globalSync)
         {
             if (_disposed)
                 return;
-
             _disposed = true;
-            foreach (var topic in _topics.Values)
-                topic.Dispose();
-            _singleFileStream?.Dispose();
         }
+
+        foreach (var state in _topics.Values)
+        {
+            lock (state.SyncRoot)
+                state.Dispose();
+        }
+
+        lock (_globalSync)
+            _singleFileStream?.Dispose();
     }
 
     private string RootDirectory => Path.GetFullPath(_options.Path);
@@ -628,14 +638,7 @@ public sealed class SonnetMqStore : IDisposable
     }
 
     private TopicState GetOrCreateTopic(string topic)
-    {
-        if (_topics.TryGetValue(topic, out var state))
-            return state;
-
-        state = new TopicState(topic);
-        _topics.Add(topic, state);
-        return state;
-    }
+        => _topics.GetOrAdd(topic, static (t, self) => new TopicState(t, self._singleFileLock ?? new object()), this);
 
     private void RetentionWorkerLoop()
     {
@@ -821,10 +824,16 @@ public sealed class SonnetMqStore : IDisposable
 
     private sealed class TopicState : IDisposable
     {
-        public TopicState(string topic)
+        public TopicState(string topic, object syncRoot)
         {
             Topic = topic;
+            SyncRoot = syncRoot;
         }
+
+        /// <summary>
+        /// 该 topic 的写/读串行化锁。目录模式下每个 topic 独占一把；单文件模式下所有 topic 共享同一把（共用底层流）。
+        /// </summary>
+        public object SyncRoot { get; }
 
         public string Topic { get; }
 
