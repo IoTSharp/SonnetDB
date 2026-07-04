@@ -336,6 +336,30 @@ public sealed class SonnetMqStoreTests : IDisposable
         }
     }
 
+    [Fact]
+    public void Publish_WithHeaders_RoundTripsThroughEncodeAndReplay()
+    {
+        var headers = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["z-last"] = "值 with 空格 & =符号",
+            ["a-first"] = "plain",
+            ["b-empty"] = "",
+        };
+
+        using (var store = Open())
+        {
+            store.Publish("iot.telemetry", Encoding.UTF8.GetBytes("body"), new SonnetMqPublishOptions(headers));
+
+            var live = store.Pull("iot.telemetry", 0, 1);
+            Assert.Equal(headers, live[0].Headers);
+        }
+
+        using var reopened = Open();
+        var replayed = reopened.Pull("iot.telemetry", 0, 1);
+        Assert.Equal("body", Encoding.UTF8.GetString(replayed[0].Payload));
+        Assert.Equal(headers, replayed[0].Headers);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))

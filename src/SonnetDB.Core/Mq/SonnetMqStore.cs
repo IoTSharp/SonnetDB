@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Buffers.Text;
 using System.Collections.Concurrent;
 using System.Text;
 
@@ -89,8 +90,10 @@ public sealed class SonnetMqStore : IDisposable
         if (payload.Length > MaxPayloadBytes)
             throw new ArgumentOutOfRangeException(nameof(payload), payload.Length, "消息体超过 SonnetMQ 当前单条大小上限。");
 
-        var entry = new SonnetMqPublishEntry(payload.ToArray(), options?.Headers);
-        return PublishMany(topic, [entry])[0];
+        var headers = options?.Headers ?? EmptyHeaders.Instance;
+        // 单次拷贝：span → 常驻数组，直接入 prepared，不再经 entry 二次 ToArray（MQ2）。
+        var prepared = new PreparedPublish(payload.ToArray(), EncodeHeaders(headers), SnapshotHeaders(headers));
+        return PublishPrepared(topic, [prepared])[0];
     }
 
     /// <summary>
@@ -107,7 +110,6 @@ public sealed class SonnetMqStore : IDisposable
         if (entries.Count == 0)
             return [];
 
-        byte[] topicBytes = EncodeName(topic, nameof(topic));
         var prepared = new PreparedPublish[entries.Count];
         for (int i = 0; i < entries.Count; i++)
         {
@@ -119,9 +121,15 @@ public sealed class SonnetMqStore : IDisposable
             prepared[i] = new PreparedPublish(
                 entry.Payload.ToArray(),
                 EncodeHeaders(headers),
-                new Dictionary<string, string>(headers, StringComparer.Ordinal));
+                SnapshotHeaders(headers));
         }
 
+        return PublishPrepared(topic, prepared);
+    }
+
+    private IReadOnlyList<long> PublishPrepared(string topic, PreparedPublish[] prepared)
+    {
+        byte[] topicBytes = EncodeName(topic, nameof(topic));
         var state = GetOrCreateTopic(topic);
         lock (state.SyncRoot)
         {
@@ -140,6 +148,11 @@ public sealed class SonnetMqStore : IDisposable
             return offsets;
         }
     }
+
+    private static IReadOnlyDictionary<string, string> SnapshotHeaders(IReadOnlyDictionary<string, string> headers)
+        => headers.Count == 0
+            ? EmptyHeaders.Instance
+            : new Dictionary<string, string>(headers, StringComparer.Ordinal);
 
     /// <summary>
     /// 读取指定消费者组尚未确认的消息。
@@ -472,21 +485,35 @@ public sealed class SonnetMqStore : IDisposable
         bool flush = true)
     {
         FileStream stream = GetWritableStream(state, HeaderSize + topic.Length + meta.Length + payload.Length);
-        Span<byte> header = stackalloc byte[HeaderSize];
-        BinaryPrimitives.WriteUInt32LittleEndian(header, Magic);
-        BinaryPrimitives.WriteUInt16LittleEndian(header[4..], Version);
-        header[6] = type;
-        header[7] = 0;
-        BinaryPrimitives.WriteInt32LittleEndian(header[8..], topic.Length);
-        BinaryPrimitives.WriteInt32LittleEndian(header[12..], meta.Length);
-        BinaryPrimitives.WriteInt32LittleEndian(header[16..], payload.Length);
-        BinaryPrimitives.WriteInt64LittleEndian(header[20..], offsetOrNext);
-        BinaryPrimitives.WriteInt64LittleEndian(header[28..], ticks);
 
-        stream.Write(header);
-        stream.Write(topic);
-        stream.Write(meta);
-        stream.Write(payload);
+        // MQ5：把定长头 + topic + meta 合并进一个租借缓冲区一次写出，payload 单独直写（大 payload 免二次拷贝）。
+        int prefixLength = HeaderSize + topic.Length + meta.Length;
+        byte[] rented = ArrayPool<byte>.Shared.Rent(prefixLength);
+        try
+        {
+            Span<byte> prefix = rented.AsSpan(0, prefixLength);
+            BinaryPrimitives.WriteUInt32LittleEndian(prefix, Magic);
+            BinaryPrimitives.WriteUInt16LittleEndian(prefix[4..], Version);
+            prefix[6] = type;
+            prefix[7] = 0;
+            BinaryPrimitives.WriteInt32LittleEndian(prefix[8..], topic.Length);
+            BinaryPrimitives.WriteInt32LittleEndian(prefix[12..], meta.Length);
+            BinaryPrimitives.WriteInt32LittleEndian(prefix[16..], payload.Length);
+            BinaryPrimitives.WriteInt64LittleEndian(prefix[20..], offsetOrNext);
+            BinaryPrimitives.WriteInt64LittleEndian(prefix[28..], ticks);
+            topic.CopyTo(prefix[HeaderSize..]);
+            meta.CopyTo(prefix[(HeaderSize + topic.Length)..]);
+
+            stream.Write(prefix);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(rented);
+        }
+
+        if (!payload.IsEmpty)
+            stream.Write(payload);
+
         if (flush && (_options.FlushOnPublish || _options.SyncOnPublish))
             stream.Flush(_options.SyncOnPublish);
     }
@@ -728,20 +755,55 @@ public sealed class SonnetMqStore : IDisposable
         if (headers.Count == 0)
             return [];
 
-        var builder = new StringBuilder();
-        foreach (var pair in headers.OrderBy(static p => p.Key, StringComparer.Ordinal))
+        // MQ6：免 StringBuilder + LINQ OrderBy + 逐值 Convert.ToBase64String。
+        var pairs = new KeyValuePair<string, string>[headers.Count];
+        int n = 0;
+        foreach (var pair in headers)
+            pairs[n++] = pair;
+        Array.Sort(pairs, static (a, b) => string.CompareOrdinal(a.Key, b.Key));
+
+        var writer = new ArrayBufferWriter<byte>();
+        foreach (var pair in pairs)
         {
             ValidateHeaderName(pair.Key);
-            builder.Append(pair.Key);
-            builder.Append('=');
-            builder.Append(Convert.ToBase64String(Encoding.UTF8.GetBytes(pair.Value ?? string.Empty)));
-            builder.Append('\n');
+            WriteUtf8(writer, pair.Key);
+            writer.GetSpan(1)[0] = (byte)'=';
+            writer.Advance(1);
+            WriteBase64Utf8(writer, pair.Value ?? string.Empty);
+            writer.GetSpan(1)[0] = (byte)'\n';
+            writer.Advance(1);
         }
 
-        byte[] bytes = Encoding.UTF8.GetBytes(builder.ToString());
-        if (bytes.Length > MaxHeadersBytes)
+        if (writer.WrittenCount > MaxHeadersBytes)
             throw new ArgumentOutOfRangeException(nameof(headers), "消息头总长度超过 SonnetMQ 当前上限。");
-        return bytes;
+        return writer.WrittenSpan.ToArray();
+    }
+
+    private static void WriteUtf8(ArrayBufferWriter<byte> writer, string value)
+    {
+        if (value.Length == 0)
+            return;
+        var span = writer.GetSpan(Encoding.UTF8.GetMaxByteCount(value.Length));
+        writer.Advance(Encoding.UTF8.GetBytes(value, span));
+    }
+
+    private static void WriteBase64Utf8(ArrayBufferWriter<byte> writer, string value)
+    {
+        if (value.Length == 0)
+            return;
+
+        byte[] rented = ArrayPool<byte>.Shared.Rent(Encoding.UTF8.GetMaxByteCount(value.Length));
+        try
+        {
+            int utf8Len = Encoding.UTF8.GetBytes(value, rented);
+            var span = writer.GetSpan(Base64.GetMaxEncodedToUtf8Length(utf8Len));
+            Base64.EncodeToUtf8(rented.AsSpan(0, utf8Len), span, out _, out int written);
+            writer.Advance(written);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(rented);
+        }
     }
 
     private static Dictionary<string, string> DecodeHeaders(ReadOnlySpan<byte> bytes)
