@@ -328,4 +328,21 @@ public ref struct SpanReader
         ReadOnlySpan<byte> bytes = ReadBytes(length);
         return encoding.GetString(bytes);
     }
+
+    /// <summary>
+    /// 读取变长前缀字符串（LEB128 varuint 字节长度 + UTF-8 字节，无 null 表示）。
+    /// 与 <see cref="SpanWriter.WriteVarString"/> 配对。
+    /// </summary>
+    /// <returns>读取到的字符串。</returns>
+    /// <exception cref="InvalidOperationException">长度超出剩余缓冲区时抛出。</exception>
+    public string ReadVarString()
+    {
+        uint length = ReadVarUInt32();
+        if (length == 0)
+            return string.Empty;
+        if (length > (uint)Remaining)
+            throw new InvalidOperationException("VarString length exceeds remaining buffer");
+        ReadOnlySpan<byte> bytes = ReadBytes((int)length);
+        return Encoding.UTF8.GetString(bytes);
+    }
 }

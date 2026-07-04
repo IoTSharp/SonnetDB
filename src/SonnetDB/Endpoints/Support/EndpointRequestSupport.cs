@@ -76,19 +76,62 @@ internal static partial class SonnetDbEndpoints
         string topic,
         DatabasePermission requiredPermission)
     {
-        if (!TryResolveDatabase(ctx, registry, db, out _))
-            return false;
+        MqAccessResult result = EvaluateMqAccess(ctx, registry, grants, db, topic, requiredPermission);
+        switch (result.Status)
+        {
+            case MqAccessStatus.Ok:
+                return true;
+            case MqAccessStatus.BadDbName:
+            case MqAccessStatus.BadTopic:
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", result.Message).ConfigureAwait(false);
+                return false;
+            case MqAccessStatus.DbNotFound:
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status404NotFound, "db_not_found", result.Message).ConfigureAwait(false);
+                return false;
+            default:
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status403Forbidden, "forbidden", result.Message).ConfigureAwait(false);
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// MQ 访问判定核心（不写响应），REST 端点与二进制帧端点共用。
+    /// </summary>
+    internal static MqAccessResult EvaluateMqAccess(
+        HttpContext ctx,
+        TsdbRegistry registry,
+        GrantsStore grants,
+        string db,
+        string topic,
+        DatabasePermission requiredPermission)
+    {
+        if (!TsdbRegistry.IsValidName(db))
+            return new MqAccessResult(MqAccessStatus.BadDbName, $"非法数据库名 '{db}'。");
+
+        if (!registry.TryGet(db, out _))
+            return new MqAccessResult(MqAccessStatus.DbNotFound, $"数据库 '{db}' 不存在。");
 
         if (!IsValidKeyspaceName(topic))
-        {
-            await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request",
-                $"非法 topic 名 '{topic}'。").ConfigureAwait(false);
-            return false;
-        }
+            return new MqAccessResult(MqAccessStatus.BadTopic, $"非法 topic 名 '{topic}'。");
 
         var databasePermission = DatabaseAccessEvaluator.GetEffectivePermission(ctx, grants, db);
-        return await TryRequireDatabasePermissionAsync(ctx, db, databasePermission, requiredPermission).ConfigureAwait(false);
+        if (!DatabaseAccessEvaluator.HasPermission(databasePermission, requiredPermission))
+            return new MqAccessResult(MqAccessStatus.Forbidden,
+                $"当前凭据对数据库 '{db}' 没有 {requiredPermission.ToString().ToLowerInvariant()} 权限。");
+
+        return new MqAccessResult(MqAccessStatus.Ok, string.Empty);
     }
+
+    internal enum MqAccessStatus
+    {
+        Ok,
+        BadDbName,
+        DbNotFound,
+        BadTopic,
+        Forbidden,
+    }
+
+    internal readonly record struct MqAccessResult(MqAccessStatus Status, string Message);
 
     private static bool IsValidKeyspaceName(string? name)
     {
@@ -110,7 +153,7 @@ internal static partial class SonnetDbEndpoints
         return true;
     }
 
-    private static string QualifyMqTopic(string db, string topic) => db + "." + topic;
+    internal static string QualifyMqTopic(string db, string topic) => db + "." + topic;
 
     private static async Task WriteSimpleErrorAsync(HttpContext ctx, int statusCode, string code, string message)
     {

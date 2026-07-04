@@ -9,15 +9,18 @@ internal static class TestServerHost
 {
     public static WebApplication Build(
         ServerOptions options,
-        Action<IServiceCollection>? configureServices = null)
+        Action<IServiceCollection>? configureServices = null,
+        string[]? extraArgs = null)
     {
         var contentRoot = Path.Combine(Path.GetTempPath(), "sonnetdb-test-host-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(contentRoot);
         WriteAppSettings(contentRoot, options);
 
-        var app = Program.BuildApp(
-            ["--contentRoot", contentRoot, "--Kestrel:Endpoints:Http:Url=http://127.0.0.1:0"],
-            configureServices);
+        string[] args = ["--contentRoot", contentRoot, "--Kestrel:Endpoints:Http:Url=http://127.0.0.1:0"];
+        if (extraArgs is { Length: > 0 })
+            args = [.. args, .. extraArgs];
+
+        var app = Program.BuildApp(args, configureServices);
 
         app.Lifetime.ApplicationStopped.Register(static state =>
         {

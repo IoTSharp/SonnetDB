@@ -325,6 +325,83 @@ public sealed class SpanRoundTripTests
         Assert.Equal(value, reader.ReadString(Encoding.UTF8));
     }
 
+    // ────────────────────────────── WriteVarString ↔ ReadVarString ──────────────────────────────
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("a")]
+    [InlineData("Hello, World!")]
+    [InlineData("时序数据库")]
+    [InlineData("mixed 中英 mix 🚀")]
+    public void VarString_RoundTrip(string value)
+    {
+        byte[] buf = new byte[1024];
+        var writer = new SpanWriter(buf);
+        writer.WriteVarString(value);
+        Assert.Equal(SpanWriter.MeasureVarString(value), writer.Position);
+        var reader = new SpanReader(writer.WrittenSpan);
+        Assert.Equal(value, reader.ReadVarString());
+        Assert.True(reader.IsEnd);
+    }
+
+    [Fact]
+    public void VarString_512ByteBoundary_RoundTrip()
+    {
+        // 512 字节 = 帧协议名字上限；LEB128 长度前缀在 128 处从 1 字节变 2 字节
+        string value = new('x', 512);
+        byte[] buf = new byte[1024];
+        var writer = new SpanWriter(buf);
+        writer.WriteVarString(value);
+        Assert.Equal(2 + 512, writer.Position);
+        var reader = new SpanReader(writer.WrittenSpan);
+        Assert.Equal(value, reader.ReadVarString());
+    }
+
+    [Fact]
+    public void VarString_LengthExceedsBuffer_Throws()
+    {
+        byte[] buf = new byte[8];
+        var writer = new SpanWriter(buf);
+        writer.WriteVarUInt32(100); // 声明 100 字节但缓冲区没有
+        var truncated = writer.WrittenSpan.ToArray();
+        Assert.Throws<InvalidOperationException>(() =>
+        {
+            var reader = new SpanReader(truncated);
+            reader.ReadVarString();
+        });
+    }
+
+    [Theory]
+    [InlineData(0u, 1)]
+    [InlineData(127u, 1)]
+    [InlineData(128u, 2)]
+    [InlineData(16383u, 2)]
+    [InlineData(16384u, 3)]
+    [InlineData(uint.MaxValue, 5)]
+    public void MeasureVarUInt32_MatchesWrittenLength(uint value, int expected)
+    {
+        Assert.Equal(expected, SpanWriter.MeasureVarUInt32(value));
+        Span<byte> buf = stackalloc byte[8];
+        var writer = new SpanWriter(buf);
+        writer.WriteVarUInt32(value);
+        Assert.Equal(expected, writer.Position);
+    }
+
+    [Theory]
+    [InlineData(0ul, 1)]
+    [InlineData(127ul, 1)]
+    [InlineData(128ul, 2)]
+    [InlineData((ulong)uint.MaxValue, 5)]
+    [InlineData(ulong.MaxValue, 10)]
+    public void MeasureVarUInt64_MatchesWrittenLength(ulong value, int expected)
+    {
+        Assert.Equal(expected, SpanWriter.MeasureVarUInt64(value));
+        Span<byte> buf = stackalloc byte[16];
+        var writer = new SpanWriter(buf);
+        writer.WriteVarUInt64(value);
+        Assert.Equal(expected, writer.Position);
+    }
+
     // ────────────────────────────── 综合 block round-trip ──────────────────────────────
 
     /// <summary>

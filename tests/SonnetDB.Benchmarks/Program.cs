@@ -9,6 +9,7 @@ using SonnetDB.Benchmarks.Benchmarks;
 //   dotnet run -c Release -- --filter *Compaction*
 //   dotnet run -c Release -- --filter *Vector*
 //   dotnet run -c Release -- --filter *MqThroughput*
+//   dotnet run -c Release -- --filter *FrameEncoding*   （二进制帧 vs JSON+Base64 编解码）
 //   dotnet run -c Release -- --mq-latency   （SonnetMQ publish 尾延迟百分位）
 //   dotnet run -c Release -- --filter *         （运行所有基准）
 //

@@ -3,6 +3,7 @@ services:
     image: iotsharp/sonnetdb
     ports:
       - "5080:5080"
+      - "5081:5081"
     volumes:
       - sonnetdb-data:/data
     restart: unless-stopped

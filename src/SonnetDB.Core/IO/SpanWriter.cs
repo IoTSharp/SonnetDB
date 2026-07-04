@@ -286,4 +286,63 @@ public ref struct SpanWriter
         encoding.GetBytes(value, FreeSpan);
         _position += byteCount;
     }
+
+    /// <summary>
+    /// 写入变长前缀字符串（LEB128 varuint 字节长度 + UTF-8 字节，无 null 表示）。
+    /// 面向线协议的紧凑编码，与 <see cref="WriteString"/> 的 int32+null 哨兵格式不兼容。
+    /// </summary>
+    /// <param name="value">要写入的字符串（不允许 null）。</param>
+    public void WriteVarString(string value)
+    {
+        int byteCount = Encoding.UTF8.GetByteCount(value);
+        WriteVarUInt32((uint)byteCount);
+        EnsureRemaining(byteCount);
+        Encoding.UTF8.GetBytes(value, FreeSpan);
+        _position += byteCount;
+    }
+
+    /// <summary>
+    /// 计算 <see cref="WriteVarString"/> 编码 <paramref name="value"/> 所需的字节数。
+    /// </summary>
+    /// <param name="value">待编码字符串。</param>
+    /// <returns>varuint 长度前缀 + UTF-8 字节的总字节数。</returns>
+    public static int MeasureVarString(string value)
+    {
+        int byteCount = Encoding.UTF8.GetByteCount(value);
+        return MeasureVarUInt32((uint)byteCount) + byteCount;
+    }
+
+    /// <summary>
+    /// 计算 LEB128 编码 32 位无符号整数所需的字节数（1~5）。
+    /// </summary>
+    /// <param name="value">待编码值。</param>
+    /// <returns>编码字节数。</returns>
+    public static int MeasureVarUInt32(uint value)
+    {
+        int count = 1;
+        while (value >= 0x80)
+        {
+            value >>= 7;
+            count++;
+        }
+
+        return count;
+    }
+
+    /// <summary>
+    /// 计算 LEB128 编码 64 位无符号整数所需的字节数（1~10）。
+    /// </summary>
+    /// <param name="value">待编码值。</param>
+    /// <returns>编码字节数。</returns>
+    public static int MeasureVarUInt64(ulong value)
+    {
+        int count = 1;
+        while (value >= 0x80)
+        {
+            value >>= 7;
+            count++;
+        }
+
+        return count;
+    }
 }
