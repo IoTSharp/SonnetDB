@@ -4,7 +4,9 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using SonnetDB.Auth;
 using SonnetDB.Contracts;
+using SonnetDB.Engine;
 using SonnetDB.Hosting;
+using SonnetDB.Ingest;
 using SonnetDB.Json;
 using SonnetDB.Protocol;
 using SonnetMQ;
@@ -12,7 +14,7 @@ using SonnetMQ;
 namespace SonnetDB.Endpoints;
 
 /// <summary>
-/// 通用二进制帧端点处理器（M28 P5b #235）。
+/// 通用二进制帧端点处理器（M28 P5b #235；#237 挂载 tsdb service）。
 /// 请求体 = 1..N 个请求帧，逐帧解析、鉴权、分发到引擎、逐帧写回响应帧（streamId 回显）。
 /// 错误模型：未成帧（错 Content-Type / 首帧畸形 / 空体）走 HTTP 状态码；
 /// 成帧后一切按帧回错误帧（HTTP 200），批内单帧失败不影响其余帧。
@@ -25,7 +27,8 @@ internal static class FrameEndpointHandler
         HttpContext ctx,
         TsdbRegistry registry,
         GrantsStore grants,
-        SonnetMqStore mqStore)
+        SonnetMqStore mqStore,
+        ServerMetrics metrics)
     {
         if (!IsFrameContentType(ctx.Request.ContentType))
         {
@@ -80,7 +83,7 @@ internal static class FrameEndpointHandler
                     }
 
                     EnsureFrameResponseStarted(ctx);
-                    DispatchMqFrame(ctx, registry, grants, mqStore, writer, header, payload);
+                    DispatchFrame(ctx, registry, grants, mqStore, metrics, writer, header, payload);
                     await writer.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
                 }
 
@@ -170,27 +173,38 @@ internal static class FrameEndpointHandler
             return "请求帧不得设置 Response/Error 标志。";
         }
 
-        if (header.Service != (byte)FrameService.Mq)
+        if (header.Service == (byte)FrameService.Mq)
+        {
+            if (header.Op is < (byte)MqFrameOp.Publish or > (byte)MqFrameOp.Ack)
+            {
+                errorCode = "unsupported_op";
+                return $"mq service 不支持 op {header.Op}。";
+            }
+        }
+        else if (header.Service == (byte)FrameService.Tsdb)
+        {
+            if (header.Op != (byte)TsdbFrameOp.WriteColumnar)
+            {
+                errorCode = "unsupported_op";
+                return $"tsdb service 不支持 op {header.Op}。";
+            }
+        }
+        else
         {
             errorCode = "unsupported_service";
-            return $"service {header.Service} 尚未挂载（当前仅 mq={(byte)FrameService.Mq}）。";
-        }
-
-        if (header.Op is < (byte)MqFrameOp.Publish or > (byte)MqFrameOp.Ack)
-        {
-            errorCode = "unsupported_op";
-            return $"mq service 不支持 op {header.Op}。";
+            return $"service {header.Service} 尚未挂载（当前 mq={(byte)FrameService.Mq}、tsdb={(byte)FrameService.Tsdb}）。";
         }
 
         errorCode = string.Empty;
         return null;
     }
 
-    private static void DispatchMqFrame(
+    private static void DispatchFrame(
         HttpContext ctx,
         TsdbRegistry registry,
         GrantsStore grants,
         SonnetMqStore mqStore,
+        ServerMetrics metrics,
         PipeWriter writer,
         FrameHeader header,
         ReadOnlySequence<byte> payload)
@@ -210,11 +224,18 @@ internal static class FrameEndpointHandler
                 payloadMemory = rented.AsMemory(0, (int)payload.Length);
             }
 
-            ExecuteMqOp(ctx, registry, grants, mqStore, writer, header, payloadMemory);
+            if (header.Service == (byte)FrameService.Tsdb)
+                ExecuteTsdbOp(ctx, registry, grants, metrics, writer, header, payloadMemory);
+            else
+                ExecuteMqOp(ctx, registry, grants, mqStore, writer, header, payloadMemory);
         }
         catch (FrameFormatException ex)
         {
             FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "bad_frame", ex.Message);
+        }
+        catch (BulkIngestException ex)
+        {
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "bulk_ingest_error", ex.Message);
         }
         catch (InvalidOperationException ex)
         {
@@ -238,6 +259,36 @@ internal static class FrameEndpointHandler
             if (rented is not null)
                 ArrayPool<byte>.Shared.Return(rented);
         }
+    }
+
+    private static void ExecuteTsdbOp(
+        HttpContext ctx,
+        TsdbRegistry registry,
+        GrantsStore grants,
+        ServerMetrics metrics,
+        PipeWriter writer,
+        FrameHeader header,
+        ReadOnlyMemory<byte> payload)
+    {
+        TsdbWriteColumnarFrameRequest request = TsdbFrameCodec.DecodeWriteColumnarRequest(payload);
+        SonnetDbEndpoints.MqAccessResult access = SonnetDbEndpoints.EvaluateDatabaseAccess(
+            ctx, registry, grants, request.Db, DatabasePermission.Write, out Tsdb tsdb);
+        if (access.Status != SonnetDbEndpoints.MqAccessStatus.Ok)
+        {
+            string code = access.Status switch
+            {
+                SonnetDbEndpoints.MqAccessStatus.DbNotFound => "db_not_found",
+                SonnetDbEndpoints.MqAccessStatus.Forbidden => "forbidden",
+                _ => "bad_request",
+            };
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, code, access.Message);
+            return;
+        }
+
+        var reader = new TsdbColumnarPointReader(request);
+        BulkIngestResult result = BulkIngestor.Ingest(tsdb, reader, BulkErrorPolicy.FailFast, request.FlushMode);
+        metrics.AddInsertedRows(result.Written);
+        TsdbFrameCodec.EncodeWriteColumnarResponse(writer, header.StreamId, result.Written);
     }
 
     private static void ExecuteMqOp(

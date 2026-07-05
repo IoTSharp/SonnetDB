@@ -122,6 +122,33 @@ internal static partial class SonnetDbEndpoints
         return new MqAccessResult(MqAccessStatus.Ok, string.Empty);
     }
 
+    /// <summary>
+    /// 数据库级访问判定核心（不写响应），二进制帧端点的非 MQ service（#237 tsdb 等）使用；
+    /// 判定语义与 <see cref="TryResolveDatabase"/> + <see cref="TryRequireDatabasePermissionAsync"/> 一致。
+    /// </summary>
+    internal static MqAccessResult EvaluateDatabaseAccess(
+        HttpContext ctx,
+        TsdbRegistry registry,
+        GrantsStore grants,
+        string db,
+        DatabasePermission requiredPermission,
+        out Tsdb tsdb)
+    {
+        tsdb = null!;
+        if (!TsdbRegistry.IsValidName(db))
+            return new MqAccessResult(MqAccessStatus.BadDbName, $"非法数据库名 '{db}'。");
+
+        if (!registry.TryGet(db, out tsdb))
+            return new MqAccessResult(MqAccessStatus.DbNotFound, $"数据库 '{db}' 不存在。");
+
+        var databasePermission = DatabaseAccessEvaluator.GetEffectivePermission(ctx, grants, db);
+        if (!DatabaseAccessEvaluator.HasPermission(databasePermission, requiredPermission))
+            return new MqAccessResult(MqAccessStatus.Forbidden,
+                $"当前凭据对数据库 '{db}' 没有 {requiredPermission.ToString().ToLowerInvariant()} 权限。");
+
+        return new MqAccessResult(MqAccessStatus.Ok, string.Empty);
+    }
+
     internal enum MqAccessStatus
     {
         Ok,

@@ -13,11 +13,12 @@ internal static partial class SonnetDbEndpoints
     {
         var registry = app.Services.GetRequiredService<TsdbRegistry>();
         var grants = app.Services.GetRequiredService<GrantsStore>();
+        var metrics = app.Services.GetRequiredService<ServerMetrics>();
 
         app.MapPost("/v1/frame", (HttpContext ctx) =>
         {
             var mq = app.Services.GetRequiredService<SonnetMqStore>();
-            return FrameEndpointHandler.HandleAsync(ctx, registry, grants, mq);
+            return FrameEndpointHandler.HandleAsync(ctx, registry, grants, mq, metrics);
         }).WithMetadata(new Microsoft.AspNetCore.Mvc.DisableRequestSizeLimitAttribute());
 
         // #236：MQ 推送订阅双工流端点（仅 HTTP/2 长生命周期流）。
