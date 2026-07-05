@@ -16,4 +16,13 @@ public enum MqFrameOp : byte
 
     /// <summary>确认消费。请求：db, topic, consumerGroup, offset；响应：nextOffset。</summary>
     Ack = 4,
+
+    /// <summary>
+    /// 订阅推送（#236，仅 <c>/v1/frame/stream</c> 双工端点）。请求：db, topic, consumerGroup, startMode, startOffset, batchMax；
+    /// 响应（Response 位）：生效起始 offset；后续消息经带 <see cref="FrameFlags.Push"/> 位、同 streamId 的帧推送（布局同 pull 响应）。
+    /// </summary>
+    Subscribe = 5,
+
+    /// <summary>取消订阅（#236，仅双工端点）。按 streamId 定位订阅；响应（Response 位）确认。</summary>
+    Unsubscribe = 6,
 }

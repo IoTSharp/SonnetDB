@@ -168,14 +168,15 @@ public sealed class SonnetMqStore : IDisposable
 
             // 未启用组提交（含单文件模式）：沿用逐次内联刷盘，锁内完成，语义与逐条刷盘一致。
             if (!groupCommit)
-            {
                 FlushPublishBatchIfNeeded(state);
-                return offsets;
-            }
         }
 
         // 组提交 leader-flush：在 SyncRoot 外合并刷盘，仅刷盘瞬间借回 SyncRoot 序列化于写入者。
-        CommitPublishFlush(state, mySeq);
+        if (groupCommit)
+            CommitPublishFlush(state, mySeq);
+
+        // 唤醒推送订阅者（#236）：刷盘完成后、SyncRoot 外，避免被唤醒者立刻回争锁。虚假/重复 pulse 无害。
+        state.Pulse();
         return offsets;
     }
 
@@ -248,6 +249,46 @@ public sealed class SonnetMqStore : IDisposable
 
         lock (state.SyncRoot)
             return PullFromState(state, offset, maxCount);
+    }
+
+    /// <summary>
+    /// 异步等待 <paramref name="topic"/> 出现 offset ≥ 有效起点的消息（#236 推送订阅）。
+    /// 有效起点 = <c>max(fromOffset, 当前 TrimmedBeforeOffset)</c>，返回该有效起点，
+    /// 供调用方以此为游标 <see cref="Pull(string, long, int)"/>——从而穿越 retention gap 不空转。
+    /// 已有可读消息时立即返回；否则挂起直至下一次 <see cref="Publish"/>/<see cref="PublishMany"/> 唤醒。
+    /// </summary>
+    /// <param name="topic">Topic 名称。</param>
+    /// <param name="fromOffset">期望的起始 offset（含）。</param>
+    /// <param name="cancellationToken">取消令牌（连接关闭时取消，不泄漏等待者）。</param>
+    /// <returns>可读起点 offset；从该 offset 起至少有一条消息可 Pull。</returns>
+    /// <exception cref="ObjectDisposedException">store 已释放，或释放发生在等待期间。</exception>
+    public async ValueTask<long> WaitForMessagesAsync(string topic, long fromOffset, CancellationToken cancellationToken = default)
+    {
+        EnsureNotDisposed();
+        ValidateTopic(topic);
+        ArgumentOutOfRangeException.ThrowIfNegative(fromOffset);
+
+        var state = GetOrCreateTopic(topic);
+        while (true)
+        {
+            Task pulse;
+            lock (state.SyncRoot)
+            {
+                if (state.Faulted)
+                    throw new ObjectDisposedException(nameof(SonnetMqStore));
+                long effective = Math.Max(fromOffset, state.TrimmedBeforeOffset);
+                if (state.NextOffset > effective)
+                    return effective;
+
+                // 条件不满足：在同一把锁内取 pulse，与发布路径的 append+Pulse、Dispose 的 FaultWaiters 经 SyncRoot
+                // 串行化——故障后新建的 pulse 不会发生（先查 Faulted），发布后不会漏唤醒。
+                pulse = state.GetOrCreatePulse().Task;
+                fromOffset = effective;
+            }
+
+            // WaitAsync 的取消注册随任务完成或取消自动释放，取消一个等待者不影响共享 TCS 的其他等待者。
+            await pulse.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
     }
 
     /// <summary>
@@ -405,8 +446,12 @@ public sealed class SonnetMqStore : IDisposable
 
         foreach (var state in _topics.Values)
         {
+            // 在 SyncRoot 内置 Faulted + 故障 pulse（#236）：与等待者的条件检查串行化，杜绝故障后新建 pulse 永不完成。
             lock (state.SyncRoot)
+            {
+                state.FaultWaiters(new ObjectDisposedException(nameof(SonnetMqStore)));
                 state.Dispose();
+            }
         }
 
         _handleCache.Dispose();
@@ -1192,6 +1237,33 @@ public sealed class SonnetMqStore : IDisposable
 
         /// <summary>已刷盘到所配置持久层的最高 <see cref="AppendedSeq"/>，SyncRoot 保护。</summary>
         public long FlushedSeq;
+
+        /// <summary>
+        /// 推送订阅唤醒信号（#236）。惰性创建：仅在有等待者时才有实例；发布后 <see cref="Pulse"/> 取出并置空、
+        /// <c>TrySetResult</c> 唤醒全部等待者。无订阅者时热路径只做一次 volatile 读，零分配。
+        /// </summary>
+        private TaskCompletionSource? _pulse;
+
+        /// <summary>已故障（store 释放）；在 <see cref="SyncRoot"/> 内置位与读取，供等待者判定不再挂起。</summary>
+        public bool Faulted { get; private set; }
+
+        /// <summary>取得（惰性创建）当前 pulse 的 <see cref="Task"/>。必须在持有 <see cref="SyncRoot"/> 时调用。</summary>
+        public TaskCompletionSource GetOrCreatePulse()
+            => _pulse ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        /// <summary>唤醒全部等待者（若有）。在 <see cref="SyncRoot"/> 外调用，避免被唤醒者立刻回来争锁。</summary>
+        public void Pulse()
+            => Interlocked.Exchange(ref _pulse, null)?.TrySetResult();
+
+        /// <summary>
+        /// 使全部等待者故障退出（store 释放时调用）。必须在持有 <see cref="SyncRoot"/> 时调用：
+        /// 与等待者的「检查条件 + 创建 pulse」串行化，杜绝故障后新建 pulse 永不完成的丢唤醒。
+        /// </summary>
+        public void FaultWaiters(Exception error)
+        {
+            Faulted = true;
+            Interlocked.Exchange(ref _pulse, null)?.TrySetException(error);
+        }
 
         public string Topic { get; }
 

@@ -184,6 +184,101 @@ public sealed class MqFrameCodecTests
         Assert.Equal(43, MqFrameCodec.DecodeAckResponse(ParseSingleFrame(responseWriter, out _).Span));
     }
 
+    // ────────────────────────────── subscribe / unsubscribe (#236) ──────────────────────────────
+
+    [Theory]
+    [InlineData(MqSubscribeStartMode.ConsumerGroup, "g1", 0L, 0)]
+    [InlineData(MqSubscribeStartMode.ExplicitOffset, "", 4200L, 500)]
+    [InlineData(MqSubscribeStartMode.Earliest, "", 0L, 1000)]
+    [InlineData(MqSubscribeStartMode.Latest, "", 0L, 0)]
+    public void SubscribeRequest_RoundTrip(MqSubscribeStartMode mode, string group, long startOffset, int batchMax)
+    {
+        var writer = new ArrayBufferWriter<byte>();
+        MqFrameCodec.EncodeSubscribeRequest(writer, 42, "demo", "topic-a", group, mode, startOffset, batchMax);
+
+        MqSubscribeFrameRequest request = MqFrameCodec.DecodeSubscribeRequest(ParseSingleFrame(writer, out FrameHeader header));
+        Assert.Equal((byte)MqFrameOp.Subscribe, header.Op);
+        Assert.Equal(42u, header.StreamId);
+        Assert.False(header.IsResponse);
+        Assert.Equal("demo", request.Db);
+        Assert.Equal("topic-a", request.Topic);
+        Assert.Equal(group, request.ConsumerGroup);
+        Assert.Equal(mode, request.StartMode);
+        Assert.Equal(startOffset, request.StartOffset);
+        Assert.Equal(batchMax, request.BatchMax);
+    }
+
+    [Fact]
+    public void SubscribeResponse_RoundTrip()
+    {
+        var writer = new ArrayBufferWriter<byte>();
+        MqFrameCodec.EncodeSubscribeResponse(writer, 7, 987654321L);
+
+        var frame = ParseSingleFrame(writer, out FrameHeader header);
+        Assert.True(header.IsResponse);
+        Assert.False(header.IsError);
+        Assert.Equal(987654321L, MqFrameCodec.DecodeSubscribeResponse(frame.Span));
+    }
+
+    [Fact]
+    public void SubscribeRequest_InvalidStartMode_Throws()
+    {
+        byte[] buf = new byte[32];
+        var meta = new SpanWriter(buf);
+        meta.WriteVarString("db");
+        meta.WriteVarString("t");
+        meta.WriteVarString("");
+        meta.WriteByte(99); // 非法 startMode
+        meta.WriteVarUInt64(0);
+        meta.WriteVarUInt32(0);
+        byte[] payload = buf[..meta.Position];
+        Assert.Throws<FrameFormatException>(() => MqFrameCodec.DecodeSubscribeRequest(payload));
+    }
+
+    [Fact]
+    public void PushFrame_RoundTrip_DecodesAsPullResponse()
+    {
+        var messages = new List<SonnetMqMessage>
+        {
+            new("t", 100, DateTimeOffset.UnixEpoch, new Dictionary<string, string> { ["k"] = "v" }, [9, 9]),
+            new("t", 101, DateTimeOffset.UnixEpoch, new Dictionary<string, string>(), [7]),
+        };
+        var writer = new ArrayBufferWriter<byte>();
+        MqFrameCodec.EncodePushFrame(writer, 55, messages);
+
+        var frame = ParseSingleFrame(writer, out FrameHeader header);
+        Assert.Equal((byte)MqFrameOp.Subscribe, header.Op);
+        Assert.Equal(55u, header.StreamId);
+        Assert.Equal((byte)FrameFlags.Push, header.Flags);
+        Assert.False(header.IsResponse); // Push 位独立于 Response
+        Assert.False(header.IsError);
+
+        // 布局与 pull 响应一致，可用同一解码器。
+        SonnetMqMessage[] decoded = MqFrameCodec.DecodePullResponse(frame, "t");
+        Assert.Equal(2, decoded.Length);
+        Assert.Equal(100, decoded[0].Offset);
+        Assert.Equal(new byte[] { 9, 9 }, decoded[0].Payload);
+        Assert.Equal(101, decoded[1].Offset);
+    }
+
+    [Fact]
+    public void Unsubscribe_RoundTrip_EmptyBody()
+    {
+        var writer = new ArrayBufferWriter<byte>();
+        MqFrameCodec.EncodeUnsubscribeRequest(writer, 12);
+        var frame = ParseSingleFrame(writer, out FrameHeader header);
+        Assert.Equal((byte)MqFrameOp.Unsubscribe, header.Op);
+        Assert.Equal(12u, header.StreamId);
+        Assert.False(header.IsResponse);
+        Assert.Equal(0, frame.Length);
+
+        var responseWriter = new ArrayBufferWriter<byte>();
+        MqFrameCodec.EncodeUnsubscribeResponse(responseWriter, 12);
+        ParseSingleFrame(responseWriter, out FrameHeader responseHeader);
+        Assert.Equal((byte)MqFrameOp.Unsubscribe, responseHeader.Op);
+        Assert.True(responseHeader.IsResponse);
+    }
+
     // ────────────────────────────── 畸形 payload ──────────────────────────────
 
     [Fact]

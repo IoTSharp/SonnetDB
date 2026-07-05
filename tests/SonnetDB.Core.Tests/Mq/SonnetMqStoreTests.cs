@@ -627,6 +627,88 @@ public sealed class SonnetMqStoreTests : IDisposable
             Directory.Delete(_root, recursive: true);
     }
 
+    // ────────────────────────────── WaitForMessagesAsync (#236) ──────────────────────────────
+
+    [Fact]
+    public async Task WaitForMessages_DataAlreadyPresent_ReturnsImmediately()
+    {
+        using var store = Open();
+        store.Publish("iot.telemetry", Encoding.UTF8.GetBytes("a"));
+
+        long start = await store.WaitForMessagesAsync("iot.telemetry", 0, CancellationToken.None).AsTask()
+            .WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(0, start);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task WaitForMessages_WakesOnPublish(bool groupCommit)
+    {
+        var options = new SonnetMqOptions
+        {
+            Path = _root,
+            GroupCommitPublish = groupCommit,
+        };
+        using var store = SonnetMqStore.Open(options);
+
+        // 订阅先于任何消息：应挂起。
+        ValueTask<long> waitTask = store.WaitForMessagesAsync("iot.telemetry", 0, CancellationToken.None);
+        Assert.False(waitTask.IsCompleted);
+
+        store.Publish("iot.telemetry", Encoding.UTF8.GetBytes("hello"));
+
+        long start = await waitTask.AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(0, start);
+        Assert.Single(store.Pull("iot.telemetry", start, 10));
+    }
+
+    [Fact]
+    public async Task WaitForMessages_AfterTrimGap_ReturnsAdvancedOffset()
+    {
+        var options = new SonnetMqOptions { Path = _root, OffsetIndexStride = 1 };
+        using var store = SonnetMqStore.Open(options);
+        store.PublishMany(
+            "iot.telemetry",
+            Enumerable.Range(0, 6)
+                .Select(i => new SonnetMqPublishEntry(Encoding.UTF8.GetBytes(i.ToString())))
+                .ToArray());
+
+        // 裁掉 offset < 4，请求方仍从 0 起 → 有效起点应前移到 4，不空转。
+        store.TombstoneBefore("iot.telemetry", 4);
+
+        long start = await store.WaitForMessagesAsync("iot.telemetry", 0, CancellationToken.None).AsTask()
+            .WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(4, start);
+    }
+
+    [Fact]
+    public async Task WaitForMessages_Cancellation_Throws()
+    {
+        using var store = Open();
+        using var cts = new CancellationTokenSource();
+
+        ValueTask<long> waitTask = store.WaitForMessagesAsync("iot.telemetry", 0, cts.Token);
+        Assert.False(waitTask.IsCompleted);
+
+        cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await waitTask);
+    }
+
+    [Fact]
+    public async Task WaitForMessages_StoreDisposed_FaultsWaiter()
+    {
+        var store = Open();
+        ValueTask<long> waitTask = store.WaitForMessagesAsync("iot.telemetry", 0, CancellationToken.None);
+        Assert.False(waitTask.IsCompleted);
+
+        store.Dispose();
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(async () => await waitTask);
+    }
+
     private SonnetMqStore Open(int offsetIndexStride = 1024)
         => SonnetMqStore.Open(new SonnetMqOptions { Path = _root, OffsetIndexStride = offsetIndexStride });
 }

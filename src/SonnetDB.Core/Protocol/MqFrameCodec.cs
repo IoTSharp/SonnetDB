@@ -256,6 +256,20 @@ public static class MqFrameCodec
     /// 编码 pull 响应帧：count + 每条 (offset, timestampUtcTicks, headers, payload)。
     /// </summary>
     public static void EncodePullResponse(IBufferWriter<byte> writer, uint streamId, IReadOnlyList<SonnetMqMessage> messages)
+        => EncodeMessagesFrame(writer, streamId, messages, (byte)MqFrameOp.Pull, (byte)FrameFlags.Response);
+
+    /// <summary>
+    /// 编码推送帧（#236 订阅推送）：op=Subscribe、flags=Push，帧体布局与 pull 响应完全一致，
+    /// 故 <see cref="DecodePullResponse"/> 可原样解码。
+    /// </summary>
+    public static void EncodePushFrame(IBufferWriter<byte> writer, uint streamId, IReadOnlyList<SonnetMqMessage> messages)
+        => EncodeMessagesFrame(writer, streamId, messages, (byte)MqFrameOp.Subscribe, (byte)FrameFlags.Push);
+
+    /// <summary>
+    /// 消息序列帧编码核心：count + 每条 (offset, timestampUtcTicks, headers, payload)。op/flags 由调用方指定，
+    /// pull 响应与订阅推送共用此实现。
+    /// </summary>
+    private static void EncodeMessagesFrame(IBufferWriter<byte> writer, uint streamId, IReadOnlyList<SonnetMqMessage> messages, byte op, byte flags)
     {
         long payloadLength = SpanWriter.MeasureVarUInt32((uint)messages.Count);
         for (int i = 0; i < messages.Count; i++)
@@ -273,7 +287,7 @@ public static class MqFrameCodec
         WriteHeaderAndMeta(
             writer,
             new FrameHeader((uint)payloadLength, FrameHeader.CurrentVersion,
-                (byte)FrameService.Mq, (byte)MqFrameOp.Pull, (byte)FrameFlags.Response, streamId),
+                (byte)FrameService.Mq, op, flags, streamId),
             SpanWriter.MeasureVarUInt32((uint)messages.Count),
             (ref SpanWriter meta) => meta.WriteVarUInt32((uint)messages.Count));
 
@@ -377,6 +391,108 @@ public static class MqFrameCodec
     /// </summary>
     public static long DecodeAckResponse(ReadOnlySpan<byte> payload)
         => DecodeVarUInt64Response(payload);
+
+    // ────────────────────────────── subscribe (op=5) ──────────────────────────────
+
+    /// <summary>
+    /// 编码 subscribe 请求帧：db, topic, consumerGroup（可空串）, startMode(u8), startOffset(varuint, 仅 mode=ExplicitOffset), batchMax(varuint, 0=服务端默认)。
+    /// </summary>
+    public static void EncodeSubscribeRequest(
+        IBufferWriter<byte> writer,
+        uint streamId,
+        string db,
+        string topic,
+        string consumerGroup,
+        MqSubscribeStartMode startMode,
+        long startOffset,
+        int batchMax)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(startOffset);
+        ArgumentOutOfRangeException.ThrowIfNegative(batchMax);
+        int payloadLength =
+            SpanWriter.MeasureVarString(db) +
+            SpanWriter.MeasureVarString(consumerGroup) +
+            SpanWriter.MeasureVarString(topic) +
+            1 +
+            SpanWriter.MeasureVarUInt64((ulong)startOffset) +
+            SpanWriter.MeasureVarUInt32((uint)batchMax);
+
+        WriteHeaderAndMeta(
+            writer,
+            new FrameHeader((uint)payloadLength, FrameHeader.CurrentVersion,
+                (byte)FrameService.Mq, (byte)MqFrameOp.Subscribe, (byte)FrameFlags.None, streamId),
+            payloadLength,
+            (ref SpanWriter meta) =>
+            {
+                meta.WriteVarString(db);
+                meta.WriteVarString(topic);
+                meta.WriteVarString(consumerGroup);
+                meta.WriteByte((byte)startMode);
+                meta.WriteVarUInt64((ulong)startOffset);
+                meta.WriteVarUInt32((uint)batchMax);
+            });
+    }
+
+    /// <summary>
+    /// 解码 subscribe 请求帧体。
+    /// </summary>
+    public static MqSubscribeFrameRequest DecodeSubscribeRequest(ReadOnlyMemory<byte> payload)
+    {
+        var reader = new SpanReader(payload.Span);
+        string db = ReadName(ref reader, "db");
+        string topic = ReadName(ref reader, "topic");
+        string consumerGroup = ReadName(ref reader, "consumerGroup");
+        byte modeRaw = reader.ReadByte();
+        if (modeRaw > (byte)MqSubscribeStartMode.Latest)
+            throw new FrameFormatException($"subscribe startMode {modeRaw} 非法。");
+        ulong startOffset = reader.ReadVarUInt64();
+        if (startOffset > long.MaxValue)
+            throw new FrameFormatException($"subscribe startOffset {startOffset} 超出 long 范围。");
+        uint batchMax = reader.ReadVarUInt32();
+        if (batchMax > int.MaxValue)
+            throw new FrameFormatException($"subscribe batchMax {batchMax} 非法。");
+        return new MqSubscribeFrameRequest(db, topic, consumerGroup, (MqSubscribeStartMode)modeRaw, (long)startOffset, (int)batchMax);
+    }
+
+    /// <summary>
+    /// 编码 subscribe 响应帧：生效起始 offset。
+    /// </summary>
+    public static void EncodeSubscribeResponse(IBufferWriter<byte> writer, uint streamId, long effectiveOffset)
+        => EncodeVarUInt64Response(writer, (byte)MqFrameOp.Subscribe, streamId, (ulong)effectiveOffset);
+
+    /// <summary>
+    /// 解码 subscribe 响应帧体。
+    /// </summary>
+    public static long DecodeSubscribeResponse(ReadOnlySpan<byte> payload)
+        => DecodeVarUInt64Response(payload);
+
+    // ────────────────────────────── unsubscribe (op=6) ──────────────────────────────
+
+    /// <summary>
+    /// 编码 unsubscribe 请求帧（空体，按 streamId 定位订阅）。
+    /// </summary>
+    public static void EncodeUnsubscribeRequest(IBufferWriter<byte> writer, uint streamId)
+    {
+        WriteHeaderAndMeta(
+            writer,
+            new FrameHeader(0, FrameHeader.CurrentVersion,
+                (byte)FrameService.Mq, (byte)MqFrameOp.Unsubscribe, (byte)FrameFlags.None, streamId),
+            0,
+            (ref SpanWriter _) => { });
+    }
+
+    /// <summary>
+    /// 编码 unsubscribe 响应帧（空体，Response 位确认）。
+    /// </summary>
+    public static void EncodeUnsubscribeResponse(IBufferWriter<byte> writer, uint streamId)
+    {
+        WriteHeaderAndMeta(
+            writer,
+            new FrameHeader(0, FrameHeader.CurrentVersion,
+                (byte)FrameService.Mq, (byte)MqFrameOp.Unsubscribe, (byte)FrameFlags.Response, streamId),
+            0,
+            (ref SpanWriter _) => { });
+    }
 
     // ────────────────────────────── 内部辅助 ──────────────────────────────
 
@@ -541,3 +657,34 @@ public readonly record struct MqAckFrameRequest(
     string Topic,
     string ConsumerGroup,
     long Offset);
+
+/// <summary>订阅起始位点模式（#236）。</summary>
+public enum MqSubscribeStartMode : byte
+{
+    /// <summary>从消费组已提交位点开始（要求 <c>ConsumerGroup</c> 非空）。</summary>
+    ConsumerGroup = 0,
+
+    /// <summary>从显式 <c>StartOffset</c> 开始。</summary>
+    ExplicitOffset = 1,
+
+    /// <summary>从当前保留的最早消息开始。</summary>
+    Earliest = 2,
+
+    /// <summary>从当前末尾开始（仅推送订阅后到达的新消息）。</summary>
+    Latest = 3,
+}
+
+/// <summary>subscribe 请求帧解码结果（#236）。</summary>
+/// <param name="Db">数据库名。</param>
+/// <param name="Topic">topic 名（未限定，服务端负责加 db 前缀）。</param>
+/// <param name="ConsumerGroup">消费组（<see cref="MqSubscribeStartMode.ConsumerGroup"/> 模式必填，其余可空串）。</param>
+/// <param name="StartMode">起始位点模式。</param>
+/// <param name="StartOffset">显式起始 offset（仅 <see cref="MqSubscribeStartMode.ExplicitOffset"/> 有效）。</param>
+/// <param name="BatchMax">单次推送最大条数（0 = 服务端默认）。</param>
+public readonly record struct MqSubscribeFrameRequest(
+    string Db,
+    string Topic,
+    string ConsumerGroup,
+    MqSubscribeStartMode StartMode,
+    long StartOffset,
+    int BatchMax);

@@ -19,5 +19,12 @@ internal static partial class SonnetDbEndpoints
             var mq = app.Services.GetRequiredService<SonnetMqStore>();
             return FrameEndpointHandler.HandleAsync(ctx, registry, grants, mq);
         }).WithMetadata(new Microsoft.AspNetCore.Mvc.DisableRequestSizeLimitAttribute());
+
+        // #236：MQ 推送订阅双工流端点（仅 HTTP/2 长生命周期流）。
+        app.MapPost("/v1/frame/stream", (HttpContext ctx) =>
+        {
+            var mq = app.Services.GetRequiredService<SonnetMqStore>();
+            return FrameStreamEndpointHandler.HandleAsync(ctx, registry, grants, mq);
+        }).WithMetadata(new Microsoft.AspNetCore.Mvc.DisableRequestSizeLimitAttribute());
     }
 }
