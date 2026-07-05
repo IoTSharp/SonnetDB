@@ -394,9 +394,10 @@ public sealed class FrameEndpointTests : IAsyncLifetime
 
         var writer = new ArrayBufferWriter<byte>();
         MqFrameCodec.EncodePublishRequest(writer, 1, db, "t", null, [1]);
-        var sqlFrame = new FrameHeader(0, FrameHeader.CurrentVersion, (byte)FrameService.Sql, 1, 0, 2);
+        // vector service（#239）尚未挂载
+        var vectorFrame = new FrameHeader(0, FrameHeader.CurrentVersion, (byte)FrameService.Vector, 1, 0, 2);
         Span<byte> headerBytes = stackalloc byte[FrameHeader.Size];
-        sqlFrame.Write(headerBytes);
+        vectorFrame.Write(headerBytes);
         writer.Write(headerBytes);
 
         var frames = await PostFramesAsync(admin, writer.WrittenMemory.ToArray());

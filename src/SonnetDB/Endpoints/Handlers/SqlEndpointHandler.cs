@@ -410,7 +410,7 @@ internal static class SqlEndpointHandler
         => BearerAuthMiddleware.GetUser(context) is AuthenticatedUser { IsSuperuser: false };
 
     /// <summary>判别是否为需要通过服务端控制面执行的 SQL。</summary>
-    private static bool IsControlPlaneStatement(SqlStatement statement)
+    internal static bool IsControlPlaneStatement(SqlStatement statement)
         => IsAdminOnlyControlPlaneStatement(statement) || IsSelfServiceControlPlaneStatement(statement);
 
     /// <summary>判别是否为仅 admin 可执行的控制面语句。</summary>
@@ -434,7 +434,7 @@ internal static class SqlEndpointHandler
     /// <summary>
     /// 判别是否为需要数据库写权限的数据面语句。
     /// </summary>
-    private static bool RequiresWritePermission(SqlStatement statement) => statement is not
+    internal static bool RequiresWritePermission(SqlStatement statement) => statement is not
         (SelectStatement or
         ShowMeasurementsStatement or
         ShowTablesStatement or
@@ -448,7 +448,7 @@ internal static class SqlEndpointHandler
         ExplainStatement or
         ShowDatabasesStatement);
 
-    private static void MaybePublishSlow(
+    internal static void MaybePublishSlow(
         EventBroadcaster? broadcaster,
         ServerOptions? options,
         string database,

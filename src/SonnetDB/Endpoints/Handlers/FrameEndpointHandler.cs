@@ -1,21 +1,29 @@
 using System.Buffers;
+using System.Diagnostics;
 using System.IO.Pipelines;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using SonnetDB.Auth;
+using SonnetDB.Configuration;
 using SonnetDB.Contracts;
 using SonnetDB.Engine;
 using SonnetDB.Hosting;
 using SonnetDB.Ingest;
 using SonnetDB.Json;
 using SonnetDB.Protocol;
+using SonnetDB.Sql;
+using SonnetDB.Sql.Ast;
+using SonnetDB.Sql.Execution;
 using SonnetMQ;
 
 namespace SonnetDB.Endpoints;
 
 /// <summary>
-/// 通用二进制帧端点处理器（M28 P5b #235；#237 挂载 tsdb service）。
+/// 通用二进制帧端点处理器（M28 P5b #235；#237 挂载 tsdb service；#238 挂载 sql service）。
 /// 请求体 = 1..N 个请求帧，逐帧解析、鉴权、分发到引擎、逐帧写回响应帧（streamId 回显）。
+/// sql 查询响应为同 streamId 的流式帧序列（meta → rows × N → end），逐块 flush。
 /// 错误模型：未成帧（错 Content-Type / 首帧畸形 / 空体）走 HTTP 状态码；
 /// 成帧后一切按帧回错误帧（HTTP 200），批内单帧失败不影响其余帧。
 /// </summary>
@@ -83,7 +91,10 @@ internal static class FrameEndpointHandler
                     }
 
                     EnsureFrameResponseStarted(ctx);
-                    DispatchFrame(ctx, registry, grants, mqStore, metrics, writer, header, payload);
+                    if (header.Service == (byte)FrameService.Sql)
+                        await ExecuteSqlQueryAsync(ctx, registry, grants, metrics, writer, header, payload).ConfigureAwait(false);
+                    else
+                        DispatchFrame(ctx, registry, grants, mqStore, metrics, writer, header, payload);
                     await writer.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
                 }
 
@@ -189,10 +200,18 @@ internal static class FrameEndpointHandler
                 return $"tsdb service 不支持 op {header.Op}。";
             }
         }
+        else if (header.Service == (byte)FrameService.Sql)
+        {
+            if (header.Op != (byte)SqlFrameOp.Query)
+            {
+                errorCode = "unsupported_op";
+                return $"sql service 不支持 op {header.Op}。";
+            }
+        }
         else
         {
             errorCode = "unsupported_service";
-            return $"service {header.Service} 尚未挂载（当前 mq={(byte)FrameService.Mq}、tsdb={(byte)FrameService.Tsdb}）。";
+            return $"service {header.Service} 尚未挂载（当前 mq={(byte)FrameService.Mq}、tsdb={(byte)FrameService.Tsdb}、sql={(byte)FrameService.Sql}）。";
         }
 
         errorCode = string.Empty;
@@ -258,6 +277,139 @@ internal static class FrameEndpointHandler
         {
             if (rented is not null)
                 ArrayPool<byte>.Shared.Return(rented);
+        }
+    }
+
+    /// <summary>
+    /// 执行 sql query 帧（#238）：解码 → 鉴权 → 参数绑定 → 只读校验 → 执行 →
+    /// meta / rows / end 逐帧流式回写（rows 帧按 <see cref="SqlFrameCodec.SelectChunkRowCount"/>
+    /// 切块并逐块 flush，响应缓冲内存上界 = 单块）。指标与慢查询事件与 REST NDJSON 端点对齐。
+    /// 帧通道只承载数据面只读语句（SELECT / SHOW / DESCRIBE / EXPLAIN）——写语句与控制面 SQL 回
+    /// bad_request 引导走 REST。
+    /// </summary>
+    private static async Task ExecuteSqlQueryAsync(
+        HttpContext ctx,
+        TsdbRegistry registry,
+        GrantsStore grants,
+        ServerMetrics metrics,
+        PipeWriter writer,
+        FrameHeader header,
+        ReadOnlySequence<byte> payload)
+    {
+        metrics.RecordSqlRequest();
+        var sw = Stopwatch.StartNew();
+        var broadcaster = ctx.RequestServices.GetService<EventBroadcaster>();
+        var options = ctx.RequestServices.GetService<IOptions<ServerOptions>>()?.Value;
+
+        SqlQueryFrameRequest request;
+        try
+        {
+            // 解码（payload 是输入缓冲的零拷贝视图，鉴权/执行前同步消费完毕）
+            byte[]? rented = null;
+            try
+            {
+                ReadOnlyMemory<byte> payloadMemory;
+                if (payload.IsSingleSegment)
+                {
+                    payloadMemory = payload.First;
+                }
+                else
+                {
+                    rented = ArrayPool<byte>.Shared.Rent((int)payload.Length);
+                    payload.CopyTo(rented);
+                    payloadMemory = rented.AsMemory(0, (int)payload.Length);
+                }
+
+                request = SqlFrameCodec.DecodeQueryRequest(payloadMemory.Span);
+            }
+            finally
+            {
+                if (rented is not null)
+                    ArrayPool<byte>.Shared.Return(rented);
+            }
+        }
+        catch (Exception ex) when (ex is FrameFormatException or InvalidOperationException)
+        {
+            metrics.RecordSqlError();
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "bad_frame", ex.Message);
+            return;
+        }
+
+        try
+        {
+            SonnetDbEndpoints.MqAccessResult access = SonnetDbEndpoints.EvaluateDatabaseAccess(
+                ctx, registry, grants, request.Db, DatabasePermission.Read, out Tsdb tsdb);
+            if (access.Status != SonnetDbEndpoints.MqAccessStatus.Ok)
+            {
+                metrics.RecordSqlError();
+                string code = access.Status switch
+                {
+                    SonnetDbEndpoints.MqAccessStatus.DbNotFound => "db_not_found",
+                    SonnetDbEndpoints.MqAccessStatus.Forbidden => "forbidden",
+                    _ => "bad_request",
+                };
+                FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, code, access.Message);
+                return;
+            }
+
+            SqlStatement parsed = SqlParser.Parse(request.Sql);
+            parsed = SqlParameterBinder.Bind(parsed, request.Parameters);
+
+            if (SqlEndpointHandler.IsControlPlaneStatement(parsed) || parsed is ShowDatabasesStatement)
+            {
+                metrics.RecordSqlError();
+                FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "bad_request",
+                    "帧通道不承载控制面 SQL；请走 REST /v1/sql 或 /v1/db/{db}/sql。");
+                return;
+            }
+
+            if (SqlEndpointHandler.RequiresWritePermission(parsed))
+            {
+                metrics.RecordSqlError();
+                FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "bad_request",
+                    "sql query 帧仅支持只读语句（SELECT / SHOW / DESCRIBE / EXPLAIN）；写语句请走 REST SQL 端点或 tsdb 列式写帧。");
+                return;
+            }
+
+            object? result = SqlExecutor.ExecuteStatement(tsdb, request.Db, parsed, controlPlane: null);
+            if (result is not SelectExecutionResult select)
+            {
+                metrics.RecordSqlError();
+                FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "sql_error",
+                    "语句未产生结果集。");
+                return;
+            }
+
+            // 流式回写：meta → rows × N（逐块 flush）→ end。执行本身是同步物化（引擎契约），
+            // 分块编码把峰值响应缓冲压到单块，行数大时客户端可增量消费。
+            SqlFrameCodec.EncodeQueryMetaFrame(writer, header.StreamId, select.Columns);
+            await writer.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
+
+            int position = 0;
+            while (position < select.Rows.Count)
+            {
+                int chunkRows = SqlFrameCodec.SelectChunkRowCount(select.Rows, position);
+                SqlFrameCodec.EncodeQueryRowsFrame(writer, header.StreamId, select.Rows, position, chunkRows, select.Columns.Count);
+                position += chunkRows;
+                await writer.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
+            }
+
+            double elapsed = sw.Elapsed.TotalMilliseconds;
+            SqlFrameCodec.EncodeQueryEndFrame(writer, header.StreamId, select.Rows.Count, elapsed);
+            metrics.AddReturnedRows(select.Rows.Count);
+            SqlEndpointHandler.MaybePublishSlow(broadcaster, options, request.Db, request.Sql, elapsed, select.Rows.Count, -1, failed: false);
+        }
+        catch (OperationCanceledException) when (ctx.RequestAborted.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            metrics.RecordSqlError();
+            SqlEndpointHandler.MaybePublishSlow(broadcaster, options, request.Db, request.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+            // meta/rows 帧可能已写出：错误帧同 streamId 追加，客户端按「end 前收到错误帧」终止该查询
+            string code = ex is ArgumentException ? "bad_request" : "sql_error";
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, code, ex.Message);
         }
     }
 

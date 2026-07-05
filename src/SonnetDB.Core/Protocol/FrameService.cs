@@ -12,7 +12,7 @@ public enum FrameService : byte
     /// <summary>时序（measurement 批量写等，#237 预留）。</summary>
     Tsdb = 2,
 
-    /// <summary>SQL / 关系查询（流式结果集，#238 预留）。</summary>
+    /// <summary>SQL / 关系查询（流式列式结果集，#238）。</summary>
     Sql = 3,
 
     /// <summary>向量检索（#239 预留）。</summary>
