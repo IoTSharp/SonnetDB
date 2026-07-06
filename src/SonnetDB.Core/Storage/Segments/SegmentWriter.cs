@@ -450,7 +450,9 @@ public sealed class SegmentWriter
                     BlobOffset: 0,
                     BlobLength: blob.Length,
                     BlobCrc32: blobCrc32,
-                    flags);
+                    flags,
+                    Metric: (int)vectorIndex.Metric,
+                    EfConstruction: GetManifestEfConstruction(vectorIndex));
                 vectorIndexBlocks.Add(new VectorIndexBlock(metadata, blob));
             }
 
@@ -515,6 +517,12 @@ public sealed class SegmentWriter
     private static int GetManifestExtra3(SonnetDB.Catalog.VectorIndexDefinition vectorIndex)
         => vectorIndex.Kind == SonnetDB.Catalog.VectorIndexKind.IvfPq
             ? vectorIndex.IvfPq?.NBits ?? throw new InvalidDataException("IVF-PQ vector index options are missing.")
+            : 0;
+
+    // #223：仅 HNSW 有独立的 efConstruction 需持久化到 SDBVIDX；其他算法为 0（不使用）。
+    private static int GetManifestEfConstruction(SonnetDB.Catalog.VectorIndexDefinition vectorIndex)
+        => vectorIndex.Kind == SonnetDB.Catalog.VectorIndexKind.Hnsw
+            ? vectorIndex.Hnsw?.EfConstruction ?? throw new InvalidDataException("HNSW vector index options are missing.")
             : 0;
 
     /// <summary>

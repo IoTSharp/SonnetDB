@@ -697,27 +697,42 @@ public sealed class SqlParser
     {
         int? m = null;
         int? ef = null;
+        int? efConstruction = null;
+        var metric = SonnetDB.Query.KnnMetric.Cosine;
         while (true)
         {
             string parameterName = ExpectIdentifierName();
             Expect(TokenKind.Equal);
-            int value = ExpectPositiveInt($"HNSW 参数 '{parameterName}' 后面期望正整数");
 
-            if (string.Equals(parameterName, "m", StringComparison.OrdinalIgnoreCase))
+            if (IsParameter(parameterName, "metric"))
             {
-                if (m is not null)
-                    throw Error("HNSW 参数 m 重复声明");
-                m = value;
-            }
-            else if (string.Equals(parameterName, "ef", StringComparison.OrdinalIgnoreCase))
-            {
-                if (ef is not null)
-                    throw Error("HNSW 参数 ef 重复声明");
-                ef = value;
+                metric = ParseVectorMetricValue();
             }
             else
             {
-                throw Error($"未知的 HNSW 参数 '{parameterName}'，仅支持 m / ef");
+                int value = ExpectPositiveInt($"HNSW 参数 '{parameterName}' 后面期望正整数");
+                if (string.Equals(parameterName, "m", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (m is not null)
+                        throw Error("HNSW 参数 m 重复声明");
+                    m = value;
+                }
+                else if (string.Equals(parameterName, "ef", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (ef is not null)
+                        throw Error("HNSW 参数 ef 重复声明");
+                    ef = value;
+                }
+                else if (IsParameter(parameterName, "ef_construction", "efconstruction"))
+                {
+                    if (efConstruction is not null)
+                        throw Error("HNSW 参数 ef_construction 重复声明");
+                    efConstruction = value;
+                }
+                else
+                {
+                    throw Error($"未知的 HNSW 参数 '{parameterName}'，仅支持 m / ef / ef_construction / metric");
+                }
             }
 
             if (Current.Kind == TokenKind.Comma)
@@ -734,7 +749,21 @@ public sealed class SqlParser
         if (m is null || ef is null)
             throw Error("HNSW 索引声明必须同时提供 m 与 ef，例如 hnsw(m=16, ef=200)");
 
-        return new HnswVectorIndexSpec(m.Value, ef.Value);
+        // efConstruction 缺省取 max(ef, 200)，与 catalog 默认一致（I9：与 ef 解耦，默认不低于 200）。
+        return new HnswVectorIndexSpec(m.Value, ef.Value, efConstruction ?? Math.Max(ef.Value, 200), metric);
+    }
+
+    /// <summary>解析向量索引度量字符串字面量：'cosine' / 'l2' / 'inner_product'。</summary>
+    private SonnetDB.Query.KnnMetric ParseVectorMetricValue()
+    {
+        string raw = ExpectStringLiteral();
+        return raw.ToLowerInvariant() switch
+        {
+            "cosine" or "cosine_distance" => SonnetDB.Query.KnnMetric.Cosine,
+            "l2" or "l2_distance" or "euclidean" => SonnetDB.Query.KnnMetric.L2,
+            "inner_product" or "dot" or "ip" => SonnetDB.Query.KnnMetric.InnerProduct,
+            _ => throw Error($"未知的向量度量 '{raw}'，仅支持 'cosine' / 'l2' / 'inner_product'"),
+        };
     }
 
     private IvfVectorIndexSpec ParseIvfVectorIndex()
@@ -742,20 +771,27 @@ public sealed class SqlParser
         int? nList = null;
         int? nProbe = null;
         int? maxIterations = null;
+        var metric = SonnetDB.Query.KnnMetric.Cosine;
         while (true)
         {
             string parameterName = ExpectIdentifierName();
             Expect(TokenKind.Equal);
-            int value = ExpectPositiveInt($"IVF 参数 '{parameterName}' 后面期望正整数");
-
-            if (IsParameter(parameterName, "nlist", "n_list"))
-                AssignOnce(ref nList, value, "IVF 参数 nlist 重复声明");
-            else if (IsParameter(parameterName, "nprobe", "n_probe"))
-                AssignOnce(ref nProbe, value, "IVF 参数 nprobe 重复声明");
-            else if (IsParameter(parameterName, "max_iterations", "maxiterations"))
-                AssignOnce(ref maxIterations, value, "IVF 参数 max_iterations 重复声明");
+            if (IsParameter(parameterName, "metric"))
+            {
+                metric = ParseVectorMetricValue();
+            }
             else
-                throw Error($"未知的 IVF 参数 '{parameterName}'，仅支持 nlist / nprobe / max_iterations");
+            {
+                int value = ExpectPositiveInt($"IVF 参数 '{parameterName}' 后面期望正整数");
+                if (IsParameter(parameterName, "nlist", "n_list"))
+                    AssignOnce(ref nList, value, "IVF 参数 nlist 重复声明");
+                else if (IsParameter(parameterName, "nprobe", "n_probe"))
+                    AssignOnce(ref nProbe, value, "IVF 参数 nprobe 重复声明");
+                else if (IsParameter(parameterName, "max_iterations", "maxiterations"))
+                    AssignOnce(ref maxIterations, value, "IVF 参数 max_iterations 重复声明");
+                else
+                    throw Error($"未知的 IVF 参数 '{parameterName}'，仅支持 nlist / nprobe / max_iterations / metric");
+            }
 
             if (Current.Kind == TokenKind.Comma)
             {
@@ -767,7 +803,7 @@ public sealed class SqlParser
         }
 
         Expect(TokenKind.RightParen);
-        return new IvfVectorIndexSpec(nList ?? 64, nProbe ?? 8, maxIterations ?? 25);
+        return new IvfVectorIndexSpec(nList ?? 64, nProbe ?? 8, maxIterations ?? 25, metric);
     }
 
     private IvfPqVectorIndexSpec ParseIvfPqVectorIndex()
@@ -777,24 +813,31 @@ public sealed class SqlParser
         int? maxIterations = null;
         int? m = null;
         int? nBits = null;
+        var metric = SonnetDB.Query.KnnMetric.Cosine;
         while (true)
         {
             string parameterName = ExpectIdentifierName();
             Expect(TokenKind.Equal);
-            int value = ExpectPositiveInt($"IVF-PQ 参数 '{parameterName}' 后面期望正整数");
-
-            if (IsParameter(parameterName, "nlist", "n_list"))
-                AssignOnce(ref nList, value, "IVF-PQ 参数 nlist 重复声明");
-            else if (IsParameter(parameterName, "nprobe", "n_probe"))
-                AssignOnce(ref nProbe, value, "IVF-PQ 参数 nprobe 重复声明");
-            else if (IsParameter(parameterName, "max_iterations", "maxiterations"))
-                AssignOnce(ref maxIterations, value, "IVF-PQ 参数 max_iterations 重复声明");
-            else if (IsParameter(parameterName, "m"))
-                AssignOnce(ref m, value, "IVF-PQ 参数 m 重复声明");
-            else if (IsParameter(parameterName, "nbits", "n_bits"))
-                AssignOnce(ref nBits, value, "IVF-PQ 参数 nbits 重复声明");
+            if (IsParameter(parameterName, "metric"))
+            {
+                metric = ParseVectorMetricValue();
+            }
             else
-                throw Error($"未知的 IVF-PQ 参数 '{parameterName}'，仅支持 nlist / nprobe / max_iterations / m / nbits");
+            {
+                int value = ExpectPositiveInt($"IVF-PQ 参数 '{parameterName}' 后面期望正整数");
+                if (IsParameter(parameterName, "nlist", "n_list"))
+                    AssignOnce(ref nList, value, "IVF-PQ 参数 nlist 重复声明");
+                else if (IsParameter(parameterName, "nprobe", "n_probe"))
+                    AssignOnce(ref nProbe, value, "IVF-PQ 参数 nprobe 重复声明");
+                else if (IsParameter(parameterName, "max_iterations", "maxiterations"))
+                    AssignOnce(ref maxIterations, value, "IVF-PQ 参数 max_iterations 重复声明");
+                else if (IsParameter(parameterName, "m"))
+                    AssignOnce(ref m, value, "IVF-PQ 参数 m 重复声明");
+                else if (IsParameter(parameterName, "nbits", "n_bits"))
+                    AssignOnce(ref nBits, value, "IVF-PQ 参数 nbits 重复声明");
+                else
+                    throw Error($"未知的 IVF-PQ 参数 '{parameterName}'，仅支持 nlist / nprobe / max_iterations / m / nbits / metric");
+            }
 
             if (Current.Kind == TokenKind.Comma)
             {
@@ -806,7 +849,7 @@ public sealed class SqlParser
         }
 
         Expect(TokenKind.RightParen);
-        return new IvfPqVectorIndexSpec(nList ?? 64, nProbe ?? 8, maxIterations ?? 25, m ?? 8, nBits ?? 8);
+        return new IvfPqVectorIndexSpec(nList ?? 64, nProbe ?? 8, maxIterations ?? 25, m ?? 8, nBits ?? 8, metric);
     }
 
     private VamanaVectorIndexSpec ParseVamanaVectorIndex()
@@ -815,11 +858,16 @@ public sealed class SqlParser
         int? searchListSize = null;
         float? alpha = null;
         int? beamWidth = null;
+        var metric = SonnetDB.Query.KnnMetric.Cosine;
         while (true)
         {
             string parameterName = ExpectIdentifierName();
             Expect(TokenKind.Equal);
-            if (IsParameter(parameterName, "alpha"))
+            if (IsParameter(parameterName, "metric"))
+            {
+                metric = ParseVectorMetricValue();
+            }
+            else if (IsParameter(parameterName, "alpha"))
             {
                 if (alpha is not null)
                     throw Error("Vamana 参数 alpha 重复声明");
@@ -835,7 +883,7 @@ public sealed class SqlParser
                 else if (IsParameter(parameterName, "beam_width", "beamwidth"))
                     AssignOnce(ref beamWidth, value, "Vamana 参数 beam_width 重复声明");
                 else
-                    throw Error($"未知的 Vamana 参数 '{parameterName}'，仅支持 max_degree / search_list_size / alpha / beam_width");
+                    throw Error($"未知的 Vamana 参数 '{parameterName}'，仅支持 max_degree / search_list_size / alpha / beam_width / metric");
             }
 
             if (Current.Kind == TokenKind.Comma)
@@ -848,7 +896,7 @@ public sealed class SqlParser
         }
 
         Expect(TokenKind.RightParen);
-        return new VamanaVectorIndexSpec(maxDegree ?? 32, searchListSize ?? 75, alpha ?? 1.2f, beamWidth ?? 4);
+        return new VamanaVectorIndexSpec(maxDegree ?? 32, searchListSize ?? 75, alpha ?? 1.2f, beamWidth ?? 4, metric);
     }
 
     // ── INSERT INTO ────────────────────────────────────────────────────────

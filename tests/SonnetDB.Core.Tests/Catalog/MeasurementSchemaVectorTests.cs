@@ -301,4 +301,93 @@ public class MeasurementSchemaVectorTests
             if (File.Exists(path)) File.Delete(path);
         }
     }
+
+    // ── #223：度量（metric）与 efConstruction 贯通 + 持久化 ──────────────────────
+
+    [Fact]
+    public void CreateHnsw_DefaultEfConstruction_IsMaxEf200()
+    {
+        // efConstruction 缺省与 ef 解耦：取 max(ef, 200)，避免小 ef 烤进低质量图（I9）。
+        Assert.Equal(200, VectorIndexDefinition.CreateHnsw(16, 50).Hnsw!.EfConstruction);
+        Assert.Equal(400, VectorIndexDefinition.CreateHnsw(16, 400).Hnsw!.EfConstruction);
+        Assert.Equal(300, VectorIndexDefinition.CreateHnsw(16, 50, efConstruction: 300).Hnsw!.EfConstruction);
+    }
+
+    [Fact]
+    public void CreateFactories_DefaultMetric_IsCosine()
+    {
+        Assert.Equal(SonnetDB.Query.KnnMetric.Cosine, VectorIndexDefinition.CreateHnsw(16, 200).Metric);
+        Assert.Equal(SonnetDB.Query.KnnMetric.L2, VectorIndexDefinition.CreateHnsw(16, 200, SonnetDB.Query.KnnMetric.L2).Metric);
+        Assert.Equal(SonnetDB.Query.KnnMetric.InnerProduct, VectorIndexDefinition.CreateIvfFlat(32, 8, 12, SonnetDB.Query.KnnMetric.InnerProduct).Metric);
+    }
+
+    [Fact]
+    public void Codec_HnswWithMetricAndEfConstruction_RoundTripsThroughFile()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "sndb-vec-v5-hnsw-" + Guid.NewGuid().ToString("N") + ".tslschema");
+        try
+        {
+            var original = MeasurementSchema.Create("docs", new[]
+            {
+                new MeasurementColumn(
+                    "embedding",
+                    MeasurementColumnRole.Field,
+                    FieldType.Vector,
+                    384,
+                    VectorIndexDefinition.CreateHnsw(16, 64, SonnetDB.Query.KnnMetric.L2, efConstruction: 256)),
+            });
+
+            MeasurementSchemaCodec.Save(path, new[] { original });
+            var loaded = MeasurementSchemaCodec.Load(path);
+
+            var index = loaded[0].TryGetColumn("embedding")!.VectorIndex!;
+            Assert.Equal(VectorIndexKind.Hnsw, index.Kind);
+            Assert.Equal(SonnetDB.Query.KnnMetric.L2, index.Metric);
+            Assert.Equal(16, index.Hnsw!.M);
+            Assert.Equal(64, index.Hnsw.Ef);
+            Assert.Equal(256, index.Hnsw.EfConstruction);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Codec_NonCosineMetricOnAllKinds_RoundTripsThroughFile()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "sndb-vec-v5-metric-" + Guid.NewGuid().ToString("N") + ".tslschema");
+        try
+        {
+            var schemas = new[]
+            {
+                MeasurementSchema.Create("ivf_l2", new[]
+                {
+                    new MeasurementColumn("e", MeasurementColumnRole.Field, FieldType.Vector, 8,
+                        VectorIndexDefinition.CreateIvfFlat(32, 8, 12, SonnetDB.Query.KnnMetric.L2)),
+                }),
+                MeasurementSchema.Create("ivfpq_ip", new[]
+                {
+                    new MeasurementColumn("e", MeasurementColumnRole.Field, FieldType.Vector, 8,
+                        VectorIndexDefinition.CreateIvfPq(32, 8, 12, 8, 8, SonnetDB.Query.KnnMetric.InnerProduct)),
+                }),
+                MeasurementSchema.Create("vamana_l2", new[]
+                {
+                    new MeasurementColumn("e", MeasurementColumnRole.Field, FieldType.Vector, 8,
+                        VectorIndexDefinition.CreateVamana(32, 75, 1.2f, 4, SonnetDB.Query.KnnMetric.L2)),
+                }),
+            };
+
+            MeasurementSchemaCodec.Save(path, schemas);
+            var loaded = MeasurementSchemaCodec.Load(path);
+
+            Assert.Equal(SonnetDB.Query.KnnMetric.L2, loaded[0].TryGetColumn("e")!.VectorIndex!.Metric);
+            Assert.Equal(SonnetDB.Query.KnnMetric.InnerProduct, loaded[1].TryGetColumn("e")!.VectorIndex!.Metric);
+            Assert.Equal(SonnetDB.Query.KnnMetric.L2, loaded[2].TryGetColumn("e")!.VectorIndex!.Metric);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
 }

@@ -14,7 +14,11 @@ internal readonly record struct VectorIndexBlockMetadata(
     long BlobOffset,
     int BlobLength,
     uint BlobCrc32,
-    VectorIndexManifestFlags Flags)
+    VectorIndexManifestFlags Flags,
+    // #223（SDBVIDX v4 起）：为所有向量索引持久化建图度量与 HNSW efConstruction；
+    // v3 段读入时 Metric 默认 Cosine（旧版一律按 cosine 建图，语义正确）、EfConstruction 取 max(Ef, 200)。
+    int Metric = 0,
+    int EfConstruction = 0)
 {
     public bool HasPersistentBlob => (Flags & VectorIndexManifestFlags.PersistentBlob) != 0;
 

@@ -692,12 +692,14 @@ public sealed class SegmentReader : IDisposable
     private static VectorIndexDefinition ToVectorIndexDefinition(VectorIndexBlockMetadata metadata)
     {
         var kind = (VectorIndexKind)metadata.IndexKind;
+        // #223：SDBVIDX 持久化的 Metric（v3 段默认 Cosine）贯通回建图度量，HNSW 还原独立的 efConstruction。
+        var metric = (SonnetDB.Query.KnnMetric)metadata.Metric;
         return kind switch
         {
-            VectorIndexKind.Hnsw => VectorIndexDefinition.CreateHnsw(metadata.M, metadata.Ef),
-            VectorIndexKind.IvfFlat => VectorIndexDefinition.CreateIvfFlat(metadata.M, metadata.Ef, metadata.Extra1),
-            VectorIndexKind.IvfPq => VectorIndexDefinition.CreateIvfPq(metadata.M, metadata.Ef, metadata.Extra1, metadata.Extra2, metadata.Extra3),
-            VectorIndexKind.Vamana => VectorIndexDefinition.CreateVamana(metadata.M, metadata.Ef, BitConverter.Int32BitsToSingle(metadata.Extra1), metadata.Extra2),
+            VectorIndexKind.Hnsw => VectorIndexDefinition.CreateHnsw(metadata.M, metadata.Ef, metric, metadata.EfConstruction),
+            VectorIndexKind.IvfFlat => VectorIndexDefinition.CreateIvfFlat(metadata.M, metadata.Ef, metadata.Extra1, metric),
+            VectorIndexKind.IvfPq => VectorIndexDefinition.CreateIvfPq(metadata.M, metadata.Ef, metadata.Extra1, metadata.Extra2, metadata.Extra3, metric),
+            VectorIndexKind.Vamana => VectorIndexDefinition.CreateVamana(metadata.M, metadata.Ef, BitConverter.Int32BitsToSingle(metadata.Extra1), metadata.Extra2, metric),
             _ => throw new InvalidDataException($"SDBVIDX 包含不支持的向量索引类型 {metadata.IndexKind}。"),
         };
     }

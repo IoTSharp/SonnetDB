@@ -540,10 +540,10 @@ public static class SqlExecutor
         => vectorIndex switch
         {
             null => null,
-            HnswVectorIndexSpec hnsw => VectorIndexDefinition.CreateHnsw(hnsw.M, hnsw.Ef),
-            IvfVectorIndexSpec ivf => VectorIndexDefinition.CreateIvfFlat(ivf.NList, ivf.NProbe, ivf.MaxIterations),
-            IvfPqVectorIndexSpec ivfPq => VectorIndexDefinition.CreateIvfPq(ivfPq.NList, ivfPq.NProbe, ivfPq.MaxIterations, ivfPq.M, ivfPq.NBits),
-            VamanaVectorIndexSpec vamana => VectorIndexDefinition.CreateVamana(vamana.MaxDegree, vamana.SearchListSize, vamana.Alpha, vamana.BeamWidth),
+            HnswVectorIndexSpec hnsw => VectorIndexDefinition.CreateHnsw(hnsw.M, hnsw.Ef, hnsw.Metric, hnsw.EfConstruction),
+            IvfVectorIndexSpec ivf => VectorIndexDefinition.CreateIvfFlat(ivf.NList, ivf.NProbe, ivf.MaxIterations, ivf.Metric),
+            IvfPqVectorIndexSpec ivfPq => VectorIndexDefinition.CreateIvfPq(ivfPq.NList, ivfPq.NProbe, ivfPq.MaxIterations, ivfPq.M, ivfPq.NBits, ivfPq.Metric),
+            VamanaVectorIndexSpec vamana => VectorIndexDefinition.CreateVamana(vamana.MaxDegree, vamana.SearchListSize, vamana.Alpha, vamana.BeamWidth, vamana.Metric),
             _ => throw new NotSupportedException($"未知向量索引声明 {vectorIndex.GetType().Name}。"),
         };
 

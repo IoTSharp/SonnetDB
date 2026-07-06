@@ -13,9 +13,13 @@ internal static class SegmentVectorIndexFile
 {
     private static readonly byte[] Magic = "SDBVIDX2"u8.ToArray();
     internal static ReadOnlySpan<byte> SectionMagic => Magic;
-    private const int FormatVersion = 3;
+    private const int FormatVersion = 4;
     private const int HeaderSize = 32;
-    private const int RecordSize = 60;
+    private const int RecordSize = 68;
+    // #223 之前的 record 布局（无 Metric / EfConstruction 两个尾部 int32）。
+    private const int RecordSizeV3 = 60;
+
+    private static int RecordSizeForVersion(int version) => version >= 4 ? RecordSize : RecordSizeV3;
 
     /// <summary>
     /// 把多个 block 的 SonnetDB HNSW 向量索引元数据写入 sidecar 文件。
@@ -71,12 +75,12 @@ internal static class SegmentVectorIndexFile
         try
         {
             using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-            int blockCount = ReadHeader(fs);
+            int blockCount = ReadHeader(fs, out int version);
             var result = new Dictionary<int, long>(blockCount);
             for (int i = 0; i < blockCount; i++)
             {
                 long offset = fs.Position;
-                var metadata = ReadRecord(fs);
+                var metadata = ReadRecord(fs, version);
                 ValidateBlockIndex(metadata.BlockIndex, descriptors);
                 result[metadata.BlockIndex] = offset;
                 SkipBlob(fs, metadata, fs.Length);
@@ -154,12 +158,12 @@ internal static class SegmentVectorIndexFile
         try
         {
             using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-            _ = ReadHeader(fs);
+            _ = ReadHeader(fs, out int version);
             if (offset >= fs.Length)
                 return false;
 
             fs.Seek(offset, SeekOrigin.Begin);
-            var loaded = ReadRecord(fs);
+            var loaded = ReadRecord(fs, version);
             if (loaded.BlockIndex != targetBlockIndex)
                 return false;
             ValidateBlockIndex(loaded.BlockIndex, descriptors);
@@ -201,8 +205,14 @@ internal static class SegmentVectorIndexFile
             if (extensionOffset < 0 || extensionEnd > fs.Length)
                 return false;
 
+            // 读取内嵌 section 头以确定 record 布局版本（v3 60B / v4 68B）。
+            fs.Seek(extensionOffset, SeekOrigin.Begin);
+            if (!PeekMagicEquals(fs, Magic))
+                return false;
+            _ = ReadHeader(fs, out int version);
+
             fs.Seek(offset, SeekOrigin.Begin);
-            var loaded = ReadRecord(fs);
+            var loaded = ReadRecord(fs, version);
             if (fs.Position > extensionEnd || loaded.BlockIndex != targetBlockIndex)
                 return false;
             ValidateBlockIndex(loaded.BlockIndex, descriptors);
@@ -240,11 +250,11 @@ internal static class SegmentVectorIndexFile
             if (!PeekMagicEquals(fs, Magic))
                 return new Dictionary<int, VectorIndexBlockMetadata>();
 
-            int recordCount = ReadHeader(fs);
+            int recordCount = ReadHeader(fs, out int version);
             var result = new Dictionary<int, VectorIndexBlockMetadata>(recordCount);
             for (int i = 0; i < recordCount; i++)
             {
-                var metadata = ReadRecord(fs);
+                var metadata = ReadRecord(fs, version);
                 ValidateBlockIndex(metadata.BlockIndex, descriptors);
                 result[metadata.BlockIndex] = metadata;
                 SkipBlob(fs, metadata, sectionEnd);
@@ -331,10 +341,10 @@ internal static class SegmentVectorIndexFile
     {
         try
         {
-            int blockCount = ReadHeader(stream);
+            int blockCount = ReadHeader(stream, out int version);
             for (int i = 0; i < blockCount; i++)
             {
-                var metadata = ReadRecord(stream);
+                var metadata = ReadRecord(stream, version);
                 SkipBlob(stream, metadata, sectionEnd);
                 if (stream.Position > sectionEnd)
                     return false;
@@ -359,15 +369,18 @@ internal static class SegmentVectorIndexFile
         stream.Write(header);
     }
 
-    private static int ReadHeader(Stream stream)
+    private static int ReadHeader(Stream stream) => ReadHeader(stream, out _);
+
+    private static int ReadHeader(Stream stream, out int version)
     {
         Span<byte> header = stackalloc byte[HeaderSize];
         FillBuffer(stream, header);
         if (!header[..8].SequenceEqual(Magic))
             throw new InvalidDataException("SDBVIDX magic 不匹配。");
 
-        int version = BinaryPrimitives.ReadInt32LittleEndian(header[8..12]);
-        if (version != FormatVersion)
+        version = BinaryPrimitives.ReadInt32LittleEndian(header[8..12]);
+        // #223：v3（旧）与 v4（含 Metric/EfConstruction）均可读；record 大小按版本区分。
+        if (version is < 3 or > FormatVersion)
             throw new InvalidDataException($"SDBVIDX 版本不支持：{version}。");
 
         int headerSize = BinaryPrimitives.ReadInt32LittleEndian(header[12..16]);
@@ -386,12 +399,12 @@ internal static class SegmentVectorIndexFile
         IReadOnlyList<BlockDescriptor> descriptors,
         long sectionEnd)
     {
-        int recordCount = ReadHeader(stream);
+        int recordCount = ReadHeader(stream, out int version);
         var result = new Dictionary<int, long>(recordCount);
         for (int i = 0; i < recordCount; i++)
         {
             long offset = stream.Position;
-            var metadata = ReadRecord(stream);
+            var metadata = ReadRecord(stream, version);
             ValidateBlockIndex(metadata.BlockIndex, descriptors);
             result[metadata.BlockIndex] = offset;
             SkipBlob(stream, metadata, sectionEnd);
@@ -420,20 +433,32 @@ internal static class SegmentVectorIndexFile
         BinaryPrimitives.WriteInt32LittleEndian(record[48..52], metadata.BlobLength);
         BinaryPrimitives.WriteUInt32LittleEndian(record[52..56], metadata.BlobCrc32);
         BinaryPrimitives.WriteInt32LittleEndian(record[56..60], (int)metadata.Flags);
+        // #223（v4）：尾部追加 Metric + EfConstruction。
+        BinaryPrimitives.WriteInt32LittleEndian(record[60..64], metadata.Metric);
+        BinaryPrimitives.WriteInt32LittleEndian(record[64..68], metadata.EfConstruction);
         stream.Write(record);
     }
 
-    private static VectorIndexBlockMetadata ReadRecord(Stream stream)
+    private static VectorIndexBlockMetadata ReadRecord(Stream stream) => ReadRecord(stream, FormatVersion);
+
+    private static VectorIndexBlockMetadata ReadRecord(Stream stream, int version)
     {
+        int recordSize = RecordSizeForVersion(version);
         Span<byte> record = stackalloc byte[RecordSize];
-        FillBuffer(stream, record);
+        FillBuffer(stream, record[..recordSize]);
+
+        // v3 段无 Metric / EfConstruction：Metric 默认 Cosine(0)，EfConstruction 由下方按 max(Ef,200) 回填。
+        int metric = version >= 4 ? BinaryPrimitives.ReadInt32LittleEndian(record[60..64]) : 0;
+        int efConstruction = version >= 4 ? BinaryPrimitives.ReadInt32LittleEndian(record[64..68]) : 0;
+
+        int ef = BinaryPrimitives.ReadInt32LittleEndian(record[20..24]);
         var metadata = new VectorIndexBlockMetadata(
             BinaryPrimitives.ReadInt32LittleEndian(record[0..4]),
             BinaryPrimitives.ReadInt32LittleEndian(record[4..8]),
             BinaryPrimitives.ReadInt32LittleEndian(record[8..12]),
             BinaryPrimitives.ReadInt32LittleEndian(record[12..16]),
             BinaryPrimitives.ReadInt32LittleEndian(record[16..20]),
-            BinaryPrimitives.ReadInt32LittleEndian(record[20..24]),
+            ef,
             BinaryPrimitives.ReadInt32LittleEndian(record[24..28]),
             BinaryPrimitives.ReadInt32LittleEndian(record[28..32]),
             BinaryPrimitives.ReadInt32LittleEndian(record[32..36]),
@@ -441,10 +466,14 @@ internal static class SegmentVectorIndexFile
             BinaryPrimitives.ReadInt64LittleEndian(record[40..48]),
             BinaryPrimitives.ReadInt32LittleEndian(record[48..52]),
             BinaryPrimitives.ReadUInt32LittleEndian(record[52..56]),
-            (VectorIndexManifestFlags)BinaryPrimitives.ReadInt32LittleEndian(record[56..60]));
+            (VectorIndexManifestFlags)BinaryPrimitives.ReadInt32LittleEndian(record[56..60]),
+            metric,
+            version >= 4 ? efConstruction : Math.Max(ef, 200));
 
         if (metadata.Count <= 0 || metadata.Dimension <= 0 || metadata.IndexKind <= 0 || metadata.M <= 0 || metadata.Ef <= 0)
             throw new InvalidDataException("SDBVIDX 含有非法的 block 索引参数。");
+        if (metadata.Metric is < 0 or > 2)
+            throw new InvalidDataException("SDBVIDX 含有非法的向量度量。");
         if (metadata.HasPersistentBlob && (metadata.BlobOffset < HeaderSize || metadata.BlobLength <= 0 || metadata.BlobCrc32 == 0))
             throw new InvalidDataException("SDBVIDX 含有非法的 SonnetDB vector index blob manifest。");
 

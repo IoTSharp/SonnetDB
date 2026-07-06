@@ -33,9 +33,13 @@ namespace SonnetDB.Catalog;
 ///     int32  VectorDimension           (4B)  必须 > 0
 ///     // PR #61（v3 起）：仅当 DataType == Vector(5) 时追加；v4 起 HNSW 继续兼容 v3 布局，新增算法追加参数块：
 ///     byte   VectorIndexKind           (1B)  0=None, 1=Hnsw
+///     // #223（v5 起）：仅当 VectorIndexKind != 0 时，在 kind 字节之后、kind 参数之前追加一个度量字节：
+///     byte   VectorMetric              (1B)  0=Cosine, 1=L2, 2=InnerProduct
 ///     // 若 VectorIndexKind == 1(Hnsw)：
 ///     int32  HnswM                     (4B)
-///     int32  HnswEf                    (4B)
+///     int32  HnswEf                    (4B)  efSearch
+///     // #223（v5 起）：HNSW 追加 efConstruction，与 efSearch 解耦：
+///     int32  HnswEfConstruction        (4B)
 ///     // 若 FormatVersion >= 4 且 VectorIndexKind in (2,3,4)：
 ///     byte   ParameterLength           (1B)
 ///     byte[] ParameterPayload          变长，little-endian int32/float32
@@ -48,8 +52,10 @@ namespace SonnetDB.Catalog;
 /// </para>
 /// <para>写入策略：临时文件 + 原子 rename（崩溃安全）。</para>
 /// <para>
-/// 版本兼容：当前写入版本为 v4（见 <see cref="_formatVersion"/>）。v1 文件只能包含非 VECTOR 列；v2
-/// 支持 VECTOR(dim) 但不含索引声明；v3 支持 HNSW；v4 支持 IVF / IVF-PQ / Vamana。
+/// 版本兼容：当前写入版本为 v5（见 <see cref="_formatVersion"/>）。v1 文件只能包含非 VECTOR 列；v2
+/// 支持 VECTOR(dim) 但不含索引声明；v3 支持 HNSW；v4 支持 IVF / IVF-PQ / Vamana；v5 为所有向量索引
+/// 持久化距离度量（metric）并为 HNSW 追加独立的 efConstruction（缺陷 I7 / I9）。读取 v&lt;5 文件时
+/// metric 默认 cosine、HNSW efConstruction 取 <c>max(ef, 200)</c>，与旧行为一致。
 /// </para>
 /// </summary>
 public static class MeasurementSchemaCodec
@@ -60,7 +66,7 @@ public static class MeasurementSchemaCodec
     private static readonly byte[] _magic = "SDBMEAv1"u8.ToArray();
     private static readonly Encoding _utf8 = Encoding.UTF8;
 
-    private const int _formatVersion = 4;
+    private const int _formatVersion = 5;
     private const int _headerSize = 32;
     private const int _footerSize = 16;
 
@@ -196,6 +202,7 @@ public static class MeasurementSchemaCodec
         Span<byte> dimBuf = stackalloc byte[4];
         Span<byte> indexKindBuf = stackalloc byte[1];
         Span<byte> hnswBuf = stackalloc byte[8];
+        Span<byte> efcBuf = stackalloc byte[4];
         Span<byte> parameterLengthBuf = stackalloc byte[1];
         for (int c = 0; c < columnCount; c++)
         {
@@ -237,6 +244,20 @@ public static class MeasurementSchemaCodec
                     ReadExactSpan(source, indexKindBuf, $"measurement {index} column {c} vector index kind");
                     crc.Append(indexKindBuf);
                     byte indexKind = indexKindBuf[0];
+
+                    // #223（v5 起）：非 None 索引在 kind 之后追加一个 metric 字节；v<5 默认 cosine。
+                    var metric = SonnetDB.Query.KnnMetric.Cosine;
+                    if (version >= 5 && indexKind != 0)
+                    {
+                        ReadExactSpan(source, indexKindBuf, $"measurement {index} column {c} vector metric");
+                        crc.Append(indexKindBuf);
+                        byte metricByte = indexKindBuf[0];
+                        if (metricByte > (byte)SonnetDB.Query.KnnMetric.InnerProduct)
+                            throw new InvalidDataException(
+                                $"MeasurementSchema: invalid vector metric {metricByte} (measurement '{name}', column '{colName}').");
+                        metric = (SonnetDB.Query.KnnMetric)metricByte;
+                    }
+
                     switch (indexKind)
                     {
                         case 0:
@@ -247,19 +268,30 @@ public static class MeasurementSchemaCodec
                             crc.Append(hnswBuf);
                             int m = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(hnswBuf[..4]);
                             int ef = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(hnswBuf[4..]);
-                            vectorIndex = VectorIndexDefinition.CreateHnsw(m, ef);
+                            // #223（v5 起）：追加独立的 efConstruction；v<5 取 max(ef, 200) 复刻旧行为。
+                            int efConstruction = Math.Max(ef, 200);
+                            if (version >= 5)
+                            {
+                                ReadExactSpan(source, efcBuf, $"measurement {index} column {c} hnsw efConstruction");
+                                crc.Append(efcBuf);
+                                efConstruction = System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(efcBuf);
+                                if (efConstruction <= 0)
+                                    throw new InvalidDataException(
+                                        $"MeasurementSchema: invalid HNSW efConstruction {efConstruction} (measurement '{name}', column '{colName}').");
+                            }
+                            vectorIndex = VectorIndexDefinition.CreateHnsw(m, ef, metric, efConstruction);
                             break;
 
                         case (byte)VectorIndexKind.IvfFlat when version >= 4:
-                            vectorIndex = ReadIvfIndexDefinition(source, crc, parameterLengthBuf, index, c);
+                            vectorIndex = ReadIvfIndexDefinition(source, crc, parameterLengthBuf, index, c) with { Metric = metric };
                             break;
 
                         case (byte)VectorIndexKind.IvfPq when version >= 4:
-                            vectorIndex = ReadIvfPqIndexDefinition(source, crc, parameterLengthBuf, index, c);
+                            vectorIndex = ReadIvfPqIndexDefinition(source, crc, parameterLengthBuf, index, c) with { Metric = metric };
                             break;
 
                         case (byte)VectorIndexKind.Vamana when version >= 4:
-                            vectorIndex = ReadVamanaIndexDefinition(source, crc, parameterLengthBuf, index, c);
+                            vectorIndex = ReadVamanaIndexDefinition(source, crc, parameterLengthBuf, index, c) with { Metric = metric };
                             break;
 
                         default:
@@ -457,9 +489,10 @@ public static class MeasurementSchemaCodec
     }
 
     private static int GetVectorIndexParameterSize(VectorIndexDefinition index)
-        => index.Kind switch
+        // #223：所有非 None 索引在 kind 之后先写 1 字节 metric；HNSW 参数块因追加 efConstruction 从 8→12。
+        => 1 + index.Kind switch
         {
-            VectorIndexKind.Hnsw => 8,
+            VectorIndexKind.Hnsw => 12,
             VectorIndexKind.IvfFlat => 1 + 12,
             VectorIndexKind.IvfPq => 1 + 20,
             VectorIndexKind.Vamana => 1 + 16,
@@ -468,12 +501,15 @@ public static class MeasurementSchemaCodec
 
     private static void WriteVectorIndexParameters(SpanWriter writer, VectorIndexDefinition index)
     {
+        // #223：kind 字节已在调用方写出；此处先写 metric 字节，再写 kind 专属参数。
+        writer.WriteByte((byte)index.Metric);
         switch (index.Kind)
         {
             case VectorIndexKind.Hnsw:
                 var hnsw = index.Hnsw ?? throw new InvalidDataException("HNSW vector index options are missing.");
                 writer.WriteInt32(hnsw.M);
                 writer.WriteInt32(hnsw.Ef);
+                writer.WriteInt32(hnsw.EfConstruction);
                 break;
 
             case VectorIndexKind.IvfFlat:

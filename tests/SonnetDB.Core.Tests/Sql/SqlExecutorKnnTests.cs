@@ -41,6 +41,14 @@ public sealed class SqlExecutorKnnTests : IDisposable
         return db;
     }
 
+    private Tsdb OpenDbWithHnswL2()
+    {
+        var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.Execute(db,
+            "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(3) WITH INDEX hnsw(m=8, ef=16, ef_construction=64, metric='l2'))");
+        return db;
+    }
+
     private static SelectExecutionResult Select(Tsdb db, string sql)
         => Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, sql));
 
@@ -185,6 +193,34 @@ public sealed class SqlExecutorKnnTests : IDisposable
         Assert.Equal(2, result.Rows.Count);
         Assert.Equal("a", result.Rows[0][2]);
         Assert.Equal("b", result.Rows[1][2]);
+    }
+
+    // #223：声明 metric='l2' 的 HNSW 段刷盘并重开后，L2 knn 走 ANN 路径且结果正确
+    // （修复前非 cosine 索引不被使用、静默退化为暴力扫描——I7）。
+    [Fact]
+    public void Knn_WithFlushedL2HnswSegment_ServesL2NearestNeighbor()
+    {
+        using (var db = OpenDbWithHnswL2())
+        {
+            SqlExecutor.Execute(db, "INSERT INTO docs (source, embedding, time) VALUES " +
+                "('a', [0, 0, 0], 1000), " +
+                "('b', [3, 4, 0], 2000), " +
+                "('c', [1, 0, 0], 3000), " +
+                "('d', [10, 10, 0], 4000)");
+            Assert.NotNull(db.FlushNow());
+        }
+
+        using var reopened = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        var result = Select(reopened, "SELECT * FROM knn(docs, embedding, [0, 0, 0], 3, 'l2')");
+
+        Assert.Equal(3, result.Rows.Count);
+        // L2 最近邻：[0,0,0] dist=0 → [1,0,0] dist=1 → [3,4,0] dist=5
+        Assert.Equal(0.0, (double)result.Rows[0][1]!, 6);
+        Assert.Equal("a", result.Rows[0][2]);
+        Assert.Equal(1.0, (double)result.Rows[1][1]!, 6);
+        Assert.Equal("c", result.Rows[1][2]);
+        Assert.Equal(5.0, (double)result.Rows[2][1]!, 6);
+        Assert.Equal("b", result.Rows[2][2]);
     }
 
     [Fact]

@@ -30,6 +30,9 @@ internal interface IVectorIndexReader
 
     int Ef { get; }
 
+    /// <summary>该索引建图时使用的距离度量；检索时只有查询度量与之一致才走 ANN。</summary>
+    KnnMetric Metric { get; }
+
     long EstimatedBytes { get; }
 
     IReadOnlyList<VectorSearchResult> Search(
@@ -138,11 +141,12 @@ internal sealed class LocalVectorIndexBuilderAdapter : IVectorIndexBuilder
         int dimension)
     {
         int seed = ComputeSeed(blockIndex, count, dimension, definition);
+        var metric = ToCoreMetric(definition.Metric);
         return definition.Kind switch
         {
             VectorIndexKind.Hnsw => new CoreVectorIndexBuildInput(
                 CoreVectorIndexAlgorithm.Hnsw,
-                CoreVectorKnnMetric.Cosine,
+                metric,
                 vectors,
                 count,
                 dimension,
@@ -150,7 +154,7 @@ internal sealed class LocalVectorIndexBuilderAdapter : IVectorIndexBuilder
 
             VectorIndexKind.IvfFlat => new CoreVectorIndexBuildInput(
                 CoreVectorIndexAlgorithm.IvfFlat,
-                CoreVectorKnnMetric.Cosine,
+                metric,
                 vectors,
                 count,
                 dimension,
@@ -158,7 +162,7 @@ internal sealed class LocalVectorIndexBuilderAdapter : IVectorIndexBuilder
 
             VectorIndexKind.IvfPq => new CoreVectorIndexBuildInput(
                 CoreVectorIndexAlgorithm.IvfPq,
-                CoreVectorKnnMetric.Cosine,
+                metric,
                 vectors,
                 count,
                 dimension,
@@ -166,7 +170,7 @@ internal sealed class LocalVectorIndexBuilderAdapter : IVectorIndexBuilder
 
             VectorIndexKind.Vamana => new CoreVectorIndexBuildInput(
                 CoreVectorIndexAlgorithm.Vamana,
-                CoreVectorKnnMetric.Cosine,
+                metric,
                 vectors,
                 count,
                 dimension,
@@ -176,10 +180,18 @@ internal sealed class LocalVectorIndexBuilderAdapter : IVectorIndexBuilder
         };
     }
 
+    internal static CoreVectorKnnMetric ToCoreMetric(KnnMetric metric)
+        => metric switch
+        {
+            KnnMetric.L2 => CoreVectorKnnMetric.L2,
+            KnnMetric.InnerProduct => CoreVectorKnnMetric.InnerProduct,
+            _ => CoreVectorKnnMetric.Cosine,
+        };
+
     private static CoreVectorIndexHnswOptions ToHnswOptions(VectorIndexDefinition definition, int seed)
     {
         var hnsw = definition.Hnsw ?? throw new InvalidOperationException("HNSW 向量索引参数缺失。");
-        return new CoreVectorIndexHnswOptions(hnsw.M, hnsw.Ef, hnsw.Ef, seed);
+        return new CoreVectorIndexHnswOptions(hnsw.M, hnsw.EfConstruction, hnsw.Ef, seed);
     }
 
     private static CoreVectorIndexIvfOptions ToIvfOptions(VectorIndexDefinition definition, int seed)
@@ -240,12 +252,14 @@ internal sealed class LocalVectorIndexBuilderAdapter : IVectorIndexBuilder
         hash.Add(count);
         hash.Add(dimension);
         hash.Add(definition.Kind);
+        hash.Add(definition.Metric);
         switch (definition.Kind)
         {
             case VectorIndexKind.Hnsw:
                 var hnsw = definition.Hnsw ?? throw new InvalidOperationException("HNSW 向量索引参数缺失。");
                 hash.Add(hnsw.M);
                 hash.Add(hnsw.Ef);
+                hash.Add(hnsw.EfConstruction);
                 break;
 
             case VectorIndexKind.IvfFlat:
@@ -313,9 +327,20 @@ internal sealed class LocalVectorIndexReaderAdapter : IVectorIndexReader
 
     public int Ef { get; }
 
+    /// <summary>建图度量直接取自内部 reader（新建走 definition.Metric，加载走 blob 头里的 metric）。</summary>
+    public KnnMetric Metric => ToQueryMetric(_reader.Metric);
+
     internal CoreVectorIndexReader InnerReader => _reader;
 
     public long EstimatedBytes => Math.Max(1, checked((long)Count * Dimension * sizeof(float) * 2));
+
+    private static KnnMetric ToQueryMetric(CoreVectorKnnMetric metric)
+        => metric switch
+        {
+            CoreVectorKnnMetric.L2 => KnnMetric.L2,
+            CoreVectorKnnMetric.InnerProduct => KnnMetric.InnerProduct,
+            _ => KnnMetric.Cosine,
+        };
 
     public IReadOnlyList<VectorSearchResult> Search(
         ReadOnlySpan<float> queryVector,
@@ -324,13 +349,14 @@ internal sealed class LocalVectorIndexReaderAdapter : IVectorIndexReader
         int resultLimit,
         KnnMetric metric)
     {
-        if (resultLimit <= 0 || Count == 0 || metric != KnnMetric.Cosine || queryVector.Length != Dimension)
+        // I7：只有查询度量与索引建图度量一致才走 ANN；不一致由调用方回退暴力扫描。
+        if (resultLimit <= 0 || Count == 0 || metric != Metric || queryVector.Length != Dimension)
             return [];
 
         var hits = _reader.Search(new CoreVectorSearchRequest(
             queryVector.ToArray(),
             Math.Min(resultLimit, Count),
-            CoreVectorKnnMetric.Cosine));
+            LocalVectorIndexBuilderAdapter.ToCoreMetric(metric)));
 
         if (hits.Count == 0)
             return [];

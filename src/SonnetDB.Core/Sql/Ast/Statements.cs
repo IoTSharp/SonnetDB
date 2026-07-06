@@ -1,5 +1,7 @@
 ﻿namespace SonnetDB.Sql.Ast;
 
+using SonnetDB.Query;
+
 /// <summary>SQL 语句抽象基类。</summary>
 public abstract record SqlStatement;
 
@@ -238,29 +240,34 @@ public sealed record AlterDocumentCollectionDropValidatorStatement(string Collec
 /// <summary>
 /// 向量索引声明抽象基类。
 /// </summary>
-public abstract record VectorIndexSpec;
+/// <param name="Metric">
+/// 距离度量（<c>metric=cosine|l2|inner_product</c>），默认 cosine；决定建图度量与 ANN gate（#223）。
+/// </param>
+public abstract record VectorIndexSpec(KnnMetric Metric);
 
 /// <summary>
-/// HNSW 向量索引声明：<c>WITH INDEX hnsw(m=16, ef=200)</c>。
+/// HNSW 向量索引声明：<c>WITH INDEX hnsw(m=16, ef=200[, ef_construction=200][, metric=cosine])</c>。
 /// </summary>
 /// <param name="M">每个节点在每层保留的最大邻接数。</param>
-/// <param name="Ef">建图与查询默认使用的候选规模。</param>
-public sealed record HnswVectorIndexSpec(int M, int Ef) : VectorIndexSpec;
+/// <param name="Ef">检索时（efSearch）使用的候选规模。</param>
+/// <param name="EfConstruction">建图时（efConstruction）使用的候选规模，与 <paramref name="Ef"/> 解耦（#223 / I9）。</param>
+/// <param name="Metric">距离度量。</param>
+public sealed record HnswVectorIndexSpec(int M, int Ef, int EfConstruction, KnnMetric Metric) : VectorIndexSpec(Metric);
 
 /// <summary>
-/// IVF-Flat 向量索引声明：<c>WITH INDEX ivf(nlist=64, nprobe=8, max_iterations=25)</c>。
+/// IVF-Flat 向量索引声明：<c>WITH INDEX ivf(nlist=64, nprobe=8, max_iterations=25[, metric=cosine])</c>。
 /// </summary>
-public sealed record IvfVectorIndexSpec(int NList, int NProbe, int MaxIterations) : VectorIndexSpec;
+public sealed record IvfVectorIndexSpec(int NList, int NProbe, int MaxIterations, KnnMetric Metric) : VectorIndexSpec(Metric);
 
 /// <summary>
-/// IVF-PQ 向量索引声明：<c>WITH INDEX ivf_pq(nlist=64, nprobe=8, m=8, nbits=8)</c>。
+/// IVF-PQ 向量索引声明：<c>WITH INDEX ivf_pq(nlist=64, nprobe=8, m=8, nbits=8[, metric=cosine])</c>。
 /// </summary>
-public sealed record IvfPqVectorIndexSpec(int NList, int NProbe, int MaxIterations, int M, int NBits) : VectorIndexSpec;
+public sealed record IvfPqVectorIndexSpec(int NList, int NProbe, int MaxIterations, int M, int NBits, KnnMetric Metric) : VectorIndexSpec(Metric);
 
 /// <summary>
-/// Vamana / DiskANN 向量索引声明：<c>WITH INDEX vamana(max_degree=32, search_list_size=75, alpha=1.2, beam_width=4)</c>。
+/// Vamana / DiskANN 向量索引声明：<c>WITH INDEX vamana(max_degree=32, search_list_size=75, alpha=1.2, beam_width=4[, metric=cosine])</c>。
 /// </summary>
-public sealed record VamanaVectorIndexSpec(int MaxDegree, int SearchListSize, float Alpha, int BeamWidth) : VectorIndexSpec;
+public sealed record VamanaVectorIndexSpec(int MaxDegree, int SearchListSize, float Alpha, int BeamWidth, KnnMetric Metric) : VectorIndexSpec(Metric);
 
 /// <summary>列定义。</summary>
 /// <param name="Name">列名。</param>

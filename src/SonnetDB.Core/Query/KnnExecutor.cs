@@ -197,9 +197,11 @@ internal static class KnnExecutor
                 || block.MinTimestamp > timeRange.ToInclusive)
                 continue;
 
-            if (metric == KnnMetric.Cosine
-                && !hasTombstonesForSeriesField
-                && reader.TryGetVectorIndexReader(block, out var vectorIndex))
+            // I7：只有当 block 上的向量索引建图度量与查询度量一致时才走 ANN 加速；
+            // 度量不一致（如 L2 查询命中 cosine 建的图）会落到下方精确扫描，保证结果正确。
+            if (!hasTombstonesForSeriesField
+                && reader.TryGetVectorIndexReader(block, out var vectorIndex)
+                && vectorIndex.Metric == metric)
             {
                 var data = reader.ReadBlock(block);
                 var timestamps = BlockDecoder.DecodeTimestamps(block, data.TimestampPayload);

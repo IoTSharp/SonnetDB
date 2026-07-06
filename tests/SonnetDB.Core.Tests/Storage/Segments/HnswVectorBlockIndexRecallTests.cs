@@ -57,7 +57,7 @@ public sealed class HnswVectorBlockIndexRecallTests
             valPayload: MemoryMarshal.AsBytes(vectorData.AsSpan()),
             count: vectorCount,
             dimension: dimension,
-            options: new HnswVectorIndexOptions(M: 16, Ef: 200));
+            options: new HnswVectorIndexOptions(M: 16, Ef: 200, EfConstruction: 200));
 
         ReadOnlySpan<byte> payload = MemoryMarshal.AsBytes(vectorData.AsSpan());
         double recallSum = 0d;

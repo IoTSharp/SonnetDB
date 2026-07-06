@@ -311,6 +311,117 @@ public sealed class VectorSegmentTests : IDisposable
         Assert.True(reader.VectorIndexCacheCurrentBytesForSegment <= BudgetBytes);
     }
 
+    // ── #223：度量（metric）与 efConstruction 贯通到段级向量索引 ────────────────
+
+    [Fact]
+    public void Segment_HnswWithL2Metric_PersistsMetricAndEfConstruction_ReaderReportsL2()
+    {
+        ulong seriesId = 4245UL;
+        const string fieldName = "embedding";
+
+        var mt = new MemTable();
+        long lsn = 1L;
+        for (int i = 0; i < 8; i++)
+            mt.Append(seriesId, 1_000L + i, fieldName, FieldValue.FromVector(new[] { (float)i, 0f, 0f }), lsn++);
+
+        string path = Path.Combine(_tempDir, "vector-index-l2.SDBSEG");
+        var vectorIndexes = new Dictionary<SeriesFieldKey, VectorIndexDefinition>
+        {
+            // ef=8、efConstruction=64、metric=L2：全部要贯通到 SDBVIDX + blob。
+            [new SeriesFieldKey(seriesId, fieldName)] =
+                VectorIndexDefinition.CreateHnsw(4, 8, SonnetDB.Query.KnnMetric.L2, efConstruction: 64),
+        };
+
+        var writer = new SegmentWriter(new SegmentWriterOptions { FsyncOnCommit = false });
+        writer.WriteFrom(mt, segmentId: 71L, path, vectorIndexes);
+
+        using var reader = SegmentReader.Open(path);
+        var block = Assert.Single(reader.FindBySeries(seriesId));
+        var metadata = Assert.Single(reader.VectorIndexManifest).Value;
+
+        // SDBVIDX record 持久化了 metric 与 efConstruction。
+        Assert.Equal((int)SonnetDB.Query.KnnMetric.L2, metadata.Metric);
+        Assert.Equal(64, metadata.EfConstruction);
+
+        // reader adapter 报告的建图度量是 L2（取自持久化 blob 头）。
+        Assert.True(reader.TryGetVectorIndexReader(block, out var vectorIndex));
+        Assert.Equal(SonnetDB.Query.KnnMetric.L2, vectorIndex.Metric);
+    }
+
+    [Fact]
+    public void Segment_IvfWithInnerProductMetric_RebuildFromPayloadReportsInnerProduct()
+    {
+        ulong seriesId = 4246UL;
+        const string fieldName = "embedding";
+
+        var mt = new MemTable();
+        long lsn = 1L;
+        for (int i = 0; i < 80; i++)
+            mt.Append(seriesId, 1_000L + i, fieldName, FieldValue.FromVector(new[] { (float)i, 1f, 0f }), lsn++);
+
+        string path = Path.Combine(_tempDir, "vector-index-ivf-ip.SDBSEG");
+        var vectorIndexes = new Dictionary<SeriesFieldKey, VectorIndexDefinition>
+        {
+            [new SeriesFieldKey(seriesId, fieldName)] =
+                VectorIndexDefinition.CreateIvfFlat(8, 8, 10, SonnetDB.Query.KnnMetric.InnerProduct),
+        };
+
+        var writer = new SegmentWriter(new SegmentWriterOptions { FsyncOnCommit = false });
+        writer.WriteFrom(mt, segmentId: 72L, path, vectorIndexes);
+
+        using var reader = SegmentReader.Open(path);
+        var block = Assert.Single(reader.FindBySeries(seriesId));
+        var metadata = Assert.Single(reader.VectorIndexManifest).Value;
+
+        // IVF 无持久化 blob，靠 SDBVIDX 持久化的 metric 从 payload 重建为 InnerProduct（否则退化为 cosine，I7）。
+        Assert.False(metadata.HasPersistentBlob);
+        Assert.Equal((int)SonnetDB.Query.KnnMetric.InnerProduct, metadata.Metric);
+        Assert.True(reader.TryGetVectorIndexReader(block, out var vectorIndex));
+        Assert.Equal(SonnetDB.Query.KnnMetric.InnerProduct, vectorIndex.Metric);
+    }
+
+    [Fact]
+    public void Segment_L2Index_ServesL2Search_ButCosineQueryReturnsEmptyFromAnn()
+    {
+        ulong seriesId = 4247UL;
+        const string fieldName = "embedding";
+
+        var mt = new MemTable();
+        long lsn = 1L;
+        // 沿 x 轴排布，[i,0,0]；L2 最近邻语义明确。
+        for (int i = 0; i < 16; i++)
+            mt.Append(seriesId, 1_000L + i, fieldName, FieldValue.FromVector(new[] { (float)i, 0f, 0f }), lsn++);
+
+        string path = Path.Combine(_tempDir, "vector-index-l2-search.SDBSEG");
+        var vectorIndexes = new Dictionary<SeriesFieldKey, VectorIndexDefinition>
+        {
+            [new SeriesFieldKey(seriesId, fieldName)] =
+                VectorIndexDefinition.CreateHnsw(8, 16, SonnetDB.Query.KnnMetric.L2, efConstruction: 64),
+        };
+        new SegmentWriter(new SegmentWriterOptions { FsyncOnCommit = false })
+            .WriteFrom(mt, segmentId: 73L, path, vectorIndexes);
+
+        using var reader = SegmentReader.Open(path);
+        var block = Assert.Single(reader.FindBySeries(seriesId));
+        Assert.True(reader.TryGetVectorIndexReader(block, out var vectorIndex));
+
+        var data = reader.ReadBlock(block);
+        var timestamps = new long[16];
+        for (int i = 0; i < 16; i++) timestamps[i] = 1_000L + i;
+        float[] query = { 3f, 0f, 0f };
+
+        // L2 查询与 L2 索引度量一致 → ANN 返回命中，最近邻是索引 3。
+        var l2Hits = vectorIndex.Search(query, data.ValuePayload, timestamps, resultLimit: 3,
+            SonnetDB.Query.KnnMetric.L2);
+        Assert.NotEmpty(l2Hits);
+        Assert.Equal(3, l2Hits[0].PointIndex);
+
+        // Cosine 查询与 L2 索引度量不一致 → 适配器直接返回空（I7：由上层回退暴力扫描）。
+        var cosineHits = vectorIndex.Search(query, data.ValuePayload, timestamps, resultLimit: 3,
+            SonnetDB.Query.KnnMetric.Cosine);
+        Assert.Empty(cosineHits);
+    }
+
     // ── Segment 文件头：版本号升级到 v6 + 历史版本只读兼容 ──────────────────
 
     [Fact]

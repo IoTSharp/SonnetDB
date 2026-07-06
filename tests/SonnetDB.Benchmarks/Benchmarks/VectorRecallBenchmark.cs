@@ -77,7 +77,7 @@ public class VectorRecallBenchmark
             valPayload: MemoryMarshal.AsBytes(_vectorData.AsSpan()),
             count: VectorCount,
             dimension: _dimension,
-            options: new HnswVectorIndexOptions(M: 16, Ef: 200));
+            options: new HnswVectorIndexOptions(M: 16, Ef: 200, EfConstruction: 200));
     }
 
     /// <summary>

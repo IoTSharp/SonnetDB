@@ -87,6 +87,75 @@ public class SqlParserVectorTests
             SqlParser.Parse("CREATE MEASUREMENT m (score FIELD FLOAT WITH INDEX hnsw(m=16, ef=200))"));
     }
 
+    // ── #223：metric= 与 ef_construction= 解析 ────────────────────────────────
+
+    [Fact]
+    public void Parse_Hnsw_DefaultsMetricCosineAndEfConstructionMaxEf200()
+    {
+        var stmt = (CreateMeasurementStatement)SqlParser.Parse(
+            "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(384) WITH INDEX hnsw(m=16, ef=50))");
+
+        var index = Assert.IsType<HnswVectorIndexSpec>(stmt.Columns[1].VectorIndex);
+        Assert.Equal(SonnetDB.Query.KnnMetric.Cosine, index.Metric);
+        Assert.Equal(50, index.Ef);
+        Assert.Equal(200, index.EfConstruction); // 缺省 max(ef, 200)
+    }
+
+    [Fact]
+    public void Parse_Hnsw_WithMetricAndEfConstruction()
+    {
+        var stmt = (CreateMeasurementStatement)SqlParser.Parse(
+            "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(384) WITH INDEX hnsw(m=16, ef=64, ef_construction=256, metric='l2'))");
+
+        var index = Assert.IsType<HnswVectorIndexSpec>(stmt.Columns[1].VectorIndex);
+        Assert.Equal(SonnetDB.Query.KnnMetric.L2, index.Metric);
+        Assert.Equal(64, index.Ef);
+        Assert.Equal(256, index.EfConstruction);
+    }
+
+    [Theory]
+    [InlineData("'cosine'", SonnetDB.Query.KnnMetric.Cosine)]
+    [InlineData("'l2'", SonnetDB.Query.KnnMetric.L2)]
+    [InlineData("'inner_product'", SonnetDB.Query.KnnMetric.InnerProduct)]
+    [InlineData("'ip'", SonnetDB.Query.KnnMetric.InnerProduct)]
+    [InlineData("'euclidean'", SonnetDB.Query.KnnMetric.L2)]
+    public void Parse_Hnsw_MetricAliases(string metricLiteral, SonnetDB.Query.KnnMetric expected)
+    {
+        var stmt = (CreateMeasurementStatement)SqlParser.Parse(
+            $"CREATE MEASUREMENT docs (embedding FIELD VECTOR(8) WITH INDEX hnsw(m=16, ef=200, metric={metricLiteral}))");
+
+        Assert.Equal(expected, Assert.IsType<HnswVectorIndexSpec>(stmt.Columns[0].VectorIndex).Metric);
+    }
+
+    [Fact]
+    public void Parse_Ivf_WithMetric()
+    {
+        var stmt = (CreateMeasurementStatement)SqlParser.Parse(
+            "CREATE MEASUREMENT docs (embedding FIELD VECTOR(8) WITH INDEX ivf(nlist=32, nprobe=8, metric='l2'))");
+
+        var index = Assert.IsType<IvfVectorIndexSpec>(stmt.Columns[0].VectorIndex);
+        Assert.Equal(SonnetDB.Query.KnnMetric.L2, index.Metric);
+        Assert.Equal(32, index.NList);
+    }
+
+    [Fact]
+    public void Parse_Vamana_WithMetric()
+    {
+        var stmt = (CreateMeasurementStatement)SqlParser.Parse(
+            "CREATE MEASUREMENT docs (embedding FIELD VECTOR(8) WITH INDEX vamana(max_degree=32, alpha=1.2, metric='inner_product'))");
+
+        var index = Assert.IsType<VamanaVectorIndexSpec>(stmt.Columns[0].VectorIndex);
+        Assert.Equal(SonnetDB.Query.KnnMetric.InnerProduct, index.Metric);
+        Assert.Equal(1.2f, index.Alpha);
+    }
+
+    [Fact]
+    public void Parse_Hnsw_UnknownMetric_Throws()
+    {
+        Assert.Throws<SqlParseException>(() =>
+            SqlParser.Parse("CREATE MEASUREMENT m (e FIELD VECTOR(8) WITH INDEX hnsw(m=16, ef=200, metric='manhattan'))"));
+    }
+
     [Fact]
     public void Parse_CreateMeasurement_VectorWithoutDim_Throws()
     {
