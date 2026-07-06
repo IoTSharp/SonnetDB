@@ -27,9 +27,9 @@ public static class DocumentQueryPlanner
         ArgumentNullException.ThrowIfNull(query);
         ValidateQuery(query);
 
-        var plan = ChooseAccessPath(store, schema, query);
+        var selection = SelectAccessPath(store, schema, query);
         var matches = new List<DocumentRow>();
-        foreach (var row in plan.Rows)
+        foreach (var row in selection.Selected.LoadRows())
         {
             if (Matches(query.Filter, row))
                 matches.Add(row);
@@ -42,7 +42,7 @@ public static class DocumentQueryPlanner
         foreach (var row in paged)
             items.Add(new DocumentQueryItem(row.Id, ProjectJson(row, query.Projection), row.Version));
 
-        return new DocumentQueryResult(items, matchedCount, plan.Plan.AccessPath, plan.Plan.IndexName);
+        return new DocumentQueryResult(items, matchedCount, selection.Selected.AccessPath, selection.Selected.IndexName);
     }
 
     /// <summary>
@@ -81,7 +81,7 @@ public static class DocumentQueryPlanner
         ArgumentNullException.ThrowIfNull(query);
         ValidateQuery(query);
 
-        return ChooseAccessPath(store, schema, query).Plan;
+        return BuildPlan(store, schema, query);
     }
 
     /// <summary>
@@ -143,7 +143,7 @@ public static class DocumentQueryPlanner
             throw new ArgumentOutOfRangeException(nameof(query), "limit 不能为负数。");
     }
 
-    private static AccessPlan ChooseAccessPath(
+    private static AccessSelection SelectAccessPath(
         DocumentCollectionStore store,
         DocumentCollectionSchema schema,
         DocumentQuery query)
@@ -154,12 +154,22 @@ public static class DocumentQueryPlanner
             .ThenByDescending(static candidate => candidate.FilterPushdownFields.Count)
             .ThenBy(static candidate => candidate.IndexName, StringComparer.Ordinal)
             .First();
-        var rows = selected.Rows;
+
+        return new AccessSelection(selected, candidates);
+    }
+
+    private static DocumentQueryPlan BuildPlan(
+        DocumentCollectionStore store,
+        DocumentCollectionSchema schema,
+        DocumentQuery query)
+    {
+        var (selected, candidates) = SelectAccessPath(store, schema, query);
+        var rows = selected.LoadRows();
         int outputRows = CountMatches(query.Filter, rows);
         var selectedCandidate = new DocumentQueryPlanCandidate(
             selected.AccessPath,
             selected.IndexName,
-            selected.Rows.Count,
+            rows.Count,
             selected.Cost,
             Selected: true,
             selected.FilterPushdownFields,
@@ -170,11 +180,11 @@ public static class DocumentQueryPlanner
                 : new DocumentQueryPlanCandidate(
                     candidate.AccessPath,
                     candidate.IndexName,
-                    candidate.Rows.Count,
+                    candidate.EstimatedRows,
                     candidate.Cost,
                     Selected: false,
                     candidate.FilterPushdownFields,
-                    candidate.RejectReason ?? BuildRejectReason(candidate, selected)))
+                    BuildRejectReason(candidate, selected)))
             .OrderBy(static candidate => candidate.Cost)
             .ThenBy(static candidate => candidate.IndexName, StringComparer.Ordinal)
             .ToArray();
@@ -184,20 +194,19 @@ public static class DocumentQueryPlanner
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
             .ToArray();
-        var plan = new DocumentQueryPlan(
+
+        return new DocumentQueryPlan(
             selected.AccessPath,
             selected.IndexName,
-            selected.Rows.Count,
+            rows.Count,
             outputRows,
             selected.FilterPushdownFields.Count > 0,
             selected.FilterPushdownFields,
             residual,
-            SortUsesIndex(selected, query.Sort),
+            SortUsesIndex(selected.AccessPath, rows.Count, query.Sort),
             ProjectionCoveredByIndex(selected, query.Projection),
             planCandidates,
             BuildGapReason(schema, query, selected));
-
-        return new AccessPlan(rows, plan);
     }
 
     private static IEnumerable<AccessCandidate> BuildAccessCandidates(
@@ -209,24 +218,22 @@ public static class DocumentQueryPlanner
         {
             var row = store.Get(id);
             IReadOnlyList<DocumentRow> rows = row is null ? Array.Empty<DocumentRow>() : [row];
-            yield return new AccessCandidate(
+            yield return AccessCandidate.FromRows(
                 rows,
                 "document_id",
                 "primary",
                 Math.Max(0, rows.Count - 1),
-                [FormatField(DocumentFieldRef.Id)],
-                RejectReason: null);
+                [FormatField(DocumentFieldRef.Id)]);
         }
         else if (TryExtractIdSet(query.Filter, out var ids))
         {
             var rows = store.GetMany(ids);
-            yield return new AccessCandidate(
+            yield return AccessCandidate.FromRows(
                 rows,
                 "document_id_set",
                 "primary",
                 rows.Count,
-                [FormatField(DocumentFieldRef.Id)],
-                RejectReason: null);
+                [FormatField(DocumentFieldRef.Id)]);
         }
 
         var leaves = FlattenAnd(query.Filter).ToArray();
@@ -243,28 +250,32 @@ public static class DocumentQueryPlanner
             if (index.IsSparse && prefixValues.Any(static value => value is null))
                 continue;
 
-            var rows = prefixValues.Count == index.Paths.Count
-                ? store.GetByIndex(index, prefixValues)
-                : store.GetByIndexPrefix(index, prefixValues);
+            bool fullMatch = prefixValues.Count == index.Paths.Count;
+            int entryCount = fullMatch
+                ? store.CountByIndex(index, prefixValues)
+                : store.CountByIndexPrefix(index, prefixValues);
             var pushedFields = index.Paths.Take(prefixValues.Count).ToArray();
             int residualPenalty = Math.Max(0, CollectFilterFields(query.Filter).Count() - pushedFields.Length);
-            yield return new AccessCandidate(
-                rows,
-                prefixValues.Count == index.Paths.Count ? "document_index" : "document_index_prefix",
+            var boundIndex = index;
+            yield return AccessCandidate.Lazy(
+                () => fullMatch
+                    ? store.GetByIndex(boundIndex, prefixValues)
+                    : store.GetByIndexPrefix(boundIndex, prefixValues),
+                fullMatch ? "document_index" : "document_index_prefix",
                 index.Name,
-                rows.Count + residualPenalty,
-                pushedFields,
-                RejectReason: null);
+                entryCount,
+                entryCount + residualPenalty,
+                pushedFields);
         }
 
-        var scanRows = store.Scan();
-        yield return new AccessCandidate(
-            scanRows,
+        int documentCount = store.Count();
+        yield return AccessCandidate.Lazy(
+            () => store.Scan(),
             "document_scan",
             null,
-            scanRows.Count,
-            Array.Empty<string>(),
-            RejectReason: null);
+            documentCount,
+            documentCount,
+            Array.Empty<string>());
     }
 
     private static Dictionary<string, object?> ExtractEqualityByPath(IReadOnlyList<DocumentFilter> leaves)
@@ -353,7 +364,7 @@ public static class DocumentQueryPlanner
     }
 
     private static string BuildRejectReason(AccessCandidate candidate, AccessCandidate selected)
-        => candidate.Rows.Count > selected.Rows.Count
+        => candidate.EstimatedRows > selected.EstimatedRows
             ? "higher_candidate_rows"
             : "higher_or_equal_cost";
 
@@ -365,7 +376,7 @@ public static class DocumentQueryPlanner
         if (HasIndexIntersectionOpportunity(schema, query.Filter, selected))
             return "index_intersection_not_supported";
 
-        if (!SortUsesIndex(selected, query.Sort) && query.Sort.Count > 0)
+        if (!SortUsesIndex(selected.AccessPath, selected.EstimatedRows, query.Sort) && query.Sort.Count > 0)
             return "sort_requires_in_memory_order_by";
 
         if (!ProjectionCoveredByIndex(selected, query.Projection) && query.Projection is { Fields.Count: > 0 })
@@ -400,19 +411,19 @@ public static class DocumentQueryPlanner
                || (usableSingleFieldIndexes >= 1 && selected.AccessPath is "document_index" or "document_index_prefix");
     }
 
-    private static bool SortUsesIndex(AccessCandidate selected, IReadOnlyList<DocumentSort> sort)
+    private static bool SortUsesIndex(string accessPath, int candidateRows, IReadOnlyList<DocumentSort> sort)
     {
         if (sort.Count == 0)
-            return selected.AccessPath is "document_id" or "document_scan";
+            return accessPath is "document_id" or "document_scan";
 
-        if (selected.Rows.Count <= 1)
+        if (candidateRows <= 1)
             return true;
 
         if (sort.Count != 1 || sort[0].Descending)
             return false;
 
         return sort[0].Field.Kind == DocumentFieldKind.Id
-               && selected.AccessPath is "document_id" or "document_scan";
+               && accessPath is "document_id" or "document_scan";
     }
 
     private static bool ProjectionCoveredByIndex(AccessCandidate selected, DocumentProjection? projection)
@@ -885,17 +896,62 @@ public static class DocumentQueryPlanner
     private static string RequirePath(DocumentFieldRef field)
         => field.Path ?? throw new InvalidOperationException("JSON path 字段引用缺少 path。");
 
-    private sealed record AccessPlan(
-        IReadOnlyList<DocumentRow> Rows,
-        DocumentQueryPlan Plan);
+    private sealed record AccessSelection(
+        AccessCandidate Selected,
+        IReadOnlyList<AccessCandidate> Candidates);
 
-    private sealed record AccessCandidate(
-        IReadOnlyList<DocumentRow> Rows,
-        string AccessPath,
-        string? IndexName,
-        int Cost,
-        IReadOnlyList<string> FilterPushdownFields,
-        string? RejectReason);
+    private sealed class AccessCandidate
+    {
+        private readonly Func<IReadOnlyList<DocumentRow>>? _loadRows;
+        private IReadOnlyList<DocumentRow>? _rows;
+
+        private AccessCandidate(
+            IReadOnlyList<DocumentRow>? rows,
+            Func<IReadOnlyList<DocumentRow>>? loadRows,
+            string accessPath,
+            string? indexName,
+            int estimatedRows,
+            int cost,
+            IReadOnlyList<string> filterPushdownFields)
+        {
+            _rows = rows;
+            _loadRows = loadRows;
+            AccessPath = accessPath;
+            IndexName = indexName;
+            EstimatedRows = estimatedRows;
+            Cost = cost;
+            FilterPushdownFields = filterPushdownFields;
+        }
+
+        public string AccessPath { get; }
+
+        public string? IndexName { get; }
+
+        public int EstimatedRows { get; }
+
+        public int Cost { get; }
+
+        public IReadOnlyList<string> FilterPushdownFields { get; }
+
+        public static AccessCandidate FromRows(
+            IReadOnlyList<DocumentRow> rows,
+            string accessPath,
+            string? indexName,
+            int cost,
+            IReadOnlyList<string> filterPushdownFields)
+            => new(rows, loadRows: null, accessPath, indexName, rows.Count, cost, filterPushdownFields);
+
+        public static AccessCandidate Lazy(
+            Func<IReadOnlyList<DocumentRow>> loadRows,
+            string accessPath,
+            string? indexName,
+            int estimatedRows,
+            int cost,
+            IReadOnlyList<string> filterPushdownFields)
+            => new(rows: null, loadRows, accessPath, indexName, estimatedRows, cost, filterPushdownFields);
+
+        public IReadOnlyList<DocumentRow> LoadRows() => _rows ??= _loadRows!();
+    }
 
     private readonly struct SortValue
     {

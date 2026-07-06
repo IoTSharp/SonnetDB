@@ -69,7 +69,7 @@ internal static class DocumentVectorSearchExecutor
             ?? throw new InvalidOperationException("vector_search 只能出现在 FROM 表值函数中。");
         var options = BindOptions(schema, call);
         var store = tsdb.Documents.Open(schema.Name);
-        return ("document_vector_scan", options.VectorPath.Text, store.Scan().Count);
+        return ("document_vector_scan", options.VectorPath.Text, store.Count());
     }
 
     private static VectorSearchOptions BindOptions(

@@ -117,7 +117,7 @@ internal static class HybridSearchExecutor
             ?? throw new InvalidOperationException("hybrid_search 只能出现在 FROM 表值函数中。");
         var options = BindDocumentOptions(schema, call, statement.Pagination);
         var store = tsdb.Documents.Open(schema.Name);
-        int documentCount = store.Scan().Count;
+        int documentCount = store.Count();
         return ("hybrid_search", options.FullTextIndex.Name, documentCount);
     }
 
@@ -136,7 +136,7 @@ internal static class HybridSearchExecutor
         var relationPlan = BindRelationPlan(tsdb, statement, schema, options);
         var filterPlan = PlanKnowledgeFilters(statement.Where, schema, relationPlan);
         int matchedSeries = tsdb.Catalog.Find(schema.Name, filterPlan.MeasurementWhere.TagFilter).Count;
-        int documentCount = options.DocumentStore.Scan().Count;
+        int documentCount = options.DocumentStore.Count();
         int relationCount = relationPlan?.RowsByJoinKey.Count ?? 0;
         string indexName = options.FullTextIndex is null
             ? options.VectorColumn.Name

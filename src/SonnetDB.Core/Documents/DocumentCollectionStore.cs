@@ -45,6 +45,11 @@ public sealed class DocumentCollectionStore : IDisposable
     /// <summary>当前集合底层 KV 视图的最新版本。</summary>
     public long LastVersion => _keyspace.LastSequence;
 
+    /// <summary>公开 <see cref="Scan(int?, int)"/> 全表扫描的累计调用次数，供惰性访问路径回归测试观测。</summary>
+    internal long FullScanCount => Interlocked.Read(ref _fullScanCount);
+
+    private long _fullScanCount;
+
     /// <summary>
     /// 按文档 ID 插入或覆盖 JSON 文档。
     /// </summary>
@@ -351,6 +356,7 @@ public sealed class DocumentCollectionStore : IDisposable
     public IReadOnlyList<DocumentRow> Scan(int? limit = null, int skip = 0)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(skip);
+        Interlocked.Increment(ref _fullScanCount);
         lock (_sync)
         {
             PurgeExpiredDocumentsLocked();
@@ -385,7 +391,7 @@ public sealed class DocumentCollectionStore : IDisposable
         lock (_sync)
         {
             PurgeExpiredDocumentsLocked();
-            return ScanRowsLocked(int.MaxValue).Count;
+            return _keyspace.CountPrefix(new byte[] { (byte)'d' });
         }
     }
 
@@ -595,6 +601,40 @@ public sealed class DocumentCollectionStore : IDisposable
             }
 
             return rows;
+        }
+    }
+
+    /// <summary>
+    /// 统计文档二级索引等值命中的索引条目数量，不物化文档。
+    /// </summary>
+    /// <param name="index">文档二级索引声明。</param>
+    /// <param name="values">与索引 path 数量一致的等值谓词值。</param>
+    /// <returns>命中的索引条目数量。</returns>
+    public int CountByIndex(DocumentPathIndex index, IReadOnlyList<object?> values)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        ArgumentNullException.ThrowIfNull(values);
+        lock (_sync)
+        {
+            PurgeExpiredDocumentsLocked();
+            return CountIndexEntriesLocked(index, values, allowPrefix: false);
+        }
+    }
+
+    /// <summary>
+    /// 统计文档二级索引等值前缀命中的索引条目数量，不物化文档。
+    /// </summary>
+    /// <param name="index">文档二级索引声明。</param>
+    /// <param name="values">从索引首列开始连续匹配的等值谓词值。</param>
+    /// <returns>命中的索引条目数量。</returns>
+    public int CountByIndexPrefix(DocumentPathIndex index, IReadOnlyList<object?> values)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        ArgumentNullException.ThrowIfNull(values);
+        lock (_sync)
+        {
+            PurgeExpiredDocumentsLocked();
+            return CountIndexEntriesLocked(index, values, allowPrefix: true);
         }
     }
 
@@ -1332,6 +1372,16 @@ public sealed class DocumentCollectionStore : IDisposable
         }
 
         return rows;
+    }
+
+    private int CountIndexEntriesLocked(DocumentPathIndex index, IReadOnlyList<object?> values, bool allowPrefix)
+    {
+        var partSets = EncodeLookupPartSets(index, values, allowPrefix);
+        int count = 0;
+        foreach (var parts in partSets)
+            count += _keyspace.CountPrefix(DocumentIndexCodec.EncodeIndexPrefix(index, parts));
+
+        return count;
     }
 
     private IReadOnlyList<DocumentRow> FindMatchingRowsLocked(DocumentFilter? filter, int limit)

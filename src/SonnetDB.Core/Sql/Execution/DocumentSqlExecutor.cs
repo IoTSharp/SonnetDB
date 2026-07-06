@@ -290,7 +290,7 @@ internal static class DocumentSqlExecutor
             new object?[]
             {
                 schema.Name,
-                (long)store.Scan(int.MaxValue).Count,
+                (long)store.Count(),
                 (long)schema.Indexes.Count,
                 string.Join(",", schema.Indexes.Select(FormatIndexSummary)),
                 (long)schema.FullTextIndexes.Count,
@@ -372,9 +372,9 @@ internal static class DocumentSqlExecutor
         }
 
         if (TryChoosePathIndex(schema, where, out var index, out var values))
-            return ("document_index", index.Name, store.GetByIndex(index, values).Count);
+            return ("document_index", index.Name, store.CountByIndex(index, values));
 
-        return ("document_scan", null, store.Scan().Count);
+        return ("document_scan", null, store.Count());
     }
 
     public static DocumentQueryPlan ExplainPlan(

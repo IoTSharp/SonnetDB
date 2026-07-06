@@ -481,13 +481,7 @@ public sealed class KvKeyspace : IDisposable
             if (TryDeleteExpiredLocked(lookup, entry, DateTimeOffset.UtcNow))
                 return false;
 
-            long sequence = _wal!.AppendDelete(lookup);
-            if (_options.SyncWalOnEveryWrite)
-                _wal.Sync();
-
-            _values.Remove(lookup);
-            _lastSequence = sequence;
-            return true;
+            return DeleteExistingLocked(lookup);
         }
     }
 
@@ -623,6 +617,43 @@ public sealed class KvKeyspace : IDisposable
 
             return rows;
         }
+    }
+
+    /// <summary>
+    /// 统计指定 key 前缀下的可见 key 数量，不读取 value。
+    /// </summary>
+    /// <param name="prefix">key 前缀；为空时统计全部 key。</param>
+    /// <returns>未过期的可见 key 数量。</returns>
+    public int CountPrefix(ReadOnlySpan<byte> prefix)
+    {
+        byte[] prefixCopy = prefix.ToArray();
+
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            int count = 0;
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            foreach (var pair in EnumerateVisibleEntriesLocked(prefixCopy, afterKey: null, readDiskValues: false))
+            {
+                if (TryDeleteExpiredLocked(pair.Key, pair.Value, now))
+                    continue;
+
+                count++;
+            }
+
+            return count;
+        }
+    }
+
+    /// <summary>
+    /// 使用 UTF-8 编码统计指定字符串前缀下的可见 key 数量，不读取 value。
+    /// </summary>
+    /// <param name="prefix">key 前缀；为空时统计全部 key。</param>
+    /// <returns>未过期的可见 key 数量。</returns>
+    public int CountPrefix(string prefix)
+    {
+        ArgumentNullException.ThrowIfNull(prefix);
+        return CountPrefix(Encoding.UTF8.GetBytes(prefix));
     }
 
     /// <summary>

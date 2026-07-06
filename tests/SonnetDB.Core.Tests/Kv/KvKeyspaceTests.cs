@@ -73,6 +73,61 @@ public sealed class KvKeyspaceTests : IDisposable
     }
 
     [Fact]
+    public void CountPrefix_MatchesScanAndSkipsExpiredAndDeleted()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        var kv = db.Keyspaces.Open("assets");
+
+        kv.Put("device:1", [1]);
+        kv.Put("device:2", [2]);
+        kv.Put("device:3", [3]);
+        kv.Put("site:1", [9]);
+        kv.Put("device:expired", [4], DateTimeOffset.UtcNow.AddMilliseconds(-1));
+        Assert.True(kv.Delete("device:2"));
+
+        Assert.Equal(2, kv.CountPrefix("device:"));
+        Assert.Equal(kv.ScanPrefix("device:", int.MaxValue).Count, kv.CountPrefix("device:"));
+        Assert.Equal(3, kv.CountPrefix(""));
+        Assert.Equal(0, kv.CountPrefix("missing:"));
+    }
+
+    [Fact]
+    public void CountPrefix_AfterCompact_CountsDiskAndOverlay()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        var kv = db.Keyspaces.Open("assets");
+
+        kv.Put("device:1", [1]);
+        kv.Put("device:2", [2]);
+        kv.Compact();
+        kv.Put("device:3", [3]);
+        Assert.True(kv.Delete("device:1"));
+
+        Assert.Equal(2, kv.CountPrefix("device:"));
+        Assert.Equal(kv.ScanPrefix("device:", int.MaxValue).Count, kv.CountPrefix("device:"));
+    }
+
+    [Fact]
+    public void Delete_DiskResidentKeyAfterCompact_HidesKeyInSession()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        var kv = db.Keyspaces.Open("assets");
+
+        kv.Put("device:1", [1]);
+        kv.Put("device:2", [2]);
+        kv.Compact();
+
+        Assert.True(kv.Delete("device:1"));
+
+        Assert.Null(kv.Get("device:1"));
+        Assert.False(kv.Delete("device:1"));
+        Assert.Equal(1, kv.Count);
+        Assert.Equal(
+            ["device:2"],
+            kv.ScanPrefix("device:", int.MaxValue).Select(static row => Encoding.UTF8.GetString(row.Key.Span)).ToArray());
+    }
+
+    [Fact]
     public void Reopen_AfterWalOnlyWrites_ReplaysPutAndDelete()
     {
         using (var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root }))

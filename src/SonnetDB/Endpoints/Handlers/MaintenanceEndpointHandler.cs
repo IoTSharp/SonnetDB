@@ -297,7 +297,7 @@ internal static class MaintenanceEndpointHandler
         foreach (var collection in tsdb.Documents.Catalog.Snapshot())
         {
             var store = tsdb.Documents.Open(collection.Name);
-            long documentCount = store.Scan().Count;
+            long documentCount = store.Count();
             foreach (var index in collection.Indexes)
             {
                 indexes.Add(new QualityIndexInfo(
