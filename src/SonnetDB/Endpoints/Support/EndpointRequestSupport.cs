@@ -160,6 +160,40 @@ internal static partial class SonnetDbEndpoints
 
     internal readonly record struct MqAccessResult(MqAccessStatus Status, string Message);
 
+    /// <summary>
+    /// 数据库 + 命名资源（kv keyspace / document collection）访问判定核心（不写响应），
+    /// 二进制帧端点的 kv / doc service（#240）使用；判定顺序与 REST 的
+    /// <see cref="TryResolveKvAsync"/> / <c>TryResolveDocumentCollectionAsync</c> 一致
+    /// （db 名 → db 存在 → 资源名 → 权限），资源名非法复用 <see cref="MqAccessStatus.BadTopic"/>。
+    /// </summary>
+    internal static MqAccessResult EvaluateNamedResourceAccess(
+        HttpContext ctx,
+        TsdbRegistry registry,
+        GrantsStore grants,
+        string db,
+        string resourceName,
+        string resourceLabel,
+        DatabasePermission requiredPermission,
+        out Tsdb tsdb)
+    {
+        tsdb = null!;
+        if (!TsdbRegistry.IsValidName(db))
+            return new MqAccessResult(MqAccessStatus.BadDbName, $"非法数据库名 '{db}'。");
+
+        if (!registry.TryGet(db, out tsdb))
+            return new MqAccessResult(MqAccessStatus.DbNotFound, $"数据库 '{db}' 不存在。");
+
+        if (!IsValidKeyspaceName(resourceName))
+            return new MqAccessResult(MqAccessStatus.BadTopic, $"非法 {resourceLabel} '{resourceName}'。");
+
+        var databasePermission = DatabaseAccessEvaluator.GetEffectivePermission(ctx, grants, db);
+        if (!DatabaseAccessEvaluator.HasPermission(databasePermission, requiredPermission))
+            return new MqAccessResult(MqAccessStatus.Forbidden,
+                $"当前凭据对数据库 '{db}' 没有 {requiredPermission.ToString().ToLowerInvariant()} 权限。");
+
+        return new MqAccessResult(MqAccessStatus.Ok, string.Empty);
+    }
+
     private static bool IsValidKeyspaceName(string? name)
     {
         if (string.IsNullOrWhiteSpace(name) || name is "." or ".." || name.Length > 128)

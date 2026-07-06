@@ -8,10 +8,13 @@ using Microsoft.Extensions.Options;
 using SonnetDB.Auth;
 using SonnetDB.Configuration;
 using SonnetDB.Contracts;
+using SonnetDB.Documents;
 using SonnetDB.Engine;
 using SonnetDB.Hosting;
 using SonnetDB.Ingest;
 using SonnetDB.Json;
+using SonnetDB.Kv;
+using SonnetDB.ObjectStorage;
 using SonnetDB.Protocol;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
@@ -22,9 +25,10 @@ namespace SonnetDB.Endpoints;
 
 /// <summary>
 /// 通用二进制帧端点处理器（M28 P5b #235；#237 挂载 tsdb service；#238 挂载 sql service；
-/// #239 挂载 vector service）。
+/// #239 挂载 vector service；#240 挂载 kv / object / doc service——七个 service 全部就位）。
 /// 请求体 = 1..N 个请求帧，逐帧解析、鉴权、分发到引擎、逐帧写回响应帧（streamId 回显）。
-/// sql 查询与 vector 检索响应为同 streamId 的流式帧序列（meta → rows × N → end），逐块 flush。
+/// sql 查询与 vector 检索响应为同 streamId 的流式帧序列（meta → rows × N → end），
+/// object get 响应为 meta → data × N → end，均逐块 flush。
 /// 错误模型：未成帧（错 Content-Type / 首帧畸形 / 空体）走 HTTP 状态码；
 /// 成帧后一切按帧回错误帧（HTTP 200），批内单帧失败不影响其余帧。
 /// </summary>
@@ -96,6 +100,8 @@ internal static class FrameEndpointHandler
                         await ExecuteSqlQueryAsync(ctx, registry, grants, metrics, writer, header, payload).ConfigureAwait(false);
                     else if (header.Service == (byte)FrameService.Vector)
                         await ExecuteVectorSearchAsync(ctx, registry, grants, metrics, writer, header, payload).ConfigureAwait(false);
+                    else if (header.Service == (byte)FrameService.Object)
+                        await ExecuteObjectOpAsync(ctx, registry, grants, writer, header, payload).ConfigureAwait(false);
                     else
                         DispatchFrame(ctx, registry, grants, mqStore, metrics, writer, header, payload);
                     await writer.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
@@ -219,10 +225,34 @@ internal static class FrameEndpointHandler
                 return $"vector service 不支持 op {header.Op}。";
             }
         }
+        else if (header.Service == (byte)FrameService.Kv)
+        {
+            if (header.Op is < (byte)KvFrameOp.Get or > (byte)KvFrameOp.Scan)
+            {
+                errorCode = "unsupported_op";
+                return $"kv service 不支持 op {header.Op}。";
+            }
+        }
+        else if (header.Service == (byte)FrameService.Object)
+        {
+            if (header.Op is < (byte)ObjectFrameOp.Get or > (byte)ObjectFrameOp.Put)
+            {
+                errorCode = "unsupported_op";
+                return $"object service 不支持 op {header.Op}。";
+            }
+        }
+        else if (header.Service == (byte)FrameService.Doc)
+        {
+            if (header.Op is < (byte)DocFrameOp.Find or > (byte)DocFrameOp.Insert)
+            {
+                errorCode = "unsupported_op";
+                return $"doc service 不支持 op {header.Op}。";
+            }
+        }
         else
         {
             errorCode = "unsupported_service";
-            return $"service {header.Service} 尚未挂载（当前 mq={(byte)FrameService.Mq}、tsdb={(byte)FrameService.Tsdb}、sql={(byte)FrameService.Sql}、vector={(byte)FrameService.Vector}）。";
+            return $"service {header.Service} 未定义（mq=1、tsdb=2、sql=3、vector=4、kv=5、object=6、doc=7）。";
         }
 
         errorCode = string.Empty;
@@ -256,6 +286,10 @@ internal static class FrameEndpointHandler
 
             if (header.Service == (byte)FrameService.Tsdb)
                 ExecuteTsdbOp(ctx, registry, grants, metrics, writer, header, payloadMemory);
+            else if (header.Service == (byte)FrameService.Kv)
+                ExecuteKvOp(ctx, registry, grants, writer, header, payloadMemory);
+            else if (header.Service == (byte)FrameService.Doc)
+                ExecuteDocOp(ctx, registry, grants, writer, header, payloadMemory);
             else
                 ExecuteMqOp(ctx, registry, grants, mqStore, writer, header, payloadMemory);
         }
@@ -626,6 +660,371 @@ internal static class FrameEndpointHandler
         }
     }
 
+    /// <summary>
+    /// 执行 kv 帧 op（#240）：get / put / scan。key / value 原始字节直传（零 Base64），
+    /// 与 REST KV 端点同一引擎入口（<see cref="KvKeyspace"/>）与同一鉴权语义
+    /// （get / scan 需 Read，put 需 Write；keyspace 名合法性同 REST）。
+    /// </summary>
+    private static void ExecuteKvOp(
+        HttpContext ctx,
+        TsdbRegistry registry,
+        GrantsStore grants,
+        PipeWriter writer,
+        FrameHeader header,
+        ReadOnlyMemory<byte> payload)
+    {
+        switch ((KvFrameOp)header.Op)
+        {
+            case KvFrameOp.Get:
+            {
+                KvGetFrameRequest request = KvFrameCodec.DecodeGetRequest(payload);
+                if (!TryAuthorizeNamedResource(ctx, registry, grants, writer, header,
+                        request.Db, request.Keyspace, "keyspace 名", DatabasePermission.Read, out Tsdb tsdb))
+                    return;
+                KvEntry? entry = tsdb.Keyspaces.Open(request.Keyspace).GetEntry(request.Key.Span);
+                KvFrameCodec.EncodeGetResponse(writer, header.StreamId, entry);
+                return;
+            }
+
+            case KvFrameOp.Put:
+            {
+                KvPutFrameRequest request = KvFrameCodec.DecodePutRequest(payload);
+                if (!TryAuthorizeNamedResource(ctx, registry, grants, writer, header,
+                        request.Db, request.Keyspace, "keyspace 名", DatabasePermission.Write, out Tsdb tsdb))
+                    return;
+                long version = tsdb.Keyspaces.Open(request.Keyspace)
+                    .Put(request.Key.Span, request.Value.Span, request.ExpiresAtUtc);
+                KvFrameCodec.EncodePutResponse(writer, header.StreamId, version);
+                return;
+            }
+
+            case KvFrameOp.Scan:
+            {
+                KvScanFrameRequest request = KvFrameCodec.DecodeScanRequest(payload);
+                if (!TryAuthorizeNamedResource(ctx, registry, grants, writer, header,
+                        request.Db, request.Keyspace, "keyspace 名", DatabasePermission.Read, out Tsdb tsdb))
+                    return;
+                int? limit = request.Limit <= 0 ? null : Math.Min(request.Limit, 10_000);
+                IReadOnlyList<KvEntry> entries = tsdb.Keyspaces.Open(request.Keyspace)
+                    .ScanPrefixAfter(request.Prefix.Span, request.AfterKey.Span, limit);
+                KvFrameCodec.EncodeScanResponse(writer, header.StreamId, entries);
+                return;
+            }
+
+            default:
+                FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "unsupported_op", $"kv service 不支持 op {header.Op}。");
+                return;
+        }
+    }
+
+    /// <summary>
+    /// 执行 doc 帧 op（#240）：find（ID 点查 / ID 列表 / 扫描分页）与 insert（批量插入）。
+    /// JSON 文本原始 UTF-8 直传（零 JSON 信封转义），与 REST 文档端点同一引擎入口
+    /// （<see cref="DocumentCollectionStore"/>）；复杂查询（filter / projection / sort / aggregate）
+    /// 不进帧，走 REST 或 SQL。集合必须已存在（同 REST mustExist 语义），insert 需 Write、find 需 Read。
+    /// </summary>
+    private static void ExecuteDocOp(
+        HttpContext ctx,
+        TsdbRegistry registry,
+        GrantsStore grants,
+        PipeWriter writer,
+        FrameHeader header,
+        ReadOnlyMemory<byte> payload)
+    {
+        switch ((DocFrameOp)header.Op)
+        {
+            case DocFrameOp.Find:
+            {
+                DocFindFrameRequest request = DocFrameCodec.DecodeFindRequest(payload.Span);
+                if (!TryAuthorizeNamedResource(ctx, registry, grants, writer, header,
+                        request.Db, request.Collection, "document collection 名", DatabasePermission.Read, out Tsdb tsdb))
+                    return;
+                if (!TryOpenCollection(tsdb, request.Collection, writer, header, out DocumentCollectionStore store))
+                    return;
+
+                IReadOnlyList<DocumentRow> rows;
+                if (request.Ids.Count > 0)
+                {
+                    rows = store.GetMany(request.Ids);
+                }
+                else
+                {
+                    int limit = request.Limit <= 0 ? 100 : Math.Min(request.Limit, DocFrameCodec.MaxDocumentCount);
+                    rows = request.AfterId is null
+                        ? store.Scan(limit)
+                        : store.ScanAfter(request.AfterId, limit);
+                }
+
+                DocFrameCodec.EncodeFindResponse(writer, header.StreamId, rows);
+                return;
+            }
+
+            case DocFrameOp.Insert:
+            {
+                DocInsertFrameRequest request = DocFrameCodec.DecodeInsertRequest(payload.Span);
+                if (!TryAuthorizeNamedResource(ctx, registry, grants, writer, header,
+                        request.Db, request.Collection, "document collection 名", DatabasePermission.Write, out Tsdb tsdb))
+                    return;
+                if (!TryOpenCollection(tsdb, request.Collection, writer, header, out DocumentCollectionStore store))
+                    return;
+
+                DocumentWriteResult result = store.InsertMany(request.Documents, request.Ordered);
+                DocFrameCodec.EncodeInsertResponse(writer, header.StreamId, result);
+                return;
+            }
+
+            default:
+                FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "unsupported_op", $"doc service 不支持 op {header.Op}。");
+                return;
+        }
+    }
+
+    private static bool TryOpenCollection(
+        Tsdb tsdb,
+        string collection,
+        PipeWriter writer,
+        FrameHeader header,
+        out DocumentCollectionStore store)
+    {
+        store = null!;
+        if (tsdb.Documents.Catalog.TryGet(collection) is null)
+        {
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "collection_not_found",
+                $"document collection '{collection}' 不存在。");
+            return false;
+        }
+
+        store = tsdb.Documents.Open(collection);
+        return true;
+    }
+
+    /// <summary>
+    /// 执行 object 帧 op（#240）：get（meta → data × N → end 流式分块回传，
+    /// 大 blob 增量到达客户端、响应缓冲内存上界 = 单块）与 put（内容原始字节直传、零 Base64）。
+    /// 与 REST S3 兼容端点同一引擎入口（<see cref="SndbObjectStore"/>）与错误码词汇；
+    /// bucket 管理 / 版本 / multipart / 生命周期不进帧。get 需 Read、put 需 Write。
+    /// </summary>
+    private static async Task ExecuteObjectOpAsync(
+        HttpContext ctx,
+        TsdbRegistry registry,
+        GrantsStore grants,
+        PipeWriter writer,
+        FrameHeader header,
+        ReadOnlySequence<byte> payload)
+    {
+        byte[]? rented = null;
+        try
+        {
+            ReadOnlyMemory<byte> payloadMemory;
+            if (payload.IsSingleSegment)
+            {
+                payloadMemory = payload.First;
+            }
+            else
+            {
+                rented = ArrayPool<byte>.Shared.Rent((int)payload.Length);
+                payload.CopyTo(rented);
+                payloadMemory = rented.AsMemory(0, (int)payload.Length);
+            }
+
+            if (header.Op == (byte)ObjectFrameOp.Get)
+                await ExecuteObjectGetAsync(ctx, registry, grants, writer, header, payloadMemory).ConfigureAwait(false);
+            else
+                await ExecuteObjectPutAsync(ctx, registry, grants, writer, header, payloadMemory).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (ctx.RequestAborted.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (FrameFormatException ex)
+        {
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "bad_frame", ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "bad_frame", ex.Message);
+        }
+        catch (SndbObjectStorageException ex)
+        {
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, ex.Code, ex.Message);
+        }
+        catch (ArgumentException ex)
+        {
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "bad_request", ex.Message);
+        }
+        catch (IOException ex)
+        {
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "object_storage_io_error", ex.Message);
+        }
+        finally
+        {
+            if (rented is not null)
+                ArrayPool<byte>.Shared.Return(rented);
+        }
+    }
+
+    private static async Task ExecuteObjectGetAsync(
+        HttpContext ctx,
+        TsdbRegistry registry,
+        GrantsStore grants,
+        PipeWriter writer,
+        FrameHeader header,
+        ReadOnlyMemory<byte> payload)
+    {
+        ObjectGetFrameRequest request = ObjectFrameCodec.DecodeGetRequest(payload.Span);
+        SonnetDbEndpoints.MqAccessResult access = SonnetDbEndpoints.EvaluateDatabaseAccess(
+            ctx, registry, grants, request.Db, DatabasePermission.Read, out Tsdb tsdb);
+        if (access.Status != SonnetDbEndpoints.MqAccessStatus.Ok)
+        {
+            WriteAccessErrorFrame(writer, header, access);
+            return;
+        }
+
+        var store = new SndbObjectStore(tsdb);
+        SndbObjectReadResult? result = store.OpenRead(request.Bucket, request.Key, range: null, request.VersionId);
+        if (result is null)
+        {
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "object_not_found",
+                $"Object '{request.Bucket}/{request.Key}' was not found.");
+            return;
+        }
+
+        await using (result.Content)
+        {
+            ObjectFrameCodec.EncodeGetMetaFrame(writer, header.StreamId, result.Info);
+            await writer.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
+
+            long total = 0;
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(ObjectFrameCodec.DefaultDataChunkBytes);
+            try
+            {
+                while (true)
+                {
+                    int read = await result.Content.ReadAsync(
+                        buffer.AsMemory(0, ObjectFrameCodec.DefaultDataChunkBytes), ctx.RequestAborted).ConfigureAwait(false);
+                    if (read <= 0)
+                        break;
+
+                    ObjectFrameCodec.EncodeGetDataFrame(writer, header.StreamId, buffer.AsSpan(0, read));
+                    total += read;
+                    await writer.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
+
+            ObjectFrameCodec.EncodeGetEndFrame(writer, header.StreamId, total);
+        }
+    }
+
+    private static async Task ExecuteObjectPutAsync(
+        HttpContext ctx,
+        TsdbRegistry registry,
+        GrantsStore grants,
+        PipeWriter writer,
+        FrameHeader header,
+        ReadOnlyMemory<byte> payload)
+    {
+        ObjectPutFrameRequest request = ObjectFrameCodec.DecodePutRequest(payload);
+        SonnetDbEndpoints.MqAccessResult access = SonnetDbEndpoints.EvaluateDatabaseAccess(
+            ctx, registry, grants, request.Db, DatabasePermission.Write, out Tsdb tsdb);
+        if (access.Status != SonnetDbEndpoints.MqAccessStatus.Ok)
+        {
+            WriteAccessErrorFrame(writer, header, access);
+            return;
+        }
+
+        var store = new SndbObjectStore(tsdb);
+        ReadOnlyMemoryStream content = new(request.Content);
+        SndbObjectInfo info = await store.PutObjectAsync(
+            request.Bucket,
+            request.Key,
+            content,
+            request.ContentType,
+            request.Metadata.Count == 0 ? null : request.Metadata,
+            request.Tags.Count == 0 ? null : request.Tags,
+            ctx.RequestAborted).ConfigureAwait(false);
+        ObjectFrameCodec.EncodePutResponse(writer, header.StreamId, info);
+    }
+
+    private static bool TryAuthorizeNamedResource(
+        HttpContext ctx,
+        TsdbRegistry registry,
+        GrantsStore grants,
+        PipeWriter writer,
+        FrameHeader header,
+        string db,
+        string resourceName,
+        string resourceLabel,
+        DatabasePermission required,
+        out Tsdb tsdb)
+    {
+        SonnetDbEndpoints.MqAccessResult access = SonnetDbEndpoints.EvaluateNamedResourceAccess(
+            ctx, registry, grants, db, resourceName, resourceLabel, required, out tsdb);
+        if (access.Status == SonnetDbEndpoints.MqAccessStatus.Ok)
+            return true;
+
+        WriteAccessErrorFrame(writer, header, access);
+        return false;
+    }
+
+    private static void WriteAccessErrorFrame(PipeWriter writer, in FrameHeader header, in SonnetDbEndpoints.MqAccessResult access)
+    {
+        string code = access.Status switch
+        {
+            SonnetDbEndpoints.MqAccessStatus.DbNotFound => "db_not_found",
+            SonnetDbEndpoints.MqAccessStatus.Forbidden => "forbidden",
+            _ => "bad_request",
+        };
+        FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, code, access.Message);
+    }
+
+    /// <summary>
+    /// 把 <see cref="ReadOnlyMemory{T}"/> 包装为只读流，供 <see cref="SndbObjectStore.PutObjectAsync"/>
+    /// 直接消费帧体内容视图（帧在 PipeReader AdvanceTo 之前同步-完成处理，视图存活期覆盖整个写入）。
+    /// </summary>
+    private sealed class ReadOnlyMemoryStream(ReadOnlyMemory<byte> memory) : Stream
+    {
+        private int _position;
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => memory.Length;
+        public override long Position
+        {
+            get => _position;
+            set => throw new NotSupportedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+            => Read(buffer.AsSpan(offset, count));
+
+        public override int Read(Span<byte> buffer)
+        {
+            int remaining = memory.Length - _position;
+            int count = Math.Min(remaining, buffer.Length);
+            if (count <= 0)
+                return 0;
+            memory.Span.Slice(_position, count).CopyTo(buffer);
+            _position += count;
+            return count;
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+            => Task.FromResult(Read(buffer.AsSpan(offset, count)));
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(Read(buffer.Span));
+
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
     private static bool TryAuthorize(
         HttpContext ctx,
         TsdbRegistry registry,
@@ -640,13 +1039,7 @@ internal static class FrameEndpointHandler
         if (access.Status == SonnetDbEndpoints.MqAccessStatus.Ok)
             return true;
 
-        string code = access.Status switch
-        {
-            SonnetDbEndpoints.MqAccessStatus.DbNotFound => "db_not_found",
-            SonnetDbEndpoints.MqAccessStatus.Forbidden => "forbidden",
-            _ => "bad_request",
-        };
-        FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, code, access.Message);
+        WriteAccessErrorFrame(writer, header, access);
         return false;
     }
 
