@@ -340,8 +340,7 @@ public sealed class DocumentCollectionStore : IDisposable
                 index++;
             }
 
-            foreach (var operation in operations)
-                ApplyPlannedMutationLocked(_schema, operation);
+            ApplyPlannedMutationsLocked(_schema, operations);
 
             return new DocumentWriteResult(deleted: operations.Count, errors: errors);
         }
@@ -788,8 +787,7 @@ public sealed class DocumentCollectionStore : IDisposable
             index++;
         }
 
-        foreach (var operation in operations)
-            ApplyPlannedMutationLocked(schema, operation);
+        ApplyPlannedMutationsLocked(schema, operations);
 
         return mode == DocumentWriteBatchMode.Insert
             ? new DocumentWriteResult(inserted: operations.Count, errors: Combine(errors, warnings))
@@ -1029,13 +1027,62 @@ public sealed class DocumentCollectionStore : IDisposable
 
     private void ApplyPlannedMutationLocked(DocumentCollectionSchema schema, PendingDocumentMutation mutation)
     {
-        foreach (var indexEntry in mutation.OldRow is null ? [] : BuildIndexEntries(schema, mutation.OldRow))
-            _keyspace.Delete(indexEntry.Key);
+        ApplyPlannedMutationKvLocked(schema, mutation);
+
         if (mutation.OldRow is not null)
         {
             foreach (var index in schema.FullTextIndexes)
                 OpenFullTextStoreLocked(index, rebuildIfMissing: false).Delete(mutation.OldRow.Id);
         }
+
+        if (mutation.NewRow is not null)
+        {
+            foreach (var index in schema.FullTextIndexes)
+                OpenFullTextStoreLocked(index, rebuildIfMissing: false).Upsert(mutation.NewRow);
+        }
+    }
+
+    /// <summary>
+    /// 批量应用变更：KV 逐条应用，全文索引整批成段（每索引一次 DeleteMany + 一次 UpsertMany），
+    /// 避免每文档一个单文档段 + 一次 manifest 全量改写。
+    /// </summary>
+    private void ApplyPlannedMutationsLocked(DocumentCollectionSchema schema, IReadOnlyList<PendingDocumentMutation> operations)
+    {
+        if (operations.Count == 0)
+            return;
+
+        if (operations.Count == 1 || schema.FullTextIndexes.Count == 0)
+        {
+            foreach (var operation in operations)
+                ApplyPlannedMutationLocked(schema, operation);
+            return;
+        }
+
+        List<string>? fullTextDeletes = null;
+        List<DocumentRow>? fullTextUpserts = null;
+        foreach (var operation in operations)
+        {
+            ApplyPlannedMutationKvLocked(schema, operation);
+            if (operation.OldRow is not null && operation.NewRow is null)
+                (fullTextDeletes ??= new List<string>()).Add(operation.OldRow.Id);
+            if (operation.NewRow is not null)
+                (fullTextUpserts ??= new List<DocumentRow>()).Add(operation.NewRow);
+        }
+
+        foreach (var index in schema.FullTextIndexes)
+        {
+            var store = OpenFullTextStoreLocked(index, rebuildIfMissing: false);
+            if (fullTextDeletes is not null)
+                store.DeleteMany(fullTextDeletes);
+            if (fullTextUpserts is not null)
+                store.UpsertMany(fullTextUpserts);
+        }
+    }
+
+    private void ApplyPlannedMutationKvLocked(DocumentCollectionSchema schema, PendingDocumentMutation mutation)
+    {
+        foreach (var indexEntry in mutation.OldRow is null ? [] : BuildIndexEntries(schema, mutation.OldRow))
+            _keyspace.Delete(indexEntry.Key);
 
         if (mutation.NewRow is null)
         {
@@ -1046,8 +1093,6 @@ public sealed class DocumentCollectionStore : IDisposable
         _keyspace.Put(mutation.DocumentKey, Encoding.UTF8.GetBytes(mutation.NewRow.Json));
         foreach (var indexEntry in BuildIndexEntries(schema, mutation.NewRow))
             _keyspace.Put(indexEntry.Key, indexEntry.Value);
-        foreach (var index in schema.FullTextIndexes)
-            OpenFullTextStoreLocked(index, rebuildIfMissing: false).Upsert(mutation.NewRow);
     }
 
     private static IReadOnlyList<IndexEntry> BuildIndexEntries(DocumentCollectionSchema schema, DocumentRow row)
@@ -1286,10 +1331,10 @@ public sealed class DocumentCollectionStore : IDisposable
                 expired.Add(row);
         }
 
+        var expiredOperations = new List<PendingDocumentMutation>(expired.Count);
         foreach (var row in expired)
-            ApplyPlannedMutationLocked(
-                _schema,
-                new PendingDocumentMutation(-1, row, NewRow: null, DocumentIndexCodec.EncodeDocumentKey(row.Id)));
+            expiredOperations.Add(new PendingDocumentMutation(-1, row, NewRow: null, DocumentIndexCodec.EncodeDocumentKey(row.Id)));
+        ApplyPlannedMutationsLocked(_schema, expiredOperations);
     }
 
     private static bool IsExpired(DocumentRow row, IReadOnlyList<DocumentPathIndex> ttlIndexes, long nowMs)
@@ -1438,8 +1483,7 @@ public sealed class DocumentCollectionStore : IDisposable
             itemIndex++;
         }
 
-        foreach (var operation in operations)
-            ApplyPlannedMutationLocked(schema, operation);
+        ApplyPlannedMutationsLocked(schema, operations);
 
         return new DocumentWriteResult(matched: rows.Count, modified: operations.Count, errors: warnings);
     }

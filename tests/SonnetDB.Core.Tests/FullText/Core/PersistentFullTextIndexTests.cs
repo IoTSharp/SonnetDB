@@ -190,6 +190,167 @@ public sealed class PersistentFullTextIndexTests : IDisposable
         Assert.True(File.Exists(Path.Combine(_directory, "manifest.json")));
     }
 
+    // ── #222：批量成段 + 增量语料统计 ────────────────────────────────────────────
+
+    [Fact]
+    public void IndexMany_writes_single_segment_and_survives_reopen()
+    {
+        PersistentFullTextIndex index = Open();
+        index.IndexMany(
+        [
+            new Document(new DocumentId("1")).Set("body", "alpha sonnetdb"),
+            new Document(new DocumentId("2")).Set("body", "beta sonnetdb"),
+            new Document(new DocumentId("3")).Set("body", "gamma sonnetdb"),
+        ]);
+
+        // 整批一个段，而非每文档一段。
+        Assert.Single(Directory.GetFiles(Path.Combine(_directory, "segments"), "*.seg"));
+        Assert.Equal(3, index.DocumentCount);
+
+        PersistentFullTextIndex reopened = Open();
+        Assert.Equal(3, reopened.DocumentCount);
+        Assert.Equal(3, reopened.Search(new TermQuery("body", "sonnetdb"), topK: 10).Count);
+        Assert.Single(reopened.Search(new TermQuery("body", "beta"), topK: 10));
+    }
+
+    [Fact]
+    public void IndexMany_duplicate_ids_in_batch_last_wins()
+    {
+        PersistentFullTextIndex index = Open();
+        index.IndexMany(
+        [
+            new Document(new DocumentId("1")).Set("body", "old"),
+            new Document(new DocumentId("2")).Set("body", "other"),
+            new Document(new DocumentId("1")).Set("body", "new"),
+        ]);
+
+        Assert.Equal(2, index.DocumentCount);
+        Assert.Empty(index.Search(new TermQuery("body", "old"), topK: 10));
+        Assert.Single(index.Search(new TermQuery("body", "new"), topK: 10));
+
+        PersistentFullTextIndex reopened = Open();
+        Assert.Equal(2, reopened.DocumentCount);
+        Assert.Empty(reopened.Search(new TermQuery("body", "old"), topK: 10));
+        Assert.Single(reopened.Search(new TermQuery("body", "new"), topK: 10));
+    }
+
+    [Fact]
+    public void IndexMany_reindexing_existing_ids_tombstones_previous()
+    {
+        PersistentFullTextIndex index = Open();
+        index.IndexMany(
+        [
+            new Document(new DocumentId("1")).Set("body", "old alpha"),
+            new Document(new DocumentId("2")).Set("body", "old beta"),
+        ]);
+        index.IndexMany(
+        [
+            new Document(new DocumentId("1")).Set("body", "new alpha"),
+            new Document(new DocumentId("3")).Set("body", "new gamma"),
+        ]);
+
+        Assert.Equal(3, index.DocumentCount);
+        IReadOnlyList<SearchHit> oldHits = index.Search(new TermQuery("body", "old"), topK: 10);
+        Assert.Single(oldHits);
+        Assert.Equal("2", oldHits[0].DocumentId.Value);
+
+        PersistentFullTextIndex reopened = Open();
+        Assert.Equal(3, reopened.DocumentCount);
+        Assert.Single(reopened.Search(new TermQuery("body", "old"), topK: 10));
+        Assert.Equal(2, reopened.Search(new TermQuery("body", "new"), topK: 10).Count);
+    }
+
+    [Fact]
+    public void DeleteMany_removes_documents_and_survives_reopen()
+    {
+        PersistentFullTextIndex index = Open();
+        index.IndexMany(
+        [
+            new Document(new DocumentId("1")).Set("body", "alpha"),
+            new Document(new DocumentId("2")).Set("body", "alpha"),
+            new Document(new DocumentId("3")).Set("body", "alpha"),
+        ]);
+
+        int deleted = index.DeleteMany([new DocumentId("1"), new DocumentId("3"), new DocumentId("missing")]);
+
+        Assert.Equal(2, deleted);
+        Assert.Equal(1, index.DocumentCount);
+
+        PersistentFullTextIndex reopened = Open();
+        IReadOnlyList<SearchHit> hits = reopened.Search(new TermQuery("body", "alpha"), topK: 10);
+        Assert.Single(hits);
+        Assert.Equal("2", hits[0].DocumentId.Value);
+    }
+
+    [Fact]
+    public void Incremental_field_stats_match_reopen_rebuilt_stats()
+    {
+        // 增量维护的 docCount/totalLength 直接决定 BM25 分数；
+        // 重开索引会从段文件全量重建统计——两侧分数必须完全一致。
+        PersistentFullTextIndex index = Open();
+        index.IndexMany(
+        [
+            new Document(new DocumentId("1")).Set("body", "alpha beta gamma delta"),
+            new Document(new DocumentId("2")).Set("body", "alpha beta"),
+            new Document(new DocumentId("3")).Set("body", "alpha"),
+        ]);
+        index.Index(new Document(new DocumentId("4")).Set("body", "alpha epsilon zeta"));
+        index.Delete(new DocumentId("2"));
+        index.IndexMany(
+        [
+            new Document(new DocumentId("1")).Set("body", "alpha rewritten"),
+            new Document(new DocumentId("5")).Set("body", "alpha beta gamma"),
+        ]);
+
+        IReadOnlyList<SearchHit> live = index.Search(new TermQuery("body", "alpha"), topK: 10);
+
+        PersistentFullTextIndex reopened = Open();
+        IReadOnlyList<SearchHit> rebuilt = reopened.Search(new TermQuery("body", "alpha"), topK: 10);
+
+        Assert.Equal(rebuilt.Count, live.Count);
+        for (int i = 0; i < live.Count; i++)
+        {
+            Assert.Equal(rebuilt[i].DocumentId.Value, live[i].DocumentId.Value);
+            Assert.Equal(rebuilt[i].Score, live[i].Score, precision: 12);
+        }
+    }
+
+    [Fact]
+    public void Incremental_field_stats_match_after_merge()
+    {
+        PersistentFullTextIndex index = Open();
+        index.IndexMany(
+        [
+            new Document(new DocumentId("1")).Set("body", "alpha beta"),
+            new Document(new DocumentId("2")).Set("body", "alpha"),
+        ]);
+        index.Index(new Document(new DocumentId("3")).Set("body", "alpha gamma delta"));
+        index.Delete(new DocumentId("1"));
+
+        Assert.True(index.MergeSegments());
+
+        IReadOnlyList<SearchHit> merged = index.Search(new TermQuery("body", "alpha"), topK: 10);
+        PersistentFullTextIndex reopened = Open();
+        IReadOnlyList<SearchHit> rebuilt = reopened.Search(new TermQuery("body", "alpha"), topK: 10);
+
+        Assert.Equal(rebuilt.Count, merged.Count);
+        for (int i = 0; i < merged.Count; i++)
+        {
+            Assert.Equal(rebuilt[i].DocumentId.Value, merged[i].DocumentId.Value);
+            Assert.Equal(rebuilt[i].Score, merged[i].Score, precision: 12);
+        }
+    }
+
+    [Fact]
+    public void IndexMany_empty_batch_is_noop()
+    {
+        PersistentFullTextIndex index = Open();
+        index.IndexMany([]);
+
+        Assert.Equal(0, index.DocumentCount);
+        Assert.Empty(Directory.GetFiles(Path.Combine(_directory, "segments"), "*.seg"));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_directory))

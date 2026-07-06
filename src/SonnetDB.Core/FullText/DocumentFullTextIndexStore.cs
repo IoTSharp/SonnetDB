@@ -74,6 +74,22 @@ public sealed class DocumentFullTextIndexStore
     }
 
     /// <summary>
+    /// 批量将文档记录写入全文索引：整批构建为单个段，manifest 只落盘一次。
+    /// </summary>
+    /// <param name="rows">文档记录序列。</param>
+    public void UpsertMany(IEnumerable<DocumentRow> rows)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+        var documents = new List<Document>();
+        foreach (var row in rows)
+            documents.Add(BuildDocument(_definition, row));
+        if (documents.Count == 0)
+            return;
+        lock (_sync)
+            _index.IndexMany(documents);
+    }
+
+    /// <summary>
     /// 从全文索引删除一条文档。
     /// </summary>
     /// <param name="id">文档 ID。</param>
@@ -82,6 +98,17 @@ public sealed class DocumentFullTextIndexStore
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         lock (_sync)
             _index.Delete(new DocumentId(id));
+    }
+
+    /// <summary>
+    /// 批量从全文索引删除文档，manifest 只落盘一次。
+    /// </summary>
+    /// <param name="ids">文档 ID 序列。</param>
+    public void DeleteMany(IEnumerable<string> ids)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        lock (_sync)
+            _index.DeleteMany(ids.Select(static id => new DocumentId(id)));
     }
 
     /// <summary>
@@ -125,11 +152,7 @@ public sealed class DocumentFullTextIndexStore
     public void Rebuild(IEnumerable<DocumentRow> rows)
     {
         ArgumentNullException.ThrowIfNull(rows);
-        lock (_sync)
-        {
-            foreach (var row in rows)
-                _index.Index(BuildDocument(_definition, row));
-        }
+        UpsertMany(rows);
     }
 
     private SonnetDB.FullText.Query.Query BuildQuery(string field, string queryText, FullTextSearchMode mode)

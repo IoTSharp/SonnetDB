@@ -18,6 +18,8 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
     private readonly Dictionary<long, SegmentReader> _segments = new();
     private readonly Dictionary<long, HashSet<int>> _tombstones = new();
     private readonly Dictionary<string, (long SegmentId, int LocalId)> _liveDocuments = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, MutableFieldStats> _fieldStats = new(StringComparer.Ordinal);
+    private readonly HashSet<long> _dirtyTombstoneSegments = new();
 
     private IndexManifest _manifest;
     private bool _mergeScheduled;
@@ -44,6 +46,7 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
         _manifest = ManifestFile.LoadOrCreate(Directory);
         LoadSegments();
         RebuildLiveDocuments();
+        RebuildFieldStats();
     }
 
     /// <inheritdoc />
@@ -77,13 +80,32 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
     public void Index(Document document)
     {
         ArgumentNullException.ThrowIfNull(document);
+        IndexMany([document]);
+    }
+
+    /// <summary>
+    /// 批量写入或更新一组文档：整批构建为单个不可变段，manifest 只保存一次。
+    /// 批内相同 ID 以最后一次出现为准（last-write-wins），与逐条 <see cref="Index"/> 语义一致。
+    /// </summary>
+    public void IndexMany(IReadOnlyList<Document> documents)
+    {
+        ArgumentNullException.ThrowIfNull(documents);
+        if (documents.Count == 0)
+        {
+            return;
+        }
+
+        IReadOnlyList<Document> unique = DeduplicateLastWins(documents);
 
         lock (_lock)
         {
-            TombstoneExisting(document.Id.Value);
+            foreach (Document document in unique)
+            {
+                TombstoneExisting(document.Id.Value);
+            }
 
             long segmentId = _manifest.NextSegmentId++;
-            SegmentData data = BuildSegment(segmentId, new[] { document });
+            SegmentData data = BuildSegment(segmentId, unique);
             SegmentReader reader = SegmentFile.Write(_segmentsDirectory, data);
 
             _segments[segmentId] = reader;
@@ -95,7 +117,11 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
                 SizeBytes = reader.SizeBytes,
             });
             _manifest.Tombstones[segmentId.ToString()] = new List<int>();
-            _liveDocuments[document.Id.Value] = (segmentId, 0);
+            for (int localId = 0; localId < unique.Count; localId++)
+            {
+                _liveDocuments[unique[localId].Id.Value] = (segmentId, localId);
+            }
+            AddSegmentFieldStats(reader, tombstones: null);
 
             SaveManifest();
             ScheduleBackgroundMergeIfNeeded();
@@ -114,6 +140,32 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
 
             SaveManifest();
             return true;
+        }
+    }
+
+    /// <summary>
+    /// 批量删除一组文档，manifest 只保存一次。
+    /// </summary>
+    /// <returns>实际删除的文档数。</returns>
+    public int DeleteMany(IEnumerable<DocumentId> ids)
+    {
+        ArgumentNullException.ThrowIfNull(ids);
+        lock (_lock)
+        {
+            int deleted = 0;
+            foreach (DocumentId id in ids)
+            {
+                if (TombstoneExisting(id.Value))
+                {
+                    deleted++;
+                }
+            }
+
+            if (deleted > 0)
+            {
+                SaveManifest();
+            }
+            return deleted;
         }
     }
 
@@ -203,6 +255,8 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
             _segments.Clear();
             _tombstones.Clear();
             _liveDocuments.Clear();
+            _fieldStats.Clear();
+            _dirtyTombstoneSegments.Clear();
             _manifest.ActiveSegments.Clear();
             _manifest.Tombstones.Clear();
             _manifest.UpdatedDocumentIds.Clear();
@@ -226,6 +280,7 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
                 {
                     _liveDocuments[document.Id.Value] = (segmentId, document.LocalId);
                 }
+                AddSegmentFieldStats(reader, tombstones: null);
             }
 
             SaveManifest();
@@ -290,9 +345,10 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
 
         HashSet<int> tombstones = _tombstones[existing.SegmentId];
         tombstones.Add(existing.LocalId);
-        _manifest.Tombstones[existing.SegmentId.ToString()] = tombstones.Order().ToList();
+        _dirtyTombstoneSegments.Add(existing.SegmentId);
         _manifest.UpdatedDocumentIds[documentId] = existing.SegmentId;
         _liveDocuments.Remove(documentId);
+        RemoveDocumentFieldStats(existing.SegmentId, existing.LocalId);
         return true;
     }
 
@@ -608,28 +664,84 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
 
     private FieldStats GetFieldStats(string field)
     {
-        int documentCount = 0;
-        long totalLength = 0;
+        return _fieldStats.TryGetValue(field, out MutableFieldStats? stats)
+            ? new FieldStats(stats.DocumentCount, stats.TotalLength)
+            : new FieldStats(0, 0);
+    }
 
+    private void RebuildFieldStats()
+    {
+        _fieldStats.Clear();
         foreach (SegmentReader segment in _segments.Values)
         {
-            if (!segment.TryGetFieldLengths(field, out Dictionary<int, int>? lengths))
+            AddSegmentFieldStats(segment, _tombstones[segment.Id]);
+        }
+    }
+
+    private void AddSegmentFieldStats(SegmentReader segment, HashSet<int>? tombstones)
+    {
+        foreach (KeyValuePair<string, Dictionary<int, int>> field in segment.FieldLengths)
+        {
+            if (!_fieldStats.TryGetValue(field.Key, out MutableFieldStats? stats))
             {
-                continue;
+                stats = new MutableFieldStats();
+                _fieldStats[field.Key] = stats;
             }
 
-            HashSet<int> tombstones = _tombstones[segment.Id];
-            foreach (KeyValuePair<int, int> length in lengths)
+            foreach (KeyValuePair<int, int> length in field.Value)
             {
-                if (!tombstones.Contains(length.Key))
+                if (tombstones is null || !tombstones.Contains(length.Key))
                 {
-                    documentCount++;
-                    totalLength += length.Value;
+                    stats.DocumentCount++;
+                    stats.TotalLength += length.Value;
                 }
             }
         }
+    }
 
-        return new FieldStats(documentCount, totalLength);
+    private void RemoveDocumentFieldStats(long segmentId, int localId)
+    {
+        SegmentReader segment = _segments[segmentId];
+        foreach (KeyValuePair<string, Dictionary<int, int>> field in segment.FieldLengths)
+        {
+            if (field.Value.TryGetValue(localId, out int length) && _fieldStats.TryGetValue(field.Key, out MutableFieldStats? stats))
+            {
+                stats.DocumentCount--;
+                stats.TotalLength -= length;
+            }
+        }
+    }
+
+    private static IReadOnlyList<Document> DeduplicateLastWins(IReadOnlyList<Document> documents)
+    {
+        HashSet<string> seen = new(documents.Count, StringComparer.Ordinal);
+        bool hasDuplicates = false;
+        foreach (Document document in documents)
+        {
+            if (!seen.Add(document.Id.Value))
+            {
+                hasDuplicates = true;
+                break;
+            }
+        }
+
+        if (!hasDuplicates)
+        {
+            return documents;
+        }
+
+        // 存在批内重复：反向遍历保留每个 ID 最后一次出现，再恢复原始相对顺序。
+        seen.Clear();
+        List<Document> unique = new(documents.Count);
+        for (int i = documents.Count - 1; i >= 0; i--)
+        {
+            if (seen.Add(documents[i].Id.Value))
+            {
+                unique.Add(documents[i]);
+            }
+        }
+        unique.Reverse();
+        return unique;
     }
 
     private List<Document> SnapshotLiveDocuments()
@@ -651,6 +763,16 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
 
     private void SaveManifest()
     {
+        // 墓碑集合按段惰性物化：整批只在保存前排序一次，而非每次 tombstone 都重排（O(N²) 根因之一）。
+        if (_dirtyTombstoneSegments.Count > 0)
+        {
+            foreach (long segmentId in _dirtyTombstoneSegments)
+            {
+                _manifest.Tombstones[segmentId.ToString()] = _tombstones[segmentId].Order().ToList();
+            }
+            _dirtyTombstoneSegments.Clear();
+        }
+
         ManifestFile.Save(Directory, _manifest);
     }
 
@@ -714,4 +836,10 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
     }
 
     private readonly record struct FieldStats(int DocumentCount, long TotalLength);
+
+    private sealed class MutableFieldStats
+    {
+        public int DocumentCount;
+        public long TotalLength;
+    }
 }

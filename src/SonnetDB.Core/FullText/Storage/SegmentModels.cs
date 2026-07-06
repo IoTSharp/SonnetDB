@@ -101,6 +101,8 @@ internal sealed class SegmentReader
 
     public IReadOnlyDictionary<string, SegmentDocument> DocumentSnapshots => _documentSnapshots;
 
+    public IReadOnlyDictionary<string, Dictionary<int, int>> FieldLengths => _fieldLengths;
+
     public bool TryGetPostings(string field, string term, out Dictionary<int, int> postings)
     {
         postings = null!;
