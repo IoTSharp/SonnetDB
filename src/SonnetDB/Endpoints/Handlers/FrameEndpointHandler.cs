@@ -21,9 +21,10 @@ using SonnetMQ;
 namespace SonnetDB.Endpoints;
 
 /// <summary>
-/// 通用二进制帧端点处理器（M28 P5b #235；#237 挂载 tsdb service；#238 挂载 sql service）。
+/// 通用二进制帧端点处理器（M28 P5b #235；#237 挂载 tsdb service；#238 挂载 sql service；
+/// #239 挂载 vector service）。
 /// 请求体 = 1..N 个请求帧，逐帧解析、鉴权、分发到引擎、逐帧写回响应帧（streamId 回显）。
-/// sql 查询响应为同 streamId 的流式帧序列（meta → rows × N → end），逐块 flush。
+/// sql 查询与 vector 检索响应为同 streamId 的流式帧序列（meta → rows × N → end），逐块 flush。
 /// 错误模型：未成帧（错 Content-Type / 首帧畸形 / 空体）走 HTTP 状态码；
 /// 成帧后一切按帧回错误帧（HTTP 200），批内单帧失败不影响其余帧。
 /// </summary>
@@ -93,6 +94,8 @@ internal static class FrameEndpointHandler
                     EnsureFrameResponseStarted(ctx);
                     if (header.Service == (byte)FrameService.Sql)
                         await ExecuteSqlQueryAsync(ctx, registry, grants, metrics, writer, header, payload).ConfigureAwait(false);
+                    else if (header.Service == (byte)FrameService.Vector)
+                        await ExecuteVectorSearchAsync(ctx, registry, grants, metrics, writer, header, payload).ConfigureAwait(false);
                     else
                         DispatchFrame(ctx, registry, grants, mqStore, metrics, writer, header, payload);
                     await writer.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
@@ -208,10 +211,18 @@ internal static class FrameEndpointHandler
                 return $"sql service 不支持 op {header.Op}。";
             }
         }
+        else if (header.Service == (byte)FrameService.Vector)
+        {
+            if (header.Op != (byte)VectorFrameOp.Search)
+            {
+                errorCode = "unsupported_op";
+                return $"vector service 不支持 op {header.Op}。";
+            }
+        }
         else
         {
             errorCode = "unsupported_service";
-            return $"service {header.Service} 尚未挂载（当前 mq={(byte)FrameService.Mq}、tsdb={(byte)FrameService.Tsdb}、sql={(byte)FrameService.Sql}）。";
+            return $"service {header.Service} 尚未挂载（当前 mq={(byte)FrameService.Mq}、tsdb={(byte)FrameService.Tsdb}、sql={(byte)FrameService.Sql}、vector={(byte)FrameService.Vector}）。";
         }
 
         errorCode = string.Empty;
@@ -409,6 +420,102 @@ internal static class FrameEndpointHandler
             SqlEndpointHandler.MaybePublishSlow(broadcaster, options, request.Db, request.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
             // meta/rows 帧可能已写出：错误帧同 streamId 追加，客户端按「end 前收到错误帧」终止该查询
             string code = ex is ArgumentException ? "bad_request" : "sql_error";
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, code, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// 执行 vector search 帧（#239）：解码（查询向量 f32 二进制）→ 鉴权（Read）→
+    /// 复用 SQL knn TVF 的同一检索内核（<see cref="TableValuedFunctionExecutor.ExecuteKnnSearch"/>）→
+    /// meta / rows / end 逐帧流式回写（块布局与 sql service 一致，帧头 service/op 为 vector/search，
+    /// 复用 #238 的切块与逐块 flush——响应缓冲内存上界 = 单块）。
+    /// </summary>
+    private static async Task ExecuteVectorSearchAsync(
+        HttpContext ctx,
+        TsdbRegistry registry,
+        GrantsStore grants,
+        ServerMetrics metrics,
+        PipeWriter writer,
+        FrameHeader header,
+        ReadOnlySequence<byte> payload)
+    {
+        var sw = Stopwatch.StartNew();
+
+        VectorSearchFrameRequest request;
+        try
+        {
+            byte[]? rented = null;
+            try
+            {
+                ReadOnlyMemory<byte> payloadMemory;
+                if (payload.IsSingleSegment)
+                {
+                    payloadMemory = payload.First;
+                }
+                else
+                {
+                    rented = ArrayPool<byte>.Shared.Rent((int)payload.Length);
+                    payload.CopyTo(rented);
+                    payloadMemory = rented.AsMemory(0, (int)payload.Length);
+                }
+
+                request = VectorFrameCodec.DecodeSearchRequest(payloadMemory.Span);
+            }
+            finally
+            {
+                if (rented is not null)
+                    ArrayPool<byte>.Shared.Return(rented);
+            }
+        }
+        catch (Exception ex) when (ex is FrameFormatException or InvalidOperationException)
+        {
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "bad_frame", ex.Message);
+            return;
+        }
+
+        try
+        {
+            SonnetDbEndpoints.MqAccessResult access = SonnetDbEndpoints.EvaluateDatabaseAccess(
+                ctx, registry, grants, request.Db, DatabasePermission.Read, out Tsdb tsdb);
+            if (access.Status != SonnetDbEndpoints.MqAccessStatus.Ok)
+            {
+                string code = access.Status switch
+                {
+                    SonnetDbEndpoints.MqAccessStatus.DbNotFound => "db_not_found",
+                    SonnetDbEndpoints.MqAccessStatus.Forbidden => "forbidden",
+                    _ => "bad_request",
+                };
+                FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, code, access.Message);
+                return;
+            }
+
+            SelectExecutionResult select = TableValuedFunctionExecutor.ExecuteKnnSearch(
+                tsdb, request.Measurement, request.Column, request.QueryVector,
+                request.K, request.Metric, request.TagFilter, request.TimeRange);
+
+            VectorFrameCodec.EncodeSearchMetaFrame(writer, header.StreamId, select.Columns);
+            await writer.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
+
+            int position = 0;
+            while (position < select.Rows.Count)
+            {
+                int chunkRows = SqlFrameCodec.SelectChunkRowCount(select.Rows, position);
+                VectorFrameCodec.EncodeSearchRowsFrame(writer, header.StreamId, select.Rows, position, chunkRows, select.Columns.Count);
+                position += chunkRows;
+                await writer.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
+            }
+
+            VectorFrameCodec.EncodeSearchEndFrame(writer, header.StreamId, select.Rows.Count, sw.Elapsed.TotalMilliseconds);
+            metrics.AddReturnedRows(select.Rows.Count);
+        }
+        catch (OperationCanceledException) when (ctx.RequestAborted.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // meta/rows 帧可能已写出：错误帧同 streamId 追加，客户端按「end 前收到错误帧」终止该查询
+            string code = ex is ArgumentException ? "bad_request" : "vector_search_error";
             FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, code, ex.Message);
         }
     }

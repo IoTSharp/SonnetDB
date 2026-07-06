@@ -182,6 +182,14 @@ public static class SqlFrameCodec
     /// 编码 meta 响应帧（chunkKind=1）：结果集列名序列。永远是响应流的第一帧。
     /// </summary>
     public static void EncodeQueryMetaFrame(IBufferWriter<byte> writer, uint streamId, IReadOnlyList<string> columns)
+        => EncodeMetaFrameCore(writer, (byte)FrameService.Sql, (byte)SqlFrameOp.Query, streamId, columns);
+
+    /// <summary>
+    /// meta 帧编码内核：块布局固定，帧头 service/op 由调用方指定
+    /// （sql query 与 vector search 共用同一响应块词汇表）。
+    /// </summary>
+    internal static void EncodeMetaFrameCore(
+        IBufferWriter<byte> writer, byte service, byte op, uint streamId, IReadOnlyList<string> columns)
     {
         ArgumentNullException.ThrowIfNull(columns);
         if (columns.Count > MaxColumnCount)
@@ -194,7 +202,7 @@ public static class SqlFrameCodec
             throw new ArgumentException($"帧 payload 长度 {payloadLength} 超过上限 {FrameHeader.MaxFramePayloadBytes}。");
 
         var header = new FrameHeader((uint)payloadLength, FrameHeader.CurrentVersion,
-            (byte)FrameService.Sql, (byte)SqlFrameOp.Query, (byte)FrameFlags.Response, streamId);
+            service, op, (byte)FrameFlags.Response, streamId);
         Span<byte> span = writer.GetSpan(FrameHeader.Size + (int)payloadLength);
         header.Write(span);
         var w = new SpanWriter(span.Slice(FrameHeader.Size, (int)payloadLength));
@@ -239,6 +247,21 @@ public static class SqlFrameCodec
         int start,
         int count,
         int columnCount)
+        => EncodeRowsFrameCore(writer, (byte)FrameService.Sql, (byte)SqlFrameOp.Query,
+            streamId, rows, start, count, columnCount);
+
+    /// <summary>
+    /// rows 帧编码内核：块布局固定，帧头 service/op 由调用方指定。
+    /// </summary>
+    internal static void EncodeRowsFrameCore(
+        IBufferWriter<byte> writer,
+        byte service,
+        byte op,
+        uint streamId,
+        IReadOnlyList<IReadOnlyList<object?>> rows,
+        int start,
+        int count,
+        int columnCount)
     {
         ArgumentNullException.ThrowIfNull(rows);
         ArgumentOutOfRangeException.ThrowIfNegative(start);
@@ -269,7 +292,7 @@ public static class SqlFrameCodec
             throw new ArgumentException($"帧 payload 长度 {payloadLength} 超过上限 {FrameHeader.MaxFramePayloadBytes}；请缩小行块。");
 
         var header = new FrameHeader((uint)payloadLength, FrameHeader.CurrentVersion,
-            (byte)FrameService.Sql, (byte)SqlFrameOp.Query, (byte)FrameFlags.Response, streamId);
+            service, op, (byte)FrameFlags.Response, streamId);
         Span<byte> span = writer.GetSpan(FrameHeader.Size + (int)payloadLength);
         header.Write(span);
         var w = new SpanWriter(span.Slice(FrameHeader.Size, (int)payloadLength));
@@ -351,11 +374,18 @@ public static class SqlFrameCodec
     /// 编码 end 响应帧（chunkKind=3）：总行数 + 服务端执行耗时（毫秒）。永远是响应流的最后一帧。
     /// </summary>
     public static void EncodeQueryEndFrame(IBufferWriter<byte> writer, uint streamId, long rowCount, double elapsedMilliseconds)
+        => EncodeEndFrameCore(writer, (byte)FrameService.Sql, (byte)SqlFrameOp.Query, streamId, rowCount, elapsedMilliseconds);
+
+    /// <summary>
+    /// end 帧编码内核：块布局固定，帧头 service/op 由调用方指定。
+    /// </summary>
+    internal static void EncodeEndFrameCore(
+        IBufferWriter<byte> writer, byte service, byte op, uint streamId, long rowCount, double elapsedMilliseconds)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(rowCount);
         int payloadLength = 1 + SpanWriter.MeasureVarUInt64((ulong)rowCount) + 8;
         var header = new FrameHeader((uint)payloadLength, FrameHeader.CurrentVersion,
-            (byte)FrameService.Sql, (byte)SqlFrameOp.Query, (byte)FrameFlags.Response, streamId);
+            service, op, (byte)FrameFlags.Response, streamId);
         Span<byte> span = writer.GetSpan(FrameHeader.Size + payloadLength);
         header.Write(span);
         var w = new SpanWriter(span.Slice(FrameHeader.Size, payloadLength));

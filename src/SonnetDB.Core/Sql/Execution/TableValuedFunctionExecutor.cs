@@ -246,21 +246,9 @@ internal static class TableValuedFunctionExecutor
         // 第 2 个参数：向量列名
         if (call.Arguments[1] is not IdentifierExpression columnId)
             throw new InvalidOperationException("knn 第 2 个参数必须是向量列名标识符。");
-        var vectorCol = schema.TryGetColumn(columnId.Name)
-            ?? throw new InvalidOperationException(
-                $"knn 引用了未知列 '{columnId.Name}'。");
-        if (vectorCol.Role != MeasurementColumnRole.Field)
-            throw new InvalidOperationException(
-                $"knn 的列参数 '{columnId.Name}' 必须是 FIELD 列。");
-        if (vectorCol.DataType != FieldType.Vector)
-            throw new InvalidOperationException(
-                $"knn 的列参数 '{columnId.Name}' 必须是 VECTOR 类型，实际为 {vectorCol.DataType}。");
-        int dim = vectorCol.VectorDimension
-            ?? throw new InvalidOperationException(
-                $"VECTOR 列 '{columnId.Name}' 缺少维度声明（schema 损坏）。");
 
         // 第 3 个参数：查询向量
-        float[] queryArray = ResolveQueryVector(call.Arguments[2], dim, columnId.Name);
+        float[] queryArray = ResolveQueryVector(call.Arguments[2]);
 
         // 第 4 个参数：k（正整数）
         int k = ResolveKnnK(call.Arguments[3]);
@@ -277,7 +265,58 @@ internal static class TableValuedFunctionExecutor
 
         // WHERE 子句：tag 过滤 + 时间范围
         var where = WhereClauseDecomposer.Decompose(statement.Where, schema);
-        var matchedSeries = tsdb.Catalog.Find(statement.Measurement, where.TagFilter).ToList();
+
+        return ExecuteKnnSearch(tsdb, statement.Measurement, columnId.Name, queryArray, k, metric,
+            where.TagFilter, where.TimeRange);
+    }
+
+    /// <summary>
+    /// KNN 检索共用内核（SQL knn TVF 与 vector search 帧 #239 共用编排）：
+    /// 列/维度校验 → tag 过滤定位候选序列 → 单次读快照 KNN → tag/field 回填。
+    /// 返回列固定为 (time, distance, ...tag_columns, ...field_columns)，按距离升序。
+    /// </summary>
+    internal static SelectExecutionResult ExecuteKnnSearch(
+        Tsdb tsdb,
+        string measurement,
+        string column,
+        float[] queryVector,
+        int k,
+        KnnMetric metric,
+        IReadOnlyDictionary<string, string>? tagFilter,
+        TimeRange timeRange)
+    {
+        var schema = tsdb.Measurements.TryGet(measurement)
+            ?? throw new InvalidOperationException(
+                $"knn(...) 引用的 measurement '{measurement}' 不存在。");
+
+        var vectorCol = schema.TryGetColumn(column)
+            ?? throw new InvalidOperationException(
+                $"knn 引用了未知列 '{column}'。");
+        if (vectorCol.Role != MeasurementColumnRole.Field)
+            throw new InvalidOperationException(
+                $"knn 的列参数 '{column}' 必须是 FIELD 列。");
+        if (vectorCol.DataType != FieldType.Vector)
+            throw new InvalidOperationException(
+                $"knn 的列参数 '{column}' 必须是 VECTOR 类型，实际为 {vectorCol.DataType}。");
+        int dim = vectorCol.VectorDimension
+            ?? throw new InvalidOperationException(
+                $"VECTOR 列 '{column}' 缺少维度声明（schema 损坏）。");
+        if (queryVector.Length != dim)
+            throw new InvalidOperationException(
+                $"knn 查询向量维度 {queryVector.Length} 与列 '{column}' 声明的维度 {dim} 不一致。");
+
+        // tag 过滤键校验（SQL 路径已由 WhereClauseDecomposer 校验过，帧路径在此统一把关）
+        if (tagFilter is not null)
+        {
+            foreach (var key in tagFilter.Keys)
+            {
+                var tagCol = schema.TryGetColumn(key);
+                if (tagCol is null || tagCol.Role != MeasurementColumnRole.Tag)
+                    throw new InvalidOperationException($"knn tag 过滤引用的列 '{key}' 不是 TAG 列。");
+            }
+        }
+
+        var matchedSeries = tsdb.Catalog.Find(measurement, tagFilter).ToList();
 
         // 建立 seriesId → SeriesEntry 查找表（供结果行填充 tag 值）
         var seriesById = new Dictionary<ulong, SeriesEntry>(matchedSeries.Count);
@@ -307,10 +346,10 @@ internal static class TableValuedFunctionExecutor
                 readSnapshot.Readers,
                 matchedSeries,
                 vectorCol.Name,
-                queryArray.AsMemory(),
+                queryVector.AsMemory(),
                 k,
                 metric,
-                where.TimeRange,
+                timeRange,
                 tsdb.Tombstones);
         }
 
@@ -387,17 +426,14 @@ internal static class TableValuedFunctionExecutor
         return new SelectExecutionResult(columnNames, rows);
     }
 
-    /// <summary>把查询向量字面量解析为 float[] 并校验维度。</summary>
-    private static float[] ResolveQueryVector(SqlExpression arg, int expectedDim, string columnName)
+    /// <summary>把查询向量字面量解析为 float[]（维度与列声明的一致性在 <see cref="ExecuteKnnSearch"/> 校验）。</summary>
+    private static float[] ResolveQueryVector(SqlExpression arg)
     {
         if (arg is not VectorLiteralExpression vec)
             throw new InvalidOperationException(
                 $"knn 第 3 个参数必须是向量字面量（例如 [0.1, 0.2, 0.3]）。");
-        if (vec.Components.Count != expectedDim)
-            throw new InvalidOperationException(
-                $"knn 查询向量维度 {vec.Components.Count} 与列 '{columnName}' 声明的维度 {expectedDim} 不一致。");
-        var arr = new float[expectedDim];
-        for (int i = 0; i < expectedDim; i++)
+        var arr = new float[vec.Components.Count];
+        for (int i = 0; i < arr.Length; i++)
             arr[i] = (float)vec.Components[i];
         return arr;
     }
