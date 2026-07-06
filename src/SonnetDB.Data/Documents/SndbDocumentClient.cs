@@ -1,9 +1,11 @@
+using System.Buffers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using SonnetDB.Data.Embedded;
 using SonnetDB.Data.Remote;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
+using SonnetDB.Protocol;
 
 namespace SonnetDB.Data.Documents;
 
@@ -16,6 +18,7 @@ public sealed class SndbDocumentClient : IDisposable
     private static readonly TimeSpan CursorTtl = TimeSpan.FromMinutes(15);
     private readonly SndbConnectionStringBuilder _builder;
     private HttpClient? _http;
+    private FrameChannel? _frames;
     private Tsdb? _embedded;
     private string _database = string.Empty;
     private bool _disposed;
@@ -184,6 +187,13 @@ public sealed class SndbDocumentClient : IDisposable
             return ToClientWriteResult(collection, result);
         }
 
+        if (_frames is { } fx && fx.ShouldTryFrames())
+        {
+            var docs = new[] { new DocumentWriteRequest(id, JsonPathEvaluator.NormalizeJson(json)) };
+            if (await TryFrameInsertAsync(fx, collection, docs, ordered: true, cancellationToken).ConfigureAwait(false) is { } framed)
+                return framed;
+        }
+
         using var document = JsonDocument.Parse(json);
         return ToWriteResult(await PostWriteJsonAsync(
             CollectionActionUrl(collection, "insert-one"),
@@ -216,6 +226,13 @@ public sealed class SndbDocumentClient : IDisposable
                 items.Select(static item => new DocumentWriteRequest(item.Id, item.Json)),
                 ordered);
             return ToClientWriteResult(collection, result);
+        }
+
+        if (_frames is { } fx && fx.ShouldTryFrames() && items.Count > 0)
+        {
+            var docs = items.Select(static item => new DocumentWriteRequest(item.Id, item.Json)).ToArray();
+            if (await TryFrameInsertAsync(fx, collection, docs, ordered, cancellationToken).ConfigureAwait(false) is { } framed)
+                return framed;
         }
 
         using var payload = BuildInsertManyRequest(items, ordered);
@@ -265,6 +282,18 @@ public sealed class SndbDocumentClient : IDisposable
             return FindEmbeddedPage(collection, store, options, limit);
         }
 
+        // 帧仅承载「非 advanced 查询 + 无 continuation token + 无 skip」的单页 find（id / ids / 扫描）；
+        // 帧 find 响应不携带 continuation token / snapshotVersion，故一旦命中 hasMore 或任何高级/分页
+        // 语义即回落 REST，避免篡改服务端 continuation-token 契约。
+        if (_frames is { } fx && fx.ShouldTryFrames()
+            && !HasAdvancedQuery(options)
+            && string.IsNullOrWhiteSpace(options.ContinuationToken)
+            && options.Skip == 0)
+        {
+            if (await TryFrameFindPageAsync(fx, collection, options, limit, cancellationToken).ConfigureAwait(false) is { } framedPage)
+                return framedPage;
+        }
+
         using var response = await PostJsonAsync(
             CollectionActionUrl(collection, "find"),
             new DocumentFindRequest(
@@ -303,6 +332,18 @@ public sealed class SndbDocumentClient : IDisposable
         {
             var row = _embedded.Documents.Open(collection).Get(id);
             return row is null ? null : new SndbDocument(row.Id, row.Json, row.Version);
+        }
+
+        if (_frames is { } fx && fx.ShouldTryFrames())
+        {
+            var w = new ArrayBufferWriter<byte>();
+            DocFrameCodec.EncodeFindRequest(w, 1, _database, collection, ids: [id]);
+            var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken).ConfigureAwait(false);
+            if (frame is { } f)
+            {
+                var rows = DocFrameCodec.DecodeFindResponse(f.Payload);
+                return rows.Length == 0 ? null : new SndbDocument(rows[0].Id, rows[0].Json, rows[0].Version);
+            }
         }
 
         using var response = await PostJsonAsync(
@@ -662,6 +703,7 @@ public sealed class SndbDocumentClient : IDisposable
             new Uri(baseUrl, UriKind.Absolute),
             _builder.Token,
             TimeSpan.FromSeconds(_builder.Timeout));
+        _frames = new FrameChannel(_http, _builder.ResolveProtocol());
     }
 
     private async Task<HttpResponseMessage> PostJsonAsync<T>(
@@ -675,6 +717,48 @@ public sealed class SndbDocumentClient : IDisposable
         if (!response.IsSuccessStatusCode)
             throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
         return response;
+    }
+
+    private async Task<SndbDocumentWriteResult?> TryFrameInsertAsync(
+        FrameChannel fx,
+        string collection,
+        IReadOnlyList<DocumentWriteRequest> docs,
+        bool ordered,
+        CancellationToken cancellationToken)
+    {
+        var w = new ArrayBufferWriter<byte>();
+        DocFrameCodec.EncodeInsertRequest(w, 1, _database, collection, docs, ordered);
+        var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken).ConfigureAwait(false);
+        if (frame is not { } f)
+            return null;
+        return ToClientWriteResult(collection, DocFrameCodec.DecodeInsertResponse(f.Payload));
+    }
+
+    private async Task<SndbDocumentPage?> TryFrameFindPageAsync(
+        FrameChannel fx,
+        string collection,
+        SndbDocumentFindOptions options,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<string>? ids =
+            !string.IsNullOrWhiteSpace(options.Id) ? [options.Id!]
+            : options.Ids is { Count: > 0 } ? options.Ids
+            : null;
+
+        var w = new ArrayBufferWriter<byte>();
+        // 多取一条判定 hasMore：一旦溢出即回落 REST（帧无 continuation token）。
+        DocFrameCodec.EncodeFindRequest(w, 1, _database, collection, ids, afterId: null, limit: limit + 1);
+        var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken).ConfigureAwait(false);
+        if (frame is not { } f)
+            return null;
+
+        DocumentRow[] rows = DocFrameCodec.DecodeFindResponse(f.Payload);
+        if (rows.Length > limit)
+            return null; // hasMore：交回 REST，由服务端签发 continuation token
+
+        var documents = rows.Select(static row => new SndbDocument(row.Id, row.Json, row.Version)).ToArray();
+        return new SndbDocumentPage(collection, documents, ContinuationToken: null, HasMore: false, limit, SnapshotVersion: null, CursorExpiresAtUtc: null);
     }
 
     private async Task<DocumentWriteResponse> PostWriteJsonAsync<T>(

@@ -1,4 +1,5 @@
-﻿using System.Data;
+﻿using System.Buffers;
+using System.Data;
 using System.Data.Common;
 using System.Net;
 using System.Text;
@@ -6,6 +7,10 @@ using System.Text.Json;
 using SonnetDB.Data.Embedded;
 using SonnetDB.Data.Internal;
 using SonnetDB.Ingest;
+using SonnetDB.Protocol;
+using SonnetDB.Sql;
+using SonnetDB.Sql.Ast;
+using SonnetDB.Sql.Execution;
 using SonnetDB.Tables;
 
 namespace SonnetDB.Data.Remote;
@@ -17,6 +22,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
 {
     private readonly SndbConnectionStringBuilder _builder;
     private HttpClient? _http;
+    private FrameChannel? _frames;
     private string _baseUrl = string.Empty;
     private string _database = string.Empty;
     private ConnectionState _state = ConnectionState.Closed;
@@ -50,6 +56,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             new Uri(baseUrl, UriKind.Absolute),
             _builder.Token,
             TimeSpan.FromSeconds(_builder.Timeout));
+        _frames = new FrameChannel(_http, _builder.ResolveProtocol());
 
         _state = ConnectionState.Open;
     }
@@ -67,6 +74,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         _state = ConnectionState.Closed;
         _http?.Dispose();
         _http = null;
+        _frames = null;
     }
 
     public void Dispose() => Close();
@@ -151,6 +159,17 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         if (_http is null || _state != ConnectionState.Open)
             throw new InvalidOperationException("连接未打开。");
 
+        // #241：只读语句优先走二进制帧（sql service）；写/控制面/解析失败回落 REST NDJSON。
+        // 命名参数已由 ParameterBinder.Bind 内联进 sql 字面量，故帧编码 parameters:null。
+        if (_frames is { } fx && fx.ShouldTryFrames() && IsFrameEligibleReadOnly(sql))
+        {
+            var w = new ArrayBufferWriter<byte>();
+            SqlFrameCodec.EncodeQueryRequest(w, 1, _database, sql, null);
+            var frames = await fx.TrySendAsync(w.WrittenMemory, cancellationToken).ConfigureAwait(false);
+            if (frames is not null)
+                return BuildSqlResult(frames);
+        }
+
         var url = $"v1/db/{Uri.EscapeDataString(_database)}/sql";
         var body = new SqlRequestBody { Sql = sql };
         var json = JsonSerializer.Serialize(body, RemoteJsonContext.Default.SqlRequestBody);
@@ -175,6 +194,64 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             response.Dispose();
             throw;
         }
+    }
+
+    /// <summary>
+    /// 判别 SQL 是否为可走帧的只读数据面语句（SELECT / SHOW-数据面 / DESCRIBE / EXPLAIN）。
+    /// 解析失败或写/控制面/ShowDatabases → false（回落 REST）。与服务端 sql 帧门禁一致。
+    /// </summary>
+    private static bool IsFrameEligibleReadOnly(string sql)
+    {
+        try
+        {
+            SqlStatement statement = SqlParser.Parse(sql);
+            return statement is
+                SelectStatement or
+                ShowMeasurementsStatement or
+                ShowTablesStatement or
+                ShowTableIndexesStatement or
+                ShowDocumentCollectionsStatement or
+                ShowDocumentIndexesStatement or
+                ShowFullTextIndexesStatement or
+                DescribeMeasurementStatement or
+                DescribeTableStatement or
+                DescribeDocumentCollectionStatement or
+                ExplainStatement;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 把 sql service 的响应帧序列（meta → rows × N → end）物化为 <see cref="IExecutionResult"/>。
+    /// end 前收到错误帧则中止查询并上抛。
+    /// </summary>
+    private static IExecutionResult BuildSqlResult(IReadOnlyList<FrameMessage> frames)
+    {
+        string[] columns = [];
+        var rows = new List<IReadOnlyList<object?>>();
+
+        foreach (FrameMessage frame in frames)
+        {
+            FrameChannel.ThrowIfError(frame.Header, frame.Payload);
+            switch (SqlFrameCodec.PeekChunkKind(frame.Payload))
+            {
+                case SqlQueryChunkKind.Meta:
+                    columns = SqlFrameCodec.DecodeQueryMetaFrame(frame.Payload);
+                    break;
+                case SqlQueryChunkKind.Rows:
+                    foreach (object?[] row in SqlFrameCodec.DecodeQueryRowsFrame(frame.Payload))
+                        rows.Add(row);
+                    break;
+                case SqlQueryChunkKind.End:
+                    _ = SqlFrameCodec.DecodeQueryEndFrame(frame.Payload);
+                    break;
+            }
+        }
+
+        return MaterializedExecutionResult.FromSelect(new SelectExecutionResult(columns, rows));
     }
 
     private static SndbServerException BuildHttpError(HttpResponseMessage response)

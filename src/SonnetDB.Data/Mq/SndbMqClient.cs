@@ -1,6 +1,8 @@
+using System.Buffers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using SonnetDB.Data.Remote;
+using SonnetDB.Protocol;
 using SonnetMQ;
 
 namespace SonnetDB.Data.Mq;
@@ -12,6 +14,7 @@ public sealed class SndbMqClient : IDisposable
 {
     private readonly SndbConnectionStringBuilder _builder;
     private HttpClient? _http;
+    private FrameChannel? _frames;
     private SonnetMqStore? _embedded;
     private string _database = string.Empty;
     private bool _disposed;
@@ -57,6 +60,15 @@ public sealed class SndbMqClient : IDisposable
         if (_embedded is not null)
             return _embedded.Publish(topic, payload, new SonnetMqPublishOptions(headers));
 
+        if (_frames is { } fx && fx.ShouldTryFrames())
+        {
+            var w = new ArrayBufferWriter<byte>();
+            MqFrameCodec.EncodePublishRequest(w, 1, _database, topic, headers, payload);
+            var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken).ConfigureAwait(false);
+            if (frame is { } f)
+                return MqFrameCodec.DecodePublishResponse(f.Payload);
+        }
+
         using var response = await PostJsonAsync(
             MqUrl(topic, "publish"),
             new MqPublishRequest(payload, headers),
@@ -94,6 +106,22 @@ public sealed class SndbMqClient : IDisposable
             }
 
             return _embedded.PublishMany(topic, entries);
+        }
+
+        if (_frames is { } fx && fx.ShouldTryFrames())
+        {
+            var frameEntries = new SonnetMqPublishEntry[messages.Count];
+            for (int i = 0; i < messages.Count; i++)
+            {
+                var message = messages[i] ?? throw new ArgumentException("批量消息不能包含 null。", nameof(messages));
+                frameEntries[i] = new SonnetMqPublishEntry(message.Payload, message.Headers);
+            }
+
+            var w = new ArrayBufferWriter<byte>();
+            MqFrameCodec.EncodePublishBatchRequest(w, 1, _database, topic, frameEntries);
+            var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken).ConfigureAwait(false);
+            if (frame is { } f)
+                return MqFrameCodec.DecodePublishBatchResponse(f.Payload);
         }
 
         var payload = new MqPublishBatchEntry[messages.Count];
@@ -136,6 +164,17 @@ public sealed class SndbMqClient : IDisposable
                 .Select(static message => new SndbMqMessage(message.Topic, message.Offset, message.TimestampUtc, message.Headers, message.Payload))
                 .ToArray();
 
+        if (_frames is { } fx && fx.ShouldTryFrames())
+        {
+            var w = new ArrayBufferWriter<byte>();
+            MqFrameCodec.EncodePullRequest(w, 1, _database, topic, consumerGroup, maxCount);
+            var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken).ConfigureAwait(false);
+            if (frame is { } f)
+                return MqFrameCodec.DecodePullResponse(f.Payload, topic)
+                    .Select(static message => new SndbMqMessage(message.Topic, message.Offset, message.TimestampUtc, message.Headers, message.Payload))
+                    .ToArray();
+        }
+
         using var response = await PostJsonAsync(
             MqUrl(topic, "pull"),
             new MqPullRequest(consumerGroup, maxCount),
@@ -168,6 +207,15 @@ public sealed class SndbMqClient : IDisposable
 
         if (_embedded is not null)
             return _embedded.Ack(topic, consumerGroup, offset);
+
+        if (_frames is { } fx && fx.ShouldTryFrames())
+        {
+            var w = new ArrayBufferWriter<byte>();
+            MqFrameCodec.EncodeAckRequest(w, 1, _database, topic, consumerGroup, offset);
+            var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken).ConfigureAwait(false);
+            if (frame is { } f)
+                return MqFrameCodec.DecodeAckResponse(f.Payload);
+        }
 
         using var response = await PostJsonAsync(
             MqUrl(topic, "ack"),
@@ -237,6 +285,7 @@ public sealed class SndbMqClient : IDisposable
             new Uri(baseUrl, UriKind.Absolute),
             _builder.Token,
             TimeSpan.FromSeconds(_builder.Timeout));
+        _frames = new FrameChannel(_http, _builder.ResolveProtocol());
     }
 
     private async Task<HttpResponseMessage> PostJsonAsync<T>(

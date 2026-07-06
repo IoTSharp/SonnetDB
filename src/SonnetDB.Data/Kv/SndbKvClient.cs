@@ -1,9 +1,11 @@
+using System.Buffers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using SonnetDB.Data.Embedded;
 using SonnetDB.Data.Remote;
 using SonnetDB.Engine;
+using SonnetDB.Protocol;
 
 namespace SonnetDB.Data.Kv;
 
@@ -14,6 +16,7 @@ public sealed class SndbKvClient : IDisposable
 {
     private readonly SndbConnectionStringBuilder _builder;
     private HttpClient? _http;
+    private FrameChannel? _frames;
     private Tsdb? _embedded;
     private string _database = string.Empty;
     private bool _disposed;
@@ -54,6 +57,20 @@ public sealed class SndbKvClient : IDisposable
                 : new SndbKvEntry(key, entry.Value.ToArray(), entry.Version, entry.ExpiresAtUtc);
         }
 
+        if (_frames is { } fx && fx.ShouldTryFrames())
+        {
+            var w = new ArrayBufferWriter<byte>();
+            KvFrameCodec.EncodeGetRequest(w, 1, _database, keyspace, Encoding.UTF8.GetBytes(Qualify(@namespace, key)));
+            var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken).ConfigureAwait(false);
+            if (frame is { } f)
+            {
+                var result = KvFrameCodec.DecodeGetResponse(f.Payload);
+                return result is null
+                    ? null
+                    : new SndbKvEntry(key, result.Value, result.Version, result.ExpiresAtUtc);
+            }
+        }
+
         var request = new KvGetRequest(Qualify(@namespace, key));
         using var response = await PostJsonAsync(
             KvUrl(keyspace, "get"),
@@ -85,6 +102,15 @@ public sealed class SndbKvClient : IDisposable
 
         if (_embedded is not null)
             return _embedded.Keyspaces.Open(keyspace).Namespace(@namespace).Put(key, value, expiresAtUtc);
+
+        if (_frames is { } fx && fx.ShouldTryFrames())
+        {
+            var w = new ArrayBufferWriter<byte>();
+            KvFrameCodec.EncodePutRequest(w, 1, _database, keyspace, Encoding.UTF8.GetBytes(Qualify(@namespace, key)), value, expiresAtUtc);
+            var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken).ConfigureAwait(false);
+            if (frame is { } f)
+                return KvFrameCodec.DecodePutResponse(f.Payload);
+        }
 
         var request = new KvSetRequest(Qualify(@namespace, key), value, expiresAtUtc);
         using var response = await PostJsonAsync(
@@ -474,6 +500,24 @@ public sealed class SndbKvClient : IDisposable
                 .ToArray();
         }
 
+        if (_frames is { } fx && fx.ShouldTryFrames())
+        {
+            var w = new ArrayBufferWriter<byte>();
+            KvFrameCodec.EncodeScanRequest(w, 1, _database, keyspace,
+                Encoding.UTF8.GetBytes(Qualify(@namespace, prefix)), default, limit ?? 0);
+            var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken).ConfigureAwait(false);
+            if (frame is { } f)
+            {
+                return KvFrameCodec.DecodeScanResponse(f.Payload)
+                    .Select(entry => new SndbKvEntry(
+                        Unqualify(@namespace, Encoding.UTF8.GetString(entry.Key)),
+                        entry.Value,
+                        entry.Version,
+                        entry.ExpiresAtUtc))
+                    .ToArray();
+            }
+        }
+
         var request = new KvPrefixRequest(Qualify(@namespace, prefix), limit);
         using var response = await PostJsonAsync(
             KvUrl(keyspace, "scan-prefix"),
@@ -582,6 +626,7 @@ public sealed class SndbKvClient : IDisposable
             new Uri(baseUrl, UriKind.Absolute),
             _builder.Token,
             TimeSpan.FromSeconds(_builder.Timeout));
+        _frames = new FrameChannel(_http, _builder.ResolveProtocol());
     }
 
     private async Task<HttpResponseMessage> PostJsonAsync<T>(

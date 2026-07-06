@@ -18,6 +18,10 @@ namespace SonnetDB.Data;
 ///   <item><term><c>Database</c></term><description>远程模式下的目标数据库名；若同时在 URL 路径中出现以本键为准。</description></item>
 ///   <item><term><c>Token</c></term><description>远程模式下的 Bearer token。</description></item>
 ///   <item><term><c>Timeout</c></term><description>远程模式下 HTTP 请求超时（秒），默认 100。</description></item>
+///   <item><term><c>Protocol</c></term><description>
+///     远程模式下的线传输：<c>auto</c>（默认，运行时探测帧协议、回落 REST）、
+///     <c>frame-http2</c>（强制二进制帧）、<c>rest</c>（强制 REST/JSON）。仅远程模式生效。
+///   </description></item>
 /// </list>
 /// </remarks>
 public sealed class SndbConnectionStringBuilder : DbConnectionStringBuilder
@@ -27,6 +31,7 @@ public sealed class SndbConnectionStringBuilder : DbConnectionStringBuilder
     private const string _keyDatabase = "Database";
     private const string _keyToken = "Token";
     private const string _keyTimeout = "Timeout";
+    private const string _keyProtocol = "Protocol";
 
     /// <summary>使用空连接字符串构造。</summary>
     public SndbConnectionStringBuilder() { }
@@ -92,6 +97,42 @@ public sealed class SndbConnectionStringBuilder : DbConnectionStringBuilder
         get => TryGetValue(_keyTimeout, out var v) && int.TryParse(v?.ToString(), out var t) ? t : 100;
         set => base[_keyTimeout] = value;
     }
+
+    /// <summary>远程模式下的线传输选择；未设置时按 <see cref="ResolveProtocol"/> 取 <see cref="SndbTransportProtocol.Auto"/>。</summary>
+    public SndbTransportProtocol? Protocol
+    {
+        get
+        {
+            if (!TryGetValue(_keyProtocol, out var raw) || raw is null) return null;
+            var s = raw.ToString();
+            if (string.IsNullOrWhiteSpace(s)) return null;
+            return ParseProtocol(s);
+        }
+        set
+        {
+            if (value is null) Remove(_keyProtocol);
+            else base[_keyProtocol] = value.Value switch
+            {
+                SndbTransportProtocol.FrameHttp2 => "frame-http2",
+                SndbTransportProtocol.Rest => "rest",
+                _ => "auto",
+            };
+        }
+    }
+
+    /// <summary>
+    /// 推断远程模式下的线传输：优先取 <see cref="Protocol"/>，未设置时为 <see cref="SndbTransportProtocol.Auto"/>。
+    /// </summary>
+    public SndbTransportProtocol ResolveProtocol() => Protocol ?? SndbTransportProtocol.Auto;
+
+    private static SndbTransportProtocol ParseProtocol(string value) =>
+        value.Trim().ToLowerInvariant() switch
+        {
+            "frame-http2" or "frame" or "http2" => SndbTransportProtocol.FrameHttp2,
+            "rest" or "json" => SndbTransportProtocol.Rest,
+            "auto" or "" => SndbTransportProtocol.Auto,
+            _ => throw new FormatException($"无效的 Protocol 值 '{value}'，应为 auto / frame-http2 / rest。"),
+        };
 
     /// <summary>
     /// 推断当前连接字符串应使用的运行模式：优先取 <see cref="Mode"/>，其次按 <see cref="DataSource"/> scheme。
