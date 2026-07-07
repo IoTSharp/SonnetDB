@@ -1,0 +1,4 @@
+[submodule "extensions/MQTTnet.AspNetCore.Routing"]
+	path = extensions/MQTTnet.AspNetCore.Routing
+	url = https://github.com/IoTSharp/MQTTnet.AspNetCore.Routing.git
+	branch = master

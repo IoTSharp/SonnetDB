@@ -29,6 +29,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SonnetDB.Core\SonnetDB.Core.csproj" />
+    <!--
+      M28 P5b：MQTT 路由从 NuGet 包切到 git 子模块源码引用。
+      published 5.1.0 包由旧 commit 打出、带 NativeAOT 的 IL2104/IL3053；
+      子模块 HEAD 已修复（slim routing for Native AOT），源码引用即可零告警 AOT 发布。
+    -->
+    <ProjectReference Include="..\..\extensions\MQTTnet.AspNetCore.Routing\Source\MQTTnet.AspNetCore.Routing.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -51,7 +57,6 @@
     <PackageReference Include="MQTTnet" />
     <PackageReference Include="MQTTnet.AspNetCore" />
     <PackageReference Include="MQTTnet.Server" />
-    <PackageReference Include="MQTTnet.AspNetCore.Routing" />
   </ItemGroup>
 
   <ItemGroup>
