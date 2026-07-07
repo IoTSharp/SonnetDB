@@ -452,6 +452,130 @@ public sealed class SqlExecutorKnnTests : IDisposable
 
     // ── 度量别名 ─────────────────────────────────────────────────────────────
 
+    // ── #224：KNN block skip-index（段/时间窗剪枝） ───────────────────────────
+
+    // 多段（每 flush 一段）跨不相交时间带 + 窄时间窗：验证 skip-index 只召回命中段的候选 block，
+    // 结果与全量扫描一致（修复前逐 series 全块扫描 O(总 block 数)，修复后走 GetBlocks prefix-max 剪枝）。
+    [Fact]
+    public void Knn_MultiSegmentDisjointTimeBands_NarrowWindow_ReturnsOnlyWindowedNearest()
+    {
+        using var db = OpenDb();
+
+        // 段 1：time 1000..4000
+        SqlExecutor.Execute(db, "INSERT INTO docs (source, embedding, time) VALUES " +
+            "('a', [1, 0, 0], 1000), " +
+            "('a', [0.9, 0.1, 0], 2000), " +
+            "('a', [0.8, 0.2, 0], 3000), " +
+            "('a', [0.7, 0.3, 0], 4000)");
+        Assert.NotNull(db.FlushNow());
+
+        // 段 2：time 11000..14000（与段 1 时间带不相交）
+        SqlExecutor.Execute(db, "INSERT INTO docs (source, embedding, time) VALUES " +
+            "('a', [1, 0, 0], 11000), " +
+            "('a', [0, 1, 0], 12000), " +
+            "('a', [0, 0, 1], 13000), " +
+            "('a', [-1, 0, 0], 14000)");
+        Assert.NotNull(db.FlushNow());
+
+        // 窄窗口只落在段 2 内：应只返回段 2 中窗口内的点，且 [1,0,0]@11000 最近。
+        var r = Select(db,
+            "SELECT * FROM knn(docs, embedding, [1, 0, 0], 2) WHERE time >= 11000 AND time <= 12000");
+
+        Assert.Equal(2, r.Rows.Count);
+        Assert.Equal(11000L, (long)r.Rows[0][0]!);
+        Assert.Equal(0.0, (double)r.Rows[0][1]!, 6);
+        Assert.Equal(12000L, (long)r.Rows[1][0]!);
+        // 段 1 的点全部落在窗口外，不得出现
+        Assert.All(r.Rows, row => Assert.True((long)row[0]! >= 11000L));
+    }
+
+    // 多段全窗口：skip-index 召回跨全部段的候选 block，Top-K 仍然全局正确。
+    [Fact]
+    public void Knn_MultiSegment_FullWindow_ReturnsGlobalNearestAcrossSegments()
+    {
+        using var db = OpenDb();
+
+        SqlExecutor.Execute(db, "INSERT INTO docs (source, embedding, time) VALUES " +
+            "('a', [0, 1, 0], 1000), " +
+            "('a', [0, 0, 1], 2000)");
+        Assert.NotNull(db.FlushNow());
+
+        SqlExecutor.Execute(db, "INSERT INTO docs (source, embedding, time) VALUES " +
+            "('a', [1, 0, 0], 11000), " +      // 全局最近
+            "('a', [0.5, 0.5, 0], 12000)");
+        Assert.NotNull(db.FlushNow());
+
+        var r = Select(db, "SELECT * FROM knn(docs, embedding, [1, 0, 0], 2)");
+
+        Assert.Equal(2, r.Rows.Count);
+        // 最近的在第二段（time 11000），验证跨段召回而非只看单段。
+        Assert.Equal(11000L, (long)r.Rows[0][0]!);
+        Assert.Equal(0.0, (double)r.Rows[0][1]!, 6);
+        Assert.Equal(12000L, (long)r.Rows[1][0]!);
+    }
+
+    // 多 series 同段：skip-index 按 (series, field) 精确取桶，仅命中过滤后的 series。
+    [Fact]
+    public void Knn_MultiSeriesInFlushedSegment_TagFilterSelectsOnlyMatchingSeries()
+    {
+        using var db = OpenDb();
+
+        SqlExecutor.Execute(db, "INSERT INTO docs (source, embedding, time) VALUES " +
+            "('a', [1, 0, 0], 1000), " +
+            "('a', [0.9, 0.1, 0], 2000), " +
+            "('b', [1, 0, 0], 1500), " +
+            "('b', [0, 1, 0], 2500)");
+        Assert.NotNull(db.FlushNow());
+
+        // 仅 source='b'：即使 a 也含近似向量，也不得混入。
+        var r = Select(db, "SELECT * FROM knn(docs, embedding, [1, 0, 0], 5) WHERE source = 'b'");
+
+        Assert.Equal(2, r.Rows.Count);
+        Assert.All(r.Rows, row => Assert.Equal("b", row[2]));
+        Assert.Equal(1500L, (long)r.Rows[0][0]!);
+    }
+
+    // 时间窗完全落在所有段之外：skip-index 召回空，结果为空（无误召回）。
+    [Fact]
+    public void Knn_TimeWindowOutsideAllSegments_ReturnsEmpty()
+    {
+        using var db = OpenDb();
+
+        SqlExecutor.Execute(db, "INSERT INTO docs (source, embedding, time) VALUES " +
+            "('a', [1, 0, 0], 1000), " +
+            "('a', [0, 1, 0], 2000)");
+        Assert.NotNull(db.FlushNow());
+
+        var r = Select(db,
+            "SELECT * FROM knn(docs, embedding, [1, 0, 0], 5) WHERE time >= 900000 AND time <= 999000");
+
+        Assert.Empty(r.Rows);
+    }
+
+    // 跨 MemTable + 多个已刷盘段：窄窗口同时命中 active MemTable 与其中一个段，结果全局一致。
+    [Fact]
+    public void Knn_AcrossMemTableAndSegments_MergesBothLayers()
+    {
+        using var db = OpenDb();
+
+        // 段 1
+        SqlExecutor.Execute(db, "INSERT INTO docs (source, embedding, time) VALUES " +
+            "('a', [0, 1, 0], 1000), " +
+            "('a', [0, 0, 1], 2000)");
+        Assert.NotNull(db.FlushNow());
+
+        // 未刷盘，留在 MemTable
+        SqlExecutor.Execute(db, "INSERT INTO docs (source, embedding, time) VALUES " +
+            "('a', [1, 0, 0], 3000), " +          // MemTable 中的全局最近
+            "('a', [0.6, 0.4, 0], 4000)");
+
+        var r = Select(db, "SELECT * FROM knn(docs, embedding, [1, 0, 0], 3)");
+
+        Assert.Equal(3, r.Rows.Count);
+        Assert.Equal(3000L, (long)r.Rows[0][0]!);     // MemTable 命中排第一
+        Assert.Equal(0.0, (double)r.Rows[0][1]!, 6);
+    }
+
     [Fact]
     public void Knn_MetricAliases_ProduceEquivalentResults()
     {

@@ -343,6 +343,7 @@ internal static class TableValuedFunctionExecutor
         {
             knnResults = KnnExecutor.Execute(
                 readSnapshot.AllMemTables(),
+                readSnapshot.Snapshot.Index,
                 readSnapshot.Readers,
                 matchedSeries,
                 vectorCol.Name,

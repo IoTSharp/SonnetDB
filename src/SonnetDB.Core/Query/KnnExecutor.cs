@@ -11,12 +11,14 @@ namespace SonnetDB.Query;
 /// <summary>
 /// brute-force KNN 召回执行器。
 /// <para>
-/// 对 MemTable 与全部 Segment 的 VECTOR 列做顺扫（段级时间窗剪枝 + 并行），
-/// 维护大小为 k 的候选集，最终按距离升序返回前 k 条最近邻结果。
+/// 对 MemTable 与相关 Segment 的 VECTOR 列做顺扫，维护大小为 k 的候选集，
+/// 最终按距离升序返回前 k 条最近邻结果。段侧用 <see cref="MultiSegmentIndex"/> 的
+/// block skip-index（series/field/时间窗 prefix-max 剪枝）只取候选 block，
+/// 而非逐 series 全块扫描（I8）。
 /// </para>
 /// <para>
-/// 第一版无 ANN 索引（无 HNSW），靠 <see cref="System.Threading.Tasks.Parallel.ForEach"/> 并行扫描多序列。
-/// SIMD 加速与 HNSW 段内索引将在后续 PR 中追加。
+/// 靠 <see cref="System.Threading.Tasks.Parallel.ForEach"/> 并行扫描多序列；
+/// 命中 metric 一致且无墓碑的 block 走段内 HNSW ANN 加速，否则精确扫描。
 /// </para>
 /// </summary>
 internal static class KnnExecutor
@@ -24,7 +26,12 @@ internal static class KnnExecutor
     /// <summary>
     /// 执行 KNN 搜索。
     /// </summary>
-    /// <param name="memTable">MemTable 内存层。</param>
+    /// <param name="memTables">MemTable 内存层（active + sealing）。</param>
+    /// <param name="segmentIndex">
+    /// 当前段集合的联合索引快照；用于按 (series, field, 时间窗) 做 block 级跳跃剪枝，
+    /// 只召回候选 block 而非逐 series 全块扫描。必须与 <paramref name="segmentReaders"/> 同源
+    /// （同一读租约 / 快照），否则可能出现 SegmentId 对不上而漏读的候选段。
+    /// </param>
     /// <param name="segmentReaders">当前段读取器快照（只读，可并发访问）。</param>
     /// <param name="matchedSeries">经过 tag 过滤后的候选序列列表。</param>
     /// <param name="vectorField">向量列名（必须是 <see cref="FieldType.Vector"/> 类型的 FIELD 列）。</param>
@@ -42,6 +49,7 @@ internal static class KnnExecutor
     /// </returns>
     public static IReadOnlyList<KnnSearchResult> Execute(
         IReadOnlyList<MemTable> memTables,
+        MultiSegmentIndex segmentIndex,
         IReadOnlyList<SegmentReader> segmentReaders,
         IReadOnlyList<SeriesEntry> matchedSeries,
         string vectorField,
@@ -52,6 +60,7 @@ internal static class KnnExecutor
         TombstoneTable? tombstones)
     {
         ArgumentNullException.ThrowIfNull(memTables);
+        ArgumentNullException.ThrowIfNull(segmentIndex);
         ArgumentNullException.ThrowIfNull(segmentReaders);
         ArgumentNullException.ThrowIfNull(matchedSeries);
         ArgumentNullException.ThrowIfNull(vectorField);
@@ -59,6 +68,10 @@ internal static class KnnExecutor
 
         if (matchedSeries.Count == 0)
             return [];
+
+        // SegmentId → SegmentReader 映射（只读，跨并行任务共享）。候选 block 由
+        // MultiSegmentIndex 给出，需按 SegmentId 回到对应 reader 读取真实 payload。
+        var readersBySegmentId = BuildReaderMap(segmentReaders);
 
         // 候选集（锁保护跨线程合并）
         var allCandidates = new List<(double Dist, long Ts, ulong Sid)>();
@@ -74,15 +87,25 @@ internal static class KnnExecutor
                 foreach (var memTable in memTables)
                     ScanMemTable(memTable, series.Id, vectorField, queryVector, metric, timeRange, localCandidates);
 
-                // 2. 扫描 Segments（段级时间窗剪枝）
-                foreach (var reader in segmentReaders)
+                // 此 series/field 上若存在墓碑，ANN sidecar 路径返回的候选可能在后续墓碑过滤后剩余 < k，
+                // 故强制走精确扫描（详见 ScanSegmentBlock 注释）。此判定只依赖 series/field，
+                // 对该 series 的所有候选 block 一致，故按 series 计算一次。
+                bool hasTombstonesForSeriesField = tombstones is not null
+                    && tombstones.Count > 0
+                    && tombstones.GetForSeriesField(series.Id, vectorField).Count > 0;
+
+                // 2. 扫描 Segments：用 block skip-index 只取与 (series, field, 时间窗) 相交的候选 block，
+                //    段级时间剪枝 + block 级 prefix-max 剪枝均在 LookupCandidates 内完成（I8）。
+                var candidates = segmentIndex.LookupCandidates(
+                    series.Id, vectorField, timeRange.FromInclusive, timeRange.ToInclusive);
+                foreach (var blockRef in candidates)
                 {
-                    // 段不与查询时间窗重叠 → 跳过整段
-                    if (reader.MaxTimestamp < timeRange.FromInclusive
-                        || reader.MinTimestamp > timeRange.ToInclusive)
+                    if (!readersBySegmentId.TryGetValue(blockRef.SegmentId, out var reader))
                         continue;
 
-                    ScanSegment(reader, series.Id, vectorField, queryVector, k, metric, timeRange, tombstones, localCandidates);
+                    ScanSegmentBlock(
+                        reader, blockRef.Descriptor, series.Id, vectorField, queryVector,
+                        k, metric, timeRange, hasTombstonesForSeriesField, localCandidates);
                 }
 
                 return localCandidates;
@@ -135,6 +158,16 @@ internal static class KnnExecutor
         return results;
     }
 
+    // ── 私有：SegmentId → SegmentReader 映射 ────────────────────────────────
+
+    private static Dictionary<long, SegmentReader> BuildReaderMap(IReadOnlyList<SegmentReader> readers)
+    {
+        var map = new Dictionary<long, SegmentReader>(readers.Count);
+        foreach (var r in readers)
+            map[r.Header.SegmentId] = r;
+        return map;
+    }
+
     // ── 私有：扫描 MemTable ──────────────────────────────────────────────────
 
     private static void ScanMemTable(
@@ -161,79 +194,69 @@ internal static class KnnExecutor
         }
     }
 
-    // ── 私有：扫描单个 Segment ──────────────────────────────────────────────
+    // ── 私有：扫描单个候选 Block ────────────────────────────────────────────
 
-    private static void ScanSegment(
+    /// <summary>
+    /// 扫描一个已由 block skip-index 命中的候选 Block（其 SeriesId/时间窗已与查询相交，
+    /// 但 FieldType 仍需最终确认）。命中 metric 一致且无墓碑时走段内 ANN 加速，否则精确扫描。
+    /// </summary>
+    private static void ScanSegmentBlock(
         SegmentReader reader,
+        in BlockDescriptor block,
         ulong seriesId,
         string vectorField,
         ReadOnlyMemory<float> queryVector,
         int k,
         KnnMetric metric,
         TimeRange timeRange,
-        TombstoneTable? tombstones,
+        bool hasTombstonesForSeriesField,
         List<(double Dist, long Ts, ulong Sid)> candidates)
     {
+        // skip-index 已按 (SeriesId, FieldName) 精确定位桶并做过时间窗剪枝，
+        // 这里仅需确认列类型（同名列理论上恒为 Vector，保险起见判定一次）。
+        if (block.FieldType != FieldType.Vector)
+            return;
+
         var querySpan = queryVector.Span;
 
-        // 此 series/field 上若存在墓碑，ANN sidecar 路径返回的候选可能在后续墓碑过滤后剩余 < k——
-        // ANN 内部按 candidateLimit (≈ k*8) 截断后再喂给上层去重，若大量候选恰好是已删除点，
-        // 调用方拿到的最终结果会少于用户请求的 K。为保正确性，本段强制走精确扫描；
-        // 没有墓碑的常见路径仍享受 ANN 加速。
-        bool hasTombstonesForSeriesField = tombstones is not null
-            && tombstones.Count > 0
-            && tombstones.GetForSeriesField(seriesId, vectorField).Count > 0;
-
-        foreach (var block in reader.Blocks)
+        // I7：只有当 block 上的向量索引建图度量与查询度量一致时才走 ANN 加速；
+        // 度量不一致（如 L2 查询命中 cosine 建的图）会落到下方精确扫描，保证结果正确。
+        // 此 series/field 上若存在墓碑，ANN sidecar 按 candidateLimit (≈ k*8) 截断后再喂给上层去重，
+        // 若大量候选恰好是已删除点，最终结果会少于用户请求的 K——为保正确性强制走精确扫描。
+        if (!hasTombstonesForSeriesField
+            && reader.TryGetVectorIndexReader(block, out var vectorIndex)
+            && vectorIndex.Metric == metric)
         {
-            // Block 过滤：SeriesId + FieldName + FieldType + 时间窗
-            if (block.SeriesId != seriesId)
-                continue;
-            if (!string.Equals(block.FieldName, vectorField, StringComparison.Ordinal))
-                continue;
-            if (block.FieldType != FieldType.Vector)
-                continue;
-            if (block.MaxTimestamp < timeRange.FromInclusive
-                || block.MinTimestamp > timeRange.ToInclusive)
-                continue;
+            var data = reader.ReadBlock(block);
+            var timestamps = BlockDecoder.DecodeTimestamps(block, data.TimestampPayload);
+            int candidateLimit = Math.Min(block.Count, Math.Max(k * 8, vectorIndex.Ef * 2));
+            var annHits = vectorIndex.Search(
+                querySpan,
+                data.ValuePayload,
+                timestamps,
+                candidateLimit,
+                metric);
+            CollectIndexedBlockCandidates(
+                querySpan,
+                data.ValuePayload,
+                timestamps,
+                annHits,
+                block.Count,
+                k,
+                candidateLimit,
+                metric,
+                timeRange,
+                seriesId,
+                candidates);
+            return;
+        }
 
-            // I7：只有当 block 上的向量索引建图度量与查询度量一致时才走 ANN 加速；
-            // 度量不一致（如 L2 查询命中 cosine 建的图）会落到下方精确扫描，保证结果正确。
-            if (!hasTombstonesForSeriesField
-                && reader.TryGetVectorIndexReader(block, out var vectorIndex)
-                && vectorIndex.Metric == metric)
-            {
-                var data = reader.ReadBlock(block);
-                var timestamps = BlockDecoder.DecodeTimestamps(block, data.TimestampPayload);
-                int candidateLimit = Math.Min(block.Count, Math.Max(k * 8, vectorIndex.Ef * 2));
-                var annHits = vectorIndex.Search(
-                    querySpan,
-                    data.ValuePayload,
-                    timestamps,
-                    candidateLimit,
-                    metric);
-                CollectIndexedBlockCandidates(
-                    querySpan,
-                    data.ValuePayload,
-                    timestamps,
-                    annHits,
-                    block.Count,
-                    k,
-                    candidateLimit,
-                    metric,
-                    timeRange,
-                    seriesId,
-                    candidates);
-                continue;
-            }
-
-            var points = reader.DecodeBlockRange(block, timeRange.FromInclusive, timeRange.ToInclusive);
-            foreach (var dp in points)
-            {
-                var vecSpan = dp.Value.AsVector().Span;
-                double dist = VectorDistance.Compute(metric, querySpan, vecSpan);
-                candidates.Add((dist, dp.Timestamp, seriesId));
-            }
+        var points = reader.DecodeBlockRange(block, timeRange.FromInclusive, timeRange.ToInclusive);
+        foreach (var dp in points)
+        {
+            var vecSpan = dp.Value.AsVector().Span;
+            double dist = VectorDistance.Compute(metric, querySpan, vecSpan);
+            candidates.Add((dist, dp.Timestamp, seriesId));
         }
     }
 

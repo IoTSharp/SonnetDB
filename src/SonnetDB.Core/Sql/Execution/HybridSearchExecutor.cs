@@ -178,6 +178,7 @@ internal static class HybridSearchExecutor
         {
             knnResults = KnnExecutor.Execute(
                 readSnapshot.AllMemTables(),
+                readSnapshot.Snapshot.Index,
                 readSnapshot.Readers,
                 matchedSeries,
                 options.VectorColumn.Name,
