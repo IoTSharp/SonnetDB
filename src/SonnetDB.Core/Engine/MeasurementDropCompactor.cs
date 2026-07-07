@@ -1,4 +1,3 @@
-using SonnetDB.Catalog;
 using SonnetDB.Memory;
 using SonnetDB.Model;
 using SonnetDB.Storage.Segments;
@@ -56,9 +55,8 @@ internal static class MeasurementDropCompactor
         }
 
         var writer = new SegmentWriter(owner.CompactionWriterOptions);
-        IReadOnlyDictionary<SeriesFieldKey, VectorIndexDefinition>? vectorIndexes = null;
-        if (owner.Catalog.Count > 0 && owner.Measurements.Count > 0)
-            vectorIndexes = VectorIndexBuildMap.Build(buckets, owner.Catalog, owner.Measurements);
+        // 含 VECTOR 桶时强制解析索引（保留幸存 series 的向量索引；缺 catalog 则显式失败而非静默丢索引，I11）。
+        var vectorIndexes = VectorIndexBuildMap.BuildForSegment(buckets, owner.Catalog, owner.Measurements);
         result = writer.Write(buckets, newSegmentId, newSegmentPath, vectorIndexes);
         WalCheckpointFile.FlushDirectoryBestEffort(TsdbPaths.SegmentsDir(owner.RootDirectory));
         return true;

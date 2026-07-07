@@ -302,4 +302,35 @@ public sealed class SegmentCompactorTests : IDisposable
         Assert.Equal(1000L, hits[0].Timestamp);
         Assert.Equal(1001L, hits[1].Timestamp);
     }
+
+    // ── I11：向量段无 catalog 时显式失败，而非静默无索引落盘退化为暴力扫 ──────────
+    [Fact]
+    public void Execute_VectorFieldWithoutCatalog_ThrowsInsteadOfSilentlyDroppingIndex()
+    {
+        const string fieldName = "embedding";
+        const ulong seriesId = 7UL;
+
+        using var r1 = WriteVectorSegment(
+            1,
+            seriesId,
+            fieldName,
+            (1000L, new[] { 1f, 0f, 0f }),
+            (1002L, new[] { 0f, 1f, 0f }));
+        using var r2 = WriteVectorSegment(
+            2,
+            seriesId,
+            fieldName,
+            (1001L, new[] { 0.9f, 0.1f, 0f }));
+
+        var plan = new CompactionPlan(0, new long[] { 1, 2 }.AsReadOnly());
+        var readerDict = new Dictionary<long, SegmentReader> { [1] = r1, [2] = r2 };
+        string outPath = Path.Combine(_tempDir, "out_vector_nocatalog.SDBSEG");
+
+        // 未传 seriesCatalog / measurementCatalog：向量段本应带索引，缺 catalog 会无索引落盘（I11）。
+        Assert.Throws<InvalidOperationException>(() =>
+            _compactor.Execute(plan, readerDict, 300, outPath));
+
+        // 失败即失败，不应留下一个无索引的"半成品"目标段。
+        Assert.False(File.Exists(outPath));
+    }
 }

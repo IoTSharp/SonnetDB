@@ -83,9 +83,9 @@ public sealed class SegmentCompactor
         cancellationToken.ThrowIfCancellationRequested();
 
         // 3. 写入新段
-        IReadOnlyDictionary<SeriesFieldKey, VectorIndexDefinition>? vectorIndexes = null;
-        if (seriesCatalog is not null && measurementCatalog is not null)
-            vectorIndexes = VectorIndexBuildMap.Build(seriesList, seriesCatalog, measurementCatalog);
+        //    含 VECTOR 桶时，BuildForSegment 强制要求提供两个 catalog（否则该段向量块无索引落盘，
+        //    静默退化为暴力扫，I11）；无向量桶或缺 catalog 时返回 null。
+        var vectorIndexes = VectorIndexBuildMap.BuildForSegment(seriesList, seriesCatalog, measurementCatalog);
         cancellationToken.ThrowIfCancellationRequested();
         var buildResult = _writer.Write(seriesList, newSegmentId, newSegmentPath, vectorIndexes);
         cancellationToken.ThrowIfCancellationRequested();

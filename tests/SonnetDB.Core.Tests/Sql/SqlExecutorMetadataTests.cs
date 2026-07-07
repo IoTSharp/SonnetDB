@@ -2,6 +2,8 @@ using SonnetDB.Engine;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
+using SonnetDB.Storage.Format;
+using SonnetDB.Storage.Segments;
 using Xunit;
 
 namespace SonnetDB.Core.Tests.Sql;
@@ -151,6 +153,55 @@ public class SqlExecutorMetadataTests : IDisposable
         var rows = Assert.IsType<SelectExecutionResult>(
             SqlExecutor.Execute(db, "SELECT time, usage FROM cpu"));
         Assert.Equal(new object?[] { 2000L, 2.5 }, rows.Rows.Single());
+    }
+
+    [Fact]
+    public void DropMeasurement_RewritesSurvivingSegment_PreservesVectorIndex()
+    {
+        // I11 回归：DROP MEASUREMENT 触发段重写时，幸存 measurement 的向量索引必须一并重建，
+        // 否则重写后的段向量块无索引，静默退化为暴力扫。
+        using var db = Tsdb.Open(Options() with
+        {
+            BackgroundFlush = new BackgroundFlushOptions { Enabled = false },
+            Compaction = new SonnetDB.Engine.Compaction.CompactionPolicy { Enabled = false },
+        });
+
+        // 两个 measurement 同段落盘：drop 掉 cpu 会强制 MeasurementDropCompactor 重写该段的 docs 向量块。
+        SqlExecutor.Execute(db, "CREATE MEASUREMENT cpu (host TAG, usage FIELD FLOAT)");
+        SqlExecutor.Execute(db,
+            "CREATE MEASUREMENT docs (source TAG, embedding FIELD VECTOR(3) WITH INDEX hnsw(m=4, ef=8))");
+        SqlExecutor.Execute(db, "INSERT INTO cpu (time, host, usage) VALUES (1000, 'h1', 1.5)");
+        SqlExecutor.Execute(db, "INSERT INTO docs (source, embedding, time) VALUES " +
+            "('a', [1, 0, 0], 1000), " +
+            "('b', [0, 1, 0], 2000), " +
+            "('c', [0, 0, 1], 3000)");
+        db.FlushNow();
+
+        SqlExecutor.Execute(db, "DROP MEASUREMENT cpu");
+
+        // 打开重写后仍在盘的段，确认 docs 向量块带内嵌索引（而非无索引落盘）。
+        var readerOpts = new SegmentReaderOptions { VerifyIndexCrc = true, VerifyBlockCrc = true };
+        bool foundIndexedVectorBlock = false;
+        foreach (var (_, path) in TsdbPaths.EnumerateSegments(_root))
+        {
+            using var reader = SegmentReader.Open(path, readerOpts);
+            foreach (var block in reader.Blocks)
+            {
+                if (block.FieldType != FieldType.Vector)
+                    continue;
+                Assert.True(
+                    reader.TryGetVectorIndexReader(block, out _),
+                    "重写后的段向量块应带内嵌索引（I11）。");
+                foundIndexedVectorBlock = true;
+            }
+        }
+
+        Assert.True(foundIndexedVectorBlock, "应存在至少一个幸存的 docs 向量块。");
+
+        // 索引仍可用于 KNN 查询，结果正确。
+        var knn = Assert.IsType<SelectExecutionResult>(
+            SqlExecutor.Execute(db, "SELECT * FROM knn(docs, embedding, [1, 0, 0], 1)"));
+        Assert.Equal(1000L, (long)knn.Rows.Single()[0]!);
     }
 
     [Fact]

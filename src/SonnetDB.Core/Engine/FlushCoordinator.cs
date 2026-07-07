@@ -77,9 +77,7 @@ public sealed class FlushCoordinator
         // 步骤 2：写 Segment（临时文件 + 原子 rename，由 SegmentWriter 保证）
         string segPath = TsdbPaths.SegmentPath(_options.RootDirectory, segmentId);
         var segWriter = new SegmentWriter(_options.SegmentWriterOptions);
-        IReadOnlyDictionary<Model.SeriesFieldKey, VectorIndexDefinition>? vectorIndexes = null;
-        if (seriesCatalog is not null && measurementCatalog is not null)
-            vectorIndexes = VectorIndexBuildMap.Build(memTable.SnapshotAll(), seriesCatalog, measurementCatalog);
+        var vectorIndexes = VectorIndexBuildMap.BuildForSegment(memTable.SnapshotAll(), seriesCatalog, measurementCatalog);
         var result = segWriter.WriteFrom(memTable, segmentId, segPath, vectorIndexes);
         WalCheckpointFile.FlushDirectoryBestEffort(TsdbPaths.SegmentsDir(_options.RootDirectory));
 
@@ -158,9 +156,7 @@ public sealed class FlushCoordinator
         // 尚未写任何 checkpoint，replay 会完整回放被密封数据（冗余但不丢）。
         string segPath = TsdbPaths.SegmentPath(_options.RootDirectory, segmentId);
         var segWriter = new SegmentWriter(_options.SegmentWriterOptions);
-        IReadOnlyDictionary<Model.SeriesFieldKey, VectorIndexDefinition>? vectorIndexes = null;
-        if (seriesCatalog is not null && measurementCatalog is not null)
-            vectorIndexes = VectorIndexBuildMap.Build(sealedTable.SnapshotAll(), seriesCatalog, measurementCatalog);
+        var vectorIndexes = VectorIndexBuildMap.BuildForSegment(sealedTable.SnapshotAll(), seriesCatalog, measurementCatalog);
         var result = segWriter.WriteFrom(sealedTable, segmentId, segPath, vectorIndexes);
         WalCheckpointFile.FlushDirectoryBestEffort(TsdbPaths.SegmentsDir(_options.RootDirectory));
 
