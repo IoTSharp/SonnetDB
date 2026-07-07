@@ -66,6 +66,11 @@ public sealed class ServerOptions
     public ObservabilityOptions Observability { get; set; } = new();
 
     /// <summary>
+    /// MQTT 内建 broker 配置（M28 P5b #242）。绑定路径：<c>"SonnetDBServer:Mqtt"</c>。
+    /// </summary>
+    public MqttBrokerOptions Mqtt { get; set; } = new();
+
+    /// <summary>
     /// Copilot 子系统配置。
     /// </summary>
     public CopilotOptions Copilot { get; set; } = new();
@@ -90,6 +95,32 @@ public sealed class PrometheusOptions
 {
     /// <summary>是否启用 OpenTelemetry Prometheus 拉取端点。默认 <c>false</c>。</summary>
     public bool Enabled { get; set; }
+}
+
+/// <summary>
+/// MQTT 内建 broker 配置。Broker 仅位于 Server 层，Core 不感知 MQTT 协议栈。
+/// </summary>
+public sealed class MqttBrokerOptions
+{
+    /// <summary>
+    /// 是否启用内建 MQTT broker。默认关闭；发布配置可显式打开。
+    /// </summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>
+    /// MQTT TCP 监听端口。默认 <c>1883</c>。
+    /// </summary>
+    public int Port { get; set; } = 1883;
+
+    /// <summary>
+    /// MQTT over WebSocket 路径。为空时不映射 WebSocket 入口。
+    /// </summary>
+    public string WebSocketPath { get; set; } = "/mqtt";
+
+    /// <summary>
+    /// 每个 MQTT 客户端最多桥接到 SonnetMQ 的订阅数量。
+    /// </summary>
+    public int MaxMqSubscriptionsPerClient { get; set; } = 32;
 }
 
 /// <summary>

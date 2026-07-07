@@ -47,6 +47,11 @@
     <PackageReference Include="OpenTelemetry.Exporter.Console" />
     <!-- M17 #91：Prometheus 拉取端点（Observability:Prometheus:Enabled=true 时接管 /metrics）。 -->
     <PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" />
+    <!-- M28 P5b #242：Server 层内建 MQTT broker；Core 保持零第三方依赖。 -->
+    <PackageReference Include="MQTTnet" />
+    <PackageReference Include="MQTTnet.AspNetCore" />
+    <PackageReference Include="MQTTnet.Server" />
+    <PackageReference Include="MQTTnet.AspNetCore.Routing" />
   </ItemGroup>
 
   <ItemGroup>

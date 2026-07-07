@@ -46,28 +46,18 @@ internal static class BulkIngestEndpointHandler
         // PR #47：从 ArrayPool 租借请求体缓冲区，避免大 payload（>85KB）落入 LOH。
         // 体积通常 MB 级，仍一次性读取（无需流式），但全程零分配复用。
         var (bodyBuffer, bodyLength) = await ReadAllAsync(context).ConfigureAwait(false);
-        char[]? lpCharBuffer = null;
-        IPointReader? reader = null;
         try
         {
-            reader = format switch
-            {
-                Format.LineProtocol => CreateLineProtocolReader(
-                    bodyBuffer, bodyLength, measurement, out lpCharBuffer),
-                Format.Json => new JsonPointsReader(
-                    new ReadOnlyMemory<byte>(bodyBuffer, 0, bodyLength),
-                    measurementOverride: measurement),
-                Format.BulkValues => SchemaBoundBulkValuesReader.Create(
-                    tsdb,
-                    Encoding.UTF8.GetString(bodyBuffer, 0, bodyLength),
-                    measurementOverride: measurement),
-                _ => throw new InvalidOperationException($"未知格式 {format}。"),
-            };
-
             BulkIngestResult result;
             try
             {
-                result = BulkIngestor.Ingest(tsdb, reader, errorPolicy, flushMode);
+                result = IngestPayload(
+                    tsdb,
+                    measurement,
+                    format,
+                    new ReadOnlyMemory<byte>(bodyBuffer, 0, bodyLength),
+                    errorPolicy,
+                    flushMode);
             }
             catch (BulkIngestException ex)
             {
@@ -87,22 +77,63 @@ internal static class BulkIngestEndpointHandler
         }
         finally
         {
-            (reader as IDisposable)?.Dispose();
-            if (lpCharBuffer is not null)
-                ArrayPool<char>.Shared.Return(lpCharBuffer);
             ArrayPool<byte>.Shared.Return(bodyBuffer);
         }
     }
 
+    /// <summary>
+    /// 从已持有的 payload 字节执行批量入库。HTTP 端点、MQTT broker 路由与后续外部 MQTT client
+    /// 订阅入口共用该方法，避免重复维护 LP / JSON / BulkValues 三套落库语义。
+    /// </summary>
+    /// <param name="tsdb">目标数据库实例。</param>
+    /// <param name="measurement">目标 measurement 名称。</param>
+    /// <param name="format">payload 格式。</param>
+    /// <param name="payload">原始 payload 字节。</param>
+    /// <param name="errorPolicy">行级错误策略。</param>
+    /// <param name="flushMode">写入后的刷新策略。</param>
+    /// <returns>批量入库结果。</returns>
+    internal static BulkIngestResult IngestPayload(
+        Tsdb tsdb,
+        string measurement,
+        Format format,
+        ReadOnlyMemory<byte> payload,
+        BulkErrorPolicy errorPolicy,
+        BulkFlushMode flushMode)
+    {
+        char[]? lpCharBuffer = null;
+        IPointReader? reader = null;
+        try
+        {
+            reader = format switch
+            {
+                Format.LineProtocol => CreateLineProtocolReader(payload.Span, measurement, out lpCharBuffer),
+                Format.Json => new JsonPointsReader(payload, measurementOverride: measurement),
+                Format.BulkValues => SchemaBoundBulkValuesReader.Create(
+                    tsdb,
+                    Encoding.UTF8.GetString(payload.Span),
+                    measurementOverride: measurement),
+                _ => throw new InvalidOperationException($"未知格式 {format}。"),
+            };
+
+            return BulkIngestor.Ingest(tsdb, reader, errorPolicy, flushMode);
+        }
+        finally
+        {
+            (reader as IDisposable)?.Dispose();
+            if (lpCharBuffer is not null)
+                ArrayPool<char>.Shared.Return(lpCharBuffer);
+        }
+    }
+
     private static LineProtocolReader CreateLineProtocolReader(
-        byte[] bodyBuffer, int bodyLength, string measurement, out char[] charBuffer)
+        ReadOnlySpan<byte> payload, string measurement, out char[] charBuffer)
     {
         // 解码 UTF-8 → char[]（从 ArrayPool 租借）。LineProtocolReader 仅持有 ReadOnlyMemory<char>，
         // 调用方负责在 reader 释放后归还 char[]。
-        int maxChars = Encoding.UTF8.GetMaxCharCount(bodyLength);
+        int maxChars = Encoding.UTF8.GetMaxCharCount(payload.Length);
         charBuffer = ArrayPool<char>.Shared.Rent(maxChars);
         int charCount = Encoding.UTF8.GetChars(
-            new ReadOnlySpan<byte>(bodyBuffer, 0, bodyLength),
+            payload,
             charBuffer);
         return new LineProtocolReader(
             new ReadOnlyMemory<char>(charBuffer, 0, charCount),

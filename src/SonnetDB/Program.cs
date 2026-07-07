@@ -1,13 +1,17 @@
 using System.Reflection;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Json;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using MQTTnet.AspNetCore;
+using MQTTnet.AspNetCore.Routing;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
@@ -22,6 +26,7 @@ using SonnetDB.Hosting;
 using SonnetDB.Json;
 using SonnetDB.Kv;
 using SonnetDB.Mcp;
+using SonnetDB.Mqtt;
 using SonnetMQ;
 
 namespace SonnetDB;
@@ -68,6 +73,7 @@ public static class Program
                 options.Copilot.Docs.Roots.AddRange(DefaultCopilotDocsRoots);
         });
 
+        ConfigureMqttKestrel(builder);
         Configure(builder);
         configureServices?.Invoke(builder.Services);
 
@@ -278,6 +284,8 @@ public static class Program
 
         // 在应用关闭时优雅释放所有 Tsdb 实例
         builder.Services.AddSingleton<IHostedService>(sp => new RegistryShutdownHook(sp.GetRequiredService<TsdbRegistry>()));
+
+        ConfigureMqttServices(builder);
     }
 
     private static string GetSystemDirectory(IServiceProvider services)
@@ -344,6 +352,8 @@ public static class Program
 
     private static void ConfigureMiddleware(WebApplication app, ServerOptions serverOptions)
     {
+        ConfigureMqttMiddleware(app, serverOptions);
+
         var userStore = app.Services.GetRequiredService<UserStore>();
         var grants = app.Services.GetRequiredService<GrantsStore>();
         var registry = app.Services.GetRequiredService<TsdbRegistry>();
@@ -369,6 +379,55 @@ public static class Program
                 return;
             await next(context).ConfigureAwait(false);
         });
+    }
+
+    private static void ConfigureMqttKestrel(WebApplicationBuilder builder)
+    {
+        if (!builder.Configuration.GetValue<bool>("SonnetDBServer:Mqtt:Enabled"))
+            return;
+
+        int port = builder.Configuration.GetValue<int>("SonnetDBServer:Mqtt:Port");
+        if (port < 0 || port > 65535)
+            throw new InvalidOperationException("SonnetDBServer:Mqtt:Port 必须位于 0..65535。");
+
+        builder.WebHost.ConfigureKestrel(options =>
+        {
+            options.ListenAnyIP(port, listenOptions => listenOptions.UseMqtt());
+        });
+    }
+
+    private static void ConfigureMqttServices(WebApplicationBuilder builder)
+    {
+        if (!builder.Configuration.GetValue<bool>("SonnetDBServer:Mqtt:Enabled"))
+            return;
+
+        builder.Services.AddSingleton<SonnetMqttBrokerBridge>();
+        builder.Services.AddMqttControllers([typeof(SonnetMqttController).Assembly]);
+
+        builder.Services
+            .AddHostedMqttServerWithServices(options => options.WithoutDefaultEndpoint())
+            .AddMqttConnectionHandler()
+            .AddConnections();
+    }
+
+    private static void ConfigureMqttMiddleware(WebApplication app, ServerOptions serverOptions)
+    {
+        if (!serverOptions.Mqtt.Enabled)
+            return;
+
+        var bridge = app.Services.GetRequiredService<SonnetMqttBrokerBridge>();
+        app.UseMqttServer(server =>
+        {
+            bridge.Configure(server);
+            server.WithAttributeRouting(app.Services, allowUnmatchedRoutes: false);
+        });
+
+        if (!string.IsNullOrWhiteSpace(serverOptions.Mqtt.WebSocketPath))
+        {
+            app.MapConnectionHandler<MqttConnectionHandler>(
+                serverOptions.Mqtt.WebSocketPath,
+                options => options.WebSockets.SubProtocolSelector = protocols => protocols.FirstOrDefault() ?? string.Empty);
+        }
     }
 }
 

@@ -36,6 +36,40 @@ curl --http2-prior-knowledge -X POST http://localhost:5081/v1/frame \
   --data-binary @frames.bin
 ```
 
+## MQTT 内建 broker（M28 P5b #242）
+
+SonnetDB Server 也可托管一个单机 MQTT broker，面向设备直连写入和设备侧订阅推送。MQTT 协议栈只存在于
+Server 程序集；`SonnetDB.Core` 继续保持零第三方运行时依赖。
+
+```jsonc
+// appsettings.json
+"SonnetDBServer": {
+  "Mqtt": {
+    "Enabled": true,
+    "Port": 1883,
+    "WebSocketPath": "/mqtt",
+    "MaxMqSubscriptionsPerClient": 32
+  }
+}
+```
+
+- **监听**：TCP MQTT 默认 `1883`；`WebSocketPath` 非空时同时映射 MQTT over WebSocket（默认 `/mqtt`）。
+- **鉴权**：复用 SonnetDB 现有用户 / token / 三角色模型。MQTT `username/password` 可传动态用户凭据；
+  也可把静态 token 放在 password 或 username 中，由 `SonnetDBServer:Tokens` 映射到 `admin` / `readwrite` /
+  `readonly`。发布遥测或 MQ 消息需 `Write`，订阅 MQ topic 需 `Read`。
+- **遥测入库**：设备向 `db/{db}/m/{measurement}` 发布 payload，服务端复用 HTTP bulk ingest 的同一处理器落库，
+  支持 Line Protocol、JSON points 与 BulkValues。格式可通过 MQTT user property `sndb-format`、`ContentType`
+  或 payload 首字节自动识别。
+- **消息队列桥接**：设备向 `db/{db}/mq/{topic}` 发布消息会写入 SonnetMQ；订阅同一 topic 时，服务端从 #236
+  `WaitForMessagesAsync` 推送管线读取新消息并注入 MQTT broker。订阅从当前 latest 起点开始，不重放历史积压。
+- **topic 限制**：当前仅接受精确 topic，不支持 `+` / `#` 通配符；`mq` topic 名称只允许 ASCII 字母、数字、
+  `_`、`-`、`.`，并受 `MaxMqSubscriptionsPerClient` 限制。
+- **QoS / retain / LWT 范围**：支持 QoS 0/1；QoS 2 明确拒绝。retain 标志不映射为 SonnetDB 持久化 replay 语义；
+  若需要持久消息，应使用 `db/{db}/mq/{topic}` 的 SonnetMQ 写入。LWT 不提供额外 SonnetDB 合约；若 will topic
+  使用受管 topic，仍需满足同一 topic 与权限规则。
+- **边界**：#242 只实现单节点内建 broker，不做 broker 集群、桥接、跨节点 session 或外部 broker 订阅；
+  外部 EMQX / Mosquitto 拉取接入留给 #243。
+
 ## 帧头（固定 12 字节，little-endian）
 
 | 偏移 | 大小 | 字段 | 说明 |
