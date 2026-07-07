@@ -7,6 +7,7 @@ using System.Text.Json;
 using SonnetDB.Data.Embedded;
 using SonnetDB.Data.Internal;
 using SonnetDB.Ingest;
+using SonnetDB.Model;
 using SonnetDB.Protocol;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
@@ -254,9 +255,6 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         return MaterializedExecutionResult.FromSelect(new SelectExecutionResult(columns, rows));
     }
 
-    private static SndbServerException BuildHttpError(HttpResponseMessage response)
-        => BuildHttpErrorAsync(response, CancellationToken.None).GetAwaiter().GetResult();
-
     private static async Task<SndbServerException> BuildHttpErrorAsync(
         HttpResponseMessage response,
         CancellationToken cancellationToken)
@@ -292,69 +290,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             throw new InvalidOperationException("连接未打开。");
         if (transactionState is not null)
             throw new NotSupportedException("远程轻事务当前不支持批量入库快路径。");
-        ArgumentNullException.ThrowIfNull(commandText);
-
-        // 1) 嗅探协议格式 + 切首行 measurement 前缀
-        var format = BulkPayloadDetector.DetectWithPrefix(commandText, out var measurementFromPrefix, out var payload);
-
-        // 2) measurement 优先级：参数 > 首行前缀 > 从 payload 内提取（JSON `m` / BulkValues `INSERT INTO <name>`）
-        var measurement = TryGetParam(parameters, "measurement") ?? measurementFromPrefix;
-        if (string.IsNullOrWhiteSpace(measurement))
-        {
-            measurement = format switch
-            {
-                BulkPayloadFormat.Json => TryPeekJsonMeasurement(payload.Span),
-                BulkPayloadFormat.BulkValues => SafePeekBulkMeasurement(payload),
-                _ => null,
-            };
-        }
-        if (string.IsNullOrWhiteSpace(measurement))
-            throw new InvalidOperationException(
-                "远程批量入库必须指定 measurement：可在 payload 首行作为前缀（如 `cpu\\n...`）、" +
-                "通过 cmd.Parameters[\"measurement\"] 提供，或在 JSON 中给出 `m` 字段、在 INSERT 中给出 `INTO <name>`。");
-
-        // 3) 端点后缀
-        string suffix = format switch
-        {
-            BulkPayloadFormat.LineProtocol => "lp",
-            BulkPayloadFormat.Json => "json",
-            BulkPayloadFormat.BulkValues => "bulk",
-            _ => throw new InvalidOperationException($"未知协议格式 {format}。"),
-        };
-
-        // 4) query string：onerror / flush
-        var url = new StringBuilder();
-        url.Append("v1/db/").Append(Uri.EscapeDataString(_database))
-           .Append("/measurements/").Append(Uri.EscapeDataString(measurement))
-           .Append('/').Append(suffix);
-        var qs = new List<string>();
-        var onerror = TryGetParam(parameters, "onerror");
-        if (!string.IsNullOrEmpty(onerror))
-            qs.Add("onerror=" + Uri.EscapeDataString(onerror));
-        var flush = TryGetParam(parameters, "flush");
-        if (!string.IsNullOrEmpty(flush))
-            qs.Add("flush=" + Uri.EscapeDataString(flush));
-        if (qs.Count > 0)
-            url.Append('?').Append(string.Join('&', qs));
-
-        // 5) 构造请求体（payload 已通过 DetectWithPrefix 切掉首行）
-        string contentType = format == BulkPayloadFormat.Json
-            ? "application/json"
-            : "text/plain";
-        using var request = new HttpRequestMessage(HttpMethod.Post, url.ToString())
-        {
-            Content = new StringContent(payload.ToString(), Encoding.UTF8, contentType),
-        };
-
-        using var response = _http.Send(request, HttpCompletionOption.ResponseContentRead);
-        if (!response.IsSuccessStatusCode)
-            throw BuildHttpError(response);
-
-        // 6) 解析响应 JSON
-        var stream = response.Content.ReadAsStream();
-        var body = JsonSerializer.Deserialize(stream, RemoteJsonContext.Default.BulkIngestResponseBody)
-            ?? throw new SndbServerException("bulk_ingest_error", "服务端响应体为空。", response.StatusCode);
-        return MaterializedExecutionResult.NonQuery((int)body.WrittenRows);
+        return ExecuteBulkRequestAsync(commandText, parameters, CancellationToken.None).GetAwaiter().GetResult();
     }
 
     public Task<IExecutionResult> ExecuteBulkAsync(
@@ -378,7 +314,10 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
     {
         ArgumentNullException.ThrowIfNull(commandText);
 
+        // 1) 嗅探协议格式 + 切首行 measurement 前缀
         var format = BulkPayloadDetector.DetectWithPrefix(commandText, out var measurementFromPrefix, out var payload);
+
+        // 2) measurement 优先级：参数 > 首行前缀 > 从 payload 内提取（JSON `m` / BulkValues `INSERT INTO <name>`）
         var measurement = TryGetParam(parameters, "measurement") ?? measurementFromPrefix;
         if (string.IsNullOrWhiteSpace(measurement))
         {
@@ -394,6 +333,28 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                 "远程批量入库必须指定 measurement：可在 payload 首行作为前缀（如 `cpu\\n...`）、" +
                 "通过 cmd.Parameters[\"measurement\"] 提供，或在 JSON 中给出 `m` 字段、在 INSERT 中给出 `INTO <name>`。");
 
+        var onerror = TryGetParam(parameters, "onerror");
+        var flush = TryGetParam(parameters, "flush");
+
+        // #261：Line Protocol / JSON 优先走 tsdb 列式写帧（服务端 #237）；解析出的点集列式编码后发送，
+        // 传输级失败回落 REST（frame-http2 强制不回落）。BulkValues 恒走 REST——其 tag/field 列角色
+        // 需服务端按 measurement schema 解析，客户端无 schema 无法列式编码。
+        if (_frames is { } fx
+            && fx.ShouldTryFrames()
+            && !IsSkipOnError(onerror)
+            && TryBuildColumnarFrame(format, measurement!, payload, MapFlushMode(flush), out byte[] frameBytes))
+        {
+            var frames = await fx.TrySendAsync(frameBytes, cancellationToken).ConfigureAwait(false);
+            if (frames is not null)
+            {
+                FrameMessage responseFrame = frames[0];
+                FrameChannel.ThrowIfError(responseFrame.Header, responseFrame.Payload);
+                int written = TsdbFrameCodec.DecodeWriteColumnarResponse(responseFrame.Payload);
+                return MaterializedExecutionResult.NonQuery(written);
+            }
+        }
+
+        // REST 回落路径
         string suffix = format switch
         {
             BulkPayloadFormat.LineProtocol => "lp",
@@ -407,10 +368,8 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
            .Append("/measurements/").Append(Uri.EscapeDataString(measurement))
            .Append('/').Append(suffix);
         var qs = new List<string>();
-        var onerror = TryGetParam(parameters, "onerror");
         if (!string.IsNullOrEmpty(onerror))
             qs.Add("onerror=" + Uri.EscapeDataString(onerror));
-        var flush = TryGetParam(parameters, "flush");
         if (!string.IsNullOrEmpty(flush))
             qs.Add("flush=" + Uri.EscapeDataString(flush));
         if (qs.Count > 0)
@@ -437,6 +396,78 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             .ConfigureAwait(false)
             ?? throw new SndbServerException("bulk_ingest_error", "服务端响应体为空。", response.StatusCode);
         return MaterializedExecutionResult.NonQuery((int)body.WrittenRows);
+    }
+
+    /// <summary>
+    /// 尝试把 Line Protocol / JSON payload 解析为点集并列式编码为 tsdb write-columnar 帧字节。
+    /// 不可编码（BulkValues 格式、空点集、解析失败、类型冲突、名字超限、超帧上限）时返回 <c>false</c>，
+    /// 调用方回落 REST 让服务端按 schema 权威处理并给出规范错误。
+    /// </summary>
+    private bool TryBuildColumnarFrame(
+        BulkPayloadFormat format,
+        string measurement,
+        ReadOnlyMemory<char> payload,
+        BulkFlushMode flushMode,
+        out byte[] frameBytes)
+    {
+        frameBytes = [];
+        if (format is not (BulkPayloadFormat.LineProtocol or BulkPayloadFormat.Json))
+            return false;
+
+        try
+        {
+            IPointReader reader = format == BulkPayloadFormat.Json
+                ? new JsonPointsReader(payload, measurementOverride: measurement)
+                : new LineProtocolReader(payload, measurementOverride: measurement);
+
+            var points = new List<Point>();
+            try
+            {
+                while (reader.TryRead(out Point point))
+                    points.Add(point);
+            }
+            finally
+            {
+                (reader as IDisposable)?.Dispose();
+            }
+
+            if (points.Count == 0)
+                return false;
+
+            IReadOnlyList<TsdbColumnarBlock> blocks = TsdbColumnarBlockBuilder.Build(points);
+            if (blocks.Count == 0)
+                return false;
+
+            var writer = new ArrayBufferWriter<byte>();
+            TsdbFrameCodec.EncodeWriteColumnarRequest(writer, 1, _database, measurement, flushMode, blocks);
+            frameBytes = writer.WrittenMemory.ToArray();
+            return true;
+        }
+        catch (Exception ex) when (ex is BulkIngestException or ArgumentException)
+        {
+            // 解析/编码任一失败 → 回落 REST（服务端 reader/schema 权威）。
+            frameBytes = [];
+            return false;
+        }
+    }
+
+    /// <summary>REST <c>?onerror=skip</c> 判定。帧列式写服务端为 FailFast，skip 语义只能走 REST。</summary>
+    private static bool IsSkipOnError(string? onerror)
+        => string.Equals(onerror, "skip", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>把 REST <c>?flush</c> 参数映射为 <see cref="BulkFlushMode"/>（与服务端 ParseFlush 同规则）。</summary>
+    private static BulkFlushMode MapFlushMode(string? flush)
+    {
+        if (string.IsNullOrEmpty(flush))
+            return BulkFlushMode.None;
+        if (string.Equals(flush, "async", StringComparison.OrdinalIgnoreCase))
+            return BulkFlushMode.Async;
+        if (string.Equals(flush, "true", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(flush, "sync", StringComparison.OrdinalIgnoreCase)
+            || flush == "1"
+            || string.Equals(flush, "yes", StringComparison.OrdinalIgnoreCase))
+            return BulkFlushMode.Sync;
+        return BulkFlushMode.None;
     }
 
     public object BeginTransaction(IsolationLevel isolationLevel)

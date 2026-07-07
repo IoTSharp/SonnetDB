@@ -144,14 +144,16 @@ public sealed class RemoteAdoBulkIngestTests : IAsyncLifetime
     }
 
     [Fact]
-    public void Remote_TableDirect_ReadOnlyToken_Throws403()
+    public void Remote_TableDirect_ReadOnlyToken_Forbidden()
     {
         using var c = Open(_readOnlyToken);
         using var cmd = c.CreateCommand();
         cmd.CommandType = CommandType.TableDirect;
         cmd.CommandText = "cpu\ncpu,host=a value=1 1";
         var ex = Assert.Throws<SndbServerException>(() => cmd.ExecuteNonQuery());
-        Assert.Equal(System.Net.HttpStatusCode.Forbidden, ex.StatusCode);
+        // 默认 Protocol=auto 下 LP 批量写走 tsdb 列式帧（#261），forbidden 以带内错误帧（HTTP 200）
+        // 回传；断言传输无关的错误码（REST 403 / 帧 OK+forbidden 两条路径同码）。
+        Assert.Equal("forbidden", ex.Error);
     }
 
     [Fact]

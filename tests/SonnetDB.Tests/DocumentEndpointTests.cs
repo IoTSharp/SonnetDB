@@ -176,7 +176,9 @@ public sealed class DocumentEndpointTests : IAsyncLifetime
         Assert.Single(await readOnly.FindAsync("clientdocs"));
         var ex = await Assert.ThrowsAsync<SndbServerException>(() =>
             readOnly.InsertOneAsync("clientdocs", "blocked", """{"x":1}"""));
-        Assert.Equal(HttpStatusCode.Forbidden, ex.StatusCode);
+        // 默认 Protocol=auto 下 insert 走帧，forbidden 以带内错误帧（HTTP 200）回传；
+        // 断言传输无关的错误码而非 HTTP 状态码（REST 403 / 帧 OK+forbidden 两条路径同码）。
+        Assert.Equal("forbidden", ex.Error);
     }
 
     [Fact]
