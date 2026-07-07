@@ -86,6 +86,23 @@ internal static class DocumentIndexCodec
     public static string DecodeIndexEntryValue(ReadOnlySpan<byte> value)
         => _utf8.GetString(value);
 
+    /// <summary>
+    /// 从 <c>'i'</c> 前缀索引条目 key 中解出索引名，供一致性校验按索引分组统计。
+    /// </summary>
+    /// <param name="key">索引条目 key，布局为 <c>'i' | u16 nameLen | name | parts...</c>。</param>
+    /// <returns>索引名；key 非法时返回 null。</returns>
+    public static string? TryDecodeIndexNameFromEntryKey(ReadOnlySpan<byte> key)
+    {
+        if (key.Length < 3 || key[0] != (byte)'i')
+            return null;
+
+        int nameLength = BinaryPrimitives.ReadUInt16BigEndian(key.Slice(1, 2));
+        if (key.Length < 3 + nameLength)
+            return null;
+
+        return _utf8.GetString(key.Slice(3, nameLength));
+    }
+
     private static int GetEncodedPartSize(DocumentIndexKeyPart value)
         => value.Kind == DocumentIndexKeyPartKind.Scalar
             ? 1 + 4 + _utf8.GetByteCount(value.Scalar!)

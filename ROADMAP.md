@@ -684,7 +684,7 @@ extensions/
 | #226 | **HNSW ef 补偿 tombstone + 重建回收**：搜索按 tombstone 比例放大 ef 或持续搜索至收集满 topK 个存活结果（当前 `ef=max(EfSearch,topK)` 过滤 tombstone 后可能欠返回）；提供周期性 compaction/rebuild 物理丢弃 tombstoned 行并重指 `_entryPoint`，回收 churn 下的无界内存增长。 | 索引 I6、I14 | ✅ |
 | #227 | **文档集合持久 ANN 索引**：为 document collection 的 `vector_search` 提供持久化 per-collection ANN 索引或至少缓存已解析向量，替换全表 `store.Scan()` + 每行 `JsonDocument.Parse` + 距离的 O(N·dim) 暴力扫。 | 索引 I12 | 📋 |
 | #228 | **删除遗留 `HnswVectorBlockIndex`**：删除或明确隔离仍被测试维护的死代码 `HnswVectorBlockIndex`（图质量更差、O(n·ef²) 建图），统一到 `HnswIndex<int>`，消除误用风险。 | 索引 I13 | ✅（删除 `Storage/Segments/HnswVectorBlockIndex.cs` + 文件内 `HnswAnnSearchResult`——`src/` 零生产引用，生产路径早走 `VectorIndexAdapter`→`LocalVectorIndexBuilder`→`HnswIndex<int>`；仅剩的召回测试重写重命名为 `HnswIndexRecallTests`、`VectorRecallBenchmark` 迁移到 canonical `HnswIndex<int>`，Recall@10 ≥ 0.90 断言不变；catalog 生产类型 `HnswVectorIndexOptions` 不在删除文件内保留） |
-| #229 | **文档索引原子维护 + 崩溃重建校验**：验证 document 二级索引在 insert/update 时与主数据原子写入、崩溃后随集合重建（当前 planner 依赖索引"过包含"再用 `Matches` 复检，一旦"欠包含"会静默漏行）；补一个覆盖扫描一致性校验。 | 索引 I10（疑似，需先验证） | 📋 |
+| #229 | **文档索引原子维护 + 崩溃重建校验**：验证 document 二级索引在 insert/update 时与主数据原子写入、崩溃后随集合重建（当前 planner 依赖索引"过包含"再用 `Matches` 复检，一旦"欠包含"会静默漏行）；补一个覆盖扫描一致性校验。 | 索引 I10（疑似，需先验证） | ✅（**验证结论：无实缺陷**——二级索引是主文档纯函数，`DocumentCollectionStore` 构造时 `RebuildIndexesLocked` 从主数据全量重建，主写走 KV WAL 落盘故崩溃 / torn write 造成的欠包含在重开集合时自愈；live 维护全程持 `_sync` 锁原子写入。新增只读校验器 `VerifyIndexConsistency()`→`DocumentIndexConsistencyReport`：全表扫主文档重算期望条目集、与 KV 实际条目集按索引名对比得 Missing（欠包含）/Orphan（过包含）；接入 Server `quality_analysis` 质量报告（欠包含报 error、过包含报 warning、Detail 携带 entries/missing/orphan 计数）。新增 `DocumentIndexConsistencyTests` 6 项含崩溃删条目→重开自愈闭环 + Server `Maintenance_QualityAnalysis` 断言扩展） |
 
 ### P5 — 消息队列吞吐 + 全模型高吞吐接入
 
@@ -799,7 +799,7 @@ P5b 接入：#235（通用二进制帧 + MQ service / HTTP-2）→ #236（HTTP-2
 | I7 | 🟡 | `Storage/Segments/VectorIndexAdapter.cs:141`、`Query/KnnExecutor.cs:199` | 非 cosine 向量索引按 cosine 建且 ANN gate 仅 cosine，白占空间不加速 | #223 |
 | I8 | ✅ | `Query/KnnExecutor.cs:186` | 向量 KNN 不用 block skip-index，每 series 全块扫 | #224 |
 | I9 | 🟡 | `Storage/Segments/VectorIndexAdapter.cs:179` | efConstruction 被 search ef 绑死，低 search-ef 永久烤进低质量图 | #223 |
-| I10 | 🟡(疑似) | `Documents/DocumentQueryPlanner.cs:31` | 文档索引若"欠包含"（写入未原子/崩溃未重建）静默漏行；需先验证维护路径 | #229 |
+| I10 | ✅（验证无实缺陷） | `Documents/DocumentQueryPlanner.cs` | 文档索引若"欠包含"（写入未原子/崩溃未重建）静默漏行；需先验证维护路径 | #229 |
 | I11 | ✅ | `Engine/Compaction/SegmentCompactor.cs:86`、`Storage/Segments/SegmentWriter.cs:417` | compaction 向量索引仅在两个 catalog 都提供时构建，否则静默退化暴力扫 | #225 |
 | I12 | 🟡 | `Sql/Execution/DocumentVectorSearchExecutor.cs:97` | 文档 `vector_search` 全表暴力 + 每行 JSON parse，O(N·dim) | #227 |
 | I13 | ✅ | ~~`Storage/Segments/HnswVectorBlockIndex.cs`~~（已删除） | 遗留死代码 HNSW，图质量差 O(n·ef²) 建图，误用风险 | #228 |

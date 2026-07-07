@@ -297,20 +297,45 @@ internal static class MaintenanceEndpointHandler
         foreach (var collection in tsdb.Documents.Catalog.Snapshot())
         {
             var store = tsdb.Documents.Open(collection.Name);
-            long documentCount = store.Count();
+            var consistency = store.VerifyIndexConsistency();
+            long documentCount = consistency.DocumentCount;
+            var consistencyByIndex = consistency.Indexes.ToDictionary(
+                static e => e.IndexName,
+                static e => e,
+                StringComparer.Ordinal);
             foreach (var index in collection.Indexes)
             {
+                consistencyByIndex.TryGetValue(index.Name, out var indexConsistency);
+                string state = indexConsistency is null || indexConsistency.IsConsistent ? "ok" : "inconsistent";
                 indexes.Add(new QualityIndexInfo(
                     $"document:{collection.Name}:{index.Name}",
                     "document",
                     collection.Name,
                     index.Name,
                     DocumentIndexKind(index),
-                    "ok",
+                    state,
                     IncludedInBackup: false,
                     Rebuildable: true,
                     DocumentCount: documentCount,
-                    Detail: FormatDocumentIndexDetail(index)));
+                    Detail: FormatDocumentIndexDetail(index, indexConsistency)));
+                if (indexConsistency is { MissingEntries: > 0 })
+                {
+                    issues.Add(new MaintenanceCheckInfo(
+                        $"document:{collection.Name}:{index.Name}",
+                        "error",
+                        $"document 二级索引 '{index.Name}' 欠包含 {indexConsistency.MissingEntries} 条条目，"
+                            + "查询可能静默漏行；重开集合或 REBUILD INDEX 从主数据全量重建可自愈。",
+                        indexConsistency.MissingEntries));
+                }
+                else if (indexConsistency is { OrphanEntries: > 0 })
+                {
+                    issues.Add(new MaintenanceCheckInfo(
+                        $"document:{collection.Name}:{index.Name}",
+                        "warning",
+                        $"document 二级索引 '{index.Name}' 过包含 {indexConsistency.OrphanEntries} 条孤儿条目，"
+                            + "结果由 planner 复检兜住但扫描浪费；REBUILD INDEX 可清理。",
+                        indexConsistency.OrphanEntries));
+                }
             }
 
             foreach (var index in collection.FullTextIndexes)
@@ -429,7 +454,9 @@ internal static class MaintenanceEndpointHandler
         return index.Paths.Count > 1 ? "compound_document" : "document";
     }
 
-    private static string FormatDocumentIndexDetail(DocumentPathIndex index)
+    private static string FormatDocumentIndexDetail(
+        DocumentPathIndex index,
+        DocumentIndexConsistencyEntry? consistency)
     {
         var parts = new List<string>
         {
@@ -443,6 +470,14 @@ internal static class MaintenanceEndpointHandler
             parts.Add($"partial={index.PartialFilter.Path}:{index.PartialFilter.Operator}:{index.PartialFilter.ValueScalar}");
         if (index.IsTtl)
             parts.Add("ttl_seconds=" + index.TtlSeconds);
+        if (consistency is not null)
+        {
+            parts.Add("entries=" + consistency.ActualEntries);
+            if (consistency.MissingEntries > 0)
+                parts.Add("missing=" + consistency.MissingEntries);
+            if (consistency.OrphanEntries > 0)
+                parts.Add("orphan=" + consistency.OrphanEntries);
+        }
         return string.Join(";", parts);
     }
 

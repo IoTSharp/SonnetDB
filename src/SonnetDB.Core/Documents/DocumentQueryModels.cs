@@ -203,3 +203,59 @@ public sealed record DocumentQueryResult(
     int MatchedCount,
     string AccessPath,
     string? IndexName);
+
+/// <summary>
+/// 文档集合二级索引与全文索引相对主数据的一致性校验报告。
+/// <para>
+/// 二级索引是主文档的纯函数（<c>BuildIndexEntries</c>）：全表扫主文档重算期望条目集，与 KV
+/// 中已存条目集对比。<see cref="DocumentIndexConsistencyEntry.MissingEntries"/>（欠包含）会导致查询
+/// 静默漏行，是危险信号；<see cref="DocumentIndexConsistencyEntry.OrphanEntries"/>（过包含）由
+/// planner 的 <c>Matches</c> 复检兜住、结果正确但浪费扫描。只要 open 时 <c>RebuildIndexesLocked</c>
+/// 从主数据全量重建索引，崩溃 / torn write 造成的不一致都会在重开集合时自愈。
+/// </para>
+/// </summary>
+/// <param name="CollectionName">文档集合名。</param>
+/// <param name="DocumentCount">主数据文档总数。</param>
+/// <param name="IsConsistent">是否无任何索引欠包含（无 Missing 条目）。</param>
+/// <param name="Indexes">每个二级索引的一致性明细。</param>
+/// <param name="FullTextIndexes">每个全文索引的文档计数一致性明细。</param>
+public sealed record DocumentIndexConsistencyReport(
+    string CollectionName,
+    int DocumentCount,
+    bool IsConsistent,
+    IReadOnlyList<DocumentIndexConsistencyEntry> Indexes,
+    IReadOnlyList<DocumentFullTextConsistencyEntry> FullTextIndexes);
+
+/// <summary>
+/// 单个文档二级索引的一致性明细。
+/// </summary>
+/// <param name="IndexName">索引名。</param>
+/// <param name="ExpectedEntries">按主数据重算得到的期望索引条目数。</param>
+/// <param name="ActualEntries">KV 中当前存在的索引条目数。</param>
+/// <param name="MissingEntries">期望存在但 KV 中缺失的条目数（欠包含，会静默漏行）。</param>
+/// <param name="OrphanEntries">KV 中存在但主数据不再要求的条目数（过包含，planner 复检安全但浪费）。</param>
+public sealed record DocumentIndexConsistencyEntry(
+    string IndexName,
+    int ExpectedEntries,
+    int ActualEntries,
+    int MissingEntries,
+    int OrphanEntries)
+{
+    /// <summary>该索引是否一致（无欠包含也无过包含）。</summary>
+    public bool IsConsistent => MissingEntries == 0 && OrphanEntries == 0;
+}
+
+/// <summary>
+/// 单个全文索引相对主数据的文档计数一致性明细。
+/// </summary>
+/// <param name="IndexName">全文索引名。</param>
+/// <param name="DocumentCount">主数据文档总数。</param>
+/// <param name="IndexedDocumentCount">全文索引当前可见文档数。</param>
+public sealed record DocumentFullTextConsistencyEntry(
+    string IndexName,
+    int DocumentCount,
+    int IndexedDocumentCount)
+{
+    /// <summary>索引可见文档数是否与主数据一致。</summary>
+    public bool IsConsistent => DocumentCount == IndexedDocumentCount;
+}

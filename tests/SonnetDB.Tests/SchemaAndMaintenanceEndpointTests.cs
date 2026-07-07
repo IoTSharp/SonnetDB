@@ -257,6 +257,18 @@ public sealed class SchemaAndMaintenanceEndpointTests : IAsyncLifetime
         Assert.Contains(indexes, index => index.GetProperty("id").GetString() == "table:devices:idx_devices_site");
         Assert.Contains(indexes, index => index.GetProperty("id").GetString() == "document:docs:ft_docs_body");
         Assert.Contains(indexes, index => index.GetProperty("id").GetString() == "measurement:metrics:embedding");
+
+        // #229：文档二级索引经一致性校验，一致时 State=ok 且 Detail 携带 entries 计数、无 missing/orphan。
+        var docSiteIndex = indexes.Single(index => index.GetProperty("id").GetString() == "document:docs:idx_docs_site");
+        Assert.Equal("ok", docSiteIndex.GetProperty("state").GetString());
+        string docSiteDetail = docSiteIndex.GetProperty("detail").GetString()!;
+        Assert.Contains("entries=1", docSiteDetail);
+        Assert.DoesNotContain("missing=", docSiteDetail);
+        Assert.DoesNotContain("orphan=", docSiteDetail);
+        var issues = quality.GetProperty("issues").EnumerateArray()
+            .Select(issue => issue.GetProperty("status").GetString())
+            .ToArray();
+        Assert.DoesNotContain("error", issues);
     }
 
     [Fact]

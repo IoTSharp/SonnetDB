@@ -395,6 +395,106 @@ public sealed class DocumentCollectionStore : IDisposable
     }
 
     /// <summary>
+    /// 校验二级索引与全文索引相对主数据的一致性。
+    /// <para>
+    /// 二级索引是主文档的纯函数：全表扫 <c>'d'</c> 前缀主文档、对每行用 <see cref="BuildIndexEntries"/>
+    /// 重算期望条目 key 集合，与扫 <c>'i'</c> 前缀得到的已存条目 key 集合按索引名分组对比，得每个索引的
+    /// 欠包含（Missing，会静默漏行）与过包含（Orphan，planner 复检兜住但浪费）。全文索引比对主数据文档数
+    /// 与索引可见文档数。此方法为只读诊断，不修改任何状态；崩溃 / torn write 造成的不一致由 open 时的
+    /// <see cref="RebuildIndexesLocked"/> 从主数据全量重建自愈。
+    /// </para>
+    /// </summary>
+    /// <returns>一致性校验报告。</returns>
+    public DocumentIndexConsistencyReport VerifyIndexConsistency()
+    {
+        lock (_sync)
+        {
+            PurgeExpiredDocumentsLocked();
+            var schema = _schema;
+
+            var expectedByIndex = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+            foreach (var index in schema.Indexes)
+                expectedByIndex[index.Name] = new HashSet<string>(StringComparer.Ordinal);
+
+            int documentCount = 0;
+            foreach (var rowEntry in _keyspace.ScanPrefix(new byte[] { (byte)'d' }, int.MaxValue))
+            {
+                documentCount++;
+                string id = DocumentIndexCodec.DecodeIdFromDocumentKey(rowEntry.Key);
+                var row = new DocumentRow(id, Encoding.UTF8.GetString(rowEntry.Value.Span), rowEntry.Version);
+                foreach (var indexEntry in BuildIndexEntries(schema, row))
+                    expectedByIndex[indexEntry.Index.Name].Add(Convert.ToBase64String(indexEntry.Key));
+            }
+
+            var actualByIndex = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+            foreach (var entry in _keyspace.ScanPrefix(new byte[] { (byte)'i' }, int.MaxValue))
+            {
+                string? indexName = DocumentIndexCodec.TryDecodeIndexNameFromEntryKey(entry.Key.Span);
+                if (indexName is null)
+                    continue;
+
+                if (!actualByIndex.TryGetValue(indexName, out var set))
+                    actualByIndex[indexName] = set = new HashSet<string>(StringComparer.Ordinal);
+                set.Add(Convert.ToBase64String(entry.Key.Span));
+            }
+
+            var indexEntries = new List<DocumentIndexConsistencyEntry>(schema.Indexes.Count);
+            bool isConsistent = true;
+            foreach (var index in schema.Indexes)
+            {
+                var expected = expectedByIndex[index.Name];
+                var actual = actualByIndex.TryGetValue(index.Name, out var set)
+                    ? set
+                    : new HashSet<string>(StringComparer.Ordinal);
+
+                int missing = expected.Count(key => !actual.Contains(key));
+                int orphan = actual.Count(key => !expected.Contains(key));
+                if (missing > 0)
+                    isConsistent = false;
+
+                indexEntries.Add(new DocumentIndexConsistencyEntry(
+                    index.Name,
+                    expected.Count,
+                    actual.Count,
+                    missing,
+                    orphan));
+            }
+
+            var fullTextEntries = new List<DocumentFullTextConsistencyEntry>(schema.FullTextIndexes.Count);
+            foreach (var index in schema.FullTextIndexes)
+            {
+                int indexedCount = OpenFullTextStoreLocked(index, rebuildIfMissing: true).DocumentCount;
+                fullTextEntries.Add(new DocumentFullTextConsistencyEntry(index.Name, documentCount, indexedCount));
+            }
+
+            return new DocumentIndexConsistencyReport(
+                schema.Name,
+                documentCount,
+                isConsistent,
+                indexEntries,
+                fullTextEntries);
+        }
+    }
+
+    /// <summary>
+    /// 直接删除第一条 <c>'i'</c> 前缀二级索引条目而不动主数据，模拟崩溃 / torn write 造成的索引欠包含。
+    /// 仅供一致性校验回归测试观测「open 时全量重建自愈」用，返回是否删掉了一条条目。
+    /// </summary>
+    internal bool CorruptFirstIndexEntryForTest()
+    {
+        lock (_sync)
+        {
+            foreach (var entry in _keyspace.ScanPrefix(new byte[] { (byte)'i' }, 1))
+            {
+                _keyspace.Delete(entry.Key.Span);
+                return true;
+            }
+
+            return false;
+        }
+    }
+
+    /// <summary>
     /// 读取指定 JSON path 上的 distinct 标量值。
     /// </summary>
     /// <param name="path">JSON path 表达式。</param>

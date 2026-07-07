@@ -133,6 +133,8 @@
 
 ### Fixed
 
+- **M28 P4 #229 文档索引原子维护 + 崩溃重建校验（索引 I10）**：验证并补齐文档二级索引的原子性与崩溃自愈保障。**核心事实**：文档二级索引是主文档的纯函数（`BuildIndexEntries`），`DocumentCollectionStore` 构造时 `RebuildIndexesLocked` 会清空全部 `'i'` 前缀索引条目、从 `'d'` 前缀主文档全量重建——只要主写走 KV WAL 落盘（P0/P5a 已硬化），崩溃 / torn write 造成的索引欠包含都会在**重开集合时自愈**；live 维护全程持 `_sync` 锁，主数据与索引条目在同一临界区内一并写入。新增只读一致性校验器 `DocumentCollectionStore.VerifyIndexConsistency()`（返回 `DocumentIndexConsistencyReport`）：全表扫主文档重算每个二级索引的**期望**条目 key 集合、与 KV 中**实际**已存条目集合按索引名分组对比，得每索引的 `MissingEntries`（欠包含，会静默漏行——危险）与 `OrphanEntries`（过包含，planner 靠 `Matches` 复检安全但浪费扫描），全文索引比对主数据文档数与索引可见文档数；`IsConsistent` 当且仅当无任何欠包含。Server 维护质量报告（`quality_analysis`）接入该校验：每个文档二级索引的 `State` 由一致性决定（`ok`/`inconsistent`），`Detail` 携带 `entries=`/`missing=`/`orphan=` 计数，检出欠包含时报 `error` issue（引导重开集合或 `REBUILD INDEX` 自愈）、过包含时报 `warning`；`quality_analysis` 已是 Admin 门禁，路由不变。测试：`SonnetDB.Core.Tests` 新增 `DocumentIndexConsistencyTests`（6 项：insert/replace/delete/批量/TTL 清扫后一致、unique/sparse/partial/compound 多索引一致、**崩溃自愈**——删一条 `'i'` 索引条目 → 校验检出 Missing → 同目录重开触发 `RebuildIndexesLocked` → 再校验恢复一致、全文索引文档计数一致）；`SonnetDB.Tests` 扩展 `Maintenance_QualityAnalysis` 断言文档二级索引报 `State=ok`、`Detail` 含 `entries=`、无 `error` issue。
+
 - **M28 P0 数据可靠性止血批次**：一轮跨子系统审计后修复一组崩溃/并发数据安全缺陷——
   (#189) `DirectoryFsync` 在 Windows 用 `CreateFileW(FILE_FLAG_BACKUP_SEMANTICS)`+`FlushFileBuffers` 实现真实目录 fsync（替换旧空操作），保证 segment 改名 + 目录项落盘早于 WAL 回收，并补 catalog / measurement schema 改名后的目录 flush；
   (#190/#204) MemTable 双缓冲统一快照（SegmentManager 作为 {active+sealing MemTable+segments} 单一原子发布者），消除 flush 期间"数据两处都无"的并发查询丢数据窗口，并把 flush 编码落盘移出全局写锁（FlushPump 单线程泵）；
