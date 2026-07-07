@@ -398,16 +398,26 @@ public static class Program
 
     private static void ConfigureMqttServices(WebApplicationBuilder builder)
     {
-        if (!builder.Configuration.GetValue<bool>("SonnetDBServer:Mqtt:Enabled"))
+        bool brokerEnabled = builder.Configuration.GetValue<bool>("SonnetDBServer:Mqtt:Enabled");
+        bool externalClientEnabled = builder.Configuration.GetValue<bool>("SonnetDBServer:Mqtt:ExternalClient:Enabled");
+        if (!brokerEnabled && !externalClientEnabled)
             return;
 
-        builder.Services.AddSingleton<SonnetMqttBrokerBridge>();
-        builder.Services.AddMqttControllers([typeof(SonnetMqttController).Assembly]);
+        builder.Services.AddSingleton<SonnetMqttMeasurementIngestor>();
 
-        builder.Services
-            .AddHostedMqttServerWithServices(options => options.WithoutDefaultEndpoint())
-            .AddMqttConnectionHandler()
-            .AddConnections();
+        if (brokerEnabled)
+        {
+            builder.Services.AddSingleton<SonnetMqttBrokerBridge>();
+            builder.Services.AddMqttControllers([typeof(SonnetMqttController).Assembly]);
+
+            builder.Services
+                .AddHostedMqttServerWithServices(options => options.WithoutDefaultEndpoint())
+                .AddMqttConnectionHandler()
+                .AddConnections();
+        }
+
+        if (externalClientEnabled)
+            builder.Services.AddHostedService<SonnetMqttExternalClientService>();
     }
 
     private static void ConfigureMqttMiddleware(WebApplication app, ServerOptions serverOptions)

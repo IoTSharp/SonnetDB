@@ -5,7 +5,6 @@ using MQTTnet.Protocol;
 using SonnetDB.Auth;
 using SonnetDB.Endpoints;
 using SonnetDB.Hosting;
-using SonnetDB.Ingest;
 using SonnetMQ;
 
 namespace SonnetDB.Mqtt;
@@ -17,11 +16,10 @@ namespace SonnetDB.Mqtt;
 [MqttRoute("db/{db}")]
 public sealed class SonnetMqttController : MqttBaseController
 {
-    private const string FormatProperty = "sndb-format";
     private readonly TsdbRegistry _registry;
     private readonly GrantsStore _grants;
-    private readonly ServerMetrics _metrics;
     private readonly SonnetMqStore _mq;
+    private readonly SonnetMqttMeasurementIngestor _measurementIngestor;
 
     /// <summary>
     /// 创建 MQTT 路由控制器。
@@ -29,13 +27,13 @@ public sealed class SonnetMqttController : MqttBaseController
     public SonnetMqttController(
         TsdbRegistry registry,
         GrantsStore grants,
-        ServerMetrics metrics,
-        SonnetMqStore mq)
+        SonnetMqStore mq,
+        SonnetMqttMeasurementIngestor measurementIngestor)
     {
         _registry = registry;
         _grants = grants;
-        _metrics = metrics;
         _mq = mq;
+        _measurementIngestor = measurementIngestor;
     }
 
     /// <summary>
@@ -50,34 +48,22 @@ public sealed class SonnetMqttController : MqttBaseController
             return Task.CompletedTask;
         if (!TryAuthorize(db, DatabasePermission.Write))
             return Task.CompletedTask;
-        if (string.IsNullOrWhiteSpace(measurement) || measurement.Length > 255)
-            return RejectAsync(MqttPubAckReasonCode.TopicNameInvalid, $"非法 measurement 名 '{measurement}'。");
-        if (!_registry.TryGet(db, out var tsdb))
-            return RejectAsync(MqttPubAckReasonCode.TopicNameInvalid, $"数据库 '{db}' 不存在。");
 
-        try
+        var route = new MqttTopicRoute(MqttTopicKind.Measurement, db, measurement);
+        if (!_measurementIngestor.TryIngestMeasurement(
+                route,
+                Message.Payload.ToArray(),
+                Message.ContentType,
+                Message.UserProperties,
+                out _,
+                out var reasonCode,
+                out string reason))
         {
-            byte[] payload = Message.Payload.ToArray();
-            var format = ResolveFormat(payload);
-            var result = BulkIngestEndpointHandler.IngestPayload(
-                tsdb,
-                measurement,
-                format,
-                payload,
-                BulkErrorPolicy.FailFast,
-                BulkFlushMode.None);
-            _metrics.AddInsertedRows(result.Written);
-            MqttContext.Response.ReasonCode = MqttPubAckReasonCode.Success;
-            return Ok();
+            return RejectAsync(reasonCode, reason);
         }
-        catch (BulkIngestException ex)
-        {
-            return RejectAsync(MqttPubAckReasonCode.PayloadFormatInvalid, ex.Message);
-        }
-        catch (ArgumentException ex)
-        {
-            return RejectAsync(MqttPubAckReasonCode.PayloadFormatInvalid, ex.Message);
-        }
+
+        MqttContext.Response.ReasonCode = MqttPubAckReasonCode.Success;
+        return Ok();
     }
 
     /// <summary>
@@ -181,37 +167,6 @@ public sealed class SonnetMqttController : MqttBaseController
         return BadMessage();
     }
 
-    private BulkIngestEndpointHandler.Format ResolveFormat(ReadOnlySpan<byte> payload)
-    {
-        string? explicitFormat = FindUserProperty(FormatProperty);
-        if (string.IsNullOrWhiteSpace(explicitFormat))
-            explicitFormat = Message.ContentType;
-
-        if (!string.IsNullOrWhiteSpace(explicitFormat))
-        {
-            if (explicitFormat.Contains("json", StringComparison.OrdinalIgnoreCase))
-                return BulkIngestEndpointHandler.Format.Json;
-            if (explicitFormat.Contains("bulk", StringComparison.OrdinalIgnoreCase)
-                || explicitFormat.Contains("values", StringComparison.OrdinalIgnoreCase))
-                return BulkIngestEndpointHandler.Format.BulkValues;
-            if (explicitFormat.Contains("line", StringComparison.OrdinalIgnoreCase)
-                || explicitFormat.Contains("lp", StringComparison.OrdinalIgnoreCase)
-                || explicitFormat.Contains("text/plain", StringComparison.OrdinalIgnoreCase))
-                return BulkIngestEndpointHandler.Format.LineProtocol;
-        }
-
-        foreach (byte b in payload)
-        {
-            if (b is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n')
-                continue;
-            return b is (byte)'{' or (byte)'['
-                ? BulkIngestEndpointHandler.Format.Json
-                : BulkIngestEndpointHandler.Format.LineProtocol;
-        }
-
-        return BulkIngestEndpointHandler.Format.LineProtocol;
-    }
-
     private IReadOnlyDictionary<string, string>? ExtractMqHeaders()
     {
         Dictionary<string, string>? headers = null;
@@ -222,7 +177,8 @@ public sealed class SonnetMqttController : MqttBaseController
         {
             foreach (var property in properties)
             {
-                if (string.IsNullOrWhiteSpace(property.Name) || string.Equals(property.Name, FormatProperty, StringComparison.OrdinalIgnoreCase))
+                if (string.IsNullOrWhiteSpace(property.Name)
+                    || string.Equals(property.Name, SonnetMqttMeasurementIngestor.FormatProperty, StringComparison.OrdinalIgnoreCase))
                     continue;
                 if (!IsHeaderName(property.Name))
                     continue;
@@ -231,20 +187,6 @@ public sealed class SonnetMqttController : MqttBaseController
         }
 
         return headers;
-    }
-
-    private string? FindUserProperty(string name)
-    {
-        if (Message.UserProperties is null)
-            return null;
-
-        foreach (var property in Message.UserProperties)
-        {
-            if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))
-                return ReadUserPropertyValue(property);
-        }
-
-        return null;
     }
 
     private static string ReadUserPropertyValue(MqttUserProperty property)

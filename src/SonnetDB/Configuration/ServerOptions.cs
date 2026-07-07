@@ -66,7 +66,7 @@ public sealed class ServerOptions
     public ObservabilityOptions Observability { get; set; } = new();
 
     /// <summary>
-    /// MQTT 内建 broker 配置（M28 P5b #242）。绑定路径：<c>"SonnetDBServer:Mqtt"</c>。
+    /// MQTT 接入配置（M28 P5b #242/#243）。绑定路径：<c>"SonnetDBServer:Mqtt"</c>。
     /// </summary>
     public MqttBrokerOptions Mqtt { get; set; } = new();
 
@@ -98,7 +98,7 @@ public sealed class PrometheusOptions
 }
 
 /// <summary>
-/// MQTT 内建 broker 配置。Broker 仅位于 Server 层，Core 不感知 MQTT 协议栈。
+/// MQTT 接入配置。MQTT 协议栈仅位于 Server 层，Core 不感知 MQTT。
 /// </summary>
 public sealed class MqttBrokerOptions
 {
@@ -121,6 +121,89 @@ public sealed class MqttBrokerOptions
     /// 每个 MQTT 客户端最多桥接到 SonnetMQ 的订阅数量。
     /// </summary>
     public int MaxMqSubscriptionsPerClient { get; set; } = 32;
+
+    /// <summary>
+    /// 订阅外部 MQTT broker 的 client 配置（M28 P5b #243）。
+    /// </summary>
+    public MqttExternalClientOptions ExternalClient { get; set; } = new();
+}
+
+/// <summary>
+/// 外部 MQTT broker 订阅配置。Server 作为 MQTT client 拉取既有 EMQX/Mosquitto 等 broker 的消息。
+/// </summary>
+public sealed class MqttExternalClientOptions
+{
+    /// <summary>
+    /// 是否启用外部 MQTT client 订阅。默认关闭。
+    /// </summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>
+    /// 外部 MQTT broker 主机名或 IP。
+    /// </summary>
+    public string Host { get; set; } = "127.0.0.1";
+
+    /// <summary>
+    /// 外部 MQTT broker 端口。默认 <c>1883</c>。
+    /// </summary>
+    public int Port { get; set; } = 1883;
+
+    /// <summary>
+    /// 是否使用 TLS 连接外部 broker。
+    /// </summary>
+    public bool UseTls { get; set; }
+
+    /// <summary>
+    /// 连接外部 broker 时使用的 client id。为空时使用默认稳定 id。
+    /// </summary>
+    public string ClientId { get; set; } = "sonnetdb-external-client";
+
+    /// <summary>
+    /// 外部 broker 用户名。为空表示不发送用户名/密码。
+    /// </summary>
+    public string? UserName { get; set; }
+
+    /// <summary>
+    /// 外部 broker 密码。仅用于连接外部 broker，不映射为 SonnetDB 用户。
+    /// </summary>
+    public string? Password { get; set; }
+
+    /// <summary>
+    /// 是否使用 clean start 会话。默认 <c>true</c>，避免重启后重放外部 broker 积压消息。
+    /// </summary>
+    public bool CleanStart { get; set; } = true;
+
+    /// <summary>
+    /// 首次重连等待秒数。连接失败后按指数退避增长到 <see cref="MaxReconnectDelaySeconds"/>。
+    /// </summary>
+    public int ReconnectDelaySeconds { get; set; } = 5;
+
+    /// <summary>
+    /// 最大重连等待秒数。
+    /// </summary>
+    public int MaxReconnectDelaySeconds { get; set; } = 60;
+
+    /// <summary>
+    /// 向外部 broker 订阅的 topic filter 列表。收到的实际 topic 仍需匹配
+    /// <c>db/{db}/m/{measurement}</c> 后才会落库。
+    /// </summary>
+    public List<MqttExternalSubscriptionOptions> Subscriptions { get; set; } = [];
+}
+
+/// <summary>
+/// 外部 MQTT broker 的单个订阅项。
+/// </summary>
+public sealed class MqttExternalSubscriptionOptions
+{
+    /// <summary>
+    /// MQTT topic filter，可使用 broker 支持的 <c>+</c> / <c>#</c> 通配符。
+    /// </summary>
+    public string TopicFilter { get; set; } = "db/+/m/+";
+
+    /// <summary>
+    /// 订阅 QoS。当前支持 <c>0</c> / <c>1</c>，默认 <c>1</c>。
+    /// </summary>
+    public int Qos { get; set; } = 1;
 }
 
 /// <summary>
