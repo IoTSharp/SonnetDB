@@ -1381,22 +1381,22 @@ public sealed class SqlParser
         if (Current.Kind == TokenKind.KeywordLimit)
         {
             Advance();
-            var fetch = ExpectNonNegativeInt("LIMIT 后面期望非负整数");
-            var offset = 0;
+            var fetch = ExpectPaginationValue("LIMIT 后面期望非负整数或参数占位符");
+            SqlExpression offset = LiteralExpression.Integer(0);
             if (Current.Kind == TokenKind.KeywordOffset)
             {
                 Advance();
-                offset = ExpectNonNegativeInt("OFFSET 后面期望非负整数");
+                offset = ExpectPaginationValue("OFFSET 后面期望非负整数或参数占位符");
             }
             return new PaginationSpec(offset, fetch);
         }
 
-        int offsetValue = 0;
+        SqlExpression offsetValue = LiteralExpression.Integer(0);
         bool hasOffset = false;
         if (Current.Kind == TokenKind.KeywordOffset)
         {
             Advance();
-            offsetValue = ExpectNonNegativeInt("OFFSET 后面期望非负整数");
+            offsetValue = ExpectPaginationValue("OFFSET 后面期望非负整数或参数占位符");
             hasOffset = true;
             if (IsIdentifier("row") || IsIdentifier("rows"))
                 Advance();
@@ -1408,7 +1408,7 @@ public sealed class SqlParser
             if (IsIdentifier("first") || IsIdentifier("next"))
                 Advance();
 
-            var fetch = ExpectNonNegativeInt("FETCH 后面期望非负整数");
+            var fetch = ExpectPaginationValue("FETCH 后面期望非负整数或参数占位符");
 
             if (!(IsIdentifier("row") || IsIdentifier("rows")))
                 throw Error("FETCH 子句期望 ROW 或 ROWS");
@@ -1421,6 +1421,17 @@ public sealed class SqlParser
         }
 
         return hasOffset ? new PaginationSpec(offsetValue, null) : null;
+    }
+
+    private SqlExpression ExpectPaginationValue(string errorMessage)
+    {
+        if (Current.Kind == TokenKind.IntegerLiteral)
+            return LiteralExpression.Integer(ExpectNonNegativeInt(errorMessage));
+
+        if (Current.Kind == TokenKind.Parameter)
+            return ParsePrimary();
+
+        throw Error(errorMessage);
     }
 
     private IReadOnlyList<SelectItem> ParseSelectList()

@@ -624,29 +624,29 @@ public static class SqlFrameCodec
                 writer.WriteVarString(value as string ?? value.ToString() ?? string.Empty);
                 break;
             case SqlValueKind.Bytes:
-            {
-                var bytes = (byte[])value;
-                writer.WriteVarUInt32((uint)bytes.Length);
-                writer.WriteBytes(bytes);
-                break;
-            }
+                {
+                    var bytes = (byte[])value;
+                    writer.WriteVarUInt32((uint)bytes.Length);
+                    writer.WriteBytes(bytes);
+                    break;
+                }
             case SqlValueKind.Timestamp:
                 writer.WriteInt64(ToUtcTicks(value));
                 break;
             case SqlValueKind.Vector:
-            {
-                var vector = (float[])value;
-                writer.WriteVarUInt32((uint)vector.Length);
-                writer.WriteStructs<float>(vector);
-                break;
-            }
+                {
+                    var vector = (float[])value;
+                    writer.WriteVarUInt32((uint)vector.Length);
+                    writer.WriteStructs<float>(vector);
+                    break;
+                }
             case SqlValueKind.GeoPoint:
-            {
-                var geo = (GeoPoint)value;
-                writer.WriteDouble(geo.Lat);
-                writer.WriteDouble(geo.Lon);
-                break;
-            }
+                {
+                    var geo = (GeoPoint)value;
+                    writer.WriteDouble(geo.Lat);
+                    writer.WriteDouble(geo.Lon);
+                    break;
+                }
             default:
                 throw new ArgumentException($"不支持的值类型标记 {kind}。");
         }
@@ -665,32 +665,32 @@ public static class SqlFrameCodec
             case SqlValueKind.String:
                 return reader.ReadVarString();
             case SqlValueKind.Bytes:
-            {
-                uint length = reader.ReadVarUInt32();
-                if (length > (uint)reader.Remaining)
-                    throw new FrameFormatException($"Bytes 值长度 {length} 超出帧体剩余长度。");
-                return reader.ReadBytes((int)length).ToArray();
-            }
+                {
+                    uint length = reader.ReadVarUInt32();
+                    if (length > (uint)reader.Remaining)
+                        throw new FrameFormatException($"Bytes 值长度 {length} 超出帧体剩余长度。");
+                    return reader.ReadBytes((int)length).ToArray();
+                }
             case SqlValueKind.Timestamp:
-            {
-                long ticks = reader.ReadInt64();
-                if (ticks < DateTime.MinValue.Ticks || ticks > DateTime.MaxValue.Ticks)
-                    throw new FrameFormatException($"Timestamp ticks {ticks} 超出 DateTime 范围。");
-                return new DateTime(ticks, DateTimeKind.Utc);
-            }
+                {
+                    long ticks = reader.ReadInt64();
+                    if (ticks < DateTime.MinValue.Ticks || ticks > DateTime.MaxValue.Ticks)
+                        throw new FrameFormatException($"Timestamp ticks {ticks} 超出 DateTime 范围。");
+                    return new DateTime(ticks, DateTimeKind.Utc);
+                }
             case SqlValueKind.Vector:
-            {
-                uint dim = reader.ReadVarUInt32();
-                if (4L * dim > reader.Remaining)
-                    throw new FrameFormatException($"Vector 维度 {dim} 超出帧体剩余长度。");
-                return reader.ReadStructs<float>((int)dim).ToArray();
-            }
+                {
+                    uint dim = reader.ReadVarUInt32();
+                    if (4L * dim > reader.Remaining)
+                        throw new FrameFormatException($"Vector 维度 {dim} 超出帧体剩余长度。");
+                    return reader.ReadStructs<float>((int)dim).ToArray();
+                }
             case SqlValueKind.GeoPoint:
-            {
-                double lat = reader.ReadDouble();
-                double lon = reader.ReadDouble();
-                return new GeoPoint(lat, lon);
-            }
+                {
+                    double lat = reader.ReadDouble();
+                    double lon = reader.ReadDouble();
+                    return new GeoPoint(lat, lon);
+                }
             default:
                 throw new FrameFormatException($"值类型标记 {tag} 非法。");
         }

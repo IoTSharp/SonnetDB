@@ -428,12 +428,71 @@ public enum SortDirection
 public sealed record OrderBySpec(SqlExpression Expression, SortDirection Direction);
 
 /// <summary>
-/// 分页子句参数：<c>OFFSET</c> + 可选 <c>FETCH</c>。
+/// 分页子句参数：<c>OFFSET</c> + 可选 <c>FETCH</c>/<c>LIMIT</c>。
 /// 当 <see cref="Fetch"/> 为 <c>null</c> 时表示“从偏移量开始返回全部剩余行”。
 /// </summary>
-/// <param name="Offset">跳过行数（&gt;= 0）。</param>
-/// <param name="Fetch">返回行数上限（&gt;= 0）；<c>null</c> 表示不限制。</param>
-public sealed record PaginationSpec(int Offset, int? Fetch);
+/// <param name="OffsetExpression">跳过行数表达式；执行前必须绑定为非负整数字面量。</param>
+/// <param name="FetchExpression">返回行数上限表达式；<c>null</c> 表示不限制，非空时执行前必须绑定为非负整数字面量。</param>
+public sealed record PaginationSpec(SqlExpression OffsetExpression, SqlExpression? FetchExpression)
+{
+    /// <summary>
+    /// 用已知整数分页参数创建分页子句。
+    /// </summary>
+    /// <param name="offset">跳过行数（&gt;= 0）。</param>
+    /// <param name="fetch">返回行数上限（&gt;= 0）；<c>null</c> 表示不限制。</param>
+    public PaginationSpec(int offset, int? fetch)
+        : this(ToPaginationLiteral(offset, "OFFSET"), fetch.HasValue ? ToPaginationLiteral(fetch.Value, "FETCH") : null)
+    {
+    }
+
+    /// <summary>
+    /// 已绑定后的跳过行数。
+    /// </summary>
+    public int Offset
+    {
+        get => RequireNonNegativeInt(OffsetExpression, "OFFSET");
+        init => OffsetExpression = ToPaginationLiteral(value, "OFFSET");
+    }
+
+    /// <summary>
+    /// 已绑定后的返回行数上限；<c>null</c> 表示不限制。
+    /// </summary>
+    public int? Fetch
+    {
+        get => FetchExpression is null ? null : RequireNonNegativeInt(FetchExpression, "FETCH/LIMIT");
+        init => FetchExpression = value.HasValue ? ToPaginationLiteral(value.Value, "FETCH") : null;
+    }
+
+    internal static int RequireNonNegativeInt(SqlExpression expression, string clauseName)
+    {
+        if (expression is not LiteralExpression { Kind: SqlLiteralKind.Integer } literal)
+        {
+            throw new InvalidOperationException($"分页参数 {clauseName} 必须是非负整数。");
+        }
+
+        if (literal.IntegerValue < 0)
+        {
+            throw new InvalidOperationException($"分页参数 {clauseName} 必须是非负整数。");
+        }
+
+        if (literal.IntegerValue > int.MaxValue)
+        {
+            throw new InvalidOperationException("分页参数过大，必须 <= Int32.MaxValue。");
+        }
+
+        return (int)literal.IntegerValue;
+    }
+
+    private static LiteralExpression ToPaginationLiteral(int value, string clauseName)
+    {
+        if (value < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(value), $"分页参数 {clauseName} 必须是非负整数。");
+        }
+
+        return LiteralExpression.Integer(value);
+    }
+}
 
 /// <summary>SELECT 投影项。</summary>
 /// <param name="Expression">投影表达式（可能为 <see cref="StarExpression"/>）。</param>

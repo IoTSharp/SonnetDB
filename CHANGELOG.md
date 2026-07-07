@@ -5,6 +5,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- 修复 SQL 分页子句不能解析参数占位符的问题，`LIMIT @take OFFSET @skip` 与 `OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY` 现在会在执行前通过参数绑定校验为非负整数，恢复 EF Core `Skip`/`Take` 查询执行。
+- 修复 Server NativeAOT 发布在 `/warnaserror` 下被 `MQTTnet.AspNetCore.Routing` 的程序集级 IL2104/IL3053 诊断阻断的问题；诊断仍会在发布日志中显示为 warning。
+
 ## [3.0.0] - 2026-07-07
 
 ### Added

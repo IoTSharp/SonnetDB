@@ -52,6 +52,7 @@ public static class SqlParameterBinder
         var orderByItems = BindOrderBy(select.OrderByList, p);
         var joins = BindJoins(select.JoinClauses, p);
         var fromSubquery = select.FromSubquery is null ? null : BindSelect(select.FromSubquery, p);
+        var pagination = BindPagination(select.Pagination, p);
 
         return select with
         {
@@ -59,6 +60,7 @@ public static class SqlParameterBinder
             Where = where,
             GroupBy = groupBy,
             Having = having,
+            Pagination = pagination,
             OrderBy = null,
             OrderByItems = orderByItems,
             Join = null,
@@ -134,6 +136,29 @@ public static class SqlParameterBinder
             }
         }
         return copy ?? items;
+    }
+
+    private static PaginationSpec? BindPagination(PaginationSpec? pagination, SqlParameters p)
+    {
+        if (pagination is null)
+            return null;
+
+        var offset = BindExpr(pagination.OffsetExpression, p);
+        var fetch = pagination.FetchExpression is null ? null : BindExpr(pagination.FetchExpression, p);
+
+        // 分页参数最终仍保持执行层使用的 int 合约；参数值不合法时在绑定阶段给出明确错误。
+        int offsetValue = PaginationSpec.RequireNonNegativeInt(offset, "OFFSET");
+        int? fetchValue = fetch is null ? null : PaginationSpec.RequireNonNegativeInt(fetch, "FETCH/LIMIT");
+
+        if (ReferenceEquals(offset, pagination.OffsetExpression)
+            && ReferenceEquals(fetch, pagination.FetchExpression)
+            && offsetValue == pagination.Offset
+            && fetchValue == pagination.Fetch)
+        {
+            return pagination;
+        }
+
+        return new PaginationSpec(offsetValue, fetchValue);
     }
 
     private static IReadOnlyList<JoinClause> BindJoins(IReadOnlyList<JoinClause> joins, SqlParameters p)

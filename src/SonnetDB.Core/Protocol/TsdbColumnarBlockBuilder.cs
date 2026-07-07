@@ -145,48 +145,48 @@ public static class TsdbColumnarBlockBuilder
             switch (_type)
             {
                 case FieldType.Float64:
-                {
-                    var values = new double[present];
-                    for (int i = 0; i < present; i++)
-                        values[i] = _values[i].AsDouble();
-                    return TsdbColumnarColumn.Float64(_name, values, presence);
-                }
+                    {
+                        var values = new double[present];
+                        for (int i = 0; i < present; i++)
+                            values[i] = _values[i].AsDouble();
+                        return TsdbColumnarColumn.Float64(_name, values, presence);
+                    }
                 case FieldType.Int64:
-                {
-                    var values = new long[present];
-                    for (int i = 0; i < present; i++)
-                        values[i] = _values[i].AsLong();
-                    return TsdbColumnarColumn.Int64(_name, values, presence);
-                }
+                    {
+                        var values = new long[present];
+                        for (int i = 0; i < present; i++)
+                            values[i] = _values[i].AsLong();
+                        return TsdbColumnarColumn.Int64(_name, values, presence);
+                    }
                 case FieldType.Boolean:
-                {
-                    var values = new bool[present];
-                    for (int i = 0; i < present; i++)
-                        values[i] = _values[i].AsBool();
-                    return TsdbColumnarColumn.Boolean(_name, values, presence);
-                }
+                    {
+                        var values = new bool[present];
+                        for (int i = 0; i < present; i++)
+                            values[i] = _values[i].AsBool();
+                        return TsdbColumnarColumn.Boolean(_name, values, presence);
+                    }
                 case FieldType.String:
-                {
-                    var values = new string[present];
-                    for (int i = 0; i < present; i++)
-                        values[i] = _values[i].AsString();
-                    return TsdbColumnarColumn.String(_name, values, presence);
-                }
+                    {
+                        var values = new string[present];
+                        for (int i = 0; i < present; i++)
+                            values[i] = _values[i].AsString();
+                        return TsdbColumnarColumn.String(_name, values, presence);
+                    }
                 case FieldType.Vector:
-                {
-                    int dim = _vectorDim;
-                    var values = new float[checked(dim * present)];
-                    for (int i = 0; i < present; i++)
-                        _values[i].AsVector().Span.CopyTo(values.AsSpan(i * dim, dim));
-                    return TsdbColumnarColumn.Vector(_name, dim, values, presence);
-                }
+                    {
+                        int dim = _vectorDim;
+                        var values = new float[checked(dim * present)];
+                        for (int i = 0; i < present; i++)
+                            _values[i].AsVector().Span.CopyTo(values.AsSpan(i * dim, dim));
+                        return TsdbColumnarColumn.Vector(_name, dim, values, presence);
+                    }
                 case FieldType.GeoPoint:
-                {
-                    var values = new GeoPoint[present];
-                    for (int i = 0; i < present; i++)
-                        values[i] = _values[i].AsGeoPoint();
-                    return TsdbColumnarColumn.GeoPoint(_name, values, presence);
-                }
+                    {
+                        var values = new GeoPoint[present];
+                        for (int i = 0; i < present; i++)
+                            values[i] = _values[i].AsGeoPoint();
+                        return TsdbColumnarColumn.GeoPoint(_name, values, presence);
+                    }
                 default:
                     throw new BulkIngestException($"字段列 '{_name}' 的类型 {_type} 不支持列式编码。");
             }

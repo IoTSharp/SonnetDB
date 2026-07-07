@@ -1,4 +1,5 @@
-﻿using SonnetDB.Catalog;
+﻿using System.Diagnostics;
+using SonnetDB.Catalog;
 using SonnetDB.Diagnostics;
 using SonnetDB.Documents;
 using SonnetDB.Engine.Compaction;
@@ -11,7 +12,6 @@ using SonnetDB.Query.Functions;
 using SonnetDB.Storage.Segments;
 using SonnetDB.Tables;
 using SonnetDB.Wal;
-using System.Diagnostics;
 
 namespace SonnetDB.Engine;
 
@@ -625,32 +625,32 @@ public sealed class Tsdb : IDisposable
         // 先取维护锁（外），再取写锁（内）：与 Compaction / Retention 互斥，杜绝它们并发变更段集合
         // 导致的 use-after-dispose / 数据复活；锁序 _maintenanceSync → _writeSync 全局一致。
         lock (_maintenanceSync)
-        lock (_writeSync)
-        {
-            ObjectDisposedException.ThrowIf(_disposed, this);
+            lock (_writeSync)
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
 
-            if (!Measurements.Contains(name))
-                return false;
+                if (!Measurements.Contains(name))
+                    return false;
 
-            SealAndWaitLocked();
+                SealAndWaitLocked();
 
-            var removedSeries = Catalog.RemoveMeasurement(name);
-            var removedSeriesIds = removedSeries.Select(static entry => entry.Id).ToHashSet();
-            foreach (ulong seriesId in removedSeriesIds)
-                _seriesWithWalRecord.Remove(seriesId);
+                var removedSeries = Catalog.RemoveMeasurement(name);
+                var removedSeriesIds = removedSeries.Select(static entry => entry.Id).ToHashSet();
+                foreach (ulong seriesId in removedSeriesIds)
+                    _seriesWithWalRecord.Remove(seriesId);
 
-            MemTable.RemoveSeries(removedSeriesIds);
-            RemoveMeasurementSegmentsLocked(removedSeriesIds);
+                MemTable.RemoveSeries(removedSeriesIds);
+                RemoveMeasurementSegmentsLocked(removedSeriesIds);
 
-            Measurements.Remove(name);
-            MarkMeasurementSchemasDirty();
-            PersistMeasurementSchemasLocked();
+                Measurements.Remove(name);
+                MarkMeasurementSchemasDirty();
+                PersistMeasurementSchemasLocked();
 
-            _catalogDirty = true;
-            PersistCatalogCheckpointLocked();
+                _catalogDirty = true;
+                PersistCatalogCheckpointLocked();
 
-            return true;
-        }
+                return true;
+            }
     }
 
     /// <summary>

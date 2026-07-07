@@ -270,44 +270,44 @@ public static class TsdbFrameCodec
                 writer.Write(MemoryMarshal.AsBytes(column.Int64Values.Span));
                 break;
             case FieldType.Boolean:
-            {
-                ReadOnlyMemory<bool> values = column.BooleanValues;
-                WriteChunk(writer, present, (ref SpanWriter w) =>
                 {
-                    ReadOnlySpan<bool> span = values.Span;
-                    for (int i = 0; i < span.Length; i++)
-                        w.WriteByte(span[i] ? (byte)1 : (byte)0);
-                });
-                break;
-            }
-            case FieldType.String:
-            {
-                IReadOnlyList<string> values = column.StringValues!;
-                for (int i = 0; i < values.Count; i++)
-                {
-                    string value = values[i];
-                    WriteChunk(writer, SpanWriter.MeasureVarString(value),
-                        (ref SpanWriter w) => w.WriteVarString(value));
+                    ReadOnlyMemory<bool> values = column.BooleanValues;
+                    WriteChunk(writer, present, (ref SpanWriter w) =>
+                    {
+                        ReadOnlySpan<bool> span = values.Span;
+                        for (int i = 0; i < span.Length; i++)
+                            w.WriteByte(span[i] ? (byte)1 : (byte)0);
+                    });
+                    break;
                 }
-                break;
-            }
+            case FieldType.String:
+                {
+                    IReadOnlyList<string> values = column.StringValues!;
+                    for (int i = 0; i < values.Count; i++)
+                    {
+                        string value = values[i];
+                        WriteChunk(writer, SpanWriter.MeasureVarString(value),
+                            (ref SpanWriter w) => w.WriteVarString(value));
+                    }
+                    break;
+                }
             case FieldType.Vector:
                 writer.Write(MemoryMarshal.AsBytes(column.VectorValues.Span));
                 break;
             case FieldType.GeoPoint:
-            {
-                ReadOnlyMemory<GeoPoint> values = column.GeoPointValues;
-                WriteChunk(writer, 16 * present, (ref SpanWriter w) =>
                 {
-                    ReadOnlySpan<GeoPoint> span = values.Span;
-                    for (int i = 0; i < span.Length; i++)
+                    ReadOnlyMemory<GeoPoint> values = column.GeoPointValues;
+                    WriteChunk(writer, 16 * present, (ref SpanWriter w) =>
                     {
-                        w.WriteDouble(span[i].Lat);
-                        w.WriteDouble(span[i].Lon);
-                    }
-                });
-                break;
-            }
+                        ReadOnlySpan<GeoPoint> span = values.Span;
+                        for (int i = 0; i < span.Length; i++)
+                        {
+                            w.WriteDouble(span[i].Lat);
+                            w.WriteDouble(span[i].Lon);
+                        }
+                    });
+                    break;
+                }
         }
     }
 

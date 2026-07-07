@@ -596,63 +596,63 @@ internal static class FrameEndpointHandler
         switch ((MqFrameOp)header.Op)
         {
             case MqFrameOp.Publish:
-            {
-                MqPublishFrameRequest request = MqFrameCodec.DecodePublishRequest(payload);
-                if (!TryAuthorize(ctx, registry, grants, writer, header, request.Db, request.Topic, DatabasePermission.Write))
+                {
+                    MqPublishFrameRequest request = MqFrameCodec.DecodePublishRequest(payload);
+                    if (!TryAuthorize(ctx, registry, grants, writer, header, request.Db, request.Topic, DatabasePermission.Write))
+                        return;
+                    long offset = mqStore.Publish(
+                        SonnetDbEndpoints.QualifyMqTopic(request.Db, request.Topic),
+                        request.Payload.Span,
+                        request.Headers.Count == 0 ? null : new SonnetMqPublishOptions(request.Headers));
+                    MqFrameCodec.EncodePublishResponse(writer, header.StreamId, offset);
                     return;
-                long offset = mqStore.Publish(
-                    SonnetDbEndpoints.QualifyMqTopic(request.Db, request.Topic),
-                    request.Payload.Span,
-                    request.Headers.Count == 0 ? null : new SonnetMqPublishOptions(request.Headers));
-                MqFrameCodec.EncodePublishResponse(writer, header.StreamId, offset);
-                return;
-            }
+                }
 
             case MqFrameOp.PublishBatch:
-            {
-                MqPublishBatchFrameRequest request = MqFrameCodec.DecodePublishBatchRequest(payload);
-                if (!TryAuthorize(ctx, registry, grants, writer, header, request.Db, request.Topic, DatabasePermission.Write))
+                {
+                    MqPublishBatchFrameRequest request = MqFrameCodec.DecodePublishBatchRequest(payload);
+                    if (!TryAuthorize(ctx, registry, grants, writer, header, request.Db, request.Topic, DatabasePermission.Write))
+                        return;
+                    IReadOnlyList<long> offsets = mqStore.PublishMany(
+                        SonnetDbEndpoints.QualifyMqTopic(request.Db, request.Topic), request.Entries);
+                    MqFrameCodec.EncodePublishBatchResponse(writer, header.StreamId, offsets);
                     return;
-                IReadOnlyList<long> offsets = mqStore.PublishMany(
-                    SonnetDbEndpoints.QualifyMqTopic(request.Db, request.Topic), request.Entries);
-                MqFrameCodec.EncodePublishBatchResponse(writer, header.StreamId, offsets);
-                return;
-            }
+                }
 
             case MqFrameOp.Pull:
-            {
-                MqPullFrameRequest request = MqFrameCodec.DecodePullRequest(payload);
-                if (!TryAuthorize(ctx, registry, grants, writer, header, request.Db, request.Topic, DatabasePermission.Read))
-                    return;
-                if (string.IsNullOrWhiteSpace(request.ConsumerGroup))
                 {
-                    FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "bad_request", "pull 需包含 consumerGroup。");
+                    MqPullFrameRequest request = MqFrameCodec.DecodePullRequest(payload);
+                    if (!TryAuthorize(ctx, registry, grants, writer, header, request.Db, request.Topic, DatabasePermission.Read))
+                        return;
+                    if (string.IsNullOrWhiteSpace(request.ConsumerGroup))
+                    {
+                        FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "bad_request", "pull 需包含 consumerGroup。");
+                        return;
+                    }
+
+                    int maxCount = request.MaxCount <= 0 ? 100 : Math.Min(request.MaxCount, 1000);
+                    IReadOnlyList<SonnetMqMessage> messages = mqStore.Pull(
+                        SonnetDbEndpoints.QualifyMqTopic(request.Db, request.Topic), request.ConsumerGroup, maxCount);
+                    MqFrameCodec.EncodePullResponse(writer, header.StreamId, messages);
                     return;
                 }
-
-                int maxCount = request.MaxCount <= 0 ? 100 : Math.Min(request.MaxCount, 1000);
-                IReadOnlyList<SonnetMqMessage> messages = mqStore.Pull(
-                    SonnetDbEndpoints.QualifyMqTopic(request.Db, request.Topic), request.ConsumerGroup, maxCount);
-                MqFrameCodec.EncodePullResponse(writer, header.StreamId, messages);
-                return;
-            }
 
             case MqFrameOp.Ack:
-            {
-                MqAckFrameRequest request = MqFrameCodec.DecodeAckRequest(payload);
-                if (!TryAuthorize(ctx, registry, grants, writer, header, request.Db, request.Topic, DatabasePermission.Write))
-                    return;
-                if (string.IsNullOrWhiteSpace(request.ConsumerGroup))
                 {
-                    FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "bad_request", "ack 需包含 consumerGroup。");
+                    MqAckFrameRequest request = MqFrameCodec.DecodeAckRequest(payload);
+                    if (!TryAuthorize(ctx, registry, grants, writer, header, request.Db, request.Topic, DatabasePermission.Write))
+                        return;
+                    if (string.IsNullOrWhiteSpace(request.ConsumerGroup))
+                    {
+                        FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "bad_request", "ack 需包含 consumerGroup。");
+                        return;
+                    }
+
+                    long nextOffset = mqStore.Ack(
+                        SonnetDbEndpoints.QualifyMqTopic(request.Db, request.Topic), request.ConsumerGroup, request.Offset);
+                    MqFrameCodec.EncodeAckResponse(writer, header.StreamId, nextOffset);
                     return;
                 }
-
-                long nextOffset = mqStore.Ack(
-                    SonnetDbEndpoints.QualifyMqTopic(request.Db, request.Topic), request.ConsumerGroup, request.Offset);
-                MqFrameCodec.EncodeAckResponse(writer, header.StreamId, nextOffset);
-                return;
-            }
 
             default:
                 FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "unsupported_op", $"mq service 不支持 op {header.Op}。");
@@ -676,40 +676,40 @@ internal static class FrameEndpointHandler
         switch ((KvFrameOp)header.Op)
         {
             case KvFrameOp.Get:
-            {
-                KvGetFrameRequest request = KvFrameCodec.DecodeGetRequest(payload);
-                if (!TryAuthorizeNamedResource(ctx, registry, grants, writer, header,
-                        request.Db, request.Keyspace, "keyspace 名", DatabasePermission.Read, out Tsdb tsdb))
+                {
+                    KvGetFrameRequest request = KvFrameCodec.DecodeGetRequest(payload);
+                    if (!TryAuthorizeNamedResource(ctx, registry, grants, writer, header,
+                            request.Db, request.Keyspace, "keyspace 名", DatabasePermission.Read, out Tsdb tsdb))
+                        return;
+                    KvEntry? entry = tsdb.Keyspaces.Open(request.Keyspace).GetEntry(request.Key.Span);
+                    KvFrameCodec.EncodeGetResponse(writer, header.StreamId, entry);
                     return;
-                KvEntry? entry = tsdb.Keyspaces.Open(request.Keyspace).GetEntry(request.Key.Span);
-                KvFrameCodec.EncodeGetResponse(writer, header.StreamId, entry);
-                return;
-            }
+                }
 
             case KvFrameOp.Put:
-            {
-                KvPutFrameRequest request = KvFrameCodec.DecodePutRequest(payload);
-                if (!TryAuthorizeNamedResource(ctx, registry, grants, writer, header,
-                        request.Db, request.Keyspace, "keyspace 名", DatabasePermission.Write, out Tsdb tsdb))
+                {
+                    KvPutFrameRequest request = KvFrameCodec.DecodePutRequest(payload);
+                    if (!TryAuthorizeNamedResource(ctx, registry, grants, writer, header,
+                            request.Db, request.Keyspace, "keyspace 名", DatabasePermission.Write, out Tsdb tsdb))
+                        return;
+                    long version = tsdb.Keyspaces.Open(request.Keyspace)
+                        .Put(request.Key.Span, request.Value.Span, request.ExpiresAtUtc);
+                    KvFrameCodec.EncodePutResponse(writer, header.StreamId, version);
                     return;
-                long version = tsdb.Keyspaces.Open(request.Keyspace)
-                    .Put(request.Key.Span, request.Value.Span, request.ExpiresAtUtc);
-                KvFrameCodec.EncodePutResponse(writer, header.StreamId, version);
-                return;
-            }
+                }
 
             case KvFrameOp.Scan:
-            {
-                KvScanFrameRequest request = KvFrameCodec.DecodeScanRequest(payload);
-                if (!TryAuthorizeNamedResource(ctx, registry, grants, writer, header,
-                        request.Db, request.Keyspace, "keyspace 名", DatabasePermission.Read, out Tsdb tsdb))
+                {
+                    KvScanFrameRequest request = KvFrameCodec.DecodeScanRequest(payload);
+                    if (!TryAuthorizeNamedResource(ctx, registry, grants, writer, header,
+                            request.Db, request.Keyspace, "keyspace 名", DatabasePermission.Read, out Tsdb tsdb))
+                        return;
+                    int? limit = request.Limit <= 0 ? null : Math.Min(request.Limit, 10_000);
+                    IReadOnlyList<KvEntry> entries = tsdb.Keyspaces.Open(request.Keyspace)
+                        .ScanPrefixAfter(request.Prefix.Span, request.AfterKey.Span, limit);
+                    KvFrameCodec.EncodeScanResponse(writer, header.StreamId, entries);
                     return;
-                int? limit = request.Limit <= 0 ? null : Math.Min(request.Limit, 10_000);
-                IReadOnlyList<KvEntry> entries = tsdb.Keyspaces.Open(request.Keyspace)
-                    .ScanPrefixAfter(request.Prefix.Span, request.AfterKey.Span, limit);
-                KvFrameCodec.EncodeScanResponse(writer, header.StreamId, entries);
-                return;
-            }
+                }
 
             default:
                 FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "unsupported_op", $"kv service 不支持 op {header.Op}。");
@@ -734,44 +734,44 @@ internal static class FrameEndpointHandler
         switch ((DocFrameOp)header.Op)
         {
             case DocFrameOp.Find:
-            {
-                DocFindFrameRequest request = DocFrameCodec.DecodeFindRequest(payload.Span);
-                if (!TryAuthorizeNamedResource(ctx, registry, grants, writer, header,
-                        request.Db, request.Collection, "document collection 名", DatabasePermission.Read, out Tsdb tsdb))
-                    return;
-                if (!TryOpenCollection(tsdb, request.Collection, writer, header, out DocumentCollectionStore store))
-                    return;
-
-                IReadOnlyList<DocumentRow> rows;
-                if (request.Ids.Count > 0)
                 {
-                    rows = store.GetMany(request.Ids);
-                }
-                else
-                {
-                    int limit = request.Limit <= 0 ? 100 : Math.Min(request.Limit, DocFrameCodec.MaxDocumentCount);
-                    rows = request.AfterId is null
-                        ? store.Scan(limit)
-                        : store.ScanAfter(request.AfterId, limit);
-                }
+                    DocFindFrameRequest request = DocFrameCodec.DecodeFindRequest(payload.Span);
+                    if (!TryAuthorizeNamedResource(ctx, registry, grants, writer, header,
+                            request.Db, request.Collection, "document collection 名", DatabasePermission.Read, out Tsdb tsdb))
+                        return;
+                    if (!TryOpenCollection(tsdb, request.Collection, writer, header, out DocumentCollectionStore store))
+                        return;
 
-                DocFrameCodec.EncodeFindResponse(writer, header.StreamId, rows);
-                return;
-            }
+                    IReadOnlyList<DocumentRow> rows;
+                    if (request.Ids.Count > 0)
+                    {
+                        rows = store.GetMany(request.Ids);
+                    }
+                    else
+                    {
+                        int limit = request.Limit <= 0 ? 100 : Math.Min(request.Limit, DocFrameCodec.MaxDocumentCount);
+                        rows = request.AfterId is null
+                            ? store.Scan(limit)
+                            : store.ScanAfter(request.AfterId, limit);
+                    }
+
+                    DocFrameCodec.EncodeFindResponse(writer, header.StreamId, rows);
+                    return;
+                }
 
             case DocFrameOp.Insert:
-            {
-                DocInsertFrameRequest request = DocFrameCodec.DecodeInsertRequest(payload.Span);
-                if (!TryAuthorizeNamedResource(ctx, registry, grants, writer, header,
-                        request.Db, request.Collection, "document collection 名", DatabasePermission.Write, out Tsdb tsdb))
-                    return;
-                if (!TryOpenCollection(tsdb, request.Collection, writer, header, out DocumentCollectionStore store))
-                    return;
+                {
+                    DocInsertFrameRequest request = DocFrameCodec.DecodeInsertRequest(payload.Span);
+                    if (!TryAuthorizeNamedResource(ctx, registry, grants, writer, header,
+                            request.Db, request.Collection, "document collection 名", DatabasePermission.Write, out Tsdb tsdb))
+                        return;
+                    if (!TryOpenCollection(tsdb, request.Collection, writer, header, out DocumentCollectionStore store))
+                        return;
 
-                DocumentWriteResult result = store.InsertMany(request.Documents, request.Ordered);
-                DocFrameCodec.EncodeInsertResponse(writer, header.StreamId, result);
-                return;
-            }
+                    DocumentWriteResult result = store.InsertMany(request.Documents, request.Ordered);
+                    DocFrameCodec.EncodeInsertResponse(writer, header.StreamId, result);
+                    return;
+                }
 
             default:
                 FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "unsupported_op", $"doc service 不支持 op {header.Op}。");

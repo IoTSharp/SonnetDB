@@ -205,27 +205,27 @@ internal static class FrameStreamEndpointHandler
             case MqFrameOp.PublishBatch:
             case MqFrameOp.Pull:
             case MqFrameOp.Ack:
-            {
-                // payload 是输入缓冲的零拷贝视图，仅在 AdvanceTo 前有效——同步消费（解码 + 引擎调用）
-                // 产出 owned 结果帧后再异步入队，无需整段 ToArray。
-                OutboundFrame response = ExecuteUnaryOp(ctx, registry, grants, mqStore, in header, payload);
-                await EnqueueAsync(outbound, response, ct).ConfigureAwait(false);
-                return;
-            }
-
-            case MqFrameOp.Subscribe:
-            {
-                // subscribe 帧体小且 DecodeSubscribeRequest 会 materialize 出 string 字段，同步解码后 payload 即可释放。
-                OutboundFrame? decodeError = TryDecodeSubscribe(payload, in header, out MqSubscribeFrameRequest request);
-                if (decodeError is { } error)
                 {
-                    await EnqueueAsync(outbound, error, ct).ConfigureAwait(false);
+                    // payload 是输入缓冲的零拷贝视图，仅在 AdvanceTo 前有效——同步消费（解码 + 引擎调用）
+                    // 产出 owned 结果帧后再异步入队，无需整段 ToArray。
+                    OutboundFrame response = ExecuteUnaryOp(ctx, registry, grants, mqStore, in header, payload);
+                    await EnqueueAsync(outbound, response, ct).ConfigureAwait(false);
                     return;
                 }
 
-                await HandleSubscribeAsync(ctx, registry, grants, mqStore, identity, outbound, subscriptions, header, request, ct).ConfigureAwait(false);
-                return;
-            }
+            case MqFrameOp.Subscribe:
+                {
+                    // subscribe 帧体小且 DecodeSubscribeRequest 会 materialize 出 string 字段，同步解码后 payload 即可释放。
+                    OutboundFrame? decodeError = TryDecodeSubscribe(payload, in header, out MqSubscribeFrameRequest request);
+                    if (decodeError is { } error)
+                    {
+                        await EnqueueAsync(outbound, error, ct).ConfigureAwait(false);
+                        return;
+                    }
+
+                    await HandleSubscribeAsync(ctx, registry, grants, mqStore, identity, outbound, subscriptions, header, request, ct).ConfigureAwait(false);
+                    return;
+                }
 
             case MqFrameOp.Unsubscribe:
                 await HandleUnsubscribeAsync(outbound, subscriptions, header, ct).ConfigureAwait(false);
@@ -265,53 +265,53 @@ internal static class FrameStreamEndpointHandler
             switch ((MqFrameOp)header.Op)
             {
                 case MqFrameOp.Publish:
-                {
-                    MqPublishFrameRequest request = MqFrameCodec.DecodePublishRequest(payloadMemory);
-                    if (Authorize(ctx, registry, grants, in header, request.Db, request.Topic, DatabasePermission.Write) is { } denied)
-                        return denied;
-                    long offset = mqStore.Publish(
-                        SonnetDbEndpoints.QualifyMqTopic(request.Db, request.Topic),
-                        request.Payload.Span,
-                        request.Headers.Count == 0 ? null : new SonnetMqPublishOptions(request.Headers));
-                    return OutboundFrame.PublishResponse(header.StreamId, offset);
-                }
+                    {
+                        MqPublishFrameRequest request = MqFrameCodec.DecodePublishRequest(payloadMemory);
+                        if (Authorize(ctx, registry, grants, in header, request.Db, request.Topic, DatabasePermission.Write) is { } denied)
+                            return denied;
+                        long offset = mqStore.Publish(
+                            SonnetDbEndpoints.QualifyMqTopic(request.Db, request.Topic),
+                            request.Payload.Span,
+                            request.Headers.Count == 0 ? null : new SonnetMqPublishOptions(request.Headers));
+                        return OutboundFrame.PublishResponse(header.StreamId, offset);
+                    }
 
                 case MqFrameOp.PublishBatch:
-                {
-                    MqPublishBatchFrameRequest request = MqFrameCodec.DecodePublishBatchRequest(payloadMemory);
-                    if (Authorize(ctx, registry, grants, in header, request.Db, request.Topic, DatabasePermission.Write) is { } denied)
-                        return denied;
-                    IReadOnlyList<long> offsets = mqStore.PublishMany(
-                        SonnetDbEndpoints.QualifyMqTopic(request.Db, request.Topic), request.Entries);
-                    return OutboundFrame.PublishBatchResponse(header.StreamId, offsets);
-                }
+                    {
+                        MqPublishBatchFrameRequest request = MqFrameCodec.DecodePublishBatchRequest(payloadMemory);
+                        if (Authorize(ctx, registry, grants, in header, request.Db, request.Topic, DatabasePermission.Write) is { } denied)
+                            return denied;
+                        IReadOnlyList<long> offsets = mqStore.PublishMany(
+                            SonnetDbEndpoints.QualifyMqTopic(request.Db, request.Topic), request.Entries);
+                        return OutboundFrame.PublishBatchResponse(header.StreamId, offsets);
+                    }
 
                 case MqFrameOp.Pull:
-                {
-                    MqPullFrameRequest request = MqFrameCodec.DecodePullRequest(payloadMemory);
-                    if (Authorize(ctx, registry, grants, in header, request.Db, request.Topic, DatabasePermission.Read) is { } denied)
-                        return denied;
-                    if (string.IsNullOrWhiteSpace(request.ConsumerGroup))
-                        return OutboundFrame.Error(header.Service, header.Op, header.StreamId, "bad_request", "pull 需包含 consumerGroup。");
+                    {
+                        MqPullFrameRequest request = MqFrameCodec.DecodePullRequest(payloadMemory);
+                        if (Authorize(ctx, registry, grants, in header, request.Db, request.Topic, DatabasePermission.Read) is { } denied)
+                            return denied;
+                        if (string.IsNullOrWhiteSpace(request.ConsumerGroup))
+                            return OutboundFrame.Error(header.Service, header.Op, header.StreamId, "bad_request", "pull 需包含 consumerGroup。");
 
-                    int maxCount = request.MaxCount <= 0 ? DefaultBatchMax : Math.Min(request.MaxCount, MaxBatchMax);
-                    IReadOnlyList<SonnetMqMessage> messages = mqStore.Pull(
-                        SonnetDbEndpoints.QualifyMqTopic(request.Db, request.Topic), request.ConsumerGroup, maxCount);
-                    return OutboundFrame.PullResponse(header.StreamId, messages);
-                }
+                        int maxCount = request.MaxCount <= 0 ? DefaultBatchMax : Math.Min(request.MaxCount, MaxBatchMax);
+                        IReadOnlyList<SonnetMqMessage> messages = mqStore.Pull(
+                            SonnetDbEndpoints.QualifyMqTopic(request.Db, request.Topic), request.ConsumerGroup, maxCount);
+                        return OutboundFrame.PullResponse(header.StreamId, messages);
+                    }
 
                 case MqFrameOp.Ack:
-                {
-                    MqAckFrameRequest request = MqFrameCodec.DecodeAckRequest(payloadMemory);
-                    if (Authorize(ctx, registry, grants, in header, request.Db, request.Topic, DatabasePermission.Write) is { } denied)
-                        return denied;
-                    if (string.IsNullOrWhiteSpace(request.ConsumerGroup))
-                        return OutboundFrame.Error(header.Service, header.Op, header.StreamId, "bad_request", "ack 需包含 consumerGroup。");
+                    {
+                        MqAckFrameRequest request = MqFrameCodec.DecodeAckRequest(payloadMemory);
+                        if (Authorize(ctx, registry, grants, in header, request.Db, request.Topic, DatabasePermission.Write) is { } denied)
+                            return denied;
+                        if (string.IsNullOrWhiteSpace(request.ConsumerGroup))
+                            return OutboundFrame.Error(header.Service, header.Op, header.StreamId, "bad_request", "ack 需包含 consumerGroup。");
 
-                    long nextOffset = mqStore.Ack(
-                        SonnetDbEndpoints.QualifyMqTopic(request.Db, request.Topic), request.ConsumerGroup, request.Offset);
-                    return OutboundFrame.AckResponse(header.StreamId, nextOffset);
-                }
+                        long nextOffset = mqStore.Ack(
+                            SonnetDbEndpoints.QualifyMqTopic(request.Db, request.Topic), request.ConsumerGroup, request.Offset);
+                        return OutboundFrame.AckResponse(header.StreamId, nextOffset);
+                    }
 
                 default:
                     // envelope 校验已限定为上述四个一元 op，此处不可达。

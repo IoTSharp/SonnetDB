@@ -56,6 +56,22 @@ public sealed class SqlParameterizedQueryTests : IDisposable
     }
 
     [Fact]
+    public void Parse_PaginationPlaceholders_CapturesParameterExpressions()
+    {
+        SqlParser.ClearParseCache();
+        var stmt = (SelectStatement)SqlParser.Parse("SELECT * FROM cpu LIMIT @take OFFSET @skip");
+
+        Assert.NotNull(stmt.Pagination);
+        var fetch = Assert.IsType<ParameterExpression>(stmt.Pagination!.FetchExpression);
+        Assert.Equal(0, fetch.Ordinal);
+        Assert.Equal("take", fetch.Name);
+
+        var offset = Assert.IsType<ParameterExpression>(stmt.Pagination.OffsetExpression);
+        Assert.Equal(1, offset.Ordinal);
+        Assert.Equal("skip", offset.Name);
+    }
+
+    [Fact]
     public void Parse_SamePlaceholderSql_HitsCacheRegardlessOfValues()
     {
         SqlParser.ClearParseCache();
@@ -121,6 +137,34 @@ public sealed class SqlParameterizedQueryTests : IDisposable
         // name = NULL 按三值逻辑为 UNKNOWN，无行匹配（验证 null 绑定为 SQL NULL 而非字符串 "null"）。
         var r = Query(db, "SELECT id FROM devices WHERE name = ?", new SqlParameters().AddPositional(null));
         Assert.Empty(r.Rows);
+    }
+
+    [Fact]
+    public void Execute_PaginationParameters_BindLimitOffset()
+    {
+        using var db = OpenTable();
+        var p = new SqlParameters()
+            .AddNamed("take", 1)
+            .AddNamed("skip", 1);
+
+        var r = Query(db, "SELECT id FROM devices ORDER BY id LIMIT @take OFFSET @skip", p);
+
+        Assert.Single(r.Rows);
+        Assert.Equal(2L, r.Rows[0][0]);
+    }
+
+    [Fact]
+    public void Execute_PaginationParameters_BindOffsetFetch()
+    {
+        using var db = OpenTable();
+        var p = new SqlParameters()
+            .AddNamed("skip", 1)
+            .AddNamed("take", 1);
+
+        var r = Query(db, "SELECT id FROM devices ORDER BY id OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY", p);
+
+        Assert.Single(r.Rows);
+        Assert.Equal(2L, r.Rows[0][0]);
     }
 
     [Fact]

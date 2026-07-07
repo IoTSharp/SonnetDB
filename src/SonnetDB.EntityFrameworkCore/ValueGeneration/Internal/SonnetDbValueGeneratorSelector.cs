@@ -1,6 +1,6 @@
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.ValueGeneration;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace SonnetDB.EntityFrameworkCore.ValueGeneration.Internal;
 

@@ -191,13 +191,13 @@ public sealed class TsdbColumnarPointReader : IPointReader
                     strings[i] = ReadBoundedVarString(ref reader, name);
                 break;
             case FieldType.Vector:
-            {
-                long byteLength = 4L * vectorDim * present;
-                if (byteLength > reader.Remaining)
-                    throw new FrameFormatException($"字段列 '{name}' 的向量数据长度 {byteLength} 超出帧体剩余长度。");
-                reader.Skip((int)byteLength);
-                break;
-            }
+                {
+                    long byteLength = 4L * vectorDim * present;
+                    if (byteLength > reader.Remaining)
+                        throw new FrameFormatException($"字段列 '{name}' 的向量数据长度 {byteLength} 超出帧体剩余长度。");
+                    reader.Skip((int)byteLength);
+                    break;
+                }
             case FieldType.GeoPoint:
                 reader.Skip(16 * present);
                 break;
@@ -275,22 +275,22 @@ public sealed class TsdbColumnarPointReader : IPointReader
                 case FieldType.String:
                     return FieldValue.FromString(_strings![index]);
                 case FieldType.Vector:
-                {
-                    // 输入缓冲是瞬态的（AdvanceTo 后失效），而 FieldValue 的向量随 Point 进入 MemTable
-                    // 长期存活，必须落到自有 float[]。总量已在头部解码时按帧体剩余长度校验，偏移不会越界。
-                    var vector = new float[_vectorDim];
-                    ReadOnlySpan<byte> source = buffer.Slice(_valuesOffset + index * _vectorDim * 4, _vectorDim * 4);
-                    for (int i = 0; i < vector.Length; i++)
-                        vector[i] = BinaryPrimitives.ReadSingleLittleEndian(source.Slice(i * 4, 4));
-                    return FieldValue.FromVector(vector);
-                }
+                    {
+                        // 输入缓冲是瞬态的（AdvanceTo 后失效），而 FieldValue 的向量随 Point 进入 MemTable
+                        // 长期存活，必须落到自有 float[]。总量已在头部解码时按帧体剩余长度校验，偏移不会越界。
+                        var vector = new float[_vectorDim];
+                        ReadOnlySpan<byte> source = buffer.Slice(_valuesOffset + index * _vectorDim * 4, _vectorDim * 4);
+                        for (int i = 0; i < vector.Length; i++)
+                            vector[i] = BinaryPrimitives.ReadSingleLittleEndian(source.Slice(i * 4, 4));
+                        return FieldValue.FromVector(vector);
+                    }
                 case FieldType.GeoPoint:
-                {
-                    ReadOnlySpan<byte> source = buffer.Slice(_valuesOffset + index * 16, 16);
-                    double lat = BinaryPrimitives.ReadDoubleLittleEndian(source);
-                    double lon = BinaryPrimitives.ReadDoubleLittleEndian(source[8..]);
-                    return FieldValue.FromGeoPoint(lat, lon);
-                }
+                    {
+                        ReadOnlySpan<byte> source = buffer.Slice(_valuesOffset + index * 16, 16);
+                        double lat = BinaryPrimitives.ReadDoubleLittleEndian(source);
+                        double lon = BinaryPrimitives.ReadDoubleLittleEndian(source[8..]);
+                        return FieldValue.FromGeoPoint(lat, lon);
+                    }
                 default:
                     throw new FrameFormatException($"字段列 '{Name}' 类型 {_type} 非法。");
             }
