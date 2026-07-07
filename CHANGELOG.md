@@ -5,7 +5,14 @@
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-07-07
+
 ### Added
+
+- **PostgreSQL 风格远程连接与容器首启引导**：`SonnetDB.Data` 连接串新增 `Host` / `Port`（默认 `5080`）/ `Username`（别名 `User ID`/`Uid`）/ `Password`（别名 `Pwd`）/ `Ssl`（别名 `Ssl Mode`）键——给定 `Host` 即按远程模式处理、基址由 `Host`+`Port`+`Ssl` 组成，给定 `Username` 时客户端用 HTTP Basic 认证、未给定则回退既有 `Token`（Bearer）；旧 `Data Source` URL 格式继续支持。服务端 `BearerAuthMiddleware` 增加 HTTP Basic 解析（`base64(user:password)` → `UserStore.VerifyPassword` → 三角色），容器首启引导读取 `SONNETDB_USER` / `SONNETDB_PASSWORD` / `SONNETDB_DB`（对标 `POSTGRES_*` entrypoint）在服务器未初始化时幂等创建超级用户与默认库，失败只记日志不抛出。示例 `Host=127.0.0.1;Port=5080;Database=mydb;Username=alice;Password=secret`。新增 `SndbConnectionStringBuilderTests` 与 `PostgresStyleBootstrapEndToEndTests`（真实 Kestrel 覆盖 Basic 认证与容器首启闭环）。
+- **`Testcontainers.SonnetDB` 集成测试模块**：新增独立 NuGet 包 `Testcontainers.SonnetDB`，提供 `SonnetDbBuilder` / `SonnetDbContainer` / `SonnetDbConfiguration` / `SonnetDbConnectionStringProvider`，默认启动 `iotsharp/sonnetdb:latest`、等待 `/healthz`、自动创建默认数据库并生成远程 ADO.NET 连接字符串，便于下游（如 IoTSharp）在集成测试中一键拉起 SonnetDB Server 实例；已纳入 `SonnetDB.slnx`。
+- **SQL `ALTER TABLE ... ADD FOREIGN KEY` 与 `ON DELETE` 语义补齐**：关系表外键从「仅建表时声明」扩展为可对已有表追加（`ALTER TABLE ... ADD [CONSTRAINT name] FOREIGN KEY (...) REFERENCES ...`），追加时校验存量数据、失败回滚（IoTSharp 迁移因此不再需要延迟物理外键）。parser 支持 `ON DELETE CASCADE` / `SET NULL` / `NO ACTION`，`SET NULL` 在父行删除时把可空子列置空（建表期校验列可空）、删除展开沿 FK 链统一处理 CASCADE 传播与 SET NULL 置空；`TableSchemaCodec` 动作字节扩展到 0/1/2 并持久化往返（升 v5）。EF `SonnetDbMigrationsSqlGenerator` 修复：`ForeignKeyConstraint` 此前对 CASCADE 也不发 `ON DELETE` 子句、内联级联外键被静默降级为 restrict，现按 `OnDelete` 正确发出 `ON DELETE CASCADE` / `SET NULL`。
+- **SonnetDB EF Core provider 集成完善与 IoTSharp 查询形状适配**：`SonnetDB.EntityFrameworkCore` 补齐 `SonnetDbDesignTimeServices`（设计期服务，支持 `dotnet ef` 工具链）与程序集元数据；引擎侧补齐 IoTSharp 实际查询形状所需的 SQL 能力——多列 `ORDER BY`、按来源列的拆分查询（split query）排序、`IS` / `IN` 谓词关键字、子查询投影列名修复、IoT 遥测 `INSERT` 类型推断修复、EF `Guid` 值生成，以及远程 EF 迁移历史检测与幂等关系 DDL 迁移（`Database.Migrate()` 重复执行安全）。
 
 - **M28 P4 #227 文档集合持久 ANN 索引（索引 I12）**：为 document collection 的 `vector_search` 提供持久化、可增量维护、崩溃随集合重建的近邻加速路径，替换原先整表 `store.Scan()` + 每行 `JsonDocument.Parse` + `O(N·dim)` 暴力扫。镜像现有全文索引子系统：schema 新增 `DocumentVectorIndex`/`DocumentVectorIndexDefinition`（name/path/dimensions/metric/m/ef_construction/ef_search）+ `WithVectorIndex`/`WithoutVectorIndex`/`TryGetVectorIndex`；`DocumentCollectionSchemaCodec` 升 v5，validator 块后追加向量索引块（reader 兼容 v1~v5）。新增 `DocumentVectorIndexStore`（`Documents/Vector/`）：KV keyspace 持久化 `id→packed float[]`（复用 P0/P5a 已硬化的 WAL/崩溃恢复/compaction），内存 `HnswIndex<string>`（keyed by DocumentId，复用 #223 度量贯通与 #226 tombstone 自动重建）提供 ANN 检索，**打开时从 KV 全量 bulk-build 图**（持久的是「声明 + 向量」，图拓扑派生重建，故崩溃后随集合重开自愈）。`DocumentCollectionStore` 接入 `_vectorStores` + 工厂 + `ReconcileVectorStoresLocked`，在单条 `ApplyPlannedMutationLocked` 与批量 `ApplyPlannedMutationsLocked` 两处对 `schema.VectorIndexes` 做 delete-old/upsert-new（保持「update 只进 upsert 批、纯 delete 才进 delete 批」的自替换不变式）；缺该 path、维度不匹配或坏向量字段的文档不索引。`DocumentCollectionManager` 加 `CreateVectorIndex`/`DropVectorIndex`/`RebuildVectorIndex` + `VectorIndexDirectory`（`<root>/vector/<hex(coll)>/<hex(idx)>`）+ `Drop` 删子树。DDL：新 AST `CreateDocumentVectorIndexStatement`/`DropDocumentVectorIndexStatement` + 解析 `CREATE VECTOR INDEX [IF NOT EXISTS] name ON coll (json_path) WITH (dimensions=384, metric='cosine', m=16, ef_construction=200, ef_search=64)` / `DROP VECTOR INDEX name ON coll`（复用 `KeywordVector` token + `ParseVectorMetricValue`，无需改 lexer），`SqlExecutor` 分派 `DocumentSqlExecutor.ExecuteCreateVectorIndex`/`ExecuteDropVectorIndex`。查询收益：`DocumentVectorSearchExecutor.Execute` 当集合存在与查询 (path, metric, dim) 匹配的向量索引、**且无 `WHERE`、无自定义降序 `ORDER BY`** 时走 `store.SearchVector`（ANN 亚线性）替代全表暴力扫，否则回落暴力扫语义不变（有 `WHERE` 时暴力扫先过滤再 Top-K、ANN 先 Top-K 会漏行，故不等价必须回落）；`ExplainAccess` 命中索引报 `document_vector_index` 否则 `document_vector_scan`。抽出共享 `DocumentVectorReader.TryReadVector`（供索引维护与暴力扫复用）。#229 一致性校验器扩展覆盖向量索引（主数据中含 path 且维度匹配的文档数 vs 索引向量数），Server `quality_analysis` 报告新增 document `vector:hnsw` 索引条目与不一致 warning。测试：`SonnetDB.Core.Tests` 新增 `DocumentVectorIndexTests`（13：schema/codec v5 往返、DDL 默认/显式/未知 metric 拒绝/缺 dimensions 拒绝/DROP 解析、store 增删改重建与主数据一致、最近邻搜索、**重开 bulk-build 后搜索结果一致**、`vector_search` 走索引与暴力扫**逐行等价** + EXPLAIN `document_vector_index`、维度不匹配回落、`WHERE` 回落、DROP/REBUILD）；`docs/sql-reference.md` 补持久向量索引章节。Core 2677 + Server + CrashTests 8 全绿，slnx 0 warnings。
 
@@ -1220,7 +1227,8 @@
 
 ---
 
-[Unreleased]: https://github.com/IoTSharp/SonnetDB/compare/v2.5.0...HEAD
+[Unreleased]: https://github.com/IoTSharp/SonnetDB/compare/v3.0.0...HEAD
+[3.0.0]: https://github.com/IoTSharp/SonnetDB/compare/v2.5.0...v3.0.0
 [2.5.0]: https://github.com/IoTSharp/SonnetDB/releases/tag/v2.5.0
 [0.1.0]: https://github.com/maikebing/SonnetDB/releases/tag/v0.1.0
 [0.2.0]: https://github.com/maikebing/SonnetDB/releases/tag/v0.2.0

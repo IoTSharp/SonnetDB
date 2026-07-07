@@ -148,12 +148,29 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.nuget.outputs.version }}
         run: |
           tag="${GITHUB_REF_NAME}"
           title="SonnetDB ${tag#v}"
 
+          # 优先使用该版本的发行说明；缺失时回退到发布物总览页。
+          notes_source="docs/releases/${VERSION}.md"
+          if [ ! -f "$notes_source" ]; then
+            notes_source="docs/releases/README.md"
+          fi
+
+          # 剥离 Jekyll YAML frontmatter（首个 --- 到第二个 --- 之间），避免在 Release 正文里显示为纯文本。
+          notes_file="$(mktemp)"
+          if [ "$(head -n 1 "$notes_source")" = "---" ]; then
+            awk 'NR==1 && $0=="---" {infm=1; next} infm && $0=="---" {infm=0; next} !infm {print}' "$notes_source" > "$notes_file"
+          else
+            cp "$notes_source" "$notes_file"
+          fi
+
           if ! gh release view "$tag" >/dev/null 2>&1; then
-            gh release create "$tag" --title "$title" --notes-file docs/releases/README.md
+            gh release create "$tag" --title "$title" --notes-file "$notes_file"
+          else
+            gh release edit "$tag" --notes-file "$notes_file"
           fi
 
           mapfile -t files < <(find artifacts/release-upload -type f \( \

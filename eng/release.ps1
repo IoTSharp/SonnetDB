@@ -47,6 +47,7 @@ function Pack-NuGetPackages
     Invoke-DotNetPack 'src/SonnetDB.EntityFrameworkCore/SonnetDB.EntityFrameworkCore.csproj' $NuGetOutput
     Invoke-DotNetPack 'extensions/SonnetDB.Caching/SonnetDB.Caching.csproj' $NuGetOutput
     Invoke-DotNetPack 'src/SonnetDB.Cli/SonnetDB.Cli.csproj' $NuGetOutput
+    Invoke-DotNetPack 'src/Testcontainers.SonnetDB/Testcontainers.SonnetDB.csproj' $NuGetOutput
 }
 
 function Publish-Binaries
@@ -419,6 +420,7 @@ function Write-SdkBundleReadme
 - `packages/SonnetDB.EntityFrameworkCore.__VERSION__.nupkg`
 - `packages/SonnetDB.Caching.__VERSION__.nupkg`
 - `packages/SonnetDB.Cli.__VERSION__.nupkg`
+- `packages/Testcontainers.SonnetDB.__VERSION__.nupkg`
 - `cli/` 原生命令行工具
 - `docs/` 发布与使用说明
 
