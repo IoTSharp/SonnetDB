@@ -47,6 +47,14 @@ public sealed class HnswOptions
     public int? Seed { get; init; }
 
     /// <summary>
+    /// 触发自动图重建（compaction）以物理回收 tombstoned 行的删除比例阈值。默认 0.2（20%）。
+    /// 当 <c>tombstone 行数 / 总行数 ≥</c> 此值时，<see cref="HnswIndex{TKey}.Remove"/> 会就地重建图、
+    /// 丢弃已删除节点并重指入口点，回收 churn 下累积的无界内存。
+    /// 取 <c>0</c> 表示禁用自动重建（仍可显式调用 <see cref="HnswIndex{TKey}.Compact"/>）。
+    /// </summary>
+    public double AutoCompactTombstoneRatio { get; init; } = 0.2;
+
+    /// <summary>
     /// 校验参数合法性，参数非法时抛出 <see cref="ArgumentOutOfRangeException"/>。
     /// </summary>
     public void Validate()
@@ -57,6 +65,13 @@ public sealed class HnswOptions
         if (M > 1024)
         {
             throw new ArgumentOutOfRangeException(nameof(M), M, "M 不能超过 1024。");
+        }
+        if (AutoCompactTombstoneRatio < 0.0 || AutoCompactTombstoneRatio > 1.0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(AutoCompactTombstoneRatio),
+                AutoCompactTombstoneRatio,
+                "AutoCompactTombstoneRatio 必须位于 [0, 1]，其中 0 表示禁用自动重建。");
         }
     }
 }

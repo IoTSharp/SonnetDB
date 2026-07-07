@@ -24,8 +24,9 @@ namespace SonnetDB.Vector.Index.Hnsw;
 /// <b>线程安全</b>：使用 <see cref="ReaderWriterLockSlim"/>（多读单写），插入 / 删除互斥，搜索可并行。
 /// </para>
 /// <para>
-/// <b>删除语义</b>：M3 仅支持 tombstone-based 删除（节点保留在图中保证连通性，搜索时跳过）。
-/// 真正的图重建删除将在 M5+ 持久化阶段考虑。
+/// <b>删除语义</b>：删除采用 tombstone（节点保留在图中保证连通性，搜索时跳过）；当 tombstone 占比
+/// 达到 <see cref="HnswOptions.AutoCompactTombstoneRatio"/> 时自动触发 <see cref="Compact"/> 就地重建图、
+/// 物理丢弃已删除节点并重指入口点，回收 churn 下累积的内存。也可显式调用 <see cref="Compact"/>。
 /// </para>
 /// <para>
 /// <b>持久化</b>：M3 仅在内存中工作；持久化格式由 <see cref="SonnetDB.Vector.Format.HnswNodeHeader"/>
@@ -138,83 +139,92 @@ public sealed class HnswIndex<TKey> : IIndex<TKey>, IDisposable
         _lock.EnterWriteLock();
         try
         {
-            if (_keyToRow.ContainsKey(key))
-            {
-                throw new ArgumentException($"键 '{key}' 已存在于索引中。", nameof(key));
-            }
-
-            int row = _keys.Count;
-            int level = SampleLevel();
-
-            _keys.Add(key);
-            _vectors.AddRange(vector);
-            _keyToRow.Add(key, row);
-            _levels.Add(level);
-
-            var nodeNbrs = new List<int>[level + 1];
-            for (int l = 0; l <= level; l++)
-            {
-                int cap = l == 0 ? _maxLayer0Connections + 1 : _maxLayerNConnections + 1;
-                nodeNbrs[l] = new List<int>(cap);
-            }
-            _neighbors.Add(nodeNbrs);
-
-            // 第一个节点直接成为入口点。
-            if (_entryPoint < 0)
-            {
-                _entryPoint = row;
-                _entryLevel = level;
-                return;
-            }
-
-            // 1) 从顶层贪心下降到 level+1 层，找到最佳入口。
-            int ep = _entryPoint;
-            if (_entryLevel > level)
-            {
-                ep = GreedyDescend(vector, ep, _entryLevel, level);
-            }
-
-            // 2) 从 min(entryLevel, level) 层向下，每层做 efConstruction 候选搜索 + 启发式邻居选择。
-            int startLayer = Math.Min(_entryLevel, level);
-            var entryPoints = new List<int> { ep };
-            var working = new List<(int Id, float Dist)>(_options.EfConstruction);
-
-            for (int layer = startLayer; layer >= 0; layer--)
-            {
-                SearchLayerMulti(vector, entryPoints, _options.EfConstruction, layer, working);
-                int maxConn = layer == 0 ? _maxLayer0Connections : _maxLayerNConnections;
-                List<int> selected = SelectNeighborsHeuristic(vector, working, _options.M);
-
-                // 双向链接，并对溢出邻居做 trim。
-                for (int i = 0; i < selected.Count; i++)
-                {
-                    int nbr = selected[i];
-                    nodeNbrs[layer].Add(nbr);
-                    List<int> nbrList = _neighbors[nbr][layer];
-                    nbrList.Add(row);
-                    if (nbrList.Count > maxConn)
-                    {
-                        ShrinkConnections(nbr, layer, maxConn);
-                    }
-                }
-
-                // 下一层（更低）的入口点 = 本层的所有候选（不只是 selected，提升下层连通性）。
-                entryPoints = new List<int>(working.Count);
-                for (int i = 0; i < working.Count; i++)
-                {
-                    entryPoints.Add(working[i].Id);
-                }
-            }
-
-            if (level > _entryLevel)
-            {
-                _entryPoint = row;
-                _entryLevel = level;
-            }
+            AddCore(key, vector);
         }
         finally
         {
             _lock.ExitWriteLock();
+        }
+    }
+
+    /// <summary>
+    /// 插入的核心实现，<b>要求调用方已持有写锁</b>并已完成参数校验。供 <see cref="Add"/> 与
+    /// <see cref="CompactLocked"/> 重建复用。
+    /// </summary>
+    private void AddCore(TKey key, ReadOnlySpan<float> vector)
+    {
+        if (_keyToRow.ContainsKey(key))
+        {
+            throw new ArgumentException($"键 '{key}' 已存在于索引中。", nameof(key));
+        }
+
+        int row = _keys.Count;
+        int level = SampleLevel();
+
+        _keys.Add(key);
+        _vectors.AddRange(vector);
+        _keyToRow.Add(key, row);
+        _levels.Add(level);
+
+        var nodeNbrs = new List<int>[level + 1];
+        for (int l = 0; l <= level; l++)
+        {
+            int cap = l == 0 ? _maxLayer0Connections + 1 : _maxLayerNConnections + 1;
+            nodeNbrs[l] = new List<int>(cap);
+        }
+        _neighbors.Add(nodeNbrs);
+
+        // 第一个节点直接成为入口点。
+        if (_entryPoint < 0)
+        {
+            _entryPoint = row;
+            _entryLevel = level;
+            return;
+        }
+
+        // 1) 从顶层贪心下降到 level+1 层，找到最佳入口。
+        int ep = _entryPoint;
+        if (_entryLevel > level)
+        {
+            ep = GreedyDescend(vector, ep, _entryLevel, level);
+        }
+
+        // 2) 从 min(entryLevel, level) 层向下，每层做 efConstruction 候选搜索 + 启发式邻居选择。
+        int startLayer = Math.Min(_entryLevel, level);
+        var entryPoints = new List<int> { ep };
+        var working = new List<(int Id, float Dist)>(_options.EfConstruction);
+
+        for (int layer = startLayer; layer >= 0; layer--)
+        {
+            SearchLayerMulti(vector, entryPoints, _options.EfConstruction, layer, working);
+            int maxConn = layer == 0 ? _maxLayer0Connections : _maxLayerNConnections;
+            List<int> selected = SelectNeighborsHeuristic(vector, working, _options.M);
+
+            // 双向链接，并对溢出邻居做 trim。
+            for (int i = 0; i < selected.Count; i++)
+            {
+                int nbr = selected[i];
+                nodeNbrs[layer].Add(nbr);
+                List<int> nbrList = _neighbors[nbr][layer];
+                nbrList.Add(row);
+                if (nbrList.Count > maxConn)
+                {
+                    ShrinkConnections(nbr, layer, maxConn);
+                }
+            }
+
+            // 下一层（更低）的入口点 = 本层的所有候选（不只是 selected，提升下层连通性）。
+            entryPoints = new List<int>(working.Count);
+            for (int i = 0; i < working.Count; i++)
+            {
+                entryPoints.Add(working[i].Id);
+            }
+        }
+
+        if (level > _entryLevel)
+        {
+            _entryPoint = row;
+            _entryLevel = level;
         }
     }
 
@@ -232,12 +242,90 @@ public sealed class HnswIndex<TKey> : IIndex<TKey>, IDisposable
                 return false;
             }
             _tombstones.Add(row);
+
+            // I14：churn 下 tombstone-only 删除从不回收内存。当 tombstone 占比越过阈值时
+            // 就地重建图，物理丢弃已删除节点并重指入口点。
+            MaybeAutoCompactLocked();
             return true;
         }
         finally
         {
             _lock.ExitWriteLock();
         }
+    }
+
+    /// <summary>
+    /// 物理重建索引：丢弃所有 tombstoned 节点、重新分配 row id 并重建图与入口点，
+    /// 回收删除累积的内存。存活行相对顺序保持不变。返回被回收的 tombstone 行数。
+    /// </summary>
+    /// <remarks>线程安全：内部获取写锁，与 <see cref="Add"/> / <see cref="Remove"/> / <see cref="Search"/> 互斥。</remarks>
+    public int Compact()
+    {
+        ThrowIfDisposed();
+
+        _lock.EnterWriteLock();
+        try
+        {
+            return CompactLocked();
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
+    }
+
+    /// <summary>tombstone 占比达到 <see cref="HnswOptions.AutoCompactTombstoneRatio"/> 时触发重建。要求已持有写锁。</summary>
+    private void MaybeAutoCompactLocked()
+    {
+        double ratio = _options.AutoCompactTombstoneRatio;
+        if (ratio <= 0.0 || _tombstones.Count == 0)
+        {
+            return;
+        }
+        // _keys.Count 是含 tombstone 的物理行数；用它作分母判断累积占比。
+        if (_tombstones.Count >= _keys.Count * ratio)
+        {
+            CompactLocked();
+        }
+    }
+
+    /// <summary>重建实现，要求已持有写锁。</summary>
+    private int CompactLocked()
+    {
+        int removed = _tombstones.Count;
+        if (removed == 0)
+        {
+            return 0;
+        }
+
+        // 快照存活行的 (key, vector)（存活集较小，一次性拷贝），再清空并按启发式重新建图。
+        int dim = _dimensions;
+        var survivorKeys = new List<TKey>(_keys.Count - removed);
+        var survivorVectors = new List<float[]>(_keys.Count - removed);
+        for (int row = 0; row < _keys.Count; row++)
+        {
+            if (_tombstones.Contains(row))
+            {
+                continue;
+            }
+            survivorKeys.Add(_keys[row]);
+            survivorVectors.Add(Vec(row).ToArray());
+        }
+
+        _vectors.Clear();
+        _keys.Clear();
+        _keyToRow.Clear();
+        _levels.Clear();
+        _neighbors.Clear();
+        _tombstones.Clear();
+        _entryPoint = -1;
+        _entryLevel = -1;
+
+        for (int i = 0; i < survivorKeys.Count; i++)
+        {
+            AddCore(survivorKeys[i], survivorVectors[i]);
+        }
+        return removed;
     }
 
     /// <inheritdoc />
@@ -267,24 +355,50 @@ public sealed class HnswIndex<TKey> : IIndex<TKey>, IDisposable
                 ep = GreedyDescend(query, ep, _entryLevel, 0);
             }
 
-            int ef = Math.Max(_options.EfSearch, topK);
-            var working = new List<(int Id, float Dist)>(ef);
-            SearchLayerMulti(query, new int[] { ep }, ef, 0, working);
-
-            // 升序排序（距离越小越近）后过滤 tombstone 取 top-K。
-            working.Sort(static (a, b) => a.Dist.CompareTo(b.Dist));
-
-            int written = 0;
-            for (int i = 0; i < working.Count && written < topK; i++)
+            // I6：只有 max(EfSearch, topK) 的候选窗口在过滤 tombstone 后可能欠返回 topK。
+            // 先按 tombstone 占比放大 ef，若仍收集不满存活结果则倍增 ef 继续搜索，
+            // 直到集满 topK 个存活结果或候选窗口覆盖全部物理行（此时等价于精确扫连通分量）。
+            int total = _keys.Count;
+            int liveCount = total - _tombstones.Count;
+            int targetK = Math.Min(topK, liveCount);
+            int baseEf = Math.Max(_options.EfSearch, topK);
+            int ef = baseEf;
+            if (_tombstones.Count > 0 && liveCount > 0)
             {
-                int row = working[i].Id;
-                if (_tombstones.Contains(row))
+                long amplified = (long)baseEf * total / liveCount;
+                ef = (int)Math.Min(amplified, total);
+                if (ef < baseEf) { ef = baseEf; }
+            }
+            if (ef > total) { ef = total; }
+
+            int[] entry = new int[] { ep };
+            var working = new List<(int Id, float Dist)>(ef);
+            int written = 0;
+            while (true)
+            {
+                SearchLayerMulti(query, entry, ef, 0, working);
+
+                // 升序排序（距离越小越近）后过滤 tombstone 取 top-K。
+                working.Sort(static (a, b) => a.Dist.CompareTo(b.Dist));
+
+                written = 0;
+                for (int i = 0; i < working.Count && written < topK; i++)
                 {
-                    continue;
+                    int row = working[i].Id;
+                    if (_tombstones.Contains(row))
+                    {
+                        continue;
+                    }
+                    ReadOnlySpan<float> v = Vec(row);
+                    float score = Distance.Compute(query, v, _metric);
+                    results[written++] = (_keys[row], score);
                 }
-                ReadOnlySpan<float> v = Vec(row);
-                float score = Distance.Compute(query, v, _metric);
-                results[written++] = (_keys[row], score);
+
+                if (written >= targetK || ef >= total)
+                {
+                    break;
+                }
+                ef = (int)Math.Min((long)ef * 2, total);
             }
             return written;
         }
