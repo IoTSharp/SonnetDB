@@ -75,7 +75,72 @@ public static class Program
         var serverOptions = app.Services.GetRequiredService<IOptions<ServerOptions>>().Value;
         ConfigureMiddleware(app, serverOptions);
         app.MapSonnetDbEndpoints(serverOptions);
+        RunEnvironmentBootstrap(app);
         return app;
+    }
+
+    /// <summary>
+    /// 容器首启引导：读取 <c>SONNETDB_USER</c> / <c>SONNETDB_PASSWORD</c> /
+    /// <c>SONNETDB_DB</c>（对标 <c>POSTGRES_USER</c> 等），在服务器尚未初始化时创建一个超级用户、
+    /// 创建默认数据库并授予 Admin 权限，然后写入安装元数据使后续启动幂等跳过。
+    /// </summary>
+    /// <remarks>
+    /// 因入口已 <c>AddEnvironmentVariables(prefix:"SONNETDB_")</c>，环境变量前缀被剥离后对应
+    /// 配置键 <c>USER</c> / <c>PASSWORD</c> / <c>DB</c>。三者需齐全（DB 可选，缺省则仅建用户）。
+    /// 任何失败只记日志、不抛出，保证容器重启幂等（对标 postgres entrypoint）。
+    /// </remarks>
+    internal static void RunEnvironmentBootstrap(WebApplication app)
+    {
+        var configuration = app.Services.GetRequiredService<IConfiguration>();
+        var user = configuration["USER"];
+        var password = configuration["PASSWORD"];
+        var database = configuration["DB"];
+
+        var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("SonnetDB.Bootstrap");
+
+        // 用户名 + 密码是引导的最小充分条件；缺任一则不做（回退到手动 setup / 静态 token）。
+        if (string.IsNullOrWhiteSpace(user) || string.IsNullOrWhiteSpace(password))
+            return;
+
+        var users = app.Services.GetRequiredService<UserStore>();
+        var grants = app.Services.GetRequiredService<GrantsStore>();
+        var registry = app.Services.GetRequiredService<TsdbRegistry>();
+        var installation = app.Services.GetRequiredService<InstallationStore>();
+
+        // 幂等门控：仅在从未初始化时执行。
+        if (!installation.GetStatus(users.Count, registry.Count).NeedsSetup)
+            return;
+
+        try
+        {
+            users.CreateUser(user, password, isSuperuser: true);
+
+            if (!string.IsNullOrWhiteSpace(database))
+            {
+                registry.TryCreate(database, out _);
+                // 超级用户本已具备全库权限，此授权仅为让 SHOW GRANTS 显式可见。
+                grants.Grant(user, database, DatabasePermission.Admin);
+            }
+
+            var (_, tokenId) = users.IssueToken(user);
+            installation.CompleteInitialization(
+                InstallationStore.GetSuggestedServerId(),
+                organization: "SonnetDB",
+                adminUserName: user,
+                initialTokenId: tokenId,
+                userCount: users.Count,
+                databaseCount: registry.Count);
+
+            logger.LogInformation(
+                "环境变量引导完成：已创建超级用户 '{User}'{Db}。",
+                user,
+                string.IsNullOrWhiteSpace(database) ? string.Empty : $" 与默认数据库 '{database}'");
+        }
+        catch (Exception ex)
+        {
+            // 幂等：用户已存在 / 库已存在等异常只记日志，不阻断启动。
+            logger.LogWarning(ex, "环境变量引导未完成（可能已初始化或参数非法）：{Message}", ex.Message);
+        }
     }
 
     private static readonly string[] DefaultCopilotDocsRoots =

@@ -182,12 +182,12 @@ public sealed class SonnetDbDatabaseCreator : RelationalDatabaseCreator
         if (builder.ResolveMode() != SndbProviderMode.Remote)
             return false;
 
-        var (baseUrl, dbFromUrl) = ParseRemoteEndpoint(builder.DataSource);
-        var database = !string.IsNullOrWhiteSpace(builder.Database) ? builder.Database! : dbFromUrl;
+        var baseUrl = builder.ResolveBaseUrl();
+        var database = builder.ResolveDatabase();
         if (string.IsNullOrWhiteSpace(database))
             throw new InvalidOperationException("远程 SonnetDB EF 连接缺少数据库名。");
 
-        endpoint = new RemoteDatabaseEndpoint(baseUrl, database, builder.Token, builder.Timeout);
+        endpoint = new RemoteDatabaseEndpoint(baseUrl, database, builder.Username, builder.Password, builder.Token, builder.Timeout);
         return true;
     }
 
@@ -251,8 +251,16 @@ public sealed class SonnetDbDatabaseCreator : RelationalDatabaseCreator
             BaseAddress = new Uri(endpoint.BaseUrl, UriKind.Absolute),
             Timeout = TimeSpan.FromSeconds(endpoint.TimeoutSeconds),
         };
-        if (!string.IsNullOrWhiteSpace(endpoint.Token))
+        if (!string.IsNullOrWhiteSpace(endpoint.Username))
+        {
+            var raw = $"{endpoint.Username}:{endpoint.Password ?? string.Empty}";
+            var encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(raw));
+            http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", encoded);
+        }
+        else if (!string.IsNullOrWhiteSpace(endpoint.Token))
+        {
             http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", endpoint.Token);
+        }
         return http;
     }
 
@@ -269,23 +277,6 @@ public sealed class SonnetDbDatabaseCreator : RelationalDatabaseCreator
             $"远程 SonnetDB 数据库 {operation} 失败：HTTP {(int)response.StatusCode} {response.StatusCode}; {message}");
     }
 
-    private static (string BaseUrl, string Database) ParseRemoteEndpoint(string dataSource)
-    {
-        if (string.IsNullOrWhiteSpace(dataSource))
-            throw new InvalidOperationException("远程 SonnetDB EF 连接缺少 Data Source。");
-
-        var text = dataSource.Trim();
-        if (text.StartsWith("sonnetdb+http://", StringComparison.OrdinalIgnoreCase))
-            text = "http://" + text["sonnetdb+http://".Length..];
-        else if (text.StartsWith("sonnetdb+https://", StringComparison.OrdinalIgnoreCase))
-            text = "https://" + text["sonnetdb+https://".Length..];
-
-        if (!Uri.TryCreate(text, UriKind.Absolute, out var uri))
-            throw new InvalidOperationException($"远程 SonnetDB EF Data Source 不是合法 URL：{dataSource}");
-
-        return ($"{uri.Scheme}://{uri.Authority}/", uri.AbsolutePath.Trim('/'));
-    }
-
     private static string EscapeJson(string value)
         => value.Replace("\\", "\\\\", StringComparison.Ordinal)
             .Replace("\"", "\\\"", StringComparison.Ordinal);
@@ -293,6 +284,8 @@ public sealed class SonnetDbDatabaseCreator : RelationalDatabaseCreator
     private readonly record struct RemoteDatabaseEndpoint(
         string BaseUrl,
         string Database,
+        string? Username,
+        string? Password,
         string? Token,
         int TimeoutSeconds);
 }
