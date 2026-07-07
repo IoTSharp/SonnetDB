@@ -3,6 +3,7 @@ using System.Buffers.Binary;
 using System.IO.Hashing;
 using System.Text;
 using SonnetDB.IO;
+using SonnetDB.Query;
 
 namespace SonnetDB.Documents;
 
@@ -17,7 +18,7 @@ public static class DocumentCollectionSchemaCodec
     private static readonly byte[] _magic = "SDBDOCv1"u8.ToArray();
     private static readonly Encoding _utf8 = Encoding.UTF8;
 
-    private const int FormatVersion = 4;
+    private const int FormatVersion = 5;
     private const int MinFormatVersion = 1;
     private const int HeaderSize = 32;
     private const int FooterSize = 16;
@@ -158,7 +159,35 @@ public static class DocumentCollectionSchemaCodec
             ? ReadValidator(source, crc, collectionIndex)
             : null;
 
-        return DocumentCollectionSchema.Create(name, indexes, fullTextIndexes, createdAt, validator);
+        var vectorIndexes = new List<DocumentVectorIndexDefinition>();
+        if (version >= 5)
+        {
+            int vectorIndexCount = ReadUInt16(source, crc, $"collection {collectionIndex} vectorIndexCount");
+            for (int i = 0; i < vectorIndexCount; i++)
+            {
+                string indexName = ReadString(source, crc, $"collection {collectionIndex} vector index {i} name");
+                string path = ReadString(source, crc, $"collection {collectionIndex} vector index {i} path");
+                int dimensions = (int)ReadInt64(source, crc, $"collection {collectionIndex} vector index {i} dimensions");
+                byte metricByte = ReadByte(source, crc, $"collection {collectionIndex} vector index {i} metric");
+                if (!Enum.IsDefined(typeof(KnnMetric), (int)metricByte))
+                    throw new InvalidDataException("DocumentCollectionSchema: invalid vector index metric.");
+                int m = (int)ReadInt64(source, crc, $"collection {collectionIndex} vector index {i} m");
+                int efConstruction = (int)ReadInt64(source, crc, $"collection {collectionIndex} vector index {i} efConstruction");
+                int efSearch = (int)ReadInt64(source, crc, $"collection {collectionIndex} vector index {i} efSearch");
+                long indexCreatedAt = ReadInt64(source, crc, $"collection {collectionIndex} vector index {i} createdAt");
+                vectorIndexes.Add(new DocumentVectorIndexDefinition(
+                    indexName,
+                    path,
+                    dimensions,
+                    (KnnMetric)metricByte,
+                    m,
+                    efConstruction,
+                    efSearch,
+                    indexCreatedAt));
+            }
+        }
+
+        return DocumentCollectionSchema.Create(name, indexes, fullTextIndexes, createdAt, validator, vectorIndexes);
     }
 
     private static DocumentPathIndexDefinition ReadLegacyDocumentIndex(Stream source, Crc32 crc, int collectionIndex, int index)
@@ -276,6 +305,19 @@ public static class DocumentCollectionSchemaCodec
         }
 
         WriteValidator(body, schema.Validator);
+
+        WriteUInt16(body, schema.VectorIndexes.Count, $"Document collection '{schema.Name}' vector index count");
+        foreach (var index in schema.VectorIndexes)
+        {
+            WriteString(body, index.Name);
+            WriteString(body, index.Path);
+            WriteInt64(body, index.Dimensions);
+            body.WriteByte((byte)index.Metric);
+            WriteInt64(body, index.M);
+            WriteInt64(body, index.EfConstruction);
+            WriteInt64(body, index.EfSearch);
+            WriteInt64(body, index.CreatedAtUtcTicks);
+        }
 
         byte[] bytes = body.ToArray();
         crc.Append(bytes);

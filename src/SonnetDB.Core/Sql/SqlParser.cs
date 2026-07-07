@@ -144,9 +144,10 @@ public sealed class SqlParser
             TokenKind.KeywordDocument => ParseCreateDocumentBody(),
             TokenKind.KeywordJson => ParseCreateJsonBody(),
             TokenKind.KeywordFullText => ParseCreateFullTextBody(),
+            TokenKind.KeywordVector => ParseCreateVectorBody(),
             TokenKind.KeywordUser => ParseCreateUserBody(),
             TokenKind.KeywordDatabase => ParseCreateDatabaseBody(),
-            _ => throw Error("CREATE 后面期望 MEASUREMENT / TABLE / DOCUMENT COLLECTION / JSON INDEX / FULLTEXT INDEX / INDEX / USER / DATABASE"),
+            _ => throw Error("CREATE 后面期望 MEASUREMENT / TABLE / DOCUMENT COLLECTION / JSON INDEX / FULLTEXT INDEX / VECTOR INDEX / INDEX / USER / DATABASE"),
         };
     }
 
@@ -269,6 +270,96 @@ public sealed class SqlParser
         }
 
         return new CreateFullTextIndexStatement(indexName, collectionName, fields, tokenizer, ifNotExists);
+    }
+
+    private CreateDocumentVectorIndexStatement ParseCreateVectorBody()
+    {
+        Expect(TokenKind.KeywordVector);
+        ExpectIndexKeyword("CREATE VECTOR 后面期望 INDEX");
+
+        var ifNotExists = ParseOptionalIfNotExists();
+        var indexName = ExpectIdentifierName();
+        Expect(TokenKind.KeywordOn);
+        var collectionName = ExpectIdentifierName();
+        Expect(TokenKind.LeftParen);
+        string path = Current.Kind == TokenKind.StringLiteral
+            ? ExpectStringLiteral()
+            : ExpectColumnName();
+        Expect(TokenKind.RightParen);
+
+        Expect(TokenKind.KeywordWith);
+        Expect(TokenKind.LeftParen);
+
+        int? dimensions = null;
+        int? m = null;
+        int? efConstruction = null;
+        int? efSearch = null;
+        var metric = SonnetDB.Query.KnnMetric.Cosine;
+        while (true)
+        {
+            string parameterName = ExpectIdentifierName();
+            Expect(TokenKind.Equal);
+            if (IsParameter(parameterName, "metric"))
+            {
+                metric = ParseVectorMetricValue();
+            }
+            else
+            {
+                int value = ExpectPositiveInt($"向量索引参数 '{parameterName}' 后面期望正整数");
+                if (IsParameter(parameterName, "dimensions", "dim", "dims"))
+                {
+                    if (dimensions is not null)
+                        throw Error("向量索引参数 dimensions 重复声明");
+                    dimensions = value;
+                }
+                else if (string.Equals(parameterName, "m", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (m is not null)
+                        throw Error("向量索引参数 m 重复声明");
+                    m = value;
+                }
+                else if (IsParameter(parameterName, "ef_construction", "efconstruction"))
+                {
+                    if (efConstruction is not null)
+                        throw Error("向量索引参数 ef_construction 重复声明");
+                    efConstruction = value;
+                }
+                else if (IsParameter(parameterName, "ef_search", "efsearch", "ef"))
+                {
+                    if (efSearch is not null)
+                        throw Error("向量索引参数 ef_search 重复声明");
+                    efSearch = value;
+                }
+                else
+                {
+                    throw Error($"未知的向量索引参数 '{parameterName}'，仅支持 dimensions / metric / m / ef_construction / ef_search");
+                }
+            }
+
+            if (Current.Kind == TokenKind.Comma)
+            {
+                Advance();
+                continue;
+            }
+
+            break;
+        }
+
+        Expect(TokenKind.RightParen);
+
+        if (dimensions is null)
+            throw Error("向量索引声明必须提供 dimensions，例如 WITH (dimensions=384, metric='cosine')");
+
+        return new CreateDocumentVectorIndexStatement(
+            indexName,
+            collectionName,
+            path,
+            dimensions.Value,
+            metric,
+            m ?? 16,
+            efConstruction ?? 200,
+            efSearch ?? 64,
+            ifNotExists);
     }
 
     private bool ParseOptionalIfNotExists()
@@ -2348,6 +2439,12 @@ public sealed class SqlParser
                 var fullTextIndexName = ExpectIdentifierName();
                 Expect(TokenKind.KeywordOn);
                 return new DropFullTextIndexStatement(fullTextIndexName, ExpectIdentifierName());
+            case TokenKind.KeywordVector:
+                Advance();
+                ExpectIndexKeyword("DROP VECTOR 后面期望 INDEX");
+                var vectorIndexName = ExpectIdentifierName();
+                Expect(TokenKind.KeywordOn);
+                return new DropDocumentVectorIndexStatement(vectorIndexName, ExpectIdentifierName());
             case TokenKind.KeywordTable:
                 Advance();
                 var dropTableIfExists = ParseOptionalIfExists();

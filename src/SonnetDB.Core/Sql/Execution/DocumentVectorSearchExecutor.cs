@@ -36,7 +36,9 @@ internal static class DocumentVectorSearchExecutor
         var options = BindOptions(schema, call);
         var store = tsdb.Documents.Open(schema.Name);
         var projections = BuildProjections(statement.Projections);
-        var rows = ScoreRows(store, options);
+
+        var indexRows = TryScoreRowsFromIndex(store, schema, statement, options);
+        var rows = indexRows ?? ScoreRows(store, options);
         rows = ApplyWhere(rows, statement.Where);
         rows = ApplyOrderBy(rows, statement.OrderBy, projections);
         rows = rows.Take(options.K).ToList();
@@ -69,8 +71,76 @@ internal static class DocumentVectorSearchExecutor
             ?? throw new InvalidOperationException("vector_search 只能出现在 FROM 表值函数中。");
         var options = BindOptions(schema, call);
         var store = tsdb.Documents.Open(schema.Name);
-        return ("document_vector_scan", options.VectorPath.Text, store.Count());
+        var index = TryResolveMatchingIndex(schema, statement, options);
+        return index is null
+            ? ("document_vector_scan", options.VectorPath.Text, store.Count())
+            : ("document_vector_index", index.Name, store.GetVectorIndexedCount(index));
     }
+
+    /// <summary>
+    /// 当集合存在与查询 (path, metric, dim) 匹配的向量索引、且查询无 WHERE、无自定义 ORDER BY（默认按距离升序）时，
+    /// 走持久 ANN 索引替代全表暴力扫。有 WHERE 时不能走 ANN——暴力扫先按谓词过滤再取 Top-K，ANN 先取 Top-K
+    /// 会漏掉被过滤器排除但距离更近的行，语义不等价。返回 null 表示回落暴力扫。
+    /// </summary>
+    private static IReadOnlyList<VectorSearchRow>? TryScoreRowsFromIndex(
+        DocumentCollectionStore store,
+        DocumentCollectionSchema schema,
+        SelectStatement statement,
+        VectorSearchOptions options)
+    {
+        var index = TryResolveMatchingIndex(schema, statement, options);
+        if (index is null)
+            return null;
+
+        var hits = store.SearchVector(index, options.QueryVector, options.K);
+        var rows = new List<VectorSearchRow>(hits.Count);
+        foreach (var (id, distance) in hits)
+        {
+            var document = store.Get(id);
+            if (document is null)
+                continue;
+
+            double score = DistanceToScore(options.Metric, distance);
+            rows.Add(new VectorSearchRow(document, distance, score));
+        }
+
+        return rows;
+    }
+
+    private static DocumentVectorIndex? TryResolveMatchingIndex(
+        DocumentCollectionSchema schema,
+        SelectStatement statement,
+        VectorSearchOptions options)
+    {
+        if (statement.Where is not null)
+            return null;
+        if (statement.OrderBy is not null && !IsDefaultDistanceOrder(statement.OrderBy))
+            return null;
+
+        foreach (var index in schema.VectorIndexes)
+        {
+            if (string.Equals(index.Path, options.VectorPath.Text, StringComparison.Ordinal)
+                && index.Metric == options.Metric
+                && index.Dimensions == options.QueryVector.Length)
+            {
+                return index;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsDefaultDistanceOrder(OrderBySpec orderBy)
+        => orderBy.Direction != SortDirection.Descending
+            && orderBy.Expression switch
+            {
+                IdentifierExpression { Qualifier: null, Name: var name } =>
+                    string.Equals(name, "vector_distance", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(name, "distance", StringComparison.OrdinalIgnoreCase),
+                FunctionCallExpression { Name: var fn, Arguments.Count: 0 } =>
+                    string.Equals(fn, "vector_distance", StringComparison.OrdinalIgnoreCase),
+                _ => false,
+            };
 
     private static VectorSearchOptions BindOptions(
         DocumentCollectionSchema schema,
@@ -101,7 +171,7 @@ internal static class DocumentVectorSearchExecutor
         var rows = new List<VectorSearchRow>();
         foreach (var documentRow in store.Scan())
         {
-            if (!TryReadVector(documentRow, options.VectorPath, out var vector))
+            if (!DocumentVectorReader.TryReadVector(documentRow.Json, options.VectorPath, out var vector))
                 continue;
             if (vector.Length != options.QueryVector.Length)
             {
@@ -183,40 +253,6 @@ internal static class DocumentVectorSearchExecutor
 
         int take = pagination.Fetch ?? (rows.Count - pagination.Offset);
         return rows.Skip(pagination.Offset).Take(Math.Min(take, rows.Count - pagination.Offset)).ToList();
-    }
-
-    private static bool TryReadVector(DocumentRow row, JsonPath path, out float[] vector)
-    {
-        vector = [];
-        using var document = JsonDocument.Parse(row.Json);
-        if (!JsonPathEvaluator.TryResolve(document.RootElement, path, out var element))
-            return false;
-        if (element.ValueKind == JsonValueKind.Null)
-            return false;
-        if (element.ValueKind != JsonValueKind.Array)
-            throw new InvalidOperationException(
-                $"vector_search 文档 '{row.Id}' 的向量字段 '{path.Text}' 必须是 JSON number array。");
-
-        int length = element.GetArrayLength();
-        if (length == 0)
-            throw new InvalidOperationException(
-                $"vector_search 文档 '{row.Id}' 的向量字段 '{path.Text}' 不能为空数组。");
-
-        var result = new float[length];
-        int index = 0;
-        foreach (var item in element.EnumerateArray())
-        {
-            if (item.ValueKind != JsonValueKind.Number || !item.TryGetSingle(out float value))
-            {
-                throw new InvalidOperationException(
-                    $"vector_search 文档 '{row.Id}' 的向量字段 '{path.Text}' 只能包含 number。");
-            }
-
-            result[index++] = value;
-        }
-
-        vector = result;
-        return true;
     }
 
     private static Projection[] BuildProjections(IReadOnlyList<SelectItem> items)

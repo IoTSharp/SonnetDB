@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using SonnetDB.Documents.Vector;
 using SonnetDB.FullText;
 using SonnetDB.Kv;
 
@@ -14,12 +15,15 @@ public sealed class DocumentCollectionStore : IDisposable
     private readonly KvKeyspace _keyspace;
     private readonly Func<DocumentFullTextIndex, DocumentFullTextIndexStore> _fullTextIndexFactory;
     private readonly Dictionary<string, DocumentFullTextIndexStore> _fullTextStores = new(StringComparer.Ordinal);
+    private readonly Func<DocumentVectorIndex, DocumentVectorIndexStore>? _vectorIndexFactory;
+    private readonly Dictionary<string, DocumentVectorIndexStore> _vectorStores = new(StringComparer.Ordinal);
     private DocumentCollectionSchema _schema;
 
     internal DocumentCollectionStore(
         DocumentCollectionSchema schema,
         KvKeyspace keyspace,
-        Func<DocumentFullTextIndex, DocumentFullTextIndexStore> fullTextIndexFactory)
+        Func<DocumentFullTextIndex, DocumentFullTextIndexStore> fullTextIndexFactory,
+        Func<DocumentVectorIndex, DocumentVectorIndexStore>? vectorIndexFactory = null)
     {
         ArgumentNullException.ThrowIfNull(schema);
         ArgumentNullException.ThrowIfNull(keyspace);
@@ -27,8 +31,10 @@ public sealed class DocumentCollectionStore : IDisposable
         _schema = schema;
         _keyspace = keyspace;
         _fullTextIndexFactory = fullTextIndexFactory;
+        _vectorIndexFactory = vectorIndexFactory;
         RebuildIndexesLocked();
         ReconcileFullTextStoresLocked(schema, rebuildAll: false);
+        ReconcileVectorStoresLocked(schema, rebuildAll: false);
         PurgeExpiredDocumentsLocked();
     }
 
@@ -416,6 +422,13 @@ public sealed class DocumentCollectionStore : IDisposable
             foreach (var index in schema.Indexes)
                 expectedByIndex[index.Name] = new HashSet<string>(StringComparer.Ordinal);
 
+            var vectorPaths = schema.VectorIndexes
+                .Select(index => (index, path: JsonPath.Parse(index.Path)))
+                .ToArray();
+            var eligibleByVectorIndex = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var index in schema.VectorIndexes)
+                eligibleByVectorIndex[index.Name] = 0;
+
             int documentCount = 0;
             foreach (var rowEntry in _keyspace.ScanPrefix(new byte[] { (byte)'d' }, int.MaxValue))
             {
@@ -424,6 +437,22 @@ public sealed class DocumentCollectionStore : IDisposable
                 var row = new DocumentRow(id, Encoding.UTF8.GetString(rowEntry.Value.Span), rowEntry.Version);
                 foreach (var indexEntry in BuildIndexEntries(schema, row))
                     expectedByIndex[indexEntry.Index.Name].Add(Convert.ToBase64String(indexEntry.Key));
+
+                foreach (var (vectorIndex, path) in vectorPaths)
+                {
+                    try
+                    {
+                        if (DocumentVectorReader.TryReadVector(row.Json, path, out var vector)
+                            && vector.Length == vectorIndex.Dimensions)
+                        {
+                            eligibleByVectorIndex[vectorIndex.Name]++;
+                        }
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        // 坏向量字段（非 number array / 空数组）不计入应索引文档，索引侧同样跳过，保持对齐。
+                    }
+                }
             }
 
             var actualByIndex = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
@@ -467,12 +496,21 @@ public sealed class DocumentCollectionStore : IDisposable
                 fullTextEntries.Add(new DocumentFullTextConsistencyEntry(index.Name, documentCount, indexedCount));
             }
 
+            var vectorEntries = new List<DocumentVectorConsistencyEntry>(schema.VectorIndexes.Count);
+            foreach (var index in schema.VectorIndexes)
+            {
+                int eligible = eligibleByVectorIndex[index.Name];
+                int indexed = OpenVectorStoreLocked(index, rebuildIfMissing: true)?.Count ?? eligible;
+                vectorEntries.Add(new DocumentVectorConsistencyEntry(index.Name, eligible, indexed));
+            }
+
             return new DocumentIndexConsistencyReport(
                 schema.Name,
                 documentCount,
                 isConsistent,
                 indexEntries,
-                fullTextEntries);
+                fullTextEntries,
+                vectorEntries);
         }
     }
 
@@ -798,6 +836,62 @@ public sealed class DocumentCollectionStore : IDisposable
         }
     }
 
+    /// <summary>
+    /// 用文档向量索引对查询向量做 ANN 近邻搜索。
+    /// </summary>
+    /// <param name="index">向量索引声明。</param>
+    /// <param name="queryVector">查询向量。</param>
+    /// <param name="k">返回结果上限。</param>
+    /// <returns>按距离升序排列的 (文档 ID, 距离) 结果；无向量索引 store 工厂时返回空。</returns>
+    public IReadOnlyList<(string Id, double Distance)> SearchVector(
+        DocumentVectorIndex index,
+        float[] queryVector,
+        int k)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        ArgumentNullException.ThrowIfNull(queryVector);
+        lock (_sync)
+        {
+            PurgeExpiredDocumentsLocked();
+            var store = OpenVectorStoreLocked(index, rebuildIfMissing: true);
+            return store is null ? [] : store.Search(queryVector, k);
+        }
+    }
+
+    /// <summary>
+    /// 返回指定向量索引当前的向量数量。
+    /// </summary>
+    /// <param name="index">向量索引声明。</param>
+    public int GetVectorIndexedCount(DocumentVectorIndex index)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        lock (_sync)
+        {
+            PurgeExpiredDocumentsLocked();
+            return OpenVectorStoreLocked(index, rebuildIfMissing: true)?.Count ?? 0;
+        }
+    }
+
+    internal int RebuildVectorIndex(DocumentVectorIndex index, string indexDirectory)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        ArgumentException.ThrowIfNullOrWhiteSpace(indexDirectory);
+        lock (_sync)
+        {
+            PurgeExpiredDocumentsLocked();
+            if (_vectorStores.Remove(index.Name, out var cached))
+                cached.Dispose();
+            if (Directory.Exists(indexDirectory))
+                Directory.Delete(indexDirectory, recursive: true);
+
+            var store = OpenVectorStoreLocked(index, rebuildIfMissing: false);
+            if (store is null)
+                return 0;
+            store.Rebuild(ScanRowsLocked(int.MaxValue));
+            return store.Count;
+        }
+    }
+
     internal void ApplySchema(DocumentCollectionSchema schema)
     {
         ArgumentNullException.ThrowIfNull(schema);
@@ -809,12 +903,14 @@ public sealed class DocumentCollectionStore : IDisposable
             {
                 RebuildIndexesLocked();
                 ReconcileFullTextStoresLocked(previous, rebuildAll: true);
+                ReconcileVectorStoresLocked(previous, rebuildAll: true);
             }
             catch
             {
                 _schema = previous;
                 RebuildIndexesLocked();
                 ReconcileFullTextStoresLocked(schema, rebuildAll: true);
+                ReconcileVectorStoresLocked(schema, rebuildAll: true);
                 throw;
             }
         }
@@ -825,9 +921,19 @@ public sealed class DocumentCollectionStore : IDisposable
     internal long Compact() => _keyspace.Compact();
 
     /// <summary>
-    /// 关闭底层 KV keyspace。
+    /// 关闭底层 KV keyspace 与派生向量索引 store。
     /// </summary>
-    public void Dispose() => _keyspace.Dispose();
+    public void Dispose()
+    {
+        lock (_sync)
+        {
+            foreach (var store in _vectorStores.Values)
+                store.Dispose();
+            _vectorStores.Clear();
+        }
+
+        _keyspace.Dispose();
+    }
 
     private DocumentRow? GetLocked(string id)
         => TryGetByDocumentKeyLocked(DocumentIndexCodec.EncodeDocumentKey(id));
@@ -1133,17 +1239,21 @@ public sealed class DocumentCollectionStore : IDisposable
         {
             foreach (var index in schema.FullTextIndexes)
                 OpenFullTextStoreLocked(index, rebuildIfMissing: false).Delete(mutation.OldRow.Id);
+            foreach (var index in schema.VectorIndexes)
+                OpenVectorStoreLocked(index, rebuildIfMissing: false)?.Delete(mutation.OldRow.Id);
         }
 
         if (mutation.NewRow is not null)
         {
             foreach (var index in schema.FullTextIndexes)
                 OpenFullTextStoreLocked(index, rebuildIfMissing: false).Upsert(mutation.NewRow);
+            foreach (var index in schema.VectorIndexes)
+                OpenVectorStoreLocked(index, rebuildIfMissing: false)?.Upsert(mutation.NewRow);
         }
     }
 
     /// <summary>
-    /// 批量应用变更：KV 逐条应用，全文索引整批成段（每索引一次 DeleteMany + 一次 UpsertMany），
+    /// 批量应用变更：KV 逐条应用，全文索引与向量索引整批维护（每索引累积 delete/upsert），
     /// 避免每文档一个单文档段 + 一次 manifest 全量改写。
     /// </summary>
     private void ApplyPlannedMutationsLocked(DocumentCollectionSchema schema, IReadOnlyList<PendingDocumentMutation> operations)
@@ -1151,31 +1261,42 @@ public sealed class DocumentCollectionStore : IDisposable
         if (operations.Count == 0)
             return;
 
-        if (operations.Count == 1 || schema.FullTextIndexes.Count == 0)
+        if (operations.Count == 1 || (schema.FullTextIndexes.Count == 0 && schema.VectorIndexes.Count == 0))
         {
             foreach (var operation in operations)
                 ApplyPlannedMutationLocked(schema, operation);
             return;
         }
 
-        List<string>? fullTextDeletes = null;
-        List<DocumentRow>? fullTextUpserts = null;
+        List<string>? deletes = null;
+        List<DocumentRow>? upserts = null;
         foreach (var operation in operations)
         {
             ApplyPlannedMutationKvLocked(schema, operation);
             if (operation.OldRow is not null && operation.NewRow is null)
-                (fullTextDeletes ??= new List<string>()).Add(operation.OldRow.Id);
+                (deletes ??= new List<string>()).Add(operation.OldRow.Id);
             if (operation.NewRow is not null)
-                (fullTextUpserts ??= new List<DocumentRow>()).Add(operation.NewRow);
+                (upserts ??= new List<DocumentRow>()).Add(operation.NewRow);
         }
 
         foreach (var index in schema.FullTextIndexes)
         {
             var store = OpenFullTextStoreLocked(index, rebuildIfMissing: false);
-            if (fullTextDeletes is not null)
-                store.DeleteMany(fullTextDeletes);
-            if (fullTextUpserts is not null)
-                store.UpsertMany(fullTextUpserts);
+            if (deletes is not null)
+                store.DeleteMany(deletes);
+            if (upserts is not null)
+                store.UpsertMany(upserts);
+        }
+
+        foreach (var index in schema.VectorIndexes)
+        {
+            var store = OpenVectorStoreLocked(index, rebuildIfMissing: false);
+            if (store is null)
+                continue;
+            if (deletes is not null)
+                store.DeleteMany(deletes);
+            if (upserts is not null)
+                store.UpsertMany(upserts);
         }
     }
 
@@ -1501,6 +1622,41 @@ public sealed class DocumentCollectionStore : IDisposable
         var store = _fullTextIndexFactory(index);
         _fullTextStores[index.Name] = store;
         if (rebuildIfMissing && store.DocumentCount == 0 && ScanRowsLocked(1).Count > 0)
+            store.Rebuild(ScanRowsLocked(int.MaxValue));
+        return store;
+    }
+
+    private void ReconcileVectorStoresLocked(DocumentCollectionSchema previousSchema, bool rebuildAll)
+    {
+        if (_vectorIndexFactory is null)
+            return;
+
+        var active = new HashSet<string>(_schema.VectorIndexes.Select(static i => i.Name), StringComparer.Ordinal);
+        foreach (var stale in _vectorStores.Keys.Where(name => !active.Contains(name)).ToArray())
+        {
+            if (_vectorStores.Remove(stale, out var store))
+                store.Dispose();
+        }
+
+        foreach (var index in _schema.VectorIndexes)
+        {
+            bool existed = previousSchema.TryGetVectorIndex(index.Name) is not null;
+            var opened = OpenVectorStoreLocked(index, rebuildIfMissing: !rebuildAll);
+            if (rebuildAll && !existed)
+                opened?.Rebuild(ScanRowsLocked(int.MaxValue));
+        }
+    }
+
+    private DocumentVectorIndexStore? OpenVectorStoreLocked(DocumentVectorIndex index, bool rebuildIfMissing)
+    {
+        if (_vectorIndexFactory is null)
+            return null;
+        if (_vectorStores.TryGetValue(index.Name, out var existing))
+            return existing;
+
+        var store = _vectorIndexFactory(index);
+        _vectorStores[index.Name] = store;
+        if (rebuildIfMissing && store.Count == 0 && ScanRowsLocked(1).Count > 0)
             store.Rebuild(ScanRowsLocked(int.MaxValue));
         return store;
     }

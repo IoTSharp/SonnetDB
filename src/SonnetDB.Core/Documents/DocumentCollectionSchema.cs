@@ -1,30 +1,35 @@
 using System.Collections.Frozen;
 using System.Text.RegularExpressions;
+using SonnetDB.Query;
 
 namespace SonnetDB.Documents;
 
 /// <summary>
-/// JSON 文档集合 schema，包含集合名称、创建时间、二级索引、全文索引与 validator 声明。
+/// JSON 文档集合 schema，包含集合名称、创建时间、二级索引、全文索引、向量索引与 validator 声明。
 /// </summary>
 public sealed class DocumentCollectionSchema
 {
     private readonly FrozenDictionary<string, DocumentPathIndex> _indexesByName;
     private readonly FrozenDictionary<string, DocumentFullTextIndex> _fullTextIndexesByName;
+    private readonly FrozenDictionary<string, DocumentVectorIndex> _vectorIndexesByName;
 
     private DocumentCollectionSchema(
         string name,
         IReadOnlyList<DocumentPathIndex> indexes,
         IReadOnlyList<DocumentFullTextIndex> fullTextIndexes,
+        IReadOnlyList<DocumentVectorIndex> vectorIndexes,
         long createdAtUtcTicks,
         DocumentValidator? validator)
     {
         Name = name;
         Indexes = indexes;
         FullTextIndexes = fullTextIndexes;
+        VectorIndexes = vectorIndexes;
         CreatedAtUtcTicks = createdAtUtcTicks;
         Validator = validator;
         _indexesByName = indexes.ToFrozenDictionary(i => i.Name, StringComparer.Ordinal);
         _fullTextIndexesByName = fullTextIndexes.ToFrozenDictionary(i => i.Name, StringComparer.Ordinal);
+        _vectorIndexesByName = vectorIndexes.ToFrozenDictionary(i => i.Name, StringComparer.Ordinal);
     }
 
     /// <summary>文档集合名称。</summary>
@@ -35,6 +40,9 @@ public sealed class DocumentCollectionSchema
 
     /// <summary>按创建顺序排列的全文索引声明。</summary>
     public IReadOnlyList<DocumentFullTextIndex> FullTextIndexes { get; }
+
+    /// <summary>按创建顺序排列的向量索引声明。</summary>
+    public IReadOnlyList<DocumentVectorIndex> VectorIndexes { get; }
 
     /// <summary>创建时间 UTC ticks。</summary>
     public long CreatedAtUtcTicks { get; }
@@ -50,12 +58,14 @@ public sealed class DocumentCollectionSchema
     /// <param name="fullTextIndexes">全文索引声明。</param>
     /// <param name="createdAtUtcTicks">创建时间 UTC ticks；为 0 时使用当前时间。</param>
     /// <param name="validator">可选文档 validator 声明。</param>
+    /// <param name="vectorIndexes">向量索引声明。</param>
     public static DocumentCollectionSchema Create(
         string name,
         IReadOnlyList<DocumentPathIndexDefinition>? indexes = null,
         IReadOnlyList<DocumentFullTextIndexDefinition>? fullTextIndexes = null,
         long createdAtUtcTicks = 0,
-        DocumentValidatorDefinition? validator = null)
+        DocumentValidatorDefinition? validator = null,
+        IReadOnlyList<DocumentVectorIndexDefinition>? vectorIndexes = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
@@ -134,10 +144,40 @@ public sealed class DocumentCollectionSchema
             }
         }
 
+        var vectorIndexList = new List<DocumentVectorIndex>();
+        if (vectorIndexes is not null)
+        {
+            var seenNames = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var index in vectorIndexes)
+            {
+                ArgumentException.ThrowIfNullOrWhiteSpace(index.Name);
+                if (!seenNames.Add(index.Name))
+                    throw new ArgumentException($"文档集合 '{name}' 中向量索引 '{index.Name}' 重复。", nameof(vectorIndexes));
+                if (index.Dimensions <= 0)
+                    throw new ArgumentOutOfRangeException(nameof(vectorIndexes), "向量索引 dimensions 必须大于 0。");
+                if (!Enum.IsDefined(index.Metric))
+                    throw new ArgumentException($"向量索引 '{index.Name}' 的 metric 非法。", nameof(vectorIndexes));
+                if (index.M <= 0 || index.EfConstruction <= 0 || index.EfSearch <= 0)
+                    throw new ArgumentOutOfRangeException(nameof(vectorIndexes), "向量索引 m / ef_construction / ef_search 必须大于 0。");
+
+                string path = JsonPath.Parse(index.Path).Text;
+                vectorIndexList.Add(new DocumentVectorIndex(
+                    index.Name,
+                    path,
+                    index.Dimensions,
+                    index.Metric,
+                    index.M,
+                    index.EfConstruction,
+                    index.EfSearch,
+                    index.CreatedAtUtcTicks == 0 ? DateTime.UtcNow.Ticks : index.CreatedAtUtcTicks));
+            }
+        }
+
         return new DocumentCollectionSchema(
             name,
             indexList.AsReadOnly(),
             fullTextIndexList.AsReadOnly(),
+            vectorIndexList.AsReadOnly(),
             createdAtUtcTicks == 0 ? DateTime.UtcNow.Ticks : createdAtUtcTicks,
             NormalizeValidator(validator));
     }
@@ -165,6 +205,17 @@ public sealed class DocumentCollectionSchema
     }
 
     /// <summary>
+    /// 尝试按索引名查找向量索引声明。
+    /// </summary>
+    /// <param name="name">索引名。</param>
+    /// <returns>找到时返回索引声明；否则返回 null。</returns>
+    public DocumentVectorIndex? TryGetVectorIndex(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        return _vectorIndexesByName.TryGetValue(name, out var index) ? index : null;
+    }
+
+    /// <summary>
     /// 返回添加指定文档二级索引后的新 schema。
     /// </summary>
     /// <param name="definition">索引声明。</param>
@@ -178,7 +229,7 @@ public sealed class DocumentCollectionSchema
             .Append(definition)
             .ToArray();
 
-        return Create(Name, definitions, FullTextIndexDefinitions(), CreatedAtUtcTicks, ValidatorDefinition());
+        return Create(Name, definitions, FullTextIndexDefinitions(), CreatedAtUtcTicks, ValidatorDefinition(), VectorIndexDefinitions());
     }
 
     /// <summary>
@@ -196,7 +247,7 @@ public sealed class DocumentCollectionSchema
             .Select(ToDefinition)
             .ToArray();
 
-        return Create(Name, definitions, FullTextIndexDefinitions(), CreatedAtUtcTicks, ValidatorDefinition());
+        return Create(Name, definitions, FullTextIndexDefinitions(), CreatedAtUtcTicks, ValidatorDefinition(), VectorIndexDefinitions());
     }
 
     /// <summary>
@@ -214,7 +265,7 @@ public sealed class DocumentCollectionSchema
             .Append(definition)
             .ToArray();
 
-        return Create(Name, IndexDefinitions(), definitions, CreatedAtUtcTicks, ValidatorDefinition());
+        return Create(Name, IndexDefinitions(), definitions, CreatedAtUtcTicks, ValidatorDefinition(), VectorIndexDefinitions());
     }
 
     /// <summary>
@@ -232,7 +283,42 @@ public sealed class DocumentCollectionSchema
             .Select(static i => new DocumentFullTextIndexDefinition(i.Name, i.Fields, i.Tokenizer, i.CreatedAtUtcTicks))
             .ToArray();
 
-        return Create(Name, IndexDefinitions(), definitions, CreatedAtUtcTicks, ValidatorDefinition());
+        return Create(Name, IndexDefinitions(), definitions, CreatedAtUtcTicks, ValidatorDefinition(), VectorIndexDefinitions());
+    }
+
+    /// <summary>
+    /// 返回添加指定向量索引后的新 schema。
+    /// </summary>
+    /// <param name="definition">向量索引声明。</param>
+    public DocumentCollectionSchema WithVectorIndex(DocumentVectorIndexDefinition definition)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        if (_vectorIndexesByName.ContainsKey(definition.Name))
+            throw new InvalidOperationException($"document collection '{Name}' 中向量索引 '{definition.Name}' 已存在。");
+
+        var definitions = VectorIndexDefinitions()
+            .Append(definition)
+            .ToArray();
+
+        return Create(Name, IndexDefinitions(), FullTextIndexDefinitions(), CreatedAtUtcTicks, ValidatorDefinition(), definitions);
+    }
+
+    /// <summary>
+    /// 返回删除指定向量索引后的新 schema。
+    /// </summary>
+    /// <param name="indexName">索引名。</param>
+    public DocumentCollectionSchema WithoutVectorIndex(string indexName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
+        if (!_vectorIndexesByName.ContainsKey(indexName))
+            return this;
+
+        var definitions = VectorIndexes
+            .Where(i => !string.Equals(i.Name, indexName, StringComparison.Ordinal))
+            .Select(ToVectorDefinition)
+            .ToArray();
+
+        return Create(Name, IndexDefinitions(), FullTextIndexDefinitions(), CreatedAtUtcTicks, ValidatorDefinition(), definitions);
     }
 
     /// <summary>
@@ -249,7 +335,7 @@ public sealed class DocumentCollectionSchema
             CreatedAtUtcTicks = definition.CreatedAtUtcTicks == 0 ? createdAt : definition.CreatedAtUtcTicks,
             UpdatedAtUtcTicks = updatedAt,
         };
-        return Create(Name, IndexDefinitions(), FullTextIndexDefinitions(), CreatedAtUtcTicks, normalized);
+        return Create(Name, IndexDefinitions(), FullTextIndexDefinitions(), CreatedAtUtcTicks, normalized, VectorIndexDefinitions());
     }
 
     /// <summary>
@@ -258,7 +344,7 @@ public sealed class DocumentCollectionSchema
     public DocumentCollectionSchema WithoutValidator()
         => Validator is null
             ? this
-            : Create(Name, IndexDefinitions(), FullTextIndexDefinitions(), CreatedAtUtcTicks);
+            : Create(Name, IndexDefinitions(), FullTextIndexDefinitions(), CreatedAtUtcTicks, validator: null, VectorIndexDefinitions());
 
     private IReadOnlyList<DocumentPathIndexDefinition> IndexDefinitions()
         => Indexes.Select(ToDefinition).ToArray();
@@ -267,6 +353,9 @@ public sealed class DocumentCollectionSchema
         => FullTextIndexes
             .Select(static i => new DocumentFullTextIndexDefinition(i.Name, i.Fields, i.Tokenizer, i.CreatedAtUtcTicks))
             .ToArray();
+
+    private IReadOnlyList<DocumentVectorIndexDefinition> VectorIndexDefinitions()
+        => VectorIndexes.Select(ToVectorDefinition).ToArray();
 
     private DocumentValidatorDefinition? ValidatorDefinition()
         => Validator is null
@@ -294,6 +383,17 @@ public sealed class DocumentCollectionSchema
             index.PartialFilter,
             index.TtlPath,
             index.TtlSeconds);
+
+    private static DocumentVectorIndexDefinition ToVectorDefinition(DocumentVectorIndex index)
+        => new(
+            index.Name,
+            index.Path,
+            index.Dimensions,
+            index.Metric,
+            index.M,
+            index.EfConstruction,
+            index.EfSearch,
+            index.CreatedAtUtcTicks);
 
     private static string NormalizeFullTextField(string field)
     {
@@ -542,4 +642,47 @@ public sealed record DocumentFullTextIndexDefinition(
     string Name,
     IReadOnlyList<string> Fields,
     string Tokenizer = "unicode",
+    long CreatedAtUtcTicks = 0);
+
+/// <summary>
+/// JSON 文档集合向量（HNSW ANN）索引声明。为 document collection 的 <c>vector_search</c> 提供
+/// 持久化、可增量维护、崩溃随集合重建的近邻加速路径。
+/// </summary>
+/// <param name="Name">索引名，在单集合内唯一。</param>
+/// <param name="Path">向量字段 JSON path（已规范化）。</param>
+/// <param name="Dimensions">向量维度；与文档内向量数组长度必须一致。</param>
+/// <param name="Metric">距离度量（cosine / l2 / inner_product）。</param>
+/// <param name="M">HNSW 每层最大邻居数。</param>
+/// <param name="EfConstruction">HNSW 构建候选集大小。</param>
+/// <param name="EfSearch">HNSW 查询候选集大小。</param>
+/// <param name="CreatedAtUtcTicks">创建时间 UTC ticks。</param>
+public sealed record DocumentVectorIndex(
+    string Name,
+    string Path,
+    int Dimensions,
+    KnnMetric Metric,
+    int M,
+    int EfConstruction,
+    int EfSearch,
+    long CreatedAtUtcTicks);
+
+/// <summary>
+/// 创建或加载向量索引时使用的轻量声明。
+/// </summary>
+/// <param name="Name">索引名。</param>
+/// <param name="Path">向量字段 JSON path。</param>
+/// <param name="Dimensions">向量维度。</param>
+/// <param name="Metric">距离度量；默认 cosine。</param>
+/// <param name="M">HNSW 每层最大邻居数；默认 16。</param>
+/// <param name="EfConstruction">HNSW 构建候选集大小；默认 200。</param>
+/// <param name="EfSearch">HNSW 查询候选集大小；默认 64。</param>
+/// <param name="CreatedAtUtcTicks">创建时间 UTC ticks；为 0 时使用当前时间。</param>
+public sealed record DocumentVectorIndexDefinition(
+    string Name,
+    string Path,
+    int Dimensions,
+    KnnMetric Metric = KnnMetric.Cosine,
+    int M = 16,
+    int EfConstruction = 200,
+    int EfSearch = 64,
     long CreatedAtUtcTicks = 0);

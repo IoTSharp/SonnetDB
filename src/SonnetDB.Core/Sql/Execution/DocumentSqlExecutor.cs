@@ -74,6 +74,28 @@ internal static class DocumentSqlExecutor
             new DocumentFullTextIndexDefinition(statement.IndexName, statement.Fields, statement.Tokenizer));
     }
 
+    public static DocumentVectorIndex ExecuteCreateVectorIndex(Tsdb tsdb, CreateDocumentVectorIndexStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        var schema = tsdb.Documents.Catalog.TryGet(statement.CollectionName)
+            ?? throw new InvalidOperationException($"document collection '{statement.CollectionName}' 不存在。");
+        if (statement.IfNotExists && schema.TryGetVectorIndex(statement.IndexName) is { } existing)
+            return existing;
+
+        return tsdb.Documents.CreateVectorIndex(
+            statement.CollectionName,
+            new DocumentVectorIndexDefinition(
+                statement.IndexName,
+                statement.Path,
+                statement.Dimensions,
+                statement.Metric,
+                statement.M,
+                statement.EfConstruction,
+                statement.EfSearch));
+    }
+
     public static RowsAffectedExecutionResult ExecuteDropCollection(Tsdb tsdb, DropDocumentCollectionStatement statement)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
@@ -99,6 +121,15 @@ internal static class DocumentSqlExecutor
 
         bool removed = tsdb.Documents.DropFullTextIndex(statement.CollectionName, statement.IndexName);
         return new RowsAffectedExecutionResult(statement.CollectionName, removed ? 1 : 0, "drop_fulltext_index");
+    }
+
+    public static RowsAffectedExecutionResult ExecuteDropVectorIndex(Tsdb tsdb, DropDocumentVectorIndexStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        bool removed = tsdb.Documents.DropVectorIndex(statement.CollectionName, statement.IndexName);
+        return new RowsAffectedExecutionResult(statement.CollectionName, removed ? 1 : 0, "drop_vector_index");
     }
 
     public static RowsAffectedExecutionResult ExecuteSetValidator(Tsdb tsdb, AlterDocumentCollectionSetValidatorStatement statement)

@@ -361,6 +361,36 @@ internal static class MaintenanceEndpointHandler
                         0));
                 }
             }
+
+            var vectorConsistencyByIndex = consistency.VectorIndexes.ToDictionary(
+                static e => e.IndexName,
+                static e => e,
+                StringComparer.Ordinal);
+            foreach (var index in collection.VectorIndexes)
+            {
+                vectorConsistencyByIndex.TryGetValue(index.Name, out var vectorConsistency);
+                string state = vectorConsistency is null || vectorConsistency.IsConsistent ? "ok" : "inconsistent";
+                indexes.Add(new QualityIndexInfo(
+                    $"document:{collection.Name}:{index.Name}",
+                    "document",
+                    collection.Name,
+                    index.Name,
+                    "vector:hnsw",
+                    state,
+                    IncludedInBackup: false,
+                    Rebuildable: true,
+                    DocumentCount: documentCount,
+                    Detail: FormatDocumentVectorIndexDetail(index, vectorConsistency)));
+                if (vectorConsistency is not null && !vectorConsistency.IsConsistent)
+                {
+                    issues.Add(new MaintenanceCheckInfo(
+                        $"document:{collection.Name}:{index.Name}",
+                        "warning",
+                        $"document 向量索引 '{index.Name}' 向量数 {vectorConsistency.IndexedVectors} 与应索引文档数 "
+                            + $"{vectorConsistency.EligibleDocuments} 不一致；REBUILD VECTOR INDEX 或重开集合可从主数据重建。",
+                        vectorConsistency.IndexedVectors));
+                }
+            }
         }
 
         foreach (var measurement in tsdb.Measurements.Snapshot())
@@ -477,6 +507,28 @@ internal static class MaintenanceEndpointHandler
                 parts.Add("missing=" + consistency.MissingEntries);
             if (consistency.OrphanEntries > 0)
                 parts.Add("orphan=" + consistency.OrphanEntries);
+        }
+        return string.Join(";", parts);
+    }
+
+    private static string FormatDocumentVectorIndexDetail(
+        DocumentVectorIndex index,
+        DocumentVectorConsistencyEntry? consistency)
+    {
+        var parts = new List<string>
+        {
+            "path=" + index.Path,
+            "dim=" + index.Dimensions,
+            "metric=" + index.Metric,
+            "m=" + index.M,
+            "ef_construction=" + index.EfConstruction,
+            "ef_search=" + index.EfSearch,
+        };
+        if (consistency is not null)
+        {
+            parts.Add("vectors=" + consistency.IndexedVectors);
+            if (!consistency.IsConsistent)
+                parts.Add("eligible=" + consistency.EligibleDocuments);
         }
         return string.Join(";", parts);
     }

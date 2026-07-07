@@ -219,12 +219,14 @@ public sealed record DocumentQueryResult(
 /// <param name="IsConsistent">是否无任何索引欠包含（无 Missing 条目）。</param>
 /// <param name="Indexes">每个二级索引的一致性明细。</param>
 /// <param name="FullTextIndexes">每个全文索引的文档计数一致性明细。</param>
+/// <param name="VectorIndexes">每个向量索引的向量计数一致性明细。</param>
 public sealed record DocumentIndexConsistencyReport(
     string CollectionName,
     int DocumentCount,
     bool IsConsistent,
     IReadOnlyList<DocumentIndexConsistencyEntry> Indexes,
-    IReadOnlyList<DocumentFullTextConsistencyEntry> FullTextIndexes);
+    IReadOnlyList<DocumentFullTextConsistencyEntry> FullTextIndexes,
+    IReadOnlyList<DocumentVectorConsistencyEntry> VectorIndexes);
 
 /// <summary>
 /// 单个文档二级索引的一致性明细。
@@ -258,4 +260,19 @@ public sealed record DocumentFullTextConsistencyEntry(
 {
     /// <summary>索引可见文档数是否与主数据一致。</summary>
     public bool IsConsistent => DocumentCount == IndexedDocumentCount;
+}
+
+/// <summary>
+/// 单个向量索引相对主数据的向量计数一致性明细。
+/// </summary>
+/// <param name="IndexName">向量索引名。</param>
+/// <param name="EligibleDocuments">主数据中含该索引 path 且维度匹配的文档数（应被索引的向量数）。</param>
+/// <param name="IndexedVectors">向量索引当前持有的向量数。</param>
+public sealed record DocumentVectorConsistencyEntry(
+    string IndexName,
+    int EligibleDocuments,
+    int IndexedVectors)
+{
+    /// <summary>索引向量数是否与应索引的文档数一致。</summary>
+    public bool IsConsistent => EligibleDocuments == IndexedVectors;
 }

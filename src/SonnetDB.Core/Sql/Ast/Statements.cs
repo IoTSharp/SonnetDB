@@ -176,6 +176,30 @@ public sealed record CreateFullTextIndexStatement(
     string Tokenizer,
     bool IfNotExists = false) : SqlStatement;
 
+/// <summary>
+/// <c>CREATE VECTOR INDEX [IF NOT EXISTS] index_name ON collection_name (json_path)
+/// WITH (dimensions=384, metric='cosine', m=16, ef_construction=200, ef_search=64)</c>。
+/// </summary>
+/// <param name="IndexName">索引名。</param>
+/// <param name="CollectionName">目标文档集合名。</param>
+/// <param name="Path">向量字段 JSON path。</param>
+/// <param name="Dimensions">向量维度。</param>
+/// <param name="Metric">距离度量。</param>
+/// <param name="M">HNSW 每层最大邻居数。</param>
+/// <param name="EfConstruction">HNSW 构建候选集大小。</param>
+/// <param name="EfSearch">HNSW 查询候选集大小。</param>
+/// <param name="IfNotExists">索引已存在时是否视为成功。</param>
+public sealed record CreateDocumentVectorIndexStatement(
+    string IndexName,
+    string CollectionName,
+    string Path,
+    int Dimensions,
+    KnnMetric Metric,
+    int M,
+    int EfConstruction,
+    int EfSearch,
+    bool IfNotExists = false) : SqlStatement;
+
 /// <summary>关系表列定义。</summary>
 /// <param name="Name">列名。</param>
 /// <param name="DataType">列数据类型。</param>
@@ -468,6 +492,13 @@ public sealed record DropDocumentPathIndexStatement(string IndexName, string Col
 /// <param name="IndexName">索引名。</param>
 /// <param name="CollectionName">集合名。</param>
 public sealed record DropFullTextIndexStatement(string IndexName, string CollectionName) : SqlStatement;
+
+/// <summary>
+/// <c>DROP VECTOR INDEX index_name ON collection_name</c>：删除文档集合向量索引声明和派生索引目录。
+/// </summary>
+/// <param name="IndexName">索引名。</param>
+/// <param name="CollectionName">集合名。</param>
+public sealed record DropDocumentVectorIndexStatement(string IndexName, string CollectionName) : SqlStatement;
 
 /// <summary><c>BEGIN</c>：开始当前执行器作用域内的轻事务。</summary>
 public sealed record BeginTransactionStatement : SqlStatement;

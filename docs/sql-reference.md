@@ -460,7 +460,22 @@ ORDER BY distance;
 - `metric` 可选，支持 `'cosine'`、`'l2'`、`'inner_product'`；默认 `'cosine'`。
 - 结果伪列支持 `vector_distance()`、`vector_score()`，也可投影 `id`、`document/json` 和 JSON 顶层字段名。
 - `WHERE` 支持对结果伪列或 JSON 顶层字段做基础比较；复杂路径可用 `json_value(document, '$.path')`。
-- `EXPLAIN` 的 `access_path` 会显示 `document_vector_scan`，`index_name` 显示使用的 JSON vector path。
+- `EXPLAIN` 的 `access_path` 会显示 `document_vector_scan`（全表暴力扫）或 `document_vector_index`（命中持久 ANN 索引），`index_name` 显示使用的 JSON vector path 或索引名。
+
+#### 持久向量索引（HNSW ANN）
+
+默认 `vector_search` 对整个 collection 做 `O(N·dim)` 暴力扫。为集合声明持久向量索引后，无 `WHERE`、按距离升序（默认或 `ORDER BY distance`）的查询会走 HNSW ANN，亚线性加速：
+
+```sql
+CREATE VECTOR INDEX idx_logs_embedding ON logs ('$.embedding')
+  WITH (dimensions = 384, metric = 'cosine', m = 16, ef_construction = 200, ef_search = 64);
+
+DROP VECTOR INDEX idx_logs_embedding ON logs;
+```
+
+- `dimensions` 必填，须与文档向量数组长度一致；`metric` 支持 `'cosine'`/`'l2'`/`'inner_product'`（默认 cosine）；`m`/`ef_construction`/`ef_search` 为可选 HNSW 参数（默认 16/200/64）。
+- 索引在 `insert`/`update`/`delete` 时增量维护，随集合重开从主数据的持久化向量重建图（崩溃自愈）。缺少该 path、维度不匹配或坏向量字段的文档不进索引。
+- **走索引的条件**：查询 `vector_field` 等于索引 path、`metric` 与维度均匹配、且**无 `WHERE`**、无自定义降序 `ORDER BY`。有 `WHERE` 时回落暴力扫——暴力扫先按谓词过滤再取 Top-K，ANN 先取 Top-K 会漏掉被过滤器排除但更近的行，语义不等价。
 
 ### Measurement KNN 与知识文档融合
 

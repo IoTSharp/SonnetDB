@@ -1,3 +1,4 @@
+using SonnetDB.Documents.Vector;
 using SonnetDB.FullText;
 using SonnetDB.Kv;
 
@@ -132,6 +133,42 @@ public sealed class DocumentCollectionManager : IDisposable
 
             return updated.TryGetFullTextIndex(definition.Name)
                 ?? throw new InvalidOperationException("内部错误：全文索引创建后未能读取 schema。");
+        }
+    }
+
+    /// <summary>
+    /// 为已有文档集合创建向量（HNSW ANN）索引并持久化 schema。
+    /// </summary>
+    /// <param name="collectionName">集合名。</param>
+    /// <param name="definition">向量索引声明。</param>
+    /// <returns>新建的向量索引声明。</returns>
+    public DocumentVectorIndex CreateVectorIndex(string collectionName, DocumentVectorIndexDefinition definition)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
+        ArgumentNullException.ThrowIfNull(definition);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var current = Catalog.TryGet(collectionName)
+                ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
+
+            var updated = current.WithVectorIndex(definition);
+            var store = OpenStoreLocked(current);
+            store.ApplySchema(updated);
+            Catalog.LoadOrReplace(updated);
+            try
+            {
+                PersistCatalogLocked();
+            }
+            catch
+            {
+                store.ApplySchema(current);
+                Catalog.LoadOrReplace(current);
+                throw;
+            }
+
+            return updated.TryGetVectorIndex(definition.Name)
+                ?? throw new InvalidOperationException("内部错误：向量索引创建后未能读取 schema。");
         }
     }
 
@@ -284,6 +321,67 @@ public sealed class DocumentCollectionManager : IDisposable
     }
 
     /// <summary>
+    /// 删除文档集合向量索引声明和派生索引目录。
+    /// </summary>
+    /// <param name="collectionName">集合名。</param>
+    /// <param name="indexName">索引名。</param>
+    /// <returns>索引存在并删除时返回 true。</returns>
+    public bool DropVectorIndex(string collectionName, string indexName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var current = Catalog.TryGet(collectionName)
+                ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
+            if (current.TryGetVectorIndex(indexName) is null)
+                return false;
+
+            var updated = current.WithoutVectorIndex(indexName);
+            var store = OpenStoreLocked(current);
+            store.ApplySchema(updated);
+            Catalog.LoadOrReplace(updated);
+            try
+            {
+                PersistCatalogLocked();
+                string indexDirectory = VectorIndexDirectory(collectionName, indexName);
+                if (Directory.Exists(indexDirectory))
+                    Directory.Delete(indexDirectory, recursive: true);
+            }
+            catch
+            {
+                store.ApplySchema(current);
+                Catalog.LoadOrReplace(current);
+                throw;
+            }
+
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// 从文档集合主数据强制同步重建指定向量索引，并返回当前向量数量。
+    /// </summary>
+    /// <param name="collectionName">集合名。</param>
+    /// <param name="indexName">向量索引名。</param>
+    /// <returns>向量索引当前向量数量。</returns>
+    public int RebuildVectorIndex(string collectionName, string indexName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var schema = Catalog.TryGet(collectionName)
+                ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
+            var index = schema.TryGetVectorIndex(indexName)
+                ?? throw new InvalidOperationException($"document collection '{collectionName}' 中向量索引 '{indexName}' 不存在。");
+            return OpenStoreLocked(schema).RebuildVectorIndex(index, VectorIndexDirectory(collectionName, indexName));
+        }
+    }
+
+    /// <summary>
     /// 从文档集合主数据重建指定文档二级索引。
     /// </summary>
     /// <param name="collectionName">集合名。</param>
@@ -350,6 +448,9 @@ public sealed class DocumentCollectionManager : IDisposable
             string fullTextDirectory = Path.Combine(_rootDirectory, "fulltext", EncodeName(name));
             if (Directory.Exists(fullTextDirectory))
                 Directory.Delete(fullTextDirectory, recursive: true);
+            string vectorDirectory = Path.Combine(_rootDirectory, "vector", EncodeName(name));
+            if (Directory.Exists(vectorDirectory))
+                Directory.Delete(vectorDirectory, recursive: true);
 
             return true;
         }
@@ -428,7 +529,8 @@ public sealed class DocumentCollectionManager : IDisposable
         var store = new DocumentCollectionStore(
             schema,
             kv,
-            index => DocumentFullTextIndexStore.Open(FullTextIndexDirectory(schema.Name, index.Name), index));
+            index => DocumentFullTextIndexStore.Open(FullTextIndexDirectory(schema.Name, index.Name), index),
+            index => DocumentVectorIndexStore.Open(VectorIndexDirectory(schema.Name, index.Name), index, _kvOptions));
         _stores[schema.Name] = store;
         return store;
     }
@@ -437,6 +539,9 @@ public sealed class DocumentCollectionManager : IDisposable
 
     private string FullTextIndexDirectory(string collectionName, string indexName)
         => Path.Combine(_rootDirectory, "fulltext", EncodeName(collectionName), EncodeName(indexName));
+
+    private string VectorIndexDirectory(string collectionName, string indexName)
+        => Path.Combine(_rootDirectory, "vector", EncodeName(collectionName), EncodeName(indexName));
 
     private void PersistCatalogLocked()
         => DocumentCollectionSchemaCodec.Save(SchemaPath, Catalog.Snapshot());
