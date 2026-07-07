@@ -221,6 +221,29 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
 
     /// <inheritdoc />
     protected override void Generate(
+        AddForeignKeyOperation operation,
+        IModel? model,
+        MigrationCommandListBuilder builder,
+        bool terminate = true)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(operation.Table);
+
+        builder.Append("ALTER TABLE ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table))
+            .Append(" ADD CONSTRAINT ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
+            .Append(" ");
+        ForeignKeyConstraint(operation, model, builder);
+
+        if (terminate)
+        {
+            builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+            EndStatement(builder);
+        }
+    }
+
+    /// <inheritdoc />
+    protected override void Generate(
         InsertDataOperation operation,
         IModel? model,
         MigrationCommandListBuilder builder,
@@ -332,6 +355,18 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
             .Append(" (")
             .Append(string.Join(", ", (operation.PrincipalColumns ?? operation.Columns).Select(Dependencies.SqlGenerationHelper.DelimitIdentifier)))
             .Append(")");
+
+        // 仅发出 SonnetDB 方言支持的 ON DELETE 子句；Restrict / NoAction 是引擎缺省，
+        // 不发子句（引擎无 RESTRICT 关键字），SetDefault 也回退到缺省。
+        switch (operation.OnDelete)
+        {
+            case ReferentialAction.Cascade:
+                builder.Append(" ON DELETE CASCADE");
+                break;
+            case ReferentialAction.SetNull:
+                builder.Append(" ON DELETE SET NULL");
+                break;
+        }
     }
 
     private static string GenerateSqlLiteral(object? value)

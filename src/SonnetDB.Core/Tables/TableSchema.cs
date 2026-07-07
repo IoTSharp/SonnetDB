@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using SonnetDB.Sql.Ast;
 
 namespace SonnetDB.Tables;
 
@@ -228,6 +229,32 @@ public sealed class TableSchema
     }
 
     /// <summary>
+    /// 返回添加指定外键后的新 schema。
+    /// </summary>
+    /// <param name="definition">外键声明。</param>
+    public TableSchema WithForeignKey(TableForeignKeyDefinition definition)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        if (!string.IsNullOrWhiteSpace(definition.Name)
+            && ForeignKeys.Any(f => string.Equals(f.Name, definition.Name, StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException($"table '{Name}' 中外键 '{definition.Name}' 已存在。");
+        }
+
+        var definitions = ForeignKeyDefinitions()
+            .Append(definition)
+            .ToArray();
+        return Create(
+            Name,
+            Columns.Select(static c => (c.Name, c.DataType, c.IsNullable)).ToArray(),
+            PrimaryKey,
+            IndexDefinitions(),
+            definitions,
+            RowVersionColumnNames(),
+            CreatedAtUtcTicks);
+    }
+
+    /// <summary>
     /// 返回添加列后的新 schema。新增列追加到末尾。
     /// </summary>
     public TableSchema WithAddedColumn(string name, TableColumnType dataType, bool isNullable)
@@ -416,6 +443,13 @@ public sealed class TableSchema
                     throw new ArgumentException($"外键 '{name}' 引用了未知列 '{column}'。", nameof(foreignKeys));
                 if (!seenColumns.Add(column))
                     throw new ArgumentException($"外键 '{name}' 中列 '{column}' 重复。", nameof(foreignKeys));
+                if (foreignKey.OnDelete == ForeignKeyAction.SetNull)
+                {
+                    var columnDef = columns.First(c => string.Equals(c.Name, column, StringComparison.Ordinal));
+                    if (!columnDef.IsNullable)
+                        throw new ArgumentException(
+                            $"外键 '{name}' 声明 ON DELETE SET NULL，但列 '{column}' 不可为空。", nameof(foreignKeys));
+                }
             }
 
             result.Add(new TableForeignKey(

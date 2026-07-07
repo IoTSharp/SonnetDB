@@ -210,6 +210,7 @@ public static class SqlExecutor
             DropFullTextIndexStatement dropFullTextIndex => DocumentSqlExecutor.ExecuteDropFullTextIndex(tsdb, dropFullTextIndex),
             DropDocumentVectorIndexStatement dropVectorIndex => DocumentSqlExecutor.ExecuteDropVectorIndex(tsdb, dropVectorIndex),
             AlterTableAddColumnStatement alterAddColumn => TableSqlExecutor.ExecuteAlterTableAddColumn(tsdb, alterAddColumn),
+            AlterTableAddForeignKeyStatement alterAddForeignKey => TableSqlExecutor.ExecuteAlterTableAddForeignKey(tsdb, alterAddForeignKey),
             AlterTableDropColumnStatement alterDropColumn => TableSqlExecutor.ExecuteAlterTableDropColumn(tsdb, alterDropColumn),
             AlterTableDropConstraintStatement alterDropConstraint => TableSqlExecutor.ExecuteAlterTableDropConstraint(tsdb, alterDropConstraint),
             AlterTableRenameColumnStatement alterRenameColumn => TableSqlExecutor.ExecuteAlterTableRenameColumn(tsdb, alterRenameColumn),

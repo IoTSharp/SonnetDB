@@ -543,6 +543,59 @@ public sealed class SonnetDbProviderTests : IDisposable
     }
 
     [Fact]
+    public void MigrationsSqlGenerator_AddForeignKey_GeneratesSonnetDbAlterTable()
+    {
+        using var context = new DeviceContext(CreateOptions<DeviceContext>());
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var addForeignKey = new AddForeignKeyOperation
+        {
+            Name = "FK_Device_AuthorizedKeys_AuthorizedKeyId",
+            Table = "Device",
+            Columns = ["AuthorizedKeyId"],
+            PrincipalTable = "AuthorizedKeys",
+            PrincipalColumns = ["Id"]
+        };
+
+        var sql = Assert.Single(generator.Generate([addForeignKey]));
+
+        Assert.Contains(
+            "ALTER TABLE \"Device\" ADD CONSTRAINT \"FK_Device_AuthorizedKeys_AuthorizedKeyId\" FOREIGN KEY (\"AuthorizedKeyId\") REFERENCES \"AuthorizedKeys\" (\"Id\")",
+            sql.CommandText,
+            StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(ReferentialAction.Cascade, " ON DELETE CASCADE")]
+    [InlineData(ReferentialAction.SetNull, " ON DELETE SET NULL")]
+    [InlineData(ReferentialAction.Restrict, "")]
+    [InlineData(ReferentialAction.NoAction, "")]
+    public void MigrationsSqlGenerator_AddForeignKey_EmitsOnDeleteClause(
+        ReferentialAction onDelete,
+        string expectedClause)
+    {
+        using var context = new DeviceContext(CreateOptions<DeviceContext>());
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var addForeignKey = new AddForeignKeyOperation
+        {
+            Name = "FK_orders_customers",
+            Table = "orders",
+            Columns = ["customer_id"],
+            PrincipalTable = "customers",
+            PrincipalColumns = ["id"],
+            OnDelete = onDelete
+        };
+
+        var sql = Assert.Single(generator.Generate([addForeignKey]));
+
+        Assert.Contains(
+            "ALTER TABLE \"orders\" ADD CONSTRAINT \"FK_orders_customers\" FOREIGN KEY (\"customer_id\") REFERENCES \"customers\" (\"id\")" + expectedClause,
+            sql.CommandText,
+            StringComparison.Ordinal);
+        if (expectedClause.Length == 0)
+            Assert.DoesNotContain("ON DELETE", sql.CommandText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MigrationsSqlGenerator_DropIndex_IncludesTableName()
     {
         using var context = new DeviceContext(CreateOptions<DeviceContext>());

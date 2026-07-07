@@ -141,6 +141,22 @@ internal static class TableSqlExecutor
         return new RowsAffectedExecutionResult(statement.TableName, 1, "alter_table_add_column");
     }
 
+    public static RowsAffectedExecutionResult ExecuteAlterTableAddForeignKey(Tsdb tsdb, AlterTableAddForeignKeyStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        tsdb.Tables.AddForeignKey(
+            statement.TableName,
+            new TableForeignKeyDefinition(
+                statement.ConstraintName ?? string.Empty,
+                statement.Columns,
+                statement.PrincipalTable,
+                statement.PrincipalColumns,
+                statement.OnDelete));
+        return new RowsAffectedExecutionResult(statement.TableName, 1, "alter_table_add_foreign_key");
+    }
+
     public static RowsAffectedExecutionResult ExecuteAlterTableDropColumn(Tsdb tsdb, AlterTableDropColumnStatement statement)
     {
         ArgumentNullException.ThrowIfNull(tsdb);

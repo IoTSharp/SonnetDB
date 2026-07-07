@@ -585,18 +585,35 @@ public sealed class SqlParser
         {
             Advance();
             Expect(TokenKind.KeywordDelete);
-            if (Current.Kind == TokenKind.KeywordCascade)
-            {
-                Advance();
-                onDelete = ForeignKeyAction.Cascade;
-            }
-            else
-            {
-                throw Error("ON DELETE 后期望 CASCADE（v1 仅支持 CASCADE）。");
-            }
+            onDelete = ParseOnDeleteAction();
         }
 
         return new TableForeignKeyClause(columns, principalTable, principalColumns, onDelete);
+    }
+
+    private ForeignKeyAction ParseOnDeleteAction()
+    {
+        if (Current.Kind == TokenKind.KeywordCascade)
+        {
+            Advance();
+            return ForeignKeyAction.Cascade;
+        }
+
+        if (Current.Kind == TokenKind.KeywordSet)
+        {
+            Advance();
+            Expect(TokenKind.KeywordNull);
+            return ForeignKeyAction.SetNull;
+        }
+
+        if (IsIdentifier("no"))
+        {
+            Advance();
+            ExpectIdentifier("action", "ON DELETE NO 后期望 ACTION");
+            return ForeignKeyAction.NoAction;
+        }
+
+        throw Error("ON DELETE 后期望 CASCADE / SET NULL / NO ACTION。");
     }
 
     private SqlDataType ParseTableDataType()
@@ -2526,6 +2543,16 @@ public sealed class SqlParser
         if (IsIdentifier("add"))
         {
             Advance();
+            if (Current.Kind == TokenKind.KeywordForeign)
+                return ParseAlterTableAddForeignKey(tableName, constraintName: null);
+
+            if (IsIdentifier("constraint"))
+            {
+                Advance();
+                var constraintName = ExpectIdentifierName();
+                return ParseAlterTableAddForeignKey(tableName, constraintName);
+            }
+
             return ParseAlterTableAddColumn(tableName);
         }
 
@@ -2567,7 +2594,19 @@ public sealed class SqlParser
             return new AlterTableRenameTableStatement(tableName, ExpectIdentifierName());
         }
 
-        throw Error("ALTER TABLE 后面期望 ADD COLUMN / DROP COLUMN / DROP CONSTRAINT / RENAME COLUMN / RENAME TO");
+        throw Error("ALTER TABLE 后面期望 ADD COLUMN / ADD FOREIGN KEY / DROP COLUMN / DROP CONSTRAINT / RENAME COLUMN / RENAME TO");
+    }
+
+    private AlterTableAddForeignKeyStatement ParseAlterTableAddForeignKey(string tableName, string? constraintName)
+    {
+        var clause = ParseForeignKeyClause();
+        return new AlterTableAddForeignKeyStatement(
+            tableName,
+            constraintName,
+            clause.Columns,
+            clause.PrincipalTable,
+            clause.PrincipalColumns,
+            clause.OnDelete);
     }
 
     /// <summary><c>ALTER USER name WITH PASSWORD 'pwd'</c>。</summary>

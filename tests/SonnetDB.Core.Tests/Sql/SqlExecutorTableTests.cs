@@ -568,6 +568,93 @@ public sealed class SqlExecutorTableTests : IDisposable
     }
 
     [Fact]
+    public void Delete_Parent_WithOnDeleteSetNull_NullsReferencingChildren()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db,
+            "CREATE TABLE customers (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "CREATE TABLE orders (id INT, customer_id INT NULL, total FLOAT, PRIMARY KEY (id), "
+            + "FOREIGN KEY (customer_id) REFERENCES customers (id) ON DELETE SET NULL)");
+        SqlExecutor.Execute(db,
+            "INSERT INTO customers (id, name) VALUES (1, 'alice'), (2, 'bob')");
+        SqlExecutor.Execute(db,
+            "INSERT INTO orders (id, customer_id, total) VALUES (10, 1, 12.5), (11, 1, 18.0), (20, 2, 7.0)");
+
+        SqlExecutor.Execute(db, "DELETE FROM customers WHERE id = 1");
+
+        var orders = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id, customer_id, total FROM orders ORDER BY id"));
+
+        // 引用被删父行的两行 customer_id 置空，其余行不变；行本身仍在。
+        Assert.Equal(3, orders.Rows.Count);
+        Assert.Equal(10L, orders.Rows[0][0]);
+        Assert.Null(orders.Rows[0][1]);
+        Assert.Equal(12.5, orders.Rows[0][2]);
+        Assert.Equal(11L, orders.Rows[1][0]);
+        Assert.Null(orders.Rows[1][1]);
+        Assert.Equal(20L, orders.Rows[2][0]);
+        Assert.Equal(2L, orders.Rows[2][1]);
+    }
+
+    [Fact]
+    public void CreateTable_SetNull_OnNonNullableColumn_Throws()
+    {
+        // SET NULL 要求外键列可空；否则建表期即拒绝。
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE customers (id INT, PRIMARY KEY (id))");
+        Assert.ThrowsAny<ArgumentException>(() =>
+            SqlExecutor.Execute(db,
+                "CREATE TABLE orders (id INT, customer_id INT NOT NULL, PRIMARY KEY (id), "
+                + "FOREIGN KEY (customer_id) REFERENCES customers (id) ON DELETE SET NULL)"));
+    }
+
+    [Fact]
+    public void Delete_Parent_WithSetNull_PersistsAcrossReopen()
+    {
+        // 回归：ON DELETE SET NULL 动作必须写入 schema 文件，重新打开 DB 后仍生效。
+        var opts = Options();
+        using (var db = Tsdb.Open(opts))
+        {
+            SqlExecutor.Execute(db, "CREATE TABLE p (id INT, PRIMARY KEY (id))");
+            SqlExecutor.Execute(db,
+                "CREATE TABLE c (id INT, p_id INT NULL, PRIMARY KEY (id), "
+                + "FOREIGN KEY (p_id) REFERENCES p (id) ON DELETE SET NULL)");
+            SqlExecutor.Execute(db, "INSERT INTO p (id) VALUES (1)");
+            SqlExecutor.Execute(db, "INSERT INTO c (id, p_id) VALUES (10, 1), (11, 1)");
+        }
+        using (var db = Tsdb.Open(opts))
+        {
+            SqlExecutor.Execute(db, "DELETE FROM p WHERE id = 1");
+            var c = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SELECT id, p_id FROM c ORDER BY id"));
+            Assert.Equal(2, c.Rows.Count);
+            Assert.Null(c.Rows[0][1]);
+            Assert.Null(c.Rows[1][1]);
+        }
+    }
+
+    [Fact]
+    public void AlterTable_AddForeignKey_WithSetNull_NullsChildrenOnParentDelete()
+    {
+        // ALTER TABLE ADD 路径也应支持 SET NULL。
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE customers (id INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE TABLE orders (id INT, customer_id INT NULL, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "INSERT INTO customers (id) VALUES (1)");
+        SqlExecutor.Execute(db, "INSERT INTO orders (id, customer_id) VALUES (10, 1)");
+
+        SqlExecutor.Execute(db,
+            "ALTER TABLE orders ADD CONSTRAINT FK_orders_customers "
+            + "FOREIGN KEY (customer_id) REFERENCES customers (id) ON DELETE SET NULL");
+
+        SqlExecutor.Execute(db, "DELETE FROM customers WHERE id = 1");
+        var orders = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id, customer_id FROM orders"));
+        Assert.Single(orders.Rows);
+        Assert.Null(orders.Rows[0][1]);
+    }
+
+    [Fact]
     public void Select_TableGroupBy_MinMaxResultTypes_ConsistentAcrossGroups()
     {
         // M3 回归：MIN/MAX 的返回类型应在整个结果集上一致。
@@ -1017,6 +1104,52 @@ public sealed class SqlExecutorTableTests : IDisposable
         var schema = db.Tables.Catalog.TryGet("Device")!;
         Assert.Empty(schema.ForeignKeys);
         Assert.Null(schema.TryGetColumn("AuthorizedKeyId"));
+    }
+
+    [Fact]
+    public void AlterTable_AddForeignKey_AddsConstraintAndValidatesRows()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE AuthorizedKeys (Id STRING, PRIMARY KEY (Id))");
+        SqlExecutor.Execute(db, "CREATE TABLE Device (Id STRING, AuthorizedKeyId STRING, PRIMARY KEY (Id))");
+        SqlExecutor.Execute(db, "INSERT INTO AuthorizedKeys (Id) VALUES ('auth1')");
+        SqlExecutor.Execute(db, "INSERT INTO Device (Id, AuthorizedKeyId) VALUES ('device1', 'auth1')");
+
+        SqlExecutor.Execute(db, """
+            ALTER TABLE Device
+            ADD CONSTRAINT FK_Device_AuthorizedKeys_AuthorizedKeyId
+            FOREIGN KEY (AuthorizedKeyId) REFERENCES AuthorizedKeys (Id)
+            """);
+
+        var schema = db.Tables.Catalog.TryGet("Device")!;
+        var foreignKey = Assert.Single(schema.ForeignKeys);
+        Assert.Equal("FK_Device_AuthorizedKeys_AuthorizedKeyId", foreignKey.Name);
+        Assert.Equal(new[] { "AuthorizedKeyId" }, foreignKey.Columns);
+
+        var ex = Assert.Throws<TableConstraintException>(() =>
+            SqlExecutor.Execute(db, "INSERT INTO Device (Id, AuthorizedKeyId) VALUES ('device2', 'missing')"));
+        Assert.Equal(TableConstraintException.ForeignKeyViolation, ex.ErrorCode);
+
+        SqlExecutor.Execute(db, "ALTER TABLE Device DROP CONSTRAINT FK_Device_AuthorizedKeys_AuthorizedKeyId");
+        SqlExecutor.Execute(db, "INSERT INTO Device (Id, AuthorizedKeyId) VALUES ('device2', 'missing')");
+    }
+
+    [Fact]
+    public void AlterTable_AddForeignKey_RejectsExistingViolations()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE AuthorizedKeys (Id STRING, PRIMARY KEY (Id))");
+        SqlExecutor.Execute(db, "CREATE TABLE Device (Id STRING, AuthorizedKeyId STRING, PRIMARY KEY (Id))");
+        SqlExecutor.Execute(db, "INSERT INTO Device (Id, AuthorizedKeyId) VALUES ('device1', 'missing')");
+
+        var ex = Assert.Throws<TableConstraintException>(() =>
+            SqlExecutor.Execute(db, """
+                ALTER TABLE Device
+                ADD FOREIGN KEY (AuthorizedKeyId) REFERENCES AuthorizedKeys (Id)
+                """));
+
+        Assert.Equal(TableConstraintException.ForeignKeyViolation, ex.ErrorCode);
+        Assert.Empty(db.Tables.Catalog.TryGet("Device")!.ForeignKeys);
     }
 
     [Fact]

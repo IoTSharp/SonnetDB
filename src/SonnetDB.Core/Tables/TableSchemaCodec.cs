@@ -343,7 +343,7 @@ public static class TableSchemaCodec
                 writer.WriteUInt16((ushort)foreignKey.PrincipalColumns.Count);
                 foreach (var column in foreignKey.PrincipalColumns)
                     WriteString(ref writer, column, $"Table '{schema.Name}' 的外键 '{foreignKey.Name}' 引用列名过长。");
-                // v5+：ON DELETE 动作字节（0=NoAction, 1=Cascade）
+                // v5+：ON DELETE 动作字节（0=NoAction, 1=Cascade, 2=SetNull）
                 writer.WriteByte((byte)foreignKey.OnDelete);
             }
 
@@ -423,7 +423,7 @@ public static class TableSchemaCodec
             Span<byte> actionByte = stackalloc byte[1];
             ReadExactSpan(source, actionByte, $"table {tableIndex} foreignKey {foreignKeyIndex} onDelete");
             crc.Append(actionByte);
-            if (actionByte[0] > 1)
+            if (actionByte[0] > 2)
                 throw new InvalidDataException($"TableSchema: foreignKey '{name}' has unknown onDelete action {actionByte[0]}.");
             onDelete = (ForeignKeyAction)actionByte[0];
         }

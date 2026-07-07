@@ -35,13 +35,15 @@ public sealed record CreateTableStatement(
     public IReadOnlyList<TableForeignKeyClause> ForeignKeyClauses { get; } = ForeignKeys ?? Array.Empty<TableForeignKeyClause>();
 }
 
-/// <summary>外键 ON DELETE 引用动作（v1：NoAction / Cascade）。</summary>
+/// <summary>外键 ON DELETE 引用动作（NoAction / Cascade / SetNull）。</summary>
 public enum ForeignKeyAction
 {
     /// <summary>缺省：父表删除时若有子行引用则拒绝（与 RESTRICT 等价）。</summary>
     NoAction,
     /// <summary>父表删除时将引用的子行一并删除。</summary>
     Cascade,
+    /// <summary>父表删除时将引用的子行外键列置为 NULL；要求外键列全部可空。</summary>
+    SetNull,
 }
 
 /// <summary>关系表表级外键声明。</summary>
@@ -220,6 +222,23 @@ public sealed record AlterTableAddColumnStatement(
     SqlDataType DataType,
     ColumnNullability Nullability = ColumnNullability.Unspecified,
     SqlExpression? DefaultExpression = null) : SqlStatement;
+
+/// <summary>
+/// <c>ALTER TABLE table ADD [CONSTRAINT name] FOREIGN KEY (...) REFERENCES principal (...)</c>。
+/// </summary>
+/// <param name="TableName">目标关系表名称。</param>
+/// <param name="ConstraintName">外键约束名；为空时由表 schema 自动生成。</param>
+/// <param name="Columns">本表外键列名。</param>
+/// <param name="PrincipalTable">被引用表名。</param>
+/// <param name="PrincipalColumns">被引用列名。</param>
+/// <param name="OnDelete">ON DELETE 动作；缺省 NoAction。</param>
+public sealed record AlterTableAddForeignKeyStatement(
+    string TableName,
+    string? ConstraintName,
+    IReadOnlyList<string> Columns,
+    string PrincipalTable,
+    IReadOnlyList<string> PrincipalColumns,
+    ForeignKeyAction OnDelete = ForeignKeyAction.NoAction) : SqlStatement;
 
 /// <summary>
 /// <c>ALTER TABLE table DROP COLUMN [IF EXISTS] col</c>。

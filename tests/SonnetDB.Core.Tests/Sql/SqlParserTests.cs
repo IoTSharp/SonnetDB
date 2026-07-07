@@ -58,6 +58,40 @@ public class SqlParserTests
     }
 
     [Fact]
+    public void Parse_AlterTableAddForeignKey_ReturnsAst()
+    {
+        var named = Assert.IsType<AlterTableAddForeignKeyStatement>(SqlParser.Parse(
+            "ALTER TABLE \"Device\" ADD CONSTRAINT \"FK_Device_AuthorizedKeys_AuthorizedKeyId\" FOREIGN KEY (\"AuthorizedKeyId\") REFERENCES \"AuthorizedKeys\" (\"Id\")"));
+
+        Assert.Equal("Device", named.TableName);
+        Assert.Equal("FK_Device_AuthorizedKeys_AuthorizedKeyId", named.ConstraintName);
+        Assert.Equal(new[] { "AuthorizedKeyId" }, named.Columns);
+        Assert.Equal("AuthorizedKeys", named.PrincipalTable);
+        Assert.Equal(new[] { "Id" }, named.PrincipalColumns);
+
+        var unnamed = Assert.IsType<AlterTableAddForeignKeyStatement>(SqlParser.Parse(
+            "ALTER TABLE Device ADD FOREIGN KEY (AuthorizedKeyId) REFERENCES AuthorizedKeys (Id)"));
+
+        Assert.Equal("Device", unnamed.TableName);
+        Assert.Null(unnamed.ConstraintName);
+        Assert.Equal(new[] { "AuthorizedKeyId" }, unnamed.Columns);
+        Assert.Equal(ForeignKeyAction.NoAction, unnamed.OnDelete);
+    }
+
+    [Theory]
+    [InlineData("ON DELETE CASCADE", ForeignKeyAction.Cascade)]
+    [InlineData("ON DELETE SET NULL", ForeignKeyAction.SetNull)]
+    [InlineData("ON DELETE NO ACTION", ForeignKeyAction.NoAction)]
+    [InlineData("", ForeignKeyAction.NoAction)]
+    public void Parse_AlterTableAddForeignKey_OnDeleteAction(string onDeleteClause, ForeignKeyAction expected)
+    {
+        var stmt = Assert.IsType<AlterTableAddForeignKeyStatement>(SqlParser.Parse(
+            $"ALTER TABLE orders ADD FOREIGN KEY (customer_id) REFERENCES customers (id) {onDeleteClause}"));
+
+        Assert.Equal(expected, stmt.OnDelete);
+    }
+
+    [Fact]
     public void Parse_AlterTableDropColumnIfExists_ReturnsAst()
     {
         var stmt = Assert.IsType<AlterTableDropColumnStatement>(SqlParser.Parse(

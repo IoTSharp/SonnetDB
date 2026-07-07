@@ -172,6 +172,47 @@ public sealed class TableManager : IDisposable
         }
     }
 
+    /// <summary>
+    /// 为已有关系表添加外键约束声明，并验证当前存量数据。
+    /// </summary>
+    /// <param name="tableName">目标关系表名称。</param>
+    /// <param name="definition">外键声明。</param>
+    /// <returns>添加后的外键声明。</returns>
+    public TableForeignKey AddForeignKey(string tableName, TableForeignKeyDefinition definition)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+        ArgumentNullException.ThrowIfNull(definition);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var current = Catalog.TryGet(tableName)
+                ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+            var updated = current.WithForeignKey(definition);
+            var foreignKey = string.IsNullOrWhiteSpace(definition.Name)
+                ? updated.ForeignKeys[^1]
+                : updated.TryGetForeignKey(definition.Name)
+                    ?? throw new InvalidOperationException("内部错误：外键创建后未能读取 schema。");
+
+            ValidateAddedForeignKeyLocked(updated, foreignKey);
+
+            var store = OpenStoreLocked(current);
+            store.ApplySchema(updated);
+            Catalog.LoadOrReplace(updated);
+            try
+            {
+                PersistCatalogLocked();
+            }
+            catch
+            {
+                store.ApplySchema(current);
+                Catalog.LoadOrReplace(current);
+                throw;
+            }
+
+            return foreignKey;
+        }
+    }
+
     public void AlterTableAddColumn(string tableName, string columnName, TableColumnType dataType, bool isNullable, object? defaultValue)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
@@ -461,29 +502,37 @@ public sealed class TableManager : IDisposable
         => TableSchemaCodec.Save(SchemaPath, Catalog.Snapshot());
 
     /// <summary>
-    /// 在准备 batch 之前展开 ON DELETE CASCADE 子行删除：从用户提交的纯 DELETE 出发，
-    /// 沿 CASCADE FK 链 BFS 把所有引用了被删父行 PK 的子行加为额外删除。
-    /// 已经在事务里被用户显式删除的子行不会重复加入；其它修改类型的 mutation 原样保留。
+    /// 在准备 batch 之前展开父行删除对子行的引用动作：从用户提交的纯 DELETE 出发，
+    /// 沿 FK 链把引用了被删父行 PK 的子行按 ON DELETE 动作处理——CASCADE 追加删除（并继续沿链传播），
+    /// SET NULL 追加"把子行外键列置空"的更新（不再传播）。
+    /// 已经在事务里被用户显式修改或已计划删除的子行不会被重复加入；其它修改类型的 mutation 原样保留。
     /// </summary>
     private IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> ExpandCascadeDeletesLocked(
         IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> mutationsByTable)
     {
-        // 先快速检查：catalog 里是否存在任何 CASCADE FK，否则零开销直接原路返回。
-        bool anyCascade = false;
+        // 先快速检查：catalog 里是否存在任何 CASCADE / SET NULL FK，否则零开销直接原路返回。
+        bool anyReferentialAction = false;
         foreach (var schema in Catalog.Snapshot())
         {
             foreach (var fk in schema.ForeignKeys)
             {
-                if (fk.OnDelete == ForeignKeyAction.Cascade) { anyCascade = true; break; }
+                if (fk.OnDelete is ForeignKeyAction.Cascade or ForeignKeyAction.SetNull)
+                {
+                    anyReferentialAction = true;
+                    break;
+                }
             }
-            if (anyCascade) break;
+            if (anyReferentialAction) break;
         }
-        if (!anyCascade)
+        if (!anyReferentialAction)
             return mutationsByTable;
 
-        // 构造可变工作集（保留 mutation 顺序），以及每表"已计划删除"的 PK 集合（HEX 编码）。
+        // 构造可变工作集（保留 mutation 顺序），以及每表"已触及行"的 PK 集合（HEX 编码）：
+        // pendingDeletePks 驱动删除去重与 CASCADE 的 BFS；touchedPks 额外覆盖用户显式修改与
+        // SET NULL 置空，用来避免同一行在一个 batch 内被多次修改（PrepareBatch 会拒绝）。
         var working = new Dictionary<string, List<TableRowMutation>>(StringComparer.Ordinal);
         var pendingDeletePks = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        var touchedPks = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
         var queue = new Queue<(string Table, IReadOnlyList<object?> Pk)>();
 
         foreach (var (tableName, mutations) in mutationsByTable)
@@ -494,13 +543,16 @@ public sealed class TableManager : IDisposable
             working[tableName] = list;
             var deletedSet = new HashSet<string>(StringComparer.Ordinal);
             pendingDeletePks[tableName] = deletedSet;
+            var touchedSet = new HashSet<string>(StringComparer.Ordinal);
+            touchedPks[tableName] = touchedSet;
             foreach (var mutation in mutations)
             {
-                if (mutation.NewValues is null && mutation.PrimaryKeyValues is not null)
+                if (mutation.PrimaryKeyValues is not null)
                 {
                     byte[] pkBytes = TableKeyCodec.EncodePrimaryKeyValues(schema, mutation.PrimaryKeyValues);
                     string pkText = Convert.ToHexString(pkBytes);
-                    if (deletedSet.Add(pkText))
+                    touchedSet.Add(pkText);
+                    if (mutation.NewValues is null && deletedSet.Add(pkText))
                         queue.Enqueue((tableName, mutation.PrimaryKeyValues));
                 }
             }
@@ -516,19 +568,29 @@ public sealed class TableManager : IDisposable
             {
                 foreach (var fk in childSchema.ForeignKeys)
                 {
-                    if (fk.OnDelete != ForeignKeyAction.Cascade) continue;
+                    if (fk.OnDelete is not (ForeignKeyAction.Cascade or ForeignKeyAction.SetNull)) continue;
                     if (!string.Equals(fk.PrincipalTable, parentTable, StringComparison.Ordinal)) continue;
 
                     // 防御性检查：与 ValidateForeignKeyRowLocked 保持一致——若 FK 引用列
                     // 顺序与父表 PRIMARY KEY 不一致，按 PK 顺序提取的 parentPk 与按 FK 顺序
-                    // 提取的 childFkValues 会逐元素错位，导致级联静默漏删（数据完整性破坏）。
+                    // 提取的 childFkValues 会逐元素错位，导致级联静默漏删/漏置空（数据完整性破坏）。
                     // 当前 schema 校验通常已经在 INSERT 路径上挡住这种 FK，但为防御 ALTER 类
-                    // 漏校验路径，cascade 这一层显式拒绝执行——主动报错而不是错删/漏删。
+                    // 漏校验路径，这一层显式拒绝执行——主动报错而不是错删/漏删。
                     if (!fk.PrincipalColumns.SequenceEqual(parentSchema.PrimaryKey, StringComparer.Ordinal))
                         throw new NotSupportedException(
-                            $"外键 '{fk.Name}' ON DELETE CASCADE 要求引用列顺序与父表 PRIMARY KEY 完全一致。");
+                            $"外键 '{fk.Name}' ON DELETE {(fk.OnDelete == ForeignKeyAction.Cascade ? "CASCADE" : "SET NULL")} 要求引用列顺序与父表 PRIMARY KEY 完全一致。");
 
                     var childStore = OpenStoreLocked(childSchema);
+                    var childDeleteSet = pendingDeletePks.TryGetValue(childSchema.Name, out var existingDeleteSet)
+                        ? existingDeleteSet
+                        : pendingDeletePks[childSchema.Name] = new HashSet<string>(StringComparer.Ordinal);
+                    var childTouchedSet = touchedPks.TryGetValue(childSchema.Name, out var existingTouchedSet)
+                        ? existingTouchedSet
+                        : touchedPks[childSchema.Name] = new HashSet<string>(StringComparer.Ordinal);
+                    var childList = working.TryGetValue(childSchema.Name, out var existingList)
+                        ? existingList
+                        : working[childSchema.Name] = new List<TableRowMutation>();
+
                     foreach (var childRow in childStore.Scan())
                     {
                         var childFkValues = ExtractForeignKeyValues(childSchema, childRow, fk);
@@ -539,21 +601,30 @@ public sealed class TableManager : IDisposable
                         byte[] childPkBytes = TableKeyCodec.EncodePrimaryKeyValues(childSchema, childPk);
                         string childPkText = Convert.ToHexString(childPkBytes);
 
-                        if (!pendingDeletePks.TryGetValue(childSchema.Name, out var childSet))
+                        if (fk.OnDelete == ForeignKeyAction.Cascade)
                         {
-                            childSet = new HashSet<string>(StringComparer.Ordinal);
-                            pendingDeletePks[childSchema.Name] = childSet;
+                            if (!childDeleteSet.Add(childPkText))
+                                continue;
+                            childTouchedSet.Add(childPkText);
+                            childList.Add(new TableRowMutation(PrimaryKeyValues: childPk, NewValues: null));
+                            queue.Enqueue((childSchema.Name, childPk));
                         }
-                        if (!childSet.Add(childPkText))
-                            continue;
+                        else
+                        {
+                            // SET NULL：子行已被计划删除或已被本事务触及则跳过（删除优先、避免重复修改）。
+                            if (childDeleteSet.Contains(childPkText)) continue;
+                            if (!childTouchedSet.Add(childPkText)) continue;
 
-                        if (!working.TryGetValue(childSchema.Name, out var childList))
-                        {
-                            childList = new List<TableRowMutation>();
-                            working[childSchema.Name] = childList;
+                            var nulledValues = childRow.Values.ToArray();
+                            foreach (var fkColumn in fk.Columns)
+                            {
+                                var column = childSchema.TryGetColumn(fkColumn)
+                                    ?? throw new InvalidOperationException($"外键 '{fk.Name}' 引用了未知列 '{fkColumn}'。");
+                                nulledValues[column.Ordinal] = null;
+                            }
+
+                            childList.Add(new TableRowMutation(PrimaryKeyValues: childPk, NewValues: nulledValues));
                         }
-                        childList.Add(new TableRowMutation(PrimaryKeyValues: childPk, NewValues: null));
-                        queue.Enqueue((childSchema.Name, childPk));
                     }
                 }
             }
@@ -563,6 +634,32 @@ public sealed class TableManager : IDisposable
         foreach (var (k, v) in working)
             result[k] = v;
         return result;
+    }
+
+    private void ValidateAddedForeignKeyLocked(TableSchema childSchema, TableForeignKey foreignKey)
+    {
+        var principalSchema = Catalog.TryGet(foreignKey.PrincipalTable)
+            ?? throw new InvalidOperationException($"外键 '{foreignKey.Name}' 引用的表 '{foreignKey.PrincipalTable}' 不存在。");
+        if (!foreignKey.PrincipalColumns.SequenceEqual(principalSchema.PrimaryKey, StringComparer.Ordinal))
+            throw new NotSupportedException($"外键 '{foreignKey.Name}' 第一版仅支持引用被引用表 PRIMARY KEY。");
+
+        var childStore = OpenStoreLocked(childSchema);
+        var emptyPrepared = new Dictionary<string, (TableStore Store, TableStore.PreparedTableBatch Batch)>(StringComparer.Ordinal);
+        foreach (var row in childStore.Scan())
+        {
+            var keyValues = ExtractForeignKeyValues(childSchema, row, foreignKey);
+            if (keyValues is null)
+                continue;
+
+            if (!PrincipalExistsAfterTransactionLocked(principalSchema, keyValues, emptyPrepared))
+            {
+                throw new TableConstraintException(
+                    TableConstraintException.ForeignKeyViolation,
+                    childSchema.Name,
+                    foreignKey.Name,
+                    $"外键 '{foreignKey.Name}' 冲突：table '{childSchema.Name}' 已有数据引用了不存在的 '{foreignKey.PrincipalTable}' 主键。");
+            }
+        }
     }
 
     private void ValidateForeignKeysLocked(
