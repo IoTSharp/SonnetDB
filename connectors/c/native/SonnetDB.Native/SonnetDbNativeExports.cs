@@ -104,7 +104,11 @@ internal sealed class NativeConnection : IDisposable
                 || builder.ContainsKey("Mode")
                 || builder.ContainsKey("Database")
                 || builder.ContainsKey("Token")
-                || builder.ContainsKey("Timeout");
+                || builder.ContainsKey("Timeout")
+                || builder.ContainsKey("Host")
+                || builder.ContainsKey("Port")
+                || builder.ContainsKey("Username")
+                || builder.ContainsKey("Password");
         }
         catch (ArgumentException)
         {

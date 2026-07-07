@@ -276,13 +276,15 @@ public sealed class SndbMqClient : IDisposable
             return;
         }
 
-        var (baseUrl, dbFromUrl) = ParseRemoteEndpoint(_builder.DataSource);
-        _database = !string.IsNullOrWhiteSpace(_builder.Database) ? _builder.Database! : dbFromUrl;
+        var baseUrl = _builder.ResolveBaseUrl();
+        _database = _builder.ResolveDatabase();
         if (string.IsNullOrWhiteSpace(_database))
             throw new InvalidOperationException("远程 MQ 客户端缺少数据库名。");
 
         _http = RemoteHttpClientFactory.Create(
             new Uri(baseUrl, UriKind.Absolute),
+            _builder.Username,
+            _builder.Password,
             _builder.Token,
             TimeSpan.FromSeconds(_builder.Timeout));
         _frames = new FrameChannel(_http, _builder.ResolveProtocol());
@@ -333,23 +335,6 @@ public sealed class SndbMqClient : IDisposable
 
     private string MqUrl(string topic, string action) =>
         $"v1/db/{Uri.EscapeDataString(_database)}/mq/{Uri.EscapeDataString(topic)}/{action}";
-
-    private static (string BaseUrl, string Database) ParseRemoteEndpoint(string dataSource)
-    {
-        if (string.IsNullOrWhiteSpace(dataSource))
-            throw new InvalidOperationException("远程 MQ 客户端缺少 Data Source。");
-
-        var ds = dataSource.Trim();
-        if (ds.StartsWith("sonnetdb+http://", StringComparison.OrdinalIgnoreCase))
-            ds = "http://" + ds["sonnetdb+http://".Length..];
-        else if (ds.StartsWith("sonnetdb+https://", StringComparison.OrdinalIgnoreCase))
-            ds = "https://" + ds["sonnetdb+https://".Length..];
-
-        if (!Uri.TryCreate(ds, UriKind.Absolute, out var uri))
-            throw new InvalidOperationException($"远程 Data Source 不是合法 URL: {dataSource}");
-
-        return ($"{uri.Scheme}://{uri.Authority}/", uri.AbsolutePath.Trim('/'));
-    }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
 }

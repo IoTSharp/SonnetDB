@@ -69,6 +69,23 @@ public static class BearerAuthMiddleware
         }
 
         var header = context.Request.Headers.Authorization.ToString();
+
+        // HTTP Basic 认证（PostgreSQL 风格用户名/密码）：base64(user:password) → UserStore.VerifyPassword。
+        if (!string.IsNullOrEmpty(header) && header.StartsWith("Basic ", StringComparison.Ordinal))
+        {
+            if (userStore is null)
+                return StatusCodes.Status401Unauthorized;
+            if (!TryDecodeBasic(header["Basic ".Length..].Trim(), out var basicUser, out var basicPassword))
+                return StatusCodes.Status401Unauthorized;
+            if (!userStore.VerifyPassword(basicUser, basicPassword))
+                return StatusCodes.Status401Unauthorized;
+
+            var authenticated = new AuthenticatedUser(basicUser.ToLowerInvariant(), userStore.IsSuperuser(basicUser));
+            context.Items[UserKey] = authenticated;
+            context.Items[RoleKey] = authenticated.IsSuperuser ? ServerRoles.Admin : ServerRoles.ReadWrite;
+            return null;
+        }
+
         string token;
         if (!string.IsNullOrEmpty(header) && header.StartsWith("Bearer ", StringComparison.Ordinal))
         {
@@ -111,6 +128,36 @@ public static class BearerAuthMiddleware
         }
 
         return StatusCodes.Status401Unauthorized;
+    }
+
+    /// <summary>
+    /// 解码 HTTP Basic 凭据：base64(user:password) → (user, password)。
+    /// 按第一个冒号切分，允许密码中含冒号。
+    /// </summary>
+    private static bool TryDecodeBasic(string encoded, out string user, out string password)
+    {
+        user = string.Empty;
+        password = string.Empty;
+        if (string.IsNullOrEmpty(encoded))
+            return false;
+
+        string decoded;
+        try
+        {
+            decoded = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(encoded));
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+
+        var sep = decoded.IndexOf(':', StringComparison.Ordinal);
+        if (sep < 0)
+            return false;
+
+        user = decoded[..sep];
+        password = decoded[(sep + 1)..];
+        return !string.IsNullOrEmpty(user);
     }
 
     /// <summary>
