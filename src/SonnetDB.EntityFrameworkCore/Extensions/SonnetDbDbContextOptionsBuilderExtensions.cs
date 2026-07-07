@@ -1,9 +1,8 @@
 using System.Data.Common;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using SonnetDB.EntityFrameworkCore.Infrastructure.Internal;
 
-namespace SonnetDB.EntityFrameworkCore.Extensions;
+namespace Microsoft.EntityFrameworkCore;
 
 /// <summary>
 /// 提供 SonnetDB Entity Framework Core Provider 的 <see cref="DbContextOptionsBuilder"/> 扩展方法。

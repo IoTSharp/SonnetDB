@@ -16,7 +16,6 @@ dotnet add package SonnetDB.EntityFrameworkCore
 
 ```csharp
 using Microsoft.EntityFrameworkCore;
-using SonnetDB.EntityFrameworkCore.Extensions;
 
 var options = new DbContextOptionsBuilder<DeviceContext>()
     .UseSonnetDB("Data Source=./demo-data")
