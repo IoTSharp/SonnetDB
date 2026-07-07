@@ -26,6 +26,11 @@ COPY Directory.Build.props Directory.Packages.props global.json ./
 COPY .config/dotnet-tools.json .config/
 COPY src/SonnetDB/SonnetDB.csproj src/SonnetDB/
 COPY src/SonnetDB.Core/SonnetDB.Core.csproj src/SonnetDB.Core/
+# MQTTnet.AspNetCore.Routing is consumed as a git-submodule ProjectReference (M28 P5b #242).
+# Its two boundary props (Directory.Build.props / Directory.Packages.props) turn CPM OFF so the
+# vendored library keeps its inline package versions; copy them alongside the csproj for restore.
+COPY extensions/MQTTnet.AspNetCore.Routing/Directory.Build.props extensions/MQTTnet.AspNetCore.Routing/Directory.Packages.props extensions/MQTTnet.AspNetCore.Routing/
+COPY extensions/MQTTnet.AspNetCore.Routing/Source/MQTTnet.AspNetCore.Routing.csproj extensions/MQTTnet.AspNetCore.Routing/Source/
 
 RUN dotnet restore src/SonnetDB/SonnetDB.csproj
 RUN dotnet tool restore
@@ -33,6 +38,7 @@ RUN dotnet tool restore
 # Copy full source and assets needed for the actual build.
 COPY src/SonnetDB/ src/SonnetDB/
 COPY src/SonnetDB.Core/ src/SonnetDB.Core/
+COPY extensions/MQTTnet.AspNetCore.Routing/ extensions/MQTTnet.AspNetCore.Routing/
 COPY docs/ docs/
 COPY web/ web/
 

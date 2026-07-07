@@ -27,6 +27,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          submodules: recursive
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -65,6 +67,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          submodules: recursive
 
       - uses: actions/setup-dotnet@v5
         with:
@@ -74,7 +78,7 @@ jobs:
         run: dotnet restore SonnetDB.slnx
 
       - name: Format check
-        run: dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn
+        run: dotnet format SonnetDB.slnx --verify-no-changes --no-restore --severity warn --exclude extensions/
 
   aot-publish:
     name: AOT Publish (${{ matrix.os }})
@@ -90,6 +94,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          submodules: recursive
 
       - uses: actions/setup-dotnet@v5
         with:

@@ -35,6 +35,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          submodules: recursive
 
       - name: Detect Docker Hub credentials
         id: dockerhub
