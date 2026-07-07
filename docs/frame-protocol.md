@@ -161,6 +161,35 @@ MQ 的 browse/stats 等管理面操作不进帧（走 REST 管理契约）。推
 KV 的 ttl/incr/cas/remove、对象的 bucket 管理/版本/multipart/生命周期、文档的复杂查询（filter/
 projection/sort/aggregate）/更新/删除均不进帧——高吞吐数据面走帧，管理面与复杂查询走 REST / SQL。
 
+## REST vs 帧-HTTP2 选型与 #244 验收
+
+#244 将 #230 / #235 / #237 / #238 / #239 的基准和 #240~#243 的接入边界收口为一条规则：
+REST/JSON 继续作为兼容、管理面与复杂操作的稳定入口；二进制帧用于高吞吐数据面；MQTT 用于设备侧接入。
+
+| 场景 | 推荐入口 | 原因与边界 |
+|------|----------|------------|
+| 兼容现有客户端、控制面、管理面、低频操作 | REST/JSON | 契约最稳定，可读性最好；bucket 管理、复杂文档查询、KV TTL/CAS、对象 multipart/range 等继续走 REST |
+| 大 payload 或高频数据面（MQ、KV value、对象 put/get、文档 JSON） | `POST /v1/frame` 或 `Protocol=auto/frame-http2` | 原始字节直传，避免 JSON/Base64；SDK 默认 `auto` 可探测回落 |
+| 大批量时序写入（Line Protocol / JSON points） | ADO `CommandType.TableDirect` + `Protocol=auto/frame-http2` | 客户端列式编码为 tsdb 帧；BulkValues 与 `onerror=skip` 保持 REST |
+| 大 SQL 结果集 / 只读查询 | ADO `Protocol=auto/frame-http2` | sql service 返回 meta → rows × N → end 分块，降低响应缓冲与 JSON 编解码成本；写语句回落 REST |
+| 向量 KNN 检索 | vector service 或 ADO SQL 只读查询 | 查询向量与结果向量列以 f32 二进制传输；REST NDJSON 的向量列仅作兼容 |
+| 低延迟 MQ 订阅推送 | `POST /v1/frame/stream`（HTTP/2） | 一条连接多订阅，Push 帧由服务端推送；轮询型 browse/stats 仍走 REST |
+| 设备直连或接入既有 EMQX/Mosquitto | MQTT broker/client | topic `db/{db}/m/{measurement}` 落时序，`db/{db}/mq/{topic}` 写/订阅 SonnetMQ；QoS 0/1，QoS 2 不在范围 |
+
+基准报告索引：
+
+- #230 MQ 基线：`tests/SonnetDB.Benchmarks/Benchmarks/MqThroughputBenchmark.cs` 与 `MqLatencyBenchmark`。
+- #235 帧信封与 MQ 编码：`FrameEncodingBenchmark`，覆盖 JSON/Base64 vs 原始帧体。
+- #237 时序列式写：`ColumnarIngestBenchmark`，覆盖列式帧 vs JSON points vs Line Protocol。
+- #238 SQL 流式结果集：`SqlResultEncodingBenchmark`，覆盖 NDJSON vs 列式 rows 帧。
+- #239 向量检索编码：`VectorSearchEncodingBenchmark`，覆盖 f32 二进制向量 vs JSON 数字数组。
+
+Parity 验收：
+
+- `tests/SonnetDB.Tests/*Frame*ParityTests.cs` 覆盖各客户端补口、错误码、回落边界和大对象/批量写细节。
+- `tests/SonnetDB.Parity/runner/FrameRestTransportParitySuite.cs` 是 #244 的横向收口测试，在同一真实 Kestrel 实例上比较
+  MQ、TSDB、SQL、Vector、KV、Object、Document 七个 service 的 REST 与二进制帧稳定语义。
+
 ## MQ 帧体编码（service=1）
 
 权限与 REST 完全对齐：publish / publish-batch / ack 需 `Write`，pull 需 `Read`。
