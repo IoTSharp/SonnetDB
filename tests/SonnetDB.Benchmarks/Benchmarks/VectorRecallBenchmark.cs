@@ -1,10 +1,9 @@
-using System.Runtime.InteropServices;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Jobs;
-using SonnetDB.Catalog;
-using SonnetDB.Query;
-using SonnetDB.Storage.Segments;
+using SonnetDB.Vector.Index.Hnsw;
+using SonnetDB.Vector.Model;
+using SonnetDB.Vector.Primitives;
 
 namespace SonnetDB.Benchmarks.Benchmarks;
 
@@ -23,10 +22,9 @@ public class VectorRecallBenchmark
     private const int _seed = 20260422;
 
     private float[] _vectorData = [];
-    private long[] _timestamps = [];
     private int[] _queryIndexes = [];
     private int[][] _exactTopKIds = [];
-    private HnswVectorBlockIndex? _hnswIndex;
+    private HnswIndex<int>? _hnswIndex;
 
     /// <summary>
     /// 数据集规模。
@@ -54,9 +52,6 @@ public class VectorRecallBenchmark
     public void GlobalSetup()
     {
         _vectorData = GenerateNormalizedVectorData(VectorCount, _dimension, _seed);
-        _timestamps = new long[VectorCount];
-        for (int i = 0; i < _timestamps.Length; i++)
-            _timestamps[i] = i;
 
         _queryIndexes = SelectQueryIndexes(VectorCount, _queryCount, _seed + 17);
         _exactTopKIds = new int[_queryCount][];
@@ -72,12 +67,12 @@ public class VectorRecallBenchmark
                 new double[_k]);
         }
 
-        _hnswIndex = HnswVectorBlockIndex.Build(
-            blockIndex: 0,
-            valPayload: MemoryMarshal.AsBytes(_vectorData.AsSpan()),
-            count: VectorCount,
-            dimension: _dimension,
-            options: new HnswVectorIndexOptions(M: 16, Ef: 200, EfConstruction: 200));
+        _hnswIndex = new HnswIndex<int>(
+            _dimension,
+            Metric.Cosine,
+            new HnswOptions { M = 16, EfConstruction = 200, EfSearch = 200, Seed = _seed });
+        for (int row = 0; row < VectorCount; row++)
+            _hnswIndex.Add(row, _vectorData.AsSpan(row * _dimension, _dimension));
     }
 
     /// <summary>
@@ -108,12 +103,12 @@ public class VectorRecallBenchmark
     public double Hnsw_Top10()
     {
         double checksum = 0;
-        ReadOnlySpan<byte> payload = MemoryMarshal.AsBytes(_vectorData.AsSpan());
+        var buffer = new (int Key, float Score)[_k];
         for (int i = 0; i < _queryCount; i++)
         {
-            var hits = _hnswIndex!.Search(GetQueryVector(i), payload, _timestamps, _k, KnnMetric.Cosine);
-            for (int j = 0; j < hits.Count; j++)
-                checksum += hits[j].Distance;
+            int written = _hnswIndex!.Search(GetQueryVector(i), _k, buffer);
+            for (int j = 0; j < written; j++)
+                checksum += buffer[j].Score;
         }
 
         return checksum;
@@ -128,11 +123,11 @@ public class VectorRecallBenchmark
     public double Hnsw_RecallAt10()
     {
         double recallSum = 0;
-        ReadOnlySpan<byte> payload = MemoryMarshal.AsBytes(_vectorData.AsSpan());
+        var buffer = new (int Key, float Score)[_k];
         for (int i = 0; i < _queryCount; i++)
         {
-            var hits = _hnswIndex!.Search(GetQueryVector(i), payload, _timestamps, _k, KnnMetric.Cosine);
-            recallSum += ComputeRecallAt10(_exactTopKIds[i], hits);
+            int written = _hnswIndex!.Search(GetQueryVector(i), _k, buffer);
+            recallSum += ComputeRecallAt10(_exactTopKIds[i], buffer, written);
         }
 
         return recallSum / _queryCount;
@@ -232,12 +227,12 @@ public class VectorRecallBenchmark
         }
     }
 
-    private static double ComputeRecallAt10(int[] expectedTopKIds, IReadOnlyList<HnswAnnSearchResult> actualHits)
+    private static double ComputeRecallAt10(int[] expectedTopKIds, (int Key, float Score)[] actualHits, int actualCount)
     {
         int matched = 0;
-        for (int i = 0; i < actualHits.Count; i++)
+        for (int i = 0; i < actualCount; i++)
         {
-            int actualId = actualHits[i].PointIndex;
+            int actualId = actualHits[i].Key;
             for (int j = 0; j < expectedTopKIds.Length; j++)
             {
                 if (expectedTopKIds[j] == actualId)

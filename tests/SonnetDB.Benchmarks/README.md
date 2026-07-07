@@ -183,7 +183,7 @@ IoTDB 使用 `GROUP BY ([start,end), 60000ms)`；TimescaleDB 使用 `time_bucket
 | 方法 | 说明 |
 |------|------|
 | `BruteForce_Top10` | 顺扫全量向量，计算精确 Top10 作为延迟基线 |
-| `Hnsw_Top10` | 使用 `HnswVectorBlockIndex` 做 ANN Top10 查询 |
+| `Hnsw_Top10` | 使用 `HnswIndex<int>` 做 ANN Top10 查询 |
 | `Hnsw_RecallAt10` | 对同批 query 重新执行 HNSW 查询，并与精确 Top10 计算平均 Recall@10 |
 
 说明：
@@ -315,7 +315,7 @@ dotnet run --project eng/benchmarks/run-benchmarks/run-benchmarks.csproj -- --fi
 >
 > 说明：`Hnsw_RecallAt10` 这一行的 `Mean` 是“计算平均 Recall@10 这段逻辑本身的耗时”，而不是 Recall 数值；BenchmarkDotNet 摘要不会直接展示该方法的返回值，因此 Recall 数值由独立单元测试保证。
 >
-> **注 1：Recall@10 ≥ 0.90 由 CI 测试 [`HnswVectorBlockIndexRecallTests`](../SonnetDB.Core.Tests/Storage/Segments/HnswVectorBlockIndexRecallTests.cs)（M=16, Ef=200, 384-d, cosine）持续断言。**最近一次本机实测样本：N=1 000 → avg Recall@10 = 1.0000；N=5 000 → avg Recall@10 = 0.9400（8/20 query 命中 9 个真值）。10k/100k 的 BenchmarkDotNet 行未在 CI 断言其具体召回值；本表所注 `≥ 0.90` 仅基于该测试在 1k/5k 上的可复现下界，并假定 HNSW 在更大 N 上召回不会显著下降——若你要为大 N 严格设门，可扩展该测试覆盖到 10k/100k 并相应调整 `Assert.True` 下界。
+> **注 1：Recall@10 ≥ 0.90 由 CI 测试 [`HnswIndexRecallTests`](../SonnetDB.Core.Tests/Vector/Index/Hnsw/HnswIndexRecallTests.cs)（M=16, Ef=200, 384-d, cosine）持续断言。**最近一次本机实测样本：N=1 000 → avg Recall@10 = 1.0000；N=5 000 → avg Recall@10 = 0.9400（8/20 query 命中 9 个真值）。10k/100k 的 BenchmarkDotNet 行未在 CI 断言其具体召回值；本表所注 `≥ 0.90` 仅基于该测试在 1k/5k 上的可复现下界，并假定 HNSW 在更大 N 上召回不会显著下降——若你要为大 N 严格设门，可扩展该测试覆盖到 10k/100k 并相应调整 `Assert.True` 下界。
 
 ### LiteDB 补跑结果
 

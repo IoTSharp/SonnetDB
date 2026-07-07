@@ -683,7 +683,7 @@ extensions/
 | #225 | **compaction 向量索引 catalog 必需**：对含 VECTOR 列的段，`SegmentCompactor`/`SegmentWriter` 的 `seriesCatalog`+`measurementCatalog` 由可选改为必需或加断言，避免调用方省略致 compacted 向量块无索引段、静默退化为暴力扫。 | 索引 I11 | ✅ |
 | #226 | **HNSW ef 补偿 tombstone + 重建回收**：搜索按 tombstone 比例放大 ef 或持续搜索至收集满 topK 个存活结果（当前 `ef=max(EfSearch,topK)` 过滤 tombstone 后可能欠返回）；提供周期性 compaction/rebuild 物理丢弃 tombstoned 行并重指 `_entryPoint`，回收 churn 下的无界内存增长。 | 索引 I6、I14 | ✅ |
 | #227 | **文档集合持久 ANN 索引**：为 document collection 的 `vector_search` 提供持久化 per-collection ANN 索引或至少缓存已解析向量，替换全表 `store.Scan()` + 每行 `JsonDocument.Parse` + 距离的 O(N·dim) 暴力扫。 | 索引 I12 | 📋 |
-| #228 | **删除遗留 `HnswVectorBlockIndex`**：删除或明确隔离仍被测试维护的死代码 `HnswVectorBlockIndex`（图质量更差、O(n·ef²) 建图），统一到 `HnswIndex<int>`，消除误用风险。 | 索引 I13 | 📋 |
+| #228 | **删除遗留 `HnswVectorBlockIndex`**：删除或明确隔离仍被测试维护的死代码 `HnswVectorBlockIndex`（图质量更差、O(n·ef²) 建图），统一到 `HnswIndex<int>`，消除误用风险。 | 索引 I13 | ✅（删除 `Storage/Segments/HnswVectorBlockIndex.cs` + 文件内 `HnswAnnSearchResult`——`src/` 零生产引用，生产路径早走 `VectorIndexAdapter`→`LocalVectorIndexBuilder`→`HnswIndex<int>`；仅剩的召回测试重写重命名为 `HnswIndexRecallTests`、`VectorRecallBenchmark` 迁移到 canonical `HnswIndex<int>`，Recall@10 ≥ 0.90 断言不变；catalog 生产类型 `HnswVectorIndexOptions` 不在删除文件内保留） |
 | #229 | **文档索引原子维护 + 崩溃重建校验**：验证 document 二级索引在 insert/update 时与主数据原子写入、崩溃后随集合重建（当前 planner 依赖索引"过包含"再用 `Matches` 复检，一旦"欠包含"会静默漏行）；补一个覆盖扫描一致性校验。 | 索引 I10（疑似，需先验证） | 📋 |
 
 ### P5 — 消息队列吞吐 + 全模型高吞吐接入
@@ -802,7 +802,7 @@ P5b 接入：#235（通用二进制帧 + MQ service / HTTP-2）→ #236（HTTP-2
 | I10 | 🟡(疑似) | `Documents/DocumentQueryPlanner.cs:31` | 文档索引若"欠包含"（写入未原子/崩溃未重建）静默漏行；需先验证维护路径 | #229 |
 | I11 | ✅ | `Engine/Compaction/SegmentCompactor.cs:86`、`Storage/Segments/SegmentWriter.cs:417` | compaction 向量索引仅在两个 catalog 都提供时构建，否则静默退化暴力扫 | #225 |
 | I12 | 🟡 | `Sql/Execution/DocumentVectorSearchExecutor.cs:97` | 文档 `vector_search` 全表暴力 + 每行 JSON parse，O(N·dim) | #227 |
-| I13 | ⚪ | `Storage/Segments/HnswVectorBlockIndex.cs:696` | 遗留死代码 HNSW，图质量差 O(n·ef²) 建图，误用风险 | #228 |
+| I13 | ✅ | ~~`Storage/Segments/HnswVectorBlockIndex.cs`~~（已删除） | 遗留死代码 HNSW，图质量差 O(n·ef²) 建图，误用风险 | #228 |
 | I14 | ✅ | `Vector/Index/Hnsw/HnswIndex.cs:222` | HNSW tombstone-only 删除从不回收内存，`_entryPoint` 不重指 | #226 |
 | I15 | ⚪ | `FullText/Storage/SegmentFile.cs:79` | FTS segment/manifest 写入无 fsync，掉电不保证持久 | #192 |
 | Q1 | 🔴 | `Sql/Execution/TableSqlExecutor.cs:986`（RelationalSelect/Join 同型） | 三值逻辑坏：`NULL != 5` 判 TRUE、`NULL = NULL` 判 TRUE，返回错误行 | #197 |

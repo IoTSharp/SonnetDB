@@ -1,25 +1,23 @@
-using System.Runtime.InteropServices;
-using SonnetDB.Catalog;
-using SonnetDB.Query;
-using SonnetDB.Storage.Segments;
+using SonnetDB.Vector.Index.Hnsw;
+using SonnetDB.Vector.Model;
+using SonnetDB.Vector.Primitives;
 using Xunit;
 using Xunit.Abstractions;
 
-namespace SonnetDB.Core.Tests.Storage.Segments;
+namespace SonnetDB.Core.Tests.Vector.Index.Hnsw;
 
 /// <summary>
-/// SonnetDB 端 HNSW 段内索引（<see cref="HnswVectorBlockIndex"/>）的 Recall@10 闭环测试。
+/// canonical <see cref="HnswIndex{TKey}"/> 的 Recall@10 闭环测试。
 /// <para>
-/// 之前 README 用 <c>TBD</c> 表示召回率，是因为 BenchmarkDotNet 不捕获方法返回值。
-/// 此测试把召回率从 "TBD" 升级为有断言、可在 CI 复现的实际数值，并通过 xUnit
-/// 输出当次实测值供 README 引用。
+/// BenchmarkDotNet 不捕获方法返回值，故用有断言、可在 CI 复现的实测值把召回率从 "TBD"
+/// 升级为固定门槛，并通过 xUnit 输出当次实测值供 README 引用。
 /// </para>
 /// </summary>
-public sealed class HnswVectorBlockIndexRecallTests
+public sealed class HnswIndexRecallTests
 {
     private readonly ITestOutputHelper _output;
 
-    public HnswVectorBlockIndexRecallTests(ITestOutputHelper output)
+    public HnswIndexRecallTests(ITestOutputHelper output)
     {
         _output = output;
     }
@@ -35,10 +33,6 @@ public sealed class HnswVectorBlockIndexRecallTests
         const int seed = 20260616;
 
         var vectorData = GenerateNormalizedVectors(vectorCount, dimension, seed);
-        var timestamps = new long[vectorCount];
-        for (int i = 0; i < timestamps.Length; i++)
-            timestamps[i] = i;
-
         var queryIndexes = SelectQueryIndexes(vectorCount, queryCount, seed + 17);
         var groundTruth = new int[queryCount][];
         for (int i = 0; i < queryCount; i++)
@@ -52,25 +46,20 @@ public sealed class HnswVectorBlockIndexRecallTests
                 groundTruth[i]);
         }
 
-        var index = HnswVectorBlockIndex.Build(
-            blockIndex: 0,
-            valPayload: MemoryMarshal.AsBytes(vectorData.AsSpan()),
-            count: vectorCount,
-            dimension: dimension,
-            options: new HnswVectorIndexOptions(M: 16, Ef: 200, EfConstruction: 200));
+        using var index = new HnswIndex<int>(
+            dimension,
+            Metric.Cosine,
+            new HnswOptions { M = 16, EfConstruction = 200, EfSearch = 200, Seed = seed });
+        for (int row = 0; row < vectorCount; row++)
+            index.Add(row, vectorData.AsSpan(row * dimension, dimension));
 
-        ReadOnlySpan<byte> payload = MemoryMarshal.AsBytes(vectorData.AsSpan());
+        var buffer = new (int Key, float Score)[k];
         double recallSum = 0d;
         int unmatchedQueries = 0;
         for (int i = 0; i < queryCount; i++)
         {
-            var hits = index.Search(
-                GetQueryVector(vectorData, queryIndexes[i], dimension),
-                payload,
-                timestamps,
-                k,
-                KnnMetric.Cosine);
-            double recall = ComputeRecallAt10(groundTruth[i], hits);
+            int written = index.Search(GetQueryVector(vectorData, queryIndexes[i], dimension), k, buffer);
+            double recall = ComputeRecallAt10(groundTruth[i], buffer, written);
             recallSum += recall;
             if (recall < 1.0d)
                 unmatchedQueries++;
@@ -78,7 +67,7 @@ public sealed class HnswVectorBlockIndexRecallTests
 
         double avgRecall = recallSum / queryCount;
         _output.WriteLine(
-            $"HnswVectorBlockIndex Recall@{k} (N={vectorCount}, dim={dimension}, M=16, Ef=200, "
+            $"HnswIndex Recall@{k} (N={vectorCount}, dim={dimension}, M=16, Ef=200, "
             + $"{queryCount} queries): avg={avgRecall:F4}, imperfect={unmatchedQueries}/{queryCount}");
 
         // 主流 HNSW 参数组（M=16, Ef=200）在 cosine 384-d 上应轻松达到 ≥ 0.90。
@@ -154,12 +143,12 @@ public sealed class HnswVectorBlockIndexRecallTests
         }
     }
 
-    private static double ComputeRecallAt10(int[] expected, IReadOnlyList<HnswAnnSearchResult> actual)
+    private static double ComputeRecallAt10(int[] expected, (int Key, float Score)[] actual, int actualCount)
     {
         int matched = 0;
-        for (int i = 0; i < actual.Count; i++)
+        for (int i = 0; i < actualCount; i++)
         {
-            int id = actual[i].PointIndex;
+            int id = actual[i].Key;
             for (int j = 0; j < expected.Length; j++)
             {
                 if (expected[j] == id) { matched++; break; }
