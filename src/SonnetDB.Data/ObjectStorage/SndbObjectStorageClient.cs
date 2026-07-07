@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
@@ -6,6 +7,7 @@ using SonnetDB.Data.Embedded;
 using SonnetDB.Data.Remote;
 using SonnetDB.Engine;
 using SonnetDB.ObjectStorage;
+using SonnetDB.Protocol;
 
 namespace SonnetDB.Data.ObjectStorage;
 
@@ -14,8 +16,14 @@ namespace SonnetDB.Data.ObjectStorage;
 /// </summary>
 public sealed class SndbObjectStorageClient : IDisposable
 {
+    /// <summary>帧 put 内容字节上限：单帧 payload 上限扣除元数据头空间（db/bucket/key/contentType/maps/varints）。</summary>
+    private const long MaxFrameContentBytes = FrameHeader.MaxFramePayloadBytes - (64 * 1024);
+
+    private static readonly IReadOnlyDictionary<string, string> EmptyMap = new Dictionary<string, string>(0);
+
     private readonly SndbConnectionStringBuilder _builder;
     private HttpClient? _http;
+    private FrameChannel? _frames;
     private Tsdb? _embedded;
     private string _database = string.Empty;
     private bool _disposed;
@@ -112,6 +120,50 @@ public sealed class SndbObjectStorageClient : IDisposable
         if (_embedded is not null)
             return await new SndbObjectStore(_embedded).PutObjectAsync(bucket, key, content, contentType, metadata, tags, cancellationToken).ConfigureAwait(false);
 
+        // 帧 put：内容可 seek 且在单帧上限内 → 缓冲后原始字节零 Base64 直传；否则（不可 seek / 超大 / 帧关闭）走 REST 流式。
+        if (_frames is { } fx && fx.ShouldTryFrames())
+        {
+            byte[]? buffered = await TryBufferForFrameAsync(content, cancellationToken).ConfigureAwait(false);
+            if (buffered is not null)
+            {
+                var w = new ArrayBufferWriter<byte>();
+                ObjectFrameCodec.EncodePutRequest(w, 1, _database, bucket, key, buffered, contentType, metadata, tags);
+                var frame = await fx.SendUnaryAsync(w.WrittenMemory, cancellationToken).ConfigureAwait(false);
+                if (frame is { } f)
+                {
+                    ObjectPutFrameResult result = ObjectFrameCodec.DecodePutResponse(f.Payload);
+                    return new SndbObjectInfo(
+                        bucket,
+                        key,
+                        result.VersionId,
+                        NormalizeContentType(contentType),
+                        result.SizeBytes,
+                        result.ETag,
+                        result.Sha256,
+                        false,
+                        DateTimeOffset.MinValue,
+                        DateTimeOffset.MinValue,
+                        metadata ?? EmptyMap,
+                        tags ?? EmptyMap);
+                }
+
+                // 传输级回落：复用已缓冲字节走 REST。
+                return await PutObjectRestAsync(bucket, key, new MemoryStream(buffered), contentType, metadata, tags, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        return await PutObjectRestAsync(bucket, key, content, contentType, metadata, tags, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<SndbObjectInfo> PutObjectRestAsync(
+        string bucket,
+        string key,
+        Stream content,
+        string? contentType,
+        IReadOnlyDictionary<string, string>? metadata,
+        IReadOnlyDictionary<string, string>? tags,
+        CancellationToken cancellationToken)
+    {
         using var request = new HttpRequestMessage(HttpMethod.Put, ObjectUrl(bucket, key))
         {
             Content = new StreamContent(content),
@@ -217,6 +269,80 @@ public sealed class SndbObjectStorageClient : IDisposable
         if (_embedded is not null)
             return new SndbObjectStore(_embedded).OpenRead(bucket, key, range);
 
+        // 帧 get：仅非 Range 全量读走帧（meta→data×N→end 流式分块）；Range 读恒走 REST。
+        if (range is null && _frames is { } fx && fx.ShouldTryFrames())
+        {
+            FrameReadOutcome? framed = await TryOpenReadFrameAsync(bucket, key, cancellationToken).ConfigureAwait(false);
+            if (framed is { } outcome)
+                return outcome.Result; // NotFound → null；成功 → 结果；仅传输级回落返回 null 触发 REST
+        }
+
+        return await OpenReadRestAsync(bucket, key, range, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<FrameReadOutcome?> TryOpenReadFrameAsync(string bucket, string key, CancellationToken cancellationToken)
+    {
+        var w = new ArrayBufferWriter<byte>();
+        ObjectFrameCodec.EncodeGetRequest(w, 1, _database, bucket, key);
+        IReadOnlyList<FrameMessage>? frames = await _frames!.TrySendAsync(w.WrittenMemory, cancellationToken).ConfigureAwait(false);
+        if (frames is null)
+            return null; // 传输级回落 REST
+
+        // 首帧为带内错误帧：*_not_found → 返回 null（与 REST 把 404 归一化为 null 的语义一致）；其余错误上抛。
+        FrameMessage head = frames[0];
+        if (head.Header.IsError)
+        {
+            (string code, string message) = FrameCodec.ReadErrorPayload(head.Payload);
+            if (code.EndsWith("_not_found", StringComparison.Ordinal))
+                return FrameReadOutcome.NotFound;
+            throw new SndbServerException(code, message, System.Net.HttpStatusCode.OK);
+        }
+
+        ObjectGetFrameMeta meta = ObjectFrameCodec.DecodeGetMetaFrame(head.Payload);
+        var content = new MemoryStream(meta.SizeBytes <= int.MaxValue ? (int)meta.SizeBytes : 0);
+        long total = 0;
+        for (int i = 1; i < frames.Count; i++)
+        {
+            ReadOnlySpan<byte> payload = frames[i].Payload;
+            ObjectChunkKind kind = ObjectFrameCodec.PeekChunkKind(payload);
+            if (kind == ObjectChunkKind.Data)
+            {
+                ReadOnlyMemory<byte> chunk = ObjectFrameCodec.DecodeGetDataFrame(frames[i].Payload);
+                content.Write(chunk.Span);
+                total += chunk.Length;
+            }
+            else if (kind == ObjectChunkKind.End)
+            {
+                long declared = ObjectFrameCodec.DecodeGetEndFrame(payload);
+                if (declared != total)
+                    throw new InvalidDataException($"对象 get 帧声明总字节数 {declared} 与实收 {total} 不一致。");
+                break;
+            }
+        }
+
+        content.Position = 0;
+        var info = new SndbObjectInfo(
+            bucket,
+            key,
+            meta.VersionId,
+            meta.ContentType,
+            meta.SizeBytes,
+            meta.ETag,
+            meta.Sha256,
+            false,
+            DateTimeOffset.MinValue,
+            DateTimeOffset.MinValue,
+            meta.Metadata,
+            meta.Tags);
+        return new FrameReadOutcome(new SndbObjectReadResult(info, content, 0, meta.SizeBytes, IsRange: false));
+    }
+
+    private async Task<SndbObjectReadResult?> OpenReadRestAsync(
+        string bucket,
+        string key,
+        SndbObjectRange? range,
+        CancellationToken cancellationToken)
+    {
         using var request = new HttpRequestMessage(HttpMethod.Get, ObjectUrl(bucket, key));
         if (range.HasValue)
         {
@@ -498,6 +624,7 @@ public sealed class SndbObjectStorageClient : IDisposable
             new Uri(baseUrl, UriKind.Absolute),
             _builder.Token,
             TimeSpan.FromSeconds(_builder.Timeout));
+        _frames = new FrameChannel(_http, _builder.ResolveProtocol());
     }
 
     private async Task<HttpResponseMessage> PostJsonAsync<T>(
@@ -605,6 +732,63 @@ public sealed class SndbObjectStorageClient : IDisposable
     }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
+
+    /// <summary>
+    /// 尝试把内容缓冲成字节数组以走单帧 put：可 seek 且长度在帧上限内才缓冲；否则返回 null 走 REST 流式。
+    /// 可 seek 的流在放弃帧路径时会 seek 回原位，保证 REST 回落读到完整内容。
+    /// </summary>
+    private static async Task<byte[]?> TryBufferForFrameAsync(Stream content, CancellationToken cancellationToken)
+    {
+        long originPosition = content.CanSeek ? content.Position : -1;
+        if (content.CanSeek && content.Length - content.Position > MaxFrameContentBytes)
+            return null; // 超帧上限：不消费，REST 从原位续读
+
+        // 缓冲整段内容；边读边守上限，超限即放弃帧路径。
+        var buffer = new MemoryStream(content.CanSeek ? (int)Math.Min(content.Length - content.Position, int.MaxValue) : 0);
+        byte[] pool = ArrayPool<byte>.Shared.Rent(64 * 1024);
+        try
+        {
+            int read;
+            while ((read = await content.ReadAsync(pool, cancellationToken).ConfigureAwait(false)) > 0)
+            {
+                buffer.Write(pool, 0, read);
+                if (buffer.Length > MaxFrameContentBytes)
+                {
+                    if (content.CanSeek)
+                    {
+                        content.Position = originPosition; // 回退，REST 读完整内容
+                        return null;
+                    }
+
+                    // 不可 seek 且已部分消费，无法安全回落 → 要求改用 multipart。
+                    throw new NotSupportedException(
+                        $"对象内容超过帧上限 {MaxFrameContentBytes} 字节且源流不可 seek，请使用 multipart 上传或提供可 seek 的流。");
+                }
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(pool);
+        }
+
+        return buffer.ToArray();
+    }
+
+    private static string NormalizeContentType(string? contentType) =>
+        string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType.Trim();
+
+    /// <summary>
+    /// 帧 get 的三态结果：<see cref="Result"/> 为 null 表示对象不存在（与 REST 404 一致）；
+    /// 非 null 表示成功。传输级回落由 <see cref="TryOpenReadFrameAsync"/> 返回外层 null 表达。
+    /// </summary>
+    private readonly struct FrameReadOutcome
+    {
+        public static readonly FrameReadOutcome NotFound = new(null);
+
+        public FrameReadOutcome(SndbObjectReadResult? result) => Result = result;
+
+        public SndbObjectReadResult? Result { get; }
+    }
 
     private sealed class ResponseOwnedStream : Stream
     {
