@@ -95,6 +95,7 @@ const adminMenu: MenuOption[] = [
   { label: '权限', key: 'grants' },
   { label: 'Token', key: 'tokens' },
   { label: 'Copilot', key: 'ai-settings' },
+  { label: 'Copilot 测试', key: 'copilot-test' },
 ];
 
 const menuOptions = computed<MenuOption[]>(() => (
@@ -110,6 +111,7 @@ const titleByKey: Record<string, string> = {
   grants: '权限',
   tokens: 'Token',
   'ai-settings': 'Copilot',
+  'copilot-test': 'Copilot 测试',
 };
 
 const activeKey = computed(() => (route.name as string | undefined) ?? 'dashboard');

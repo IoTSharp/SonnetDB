@@ -12,6 +12,7 @@ import UsersView from '@/views/UsersView.vue';
 import GrantsView from '@/views/GrantsView.vue';
 import TokensView from '@/views/TokensView.vue';
 import AiSettingsView from '@/views/AiSettingsView.vue';
+import CopilotTestView from '@/views/CopilotTestView.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useSetupStore } from '@/stores/setup';
 
@@ -47,6 +48,7 @@ const router = createRouter({
         { path: 'grants', name: 'grants', component: GrantsView, meta: { admin: true } },
         { path: 'tokens', name: 'tokens', component: TokensView, meta: { admin: true } },
         { path: 'ai-settings', name: 'ai-settings', component: AiSettingsView, meta: { admin: true } },
+        { path: 'copilot-test', name: 'copilot-test', component: CopilotTestView, meta: { admin: true } },
       ],
     },
   ],
