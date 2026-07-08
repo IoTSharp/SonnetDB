@@ -989,6 +989,96 @@ E 三面：#258（Studio 桌面原生桥）∥ #259（VS Code 多模型消费）
 
 ---
 
+## Milestone 30 — 多协议设备接入扩展（Multi-Protocol Device Ingestion）
+
+> **背景**：M28 P5b（#242/#243）已让 SonnetDB 具备 MQTT 双形态设备接入——内建 broker 供设备直连、client 订阅外部 EMQX/Mosquitto，两者共享 `db/{db}/m/{measurement}` 路由并复用 `BulkIngestEndpointHandler` 三格式（Line Protocol / JSON points / BulkValues）零重复落库。但工业与受约束设备现场并非只说裸 MQTT：**(1) 工业 SCADA 事实标准是 Sparkplug B**——骑在 MQTT 之上的 Protobuf payload 规范，带统一的 metric 语义、设备发现（birth/death）、别名压缩与死活检测，Ignition / Inductive Automation / Eclipse Tahu / HiveMQ / AWS IoT SiteWise 生态通用；裸 MQTT 只有 topic 约定、无 payload 语义。**(2) 受约束设备（MCU / 低功耗 / 无 TCP 栈）走 CoAP**——RFC 7252，UDP、REST-like、4 字节头，是 OMA LwM2M 的承载层。**(3) 遥测低开销入口**——InfluxDB Line Protocol 除 HTTP `/write` 外还有经典的 UDP 监听形态（fire-and-forget，Telegraf `influxdb` output 可直连）。
+>
+> **核心判断**：SonnetDB 是**数据库 / 存储层**，不是采集网关。适合数据库原生支持的，是**「设备 push / 从消息总线被动接收」**这一类协议——即它对 MQTT 已做的模式；**「主动轮询设备」的现场总线协议（Modbus / OPC UA client / 西门子 S7 / 三菱 / FINS / AB / MTConnect）不进 DB**——数据库不去 poll 设备，该职责归边缘采集网关（IoTEdge）。本里程碑在此边界内，把 Sparkplug B、CoAP、Line Protocol UDP 三条「被动接收 / 直写」通道补齐，全部**收敛到既有 `BulkIngestEndpointHandler` 三格式落库路径**，不新增任何引擎写入 / 查询 / 索引 / 存储语义。
+>
+> **不变约束**（与 M28 P5b / #242 一致）：`SonnetDB.Core` 零第三方依赖不变——**所有协议栈限于 Server 层**。**依赖策略（本轮定档，倾向纯托管、避免 native 与重型第三方）**：**(1) Sparkplug 手写 protobuf 解码，零新依赖**——复用本仓已有的手写 protobuf wire-format 解码范式（`PrometheusRemoteWriteReader`：`ReadVarint` / `SkipField` / LEN 切片），Sparkplug `Payload` 与 Prometheus `WriteRequest` 同量级同手法，**不引 `Google.Protobuf`**（其 codegen 走 `Grpc.Tools` 会在 build 时拉 native `protoc`）；proto 字段号手写成常量，proto 文件都不带。**(2) CoAP 明文栈 vendor 自维护**——把 `IoTSharp.CoAP.NET`（本 org 已持有的 SmeshLink CoAP.NET fork，BSD、纯托管零 native）server 子集 vendored 进来现代化到 net10（同 `extensions/MQTTnet.AspNetCore.Routing` 范式），**不引 CoAPnet**。**(3) 唯一允许的新第三方 = DTLS 用 `BouncyCastle.Cryptography` 2.6.2**——.NET BCL 无 DTLS，纯托管 DTLS 现实上只有 BouncyCastle；它是单个纯托管程序集、零 native（与 build 时拉 native 的 Google.Protobuf 性质不同），仅 #266 的 `coaps` 传输层用，且默认关闭。三条协议都是**并列新增**，现有 REST / MQTT / 帧协议全部保留；单机形态，不做 broker 集群 / 桥接 / 跨节点 session。
+
+### 行业对标依据（2026-07 走查工业与 IoT 接入协议）
+
+> - **Sparkplug B = 工业 MQTT 事实标准**：Ignition / Inductive Automation SCADA、Eclipse Tahu 参考实现、HiveMQ / EMQX 原生支持、AWS IoT SiteWise 摄取均以其为准。它**不是新传输层，而是 MQTT 之上的 Protobuf payload + topic namespace（`spBv1.0/{group}/{msgtype}/{node}/[{device}]`）规范**——解决裸 MQTT「无统一 payload 语义 / 无设备发现 / 无死活检测 / 无带宽压缩」四大缺口。TDengine / IoTDB 内建 MQTT broker 但**不原生解 Sparkplug** → 这是 SonnetDB「工业采集平台」定位的差异化高杠杆项，且**纯 payload codec，复用 #242 broker 接入与落库路径，成本最低**。
+> - **CoAP = 受约束设备承载协议**：RFC 7252，UDP:5683 / DTLS:5684，REST-like（GET/POST/PUT/DELETE + Observe），4 字节头，为 MCU / 低功耗 / 有损网络设计，是 OMA LwM2M 的承载层。IoTSharp 平台侧已内建 CoAP；DB 侧补 CoAP 直写，让**无 MQTT 栈的约束设备也能直连落库**，映射规则对齐 #242 的 MQTT topic → 资源路径。
+> - **Line Protocol UDP = 低开销遥测入口**：InfluxDB 除 HTTP `/write` 外提供 UDP 行协议监听（无 ack、无背压、fire-and-forget），Telegraf `influxdb` output 可直连。本仓 **HTTP `/write` / `/api/v2/write` / Prometheus remote-write 已由 M8 交付**（`InfluxLineProtocolEndpointHandler`，Telegraf / EMQX 生态可直接对接），本里程碑只补**唯一缺失的 UDP 数据报入口**，复用既有 `LineProtocolReader`，零新依赖（`System.Net.Sockets`）。
+
+### 能力矩阵（现状 → 目标接入 → 对标）
+
+| 协议 | 现状 | 目标接入 | 对标 | 归属 PR |
+|---|---|---|---|---|
+| MQTT（裸）| ✅ 内建 broker + client 订阅外部 broker | 保持 | IoTDB / TDengine 内建 broker、InfluxDB+Telegraf | M28 #242 / #243 ✅ |
+| **Sparkplug B** | ❌ | 骑 #242 broker 解码 Protobuf payload + 别名解析 + birth/death 生命周期状态机 → BulkIngest 落库 | Ignition / Eclipse Tahu / HiveMQ / AWS IoT SiteWise | #263 / #264 |
+| **CoAP** | ❌ | UDP CoAP 服务端资源路由 `db/{db}/m/{measurement}` → BulkIngest 三格式；DTLS + Observe | OMA LwM2M / IoTSharp 平台 CoAP | #265 / #266 |
+| Line Protocol（HTTP）| ✅ `/write`、`/api/v2/write`、Prometheus remote-write | 保持 | InfluxDB / Telegraf | M8 ✅ |
+| **Line Protocol（UDP）** | ❌ | UDP 数据报监听复用 `LineProtocolReader` → BulkIngest | InfluxDB UDP listener / Telegraf | #267 |
+| 现场总线轮询（Modbus / OPC UA client / S7 / 三菱 / FINS / AB / MTConnect）| ❌（**有意不做**）| 归边缘采集网关 IoTEdge——数据库不主动轮询设备 | — | 不做（见「不做的事」） |
+
+### 阶段总览
+
+| 阶段 | 主题 | PR 范围 | 目标 |
+|------|------|---------|------|
+| **A** | Sparkplug B（工业 SCADA 事实标准，骑 #242 broker） | #263 ~ #264 | 解码 Protobuf payload + 别名解析落库；birth/death 生命周期 + seq 缺口检测 + rebirth 命令 |
+| **B** | CoAP 设备写入（受约束设备 UDP 直连） | #265 ~ #266 | CoAP 服务端资源路由 → BulkIngest 三格式落库；DTLS 安全 + Observe 订阅 |
+| **C** | Line Protocol UDP 监听 + 收口 | #267 ~ #268 | 补 HTTP `/write` 之外的 UDP 遥测入口；协议接入文档矩阵 + 落库 parity |
+
+### A — Sparkplug B（工业 SCADA 事实标准）
+
+> 骑在 **M28 #242 内建 MQTT broker** 之上：SonnetDB broker 收到 `spBv1.0/...` 的 PUBLISH，由 Sparkplug 解码器解 Protobuf、解析别名、映射为 measurement 点后落库。**不新增 broker，不新增落库路径**——Sparkplug 是 #242 之上的一层 payload 编解码 + host application 状态机。**Protobuf 解码手写、零新依赖**：新增 `SparkplugPayloadReader : IPointReader`，抄本仓已有的 `PrometheusRemoteWriteReader` 手写 wire-format 骨架（`ReadVarint` / `SkipField` / LEN 切片全可复用，仅需补 float=field 12 / wire type 5 的 `ReadSingleLittleEndian` 一处），`Payload` / `Metric` 字段号手写成常量，**不引 `Google.Protobuf`**（其 codegen 会在 build 时拉 native `protoc`）。**落库直产 `Point` → `BulkIngestor.Ingest`**（与 `PrometheusRemoteWriteReader` 同一引擎入口），**不走 `IngestPayload` 的 LP/JSON/BulkValues 字节路径**——Sparkplug metric 已是强类型值，回序列化成 LP 文本再解析既浪费又丢类型；data-plane parity 仍成立（#268 parity 测试照旧）。**状态机自写**（broker 侧 host application 角色是 SonnetDB 特有，SparkplugNet 等库偏 client 侧）。
+
+| PR | 标题与范围 | 状态 |
+|----|------------|------|
+| #263 | **Sparkplug B payload 解码 + 数据落库**：在 #242 broker 上挂 Sparkplug topic namespace（`spBv1.0/{group_id}/{message_type}/{edge_node_id}/[{device_id}]`）路由（新增并列 `[MqttController]`，不碰现有 `db/{db}` 控制器）；`NBIRTH`/`DBIRTH` 建立 `name↔alias` 映射表（进程内内存态）并注册设备，`NDATA`/`DDATA` 按 alias 解析 metric（Sparkplug 带宽压缩：DATA 只携 alias 不重发 name）；**metric 映射为点约定**——`measurement = edge_node_id`（带 device 时 = `device_id`），`group_id` / `edge_node_id` / `device_id` 为 tag，metric name 为 field key，per-metric timestamp（缺失回退 payload-level）为点时间戳；**类型映射**：整数族→Int64、Float(field 12,wire5)/Double→Float64、Bool→Boolean、String/Text/UUID→String、DateTime→Int64(ms)，**Bytes/DataSet/Template/File 等非标量本 PR 跳过并计数**（`FieldValue` 仅 Float64/Int64/Boolean/String）；metric name 含 `/` 的按名称合法性规则保留或 `.` 替换。**手写 `SparkplugPayloadReader : IPointReader` 解码，直产 `Point` → `BulkIngestor.Ingest`**（与 `PrometheusRemoteWriteReader` 同一入口，零新依赖，**不走 `IngestPayload` 字节路径**）。BIRTH 缺失时的孤儿 DATA（无 alias 映射）本 PR 丢弃并计数、不触发 rebirth。**本 PR 只做解码 + 落库**，生命周期 / seq 缺口 / rebirth 归 #264。 | 📋 |
+| #264 | **Sparkplug B 生命周期与命令**：`bdSeq`（birth-death 序列）+ `seq`（每消息 0–255 滚动）校验与**缺口检测** → 经 `NCMD` 的「Node Control/Rebirth」请求边缘节点重生，补齐丢失的 birth 上下文；`NDEATH`/`DDEATH`（LWT）标记节点 / 设备离线状态；`alias` 表按 edge node 持久化 / 重建（断连重连不丢映射）；`STATE`/primary host application 语义（broker 侧宣告在线以触发边缘节点数据流）；下行命令 `NCMD`/`DCMD` 写入（可选，走写审批）。 | 📋 |
+
+### B — CoAP 设备写入（受约束设备直连）
+
+> CoAP 明文栈 **vendor 自维护**：把 `IoTSharp.CoAP.NET`（本 org 已持有的 SmeshLink CoAP.NET fork，BSD、纯托管零 native，但 NuGet 停在 2020/netstandard2.0）的 **server 子集 vendored 进来现代化到 net10**（同 `extensions/MQTTnet.AspNetCore.Routing` 范式，裁到 server + option 解析 + blockwise + observe，砍 client/net40），**不引 CoAPnet**。资源路径映射对齐 #242 的 MQTT topic：`db/{db}/m/{measurement}`，payload = measurement 内容，`Content-Format` option 选择 Line Protocol / JSON points / BulkValues 三格式，落库复用 `BulkIngestEndpointHandler`。**DTLS（#266）用 `BouncyCastle.Cryptography` 2.6.2**——.NET BCL 无 DTLS，纯托管 DTLS 现实上只有 BouncyCastle（单个纯托管程序集、零 native），版本对齐宿主已用的 2.6.2，仅 Server 层 `coaps` 传输层用。
+
+| PR | 标题与范围 | 状态 |
+|----|------------|------|
+| #265 | **CoAP 服务端 + 写入落库**：UDP:5683 CoAP 服务端（RFC 7252），`POST`/`PUT` 到资源 `db/{db}/m/{measurement}` → `BulkIngestEndpointHandler` 三格式落库（格式由 `Content-Format` option 选择，回退首字节嗅探，与 #242 一致）；鉴权复用 Bearer/token（经 CoAP option 携带，映射三角色权限）；支持确认型（CON）/ 非确认型（NON）消息与块传输（RFC 7959，大 payload 分块）；错误以 CoAP response code 回（4.00/4.01/4.03/4.04 对齐 REST 语义）。 | 📋 |
+| #266 | **CoAP 安全 + Observe 订阅**：DTLS（`coaps`:5684）经 **`BouncyCastle.Cryptography` 2.6.2**（`DtlsServerProtocol` + `DtlsServerTransport`，.NET BCL 无 DTLS，纯托管零 native，仅 Server 层）——**PSK 优先**（受约束设备最常用，`TlsPskIdentityManager`），RPK / 证书作后续增量；握手后解密 datagram 喂回 #265 vendored CoAP 解析 → 落库路径不变，默认关闭需显式启用（同 #242 / #267 安全姿态）。`Observe`（RFC 7641）资源订阅——设备 GET+Observe 一个 `db/{db}/mq/{topic}` 资源，服务端在新消息到达时推送（桥接 SonnetMQ，复用 #236 推送管线，对齐 #242 的 `mq/` 订阅），用 vendored CoAP 的 observe 关系、与 DTLS 正交不依赖 BouncyCastle。安全与 Observe 均为 #265 之上的增量。 | 📋 |
+
+### C — Line Protocol UDP 监听 + 收口
+
+| PR | 标题与范围 | 状态 |
+|----|------------|------|
+| #267 | **Line Protocol UDP 监听端点**：`System.Net.Sockets.UdpClient`（纯 BCL，零新依赖）监听 UDP 端口，每个数据报 = 一批 Line Protocol 行，复用既有 `LineProtocolReader` + `BulkIngestor`（与 HTTP `/write` 同一解析与落库路径）；目标数据库按监听端口绑定或配置项指定（UDP 无 query 参数）；对标 InfluxDB UDP listener / Telegraf `influxdb` UDP output。**安全边界文档化**：UDP fire-and-forget——无鉴权、无 ack、无背压、受数据报尺寸限制，**仅限可信内网**，默认关闭、需显式启用（与 #242 broker 默认关闭一致）。 | 📋 |
+| #268 | **多协议接入收口 + 文档 + parity**：`docs/` 增协议接入矩阵（MQTT / Sparkplug B / CoAP / Line Protocol-HTTP / Line Protocol-UDP → 落库路径映射 + 安全 / QoS / 可靠性边界表 + 选型指引）；各协议落库与既有 `BulkIngestEndpointHandler` 路径的 **parity 平移测试**（同一 payload 经不同协议入口落库结果一致，复用 `tests/SonnetDB.Parity` 骨架）；Sparkplug 解码 / CoAP 吞吐基准进报告。 | 📋 |
+
+### 推进顺序
+
+```text
+前置：M28 #242 内建 MQTT broker ✅（Sparkplug 骑其上）
+A Sparkplug：#263（payload 解码 + 落库）→ #264（生命周期 + seq 缺口 + rebirth 命令）
+B CoAP：#265（服务端 + 写入落库）→ #266（DTLS 安全 + Observe 订阅）
+C LP-UDP + 收口：#267（Line Protocol UDP 监听）→ #268（协议矩阵文档 + parity）
+```
+
+> **阶段间依赖与并行度**：**A / B / C 相互独立，可按带宽并行 / 穿插**——各自挂在既有落库路径上。段内有序：**#263 是 #264 的前置**（先能解码落库，再补生命周期）；**#265 是 #266 的前置**（先能写入，再加 DTLS/Observe）；#267 独立，#268 收口最后。跨里程碑依赖：**A 段依赖 M28 #242 内建 broker（已 ✅）**——Sparkplug 是其上的 payload 层；#266 CoAP Observe 复用 M28 #236 推送管线（已 ✅）。三条协议的落库全部收敛到 #242/#243 已抽出的共享 `BulkIngestEndpointHandler.IngestPayload`，无新引擎语义。
+
+### 验收标准
+
+- **A（Sparkplug B）**：真实 Sparkplug 边缘节点（或 Eclipse Tahu 测试工具）连上 SonnetDB #242 broker，`NBIRTH`/`DBIRTH` 后 `NDATA`/`DDATA` 的按-alias metric 能正确解析并经 SQL 回查落库；`seq` 缺口触发 rebirth 请求；`NDEATH` 反映节点离线状态；metric→点映射约定文档化且可回查。
+- **B（CoAP）**：CoAP 客户端 `POST` 到 `db/{db}/m/{measurement}` 三格式 payload 能落库并经 SQL 回查；readonly token 被拒；块传输大 payload 完整落库；DTLS(PSK) 加密连接可用；Observe 订阅 `mq/{topic}` 能收到服务端推送。
+- **C（LP-UDP + 收口）**：UDP 数据报的 Line Protocol 行与 HTTP `/write` 落库结果逐点等价；UDP 监听默认关闭、启用后限可信网络的安全边界在 `docs/` 明确；协议接入矩阵 + 落库 parity 平移测试齐备。
+- **全局**：三条协议均复用 `BulkIngestEndpointHandler` 落库、未新增任何引擎写入 / 查询 / 索引 / 存储语义；`SonnetDB.Core` 零第三方依赖不变，协议栈限 Server 层；REST / MQTT / 帧协议全部保留向后兼容。
+
+### 不做的事
+
+- **不**做**现场总线轮询类协议**（Modbus / OPC UA client / 西门子 S7 / 三菱 / FINS / AB / MTConnect）——这类协议要「主动轮询设备」，是**边缘采集网关（IoTEdge）的职责，数据库不去 poll 设备**。这是本里程碑最重要的边界：SonnetDB 只做「设备 push / 总线被动接收 / 直写」通道。
+- **不**做设备管理导向协议的完整栈——**LwM2M**（设备管理 / 固件下发导向，非数据洪流）只在 CoAP 承载层落数据入口、不实现其对象模型 / DM 语义；**MQTT-SN**（传感网 UDP，一般由网关转 MQTT）不做，交给网关。
+- **不**做 **DDS**（机器人 / 国防实时总线，重且小众）、**AMQP 1.0**（企业消息，本轮未选，如需再评估作 consumer）、**Kafka consumer**（本轮评估后未选，librdkafka native 依赖较重，留后续按现场需求再定）。
+- **不**新增引擎语义——所有协议落库复用既有 `BulkIngestEndpointHandler` 三格式与 data-plane，与 #242/#243 边界一致。
+- **不**在 `SonnetDB.Core` 引入第三方依赖——Sparkplug 手写解码 / vendored CoAP / DTLS 的 BouncyCastle 均限 Server 层；**不引 `Google.Protobuf`**（Sparkplug 手写 wire-format 解码，复用 `PrometheusRemoteWriteReader` 范式，零新依赖）、**不引 CoAPnet**（vendor `IoTSharp.CoAP.NET` server 子集自维护）；唯一新第三方 = #266 DTLS 的 `BouncyCastle.Cryptography` 2.6.2（纯托管零 native，BCL 无 DTLS 的唯一现实选项）。
+- **不**选 **CoAPnet（chkr1011）作 CoAP 基底**（已评估）——CoAPnet 与 IoTSharp.CoAP.NET 两个 fork **均多年不维护**，但既已决定 **vendor 自维护**（而非引 NuGet 依赖），「谁在维护」不再是评判项，只比「哪份源码作 vendor 基底更省事」：选 **`IoTSharp.CoAP.NET`**（SmeshLink→Eclipse Californium 血统）而非 CoAPnet，因为 **(1) 它已是本 org 的 fork**（license 署名含 maikebing，谱系 / 授权 / 控制权零障碍）；**(2) server 子集更全**（observe / blockwise / 资源树是 Californium 血统强项，CoAPnet 偏 client）；**(3) 本地 NuGet 缓存可一手核实**（CoAPnet 从未引入，纯纸面）。chkr1011「与 MQTTnet 同作者、同 policy」的优点仅在**引依赖**语境成立，vendor 后失效。
+- **不**引 **`protobuf-net`（Marc Gravell）解 Sparkplug**（已评估）——它确是**纯 C# protobuf**（Apache-2.0，依赖全托管、零 native，靠 `[ProtoContract]` 运行时特性映射、连 codegen 都不需要，比 `Google.Protobuf` 的 `Grpc.Tools`+native `protoc` 干净），是"纯 C# protobuf"问题的合法答案；但仍不选，因 **(1) 它靠 `System.Reflection.Emit` 运行时 IL 生成 → AOT / trim 不友好**（与本仓 NativeAOT 目标冲突，见 MQTTnet.Routing vendor 注释）；**(2) Sparkplug `Payload` 仅 ~10 字段，手写解码约 200 行、与已有 `PrometheusRemoteWriteReader` 同量级**，引库解一个小 message 不划算且 AOT 零摩擦。若未来某协议 message 复杂到手写不划算，protobuf-net 是纯托管回退项（代价 = AOT 友好性）。
+- **不**做 broker 集群 / 桥接 / 跨节点 session——单机形态，与 P5「不做分布式」边界一致。
+- **不**新造已存在的能力——**InfluxDB Line Protocol over HTTP（`/write`、`/api/v2/write`、Prometheus remote-write）已由 M8 交付**，本里程碑只补 UDP 入口，不重复 HTTP 形态。
+
+---
+
 ## 里程碑总览
 
 | Milestone | 主题 | PR 范围 | 状态 |
@@ -1023,9 +1113,10 @@ E 三面：#258（Studio 桌面原生桥）∥ #259（VS Code 多模型消费）
 | 27 | Industrial Data Agent 与 AI-ready 产品化路线 | #182 ~ #188 | ⚠️ 滞后（#182 已落第一批文档；#183~#188 待追赶） |
 | 28 | 可靠性、并发正确性与热路径加固（P0~P5 分阶段） | #189 ~ #244、#261 ~ #262 | 🚧（P0~P3 + P5a ✅；**SonnetMQ 硬化 #230→#234 收官，数据面 🔴 全部关闭（含 MQ3 无界内存/OOM）**；**M17 #89~#91 可观测性基线已落地**；**P5b #235~#244 + SDK 补口 #261/#262 ✅（帧协议覆盖 MQ/时序/SQL/向量/KV/对象/文档七 service，SDK 帧/REST parity 已横向收口，MQTT broker/client 已就位）**；**P4 已开工：#221 文档惰性 scan + #222 FTS 批量成段 + #223 向量度量/efConstruction + #224 KNN block skip-index ✅**；下一步 = P4 #225；审计 54 项 + P5 新增 MQ/N 专项） |
 | 29 | 多模型统一管理工作台（Multi-Model Management Workbench） | #245 ~ #260 | 📋（Web Admin 旗舰优先；A 外壳→B 关系→C KV/MQ/向量/全文→D 对象/文档收口→E 桌面/VS Code；文档管理面归 M24、对象后端归 M19 #118） |
+| 30 | 多协议设备接入扩展（Sparkplug B / CoAP / Line Protocol UDP） | #263 ~ #268 | 📋（前置 M28 #242 broker ✅；A Sparkplug→B CoAP→C LP-UDP，三段独立可并行；全部收敛既有 BulkIngest 落库、不新增引擎语义；现场总线轮询有意不做，归边缘网关 IoTEdge） |
 | MM9 | 多模型统一备份、恢复和管理工具第一批 | BackupService + sndb backup | ✅ |
 
-**当前推进顺序**：Milestone 14（Copilot）、Milestone 15（地理空间）、Milestone 16（Copilot 产品化升级）、Milestone 20（Parity #127~#136 实现）、Milestone 21（Document Store 单机能力升级 #137~#146）、Milestone 23（搜索与向量引擎合并）与 Milestone 26（连接器路线独立化 #175~#181）均已完成或收口。**Milestone 28（可靠性、并发正确性与热路径加固 #189~#229）** 是 2026 跨子系统深度审计后新增的加固主线，优先级最高：先做 **P0 数据可靠性止血**（#189~#196，Windows 目录 fsync / flush add-then-reset / 后台 worker 租约 / FTS manifest 原子 / HNSW 快照 / Delete 持久化 / 段头尾 CRC / 默认持久性决策），再依次推进 P1 正确性（#197~#203）、P2 写吞吐（#204~#211）、P3 查询与 SQL 能力（#212~#220）、P4 索引与向量能力（#221~#229）。**当前焦点（2026-07）：P0~P3、P5a SonnetMQ 热路径硬化（#230→#234）与 P5b #235/#236 均已收口**——SonnetMQ 曾是引擎数据面唯一仍开着 🔴 Critical 的整块（MQ1~MQ4，尤其 MQ3 无界内存 / OOM 属数据可靠性隐患），按「先止血、再正确、再吞吐、再能力」原则先于 P4 完成；#235 已落地帧信封 + MQ service + h2c 端点 + 编码基准，#236 已落地 MQ HTTP/2 双工流式推送订阅（Core `WaitForMessagesAsync` pulse + `/v1/frame/stream` 端点），#237 已落地时序列式批量写（`TsdbFrameCodec` + `TsdbColumnarPointReader` 流式列转行直通 `WriteMany`，帧 wire 3.73× 小于 JSON、100k 行编码 326× 快），#238 已落地 SQL 流式列式结果集（`SqlFrameCodec` meta→rows×N→end 分块流式 + 只读语句门禁，100k 行编码分配 2.2KB vs NDJSON 24MB），#239 已落地向量检索接入（`VectorFrameCodec` f32 二进制查询向量 + 响应复用 sql 帧块布局 + 检索内核与 SQL knn TVF 共用，dim=1536 请求编码 ~1100× 快零分配）（M17 #89~#91 可观测性基线按 2026-07-04 决策先行落地）；**P4 已开工：#221 文档查询惰性 scan 已落地（planner 候选惰性化 + 计数式代价估算，I2 收口），#222 FTS 批量成段 + 增量语料统计已落地（IndexMany 整批单段 + manifest 一次落盘 + 字段语料统计增量维护，I3 收口），#223 向量度量贯通 + efConstruction 独立已落地（声明度量 L2/InnerProduct 贯通建图与 ANN gate、efConstruction 与 efSearch 解耦，measurement schema 升 v5 + 段内 SDBVIDX 升 v4 持久化度量/efConstruction、DDL 加 `metric=`/`ef_construction=`，I7、I9 收口），#224 向量 KNN block skip-index 已落地（`KnnExecutor.Execute` 段侧扫描改走 `MultiSegmentIndex.LookupCandidates` 的 series/field/时间窗 prefix-max 剪枝，替换逐 reader 全块过滤，I8 收口）**；下一步 = P4 #225（compaction 向量索引 catalog 必需）或 P5b #244（全模型接入收口 + 文档 + parity），可按带宽并行。详见 [Milestone 28](#milestone-28--可靠性并发正确性与热路径加固reliability--concurrency--performance-hardening) 阶段总览下的「当前焦点」callout。**Milestone 27（Industrial Data Agent 与 AI-ready 产品化路线）** 仍是对外门面与中长期 AI 产品主线，但**依赖 M28、分两拨推进**：#182 门面文档、#183 想要的 MCP 工具契约与 #185 想要的 provider 抽象**代码均已就位**，故 M27 剩余工作是「打包、定位、证明、去重」而非「建 AI 功能」。**可与 M28 并行的纯文档条**——#182 收尾、#185 provider-neutral 配置文档、#183 降级为「稳定并文档化现有 MCP 工具（不新增 Agent 工具）」、#188 边界声明；**必须等 M28 收口后再启动**——#184 端到端工业异常 Demo（依赖 P5 MQTT + P0 可靠写入，引擎主张为真后再拍 Demo）、#187 eval 与成本指标（推迟到有真实采纳之后）；**#186 写入审批二阶段移交 Milestone 29**（与其「共享写审批框架」重叠，M27 只消费）。同时并行推进 **Milestone 17（可观测性与运行时可见性）** 的 OTel / 结构化日志 / 诊断端点 / Copilot 服务端会话持久化，以及 **Milestone 18（VS Code 扩展）** 的 `#99 ~ #103` “远程连接 + Explorer + SQL + 结果视图”闭环。**Milestone 19（生态适配底座能力）** 只保留 SonnetDB 通用数据库能力，#109~#117 与 #122/#123 已完成；IoTSharp 专属 Profile、兼容矩阵、灰度、双写、回滚和长稳验收已迁入 IoTSharp 仓库 RD-10。后续继续推进对象治理、通用迁移/校验原语、增量索引 / 后台维护成本与大量 measurement 长稳专项（其中 #124 增量索引与 Milestone 28 #207 目标一致，以 M28 为落地口径）。Studio 管理面进入 **Milestone 24**，MongoDB 参考 parity、长稳、容量报告和发布文档进入 **Milestone 25**。**Milestone 29（多模型统一管理工作台 #245~#260）** 是在 Web Admin 已有「时序 + SQL」管理面基础上，把管理工具从三个孤立工程重构为「一张能力矩阵 × 三个交付面（Web Admin 旗舰 / Studio 桌面 / VS Code）」，逐模型补齐 KV / MQ / 向量 / 全文 / 对象 / 关系数据网格等对标 pgAdmin / RedisInsight / Kafka UI / Attu / Kibana / MinIO Console 的专用工作台；**Web Admin 旗舰优先**，先做 A 阶段管理契约 + 统一外壳（#245~#247）再逐工作台推进；文档管理面仍归 M24、对象后端治理仍归 M19 #118，M29 只做接入与收编，且不新增任何引擎语义。**Milestone 22（Agent Memory / Codebase Intelligence）** 重新定位为基于 SonnetDB 的上层应用 / 示例方案候选，**本轮复核再次确认暂停 #150~#159 内置派单、不内置**；理由是其所需能力（Document / FullText / Vector / Hybrid / MCP）均已在库内、M22 不产出新引擎能力，且代码解析依赖违反 Core 零第三方铁律。只有将来在 `examples/` dogfood 验证出通用数据库能力缺口时，才把该缺口拆成独立 Core / Server / Studio PR。SonnetDBEE C5.7 / MM9 的开源核心第一批已提供 `BackupService` 和 `sndb backup create/inspect/verify/restore`，企业级定时、增量、审计和 UI 编排继续由 SonnetDBEE 承接。**Milestone 20** 后续不再按 #129 继续派单，而是通过 `.github/workflows/parity.yml`、`parity-results` 分支与 `tests/SonnetDB.Parity/reports/sample-run.md` 持续暴露能力缺口、SKIP 原因和 nightly 稳定性。
+**当前推进顺序**：Milestone 14（Copilot）、Milestone 15（地理空间）、Milestone 16（Copilot 产品化升级）、Milestone 20（Parity #127~#136 实现）、Milestone 21（Document Store 单机能力升级 #137~#146）、Milestone 23（搜索与向量引擎合并）与 Milestone 26（连接器路线独立化 #175~#181）均已完成或收口。**Milestone 28（可靠性、并发正确性与热路径加固 #189~#229）** 是 2026 跨子系统深度审计后新增的加固主线，优先级最高：先做 **P0 数据可靠性止血**（#189~#196，Windows 目录 fsync / flush add-then-reset / 后台 worker 租约 / FTS manifest 原子 / HNSW 快照 / Delete 持久化 / 段头尾 CRC / 默认持久性决策），再依次推进 P1 正确性（#197~#203）、P2 写吞吐（#204~#211）、P3 查询与 SQL 能力（#212~#220）、P4 索引与向量能力（#221~#229）。**当前焦点（2026-07）：P0~P3、P5a SonnetMQ 热路径硬化（#230→#234）与 P5b #235/#236 均已收口**——SonnetMQ 曾是引擎数据面唯一仍开着 🔴 Critical 的整块（MQ1~MQ4，尤其 MQ3 无界内存 / OOM 属数据可靠性隐患），按「先止血、再正确、再吞吐、再能力」原则先于 P4 完成；#235 已落地帧信封 + MQ service + h2c 端点 + 编码基准，#236 已落地 MQ HTTP/2 双工流式推送订阅（Core `WaitForMessagesAsync` pulse + `/v1/frame/stream` 端点），#237 已落地时序列式批量写（`TsdbFrameCodec` + `TsdbColumnarPointReader` 流式列转行直通 `WriteMany`，帧 wire 3.73× 小于 JSON、100k 行编码 326× 快），#238 已落地 SQL 流式列式结果集（`SqlFrameCodec` meta→rows×N→end 分块流式 + 只读语句门禁，100k 行编码分配 2.2KB vs NDJSON 24MB），#239 已落地向量检索接入（`VectorFrameCodec` f32 二进制查询向量 + 响应复用 sql 帧块布局 + 检索内核与 SQL knn TVF 共用，dim=1536 请求编码 ~1100× 快零分配）（M17 #89~#91 可观测性基线按 2026-07-04 决策先行落地）；**P4 已开工：#221 文档查询惰性 scan 已落地（planner 候选惰性化 + 计数式代价估算，I2 收口），#222 FTS 批量成段 + 增量语料统计已落地（IndexMany 整批单段 + manifest 一次落盘 + 字段语料统计增量维护，I3 收口），#223 向量度量贯通 + efConstruction 独立已落地（声明度量 L2/InnerProduct 贯通建图与 ANN gate、efConstruction 与 efSearch 解耦，measurement schema 升 v5 + 段内 SDBVIDX 升 v4 持久化度量/efConstruction、DDL 加 `metric=`/`ef_construction=`，I7、I9 收口），#224 向量 KNN block skip-index 已落地（`KnnExecutor.Execute` 段侧扫描改走 `MultiSegmentIndex.LookupCandidates` 的 series/field/时间窗 prefix-max 剪枝，替换逐 reader 全块过滤，I8 收口）**；下一步 = P4 #225（compaction 向量索引 catalog 必需）或 P5b #244（全模型接入收口 + 文档 + parity），可按带宽并行。详见 [Milestone 28](#milestone-28--可靠性并发正确性与热路径加固reliability--concurrency--performance-hardening) 阶段总览下的「当前焦点」callout。**Milestone 27（Industrial Data Agent 与 AI-ready 产品化路线）** 仍是对外门面与中长期 AI 产品主线，但**依赖 M28、分两拨推进**：#182 门面文档、#183 想要的 MCP 工具契约与 #185 想要的 provider 抽象**代码均已就位**，故 M27 剩余工作是「打包、定位、证明、去重」而非「建 AI 功能」。**可与 M28 并行的纯文档条**——#182 收尾、#185 provider-neutral 配置文档、#183 降级为「稳定并文档化现有 MCP 工具（不新增 Agent 工具）」、#188 边界声明；**必须等 M28 收口后再启动**——#184 端到端工业异常 Demo（依赖 P5 MQTT + P0 可靠写入，引擎主张为真后再拍 Demo）、#187 eval 与成本指标（推迟到有真实采纳之后）；**#186 写入审批二阶段移交 Milestone 29**（与其「共享写审批框架」重叠，M27 只消费）。同时并行推进 **Milestone 17（可观测性与运行时可见性）** 的 OTel / 结构化日志 / 诊断端点 / Copilot 服务端会话持久化，以及 **Milestone 18（VS Code 扩展）** 的 `#99 ~ #103` “远程连接 + Explorer + SQL + 结果视图”闭环。**Milestone 19（生态适配底座能力）** 只保留 SonnetDB 通用数据库能力，#109~#117 与 #122/#123 已完成；IoTSharp 专属 Profile、兼容矩阵、灰度、双写、回滚和长稳验收已迁入 IoTSharp 仓库 RD-10。后续继续推进对象治理、通用迁移/校验原语、增量索引 / 后台维护成本与大量 measurement 长稳专项（其中 #124 增量索引与 Milestone 28 #207 目标一致，以 M28 为落地口径）。Studio 管理面进入 **Milestone 24**，MongoDB 参考 parity、长稳、容量报告和发布文档进入 **Milestone 25**。**Milestone 29（多模型统一管理工作台 #245~#260）** 是在 Web Admin 已有「时序 + SQL」管理面基础上，把管理工具从三个孤立工程重构为「一张能力矩阵 × 三个交付面（Web Admin 旗舰 / Studio 桌面 / VS Code）」，逐模型补齐 KV / MQ / 向量 / 全文 / 对象 / 关系数据网格等对标 pgAdmin / RedisInsight / Kafka UI / Attu / Kibana / MinIO Console 的专用工作台；**Web Admin 旗舰优先**，先做 A 阶段管理契约 + 统一外壳（#245~#247）再逐工作台推进；文档管理面仍归 M24、对象后端治理仍归 M19 #118，M29 只做接入与收编，且不新增任何引擎语义。**Milestone 30（多协议设备接入扩展 #263~#268）** 在 M28 P5b 已交付 MQTT 双形态（#242 内建 broker + #243 订阅外部 broker）基础上，把「设备 push / 总线被动接收 / 直写」这一类协议补齐：A 段 **Sparkplug B**（骑 #242 broker 解 Protobuf payload + birth/death 生命周期，工业 SCADA 事实标准，成本最低的差异化项）、B 段 **CoAP**（受约束设备 UDP 直连 + DTLS + Observe）、C 段 **Line Protocol UDP 监听**（补 M8 已有的 HTTP `/write` 之外的 UDP 遥测入口）；三段独立可并行，全部收敛到 #242/#243 已抽出的共享 `BulkIngestEndpointHandler.IngestPayload` 三格式落库，**不新增任何引擎语义、Core 零依赖不变、协议栈限 Server 层**（沿用 #242 引入 MQTTnet 的成熟库 policy）。**关键边界**：现场总线轮询类协议（Modbus / OPC UA client / S7 / 三菱 / FINS / AB / MTConnect）要「主动轮询设备」，**有意不做**——归边缘采集网关 IoTEdge，数据库不去 poll 设备。**Milestone 22（Agent Memory / Codebase Intelligence）** 重新定位为基于 SonnetDB 的上层应用 / 示例方案候选，**本轮复核再次确认暂停 #150~#159 内置派单、不内置**；理由是其所需能力（Document / FullText / Vector / Hybrid / MCP）均已在库内、M22 不产出新引擎能力，且代码解析依赖违反 Core 零第三方铁律。只有将来在 `examples/` dogfood 验证出通用数据库能力缺口时，才把该缺口拆成独立 Core / Server / Studio PR。SonnetDBEE C5.7 / MM9 的开源核心第一批已提供 `BackupService` 和 `sndb backup create/inspect/verify/restore`，企业级定时、增量、审计和 UI 编排继续由 SonnetDBEE 承接。**Milestone 20** 后续不再按 #129 继续派单，而是通过 `.github/workflows/parity.yml`、`parity-results` 分支与 `tests/SonnetDB.Parity/reports/sample-run.md` 持续暴露能力缺口、SKIP 原因和 nightly 稳定性。
 
 
 ---
