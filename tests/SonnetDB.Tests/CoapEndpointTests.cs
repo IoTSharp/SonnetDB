@@ -119,6 +119,19 @@ public sealed class CoapEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task CoapPut_LineProtocol_WritesRows()
+    {
+        var response = PutCoap(
+            $"coap://127.0.0.1:{_coapPort}/db/{DbName}/m/coap_cpu?token={ReadWriteToken}",
+            "coap_cpu,host=put value=3 3",
+            MediaType.TextPlain);
+
+        Assert.NotNull(response);
+        AssertStatus(response, StatusCode.Changed);
+        await AssertRowCountAsync("host='put'", expectedRows: 1);
+    }
+
+    [Fact]
     public void CoapPost_ReadOnlyToken_ReturnsForbidden()
     {
         var response = PostCoap(
@@ -176,6 +189,19 @@ public sealed class CoapEndpointTests : IAsyncLifetime
             Timeout = 5000,
         };
         return client.Post(payload, mediaType);
+    }
+
+    private Response PutCoap(string uri, string payload, int mediaType)
+    {
+        var config = new CoapConfig();
+        using var endpoint = new CoAPEndPoint(config);
+        endpoint.Start();
+        var client = new CoapClient(new Uri(uri), config)
+        {
+            EndPoint = endpoint,
+            Timeout = 5000,
+        };
+        return client.Put(payload, mediaType);
     }
 
     private static Response PostCoaps(string uri, string payload, int mediaType)

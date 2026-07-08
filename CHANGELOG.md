@@ -11,6 +11,7 @@
 
 ### Changed
 
+- 将 SonnetDB CoAP 设备写入从手写 `IMessageDeliverer` 后台服务迁移到 `IoTSharp.CoAP.NET` resource/routing 托管入口，并通过 source-generated endpoint 工厂保持 NativeAOT 友好；`POST`/`PUT db/{db}/m/{measurement}`、UDP/coaps、token/权限与三格式落库语义保持不变。
 - 新增 SonnetDB 协作规范铁律：所有生产代码中的 `System.Text.Json` 序列化与反序列化必须使用 source-generated `JsonSerializerContext` / `JsonTypeInfo<T>` 并保持 Native AOT 兼容，禁止回退到反射型 `JsonSerializerOptions` 重载或压制相关 IL/AOT 警告。
 
 ### Fixed

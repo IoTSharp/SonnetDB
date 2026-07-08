@@ -1,5 +1,9 @@
 using System.Reflection;
+using System.Net;
 using System.Text.Json;
+using CoAP;
+using CoAP.Channel;
+using CoAP.Net;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -355,6 +359,7 @@ public static class Program
     private static void ConfigureMiddleware(WebApplication app, ServerOptions serverOptions)
     {
         ConfigureMqttMiddleware(app, serverOptions);
+        ConfigureCoapMiddleware(app, serverOptions);
 
         var userStore = app.Services.GetRequiredService<UserStore>();
         var grants = app.Services.GetRequiredService<GrantsStore>();
@@ -432,8 +437,86 @@ public static class Program
         if (!coapEnabled && !dtlsEnabled)
             return;
 
-        builder.Services.AddSingleton<SonnetCoapMessageDeliverer>();
-        builder.Services.AddHostedService<SonnetCoapService>();
+        var coapOptions = builder.Configuration
+            .GetSection("SonnetDBServer:Coap")
+            .Get<CoapServerOptions>() ?? new CoapServerOptions();
+        ValidateCoapOptions(coapOptions);
+
+        builder.Services.AddSingleton<SonnetCoapMeasurementIngestor>();
+        builder.Services.AddCoapServer(options =>
+        {
+            options.Config = CreateCoapConfig(coapOptions);
+
+            if (coapOptions.Enabled)
+            {
+                options.UseEndPoint((services, config) =>
+                {
+                    InitializeCoapLogging(services);
+                    services.GetRequiredService<ILoggerFactory>()
+                        .CreateLogger("SonnetDB.Coap")
+                        .LogInformation("CoAP 明文 UDP 监听已启用：0.0.0.0:{Port}", coapOptions.Port);
+                    return new CoAPEndPoint(new IPEndPoint(IPAddress.Any, coapOptions.Port), config);
+                });
+            }
+
+            if (coapOptions.Dtls.Enabled)
+            {
+                options.UseEndPoint((services, config) =>
+                {
+                    InitializeCoapLogging(services);
+                    var channel = new DtlsPskChannel(
+                        coapOptions.Dtls.Port,
+                        coapOptions.Dtls.PskKeys,
+                        TimeSpan.FromSeconds(Math.Max(30, coapOptions.Dtls.SessionIdleSeconds)));
+                    services.GetRequiredService<ILoggerFactory>()
+                        .CreateLogger("SonnetDB.Coap")
+                        .LogInformation("CoAP DTLS/coaps 监听已启用：0.0.0.0:{Port}", coapOptions.Dtls.Port);
+                    return new CoAPEndPoint(channel, config);
+                });
+            }
+        });
+        builder.Services.AddCoapResources(static options =>
+            options.AddEndpointFactory(global::MyGeneratedCoapEndpoints.Create));
+    }
+
+    private static CoapConfig CreateCoapConfig(CoapServerOptions options)
+    {
+        var packetSize = Math.Clamp(options.MaxPayloadBytes + 128, 2048, 65_507);
+        return new CoapConfig
+        {
+            DefaultPort = options.Port,
+            DefaultSecurePort = options.Dtls.Port,
+            MaxMessageSize = Math.Max(1024, options.MaxPayloadBytes),
+            ChannelReceivePacketSize = packetSize,
+        };
+    }
+
+    private static void ValidateCoapOptions(CoapServerOptions options)
+    {
+        ValidatePort(options.Port, "SonnetDBServer:Coap:Port");
+        ValidatePort(options.Dtls.Port, "SonnetDBServer:Coap:Dtls:Port");
+        if (options.MaxPayloadBytes <= 0)
+            throw new InvalidOperationException("SonnetDBServer:Coap:MaxPayloadBytes 必须大于 0。");
+        if (options.Dtls.Enabled && options.Dtls.PskKeys.Count == 0)
+            throw new InvalidOperationException("启用 CoAP DTLS 时必须配置 SonnetDBServer:Coap:Dtls:PskKeys。");
+    }
+
+    private static void ValidatePort(int port, string name)
+    {
+        if (port < 0 || port > 65_535)
+            throw new InvalidOperationException($"{name} 必须位于 0..65535。");
+    }
+
+    private static void InitializeCoapLogging(IServiceProvider services)
+        => CoapLogging.LoggerFactory = services.GetRequiredService<ILoggerFactory>();
+
+    private static void ConfigureCoapMiddleware(WebApplication app, ServerOptions serverOptions)
+    {
+        if (!serverOptions.Coap.Enabled && !serverOptions.Coap.Dtls.Enabled)
+            return;
+
+        InitializeCoapLogging(app.Services);
+        app.MapCoapResources();
     }
 
     private static void ConfigureMqttMiddleware(WebApplication app, ServerOptions serverOptions)

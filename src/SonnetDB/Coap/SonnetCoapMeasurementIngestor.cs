@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Net;
 using CoAP;
-using CoAP.Net;
+using CoAP.Server.Routing;
 using Microsoft.Extensions.Options;
 using SonnetDB.Auth;
 using SonnetDB.Configuration;
@@ -12,9 +12,9 @@ using SonnetDB.Ingest;
 namespace SonnetDB.Coap;
 
 /// <summary>
-/// 将 CoAP 写入请求映射到 SonnetDB 批量入库通道。
+/// 将已路由的 CoAP measurement 写入请求映射到 SonnetDB 批量入库通道。
 /// </summary>
-internal sealed class SonnetCoapMessageDeliverer : IMessageDeliverer
+internal sealed class SonnetCoapMeasurementIngestor
 {
     internal const string FormatQueryName = "format";
     internal const string SonnetFormatQueryName = "sndb-format";
@@ -24,18 +24,24 @@ internal sealed class SonnetCoapMessageDeliverer : IMessageDeliverer
     private readonly UserStore _users;
     private readonly ServerOptions _options;
     private readonly ServerMetrics _metrics;
-    private readonly ILogger<SonnetCoapMessageDeliverer> _logger;
+    private readonly ILogger<SonnetCoapMeasurementIngestor> _logger;
 
     /// <summary>
-    /// 创建 CoAP 消息投递器。
+    /// 创建 CoAP measurement 写入服务。
     /// </summary>
-    public SonnetCoapMessageDeliverer(
+    /// <param name="registry">数据库注册表。</param>
+    /// <param name="grants">用户授权存储。</param>
+    /// <param name="users">动态用户存储。</param>
+    /// <param name="options">服务器配置。</param>
+    /// <param name="metrics">服务器指标。</param>
+    /// <param name="logger">日志记录器。</param>
+    public SonnetCoapMeasurementIngestor(
         TsdbRegistry registry,
         GrantsStore grants,
         UserStore users,
         IOptions<ServerOptions> options,
         ServerMetrics metrics,
-        ILogger<SonnetCoapMessageDeliverer> logger)
+        ILogger<SonnetCoapMeasurementIngestor> logger)
     {
         _registry = registry;
         _grants = grants;
@@ -45,79 +51,55 @@ internal sealed class SonnetCoapMessageDeliverer : IMessageDeliverer
         _logger = logger;
     }
 
-    /// <inheritdoc />
-    public void DeliverRequest(Exchange exchange)
+    /// <summary>
+    /// 处理一次已命中 <c>db/{db}/m/{measurement}</c> 的 CoAP 写入。
+    /// </summary>
+    /// <param name="db">目标数据库名。</param>
+    /// <param name="measurement">目标 measurement 名称。</param>
+    /// <param name="context">当前 CoAP 路由上下文。</param>
+    /// <returns>要返回给 CoAP 客户端的响应。</returns>
+    public CoapRouteResult Ingest(string db, string measurement, CoapRouteContext context)
     {
-        ArgumentNullException.ThrowIfNull(exchange);
+        ArgumentNullException.ThrowIfNull(context);
 
         var sw = Stopwatch.StartNew();
-        var request = exchange.Request;
-        if (request is null)
-        {
-            Send(exchange, StatusCode.BadRequest, "缺失 CoAP request。");
-            return;
-        }
-
         try
         {
-            HandleRequest(exchange, request, sw);
+            return IngestCore(db, measurement, context, sw);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "CoAP 写入处理失败：{Source}", request.Source);
-            Send(exchange, StatusCode.InternalServerError, "CoAP 写入处理失败。");
+            _logger.LogError(ex, "CoAP 写入处理失败：{Source}", context.RemoteEndPoint);
+            return Text(StatusCode.InternalServerError, "CoAP 写入处理失败。");
         }
     }
 
-    /// <inheritdoc />
-    public void DeliverResponse(Exchange exchange, Response response)
+    private CoapRouteResult IngestCore(
+        string db,
+        string measurement,
+        CoapRouteContext context,
+        Stopwatch sw)
     {
-        // Server 侧不主动发起 CoAP 请求，因此无需处理入站响应。
-    }
+        if (!TsdbRegistry.IsValidName(db))
+            return Text(StatusCode.BadRequest, $"非法数据库名 '{db}'。");
 
-    private void HandleRequest(Exchange exchange, Request request, Stopwatch sw)
-    {
-        if (request.Method is not Method.POST and not Method.PUT)
-        {
-            Send(exchange, StatusCode.MethodNotAllowed, "仅支持 POST / PUT。");
-            return;
-        }
+        if (string.IsNullOrWhiteSpace(measurement) || measurement.Length > 255)
+            return Text(StatusCode.BadRequest, $"非法 measurement 名 '{measurement}'。");
 
-        if (!TryParseMeasurementRoute(request, out string db, out string measurement, out string routeError))
-        {
-            Send(exchange, StatusCode.BadRequest, routeError);
-            return;
-        }
-
-        if (!TryAuthenticate(request, out var principal))
-        {
-            Send(exchange, StatusCode.Unauthorized, "缺失或无效的 SonnetDB CoAP token。");
-            return;
-        }
+        if (!TryAuthenticate(context.Queries, out var principal))
+            return Text(StatusCode.Unauthorized, "缺失或无效的 SonnetDB CoAP token。");
 
         if (!_registry.TryGet(db, out var tsdb))
-        {
-            Send(exchange, StatusCode.NotFound, $"数据库 '{db}' 不存在。");
-            return;
-        }
+            return Text(StatusCode.NotFound, $"数据库 '{db}' 不存在。");
 
         if (!principal.HasPermission(_grants, db, DatabasePermission.Write))
-        {
-            Send(exchange, StatusCode.Forbidden, $"当前 CoAP 凭据对数据库 '{db}' 没有写权限。");
-            return;
-        }
+            return Text(StatusCode.Forbidden, $"当前 CoAP 凭据对数据库 '{db}' 没有写权限。");
 
-        if (request.PayloadSize > _options.Coap.MaxPayloadBytes)
-        {
-            Send(exchange, StatusCode.RequestEntityTooLarge, $"CoAP payload 超过 {_options.Coap.MaxPayloadBytes} 字节限制。");
-            return;
-        }
+        if (context.Payload.Length > _options.Coap.MaxPayloadBytes)
+            return Text(StatusCode.RequestEntityTooLarge, $"CoAP payload 超过 {_options.Coap.MaxPayloadBytes} 字节限制。");
 
-        if (!TryResolveFormat(request, out var format, out string formatError))
-        {
-            Send(exchange, StatusCode.UnsupportedMediaType, formatError);
-            return;
-        }
+        if (!TryResolveFormat(context, out var format, out var formatError))
+            return Text(StatusCode.UnsupportedMediaType, formatError);
 
         try
         {
@@ -125,29 +107,31 @@ internal sealed class SonnetCoapMessageDeliverer : IMessageDeliverer
                 tsdb,
                 measurement,
                 format,
-                request.Payload ?? [],
-                ParseOnError(request),
-                ParseFlush(request));
+                context.Payload,
+                ParseOnError(context.Queries),
+                ParseFlush(context.Queries));
             _metrics.AddInsertedRows(result.Written);
-            Send(exchange, StatusCode.Changed, $"written={result.Written};skipped={result.Skipped};elapsed_ms={sw.Elapsed.TotalMilliseconds:F3}");
+            return Text(
+                StatusCode.Changed,
+                $"written={result.Written};skipped={result.Skipped};elapsed_ms={sw.Elapsed.TotalMilliseconds:F3}");
         }
         catch (BulkIngestException ex)
         {
-            Send(exchange, StatusCode.BadRequest, ex.Message);
+            return Text(StatusCode.BadRequest, ex.Message);
         }
         catch (ArgumentException ex)
         {
-            Send(exchange, StatusCode.BadRequest, ex.Message);
+            return Text(StatusCode.BadRequest, ex.Message);
         }
     }
 
-    private bool TryAuthenticate(Request request, out SonnetCoapPrincipal principal)
+    private bool TryAuthenticate(IReadOnlyList<string> queries, out SonnetCoapPrincipal principal)
     {
         principal = null!;
-        if (!TryGetToken(request, out string token))
+        if (!TryGetToken(queries, out var token))
             return false;
 
-        if (_options.Tokens.TryGetValue(token, out string? role))
+        if (_options.Tokens.TryGetValue(token, out var role))
         {
             principal = SonnetCoapPrincipal.ForRole(role);
             return true;
@@ -162,10 +146,10 @@ internal sealed class SonnetCoapMessageDeliverer : IMessageDeliverer
         return false;
     }
 
-    private static bool TryGetToken(Request request, out string token)
+    private static bool TryGetToken(IReadOnlyList<string> queries, out string token)
     {
         token = string.Empty;
-        foreach (var query in request.UriQueries)
+        foreach (var query in queries)
         {
             var decoded = WebUtility.UrlDecode(query);
             if (string.IsNullOrWhiteSpace(decoded))
@@ -187,86 +171,50 @@ internal sealed class SonnetCoapMessageDeliverer : IMessageDeliverer
                 return true;
             }
 
-            if (string.Equals(name, "authorization", StringComparison.OrdinalIgnoreCase))
-            {
-                if (value.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-                {
-                    token = value["Bearer ".Length..].Trim();
-                    return !string.IsNullOrEmpty(token);
-                }
+            if (!string.Equals(name, "authorization", StringComparison.OrdinalIgnoreCase))
+                continue;
 
-                if (value.StartsWith("Token ", StringComparison.OrdinalIgnoreCase))
-                {
-                    token = value["Token ".Length..].Trim();
-                    return !string.IsNullOrEmpty(token);
-                }
+            if (value.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            {
+                token = value["Bearer ".Length..].Trim();
+                return !string.IsNullOrEmpty(token);
+            }
+
+            if (value.StartsWith("Token ", StringComparison.OrdinalIgnoreCase))
+            {
+                token = value["Token ".Length..].Trim();
+                return !string.IsNullOrEmpty(token);
             }
         }
 
         return false;
     }
 
-    private static bool TryParseMeasurementRoute(
-        Request request,
-        out string db,
-        out string measurement,
-        out string error)
-    {
-        db = string.Empty;
-        measurement = string.Empty;
-        error = string.Empty;
-
-        var paths = request.UriPaths.ToArray();
-        if (paths.Length != 4
-            || !string.Equals(paths[0], "db", StringComparison.Ordinal)
-            || !string.Equals(paths[2], "m", StringComparison.Ordinal))
-        {
-            error = "CoAP 路径需匹配 db/{db}/m/{measurement}。";
-            return false;
-        }
-
-        db = paths[1];
-        measurement = paths[3];
-        if (!TsdbRegistry.IsValidName(db))
-        {
-            error = $"非法数据库名 '{db}'。";
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(measurement) || measurement.Length > 255)
-        {
-            error = $"非法 measurement 名 '{measurement}'。";
-            return false;
-        }
-
-        return true;
-    }
-
     private static bool TryResolveFormat(
-        Request request,
+        CoapRouteContext context,
         out BulkIngestEndpointHandler.Format format,
         out string error)
     {
         error = string.Empty;
-        if (TryGetQueryValue(request, FormatQueryName, out string explicitFormat)
-            || TryGetQueryValue(request, SonnetFormatQueryName, out explicitFormat))
+        if (TryGetQueryValue(context.Queries, FormatQueryName, out var explicitFormat)
+            || TryGetQueryValue(context.Queries, SonnetFormatQueryName, out explicitFormat))
         {
             return TryParseExplicitFormat(explicitFormat, out format, out error);
         }
 
-        format = request.ContentFormat switch
+        format = context.ContentFormat switch
         {
             MediaType.ApplicationJson => BulkIngestEndpointHandler.Format.Json,
-            MediaType.TextPlain or MediaType.ApplicationOctetStream or MediaType.Undefined => SniffFormat(request.Payload),
+            MediaType.TextPlain or MediaType.ApplicationOctetStream or MediaType.Undefined => SniffFormat(context.Payload.Span),
             _ => BulkIngestEndpointHandler.Format.LineProtocol,
         };
 
-        if (request.ContentFormat is not MediaType.ApplicationJson
+        if (context.ContentFormat is not MediaType.ApplicationJson
             and not MediaType.TextPlain
             and not MediaType.ApplicationOctetStream
             and not MediaType.Undefined)
         {
-            error = $"不支持的 CoAP Content-Format：{request.ContentFormat}。";
+            error = $"不支持的 CoAP Content-Format：{context.ContentFormat}。";
             return false;
         }
 
@@ -305,23 +253,22 @@ internal sealed class SonnetCoapMessageDeliverer : IMessageDeliverer
         return false;
     }
 
-    private static BulkIngestEndpointHandler.Format SniffFormat(byte[]? payload)
+    private static BulkIngestEndpointHandler.Format SniffFormat(ReadOnlySpan<byte> payload)
     {
-        if (payload is null || payload.Length == 0)
+        if (payload.IsEmpty)
             return BulkIngestEndpointHandler.Format.LineProtocol;
 
-        var span = payload.AsSpan();
         var offset = 0;
-        while (offset < span.Length && span[offset] is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n')
+        while (offset < payload.Length && payload[offset] is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n')
             offset++;
 
-        if (offset >= span.Length)
+        if (offset >= payload.Length)
             return BulkIngestEndpointHandler.Format.LineProtocol;
 
-        if (span[offset] is (byte)'{' or (byte)'[')
+        if (payload[offset] is (byte)'{' or (byte)'[')
             return BulkIngestEndpointHandler.Format.Json;
 
-        return StartsWithAsciiIgnoreCase(span[offset..], "insert")
+        return StartsWithAsciiIgnoreCase(payload[offset..], "insert")
             ? BulkIngestEndpointHandler.Format.BulkValues
             : BulkIngestEndpointHandler.Format.LineProtocol;
     }
@@ -346,15 +293,15 @@ internal sealed class SonnetCoapMessageDeliverer : IMessageDeliverer
         return true;
     }
 
-    private static BulkErrorPolicy ParseOnError(Request request)
-        => TryGetQueryValue(request, "onerror", out var value)
+    private static BulkErrorPolicy ParseOnError(IReadOnlyList<string> queries)
+        => TryGetQueryValue(queries, "onerror", out var value)
             && string.Equals(value, "skip", StringComparison.OrdinalIgnoreCase)
             ? BulkErrorPolicy.Skip
             : BulkErrorPolicy.FailFast;
 
-    private static BulkFlushMode ParseFlush(Request request)
+    private static BulkFlushMode ParseFlush(IReadOnlyList<string> queries)
     {
-        if (!TryGetQueryValue(request, "flush", out var value) || string.IsNullOrEmpty(value))
+        if (!TryGetQueryValue(queries, "flush", out var value) || string.IsNullOrEmpty(value))
             return BulkFlushMode.None;
 
         if (string.Equals(value, "async", StringComparison.OrdinalIgnoreCase))
@@ -369,10 +316,10 @@ internal sealed class SonnetCoapMessageDeliverer : IMessageDeliverer
         return BulkFlushMode.None;
     }
 
-    private static bool TryGetQueryValue(Request request, string name, out string value)
+    private static bool TryGetQueryValue(IReadOnlyList<string> queries, string name, out string value)
     {
         value = string.Empty;
-        foreach (var query in request.UriQueries)
+        foreach (var query in queries)
         {
             var decoded = WebUtility.UrlDecode(query);
             if (string.IsNullOrWhiteSpace(decoded))
@@ -392,12 +339,6 @@ internal sealed class SonnetCoapMessageDeliverer : IMessageDeliverer
         return false;
     }
 
-    private static void Send(Exchange exchange, StatusCode code, string message)
-    {
-        var response = Response.CreateResponse(exchange.Request, code);
-        if (!string.IsNullOrEmpty(message))
-            response.SetPayload(message, MediaType.TextPlain);
-        exchange.SendResponse(response);
-        exchange.Complete = true;
-    }
+    private static CoapRouteResult Text(StatusCode statusCode, string message)
+        => CoapRouteResult.Text(statusCode, message);
 }

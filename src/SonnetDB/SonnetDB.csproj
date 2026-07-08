@@ -30,6 +30,7 @@
   <ItemGroup>
     <ProjectReference Include="..\SonnetDB.Core\SonnetDB.Core.csproj" />
     <ProjectReference Include="..\..\extensions\IoTSharp.CoAP.NET\CoAP.NET\CoAP.NET.csproj" />
+    <ProjectReference Include="..\..\extensions\IoTSharp.CoAP.NET\CoAP.NET.SourceGeneration\CoAP.NET.SourceGeneration.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <!--
       M28 P5b：MQTT 路由从 NuGet 包切到 git 子模块源码引用。
       published 5.1.0 包由旧 commit 打出、带 NativeAOT 的 IL2104/IL3053；
