@@ -1,24 +1,38 @@
 using EasyCaching.Core;
 using EasyCaching.Core.Serialization;
 
-namespace SonnetDB.Caching;
+namespace SonnetDB.Caching.EasyCaching;
 
 /// <summary>
 /// 基于 SonnetDB KV keyspace 的 EasyCaching Provider。
 /// </summary>
-public sealed class SonnetDbEasyCachingProvider : IEasyCachingProvider
+public sealed class SonnetDbEasyCachingProvider : IEasyCachingProvider, IDisposable
 {
-    private readonly SonnetDbCacheStore _store;
+    private readonly bool _ownsStore;
+    private readonly SonnetDbEasyCachingStore _store;
 
     /// <summary>
-    /// 初始化 SonnetDB EasyCaching Provider。
+    /// 使用指定名称和 SonnetDB 选项创建 EasyCaching Provider。
     /// </summary>
-    public SonnetDbEasyCachingProvider(string name, SonnetDbCacheStore store)
+    /// <param name="name">EasyCaching provider 名称。</param>
+    /// <param name="options">SonnetDB KV 连接、keyspace、namespace 与过期策略选项。</param>
+    public SonnetDbEasyCachingProvider(string name, SonnetDbEasyCachingOptions options)
+        : this(name, new SonnetDbEasyCachingStore(options), ownsStore: true)
+    {
+    }
+
+    internal SonnetDbEasyCachingProvider(string name, SonnetDbEasyCachingStore store)
+        : this(name, store, ownsStore: false)
+    {
+    }
+
+    private SonnetDbEasyCachingProvider(string name, SonnetDbEasyCachingStore store, bool ownsStore)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(store);
         Name = name;
         _store = store;
+        _ownsStore = ownsStore;
     }
 
     /// <inheritdoc />
@@ -46,7 +60,7 @@ public sealed class SonnetDbEasyCachingProvider : IEasyCachingProvider
     public void Set<T>(string cacheKey, T cacheValue, TimeSpan expiration)
     {
         ValidateKey(cacheKey);
-        byte[] payload = SonnetDbCacheCodec.Serialize(cacheValue);
+        byte[] payload = SonnetDbEasyCachingCodec.Serialize(cacheValue);
         _store.Set(cacheKey, payload, ToExpiresAt(expiration));
     }
 
@@ -70,7 +84,7 @@ public sealed class SonnetDbEasyCachingProvider : IEasyCachingProvider
         }
 
         CacheStats.OnHit();
-        T? value = SonnetDbCacheCodec.Deserialize<T>(entry.Value);
+        T? value = SonnetDbEasyCachingCodec.Deserialize<T>(entry.Value);
         return new CacheValue<T>(value!, value is not null);
     }
 
@@ -93,7 +107,7 @@ public sealed class SonnetDbEasyCachingProvider : IEasyCachingProvider
         }
 
         CacheStats.OnHit();
-        return System.Text.Json.JsonSerializer.Deserialize(entry.Value, type);
+        return SonnetDbEasyCachingCodec.Deserialize(entry.Value, type);
     }
 
     /// <inheritdoc />
@@ -163,7 +177,7 @@ public sealed class SonnetDbEasyCachingProvider : IEasyCachingProvider
         var expiresAt = ToExpiresAt(expiration);
         var rows = value.Select(pair => new KeyValuePair<string, byte[]>(
             pair.Key,
-            SonnetDbCacheCodec.Serialize(pair.Value)));
+            SonnetDbEasyCachingCodec.Serialize(pair.Value)));
         _store.SetMany(rows, expiresAt);
     }
 
@@ -290,7 +304,7 @@ public sealed class SonnetDbEasyCachingProvider : IEasyCachingProvider
             }
 
             CacheStats.OnHit();
-            T? value = SonnetDbCacheCodec.Deserialize<T>(entry.Value);
+            T? value = SonnetDbEasyCachingCodec.Deserialize<T>(entry.Value);
             result[key] = new CacheValue<T>(value!, value is not null);
         }
 
@@ -315,7 +329,7 @@ public sealed class SonnetDbEasyCachingProvider : IEasyCachingProvider
         foreach (var entry in entries)
         {
             CacheStats.OnHit();
-            T? value = SonnetDbCacheCodec.Deserialize<T>(entry.Value);
+            T? value = SonnetDbEasyCachingCodec.Deserialize<T>(entry.Value);
             result[entry.Key] = new CacheValue<T>(value!, value is not null);
         }
 
@@ -389,6 +403,13 @@ public sealed class SonnetDbEasyCachingProvider : IEasyCachingProvider
         SerializerName = "System.Text.Json",
         CacheNulls = false,
     };
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        if (_ownsStore)
+            _store.Dispose();
+    }
 
     private DateTimeOffset? ToExpiresAt(TimeSpan expiration)
     {

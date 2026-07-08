@@ -75,7 +75,9 @@ public static class SndbResourceInitializer
         }
 
         using var content = new StringContent(
-            JsonSerializer.Serialize(new { name = database }),
+            JsonSerializer.Serialize(
+                new DatabaseCreateRequest { Name = database },
+                RemoteJsonContext.Default.DatabaseCreateRequest),
             Encoding.UTF8,
             "application/json");
         using var response = await client.PostAsync("v1/db", content, cancellationToken).ConfigureAwait(false);

@@ -50,7 +50,8 @@ http://127.0.0.1:5080
 - `SonnetDB.Core.<version>.nupkg`
 - `SonnetDB.<version>.nupkg`
 - `SonnetDB.EntityFrameworkCore.<version>.nupkg`
-- `SonnetDB.Caching.<version>.nupkg`
+- `SonnetDB.Caching.EasyCaching.<version>.nupkg`
+- `SonnetDB.Caching.Distributed.<version>.nupkg`
 - `SonnetDB.Cli.<version>.nupkg`
 - `sndb-sdk-<version>-win-x64.zip`
 - `sonnetdb-full-<version>-win-x64.zip`

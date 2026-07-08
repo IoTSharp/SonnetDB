@@ -55,8 +55,10 @@ SonnetDB 的核心场景不是云端大集群，而是更贴近现场的：
 [![SonnetDB Downloads](https://img.shields.io/nuget/dt/SonnetDB?label=Downloads)](https://www.nuget.org/packages/SonnetDB)
 [![SonnetDB.EntityFrameworkCore Version](https://img.shields.io/nuget/v/SonnetDB.EntityFrameworkCore?label=SonnetDB.EntityFrameworkCore)](https://www.nuget.org/packages/SonnetDB.EntityFrameworkCore)
 [![SonnetDB.EntityFrameworkCore Downloads](https://img.shields.io/nuget/dt/SonnetDB.EntityFrameworkCore?label=Downloads)](https://www.nuget.org/packages/SonnetDB.EntityFrameworkCore)
-[![SonnetDB.Caching Version](https://img.shields.io/nuget/v/SonnetDB.Caching?label=SonnetDB.Caching)](https://www.nuget.org/packages/SonnetDB.Caching)
-[![SonnetDB.Caching Downloads](https://img.shields.io/nuget/dt/SonnetDB.Caching?label=Downloads)](https://www.nuget.org/packages/SonnetDB.Caching)
+[![SonnetDB.Caching.EasyCaching Version](https://img.shields.io/nuget/v/SonnetDB.Caching.EasyCaching?label=SonnetDB.Caching.EasyCaching)](https://www.nuget.org/packages/SonnetDB.Caching.EasyCaching)
+[![SonnetDB.Caching.EasyCaching Downloads](https://img.shields.io/nuget/dt/SonnetDB.Caching.EasyCaching?label=Downloads)](https://www.nuget.org/packages/SonnetDB.Caching.EasyCaching)
+[![SonnetDB.Caching.Distributed Version](https://img.shields.io/nuget/v/SonnetDB.Caching.Distributed?label=SonnetDB.Caching.Distributed)](https://www.nuget.org/packages/SonnetDB.Caching.Distributed)
+[![SonnetDB.Caching.Distributed Downloads](https://img.shields.io/nuget/dt/SonnetDB.Caching.Distributed?label=Downloads)](https://www.nuget.org/packages/SonnetDB.Caching.Distributed)
 [![SonnetDB.Cli Version](https://img.shields.io/nuget/v/SonnetDB.Cli?label=SonnetDB.Cli)](https://www.nuget.org/packages/SonnetDB.Cli)
 [![SonnetDB.Cli Downloads](https://img.shields.io/nuget/dt/SonnetDB.Cli?label=Downloads)](https://www.nuget.org/packages/SonnetDB.Cli)
 
@@ -110,7 +112,8 @@ SonnetDB 的核心场景不是云端大集群，而是更贴近现场的：
 | `src/SonnetDB.Data` | ADO.NET 提供程序，NuGet 包名为 `SonnetDB`，命名空间为 `SonnetDB.Data`；承接 `Microsoft.Extensions.VectorData` 的 SonnetDB adapter |
 | `src/SonnetDB.EntityFrameworkCore` | EF Core Provider，NuGet 包名为 `SonnetDB.EntityFrameworkCore`，提供 `UseSonnetDB(...)`、类型映射、查询翻译和 migrations SQL |
 | `src/SonnetDB.Cli` | 命令行工具 `sndb`：本地/远程连接、profile 管理（`local`/`remote`/`connect`）、交互式 REPL |
-| `extensions/SonnetDB.Caching` | 基于 SonnetDB KV keyspace 的缓存 Provider，可用于 IoTSharp / EasyCaching / IDistributedCache 场景 |
+| `extensions/SonnetDB.Caching.EasyCaching` | 基于 SonnetDB KV keyspace 的 EasyCaching Provider，使用 `AddEasyCaching(options => options.UseSonnetDB(...))` 标准入口 |
+| `extensions/SonnetDB.Caching.Distributed` | 基于 SonnetDB KV keyspace 的 `IDistributedCache` Provider，使用 `AddDistributedSonnetDBCache(...)` 服务注册入口 |
 | `web` | 管理后台前端（包含 SonnetDB Studio、全局 CopilotDock 与 SPA 发布静态资源） |
 | `src/SonnetDB.Studio` | 基于 NativeWebHost 的 SonnetDB Studio 桌面壳 |
 | `docs` | JekyllNet 文档站点源码；构建镜像时会生成并打包到 `/help` |

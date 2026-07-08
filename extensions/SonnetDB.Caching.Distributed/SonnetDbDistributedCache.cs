@@ -1,20 +1,23 @@
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Options;
 
-namespace SonnetDB.Caching;
+namespace SonnetDB.Caching.Distributed;
 
 /// <summary>
 /// 基于 SonnetDB KV keyspace 的 <see cref="IDistributedCache"/> 实现。
 /// </summary>
-public sealed class SonnetDbDistributedCache : IDistributedCache
+public sealed class SonnetDbDistributedCache : IDistributedCache, IDisposable
 {
-    private readonly SonnetDbCacheStore _store;
+    private readonly SonnetDbDistributedCacheStore _store;
 
     /// <summary>
-    /// 初始化 SonnetDB 分布式缓存。
+    /// 使用选项创建 SonnetDB 分布式缓存。
     /// </summary>
-    public SonnetDbDistributedCache(SonnetDbCacheStore store)
+    /// <param name="options">SonnetDB KV 连接、keyspace、namespace 与后台清理选项。</param>
+    public SonnetDbDistributedCache(IOptions<SonnetDbDistributedCacheOptions> options)
     {
-        _store = store;
+        ArgumentNullException.ThrowIfNull(options);
+        _store = new SonnetDbDistributedCacheStore(options.Value);
     }
 
     /// <inheritdoc />
@@ -42,7 +45,7 @@ public sealed class SonnetDbDistributedCache : IDistributedCache
         var now = DateTimeOffset.UtcNow;
         var envelope = CreateEnvelope(value, options, now);
         DateTimeOffset? expiresAt = ResolveExpiresAt(envelope, now);
-        _store.Set(key, SonnetDbCacheCodec.SerializeDistributed(envelope), expiresAt);
+        _store.Set(key, SonnetDbDistributedCacheCodec.Serialize(envelope), expiresAt);
     }
 
     /// <inheritdoc />
@@ -75,7 +78,7 @@ public sealed class SonnetDbDistributedCache : IDistributedCache
             ? absolute
             : slidingExpiresAt;
 
-        _store.Set(key, SonnetDbCacheCodec.SerializeDistributed(envelope), expiresAt);
+        _store.Set(key, SonnetDbDistributedCacheCodec.Serialize(envelope), expiresAt);
     }
 
     /// <inheritdoc />
@@ -101,13 +104,16 @@ public sealed class SonnetDbDistributedCache : IDistributedCache
         return Task.CompletedTask;
     }
 
-    private DistributedCacheEnvelope? ReadEnvelope(string key)
+    /// <inheritdoc />
+    public void Dispose() => _store.Dispose();
+
+    private SonnetDbDistributedCacheEnvelope? ReadEnvelope(string key)
     {
         var entry = _store.GetEntry(key);
-        return entry is null ? null : SonnetDbCacheCodec.DeserializeDistributed(entry.Value);
+        return entry is null ? null : SonnetDbDistributedCacheCodec.Deserialize(entry.Value);
     }
 
-    private static DistributedCacheEnvelope CreateEnvelope(
+    private static SonnetDbDistributedCacheEnvelope CreateEnvelope(
         byte[] value,
         DistributedCacheEntryOptions options,
         DateTimeOffset now)
@@ -116,13 +122,13 @@ public sealed class SonnetDbDistributedCache : IDistributedCache
             ? now.Add(options.AbsoluteExpirationRelativeToNow.Value)
             : options.AbsoluteExpiration;
 
-        return new DistributedCacheEnvelope(
+        return new SonnetDbDistributedCacheEnvelope(
             value,
             absolute?.UtcTicks,
             options.SlidingExpiration?.Ticks);
     }
 
-    private static DateTimeOffset? ResolveExpiresAt(DistributedCacheEnvelope envelope, DateTimeOffset now)
+    private static DateTimeOffset? ResolveExpiresAt(SonnetDbDistributedCacheEnvelope envelope, DateTimeOffset now)
     {
         DateTimeOffset? absolute = envelope.AbsoluteExpirationUtcTicks.HasValue
             ? new DateTimeOffset(envelope.AbsoluteExpirationUtcTicks.Value, TimeSpan.Zero)

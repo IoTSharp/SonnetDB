@@ -12,7 +12,8 @@ SDK Bundle 面向开发者，目标是“一次下载，直接拥有完整开发
 - `packages/SonnetDB.Core.<version>.nupkg`
 - `packages/SonnetDB.<version>.nupkg`
 - `packages/SonnetDB.EntityFrameworkCore.<version>.nupkg`
-- `packages/SonnetDB.Caching.<version>.nupkg`
+- `packages/SonnetDB.Caching.EasyCaching.<version>.nupkg`
+- `packages/SonnetDB.Caching.Distributed.<version>.nupkg`
 - `packages/SonnetDB.Cli.<version>.nupkg`
 - `cli/` 本地命令行工具
 - `docs/` 使用说明

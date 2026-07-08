@@ -5,6 +5,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- 新增 SonnetDB 协作规范铁律：所有生产代码中的 `System.Text.Json` 序列化与反序列化必须使用 source-generated `JsonSerializerContext` / `JsonTypeInfo<T>` 并保持 Native AOT 兼容，禁止回退到反射型 `JsonSerializerOptions` 重载或压制相关 IL/AOT 警告。
+
 ### Fixed
 
 - 修复 SQL 分页子句不能解析参数占位符的问题，`LIMIT @take OFFSET @skip` 与 `OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY` 现在会在执行前通过参数绑定校验为非负整数，恢复 EF Core `Skip`/`Take` 查询执行。
@@ -75,7 +79,7 @@
 - **上层语言连接器同步包装（PR #181）**：Go / Rust / Java / Python 连接器同步补齐 bulk ingest 与 Document collection idiomatic wrapper，复用既有 KV wrapper；Java JNI 与 JDK 21 FFM 后端同时绑定 `sonnetdb_bulk_*` / `sonnetdb_doc_*`，四种语言 quickstart 与 README 同步演示 SQL、bulk、KV、Document 组合用法。
 - **Data parity：embedded/remote ADO.NET schema 矩阵**：`SndbConnection.GetSchema("Tables"|"Columns"|"Indexes")` 在远程模式下改为通过 `/v1/db/{db}/schema` 读取真实关系表 schema，不再因缺少本地 `UnderlyingTsdb` 返回空集合；新增 embedded/remote 双模式矩阵测试覆盖表、列、唯一索引元数据一致性。
 - **EF remote hardening**：`SonnetDbDatabaseCreator` 对远程连接明确实现 `Create` / `Delete` / `Exists` 语义，`Create` / `Delete` 走 `/v1/db` 控制面，`Exists` 通过远程 schema 探测真实数据库存在性；新增真实 Kestrel 远程 EF 生命周期测试。
-- **缓存双模式测试**：新增 SonnetDB.Caching embedded/remote E2E 覆盖 EasyCaching provider、`IDistributedCache`、TTL 过期、janitor `CleanExpired` 与 prefix remove，固定缓存扩展在本地目录与远程 HTTP KV API 下的语义一致性。
+- **缓存双模式测试**：新增 `SonnetDB.Caching.EasyCaching` / `SonnetDB.Caching.Distributed` embedded/remote E2E 覆盖 EasyCaching provider、`IDistributedCache`、TTL 过期、janitor `CleanExpired` 与 prefix remove，固定缓存扩展在本地目录与远程 HTTP KV API 下的语义一致性。
 - **PR #146 磁盘有序 KV / 文档容量底座**：KV state/segment 文件升级到 v3 并支持按 key/offset 打开磁盘有序段，冷启动只加载 key metadata 与 WAL overlay，不再把 compact 后的 document 主数据和 JSON path 索引 value 全量常驻内存；`ScanPrefix` / `ScanPrefixAfter` 通过磁盘段与 WAL overlay 有序合并，`Compact()` 会生成单个 SSTable-like 段并截断 WAL，删除 tombstone 可阻止崩溃恢复后旧磁盘 key 复活。Document backup checkpoint 改为对集合主数据执行 compact，backup/restore 覆盖 `.SDBKVSEG` 有序段恢复与索引一致性。
 - **PR #145 文档校验执行能力**：Document Store 新增 collection validator 执行层与 schema 持久化（`documents.docschema` v4，兼容读取 v1~v3），支持 required/type/range/enum/pattern 校验与 validation action `error` / `warn`；`Insert`、`InsertMany`、整体替换、局部 update/upsert 统一在提交前执行 validator，error 拒绝写入并返回稳定 `validation_failed`，warn 允许写入并返回 `severity=warning`。SQL 新增 `ALTER DOCUMENT COLLECTION ... SET/DROP VALIDATOR`，HTTP 新增 `/documents/{collection}/validator`，`SndbDocumentClient` 新增 `SetValidatorAsync` / `DropValidatorAsync`，OpenAPI 与测试同步覆盖。
 - **PR #144 单文档原子性与批量写轻事务**：Document Store 写路径新增 `DocumentWriteResult` / 稳定错误码与批量预检提交边界，`InsertMany`、整体替换型 `UpdateMany`、`DeleteMany` 支持 ordered/unordered 语义；ordered 批次在 duplicate key、validation failed、write conflict、document too large 时整体拒绝提交，unordered 批次提交有效项并返回 per-item `errors`。HTTP Document API 与 `SndbDocumentClient` 同步暴露 `ordered` 参数、错误数组与 207 partial success 响应，单文档 insert/update/delete 继续通过同一 mutation 路径同步维护 JSON path index 与 fulltext index。
@@ -200,7 +204,7 @@
 - **J3 SonnetDB table MVP 前置能力补齐**：ADO.NET provider 新增 `Tables` / `Columns` / `Indexes` schema metadata 集合，可从嵌入式表 catalog 返回表、列、唯一索引和列序信息；SQL 新增 `REGEX` / `NOT REGEX` 字符串模式查询，关系表、表表 JOIN、文档和 hybrid 查询路径共享同一匹配语义，并补充 ADO.NET / EF Core 验收测试。
 - **CI 依赖源码修复**：SonnetDB 仓库新增 `modules/DotVector` 与 `modules/DotSearch` 子模块，并让 CI / Publish / Docker / CodeQL checkout 递归拉取子模块；`SonnetDB.Core` 优先引用仓库内 `modules/` 下的 DotVector / DotSearch 项目，避免独立 OSS CI 缺少全文和向量引擎源码时报 `CS0246`。同时将 MCP 包版本统一到 1.3.0，并让 IoTSharp 兼容测试在外部 IoTSharp 源码不存在时只编译兼容矩阵基线。
 - **PR #117 S3-compatible Bucket API 第一版**：SonnetDB 服务端新增数据库内置对象桶存储，metadata 写入 `__object_storage` KV keyspace，对象内容落盘到数据库目录 `objects/`；提供 bucket/object metadata、etag(MD5)、sha256、range read、copy object、delete marker、object tags、multipart upload、ListObjectsV2 风格列表和 presigned URL。`SonnetDB.Data` 新增 `SndbObjectStorageClient`，统一支持嵌入式与远程 SonnetDB 对象访问；IoTSharp 新增 `SonnetDbBlobStorage` 适配器，可通过 `sonnetdb://?connectionString=...&bucket=...` 让 BlobStorage 使用 SonnetDB 对象桶。
-- **PR #116 KV TTL 与缓存 Provider**：`SonnetDB.Core` 的 KV keyspace 新增 expires-at metadata、惰性过期、`CleanExpired` 后台清理入口、逻辑命名空间、批量 get/set/remove、前缀删除与过期统计；KV WAL / snapshot / segment state 升级到 v2 并兼容 v1 读取。新增 `extensions/SonnetDB.Caching`，提供 SonnetDB KV-backed EasyCaching provider、`IEasyCachingProviderFactory` 适配、可选 `IDistributedCache` provider 和周期过期清理宿主；IoTSharp 可通过 `CachingUseIn=SonnetDB` 作为 Redis / LiteDB / InMemory 之外的缓存选择。
+- **PR #116 KV TTL 与缓存 Provider**：`SonnetDB.Core` 的 KV keyspace 新增 expires-at metadata、惰性过期、`CleanExpired` 后台清理入口、逻辑命名空间、批量 get/set/remove、前缀删除与过期统计；KV WAL / snapshot / segment state 升级到 v2 并兼容 v1 读取。初始 `extensions/SonnetDB.Caching` 提供 SonnetDB KV-backed EasyCaching provider、`IEasyCachingProviderFactory` 适配、可选 `IDistributedCache` provider 和周期过期清理宿主；后续已拆分为 `SonnetDB.Caching.EasyCaching` 与 `SonnetDB.Caching.Distributed` 两个独立 provider 包。IoTSharp 可通过 `CachingUseIn=SonnetDB` 作为 Redis / LiteDB / InMemory 之外的缓存选择。
 - **Milestone 19 规划更新**：在 IoTSharp 生态数据底座路线中，将“SonnetDB EF migrations history”明确前置到 PR #115，要求先补 `__EFMigrationsHistory` 或等价可配置历史表，并以 `Database.Migrate()`、迁移升级/回滚、重复执行幂等检查和空库初始化作为 `DataBase=SonnetDB` 接入 `ApplicationDbContext` 前的入口验收。
 - **PR #114 SonnetDB.EntityFrameworkCore Provider MVP**：新增独立 `SonnetDB.EntityFrameworkCore` Provider 包，提供 `UseSonnetDB(...)`、关系型服务注册、SonnetDB ADO.NET 连接、SQL 标识符/参数生成、基础类型映射、DML SQL 生成、迁移 SQL 生成与基础查询翻译能力；新增 `tests/SonnetDB.EntityFrameworkCore.Tests`，覆盖 provider 服务注册、最小 `DbContext` CRUD、Identity 常用列子集、`ToQueryString()` SQL 生成以及迁移创建/回滚 DDL。
 - **PR #113 跨表小事务与约束能力补齐**：关系表轻事务从单表扩展为同一数据库内多表 `INSERT` / `UPDATE` / `DELETE` 原子提交与回滚；`CREATE TABLE` 支持表级 `FOREIGN KEY (...) REFERENCES ... (...)` 第一版校验策略和列级 `ROWVERSION` 乐观并发列，DML 提交统一校验主键、唯一索引、外键和并发版本；新增稳定约束错误码 `table_unique_violation`、`table_foreign_key_violation`、`table_concurrency_conflict`，并在 SQL / ADO.NET 文档中明确当前仅支持默认 / `ReadCommitted` 边界，不提供 MVCC、可重复读、序列化隔离或跨数据库事务。

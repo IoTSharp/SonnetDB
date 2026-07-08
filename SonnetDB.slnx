@@ -17,7 +17,8 @@
     <Project Path="connectors/c/native/SonnetDB.Native/SonnetDB.Native.csproj" />
   </Folder>
   <Folder Name="/extensions/">
-    <Project Path="extensions/SonnetDB.Caching/SonnetDB.Caching.csproj" />
+    <Project Path="extensions/SonnetDB.Caching.Distributed/SonnetDB.Caching.Distributed.csproj" />
+    <Project Path="extensions/SonnetDB.Caching.EasyCaching/SonnetDB.Caching.EasyCaching.csproj" />
     <Project Path="extensions/MQTTnet.AspNetCore.Routing/Source/MQTTnet.AspNetCore.Routing.csproj" />
   </Folder>
   <Folder Name="/tests/">

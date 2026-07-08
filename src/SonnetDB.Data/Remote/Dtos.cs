@@ -3,6 +3,15 @@
 namespace SonnetDB.Data.Remote;
 
 /// <summary>
+/// 提交给 <c>POST /v1/db</c> 的建库请求体。
+/// </summary>
+internal sealed class DatabaseCreateRequest
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+}
+
+/// <summary>
 /// 提交给 <c>POST /v1/db/{db}/sql</c> 的请求体。仅包含 <c>sql</c> 字段；
 /// 参数已在客户端通过 <see cref="Internal.ParameterBinder"/> 内联，避免与服务端 DTO 耦合。
 /// </summary>

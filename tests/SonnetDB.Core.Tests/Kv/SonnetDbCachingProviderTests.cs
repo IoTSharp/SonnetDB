@@ -1,7 +1,10 @@
 using EasyCaching.Core;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
-using SonnetDB.Caching;
+using Microsoft.Extensions.Options;
+using SonnetDB.Caching.Distributed;
+using SonnetDB.Caching.EasyCaching;
+using SonnetDB.Data.Kv;
 using Xunit;
 
 namespace SonnetDB.Core.Tests.Kv;
@@ -24,8 +27,7 @@ public sealed class SonnetDbCachingProviderTests : IDisposable
     [Fact]
     public void EasyCachingProvider_SetGetBatchAndPrefix_Works()
     {
-        using var store = NewStore();
-        var provider = new SonnetDbEasyCachingProvider("sonnetdb", store);
+        using var provider = NewEasyCachingProvider();
 
         provider.Set("flow:1", "alpha", TimeSpan.FromMinutes(1));
         provider.SetAll(new Dictionary<string, int>
@@ -47,11 +49,14 @@ public sealed class SonnetDbCachingProviderTests : IDisposable
     public void EasyCachingProvider_DiRegistration_ResolvesNamedProvider()
     {
         var services = new ServiceCollection();
-        services.AddSonnetDbEasyCaching("CachingUseIn-SonnetDB", options =>
+        services.AddEasyCaching(options =>
         {
-            options.ConnectionString = $"Data Source={_root}";
-            options.Namespace = "iotsharp";
-            options.ExpirationScanInterval = TimeSpan.Zero;
+            options.UseSonnetDB(config =>
+            {
+                config.ConnectionString = $"Data Source={_root}";
+                config.Namespace = "iotsharp";
+                config.ExpirationScanInterval = TimeSpan.Zero;
+            }, "CachingUseIn-SonnetDB");
         });
 
         using var provider = services.BuildServiceProvider();
@@ -66,23 +71,44 @@ public sealed class SonnetDbCachingProviderTests : IDisposable
     }
 
     [Fact]
-    public void CacheStore_CleanExpired_RemovesOnlyExpiredKeys()
+    public async Task KvClient_CleanExpired_RemovesOnlyExpiredKeys()
     {
-        using var store = NewStore();
+        using var client = new SndbKvClient($"Data Source={_root}");
 
-        store.Set("expired", [1], DateTimeOffset.UtcNow.AddSeconds(-1));
-        store.Set("active", [2], DateTimeOffset.UtcNow.AddMinutes(1));
+        await client.SetAsync("cache", "tests", "expired", [1], DateTimeOffset.UtcNow.AddSeconds(-1));
+        await client.SetAsync("cache", "tests", "active", [2], DateTimeOffset.UtcNow.AddMinutes(1));
 
-        Assert.Equal(1, store.CleanExpired());
-        Assert.Null(store.GetEntry("expired"));
-        Assert.NotNull(store.GetEntry("active"));
+        Assert.Equal(1, await client.CleanExpiredAsync("cache"));
+        Assert.Null(await client.GetAsync("cache", "tests", "expired"));
+        Assert.NotNull(await client.GetAsync("cache", "tests", "active"));
+    }
+
+    [Fact]
+    public void DistributedCache_DiRegistration_ResolvesIDistributedCache()
+    {
+        var services = new ServiceCollection();
+        services.AddDistributedSonnetDBCache(options =>
+        {
+            options.ConnectionString = $"Data Source={_root}";
+            options.Namespace = "distributed-di";
+            options.ExpirationScanInterval = TimeSpan.Zero;
+        });
+
+        using var provider = services.BuildServiceProvider();
+        var cache = provider.GetRequiredService<IDistributedCache>();
+
+        cache.Set("session", [1, 2, 3], new DistributedCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(1),
+        });
+
+        Assert.Equal([1, 2, 3], cache.Get("session"));
     }
 
     [Fact]
     public async Task DistributedCache_SlidingExpiration_RefreshExtendsTtl()
     {
-        using var store = NewStore();
-        var cache = new SonnetDbDistributedCache(store);
+        using var cache = NewDistributedCache();
 
         cache.Set(
             "session",
@@ -102,8 +128,7 @@ public sealed class SonnetDbCachingProviderTests : IDisposable
     [Fact]
     public void DistributedCache_AbsoluteExpiration_ReturnsMiss()
     {
-        using var store = NewStore();
-        var cache = new SonnetDbDistributedCache(store);
+        using var cache = NewDistributedCache();
 
         cache.Set(
             "session",
@@ -116,12 +141,21 @@ public sealed class SonnetDbCachingProviderTests : IDisposable
         Assert.Null(cache.Get("session"));
     }
 
-    private SonnetDbCacheStore NewStore() => new(new SonnetDbCacheOptions
-    {
-        ConnectionString = $"Data Source={_root}",
-        Namespace = "tests",
-        ExpirationScanInterval = TimeSpan.Zero,
-    });
+    private SonnetDbEasyCachingProvider NewEasyCachingProvider() =>
+        new("sonnetdb", new SonnetDbEasyCachingOptions
+        {
+            ConnectionString = $"Data Source={_root}",
+            Namespace = "tests",
+            ExpirationScanInterval = TimeSpan.Zero,
+        });
+
+    private SonnetDbDistributedCache NewDistributedCache() =>
+        new(Options.Create(new SonnetDbDistributedCacheOptions
+        {
+            ConnectionString = $"Data Source={_root}",
+            Namespace = "tests",
+            ExpirationScanInterval = TimeSpan.Zero,
+        }));
 
     private sealed record CacheProbe(string Name, int Version);
 }

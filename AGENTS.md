@@ -72,7 +72,18 @@ public struct FileHeader
 - **不得**引入 `Newtonsoft.Json`、`Dapper`、`EntityFramework` 等大型依赖
 - 若确有必要引入新依赖，须在 PR 描述中说明理由并通过评审
 
-### 5. 格式版本变更
+### 5. JSON 与 Native AOT 铁律
+
+所有生产代码中的 `System.Text.Json` 序列化与反序列化必须保持 source-generated，并且必须支持 Native AOT；此规则不可弱化、不可绕过。
+
+- 新增或修改 JSON DTO 时，必须同步注册到对应的 `JsonSerializerContext`，并使用 `JsonTypeInfo<T>` 或 `JsonSerializerContext` 重载
+- `JsonSerializerOptions` 只能作为 source-generated context 的配置输入，不能作为反射元数据入口传给 `JsonSerializer.Serialize` / `Deserialize`
+- 禁止使用 `JsonSerializer.Serialize(value, options)`、`JsonSerializer.Deserialize<T>(json, options)` 等依赖运行时反射或动态代码生成的重载
+- 禁止为了通过构建而压制 `IL2026`、`IL3050` 或相关 trim/AOT 警告；必须改为 source-generated context、手写 `Utf8JsonReader` / `Utf8JsonWriter`，或显式的 AOT 友好转换器
+- 第三方类型若无法纳入 source generation，必须通过手写转换、外部类型自带的 AOT 友好模型接口，或隔离在非 AOT 边界处理，不能回退到反射序列化
+- 涉及 Server、CLI、Native connector、Frame/REST 客户端、发布工具链的 JSON 变更，必须在 AOT 分析或 NativeAOT 发布路径下保持 0 个 IL/AOT 警告
+
+### 6. 格式版本变更
 
 不得修改已发布的文件二进制格式（`FileHeader`、`BlockHeader` 等结构体布局），除非同步：
 1. 升级 `FileHeader.Version` 字段值
@@ -289,6 +300,7 @@ SonnetDB/
 | 使用 `unsafe` | 第一版 Safe-only 原则 |
 | 在 `src/SonnetDB` 中引入运行时第三方依赖 | 保持零依赖特性 |
 | 引入 `Newtonsoft.Json`、`Dapper` 等大型库 | 最小化依赖 |
+| 使用反射型 `JsonSerializerOptions` 重载 | 必须保持 source-generated JSON 与 Native AOT 兼容 |
 | 修改二进制格式不升级 `FileHeader.Version` | 破坏向后兼容 |
 | 压制编译警告（无注释说明） | 维护代码质量 |
 | 一个 PR 混入多个 ROADMAP 条目 | 保持 PR 可审查性 |

@@ -1,22 +1,21 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <RootNamespace>SonnetDB.Caching</RootNamespace>
-    <AssemblyName>SonnetDB.Caching</AssemblyName>
-    <PackageId>SonnetDB.Caching</PackageId>
-    <Title>SonnetDB.Caching</Title>
-    <Description>SonnetDB KV-backed EasyCaching and IDistributedCache providers.</Description>
-    <PackageTags>sonnetdb;caching;easycaching;distributed-cache;kv</PackageTags>
+    <RootNamespace>SonnetDB.Caching.Distributed</RootNamespace>
+    <AssemblyName>SonnetDB.Caching.Distributed</AssemblyName>
+    <PackageId>SonnetDB.Caching.Distributed</PackageId>
+    <Title>SonnetDB.Caching.Distributed</Title>
+    <Description>SonnetDB KV-backed IDistributedCache provider.</Description>
+    <PackageTags>sonnetdb;caching;distributed-cache;kv</PackageTags>
     <PackageReadmeFile>PackageReadme.md</PackageReadmeFile>
     <IsAotCompatible>false</IsAotCompatible>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="EasyCaching.Core" />
     <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
   </ItemGroup>
 
   <ItemGroup>

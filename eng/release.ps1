@@ -45,7 +45,8 @@ function Pack-NuGetPackages
     Invoke-DotNetPack 'src/SonnetDB.Core/SonnetDB.Core.csproj' $NuGetOutput
     Invoke-DotNetPack 'src/SonnetDB.Data/SonnetDB.Data.csproj' $NuGetOutput
     Invoke-DotNetPack 'src/SonnetDB.EntityFrameworkCore/SonnetDB.EntityFrameworkCore.csproj' $NuGetOutput
-    Invoke-DotNetPack 'extensions/SonnetDB.Caching/SonnetDB.Caching.csproj' $NuGetOutput
+    Invoke-DotNetPack 'extensions/SonnetDB.Caching.EasyCaching/SonnetDB.Caching.EasyCaching.csproj' $NuGetOutput
+    Invoke-DotNetPack 'extensions/SonnetDB.Caching.Distributed/SonnetDB.Caching.Distributed.csproj' $NuGetOutput
     Invoke-DotNetPack 'src/SonnetDB.Cli/SonnetDB.Cli.csproj' $NuGetOutput
     Invoke-DotNetPack 'src/Testcontainers.SonnetDB/Testcontainers.SonnetDB.csproj' $NuGetOutput
 }
@@ -418,7 +419,8 @@ function Write-SdkBundleReadme
 - `packages/SonnetDB.Core.__VERSION__.nupkg`
 - `packages/SonnetDB.__VERSION__.nupkg`
 - `packages/SonnetDB.EntityFrameworkCore.__VERSION__.nupkg`
-- `packages/SonnetDB.Caching.__VERSION__.nupkg`
+- `packages/SonnetDB.Caching.EasyCaching.__VERSION__.nupkg`
+- `packages/SonnetDB.Caching.Distributed.__VERSION__.nupkg`
 - `packages/SonnetDB.Cli.__VERSION__.nupkg`
 - `packages/Testcontainers.SonnetDB.__VERSION__.nupkg`
 - `cli/` 原生命令行工具

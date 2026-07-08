@@ -35,7 +35,7 @@
 |---|---|---|---|
 | 关系型 (Relational) | PostgreSQL 16 | — | `SonnetDB.EntityFrameworkCore` + `SonnetDB.Data` |
 | 时序 (TSDB) | InfluxDB 2.7 | VictoriaMetrics 1.106 | `SonnetDB.Data` + Bulk Ingest LP/JSON/Bulk |
-| KV / 缓存 | Redis 7 | — | `SonnetDB.Caching` + `KvKeyspace` |
+| KV / 缓存 | Redis 7 | — | `SonnetDB.Caching.EasyCaching` / `SonnetDB.Caching.Distributed` + `KvKeyspace` |
 | 对象桶 (Object) | MinIO | — | `SndbObjectStorageClient` |
 | 消息 (MQ) | NATS JetStream 2.10 | Mosquitto 2.0（功能对照） | `SndbMqClient` |
 | 全文 (FT) | Meilisearch 1.10 | — | SonnetDB 内置全文引擎 + `DocumentFullTextIndexStore` |

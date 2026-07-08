@@ -55,8 +55,10 @@ One local engine, one SQL / API surface, and one Web Admin provide:
 [![SonnetDB Downloads](https://img.shields.io/nuget/dt/SonnetDB?label=Downloads)](https://www.nuget.org/packages/SonnetDB)
 [![SonnetDB.EntityFrameworkCore Version](https://img.shields.io/nuget/v/SonnetDB.EntityFrameworkCore?label=SonnetDB.EntityFrameworkCore)](https://www.nuget.org/packages/SonnetDB.EntityFrameworkCore)
 [![SonnetDB.EntityFrameworkCore Downloads](https://img.shields.io/nuget/dt/SonnetDB.EntityFrameworkCore?label=Downloads)](https://www.nuget.org/packages/SonnetDB.EntityFrameworkCore)
-[![SonnetDB.Caching Version](https://img.shields.io/nuget/v/SonnetDB.Caching?label=SonnetDB.Caching)](https://www.nuget.org/packages/SonnetDB.Caching)
-[![SonnetDB.Caching Downloads](https://img.shields.io/nuget/dt/SonnetDB.Caching?label=Downloads)](https://www.nuget.org/packages/SonnetDB.Caching)
+[![SonnetDB.Caching.EasyCaching Version](https://img.shields.io/nuget/v/SonnetDB.Caching.EasyCaching?label=SonnetDB.Caching.EasyCaching)](https://www.nuget.org/packages/SonnetDB.Caching.EasyCaching)
+[![SonnetDB.Caching.EasyCaching Downloads](https://img.shields.io/nuget/dt/SonnetDB.Caching.EasyCaching?label=Downloads)](https://www.nuget.org/packages/SonnetDB.Caching.EasyCaching)
+[![SonnetDB.Caching.Distributed Version](https://img.shields.io/nuget/v/SonnetDB.Caching.Distributed?label=SonnetDB.Caching.Distributed)](https://www.nuget.org/packages/SonnetDB.Caching.Distributed)
+[![SonnetDB.Caching.Distributed Downloads](https://img.shields.io/nuget/dt/SonnetDB.Caching.Distributed?label=Downloads)](https://www.nuget.org/packages/SonnetDB.Caching.Distributed)
 [![SonnetDB.Cli Version](https://img.shields.io/nuget/v/SonnetDB.Cli?label=SonnetDB.Cli)](https://www.nuget.org/packages/SonnetDB.Cli)
 [![SonnetDB.Cli Downloads](https://img.shields.io/nuget/dt/SonnetDB.Cli?label=Downloads)](https://www.nuget.org/packages/SonnetDB.Cli)
 
@@ -104,7 +106,8 @@ One local engine, one SQL / API surface, and one Web Admin provide:
 | `src/SonnetDB.Data` | ADO.NET provider; NuGet package ID is `SonnetDB`, namespace is `SonnetDB.Data` |
 | `src/SonnetDB.EntityFrameworkCore` | EF Core Provider; NuGet package ID is `SonnetDB.EntityFrameworkCore`, with `UseSonnetDB(...)`, type mapping, query translation, and migrations SQL |
 | `src/SonnetDB.Cli` | `sndb` CLI: local/remote connections, profile management (`local`/`remote`/`connect`), and interactive REPL |
-| `extensions/SonnetDB.Caching` | Cache provider backed by SonnetDB KV keyspaces for IoTSharp / EasyCaching / IDistributedCache scenarios |
+| `extensions/SonnetDB.Caching.EasyCaching` | EasyCaching provider backed by SonnetDB KV keyspaces, registered through `AddEasyCaching(options => options.UseSonnetDB(...))` |
+| `extensions/SonnetDB.Caching.Distributed` | `IDistributedCache` provider backed by SonnetDB KV keyspaces, registered through `AddDistributedSonnetDBCache(...)` |
 | `web` | Admin frontend (includes SonnetDB Workbench, global CopilotDock, and published SPA assets) |
 | `docs` | JekyllNet documentation site source, bundled into the Docker image |
 

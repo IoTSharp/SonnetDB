@@ -1,11 +1,11 @@
-namespace SonnetDB.Caching;
+namespace SonnetDB.Caching.EasyCaching;
 
 /// <summary>
-/// SonnetDB 缓存 Provider 选项。
+/// SonnetDB EasyCaching Provider 选项。
 /// </summary>
-public sealed class SonnetDbCacheOptions
+public sealed class SonnetDbEasyCachingOptions
 {
-    /// <summary>SonnetDB.Data 连接字符串。IoTSharp 场景必须配置为 SonnetDB Server 远程连接。</summary>
+    /// <summary>SonnetDB.Data 连接字符串；可指向嵌入式目录或 SonnetDB Server 远程地址。</summary>
     public string ConnectionString { get; set; } = string.Empty;
 
     /// <summary>KV keyspace 名称。</summary>
@@ -14,7 +14,7 @@ public sealed class SonnetDbCacheOptions
     /// <summary>逻辑命名空间名称。</summary>
     public string Namespace { get; set; } = "default";
 
-    /// <summary>后台过期清理间隔；小于等于零表示不启动后台清理。</summary>
+    /// <summary>后台过期清理间隔；小于等于零表示不启动清理循环。</summary>
     public TimeSpan ExpirationScanInterval { get; set; } = TimeSpan.FromMinutes(1);
 
     /// <summary>每轮最多清理的过期 key 数量。</summary>

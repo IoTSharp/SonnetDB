@@ -13,6 +13,7 @@ namespace SonnetDB.Data.Remote;
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     WriteIndented = false)]
+[JsonSerializable(typeof(DatabaseCreateRequest))]
 [JsonSerializable(typeof(SqlRequestBody))]
 [JsonSerializable(typeof(SqlBatchRequestBody))]
 [JsonSerializable(typeof(ResultMetaLine))]

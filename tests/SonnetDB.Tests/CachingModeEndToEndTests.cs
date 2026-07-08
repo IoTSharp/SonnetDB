@@ -4,8 +4,11 @@ using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
-using SonnetDB.Caching;
+using Microsoft.Extensions.Options;
+using SonnetDB.Caching.Distributed;
+using SonnetDB.Caching.EasyCaching;
 using SonnetDB.Configuration;
+using SonnetDB.Data.Kv;
 using Xunit;
 
 namespace SonnetDB.Tests;
@@ -69,8 +72,7 @@ public sealed class CachingModeEndToEndTests : IAsyncLifetime
     [InlineData("remote")]
     public void EasyCachingProvider_EmbeddedAndRemote_SupportsKvTtlAndPrefixRemove(string mode)
     {
-        using var store = NewStore(mode, "easy-" + Guid.NewGuid().ToString("N"));
-        var provider = new SonnetDbEasyCachingProvider("sonnetdb", store);
+        using var provider = NewEasyCachingProvider(mode, "easy-" + Guid.NewGuid().ToString("N"));
 
         provider.Set("flow:1", "alpha", TimeSpan.FromMinutes(1));
         provider.SetAll(new Dictionary<string, int>
@@ -98,8 +100,9 @@ public sealed class CachingModeEndToEndTests : IAsyncLifetime
     [InlineData("remote")]
     public async Task DistributedCache_EmbeddedAndRemote_SupportsTtlRefreshRemoveAndJanitor(string mode)
     {
-        using var store = NewStore(mode, "distributed-" + Guid.NewGuid().ToString("N"));
-        var cache = new SonnetDbDistributedCache(store);
+        string @namespace = "distributed-" + Guid.NewGuid().ToString("N");
+        string connectionString = ConnectionString(mode);
+        using var cache = NewDistributedCache(connectionString, @namespace);
 
         await cache.SetAsync(
             "session",
@@ -125,27 +128,36 @@ public sealed class CachingModeEndToEndTests : IAsyncLifetime
         await Task.Delay(50);
         Assert.Null(await cache.GetAsync("short"));
 
-        store.Set("expired:janitor", [4], DateTimeOffset.UtcNow.AddMilliseconds(-1));
-        store.Set("active:janitor", [5], DateTimeOffset.UtcNow.AddMinutes(1));
-        Assert.Equal(1, await store.CleanExpiredAsync());
-        Assert.Null(await store.GetEntryAsync("expired:janitor"));
-        Assert.NotNull(await store.GetEntryAsync("active:janitor"));
+        using var kv = new SndbKvClient(connectionString);
+        await kv.SetAsync("cache", @namespace, "expired:janitor", [4], DateTimeOffset.UtcNow.AddMilliseconds(-1));
+        await kv.SetAsync("cache", @namespace, "active:janitor", [5], DateTimeOffset.UtcNow.AddMinutes(1));
+        Assert.Equal(1, await kv.CleanExpiredAsync("cache"));
+        Assert.Null(await kv.GetAsync("cache", @namespace, "expired:janitor"));
+        Assert.NotNull(await kv.GetAsync("cache", @namespace, "active:janitor"));
 
-        store.Set("prefix:1", [1]);
-        store.Set("prefix:2", [2]);
-        store.Set("keep:1", [3]);
-        Assert.Equal(2, await store.RemovePrefixAsync("prefix:"));
-        Assert.Empty(await store.ScanPrefixAsync("prefix:"));
-        Assert.NotNull(await store.GetEntryAsync("keep:1"));
+        await kv.SetAsync("cache", @namespace, "prefix:1", [1]);
+        await kv.SetAsync("cache", @namespace, "prefix:2", [2]);
+        await kv.SetAsync("cache", @namespace, "keep:1", [3]);
+        Assert.Equal(2, await kv.RemovePrefixAsync("cache", @namespace, "prefix:"));
+        Assert.Empty(await kv.ScanPrefixAsync("cache", @namespace, "prefix:"));
+        Assert.NotNull(await kv.GetAsync("cache", @namespace, "keep:1"));
     }
 
-    private SonnetDbCacheStore NewStore(string mode, string @namespace)
-        => new(new SonnetDbCacheOptions
+    private SonnetDbEasyCachingProvider NewEasyCachingProvider(string mode, string @namespace)
+        => new("sonnetdb", new SonnetDbEasyCachingOptions
         {
             ConnectionString = ConnectionString(mode),
             Namespace = @namespace,
             ExpirationScanInterval = TimeSpan.Zero,
         });
+
+    private static SonnetDbDistributedCache NewDistributedCache(string connectionString, string @namespace)
+        => new(Options.Create(new SonnetDbDistributedCacheOptions
+        {
+            ConnectionString = connectionString,
+            Namespace = @namespace,
+            ExpirationScanInterval = TimeSpan.Zero,
+        }));
 
     private string ConnectionString(string mode)
     {
