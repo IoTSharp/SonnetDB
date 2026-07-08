@@ -1,3 +1,5 @@
+using System.Text;
+using SonnetDB.Data;
 using SonnetDB.Data.Kv;
 
 namespace SonnetDB.Caching;
@@ -7,16 +9,29 @@ namespace SonnetDB.Caching;
 /// </summary>
 public sealed class SonnetDbCacheStore : IDisposable
 {
+    /// <summary>
+    /// 缓存组件启动探针 key，写入短 TTL 用于确认 keyspace 和 namespace 可用。
+    /// </summary>
+    public const string StartupProbeKey = "__sonnetdb_cache_startup_probe";
+
     private readonly SndbKvClient _client;
 
+    /// <summary>
+    /// 创建 SonnetDB 缓存 store，并确保目标数据库、keyspace 和 namespace 可用。
+    /// </summary>
+    /// <param name="options">缓存连接、keyspace、namespace 与过期清理选项。</param>
     public SonnetDbCacheStore(SonnetDbCacheOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
         if (string.IsNullOrWhiteSpace(options.ConnectionString))
             throw new InvalidOperationException("SonnetDB cache provider requires a SonnetDB.Data connection string.");
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.Keyspace);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.Namespace);
 
         Options = options;
+        SndbResourceInitializer.EnsureDatabase(options.ConnectionString, "缓存数据库");
         _client = new SndbKvClient(options.ConnectionString);
+        EnsureKeyspaceReady();
     }
 
     public SonnetDbCacheOptions Options { get; }
@@ -94,4 +109,15 @@ public sealed class SonnetDbCacheStore : IDisposable
     public void Dispose() => _client.Dispose();
 
     private static T Run<T>(Task<T> task) => task.ConfigureAwait(false).GetAwaiter().GetResult();
+
+    private void EnsureKeyspaceReady()
+    {
+        var expiresAtUtc = DateTimeOffset.UtcNow.AddMinutes(5);
+        Run(_client.SetAsync(
+            Options.Keyspace,
+            Options.Namespace,
+            StartupProbeKey,
+            Encoding.UTF8.GetBytes("ok"),
+            expiresAtUtc));
+    }
 }
