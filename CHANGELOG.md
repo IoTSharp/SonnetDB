@@ -8,6 +8,7 @@
 ### Added
 
 - **M30 #265 CoAP 设备写入**：新增本地 git 子模块 `extensions/IoTSharp.CoAP.NET`，将 IoTSharp.CoAP.NET 升级为 net10 / AOT 兼容、可独立打包发布的 `IoTSharp.CoAP.NET` NuGet，保留 client + server、blockwise/observe 代码并将旧 `CoAP.Log` 替换为 `Microsoft.Extensions.Logging`；CoAP.NET 内部新增 PSK DTLS server/client channel（`BouncyCastle.Cryptography` 2.6.2）。Server 新增默认关闭的 `SonnetDBServer:Coap` 配置，支持 UDP `coap://` 与 PSK `coaps://` `POST`/`PUT db/{db}/m/{measurement}` 写入，复用 `BulkIngestEndpointHandler` 三格式落库与既有 token/权限模型；新增端到端测试覆盖 CoAP 写入、readonly 拒绝、块传输 payload 与 DTLS PSK 写入。
+- **M30 #266 CoAP 安全 + Observe 订阅**：补齐 route-backed CoAP resource 的 Observe relation 注册与按路径通知能力；新增 `GET+Observe db/{db}/mq/{topic}`，订阅建立后从 SonnetMQ latest offset 起监听新消息，并按 relation 维护 cursor 将消息体原样通过 CoAP Observe 推送，权限继续复用 SonnetDB token / grants 读权限。`coaps://` DTLS PSK 保持默认关闭、显式配置 `SonnetDBServer:Coap:Dtls:PskKeys` 后启用。
 
 ### Changed
 

@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.Sockets;
+using System.Text;
 using CoAP;
 using CoAP.Channel;
 using CoAP.Net;
@@ -169,6 +170,43 @@ public sealed class CoapEndpointTests : IAsyncLifetime
         Assert.NotNull(response);
         AssertStatus(response, StatusCode.Changed);
         await AssertRowCountAsync("host='dtls'", expectedRows: 1);
+    }
+
+    [Fact]
+    public async Task CoapObserve_MqTopic_PushesPublishedPayload()
+    {
+        var received = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var config = new CoapConfig();
+        using var endpoint = new CoAPEndPoint(config);
+        endpoint.Start();
+        var client = new CoapClient(
+            new Uri($"coap://127.0.0.1:{_coapPort}/db/{DbName}/mq/alerts?token={ReadOnlyToken}"),
+            config)
+        {
+            EndPoint = endpoint,
+            Timeout = 5000,
+        };
+
+        var relation = client.Observe(response =>
+        {
+            if (response.Payload is { Length: > 0 })
+                received.TrySetResult(response.PayloadString);
+        }, reason => received.TrySetException(new InvalidOperationException("CoAP Observe 失败：" + reason)));
+
+        Assert.False(relation.Canceled);
+
+        using var http = CreateClient(AdminToken);
+        var publish = await http.PostAsync($"/v1/db/{DbName}/mq/alerts/publish",
+            JsonContent.Create(
+                new MqPublishRequest(
+                    Encoding.UTF8.GetBytes("alarm-one"),
+                    new Dictionary<string, string> { ["contentType"] = "text/plain" }),
+                ServerJsonContext.Default.MqPublishRequest));
+        Assert.True(publish.IsSuccessStatusCode, await publish.Content.ReadAsStringAsync());
+
+        var payload = await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        relation.ProactiveCancel();
+        Assert.Equal("alarm-one", payload);
     }
 
     private void AssertStatus(Response response, StatusCode expected)

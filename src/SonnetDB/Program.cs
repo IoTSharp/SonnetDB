@@ -443,6 +443,7 @@ public static class Program
         ValidateCoapOptions(coapOptions);
 
         builder.Services.AddSingleton<SonnetCoapMeasurementIngestor>();
+        builder.Services.AddSingleton<SonnetCoapMqObserveManager>();
         builder.Services.AddCoapServer(options =>
         {
             options.Config = CreateCoapConfig(coapOptions);

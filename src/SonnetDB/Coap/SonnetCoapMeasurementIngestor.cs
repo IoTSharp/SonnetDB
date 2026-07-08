@@ -126,69 +126,7 @@ internal sealed class SonnetCoapMeasurementIngestor
     }
 
     private bool TryAuthenticate(IReadOnlyList<string> queries, out SonnetCoapPrincipal principal)
-    {
-        principal = null!;
-        if (!TryGetToken(queries, out var token))
-            return false;
-
-        if (_options.Tokens.TryGetValue(token, out var role))
-        {
-            principal = SonnetCoapPrincipal.ForRole(role);
-            return true;
-        }
-
-        if (_users.TryAuthenticate(token, out var user))
-        {
-            principal = SonnetCoapPrincipal.ForUser(user);
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool TryGetToken(IReadOnlyList<string> queries, out string token)
-    {
-        token = string.Empty;
-        foreach (var query in queries)
-        {
-            var decoded = WebUtility.UrlDecode(query);
-            if (string.IsNullOrWhiteSpace(decoded))
-                continue;
-
-            var split = decoded.IndexOf('=', StringComparison.Ordinal);
-            if (split <= 0)
-                continue;
-
-            var name = decoded[..split].Trim();
-            var value = decoded[(split + 1)..].Trim();
-            if (string.IsNullOrEmpty(value))
-                continue;
-
-            if (string.Equals(name, "token", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(name, "access_token", StringComparison.OrdinalIgnoreCase))
-            {
-                token = value;
-                return true;
-            }
-
-            if (!string.Equals(name, "authorization", StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            if (value.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-            {
-                token = value["Bearer ".Length..].Trim();
-                return !string.IsNullOrEmpty(token);
-            }
-
-            if (value.StartsWith("Token ", StringComparison.OrdinalIgnoreCase))
-            {
-                token = value["Token ".Length..].Trim();
-                return !string.IsNullOrEmpty(token);
-            }
-        }
-
-        return false;
-    }
+        => SonnetCoapAuthentication.TryAuthenticate(queries, _options, _users, out principal);
 
     private static bool TryResolveFormat(
         CoapRouteContext context,

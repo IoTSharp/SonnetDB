@@ -20,6 +20,7 @@
     <Project Path="extensions/SonnetDB.Caching.Distributed/SonnetDB.Caching.Distributed.csproj" />
     <Project Path="extensions/SonnetDB.Caching.EasyCaching/SonnetDB.Caching.EasyCaching.csproj" />
     <Project Path="extensions/MQTTnet.AspNetCore.Routing/Source/MQTTnet.AspNetCore.Routing.csproj" />
+    <Project Path="extensions/IoTSharp.CoAP.NET/CoAP.NET.SourceGeneration/CoAP.NET.SourceGeneration.csproj" />
     <Project Path="extensions/IoTSharp.CoAP.NET/CoAP.NET/CoAP.NET.csproj" />
   </Folder>
   <Folder Name="/tests/">
