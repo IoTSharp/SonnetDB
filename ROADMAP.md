@@ -28,7 +28,7 @@
 | 27 | Industrial Data Agent 与 AI-ready 产品化路线 | #182 ~ #188 | 🚧（#182 文档已落；M28 收官后 #184 Demo 可启动；#183/#185 纯文档） |
 | 28 | 可靠性、并发正确性与热路径加固（P0~P5 分阶段） | #189 ~ #244、#261 ~ #262 | ✅（全部收官，详情见归档） |
 | 29 | 多模型统一管理工作台（Multi-Model Management Workbench） | #245 ~ #260 | 📋（#245 ✅；Web Admin 旗舰优先） |
-| 30 | 多协议设备接入扩展（Sparkplug B / CoAP / Line Protocol UDP） | #263 ~ #268 | 📋（前置 M28 #242 ✅） |
+| 30 | 多协议设备接入扩展（Sparkplug B / CoAP / Line Protocol UDP） | #263 ~ #268 | 🚧（#265 ✅；前置 M28 #242 ✅） |
 | 31 | 时序聚合类型语义增强（selector / categorical aggregates） | #269 ~ #271 | 📋（IoTSharp 字符串遥测分桶查询兼容） |
 | MM9 | 多模型统一备份、恢复和管理工具第一批 | BackupService + sndb backup | ✅ |
 
@@ -193,7 +193,7 @@ E 三面：#258（Studio 桌面原生桥）∥ #259（VS Code 多模型消费）
 |---|---|---|---|---|
 | MQTT（裸）| ✅ 内建 broker + client 订阅外部 broker | 保持 | IoTDB / TDengine 内建 broker、InfluxDB+Telegraf | M28 #242 / #243 ✅ |
 | **Sparkplug B** | ❌ | 骑 #242 broker 解码 Protobuf payload + 别名解析 + birth/death 生命周期状态机 → BulkIngest 落库 | Ignition / Eclipse Tahu / HiveMQ / AWS IoT SiteWise | #263 / #264 |
-| **CoAP** | ❌ | UDP CoAP route `db/{db}/m/{measurement}` → BulkIngest 三格式；DTLS + Observe | OMA LwM2M | #265 / #266 |
+| **CoAP** | 🚧 #265 写入落库已完成 | UDP CoAP route `db/{db}/m/{measurement}` → BulkIngest 三格式；DTLS + Observe | OMA LwM2M | #265 ✅ / #266 📋 |
 | Line Protocol（HTTP）| ✅ `/write`、`/api/v2/write`、Prometheus remote-write | 保持 | InfluxDB / Telegraf | M8 ✅ |
 | **Line Protocol（UDP）** | ❌ | UDP 数据报监听复用 `LineProtocolReader` → BulkIngest | InfluxDB UDP listener / Telegraf | #267 |
 | 现场总线轮询（Modbus / OPC UA client / S7 / 三菱 / FINS / AB / MTConnect）| ❌（**有意不做**）| 归边缘采集网关 IoTEdge——数据库不主动轮询设备 | — | 不做（见「不做的事」） |
@@ -203,7 +203,7 @@ E 三面：#258（Studio 桌面原生桥）∥ #259（VS Code 多模型消费）
 | 阶段 | 主题 | PR 范围 | 目标 |
 |------|------|---------|------|
 | **A** | Sparkplug B（工业 SCADA 事实标准，骑 #242 broker） | #263 ~ #264 | 解码 Protobuf payload + 别名解析落库；birth/death 生命周期 + seq 缺口检测 + rebirth 命令 |
-| **B** | CoAP 设备写入（受约束设备 UDP 直连） | #265 ~ #266 | CoAP 服务端 route → BulkIngest 三格式落库；DTLS 安全 + Observe 订阅 |
+| **B** | CoAP 设备写入（受约束设备 UDP 直连） | #265 ~ #266 | 🚧 #265 服务端写入落库已完成；#266 安全与 Observe 增量待续 |
 | **C** | Line Protocol UDP 监听 + 收口 | #267 ~ #268 | 补 HTTP `/write` 之外的 UDP 遥测入口；协议接入文档矩阵 + 落库 parity |
 
 ### A — Sparkplug B（工业 SCADA 事实标准）
@@ -221,7 +221,7 @@ E 三面：#258（Studio 桌面原生桥）∥ #259（VS Code 多模型消费）
 
 | PR | 标题与范围 | 状态 |
 |----|------------|------|
-| #265 | **CoAP 服务端 + 写入落库**：UDP:5683 CoAP 服务端（RFC 7252），`POST`/`PUT` 到 route `db/{db}/m/{measurement}` → `BulkIngestEndpointHandler` 三格式落库（格式由 `Content-Format` option 选择，回退首字节嗅探，与 #242 一致）；对外使用 route / endpoint 命名，CoAP.NET `Resource` 只作为内部 adapter；鉴权复用 Bearer/token（经 CoAP option 携带，映射三角色权限）；支持确认型（CON）/ 非确认型（NON）消息与块传输（RFC 7959，大 payload 分块）；错误以 CoAP response code 回（4.00/4.01/4.03/4.04 对齐 REST 语义）。 | 📋 |
+| #265 | **CoAP 服务端 + 写入落库**：UDP:5683 CoAP 服务端（RFC 7252），`POST`/`PUT` 到 route `db/{db}/m/{measurement}` → `BulkIngestEndpointHandler` 三格式落库（格式由 `Content-Format` option 选择，回退首字节嗅探，与 #242 一致）；对外使用 route / endpoint 命名，CoAP.NET `Resource` 只作为内部 adapter；鉴权复用 Bearer/token（经 CoAP option 携带，映射三角色权限）；支持确认型（CON）/ 非确认型（NON）消息与块传输（RFC 7959，大 payload 分块）；错误以 CoAP response code 回（4.00/4.01/4.03/4.04 对齐 REST 语义）。 | ✅ |
 | #266 | **CoAP 安全 + Observe 订阅**：DTLS（`coaps`:5684）经 **`BouncyCastle.Cryptography` 2.6.2**（`DtlsServerProtocol` + `DtlsServerTransport`，.NET BCL 无 DTLS，纯托管零 native，仅 Server 层）——**PSK 优先**（受约束设备最常用，`TlsPskIdentityManager`），RPK / 证书作后续增量；握手后解密 datagram 喂回 #265 vendored CoAP 解析 → 落库路径不变，默认关闭需显式启用（同 #242 / #267 安全姿态）。`Observe`（RFC 7641）资源订阅——设备 GET+Observe 一个 `db/{db}/mq/{topic}` 资源，服务端在新消息到达时推送（桥接 SonnetMQ，复用 #236 推送管线，对齐 #242 的 `mq/` 订阅），用 vendored CoAP 的 observe 关系、与 DTLS 正交不依赖 BouncyCastle。安全与 Observe 均为 #265 之上的增量。 | 📋 |
 
 ### C — Line Protocol UDP 监听 + 收口
@@ -236,7 +236,7 @@ E 三面：#258（Studio 桌面原生桥）∥ #259（VS Code 多模型消费）
 ```text
 前置：M28 #242 内建 MQTT broker ✅（Sparkplug 骑其上）
 A Sparkplug：#263（payload 解码 + 落库）→ #264（生命周期 + seq 缺口 + rebirth 命令）
-B CoAP：#265（服务端 + 写入落库）→ #266（DTLS 安全 + Observe 订阅）
+B CoAP：#265（服务端 + 写入落库 ✅）→ #266（DTLS 安全 + Observe 订阅）
 C LP-UDP + 收口：#267（Line Protocol UDP 监听）→ #268（协议矩阵文档 + parity）
 ```
 
