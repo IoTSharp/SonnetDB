@@ -179,7 +179,7 @@ E 三面：#258（Studio 桌面原生桥）∥ #259（VS Code 多模型消费）
 >
 > **核心判断**：SonnetDB 是**数据库 / 存储层**，不是采集网关。适合数据库原生支持的，是**「设备 push / 从消息总线被动接收」**这一类协议——即它对 MQTT 已做的模式；**「主动轮询设备」的现场总线协议（Modbus / OPC UA client / 西门子 S7 / 三菱 / FINS / AB / MTConnect）不进 DB**——数据库不去 poll 设备，该职责归边缘采集网关（IoTEdge）。本里程碑在此边界内，把 Sparkplug B、CoAP、Line Protocol UDP 三条「被动接收 / 直写」通道补齐，全部**收敛到既有 `BulkIngestEndpointHandler` 三格式落库路径**，不新增任何引擎写入 / 查询 / 索引 / 存储语义。
 >
-> **不变约束**（与 M28 P5b / #242 一致）：`SonnetDB.Core` 零第三方依赖不变——**所有协议栈限于 Server 层**。**依赖策略（本轮定档，倾向纯托管、避免 native 与重型第三方）**：**(1) Sparkplug 手写 protobuf 解码，零新依赖**——复用本仓已有的手写 protobuf wire-format 解码范式（`PrometheusRemoteWriteReader`：`ReadVarint` / `SkipField` / LEN 切片），Sparkplug `Payload` 与 Prometheus `WriteRequest` 同量级同手法，**不引 `Google.Protobuf`**（其 codegen 走 `Grpc.Tools` 会在 build 时拉 native `protoc`）；proto 字段号手写成常量，proto 文件都不带。**(2) CoAP 栈以本地 git 子模块自维护**——把 `IoTSharp.CoAP.NET`（本 org 已持有的 SmeshLink CoAP.NET fork，BSD、纯托管零 native）完整 client + server 保留并现代化到 net10 / AOT，可独立发布 `IoTSharp.CoAP.NET` NuGet，SonnetDB 只做薄集成，**不引 CoAPnet**。**(3) DTLS 由 CoAP.NET 内部使用 `BouncyCastle.Cryptography` 2.6.2**——.NET BCL 无 DTLS，纯托管 DTLS 现实上只有 BouncyCastle；它是单个纯托管程序集、零 native（与 build 时拉 native 的 Google.Protobuf 性质不同），仅 `coaps` 传输层用，且默认关闭。三条协议都是**并列新增**，现有 REST / MQTT / 帧协议全部保留；单机形态，不做 broker 集群 / 桥接 / 跨节点 session。
+> **不变约束**（与 M28 P5b / #242 一致）：`SonnetDB.Core` 零第三方依赖不变——**所有协议栈限于 Server 层**。**依赖策略（本轮定档，倾向纯托管、避免 native 与重型第三方）**：**(1) Sparkplug 手写 protobuf 解码，零新依赖**——复用本仓已有的手写 protobuf wire-format 解码范式（`PrometheusRemoteWriteReader`：`ReadVarint` / `SkipField` / LEN 切片），Sparkplug `Payload` 与 Prometheus `WriteRequest` 同量级同手法，**不引 `Google.Protobuf`**（其 codegen 走 `Grpc.Tools` 会在 build 时拉 native `protoc`）；proto 字段号手写成常量，proto 文件都不带。**(2) CoAP 明文栈 vendor 自维护**——使用纯托管 CoAP.NET server 子集，现代化到 net10，**不引 CoAPnet**。**(3) 唯一允许的新第三方 = DTLS 用 `BouncyCastle.Cryptography` 2.6.2**——.NET BCL 无 DTLS，纯托管 DTLS 现实上只有 BouncyCastle；它是单个纯托管程序集、零 native（与 build 时拉 native 的 Google.Protobuf 性质不同），仅 #266 的 `coaps` 传输层用，且默认关闭。三条协议都是**并列新增**，现有 REST / MQTT / 帧协议全部保留；单机形态，不做 broker 集群 / 桥接 / 跨节点 session。
 
 ### 行业对标依据（2026-07 走查工业与 IoT 接入协议）
 
@@ -193,7 +193,7 @@ E 三面：#258（Studio 桌面原生桥）∥ #259（VS Code 多模型消费）
 |---|---|---|---|---|
 | MQTT（裸）| ✅ 内建 broker + client 订阅外部 broker | 保持 | IoTDB / TDengine 内建 broker、InfluxDB+Telegraf | M28 #242 / #243 ✅ |
 | **Sparkplug B** | ❌ | 骑 #242 broker 解码 Protobuf payload + 别名解析 + birth/death 生命周期状态机 → BulkIngest 落库 | Ignition / Eclipse Tahu / HiveMQ / AWS IoT SiteWise | #263 / #264 |
-| **CoAP** | ✅ UDP/coaps 写入 | UDP CoAP 服务端资源路由 `db/{db}/m/{measurement}` → BulkIngest 三格式；DTLS PSK 写入已可用，Observe 订阅待 #266 收口 | OMA LwM2M / IoTSharp 平台 CoAP | #265 ✅ / #266 🚧 |
+| **CoAP** | ❌ | UDP CoAP route `db/{db}/m/{measurement}` → BulkIngest 三格式；DTLS + Observe | OMA LwM2M | #265 / #266 |
 | Line Protocol（HTTP）| ✅ `/write`、`/api/v2/write`、Prometheus remote-write | 保持 | InfluxDB / Telegraf | M8 ✅ |
 | **Line Protocol（UDP）** | ❌ | UDP 数据报监听复用 `LineProtocolReader` → BulkIngest | InfluxDB UDP listener / Telegraf | #267 |
 | 现场总线轮询（Modbus / OPC UA client / S7 / 三菱 / FINS / AB / MTConnect）| ❌（**有意不做**）| 归边缘采集网关 IoTEdge——数据库不主动轮询设备 | — | 不做（见「不做的事」） |
@@ -203,7 +203,7 @@ E 三面：#258（Studio 桌面原生桥）∥ #259（VS Code 多模型消费）
 | 阶段 | 主题 | PR 范围 | 目标 |
 |------|------|---------|------|
 | **A** | Sparkplug B（工业 SCADA 事实标准，骑 #242 broker） | #263 ~ #264 | 解码 Protobuf payload + 别名解析落库；birth/death 生命周期 + seq 缺口检测 + rebirth 命令 |
-| **B** | CoAP 设备写入（受约束设备 UDP 直连） | #265 ~ #266 | CoAP 服务端资源路由 → BulkIngest 三格式落库；DTLS PSK 写入已落地，Observe 订阅待增量 |
+| **B** | CoAP 设备写入（受约束设备 UDP 直连） | #265 ~ #266 | CoAP 服务端 route → BulkIngest 三格式落库；DTLS 安全 + Observe 订阅 |
 | **C** | Line Protocol UDP 监听 + 收口 | #267 ~ #268 | 补 HTTP `/write` 之外的 UDP 遥测入口；协议接入文档矩阵 + 落库 parity |
 
 ### A — Sparkplug B（工业 SCADA 事实标准）
@@ -217,12 +217,12 @@ E 三面：#258（Studio 桌面原生桥）∥ #259（VS Code 多模型消费）
 
 ### B — CoAP 设备写入（受约束设备直连）
 
-> CoAP 栈以 **本地 git 子模块自维护**：`extensions/IoTSharp.CoAP.NET` 保留完整 client + server、blockwise、observe 与资源树，升级到 net10 / AOT，替换旧 `CoAP.Log` 为 `Microsoft.Extensions.Logging`，并整理为可独立 `dotnet pack` / 发布 NuGet 的 `IoTSharp.CoAP.NET` 包；SonnetDB 侧只保留配置、鉴权与 `BulkIngestEndpointHandler` 薄适配，**不引 CoAPnet**。资源路径映射对齐 #242 的 MQTT topic：`db/{db}/m/{measurement}`，payload = measurement 内容，`Content-Format` option 选择 Line Protocol / JSON points / BulkValues 三格式。**DTLS（#266）由 CoAP.NET 内部用 `BouncyCastle.Cryptography` 2.6.2 实现 PSK channel**——.NET BCL 无 DTLS，纯托管 DTLS 现实上只有 BouncyCastle（单个纯托管程序集、零 native），默认关闭、需显式启用；RPK/证书与 Observe 仍作后续增量。
+> CoAP 明文栈 **vendor 自维护**：使用纯托管 CoAP.NET server 子集并现代化到 net10（server + option 解析 + blockwise + observe），**不引 CoAPnet**。route 映射对齐 #242 的数据入口命名：`db/{db}/m/{measurement}`，payload = measurement 内容，`Content-Format` option 选择 Line Protocol / JSON points / BulkValues 三格式，落库复用 `BulkIngestEndpointHandler`。**DTLS（#266）用 `BouncyCastle.Cryptography` 2.6.2**——.NET BCL 无 DTLS，纯托管 DTLS 现实上只有 BouncyCastle（单个纯托管程序集、零 native），版本对齐宿主已用的 2.6.2，仅 Server 层 `coaps` 传输层用。
 
 | PR | 标题与范围 | 状态 |
 |----|------------|------|
-| #265 | **CoAP 服务端 + 写入落库**：UDP:5683 CoAP 服务端（RFC 7252），`POST`/`PUT` 到资源 `db/{db}/m/{measurement}` → `BulkIngestEndpointHandler` 三格式落库（格式由 `Content-Format` option 选择，回退首字节嗅探，与 #242 一致）；鉴权复用 Bearer/token（经 CoAP query option 携带，映射三角色权限）；支持确认型（CON）/ 非确认型（NON）消息与块传输（RFC 7959，大 payload 分块）；错误以 CoAP response code 回（4.00/4.01/4.03/4.04 对齐 REST 语义）。同时落地本地 `IoTSharp.CoAP.NET` 子模块的 net10/AOT 升级、客户端保留、标准 logging、NuGet 打包能力与 PSK DTLS channel。 | ✅ |
-| #266 | **CoAP 安全 + Observe 订阅**：DTLS（`coaps`:5684）经 **`BouncyCastle.Cryptography` 2.6.2**（`DtlsServerProtocol` / `DtlsClientProtocol` + CoAP.NET PSK channel，.NET BCL 无 DTLS，纯托管零 native）——**PSK 优先**（受约束设备最常用），RPK / 证书作后续增量；握手后解密 datagram 喂回 #265 CoAP 解析 → 落库路径不变，默认关闭需显式启用（同 #242 / #267 安全姿态）。`Observe`（RFC 7641）资源订阅——设备 GET+Observe 一个 `db/{db}/mq/{topic}` 资源，服务端在新消息到达时推送（桥接 SonnetMQ，复用 #236 推送管线，对齐 #242 的 `mq/` 订阅），用 vendored CoAP 的 observe 关系、与 DTLS 正交不依赖 BouncyCastle。 | 🚧（PSK DTLS 写入已完成；Observe 待做） |
+| #265 | **CoAP 服务端 + 写入落库**：UDP:5683 CoAP 服务端（RFC 7252），`POST`/`PUT` 到 route `db/{db}/m/{measurement}` → `BulkIngestEndpointHandler` 三格式落库（格式由 `Content-Format` option 选择，回退首字节嗅探，与 #242 一致）；对外使用 route / endpoint 命名，CoAP.NET `Resource` 只作为内部 adapter；鉴权复用 Bearer/token（经 CoAP option 携带，映射三角色权限）；支持确认型（CON）/ 非确认型（NON）消息与块传输（RFC 7959，大 payload 分块）；错误以 CoAP response code 回（4.00/4.01/4.03/4.04 对齐 REST 语义）。 | 📋 |
+| #266 | **CoAP 安全 + Observe 订阅**：DTLS（`coaps`:5684）经 **`BouncyCastle.Cryptography` 2.6.2**（`DtlsServerProtocol` + `DtlsServerTransport`，.NET BCL 无 DTLS，纯托管零 native，仅 Server 层）——**PSK 优先**（受约束设备最常用，`TlsPskIdentityManager`），RPK / 证书作后续增量；握手后解密 datagram 喂回 #265 vendored CoAP 解析 → 落库路径不变，默认关闭需显式启用（同 #242 / #267 安全姿态）。`Observe`（RFC 7641）资源订阅——设备 GET+Observe 一个 `db/{db}/mq/{topic}` 资源，服务端在新消息到达时推送（桥接 SonnetMQ，复用 #236 推送管线，对齐 #242 的 `mq/` 订阅），用 vendored CoAP 的 observe 关系、与 DTLS 正交不依赖 BouncyCastle。安全与 Observe 均为 #265 之上的增量。 | 📋 |
 
 ### C — Line Protocol UDP 监听 + 收口
 
@@ -236,7 +236,7 @@ E 三面：#258（Studio 桌面原生桥）∥ #259（VS Code 多模型消费）
 ```text
 前置：M28 #242 内建 MQTT broker ✅（Sparkplug 骑其上）
 A Sparkplug：#263（payload 解码 + 落库）→ #264（生命周期 + seq 缺口 + rebirth 命令）
-B CoAP：#265（服务端 + 写入落库，含 CoAP.NET 子模块升级与 PSK DTLS 写入）→ #266（Observe 订阅 + RPK/证书增量）
+B CoAP：#265（服务端 + 写入落库）→ #266（DTLS 安全 + Observe 订阅）
 C LP-UDP + 收口：#267（Line Protocol UDP 监听）→ #268（协议矩阵文档 + parity）
 ```
 
@@ -255,8 +255,8 @@ C LP-UDP + 收口：#267（Line Protocol UDP 监听）→ #268（协议矩阵文
 - **不**做设备管理导向协议的完整栈——**LwM2M**（设备管理 / 固件下发导向，非数据洪流）只在 CoAP 承载层落数据入口、不实现其对象模型 / DM 语义；**MQTT-SN**（传感网 UDP，一般由网关转 MQTT）不做，交给网关。
 - **不**做 **DDS**（机器人 / 国防实时总线，重且小众）、**AMQP 1.0**（企业消息，本轮未选，如需再评估作 consumer）、**Kafka consumer**（本轮评估后未选，librdkafka native 依赖较重，留后续按现场需求再定）。
 - **不**新增引擎语义——所有协议落库复用既有 `BulkIngestEndpointHandler` 三格式与 data-plane，与 #242/#243 边界一致。
-- **不**在 `SonnetDB.Core` 引入第三方依赖——Sparkplug 手写解码 / 本地子模块 CoAP / DTLS 的 BouncyCastle 均限 Server 或 CoAP.NET 边界；**不引 `Google.Protobuf`**（Sparkplug 手写 wire-format 解码，复用 `PrometheusRemoteWriteReader` 范式，零新依赖）、**不引 CoAPnet**（`IoTSharp.CoAP.NET` 完整 client + server 自维护并可独立发包）；唯一新第三方 = CoAP.NET DTLS 的 `BouncyCastle.Cryptography` 2.6.2（纯托管零 native，BCL 无 DTLS 的唯一现实选项）。
-- **不**选 **CoAPnet（chkr1011）作 CoAP 基底**（已评估）——CoAPnet 与 IoTSharp.CoAP.NET 两个 fork **均多年不维护**，但既已决定 **本地子模块自维护**（并整理为可独立发布 NuGet 的包），「谁在维护」不再是评判项，只比「哪份源码作基底更省事」：选 **`IoTSharp.CoAP.NET`**（SmeshLink→Eclipse Californium 血统）而非 CoAPnet，因为 **(1) 它已是本 org 的 fork**（license 署名含 maikebing，谱系 / 授权 / 控制权零障碍）；**(2) server / blockwise / observe / 资源树更全，且 client 已保留**；**(3) SonnetDB 只引用本地源码，不依赖旧 NuGet 发布节奏**。chkr1011「与 MQTTnet 同作者、同 policy」的优点仅在**引依赖**语境成立，vendor 后失效。
+- **不**在 `SonnetDB.Core` 引入第三方依赖——Sparkplug 手写解码 / vendored CoAP / DTLS 的 BouncyCastle 均限 Server 层；**不引 `Google.Protobuf`**（Sparkplug 手写 wire-format 解码，复用 `PrometheusRemoteWriteReader` 范式，零新依赖）、**不引 CoAPnet**（vendor `IoTSharp.CoAP.NET` server 子集自维护）；唯一新第三方 = #266 DTLS 的 `BouncyCastle.Cryptography` 2.6.2（纯托管零 native，BCL 无 DTLS 的唯一现实选项）。
+- **不**选 **CoAPnet（chkr1011）作 CoAP 基底**（已评估）——CoAPnet 与 IoTSharp.CoAP.NET 两个 fork **均多年不维护**，但既已决定 **vendor 自维护**（而非引 NuGet 依赖），「谁在维护」不再是评判项，只比「哪份源码作 vendor 基底更省事」：选 **`IoTSharp.CoAP.NET`**（SmeshLink→Eclipse Californium 血统）而非 CoAPnet，因为 **(1) 它已是本 org 的 fork**（license 署名含 maikebing，谱系 / 授权 / 控制权零障碍）；**(2) server 子集更全**（observe / blockwise / 资源树是 Californium 血统强项，CoAPnet 偏 client）；**(3) 本地 NuGet 缓存可一手核实**（CoAPnet 从未引入，纯纸面）。chkr1011「与 MQTTnet 同作者、同 policy」的优点仅在**引依赖**语境成立，vendor 后失效。
 - **不**引 **`protobuf-net`（Marc Gravell）解 Sparkplug**（已评估）——它确是**纯 C# protobuf**（Apache-2.0，依赖全托管、零 native，靠 `[ProtoContract]` 运行时特性映射、连 codegen 都不需要，比 `Google.Protobuf` 的 `Grpc.Tools`+native `protoc` 干净），是"纯 C# protobuf"问题的合法答案；但仍不选，因 **(1) 它靠 `System.Reflection.Emit` 运行时 IL 生成 → AOT / trim 不友好**（与本仓 NativeAOT 目标冲突，见 MQTTnet.Routing vendor 注释）；**(2) Sparkplug `Payload` 仅 ~10 字段，手写解码约 200 行、与已有 `PrometheusRemoteWriteReader` 同量级**，引库解一个小 message 不划算且 AOT 零摩擦。若未来某协议 message 复杂到手写不划算，protobuf-net 是纯托管回退项（代价 = AOT 友好性）。
 - **不**做 broker 集群 / 桥接 / 跨节点 session——单机形态，与 P5「不做分布式」边界一致。
 - **不**新造已存在的能力——**InfluxDB Line Protocol over HTTP（`/write`、`/api/v2/write`、Prometheus remote-write）已由 M8 交付**，本里程碑只补 UDP 入口，不重复 HTTP 形态。
