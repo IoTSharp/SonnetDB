@@ -1,6 +1,14 @@
-# SonnetDB
+<p align="center">
+  <img src="web/public/favicon.svg" alt="SonnetDB Logo" width="120" height="120" />
+</p>
 
-[中文](README.md) | [English](README.en.md)
+<h1 align="center">SonnetDB</h1>
+
+<p align="center">A multi-model, local-first data engine · Eight data models, one engine, one SQL</p>
+
+<p align="center">
+  <a href="README.md">中文</a> | <a href="README.en.md">English</a>
+</p>
 
 [![CI](https://github.com/IoTSharp/SonnetDB/actions/workflows/ci.yml/badge.svg)](https://github.com/IoTSharp/SonnetDB/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/IoTSharp/SonnetDB/actions/workflows/codeql.yml/badge.svg)](https://github.com/IoTSharp/SonnetDB/actions/workflows/codeql.yml)
@@ -9,37 +17,36 @@
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/)
 [![GitHub Release](https://img.shields.io/github/v/release/IoTSharp/SonnetDB?label=Release)](https://github.com/IoTSharp/SonnetDB/releases)
 
-## What Is SonnetDB
+## 🧩 What Is SonnetDB
 
-**SonnetDB is a local-first, multi-model embedded data engine written in C# / .NET.**
+**SonnetDB is a multi-model, local-first data engine.**
 
-A SonnetDB database is a directory on disk. You can embed it in your application and use it directly, or deploy it as a database server. It provides time-series, relational tables, KV, JSON documents, full-text search, vector search, object storage, and a message queue inside one engine, all reachable through SQL, REST / binary-frame APIs, and a Web Admin.
+It unifies time-series, relational tables, key-value, JSON documents, full-text search, vector search, object storage, and a message queue — eight kinds of data capability that usually take eight separate systems — into one engine behind one SQL and API surface. One SonnetDB is a complete data foundation.
 
-The design goal is to **reduce the number of components you deploy at the edge**: instead of running a separate time-series store, cache, message broker, and object store on a device gateway or industrial PC, one process covers these common needs. It fits workloads like:
+The core value is not "many features" but **unification**: every model shares the same query language, the same permission model, and the same persistence and backup/restore machinery. What used to require assembling, operating, and syncing a whole heterogeneous stack — a time-series store, a cache, a search engine, an object store, a message broker — is now handled by one process, one SQL surface, one admin console. This is not several systems bundled together; it is one engine wired through at the storage layer.
 
-- device gateways, data collectors, offline loggers, and data-acquisition industrial PCs.
-- local data foundations for lightweight MES / SCADA / maintenance systems.
-- private, weakly connected, or edge-side .NET software.
-- industrial data analysis and diagnostics called by Copilot / MCP / agents.
+Deployment stays light too: embed it as a library in-process, or deploy it as a standalone server — both forms share exactly the same SQL and API semantics.
 
-## Capabilities
+## 🗂️ Eight Data Models, One Shared Semantics
 
-One local engine, one SQL / API surface, and one Web Admin provide:
-
-| Capability | What it is for |
+| Data model | What one engine provides directly |
 | --- | --- |
-| Time-series database | Device metrics, industrial telemetry, log metrics, time-window aggregation, compression, retention |
-| Relational database | Business tables, dimensions, configuration, primary keys, indexes, joins, transactions, foreign keys, EF Core |
-| KV / cache | Device state, sessions, configuration, TTL, prefix scan, cache provider |
-| JSON documents | Document collections, JSON path queries, document indexes, document vector index |
-| Full-text + vector search | BM25 full-text, vector KNN (HNSW approximate index + exact fallback), Hybrid Search |
-| Object storage | S3-compatible buckets, multipart upload, range reads, presigned URLs |
-| Message queue | SonnetMQ topics, consumer groups, pull / ack / push, restart replay |
-| AI Copilot | SQL generation, explanation, repair, troubleshooting, citations, write approval |
+| **Time-series** | Device metrics, industrial telemetry, time-window aggregation, compression, retention |
+| **Relational tables** | Business tables, primary keys, indexes, joins, transactions, foreign keys, EF Core |
+| **KV / cache** | Device state, sessions, configuration, TTL, prefix scan, atomic operations |
+| **JSON documents** | Document collections, JSON path queries, document indexes, document vector index |
+| **Full-text search** | BM25 ranking, multi-language tokenization, fuzzy search |
+| **Vector search** | HNSW approximate index + exact fallback, Hybrid Search |
+| **Object storage** | S3-compatible buckets, multipart upload, range reads, presigned URLs |
+| **Message queue** | SonnetMQ topics, consumer groups, push / ack, restart replay |
 
 The relational SQL surface is a practical subset covering common queries, aggregation, joins, transactions, and multi-model extensions — it is not a full SQL-standard implementation. Treat the topic docs as the source of truth for each capability's maturity.
 
-## How To Use It
+## ⚡ Universal Binary Frame Protocol
+
+3.0 lands a **universal binary frame protocol** over HTTP/2 covering all seven data-plane services (message queue, time-series, SQL, vector, KV, object, document). All eight models share one high-throughput channel: time-series bulk writes travel as compact columnar binary, large SQL result sets stream back in columnar chunks with no full materialization so memory stays near-constant, and vector-search query vectors are carried as native f32 binary. REST endpoints are fully preserved for compatibility, and clients can switch freely between `auto` / `frame-http2` / `rest` via the connection-string `Protocol` option.
+
+## 🔌 How To Use It
 
 | Usage mode | Entry point |
 | --- | --- |
@@ -52,21 +59,9 @@ The relational SQL surface is a practical subset covering common queries, aggreg
 | Multi-language | C, Go, Rust, Java, Python, VB6, and PureBasic connectors |
 | AI / Agent | Web CopilotDock and MCP tool entry points |
 
-## Positioning & Boundaries
+## 🚀 Quick Start
 
-To avoid overselling, here is what SonnetDB is **not**, and where its current limits are:
-
-- **Single-node engine**: it runs on a single node today. There is **no** built-in replication, high availability, automatic failover, or sharded clustering. Cross-node redundancy must be handled at the application or ops layer (e.g. cold backup, external orchestration).
-- **Edge and small-to-medium scale**: it targets device gateways, industrial PCs, edge nodes, and small-to-medium services — not large cloud-scale OLAP / warehouse clusters.
-- **Multi-model is a combination, not "best at everything"**: putting several data models in one process is about reducing component count, not a claim to beat every specialized database on its own turf. For extreme time-series, vector, or relational performance, still evaluate the dedicated products.
-- **SQL is a subset**: the dialect covers common queries, aggregation, joins, transactions, and multi-model extensions, but does not guarantee full SQL-standard compatibility.
-- **Benchmarks are same-machine and rough**: the numbers in this README and the docs come from same-machine comparisons on a single dev box, used for relative reference and regression — they **do not** predict performance on your production hardware.
-
-Within these boundaries, the goal is to make "one component for the common data needs at the edge" reliable, fast enough, and good enough.
-
-## Quick Start
-
-### Embedded
+### 🧩 Embedded
 
 ```csharp
 using SonnetDB.Engine;
@@ -99,7 +94,7 @@ foreach (var row in result.Rows)
 }
 ```
 
-### Server
+### 🐳 Server
 
 The repo's Docker release workflow builds and pushes prebuilt images `iotsharp/sonnetdb` and `ghcr.io/<owner>/sonnetdb`, which you can pull directly:
 
@@ -121,7 +116,7 @@ Then open:
 
 If `/data/.system` is empty, `/admin/` guides you through the first-run setup for server ID, organization, admin username / password, and an initial static Bearer token.
 
-### ADO.NET
+### 🔗 ADO.NET
 
 ```csharp
 using SonnetDB.Data;
@@ -144,7 +139,7 @@ using var connection = new SndbConnection(
 connection.Open();
 ```
 
-### CLI
+### 💻 CLI
 
 ```bash
 # Install
@@ -163,7 +158,7 @@ sndb remote --url http://127.0.0.1:5080 --database metrics --token your-token --
 
 More CLI, ADO.NET, document-client, embedded, remote, and bulk-ingest examples are in [docs](docs/index.md).
 
-## Ecosystem Downloads
+## 📦 Ecosystem Downloads
 
 ### NuGet
 
@@ -187,7 +182,7 @@ More CLI, ADO.NET, document-client, embedded, remote, and bulk-ingest examples a
 [![Python Connector](https://img.shields.io/badge/Python-Connector-3776AB)](connectors/python/README.md)
 [![Connector Releases](https://img.shields.io/badge/Downloads-GitHub%20Releases-black)](https://github.com/IoTSharp/SonnetDB/releases)
 
-## What Is Included
+## 🧱 What Is Included
 
 | Component | Purpose |
 | --- | --- |
@@ -202,7 +197,7 @@ More CLI, ADO.NET, document-client, embedded, remote, and bulk-ingest examples a
 | `src/SonnetDB.Studio` | NativeWebHost-based SonnetDB Studio desktop shell |
 | `docs` | JekyllNet documentation site source, bundled into the Docker image |
 
-## Deep-Dive Docs
+## 📚 Deep-Dive Docs
 
 README keeps the product overview and shortest setup path. Detailed material lives in topic docs:
 
@@ -212,7 +207,6 @@ README keeps the product overview and shortest setup path. Detailed material liv
 | Time-series modeling and measurement / tag / field / time | [Data Model](docs/data-model.md) |
 | SQL grammar, functions, control-plane SQL | [SQL Reference](docs/sql-reference.md), [SQL Cookbook](docs/sql-cookbook.md) |
 | Web Admin, SQL Workbench, Copilot | [SonnetDB Workbench](docs/web-workbench.md) |
-| Industrial AI applications and agent workflows | [Building Industrial AI Applications with SonnetDB](docs/industrial-ai-applications.md) |
 | Embedded API, ADO.NET, EF Core, CLI | [Embedded API](docs/embedded-api.md), [ADO.NET](docs/ado-net.md), [CLI](docs/cli-reference.md) |
 | Bulk ingest, Line Protocol, JSON ingest | [Bulk Ingest](docs/bulk-ingest.md) |
 | KV, documents, full-text, vector, Hybrid Search | [KV Keyspace](docs/kv-keyspace.md), [Vector Search](docs/vector-search.md) |
@@ -222,34 +216,48 @@ README keeps the product overview and shortest setup path. Detailed material liv
 | Release artifacts, Docker, installers | [Release Docs](docs/releases/README.md) |
 | Performance and reliability | [Benchmark README](tests/SonnetDB.Benchmarks/README.md), [Recent Performance & Reliability Updates](docs/performance-reliability-updates.md) |
 
-## Benchmarks And Reliability
+## 📊 Benchmarks And Reliability
 
-Use [tests/SonnetDB.Benchmarks/README.md](tests/SonnetDB.Benchmarks/README.md) as the source of truth for benchmarks — it has the full environment, commands, and reproduction steps. **All comparisons run between same-machine Docker containers on a single dev box; they are for relative reference and regression only and do not predict production performance.** The README keeps only the high-level pointers:
+Use [tests/SonnetDB.Benchmarks/README.md](tests/SonnetDB.Benchmarks/README.md) as the source of truth for benchmarks — it has the full environment, commands, and reproduction steps. **All comparisons run between same-machine Docker containers on a single dev box; they are for relative reference and regression only and do not predict production performance.**
 
-- In the same-machine Server-vs-Server write comparison, SonnetDB Server's average throughput is about **1.98x** that of Apache IoTDB Server on the same machine.
-- Embedded write, range query, time-window aggregation, vector recall, and geospatial queries have dedicated benchmarks; the vector side currently focuses on SonnetDB's own brute-force vs HNSW comparison.
+- Embedded write, range query, time-window aggregation, vector recall, and geospatial queries have dedicated benchmarks.
 - WAL durability has three levels (in-process buffer / OS page cache / per-batch fsync); flushed segment data survives any crash, and Delete is unconditionally WAL-synced. See [Architecture](docs/architecture.md) and [Recent Performance & Reliability Updates](docs/performance-reliability-updates.md).
 
-## Parity vs Open-Source Stack
+## 🤝 Parity vs Open-Source Stack
 
 SonnetDB continuously checks its multi-model behavior against open-source peers: PostgreSQL, InfluxDB, VictoriaMetrics, Redis, Qdrant, MinIO, NATS JetStream, Meilisearch, and ClickHouse. `.github/workflows/parity.yml` runs the `light` / `full` matrix daily; capability, reliability, and algorithmic accuracy are merge gates, while performance numbers are warning/report only. A readable example is at [tests/SonnetDB.Parity/reports/sample-run.md](tests/SonnetDB.Parity/reports/sample-run.md), with the plan in [docs/parity-roadmap.md](docs/parity-roadmap.md).
 
-## Design Principles
+## 🎯 Positioning & Boundaries
+
+To avoid overselling, here is what SonnetDB is **not**, and where its current limits are:
+
+- **Single-node engine**: it runs on a single node today. There is **no** built-in replication, high availability, automatic failover, or sharded clustering. Cross-node redundancy must be handled at the application or ops layer.
+- **Multi-model is a combination, not "best at everything"**: putting several data models in one process is about reducing component count, not a claim to beat every specialized database on its own turf. For extreme time-series, vector, or relational performance, still evaluate the dedicated products.
+- **SQL is a subset**: the dialect covers common queries, aggregation, joins, transactions, and multi-model extensions, but does not guarantee full SQL-standard compatibility.
+- **Benchmarks are same-machine and rough**: the numbers in this README and the docs come from same-machine comparisons on a single dev box, used for relative reference and regression — they **do not** predict performance on your production hardware.
+
+Within these boundaries, the goal is to make "one component for the common data needs" reliable, fast enough, and good enough.
+
+## 🧭 Design Principles
 
 - Safe-only core: no `unsafe`, and no third-party runtime dependencies.
-- A database is persisted as a directory, not positioned as a single-file database.
-- The product is a local-first multi-model data engine for .NET edge / industrial software; multi-model storage is the capability set, not a "best at everything" claim.
+- A database directory holds the persisted data.
 - Embedded and server modes share SQL / API semantics.
 - Management capabilities are built into Server, Web Admin, CLI, and Copilot.
 - AI capabilities serve data query, diagnostics, and operations through Copilot, MCP, and provider abstractions without binding SonnetDB to one model vendor.
 
-## Related Files
+## 💬 Community
 
-- [ROADMAP.md](ROADMAP.md)
-- [CHANGELOG.md](CHANGELOG.md)
-- [AGENTS.md](AGENTS.md)
-- [llms.txt](llms.txt)
+Scan the QR code to join the SonnetDB WeCom (Enterprise WeChat) group for release updates, questions, and feedback:
 
-## License
+<img src="docs/assets/qr-group.png" alt="SonnetDB WeCom group QR code" width="240" />
+
+- File an issue / PR: [GitHub Issues](https://github.com/IoTSharp/SonnetDB/issues)
+- Roadmap: [ROADMAP.md](ROADMAP.md)
+- Changelog: [CHANGELOG.md](CHANGELOG.md)
+- AI collaboration guide: [AGENTS.md](AGENTS.md)
+- AI / Agent index: [llms.txt](llms.txt)
+
+## 📄 License
 
 [MIT](LICENSE)

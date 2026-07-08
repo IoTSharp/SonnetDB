@@ -5,19 +5,16 @@
       <stop offset="0.54" stop-color="#061a48"/>
       <stop offset="1" stop-color="#001735"/>
     </linearGradient>
-    <linearGradient id="cyan" x1="14" y1="22" x2="82" y2="78" gradientUnits="userSpaceOnUse">
+    <linearGradient id="cyan" x1="20" y1="26" x2="76" y2="72" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#2ff6d5"/>
       <stop offset="1" stop-color="#0968ff"/>
     </linearGradient>
   </defs>
   <rect width="96" height="96" rx="17" fill="url(#bg)"/>
-  <path d="M31 32c1.1-7.6 7.2-12.9 15-12.9 8.4 0 15.2 6.2 16 14.2h1.8c6.5 0 11.4 4.7 11.4 10.8 0 4.1-2.2 7.6-5.8 9.4" fill="none" stroke="url(#cyan)" stroke-width="5.2" stroke-linecap="round"/>
-  <path d="M29.4 53.8c-4.9-1.5-8.2-5.4-8.2-10 0-5.8 4.8-10.4 10.8-10.4h1.4" fill="none" stroke="url(#cyan)" stroke-width="5.2" stroke-linecap="round"/>
-  <ellipse cx="48" cy="45.2" rx="17.8" ry="5.4" fill="#ffffff"/>
-  <path d="M30.2 45.2v18.2c0 4 8 7.2 17.8 7.2s17.8-3.2 17.8-7.2V45.2" fill="#ffffff"/>
-  <path d="M30.2 58c4 3.3 11.2 4.9 17.8 4.9 6.8 0 14.1-1.8 17.8-5.2" fill="none" stroke="#061a48" stroke-width="3.4"/>
-  <path d="M30.4 59.6c5.2 3 10.1 4 16.4 4l2.8-11.3 5 20.4 3-12.9c3.4-.5 6.6-1.4 8.4-2.9v8.2c0 4.1-8.2 7.4-18 7.4s-17.6-3.3-17.6-7.4z" fill="url(#cyan)"/>
-  <path d="M37 62h8l3-11.9 5.4 22.6 3.7-13.6H63" fill="none" stroke="#061a48" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M20 73a37 37 0 0 1-7-11M18 26a36 36 0 0 1 12-11M76 24a37 37 0 0 1 9 13M83 62a36 36 0 0 1-8 14" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" opacity="0.9"/>
-  <path d="M48 73.5c-5.2 0-9.2 3.9-9.2 8.7 0 5 9.2 12.6 9.2 12.6s9.2-7.6 9.2-12.6c0-4.8-4-8.7-9.2-8.7zm0 5a3.2 3.2 0 1 1 0 6.4 3.2 3.2 0 0 1 0-6.4z" fill="#2ff6d5"/>
+  <ellipse cx="48" cy="30" rx="24" ry="7.4" fill="#ffffff"/>
+  <path d="M24 30v34c0 5.2 10.7 9.4 24 9.4s24-4.2 24-9.4V30" fill="#ffffff"/>
+  <ellipse cx="48" cy="30" rx="24" ry="7.4" fill="none" stroke="#c7d6f5" stroke-width="1.2" opacity="0.7"/>
+  <path d="M24 47.2c5.6 4.2 15 6.3 24 6.3s18.4-2.1 24-6.3v11.2c-5.6 4.2-15 6.3-24 6.3s-18.4-2.1-24-6.3z" fill="url(#cyan)"/>
+  <path d="M24 47.2c5.6 4.2 15 6.3 24 6.3s18.4-2.1 24-6.3" fill="none" stroke="#061a48" stroke-width="2" opacity="0.55"/>
+  <path d="M30 53h9l3.6-9.5 6.4 18 4.4-11H66" fill="none" stroke="#061a48" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
