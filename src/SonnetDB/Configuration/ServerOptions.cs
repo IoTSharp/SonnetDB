@@ -71,6 +71,11 @@ public sealed class ServerOptions
     public MqttBrokerOptions Mqtt { get; set; } = new();
 
     /// <summary>
+    /// CoAP 接入配置（M30 #265/#266）。绑定路径：<c>"SonnetDBServer:Coap"</c>。
+    /// </summary>
+    public CoapServerOptions Coap { get; set; } = new();
+
+    /// <summary>
     /// Copilot 子系统配置。
     /// </summary>
     public CopilotOptions Copilot { get; set; } = new();
@@ -204,6 +209,58 @@ public sealed class MqttExternalSubscriptionOptions
     /// 订阅 QoS。当前支持 <c>0</c> / <c>1</c>，默认 <c>1</c>。
     /// </summary>
     public int Qos { get; set; } = 1;
+}
+
+/// <summary>
+/// CoAP 设备写入配置。CoAP 协议栈仅位于 Server 层，Core 不感知 CoAP。
+/// </summary>
+public sealed class CoapServerOptions
+{
+    /// <summary>
+    /// 是否启用明文 CoAP UDP 服务端。默认关闭，需显式开启。
+    /// </summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>
+    /// 明文 CoAP UDP 监听端口。默认 <c>5683</c>。
+    /// </summary>
+    public int Port { get; set; } = 5683;
+
+    /// <summary>
+    /// 单个 CoAP payload 最大字节数。默认 1MiB，块传输重组后仍受此限制。
+    /// </summary>
+    public int MaxPayloadBytes { get; set; } = 1024 * 1024;
+
+    /// <summary>
+    /// DTLS/coaps 配置。默认关闭，启用后监听 <see cref="CoapDtlsOptions.Port"/>。
+    /// </summary>
+    public CoapDtlsOptions Dtls { get; set; } = new();
+}
+
+/// <summary>
+/// CoAP DTLS PSK 传输配置。
+/// </summary>
+public sealed class CoapDtlsOptions
+{
+    /// <summary>
+    /// 是否启用 <c>coaps</c> DTLS 监听。默认关闭。
+    /// </summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>
+    /// DTLS/coaps UDP 监听端口。默认 <c>5684</c>。
+    /// </summary>
+    public int Port { get; set; } = 5684;
+
+    /// <summary>
+    /// PSK identity 到明文 key 的映射。当前实现只支持 PSK，RPK/证书留作增量。
+    /// </summary>
+    public Dictionary<string, string> PskKeys { get; set; } = new();
+
+    /// <summary>
+    /// DTLS 会话空闲超时秒数。超时后清理远端会话状态。
+    /// </summary>
+    public int SessionIdleSeconds { get; set; } = 300;
 }
 
 /// <summary>

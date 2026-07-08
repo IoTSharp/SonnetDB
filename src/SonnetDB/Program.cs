@@ -17,6 +17,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using SonnetDB.Auth;
+using SonnetDB.Coap;
 using SonnetDB.Configuration;
 using SonnetDB.Contracts;
 using SonnetDB.Copilot;
@@ -286,6 +287,7 @@ public static class Program
         builder.Services.AddSingleton<IHostedService>(sp => new RegistryShutdownHook(sp.GetRequiredService<TsdbRegistry>()));
 
         ConfigureMqttServices(builder);
+        ConfigureCoapServices(builder);
     }
 
     private static string GetSystemDirectory(IServiceProvider services)
@@ -421,6 +423,17 @@ public static class Program
 
         if (externalClientEnabled)
             builder.Services.AddHostedService<SonnetMqttExternalClientService>();
+    }
+
+    private static void ConfigureCoapServices(WebApplicationBuilder builder)
+    {
+        bool coapEnabled = builder.Configuration.GetValue<bool>("SonnetDBServer:Coap:Enabled");
+        bool dtlsEnabled = builder.Configuration.GetValue<bool>("SonnetDBServer:Coap:Dtls:Enabled");
+        if (!coapEnabled && !dtlsEnabled)
+            return;
+
+        builder.Services.AddSingleton<SonnetCoapMessageDeliverer>();
+        builder.Services.AddHostedService<SonnetCoapService>();
     }
 
     private static void ConfigureMqttMiddleware(WebApplication app, ServerOptions serverOptions)

@@ -2,3 +2,6 @@
 	path = extensions/MQTTnet.AspNetCore.Routing
 	url = https://github.com/IoTSharp/MQTTnet.AspNetCore.Routing.git
 	branch = master
+[submodule "extensions/IoTSharp.CoAP.NET"]
+	path = extensions/IoTSharp.CoAP.NET
+	url = https://github.com/IoTSharp/IoTSharp.CoAP.NET.git

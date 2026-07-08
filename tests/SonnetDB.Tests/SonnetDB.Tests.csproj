@@ -31,6 +31,7 @@
     <ProjectReference Include="..\..\src\SonnetDB.Core\SonnetDB.Core.csproj" />
     <ProjectReference Include="..\..\src\SonnetDB\SonnetDB.csproj" />
     <ProjectReference Include="..\..\src\SonnetDB.Data\SonnetDB.Data.csproj" />
+    <ProjectReference Include="..\..\extensions\IoTSharp.CoAP.NET\CoAP.NET\CoAP.NET.csproj" />
     <ProjectReference Include="..\..\extensions\SonnetDB.Caching.Distributed\SonnetDB.Caching.Distributed.csproj" />
     <ProjectReference Include="..\..\extensions\SonnetDB.Caching.EasyCaching\SonnetDB.Caching.EasyCaching.csproj" />
   </ItemGroup>
