@@ -420,7 +420,8 @@ public static class Program
             // AOT 安全：用泛型控制器重载（编译期已知类型）替代程序集扫描重载，
             // 后者标注了 [RequiresUnreferencedCode]，在 TreatWarningsAsErrors 下会以 IL2026 失败。
             // SonnetMqttController 是仓库内唯一的 [MqttController]，故行为等价。
-            builder.Services.AddMqttControllers<SonnetMqttController>();
+            builder.Services.AddMqttControllers<SonnetMqttController>(options =>
+                options.WithCaseSensitiveTopicMatching());
 
             builder.Services
                 .AddHostedMqttServerWithServices(options => options.WithoutDefaultEndpoint())

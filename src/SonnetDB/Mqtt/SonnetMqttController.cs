@@ -1,5 +1,6 @@
 using System.Buffers;
 using MQTTnet.AspNetCore.Routing;
+using MQTTnet.AspNetCore.Routing.Attributes;
 using MQTTnet.Packets;
 using MQTTnet.Protocol;
 using SonnetDB.Auth;
@@ -42,12 +43,14 @@ public sealed class SonnetMqttController : MqttBaseController
     /// <param name="db">数据库名称。</param>
     /// <param name="measurement">measurement 名称。</param>
     [MqttRoute("m/{measurement}")]
-    public Task PublishMeasurementAsync(string db, string measurement)
+    public MqttResult PublishMeasurement(
+        [FromMqttRoute] string db,
+        [FromMqttRoute] string measurement)
     {
-        if (!ValidatePublishEnvelope())
-            return Task.CompletedTask;
-        if (!TryAuthorize(db, DatabasePermission.Write))
-            return Task.CompletedTask;
+        if (ValidatePublishEnvelope() is { } envelopeError)
+            return envelopeError;
+        if (TryAuthorize(db, DatabasePermission.Write) is { } authError)
+            return authError;
 
         var route = new MqttTopicRoute(MqttTopicKind.Measurement, db, measurement);
         if (!_measurementIngestor.TryIngestMeasurement(
@@ -59,11 +62,10 @@ public sealed class SonnetMqttController : MqttBaseController
                 out var reasonCode,
                 out string reason))
         {
-            return RejectAsync(reasonCode, reason);
+            return Reject(reasonCode, reason);
         }
 
-        MqttContext.Response.ReasonCode = MqttPubAckReasonCode.Success;
-        return Ok();
+        return Acknowledge();
     }
 
     /// <summary>
@@ -72,20 +74,21 @@ public sealed class SonnetMqttController : MqttBaseController
     /// <param name="db">数据库名称。</param>
     /// <param name="topic">SonnetMQ topic 名称。</param>
     [MqttRoute("mq/{topic}")]
-    public Task PublishMqAsync(string db, string topic)
+    public MqttResult PublishMq(
+        [FromMqttRoute] string db,
+        [FromMqttRoute] string topic)
     {
-        if (!ValidatePublishEnvelope())
-            return Task.CompletedTask;
+        if (ValidatePublishEnvelope() is { } envelopeError)
+            return envelopeError;
         if (IsInternalBridgePublish())
         {
-            MqttContext.Response.ReasonCode = MqttPubAckReasonCode.Success;
-            return Ok();
+            return Acknowledge();
         }
 
-        if (!TryAuthorize(db, DatabasePermission.Write))
-            return Task.CompletedTask;
+        if (TryAuthorize(db, DatabasePermission.Write) is { } authError)
+            return authError;
         if (!MqttTopicParser.TryParse(Message.Topic, out var route, out string error) || route.Kind != MqttTopicKind.Mq)
-            return RejectAsync(MqttPubAckReasonCode.TopicNameInvalid, error);
+            return Reject(MqttPubAckReasonCode.TopicNameInvalid, error);
 
         try
         {
@@ -98,74 +101,71 @@ public sealed class SonnetMqttController : MqttBaseController
 
             // PUBLISH 已写入 SonnetMQ；后续由 WaitForMessagesAsync pump 注入到 broker，避免本次
             // 原生 fan-out 与持久队列推送重复。
-            MqttContext.ProcessPublish = false;
-            MqttContext.Response.ReasonCode = MqttPubAckReasonCode.Success;
-            return Task.CompletedTask;
+            return Suppress();
         }
         catch (ArgumentException ex)
         {
-            return RejectAsync(MqttPubAckReasonCode.TopicNameInvalid, ex.Message);
+            return Reject(MqttPubAckReasonCode.TopicNameInvalid, ex.Message);
         }
         catch (IOException ex)
         {
-            return RejectAsync(MqttPubAckReasonCode.ImplementationSpecificError, ex.Message);
+            return Reject(MqttPubAckReasonCode.ImplementationSpecificError, ex.Message);
         }
         catch (InvalidDataException ex)
         {
-            return RejectAsync(MqttPubAckReasonCode.ImplementationSpecificError, ex.Message);
+            return Reject(MqttPubAckReasonCode.ImplementationSpecificError, ex.Message);
         }
     }
 
-    private bool ValidatePublishEnvelope()
+    /// <summary>
+    /// 捕获未匹配的 MQTT topic，并以明确的 MQTT v5 reason code 拒绝。
+    /// </summary>
+    /// <param name="path">未匹配 topic 的完整路径。</param>
+    [MqttRoute("/{*path}")]
+    public MqttResult RejectUnmatched([FromMqttRoute] string path)
+        => Reject(
+            MqttPubAckReasonCode.TopicNameInvalid,
+            "topic 需匹配 db/{db}/m/{measurement} 或 db/{db}/mq/{topic}。");
+
+    private MqttResult? ValidatePublishEnvelope()
     {
         if (Message.QualityOfServiceLevel != MqttQualityOfServiceLevel.ExactlyOnce)
-            return true;
+            return null;
 
-        _ = RejectAsync(MqttPubAckReasonCode.ImplementationSpecificError, "SonnetDB MQTT broker 当前仅支持 QoS 0/1。");
-        return false;
+        return Reject(MqttPubAckReasonCode.ImplementationSpecificError, "SonnetDB MQTT broker 当前仅支持 QoS 0/1。");
     }
 
-    private bool TryAuthorize(string db, DatabasePermission required)
+    private MqttResult? TryAuthorize(string db, DatabasePermission required)
     {
         if (!TsdbRegistry.IsValidName(db))
         {
-            _ = RejectAsync(MqttPubAckReasonCode.TopicNameInvalid, $"非法数据库名 '{db}'。");
-            return false;
+            return Reject(MqttPubAckReasonCode.TopicNameInvalid, $"非法数据库名 '{db}'。");
         }
 
         if (!MqttContext.SessionItems.Contains(SonnetMqttBrokerBridge.PrincipalSessionKey)
             || MqttContext.SessionItems[SonnetMqttBrokerBridge.PrincipalSessionKey] is not MqttClientPrincipal principal)
         {
-            _ = RejectAsync(MqttPubAckReasonCode.NotAuthorized, "MQTT 会话未通过 SonnetDB 鉴权。");
-            return false;
+            return Reject(MqttPubAckReasonCode.NotAuthorized, "MQTT 会话未通过 SonnetDB 鉴权。");
         }
 
         if (!_registry.TryGet(db, out _))
         {
-            _ = RejectAsync(MqttPubAckReasonCode.TopicNameInvalid, $"数据库 '{db}' 不存在。");
-            return false;
+            return Reject(MqttPubAckReasonCode.TopicNameInvalid, $"数据库 '{db}' 不存在。");
         }
 
         if (!principal.HasPermission(_grants, db, required))
         {
-            _ = RejectAsync(MqttPubAckReasonCode.NotAuthorized,
+            return Reject(
+                MqttPubAckReasonCode.NotAuthorized,
                 $"当前 MQTT 凭据对数据库 '{db}' 没有 {required.ToString().ToLowerInvariant()} 权限。");
-            return false;
         }
 
-        return true;
+        return null;
     }
 
     private bool IsInternalBridgePublish()
         => MqttContext.SessionItems.Contains(SonnetMqttBrokerBridge.InternalPublishSessionKey)
             && MqttContext.SessionItems[SonnetMqttBrokerBridge.InternalPublishSessionKey] is true;
-
-    private Task RejectAsync(MqttPubAckReasonCode reasonCode, string reason)
-    {
-        MqttContext.Response.ReasonCode = reasonCode;
-        MqttContext.Response.ReasonString = reason;
-        return BadMessage();
-    }
 
     private IReadOnlyDictionary<string, string>? ExtractMqHeaders()
     {

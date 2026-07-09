@@ -133,6 +133,35 @@ public sealed class MqttBrokerEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task MqttPublishMeasurement_WithWrongCaseManagedTopic_ReturnsTopicNameInvalid()
+    {
+        const string db = "mqttcase";
+        await CreateDatabaseAsync(db);
+        await ExecuteSqlAsync(db, "CREATE MEASUREMENT cpu (host TAG, value FIELD FLOAT)");
+
+        var client = await ConnectMqttAsync(ReadWriteToken, "mqtt-case-writer");
+        try
+        {
+            var message = new MqttApplicationMessageBuilder()
+                .WithTopic($"DB/{db}/M/cpu")
+                .WithPayload("cpu,host=case value=1 1")
+                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+                .Build();
+
+            var result = await client.PublishAsync(message, CancellationToken.None);
+            Assert.False(result.IsSuccess);
+            Assert.Equal(MqttClientPublishReasonCode.TopicNameInvalid, result.ReasonCode);
+        }
+        finally
+        {
+            await DisconnectMqttAsync(client);
+        }
+
+        int rows = await CountSelectRowsAsync(db, "SELECT value FROM cpu WHERE host='case'");
+        Assert.Equal(0, rows);
+    }
+
+    [Fact]
     public async Task MqttSubscribeMqTopic_AfterPublish_ReceivesPersistedMessage()
     {
         const string db = "mqttmq";
