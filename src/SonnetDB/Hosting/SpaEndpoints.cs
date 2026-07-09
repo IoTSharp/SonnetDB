@@ -113,7 +113,9 @@ internal static class SpaEndpoints
 
     private static string GetSpaProxyServerUrl(IConfiguration configuration)
     {
-        var serverUrl = configuration["SpaProxyServer:ServerUrl"];
+        var options = new SpaProxyOptions();
+        configuration.GetSection("SpaProxyServer").Bind(options);
+        var serverUrl = options.ServerUrl;
         return string.IsNullOrWhiteSpace(serverUrl)
             ? DefaultSpaProxyServerUrl
             : serverUrl.TrimEnd('/');
@@ -199,5 +201,10 @@ $$"""
         await ctx.Response.WriteAsync(
             "SonnetDB Studio static files are missing. Run `npm install && npm run build` in `web`, or publish the server with `dotnet publish src/SonnetDB/SonnetDB.csproj`."
         ).ConfigureAwait(false);
+    }
+
+    internal sealed class SpaProxyOptions
+    {
+        public string? ServerUrl { get; set; }
     }
 }
