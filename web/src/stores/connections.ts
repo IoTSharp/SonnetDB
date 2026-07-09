@@ -1,5 +1,12 @@
 import { defineStore } from 'pinia';
-import { computed, ref, watch } from 'vue';
+import { computed, ref, shallowRef, watch } from 'vue';
+import {
+  getStudioNativeBridge,
+  type StudioBridgeManifest,
+  type StudioConnectionLibrarySnapshot,
+  type StudioManagedServerStatus,
+  type StudioNativeBridgeClient,
+} from '@/api/studioNativeBridge';
 
 export type ConnectionKind = 'managed-local' | 'remote';
 
@@ -42,13 +49,13 @@ function normalizeBaseUrl(value: string): string {
   return trimmed.replace(/\/+$/u, '');
 }
 
-function localProfile(): ConnectionProfile {
+function localProfile(baseUrl = '/'): ConnectionProfile {
   const ts = now();
   return {
     id: LocalProfileId,
     name: 'Managed Local',
     kind: 'managed-local',
-    baseUrl: '/',
+    baseUrl,
     defaultDatabase: '',
     tokenMode: 'current-session',
     createdAt: ts,
@@ -114,6 +121,10 @@ export const useConnectionsStore = defineStore('connections', () => {
   const profiles = ref<ConnectionProfile[]>(initial.profiles);
   const activeProfileId = ref(initial.activeProfileId);
   const activeDatabase = ref(initial.activeDatabase);
+  const studioBridge = shallowRef<StudioNativeBridgeClient | null>(null);
+  const studioBridgeManifest = ref<StudioBridgeManifest | null>(null);
+  const studioManagedServerStatus = ref<StudioManagedServerStatus | null>(null);
+  let syncingFromStudioBridge = false;
 
   const activeProfile = computed(() =>
     profiles.value.find((profile) => profile.id === activeProfileId.value) ?? profiles.value[0] ?? localProfile());
@@ -124,6 +135,8 @@ export const useConnectionsStore = defineStore('connections', () => {
     const baseUrl = activeBaseUrl.value;
     return baseUrl === '/' ? currentOrigin() : baseUrl;
   });
+
+  const studioBridgeAvailable = computed(() => studioBridge.value !== null);
 
   function setActiveProfile(id: string): void {
     const profile = profiles.value.find((item) => item.id === id);
@@ -179,13 +192,107 @@ export const useConnectionsStore = defineStore('connections', () => {
     }
   }
 
-  watch(
-    [profiles, activeProfileId, activeDatabase],
-    () => saveState({
+  function setManagedLocalBaseUrl(baseUrl: string): void {
+    const normalized = normalizeBaseUrl(baseUrl);
+    const ts = now();
+    const index = profiles.value.findIndex((profile) => profile.id === LocalProfileId);
+    const next: ConnectionProfile = {
+      ...(index >= 0 ? profiles.value[index] : localProfile(normalized)),
+      id: LocalProfileId,
+      name: 'Managed Local',
+      kind: 'managed-local',
+      baseUrl: normalized,
+      tokenMode: 'current-session',
+      updatedAt: ts,
+    };
+    if (index >= 0) {
+      profiles.value[index] = next;
+    } else {
+      profiles.value.unshift(next);
+    }
+  }
+
+  async function connectStudioBridge(): Promise<boolean> {
+    const bridge = await getStudioNativeBridge();
+    if (!bridge) return false;
+
+    studioBridge.value = bridge;
+    const manifest = await bridge.refreshManifest();
+    bridge.manifest = manifest;
+    studioBridgeManifest.value = manifest;
+    studioManagedServerStatus.value = manifest.managedServer;
+
+    const snapshot = await bridge.loadConnections();
+    applyStudioSnapshot(snapshot);
+    return true;
+  }
+
+  async function refreshStudioServerStatus(): Promise<StudioManagedServerStatus | null> {
+    if (!studioBridge.value) return null;
+    const status = await studioBridge.value.getServerStatus();
+    studioManagedServerStatus.value = status;
+    if (status.url) setManagedLocalBaseUrl(status.url);
+    return status;
+  }
+
+  async function startStudioManagedServer(): Promise<StudioManagedServerStatus | null> {
+    if (!studioBridge.value) return null;
+    const status = await studioBridge.value.startServer();
+    studioManagedServerStatus.value = status;
+    if (status.url) setManagedLocalBaseUrl(status.url);
+    return status;
+  }
+
+  async function stopStudioManagedServer(): Promise<StudioManagedServerStatus | null> {
+    if (!studioBridge.value) return null;
+    const status = await studioBridge.value.stopServer();
+    studioManagedServerStatus.value = status;
+    return status;
+  }
+
+  function applyStudioSnapshot(snapshot: StudioConnectionLibrarySnapshot): void {
+    syncingFromStudioBridge = true;
+    try {
+      const normalizedProfiles = snapshot.profiles.map((profile, index) => normalizeProfile(profile, index));
+      profiles.value = normalizedProfiles.length ? normalizedProfiles : [localProfile(studioBridgeManifest.value?.managedServerUrl ?? '/')];
+      activeProfileId.value = profiles.value.some((profile) => profile.id === snapshot.activeProfileId)
+        ? snapshot.activeProfileId
+        : profiles.value[0].id;
+      activeDatabase.value = snapshot.activeDatabase ?? '';
+      saveState(currentState());
+    } finally {
+      syncingFromStudioBridge = false;
+    }
+  }
+
+  function currentState(): StoredConnectionsState {
+    return {
       profiles: profiles.value,
       activeProfileId: activeProfileId.value,
       activeDatabase: activeDatabase.value,
-    }),
+    };
+  }
+
+  async function saveStudioSnapshot(state: StoredConnectionsState): Promise<void> {
+    if (!studioBridge.value || syncingFromStudioBridge) return;
+    try {
+      await studioBridge.value.saveConnections({
+        profiles: state.profiles,
+        activeProfileId: state.activeProfileId,
+        activeDatabase: state.activeDatabase,
+      });
+    } catch {
+      // 磁盘连接库同步失败时保留浏览器态，避免阻断当前工作流。
+    }
+  }
+
+  watch(
+    [profiles, activeProfileId, activeDatabase],
+    () => {
+      const state = currentState();
+      saveState(state);
+      void saveStudioSnapshot(state);
+    },
     { deep: true },
   );
 
@@ -196,9 +303,17 @@ export const useConnectionsStore = defineStore('connections', () => {
     activeProfile,
     activeBaseUrl,
     activeDisplayUrl,
+    studioBridgeAvailable,
+    studioBridgeManifest,
+    studioManagedServerStatus,
     setActiveProfile,
     setActiveDatabase,
     upsertRemoteProfile,
     removeProfile,
+    setManagedLocalBaseUrl,
+    connectStudioBridge,
+    refreshStudioServerStatus,
+    startStudioManagedServer,
+    stopStudioManagedServer,
   };
 });

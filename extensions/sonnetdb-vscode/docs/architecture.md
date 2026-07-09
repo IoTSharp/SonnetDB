@@ -23,6 +23,7 @@ Remote-first is the fastest production path because SonnetDB already exposes the
 
 - list databases
 - fetch schema
+- fetch M29 management metadata for KV, vector, full-text, and MQ
 - execute SQL
 - ingest bulk payloads
 - stream Copilot events
@@ -62,6 +63,7 @@ Recommended VS Code surfaces:
 - activity bar container: explorer tree and connection actions
 - command palette: add connection, run query, open result panel, open Copilot
 - custom result webview: table, raw JSON, chart
+- read-only multi-model preview commands: KV scan, MQ browse, vector search, full-text search/analyze
 - optional future notebook: query workbook for demos and onboarding
 - optional future chat participant: SonnetDB-aware assistant entry
 

@@ -65,9 +65,9 @@ import {
   buildCsv,
   buildJson,
   copyText,
-  downloadText,
   resultRowsToObjects,
   safeFileStem,
+  saveTextFile,
 } from '@/utils/resultExport';
 import { formatSqlValue } from '@/utils/sqlValue';
 
@@ -152,14 +152,32 @@ async function copyCsv(): Promise<void> {
   }
 }
 
-function downloadCsv(): void {
+async function downloadCsv(): Promise<void> {
   if (!canExport.value) return;
-  downloadText(`${safeFileStem(props.fileName, 'result')}.csv`, buildCsv(filteredRows.value, columns.value), 'text/csv;charset=utf-8');
+  try {
+    const outcome = await saveTextFile(
+      `${safeFileStem(props.fileName, 'result')}.csv`,
+      buildCsv(filteredRows.value, columns.value),
+      'text/csv;charset=utf-8',
+    );
+    if (outcome === 'native') message.success('CSV saved');
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : 'CSV export failed');
+  }
 }
 
-function downloadJson(): void {
+async function downloadJson(): Promise<void> {
   if (!canExport.value) return;
-  downloadText(`${safeFileStem(props.fileName, 'result')}.json`, buildJson(filteredRows.value, columns.value), 'application/json;charset=utf-8');
+  try {
+    const outcome = await saveTextFile(
+      `${safeFileStem(props.fileName, 'result')}.json`,
+      buildJson(filteredRows.value, columns.value),
+      'application/json;charset=utf-8',
+    );
+    if (outcome === 'native') message.success('JSON saved');
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : 'JSON export failed');
+  }
 }
 </script>
 

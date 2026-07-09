@@ -109,6 +109,181 @@ export interface SchemaResponse {
   backupStatus?: BackupStatusInfo | null;
 }
 
+export interface KvKeyspaceListResponse {
+  keyspaces: string[];
+}
+
+export interface KvEntryResponse {
+  key: string;
+  value: string;
+  version: number;
+  expiresAtUtc?: string | null;
+}
+
+export interface KvScanCursorRequest {
+  prefix?: string | null;
+  cursor?: string | null;
+  limit?: number | null;
+}
+
+export interface KvScanCursorResponse {
+  entries: KvEntryResponse[];
+  nextCursor?: string | null;
+  hasMore: boolean;
+}
+
+export interface VectorIndexStat {
+  measurement: string;
+  column: string;
+  kind: string;
+  dimension?: number | null;
+  metric: string;
+  params: KeyValueInfo[];
+  rowCount?: number | null;
+}
+
+export interface VectorIndexStatResponse {
+  indexes: VectorIndexStat[];
+}
+
+export interface VectorSearchPreviewRequest {
+  measurement: string;
+  column: string;
+  query: number[];
+  topK?: number | null;
+  metric?: string | null;
+  filter?: string | null;
+}
+
+export interface VectorSearchPreviewHit {
+  timestampUtc: number;
+  distance: number;
+  tags?: KeyValueInfo[] | null;
+  fields?: KeyValueInfo[] | null;
+}
+
+export interface VectorSearchPreviewResponse {
+  hits: VectorSearchPreviewHit[];
+}
+
+export interface VectorEmbedPreviewResponse {
+  vector: number[];
+  dimension: number;
+}
+
+export interface FullTextIndexStat {
+  collection: string;
+  name: string;
+  fields: string[];
+  tokenizer: string;
+  documentCount: number;
+  termCount?: number | null;
+}
+
+export interface FullTextIndexStatResponse {
+  indexes: FullTextIndexStat[];
+}
+
+export type FullTextSearchMode = 'exact' | 'fuzzy';
+export type FullTextQueryKind = 'all' | 'any' | 'phrase';
+
+export interface FullTextSearchPreviewRequest {
+  collection: string;
+  index: string;
+  field: string;
+  query: string;
+  topK?: number | null;
+  mode?: FullTextSearchMode | null;
+  queryKind?: FullTextQueryKind | null;
+}
+
+export interface FullTextSearchPreviewHit {
+  documentId: string;
+  score: number;
+}
+
+export interface FullTextSearchPreviewResponse {
+  hits: FullTextSearchPreviewHit[];
+}
+
+export interface FullTextAnalyzeRequest {
+  tokenizer: string;
+  text: string;
+}
+
+export interface FullTextTokenInfo {
+  text: string;
+  startOffset: number;
+  endOffset: number;
+  positionIncrement: number;
+}
+
+export interface FullTextAnalyzeResponse {
+  tokens: FullTextTokenInfo[];
+}
+
+export interface MqTopicInfo {
+  topic: string;
+  messageCount: number;
+  nextOffset: number;
+}
+
+export interface MqTopicListResponse {
+  topics: MqTopicInfo[];
+}
+
+export interface MqMessageResponse {
+  topic: string;
+  offset: number;
+  timestampUtc: string;
+  headers: Record<string, string>;
+  payload: string;
+}
+
+export interface MqBrowseRequest {
+  fromOffset?: number | null;
+  maxCount?: number | null;
+}
+
+export interface MqBrowseResponse {
+  messages: MqMessageResponse[];
+}
+
+export interface MqConsumerMonitorInfo {
+  consumerGroup: string;
+  committedOffset: number;
+  lag: number;
+  progressRatio: number;
+  status: string;
+}
+
+export interface MqRetentionPolicyInfo {
+  maxAgeMilliseconds?: number | null;
+  maxBytes?: number | null;
+  retentionIntervalMilliseconds: number;
+  trimAcknowledgedMessages: boolean;
+  ackRetentionMinOffsetDelta: number;
+  segmentMaxBytes: number;
+  hotTailMaxBytes: number;
+  segmentCacheSize: number;
+}
+
+export interface MqDeadLetterInfo {
+  mode: string;
+  candidateTopics: string[];
+  activeTopic?: string | null;
+}
+
+export interface MqMonitorResponse {
+  topic: string;
+  messageCount: number;
+  nextOffset: number;
+  retainedStartOffset: number;
+  consumers: MqConsumerMonitorInfo[];
+  retention: MqRetentionPolicyInfo;
+  deadLetter: MqDeadLetterInfo;
+}
+
 export interface SqlEnd {
   type: 'end';
   rowCount: number;
@@ -150,4 +325,8 @@ export interface CopilotChatEvent {
   toolName?: string | null;
   toolArguments?: string | null;
   toolResult?: string | null;
+  skillNames?: string[] | null;
+  toolNames?: string[] | null;
+  citations?: Array<Record<string, unknown>> | null;
+  attempt?: number | null;
 }

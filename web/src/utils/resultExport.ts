@@ -1,5 +1,6 @@
 import type { SqlResultSet } from '@/api/sql';
 import { rowsToObjects } from '@/api/sql';
+import { getStudioNativeBridge, type StudioFileDialogFilter } from '@/api/studioNativeBridge';
 import { formatSqlValue } from '@/utils/sqlValue';
 
 export type ResultExportFormat = 'csv' | 'json';
@@ -62,6 +63,25 @@ export function downloadText(fileName: string, value: string, contentType: strin
   URL.revokeObjectURL(url);
 }
 
+export async function saveTextFile(fileName: string, value: string, contentType: string): Promise<'native' | 'browser' | 'cancelled'> {
+  const bridge = await getStudioNativeBridge();
+  if (bridge?.manifest.capabilities.includes('dialogs.saveFile')) {
+    const result = await bridge.saveTextFile({
+      title: 'Save export',
+      suggestedName: fileName,
+      content: value,
+      contentType,
+      filters: filtersFor(fileName, contentType),
+    });
+    if (result.error) throw new Error(result.error);
+    if (result.canceled) return 'cancelled';
+    return 'native';
+  }
+
+  downloadText(fileName, value, contentType);
+  return 'browser';
+}
+
 export function safeFileStem(value: string, fallback: string): string {
   const normalized = value
     .trim()
@@ -69,4 +89,15 @@ export function safeFileStem(value: string, fallback: string): string {
     .replace(/[^\w.-]+/g, '_')
     .replace(/^_+|_+$/g, '');
   return normalized || fallback;
+}
+
+function filtersFor(fileName: string, contentType: string): StudioFileDialogFilter[] {
+  const lowerName = fileName.toLowerCase();
+  if (lowerName.endsWith('.json') || contentType.includes('json')) {
+    return [{ name: 'JSON', extensions: ['json'] }];
+  }
+  if (lowerName.endsWith('.csv') || contentType.includes('csv')) {
+    return [{ name: 'CSV', extensions: ['csv'] }];
+  }
+  return [{ name: 'Text', extensions: ['txt'] }];
 }

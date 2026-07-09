@@ -26,7 +26,7 @@
 | 26 | 连接器路线独立化（C ABI + 多模型 API） | #175 ~ #181 | ✅ |
 | 27 | Industrial Data Agent 与 AI-ready 产品化路线 | #182 ~ #188 | 🚧（#182 文档已落；M28 收官后 #184 Demo 可启动；#183/#185 纯文档） |
 | 28 | 可靠性、并发正确性与热路径加固（P0~P5 分阶段） | #189 ~ #244、#261 ~ #262 | ✅（全部收官，详情见归档） |
-| 29 | 多模型统一管理工作台（Multi-Model Management Workbench） | #245 ~ #260 | 🚧（#245~#257 ✅；下一步 E 桌面 / VS Code） |
+| 29 | 多模型统一管理工作台（Multi-Model Management Workbench） | #245 ~ #260 | 🚧（#245~#259 ✅；下一步收口 #260） |
 | 30 | 多协议设备接入扩展（Sparkplug B / CoAP / Line Protocol UDP） | #263 ~ #268 | 🚧（#265/#266/#267 ✅；前置 M28 #242 ✅） |
 | 31 | 时序聚合类型语义增强（selector / categorical aggregates） | #269 ~ #271 | 📋（IoTSharp 字符串遥测分桶查询兼容） |
 | 32 | Document Store MongoDB-like 易用性增强 | #272 ~ #281 | 📋（后续池；承接 M21/M24/M25） |
@@ -39,7 +39,7 @@
 ## 当前推进重点
 
 > **旗舰（要开始做的）**：
-> - **Milestone 29 — 多模型统一管理工作台**：把管理工具从三个孤立工程重构为「一张能力矩阵 × 三个交付面（Web Admin 旗舰 / Studio 桌面 / VS Code）」。**Web Admin 旗舰优先**：A 阶段管理契约 + 统一外壳、B 关系工作台、C KV/MQ/向量/全文、D 对象桶与文档接入已落地（#245~#257 ✅），下一步推进 E 桌面/VS Code。管理界面跨里程碑归口见 M29「管理界面归口」表。
+> - **Milestone 29 — 多模型统一管理工作台**：把管理工具从三个孤立工程重构为「一张能力矩阵 × 三个交付面（Web Admin 旗舰 / Studio 桌面 / VS Code）」。**Web Admin 旗舰优先**：A 阶段管理契约 + 统一外壳、B 关系工作台、C KV/MQ/向量/全文、D 对象桶与文档接入、E 的 Studio 桌面桥与 VS Code 多模型消费已落地（#245~#259 ✅），下一步推进 #260 收口、文档与三面 parity。管理界面跨里程碑归口见 M29「管理界面归口」表。
 > - **Milestone 30 — 多协议设备接入扩展**：在 M28 已交付的 MQTT 双形态之上补 Sparkplug B（骑 #242 broker）、CoAP、Line Protocol UDP 三条被动接收通道，三段独立可并行，全部收敛既有 BulkIngest 落库。
 >
 > **进行中（按带宽穿插）**：
@@ -88,9 +88,9 @@
 | KV / MQ / 向量 / 全文 专用工作台 | Web Admin | M29 #251~#255 | #251/#252/#253/#254/#255 ✅ |
 | 对象桶浏览器 | Web Admin | M29 #256（收编 M19 #118 的 Buckets / Objects / Multipart / Audit 页面） | ✅ |
 | 文档 Explorer / Validator / 导入导出 | Web Admin / Studio | M24 #170~#172（M29 #257 接入统一外壳） | Web Admin #257 ✅ |
-| Studio 桌面原生桥（文件对话框 / 连接库 / 本地托管 server） | Studio | M29 #258 | 📋 |
-| VS Code 结果三视图 + Copilot 面板 | VS Code | M18 #103/#104（M29 #259 补完接线） | 🚧 |
-| VS Code 多模型只读浏览（KV / 向量 / 全文 / MQ） | VS Code | M29 #259 | 📋 |
+| Studio 桌面原生桥（文件对话框 / 连接库 / 本地托管 server） | Studio | M29 #258 | ✅ |
+| VS Code 结果三视图 + Copilot 面板 | VS Code | M18 #103/#104（M29 #259 补完接线） | ✅ |
+| VS Code 多模型只读浏览（KV / 向量 / 全文 / MQ） | VS Code | M29 #259 | ✅ |
 | 对象后端治理（policy / lifecycle / version / audit / quota，**非 UI**） | Server 后端 | M19 #118（UI 归 M29 #256） | 🚧 |
 
 ### 阶段总览
@@ -152,9 +152,11 @@
 
 | PR | 标题与范围 | 状态 |
 |----|------------|------|
-| #258 | **Studio 桌面原生桥**：`SonnetDB.Studio`（`NativeWebHost` WebView2 壳）从纯 WebView 升级为带原生桥——原生文件打开 / 保存对话框（供导入导出、对象上传下载、备份恢复）、磁盘持久化连接库、本地 `data root` 托管 SonnetDB Server 启动 / 停止 / 健康检查（对齐 M18 #105 托管本地模式思路）、原生菜单。Web Admin 检测到运行在 Studio 壳内时启用原生能力，浏览器内优雅降级。 | 📋 |
-| #259 | **VS Code 多模型消费（复用 M29 契约）**：VS Code 扩展先补完 **M18 #103（结果 Table/Raw/Chart 三视图）+ #104（Copilot 面板，客户端 `streamCopilot` 已写好只差接线）**，再把 Explorer 与结果面板扩展为消费 #245 契约做 **KV / 向量 / 全文 / MQ 只读浏览**；写操作与完整工作台仍以 Web Admin 为主，VS Code 定位开发者只读 + SQL 执行子集。与 **M18 交叉引用**：M18 保留 VS Code 交付主线，多模型浏览契约由本 PR 落地。 | 📋 |
+| #258 | **Studio 桌面原生桥**：`SonnetDB.Studio`（`NativeWebHost` WebView2 壳）从纯 WebView 升级为带原生桥——原生文件打开 / 保存对话框（供导入导出、对象上传下载、备份恢复）、磁盘持久化连接库、本地 `data root` 托管 SonnetDB Server 启动 / 停止 / 健康检查（对齐 M18 #105 托管本地模式思路）、原生菜单。Web Admin 检测到运行在 Studio 壳内时启用原生能力，浏览器内优雅降级。 | ✅ |
+| #259 | **VS Code 多模型消费（复用 M29 契约）**：VS Code 扩展先补完 **M18 #103（结果 Table/Raw/Chart 三视图）+ #104（Copilot 面板，客户端 `streamCopilot` 已写好只差接线）**，再把 Explorer 与结果面板扩展为消费 #245 契约做 **KV / 向量 / 全文 / MQ 只读浏览**；写操作与完整工作台仍以 Web Admin 为主，VS Code 定位开发者只读 + SQL 执行子集。与 **M18 交叉引用**：M18 保留 VS Code 交付主线，多模型浏览契约由本 PR 落地。 | ✅ |
 | #260 | **管理工作台收口 + 文档 + 三面 parity**：汇总能力矩阵文档（模型 → 工作台 → 对标单品 → 交付面覆盖度）；`docs/` 增管理工具章节与截图；Web Admin / Studio 桌面 / VS Code 三面能力 parity 表（谁支持哪些模型的浏览 / 查询 / 编辑 / 导入导出 / 监控）；各工作台 e2e smoke。 | 📋 |
+
+> **#259 落地说明**：VS Code 扩展保留 Remote-first 与开发者子集定位。当前实现已将连接 profile 持久化到 VS Code `globalState`、token 存入 `SecretStorage`；Explorer 在数据库下合并 schema 与 #245 管理契约，展示 KV Keyspaces、Vector Indexes、FullText Indexes、MQ Topics；结果面板支持 Table / Raw / Chart 三视图，并复用于 KV/MQ/向量/全文只读预览；Copilot 面板接入流式 `/v1/copilot/chat/stream`，read-write 模式前置用户确认。完整编辑、导入导出和治理工作台仍以 Web Admin / Studio 为主。
 
 ### 推进顺序
 
@@ -164,7 +166,7 @@ A 外壳：#245（管理契约补齐）→ #246（统一多模型 Explorer + 连
 B 关系：#248（数据网格 + 行内编辑）→ #249（可视化 EXPLAIN + 表设计器）→ #250（导入导出 + ER）
 C 四模型：#251（KV 浏览器）→ #252（MQ 控制台一）→ #253（MQ 控制台二）→ #254（向量 playground）→ #255（全文 playground）
 D 收口：#256（对象桶浏览器，收编 M19 #118 UI ✅）→ #257（文档浏览器接入外壳 ✅）
-E 三面：#258（Studio 桌面原生桥）∥ #259（VS Code 多模型消费）→ #260（收口 + 文档 + parity）
+E 三面：#258（Studio 桌面原生桥 ✅）∥ #259（VS Code 多模型消费 ✅）→ #260（收口 + 文档 + parity）
 ```
 
 > **阶段间依赖与并行度**：**A（#245~#247）是所有 per-model 工作台的地基，必须最先**——#245 契约是 #251~#257 的前置，#246/#247 外壳与框架是 B~D 所有工作台的挂载点。B / C / D 各工作台在 A 落地后**相互独立可并行 / 穿插**（各消费自己的 #245 契约 + 挂 #247 框架）。跨里程碑依赖：**#252/#253 MQ 控制台依赖 M28 P5a（#231~#234）** 的 per-topic 统计与冷数据可读性、`#253` 实时推送状态随 P5b `#236` 落地增强；**#254 向量 playground** 依赖 M28 #223/#226 的 HNSW 参数与度量暴露；**#256 对象桶** 依赖 M19 #118 后端治理能力；**#257 文档** 按 M24 边界复用既有 Document API 与最小只读 metadata，不新增文档引擎语义。E 的 #258 桌面桥可在任一模型工作台落地后并行；#259 VS Code 需先补完 M18 #103/#104；#260 收口最后。
@@ -782,8 +784,8 @@ PR #89（Core Meter / Activity 基线）
 | #100 | **远程连接模型 + SecretStorage**：实现连接配置模型（`remote` / `managed-local`）、`SecretStorage` token 持久化、活动连接选择、`/healthz` 探活、`/v1/setup/status` 首次安装探测；连接面板支持测试连通性与提示未初始化状态。 | 📋 |
 | #101 | **Explorer 树：Connections → Databases → Measurements → Columns**：消费 `GET /v1/db` 与 `GET /v1/db/{db}/schema`，展示数据库 / measurement / 列结构；支持刷新 schema、复制 measurement 名、预留 sample rows / open in query runner 入口。 | 📋 |
 | #102 | **SQL 执行链路 + SonnetDB 方言补全**：实现 `POST /v1/db/{db}/sql` ndjson 解析、Run Current Statement / Run Selection 命令；复用 `web/src/components/sonnetdb-dialect.ts` 的关键词与 schema 补全思路，先以编辑器命令为主，不急着上完整 Notebook。 | 📋 |
-| #103 | **结果面板：Table / Raw / Chart 三视图**：新增 Query Result Webview Panel，支持表格、原始 ndjson/JSON、时间序列图表三视图；图表规则复用 Web Admin `SqlResultChart` 的时间列 / 数值列 / tag 分组启发式；补 query history 与导出钩子。 | 📋 |
-| #104 | **VS Code 内置 Copilot 面板**：接入 `POST /v1/copilot/chat/stream`、`GET /v1/copilot/models` 与 `GET /v1/copilot/knowledge/status`；支持 `read-only` / `read-write` 模式切换、模型选择、引用折叠、最近执行 SQL 一键发送到查询面板。 | 📋 |
+| #103 | **结果面板：Table / Raw / Chart 三视图**：新增 Query Result Webview Panel，支持表格、原始 ndjson/JSON、时间序列图表三视图；图表规则复用 Web Admin `SqlResultChart` 的时间列 / 数值列 / tag 分组启发式；补 query history 与导出钩子。 | ✅（由 M29 #259 覆盖核心三视图） |
+| #104 | **VS Code 内置 Copilot 面板**：接入 `POST /v1/copilot/chat/stream`、`GET /v1/copilot/models` 与 `GET /v1/copilot/knowledge/status`；支持 `read-only` / `read-write` 模式切换、模型选择、引用折叠、最近执行 SQL 一键发送到查询面板。 | ✅（由 M29 #259 接线，引用/SQL 回填后续增强） |
 | #105 | **托管本地 SonnetDB Server 模式**：扩展选择本地 `data root` 后，自动启动 / 关闭本地 SonnetDB Server 进程，处理端口占用、日志输出与健康检查；本地与远程共用同一个 HTTP client 与 Explorer/UI。 | 📋 |
 | #106 | **生产力增强**：Create Measurement 向导、bulk import（LP / JSON / Bulk VALUES）、starter snippets、从当前 SQL 或 schema 上下文打开 help / docs / explain 入口。 | 📋 |
 | #107 | **Language Service / LSP Sidecar**：通过独立 C# sidecar 或轻量协议复用现有 `SqlParser` / schema 能力，补 diagnostics、hover、signature help、repair suggestion 与 `explain_sql` 集成。 | 📋 |
@@ -803,7 +805,7 @@ PR #89（Core Meter / Activity 基线）
 
 `#104`（Copilot 面板）可以在查询闭环后立即接入；`#105`（托管本地模式）可与 `#104` 并行，但不应阻塞首个可用版本。
 
-> **与 Milestone 29 的关系**：本里程碑保留 VS Code 扩展交付主线（#99~#108）。Milestone 29 的 #259 在 A/B/C 工作台契约（#245）落地后，负责**补完本里程碑 #103 结果三视图 + #104 Copilot 面板**（`streamCopilot` 客户端已实现只差接线），并把 Explorer 扩展为消费 M29 契约做 KV / 向量 / 全文 / MQ **只读浏览**；VS Code 定位开发者只读 + SQL 执行子集，完整 per-model 编辑体验以 Web Admin 旗舰为准。管理界面的跨里程碑归口见 Milestone 29「管理界面归口」表（VS Code 管理 UI 由 M29 #259 补完）。
+> **与 Milestone 29 的关系**：本里程碑保留 VS Code 扩展交付主线（#99~#108）。Milestone 29 的 #259 已在 A/B/C 工作台契约（#245）落地后，补完本里程碑 #103 结果三视图 + #104 Copilot 面板的核心接线，并把 Explorer 扩展为消费 M29 契约做 KV / 向量 / 全文 / MQ **只读浏览**；VS Code 定位开发者只读 + SQL 执行子集，完整 per-model 编辑体验以 Web Admin 旗舰为准。管理界面的跨里程碑归口见 Milestone 29「管理界面归口」表（VS Code 管理 UI 由 M29 #259 补完）。
 
 ### 目录约定
 

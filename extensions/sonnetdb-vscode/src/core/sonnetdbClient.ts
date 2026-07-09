@@ -2,9 +2,28 @@ import {
   CopilotChatEvent,
   CopilotModelsResponse,
   DatabaseListResponse,
+  FullTextAnalyzeRequest,
+  FullTextAnalyzeResponse,
+  FullTextIndexStat,
+  FullTextIndexStatResponse,
+  FullTextSearchPreviewRequest,
+  FullTextSearchPreviewResponse,
   HealthResponse,
+  KvKeyspaceListResponse,
+  KvScanCursorRequest,
+  KvScanCursorResponse,
+  MqBrowseRequest,
+  MqBrowseResponse,
+  MqMonitorResponse,
+  MqTopicInfo,
+  MqTopicListResponse,
   SchemaResponse,
   SqlResultSet,
+  VectorEmbedPreviewResponse,
+  VectorIndexStat,
+  VectorIndexStatResponse,
+  VectorSearchPreviewRequest,
+  VectorSearchPreviewResponse,
 } from './types';
 
 export class SonnetDbClient {
@@ -27,6 +46,116 @@ export class SonnetDbClient {
 
   public async fetchCopilotModels(): Promise<CopilotModelsResponse> {
     return this.getJson<CopilotModelsResponse>('/v1/copilot/models');
+  }
+
+  public async fetchKvKeyspaces(database: string): Promise<string[]> {
+    const response = await this.postJson<KvKeyspaceListResponse>(
+      `/v1/db/${encodeURIComponent(database)}/kv/keyspaces`,
+    );
+    return Array.isArray(response.keyspaces) ? response.keyspaces : [];
+  }
+
+  public async scanKvEntries(
+    database: string,
+    keyspace: string,
+    request: KvScanCursorRequest = {},
+  ): Promise<KvScanCursorResponse> {
+    const response = await this.postJson<KvScanCursorResponse>(
+      `/v1/db/${encodeURIComponent(database)}/kv/${encodeURIComponent(keyspace)}/scan`,
+      request,
+    );
+    return {
+      entries: Array.isArray(response.entries) ? response.entries : [],
+      nextCursor: response.nextCursor ?? null,
+      hasMore: Boolean(response.hasMore),
+    };
+  }
+
+  public async fetchVectorIndexes(database: string): Promise<VectorIndexStat[]> {
+    const response = await this.postJson<VectorIndexStatResponse>(
+      `/v1/db/${encodeURIComponent(database)}/vector/indexes`,
+    );
+    return Array.isArray(response.indexes) ? response.indexes : [];
+  }
+
+  public async searchVectorPreview(
+    database: string,
+    request: VectorSearchPreviewRequest,
+  ): Promise<VectorSearchPreviewResponse> {
+    const response = await this.postJson<VectorSearchPreviewResponse>(
+      `/v1/db/${encodeURIComponent(database)}/vector/search-preview`,
+      request,
+    );
+    return {
+      hits: Array.isArray(response.hits) ? response.hits : [],
+    };
+  }
+
+  public async embedVectorText(database: string, text: string): Promise<VectorEmbedPreviewResponse> {
+    return this.postJson<VectorEmbedPreviewResponse>(
+      `/v1/db/${encodeURIComponent(database)}/vector/embed-preview`,
+      { text },
+    );
+  }
+
+  public async fetchFullTextIndexes(database: string): Promise<FullTextIndexStat[]> {
+    const response = await this.postJson<FullTextIndexStatResponse>(
+      `/v1/db/${encodeURIComponent(database)}/fulltext/indexes`,
+    );
+    return Array.isArray(response.indexes) ? response.indexes : [];
+  }
+
+  public async searchFullTextPreview(
+    database: string,
+    request: FullTextSearchPreviewRequest,
+  ): Promise<FullTextSearchPreviewResponse> {
+    const response = await this.postJson<FullTextSearchPreviewResponse>(
+      `/v1/db/${encodeURIComponent(database)}/fulltext/search-preview`,
+      request,
+    );
+    return {
+      hits: Array.isArray(response.hits) ? response.hits : [],
+    };
+  }
+
+  public async analyzeFullText(
+    database: string,
+    request: FullTextAnalyzeRequest,
+  ): Promise<FullTextAnalyzeResponse> {
+    const response = await this.postJson<FullTextAnalyzeResponse>(
+      `/v1/db/${encodeURIComponent(database)}/fulltext/analyze`,
+      request,
+    );
+    return {
+      tokens: Array.isArray(response.tokens) ? response.tokens : [],
+    };
+  }
+
+  public async fetchMqTopics(database: string): Promise<MqTopicInfo[]> {
+    const response = await this.postJson<MqTopicListResponse>(
+      `/v1/db/${encodeURIComponent(database)}/mq/topics`,
+    );
+    return Array.isArray(response.topics) ? response.topics : [];
+  }
+
+  public async browseMqMessages(
+    database: string,
+    topic: string,
+    request: MqBrowseRequest = {},
+  ): Promise<MqBrowseResponse> {
+    const response = await this.postJson<MqBrowseResponse>(
+      `/v1/db/${encodeURIComponent(database)}/mq/${encodeURIComponent(topic)}/browse`,
+      request,
+    );
+    return {
+      messages: Array.isArray(response.messages) ? response.messages : [],
+    };
+  }
+
+  public async fetchMqMonitor(database: string, topic: string): Promise<MqMonitorResponse> {
+    return this.postJson<MqMonitorResponse>(
+      `/v1/db/${encodeURIComponent(database)}/mq/${encodeURIComponent(topic)}/monitor`,
+    );
   }
 
   public async executeSql(database: string, sql: string): Promise<SqlResultSet> {
@@ -115,7 +244,11 @@ export class SonnetDbClient {
           continue;
         }
 
-        onEvent(JSON.parse(payload) as CopilotChatEvent);
+        try {
+          onEvent(JSON.parse(payload) as CopilotChatEvent);
+        } catch {
+          onEvent({ type: 'message', message: payload });
+        }
       }
     }
   }
@@ -127,6 +260,23 @@ export class SonnetDbClient {
 
     if (!response.ok) {
       throw new Error(`Request failed: ${response.status} ${response.statusText}`);
+    }
+
+    return (await response.json()) as T;
+  }
+
+  private async postJson<T>(path: string, body: unknown = {}): Promise<T> {
+    const response = await fetch(this.toUrl(path), {
+      method: 'POST',
+      headers: this.buildHeaders({
+        'Content-Type': 'application/json',
+      }),
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `Request failed: ${response.status} ${response.statusText}`);
     }
 
     return (await response.json()) as T;

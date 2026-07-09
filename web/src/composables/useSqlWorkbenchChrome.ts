@@ -27,6 +27,7 @@ export function useSqlWorkbenchChrome(options: SqlWorkbenchChromeOptions) {
 
   const showConnectionDialog = ref(false);
   const connectionForm = ref({ name: '', baseUrl: '', defaultDatabase: '' });
+  const nativeServerBusy = ref(false);
 
   const activeWorkbenchTool = computed<WorkbenchTool>(() => {
     if (route.query.tool === 'trajectory') return 'trajectory';
@@ -83,6 +84,9 @@ export function useSqlWorkbenchChrome(options: SqlWorkbenchChromeOptions) {
       && /^https?:\/\/[^\s/$.?#].[^\s]*$/i.test(baseUrl);
   });
 
+  const studioBridgeAvailable = computed(() => connections.studioBridgeAvailable);
+  const nativeServerStatus = computed(() => connections.studioManagedServerStatus);
+
   function setWorkbenchTool(tool: WorkbenchTool): void {
     if (activeWorkbenchTool.value === tool) return;
     void router.replace({
@@ -137,9 +141,46 @@ export function useSqlWorkbenchChrome(options: SqlWorkbenchChromeOptions) {
     connections.setActiveProfile(value.slice('connection:'.length));
   }
 
+  async function refreshNativeServerStatus(): Promise<void> {
+    if (!connections.studioBridgeAvailable) return;
+    nativeServerBusy.value = true;
+    try {
+      await connections.refreshStudioServerStatus();
+    } finally {
+      nativeServerBusy.value = false;
+    }
+  }
+
+  async function startNativeServer(): Promise<void> {
+    if (!connections.studioBridgeAvailable) return;
+    nativeServerBusy.value = true;
+    try {
+      const status = await connections.startStudioManagedServer();
+      if (status?.healthy) {
+        connections.setActiveProfile('managed-local');
+        auth.setApiBaseUrl(connections.activeBaseUrl);
+      }
+    } finally {
+      nativeServerBusy.value = false;
+    }
+  }
+
+  async function stopNativeServer(): Promise<void> {
+    if (!connections.studioBridgeAvailable) return;
+    nativeServerBusy.value = true;
+    try {
+      await connections.stopStudioManagedServer();
+    } finally {
+      nativeServerBusy.value = false;
+    }
+  }
+
   return {
     showConnectionDialog,
     connectionForm,
+    studioBridgeAvailable,
+    nativeServerStatus,
+    nativeServerBusy,
     activeWorkbenchTool,
     connectionLabel,
     accessBadges,
@@ -149,6 +190,9 @@ export function useSqlWorkbenchChrome(options: SqlWorkbenchChromeOptions) {
     openConnectionDialog,
     saveConnection,
     onConnectionSelect,
+    refreshNativeServerStatus,
+    startNativeServer,
+    stopNativeServer,
   };
 }
 

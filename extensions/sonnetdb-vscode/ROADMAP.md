@@ -27,12 +27,12 @@ Core goals:
 
 | PR | Theme | Status |
 |----|-------|--------|
-| #99 | Extension bootstrap: `package.json`, commands, activity bar container, tree view scaffold, base TypeScript structure | Planned |
-| #100 | Remote connection profiles: connection model, `SecretStorage`, health check, setup-state detection, active connection selection | Planned |
-| #101 | Explorer tree: connections -> databases -> measurements -> columns, schema refresh, sample rows entry point | Planned |
-| #102 | SQL execution: run current statement, run selection, NDJSON parser, raw result model, schema-aware completion bootstrap | Planned |
-| #103 | Result UI: webview panel with table/raw/chart tabs, query history, export-to-file hooks | Planned |
-| #104 | Copilot panel: `/v1/copilot/chat/stream`, mode switch (`read-only` / `read-write`), model selector, citation view | Planned |
+| #99 | Extension bootstrap: `package.json`, commands, activity bar container, tree view scaffold, base TypeScript structure | Implemented |
+| #100 | Remote connection profiles: connection model, `SecretStorage`, health check, setup-state detection, active connection selection | Partially implemented |
+| #101 | Explorer tree: connections -> databases -> measurements -> columns, schema refresh, sample rows entry point | Partially implemented |
+| #102 | SQL execution: run current statement, run selection, NDJSON parser, raw result model, schema-aware completion bootstrap | Partially implemented |
+| #103 | Result UI: webview panel with table/raw/chart tabs, query history, export-to-file hooks | Implemented by M29 #259 for core Table/Raw/Chart |
+| #104 | Copilot panel: `/v1/copilot/chat/stream`, mode switch (`read-only` / `read-write`), model selector, citation view | Implemented by M29 #259 for stream/model/mode |
 | #105 | Managed local mode: start/stop SonnetDB server for a selected data root, port detection, bootstrap flow | Planned |
 | #106 | Productivity features: create-measurement wizard, bulk import flow, starter snippets, open help from editor context | Planned |
 | #107 | Language-service sidecar: SQL diagnostics, hover, richer completion, explain and repair hooks | Planned |
@@ -70,6 +70,16 @@ It is complete when:
 - `GET /v1/copilot/knowledge/status`
 - `GET /healthz`
 - `GET /v1/setup/status`
+
+## M29 #259 extension bridge
+
+The M29 #259 slice extends this roadmap without turning VS Code into the full Web Admin workbench:
+
+- consumes #245 management metadata for KV, vector, full-text, and MQ
+- adds read-only preview commands for KV scan and MQ browse
+- adds vector search-preview and full-text search/analyze commands
+- reuses the Query Result panel for multi-model previews
+- keeps write operations and governance workflows in Web Admin / Studio
 
 ## Notes on local mode
 

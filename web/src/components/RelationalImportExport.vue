@@ -164,6 +164,7 @@ import {
   type SelectOption,
 } from 'naive-ui';
 import type { TableInfo } from '@/api/schema';
+import { getStudioNativeBridge } from '@/api/studioNativeBridge';
 import {
   execDataSql,
   execDataSqlBatch,
@@ -188,8 +189,8 @@ import {
   type RelationalImportFormat,
 } from '@/utils/relationalImportExport';
 import {
-  downloadText,
   safeFileStem,
+  saveTextFile,
   type ResultExportFormat,
 } from '@/utils/resultExport';
 import { formatSqlIdentifier } from '@/utils/sqlWorkbench';
@@ -288,7 +289,33 @@ const resultSummary = computed(() => {
   return 'Ready';
 });
 
-function pickImportFile(): void {
+async function pickImportFile(): Promise<void> {
+  try {
+    const bridge = await getStudioNativeBridge();
+    if (bridge?.manifest.capabilities.includes('dialogs.openFile')) {
+      const result = await bridge.openTextFile({
+        title: 'Open import file',
+        filters: [
+          { name: 'Import files', extensions: ['csv', 'json', 'jsonl', 'ndjson'] },
+          { name: 'CSV', extensions: ['csv'] },
+          { name: 'JSON', extensions: ['json', 'jsonl', 'ndjson'] },
+        ],
+      });
+      if (result.error) {
+        message.error(result.error);
+        return;
+      }
+      if (result.canceled || result.content === null) return;
+      importText.value = result.content;
+      const name = (result.fileName ?? '').toLowerCase();
+      importFormat.value = name.endsWith('.json') || name.endsWith('.jsonl') || name.endsWith('.ndjson') ? 'json' : 'csv';
+      analyzeImport();
+      return;
+    }
+  } catch (error) {
+    message.warning(error instanceof Error ? error.message : 'Native file picker is unavailable');
+  }
+
   importFileInput.value?.click();
 }
 
@@ -488,8 +515,12 @@ async function downloadTableExport(): Promise<void> {
     const content = exportRowsText(rows, result.columns, exportFormat.value);
     const ext = exportFormat.value === 'json' ? 'json' : 'csv';
     const contentType = exportFormat.value === 'json' ? 'application/json;charset=utf-8' : 'text/csv;charset=utf-8';
-    downloadText(`${safeFileStem(`${props.targetDb}_${props.table.name}`, 'table')}.${ext}`, content, contentType);
-    message.success(`Exported ${rows.length} row${rows.length === 1 ? '' : 's'}.`);
+    const outcome = await saveTextFile(`${safeFileStem(`${props.targetDb}_${props.table.name}`, 'table')}.${ext}`, content, contentType);
+    if (outcome !== 'cancelled') {
+      message.success(`Exported ${rows.length} row${rows.length === 1 ? '' : 's'}.`);
+    }
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : 'Export failed.');
   } finally {
     exportBusy.value = false;
   }

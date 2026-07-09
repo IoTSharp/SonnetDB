@@ -17,8 +17,14 @@
     "onView:sonnetdb.explorer",
     "onCommand:sonnetdb.addConnection",
     "onCommand:sonnetdb.refreshExplorer",
+    "onCommand:sonnetdb.useDatabase",
     "onCommand:sonnetdb.runQuery",
     "onCommand:sonnetdb.openCopilot",
+    "onCommand:sonnetdb.previewKvKeyspace",
+    "onCommand:sonnetdb.searchVectorIndex",
+    "onCommand:sonnetdb.searchFullTextIndex",
+    "onCommand:sonnetdb.analyzeFullText",
+    "onCommand:sonnetdb.previewMqTopic",
     "onCommand:sonnetdb.startManagedLocalServer"
   ],
   "contributes": {
@@ -32,12 +38,36 @@
         "title": "SonnetDB: Refresh Explorer"
       },
       {
+        "command": "sonnetdb.useDatabase",
+        "title": "SonnetDB: Use Database"
+      },
+      {
         "command": "sonnetdb.runQuery",
         "title": "SonnetDB: Run Query"
       },
       {
         "command": "sonnetdb.openCopilot",
         "title": "SonnetDB: Open Copilot"
+      },
+      {
+        "command": "sonnetdb.previewKvKeyspace",
+        "title": "SonnetDB: Preview KV Keyspace"
+      },
+      {
+        "command": "sonnetdb.searchVectorIndex",
+        "title": "SonnetDB: Search Vector Index"
+      },
+      {
+        "command": "sonnetdb.searchFullTextIndex",
+        "title": "SonnetDB: Search FullText Index"
+      },
+      {
+        "command": "sonnetdb.analyzeFullText",
+        "title": "SonnetDB: Analyze FullText"
+      },
+      {
+        "command": "sonnetdb.previewMqTopic",
+        "title": "SonnetDB: Preview MQ Topic"
       },
       {
         "command": "sonnetdb.startManagedLocalServer",
@@ -58,6 +88,52 @@
         {
           "id": "sonnetdb.explorer",
           "name": "Explorer"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "sonnetdb.addConnection",
+          "when": "view == sonnetdb.explorer",
+          "group": "navigation"
+        },
+        {
+          "command": "sonnetdb.refreshExplorer",
+          "when": "view == sonnetdb.explorer",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "sonnetdb.useDatabase",
+          "when": "view == sonnetdb.explorer && viewItem == database",
+          "group": "navigation"
+        },
+        {
+          "command": "sonnetdb.previewKvKeyspace",
+          "when": "view == sonnetdb.explorer && viewItem == kvKeyspace",
+          "group": "inline"
+        },
+        {
+          "command": "sonnetdb.searchVectorIndex",
+          "when": "view == sonnetdb.explorer && viewItem == vectorIndex",
+          "group": "inline"
+        },
+        {
+          "command": "sonnetdb.searchFullTextIndex",
+          "when": "view == sonnetdb.explorer && viewItem == fullTextIndex",
+          "group": "inline"
+        },
+        {
+          "command": "sonnetdb.analyzeFullText",
+          "when": "view == sonnetdb.explorer && viewItem == fullTextIndex",
+          "group": "navigation"
+        },
+        {
+          "command": "sonnetdb.previewMqTopic",
+          "when": "view == sonnetdb.explorer && viewItem == mqTopic",
+          "group": "inline"
         }
       ]
     },

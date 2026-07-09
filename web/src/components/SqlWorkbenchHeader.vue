@@ -21,6 +21,33 @@
           </n-button>
         </div>
 
+        <div v-if="studioBridgeAvailable" class="native-bridge-controls">
+          <n-tag size="tiny" :type="nativeServerTagType" :bordered="false">
+            {{ nativeServerLabel }}
+          </n-tag>
+          <n-button size="small" quaternary :loading="nativeServerBusy" @click="$emit('refresh-native-server')">
+            Health
+          </n-button>
+          <n-button
+            v-if="!canStopNativeServer"
+            size="small"
+            secondary
+            :loading="nativeServerBusy"
+            @click="$emit('start-native-server')"
+          >
+            Start
+          </n-button>
+          <n-button
+            v-else
+            size="small"
+            tertiary
+            :loading="nativeServerBusy"
+            @click="$emit('stop-native-server')"
+          >
+            Stop
+          </n-button>
+        </div>
+
         <div class="workbench-mode-switch" role="tablist" aria-label="Studio mode">
           <button
             type="button"
@@ -120,8 +147,10 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import type { DropdownOption } from 'naive-ui';
 import { NButton, NDropdown, NTag, NText } from 'naive-ui';
+import type { StudioManagedServerStatus } from '@/api/studioNativeBridge';
 import type { WorkbenchTool } from '@/utils/sqlWorkbench';
 
 export interface AccessBadge {
@@ -129,19 +158,41 @@ export interface AccessBadge {
   type: 'default' | 'info' | 'success' | 'warning' | 'error';
 }
 
-defineProps<{
+const props = defineProps<{
   connectionLabel: string;
   connectionName: string;
   connectionOptions: DropdownOption[];
   activeTool: WorkbenchTool;
   accessBadges: AccessBadge[];
+  studioBridgeAvailable: boolean;
+  nativeServerStatus: StudioManagedServerStatus | null;
+  nativeServerBusy: boolean;
 }>();
 
 defineEmits<{
   'connection-select': [key: string | number];
   'open-connection': [];
   'set-tool': [tool: WorkbenchTool];
+  'refresh-native-server': [];
+  'start-native-server': [];
+  'stop-native-server': [];
 }>();
+
+const nativeServerLabel = computed(() => {
+  if (!props.nativeServerStatus) return 'Studio';
+  if (props.nativeServerStatus.healthy) return 'Local healthy';
+  if (props.nativeServerStatus.isRunning) return 'Local starting';
+  return 'Local stopped';
+});
+
+const nativeServerTagType = computed<AccessBadge['type']>(() => {
+  if (!props.nativeServerStatus) return 'info';
+  if (props.nativeServerStatus.healthy) return 'success';
+  if (props.nativeServerStatus.isRunning) return 'warning';
+  return 'default';
+});
+
+const canStopNativeServer = computed(() => Boolean(props.nativeServerStatus?.startedByStudio));
 </script>
 
 <style scoped>
@@ -233,6 +284,13 @@ defineEmits<{
 }
 
 .connection-switcher {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.native-bridge-controls {
   display: flex;
   align-items: center;
   gap: 6px;

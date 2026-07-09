@@ -13,7 +13,19 @@ internal static class Program
     public static async Task Main(string[] args)
     {
         var options = StudioHostOptions.Parse(args);
-        var studioUrl = BuildStudioUrl(options.ServerUrl, options.Route);
+        await using var bridge = options.BridgeEnabled ? new StudioBridgeHost(options) : null;
+        if (bridge is not null)
+        {
+            await bridge.StartAsync(CancellationToken.None).ConfigureAwait(false);
+            if (options.AutoStartManagedServer)
+            {
+                var status = await bridge.StartManagedServerAsync(CancellationToken.None).ConfigureAwait(false);
+                if (!status.Healthy && !string.IsNullOrWhiteSpace(status.Error))
+                    Console.Error.WriteLine(status.Error);
+            }
+        }
+
+        var studioUrl = BuildStudioUrl(options.ServerUrl, options.Route, bridge?.EndpointUrl, bridge?.Token);
 
         var app = NativeWebApp.CreateBuilder(args)
             .Configure(nativeOptions =>
@@ -32,7 +44,7 @@ internal static class Program
         await app.RunAsync().ConfigureAwait(false);
     }
 
-    private static string BuildStudioUrl(string serverUrl, string route)
+    private static string BuildStudioUrl(string serverUrl, string route, string? bridgeUrl, string? bridgeToken)
     {
         var normalizedServer = string.IsNullOrWhiteSpace(serverUrl)
             ? DefaultServerUrl
@@ -44,21 +56,70 @@ internal static class Program
         if (!normalizedRoute.StartsWith('/'))
             normalizedRoute = "/" + normalizedRoute;
 
-        return normalizedServer + normalizedRoute;
+        var url = normalizedServer + normalizedRoute;
+        if (string.IsNullOrWhiteSpace(bridgeUrl) || string.IsNullOrWhiteSpace(bridgeToken))
+            return url;
+
+        var separator = url.Contains('?') ? "&" : "?";
+        return url
+            + separator
+            + "studioBridgeUrl="
+            + Uri.EscapeDataString(bridgeUrl)
+            + "&studioBridgeToken="
+            + Uri.EscapeDataString(bridgeToken);
     }
 }
 
-internal sealed record StudioHostOptions(string ServerUrl, string Route, int Width, int Height)
+internal sealed record StudioHostOptions(
+    string ServerUrl,
+    string Route,
+    int Width,
+    int Height,
+    bool BridgeEnabled,
+    int BridgePort,
+    string DataRoot,
+    string ManagedServerUrl,
+    string ConnectionLibraryPath,
+    string? ServerExecutable,
+    bool AutoStartManagedServer,
+    bool KeepManagedServer)
 {
     private const string DefaultServerUrl = "http://localhost:5080";
 
+    /// <summary>
+    /// 解析 Studio 桌面宿主启动参数。
+    /// </summary>
+    /// <param name="args">命令行参数。</param>
     public static StudioHostOptions Parse(string[] args)
     {
-        var serverUrl = ReadOption(args, "--server-url") ?? DefaultServerUrl;
+        var explicitServerUrl = ReadOption(args, "--server-url");
+        var managedServerUrl = ReadOption(args, "--managed-server-url") ?? DefaultServerUrl;
+        var serverUrl = explicitServerUrl ?? managedServerUrl;
         var route = ReadOption(args, "--route") ?? "/admin/app/studio";
         var width = ReadIntOption(args, "--width") ?? 1440;
         var height = ReadIntOption(args, "--height") ?? 920;
-        return new StudioHostOptions(serverUrl, route, width, height);
+        var bridgeEnabled = !HasFlag(args, "--no-bridge");
+        var bridgePort = ReadIntOption(args, "--bridge-port") ?? 54980;
+        var dataRoot = ReadOption(args, "--data-root") ?? DefaultDataRoot();
+        var connectionLibraryPath = ReadOption(args, "--connection-library")
+            ?? Path.Combine(DefaultStudioHome(), "connections.json");
+        var serverExecutable = ReadOption(args, "--server-exe");
+        var autoStart = HasFlag(args, "--auto-start-server")
+            || (explicitServerUrl is null && !HasFlag(args, "--no-auto-start-server"));
+        var keepManagedServer = HasFlag(args, "--keep-managed-server");
+        return new StudioHostOptions(
+            serverUrl,
+            route,
+            width,
+            height,
+            bridgeEnabled,
+            bridgePort,
+            Path.GetFullPath(dataRoot),
+            managedServerUrl.Trim().TrimEnd('/'),
+            connectionLibraryPath,
+            serverExecutable,
+            autoStart,
+            keepManagedServer);
     }
 
     private static string? ReadOption(string[] args, string name)
@@ -76,9 +137,23 @@ internal sealed record StudioHostOptions(string ServerUrl, string Route, int Wid
         return null;
     }
 
+    private static bool HasFlag(string[] args, string name)
+        => args.Any(arg => string.Equals(arg, name, StringComparison.OrdinalIgnoreCase));
+
     private static int? ReadIntOption(string[] args, string name)
     {
         var value = ReadOption(args, name);
         return int.TryParse(value, out var parsed) && parsed > 0 ? parsed : null;
+    }
+
+    private static string DefaultDataRoot()
+        => Path.Combine(DefaultStudioHome(), "data");
+
+    private static string DefaultStudioHome()
+    {
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (string.IsNullOrWhiteSpace(localAppData))
+            localAppData = AppContext.BaseDirectory;
+        return Path.Combine(localAppData, "SonnetDB", "Studio");
     }
 }

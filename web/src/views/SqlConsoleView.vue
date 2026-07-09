@@ -6,9 +6,15 @@
       :connection-options="connectionOptions"
       :active-tool="activeWorkbenchTool"
       :access-badges="accessBadges"
+      :studio-bridge-available="studioBridgeAvailable"
+      :native-server-status="nativeServerStatus"
+      :native-server-busy="nativeServerBusy"
       @connection-select="onConnectionSelect"
       @open-connection="openConnectionDialog"
       @set-tool="setWorkbenchTool"
+      @refresh-native-server="refreshNativeServerStatus"
+      @start-native-server="startNativeServer"
+      @stop-native-server="stopNativeServer"
     />
 
     <n-dropdown
@@ -256,6 +262,9 @@ const sql = computed({
 const {
   showConnectionDialog,
   connectionForm,
+  studioBridgeAvailable,
+  nativeServerStatus,
+  nativeServerBusy,
   activeWorkbenchTool,
   connectionLabel,
   accessBadges,
@@ -265,6 +274,9 @@ const {
   openConnectionDialog,
   saveConnection,
   onConnectionSelect,
+  refreshNativeServerStatus,
+  startNativeServer,
+  stopNativeServer,
 } = useSqlWorkbenchChrome({
   auth,
   connections,
@@ -563,6 +575,11 @@ watch(
 );
 
 onMounted(async () => {
+  const bridgeReady = await connections.connectStudioBridge();
+  if (bridgeReady) {
+    auth.setApiBaseUrl(connections.activeBaseUrl);
+    await refreshNativeServerStatus();
+  }
   await reloadDbs();
   if (targetDb.value && targetDb.value !== CONTROL_PLANE_KEY) {
     await loadSchema(targetDb.value, true);

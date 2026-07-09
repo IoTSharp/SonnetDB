@@ -19,6 +19,24 @@ This document maps SonnetDB server endpoints to VS Code extension features.
 | `GET /v1/setup/status` | detect first-run setup state |
 | `/mcp/{db}` | future VS Code agent and MCP integration |
 
+## M29 #245 management contracts consumed by VS Code
+
+| Endpoint | Extension usage |
+|----------|-----------------|
+| `POST /v1/db/{db}/kv/keyspaces` | KV keyspace section in Explorer |
+| `POST /v1/db/{db}/kv/{keyspace}/scan` | KV read-only preview and first-page tree expansion |
+| `POST /v1/db/{db}/vector/indexes` | vector index section in Explorer |
+| `POST /v1/db/{db}/vector/search-preview` | vector top-K preview command |
+| `POST /v1/db/{db}/vector/embed-preview` | optional text-to-vector query input for vector preview |
+| `POST /v1/db/{db}/fulltext/indexes` | full-text index section in Explorer |
+| `POST /v1/db/{db}/fulltext/search-preview` | full-text preview command |
+| `POST /v1/db/{db}/fulltext/analyze` | tokenizer analyze command |
+| `POST /v1/db/{db}/mq/topics` | MQ topic section in Explorer |
+| `POST /v1/db/{db}/mq/{topic}/browse` | MQ read-only message preview |
+| `POST /v1/db/{db}/mq/{topic}/monitor` | MQ retained window and lag metadata for previews |
+
+The extension deliberately keeps this surface read-only. Full per-model editing, import/export, approval flows, and governance remain Web Admin / Studio responsibilities.
+
 ## Reuse from existing web admin code
 
 The VS Code extension should copy or adapt these ideas from the current web admin:
