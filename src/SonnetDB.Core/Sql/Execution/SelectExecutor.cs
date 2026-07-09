@@ -1235,6 +1235,41 @@ internal static class SelectExecutor
         return true;
     }
 
+    /// <summary>
+    /// 计算某 series 上满足全部 Geo 谓词的时间戳集合（#282：跨字段 Geo 作为时间戳级约束）。
+    /// Geo 谓词永远挂在 GeoPoint 字段上，而聚合字段常是数值字段；因此不能按聚合字段做 per-field 下推，
+    /// 而要先算出「该 GeoPoint 字段命中 box 的时刻」，再让聚合只纳入这些时刻。
+    /// 多个 Geo 谓词按字段分组：每字段查出命中时刻集合，跨字段取交集（顶层 AND 语义）。
+    /// 无 Geo 谓词返回 <c>null</c>（表示无约束，调用方不应据此过滤）。
+    /// </summary>
+    private static HashSet<long>? BuildGeoAllowedTimestamps(
+        Tsdb tsdb,
+        SeriesEntry series,
+        TimeRange range,
+        IReadOnlyList<GeoPointWhereFilter> geoFilters)
+    {
+        if (geoFilters.Count == 0)
+            return null;
+
+        HashSet<long>? allowed = null;
+        foreach (var group in geoFilters.GroupBy(f => f.FieldName, StringComparer.Ordinal))
+        {
+            var fieldFilters = group.ToArray();
+            var matched = new HashSet<long>();
+            foreach (var dp in QueryPoints(tsdb, series.Id, group.Key, range, fieldFilters))
+                matched.Add(dp.Timestamp);
+
+            if (allowed is null)
+                allowed = matched;
+            else
+                allowed.IntersectWith(matched);
+
+            if (allowed.Count == 0)
+                break;
+        }
+        return allowed;
+    }
+
     private static object UnboxFieldValue(FieldValue v) => v.Type switch
     {
         FieldType.Float64 => v.AsDouble(),
@@ -1311,16 +1346,21 @@ internal static class SelectExecutor
                 // 残差查表（每 series 构建一次，供逐点残差求值）。
                 var residualLookups = BuildResidualLookups(tsdb, series, where.TimeRange, residualFieldCols);
 
+                // #282：跨字段 Geo 谓词作为时间戳级约束——先算命中时刻集合，聚合只纳入这些时刻。
+                // Geo 谓词挂在 GeoPoint 字段上、聚合字段常是数值字段，故不能按聚合字段做 per-field 下推。
+                var geoAllowed = BuildGeoAllowedTimestamps(tsdb, series, where.TimeRange, where.GeoFilters);
+
                 foreach (var fname in fields)
                 {
                     var col = schema.TryGetColumn(fname);
 
-                    var geoFilters = where.GeoFilters
-                        .Where(f => string.Equals(f.FieldName, fname, StringComparison.Ordinal))
-                        .ToArray();
+                    // #282：整句 Geo 门控——只要 WHERE 带任一 Geo 谓词，就禁用绕过逐点迭代的快路径，
+                    // 改走物化路径逐点施加时间戳级 Geo 约束（快路径无法表达跨字段 Geo）。
+                    bool hasGeo = where.GeoFilters.Count != 0;
 
-                    // 有残差时禁用扩展聚合 sidecar 快路径（它绕过逐点迭代，无法应用残差过滤）。
-                    if (where.Residual is null && CanUseExtendedAggregateSketchPath(spec, bucketSizeMs, geoFilters))
+                    // 有残差或 Geo 时禁用扩展聚合 sidecar 快路径（它绕过逐点迭代，无法应用逐点过滤）。
+                    if (where.Residual is null && !hasGeo
+                        && CanUseExtendedAggregateSketchPath(spec, bucketSizeMs))
                     {
                         bool existed = bucketAccumulators.TryGetValue(long.MinValue, out var slots);
                         slots ??= CreateAggSlots(aggSpecs);
@@ -1339,9 +1379,28 @@ internal static class SelectExecutor
                         }
                     }
 
-                    var points = QueryPoints(tsdb, series.Id, fname, where.TimeRange, geoFilters);
+                    if (CanUseLegacyAggregateFastPath(spec, col, where))
+                    {
+                        AccumulateLegacyAggregateFast(
+                            tsdb,
+                            series.Id,
+                            fname,
+                            where.TimeRange,
+                            bucketSizeMs,
+                            spec,
+                            aggSpecs,
+                            specIdx,
+                            bucketAccumulators);
+                        continue;
+                    }
+
+                    var points = QueryPoints(tsdb, series.Id, fname, where.TimeRange);
                     foreach (var dp in points)
                     {
+                        // #282：跨字段 Geo 逐点过滤——仅纳入 Geo 谓词命中时刻的聚合字段点。
+                        if (geoAllowed is not null && !geoAllowed.Contains(dp.Timestamp))
+                            continue;
+
                         // 残差逐点过滤：仅纳入残差在该时间戳上确定为 TRUE 的点。
                         if (where.Residual is not null
                             && !ResidualHoldsAtPoint(where.Residual, dp.Timestamp, series, residualLookups))
@@ -1420,15 +1479,18 @@ internal static class SelectExecutor
             // 每个 bucket 下该 series 所有 field 列出现过的时间戳并集 = 行/时刻集合。
             var bucketTimestamps = new Dictionary<long, HashSet<long>>();
 
+            // #282：跨字段 Geo 谓词作为时间戳级约束（Geo 挂 GeoPoint 字段，count(*) 覆盖全部字段）。
+            var geoAllowed = BuildGeoAllowedTimestamps(tsdb, series, where.TimeRange, where.GeoFilters);
+
             foreach (var fname in fieldNames)
             {
-                var geoFilters = where.GeoFilters
-                    .Where(f => string.Equals(f.FieldName, fname, StringComparison.Ordinal))
-                    .ToArray();
-
-                var points = QueryPoints(tsdb, series.Id, fname, where.TimeRange, geoFilters);
+                var points = QueryPoints(tsdb, series.Id, fname, where.TimeRange);
                 foreach (var dp in points)
                 {
+                    // #282：仅纳入 Geo 谓词命中时刻的行；否则 speed 等非 Geo 字段会把未命中时刻计入并集。
+                    if (geoAllowed is not null && !geoAllowed.Contains(dp.Timestamp))
+                        continue;
+
                     long bucketStart = bucketSizeMs > 0
                         ? TimeBucket.Floor(dp.Timestamp, bucketSizeMs)
                         : long.MinValue;
@@ -1474,13 +1536,59 @@ internal static class SelectExecutor
 
     private static bool CanUseExtendedAggregateSketchPath(
         AggSpec spec,
-        long bucketSizeMs,
-        IReadOnlyList<GeoPointWhereFilter> geoFilters)
+        long bucketSizeMs)
     {
         return spec.IsExtended
             && bucketSizeMs <= 0
-            && spec.FieldName is not null
-            && geoFilters.Count == 0;
+            && spec.FieldName is not null;
+    }
+
+    private static bool CanUseLegacyAggregateFastPath(
+        AggSpec spec,
+        MeasurementColumn? column,
+        WhereClause where)
+    {
+        if (spec.IsExtended
+            || spec.IsCountStar
+            || where.Residual is not null
+            || where.GeoFilters.Count != 0)
+        {
+            return false;
+        }
+
+        if (spec.LegacyAggregator is not (Aggregator.Count or Aggregator.Sum or Aggregator.Min or Aggregator.Max or Aggregator.Avg))
+            return false;
+
+        // count(string/vector/geopoint) 仍保留逐点路径；底层聚合快路径当前只保证数值/布尔字段。
+        return column?.DataType is FieldType.Float64 or FieldType.Int64 or FieldType.Boolean;
+    }
+
+    private static void AccumulateLegacyAggregateFast(
+        Tsdb tsdb,
+        ulong seriesId,
+        string fieldName,
+        TimeRange range,
+        long bucketSizeMs,
+        AggSpec spec,
+        IReadOnlyList<AggSpec> aggSpecs,
+        int specIdx,
+        SortedDictionary<long, AggSlot[]> bucketAccumulators)
+    {
+        var query = new AggregateQuery(seriesId, fieldName, range, spec.LegacyAggregator, bucketSizeMs);
+        foreach (var bucket in tsdb.Query.Execute(query))
+        {
+            if (bucket.Count <= 0)
+                continue;
+
+            long bucketStart = bucketSizeMs > 0 ? bucket.BucketStart : long.MinValue;
+            if (!bucketAccumulators.TryGetValue(bucketStart, out var slots))
+            {
+                slots = CreateAggSlots(aggSpecs);
+                bucketAccumulators[bucketStart] = slots;
+            }
+
+            slots[specIdx].MergeLegacyBucket(bucket);
+        }
     }
 
     private static double FieldValueToDouble(FieldValue v, MeasurementColumn? col)
@@ -1584,6 +1692,13 @@ internal static class SelectExecutor
             }
         }
 
+        public void MergeLegacyBucket(AggregateBucket bucket)
+        {
+            if (_extended is not null)
+                throw new InvalidOperationException("扩展聚合不支持 legacy bucket 合并路径。");
+            _legacy = _legacy.Merge(_spec.LegacyAggregator, bucket);
+        }
+
         public bool TryUpdateExtendedFromSidecar(
             Tsdb tsdb,
             ulong seriesId,
@@ -1632,6 +1747,38 @@ internal static class SelectExecutor
                 timestamp < FirstTimestamp ? value : FirstValue,
                 timestamp > LastTimestamp ? timestamp : LastTimestamp,
                 timestamp > LastTimestamp ? value : LastValue);
+        }
+
+        public BucketState Merge(Aggregator aggregator, AggregateBucket bucket)
+        {
+            if (bucket.Count <= 0)
+                return this;
+
+            return aggregator switch
+            {
+                Aggregator.Count => this with { Count = Count + bucket.Count },
+                Aggregator.Sum => this with
+                {
+                    Count = Count + bucket.Count,
+                    Sum = Sum + bucket.Value,
+                },
+                Aggregator.Avg => this with
+                {
+                    Count = Count + bucket.Count,
+                    Sum = Sum + bucket.Value * bucket.Count,
+                },
+                Aggregator.Min => this with
+                {
+                    Count = Count + bucket.Count,
+                    Min = Count == 0 || bucket.Value < Min ? bucket.Value : Min,
+                },
+                Aggregator.Max => this with
+                {
+                    Count = Count + bucket.Count,
+                    Max = Count == 0 || bucket.Value > Max ? bucket.Value : Max,
+                },
+                _ => throw new InvalidOperationException($"不支持通过 bucket 合并的聚合 {aggregator}。"),
+            };
         }
     }
 }
