@@ -798,6 +798,9 @@ internal static class SelectExecutor
         }
     }
 
+    private static readonly Dictionary<string, Dictionary<long, FieldValue>> EmptyResidualLookups =
+        new(StringComparer.Ordinal);
+
     /// <summary>为某 series 构建残差引用 field 列的 ts→FieldValue 查表，供聚合路径逐点残差求值（#217）。</summary>
     private static Dictionary<string, Dictionary<long, FieldValue>> BuildResidualLookups(
         Tsdb tsdb,
@@ -805,6 +808,10 @@ internal static class SelectExecutor
         TimeRange timeRange,
         IReadOnlyList<string> residualFieldCols)
     {
+        // #284：无残差谓词时 residualFieldCols 恒空——短路掉 per-(series,spec) 空字典分配，返回共享只读空表。
+        if (residualFieldCols.Count == 0)
+            return EmptyResidualLookups;
+
         var lookups = new Dictionary<string, Dictionary<long, FieldValue>>(StringComparer.Ordinal);
         foreach (var fname in residualFieldCols)
         {
@@ -1193,13 +1200,17 @@ internal static class SelectExecutor
         return new TimeBucketSpec(duration.Milliseconds);
     }
 
-    private static IReadOnlyList<DataPoint> QueryPoints(Tsdb tsdb, ulong seriesId, string fieldName, TimeRange range)
+    // #284：惰性点流。QueryEngine.Execute(PointQuery) 本就是单租约、单趟流式合并的 IEnumerable，
+    // 聚合残差 / 跨字段 Geo 路径只需单趟迭代累加 AggSlot，无须先 ToList 物化——内存 O(N)→O(1)、CPU 不变。
+    // 物化版 QueryPoints 保留给 raw 路径（时间戳并集 + ts→value 字典需二次遍历）与残差查表构建。
+    private static IEnumerable<DataPoint> QueryPointsStream(
+        Tsdb tsdb, ulong seriesId, string fieldName, TimeRange range)
     {
         var query = new PointQuery(seriesId, fieldName, range);
-        return tsdb.Query.Execute(query).ToList();
+        return tsdb.Query.Execute(query);
     }
 
-    private static IReadOnlyList<DataPoint> QueryPoints(
+    private static IEnumerable<DataPoint> QueryPointsStream(
         Tsdb tsdb,
         ulong seriesId,
         string fieldName,
@@ -1207,13 +1218,23 @@ internal static class SelectExecutor
         IReadOnlyList<GeoPointWhereFilter>? geoFilters)
     {
         if (geoFilters is null || geoFilters.Count == 0)
-            return QueryPoints(tsdb, seriesId, fieldName, range);
+            return QueryPointsStream(tsdb, seriesId, fieldName, range);
 
         var query = new PointQuery(seriesId, fieldName, range, GeoFilter: geoFilters[0].QueryFilter);
         return tsdb.Query.Execute(query)
-            .Where(dp => MatchesGeoFilters(dp, geoFilters))
-            .ToList();
+            .Where(dp => MatchesGeoFilters(dp, geoFilters));
     }
+
+    private static IReadOnlyList<DataPoint> QueryPoints(Tsdb tsdb, ulong seriesId, string fieldName, TimeRange range)
+        => QueryPointsStream(tsdb, seriesId, fieldName, range).ToList();
+
+    private static IReadOnlyList<DataPoint> QueryPoints(
+        Tsdb tsdb,
+        ulong seriesId,
+        string fieldName,
+        TimeRange range,
+        IReadOnlyList<GeoPointWhereFilter>? geoFilters)
+        => QueryPointsStream(tsdb, seriesId, fieldName, range, geoFilters).ToList();
 
     private static bool MatchesGeoFilters(DataPoint point, IReadOnlyList<GeoPointWhereFilter> geoFilters)
     {
@@ -1256,7 +1277,7 @@ internal static class SelectExecutor
         {
             var fieldFilters = group.ToArray();
             var matched = new HashSet<long>();
-            foreach (var dp in QueryPoints(tsdb, series.Id, group.Key, range, fieldFilters))
+            foreach (var dp in QueryPointsStream(tsdb, series.Id, group.Key, range, fieldFilters))
                 matched.Add(dp.Timestamp);
 
             if (allowed is null)
@@ -1403,8 +1424,8 @@ internal static class SelectExecutor
                         continue;
                     }
 
-                    var points = QueryPoints(tsdb, series.Id, fname, where.TimeRange);
-                    foreach (var dp in points)
+                    // #284：残差 / 跨字段 Geo 逐点过滤只需单趟迭代累加 AggSlot，惰性枚举免物化。
+                    foreach (var dp in QueryPointsStream(tsdb, series.Id, fname, where.TimeRange))
                     {
                         // #282：跨字段 Geo 逐点过滤——仅纳入 Geo 谓词命中时刻的聚合字段点。
                         if (geoAllowed is not null && !geoAllowed.Contains(dp.Timestamp))
@@ -1575,8 +1596,8 @@ internal static class SelectExecutor
 
             foreach (var fname in fieldNames)
             {
-                var points = QueryPoints(tsdb, series.Id, fname, where.TimeRange);
-                foreach (var dp in points)
+                // #284：时间戳并集只需单趟迭代，惰性枚举免物化。
+                foreach (var dp in QueryPointsStream(tsdb, series.Id, fname, where.TimeRange))
                 {
                     // #282：仅纳入 Geo 谓词命中时刻的行；否则 speed 等非 Geo 字段会把未命中时刻计入并集。
                     if (geoAllowed is not null && !geoAllowed.Contains(dp.Timestamp))
