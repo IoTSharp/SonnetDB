@@ -430,3 +430,4 @@ FodyWeavers.xsd
 .dotnet_home/
 /.codex-temp
 src/SonnetDB/sonnetdb-data/
+.codex-verify/
