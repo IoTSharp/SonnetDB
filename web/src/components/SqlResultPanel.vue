@@ -21,10 +21,11 @@
           size="small"
           style="min-width: 220px"
         >
-          <n-tab name="markdown" tab="文本" />
-          <n-tab name="table" tab="表格" />
-          <n-tab name="chart" tab="图表" />
-          <n-tab v-if="hasGeoPoints" name="map" tab="轨迹地图" />
+          <n-tab name="table" tab="Table" />
+          <n-tab name="raw" tab="Raw" />
+          <n-tab name="json" tab="JSON" />
+          <n-tab name="chart" tab="Chart" />
+          <n-tab v-if="hasGeoPoints" name="map" tab="Map" />
         </n-tabs>
       </n-space>
     </template>
@@ -37,19 +38,19 @@
 
     <template v-else>
       <template v-if="hasRows">
-        <!-- 文本（Markdown 表格 + 客户端渲染；常规 Markdown 由 marked 渲染，
-             复杂内容（如 SVG / HTML 区块）允许直接以 raw HTML 透传） -->
-        <div v-if="view === 'markdown'" class="sql-result-card__md" v-html="markdownHtml" />
-
         <!-- 表格 -->
         <n-data-table
-          v-else-if="view === 'table'"
+          v-if="view === 'table'"
           :columns="dataColumns"
           :data="rows"
           :bordered="false"
           size="small"
           :max-height="420"
         />
+
+        <pre v-else-if="view === 'raw'" class="sql-result-card__pre">{{ rawText }}</pre>
+
+        <pre v-else-if="view === 'json'" class="sql-result-card__pre">{{ jsonText }}</pre>
 
         <!-- 图表（SVG 折线） -->
         <SqlResultChart
@@ -75,7 +76,6 @@ import {
   NAlert, NCard, NDataTable, NSpace, NTabs, NTab, NTag, NText,
   type DataTableColumns,
 } from 'naive-ui';
-import { marked } from 'marked';
 import SqlResultChart from './SqlResultChart.vue';
 import ResultMapPreview from './ResultMapPreview.vue';
 import { rowsToObjects, type SqlResultSet } from '@/api/sql';
@@ -89,7 +89,7 @@ interface Props {
 }
 const props = defineProps<Props>();
 
-type View = 'markdown' | 'table' | 'chart' | 'map';
+type View = 'table' | 'raw' | 'json' | 'chart' | 'map';
 const view = ref<View>('table');
 
 const visibleRows = computed(() => props.displayRows ?? props.result.rows);
@@ -118,7 +118,7 @@ const hasChartData = computed(() => {
 
 watch([hasRows, () => props.result.columns, visibleRows], () => {
   if (!hasRows.value) {
-    view.value = 'markdown';
+    view.value = 'raw';
     return;
   }
 
@@ -196,44 +196,25 @@ const dataColumns = computed<DataTableColumns<Record<string, unknown>>>(() =>
     render: (row) => formatSqlValue(row[c]),
   })));
 
-/**
- * 把结果集渲染成 Markdown 字符串（含表头分隔行 + 数据行）。
- * 表格内的 `|` / `\\` 做最小转义，避免破坏 Markdown 语法。
- *
- * 行数 > 100 时只展示前 100 行并附统计行，避免一次性渲染过大。
- */
-const markdownSource = computed(() => {
-  if (!props.result.hasColumns) return '_语句执行成功，但没有结果集。_';
+const rawText = computed(() => {
+  if (!props.result.hasColumns) return '语句执行成功，但没有结果集。';
   const cols = props.result.columns;
-  if (cols.length === 0) return '_语句执行成功，但没有列。_';
+  if (cols.length === 0) return '语句执行成功，但没有列。';
 
-  const max = 100;
-  const slice = visibleRows.value.slice(0, max);
   const escape = (v: unknown): string => {
     if (v === null || v === undefined) return '';
-    return formatSqlValue(v).replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\n/g, ' ');
+    return formatSqlValue(v).replace(/\r?\n/g, ' ');
   };
 
   const lines: string[] = [];
-  lines.push(`| ${cols.map(escape).join(' | ')} |`);
-  lines.push(`| ${cols.map(() => '---').join(' | ')} |`);
-  for (const row of slice) {
-    lines.push(`| ${cols.map((_, i) => escape(row[i])).join(' | ')} |`);
-  }
-  if (visibleRows.value.length > max) {
-    lines.push('');
-    lines.push(`_… 仅展示前 ${max} 行，共 ${visibleRows.value.length} 行。切换到「表格」或「图表」查看完整结果。_`);
+  lines.push(cols.join('\t'));
+  for (const row of visibleRows.value) {
+    lines.push(cols.map((_, i) => escape(row[i])).join('\t'));
   }
   return lines.join('\n');
 });
 
-const markdownHtml = computed(() => {
-  // 允许 marked 输出原生 HTML，便于值列里直接嵌入 <svg>。
-  // 内容来源是服务端 SQL 结果，已通过 escape() 转义 Markdown 特殊符号；
-  // 对潜在 XSS 的应对：列值中不出现 <script>，且标签对 HTML 实体的输出不会执行。
-  const html = marked.parse(markdownSource.value, { async: false }) as string;
-  return html;
-});
+const jsonText = computed(() => JSON.stringify(rows.value, null, 2));
 </script>
 
 <style scoped>
@@ -252,28 +233,17 @@ const markdownHtml = computed(() => {
   display: inline-block;
 }
 .sql-result-card__meta { color: #888; font-size: 12px; }
-.sql-result-card__md {
-  font-size: 13px;
-  overflow-x: auto;
-}
-.sql-result-card__md :deep(table) {
-  border-collapse: collapse;
-  width: 100%;
-}
-.sql-result-card__md :deep(th),
-.sql-result-card__md :deep(td) {
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  padding: 4px 8px;
-  text-align: left;
-  font-variant-numeric: tabular-nums;
-}
-.sql-result-card__md :deep(th) {
-  background: rgba(13, 59, 102, 0.06);
-  font-weight: 600;
-}
-.sql-result-card__md :deep(code) {
-  background: rgba(0, 0, 0, 0.05);
-  padding: 1px 4px;
-  border-radius: 3px;
+.sql-result-card__pre {
+  max-height: 420px;
+  padding: 10px 12px;
+  margin: 0;
+  overflow: auto;
+  border: 1px solid rgba(13, 59, 102, 0.08);
+  border-radius: 6px;
+  background: #fafcfe;
+  color: #234;
+  font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.55;
 }
 </style>
