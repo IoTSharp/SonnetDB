@@ -418,15 +418,17 @@ public sealed record VectorIndexStatResponse(IReadOnlyList<VectorIndexStat> Inde
 /// <param name="Column">向量列名。</param>
 /// <param name="Kind">索引类型（Hnsw / IvfFlat / IvfPq / Vamana）。</param>
 /// <param name="Dimension">向量维度；未声明时为 null。</param>
-/// <param name="Metric">距离度量。当前引擎构建时固定为 cosine。</param>
+/// <param name="Metric">距离度量（cosine / l2 / inner_product）。</param>
 /// <param name="Params">图参数（如 HNSW m / ef）。</param>
+/// <param name="RowCount">当前可见向量点数量；统计失败或未计算时为 null。</param>
 public sealed record VectorIndexStat(
     string Measurement,
     string Column,
     string Kind,
     int? Dimension,
     string Metric,
-    IReadOnlyList<KeyValueInfo> Params);
+    IReadOnlyList<KeyValueInfo> Params,
+    long? RowCount = null);
 
 /// <summary>
 /// 向量检索预览请求。走既有 <c>knn(...)</c> data-plane，不新增查询语义。
@@ -435,11 +437,28 @@ public sealed record VectorIndexStat(
 /// <param name="Column">向量列名。</param>
 /// <param name="Query">查询向量。</param>
 /// <param name="TopK">返回前 K 条；默认 10，上限 100。</param>
+/// <param name="Metric">距离度量；为空时使用 cosine。</param>
+/// <param name="Filter">受限 WHERE 条件，仅支持 TAG 等值与 time 数值范围的 AND 组合。</param>
 public sealed record VectorSearchPreviewRequest(
     string Measurement,
     string Column,
     float[] Query,
-    int? TopK = null);
+    int? TopK = null,
+    string? Metric = null,
+    string? Filter = null);
+
+/// <summary>
+/// 向量 playground 文本嵌入请求。复用现有 Copilot embedding provider，不新增独立模型配置。
+/// </summary>
+/// <param name="Text">待嵌入文本。</param>
+public sealed record VectorEmbedPreviewRequest(string Text);
+
+/// <summary>
+/// 向量 playground 文本嵌入响应。
+/// </summary>
+/// <param name="Vector">生成的 embedding 向量。</param>
+/// <param name="Dimension">向量维度。</param>
+public sealed record VectorEmbedPreviewResponse(float[] Vector, int Dimension);
 
 /// <summary>
 /// 向量检索预览响应。
@@ -452,7 +471,13 @@ public sealed record VectorSearchPreviewResponse(IReadOnlyList<VectorSearchPrevi
 /// </summary>
 /// <param name="TimestampUtc">命中点时间戳（UTC ticks）。</param>
 /// <param name="Distance">与查询向量的距离。</param>
-public sealed record VectorSearchPreviewHit(long TimestampUtc, double Distance);
+/// <param name="Tags">命中序列的 Tag 值。</param>
+/// <param name="Fields">同一时间戳上的 Field 值（向量字段以预览字符串表示）。</param>
+public sealed record VectorSearchPreviewHit(
+    long TimestampUtc,
+    double Distance,
+    IReadOnlyList<KeyValueInfo>? Tags = null,
+    IReadOnlyList<KeyValueInfo>? Fields = null);
 
 /// <summary>
 /// 全文索引统计响应。

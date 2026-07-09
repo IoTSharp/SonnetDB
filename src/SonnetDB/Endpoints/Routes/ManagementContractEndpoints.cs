@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SonnetDB.Auth;
 using SonnetDB.Catalog;
 using SonnetDB.Contracts;
+using SonnetDB.Copilot;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
 using SonnetDB.FullText;
@@ -15,6 +16,7 @@ using SonnetDB.FullText.Tokenizers.Jieba;
 using SonnetDB.FullText.Tokenizers.Unicode;
 using SonnetDB.Hosting;
 using SonnetDB.Json;
+using SonnetDB.Query;
 using SonnetDB.Sql.Execution;
 using SonnetDB.Storage.Format;
 using SonnetMQ;
@@ -132,9 +134,9 @@ internal static partial class SonnetDbEndpoints
                         column.Name,
                         column.VectorIndex.Kind.ToString(),
                         column.VectorDimension,
-                        // 引擎构建时固定 cosine（VectorIndexAdapter），如实回显。
-                        "cosine",
-                        BuildVectorIndexParams(column.VectorIndex)));
+                        FormatKnnMetric(column.VectorIndex.Metric),
+                        BuildVectorIndexParams(column.VectorIndex),
+                        CountVectorRows(tsdb, measurement.Name, column.Name)));
                 }
             }
 
@@ -163,18 +165,84 @@ internal static partial class SonnetDbEndpoints
                 : Math.Min(req.TopK.Value, ManagementSearchMaxTopK);
 
             registry.TryGet(db, out var tsdb);
-            string sql = BuildKnnSql(req.Measurement, req.Column, req.Query, topK);
+            var schema = tsdb.Measurements.TryGet(req.Measurement);
+            if (schema is null)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status404NotFound, "measurement_not_found",
+                    $"Measurement '{req.Measurement}' 不存在。").ConfigureAwait(false);
+                return;
+            }
+
+            var vectorColumn = schema.TryGetColumn(req.Column);
+            if (vectorColumn is null || vectorColumn.Role != MeasurementColumnRole.Field || vectorColumn.DataType != FieldType.Vector)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request",
+                    $"列 '{req.Column}' 必须是 VECTOR FIELD。").ConfigureAwait(false);
+                return;
+            }
+
+            if (!TryNormalizeKnnMetric(req.Metric, out var metric, out var metricError))
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", metricError).ConfigureAwait(false);
+                return;
+            }
+
+            if (!TryNormalizeVectorFilter(req.Filter, schema, out var filter, out var filterError))
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", filterError).ConfigureAwait(false);
+                return;
+            }
+
+            string sql = BuildKnnSql(req.Measurement, req.Column, req.Query, topK, metric, filter);
 
             try
             {
                 var result = SqlExecutor.Execute(tsdb, db, sql) as SelectExecutionResult;
-                var hits = MapVectorHits(result);
+                var hits = MapVectorHits(result, schema);
                 await Results.Json(new VectorSearchPreviewResponse(hits), ServerJsonContext.Default.VectorSearchPreviewResponse)
                     .ExecuteAsync(ctx).ConfigureAwait(false);
             }
             catch (InvalidOperationException ex)
             {
                 await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "vector_search_error", ex.Message).ConfigureAwait(false);
+            }
+        });
+
+        app.MapPost("/v1/db/{db}/vector/embed-preview", async (HttpContext ctx, string db) =>
+        {
+            if (!await TryResolveObjectStorageAsync(ctx, registry, grants, db, DatabasePermission.Read).ConfigureAwait(false))
+                return;
+
+            var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.VectorEmbedPreviewRequest).ConfigureAwait(false);
+            if (req is null || string.IsNullOrWhiteSpace(req.Text))
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体需包含非空 text。").ConfigureAwait(false);
+                return;
+            }
+
+            var readiness = app.Services.GetRequiredService<CopilotReadiness>().Evaluate();
+            if (!readiness.Enabled)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status409Conflict, "copilot_disabled", "Copilot 子系统已禁用。").ConfigureAwait(false);
+                return;
+            }
+            if (!readiness.EmbeddingReady)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable, "embedding_not_ready",
+                    $"Embedding provider 未就绪：{readiness.Reason ?? "unknown"}。").ConfigureAwait(false);
+                return;
+            }
+
+            try
+            {
+                var embedding = await app.Services.GetRequiredService<IEmbeddingProvider>()
+                    .EmbedAsync(req.Text, ctx.RequestAborted).ConfigureAwait(false);
+                await Results.Json(new VectorEmbedPreviewResponse(embedding, embedding.Length), ServerJsonContext.Default.VectorEmbedPreviewResponse)
+                    .ExecuteAsync(ctx).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException or HttpRequestException)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable, "embedding_failed", ex.Message).ConfigureAwait(false);
             }
         });
     }
@@ -187,6 +255,7 @@ internal static partial class SonnetDbEndpoints
             case VectorIndexKind.Hnsw when index.Hnsw is not null:
                 options.Add(new KeyValueInfo("m", index.Hnsw.M.ToString(CultureInfo.InvariantCulture)));
                 options.Add(new KeyValueInfo("ef", index.Hnsw.Ef.ToString(CultureInfo.InvariantCulture)));
+                options.Add(new KeyValueInfo("efConstruction", index.Hnsw.EfConstruction.ToString(CultureInfo.InvariantCulture)));
                 break;
             case VectorIndexKind.IvfFlat when index.Ivf is not null:
                 options.Add(new KeyValueInfo("nlist", index.Ivf.NList.ToString(CultureInfo.InvariantCulture)));
@@ -208,7 +277,15 @@ internal static partial class SonnetDbEndpoints
         return options;
     }
 
-    private static string BuildKnnSql(string measurement, string column, float[] query, int topK)
+    private static long CountVectorRows(Tsdb tsdb, string measurement, string column)
+    {
+        long count = 0;
+        foreach (var series in tsdb.Catalog.Find(measurement, null))
+            count += tsdb.Query.Execute(new PointQuery(series.Id, column, TimeRange.All)).LongCount();
+        return count;
+    }
+
+    private static string BuildKnnSql(string measurement, string column, float[] query, int topK, string metric, string? filter)
     {
         var sb = new StringBuilder();
         sb.Append("SELECT * FROM knn(").Append(measurement).Append(", ").Append(column).Append(", [");
@@ -218,11 +295,14 @@ internal static partial class SonnetDbEndpoints
                 sb.Append(", ");
             sb.Append(query[i].ToString("R", CultureInfo.InvariantCulture));
         }
-        sb.Append("], ").Append(topK.ToString(CultureInfo.InvariantCulture)).Append(')');
+        sb.Append("], ").Append(topK.ToString(CultureInfo.InvariantCulture))
+            .Append(", '").Append(metric).Append("')");
+        if (!string.IsNullOrWhiteSpace(filter))
+            sb.Append(" WHERE ").Append(filter);
         return sb.ToString();
     }
 
-    private static List<VectorSearchPreviewHit> MapVectorHits(SelectExecutionResult? result)
+    private static List<VectorSearchPreviewHit> MapVectorHits(SelectExecutionResult? result, MeasurementSchema schema)
     {
         if (result is null)
             return new List<VectorSearchPreviewHit>();
@@ -241,10 +321,290 @@ internal static partial class SonnetDbEndpoints
         {
             long ts = timeIdx >= 0 && row[timeIdx] is not null ? Convert.ToInt64(row[timeIdx], CultureInfo.InvariantCulture) : 0;
             double dist = distIdx >= 0 && row[distIdx] is not null ? Convert.ToDouble(row[distIdx], CultureInfo.InvariantCulture) : 0;
-            hits.Add(new VectorSearchPreviewHit(ts, dist));
+            var tags = new List<KeyValueInfo>();
+            var fields = new List<KeyValueInfo>();
+            for (int i = 0; i < result.Columns.Count && i < row.Count; i++)
+            {
+                if (i == timeIdx || i == distIdx)
+                    continue;
+
+                var column = schema.TryGetColumn(result.Columns[i]);
+                if (column is null)
+                    continue;
+
+                var value = FormatVectorHitValue(row[i]);
+                if (column.Role == MeasurementColumnRole.Tag)
+                    tags.Add(new KeyValueInfo(column.Name, value));
+                else if (column.Role == MeasurementColumnRole.Field)
+                    fields.Add(new KeyValueInfo(column.Name, value));
+            }
+            hits.Add(new VectorSearchPreviewHit(ts, dist, tags, fields));
         }
         return hits;
     }
+
+    private static string FormatVectorHitValue(object? value)
+    {
+        if (value is null)
+            return "null";
+        if (value is float[] vector)
+            return "[" + string.Join(", ", vector.Select(static f => f.ToString("R", CultureInfo.InvariantCulture))) + "]";
+        if (value is double d)
+            return d.ToString("R", CultureInfo.InvariantCulture);
+        if (value is float f)
+            return f.ToString("R", CultureInfo.InvariantCulture);
+        if (value is IFormattable formattable)
+            return formattable.ToString(null, CultureInfo.InvariantCulture) ?? string.Empty;
+        return value.ToString() ?? string.Empty;
+    }
+
+    private static string FormatKnnMetric(KnnMetric metric) => metric switch
+    {
+        KnnMetric.L2 => "l2",
+        KnnMetric.InnerProduct => "inner_product",
+        _ => "cosine",
+    };
+
+    private static bool TryNormalizeKnnMetric(string? raw, out string metric, out string error)
+    {
+        metric = "cosine";
+        error = string.Empty;
+        if (string.IsNullOrWhiteSpace(raw))
+            return true;
+
+        switch (raw.Trim().ToLowerInvariant())
+        {
+            case "cosine":
+            case "cosine_distance":
+                metric = "cosine";
+                return true;
+            case "l2":
+            case "l2_distance":
+            case "euclidean":
+                metric = "l2";
+                return true;
+            case "inner_product":
+            case "dot":
+            case "ip":
+                metric = "inner_product";
+                return true;
+            default:
+                error = "metric 仅支持 cosine / l2 / inner_product。";
+                return false;
+        }
+    }
+
+    private static bool TryNormalizeVectorFilter(
+        string? raw,
+        MeasurementSchema schema,
+        out string? normalized,
+        out string error)
+    {
+        normalized = null;
+        error = string.Empty;
+        if (string.IsNullOrWhiteSpace(raw))
+            return true;
+
+        var text = raw.Trim();
+        if (text.Length > 512)
+        {
+            error = "filter 不能超过 512 个字符。";
+            return false;
+        }
+        if (text.Contains(';', StringComparison.Ordinal)
+            || text.Contains("--", StringComparison.Ordinal)
+            || text.Contains("/*", StringComparison.Ordinal)
+            || text.Contains("*/", StringComparison.Ordinal))
+        {
+            error = "filter 仅支持 TAG 等值与 time 范围条件，不允许 SQL 分隔符或注释。";
+            return false;
+        }
+
+        var clauses = SplitAndClauses(text);
+        if (clauses.Count == 0)
+            return true;
+
+        var normalizedClauses = new List<string>(clauses.Count);
+        foreach (var clause in clauses)
+        {
+            if (!TryNormalizeVectorFilterClause(clause, schema, out var normalizedClause, out error))
+                return false;
+            normalizedClauses.Add(normalizedClause);
+        }
+
+        normalized = string.Join(" AND ", normalizedClauses);
+        return true;
+    }
+
+    private static List<string> SplitAndClauses(string text)
+    {
+        var clauses = new List<string>();
+        int start = 0;
+        bool inString = false;
+        for (int i = 0; i < text.Length; i++)
+        {
+            if (text[i] == '\'')
+            {
+                if (inString && i + 1 < text.Length && text[i + 1] == '\'')
+                {
+                    i++;
+                    continue;
+                }
+                inString = !inString;
+                continue;
+            }
+
+            if (!inString && IsAndSeparatorAt(text, i))
+            {
+                var clause = text[start..i].Trim();
+                if (clause.Length > 0)
+                    clauses.Add(clause);
+                i += 2;
+                start = i + 1;
+            }
+        }
+
+        var tail = text[start..].Trim();
+        if (tail.Length > 0)
+            clauses.Add(tail);
+        return clauses;
+    }
+
+    private static bool IsAndSeparatorAt(string text, int index)
+    {
+        if (index + 3 > text.Length)
+            return false;
+        if (!text.AsSpan(index, 3).Equals("AND".AsSpan(), StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        bool left = index == 0 || char.IsWhiteSpace(text[index - 1]);
+        bool right = index + 3 == text.Length || char.IsWhiteSpace(text[index + 3]);
+        return left && right;
+    }
+
+    private static bool TryNormalizeVectorFilterClause(
+        string clause,
+        MeasurementSchema schema,
+        out string normalized,
+        out string error)
+    {
+        normalized = string.Empty;
+        error = string.Empty;
+        var op = FindFilterOperator(clause, out var opIndex);
+        if (op is null)
+        {
+            error = $"不支持的 filter 条件：{clause}";
+            return false;
+        }
+
+        var left = clause[..opIndex].Trim();
+        var right = clause[(opIndex + op.Length)..].Trim();
+        if (!IsValidSqlIdentifier(left) || right.Length == 0)
+        {
+            error = $"filter 条件格式非法：{clause}";
+            return false;
+        }
+
+        if (string.Equals(left, "time", StringComparison.OrdinalIgnoreCase))
+        {
+            if (op == "!=")
+            {
+                error = "filter 暂不支持 time !=。";
+                return false;
+            }
+            if (!long.TryParse(right, NumberStyles.Integer, CultureInfo.InvariantCulture, out var timestamp))
+            {
+                error = "time filter 右值必须是 Unix 毫秒整数。";
+                return false;
+            }
+            normalized = $"time {op} {timestamp.ToString(CultureInfo.InvariantCulture)}";
+            return true;
+        }
+
+        var column = schema.TryGetColumn(left);
+        if (column is null || column.Role != MeasurementColumnRole.Tag)
+        {
+            error = $"filter 只支持 TAG 列等值和 time 范围，'{left}' 不是 TAG 列。";
+            return false;
+        }
+        if (op != "=")
+        {
+            error = "TAG filter 仅支持等值比较。";
+            return false;
+        }
+        if (!TryParseSqlStringLiteral(right, out var tagValue))
+        {
+            error = "TAG filter 右值必须是单引号字符串字面量。";
+            return false;
+        }
+
+        normalized = $"{left} = {EscapeSqlString(tagValue)}";
+        return true;
+    }
+
+    private static string? FindFilterOperator(string clause, out int index)
+    {
+        string[] operators = [">=", "<=", "!=", "=", ">", "<"];
+        bool inString = false;
+        for (int i = 0; i < clause.Length; i++)
+        {
+            if (clause[i] == '\'')
+            {
+                if (inString && i + 1 < clause.Length && clause[i + 1] == '\'')
+                {
+                    i++;
+                    continue;
+                }
+                inString = !inString;
+                continue;
+            }
+            if (inString)
+                continue;
+            foreach (var op in operators)
+            {
+                if (i + op.Length <= clause.Length
+                    && clause.AsSpan(i, op.Length).Equals(op.AsSpan(), StringComparison.Ordinal))
+                {
+                    index = i;
+                    return op;
+                }
+            }
+        }
+
+        index = -1;
+        return null;
+    }
+
+    private static bool TryParseSqlStringLiteral(string text, out string value)
+    {
+        value = string.Empty;
+        var trimmed = text.Trim();
+        if (trimmed.Length < 2 || trimmed[0] != '\'' || trimmed[^1] != '\'')
+            return false;
+
+        var inner = trimmed[1..^1];
+        var sb = new StringBuilder(inner.Length);
+        for (int i = 0; i < inner.Length; i++)
+        {
+            if (inner[i] == '\'')
+            {
+                if (i + 1 < inner.Length && inner[i + 1] == '\'')
+                {
+                    sb.Append('\'');
+                    i++;
+                    continue;
+                }
+                return false;
+            }
+            sb.Append(inner[i]);
+        }
+
+        value = sb.ToString();
+        return true;
+    }
+
+    private static string EscapeSqlString(string value)
+        => "'" + value.Replace("'", "''", StringComparison.Ordinal) + "'";
 
     // ---- 全文 ----
 

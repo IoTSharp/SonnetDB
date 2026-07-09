@@ -154,17 +154,29 @@ public sealed class ManagementContractEndpointTests : IAsyncLifetime
         Assert.Equal("Hnsw", stat.Kind);
         Assert.Equal(3, stat.Dimension);
         Assert.Equal("cosine", stat.Metric);
+        Assert.Equal(3, stat.RowCount);
         Assert.Contains(stat.Params, p => p.Key == "m" && p.Value == "4");
         Assert.Contains(stat.Params, p => p.Key == "ef" && p.Value == "8");
+        Assert.Contains(stat.Params, p => p.Key == "efConstruction");
 
         // search-preview
         var searchResp = await ro.PostAsync($"/v1/db/{db}/vector/search-preview",
-            JsonContent.Create(new VectorSearchPreviewRequest("docs", "embedding", new[] { 1f, 0f, 0f }, 2),
+            JsonContent.Create(new VectorSearchPreviewRequest("docs", "embedding", new[] { 1f, 0f, 0f }, 2, "cosine", "source = 'a'"),
                 ServerJsonContext.Default.VectorSearchPreviewRequest));
         Assert.Equal(HttpStatusCode.OK, searchResp.StatusCode);
         var search = await searchResp.Content.ReadFromJsonAsync(ServerJsonContext.Default.VectorSearchPreviewResponse);
         Assert.NotEmpty(search!.Hits);
         Assert.True(search.Hits.Count <= 2);
+        Assert.All(search.Hits, hit => Assert.Contains(hit.Tags!, p => p.Key == "source" && p.Value == "a"));
+        Assert.All(search.Hits, hit => Assert.Contains(hit.Fields!, p => p.Key == "embedding"));
+
+        // 文本 embedding preview：复用 Copilot embedding provider，只返回向量，不写入数据。
+        var embedResp = await ro.PostAsync($"/v1/db/{db}/vector/embed-preview",
+            JsonContent.Create(new VectorEmbedPreviewRequest("pump alarm"), ServerJsonContext.Default.VectorEmbedPreviewRequest));
+        Assert.Equal(HttpStatusCode.OK, embedResp.StatusCode);
+        var embed = await embedResp.Content.ReadFromJsonAsync(ServerJsonContext.Default.VectorEmbedPreviewResponse);
+        Assert.Equal(embed!.Dimension, embed.Vector.Length);
+        Assert.True(embed.Dimension > 0);
     }
 
     [Fact]
@@ -176,6 +188,22 @@ public sealed class ManagementContractEndpointTests : IAsyncLifetime
 
         var resp = await admin.PostAsync($"/v1/db/{db}/vector/search-preview",
             JsonContent.Create(new VectorSearchPreviewRequest("docs; DROP", "embedding", new[] { 1f, 0f }, 2),
+                ServerJsonContext.Default.VectorSearchPreviewRequest));
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task Vector_SearchPreview_RejectsUnsupportedFilter()
+    {
+        using var admin = CreateClient(_adminToken);
+        var db = "vecmgmt3";
+        await CreateDatabaseAsync(admin, db);
+
+        await ExecuteSqlAsync(admin, db,
+            "CREATE MEASUREMENT docs (source TAG, title FIELD STRING, embedding FIELD VECTOR(2) WITH INDEX hnsw(m=4, ef=8))");
+
+        var resp = await admin.PostAsync($"/v1/db/{db}/vector/search-preview",
+            JsonContent.Create(new VectorSearchPreviewRequest("docs", "embedding", new[] { 1f, 0f }, 2, "cosine", "title = 'x'"),
                 ServerJsonContext.Default.VectorSearchPreviewRequest));
         Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
     }

@@ -136,6 +136,16 @@
         @refresh-schema="loadSchema(targetDb, true)"
       />
 
+      <VectorSearchWorkbench
+        v-else-if="activeWorkbenchTool === 'vector'"
+        :target-db="targetDb"
+        :index="selectedVectorIndex"
+        :indexes="currentVectorIndexes"
+        :loading="loadingSchema"
+        @select-index="selectVectorIndex"
+        @refresh-schema="loadSchema(targetDb, true)"
+      />
+
       <main v-else class="query-workspace">
         <TrajectoryMap
           class="trajectory-workbench"
@@ -159,7 +169,9 @@ import RemoteConnectionDialog from '@/components/RemoteConnectionDialog.vue';
 import SonnetMqWorkbench from '@/components/SonnetMqWorkbench.vue';
 import SqlQueryWorkspace from '@/components/SqlQueryWorkspace.vue';
 import SqlWorkbenchHeader from '@/components/SqlWorkbenchHeader.vue';
+import VectorSearchWorkbench from '@/components/VectorSearchWorkbench.vue';
 import TrajectoryMap from '@/views/TrajectoryMap.vue';
+import type { VectorIndexStat } from '@/api/management';
 import { useSqlExecution } from '@/composables/useSqlExecution';
 import { useSqlExplorer } from '@/composables/useSqlExplorer';
 import { useSqlExplorerRouting } from '@/composables/useSqlExplorerRouting';
@@ -294,6 +306,22 @@ const selectedMqTopic = computed(() => {
   return currentMqTopics.value[0]?.topic ?? active;
 });
 
+const currentVectorIndexes = computed(() =>
+  targetDb.value && targetDb.value !== CONTROL_PLANE_KEY
+    ? managementByDb.value[targetDb.value]?.vectorIndexes ?? []
+    : []);
+
+const selectedVectorIndex = computed(() => {
+  const active = activeExplorerKey.value.startsWith('vector:')
+    ? activeExplorerKey.value
+    : '';
+  if (active) {
+    const selected = currentVectorIndexes.value.find((index) => vectorIndexKey(index) === active);
+    if (selected) return selected;
+  }
+  return currentVectorIndexes.value[0] ?? null;
+});
+
 const {
   maintenanceBackupDirectory,
   maintenanceRestoreTargetDirectory,
@@ -385,6 +413,15 @@ function selectMqTopic(topic: string): void {
   if (!topic) return;
   activeExplorerKey.value = `mq:${topic}`;
   setWorkbenchTool('mq');
+}
+
+function selectVectorIndex(index: VectorIndexStat): void {
+  activeExplorerKey.value = vectorIndexKey(index);
+  setWorkbenchTool('vector');
+}
+
+function vectorIndexKey(index: VectorIndexStat): string {
+  return `vector:${index.measurement}:${index.column}`;
 }
 
 watch(targetDb, (db) => {

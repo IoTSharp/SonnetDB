@@ -130,6 +130,8 @@ namespace SonnetDB.Json;
 [JsonSerializable(typeof(VectorIndexStat))]
 [JsonSerializable(typeof(List<VectorIndexStat>))]
 [JsonSerializable(typeof(VectorSearchPreviewRequest))]
+[JsonSerializable(typeof(VectorEmbedPreviewRequest))]
+[JsonSerializable(typeof(VectorEmbedPreviewResponse))]
 [JsonSerializable(typeof(VectorSearchPreviewResponse))]
 [JsonSerializable(typeof(VectorSearchPreviewHit))]
 [JsonSerializable(typeof(List<VectorSearchPreviewHit>))]

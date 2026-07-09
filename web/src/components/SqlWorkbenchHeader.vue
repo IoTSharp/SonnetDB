@@ -65,6 +65,15 @@
           >
             MQ
           </button>
+          <button
+            v-if="activeTool === 'vector'"
+            type="button"
+            class="workbench-mode-switch__button"
+            :class="{ 'is-active': activeTool === 'vector' }"
+            @click="$emit('set-tool', 'vector')"
+          >
+            Vector
+          </button>
         </div>
 
         <div class="workbench-context__badges">

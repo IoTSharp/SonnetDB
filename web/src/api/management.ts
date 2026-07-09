@@ -11,6 +11,7 @@ export interface VectorIndexStat {
   dimension?: number | null;
   metric: string;
   params: Array<{ key: string; value: string }>;
+  rowCount?: number | null;
 }
 
 export interface VectorIndexStatResponse {
