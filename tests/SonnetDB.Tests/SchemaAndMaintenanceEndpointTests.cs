@@ -90,12 +90,17 @@ public sealed class SchemaAndMaintenanceEndpointTests : IAsyncLifetime
         Assert.Equal(3, embedding.GetProperty("vectorDimension").GetInt32());
         Assert.Equal("Hnsw", embedding.GetProperty("vectorIndex").GetProperty("kind").GetString());
 
-        var table = Assert.Single(root.GetProperty("tables").EnumerateArray());
+        var table = root.GetProperty("tables").EnumerateArray()
+            .Single(item => item.GetProperty("name").GetString() == "devices");
         Assert.Equal("devices", table.GetProperty("name").GetString());
         var tableIndexes = table.GetProperty("indexes").EnumerateArray().ToArray();
         Assert.Contains(tableIndexes, index => index.GetProperty("name").GetString() == "idx_devices_site");
         var tableJsonIndex = tableIndexes.Single(index => index.GetProperty("name").GetString() == "idx_devices_metadata_site");
         Assert.Equal("$.site", tableJsonIndex.GetProperty("jsonPath").GetString());
+        var tableForeignKey = Assert.Single(table.GetProperty("foreignKeys").EnumerateArray());
+        Assert.Equal("fk_devices_1", tableForeignKey.GetProperty("name").GetString());
+        Assert.Equal("sites", tableForeignKey.GetProperty("principalTable").GetString());
+        Assert.Equal("SetNull", tableForeignKey.GetProperty("onDelete").GetString());
 
         var collection = Assert.Single(root.GetProperty("documentCollections").EnumerateArray());
         Assert.Equal("docs", collection.GetProperty("name").GetString());
@@ -358,7 +363,11 @@ public sealed class SchemaAndMaintenanceEndpointTests : IAsyncLifetime
         await ExecuteSqlAsync(client, dbName,
             "INSERT INTO metrics (time, host, value, embedding) VALUES (1000, 'h1', 1.5, [1, 0, 0])");
         await ExecuteSqlAsync(client, dbName,
-            "CREATE TABLE devices (id INT, site STRING, enabled BOOL, metadata JSON, PRIMARY KEY (id))");
+            "CREATE TABLE sites (id STRING, name STRING, PRIMARY KEY (id))");
+        await ExecuteSqlAsync(client, dbName,
+            "CREATE TABLE devices (id INT, site STRING NULL, enabled BOOL, metadata JSON, PRIMARY KEY (id), FOREIGN KEY (site) REFERENCES sites (id) ON DELETE SET NULL)");
+        await ExecuteSqlAsync(client, dbName,
+            "INSERT INTO sites (id, name) VALUES ('north', 'North Site')");
         await ExecuteSqlAsync(client, dbName,
             """INSERT INTO devices (id, site, enabled, metadata) VALUES (1, 'north', true, '{"site":"north","rack":"r1"}')""");
         await ExecuteSqlAsync(client, dbName,

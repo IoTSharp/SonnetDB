@@ -882,6 +882,7 @@ public static class SqlExecutor
             "information_schema.tables" => BuildInformationSchemaTables(tsdb),
             "information_schema.columns" => BuildInformationSchemaColumns(tsdb),
             "information_schema.indexes" => BuildInformationSchemaIndexes(tsdb),
+            "information_schema.foreign_keys" => BuildInformationSchemaForeignKeys(tsdb),
             _ => throw new InvalidOperationException($"未知 INFORMATION_SCHEMA 视图 '{statement.Measurement}'。"),
         };
 
@@ -966,6 +967,44 @@ public static class SqlExecutor
                         index.Columns[i],
                         (long)i + 1,
                         index.IsUnique,
+                    });
+                }
+            }
+        }
+
+        return (columns, rows);
+    }
+
+    private static (IReadOnlyList<string> Columns, IReadOnlyList<IReadOnlyList<object?>> Rows) BuildInformationSchemaForeignKeys(Tsdb tsdb)
+    {
+        var columns = new[]
+        {
+            "table_schema",
+            "constraint_name",
+            "table_name",
+            "column_name",
+            "ordinal_position",
+            "principal_table_name",
+            "principal_column_name",
+            "on_delete",
+        };
+        var rows = new List<IReadOnlyList<object?>>();
+        foreach (var table in tsdb.Tables.Catalog.Snapshot())
+        {
+            foreach (var foreignKey in table.ForeignKeys)
+            {
+                for (var i = 0; i < foreignKey.Columns.Count; i++)
+                {
+                    rows.Add(new object?[]
+                    {
+                        "main",
+                        foreignKey.Name,
+                        table.Name,
+                        foreignKey.Columns[i],
+                        (long)i + 1,
+                        foreignKey.PrincipalTable,
+                        foreignKey.PrincipalColumns[i],
+                        FormatInformationSchemaForeignKeyAction(foreignKey.OnDelete),
                     });
                 }
             }
@@ -1082,6 +1121,14 @@ public static class SqlExecutor
             TableColumnType.Blob => "blob",
             TableColumnType.Json => "json",
             _ => type.ToString().ToLowerInvariant(),
+        };
+
+    private static string FormatInformationSchemaForeignKeyAction(ForeignKeyAction action)
+        => action switch
+        {
+            ForeignKeyAction.Cascade => "CASCADE",
+            ForeignKeyAction.SetNull => "SET NULL",
+            _ => "NO ACTION",
         };
 
     private static object? EvaluateInformationSchemaLiteral(LiteralExpression literal)

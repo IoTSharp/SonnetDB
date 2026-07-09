@@ -110,6 +110,7 @@
         v-else-if="activeWorkbenchTool === 'table'"
         :target-db="targetDb"
         :table="selectedTable"
+        :tables="currentSchemaResponse?.tables ?? []"
         :loading="loadingSchema"
         @open-sql="openRelationSql"
         @refresh-schema="loadSchema(targetDb, true)"
@@ -213,6 +214,7 @@ const {
   loadingSchema,
   activeExplorerKey,
   openGroups,
+  currentSchemaResponse,
   currentSchema,
   databaseTree,
   systemTreeNode,

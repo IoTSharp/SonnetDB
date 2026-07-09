@@ -233,7 +233,8 @@ public class SqlExecutorMetadataTests : IDisposable
     {
         using var db = Tsdb.Open(Options());
         SqlExecutor.Execute(db, "CREATE MEASUREMENT cpu (host TAG, usage FIELD FLOAT)");
-        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, name STRING, tenant STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE TABLE tenants (id STRING, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, name STRING, tenant STRING, PRIMARY KEY (id), FOREIGN KEY (tenant) REFERENCES tenants (id) ON DELETE CASCADE)");
         SqlExecutor.Execute(db, "CREATE INDEX idx_devices_tenant ON devices (tenant)");
 
         var tables = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
@@ -261,6 +262,15 @@ public class SqlExecutorMetadataTests : IDisposable
             WHERE table_name = 'devices'
             """));
         Assert.Equal(new object?[] { "idx_devices_tenant", "tenant", false }, indexes.Rows.Single());
+
+        var foreignKeys = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT constraint_name, table_name, column_name, principal_table_name, principal_column_name, on_delete
+            FROM information_schema.foreign_keys
+            WHERE table_name = 'devices'
+            """));
+        Assert.Equal(
+            new object?[] { "fk_devices_1", "devices", "tenant", "tenants", "id", "CASCADE" },
+            foreignKeys.Rows.Single());
     }
 
     [Fact]

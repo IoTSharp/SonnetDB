@@ -29,6 +29,7 @@ export interface TableColumnInfo {
   isPrimaryKey: boolean;
   isNullable: boolean;
   ordinal: number;
+  isRowVersion?: boolean;
 }
 
 export interface TableIndexInfo {
@@ -40,12 +41,21 @@ export interface TableIndexInfo {
   jsonPath?: string | null;
 }
 
+export interface TableForeignKeyInfo {
+  name: string;
+  columns: string[];
+  principalTable: string;
+  principalColumns: string[];
+  onDelete: string;
+}
+
 export interface TableInfo {
   name: string;
   columns: TableColumnInfo[];
   primaryKey: string[];
   indexes: TableIndexInfo[];
   createdUtc: string;
+  foreignKeys?: TableForeignKeyInfo[];
 }
 
 export interface DocumentJsonIndexInfo {

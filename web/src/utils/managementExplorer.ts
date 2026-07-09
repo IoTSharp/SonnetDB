@@ -368,7 +368,7 @@ function measurementMeta(measurement: MeasurementInfo): string {
 }
 
 function tableMeta(table: TableInfo): string {
-  return `${table.columns.length} cols · pk ${table.primaryKey.join(', ')} · ${table.indexes.length} idx`;
+  return `${table.columns.length} cols · pk ${table.primaryKey.join(', ')} · ${table.indexes.length} idx · ${table.foreignKeys?.length ?? 0} fk`;
 }
 
 function documentCollectionMeta(collection: DocumentCollectionInfo): string {

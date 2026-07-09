@@ -67,7 +67,8 @@ internal static class SchemaEndpointHandler
                     column.DataType.ToString(),
                     column.IsPrimaryKey,
                     column.IsNullable,
-                    column.Ordinal));
+                    column.Ordinal,
+                    column.IsRowVersion));
             }
 
             var indexes = new List<TableIndexInfo>(schema.Indexes.Count);
@@ -82,12 +83,24 @@ internal static class SchemaEndpointHandler
                     JsonPath: index.JsonPath));
             }
 
+            var foreignKeys = new List<TableForeignKeyInfo>(schema.ForeignKeys.Count);
+            foreach (var foreignKey in schema.ForeignKeys)
+            {
+                foreignKeys.Add(new TableForeignKeyInfo(
+                    foreignKey.Name,
+                    foreignKey.Columns.ToList(),
+                    foreignKey.PrincipalTable,
+                    foreignKey.PrincipalColumns.ToList(),
+                    foreignKey.OnDelete.ToString()));
+            }
+
             result.Add(new TableInfo(
                 schema.Name,
                 columns,
                 schema.PrimaryKey.ToList(),
                 indexes,
-                ToDateTimeOffset(schema.CreatedAtUtcTicks)));
+                ToDateTimeOffset(schema.CreatedAtUtcTicks),
+                foreignKeys));
         }
 
         return result;

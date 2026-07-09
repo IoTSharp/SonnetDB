@@ -23,6 +23,9 @@
         <n-tab name="data" tab="Data" />
         <n-tab name="designer" tab="Designer" />
         <n-tab name="indexes" tab="Indexes" />
+        <n-tab name="import" tab="Import / Export" />
+        <n-tab name="er" tab="ER" />
+        <n-tab name="ddl" tab="DDL" />
       </n-tabs>
 
       <div v-if="activeView === 'data'" class="relation-toolbar__actions">
@@ -193,11 +196,33 @@
     />
 
     <RelationalIndexManager
-      v-else
+      v-else-if="activeView === 'indexes'"
       :target-db="targetDb"
       :table="table"
       :loading="loading"
       @refresh-schema="emit('refreshSchema')"
+      @open-sql="emit('openSql', $event)"
+    />
+
+    <RelationalImportExport
+      v-else-if="activeView === 'import'"
+      :target-db="targetDb"
+      :table="table"
+      @refresh-schema="emit('refreshSchema')"
+    />
+
+    <RelationalErDiagram
+      v-else-if="activeView === 'er'"
+      :table="table"
+      :tables="tables"
+      @refresh-schema="emit('refreshSchema')"
+    />
+
+    <RelationalDdlExport
+      v-else
+      :target-db="targetDb"
+      :table="table"
+      :tables="tables"
       @open-sql="emit('openSql', $event)"
     />
 
@@ -239,6 +264,9 @@ import {
   type SqlStatementRequest,
 } from '@/api/sql';
 import WorkbenchHistoryDrawer from '@/components/WorkbenchHistoryDrawer.vue';
+import RelationalDdlExport from '@/components/RelationalDdlExport.vue';
+import RelationalErDiagram from '@/components/RelationalErDiagram.vue';
+import RelationalImportExport from '@/components/RelationalImportExport.vue';
 import RelationalIndexManager from '@/components/RelationalIndexManager.vue';
 import RelationalSchemaDesigner from '@/components/RelationalSchemaDesigner.vue';
 import WorkbenchResultPanel from '@/components/WorkbenchResultPanel.vue';
@@ -260,8 +288,10 @@ import { formatSqlValue } from '@/utils/sqlValue';
 const props = withDefaults(defineProps<{
   targetDb: string;
   table: TableInfo | null;
+  tables?: TableInfo[];
   loading?: boolean;
 }>(), {
+  tables: () => [],
   loading: false,
 });
 
@@ -271,7 +301,7 @@ const emit = defineEmits<{
 }>();
 
 type SortDirection = 'asc' | 'desc';
-type RelationView = 'data' | 'designer' | 'indexes';
+type RelationView = 'data' | 'designer' | 'indexes' | 'import' | 'er' | 'ddl';
 type DraftRow = Record<string, unknown>;
 
 interface GridRow extends Record<string, unknown> {

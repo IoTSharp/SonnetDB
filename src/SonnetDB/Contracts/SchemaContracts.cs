@@ -31,7 +31,8 @@ public sealed record TableInfo(
     List<TableColumnInfo> Columns,
     List<string> PrimaryKey,
     List<TableIndexInfo> Indexes,
-    DateTimeOffset CreatedUtc);
+    DateTimeOffset CreatedUtc,
+    List<TableForeignKeyInfo>? ForeignKeys = null);
 
 /// <summary>关系表列信息。</summary>
 public sealed record TableColumnInfo(
@@ -39,7 +40,16 @@ public sealed record TableColumnInfo(
     string DataType,
     bool IsPrimaryKey,
     bool IsNullable,
-    int Ordinal);
+    int Ordinal,
+    bool IsRowVersion = false);
+
+/// <summary>关系表外键信息。</summary>
+public sealed record TableForeignKeyInfo(
+    string Name,
+    List<string> Columns,
+    string PrincipalTable,
+    List<string> PrincipalColumns,
+    string OnDelete);
 
 /// <summary>关系表二级索引信息。</summary>
 public sealed record TableIndexInfo(
