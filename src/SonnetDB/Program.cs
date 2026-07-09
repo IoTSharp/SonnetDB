@@ -30,6 +30,7 @@ using SonnetDB.Endpoints;
 using SonnetDB.Hosting;
 using SonnetDB.Json;
 using SonnetDB.Kv;
+using SonnetDB.LineProtocolUdp;
 using SonnetDB.Mcp;
 using SonnetDB.Mqtt;
 using SonnetMQ;
@@ -292,6 +293,7 @@ public static class Program
 
         ConfigureMqttServices(builder);
         ConfigureCoapServices(builder);
+        ConfigureLineProtocolUdpServices(builder);
     }
 
     private static string GetSystemDirectory(IServiceProvider services)
@@ -480,6 +482,18 @@ public static class Program
             options.AddEndpointFactory(global::MyGeneratedCoapEndpoints.Create));
     }
 
+    private static void ConfigureLineProtocolUdpServices(WebApplicationBuilder builder)
+    {
+        if (!builder.Configuration.GetValue<bool>("SonnetDBServer:LineProtocolUdp:Enabled"))
+            return;
+
+        var options = builder.Configuration
+            .GetSection("SonnetDBServer:LineProtocolUdp")
+            .Get<LineProtocolUdpOptions>() ?? new LineProtocolUdpOptions();
+        ValidateLineProtocolUdpOptions(options);
+        builder.Services.AddHostedService<LineProtocolUdpListenerService>();
+    }
+
     private static CoapConfig CreateCoapConfig(CoapServerOptions options)
     {
         var packetSize = Math.Clamp(options.MaxPayloadBytes + 128, 2048, 65_507);
@@ -500,6 +514,18 @@ public static class Program
             throw new InvalidOperationException("SonnetDBServer:Coap:MaxPayloadBytes 必须大于 0。");
         if (options.Dtls.Enabled && options.Dtls.PskKeys.Count == 0)
             throw new InvalidOperationException("启用 CoAP DTLS 时必须配置 SonnetDBServer:Coap:Dtls:PskKeys。");
+    }
+
+    private static void ValidateLineProtocolUdpOptions(LineProtocolUdpOptions options)
+    {
+        ValidatePort(options.Port, "SonnetDBServer:LineProtocolUdp:Port");
+        if (string.IsNullOrWhiteSpace(options.Database) || !TsdbRegistry.IsValidName(options.Database))
+            throw new InvalidOperationException("启用 Line Protocol UDP 时必须配置有效的 SonnetDBServer:LineProtocolUdp:Database。");
+        if (options.MaxDatagramBytes <= 0 || options.MaxDatagramBytes > LineProtocolUdpListenerService.UdpPayloadLimit)
+            throw new InvalidOperationException(
+                $"SonnetDBServer:LineProtocolUdp:MaxDatagramBytes 必须位于 1..{LineProtocolUdpListenerService.UdpPayloadLimit}。");
+        if (!LineProtocolUdpListenerService.TryParsePrecision(options.Precision, out _))
+            throw new InvalidOperationException("SonnetDBServer:LineProtocolUdp:Precision 只支持 n/ns、u/us/µs、ms、s。");
     }
 
     private static void ValidatePort(int port, string name)

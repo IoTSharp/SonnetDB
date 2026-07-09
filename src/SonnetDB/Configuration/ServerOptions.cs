@@ -76,6 +76,11 @@ public sealed class ServerOptions
     public CoapServerOptions Coap { get; set; } = new();
 
     /// <summary>
+    /// Line Protocol UDP 接入配置（M30 #267）。绑定路径：<c>"SonnetDBServer:LineProtocolUdp"</c>。
+    /// </summary>
+    public LineProtocolUdpOptions LineProtocolUdp { get; set; } = new();
+
+    /// <summary>
     /// Copilot 子系统配置。
     /// </summary>
     public CopilotOptions Copilot { get; set; } = new();
@@ -261,6 +266,38 @@ public sealed class CoapDtlsOptions
     /// DTLS 会话空闲超时秒数。超时后清理远端会话状态。
     /// </summary>
     public int SessionIdleSeconds { get; set; } = 300;
+}
+
+/// <summary>
+/// Line Protocol UDP 监听配置。UDP 是 fire-and-forget 入口，无鉴权、无响应和应用层背压，默认关闭。
+/// </summary>
+public sealed class LineProtocolUdpOptions
+{
+    /// <summary>
+    /// 是否启用 Line Protocol UDP 监听。默认关闭，需显式开启并限定在可信内网。
+    /// </summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>
+    /// UDP 监听端口。默认 <c>8089</c>，对齐常见 InfluxDB UDP listener 配置。
+    /// </summary>
+    public int Port { get; set; } = 8089;
+
+    /// <summary>
+    /// 数据报写入的目标数据库名。UDP 包本身没有查询参数，启用时必须显式配置。
+    /// </summary>
+    public string Database { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 单个 UDP 数据报最大字节数。默认 65,507 字节（IPv4 UDP payload 上限）。
+    /// </summary>
+    public int MaxDatagramBytes { get; set; } = 65_507;
+
+    /// <summary>
+    /// Line Protocol timestamp 精度。支持 <c>n/ns</c>、<c>u/us/µs</c>、<c>ms</c>、<c>s</c>；
+    /// 默认 <c>ns</c>，对齐 InfluxDB 写入语义。
+    /// </summary>
+    public string Precision { get; set; } = "ns";
 }
 
 /// <summary>

@@ -28,7 +28,7 @@
 | 27 | Industrial Data Agent 与 AI-ready 产品化路线 | #182 ~ #188 | 🚧（#182 文档已落；M28 收官后 #184 Demo 可启动；#183/#185 纯文档） |
 | 28 | 可靠性、并发正确性与热路径加固（P0~P5 分阶段） | #189 ~ #244、#261 ~ #262 | ✅（全部收官，详情见归档） |
 | 29 | 多模型统一管理工作台（Multi-Model Management Workbench） | #245 ~ #260 | 📋（#245 ✅；Web Admin 旗舰优先） |
-| 30 | 多协议设备接入扩展（Sparkplug B / CoAP / Line Protocol UDP） | #263 ~ #268 | 🚧（#265/#266 ✅；前置 M28 #242 ✅） |
+| 30 | 多协议设备接入扩展（Sparkplug B / CoAP / Line Protocol UDP） | #263 ~ #268 | 🚧（#265/#266/#267 ✅；前置 M28 #242 ✅） |
 | 31 | 时序聚合类型语义增强（selector / categorical aggregates） | #269 ~ #271 | 📋（IoTSharp 字符串遥测分桶查询兼容） |
 | MM9 | 多模型统一备份、恢复和管理工具第一批 | BackupService + sndb backup | ✅ |
 
@@ -195,7 +195,7 @@ E 三面：#258（Studio 桌面原生桥）∥ #259（VS Code 多模型消费）
 | **Sparkplug B** | ❌ | 骑 #242 broker 解码 Protobuf payload + 别名解析 + birth/death 生命周期状态机 → BulkIngest 落库 | Ignition / Eclipse Tahu / HiveMQ / AWS IoT SiteWise | #263 / #264 |
 | **CoAP** | ✅ #265/#266 已完成 | UDP CoAP route `db/{db}/m/{measurement}` → BulkIngest 三格式；DTLS + Observe | OMA LwM2M | #265 ✅ / #266 ✅ |
 | Line Protocol（HTTP）| ✅ `/write`、`/api/v2/write`、Prometheus remote-write | 保持 | InfluxDB / Telegraf | M8 ✅ |
-| **Line Protocol（UDP）** | ❌ | UDP 数据报监听复用 `LineProtocolReader` → BulkIngest | InfluxDB UDP listener / Telegraf | #267 |
+| **Line Protocol（UDP）** | ✅ #267 已完成 | UDP 数据报监听复用 `LineProtocolReader` → BulkIngest | InfluxDB UDP listener / Telegraf | #267 ✅ |
 | 现场总线轮询（Modbus / OPC UA client / S7 / 三菱 / FINS / AB / MTConnect）| ❌（**有意不做**）| 归边缘采集网关 IoTEdge——数据库不主动轮询设备 | — | 不做（见「不做的事」） |
 
 ### 阶段总览
@@ -204,7 +204,7 @@ E 三面：#258（Studio 桌面原生桥）∥ #259（VS Code 多模型消费）
 |------|------|---------|------|
 | **A** | Sparkplug B（工业 SCADA 事实标准，骑 #242 broker） | #263 ~ #264 | 解码 Protobuf payload + 别名解析落库；birth/death 生命周期 + seq 缺口检测 + rebirth 命令 |
 | **B** | CoAP 设备写入（受约束设备 UDP 直连） | #265 ~ #266 | ✅ 服务端写入落库、DTLS PSK 与 Observe 订阅已完成 |
-| **C** | Line Protocol UDP 监听 + 收口 | #267 ~ #268 | 补 HTTP `/write` 之外的 UDP 遥测入口；协议接入文档矩阵 + 落库 parity |
+| **C** | Line Protocol UDP 监听 + 收口 | #267 ~ #268 | ✅ UDP 遥测入口已完成；#268 继续做协议接入矩阵 + 落库 parity |
 
 ### A — Sparkplug B（工业 SCADA 事实标准）
 
@@ -228,7 +228,7 @@ E 三面：#258（Studio 桌面原生桥）∥ #259（VS Code 多模型消费）
 
 | PR | 标题与范围 | 状态 |
 |----|------------|------|
-| #267 | **Line Protocol UDP 监听端点**：`System.Net.Sockets.UdpClient`（纯 BCL，零新依赖）监听 UDP 端口，每个数据报 = 一批 Line Protocol 行，复用既有 `LineProtocolReader` + `BulkIngestor`（与 HTTP `/write` 同一解析与落库路径）；目标数据库按监听端口绑定或配置项指定（UDP 无 query 参数）；对标 InfluxDB UDP listener / Telegraf `influxdb` UDP output。**安全边界文档化**：UDP fire-and-forget——无鉴权、无 ack、无背压、受数据报尺寸限制，**仅限可信内网**，默认关闭、需显式启用（与 #242 broker 默认关闭一致）。 | 📋 |
+| #267 | **Line Protocol UDP 监听端点**：`System.Net.Sockets.UdpClient`（纯 BCL，零新依赖）监听 UDP 端口，每个数据报 = 一批 Line Protocol 行，复用既有 `LineProtocolReader` + `BulkIngestor`（与 HTTP `/write` 同一解析与落库路径）；目标数据库按监听端口绑定或配置项指定（UDP 无 query 参数）；对标 InfluxDB UDP listener / Telegraf `influxdb` UDP output。**安全边界文档化**：UDP fire-and-forget——无鉴权、无 ack、无背压、受数据报尺寸限制，**仅限可信内网**，默认关闭、需显式启用（与 #242 broker 默认关闭一致）。 | ✅ |
 | #268 | **多协议接入收口 + 文档 + parity**：`docs/` 增协议接入矩阵（MQTT / Sparkplug B / CoAP / Line Protocol-HTTP / Line Protocol-UDP → 落库路径映射 + 安全 / QoS / 可靠性边界表 + 选型指引）；各协议落库与既有 `BulkIngestEndpointHandler` 路径的 **parity 平移测试**（同一 payload 经不同协议入口落库结果一致，复用 `tests/SonnetDB.Parity` 骨架）；Sparkplug 解码 / CoAP 吞吐基准进报告。 | 📋 |
 
 ### 推进顺序
@@ -237,7 +237,7 @@ E 三面：#258（Studio 桌面原生桥）∥ #259（VS Code 多模型消费）
 前置：M28 #242 内建 MQTT broker ✅（Sparkplug 骑其上）
 A Sparkplug：#263（payload 解码 + 落库）→ #264（生命周期 + seq 缺口 + rebirth 命令）
 B CoAP：#265（服务端 + 写入落库 ✅）→ #266（DTLS 安全 + Observe 订阅 ✅）
-C LP-UDP + 收口：#267（Line Protocol UDP 监听）→ #268（协议矩阵文档 + parity）
+C LP-UDP + 收口：#267（Line Protocol UDP 监听 ✅）→ #268（协议矩阵文档 + parity）
 ```
 
 > **阶段间依赖与并行度**：**A / B / C 相互独立，可按带宽并行 / 穿插**——各自挂在既有落库路径上。段内有序：**#263 是 #264 的前置**（先能解码落库，再补生命周期）；**#265 是 #266 的前置**（先能写入，再加 DTLS/Observe）；#267 独立，#268 收口最后。跨里程碑依赖：**A 段依赖 M28 #242 内建 broker（已 ✅）**——Sparkplug 是其上的 payload 层；#266 CoAP Observe 复用 M28 #236 推送管线（已 ✅）。三条协议的落库全部收敛到 #242/#243 已抽出的共享 `BulkIngestEndpointHandler.IngestPayload`，无新引擎语义。
