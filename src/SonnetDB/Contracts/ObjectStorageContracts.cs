@@ -98,6 +98,15 @@ public sealed record PresignedObjectUrlResponse(
     string Key,
     DateTimeOffset ExpiresUtc);
 
+/// <summary>Bucket policy 占位配置请求。</summary>
+public sealed record ObjectBucketPolicyRequest(string? PolicyJson = null);
+
+/// <summary>Bucket policy 占位配置响应。</summary>
+public sealed record ObjectBucketPolicyResponse(
+    string Bucket,
+    string? PolicyJson,
+    DateTimeOffset UpdatedUtc);
+
 /// <summary>Bucket 生命周期策略请求。</summary>
 public sealed record ObjectLifecycleRequest(
     int? ExpireCurrentAfterDays = null,
@@ -118,6 +127,56 @@ public sealed record ObjectLifecycleApplyResponse(
     int ExpiredCurrentObjects,
     int RemovedNoncurrentVersions,
     int RemovedDeleteMarkers);
+
+/// <summary>Bucket 对象保留策略请求。</summary>
+public sealed record ObjectRetentionRequest(
+    int? RetainCurrentForDays = null,
+    int? RetainNoncurrentForDays = null);
+
+/// <summary>Bucket 对象保留策略响应。</summary>
+public sealed record ObjectRetentionResponse(
+    string Bucket,
+    int? RetainCurrentForDays,
+    int? RetainNoncurrentForDays,
+    DateTimeOffset UpdatedUtc);
+
+/// <summary>对象版本 legal hold 请求。</summary>
+public sealed record ObjectLegalHoldRequest(bool Enabled, string? Reason = null);
+
+/// <summary>对象版本 legal hold 响应。</summary>
+public sealed record ObjectLegalHoldResponse(
+    string Bucket,
+    string Key,
+    string VersionId,
+    bool Enabled,
+    string? Reason,
+    DateTimeOffset UpdatedUtc);
+
+/// <summary>Bucket 配额请求。</summary>
+public sealed record ObjectQuotaRequest(long? MaxSizeBytes = null, long? MaxObjectVersions = null);
+
+/// <summary>Bucket 配额响应。</summary>
+public sealed record ObjectQuotaResponse(
+    string Bucket,
+    long? MaxSizeBytes,
+    long? MaxObjectVersions,
+    DateTimeOffset UpdatedUtc);
+
+/// <summary>Bucket 容量统计响应。</summary>
+public sealed record ObjectStatsResponse(
+    string Bucket,
+    long CurrentObjectCount,
+    long CurrentSizeBytes,
+    long ObjectVersionCount,
+    long ObjectVersionSizeBytes,
+    long DeleteMarkerCount,
+    long MultipartUploadCount,
+    long MultipartPartCount,
+    long MultipartPartSizeBytes,
+    long? QuotaMaxSizeBytes,
+    long? QuotaMaxObjectVersions,
+    long? QuotaRemainingSizeBytes,
+    long? QuotaRemainingObjectVersions);
 
 /// <summary>对象桶审计记录响应。</summary>
 public sealed record ObjectAuditEntryResponse(

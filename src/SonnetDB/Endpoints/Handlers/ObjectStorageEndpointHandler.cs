@@ -29,6 +29,20 @@ internal static class ObjectStorageEndpointHandler
         {
             var store = new SndbObjectStore(tsdb);
 
+            if (HttpMethods.IsPut(ctx.Request.Method) && ctx.Request.Query.ContainsKey("policy"))
+            {
+                var request = await ReadJsonAsync(ctx, ServerJsonContext.Default.ObjectBucketPolicyRequest).ConfigureAwait(false);
+                if (request is null)
+                {
+                    await WriteErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "Policy request body is required.").ConfigureAwait(false);
+                    return;
+                }
+
+                var policy = store.SetPolicy(bucket, request.PolicyJson);
+                await Results.Json(ToPolicyResponse(policy), ServerJsonContext.Default.ObjectBucketPolicyResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+                return;
+            }
+
             if (HttpMethods.IsPut(ctx.Request.Method) && ctx.Request.Query.ContainsKey("lifecycle"))
             {
                 var request = await ReadJsonAsync(ctx, ServerJsonContext.Default.ObjectLifecycleRequest).ConfigureAwait(false);
@@ -44,6 +58,37 @@ internal static class ObjectStorageEndpointHandler
                     request.ExpireNoncurrentAfterDays,
                     request.ExpireDeleteMarkerAfterDays);
                 await Results.Json(ToLifecycleResponse(lifecycle), ServerJsonContext.Default.ObjectLifecycleResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+                return;
+            }
+
+            if (HttpMethods.IsPut(ctx.Request.Method) && ctx.Request.Query.ContainsKey("retention"))
+            {
+                var request = await ReadJsonAsync(ctx, ServerJsonContext.Default.ObjectRetentionRequest).ConfigureAwait(false);
+                if (request is null)
+                {
+                    await WriteErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "Retention request body is required.").ConfigureAwait(false);
+                    return;
+                }
+
+                var retention = store.SetRetention(
+                    bucket,
+                    request.RetainCurrentForDays,
+                    request.RetainNoncurrentForDays);
+                await Results.Json(ToRetentionResponse(retention), ServerJsonContext.Default.ObjectRetentionResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+                return;
+            }
+
+            if (HttpMethods.IsPut(ctx.Request.Method) && ctx.Request.Query.ContainsKey("quota"))
+            {
+                var request = await ReadJsonAsync(ctx, ServerJsonContext.Default.ObjectQuotaRequest).ConfigureAwait(false);
+                if (request is null)
+                {
+                    await WriteErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "Quota request body is required.").ConfigureAwait(false);
+                    return;
+                }
+
+                var quota = store.SetQuota(bucket, request.MaxSizeBytes, request.MaxObjectVersions);
+                await Results.Json(ToQuotaResponse(quota), ServerJsonContext.Default.ObjectQuotaResponse).ExecuteAsync(ctx).ConfigureAwait(false);
                 return;
             }
 
@@ -85,6 +130,13 @@ internal static class ObjectStorageEndpointHandler
 
             if (HttpMethods.IsGet(ctx.Request.Method))
             {
+                if (ctx.Request.Query.ContainsKey("policy"))
+                {
+                    var policy = store.GetPolicy(bucket);
+                    await Results.Json(ToPolicyResponse(policy), ServerJsonContext.Default.ObjectBucketPolicyResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+                    return;
+                }
+
                 if (ctx.Request.Query.ContainsKey("list-type"))
                 {
                     int maxKeys = 1000;
@@ -114,6 +166,27 @@ internal static class ObjectStorageEndpointHandler
                 {
                     var lifecycle = store.GetLifecycle(bucket);
                     await Results.Json(ToLifecycleResponse(lifecycle), ServerJsonContext.Default.ObjectLifecycleResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+                    return;
+                }
+
+                if (ctx.Request.Query.ContainsKey("retention"))
+                {
+                    var retention = store.GetRetention(bucket);
+                    await Results.Json(ToRetentionResponse(retention), ServerJsonContext.Default.ObjectRetentionResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+                    return;
+                }
+
+                if (ctx.Request.Query.ContainsKey("quota"))
+                {
+                    var quota = store.GetQuota(bucket);
+                    await Results.Json(ToQuotaResponse(quota), ServerJsonContext.Default.ObjectQuotaResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+                    return;
+                }
+
+                if (ctx.Request.Query.ContainsKey("stats"))
+                {
+                    var stats = store.GetStats(bucket);
+                    await Results.Json(ToStatsResponse(stats), ServerJsonContext.Default.ObjectStatsResponse).ExecuteAsync(ctx).ConfigureAwait(false);
                     return;
                 }
 
@@ -151,8 +224,11 @@ internal static class ObjectStorageEndpointHandler
 
             await WriteErrorAsync(ctx, StatusCodes.Status405MethodNotAllowed, "method_not_allowed", "Unsupported bucket method.").ConfigureAwait(false);
         }
-        catch (Exception ex) when (TryMapException(ctx, ex, out var task))
+        catch (Exception ex)
         {
+            if (!TryMapException(ctx, ex, out var task))
+                throw;
+
             await task.ConfigureAwait(false);
         }
     }
@@ -162,6 +238,12 @@ internal static class ObjectStorageEndpointHandler
         try
         {
             var store = new SndbObjectStore(tsdb);
+            if (ctx.Request.Query.ContainsKey("legal-hold"))
+            {
+                await HandleLegalHoldAsync(ctx, store, bucket, key).ConfigureAwait(false);
+                return;
+            }
+
             if (ctx.Request.Query.ContainsKey("presign") && HttpMethods.IsPost(ctx.Request.Method))
             {
                 await CreatePresignedUrlAsync(ctx, store, bucket, key).ConfigureAwait(false);
@@ -264,8 +346,11 @@ internal static class ObjectStorageEndpointHandler
 
             await WriteErrorAsync(ctx, StatusCodes.Status405MethodNotAllowed, "method_not_allowed", "Unsupported object method.").ConfigureAwait(false);
         }
-        catch (Exception ex) when (TryMapException(ctx, ex, out var task))
+        catch (Exception ex)
         {
+            if (!TryMapException(ctx, ex, out var task))
+                throw;
+
             await task.ConfigureAwait(false);
         }
     }
@@ -349,6 +434,33 @@ internal static class ObjectStorageEndpointHandler
             upload.Metadata,
             upload.Tags);
         await Results.Json(response, ServerJsonContext.Default.MultipartUploadCreateResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+    }
+
+    private static async Task HandleLegalHoldAsync(HttpContext ctx, SndbObjectStore store, string bucket, string key)
+    {
+        string? versionId = ctx.Request.Query["versionId"].ToString();
+        if (HttpMethods.IsGet(ctx.Request.Method))
+        {
+            var hold = store.GetLegalHold(bucket, key, versionId);
+            await Results.Json(ToLegalHoldResponse(hold), ServerJsonContext.Default.ObjectLegalHoldResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+            return;
+        }
+
+        if (HttpMethods.IsPut(ctx.Request.Method))
+        {
+            var request = await ReadJsonAsync(ctx, ServerJsonContext.Default.ObjectLegalHoldRequest).ConfigureAwait(false);
+            if (request is null)
+            {
+                await WriteErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "Legal hold request body is required.").ConfigureAwait(false);
+                return;
+            }
+
+            var hold = store.SetLegalHold(bucket, key, request.Enabled, request.Reason, versionId);
+            await Results.Json(ToLegalHoldResponse(hold), ServerJsonContext.Default.ObjectLegalHoldResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+            return;
+        }
+
+        await WriteErrorAsync(ctx, StatusCodes.Status405MethodNotAllowed, "method_not_allowed", "Unsupported legal hold method.").ConfigureAwait(false);
     }
 
     private static async Task HandleTagsAsync(HttpContext ctx, SndbObjectStore store, string bucket, string key)
@@ -554,6 +666,9 @@ internal static class ObjectStorageEndpointHandler
     private static PresignedObjectUrlResponse ToPresignedResponse(SndbPresignedObjectUrl url) =>
         new(url.Url, url.Method, url.Bucket, url.Key, url.ExpiresUtc);
 
+    private static ObjectBucketPolicyResponse ToPolicyResponse(SndbBucketPolicyInfo policy) =>
+        new(policy.Bucket, policy.PolicyJson, policy.UpdatedUtc);
+
     private static ObjectLifecycleResponse ToLifecycleResponse(SndbBucketLifecycleInfo lifecycle) =>
         new(
             lifecycle.Bucket,
@@ -564,6 +679,41 @@ internal static class ObjectStorageEndpointHandler
 
     private static ObjectLifecycleApplyResponse ToLifecycleApplyResponse(SndbBucketLifecycleApplyResult result) =>
         new(result.Bucket, result.ExpiredCurrentObjects, result.RemovedNoncurrentVersions, result.RemovedDeleteMarkers);
+
+    private static ObjectRetentionResponse ToRetentionResponse(SndbBucketRetentionInfo retention) =>
+        new(
+            retention.Bucket,
+            retention.RetainCurrentForDays,
+            retention.RetainNoncurrentForDays,
+            retention.UpdatedUtc);
+
+    private static ObjectLegalHoldResponse ToLegalHoldResponse(SndbObjectLegalHoldInfo hold) =>
+        new(
+            hold.Bucket,
+            hold.Key,
+            hold.VersionId,
+            hold.Enabled,
+            hold.Reason,
+            hold.UpdatedUtc);
+
+    private static ObjectQuotaResponse ToQuotaResponse(SndbBucketQuotaInfo quota) =>
+        new(quota.Bucket, quota.MaxSizeBytes, quota.MaxObjectVersions, quota.UpdatedUtc);
+
+    private static ObjectStatsResponse ToStatsResponse(SndbBucketStatsInfo stats) =>
+        new(
+            stats.Bucket,
+            stats.CurrentObjectCount,
+            stats.CurrentSizeBytes,
+            stats.ObjectVersionCount,
+            stats.ObjectVersionSizeBytes,
+            stats.DeleteMarkerCount,
+            stats.MultipartUploadCount,
+            stats.MultipartPartCount,
+            stats.MultipartPartSizeBytes,
+            stats.QuotaMaxSizeBytes,
+            stats.QuotaMaxObjectVersions,
+            stats.QuotaRemainingSizeBytes,
+            stats.QuotaRemainingObjectVersions);
 
     private static ObjectAuditListResponse ToAuditListResponse(string bucket, IReadOnlyList<SndbObjectAuditEntry> entries) =>
         new(bucket, entries.Select(static entry => new ObjectAuditEntryResponse(
@@ -590,22 +740,30 @@ internal static class ObjectStorageEndpointHandler
 
     private static bool TryMapException(HttpContext ctx, Exception exception, out Task task)
     {
-        task = exception switch
+        switch (exception)
         {
-            SndbObjectStorageException ex when ex.Code.EndsWith("_not_found", StringComparison.Ordinal) =>
-                WriteErrorAsync(ctx, StatusCodes.Status404NotFound, ex.Code, ex.Message),
-            SndbObjectStorageException ex when ex.Code.Contains("expired", StringComparison.Ordinal) =>
-                WriteErrorAsync(ctx, StatusCodes.Status409Conflict, ex.Code, ex.Message),
-            SndbObjectStorageException ex =>
-                WriteErrorAsync(ctx, StatusCodes.Status400BadRequest, ex.Code, ex.Message),
-            ArgumentException ex =>
-                WriteErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message),
-            InvalidDataException ex =>
-                WriteErrorAsync(ctx, StatusCodes.Status500InternalServerError, "object_storage_corrupt", ex.Message),
-            _ => Task.CompletedTask,
-        };
-
-        return task != Task.CompletedTask;
+            case SndbObjectStorageException ex when ex.Code.EndsWith("_not_found", StringComparison.Ordinal):
+                task = WriteErrorAsync(ctx, StatusCodes.Status404NotFound, ex.Code, ex.Message);
+                return true;
+            case SndbObjectStorageException ex when ex.Code.Contains("expired", StringComparison.Ordinal):
+                task = WriteErrorAsync(ctx, StatusCodes.Status409Conflict, ex.Code, ex.Message);
+                return true;
+            case SndbObjectStorageException ex when ex.Code is "quota_exceeded" or "object_retained" or "object_legal_hold":
+                task = WriteErrorAsync(ctx, StatusCodes.Status409Conflict, ex.Code, ex.Message);
+                return true;
+            case SndbObjectStorageException ex:
+                task = WriteErrorAsync(ctx, StatusCodes.Status400BadRequest, ex.Code, ex.Message);
+                return true;
+            case ArgumentException ex:
+                task = WriteErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message);
+                return true;
+            case InvalidDataException ex:
+                task = WriteErrorAsync(ctx, StatusCodes.Status500InternalServerError, "object_storage_corrupt", ex.Message);
+                return true;
+            default:
+                task = Task.CompletedTask;
+                return false;
+        }
     }
 
     private static async Task WriteErrorAsync(HttpContext ctx, int statusCode, string code, string message)

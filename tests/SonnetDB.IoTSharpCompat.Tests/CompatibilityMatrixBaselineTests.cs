@@ -64,6 +64,7 @@ public sealed class CompatibilityMatrixBaselineTests
     [InlineData("ObjectBucket", "object upload download")]
     [InlineData("ObjectBucket", "multipart upload")]
     [InlineData("ObjectBucket", "bucket lifecycle")]
+    [InlineData("ObjectBucket", "quota")]
     [InlineData("ObjectBucket", "object audit")]
     [InlineData("VectorSearch", "topK distance ordering")]
     [InlineData("VectorSearch", "index rebuild")]

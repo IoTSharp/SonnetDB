@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
 using SonnetDB.Configuration;
 using SonnetDB.Contracts;
+using SonnetDB.Data;
 using SonnetDB.Data.ObjectStorage;
 using SonnetDB.Json;
 using Xunit;
@@ -87,5 +88,57 @@ public sealed class ObjectStorageClientTests : IAsyncLifetime
 
         await client.DeleteObjectAsync("iotsharp-blob-storage", "attachments/a.txt");
         Assert.Null(await client.OpenReadAsync("iotsharp-blob-storage", "attachments/a.txt"));
+    }
+
+    [Fact]
+    public async Task RemoteClient_GovernanceMethods_Work()
+    {
+        var connectionString = $"Data Source=sonnetdb+http://{new Uri(_baseUrl!).Authority}/objectsclient;Token={AdminToken};Timeout=30;Protocol=rest";
+        using var client = new SndbObjectStorageClient(connectionString);
+        await client.CreateBucketAsync("iotsharp-governance-client", "artifact");
+
+        var policy = await client.SetPolicyAsync("iotsharp-governance-client", """{"Statement":[]}""");
+        Assert.Equal("""{"Statement":[]}""", policy.PolicyJson);
+
+        var quota = await client.SetQuotaAsync("iotsharp-governance-client", maxSizeBytes: 8, maxObjectVersions: 1);
+        Assert.Equal(8, quota.MaxSizeBytes);
+        Assert.Equal(1, quota.MaxObjectVersions);
+
+        await using var input = new MemoryStream(Encoding.UTF8.GetBytes("12345678"));
+        await client.PutObjectAsync("iotsharp-governance-client", "firmware/a.bin", input, "application/octet-stream");
+
+        var versions = await client.ListObjectVersionsAsync("iotsharp-governance-client", "firmware/a.bin");
+        Assert.Single(versions.Versions);
+
+        var stats = await client.GetStatsAsync("iotsharp-governance-client");
+        Assert.Equal(1, stats.CurrentObjectCount);
+        Assert.Equal(8, stats.CurrentSizeBytes);
+        Assert.Equal(0, stats.QuotaRemainingSizeBytes);
+
+        await using var rejected = new MemoryStream(Encoding.UTF8.GetBytes("x"));
+        var quotaError = await Assert.ThrowsAsync<SndbServerException>(() =>
+            client.PutObjectAsync("iotsharp-governance-client", "firmware/b.bin", rejected, "application/octet-stream"));
+        Assert.Equal("quota_exceeded", quotaError.Error);
+        Assert.Equal(HttpStatusCode.Conflict, quotaError.StatusCode);
+
+        await client.SetRetentionAsync("iotsharp-governance-client", retainCurrentForDays: 1);
+        var retentionError = await Assert.ThrowsAsync<SndbServerException>(() =>
+            client.DeleteObjectAsync("iotsharp-governance-client", "firmware/a.bin"));
+        Assert.Equal("object_retained", retentionError.Error);
+
+        await client.SetRetentionAsync("iotsharp-governance-client");
+        var hold = await client.SetLegalHoldAsync("iotsharp-governance-client", "firmware/a.bin", enabled: true, reason: "client review");
+        Assert.True(hold.Enabled);
+
+        var holdError = await Assert.ThrowsAsync<SndbServerException>(() =>
+            client.DeleteObjectAsync("iotsharp-governance-client", "firmware/a.bin"));
+        Assert.Equal("object_legal_hold", holdError.Error);
+
+        await client.SetLegalHoldAsync("iotsharp-governance-client", "firmware/a.bin", enabled: false);
+        await client.DeleteObjectAsync("iotsharp-governance-client", "firmware/a.bin");
+
+        var audit = await client.ListAuditAsync("iotsharp-governance-client", "firmware/");
+        Assert.Contains(audit, entry => entry.Action == "object.legal_hold.enable");
+        Assert.Contains(audit, entry => entry.Action == "object.delete_marker");
     }
 }

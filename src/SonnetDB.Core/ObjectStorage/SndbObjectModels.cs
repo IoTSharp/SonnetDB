@@ -106,6 +106,14 @@ public sealed record SndbPresignedObjectUrl(
     DateTimeOffset ExpiresUtc);
 
 /// <summary>
+/// Bucket policy 占位配置；当前仅持久化和审计，不参与授权判定。
+/// </summary>
+public sealed record SndbBucketPolicyInfo(
+    string Bucket,
+    string? PolicyJson,
+    DateTimeOffset UpdatedUtc);
+
+/// <summary>
 /// Bucket 生命周期策略。
 /// </summary>
 public sealed record SndbBucketLifecycleInfo(
@@ -123,6 +131,53 @@ public sealed record SndbBucketLifecycleApplyResult(
     int ExpiredCurrentObjects,
     int RemovedNoncurrentVersions,
     int RemovedDeleteMarkers);
+
+/// <summary>
+/// Bucket 对象保留策略。
+/// </summary>
+public sealed record SndbBucketRetentionInfo(
+    string Bucket,
+    int? RetainCurrentForDays,
+    int? RetainNoncurrentForDays,
+    DateTimeOffset UpdatedUtc);
+
+/// <summary>
+/// 对象版本 legal hold 状态。
+/// </summary>
+public sealed record SndbObjectLegalHoldInfo(
+    string Bucket,
+    string Key,
+    string VersionId,
+    bool Enabled,
+    string? Reason,
+    DateTimeOffset UpdatedUtc);
+
+/// <summary>
+/// Bucket 配额配置。
+/// </summary>
+public sealed record SndbBucketQuotaInfo(
+    string Bucket,
+    long? MaxSizeBytes,
+    long? MaxObjectVersions,
+    DateTimeOffset UpdatedUtc);
+
+/// <summary>
+/// Bucket 容量统计。
+/// </summary>
+public sealed record SndbBucketStatsInfo(
+    string Bucket,
+    long CurrentObjectCount,
+    long CurrentSizeBytes,
+    long ObjectVersionCount,
+    long ObjectVersionSizeBytes,
+    long DeleteMarkerCount,
+    long MultipartUploadCount,
+    long MultipartPartCount,
+    long MultipartPartSizeBytes,
+    long? QuotaMaxSizeBytes,
+    long? QuotaMaxObjectVersions,
+    long? QuotaRemainingSizeBytes,
+    long? QuotaRemainingObjectVersions);
 
 /// <summary>
 /// 对象桶审计记录。

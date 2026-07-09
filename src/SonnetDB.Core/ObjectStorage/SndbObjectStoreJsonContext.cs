@@ -8,7 +8,11 @@ namespace SonnetDB.ObjectStorage;
     WriteIndented = false)]
 [JsonSerializable(typeof(SndbBucketRecord))]
 [JsonSerializable(typeof(SndbObjectRecord))]
+[JsonSerializable(typeof(SndbBucketPolicyRecord))]
 [JsonSerializable(typeof(SndbBucketLifecycleRecord))]
+[JsonSerializable(typeof(SndbBucketRetentionRecord))]
+[JsonSerializable(typeof(SndbBucketQuotaRecord))]
+[JsonSerializable(typeof(SndbObjectLegalHoldRecord))]
 [JsonSerializable(typeof(SndbObjectAuditRecord))]
 [JsonSerializable(typeof(SndbMultipartUploadRecord))]
 [JsonSerializable(typeof(SndbMultipartPartRecord))]
@@ -37,11 +41,36 @@ internal sealed record SndbObjectRecord(
     Dictionary<string, string> Metadata,
     Dictionary<string, string> Tags);
 
+internal sealed record SndbBucketPolicyRecord(
+    string Bucket,
+    string? PolicyJson,
+    DateTimeOffset UpdatedUtc);
+
 internal sealed record SndbBucketLifecycleRecord(
     string Bucket,
     int? ExpireCurrentAfterDays,
     int? ExpireNoncurrentAfterDays,
     int? ExpireDeleteMarkerAfterDays,
+    DateTimeOffset UpdatedUtc);
+
+internal sealed record SndbBucketRetentionRecord(
+    string Bucket,
+    int? RetainCurrentForDays,
+    int? RetainNoncurrentForDays,
+    DateTimeOffset UpdatedUtc);
+
+internal sealed record SndbBucketQuotaRecord(
+    string Bucket,
+    long? MaxSizeBytes,
+    long? MaxObjectVersions,
+    DateTimeOffset UpdatedUtc);
+
+internal sealed record SndbObjectLegalHoldRecord(
+    string Bucket,
+    string Key,
+    string VersionId,
+    bool Enabled,
+    string? Reason,
     DateTimeOffset UpdatedUtc);
 
 internal sealed record SndbObjectAuditRecord(

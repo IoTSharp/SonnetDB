@@ -302,6 +302,117 @@ public sealed class ObjectStorageEndpointTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task ObjectStorage_GovernancePolicyQuotaRetentionLegalHoldAndStats_Work()
+    {
+        using var client = CreateClient();
+        var bucket = "iotsharp-governance";
+        var putBucket = await client.PutAsJsonAsync(
+            $"/v1/db/objects/s3/{bucket}",
+            new ObjectBucketCreateRequest("artifact"),
+            ServerJsonContext.Default.ObjectBucketCreateRequest);
+        Assert.Equal(HttpStatusCode.OK, putBucket.StatusCode);
+
+        var policy = await client.PutAsJsonAsync(
+            $"/v1/db/objects/s3/{bucket}?policy",
+            new ObjectBucketPolicyRequest("""{"Statement":[{"Effect":"Allow","Action":["s3:GetObject"]}]}"""),
+            ServerJsonContext.Default.ObjectBucketPolicyRequest);
+        Assert.Equal(HttpStatusCode.OK, policy.StatusCode);
+        using (var json = JsonDocument.Parse(await policy.Content.ReadAsStringAsync()))
+        {
+            Assert.Contains("Statement", json.RootElement.GetProperty("policyJson").GetString(), StringComparison.Ordinal);
+        }
+
+        var quota = await client.PutAsJsonAsync(
+            $"/v1/db/objects/s3/{bucket}?quota",
+            new ObjectQuotaRequest(MaxSizeBytes: 4, MaxObjectVersions: 1),
+            ServerJsonContext.Default.ObjectQuotaRequest);
+        Assert.Equal(HttpStatusCode.OK, quota.StatusCode);
+
+        var put = await client.PutAsync(
+            $"/v1/db/objects/s3/{bucket}/firmware/a.bin",
+            new StringContent("1234", Encoding.UTF8, "application/octet-stream"));
+        Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+
+        var quotaExceeded = await client.PutAsync(
+            $"/v1/db/objects/s3/{bucket}/firmware/b.bin",
+            new StringContent("5", Encoding.UTF8, "application/octet-stream"));
+        Assert.Equal(HttpStatusCode.Conflict, quotaExceeded.StatusCode);
+        using (var json = JsonDocument.Parse(await quotaExceeded.Content.ReadAsStringAsync()))
+        {
+            Assert.Equal("quota_exceeded", json.RootElement.GetProperty("error").GetString());
+        }
+
+        var stats = await client.GetAsync($"/v1/db/objects/s3/{bucket}?stats");
+        Assert.Equal(HttpStatusCode.OK, stats.StatusCode);
+        using (var json = JsonDocument.Parse(await stats.Content.ReadAsStringAsync()))
+        {
+            Assert.Equal(1, json.RootElement.GetProperty("currentObjectCount").GetInt64());
+            Assert.Equal(4, json.RootElement.GetProperty("currentSizeBytes").GetInt64());
+            Assert.Equal(0, json.RootElement.GetProperty("quotaRemainingSizeBytes").GetInt64());
+            Assert.Equal(0, json.RootElement.GetProperty("quotaRemainingObjectVersions").GetInt64());
+        }
+
+        var retention = await client.PutAsJsonAsync(
+            $"/v1/db/objects/s3/{bucket}?retention",
+            new ObjectRetentionRequest(RetainCurrentForDays: 1),
+            ServerJsonContext.Default.ObjectRetentionRequest);
+        Assert.Equal(HttpStatusCode.OK, retention.StatusCode);
+
+        var retainedDelete = await client.DeleteAsync($"/v1/db/objects/s3/{bucket}/firmware/a.bin");
+        Assert.Equal(HttpStatusCode.Conflict, retainedDelete.StatusCode);
+        using (var json = JsonDocument.Parse(await retainedDelete.Content.ReadAsStringAsync()))
+        {
+            Assert.Equal("object_retained", json.RootElement.GetProperty("error").GetString());
+        }
+
+        var clearRetention = await client.PutAsJsonAsync(
+            $"/v1/db/objects/s3/{bucket}?retention",
+            new ObjectRetentionRequest(),
+            ServerJsonContext.Default.ObjectRetentionRequest);
+        Assert.Equal(HttpStatusCode.OK, clearRetention.StatusCode);
+
+        var hold = await client.PutAsJsonAsync(
+            $"/v1/db/objects/s3/{bucket}/firmware/a.bin?legal-hold",
+            new ObjectLegalHoldRequest(true, "operator review"),
+            ServerJsonContext.Default.ObjectLegalHoldRequest);
+        Assert.Equal(HttpStatusCode.OK, hold.StatusCode);
+        using (var json = JsonDocument.Parse(await hold.Content.ReadAsStringAsync()))
+        {
+            Assert.True(json.RootElement.GetProperty("enabled").GetBoolean());
+            Assert.Equal("operator review", json.RootElement.GetProperty("reason").GetString());
+        }
+
+        var heldDelete = await client.DeleteAsync($"/v1/db/objects/s3/{bucket}/firmware/a.bin");
+        Assert.Equal(HttpStatusCode.Conflict, heldDelete.StatusCode);
+        using (var json = JsonDocument.Parse(await heldDelete.Content.ReadAsStringAsync()))
+        {
+            Assert.Equal("object_legal_hold", json.RootElement.GetProperty("error").GetString());
+        }
+
+        var clearHold = await client.PutAsJsonAsync(
+            $"/v1/db/objects/s3/{bucket}/firmware/a.bin?legal-hold",
+            new ObjectLegalHoldRequest(false),
+            ServerJsonContext.Default.ObjectLegalHoldRequest);
+        Assert.Equal(HttpStatusCode.OK, clearHold.StatusCode);
+
+        var delete = await client.DeleteAsync($"/v1/db/objects/s3/{bucket}/firmware/a.bin");
+        Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
+
+        var audit = await client.GetAsync($"/v1/db/objects/s3/{bucket}?audit&prefix=firmware/");
+        Assert.Equal(HttpStatusCode.OK, audit.StatusCode);
+        using (var json = JsonDocument.Parse(await audit.Content.ReadAsStringAsync()))
+        {
+            var actions = json.RootElement.GetProperty("entries")
+                .EnumerateArray()
+                .Select(entry => entry.GetProperty("action").GetString())
+                .ToArray();
+            Assert.Contains("object.put", actions);
+            Assert.Contains("object.delete_marker", actions);
+            Assert.Contains("object.legal_hold.enable", actions);
+        }
+    }
+
     private static async Task PutPartAsync(HttpClient client, string bucket, string uploadId, int partNumber, string content)
     {
         using var request = new HttpRequestMessage(HttpMethod.Put, $"/v1/db/objects/s3/{bucket}/daily/001.bin?uploadId={uploadId}&partNumber={partNumber}")

@@ -71,6 +71,9 @@ internal static class IoTSharpCompatMatrix
                 "presigned URL",
                 "object versioning and delete marker",
                 "bucket lifecycle apply",
+                "bucket policy placeholder",
+                "retention and legal hold protection",
+                "capacity stats and quota enforcement",
                 "object audit list"
             ]),
         new(

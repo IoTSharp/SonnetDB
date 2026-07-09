@@ -225,6 +225,33 @@ public sealed class SndbObjectStorageClient : IDisposable
     }
 
     /// <summary>
+    /// 列出对象版本；key 为空时列出整个 bucket 的版本。
+    /// </summary>
+    public async Task<SndbObjectVersionListResult> ListObjectVersionsAsync(
+        string bucket,
+        string? key = null,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        if (_embedded is not null)
+            return new SndbObjectStore(_embedded).ListObjectVersions(bucket, key);
+
+        string url = BucketUrl(bucket) + "?versions";
+        if (!string.IsNullOrWhiteSpace(key))
+            url += "&key=" + Uri.EscapeDataString(key);
+
+        using var response = await _http!.GetAsync(url, cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+
+        var body = await ReadJsonAsync(response, SndbObjectClientJsonContext.Default.ObjectVersionListResponse, cancellationToken).ConfigureAwait(false);
+        return new SndbObjectVersionListResult(
+            body.Bucket,
+            body.Key,
+            body.Versions.Select(ToInfo).ToArray());
+    }
+
+    /// <summary>
     /// 获取对象元数据。
     /// </summary>
     public async Task<SndbObjectInfo?> HeadObjectAsync(string bucket, string key, CancellationToken cancellationToken = default)
@@ -477,6 +504,275 @@ public sealed class SndbObjectStorageClient : IDisposable
     }
 
     /// <summary>
+    /// 获取 bucket policy 占位配置。
+    /// </summary>
+    public async Task<SndbBucketPolicyInfo> GetPolicyAsync(string bucket, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        if (_embedded is not null)
+            return new SndbObjectStore(_embedded).GetPolicy(bucket);
+
+        using var response = await _http!.GetAsync(BucketUrl(bucket) + "?policy", cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+
+        return ToPolicyInfo(await ReadJsonAsync(response, SndbObjectClientJsonContext.Default.ObjectBucketPolicyResponse, cancellationToken).ConfigureAwait(false));
+    }
+
+    /// <summary>
+    /// 设置 bucket policy 占位配置；当前仅持久化和审计。
+    /// </summary>
+    public async Task<SndbBucketPolicyInfo> SetPolicyAsync(string bucket, string? policyJson, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        if (_embedded is not null)
+            return new SndbObjectStore(_embedded).SetPolicy(bucket, policyJson);
+
+        using var response = await PutJsonAsync(
+            BucketUrl(bucket) + "?policy",
+            new ObjectBucketPolicyRequest(policyJson),
+            SndbObjectClientJsonContext.Default.ObjectBucketPolicyRequest,
+            cancellationToken).ConfigureAwait(false);
+        return ToPolicyInfo(await ReadJsonAsync(response, SndbObjectClientJsonContext.Default.ObjectBucketPolicyResponse, cancellationToken).ConfigureAwait(false));
+    }
+
+    /// <summary>
+    /// 获取 bucket 生命周期策略。
+    /// </summary>
+    public async Task<SndbBucketLifecycleInfo> GetLifecycleAsync(string bucket, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        if (_embedded is not null)
+            return new SndbObjectStore(_embedded).GetLifecycle(bucket);
+
+        using var response = await _http!.GetAsync(BucketUrl(bucket) + "?lifecycle", cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+
+        return ToLifecycleInfo(await ReadJsonAsync(response, SndbObjectClientJsonContext.Default.ObjectLifecycleResponse, cancellationToken).ConfigureAwait(false));
+    }
+
+    /// <summary>
+    /// 设置 bucket 生命周期策略。
+    /// </summary>
+    public async Task<SndbBucketLifecycleInfo> SetLifecycleAsync(
+        string bucket,
+        int? expireCurrentAfterDays = null,
+        int? expireNoncurrentAfterDays = null,
+        int? expireDeleteMarkerAfterDays = null,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        if (_embedded is not null)
+            return new SndbObjectStore(_embedded).SetLifecycle(bucket, expireCurrentAfterDays, expireNoncurrentAfterDays, expireDeleteMarkerAfterDays);
+
+        using var response = await PutJsonAsync(
+            BucketUrl(bucket) + "?lifecycle",
+            new ObjectLifecycleRequest(expireCurrentAfterDays, expireNoncurrentAfterDays, expireDeleteMarkerAfterDays),
+            SndbObjectClientJsonContext.Default.ObjectLifecycleRequest,
+            cancellationToken).ConfigureAwait(false);
+        return ToLifecycleInfo(await ReadJsonAsync(response, SndbObjectClientJsonContext.Default.ObjectLifecycleResponse, cancellationToken).ConfigureAwait(false));
+    }
+
+    /// <summary>
+    /// 执行 bucket 生命周期策略。
+    /// </summary>
+    public async Task<SndbBucketLifecycleApplyResult> ApplyLifecycleAsync(string bucket, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        if (_embedded is not null)
+            return new SndbObjectStore(_embedded).ApplyLifecycle(bucket);
+
+        using var response = await _http!.PostAsync(BucketUrl(bucket) + "?lifecycle", content: null, cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+
+        var body = await ReadJsonAsync(response, SndbObjectClientJsonContext.Default.ObjectLifecycleApplyResponse, cancellationToken).ConfigureAwait(false);
+        return new SndbBucketLifecycleApplyResult(
+            body.Bucket,
+            body.ExpiredCurrentObjects,
+            body.RemovedNoncurrentVersions,
+            body.RemovedDeleteMarkers);
+    }
+
+    /// <summary>
+    /// 获取 bucket 保留策略。
+    /// </summary>
+    public async Task<SndbBucketRetentionInfo> GetRetentionAsync(string bucket, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        if (_embedded is not null)
+            return new SndbObjectStore(_embedded).GetRetention(bucket);
+
+        using var response = await _http!.GetAsync(BucketUrl(bucket) + "?retention", cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+
+        return ToRetentionInfo(await ReadJsonAsync(response, SndbObjectClientJsonContext.Default.ObjectRetentionResponse, cancellationToken).ConfigureAwait(false));
+    }
+
+    /// <summary>
+    /// 设置 bucket 保留策略。
+    /// </summary>
+    public async Task<SndbBucketRetentionInfo> SetRetentionAsync(
+        string bucket,
+        int? retainCurrentForDays = null,
+        int? retainNoncurrentForDays = null,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        if (_embedded is not null)
+            return new SndbObjectStore(_embedded).SetRetention(bucket, retainCurrentForDays, retainNoncurrentForDays);
+
+        using var response = await PutJsonAsync(
+            BucketUrl(bucket) + "?retention",
+            new ObjectRetentionRequest(retainCurrentForDays, retainNoncurrentForDays),
+            SndbObjectClientJsonContext.Default.ObjectRetentionRequest,
+            cancellationToken).ConfigureAwait(false);
+        return ToRetentionInfo(await ReadJsonAsync(response, SndbObjectClientJsonContext.Default.ObjectRetentionResponse, cancellationToken).ConfigureAwait(false));
+    }
+
+    /// <summary>
+    /// 获取 bucket 配额配置。
+    /// </summary>
+    public async Task<SndbBucketQuotaInfo> GetQuotaAsync(string bucket, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        if (_embedded is not null)
+            return new SndbObjectStore(_embedded).GetQuota(bucket);
+
+        using var response = await _http!.GetAsync(BucketUrl(bucket) + "?quota", cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+
+        return ToQuotaInfo(await ReadJsonAsync(response, SndbObjectClientJsonContext.Default.ObjectQuotaResponse, cancellationToken).ConfigureAwait(false));
+    }
+
+    /// <summary>
+    /// 设置 bucket 配额配置。
+    /// </summary>
+    public async Task<SndbBucketQuotaInfo> SetQuotaAsync(
+        string bucket,
+        long? maxSizeBytes = null,
+        long? maxObjectVersions = null,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        if (_embedded is not null)
+            return new SndbObjectStore(_embedded).SetQuota(bucket, maxSizeBytes, maxObjectVersions);
+
+        using var response = await PutJsonAsync(
+            BucketUrl(bucket) + "?quota",
+            new ObjectQuotaRequest(maxSizeBytes, maxObjectVersions),
+            SndbObjectClientJsonContext.Default.ObjectQuotaRequest,
+            cancellationToken).ConfigureAwait(false);
+        return ToQuotaInfo(await ReadJsonAsync(response, SndbObjectClientJsonContext.Default.ObjectQuotaResponse, cancellationToken).ConfigureAwait(false));
+    }
+
+    /// <summary>
+    /// 获取 bucket 容量统计。
+    /// </summary>
+    public async Task<SndbBucketStatsInfo> GetStatsAsync(string bucket, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        if (_embedded is not null)
+            return new SndbObjectStore(_embedded).GetStats(bucket);
+
+        using var response = await _http!.GetAsync(BucketUrl(bucket) + "?stats", cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+
+        return ToStatsInfo(await ReadJsonAsync(response, SndbObjectClientJsonContext.Default.ObjectStatsResponse, cancellationToken).ConfigureAwait(false));
+    }
+
+    /// <summary>
+    /// 列出 bucket 审计记录。
+    /// </summary>
+    public async Task<IReadOnlyList<SndbObjectAuditEntry>> ListAuditAsync(
+        string bucket,
+        string? keyPrefix = null,
+        int maxEntries = 1000,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        if (_embedded is not null)
+            return new SndbObjectStore(_embedded).ListAudit(bucket, keyPrefix, maxEntries);
+
+        string url = BucketUrl(bucket)
+            + "?audit&max-entries="
+            + maxEntries.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (!string.IsNullOrWhiteSpace(keyPrefix))
+            url += "&prefix=" + Uri.EscapeDataString(keyPrefix.TrimStart('/'));
+
+        using var response = await _http!.GetAsync(url, cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+
+        var body = await ReadJsonAsync(response, SndbObjectClientJsonContext.Default.ObjectAuditListResponse, cancellationToken).ConfigureAwait(false);
+        return body.Entries
+            .Select(static entry => new SndbObjectAuditEntry(
+                entry.Id,
+                entry.Action,
+                entry.Bucket,
+                entry.Key,
+                entry.VersionId,
+                entry.TimestampUtc,
+                entry.Details))
+            .ToArray();
+    }
+
+    /// <summary>
+    /// 获取对象版本 legal hold 状态。
+    /// </summary>
+    public async Task<SndbObjectLegalHoldInfo> GetLegalHoldAsync(
+        string bucket,
+        string key,
+        string? versionId = null,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        if (_embedded is not null)
+            return new SndbObjectStore(_embedded).GetLegalHold(bucket, key, versionId);
+
+        string url = ObjectUrl(bucket, key) + "?legal-hold";
+        if (!string.IsNullOrWhiteSpace(versionId))
+            url += "&versionId=" + Uri.EscapeDataString(versionId);
+
+        using var response = await _http!.GetAsync(url, cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+
+        return ToLegalHoldInfo(await ReadJsonAsync(response, SndbObjectClientJsonContext.Default.ObjectLegalHoldResponse, cancellationToken).ConfigureAwait(false));
+    }
+
+    /// <summary>
+    /// 设置对象版本 legal hold 状态。
+    /// </summary>
+    public async Task<SndbObjectLegalHoldInfo> SetLegalHoldAsync(
+        string bucket,
+        string key,
+        bool enabled,
+        string? reason = null,
+        string? versionId = null,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        if (_embedded is not null)
+            return new SndbObjectStore(_embedded).SetLegalHold(bucket, key, enabled, reason, versionId);
+
+        string url = ObjectUrl(bucket, key) + "?legal-hold";
+        if (!string.IsNullOrWhiteSpace(versionId))
+            url += "&versionId=" + Uri.EscapeDataString(versionId);
+
+        using var response = await PutJsonAsync(
+            url,
+            new ObjectLegalHoldRequest(enabled, reason),
+            SndbObjectClientJsonContext.Default.ObjectLegalHoldRequest,
+            cancellationToken).ConfigureAwait(false);
+        return ToLegalHoldInfo(await ReadJsonAsync(response, SndbObjectClientJsonContext.Default.ObjectLegalHoldResponse, cancellationToken).ConfigureAwait(false));
+    }
+
+    /// <summary>
     /// 创建 multipart upload。
     /// </summary>
     public async Task<SndbMultipartUploadInfo> InitiateMultipartUploadAsync(
@@ -716,6 +1012,37 @@ public sealed class SndbObjectStorageClient : IDisposable
 
     private static SndbObjectInfo ToInfo(ObjectInfoResponse body) =>
         new(body.Bucket, body.Key, body.VersionId, body.ContentType, body.SizeBytes, body.ETag, body.Sha256, body.IsDeleteMarker, body.CreatedUtc, body.UpdatedUtc, body.Metadata, body.Tags);
+
+    private static SndbBucketPolicyInfo ToPolicyInfo(ObjectBucketPolicyResponse body) =>
+        new(body.Bucket, body.PolicyJson, body.UpdatedUtc);
+
+    private static SndbBucketLifecycleInfo ToLifecycleInfo(ObjectLifecycleResponse body) =>
+        new(body.Bucket, body.ExpireCurrentAfterDays, body.ExpireNoncurrentAfterDays, body.ExpireDeleteMarkerAfterDays, body.UpdatedUtc);
+
+    private static SndbBucketRetentionInfo ToRetentionInfo(ObjectRetentionResponse body) =>
+        new(body.Bucket, body.RetainCurrentForDays, body.RetainNoncurrentForDays, body.UpdatedUtc);
+
+    private static SndbBucketQuotaInfo ToQuotaInfo(ObjectQuotaResponse body) =>
+        new(body.Bucket, body.MaxSizeBytes, body.MaxObjectVersions, body.UpdatedUtc);
+
+    private static SndbBucketStatsInfo ToStatsInfo(ObjectStatsResponse body) =>
+        new(
+            body.Bucket,
+            body.CurrentObjectCount,
+            body.CurrentSizeBytes,
+            body.ObjectVersionCount,
+            body.ObjectVersionSizeBytes,
+            body.DeleteMarkerCount,
+            body.MultipartUploadCount,
+            body.MultipartPartCount,
+            body.MultipartPartSizeBytes,
+            body.QuotaMaxSizeBytes,
+            body.QuotaMaxObjectVersions,
+            body.QuotaRemainingSizeBytes,
+            body.QuotaRemainingObjectVersions);
+
+    private static SndbObjectLegalHoldInfo ToLegalHoldInfo(ObjectLegalHoldResponse body) =>
+        new(body.Bucket, body.Key, body.VersionId, body.Enabled, body.Reason, body.UpdatedUtc);
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
 
