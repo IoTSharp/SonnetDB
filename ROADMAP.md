@@ -128,7 +128,7 @@
 | PR | 标题与范围 | 状态 |
 |----|------------|------|
 | #251 | **KV 浏览器（对标 RedisInsight）**：消费 #245 `scan` 契约做按前缀 / 分隔符的 keyspace 树扫描（游标分页，避免全量拉取）；TTL 显示与编辑（复用 M19 #116 TTL）；按类型的值查看 / 编辑；批量 get/set/remove、前缀删除、命名空间切换、过期统计。写与前缀删走 #247 写审批。 | ✅ |
-| #252 | **SonnetMQ 控制台一（topic + 消息浏览 + 发布）**：topic 列表 + offset / 分区 / retention 概览；消息浏览器支持按 offset / 时间 seek、查看 header 与 payload（消费 #245 `browse`）；发布测试消息（复用既有 MQ 发布端点）；依赖 **M28 P5a（#231~#234）** 提供的 per-topic 统计与冷数据可读性。 | 📋 |
+| #252 | **SonnetMQ 控制台一（topic + 消息浏览 + 发布）**：topic 列表 + offset / 分区 / retention 概览；消息浏览器支持按 offset / 时间 seek、查看 header 与 payload（消费 #245 `browse`）；发布测试消息（复用既有 MQ 发布端点）；依赖 **M28 P5a（#231~#234）** 提供的 per-topic 统计与冷数据可读性。 | ✅ |
 | #253 | **SonnetMQ 控制台二（消费 / 订阅监控 + 吞吐 + DLQ）**：消费者 / 订阅 lag 与 ack 监控、消费进度可视化；吞吐 / 积压曲线（复用 M17 metrics + Events SSE）；DLQ 查看与 retention 策略展示。依赖 #245 `lag` 契约与 M28 P5a MQ 统计，随 P5b #236 推送订阅落地可展示实时推送状态。 | 📋 |
 | #254 | **向量检索 playground（对标 Milvus Attu / Qdrant）**：向量索引 / 集合统计（维度、行数、度量 L2/IP/cosine、HNSW ef/M/efConstruction，复用 M28 #223/#226 参数暴露）；ANN 检索 playground——文本经 Copilot embed 或直接粘原始 `float[]`，返回 Top-K + score + 元数据过滤（消费 #245 `search-preview` + 既有向量检索端点）；度量方式与图参数只读展示，不改索引语义。 | 📋 |
 | #255 | **全文检索 playground（对标 Kibana / OpenSearch Dashboards）**：全文索引列表 + 统计（doc/term 数、分词器）；BM25 检索 UI 带高亮、评分与分页；分词器 / analyzer 预览（Jieba/CJK，展示切词结果）；模糊 / 短语 / 布尔查询构建器（消费 #245 `search-preview` + 既有全文检索端点）；索引 rebuild 走 #247 写审批。 | 📋 |

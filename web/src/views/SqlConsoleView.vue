@@ -126,6 +126,16 @@
         @refresh-schema="loadSchema(targetDb, true)"
       />
 
+      <SonnetMqWorkbench
+        v-else-if="activeWorkbenchTool === 'mq'"
+        :target-db="targetDb"
+        :topic="selectedMqTopic"
+        :topics="currentMqTopics"
+        :loading="loadingSchema"
+        @select-topic="selectMqTopic"
+        @refresh-schema="loadSchema(targetDb, true)"
+      />
+
       <main v-else class="query-workspace">
         <TrajectoryMap
           class="trajectory-workbench"
@@ -146,6 +156,7 @@ import KvKeyspaceWorkbench from '@/components/KvKeyspaceWorkbench.vue';
 import ManagementExplorerSidebar from '@/components/ManagementExplorerSidebar.vue';
 import RelationalTableWorkbench from '@/components/RelationalTableWorkbench.vue';
 import RemoteConnectionDialog from '@/components/RemoteConnectionDialog.vue';
+import SonnetMqWorkbench from '@/components/SonnetMqWorkbench.vue';
 import SqlQueryWorkspace from '@/components/SqlQueryWorkspace.vue';
 import SqlWorkbenchHeader from '@/components/SqlWorkbenchHeader.vue';
 import TrajectoryMap from '@/views/TrajectoryMap.vue';
@@ -270,6 +281,19 @@ const selectedKvKeyspace = computed(() => {
   return currentKvKeyspaces.value[0] ?? '';
 });
 
+const currentMqTopics = computed(() =>
+  targetDb.value && targetDb.value !== CONTROL_PLANE_KEY
+    ? managementByDb.value[targetDb.value]?.mqTopics ?? []
+    : []);
+
+const selectedMqTopic = computed(() => {
+  const active = activeExplorerKey.value.startsWith('mq:')
+    ? activeExplorerKey.value.slice('mq:'.length)
+    : '';
+  if (active && currentMqTopics.value.some((topic) => topic.topic === active)) return active;
+  return currentMqTopics.value[0]?.topic ?? active;
+});
+
 const {
   maintenanceBackupDirectory,
   maintenanceRestoreTargetDirectory,
@@ -355,6 +379,12 @@ function selectKvKeyspace(keyspace: string): void {
   if (!keyspace) return;
   activeExplorerKey.value = `kv:${keyspace}`;
   setWorkbenchTool('kv');
+}
+
+function selectMqTopic(topic: string): void {
+  if (!topic) return;
+  activeExplorerKey.value = `mq:${topic}`;
+  setWorkbenchTool('mq');
 }
 
 watch(targetDb, (db) => {

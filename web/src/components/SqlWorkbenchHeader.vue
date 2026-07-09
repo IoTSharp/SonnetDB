@@ -56,6 +56,15 @@
           >
             KV
           </button>
+          <button
+            v-if="activeTool === 'mq'"
+            type="button"
+            class="workbench-mode-switch__button"
+            :class="{ 'is-active': activeTool === 'mq' }"
+            @click="$emit('set-tool', 'mq')"
+          >
+            MQ
+          </button>
         </div>
 
         <div class="workbench-context__badges">

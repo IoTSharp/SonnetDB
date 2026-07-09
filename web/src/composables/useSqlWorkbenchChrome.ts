@@ -31,6 +31,7 @@ export function useSqlWorkbenchChrome(options: SqlWorkbenchChromeOptions) {
   const activeWorkbenchTool = computed<WorkbenchTool>(() => {
     if (route.query.tool === 'trajectory') return 'trajectory';
     if (route.query.tool === 'kv' || route.query.model === 'kv') return 'kv';
+    if (route.query.tool === 'mq' || route.query.model === 'mq') return 'mq';
     if (route.query.tool === 'table' || route.query.model === 'table') return 'table';
     return 'sql';
   });
@@ -86,6 +87,8 @@ export function useSqlWorkbenchChrome(options: SqlWorkbenchChromeOptions) {
         ? { tool: 'trajectory' }
         : tool === 'kv'
           ? { tool: 'kv' }
+        : tool === 'mq'
+          ? { tool: 'mq' }
         : tool === 'table'
           ? { tool: 'table' }
           : {},

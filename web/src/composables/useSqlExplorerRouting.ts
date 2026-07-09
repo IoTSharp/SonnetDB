@@ -128,6 +128,8 @@ export function useSqlExplorerRouting(options: SqlExplorerRoutingOptions) {
         ? { tool: 'table', model: item.model, node: item.name }
         : item.model === 'kv'
           ? { tool: 'kv', model: item.model, node: item.name }
+        : item.model === 'mq'
+          ? { tool: 'mq', model: item.model, node: item.name }
         : item.model === 'measurement'
           ? {}
           : { model: item.model, node: item.name },
