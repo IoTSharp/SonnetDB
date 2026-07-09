@@ -21,6 +21,7 @@
           size="small"
           style="min-width: 220px"
         >
+          <n-tab v-if="explainPlan" name="plan" tab="Plan" />
           <n-tab name="table" tab="Table" />
           <n-tab name="raw" tab="Raw" />
           <n-tab name="json" tab="JSON" />
@@ -38,6 +39,11 @@
 
     <template v-else>
       <template v-if="hasRows">
+        <VisualExplainPanel
+          v-if="view === 'plan' && explainPlan"
+          :plan="explainPlan"
+        />
+
         <!-- 表格 -->
         <n-data-table
           v-if="view === 'table'"
@@ -78,7 +84,9 @@ import {
 } from 'naive-ui';
 import SqlResultChart from './SqlResultChart.vue';
 import ResultMapPreview from './ResultMapPreview.vue';
+import VisualExplainPanel from './VisualExplainPanel.vue';
 import { rowsToObjects, type SqlResultSet } from '@/api/sql';
+import { parseVisualExplainPlan } from '@/utils/explainPlan';
 import { formatSqlValue, parseGeoPointValue } from '@/utils/sqlValue';
 
 interface Props {
@@ -89,7 +97,7 @@ interface Props {
 }
 const props = defineProps<Props>();
 
-type View = 'table' | 'raw' | 'json' | 'chart' | 'map';
+type View = 'plan' | 'table' | 'raw' | 'json' | 'chart' | 'map';
 const view = ref<View>('table');
 
 const visibleRows = computed(() => props.displayRows ?? props.result.rows);
@@ -101,6 +109,7 @@ const visibleResult = computed<SqlResultSet>(() => ({
 const hasRows = computed(() => props.result.hasColumns && visibleRows.value.length > 0);
 
 const rows = computed(() => rowsToObjects(visibleResult.value));
+const explainPlan = computed(() => parseVisualExplainPlan(props.result));
 
 const hasGeoPoints = computed(() => rows.value.some((row) =>
   props.result.columns.some((column) => parseGeoPointValue(row[column]) !== null)));
@@ -116,9 +125,14 @@ const hasChartData = computed(() => {
   return props.result.columns.some((column) => isTimeLikeColumn(column));
 });
 
-watch([hasRows, () => props.result.columns, visibleRows], () => {
+watch([hasRows, explainPlan, () => props.result.columns, visibleRows], () => {
   if (!hasRows.value) {
     view.value = 'raw';
+    return;
+  }
+
+  if (explainPlan.value) {
+    view.value = 'plan';
     return;
   }
 
