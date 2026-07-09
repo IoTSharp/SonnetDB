@@ -100,7 +100,7 @@
                   :class="[item.className, { 'is-active': targetDb === dbNode.name && activeExplorerKey === item.key }]"
                   :title="item.title"
                   @click="$emit('select-item', dbNode.name, item)"
-                  @dblclick="$emit('open-item', item)"
+                  @dblclick="$emit('open-item', dbNode.name, item)"
                   @contextmenu.prevent="$emit('context-menu', $event, dbNode.name, item)"
                 >
                   <span class="schema-item__name">{{ item.name }}</span>
@@ -201,7 +201,7 @@ defineEmits<{
   'select-database': [db: string];
   'toggle-database': [db: string];
   'select-item': [db: string, item: ExplorerItem];
-  'open-item': [item: ExplorerItem];
+  'open-item': [db: string, item: ExplorerItem];
   'context-menu': [event: MouseEvent, db: string, item: ExplorerItem];
   'health-check': [];
   'rebuild-index': [];

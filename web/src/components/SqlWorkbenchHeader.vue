@@ -38,6 +38,15 @@
           >
             Trajectory
           </button>
+          <button
+            v-if="activeTool === 'table'"
+            type="button"
+            class="workbench-mode-switch__button"
+            :class="{ 'is-active': activeTool === 'table' }"
+            @click="$emit('set-tool', 'table')"
+          >
+            Table
+          </button>
         </div>
 
         <div class="workbench-context__badges">

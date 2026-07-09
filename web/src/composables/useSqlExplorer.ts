@@ -16,6 +16,7 @@ import {
   fetchSchema,
   type MeasurementInfo,
   type SchemaResponse,
+  type TableInfo,
 } from '@/api/schema';
 import type { useAuthStore } from '@/stores/auth';
 import {
@@ -216,6 +217,16 @@ export function useSqlExplorer(options: SqlExplorerOptions) {
     if (!schema.value.length) return null;
     const byActive = schema.value.find((measurement) => measurement.name === activeExplorerKey.value);
     return byActive ?? schema.value[0] ?? null;
+  });
+
+  const selectedTable = computed<TableInfo | null>(() => {
+    const tables = currentSchemaResponse.value?.tables ?? [];
+    if (tables.length === 0) return null;
+    const activeTableName = activeExplorerKey.value.startsWith('table:')
+      ? activeExplorerKey.value.slice('table:'.length)
+      : '';
+    return tables.find((table) => table.name === activeTableName)
+      ?? (activeTableName ? null : tables[0] ?? null);
   });
 
   const selectedIndex = computed(() => {
@@ -531,6 +542,7 @@ export function useSqlExplorer(options: SqlExplorerOptions) {
     trajectoryInitialDb,
     trajectoryInitialMeasurement,
     selectedMeasurement,
+    selectedTable,
     selectedIndex,
     explorerGroups,
     openCreateDatabaseDialog,

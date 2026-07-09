@@ -93,7 +93,7 @@ export function useSqlExplorerRouting(options: SqlExplorerRoutingOptions) {
       return;
     }
     if (action === 'open-sql') {
-      openExplorerItem(item);
+      openExplorerItemInSql(item);
       return;
     }
     if (action === 'copy-name') {
@@ -124,13 +124,19 @@ export function useSqlExplorerRouting(options: SqlExplorerRoutingOptions) {
     selectExplorerItem(db, item);
     void router.replace({
       name: 'sql',
-      query: item.model === 'measurement'
-        ? {}
-        : { model: item.model, node: item.name },
+      query: item.model === 'table'
+        ? { tool: 'table', model: item.model, node: item.name }
+        : item.model === 'measurement'
+          ? {}
+          : { model: item.model, node: item.name },
     });
   }
 
-  function openExplorerItem(item: ExplorerItem): void {
+  function openExplorerItem(db: string, item: ExplorerItem): void {
+    routeExplorerItem(db, item);
+  }
+
+  function openExplorerItemInSql(item: ExplorerItem): void {
     if (item.model === 'measurement') {
       openMeasurement(item.payload as MeasurementInfo);
       return;

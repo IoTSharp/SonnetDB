@@ -236,6 +236,63 @@ public sealed class ServerEndToEndTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Sql_RestParameters_BindSingleAndBatchRequests()
+    {
+        using var admin = CreateClient(_adminToken);
+        var dbName = "restparams";
+        var create = await admin.PostAsync("/v1/db",
+            JsonContent.Create(new CreateDatabaseRequest(dbName), ServerJsonContext.Default.CreateDatabaseRequest));
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+
+        await ExecuteSqlAsync(admin, dbName,
+            "CREATE TABLE devices (id INT, name STRING, score FLOAT, enabled BOOL, PRIMARY KEY (id))");
+
+        await ExecuteSqlAsync(admin, dbName, new SqlRequest(
+            "INSERT INTO devices (id, name, score, enabled) VALUES (@id, @name, @score, @enabled)",
+            new Dictionary<string, JsonElementValue>
+            {
+                ["id"] = new(ScalarKind.Integer, IntegerValue: 1),
+                ["name"] = new(ScalarKind.String, StringValue: "pump' OR '1'='1"),
+                ["score"] = new(ScalarKind.Double, DoubleValue: 7.5),
+                ["enabled"] = new(ScalarKind.Boolean, BooleanValue: true),
+            }));
+
+        var (columns, rows, end) = await ExecuteSelectAsync(admin, dbName, new SqlRequest(
+            "SELECT id, name, score FROM devices WHERE name = @name AND enabled = @enabled",
+            new Dictionary<string, JsonElementValue>
+            {
+                ["name"] = new(ScalarKind.String, StringValue: "pump' OR '1'='1"),
+                ["enabled"] = new(ScalarKind.Boolean, BooleanValue: true),
+            }));
+
+        Assert.Equal(new[] { "id", "name", "score" }, columns);
+        Assert.Single(rows);
+        Assert.Equal(1L, rows[0][0].GetInt64());
+        Assert.Equal("pump' OR '1'='1", rows[0][1].GetString());
+        Assert.Equal(7.5, rows[0][2].GetDouble());
+        Assert.Equal(1, end.RowCount);
+
+        var batch = await admin.PostAsync($"/v1/db/{dbName}/sql/batch",
+            JsonContent.Create(new SqlBatchRequest([
+                new SqlRequest("BEGIN"),
+                new SqlRequest(
+                    "UPDATE devices SET score = @score WHERE id = @id",
+                    new Dictionary<string, JsonElementValue>
+                    {
+                        ["score"] = new(ScalarKind.Double, DoubleValue: 8.25),
+                        ["id"] = new(ScalarKind.Integer, IntegerValue: 1),
+                    }),
+                new SqlRequest("COMMIT"),
+            ]), ServerJsonContext.Default.SqlBatchRequest));
+        var batchText = await batch.Content.ReadAsStringAsync();
+        Assert.True(batch.IsSuccessStatusCode, batchText);
+        Assert.DoesNotContain("\"error\"", batchText);
+
+        var (_, updatedRows, _) = await ExecuteSelectAsync(admin, dbName, "SELECT score FROM devices WHERE id = 1");
+        Assert.Equal(8.25, Assert.Single(updatedRows)[0].GetDouble());
+    }
+
+    [Fact]
     public async Task GeoTrajectory_ReturnsFeatureCollectionAndLineString()
     {
         using var admin = CreateClient(_adminToken);
@@ -284,9 +341,12 @@ public sealed class ServerEndToEndTests : IAsyncLifetime
     }
 
     private static async Task ExecuteSqlAsync(HttpClient client, string db, string sql)
+        => await ExecuteSqlAsync(client, db, new SqlRequest(sql));
+
+    private static async Task ExecuteSqlAsync(HttpClient client, string db, SqlRequest request)
     {
         var resp = await client.PostAsync($"/v1/db/{db}/sql",
-            JsonContent.Create(new SqlRequest(sql), ServerJsonContext.Default.SqlRequest));
+            JsonContent.Create(request, ServerJsonContext.Default.SqlRequest));
         var text = await resp.Content.ReadAsStringAsync();
         Assert.True(resp.IsSuccessStatusCode, $"SQL 失败：{(int)resp.StatusCode} {text}");
     }
@@ -300,9 +360,13 @@ public sealed class ServerEndToEndTests : IAsyncLifetime
 
     private static async Task<(string[] Columns, List<JsonElement> Rows, ResultEnd End)> ExecuteSelectAsync(
         HttpClient client, string db, string sql)
+        => await ExecuteSelectAsync(client, db, new SqlRequest(sql));
+
+    private static async Task<(string[] Columns, List<JsonElement> Rows, ResultEnd End)> ExecuteSelectAsync(
+        HttpClient client, string db, SqlRequest request)
     {
         var resp = await client.PostAsync($"/v1/db/{db}/sql",
-            JsonContent.Create(new SqlRequest(sql), ServerJsonContext.Default.SqlRequest));
+            JsonContent.Create(request, ServerJsonContext.Default.SqlRequest));
         Assert.True(resp.IsSuccessStatusCode, $"SELECT 失败：{(int)resp.StatusCode}");
         var text = await resp.Content.ReadAsStringAsync();
         var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries);

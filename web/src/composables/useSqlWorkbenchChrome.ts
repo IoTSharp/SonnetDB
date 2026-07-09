@@ -28,8 +28,11 @@ export function useSqlWorkbenchChrome(options: SqlWorkbenchChromeOptions) {
   const showConnectionDialog = ref(false);
   const connectionForm = ref({ name: '', baseUrl: '', defaultDatabase: '' });
 
-  const activeWorkbenchTool = computed<WorkbenchTool>(() =>
-    route.query.tool === 'trajectory' ? 'trajectory' : 'sql');
+  const activeWorkbenchTool = computed<WorkbenchTool>(() => {
+    if (route.query.tool === 'trajectory') return 'trajectory';
+    if (route.query.tool === 'table' || route.query.model === 'table') return 'table';
+    return 'sql';
+  });
 
   const connectionLabel = computed(() => {
     const db = targetDb.value === CONTROL_PLANE_KEY ? 'system' : (targetDb.value || 'public');
@@ -78,7 +81,11 @@ export function useSqlWorkbenchChrome(options: SqlWorkbenchChromeOptions) {
     if (activeWorkbenchTool.value === tool) return;
     void router.replace({
       name: 'sql',
-      query: tool === 'trajectory' ? { tool: 'trajectory' } : {},
+      query: tool === 'trajectory'
+        ? { tool: 'trajectory' }
+        : tool === 'table'
+          ? { tool: 'table' }
+          : {},
     });
   }
 

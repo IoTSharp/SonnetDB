@@ -106,6 +106,15 @@
         @history-select="openHistoryEntry"
       />
 
+      <RelationalTableWorkbench
+        v-else-if="activeWorkbenchTool === 'table'"
+        :target-db="targetDb"
+        :table="selectedTable"
+        :loading="loadingSchema"
+        @open-sql="openRelationSql"
+        @refresh-schema="loadSchema(targetDb, true)"
+      />
+
       <main v-else class="query-workspace">
         <TrajectoryMap
           class="trajectory-workbench"
@@ -123,6 +132,7 @@ import { computed, onMounted, watch } from 'vue';
 import { NDropdown, useMessage } from 'naive-ui';
 import CreateDatabaseDialog from '@/components/CreateDatabaseDialog.vue';
 import ManagementExplorerSidebar from '@/components/ManagementExplorerSidebar.vue';
+import RelationalTableWorkbench from '@/components/RelationalTableWorkbench.vue';
 import RemoteConnectionDialog from '@/components/RemoteConnectionDialog.vue';
 import SqlQueryWorkspace from '@/components/SqlQueryWorkspace.vue';
 import SqlWorkbenchHeader from '@/components/SqlWorkbenchHeader.vue';
@@ -211,6 +221,7 @@ const {
   trajectoryInitialDb,
   trajectoryInitialMeasurement,
   selectedMeasurement,
+  selectedTable,
   selectedIndex,
   explorerGroups,
   openCreateDatabaseDialog,
@@ -307,6 +318,11 @@ const {
   loadSchema,
   runHealthCheck,
 });
+
+function openRelationSql(sqlText: string): void {
+  setWorkbenchTool('sql');
+  setSqlDraft(sqlText);
+}
 
 watch(targetDb, (db) => {
   if (db && db !== CONTROL_PLANE_KEY) {

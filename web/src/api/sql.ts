@@ -31,6 +31,29 @@ export interface SqlResultSet {
   hasColumns: boolean;
 }
 
+export enum ScalarKind {
+  Null = 0,
+  String = 1,
+  Integer = 2,
+  Double = 3,
+  Boolean = 4,
+}
+
+export interface SqlParameterValue {
+  kind: ScalarKind;
+  stringValue?: string | null;
+  integerValue?: number | null;
+  doubleValue?: number | null;
+  booleanValue?: boolean | null;
+}
+
+export type SqlParameters = Record<string, SqlParameterValue>;
+
+export interface SqlStatementRequest {
+  sql: string;
+  parameters?: SqlParameters;
+}
+
 /**
  * 把后端 ndjson 响应解析成结构化 SqlResultSet。
  * - 第一行为 meta（{type:"meta",columns:[...]}）。
@@ -38,7 +61,15 @@ export interface SqlResultSet {
  * - 末行为 end 或 error。
  */
 export function parseNdjson(body: string): SqlResultSet {
-  const result: SqlResultSet = { columns: [], rows: [], end: null, error: null, hasColumns: false };
+  return parseNdjsonResults(body)[0] ?? emptyResultSet();
+}
+
+/**
+ * 把批量 SQL ndjson 流拆成多个结果集。每个 meta/end 或 end/error 边界对应一条语句。
+ */
+export function parseNdjsonResults(body: string): SqlResultSet[] {
+  const results: SqlResultSet[] = [];
+  let result: SqlResultSet = emptyResultSet();
   const lines = body.split(/\r?\n/).filter((l) => l.length > 0);
   for (const line of lines) {
     let obj: unknown;
@@ -54,6 +85,10 @@ export function parseNdjson(body: string): SqlResultSet {
     if (obj && typeof obj === 'object') {
       const o = obj as Record<string, unknown>;
       if (o.type === 'meta' && Array.isArray(o.columns)) {
+        if (hasResultContent(result)) {
+          results.push(result);
+          result = emptyResultSet();
+        }
         result.columns = o.columns as string[];
         result.hasColumns = true;
       } else if (o.type === 'end') {
@@ -67,55 +102,91 @@ export function parseNdjson(body: string): SqlResultSet {
               ? o.elapsedMilliseconds
               : 0,
         };
-      } else if (typeof o.message === 'string' && (o.code || o.type === 'error')) {
-        result.error = o as unknown as SqlError;
+        results.push(result);
+        result = emptyResultSet();
+      } else if (typeof o.message === 'string' && (o.code || o.error || o.type === 'error')) {
+        result.error = {
+          type: 'error',
+          code: typeof o.code === 'string' ? o.code : typeof o.error === 'string' ? o.error : undefined,
+          message: o.message,
+        };
+        results.push(result);
+        result = emptyResultSet();
       }
     }
   }
-  return result;
+  if (hasResultContent(result)) {
+    results.push(result);
+  }
+  return results;
 }
 
 /**
  * 执行控制面 SQL（CREATE USER / GRANT / CREATE DATABASE / SHOW USERS / SHOW DATABASES 等）。
  * 走服务端 <c>POST /v1/sql</c> 端点（admin only）。
  */
-export async function execControlPlaneSql(api: AxiosInstance, sql: string): Promise<SqlResultSet> {
-  return doExec(api, '/v1/sql', sql);
+export async function execControlPlaneSql(
+  api: AxiosInstance,
+  sql: string,
+  parameters?: SqlParameters,
+): Promise<SqlResultSet> {
+  return doExec(api, '/v1/sql', { sql, parameters });
 }
 
 /**
  * 执行数据面 SQL（INSERT / SELECT / DELETE / CREATE MEASUREMENT 等）。
  */
-export async function execDataSql(api: AxiosInstance, db: string, sql: string): Promise<SqlResultSet> {
-  return doExec(api, `/v1/db/${encodeURIComponent(db)}/sql`, sql);
+export async function execDataSql(
+  api: AxiosInstance,
+  db: string,
+  sql: string,
+  parameters?: SqlParameters,
+): Promise<SqlResultSet> {
+  return doExec(api, `/v1/db/${encodeURIComponent(db)}/sql`, { sql, parameters });
 }
 
-async function doExec(api: AxiosInstance, url: string, sql: string): Promise<SqlResultSet> {
-  const resp = await api.post(url, { sql }, {
+/**
+ * 批量执行数据面 SQL。服务端按顺序执行，事务语句可放在同一批中。
+ */
+export async function execDataSqlBatch(
+  api: AxiosInstance,
+  db: string,
+  statements: SqlStatementRequest[],
+): Promise<SqlResultSet[]> {
+  return doExecMany(api, `/v1/db/${encodeURIComponent(db)}/sql/batch`, { statements });
+}
+
+async function doExec(api: AxiosInstance, url: string, payload: SqlStatementRequest): Promise<SqlResultSet> {
+  const results = await doExecMany(api, url, normalizeSqlStatementPayload(payload));
+  return results[0] ?? emptyResultSet();
+}
+
+async function doExecMany(api: AxiosInstance, url: string, requestBody: unknown): Promise<SqlResultSet[]> {
+  const resp = await api.post(url, requestBody, {
     responseType: 'text',
     transformResponse: (v) => v,
     validateStatus: () => true,
   });
   const ct = resp.headers['content-type']?.toString() ?? '';
   if (typeof resp.data === 'string' && ct.includes('ndjson')) {
-    return parseNdjson(resp.data);
+    return parseNdjsonResults(resp.data);
   }
   // 非 ndjson → JSON 错误体（{code, message}）
-  const result: SqlResultSet = { columns: [], rows: [], end: null, error: null, hasColumns: false };
-  let payload: unknown = resp.data;
-  if (typeof payload === 'string') {
-    try { payload = JSON.parse(payload); } catch { /* keep string */ }
+  const result: SqlResultSet = emptyResultSet();
+  let errorPayload: unknown = resp.data;
+  if (typeof errorPayload === 'string') {
+    try { errorPayload = JSON.parse(errorPayload); } catch { /* keep string */ }
   }
-  if (payload && typeof payload === 'object') {
-    const o = payload as Record<string, unknown>;
+  if (errorPayload && typeof errorPayload === 'object') {
+    const o = errorPayload as Record<string, unknown>;
     result.error = {
-      code: typeof o.code === 'string' ? o.code : `http_${resp.status}`,
+      code: typeof o.code === 'string' ? o.code : typeof o.error === 'string' ? o.error : `http_${resp.status}`,
       message: typeof o.message === 'string' ? o.message : `HTTP ${resp.status}`,
     };
   } else {
     result.error = { code: `http_${resp.status}`, message: `HTTP ${resp.status}` };
   }
-  return result;
+  return [result];
 }
 
 /**
@@ -137,4 +208,34 @@ export function quote(value: string): string {
 /** SQL 标识符校验（与服务端 `IsValidName` 保持宽松一致：字母数字 + _，首字符必须字母）。 */
 export function isValidIdentifier(name: string): boolean {
   return /^[A-Za-z][A-Za-z0-9_]*$/.test(name);
+}
+
+export function sqlParameterFromValue(value: unknown): SqlParameterValue {
+  if (value === null || value === undefined) {
+    return { kind: ScalarKind.Null };
+  }
+  if (typeof value === 'boolean') {
+    return { kind: ScalarKind.Boolean, booleanValue: value };
+  }
+  if (typeof value === 'number') {
+    return Number.isInteger(value)
+      ? { kind: ScalarKind.Integer, integerValue: value }
+      : { kind: ScalarKind.Double, doubleValue: value };
+  }
+  return { kind: ScalarKind.String, stringValue: String(value) };
+}
+
+function emptyResultSet(): SqlResultSet {
+  return { columns: [], rows: [], end: null, error: null, hasColumns: false };
+}
+
+function hasResultContent(result: SqlResultSet): boolean {
+  return result.hasColumns || result.rows.length > 0 || result.end !== null || result.error !== null;
+}
+
+function normalizeSqlStatementPayload(payload: SqlStatementRequest): SqlStatementRequest {
+  if (payload.parameters && Object.keys(payload.parameters).length === 0) {
+    return { sql: payload.sql };
+  }
+  return payload;
 }

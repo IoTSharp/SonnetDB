@@ -115,10 +115,23 @@ internal static class SqlEndpointHandler
             return;
         }
 
+        SqlStatement executable;
+        try
+        {
+            executable = BindParameters(parsed, request);
+        }
+        catch (Exception ex)
+        {
+            metrics.RecordSqlError();
+            MaybePublishSlow(broadcaster, options, _controlPlaneDatabaseLabel, request.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+            await WriteErrorAsync(context, "sql_error", ex.Message).ConfigureAwait(false);
+            return;
+        }
+
         object result;
         try
         {
-            result = SqlExecutor.ExecuteControlPlaneStatement(parsed, controlPlane);
+            result = SqlExecutor.ExecuteControlPlaneStatement(executable, controlPlane);
         }
         catch (ControlPlaneAccessDeniedException ex)
         {
@@ -203,17 +216,91 @@ internal static class SqlEndpointHandler
                 return;
             }
 
-            object? result;
+            SqlStatement executable;
             try
             {
-                if (parsed is BeginTransactionStatement && transaction is not null && !transaction.IsCompleted)
+                executable = BindParameters(parsed, stmt);
+
+                if (executable is BeginTransactionStatement && transaction is not null && !transaction.IsCompleted)
                     throw new InvalidOperationException("当前已有活动轻事务，不能嵌套 BEGIN。");
 
-                result = SqlExecutor.ExecuteStatement(tsdb, databaseName, parsed, controlPlane, transaction);
+                object? result = SqlExecutor.ExecuteStatement(tsdb, databaseName, executable, controlPlane, transaction);
                 if (result is SqlTransactionContext started)
                     transaction = started;
-                else if (parsed is CommitTransactionStatement or RollbackTransactionStatement)
+                else if (executable is CommitTransactionStatement or RollbackTransactionStatement)
                     transaction = null;
+
+                switch (result)
+                {
+                    case SelectExecutionResult sel:
+                        {
+                            long rowCount = await WriteSelectAsync(context, sel, writerOptions).ConfigureAwait(false);
+                            metrics.AddReturnedRows(rowCount);
+                            var elapsed = sw.Elapsed.TotalMilliseconds;
+                            await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: -1, elapsed).ConfigureAwait(false);
+                            MaybePublishSlow(broadcaster, options, databaseName, stmt.Sql, elapsed, rowCount, -1, failed: false);
+                            break;
+                        }
+                    case InsertExecutionResult ins:
+                        {
+                            if (!canWrite)
+                            {
+                                metrics.RecordSqlError();
+                                MaybePublishSlow(broadcaster, options, databaseName, stmt.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                                await WriteErrorAsync(context, "forbidden", "INSERT 需要 readwrite 或 admin 角色。").ConfigureAwait(false);
+                                return;
+                            }
+                            metrics.AddInsertedRows(ins.RowsInserted);
+                            var elapsed = sw.Elapsed.TotalMilliseconds;
+                            await WriteEndAsync(context, writerOptions, rowCount: 0, recordsAffected: ins.RowsInserted, elapsed).ConfigureAwait(false);
+                            MaybePublishSlow(broadcaster, options, databaseName, stmt.Sql, elapsed, 0, ins.RowsInserted, failed: false);
+                            break;
+                        }
+                    case DeleteExecutionResult del:
+                        {
+                            if (!canWrite)
+                            {
+                                metrics.RecordSqlError();
+                                MaybePublishSlow(broadcaster, options, databaseName, stmt.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                                await WriteErrorAsync(context, "forbidden", "DELETE 需要 readwrite 或 admin 角色。").ConfigureAwait(false);
+                                return;
+                            }
+                            var elapsed = sw.Elapsed.TotalMilliseconds;
+                            await WriteEndAsync(context, writerOptions, rowCount: 0, recordsAffected: del.TombstonesAdded, elapsed).ConfigureAwait(false);
+                            MaybePublishSlow(broadcaster, options, databaseName, stmt.Sql, elapsed, 0, del.TombstonesAdded, failed: false);
+                            break;
+                        }
+                    case RowsAffectedExecutionResult affected:
+                        {
+                            if (!canWrite)
+                            {
+                                metrics.RecordSqlError();
+                                MaybePublishSlow(broadcaster, options, databaseName, stmt.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                                await WriteErrorAsync(context, "forbidden", "该语句需要 readwrite 或 admin 角色。").ConfigureAwait(false);
+                                return;
+                            }
+                            var elapsed = sw.Elapsed.TotalMilliseconds;
+                            await WriteEndAsync(context, writerOptions, rowCount: 0, recordsAffected: affected.RowsAffected, elapsed).ConfigureAwait(false);
+                            MaybePublishSlow(broadcaster, options, databaseName, stmt.Sql, elapsed, 0, affected.RowsAffected, failed: false);
+                            break;
+                        }
+                    default:
+                        {
+                            // CREATE MEASUREMENT、CREATE USER 等 DDL：返回受影响行数 0。
+                            // 控制面语句已在上面按 admin-only / self-service 细分鉴权，这里仅校验需 canWrite 的普通 DDL。
+                            if (!IsControlPlaneStatement(executable) && !canWrite)
+                            {
+                                metrics.RecordSqlError();
+                                MaybePublishSlow(broadcaster, options, databaseName, stmt.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                                await WriteErrorAsync(context, "forbidden", "DDL 需要 readwrite 或 admin 角色。").ConfigureAwait(false);
+                                return;
+                            }
+                            var elapsed = sw.Elapsed.TotalMilliseconds;
+                            await WriteEndAsync(context, writerOptions, rowCount: 0, recordsAffected: 0, elapsed).ConfigureAwait(false);
+                            MaybePublishSlow(broadcaster, options, databaseName, stmt.Sql, elapsed, 0, 0, failed: false);
+                            break;
+                        }
+                }
             }
             catch (ControlPlaneAccessDeniedException ex)
             {
@@ -236,78 +323,6 @@ internal static class SqlEndpointHandler
                 await WriteErrorAsync(context, "sql_error", ex.Message).ConfigureAwait(false);
                 return;
             }
-
-            switch (result)
-            {
-                case SelectExecutionResult sel:
-                    {
-                        long rowCount = await WriteSelectAsync(context, sel, writerOptions).ConfigureAwait(false);
-                        metrics.AddReturnedRows(rowCount);
-                        var elapsed = sw.Elapsed.TotalMilliseconds;
-                        await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: -1, elapsed).ConfigureAwait(false);
-                        MaybePublishSlow(broadcaster, options, databaseName, stmt.Sql, elapsed, rowCount, -1, failed: false);
-                        break;
-                    }
-                case InsertExecutionResult ins:
-                    {
-                        if (!canWrite)
-                        {
-                            metrics.RecordSqlError();
-                            MaybePublishSlow(broadcaster, options, databaseName, stmt.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
-                            await WriteErrorAsync(context, "forbidden", "INSERT 需要 readwrite 或 admin 角色。").ConfigureAwait(false);
-                            return;
-                        }
-                        metrics.AddInsertedRows(ins.RowsInserted);
-                        var elapsed = sw.Elapsed.TotalMilliseconds;
-                        await WriteEndAsync(context, writerOptions, rowCount: 0, recordsAffected: ins.RowsInserted, elapsed).ConfigureAwait(false);
-                        MaybePublishSlow(broadcaster, options, databaseName, stmt.Sql, elapsed, 0, ins.RowsInserted, failed: false);
-                        break;
-                    }
-                case DeleteExecutionResult del:
-                    {
-                        if (!canWrite)
-                        {
-                            metrics.RecordSqlError();
-                            MaybePublishSlow(broadcaster, options, databaseName, stmt.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
-                            await WriteErrorAsync(context, "forbidden", "DELETE 需要 readwrite 或 admin 角色。").ConfigureAwait(false);
-                            return;
-                        }
-                        var elapsed = sw.Elapsed.TotalMilliseconds;
-                        await WriteEndAsync(context, writerOptions, rowCount: 0, recordsAffected: del.TombstonesAdded, elapsed).ConfigureAwait(false);
-                        MaybePublishSlow(broadcaster, options, databaseName, stmt.Sql, elapsed, 0, del.TombstonesAdded, failed: false);
-                        break;
-                    }
-                case RowsAffectedExecutionResult affected:
-                    {
-                        if (!canWrite)
-                        {
-                            metrics.RecordSqlError();
-                            MaybePublishSlow(broadcaster, options, databaseName, stmt.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
-                            await WriteErrorAsync(context, "forbidden", "该语句需要 readwrite 或 admin 角色。").ConfigureAwait(false);
-                            return;
-                        }
-                        var elapsed = sw.Elapsed.TotalMilliseconds;
-                        await WriteEndAsync(context, writerOptions, rowCount: 0, recordsAffected: affected.RowsAffected, elapsed).ConfigureAwait(false);
-                        MaybePublishSlow(broadcaster, options, databaseName, stmt.Sql, elapsed, 0, affected.RowsAffected, failed: false);
-                        break;
-                    }
-                default:
-                    {
-                        // CREATE MEASUREMENT、CREATE USER 等 DDL：返回受影响行数 0。
-                        // 控制面语句已在上面按 admin-only / self-service 细分鉴权，这里仅校验需 canWrite 的普通 DDL。
-                        if (!IsControlPlaneStatement(parsed) && !canWrite)
-                        {
-                            metrics.RecordSqlError();
-                            MaybePublishSlow(broadcaster, options, databaseName, stmt.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
-                            await WriteErrorAsync(context, "forbidden", "DDL 需要 readwrite 或 admin 角色。").ConfigureAwait(false);
-                            return;
-                        }
-                        var elapsed = sw.Elapsed.TotalMilliseconds;
-                        await WriteEndAsync(context, writerOptions, rowCount: 0, recordsAffected: 0, elapsed).ConfigureAwait(false);
-                        MaybePublishSlow(broadcaster, options, databaseName, stmt.Sql, elapsed, 0, 0, failed: false);
-                        break;
-                    }
-            }
         }
 
         if (transaction is not null && !transaction.IsCompleted)
@@ -316,6 +331,35 @@ internal static class SqlEndpointHandler
             await WriteErrorAsync(context, "sql_error", "SQL batch 结束时仍有未提交的轻事务。").ConfigureAwait(false);
         }
     }
+
+    private static SqlStatement BindParameters(SqlStatement statement, SqlRequest request)
+    {
+        if (request.Parameters is null || request.Parameters.Count == 0)
+            return statement;
+
+        var parameters = new SqlParameters();
+        foreach (var pair in request.Parameters)
+        {
+            parameters.AddNamed(pair.Key, ToSqlParameterValue(pair.Key, pair.Value));
+        }
+
+        return SqlParameterBinder.Bind(statement, parameters);
+    }
+
+    private static object? ToSqlParameterValue(string name, JsonElementValue value)
+        => value.Kind switch
+        {
+            ScalarKind.Null => null,
+            ScalarKind.String => value.StringValue
+                ?? throw new InvalidOperationException($"参数 '{name}' 缺少 stringValue。"),
+            ScalarKind.Integer => value.IntegerValue
+                ?? throw new InvalidOperationException($"参数 '{name}' 缺少 integerValue。"),
+            ScalarKind.Double => value.DoubleValue
+                ?? throw new InvalidOperationException($"参数 '{name}' 缺少 doubleValue。"),
+            ScalarKind.Boolean => value.BooleanValue
+                ?? throw new InvalidOperationException($"参数 '{name}' 缺少 booleanValue。"),
+            _ => throw new InvalidOperationException($"参数 '{name}' 的类型 {value.Kind} 不受支持。"),
+        };
 
     private static async Task<long> WriteSelectAsync(HttpContext context, SelectExecutionResult result, JsonWriterOptions options)
     {
