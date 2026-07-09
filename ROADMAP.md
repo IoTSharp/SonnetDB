@@ -20,7 +20,6 @@
 | 19 | 生态适配底座能力（关系 + KV/缓存 + 对象桶 + 大量 measurement） | #109 ~ #126 | 🚧（#109~#117、#122/#123 ✅；余项按需） |
 | 20 | 多模能力对齐与平移测试（Parity） | #127 ~ #136 | ✅ |
 | 21 | Document Store 单机能力升级（MongoDB-like） | #137 ~ #146 | ✅ |
-| 22 | Agent Memory / Codebase Intelligence（应用层候选） | #150 ~ #159 | ⏸️ 暂停内置派单 |
 | 23 | 搜索与向量引擎合并（DotSearch / DotVector 收编） | #160 ~ #169 | ✅ |
 | 24 | SonnetDB Studio 管理体验升级（Document 管理面） | #170 ~ #172 | 📋 |
 | 25 | Document Store 验收、文档与发布治理 | #173 ~ #174 | 📋 |
@@ -729,89 +728,6 @@ extensions/
 - 长稳报告覆盖热 / 冷启动、索引 rebuild、TTL 清理、backup/restore、崩溃恢复和内存曲线，性能数字进入报告但不做主 CI gating。
 - 发布文档必须明确 SonnetDB Document Store 与 MongoDB 的差异、迁移边界、不支持项、推荐数据规模和不做协议兼容的原则。
 - 文档更新放在发布治理阶段收尾，不反向扩大 Milestone 21 的能力范围。
-
----
-
-## Milestone 22 — Agent Memory / Codebase Intelligence（应用层候选，非内置路线）
-
-> **当前状态**：⏸️ 应用层候选，暂停内置派单。该方向更像“基于 SonnetDB 构建的 Code Memory / Agent Memory 应用”，不是 SonnetDB Core / Server / Studio 必须内置的数据库能力；#150~#159 不再作为 SonnetDB 内置路线派单。
->
-> **复核确认（2026-07-04）**：本轮里程碑复核再次确认**不派单、不内置**。判断依据：(a) M22 是「建在 SonnetDB 上的应用」而非引擎能力；(b) 其所需能力（Document + FullText BM25 + Vector HNSW + Hybrid + MCP）**均已在库内存在**，M22 不会产出任何新引擎能力；(c) #152/#153 需要 Roslyn / tree-sitter / libgit2，违反 `src/SonnetDB.Core` 零第三方依赖铁律。M22 唯一保留价值是当「能力缺口探针」——若将来在 `examples/` 里 dogfood（如摄入 IoTSharp 自身仓库）暴露出某个**通用** Document / Vector / Hybrid 能力缺口，才把该缺口拆成独立 PR；Code Memory 应用本身不进产品面。
->
-> **目标（应用视角）**：验证用户能否把 Git 仓库、设计文档、ADR、CI 变更、代码评审记录和 Agent 会话作为上层应用数据摄入 SonnetDB，并用 SQL / HTTP / MCP 查询“代码是什么、谁调用谁、为什么这么设计、改这里会影响哪里”。SonnetDB 的职责是提供通用数据引擎能力，不直接承诺内置 Code Memory 产品。
->
-> **重新定位**：M22 若继续保留，应进入 `examples/`、独立应用仓库、插件或 Solution Accelerator，用来展示 SonnetDB 的 Document / FullText / Vector / Hybrid Search / MCP 组合能力。只有当应用验证出通用数据库能力缺口时，才拆出独立 Core / Server / Studio PR；不得因为 Code Memory 应用本身而把 Roslyn、Git 扫描、专用 code schema、专用 MCP tools 或 Code Memory Explorer 默认塞进 SonnetDB 内置产品面。
->
-> **设计原则**：
->
-> 1. **应用优先，不内置优先**。Code Memory schema、ingest、MCP tools 和 UI 默认属于上层应用，不进入 SonnetDB 默认产品面。
-> 2. **数据库能力抽象优先**。若应用暴露出共性能力缺口，应沉淀为通用 Document / FullText / Vector / Hybrid Search / MCP / 权限能力，而不是沉淀为 codebase 专用 API。
-> 3. **Core 零依赖边界不破坏**。`src/SonnetDB.Core` 不引入 tree-sitter、Roslyn、libgit2 等大型运行时依赖；代码解析与 Git 扫描放在独立应用、插件、扩展包或示例工具中。
-> 4. **结构化优先，向量补充**。文件、符号、调用边、引用边、commit、ADR、会话、工具调用都以结构化表/文档/边表落库；embedding 用于语义召回，不替代确定性的 symbol / edge 查询。
-> 5. **安全只读默认**。MCP memory tools 默认只读，按 project/repo/branch/owner 隔离；代码片段读取要有大小限制、路径白名单和审计事件。
->
-> **候选产出**：独立 Code Memory 应用方案、示例 schema、独立 ingest 工具、独立 MCP Memory Server、Hybrid Search 示例和 VS Code / Copilot 接入样例；不默认新增 SonnetDB 内置 CLI 命令、Server 专用端点或 Studio 页面。
-
-### 数据模型草案
-
-| 类型 | 建议实体 | 用途 |
-|------|----------|------|
-| 仓库与文件 | `code_repositories`、`code_files`、`code_file_versions` | repo/project/branch/commit、路径、语言、hash、mtime、大小、license 元数据 |
-| 符号与结构 | `code_symbols`、`code_symbol_locations` | namespace/type/method/property/endpoint/test 等符号定义与位置 |
-| 关系边 | `code_edges` | calls / references / implements / tests / imports / routes_to / owns 等边 |
-| 文本与向量 | `code_chunks` | 代码块、注释、README、docs、embedding、BM25/Hybrid Search |
-| Git 演化 | `code_commits`、`code_changes` | commit 时间线、作者、文件变更、热点模块、变更趋势 |
-| 决策与记忆 | `code_decisions`、`agent_memories`、`agent_tool_events` | ADR、设计决策、review 结论、Agent 会话摘要和工具调用审计 |
-
-### 应用化候选拆分（暂停内置派单）
-
-| PR | 主题 | 状态 |
-|----|------|------|
-| #150 | **Code Memory 应用方案与 schema 草案**：若保留，仅在示例 / 独立应用文档中定义 repo/file/symbol/edge/chunk/commit/decision/memory schema、索引建议、权限模型、规模边界和与 Document / FullText / Vector / Hybrid Search 的映射；不作为 SonnetDB 内置 schema 或默认文档主线。 | ⏸️ 应用化候选 |
-| #151 | **独立 ingest 工具第一版（Git + 文件 + 文档块）**：作为应用 CLI / 示例工具扫描 Git 工作区、README/docs/source 文件，写入 repo/file/chunk/commit 基础数据；不新增 SonnetDB 内置 `sndb memory` 命令。 | ⏸️ 应用化候选 |
-| #152 | **C# 符号索引器（Roslyn 可选应用层）**：在独立应用 / 工具层引入可选 Roslyn 分析路径，输出写入应用自定义 schema；不进入 `src/SonnetDB.Core` 或默认 CLI 运行时依赖。 | ⏸️ 应用化候选 |
-| #153 | **调用边与引用边第一版**：作为应用层索引能力提取 calls/references/implements/tests/imports/routes_to 边；若需要通用图查询能力，另行论证为独立数据库能力。 | ⏸️ 应用化候选 |
-| #154 | **独立 Code Memory MCP tools**：由应用自带 MCP Server 暴露 `code_search`、`symbol_search`、`code_callers`、`code_callees`、`code_impact`、`code_snippet`、`decision_search`；不新增 SonnetDB Server 内置专用端点。 | ⏸️ 应用化候选 |
-| #155 | **Hybrid Search 示例与排序融合**：把 `code_chunks` 作为应用数据接入全文 BM25 + embedding KNN + metadata filter 融合，用于验证 SonnetDB 通用检索能力。 | ⏸️ 应用化候选 |
-| #156 | **Agent Memory 应用 API**：面向 Agent 的 memory 写入/读取契约保留在上层应用；若后续证明为通用需求，再抽象为 SonnetDB 通用审计 / conversation / memory 能力。 | ⏸️ 应用化候选 |
-| #157 | **Code Memory Explorer 应用 UI**：作为独立应用 UI 或示例页面展示 repo/project、索引状态、文件/符号搜索和影响分析；不默认进入 SonnetDB Studio / Web Admin。 | ⏸️ 应用化候选 |
-| #158 | **VS Code / Copilot 接入样例**：在扩展或示例中消费独立 Code Memory MCP / API，展示“解释当前符号”“查找调用者”“改动影响分析”等应用场景。 | ⏸️ 应用化候选 |
-| #159 | **应用规模与验证报告**：用 SonnetDB 自身仓库、IoTSharp 仓库和一个中大型开源 C# 仓库做 profile，输出应用层 ingest / 查询 / 增量成本报告；不作为 SonnetDB 核心发布门槛。 | ⏸️ 应用化候选 |
-
-### 原草案推进顺序（暂停）
-
-> 当前不按以下顺序派单；仅保留为后续重新论证时的历史草案。
-
-```text
-#150 (schema + docs)
-  → #151 (Git/files/chunks ingest)
-  → #152 (C# symbols)
-  → #153 (edges)
-  → #154 (HTTP/MCP query tools)
-  → #155 (Hybrid Search)
-  → #156 (Agent Memory API)
-  → #157 (Web Admin Explorer)
-  → #158 (VS Code / Copilot examples)
-  → #159 (scale + docs)
-```
-
-### 验收标准
-
-- 用户可以把任意本地 Git 仓库摄入 SonnetDB，并在 `GET /v1/db/{db}/schema` 或专用 status 端点看到 repo、文件、chunk、symbol、edge、commit、memory 的索引统计。
-- MCP tools 能回答常见代码智能问题：搜索代码/文档、查符号定义、查 callers/callees、做一跳或多跳影响分析、返回带 source location 的片段。
-- Hybrid Search 能融合代码文本、文档、符号 metadata、向量相似度和 Git 时间维度，结果带稳定 score 分解与引用。
-- Agent Memory API 能保存和检索会话摘要、工具调用、review finding、ADR/decision，并按 owner/project/repo 隔离。
-- 索引器支持增量重建、dry-run、取消、失败文件报告和可重复运行；不把生成索引提交到源码仓库。
-- Web Admin 和 VS Code 至少各有一个可演示闭环：搜索符号、查看调用关系、把结果发送给 Copilot 或 MCP Host。
-- `src/SonnetDB.Core` 继续保持零第三方运行时依赖；语言解析器依赖只允许出现在 CLI/扩展/测试/示例项目中。
-
-### 不做的事
-
-- **不**把 SonnetDB 绑定为某一个 MCP Host 或 IDE 的私有实现；MCP 只是对外接口之一。
-- **不**在第一版实现任意图查询语言或复杂代码属性图数据库；先提供 typed tools 和稳定 schema。
-- **不**承诺多语言 AST 全覆盖；第一阶段优先 C# / TypeScript / Markdown 的实用闭环。
-- **不**把第三方语言解析器、Git 原生库或大型 AI framework 引入 `src/SonnetDB.Core`。
-- **不**默认保存 secrets、大文件、二进制文件或 `.git` 内部对象内容；ingest 必须尊重 exclude 配置与大小限制。
 
 ---
 
