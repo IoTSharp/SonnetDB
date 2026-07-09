@@ -1327,8 +1327,17 @@ internal static class SelectExecutor
             ? []
             : GetResidualFieldDependencies(where.Residual, schema).Distinct(StringComparer.Ordinal).ToList();
 
+        // #283：同字段多聚合单次扫描——把共享字段、均走 legacy 数值快路径的聚合（count/sum/min/max/avg，≥2 个）
+        // 合并为一次块扫描。AggregateState 本就一趟累加全部统计量，投影出的各聚合值与逐聚合单独执行按位一致。
+        // 仅当无 Geo/残差谓词（CanUseLegacyAggregateFastPath 已隐含此门控）时启用，故完全不触碰 #282 的逐点 Geo 约束。
+        var multiScanHandled = TryAccumulateSharedFieldMultiAggregates(
+            tsdb, schema, matchedSeries, where, bucketSizeMs, aggSpecs, bucketAccumulators);
+
         for (int specIdx = 0; specIdx < aggSpecs.Count; specIdx++)
         {
+            if (multiScanHandled is not null && multiScanHandled.Contains(specIdx))
+                continue;
+
             var spec = aggSpecs[specIdx];
 
             if (spec.IsCountStar)
@@ -1451,6 +1460,88 @@ internal static class SelectExecutor
 
         var columnNames = projections.Select(p => p.ColumnName).ToList();
         return new SelectExecutionResult(columnNames, rows);
+    }
+
+    /// <summary>
+    /// #283 同字段多聚合单次扫描：把多个共享同一字段、且均满足 legacy 数值快路径条件的聚合
+    /// （count/sum/min/max/avg）合并为每 (series,field) 一次 <see cref="QueryEngine.ExecuteMultiAggregate"/>
+    /// 块扫描，再把每个多聚合桶投影回各 spec。返回被此路径处理掉的 specIdx 集合（主循环据此跳过），
+    /// 无可合并分组时返回 <c>null</c>。
+    /// </summary>
+    /// <remarks>
+    /// 单个聚合（分组大小 1）不走此路径——保留其原有最优路径（尤其 count 的 count-only SIMD 捷径），
+    /// 零回归。带任一 Geo/残差谓词时 <see cref="CanUseLegacyAggregateFastPath"/> 恒 false，故本分组自然为空，
+    /// 逐点 Geo 约束（#282）完全不受影响。
+    /// </remarks>
+    private static HashSet<int>? TryAccumulateSharedFieldMultiAggregates(
+        Tsdb tsdb,
+        MeasurementSchema schema,
+        IReadOnlyList<SeriesEntry> matchedSeries,
+        WhereClause where,
+        long bucketSizeMs,
+        IReadOnlyList<AggSpec> aggSpecs,
+        SortedDictionary<long, AggSlot[]> bucketAccumulators)
+    {
+        // 按字段名把满足快路径的 legacy 数值聚合分组（保持 specIdx 顺序）。
+        Dictionary<string, List<int>>? byField = null;
+        for (int specIdx = 0; specIdx < aggSpecs.Count; specIdx++)
+        {
+            var spec = aggSpecs[specIdx];
+            if (spec.IsCountStar || spec.FieldName is null)
+                continue;
+
+            var col = schema.TryGetColumn(spec.FieldName);
+            if (!CanUseLegacyAggregateFastPath(spec, col, where))
+                continue;
+
+            byField ??= new Dictionary<string, List<int>>(StringComparer.Ordinal);
+            if (!byField.TryGetValue(spec.FieldName, out var list))
+            {
+                list = [];
+                byField[spec.FieldName] = list;
+            }
+            list.Add(specIdx);
+        }
+
+        if (byField is null)
+            return null;
+
+        HashSet<int>? handled = null;
+        foreach (var (fname, specIdxs) in byField)
+        {
+            // 只有 ≥2 个聚合共享该字段才值得单次扫描；单个保留原路径（含 count 的 count-only 捷径）。
+            if (specIdxs.Count < 2)
+                continue;
+
+            foreach (var series in matchedSeries)
+            {
+                var query = new AggregateQuery(
+                    series.Id, fname, where.TimeRange, Aggregator.None, bucketSizeMs);
+
+                foreach (var multiBucket in tsdb.Query.ExecuteMultiAggregate(query))
+                {
+                    if (multiBucket.Count <= 0)
+                        continue;
+
+                    long bucketStart = bucketSizeMs > 0 ? multiBucket.BucketStart : long.MinValue;
+                    if (!bucketAccumulators.TryGetValue(bucketStart, out var slots))
+                    {
+                        slots = CreateAggSlots(aggSpecs);
+                        bucketAccumulators[bucketStart] = slots;
+                    }
+
+                    foreach (int specIdx in specIdxs)
+                        slots[specIdx].MergeLegacyBucket(
+                            multiBucket.Project(aggSpecs[specIdx].LegacyAggregator));
+                }
+            }
+
+            handled ??= [];
+            foreach (int specIdx in specIdxs)
+                handled.Add(specIdx);
+        }
+
+        return handled;
     }
 
     /// <summary>

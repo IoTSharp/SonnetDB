@@ -7,6 +7,7 @@ using SonnetDB.Engine.Retention;
 using SonnetDB.Memory;
 using SonnetDB.Model;
 using SonnetDB.Query;
+using SonnetDB.Sql.Execution;
 using SonnetDB.Storage.Segments;
 using Xunit;
 
@@ -347,6 +348,38 @@ public sealed class SonnetDbMeterTests : IDisposable
             span = Assert.Single(activities, a => a.OperationName == "sonnetdb.query.points");
         Assert.Equal("sonnetdb", span.GetTagItem("db.system"));
         Assert.Equal("points", span.GetTagItem("db.operation"));
+    }
+
+    [Fact]
+    public void MultiAggregate_SharedField_ReadsBlockOnce_NotPerAggregate()
+    {
+        // M33 #283 验收：同字段多聚合单次扫描——4 个聚合共享 usage 字段时块读次数应与单聚合相同（1×），
+        // 而非旧实现的 4×。用部分时间范围强制走 ReadBlock（绕过完整落域的 metadata 快路径）。
+        using var db = Tsdb.Open(MakeOptions());
+        SqlExecutor.Execute(db,
+            "CREATE MEASUREMENT cpu (host TAG, usage FIELD FLOAT)");
+        SqlExecutor.Execute(db,
+            "INSERT INTO cpu (time, host, usage) VALUES " +
+            "(1, 'h1', 5), (2, 'h1', 2), (3, 'h1', 8), (4, 'h1', 1), (5, 'h1', 9), (6, 'h1', 4)");
+        db.FlushNow();
+
+        // 部分范围（掐掉首点）→ block 不完整落域 → CanUseMultiAggregateMetadata 为假 → 必读块。
+        const string range = "WHERE time >= 2 AND time <= 6";
+
+        long BlockReadsFor(string sql)
+        {
+            using var collector = new MetricCollector();
+            _ = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, sql));
+            return collector.LongSum("sonnetdb.segment.block.reads");
+        }
+
+        long single = BlockReadsFor($"SELECT sum(usage) FROM cpu {range}");
+        long multi = BlockReadsFor(
+            $"SELECT count(usage), sum(usage), min(usage), max(usage) FROM cpu {range}");
+
+        Assert.True(single >= 1, $"预期单聚合至少读 1 块，实际 {single}");
+        // 关键断言：4 个同字段聚合合并为一次扫描，块读次数不随聚合个数放大。
+        Assert.Equal(single, multi);
     }
 
     private static Point CreatePoint(int index)

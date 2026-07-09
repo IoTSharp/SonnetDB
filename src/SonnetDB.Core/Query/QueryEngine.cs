@@ -666,6 +666,280 @@ public sealed class QueryEngine
         return result;
     }
 
+    /// <summary>
+    /// 多聚合单次扫描（#283）：对同一 (series,field,range,bucketSizeMs) 一次块扫描同时得出
+    /// count/sum/min/max，供 <c>SELECT count(v), sum(v), min(v), max(v)</c> 这类共享字段的多聚合
+    /// 免去逐聚合各扫一遍。<see cref="AggregateState"/> 本就一趟累加全部统计量，此处仅把结果投影为
+    /// <see cref="MultiAggregateBucket"/>；各聚合的最终值与单独执行 <see cref="Execute(AggregateQuery)"/>
+    /// 按位一致。<see cref="Aggregator.First"/> / <see cref="Aggregator.Last"/> 依赖有序首末值，不走此路径
+    /// （由调用方保证只对 count/sum/min/max/avg 分组）。
+    /// </summary>
+    /// <param name="query">聚合查询参数；其 <see cref="AggregateQuery.Aggregator"/> 被忽略，扫描始终产出全统计量。</param>
+    /// <returns>按 BucketStart 升序排列的多聚合桶（空数据集返回空列表）。</returns>
+    public IReadOnlyList<MultiAggregateBucket> ExecuteMultiAggregate(AggregateQuery query)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+
+        using var activity = SonnetDbActivitySource.StartOperation("sonnetdb.query.aggregate", "aggregate");
+        long startTimestamp = SonnetDbMeter.QueryDuration.Enabled ? Stopwatch.GetTimestamp() : 0;
+        try
+        {
+            return ShouldUsePointAggregatePath(query)
+                ? ExecuteMultiAggregateViaPoints(query)
+                : ExecuteMultiAggregateFast(query);
+        }
+        finally
+        {
+            if (SonnetDbMeter.QueryDuration.Enabled)
+                SonnetDbMeter.QueryDuration.Record(
+                    Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds,
+                    SonnetDbMeter.OperationAggregate);
+        }
+    }
+
+    /// <summary>逐点路径的多聚合（存在 tombstone 时走此路，复用 PointQuery 的合并/墓碑语义）。</summary>
+    private IReadOnlyList<MultiAggregateBucket> ExecuteMultiAggregateViaPoints(AggregateQuery query)
+    {
+        var pointQuery = new PointQuery(query.SeriesId, query.FieldName, query.Range);
+        var points = Execute(pointQuery);
+        bool fieldTypeChecked = false;
+
+        if (query.BucketSizeMs <= 0)
+        {
+            long bucketStart = query.Range.FromInclusive == long.MinValue
+                ? long.MaxValue
+                : query.Range.FromInclusive;
+            long bucketEnd = query.Range.ToInclusive < long.MaxValue
+                ? query.Range.ToInclusive + 1
+                : long.MaxValue;
+            var state = new AggregateState(bucketStart, bucketEnd);
+            bool useObservedStart = query.Range.FromInclusive == long.MinValue;
+
+            foreach (var dp in points)
+            {
+                if (!fieldTypeChecked)
+                {
+                    ThrowIfString(dp.Value.Type);
+                    fieldTypeChecked = true;
+                }
+                state.Add(dp.Timestamp, ToDouble(dp.Value), useObservedStart);
+            }
+
+            if (!state.HasData)
+                return Array.Empty<MultiAggregateBucket>();
+
+            return new[] { state.ToMultiBucket() };
+        }
+
+        var buckets = new Dictionary<long, AggregateState>();
+        foreach (var dp in points)
+        {
+            if (!fieldTypeChecked)
+            {
+                ThrowIfString(dp.Value.Type);
+                fieldTypeChecked = true;
+            }
+            AddValueToBucket(buckets, query.BucketSizeMs, dp.Timestamp, ToDouble(dp.Value));
+        }
+
+        if (buckets.Count == 0)
+            return Array.Empty<MultiAggregateBucket>();
+
+        return MaterializeMultiBuckets(buckets);
+    }
+
+    private IReadOnlyList<MultiAggregateBucket> ExecuteMultiAggregateFast(AggregateQuery query)
+    {
+        using var snapshotLease = _segments.AcquireSnapshot();
+        var snapshot = snapshotLease.Snapshot;
+        return ExecuteMultiAggregateFast(
+            query, snapshot.Index, BuildReaderMap(snapshot), EnumerateMemTables(in snapshotLease));
+    }
+
+    private IReadOnlyList<MultiAggregateBucket> ExecuteMultiAggregateFast(
+        AggregateQuery query,
+        MultiSegmentIndex index,
+        Dictionary<long, SegmentReader> readers,
+        IReadOnlyList<MemTable> memTables)
+    {
+        long from = query.Range.FromInclusive;
+        long to = query.Range.ToInclusive;
+
+        var key = new SeriesFieldKey(query.SeriesId, query.FieldName);
+        FieldType? memFieldType = null;
+        foreach (var memTable in memTables)
+        {
+            var b = memTable.TryGet(in key);
+            if (b is not null)
+            {
+                memFieldType = b.FieldType;
+                break;
+            }
+        }
+
+        var candidates = index.LookupCandidates(query.SeriesId, query.FieldName, from, to);
+
+        if (query.BucketSizeMs <= 0)
+        {
+            long bucketStart = from == long.MinValue ? long.MaxValue : from;
+            long bucketEnd = to < long.MaxValue ? to + 1 : long.MaxValue;
+            var state = new AggregateState(bucketStart, bucketEnd);
+            bool useObservedStart = from == long.MinValue;
+
+            foreach (var memTable in memTables)
+                AddMemTableToGlobal(memTable, in key, from, to, useObservedStart, ref state);
+
+            AddSegmentBlocksToGlobalMulti(
+                candidates, readers, memFieldType, query.Range,
+                _useSimdNumericAggregates, ref state, useObservedStart);
+
+            if (!state.HasData)
+                return Array.Empty<MultiAggregateBucket>();
+
+            return new[] { state.ToMultiBucket() };
+        }
+
+        var buckets = new Dictionary<long, AggregateState>();
+
+        foreach (var memTable in memTables)
+            AddMemTableToBuckets(memTable, in key, from, to, query.BucketSizeMs, buckets);
+
+        AddSegmentBlocksToBucketsMulti(
+            candidates, readers, memFieldType, query.Range, query.BucketSizeMs, buckets);
+
+        if (buckets.Count == 0)
+            return Array.Empty<MultiAggregateBucket>();
+
+        return MaterializeMultiBuckets(buckets);
+    }
+
+    private static IReadOnlyList<MultiAggregateBucket> MaterializeMultiBuckets(
+        Dictionary<long, AggregateState> buckets)
+    {
+        var bucketStarts = buckets.Keys.ToArray();
+        Array.Sort(bucketStarts);
+
+        var result = new List<MultiAggregateBucket>(bucketStarts.Length);
+        foreach (long bucketStart in bucketStarts)
+            result.Add(buckets[bucketStart].ToMultiBucket());
+
+        return result;
+    }
+
+    /// <summary>
+    /// 多聚合段扫描（全局单桶）：与 <see cref="AddSegmentBlocksToGlobal"/> 一致，但用固定
+    /// <see cref="Aggregator.Sum"/> 让块读取路径产出全统计量，并用更严格的
+    /// <see cref="CanUseMultiAggregateMetadata"/> 门控——仅当 block 同时持有 sum 与 min/max 元数据
+    /// 时才走元数据快路径，否则回退读块（逐点计全统计），杜绝 min/max 缺失被静默漏算。
+    /// </summary>
+    private static void AddSegmentBlocksToGlobalMulti(
+        IReadOnlyList<SegmentBlockRef> candidates,
+        Dictionary<long, SegmentReader> readers,
+        FieldType? memFieldType,
+        TimeRange range,
+        bool useSimdNumericAggregates,
+        ref AggregateState state,
+        bool useObservedStart)
+    {
+        foreach (var blockRef in candidates)
+        {
+            ThrowIfFieldTypeMismatch(memFieldType, blockRef);
+
+            if (!readers.TryGetValue(blockRef.SegmentId, out var reader))
+                continue;
+
+            if (CanUseMultiAggregateMetadata(blockRef.Descriptor, range))
+            {
+                state.AddMetadataBlock(blockRef.Descriptor, useObservedStart);
+                continue;
+            }
+
+            var data = reader.ReadBlock(blockRef.Descriptor);
+            AddBlockToGlobal(
+                blockRef.Descriptor,
+                data.TimestampPayload,
+                data.ValuePayload,
+                range,
+                Aggregator.Sum,
+                useSimdNumericAggregates,
+                ref state,
+                useObservedStart);
+        }
+    }
+
+    /// <summary>多聚合段扫描（分桶）：块读取路径本就一趟计全统计，仅需更严格的元数据门控。</summary>
+    private static void AddSegmentBlocksToBucketsMulti(
+        IReadOnlyList<SegmentBlockRef> candidates,
+        Dictionary<long, SegmentReader> readers,
+        FieldType? memFieldType,
+        TimeRange range,
+        long bucketSizeMs,
+        Dictionary<long, AggregateState> buckets)
+    {
+        foreach (var blockRef in candidates)
+        {
+            ThrowIfFieldTypeMismatch(memFieldType, blockRef);
+
+            if (!readers.TryGetValue(blockRef.SegmentId, out var reader))
+                continue;
+
+            if (TryUseMultiAggregateMetadataForBucket(
+                    blockRef.Descriptor, range, bucketSizeMs,
+                    out long bucketStart, out long bucketEndExclusive))
+            {
+                ref var state = ref CollectionsMarshal.GetValueRefOrAddDefault(
+                    buckets, bucketStart, out bool exists);
+
+                if (!exists)
+                    state = new AggregateState(bucketStart, bucketEndExclusive);
+
+                state.AddMetadataBlock(blockRef.Descriptor, useObservedStart: false);
+                continue;
+            }
+
+            var data = reader.ReadBlock(blockRef.Descriptor);
+            AddBlockToBuckets(
+                blockRef.Descriptor,
+                data.TimestampPayload,
+                data.ValuePayload,
+                range,
+                bucketSizeMs,
+                buckets);
+        }
+    }
+
+    /// <summary>多聚合元数据门控：block 完整落入范围且同时持有 sum 与 min/max 元数据。</summary>
+    private static bool CanUseMultiAggregateMetadata(in BlockDescriptor descriptor, TimeRange range)
+    {
+        return descriptor.MinTimestamp >= range.FromInclusive
+            && descriptor.MaxTimestamp <= range.ToInclusive
+            && descriptor.HasAggregateSumCount
+            && descriptor.HasAggregateMinMax;
+    }
+
+    private static bool TryUseMultiAggregateMetadataForBucket(
+        in BlockDescriptor descriptor,
+        TimeRange range,
+        long bucketSizeMs,
+        out long bucketStart,
+        out long bucketEndExclusive)
+    {
+        bucketStart = 0;
+        bucketEndExclusive = 0;
+
+        if (!CanUseMultiAggregateMetadata(descriptor, range))
+            return false;
+
+        long startBucket = TimeBucket.Floor(descriptor.MinTimestamp, bucketSizeMs);
+        long endBucket = TimeBucket.Floor(descriptor.MaxTimestamp, bucketSizeMs);
+        if (startBucket != endBucket)
+            return false;
+
+        bucketStart = startBucket;
+        bucketEndExclusive = startBucket + bucketSizeMs;
+        return true;
+    }
+
     /// <summary>把单个 MemTable 对某 (series,field) 的贡献并入全局单桶聚合状态。</summary>
     private static void AddMemTableToGlobal(
         MemTable memTable,
@@ -1646,6 +1920,18 @@ public sealed class QueryEngine
                 BucketEndExclusive,
                 Count,
                 ComputeValue(aggregator, Count, Sum, Min, Max, FirstValue, LastValue));
+        }
+
+        /// <summary>投影为多聚合桶：一次扫描同时携带 count/sum/min/max。</summary>
+        public readonly MultiAggregateBucket ToMultiBucket()
+        {
+            return new MultiAggregateBucket(
+                BucketStart,
+                BucketEndExclusive,
+                Count,
+                Sum,
+                Min,
+                Max);
         }
     }
 

@@ -19,6 +19,7 @@
 
 ### Changed
 
+- **M33 #283 同字段多聚合单次扫描（perf）**：`SELECT count(v), sum(v), min(v), max(v) [, avg(v)]` 这类共享同一数值字段的多个 legacy 聚合此前按聚合函数各构造一次 `AggregateQuery`、对同一字段扫 N 遍元数据/块；而底层 `AggregateState` 本就一趟同时累加 Count/Sum/Min/Max。现引擎侧新增 `QueryEngine.ExecuteMultiAggregate`，一次块扫描返回全量统计（`MultiAggregateBucket`），SQL 层 `SelectExecutor.ExecuteAggregate` 按 `(series, field)` 把 ≥2 个走数值快路径的同字段聚合合并到一次扫描后各自投影（`avg=sum/count` 天然包含）；单个聚合仍保留原最优路径（含 `count` 的 count-only SIMD 捷径），零回归。带任一 Geo / 残差谓词时不分组（`CanUseLegacyAggregateFastPath` 恒 false），逐点 Geo 约束（#282）语义不变。结果与逐聚合单独执行逐值一致（含 Boolean 字段）；`sonnetdb.segment.block.reads` 计量显示同字段多聚合块读次数从 N× 降到 1×；2,000,000 点落盘段 + 部分时间范围基准下 4 聚合墙钟 median 由约 17.6–18.7 ms 降至约 4.9–6.8 ms（≈2.8–3.6× median / ≈3.2–3.6× p90，9 次取样）。新增 `SqlExecutorMultiAggregateTests`（11 项，覆盖热/冷/混合/tombstone 逐点/分桶/多 series/Geo 回退对拍）与 `SonnetDbMeterTests` 块读次数断言。
 - 将 SonnetDB CoAP 设备写入从手写 `IMessageDeliverer` 后台服务迁移到 `IoTSharp.CoAP.NET` resource/routing 托管入口，并通过 source-generated endpoint 工厂保持 NativeAOT 友好；`POST`/`PUT db/{db}/m/{measurement}`、UDP/coaps、token/权限与三格式落库语义保持不变。
 - 新增 SonnetDB 协作规范铁律：所有生产代码中的 `System.Text.Json` 序列化与反序列化必须使用 source-generated `JsonSerializerContext` / `JsonTypeInfo<T>` 并保持 Native AOT 兼容，禁止回退到反射型 `JsonSerializerOptions` 重载或压制相关 IL/AOT 警告。
 
