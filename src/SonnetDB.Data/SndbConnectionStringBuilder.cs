@@ -23,6 +23,8 @@ namespace SonnetDB.Data;
 ///   <item><term><c>Database</c></term><description>目标数据库名；若同时在 <c>Data Source</c> URL 路径中出现以本键为准。</description></item>
 ///   <item><term><c>Token</c></term><description>远程模式下的 Bearer token（旧认证方式，仍支持；当未提供 <c>Username</c> 时使用）。</description></item>
 ///   <item><term><c>Timeout</c></term><description>远程模式下 HTTP 请求超时（秒），默认 100。</description></item>
+///   <item><term><c>Use Memory Mapped Segments</c></term><description>嵌入式模式下是否对大段启用 mmap 读取；默认跟随引擎配置。</description></item>
+///   <item><term><c>Memory Mapped Segment Threshold</c></term><description>嵌入式模式下启用 mmap 的段大小阈值，支持字节数或 <c>KB</c>/<c>MB</c>/<c>GB</c> 后缀。</description></item>
 ///   <item><term><c>Protocol</c></term><description>
 ///     远程模式下的线传输：<c>auto</c>（默认，运行时探测帧协议、回落 REST）、
 ///     <c>frame-http2</c>（强制二进制帧）、<c>rest</c>（强制 REST/JSON）。仅远程模式生效。
@@ -46,6 +48,8 @@ public sealed class SndbConnectionStringBuilder : DbConnectionStringBuilder
     private const string _keyUsername = "Username";
     private const string _keyPassword = "Password";
     private const string _keySsl = "Ssl";
+    private const string _keyUseMemoryMappedSegments = "Use Memory Mapped Segments";
+    private const string _keyMemoryMappedSegmentThreshold = "Memory Mapped Segment Threshold";
 
     /// <summary>远程模式默认端口。</summary>
     public const int DefaultPort = 5080;
@@ -171,6 +175,50 @@ public sealed class SndbConnectionStringBuilder : DbConnectionStringBuilder
         set => base[_keyTimeout] = value;
     }
 
+    /// <summary>
+    /// 嵌入式模式下是否对达到阈值的大段使用 memory-mapped 读取；未设置时跟随引擎默认配置。
+    /// 同一进程同目录复用同一引擎实例，因此该值只在目录首次打开时生效。
+    /// </summary>
+    public bool? UseMemoryMappedSegments
+    {
+        get
+        {
+            var raw = ReadFirst(_keyUseMemoryMappedSegments, "UseMemoryMappedSegments", "Use Mmap Segments", "UseMmapSegments");
+            if (string.IsNullOrWhiteSpace(raw)) return null;
+            return ParseBoolean(raw, _keyUseMemoryMappedSegments);
+        }
+        set
+        {
+            if (value is null) Remove(_keyUseMemoryMappedSegments);
+            else base[_keyUseMemoryMappedSegments] = value.Value;
+        }
+    }
+
+    /// <summary>
+    /// 嵌入式模式下启用 mmap 的段大小阈值（字节）；未设置时跟随引擎默认配置。
+    /// 支持连接串写法如 <c>67108864</c>、<c>64MB</c> 或 <c>1GB</c>。
+    /// </summary>
+    public long? MemoryMappedSegmentThresholdBytes
+    {
+        get
+        {
+            var raw = ReadFirst(
+                _keyMemoryMappedSegmentThreshold,
+                "MemoryMappedSegmentThreshold",
+                "MemoryMappedSegmentThresholdBytes",
+                "Mmap Segment Threshold",
+                "MmapSegmentThreshold",
+                "MmapSegmentThresholdBytes");
+            if (string.IsNullOrWhiteSpace(raw)) return null;
+            return ParseByteSize(raw, _keyMemoryMappedSegmentThreshold);
+        }
+        set
+        {
+            if (value is null) Remove(_keyMemoryMappedSegmentThreshold);
+            else base[_keyMemoryMappedSegmentThreshold] = value.Value;
+        }
+    }
+
     /// <summary>远程模式下的线传输选择；未设置时按 <see cref="ResolveProtocol"/> 取 <see cref="SndbTransportProtocol.Auto"/>。</summary>
     public SndbTransportProtocol? Protocol
     {
@@ -198,6 +246,30 @@ public sealed class SndbConnectionStringBuilder : DbConnectionStringBuilder
     /// </summary>
     public SndbTransportProtocol ResolveProtocol() => Protocol ?? SndbTransportProtocol.Auto;
 
+    /// <summary>
+    /// 解析嵌入式模式的文件系统路径，兼容 <c>sonnetdb://path</c> 形式。
+    /// </summary>
+    internal string ResolveEmbeddedDataSource() => NormalizeEmbeddedDataSource(DataSource);
+
+    /// <summary>
+    /// 基于连接串构建嵌入式引擎选项；读段相关覆盖项只在该目录首次打开时生效。
+    /// </summary>
+    /// <param name="rootDirectory">已解析出的数据库根目录。</param>
+    internal global::SonnetDB.Engine.TsdbOptions CreateEmbeddedOptions(string rootDirectory)
+    {
+        var readerOptions = global::SonnetDB.Storage.Segments.SegmentReaderOptions.Default;
+        if (UseMemoryMappedSegments is { } useMmap)
+            readerOptions = readerOptions with { UseMemoryMappedFileForLargeSegments = useMmap };
+        if (MemoryMappedSegmentThresholdBytes is { } thresholdBytes)
+            readerOptions = readerOptions with { MemoryMappedFileThresholdBytes = thresholdBytes };
+
+        return new global::SonnetDB.Engine.TsdbOptions
+        {
+            RootDirectory = rootDirectory,
+            SegmentReaderOptions = readerOptions,
+        };
+    }
+
     private static SndbTransportProtocol ParseProtocol(string value) =>
         value.Trim().ToLowerInvariant() switch
         {
@@ -206,6 +278,38 @@ public sealed class SndbConnectionStringBuilder : DbConnectionStringBuilder
             "auto" or "" => SndbTransportProtocol.Auto,
             _ => throw new FormatException($"无效的 Protocol 值 '{value}'，应为 auto / frame-http2 / rest。"),
         };
+
+    private static bool ParseBoolean(string value, string key)
+        => value.Trim().ToLowerInvariant() switch
+        {
+            "true" or "1" or "yes" or "on" => true,
+            "false" or "0" or "no" or "off" => false,
+            _ => throw new FormatException($"无效的 {key} 值 '{value}'，应为 true/false。"),
+        };
+
+    private static long ParseByteSize(string value, string key)
+    {
+        var raw = value.Trim();
+        if (long.TryParse(raw, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var bytes))
+            return bytes;
+
+        var compact = raw.Replace(" ", "", StringComparison.Ordinal);
+        foreach (var (suffix, multiplier) in ByteSizeUnits)
+        {
+            if (!compact.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var numberText = compact[..^suffix.Length];
+            if (double.TryParse(numberText, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var number)
+                && number >= 0
+                && number <= long.MaxValue / (double)multiplier)
+            {
+                return checked((long)(number * multiplier));
+            }
+        }
+
+        throw new FormatException($"无效的 {key} 值 '{value}'，应为字节数或带 KB/MB/GB 后缀的大小。");
+    }
 
     /// <summary>
     /// 推断当前连接字符串应使用的运行模式：优先取 <see cref="Mode"/>；其次若给定
@@ -293,6 +397,15 @@ public sealed class SndbConnectionStringBuilder : DbConnectionStringBuilder
         return (baseUrl, path);
     }
 
+    private static string NormalizeEmbeddedDataSource(string dataSource)
+    {
+        if (string.IsNullOrWhiteSpace(dataSource)) return dataSource;
+        const string prefix = "sonnetdb://";
+        if (dataSource.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            return dataSource[prefix.Length..];
+        return dataSource;
+    }
+
     /// <summary>按顺序读取首个存在的键值（用于键别名，如 Username / User ID / Uid）。</summary>
     private string? ReadFirst(params string[] keys)
     {
@@ -307,4 +420,15 @@ public sealed class SndbConnectionStringBuilder : DbConnectionStringBuilder
         }
         return null;
     }
+
+    private static readonly (string Suffix, long Multiplier)[] ByteSizeUnits =
+    [
+        ("GiB", 1024L * 1024L * 1024L),
+        ("GB", 1024L * 1024L * 1024L),
+        ("MiB", 1024L * 1024L),
+        ("MB", 1024L * 1024L),
+        ("KiB", 1024L),
+        ("KB", 1024L),
+        ("B", 1L),
+    ];
 }

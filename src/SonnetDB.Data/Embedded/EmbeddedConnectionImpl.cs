@@ -24,7 +24,7 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
         _builder = builder;
     }
 
-    public string DataSource => NormalizeDataSource(_builder.DataSource);
+    public string DataSource => _builder.ResolveEmbeddedDataSource();
 
     public string Database => DataSource;
 
@@ -37,11 +37,11 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
     public void Open()
     {
         if (_state == ConnectionState.Open) return;
-        var path = NormalizeDataSource(_builder.DataSource);
+        var path = _builder.ResolveEmbeddedDataSource();
         if (string.IsNullOrWhiteSpace(path))
             throw new InvalidOperationException("ConnectionString 缺少 'Data Source'。");
 
-        _tsdb = SharedSndbRegistry.Acquire(new TsdbOptions { RootDirectory = path });
+        _tsdb = SharedSndbRegistry.Acquire(_builder.CreateEmbeddedOptions(path));
         _state = ConnectionState.Open;
     }
 
@@ -287,15 +287,4 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
         return BulkFlushMode.None;
     }
 
-    /// <summary>
-    /// 兼容 <c>sonnetdb://path</c> 形式：去掉 scheme 前缀，得到真实文件系统路径。
-    /// </summary>
-    private static string NormalizeDataSource(string ds)
-    {
-        if (string.IsNullOrWhiteSpace(ds)) return ds;
-        const string prefix = "sonnetdb://";
-        if (ds.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            return ds[prefix.Length..];
-        return ds;
-    }
 }

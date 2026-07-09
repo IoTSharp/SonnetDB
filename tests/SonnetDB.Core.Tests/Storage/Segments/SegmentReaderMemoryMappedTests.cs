@@ -25,6 +25,13 @@ public sealed class SegmentReaderMemoryMappedTests : IDisposable
     }
 
     [Fact]
+    public void DefaultOptions_EnableMemoryMappedReaderForLargeSegments()
+    {
+        Assert.True(SegmentReaderOptions.Default.UseMemoryMappedFileForLargeSegments);
+        Assert.Equal(64L * 1024L * 1024L, SegmentReaderOptions.Default.MemoryMappedFileThresholdBytes);
+    }
+
+    [Fact]
     public void Open_DefaultOptions_UsesByteArrayReader()
     {
         string path = TempPath("default.SDBSEG");

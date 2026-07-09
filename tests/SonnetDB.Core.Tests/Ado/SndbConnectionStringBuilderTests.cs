@@ -77,6 +77,21 @@ public sealed class SndbConnectionStringBuilderTests
     }
 
     [Fact]
+    public void Embedded_MemoryMappedSegmentOptions_ParseAndCreateOptions()
+    {
+        var b = new SndbConnectionStringBuilder(
+            "Data Source=sonnetdb://./data;Use Memory Mapped Segments=false;Memory Mapped Segment Threshold=32MB");
+
+        Assert.False(b.UseMemoryMappedSegments);
+        Assert.Equal(32L * 1024L * 1024L, b.MemoryMappedSegmentThresholdBytes);
+
+        var options = b.CreateEmbeddedOptions(b.ResolveEmbeddedDataSource());
+        Assert.Equal("./data", options.RootDirectory);
+        Assert.False(options.SegmentReaderOptions.UseMemoryMappedFileForLargeSegments);
+        Assert.Equal(32L * 1024L * 1024L, options.SegmentReaderOptions.MemoryMappedFileThresholdBytes);
+    }
+
+    [Fact]
     public void ExplicitDatabaseKey_OverridesUrlPath()
     {
         var b = new SndbConnectionStringBuilder("Data Source=sonnetdb+http://host:5080/fromurl;Database=explicit");

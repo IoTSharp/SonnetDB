@@ -28,10 +28,10 @@ public sealed record SegmentReaderOptions
     public long VectorIndexCacheMaxBytes { get; init; } = 16L * 1024L * 1024L;
 
     /// <summary>
-    /// 是否允许对达到阈值的大段文件使用安全的 memory-mapped 读取路径；默认 false，继续使用 <c>byte[]</c> reader。
+    /// 是否允许对达到阈值的大段文件使用安全的 memory-mapped 读取路径；默认 true，避免大段在 Open 时整段进入托管堆。
     /// mmap 路径不会把整个段文件读入托管堆，读取 block payload 时按需复制所需字节。
     /// </summary>
-    public bool UseMemoryMappedFileForLargeSegments { get; init; }
+    public bool UseMemoryMappedFileForLargeSegments { get; init; } = true;
 
     /// <summary>
     /// 启用 memory-mapped 读取路径的文件大小阈值；小于等于 0 表示只要启用选项就尝试 mmap。

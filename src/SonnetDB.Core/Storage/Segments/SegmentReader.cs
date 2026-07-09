@@ -13,11 +13,11 @@ namespace SonnetDB.Storage.Segments;
 /// <summary>
 /// 不可变 Segment 文件的只读访问器。
 /// <para>
-/// Open 时解析索引；Block payload 解码按需进行。默认路径保留整段 <c>byte[]</c> 读取，
-/// 可通过 <see cref="SegmentReaderOptions.UseMemoryMappedFileForLargeSegments"/> 对大段启用 safe-only mmap 读取路径。
+/// Open 时解析索引；Block payload 解码按需进行。默认对达到阈值的大段启用 safe-only mmap 读取路径，
+/// 小段仍保留整段 <c>byte[]</c> 读取。
 /// </para>
 /// <para>
-/// 默认仍选择 <see cref="File.ReadAllBytes"/> 整段加载策略，原因：
+/// 小段仍选择 <see cref="File.ReadAllBytes"/> 整段加载策略，原因：
 /// <list type="bullet">
 ///   <item><description><c>.SDBSEG</c> 体量 v1 通常 &lt; 16 MB（受 MemTableFlushPolicy.MaxBytes 限制）。</description></item>
 ///   <item><description><c>byte[]</c> reader 可为 <see cref="ReadBlock"/> 提供零拷贝 span。</description></item>

@@ -607,11 +607,12 @@ public sealed class SndbObjectStorageClient : IDisposable
     {
         if (_builder.ResolveMode() == SndbProviderMode.Embedded)
         {
-            if (string.IsNullOrWhiteSpace(_builder.DataSource))
+            var dataSource = _builder.ResolveEmbeddedDataSource();
+            if (string.IsNullOrWhiteSpace(dataSource))
                 throw new InvalidOperationException("对象存储客户端缺少 Data Source。");
 
-            _database = _builder.DataSource;
-            _embedded = SharedSndbRegistry.Acquire(new TsdbOptions { RootDirectory = _builder.DataSource });
+            _database = dataSource;
+            _embedded = SharedSndbRegistry.Acquire(_builder.CreateEmbeddedOptions(dataSource));
             return;
         }
 
