@@ -34,6 +34,9 @@
             </template>
             {{ liveLabel }}
           </n-tag>
+          <n-tag size="small" type="info" :bordered="false">
+            {{ connections.activeProfile.name }} · {{ connections.activeDisplayUrl }}
+          </n-tag>
           <n-tag :type="auth.isSuperuser ? 'success' : 'info'" size="small">
             {{ auth.username }}{{ auth.isSuperuser ? ' / admin' : '' }}
           </n-tag>
@@ -70,12 +73,14 @@ import {
 import BrandLogo from '@/components/BrandLogo.vue';
 import CopilotDock from '@/components/CopilotDock.vue';
 import { useAuthStore } from '@/stores/auth';
+import { useConnectionsStore } from '@/stores/connections';
 import { useCopilotSessionsStore } from '@/stores/copilotSessions';
 import { useEventsStore } from '@/stores/events';
 import { useSetupStore } from '@/stores/setup';
 import { useSqlConsoleStore } from '@/stores/sqlConsole';
 
 const auth = useAuthStore();
+const connections = useConnectionsStore();
 const copilotSessions = useCopilotSessionsStore();
 const events = useEventsStore();
 const setup = useSetupStore();
@@ -170,6 +175,9 @@ function hideControlPlaneForRegularUser(): void {
 }
 
 watch(() => [auth.isAuthenticated, auth.isSuperuser] as const, hideControlPlaneForRegularUser, { immediate: true });
+watch(() => connections.activeBaseUrl, (baseUrl) => {
+  auth.setApiBaseUrl(baseUrl);
+}, { immediate: true });
 
 onMounted(async () => {
   await setup.ensureLoaded();

@@ -11,6 +11,17 @@
         </div>
 
         <div class="workbench-context__tools">
+          <div class="connection-switcher">
+            <n-dropdown trigger="click" :options="connectionOptions" @select="onConnectionSelect">
+              <n-button size="small" secondary>
+                {{ connections.activeProfile.name }}
+              </n-button>
+            </n-dropdown>
+            <n-button size="small" quaternary @click="openConnectionDialog">
+              Remote
+            </n-button>
+          </div>
+
           <div class="workbench-mode-switch" role="tablist" aria-label="Studio mode">
             <button
               type="button"
@@ -45,6 +56,17 @@
       </div>
     </header>
 
+    <n-dropdown
+      placement="bottom-start"
+      trigger="manual"
+      :x="contextMenu.x"
+      :y="contextMenu.y"
+      :show="contextMenu.show"
+      :options="contextMenuOptions"
+      @clickoutside="hideExplorerContextMenu"
+      @select="onExplorerContextSelect"
+    />
+
     <section class="workbench-frame">
       <aside class="schema-sidebar">
         <div class="schema-toolbar">
@@ -74,7 +96,7 @@
               v-model:value="schemaFilter"
               size="small"
               clearable
-              placeholder="Search databases / measurements"
+              placeholder="Search databases / objects"
               class="schema-toolbar__search"
             />
           </div>
@@ -114,6 +136,49 @@
                   @click="createDatabase"
                 >
                   Create
+                </n-button>
+              </n-space>
+            </n-space>
+          </n-card>
+        </n-modal>
+
+        <n-modal
+          v-model:show="showConnectionDialog"
+          :mask-closable="true"
+        >
+          <n-card
+            title="Remote connection"
+            :bordered="false"
+            size="small"
+            class="connection-dialog"
+            role="dialog"
+            aria-modal="true"
+          >
+            <n-space vertical :size="12">
+              <n-input
+                v-model:value="connectionForm.name"
+                size="small"
+                clearable
+                placeholder="Connection name"
+              />
+              <n-input
+                v-model:value="connectionForm.baseUrl"
+                size="small"
+                clearable
+                placeholder="https://sonnetdb.example.com"
+              />
+              <n-input
+                v-model:value="connectionForm.defaultDatabase"
+                size="small"
+                clearable
+                placeholder="Default database"
+              />
+              <n-space justify="end">
+                <n-button tertiary @click="showConnectionDialog = false">
+                  Cancel
+                </n-button>
+                <n-button type="primary" :disabled="!canSaveConnection" @click="saveConnection">
+                  Save
                 </n-button>
               </n-space>
             </n-space>
@@ -167,104 +232,32 @@
                 </button>
 
                 <div v-if="expandedDatabases[dbNode.name]" class="schema-group__items schema-group__items--children">
-                  <div v-if="dbNode.measurements.length > 0" class="schema-child-block">
+                  <div
+                    v-for="group in explorerGroups(dbNode)"
+                    :key="`${dbNode.name}:${group.key}`"
+                    class="schema-child-block"
+                  >
                     <div class="schema-child-block__head">
-                      <span>Measurements</span>
-                      <span>{{ dbNode.measurements.length }}</span>
+                      <span>{{ group.label }}</span>
+                      <span>{{ group.count }}</span>
                     </div>
                     <button
-                      v-for="measurement in dbNode.measurements"
-                      :key="`${dbNode.name}:measurement:${measurement.name}`"
+                      v-for="item in group.items"
+                      :key="`${dbNode.name}:${item.key}`"
                       type="button"
-                      class="schema-item schema-item--measurement"
-                      :class="{ 'is-active': targetDb === dbNode.name && activeExplorerKey === measurement.name }"
-                      :title="measurementMeta(measurement)"
-                      @click="selectMeasurement(dbNode.name, measurement)"
-                      @dblclick="openMeasurement(measurement)"
+                      class="schema-item"
+                      :class="[item.className, { 'is-active': targetDb === dbNode.name && activeExplorerKey === item.key }]"
+                      :title="item.title"
+                      @click="selectExplorerItem(dbNode.name, item)"
+                      @dblclick="openExplorerItem(item)"
+                      @contextmenu.prevent="openExplorerContextMenu($event, dbNode.name, item)"
                     >
-                      <span class="schema-item__name">{{ measurement.name }}</span>
-                      <span class="schema-item__meta">{{ measurementMeta(measurement) }}</span>
+                      <span class="schema-item__name">{{ item.name }}</span>
+                      <span class="schema-item__meta">{{ item.meta }}</span>
                     </button>
                   </div>
 
-                  <div v-if="dbNode.tables.length > 0" class="schema-child-block">
-                    <div class="schema-child-block__head">
-                      <span>Tables</span>
-                      <span>{{ dbNode.tables.length }}</span>
-                    </div>
-                    <button
-                      v-for="table in dbNode.tables"
-                      :key="`${dbNode.name}:table:${table.name}`"
-                      type="button"
-                      class="schema-item schema-item--table"
-                      :class="{ 'is-active': targetDb === dbNode.name && activeExplorerKey === `table:${table.name}` }"
-                      :title="tableMeta(table)"
-                      @click="selectTable(dbNode.name, table)"
-                      @dblclick="openTable(table)"
-                    >
-                      <span class="schema-item__name">{{ table.name }}</span>
-                      <span class="schema-item__meta">{{ tableMeta(table) }}</span>
-                    </button>
-                  </div>
-
-                  <div v-if="dbNode.documents.length > 0" class="schema-child-block">
-                    <div class="schema-child-block__head">
-                      <span>Documents</span>
-                      <span>{{ dbNode.documents.length }}</span>
-                    </div>
-                    <button
-                      v-for="collection in dbNode.documents"
-                      :key="`${dbNode.name}:document:${collection.name}`"
-                      type="button"
-                      class="schema-item schema-item--document"
-                      :class="{ 'is-active': targetDb === dbNode.name && activeExplorerKey === `document:${collection.name}` }"
-                      :title="documentCollectionMeta(collection)"
-                      @click="selectDocumentCollection(dbNode.name, collection)"
-                      @dblclick="openDocumentCollection(collection)"
-                    >
-                      <span class="schema-item__name">{{ collection.name }}</span>
-                      <span class="schema-item__meta">{{ documentCollectionMeta(collection) }}</span>
-                    </button>
-                  </div>
-
-                  <div v-if="dbNode.indexes.length > 0" class="schema-child-block">
-                    <div class="schema-child-block__head">
-                      <span>Indexes</span>
-                      <span>{{ dbNode.indexes.length }}</span>
-                    </div>
-                    <button
-                      v-for="index in dbNode.indexes"
-                      :key="`${dbNode.name}:index:${index.id}`"
-                      type="button"
-                      class="schema-item schema-item--index"
-                      :class="{ 'is-active': targetDb === dbNode.name && activeExplorerKey === index.id }"
-                      :title="indexMeta(index)"
-                      @click="selectIndex(dbNode.name, index)"
-                      @dblclick="showIndex(index)"
-                    >
-                      <span class="schema-item__name">{{ index.name }}</span>
-                      <span class="schema-item__meta">{{ index.owner }} · {{ indexMeta(index) }}</span>
-                    </button>
-                  </div>
-
-                  <div v-if="dbNode.backupStatus" class="schema-child-block">
-                    <div class="schema-child-block__head">
-                      <span>Backup</span>
-                      <span>{{ dbNode.backupStatus.hasRestoreManifest ? 'manifest' : 'status' }}</span>
-                    </div>
-                    <button
-                      type="button"
-                      class="schema-item schema-item--backup"
-                      :class="{ 'is-active': targetDb === dbNode.name && activeExplorerKey === 'backup-status' }"
-                      :title="backupMeta(dbNode.backupStatus)"
-                      @click="selectBackupStatus(dbNode.name)"
-                    >
-                      <span class="schema-item__name">backup status</span>
-                      <span class="schema-item__meta">{{ backupMeta(dbNode.backupStatus) }}</span>
-                    </button>
-                  </div>
-
-                  <div v-if="dbNode.measurements.length === 0 && dbNode.tables.length === 0 && dbNode.documents.length === 0 && dbNode.indexes.length === 0" class="schema-group__empty">
+                  <div v-if="explorerGroups(dbNode).length === 0" class="schema-group__empty">
                     {{ dbNode.emptyText }}
                   </div>
                 </div>
@@ -515,6 +508,17 @@ import {
 } from '@/api/sqlMeta';
 import { listDatabases } from '@/api/server';
 import {
+  fetchFullTextIndexes,
+  fetchKvKeyspaces,
+  fetchMqTopics,
+  fetchObjectBuckets,
+  fetchVectorIndexes,
+  type FullTextIndexStat,
+  type MqTopicInfo,
+  type ObjectBucketInfo,
+  type VectorIndexStat,
+} from '@/api/management';
+import {
   fetchSchema,
   runMaintenance,
   type BackupStatusInfo,
@@ -530,6 +534,7 @@ import { formatSqlValue } from '@/utils/sqlValue';
 import SqlEditor from '@/components/SqlEditor.vue';
 import SqlResultPanel from '@/components/SqlResultPanel.vue';
 import TrajectoryMap from '@/views/TrajectoryMap.vue';
+import { useConnectionsStore, type ConnectionProfile } from '@/stores/connections';
 import {
   CONTROL_PLANE_KEY,
   useSqlConsoleStore,
@@ -573,6 +578,53 @@ interface AccessBadge {
   type: 'default' | 'info' | 'success' | 'warning' | 'error';
 }
 
+type ExplorerModel =
+  | 'measurement'
+  | 'table'
+  | 'document'
+  | 'kv'
+  | 'index'
+  | 'vector'
+  | 'fulltext'
+  | 'mq'
+  | 'bucket'
+  | 'backup';
+
+interface ManagementExplorerInfo {
+  kvKeyspaces: string[];
+  vectorIndexes: VectorIndexStat[];
+  fullTextIndexes: FullTextIndexStat[];
+  mqTopics: MqTopicInfo[];
+  buckets: ObjectBucketInfo[];
+  error: string;
+}
+
+interface ExplorerItem {
+  key: string;
+  model: ExplorerModel;
+  name: string;
+  meta: string;
+  title: string;
+  className: string;
+  payload:
+    | MeasurementInfo
+    | TableInfo
+    | DocumentCollectionInfo
+    | IndexLifecycleInfo
+    | VectorIndexStat
+    | FullTextIndexStat
+    | MqTopicInfo
+    | ObjectBucketInfo
+    | null;
+}
+
+interface ExplorerGroup {
+  key: string;
+  label: string;
+  count: number;
+  items: ExplorerItem[];
+}
+
 interface DatabaseTreeNode {
   name: string;
   meta: string;
@@ -580,6 +632,11 @@ interface DatabaseTreeNode {
   tables: TableInfo[];
   documents: DocumentCollectionInfo[];
   indexes: IndexLifecycleInfo[];
+  kvKeyspaces: string[];
+  vectorIndexes: VectorIndexStat[];
+  fullTextIndexes: FullTextIndexStat[];
+  mqTopics: MqTopicInfo[];
+  buckets: ObjectBucketInfo[];
   backupStatus: BackupStatusInfo | null;
   loading: boolean;
   error: string;
@@ -591,7 +648,16 @@ interface SystemTreeNode {
   meta: string;
 }
 
+interface ExplorerContextMenuState {
+  show: boolean;
+  x: number;
+  y: number;
+  db: string;
+  item: ExplorerItem | null;
+}
+
 const auth = useAuthStore();
+const connections = useConnectionsStore();
 const sqlConsole = useSqlConsoleStore();
 const route = useRoute();
 const router = useRouter();
@@ -600,9 +666,12 @@ const message = useMessage();
 const databases = ref<string[]>([]);
 const schema = ref<MeasurementInfo[]>([]);
 const schemaByDb = ref<Record<string, SchemaResponse>>({});
+const managementByDb = ref<Record<string, ManagementExplorerInfo>>({});
 const schemaLoadingByDb = ref<Record<string, boolean>>({});
 const schemaErrorByDb = ref<Record<string, string>>({});
 const schemaFilter = ref('');
+const showConnectionDialog = ref(false);
+const connectionForm = ref({ name: '', baseUrl: '', defaultDatabase: '' });
 const maintenanceBackupDirectory = ref('');
 const maintenanceRestoreTargetDirectory = ref('');
 const maintenanceBusy = ref('');
@@ -626,10 +695,13 @@ const editorCursor = ref<EditorCursorInfo>({
 });
 const openGroups = ref<Record<string, boolean>>({
   databases: true,
-  measurements: true,
-  views: true,
-  materialized: true,
-  methods: true,
+});
+const contextMenu = ref<ExplorerContextMenuState>({
+  show: false,
+  x: 0,
+  y: 0,
+  db: '',
+  item: null,
 });
 
 if (!auth.isSuperuser) {
@@ -644,7 +716,10 @@ const activeTabId = computed({
 
 const targetDb = computed({
   get: () => activeTab.value?.db ?? '',
-  set: (db: string) => sqlConsole.patchActiveTab({ db }),
+  set: (db: string) => {
+    sqlConsole.patchActiveTab({ db });
+    connections.setActiveDatabase(db);
+  },
 });
 
 const sql = computed({
@@ -674,9 +749,8 @@ const activeWorkbenchTool = computed<WorkbenchTool>(() =>
   route.query.tool === 'trajectory' ? 'trajectory' : 'sql');
 
 const connectionLabel = computed(() => {
-  const host = typeof window !== 'undefined' ? window.location.host : 'localhost';
   const db = targetDb.value === CONTROL_PLANE_KEY ? 'system' : (targetDb.value || 'public');
-  return `${host}/${db}`;
+  return `${connections.activeDisplayUrl}/${db}`;
 });
 
 const accessBadges = computed<AccessBadge[]>(() => {
@@ -701,12 +775,124 @@ const accessBadges = computed<AccessBadge[]>(() => {
   ];
 });
 
+const connectionOptions = computed<DropdownOption[]>(() => {
+  const profileOptions = connections.profiles.map((profile) => ({
+    label: `${profile.name} · ${displayConnectionProfile(profile)}`,
+    key: `connection:${profile.id}`,
+  }));
+
+  return [
+    ...profileOptions,
+    { type: 'divider', key: 'connection-divider' },
+    { label: 'New remote connection', key: 'connection:new' },
+  ];
+});
+
+const contextMenuOptions = computed<DropdownOption[]>(() => {
+  const item = contextMenu.value.item;
+  if (!item) return [];
+
+  const options: DropdownOption[] = [
+    { label: 'Open workbench', key: 'open-workbench' },
+    { label: 'Copy name', key: 'copy-name' },
+    { label: 'Refresh database', key: 'refresh-database' },
+  ];
+
+  if (canOpenInSql(item)) {
+    options.splice(1, 0, { label: 'Open in SQL', key: 'open-sql' });
+  }
+  return options;
+});
+
 function setWorkbenchTool(tool: WorkbenchTool): void {
   if (activeWorkbenchTool.value === tool) return;
   void router.replace({
     name: 'sql',
     query: tool === 'trajectory' ? { tool: 'trajectory' } : {},
   });
+}
+
+function displayConnectionProfile(profile: ConnectionProfile): string {
+  return profile.baseUrl === '/'
+    ? (typeof window === 'undefined' ? 'local' : window.location.host)
+    : profile.baseUrl;
+}
+
+function openConnectionDialog(): void {
+  connectionForm.value = {
+    name: '',
+    baseUrl: '',
+    defaultDatabase: targetDb.value === CONTROL_PLANE_KEY ? '' : targetDb.value,
+  };
+  showConnectionDialog.value = true;
+}
+
+function saveConnection(): void {
+  if (!canSaveConnection.value) return;
+  const profile = connections.upsertRemoteProfile({
+    name: connectionForm.value.name,
+    baseUrl: connectionForm.value.baseUrl,
+    defaultDatabase: connectionForm.value.defaultDatabase,
+  });
+  connections.setActiveProfile(profile.id);
+  showConnectionDialog.value = false;
+}
+
+function onConnectionSelect(key: string | number): void {
+  const value = String(key);
+  if (value === 'connection:new') {
+    openConnectionDialog();
+    return;
+  }
+  if (!value.startsWith('connection:')) return;
+  connections.setActiveProfile(value.slice('connection:'.length));
+}
+
+function openExplorerContextMenu(event: MouseEvent, db: string, item: ExplorerItem): void {
+  selectExplorerItem(db, item);
+  contextMenu.value = {
+    show: true,
+    x: event.clientX,
+    y: event.clientY,
+    db,
+    item,
+  };
+}
+
+function hideExplorerContextMenu(): void {
+  contextMenu.value.show = false;
+}
+
+async function onExplorerContextSelect(key: string | number): Promise<void> {
+  const action = String(key);
+  const { db, item } = contextMenu.value;
+  hideExplorerContextMenu();
+  if (!item) return;
+
+  if (action === 'open-workbench') {
+    routeExplorerItem(db, item);
+    return;
+  }
+  if (action === 'open-sql') {
+    openExplorerItem(item);
+    return;
+  }
+  if (action === 'copy-name') {
+    await copyText(item.name);
+    return;
+  }
+  if (action === 'refresh-database') {
+    await loadSchema(db, true);
+  }
+}
+
+async function copyText(value: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(value);
+    message.success('Copied');
+  } catch {
+    message.warning(value);
+  }
 }
 
 const databaseTree = computed<DatabaseTreeNode[]>(() => {
@@ -717,10 +903,16 @@ const databaseTree = computed<DatabaseTreeNode[]>(() => {
     const tables = dbSchema?.tables ?? [];
     const documents = dbSchema?.documentCollections ?? [];
     const indexes = dbSchema?.indexes ?? [];
+    const management = managementByDb.value[name] ?? emptyManagementInfo();
+    const kvKeyspaces = management.kvKeyspaces;
+    const vectorIndexes = management.vectorIndexes;
+    const fullTextIndexes = management.fullTextIndexes;
+    const mqTopics = management.mqTopics;
+    const buckets = management.buckets;
     const backupStatus = dbSchema?.backupStatus ?? null;
     const loaded = hasCachedSchema(name);
     const loading = Boolean(schemaLoadingByDb.value[name]);
-    const error = schemaErrorByDb.value[name] ?? '';
+    const error = schemaErrorByDb.value[name] || management.error || '';
     const dbMatches = !keyword || name.toLowerCase().includes(keyword);
     const filteredMeasurements = !keyword || dbMatches
       ? measurements
@@ -734,22 +926,58 @@ const databaseTree = computed<DatabaseTreeNode[]>(() => {
     const filteredIndexes = !keyword || dbMatches
       ? indexes
       : indexes.filter((index) => indexMatchesFilter(index, keyword));
+    const filteredKvKeyspaces = !keyword || dbMatches
+      ? kvKeyspaces
+      : kvKeyspaces.filter((keyspace) => keyspace.toLowerCase().includes(keyword));
+    const filteredVectorIndexes = !keyword || dbMatches
+      ? vectorIndexes
+      : vectorIndexes.filter((index) => vectorIndexMatchesFilter(index, keyword));
+    const filteredFullTextIndexes = !keyword || dbMatches
+      ? fullTextIndexes
+      : fullTextIndexes.filter((index) => fullTextIndexMatchesFilter(index, keyword));
+    const filteredMqTopics = !keyword || dbMatches
+      ? mqTopics
+      : mqTopics.filter((topic) => topic.topic.toLowerCase().includes(keyword));
+    const filteredBuckets = !keyword || dbMatches
+      ? buckets
+      : buckets.filter((bucket) => bucket.name.toLowerCase().includes(keyword));
 
     if (keyword && !dbMatches
       && filteredMeasurements.length === 0
       && filteredTables.length === 0
       && filteredDocuments.length === 0
-      && filteredIndexes.length === 0) {
+      && filteredIndexes.length === 0
+      && filteredKvKeyspaces.length === 0
+      && filteredVectorIndexes.length === 0
+      && filteredFullTextIndexes.length === 0
+      && filteredMqTopics.length === 0
+      && filteredBuckets.length === 0) {
       return [];
     }
 
     return [{
       name,
-      meta: databaseMeta(loaded, loading, error, measurements.length, tables.length, documents.length, indexes.length),
+      meta: databaseMeta(
+        loaded,
+        loading,
+        error,
+        measurements.length,
+        tables.length,
+        documents.length,
+        indexes.length,
+        kvKeyspaces.length,
+        mqTopics.length,
+        buckets.length,
+      ),
       measurements: filteredMeasurements,
       tables: filteredTables,
       documents: filteredDocuments,
       indexes: filteredIndexes,
+      kvKeyspaces: filteredKvKeyspaces,
+      vectorIndexes: filteredVectorIndexes,
+      fullTextIndexes: filteredFullTextIndexes,
+      mqTopics: filteredMqTopics,
+      buckets: filteredBuckets,
       backupStatus,
       loading,
       error,
@@ -779,6 +1007,12 @@ const canDropDatabase = computed(() =>
   && targetDb.value.length > 0
   && targetDb.value !== CONTROL_PLANE_KEY
   && databases.value.includes(targetDb.value));
+
+const canSaveConnection = computed(() => {
+  const baseUrl = connectionForm.value.baseUrl.trim();
+  return connectionForm.value.name.trim().length > 0
+    && /^https?:\/\/[^\s/$.?#].[^\s]*$/i.test(baseUrl);
+});
 
 const trajectoryInitialDb = computed(() => {
   if (targetDb.value && targetDb.value !== CONTROL_PLANE_KEY) return targetDb.value;
@@ -890,15 +1124,32 @@ function hasCachedSchema(db: string): boolean {
   return Object.prototype.hasOwnProperty.call(schemaByDb.value, db);
 }
 
-function normalizeActiveExplorerKey(dbSchema: SchemaResponse): string {
+function normalizeActiveExplorerKey(dbSchema: SchemaResponse, management: ManagementExplorerInfo = emptyManagementInfo()): string {
   const key = activeExplorerKey.value;
-  if (!key) return dbSchema.measurements?.[0]?.name ?? '';
+  if (!key) return firstExplorerKey(dbSchema, management);
   if (dbSchema.measurements?.some((measurement) => measurement.name === key)) return key;
   if (dbSchema.tables?.some((table) => `table:${table.name}` === key)) return key;
   if (dbSchema.documentCollections?.some((collection) => `document:${collection.name}` === key)) return key;
   if (dbSchema.indexes?.some((index) => index.id === key)) return key;
+  if (management.kvKeyspaces.some((keyspace) => `kv:${keyspace}` === key)) return key;
+  if (management.vectorIndexes.some((index) => `vector:${index.measurement}:${index.column}` === key)) return key;
+  if (management.fullTextIndexes.some((index) => `fulltext:${index.collection}:${index.name}` === key)) return key;
+  if (management.mqTopics.some((topic) => `mq:${topic.topic}` === key)) return key;
+  if (management.buckets.some((bucket) => `bucket:${bucket.name}` === key)) return key;
   if (key === 'backup-status' && dbSchema.backupStatus) return key;
-  return dbSchema.measurements?.[0]?.name ?? '';
+  return firstExplorerKey(dbSchema, management);
+}
+
+function firstExplorerKey(dbSchema: SchemaResponse, management: ManagementExplorerInfo): string {
+  return dbSchema.measurements?.[0]?.name
+    ?? (dbSchema.tables?.[0] ? `table:${dbSchema.tables[0].name}` : undefined)
+    ?? (dbSchema.documentCollections?.[0] ? `document:${dbSchema.documentCollections[0].name}` : undefined)
+    ?? (management.kvKeyspaces[0] ? `kv:${management.kvKeyspaces[0]}` : undefined)
+    ?? (management.vectorIndexes[0] ? `vector:${management.vectorIndexes[0].measurement}:${management.vectorIndexes[0].column}` : undefined)
+    ?? (management.fullTextIndexes[0] ? `fulltext:${management.fullTextIndexes[0].collection}:${management.fullTextIndexes[0].name}` : undefined)
+    ?? (management.mqTopics[0] ? `mq:${management.mqTopics[0].topic}` : undefined)
+    ?? (management.buckets[0] ? `bucket:${management.buckets[0].name}` : undefined)
+    ?? (dbSchema.backupStatus ? 'backup-status' : '');
 }
 
 function isGeoField(column: { role: string; dataType: string }): boolean {
@@ -939,6 +1190,31 @@ function indexMatchesFilter(index: IndexLifecycleInfo, keyword: string): boolean
     || index.columns.some((column) => column.toLowerCase().includes(keyword));
 }
 
+function vectorIndexMatchesFilter(index: VectorIndexStat, keyword: string): boolean {
+  return index.measurement.toLowerCase().includes(keyword)
+    || index.column.toLowerCase().includes(keyword)
+    || index.kind.toLowerCase().includes(keyword)
+    || index.metric.toLowerCase().includes(keyword);
+}
+
+function fullTextIndexMatchesFilter(index: FullTextIndexStat, keyword: string): boolean {
+  return index.collection.toLowerCase().includes(keyword)
+    || index.name.toLowerCase().includes(keyword)
+    || index.tokenizer.toLowerCase().includes(keyword)
+    || index.fields.some((field) => field.toLowerCase().includes(keyword));
+}
+
+function emptyManagementInfo(error = ''): ManagementExplorerInfo {
+  return {
+    kvKeyspaces: [],
+    vectorIndexes: [],
+    fullTextIndexes: [],
+    mqTopics: [],
+    buckets: [],
+    error,
+  };
+}
+
 function databaseMeta(
   loaded: boolean,
   loading: boolean,
@@ -947,19 +1223,22 @@ function databaseMeta(
   tableCount: number,
   documentCount: number,
   indexCount: number,
+  kvCount: number,
+  mqCount: number,
+  bucketCount: number,
 ): string {
   if (loading) return 'loading schema...';
   if (error) return error;
   if (!loaded) return 'click to load schema';
-  if (measurementCount + tableCount + documentCount === 0) return 'empty database';
-  return `${measurementCount}M · ${tableCount}T · ${documentCount}D · ${indexCount}I`;
+  if (measurementCount + tableCount + documentCount + kvCount + mqCount + bucketCount === 0) return 'empty database';
+  return `${measurementCount}M · ${tableCount}T · ${documentCount}D · ${kvCount}KV · ${mqCount}MQ · ${bucketCount}B · ${indexCount}I`;
 }
 
 function databaseEmptyText(loaded: boolean, loading: boolean, error: string, keyword: string): string {
   if (loading) return 'Loading schema...';
   if (error) return error;
-  if (!loaded) return keyword ? 'No matching measurements yet.' : 'Expand this database to load measurements.';
-  return keyword ? 'No matching measurements.' : 'No measurements found.';
+  if (!loaded) return keyword ? 'No matching objects yet.' : 'Expand this database to load objects.';
+  return keyword ? 'No matching objects.' : 'No objects found.';
 }
 
 function stringifyValue(value: unknown): string {
@@ -1076,6 +1355,169 @@ function backupMeta(status: BackupStatusInfo | null): string {
   return `${status.segmentCount} seg · ${status.walFileCount} wal · ${size}`;
 }
 
+function explorerGroups(dbNode: DatabaseTreeNode): ExplorerGroup[] {
+  const groups: ExplorerGroup[] = [
+    {
+      key: 'measurements',
+      label: 'Measurements',
+      count: dbNode.measurements.length,
+      items: dbNode.measurements.map((measurement) => ({
+        key: measurement.name,
+        model: 'measurement',
+        name: measurement.name,
+        meta: measurementMeta(measurement),
+        title: measurementMeta(measurement),
+        className: 'schema-item--measurement',
+        payload: measurement,
+      })),
+    },
+    {
+      key: 'tables',
+      label: 'Tables',
+      count: dbNode.tables.length,
+      items: dbNode.tables.map((table) => ({
+        key: `table:${table.name}`,
+        model: 'table',
+        name: table.name,
+        meta: tableMeta(table),
+        title: tableMeta(table),
+        className: 'schema-item--table',
+        payload: table,
+      })),
+    },
+    {
+      key: 'documents',
+      label: 'Collections',
+      count: dbNode.documents.length,
+      items: dbNode.documents.map((collection) => ({
+        key: `document:${collection.name}`,
+        model: 'document',
+        name: collection.name,
+        meta: documentCollectionMeta(collection),
+        title: documentCollectionMeta(collection),
+        className: 'schema-item--document',
+        payload: collection,
+      })),
+    },
+    {
+      key: 'kv',
+      label: 'KV Keyspaces',
+      count: dbNode.kvKeyspaces.length,
+      items: dbNode.kvKeyspaces.map((keyspace) => ({
+        key: `kv:${keyspace}`,
+        model: 'kv',
+        name: keyspace,
+        meta: 'keyspace',
+        title: `KV keyspace ${keyspace}`,
+        className: 'schema-item--kv',
+        payload: null,
+      })),
+    },
+    {
+      key: 'indexes',
+      label: 'Index Lifecycle',
+      count: dbNode.indexes.length,
+      items: dbNode.indexes.map((index) => ({
+        key: index.id,
+        model: 'index',
+        name: index.name,
+        meta: `${index.owner} · ${indexMeta(index)}`,
+        title: indexMeta(index),
+        className: 'schema-item--index',
+        payload: index,
+      })),
+    },
+    {
+      key: 'vector',
+      label: 'Vector Indexes',
+      count: dbNode.vectorIndexes.length,
+      items: dbNode.vectorIndexes.map((index) => ({
+        key: `vector:${index.measurement}:${index.column}`,
+        model: 'vector',
+        name: `${index.measurement}.${index.column}`,
+        meta: vectorIndexMeta(index),
+        title: vectorIndexMeta(index),
+        className: 'schema-item--vector',
+        payload: index,
+      })),
+    },
+    {
+      key: 'fulltext',
+      label: 'FullText Indexes',
+      count: dbNode.fullTextIndexes.length,
+      items: dbNode.fullTextIndexes.map((index) => ({
+        key: `fulltext:${index.collection}:${index.name}`,
+        model: 'fulltext',
+        name: index.name,
+        meta: fullTextIndexMeta(index),
+        title: fullTextIndexMeta(index),
+        className: 'schema-item--fulltext',
+        payload: index,
+      })),
+    },
+    {
+      key: 'mq',
+      label: 'MQ Topics',
+      count: dbNode.mqTopics.length,
+      items: dbNode.mqTopics.map((topic) => ({
+        key: `mq:${topic.topic}`,
+        model: 'mq',
+        name: topic.topic,
+        meta: mqTopicMeta(topic),
+        title: mqTopicMeta(topic),
+        className: 'schema-item--mq',
+        payload: topic,
+      })),
+    },
+    {
+      key: 'buckets',
+      label: 'Buckets',
+      count: dbNode.buckets.length,
+      items: dbNode.buckets.map((bucket) => ({
+        key: `bucket:${bucket.name}`,
+        model: 'bucket',
+        name: bucket.name,
+        meta: bucket.purpose || 'general',
+        title: bucket.purpose || 'general',
+        className: 'schema-item--bucket',
+        payload: bucket,
+      })),
+    },
+  ];
+
+  if (dbNode.backupStatus) {
+    groups.push({
+      key: 'backup',
+      label: 'Backup',
+      count: 1,
+      items: [{
+        key: 'backup-status',
+        model: 'backup',
+        name: 'backup status',
+        meta: backupMeta(dbNode.backupStatus),
+        title: backupMeta(dbNode.backupStatus),
+        className: 'schema-item--backup',
+        payload: null,
+      }],
+    });
+  }
+
+  return groups.filter((group) => group.items.length > 0);
+}
+
+function vectorIndexMeta(index: VectorIndexStat): string {
+  const dim = index.dimension ? `dim ${index.dimension}` : 'dim n/a';
+  return `${index.kind} · ${index.metric} · ${dim}`;
+}
+
+function fullTextIndexMeta(index: FullTextIndexStat): string {
+  return `${index.collection} · ${index.tokenizer} · ${index.documentCount} docs`;
+}
+
+function mqTopicMeta(topic: MqTopicInfo): string {
+  return `${topic.messageCount} msg · next ${topic.nextOffset}`;
+}
+
 function openTable(table: TableInfo): void {
   setWorkbenchTool('sql');
   setSqlDraft(`DESCRIBE TABLE ${formatSqlIdentifier(table.name)}`);
@@ -1084,11 +1526,6 @@ function openTable(table: TableInfo): void {
 function openDocumentCollection(collection: DocumentCollectionInfo): void {
   setWorkbenchTool('sql');
   setSqlDraft(`DESCRIBE DOCUMENT COLLECTION ${formatSqlIdentifier(collection.name)}`);
-}
-
-function selectIndex(db: string, index: IndexLifecycleInfo): void {
-  selectDatabase(db);
-  activeExplorerKey.value = index.id;
 }
 
 function showIndex(index: IndexLifecycleInfo): void {
@@ -1106,6 +1543,65 @@ function showIndex(index: IndexLifecycleInfo): void {
     return;
   }
   setSqlDraft(`DESCRIBE MEASUREMENT ${formatSqlIdentifier(index.owner)}`);
+}
+
+function canOpenInSql(item: ExplorerItem): boolean {
+  return item.model === 'measurement'
+    || item.model === 'table'
+    || item.model === 'document'
+    || item.model === 'index'
+    || item.model === 'vector'
+    || item.model === 'fulltext'
+    || item.model === 'backup';
+}
+
+function selectExplorerItem(db: string, item: ExplorerItem): void {
+  selectDatabase(db);
+  activeExplorerKey.value = item.key;
+}
+
+function routeExplorerItem(db: string, item: ExplorerItem): void {
+  selectExplorerItem(db, item);
+  void router.replace({
+    name: 'sql',
+    query: item.model === 'measurement'
+      ? {}
+      : { model: item.model, node: item.name },
+  });
+}
+
+function openExplorerItem(item: ExplorerItem): void {
+  if (item.model === 'measurement') {
+    openMeasurement(item.payload as MeasurementInfo);
+    return;
+  }
+  if (item.model === 'table') {
+    openTable(item.payload as TableInfo);
+    return;
+  }
+  if (item.model === 'document') {
+    openDocumentCollection(item.payload as DocumentCollectionInfo);
+    return;
+  }
+  if (item.model === 'index') {
+    showIndex(item.payload as IndexLifecycleInfo);
+    return;
+  }
+  if (item.model === 'vector') {
+    const index = item.payload as VectorIndexStat;
+    setWorkbenchTool('sql');
+    setSqlDraft(`DESCRIBE MEASUREMENT ${formatSqlIdentifier(index.measurement)}`);
+    return;
+  }
+  if (item.model === 'fulltext') {
+    const index = item.payload as FullTextIndexStat;
+    setWorkbenchTool('sql');
+    setSqlDraft(`SHOW FULLTEXT INDEXES ON ${formatSqlIdentifier(index.collection)}`);
+    return;
+  }
+  if (item.model === 'backup') {
+    void runHealthCheck();
+  }
 }
 
 async function runHealthCheck(): Promise<void> {
@@ -1241,26 +1737,6 @@ function selectDatabase(db: string): void {
   }
 }
 
-function selectMeasurement(db: string, measurement: MeasurementInfo): void {
-  selectDatabase(db);
-  activeExplorerKey.value = measurement.name;
-}
-
-function selectTable(db: string, table: TableInfo): void {
-  selectDatabase(db);
-  activeExplorerKey.value = `table:${table.name}`;
-}
-
-function selectDocumentCollection(db: string, collection: DocumentCollectionInfo): void {
-  selectDatabase(db);
-  activeExplorerKey.value = `document:${collection.name}`;
-}
-
-function selectBackupStatus(db: string): void {
-  selectDatabase(db);
-  activeExplorerKey.value = 'backup-status';
-}
-
 function openMeasurement(measurement: MeasurementInfo): void {
   setWorkbenchTool('sql');
   setSqlDraft(buildSelectDraft(measurement, false));
@@ -1298,6 +1774,9 @@ function syncDatabaseState(currentDatabases: string[]): void {
   const currentSet = new Set(currentDatabases);
   schemaByDb.value = Object.fromEntries(
     Object.entries(schemaByDb.value).filter(([name]) => currentSet.has(name)),
+  );
+  managementByDb.value = Object.fromEntries(
+    Object.entries(managementByDb.value).filter(([name]) => currentSet.has(name)),
   );
   schemaLoadingByDb.value = Object.fromEntries(
     Object.entries(schemaLoadingByDb.value).filter(([name]) => currentSet.has(name)),
@@ -1343,7 +1822,7 @@ async function loadSchema(db: string, force = false, syncActive = true): Promise
       const dbSchema = schemaByDb.value[db];
       schema.value = dbSchema?.measurements ?? [];
       if (dbSchema) {
-        activeExplorerKey.value = normalizeActiveExplorerKey(dbSchema);
+        activeExplorerKey.value = normalizeActiveExplorerKey(dbSchema, managementByDb.value[db]);
       }
     }
     return;
@@ -1359,7 +1838,15 @@ async function loadSchema(db: string, force = false, syncActive = true): Promise
   };
   loadingSchema.value = true;
   try {
-    const resp = await fetchSchema(auth.api, db);
+    const [schemaResult, managementResult] = await Promise.allSettled([
+      fetchSchema(auth.api, db),
+      loadManagementExplorerInfo(db),
+    ]);
+    if (schemaResult.status === 'rejected') {
+      throw schemaResult.reason;
+    }
+
+    const resp = schemaResult.value;
     const measurements = resp.measurements ?? [];
     schemaByDb.value = {
       ...schemaByDb.value,
@@ -1371,9 +1858,17 @@ async function loadSchema(db: string, force = false, syncActive = true): Promise
         backupStatus: resp.backupStatus ?? null,
       },
     };
+    managementByDb.value = {
+      ...managementByDb.value,
+      [db]: managementResult.status === 'fulfilled'
+        ? managementResult.value
+        : emptyManagementInfo(managementResult.reason instanceof Error
+          ? managementResult.reason.message
+          : '加载管理元数据失败'),
+    };
     if (syncActive && targetDb.value === db) {
       schema.value = measurements;
-      activeExplorerKey.value = normalizeActiveExplorerKey(schemaByDb.value[db]);
+      activeExplorerKey.value = normalizeActiveExplorerKey(schemaByDb.value[db], managementByDb.value[db]);
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : '加载 Schema 失败';
@@ -1392,6 +1887,30 @@ async function loadSchema(db: string, force = false, syncActive = true): Promise
     };
     loadingSchema.value = false;
   }
+}
+
+async function loadManagementExplorerInfo(db: string): Promise<ManagementExplorerInfo> {
+  const [kv, vector, fullText, mq, buckets] = await Promise.allSettled([
+    fetchKvKeyspaces(auth.api, db),
+    fetchVectorIndexes(auth.api, db),
+    fetchFullTextIndexes(auth.api, db),
+    fetchMqTopics(auth.api, db),
+    fetchObjectBuckets(auth.api, db),
+  ]);
+
+  const errors = [kv, vector, fullText, mq, buckets]
+    .filter((item): item is PromiseRejectedResult => item.status === 'rejected')
+    .map((item) => item.reason instanceof Error ? item.reason.message : String(item.reason))
+    .filter(Boolean);
+
+  return {
+    kvKeyspaces: kv.status === 'fulfilled' ? kv.value : [],
+    vectorIndexes: vector.status === 'fulfilled' ? vector.value : [],
+    fullTextIndexes: fullText.status === 'fulfilled' ? fullText.value : [],
+    mqTopics: mq.status === 'fulfilled' ? mq.value : [],
+    buckets: buckets.status === 'fulfilled' ? buckets.value : [],
+    error: errors[0] ?? '',
+  };
 }
 
 async function createDatabase(): Promise<void> {
@@ -1803,6 +2322,17 @@ function buildCsv(rows: ResultRow[], columns: string[]): string {
   return `${lines.join('\n')}\n`;
 }
 
+function resetExplorerCache(): void {
+  databases.value = [];
+  schema.value = [];
+  schemaByDb.value = {};
+  managementByDb.value = {};
+  schemaLoadingByDb.value = {};
+  schemaErrorByDb.value = {};
+  expandedDatabases.value = {};
+  activeExplorerKey.value = '';
+}
+
 watch(targetDb, (db) => {
   if (db && db !== CONTROL_PLANE_KEY) {
     expandedDatabases.value = {
@@ -1816,6 +2346,18 @@ watch(targetDb, (db) => {
     dangerConfirmed.value = false;
   }
 }, { immediate: false });
+
+watch(() => connections.activeProfileId, async () => {
+  auth.setApiBaseUrl(connections.activeBaseUrl);
+  resetExplorerCache();
+  if (connections.activeDatabase) {
+    targetDb.value = connections.activeDatabase;
+  }
+  await reloadDbs();
+  if (targetDb.value && targetDb.value !== CONTROL_PLANE_KEY) {
+    await loadSchema(targetDb.value, true);
+  }
+});
 
 watch(activeTabId, () => {
   cancelPreview();
@@ -2144,6 +2686,42 @@ onMounted(async () => {
   font-weight: 700;
 }
 
+.workbench-context__tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.workbench-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.workbench-mode-switch__button {
+  min-width: 86px;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sndb-ink-soft);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.workbench-mode-switch__button.is-active {
+  background: rgba(44, 123, 229, 0.12);
+  color: var(--sndb-ink-strong);
+  font-weight: 700;
+}
+
 .workbench-context__note,
 .workbench-context__dsn {
   font-size: 12px;
@@ -2161,6 +2739,13 @@ onMounted(async () => {
   gap: 6px;
   justify-content: flex-end;
   padding-top: 2px;
+}
+
+.connection-switcher {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-end;
 }
 
 .workbench-frame {
@@ -2203,6 +2788,10 @@ onMounted(async () => {
 
 .create-database-dialog {
   width: min(440px, calc(100vw - 32px));
+}
+
+.connection-dialog {
+  width: min(480px, calc(100vw - 32px));
 }
 
 .schema-search {
@@ -2329,6 +2918,34 @@ onMounted(async () => {
 
 .schema-item.is-active {
   background: rgba(44, 123, 229, 0.13);
+}
+
+.schema-item--kv,
+.schema-item--vector,
+.schema-item--fulltext,
+.schema-item--mq,
+.schema-item--bucket {
+  border-left: 2px solid transparent;
+}
+
+.schema-item--kv {
+  border-left-color: rgba(24, 160, 88, 0.55);
+}
+
+.schema-item--vector {
+  border-left-color: rgba(176, 92, 24, 0.55);
+}
+
+.schema-item--fulltext {
+  border-left-color: rgba(131, 86, 210, 0.55);
+}
+
+.schema-item--mq {
+  border-left-color: rgba(32, 128, 240, 0.55);
+}
+
+.schema-item--bucket {
+  border-left-color: rgba(13, 59, 102, 0.45);
 }
 
 .schema-item__name {

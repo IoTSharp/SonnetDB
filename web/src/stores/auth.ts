@@ -31,5 +31,9 @@ export const useAuthStore = defineStore('auth', () => {
     apply(null);
   }
 
-  return { state, api, isAuthenticated, username, isSuperuser, apply, login, logout };
+  function setApiBaseUrl(baseUrl: string): void {
+    api.value.defaults.baseURL = baseUrl || '/';
+  }
+
+  return { state, api, isAuthenticated, username, isSuperuser, apply, login, logout, setApiBaseUrl };
 });

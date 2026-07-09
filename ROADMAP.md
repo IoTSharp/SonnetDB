@@ -27,7 +27,7 @@
 | 26 | 连接器路线独立化（C ABI + 多模型 API） | #175 ~ #181 | ✅ |
 | 27 | Industrial Data Agent 与 AI-ready 产品化路线 | #182 ~ #188 | 🚧（#182 文档已落；M28 收官后 #184 Demo 可启动；#183/#185 纯文档） |
 | 28 | 可靠性、并发正确性与热路径加固（P0~P5 分阶段） | #189 ~ #244、#261 ~ #262 | ✅（全部收官，详情见归档） |
-| 29 | 多模型统一管理工作台（Multi-Model Management Workbench） | #245 ~ #260 | 📋（#245 ✅；Web Admin 旗舰优先） |
+| 29 | 多模型统一管理工作台（Multi-Model Management Workbench） | #245 ~ #260 | 📋（#245/#246 ✅；Web Admin 旗舰优先） |
 | 30 | 多协议设备接入扩展（Sparkplug B / CoAP / Line Protocol UDP） | #263 ~ #268 | 🚧（#265/#266/#267 ✅；前置 M28 #242 ✅） |
 | 31 | 时序聚合类型语义增强（selector / categorical aggregates） | #269 ~ #271 | 📋（IoTSharp 字符串遥测分桶查询兼容） |
 | 32 | Document Store MongoDB-like 易用性增强 | #272 ~ #281 | 📋（后续池；承接 M21/M24/M25） |
@@ -38,7 +38,7 @@
 ## 当前推进重点
 
 > **旗舰（要开始做的）**：
-> - **Milestone 29 — 多模型统一管理工作台**：把管理工具从三个孤立工程重构为「一张能力矩阵 × 三个交付面（Web Admin 旗舰 / Studio 桌面 / VS Code）」。**Web Admin 旗舰优先**：A 阶段管理契约 + 统一外壳（#245 ✅ → #246/#247），再逐模型工作台（B 关系 → C KV/MQ/向量/全文 → D 对象/文档收口 → E 桌面/VS Code）。管理界面跨里程碑归口见 M29「管理界面归口」表。
+> - **Milestone 29 — 多模型统一管理工作台**：把管理工具从三个孤立工程重构为「一张能力矩阵 × 三个交付面（Web Admin 旗舰 / Studio 桌面 / VS Code）」。**Web Admin 旗舰优先**：A 阶段管理契约 + 统一外壳（#245/#246 ✅ → #247），再逐模型工作台（B 关系 → C KV/MQ/向量/全文 → D 对象/文档收口 → E 桌面/VS Code）。管理界面跨里程碑归口见 M29「管理界面归口」表。
 > - **Milestone 30 — 多协议设备接入扩展**：在 M28 已交付的 MQTT 双形态之上补 Sparkplug B（骑 #242 broker）、CoAP、Line Protocol UDP 三条被动接收通道，三段独立可并行，全部收敛既有 BulkIngest 落库。
 >
 > **进行中（按带宽穿插）**：
@@ -80,7 +80,7 @@
 
 | 管理界面 | 交付面 | 归属 PR | 状态 |
 |---|---|---|---|
-| 统一 Explorer + 连接库 + 结果面板 + 写审批框架 | Web Admin | M29 #245~#247 | #245 ✅，#246/#247 📋 |
+| 统一 Explorer + 连接库 + 结果面板 + 写审批框架 | Web Admin | M29 #245~#247 | #245/#246 ✅，#247 📋 |
 | 关系数据网格 / 可视化 EXPLAIN / 表设计器 / ER / 导入导出 | Web Admin | M29 #248~#250 | 📋 |
 | KV / MQ / 向量 / 全文 专用工作台 | Web Admin | M29 #251~#255 | 📋 |
 | 对象桶浏览器 | Web Admin | M29 #256（收编 M19 #118 的 Buckets / Objects / Multipart / Audit 页面） | 📋 |
@@ -105,7 +105,7 @@
 | PR | 标题与范围 | 状态 |
 |----|------------|------|
 | #245 | **管理契约补齐（只读 metadata + browse endpoints）**：为当前无管理端点或端点过薄的模型补最小只读契约——KV keyspace `scan`（前缀/分隔符 + TTL + 类型 + 游标分页）与 keyspace 统计；向量索引 `stat`（度量/维度/图参数 ef/M/efConstruction）与 `search-preview`；全文索引 `stat`（doc/term 数、分词器）与 `search-preview`（BM25 + 高亮 + 分词器 analyze）；MQ topic `list` / `offsets` / `browse`（按 offset/时间 seek，含 header）/ `lag`；对象 bucket / object `list` 与 metadata。全部**读优先**、游标分页、走既有 Bearer + 三角色鉴权；写操作复用既有 data-plane API 不新增。`SonnetDB.Core` 不动，Server 层落地。 | ✅ |
-| #246 | **统一多模型 Explorer + 连接库**：把 Web Admin 左侧导航从「时序/表/文档/索引/备份」扩展为覆盖 8 模型的统一树（Connection → Database → {Measurements / Tables / Collections / KV Keyspaces / Vector Indexes / FullText Indexes / MQ Topics / Buckets}）；每类节点的右键菜单路由到对应工作台；新增可持久化的连接库（Remote / Managed-local，token 走既有安全存储），活动连接与数据库选择全局一致，复用 SQL Console / CopilotDock 的 db 选择与权限状态。 | 📋 |
+| #246 | **统一多模型 Explorer + 连接库**：把 Web Admin 左侧导航从「时序/表/文档/索引/备份」扩展为覆盖 8 模型的统一树（Connection → Database → {Measurements / Tables / Collections / KV Keyspaces / Vector Indexes / FullText Indexes / MQ Topics / Buckets}）；每类节点的右键菜单路由到对应工作台；新增可持久化的连接库（Remote / Managed-local，token 走既有安全存储），活动连接与数据库选择全局一致，复用 SQL Console / CopilotDock 的 db 选择与权限状态。 | ✅ |
 | #247 | **统一结果面板 + 写审批 / 历史 / 导出框架**：抽出跨模型共享的结果面板（Table / Raw / JSON / Chart 四视图，复用 `SqlResultPanel` / `SqlResultChart`）与**写审批框架**（staged preview → danger confirm → dry-run，比照 SQL Console 既有危险确认与 M24 写审批），供 B~D 各工作台统一挂载；统一 query/操作历史与 CSV/JSON 导出钩子；所有写、导入、rebuild、删除动作至少有 preview / dry-run / confirm 之一。 | 📋 |
 
 > **#245 落地说明**：Server 层新增 `ManagementContractEndpoints`，已交付 KV `keyspaces`/`scan`（base64 游标分页）、向量 `indexes`/`search-preview`（复用既有 `knn(...)` data-plane）、全文 `indexes`/`search-preview`/`analyze`、MQ `topics`/`offsets`（含 lag）/`browse`（按 offset 只读）。**对象** bucket/object list 与 metadata **已由既有 S3 端点覆盖**，本 PR 不重复实现。相对"`SonnetDB.Core` 不动"的初始约束，仅新增一个只读枚举方法 `SonnetMqStore.ListTopicStats()`（MQ topic 私有集合无其他公开枚举入口，纯读、不改任何队列语义）。**本 PR 范围外、留待后续里程碑**（Core 无公开 API）：全文 term 数与 BM25 高亮、MQ 按时间 seek、向量索引 live count 与 per-index 有效度量（当前引擎构建固定 cosine，已如实回显）。写/删/rebuild 一律不在本 PR，留给 #247 写审批框架 + 既有 data-plane。
