@@ -7,6 +7,7 @@
 
 ### Added
 
+- **M29 C #251 KV 浏览器**：Web Admin 新增 `KvKeyspaceWorkbench`，KV keyspace 节点可从统一 Explorer 右键 / 双击进入专用工作台；支持按 namespace prefix + delimiter 做游标分页扫描、前缀树浏览、加载更多、过期统计、类型化值查看（Text / JSON / Hex / Base64）、单 key set / TTL expire / persist、批量 get / set / remove、前缀删除与清理过期 key。所有写入、删除、TTL 修改和前缀清理统一进入 #247 `WriteApprovalPanel` staged preview，确认后复用既有 KV data-plane API，并写入工作台历史与共享结果面板。
 - **M29 B #250 关系导入导出 + ER 图**：关系表工作台新增 `Import / Export`、`ER`、`DDL` 标签；CSV / JSON / JSONL 导入支持列映射、dry-run 校验、批量错误表、进度与取消，确认写入统一走 #247 `WriteApprovalPanel` 并通过参数化批处理提交；导出支持当前查询结果生成 CSV / JSON。Schema 契约补齐表外键与 rowversion metadata，`INFORMATION_SCHEMA.foreign_keys` 暴露主外键关系；ER 视图基于表 / 列 / 主外键绘制关系概览，DDL 导出可生成当前表或全库表、索引、外键脚本并回填 SQL 编辑器。
 - **M29 B #249 可视化 EXPLAIN + 表设计器 + 索引管理**：Web Admin 的 SQL 结果面板会识别 `EXPLAIN` 返回的 `key` / `value` 计划行，新增默认打开的 `Plan` 视图，将 access path、索引名、估算行数、time/tag 下推、document planner 候选计划、sort/projection 覆盖情况渲染为可视化计划树与候选路径侧栏；关系表工作台新增 `Designer` / `Indexes` 标签，表设计器可视化生成 `CREATE TABLE`、`ALTER TABLE ADD/DROP/RENAME COLUMN`、`ALTER TABLE RENAME TO` DDL，索引管理支持查看、创建普通/唯一/JSON path 索引、DROP 与 rebuild，所有 DDL / rebuild 均接入 #247 staged preview + confirm 与历史记录。
 - **M29 B #248 关系数据网格 + 行内编辑**：Web Admin 新增 `RelationalTableWorkbench`，表节点可打开关系数据网格，支持远程分页、列排序、按列/全列过滤、单元格类型化渲染，以及行内 INSERT / UPDATE / DELETE 草稿；编辑批次生成参数化 SQL，经 `WriteApprovalPanel` staged preview 后用 `/v1/db/{db}/sql/batch` 包裹 `BEGIN`/`COMMIT` 事务确认，结果进入 `WorkbenchResultPanel` 与工作台历史。REST SQL 端点补齐 `SqlRequest.Parameters` 绑定，与帧协议/ADO 参数能力一致，主键/唯一/外键等约束错误继续由既有错误码回显。

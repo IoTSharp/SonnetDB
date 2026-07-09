@@ -47,6 +47,15 @@
           >
             Table
           </button>
+          <button
+            v-if="activeTool === 'kv'"
+            type="button"
+            class="workbench-mode-switch__button"
+            :class="{ 'is-active': activeTool === 'kv' }"
+            @click="$emit('set-tool', 'kv')"
+          >
+            KV
+          </button>
         </div>
 
         <div class="workbench-context__badges">

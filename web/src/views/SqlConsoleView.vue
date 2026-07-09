@@ -116,6 +116,16 @@
         @refresh-schema="loadSchema(targetDb, true)"
       />
 
+      <KvKeyspaceWorkbench
+        v-else-if="activeWorkbenchTool === 'kv'"
+        :target-db="targetDb"
+        :keyspace="selectedKvKeyspace"
+        :keyspaces="currentKvKeyspaces"
+        :loading="loadingSchema"
+        @select-keyspace="selectKvKeyspace"
+        @refresh-schema="loadSchema(targetDb, true)"
+      />
+
       <main v-else class="query-workspace">
         <TrajectoryMap
           class="trajectory-workbench"
@@ -132,6 +142,7 @@
 import { computed, onMounted, watch } from 'vue';
 import { NDropdown, useMessage } from 'naive-ui';
 import CreateDatabaseDialog from '@/components/CreateDatabaseDialog.vue';
+import KvKeyspaceWorkbench from '@/components/KvKeyspaceWorkbench.vue';
 import ManagementExplorerSidebar from '@/components/ManagementExplorerSidebar.vue';
 import RelationalTableWorkbench from '@/components/RelationalTableWorkbench.vue';
 import RemoteConnectionDialog from '@/components/RemoteConnectionDialog.vue';
@@ -205,6 +216,7 @@ const {
 
 const {
   databases,
+  managementByDb,
   schemaFilter,
   newDatabaseName,
   showCreateDatabaseDialog,
@@ -243,6 +255,19 @@ const {
   targetDb,
   activeTab,
   message,
+});
+
+const currentKvKeyspaces = computed(() =>
+  targetDb.value && targetDb.value !== CONTROL_PLANE_KEY
+    ? managementByDb.value[targetDb.value]?.kvKeyspaces ?? []
+    : []);
+
+const selectedKvKeyspace = computed(() => {
+  const active = activeExplorerKey.value.startsWith('kv:')
+    ? activeExplorerKey.value.slice('kv:'.length)
+    : '';
+  if (active && currentKvKeyspaces.value.includes(active)) return active;
+  return currentKvKeyspaces.value[0] ?? '';
 });
 
 const {
@@ -324,6 +349,12 @@ const {
 function openRelationSql(sqlText: string): void {
   setWorkbenchTool('sql');
   setSqlDraft(sqlText);
+}
+
+function selectKvKeyspace(keyspace: string): void {
+  if (!keyspace) return;
+  activeExplorerKey.value = `kv:${keyspace}`;
+  setWorkbenchTool('kv');
 }
 
 watch(targetDb, (db) => {
