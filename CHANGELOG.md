@@ -7,6 +7,7 @@
 
 ### Added
 
+- **M29 C #253 SonnetMQ 控制台二**：SonnetMQ 工作台新增消费组 / ack 监控区，展示 committed offset、lag、进度状态与 beyond-retention 风险；ack 推进走既有 `/ack` data-plane 并统一进入 #247 `WriteApprovalPanel` staged preview。新增吞吐 / 积压采样区，按 high-water 与 ack offset 差分展示 publish / ack 速率和 backlog 曲线，支持手动采样与 Live 自动刷新。Server 管理契约补充 `retention` 与 `monitor` 只读端点，展示 topic 保留窗口、SonnetMQ retention/热尾/段缓存参数，并按 topic 命名约定发现可浏览 DLQ 候选；不新增队列投递语义或 Core 第三方依赖。
 - **M29 C #252 SonnetMQ 控制台一**：Web Admin 新增 `SonnetMqWorkbench`，MQ topic 节点可从统一 Explorer 右键 / 双击进入专用工作台；支持 topic 列表、消息数 / next offset / retained offset window / 单分区 / consumer lag 概览，按 offset 浏览消息并查看 headers 与 payload（Text / JSON / Hex / Base64），提供基于当前浏览窗口的时间定位扫描。发布测试消息复用既有 MQ `publish` data-plane API，payload 支持 Text / JSON / Hex / Base64 输入、headers 支持 `key=value` 或 JSON object，确认前统一进入 #247 `WriteApprovalPanel` staged preview，结果写入共享结果面板与工作台历史。
 - **M29 C #251 KV 浏览器**：Web Admin 新增 `KvKeyspaceWorkbench`，KV keyspace 节点可从统一 Explorer 右键 / 双击进入专用工作台；支持按 namespace prefix + delimiter 做游标分页扫描、前缀树浏览、加载更多、过期统计、类型化值查看（Text / JSON / Hex / Base64）、单 key set / TTL expire / persist、批量 get / set / remove、前缀删除与清理过期 key。所有写入、删除、TTL 修改和前缀清理统一进入 #247 `WriteApprovalPanel` staged preview，确认后复用既有 KV data-plane API，并写入工作台历史与共享结果面板。
 - **M29 B #250 关系导入导出 + ER 图**：关系表工作台新增 `Import / Export`、`ER`、`DDL` 标签；CSV / JSON / JSONL 导入支持列映射、dry-run 校验、批量错误表、进度与取消，确认写入统一走 #247 `WriteApprovalPanel` 并通过参数化批处理提交；导出支持当前查询结果生成 CSV / JSON。Schema 契约补齐表外键与 rowversion metadata，`INFORMATION_SCHEMA.foreign_keys` 暴露主外键关系；ER 视图基于表 / 列 / 主外键绘制关系概览，DDL 导出可生成当前表或全库表、索引、外键脚本并回填 SQL 编辑器。

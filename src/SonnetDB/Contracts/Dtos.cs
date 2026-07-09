@@ -347,6 +347,37 @@ public sealed record MqStatsResponse(
     long NextOffset,
     IReadOnlyDictionary<string, long> ConsumerOffsets);
 
+/// <summary>
+/// MQ Topic 保留窗口与运行期 retention 参数响应。
+/// </summary>
+/// <param name="Topic">Topic 名称。</param>
+/// <param name="RetainedStartOffset">当前仍可读取的第一条 offset。</param>
+/// <param name="RetainedEndOffset">当前仍可读取的最后一条 offset；空 topic 时为 <c>RetainedStartOffset - 1</c>。</param>
+/// <param name="RetainedMessages">当前保留的消息数量。</param>
+/// <param name="TrimmedBeforeOffset">已被 retention / ack tombstone 裁剪掉的边界 offset。</param>
+/// <param name="RetentionMaxAgeSeconds">按时间保留的最长秒数；为空表示未启用时间裁剪。</param>
+/// <param name="RetentionMaxBytes">按 topic 保留的最大段字节数；为空表示未启用大小裁剪。</param>
+/// <param name="RetentionIntervalSeconds">后台 retention worker 检查间隔秒数；小于等于 0 表示仅手动裁剪。</param>
+/// <param name="TrimAcknowledgedMessages">是否按所有消费者组最小 ack offset 裁剪已消费消息。</param>
+/// <param name="AckRetentionMinOffsetDelta">Ack retention 写入 tombstone 的最小推进间隔。</param>
+/// <param name="SegmentMaxBytes">单 topic 段文件最大字节数。</param>
+/// <param name="HotTailMaxBytes">目录模式下单 topic 常驻热尾 payload 字节上限。</param>
+/// <param name="SegmentCacheSize">冷读段句柄 LRU 缓存上限。</param>
+public sealed record MqRetentionResponse(
+    string Topic,
+    long RetainedStartOffset,
+    long RetainedEndOffset,
+    long RetainedMessages,
+    long TrimmedBeforeOffset,
+    double? RetentionMaxAgeSeconds,
+    long? RetentionMaxBytes,
+    double RetentionIntervalSeconds,
+    bool TrimAcknowledgedMessages,
+    long AckRetentionMinOffsetDelta,
+    long SegmentMaxBytes,
+    long HotTailMaxBytes,
+    int SegmentCacheSize);
+
 // ---- M29 A #245 多模型只读管理契约 ----
 
 /// <summary>
@@ -545,6 +576,72 @@ public sealed record MqBrowseRequest(long? FromOffset = null, int? MaxCount = nu
 /// </summary>
 /// <param name="Messages">消息列表，按 offset 升序。</param>
 public sealed record MqBrowseResponse(IReadOnlyList<MqMessageResponse> Messages);
+
+/// <summary>
+/// MQ topic 管理面监控响应。
+/// </summary>
+/// <param name="Topic">Topic 名称。</param>
+/// <param name="MessageCount">当前保留的消息数量。</param>
+/// <param name="NextOffset">下一条消息 offset（高水位）。</param>
+/// <param name="RetainedStartOffset">当前保留窗口的起始 offset。</param>
+/// <param name="Consumers">消费组进度快照。</param>
+/// <param name="Retention">当前 SonnetMQ retention 配置。</param>
+/// <param name="DeadLetter">基于现有 topic 的 DLQ 展示信息；不改变队列投递语义。</param>
+public sealed record MqMonitorResponse(
+    string Topic,
+    long MessageCount,
+    long NextOffset,
+    long RetainedStartOffset,
+    IReadOnlyList<MqConsumerMonitorInfo> Consumers,
+    MqRetentionPolicyInfo Retention,
+    MqDeadLetterInfo DeadLetter);
+
+/// <summary>
+/// 单个消费组的管理面监控信息。
+/// </summary>
+/// <param name="ConsumerGroup">消费者组名称。</param>
+/// <param name="CommittedOffset">已提交（下一条待消费）offset。</param>
+/// <param name="Lag">落后高水位的消息数。</param>
+/// <param name="ProgressRatio">在当前 topic 高水位内的进度比例，范围 0~1。</param>
+/// <param name="Status">状态：caught_up / lagging / beyond_retention / idle。</param>
+public sealed record MqConsumerMonitorInfo(
+    string ConsumerGroup,
+    long CommittedOffset,
+    long Lag,
+    double ProgressRatio,
+    string Status);
+
+/// <summary>
+/// SonnetMQ retention 配置快照。
+/// </summary>
+/// <param name="MaxAgeMilliseconds">按时间保留的最大年龄；未配置时为 null。</param>
+/// <param name="MaxBytes">按 topic 保留的最大段文件字节数；未配置时为 null。</param>
+/// <param name="RetentionIntervalMilliseconds">后台 retention worker 检查间隔。</param>
+/// <param name="TrimAcknowledgedMessages">是否按所有消费组最小 ack offset 裁剪已确认消息。</param>
+/// <param name="AckRetentionMinOffsetDelta">ack retention 写入 tombstone 的最小 offset 推进量。</param>
+/// <param name="SegmentMaxBytes">单个 topic 段文件最大字节数。</param>
+/// <param name="HotTailMaxBytes">内存热尾部 payload 字节上限。</param>
+/// <param name="SegmentCacheSize">冷读段句柄 LRU 缓存上限。</param>
+public sealed record MqRetentionPolicyInfo(
+    long? MaxAgeMilliseconds,
+    long? MaxBytes,
+    long RetentionIntervalMilliseconds,
+    bool TrimAcknowledgedMessages,
+    long AckRetentionMinOffsetDelta,
+    long SegmentMaxBytes,
+    long HotTailMaxBytes,
+    int SegmentCacheSize);
+
+/// <summary>
+/// DLQ 展示信息。当前 SonnetMQ 未内置死信投递语义，管理面只按 topic 命名约定发现可浏览候选。
+/// </summary>
+/// <param name="Mode">候选发现模式：topic_convention / not_configured。</param>
+/// <param name="CandidateTopics">可作为当前 topic DLQ 浏览入口的候选 topic。</param>
+/// <param name="ActiveTopic">默认候选 topic；没有候选时为 null。</param>
+public sealed record MqDeadLetterInfo(
+    string Mode,
+    IReadOnlyList<string> CandidateTopics,
+    string? ActiveTopic);
 
 /// <summary>
 /// <c>POST /v1/auth/login</c> 请求体。

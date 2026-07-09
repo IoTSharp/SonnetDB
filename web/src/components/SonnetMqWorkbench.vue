@@ -47,6 +47,10 @@
         <n-button size="small" secondary :loading="loading" @click="refreshAll">
           Refresh
         </n-button>
+        <n-switch v-model:value="autoRefresh" size="small" :disabled="!activeTopic">
+          <template #checked>Live</template>
+          <template #unchecked>Live</template>
+        </n-switch>
         <n-button size="small" quaternary @click="historyVisible = true">History</n-button>
       </div>
     </section>
@@ -73,6 +77,177 @@
         <span>{{ item.label }}</span>
         <strong>{{ item.value }}</strong>
       </article>
+    </section>
+
+    <section class="mq-monitor">
+      <section class="mq-monitor-pane mq-consumer-pane">
+        <div class="mq-panel-head mq-panel-head--compact">
+          <div>
+            <n-text class="mq-panel-head__title">Consumers & ack</n-text>
+            <n-text depth="3" class="mq-panel-head__meta">{{ consumerSummary }}</n-text>
+          </div>
+          <n-tag size="tiny" :bordered="false" :type="maxLag > 0 ? 'warning' : 'success'">
+            {{ maxLag > 0 ? 'lagging' : 'caught up' }}
+          </n-tag>
+        </div>
+
+        <n-data-table
+          :columns="consumerColumns"
+          :data="consumerRows"
+          :bordered="false"
+          :pagination="false"
+          :single-line="false"
+          size="small"
+          class="mq-consumer-grid"
+        />
+
+        <div class="mq-ack-editor">
+          <n-select
+            v-model:value="ackConsumerGroup"
+            size="small"
+            filterable
+            tag
+            clearable
+            placeholder="Consumer group"
+            :options="ackGroupOptions"
+          />
+          <n-input-number
+            v-model:value="ackOffset"
+            size="small"
+            :min="0"
+            :show-button="false"
+            placeholder="Ack offset"
+          />
+          <n-button size="small" secondary :disabled="!canStageAck" @click="stageAckFromForm">
+            Stage ack
+          </n-button>
+          <n-button size="small" quaternary :disabled="!selectedMessage || !ackConsumerGroup" @click="stageAckSelected">
+            Selected
+          </n-button>
+          <n-button size="small" quaternary :disabled="highWaterOffset <= 0 || !ackConsumerGroup" @click="stageAckHighWater">
+            High-water
+          </n-button>
+        </div>
+      </section>
+
+      <section class="mq-monitor-pane mq-traffic-pane">
+        <div class="mq-panel-head mq-panel-head--compact">
+          <div>
+            <n-text class="mq-panel-head__title">Throughput & backlog</n-text>
+            <n-text depth="3" class="mq-panel-head__meta">{{ sampleSummary }}</n-text>
+          </div>
+          <n-button size="tiny" quaternary :loading="loadingMonitor" :disabled="!activeTopic" @click="refreshMonitorOnly">
+            Sample
+          </n-button>
+        </div>
+
+        <div class="mq-rate-strip">
+          <span>
+            <small>Publish</small>
+            <strong>{{ formatRate(latestRates.publishRate) }}</strong>
+          </span>
+          <span>
+            <small>Ack</small>
+            <strong>{{ formatRate(latestRates.ackRate) }}</strong>
+          </span>
+          <span>
+            <small>Backlog</small>
+            <strong>{{ formatStat(totalLag) }}</strong>
+          </span>
+        </div>
+
+        <div class="mq-sparkline" :class="{ 'is-empty': trendPaths.length === 0 }">
+          <svg
+            v-if="trendPaths.length > 0"
+            viewBox="0 0 360 126"
+            preserveAspectRatio="none"
+            xmlns="http://www.w3.org/2000/svg"
+            role="img"
+            aria-label="SonnetMQ backlog trend"
+          >
+            <line
+              v-for="tick in trendGridLines"
+              :key="tick.key"
+              x1="38"
+              x2="350"
+              :y1="tick.y"
+              :y2="tick.y"
+            />
+            <text
+              v-for="tick in trendGridLines"
+              :key="`${tick.key}-label`"
+              x="32"
+              :y="tick.y + 4"
+              text-anchor="end"
+            >{{ tick.label }}</text>
+            <path
+              v-for="path in trendPaths"
+              :key="path.name"
+              :d="path.d"
+              :stroke="path.color"
+              stroke-width="1.7"
+              fill="none"
+            />
+          </svg>
+          <span v-else>Waiting for samples...</span>
+        </div>
+
+        <div class="mq-trend-legend">
+          <span v-for="path in trendPaths" :key="`${path.name}-legend`">
+            <i :style="{ background: path.color }" />
+            {{ path.name }}
+          </span>
+        </div>
+      </section>
+
+      <section class="mq-monitor-pane mq-retention-pane">
+        <div class="mq-panel-head mq-panel-head--compact">
+          <div>
+            <n-text class="mq-panel-head__title">Retention & DLQ</n-text>
+            <n-text depth="3" class="mq-panel-head__meta">{{ retentionSummary }}</n-text>
+          </div>
+          <n-tag size="tiny" :bordered="false" :type="dlqTopic ? 'warning' : 'default'">
+            {{ dlqTopic ? 'dlq topic' : 'no dlq' }}
+          </n-tag>
+        </div>
+
+        <div class="mq-retention-grid">
+          <span>
+            <small>Window</small>
+            <strong>{{ retainedWindowText }}</strong>
+          </span>
+          <span>
+            <small>Age</small>
+            <strong>{{ formatDurationSeconds(retention?.retentionMaxAgeSeconds) }}</strong>
+          </span>
+          <span>
+            <small>Size</small>
+            <strong>{{ formatBytes(retention?.retentionMaxBytes) }}</strong>
+          </span>
+          <span>
+            <small>Ack trim</small>
+            <strong>{{ retention?.trimAcknowledgedMessages ? 'on' : 'off' }}</strong>
+          </span>
+          <span>
+            <small>Hot tail</small>
+            <strong>{{ formatBytes(retention?.hotTailMaxBytes) }}</strong>
+          </span>
+          <span>
+            <small>Segment</small>
+            <strong>{{ formatBytes(retention?.segmentMaxBytes) }}</strong>
+          </span>
+        </div>
+
+        <div class="mq-dlq-state">
+          <template v-if="dlqTopic">
+            <span>{{ dlqTopic.topic }} · {{ formatStat(dlqTopic.messageCount) }} messages</span>
+            <n-button size="tiny" secondary @click="selectTopic(dlqTopic.topic)">Open</n-button>
+          </template>
+          <template v-else>
+            <span>No conventional DLQ topic found for this topic.</span>
+          </template>
+        </div>
+      </section>
     </section>
 
     <section class="mq-body">
@@ -223,7 +398,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, onMounted, ref, watch } from 'vue';
+import { computed, h, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import {
   NAlert,
   NButton,
@@ -234,6 +409,7 @@ import {
   NInputNumber,
   NSelect,
   NSpace,
+  NSwitch,
   NTab,
   NTabs,
   NTag,
@@ -244,13 +420,16 @@ import {
 } from 'naive-ui';
 import { fetchMqTopics, type MqTopicInfo } from '@/api/management';
 import {
+  ackMqConsumer,
   browseMqMessages,
+  fetchMqRetention,
   fetchMqOffsets,
   fetchMqStats,
   publishMqMessage,
   type MqConsumerLag,
   type MqMessageResponse,
   type MqOffsetsResponse,
+  type MqRetentionResponse,
   type MqStatsResponse,
 } from '@/api/mq';
 import type { SqlResultSet } from '@/api/sql';
@@ -316,6 +495,19 @@ interface OperationOutcome {
   affected: number;
   detail: string;
   offset?: number;
+  nextOffset?: number;
+}
+
+interface ConsumerRow extends MqConsumerLag {
+  progressRatio: number;
+  status: 'caught_up' | 'lagging' | 'beyond_retention';
+}
+
+interface TrendSample {
+  at: number;
+  nextOffset: number;
+  totalLag: number;
+  ackedOffset: number;
 }
 
 const auth = useAuthStore();
@@ -326,6 +518,7 @@ const message = useMessage();
 const localTopics = ref<MqTopicInfo[]>([]);
 const offsets = ref<MqOffsetsResponse | null>(null);
 const stats = ref<MqStatsResponse | null>(null);
+const retention = ref<MqRetentionResponse | null>(null);
 const rows = ref<MqRow[]>([]);
 const selectedOffset = ref<number | null>(null);
 const topicFilter = ref('');
@@ -334,12 +527,17 @@ const browseLimit = ref(100);
 const seekTimeMs = ref<number | null>(null);
 const loading = ref(false);
 const loadingBrowse = ref(false);
+const loadingMonitor = ref(false);
 const errorMsg = ref('');
 const payloadView = ref<PayloadView>('text');
 const publishTopic = ref('');
 const publishMode = ref<PayloadView>('text');
 const publishPayload = ref('{"message":"hello SonnetMQ"}');
 const publishHeadersText = ref('source=web-admin');
+const ackConsumerGroup = ref<string | null>(null);
+const ackOffset = ref<number | null>(null);
+const autoRefresh = ref(false);
+const trendSamples = ref<TrendSample[]>([]);
 const pendingOperations = ref<PendingOperation[]>([]);
 const confirmBusy = ref(false);
 const latestResult = ref<SqlResultSet | null>(null);
@@ -361,6 +559,8 @@ const payloadModeOptions: SelectOption[] = [
   { label: 'Hex', value: 'hex' },
   { label: 'Base64', value: 'base64' },
 ];
+
+let autoRefreshTimer: ReturnType<typeof setInterval> | null = null;
 
 const activeTopic = computed(() => props.topic || localTopics.value[0]?.topic || '');
 
@@ -414,6 +614,116 @@ const consumers = computed<MqConsumerLag[]>(() => offsets.value?.consumers ?? []
 const maxLag = computed(() =>
   consumers.value.reduce((max, consumer) => Math.max(max, consumer.lag), 0));
 
+const totalLag = computed(() =>
+  consumers.value.reduce((sum, consumer) => sum + consumer.lag, 0));
+
+const ackedOffsetTotal = computed(() =>
+  consumers.value.reduce((sum, consumer) => sum + consumer.committedOffset, 0));
+
+const consumerRows = computed<ConsumerRow[]>(() => {
+  const highWater = highWaterOffset.value;
+  const retainedStart = retainedStartOffset.value;
+  return consumers.value.map((consumer) => {
+    const progressRatio = highWater <= 0
+      ? 1
+      : Math.min(1, Math.max(0, consumer.committedOffset / highWater));
+    const status = consumer.committedOffset < retainedStart
+      ? 'beyond_retention'
+      : consumer.lag > 0
+        ? 'lagging'
+        : 'caught_up';
+    return { ...consumer, progressRatio, status };
+  });
+});
+
+const consumerSummary = computed(() => {
+  if (!activeTopic.value) return 'Select a topic to inspect consumer offsets.';
+  if (consumerRows.value.length === 0) return 'No committed consumer groups yet.';
+  return `${consumerRows.value.length} groups · total lag ${formatStat(totalLag.value)}`;
+});
+
+const ackGroupOptions = computed<SelectOption[]>(() => {
+  const names = new Set(consumers.value.map((consumer) => consumer.consumerGroup));
+  if (ackConsumerGroup.value) names.add(ackConsumerGroup.value);
+  return [...names].sort().map((name) => ({ label: name, value: name }));
+});
+
+const canStageAck = computed(() =>
+  Boolean(activeTopic.value && ackConsumerGroup.value?.trim() && typeof ackOffset.value === 'number' && ackOffset.value >= 0));
+
+const sampleSummary = computed(() => {
+  if (trendSamples.value.length < 2) return 'Collect at least two samples to compute rates.';
+  const first = trendSamples.value[0];
+  const last = trendSamples.value[trendSamples.value.length - 1];
+  const seconds = Math.max(1, (last.at - first.at) / 1000);
+  return `${trendSamples.value.length} samples · ${(seconds / 60).toFixed(1)} min window`;
+});
+
+const latestRates = computed(() => {
+  const samples = trendSamples.value;
+  if (samples.length < 2) return { publishRate: null as number | null, ackRate: null as number | null };
+  const prev = samples[samples.length - 2];
+  const curr = samples[samples.length - 1];
+  const seconds = Math.max(0.001, (curr.at - prev.at) / 1000);
+  return {
+    publishRate: Math.max(0, curr.nextOffset - prev.nextOffset) / seconds,
+    ackRate: Math.max(0, curr.ackedOffset - prev.ackedOffset) / seconds,
+  };
+});
+
+const trendSeries = computed(() => [
+  { name: 'Backlog', color: '#e85d75', values: trendSamples.value.map((item) => item.totalLag) },
+  { name: 'High-water', color: '#2c7be5', values: trendSamples.value.map((item) => item.nextOffset) },
+  { name: 'Acked', color: '#52b788', values: trendSamples.value.map((item) => item.ackedOffset) },
+].filter((item) => item.values.length >= 2));
+
+const trendMax = computed(() => {
+  const values = trendSeries.value.flatMap((item) => item.values);
+  return Math.max(1, ...values);
+});
+
+const trendGridLines = computed(() => [0, trendMax.value / 2, trendMax.value].map((value, index) => ({
+  key: `grid-${index}`,
+  y: trendY(value),
+  label: formatCompactNumber(value),
+})));
+
+const trendPaths = computed(() => {
+  const samples = trendSamples.value;
+  if (samples.length < 2) return [];
+  const xMin = samples[0].at;
+  const xMax = samples[samples.length - 1].at;
+  const sx = (at: number): number => 38 + ((at - xMin) / Math.max(1, xMax - xMin)) * 312;
+  return trendSeries.value.map((series) => ({
+    name: series.name,
+    color: series.color,
+    d: series.values
+      .map((value, index) => `${index === 0 ? 'M' : 'L'}${sx(samples[index].at).toFixed(1)},${trendY(value).toFixed(1)}`)
+      .join(' '),
+  }));
+});
+
+const retentionSummary = computed(() => {
+  if (!retention.value) return 'Retention policy not sampled yet.';
+  const age = formatDurationSeconds(retention.value.retentionMaxAgeSeconds);
+  const size = formatBytes(retention.value.retentionMaxBytes);
+  return `age ${age} · size ${size} · ack trim ${retention.value.trimAcknowledgedMessages ? 'on' : 'off'}`;
+});
+
+const retainedWindowText = computed(() => {
+  if (retention.value) {
+    return retention.value.retainedMessages > 0
+      ? `${retention.value.retainedStartOffset} - ${retention.value.retainedEndOffset}`
+      : 'empty';
+  }
+  const next = highWaterOffset.value;
+  const start = retainedStartOffset.value;
+  return next > start ? `${start} - ${next - 1}` : 'empty';
+});
+
+const dlqTopic = computed(() =>
+  findDlqTopic(activeTopic.value, localTopics.value));
+
 const statItems = computed(() => {
   const next = highWaterOffset.value;
   const start = retainedStartOffset.value;
@@ -461,7 +771,7 @@ const previewPlan = computed<WriteApprovalPlan | null>(() => {
   }));
   return createWriteApprovalPlan({
     id: `mq_${props.targetDb}_${activeTopic.value || publishTopic.value}_${pendingOperations.value.map((item) => item.id).join('_')}`,
-    title: 'SonnetMQ publish batch',
+    title: 'SonnetMQ staged operations',
     target: `${props.targetDb}.${activeTopic.value || publishTopic.value || 'topic'}`,
     items,
   });
@@ -531,6 +841,50 @@ const messageColumns = computed<DataTableColumns<MqRow>>(() => [
   },
 ]);
 
+const consumerColumns = computed<DataTableColumns<ConsumerRow>>(() => [
+  {
+    title: 'Consumer group',
+    key: 'consumerGroup',
+    minWidth: 150,
+    render: (row) => h('span', { class: 'mq-consumer-name' }, row.consumerGroup),
+  },
+  {
+    title: 'Committed',
+    key: 'committedOffset',
+    width: 110,
+    render: (row) => h('code', row.committedOffset.toString()),
+  },
+  {
+    title: 'Lag',
+    key: 'lag',
+    width: 90,
+    render: (row) => h(NTag, {
+      size: 'tiny',
+      bordered: false,
+      type: row.lag > 0 ? 'warning' : 'success',
+    }, { default: () => row.lag.toLocaleString() }),
+  },
+  {
+    title: 'Progress',
+    key: 'progressRatio',
+    minWidth: 160,
+    render: (row) => h('div', { class: 'mq-progress' }, [
+      h('span', { style: { width: `${Math.round(row.progressRatio * 100)}%` } }),
+      h('em', `${Math.round(row.progressRatio * 100)}%`),
+    ]),
+  },
+  {
+    title: 'State',
+    key: 'status',
+    width: 116,
+    render: (row) => h(NTag, {
+      size: 'tiny',
+      bordered: false,
+      type: row.status === 'caught_up' ? 'success' : row.status === 'beyond_retention' ? 'error' : 'warning',
+    }, { default: () => row.status.replace(/_/g, ' ') }),
+  },
+]);
+
 function rowKey(row: MqRow): number {
   return row.offset;
 }
@@ -568,14 +922,84 @@ async function loadTopicMetadata(topic: string): Promise<void> {
   if (!props.targetDb || !topic) {
     stats.value = null;
     offsets.value = null;
+    retention.value = null;
     return;
   }
-  const [nextStats, nextOffsets] = await Promise.all([
+  const [nextStats, nextOffsets, nextRetention] = await Promise.all([
     fetchMqStats(auth.api, props.targetDb, topic),
     fetchMqOffsets(auth.api, props.targetDb, topic),
+    fetchMqRetention(auth.api, props.targetDb, topic),
   ]);
   stats.value = nextStats;
   offsets.value = nextOffsets;
+  retention.value = nextRetention;
+  if (!ackConsumerGroup.value && nextOffsets.consumers.length > 0) {
+    ackConsumerGroup.value = nextOffsets.consumers[0].consumerGroup;
+  }
+  if (ackOffset.value === null) {
+    ackOffset.value = Math.max(0, nextStats.nextOffset - 1);
+  }
+  pushTrendSample();
+}
+
+async function refreshMonitorOnly(): Promise<void> {
+  if (!activeTopic.value) return;
+  loadingMonitor.value = true;
+  errorMsg.value = '';
+  try {
+    await loadTopicMetadata(activeTopic.value);
+  } catch (error) {
+    errorMsg.value = errorToMessage(error, '刷新 MQ 监控采样失败');
+  } finally {
+    loadingMonitor.value = false;
+  }
+}
+
+function stageAckFromForm(): void {
+  if (!canStageAck.value || ackOffset.value === null || !ackConsumerGroup.value) return;
+  stageAck(ackConsumerGroup.value, ackOffset.value);
+}
+
+function stageAckSelected(): void {
+  if (!selectedMessage.value || !ackConsumerGroup.value) return;
+  stageAck(ackConsumerGroup.value, selectedMessage.value.offset);
+}
+
+function stageAckHighWater(): void {
+  if (!ackConsumerGroup.value || highWaterOffset.value <= 0) return;
+  stageAck(ackConsumerGroup.value, highWaterOffset.value - 1);
+}
+
+function stageAck(consumerGroup: string, offset: number): void {
+  const db = props.targetDb;
+  const topic = activeTopic.value;
+  const normalizedGroup = consumerGroup.trim();
+  const normalizedOffset = Math.max(0, Math.trunc(offset));
+  if (!db || !topic || !normalizedGroup) {
+    message.warning('Ack requires a database, topic and consumer group.');
+    return;
+  }
+  pendingOperations.value.push({
+    id: makeOperationId('ack'),
+    label: 'Ack consumer offset',
+    detail: `${normalizedGroup} · offset ${normalizedOffset}`,
+    severity: 'write',
+    command: `MQ ACK ${topic} GROUP ${normalizedGroup} OFFSET ${normalizedOffset}`,
+    run: async () => {
+      const response = await ackMqConsumer(auth.api, db, topic, {
+        consumerGroup: normalizedGroup,
+        offset: normalizedOffset,
+      });
+      return {
+        action: 'ack',
+        target: response.topic,
+        succeeded: true,
+        affected: 1,
+        detail: `${response.consumerGroup} next offset ${response.nextOffset}`,
+        nextOffset: response.nextOffset,
+      };
+    },
+  });
 }
 
 async function browseFromInput(): Promise<void> {
@@ -745,8 +1169,15 @@ async function confirmPendingOperations(): Promise<void> {
     latestResult.value = resultFromOutcomes(outcomes, elapsed);
     ranOnce.value = true;
     pendingOperations.value = [];
-    recordHistory('success', 'SonnetMQ publish', 'publish', command, `${outcomes.length} messages · affected ${affected}`, outcomes.length, affected, elapsed);
-    message.success(`Published ${outcomes.length} message${outcomes.length === 1 ? '' : 's'}.`);
+    const publishCount = outcomes.filter((item) => item.action === 'publish').length;
+    const ackCount = outcomes.filter((item) => item.action === 'ack').length;
+    const summary = [
+      publishCount > 0 ? `${publishCount} publish` : '',
+      ackCount > 0 ? `${ackCount} ack` : '',
+      `affected ${affected}`,
+    ].filter(Boolean).join(' · ');
+    recordHistory('success', 'SonnetMQ operations', 'operation', command, summary, outcomes.length, affected, elapsed);
+    message.success(`Applied ${outcomes.length} MQ operation${outcomes.length === 1 ? '' : 's'}.`);
     await refreshTopicList();
     const lastPublished = [...outcomes].reverse().find((outcome) => typeof outcome.offset === 'number');
     if (lastPublished) {
@@ -761,12 +1192,12 @@ async function confirmPendingOperations(): Promise<void> {
     emit('refreshSchema');
   } catch (error) {
     const elapsed = performanceElapsed(started);
-    const msg = errorToMessage(error, '提交 MQ 发布失败');
+    const msg = errorToMessage(error, '提交 MQ 操作失败');
     errorMsg.value = msg;
     latestCommand.value = command;
     latestResult.value = errorResult(msg);
     ranOnce.value = true;
-    recordHistory('error', 'SonnetMQ publish', 'publish', command, msg, 0, 0, elapsed);
+    recordHistory('error', 'SonnetMQ operations', 'operation', command, msg, 0, 0, elapsed);
   } finally {
     confirmBusy.value = false;
   }
@@ -1005,6 +1436,88 @@ function formatStat(value?: number | null): string {
   return typeof value === 'number' ? value.toLocaleString() : '-';
 }
 
+function formatCompactNumber(value?: number | null): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '-';
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
+  return value >= 100 ? value.toFixed(0) : value.toFixed(1);
+}
+
+function formatRate(value?: number | null): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '- /s';
+  return `${formatCompactNumber(value)} /s`;
+}
+
+function formatBytes(value?: number | null): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '-';
+  if (value >= 1024 ** 3) return `${(value / 1024 ** 3).toFixed(2)} GiB`;
+  if (value >= 1024 ** 2) return `${(value / 1024 ** 2).toFixed(1)} MiB`;
+  if (value >= 1024) return `${(value / 1024).toFixed(1)} KiB`;
+  return `${value.toFixed(0)} B`;
+}
+
+function formatDurationSeconds(value?: number | null): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 'off';
+  if (value >= 86_400) return `${(value / 86_400).toFixed(1)} d`;
+  if (value >= 3_600) return `${(value / 3_600).toFixed(1)} h`;
+  if (value >= 60) return `${(value / 60).toFixed(1)} min`;
+  return `${value.toFixed(0)} s`;
+}
+
+function trendY(value: number): number {
+  const top = 10;
+  const bottom = 112;
+  return bottom - (Math.max(0, value) / trendMax.value) * (bottom - top);
+}
+
+function pushTrendSample(): void {
+  if (!activeTopic.value) return;
+  const next = [
+    ...trendSamples.value,
+    {
+      at: Date.now(),
+      nextOffset: highWaterOffset.value,
+      totalLag: totalLag.value,
+      ackedOffset: ackedOffsetTotal.value,
+    },
+  ];
+  if (next.length > 80) next.splice(0, next.length - 80);
+  trendSamples.value = next;
+}
+
+function findDlqTopic(topic: string, topics: MqTopicInfo[]): MqTopicInfo | null {
+  if (!topic) return null;
+  const exactNames = [
+    `${topic}.dlq`,
+    `${topic}-dlq`,
+    `${topic}_dlq`,
+    `${topic}.dead-letter`,
+    `dlq.${topic}`,
+    `dead-letter.${topic}`,
+  ];
+  for (const name of exactNames) {
+    const exact = topics.find((item) => item.topic.toLowerCase() === name.toLowerCase());
+    if (exact) return exact;
+  }
+  return topics.find((item) => item.topic.toLowerCase().startsWith(`${topic.toLowerCase()}.`)
+    && (item.topic.toLowerCase().includes('.dlq') || item.topic.toLowerCase().includes('.dead'))) ?? null;
+}
+
+function startAutoRefresh(): void {
+  stopAutoRefresh();
+  if (!autoRefresh.value || !activeTopic.value) return;
+  autoRefreshTimer = setInterval(() => {
+    void refreshMonitorOnly();
+  }, 5_000);
+}
+
+function stopAutoRefresh(): void {
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer);
+    autoRefreshTimer = null;
+  }
+}
+
 function makeOperationId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -1089,6 +1602,10 @@ watch(
     clearRows();
     stats.value = null;
     offsets.value = null;
+    retention.value = null;
+    trendSamples.value = [];
+    ackConsumerGroup.value = null;
+    ackOffset.value = null;
     pendingOperations.value = [];
     publishTopic.value = activeTopic.value;
     const topic = activeTopic.value;
@@ -1103,9 +1620,21 @@ watch(
   },
 );
 
+watch(
+  () => [autoRefresh.value, props.targetDb, props.topic] as const,
+  () => {
+    startAutoRefresh();
+  },
+);
+
 onMounted(() => {
   publishTopic.value = activeTopic.value;
   void refreshAll();
+  startAutoRefresh();
+});
+
+onBeforeUnmount(() => {
+  stopAutoRefresh();
 });
 </script>
 
@@ -1205,6 +1734,189 @@ onMounted(() => {
   font-size: 16px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.mq-monitor {
+  display: grid;
+  grid-template-columns: minmax(340px, 1.2fr) minmax(320px, 1fr) minmax(320px, 1fr);
+  gap: 0;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  background: #fff;
+}
+
+.mq-monitor-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 220px;
+  border-right: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.mq-monitor-pane:last-child {
+  border-right: 0;
+}
+
+.mq-panel-head--compact {
+  padding: 9px 12px;
+}
+
+.mq-consumer-grid {
+  flex: 1;
+  min-height: 0;
+}
+
+.mq-consumer-name {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--sndb-ink-strong);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mq-progress {
+  position: relative;
+  overflow: hidden;
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(13, 59, 102, 0.08);
+}
+
+.mq-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(82, 183, 136, 0.85), rgba(44, 123, 229, 0.85));
+}
+
+.mq-progress em {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #17324d;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.mq-ack-editor {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) 100px auto auto auto;
+  gap: 8px;
+  padding: 9px 12px 10px;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  background: #fbfcfe;
+}
+
+.mq-rate-strip,
+.mq-retention-grid {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.mq-rate-strip {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.mq-rate-strip span,
+.mq-retention-grid span {
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 6px;
+  background: #fbfcfe;
+}
+
+.mq-rate-strip small,
+.mq-retention-grid small {
+  display: block;
+  color: var(--sndb-ink-soft);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.mq-rate-strip strong,
+.mq-retention-grid strong {
+  display: block;
+  overflow: hidden;
+  color: var(--sndb-ink-strong);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mq-sparkline {
+  flex: 1;
+  min-height: 104px;
+  padding: 0 12px;
+}
+
+.mq-sparkline.is-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--sndb-ink-soft);
+  font-size: 12px;
+}
+
+.mq-sparkline svg {
+  width: 100%;
+  height: 126px;
+  display: block;
+}
+
+.mq-sparkline line {
+  stroke: rgba(13, 59, 102, 0.1);
+  stroke-width: 1;
+}
+
+.mq-sparkline text {
+  fill: rgba(13, 59, 102, 0.55);
+  font-size: 10px;
+}
+
+.mq-trend-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 6px 12px 10px;
+  color: var(--sndb-ink-soft);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.mq-trend-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.mq-trend-legend i {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.mq-retention-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.mq-dlq-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: auto 12px 10px;
+  padding: 9px 10px;
+  border-radius: 6px;
+  background: rgba(232, 93, 117, 0.08);
+  color: var(--sndb-ink-soft);
+  font-size: 12px;
 }
 
 .mq-body {
@@ -1452,6 +2164,19 @@ onMounted(() => {
 }
 
 @media (max-width: 1360px) {
+  .mq-monitor {
+    grid-template-columns: 1fr;
+  }
+
+  .mq-monitor-pane {
+    border-right: 0;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  }
+
+  .mq-monitor-pane:last-child {
+    border-bottom: 0;
+  }
+
   .mq-body {
     grid-template-columns: 220px minmax(420px, 1fr);
   }
@@ -1484,6 +2209,12 @@ onMounted(() => {
 
   .mq-stats {
     grid-template-columns: repeat(2, minmax(120px, 1fr));
+  }
+
+  .mq-ack-editor,
+  .mq-rate-strip,
+  .mq-retention-grid {
+    grid-template-columns: 1fr;
   }
 
   .mq-toolbar__topic,

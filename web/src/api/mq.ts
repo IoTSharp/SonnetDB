@@ -19,6 +19,22 @@ export interface MqStatsResponse {
   consumerOffsets: Record<string, number>;
 }
 
+export interface MqRetentionResponse {
+  topic: string;
+  retainedStartOffset: number;
+  retainedEndOffset: number;
+  retainedMessages: number;
+  trimmedBeforeOffset: number;
+  retentionMaxAgeSeconds?: number | null;
+  retentionMaxBytes?: number | null;
+  retentionIntervalSeconds: number;
+  trimAcknowledgedMessages: boolean;
+  ackRetentionMinOffsetDelta: number;
+  segmentMaxBytes: number;
+  hotTailMaxBytes: number;
+  segmentCacheSize: number;
+}
+
 export interface MqMessageResponse {
   topic: string;
   offset: number;
@@ -44,6 +60,17 @@ export interface MqPublishRequest {
 export interface MqPublishResponse {
   topic: string;
   offset: number;
+}
+
+export interface MqAckRequest {
+  consumerGroup: string;
+  offset: number;
+}
+
+export interface MqAckResponse {
+  topic: string;
+  consumerGroup: string;
+  nextOffset: number;
 }
 
 function mqUrl(db: string, topic: string, action: string): string {
@@ -77,6 +104,15 @@ export async function fetchMqStats(
   };
 }
 
+export async function fetchMqRetention(
+  api: AxiosInstance,
+  db: string,
+  topic: string,
+): Promise<MqRetentionResponse> {
+  const resp = await api.post<MqRetentionResponse>(mqUrl(db, topic, 'retention'));
+  return resp.data;
+}
+
 export async function browseMqMessages(
   api: AxiosInstance,
   db: string,
@@ -96,5 +132,15 @@ export async function publishMqMessage(
   request: MqPublishRequest,
 ): Promise<MqPublishResponse> {
   const resp = await api.post<MqPublishResponse>(mqUrl(db, topic, 'publish'), request);
+  return resp.data;
+}
+
+export async function ackMqConsumer(
+  api: AxiosInstance,
+  db: string,
+  topic: string,
+  request: MqAckRequest,
+): Promise<MqAckResponse> {
+  const resp = await api.post<MqAckResponse>(mqUrl(db, topic, 'ack'), request);
   return resp.data;
 }

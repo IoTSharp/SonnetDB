@@ -394,6 +394,34 @@ internal static partial class SonnetDbEndpoints
                 .ExecuteAsync(ctx).ConfigureAwait(false);
         });
 
+        app.MapPost("/v1/db/{db}/mq/{topic}/retention", async (HttpContext ctx, string db, string topic) =>
+        {
+            if (!await TryResolveMqAsync(ctx, registry, grants, db, topic, DatabasePermission.Read).ConfigureAwait(false))
+                return;
+
+            var mq = app.Services.GetRequiredService<SonnetMqStore>();
+            var stats = mq.GetStats(QualifyMqTopic(db, topic));
+            var options = mq.Options;
+            long retainedStart = Math.Max(0, stats.NextOffset - stats.MessageCount);
+            long retainedEnd = stats.MessageCount > 0 ? stats.NextOffset - 1 : retainedStart - 1;
+            var response = new MqRetentionResponse(
+                topic,
+                retainedStart,
+                retainedEnd,
+                stats.MessageCount,
+                retainedStart,
+                options.RetentionMaxAge?.TotalSeconds,
+                options.RetentionMaxBytes,
+                options.RetentionInterval.TotalSeconds,
+                options.TrimAcknowledgedMessages,
+                options.AckRetentionMinOffsetDelta,
+                options.SegmentMaxBytes,
+                options.HotTailMaxBytes,
+                options.SegmentCacheSize);
+            await Results.Json(response, ServerJsonContext.Default.MqRetentionResponse)
+                .ExecuteAsync(ctx).ConfigureAwait(false);
+        });
+
         app.MapPost("/v1/db/{db}/mq/{topic}/browse", async (HttpContext ctx, string db, string topic) =>
         {
             if (!await TryResolveMqAsync(ctx, registry, grants, db, topic, DatabasePermission.Read).ConfigureAwait(false))
@@ -421,6 +449,84 @@ internal static partial class SonnetDbEndpoints
                 await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
             }
         });
+
+        app.MapPost("/v1/db/{db}/mq/{topic}/monitor", async (HttpContext ctx, string db, string topic) =>
+        {
+            if (!await TryResolveMqAsync(ctx, registry, grants, db, topic, DatabasePermission.Read).ConfigureAwait(false))
+                return;
+
+            var mq = app.Services.GetRequiredService<SonnetMqStore>();
+            var options = mq.Options;
+            string qualifiedTopic = QualifyMqTopic(db, topic);
+            var stats = mq.GetStats(qualifiedTopic);
+            long retainedStart = Math.Max(0, stats.NextOffset - stats.MessageCount);
+            var consumers = stats.ConsumerOffsets
+                .OrderBy(static c => c.Key, StringComparer.Ordinal)
+                .Select(c =>
+                {
+                    long lag = Math.Max(0, stats.NextOffset - c.Value);
+                    double progress = stats.NextOffset <= 0
+                        ? 1d
+                        : Math.Clamp(c.Value / (double)stats.NextOffset, 0d, 1d);
+                    string status = c.Value < retainedStart
+                        ? "beyond_retention"
+                        : lag == 0
+                            ? "caught_up"
+                            : "lagging";
+                    return new MqConsumerMonitorInfo(c.Key, c.Value, lag, progress, status);
+                })
+                .ToArray();
+
+            var retention = new MqRetentionPolicyInfo(
+                options.RetentionMaxAge is null ? null : (long)Math.Ceiling(options.RetentionMaxAge.Value.TotalMilliseconds),
+                options.RetentionMaxBytes,
+                (long)Math.Ceiling(options.RetentionInterval.TotalMilliseconds),
+                options.TrimAcknowledgedMessages,
+                options.AckRetentionMinOffsetDelta,
+                options.SegmentMaxBytes,
+                options.HotTailMaxBytes,
+                options.SegmentCacheSize);
+
+            var allTopics = mq.ListTopicStats()
+                .Where(s => s.Topic.StartsWith(db + ".", StringComparison.Ordinal))
+                .Select(s => s.Topic[(db.Length + 1)..])
+                .ToArray();
+            var dlq = BuildMqDeadLetterInfo(topic, allTopics);
+            var response = new MqMonitorResponse(topic, stats.MessageCount, stats.NextOffset, retainedStart, consumers, retention, dlq);
+            await Results.Json(response, ServerJsonContext.Default.MqMonitorResponse)
+                .ExecuteAsync(ctx).ConfigureAwait(false);
+        });
+    }
+
+    private static MqDeadLetterInfo BuildMqDeadLetterInfo(string topic, IReadOnlyList<string> allTopics)
+    {
+        var candidates = allTopics
+            .Where(candidate => !string.Equals(candidate, topic, StringComparison.Ordinal)
+                && IsMqDeadLetterCandidate(topic, candidate))
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        return new MqDeadLetterInfo(
+            candidates.Length > 0 ? "topic_convention" : "not_configured",
+            candidates,
+            candidates.Length > 0 ? candidates[0] : null);
+    }
+
+    private static bool IsMqDeadLetterCandidate(string topic, string candidate)
+    {
+        if (candidate.Equals(topic + ".dlq", StringComparison.OrdinalIgnoreCase) ||
+            candidate.Equals(topic + "-dlq", StringComparison.OrdinalIgnoreCase) ||
+            candidate.Equals(topic + "_dlq", StringComparison.OrdinalIgnoreCase) ||
+            candidate.Equals(topic + ".dead-letter", StringComparison.OrdinalIgnoreCase) ||
+            candidate.Equals("dlq." + topic, StringComparison.OrdinalIgnoreCase) ||
+            candidate.Equals("dead-letter." + topic, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return candidate.StartsWith(topic + ".", StringComparison.OrdinalIgnoreCase)
+            && (candidate.Contains(".dlq", StringComparison.OrdinalIgnoreCase)
+                || candidate.Contains(".dead", StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool IsValidSqlIdentifier(string name)

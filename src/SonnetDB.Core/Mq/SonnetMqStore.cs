@@ -85,6 +85,11 @@ public sealed class SonnetMqStore : IDisposable
     }
 
     /// <summary>
+    /// 获取当前队列实例的运行选项快照，供管理端点展示 retention 与段缓存参数。
+    /// </summary>
+    public SonnetMqOptions Options => _options;
+
+    /// <summary>
     /// 发布一条消息。
     /// </summary>
     /// <param name="topic">Topic 名称。</param>

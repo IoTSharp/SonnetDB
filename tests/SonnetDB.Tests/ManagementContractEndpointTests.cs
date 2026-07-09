@@ -266,6 +266,17 @@ public sealed class ManagementContractEndpointTests : IAsyncLifetime
         Assert.Equal(1, consumer.CommittedOffset);
         Assert.Equal(2, consumer.Lag);
 
+        // retention 只读契约不暴露物理路径，只返回有效窗口与运行参数。
+        var retentionResp = await ro.PostAsync($"/v1/db/{db}/mq/telemetry/retention", null);
+        Assert.Equal(HttpStatusCode.OK, retentionResp.StatusCode);
+        var retention = await retentionResp.Content.ReadFromJsonAsync(ServerJsonContext.Default.MqRetentionResponse);
+        Assert.Equal("telemetry", retention!.Topic);
+        Assert.Equal(0, retention.RetainedStartOffset);
+        Assert.Equal(2, retention.RetainedEndOffset);
+        Assert.Equal(3, retention.RetainedMessages);
+        Assert.True(retention.TrimAcknowledgedMessages);
+        Assert.True(retention.SegmentMaxBytes > 0);
+
         // browse by offset（只读，不改消费者组状态）
         var browseResp = await ro.PostAsync($"/v1/db/{db}/mq/telemetry/browse",
             JsonContent.Create(new MqBrowseRequest(0, 10), ServerJsonContext.Default.MqBrowseRequest));
@@ -273,6 +284,52 @@ public sealed class ManagementContractEndpointTests : IAsyncLifetime
         var browse = await browseResp.Content.ReadFromJsonAsync(ServerJsonContext.Default.MqBrowseResponse);
         Assert.Equal(3, browse!.Messages.Count);
         Assert.Equal(0, browse.Messages[0].Offset);
+    }
+
+    [Fact]
+    public async Task Mq_Monitor_ReturnsConsumersRetentionAndDlqCandidates()
+    {
+        using var admin = CreateClient(_adminToken);
+        using var ro = CreateClient(_readOnlyToken);
+        var db = "mqmon";
+        await CreateDatabaseAsync(admin, db);
+
+        for (int i = 0; i < 4; i++)
+        {
+            var pub = await admin.PostAsync($"/v1/db/{db}/mq/telemetry/publish",
+                JsonContent.Create(new MqPublishRequest(Encoding.UTF8.GetBytes("m" + i), null),
+                    ServerJsonContext.Default.MqPublishRequest));
+            Assert.True(pub.IsSuccessStatusCode);
+        }
+
+        var dlqPub = await admin.PostAsync($"/v1/db/{db}/mq/telemetry.dlq/publish",
+            JsonContent.Create(new MqPublishRequest(Encoding.UTF8.GetBytes("failed"), null),
+                ServerJsonContext.Default.MqPublishRequest));
+        Assert.True(dlqPub.IsSuccessStatusCode);
+
+        var ack = await admin.PostAsync($"/v1/db/{db}/mq/telemetry/ack",
+            JsonContent.Create(new MqAckRequest("rules", 1), ServerJsonContext.Default.MqAckRequest));
+        Assert.True(ack.IsSuccessStatusCode);
+
+        var monitorResp = await ro.PostAsync($"/v1/db/{db}/mq/telemetry/monitor", null);
+        Assert.Equal(HttpStatusCode.OK, monitorResp.StatusCode);
+        var monitor = await monitorResp.Content.ReadFromJsonAsync(ServerJsonContext.Default.MqMonitorResponse);
+
+        Assert.Equal("telemetry", monitor!.Topic);
+        Assert.Equal(4, monitor.NextOffset);
+        Assert.Equal(4, monitor.MessageCount);
+        Assert.Equal(0, monitor.RetainedStartOffset);
+        var consumer = Assert.Single(monitor.Consumers);
+        Assert.Equal("rules", consumer.ConsumerGroup);
+        Assert.Equal(2, consumer.CommittedOffset);
+        Assert.Equal(2, consumer.Lag);
+        Assert.InRange(consumer.ProgressRatio, 0.49d, 0.51d);
+        Assert.Equal("lagging", consumer.Status);
+        Assert.True(monitor.Retention.TrimAcknowledgedMessages);
+        Assert.True(monitor.Retention.SegmentMaxBytes > 0);
+        Assert.Equal("topic_convention", monitor.DeadLetter.Mode);
+        Assert.Contains("telemetry.dlq", monitor.DeadLetter.CandidateTopics);
+        Assert.Equal("telemetry.dlq", monitor.DeadLetter.ActiveTopic);
     }
 
     [Fact]
