@@ -65,7 +65,8 @@ public sealed record DocumentCollectionInfo(
     string Name,
     List<DocumentJsonIndexInfo> JsonIndexes,
     List<DocumentFullTextIndexInfo> FullTextIndexes,
-    DateTimeOffset CreatedUtc);
+    DateTimeOffset CreatedUtc,
+    DocumentValidatorContract? Validator = null);
 
 /// <summary>JSON path 索引信息。</summary>
 public sealed record DocumentJsonIndexInfo(

@@ -48,6 +48,15 @@
             Table
           </button>
           <button
+            v-if="activeTool === 'document'"
+            type="button"
+            class="workbench-mode-switch__button"
+            :class="{ 'is-active': activeTool === 'document' }"
+            @click="$emit('set-tool', 'document')"
+          >
+            Document
+          </button>
+          <button
             v-if="activeTool === 'kv'"
             type="button"
             class="workbench-mode-switch__button"
@@ -82,6 +91,15 @@
             @click="$emit('set-tool', 'fulltext')"
           >
             FullText
+          </button>
+          <button
+            v-if="activeTool === 'bucket'"
+            type="button"
+            class="workbench-mode-switch__button"
+            :class="{ 'is-active': activeTool === 'bucket' }"
+            @click="$emit('set-tool', 'bucket')"
+          >
+            Bucket
           </button>
         </div>
 

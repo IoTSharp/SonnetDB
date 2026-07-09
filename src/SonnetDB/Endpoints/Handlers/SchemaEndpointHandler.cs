@@ -1,4 +1,5 @@
 ﻿using SonnetDB.Contracts;
+using System.Text.Json;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
 using SonnetDB.Json;
@@ -145,7 +146,8 @@ internal static class SchemaEndpointHandler
                 schema.Name,
                 jsonIndexes,
                 fullTextIndexes,
-                ToDateTimeOffset(schema.CreatedAtUtcTicks)));
+                ToDateTimeOffset(schema.CreatedAtUtcTicks),
+                schema.Validator is null ? null : ToContractValidator(schema.Validator)));
         }
 
         return result;
@@ -354,6 +356,65 @@ internal static class SchemaEndpointHandler
         return filter.Operator == DocumentIndexPartialFilterOperator.Exists
             ? $"{filter.Path} exists {filter.ValueScalar ?? "true"}"
             : $"{filter.Path} {op} {filter.ValueScalar}";
+    }
+
+    private static DocumentValidatorContract ToContractValidator(DocumentValidator validator)
+        => new(
+            validator.Rules.Select(static rule => new DocumentValidatorRuleContract(
+                rule.Path,
+                rule.Required,
+                rule.Types.Count == 1 ? FormatValidatorValueType(rule.Types[0]) : null,
+                rule.Types.Count > 1 ? rule.Types.Select(FormatValidatorValueType).ToArray() : null,
+                rule.Minimum,
+                rule.Maximum,
+                rule.EnumValues.Select(ParseJsonElementFromComparableValue).ToArray(),
+                rule.Pattern)).ToArray(),
+            validator.Action == DocumentValidationAction.Warn ? "warn" : "error");
+
+    private static string FormatValidatorValueType(DocumentValidatorValueType type)
+        => type switch
+        {
+            DocumentValidatorValueType.String => "string",
+            DocumentValidatorValueType.Number => "number",
+            DocumentValidatorValueType.Integer => "integer",
+            DocumentValidatorValueType.Boolean => "boolean",
+            DocumentValidatorValueType.Object => "object",
+            DocumentValidatorValueType.Array => "array",
+            DocumentValidatorValueType.Null => "null",
+            _ => throw new ArgumentOutOfRangeException(nameof(type), type, "不支持的 validator type。"),
+        };
+
+    private static JsonElement ParseJsonElementFromComparableValue(string value)
+    {
+        if (string.Equals(value, "true", StringComparison.Ordinal)
+            || string.Equals(value, "false", StringComparison.Ordinal)
+            || string.Equals(value, "null", StringComparison.Ordinal)
+            || double.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out _))
+        {
+            try
+            {
+                return ParseJsonElement(value);
+            }
+            catch (JsonException)
+            {
+            }
+        }
+
+        return ParseJsonElement(ToJsonStringLiteral(value));
+    }
+
+    private static JsonElement ParseJsonElement(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.Clone();
+    }
+
+    private static string ToJsonStringLiteral(string value)
+    {
+        var buffer = new System.Buffers.ArrayBufferWriter<byte>();
+        using (var writer = new Utf8JsonWriter(buffer))
+            writer.WriteStringValue(value);
+        return System.Text.Encoding.UTF8.GetString(buffer.WrittenSpan);
     }
 
     private static int CountFiles(string directory, string searchPattern)

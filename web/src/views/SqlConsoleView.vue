@@ -116,6 +116,16 @@
         @refresh-schema="loadSchema(targetDb, true)"
       />
 
+      <DocumentCollectionWorkbench
+        v-else-if="activeWorkbenchTool === 'document'"
+        :target-db="targetDb"
+        :collection="selectedDocumentCollection"
+        :collections="currentDocumentCollections"
+        :loading="loadingSchema"
+        @select-collection="selectDocumentCollection"
+        @refresh-schema="loadSchema(targetDb, true)"
+      />
+
       <KvKeyspaceWorkbench
         v-else-if="activeWorkbenchTool === 'kv'"
         :target-db="targetDb"
@@ -156,6 +166,16 @@
         @refresh-schema="loadSchema(targetDb, true)"
       />
 
+      <ObjectBucketWorkbench
+        v-else-if="activeWorkbenchTool === 'bucket'"
+        :target-db="targetDb"
+        :bucket="selectedObjectBucket"
+        :buckets="currentObjectBuckets"
+        :loading="loadingSchema"
+        @select-bucket="selectObjectBucket"
+        @refresh-schema="loadSchema(targetDb, true)"
+      />
+
       <main v-else class="query-workspace">
         <TrajectoryMap
           class="trajectory-workbench"
@@ -172,9 +192,11 @@
 import { computed, onMounted, watch } from 'vue';
 import { NDropdown, useMessage } from 'naive-ui';
 import CreateDatabaseDialog from '@/components/CreateDatabaseDialog.vue';
+import DocumentCollectionWorkbench from '@/components/DocumentCollectionWorkbench.vue';
 import FullTextSearchWorkbench from '@/components/FullTextSearchWorkbench.vue';
 import KvKeyspaceWorkbench from '@/components/KvKeyspaceWorkbench.vue';
 import ManagementExplorerSidebar from '@/components/ManagementExplorerSidebar.vue';
+import ObjectBucketWorkbench from '@/components/ObjectBucketWorkbench.vue';
 import RelationalTableWorkbench from '@/components/RelationalTableWorkbench.vue';
 import RemoteConnectionDialog from '@/components/RemoteConnectionDialog.vue';
 import SonnetMqWorkbench from '@/components/SonnetMqWorkbench.vue';
@@ -183,6 +205,7 @@ import SqlWorkbenchHeader from '@/components/SqlWorkbenchHeader.vue';
 import VectorSearchWorkbench from '@/components/VectorSearchWorkbench.vue';
 import TrajectoryMap from '@/views/TrajectoryMap.vue';
 import type { FullTextIndexStat, VectorIndexStat } from '@/api/management';
+import type { DocumentCollectionInfo } from '@/api/schema';
 import { useSqlExecution } from '@/composables/useSqlExecution';
 import { useSqlExplorer } from '@/composables/useSqlExplorer';
 import { useSqlExplorerRouting } from '@/composables/useSqlExplorerRouting';
@@ -296,6 +319,22 @@ const currentKvKeyspaces = computed(() =>
     ? managementByDb.value[targetDb.value]?.kvKeyspaces ?? []
     : []);
 
+const currentDocumentCollections = computed(() =>
+  targetDb.value && targetDb.value !== CONTROL_PLANE_KEY
+    ? currentSchemaResponse.value?.documentCollections ?? []
+    : []);
+
+const selectedDocumentCollection = computed(() => {
+  const active = activeExplorerKey.value.startsWith('document:')
+    ? activeExplorerKey.value.slice('document:'.length)
+    : '';
+  if (active) {
+    const selected = currentDocumentCollections.value.find((collection) => collection.name === active);
+    if (selected) return selected;
+  }
+  return currentDocumentCollections.value[0] ?? null;
+});
+
 const selectedKvKeyspace = computed(() => {
   const active = activeExplorerKey.value.startsWith('kv:')
     ? activeExplorerKey.value.slice('kv:'.length)
@@ -347,6 +386,19 @@ const selectedFullTextIndex = computed(() => {
     if (selected) return selected;
   }
   return currentFullTextIndexes.value[0] ?? null;
+});
+
+const currentObjectBuckets = computed(() =>
+  targetDb.value && targetDb.value !== CONTROL_PLANE_KEY
+    ? managementByDb.value[targetDb.value]?.buckets ?? []
+    : []);
+
+const selectedObjectBucket = computed(() => {
+  const active = activeExplorerKey.value.startsWith('bucket:')
+    ? activeExplorerKey.value.slice('bucket:'.length)
+    : '';
+  if (active && currentObjectBuckets.value.some((bucket) => bucket.name === active)) return active;
+  return currentObjectBuckets.value[0]?.name ?? active;
 });
 
 const {
@@ -430,6 +482,11 @@ function openRelationSql(sqlText: string): void {
   setSqlDraft(sqlText);
 }
 
+function selectDocumentCollection(collection: DocumentCollectionInfo): void {
+  activeExplorerKey.value = `document:${collection.name}`;
+  setWorkbenchTool('document');
+}
+
 function selectKvKeyspace(keyspace: string): void {
   if (!keyspace) return;
   activeExplorerKey.value = `kv:${keyspace}`;
@@ -458,6 +515,12 @@ function selectFullTextIndex(index: FullTextIndexStat): void {
 
 function fullTextIndexKey(index: FullTextIndexStat): string {
   return `fulltext:${index.collection}:${index.name}`;
+}
+
+function selectObjectBucket(bucket: string): void {
+  if (!bucket) return;
+  activeExplorerKey.value = `bucket:${bucket}`;
+  setWorkbenchTool('bucket');
 }
 
 watch(targetDb, (db) => {

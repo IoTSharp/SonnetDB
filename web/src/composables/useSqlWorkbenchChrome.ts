@@ -30,10 +30,12 @@ export function useSqlWorkbenchChrome(options: SqlWorkbenchChromeOptions) {
 
   const activeWorkbenchTool = computed<WorkbenchTool>(() => {
     if (route.query.tool === 'trajectory') return 'trajectory';
+    if (route.query.tool === 'document' || route.query.model === 'document') return 'document';
     if (route.query.tool === 'kv' || route.query.model === 'kv') return 'kv';
     if (route.query.tool === 'mq' || route.query.model === 'mq') return 'mq';
     if (route.query.tool === 'vector' || route.query.model === 'vector') return 'vector';
     if (route.query.tool === 'fulltext' || route.query.model === 'fulltext') return 'fulltext';
+    if (route.query.tool === 'bucket' || route.query.model === 'bucket') return 'bucket';
     if (route.query.tool === 'table' || route.query.model === 'table') return 'table';
     return 'sql';
   });
@@ -87,6 +89,8 @@ export function useSqlWorkbenchChrome(options: SqlWorkbenchChromeOptions) {
       name: 'sql',
       query: tool === 'trajectory'
         ? { tool: 'trajectory' }
+        : tool === 'document'
+          ? { tool: 'document' }
         : tool === 'kv'
           ? { tool: 'kv' }
         : tool === 'mq'
@@ -95,6 +99,8 @@ export function useSqlWorkbenchChrome(options: SqlWorkbenchChromeOptions) {
           ? { tool: 'vector' }
         : tool === 'fulltext'
           ? { tool: 'fulltext' }
+        : tool === 'bucket'
+          ? { tool: 'bucket' }
         : tool === 'table'
           ? { tool: 'table' }
           : {},

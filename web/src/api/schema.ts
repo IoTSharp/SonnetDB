@@ -1,4 +1,5 @@
 import type { AxiosInstance } from 'axios';
+import type { DocumentValidator } from '@/api/documents';
 
 export interface ColumnInfo {
   name: string;
@@ -63,6 +64,13 @@ export interface DocumentJsonIndexInfo {
   path: string;
   createdUtc: string;
   rebuildable: boolean;
+  paths?: string[] | null;
+  isUnique?: boolean;
+  isSparse?: boolean;
+  isPartial?: boolean;
+  partialFilter?: string | null;
+  isTtl?: boolean;
+  ttlSeconds?: number | null;
 }
 
 export interface DocumentFullTextIndexInfo {
@@ -79,6 +87,7 @@ export interface DocumentCollectionInfo {
   jsonIndexes: DocumentJsonIndexInfo[];
   fullTextIndexes: DocumentFullTextIndexInfo[];
   createdUtc: string;
+  validator?: DocumentValidator | null;
 }
 
 export interface IndexLifecycleInfo {

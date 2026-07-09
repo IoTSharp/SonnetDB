@@ -126,6 +126,8 @@ export function useSqlExplorerRouting(options: SqlExplorerRoutingOptions) {
       name: 'sql',
       query: item.model === 'table'
         ? { tool: 'table', model: item.model, node: item.name }
+        : item.model === 'document'
+          ? { tool: 'document', model: item.model, node: item.name }
         : item.model === 'kv'
           ? { tool: 'kv', model: item.model, node: item.name }
         : item.model === 'mq'
@@ -134,6 +136,8 @@ export function useSqlExplorerRouting(options: SqlExplorerRoutingOptions) {
           ? { tool: 'vector', model: item.model, node: item.name }
         : item.model === 'fulltext'
           ? { tool: 'fulltext', model: item.model, node: item.name }
+        : item.model === 'bucket'
+          ? { tool: 'bucket', model: item.model, node: item.name }
         : item.model === 'measurement'
           ? {}
           : { model: item.model, node: item.name },

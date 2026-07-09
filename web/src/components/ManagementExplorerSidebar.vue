@@ -351,11 +351,16 @@ defineEmits<{
 }
 
 .schema-item--kv,
+.schema-item--document,
 .schema-item--vector,
 .schema-item--fulltext,
 .schema-item--mq,
 .schema-item--bucket {
   border-left: 2px solid transparent;
+}
+
+.schema-item--document {
+  border-left-color: rgba(32, 128, 240, 0.55);
 }
 
 .schema-item--kv {

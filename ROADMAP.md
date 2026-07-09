@@ -26,7 +26,7 @@
 | 26 | 连接器路线独立化（C ABI + 多模型 API） | #175 ~ #181 | ✅ |
 | 27 | Industrial Data Agent 与 AI-ready 产品化路线 | #182 ~ #188 | 🚧（#182 文档已落；M28 收官后 #184 Demo 可启动；#183/#185 纯文档） |
 | 28 | 可靠性、并发正确性与热路径加固（P0~P5 分阶段） | #189 ~ #244、#261 ~ #262 | ✅（全部收官，详情见归档） |
-| 29 | 多模型统一管理工作台（Multi-Model Management Workbench） | #245 ~ #260 | 🚧（#245~#255 ✅；Web Admin 旗舰优先） |
+| 29 | 多模型统一管理工作台（Multi-Model Management Workbench） | #245 ~ #260 | 🚧（#245~#257 ✅；下一步 E 桌面 / VS Code） |
 | 30 | 多协议设备接入扩展（Sparkplug B / CoAP / Line Protocol UDP） | #263 ~ #268 | 🚧（#265/#266/#267 ✅；前置 M28 #242 ✅） |
 | 31 | 时序聚合类型语义增强（selector / categorical aggregates） | #269 ~ #271 | 📋（IoTSharp 字符串遥测分桶查询兼容） |
 | 32 | Document Store MongoDB-like 易用性增强 | #272 ~ #281 | 📋（后续池；承接 M21/M24/M25） |
@@ -39,7 +39,7 @@
 ## 当前推进重点
 
 > **旗舰（要开始做的）**：
-> - **Milestone 29 — 多模型统一管理工作台**：把管理工具从三个孤立工程重构为「一张能力矩阵 × 三个交付面（Web Admin 旗舰 / Studio 桌面 / VS Code）」。**Web Admin 旗舰优先**：A 阶段管理契约 + 统一外壳、B 关系工作台、C KV/MQ/向量/全文已落地（#245~#255 ✅），下一步进入 D 对象桶浏览器 #256 与文档收口 #257，再推进 E 桌面/VS Code。管理界面跨里程碑归口见 M29「管理界面归口」表。
+> - **Milestone 29 — 多模型统一管理工作台**：把管理工具从三个孤立工程重构为「一张能力矩阵 × 三个交付面（Web Admin 旗舰 / Studio 桌面 / VS Code）」。**Web Admin 旗舰优先**：A 阶段管理契约 + 统一外壳、B 关系工作台、C KV/MQ/向量/全文、D 对象桶与文档接入已落地（#245~#257 ✅），下一步推进 E 桌面/VS Code。管理界面跨里程碑归口见 M29「管理界面归口」表。
 > - **Milestone 30 — 多协议设备接入扩展**：在 M28 已交付的 MQTT 双形态之上补 Sparkplug B（骑 #242 broker）、CoAP、Line Protocol UDP 三条被动接收通道，三段独立可并行，全部收敛既有 BulkIngest 落库。
 >
 > **进行中（按带宽穿插）**：
@@ -70,11 +70,11 @@
 |---|---|---|---|---|
 | 时序 measurement | ✅ schema 树 + SQL Console + Trajectory 地图/图 | 保持并接入统一外壳 | InfluxDB UI / Grafana | #246（并入外壳） |
 | 关系 SQL 表 | ⚠️ 仅能写 SQL，无数据网格 / 行内编辑 | 数据网格 + 行内编辑 + 可视化 EXPLAIN + 表设计器 + ER + 导入导出 | pgAdmin / SSMS / Navicat / DBeaver | #248~#250 |
-| 文档集合 | ⚠️ 树可见 + `documents/find` API，无浏览器 | Document Explorer（**M24 交付**，本里程碑接入外壳） | MongoDB Compass | M24 #170~#172 + #257 |
+| 文档集合 | ✅ Web Admin 文档工作台（#257） | Document Explorer（M24 专属管理语义继续承接，M29 已接入统一外壳） | MongoDB Compass | M24 #170~#172 + #257 |
 | KV keyspace | ❌ 无 | keyspace 前缀树 + TTL 查看/编辑 + 类型化值查看 + 批量 / 前缀删 + 过期统计 | RedisInsight / AnotherRedisDesktopManager | #245 契约 + #251 |
 | 全文索引 | ⚠️ 索引可见可 rebuild，无检索 UI | BM25 检索 + 高亮 + 分词器（Jieba/CJK）预览 + 模糊 / 短语构建器 | Kibana / OpenSearch Dashboards | #245 契约 + #255 |
 | 向量索引 | ❌ 无（仅 schema 类型可见） | ANN 检索 playground（文本→embed / 原始向量→Top-K + score + 过滤）+ 索引统计 + HNSW 参数 | Milvus Attu / Qdrant / Weaviate Console | #245 契约 + #254 |
-| 对象桶 | ❌ 无（M19 #118 治理页 🚧） | 桶浏览 + 对象上传 / 下载 / 预览 + 前缀导航 + 版本 / 生命周期 / 保留 + presigned URL + 审计 | MinIO Console / S3 Browser | M19 #118 后端 + #256 |
+| 对象桶 | ✅ Web Admin 对象桶工作台（#256） | 桶浏览 + 对象上传 / 下载 / 预览 + 前缀导航 + 版本 / 生命周期 / 保留 + presigned URL + 审计 | MinIO Console / S3 Browser | M19 #118 后端 + #256 |
 | 消息队列 SonnetMQ | ❌ 无 | topic / 消息浏览（按 offset / 时间 seek + header）+ 发布测试 + 消费 / 订阅 lag + ack + 吞吐 + DLQ / retention | Kafka UI / RabbitMQ Management / EMQX Dashboard | #245 契约 + #252~#253 |
 
 ### 管理界面归口（跨里程碑，单一出处）
@@ -86,8 +86,8 @@
 | 统一 Explorer + 连接库 + 结果面板 + 写审批框架 | Web Admin | M29 #245~#247 | #245/#246/#247 ✅ |
 | 关系数据网格 / 可视化 EXPLAIN / 表设计器 / ER / 导入导出 | Web Admin | M29 #248~#250 | #248/#249/#250 ✅ |
 | KV / MQ / 向量 / 全文 专用工作台 | Web Admin | M29 #251~#255 | #251/#252/#253/#254/#255 ✅ |
-| 对象桶浏览器 | Web Admin | M29 #256（收编 M19 #118 的 Buckets / Objects / Multipart / Audit 页面） | 📋 |
-| 文档 Explorer / Validator / 导入导出 | Web Admin / Studio | M24 #170~#172（M29 #257 接入统一外壳） | 📋 |
+| 对象桶浏览器 | Web Admin | M29 #256（收编 M19 #118 的 Buckets / Objects / Multipart / Audit 页面） | ✅ |
+| 文档 Explorer / Validator / 导入导出 | Web Admin / Studio | M24 #170~#172（M29 #257 接入统一外壳） | Web Admin #257 ✅ |
 | Studio 桌面原生桥（文件对话框 / 连接库 / 本地托管 server） | Studio | M29 #258 | 📋 |
 | VS Code 结果三视图 + Copilot 面板 | VS Code | M18 #103/#104（M29 #259 补完接线） | 🚧 |
 | VS Code 多模型只读浏览（KV / 向量 / 全文 / MQ） | VS Code | M29 #259 | 📋 |
@@ -143,8 +143,10 @@
 
 | PR | 标题与范围 | 状态 |
 |----|------------|------|
-| #256 | **对象桶浏览器（对标 MinIO Console，收编 M19 #118 UI）**：桶列表 / 创建 / 删除；对象浏览（前缀导航、上传 / 下载 / 预览、range read）；multipart 会话查看；版本 / 生命周期 / 保留 / legal hold 展示与编辑；presigned URL 生成；访问审计与容量 / quota 统计。**后端能力复用 M19 #118**（bucket policy / lifecycle / versioning / audit / quota）；本 PR 把 #118 规划的 Buckets / Objects / Multipart / Audit 页面**收编进统一外壳的对象工作台**，#118 只保留后端治理能力交付。 | 📋 |
-| #257 | **文档浏览器接入统一外壳**：把 **M24（#170~#172）** 的 Document Explorer / Validator Governance / 导入导出接入 #246 统一 Explorer 与 #247 共享结果 / 写审批框架，确保文档模型与其余模型的连接选择、权限状态、结果面板、写审批一致；**不新增文档引擎能力**（引擎与专属管理语义仍归 M24 / M21）。 | 📋 |
+| #256 | **对象桶浏览器（对标 MinIO Console，收编 M19 #118 UI）**：桶列表 / 创建 / 删除；对象浏览（前缀导航、上传 / 下载 / 预览、range read）；multipart 会话查看；版本 / 生命周期 / 保留 / legal hold 展示与编辑；presigned URL 生成；访问审计与容量 / quota 统计。**后端能力复用 M19 #118**（bucket policy / lifecycle / versioning / audit / quota）；本 PR 把 #118 规划的 Buckets / Objects / Multipart / Audit 页面**收编进统一外壳的对象工作台**，#118 只保留后端治理能力交付。 | ✅ |
+| #257 | **文档浏览器接入统一外壳**：把 **M24（#170~#172）** 的 Document Explorer / Validator Governance / 导入导出接入 #246 统一 Explorer 与 #247 共享结果 / 写审批框架，确保文档模型与其余模型的连接选择、权限状态、结果面板、写审批一致；**不新增文档引擎能力**（引擎与专属管理语义仍归 M24 / M21）。 | ✅ |
+
+> **#257 落地说明**：Web Admin 新增 `DocumentCollectionWorkbench`，Collections 节点可进入文档专用工作台；支持 collection 列表、创建 / 删除、find（ID / filter / projection / sort / cursor 分页）、count / distinct / aggregate、文档详情、JSONL 导入导出、单文档 insert / replace / delete、批量删除、validator 查看 / 编辑 / 删除 / 样本预检，以及 JSON path / FullText 索引 rebuild。所有写、删、导入、validator 保存与 rebuild 均复用既有 Document / maintenance API 并统一进入 #247 `WriteApprovalPanel`、共享结果面板与工作台历史。Server 仅在 schema 响应中补充 document collection validator 只读 metadata，不新增查询语义、写入语义、索引语义或存储格式。
 
 ### E — Studio 桌面原生桥 + VS Code 消费 + 收口
 
@@ -161,11 +163,11 @@ Web Admin 旗舰优先（用户决策 2026-07-04）：
 A 外壳：#245（管理契约补齐）→ #246（统一多模型 Explorer + 连接库）→ #247（统一结果 + 写审批框架）
 B 关系：#248（数据网格 + 行内编辑）→ #249（可视化 EXPLAIN + 表设计器）→ #250（导入导出 + ER）
 C 四模型：#251（KV 浏览器）→ #252（MQ 控制台一）→ #253（MQ 控制台二）→ #254（向量 playground）→ #255（全文 playground）
-D 收口：#256（对象桶浏览器，收编 M19 #118 UI）→ #257（文档浏览器接入外壳）
+D 收口：#256（对象桶浏览器，收编 M19 #118 UI ✅）→ #257（文档浏览器接入外壳 ✅）
 E 三面：#258（Studio 桌面原生桥）∥ #259（VS Code 多模型消费）→ #260（收口 + 文档 + parity）
 ```
 
-> **阶段间依赖与并行度**：**A（#245~#247）是所有 per-model 工作台的地基，必须最先**——#245 契约是 #251~#256 的前置，#246/#247 外壳与框架是 B~D 所有工作台的挂载点。B / C / D 各工作台在 A 落地后**相互独立可并行 / 穿插**（各消费自己的 #245 契约 + 挂 #247 框架）。跨里程碑依赖：**#252/#253 MQ 控制台依赖 M28 P5a（#231~#234）** 的 per-topic 统计与冷数据可读性、`#253` 实时推送状态随 P5b `#236` 落地增强；**#254 向量 playground** 依赖 M28 #223/#226 的 HNSW 参数与度量暴露；**#256 对象桶** 依赖 M19 #118 后端治理能力；**#257 文档** 依赖 M24 #170~#172。E 的 #258 桌面桥可在任一模型工作台落地后并行；#259 VS Code 需先补完 M18 #103/#104；#260 收口最后。
+> **阶段间依赖与并行度**：**A（#245~#247）是所有 per-model 工作台的地基，必须最先**——#245 契约是 #251~#257 的前置，#246/#247 外壳与框架是 B~D 所有工作台的挂载点。B / C / D 各工作台在 A 落地后**相互独立可并行 / 穿插**（各消费自己的 #245 契约 + 挂 #247 框架）。跨里程碑依赖：**#252/#253 MQ 控制台依赖 M28 P5a（#231~#234）** 的 per-topic 统计与冷数据可读性、`#253` 实时推送状态随 P5b `#236` 落地增强；**#254 向量 playground** 依赖 M28 #223/#226 的 HNSW 参数与度量暴露；**#256 对象桶** 依赖 M19 #118 后端治理能力；**#257 文档** 按 M24 边界复用既有 Document API 与最小只读 metadata，不新增文档引擎语义。E 的 #258 桌面桥可在任一模型工作台落地后并行；#259 VS Code 需先补完 M18 #103/#104；#260 收口最后。
 
 ### 验收标准
 

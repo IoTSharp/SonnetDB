@@ -110,6 +110,11 @@ public sealed class SchemaAndMaintenanceEndpointTests : IAsyncLifetime
         Assert.Equal("$.site", Assert.Single(documentIndex.GetProperty("paths").EnumerateArray()).GetString());
         Assert.False(documentIndex.GetProperty("isUnique").GetBoolean());
         Assert.Equal("ft_docs_body", Assert.Single(collection.GetProperty("fullTextIndexes").EnumerateArray()).GetProperty("name").GetString());
+        var validator = collection.GetProperty("validator");
+        Assert.Equal("warn", validator.GetProperty("validationAction").GetString());
+        var validatorRule = Assert.Single(validator.GetProperty("rules").EnumerateArray());
+        Assert.Equal("$.site", validatorRule.GetProperty("path").GetString());
+        Assert.True(validatorRule.GetProperty("required").GetBoolean());
 
         var indexes = root.GetProperty("indexes").EnumerateArray().ToArray();
         Assert.Contains(indexes, index => index.GetProperty("id").GetString() == "table:devices:idx_devices_site");
@@ -376,6 +381,13 @@ public sealed class SchemaAndMaintenanceEndpointTests : IAsyncLifetime
             "CREATE JSON INDEX idx_devices_metadata_site ON devices (metadata, '$.site')");
         await ExecuteSqlAsync(client, dbName,
             "CREATE DOCUMENT COLLECTION docs");
+        var validator = await client.PutAsync($"/v1/db/{dbName}/documents/docs/validator",
+            JsonContent.Create(
+                new DocumentValidatorContract([
+                    new DocumentValidatorRuleContract("$.site", Required: true, Type: "string"),
+                ], ValidationAction: "warn"),
+                ServerJsonContext.Default.DocumentValidatorContract));
+        Assert.Equal(HttpStatusCode.OK, validator.StatusCode);
         await ExecuteSqlAsync(client, dbName,
             """INSERT INTO docs (id, document) VALUES ('d1', '{"site":"north","body":"pump alarm"}')""");
         await ExecuteSqlAsync(client, dbName,

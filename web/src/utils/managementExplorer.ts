@@ -372,7 +372,7 @@ function tableMeta(table: TableInfo): string {
 }
 
 function documentCollectionMeta(collection: DocumentCollectionInfo): string {
-  return `${collection.jsonIndexes.length} json · ${collection.fullTextIndexes.length} fulltext`;
+  return `${collection.jsonIndexes.length} json · ${collection.fullTextIndexes.length} fulltext${collection.validator ? ' · validator' : ''}`;
 }
 
 function indexMeta(index: IndexLifecycleInfo): string {
