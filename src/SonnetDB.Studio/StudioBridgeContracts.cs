@@ -1,0 +1,119 @@
+using System.Text.Json.Serialization;
+
+namespace SonnetDB.Studio;
+
+/// <summary>
+/// Studio 桌面桥暴露给 Web Admin 的能力清单。
+/// </summary>
+internal sealed record StudioBridgeManifest(
+    string Mode,
+    string Version,
+    string ServerUrl,
+    string ManagedServerUrl,
+    string DataRoot,
+    string[] Capabilities,
+    StudioMenuItem[] Menu,
+    StudioManagedServerStatus ManagedServer);
+
+/// <summary>
+/// Studio 桌面菜单项。当前经 bridge 暴露给前端消费，后续可映射到宿主原生菜单。
+/// </summary>
+internal sealed record StudioMenuItem(string Id, string Label, string Command);
+
+/// <summary>
+/// Studio 连接库快照。
+/// </summary>
+internal sealed record StudioConnectionLibrarySnapshot(
+    StudioConnectionProfile[] Profiles,
+    string ActiveProfileId,
+    string ActiveDatabase);
+
+/// <summary>
+/// Studio 连接库中的单个连接配置；鉴权 token 不落盘。
+/// </summary>
+internal sealed record StudioConnectionProfile(
+    string Id,
+    string Name,
+    string Kind,
+    string BaseUrl,
+    string DefaultDatabase,
+    string TokenMode,
+    long CreatedAt,
+    long UpdatedAt);
+
+/// <summary>
+/// 文件对话框过滤器。
+/// </summary>
+internal sealed record StudioFileDialogFilter(string Name, string[] Extensions);
+
+/// <summary>
+/// 打开文本文件请求。
+/// </summary>
+internal sealed record StudioOpenFileRequest(
+    string? Title,
+    StudioFileDialogFilter[]? Filters,
+    long? MaxBytes);
+
+/// <summary>
+/// 打开文本文件结果。
+/// </summary>
+internal sealed record StudioOpenFileResult(
+    bool Canceled,
+    string? FileName,
+    string? Content,
+    string? Error);
+
+/// <summary>
+/// 保存文本文件请求。
+/// </summary>
+internal sealed record StudioSaveFileRequest(
+    string? Title,
+    string? SuggestedName,
+    string? Content,
+    string? ContentType,
+    StudioFileDialogFilter[]? Filters);
+
+/// <summary>
+/// 保存文本文件结果。
+/// </summary>
+internal sealed record StudioSaveFileResult(
+    bool Canceled,
+    string? FileName,
+    string? Error);
+
+/// <summary>
+/// 托管本地 SonnetDB Server 请求。
+/// </summary>
+internal sealed record StudioManagedServerRequest(string? DataRoot, string? Url);
+
+/// <summary>
+/// 托管本地 SonnetDB Server 运行状态。
+/// </summary>
+internal sealed record StudioManagedServerStatus(
+    bool IsRunning,
+    bool StartedByStudio,
+    bool Healthy,
+    int? ProcessId,
+    string Url,
+    string DataRoot,
+    string? Error);
+
+/// <summary>
+/// Studio bridge 使用 source-generated JSON，避免反射序列化入口。
+/// </summary>
+[JsonSourceGenerationOptions(
+    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
+    WriteIndented = true,
+    GenerationMode = JsonSourceGenerationMode.Metadata)]
+[JsonSerializable(typeof(StudioBridgeManifest))]
+[JsonSerializable(typeof(StudioMenuItem))]
+[JsonSerializable(typeof(StudioConnectionLibrarySnapshot))]
+[JsonSerializable(typeof(StudioConnectionProfile))]
+[JsonSerializable(typeof(StudioFileDialogFilter))]
+[JsonSerializable(typeof(StudioOpenFileRequest))]
+[JsonSerializable(typeof(StudioOpenFileResult))]
+[JsonSerializable(typeof(StudioSaveFileRequest))]
+[JsonSerializable(typeof(StudioSaveFileResult))]
+[JsonSerializable(typeof(StudioManagedServerRequest))]
+[JsonSerializable(typeof(StudioManagedServerStatus))]
+internal sealed partial class StudioBridgeJsonContext : JsonSerializerContext;
