@@ -14,7 +14,18 @@
         </n-text>
       </div>
 
-      <div class="relation-toolbar__actions">
+      <n-tabs
+        v-model:value="activeView"
+        type="segment"
+        size="small"
+        class="relation-toolbar__tabs"
+      >
+        <n-tab name="data" tab="Data" />
+        <n-tab name="designer" tab="Designer" />
+        <n-tab name="indexes" tab="Indexes" />
+      </n-tabs>
+
+      <div v-if="activeView === 'data'" class="relation-toolbar__actions">
         <n-select
           v-model:value="filterColumn"
           size="small"
@@ -56,7 +67,7 @@
       @confirm="confirmPendingOperations"
     />
 
-    <section v-if="showInsert && table" class="relation-insert">
+    <section v-if="activeView === 'data' && showInsert && table" class="relation-insert">
       <div class="relation-insert__head">
         <div>
           <n-text class="relation-insert__title">New row</n-text>
@@ -121,53 +132,73 @@
       @close="errorMsg = ''"
     />
 
-    <section class="relation-grid-shell">
-      <n-empty v-if="!table" description="Select a table from Explorer." />
-      <n-data-table
-        v-else
-        :columns="dataColumns"
-        :data="gridRows"
-        :loading="loadingRows || loading"
-        :bordered="false"
-        :single-line="false"
-        :pagination="false"
-        :row-key="rowKey"
-        size="small"
-        remote
-        flex-height
-        class="relation-grid"
-      />
-    </section>
-
-    <footer class="relation-pager">
-      <div class="relation-pager__meta">
-        <span>{{ browseSummary }}</span>
-        <span v-if="lastBrowseSql" class="relation-pager__sql">{{ lastBrowseSql }}</span>
-      </div>
-      <n-space size="small" align="center">
-        <n-select
-          v-model:value="pageSize"
+    <template v-if="activeView === 'data'">
+      <section class="relation-grid-shell">
+        <n-empty v-if="!table" description="Select a table from Explorer." />
+        <n-data-table
+          v-else
+          :columns="dataColumns"
+          :data="gridRows"
+          :loading="loadingRows || loading"
+          :bordered="false"
+          :single-line="false"
+          :pagination="false"
+          :row-key="rowKey"
           size="small"
-          :options="pageSizeOptions"
-          class="relation-pager__size"
-          @update:value="reloadFirstPage"
+          remote
+          flex-height
+          class="relation-grid"
         />
-        <n-button size="small" :disabled="page <= 1 || loadingRows" @click="previousPage">Previous</n-button>
-        <n-tag size="small" :bordered="false">Page {{ page }}</n-tag>
-        <n-button size="small" :disabled="!hasNextPage || loadingRows" @click="nextPage">Next</n-button>
-      </n-space>
-    </footer>
+      </section>
 
-    <WorkbenchResultPanel
-      class="relation-result"
-      title="Relation SQL result"
-      :sql="latestResultSql"
-      :result="latestResult"
-      :ran-once="ranOnce"
-      :summary="resultSummary"
-      :file-name="`${targetDb}_${table?.name ?? 'table'}`"
-      empty-description="Browse or edit table rows to see SQL results."
-      @clear-error="latestResult = null"
+      <footer class="relation-pager">
+        <div class="relation-pager__meta">
+          <span>{{ browseSummary }}</span>
+          <span v-if="lastBrowseSql" class="relation-pager__sql">{{ lastBrowseSql }}</span>
+        </div>
+        <n-space size="small" align="center">
+          <n-select
+            v-model:value="pageSize"
+            size="small"
+            :options="pageSizeOptions"
+            class="relation-pager__size"
+            @update:value="reloadFirstPage"
+          />
+          <n-button size="small" :disabled="page <= 1 || loadingRows" @click="previousPage">Previous</n-button>
+          <n-tag size="small" :bordered="false">Page {{ page }}</n-tag>
+          <n-button size="small" :disabled="!hasNextPage || loadingRows" @click="nextPage">Next</n-button>
+        </n-space>
+      </footer>
+
+      <WorkbenchResultPanel
+        class="relation-result"
+        title="Relation SQL result"
+        :sql="latestResultSql"
+        :result="latestResult"
+        :ran-once="ranOnce"
+        :summary="resultSummary"
+        :file-name="`${targetDb}_${table?.name ?? 'table'}`"
+        empty-description="Browse or edit table rows to see SQL results."
+        @clear-error="latestResult = null"
+      />
+    </template>
+
+    <RelationalSchemaDesigner
+      v-else-if="activeView === 'designer'"
+      :target-db="targetDb"
+      :table="table"
+      :loading="loading"
+      @refresh-schema="emit('refreshSchema')"
+      @open-sql="emit('openSql', $event)"
+    />
+
+    <RelationalIndexManager
+      v-else
+      :target-db="targetDb"
+      :table="table"
+      :loading="loading"
+      @refresh-schema="emit('refreshSchema')"
+      @open-sql="emit('openSql', $event)"
     />
 
     <WorkbenchHistoryDrawer
@@ -189,6 +220,8 @@ import {
   NInputNumber,
   NSelect,
   NSpace,
+  NTabs,
+  NTab,
   NTag,
   NText,
   useMessage,
@@ -206,6 +239,8 @@ import {
   type SqlStatementRequest,
 } from '@/api/sql';
 import WorkbenchHistoryDrawer from '@/components/WorkbenchHistoryDrawer.vue';
+import RelationalIndexManager from '@/components/RelationalIndexManager.vue';
+import RelationalSchemaDesigner from '@/components/RelationalSchemaDesigner.vue';
 import WorkbenchResultPanel from '@/components/WorkbenchResultPanel.vue';
 import WriteApprovalPanel from '@/components/WriteApprovalPanel.vue';
 import { useAuthStore } from '@/stores/auth';
@@ -236,6 +271,7 @@ const emit = defineEmits<{
 }>();
 
 type SortDirection = 'asc' | 'desc';
+type RelationView = 'data' | 'designer' | 'indexes';
 type DraftRow = Record<string, unknown>;
 
 interface GridRow extends Record<string, unknown> {
@@ -261,6 +297,7 @@ const message = useMessage();
 const loadingRows = ref(false);
 const confirmBusy = ref(false);
 const errorMsg = ref('');
+const activeView = ref<RelationView>('data');
 const rowsResult = ref<SqlResultSet | null>(null);
 const latestResult = ref<SqlResultSet | null>(null);
 const latestResultSql = ref('');
@@ -1111,6 +1148,11 @@ onMounted(() => {
   flex-wrap: wrap;
 }
 
+.relation-toolbar__tabs {
+  flex: 0 0 auto;
+  min-width: 260px;
+}
+
 .relation-toolbar__select {
   width: 170px;
 }
@@ -1286,6 +1328,10 @@ onMounted(() => {
 
   .relation-toolbar__actions {
     justify-content: flex-start;
+  }
+
+  .relation-toolbar__tabs {
+    width: 100%;
   }
 
   .relation-toolbar__select,

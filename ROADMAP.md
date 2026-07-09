@@ -26,7 +26,7 @@
 | 26 | 连接器路线独立化（C ABI + 多模型 API） | #175 ~ #181 | ✅ |
 | 27 | Industrial Data Agent 与 AI-ready 产品化路线 | #182 ~ #188 | 🚧（#182 文档已落；M28 收官后 #184 Demo 可启动；#183/#185 纯文档） |
 | 28 | 可靠性、并发正确性与热路径加固（P0~P5 分阶段） | #189 ~ #244、#261 ~ #262 | ✅（全部收官，详情见归档） |
-| 29 | 多模型统一管理工作台（Multi-Model Management Workbench） | #245 ~ #260 | 🚧（#245~#248 ✅；Web Admin 旗舰优先） |
+| 29 | 多模型统一管理工作台（Multi-Model Management Workbench） | #245 ~ #260 | 🚧（#245~#249 ✅；Web Admin 旗舰优先） |
 | 30 | 多协议设备接入扩展（Sparkplug B / CoAP / Line Protocol UDP） | #263 ~ #268 | 🚧（#265/#266/#267 ✅；前置 M28 #242 ✅） |
 | 31 | 时序聚合类型语义增强（selector / categorical aggregates） | #269 ~ #271 | 📋（IoTSharp 字符串遥测分桶查询兼容） |
 | 32 | Document Store MongoDB-like 易用性增强 | #272 ~ #281 | 📋（后续池；承接 M21/M24/M25） |
@@ -82,7 +82,7 @@
 | 管理界面 | 交付面 | 归属 PR | 状态 |
 |---|---|---|---|
 | 统一 Explorer + 连接库 + 结果面板 + 写审批框架 | Web Admin | M29 #245~#247 | #245/#246/#247 ✅ |
-| 关系数据网格 / 可视化 EXPLAIN / 表设计器 / ER / 导入导出 | Web Admin | M29 #248~#250 | #248 ✅；#249/#250 📋 |
+| 关系数据网格 / 可视化 EXPLAIN / 表设计器 / ER / 导入导出 | Web Admin | M29 #248~#250 | #248/#249 ✅；#250 📋 |
 | KV / MQ / 向量 / 全文 专用工作台 | Web Admin | M29 #251~#255 | 📋 |
 | 对象桶浏览器 | Web Admin | M29 #256（收编 M19 #118 的 Buckets / Objects / Multipart / Audit 页面） | 📋 |
 | 文档 Explorer / Validator / 导入导出 | Web Admin / Studio | M24 #170~#172（M29 #257 接入统一外壳） | 📋 |
@@ -118,7 +118,7 @@
 | PR | 标题与范围 | 状态 |
 |----|------------|------|
 | #248 | **关系数据网格 + 行内编辑**：表数据网格，游标分页、列排序 / 过滤、单元格类型化渲染；行内 INSERT / UPDATE / DELETE 经生成的**参数化 SQL**（复用 M28 #213）提交，编辑批次走 #247 staged preview + 事务确认（复用 M19 #110/#113 事务）；主键/唯一约束冲突走既有错误码回显。只调既有 SQL 端点，不新增查询语义。 | ✅ |
-| #249 | **可视化 EXPLAIN + 表设计器 + 索引管理**：把既有 SQL `EXPLAIN` 计划渲染为可视化计划树（scan / filter / join / topN / 下推标注，复用 M28 #214~#217/#220 的 EXPLAIN 输出）；表设计器以可视化编辑生成 `CREATE TABLE` / `ALTER TABLE ADD/DROP/RENAME COLUMN` / `RENAME TABLE` DDL（复用 M19 #111 能力与其明确拒绝项），DDL 保存前 preview + confirm；索引查看 / 创建 / rebuild。 | 📋 |
+| #249 | **可视化 EXPLAIN + 表设计器 + 索引管理**：把既有 SQL `EXPLAIN` 计划渲染为可视化计划树（scan / filter / join / topN / 下推标注，复用 M28 #214~#217/#220 的 EXPLAIN 输出）；表设计器以可视化编辑生成 `CREATE TABLE` / `ALTER TABLE ADD/DROP/RENAME COLUMN` / `RENAME TABLE` DDL（复用 M19 #111 能力与其明确拒绝项），DDL 保存前 preview + confirm；索引查看 / 创建 / rebuild。 | ✅ |
 | #250 | **关系导入导出 + ER 图**：CSV / JSON 导入导出（列映射、dry-run、批量错误报告、进度、取消）；基于 `INFORMATION_SCHEMA`（M19 #111）绘制 ER 图（表 / 列 / 主外键关系）；DDL 脚本导出。导入写入走 #247 写审批。 | 📋 |
 
 > **#248 落地说明**：Web Admin 新增关系表工作台，表节点双击或右键 Open workbench 进入数据网格；数据浏览走既有 `/v1/db/{db}/sql`，支持 LIMIT/OFFSET 分页、ORDER BY 排序、按列/全列过滤与类型化渲染。INSERT / UPDATE / DELETE 先在网格中形成草稿，再生成参数化 SQL，统一进入 #247 `WriteApprovalPanel` staged preview；确认时通过 `/v1/db/{db}/sql/batch` 包裹 `BEGIN` / `COMMIT` 执行，结果进入 `WorkbenchResultPanel` 与历史记录。REST SQL 端点同步补齐 `SqlRequest.Parameters` 绑定，保持与 M28 #213 参数化能力一致；未新增查询语义、表结构能力或存储格式。
