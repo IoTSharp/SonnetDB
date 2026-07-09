@@ -493,12 +493,14 @@ public sealed record FullTextIndexStatResponse(IReadOnlyList<FullTextIndexStat> 
 /// <param name="Fields">被索引字段。</param>
 /// <param name="Tokenizer">分词器 / analyzer 名称。</param>
 /// <param name="DocumentCount">当前可见文档数。</param>
+/// <param name="TermCount">当前可见字段词项数量；统计不可用时为空。</param>
 public sealed record FullTextIndexStat(
     string Collection,
     string Name,
     IReadOnlyList<string> Fields,
     string Tokenizer,
-    int DocumentCount);
+    int DocumentCount,
+    int? TermCount = null);
 
 /// <summary>
 /// 全文检索预览请求（BM25）。走既有全文检索 data-plane，不新增查询语义。
@@ -509,13 +511,15 @@ public sealed record FullTextIndexStat(
 /// <param name="Query">查询文本。</param>
 /// <param name="TopK">返回前 K 条；默认 10，上限 100。</param>
 /// <param name="Mode">检索模式：exact（默认）/ fuzzy。</param>
+/// <param name="QueryKind">查询组合方式：all（默认）/ any / phrase。</param>
 public sealed record FullTextSearchPreviewRequest(
     string Collection,
     string Index,
     string Field,
     string Query,
     int? TopK = null,
-    string? Mode = null);
+    string? Mode = null,
+    string? QueryKind = null);
 
 /// <summary>
 /// 全文检索预览响应。

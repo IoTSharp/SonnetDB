@@ -234,6 +234,7 @@ public sealed class ManagementContractEndpointTests : IAsyncLifetime
         Assert.Equal("ft_logs_message", stat.Name);
         Assert.Equal("unicode", stat.Tokenizer);
         Assert.Equal(3, stat.DocumentCount);
+        Assert.True(stat.TermCount is > 0);
         Assert.Contains("$.message", stat.Fields);
 
         // BM25 search-preview
@@ -245,6 +246,22 @@ public sealed class ManagementContractEndpointTests : IAsyncLifetime
         Assert.NotEmpty(search!.Hits);
         Assert.Equal("log-1", search.Hits[0].DocumentId);
         Assert.True(search.Hits[0].Score > 0);
+
+        // any / phrase queryKind 是 #255 playground 的查询构建器入口，默认 all 行为保持不变。
+        var anyResp = await ro.PostAsync($"/v1/db/{db}/fulltext/search-preview",
+            JsonContent.Create(new FullTextSearchPreviewRequest("logs", "ft_logs_message", "$.message", "pump fan", 5, null, "any"),
+                ServerJsonContext.Default.FullTextSearchPreviewRequest));
+        Assert.Equal(HttpStatusCode.OK, anyResp.StatusCode);
+        var any = await anyResp.Content.ReadFromJsonAsync(ServerJsonContext.Default.FullTextSearchPreviewResponse);
+        Assert.Contains(any!.Hits, static hit => hit.DocumentId == "log-1");
+        Assert.Contains(any.Hits, static hit => hit.DocumentId == "log-2");
+
+        var phraseResp = await ro.PostAsync($"/v1/db/{db}/fulltext/search-preview",
+            JsonContent.Create(new FullTextSearchPreviewRequest("logs", "ft_logs_message", "$.message", "pump alarm", 5, null, "phrase"),
+                ServerJsonContext.Default.FullTextSearchPreviewRequest));
+        Assert.Equal(HttpStatusCode.OK, phraseResp.StatusCode);
+        var phrase = await phraseResp.Content.ReadFromJsonAsync(ServerJsonContext.Default.FullTextSearchPreviewResponse);
+        Assert.Equal("log-1", Assert.Single(phrase!.Hits).DocumentId);
 
         // analyze
         var analyzeResp = await ro.PostAsync($"/v1/db/{db}/fulltext/analyze",

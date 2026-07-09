@@ -146,6 +146,16 @@
         @refresh-schema="loadSchema(targetDb, true)"
       />
 
+      <FullTextSearchWorkbench
+        v-else-if="activeWorkbenchTool === 'fulltext'"
+        :target-db="targetDb"
+        :index="selectedFullTextIndex"
+        :indexes="currentFullTextIndexes"
+        :loading="loadingSchema"
+        @select-index="selectFullTextIndex"
+        @refresh-schema="loadSchema(targetDb, true)"
+      />
+
       <main v-else class="query-workspace">
         <TrajectoryMap
           class="trajectory-workbench"
@@ -162,6 +172,7 @@
 import { computed, onMounted, watch } from 'vue';
 import { NDropdown, useMessage } from 'naive-ui';
 import CreateDatabaseDialog from '@/components/CreateDatabaseDialog.vue';
+import FullTextSearchWorkbench from '@/components/FullTextSearchWorkbench.vue';
 import KvKeyspaceWorkbench from '@/components/KvKeyspaceWorkbench.vue';
 import ManagementExplorerSidebar from '@/components/ManagementExplorerSidebar.vue';
 import RelationalTableWorkbench from '@/components/RelationalTableWorkbench.vue';
@@ -171,7 +182,7 @@ import SqlQueryWorkspace from '@/components/SqlQueryWorkspace.vue';
 import SqlWorkbenchHeader from '@/components/SqlWorkbenchHeader.vue';
 import VectorSearchWorkbench from '@/components/VectorSearchWorkbench.vue';
 import TrajectoryMap from '@/views/TrajectoryMap.vue';
-import type { VectorIndexStat } from '@/api/management';
+import type { FullTextIndexStat, VectorIndexStat } from '@/api/management';
 import { useSqlExecution } from '@/composables/useSqlExecution';
 import { useSqlExplorer } from '@/composables/useSqlExplorer';
 import { useSqlExplorerRouting } from '@/composables/useSqlExplorerRouting';
@@ -322,6 +333,22 @@ const selectedVectorIndex = computed(() => {
   return currentVectorIndexes.value[0] ?? null;
 });
 
+const currentFullTextIndexes = computed(() =>
+  targetDb.value && targetDb.value !== CONTROL_PLANE_KEY
+    ? managementByDb.value[targetDb.value]?.fullTextIndexes ?? []
+    : []);
+
+const selectedFullTextIndex = computed(() => {
+  const active = activeExplorerKey.value.startsWith('fulltext:')
+    ? activeExplorerKey.value
+    : '';
+  if (active) {
+    const selected = currentFullTextIndexes.value.find((index) => fullTextIndexKey(index) === active);
+    if (selected) return selected;
+  }
+  return currentFullTextIndexes.value[0] ?? null;
+});
+
 const {
   maintenanceBackupDirectory,
   maintenanceRestoreTargetDirectory,
@@ -422,6 +449,15 @@ function selectVectorIndex(index: VectorIndexStat): void {
 
 function vectorIndexKey(index: VectorIndexStat): string {
   return `vector:${index.measurement}:${index.column}`;
+}
+
+function selectFullTextIndex(index: FullTextIndexStat): void {
+  activeExplorerKey.value = fullTextIndexKey(index);
+  setWorkbenchTool('fulltext');
+}
+
+function fullTextIndexKey(index: FullTextIndexStat): string {
+  return `fulltext:${index.collection}:${index.name}`;
 }
 
 watch(targetDb, (db) => {

@@ -74,6 +74,15 @@
           >
             Vector
           </button>
+          <button
+            v-if="activeTool === 'fulltext'"
+            type="button"
+            class="workbench-mode-switch__button"
+            :class="{ 'is-active': activeTool === 'fulltext' }"
+            @click="$emit('set-tool', 'fulltext')"
+          >
+            FullText
+          </button>
         </div>
 
         <div class="workbench-context__badges">

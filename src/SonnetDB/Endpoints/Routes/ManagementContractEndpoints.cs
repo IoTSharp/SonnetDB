@@ -629,7 +629,8 @@ internal static partial class SonnetDbEndpoints
                         index.Name,
                         index.Fields.ToArray(),
                         index.Tokenizer,
-                        store.GetFullTextDocumentCount(index)));
+                        store.GetFullTextDocumentCount(index),
+                        store.GetFullTextTermCount(index)));
                 }
             }
 
@@ -655,6 +656,11 @@ internal static partial class SonnetDbEndpoints
             var mode = string.Equals(req.Mode, "fuzzy", StringComparison.OrdinalIgnoreCase)
                 ? FullTextSearchMode.Fuzzy
                 : FullTextSearchMode.Exact;
+            if (!TryNormalizeFullTextQueryKind(req.QueryKind, mode, out var queryKind, out var queryKindError))
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", queryKindError).ConfigureAwait(false);
+                return;
+            }
 
             registry.TryGet(db, out var tsdb);
             var schema = tsdb.Documents.Catalog.TryGet(req.Collection);
@@ -668,7 +674,7 @@ internal static partial class SonnetDbEndpoints
             try
             {
                 var store = tsdb.Documents.Open(req.Collection);
-                var hits = store.SearchFullText(indexDef, req.Field, req.Query, topK, mode)
+                var hits = store.SearchFullText(indexDef, req.Field, req.Query, topK, mode, queryKind)
                     .Select(static h => new FullTextSearchPreviewHit(h.DocumentId, h.Score))
                     .ToArray();
                 await Results.Json(new FullTextSearchPreviewResponse(hits), ServerJsonContext.Default.FullTextSearchPreviewResponse)
@@ -719,6 +725,43 @@ internal static partial class SonnetDbEndpoints
         "jieba" => new ChineseTokenizer(),
         _ => null,
     };
+
+    private static bool TryNormalizeFullTextQueryKind(
+        string? raw,
+        FullTextSearchMode mode,
+        out FullTextQueryKind queryKind,
+        out string error)
+    {
+        queryKind = FullTextQueryKind.All;
+        error = string.Empty;
+        if (string.IsNullOrWhiteSpace(raw))
+            return true;
+
+        switch (raw.Trim().ToLowerInvariant())
+        {
+            case "all":
+            case "and":
+            case "must":
+                queryKind = FullTextQueryKind.All;
+                return true;
+            case "any":
+            case "or":
+            case "should":
+                queryKind = FullTextQueryKind.Any;
+                return true;
+            case "phrase":
+                if (mode == FullTextSearchMode.Fuzzy)
+                {
+                    error = "phrase 查询当前仅支持 exact mode；模糊短语不在管理契约内。";
+                    return false;
+                }
+                queryKind = FullTextQueryKind.Phrase;
+                return true;
+            default:
+                error = "queryKind 仅支持 all / any / phrase。";
+                return false;
+        }
+    }
 
     // ---- MQ ----
 

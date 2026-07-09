@@ -26,7 +26,7 @@
 | 26 | 连接器路线独立化（C ABI + 多模型 API） | #175 ~ #181 | ✅ |
 | 27 | Industrial Data Agent 与 AI-ready 产品化路线 | #182 ~ #188 | 🚧（#182 文档已落；M28 收官后 #184 Demo 可启动；#183/#185 纯文档） |
 | 28 | 可靠性、并发正确性与热路径加固（P0~P5 分阶段） | #189 ~ #244、#261 ~ #262 | ✅（全部收官，详情见归档） |
-| 29 | 多模型统一管理工作台（Multi-Model Management Workbench） | #245 ~ #260 | 🚧（#245~#254 ✅；Web Admin 旗舰优先） |
+| 29 | 多模型统一管理工作台（Multi-Model Management Workbench） | #245 ~ #260 | 🚧（#245~#255 ✅；Web Admin 旗舰优先） |
 | 30 | 多协议设备接入扩展（Sparkplug B / CoAP / Line Protocol UDP） | #263 ~ #268 | 🚧（#265/#266/#267 ✅；前置 M28 #242 ✅） |
 | 31 | 时序聚合类型语义增强（selector / categorical aggregates） | #269 ~ #271 | 📋（IoTSharp 字符串遥测分桶查询兼容） |
 | 32 | Document Store MongoDB-like 易用性增强 | #272 ~ #281 | 📋（后续池；承接 M21/M24/M25） |
@@ -39,7 +39,7 @@
 ## 当前推进重点
 
 > **旗舰（要开始做的）**：
-> - **Milestone 29 — 多模型统一管理工作台**：把管理工具从三个孤立工程重构为「一张能力矩阵 × 三个交付面（Web Admin 旗舰 / Studio 桌面 / VS Code）」。**Web Admin 旗舰优先**：A 阶段管理契约 + 统一外壳、B 关系工作台、C KV/MQ/向量已落地（#245~#254 ✅），下一步推进全文 playground #255，再进入 D 对象/文档收口与 E 桌面/VS Code。管理界面跨里程碑归口见 M29「管理界面归口」表。
+> - **Milestone 29 — 多模型统一管理工作台**：把管理工具从三个孤立工程重构为「一张能力矩阵 × 三个交付面（Web Admin 旗舰 / Studio 桌面 / VS Code）」。**Web Admin 旗舰优先**：A 阶段管理契约 + 统一外壳、B 关系工作台、C KV/MQ/向量/全文已落地（#245~#255 ✅），下一步进入 D 对象桶浏览器 #256 与文档收口 #257，再推进 E 桌面/VS Code。管理界面跨里程碑归口见 M29「管理界面归口」表。
 > - **Milestone 30 — 多协议设备接入扩展**：在 M28 已交付的 MQTT 双形态之上补 Sparkplug B（骑 #242 broker）、CoAP、Line Protocol UDP 三条被动接收通道，三段独立可并行，全部收敛既有 BulkIngest 落库。
 >
 > **进行中（按带宽穿插）**：
@@ -85,7 +85,7 @@
 |---|---|---|---|
 | 统一 Explorer + 连接库 + 结果面板 + 写审批框架 | Web Admin | M29 #245~#247 | #245/#246/#247 ✅ |
 | 关系数据网格 / 可视化 EXPLAIN / 表设计器 / ER / 导入导出 | Web Admin | M29 #248~#250 | #248/#249/#250 ✅ |
-| KV / MQ / 向量 / 全文 专用工作台 | Web Admin | M29 #251~#255 | 🚧（#251/#252/#253/#254 ✅） |
+| KV / MQ / 向量 / 全文 专用工作台 | Web Admin | M29 #251~#255 | #251/#252/#253/#254/#255 ✅ |
 | 对象桶浏览器 | Web Admin | M29 #256（收编 M19 #118 的 Buckets / Objects / Multipart / Audit 页面） | 📋 |
 | 文档 Explorer / Validator / 导入导出 | Web Admin / Studio | M24 #170~#172（M29 #257 接入统一外壳） | 📋 |
 | Studio 桌面原生桥（文件对话框 / 连接库 / 本地托管 server） | Studio | M29 #258 | 📋 |
@@ -133,9 +133,11 @@
 | #252 | **SonnetMQ 控制台一（topic + 消息浏览 + 发布）**：topic 列表 + offset / 分区 / retention 概览；消息浏览器支持按 offset / 时间 seek、查看 header 与 payload（消费 #245 `browse`）；发布测试消息（复用既有 MQ 发布端点）；依赖 **M28 P5a（#231~#234）** 提供的 per-topic 统计与冷数据可读性。 | ✅ |
 | #253 | **SonnetMQ 控制台二（消费 / 订阅监控 + 吞吐 + DLQ）**：消费者 / 订阅 lag 与 ack 监控、消费进度可视化；吞吐 / 积压曲线（复用 M17 metrics + Events SSE）；DLQ 查看与 retention 策略展示。依赖 #245 `lag` 契约与 M28 P5a MQ 统计，随 P5b #236 推送订阅落地可展示实时推送状态。 | ✅ |
 | #254 | **向量检索 playground（对标 Milvus Attu / Qdrant）**：向量索引 / 集合统计（维度、行数、度量 L2/IP/cosine、HNSW ef/M/efConstruction，复用 M28 #223/#226 参数暴露）；ANN 检索 playground——文本经 Copilot embed 或直接粘原始 `float[]`，返回 Top-K + score + 元数据过滤（消费 #245 `search-preview` + 既有向量检索端点）；度量方式与图参数只读展示，不改索引语义。 | ✅ |
-| #255 | **全文检索 playground（对标 Kibana / OpenSearch Dashboards）**：全文索引列表 + 统计（doc/term 数、分词器）；BM25 检索 UI 带高亮、评分与分页；分词器 / analyzer 预览（Jieba/CJK，展示切词结果）；模糊 / 短语 / 布尔查询构建器（消费 #245 `search-preview` + 既有全文检索端点）；索引 rebuild 走 #247 写审批。 | 📋 |
+| #255 | **全文检索 playground（对标 Kibana / OpenSearch Dashboards）**：全文索引列表 + 统计（doc/term 数、分词器）；BM25 检索 UI 带高亮、评分与分页；分词器 / analyzer 预览（Jieba/CJK，展示切词结果）；模糊 / 短语 / 布尔查询构建器（消费 #245 `search-preview` + 既有全文检索端点）；索引 rebuild 走 #247 写审批。 | ✅ |
 
 > **#254 落地说明**：Server 管理契约补齐向量索引 row count、schema 声明 metric、HNSW `efConstruction` 回显，并扩展 `search-preview` 支持只读 metric override、受限 metadata filter（TAG 等值与 time 比较的 `AND` 组合）和命中 tags/fields 明细；新增 `POST /v1/db/{db}/vector/embed-preview`，复用既有 Copilot embedding provider 生成查询向量，不写入数据。Web Admin 新增 `VectorSearchWorkbench` 并接入统一 Explorer / Header / 历史 / 结果面板：Vector Indexes 节点可直接进入 playground，支持 raw `float[]`、文本 embedding、Top-K、过滤条件、hit inspector 与索引参数只读展示；不新增索引语义、存储格式或写路径。
+
+> **#255 落地说明**：Server 管理契约扩展全文索引统计，`POST /v1/db/{db}/fulltext/indexes` 回显 term count；`search-preview` 新增 `queryKind=all|any|phrase`，支持 AND / OR / 短语查询构造，并保留 exact / fuzzy 模式边界（fuzzy phrase 明确拒绝）。Web Admin 新增 `FullTextSearchWorkbench` 并接入统一 Explorer / Header / 历史 / 结果面板：FullText Indexes 节点可直接进入 playground，支持索引列表、doc/term/tokenizer 统计、BM25 Top-K 检索、命中文档加载、客户端高亮、评分分页、analyzer token 预览、All/Any/Phrase/Fuzzy 构建器；索引 rebuild 通过 #247 `WriteApprovalPanel` staged preview 后调用既有 `rebuild_index document_fulltext` 维护入口，不新增索引语义、存储格式或写路径。
 
 ### D — 对象桶与文档收口
 

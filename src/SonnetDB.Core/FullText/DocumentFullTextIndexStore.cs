@@ -44,6 +44,25 @@ public sealed class DocumentFullTextIndexStore
         }
     }
 
+    /// <summary>当前索引中可见字段词项的近似总数，按字段和 term 去重。</summary>
+    public int TermCount
+    {
+        get
+        {
+            lock (_sync)
+            {
+                var terms = new HashSet<string>(StringComparer.Ordinal);
+                foreach (string fieldName in _definition.Fields)
+                {
+                    foreach (string term in _index.EnumerateTerms(fieldName))
+                        terms.Add(fieldName + "\u0000" + term);
+                }
+
+                return terms.Count;
+            }
+        }
+    }
+
     /// <summary>
     /// 打开全文索引目录。
     /// </summary>
@@ -128,6 +147,22 @@ public sealed class DocumentFullTextIndexStore
     /// <param name="topK">返回前 K 条。</param>
     /// <param name="mode">检索模式；fuzzy 模式按 Damerau-Levenshtein 距离展开候选 term。</param>
     public IReadOnlyList<DocumentFullTextSearchHit> Search(string field, string queryText, int topK, FullTextSearchMode mode)
+        => Search(field, queryText, topK, mode, FullTextQueryKind.All);
+
+    /// <summary>
+    /// 搜索全文索引，支持精确/模糊模式与前端 playground 的查询组合方式。
+    /// </summary>
+    /// <param name="field">索引字段名，或 <c>*</c> 表示全部字段。</param>
+    /// <param name="queryText">查询文本。</param>
+    /// <param name="topK">返回前 K 条。</param>
+    /// <param name="mode">检索模式；fuzzy 模式按 Damerau-Levenshtein 距离展开候选 term。</param>
+    /// <param name="queryKind">查询组合方式：全部词、任意词或短语。</param>
+    public IReadOnlyList<DocumentFullTextSearchHit> Search(
+        string field,
+        string queryText,
+        int topK,
+        FullTextSearchMode mode,
+        FullTextQueryKind queryKind)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(field);
         ArgumentException.ThrowIfNullOrWhiteSpace(queryText);
@@ -136,7 +171,7 @@ public sealed class DocumentFullTextIndexStore
 
         lock (_sync)
         {
-            SonnetDB.FullText.Query.Query query = BuildQuery(field, queryText, mode);
+            SonnetDB.FullText.Query.Query query = BuildQuery(field, queryText, mode, queryKind);
             var hits = _index.Search(query, topK);
             var result = new DocumentFullTextSearchHit[hits.Count];
             for (int i = 0; i < hits.Count; i++)
@@ -155,7 +190,11 @@ public sealed class DocumentFullTextIndexStore
         UpsertMany(rows);
     }
 
-    private SonnetDB.FullText.Query.Query BuildQuery(string field, string queryText, FullTextSearchMode mode)
+    private SonnetDB.FullText.Query.Query BuildQuery(
+        string field,
+        string queryText,
+        FullTextSearchMode mode,
+        FullTextQueryKind queryKind)
     {
         string[] tokens = Tokenize(queryText, _definition.Tokenizer);
         if (tokens.Length == 0)
@@ -165,7 +204,7 @@ public sealed class DocumentFullTextIndexStore
         {
             var fieldQueries = new SonnetDB.FullText.Query.Query[_definition.Fields.Count];
             for (int i = 0; i < _definition.Fields.Count; i++)
-                fieldQueries[i] = BuildFieldQuery(_definition.Fields[i], tokens, mode);
+                fieldQueries[i] = BuildFieldQuery(_definition.Fields[i], tokens, mode, queryKind);
             return fieldQueries.Length == 1 ? fieldQueries[0] : new OrQuery(fieldQueries);
         }
 
@@ -176,17 +215,26 @@ public sealed class DocumentFullTextIndexStore
                 $"全文索引 '{_definition.Name}' 不包含字段 '{normalizedField}'。");
         }
 
-        return BuildFieldQuery(normalizedField, tokens, mode);
+        return BuildFieldQuery(normalizedField, tokens, mode, queryKind);
     }
 
-    private SonnetDB.FullText.Query.Query BuildFieldQuery(string field, IReadOnlyList<string> tokens, FullTextSearchMode mode)
+    private SonnetDB.FullText.Query.Query BuildFieldQuery(
+        string field,
+        IReadOnlyList<string> tokens,
+        FullTextSearchMode mode,
+        FullTextQueryKind queryKind)
     {
+        if (queryKind == FullTextQueryKind.Phrase)
+            return tokens.Count == 1 ? new TermQuery(field, tokens[0]) : new PhraseQuery(field, tokens);
+
         if (mode == FullTextSearchMode.Fuzzy)
         {
             var expanded = new SonnetDB.FullText.Query.Query[tokens.Count];
             for (int i = 0; i < tokens.Count; i++)
                 expanded[i] = ExpandFuzzyTermQuery(field, tokens[i]);
-            return tokens.Count == 1 ? expanded[0] : new AndQuery(expanded);
+            return tokens.Count == 1
+                ? expanded[0]
+                : queryKind == FullTextQueryKind.Any ? new OrQuery(expanded) : new AndQuery(expanded);
         }
 
         if (tokens.Count == 1)
@@ -195,7 +243,7 @@ public sealed class DocumentFullTextIndexStore
         var clauses = new SonnetDB.FullText.Query.Query[tokens.Count];
         for (int i = 0; i < tokens.Count; i++)
             clauses[i] = new TermQuery(field, tokens[i]);
-        return new AndQuery(clauses);
+        return queryKind == FullTextQueryKind.Any ? new OrQuery(clauses) : new AndQuery(clauses);
     }
 
     /// <summary>
@@ -331,6 +379,21 @@ public enum FullTextSearchMode
     Exact,
     /// <summary>容错：每个查询 token 展开为编辑距离 ≤ 阈值的全部索引 term 的 OR。</summary>
     Fuzzy,
+}
+
+/// <summary>
+/// 全文检索查询组合方式，用于管理端 playground 在不改变索引语义的前提下构造常见查询。
+/// </summary>
+public enum FullTextQueryKind
+{
+    /// <summary>全部词项都必须匹配。</summary>
+    All,
+
+    /// <summary>任意词项匹配即可。</summary>
+    Any,
+
+    /// <summary>按 token 位置连续匹配短语。</summary>
+    Phrase,
 }
 
 /// <summary>Damerau-Levenshtein 距离（带相邻字符 transposition）的剪枝实现。</summary>

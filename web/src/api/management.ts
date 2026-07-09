@@ -24,6 +24,7 @@ export interface FullTextIndexStat {
   fields: string[];
   tokenizer: string;
   documentCount: number;
+  termCount?: number | null;
 }
 
 export interface FullTextIndexStatResponse {

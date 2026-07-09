@@ -132,6 +132,8 @@ export function useSqlExplorerRouting(options: SqlExplorerRoutingOptions) {
           ? { tool: 'mq', model: item.model, node: item.name }
         : item.model === 'vector'
           ? { tool: 'vector', model: item.model, node: item.name }
+        : item.model === 'fulltext'
+          ? { tool: 'fulltext', model: item.model, node: item.name }
         : item.model === 'measurement'
           ? {}
           : { model: item.model, node: item.name },

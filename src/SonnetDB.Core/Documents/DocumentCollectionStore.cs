@@ -789,19 +789,45 @@ public sealed class DocumentCollectionStore : IDisposable
         int topK)
         => SearchFullText(index, field, queryText, topK, FullTextSearchMode.Exact);
 
+    /// <summary>
+    /// 按全文索引读取候选文档 ID 和 BM25 分数。
+    /// </summary>
+    /// <param name="index">全文索引声明。</param>
+    /// <param name="field">索引字段或 <c>*</c>。</param>
+    /// <param name="queryText">查询文本。</param>
+    /// <param name="topK">返回前 K 条。</param>
+    /// <param name="mode">检索模式。</param>
     public IReadOnlyList<DocumentFullTextSearchHit> SearchFullText(
         DocumentFullTextIndex index,
         string field,
         string queryText,
         int topK,
         FullTextSearchMode mode)
+        => SearchFullText(index, field, queryText, topK, mode, FullTextQueryKind.All);
+
+    /// <summary>
+    /// 按全文索引读取候选文档 ID 和 BM25 分数，并允许管理端选择词项组合方式。
+    /// </summary>
+    /// <param name="index">全文索引声明。</param>
+    /// <param name="field">索引字段或 <c>*</c>。</param>
+    /// <param name="queryText">查询文本。</param>
+    /// <param name="topK">返回前 K 条。</param>
+    /// <param name="mode">检索模式。</param>
+    /// <param name="queryKind">查询组合方式。</param>
+    public IReadOnlyList<DocumentFullTextSearchHit> SearchFullText(
+        DocumentFullTextIndex index,
+        string field,
+        string queryText,
+        int topK,
+        FullTextSearchMode mode,
+        FullTextQueryKind queryKind)
     {
         ArgumentNullException.ThrowIfNull(index);
         lock (_sync)
         {
             PurgeExpiredDocumentsLocked();
             var store = OpenFullTextStoreLocked(index, rebuildIfMissing: true);
-            return store.Search(field, queryText, topK, mode);
+            return store.Search(field, queryText, topK, mode, queryKind);
         }
     }
 
@@ -816,6 +842,20 @@ public sealed class DocumentCollectionStore : IDisposable
         {
             PurgeExpiredDocumentsLocked();
             return OpenFullTextStoreLocked(index, rebuildIfMissing: true).DocumentCount;
+        }
+    }
+
+    /// <summary>
+    /// 返回指定全文索引当前可见字段词项数量。
+    /// </summary>
+    /// <param name="index">全文索引声明。</param>
+    public int GetFullTextTermCount(DocumentFullTextIndex index)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        lock (_sync)
+        {
+            PurgeExpiredDocumentsLocked();
+            return OpenFullTextStoreLocked(index, rebuildIfMissing: true).TermCount;
         }
     }
 
