@@ -144,7 +144,9 @@ for (const workbench of workbenches) {
     await expect(surface).toContainText(workbench.identity);
     const explorer = page.locator('.schema-sidebar');
     await expect(explorer).toContainText(database);
-    await explorer.locator('.schema-database-node', { hasText: database }).locator('.schema-item__caret').click();
+    if (!(await explorer.getByText('KV Keyspaces', { exact: true }).isVisible())) {
+      await explorer.locator('.schema-database-node', { hasText: database }).locator('.schema-item__caret').click();
+    }
     await expect(explorer).toContainText('KV Keyspaces');
     await expect(explorer).toContainText('MQ Topics');
     await expect(explorer).toContainText('Buckets');

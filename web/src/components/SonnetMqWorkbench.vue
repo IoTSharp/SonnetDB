@@ -3,57 +3,43 @@
     <section class="mq-toolbar">
       <div class="mq-toolbar__identity">
         <n-space size="small" align="center" :wrap="true">
-          <n-tag size="small" type="info" :bordered="false">MQ</n-tag>
+          <MessageSquareMore :size="23" />
           <n-text class="mq-toolbar__title">{{ activeTopic || 'No topic selected' }}</n-text>
-          <n-tag v-if="activeTopic" size="tiny" :bordered="false">SonnetMQ</n-tag>
         </n-space>
         <n-text depth="3" class="mq-toolbar__meta">
-          {{ targetDb || 'database' }} · {{ rows.length }} loaded messages · {{ selectedMessage ? `offset ${selectedMessage.offset}` : 'no message selected' }}
+          {{ targetDb || 'database' }} / MQ Topics
         </n-text>
       </div>
 
+      <div class="mq-headline-stats">
+        <span><small>消息</small><strong>{{ formatStat(stats?.messageCount ?? 0) }}</strong></span>
+        <span class="is-warning"><small>消费滞后</small><strong>{{ formatStat(totalLag) }}</strong></span>
+        <span class="is-success"><small>消费者</small><strong>{{ consumerRows.length }}</strong></span>
+      </div>
+
       <div class="mq-toolbar__actions">
-        <n-select
-          v-model:value="selectedTopic"
-          size="small"
-          :options="topicOptions"
-          :disabled="topicOptions.length === 0"
-          class="mq-toolbar__topic"
-        />
-        <n-input-number
-          v-model:value="fromOffset"
-          size="small"
-          :min="0"
-          :show-button="false"
-          placeholder="Offset"
-          class="mq-toolbar__offset"
-          @keydown.enter="browseFromInput"
-        />
-        <n-date-picker
-          v-model:value="seekTimeMs"
-          type="datetime"
-          size="small"
-          clearable
-          placeholder="Seek time"
-          class="mq-toolbar__time"
-        />
-        <n-select v-model:value="browseLimit" size="small" :options="browseLimitOptions" class="mq-toolbar__limit" />
-        <n-button size="small" secondary :disabled="!activeTopic" :loading="loadingBrowse" @click="browseFromInput">
-          Browse
+        <n-button type="primary" :disabled="!targetDb" @click="openPublisher">
+          <template #icon><Send :size="16" /></template>
+          发布测试消息
         </n-button>
-        <n-button size="small" secondary :disabled="!activeTopic || !seekTimeMs" :loading="loadingBrowse" @click="seekByTime">
-          Seek time
+        <n-button quaternary title="刷新主题" :loading="loading" @click="refreshAll">
+          <template #icon><RefreshCw :size="17" /></template>
         </n-button>
-        <n-button size="small" secondary :loading="loading" @click="refreshAll">
-          Refresh
+        <n-button quaternary title="操作历史" @click="historyVisible = true">
+          <template #icon><History :size="17" /></template>
         </n-button>
-        <n-switch v-model:value="autoRefresh" size="small" :disabled="!activeTopic">
-          <template #checked>Live</template>
-          <template #unchecked>Live</template>
-        </n-switch>
-        <n-button size="small" quaternary @click="historyVisible = true">History</n-button>
       </div>
     </section>
+
+    <nav class="mq-section-tabs" aria-label="MQ 工作区">
+      <button
+        v-for="section in mqSections"
+        :key="section.key"
+        type="button"
+        :class="{ 'is-active': activeSection === section.key }"
+        @click="activeSection = section.key"
+      >{{ section.label }}</button>
+    </nav>
 
     <WriteApprovalPanel
       v-if="previewPlan"
@@ -72,15 +58,8 @@
       @close="errorMsg = ''"
     />
 
-    <section class="mq-stats">
-      <article v-for="item in statItems" :key="item.label" class="mq-stat">
-        <span>{{ item.label }}</span>
-        <strong>{{ item.value }}</strong>
-      </article>
-    </section>
-
-    <section class="mq-monitor">
-      <section class="mq-monitor-pane mq-consumer-pane">
+    <section v-if="activeSection !== 'messages'" class="mq-monitor" :class="`is-${activeSection}`">
+      <section v-if="activeSection === 'overview' || activeSection === 'consumers'" class="mq-monitor-pane mq-consumer-pane">
         <div class="mq-panel-head mq-panel-head--compact">
           <div>
             <n-text class="mq-panel-head__title">Consumers & ack</n-text>
@@ -130,7 +109,7 @@
         </div>
       </section>
 
-      <section class="mq-monitor-pane mq-traffic-pane">
+      <section v-if="activeSection === 'overview'" class="mq-monitor-pane mq-traffic-pane">
         <div class="mq-panel-head mq-panel-head--compact">
           <div>
             <n-text class="mq-panel-head__title">Throughput & backlog</n-text>
@@ -200,7 +179,7 @@
         </div>
       </section>
 
-      <section class="mq-monitor-pane mq-retention-pane">
+      <section v-if="activeSection === 'overview' || activeSection === 'configuration'" class="mq-monitor-pane mq-retention-pane">
         <div class="mq-panel-head mq-panel-head--compact">
           <div>
             <n-text class="mq-panel-head__title">Retention & DLQ</n-text>
@@ -250,37 +229,7 @@
       </section>
     </section>
 
-    <section class="mq-body">
-      <aside class="mq-topics">
-        <div class="mq-panel-head">
-          <div>
-            <n-text class="mq-panel-head__title">Topics</n-text>
-            <n-text depth="3" class="mq-panel-head__meta">{{ filteredTopics.length }} visible · {{ localTopics.length }} total</n-text>
-          </div>
-        </div>
-        <n-input
-          v-model:value="topicFilter"
-          size="small"
-          clearable
-          placeholder="Filter topics"
-          class="mq-topic-filter"
-        />
-        <div class="mq-topic-list">
-          <button
-            v-for="topic in filteredTopics"
-            :key="topic.topic"
-            type="button"
-            class="mq-topic-card"
-            :class="{ 'is-active': topic.topic === activeTopic }"
-            @click="selectTopic(topic.topic)"
-          >
-            <span>{{ topic.topic }}</span>
-            <small>{{ formatStat(topic.messageCount) }} msg · next {{ topic.nextOffset }}</small>
-          </button>
-          <n-empty v-if="filteredTopics.length === 0" description="No MQ topics found." />
-        </div>
-      </aside>
-
+    <section v-if="activeSection === 'messages'" class="mq-body" :class="{ 'is-inspector-collapsed': inspectorCollapsed }">
       <section class="mq-message-panel">
         <div class="mq-panel-head mq-panel-head--grid">
           <div>
@@ -288,9 +237,36 @@
             <n-text depth="3" class="mq-panel-head__meta">{{ messageWindowSummary }}</n-text>
           </div>
           <n-space size="small" align="center" :wrap="true">
+            <n-button v-if="inspectorCollapsed" quaternary title="打开消息详情" @click="inspectorCollapsed = false">
+              <template #icon><PanelRightOpen :size="17" /></template>
+            </n-button>
             <n-button size="small" secondary :disabled="!canPageBack" @click="previousPage">Previous</n-button>
             <n-button size="small" secondary :disabled="!canPageForward" @click="nextPage">Next</n-button>
           </n-space>
+        </div>
+
+        <div class="mq-message-tools">
+          <n-button secondary :disabled="!activeTopic" @click="autoRefresh = !autoRefresh">
+            {{ autoRefresh ? '暂停消费' : '实时消费' }}
+          </n-button>
+          <n-input-number
+            v-model:value="fromOffset"
+            :min="0"
+            :show-button="false"
+            placeholder="偏移量"
+            class="mq-toolbar__offset"
+            @keydown.enter="browseFromInput"
+          />
+          <n-date-picker
+            v-model:value="seekTimeMs"
+            type="datetime"
+            clearable
+            placeholder="按时间定位"
+            class="mq-toolbar__time"
+          />
+          <n-select v-model:value="browseLimit" :options="browseLimitOptions" class="mq-toolbar__limit" />
+          <n-button secondary :disabled="!activeTopic" :loading="loadingBrowse" @click="browseFromInput">浏览</n-button>
+          <n-button secondary :disabled="!activeTopic || !seekTimeMs" :loading="loadingBrowse" @click="seekByTime">定位时间</n-button>
         </div>
 
         <n-data-table
@@ -315,13 +291,18 @@
         </footer>
       </section>
 
-      <aside class="mq-inspector">
+      <aside v-if="!inspectorCollapsed" class="mq-inspector">
         <div class="mq-panel-head">
           <div>
             <n-text class="mq-panel-head__title">Message inspector</n-text>
             <n-text depth="3" class="mq-panel-head__meta">{{ selectedMessage ? formatTimestamp(selectedMessage.timestampUtc) : 'No message selected' }}</n-text>
           </div>
-          <n-tag v-if="selectedMessage" size="tiny" :bordered="false">offset {{ selectedMessage.offset }}</n-tag>
+          <div class="mq-inspector__actions">
+            <n-tag v-if="selectedMessage" size="tiny" :bordered="false">offset {{ selectedMessage.offset }}</n-tag>
+            <n-button quaternary title="收起消息详情" @click="inspectorCollapsed = true">
+              <template #icon><PanelRightClose :size="17" /></template>
+            </n-button>
+          </div>
         </div>
 
         <template v-if="selectedMessage">
@@ -349,7 +330,7 @@
         </template>
         <n-empty v-else description="Select a message from the browser." />
 
-        <section class="mq-publisher">
+        <section v-if="publisherVisible" class="mq-publisher">
           <n-text class="mq-section-title mq-section-title--standalone">Publish test message</n-text>
           <n-input v-model:value="publishTopic" size="small" placeholder="Topic" />
           <n-select v-model:value="publishMode" size="small" :options="payloadModeOptions" />
@@ -378,6 +359,7 @@
     </section>
 
     <WorkbenchResultPanel
+      v-if="ranOnce || latestResult"
       class="mq-result"
       title="SonnetMQ operation result"
       :sql="latestCommand"
@@ -400,6 +382,14 @@
 <script setup lang="ts">
 import { computed, h, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import {
+  History,
+  MessageSquareMore,
+  PanelRightClose,
+  PanelRightOpen,
+  RefreshCw,
+  Send,
+} from 'lucide-vue-next';
+import {
   NAlert,
   NButton,
   NDataTable,
@@ -409,7 +399,6 @@ import {
   NInputNumber,
   NSelect,
   NSpace,
-  NSwitch,
   NTab,
   NTabs,
   NTag,
@@ -466,6 +455,7 @@ const emit = defineEmits<{
 
 type PayloadView = 'text' | 'json' | 'hex' | 'base64';
 type PayloadKind = 'json' | 'text' | 'binary';
+type MqSection = 'overview' | 'messages' | 'consumers' | 'configuration';
 
 interface MqRow {
   topic: string;
@@ -521,7 +511,6 @@ const stats = ref<MqStatsResponse | null>(null);
 const retention = ref<MqRetentionResponse | null>(null);
 const rows = ref<MqRow[]>([]);
 const selectedOffset = ref<number | null>(null);
-const topicFilter = ref('');
 const fromOffset = ref<number | null>(0);
 const browseLimit = ref(100);
 const seekTimeMs = ref<number | null>(null);
@@ -544,6 +533,16 @@ const latestResult = ref<SqlResultSet | null>(null);
 const latestCommand = ref('');
 const ranOnce = ref(false);
 const historyVisible = ref(false);
+const activeSection = ref<MqSection>('messages');
+const inspectorCollapsed = ref(false);
+const publisherVisible = ref(false);
+
+const mqSections: Array<{ key: MqSection; label: string }> = [
+  { key: 'overview', label: '概览' },
+  { key: 'messages', label: '消息' },
+  { key: 'consumers', label: '消费者组' },
+  { key: 'configuration', label: '配置' },
+];
 
 const browseLimitOptions: SelectOption[] = [
   { label: '25 messages', value: 25 },
@@ -561,26 +560,9 @@ const payloadModeOptions: SelectOption[] = [
 ];
 
 let autoRefreshTimer: ReturnType<typeof setInterval> | null = null;
+let compactViewport = false;
 
 const activeTopic = computed(() => props.topic || localTopics.value[0]?.topic || '');
-
-const selectedTopic = computed({
-  get: () => activeTopic.value,
-  set: (value: string) => selectTopic(value),
-});
-
-const topicOptions = computed<SelectOption[]>(() => {
-  const names = new Set(localTopics.value.map((topic) => topic.topic));
-  if (props.topic) names.add(props.topic);
-  return [...names].sort().map((name) => ({ label: name, value: name }));
-});
-
-const filteredTopics = computed(() => {
-  const keyword = topicFilter.value.trim().toLowerCase();
-  const topics = [...localTopics.value].sort((a, b) => a.topic.localeCompare(b.topic));
-  if (!keyword) return topics;
-  return topics.filter((topic) => topic.topic.toLowerCase().includes(keyword));
-});
 
 const currentTopicInfo = computed(() =>
   localTopics.value.find((topic) => topic.topic === activeTopic.value) ?? null);
@@ -723,20 +705,6 @@ const retainedWindowText = computed(() => {
 
 const dlqTopic = computed(() =>
   findDlqTopic(activeTopic.value, localTopics.value));
-
-const statItems = computed(() => {
-  const next = highWaterOffset.value;
-  const start = retainedStartOffset.value;
-  const last = next > start ? next - 1 : start;
-  return [
-    { label: 'Messages', value: formatStat(stats.value?.messageCount ?? currentTopicInfo.value?.messageCount) },
-    { label: 'Next Offset', value: formatStat(next) },
-    { label: 'Retained', value: next > start ? `${start} - ${last}` : 'empty' },
-    { label: 'Partitions', value: '1' },
-    { label: 'Consumers', value: formatStat(consumers.value.length) },
-    { label: 'Max Lag', value: formatStat(maxLag.value) },
-  ];
-});
 
 const canPageBack = computed(() =>
   Boolean(activeTopic.value && (fromOffset.value ?? 0) > retainedStartOffset.value && !loadingBrowse.value));
@@ -884,6 +852,20 @@ const consumerColumns = computed<DataTableColumns<ConsumerRow>>(() => [
     }, { default: () => row.status.replace(/_/g, ' ') }),
   },
 ]);
+
+function openPublisher(): void {
+  activeSection.value = 'messages';
+  inspectorCollapsed.value = false;
+  publisherVisible.value = true;
+}
+
+function syncInspectorForViewport(): void {
+  const nextCompact = window.innerWidth <= 980;
+  if (nextCompact !== compactViewport) {
+    compactViewport = nextCompact;
+    inspectorCollapsed.value = nextCompact;
+  }
+}
 
 function rowKey(row: MqRow): number {
   return row.offset;
@@ -1628,12 +1610,15 @@ watch(
 );
 
 onMounted(() => {
+  syncInspectorForViewport();
+  window.addEventListener('resize', syncInspectorForViewport);
   publishTopic.value = activeTopic.value;
   void refreshAll();
   startAutoRefresh();
 });
 
 onBeforeUnmount(() => {
+  window.removeEventListener('resize', syncInspectorForViewport);
   stopAutoRefresh();
 });
 </script>
@@ -1645,17 +1630,19 @@ onBeforeUnmount(() => {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
   background: #fff;
 }
 
 .mq-toolbar {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 12px;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-  background: #f7fbff;
+  min-height: 78px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--sndb-border);
+  background: #fff;
 }
 
 .mq-toolbar__identity {
@@ -1667,8 +1654,8 @@ onBeforeUnmount(() => {
 
 .mq-toolbar__title {
   color: var(--sndb-ink-strong);
-  font-size: 15px;
-  font-weight: 800;
+  font-size: 21px;
+  font-weight: 650;
 }
 
 .mq-toolbar__meta,
@@ -1681,7 +1668,86 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+}
+
+.mq-headline-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(96px, 1fr));
+  margin-left: auto;
+  border: 1px solid var(--sndb-border);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.mq-headline-stats span {
+  display: flex;
+  flex-direction: column;
+  min-width: 96px;
+  padding: 7px 12px;
+  border-right: 1px solid var(--sndb-border);
+}
+
+.mq-headline-stats span:last-child {
+  border-right: 0;
+}
+
+.mq-headline-stats small {
+  color: var(--sndb-ink-muted);
+  font-size: 12px;
+}
+
+.mq-headline-stats strong {
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.mq-headline-stats .is-warning strong {
+  color: var(--sndb-warning);
+}
+
+.mq-headline-stats .is-success strong {
+  color: var(--sndb-success);
+}
+
+.mq-section-tabs {
+  display: flex;
+  flex: 0 0 46px;
+  align-items: stretch;
+  gap: 4px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--sndb-border);
+  background: #fff;
+}
+
+.mq-section-tabs button {
+  position: relative;
+  min-width: 76px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--sndb-ink-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.mq-section-tabs button:hover {
+  color: var(--sndb-ink-strong);
+}
+
+.mq-section-tabs button.is-active {
+  color: var(--sndb-interactive);
+  font-weight: 600;
+}
+
+.mq-section-tabs button.is-active::after {
+  position: absolute;
+  right: 8px;
+  bottom: 0;
+  left: 8px;
+  height: 2px;
+  background: var(--sndb-interactive);
+  content: '';
 }
 
 .mq-toolbar__topic {
@@ -1740,16 +1806,24 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: minmax(340px, 1.2fr) minmax(320px, 1fr) minmax(320px, 1fr);
   gap: 0;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border-bottom: 1px solid var(--sndb-border);
   background: #fff;
+}
+
+.mq-monitor.is-consumers,
+.mq-monitor.is-configuration {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .mq-monitor-pane {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  min-height: 220px;
-  border-right: 1px solid rgba(15, 23, 42, 0.08);
+  min-height: 280px;
+  border-right: 1px solid var(--sndb-border);
 }
 
 .mq-monitor-pane:last-child {
@@ -1922,10 +1996,14 @@ onBeforeUnmount(() => {
 .mq-body {
   display: grid;
   flex: 1;
-  min-height: 360px;
-  grid-template-columns: 230px minmax(420px, 1fr) 360px;
+  min-height: 0;
+  grid-template-columns: minmax(420px, 1fr) minmax(320px, 384px);
   min-width: 0;
   overflow: hidden;
+}
+
+.mq-body.is-inspector-collapsed {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .mq-topics,
@@ -1947,8 +2025,14 @@ onBeforeUnmount(() => {
 }
 
 .mq-inspector {
-  border-left: 1px solid rgba(15, 23, 42, 0.08);
-  background: #fcfdf8;
+  border-left: 1px solid var(--sndb-border);
+  background: #fff;
+}
+
+.mq-inspector__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .mq-panel-head {
@@ -1957,8 +2041,19 @@ onBeforeUnmount(() => {
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
-  padding: 10px 12px;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  min-height: 52px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--sndb-border);
+}
+
+.mq-message-tools {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--sndb-border);
+  background: #fbfcfd;
 }
 
 .mq-panel-head--grid {
@@ -2094,8 +2189,8 @@ onBeforeUnmount(() => {
 
 .mq-detail-strip span {
   padding: 2px 7px;
-  border-radius: 999px;
-  background: rgba(13, 59, 102, 0.07);
+  border-radius: 4px;
+  background: var(--sndb-hover);
   color: var(--sndb-ink-soft);
   font-size: 11px;
   font-weight: 700;
@@ -2160,7 +2255,7 @@ onBeforeUnmount(() => {
 .mq-result {
   flex: 0 0 240px;
   min-height: 220px;
-  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  border-top: 1px solid var(--sndb-border);
 }
 
 @media (max-width: 1360px) {
@@ -2178,13 +2273,7 @@ onBeforeUnmount(() => {
   }
 
   .mq-body {
-    grid-template-columns: 220px minmax(420px, 1fr);
-  }
-
-  .mq-inspector {
-    grid-column: 1 / -1;
-    border-top: 1px solid rgba(15, 23, 42, 0.08);
-    border-left: 0;
+    grid-template-columns: minmax(420px, 1fr) minmax(300px, 340px);
   }
 }
 
@@ -2196,15 +2285,38 @@ onBeforeUnmount(() => {
     align-items: stretch;
   }
 
+  .mq-toolbar {
+    min-height: auto;
+  }
+
+  .mq-headline-stats {
+    margin-left: 0;
+  }
+
+  .mq-message-tools {
+    flex-wrap: wrap;
+  }
+
   .mq-body {
     grid-template-columns: 1fr;
-    overflow: visible;
+    overflow: auto;
+  }
+
+  .mq-body:not(.is-inspector-collapsed) .mq-message-panel {
+    display: none;
   }
 
   .mq-topics,
   .mq-inspector {
     border-right: 0;
     border-left: 0;
+  }
+
+  .mq-inspector {
+    height: 100%;
+    min-height: 0;
+    overflow: auto;
+    border-top: 1px solid var(--sndb-border);
   }
 
   .mq-stats {

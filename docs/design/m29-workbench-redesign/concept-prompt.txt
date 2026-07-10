@@ -1,0 +1,16 @@
+Create a high-fidelity desktop UI concept for "SonnetDB Studio", a professional multi-model database operations workbench used by engineers. Show the actual MQ message browsing screen at 1600x1000 proportions, not a landing page and not a marketing dashboard.
+
+The information architecture must be unmistakable:
+- a narrow 64px charcoal global icon rail on the far left, with the Studio/database tool active;
+- a separate 300px light resource explorer with its own search, view controls, and a clearly scrollable database tree containing Measurements, Tables, Collections, KV Keyspaces, Vector Indexes, FullText Indexes, MQ Topics, and Object Buckets;
+- a 56px global top bar with breadcrumb, command search, healthy connection status, notifications, and user menu;
+- a 44px editor tab strip above the work area, similar to a serious database IDE;
+- a spacious central MQ workbench titled "telemetry.raw" with inner tabs Overview, Messages, Consumer groups, Configuration; Messages is active;
+- a readable message table in the center and a collapsible message inspector on the right showing headers and formatted JSON payload;
+- only three compact status summaries near the title: messages 48, consumer lag 4, consumers 1. Do not show all monitoring panels at once.
+
+Make scrolling and hierarchy visually obvious: explorer toolbar stays fixed, tree occupies the remaining height, a visible slim scrollbar thumb is midway down, and the bottom database health strip stays fixed. Use resizable splitter handles between explorer, table, and inspector.
+
+Visual direction: quiet industrial/utilitarian database IDE, precise and mature. Neutral cool-gray surfaces, white work areas, charcoal navigation, teal active accent, amber warning accent, restrained blue only for links. Avoid gradients, purple, giant cards, floating card sections, excessive rounded pills, glass effects, decoration, illustrations, and tiny text. Corners max 6px. Base text should look 14-15px, controls 36px high, tree rows 40px, clear Chinese-friendly typography. Strong alignment, generous working space, subtle 1px borders, high contrast, realistic dense data without feeling cramped.
+
+Use concise, legible interface text in simplified Chinese with English database object names where natural. Important labels: 资源浏览器, 工厂数据, factory, telemetry.raw, 消息, 消费者组, 配置, 偏移量, 时间, Headers, Payload, 发布测试消息. Make this look like a production design review artifact rather than a speculative sci-fi UI.

@@ -1,13 +1,27 @@
-﻿:root {
-  --sndb-bg: #eef5f9;
-  --sndb-surface: #f8fbff;
+:root {
+  --sndb-bg: #f4f6f8;
+  --sndb-app-canvas: #f7f9fb;
+  --sndb-surface: #fafbfc;
   --sndb-surface-strong: #ffffff;
-  --sndb-ink-strong: #10263d;
-  --sndb-ink-soft: #557188;
-  --sndb-outline: rgba(13, 59, 102, 0.1);
-  --sndb-brand: #0d3b66;
-  --sndb-brand-alt: #18a058;
-  --sndb-shadow: 0 20px 44px rgba(13, 59, 102, 0.08);
+  --sndb-chrome: #f7f7f8;
+  --sndb-ink-strong: #242424;
+  --sndb-ink-soft: #525c63;
+  --sndb-ink-muted: #616161;
+  --sndb-ink-subtle: #808991;
+  --sndb-border: #e0e3e6;
+  --sndb-border-strong: #cdd2d7;
+  --sndb-outline: rgba(36, 36, 36, 0.1);
+  --sndb-hover: #f0f3f5;
+  --sndb-selected: #e8f2fc;
+  --sndb-interactive: #0f6cbd;
+  --sndb-brand: #061f2c;
+  --sndb-brand-alt: #0f6cbd;
+  --sndb-success: #107c10;
+  --sndb-warning: #f7630c;
+  --sndb-danger: #c50f1f;
+  --sndb-shadow: 0 8px 24px rgba(36, 36, 36, 0.08);
+  --sndb-control-height: 36px;
+  --sndb-radius: 6px;
 }
 
 html,
@@ -23,10 +37,10 @@ html {
 
 body {
   color: var(--sndb-ink-strong);
-  font-family: "Avenir Next", "Segoe UI Variable", "PingFang SC", "Microsoft YaHei UI", sans-serif;
-  background:
-    radial-gradient(circle at top left, rgba(24, 160, 88, 0.08), transparent 24%),
-    linear-gradient(180deg, #f8fbff 0%, #eef5f9 100%);
+  font-family: "Segoe UI Variable", "Segoe UI", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+  font-size: 14px;
+  letter-spacing: 0;
+  background: var(--sndb-app-canvas);
 }
 
 * {
@@ -45,9 +59,28 @@ a {
 }
 
 code {
-  padding: 0.1em 0.4em;
-  border-radius: 0.5em;
-  background: rgba(13, 59, 102, 0.07);
-  color: var(--sndb-brand);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: #f0f3f5;
+  color: var(--sndb-interactive);
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+::selection {
+  background: #cfe7fb;
+}
+
+:focus-visible {
+  outline: 2px solid var(--sndb-interactive);
+  outline-offset: 2px;
+}
+
+.n-button {
+  --n-height: var(--sndb-control-height) !important;
+  --n-border-radius: var(--sndb-radius) !important;
+}
+
+.n-input,
+.n-base-selection {
+  --n-border-radius: var(--sndb-radius) !important;
 }

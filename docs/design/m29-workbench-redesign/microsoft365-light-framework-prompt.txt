@@ -1,0 +1,18 @@
+Edit the supplied SonnetDB Studio concept into a coordinated LIGHT MODE GLOBAL FRAMEWORK. The source image is the approved dark-mode framework. Preserve its exact overall geometry, column widths, information architecture, density, and desktop proportions: top application bar, narrow left module rail, resource explorer with visible scrollbar, horizontal editor tabs, central workbench, right inspector, splitters, and bottom status areas. Do not redesign the internal MQ workflow, data table, message details, labels, or component arrangement. This revision is about the outer shell, light-mode surfaces, and color tokens only.
+
+Use the CURRENT MICROSOFT 365 light visual language and the supplied user's Microsoft 365 color reference: an airy near-white pearlescent environment with extremely soft, low-saturation washes of ice blue, mint green, peach/coral, blush pink, and pale lavender. The pastel colors should gently blend across the OUTER APP CANVAS and shell chrome, similar to a restrained Microsoft 365 background, not appear as separate orbs and not reduce readability.
+
+Light-mode treatment:
+- top application bar: translucent-looking near-white #FCFCFD with dark ink #071E2B, subtle bottom divider, soft pearlescent blue/lavender/peach tint behind it; do not use a black top bar;
+- left module rail: very pale cool-gray/white surface, dark Fluent outline icons, thin #E3E3E3 border; active Studio item uses a gentle blue-to-lavender tinted background and a narrow Fluent-blue indicator; do not use a black rail;
+- resource explorer and right inspector: high-legibility white or 96% white surfaces with #242424 text, #616161 secondary text, and #E0E0E0 dividers;
+- editor tab strip and workbench chrome: #F7F7F8 / white, active tab with a #0F6CBD underline and faint ice-blue selection;
+- primary action buttons: deep Microsoft 365 ink/navy #061F2C with white text, compact 4-6px radius;
+- links, focus, active table states: Fluent blue #0F6CBD; selected tree row #E8F2FC;
+- identity accent: small .NET purple #512BD4 or Fluent indigo #5B5FC7 only on the SonnetDB/Studio glyph;
+- status: success #107C10, warning #F7630C, danger #C50F1F;
+- a tiny Microsoft 365 Copilot-like multicolor accent is allowed only on the AI entry icon, never as a large decorative blob.
+
+Typography should look like Segoe UI Variable with Chinese-friendly fallback: crisp 14-15px body text, 12-13px metadata, 20-22px object title, comfortable 36px controls, 40px tree rows. Maintain strong contrast and operational scanability. Use Fluent 2 line icons, 1px borders, 4-8px corners, and very subtle elevation. Large work areas remain unframed bands, not nested cards.
+
+Avoid dark navigation surfaces, heavy blue or purple dominance, neon gradients, discrete gradient orbs, glassy unreadable panels, giant rounded cards, marketing-page composition, illustrations, oversized shadows, and tiny compressed text. The result must be a high-fidelity production database workbench light-mode framework at 1536x1024, visually paired with the approved dark mode.

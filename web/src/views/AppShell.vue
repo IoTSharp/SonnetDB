@@ -1,75 +1,119 @@
-﻿<template>
-  <n-layout has-sider class="app-shell">
-    <n-layout-sider
-      bordered
-      collapse-mode="width"
-      :collapsed-width="74"
-      :width="250"
-      :native-scrollbar="false"
-      class="app-sider"
-    >
-      <div class="brand-pane">
-        <BrandLogo :compact="false" />
-        <div class="brand-meta">
-          <strong>{{ setup.organization ?? 'SonnetDB Organization' }}</strong>
-          <span>{{ setup.serverId ?? '未命名服务器' }}</span>
+<template>
+  <div class="app-shell" :class="{ 'is-studio': activeKey === 'sql' }">
+    <header class="app-topbar">
+      <button type="button" class="app-brand" title="返回产品首页" @click="goHome">
+        <BrandLogo compact />
+        <span>SonnetDB Studio</span>
+      </button>
+
+      <nav class="app-breadcrumb" aria-label="当前位置">
+        <span>工厂数据</span>
+        <ChevronRight :size="15" />
+        <span v-if="activeKey === 'sql'">{{ activeDatabase }}</span>
+        <span v-else>{{ activeTitle }}</span>
+        <template v-if="activeKey === 'sql'">
+          <ChevronRight :size="15" />
+          <strong>{{ studioContext }}</strong>
+        </template>
+      </nav>
+
+      <button type="button" class="command-search" title="命令搜索暂未开放" disabled>
+        <Search :size="17" />
+        <span>搜索命令</span>
+        <kbd>Ctrl+K</kbd>
+      </button>
+
+      <div class="app-topbar__actions">
+        <div class="connection-state" :class="`is-${events.status}`">
+          <CircleCheck :size="16" />
+          <span>连接：{{ connections.activeProfile.name }}</span>
         </div>
+        <button type="button" class="topbar-icon" title="通知">
+          <Bell :size="19" />
+          <span class="notification-count">3</span>
+        </button>
+        <button type="button" class="topbar-icon" title="帮助" @click="openHelp">
+          <CircleHelp :size="20" />
+        </button>
+        <n-dropdown trigger="click" :options="userOptions" @select="onUserAction">
+          <button type="button" class="user-menu" :title="auth.username">
+            <span>{{ userInitials }}</span>
+            <ChevronDown :size="15" />
+          </button>
+        </n-dropdown>
       </div>
+    </header>
 
-      <n-menu :options="menuOptions" :value="activeKey" @update:value="onMenu" />
-    </n-layout-sider>
-
-    <n-layout>
-      <n-layout-header bordered class="app-header">
-        <div class="header-left">
-          <button type="button" class="header-home" @click="goHome">产品首页</button>
-          <button type="button" class="header-home" @click="openHelp">帮助</button>
-          <span class="header-title">{{ activeTitle }}</span>
+    <div class="app-body">
+      <nav class="module-rail" aria-label="全局模块">
+        <div class="module-rail__main">
+          <button
+            v-for="item in primaryNavigation"
+            :key="`${item.key}:${item.label}`"
+            type="button"
+            class="module-button"
+            :class="{ 'is-active': activeKey === item.key && item.label === activeModuleLabel }"
+            :title="item.label"
+            @click="onMenu(item.key)"
+          >
+            <component :is="item.icon" :size="22" :stroke-width="1.75" />
+            <span>{{ item.label }}</span>
+          </button>
         </div>
 
-        <n-space align="center">
-          <n-tag :type="liveTagType" size="small">
-            <template #icon>
-              <span class="dot" :class="liveDotClass" />
-            </template>
-            {{ liveLabel }}
-          </n-tag>
-          <n-tag size="small" type="info" :bordered="false">
-            {{ connections.activeProfile.name }} · {{ connections.activeDisplayUrl }}
-          </n-tag>
-          <n-tag :type="auth.isSuperuser ? 'success' : 'info'" size="small">
-            {{ auth.username }}{{ auth.isSuperuser ? ' / admin' : '' }}
-          </n-tag>
-          <n-button text type="error" @click="onLogout">退出</n-button>
-        </n-space>
-      </n-layout-header>
+        <div class="module-rail__footer">
+          <button
+            v-for="item in secondaryNavigation"
+            :key="`${item.key}:${item.label}`"
+            type="button"
+            class="module-button"
+            :class="{ 'is-active': activeKey === item.key }"
+            :title="item.label"
+            @click="onMenu(item.key)"
+          >
+            <component :is="item.icon" :size="22" :stroke-width="1.75" />
+            <span>{{ item.label }}</span>
+          </button>
+        </div>
+      </nav>
 
-      <n-layout-content :content-style="contentStyle">
-        <router-view v-slot="{ Component }">
+      <main class="app-content">
+        <router-view v-slot="{ Component: RouteComponent }">
           <KeepAlive include="SqlConsoleView">
-            <component :is="Component" />
+            <component :is="RouteComponent" />
           </KeepAlive>
         </router-view>
-      </n-layout-content>
-    </n-layout>
+      </main>
+    </div>
+
     <CopilotDock v-if="auth.isAuthenticated" />
-  </n-layout>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, watch } from 'vue';
+import { computed, h, onBeforeUnmount, onMounted, watch, type Component } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { NDropdown, type DropdownOption } from 'naive-ui';
 import {
-  NButton,
-  NLayout,
-  NLayoutContent,
-  NLayoutHeader,
-  NLayoutSider,
-  NMenu,
-  NSpace,
-  NTag,
-  type MenuOption,
-} from 'naive-ui';
+  Activity,
+  Bell,
+  Bot,
+  ChevronDown,
+  ChevronRight,
+  CircleCheck,
+  CircleHelp,
+  Database,
+  FlaskConical,
+  Gauge,
+  KeyRound,
+  LayoutDashboard,
+  LogOut,
+  RadioTower,
+  Search,
+  Settings,
+  ShieldCheck,
+  Users,
+} from 'lucide-vue-next';
 import BrandLogo from '@/components/BrandLogo.vue';
 import CopilotDock from '@/components/CopilotDock.vue';
 import { useAuthStore } from '@/stores/auth';
@@ -77,7 +121,13 @@ import { useConnectionsStore } from '@/stores/connections';
 import { useCopilotSessionsStore } from '@/stores/copilotSessions';
 import { useEventsStore } from '@/stores/events';
 import { useSetupStore } from '@/stores/setup';
-import { useSqlConsoleStore } from '@/stores/sqlConsole';
+import { CONTROL_PLANE_KEY, useSqlConsoleStore } from '@/stores/sqlConsole';
+
+interface NavigationItem {
+  label: string;
+  key: string;
+  icon: Component;
+}
 
 const auth = useAuthStore();
 const connections = useConnectionsStore();
@@ -88,24 +138,27 @@ const sqlConsole = useSqlConsoleStore();
 const router = useRouter();
 const route = useRoute();
 
-const baseMenu: MenuOption[] = [
-  { label: '概览', key: 'dashboard' },
-  { label: 'Studio', key: 'sql' },
-  { label: '事件流', key: 'events' },
-  { label: '监控', key: 'monitoring' },
+const baseNavigation: NavigationItem[] = [
+  { label: '概览', key: 'dashboard', icon: LayoutDashboard },
+  { label: '查询', key: 'sql', icon: RadioTower },
+  { label: '数据', key: 'sql', icon: Database },
+  { label: 'Studio', key: 'sql', icon: FlaskConical },
+  { label: '事件', key: 'events', icon: Activity },
+  { label: '监控', key: 'monitoring', icon: Gauge },
 ];
 
-const adminMenu: MenuOption[] = [
-  { label: '用户', key: 'users' },
-  { label: '权限', key: 'grants' },
-  { label: 'Token', key: 'tokens' },
-  { label: 'Copilot', key: 'ai-settings' },
-  { label: 'Copilot 测试', key: 'copilot-test' },
+const adminNavigation: NavigationItem[] = [
+  { label: '用户', key: 'users', icon: Users },
+  { label: '权限', key: 'grants', icon: ShieldCheck },
+  { label: 'Token', key: 'tokens', icon: KeyRound },
+  { label: 'Copilot', key: 'ai-settings', icon: Bot },
 ];
 
-const menuOptions = computed<MenuOption[]>(() => (
-  auth.isSuperuser ? [...baseMenu, ...adminMenu] : baseMenu
-));
+const primaryNavigation = computed(() => baseNavigation);
+const secondaryNavigation = computed(() => [
+  ...(auth.isSuperuser ? adminNavigation : []),
+  { label: '设置', key: auth.isSuperuser ? 'ai-settings' : 'dashboard', icon: Settings },
+]);
 
 const titleByKey: Record<string, string> = {
   dashboard: '概览',
@@ -119,53 +172,59 @@ const titleByKey: Record<string, string> = {
   'copilot-test': 'Copilot 测试',
 };
 
+const toolLabels: Record<string, string> = {
+  sql: 'SQL 查询',
+  table: '关系表',
+  document: '文档集合',
+  kv: 'KV Keyspace',
+  mq: 'MQ Topic',
+  vector: '向量索引',
+  fulltext: '全文索引',
+  bucket: '对象桶',
+  trajectory: '轨迹分析',
+};
+
 const activeKey = computed(() => (route.name as string | undefined) ?? 'dashboard');
-const activeTitle = computed(() => titleByKey[activeKey.value] ?? '');
-const contentStyle = computed(() => (activeKey.value === 'sql'
-  ? 'padding:16px 16px 18px;'
-  : 'padding:24px;'));
-
-const liveLabel = computed(() => {
-  switch (events.status) {
-    case 'open': return '实时在线';
-    case 'connecting': return '连接中';
-    case 'error': return '重连中';
-    case 'unauthorized': return 'SSE 未授权';
-    default: return '未连接';
-  }
+const activeTitle = computed(() => titleByKey[activeKey.value] ?? 'SonnetDB');
+const activeModuleLabel = computed(() => activeKey.value === 'sql' ? 'Studio' : activeTitle.value.replace('流', ''));
+const activeDatabase = computed(() => {
+  const db = sqlConsole.activeTab?.db;
+  if (!db || db === CONTROL_PLANE_KEY) return 'system';
+  return db;
 });
+const studioContext = computed(() => toolLabels[String(route.query.tool ?? 'sql')] ?? 'SQL 查询');
+const userInitials = computed(() => auth.username.trim().slice(0, 2).toUpperCase() || 'AD');
 
-const liveTagType = computed(() => {
-  switch (events.status) {
-    case 'open': return 'success' as const;
-    case 'connecting': return 'info' as const;
-    case 'error':
-    case 'unauthorized': return 'warning' as const;
-    default: return 'default' as const;
-  }
-});
-
-const liveDotClass = computed(() => `dot-${events.status}`);
+const userOptions: DropdownOption[] = [
+  { label: '产品首页', key: 'home' },
+  { label: '帮助文档', key: 'help' },
+  { type: 'divider', key: 'user-divider' },
+  { label: '退出登录', key: 'logout', icon: () => h(LogOut, { size: 16 }) },
+];
 
 function onMenu(key: string): void {
-  router.push({ name: key });
+  void router.push({ name: key });
 }
 
 function goHome(): void {
-  router.push({ name: 'home' });
+  void router.push({ name: 'home' });
 }
 
 function openHelp(): void {
   const popup = window.open('/help/', '_blank', 'noopener,noreferrer');
-  if (!popup) {
-    window.location.assign('/help/');
-  }
+  if (!popup) window.location.assign('/help/');
+}
+
+function onUserAction(key: string | number): void {
+  if (key === 'home') goHome();
+  if (key === 'help') openHelp();
+  if (key === 'logout') onLogout();
 }
 
 function onLogout(): void {
   events.disconnect();
   auth.logout();
-  router.replace({ name: 'login' });
+  void router.replace({ name: 'login' });
 }
 
 function hideControlPlaneForRegularUser(): void {
@@ -175,15 +234,11 @@ function hideControlPlaneForRegularUser(): void {
 }
 
 watch(() => [auth.isAuthenticated, auth.isSuperuser] as const, hideControlPlaneForRegularUser, { immediate: true });
-watch(() => connections.activeBaseUrl, (baseUrl) => {
-  auth.setApiBaseUrl(baseUrl);
-}, { immediate: true });
+watch(() => connections.activeBaseUrl, (baseUrl) => auth.setApiBaseUrl(baseUrl), { immediate: true });
 
 onMounted(async () => {
   await setup.ensureLoaded();
-  if (auth.isAuthenticated) {
-    events.connect();
-  }
+  if (auth.isAuthenticated) events.connect();
 });
 
 onBeforeUnmount(() => {
@@ -193,88 +248,294 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .app-shell {
+  display: grid;
+  grid-template-rows: 56px minmax(0, 1fr);
   height: 100vh;
+  overflow: hidden;
+  background: var(--sndb-app-canvas);
 }
 
-.app-sider {
-  background:
-    linear-gradient(180deg, rgba(248, 251, 255, 0.98), rgba(238, 245, 249, 0.98));
+.app-topbar {
+  position: relative;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: 262px minmax(260px, 1fr) minmax(260px, 340px) auto;
+  align-items: center;
+  min-width: 0;
+  border-bottom: 1px solid var(--sndb-border);
+  background: rgba(252, 252, 253, 0.96);
 }
 
-.brand-pane {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 20px 18px 16px;
-}
-
-.brand-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 14px;
-  border-radius: 18px;
-  background: rgba(13, 59, 102, 0.04);
-  color: var(--sndb-ink-soft);
-  font-size: 0.88rem;
-}
-
-.brand-meta strong {
-  color: var(--sndb-ink-strong);
-}
-
-.app-header {
+.app-brand {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 24px;
-  height: 62px;
-  background: rgba(248, 251, 255, 0.82);
-  backdrop-filter: blur(12px);
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.header-home {
+  gap: 10px;
+  height: 100%;
+  padding: 0 18px;
   border: 0;
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: rgba(13, 59, 102, 0.06);
+  background: transparent;
+  color: var(--sndb-ink-strong);
+  font-size: 16px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.app-brand :deep(.brand-mark) {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.app-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 0 18px;
+  color: var(--sndb-ink-muted);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.app-breadcrumb strong {
+  overflow: hidden;
+  color: var(--sndb-ink-strong);
+  font-weight: 550;
+  text-overflow: ellipsis;
+}
+
+.command-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  height: 34px;
+  padding: 0 9px;
+  border: 1px solid var(--sndb-border-strong);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--sndb-ink-muted);
+  font: inherit;
+  text-align: left;
+}
+
+.command-search span {
+  flex: 1;
+}
+
+.command-search kbd {
+  padding: 2px 6px;
+  border: 1px solid var(--sndb-border);
+  border-radius: 4px;
+  background: var(--sndb-chrome);
+  color: var(--sndb-ink-subtle);
+  font: 12px inherit;
+}
+
+.app-topbar__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  height: 100%;
+  padding: 0 14px;
+}
+
+.connection-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  border-right: 1px solid var(--sndb-border);
   color: var(--sndb-ink-soft);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.connection-state svg {
+  color: var(--sndb-success);
+}
+
+.connection-state.is-error svg,
+.connection-state.is-unauthorized svg {
+  color: var(--sndb-warning);
+}
+
+.topbar-icon,
+.user-menu {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--sndb-ink-strong);
+  cursor: pointer;
+}
+
+.topbar-icon:hover,
+.user-menu:hover {
+  background: var(--sndb-hover);
+}
+
+.notification-count {
+  position: absolute;
+  top: 1px;
+  right: 0;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border: 2px solid #fff;
+  border-radius: 8px;
+  background: var(--sndb-danger);
+  color: #fff;
+  font-size: 10px;
+  line-height: 12px;
+}
+
+.user-menu {
+  width: auto;
+  gap: 5px;
+  padding: 0 7px;
+}
+
+.user-menu > span {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--sndb-border-strong);
+  border-radius: 50%;
+  background: #eef3f8;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.app-body {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+}
+
+.module-rail {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 0;
+  overflow-y: auto;
+  border-right: 1px solid var(--sndb-border);
+  background: rgba(249, 250, 252, 0.96);
+}
+
+.module-rail__main,
+.module-rail__footer {
+  display: flex;
+  flex-direction: column;
+  padding: 7px 0;
+}
+
+.module-button {
+  position: relative;
+  display: flex;
+  flex: 0 0 64px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  min-height: 58px;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  color: #3f4a52;
   font: inherit;
   cursor: pointer;
 }
 
-.header-title {
-  font-size: 1.02rem;
-  font-weight: 600;
+.module-button span {
+  font-size: 11px;
 }
 
-.dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-right: 4px;
-  vertical-align: middle;
-  background: #c0c0c0;
+.module-button:hover {
+  background: var(--sndb-hover);
 }
 
-.dot-open {
-  background: #18a058;
-  box-shadow: 0 0 0 2px rgba(24, 160, 88, 0.18);
+.module-button.is-active {
+  background: #edf4fb;
+  color: var(--sndb-interactive);
 }
 
-.dot-connecting {
-  background: #2080f0;
+.module-button.is-active::before {
+  position: absolute;
+  inset: 8px auto 8px 0;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--sndb-interactive);
+  content: '';
 }
 
-.dot-error,
-.dot-unauthorized {
-  background: #f0a020;
+.app-content {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 24px;
+}
+
+.is-studio .app-content {
+  overflow: hidden;
+  padding: 0;
+}
+
+@media (max-width: 1180px) {
+  .app-topbar {
+    grid-template-columns: 230px minmax(200px, 1fr) auto;
+  }
+
+  .command-search {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-topbar {
+    grid-template-columns: 56px minmax(0, 1fr) auto;
+  }
+
+  .app-brand {
+    justify-content: center;
+    padding: 0;
+  }
+
+  .app-brand > span,
+  .connection-state,
+  .app-topbar__actions .topbar-icon {
+    display: none;
+  }
+
+  .app-breadcrumb {
+    padding: 0 10px;
+  }
+
+  .app-body {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+
+  .module-button {
+    flex-basis: 56px;
+    min-height: 54px;
+  }
+
+  .module-button span {
+    display: none;
+  }
+
+  .app-content {
+    padding: 14px;
+  }
 }
 </style>

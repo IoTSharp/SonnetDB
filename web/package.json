@@ -16,6 +16,7 @@
     "axios": "^1.7.7",
     "codemirror": "^6.0.2",
     "echarts": "^6.0.0",
+    "lucide-vue-next": "^0.468.0",
     "maplibre-gl": "^5.24.0",
     "marked": "^14.1.4",
     "naive-ui": "^2.40.1",

@@ -1,26 +1,5 @@
 <template>
   <main class="query-workspace" data-testid="workbench-sql">
-    <div class="query-tabs">
-      <button
-        v-for="tab in tabs"
-        :key="tab.id"
-        type="button"
-        class="query-tab"
-        :class="{ 'is-active': tab.id === activeTabId }"
-        @click="$emit('update:activeTabId', tab.id)"
-      >
-        <span class="query-tab__icon">SQL</span>
-        <span class="query-tab__title">{{ tab.title }}</span>
-        <span
-          v-if="tabs.length > 1"
-          class="query-tab__close"
-          title="Close tab"
-          @click.stop="$emit('close-tab', tab.id)"
-        >x</span>
-      </button>
-      <button type="button" class="query-tab query-tab--add" title="New SQL tab" @click="$emit('create-tab')">+</button>
-    </div>
-
     <div class="query-toolbar">
       <n-space align="center" :size="8" :wrap="false">
         <n-button size="small" type="primary" :loading="running" @click="$emit('run')">

@@ -1,22 +1,5 @@
 <template>
   <div class="workbench-page">
-    <SqlWorkbenchHeader
-      :connection-label="connectionLabel"
-      :connection-name="connections.activeProfile.name"
-      :connection-options="connectionOptions"
-      :active-tool="activeWorkbenchTool"
-      :access-badges="accessBadges"
-      :studio-bridge-available="studioBridgeAvailable"
-      :native-server-status="nativeServerStatus"
-      :native-server-busy="nativeServerBusy"
-      @connection-select="onConnectionSelect"
-      @open-connection="openConnectionDialog"
-      @set-tool="setWorkbenchTool"
-      @refresh-native-server="refreshNativeServerStatus"
-      @start-native-server="startNativeServer"
-      @stop-native-server="stopNativeServer"
-    />
-
     <n-dropdown
       placement="bottom-start"
       trigger="manual"
@@ -46,11 +29,12 @@
       @save="saveConnection"
     />
 
-    <section class="workbench-frame">
+    <section class="workbench-frame" :class="{ 'is-explorer-collapsed': explorerCollapsed }">
       <ManagementExplorerSidebar
         v-model:schema-filter="schemaFilter"
         v-model:backup-directory="maintenanceBackupDirectory"
         v-model:restore-target-directory="maintenanceRestoreTargetDirectory"
+        :collapsed="explorerCollapsed"
         :is-superuser="auth.isSuperuser"
         :target-db="targetDb"
         :database-tree="databaseTree"
@@ -67,6 +51,7 @@
         :maintenance-status="maintenanceStatus"
         :selected-index="selectedIndex"
         :explorer-groups="explorerGroups"
+        @toggle-collapse="explorerCollapsed = !explorerCollapsed"
         @open-create-database="openCreateDatabaseDialog"
         @drop-database="dropActiveDatabase"
         @refresh="refreshWorkbench"
@@ -82,7 +67,26 @@
         @restore-dry-run="restoreDryRun"
       />
 
-      <SqlQueryWorkspace
+      <section class="workspace-shell">
+        <StudioWorkspaceTabs
+          :tabs="workspaceTabs"
+          :active-tab-id="activeWorkspaceTabId"
+          :connection-name="connections.activeProfile.name"
+          :connection-options="connectionOptions"
+          :studio-bridge-available="studioBridgeAvailable"
+          :native-server-status="nativeServerStatus"
+          :native-server-busy="nativeServerBusy"
+          @select-tab="selectWorkspaceTab"
+          @close-tab="closeWorkspaceTab"
+          @create-tab="createWorkspaceTab"
+          @connection-select="onConnectionSelect"
+          @open-connection="openConnectionDialog"
+          @refresh-native-server="refreshNativeServerStatus"
+          @start-native-server="startNativeServer"
+          @stop-native-server="stopNativeServer"
+        />
+
+        <SqlQueryWorkspace
         v-if="activeWorkbenchTool === 'sql'"
         v-model:active-tab-id="activeTabId"
         v-model:sql="sql"
@@ -110,9 +114,9 @@
         @confirm-preview="confirmPreview"
         @clear-error="clearActiveError"
         @history-select="openHistoryEntry"
-      />
+        />
 
-      <RelationalTableWorkbench
+        <RelationalTableWorkbench
         v-else-if="activeWorkbenchTool === 'table'"
         :target-db="targetDb"
         :table="selectedTable"
@@ -120,9 +124,9 @@
         :loading="loadingSchema"
         @open-sql="openRelationSql"
         @refresh-schema="loadSchema(targetDb, true)"
-      />
+        />
 
-      <DocumentCollectionWorkbench
+        <DocumentCollectionWorkbench
         v-else-if="activeWorkbenchTool === 'document'"
         :target-db="targetDb"
         :collection="selectedDocumentCollection"
@@ -130,9 +134,9 @@
         :loading="loadingSchema"
         @select-collection="selectDocumentCollection"
         @refresh-schema="loadSchema(targetDb, true)"
-      />
+        />
 
-      <KvKeyspaceWorkbench
+        <KvKeyspaceWorkbench
         v-else-if="activeWorkbenchTool === 'kv'"
         :target-db="targetDb"
         :keyspace="selectedKvKeyspace"
@@ -140,9 +144,9 @@
         :loading="loadingSchema"
         @select-keyspace="selectKvKeyspace"
         @refresh-schema="loadSchema(targetDb, true)"
-      />
+        />
 
-      <SonnetMqWorkbench
+        <SonnetMqWorkbench
         v-else-if="activeWorkbenchTool === 'mq'"
         :target-db="targetDb"
         :topic="selectedMqTopic"
@@ -150,9 +154,9 @@
         :loading="loadingSchema"
         @select-topic="selectMqTopic"
         @refresh-schema="loadSchema(targetDb, true)"
-      />
+        />
 
-      <VectorSearchWorkbench
+        <VectorSearchWorkbench
         v-else-if="activeWorkbenchTool === 'vector'"
         :target-db="targetDb"
         :index="selectedVectorIndex"
@@ -160,9 +164,9 @@
         :loading="loadingSchema"
         @select-index="selectVectorIndex"
         @refresh-schema="loadSchema(targetDb, true)"
-      />
+        />
 
-      <FullTextSearchWorkbench
+        <FullTextSearchWorkbench
         v-else-if="activeWorkbenchTool === 'fulltext'"
         :target-db="targetDb"
         :index="selectedFullTextIndex"
@@ -170,9 +174,9 @@
         :loading="loadingSchema"
         @select-index="selectFullTextIndex"
         @refresh-schema="loadSchema(targetDb, true)"
-      />
+        />
 
-      <ObjectBucketWorkbench
+        <ObjectBucketWorkbench
         v-else-if="activeWorkbenchTool === 'bucket'"
         :target-db="targetDb"
         :bucket="selectedObjectBucket"
@@ -180,22 +184,23 @@
         :loading="loadingSchema"
         @select-bucket="selectObjectBucket"
         @refresh-schema="loadSchema(targetDb, true)"
-      />
-
-      <main v-else class="query-workspace">
-        <TrajectoryMap
-          class="trajectory-workbench"
-          :embedded="true"
-          :initial-db="trajectoryInitialDb"
-          :initial-measurement="trajectoryInitialMeasurement"
         />
-      </main>
+
+        <main v-else class="query-workspace">
+          <TrajectoryMap
+            class="trajectory-workbench"
+            :embedded="true"
+            :initial-db="trajectoryInitialDb"
+            :initial-measurement="trajectoryInitialMeasurement"
+          />
+        </main>
+      </section>
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { NDropdown, useMessage } from 'naive-ui';
 import CreateDatabaseDialog from '@/components/CreateDatabaseDialog.vue';
 import DocumentCollectionWorkbench from '@/components/DocumentCollectionWorkbench.vue';
@@ -207,7 +212,7 @@ import RelationalTableWorkbench from '@/components/RelationalTableWorkbench.vue'
 import RemoteConnectionDialog from '@/components/RemoteConnectionDialog.vue';
 import SonnetMqWorkbench from '@/components/SonnetMqWorkbench.vue';
 import SqlQueryWorkspace from '@/components/SqlQueryWorkspace.vue';
-import SqlWorkbenchHeader from '@/components/SqlWorkbenchHeader.vue';
+import StudioWorkspaceTabs, { type StudioWorkspaceTab } from '@/components/StudioWorkspaceTabs.vue';
 import VectorSearchWorkbench from '@/components/VectorSearchWorkbench.vue';
 import TrajectoryMap from '@/views/TrajectoryMap.vue';
 import type { FullTextIndexStat, VectorIndexStat } from '@/api/management';
@@ -224,12 +229,15 @@ import {
   useSqlConsoleStore,
 } from '@/stores/sqlConsole';
 import { useWorkbenchHistoryStore } from '@/stores/workbenchHistory';
+import type { WorkbenchTool } from '@/utils/sqlWorkbench';
 
 const auth = useAuthStore();
 const connections = useConnectionsStore();
 const sqlConsole = useSqlConsoleStore();
 const workbenchHistory = useWorkbenchHistoryStore();
 const message = useMessage();
+const explorerCollapsed = ref(false);
+const objectWorkspaceTabs = ref<StudioWorkspaceTab[]>([]);
 
 if (!auth.isSuperuser) {
   sqlConsole.hideControlPlaneForRegularUser();
@@ -266,8 +274,6 @@ const {
   nativeServerStatus,
   nativeServerBusy,
   activeWorkbenchTool,
-  connectionLabel,
-  accessBadges,
   connectionOptions,
   canSaveConnection,
   setWorkbenchTool,
@@ -413,6 +419,52 @@ const selectedObjectBucket = computed(() => {
   return currentObjectBuckets.value[0]?.name ?? active;
 });
 
+const activeObjectIdentity = computed(() => {
+  switch (activeWorkbenchTool.value) {
+    case 'table':
+      return { label: selectedTable.value?.name ?? '关系表', key: selectedTable.value ? `table:${selectedTable.value.name}` : 'table' };
+    case 'document':
+      return { label: selectedDocumentCollection.value?.name ?? '文档集合', key: selectedDocumentCollection.value ? `document:${selectedDocumentCollection.value.name}` : 'document' };
+    case 'kv':
+      return { label: selectedKvKeyspace.value || 'KV Keyspace', key: selectedKvKeyspace.value ? `kv:${selectedKvKeyspace.value}` : 'kv' };
+    case 'mq':
+      return { label: selectedMqTopic.value || 'MQ Topic', key: selectedMqTopic.value ? `mq:${selectedMqTopic.value}` : 'mq' };
+    case 'vector': {
+      const index = selectedVectorIndex.value;
+      return { label: index ? `${index.measurement}.${index.column}` : '向量索引', key: index ? vectorIndexKey(index) : 'vector' };
+    }
+    case 'fulltext': {
+      const index = selectedFullTextIndex.value;
+      return { label: index ? `${index.collection}.${index.name}` : '全文索引', key: index ? fullTextIndexKey(index) : 'fulltext' };
+    }
+    case 'bucket':
+      return { label: selectedObjectBucket.value || '对象桶', key: selectedObjectBucket.value ? `bucket:${selectedObjectBucket.value}` : 'bucket' };
+    case 'trajectory':
+      return { label: '轨迹分析', key: activeExplorerKey.value || 'trajectory' };
+    default:
+      return null;
+  }
+});
+
+const workspaceTabs = computed<StudioWorkspaceTab[]>(() => [
+  ...sqlConsole.tabs.map((tab) => ({
+    id: `sql:${tab.id}`,
+    label: tab.title,
+    tool: 'sql' as WorkbenchTool,
+    db: tab.db,
+    objectKey: tab.id,
+    closable: sqlConsole.tabs.length > 1,
+  })),
+  ...objectWorkspaceTabs.value,
+]);
+
+const activeWorkspaceTabId = computed(() => {
+  if (activeWorkbenchTool.value === 'sql') return `sql:${activeTabId.value}`;
+  const identity = activeObjectIdentity.value;
+  if (!identity) return '';
+  return objectTabId(activeWorkbenchTool.value, targetDb.value, identity.key);
+});
+
 const {
   maintenanceBackupDirectory,
   maintenanceRestoreTargetDirectory,
@@ -489,6 +541,39 @@ const {
   runHealthCheck,
 });
 
+function objectTabId(tool: WorkbenchTool, db: string, objectKey: string): string {
+  return `object:${tool}:${db}:${objectKey}`;
+}
+
+function selectWorkspaceTab(id: string): void {
+  if (id.startsWith('sql:')) {
+    sqlConsole.activateTab(id.slice('sql:'.length));
+    setWorkbenchTool('sql');
+    return;
+  }
+
+  const tab = objectWorkspaceTabs.value.find((item) => item.id === id);
+  if (!tab) return;
+  if (tab.db && targetDb.value !== tab.db) targetDb.value = tab.db;
+  activeExplorerKey.value = tab.objectKey;
+  setWorkbenchTool(tab.tool);
+}
+
+function closeWorkspaceTab(id: string): void {
+  if (id.startsWith('sql:')) {
+    closeTab(id.slice('sql:'.length));
+    return;
+  }
+
+  objectWorkspaceTabs.value = objectWorkspaceTabs.value.filter((tab) => tab.id !== id);
+  if (activeWorkspaceTabId.value === id) setWorkbenchTool('sql');
+}
+
+function createWorkspaceTab(): void {
+  createTab();
+  setWorkbenchTool('sql');
+}
+
 function openRelationSql(sqlText: string): void {
   setWorkbenchTool('sql');
   setSqlDraft(sqlText);
@@ -535,6 +620,29 @@ function selectObjectBucket(bucket: string): void {
   setWorkbenchTool('bucket');
 }
 
+watch([activeWorkbenchTool, activeObjectIdentity, targetDb], ([tool, identity, db]) => {
+  if (tool === 'sql' || !identity) return;
+  if (identity.key !== tool) {
+    objectWorkspaceTabs.value = objectWorkspaceTabs.value.filter((tab) =>
+      !(tab.tool === tool && tab.db === db && tab.objectKey === tool));
+  }
+  const id = objectTabId(tool, db, identity.key);
+  const existing = objectWorkspaceTabs.value.findIndex((tab) => tab.id === id);
+  const tab: StudioWorkspaceTab = {
+    id,
+    label: identity.label,
+    tool,
+    db,
+    objectKey: identity.key,
+    closable: true,
+  };
+  if (existing >= 0) {
+    objectWorkspaceTabs.value = objectWorkspaceTabs.value.map((item, index) => index === existing ? tab : item);
+  } else {
+    objectWorkspaceTabs.value = [...objectWorkspaceTabs.value, tab];
+  }
+}, { immediate: true });
+
 watch(targetDb, (db) => {
   if (db && db !== CONTROL_PLANE_KEY) {
     expandedDatabases.value = {
@@ -556,7 +664,15 @@ watch(() => connections.activeProfileId, async () => {
   }
   await reloadDbs();
   if (targetDb.value && targetDb.value !== CONTROL_PLANE_KEY) {
+    expandedDatabases.value = {
+      ...expandedDatabases.value,
+      [targetDb.value]: true,
+    };
     await loadSchema(targetDb.value, true);
+    expandedDatabases.value = {
+      ...expandedDatabases.value,
+      [targetDb.value]: true,
+    };
   }
 });
 
@@ -583,6 +699,10 @@ onMounted(async () => {
   await reloadDbs();
   if (targetDb.value && targetDb.value !== CONTROL_PLANE_KEY) {
     await loadSchema(targetDb.value, true);
+    expandedDatabases.value = {
+      ...expandedDatabases.value,
+      [targetDb.value]: true,
+    };
   }
   applyPendingExecution();
 });
@@ -590,25 +710,26 @@ onMounted(async () => {
 
 <style scoped>
 .workbench-page {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  height: calc(100vh - 96px);
-  min-height: 680px;
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
 }
 
 .workbench-frame {
-  flex: 1;
-  min-height: 0;
   display: grid;
-  grid-template-columns: 250px minmax(0, 1fr);
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 8px;
+  grid-template-columns: 304px minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   background: #fff;
   overflow: hidden;
 }
 
+.workbench-frame.is-explorer-collapsed {
+  grid-template-columns: 44px minmax(0, 1fr);
+}
+
+.workspace-shell,
 .query-workspace {
   display: flex;
   flex-direction: column;
@@ -617,16 +738,15 @@ onMounted(async () => {
   background: #fff;
 }
 
-@media (max-width: 1280px) {
+@media (max-width: 900px) {
   .workbench-frame {
-    grid-template-columns: 1fr;
+    grid-template-rows: minmax(220px, 38vh) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
   }
-}
 
-@media (max-width: 840px) {
-  .workbench-page {
-    height: auto;
-    min-height: 0;
+  .workbench-frame.is-explorer-collapsed {
+    grid-template-rows: 44px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>

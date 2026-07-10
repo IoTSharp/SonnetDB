@@ -1,0 +1,323 @@
+/* Milestone 29 共享工作台密度：不改变模型功能，只统一信息层级与交互尺寸。 */
+.workspace-shell :is(
+  .query-workspace,
+  .relation-workbench,
+  .document-workbench,
+  .kv-workbench,
+  .mq-workbench,
+  .vector-workbench,
+  .fulltext-workbench,
+  .object-workbench
+) {
+  min-width: 0;
+  min-height: 0;
+  color: var(--sndb-ink-strong);
+  font-size: 14px;
+  letter-spacing: 0;
+  background: #fff;
+}
+
+.workspace-shell :is(
+  .query-toolbar,
+  .relation-toolbar,
+  .document-toolbar,
+  .kv-toolbar,
+  .vector-toolbar,
+  .fulltext-toolbar,
+  .object-toolbar
+) {
+  flex: 0 0 auto;
+  align-items: center;
+  min-height: 72px;
+  padding: 11px 16px;
+  border-color: var(--sndb-border);
+  background: #fff;
+}
+
+.workspace-shell :is(
+  .relation-toolbar__title,
+  .document-toolbar__title,
+  .kv-toolbar__title,
+  .vector-toolbar__title,
+  .fulltext-toolbar__title,
+  .object-toolbar__title
+) {
+  color: var(--sndb-ink-strong);
+  font-size: 20px;
+  font-weight: 650;
+}
+
+.workspace-shell :is(
+  .relation-toolbar__meta,
+  .document-toolbar__meta,
+  .kv-toolbar__meta,
+  .vector-toolbar__meta,
+  .fulltext-toolbar__meta,
+  .object-toolbar__meta,
+  .document-panel-head__meta,
+  .kv-panel-head__meta,
+  .vector-panel-head__meta,
+  .fulltext-panel-head__meta,
+  .object-panel-head__meta
+) {
+  color: var(--sndb-ink-muted);
+  font-size: 12px;
+}
+
+.workspace-shell :is(
+  .document-stats,
+  .kv-stats,
+  .vector-stats,
+  .fulltext-stats,
+  .object-stats
+) {
+  flex: 0 0 auto;
+  border-color: var(--sndb-border);
+  background: #fbfcfd;
+}
+
+.workspace-shell :is(
+  .document-stat,
+  .kv-stat,
+  .vector-stat,
+  .fulltext-stat,
+  .object-stat
+) {
+  min-height: 58px;
+  padding: 9px 13px;
+  border-color: var(--sndb-border);
+}
+
+.workspace-shell :is(
+  .document-stat,
+  .kv-stat,
+  .vector-stat,
+  .fulltext-stat,
+  .object-stat
+) span {
+  color: var(--sndb-ink-muted);
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+.workspace-shell :is(
+  .document-stat,
+  .kv-stat,
+  .vector-stat,
+  .fulltext-stat,
+  .object-stat
+) strong {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.workspace-shell :is(
+  .document-panel-head,
+  .kv-panel-head,
+  .vector-panel-head,
+  .fulltext-panel-head,
+  .object-panel-head
+) {
+  min-height: 52px;
+  padding: 9px 12px;
+  border-color: var(--sndb-border);
+  background: #fff;
+}
+
+.workspace-shell :is(
+  .document-panel-head__title,
+  .kv-panel-head__title,
+  .vector-panel-head__title,
+  .fulltext-panel-head__title,
+  .object-panel-head__title,
+  .kv-editor__title
+) {
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.workspace-shell :is(
+  .document-body,
+  .kv-body,
+  .vector-body,
+  .fulltext-body,
+  .object-body
+) {
+  min-height: 0;
+  border-color: var(--sndb-border);
+}
+
+.workspace-shell :is(
+  .document-inspector,
+  .kv-inspector,
+  .vector-inspector,
+  .fulltext-inspector,
+  .object-inspector
+) {
+  border-color: var(--sndb-border);
+  background: #fff;
+}
+
+.workspace-shell :is(
+  .document-pager,
+  .kv-pager,
+  .relation-pager,
+  .fulltext-pager,
+  .object-pager
+) {
+  min-height: 48px;
+  padding: 7px 12px;
+  border-color: var(--sndb-border);
+  background: #fff;
+  color: var(--sndb-ink-muted);
+  font-size: 13px;
+}
+
+.workspace-shell :is(
+  .document-grid,
+  .kv-grid,
+  .mq-grid,
+  .vector-grid,
+  .fulltext-grid,
+  .object-grid,
+  .relation-grid
+) :is(th, td) {
+  height: 40px;
+  font-size: 13px;
+}
+
+.workspace-shell :is(
+  .document-grid,
+  .kv-grid,
+  .mq-grid,
+  .vector-grid,
+  .fulltext-grid,
+  .object-grid,
+  .relation-grid
+) th {
+  color: #343b40;
+  font-weight: 600;
+  background: #fafbfc;
+}
+
+.workspace-shell .n-tabs-tab {
+  min-height: 36px;
+  font-size: 14px;
+}
+
+.workspace-shell .n-tabs-rail {
+  border-radius: 5px;
+}
+
+.workspace-shell .n-button.n-button--primary-type {
+  --n-color: var(--sndb-brand) !important;
+  --n-color-hover: #123b4a !important;
+  --n-color-pressed: #041820 !important;
+  --n-border: 1px solid var(--sndb-brand) !important;
+  --n-border-hover: 1px solid #123b4a !important;
+  --n-border-pressed: 1px solid #041820 !important;
+}
+
+.workspace-shell :is(
+  .document-collection-card,
+  .kv-folder,
+  .vector-index-card,
+  .fulltext-index-card,
+  .object-bucket-card,
+  .object-folder
+) {
+  min-height: 40px;
+  border-radius: 5px;
+}
+
+.workspace-shell :is(
+  .document-collection-card,
+  .kv-folder,
+  .vector-index-card,
+  .fulltext-index-card,
+  .object-bucket-card,
+  .object-folder
+).is-active {
+  background: var(--sndb-selected);
+}
+
+.workspace-shell :is(
+  .document-detail-strip,
+  .kv-detail-strip,
+  .vector-detail-strip,
+  .fulltext-detail-strip,
+  .object-detail-strip
+) span {
+  border-radius: 4px;
+  background: var(--sndb-hover);
+}
+
+.workspace-shell :is(
+  .document-result,
+  .kv-result,
+  .vector-result,
+  .fulltext-result,
+  .object-result,
+  .relation-result
+) {
+  border-color: var(--sndb-border);
+}
+
+.workspace-shell .editor-shell {
+  flex-basis: clamp(260px, 42vh, 420px);
+  border-color: var(--sndb-border);
+}
+
+.workspace-shell .editor-status {
+  min-height: 32px;
+  padding: 5px 12px;
+  border-color: var(--sndb-border);
+  background: #fafbfc;
+  font-size: 12px;
+}
+
+.workspace-shell .relation-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 270px) minmax(480px, 1fr);
+  align-items: center;
+  min-height: 0;
+}
+
+.workspace-shell .relation-toolbar__identity {
+  min-width: 0;
+}
+
+.workspace-shell .relation-toolbar__tabs {
+  min-width: 0;
+  width: 100%;
+}
+
+.workspace-shell .relation-toolbar__actions {
+  grid-column: 1 / -1;
+  justify-content: flex-start;
+  padding-top: 9px;
+  border-top: 1px solid var(--sndb-border);
+}
+
+@media (max-width: 1180px) {
+  .workspace-shell :is(
+    .relation-toolbar,
+    .document-toolbar,
+    .kv-toolbar,
+    .vector-toolbar,
+    .fulltext-toolbar,
+    .object-toolbar
+  ) {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .workspace-shell .relation-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .workspace-shell .relation-toolbar__actions {
+    grid-column: 1;
+  }
+}
