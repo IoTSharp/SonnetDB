@@ -1,5 +1,5 @@
 <template>
-  <main class="object-workbench">
+  <main class="object-workbench" data-testid="workbench-bucket">
     <section class="object-toolbar">
       <div class="object-toolbar__identity">
         <n-space size="small" align="center" :wrap="true">

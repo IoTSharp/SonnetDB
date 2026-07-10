@@ -1,0 +1,79 @@
+name: Management workbench smoke
+
+on:
+  pull_request:
+    paths:
+      - 'web/**'
+      - 'extensions/sonnetdb-vscode/**'
+      - 'src/SonnetDB.Studio/**'
+      - 'docs/management-tools.md'
+      - '.github/workflows/management-workbench-smoke.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - 'extensions/sonnetdb-vscode/**'
+      - 'src/SonnetDB.Studio/**'
+      - 'docs/management-tools.md'
+      - '.github/workflows/management-workbench-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  web-admin:
+    name: Web Admin and Studio bridge
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install Web Admin dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Install Chromium
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+
+      - name: Build Web Admin
+        working-directory: web
+        run: npm run build
+
+      - name: Run management workbench smoke
+        working-directory: web
+        run: npm run test:e2e
+
+      - name: Upload Playwright failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: management-workbench-playwright
+          path: artifacts/playwright
+          if-no-files-found: ignore
+
+  vscode-consumer:
+    name: VS Code HTTP consumer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: extensions/sonnetdb-vscode/package-lock.json
+
+      - name: Install extension dependencies
+        working-directory: extensions/sonnetdb-vscode
+        run: npm ci
+
+      - name: Run extension consumer smoke
+        working-directory: extensions/sonnetdb-vscode
+        run: npm test

@@ -1,5 +1,5 @@
 <template>
-  <main class="fulltext-workbench">
+  <main class="fulltext-workbench" data-testid="workbench-fulltext">
     <section class="fulltext-toolbar">
       <div class="fulltext-toolbar__identity">
         <n-space size="small" align="center" :wrap="true">

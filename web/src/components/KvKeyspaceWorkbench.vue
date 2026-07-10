@@ -1,5 +1,5 @@
 <template>
-  <main class="kv-workbench">
+  <main class="kv-workbench" data-testid="workbench-kv">
     <section class="kv-toolbar">
       <div class="kv-toolbar__identity">
         <n-space size="small" align="center" :wrap="true">

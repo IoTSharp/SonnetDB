@@ -1,5 +1,5 @@
 <template>
-  <main class="relation-workbench">
+  <main class="relation-workbench" data-testid="workbench-table">
     <section class="relation-toolbar">
       <div class="relation-toolbar__identity">
         <n-space size="small" align="center" :wrap="true">

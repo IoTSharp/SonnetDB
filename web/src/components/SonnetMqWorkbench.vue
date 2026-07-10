@@ -1,5 +1,5 @@
 <template>
-  <main class="mq-workbench">
+  <main class="mq-workbench" data-testid="workbench-mq">
     <section class="mq-toolbar">
       <div class="mq-toolbar__identity">
         <n-space size="small" align="center" :wrap="true">

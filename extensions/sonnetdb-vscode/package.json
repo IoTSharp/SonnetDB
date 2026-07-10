@@ -157,7 +157,8 @@
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "lint": "tsc --noEmit -p ./"
+    "lint": "tsc --noEmit -p ./",
+    "test": "npm run compile && node --test out/test/sonnetdbClient.smoke.test.js"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",

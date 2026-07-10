@@ -42,6 +42,7 @@ Do not describe SonnetDB first as a generic "multi-model database". Multi-model 
 - SQL reference: `docs/sql-reference.md`
 - SQL cookbook: `docs/sql-cookbook.md`
 - Studio and Copilot: `docs/web-workbench.md`
+- Management tools and Web/Studio/VS Code parity: `docs/management-tools.md`
 - Embedded API: `docs/embedded-api.md`
 - ADO.NET: `docs/ado-net.md`
 - Bulk ingest: `docs/bulk-ingest.md`

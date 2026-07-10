@@ -1,5 +1,5 @@
 <template>
-  <main class="vector-workbench">
+  <main class="vector-workbench" data-testid="workbench-vector">
     <section class="vector-toolbar">
       <div class="vector-toolbar__identity">
         <n-space size="small" align="center" :wrap="true">

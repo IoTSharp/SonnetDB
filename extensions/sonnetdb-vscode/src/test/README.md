@@ -1,12 +1,5 @@
-# Test Placeholder
+# Extension smoke tests
 
-This directory is reserved for extension tests.
+`npm test` compiles the extension and runs the HTTP consumer smoke. The smoke starts an ephemeral loopback server and verifies that `SonnetDbClient` consumes the shared SonnetDB contracts for schema, SQL NDJSON, KV, vector, full-text, and MQ without loading the VS Code extension host.
 
-Planned coverage:
-
-- NDJSON parsing
-- connection bootstrap
-- explorer loading
-- query command flow
-- result panel rendering
-- Copilot stream handling
+VS Code workbench UI automation remains part of the later packaging and Marketplace task (#108). The M29 #260 gate focuses on the shared HTTP contract consumed by the current developer subset.

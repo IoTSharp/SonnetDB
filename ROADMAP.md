@@ -26,7 +26,7 @@
 | 26 | 连接器路线独立化（C ABI + 多模型 API） | #175 ~ #181 | ✅ |
 | 27 | Industrial Data Agent 与 AI-ready 产品化路线 | #182 ~ #188 | 🚧（#182 文档已落；M28 收官后 #184 Demo 可启动；#183/#185 纯文档） |
 | 28 | 可靠性、并发正确性与热路径加固（P0~P5 分阶段） | #189 ~ #244、#261 ~ #262 | ✅（全部收官，详情见归档） |
-| 29 | 多模型统一管理工作台（Multi-Model Management Workbench） | #245 ~ #260 | 🚧（#245~#259 ✅；下一步收口 #260） |
+| 29 | 多模型统一管理工作台（Multi-Model Management Workbench） | #245 ~ #260 | ✅（能力矩阵、三面 parity、截图与 smoke 已收口） |
 | 30 | 多协议设备接入扩展（Sparkplug B / CoAP / Line Protocol UDP） | #263 ~ #268 | 🚧（#265/#266/#267 ✅；前置 M28 #242 ✅） |
 | 31 | 时序聚合类型语义增强（selector / categorical aggregates） | #269 ~ #271 | 📋（IoTSharp 字符串遥测分桶查询兼容） |
 | 32 | Document Store MongoDB-like 易用性增强 | #272 ~ #281 | 📋（后续池；承接 M21/M24/M25） |
@@ -39,7 +39,7 @@
 ## 当前推进重点
 
 > **旗舰（要开始做的）**：
-> - **Milestone 29 — 多模型统一管理工作台**：把管理工具从三个孤立工程重构为「一张能力矩阵 × 三个交付面（Web Admin 旗舰 / Studio 桌面 / VS Code）」。**Web Admin 旗舰优先**：A 阶段管理契约 + 统一外壳、B 关系工作台、C KV/MQ/向量/全文、D 对象桶与文档接入、E 的 Studio 桌面桥与 VS Code 多模型消费已落地（#245~#259 ✅），下一步推进 #260 收口、文档与三面 parity。管理界面跨里程碑归口见 M29「管理界面归口」表。
+> - **Milestone 29 — 多模型统一管理工作台**：#245~#260 已完成。管理工具已收敛为「一张能力矩阵 × 三个交付面（Web Admin 旗舰 / Studio 桌面 / VS Code）」；能力矩阵、截图、三面 parity 和 smoke 见 [管理工具与三面能力矩阵](docs/management-tools.md)。后续功能缺口回到各模型里程碑，Studio 原生菜单映射与 VS Code 完整打包仍分别归桌面后续项和 M18 #108。
 > - **Milestone 30 — 多协议设备接入扩展**：在 M28 已交付的 MQTT 双形态之上补 Sparkplug B（骑 #242 broker）、CoAP、Line Protocol UDP 三条被动接收通道，三段独立可并行，全部收敛既有 BulkIngest 落库。
 >
 > **进行中（按带宽穿插）**：
@@ -154,9 +154,11 @@
 |----|------------|------|
 | #258 | **Studio 桌面原生桥**：`SonnetDB.Studio`（`NativeWebHost` WebView2 壳）从纯 WebView 升级为带原生桥——原生文件打开 / 保存对话框（供导入导出、对象上传下载、备份恢复）、磁盘持久化连接库、本地 `data root` 托管 SonnetDB Server 启动 / 停止 / 健康检查（对齐 M18 #105 托管本地模式思路）、原生菜单。Web Admin 检测到运行在 Studio 壳内时启用原生能力，浏览器内优雅降级。 | ✅ |
 | #259 | **VS Code 多模型消费（复用 M29 契约）**：VS Code 扩展先补完 **M18 #103（结果 Table/Raw/Chart 三视图）+ #104（Copilot 面板，客户端 `streamCopilot` 已写好只差接线）**，再把 Explorer 与结果面板扩展为消费 #245 契约做 **KV / 向量 / 全文 / MQ 只读浏览**；写操作与完整工作台仍以 Web Admin 为主，VS Code 定位开发者只读 + SQL 执行子集。与 **M18 交叉引用**：M18 保留 VS Code 交付主线，多模型浏览契约由本 PR 落地。 | ✅ |
-| #260 | **管理工作台收口 + 文档 + 三面 parity**：汇总能力矩阵文档（模型 → 工作台 → 对标单品 → 交付面覆盖度）；`docs/` 增管理工具章节与截图；Web Admin / Studio 桌面 / VS Code 三面能力 parity 表（谁支持哪些模型的浏览 / 查询 / 编辑 / 导入导出 / 监控）；各工作台 e2e smoke。 | 📋 |
+| #260 | **管理工作台收口 + 文档 + 三面 parity**：汇总能力矩阵文档（模型 → 工作台 → 对标单品 → 交付面覆盖度）；`docs/` 增管理工具章节与截图；Web Admin / Studio 桌面 / VS Code 三面能力 parity 表（谁支持哪些模型的浏览 / 查询 / 编辑 / 导入导出 / 监控）；各工作台 e2e smoke。 | ✅ |
 
 > **#259 落地说明**：VS Code 扩展保留 Remote-first 与开发者子集定位。当前实现已将连接 profile 持久化到 VS Code `globalState`、token 存入 `SecretStorage`；Explorer 在数据库下合并 schema 与 #245 管理契约，展示 KV Keyspaces、Vector Indexes、FullText Indexes、MQ Topics；结果面板支持 Table / Raw / Chart 三视图，并复用于 KV/MQ/向量/全文只读预览；Copilot 面板接入流式 `/v1/copilot/chat/stream`，read-write 模式前置用户确认。完整编辑、导入导出和治理工作台仍以 Web Admin / Studio 为主。
+
+> **#260 落地说明**：新增 `docs/management-tools.md` 作为八模型管理能力与三面 parity 的唯一收口入口，纳入 Web/MQ 与 Studio bridge 截图，并明确 Studio 原生菜单仍只有 action manifest、VS Code 不承担完整编辑治理。Web Admin Playwright smoke 覆盖 SQL/时序、关系、文档、KV、MQ、向量、全文、对象桶八个工作台和 Studio bridge；VS Code 以 loopback server 验证同一批 schema、SQL NDJSON、KV、向量、全文、MQ HTTP 契约消费。未新增引擎语义或绕过权限的写路径。
 
 ### 推进顺序
 
@@ -166,7 +168,7 @@ A 外壳：#245（管理契约补齐）→ #246（统一多模型 Explorer + 连
 B 关系：#248（数据网格 + 行内编辑）→ #249（可视化 EXPLAIN + 表设计器）→ #250（导入导出 + ER）
 C 四模型：#251（KV 浏览器）→ #252（MQ 控制台一）→ #253（MQ 控制台二）→ #254（向量 playground）→ #255（全文 playground）
 D 收口：#256（对象桶浏览器，收编 M19 #118 UI ✅）→ #257（文档浏览器接入外壳 ✅）
-E 三面：#258（Studio 桌面原生桥 ✅）∥ #259（VS Code 多模型消费 ✅）→ #260（收口 + 文档 + parity）
+E 三面：#258（Studio 桌面原生桥 ✅）∥ #259（VS Code 多模型消费 ✅）→ #260（收口 + 文档 + parity ✅）
 ```
 
 > **阶段间依赖与并行度**：**A（#245~#247）是所有 per-model 工作台的地基，必须最先**——#245 契约是 #251~#257 的前置，#246/#247 外壳与框架是 B~D 所有工作台的挂载点。B / C / D 各工作台在 A 落地后**相互独立可并行 / 穿插**（各消费自己的 #245 契约 + 挂 #247 框架）。跨里程碑依赖：**#252/#253 MQ 控制台依赖 M28 P5a（#231~#234）** 的 per-topic 统计与冷数据可读性、`#253` 实时推送状态随 P5b `#236` 落地增强；**#254 向量 playground** 依赖 M28 #223/#226 的 HNSW 参数与度量暴露；**#256 对象桶** 依赖 M19 #118 后端治理能力；**#257 文档** 按 M24 边界复用既有 Document API 与最小只读 metadata，不新增文档引擎语义。E 的 #258 桌面桥可在任一模型工作台落地后并行；#259 VS Code 需先补完 M18 #103/#104；#260 收口最后。

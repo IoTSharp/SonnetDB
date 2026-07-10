@@ -1,5 +1,5 @@
 <template>
-  <main class="document-workbench">
+  <main class="document-workbench" data-testid="workbench-document">
     <section class="document-toolbar">
       <div class="document-toolbar__identity">
         <n-space size="small" align="center" :wrap="true">

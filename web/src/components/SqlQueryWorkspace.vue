@@ -1,5 +1,5 @@
 <template>
-  <main class="query-workspace">
+  <main class="query-workspace" data-testid="workbench-sql">
     <div class="query-tabs">
       <button
         v-for="tab in tabs"
