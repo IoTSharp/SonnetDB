@@ -339,10 +339,10 @@ public sealed class QueryEngineAggregateTests : IDisposable
         Assert.Equal(100L, result[0].Count);
     }
 
-    // ── String 字段聚合 → 抛 NotSupportedException ───────────────────────
+    // ── String 字段 count → count-only，不读取字段值 ─────────────────────
 
     [Fact]
-    public void Execute_StringField_ThrowsNotSupportedException()
+    public void Execute_CountStringField_ReturnsPointCount()
     {
         using var db = Tsdb.Open(_opts);
 
@@ -350,8 +350,11 @@ public sealed class QueryEngineAggregateTests : IDisposable
 
         var entry = db.Catalog.Snapshot().First();
         var q = new AggregateQuery(entry.Id, "s", TimeRange.All, Aggregator.Count, 0);
+        var result = db.Query.Execute(q).ToList();
 
-        Assert.Throws<NotSupportedException>(() => db.Query.Execute(q).ToList());
+        Assert.Single(result);
+        Assert.Equal(1L, result[0].Count);
+        Assert.Equal(1.0, result[0].Value);
     }
 
     // ── 空数据集 ─────────────────────────────────────────────────────────────

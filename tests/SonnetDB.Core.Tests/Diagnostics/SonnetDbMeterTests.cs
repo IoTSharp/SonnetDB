@@ -382,6 +382,44 @@ public sealed class SonnetDbMeterTests : IDisposable
         Assert.Equal(single, multi);
     }
 
+    [Fact]
+    public void RawLimitPushdown_AndLatestN_ReadBoundedBlocks()
+    {
+        // M33 #285~#287：单字段 count(*) 走 block metadata；正序 LIMIT 与倒序 latest-N
+        // 只解码命中前缀/后缀的 block，读取量不随 measurement 总 block 数增长。
+        using var db = Tsdb.Open(MakeOptions());
+        SqlExecutor.Execute(db,
+            "CREATE MEASUREMENT samples (host TAG, value FIELD FLOAT)");
+
+        for (int segment = 0; segment < 8; segment++)
+        {
+            long start = segment * 10L;
+            SqlExecutor.Execute(db,
+                "INSERT INTO samples (time, host, value) VALUES " +
+                $"({start + 1}, 'h1', {start + 1}), " +
+                $"({start + 2}, 'h1', {start + 2}), " +
+                $"({start + 3}, 'h1', {start + 3}), " +
+                $"({start + 4}, 'h1', {start + 4})");
+            db.FlushNow();
+        }
+
+        long BlockReadsFor(string sql)
+        {
+            using var collector = new MetricCollector();
+            _ = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, sql));
+            return collector.LongSum("sonnetdb.segment.block.reads");
+        }
+
+        long countReads = BlockReadsFor("SELECT count(*) FROM samples");
+        long firstReads = BlockReadsFor("SELECT time, value FROM samples LIMIT 2");
+        long latestReads = BlockReadsFor(
+            "SELECT time, value FROM samples ORDER BY time DESC LIMIT 2");
+
+        Assert.Equal(0, countReads);
+        Assert.InRange(firstReads, 0, 1);
+        Assert.InRange(latestReads, 0, 1);
+    }
+
     private static Point CreatePoint(int index)
         => Point.Create(
             "metric",

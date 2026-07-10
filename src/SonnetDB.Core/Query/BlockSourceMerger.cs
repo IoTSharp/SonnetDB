@@ -30,12 +30,21 @@ internal static class BlockSourceMerger
         /// <summary>该 block 可能产出的最小时间戳的下界（通常为 <c>max(查询下界, descriptor.MinTimestamp)</c>）。</summary>
         public readonly long LowerBound;
 
+        /// <summary>该 block 可能产出的最大时间戳的上界（通常为 <c>min(查询上界, descriptor.MaxTimestamp)</c>）。</summary>
+        public readonly long UpperBound;
+
         /// <summary>按需解码该 block（已做时间范围裁剪）的委托。</summary>
         public readonly BlockDecodeFunc Decode;
 
         public LazyBlock(long lowerBound, BlockDecodeFunc decode)
+            : this(lowerBound, long.MaxValue, decode)
+        {
+        }
+
+        public LazyBlock(long lowerBound, long upperBound, BlockDecodeFunc decode)
         {
             LowerBound = lowerBound;
+            UpperBound = upperBound;
             Decode = decode;
         }
     }
@@ -114,6 +123,215 @@ internal static class BlockSourceMerger
             }
 
             yield return point;
+        }
+    }
+
+    /// <summary>
+    /// 按时间戳降序流式合并 MemTable 切片与惰性 Segment Block 源。
+    /// 尚未解码的 block 按 <see cref="LazyBlock.UpperBound"/> 从大到小推进，调用方提前停止枚举时，
+    /// 不会解码上界早于当前 latest-N 前沿的旧 block。
+    /// </summary>
+    public static IEnumerable<DataPoint> MergeDescending(
+        IReadOnlyList<ReadOnlyMemory<DataPoint>> memTableSlices,
+        IReadOnlyList<LazyBlock> segmentBlocks)
+    {
+        int segmentCount = segmentBlocks.Count;
+        if (segmentCount == 0 && memTableSlices.Count == 0)
+            yield break;
+
+        var pending = new DescendingPendingBlock[segmentCount];
+        for (int i = 0; i < segmentCount; i++)
+        {
+            pending[i] = new DescendingPendingBlock(
+                segmentBlocks[i].UpperBound,
+                i,
+                segmentBlocks[i].Decode);
+        }
+        Array.Sort(pending, static (a, b) =>
+        {
+            int comparison = b.UpperBound.CompareTo(a.UpperBound);
+            return comparison != 0 ? comparison : a.Rank.CompareTo(b.Rank);
+        });
+
+        var active = new List<DescendingActiveChunk>();
+        for (int i = 0; i < memTableSlices.Count; i++)
+        {
+            var slice = memTableSlices[i];
+            if (slice.Length > 0)
+            {
+                DescendingHeapPush(
+                    active,
+                    DescendingActiveChunk.Create(slice, segmentCount + i));
+            }
+        }
+
+        int pendingIndex = 0;
+        while (true)
+        {
+            while (pendingIndex < pending.Length
+                && (active.Count == 0
+                    || pending[pendingIndex].UpperBound >= active[0].HeadTimestamp))
+            {
+                var decoded = pending[pendingIndex].Decode();
+                int rank = pending[pendingIndex].Rank;
+                pendingIndex++;
+                if (decoded.Length > 0)
+                    DescendingHeapPush(active, DescendingActiveChunk.Create(decoded, rank));
+            }
+
+            if (active.Count == 0)
+                yield break;
+
+            var top = active[0];
+            DataPoint point = top.Chunk.Span[top.Cursor];
+            if (top.MovePreviousTimestampGroup())
+            {
+                active[0] = top;
+                DescendingHeapSiftDown(active, 0);
+            }
+            else
+            {
+                DescendingHeapPop(active);
+            }
+
+            yield return point;
+        }
+    }
+
+    private readonly struct DescendingPendingBlock
+    {
+        public readonly long UpperBound;
+        public readonly int Rank;
+        public readonly BlockDecodeFunc Decode;
+
+        public DescendingPendingBlock(long upperBound, int rank, BlockDecodeFunc decode)
+        {
+            UpperBound = upperBound;
+            Rank = rank;
+            Decode = decode;
+        }
+    }
+
+    private struct DescendingActiveChunk
+    {
+        public readonly ReadOnlyMemory<DataPoint> Chunk;
+        public readonly int Rank;
+        public int Cursor;
+        public int GroupEndExclusive;
+        public long HeadTimestamp;
+
+        private DescendingActiveChunk(
+            ReadOnlyMemory<DataPoint> chunk,
+            int rank,
+            int cursor,
+            int groupEndExclusive,
+            long headTimestamp)
+        {
+            Chunk = chunk;
+            Rank = rank;
+            Cursor = cursor;
+            GroupEndExclusive = groupEndExclusive;
+            HeadTimestamp = headTimestamp;
+        }
+
+        public static DescendingActiveChunk Create(ReadOnlyMemory<DataPoint> chunk, int rank)
+        {
+            int groupEndExclusive = chunk.Length;
+            long timestamp = chunk.Span[groupEndExclusive - 1].Timestamp;
+            int cursor = FindTimestampGroupStart(chunk.Span, groupEndExclusive - 1, timestamp);
+            return new DescendingActiveChunk(
+                chunk, rank, cursor, groupEndExclusive, timestamp);
+        }
+
+        public bool MovePreviousTimestampGroup()
+        {
+            if (Cursor + 1 < GroupEndExclusive)
+            {
+                Cursor++;
+                return true;
+            }
+
+            int previousGroupEnd = FindTimestampGroupStart(
+                Chunk.Span, GroupEndExclusive - 1, HeadTimestamp);
+            if (previousGroupEnd == 0)
+                return false;
+
+            GroupEndExclusive = previousGroupEnd;
+            HeadTimestamp = Chunk.Span[GroupEndExclusive - 1].Timestamp;
+            Cursor = FindTimestampGroupStart(
+                Chunk.Span, GroupEndExclusive - 1, HeadTimestamp);
+            return true;
+        }
+
+        private static int FindTimestampGroupStart(
+            ReadOnlySpan<DataPoint> points,
+            int index,
+            long timestamp)
+        {
+            while (index > 0 && points[index - 1].Timestamp == timestamp)
+                index--;
+            return index;
+        }
+    }
+
+    private static bool IsDescendingHigherPriority(
+        in DescendingActiveChunk left,
+        in DescendingActiveChunk right)
+    {
+        if (left.HeadTimestamp != right.HeadTimestamp)
+            return left.HeadTimestamp > right.HeadTimestamp;
+        return left.Rank < right.Rank;
+    }
+
+    private static void DescendingHeapPush(
+        List<DescendingActiveChunk> heap,
+        DescendingActiveChunk item)
+    {
+        heap.Add(item);
+        int index = heap.Count - 1;
+        while (index > 0)
+        {
+            int parent = (index - 1) / 2;
+            if (!IsDescendingHigherPriority(heap[index], heap[parent]))
+                break;
+            (heap[index], heap[parent]) = (heap[parent], heap[index]);
+            index = parent;
+        }
+    }
+
+    private static void DescendingHeapPop(List<DescendingActiveChunk> heap)
+    {
+        int last = heap.Count - 1;
+        heap[0] = heap[last];
+        heap.RemoveAt(last);
+        if (heap.Count > 0)
+            DescendingHeapSiftDown(heap, 0);
+    }
+
+    private static void DescendingHeapSiftDown(
+        List<DescendingActiveChunk> heap,
+        int index)
+    {
+        while (true)
+        {
+            int highest = index;
+            int left = (2 * index) + 1;
+            int right = left + 1;
+            if (left < heap.Count
+                && IsDescendingHigherPriority(heap[left], heap[highest]))
+            {
+                highest = left;
+            }
+            if (right < heap.Count
+                && IsDescendingHigherPriority(heap[right], heap[highest]))
+            {
+                highest = right;
+            }
+            if (highest == index)
+                return;
+
+            (heap[index], heap[highest]) = (heap[highest], heap[index]);
+            index = highest;
         }
     }
 

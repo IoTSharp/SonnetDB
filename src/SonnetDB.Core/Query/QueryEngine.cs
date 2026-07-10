@@ -109,10 +109,10 @@ public sealed class QueryEngine
     }
 
     /// <summary>
-    /// 原始点查询；按时间戳升序流式返回指定 (series, field) 在时间范围内的数据点。
+    /// 原始点查询；按指定方向流式返回 (series, field) 在时间范围内的数据点。
     /// </summary>
     /// <param name="query">点查询参数。</param>
-    /// <returns>按时间戳升序排列的 <see cref="DataPoint"/> 序列。</returns>
+    /// <returns>按 <see cref="PointQuery.Direction"/> 排列的 <see cref="DataPoint"/> 序列。</returns>
     /// <exception cref="ArgumentNullException"><paramref name="query"/> 为 null 时抛出。</exception>
     /// <exception cref="InvalidOperationException">MemTable 与 Segment 中同 (series, field) 的 FieldType 不一致时抛出。</exception>
     public IEnumerable<DataPoint> Execute(PointQuery query)
@@ -125,6 +125,11 @@ public sealed class QueryEngine
         long startTimestamp = SonnetDbMeter.QueryDuration.Enabled ? Stopwatch.GetTimestamp() : 0;
         try
         {
+            if (query.Direction is not (QueryDirection.Ascending or QueryDirection.Descending))
+                throw new ArgumentOutOfRangeException(nameof(query), "点查询方向无效。");
+            if (query.Limit is <= 0)
+                yield break;
+
             long from = query.Range.FromInclusive;
             long to = query.Range.ToInclusive;
 
@@ -173,8 +178,10 @@ public sealed class QueryEngine
 
                 var descriptor = blockRef.Descriptor;
                 long lowerBound = Math.Max(from, descriptor.MinTimestamp);
+                long upperBound = Math.Min(to, descriptor.MaxTimestamp);
                 segmentBlocks.Add(new BlockSourceMerger.LazyBlock(
                     lowerBound,
+                    upperBound,
                     () => reader.DecodeBlockRangeView(descriptor, from, to)));
             }
 
@@ -182,13 +189,19 @@ public sealed class QueryEngine
             // Limit 必须在 tombstone 过滤之后计数。
             int emitted = 0;
             int? limit = query.Limit;
-            foreach (var dp in BlockSourceMerger.Merge(memSlices, segmentBlocks))
+            var merged = query.Direction == QueryDirection.Descending
+                ? BlockSourceMerger.MergeDescending(memSlices, segmentBlocks)
+                : BlockSourceMerger.Merge(memSlices, segmentBlocks);
+
+            using var enumerator = merged.GetEnumerator();
+            while (!limit.HasValue || emitted < limit.Value)
             {
+                if (!enumerator.MoveNext())
+                    break;
+
+                var dp = enumerator.Current;
                 if (tombstones.Count > 0 && IsCoveredByTombstones(dp.Timestamp, tombstones))
                     continue;
-
-                if (limit.HasValue && emitted >= limit.Value)
-                    yield break;
 
                 yield return dp;
                 emitted++;
@@ -408,7 +421,8 @@ public sealed class QueryEngine
     /// 聚合查询；按 BucketStart 升序返回聚合桶。
     /// <para>
     /// 支持字段类型：Float64 / Int64 / Boolean（Bool 走数值聚合，true=1, false=0）。
-    /// String 字段会抛出 <see cref="NotSupportedException"/>。
+    /// Count 只读取时间戳并支持所有字段类型；其他 legacy 数值聚合遇到 String 会抛出
+    /// <see cref="NotSupportedException"/>。
     /// </para>
     /// <para>
     /// BucketSizeMs &lt;= 0 时全局单桶聚合；&gt; 0 时按 <see cref="TimeBucket.Floor"/> 分桶。
@@ -418,7 +432,7 @@ public sealed class QueryEngine
     /// <param name="query">聚合查询参数。</param>
     /// <returns>按 BucketStart 升序排列的 <see cref="AggregateBucket"/> 序列（空数据集返回空序列）。</returns>
     /// <exception cref="ArgumentNullException"><paramref name="query"/> 为 null 时抛出。</exception>
-    /// <exception cref="NotSupportedException">字段类型为 String 时抛出。</exception>
+    /// <exception cref="NotSupportedException">非 Count 聚合的字段类型为 String 时抛出。</exception>
     public IEnumerable<AggregateBucket> Execute(AggregateQuery query)
     {
         ArgumentNullException.ThrowIfNull(query);
@@ -467,6 +481,7 @@ public sealed class QueryEngine
         // 检查 FieldType（先从 MemTable 或 Segment 中取得，若数据为空则无法校验，直接返回）
         // 字段类型校验在第一条点时进行
         bool fieldTypeChecked = false;
+        bool needsValue = query.Aggregator != Aggregator.Count;
 
         if (query.BucketSizeMs <= 0)
         {
@@ -487,7 +502,8 @@ public sealed class QueryEngine
             {
                 if (!fieldTypeChecked)
                 {
-                    ThrowIfString(dp.Value.Type);
+                    if (needsValue)
+                        ThrowIfString(dp.Value.Type);
                     fieldTypeChecked = true;
                 }
 
@@ -497,7 +513,7 @@ public sealed class QueryEngine
                     firstPoint = false;
                 }
 
-                double v = ToDouble(dp.Value);
+                double v = needsValue ? ToDouble(dp.Value) : 0;
                 count++;
                 sum += v;
                 if (v < min) min = v;
@@ -533,7 +549,8 @@ public sealed class QueryEngine
             {
                 if (!fieldTypeChecked)
                 {
-                    ThrowIfString(dp.Value.Type);
+                    if (needsValue)
+                        ThrowIfString(dp.Value.Type);
                     fieldTypeChecked = true;
                 }
 
@@ -565,7 +582,7 @@ public sealed class QueryEngine
                     lastValue = 0;
                 }
 
-                double v = ToDouble(dp.Value);
+                double v = needsValue ? ToDouble(dp.Value) : 0;
                 if (count == 0) firstValue = v;
                 lastValue = v;
                 count++;
@@ -627,7 +644,8 @@ public sealed class QueryEngine
             bool useObservedStart = query.Range.FromInclusive == long.MinValue;
 
             foreach (var memTable in memTables)
-                AddMemTableToGlobal(memTable, in key, from, to, useObservedStart, ref state);
+                AddMemTableToGlobal(
+                    memTable, in key, from, to, query.Aggregator, useObservedStart, ref state);
 
             AddSegmentBlocksToGlobal(
                 candidates,
@@ -648,7 +666,8 @@ public sealed class QueryEngine
         var buckets = new Dictionary<long, AggregateState>();
 
         foreach (var memTable in memTables)
-            AddMemTableToBuckets(memTable, in key, from, to, query.BucketSizeMs, buckets);
+            AddMemTableToBuckets(
+                memTable, in key, from, to, query.BucketSizeMs, query.Aggregator, buckets);
 
         AddSegmentBlocksToBuckets(
             candidates, readers, memFieldType, query.Range, query.BucketSizeMs, query.Aggregator, buckets);
@@ -787,7 +806,8 @@ public sealed class QueryEngine
             bool useObservedStart = from == long.MinValue;
 
             foreach (var memTable in memTables)
-                AddMemTableToGlobal(memTable, in key, from, to, useObservedStart, ref state);
+                AddMemTableToGlobal(
+                    memTable, in key, from, to, Aggregator.None, useObservedStart, ref state);
 
             AddSegmentBlocksToGlobalMulti(
                 candidates, readers, memFieldType, query.Range,
@@ -802,7 +822,8 @@ public sealed class QueryEngine
         var buckets = new Dictionary<long, AggregateState>();
 
         foreach (var memTable in memTables)
-            AddMemTableToBuckets(memTable, in key, from, to, query.BucketSizeMs, buckets);
+            AddMemTableToBuckets(
+                memTable, in key, from, to, query.BucketSizeMs, Aggregator.None, buckets);
 
         AddSegmentBlocksToBucketsMulti(
             candidates, readers, memFieldType, query.Range, query.BucketSizeMs, buckets);
@@ -904,6 +925,7 @@ public sealed class QueryEngine
                 data.ValuePayload,
                 range,
                 bucketSizeMs,
+                Aggregator.None,
                 buckets);
         }
     }
@@ -946,6 +968,7 @@ public sealed class QueryEngine
         in SeriesFieldKey key,
         long from,
         long to,
+        Aggregator aggregator,
         bool useObservedStart,
         ref AggregateState state)
     {
@@ -964,7 +987,16 @@ public sealed class QueryEngine
         }
         else
         {
-            AddDecodedPointsToGlobal(bucket.SnapshotRange(from, to), ref state, useObservedStart);
+            var slice = bucket.SnapshotRange(from, to);
+            if (aggregator == Aggregator.Count)
+            {
+                if (slice.Length > 0)
+                    state.AddCountRange(slice.Span[0].Timestamp, slice.Length, useObservedStart);
+            }
+            else
+            {
+                AddDecodedPointsToGlobal(slice, ref state, useObservedStart);
+            }
         }
     }
 
@@ -975,6 +1007,7 @@ public sealed class QueryEngine
         long from,
         long to,
         long bucketSizeMs,
+        Aggregator aggregator,
         Dictionary<long, AggregateState> buckets)
     {
         var bucket = memTable.TryGet(in key);
@@ -997,7 +1030,16 @@ public sealed class QueryEngine
         else
         {
             // 跨桶或非数值字段：回退到逐点路径。
-            AddDecodedPointsToBuckets(bucket.SnapshotRange(from, to), bucketSizeMs, buckets);
+            var slice = bucket.SnapshotRange(from, to);
+            if (aggregator == Aggregator.Count)
+            {
+                foreach (var point in slice.Span)
+                    AddCountToBucket(buckets, bucketSizeMs, point.Timestamp);
+            }
+            else
+            {
+                AddDecodedPointsToBuckets(slice, bucketSizeMs, buckets);
+            }
         }
     }
 
@@ -1354,6 +1396,7 @@ public sealed class QueryEngine
                 data.ValuePayload,
                 range,
                 bucketSizeMs,
+                aggregator,
                 buckets);
         }
     }
@@ -1368,6 +1411,13 @@ public sealed class QueryEngine
         ref AggregateState state,
         bool useObservedStart)
     {
+        if (aggregator == Aggregator.Count)
+        {
+            AddBlockCountToGlobal(
+                descriptor, tsPayload, range, useObservedStart, ref state);
+            return;
+        }
+
         if (CanAggregateRawBlock(descriptor))
         {
             int start = LowerBoundRaw(tsPayload, descriptor.Count, range.FromInclusive);
@@ -1432,8 +1482,15 @@ public sealed class QueryEngine
         ReadOnlySpan<byte> valPayload,
         TimeRange range,
         long bucketSizeMs,
+        Aggregator aggregator,
         Dictionary<long, AggregateState> buckets)
     {
+        if (aggregator == Aggregator.Count)
+        {
+            AddBlockCountToBuckets(descriptor, tsPayload, range, bucketSizeMs, buckets);
+            return;
+        }
+
         if (CanAggregateRawBlock(descriptor))
         {
             int start = LowerBoundRaw(tsPayload, descriptor.Count, range.FromInclusive);
@@ -1465,6 +1522,82 @@ public sealed class QueryEngine
             range.FromInclusive,
             range.ToInclusive);
         AddDecodedPointsToBuckets(points.AsSpan(), bucketSizeMs, buckets);
+    }
+
+    /// <summary>
+    /// count 专路只解码时间戳并累加范围内点数，不读取字段值。
+    /// </summary>
+    private static void AddBlockCountToGlobal(
+        in BlockDescriptor descriptor,
+        ReadOnlySpan<byte> tsPayload,
+        TimeRange range,
+        bool useObservedStart,
+        ref AggregateState state)
+    {
+        if (descriptor.Count <= 0)
+            return;
+
+        if ((descriptor.TimestampEncoding & BlockEncoding.DeltaTimestamp) == 0)
+        {
+            int start = LowerBoundRaw(tsPayload, descriptor.Count, range.FromInclusive);
+            int end = UpperBoundRaw(tsPayload, descriptor.Count, range.ToInclusive);
+            if (start < end)
+                state.AddCountRange(ReadRawTimestamp(tsPayload, start), end - start, useObservedStart);
+            return;
+        }
+
+        long[] rented = ArrayPool<long>.Shared.Rent(descriptor.Count);
+        try
+        {
+            Span<long> timestamps = rented.AsSpan(0, descriptor.Count);
+            TimestampCodec.ReadDeltaOfDelta(tsPayload, timestamps);
+            int start = BinarySearchLowerBound(timestamps, range.FromInclusive);
+            int end = BinarySearchUpperBound(timestamps, range.ToInclusive);
+            if (start < end)
+                state.AddCountRange(timestamps[start], end - start, useObservedStart);
+        }
+        finally
+        {
+            ArrayPool<long>.Shared.Return(rented);
+        }
+    }
+
+    /// <summary>
+    /// 分桶 count 专路只解码时间戳，并把范围内点数直接分配到对应时间桶。
+    /// </summary>
+    private static void AddBlockCountToBuckets(
+        in BlockDescriptor descriptor,
+        ReadOnlySpan<byte> tsPayload,
+        TimeRange range,
+        long bucketSizeMs,
+        Dictionary<long, AggregateState> buckets)
+    {
+        if (descriptor.Count <= 0)
+            return;
+
+        if ((descriptor.TimestampEncoding & BlockEncoding.DeltaTimestamp) == 0)
+        {
+            int start = LowerBoundRaw(tsPayload, descriptor.Count, range.FromInclusive);
+            int end = UpperBoundRaw(tsPayload, descriptor.Count, range.ToInclusive);
+            for (int i = start; i < end; i++)
+                AddCountToBucket(buckets, bucketSizeMs, ReadRawTimestamp(tsPayload, i));
+            return;
+        }
+
+        long[] rented = ArrayPool<long>.Shared.Rent(descriptor.Count);
+        try
+        {
+            Span<long> timestamps = rented.AsSpan(0, descriptor.Count);
+            TimestampCodec.ReadDeltaOfDelta(tsPayload, timestamps);
+            int start = BinarySearchLowerBound(timestamps, range.FromInclusive);
+            int end = BinarySearchUpperBound(timestamps, range.ToInclusive);
+            for (int i = start; i < end; i++)
+                AddCountToBucket(buckets, bucketSizeMs, timestamps[i]);
+        }
+        finally
+        {
+            ArrayPool<long>.Shared.Return(rented);
+        }
     }
 
     /// <summary>
@@ -1726,6 +1859,23 @@ public sealed class QueryEngine
             state = new AggregateState(bucketStart, bucketStart + bucketSizeMs);
 
         state.Add(timestamp, value, useObservedStart: false);
+    }
+
+    private static void AddCountToBucket(
+        Dictionary<long, AggregateState> buckets,
+        long bucketSizeMs,
+        long timestamp)
+    {
+        long bucketStart = TimeBucket.Floor(timestamp, bucketSizeMs);
+        ref var state = ref CollectionsMarshal.GetValueRefOrAddDefault(
+            buckets,
+            bucketStart,
+            out bool exists);
+
+        if (!exists)
+            state = new AggregateState(bucketStart, bucketStart + bucketSizeMs);
+
+        state.AddCountRange(timestamp, 1, useObservedStart: false);
     }
 
     private static bool CanAggregateRawBlock(in BlockDescriptor descriptor)

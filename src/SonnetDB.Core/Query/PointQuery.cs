@@ -14,7 +14,25 @@ public sealed record PointQuery(
     string FieldName,
     TimeRange Range,
     int? Limit = null,
-    GeoPointFilter? GeoFilter = null);
+    GeoPointFilter? GeoFilter = null)
+{
+    /// <summary>
+    /// 扫描方向；默认按时间戳升序。该可选属性不改变既有构造器与解构签名。
+    /// </summary>
+    public QueryDirection Direction { get; init; } = QueryDirection.Ascending;
+}
+
+/// <summary>
+/// 原始点查询的时间扫描方向。
+/// </summary>
+public enum QueryDirection
+{
+    /// <summary>按时间戳升序扫描。</summary>
+    Ascending,
+
+    /// <summary>按时间戳降序扫描。</summary>
+    Descending,
+}
 
 /// <summary>
 /// GEOPOINT 字段查询的空间剪枝条件。

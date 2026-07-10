@@ -220,6 +220,48 @@ public sealed class BlockSourceMergerTests
     }
 
     [Fact]
+    public void MergeDescending_InterleavedSources_ReturnsDescending()
+    {
+        var segment1 = MakePoints(2L, 5L, 8L);
+        var segment2 = MakePoints(3L, 6L, 9L);
+        var blocks = new[]
+        {
+            new BlockSourceMerger.LazyBlock(2L, 8L, () => segment1),
+            new BlockSourceMerger.LazyBlock(3L, 9L, () => segment2),
+        };
+
+        var result = BlockSourceMerger.MergeDescending(
+            new[] { Mem(1L, 4L, 7L) }, blocks).ToList();
+
+        Assert.Equal(
+            [9L, 8L, 7L, 6L, 5L, 4L, 3L, 2L, 1L],
+            result.Select(static point => point.Timestamp));
+    }
+
+    [Fact]
+    public void MergeDescending_StopsBeforeOlderBlocks_WhenLimitReached()
+    {
+        int decodedOlder = 0;
+        var latest = new BlockSourceMerger.LazyBlock(
+            200L, 202L, () => MakePoints(200L, 201L, 202L));
+        var older = new BlockSourceMerger.LazyBlock(
+            100L,
+            102L,
+            () =>
+            {
+                decodedOlder++;
+                return MakePoints(100L, 101L, 102L);
+            });
+
+        var result = BlockSourceMerger.MergeDescending(NoMem, [older, latest])
+            .Take(2)
+            .ToList();
+
+        Assert.Equal([202L, 201L], result.Select(static point => point.Timestamp));
+        Assert.Equal(0, decodedOlder);
+    }
+
+    [Fact]
     public void Merge_BoundsDecodeWorkingSet_ToOverlapDepth()
     {
         // 10 个互不重叠、时间递增的 block，每个 2 点。全量消费时，任意时刻已解码但未耗尽的 block 数

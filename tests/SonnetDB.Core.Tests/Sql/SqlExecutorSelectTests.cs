@@ -183,6 +183,35 @@ public class SqlExecutorSelectTests : IDisposable
     }
 
     [Fact]
+    public void Select_OrderByTimeDescLimit_SparseFieldsUsesTimestampUnion()
+    {
+        using var db = OpenWithSchema(Options());
+        Seed(db);
+        SqlExecutor.Execute(db,
+            "INSERT INTO cpu (time, host, region, count) VALUES (4000, 'h1', 'cn', 40)");
+
+        var result = Select(db,
+            "SELECT time, usage, count FROM cpu WHERE host = 'h1' ORDER BY time DESC LIMIT 2");
+
+        Assert.Equal([4000L, 3000L], result.Rows.Select(static row => (long)row[0]!));
+        Assert.Null(result.Rows[0][1]);
+        Assert.Equal(40L, result.Rows[0][2]);
+        Assert.Equal(3.0, result.Rows[1][1]);
+    }
+
+    [Fact]
+    public void Select_OrderByTimeDescLimitOffset_ReturnsSameSortedSlice()
+    {
+        using var db = OpenWithSchema(Options());
+        Seed(db);
+
+        var result = Select(db,
+            "SELECT time, host FROM cpu ORDER BY time DESC LIMIT 2 OFFSET 1");
+
+        Assert.Equal([2500L, 2000L], result.Rows.Select(static row => (long)row[0]!));
+    }
+
+    [Fact]
     public void Select_OrderByTimeDescLimitOne_SingleSeriesField_ReturnsLatestPoint()
     {
         using var db = OpenWithSchema(Options());
@@ -466,6 +495,37 @@ public class SqlExecutorSelectTests : IDisposable
         Assert.Equal(2L, byBucket[1000]); // h1@1000 + h2@1500
         Assert.Equal(2L, byBucket[2000]); // h1@2000 + h2@2500
         Assert.Equal(1L, byBucket[3000]); // h1@3000
+    }
+
+    [Fact]
+    public void Select_CountStar_SingleStringFieldAfterFlush_SupportsRangeAndBuckets()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db,
+            "CREATE MEASUREMENT logs (host TAG, message FIELD STRING)");
+        SqlExecutor.Execute(db,
+            "INSERT INTO logs (time, host, message) VALUES " +
+            "(1, 'h1', 'a'), (2, 'h1', 'b'), (3, 'h1', 'c'), " +
+            "(4, 'h1', 'd'), (5, 'h1', 'e'), (6, 'h1', 'f')");
+        db.FlushNow();
+
+        var total = Select(db,
+            "SELECT count(*) FROM logs WHERE time >= 2 AND time <= 5");
+        var bucketed = Select(db,
+            "SELECT time, count(*) FROM logs WHERE time >= 2 AND time <= 5 GROUP BY time(2ms)");
+
+        Assert.Equal(4L, total.Rows.Single()[0]);
+        Assert.Equal(
+            new Dictionary<long, long> { [2L] = 2L, [4L] = 2L },
+            bucketed.Rows.ToDictionary(
+                static row => (long)row[0]!,
+                static row => (long)row[1]!));
+
+        var series = db.Catalog.Snapshot().Single();
+        db.Delete(series.Id, "message", 3L, 3L);
+        var afterDelete = Select(db,
+            "SELECT count(*) FROM logs WHERE time >= 2 AND time <= 5");
+        Assert.Equal(3L, afterDelete.Rows.Single()[0]);
     }
 
     [Fact]

@@ -150,6 +150,59 @@ public sealed class QueryEnginePointQueryTests : IDisposable
     }
 
     [Fact]
+    public void Execute_DescendingWithLimit_ReturnsLatestNPoints()
+    {
+        using var db = Tsdb.Open(_opts);
+
+        for (int i = 0; i < 50; i++)
+            db.Write(MakePoint("m", 1000L + i, "f", FieldValue.FromDouble(i)));
+        db.FlushNow();
+        for (int i = 50; i < 100; i++)
+            db.Write(MakePoint("m", 1000L + i, "f", FieldValue.FromDouble(i)));
+
+        var entry = db.Catalog.Snapshot().First();
+        var query = new PointQuery(
+            entry.Id,
+            "f",
+            TimeRange.All,
+            Limit: 10)
+        {
+            Direction = QueryDirection.Descending,
+        };
+        var results = db.Query.Execute(query).ToList();
+
+        Assert.Equal(10, results.Count);
+        Assert.Equal(1099L, results[0].Timestamp);
+        Assert.Equal(1090L, results[9].Timestamp);
+        for (int i = 1; i < results.Count; i++)
+            Assert.True(results[i].Timestamp <= results[i - 1].Timestamp);
+    }
+
+    [Fact]
+    public void Execute_DescendingWithTombstone_AppliesLimitAfterFilter()
+    {
+        using var db = Tsdb.Open(_opts);
+
+        for (int i = 0; i < 10; i++)
+            db.Write(MakePoint("m", 1000L + i, "f", FieldValue.FromDouble(i)));
+
+        var entry = db.Catalog.Snapshot().First();
+        db.Delete(entry.Id, "f", 1007L, 1009L);
+
+        var query = new PointQuery(
+            entry.Id,
+            "f",
+            TimeRange.All,
+            Limit: 3)
+        {
+            Direction = QueryDirection.Descending,
+        };
+        var results = db.Query.Execute(query).ToList();
+
+        Assert.Equal([1006L, 1005L, 1004L], results.Select(static point => point.Timestamp));
+    }
+
+    [Fact]
     public void TryGetLatestPoint_MemTableOnly_ReturnsLatestPoint()
     {
         using var db = Tsdb.Open(_opts);

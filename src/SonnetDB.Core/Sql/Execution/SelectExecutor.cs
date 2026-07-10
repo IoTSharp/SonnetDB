@@ -58,6 +58,21 @@ internal static class SelectExecutor
             return latestResult;
         }
 
+        if (!hasAggregate
+            && groupByTime is null
+            && TryExecuteRawPaginationPushdown(
+                tsdb,
+                schema,
+                classified,
+                matchedSeries,
+                where,
+                statement.OrderBy,
+                statement.Pagination,
+                out var pushedDownResult))
+        {
+            return pushedDownResult;
+        }
+
         SelectExecutionResult result = hasAggregate
             ? ExecuteAggregate(tsdb, schema, classified, matchedSeries, where, groupByTime)
             : ExecuteRaw(tsdb, schema, classified, matchedSeries, where);
@@ -459,6 +474,236 @@ internal static class SelectExecutor
     };
 
     // ── 原始模式 ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// 对简单 raw 查询把有界 LIMIT/OFFSET 下推到跨字段时间轴合并器。
+    /// 正序按自然行序或全局 time 排序提前停止；倒序通过 PointQuery latest-N 反向扫描提前停止。
+    /// </summary>
+    private static bool TryExecuteRawPaginationPushdown(
+        Tsdb tsdb,
+        MeasurementSchema schema,
+        IReadOnlyList<Projection> projections,
+        IReadOnlyList<SeriesEntry> matchedSeries,
+        WhereClause where,
+        OrderBySpec? orderBy,
+        PaginationSpec? pagination,
+        out SelectExecutionResult result)
+    {
+        result = null!;
+        if (pagination?.Fetch is not int fetch
+            || where.Residual is not null
+            || where.GeoFilters.Count != 0
+            || projections.Any(static projection =>
+                projection.Kind is ProjectionKind.Aggregate
+                    or ProjectionKind.Scalar
+                    or ProjectionKind.Window))
+        {
+            return false;
+        }
+
+        if (orderBy is not null
+            && (orderBy.Expression is not IdentifierExpression { Name: var orderColumn }
+                || !string.Equals(orderColumn, "time", StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        var columnNames = projections.Select(static projection => projection.ColumnName).ToList();
+        if (orderBy is not null
+            && !columnNames.Any(static name =>
+                string.Equals(name, "time", StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException("ORDER BY time 要求 SELECT 结果中包含 time 列。");
+        }
+
+        if (fetch == 0)
+        {
+            result = new SelectExecutionResult(columnNames, []);
+            return true;
+        }
+
+        QueryDirection direction = orderBy?.Direction == SortDirection.Descending
+            ? QueryDirection.Descending
+            : QueryDirection.Ascending;
+
+        IEnumerable<RawRow> rowStream = orderBy is null
+            ? EnumerateNaturalRawRows(
+                tsdb, schema, projections, matchedSeries, where.TimeRange)
+            : EnumerateOrderedRawRows(
+                tsdb, schema, projections, matchedSeries, where.TimeRange, direction);
+
+        var rows = new List<IReadOnlyList<object?>>(Math.Min(fetch, 256));
+        int skipped = 0;
+        foreach (var row in rowStream)
+        {
+            if (skipped < pagination.Offset)
+            {
+                skipped++;
+                continue;
+            }
+
+            if (rows.Count >= fetch)
+                break;
+
+            rows.Add(row.Values);
+            if (rows.Count >= fetch)
+                break;
+        }
+
+        result = new SelectExecutionResult(columnNames, rows);
+        return true;
+    }
+
+    private static IEnumerable<RawRow> EnumerateNaturalRawRows(
+        Tsdb tsdb,
+        MeasurementSchema schema,
+        IReadOnlyList<Projection> projections,
+        IReadOnlyList<SeriesEntry> matchedSeries,
+        TimeRange range)
+    {
+        foreach (var series in matchedSeries)
+        {
+            foreach (var row in EnumerateSeriesRawRows(
+                tsdb, schema, projections, series, range, QueryDirection.Ascending))
+            {
+                yield return row;
+            }
+        }
+    }
+
+    private static IEnumerable<RawRow> EnumerateOrderedRawRows(
+        Tsdb tsdb,
+        MeasurementSchema schema,
+        IReadOnlyList<Projection> projections,
+        IReadOnlyList<SeriesEntry> matchedSeries,
+        TimeRange range,
+        QueryDirection direction)
+    {
+        var enumerators = matchedSeries
+            .Select(series => EnumerateSeriesRawRows(
+                tsdb, schema, projections, series, range, direction).GetEnumerator())
+            .ToArray();
+        var queue = new PriorityQueue<int, (long SortTimestamp, int SeriesIndex)>();
+
+        try
+        {
+            for (int i = 0; i < enumerators.Length; i++)
+            {
+                if (enumerators[i].MoveNext())
+                    queue.Enqueue(i, RawRowPriority(enumerators[i].Current.Timestamp, i, direction));
+            }
+
+            while (queue.TryDequeue(out int seriesIndex, out _))
+            {
+                var row = enumerators[seriesIndex].Current;
+                if (enumerators[seriesIndex].MoveNext())
+                {
+                    queue.Enqueue(
+                        seriesIndex,
+                        RawRowPriority(
+                            enumerators[seriesIndex].Current.Timestamp,
+                            seriesIndex,
+                            direction));
+                }
+
+                yield return row;
+            }
+        }
+        finally
+        {
+            foreach (var enumerator in enumerators)
+                enumerator.Dispose();
+        }
+    }
+
+    private static IEnumerable<RawRow> EnumerateSeriesRawRows(
+        Tsdb tsdb,
+        MeasurementSchema schema,
+        IReadOnlyList<Projection> projections,
+        SeriesEntry series,
+        TimeRange range,
+        QueryDirection direction)
+    {
+        var fieldNames = projections
+            .Where(static projection => projection.Kind == ProjectionKind.Field)
+            .Select(static projection => projection.Column!.Name)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        if (fieldNames.Count == 0)
+            fieldNames.Add(schema.FieldColumns.First().Name);
+
+        var enumerators = fieldNames
+            .Select(fieldName => QueryPointsStream(
+                tsdb, series.Id, fieldName, range, direction).GetEnumerator())
+            .ToArray();
+        var queue = new PriorityQueue<int, (long SortTimestamp, int FieldIndex)>();
+        var values = new Dictionary<string, FieldValue>(StringComparer.Ordinal);
+
+        try
+        {
+            for (int i = 0; i < enumerators.Length; i++)
+            {
+                if (enumerators[i].MoveNext())
+                    queue.Enqueue(i, RawRowPriority(enumerators[i].Current.Timestamp, i, direction));
+            }
+
+            while (queue.TryPeek(out int firstFieldIndex, out _))
+            {
+                long timestamp = enumerators[firstFieldIndex].Current.Timestamp;
+                values.Clear();
+
+                while (queue.TryPeek(out int fieldIndex, out _)
+                    && enumerators[fieldIndex].Current.Timestamp == timestamp)
+                {
+                    queue.Dequeue();
+                    values[fieldNames[fieldIndex]] = enumerators[fieldIndex].Current.Value;
+                    if (enumerators[fieldIndex].MoveNext())
+                    {
+                        queue.Enqueue(
+                            fieldIndex,
+                            RawRowPriority(
+                                enumerators[fieldIndex].Current.Timestamp,
+                                fieldIndex,
+                                direction));
+                    }
+                }
+
+                var row = new object?[projections.Count];
+                for (int i = 0; i < projections.Count; i++)
+                {
+                    var projection = projections[i];
+                    row[i] = projection.Kind switch
+                    {
+                        ProjectionKind.Time => timestamp,
+                        ProjectionKind.Tag => series.Tags.TryGetValue(
+                            projection.Column!.Name, out var tagValue) ? tagValue : null,
+                        ProjectionKind.Field => values.TryGetValue(
+                            projection.Column!.Name, out var value)
+                                ? UnboxFieldValue(projection.Column, value)
+                                : null,
+                        ProjectionKind.Constant => projection.ConstantValue,
+                        _ => throw new InvalidOperationException(
+                            "内部错误：raw 分页下推收到了不支持的投影类型。"),
+                    };
+                }
+
+                yield return new RawRow(timestamp, row);
+            }
+        }
+        finally
+        {
+            foreach (var enumerator in enumerators)
+                enumerator.Dispose();
+        }
+    }
+
+    private static (long SortTimestamp, int SourceIndex) RawRowPriority(
+        long timestamp,
+        int sourceIndex,
+        QueryDirection direction)
+        => (direction == QueryDirection.Descending ? ~timestamp : timestamp, sourceIndex);
+
+    private sealed record RawRow(long Timestamp, IReadOnlyList<object?> Values);
 
     private static SelectExecutionResult ExecuteRaw(
         Tsdb tsdb,
@@ -1215,6 +1460,20 @@ internal static class SelectExecutor
         ulong seriesId,
         string fieldName,
         TimeRange range,
+        QueryDirection direction)
+    {
+        var query = new PointQuery(seriesId, fieldName, range)
+        {
+            Direction = direction,
+        };
+        return tsdb.Query.Execute(query);
+    }
+
+    private static IEnumerable<DataPoint> QueryPointsStream(
+        Tsdb tsdb,
+        ulong seriesId,
+        string fieldName,
+        TimeRange range,
         IReadOnlyList<GeoPointWhereFilter>? geoFilters)
     {
         if (geoFilters is null || geoFilters.Count == 0)
@@ -1581,12 +1840,58 @@ internal static class SelectExecutor
     {
         var fieldNames = schema.FieldColumns.Select(c => c.Name).ToList();
 
+        // #285：单字段 schema 的行/时刻数等于该字段的点数。无逐点谓词时直接复用底层 count
+        // 聚合，让完整 block 只合并 descriptor.Count；部分 block 也只解码时间戳。
+        if (fieldNames.Count == 1
+            && where.Residual is null
+            && where.GeoFilters.Count == 0)
+        {
+            foreach (var series in matchedSeries)
+            {
+                AccumulateLegacyAggregateFast(
+                    tsdb,
+                    series.Id,
+                    fieldNames[0],
+                    where.TimeRange,
+                    bucketSizeMs,
+                    aggSpecs[specIdx],
+                    aggSpecs,
+                    specIdx,
+                    bucketAccumulators);
+            }
+            return;
+        }
+
         var residualFieldCols = where.Residual is null
             ? []
             : GetResidualFieldDependencies(where.Residual, schema).Distinct(StringComparer.Ordinal).ToList();
 
         foreach (var series in matchedSeries)
         {
+            // #285：无 residual / Geo 时，各 field 的点流均已按时间升序。用最小堆做 k-way merge，
+            // 同一时间戳只更新一次 count(*)，把 O(N) HashSet 峰值降为 O(field-count)。
+            if (where.Residual is null && where.GeoFilters.Count == 0)
+            {
+                var streams = fieldNames.Select(fname =>
+                    QueryPointsStream(tsdb, series.Id, fname, where.TimeRange));
+
+                foreach (long timestamp in EnumerateDistinctTimestamps(streams))
+                {
+                    long bucketStart = bucketSizeMs > 0
+                        ? TimeBucket.Floor(timestamp, bucketSizeMs)
+                        : long.MinValue;
+
+                    if (!bucketAccumulators.TryGetValue(bucketStart, out var slots))
+                    {
+                        slots = CreateAggSlots(aggSpecs);
+                        bucketAccumulators[bucketStart] = slots;
+                    }
+
+                    slots[specIdx].UpdateCount(timestamp);
+                }
+                continue;
+            }
+
             // 每个 bucket 下该 series 所有 field 列出现过的时间戳并集 = 行/时刻集合。
             var bucketTimestamps = new Dictionary<long, HashSet<long>>();
 
@@ -1634,6 +1939,50 @@ internal static class SelectExecutor
                     slots[specIdx].UpdateCount(ts);
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// 合并多路升序点流并只产出不同时间戳；工作集只与流数量有关。
+    /// </summary>
+    private static IEnumerable<long> EnumerateDistinctTimestamps(
+        IEnumerable<IEnumerable<DataPoint>> streams)
+    {
+        var enumerators = streams.Select(static stream => stream.GetEnumerator()).ToArray();
+        var queue = new PriorityQueue<int, (long Timestamp, int StreamIndex)>();
+
+        try
+        {
+            for (int i = 0; i < enumerators.Length; i++)
+            {
+                if (enumerators[i].MoveNext())
+                    queue.Enqueue(i, (enumerators[i].Current.Timestamp, i));
+            }
+
+            bool hasLast = false;
+            long lastTimestamp = 0;
+            while (queue.TryDequeue(out int streamIndex, out var priority))
+            {
+                long timestamp = priority.Timestamp;
+                if (enumerators[streamIndex].MoveNext())
+                {
+                    queue.Enqueue(
+                        streamIndex,
+                        (enumerators[streamIndex].Current.Timestamp, streamIndex));
+                }
+
+                if (!hasLast || timestamp != lastTimestamp)
+                {
+                    hasLast = true;
+                    lastTimestamp = timestamp;
+                    yield return timestamp;
+                }
+            }
+        }
+        finally
+        {
+            foreach (var enumerator in enumerators)
+                enumerator.Dispose();
         }
     }
 
