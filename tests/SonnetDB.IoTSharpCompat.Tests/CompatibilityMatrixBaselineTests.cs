@@ -59,6 +59,7 @@ public sealed class CompatibilityMatrixBaselineTests
     [InlineData("Relational", "transaction rollback")]
     [InlineData("TimeSeries", "latest telemetry")]
     [InlineData("TimeSeries", "range aggregation")]
+    [InlineData("TimeSeries", "string telemetry selector aggregation")]
     [InlineData("Cache", "ttl expiration")]
     [InlineData("Cache", "concurrent key write")]
     [InlineData("ObjectBucket", "object upload download")]

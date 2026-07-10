@@ -649,15 +649,37 @@ LIMIT 10 OFFSET 20;
 
 ### 聚合查询
 
-支持的聚合函数：
+聚合函数按自身语义声明可接受的 FIELD 类型：
 
-- `count`
-- `sum`
-- `min`
-- `max`
-- `avg`
-- `first`
-- `last`
+| 聚合函数 | 可接受类型 | 结果与规则 |
+|---|---|---|
+| `count(*)` / `count(field)` | 所有 FIELD 类型 | 返回行数或字段存在数（`long`）。 |
+| `first(field)` / `last(field)` | Float64、Int64、Boolean、String、Vector、GeoPoint | 按时间戳选择首值/末值，保留原始结果类型。 |
+| `min(field)` / `max(field)` | Float64、Int64、Boolean、String | 字符串固定使用 `StringComparison.Ordinal`；布尔按 `false < true`。 |
+| `mode(field)` | Float64、Int64、Boolean、String | 出现次数相同则选择最小值；字符串仍按 Ordinal。 |
+| `distinct_count(field)` | Float64、Int64、Boolean、String | 返回 HyperLogLog 基数估算（`long`）。 |
+| `sum` / `avg` / `stddev` / `variance` / `spread` | Float64、Int64、Boolean | Boolean 延续历史数值转换规则（`false=0`、`true=1`）。 |
+| `median` / `percentile` / `p50` / `p90` / `p95` / `p99` | Float64、Int64、Boolean | 数值分位统计。 |
+| `histogram` / `tdigest_agg` / `pid` / `pid_estimate` | Float64、Int64、Boolean | 数学统计或控制聚合，不接受字符串。 |
+| `centroid` | Vector | 返回各维均值向量。 |
+| `trajectory_*` | GeoPoint | 返回轨迹距离、中心、边界框或速度统计。 |
+
+选择器与分类聚合可以直接用于状态字符串和布尔遥测：
+
+```sql
+SELECT time,
+       first(status) AS first_status,
+       last(status) AS last_status,
+       mode(status) AS common_status,
+       distinct_count(status) AS status_kinds
+FROM device_state
+WHERE device_id = 'device-01'
+  AND time >= 1713676800000
+  AND time <= 1713680400000
+GROUP BY time(60s)
+```
+
+`sum(status)`、`avg(status)` 等数学聚合仍会报错，并明确提示该函数需要数值字段。
 
 示例：
 
@@ -692,7 +714,7 @@ GROUP BY time(1m)
 - 仅支持 `GROUP BY time(duration)`。
 - 仅可用于聚合查询。
 - 不支持 `GROUP BY host` 这类按列分组。
-- 结果当前只返回聚合列，不会自动带出桶起始时间列。
+- 可在投影中显式写 `time`（或 `time AS bucket`）返回桶起始时间；不会自动添加该列。
 - duration 例子：`1000ms`、`30s`、`1m`。
 
 ### `DELETE FROM ... WHERE ...`

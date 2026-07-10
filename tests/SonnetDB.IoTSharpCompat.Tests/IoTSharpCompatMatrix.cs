@@ -38,6 +38,7 @@ internal static class IoTSharpCompatMatrix
                 "latest telemetry for selected keys",
                 "range query by device, key and UTC time",
                 "range aggregation for None, Mean, Median, Last, First, Max, Min and Sum",
+                "string telemetry selector aggregation by 60-second time bucket",
                 "type mapping for Boolean, String, Long, Double, Json, XML, Binary and DateTime"
             ]),
         new(

@@ -1321,8 +1321,7 @@ internal static class SelectExecutor
     {
         long bucketSizeMs = groupByTime?.BucketSizeMs ?? 0;
 
-        // 解析每个聚合投影：legacy 7 个聚合走 BucketState 快路径；
-        // 扩展聚合（PR #52：stddev / percentile / tdigest_agg / ...）走 IAggregateAccumulator。
+        // 数值 legacy 聚合走 BucketState 快路径；selector、categorical 与扩展聚合走 IAggregateAccumulator。
         var aggregateProjections = projections
             .Where(static p => p.Kind == ProjectionKind.Aggregate)
             .ToList();
@@ -1652,7 +1651,8 @@ internal static class SelectExecutor
     {
         return spec.IsExtended
             && bucketSizeMs <= 0
-            && spec.FieldName is not null;
+            && spec.FieldName is not null
+            && spec.FieldType is FieldType.Float64 or FieldType.Int64 or FieldType.Boolean;
     }
 
     private static bool CanUseLegacyAggregateFastPath(
@@ -1731,13 +1731,27 @@ internal static class SelectExecutor
             throw new InvalidOperationException($"未知聚合函数 '{fn.Name}'。");
 
         var fieldName = aggregate.ResolveFieldName(fn, schema);
+        var fieldColumn = fieldName is null ? null : schema.TryGetColumn(fieldName);
+        if (fieldColumn is not null && !aggregate.AcceptedFieldTypes.Supports(fieldColumn.DataType))
+        {
+            throw new InvalidOperationException(
+                $"聚合函数 {aggregate.Name} 不支持 {fieldColumn.DataType} 字段 '{fieldColumn.Name}'。");
+        }
 
         if (aggregate.LegacyAggregator is { } legacy)
-            return new AggSpec(columnName, legacy, fieldName,
-                ExtendedFunction: null, ExtendedCall: null, Schema: null);
+        {
+            bool requiresFieldValueAccumulator = legacy is Aggregator.First or Aggregator.Last
+                || (legacy is Aggregator.Min or Aggregator.Max
+                    && fieldColumn?.DataType is FieldType.String or FieldType.Boolean);
+            return requiresFieldValueAccumulator
+                ? new AggSpec(columnName, legacy, fieldName, fieldColumn?.DataType,
+                    ExtendedFunction: aggregate, ExtendedCall: fn, Schema: schema)
+                : new AggSpec(columnName, legacy, fieldName, fieldColumn?.DataType,
+                    ExtendedFunction: null, ExtendedCall: null, Schema: null);
+        }
 
         // 扩展聚合：保留函数与 AST 引用以便每个桶按需创建独立累加器。
-        return new AggSpec(columnName, default, fieldName,
+        return new AggSpec(columnName, default, fieldName, fieldColumn?.DataType,
             ExtendedFunction: aggregate, ExtendedCall: fn, Schema: schema);
     }
 
@@ -1745,6 +1759,7 @@ internal static class SelectExecutor
         string ColumnName,
         Aggregator LegacyAggregator,
         string? FieldName,
+        FieldType? FieldType,
         IAggregateFunction? ExtendedFunction,
         FunctionCallExpression? ExtendedCall,
         MeasurementSchema? Schema)
@@ -1790,17 +1805,9 @@ internal static class SelectExecutor
             {
                 _legacy = _legacy.Update(timestamp, FieldValueToDouble(value, col));
             }
-            else if (value.Type == FieldType.Vector)
-            {
-                _extended.Add(timestamp, value.AsVector());
-            }
-            else if (value.Type == FieldType.GeoPoint)
-            {
-                _extended.Add(timestamp, value.AsGeoPoint());
-            }
             else
             {
-                _extended.Add(timestamp, FieldValueToDouble(value, col));
+                _extended.Add(timestamp, value);
             }
         }
 

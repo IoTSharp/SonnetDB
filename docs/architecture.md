@@ -78,15 +78,14 @@ WAL 落盘强度由两个选项决定，从弱到强分三级：
 5. 应用 tombstone 过滤
 6. 输出原始点结果或聚合结果
 
-当前聚合支持：
+当前聚合按类型语义分为：
 
-- `count`
-- `sum`
-- `min`
-- `max`
-- `avg`
-- `first`
-- `last`
+- 数值统计：`sum`、`avg`、`stddev`、`variance`、`percentile`、`histogram` 等
+- 选择器：`first`、`last`，保留 String、Boolean、Vector、GeoPoint 等原始类型
+- 分类统计：`min`、`max`、`mode`、`distinct_count`，支持数值、Boolean 与 String
+- 专用聚合：Vector 使用 `centroid`，GeoPoint 使用 `trajectory_*`
+
+类型能力由 `IAggregateFunction.AcceptedFieldTypes` 声明；数值 legacy 路径继续使用块聚合元数据，selector / categorical 路径按需保存原始 `FieldValue`，不会把字符串支持扩散到数学聚合。
 
 当前分组仅支持：
 

@@ -14,6 +14,31 @@ internal static class ExtendedAggregateBinder
     /// </summary>
     public static string ResolveSingleNumericField(
         FunctionCallExpression call, MeasurementSchema schema, string functionName)
+        => ResolveSingleField(
+            call,
+            schema,
+            functionName,
+            AggregateFieldTypes.Numeric | AggregateFieldTypes.Boolean,
+            "需要数值字段");
+
+    /// <summary>
+    /// 校验 <c>fn(field)</c> 形式（单参数、字段必须为可分类标量列），返回字段名。
+    /// </summary>
+    public static string ResolveSingleCategoricalField(
+        FunctionCallExpression call, MeasurementSchema schema, string functionName)
+        => ResolveSingleField(
+            call,
+            schema,
+            functionName,
+            AggregateFieldTypes.Categorical,
+            "仅支持数值、布尔或字符串字段");
+
+    private static string ResolveSingleField(
+        FunctionCallExpression call,
+        MeasurementSchema schema,
+        string functionName,
+        AggregateFieldTypes acceptedFieldTypes,
+        string typeRequirement)
     {
         ArgumentNullException.ThrowIfNull(call);
         ArgumentNullException.ThrowIfNull(schema);
@@ -32,9 +57,9 @@ internal static class ExtendedAggregateBinder
         if (col.Role != MeasurementColumnRole.Field)
             throw new InvalidOperationException(
                 $"{functionName} 只能作用于 FIELD 列（'{id.Name}' 是 {col.Role}）。");
-        if (col.DataType is FieldType.String or FieldType.Vector or FieldType.GeoPoint)
+        if (!acceptedFieldTypes.Supports(col.DataType))
             throw new InvalidOperationException(
-                $"{functionName} 仅支持数值字段，'{id.Name}' 的类型为 {col.DataType}。");
+                $"{functionName} {typeRequirement}，'{id.Name}' 的类型为 {col.DataType}。");
         return col.Name;
     }
 

@@ -93,6 +93,26 @@ public sealed class FunctionRegistryTests
         Assert.False(FunctionRegistry.TryGetAggregate("nonexistent_xyz", out _));
     }
 
+    [Theory]
+    [InlineData("count", FieldType.Vector, true)]
+    [InlineData("first", FieldType.GeoPoint, true)]
+    [InlineData("last", FieldType.String, true)]
+    [InlineData("min", FieldType.String, true)]
+    [InlineData("max", FieldType.Boolean, true)]
+    [InlineData("mode", FieldType.String, true)]
+    [InlineData("distinct_count", FieldType.Boolean, true)]
+    [InlineData("sum", FieldType.String, false)]
+    [InlineData("avg", FieldType.Vector, false)]
+    [InlineData("centroid", FieldType.Vector, true)]
+    [InlineData("centroid", FieldType.Float64, false)]
+    [InlineData("trajectory_length", FieldType.GeoPoint, true)]
+    public void Aggregate_AcceptedFieldTypes_DeclareFunctionCapability(
+        string name, FieldType fieldType, bool expected)
+    {
+        Assert.True(FunctionRegistry.TryGetAggregate(name, out var function));
+        Assert.Equal(expected, function.AcceptedFieldTypes.Supports(fieldType));
+    }
+
     [Fact]
     public void TryGetScalar_UnknownFunction_ReturnsFalse()
     {

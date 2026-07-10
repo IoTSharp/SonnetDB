@@ -1,5 +1,6 @@
 ﻿using SonnetDB.Catalog;
 using SonnetDB.Model;
+using SonnetDB.Storage.Format;
 using SonnetDB.Sql.Ast;
 
 namespace SonnetDB.Query.Functions.Aggregates;
@@ -13,6 +14,9 @@ internal abstract class ExtendedAggregateFunction : IAggregateFunction
     public abstract string Name { get; }
 
     public Aggregator? LegacyAggregator => null;
+
+    public virtual AggregateFieldTypes AcceptedFieldTypes
+        => AggregateFieldTypes.Numeric | AggregateFieldTypes.Boolean;
 
     public abstract string? ResolveFieldName(FunctionCallExpression call, MeasurementSchema schema);
 
@@ -130,16 +134,35 @@ internal sealed class ModeFunction : ExtendedAggregateFunction
 {
     public override string Name => "mode";
 
+    public override AggregateFieldTypes AcceptedFieldTypes => AggregateFieldTypes.Categorical;
+
     public override string? ResolveFieldName(FunctionCallExpression call, MeasurementSchema schema)
-        => ExtendedAggregateBinder.ResolveSingleNumericField(call, schema, Name);
+        => ExtendedAggregateBinder.ResolveSingleCategoricalField(call, schema, Name);
 
     public override IAggregateAccumulator CreateAccumulator(
-        FunctionCallExpression call, MeasurementSchema schema) => new ModeAccumulator();
+        FunctionCallExpression call, MeasurementSchema schema)
+    {
+        string fieldName = ExtendedAggregateBinder.ResolveSingleCategoricalField(call, schema, Name);
+        return new ModeAccumulator(schema.TryGetColumn(fieldName)!.DataType);
+    }
 }
 
 internal sealed class ModeAccumulator : IAggregateAccumulator
 {
-    private readonly Dictionary<double, long> _counts = new();
+    private readonly FieldType _fieldType;
+    private readonly Dictionary<double, long> _numericCounts = new();
+    private readonly Dictionary<FieldValue, long> _categoricalCounts = new();
+
+    public ModeAccumulator() : this(FieldType.Float64)
+    {
+    }
+
+    public ModeAccumulator(FieldType fieldType)
+    {
+        if (!AggregateFieldTypes.Categorical.Supports(fieldType))
+            throw new ArgumentOutOfRangeException(nameof(fieldType), fieldType, "mode 不支持该字段类型。");
+        _fieldType = fieldType;
+    }
 
     public long Count { get; private set; }
 
@@ -148,18 +171,47 @@ internal sealed class ModeAccumulator : IAggregateAccumulator
         if (double.IsNaN(value)) return;
         Count++;
         ref long slot = ref System.Runtime.InteropServices.CollectionsMarshal
-            .GetValueRefOrAddDefault(_counts, value, out _);
+            .GetValueRefOrAddDefault(_numericCounts, value, out _);
         slot++;
     }
+
+    public void Add(FieldValue value)
+    {
+        if (_fieldType is not (FieldType.String or FieldType.Boolean))
+        {
+            if (!value.TryGetNumeric(out double numeric))
+                throw new InvalidOperationException($"mode 不支持 {value.Type} 参数。");
+            Add(numeric);
+            return;
+        }
+
+        if (value.Type != _fieldType)
+            throw new InvalidOperationException($"mode 期望 {_fieldType} 参数，实际为 {value.Type}。");
+
+        Count++;
+        ref long slot = ref System.Runtime.InteropServices.CollectionsMarshal
+            .GetValueRefOrAddDefault(_categoricalCounts, value, out _);
+        slot++;
+    }
+
+    public void Add(long timestampMs, FieldValue value) => Add(value);
 
     public void Merge(IAggregateAccumulator other)
     {
         if (other is not ModeAccumulator m)
             throw new ArgumentException($"Cannot merge {other.GetType().Name} into ModeAccumulator.", nameof(other));
-        foreach (var (k, v) in m._counts)
+        if (m._fieldType != _fieldType)
+            throw new ArgumentException("Cannot merge mode accumulators with different field types.", nameof(other));
+        foreach (var (k, v) in m._numericCounts)
         {
             ref long slot = ref System.Runtime.InteropServices.CollectionsMarshal
-                .GetValueRefOrAddDefault(_counts, k, out _);
+                .GetValueRefOrAddDefault(_numericCounts, k, out _);
+            slot += v;
+        }
+        foreach (var (k, v) in m._categoricalCounts)
+        {
+            ref long slot = ref System.Runtime.InteropServices.CollectionsMarshal
+                .GetValueRefOrAddDefault(_categoricalCounts, k, out _);
             slot += v;
         }
         Count += m.Count;
@@ -168,9 +220,12 @@ internal sealed class ModeAccumulator : IAggregateAccumulator
     public object? Finalize()
     {
         if (Count == 0) return null;
+        if (_fieldType is FieldType.String or FieldType.Boolean)
+            return FinalizeCategorical();
+
         long bestCount = 0;
         double bestValue = 0;
-        foreach (var (k, v) in _counts)
+        foreach (var (k, v) in _numericCounts)
         {
             if (v > bestCount || (v == bestCount && k < bestValue))
             {
@@ -180,6 +235,27 @@ internal sealed class ModeAccumulator : IAggregateAccumulator
         }
         return bestValue;
     }
+
+    private object FinalizeCategorical()
+    {
+        long bestCount = 0;
+        FieldValue bestValue = default;
+        foreach (var (value, count) in _categoricalCounts)
+        {
+            if (count > bestCount || (count == bestCount && Compare(value, bestValue) < 0))
+            {
+                bestCount = count;
+                bestValue = value;
+            }
+        }
+
+        return _fieldType == FieldType.String ? bestValue.AsString() : bestValue.AsBool();
+    }
+
+    private int Compare(FieldValue left, FieldValue right)
+        => _fieldType == FieldType.String
+            ? string.Compare(left.AsString(), right.AsString(), StringComparison.Ordinal)
+            : left.AsBool().CompareTo(right.AsBool());
 }
 
 // ── percentile / median / pXX ────────────────────────────────────────────
@@ -298,16 +374,37 @@ internal sealed class DistinctCountFunction : ExtendedAggregateFunction
 {
     public override string Name => "distinct_count";
 
+    public override AggregateFieldTypes AcceptedFieldTypes => AggregateFieldTypes.Categorical;
+
     public override string? ResolveFieldName(FunctionCallExpression call, MeasurementSchema schema)
-        => ExtendedAggregateBinder.ResolveSingleNumericField(call, schema, Name);
+        => ExtendedAggregateBinder.ResolveSingleCategoricalField(call, schema, Name);
 
     public override IAggregateAccumulator CreateAccumulator(
-        FunctionCallExpression call, MeasurementSchema schema) => new DistinctCountAccumulator();
+        FunctionCallExpression call, MeasurementSchema schema)
+    {
+        string fieldName = ExtendedAggregateBinder.ResolveSingleCategoricalField(call, schema, Name);
+        return new DistinctCountAccumulator(schema.TryGetColumn(fieldName)!.DataType);
+    }
 }
 
 internal sealed class DistinctCountAccumulator : IAggregateAccumulator
 {
+    private readonly FieldType _fieldType;
     private readonly HyperLogLog _hll = new();
+
+    public DistinctCountAccumulator() : this(FieldType.Float64)
+    {
+    }
+
+    public DistinctCountAccumulator(FieldType fieldType)
+    {
+        if (!AggregateFieldTypes.Categorical.Supports(fieldType))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(fieldType), fieldType, "distinct_count 不支持该字段类型。");
+        }
+        _fieldType = fieldType;
+    }
 
     public long Count { get; private set; }
 
@@ -318,10 +415,33 @@ internal sealed class DistinctCountAccumulator : IAggregateAccumulator
         _hll.Add(value);
     }
 
+    public void Add(FieldValue value)
+    {
+        if (_fieldType == FieldType.String)
+        {
+            if (value.Type != FieldType.String)
+                throw new InvalidOperationException($"distinct_count 期望 String 参数，实际为 {value.Type}。");
+            Count++;
+            _hll.Add(value.AsString());
+            return;
+        }
+
+        if (!value.TryGetNumeric(out double numeric))
+            throw new InvalidOperationException($"distinct_count 不支持 {value.Type} 参数。");
+        Add(numeric);
+    }
+
+    public void Add(long timestampMs, FieldValue value) => Add(value);
+
     public void Merge(IAggregateAccumulator other)
     {
         if (other is not DistinctCountAccumulator d)
             throw new ArgumentException($"Cannot merge {other.GetType().Name} into DistinctCountAccumulator.", nameof(other));
+        if (d._fieldType != _fieldType)
+        {
+            throw new ArgumentException(
+                "Cannot merge distinct_count accumulators with different field types.", nameof(other));
+        }
         _hll.Merge(d._hll);
         Count += d.Count;
     }
@@ -423,6 +543,8 @@ internal sealed class CentroidFunction : ExtendedAggregateFunction
 {
     public override string Name => "centroid";
 
+    public override AggregateFieldTypes AcceptedFieldTypes => AggregateFieldTypes.Vector;
+
     public override string? ResolveFieldName(FunctionCallExpression call, MeasurementSchema schema)
         => ExtendedAggregateBinder.ResolveSingleVectorField(call, schema, Name);
 
@@ -509,6 +631,8 @@ internal abstract class TrajectoryAggregateFunction : ExtendedAggregateFunction
 
     public override string Name { get; }
 
+    public override AggregateFieldTypes AcceptedFieldTypes => AggregateFieldTypes.GeoPoint;
+
     public override string? ResolveFieldName(FunctionCallExpression call, MeasurementSchema schema)
         => ExtendedAggregateBinder.ResolveSingleGeoPointField(call, schema, Name);
 }
@@ -542,6 +666,8 @@ internal abstract class TrajectorySpeedFunction : ExtendedAggregateFunction
     protected TrajectorySpeedFunction(string name) => Name = name;
 
     public override string Name { get; }
+
+    public override AggregateFieldTypes AcceptedFieldTypes => AggregateFieldTypes.GeoPoint;
 
     public override string? ResolveFieldName(FunctionCallExpression call, MeasurementSchema schema)
         => ExtendedAggregateBinder.ResolveGeoPointFieldAndTime(call, schema, Name);
@@ -812,4 +938,3 @@ internal sealed class TrajectorySpeedAccumulator : TrajectoryAccumulatorBase
         return _speeds[lo] * (1d - weight) + _speeds[hi] * weight;
     }
 }
-

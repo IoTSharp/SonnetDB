@@ -95,13 +95,20 @@ public static class FunctionRegistry
 
     private static IAggregateFunction[] CreateAggregateFunctionList() =>
     [
-        new BuiltInAggregateFunction("count", Aggregator.Count, allowsStarArgument: true),
-        new BuiltInAggregateFunction("sum", Aggregator.Sum),
-        new BuiltInAggregateFunction("min", Aggregator.Min),
-        new BuiltInAggregateFunction("max", Aggregator.Max),
-        new BuiltInAggregateFunction("avg", Aggregator.Avg),
-        new BuiltInAggregateFunction("first", Aggregator.First),
-        new BuiltInAggregateFunction("last", Aggregator.Last),
+        new BuiltInAggregateFunction(
+            "count", Aggregator.Count, AggregateFieldTypes.All, allowsStarArgument: true),
+        new BuiltInAggregateFunction(
+            "sum", Aggregator.Sum, AggregateFieldTypes.Numeric | AggregateFieldTypes.Boolean),
+        new BuiltInAggregateFunction(
+            "min", Aggregator.Min, AggregateFieldTypes.Categorical),
+        new BuiltInAggregateFunction(
+            "max", Aggregator.Max, AggregateFieldTypes.Categorical),
+        new BuiltInAggregateFunction(
+            "avg", Aggregator.Avg, AggregateFieldTypes.Numeric | AggregateFieldTypes.Boolean),
+        new BuiltInAggregateFunction(
+            "first", Aggregator.First, AggregateFieldTypes.All),
+        new BuiltInAggregateFunction(
+            "last", Aggregator.Last, AggregateFieldTypes.All),
         // Tier 2 — 扩展聚合（PR #52）
         new StddevFunction(),
         new VarianceFunction(),
@@ -450,16 +457,23 @@ public static class FunctionRegistry
     {
         private readonly bool _allowsStarArgument;
 
-        public BuiltInAggregateFunction(string name, Aggregator legacyAggregator, bool allowsStarArgument = false)
+        public BuiltInAggregateFunction(
+            string name,
+            Aggregator legacyAggregator,
+            AggregateFieldTypes acceptedFieldTypes,
+            bool allowsStarArgument = false)
         {
             Name = name;
             LegacyAggregator = legacyAggregator;
+            AcceptedFieldTypes = acceptedFieldTypes;
             _allowsStarArgument = allowsStarArgument;
         }
 
         public string Name { get; }
 
         public Aggregator? LegacyAggregator { get; }
+
+        public AggregateFieldTypes AcceptedFieldTypes { get; }
 
         public string? ResolveFieldName(FunctionCallExpression call, MeasurementSchema schema)
         {
@@ -491,10 +505,36 @@ public static class FunctionRegistry
             if (col.Role != MeasurementColumnRole.Field)
                 throw new InvalidOperationException(
                     $"聚合函数 {call.Name}({id.Name}) 只能作用于 FIELD 列。");
-            if (LegacyAggregator != Aggregator.Count && col.DataType is FieldType.String or FieldType.Vector or FieldType.GeoPoint)
+            if (!AcceptedFieldTypes.Supports(col.DataType))
+            {
+                string requirement = AcceptedFieldTypes
+                    == (AggregateFieldTypes.Numeric | AggregateFieldTypes.Boolean)
+                    ? "需要数值字段"
+                    : $"不支持 {col.DataType} 字段";
                 throw new InvalidOperationException(
-                    $"聚合函数 {call.Name} 仅支持数值字段，'{id.Name}' 的类型为 {col.DataType}。");
+                    $"聚合函数 {call.Name} {requirement}，'{id.Name}' 的类型为 {col.DataType}。");
+            }
             return col.Name;
+        }
+
+        public IAggregateAccumulator? CreateAccumulator(
+            FunctionCallExpression call, MeasurementSchema schema)
+        {
+            string? fieldName = ResolveFieldName(call, schema);
+            if (fieldName is null)
+                return null;
+
+            return LegacyAggregator switch
+            {
+                Aggregator.First => new SelectorAccumulator(selectFirst: true),
+                Aggregator.Last => new SelectorAccumulator(selectFirst: false),
+                Aggregator.Min or Aggregator.Max
+                    when schema.TryGetColumn(fieldName)!.DataType is FieldType.String or FieldType.Boolean
+                    => new CategoricalMinMaxAccumulator(
+                        schema.TryGetColumn(fieldName)!.DataType,
+                        selectMinimum: LegacyAggregator == Aggregator.Min),
+                _ => null,
+            };
         }
     }
 
