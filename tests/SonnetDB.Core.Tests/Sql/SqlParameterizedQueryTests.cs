@@ -187,4 +187,30 @@ public sealed class SqlParameterizedQueryTests : IDisposable
         var r = Query(db, "SELECT id FROM devices WHERE name = ?", p);
         Assert.Empty(r.Rows);
     }
+
+    [Fact]
+    public void Execute_DateTimeParameters_CompareAgainstDateTimeColumns()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE events (id INT, occurred_at DATETIME, PRIMARY KEY (id))");
+        var first = new DateTime(2026, 7, 10, 15, 48, 56, DateTimeKind.Utc);
+        var second = first.AddSeconds(5);
+        SqlExecutor.Execute(db, databaseName: null,
+            "INSERT INTO events (id, occurred_at) VALUES (1, @first), (2, @second)",
+            new SqlParameters().AddNamed("first", first).AddNamed("second", second), controlPlane: null);
+
+        var equal = Query(db, "SELECT id FROM events WHERE occurred_at = @at",
+            new SqlParameters().AddNamed("at", first));
+        var offsetEqual = Query(db, "SELECT id FROM events WHERE occurred_at = @at",
+            new SqlParameters().AddNamed("at", new DateTimeOffset(first)));
+        var range = Query(db, "SELECT id FROM events WHERE occurred_at >= @from AND occurred_at < @to ORDER BY id",
+            new SqlParameters().AddNamed("from", first).AddNamed("to", second));
+        var values = Query(db, "SELECT id FROM events WHERE occurred_at IN (@first, @second) ORDER BY id",
+            new SqlParameters().AddNamed("first", first).AddNamed("second", second));
+
+        Assert.Equal(1L, Assert.Single(equal.Rows)[0]);
+        Assert.Equal(1L, Assert.Single(offsetEqual.Rows)[0]);
+        Assert.Equal([1L], range.Rows.Select(row => (long)row[0]!));
+        Assert.Equal([1L, 2L], values.Rows.Select(row => (long)row[0]!));
+    }
 }

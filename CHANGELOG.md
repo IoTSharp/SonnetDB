@@ -42,6 +42,7 @@
 
 ### Fixed
 
+- **修复参数化 DATETIME 比较**：统一关系表、关系 SELECT 与 JOIN 的标量比较语义，使 `DateTime`/`DateTimeOffset` 参数绑定后的 Unix 毫秒值可与 `DATETIME` 列执行等值、范围和 `IN` 比较，修复 EF Core 时间窗查询抛出“无法比较 DateTime 与 Int64”的问题。
 - **M33 #282 跨字段 Geo 聚合正确性修复（correctness）**：`SELECT avg(speed) WHERE geo_bbox(position, ...)` 这类「Geo 谓词挂在 GeoPoint 字段、聚合字段是数值字段」的查询此前在快慢两条路上都静默丢弃 Geo 约束——聚合执行按当前聚合字段（如 `speed`）过滤 `where.GeoFilters`，而 Geo 谓词永远挂在 GeoPoint 字段（如 `position`）上，per-field 子集恒为空 → 数值快路径判定不触发、慢路径也不施加过滤，结果把不满足空间条件的行也计入聚合。现改为把作用在非聚合字段上的 Geo 谓词当作**时间戳级约束**：先算出该 GeoPoint 字段命中 box 的时间戳集合（多 Geo 谓词按字段分组、跨字段取交集），聚合只纳入这些时刻的点；同时整句带任一 Geo 谓词时禁用 legacy 数值快路径与扩展聚合 sidecar 快路径，强制走物化路径逐点施加约束。`count(*)` 路径同样按命中时间戳集合过滤行/时刻并集。修复覆盖 `avg`/`count`/`sum`/`min`/`max` 及 `count(*)`、`GROUP BY time(...)` 分桶、段/MemTable 快慢混合，结果与「逐点施加 Geo 后聚合」的参考实现逐桶一致。新增 `SqlExecutorGeoPointTests` 6 项跨字段 Geo 聚合回归测试。
 - 修复 SQL 分页子句不能解析参数占位符的问题，`LIMIT @take OFFSET @skip` 与 `OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY` 现在会在执行前通过参数绑定校验为非负整数，恢复 EF Core `Skip`/`Take` 查询执行。
 - 修复 Server NativeAOT 发布在 `/warnaserror` 下被 `MQTTnet.AspNetCore.Routing` 的程序集级 IL2104/IL3053 诊断阻断的问题；诊断仍会在发布日志中显示为 warning。
