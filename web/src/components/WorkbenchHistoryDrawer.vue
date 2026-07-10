@@ -1,20 +1,29 @@
 <template>
   <n-drawer
     :show="show"
-    width="460"
+    width="420"
     placement="right"
     @update:show="$emit('update:show', $event)"
   >
-    <n-drawer-content title="Workbench history" closable>
+    <n-drawer-content title="工作台历史" closable>
       <div class="workbench-history">
         <div class="workbench-history__toolbar">
-          <n-text depth="3">{{ filteredEntries.length }} entries</n-text>
-          <n-button size="small" quaternary :disabled="history.entries.length === 0" @click="history.clear">
-            Clear
-          </n-button>
+          <n-text depth="3">{{ filteredEntries.length }} 条记录</n-text>
+          <n-popconfirm @positive-click="history.clear">
+            <template #trigger>
+              <n-button size="small" quaternary :disabled="history.entries.length === 0">清除</n-button>
+            </template>
+            清除本机保存的工作台历史？
+          </n-popconfirm>
         </div>
 
-        <n-empty v-if="filteredEntries.length === 0" description="No history yet." />
+        <div class="workbench-history__filters">
+          <n-input v-model:value="keyword" size="small" clearable placeholder="筛选操作、对象或命令" />
+          <n-select v-model:value="modelFilter" size="small" :options="modelOptions" />
+          <n-select v-model:value="statusFilter" size="small" :options="statusOptions" />
+        </div>
+
+        <n-empty v-if="filteredEntries.length === 0" description="当前筛选范围内没有历史记录。" />
 
         <n-scrollbar v-else class="workbench-history__scroll">
           <article
@@ -40,7 +49,7 @@
                 secondary
                 @click="$emit('select', entry)"
               >
-                Open
+                恢复
               </n-button>
             </div>
             <n-text depth="3" class="workbench-history-entry__meta">
@@ -56,13 +65,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import {
   NButton,
   NDrawer,
   NDrawerContent,
   NEmpty,
+  NInput,
+  NPopconfirm,
   NScrollbar,
+  NSelect,
   NSpace,
   NTag,
   NText,
@@ -86,11 +98,36 @@ defineEmits<{
 }>();
 
 const history = useWorkbenchHistoryStore();
+const keyword = ref('');
+const modelFilter = ref('');
+const statusFilter = ref('');
+
+const modelOptions = computed(() => [
+  { label: '全部模型', value: '' },
+  ...Array.from(new Set(history.entries.map((entry) => entry.model).filter(Boolean)))
+    .sort()
+    .map((model) => ({ label: model, value: model })),
+]);
+
+const statusOptions = [
+  { label: '全部状态', value: '' },
+  { label: '成功', value: 'success' },
+  { label: '失败', value: 'error' },
+  { label: '预检', value: 'dry-run' },
+  { label: '已取消', value: 'cancelled' },
+];
 
 const filteredEntries = computed(() => {
   const db = normalizeDatabase(props.activeDatabase);
-  if (!db) return history.recentEntries;
-  return history.recentEntries.filter((entry) => entry.database === db);
+  const query = keyword.value.trim().toLowerCase();
+  return history.recentEntries.filter((entry) => {
+    if (db && entry.database !== db) return false;
+    if (modelFilter.value && entry.model !== modelFilter.value) return false;
+    if (statusFilter.value && entry.status !== statusFilter.value) return false;
+    if (!query) return true;
+    return [entry.title, entry.target, entry.action, entry.command, entry.summary]
+      .some((value) => value.toLowerCase().includes(query));
+  });
 });
 
 function normalizeDatabase(value: string): string {
@@ -124,6 +161,12 @@ function formatTime(value: number): string {
   gap: 12px;
 }
 
+.workbench-history__filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px 110px;
+  gap: 8px;
+}
+
 .workbench-history__scroll {
   flex: 1;
   min-height: 0;
@@ -136,8 +179,14 @@ function formatTime(value: number): string {
   padding: 10px;
   margin-bottom: 10px;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 8px;
+  border-radius: var(--sndb-radius);
   background: #fff;
+}
+
+@media (max-width: 520px) {
+  .workbench-history__filters {
+    grid-template-columns: 1fr;
+  }
 }
 
 .workbench-history-entry__head {

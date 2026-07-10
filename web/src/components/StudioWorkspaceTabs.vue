@@ -13,13 +13,13 @@
       >
         <component :is="tabIcon(tab.tool)" :size="16" :stroke-width="1.8" />
         <span>{{ tab.label }}</span>
-        <button
+        <span
           v-if="tab.closable"
-          type="button"
+          role="button"
           class="workspace-tab__close"
           :title="`关闭 ${tab.label}`"
           @click.stop="$emit('close-tab', tab.id)"
-        ><X :size="14" /></button>
+        ><X :size="14" /></span>
       </button>
       <button type="button" class="workspace-tab workspace-tab--add" title="新建 SQL 查询" @click="$emit('create-tab')">
         <Plus :size="18" />
@@ -27,6 +27,14 @@
     </div>
 
     <div class="workspace-tabs__tools">
+      <n-button quaternary title="查看结果" @click="$emit('show-result')">
+        <template #icon><Rows3 :size="16" /></template>
+        结果
+      </n-button>
+      <n-button quaternary title="查看工作台历史" @click="$emit('show-history')">
+        <template #icon><History :size="16" /></template>
+        历史
+      </n-button>
       <n-dropdown trigger="click" :options="connectionOptions" @select="$emit('connection-select', $event)">
         <n-button quaternary class="connection-button">
           <CircleCheck :size="15" />
@@ -63,11 +71,13 @@ import {
   CircleCheck,
   FileSearch,
   FolderArchive,
+  History,
   Map,
   MessageSquareMore,
   Network,
   Plus,
   PlugZap,
+  Rows3,
   Table2,
   TerminalSquare,
   X,
@@ -103,6 +113,8 @@ defineEmits<{
   'refresh-native-server': [];
   'start-native-server': [];
   'stop-native-server': [];
+  'show-result': [];
+  'show-history': [];
 }>();
 
 const nativeServerLabel = computed(() => {
@@ -278,3 +290,4 @@ function tabIcon(tool: WorkbenchTool): Component {
   }
 }
 </style>
+  Rows3,

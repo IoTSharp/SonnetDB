@@ -1729,4 +1729,19 @@ onMounted(() => {
   margin-top: 2px;
 }
 .copilot-dock__sessions-item-actions { flex-shrink: 0; }
+
+@media (max-width: 800px) {
+  .copilot-fab {
+    right: 8px;
+    bottom: 8px;
+    width: 40px;
+    height: 40px;
+  }
+
+  .copilot-dock {
+    width: calc(100vw - 64px);
+    min-height: 0;
+    max-height: calc(100vh - 16px);
+  }
+}
 </style>

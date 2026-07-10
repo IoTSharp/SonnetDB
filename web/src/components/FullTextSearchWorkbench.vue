@@ -40,6 +40,13 @@
       </div>
     </section>
 
+    <WorkbenchSectionTabs
+      :model-value="activeView"
+      :items="fulltextSections"
+      aria-label="全文工作区"
+      @update:model-value="activeView = $event as FullTextView"
+    />
+
     <WriteApprovalPanel
       v-if="previewPlan"
       :plan="previewPlan"
@@ -64,8 +71,8 @@
       </article>
     </section>
 
-    <section class="fulltext-body">
-      <aside class="fulltext-indexes">
+    <section class="fulltext-body" :class="`is-${activeView}`">
+      <aside v-if="activeView !== 'analyzer'" class="fulltext-indexes">
         <div class="fulltext-panel-head">
           <div>
             <n-text class="fulltext-panel-head__title">FullText indexes</n-text>
@@ -95,7 +102,7 @@
         </div>
       </aside>
 
-      <section class="fulltext-search-panel">
+      <section v-if="activeView === 'search'" class="fulltext-search-panel">
         <div class="fulltext-panel-head fulltext-panel-head--grid">
           <div>
             <n-text class="fulltext-panel-head__title">BM25 search playground</n-text>
@@ -182,13 +189,17 @@
       <aside class="fulltext-inspector">
         <div class="fulltext-panel-head">
           <div>
-            <n-text class="fulltext-panel-head__title">Hit inspector</n-text>
-            <n-text depth="3" class="fulltext-panel-head__meta">{{ selectedHit ? selectedHit.documentId : 'No hit selected' }}</n-text>
+            <n-text class="fulltext-panel-head__title">
+              {{ activeView === 'search' ? '命中详情' : activeView === 'analyzer' ? 'Analyzer 预览' : '索引详情' }}
+            </n-text>
+            <n-text depth="3" class="fulltext-panel-head__meta">
+              {{ activeView === 'search' ? (selectedHit ? selectedHit.documentId : '尚未选择命中项') : activeIndexLabel }}
+            </n-text>
           </div>
           <n-tag v-if="selectedHit" size="tiny" :bordered="false">score {{ formatScore(selectedHit.score) }}</n-tag>
         </div>
 
-        <template v-if="selectedHit">
+        <template v-if="activeView === 'search' && selectedHit">
           <div class="fulltext-detail-strip">
             <span>rank {{ selectedHit.rank }}</span>
             <span>version {{ selectedHit.version ?? '-' }}</span>
@@ -216,9 +227,9 @@
             <pre>{{ selectedHit.rawJson }}</pre>
           </section>
         </template>
-        <n-empty v-else description="Run a search and select a hit." />
+        <n-empty v-else-if="activeView === 'search'" description="执行检索并选择一条命中记录。" />
 
-        <section class="fulltext-analyzer">
+        <section v-if="activeView === 'analyzer'" class="fulltext-analyzer">
           <n-text class="fulltext-section-title fulltext-section-title--standalone">Analyzer preview</n-text>
           <div class="fulltext-analyzer-row">
             <n-select v-model:value="analyzeTokenizer" size="small" :options="tokenizerOptions" />
@@ -240,6 +251,18 @@
             </span>
             <n-empty v-if="analyzeTokens.length === 0" description="No tokens yet." />
           </div>
+        </section>
+
+        <section v-if="activeView === 'index'" class="fulltext-index-detail">
+          <dl>
+            <div><dt>Collection</dt><dd>{{ activeIndex?.collection ?? '-' }}</dd></div>
+            <div><dt>Index</dt><dd>{{ activeIndex?.name ?? '-' }}</dd></div>
+            <div><dt>Tokenizer</dt><dd>{{ activeIndex?.tokenizer ?? '-' }}</dd></div>
+            <div><dt>Documents</dt><dd>{{ formatStat(activeIndex?.documentCount) }}</dd></div>
+            <div><dt>Terms</dt><dd>{{ formatStat(activeIndex?.termCount) }}</dd></div>
+            <div><dt>Fields</dt><dd>{{ activeIndex?.fields.join(', ') || '-' }}</dd></div>
+          </dl>
+          <n-button type="primary" :disabled="!activeIndex" @click="stageRebuild">暂存重建索引</n-button>
         </section>
       </aside>
     </section>
@@ -300,6 +323,7 @@ import {
 } from '@/api/schema';
 import WorkbenchHistoryDrawer from '@/components/WorkbenchHistoryDrawer.vue';
 import WorkbenchResultPanel from '@/components/WorkbenchResultPanel.vue';
+import WorkbenchSectionTabs, { type WorkbenchSectionTab } from '@/components/WorkbenchSectionTabs.vue';
 import WriteApprovalPanel from '@/components/WriteApprovalPanel.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useConnectionsStore } from '@/stores/connections';
@@ -348,6 +372,13 @@ const auth = useAuthStore();
 const connections = useConnectionsStore();
 const history = useWorkbenchHistoryStore();
 const message = useMessage();
+type FullTextView = 'search' | 'analyzer' | 'index';
+const activeView = ref<FullTextView>('search');
+const fulltextSections: WorkbenchSectionTab[] = [
+  { key: 'search', label: '全文检索' },
+  { key: 'analyzer', label: 'Analyzer' },
+  { key: 'index', label: '索引' },
+];
 
 const queryText = ref('pump alarm');
 const builderText = ref('pump alarm');
@@ -1092,6 +1123,64 @@ watch(() => props.targetDb, () => {
   grid-template-columns: 250px minmax(440px, 1fr) 360px;
   min-width: 0;
   overflow: hidden;
+}
+
+.fulltext-body.is-analyzer {
+  grid-template-columns: minmax(460px, 760px);
+  justify-content: center;
+  padding: 20px;
+  overflow: auto;
+  background: var(--sndb-surface);
+}
+
+.fulltext-body.is-index {
+  grid-template-columns: 300px minmax(420px, 720px);
+  justify-content: center;
+  padding: 20px;
+  overflow: auto;
+  background: var(--sndb-surface);
+}
+
+.fulltext-body.is-analyzer .fulltext-inspector,
+.fulltext-body.is-index .fulltext-indexes,
+.fulltext-body.is-index .fulltext-inspector {
+  border: 1px solid var(--sndb-border);
+  background: #fff;
+}
+
+.fulltext-index-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+}
+
+.fulltext-index-detail dl {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  border: 1px solid var(--sndb-border);
+}
+
+.fulltext-index-detail dl div {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--sndb-border);
+}
+
+.fulltext-index-detail dl div:last-child {
+  border-bottom: 0;
+}
+
+.fulltext-index-detail dt {
+  color: var(--sndb-ink-muted);
+}
+
+.fulltext-index-detail dd {
+  margin: 0;
+  font-family: "Cascadia Code", Consolas, monospace;
 }
 
 .fulltext-indexes,

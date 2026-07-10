@@ -321,3 +321,64 @@
     grid-column: 1;
   }
 }
+
+@media (min-width: 1100px) and (max-width: 1439px) {
+  .workspace-shell :is(
+    .document-body:not(.is-focused),
+    .kv-body:not(.is-batch),
+    .vector-body:not(.is-index-view),
+    .fulltext-body.is-search,
+    .object-body:not(.is-focused)
+  ) {
+    position: relative;
+    grid-template-columns: 230px minmax(0, 1fr);
+  }
+
+  .workspace-shell .kv-body:not(.is-batch) .kv-inspector,
+  .workspace-shell .document-body:not(.is-focused) .document-inspector,
+  .workspace-shell .vector-body:not(.is-index-view) .vector-inspector,
+  .workspace-shell .fulltext-body.is-search .fulltext-inspector,
+  .workspace-shell .object-body:not(.is-focused) .object-inspector {
+    position: absolute;
+    z-index: 8;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(384px, 42vw);
+    overflow: auto;
+    border-left: 1px solid var(--sndb-border);
+    background: #fff;
+    box-shadow: -12px 0 28px rgba(23, 33, 43, 0.12);
+  }
+}
+
+@media (max-width: 800px) {
+  .workspace-shell :is(
+    .document-body,
+    .kv-body,
+    .vector-body,
+    .fulltext-body,
+    .object-body
+  ) {
+    align-content: start;
+    overflow: auto;
+  }
+
+  .workspace-shell .kv-body:not(.is-batch) .kv-inspector,
+  .workspace-shell .document-body:not(.is-focused) .document-inspector,
+  .workspace-shell .vector-body:not(.is-index-view) .vector-inspector,
+  .workspace-shell .fulltext-body.is-search .fulltext-inspector,
+  .workspace-shell .object-body:not(.is-focused) .object-inspector {
+    display: none;
+  }
+
+  .workspace-shell :is(
+    .document-query-panel,
+    .kv-grid-panel,
+    .vector-query-panel,
+    .fulltext-search-panel,
+    .object-grid-panel
+  ) {
+    min-height: 440px;
+  }
+}

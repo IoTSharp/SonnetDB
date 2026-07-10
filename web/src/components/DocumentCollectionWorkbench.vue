@@ -41,6 +41,13 @@
       </div>
     </section>
 
+    <WorkbenchSectionTabs
+      :model-value="activeView"
+      :items="documentSections"
+      aria-label="文档工作区"
+      @update:model-value="selectDocumentView($event as DocumentView)"
+    />
+
     <WriteApprovalPanel
       v-if="previewPlan"
       :plan="previewPlan"
@@ -58,15 +65,15 @@
       @close="errorMsg = ''"
     />
 
-    <section class="document-stats">
+    <section v-if="activeView === 'documents'" class="document-stats">
       <article v-for="item in statItems" :key="item.label" class="document-stat">
         <span>{{ item.label }}</span>
         <strong>{{ item.value }}</strong>
       </article>
     </section>
 
-    <section class="document-body">
-      <aside class="document-collections">
+    <section class="document-body" :class="{ 'is-focused': !['documents', 'query'].includes(activeView) }">
+      <aside v-if="activeView === 'documents' || activeView === 'query'" class="document-collections">
         <div class="document-panel-head">
           <div>
             <n-text class="document-panel-head__title">Collections</n-text>
@@ -103,7 +110,7 @@
         </div>
       </aside>
 
-      <section class="document-query-panel">
+      <section v-if="activeView === 'documents' || activeView === 'query'" class="document-query-panel">
         <div class="document-panel-head document-panel-head--grid">
           <div>
             <n-text class="document-panel-head__title">Document Explorer</n-text>
@@ -122,7 +129,7 @@
           </n-space>
         </div>
 
-        <section class="document-query-editor">
+        <section v-if="activeView === 'query'" class="document-query-editor">
           <n-tabs v-model:value="queryTab" type="segment" size="small">
             <n-tab name="find" tab="Find" />
             <n-tab name="aggregate" tab="Aggregate" />
@@ -220,7 +227,7 @@
       <aside class="document-inspector">
         <div class="document-panel-head">
           <div>
-            <n-text class="document-panel-head__title">Inspector</n-text>
+            <n-text class="document-panel-head__title">{{ documentSectionTitle }}</n-text>
             <n-text depth="3" class="document-panel-head__meta">
               {{ selectedRow?.id ?? (activeCollectionName || 'No collection selected') }}
             </n-text>
@@ -228,12 +235,9 @@
           <n-tag v-if="selectedRow" size="tiny" :bordered="false">v{{ selectedRow.version }}</n-tag>
         </div>
 
-        <n-tabs v-model:value="inspectorTab" type="segment" size="small" class="document-tabs">
+        <n-tabs v-if="activeView === 'documents'" v-model:value="inspectorTab" type="segment" size="small" class="document-tabs">
           <n-tab name="detail" tab="Detail" />
           <n-tab name="edit" tab="Edit" />
-          <n-tab name="validator" tab="Validator" />
-          <n-tab name="import" tab="Import" />
-          <n-tab name="indexes" tab="Indexes" />
         </n-tabs>
 
         <section v-if="inspectorTab === 'detail'" class="document-inspector-section">
@@ -426,6 +430,7 @@ import {
 } from '@/api/schema';
 import WorkbenchHistoryDrawer from '@/components/WorkbenchHistoryDrawer.vue';
 import WorkbenchResultPanel from '@/components/WorkbenchResultPanel.vue';
+import WorkbenchSectionTabs, { type WorkbenchSectionTab } from '@/components/WorkbenchSectionTabs.vue';
 import WriteApprovalPanel from '@/components/WriteApprovalPanel.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useConnectionsStore } from '@/stores/connections';
@@ -458,6 +463,7 @@ const emit = defineEmits<{
 
 type QueryTab = 'find' | 'aggregate' | 'distinct';
 type InspectorTab = 'detail' | 'edit' | 'validator' | 'import' | 'indexes';
+type DocumentView = 'documents' | 'query' | 'validator' | 'indexes' | 'import';
 type ImportMode = 'insert' | 'replace';
 
 interface DocumentRow {
@@ -502,6 +508,24 @@ const checkedRowKeys = ref<DataTableRowKey[]>([]);
 const selectedId = ref('');
 const queryTab = ref<QueryTab>('find');
 const inspectorTab = ref<InspectorTab>('detail');
+const activeView = ref<DocumentView>('documents');
+const documentSections: WorkbenchSectionTab[] = [
+  { key: 'documents', label: 'Documents' },
+  { key: 'query', label: '查询' },
+  { key: 'validator', label: 'Validator' },
+  { key: 'indexes', label: '索引' },
+  { key: 'import', label: '导入 / 导出' },
+];
+const documentSectionTitle = computed(() => documentSections.find((item) => item.key === activeView.value)?.label ?? '文档详情');
+
+function selectDocumentView(view: DocumentView): void {
+  activeView.value = view;
+  if (view === 'validator' || view === 'indexes' || view === 'import') {
+    inspectorTab.value = view;
+    return;
+  }
+  inspectorTab.value = 'detail';
+}
 const idsText = ref('');
 const filterText = ref('');
 const projectionText = ref('');
@@ -1686,6 +1710,20 @@ watch(validatorAction, (action) => {
   grid-template-columns: 240px minmax(430px, 1fr) 390px;
   min-width: 0;
   overflow: hidden;
+}
+
+.document-body.is-focused {
+  grid-template-columns: minmax(520px, 820px);
+  justify-content: center;
+  padding: 20px;
+  overflow: auto;
+  background: var(--sndb-surface);
+}
+
+.document-body.is-focused .document-inspector {
+  border: 1px solid var(--sndb-border);
+  border-radius: var(--sndb-radius);
+  background: #fff;
 }
 
 .document-collections,

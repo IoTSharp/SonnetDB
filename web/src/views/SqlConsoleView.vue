@@ -84,6 +84,8 @@
           @refresh-native-server="refreshNativeServerStatus"
           @start-native-server="startNativeServer"
           @stop-native-server="stopNativeServer"
+          @show-result="toggleResultDrawer"
+          @show-history="globalHistoryVisible = true"
         />
 
         <SqlQueryWorkspace
@@ -114,6 +116,7 @@
         @confirm-preview="confirmPreview"
         @clear-error="clearActiveError"
         @history-select="openHistoryEntry"
+        @open-trajectory="setWorkbenchTool('trajectory')"
         />
 
         <RelationalTableWorkbench
@@ -196,6 +199,12 @@
         </main>
       </section>
     </section>
+
+    <WorkbenchHistoryDrawer
+      v-model:show="globalHistoryVisible"
+      :active-database="targetDb"
+      @select="openHistoryEntry"
+    />
   </div>
 </template>
 
@@ -214,6 +223,7 @@ import SonnetMqWorkbench from '@/components/SonnetMqWorkbench.vue';
 import SqlQueryWorkspace from '@/components/SqlQueryWorkspace.vue';
 import StudioWorkspaceTabs, { type StudioWorkspaceTab } from '@/components/StudioWorkspaceTabs.vue';
 import VectorSearchWorkbench from '@/components/VectorSearchWorkbench.vue';
+import WorkbenchHistoryDrawer from '@/components/WorkbenchHistoryDrawer.vue';
 import TrajectoryMap from '@/views/TrajectoryMap.vue';
 import type { FullTextIndexStat, VectorIndexStat } from '@/api/management';
 import type { DocumentCollectionInfo } from '@/api/schema';
@@ -237,7 +247,12 @@ const sqlConsole = useSqlConsoleStore();
 const workbenchHistory = useWorkbenchHistoryStore();
 const message = useMessage();
 const explorerCollapsed = ref(false);
+const globalHistoryVisible = ref(false);
 const objectWorkspaceTabs = ref<StudioWorkspaceTab[]>([]);
+
+function toggleResultDrawer(): void {
+  window.dispatchEvent(new CustomEvent('sndb:toggle-result'));
+}
 
 if (!auth.isSuperuser) {
   sqlConsole.hideControlPlaneForRegularUser();
@@ -716,6 +731,7 @@ onMounted(async () => {
 }
 
 .workbench-frame {
+  position: relative;
   display: grid;
   grid-template-columns: 304px minmax(0, 1fr);
   width: 100%;
@@ -738,15 +754,27 @@ onMounted(async () => {
   background: #fff;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1099px) {
   .workbench-frame {
-    grid-template-rows: minmax(220px, 38vh) minmax(0, 1fr);
     grid-template-columns: minmax(0, 1fr);
   }
 
   .workbench-frame.is-explorer-collapsed {
-    grid-template-rows: 44px minmax(0, 1fr);
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: 44px minmax(0, 1fr);
+  }
+
+  .workbench-frame > :deep(.schema-sidebar) {
+    position: absolute;
+    z-index: 30;
+    inset: 0 auto 0 0;
+    width: 304px;
+    box-shadow: 12px 0 30px rgba(23, 33, 43, 0.12);
+  }
+
+  .workbench-frame.is-explorer-collapsed > :deep(.schema-sidebar) {
+    position: static;
+    width: 44px;
+    box-shadow: none;
   }
 }
 </style>

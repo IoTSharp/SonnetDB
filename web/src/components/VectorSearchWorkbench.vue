@@ -37,6 +37,13 @@
       </div>
     </section>
 
+    <WorkbenchSectionTabs
+      :model-value="activeView"
+      :items="vectorSections"
+      aria-label="向量工作区"
+      @update:model-value="activeView = $event as VectorView"
+    />
+
     <n-alert
       v-if="errorMsg"
       type="error"
@@ -53,7 +60,7 @@
       </article>
     </section>
 
-    <section class="vector-body">
+    <section class="vector-body" :class="{ 'is-index-view': activeView === 'index' }">
       <aside class="vector-indexes">
         <div class="vector-panel-head">
           <div>
@@ -84,7 +91,7 @@
         </div>
       </aside>
 
-      <section class="vector-query-panel">
+      <section v-if="activeView === 'search'" class="vector-query-panel">
         <div class="vector-panel-head vector-panel-head--grid">
           <div>
             <n-text class="vector-panel-head__title">ANN search playground</n-text>
@@ -186,13 +193,15 @@
       <aside class="vector-inspector">
         <div class="vector-panel-head">
           <div>
-            <n-text class="vector-panel-head__title">Hit inspector</n-text>
-            <n-text depth="3" class="vector-panel-head__meta">{{ selectedHit ? `rank ${selectedHit.rank}` : 'No hit selected' }}</n-text>
+            <n-text class="vector-panel-head__title">{{ activeView === 'search' ? '命中详情' : '索引参数' }}</n-text>
+            <n-text depth="3" class="vector-panel-head__meta">
+              {{ activeView === 'search' ? (selectedHit ? `rank ${selectedHit.rank}` : '尚未选择命中项') : activeIndexLabel }}
+            </n-text>
           </div>
           <n-tag v-if="selectedHit" size="tiny" :bordered="false">score {{ formatDistance(selectedHit.distance) }}</n-tag>
         </div>
 
-        <template v-if="selectedHit">
+        <template v-if="activeView === 'search' && selectedHit">
           <div class="vector-detail-strip">
             <span>{{ selectedHit.timestampUtc }}</span>
             <span>{{ selectedHit.tagText || 'no tags' }}</span>
@@ -214,7 +223,7 @@
             <pre>{{ selectedHit.fieldText || '-' }}</pre>
           </section>
         </template>
-        <n-empty v-else description="Run a search and select a hit." />
+        <n-empty v-else-if="activeView === 'search'" description="执行检索并选择一条命中记录。" />
 
         <section class="vector-index-params">
           <n-text class="vector-section-title vector-section-title--standalone">Index parameters</n-text>
@@ -278,6 +287,7 @@ import {
 } from '@/api/vector';
 import WorkbenchHistoryDrawer from '@/components/WorkbenchHistoryDrawer.vue';
 import WorkbenchResultPanel from '@/components/WorkbenchResultPanel.vue';
+import WorkbenchSectionTabs, { type WorkbenchSectionTab } from '@/components/WorkbenchSectionTabs.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useConnectionsStore } from '@/stores/connections';
 import {
@@ -314,6 +324,12 @@ const auth = useAuthStore();
 const connections = useConnectionsStore();
 const history = useWorkbenchHistoryStore();
 const message = useMessage();
+type VectorView = 'search' | 'index';
+const activeView = ref<VectorView>('search');
+const vectorSections: WorkbenchSectionTab[] = [
+  { key: 'search', label: '向量检索' },
+  { key: 'index', label: '索引参数' },
+];
 
 const queryMode = ref<'raw' | 'text'>('raw');
 const rawVectorText = ref('[1, 0, 0]');
@@ -829,6 +845,20 @@ watch(() => props.targetDb, () => {
   grid-template-columns: 250px minmax(440px, 1fr) 350px;
   min-width: 0;
   overflow: hidden;
+}
+
+.vector-body.is-index-view {
+  grid-template-columns: 300px minmax(420px, 720px);
+  justify-content: center;
+  padding: 20px;
+  overflow: auto;
+  background: var(--sndb-surface);
+}
+
+.vector-body.is-index-view .vector-indexes,
+.vector-body.is-index-view .vector-inspector {
+  border: 1px solid var(--sndb-border);
+  background: #fff;
 }
 
 .vector-indexes,

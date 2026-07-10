@@ -46,6 +46,13 @@
       </div>
     </section>
 
+    <WorkbenchSectionTabs
+      :model-value="inspectorTab"
+      :items="objectSections"
+      aria-label="对象存储工作区"
+      @update:model-value="inspectorTab = $event as InspectorTab"
+    />
+
     <WriteApprovalPanel
       v-if="previewPlan"
       :plan="previewPlan"
@@ -70,8 +77,8 @@
       </article>
     </section>
 
-    <section class="object-body">
-      <aside class="object-nav">
+    <section class="object-body" :class="{ 'is-focused': inspectorTab !== 'preview' }">
+      <aside v-if="inspectorTab === 'preview'" class="object-nav">
         <div class="object-panel-head">
           <div>
             <n-text class="object-panel-head__title">Buckets</n-text>
@@ -138,7 +145,7 @@
         </div>
       </aside>
 
-      <section class="object-grid-panel">
+      <section v-if="inspectorTab === 'preview'" class="object-grid-panel">
         <div class="object-panel-head object-panel-head--grid">
           <div>
             <n-text class="object-panel-head__title">Objects</n-text>
@@ -191,21 +198,13 @@
       <aside class="object-inspector">
         <div class="object-panel-head">
           <div>
-            <n-text class="object-panel-head__title">Object inspector</n-text>
+            <n-text class="object-panel-head__title">{{ objectSectionTitle }}</n-text>
             <n-text depth="3" class="object-panel-head__meta">
               {{ selectedObject?.key ?? 'No object selected' }}
             </n-text>
           </div>
           <n-tag v-if="selectedObject" size="tiny" :bordered="false">{{ selectedObject.contentType }}</n-tag>
         </div>
-
-        <n-tabs v-model:value="inspectorTab" type="segment" size="small" class="object-tabs">
-          <n-tab name="preview" tab="Preview" />
-          <n-tab name="governance" tab="Governance" />
-          <n-tab name="upload" tab="Upload" />
-          <n-tab name="multipart" tab="Multipart" />
-          <n-tab name="audit" tab="Audit" />
-        </n-tabs>
 
         <section v-if="inspectorTab === 'preview'" class="object-inspector-section">
           <template v-if="selectedObject">
@@ -476,8 +475,6 @@ import {
   NSelect,
   NSpace,
   NSwitch,
-  NTab,
-  NTabs,
   NTag,
   NText,
   useMessage,
@@ -530,6 +527,7 @@ import {
 import type { SqlResultSet } from '@/api/sql';
 import WorkbenchHistoryDrawer from '@/components/WorkbenchHistoryDrawer.vue';
 import WorkbenchResultPanel from '@/components/WorkbenchResultPanel.vue';
+import WorkbenchSectionTabs, { type WorkbenchSectionTab } from '@/components/WorkbenchSectionTabs.vue';
 import WriteApprovalPanel from '@/components/WriteApprovalPanel.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useConnectionsStore } from '@/stores/connections';
@@ -617,6 +615,14 @@ const objectFilter = ref('');
 const selectedKey = ref('');
 const checkedRowKeys = ref<DataTableRowKey[]>([]);
 const inspectorTab = ref<InspectorTab>('preview');
+const objectSections: WorkbenchSectionTab[] = [
+  { key: 'preview', label: '对象浏览' },
+  { key: 'governance', label: '治理' },
+  { key: 'upload', label: '上传 / 下载' },
+  { key: 'multipart', label: 'Multipart' },
+  { key: 'audit', label: '审计' },
+];
+const objectSectionTitle = computed(() => objectSections.find((item) => item.key === inspectorTab.value)?.label ?? '对象详情');
 const rangeStart = ref<number | null>(0);
 const rangeLength = ref<number | null>(4096);
 const previewMode = ref<PreviewMode>('text');
@@ -1945,6 +1951,20 @@ onMounted(() => {
   grid-template-columns: 240px minmax(420px, 1fr) 390px;
   min-width: 0;
   overflow: hidden;
+}
+
+.object-body.is-focused {
+  grid-template-columns: minmax(520px, 820px);
+  justify-content: center;
+  padding: 20px;
+  overflow: auto;
+  background: var(--sndb-surface);
+}
+
+.object-body.is-focused .object-inspector {
+  border: 1px solid var(--sndb-border);
+  border-radius: var(--sndb-radius);
+  background: #fff;
 }
 
 .object-nav,

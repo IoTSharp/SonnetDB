@@ -1,4 +1,5 @@
 import { resolve } from 'node:path';
+import { mkdirSync } from 'node:fs';
 import { expect, test, type Page, type Route } from '@playwright/test';
 
 const database = 'factory';
@@ -124,7 +125,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 const workbenches = [
-  { tool: '', testId: 'workbench-sql', identity: 'SQL results' },
+  { tool: '', testId: 'workbench-sql', identity: 'SELECT * FROM sensor_readings' },
   { tool: 'table', testId: 'workbench-table', identity: 'orders' },
   { tool: 'document', testId: 'workbench-document', identity: 'device_profiles' },
   { tool: 'kv', testId: 'workbench-kv', identity: 'sessions' },
@@ -142,6 +143,15 @@ for (const workbench of workbenches) {
     const surface = page.getByTestId(workbench.testId);
     await expect(surface).toBeVisible();
     await expect(surface).toContainText(workbench.identity);
+    if (workbench.tool === '') {
+      await page.getByTitle('查看结果').click();
+      const resultDrawer = page.locator('[data-workbench-result-drawer]');
+      await expect(resultDrawer).toBeVisible();
+      await expect(resultDrawer).toContainText('SQL results');
+    }
+    if (process.env.SONNETDB_CAPTURE_M29 === '1') {
+      await captureM29(page, `default-${workbench.tool || 'sql'}`);
+    }
     const explorer = page.locator('.schema-sidebar');
     await expect(explorer).toContainText(database);
     if (!(await explorer.getByText('KV Keyspaces', { exact: true }).isVisible())) {
@@ -159,6 +169,70 @@ for (const workbench of workbenches) {
     }
   });
 }
+
+const taskViews = [
+  { tool: 'table', testId: 'workbench-table', tab: '设计器', content: 'Create table' },
+  { tool: 'document', testId: 'workbench-document', tab: 'Validator', content: 'Sample precheck' },
+  { tool: 'kv', testId: 'workbench-kv', tab: '批量操作', content: 'Batch operations' },
+  { tool: 'mq', testId: 'workbench-mq', tab: '消息', content: 'Message inspector' },
+  { tool: 'vector', testId: 'workbench-vector', tab: '索引参数', content: 'Index parameters' },
+  { tool: 'fulltext', testId: 'workbench-fulltext', tab: 'Analyzer', content: 'Analyzer preview' },
+  { tool: 'bucket', testId: 'workbench-bucket', tab: '治理', content: 'Lifecycle' },
+] as const;
+
+for (const taskView of taskViews) {
+  test(`${taskView.testId} opens the ${taskView.tab} task view`, async ({ page }) => {
+    await page.goto(`/admin/app/sql?tool=${taskView.tool}`);
+    const surface = page.getByTestId(taskView.testId);
+    await surface.locator('.workbench-section-tabs').getByRole('button', { name: taskView.tab, exact: true }).click();
+    await expect(surface).toContainText(taskView.content);
+    if (process.env.SONNETDB_CAPTURE_M29 === '1') {
+      await captureM29(page, `task-${taskView.tool}`);
+    }
+  });
+}
+
+test('MQ message inspector remains usable at the compact desktop breakpoint', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/admin/app/sql?tool=mq');
+  const surface = page.getByTestId('workbench-mq');
+  await surface.locator('.workbench-section-tabs').getByRole('button', { name: '消息', exact: true }).click();
+  await expect(surface).toContainText('Message inspector');
+  await expect(page.locator('html')).not.toHaveCSS('overflow-x', 'scroll');
+  if (process.env.SONNETDB_CAPTURE_M29 === '1') await captureM29(page, 'responsive-mq-1280');
+});
+
+test('KV browser keeps its task navigation at the narrow desktop breakpoint', async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 900 });
+  await page.goto('/admin/app/sql?tool=kv');
+  await page.getByTitle('收起资源浏览器').click();
+  const surface = page.getByTestId('workbench-kv');
+  await expect(surface.locator('.workbench-section-tabs')).toBeVisible();
+  await expect(surface.locator('.workbench-section-tabs').getByRole('button', { name: '浏览器', exact: true })).toBeVisible();
+  if (process.env.SONNETDB_CAPTURE_M29 === '1') await captureM29(page, 'responsive-kv-800');
+});
+
+test('staged KV write opens the shared approval modal', async ({ page }) => {
+  await page.goto('/admin/app/sql?tool=kv');
+  const surface = page.getByTestId('workbench-kv');
+  await surface.locator('.workbench-section-tabs').getByRole('button', { name: '批量操作', exact: true }).click();
+  await surface.getByRole('button', { name: 'Stage set', exact: true }).click();
+  const approval = page.getByRole('dialog', { name: 'KV operation batch' });
+  await expect(approval).toBeVisible();
+  await expect(approval).toContainText('暂存预览');
+  await expect(approval).toContainText('factory.sessions');
+  await expect(approval).toContainText('entries=1');
+  if (process.env.SONNETDB_CAPTURE_M29 === '1') await captureM29(page, 'shared-write-approval');
+});
+
+test('workspace header opens the filtered history drawer', async ({ page }) => {
+  await page.goto('/admin/app/sql?tool=table');
+  await page.getByTitle('查看工作台历史').click();
+  const drawer = page.locator('.workbench-history');
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByPlaceholder('筛选操作、对象或命令')).toBeVisible();
+  await expect(drawer).toContainText('条记录');
+});
 
 test('Studio bridge exposes native server controls and disk connection library', async ({ page }) => {
   await mockStudioBridge(page);
@@ -178,6 +252,7 @@ test('Studio bridge exposes native server controls and disk connection library',
       fullPage: true,
     });
   }
+  if (process.env.SONNETDB_CAPTURE_M29 === '1') await captureM29(page, 'studio-bridge');
 });
 
 async function mockManagementContracts(page: Page): Promise<void> {
@@ -296,4 +371,10 @@ async function ndjson(route: Route): Promise<void> {
       JSON.stringify({ type: 'end', rowCount: 1, recordsAffected: -1, elapsedMs: 1.2 }),
     ].join('\n'),
   });
+}
+
+async function captureM29(page: Page, name: string): Promise<void> {
+  const directory = resolve(process.cwd(), '../output/playwright/m29-implementation');
+  mkdirSync(directory, { recursive: true });
+  await page.screenshot({ path: resolve(directory, `${name}.png`), fullPage: true });
 }

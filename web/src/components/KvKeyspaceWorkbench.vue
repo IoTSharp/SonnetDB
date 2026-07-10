@@ -49,6 +49,13 @@
       </div>
     </section>
 
+    <WorkbenchSectionTabs
+      :model-value="activeView"
+      :items="kvSections"
+      aria-label="KV 工作区"
+      @update:model-value="activeView = $event as KvView"
+    />
+
     <WriteApprovalPanel
       v-if="previewPlan"
       :plan="previewPlan"
@@ -66,15 +73,15 @@
       @close="errorMsg = ''"
     />
 
-    <section class="kv-stats">
+    <section v-if="activeView === 'stats'" class="kv-stats kv-stats--page">
       <article v-for="item in statItems" :key="item.label" class="kv-stat">
         <span>{{ item.label }}</span>
         <strong>{{ item.value }}</strong>
       </article>
     </section>
 
-    <section class="kv-body">
-      <aside class="kv-namespace">
+    <section v-else class="kv-body" :class="{ 'is-batch': activeView === 'batch' }">
+      <aside v-if="activeView === 'browser'" class="kv-namespace">
         <div class="kv-panel-head">
           <div>
             <n-text class="kv-panel-head__title">Keyspace tree</n-text>
@@ -106,7 +113,7 @@
         </div>
       </aside>
 
-      <section class="kv-grid-panel">
+      <section v-if="activeView === 'browser'" class="kv-grid-panel">
         <div class="kv-panel-head kv-panel-head--grid">
           <div>
             <n-text class="kv-panel-head__title">Keys</n-text>
@@ -165,7 +172,7 @@
           <n-tag v-if="selectedEntry" size="tiny" :bordered="false">{{ selectedEntry.valueKind }}</n-tag>
         </div>
 
-        <template v-if="selectedEntry">
+        <template v-if="activeView === 'browser' && selectedEntry">
           <div class="kv-detail-strip">
             <span>version {{ selectedEntry.version }}</span>
             <span>{{ selectedEntry.byteLength }} bytes</span>
@@ -180,9 +187,9 @@
           </n-tabs>
           <pre class="kv-value-preview">{{ selectedValueText }}</pre>
         </template>
-        <n-empty v-else description="Select a key from the grid." />
+        <n-empty v-else-if="activeView === 'browser'" description="请从列表中选择一个 key。" />
 
-        <section class="kv-editor">
+        <section v-if="activeView === 'batch'" class="kv-editor">
           <n-text class="kv-editor__title">Set / edit value</n-text>
           <n-input v-model:value="editKey" size="small" placeholder="Key" />
           <div class="kv-editor__row">
@@ -224,7 +231,7 @@
           </n-space>
         </section>
 
-        <section class="kv-batch">
+        <section v-if="activeView === 'batch'" class="kv-batch">
           <n-text class="kv-editor__title">Batch operations</n-text>
           <n-input
             v-model:value="batchKeysText"
@@ -330,6 +337,7 @@ import {
 import type { SqlResultSet } from '@/api/sql';
 import WorkbenchHistoryDrawer from '@/components/WorkbenchHistoryDrawer.vue';
 import WorkbenchResultPanel from '@/components/WorkbenchResultPanel.vue';
+import WorkbenchSectionTabs, { type WorkbenchSectionTab } from '@/components/WorkbenchSectionTabs.vue';
 import WriteApprovalPanel from '@/components/WriteApprovalPanel.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useConnectionsStore } from '@/stores/connections';
@@ -360,6 +368,7 @@ const emit = defineEmits<{
 }>();
 
 type ValueView = 'text' | 'json' | 'hex' | 'base64';
+type KvView = 'browser' | 'batch' | 'stats';
 type ValueKind = 'json' | 'text' | 'binary';
 type SetExpiryMode = 'preserve' | 'persist' | 'seconds';
 
@@ -445,6 +454,12 @@ const scanLimit = ref(100);
 const cursor = ref<string | null>(null);
 const hasMore = ref(false);
 const loadingScan = ref(false);
+const activeView = ref<KvView>('browser');
+const kvSections: WorkbenchSectionTab[] = [
+  { key: 'browser', label: '浏览器' },
+  { key: 'batch', label: '批量操作' },
+  { key: 'stats', label: '统计' },
+];
 const errorMsg = ref('');
 const keyFilter = ref('');
 const selectedKey = ref('');
@@ -1464,6 +1479,21 @@ onMounted(() => {
   background: #fff;
 }
 
+.kv-stats--page {
+  align-content: start;
+  flex: 1;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  padding: 20px;
+  background: var(--sndb-surface);
+}
+
+.kv-stats--page .kv-stat {
+  min-height: 92px;
+  justify-content: center;
+  border: 1px solid var(--sndb-border);
+  background: #fff;
+}
+
 .kv-stat {
   display: flex;
   flex-direction: column;
@@ -1496,6 +1526,20 @@ onMounted(() => {
   grid-template-columns: 230px minmax(360px, 1fr) 340px;
   min-width: 0;
   overflow: hidden;
+}
+
+.kv-body.is-batch {
+  grid-template-columns: minmax(420px, 720px);
+  justify-content: center;
+  padding: 20px;
+  overflow: auto;
+  background: var(--sndb-surface);
+}
+
+.kv-body.is-batch .kv-inspector {
+  border: 1px solid var(--sndb-border);
+  border-radius: var(--sndb-radius);
+  background: #fff;
 }
 
 .kv-namespace,

@@ -14,20 +14,6 @@
         </n-text>
       </div>
 
-      <n-tabs
-        v-model:value="activeView"
-        type="segment"
-        size="small"
-        class="relation-toolbar__tabs"
-      >
-        <n-tab name="data" tab="Data" />
-        <n-tab name="designer" tab="Designer" />
-        <n-tab name="indexes" tab="Indexes" />
-        <n-tab name="import" tab="Import / Export" />
-        <n-tab name="er" tab="ER" />
-        <n-tab name="ddl" tab="DDL" />
-      </n-tabs>
-
       <div v-if="activeView === 'data'" class="relation-toolbar__actions">
         <n-select
           v-model:value="filterColumn"
@@ -61,6 +47,13 @@
         <n-button size="small" quaternary @click="historyVisible = true">History</n-button>
       </div>
     </section>
+
+    <WorkbenchSectionTabs
+      :model-value="activeView"
+      :items="relationSections"
+      aria-label="关系表工作区"
+      @update:model-value="activeView = $event as RelationView"
+    />
 
     <WriteApprovalPanel
       v-if="previewPlan"
@@ -245,8 +238,6 @@ import {
   NInputNumber,
   NSelect,
   NSpace,
-  NTabs,
-  NTab,
   NTag,
   NText,
   useMessage,
@@ -270,6 +261,7 @@ import RelationalImportExport from '@/components/RelationalImportExport.vue';
 import RelationalIndexManager from '@/components/RelationalIndexManager.vue';
 import RelationalSchemaDesigner from '@/components/RelationalSchemaDesigner.vue';
 import WorkbenchResultPanel from '@/components/WorkbenchResultPanel.vue';
+import WorkbenchSectionTabs, { type WorkbenchSectionTab } from '@/components/WorkbenchSectionTabs.vue';
 import WriteApprovalPanel from '@/components/WriteApprovalPanel.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useConnectionsStore } from '@/stores/connections';
@@ -328,6 +320,14 @@ const loadingRows = ref(false);
 const confirmBusy = ref(false);
 const errorMsg = ref('');
 const activeView = ref<RelationView>('data');
+const relationSections: WorkbenchSectionTab[] = [
+  { key: 'data', label: '数据' },
+  { key: 'designer', label: '设计器' },
+  { key: 'indexes', label: '索引' },
+  { key: 'import', label: '导入 / 导出' },
+  { key: 'er', label: 'ER 图' },
+  { key: 'ddl', label: 'DDL' },
+];
 const rowsResult = ref<SqlResultSet | null>(null);
 const latestResult = ref<SqlResultSet | null>(null);
 const latestResultSql = ref('');

@@ -31,15 +31,12 @@
       </div>
     </section>
 
-    <nav class="mq-section-tabs" aria-label="MQ 工作区">
-      <button
-        v-for="section in mqSections"
-        :key="section.key"
-        type="button"
-        :class="{ 'is-active': activeSection === section.key }"
-        @click="activeSection = section.key"
-      >{{ section.label }}</button>
-    </nav>
+    <WorkbenchSectionTabs
+      :model-value="activeSection"
+      :items="mqSections"
+      aria-label="MQ 工作区"
+      @update:model-value="activeSection = $event as MqSection"
+    />
 
     <WriteApprovalPanel
       v-if="previewPlan"
@@ -359,7 +356,6 @@
     </section>
 
     <WorkbenchResultPanel
-      v-if="ranOnce || latestResult"
       class="mq-result"
       title="SonnetMQ operation result"
       :sql="latestCommand"
@@ -424,6 +420,7 @@ import {
 import type { SqlResultSet } from '@/api/sql';
 import WorkbenchHistoryDrawer from '@/components/WorkbenchHistoryDrawer.vue';
 import WorkbenchResultPanel from '@/components/WorkbenchResultPanel.vue';
+import WorkbenchSectionTabs from '@/components/WorkbenchSectionTabs.vue';
 import WriteApprovalPanel from '@/components/WriteApprovalPanel.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useConnectionsStore } from '@/stores/connections';
@@ -533,7 +530,7 @@ const latestResult = ref<SqlResultSet | null>(null);
 const latestCommand = ref('');
 const ranOnce = ref(false);
 const historyVisible = ref(false);
-const activeSection = ref<MqSection>('messages');
+const activeSection = ref<MqSection>('overview');
 const inspectorCollapsed = ref(false);
 const publisherVisible = ref(false);
 
@@ -1994,6 +1991,7 @@ onBeforeUnmount(() => {
 }
 
 .mq-body {
+  position: relative;
   display: grid;
   flex: 1;
   min-height: 0;
@@ -2274,6 +2272,22 @@ onBeforeUnmount(() => {
 
   .mq-body {
     grid-template-columns: minmax(420px, 1fr) minmax(300px, 340px);
+  }
+}
+
+@media (min-width: 981px) and (max-width: 1439px) {
+  .mq-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mq-inspector {
+    position: absolute;
+    z-index: 8;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(384px, 42vw);
+    box-shadow: -12px 0 28px rgba(23, 33, 43, 0.12);
   }
 }
 

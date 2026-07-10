@@ -1,5 +1,11 @@
 <template>
-  <section class="workbench-result-panel">
+  <Teleport to="body">
+  <section
+    v-show="open"
+    class="workbench-result-panel"
+    data-workbench-result-drawer
+    :style="{ left: `${drawerLeft}px` }"
+  >
     <div class="workbench-result-panel__toolbar">
       <div class="workbench-result-panel__identity">
         <n-text class="workbench-result-panel__title">{{ title }}</n-text>
@@ -22,6 +28,9 @@
         </n-button>
         <n-button size="small" quaternary title="Export result set as JSON" :disabled="!canExport" @click="downloadJson">
           JSON
+        </n-button>
+        <n-button size="small" quaternary title="关闭结果" @click="open = false">
+          <template #icon><X :size="16" /></template>
         </n-button>
       </div>
     </div>
@@ -54,11 +63,13 @@
       <span>{{ filteredRows.length }} rows</span>
     </div>
   </section>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { NAlert, NButton, NEmpty, NInput, NText, useMessage } from 'naive-ui';
+import { X } from 'lucide-vue-next';
 import type { SqlResultSet } from '@/api/sql';
 import SqlResultPanel from '@/components/SqlResultPanel.vue';
 import {
@@ -96,6 +107,8 @@ defineEmits<{
 
 const message = useMessage();
 const filterText = ref('');
+const open = ref(false);
+const drawerLeft = ref(368);
 
 const rows = computed(() => resultRowsToObjects(props.result));
 const columns = computed(() => props.result?.columns ?? []);
@@ -179,14 +192,53 @@ async function downloadJson(): Promise<void> {
     message.error(error instanceof Error ? error.message : 'JSON export failed');
   }
 }
+
+function onToggleResult(event: Event): void {
+  const detail = (event as CustomEvent<{ open?: boolean }>).detail;
+  updateDrawerOffset();
+  open.value = detail?.open ?? !open.value;
+}
+
+function updateDrawerOffset(): void {
+  if (window.innerWidth <= 840) {
+    drawerLeft.value = 56;
+    return;
+  }
+  const workspace = document.querySelector<HTMLElement>('.workspace-shell');
+  drawerLeft.value = Math.round(workspace?.getBoundingClientRect().left ?? 368);
+}
+
+function onKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape' && open.value) open.value = false;
+}
+
+onMounted(() => {
+  window.addEventListener('sndb:toggle-result', onToggleResult);
+  window.addEventListener('keydown', onKeydown);
+  window.addEventListener('resize', updateDrawerOffset);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('sndb:toggle-result', onToggleResult);
+  window.removeEventListener('keydown', onKeydown);
+  window.removeEventListener('resize', updateDrawerOffset);
+});
 </script>
 
 <style scoped>
 .workbench-result-panel {
+  position: fixed;
+  z-index: 850;
+  right: 0;
+  bottom: 0;
+  left: 368px;
   display: flex;
-  flex: 1;
+  height: min(340px, 55vh);
   flex-direction: column;
   min-height: 0;
+  border-top: 1px solid var(--sndb-border-strong);
+  background: #fff;
+  box-shadow: 0 -12px 30px rgba(23, 33, 43, 0.1);
 }
 
 .workbench-result-panel__toolbar {
@@ -259,6 +311,10 @@ async function downloadJson(): Promise<void> {
 }
 
 @media (max-width: 840px) {
+  .workbench-result-panel {
+    height: min(420px, 64vh);
+  }
+
   .workbench-result-panel__toolbar {
     flex-direction: column;
     align-items: stretch;

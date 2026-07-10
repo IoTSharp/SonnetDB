@@ -1,5 +1,12 @@
 <template>
   <main class="query-workspace" data-testid="workbench-sql">
+    <WorkbenchSectionTabs
+      :model-value="activeSection"
+      :items="sqlSections"
+      aria-label="SQL 与时序工作区"
+      @update:model-value="selectSection($event as SqlSection)"
+    />
+
     <div class="query-toolbar">
       <n-space align="center" :size="8" :wrap="false">
         <n-button size="small" type="primary" :loading="running" @click="$emit('run')">
@@ -80,6 +87,7 @@ import type { MeasurementInfo } from '@/api/schema';
 import SqlEditor from '@/components/SqlEditor.vue';
 import WorkbenchHistoryDrawer from '@/components/WorkbenchHistoryDrawer.vue';
 import WorkbenchResultPanel from '@/components/WorkbenchResultPanel.vue';
+import WorkbenchSectionTabs, { type WorkbenchSectionTab } from '@/components/WorkbenchSectionTabs.vue';
 import WriteApprovalPanel from '@/components/WriteApprovalPanel.vue';
 import { CONTROL_PLANE_KEY, type SqlConsoleTab } from '@/stores/sqlConsole';
 import type { WorkbenchHistoryEntry } from '@/stores/workbenchHistory';
@@ -104,7 +112,7 @@ defineProps<{
   fileName: string;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   'update:activeTabId': [value: string];
   'update:sql': [value: string];
   'create-tab': [];
@@ -117,6 +125,7 @@ defineEmits<{
   'confirm-preview': [];
   'clear-error': [];
   'history-select': [entry: WorkbenchHistoryEntry];
+  'open-trajectory': [];
 }>();
 
 const editorCursor = ref<EditorCursorInfo>({
@@ -126,6 +135,23 @@ const editorCursor = ref<EditorCursorInfo>({
   length: 0,
 });
 const showHistoryDrawer = ref(false);
+type SqlSection = 'query' | 'result' | 'chart' | 'trajectory';
+const activeSection = ref<SqlSection>('query');
+const sqlSections: WorkbenchSectionTab[] = [
+  { key: 'query', label: '查询' },
+  { key: 'result', label: '结果' },
+  { key: 'chart', label: '图表' },
+  { key: 'trajectory', label: '轨迹' },
+];
+
+function selectSection(section: SqlSection): void {
+  activeSection.value = section;
+  if (section === 'result' || section === 'chart') {
+    window.dispatchEvent(new CustomEvent('sndb:toggle-result', { detail: { open: true } }));
+    return;
+  }
+  if (section === 'trajectory') emit('open-trajectory');
+}
 </script>
 
 <style scoped>
@@ -219,7 +245,7 @@ const showHistoryDrawer = ref(false);
 }
 
 .editor-shell {
-  flex: 0 0 340px;
+  flex: 1;
   min-height: 260px;
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 }
@@ -242,7 +268,7 @@ const showHistoryDrawer = ref(false);
 
 @media (max-width: 1280px) {
   .editor-shell {
-    flex-basis: 300px;
+    min-height: 300px;
   }
 }
 
