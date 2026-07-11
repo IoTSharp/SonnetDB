@@ -16,12 +16,12 @@
 |-----------|------|---------|------|
 | 0~16 | 早期路线（脚手架 → Copilot 产品化） | #1 ~ #88 | ✅（摘要见下「已完成里程碑」，详情见归档） |
 | 17 | 可观测性与运行时可见性（OTel + 结构化日志 + 诊断端点） | #89 ~ #98 | 🚧（#89~#91 ✅ 基线；#92~#98 📋 第二波） |
-| 18 | VS Code 数据库扩展（SonnetDB for VS Code） | #99 ~ #108 | 🚧（#99 骨架已落；#100~ 待续） |
+| 18 | VS Code 数据库扩展（SonnetDB for VS Code） | #99 ~ #108 | 🚧（#99~#106 ✅；#107 LSP sidecar、#108 Marketplace/实机验收待续） |
 | 19 | 生态适配底座能力（关系 + KV/缓存 + 对象桶 + 大量 measurement） | #109 ~ #126 | 🚧（#109~#117、#122/#123 ✅；余项按需） |
 | 20 | 多模能力对齐与平移测试（Parity） | #127 ~ #136 | ✅ |
 | 21 | Document Store 单机能力升级（MongoDB-like） | #137 ~ #146 | ✅ |
 | 23 | 搜索与向量引擎合并（DotSearch / DotVector 收编） | #160 ~ #169 | ✅ |
-| 24 | SonnetDB Studio 管理体验升级（Document 管理面） | #170 ~ #172 | 📋 |
+| 24 | SonnetDB Studio 管理体验升级（Document 管理面） | #170 ~ #172 | 🚧（核心 Document 工作台已由 M29 #257 落地；高级查询、索引与 change feed 归 M32） |
 | 25 | Document Store 验收、文档与发布治理 | #173 ~ #174 | 📋 |
 | 26 | 连接器路线独立化（C ABI + 多模型 API） | #175 ~ #181 | ✅ |
 | 27 | Industrial Data Agent 与 AI-ready 产品化路线 | #182 ~ #188 | 🚧（#182 文档已落；M28 收官后 #184 Demo 可启动；#183/#185 纯文档） |
@@ -45,13 +45,94 @@
 > **进行中（按带宽穿插）**：
 > - **M17 可观测性**：#89~#91 基线已落；下一步 #92 Copilot 指标（解锁 M29 #253 曲线）→ #97 会话持久化，详见 M17「可观测性与 Copilot 下一步规划」小节。
 > - **M27 Industrial Data Agent**：M28 收官后 #184 端到端工业异常 Demo 阻塞解除、可启动；#183/#185 纯文档随时可做。
-> - **M18 VS Code**（#99~#103 闭环）、**M19 生态底座**余项（对象治理 / 通用迁移原语 / 大量 measurement 长稳）。
+> - **M18 VS Code**：#99~#106 首个可用闭环已完成；下一步 #107 C# Parser LSP sidecar → #108 Marketplace 正式发布与 Electron 实机验收。**M19 生态底座**余项为对象治理 / 通用迁移原语 / 大量 measurement 长稳。
 >
 > **后续池**：
 > - **M32 Document Store MongoDB-like 易用性增强**：在 M21 单机能力、M24 管理面、M25 parity/长稳之后，集中补齐 MongoDB 日常开发体验缺口。第一目标是让 SonnetDB Document Store 对应用开发者“像 MongoDB 一样顺手”，不是立即承诺 MongoDB wire protocol / BSON command / 官方 Driver 直连。
 > - **M34 Modbus TCP 内建映射表**：把“建表时定义寄存器 ↔ 表字段 ↔ 类型转换”的能力作为独立路线推进，明确区分 **主站/client**（SonnetDB 主动连接外部从站/server 采集和写寄存器）与 **从站/server**（SonnetDB 暴露 Modbus TCP 端口，外部主站读写映射字段）。该路线不再藏在 M30 的被动接入边界内。
 >
 > **已收官**：M28（可靠性 / 并发正确性 / 热路径加固，P0~P5 + SDK 补口全部完成）、M20 Parity、M21 Document Store、M23 搜索/向量合并、M26 连接器。详细正文见 [docs/roadmap-history.md](docs/roadmap-history.md)。
+
+---
+
+## 管理界面完成度（2026-07-11）
+
+> 状态图例：✅ 已完成 / 🟡 部分完成 / ❌ 未完成 / ➖ 当前交付面明确不承担完整能力。
+> 本表按实际代码、`docs/management-tools.md`、Web Chromium smoke 和 VS Code consumer smoke 汇总；静态设计原型不自动计为产品实现。
+
+### Web Admin
+
+| 界面 / 能力 | 状态 | 当前结论 / 后续归口 |
+|---|---|---|
+| 统一多模型 Explorer | ✅ | 已覆盖时序、关系、Document、KV、MQ、向量、全文和对象桶。 |
+| SQL 工作台与共享结果面板 | ✅ | SQL 编辑执行、Table / Raw / JSON / Chart / Map、历史和 CSV/JSON 导出已接线。 |
+| 共享写审批 | ✅ | staged preview、危险确认、dry-run/confirm 和操作历史已被各写工作台复用。 |
+| 关系表工作台 | ✅ | 数据网格、行编辑、EXPLAIN、表设计、索引、ER、CSV/JSON/JSONL 与 DDL 已完成。 |
+| Document 工作台基础闭环 | ✅ | find/count/distinct/aggregate、CRUD、Validator、JSON/JSONL 和 rebuild 已完成。 |
+| KV 工作台 | ✅ | 前缀扫描、TTL、类型化值、set/remove/expire/persist 和批量操作已完成。 |
+| SonnetMQ 工作台 | ✅ | 消息浏览、publish/ack、consumer lag、吞吐、backlog、retention 和 DLQ 提示已完成。 |
+| 向量检索工作台 | ✅ | Raw/Text Embed、Top-K、metadata filter 和 HNSW 参数查看已完成。 |
+| 全文检索工作台 | ✅ | BM25、All/Any/Phrase/Fuzzy、Analyzer、高亮、分页和 staged rebuild 已完成。 |
+| 对象桶工作台 | ✅ | 上传下载、预览、版本、Multipart、policy/lifecycle/retention/quota/hold 和审计已完成。 |
+| 轨迹地图 | ✅ | Trajectory 与 SQL GEOPOINT Map 视图已完成。 |
+| 基础监控 | ✅ | 写入、查询 P95、WAL、MemTable、Segment 等 Prometheus 指标页面已完成（M17 #91）。 |
+| Copilot 基础交互 | ✅ | 流式聊天、模型选择、只读/读写模式、引用和 SQL 工作台联动已完成。 |
+| Copilot 调用量 / token 摘要 | ❌ | M17 #92；补 `/v1/copilot/metrics` 及 CopilotDock / AiSettingsView 最近一小时摘要。 |
+| 详细 Health / Readiness 状态条 | ❌ | M17 #94；顶部状态条尚未拆分存储、WAL、Chat provider、Embedding provider 四项检查。 |
+| 慢查询 / Top-N 查询抽屉 | ❌ | M17 #95；SQL 工作台尚无 slow query 诊断入口。 |
+| Copilot 服务端会话与跨设备同步 | ❌ | M17 #97；当前会话主要保存在浏览器 `localStorage`。 |
+| Provider-neutral 模型分组 | 🟡 | M27 #185；已有模型选择器，尚未明确区分平台默认、自定义和本地模型。 |
+| 时序数据点专用编辑器 | ❌ | 当前通过 SQL staged write 写入，尚无点级表单/网格编辑器。 |
+| Measurement 文件导入 | ❌ | 当前只有结果导出，尚无 Web 专用 measurement 文件导入流程。 |
+| 单表 / 单 Measurement 实时监控 | ❌ | 目前只有全局 Events/Monitoring；关系表和 measurement 无专用实时面板。 |
+| Document Change Feed Viewer | ❌ | M32 #279/#281；change feed、resume token 与实时查看器均未完成。 |
+| Document 高级查询 / 更新 / 索引设计 | 🟡 | 基础查询和 rebuild 已有；局部 update preview、复合/TTL/Multikey 等高级索引归 M32 #274~#281。 |
+| KV 文件 round-trip | ❌ | 已有批量文本操作和结果导出，尚无完整文件导入/导出闭环。 |
+| MQ 消息文件导入 | ❌ | 已有结果导出，尚无消息文件导入。 |
+| 向量数据编辑 / 导入 | ➖ | 当前定位为只读检索 playground；若扩展写路径需另立带审批的模型任务。 |
+| 全文数据独立导入 | ➖ | 当前只提供查询、Analyzer 和 rebuild；数据写入继续归 Document/SQL 数据入口。 |
+| 小于 800px 的完整治理 | ➖ | 小屏定位为巡检和只读浏览，复杂编辑/批量治理引导到桌面。 |
+| Modbus 管理界面 | ❌ | M34 #296；source、endpoint、寄存器映射、轮询健康和最近错误尚未开始。 |
+
+### Studio 桌面
+
+| 界面 / 能力 | 状态 | 当前结论 / 后续归口 |
+|---|---|---|
+| 复用 Web Admin 八模型工作台 | ✅ | 模型级能力与 Web Admin 一致。 |
+| 原生文本/二进制打开保存 | ✅ | 关系导入导出、对象上传下载和结果保存均已接线。 |
+| 原生目录选择 | ✅ | data root、备份和恢复目录已接线，并保留浏览器降级。 |
+| 磁盘连接库 | ✅ | profile 持久化到磁盘，Bearer token 不进入连接库。 |
+| 托管本地 Server | ✅ | data root、Start/Stop、健康轮询和退出策略已完成。 |
+| Win32 原生菜单 | ❌ | bridge manifest 只有 desktop action，尚未映射为真实宿主菜单。 |
+| 真实桌面宿主全流程自动化 | 🟡 | Web/Bridge smoke 已有；仍需补桌面宿主级安装、菜单、文件和生命周期验收。 |
+
+### VS Code 扩展
+
+| 界面 / 能力 | 状态 | 当前结论 / 后续归口 |
+|---|---|---|
+| 远程连接、SecretStorage 与状态栏 | ✅ | profile、token、探活、首次安装探测和活动连接已完成。 |
+| Database / Schema Explorer | ✅ | Measurement、Table、Collection、KV、MQ、向量和全文节点已接线。 |
+| SQL 执行与结果三视图 | ✅ | 当前语句/选区、Table / Raw / Chart、历史和 CSV/JSON 导出已完成。 |
+| Copilot 面板 | ✅ | 流式聊天、模型/知识库状态、引用、当前 SQL 和读写确认已完成。 |
+| 托管本地 Server | ✅ | data root、端口检测、进程启停、日志和健康检查已完成。 |
+| Measurement 草稿与 Bulk Import | ✅ | Create Measurement、LP/JSON/Bulk VALUES 导入和 snippets 已完成。 |
+| KV / MQ / 向量 / 全文只读预览 | ✅ | 复用 M29 管理契约和 Query Result Webview。 |
+| C# `SqlParser` LSP sidecar | ❌ | M18 #107；当前只有 TypeScript 轻量 diagnostics、hover、completion 和 explain。 |
+| Signature Help / Repair Suggestion | ❌ | M18 #107；随 LSP sidecar 一并实现。 |
+| Document 专用查询面板 | ❌ | 当前仅 schema/index metadata 与 SQL，没有专用 Document find 工作流。 |
+| 对象桶浏览 | ❌ | 当前 Explorer 和结果面板均未接入对象桶。 |
+| KV / MQ / 向量 / 全文完整编辑治理 | ➖ | VS Code 定位为开发者只读子集，完整治理继续由 Web Admin / Studio 承担。 |
+| 实例 / MQ 监控交付面 | ❌ | client 有部分 monitor 契约，当前无可见监控页面。 |
+| VS Code Extension Host UI 自动化 | ❌ | M18 #108；现有 smoke 只验证 HTTP consumer，不等同于真实 VS Code UI e2e。 |
+| Electron 实机截图与 Marketplace 发布 | ❌ | M18 #108；VSIX/CI/metadata 已有，正式发布与实机验收未完成。 |
+
+### 界面收口顺序
+
+1. **P0 运维可见性**：M17 #92 → #94 → #95 → #97，先补 Copilot 指标、Readiness、慢查询和服务端会话。
+2. **P1 VS Code 产品化**：M18 #107 → #108，完成 LSP sidecar、真实 Extension Host UI e2e、截图和 Marketplace 发布。
+3. **P1 Studio 收口**：实现 Win32 原生菜单和桌面宿主级自动化验收。
+4. **P2 模型体验补口**：按 M32 完成 Document update/index/change feed；按实际用户需求评估时序导入、KV round-trip 和 MQ 文件导入。
+5. **P3 新协议管理面**：M34 Runtime 与合同落地后再做 #296 Modbus 管理界面，禁止 UI 先承诺未实现的运行时语义。
 
 ---
 
