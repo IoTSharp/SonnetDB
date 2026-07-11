@@ -82,22 +82,31 @@
         </n-space>
       </n-card>
 
-      <n-card size="small" embedded :bordered="false" title="平台模型">
+      <n-card size="small" embedded :bordered="false" title="模型目录">
         <template #header-extra>
           <n-button size="small" quaternary :loading="modelsLoading" :disabled="!isCloudBound" @click="loadModels">
             刷新
           </n-button>
         </template>
-        <n-space v-if="models.length > 0" :size="8" align="center">
-          <n-tag
-            v-for="model in models"
-            :key="model"
-            size="small"
-            :type="model === defaultModel ? 'success' : 'default'"
-          >
-            {{ model }}{{ model === defaultModel ? ' · 默认' : '' }}
-          </n-tag>
-        </n-space>
+        <div v-if="modelGroups.length > 0" class="model-catalog">
+          <section v-for="group in modelGroups" :key="group.key" class="model-catalog__group">
+            <header>
+              <n-text strong>{{ group.label }}</n-text>
+              <n-tag size="tiny" :bordered="false">{{ group.models.length }}</n-tag>
+            </header>
+            <n-space v-if="group.models.length > 0" :size="8" align="center">
+              <n-tag
+                v-for="model in group.models"
+                :key="model.id"
+                size="small"
+                :type="model.isDefault ? 'success' : group.key === 'local' ? 'info' : 'default'"
+              >
+                {{ model.displayName }}{{ model.displayName !== model.id ? ` · ${model.id}` : '' }}{{ model.isDefault ? ' · 默认' : '' }}
+              </n-tag>
+            </n-space>
+            <n-text v-else depth="3" style="font-size: 12px">暂无可用模型</n-text>
+          </section>
+        </div>
         <n-text v-else depth="3" style="font-size: 12px">
           {{ isCloudBound ? (modelsErr || '点击「刷新」从平台读取模型列表') : '绑定 sonnetdb.com 账号后可查看平台可用模型。' }}
         </n-text>
@@ -119,7 +128,7 @@ import {
   type AiCloudDeviceCodeResponse,
   type AiConfigResponse,
 } from '@/api/ai';
-import { fetchCopilotMetrics, type CopilotMetricsSummary } from '@/api/copilot';
+import { fetchCopilotMetrics, type CopilotMetricsSummary, type CopilotModelGroup } from '@/api/copilot';
 
 const auth = useAuthStore();
 
@@ -135,8 +144,7 @@ const testMsg = ref('');
 const testOk = ref(false);
 
 const modelsLoading = ref(false);
-const models = ref<string[]>([]);
-const defaultModel = ref('');
+const modelGroups = ref<CopilotModelGroup[]>([]);
 const modelsErr = ref('');
 const usage = ref<CopilotMetricsSummary | null>(null);
 
@@ -249,11 +257,27 @@ async function loadModels(): Promise<void> {
   modelsErr.value = '';
   try {
     const result = await fetchAiCloudModels(auth.api);
-    defaultModel.value = result.default ?? '';
-    models.value = result.candidates ?? [];
+    modelGroups.value = result.groups?.length > 0
+      ? result.groups
+      : [
+          {
+            key: 'platform-default',
+            label: '平台默认模型',
+            models: result.default
+              ? [{ id: result.default, displayName: result.default, isDefault: true }]
+              : [],
+          },
+          {
+            key: 'custom',
+            label: '自定义模型',
+            models: (result.candidates ?? [])
+              .filter((id) => id && id !== result.default)
+              .map((id) => ({ id, displayName: id, isDefault: false })),
+          },
+          { key: 'local', label: '本地模型', models: [] },
+        ];
   } catch (e: unknown) {
-    models.value = [];
-    defaultModel.value = '';
+    modelGroups.value = [];
     modelsErr.value = e instanceof Error ? e.message : String(e);
   } finally {
     modelsLoading.value = false;
@@ -314,6 +338,30 @@ onBeforeUnmount(() => {
 .copilot-usage-summary strong {
   font-size: 20px;
   font-weight: 650;
+}
+
+.model-catalog {
+  display: grid;
+  gap: 14px;
+}
+
+.model-catalog__group {
+  display: grid;
+  gap: 8px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--n-border-color);
+}
+
+.model-catalog__group:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.model-catalog__group header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
 }
 
 @media (max-width: 720px) {

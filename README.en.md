@@ -207,6 +207,7 @@ README keeps the product overview and shortest setup path. Detailed material liv
 | Time-series modeling and measurement / tag / field / time | [Data Model](docs/data-model.md) |
 | SQL grammar, functions, control-plane SQL | [SQL Reference](docs/sql-reference.md), [SQL Cookbook](docs/sql-cookbook.md) |
 | Web Admin, SQL Workbench, Copilot | [SonnetDB Workbench](docs/web-workbench.md) |
+| Copilot providers, model groups, local models | [Copilot Provider and Model Catalog](docs/copilot-providers.md) |
 | Embedded API, ADO.NET, EF Core, CLI | [Embedded API](docs/embedded-api.md), [ADO.NET](docs/ado-net.md), [CLI](docs/cli-reference.md) |
 | Bulk ingest, Line Protocol, JSON ingest | [Bulk Ingest](docs/bulk-ingest.md) |
 | KV, documents, full-text, vector, Hybrid Search | [KV Keyspace](docs/kv-keyspace.md), [Vector Search](docs/vector-search.md) |

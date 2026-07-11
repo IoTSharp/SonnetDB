@@ -42,6 +42,7 @@ SonnetDB 是一个面向 C# / .NET 10 工业边缘应用的本地优先数据引
 | 使用 SonnetDB Studio 浏览 schema、编辑 SQL、做 staged preview | [SonnetDB Studio]({{ site.docs_baseurl | default: '/help' }}/web-workbench/) |
 | 对比 Web Admin、Studio 桌面、VS Code 的八模型管理能力 | [管理工具与三面能力矩阵]({{ site.docs_baseurl | default: '/help' }}/management-tools/) |
 | 了解 Copilot 如何辅助 SQL、排障和知识检索 | [SonnetDB Studio]({{ site.docs_baseurl | default: '/help' }}/web-workbench/) 和 [Copilot 技能库](https://github.com/IoTSharp/SonnetDB/tree/main/copilot/skills) |
+| 配置 Copilot Provider、模型分组或本地模型 | [Copilot Provider 与模型目录]({{ site.docs_baseurl | default: '/help' }}/copilot-providers/) |
 | 构建工业 AI 应用或 Industrial Data Agent | [使用 SonnetDB 构建工业 AI 应用]({{ site.docs_baseurl | default: '/help' }}/industrial-ai-applications/) |
 | 在进程内直接使用引擎 | [嵌入式与 in-proc API]({{ site.docs_baseurl | default: '/help' }}/embedded-api/) |
 | 使用轻量 KV keyspace 存储 metadata 或小对象 | [KV Keyspace]({{ site.docs_baseurl | default: '/help' }}/kv-keyspace/) |

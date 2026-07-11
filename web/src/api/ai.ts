@@ -1,4 +1,5 @@
 import type { AxiosInstance } from 'axios';
+import type { CopilotModelGroup } from './copilot';
 
 export interface AiStatusResponse {
   enabled: boolean;
@@ -31,6 +32,7 @@ export interface AiCloudDeviceTokenResponse {
 export interface AiCloudModelsResponse {
   default: string;
   candidates: string[];
+  groups: CopilotModelGroup[];
 }
 
 export interface AiMessage {

@@ -7,7 +7,7 @@
       </button>
 
       <nav class="app-breadcrumb" aria-label="当前位置">
-        <span>工厂数据</span>
+        <span>SonnetDB</span>
         <ChevronRight :size="15" />
         <span v-if="activeKey === 'sql'">{{ activeDatabase }}</span>
         <span v-else>{{ activeTitle }}</span>

@@ -81,7 +81,7 @@
             <ChevronDown v-if="openGroups.databases" :size="16" />
             <ChevronRight v-else :size="16" />
             <Database :size="17" />
-            <span>工厂数据</span>
+            <span>数据库</span>
             <small>{{ databaseTree.length }}</small>
           </button>
 

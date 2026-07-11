@@ -81,7 +81,7 @@
 | 详细 Health / Readiness 状态条 | ✅ | M17 #94；`/healthz/live` 与 `/healthz/ready` 已拆分，顶部状态条独立显示存储、WAL、Chat provider、Embedding provider 四项检查。 |
 | 慢查询 / Top-N 查询抽屉 | ✅ | M17 #95；SQL 工作台已接入服务端慢查询环形缓冲、SQL 指纹聚合与权限过滤诊断抽屉。 |
 | Copilot 服务端会话与跨设备同步 | ✅ | M17 #97；`__copilot__` 系统表持久化会话、消息和引用，按 owner 隔离并跨设备同步，不再回退浏览器 `localStorage`。 |
-| Provider-neutral 模型分组 | 🟡 | M27 #185；已有模型选择器，尚未明确区分平台默认、自定义和本地模型。 |
+| Provider-neutral 模型分组 | ✅ | M27 #185；模型目录兼容 `default/candidates` 并新增平台默认、自定义、本地三组，CopilotDock 与设置页已接入。 |
 | 时序数据点专用编辑器 | ❌ | 当前通过 SQL staged write 写入，尚无点级表单/网格编辑器。 |
 | Measurement 文件导入 | ❌ | 当前只有结果导出，尚无 Web 专用 measurement 文件导入流程。 |
 | 单表 / 单 Measurement 实时监控 | ❌ | 目前只有全局 Events/Monitoring；关系表和 measurement 无专用实时面板。 |
@@ -833,7 +833,7 @@ PR #89（Core Meter / Activity 基线）
 | #182 | **AI-ready 门面文档第一批**：README / README.en 第一屏改为 `.NET industrial edge local-first data engine`；新增 `llms.txt`、`docs/industrial-ai-applications.md`，让开发者和 AI Agent 明确 SonnetDB 适合工业边缘、IoT telemetry、本地数据引擎、Copilot / MCP 场景。 | 🚧（可与 M28 并行收尾） |
 | #183 | **稳定并文档化现有 MCP / Copilot 工具契约（降级：不新增工具）**：`list_databases` / `list_measurements` / `describe_measurement` / `sample_rows` / `query_sql` / `explain_sql` / `docs_search` **已在 `src/SonnetDB/Mcp/SonnetDbMcpTools.cs` 实现**；本 PR 只稳定命名、参数与权限边界并形成 typed contract 文档，**不铺大 Agent 表面、不新增专用端点**。异常分析优先复用已有 Core 算子 `anomaly(field,'zscore'/'mad'/'iqr',threshold)`（`AnomalyFunctions.cs`），仅在文档中给出「异常设备」查询范式，`analyze_measurement_anomaly` 单独工具**暂不新增**。 | 📋（可与 M28 并行，纯文档） |
 | #184 | **工业异常分析 Demo（等 M28 收口后启动）**：新增 MQTT / HTTP ingest 示例，演示设备温度 / 电流 / 振动写入 SonnetDB，再通过 Copilot / MCP 提问“哪台设备今天最异常？”并生成报告；README、docs 和视频脚本统一使用同一数据模型。**依赖**：M28 P5b #242 MQTT 内建 broker + P0/P2 可靠写入（引擎主张为真后再拍 Demo）。 | 📋（M28 已收官，阻塞解除，可启动） |
-| #185 | **Provider-neutral Copilot 配置回归**：`OpenAICompatibleChatProvider` + `IChatProvider` / `IEmbeddingProvider` 抽象**已实现**；本 PR 把 Chat / Embedding provider 抽象文档化并补齐 OpenAI-compatible、Azure OpenAI、国内兼容网关、本地 Ollama / vLLM 的配置样例；Web Admin 模型选择器明确区分“平台默认模型”“自定义模型”“本地模型”。 | 📋（可与 M28 并行，纯文档 + 少量前端） |
+| #185 | **Provider-neutral Copilot 配置回归**：`OpenAICompatibleChatProvider` + `IChatProvider` / `IEmbeddingProvider` 抽象**已实现**；本 PR 把 Chat / Embedding provider 抽象文档化并补齐 OpenAI-compatible、Azure OpenAI、国内兼容网关、本地 Ollama / vLLM 的配置样例；Web Admin 模型选择器明确区分“平台默认模型”“自定义模型”“本地模型”。 | ✅ |
 | #186 | **写入审批二阶段 → 移交 Milestone 29**：与 M29「共享写审批框架」重叠，归属 M29（审批是管理面能力）。M27 只消费该框架、不重复实现。原范围（Copilot 写 SQL 进入 staged preview、`CREATE / INSERT / UPDATE / DELETE / DROP / GRANT / REVOKE` 展示 SQL diff / 影响范围 / 二次确认、服务端以权限和 `mode=read-write` 为上限）在 M29 交付。 | ➡️ 移交 M29 |
 | #187 | **Agent eval 与成本指标（推迟到有真实采纳之后）**：新增 Industrial Data Agent eval 场景（异常设备、慢查询、schema 建模、维修建议、写入审批），并在 Copilot 指标中记录 provider、model、tool 调用数、失败原因和近似 token 成本，便于企业按成本选择模型。**排序**：无真实用户前做 eval 收益低，排在 #184 Demo 与首批采纳之后。 | 📋（M28 已收官；仍排在 #184 Demo 与首批采纳之后） |
 | #188 | **上层平台联合样例边界**：SonnetDB 侧只提供工业边缘数据引擎、Studio、Copilot/Agent 和备份恢复的通用样例素材；具体 IoTSharp + SonnetDB 边缘节点样例迁入 IoTSharp 仓库 RD-10 维护。 | 📋（纯边界声明，可随时做） |

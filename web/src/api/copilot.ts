@@ -197,6 +197,8 @@ export interface CopilotChatRequest {
    * - `read-write`：在凭据本身具备写权限的前提下允许 execute_sql 写入。
    */
   mode?: 'read-only' | 'read-write';
+  /** 本次调用的模型覆盖；省略时跟随平台默认模型。 */
+  model?: string;
 }
 
 export interface CopilotConversationSummary {
@@ -221,6 +223,30 @@ export interface CopilotMetricsSummary {
   averageDurationMilliseconds: number;
   includesEstimatedTokens: boolean;
   models: Array<{ model: string; requestCount: number; totalTokens: number }>;
+}
+
+export interface CopilotModel {
+  id: string;
+  displayName: string;
+  isDefault: boolean;
+}
+
+export interface CopilotModelGroup {
+  key: 'platform-default' | 'custom' | 'local';
+  label: string;
+  models: CopilotModel[];
+}
+
+export interface CopilotModelsResponse {
+  default: string;
+  candidates: string[];
+  groups: CopilotModelGroup[];
+}
+
+/** 拉取 Copilot 模型目录；default/candidates 保持兼容，groups 提供来源分组。 */
+export async function fetchCopilotModels(api: AxiosInstance): Promise<CopilotModelsResponse> {
+  const response = await api.get<CopilotModelsResponse>('/v1/copilot/models');
+  return response.data;
 }
 
 export async function listCopilotConversations(api: AxiosInstance): Promise<CopilotConversationSummary[]> {

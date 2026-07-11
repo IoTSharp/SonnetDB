@@ -103,58 +103,12 @@ internal static class AiEndpointHandler
             ctx.Response.StatusCode = StatusCodes.Status204NoContent;
         }));
 
-        app.MapMethods("/v1/admin/ai-cloud/models", ["GET"], (RequestDelegate)(async ctx =>
-        {
-            if (!BearerAuthMiddleware.IsAdmin(BearerAuthMiddleware.GetRole(ctx)))
-            {
-                await WriteErrorAsync(ctx, StatusCodes.Status403Forbidden, "forbidden", "仅 admin 可读取平台模型列表。").ConfigureAwait(false);
-                return;
-            }
+        app.MapMethods("/v1/admin/ai-cloud/models", ["GET"], (RequestDelegate)(ctx =>
+            HandleModelCatalogAsync(ctx, configStore, httpClientFactory, requireAdmin: true, useCopilotContract: false)));
 
-            var cfg = configStore.Get();
-            if (!IsCloudBound(cfg))
-            {
-                await WriteErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable, "cloud_not_bound",
-                    "AI 助手尚未绑定 sonnetdb.com 账号，请先完成绑定。").ConfigureAwait(false);
-                return;
-            }
-
-            if (cfg.CloudAccessTokenExpiresAtUtc is not null &&
-                cfg.CloudAccessTokenExpiresAtUtc <= DateTimeOffset.UtcNow.AddMinutes(1))
-            {
-                await WriteErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable, "cloud_token_expired",
-                    "sonnetdb.com Cloud Access Token 已过期，请重新绑定账号。").ConfigureAwait(false);
-                return;
-            }
-
-            using var client = httpClientFactory.CreateClient();
-            client.Timeout = TimeSpan.FromSeconds(cfg.TimeoutSeconds > 0 ? cfg.TimeoutSeconds : 60);
-            using var request = new HttpRequestMessage(HttpMethod.Get, OfficialGatewayBaseUrl + "/v1/models");
-            request.Headers.Authorization = new AuthenticationHeaderValue(
-                string.IsNullOrWhiteSpace(cfg.CloudTokenType) ? "Bearer" : cfg.CloudTokenType.Trim(),
-                cfg.CloudAccessToken);
-
-            using var response = await client.SendAsync(request, ctx.RequestAborted).ConfigureAwait(false);
-            var payload = await response.Content.ReadAsStringAsync(ctx.RequestAborted).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
-            {
-                await WriteErrorAsync(ctx, StatusCodes.Status502BadGateway, "platform_models_failed",
-                    $"平台模型列表读取失败 {(int)response.StatusCode}: {payload}").ConfigureAwait(false);
-                return;
-            }
-
-            var parsed = JsonSerializer.Deserialize(payload, ServerJsonContext.Default.OpenAiModelsResponse);
-            var candidates = parsed?.Data?
-                .Where(static item => !string.IsNullOrWhiteSpace(item.Id))
-                .Select(static item => item.Id.Trim())
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList() ?? [];
-            var defaultModel = candidates.Count > 0 ? candidates[0] : string.Empty;
-            var resp = new AiCloudModelsResponse(defaultModel, candidates);
-            ctx.Response.StatusCode = StatusCodes.Status200OK;
-            ctx.Response.ContentType = "application/json; charset=utf-8";
-            await JsonSerializer.SerializeAsync(ctx.Response.Body, resp, ServerJsonContext.Default.AiCloudModelsResponse, ctx.RequestAborted).ConfigureAwait(false);
-        }));
+        // 兼容 M8 的模型选择入口，并扩展 provider-neutral 分组；任何已认证用户均可读取。
+        app.MapMethods("/v1/copilot/models", ["GET"], (RequestDelegate)(ctx =>
+            HandleModelCatalogAsync(ctx, configStore, httpClientFactory, requireAdmin: false, useCopilotContract: true)));
 
         app.MapMethods("/v1/admin/ai-cloud/device-code", ["POST"], (RequestDelegate)(async ctx =>
         {
@@ -503,6 +457,83 @@ internal static class AiEndpointHandler
             .FirstOrDefault(static item => !string.IsNullOrWhiteSpace(item.Id))
             ?.Id
             .Trim();
+    }
+
+    /// <summary>
+    /// 从平台读取模型目录，并同时维护旧扁平列表和新分组契约。
+    /// </summary>
+    private static async Task HandleModelCatalogAsync(
+        HttpContext ctx,
+        AiConfigStore configStore,
+        IHttpClientFactory httpClientFactory,
+        bool requireAdmin,
+        bool useCopilotContract)
+    {
+        if (requireAdmin && !BearerAuthMiddleware.IsAdmin(BearerAuthMiddleware.GetRole(ctx)))
+        {
+            await WriteErrorAsync(ctx, StatusCodes.Status403Forbidden, "forbidden", "仅 admin 可读取平台模型列表。").ConfigureAwait(false);
+            return;
+        }
+
+        var cfg = configStore.Get();
+        if (!IsCloudBound(cfg))
+        {
+            await WriteErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable, "cloud_not_bound",
+                "AI 助手尚未绑定 sonnetdb.com 账号，请先完成绑定。").ConfigureAwait(false);
+            return;
+        }
+
+        if (cfg.CloudAccessTokenExpiresAtUtc is not null &&
+            cfg.CloudAccessTokenExpiresAtUtc <= DateTimeOffset.UtcNow.AddMinutes(1))
+        {
+            await WriteErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable, "cloud_token_expired",
+                "sonnetdb.com Cloud Access Token 已过期，请重新绑定账号。").ConfigureAwait(false);
+            return;
+        }
+
+        using var client = httpClientFactory.CreateClient();
+        client.Timeout = TimeSpan.FromSeconds(cfg.TimeoutSeconds > 0 ? cfg.TimeoutSeconds : 60);
+        using var request = new HttpRequestMessage(HttpMethod.Get, OfficialGatewayBaseUrl + "/v1/models");
+        request.Headers.Authorization = new AuthenticationHeaderValue(
+            string.IsNullOrWhiteSpace(cfg.CloudTokenType) ? "Bearer" : cfg.CloudTokenType.Trim(),
+            cfg.CloudAccessToken);
+
+        using var response = await client.SendAsync(request, ctx.RequestAborted).ConfigureAwait(false);
+        var payload = await response.Content.ReadAsStringAsync(ctx.RequestAborted).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            await WriteErrorAsync(ctx, StatusCodes.Status502BadGateway, "platform_models_failed",
+                $"平台模型列表读取失败 {(int)response.StatusCode}: {payload}").ConfigureAwait(false);
+            return;
+        }
+
+        var parsed = JsonSerializer.Deserialize(payload, ServerJsonContext.Default.OpenAiModelsResponse);
+        var catalog = CopilotModelCatalog.Build(parsed?.Data);
+        ctx.Response.StatusCode = StatusCodes.Status200OK;
+        ctx.Response.ContentType = "application/json; charset=utf-8";
+        if (useCopilotContract)
+        {
+            var result = new CopilotModelsResponse(catalog.Default, catalog.Candidates)
+            {
+                Groups = catalog.Groups,
+            };
+            await JsonSerializer.SerializeAsync(
+                ctx.Response.Body,
+                result,
+                ServerJsonContext.Default.CopilotModelsResponse,
+                ctx.RequestAborted).ConfigureAwait(false);
+            return;
+        }
+
+        var adminResult = new AiCloudModelsResponse(catalog.Default, catalog.Candidates)
+        {
+            Groups = catalog.Groups,
+        };
+        await JsonSerializer.SerializeAsync(
+            ctx.Response.Body,
+            adminResult,
+            ServerJsonContext.Default.AiCloudModelsResponse,
+            ctx.RequestAborted).ConfigureAwait(false);
     }
 
     private static async Task WriteSseTokenAsync(HttpContext ctx, string token)

@@ -31,4 +31,7 @@ internal sealed record OpenAiModelsResponse(
     [property: JsonPropertyName("data")] List<OpenAiModelItem>? Data);
 
 internal sealed record OpenAiModelItem(
-    [property: JsonPropertyName("id")] string Id);
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("display_name")] string? DisplayName = null,
+    [property: JsonPropertyName("group")] string? Group = null,
+    [property: JsonPropertyName("is_default")] bool? IsDefault = null);

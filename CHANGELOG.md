@@ -7,6 +7,7 @@
 
 ### Added
 
+- **M27 #185 Provider-neutral 模型分组**：恢复兼容的 `GET /v1/copilot/models` 与聊天 `model` 覆盖透传；模型目录在保留 `default/candidates` 的基础上新增 `platform-default`、`custom`、`local` 三组，并支持 Gateway 通过 `display_name` / `group` / `is_default` 发布中立元数据。Web Admin CopilotDock 恢复可自由输入的分组模型选择器，设置页同步展示三组目录；新增 OpenAI-compatible、Azure 适配网关、国内兼容网关、Ollama、vLLM 与三类 Embedding 配置文档。
 - **M17 慢查询日志与 Top-N 查询抽屉（#95）**：新增 `SonnetDBServer:Observability:SlowQueryLog` 开关、10s/30s/60s 分级与默认 256 条线程安全内存环形缓冲；REST、批量与二进制帧 SQL 入口统一记录慢查询，输出源生成结构化日志、`slow_query` Activity 事件并保留 SSE 实时广播。新增按数据库权限过滤的 `/v1/diagnostics/slow-queries` 与 `/v1/diagnostics/top-queries`，后者按保留标识符大小写、参数化字面量的稳定 SQL 指纹聚合 count/p50/p95/max。Web Admin SQL 工作台新增查询诊断抽屉，支持数据库筛选、刷新、慢查询明细、Top-N 切换与 SQL 复制；旧平铺慢查询配置仍可绑定。
 - **M17 Health / Readiness 细分探针（#94）**：保留兼容 `/healthz`，新增 `/healthz/live` 与 `/healthz/ready`；基于 ASP.NET Core `IHealthCheck` 分别验证 Segment 存储可写、WAL 可写、Chat provider 可达和 Embedding provider 可达，以标准 health report JSON 返回。Web Admin 顶栏新增四项彩色状态点、30 秒轮询、详情与手动刷新；存储故障阻断 readiness，未配置或暂不可达的可选 Copilot provider 标记为 degraded 而不阻断数据库编排就绪。
 - **M17 Copilot 服务端状态与用量摘要（#92 / #97）**：隐藏的 `__copilot__` 系统库新增 `conversations`、`messages`、`usage_events` 三张关系系统表，按认证用户或静态 Token 不可逆哈希隔离 owner；聊天入口自动持久化用户消息、最终回答、引用、模型、工具调用、耗时及 input/output/total token，云端缺失 usage 时显式标记服务端估算。新增会话 CRUD、消息读取和 `/v1/copilot/metrics` 最近窗口聚合 API，Web Admin CopilotDock 与设置页展示最近一小时摘要；Copilot 会话与权限模式不再写浏览器 `localStorage`，会话历史可跨设备同步。新增 `SonnetDB.Copilot` BCL Meter/ActivitySource、重启恢复、跨客户端同步、owner 隔离与 token 汇总集成测试。

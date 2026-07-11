@@ -133,6 +133,41 @@ public sealed record CopilotKnowledgeStatusResponse(
     int SkillCount);
 
 /// <summary>
+/// Copilot 模型目录中的单个模型。
+/// </summary>
+/// <param name="Id">发送给模型运行时的稳定模型标识。</param>
+/// <param name="DisplayName">面向用户的显示名称。</param>
+/// <param name="IsDefault">是否为当前平台默认模型。</param>
+public sealed record CopilotModelResponse(
+    string Id,
+    string DisplayName,
+    bool IsDefault);
+
+/// <summary>
+/// Provider-neutral 模型分组。
+/// </summary>
+/// <param name="Key">稳定分组键：<c>platform-default</c>、<c>custom</c> 或 <c>local</c>。</param>
+/// <param name="Label">面向用户的分组名称。</param>
+/// <param name="Models">分组内可选模型。</param>
+public sealed record CopilotModelGroupResponse(
+    string Key,
+    string Label,
+    IReadOnlyList<CopilotModelResponse> Models);
+
+/// <summary>
+/// Copilot 可用模型目录。
+/// </summary>
+/// <param name="Default">平台当前默认模型；没有可用模型时为空字符串。</param>
+/// <param name="Candidates">兼容旧客户端的扁平候选模型列表。</param>
+public sealed record CopilotModelsResponse(
+    string Default,
+    IReadOnlyList<string> Candidates)
+{
+    /// <summary>按模型来源组织的 provider-neutral 分组。</summary>
+    public IReadOnlyList<CopilotModelGroupResponse> Groups { get; init; } = [];
+}
+
+/// <summary>
 /// Copilot 聊天请求体（PR #67 / #68）。
 /// </summary>
 /// <param name="Db">目标数据库名。建库型 provisioning 请求可为空，此时由服务端根据用户消息推断目标库名。</param>
@@ -151,7 +186,11 @@ public sealed record CopilotChatRequest(
     int? SkillsK = null,
     string? Mode = null,
     string? CloudMode = null,
-    string? ConversationId = null);
+    string? ConversationId = null)
+{
+    /// <summary>本次调用的可选模型覆盖；为空时继续跟随平台默认模型。</summary>
+    public string? Model { get; init; }
+}
 
 /// <summary>
 /// Copilot 回答中附带的一条 citation（PR #67）。

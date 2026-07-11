@@ -39,7 +39,11 @@ public sealed record AiCloudDeviceTokenRequest(string DeviceCode);
 /// <summary>平台可用 AI 模型列表响应。</summary>
 public sealed record AiCloudModelsResponse(
     string Default,
-    IReadOnlyList<string> Candidates);
+    IReadOnlyList<string> Candidates)
+{
+    /// <summary>按模型来源组织的 provider-neutral 分组。</summary>
+    public IReadOnlyList<CopilotModelGroupResponse> Groups { get; init; } = [];
+}
 
 /// <summary>前端发送的 AI 聊天请求。</summary>
 public sealed record AiChatRequest(

@@ -105,6 +105,29 @@ public sealed class CopilotChatEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task CopilotChat_WithModelOverride_ForwardsModelToCloudRuntime()
+    {
+        SaveCloudConfig();
+        _cloud!.EnqueueChat(
+            CloudEvent("final", answer: "已使用指定模型。"),
+            CloudEvent("done", message: "completed"));
+
+        using var client = CreateClient(AdminToken);
+        using var response = await client.PostAsync(
+            "/v1/copilot/chat",
+            JsonContent.Create(
+                new CopilotChatRequest(DatabaseName, "使用本地模型分析 cpu")
+                {
+                    Model = "local-qwen",
+                },
+                ServerJsonContext.Default.CopilotChatRequest));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        _ = await ReadNdjsonEventsAsync(response);
+        Assert.Equal("local-qwen", Assert.Single(_cloud.ChatRequests).Model);
+    }
+
+    [Fact]
     public async Task CopilotChat_WithoutDatabaseGrant_ReturnsForbiddenBeforeCloudCall()
     {
         SaveCloudConfig();

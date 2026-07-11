@@ -435,7 +435,7 @@ internal static class CopilotChatEndpointHandler
             Messages: messages,
             Stream: false,
             MaxTokens: null,
-            Model: null);
+            Model: string.IsNullOrWhiteSpace(request.Model) ? null : request.Model.Trim());
     }
 
     private static IReadOnlyCollection<string> BuildCapabilities(

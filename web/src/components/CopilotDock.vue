@@ -68,6 +68,20 @@
 
     <!-- 数据库选择 已移除：数据库由 AI 根据上下文自动推断，无需手动选择 -->
 
+    <section class="copilot-dock__model">
+      <span class="copilot-dock__model-label">模型</span>
+      <n-select
+        v-model:value="selectedModel"
+        size="small"
+        :options="modelOptions"
+        :loading="modelsLoading"
+        :title="modelPickerTitle"
+        filterable
+        tag
+        :to="dockEl ?? 'body'"
+      />
+    </section>
+
     <!-- M7: 权限模式选择 -->
     <section class="copilot-dock__perm">
       <!-- 只读模式：点击 tag 展开内联确认，避免 popconfirm teleport 被遮挡 -->
@@ -250,8 +264,8 @@ import { computed, h, nextTick, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { marked, Renderer, type Tokens } from 'marked';
 import {
-  NButton, NInput, NPopconfirm, NPopover, NSpace, NTag, NText,
-  useDialog, useMessage,
+  NButton, NInput, NPopconfirm, NPopover, NSelect, NSpace, NTag, NText,
+  type SelectOption, useDialog, useMessage,
 } from 'naive-ui';
 import { useAuthStore } from '@/stores/auth';
 import { useCopilotSessionsStore, type CopilotSession } from '@/stores/copilotSessions';
@@ -262,9 +276,11 @@ import { listDatabases } from '@/api/server';
 import { execControlPlaneSql, isValidIdentifier } from '@/api/sql';
 import {
   fetchCopilotMetrics,
+  fetchCopilotModels,
   streamCopilotChat,
   type CopilotChatEvent,
   type CopilotCitation,
+  type CopilotModelGroup,
   type CopilotMetricsSummary,
   type CopilotMessage,
 } from '@/api/copilot';
@@ -313,6 +329,74 @@ type PermissionMode = 'read-only' | 'read-write';
 type CloudMode = 'sql_assist' | 'sql_analyze' | 'db_maintenance' | 'knowledge_qa';
 const permissionMode = ref<PermissionMode>('read-only');
 const permConfirmVisible = ref(false);  // 内联确认条显示状态
+
+const DefaultModelValue = '__sonnetdb_platform_default__';
+const ModelStorageKey = 'sndb.copilot.model.v2';
+const selectedModel = ref(DefaultModelValue);
+const modelDefault = ref('');
+const modelGroups = ref<CopilotModelGroup[]>([]);
+const modelsLoading = ref(false);
+const modelLoadError = ref('');
+try {
+  selectedModel.value = localStorage.getItem(ModelStorageKey) || DefaultModelValue;
+} catch {
+  // 浏览器禁用本地存储时保持平台默认模型。
+}
+watch(selectedModel, (value) => {
+  try {
+    localStorage.setItem(ModelStorageKey, value || DefaultModelValue);
+  } catch {
+    // 模型选择仍对当前页面有效。
+  }
+});
+
+const modelOptions = computed(() => {
+  const seen = new Set<string>();
+  const selected = selectedModel.value;
+  const groups = modelGroups.value.map((group) => {
+    const children: SelectOption[] = group.models.map((model) => {
+      const value = model.isDefault ? DefaultModelValue : model.id;
+      seen.add(value);
+      return {
+        label: model.displayName === model.id ? model.id : `${model.displayName} · ${model.id}`,
+        value,
+      };
+    });
+    if (group.key === 'platform-default' && children.length === 0) {
+      children.push({ label: '跟随平台默认', value: DefaultModelValue });
+      seen.add(DefaultModelValue);
+    }
+    return { type: 'group' as const, label: group.label, key: group.key, children };
+  });
+
+  if (groups.length === 0) {
+    groups.push({
+      type: 'group' as const,
+      label: '平台默认模型',
+      key: 'platform-default',
+      children: [{ label: modelDefault.value || '跟随平台默认', value: DefaultModelValue }],
+    });
+    seen.add(DefaultModelValue);
+  }
+
+  if (selected && selected !== DefaultModelValue && !seen.has(selected)) {
+    let custom = groups.find((group) => group.key === 'custom');
+    if (!custom) {
+      custom = { type: 'group' as const, label: '自定义模型', key: 'custom', children: [] };
+      groups.push(custom);
+    }
+    custom.children.push({ label: selected, value: selected });
+  }
+  return groups;
+});
+
+const modelPickerTitle = computed(() => {
+  if (modelLoadError.value) return modelLoadError.value;
+  if (selectedModel.value === DefaultModelValue) {
+    return modelDefault.value ? `平台默认：${modelDefault.value}` : '跟随平台默认模型';
+  }
+  return selectedModel.value;
+});
 
 const markdownRenderer = new Renderer();
 markdownRenderer.html = ({ text }: Tokens.HTML | Tokens.Tag) => escapeHtml(text);
@@ -701,6 +785,39 @@ function open(): void {
   visible.value = true;
   void reloadDbs();
   void reloadCopilotState();
+  void loadModels();
+}
+
+async function loadModels(): Promise<void> {
+  modelsLoading.value = true;
+  modelLoadError.value = '';
+  try {
+    const catalog = await fetchCopilotModels(auth.api);
+    modelDefault.value = catalog.default ?? '';
+    if (catalog.groups?.length > 0) {
+      modelGroups.value = catalog.groups;
+      return;
+    }
+
+    const customModels = (catalog.candidates ?? [])
+      .filter((id) => id && id !== catalog.default)
+      .map((id) => ({ id, displayName: id, isDefault: false }));
+    modelGroups.value = [
+      {
+        key: 'platform-default',
+        label: '平台默认模型',
+        models: catalog.default
+          ? [{ id: catalog.default, displayName: catalog.default, isDefault: true }]
+          : [],
+      },
+      { key: 'custom', label: '自定义模型', models: customModels },
+      { key: 'local', label: '本地模型', models: [] },
+    ];
+  } catch (error: unknown) {
+    modelLoadError.value = error instanceof Error ? error.message : String(error);
+  } finally {
+    modelsLoading.value = false;
+  }
 }
 
 async function reloadCopilotState(): Promise<void> {
@@ -1195,6 +1312,7 @@ async function send(): Promise<void> {
         mode: permissionMode.value,
         conversationId: sessionId,
         cloudMode: resolveCloudMode(userText),
+        ...(selectedModel.value !== DefaultModelValue ? { model: selectedModel.value } : {}),
       },
       ac.signal,
     )) {
@@ -1339,6 +1457,7 @@ watch(() => auth.isAuthenticated, (val) => {
   if (val && visible.value) {
     void reloadDbs();
     void reloadCopilotState();
+    void loadModels();
   }
 });
 
@@ -1445,6 +1564,20 @@ onMounted(() => {
 .copilot-dock__options-muted {
   color: var(--sndb-ink-soft, #678);
   font-size: 11px;
+}
+.copilot-dock__model {
+  min-height: 42px;
+  padding: 7px 12px;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--sndb-border, #e5e9f0);
+}
+.copilot-dock__model-label {
+  color: var(--sndb-ink-soft, #678);
+  font-size: 11px;
+  font-weight: 650;
 }
 .copilot-dock__perm {
   padding: 6px 12px 0;
