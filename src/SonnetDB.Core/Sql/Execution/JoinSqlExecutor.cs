@@ -599,40 +599,10 @@ internal static class JoinSqlExecutor
     }
 
     private static bool ValuesEqual(object? left, object? right)
-    {
-        if (left is null || right is null)
-            return left is null && right is null;
-
-        if (left is byte[] leftBytes && right is byte[] rightBytes)
-            return leftBytes.AsSpan().SequenceEqual(rightBytes);
-
-        if (IsNumeric(left) && IsNumeric(right))
-            return Convert.ToDouble(left, CultureInfo.InvariantCulture)
-                .Equals(Convert.ToDouble(right, CultureInfo.InvariantCulture));
-
-        return Equals(left, right);
-    }
+        => SqlScalarComparer.ValuesEqual(left, right);
 
     private static int? CompareScalar(object? left, object? right)
-    {
-        if (left is null || right is null)
-            return null;
-
-        if (IsNumeric(left) && IsNumeric(right))
-            return Convert.ToDouble(left, CultureInfo.InvariantCulture)
-                .CompareTo(Convert.ToDouble(right, CultureInfo.InvariantCulture));
-
-        if (left is DateTime leftDate && right is DateTime rightDate)
-            return leftDate.CompareTo(rightDate);
-
-        if (left is string leftString && right is string rightString)
-            return string.Compare(leftString, rightString, StringComparison.Ordinal);
-
-        if (left is bool leftBool && right is bool rightBool)
-            return leftBool.CompareTo(rightBool);
-
-        throw new InvalidOperationException($"无法比较 {left.GetType().Name} 与 {right.GetType().Name}。");
-    }
+        => SqlScalarComparer.Compare(left, right);
 
     private static double RequireDouble(object? value, string operatorName)
     {

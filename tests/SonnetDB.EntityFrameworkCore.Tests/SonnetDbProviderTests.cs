@@ -69,6 +69,28 @@ public sealed class SonnetDbProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task DateTimeParameter_WithRangePredicate_FiltersDateTimeColumn()
+    {
+        using var context = new EventContext(CreateOptions<EventContext>());
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE \"Events\" (\"Id\" INT NOT NULL, \"OccurredAt\" DATETIME NOT NULL, PRIMARY KEY (\"Id\"))");
+        var first = new DateTime(2026, 7, 10, 15, 48, 56, DateTimeKind.Utc);
+        context.Events.AddRange(
+            new EventRecord { Id = 1, OccurredAt = first },
+            new EventRecord { Id = 2, OccurredAt = first.AddSeconds(5) });
+        await context.SaveChangesAsync();
+
+        var from = first.AddSeconds(-1);
+        var to = first.AddSeconds(1);
+        var ids = await context.Events
+            .Where(item => item.OccurredAt >= from && item.OccurredAt <= to)
+            .Select(item => item.Id)
+            .ToListAsync();
+
+        Assert.Equal([1L], ids);
+    }
+
+    [Fact]
     public async Task UseSonnetDB_WithExistingConnection_PerformsCrud()
     {
         await using var connection = new SndbConnection($"Data Source={_root}");
@@ -924,6 +946,29 @@ public sealed class SonnetDbProviderTests : IDisposable
                 entity.Property(item => item.Enabled).HasColumnType("BOOL");
             });
         }
+    }
+
+    private sealed class EventContext(DbContextOptions<EventContext> options) : DbContext(options)
+    {
+        public DbSet<EventRecord> Events => Set<EventRecord>();
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<EventRecord>(entity =>
+            {
+                entity.ToTable("Events");
+                entity.HasKey(item => item.Id);
+                entity.Property(item => item.Id).HasColumnType("INT").ValueGeneratedNever();
+                entity.Property(item => item.OccurredAt).HasColumnType("DATETIME");
+            });
+        }
+    }
+
+    private sealed class EventRecord
+    {
+        public long Id { get; set; }
+
+        public DateTime OccurredAt { get; set; }
     }
 
     private sealed class Device

@@ -220,6 +220,38 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         Assert.False(r.Read());
     }
 
+    [Theory]
+    [InlineData("embedded")]
+    [InlineData("remote")]
+    public void DateTimeParameters_EmbeddedAndRemote_CompareAgainstDateTimeColumns(string mode)
+    {
+        using var connection = OpenAdoSchemaMatrixConnection(mode);
+        using (var ddl = connection.CreateCommand())
+        {
+            ddl.CommandText = "CREATE TABLE temporal_events (id INT, occurred_at DATETIME, PRIMARY KEY (id))";
+            ddl.ExecuteNonQuery();
+        }
+
+        var first = new DateTime(2026, 7, 10, 15, 48, 56, DateTimeKind.Utc);
+        var second = first.AddSeconds(5);
+        using (var insert = connection.CreateCommand())
+        {
+            insert.CommandText = "INSERT INTO temporal_events (id, occurred_at) VALUES (1, @first), (2, @second)";
+            insert.Parameters.AddWithValue("@first", first);
+            insert.Parameters.AddWithValue("@second", second);
+            Assert.Equal(2, insert.ExecuteNonQuery());
+        }
+
+        using var select = connection.CreateCommand();
+        select.CommandText = "SELECT id FROM temporal_events WHERE occurred_at >= @from AND occurred_at < @to ORDER BY id";
+        select.Parameters.AddWithValue("@from", first);
+        select.Parameters.AddWithValue("@to", second);
+        using var reader = select.ExecuteReader();
+        Assert.True(reader.Read());
+        Assert.Equal(1L, reader.GetInt64(0));
+        Assert.False(reader.Read());
+    }
+
     [Fact]
     public void Remote_GeoPointColumn_ReturnsGeoPointStruct()
     {
