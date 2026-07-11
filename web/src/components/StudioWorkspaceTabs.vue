@@ -98,6 +98,7 @@ import {
   Gauge,
   History,
   Map,
+  ActivitySquare,
   MessageSquareMore,
   Network,
   Plus,
@@ -170,6 +171,7 @@ function tabIcon(tool: WorkbenchTool): Component {
   return {
     sql: TerminalSquare,
     trajectory: Map,
+    measurement: ActivitySquare,
     table: Table2,
     document: Braces,
     kv: Archive,

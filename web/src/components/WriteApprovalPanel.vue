@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div class="write-approval-backdrop" role="presentation" @click.self="$emit('cancel')">
+    <div class="write-approval-backdrop" role="presentation" @click.self="cancelIfIdle">
       <section
         class="write-approval"
         :class="{ 'is-danger': plan.dangerous }"
@@ -21,7 +21,7 @@
             </n-space>
             <n-text depth="3" class="write-approval__summary">执行前请核对目标、影响范围和命令内容</n-text>
           </div>
-          <n-button size="small" quaternary title="返回编辑" @click="$emit('cancel')">
+          <n-button size="small" quaternary title="返回编辑" :disabled="busy" @click="$emit('cancel')">
             <template #icon><X :size="17" /></template>
           </n-button>
         </header>
@@ -51,7 +51,14 @@
           </n-checkbox>
           <n-text v-if="stale" depth="3">预览已过期，请重新生成后再执行。</n-text>
           <span class="write-approval__spacer" />
-          <n-button size="small" secondary @click="$emit('cancel')">返回编辑</n-button>
+          <n-button size="small" secondary :disabled="busy" @click="$emit('cancel')">返回编辑</n-button>
+          <n-button
+            v-if="busy && abortable"
+            size="small"
+            tertiary
+            type="error"
+            @click="$emit('abort')"
+          >停止后续批次</n-button>
           <n-button
             v-if="plan.dryRunAvailable"
             size="small"
@@ -63,7 +70,7 @@
           <n-button
             size="small"
             type="primary"
-            :disabled="stale || (plan.dangerous && !dangerConfirmed)"
+            :disabled="busy || stale || (plan.dangerous && !dangerConfirmed)"
             :loading="busy"
             @click="$emit('confirm')"
           >
@@ -87,11 +94,13 @@ const props = defineProps<{
   stale?: boolean;
   busy?: boolean;
   dryRunBusy?: boolean;
+  abortable?: boolean;
 }>();
 
 const emit = defineEmits<{
   cancel: [];
   confirm: [];
+  abort: [];
   'dry-run': [];
 }>();
 
@@ -109,7 +118,11 @@ function formatTime(value: number): string {
 }
 
 function onKeydown(event: KeyboardEvent): void {
-  if (event.key === 'Escape') emit('cancel');
+  if (event.key === 'Escape' && !props.busy) emit('cancel');
+}
+
+function cancelIfIdle(): void {
+  if (!props.busy) emit('cancel');
 }
 
 onMounted(() => window.addEventListener('keydown', onKeydown));

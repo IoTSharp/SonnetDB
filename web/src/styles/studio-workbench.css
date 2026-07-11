@@ -1,6 +1,7 @@
 /* Milestone 29 共享工作台密度：不改变模型功能，只统一信息层级与交互尺寸。 */
 .workspace-shell :is(
   .query-workspace,
+  .measurement-workbench,
   .relation-workbench,
   .document-workbench,
   .kv-workbench,
@@ -19,6 +20,7 @@
 
 .workspace-shell :is(
   .query-toolbar,
+  .measurement-toolbar,
   .relation-toolbar,
   .document-toolbar,
   .kv-toolbar,
@@ -36,6 +38,7 @@
 
 .workspace-shell :is(
   .relation-toolbar__title,
+  .measurement-toolbar__title,
   .document-toolbar__title,
   .kv-toolbar__title,
   .vector-toolbar__title,
@@ -49,6 +52,7 @@
 
 .workspace-shell :is(
   .relation-toolbar__meta,
+  .measurement-toolbar__meta,
   .document-toolbar__meta,
   .kv-toolbar__meta,
   .vector-toolbar__meta,
@@ -180,7 +184,8 @@
   .vector-grid,
   .fulltext-grid,
   .object-grid,
-  .relation-grid
+  .relation-grid,
+  .measurement-grid
 ) :is(th, td) {
   height: 40px;
   font-size: 13px;
@@ -193,7 +198,8 @@
   .vector-grid,
   .fulltext-grid,
   .object-grid,
-  .relation-grid
+  .relation-grid,
+  .measurement-grid
 ) th {
   color: #343b40;
   font-weight: 600;

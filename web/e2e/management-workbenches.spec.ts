@@ -189,6 +189,7 @@ test('top bar exposes the four readiness checks', async ({ page }) => {
 
 const workbenches = [
   { tool: '', testId: 'workbench-sql', identity: 'SELECT * FROM sensor_readings' },
+  { tool: 'measurement', testId: 'workbench-measurement', identity: 'sensor_readings' },
   { tool: 'table', testId: 'workbench-table', identity: 'orders' },
   { tool: 'document', testId: 'workbench-document', identity: 'device_profiles' },
   { tool: 'kv', testId: 'workbench-kv', identity: 'sessions' },
@@ -234,6 +235,7 @@ for (const workbench of workbenches) {
 }
 
 const taskViews = [
+  { tool: 'measurement', testId: 'workbench-measurement', tab: '文件导入', content: 'Measurement 文件导入' },
   { tool: 'table', testId: 'workbench-table', tab: '设计器', content: 'Create table' },
   { tool: 'document', testId: 'workbench-document', tab: 'Validator', content: 'Sample precheck' },
   { tool: 'kv', testId: 'workbench-kv', tab: '批量操作', content: 'Batch operations' },
@@ -254,6 +256,77 @@ for (const taskView of taskViews) {
     }
   });
 }
+
+test('Measurement import validates and opens shared approval', async ({ page }) => {
+  await page.goto('/admin/app/sql?tool=measurement');
+  const surface = page.getByTestId('workbench-measurement');
+  await surface.locator('.workbench-section-tabs').getByRole('button', { name: '文件导入', exact: true }).click();
+  await surface.getByPlaceholder('粘贴 CSV、JSON 数组或 JSONL 数据').fill([
+    'time,device_id,temperature',
+    '1783737600000,line-01,22.5',
+    '1783737601000,line-01,22.8',
+  ].join('\n'));
+  await surface.getByRole('button', { name: '解析', exact: true }).click();
+  await expect(surface).toContainText('2 行 · 3 个源列');
+  await surface.getByRole('button', { name: '暂存导入', exact: true }).click();
+  const approval = page.getByRole('dialog', { name: 'Measurement import' });
+  await expect(approval).toBeVisible();
+  await expect(approval).toContainText('INSERT 2 POINTS INTO sensor_readings');
+});
+
+test('Measurement import can stop after the active batch and resume remaining points', async ({ page }) => {
+  await page.route(`**/v1/db/${database}/sql/batch`, async (route) => {
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 800));
+    await ndjson(route);
+  });
+  await page.goto('/admin/app/sql?tool=measurement');
+  const surface = page.getByTestId('workbench-measurement');
+  await surface.locator('.workbench-section-tabs').getByRole('button', { name: '文件导入', exact: true }).click();
+  const rows = Array.from({ length: 101 }, (_, index) => `${1783737600000 + index},line-01,${22 + index / 10}`);
+  await surface.getByPlaceholder('粘贴 CSV、JSON 数组或 JSONL 数据').fill([
+    'time,device_id,temperature',
+    ...rows,
+  ].join('\n'));
+  await surface.getByRole('button', { name: '解析', exact: true }).click();
+  await surface.getByRole('button', { name: '暂存导入', exact: true }).click();
+  const approval = page.getByRole('dialog', { name: 'Measurement import' });
+  await approval.getByRole('button', { name: '确认执行 1 项操作', exact: true }).click();
+  await approval.getByRole('button', { name: '停止后续批次', exact: true }).click();
+  await expect(approval).toContainText('1 remaining points');
+  await expect(approval).toContainText('INSERT 1 POINTS INTO sensor_readings');
+});
+
+test('target monitor supports one Measurement and one relation table', async ({ page }) => {
+  await page.goto('/admin/app/sql?tool=measurement');
+  const surface = page.getByTestId('workbench-measurement');
+  await surface.locator('.workbench-section-tabs').getByRole('button', { name: '实时监控', exact: true }).click();
+  await surface.getByRole('button', { name: '开始', exact: true }).click();
+  await expect(surface).toContainText('LIVE');
+  await expect(surface).toContainText('单 Measurement');
+  await surface.getByText('关系表', { exact: true }).click();
+  await expect(surface).toContainText('单关系表');
+  await expect(surface).toContainText('orders');
+  if (process.env.SONNETDB_CAPTURE_M29 === '1') await captureM29(page, 'monitor-measurement-table');
+});
+
+test('Measurement correction refuses a tombstoned identity rewrite', async ({ page }) => {
+  await page.goto('/admin/app/sql?tool=measurement');
+  const surface = page.getByTestId('workbench-measurement');
+  await surface.getByRole('button', { name: '校正', exact: true }).click();
+  await surface.getByRole('button', { name: '暂存校正', exact: true }).click();
+  await expect(surface).toContainText('校正必须改变 time 或至少一个 TAG');
+});
+
+test('Measurement workbench remains operable at the narrow desktop breakpoint', async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 900 });
+  await page.goto('/admin/app/sql?tool=measurement');
+  await page.getByTitle('收起资源浏览器').click();
+  const surface = page.getByTestId('workbench-measurement');
+  await expect(surface.locator('.workbench-section-tabs')).toBeVisible();
+  await expect(surface.getByRole('button', { name: '新增数据点', exact: true })).toBeVisible();
+  await expect(page.locator('html')).not.toHaveCSS('overflow-x', 'scroll');
+  if (process.env.SONNETDB_CAPTURE_M29 === '1') await captureM29(page, 'responsive-measurement-800');
+});
 
 test('MQ message inspector remains usable at the compact desktop breakpoint', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -524,12 +597,20 @@ async function json(route: Route, body: unknown, status = 200): Promise<void> {
 }
 
 async function ndjson(route: Route): Promise<void> {
+  const request = route.request().postDataJSON() as { sql?: string } | null;
+  const isMeasurementQuery = /\bFROM\s+sensor_readings\b/iu.test(request?.sql ?? '');
+  const columns = isMeasurementQuery
+    ? ['time', 'device_id', 'temperature', 'embedding']
+    : ['id', 'status', 'amount'];
+  const row = isMeasurementQuery
+    ? [1783737600000, 'line-01', 22.5, [0.1, 0.2, 0.3]]
+    : [1001, 'ready', 42.5];
   await route.fulfill({
     status: 200,
     contentType: 'application/x-ndjson',
     body: [
-      JSON.stringify({ type: 'meta', columns: ['id', 'status', 'amount'] }),
-      JSON.stringify([1001, 'ready', 42.5]),
+      JSON.stringify({ type: 'meta', columns }),
+      JSON.stringify(row),
       JSON.stringify({ type: 'end', rowCount: 1, recordsAffected: -1, elapsedMs: 1.2 }),
     ].join('\n'),
   });

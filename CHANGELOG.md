@@ -7,6 +7,7 @@
 
 ### Added
 
+- **Web Admin 时序业务闭环**：新增专用 `MeasurementWorkbench`，提供时间窗/TAG 过滤的数据点网格、类型化点表单、新增/校正/删除、CSV/JSON 导出、Schema 查看以及共享写审批和操作历史；校正必须改变 time 或 TAG 身份，避免持久 tombstone 屏蔽同身份重写。新增 CSV、JSON、JSONL 文件导入，支持自动列映射、time/TAG/FIELD 校验、预览、100 点分批提交、进度与停止后续批次。实时监控支持在单 Measurement 与单关系表间切换目标，配置刷新频率和结果窗口，提供暂停/继续、趋势图、最近结果、刷新时间与查询耗时；全部读写继续复用当前 bearer token、数据库 grant 和参数化 SQL 数据面，不新增直连存储目录的旁路。
 - **M27 #185 Provider-neutral 模型分组**：恢复兼容的 `GET /v1/copilot/models` 与聊天 `model` 覆盖透传；模型目录在保留 `default/candidates` 的基础上新增 `platform-default`、`custom`、`local` 三组，并支持 Gateway 通过 `display_name` / `group` / `is_default` 发布中立元数据。Web Admin CopilotDock 恢复可自由输入的分组模型选择器，设置页同步展示三组目录；新增 OpenAI-compatible、Azure 适配网关、国内兼容网关、Ollama、vLLM 与三类 Embedding 配置文档。
 - **M17 慢查询日志与 Top-N 查询抽屉（#95）**：新增 `SonnetDBServer:Observability:SlowQueryLog` 开关、10s/30s/60s 分级与默认 256 条线程安全内存环形缓冲；REST、批量与二进制帧 SQL 入口统一记录慢查询，输出源生成结构化日志、`slow_query` Activity 事件并保留 SSE 实时广播。新增按数据库权限过滤的 `/v1/diagnostics/slow-queries` 与 `/v1/diagnostics/top-queries`，后者按保留标识符大小写、参数化字面量的稳定 SQL 指纹聚合 count/p50/p95/max。Web Admin SQL 工作台新增查询诊断抽屉，支持数据库筛选、刷新、慢查询明细、Top-N 切换与 SQL 复制；旧平铺慢查询配置仍可绑定。
 - **M17 Health / Readiness 细分探针（#94）**：保留兼容 `/healthz`，新增 `/healthz/live` 与 `/healthz/ready`；基于 ASP.NET Core `IHealthCheck` 分别验证 Segment 存储可写、WAL 可写、Chat provider 可达和 Embedding provider 可达，以标准 health report JSON 返回。Web Admin 顶栏新增四项彩色状态点、30 秒轮询、详情与手动刷新；存储故障阻断 readiness，未配置或暂不可达的可选 Copilot provider 标记为 degraded 而不阻断数据库编排就绪。

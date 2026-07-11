@@ -139,7 +139,7 @@ export function useSqlExplorerRouting(options: SqlExplorerRoutingOptions) {
         : item.model === 'bucket'
           ? { tool: 'bucket', model: item.model, node: item.name }
         : item.model === 'measurement'
-          ? {}
+          ? { tool: 'measurement', model: item.model, node: item.name }
           : { model: item.model, node: item.name },
     });
   }

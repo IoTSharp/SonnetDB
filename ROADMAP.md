@@ -82,9 +82,9 @@
 | 慢查询 / Top-N 查询抽屉 | ✅ | M17 #95；SQL 工作台已接入服务端慢查询环形缓冲、SQL 指纹聚合与权限过滤诊断抽屉。 |
 | Copilot 服务端会话与跨设备同步 | ✅ | M17 #97；`__copilot__` 系统表持久化会话、消息和引用，按 owner 隔离并跨设备同步，不再回退浏览器 `localStorage`。 |
 | Provider-neutral 模型分组 | ✅ | M27 #185；模型目录兼容 `default/candidates` 并新增平台默认、自定义、本地三组，CopilotDock 与设置页已接入。 |
-| 时序数据点专用编辑器 | ❌ | 当前通过 SQL staged write 写入，尚无点级表单/网格编辑器。 |
-| Measurement 文件导入 | ❌ | 当前只有结果导出，尚无 Web 专用 measurement 文件导入流程。 |
-| 单表 / 单 Measurement 实时监控 | ❌ | 目前只有全局 Events/Monitoring；关系表和 measurement 无专用实时面板。 |
+| 时序数据点专用编辑器 | ✅ | Measurement 工作台已提供时间窗/TAG 过滤、点级表单与网格、新增/校正/删除、CSV/JSON 导出、共享写审批和操作历史；校正必须改变 time/TAG 身份，避免 tombstone 屏蔽同身份重写。 |
+| Measurement 文件导入 | ✅ | CSV、JSON、JSONL 已支持自动列映射、time/TAG/FIELD 类型校验、预览、共享审批、100 点分批提交、进度与停止后续批次。 |
+| 单表 / 单 Measurement 实时监控 | ✅ | Measurement 工作台已提供目标类型/对象/频率/窗口选择、暂停/继续、趋势图、最近结果和查询耗时，复用当前 token 与数据面 SQL 权限。 |
 | Document Change Feed Viewer | ❌ | M32 #279/#281；change feed、resume token 与实时查看器均未完成。 |
 | Document 高级查询 / 更新 / 索引设计 | 🟡 | 基础查询和 rebuild 已有；局部 update preview、复合/TTL/Multikey 等高级索引归 M32 #274~#281。 |
 | KV 文件 round-trip | ❌ | 已有批量文本操作和结果导出，尚无完整文件导入/导出闭环。 |

@@ -138,6 +138,17 @@
         @refresh-schema="loadSchema(targetDb, true)"
         />
 
+        <MeasurementWorkbench
+        v-else-if="activeWorkbenchTool === 'measurement'"
+        :target-db="targetDb"
+        :measurement="selectedMeasurement"
+        :measurements="currentSchema"
+        :tables="currentSchemaResponse?.tables ?? []"
+        :loading="loadingSchema"
+        @open-sql="openRelationSql"
+        @refresh-schema="loadSchema(targetDb, true)"
+        />
+
         <DocumentCollectionWorkbench
         v-else-if="activeWorkbenchTool === 'document'"
         :target-db="targetDb"
@@ -231,6 +242,7 @@ import DocumentCollectionWorkbench from '@/components/DocumentCollectionWorkbenc
 import FullTextSearchWorkbench from '@/components/FullTextSearchWorkbench.vue';
 import KvKeyspaceWorkbench from '@/components/KvKeyspaceWorkbench.vue';
 import ManagementExplorerSidebar from '@/components/ManagementExplorerSidebar.vue';
+import MeasurementWorkbench from '@/components/MeasurementWorkbench.vue';
 import ObjectBucketWorkbench from '@/components/ObjectBucketWorkbench.vue';
 import RelationalTableWorkbench from '@/components/RelationalTableWorkbench.vue';
 import RemoteConnectionDialog from '@/components/RemoteConnectionDialog.vue';
@@ -463,6 +475,8 @@ const selectedObjectBucket = computed(() => {
 
 const activeObjectIdentity = computed(() => {
   switch (activeWorkbenchTool.value) {
+    case 'measurement':
+      return { label: selectedMeasurement.value?.name ?? 'Measurement', key: selectedMeasurement.value?.name ?? 'measurement' };
     case 'table':
       return { label: selectedTable.value?.name ?? '关系表', key: selectedTable.value ? `table:${selectedTable.value.name}` : 'table' };
     case 'document':
