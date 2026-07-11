@@ -2,7 +2,7 @@
 #
 # 用法：
 #   docker compose -f docker-compose.parity.yml --profile light up -d   # 轻量栈（6 服务，~1.5GB）
-#   docker compose -f docker-compose.parity.yml --profile full  up -d   # 全量栈（12 服务，~6-8GB）
+#   docker compose -f docker-compose.parity.yml --profile full  up -d   # 全量栈（13 服务，~6-8GB）
 #   docker compose -f docker-compose.parity.yml down -v                 # 一键清空（含 named volumes）
 #
 # PR #127 的冒烟场景仅实际使用 postgres；其余竞品服务定义到位但暂未被场景驱动，

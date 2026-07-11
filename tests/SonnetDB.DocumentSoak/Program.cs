@@ -124,11 +124,12 @@ internal static class Program
             phases.Add(Measure("index_rebuild", options.DocumentCount, () =>
                 database.Documents.RebuildIndex(CollectionName, SiteIndexName)));
 
-            database.Documents.CreateIndex(CollectionName, new DocumentPathIndexDefinition(
-                "ttl_created_at",
-                "$.createdAt",
-                TtlPath: "$.createdAt",
-                TtlSeconds: 60));
+            phases.Add(Measure("ttl_index_create", options.DocumentCount, () =>
+                database.Documents.CreateIndex(CollectionName, new DocumentPathIndexDefinition(
+                    "ttl_created_at",
+                    "$.createdAt",
+                    TtlPath: "$.createdAt",
+                    TtlSeconds: 60))));
             var expired = Enumerable.Range(0, 100).Select(i => new DocumentWriteRequest(
                 "expired-" + i.ToString("D4", CultureInfo.InvariantCulture),
                 BuildDocument(options.DocumentCount + i, DateTimeOffset.UtcNow.AddDays(-1).ToUnixTimeMilliseconds()))).ToArray();
