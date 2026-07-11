@@ -103,8 +103,8 @@
 | 原生目录选择 | ✅ | data root、备份和恢复目录已接线，并保留浏览器降级。 |
 | 磁盘连接库 | ✅ | profile 持久化到磁盘，Bearer token 不进入连接库。 |
 | 托管本地 Server | ✅ | data root、Start/Stop、健康轮询和退出策略已完成。 |
-| Win32 原生菜单 | ❌ | bridge manifest 只有 desktop action，尚未映射为真实宿主菜单。 |
-| 真实桌面宿主全流程自动化 | 🟡 | Web/Bridge smoke 已有；仍需补桌面宿主级安装、菜单、文件和生命周期验收。 |
+| Win32 原生菜单 | ✅ | File / View / Local Server 菜单已映射到真实宿主窗口，并通过 JS bridge 复用共享工作台动作。 |
+| 真实桌面宿主全流程自动化 | 🟡 | Web/Bridge smoke 已覆盖菜单动作、文件和 Server 控制；仍需补安装包与宿主生命周期实机验收。 |
 
 ### VS Code 扩展
 
@@ -130,7 +130,7 @@
 
 1. **P0 运维可见性**：M17 #92 → #94 → #95 → #97，先补 Copilot 指标、Readiness、慢查询和服务端会话。
 2. **P1 VS Code 产品化**：M18 #107 → #108，完成 LSP sidecar、真实 Extension Host UI e2e、截图和 Marketplace 发布。
-3. **P1 Studio 收口**：实现 Win32 原生菜单和桌面宿主级自动化验收。
+3. **P1 Studio 收口**：补安装包与桌面宿主生命周期实机自动化验收。
 4. **P2 模型体验补口**：按 M32 完成 Document update/index/change feed；按实际用户需求评估时序导入、KV round-trip 和 MQ 文件导入。
 5. **P3 新协议管理面**：M34 Runtime 与合同落地后再做 #296 Modbus 管理界面，禁止 UI 先承诺未实现的运行时语义。
 
@@ -238,7 +238,7 @@
 
 > **#259 落地说明**：VS Code 扩展保留 Remote-first 与开发者子集定位。当前实现已将连接 profile 持久化到 VS Code `globalState`、token 存入 `SecretStorage`；Explorer 在数据库下合并 schema 与 #245 管理契约，展示 KV Keyspaces、Vector Indexes、FullText Indexes、MQ Topics；结果面板支持 Table / Raw / Chart 三视图，并复用于 KV/MQ/向量/全文只读预览；Copilot 面板接入流式 `/v1/copilot/chat/stream`，read-write 模式前置用户确认。完整编辑、导入导出和治理工作台仍以 Web Admin / Studio 为主。
 
-> **#260 落地说明**：新增 `docs/management-tools.md` 作为八模型管理能力与三面 parity 的唯一收口入口，纳入 Web/MQ 与 Studio bridge 截图，并明确 Studio 原生菜单仍只有 action manifest、VS Code 不承担完整编辑治理。Web Admin Playwright smoke 覆盖 SQL/时序、关系、文档、KV、MQ、向量、全文、对象桶八个工作台和 Studio bridge；VS Code 以 loopback server 验证同一批 schema、SQL NDJSON、KV、向量、全文、MQ HTTP 契约消费。未新增引擎语义或绕过权限的写路径。
+> **#260 落地说明**：新增 `docs/management-tools.md` 作为八模型管理能力与三面 parity 的唯一收口入口，纳入 Web/MQ 与 Studio bridge 截图；Studio 后续已将共享 action manifest 映射为 Win32 原生菜单，VS Code 继续不承担完整编辑治理。Web Admin Playwright smoke 覆盖 SQL/时序、关系、文档、KV、MQ、向量、全文、对象桶八个工作台和 Studio bridge；VS Code 以 loopback server 验证同一批 schema、SQL NDJSON、KV、向量、全文、MQ HTTP 契约消费。未新增引擎语义或绕过权限的写路径。
 
 ### 推进顺序
 

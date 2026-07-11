@@ -18,6 +18,23 @@ export interface StudioMenuItem {
   id: string;
   label: string;
   command: string;
+  group: string;
+  shortcut: string | null;
+}
+
+export type StudioDesktopActionId =
+  | 'query.new'
+  | 'file.open'
+  | 'file.save'
+  | 'app.exit'
+  | 'view.results'
+  | 'view.history'
+  | 'server.start'
+  | 'server.stop'
+  | 'server.health';
+
+export interface StudioDesktopActionMessage {
+  id: StudioDesktopActionId;
 }
 
 export interface StudioConnectionLibrarySnapshot {
@@ -126,6 +143,22 @@ export async function getStudioNativeBridge(): Promise<StudioNativeBridgeClient 
 
 export function currentStudioNativeBridge(): StudioNativeBridgeClient | null {
   return cachedClient ?? null;
+}
+
+/**
+ * 订阅 NativeWebHost 派发的 Studio 原生菜单动作。
+ */
+export function subscribeStudioDesktopActions(
+  handler: (action: StudioDesktopActionMessage) => void | Promise<void>,
+): () => void {
+  const eventName = 'nativeWeb:studio.desktop-action';
+  const listener = (event: Event) => {
+    const detail = (event as CustomEvent<unknown>).detail;
+    const action = parseDesktopAction(detail);
+    if (action) void handler(action);
+  };
+  window.addEventListener(eventName, listener);
+  return () => window.removeEventListener(eventName, listener);
 }
 
 function createClient(config: { baseUrl: string; token: string }): StudioNativeBridgeClient {
@@ -246,6 +279,21 @@ function fileNameFromContentDisposition(value: string | null): string | null {
   if (encoded) return decodeURIComponent(encoded);
   const plain = /filename="?([^";]+)"?/iu.exec(value)?.[1];
   return plain ?? null;
+}
+
+function parseDesktopAction(value: unknown): StudioDesktopActionMessage | null {
+  let candidate = value;
+  if (typeof candidate === 'string') {
+    try {
+      candidate = JSON.parse(candidate) as unknown;
+    } catch {
+      return null;
+    }
+  }
+
+  if (!candidate || typeof candidate !== 'object' || !('id' in candidate)) return null;
+  const id = (candidate as { id?: unknown }).id;
+  return typeof id === 'string' ? { id: id as StudioDesktopActionId } : null;
 }
 
 function readBridgeConfig(): { baseUrl: string; token: string } | null {

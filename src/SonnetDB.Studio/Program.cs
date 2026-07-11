@@ -39,6 +39,7 @@ internal static class Program
             })
             .UseAdapter(new NativeWebView2AdapterFactory())
             .UseRuntime(new Win32Runtime())
+            .UseDesktopApp(new StudioDesktopApp("SonnetDB Studio"))
             .Build();
 
         await app.RunAsync().ConfigureAwait(false);

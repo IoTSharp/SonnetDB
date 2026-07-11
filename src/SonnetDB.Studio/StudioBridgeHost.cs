@@ -283,13 +283,9 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
                 "connections.diskLibrary",
                 "server.managedLocal",
                 "menu.desktopActions",
+                "menu.native",
             ],
-            [
-                new StudioMenuItem("file.open", "Open File", "dialogs.openFile"),
-                new StudioMenuItem("file.save", "Save File", "dialogs.saveFile"),
-                new StudioMenuItem("server.start", "Start Local Server", "server.start"),
-                new StudioMenuItem("server.stop", "Stop Local Server", "server.stop"),
-            ],
+            StudioDesktopActions.ManifestItems,
             status);
 
     private static async Task<T?> ReadJsonAsync<T>(HttpContext context, JsonTypeInfo<T> typeInfo)

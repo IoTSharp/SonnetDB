@@ -217,7 +217,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { NDropdown, useMessage } from 'naive-ui';
 import CreateDatabaseDialog from '@/components/CreateDatabaseDialog.vue';
 import DocumentCollectionWorkbench from '@/components/DocumentCollectionWorkbench.vue';
@@ -235,6 +235,11 @@ import WorkbenchHistoryDrawer from '@/components/WorkbenchHistoryDrawer.vue';
 import TrajectoryMap from '@/views/TrajectoryMap.vue';
 import type { FullTextIndexStat, VectorIndexStat } from '@/api/management';
 import type { DocumentCollectionInfo } from '@/api/schema';
+import {
+  currentStudioNativeBridge,
+  subscribeStudioDesktopActions,
+  type StudioDesktopActionMessage,
+} from '@/api/studioNativeBridge';
 import { useSqlExecution } from '@/composables/useSqlExecution';
 import { useSqlExplorer } from '@/composables/useSqlExplorer';
 import { useSqlExplorerRouting } from '@/composables/useSqlExplorerRouting';
@@ -612,6 +617,103 @@ function createWorkspaceTab(): void {
   setWorkbenchTool('sql');
 }
 
+async function handleStudioDesktopAction(action: StudioDesktopActionMessage): Promise<void> {
+  switch (action.id) {
+    case 'query.new':
+      createWorkspaceTab();
+      return;
+    case 'file.open':
+      await openSqlFromDesktop();
+      return;
+    case 'file.save':
+      await saveSqlFromDesktop();
+      return;
+    case 'view.results':
+      toggleResultDrawer();
+      return;
+    case 'view.history':
+      globalHistoryVisible.value = true;
+      return;
+    case 'server.start':
+      await startNativeServer();
+      return;
+    case 'server.stop':
+      await stopNativeServer();
+      return;
+    case 'server.health':
+      await refreshNativeServerStatus();
+      return;
+    default:
+      return;
+  }
+}
+
+async function openSqlFromDesktop(): Promise<void> {
+  const bridge = currentStudioNativeBridge();
+  if (!bridge) return;
+  try {
+    const result = await bridge.openTextFile({
+      title: '打开 SQL 文件',
+      filters: [
+        { name: 'SQL files', extensions: ['sql'] },
+        { name: 'Text files', extensions: ['txt'] },
+      ],
+      maxBytes: 4 * 1024 * 1024,
+    });
+    if (result.error) throw new Error(result.error);
+    if (result.canceled) return;
+
+    sqlConsole.createTab({
+      title: result.fileName || 'Imported SQL',
+      sql: result.content || '',
+      source: 'manual',
+    });
+    setWorkbenchTool('sql');
+    message.success(`已打开 ${result.fileName || 'SQL 文件'}`);
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '打开 SQL 文件失败');
+  }
+}
+
+async function saveSqlFromDesktop(): Promise<void> {
+  const bridge = currentStudioNativeBridge();
+  if (!bridge || !activeTab.value) return;
+  try {
+    const result = await bridge.saveTextFile({
+      title: '保存 SQL 文件',
+      suggestedName: sqlFileName(activeTab.value.title),
+      content: activeTab.value.sql,
+      contentType: 'application/sql; charset=utf-8',
+      filters: [{ name: 'SQL files', extensions: ['sql'] }],
+    });
+    if (result.error) throw new Error(result.error);
+    if (!result.canceled) message.success(`已保存 ${result.fileName || 'SQL 文件'}`);
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : '保存 SQL 文件失败');
+  }
+}
+
+function sqlFileName(title: string): string {
+  const normalized = title.trim().replace(/[\\/:*?"<>|]+/gu, '-').replace(/\s+/gu, '-');
+  const baseName = normalized || 'query';
+  return baseName.toLowerCase().endsWith('.sql') ? baseName : `${baseName}.sql`;
+}
+
+function handleStudioShortcut(event: KeyboardEvent): void {
+  if (!studioBridgeAvailable.value || (!event.ctrlKey && !event.metaKey) || event.altKey) return;
+  const key = event.key.toLowerCase();
+  let id: StudioDesktopActionMessage['id'] | null = null;
+  if (key === 'n' && !event.shiftKey) id = 'query.new';
+  if (key === 'o' && !event.shiftKey) id = 'file.open';
+  if (key === 's' && !event.shiftKey) id = 'file.save';
+  if (key === 'h' && !event.shiftKey) id = 'view.history';
+  if (key === 'r' && event.shiftKey) id = 'view.results';
+  if (!id) return;
+
+  event.preventDefault();
+  void handleStudioDesktopAction({ id });
+}
+
 function openRelationSql(sqlText: string): void {
   setWorkbenchTool('sql');
   setSqlDraft(sqlText);
@@ -728,7 +830,11 @@ watch(
   { deep: true },
 );
 
+let unsubscribeDesktopActions: (() => void) | null = null;
+
 onMounted(async () => {
+  unsubscribeDesktopActions = subscribeStudioDesktopActions(handleStudioDesktopAction);
+  window.addEventListener('keydown', handleStudioShortcut);
   const bridgeReady = await connections.connectStudioBridge();
   if (bridgeReady) {
     auth.setApiBaseUrl(connections.activeBaseUrl);
@@ -744,6 +850,11 @@ onMounted(async () => {
     };
   }
   applyPendingExecution();
+});
+
+onBeforeUnmount(() => {
+  unsubscribeDesktopActions?.();
+  window.removeEventListener('keydown', handleStudioShortcut);
 });
 </script>
 

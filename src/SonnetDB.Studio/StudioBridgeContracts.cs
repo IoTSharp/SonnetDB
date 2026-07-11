@@ -16,9 +16,19 @@ internal sealed record StudioBridgeManifest(
     StudioManagedServerStatus ManagedServer);
 
 /// <summary>
-/// Studio 桌面菜单项。当前经 bridge 暴露给前端消费，后续可映射到宿主原生菜单。
+/// Studio 桌面菜单项，由 bridge manifest 与 Win32 宿主菜单共同消费。
 /// </summary>
-internal sealed record StudioMenuItem(string Id, string Label, string Command);
+internal sealed record StudioMenuItem(
+    string Id,
+    string Label,
+    string Command,
+    string Group,
+    string? Shortcut);
+
+/// <summary>
+/// Studio 宿主发送给 Web 工作台的桌面动作。
+/// </summary>
+internal sealed record StudioDesktopActionMessage(string Id);
 
 /// <summary>
 /// Studio 连接库快照。
@@ -124,6 +134,7 @@ internal sealed record StudioManagedServerStatus(
     GenerationMode = JsonSourceGenerationMode.Metadata)]
 [JsonSerializable(typeof(StudioBridgeManifest))]
 [JsonSerializable(typeof(StudioMenuItem))]
+[JsonSerializable(typeof(StudioDesktopActionMessage))]
 [JsonSerializable(typeof(StudioConnectionLibrarySnapshot))]
 [JsonSerializable(typeof(StudioConnectionProfile))]
 [JsonSerializable(typeof(StudioFileDialogFilter))]

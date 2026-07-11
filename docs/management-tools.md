@@ -58,7 +58,7 @@ Studio 桌面复用上表全部 Web Admin 模型能力，因此模型级 parity 
 | 托管本地 Server | 完整 | 指定 `data root` 启停进程并轮询 `/healthz`；可选择退出时保留 |
 | 浏览器降级 | 完整 | bridge 不可用时回退 `localStorage`、浏览器下载和 file input |
 | 对象/备份专用原生文件接线 | 完整 | 对象上传/下载与 Multipart 分片优先走二进制原生对话框；备份、恢复和 data root 使用原生目录选择器，浏览器环境自动降级 |
-| 宿主原生菜单 | 规划中 | bridge manifest 已暴露 desktop actions，但尚未映射为 Win32 菜单 |
+| 宿主原生菜单 | 完整 | File / View / Local Server 动作已映射为 Win32 菜单，并通过 NativeWebHost JS bridge 复用工作台文件、结果、历史与 Server 流程 |
 
 ![Studio 桌面 bridge 状态与托管本地 Server 控件]({{ site.docs_baseurl | default: '/help' }}/assets/studio-native-bridge.png)
 
@@ -124,7 +124,7 @@ npm test
 | #258 bridge 鉴权与 manifest | `StudioBridgeHost.cs`、`StudioBridgeContracts.cs` | 已实现 loopback + token、capability manifest 和状态 API |
 | #258 文件与连接库 | `StudioFileDialogService.cs`、`StudioConnectionLibrary.cs`、`studioNativeBridge.ts` | 文本/二进制打开保存、目录选择、关系与对象导入导出、备份/恢复目录和磁盘连接库均已接线 |
 | #258 托管本地 Server | `StudioManagedServerHost.cs`、`Program.cs` | 已实现进程启停、data root、健康检查与退出策略 |
-| #258 原生菜单 | `StudioBridgeManifest.Menu` | 仅 action manifest，尚无 Win32 菜单映射 |
+| #258 原生菜单 | `StudioDesktopActions.cs`、`StudioNativeMenu.cs` | manifest 与 Win32 菜单共用动作目录；窗口命令经 NativeWebHost JS bridge 回到共享工作台流程 |
 | #259 多模型消费 | `sonnetdbClient.ts`、`sonnetdbTreeDataProvider.ts`、`extension.ts` | KV/向量/全文/MQ 只读浏览与预览已接线 |
 | #259 结果与 Copilot | `queryResultPanel.ts`、`copilotPanel.ts` | Table/Raw/Chart 与 streaming Copilot 已实现；完整编辑仍不属于 VS Code 定位 |
 

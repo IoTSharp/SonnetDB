@@ -262,6 +262,30 @@ test('Studio bridge exposes native server controls and disk connection library',
   if (process.env.SONNETDB_CAPTURE_M29 === '1') await captureM29(page, 'studio-bridge');
 });
 
+test('Studio desktop menu actions drive the shared SQL workbench', async ({ page }) => {
+  await mockStudioBridge(page);
+  const bridgeUrl = encodeURIComponent('http://127.0.0.1:54980/studio-bridge');
+  await page.goto(`/admin/app/sql?studioBridgeUrl=${bridgeUrl}&studioBridgeToken=studio-e2e-token`);
+
+  const tabs = page.getByRole('tab');
+  const initialTabCount = await tabs.count();
+  await dispatchStudioAction(page, 'query.new');
+  await expect(tabs).toHaveCount(initialTabCount + 1);
+
+  await dispatchStudioAction(page, 'file.open');
+  await expect(page.getByRole('tab', { name: /factory-query\.sql/u })).toBeVisible();
+  await expect(page.locator('.cm-content')).toContainText('SELECT * FROM factory_metrics');
+
+  const saveRequest = page.waitForRequest((request) => request.url().endsWith('/dialogs/save-file'));
+  await dispatchStudioAction(page, 'file.save');
+  expect((await saveRequest).postDataJSON()).toMatchObject({
+    content: 'SELECT * FROM factory_metrics LIMIT 50;',
+  });
+
+  await dispatchStudioAction(page, 'view.history');
+  await expect(page.locator('.workbench-history')).toBeVisible();
+});
+
 test('connection library reports per-profile health state', async ({ page }) => {
   await page.goto('/admin/app/sql');
   await page.getByTitle('检查全部连接健康状态').click();
@@ -344,8 +368,12 @@ async function mockStudioBridge(page: Page): Promise<void> {
         serverUrl: 'http://127.0.0.1:5080',
         managedServerUrl: 'http://127.0.0.1:5080',
         dataRoot: status.dataRoot,
-        capabilities: ['dialogs.openFile', 'dialogs.saveFile', 'connections.diskLibrary', 'server.managedLocal'],
-        menu: [],
+        capabilities: ['dialogs.openFile', 'dialogs.saveFile', 'connections.diskLibrary', 'server.managedLocal', 'menu.native'],
+        menu: [
+          { id: 'query.new', label: 'New Query', command: 'query.new', group: 'File', shortcut: 'Ctrl+N' },
+          { id: 'file.open', label: 'Open SQL...', command: 'dialogs.openFile', group: 'File', shortcut: 'Ctrl+O' },
+          { id: 'file.save', label: 'Save SQL As...', command: 'dialogs.saveFile', group: 'File', shortcut: 'Ctrl+S' },
+        ],
         managedServer: status,
       });
     }
@@ -357,11 +385,23 @@ async function mockStudioBridge(page: Page): Promise<void> {
       });
     }
     if (path.endsWith('/server/status')) return json(route, status);
+    if (path.endsWith('/dialogs/open-file')) {
+      return json(route, { canceled: false, fileName: 'factory-query.sql', content: 'SELECT * FROM factory_metrics LIMIT 50;', error: null });
+    }
+    if (path.endsWith('/dialogs/save-file')) {
+      return json(route, { canceled: false, fileName: 'D:\\Queries\\factory-query.sql', error: null });
+    }
     if (path.endsWith('/dialogs/select-directory')) {
       return json(route, { canceled: false, path: 'D:\\SonnetDB\\factory-data', error: null });
     }
     return json(route, status);
   });
+}
+
+async function dispatchStudioAction(page: Page, id: string): Promise<void> {
+  await page.evaluate((actionId) => {
+    window.dispatchEvent(new CustomEvent('nativeWeb:studio.desktop-action', { detail: { id: actionId } }));
+  }, id);
 }
 
 async function mockBucketRequest(route: Route, url: URL): Promise<void> {
