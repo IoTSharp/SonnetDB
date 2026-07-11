@@ -52,7 +52,7 @@
       :plan="previewPlan"
       :busy="confirmBusy"
       @cancel="clearPreviewPlan"
-      @confirm="confirmRebuild"
+      @confirm="confirmPendingWrite"
     />
 
     <n-alert
@@ -186,6 +186,37 @@
         </footer>
       </section>
 
+      <section v-if="activeView === 'import'" class="fulltext-import-panel">
+        <div class="fulltext-panel-head">
+          <div>
+            <n-text class="fulltext-panel-head__title">独立全文数据导入</n-text>
+            <n-text depth="3" class="fulltext-panel-head__meta">
+              写入 {{ activeIndex?.collection ?? 'collection' }}，由 {{ activeIndex?.name ?? 'fulltext index' }} 自动更新派生索引
+            </n-text>
+          </div>
+          <n-button size="small" secondary :disabled="!activeIndex" @click="fullTextFileInput?.click()">选择文件</n-button>
+          <input ref="fullTextFileInput" type="file" accept=".json,.jsonl,.ndjson,application/json,application/x-ndjson" class="fulltext-file-input" @change="onFullTextFileSelected">
+        </div>
+        <div class="fulltext-import-options">
+          <n-select v-model:value="importMode" size="small" :options="importModeOptions" />
+          <n-input v-model:value="importIdPath" size="small" placeholder="ID path，例如 _id 或 id" />
+          <n-tag size="small" :bordered="false">JSON / JSONL / NDJSON</n-tag>
+        </div>
+        <n-input
+          v-model:value="importText"
+          type="textarea"
+          :autosize="{ minRows: 10, maxRows: 22 }"
+          placeholder='{"_id":"doc-1","title":"Pump alarm","body":"..."}'
+        />
+        <div class="fulltext-import-actions">
+          <span>{{ importSummary }}</span>
+          <n-space size="small">
+            <n-button size="small" quaternary :disabled="!importText" @click="clearFullTextImport">清空</n-button>
+            <n-button size="small" type="primary" :disabled="!activeIndex || !importText.trim()" @click="stageFullTextImport">解析并暂存</n-button>
+          </n-space>
+        </div>
+      </section>
+
       <aside class="fulltext-inspector">
         <div class="fulltext-panel-head">
           <div>
@@ -305,8 +336,8 @@ import {
   type SelectOption,
 } from 'naive-ui';
 import type { FullTextIndexStat } from '@/api/management';
-import type { DocumentItemResponse } from '@/api/documents';
-import { findDocuments } from '@/api/documents';
+import type { DocumentItemResponse, DocumentWriteResponse } from '@/api/documents';
+import { findDocuments, insertManyDocuments, updateOneDocument } from '@/api/documents';
 import {
   analyzeFullText,
   searchFullTextPreview,
@@ -372,11 +403,12 @@ const auth = useAuthStore();
 const connections = useConnectionsStore();
 const history = useWorkbenchHistoryStore();
 const message = useMessage();
-type FullTextView = 'search' | 'analyzer' | 'index';
+type FullTextView = 'search' | 'analyzer' | 'import' | 'index';
 const activeView = ref<FullTextView>('search');
 const fulltextSections: WorkbenchSectionTab[] = [
   { key: 'search', label: '全文检索' },
   { key: 'analyzer', label: 'Analyzer' },
+  { key: 'import', label: '数据导入' },
   { key: 'index', label: '索引' },
 ];
 
@@ -406,6 +438,16 @@ const ranOnce = ref(false);
 const historyVisible = ref(false);
 const previewPlan = ref<WriteApprovalPlan | null>(null);
 const pendingRebuild = ref<FullTextIndexStat | null>(null);
+const fullTextFileInput = ref<HTMLInputElement | null>(null);
+const importText = ref('');
+const importIdPath = ref('_id');
+const importMode = ref<'insert' | 'replace'>('insert');
+const pendingImportItems = ref<Array<{ id: string; document: unknown }>>([]);
+const importSummary = ref('尚未解析文件。');
+const importModeOptions: SelectOption[] = [
+  { label: 'Insert（重复 ID 报错）', value: 'insert' },
+  { label: 'Replace（按 ID 替换）', value: 'replace' },
+];
 
 const loadingIndexes = computed(() => props.loading);
 const indexes = computed(() => props.indexes);
@@ -704,7 +746,11 @@ function stageRebuild(): void {
   });
 }
 
-async function confirmRebuild(): Promise<void> {
+async function confirmPendingWrite(): Promise<void> {
+  if (pendingImportItems.value.length > 0) {
+    await confirmFullTextImport();
+    return;
+  }
   const idx = pendingRebuild.value;
   if (!idx) return;
   confirmBusy.value = true;
@@ -742,9 +788,149 @@ async function confirmRebuild(): Promise<void> {
   }
 }
 
+async function onFullTextFileSelected(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  try {
+    importText.value = await file.text();
+    importSummary.value = `${file.name} · ${(file.size / 1024).toFixed(1)} KiB`;
+  } finally {
+    input.value = '';
+  }
+}
+
+function stageFullTextImport(): void {
+  const idx = activeIndex.value;
+  if (!idx) return;
+  const parsed = parseFullTextDocuments(importText.value, importIdPath.value.trim() || '_id');
+  if (!parsed.ok) {
+    errorMsg.value = parsed.message;
+    importSummary.value = parsed.message;
+    return;
+  }
+  pendingImportItems.value = parsed.items;
+  pendingRebuild.value = null;
+  importSummary.value = `${parsed.items.length} documents · ${importMode.value}`;
+  previewPlan.value = createWriteApprovalPlan({
+    id: `fulltext_import_${props.targetDb}_${idx.collection}_${Date.now().toString(36)}`,
+    title: 'FullText document import',
+    target: `${props.targetDb}.${idx.collection}`,
+    items: [{
+      id: `import_${idx.collection}`,
+      command: `documents.${importMode.value === 'replace' ? 'replaceMany' : 'insertMany'} ${idx.collection}\n${parsed.items.length} documents`,
+      severity: 'write',
+      label: 'Import indexed documents',
+      detail: `通过 Document API 写入，全文索引 ${idx.name} 随主数据更新。`,
+    }],
+  });
+  errorMsg.value = '';
+}
+
+async function confirmFullTextImport(): Promise<void> {
+  const idx = activeIndex.value;
+  const items = [...pendingImportItems.value];
+  if (!idx || items.length === 0) return;
+  confirmBusy.value = true;
+  errorMsg.value = '';
+  const started = performance.now();
+  const command = `documents.${importMode.value === 'replace' ? 'replaceMany' : 'insertMany'} ${idx.collection}\n${items.length} documents`;
+  try {
+    const totals: DocumentWriteResponse = { collection: idx.collection, inserted: 0, matched: 0, modified: 0, deleted: 0, errors: null };
+    if (importMode.value === 'insert') {
+      for (let offset = 0; offset < items.length; offset += 100) {
+        const result = await insertManyDocuments(auth.api, props.targetDb, idx.collection, {
+          documents: items.slice(offset, offset + 100),
+          ordered: false,
+        });
+        totals.inserted += result.inserted ?? 0;
+        totals.matched += result.matched ?? 0;
+        totals.modified += result.modified ?? 0;
+        if (result.errors?.length) totals.errors = [...(totals.errors ?? []), ...result.errors];
+      }
+    } else {
+      for (const item of items) {
+        const result = await updateOneDocument(auth.api, props.targetDb, idx.collection, item);
+        totals.inserted += result.inserted ?? 0;
+        totals.matched += result.matched ?? 0;
+        totals.modified += result.modified ?? 0;
+        if (result.errors?.length) totals.errors = [...(totals.errors ?? []), ...result.errors];
+      }
+    }
+    const elapsed = performance.now() - started;
+    const affected = totals.inserted + totals.modified;
+    latestCommand.value = command;
+    latestResult.value = resultFromDocumentImport(totals, elapsed);
+    ranOnce.value = true;
+    previewPlan.value = null;
+    pendingImportItems.value = [];
+    importSummary.value = `${affected}/${items.length} documents written`;
+    recordHistory('success', 'FullText document import', 'import', command, importSummary.value, items.length, affected, elapsed);
+    message.success(`已写入 ${affected} 个全文文档。`);
+    emit('refreshSchema');
+  } catch (error) {
+    const elapsed = performance.now() - started;
+    const msg = errorToMessage(error, '全文数据导入失败');
+    errorMsg.value = msg;
+    latestCommand.value = command;
+    latestResult.value = errorResult('fulltext_import_error', msg);
+    ranOnce.value = true;
+    recordHistory('error', 'FullText document import', 'import', command, msg, items.length, 0, elapsed);
+  } finally {
+    confirmBusy.value = false;
+  }
+}
+
+function parseFullTextDocuments(text: string, idPath: string):
+  | { ok: true; items: Array<{ id: string; document: unknown }> }
+  | { ok: false; message: string } {
+  const trimmed = text.trim();
+  if (!trimmed) return { ok: false, message: '导入内容为空。' };
+  try {
+    const source: unknown = trimmed.startsWith('[')
+      ? JSON.parse(trimmed) as unknown
+      : trimmed.split(/\r?\n/u).filter(Boolean).map((line) => JSON.parse(line) as unknown);
+    const documents = Array.isArray(source) ? source : [source];
+    const seen = new Set<string>();
+    const items = documents.map((document, index) => {
+      if (!document || typeof document !== 'object' || Array.isArray(document)) {
+        throw new Error(`第 ${index + 1} 条记录必须是 JSON 对象。`);
+      }
+      const rawId = readJsonPath(document, idPath);
+      const id = rawId === null || rawId === undefined ? '' : String(rawId).trim();
+      if (!id) throw new Error(`第 ${index + 1} 条记录在 ${idPath} 找不到 ID。`);
+      if (seen.has(id)) throw new Error(`导入文件包含重复 ID：${id}`);
+      seen.add(id);
+      return { id, document };
+    });
+    return { ok: true, items };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : '全文数据解析失败。' };
+  }
+}
+
+function resultFromDocumentImport(result: DocumentWriteResponse, elapsedMs: number): SqlResultSet {
+  const affected = (result.inserted ?? 0) + (result.modified ?? 0);
+  return {
+    columns: ['collection', 'inserted', 'matched', 'modified', 'errors'],
+    rows: [[result.collection, result.inserted, result.matched, result.modified, result.errors?.length ?? 0]],
+    end: { type: 'end', rowCount: 1, recordsAffected: affected, elapsedMs },
+    error: null,
+    hasColumns: true,
+  };
+}
+
+function clearFullTextImport(): void {
+  importText.value = '';
+  importSummary.value = '尚未解析文件。';
+  pendingImportItems.value = [];
+  if (!pendingRebuild.value) previewPlan.value = null;
+}
+
 function clearPreviewPlan(): void {
   previewPlan.value = null;
   pendingRebuild.value = null;
+  pendingImportItems.value = [];
 }
 
 function openHistoryEntry(entry: WorkbenchHistoryEntry): void {
@@ -851,8 +1037,9 @@ function extractFieldText(document: unknown, selectedField: string): string {
 }
 
 function readJsonPath(source: unknown, path: string): unknown {
-  if (!path.startsWith('$.')) return undefined;
-  const parts = path.slice(2).split('.').filter(Boolean);
+  const normalized = path.startsWith('$.') ? path.slice(2) : path.replace(/^\$\.?/u, '');
+  if (!normalized) return undefined;
+  const parts = normalized.split('.').filter(Boolean);
   let current: unknown = source;
   for (const part of parts) {
     const key = part.replace(/^\['?/, '').replace(/'?\]$/, '');
@@ -1139,6 +1326,37 @@ watch(() => props.targetDb, () => {
   padding: 20px;
   overflow: auto;
   background: var(--sndb-surface);
+}
+
+.fulltext-body.is-import {
+  grid-template-columns: 250px minmax(460px, 1fr) 320px;
+}
+
+.fulltext-import-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  overflow: auto;
+  border-right: 1px solid var(--sndb-border);
+}
+
+.fulltext-import-options,
+.fulltext-import-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.fulltext-import-options > :first-child,
+.fulltext-import-options > :nth-child(2) {
+  width: min(260px, 40%);
+}
+
+.fulltext-file-input {
+  display: none;
 }
 
 .fulltext-body.is-analyzer .fulltext-inspector,

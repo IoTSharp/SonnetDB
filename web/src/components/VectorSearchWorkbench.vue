@@ -60,7 +60,18 @@
       </article>
     </section>
 
-    <section class="vector-body" :class="{ 'is-index-view': activeView === 'index' }">
+    <MeasurementWorkbench
+      v-if="activeView === 'data'"
+      class="vector-data-workbench"
+      :target-db="targetDb"
+      :measurement="measurement"
+      :measurements="measurement ? [measurement] : []"
+      :tables="[]"
+      :loading="loading"
+      @refresh-schema="$emit('refreshSchema')"
+    />
+
+    <section v-else class="vector-body" :class="{ 'is-index-view': activeView === 'index' }">
       <aside class="vector-indexes">
         <div class="vector-panel-head">
           <div>
@@ -278,6 +289,7 @@ import {
   type SelectOption,
 } from 'naive-ui';
 import type { VectorIndexStat } from '@/api/management';
+import type { MeasurementInfo } from '@/api/schema';
 import type { SqlResultSet } from '@/api/sql';
 import {
   embedVectorText,
@@ -286,6 +298,7 @@ import {
   type VectorSearchPreviewHit,
 } from '@/api/vector';
 import WorkbenchHistoryDrawer from '@/components/WorkbenchHistoryDrawer.vue';
+import MeasurementWorkbench from '@/components/MeasurementWorkbench.vue';
 import WorkbenchResultPanel from '@/components/WorkbenchResultPanel.vue';
 import WorkbenchSectionTabs, { type WorkbenchSectionTab } from '@/components/WorkbenchSectionTabs.vue';
 import { useAuthStore } from '@/stores/auth';
@@ -299,9 +312,11 @@ const props = withDefaults(defineProps<{
   targetDb: string;
   index: VectorIndexStat | null;
   indexes?: VectorIndexStat[];
+  measurement?: MeasurementInfo | null;
   loading?: boolean;
 }>(), {
   indexes: () => [],
+  measurement: null,
   loading: false,
 });
 
@@ -324,10 +339,11 @@ const auth = useAuthStore();
 const connections = useConnectionsStore();
 const history = useWorkbenchHistoryStore();
 const message = useMessage();
-type VectorView = 'search' | 'index';
+type VectorView = 'search' | 'data' | 'index';
 const activeView = ref<VectorView>('search');
 const vectorSections: WorkbenchSectionTab[] = [
   { key: 'search', label: '向量检索' },
+  { key: 'data', label: '数据编辑 / 导入' },
   { key: 'index', label: '索引参数' },
 ];
 
@@ -748,6 +764,11 @@ watch(() => props.targetDb, () => {
   min-width: 0;
   min-height: 0;
   background: #fff;
+}
+
+.vector-data-workbench {
+  flex: 1;
+  min-height: 0;
 }
 
 .vector-toolbar {

@@ -106,9 +106,10 @@
             <n-input
               v-else
               :value="draftText(pointDraft[column.name])"
+              :type="normalizedMeasurementType(column) === 'vector' ? 'textarea' : 'text'"
+              :autosize="normalizedMeasurementType(column) === 'vector' ? { minRows: 2, maxRows: 5 } : undefined"
               size="small"
-              :disabled="normalizedMeasurementType(column) === 'vector'"
-              :placeholder="columnRole(column) === 'time' ? 'Unix ms / ISO 8601' : column.dataType"
+              :placeholder="normalizedMeasurementType(column) === 'vector' ? '[0.1, 0.2, 0.3]' : columnRole(column) === 'time' ? 'Unix ms / ISO 8601' : column.dataType"
               @update:value="pointDraft[column.name] = $event"
             />
           </label>
@@ -485,9 +486,7 @@ function openNewPoint(): void {
 function openEditPoint(row: PointGridRow): void {
   resetPointDraft();
   for (const column of columns.value) {
-    pointDraft[column.name] = normalizedMeasurementType(column) === 'vector'
-      ? undefined
-      : row[column.name];
+    pointDraft[column.name] = row[column.name];
   }
   editingSource.value = Object.fromEntries(columns.value.map((column) => [column.name, row[column.name]]));
   editorOpen.value = true;

@@ -55,7 +55,7 @@
 
 ---
 
-## 管理界面完成度（2026-07-11）
+## 管理界面完成度（2026-07-11，更新至 2026-07-12）
 
 > 状态图例：✅ 已完成 / 🟡 部分完成 / ❌ 未完成 / ➖ 当前交付面明确不承担完整能力。
 > 本表按实际代码、`docs/management-tools.md`、Web Chromium smoke 和 VS Code consumer smoke 汇总；静态设计原型不自动计为产品实现。
@@ -87,12 +87,12 @@
 | 单表 / 单 Measurement 实时监控 | ✅ | Measurement 工作台已提供目标类型/对象/频率/窗口选择、暂停/继续、趋势图、最近结果和查询耗时，复用当前 token 与数据面 SQL 权限。 |
 | Document Change Feed Viewer | ✅ | M32 #279/#281 界面交付；collection 级持久化 feed、7 天保留、过滤、过期检测、resume token 与 Web 实时查看器已完成。 |
 | Document 高级查询 / 更新 / 索引设计 | ✅ | 可视化 filter、服务端 update preview、共享写审批，以及 compound/unique/sparse/partial/TTL 创建、删除、重建与一致性校验已完成；尚未实现的 multikey/wildcard 引擎语义继续归 #276，不在 UI 中虚假承诺。 |
-| KV 文件 round-trip | ❌ | 已有批量文本操作和结果导出，尚无完整文件导入/导出闭环。 |
-| MQ 消息文件导入 | ❌ | 已有结果导出，尚无消息文件导入。 |
-| 向量数据编辑 / 导入 | ➖ | 当前定位为只读检索 playground；若扩展写路径需另立带审批的模型任务。 |
-| 全文数据独立导入 | ➖ | 当前只提供查询、Analyzer 和 rebuild；数据写入继续归 Document/SQL 数据入口。 |
-| 小于 800px 的完整治理 | ➖ | 小屏定位为巡检和只读浏览，复杂编辑/批量治理引导到桌面。 |
-| Modbus 管理界面 | ❌ | M34 #296；source、endpoint、寄存器映射、轮询健康和最近错误尚未开始。 |
+| KV 文件 round-trip | ✅ | 已完成 `sonnetdb-kv-v1` JSONL 导出与回导，保留 Base64 原值和逐 key expiry；导入按 expiry 分组并进入共享写审批。 |
+| MQ 消息文件导入 | ✅ | 已完成 JSON/JSONL/NDJSON 导入，支持逐条 topic、headers、Base64 或 JSON payload，并按文件顺序进入共享写审批。 |
+| 向量数据编辑 / 导入 | ✅ | 已接入对应 Measurement schema，支持点级新增、校正、删除以及 CSV/JSON/JSONL 导入；VECTOR 校验有限数值和 schema 维度，批处理保留停止/续传。 |
+| 全文数据独立导入 | ✅ | 全文工作台已提供当前索引集合的 JSON/JSONL/NDJSON 独立导入，继续通过 Document API 维护主数据与派生索引，并统一进入 staged preview。 |
+| 小于 800px 的完整治理 | ➖ | **本轮暂缓。** 小屏继续定位为巡检和只读浏览，复杂编辑/批量治理引导到桌面；当前只保证核心导航和现有工作台不横向溢出。 |
+| Modbus 管理界面 | ❌ | **本轮未实现，后期继续。** 归 M34 #296；等待 source、endpoint、寄存器映射、轮询健康和最近错误运行时合同落地后再实现。 |
 
 ### Studio 桌面
 
@@ -131,7 +131,7 @@
 1. **P0 运维可见性**：M17 #92、#94、#95、#97 已完成 Web Admin 对应闭环；下一项为 #96 Diagnostic Dump 端点。
 2. **P1 VS Code 产品化**：M18 #107 → #108，完成 LSP sidecar、真实 Extension Host UI e2e、截图和 Marketplace 发布。
 3. **P1 Studio 收口**：补安装包与桌面宿主生命周期实机自动化验收。
-4. **P2 模型体验补口**：Document update/index/change feed 管理面已完成；后续按 M32 继续引擎与迁移工具，并按实际用户需求评估 KV round-trip 和 MQ 文件导入。
+4. **P2 模型体验补口**：Document update/index/change feed、KV 文件 round-trip、MQ 消息文件导入、向量编辑/导入和全文独立导入均已完成；后续按 M32 继续 Document 引擎与迁移工具，小于 800px 完整治理暂缓。
 5. **P3 新协议管理面**：M34 Runtime 与合同落地后再做 #296 Modbus 管理界面，禁止 UI 先承诺未实现的运行时语义。
 
 ---

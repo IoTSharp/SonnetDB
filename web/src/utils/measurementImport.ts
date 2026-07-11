@@ -84,7 +84,7 @@ export function validateMeasurementImport(
   return { rows, errors };
 }
 
-/** 校验点编辑器草稿并转换为服务端 SQL 参数可接受的标量。 */
+/** 校验点编辑器草稿并转换为服务端 SQL 可接受的标量或向量。 */
 export function validateMeasurementPoint(
   measurement: MeasurementInfo,
   draft: Record<string, unknown>,
@@ -121,7 +121,7 @@ export function validateMeasurementPoint(
   return { values, errors };
 }
 
-/** 为每个已校验时序点生成参数化 INSERT。 */
+/** 为每个已校验时序点生成 INSERT；标量参数化，VECTOR 使用受校验的数值字面量。 */
 export function buildMeasurementInsertStatements(
   measurement: MeasurementInfo,
   points: readonly PreparedMeasurementPoint[],
@@ -130,13 +130,16 @@ export function buildMeasurementInsertStatements(
   return points.map((point) => {
     const columns = schemaColumns.filter((column) => Object.prototype.hasOwnProperty.call(point.values, column.name));
     const parameters: SqlParameters = {};
-    const parameterNames = columns.map((column, index) => {
+    const valueExpressions = columns.map((column, index) => {
+      if (normalizedMeasurementType(column) === 'vector') {
+        return formatVectorLiteral(point.values[column.name]);
+      }
       const name = `point_${index}_${safeParameterName(column.name)}`;
       parameters[name] = sqlParameterFromValue(point.values[column.name]);
       return `@${name}`;
     });
     return {
-      sql: `INSERT INTO ${formatSqlIdentifier(measurement.name)} (${columns.map((column) => formatSqlIdentifier(column.name)).join(', ')}) VALUES (${parameterNames.join(', ')});`,
+      sql: `INSERT INTO ${formatSqlIdentifier(measurement.name)} (${columns.map((column) => formatSqlIdentifier(column.name)).join(', ')}) VALUES (${valueExpressions.join(', ')});`,
       parameters,
     };
   });
@@ -212,7 +215,13 @@ function convertMeasurementValue(
     return { ok: false, message: '需要 TRUE/FALSE。' };
   }
   if (type === 'vector') {
-    return { ok: false, message: '向量 FIELD 暂不支持文件或表单写入，请使用 SQL 工作台。' };
+    const parsed = parseVectorValue(value);
+    if (!parsed.ok) return parsed;
+    const expectedDimension = column.vectorDimension ?? vectorDimensionFromType(column.dataType);
+    if (expectedDimension && parsed.value.length !== expectedDimension) {
+      return { ok: false, message: `需要 ${expectedDimension} 维向量，当前为 ${parsed.value.length} 维。` };
+    }
+    return parsed;
   }
   return { ok: true, value: String(value) };
 }
@@ -223,6 +232,43 @@ function isBlank(value: unknown): boolean {
 
 function safeParameterName(value: string): string {
   return value.replace(/[^A-Za-z0-9_]/gu, '_').replace(/^([^A-Za-z_])/u, '_$1');
+}
+
+function parseVectorValue(value: unknown):
+  | { ok: true; value: number[] }
+  | { ok: false; message: string } {
+  let candidate: unknown = value;
+  if (typeof candidate === 'string') {
+    const text = candidate.trim();
+    if (!text) return { ok: false, message: '向量不能为空。' };
+    try {
+      candidate = text.startsWith('[')
+        ? JSON.parse(text) as unknown
+        : text.split(/[\s,]+/u).filter(Boolean).map(Number);
+    } catch {
+      return { ok: false, message: '需要 JSON 数组或逗号分隔的数值向量。' };
+    }
+  }
+  if (!Array.isArray(candidate) || candidate.length === 0) {
+    return { ok: false, message: '需要非空数值向量。' };
+  }
+  const vector = candidate.map(Number);
+  if (vector.some((component) => !Number.isFinite(component))) {
+    return { ok: false, message: '向量包含非有限数值。' };
+  }
+  return { ok: true, value: vector };
+}
+
+function vectorDimensionFromType(dataType: string): number | null {
+  const match = /vector\s*\(\s*(\d+)\s*\)/iu.exec(dataType);
+  if (!match) return null;
+  const dimension = Number(match[1]);
+  return Number.isInteger(dimension) && dimension > 0 ? dimension : null;
+}
+
+function formatVectorLiteral(value: unknown): string {
+  const vector = Array.isArray(value) ? value.map(Number) : [];
+  return `[${vector.map((component) => Number(component).toString()).join(', ')}]`;
 }
 
 export type { ImportRowError, ParsedImportData };

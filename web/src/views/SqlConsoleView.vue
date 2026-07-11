@@ -184,6 +184,7 @@
         :target-db="targetDb"
         :index="selectedVectorIndex"
         :indexes="currentVectorIndexes"
+        :measurement="selectedVectorMeasurement"
         :loading="loadingSchema"
         @select-index="selectVectorIndex"
         @refresh-schema="loadSchema(targetDb, true)"
@@ -442,6 +443,11 @@ const selectedVectorIndex = computed(() => {
     if (selected) return selected;
   }
   return currentVectorIndexes.value[0] ?? null;
+});
+
+const selectedVectorMeasurement = computed(() => {
+  const measurementName = selectedVectorIndex.value?.measurement;
+  return currentSchemaResponse.value?.measurements.find((item) => item.name === measurementName) ?? null;
 });
 
 const currentFullTextIndexes = computed(() =>

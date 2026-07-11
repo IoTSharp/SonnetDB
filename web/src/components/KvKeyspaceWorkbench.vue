@@ -45,6 +45,13 @@
         <n-button size="small" secondary :loading="loadingScan" :disabled="!activeKeyspace" @click="() => refreshAll()">
           Refresh
         </n-button>
+        <n-button size="small" quaternary :disabled="rows.length === 0" @click="exportRoundTrip">
+          导出 round-trip
+        </n-button>
+        <n-button size="small" quaternary :disabled="!activeKeyspace" @click="importFileInput?.click()">
+          导入文件
+        </n-button>
+        <input ref="importFileInput" type="file" accept=".json,.jsonl,.ndjson,application/json,application/x-ndjson" class="kv-file-input" @change="onImportFileSelected">
         <n-button size="small" quaternary @click="historyVisible = true">History</n-button>
       </div>
     </section>
@@ -351,6 +358,7 @@ import {
   type WriteApprovalPlan,
   type WriteApprovalSeverity,
 } from '@/utils/writeApproval';
+import { downloadText, safeFileStem } from '@/utils/resultExport';
 
 const props = withDefaults(defineProps<{
   targetDb: string;
@@ -473,6 +481,7 @@ const setTtlSeconds = ref<number | null>(3600);
 const expireSeconds = ref<number | null>(3600);
 const batchKeysText = ref('');
 const batchSetText = ref('');
+const importFileInput = ref<HTMLInputElement | null>(null);
 const prefixDeleteLimit = ref<number | null>(1000);
 const cleanExpiredLimit = ref<number | null>(1000);
 const pendingOperations = ref<PendingOperation[]>([]);
@@ -789,6 +798,98 @@ function stageBatchSet(): void {
     return;
   }
   stageSetMany(parsed.entries, null, `Set ${parsed.entries.length} keys`, 'UTF-8 key=value batch');
+}
+
+async function onImportFileSelected(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  try {
+    stageRoundTripImport(await file.text(), file.name);
+  } finally {
+    input.value = '';
+  }
+}
+
+function exportRoundTrip(): void {
+  const entries = checkedKeys().length > 0
+    ? rows.value.filter((row) => checkedKeys().includes(row.key))
+    : rows.value;
+  if (entries.length === 0) return;
+  const content = entries.map((entry) => JSON.stringify({
+    format: 'sonnetdb-kv-v1',
+    keyspace: activeKeyspace.value,
+    key: entry.key,
+    valueBase64: entry.value,
+    expiresAtUtc: entry.expiresAtUtc,
+  })).join('\n') + '\n';
+  downloadText(
+    `${safeFileStem(`${props.targetDb}_${activeKeyspace.value}`, 'kv')}.kv.jsonl`,
+    content,
+    'application/x-ndjson;charset=utf-8',
+  );
+  message.success(`已导出 ${entries.length} 个 key，可原样导回。`);
+}
+
+function stageRoundTripImport(text: string, fileName: string): void {
+  const parsed = parseRoundTripEntries(text);
+  if (!parsed.ok) {
+    errorMsg.value = parsed.message;
+    return;
+  }
+  if (parsed.entries.length === 0) {
+    errorMsg.value = '导入文件中没有 KV 记录。';
+    return;
+  }
+  const groups = new Map<string, Array<{ key: string; value: string }>>();
+  for (const entry of parsed.entries) {
+    const expiry = entry.expiresAtUtc ?? '';
+    const group = groups.get(expiry) ?? [];
+    group.push({ key: entry.key, value: entry.valueBase64 });
+    groups.set(expiry, group);
+  }
+  pendingOperations.value = [];
+  for (const [expiry, entries] of groups) {
+    stageSetMany(entries, expiry || null, `Import ${entries.length} keys`, `${fileName} · 保留 expiry`);
+  }
+  activeView.value = 'batch';
+  errorMsg.value = '';
+  message.success(`已解析 ${parsed.entries.length} 个 key，确认后写入。`);
+}
+
+function parseRoundTripEntries(text: string):
+  | { ok: true; entries: Array<{ key: string; valueBase64: string; expiresAtUtc: string | null }> }
+  | { ok: false; message: string } {
+  const trimmed = text.trim();
+  if (!trimmed) return { ok: false, message: '导入文件为空。' };
+  try {
+    const source: unknown = trimmed.startsWith('[')
+      ? JSON.parse(trimmed) as unknown
+      : trimmed.split(/\r?\n/u).filter(Boolean).map((line) => JSON.parse(line) as unknown);
+    const items = Array.isArray(source) ? source : [source];
+    const entries = items.map((item, index) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        throw new Error(`第 ${index + 1} 行必须是 JSON 对象。`);
+      }
+      const record = item as Record<string, unknown>;
+      const key = typeof record.key === 'string' ? record.key : '';
+      const valueBase64 = typeof record.valueBase64 === 'string'
+        ? record.valueBase64
+        : typeof record.value === 'string' ? record.value : '';
+      if (!key) throw new Error(`第 ${index + 1} 行缺少 key。`);
+      try { base64ToBytes(valueBase64); } catch { throw new Error(`第 ${index + 1} 行 valueBase64 无效。`); }
+      const expiresAtUtc = typeof record.expiresAtUtc === 'string' && record.expiresAtUtc
+        ? record.expiresAtUtc
+        : null;
+      if (expiresAtUtc && Number.isNaN(Date.parse(expiresAtUtc))) {
+        throw new Error(`第 ${index + 1} 行 expiresAtUtc 无效。`);
+      }
+      return { key, valueBase64, expiresAtUtc };
+    });
+    return { ok: true, entries };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : 'KV 文件解析失败。' };
+  }
 }
 
 function stageSetMany(entries: Array<{ key: string; value: string }>, expiresAtUtc: string | null, label: string, detail: string): void {
@@ -1465,6 +1566,10 @@ onMounted(() => {
 
 .kv-toolbar__limit {
   width: 104px;
+}
+
+.kv-file-input {
+  display: none;
 }
 
 .kv-alert {

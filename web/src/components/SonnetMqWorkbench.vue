@@ -22,6 +22,10 @@
           <template #icon><Send :size="16" /></template>
           发布测试消息
         </n-button>
+        <n-button quaternary title="导入消息文件" :disabled="!targetDb" @click="messageFileInput?.click()">
+          <template #icon><Upload :size="17" /></template>
+        </n-button>
+        <input ref="messageFileInput" type="file" accept=".json,.jsonl,.ndjson,application/json,application/x-ndjson" class="mq-file-input" @change="onMessageFileSelected">
         <n-button quaternary title="刷新主题" :loading="loading" @click="refreshAll">
           <template #icon><RefreshCw :size="17" /></template>
         </n-button>
@@ -384,6 +388,7 @@ import {
   PanelRightOpen,
   RefreshCw,
   Send,
+  Upload,
 } from 'lucide-vue-next';
 import {
   NAlert,
@@ -533,6 +538,7 @@ const historyVisible = ref(false);
 const activeSection = ref<MqSection>('overview');
 const inspectorCollapsed = ref(false);
 const publisherVisible = ref(false);
+const messageFileInput = ref<HTMLInputElement | null>(null);
 
 const mqSections: Array<{ key: MqSection; label: string }> = [
   { key: 'overview', label: '概览' },
@@ -1105,14 +1111,24 @@ function stagePublish(): void {
     message.error(headers.message);
     return;
   }
-  const payload = encoded.base64;
-  const stagedHeaders = headers.headers;
+  stagePublishPayload(topic, encoded.base64, headers.headers, encoded.byteLength);
+}
+
+function stagePublishPayload(
+  topic: string,
+  payload: string,
+  headers: Record<string, string>,
+  byteLength: number,
+): void {
+  const db = props.targetDb;
+  if (!db || !topic) return;
+  const stagedHeaders = { ...headers };
   pendingOperations.value.push({
     id: makeOperationId('publish'),
     label: 'Publish',
-    detail: `${topic} · ${encoded.byteLength} bytes · ${Object.keys(stagedHeaders).length} headers`,
+    detail: `${topic} · ${byteLength} bytes · ${Object.keys(stagedHeaders).length} headers`,
     severity: 'write',
-    command: `MQ PUBLISH ${topic} ${encoded.byteLength} bytes`,
+    command: `MQ PUBLISH ${topic} ${byteLength} bytes`,
     run: async () => {
       const response = await publishMqMessage(auth.api, db, topic, {
         payload,
@@ -1128,6 +1144,72 @@ function stagePublish(): void {
       };
     },
   });
+}
+
+async function onMessageFileSelected(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  try {
+    const parsed = parseMessageImport(await file.text());
+    if (!parsed.ok) {
+      errorMsg.value = parsed.message;
+      return;
+    }
+    pendingOperations.value = [];
+    for (const item of parsed.messages) {
+      stagePublishPayload(item.topic || activeTopic.value, item.payload, item.headers, base64ToBytes(item.payload).length);
+    }
+    activeSection.value = 'messages';
+    errorMsg.value = '';
+    message.success(`已解析 ${parsed.messages.length} 条消息，确认后按文件顺序发布。`);
+  } finally {
+    input.value = '';
+  }
+}
+
+function parseMessageImport(text: string):
+  | { ok: true; messages: Array<{ topic: string; payload: string; headers: Record<string, string> }> }
+  | { ok: false; message: string } {
+  const trimmed = text.trim();
+  if (!trimmed) return { ok: false, message: '消息导入文件为空。' };
+  try {
+    const source: unknown = trimmed.startsWith('[')
+      ? JSON.parse(trimmed) as unknown
+      : trimmed.split(/\r?\n/u).filter(Boolean).map((line) => JSON.parse(line) as unknown);
+    const items = Array.isArray(source) ? source : [source];
+    if (items.length === 0) return { ok: false, message: '消息导入文件没有记录。' };
+    const messages = items.map((item, index) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        throw new Error(`第 ${index + 1} 条消息必须是 JSON 对象。`);
+      }
+      const record = item as Record<string, unknown>;
+      const topic = typeof record.topic === 'string' ? record.topic.trim() : '';
+      if (!topic && !activeTopic.value) throw new Error(`第 ${index + 1} 条消息缺少 topic。`);
+      let payload = '';
+      if (typeof record.payloadBase64 === 'string') {
+        payload = bytesToBase64(base64ToBytes(record.payloadBase64));
+      } else if (typeof record.payload === 'string') {
+        payload = bytesToBase64(new TextEncoder().encode(record.payload));
+      } else if (record.payload !== undefined) {
+        payload = bytesToBase64(new TextEncoder().encode(JSON.stringify(record.payload)));
+      } else {
+        throw new Error(`第 ${index + 1} 条消息缺少 payloadBase64 或 payload。`);
+      }
+      const rawHeaders = record.headers;
+      const headers: Record<string, string> = {};
+      if (rawHeaders !== undefined && (!rawHeaders || typeof rawHeaders !== 'object' || Array.isArray(rawHeaders))) {
+        throw new Error(`第 ${index + 1} 条消息的 headers 必须是对象。`);
+      }
+      for (const [key, value] of Object.entries((rawHeaders ?? {}) as Record<string, unknown>)) {
+        headers[key] = String(value);
+      }
+      return { topic, payload, headers };
+    });
+    return { ok: true, messages };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : '消息文件解析失败。' };
+  }
 }
 
 async function confirmPendingOperations(): Promise<void> {
@@ -1666,6 +1748,10 @@ onBeforeUnmount(() => {
   justify-content: flex-end;
   gap: 8px;
   flex-wrap: nowrap;
+}
+
+.mq-file-input {
+  display: none;
 }
 
 .mq-headline-stats {

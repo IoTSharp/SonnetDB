@@ -244,7 +244,9 @@ const taskViews = [
   { tool: 'kv', testId: 'workbench-kv', tab: '批量操作', content: 'Batch operations' },
   { tool: 'mq', testId: 'workbench-mq', tab: '消息', content: 'Message inspector' },
   { tool: 'vector', testId: 'workbench-vector', tab: '索引参数', content: 'Index parameters' },
+  { tool: 'vector', testId: 'workbench-vector', tab: '数据编辑 / 导入', content: '点级编辑、文件导入' },
   { tool: 'fulltext', testId: 'workbench-fulltext', tab: 'Analyzer', content: 'Analyzer preview' },
+  { tool: 'fulltext', testId: 'workbench-fulltext', tab: '数据导入', content: '独立全文数据导入' },
   { tool: 'bucket', testId: 'workbench-bucket', tab: '治理', content: 'Lifecycle' },
 ] as const;
 
@@ -326,6 +328,74 @@ test('Measurement import validates and opens shared approval', async ({ page }) 
   await expect(approval).toContainText('INSERT 2 POINTS INTO sensor_readings');
 });
 
+test('Vector workbench validates VECTOR data and stages measurement import', async ({ page }) => {
+  await page.goto('/admin/app/sql?tool=vector');
+  const surface = page.getByTestId('workbench-vector');
+  await surface.locator('.workbench-section-tabs').first().getByRole('button', { name: '数据编辑 / 导入', exact: true }).click();
+  const measurement = surface.getByTestId('workbench-measurement');
+  await measurement.locator('.workbench-section-tabs').getByRole('button', { name: '文件导入', exact: true }).click();
+  await measurement.getByPlaceholder('粘贴 CSV、JSON 数组或 JSONL 数据').fill([
+    'time,device_id,temperature,embedding',
+    '1783737600000,line-01,22.5,"[0.1,0.2,0.3]"',
+  ].join('\n'));
+  await measurement.getByRole('button', { name: '解析', exact: true }).click();
+  await measurement.getByRole('button', { name: '暂存导入', exact: true }).click();
+  const approval = page.getByRole('dialog', { name: 'Measurement import' });
+  await expect(approval).toContainText('INSERT 1 POINTS INTO sensor_readings');
+  const batchRequest = page.waitForRequest((request) => request.url().endsWith(`/v1/db/${database}/sql/batch`));
+  await approval.getByRole('button', { name: '确认执行 1 项操作', exact: true }).click();
+  const payload = (await batchRequest).postDataJSON() as { statements: Array<{ sql: string }> };
+  expect(payload.statements[0].sql).toContain('[0.1, 0.2, 0.3]');
+});
+
+test('KV round-trip export can be staged back from its JSONL contract', async ({ page }) => {
+  await page.goto('/admin/app/sql?tool=kv');
+  const surface = page.getByTestId('workbench-kv');
+  const downloadPromise = page.waitForEvent('download');
+  await surface.getByRole('button', { name: '导出 round-trip', exact: true }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toContain('.kv.jsonl');
+
+  await surface.locator('input[type=file]').setInputFiles({
+    name: 'sessions.kv.jsonl',
+    mimeType: 'application/x-ndjson',
+    buffer: Buffer.from(JSON.stringify({ format: 'sonnetdb-kv-v1', key: 'device:002', valueBase64: 'b25saW5l', expiresAtUtc: null }) + '\n'),
+  });
+  const approval = page.getByRole('dialog', { name: 'KV operation batch' });
+  await expect(approval).toContainText('sessions.kv.jsonl');
+  await expect(approval).toContainText('entries=1');
+});
+
+test('MQ JSONL file import stages messages in file order', async ({ page }) => {
+  await page.goto('/admin/app/sql?tool=mq');
+  const surface = page.getByTestId('workbench-mq');
+  await surface.locator('input[type=file]').setInputFiles({
+    name: 'telemetry.jsonl',
+    mimeType: 'application/x-ndjson',
+    buffer: Buffer.from([
+      JSON.stringify({ topic: 'telemetry.raw', payload: { temperature: 23.5 }, headers: { source: 'import' } }),
+      JSON.stringify({ topic: 'telemetry.raw', payloadBase64: 'b2s=', headers: {} }),
+    ].join('\n')),
+  });
+  const approval = page.getByRole('dialog', { name: 'SonnetMQ staged operations' });
+  await expect(approval).toContainText('确认执行 2 项操作');
+  await expect(approval).toContainText('telemetry.raw');
+});
+
+test('FullText workbench stages independent JSONL import for the indexed collection', async ({ page }) => {
+  await page.goto('/admin/app/sql?tool=fulltext');
+  const surface = page.getByTestId('workbench-fulltext');
+  await surface.locator('.workbench-section-tabs').getByRole('button', { name: '数据导入', exact: true }).click();
+  await surface.getByPlaceholder('{"_id":"doc-1","title":"Pump alarm","body":"..."}').fill([
+    JSON.stringify({ _id: 'doc-1', name: 'Pump 01', notes: 'North station alarm' }),
+    JSON.stringify({ _id: 'doc-2', name: 'Fan 02', notes: 'Inspection complete' }),
+  ].join('\n'));
+  await surface.getByRole('button', { name: '解析并暂存', exact: true }).click();
+  const approval = page.getByRole('dialog', { name: 'FullText document import' });
+  await expect(approval).toContainText('factory.device_profiles');
+  await expect(approval).toContainText('2 documents');
+});
+
 test('Measurement import can stop after the active batch and resume remaining points', async ({ page }) => {
   await page.route(`**/v1/db/${database}/sql/batch`, async (route) => {
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 800));
@@ -372,7 +442,8 @@ test('Measurement correction refuses a tombstoned identity rewrite', async ({ pa
 test('Measurement workbench remains operable at the narrow desktop breakpoint', async ({ page }) => {
   await page.setViewportSize({ width: 800, height: 900 });
   await page.goto('/admin/app/sql?tool=measurement');
-  await page.getByTitle('收起资源浏览器').click();
+  const collapseExplorer = page.getByTitle('收起资源浏览器');
+  if (await collapseExplorer.isVisible()) await collapseExplorer.click();
   const surface = page.getByTestId('workbench-measurement');
   await expect(surface.locator('.workbench-section-tabs')).toBeVisible();
   await expect(surface.getByRole('button', { name: '新增数据点', exact: true })).toBeVisible();
@@ -393,7 +464,8 @@ test('MQ message inspector remains usable at the compact desktop breakpoint', as
 test('KV browser keeps its task navigation at the narrow desktop breakpoint', async ({ page }) => {
   await page.setViewportSize({ width: 800, height: 900 });
   await page.goto('/admin/app/sql?tool=kv');
-  await page.getByTitle('收起资源浏览器').click();
+  const collapseExplorer = page.getByTitle('收起资源浏览器');
+  if (await collapseExplorer.isVisible()) await collapseExplorer.click();
   const surface = page.getByTestId('workbench-kv');
   await expect(surface.locator('.workbench-section-tabs')).toBeVisible();
   await expect(surface.locator('.workbench-section-tabs').getByRole('button', { name: '浏览器', exact: true })).toBeVisible();
