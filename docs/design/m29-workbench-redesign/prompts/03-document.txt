@@ -1,0 +1,6 @@
+FRAME 06 — Document Explorer
+Keep the shared framework. Select Collections > device-events. Inner tabs: Documents, 查询, Validator, 索引, 导入 / 导出. Documents is active. Show a compact filter/projection/sort bar, a document list/table in the center, and a right JSON inspector with syntax-colored content. Include Find, new document, replace, and delete through staged actions. Show collection stats only as three compact summaries. Output: prototype-06-document.png.
+
+FRAME 07 — Validator governance
+Keep the shared framework and device-events collection. Validator is active. Main area is a JSON Schema editor with line numbers and formatting controls. Right inspector shows sample preflight results: 23 passed, 1 rejected, with the rejected document ID and missing createdAt path. Actions: 运行样本预检 and 暂存 Validator. Avoid placing import/export controls on this page. Output: prototype-07-document-validator.png.
+

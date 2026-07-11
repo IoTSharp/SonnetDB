@@ -1,0 +1,6 @@
+FRAME 14 — Object browser
+Keep the shared framework. Select Object Buckets > raw-data. Inner tabs: 对象, 治理, Multipart, 审计. 对象 is active. Show breadcrumb prefix navigation, upload, create prefix, object list/grid with realistic key names, size, modified time, version and storage class. Select line-1-telemetry.parquet. Right inspector shows metadata, tags, ETag, versions, preview eligibility, download, and presigned URL. Output: prototype-14-objects.png.
+
+FRAME 15 — Object governance and multipart
+Keep the shared framework and raw-data bucket. 治理 is active. Use unframed sections for lifecycle, versioning, retention/legal hold, policy, quota and capacity. Show current values and a staged change summary. The main action is 暂存治理变更. A visible Multipart editor tab carries an amber badge 3, and Audit is present as a peer task. Do not mix multipart upload controls into governance. Output: prototype-15-object-governance.png.
+

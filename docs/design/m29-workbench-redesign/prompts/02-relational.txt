@@ -1,0 +1,9 @@
+FRAME 03 — Relational data grid
+Keep the shared framework. Select Tables > machines. Title machines. Inner tabs: 数据, 设计器, 索引, 导入 / 导出, ER, DDL; 数据 is active. Show a toolbar for filter column, query text, pagination, refresh, add row, and staged delete. Main table uses 42px rows with machine_id, name, line_id, status, load_pct, updated_at. Select M-101. Right inspector shows typed fields and a single 暂存行更新 action. Output: prototype-03-relational-data.png.
+
+FRAME 04 — Table designer and index management
+Keep the shared framework and machines object. 设计器 is active. Show a structured column editor, not a generic form card: draggable rows, column name, type, nullable, default, key indicator, and row action. A compact DDL preview occupies the lower region. Show pending DDL count and 暂存变更. In the right inspector, show existing constraints and affected indexes. Output: prototype-04-relational-designer.png.
+
+FRAME 05 — Import mapping and ER
+Keep the shared framework. Show the relation Import / Export task with a five-step header: 选择文件, 列映射, 预检, 执行, 报告. The active step is 列映射. Main surface compares CSV source columns to machines target columns, with type compatibility and sample values. A narrow right summary shows 24,880 rows, 3 warnings, 0 rejected. Include dry-run as the next primary action. A secondary visible editor tab named factory ER demonstrates that ER is a peer task. Output: prototype-05-relational-import-er.png.
+

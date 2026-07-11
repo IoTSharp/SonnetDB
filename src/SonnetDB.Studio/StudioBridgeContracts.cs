@@ -82,6 +82,23 @@ internal sealed record StudioSaveFileResult(
     string? Error);
 
 /// <summary>
+/// 打开二进制文件请求。
+/// </summary>
+internal sealed record StudioOpenBinaryFileRequest(
+    string? Title,
+    StudioFileDialogFilter[]? Filters);
+
+/// <summary>
+/// 选择目录请求。
+/// </summary>
+internal sealed record StudioSelectDirectoryRequest(string? Title, string? InitialPath);
+
+/// <summary>
+/// 选择目录结果。
+/// </summary>
+internal sealed record StudioSelectDirectoryResult(bool Canceled, string? Path, string? Error);
+
+/// <summary>
 /// 托管本地 SonnetDB Server 请求。
 /// </summary>
 internal sealed record StudioManagedServerRequest(string? DataRoot, string? Url);
@@ -114,6 +131,9 @@ internal sealed record StudioManagedServerStatus(
 [JsonSerializable(typeof(StudioOpenFileResult))]
 [JsonSerializable(typeof(StudioSaveFileRequest))]
 [JsonSerializable(typeof(StudioSaveFileResult))]
+[JsonSerializable(typeof(StudioOpenBinaryFileRequest))]
+[JsonSerializable(typeof(StudioSelectDirectoryRequest))]
+[JsonSerializable(typeof(StudioSelectDirectoryResult))]
 [JsonSerializable(typeof(StudioManagedServerRequest))]
 [JsonSerializable(typeof(StudioManagedServerStatus))]
 internal sealed partial class StudioBridgeJsonContext : JsonSerializerContext;

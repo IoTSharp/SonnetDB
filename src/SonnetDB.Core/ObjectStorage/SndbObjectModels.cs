@@ -96,6 +96,25 @@ public sealed record SndbMultipartPartInfo(
     string Sha256);
 
 /// <summary>
+/// Multipart upload 可恢复会话，包含当前已上传的分片。
+/// </summary>
+public sealed record SndbMultipartUploadSessionInfo(
+    SndbMultipartUploadInfo Upload,
+    string Status,
+    IReadOnlyList<SndbMultipartPartInfo> Parts);
+
+/// <summary>
+/// Multipart upload 会话分页结果。
+/// </summary>
+public sealed record SndbMultipartUploadListResult(
+    string Bucket,
+    int MaxUploads,
+    string? ContinuationToken,
+    string? NextContinuationToken,
+    bool IsTruncated,
+    IReadOnlyList<SndbMultipartUploadSessionInfo> Uploads);
+
+/// <summary>
 /// 预签名对象 URL 信息。
 /// </summary>
 public sealed record SndbPresignedObjectUrl(

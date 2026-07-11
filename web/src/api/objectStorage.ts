@@ -79,6 +79,21 @@ export interface MultipartPartResponse {
   sha256: string;
 }
 
+export interface MultipartUploadSessionResponse {
+  upload: MultipartUploadCreateResponse;
+  status: 'active' | 'expired' | 'completed' | 'aborted';
+  parts: MultipartPartResponse[];
+}
+
+export interface MultipartUploadListResponse {
+  bucket: string;
+  maxUploads: number;
+  continuationToken?: string | null;
+  nextContinuationToken?: string | null;
+  isTruncated: boolean;
+  uploads: MultipartUploadSessionResponse[];
+}
+
 export interface PresignedObjectUrlResponse {
   url: string;
   method: string;
@@ -555,6 +570,36 @@ export async function initiateMultipartUpload(
     expiresHours: options?.expiresHours ?? null,
   });
   return resp.data;
+}
+
+export async function listMultipartUploads(
+  api: AxiosInstance,
+  db: string,
+  bucket: string,
+  maxUploads = 100,
+  continuationToken?: string | null,
+): Promise<MultipartUploadListResponse> {
+  const params = new URLSearchParams({ uploads: '', 'max-uploads': String(maxUploads) });
+  if (continuationToken) params.set('continuation-token', continuationToken);
+  const resp = await api.get<MultipartUploadListResponse>(`${bucketUrl(db, bucket)}?${params.toString()}`);
+  return {
+    ...resp.data,
+    uploads: unwrapArray<MultipartUploadSessionResponse>(resp.data.uploads).map((session) => ({
+      ...session,
+      parts: unwrapArray<MultipartPartResponse>(session.parts),
+    })),
+  };
+}
+
+export async function getMultipartUpload(
+  api: AxiosInstance,
+  db: string,
+  bucket: string,
+  key: string,
+  uploadId: string,
+): Promise<MultipartUploadSessionResponse> {
+  const resp = await api.get<MultipartUploadSessionResponse>(`${objectUrl(db, bucket, key)}?uploadId=${encodeURIComponent(uploadId)}`);
+  return { ...resp.data, parts: unwrapArray<MultipartPartResponse>(resp.data.parts) };
 }
 
 export async function uploadMultipartPart(

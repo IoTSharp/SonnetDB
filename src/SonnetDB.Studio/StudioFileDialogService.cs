@@ -52,6 +52,64 @@ internal sealed class StudioFileDialogService
     }
 
     /// <summary>
+    /// 选择一个二进制文件并返回可流式读取的文件信息。
+    /// </summary>
+    /// <param name="request">打开文件请求。</param>
+    /// <returns>用户取消时返回空，否则返回选中文件。</returns>
+    public FileInfo? OpenBinaryFile(StudioOpenBinaryFileRequest request)
+    {
+        var selected = SelectOpenFile(request.Title, request.Filters);
+        return selected is null ? null : new FileInfo(selected);
+    }
+
+    /// <summary>
+    /// 使用原生保存对话框把请求流写入磁盘。
+    /// </summary>
+    /// <param name="title">对话框标题。</param>
+    /// <param name="suggestedName">建议文件名。</param>
+    /// <param name="content">待保存内容流。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>保存结果。</returns>
+    public async Task<StudioSaveFileResult> SaveBinaryFileAsync(
+        string? title,
+        string? suggestedName,
+        Stream content,
+        CancellationToken cancellationToken)
+    {
+        var selected = SelectSaveFile(title, suggestedName, null);
+        if (selected is null)
+            return new StudioSaveFileResult(true, null, null);
+
+        await using var output = new FileStream(selected, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true);
+        await content.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
+        return new StudioSaveFileResult(false, Path.GetFileName(selected), null);
+    }
+
+    /// <summary>
+    /// 使用原生目录选择器选择 data root、备份或恢复目录。
+    /// </summary>
+    /// <param name="request">目录选择请求。</param>
+    /// <returns>选择结果。</returns>
+    public StudioSelectDirectoryResult SelectDirectory(StudioSelectDirectoryRequest request)
+    {
+        var selected = StaDialogRunner.Run(() =>
+        {
+            using var dialog = new FolderBrowserDialog
+            {
+                Description = string.IsNullOrWhiteSpace(request.Title) ? "Select folder" : request.Title,
+                InitialDirectory = Directory.Exists(request.InitialPath) ? request.InitialPath : string.Empty,
+                ShowNewFolderButton = true,
+                UseDescriptionForTitle = true,
+            };
+            return dialog.ShowDialog() == DialogResult.OK ? dialog.SelectedPath : null;
+        });
+
+        return selected is null
+            ? new StudioSelectDirectoryResult(true, null, null)
+            : new StudioSelectDirectoryResult(false, Path.GetFullPath(selected), null);
+    }
+
+    /// <summary>
     /// 使用原生文件对话框选择路径并写入文本内容。
     /// </summary>
     /// <param name="request">保存文件请求。</param>
@@ -109,6 +167,34 @@ internal sealed class StudioFileDialogService
         parts.Add("All files (*.*)|*.*");
         return string.Join("|", parts);
     }
+
+    private static string? SelectOpenFile(string? title, StudioFileDialogFilter[]? filters) =>
+        StaDialogRunner.Run(() =>
+        {
+            using var dialog = new OpenFileDialog
+            {
+                Title = string.IsNullOrWhiteSpace(title) ? "Open file" : title,
+                Filter = BuildFilter(filters),
+                CheckFileExists = true,
+                Multiselect = false,
+                RestoreDirectory = true,
+            };
+            return dialog.ShowDialog() == DialogResult.OK ? dialog.FileName : null;
+        });
+
+    private static string? SelectSaveFile(string? title, string? suggestedName, StudioFileDialogFilter[]? filters) =>
+        StaDialogRunner.Run(() =>
+        {
+            using var dialog = new SaveFileDialog
+            {
+                Title = string.IsNullOrWhiteSpace(title) ? "Save file" : title,
+                FileName = string.IsNullOrWhiteSpace(suggestedName) ? "sonnetdb-export.bin" : suggestedName,
+                Filter = BuildFilter(filters),
+                OverwritePrompt = true,
+                RestoreDirectory = true,
+            };
+            return dialog.ShowDialog() == DialogResult.OK ? dialog.FileName : null;
+        });
 }
 
 /// <summary>

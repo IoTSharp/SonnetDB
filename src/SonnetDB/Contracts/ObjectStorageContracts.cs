@@ -84,6 +84,21 @@ public sealed record MultipartUploadCreateResponse(
 /// <summary>Multipart 分片上传响应。</summary>
 public sealed record MultipartPartResponse(int PartNumber, long SizeBytes, string ETag, string Sha256);
 
+/// <summary>Multipart upload 可恢复会话响应。</summary>
+public sealed record MultipartUploadSessionResponse(
+    MultipartUploadCreateResponse Upload,
+    string Status,
+    IReadOnlyList<MultipartPartResponse> Parts);
+
+/// <summary>Multipart upload 会话分页响应。</summary>
+public sealed record MultipartUploadListResponse(
+    string Bucket,
+    int MaxUploads,
+    string? ContinuationToken,
+    string? NextContinuationToken,
+    bool IsTruncated,
+    IReadOnlyList<MultipartUploadSessionResponse> Uploads);
+
 /// <summary>Multipart 完成请求。</summary>
 public sealed record MultipartCompleteRequest(IReadOnlyList<int> PartNumbers);
 

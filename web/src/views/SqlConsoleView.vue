@@ -50,6 +50,7 @@
         :maintenance-busy="maintenanceBusy"
         :maintenance-status="maintenanceStatus"
         :selected-index="selectedIndex"
+        :studio-bridge-available="studioBridgeAvailable"
         :explorer-groups="explorerGroups"
         @toggle-collapse="explorerCollapsed = !explorerCollapsed"
         @open-create-database="openCreateDatabaseDialog"
@@ -65,6 +66,8 @@
         @rebuild-index="rebuildSelectedIndex"
         @verify-backup="verifyBackup"
         @restore-dry-run="restoreDryRun"
+        @pick-backup-directory="pickMaintenanceBackupDirectory"
+        @pick-restore-directory="pickMaintenanceRestoreDirectory"
       />
 
       <section class="workspace-shell">
@@ -76,14 +79,19 @@
           :studio-bridge-available="studioBridgeAvailable"
           :native-server-status="nativeServerStatus"
           :native-server-busy="nativeServerBusy"
+          :native-data-root="nativeDataRoot"
+          :connection-health-busy="connectionHealthBusy"
           @select-tab="selectWorkspaceTab"
           @close-tab="closeWorkspaceTab"
           @create-tab="createWorkspaceTab"
           @connection-select="onConnectionSelect"
           @open-connection="openConnectionDialog"
           @refresh-native-server="refreshNativeServerStatus"
+          @refresh-connection-health="refreshConnectionHealth"
           @start-native-server="startNativeServer"
           @stop-native-server="stopNativeServer"
+          @choose-native-data-root="chooseNativeDataRoot"
+          @update:native-data-root="setNativeDataRoot"
           @show-result="toggleResultDrawer"
           @show-history="globalHistoryVisible = true"
         />
@@ -288,6 +296,8 @@ const {
   studioBridgeAvailable,
   nativeServerStatus,
   nativeServerBusy,
+  nativeDataRoot,
+  connectionHealthBusy,
   activeWorkbenchTool,
   connectionOptions,
   canSaveConnection,
@@ -296,7 +306,10 @@ const {
   saveConnection,
   onConnectionSelect,
   refreshNativeServerStatus,
+  refreshConnectionHealth,
   startNativeServer,
+  chooseNativeDataRoot,
+  setNativeDataRoot,
   stopNativeServer,
 } = useSqlWorkbenchChrome({
   auth,
@@ -498,6 +511,16 @@ const {
   message,
   loadSchema,
 });
+
+async function pickMaintenanceBackupDirectory(): Promise<void> {
+  const selected = await connections.selectStudioDirectory('选择备份目录', maintenanceBackupDirectory.value);
+  if (selected) maintenanceBackupDirectory.value = selected;
+}
+
+async function pickMaintenanceRestoreDirectory(): Promise<void> {
+  const selected = await connections.selectStudioDirectory('选择恢复演练目标目录', maintenanceRestoreTargetDirectory.value);
+  if (selected) maintenanceRestoreTargetDirectory.value = selected;
+}
 
 const {
   previewPlan,
@@ -711,6 +734,7 @@ onMounted(async () => {
     auth.setApiBaseUrl(connections.activeBaseUrl);
     await refreshNativeServerStatus();
   }
+  void refreshConnectionHealth();
   await reloadDbs();
   if (targetDb.value && targetDb.value !== CONTROL_PLANE_KEY) {
     await loadSchema(targetDb.value, true);

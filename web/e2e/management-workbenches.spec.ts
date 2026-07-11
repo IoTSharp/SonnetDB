@@ -122,6 +122,7 @@ test.beforeEach(async ({ page }) => {
   });
 
   await mockManagementContracts(page);
+  await page.route('**/healthz', (route) => json(route, { status: 'ok', databaseCount: 1, uptimeSeconds: 60 }));
 });
 
 const workbenches = [
@@ -246,6 +247,12 @@ test('Studio bridge exposes native server controls and disk connection library',
   await expect(nativeControls.getByRole('button', { name: 'Stop' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Studio profile' })).toBeVisible();
 
+  await nativeControls.getByTitle('配置本地 Server').click();
+  const settings = page.locator('.native-server-settings');
+  await expect(settings.getByRole('textbox')).toHaveValue('C:\\SonnetDB\\Studio\\data');
+  await settings.getByRole('button', { name: '浏览' }).click();
+  await expect(settings.getByRole('textbox')).toHaveValue('D:\\SonnetDB\\factory-data');
+
   if (process.env.SONNETDB_CAPTURE_DOCS === '1') {
     await page.screenshot({
       path: resolve(process.cwd(), '../docs/assets/studio-native-bridge.png'),
@@ -253,6 +260,24 @@ test('Studio bridge exposes native server controls and disk connection library',
     });
   }
   if (process.env.SONNETDB_CAPTURE_M29 === '1') await captureM29(page, 'studio-bridge');
+});
+
+test('connection library reports per-profile health state', async ({ page }) => {
+  await page.goto('/admin/app/sql');
+  await page.getByTitle('检查全部连接健康状态').click();
+  await page.locator('.connection-button').click();
+  await expect(page.getByText(/Managed Local.*健康.*ms/u)).toBeVisible();
+});
+
+test('object workbench restores a persisted multipart session and parts', async ({ page }) => {
+  await page.goto('/admin/app/sql?tool=bucket');
+  const surface = page.getByTestId('workbench-bucket');
+  await surface.locator('.workbench-section-tabs').getByRole('button', { name: 'Multipart', exact: true }).click();
+  await surface.locator('.n-base-selection').filter({ hasText: '选择服务器上的 Multipart 会话' }).click();
+  await page.getByText(/captures\/line-1\.bin · 2 parts · active/u).click();
+  await expect(surface).toContainText('mpu_e2e_resume');
+  await expect(surface).toContainText('2 parts');
+  await expect(surface.locator('tbody tr')).toHaveCount(2);
 });
 
 async function mockManagementContracts(page: Page): Promise<void> {
@@ -332,11 +357,31 @@ async function mockStudioBridge(page: Page): Promise<void> {
       });
     }
     if (path.endsWith('/server/status')) return json(route, status);
+    if (path.endsWith('/dialogs/select-directory')) {
+      return json(route, { canceled: false, path: 'D:\\SonnetDB\\factory-data', error: null });
+    }
     return json(route, status);
   });
 }
 
 async function mockBucketRequest(route: Route, url: URL): Promise<void> {
+  if (url.searchParams.has('uploads')) {
+    return json(route, {
+      bucket: 'inspection-media',
+      maxUploads: 100,
+      continuationToken: null,
+      nextContinuationToken: null,
+      isTruncated: false,
+      uploads: [{
+        upload: { bucket: 'inspection-media', key: 'captures/line-1.bin', uploadId: 'mpu_e2e_resume', contentType: 'application/octet-stream', initiatedUtc: now, expiresUtc: '2099-01-01T00:00:00Z', metadata: {}, tags: {} },
+        status: 'active',
+        parts: [
+          { partNumber: 1, sizeBytes: 1024, eTag: 'etag-1', sha256: 'sha-1' },
+          { partNumber: 2, sizeBytes: 2048, eTag: 'etag-2', sha256: 'sha-2' },
+        ],
+      }],
+    });
+  }
   if (url.searchParams.has('stats')) {
     return json(route, { bucket: 'inspection-media', currentObjectCount: 1, currentSizeBytes: 2048, objectVersionCount: 1, objectVersionSizeBytes: 2048, deleteMarkerCount: 0, multipartUploadCount: 0, multipartPartCount: 0, multipartPartSizeBytes: 0, quotaMaxSizeBytes: 10485760, quotaMaxObjectVersions: 1000, quotaRemainingSizeBytes: 10483712, quotaRemainingObjectVersions: 999 });
   }

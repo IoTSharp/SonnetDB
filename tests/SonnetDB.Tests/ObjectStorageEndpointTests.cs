@@ -159,6 +159,26 @@ public sealed class ObjectStorageEndpointTests : IAsyncLifetime
         await PutPartAsync(client, bucket, upload.UploadId, 1, "hello ");
         await PutPartAsync(client, bucket, upload.UploadId, 2, "world");
 
+        var sessions = await client.GetAsync($"/v1/db/objects/s3/{bucket}?uploads&max-uploads=1");
+        Assert.Equal(HttpStatusCode.OK, sessions.StatusCode);
+        using (var json = JsonDocument.Parse(await sessions.Content.ReadAsStringAsync()))
+        {
+            var listed = Assert.Single(json.RootElement.GetProperty("uploads").EnumerateArray());
+            Assert.Equal(upload.UploadId, listed.GetProperty("upload").GetProperty("uploadId").GetString());
+            Assert.Equal("active", listed.GetProperty("status").GetString());
+            Assert.Equal(2, listed.GetProperty("parts").GetArrayLength());
+        }
+
+        var recover = await client.GetAsync(
+            $"/v1/db/objects/s3/{bucket}/daily/001.bin?uploadId={Uri.EscapeDataString(upload.UploadId)}");
+        Assert.Equal(HttpStatusCode.OK, recover.StatusCode);
+        using (var json = JsonDocument.Parse(await recover.Content.ReadAsStringAsync()))
+        {
+            Assert.Equal("daily/001.bin", json.RootElement.GetProperty("upload").GetProperty("key").GetString());
+            Assert.Equal(1, json.RootElement.GetProperty("parts")[0].GetProperty("partNumber").GetInt32());
+            Assert.Equal(2, json.RootElement.GetProperty("parts")[1].GetProperty("partNumber").GetInt32());
+        }
+
         var complete = await client.PostAsJsonAsync(
             $"/v1/db/objects/s3/{bucket}/daily/001.bin?uploadId={upload.UploadId}",
             new MultipartCompleteRequest([1, 2]),
@@ -168,6 +188,13 @@ public sealed class ObjectStorageEndpointTests : IAsyncLifetime
         var get = await client.GetAsync($"/v1/db/objects/s3/{bucket}/daily/001.bin");
         Assert.Equal(HttpStatusCode.OK, get.StatusCode);
         Assert.Equal("hello world", await get.Content.ReadAsStringAsync());
+
+        var afterComplete = await client.GetAsync($"/v1/db/objects/s3/{bucket}?uploads");
+        Assert.Equal(HttpStatusCode.OK, afterComplete.StatusCode);
+        using (var json = JsonDocument.Parse(await afterComplete.Content.ReadAsStringAsync()))
+        {
+            Assert.Empty(json.RootElement.GetProperty("uploads").EnumerateArray());
+        }
     }
 
     [Fact]

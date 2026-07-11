@@ -1,0 +1,6 @@
+FRAME 01 — SQL / time-series query
+Keep the shared framework. Select Measurements > device_metrics in Explorer. Central title: device_metrics, subtitle 时序 / SQL. Show a large SQL editor above a resizable result region. SQL queries recent telemetry for LINE-1. Show Run as the primary action, Explain and History as secondary actions. Result tabs: 表格, Raw, JSON, 图表, 轨迹. Display a readable telemetry table with time, deviceId, temperature, pressure, vibration. Right inspector shows measurement fields, tag fields, time range, and series count. Output: prototype-01-sql-timeseries.png.
+
+FRAME 02 — Shared write approval
+Use the same SQL page dimmed behind a centered 620px approval dialog. Title 确认暂存操作. Show connection/database, target object, action, affected scope, risk level, and a parameterized SQL preview. Include a required confirmation checkbox, 返回编辑 secondary action, and exact primary command 确认更新 1 行. No generic 确定 button. The dialog is a real safety layer, not a warning banner. Output: prototype-02-write-approval.png.
+

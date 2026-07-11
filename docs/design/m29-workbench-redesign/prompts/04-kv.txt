@@ -1,0 +1,3 @@
+FRAME 08 — KV browser and governance
+Keep the shared framework. Select KV Keyspaces > device-cache. Inner tabs: 浏览器, 批量操作, 统计. 浏览器 is active. Inside the workbench, use a 260px prefix navigation pane, a key table, and a right value inspector. Show device:PLC- prefix, key type, TTL, size, and JSON/Text/Hex/Base64 value modes. Right inspector contains the selected key metadata, formatted JSON, Set and TTL actions. Make prefix delete available only through the 批量操作 task, not as a prominent browser button. Output: prototype-08-kv.png.
+

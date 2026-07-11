@@ -130,6 +130,23 @@ internal static class ObjectStorageEndpointHandler
 
             if (HttpMethods.IsGet(ctx.Request.Method))
             {
+                if (ctx.Request.Query.ContainsKey("uploads"))
+                {
+                    int maxUploads = 100;
+                    if (ctx.Request.Query.TryGetValue("max-uploads", out var maxUploadValues)
+                        && int.TryParse(maxUploadValues.ToString(), NumberStyles.None, CultureInfo.InvariantCulture, out int parsedMaxUploads))
+                    {
+                        maxUploads = Math.Clamp(parsedMaxUploads, 1, 1000);
+                    }
+
+                    var uploads = store.ListMultipartUploads(
+                        bucket,
+                        maxUploads,
+                        ctx.Request.Query["continuation-token"].ToString());
+                    await Results.Json(ToMultipartListResponse(uploads), ServerJsonContext.Default.MultipartUploadListResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+                    return;
+                }
+
                 if (ctx.Request.Query.ContainsKey("policy"))
                 {
                     var policy = store.GetPolicy(bucket);
@@ -370,6 +387,20 @@ internal static class ObjectStorageEndpointHandler
 
     private static async Task HandleMultipartAsync(HttpContext ctx, SndbObjectStore store, string bucket, string key, string uploadId)
     {
+        if (HttpMethods.IsGet(ctx.Request.Method))
+        {
+            var session = store.GetMultipartUpload(uploadId);
+            if (!string.Equals(session.Upload.Bucket, bucket, StringComparison.Ordinal)
+                || !string.Equals(session.Upload.Key, key, StringComparison.Ordinal))
+            {
+                await WriteErrorAsync(ctx, StatusCodes.Status404NotFound, "multipart_not_found", "Multipart upload does not match the requested object.").ConfigureAwait(false);
+                return;
+            }
+
+            await Results.Json(ToMultipartSessionResponse(session), ServerJsonContext.Default.MultipartUploadSessionResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+            return;
+        }
+
         if (ctx.Request.Query.TryGetValue("partNumber", out var partNumberValues) && HttpMethods.IsPut(ctx.Request.Method))
         {
             if (!int.TryParse(partNumberValues.ToString(), NumberStyles.None, CultureInfo.InvariantCulture, out int partNumber))
@@ -435,6 +466,29 @@ internal static class ObjectStorageEndpointHandler
             upload.Tags);
         await Results.Json(response, ServerJsonContext.Default.MultipartUploadCreateResponse).ExecuteAsync(ctx).ConfigureAwait(false);
     }
+
+    private static MultipartUploadListResponse ToMultipartListResponse(SndbMultipartUploadListResult result) =>
+        new(
+            result.Bucket,
+            result.MaxUploads,
+            result.ContinuationToken,
+            result.NextContinuationToken,
+            result.IsTruncated,
+            result.Uploads.Select(ToMultipartSessionResponse).ToArray());
+
+    private static MultipartUploadSessionResponse ToMultipartSessionResponse(SndbMultipartUploadSessionInfo session) =>
+        new(
+            new MultipartUploadCreateResponse(
+                session.Upload.Bucket,
+                session.Upload.Key,
+                session.Upload.UploadId,
+                session.Upload.ContentType,
+                session.Upload.InitiatedUtc,
+                session.Upload.ExpiresUtc,
+                session.Upload.Metadata,
+                session.Upload.Tags),
+            session.Status,
+            session.Parts.Select(static part => new MultipartPartResponse(part.PartNumber, part.SizeBytes, part.ETag, part.Sha256)).ToArray());
 
     private static async Task HandleLegalHoldAsync(HttpContext ctx, SndbObjectStore store, string bucket, string key)
     {

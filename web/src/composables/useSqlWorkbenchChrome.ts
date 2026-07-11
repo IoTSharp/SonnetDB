@@ -1,6 +1,7 @@
-import { computed, ref, type WritableComputedRef } from 'vue';
+import { computed, h, ref, type WritableComputedRef } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import type { DropdownOption } from 'naive-ui';
+import { Circle, CircleCheck, CircleX, LoaderCircle } from 'lucide-vue-next';
 import type { useAuthStore } from '@/stores/auth';
 import type { useConnectionsStore, ConnectionProfile } from '@/stores/connections';
 import type { WorkbenchTool } from '@/utils/sqlWorkbench';
@@ -8,6 +9,7 @@ import { CONTROL_PLANE_KEY } from '@/stores/sqlConsole';
 
 type AuthStore = ReturnType<typeof useAuthStore>;
 type ConnectionsStore = ReturnType<typeof useConnectionsStore>;
+const NativeDataRootStorageKey = 'sndb.studio.managed.data-root.v1';
 
 export interface AccessBadge {
   label: string;
@@ -28,6 +30,8 @@ export function useSqlWorkbenchChrome(options: SqlWorkbenchChromeOptions) {
   const showConnectionDialog = ref(false);
   const connectionForm = ref({ name: '', baseUrl: '', defaultDatabase: '' });
   const nativeServerBusy = ref(false);
+  const nativeDataRoot = ref(readNativeDataRoot());
+  const connectionHealthBusy = ref(false);
 
   const activeWorkbenchTool = computed<WorkbenchTool>(() => {
     if (route.query.tool === 'trajectory') return 'trajectory';
@@ -66,10 +70,26 @@ export function useSqlWorkbenchChrome(options: SqlWorkbenchChromeOptions) {
   });
 
   const connectionOptions = computed<DropdownOption[]>(() => {
-    const profileOptions = connections.profiles.map((profile) => ({
-      label: `${profile.name} · ${displayConnectionProfile(profile)}`,
-      key: `connection:${profile.id}`,
-    }));
+    const profileOptions = connections.profiles.map((profile) => {
+      const health = connections.healthFor(profile.id);
+      const icon = health.state === 'healthy'
+        ? CircleCheck
+        : health.state === 'unhealthy'
+          ? CircleX
+          : health.state === 'checking'
+            ? LoaderCircle
+            : Circle;
+      const color = health.state === 'healthy'
+        ? '#138a52'
+        : health.state === 'unhealthy'
+          ? '#c43832'
+          : '#7a8493';
+      return {
+        label: `${profile.name} · ${displayConnectionProfile(profile)} · ${health.message}`,
+        key: `connection:${profile.id}`,
+        icon: () => h(icon, { size: 15, color, 'stroke-width': 2 }),
+      };
+    });
 
     return [
       ...profileOptions,
@@ -145,23 +165,49 @@ export function useSqlWorkbenchChrome(options: SqlWorkbenchChromeOptions) {
     if (!connections.studioBridgeAvailable) return;
     nativeServerBusy.value = true;
     try {
-      await connections.refreshStudioServerStatus();
+      const status = await connections.refreshStudioServerStatus();
+      if (status?.dataRoot && (status.startedByStudio || !nativeDataRoot.value)) setNativeDataRoot(status.dataRoot);
     } finally {
       nativeServerBusy.value = false;
     }
   }
 
-  async function startNativeServer(): Promise<void> {
+  async function refreshConnectionHealth(): Promise<void> {
+    connectionHealthBusy.value = true;
+    try {
+      await connections.checkAllProfilesHealth();
+    } finally {
+      connectionHealthBusy.value = false;
+    }
+  }
+
+  async function startNativeServer(dataRoot?: string): Promise<void> {
     if (!connections.studioBridgeAvailable) return;
     nativeServerBusy.value = true;
     try {
-      const status = await connections.startStudioManagedServer();
+      const selectedRoot = dataRoot?.trim() || nativeDataRoot.value.trim() || undefined;
+      const status = await connections.startStudioManagedServer(selectedRoot);
+      if (status?.dataRoot) setNativeDataRoot(status.dataRoot);
       if (status?.healthy) {
         connections.setActiveProfile('managed-local');
         auth.setApiBaseUrl(connections.activeBaseUrl);
       }
     } finally {
       nativeServerBusy.value = false;
+    }
+  }
+
+  async function chooseNativeDataRoot(): Promise<void> {
+    const selected = await connections.selectStudioDirectory('选择 SonnetDB data root', nativeDataRoot.value);
+    if (selected) setNativeDataRoot(selected);
+  }
+
+  function setNativeDataRoot(value: string): void {
+    nativeDataRoot.value = value;
+    try {
+      localStorage.setItem(NativeDataRootStorageKey, value);
+    } catch {
+      // Studio WebView 禁用存储时仍保留本次会话状态。
     }
   }
 
@@ -181,6 +227,8 @@ export function useSqlWorkbenchChrome(options: SqlWorkbenchChromeOptions) {
     studioBridgeAvailable,
     nativeServerStatus,
     nativeServerBusy,
+    nativeDataRoot,
+    connectionHealthBusy,
     activeWorkbenchTool,
     connectionLabel,
     accessBadges,
@@ -191,9 +239,20 @@ export function useSqlWorkbenchChrome(options: SqlWorkbenchChromeOptions) {
     saveConnection,
     onConnectionSelect,
     refreshNativeServerStatus,
+    refreshConnectionHealth,
     startNativeServer,
+    chooseNativeDataRoot,
+    setNativeDataRoot,
     stopNativeServer,
   };
+}
+
+function readNativeDataRoot(): string {
+  try {
+    return localStorage.getItem(NativeDataRootStorageKey) ?? '';
+  } catch {
+    return '';
+  }
 }
 
 function displayConnectionProfile(profile: ConnectionProfile): string {

@@ -767,6 +767,59 @@ public sealed class SndbObjectStore
     }
 
     /// <summary>
+    /// 分页列出 bucket 内仍可恢复的 multipart upload 会话。
+    /// </summary>
+    /// <param name="bucket">对象桶名称。</param>
+    /// <param name="maxUploads">单页最大会话数。</param>
+    /// <param name="continuationToken">上一页返回的继续令牌。</param>
+    /// <returns>按发起时间倒序排列的活动或已过期会话。</returns>
+    public SndbMultipartUploadListResult ListMultipartUploads(
+        string bucket,
+        int maxUploads = 100,
+        string? continuationToken = null)
+    {
+        EnsureBucket(bucket);
+        if (maxUploads <= 0)
+            throw new ArgumentOutOfRangeException(nameof(maxUploads));
+
+        string? afterUploadId = DecodeContinuationToken(continuationToken);
+        var sessions = _metadata.ScanPrefix(UploadPrefix, limit: int.MaxValue)
+            .Select(entry => Deserialize(entry.Value.Span, SndbObjectStoreJsonContext.Default.SndbMultipartUploadRecord))
+            .Where(upload => string.Equals(upload.Bucket, bucket, StringComparison.Ordinal) && upload.Status == Active)
+            .Select(ToMultipartSessionInfo)
+            .OrderByDescending(static session => session.Upload.InitiatedUtc)
+            .ThenBy(static session => session.Upload.UploadId, StringComparer.Ordinal)
+            .ToList();
+
+        if (!string.IsNullOrEmpty(afterUploadId))
+        {
+            int markerIndex = sessions.FindIndex(session => string.Equals(session.Upload.UploadId, afterUploadId, StringComparison.Ordinal));
+            sessions = markerIndex < 0 ? [] : sessions.Skip(markerIndex + 1).ToList();
+        }
+
+        bool isTruncated = sessions.Count > maxUploads;
+        var page = sessions.Take(maxUploads).ToArray();
+        string? nextToken = isTruncated && page.Length > 0
+            ? EncodeContinuationToken(page[^1].Upload.UploadId)
+            : null;
+        return new SndbMultipartUploadListResult(
+            bucket,
+            maxUploads,
+            continuationToken,
+            nextToken,
+            isTruncated,
+            page);
+    }
+
+    /// <summary>
+    /// 获取一个 multipart upload 会话及其已上传分片，用于跨客户端恢复。
+    /// </summary>
+    /// <param name="uploadId">会话标识。</param>
+    /// <returns>会话和分片详情。</returns>
+    public SndbMultipartUploadSessionInfo GetMultipartUpload(string uploadId)
+        => ToMultipartSessionInfo(LoadUpload(uploadId));
+
+    /// <summary>
     /// 上传 multipart 分片。
     /// </summary>
     public async Task<SndbMultipartPartInfo> UploadPartAsync(
@@ -1059,6 +1112,19 @@ public sealed class SndbObjectStore
 
     private static SndbMultipartUploadInfo ToUploadInfo(SndbMultipartUploadRecord record) =>
         new(record.Bucket, record.Key, record.UploadId, record.ContentType, record.InitiatedUtc, record.ExpiresUtc, record.Metadata, record.Tags);
+
+    private SndbMultipartUploadSessionInfo ToMultipartSessionInfo(SndbMultipartUploadRecord record)
+    {
+        string status = record.Status == Active && record.ExpiresUtc <= DateTimeOffset.UtcNow
+            ? "expired"
+            : record.Status;
+        var parts = _metadata.ScanPrefix(PartPrefix + record.UploadId + ":", limit: int.MaxValue)
+            .Select(entry => Deserialize(entry.Value.Span, SndbObjectStoreJsonContext.Default.SndbMultipartPartRecord))
+            .OrderBy(static part => part.PartNumber)
+            .Select(static part => new SndbMultipartPartInfo(part.PartNumber, part.SizeBytes, part.ETag, part.Sha256))
+            .ToArray();
+        return new SndbMultipartUploadSessionInfo(ToUploadInfo(record), status, parts);
+    }
 
     private static SndbBucketLifecycleInfo ToLifecycleInfo(SndbBucketLifecycleRecord record) =>
         new(

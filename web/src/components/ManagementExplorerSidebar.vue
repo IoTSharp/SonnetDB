@@ -199,21 +199,27 @@
 
           <label class="maintenance-field">
             <span>备份目录</span>
-            <n-input
-              :value="backupDirectory"
-              clearable
-              placeholder="输入备份目录"
-              @update:value="$emit('update:backupDirectory', $event)"
-            />
+            <div class="maintenance-path-row">
+              <n-input
+                :value="backupDirectory"
+                clearable
+                placeholder="输入备份目录"
+                @update:value="$emit('update:backupDirectory', $event)"
+              />
+              <n-button v-if="studioBridgeAvailable" title="选择备份目录" @click="$emit('pick-backup-directory')"><FolderOpen :size="16" /></n-button>
+            </div>
           </label>
           <label class="maintenance-field">
             <span>恢复演练目标目录</span>
-            <n-input
-              :value="restoreTargetDirectory"
-              clearable
-              placeholder="输入目标目录"
-              @update:value="$emit('update:restoreTargetDirectory', $event)"
-            />
+            <div class="maintenance-path-row">
+              <n-input
+                :value="restoreTargetDirectory"
+                clearable
+                placeholder="输入目标目录"
+                @update:value="$emit('update:restoreTargetDirectory', $event)"
+              />
+              <n-button v-if="studioBridgeAvailable" title="选择恢复目标目录" @click="$emit('pick-restore-directory')"><FolderOpen :size="16" /></n-button>
+            </div>
           </label>
 
           <div class="maintenance-actions">
@@ -260,6 +266,7 @@ import {
   Database,
   FileSearch,
   FolderArchive,
+  FolderOpen,
   ListFilter,
   ListTree,
   MessageSquareMore,
@@ -299,6 +306,7 @@ const props = defineProps<{
   maintenanceBusy: string;
   maintenanceStatus: string;
   selectedIndex: IndexLifecycleInfo | null;
+  studioBridgeAvailable: boolean;
   explorerGroups: (dbNode: DatabaseTreeNode) => ExplorerGroup[];
 }>();
 
@@ -320,6 +328,8 @@ defineEmits<{
   'update:restoreTargetDirectory': [value: string];
   'verify-backup': [];
   'restore-dry-run': [];
+  'pick-backup-directory': [];
+  'pick-restore-directory': [];
 }>();
 
 type ViewMode = 'simple' | 'detailed';
@@ -678,6 +688,12 @@ function modelIcon(model: ExplorerModel): Component {
 .maintenance-field {
   display: flex;
   flex-direction: column;
+}
+
+.maintenance-path-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  gap: 8px;
 }
 
 .maintenance-panel {

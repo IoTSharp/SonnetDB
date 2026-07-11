@@ -1,0 +1,9 @@
+FRAME 09 — MQ overview
+Keep the shared framework. Select MQ Topics > telemetry.raw. Inner tabs: 概览, 消息, 消费者组, 配置. 概览 is active. Show a restrained throughput/backlog time-series plot, topic offsets, retention, durable state, consumer lag, and DLQ summary. Use one continuous operational layout with dividers, not KPI cards. Primary action is 刷新监控. Output: prototype-09-mq-overview.png.
+
+FRAME 10 — MQ messages
+Preserve the approved reference MQ structure. 消息 is active. Show message table with offset, time, headers, payload and a 384px right inspector. Inspector shows offset/time/size, Headers and formatted JSON Payload with Text/JSON/Hex/Base64 switch. Toolbar supports pause/live, offset or time seek, filter, and 发布测试消息. Only compact summaries: messages 48, consumer lag 4, consumers 1. Output: prototype-10-mq-messages.png.
+
+FRAME 11 — MQ consumer groups
+Keep the same shell and telemetry.raw topic. 消费者组 is active. Main table shows group name, state, committed offset, high water, lag, delivery mode, and last activity. Select iotsharp-rule-engine; right inspector shows lag trend, subscription/durable state, and staged Ack Offset action. A warning group with lag 17 is visible but not visually overwhelming. Output: prototype-11-mq-consumers.png.
+

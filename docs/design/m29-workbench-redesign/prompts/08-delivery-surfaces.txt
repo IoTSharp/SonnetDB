@@ -1,0 +1,7 @@
+FRAME 16 — Studio native bridge
+Keep the shared Web Admin shell. Open the top connection popover. Show factory-cluster Remote and Managed Local entries. Managed Local displays Studio bridge, data root C:\SonnetDB\data, Server 3.1.0, running/healthy state, last health check, and Health/Stop controls. Include 添加远程连接. The underlying workbench stays visible and unchanged. No token or secret values. Output: prototype-16-studio-bridge.png.
+
+FRAME 17 — VS Code developer subset
+Create a faithful VS Code dark-theme extension screen, not the Web Admin shell. Left Activity Bar and SONNETDB Explorer show remote connection factory-cluster, factory database, Measurements, Tables, Collections, KV Keyspaces, Vector Indexes, FullText Indexes, and MQ Topics. Center editor shows a SonnetDB SQL query and lower Table/Raw/Chart result panel. Right SonnetDB Copilot panel is explicitly Read-only. Status bar shows connection, database, SonnetDB 3.1.0, SQL, Read-only. Do not show object buckets, full governance forms, imports, or write grids. Output: prototype-17-vscode.png.
+
+Strict correction: the Explorer must end at MQ Topics and must not contain Object Buckets, Buckets, S3, raw-data, ml-models, exports, governance, or backup nodes. The right panel must be a recognizable conversational Copilot chat with user and assistant message turns, citations, a prompt input, and a Read-only badge; it must not be a query properties inspector, schema inspector, or form.

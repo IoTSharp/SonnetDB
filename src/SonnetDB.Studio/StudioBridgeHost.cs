@@ -6,6 +6,7 @@ using System.Text.Json.Serialization.Metadata;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -21,6 +22,8 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
     private readonly StudioHostOptions _options;
     private readonly StudioConnectionLibrary _connections;
     private readonly StudioManagedServerHost _managedServer;
+    private string _selectedDataRoot;
+    private string _selectedManagedServerUrl;
     private WebApplication? _app;
 
     /// <summary>
@@ -34,6 +37,8 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
         BaseUrl = $"http://127.0.0.1:{options.BridgePort}";
         _connections = new StudioConnectionLibrary(options.ConnectionLibraryPath, options.ManagedServerUrl);
         _managedServer = new StudioManagedServerHost(options.ServerExecutable, options.KeepManagedServer);
+        _selectedDataRoot = options.DataRoot;
+        _selectedManagedServerUrl = options.ManagedServerUrl;
     }
 
     /// <summary>
@@ -75,6 +80,9 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
         group.MapPut("/connections", SaveConnectionsAsync);
         group.MapPost("/dialogs/open-file", OpenFileAsync);
         group.MapPost("/dialogs/save-file", SaveFileAsync);
+        group.MapPost("/dialogs/open-binary", OpenBinaryFileAsync);
+        group.MapPost("/dialogs/save-binary", SaveBinaryFileAsync);
+        group.MapPost("/dialogs/select-directory", SelectDirectoryAsync);
         group.MapGet("/server/status", WriteServerStatusAsync);
         group.MapPost("/server/start", StartServerAsync);
         group.MapPost("/server/stop", StopServerAsync);
@@ -88,7 +96,7 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
     /// </summary>
     /// <param name="cancellationToken">取消令牌。</param>
     public Task<StudioManagedServerStatus> StartManagedServerAsync(CancellationToken cancellationToken)
-        => _managedServer.StartAsync(_options.DataRoot, _options.ManagedServerUrl, cancellationToken);
+        => _managedServer.StartAsync(_selectedDataRoot, _selectedManagedServerUrl, cancellationToken);
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
@@ -137,8 +145,8 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
     private async Task WriteManifestAsync(HttpContext context)
     {
         var status = await _managedServer.GetStatusAsync(
-            _options.DataRoot,
-            _options.ManagedServerUrl,
+            _selectedDataRoot,
+            _selectedManagedServerUrl,
             context.RequestAborted).ConfigureAwait(false);
         await WriteJsonAsync(context, BuildManifest(status), StudioBridgeJsonContext.Default.StudioBridgeManifest).ConfigureAwait(false);
     }
@@ -186,11 +194,51 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
         await WriteJsonAsync(context, result, StudioBridgeJsonContext.Default.StudioSaveFileResult).ConfigureAwait(false);
     }
 
+    private async Task OpenBinaryFileAsync(HttpContext context)
+    {
+        var request = await ReadJsonAsync(context, StudioBridgeJsonContext.Default.StudioOpenBinaryFileRequest).ConfigureAwait(false)
+            ?? new StudioOpenBinaryFileRequest(null, null);
+        var file = new StudioFileDialogService().OpenBinaryFile(request);
+        if (file is null)
+        {
+            context.Response.StatusCode = StatusCodes.Status204NoContent;
+            return;
+        }
+
+        context.Response.ContentType = "application/octet-stream";
+        context.Response.ContentLength = file.Length;
+        context.Response.Headers.ContentDisposition = $"attachment; filename*=UTF-8''{Uri.EscapeDataString(file.Name)}";
+        await context.Response.SendFileAsync(file.FullName, context.RequestAborted).ConfigureAwait(false);
+    }
+
+    private async Task SaveBinaryFileAsync(HttpContext context)
+    {
+        var bodySizeFeature = context.Features.Get<IHttpMaxRequestBodySizeFeature>();
+        if (bodySizeFeature is not null && !bodySizeFeature.IsReadOnly)
+            bodySizeFeature.MaxRequestBodySize = null;
+        var title = context.Request.Query["title"].ToString();
+        var suggestedName = context.Request.Query["suggestedName"].ToString();
+        var result = await new StudioFileDialogService().SaveBinaryFileAsync(
+            title,
+            suggestedName,
+            context.Request.Body,
+            context.RequestAborted).ConfigureAwait(false);
+        await WriteJsonAsync(context, result, StudioBridgeJsonContext.Default.StudioSaveFileResult).ConfigureAwait(false);
+    }
+
+    private async Task SelectDirectoryAsync(HttpContext context)
+    {
+        var request = await ReadJsonAsync(context, StudioBridgeJsonContext.Default.StudioSelectDirectoryRequest).ConfigureAwait(false)
+            ?? new StudioSelectDirectoryRequest(null, null);
+        var result = new StudioFileDialogService().SelectDirectory(request);
+        await WriteJsonAsync(context, result, StudioBridgeJsonContext.Default.StudioSelectDirectoryResult).ConfigureAwait(false);
+    }
+
     private async Task WriteServerStatusAsync(HttpContext context)
     {
         var status = await _managedServer.GetStatusAsync(
-            _options.DataRoot,
-            _options.ManagedServerUrl,
+            _selectedDataRoot,
+            _selectedManagedServerUrl,
             context.RequestAborted).ConfigureAwait(false);
         await WriteJsonAsync(context, status, StudioBridgeJsonContext.Default.StudioManagedServerStatus).ConfigureAwait(false);
     }
@@ -199,9 +247,11 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
     {
         var request = await ReadJsonAsync(context, StudioBridgeJsonContext.Default.StudioManagedServerRequest).ConfigureAwait(false)
             ?? new StudioManagedServerRequest(null, null);
+        _selectedDataRoot = string.IsNullOrWhiteSpace(request.DataRoot) ? _selectedDataRoot : Path.GetFullPath(request.DataRoot);
+        _selectedManagedServerUrl = string.IsNullOrWhiteSpace(request.Url) ? _selectedManagedServerUrl : request.Url.Trim().TrimEnd('/');
         var status = await _managedServer.StartAsync(
-            string.IsNullOrWhiteSpace(request.DataRoot) ? _options.DataRoot : request.DataRoot,
-            string.IsNullOrWhiteSpace(request.Url) ? _options.ManagedServerUrl : request.Url,
+            _selectedDataRoot,
+            _selectedManagedServerUrl,
             context.RequestAborted).ConfigureAwait(false);
         await WriteJsonAsync(context, status, StudioBridgeJsonContext.Default.StudioManagedServerStatus).ConfigureAwait(false);
     }
@@ -211,8 +261,8 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
         var request = await ReadJsonAsync(context, StudioBridgeJsonContext.Default.StudioManagedServerRequest).ConfigureAwait(false)
             ?? new StudioManagedServerRequest(null, null);
         var status = await _managedServer.StopAsync(
-            string.IsNullOrWhiteSpace(request.DataRoot) ? _options.DataRoot : request.DataRoot,
-            string.IsNullOrWhiteSpace(request.Url) ? _options.ManagedServerUrl : request.Url,
+            string.IsNullOrWhiteSpace(request.DataRoot) ? _selectedDataRoot : request.DataRoot,
+            string.IsNullOrWhiteSpace(request.Url) ? _selectedManagedServerUrl : request.Url,
             context.RequestAborted).ConfigureAwait(false);
         await WriteJsonAsync(context, status, StudioBridgeJsonContext.Default.StudioManagedServerStatus).ConfigureAwait(false);
     }
@@ -222,11 +272,14 @@ internal sealed class StudioBridgeHost : IAsyncDisposable
             "studio-desktop",
             Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0",
             _options.ServerUrl,
-            _options.ManagedServerUrl,
-            _options.DataRoot,
+            _selectedManagedServerUrl,
+            _selectedDataRoot,
             [
                 "dialogs.openFile",
                 "dialogs.saveFile",
+                "dialogs.openBinary",
+                "dialogs.saveBinary",
+                "dialogs.selectDirectory",
                 "connections.diskLibrary",
                 "server.managedLocal",
                 "menu.desktopActions",

@@ -57,7 +57,7 @@ Studio 桌面复用上表全部 Web Admin 模型能力，因此模型级 parity 
 | 磁盘连接库 | 完整 | profile 落 `connections.json`；鉴权 token 不落盘 |
 | 托管本地 Server | 完整 | 指定 `data root` 启停进程并轮询 `/healthz`；可选择退出时保留 |
 | 浏览器降级 | 完整 | bridge 不可用时回退 `localStorage`、浏览器下载和 file input |
-| 对象/备份专用原生文件接线 | 部分 | 对象工作台仍主要使用 WebView file input / Blob 下载；备份路径仍为文本输入 |
+| 对象/备份专用原生文件接线 | 完整 | 对象上传/下载与 Multipart 分片优先走二进制原生对话框；备份、恢复和 data root 使用原生目录选择器，浏览器环境自动降级 |
 | 宿主原生菜单 | 规划中 | bridge manifest 已暴露 desktop actions，但尚未映射为 Win32 菜单 |
 
 ![Studio 桌面 bridge 状态与托管本地 Server 控件]({{ site.docs_baseurl | default: '/help' }}/assets/studio-native-bridge.png)
@@ -122,7 +122,7 @@ npm test
 | 范围 | 已实现证据 | 收口结论 |
 | --- | --- | --- |
 | #258 bridge 鉴权与 manifest | `StudioBridgeHost.cs`、`StudioBridgeContracts.cs` | 已实现 loopback + token、capability manifest 和状态 API |
-| #258 文件与连接库 | `StudioFileDialogService.cs`、`StudioConnectionLibrary.cs`、`studioNativeBridge.ts` | 核心已实现；关系导入导出/共享导出已接线，对象与备份仍有专用接线缺口 |
+| #258 文件与连接库 | `StudioFileDialogService.cs`、`StudioConnectionLibrary.cs`、`studioNativeBridge.ts` | 文本/二进制打开保存、目录选择、关系与对象导入导出、备份/恢复目录和磁盘连接库均已接线 |
 | #258 托管本地 Server | `StudioManagedServerHost.cs`、`Program.cs` | 已实现进程启停、data root、健康检查与退出策略 |
 | #258 原生菜单 | `StudioBridgeManifest.Menu` | 仅 action manifest，尚无 Win32 菜单映射 |
 | #259 多模型消费 | `sonnetdbClient.ts`、`sonnetdbTreeDataProvider.ts`、`extension.ts` | KV/向量/全文/MQ 只读浏览与预览已接线 |

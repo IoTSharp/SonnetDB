@@ -330,7 +330,10 @@
             <n-text class="object-section-title object-section-title--standalone">Put object</n-text>
             <n-input v-model:value="uploadKey" size="small" placeholder="Object key" />
             <n-input v-model:value="uploadContentType" size="small" placeholder="Content-Type" />
-            <input type="file" class="object-file-input" @change="onUploadFileChange">
+            <input ref="uploadFileInput" type="file" class="object-file-input" @change="onUploadFileChange">
+            <n-button size="small" secondary @click="pickUploadFile">
+              {{ uploadFile ? uploadFile.name : '选择上传文件' }}
+            </n-button>
             <n-input
               v-model:value="uploadText"
               type="textarea"
@@ -373,6 +376,20 @@
 
         <section v-else-if="inspectorTab === 'multipart'" class="object-inspector-section">
           <div class="object-form-block">
+            <div class="object-form-row">
+              <n-select
+                :value="activeMultipart?.uploadId ?? null"
+                :options="multipartSessionOptions"
+                clearable
+                filterable
+                placeholder="选择服务器上的 Multipart 会话"
+                @update:value="resumeMultipartSession"
+              />
+              <n-button size="small" secondary :loading="loadingMultipartSessions" @click="loadMultipartSessions(true)">刷新会话</n-button>
+            </div>
+            <n-button v-if="multipartSessionsHasMore" size="tiny" quaternary @click="loadMultipartSessions(false)">加载更多会话</n-button>
+          </div>
+          <div class="object-form-block">
             <n-text class="object-section-title object-section-title--standalone">Current multipart session</n-text>
             <n-input v-model:value="multipartKey" size="small" placeholder="Object key" />
             <n-input v-model:value="multipartContentType" size="small" placeholder="Content-Type" />
@@ -390,19 +407,22 @@
               <span>{{ activeMultipart.uploadId }}</span>
               <small>expires {{ formatDate(activeMultipart.expiresUtc) }} · {{ multipartParts.length }} parts</small>
             </template>
-            <span v-else>No active multipart session in this browser tab.</span>
+            <span v-else>没有活动会话。可从服务器会话列表恢复或新建。</span>
           </div>
 
           <div class="object-form-block">
             <div class="object-form-row">
-              <n-input-number v-model:value="multipartPartNumber" size="small" :min="1" :show-button="false" placeholder="Part number" />
-              <input type="file" class="object-file-input" :disabled="!activeMultipart" @change="onMultipartFileChange">
+              <n-input-number v-model:value="multipartPartNumber" size="small" :min="1" :show-button="false" placeholder="Part number" :disabled="activeMultipartStatus !== 'active'" />
+              <input ref="multipartFileInput" type="file" class="object-file-input" :disabled="activeMultipartStatus !== 'active'" @change="onMultipartFileChange">
+              <n-button size="small" secondary :disabled="activeMultipartStatus !== 'active'" @click="pickMultipartFile">
+                {{ multipartFile ? multipartFile.name : '选择分片文件' }}
+              </n-button>
             </div>
             <n-space size="small" align="center" :wrap="true">
-              <n-button size="small" secondary :disabled="!activeMultipart || !multipartFile" @click="stageUploadPart">
+              <n-button size="small" secondary :disabled="activeMultipartStatus !== 'active' || !multipartFile" @click="stageUploadPart">
                 Stage upload part
               </n-button>
-              <n-button size="small" secondary :disabled="!activeMultipart || multipartParts.length === 0" @click="stageCompleteMultipart">
+              <n-button size="small" secondary :disabled="activeMultipartStatus !== 'active' || multipartParts.length === 0" @click="stageCompleteMultipart">
                 Stage complete
               </n-button>
               <n-button size="small" tertiary type="error" :disabled="!activeMultipart" @click="stageAbortMultipart">
@@ -502,6 +522,7 @@ import {
   getObjectLegalHold,
   getObjectTags,
   initiateMultipartUpload,
+  listMultipartUploads,
   listBucketAudit,
   listObjectBuckets,
   listObjects,
@@ -516,6 +537,7 @@ import {
   uploadMultipartPart,
   type MultipartPartResponse,
   type MultipartUploadCreateResponse,
+  type MultipartUploadSessionResponse,
   type ObjectAuditEntryResponse,
   type ObjectBucketResponse,
   type ObjectInfoResponse,
@@ -524,6 +546,7 @@ import {
   type ObjectRetentionResponse,
   type ObjectStatsResponse,
 } from '@/api/objectStorage';
+import { currentStudioNativeBridge } from '@/api/studioNativeBridge';
 import type { SqlResultSet } from '@/api/sql';
 import WorkbenchHistoryDrawer from '@/components/WorkbenchHistoryDrawer.vue';
 import WorkbenchResultPanel from '@/components/WorkbenchResultPanel.vue';
@@ -600,6 +623,10 @@ const versions = ref<ObjectInfoResponse[]>([]);
 const auditEntries = ref<ObjectAuditEntryResponse[]>([]);
 const activeMultipart = ref<MultipartUploadCreateResponse | null>(null);
 const multipartParts = ref<MultipartPartResponse[]>([]);
+const multipartSessions = ref<MultipartUploadSessionResponse[]>([]);
+const multipartSessionsCursor = ref<string | null>(null);
+const multipartSessionsHasMore = ref(false);
+const loadingMultipartSessions = ref(false);
 const currentPrefix = ref('');
 const prefixInput = ref('');
 const delimiter = ref('/');
@@ -645,6 +672,8 @@ const multipartContentType = ref('application/octet-stream');
 const multipartExpiresHours = ref<number | null>(24);
 const multipartPartNumber = ref<number | null>(1);
 const multipartFile = ref<File | null>(null);
+const uploadFileInput = ref<HTMLInputElement | null>(null);
+const multipartFileInput = ref<HTMLInputElement | null>(null);
 const auditPrefix = ref('');
 const auditMaxEntries = ref<number | null>(100);
 const legalHoldEnabled = ref(false);
@@ -656,6 +685,14 @@ const latestResult = ref<SqlResultSet | null>(null);
 const latestCommand = ref('');
 const ranOnce = ref(false);
 const historyVisible = ref(false);
+
+const multipartSessionOptions = computed(() => multipartSessions.value.map((session) => ({
+  label: `${session.upload.key} · ${session.parts.length} parts · ${session.status}`,
+  value: session.upload.uploadId,
+})));
+const activeMultipartStatus = computed(() =>
+  multipartSessions.value.find((session) => session.upload.uploadId === activeMultipart.value?.uploadId)?.status
+    ?? (activeMultipart.value ? 'active' : null));
 
 const lifecycleDraft = reactive<Omit<ObjectLifecycleResponse, 'bucket' | 'updatedUtc'>>({
   expireCurrentAfterDays: null,
@@ -895,6 +932,7 @@ async function refreshAll(): Promise<void> {
         loadGovernance(activeBucket.value),
         loadVersions(),
         loadAudit(),
+        loadMultipartSessions(true),
       ]);
     } else {
       clearRows();
@@ -997,6 +1035,59 @@ async function loadAudit(): Promise<void> {
   }
 }
 
+async function loadMultipartSessions(reset: boolean): Promise<void> {
+  const bucket = activeBucket.value;
+  if (!props.targetDb || !bucket) {
+    multipartSessions.value = [];
+    multipartSessionsCursor.value = null;
+    multipartSessionsHasMore.value = false;
+    return;
+  }
+  loadingMultipartSessions.value = true;
+  try {
+    const response = await listMultipartUploads(
+      auth.api,
+      props.targetDb,
+      bucket,
+      100,
+      reset ? null : multipartSessionsCursor.value,
+    );
+    multipartSessions.value = reset
+      ? response.uploads
+      : mergeMultipartSessions(multipartSessions.value, response.uploads);
+    multipartSessionsCursor.value = response.nextContinuationToken ?? null;
+    multipartSessionsHasMore.value = response.isTruncated;
+    if (activeMultipart.value) {
+      const refreshed = multipartSessions.value.find((session) => session.upload.uploadId === activeMultipart.value?.uploadId);
+      if (refreshed) applyMultipartSession(refreshed);
+    }
+  } catch (error) {
+    errorMsg.value = errorToMessage(error, '加载 Multipart 会话失败');
+  } finally {
+    loadingMultipartSessions.value = false;
+  }
+}
+
+function resumeMultipartSession(uploadId: string | null): void {
+  if (!uploadId) {
+    activeMultipart.value = null;
+    multipartParts.value = [];
+    multipartFile.value = null;
+    return;
+  }
+  const session = multipartSessions.value.find((item) => item.upload.uploadId === uploadId);
+  if (session) applyMultipartSession(session);
+}
+
+function applyMultipartSession(session: MultipartUploadSessionResponse): void {
+  activeMultipart.value = session.upload;
+  multipartParts.value = [...session.parts].sort((left, right) => left.partNumber - right.partNumber);
+  multipartKey.value = session.upload.key;
+  multipartContentType.value = session.upload.contentType;
+  multipartPartNumber.value = (multipartParts.value.at(-1)?.partNumber ?? 0) + 1;
+  multipartFile.value = null;
+}
+
 function selectBucket(bucket: string): void {
   if (!bucket) return;
   emit('selectBucket', bucket);
@@ -1042,6 +1133,11 @@ function clearBucketMetadata(): void {
   stats.value = null;
   versions.value = [];
   auditEntries.value = [];
+  multipartSessions.value = [];
+  multipartSessionsCursor.value = null;
+  multipartSessionsHasMore.value = false;
+  activeMultipart.value = null;
+  multipartParts.value = [];
   policyDraft.value = '';
   lifecycleDraft.expireCurrentAfterDays = null;
   lifecycleDraft.expireNoncurrentAfterDays = null;
@@ -1082,6 +1178,16 @@ async function downloadSelectedObject(): Promise<void> {
   if (!row) return;
   try {
     const response = await getObjectBlob(auth.api, props.targetDb, row.bucket, row.key);
+    const bridge = currentStudioNativeBridge();
+    if (bridge) {
+      const saved = await bridge.saveBinaryFile({
+        title: `保存 ${row.key}`,
+        suggestedName: fileNameFromKey(row.key),
+        content: response.blob,
+      });
+      if (!saved.canceled) message.success(`已保存 ${saved.fileName ?? fileNameFromKey(row.key)}`);
+      return;
+    }
     const url = URL.createObjectURL(response.blob);
     const link = document.createElement('a');
     link.href = url;
@@ -1414,6 +1520,7 @@ function stageInitiateMultipart(): void {
       });
       activeMultipart.value = response;
       multipartParts.value = [];
+      await loadMultipartSessions(true);
       return { action: 'multipart.initiate', target: key, succeeded: true, affected: 1, detail: response.uploadId };
     },
   }];
@@ -1435,6 +1542,7 @@ function stageUploadPart(): void {
       multipartParts.value = mergeParts(multipartParts.value, part);
       multipartPartNumber.value = partNumber + 1;
       multipartFile.value = null;
+      await loadMultipartSessions(true);
       return { action: 'multipart.part.put', target: upload.key, succeeded: true, affected: 1, detail: `part ${part.partNumber}` };
     },
   }];
@@ -1454,6 +1562,7 @@ function stageCompleteMultipart(): void {
       const response = await completeMultipartUpload(auth.api, props.targetDb, upload.bucket, upload.key, upload.uploadId, partNumbers);
       activeMultipart.value = null;
       multipartParts.value = [];
+      await loadMultipartSessions(true);
       return { action: 'multipart.complete', target: response.key, succeeded: true, affected: 1, detail: response.versionId };
     },
   }];
@@ -1472,6 +1581,7 @@ function stageAbortMultipart(): void {
       await abortMultipartUpload(auth.api, props.targetDb, upload.bucket, upload.key, upload.uploadId);
       activeMultipart.value = null;
       multipartParts.value = [];
+      await loadMultipartSessions(true);
       return { action: 'multipart.abort', target: upload.key, succeeded: true, affected: 1, detail: 'aborted' };
     },
   }];
@@ -1529,9 +1639,46 @@ function onUploadFileChange(event: Event): void {
   }
 }
 
+async function pickUploadFile(): Promise<void> {
+  const bridge = currentStudioNativeBridge();
+  if (!bridge) {
+    uploadFileInput.value?.click();
+    return;
+  }
+  try {
+    const selected = await bridge.openBinaryFile({ title: '选择要上传的对象文件' });
+    if (selected.canceled || !selected.content) return;
+    const name = selected.fileName || 'upload.bin';
+    uploadFile.value = new File([selected.content], name, { type: selected.content.type || 'application/octet-stream' });
+    uploadKey.value ||= currentPrefix.value + name;
+    uploadContentType.value = uploadFile.value.type || uploadContentType.value;
+  } catch (error) {
+    errorMsg.value = errorToMessage(error, '打开对象文件失败');
+  }
+}
+
 function onMultipartFileChange(event: Event): void {
   const input = event.target as HTMLInputElement;
   multipartFile.value = input.files?.[0] ?? null;
+}
+
+async function pickMultipartFile(): Promise<void> {
+  const bridge = currentStudioNativeBridge();
+  if (!bridge) {
+    multipartFileInput.value?.click();
+    return;
+  }
+  try {
+    const selected = await bridge.openBinaryFile({ title: '选择 Multipart 分片文件' });
+    if (selected.canceled || !selected.content) return;
+    multipartFile.value = new File(
+      [selected.content],
+      selected.fileName || `part-${multipartPartNumber.value ?? 1}.bin`,
+      { type: selected.content.type || 'application/octet-stream' },
+    );
+  } catch (error) {
+    errorMsg.value = errorToMessage(error, '打开分片文件失败');
+  }
 }
 
 function rowKey(row: ObjectRow): string {
@@ -1558,6 +1705,16 @@ function mergeParts(existing: MultipartPartResponse[], part: MultipartPartRespon
   const map = new Map(existing.map((item) => [item.partNumber, item]));
   map.set(part.partNumber, part);
   return [...map.values()].sort((a, b) => a.partNumber - b.partNumber);
+}
+
+function mergeMultipartSessions(
+  existing: MultipartUploadSessionResponse[],
+  incoming: MultipartUploadSessionResponse[],
+): MultipartUploadSessionResponse[] {
+  const map = new Map(existing.map((session) => [session.upload.uploadId, session]));
+  for (const session of incoming) map.set(session.upload.uploadId, session);
+  return [...map.values()].sort((left, right) =>
+    right.upload.initiatedUtc.localeCompare(left.upload.initiatedUtc));
 }
 
 function syncSelectedAfterRows(): void {
@@ -2301,14 +2458,7 @@ onMounted(() => {
 }
 
 .object-file-input {
-  width: 100%;
-  min-width: 0;
-  padding: 6px 8px;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  border-radius: 4px;
-  background: #fff;
-  color: var(--sndb-ink-soft);
-  font-size: 12px;
+  display: none;
 }
 
 .object-multipart-card {

@@ -1,0 +1,10 @@
+Use case: ui-mockup
+Asset type: SonnetDB Studio production design review, desktop 1536x1024
+Input image: the supplied concept-framework-microsoft365-light.png is the geometry, density, shell, color, typography, and interaction-style reference.
+
+Preserve the exact global framework: 56px near-white top command bar, 64px left global module rail, 304px resource explorer with fixed toolbar and visible scrollbar, 44px editor tab strip, central workbench, optional 384px right inspector, splitters, and fixed database health strip. Preserve the current Microsoft 365 light palette, precise 1px borders, 6px maximum corners, 14px base text, 36px controls, 40px tree rows, and high-contrast white data surfaces.
+
+This is an operational multi-model database IDE for engineers, not a landing page, not a marketing dashboard, not a card mosaic. Do not add hero copy, illustrations, decorative charts, glass cards, large gradients, purple surfaces, rounded pill soup, floating panels, or tiny text. Pastel ambience is allowed only in the outer shell canvas, never inside dense data surfaces.
+
+Use simplified Chinese utility labels with natural English object names and SQL/database terms. Keep all text legible and aligned. One primary action per task. Dangerous actions use restrained red only at the final risk point. The workbench must look implementation-ready and consistent with the reference image.
+

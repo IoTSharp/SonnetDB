@@ -21,6 +21,15 @@ export interface ConnectionProfile {
   updatedAt: number;
 }
 
+export type ConnectionHealthState = 'unknown' | 'checking' | 'healthy' | 'unhealthy';
+
+export interface ConnectionHealth {
+  state: ConnectionHealthState;
+  checkedAt: number | null;
+  latencyMs: number | null;
+  message: string;
+}
+
 interface StoredConnectionsState {
   profiles: ConnectionProfile[];
   activeProfileId: string;
@@ -124,6 +133,7 @@ export const useConnectionsStore = defineStore('connections', () => {
   const studioBridge = shallowRef<StudioNativeBridgeClient | null>(null);
   const studioBridgeManifest = ref<StudioBridgeManifest | null>(null);
   const studioManagedServerStatus = ref<StudioManagedServerStatus | null>(null);
+  const profileHealth = ref<Record<string, ConnectionHealth>>({});
   let syncingFromStudioBridge = false;
 
   const activeProfile = computed(() =>
@@ -137,6 +147,63 @@ export const useConnectionsStore = defineStore('connections', () => {
   });
 
   const studioBridgeAvailable = computed(() => studioBridge.value !== null);
+
+  function healthFor(id: string): ConnectionHealth {
+    return profileHealth.value[id] ?? {
+      state: 'unknown',
+      checkedAt: null,
+      latencyMs: null,
+      message: '尚未检查',
+    };
+  }
+
+  async function checkProfileHealth(id: string): Promise<ConnectionHealth> {
+    const profile = profiles.value.find((item) => item.id === id);
+    if (!profile) return healthFor(id);
+
+    profileHealth.value = {
+      ...profileHealth.value,
+      [id]: { ...healthFor(id), state: 'checking', message: '正在检查' },
+    };
+    const started = performance.now();
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 5000);
+    let health: ConnectionHealth;
+    try {
+      const baseUrl = normalizeBaseUrl(profile.baseUrl);
+      const response = await fetch(`${baseUrl === '/' ? '' : baseUrl}/healthz`, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        signal: controller.signal,
+      });
+      const latencyMs = Math.max(0, Math.round(performance.now() - started));
+      const payload = response.ok ? await response.json() as { status?: unknown } : null;
+      const healthy = response.ok && payload?.status === 'ok';
+      health = {
+        state: healthy ? 'healthy' : 'unhealthy',
+        checkedAt: now(),
+        latencyMs,
+        message: healthy ? `健康 · ${latencyMs} ms` : `HTTP ${response.status}`,
+      };
+    } catch (error) {
+      const timedOut = error instanceof DOMException && error.name === 'AbortError';
+      health = {
+        state: 'unhealthy',
+        checkedAt: now(),
+        latencyMs: null,
+        message: timedOut ? '检查超时' : error instanceof Error ? error.message : '连接失败',
+      };
+    } finally {
+      window.clearTimeout(timer);
+    }
+
+    profileHealth.value = { ...profileHealth.value, [id]: health };
+    return health;
+  }
+
+  async function checkAllProfilesHealth(): Promise<void> {
+    await Promise.all(profiles.value.map((profile) => checkProfileHealth(profile.id)));
+  }
 
   function setActiveProfile(id: string): void {
     const profile = profiles.value.find((item) => item.id === id);
@@ -235,9 +302,9 @@ export const useConnectionsStore = defineStore('connections', () => {
     return status;
   }
 
-  async function startStudioManagedServer(): Promise<StudioManagedServerStatus | null> {
+  async function startStudioManagedServer(dataRoot?: string): Promise<StudioManagedServerStatus | null> {
     if (!studioBridge.value) return null;
-    const status = await studioBridge.value.startServer();
+    const status = await studioBridge.value.startServer({ dataRoot: dataRoot?.trim() || undefined });
     studioManagedServerStatus.value = status;
     if (status.url) setManagedLocalBaseUrl(status.url);
     return status;
@@ -245,9 +312,19 @@ export const useConnectionsStore = defineStore('connections', () => {
 
   async function stopStudioManagedServer(): Promise<StudioManagedServerStatus | null> {
     if (!studioBridge.value) return null;
-    const status = await studioBridge.value.stopServer();
+    const status = await studioBridge.value.stopServer({
+      dataRoot: studioManagedServerStatus.value?.dataRoot || undefined,
+      url: studioManagedServerStatus.value?.url || undefined,
+    });
     studioManagedServerStatus.value = status;
     return status;
+  }
+
+  async function selectStudioDirectory(title: string, initialPath?: string): Promise<string | null> {
+    if (!studioBridge.value) return null;
+    const result = await studioBridge.value.selectDirectory({ title, initialPath });
+    if (result.error) throw new Error(result.error);
+    return result.canceled ? null : result.path;
   }
 
   function applyStudioSnapshot(snapshot: StudioConnectionLibrarySnapshot): void {
@@ -306,6 +383,10 @@ export const useConnectionsStore = defineStore('connections', () => {
     studioBridgeAvailable,
     studioBridgeManifest,
     studioManagedServerStatus,
+    profileHealth,
+    healthFor,
+    checkProfileHealth,
+    checkAllProfilesHealth,
     setActiveProfile,
     setActiveDatabase,
     upsertRemoteProfile,
@@ -315,5 +396,6 @@ export const useConnectionsStore = defineStore('connections', () => {
     refreshStudioServerStatus,
     startStudioManagedServer,
     stopStudioManagedServer,
+    selectStudioDirectory,
   };
 });

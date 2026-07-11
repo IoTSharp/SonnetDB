@@ -1,0 +1,6 @@
+FRAME 12 — Vector search playground
+Keep the shared framework. Select Vector Indexes > embeddings.vector. Inner tabs: 检索 Playground and 索引详情. Search is active. Main query builder supports Text Embed / Raw Vector segmented mode, Chinese maintenance query text, Top-K, metadata filter, and dimension match status. Results table shows rank, score, deviceId, summary, time. Right inspector shows the selected hit fields, tags, score, and index parameters: 768 dimensions, cosine, HNSW M=16, efConstruction=200. This remains read-only. Output: prototype-12-vector.png.
+
+FRAME 13 — FullText search and analyzer
+Keep the shared framework. Select FullText Indexes > docs.search. Inner tabs: 检索, Analyzer, 索引详情. 检索 is active. Show BM25 search for 轴承 温度 异常 with All/Any/Phrase/Fuzzy builder, field selector, score, highlighted snippets, source, and time. Right inspector shows the full selected document. Include a visible but secondary Analyzer tab; do not mix token preview into the default search page. Output: prototype-13-fulltext.png.
+
