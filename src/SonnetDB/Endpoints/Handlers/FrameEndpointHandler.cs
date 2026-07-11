@@ -4,10 +4,9 @@ using System.IO.Pipelines;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using SonnetDB.Auth;
-using SonnetDB.Configuration;
 using SonnetDB.Contracts;
+using SonnetDB.Diagnostics;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
 using SonnetDB.Hosting;
@@ -343,8 +342,7 @@ internal static class FrameEndpointHandler
     {
         metrics.RecordSqlRequest();
         var sw = Stopwatch.StartNew();
-        var broadcaster = ctx.RequestServices.GetService<EventBroadcaster>();
-        var options = ctx.RequestServices.GetService<IOptions<ServerOptions>>()?.Value;
+        var diagnostics = ctx.RequestServices.GetService<SlowQueryDiagnostics>();
 
         SqlQueryFrameRequest request;
         try
@@ -442,7 +440,7 @@ internal static class FrameEndpointHandler
             double elapsed = sw.Elapsed.TotalMilliseconds;
             SqlFrameCodec.EncodeQueryEndFrame(writer, header.StreamId, select.Rows.Count, elapsed);
             metrics.AddReturnedRows(select.Rows.Count);
-            SqlEndpointHandler.MaybePublishSlow(broadcaster, options, request.Db, request.Sql, elapsed, select.Rows.Count, -1, failed: false);
+            SqlEndpointHandler.RecordSlow(diagnostics, request.Db, request.Sql, elapsed, select.Rows.Count, -1, failed: false);
         }
         catch (OperationCanceledException) when (ctx.RequestAborted.IsCancellationRequested)
         {
@@ -451,7 +449,7 @@ internal static class FrameEndpointHandler
         catch (Exception ex)
         {
             metrics.RecordSqlError();
-            SqlEndpointHandler.MaybePublishSlow(broadcaster, options, request.Db, request.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+            SqlEndpointHandler.RecordSlow(diagnostics, request.Db, request.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
             // meta/rows 帧可能已写出：错误帧同 streamId 追加，客户端按「end 前收到错误帧」终止该查询
             string code = ex is ArgumentException ? "bad_request" : "sql_error";
             FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, code, ex.Message);

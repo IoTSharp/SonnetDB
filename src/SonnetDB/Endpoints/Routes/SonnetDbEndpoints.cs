@@ -21,6 +21,7 @@ internal static partial class SonnetDbEndpoints
         app.MapManagementContractEndpoints();
         app.MapIngestionEndpoints();
         app.MapControlPlaneEndpoints();
+        app.MapDiagnosticsEndpoints();
         app.MapCopilotEndpoints(serverOptions);
         app.MapMcp("/mcp/{db}");
     }

@@ -7,6 +7,7 @@ using SonnetDB.Auth;
 using SonnetDB.Coap;
 using SonnetDB.Configuration;
 using SonnetDB.Copilot;
+using SonnetDB.Diagnostics;
 using SonnetDB.Json;
 using SonnetDB.LineProtocolUdp;
 using SonnetDB.Mcp;
@@ -38,6 +39,12 @@ internal static class SonnetDbServiceRegistration
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddSingleton<ServerMetrics>();
         builder.Services.AddSingleton<EventBroadcaster>();
+        builder.Services.AddSingleton(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<ServerOptions>>().Value.Observability.SlowQueryLog;
+            return new SlowQueryRing(Math.Clamp(options.Capacity, 16, 4096));
+        });
+        builder.Services.AddSingleton<SlowQueryDiagnostics>();
         builder.Services.AddSingleton<SonnetDbMcpContextAccessor>();
         builder.Services.AddSingleton<SonnetDbMcpSchemaCache>();
         builder.Services.AddSingleton<SonnetDbMcpExplainSqlService>();

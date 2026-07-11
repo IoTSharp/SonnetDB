@@ -31,27 +31,23 @@ public sealed class ServerOptions
     public string? HelpDocsRoot { get; set; }
 
     /// <summary>
-    /// 是否启用慢查询事件。关闭后不再通过 SSE <c>/v1/events</c> 广播
-    /// <c>slow_query</c> 事件。默认 <c>true</c>。
+    /// 旧版慢查询开关。仅用于兼容尚未迁移到
+    /// <c>SonnetDBServer:Observability:SlowQueryLog:Enabled</c> 的配置文件。
     /// </summary>
     public bool SlowQueryEnabled { get; set; } = true;
 
     /// <summary>
-    /// 慢查询基础阈值（毫秒）。单条 SQL 实际耗时达到该值会通过 SSE
-    /// <c>/v1/events</c> 广播 <c>slow_query</c> 事件。默认 <c>10000</c>。
-    /// 设置为 <c>0</c> 表示记录全部 SQL，设置为负数表示关闭慢查询事件。
+    /// 旧版慢查询基础阈值。仅用于兼容平铺配置。
     /// </summary>
     public int SlowQueryThresholdMs { get; set; } = 10_000;
 
     /// <summary>
-    /// 慢查询警告级阈值（毫秒）。达到该值的事件 <c>severity</c> 为
-    /// <c>warning</c>。默认 <c>30000</c>；小于等于 0 表示不启用该级别。
+    /// 旧版慢查询警告级阈值。仅用于兼容平铺配置。
     /// </summary>
     public int SlowQueryWarningThresholdMs { get; set; } = 30_000;
 
     /// <summary>
-    /// 慢查询严重级阈值（毫秒）。达到该值的事件 <c>severity</c> 为
-    /// <c>critical</c>。默认 <c>60000</c>；小于等于 0 表示不启用该级别。
+    /// 旧版慢查询严重级阈值。仅用于兼容平铺配置。
     /// </summary>
     public int SlowQueryCriticalThresholdMs { get; set; } = 60_000;
 
@@ -94,6 +90,34 @@ public sealed class ObservabilityOptions
 {
     /// <summary>Prometheus 拉取端点配置。</summary>
     public PrometheusOptions Prometheus { get; set; } = new();
+
+    /// <summary>慢查询日志与 Top-N 统计配置。</summary>
+    public SlowQueryLogOptions SlowQueryLog { get; set; } = new();
+}
+
+/// <summary>
+/// 慢查询日志配置。达到基础阈值的 SQL 会进入进程内环形缓冲、结构化日志、
+/// Activity 事件以及既有 SSE <c>slow_query</c> 通道。
+/// </summary>
+public sealed class SlowQueryLogOptions
+{
+    /// <summary>是否启用慢查询采集。默认 <c>true</c>。</summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// 慢查询基础阈值（毫秒）。默认 <c>10000</c>；<c>0</c> 表示记录全部 SQL，
+    /// 负数表示关闭采集。
+    /// </summary>
+    public int ThresholdMs { get; set; } = 10_000;
+
+    /// <summary>警告级阈值（毫秒）。默认 <c>30000</c>；小于等于 0 表示禁用该级别。</summary>
+    public int WarningThresholdMs { get; set; } = 30_000;
+
+    /// <summary>严重级阈值（毫秒）。默认 <c>60000</c>；小于等于 0 表示禁用该级别。</summary>
+    public int CriticalThresholdMs { get; set; } = 60_000;
+
+    /// <summary>进程内慢查询环形缓冲容量。默认 <c>256</c>，有效范围为 16～4096。</summary>
+    public int Capacity { get; set; } = 256;
 }
 
 /// <summary>

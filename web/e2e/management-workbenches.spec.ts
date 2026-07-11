@@ -123,6 +123,42 @@ test.beforeEach(async ({ page }) => {
 
   await mockManagementContracts(page);
   await page.route('**/healthz', (route) => json(route, { status: 'ok', databaseCount: 1, uptimeSeconds: 60 }));
+  await page.route('**/v1/diagnostics/slow-queries*', (route) => json(route, {
+    enabled: true,
+    thresholdMs: 10000,
+    warningThresholdMs: 30000,
+    criticalThresholdMs: 60000,
+    capacity: 256,
+    count: 1,
+    items: [{
+      timestampMs: Date.parse(now),
+      database,
+      sql: "SELECT * FROM sensor_readings WHERE device_id = 'line-01'",
+      normalizedSql: 'SELECT * FROM sensor_readings WHERE device_id = ?',
+      fingerprint: '7f21e18e761adb83',
+      elapsedMs: 12480.5,
+      rowCount: 42,
+      recordsAffected: -1,
+      failed: false,
+      severity: 'slow',
+    }],
+  }));
+  await page.route('**/v1/diagnostics/top-queries*', (route) => json(route, {
+    enabled: true,
+    capacity: 256,
+    sampleCount: 7,
+    items: [{
+      database,
+      normalizedSql: 'SELECT * FROM sensor_readings WHERE device_id = ?',
+      fingerprint: '7f21e18e761adb83',
+      count: 7,
+      failedCount: 1,
+      p50Ms: 11200,
+      p95Ms: 18600,
+      maxMs: 22400,
+      lastSeenTimestampMs: Date.parse(now),
+    }],
+  }));
 });
 
 const workbenches = [
@@ -233,6 +269,21 @@ test('workspace header opens the filtered history drawer', async ({ page }) => {
   await expect(drawer).toBeVisible();
   await expect(drawer.getByPlaceholder('筛选操作、对象或命令')).toBeVisible();
   await expect(drawer).toContainText('条记录');
+});
+
+test('SQL workspace opens slow query and Top-N diagnostics', async ({ page }) => {
+  await page.goto('/admin/app/sql');
+  await page.getByTitle('查看慢查询与 Top-N').click();
+
+  const drawer = page.locator('.query-diagnostics');
+  await expect(drawer).toBeVisible();
+  await expect(drawer).toContainText('12.48 s');
+  await expect(drawer).toContainText('7f21e18e761adb83');
+
+  await drawer.getByText('Top-N', { exact: true }).click();
+  await expect(drawer).toContainText('1 个指纹 · 7 条样本');
+  await expect(drawer).toContainText('18.60 s');
+  await expect(drawer).toContainText('1');
 });
 
 test('Studio bridge exposes native server controls and disk connection library', async ({ page }) => {

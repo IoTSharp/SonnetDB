@@ -39,7 +39,7 @@
         :max-height="320"
       />
       <n-text v-if="events.slowQueries.length === 0" depth="3">
-        尚无慢查询。阈值由服务端 <code>SonnetDBServer:SlowQueryThresholdMs</code> 配置。
+        尚无慢查询。阈值由服务端 <code>SonnetDBServer:Observability:SlowQueryLog:ThresholdMs</code> 配置。
       </n-text>
     </n-card>
 

@@ -94,6 +94,7 @@
           @update:native-data-root="setNativeDataRoot"
           @show-result="toggleResultDrawer"
           @show-history="globalHistoryVisible = true"
+          @show-diagnostics="queryDiagnosticsVisible = true"
         />
 
         <SqlQueryWorkspace
@@ -213,6 +214,12 @@
       :active-database="targetDb"
       @select="openHistoryEntry"
     />
+
+    <SlowQueryDrawer
+      v-model:show="queryDiagnosticsVisible"
+      :active-database="targetDb"
+      :databases="databases"
+    />
   </div>
 </template>
 
@@ -227,6 +234,7 @@ import ManagementExplorerSidebar from '@/components/ManagementExplorerSidebar.vu
 import ObjectBucketWorkbench from '@/components/ObjectBucketWorkbench.vue';
 import RelationalTableWorkbench from '@/components/RelationalTableWorkbench.vue';
 import RemoteConnectionDialog from '@/components/RemoteConnectionDialog.vue';
+import SlowQueryDrawer from '@/components/SlowQueryDrawer.vue';
 import SonnetMqWorkbench from '@/components/SonnetMqWorkbench.vue';
 import SqlQueryWorkspace from '@/components/SqlQueryWorkspace.vue';
 import StudioWorkspaceTabs, { type StudioWorkspaceTab } from '@/components/StudioWorkspaceTabs.vue';
@@ -261,6 +269,7 @@ const workbenchHistory = useWorkbenchHistoryStore();
 const message = useMessage();
 const explorerCollapsed = ref(false);
 const globalHistoryVisible = ref(false);
+const queryDiagnosticsVisible = ref(false);
 const objectWorkspaceTabs = ref<StudioWorkspaceTab[]>([]);
 
 function toggleResultDrawer(): void {

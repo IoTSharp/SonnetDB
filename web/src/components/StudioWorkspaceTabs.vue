@@ -35,6 +35,10 @@
         <template #icon><History :size="16" /></template>
         历史
       </n-button>
+      <n-button quaternary title="查看慢查询与 Top-N" @click="$emit('show-diagnostics')">
+        <template #icon><Gauge :size="16" /></template>
+        诊断
+      </n-button>
       <n-dropdown trigger="click" :options="connectionOptions" @select="$emit('connection-select', $event)">
         <n-button quaternary class="connection-button">
           <CircleCheck :size="15" />
@@ -91,6 +95,7 @@ import {
   CircleCheck,
   FileSearch,
   FolderArchive,
+  Gauge,
   History,
   Map,
   MessageSquareMore,
@@ -142,6 +147,7 @@ defineEmits<{
   'update:native-data-root': [value: string];
   'show-result': [];
   'show-history': [];
+  'show-diagnostics': [];
 }>();
 
 const nativeServerLabel = computed(() => {
@@ -334,4 +340,3 @@ function tabIcon(tool: WorkbenchTool): Component {
   }
 }
 </style>
-  Rows3,

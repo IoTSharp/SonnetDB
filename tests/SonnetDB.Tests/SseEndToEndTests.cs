@@ -39,8 +39,6 @@ public sealed class SseEndToEndTests : IAsyncLifetime
             DataRoot = _dataRoot,
             AutoLoadExistingDatabases = true,
             AllowAnonymousProbes = true,
-            // 阈值压到 0 → 任何 SQL 都会广播 slow_query，便于断言
-            SlowQueryThresholdMs = 0,
             // metrics tick 拉到 1s，加快测试
             MetricsTickSeconds = 1,
             Tokens = new Dictionary<string, string>
@@ -48,6 +46,8 @@ public sealed class SseEndToEndTests : IAsyncLifetime
                 [_adminToken] = ServerRoles.Admin,
             },
         };
+        // 阈值压到 0 → 任何 SQL 都会广播 slow_query，便于断言。
+        options.Observability.SlowQueryLog.ThresholdMs = 0;
         options.Copilot.Docs.AutoIngestOnStartup = false;
         options.Copilot.Skills.AutoIngestOnStartup = false;
 

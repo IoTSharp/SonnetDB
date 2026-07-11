@@ -35,7 +35,9 @@ internal static class ServerOptionsBinder
     public static void Bind(IConfiguration configuration, ServerOptions options)
     {
         options.Copilot.Docs.Roots.Clear();
-        configuration.GetSection("SonnetDBServer").Bind(options);
+        var serverSection = configuration.GetSection("SonnetDBServer");
+        serverSection.Bind(options);
+        ApplyLegacySlowQueryOptions(serverSection, options);
     }
 
     /// <summary>
@@ -46,5 +48,30 @@ internal static class ServerOptionsBinder
     {
         if (options.Copilot.Docs.Roots.Count == 0)
             options.Copilot.Docs.Roots.AddRange(DefaultCopilotDocsRoots);
+
+        options.Observability.SlowQueryLog.Capacity = Math.Clamp(
+            options.Observability.SlowQueryLog.Capacity,
+            16,
+            4096);
+    }
+
+    private static void ApplyLegacySlowQueryOptions(IConfigurationSection serverSection, ServerOptions options)
+    {
+        var nestedSection = serverSection.GetSection("Observability:SlowQueryLog");
+        if (nestedSection.Exists())
+            return;
+
+        var hasLegacyConfiguration = serverSection["SlowQueryEnabled"] is not null
+            || serverSection["SlowQueryThresholdMs"] is not null
+            || serverSection["SlowQueryWarningThresholdMs"] is not null
+            || serverSection["SlowQueryCriticalThresholdMs"] is not null;
+        if (!hasLegacyConfiguration)
+            return;
+
+        var target = options.Observability.SlowQueryLog;
+        target.Enabled = options.SlowQueryEnabled;
+        target.ThresholdMs = options.SlowQueryThresholdMs;
+        target.WarningThresholdMs = options.SlowQueryWarningThresholdMs;
+        target.CriticalThresholdMs = options.SlowQueryCriticalThresholdMs;
     }
 }
