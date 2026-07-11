@@ -16,7 +16,7 @@
 |-----------|------|---------|------|
 | 0~16 | 早期路线（脚手架 → Copilot 产品化） | #1 ~ #88 | ✅（摘要见下「已完成里程碑」，详情见归档） |
 | 17 | 可观测性与运行时可见性（OTel + 结构化日志 + 诊断端点） | #89 ~ #98 | 🚧（#89~#91 ✅ 基线；#92~#98 📋 第二波） |
-| 18 | VS Code 数据库扩展（SonnetDB for VS Code） | #99 ~ #108 | 🚧（#99~#106 ✅；#107 LSP sidecar、#108 Marketplace/实机验收待续） |
+| 18 | VS Code 数据库扩展（SonnetDB for VS Code） | #99 ~ #108 | 🚧（#99~#106 ✅；#107 C# parser diagnostics 第一批 ✅、signature/repair 待续；#108 Marketplace/实机验收待续） |
 | 19 | 生态适配底座能力（关系 + KV/缓存 + 对象桶 + 大量 measurement） | #109 ~ #126 | 🚧（#109~#117、#122/#123 ✅；余项按需） |
 | 20 | 多模能力对齐与平移测试（Parity） | #127 ~ #136 | ✅ |
 | 21 | Document Store 单机能力升级（MongoDB-like） | #137 ~ #146 | ✅ |
@@ -45,7 +45,7 @@
 > **进行中（按带宽穿插）**：
 > - **M17 可观测性**：#89~#91 基线已落；#92 调用/token 指标摘要与 #97 服务端会话持久化已落地，下一步补 #92 知识召回指标和细粒度 Agent span，再推进 #93~#96，详见 M17「可观测性与 Copilot 下一步规划」小节。
 > - **M27 Industrial Data Agent**：M28 收官后 #184 端到端工业异常 Demo 阻塞解除、可启动；#183/#185 纯文档随时可做。
-> - **M18 VS Code**：#99~#106 首个可用闭环已完成；下一步 #107 C# Parser LSP sidecar → #108 Marketplace 正式发布与 Electron 实机验收。**M19 生态底座**余项为对象治理 / 通用迁移原语 / 大量 measurement 长稳。
+> - **M18 VS Code**：#99~#106 首个可用闭环与 #107 C# Parser diagnostics sidecar 第一批已完成；下一步补 signature help / repair suggestion，再进入 #108 Marketplace 正式发布与 Electron 实机验收。**M19 生态底座**余项为对象治理 / 通用迁移原语 / 大量 measurement 长稳。
 >
 > **后续池**：
 > - **M32 Document Store MongoDB-like 易用性增强**：在 M21 单机能力、M24 管理面、M25 parity/长稳之后，集中补齐 MongoDB 日常开发体验缺口。第一目标是让 SonnetDB Document Store 对应用开发者“像 MongoDB 一样顺手”，不是立即承诺 MongoDB wire protocol / BSON command / 官方 Driver 直连。
@@ -117,7 +117,7 @@
 | 托管本地 Server | ✅ | data root、端口检测、进程启停、日志和健康检查已完成。 |
 | Measurement 草稿与 Bulk Import | ✅ | Create Measurement、LP/JSON/Bulk VALUES 导入和 snippets 已完成。 |
 | KV / MQ / 向量 / 全文只读预览 | ✅ | 复用 M29 管理契约和 Query Result Webview。 |
-| C# `SqlParser` LSP sidecar | ❌ | M18 #107；当前只有 TypeScript 轻量 diagnostics、hover、completion 和 explain。 |
+| C# `SqlParser` language sidecar | 🟡 | M18 #107；C# parser diagnostics、VSIX 打包与 TypeScript fallback 已完成，标准 LSP framing 待续。 |
 | Signature Help / Repair Suggestion | ❌ | M18 #107；随 LSP sidecar 一并实现。 |
 | Document 专用查询面板 | ✅ | Collection 节点可打开只读 Document find 面板，支持 filter/projection/sort、游标分页、错误反馈和 JSON/JSONL 导出。 |
 | 对象桶浏览 | ❌ | 当前 Explorer 和结果面板均未接入对象桶。 |
@@ -872,7 +872,7 @@ PR #89（Core Meter / Activity 基线）
 | #104 | **VS Code 内置 Copilot 面板**：接入流式聊天、模型与知识库状态；支持默认只读、显式读写确认、引用显示和当前 SQL 发送。 | ✅ |
 | #105 | **托管本地 SonnetDB Server 模式**：选择 `data root` 后启动 / 关闭本地 Server，处理端口占用、日志输出与健康检查；本地与远程共用 HTTP client 与 Explorer。 | ✅ |
 | #106 | **生产力增强**：Create Measurement 草稿、带确认的 bulk import（LP / JSON / Bulk VALUES）、starter snippets、help / docs / explain 入口。 | ✅ |
-| #107 | **Language Service / LSP Sidecar**：已提供 TypeScript 轻量 diagnostics、hover、schema completion 与 explain；复用 C# `SqlParser` 的 sidecar、signature help 和 repair suggestion 尚未实现。 | 🚧 |
+| #107 | **Language Service / LSP Sidecar**：已提供 TypeScript 轻量 diagnostics、hover、schema completion 与 explain；复用 C# `SqlParser` 的打包 sidecar 与自动降级已实现，signature help、repair suggestion 和标准 LSP framing 尚未实现。 | 🚧 |
 | #108 | **打包发布 + CI + 文档**：已补测试、VSIX 打包、CI artifact、Marketplace metadata 与安装/权限/本地模式文档；Marketplace 正式发布与 Electron 实机截图尚未完成。 | 🚧 |
 
 ### 首批实现建议

@@ -16,6 +16,10 @@ The extension should have three layers:
 3. Managed local runtime
    - start and stop a local SonnetDB server process
    - point that server at a selected data root
+4. SQL language sidecar
+   - reuse the C# `SqlParser` without duplicating grammar in TypeScript
+   - exchange stateless JSON-line validation requests over stdin/stdout
+   - fall back to lightweight TypeScript diagnostics when unavailable
 
 ## 2. Why remote-first
 
@@ -40,7 +44,7 @@ Using `SonnetDB.Data` directly inside the extension host would require:
 - IPC or stdio protocol work
 - platform packaging complexity
 
-That path is still useful later, especially for language services, but it should not block the first extension release.
+The implemented language sidecar references only `SonnetDB.Core` and receives SQL text, while local database access continues to use the managed Server path.
 
 ## 4. Local mode
 
@@ -84,4 +88,4 @@ Recommended VS Code surfaces:
 
 ## 8. Language-service boundary
 
-The TypeScript host provides schema completion, lightweight delimiter diagnostics, keyword hover, and `EXPLAIN` commands. It deliberately does not duplicate the full C# parser. Rich parser diagnostics, signature help, and repair suggestions remain assigned to the optional C# LSP sidecar in #107.
+The TypeScript host provides schema completion, lightweight delimiter diagnostics, keyword hover, and `EXPLAIN` commands. The optional packaged sidecar now reuses the full C# parser for lexical and syntax diagnostics through an AOT-friendly JSON-line protocol. Signature help, repair suggestions, and a standard LSP transport remain later #107 slices.

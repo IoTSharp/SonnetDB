@@ -5,6 +5,8 @@ on:
     paths:
       - 'web/**'
       - 'extensions/sonnetdb-vscode/**'
+      - 'src/SonnetDB.LanguageServer/**'
+      - 'tests/SonnetDB.LanguageServer.Tests/**'
       - 'src/SonnetDB.Studio/**'
       - 'docs/management-tools.md'
       - '.github/workflows/management-workbench-smoke.yml'
@@ -13,6 +15,8 @@ on:
     paths:
       - 'web/**'
       - 'extensions/sonnetdb-vscode/**'
+      - 'src/SonnetDB.LanguageServer/**'
+      - 'tests/SonnetDB.LanguageServer.Tests/**'
       - 'src/SonnetDB.Studio/**'
       - 'docs/management-tools.md'
       - '.github/workflows/management-workbench-smoke.yml'
@@ -69,6 +73,13 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: extensions/sonnetdb-vscode/package-lock.json
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Test SQL language server
+        run: dotnet test tests/SonnetDB.LanguageServer.Tests/SonnetDB.LanguageServer.Tests.csproj
 
       - name: Install extension dependencies
         working-directory: extensions/sonnetdb-vscode

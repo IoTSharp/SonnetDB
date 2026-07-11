@@ -327,6 +327,17 @@
           "minimum": 1,
           "description": "Default client-side row cap for query preview surfaces."
         },
+        "sonnetdb.languageServer.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use the SonnetDB C# SQL parser sidecar when it is available. Lightweight TypeScript diagnostics remain as a fallback."
+        },
+        "sonnetdb.languageServer.path": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "Optional path to SonnetDB.LanguageServer executable, DLL, or csproj."
+        },
         "sonnetdb.managedLocal.baseUrl": {
           "type": "string",
           "default": "http://127.0.0.1:5080",
@@ -356,7 +367,9 @@
     "watch": "tsc -watch -p ./",
     "lint": "tsc --noEmit -p ./",
     "test": "npm run compile && node --test out/test/*.test.js",
-    "package:vsix": "npm run test && node -e \"require('node:fs').mkdirSync('dist',{recursive:true})\" && vsce package --no-dependencies --out dist/sonnetdb-vscode.vsix"
+    "clean:language-server": "node -e \"require('node:fs').rmSync('language-server',{recursive:true,force:true})\"",
+    "build:language-server": "npm run clean:language-server && dotnet publish ../../src/SonnetDB.LanguageServer/SonnetDB.LanguageServer.csproj --configuration Release --output language-server",
+    "package:vsix": "npm run test && npm run build:language-server && node -e \"require('node:fs').mkdirSync('dist',{recursive:true})\" && vsce package --no-dependencies --out dist/sonnetdb-vscode.vsix"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",

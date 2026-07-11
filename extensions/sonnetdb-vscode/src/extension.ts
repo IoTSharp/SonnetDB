@@ -9,6 +9,7 @@ import { registerRunQueryCommand } from './commands/runQueryCommand';
 import { registerProductivityCommands } from './commands/productivityCommands';
 import { registerSqlCompletionProvider } from './language/sqlCompletionProvider';
 import { registerSqlLanguageFeatures } from './language/sqlLanguageFeatures';
+import { createSqlLanguageServer } from './language/sqlLanguageServer';
 import { CopilotPanel } from './panels/copilotPanel';
 import { DocumentQueryPanel } from './panels/documentQueryPanel';
 import { QueryResultPanel } from './panels/queryResultPanel';
@@ -518,7 +519,7 @@ export function activate(context: vscode.ExtensionContext): void {
     (profile, database) => connections.setActive(profile, database),
   );
   registerSqlCompletionProvider(context, getActiveProfile, createClient);
-  registerSqlLanguageFeatures(context);
+  registerSqlLanguageFeatures(context, createSqlLanguageServer(context));
   registerProductivityCommands(context, getActiveProfile, createClient, resultPanel);
 
   const activeProfile = connections.getActiveProfile();

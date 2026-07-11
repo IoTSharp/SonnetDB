@@ -9,6 +9,7 @@
     <Project Path="src/SonnetDB.Core/SonnetDB.Core.csproj" />
     <Project Path="src/SonnetDB.Data/SonnetDB.Data.csproj" />
     <Project Path="src/SonnetDB.EntityFrameworkCore/SonnetDB.EntityFrameworkCore.csproj" />
+    <Project Path="src/SonnetDB.LanguageServer/SonnetDB.LanguageServer.csproj" />
     <Project Path="src/SonnetDB.Studio/SonnetDB.Studio.csproj" />
     <Project Path="src/SonnetDB/SonnetDB.csproj" />
     <Project Path="src/Testcontainers.SonnetDB/Testcontainers.SonnetDB.csproj" />
@@ -29,6 +30,7 @@
     <Project Path="tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj" />
     <Project Path="tests/SonnetDB.EntityFrameworkCore.Tests/SonnetDB.EntityFrameworkCore.Tests.csproj" />
     <Project Path="tests/SonnetDB.IoTSharpCompat.Tests/SonnetDB.IoTSharpCompat.Tests.csproj" />
+    <Project Path="tests/SonnetDB.LanguageServer.Tests/SonnetDB.LanguageServer.Tests.csproj" />
     <Project Path="tests/SonnetDB.Tests/SonnetDB.Tests.csproj" />
   </Folder>
   <Project Path="docker-compose.dcproj">

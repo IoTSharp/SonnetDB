@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <UseAppHost>false</UseAppHost>
+    <RootNamespace>SonnetDB.LanguageServer</RootNamespace>
+    <AssemblyName>SonnetDB.LanguageServer</AssemblyName>
+    <Description>SonnetDB 编辑器语言服务 sidecar，复用核心 SQL 解析器提供只读诊断。</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SonnetDB.Core\SonnetDB.Core.csproj" />
+  </ItemGroup>
+
+</Project>

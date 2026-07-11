@@ -6,3 +6,4 @@ tsconfig.json
 docs/**
 ROADMAP.md
 dist/**
+language-server/*.pdb
