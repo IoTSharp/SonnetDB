@@ -24,6 +24,9 @@
       </button>
 
       <div class="app-topbar__actions">
+        <div class="readiness-slot">
+          <ReadinessStatus />
+        </div>
         <div class="connection-state" :class="`is-${events.status}`">
           <CircleCheck :size="16" />
           <span>连接：{{ connections.activeProfile.name }}</span>
@@ -116,6 +119,7 @@ import {
 } from 'lucide-vue-next';
 import BrandLogo from '@/components/BrandLogo.vue';
 import CopilotDock from '@/components/CopilotDock.vue';
+import ReadinessStatus from '@/components/ReadinessStatus.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useConnectionsStore } from '@/stores/connections';
 import { useCopilotSessionsStore } from '@/stores/copilotSessions';
@@ -342,6 +346,11 @@ onBeforeUnmount(() => {
   padding: 0 14px;
 }
 
+.readiness-slot {
+  display: flex;
+  align-items: center;
+}
+
 .connection-state {
   display: inline-flex;
   align-items: center;
@@ -512,6 +521,7 @@ onBeforeUnmount(() => {
   }
 
   .app-brand > span,
+  .readiness-slot,
   .connection-state,
   .app-topbar__actions .topbar-icon {
     display: none;

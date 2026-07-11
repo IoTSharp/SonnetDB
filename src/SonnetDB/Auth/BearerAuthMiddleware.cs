@@ -28,8 +28,10 @@ public static class BearerAuthMiddleware
     public static int? Authenticate(HttpContext context, ServerOptions options, UserStore? userStore)
     {
         var path = context.Request.Path.Value ?? string.Empty;
-        if (options.AllowAnonymousProbes
-            && (path.Equals("/healthz", StringComparison.Ordinal) || path.Equals("/metrics", StringComparison.Ordinal)))
+        var isProbe = path.Equals("/healthz", StringComparison.Ordinal)
+            || path.StartsWith("/healthz/", StringComparison.Ordinal)
+            || path.Equals("/metrics", StringComparison.Ordinal);
+        if (options.AllowAnonymousProbes && isProbe)
         {
             return null;
         }
@@ -63,7 +65,8 @@ public static class BearerAuthMiddleware
             && !path.StartsWith("/v1/", StringComparison.Ordinal)
             && !path.Equals("/v1", StringComparison.Ordinal)
             && !path.StartsWith("/mcp/", StringComparison.Ordinal)
-            && !path.Equals("/mcp", StringComparison.Ordinal))
+            && !path.Equals("/mcp", StringComparison.Ordinal)
+            && !isProbe)
         {
             return null;
         }

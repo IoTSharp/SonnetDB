@@ -88,6 +88,29 @@ public sealed class ServerEndToEndTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task HealthzLiveAndReady_ReturnStandardChecks_WithoutAuth()
+    {
+        using var client = CreateClient(token: null);
+
+        var live = await client.GetAsync("/healthz/live");
+        Assert.Equal(HttpStatusCode.OK, live.StatusCode);
+        using (var liveDocument = JsonDocument.Parse(await live.Content.ReadAsStringAsync()))
+        {
+            Assert.Equal("Healthy", liveDocument.RootElement.GetProperty("status").GetString());
+            Assert.Empty(liveDocument.RootElement.GetProperty("entries").EnumerateObject());
+        }
+
+        var ready = await client.GetAsync("/healthz/ready");
+        Assert.Equal(HttpStatusCode.OK, ready.StatusCode);
+        using var readyDocument = JsonDocument.Parse(await ready.Content.ReadAsStringAsync());
+        var entries = readyDocument.RootElement.GetProperty("entries");
+        Assert.Equal("Healthy", entries.GetProperty("segment_store_writable").GetProperty("status").GetString());
+        Assert.Equal("Healthy", entries.GetProperty("wal_writable").GetProperty("status").GetString());
+        Assert.Equal("Degraded", entries.GetProperty("copilot_provider_reachable").GetProperty("status").GetString());
+        Assert.Equal("Healthy", entries.GetProperty("copilot_embedding_provider_reachable").GetProperty("status").GetString());
+    }
+
+    [Fact]
     public async Task Metrics_ReturnsPrometheusText_WithoutAuth()
     {
         using var client = CreateClient(token: null);

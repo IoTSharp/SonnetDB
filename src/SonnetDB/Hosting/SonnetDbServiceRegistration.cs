@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using SonnetDB.Auth;
@@ -85,6 +86,23 @@ internal static class SonnetDbServiceRegistration
         });
         builder.Services.AddSingleton<CopilotReadiness>();
         builder.Services.AddHttpClient();
+        builder.Services.AddHealthChecks()
+            .AddCheck<SegmentStoreWritableHealthCheck>(
+                "segment_store_writable",
+                failureStatus: HealthStatus.Unhealthy,
+                tags: ["ready", "storage"])
+            .AddCheck<WalWritableHealthCheck>(
+                "wal_writable",
+                failureStatus: HealthStatus.Unhealthy,
+                tags: ["ready", "storage"])
+            .AddCheck<CopilotChatProviderHealthCheck>(
+                "copilot_provider_reachable",
+                failureStatus: HealthStatus.Degraded,
+                tags: ["ready", "provider"])
+            .AddCheck<CopilotEmbeddingProviderHealthCheck>(
+                "copilot_embedding_provider_reachable",
+                failureStatus: HealthStatus.Degraded,
+                tags: ["ready", "provider"]);
         builder.Services.AddSingleton<IEmbeddingProvider>(sp =>
         {
             var options = sp.GetRequiredService<IOptions<ServerOptions>>().Value.Copilot.Embedding;

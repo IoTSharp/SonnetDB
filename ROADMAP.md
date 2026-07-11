@@ -78,7 +78,7 @@
 | 基础监控 | ✅ | 写入、查询 P95、WAL、MemTable、Segment 等 Prometheus 指标页面已完成（M17 #91）。 |
 | Copilot 基础交互 | ✅ | 流式聊天、模型选择、只读/读写模式、引用和 SQL 工作台联动已完成。 |
 | Copilot 调用量 / token 摘要 | ✅ | `/v1/copilot/metrics` 从 `__copilot__.usage_events` 聚合当前 owner 最近一小时调用、input/output/total token、工具调用、成功失败与模型摘要；CopilotDock / AiSettingsView 已接入。 |
-| 详细 Health / Readiness 状态条 | ❌ | M17 #94；顶部状态条尚未拆分存储、WAL、Chat provider、Embedding provider 四项检查。 |
+| 详细 Health / Readiness 状态条 | ✅ | M17 #94；`/healthz/live` 与 `/healthz/ready` 已拆分，顶部状态条独立显示存储、WAL、Chat provider、Embedding provider 四项检查。 |
 | 慢查询 / Top-N 查询抽屉 | ✅ | M17 #95；SQL 工作台已接入服务端慢查询环形缓冲、SQL 指纹聚合与权限过滤诊断抽屉。 |
 | Copilot 服务端会话与跨设备同步 | ✅ | M17 #97；`__copilot__` 系统表持久化会话、消息和引用，按 owner 隔离并跨设备同步，不再回退浏览器 `localStorage`。 |
 | Provider-neutral 模型分组 | 🟡 | M27 #185；已有模型选择器，尚未明确区分平台默认、自定义和本地模型。 |
@@ -128,7 +128,7 @@
 
 ### 界面收口顺序
 
-1. **P0 运维可见性**：M17 #95 已完成慢查询 / Top-N 查询抽屉；下一项为 #96 Diagnostic Dump 端点。
+1. **P0 运维可见性**：M17 #92、#94、#95、#97 已完成 Web Admin 对应闭环；下一项为 #96 Diagnostic Dump 端点。
 2. **P1 VS Code 产品化**：M18 #107 → #108，完成 LSP sidecar、真实 Extension Host UI e2e、截图和 Marketplace 发布。
 3. **P1 Studio 收口**：补安装包与桌面宿主生命周期实机自动化验收。
 4. **P2 模型体验补口**：按 M32 完成 Document update/index/change feed；按实际用户需求评估时序导入、KV round-trip 和 MQ 文件导入。
@@ -749,7 +749,7 @@ D 收口：
 | #91 | **M17.3：Prometheus 端点 + Web 内嵌指标面板**：可选启用 `/metrics`（`OpenTelemetry.Exporter.Prometheus.AspNetCore`），用 `Observability:Prometheus:Enabled=true` 开关。Web Admin 新增「监控」侧边栏，使用 `fetch('/metrics')` 客户端解析 prom 文本，实时绘制：写入吞吐（`sonnetdb.write.points`）、查询 P95（histogram bucket 还原）、MemTable 大小、Segment 数、WAL 落盘延迟、Copilot 调用数 / token 总量。零图表第三方依赖，使用既有 `naive-ui` + 简易 SVG 折线（与现有 dashboard 风格一致）。 | ✅ |
 | #92 | **M17.4：Copilot 指标与追踪**：`SonnetDB.Copilot` 命名空间下新增 `CopilotMeter`（`Meter("SonnetDB.Copilot")`）记录 `copilot.chat.requests`（按 model / mode tag）、`copilot.chat.duration`、`copilot.chat.tokens`（in/out）、`copilot.tool.calls`（按 tool name tag）、`copilot.knowledge.recall.hits` / `.misses`；Agent 每次 `PlanToolsAsync` / `RunToolAsync` / `GenerateAnswerAsync` 都开 `Activity` span，把 `tool.name`、`tool.arguments.length`、`tool.result.rows` 写到 tags。CopilotDock 与 AiSettingsView 增加「最近 1 小时调用 / token 用量」摘要卡片（消费 `/v1/copilot/metrics` 简化端点）。**已完成调用/token/tool BCL 指标、chat Activity、系统表用量事实及两处 UI 摘要；知识召回 hit/miss 与细粒度 Agent 子 span 待补。** | 🟡 |
 | #93 | **M17.5：结构化日志统一**：所有 `ILogger` 调用改用源生成日志（`[LoggerMessage]`），消除运行时 string interpolation 装箱。统一日志事件分类（Write / Query / Flush / Compaction / Wal / Copilot / Auth / Http）与 EventId 区段（1000~1999 写入；2000~2999 查询；…）。在 `Program.cs` 引入 `JsonConsoleFormatter`，生产模式默认输出 JSON 行（`logging.json`），开发模式保持单行简化格式。 | 📋 |
-| #94 | **M17.6：Health / Readiness 端点扩展**：把现有 `/healthz` 拆为 `/healthz/live`（进程存活）与 `/healthz/ready`（细分 checks：`segment_store_writable`、`wal_writable`、`copilot_provider_reachable`、`copilot_embedding_provider_reachable`）。引入 `IHealthCheck` 接口的 SonnetDB 实现（无第三方依赖），结果以 ASP.NET Core HealthChecks 标准 JSON 输出。Web Admin 顶部状态条改为消费 `/healthz/ready`，单独显示 4 个 check 的颜色点。 | 📋 |
+| #94 | **M17.6：Health / Readiness 端点扩展**：把现有 `/healthz` 拆为 `/healthz/live`（进程存活）与 `/healthz/ready`（细分 checks：`segment_store_writable`、`wal_writable`、`copilot_provider_reachable`、`copilot_embedding_provider_reachable`）。引入 `IHealthCheck` 接口的 SonnetDB 实现（无第三方依赖），结果以 ASP.NET Core HealthChecks 标准 JSON 输出。Web Admin 顶部状态条改为消费 `/healthz/ready`，单独显示 4 个 check 的颜色点。 | ✅ |
 | #95 | **M17.7：Slow Query Log + Top-N 查询统计**：可选开关 `Observability:SlowQueryLog:Enabled=true` + `ThresholdMs=10000`，并支持 30s / 60s 分级。`QueryEngine.Execute` 完成后若超过阈值则发 `Activity.RecordException`-风格的结构化日志事件，并写入内存环形缓冲（`SonnetDB.Diagnostics.SlowQueryRing` 默认 256 条）。新增 `GET /v1/diagnostics/slow-queries` 与 `GET /v1/diagnostics/top-queries`（按归一化 SQL 指纹聚合 count / p50 / p95 / max）。Web Admin SQL Console 旁边新增「慢查询」抽屉。 | ✅ |
 | #96 | **M17.8：Diagnostic Dump 端点**：新增 `GET /v1/diagnostics/dump`（仅 admin token）返回 JSON 快照：进程 GC（`GC.GetGCMemoryInfo()` / `GC.GetTotalMemory(false)`）、ThreadPool（`ThreadPool.GetAvailableThreads`）、SonnetDB 内部计数（每 db 的 MemTable 大小 / Segment 数 / 待 Compaction 任务 / WAL 文件列表 / Copilot 在飞会话数）。**禁止 dump 用户数据点本身**，仅 metadata。CLI 新增 `sonnetdb-cli diag dump` 命令直接调该端点，便于复现性能问题时一键采集。 | 📋 |
 | #97 | **M17.9：Copilot 服务端会话持久化（M16 M5 二阶段）**：在 `__copilot__` 系统库新增 `conversations`、`messages` 与 `usage_events` 三张关系系统表；新增 `GET/POST/DELETE /v1/copilot/conversations[/{id}]`、`GET /v1/copilot/conversations/{id}/messages` 与 `GET /v1/copilot/metrics`。CopilotDock 从服务端加载历史，认证用户按用户名隔离，静态 Token 按不可逆哈希隔离；不再使用浏览器 `localStorage` 回退。会话、消息、引用与用量支持重启恢复和跨设备同步。 | ✅ |

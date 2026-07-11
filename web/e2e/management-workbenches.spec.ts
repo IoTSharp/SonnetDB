@@ -123,6 +123,16 @@ test.beforeEach(async ({ page }) => {
 
   await mockManagementContracts(page);
   await page.route('**/healthz', (route) => json(route, { status: 'ok', databaseCount: 1, uptimeSeconds: 60 }));
+  await page.route('**/healthz/ready', (route) => json(route, {
+    status: 'Degraded',
+    totalDuration: '00:00:00.0040000',
+    entries: {
+      segment_store_writable: { status: 'Healthy', description: 'Segment 存储目录可写。', duration: '00:00:00.0010000', tags: ['ready', 'storage'] },
+      wal_writable: { status: 'Healthy', description: 'WAL 目录可写。', duration: '00:00:00.0010000', tags: ['ready', 'storage'] },
+      copilot_provider_reachable: { status: 'Degraded', description: 'chat.api_key_missing', duration: '00:00:00.0010000', tags: ['ready', 'provider'] },
+      copilot_embedding_provider_reachable: { status: 'Healthy', description: '本地 provider 已就绪。', duration: '00:00:00.0010000', tags: ['ready', 'provider'] },
+    },
+  }));
   await page.route('**/v1/diagnostics/slow-queries*', (route) => json(route, {
     enabled: true,
     thresholdMs: 10000,
@@ -159,6 +169,22 @@ test.beforeEach(async ({ page }) => {
       lastSeenTimestampMs: Date.parse(now),
     }],
   }));
+});
+
+test('top bar exposes the four readiness checks', async ({ page }) => {
+  await page.goto('/admin/app/dashboard');
+
+  const trigger = page.getByRole('button', { name: '服务就绪状态：降级' });
+  await expect(trigger).toBeVisible();
+  await expect(trigger.locator('.status-dot')).toHaveCount(4);
+  await trigger.click();
+
+  const details = page.getByLabel('服务就绪检查详情');
+  await expect(details).toContainText('Segment 存储');
+  await expect(details).toContainText('WAL');
+  await expect(details).toContainText('Chat provider');
+  await expect(details).toContainText('Embedding provider');
+  await expect(details).toContainText('chat.api_key_missing');
 });
 
 const workbenches = [

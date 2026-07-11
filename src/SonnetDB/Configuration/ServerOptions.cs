@@ -21,7 +21,7 @@ public sealed class ServerOptions
     public Dictionary<string, string> Tokens { get; set; } = new();
 
     /// <summary>
-    /// 是否对 <c>/healthz</c> 与 <c>/metrics</c> 端点豁免认证。默认 <c>true</c>。
+    /// 是否对 <c>/healthz</c>、<c>/healthz/live</c>、<c>/healthz/ready</c> 与 <c>/metrics</c> 端点豁免认证。默认 <c>true</c>。
     /// </summary>
     public bool AllowAnonymousProbes { get; set; } = true;
 
