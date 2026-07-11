@@ -9,4 +9,4 @@ Current responsibilities:
 - use one JSON object per stdin/stdout line
 - remain stateless and receive no credentials or database paths
 
-The packaged VSIX carries a framework-dependent .NET 10 build under `language-server/`. The TypeScript delimiter scanner remains active as a fallback. Standard LSP framing, richer completion, signature help, and repair suggestions remain later #107 work.
+The packaged VSIX carries a portable, framework-dependent .NET 10 build under `language-server/`. The extension host adds schema completion, function signature help, delimiter quick fixes, and a lightweight TypeScript diagnostic fallback. Standard LSP framing and server-authored semantic repair suggestions remain possible later enhancements rather than release blockers.

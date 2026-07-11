@@ -35,8 +35,8 @@ Core goals:
 | #104 | Copilot panel: `/v1/copilot/chat/stream`, mode switch (`read-only` / `read-write`), model selector, citation view | Implemented |
 | #105 | Managed local mode: start/stop SonnetDB server for a selected data root, port detection, bootstrap flow | Implemented |
 | #106 | Productivity features: create-measurement wizard, bulk import flow, starter snippets, open help from editor context | Implemented |
-| #107 | Language-service sidecar: SQL diagnostics, hover, richer completion, explain and repair hooks | In progress: packaged C# parser diagnostics with TypeScript fallback are implemented; signature help and repair suggestions remain |
-| #108 | Packaging and release: tests, CI, VSIX build, Marketplace metadata, docs, screenshots | In progress: repeatable VSIX/CI/docs/metadata are implemented; Marketplace publish and Electron screenshots remain |
+| #107 | Language-service sidecar: SQL diagnostics, hover, richer completion, explain and repair hooks | Implemented: packaged C# parser diagnostics, TypeScript fallback, signature help, and delimiter quick fixes |
+| #108 | Packaging and release: tests, CI, VSIX build, Marketplace metadata, docs, screenshots | `0.2.0` release candidate is ready with package audit and isolated install smoke; Marketplace publication is an explicit release action, while automated Electron journeys remain follow-up hardening |
 
 ## First wave acceptance criteria
 

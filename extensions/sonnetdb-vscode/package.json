@@ -2,11 +2,12 @@
   "name": "sonnetdb-vscode",
   "displayName": "SonnetDB",
   "description": "Connect to SonnetDB, explore multi-model schema, run SQL, chart results, and use read-only Copilot from VS Code.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "iotsharp",
   "preview": true,
   "private": false,
   "license": "MIT",
+  "icon": "media/sonnetdb.png",
   "homepage": "https://github.com/IoTSharp/SonnetDB",
   "repository": {
     "type": "git",
@@ -31,6 +32,7 @@
   ],
   "main": "./out/extension.js",
   "activationEvents": [
+    "onLanguage:sql",
     "onView:sonnetdb.explorer",
     "onCommand:sonnetdb.addConnection",
     "onCommand:sonnetdb.refreshExplorer",
@@ -368,7 +370,7 @@
     "lint": "tsc --noEmit -p ./",
     "test": "npm run compile && node --test out/test/*.test.js",
     "clean:language-server": "node -e \"require('node:fs').rmSync('language-server',{recursive:true,force:true})\"",
-    "build:language-server": "npm run clean:language-server && dotnet publish ../../src/SonnetDB.LanguageServer/SonnetDB.LanguageServer.csproj --configuration Release --output language-server",
+    "build:language-server": "npm run clean:language-server && dotnet publish ../../src/SonnetDB.LanguageServer/SonnetDB.LanguageServer.csproj --configuration Release --output language-server -p:UseAppHost=false",
     "package:vsix": "npm run test && npm run build:language-server && node -e \"require('node:fs').mkdirSync('dist',{recursive:true})\" && vsce package --no-dependencies --out dist/sonnetdb-vscode.vsix"
   },
   "devDependencies": {

@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { scanSqlDiagnostics } from '../core/sqlDiagnostics';
+import { findSqlFunctionCall, repairSqlDiagnostic } from '../core/sqlLanguageAssist';
 import { LanguageServerDiagnostic, SqlLanguageServerClient } from '../core/sqlLanguageServerClient';
 
 const Help = new Map<string, string>([
@@ -86,6 +87,50 @@ export function registerSqlLanguageFeatures(
         return new vscode.Hover(new vscode.MarkdownString(`**SonnetDB ${word.toUpperCase()}**\n\n${help}`), range);
       },
     }),
+    vscode.languages.registerSignatureHelpProvider(selector, {
+      provideSignatureHelp(document, position) {
+        const call = findSqlFunctionCall(document.getText(), document.offsetAt(position));
+        if (!call) {
+          return undefined;
+        }
+        const information = new vscode.SignatureInformation(
+          call.signature.label,
+          new vscode.MarkdownString(call.signature.documentation),
+        );
+        information.parameters = call.signature.parameters.map((parameter) => new vscode.ParameterInformation(
+          parameter.label,
+          parameter.documentation,
+        ));
+        const help = new vscode.SignatureHelp();
+        help.signatures = [information];
+        help.activeSignature = 0;
+        help.activeParameter = call.activeParameter;
+        return help;
+      },
+    }, '(', ','),
+    vscode.languages.registerCodeActionsProvider(selector, {
+      provideCodeActions(document, _range, actionContext) {
+        return actionContext.diagnostics.flatMap((diagnostic) => {
+          const start = document.offsetAt(diagnostic.range.start);
+          const end = document.offsetAt(diagnostic.range.end);
+          const repair = repairSqlDiagnostic(diagnostic.message, start, end - start, document.getText().length);
+          if (!repair) {
+            return [];
+          }
+          const action = new vscode.CodeAction(repair.title, vscode.CodeActionKind.QuickFix);
+          const edit = new vscode.WorkspaceEdit();
+          edit.replace(
+            document.uri,
+            new vscode.Range(document.positionAt(repair.offset), document.positionAt(repair.offset + repair.length)),
+            repair.text,
+          );
+          action.edit = edit;
+          action.diagnostics = [diagnostic];
+          action.isPreferred = true;
+          return [action];
+        });
+      },
+    }, { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }),
   );
   for (const document of vscode.workspace.textDocuments) {
     refresh(document);

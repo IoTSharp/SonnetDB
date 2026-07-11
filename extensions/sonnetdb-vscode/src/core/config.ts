@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-export const extensionId = 'sonnetdb.sonnetdb-vscode';
+export const extensionId = 'iotsharp.sonnetdb-vscode';
 export const configurationSection = 'sonnetdb';
 
 export function getDefaultBaseUrl(): string {

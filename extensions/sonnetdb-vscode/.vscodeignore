@@ -1,8 +1,13 @@
 src/**
 out/test/**
 out/**/*.map
+node_modules/**
+.vscode/**
+.github/**
+.playwright-cli/**
 tsconfig.json
 .gitignore
+package-lock.json
 docs/**
 ROADMAP.md
 dist/**
