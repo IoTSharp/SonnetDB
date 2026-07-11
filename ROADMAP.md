@@ -22,7 +22,7 @@
 | 21 | Document Store 单机能力升级（MongoDB-like） | #137 ~ #146 | ✅ |
 | 23 | 搜索与向量引擎合并（DotSearch / DotVector 收编） | #160 ~ #169 | ✅ |
 | 24 | SonnetDB Studio 管理体验升级（Document 管理面） | #170 ~ #172 | ✅（核心工作台由 M29 #257 落地；高级查询、更新预览、索引设计与 change feed 由 M32 #279/#281 界面交付收口） |
-| 25 | Document Store 验收、文档与发布治理 | #173 ~ #174 | 📋 |
+| 25 | Document Store 验收、文档与发布治理 | #173 ~ #174 | ✅ |
 | 26 | 连接器路线独立化（C ABI + 多模型 API） | #175 ~ #181 | ✅ |
 | 27 | Industrial Data Agent 与 AI-ready 产品化路线 | #182 ~ #188 | 🚧（#182 文档已落；M28 收官后 #184 Demo 可启动；#183/#185 纯文档） |
 | 28 | 可靠性、并发正确性与热路径加固（P0~P5 分阶段） | #189 ~ #244、#261 ~ #262 | ✅（全部收官，详情见归档） |
@@ -51,7 +51,7 @@
 > - **M32 Document Store MongoDB-like 易用性增强**：在 M21 单机能力、M24 管理面、M25 parity/长稳之后，集中补齐 MongoDB 日常开发体验缺口。第一目标是让 SonnetDB Document Store 对应用开发者“像 MongoDB 一样顺手”，不是立即承诺 MongoDB wire protocol / BSON command / 官方 Driver 直连。
 > - **M34 Modbus TCP 内建映射表**：把“建表时定义寄存器 ↔ 表字段 ↔ 类型转换”的能力作为独立路线推进，明确区分 **主站/client**（SonnetDB 主动连接外部从站/server 采集和写寄存器）与 **从站/server**（SonnetDB 暴露 Modbus TCP 端口，外部主站读写映射字段）。该路线不再藏在 M30 的被动接入边界内。
 >
-> **已收官**：M28（可靠性 / 并发正确性 / 热路径加固，P0~P5 + SDK 补口全部完成）、M20 Parity、M21 Document Store、M23 搜索/向量合并、M26 连接器。详细正文见 [docs/roadmap-history.md](docs/roadmap-history.md)。
+> **已收官**：M28（可靠性 / 并发正确性 / 热路径加固，P0~P5 + SDK 补口全部完成）、M20 Parity、M21 Document Store、M23 搜索/向量合并、M24 Document 管理面、M25 Document 发布治理、M26 连接器。详细正文见 [docs/roadmap-history.md](docs/roadmap-history.md)。
 
 ---
 
@@ -1036,8 +1036,8 @@ extensions/
 
 | PR | 主题 | 状态 |
 |----|------|------|
-| #173 | **MongoDB 参考 parity 套件**：在 `tests/SonnetDB.Parity` 新增 `MongoAdapter`（官方 MongoDB .NET Driver 仅连接参考 MongoDB 容器）与 `DocumentAdapter`（SonnetDB 自有 API），覆盖 CRUD、filter、projection、sort、update operators、index unique/TTL、aggregation、并发写、崩溃恢复后的索引一致性；报告中明确“语义对齐，不做协议兼容”。 | 📋 |
-| #174 | **Document 长稳、容量与发布文档**：百万 / 千万文档 profile 长测，输出写入、查询、索引 rebuild、TTL 清理、冷启动、备份恢复、内存占用报告；README / docs 新增 Document Store 能力矩阵、MongoDB-like 迁移指南、明确不支持项、推荐规模和 Studio 管理入口说明。 | 📋 |
+| #173 | **MongoDB 参考 parity 套件**：在 `tests/SonnetDB.Parity` 新增 `MongoAdapter`（官方 MongoDB .NET Driver 仅连接参考 MongoDB 容器）与 `DocumentAdapter`（SonnetDB 自有 API），覆盖 CRUD、filter、projection、sort、update operators、index unique/TTL、aggregation、并发写、崩溃恢复后的索引一致性；报告中明确“语义对齐，不做协议兼容”。 | ✅ |
+| #174 | **Document 长稳、容量与发布文档**：百万 / 千万文档 profile 长测，输出写入、查询、索引 rebuild、TTL 清理、冷启动、备份恢复、内存占用报告；README / docs 新增 Document Store 能力矩阵、MongoDB-like 迁移指南、明确不支持项、推荐规模和 Studio 管理入口说明。 | ✅（runner + quick 基线；百万/千万报告按目标硬件发布门禁生成） |
 
 ### 验收标准
 

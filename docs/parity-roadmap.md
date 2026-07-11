@@ -4,7 +4,7 @@
 
 ## 设计前提
 
-1. **不做协议兼容**。SonnetDB 不实现 SigV4 / MQTT 3.1.1 / RESP / Postgres wire / Kafka wire。我们走自己的 `SndbConnection` / `SndbMqClient` / `SndbObjectStorageClient` / EF Core provider / HTTP API。竞品也走它们各自的官方 .NET 客户端（`Npgsql` / `StackExchange.Redis` / `InfluxDB.Client` / `Minio` / `NATS.Client.Core` / `Meilisearch.Net` / `Qdrant.Client` / `ClickHouse.Client`）。
+1. **不做协议兼容**。SonnetDB 不实现 SigV4 / MQTT 3.1.1 / RESP / Postgres wire / MongoDB wire / Kafka wire。我们走自己的 `SndbConnection` / `SndbDocumentClient` / `SndbMqClient` / `SndbObjectStorageClient` / EF Core provider / HTTP API。竞品也走它们各自的官方 .NET 客户端（`Npgsql` / `MongoDB.Driver` / `StackExchange.Redis` / `InfluxDB.Client` / `Minio` / `NATS.Client.Core` / `Meilisearch.Net` / `Qdrant.Client` / `ClickHouse.Client`）；MongoDB Driver 只连接参考 MongoDB 容器。
 2. **不做替代主张**。SonnetDB 不替代 Redis Cluster / Kafka / Postgres HA / MinIO 分布式集群。我们对齐的是"一台开源组件、单进程、单节点"的能力面。
 3. **分布式留作下一步**。不在本里程碑内引入复制 / 副本 / Raft；待客户和长稳数据要求后再启动。
 4. **能力够用即可**。我们要证明的是"在边缘 / 单机场景下，SonnetDB 能用一个进程做完九件事，且每一件都做得稳"。
@@ -27,7 +27,7 @@
 - **绝对性能 benchmark**（已在 [tests/SonnetDB.Benchmarks](../tests/SonnetDB.Benchmarks/) 处理，本里程碑只做"数量级"健全性检查）。
 - **Schema 迁移、数据回填**（Parity 跑在干净 volume 上）。
 
-## 八大支柱与对齐基线
+## 八大基础支柱与 Document 参考基线
 
 每个支柱选 1 个主竞品 +（可选）1 个对照品。SonnetDB 走自有连接器，竞品走官方 .NET 客户端。
 
@@ -41,12 +41,13 @@
 | 全文 (FT) | Meilisearch 1.10 | — | SonnetDB 内置全文引擎 + `DocumentFullTextIndexStore` |
 | 向量 (Vector) | Qdrant 1.11 | — | SonnetDB 内置向量引擎 + `VectorIndexAdapter` |
 | 分析 (Analytics) | ClickHouse 24.8 | — | SQL `GROUP BY` + window functions |
+| 文档 (Document，M25) | MongoDB 8.0 | — | `SndbDocumentClient` / Document API；只验证语义，不做协议兼容 |
 
 ## 测试架构
 
 ```
 tests/SonnetDB.Parity/
-├── docker-compose.parity.yml          # 12 个服务 + harness
+├── docker-compose.parity.yml          # 13 个服务 + harness
 ├── docker-compose.parity.override.yml # 用户本地覆盖
 ├── .env                               # 端口 / 凭证 / 数据集大小
 ├── adapters/

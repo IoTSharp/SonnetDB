@@ -1,0 +1,50 @@
+name: Document Store Soak
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'Capacity profile (million/ten-million should use a dedicated runner when hosted limits are insufficient)'
+        required: true
+        default: quick
+        type: choice
+        options:
+          - quick
+          - million
+          - ten-million
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  soak:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Run Document Store profile
+        run: |
+          dotnet run --project tests/SonnetDB.DocumentSoak/SonnetDB.DocumentSoak.csproj \
+            --configuration Release \
+            -- \
+            --profile "${{ inputs.profile }}" \
+            --output "artifacts/document-soak/${{ inputs.profile }}"
+
+      - name: Upload capacity evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: document-soak-${{ inputs.profile }}-${{ github.sha }}
+          path: artifacts/document-soak/${{ inputs.profile }}

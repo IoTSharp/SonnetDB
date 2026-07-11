@@ -47,6 +47,9 @@ Do not describe SonnetDB first as a generic "multi-model database". Multi-model 
 - Embedded API: `docs/embedded-api.md`
 - ADO.NET: `docs/ado-net.md`
 - Bulk ingest: `docs/bulk-ingest.md`
+- Document Store capabilities and unsupported MongoDB semantics: `docs/document-store.md`
+- MongoDB-like migration guide: `docs/mongodb-migration.md`
+- Document Store capacity and soak evidence: `docs/benchmarks/document-store-capacity.md`
 - Vector search: `docs/vector-search.md`
 - Roadmap: `ROADMAP.md`
 

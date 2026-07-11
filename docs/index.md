@@ -46,6 +46,8 @@ SonnetDB 是一个面向 C# / .NET 10 工业边缘应用的本地优先数据引
 | 构建工业 AI 应用或 Industrial Data Agent | [使用 SonnetDB 构建工业 AI 应用]({{ site.docs_baseurl | default: '/help' }}/industrial-ai-applications/) |
 | 在进程内直接使用引擎 | [嵌入式与 in-proc API]({{ site.docs_baseurl | default: '/help' }}/embedded-api/) |
 | 使用轻量 KV keyspace 存储 metadata 或小对象 | [KV Keyspace]({{ site.docs_baseurl | default: '/help' }}/kv-keyspace/) |
+| 使用 JSON 文档集合或从 MongoDB-like 负载迁移 | [Document Store 能力矩阵]({{ site.docs_baseurl | default: '/help' }}/document-store/) 和 [迁移指南]({{ site.docs_baseurl | default: '/help' }}/mongodb-migration/) |
+| 评估 Document Store 推荐规模、恢复时间和内存曲线 | [Document Store 容量与长稳报告]({{ site.docs_baseurl | default: '/help' }}/benchmarks/document-store-capacity/) |
 | 通过 ADO.NET 访问本地或远程实例 | [ADO.NET 参考]({{ site.docs_baseurl | default: '/help' }}/ado-net/) |
 | 通过 EF Core DbContext 与现有 .NET 应用集成 | [EF Core Provider]({{ site.docs_baseurl | default: '/help' }}/efcore/) |
 | 使用 `sndb` 命令行工具 | [CLI 参考]({{ site.docs_baseurl | default: '/help' }}/cli-reference/) |

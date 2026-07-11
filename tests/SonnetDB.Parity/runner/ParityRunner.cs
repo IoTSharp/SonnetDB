@@ -3,6 +3,7 @@ using SonnetDB.Parity.Adapters.ClickHouse;
 using SonnetDB.Parity.Adapters.Influx;
 using SonnetDB.Parity.Adapters.Meili;
 using SonnetDB.Parity.Adapters.Minio;
+using SonnetDB.Parity.Adapters.Mongo;
 using SonnetDB.Parity.Adapters.Nats;
 using SonnetDB.Parity.Adapters.Postgres;
 using SonnetDB.Parity.Adapters.Qdrant;
@@ -12,6 +13,7 @@ using SonnetDB.Parity.Adapters.VictoriaMetrics;
 using SonnetDB.Parity.Runner.Reporting;
 using SonnetDB.Parity.Scenarios;
 using SonnetDB.Parity.Scenarios.Analytics;
+using SonnetDB.Parity.Scenarios.Document;
 using SonnetDB.Parity.Scenarios.FullText;
 using SonnetDB.Parity.Scenarios.Kv;
 using SonnetDB.Parity.Scenarios.Mq;
@@ -530,6 +532,103 @@ public sealed class ParityRunner
         await MarkdownReporter.WriteAsync(report, reportDir);
 
         Assert.Empty(failures);
+    }
+
+    /// <summary>Document 场景套件：SonnetDB 自有 API 与 MongoDB 官方 Driver 做语义参考对齐，不验证协议兼容。</summary>
+    [Fact]
+    public async Task DocumentSuite_SonnetDbMatchesMongoDbSemantics()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+        var ct = cts.Token;
+        var scenarios = CreateDocumentScenarios();
+        var runId = "document-" + Guid.NewGuid().ToString("N")[..8];
+        var startedAt = DateTimeOffset.UtcNow;
+        var reportDir = ResolveReportDirectory(runId);
+        var context = new ScenarioContext { RunId = runId, ReportDirectory = reportDir, Cancellation = ct };
+        var reports = new List<ScenarioReport>();
+        var failures = new List<string>();
+        bool mongoAvailable = await MongoAdapter.TryConnectAsync(ct);
+
+        await using var sonnet = new DocumentAdapter();
+        await using MongoAdapter? mongo = mongoAvailable ? new MongoAdapter() : null;
+        foreach (var scenario in scenarios)
+        {
+            var sonnetResult = await RunDocumentBackendAsync(scenario, sonnet, context);
+            var outcomes = new List<BackendOutcome> { ToOutcome(sonnet.BackendName, sonnetResult) };
+            var differences = new List<string>();
+            bool? withinTolerance = null;
+            if (!sonnetResult.Pass)
+                failures.Add($"SonnetDB Document 场景 {scenario.Name} 自检未通过。");
+
+            if (mongo is null)
+            {
+                outcomes.Add(new BackendOutcome(
+                    "mongodb",
+                    "skipped",
+                    "gap_reason=mongodb_unreachable; MongoDB reference container is not running or PARITY_MONGO_URL is invalid",
+                    0,
+                    new Dictionary<string, object?>()));
+            }
+            else
+            {
+                var mongoResult = await RunDocumentBackendAsync(scenario, mongo, context);
+                outcomes.Add(ToOutcome(mongo.BackendName, mongoResult));
+                if (!mongoResult.Pass)
+                    failures.Add($"MongoDB Document 场景 {scenario.Name} 自检未通过。");
+                if (sonnetResult.Pass && mongoResult.Pass)
+                {
+                    var diff = DiffResults(sonnetResult, mongoResult);
+                    withinTolerance = diff.WithinTolerance;
+                    differences.AddRange(diff.Differences);
+                    if (!diff.WithinTolerance)
+                        failures.Add($"SonnetDB 与 MongoDB 场景 {scenario.Name} 结果超出容差：" + string.Join("; ", diff.Differences));
+                }
+            }
+            reports.Add(new ScenarioReport(scenario.Name, withinTolerance, differences, outcomes));
+        }
+
+        var gaps = reports.Select(report => new CapabilityGap(
+            report.Name,
+            "Document",
+            Find(report, "sonnetdb")?.Status ?? "missing",
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["sonnetdb"] = Find(report, "sonnetdb")?.Status ?? "missing",
+                ["mongodb"] = Find(report, "mongodb")?.Status ?? "missing",
+            },
+            Find(report, "sonnetdb")?.GapReason)).ToArray();
+        var parityReport = new ParityReport(runId, startedAt, reports, gaps, ["sonnetdb", "mongodb"]);
+        await JsonReporter.WriteAsync(parityReport, reportDir);
+        await MarkdownReporter.WriteAsync(parityReport, reportDir);
+        Assert.Empty(failures);
+    }
+
+    private static IReadOnlyList<IDocumentParityScenario> CreateDocumentScenarios() =>
+    [
+        new DocumentCrudQueryScenario(),
+        new DocumentUpdateOperatorsScenario(),
+        new DocumentIndexTtlScenario(),
+        new DocumentAggregationScenario(),
+        new DocumentConcurrentRecoveryScenario(),
+    ];
+
+    private static async Task<ScenarioResult> RunDocumentBackendAsync(
+        IDocumentParityScenario scenario,
+        IDocumentOps ops,
+        ScenarioContext context)
+    {
+        try
+        {
+            return await scenario.RunAsync(ops, context).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            var result = new ScenarioResult { Pass = false };
+            result.Metrics["exception_type"] = ex.GetType().Name;
+            result.Metrics["exception_message"] = ex.Message;
+            result.Metrics["exception_stack"] = ex.StackTrace;
+            return result;
+        }
     }
 
     private static IReadOnlyList<IScenario> CreateRelationalScenarios() =>

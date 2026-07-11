@@ -15,6 +15,7 @@
     <PackageReference Include="AWSSDK.S3" />
     <PackageReference Include="InfluxDB.Client" />
     <PackageReference Include="MeiliSearch" />
+    <PackageReference Include="MongoDB.Driver" />
     <PackageReference Include="ClickHouse.Client" />
     <PackageReference Include="NATS.Client.Core" />
     <PackageReference Include="NATS.Client.JetStream" />

@@ -67,6 +67,7 @@
     <PackageVersion Include="NATS.Client.Core" Version="2.8.2" />
     <PackageVersion Include="NATS.Client.JetStream" Version="2.8.2" />
     <PackageVersion Include="MeiliSearch" Version="0.20.0" />
+    <PackageVersion Include="MongoDB.Driver" Version="3.10.0" />
     <PackageVersion Include="ClickHouse.Client" Version="7.14.0" />
     <PackageVersion Include="OpenTelemetry.Exporter.InMemory" Version="1.16.0" />
   </ItemGroup>

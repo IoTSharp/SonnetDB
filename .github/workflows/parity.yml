@@ -93,7 +93,7 @@ jobs:
         run: |
           services="sonnetdb postgres redis minio nats"
           if [[ "${{ matrix.profile }}" == "full" ]]; then
-            services="$services influxdb victoriametrics mosquitto meilisearch qdrant clickhouse"
+            services="$services influxdb victoriametrics mosquitto meilisearch qdrant clickhouse mongodb"
           fi
           if ! docker compose -f docker-compose.parity.yml --profile ${{ matrix.profile }} up -d --wait --wait-timeout 300 $services; then
             diagnostics="${GITHUB_WORKSPACE}/artifacts/parity/${{ matrix.profile }}/stack-diagnostics"
@@ -124,6 +124,8 @@ jobs:
           PARITY_QDRANT_PORT: 26334
           PARITY_CLICKHOUSE_HOST: 127.0.0.1
           PARITY_CLICKHOUSE_HTTP_PORT: 28123
+          PARITY_MONGO_URL: mongodb://127.0.0.1:27017
+          PARITY_MONGO_DB: sonnetdb_parity
           PARITY_FULLTEXT_DOCUMENTS: ${{ matrix.profile == 'full' && '5000' || '1000' }}
           PARITY_FULLTEXT_BM25_DOCUMENTS: ${{ matrix.profile == 'full' && '2000' || '500' }}
           PARITY_ANALYTICS_GROUPBY_DAYS: ${{ matrix.profile == 'full' && '120' || '30' }}

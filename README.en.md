@@ -210,7 +210,7 @@ README keeps the product overview and shortest setup path. Detailed material liv
 | Copilot providers, model groups, local models | [Copilot Provider and Model Catalog](docs/copilot-providers.md) |
 | Embedded API, ADO.NET, EF Core, CLI | [Embedded API](docs/embedded-api.md), [ADO.NET](docs/ado-net.md), [CLI](docs/cli-reference.md) |
 | Bulk ingest, Line Protocol, JSON ingest | [Bulk Ingest](docs/bulk-ingest.md) |
-| KV, documents, full-text, vector, Hybrid Search | [KV Keyspace](docs/kv-keyspace.md), [Vector Search](docs/vector-search.md) |
+| KV, documents, full-text, vector, Hybrid Search | [KV Keyspace](docs/kv-keyspace.md), [Document Store](docs/document-store.md), [Vector Search](docs/vector-search.md) |
 | Binary frame protocol, MQTT ingest | [Frame Protocol](docs/frame-protocol.md) |
 | Geospatial, trajectory, forecast, PID | [Geospatial](docs/geo-spatial.md), [Forecast](docs/forecast.md), [PID Control](docs/pid-control.md) |
 | Architecture, file layout, backup/restore | [Architecture](docs/architecture.md), [File Format](docs/file-format.md), [Backup & Restore](docs/backup-restore.md) |
@@ -226,7 +226,7 @@ Use [tests/SonnetDB.Benchmarks/README.md](tests/SonnetDB.Benchmarks/README.md) a
 
 ## 🤝 Parity vs Open-Source Stack
 
-SonnetDB continuously checks its multi-model behavior against open-source peers: PostgreSQL, InfluxDB, VictoriaMetrics, Redis, Qdrant, MinIO, NATS JetStream, Meilisearch, and ClickHouse. `.github/workflows/parity.yml` runs the `light` / `full` matrix daily; capability, reliability, and algorithmic accuracy are merge gates, while performance numbers are warning/report only. A readable example is at [tests/SonnetDB.Parity/reports/sample-run.md](tests/SonnetDB.Parity/reports/sample-run.md), with the plan in [docs/parity-roadmap.md](docs/parity-roadmap.md).
+SonnetDB continuously checks its multi-model behavior against open-source peers: PostgreSQL, MongoDB, InfluxDB, VictoriaMetrics, Redis, Qdrant, MinIO, NATS JetStream, Meilisearch, and ClickHouse. MongoDB is a Document semantics reference only; the suite does not claim wire protocol, BSON command, or official Driver connection compatibility. `.github/workflows/parity.yml` runs the `light` / `full` matrix daily; capability, reliability, and algorithmic accuracy are merge gates, while performance numbers are warning/report only. A readable example is at [tests/SonnetDB.Parity/reports/sample-run.md](tests/SonnetDB.Parity/reports/sample-run.md), with the plan in [docs/parity-roadmap.md](docs/parity-roadmap.md).
 
 ## 🎯 Positioning & Boundaries
 

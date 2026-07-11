@@ -24,6 +24,7 @@ volumes:
   meili-data:
   qdrant-data:
   ch-data:
+  mongo-data:
 
 services:
   # ── 轻量栈（light + full） ─────────────────────────────────────────────
@@ -217,6 +218,22 @@ services:
       start_period: 10s
     profiles: [full]
 
+  mongodb:
+    image: mongo:8.0.12
+    command: ["mongod", "--bind_ip_all", "--setParameter", "ttlMonitorSleepSecs=1"]
+    networks: [parity-net]
+    ports:
+      - "${PARITY_MONGO_PORT:-27017}:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 15s
+    profiles: [full]
+
   # ── 测试驱动 harness ───────────────────────────────────────────────────
   harness:
     image: mcr.microsoft.com/dotnet/sdk:10.0
@@ -252,6 +269,8 @@ services:
       PARITY_CLICKHOUSE_USER: ${PARITY_CLICKHOUSE_USER:-default}
       PARITY_CLICKHOUSE_PASSWORD: ${PARITY_CLICKHOUSE_PASSWORD:-}
       PARITY_CLICKHOUSE_DATABASE: ${PARITY_CLICKHOUSE_DATABASE:-default}
+      PARITY_MONGO_URL: mongodb://mongodb:27017
+      PARITY_MONGO_DB: ${PARITY_MONGO_DB:-sonnetdb_parity}
       PARITY_FULLTEXT_DOCUMENTS: ${PARITY_FULLTEXT_DOCUMENTS:-5000}
       PARITY_FULLTEXT_BM25_DOCUMENTS: ${PARITY_FULLTEXT_BM25_DOCUMENTS:-2000}
       PARITY_ANALYTICS_GROUPBY_DAYS: ${PARITY_ANALYTICS_GROUPBY_DAYS:-120}
