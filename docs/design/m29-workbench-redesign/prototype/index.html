@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SonnetDB Studio - M29 全量重设计原型</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="SonnetDB Studio">
+        <span class="brand-mark">S</span><strong>SonnetDB Studio</strong>
+      </a>
+      <div class="breadcrumb" id="breadcrumb">工厂数据 <span>›</span> factory <span>›</span> Measurements <span>›</span> device_metrics</div>
+      <button class="command-search" type="button"><span>⌕</span> 搜索命令 <kbd>Ctrl K</kbd></button>
+      <button class="connection-button" id="connectionButton" type="button"><span class="status-dot healthy"></span> factory-cluster <span>⌄</span></button>
+      <button class="icon-button" type="button" title="通知">♢<span class="badge">3</span></button>
+      <button class="avatar" type="button">AD</button>
+    </header>
+
+    <aside class="rail" aria-label="全局模块">
+      <nav>
+        <button class="rail-item" type="button" data-module="overview"><span>◫</span><small>概览</small></button>
+        <button class="rail-item" type="button" data-model="sql"><span>⌘</span><small>查询</small></button>
+        <button class="rail-item" type="button" data-model="table"><span>▤</span><small>数据</small></button>
+        <button class="rail-item" type="button" data-module="transactions"><span>⟲</span><small>事务</small></button>
+        <button class="rail-item active" type="button" data-model="sql"><span>◉</span><small>Studio</small></button>
+        <button class="rail-item" type="button" data-module="monitor"><span>⌁</span><small>监控</small></button>
+        <button class="rail-item" type="button" data-module="backup"><span>▱</span><small>备份</small></button>
+        <button class="rail-item" type="button" data-module="tools"><span>⌕</span><small>工具</small></button>
+      </nav>
+      <button class="rail-item rail-settings" type="button" data-module="settings"><span>⚙</span><small>设置</small></button>
+    </aside>
+
+    <aside class="explorer" id="explorer">
+      <div class="explorer-head">
+        <div class="panel-title"><strong>资源浏览器</strong><span><button class="icon-button small" type="button" title="添加连接">＋</button><button class="icon-button small" type="button" title="刷新">↻</button></span></div>
+        <label class="search-box"><span>⌕</span><input id="treeSearch" type="search" placeholder="搜索资源"><button type="button" title="筛选">≡</button></label>
+        <div class="explorer-tools"><button class="segmented active" type="button">树</button><button class="segmented" type="button">列表</button><button class="segmented" type="button">详细</button><select><option>按名称</option><option>按类型</option></select></div>
+      </div>
+      <div class="tree-scroll" id="treeScroll">
+        <div class="tree-root"><span>⌄</span><span class="db-icon">◉</span><strong>工厂数据</strong></div>
+        <div class="tree-db"><span>⌄</span><span class="db-icon">◉</span><strong>factory</strong></div>
+        <div class="tree-group open" data-group="Measurements">
+          <button type="button" class="group-label"><span>⌄</span><b>▥</b> Measurements <em>3</em></button>
+          <button type="button" class="tree-item active" data-model="sql" data-object="device_metrics"><span>⌁</span>device_metrics</button>
+          <button type="button" class="tree-item" data-model="sql" data-object="line_energy"><span>⌁</span>line_energy</button>
+        </div>
+        <div class="tree-group open" data-group="Tables">
+          <button type="button" class="group-label"><span>⌄</span><b>▦</b> Tables <em>4</em></button>
+          <button type="button" class="tree-item" data-model="table" data-object="machines"><span>▦</span>machines</button>
+          <button type="button" class="tree-item" data-model="table" data-object="work_orders"><span>▦</span>work_orders</button>
+        </div>
+        <div class="tree-group open" data-group="Collections">
+          <button type="button" class="group-label"><span>⌄</span><b>◫</b> Collections <em>2</em></button>
+          <button type="button" class="tree-item" data-model="document" data-object="device-events"><span>◫</span>device-events</button>
+        </div>
+        <div class="tree-group open" data-group="KV Keyspaces">
+          <button type="button" class="group-label"><span>⌄</span><b>⌘</b> KV Keyspaces <em>2</em></button>
+          <button type="button" class="tree-item" data-model="kv" data-object="device-cache"><span>⌘</span>device-cache</button>
+        </div>
+        <div class="tree-group open" data-group="Vector Indexes">
+          <button type="button" class="group-label"><span>⌄</span><b>⌬</b> Vector Indexes <em>1</em></button>
+          <button type="button" class="tree-item" data-model="vector" data-object="embeddings.vector"><span>⌬</span>embeddings.vector</button>
+        </div>
+        <div class="tree-group open" data-group="FullText Indexes">
+          <button type="button" class="group-label"><span>⌄</span><b>FT</b> FullText Indexes <em>1</em></button>
+          <button type="button" class="tree-item" data-model="fulltext" data-object="docs.search"><span>FT</span>docs.search</button>
+        </div>
+        <div class="tree-group open" data-group="MQ Topics">
+          <button type="button" class="group-label"><span>⌄</span><b>♧</b> MQ Topics <em>5</em></button>
+          <button type="button" class="tree-item" data-model="mq" data-object="telemetry.raw"><span>♧</span>telemetry.raw</button>
+          <button type="button" class="tree-item" data-model="mq" data-object="commands"><span>♧</span>commands</button>
+        </div>
+        <div class="tree-group open" data-group="Object Buckets">
+          <button type="button" class="group-label"><span>⌄</span><b>▱</b> Object Buckets <em>3</em></button>
+          <button type="button" class="tree-item" data-model="bucket" data-object="raw-data"><span>▱</span>raw-data</button>
+        </div>
+      </div>
+      <div class="db-health"><div><span class="status-dot healthy"></span><strong>数据库健康度</strong><span class="health-tag">健康</span></div><small>存储 68%　 内存 42%　 连接 24</small></div>
+    </aside>
+
+    <button class="splitter explorer-splitter" id="explorerSplitter" type="button" aria-label="调整资源浏览器宽度"></button>
+
+    <main class="workspace">
+      <div class="workspace-tabs" id="workspaceTabs">
+        <button type="button" class="workspace-tab"><span>⌘</span> factory.overview</button>
+        <button type="button" class="workspace-tab active" id="activeObjectTab"><span>⌁</span> device_metrics <b>×</b></button>
+        <button type="button" class="workspace-tab"><span>▦</span> machines <b>×</b></button>
+        <button type="button" class="workspace-tab add">＋</button>
+        <span class="tab-spacer"></span>
+        <button class="toolbar-button" id="resultsButton" type="button">▤ 结果</button>
+        <button class="toolbar-button" id="historyButton" type="button">◷ 历史</button>
+      </div>
+      <section class="workbench" id="workbench"></section>
+    </main>
+  </div>
+
+  <div class="drawer result-drawer" id="resultDrawer" aria-hidden="true">
+    <div class="drawer-head"><strong>操作结果</strong><nav><button class="active" type="button">表格</button><button type="button">Raw</button><button type="button">JSON</button><button type="button">图表</button></nav><span><button type="button">复制</button><button type="button">导出⌄</button><button class="drawer-close" type="button">×</button></span></div>
+    <div class="result-body"><table><thead><tr><th>status</th><th>operation</th><th>affected</th><th>elapsed</th><th>executed_at</th></tr></thead><tbody><tr><td><span class="state success">成功</span></td><td>SELECT preview</td><td>48 rows</td><td>12 ms</td><td>2026-07-11 14:32:08</td></tr></tbody></table></div>
+  </div>
+
+  <aside class="drawer history-drawer" id="historyDrawer" aria-hidden="true">
+    <div class="drawer-head"><strong>工作台历史</strong><button class="drawer-close" type="button">×</button></div>
+    <div class="history-filter"><input placeholder="筛选操作"><select><option>全部模型</option><option>SQL</option><option>MQ</option></select></div>
+    <div class="history-list">
+      <article><span class="state success">成功</span><strong>浏览 telemetry.raw</strong><small>factory · MQ · 12 ms · 刚刚</small><button type="button">恢复</button></article>
+      <article><span class="state warning">预览</span><strong>更新 machines / M-104</strong><small>factory · Table · 2 分钟前</small><button type="button">恢复</button></article>
+      <article><span class="state success">成功</span><strong>向量 Top-K 检索</strong><small>factory · Vector · 38 ms · 8 分钟前</small><button type="button">恢复</button></article>
+    </div>
+  </aside>
+
+  <div class="popover connection-popover" id="connectionPopover" aria-hidden="true">
+    <div class="popover-head"><strong>连接与本地 Server</strong><button class="drawer-close" type="button">×</button></div>
+    <div class="connection-row selected"><span class="connection-icon">◉</span><div><strong>factory-cluster</strong><small>Remote · factory · 18 ms</small></div><span class="status-dot healthy"></span></div>
+    <div class="connection-row"><span class="connection-icon">▣</span><div><strong>Managed Local</strong><small>Studio bridge · C:\SonnetDB\data</small></div><span class="state success">运行中</span></div>
+    <div class="server-actions"><span>Server 3.1.0 · 最近检查 14:31:55</span><button type="button">Health</button><button type="button">Stop</button></div>
+    <button class="full-button" type="button">＋ 添加远程连接</button>
+  </div>
+
+  <div class="modal-backdrop" id="approvalModal" aria-hidden="true">
+    <section class="approval-modal" role="dialog" aria-modal="true" aria-labelledby="approvalTitle">
+      <header><div><span class="risk-icon">!</span><div><strong id="approvalTitle">确认暂存操作</strong><small>执行前检查目标、范围和变更内容</small></div></div><button class="drawer-close" type="button">×</button></header>
+      <dl><div><dt>连接 / 数据库</dt><dd>factory-cluster / factory</dd></div><div><dt>目标对象</dt><dd id="approvalTarget">machines</dd></div><div><dt>动作</dt><dd id="approvalAction">更新 1 行</dd></div><div><dt>风险级别</dt><dd><span class="state warning">需要确认</span></dd></div></dl>
+      <div class="preview-code"><span>参数化预览</span><pre id="approvalPreview">UPDATE machines SET status = @p0 WHERE machine_id = @p1;</pre></div>
+      <label class="confirm-check"><input type="checkbox" id="approvalCheck"> 我已核对目标范围和参数，确认执行此操作</label>
+      <footer><button class="secondary cancel-approval" type="button">返回编辑</button><button class="primary confirm-approval" type="button" disabled>确认执行</button></footer>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

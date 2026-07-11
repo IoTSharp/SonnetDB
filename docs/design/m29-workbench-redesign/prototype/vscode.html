@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SonnetDB for VS Code - M29 原型</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="vscode.css">
+</head>
+<body>
+  <div class="vscode-shell">
+    <header class="titlebar"><span class="app-icon">⌘</span><nav>文件　编辑　选择　查看　转到　运行　终端　帮助</nav><strong>factory-overview.sql — SonnetDB</strong><input placeholder="搜索 SonnetDB Workspace"><span>▢　—　□　×</span></header>
+    <aside class="activitybar"><button>▧</button><button class="active">◉</button><button>⌕</button><button>⑂</button><button>▷</button><span></span><button>⚙</button></aside>
+    <aside class="sidebar">
+      <header><strong>SONNETDB</strong><span>＋　↻　•••</span></header>
+      <div class="connection"><span>⌄ ◉</span><strong>factory-cluster</strong><small>remote · healthy</small></div>
+      <div class="db"><span>⌄ ▣</span><strong>factory</strong></div>
+      <div class="tree"><button>⌄ ▥ Measurements</button><button class="leaf">　⌁ device_metrics</button><button>⌄ ▦ Tables</button><button class="leaf">　▦ machines</button><button>⌄ ◫ Collections</button><button class="leaf">　◫ device-events</button><button>⌄ ⌘ KV Keyspaces</button><button class="leaf active">　⌘ device-cache</button><button>⌄ ⌬ Vector Indexes</button><button class="leaf">　⌬ embeddings.vector</button><button>⌄ FT FullText Indexes</button><button class="leaf">　FT docs.search</button><button>⌄ ♧ MQ Topics</button><button class="leaf">　♧ telemetry.raw</button></div>
+    </aside>
+    <main class="editor">
+      <div class="editor-tabs"><button class="active">⌘ factory-overview.sql　×</button><button>⌘ device-cache preview　×</button></div>
+      <div class="breadcrumbs">factory-cluster › factory › query › factory-overview.sql</div>
+      <section class="code-editor"><div class="gutter">1<br>2<br>3<br>4<br>5<br>6<br>7</div><pre><span class="kw">SELECT</span> time, deviceId, temperature, pressure
+<span class="kw">FROM</span> device_metrics
+<span class="kw">WHERE</span> time &gt; now() - interval <span class="string">'1 hour'</span>
+  <span class="kw">AND</span> lineId = <span class="string">'LINE-1'</span>
+<span class="kw">ORDER BY</span> time <span class="kw">DESC</span>
+<span class="kw">LIMIT</span> 100;</pre><div class="editor-actions"><button>▷ Run Query</button><button>Explain</button><button>Ask Copilot</button></div></section>
+      <section class="panel"><div class="panel-tabs"><button class="active">QUERY RESULT</button><button>OUTPUT</button><button>SONNETDB</button><span></span><button>Table</button><button>Raw</button><button>Chart</button><button>×</button></div><table><thead><tr><th>time</th><th>deviceId</th><th>temperature</th><th>pressure</th><th>status</th></tr></thead><tbody><tr><td>14:31:48.123</td><td>PLC-101</td><td>56.7</td><td>1.21</td><td>OK</td></tr><tr><td>14:31:46.987</td><td>PLC-102</td><td>48.1</td><td>1.08</td><td>OK</td></tr><tr><td>14:31:44.876</td><td>SENSOR-77</td><td>42.8</td><td>1.14</td><td>WARN</td></tr></tbody></table><footer>100 rows　·　12 ms　·　factory-cluster / factory</footer></section>
+    </main>
+    <aside class="copilot"><header><strong>SONNETDB COPILOT</strong><button>×</button></header><div class="mode"><span class="dot"></span> Read-only <button id="modeButton">切换模式</button></div><div class="messages"><article class="user">解释当前查询，并建议减少扫描范围。</article><article class="assistant"><strong>查询说明</strong><p>该查询读取 LINE-1 最近一小时的遥测，并按时间倒序返回 100 行。</p><strong>建议</strong><p>如果只查看温度异常，可增加 <code>temperature &gt; 80</code>；当前时间条件已经可以下推。</p><button>插入筛选条件</button></article></div><label><textarea placeholder="询问当前数据库、Schema 或查询…"></textarea><button>↑</button></label></aside>
+    <footer class="statusbar"><span>◉ factory-cluster</span><span>▣ factory</span><span>SonnetDB 3.1.0</span><span></span><span>Ln 7, Col 11</span><span>UTF-8</span><span>SQL</span><span>Read-only</span></footer>
+  </div>
+  <dialog id="confirmDialog"><form method="dialog"><h2>启用 Read-write Copilot？</h2><p>Copilot 将能够建议写操作，但每个写入仍需单独确认。完整编辑和治理请使用 Web Admin 或 Studio。</p><menu><button value="cancel">保持 Read-only</button><button value="confirm" class="primary">确认切换</button></menu></form></dialog>
+  <script>const d=document.querySelector('#confirmDialog');document.querySelector('#modeButton').onclick=()=>d.showModal();</script>
+</body>
+</html>

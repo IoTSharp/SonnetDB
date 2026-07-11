@@ -1,6 +1,6 @@
 # Milestone 29 多模型管理工作台重设计提案
 
-> 状态：确认用原型，不修改 `web/src`，不代表已经进入实现。
+> 状态：全量设计深化中，不修改 `web/src`，不代表已经进入实现。当前已覆盖 M29 八模型工作台、共享操作层、Studio 原生桥和 VS Code 子集；页面清单见 [screen-matrix.md](screen-matrix.md)，交互原型见 [prototype/index.html](prototype/index.html)。
 
 ## 设计判断
 
@@ -57,13 +57,26 @@
 
 ## 原型中的关键行为
 
-- 点击资源树中的 `telemetry.raw` 或 `orders` 可切换 MQ / 关系表工作台。
-- 顶部工作区页签可在 SQL、MQ 和关系表之间切换。
+- 点击资源树中的 Measurement、Table、Collection、KV Keyspace、Vector Index、FullText Index、MQ Topic 或 Object Bucket，可切换八种模型工作台。
+- 每个模型的二级页签均按任务拆分；关系、文档、MQ 和对象治理不会在默认浏览页平铺全部功能。
 - 资源浏览器可以整体收起，数据库分组可以展开或折叠。
 - 搜索框会过滤树中的对象名称和类型。
 - MQ 的二级页签只呈现当前任务；消息详情检查器可以收起。
-- 两个工作台沿用同一外壳，证明框架不是只为 MQ 页面定制。
+- 结果与历史作为共享抽屉出现；所有危险动作进入 staged preview 写审批层。
+- 顶部连接菜单展示 Remote、Managed Local、Studio bridge 和本地 Server 健康状态。
+- 独立 VS Code 原型只保留 Remote Explorer、SQL 三视图、只读多模型预览与 Copilot。
+- 所有工作台沿用同一外壳，证明框架不是为单个模型定制。
+
+## 全量设计资产
+
+- [README.md](README.md)：设计包入口与查看方式。
+- [design-system.md](design-system.md)：视觉 token、状态、响应式和可访问性。
+- [screen-matrix.md](screen-matrix.md)：M29 页面与状态全覆盖矩阵。
+- [interaction-spec.md](interaction-spec.md)：导航、检查器、结果、历史、审批和导入导出规范。
+- [prototype/index.html](prototype/index.html)：Web Admin / Studio 可交互原型。
+- [prototype/vscode.html](prototype/vscode.html)：VS Code Remote-first 子集原型。
+- [prompts/README.md](prompts/README.md)：17 张高保真关键帧的生成清单与提示词索引。
 
 ## 实现边界建议
 
-确认原型后再拆成实现任务。第一批只改共享外壳、Explorer、字号/密度 token 和 MQ/关系表的布局挂载，不改 API、权限、写审批、历史和模型语义；其他六个工作台按共享框架逐个迁移，避免一次性重写。
+确认原型后再拆成实现任务。第一批只改共享外壳、Explorer、字号/密度 token 和 SQL/MQ/关系表的布局挂载，不改 API、权限、写审批、历史和模型语义；文档、KV、向量、全文和对象工作台按共享框架逐个迁移。Studio bridge 只调整呈现入口，VS Code 维持开发者子集，避免把视觉重构扩大成跨交付面重写。

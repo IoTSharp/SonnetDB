@@ -431,3 +431,5 @@ FodyWeavers.xsd
 /.codex-temp
 src/SonnetDB/sonnetdb-data/
 .codex-verify/
+output/
+d
