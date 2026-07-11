@@ -238,6 +238,9 @@ const taskViews = [
   { tool: 'measurement', testId: 'workbench-measurement', tab: '文件导入', content: 'Measurement 文件导入' },
   { tool: 'table', testId: 'workbench-table', tab: '设计器', content: 'Create table' },
   { tool: 'document', testId: 'workbench-document', tab: 'Validator', content: 'Sample precheck' },
+  { tool: 'document', testId: 'workbench-document', tab: '更新', content: '局部更新' },
+  { tool: 'document', testId: 'workbench-document', tab: '索引', content: '索引设计器' },
+  { tool: 'document', testId: 'workbench-document', tab: 'Change Feed', content: '7 天保留' },
   { tool: 'kv', testId: 'workbench-kv', tab: '批量操作', content: 'Batch operations' },
   { tool: 'mq', testId: 'workbench-mq', tab: '消息', content: 'Message inspector' },
   { tool: 'vector', testId: 'workbench-vector', tab: '索引参数', content: 'Index parameters' },
@@ -256,6 +259,55 @@ for (const taskView of taskViews) {
     }
   });
 }
+
+test('Document update preview and change feed viewer render server results', async ({ page }) => {
+  await page.goto('/admin/app/sql?tool=document');
+  const surface = page.getByTestId('workbench-document');
+
+  await surface.locator('.workbench-section-tabs').getByRole('button', { name: '更新', exact: true }).click();
+  await surface.getByRole('button', { name: '生成预览', exact: true }).click();
+  await expect(surface).toContainText('1 matched · 1 changed');
+  await expect(surface).toContainText('Before');
+  await expect(surface).toContainText('After');
+  await expect(surface).toContainText('active');
+
+  await surface.locator('.workbench-section-tabs').getByRole('button', { name: 'Change Feed', exact: true }).click();
+  await surface.getByRole('button', { name: '开始监听', exact: true }).click();
+  await expect(surface).toContainText('#12');
+  await expect(surface).toContainText('device-001');
+  await expect(surface).toContainText('maintenance');
+});
+
+test('Document import reports batch progress and stops before the next batch', async ({ page }) => {
+  let batches = 0;
+  await page.route(`**/v1/db/${database}/documents/device_profiles/insert-many`, async (route) => {
+    batches += 1;
+    const body = route.request().postDataJSON() as { documents?: unknown[] };
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 800));
+    await json(route, {
+      collection: 'device_profiles',
+      inserted: body.documents?.length ?? 0,
+      matched: 0,
+      modified: 0,
+      deleted: 0,
+      errors: null,
+    });
+  });
+
+  await page.goto('/admin/app/sql?tool=document');
+  const surface = page.getByTestId('workbench-document');
+  await surface.locator('.workbench-section-tabs').getByRole('button', { name: '导入 / 导出', exact: true }).click();
+  const documents = Array.from({ length: 101 }, (_, index) => JSON.stringify({ _id: `device-${index}`, value: index }));
+  await surface.getByPlaceholder('JSON array, JSONL, or { id, document } items').fill(documents.join('\n'));
+  await surface.getByRole('button', { name: 'Stage import', exact: true }).click();
+
+  const approval = page.getByRole('dialog', { name: 'Document operation batch' });
+  await approval.getByRole('button', { name: '确认执行 1 项操作', exact: true }).click();
+  await approval.getByRole('button', { name: '停止后续批次', exact: true }).click();
+
+  await expect(surface).toContainText('100 / 101 documents · 已停止');
+  expect(batches).toBe(1);
+});
 
 test('Measurement import validates and opens shared approval', async ({ page }) => {
   await page.goto('/admin/app/sql?tool=measurement');
@@ -482,6 +534,22 @@ async function mockManagementContracts(page: Page): Promise<void> {
       });
     }
     if (path === `/v1/db/${database}/documents/device_profiles/count`) return json(route, { collection: 'device_profiles', count: 1 });
+    if (path === `/v1/db/${database}/documents/device_profiles/update-preview`) {
+      return json(route, {
+        collection: 'device_profiles', matched: 1, changed: 1,
+        documents: [{ id: 'device-001', version: 2, before: { name: 'Pump 01', status: 'idle' }, after: { name: 'Pump 01', status: 'active' }, isUpsert: false, changed: true }],
+      });
+    }
+    if (path === `/v1/db/${database}/documents/device_profiles/change-feed`) {
+      return json(route, {
+        collection: 'device_profiles',
+        changes: [{ sequence: 12, occurredAtUtc: now, operation: 'update', documentId: 'device-001', documentVersion: 8, before: { status: 'active' }, after: { status: 'maintenance' }, payloadTruncated: false }],
+        resumeToken: 'e2e-resume-12', hasMore: false, latestSequence: 12, oldestAvailableSequence: 1, resumeTokenExpiresAtUtc: '2026-07-12T08:00:00Z',
+      });
+    }
+    if (path === `/v1/db/${database}/documents/device_profiles/indexes/validate`) {
+      return json(route, { collection: 'device_profiles', documentCount: 1, isConsistent: true, indexes: [] });
+    }
     if (path === `/v1/db/${database}/kv/sessions/stats`) {
       return json(route, { totalKeys: 3, activeKeys: 3, expiredKeys: 0, expiringKeys: 1, nearestExpiresAtUtc: '2026-07-11T08:00:00Z' });
     }

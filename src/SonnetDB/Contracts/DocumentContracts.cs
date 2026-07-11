@@ -210,6 +210,116 @@ public sealed record DocumentUpdateManyRequest(
     bool Ordered = true);
 
 /// <summary>
+/// 局部更新预览请求，不修改集合状态。
+/// </summary>
+/// <param name="Filter">待更新文档过滤条件。</param>
+/// <param name="Update">局部更新操作符。</param>
+/// <param name="Many">是否预览多条匹配文档。</param>
+/// <param name="Limit">最多返回的预览数量，范围 1~100。</param>
+/// <param name="Upsert">未匹配时是否生成 upsert 预览。</param>
+/// <param name="UpsertId">upsert 文档 ID。</param>
+public sealed record DocumentUpdatePreviewRequest(
+    DocumentFilterContract? Filter,
+    DocumentUpdateContract Update,
+    bool Many = false,
+    int Limit = 20,
+    bool Upsert = false,
+    string? UpsertId = null);
+
+/// <summary>一条局部更新前后对照。</summary>
+public sealed record DocumentUpdatePreviewItemResponse(
+    string Id,
+    long Version,
+    JsonElement? Before,
+    JsonElement After,
+    bool IsUpsert,
+    bool Changed);
+
+/// <summary>局部更新预览响应。</summary>
+public sealed record DocumentUpdatePreviewResponse(
+    string Collection,
+    int Matched,
+    int Changed,
+    IReadOnlyList<DocumentUpdatePreviewItemResponse> Documents);
+
+/// <summary>Document partial index 过滤条件。</summary>
+public sealed record DocumentIndexPartialFilterContract(
+    string Path,
+    string Operator,
+    string? ValueScalar = null);
+
+/// <summary>
+/// 创建 Document JSON path 索引的请求。
+/// </summary>
+public sealed record DocumentIndexCreateRequest(
+    string Name,
+    IReadOnlyList<string> Paths,
+    bool IsUnique = false,
+    bool IsSparse = false,
+    DocumentIndexPartialFilterContract? PartialFilter = null,
+    string? TtlPath = null,
+    long? TtlSeconds = null);
+
+/// <summary>Document 索引生命周期操作响应。</summary>
+public sealed record DocumentIndexOperationResponse(
+    string Collection,
+    string Index,
+    string Status,
+    IReadOnlyList<string>? Paths = null);
+
+/// <summary>单个 Document 索引一致性明细。</summary>
+public sealed record DocumentIndexConsistencyItemResponse(
+    string Index,
+    bool IsConsistent,
+    int ExpectedEntries,
+    int ActualEntries,
+    int MissingEntries,
+    int OrphanEntries);
+
+/// <summary>Document 索引一致性校验响应。</summary>
+public sealed record DocumentIndexConsistencyResponse(
+    string Collection,
+    int DocumentCount,
+    bool IsConsistent,
+    IReadOnlyList<DocumentIndexConsistencyItemResponse> Indexes);
+
+/// <summary>
+/// Document collection 变更订阅读取请求。
+/// </summary>
+/// <param name="ResumeToken">上次响应返回的续传 token。</param>
+/// <param name="StartAt">无 token 时的起点：beginning 或 now。</param>
+/// <param name="Limit">本批最多返回的匹配事件数。</param>
+/// <param name="Operations">可选 insert/update/delete 过滤。</param>
+/// <param name="DocumentId">可选文档 ID 过滤。</param>
+public sealed record DocumentChangeFeedRequest(
+    string? ResumeToken = null,
+    string StartAt = "now",
+    int Limit = 100,
+    IReadOnlyList<string>? Operations = null,
+    string? DocumentId = null);
+
+/// <summary>一条 Document collection 变更事件。</summary>
+public sealed record DocumentChangeFeedItemResponse(
+    long Sequence,
+    DateTimeOffset OccurredAtUtc,
+    string Operation,
+    string DocumentId,
+    long DocumentVersion,
+    JsonElement? Before,
+    JsonElement? After,
+    bool PayloadTruncated);
+
+/// <summary>Document collection 变更订阅读取响应。</summary>
+public sealed record DocumentChangeFeedResponse(
+    string Collection,
+    IReadOnlyList<DocumentChangeFeedItemResponse> Changes,
+    string ResumeToken,
+    bool HasMore,
+    long LatestSequence,
+    long? OldestAvailableSequence,
+    DateTimeOffset ResumeTokenExpiresAtUtc);
+
+/// <summary>
 /// 单文档删除请求。
 /// </summary>
 /// <param name="Id">文档 ID。</param>

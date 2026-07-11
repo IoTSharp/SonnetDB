@@ -11,6 +11,7 @@ namespace SonnetDB.Documents;
 /// </summary>
 public sealed class DocumentCollectionStore : IDisposable
 {
+    private static readonly TimeSpan ChangeFeedRetention = TimeSpan.FromDays(7);
     private readonly object _sync = new();
     private readonly KvKeyspace _keyspace;
     private readonly Func<DocumentFullTextIndex, DocumentFullTextIndexStore> _fullTextIndexFactory;
@@ -18,6 +19,7 @@ public sealed class DocumentCollectionStore : IDisposable
     private readonly Func<DocumentVectorIndex, DocumentVectorIndexStore>? _vectorIndexFactory;
     private readonly Dictionary<string, DocumentVectorIndexStore> _vectorStores = new(StringComparer.Ordinal);
     private DocumentCollectionSchema _schema;
+    private long _latestChangeSequence;
 
     internal DocumentCollectionStore(
         DocumentCollectionSchema schema,
@@ -32,6 +34,7 @@ public sealed class DocumentCollectionStore : IDisposable
         _keyspace = keyspace;
         _fullTextIndexFactory = fullTextIndexFactory;
         _vectorIndexFactory = vectorIndexFactory;
+        _latestChangeSequence = ReconcileLatestChangeSequenceLocked();
         RebuildIndexesLocked();
         ReconcileFullTextStoresLocked(schema, rebuildAll: false);
         ReconcileVectorStoresLocked(schema, rebuildAll: false);
@@ -50,6 +53,16 @@ public sealed class DocumentCollectionStore : IDisposable
 
     /// <summary>当前集合底层 KV 视图的最新版本。</summary>
     public long LastVersion => _keyspace.LastSequence;
+
+    /// <summary>当前集合最后一条持久化变更的序号。</summary>
+    public long LatestChangeSequence
+    {
+        get
+        {
+            lock (_sync)
+                return ReadLatestChangeSequenceLocked();
+        }
+    }
 
     /// <summary>公开 <see cref="Scan(int?, int)"/> 全表扫描的累计调用次数，供惰性访问路径回归测试观测。</summary>
     internal long FullScanCount => Interlocked.Read(ref _fullScanCount);
@@ -281,6 +294,130 @@ public sealed class DocumentCollectionStore : IDisposable
                 return UpsertFromUpdateLocked(filter, update, upsert, upsertId);
 
             return ApplyUpdateRowsLocked(matches, update);
+        }
+    }
+
+    /// <summary>
+    /// 预览局部更新的前后文档，不写 WAL、不维护索引，也不改变集合版本。
+    /// </summary>
+    /// <param name="filter">待匹配的文档过滤条件。</param>
+    /// <param name="update">局部更新操作符。</param>
+    /// <param name="many">为 true 时预览多条匹配文档，否则只预览第一条。</param>
+    /// <param name="limit">最多返回的预览数量。</param>
+    /// <param name="upsert">未匹配时是否生成 upsert 预览。</param>
+    /// <param name="upsertId">upsert 文档 ID。</param>
+    /// <returns>按集合扫描顺序生成的更新预览。</returns>
+    public IReadOnlyList<DocumentUpdatePreviewItem> PreviewUpdate(
+        DocumentFilter? filter,
+        DocumentUpdate update,
+        bool many = false,
+        int limit = 20,
+        bool upsert = false,
+        string? upsertId = null)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+        ArgumentOutOfRangeException.ThrowIfLessThan(limit, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(limit, 100);
+
+        lock (_sync)
+        {
+            PurgeExpiredDocumentsLocked();
+            var rows = FindMatchingRowsLocked(filter, many ? limit : 1);
+            if (rows.Count == 0)
+            {
+                if (!upsert)
+                    return [];
+
+                string id = upsertId ?? DocumentUpdateExecutor.TryInferUpsertId(filter)
+                    ?? throw new InvalidOperationException("document update upsert 需要提供 upsertId 或 _id/id 等值过滤条件。");
+                string after = DocumentUpdateExecutor.Apply(DocumentUpdateExecutor.BuildUpsertSeed(filter), update);
+                return [new DocumentUpdatePreviewItem(id, 0, null, after, IsUpsert: true, Changed: true)];
+            }
+
+            return rows.Select(row =>
+            {
+                string after = DocumentUpdateExecutor.Apply(row.Json, update);
+                return new DocumentUpdatePreviewItem(
+                    row.Id,
+                    row.Version,
+                    row.Json,
+                    after,
+                    IsUpsert: false,
+                    Changed: !string.Equals(row.Json, after, StringComparison.Ordinal));
+            }).ToArray();
+        }
+    }
+
+    /// <summary>
+    /// 从持久化变更日志读取一批 collection 级变更。
+    /// </summary>
+    /// <param name="afterSequence">仅返回该序号之后的记录；0 表示从保留窗口起点读取。</param>
+    /// <param name="limit">最多返回的匹配记录数。</param>
+    /// <param name="operations">可选操作类型过滤。</param>
+    /// <param name="documentId">可选文档 ID 过滤。</param>
+    /// <returns>变更记录以及可续传的扫描位置。</returns>
+    public DocumentChangeFeedPage ReadChangeFeed(
+        long afterSequence,
+        int limit = 100,
+        IReadOnlySet<string>? operations = null,
+        string? documentId = null)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(afterSequence);
+        ArgumentOutOfRangeException.ThrowIfLessThan(limit, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(limit, 1000);
+
+        lock (_sync)
+        {
+            long latest = ReadLatestChangeSequenceLocked();
+            var firstBatch = _keyspace.ScanPrefix(DocumentChangeFeedCodec.Prefix, 1);
+            var first = firstBatch.Count == 0 ? null : firstBatch[0];
+            long? oldest = first is null ? null : DocumentChangeFeedCodec.DecodeSequence(first.Key.Span);
+            if (oldest is null)
+            {
+                if (afterSequence > 0 && afterSequence < latest)
+                    throw new InvalidOperationException("document change feed resume token 已超出保留窗口。请从当前位置重新订阅。");
+
+                return new DocumentChangeFeedPage([], latest, latest, null, HasMore: false);
+            }
+            if (afterSequence > 0
+                && afterSequence < latest
+                && afterSequence < oldest.Value - 1)
+                throw new InvalidOperationException("document change feed resume token 已超出保留窗口。请从当前位置重新订阅。");
+
+            var changes = new List<DocumentChangeFeedEntry>(limit);
+            long cursor = afterSequence;
+            int batchSize = Math.Clamp(limit * 2, 64, 1000);
+            while (cursor < latest && changes.Count < limit)
+            {
+                var entries = _keyspace.ScanPrefixAfter(
+                    DocumentChangeFeedCodec.Prefix,
+                    cursor == 0 ? ReadOnlySpan<byte>.Empty : DocumentChangeFeedCodec.EncodeKey(cursor),
+                    batchSize);
+                if (entries.Count == 0)
+                    break;
+
+                foreach (var entry in entries)
+                {
+                    cursor = DocumentChangeFeedCodec.DecodeSequence(entry.Key.Span);
+                    var change = DocumentChangeFeedCodec.Decode(entry.Value.Span);
+                    if (operations is not null && !operations.Contains(change.Operation))
+                        continue;
+                    if (!string.IsNullOrWhiteSpace(documentId)
+                        && !string.Equals(change.DocumentId, documentId, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    changes.Add(change);
+                    if (changes.Count >= limit)
+                        break;
+                }
+
+                if (entries.Count < batchSize)
+                    break;
+            }
+
+            return new DocumentChangeFeedPage(changes, cursor, latest, oldest, cursor < latest);
         }
     }
 
@@ -1348,12 +1485,78 @@ public sealed class DocumentCollectionStore : IDisposable
         if (mutation.NewRow is null)
         {
             _keyspace.Delete(mutation.DocumentKey);
+            AppendChangeFeedLocked(mutation, _keyspace.LastSequence);
             return;
         }
 
-        _keyspace.Put(mutation.DocumentKey, Encoding.UTF8.GetBytes(mutation.NewRow.Json));
+        long documentVersion = _keyspace.Put(mutation.DocumentKey, Encoding.UTF8.GetBytes(mutation.NewRow.Json));
         foreach (var indexEntry in BuildIndexEntries(schema, mutation.NewRow))
             _keyspace.Put(indexEntry.Key, indexEntry.Value);
+        AppendChangeFeedLocked(mutation, documentVersion);
+    }
+
+    private void AppendChangeFeedLocked(PendingDocumentMutation mutation, long documentVersion)
+    {
+        long sequence = checked(_latestChangeSequence + 1);
+        var occurredAtUtc = DateTimeOffset.UtcNow;
+        string operation = mutation.NewRow is null
+            ? "delete"
+            : mutation.OldRow is null ? "insert" : "update";
+        byte[] value = DocumentChangeFeedCodec.Encode(
+            sequence,
+            occurredAtUtc,
+            operation,
+            mutation.NewRow?.Id ?? mutation.OldRow!.Id,
+            documentVersion,
+            mutation.OldRow?.Json,
+            mutation.NewRow?.Json);
+        _keyspace.Put(
+            DocumentChangeFeedCodec.EncodeKey(sequence),
+            value,
+            occurredAtUtc.Add(ChangeFeedRetention));
+        _latestChangeSequence = sequence;
+        _keyspace.Put(
+            DocumentChangeFeedCodec.SequenceKey,
+            Encoding.UTF8.GetBytes(sequence.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+    }
+
+    private long ReadLatestChangeSequenceLocked()
+        => _latestChangeSequence;
+
+    private long ReconcileLatestChangeSequenceLocked()
+    {
+        long storedSequence = 0;
+        byte[]? metadata = _keyspace.Get(DocumentChangeFeedCodec.SequenceKey);
+        if (metadata is not null
+            && long.TryParse(
+                Encoding.UTF8.GetString(metadata),
+                System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out long stored))
+        {
+            storedSequence = stored;
+        }
+
+        long latestEntrySequence = 0;
+        byte[]? cursor = null;
+        while (true)
+        {
+            var entries = _keyspace.ScanPrefixAfter(
+                DocumentChangeFeedCodec.Prefix,
+                cursor is null ? ReadOnlySpan<byte>.Empty : cursor,
+                limit: 1024);
+            if (entries.Count == 0)
+                break;
+
+            cursor = entries[^1].Key.ToArray();
+            latestEntrySequence = DocumentChangeFeedCodec.DecodeSequence(cursor);
+            if (entries.Count < 1024)
+                break;
+        }
+
+        // 仍有保留事件时，以事件键为准，可修复“序号已推进但事件未落盘”的旧异常窗口；
+        // 保留窗口为空时继续使用元数据，保证全局序号不会因 TTL 清理而回退。
+        return latestEntrySequence > 0 ? latestEntrySequence : storedSequence;
     }
 
     private static IReadOnlyList<IndexEntry> BuildIndexEntries(DocumentCollectionSchema schema, DocumentRow row)

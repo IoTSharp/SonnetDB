@@ -20,6 +20,7 @@ internal static partial class SonnetDbEndpoints
     private const int DefaultDocumentFindLimit = 100;
     private const int MaxDocumentFindLimit = 1000;
     private static readonly TimeSpan DocumentCursorTtl = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan DocumentChangeFeedCursorTtl = TimeSpan.FromHours(24);
 
     private static void MapDocumentEndpoints(this WebApplication app)
     {
@@ -320,6 +321,219 @@ internal static partial class SonnetDbEndpoints
                 req.Documents.Select(static item => new DocumentWriteRequest(item.Id, item.Document.GetRawText())),
                 req.Ordered);
             await WriteDocumentWriteResponseAsync(ctx, collection, replaceManyResult).ConfigureAwait(false);
+        });
+
+        app.MapPost("/v1/db/{db}/documents/{collection}/update-preview", async (HttpContext ctx, string db, string collection) =>
+        {
+            if (!await TryResolveDocumentCollectionAsync(ctx, registry, grants, db, collection, DatabasePermission.Read, mustExist: true).ConfigureAwait(false))
+                return;
+            var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.DocumentUpdatePreviewRequest).ConfigureAwait(false);
+            if (req is null)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体不可为空。").ConfigureAwait(false);
+                return;
+            }
+
+            registry.TryGet(db, out var tsdb);
+            IReadOnlyList<DocumentUpdatePreviewItem> preview;
+            try
+            {
+                preview = tsdb.Documents.Open(collection).PreviewUpdate(
+                    ToCoreFilter(req.Filter),
+                    ToCoreUpdate(req.Update),
+                    req.Many,
+                    req.Limit,
+                    req.Upsert,
+                    req.UpsertId);
+            }
+            catch (ArgumentException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+                return;
+            }
+            catch (InvalidOperationException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+                return;
+            }
+
+            var items = preview.Select(static item => new DocumentUpdatePreviewItemResponse(
+                item.Id,
+                item.Version,
+                ToNullableJsonElement(item.BeforeJson),
+                ParseJsonElement(item.AfterJson),
+                item.IsUpsert,
+                item.Changed)).ToArray();
+            await Results.Json(
+                new DocumentUpdatePreviewResponse(collection, items.Length, items.Count(static item => item.Changed), items),
+                ServerJsonContext.Default.DocumentUpdatePreviewResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+        });
+
+        app.MapPost("/v1/db/{db}/documents/{collection}/indexes", async (HttpContext ctx, string db, string collection) =>
+        {
+            if (!await TryResolveDocumentCollectionAsync(ctx, registry, grants, db, collection, DatabasePermission.Write, mustExist: true).ConfigureAwait(false))
+                return;
+            var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.DocumentIndexCreateRequest).ConfigureAwait(false);
+            if (req is null || string.IsNullOrWhiteSpace(req.Name) || req.Paths.Count == 0)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "索引需要 name 和至少一个 path。").ConfigureAwait(false);
+                return;
+            }
+
+            registry.TryGet(db, out var tsdb);
+            try
+            {
+                var index = tsdb.Documents.CreateIndex(collection, new DocumentPathIndexDefinition(
+                    req.Name,
+                    req.Paths,
+                    IsUnique: req.IsUnique,
+                    IsSparse: req.IsSparse,
+                    PartialFilter: ToCorePartialFilter(req.PartialFilter),
+                    TtlPath: req.TtlPath,
+                    TtlSeconds: req.TtlSeconds));
+                await Results.Json(
+                    new DocumentIndexOperationResponse(collection, index.Name, "created", index.Paths),
+                    ServerJsonContext.Default.DocumentIndexOperationResponse,
+                    statusCode: StatusCodes.Status201Created).ExecuteAsync(ctx).ConfigureAwait(false);
+            }
+            catch (ArgumentException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+            }
+            catch (InvalidOperationException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status409Conflict, "index_conflict", ex.Message).ConfigureAwait(false);
+            }
+        });
+
+        app.MapDelete("/v1/db/{db}/documents/{collection}/indexes/{index}", async (HttpContext ctx, string db, string collection, string index) =>
+        {
+            if (!await TryResolveDocumentCollectionAsync(ctx, registry, grants, db, collection, DatabasePermission.Write, mustExist: true).ConfigureAwait(false))
+                return;
+            registry.TryGet(db, out var tsdb);
+            bool dropped = tsdb.Documents.DropIndex(collection, index);
+            await Results.Json(
+                new DocumentIndexOperationResponse(collection, index, dropped ? "dropped" : "missing"),
+                ServerJsonContext.Default.DocumentIndexOperationResponse,
+                statusCode: dropped ? StatusCodes.Status200OK : StatusCodes.Status404NotFound).ExecuteAsync(ctx).ConfigureAwait(false);
+        });
+
+        app.MapPost("/v1/db/{db}/documents/{collection}/indexes/validate", async (HttpContext ctx, string db, string collection) =>
+        {
+            if (!await TryResolveDocumentCollectionAsync(ctx, registry, grants, db, collection, DatabasePermission.Read, mustExist: true).ConfigureAwait(false))
+                return;
+            registry.TryGet(db, out var tsdb);
+            var report = tsdb.Documents.Open(collection).VerifyIndexConsistency();
+            var indexes = report.Indexes.Select(static item => new DocumentIndexConsistencyItemResponse(
+                item.IndexName,
+                item.IsConsistent,
+                item.ExpectedEntries,
+                item.ActualEntries,
+                item.MissingEntries,
+                item.OrphanEntries)).ToArray();
+            await Results.Json(
+                new DocumentIndexConsistencyResponse(collection, report.DocumentCount, report.IsConsistent, indexes),
+                ServerJsonContext.Default.DocumentIndexConsistencyResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+        });
+
+        app.MapPost("/v1/db/{db}/documents/{collection}/change-feed", async (HttpContext ctx, string db, string collection) =>
+        {
+            if (!await TryResolveDocumentCollectionAsync(ctx, registry, grants, db, collection, DatabasePermission.Read, mustExist: true).ConfigureAwait(false))
+                return;
+            var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.DocumentChangeFeedRequest).ConfigureAwait(false)
+                ?? new DocumentChangeFeedRequest();
+            if (req.Limit is < 1 or > 1000)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "change feed limit 必须在 1~1000 之间。").ConfigureAwait(false);
+                return;
+            }
+
+            HashSet<string>? operations;
+            try
+            {
+                operations = NormalizeChangeFeedOperations(req.Operations);
+            }
+            catch (ArgumentException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+                return;
+            }
+
+            registry.TryGet(db, out var tsdb);
+            var store = tsdb.Documents.Open(collection);
+            string fingerprint = BuildChangeFeedFingerprint(db, operations, req.DocumentId);
+            long afterSequence;
+            if (!string.IsNullOrWhiteSpace(req.ResumeToken))
+            {
+                try
+                {
+                    var state = DocumentCursorToken.Decode(req.ResumeToken);
+                    if (!string.Equals(state.Collection, collection, StringComparison.Ordinal)
+                        || !string.Equals(state.QueryFingerprint, fingerprint, StringComparison.Ordinal)
+                        || state.ExpiresAtUtc <= DateTimeOffset.UtcNow)
+                    {
+                        throw new InvalidOperationException("document change feed resume token 已过期或与当前过滤条件不匹配。");
+                    }
+                    afterSequence = state.SnapshotVersion;
+                }
+                catch (InvalidOperationException ex)
+                {
+                    await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "invalid_resume_token", ex.Message).ConfigureAwait(false);
+                    return;
+                }
+            }
+            else if (string.Equals(req.StartAt, "now", StringComparison.OrdinalIgnoreCase))
+            {
+                afterSequence = store.LatestChangeSequence;
+            }
+            else if (string.Equals(req.StartAt, "beginning", StringComparison.OrdinalIgnoreCase))
+            {
+                afterSequence = 0;
+            }
+            else
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "startAt 仅支持 now 或 beginning。").ConfigureAwait(false);
+                return;
+            }
+
+            DocumentChangeFeedPage page;
+            try
+            {
+                page = store.ReadChangeFeed(afterSequence, req.Limit, operations, req.DocumentId);
+            }
+            catch (InvalidOperationException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status410Gone, "resume_token_expired", ex.Message).ConfigureAwait(false);
+                return;
+            }
+
+            DateTimeOffset expiresAt = DateTimeOffset.UtcNow.Add(DocumentChangeFeedCursorTtl);
+            string token = DocumentCursorToken.Encode(new DocumentCursorState(
+                collection,
+                fingerprint,
+                page.ResumeSequence,
+                expiresAt,
+                Offset: 0,
+                LastId: null));
+            var changes = page.Changes.Select(static item => new DocumentChangeFeedItemResponse(
+                item.Sequence,
+                item.OccurredAtUtc,
+                item.Operation,
+                item.DocumentId,
+                item.DocumentVersion,
+                ToNullableJsonElement(item.BeforeJson),
+                ToNullableJsonElement(item.AfterJson),
+                item.PayloadTruncated)).ToArray();
+            await Results.Json(
+                new DocumentChangeFeedResponse(
+                    collection,
+                    changes,
+                    token,
+                    page.HasMore,
+                    page.LatestSequence,
+                    page.OldestAvailableSequence,
+                    expiresAt),
+                ServerJsonContext.Default.DocumentChangeFeedResponse).ExecuteAsync(ctx).ConfigureAwait(false);
         });
 
         app.MapPost("/v1/db/{db}/documents/{collection}/delete-one", async (HttpContext ctx, string db, string collection) =>
@@ -962,6 +1176,46 @@ internal static partial class SonnetDbEndpoints
             update.AddToSet,
             update.CurrentDate);
 
+    private static DocumentIndexPartialFilter? ToCorePartialFilter(DocumentIndexPartialFilterContract? filter)
+        => filter is null
+            ? null
+            : new DocumentIndexPartialFilter(
+                filter.Path,
+                filter.Operator.ToLowerInvariant() switch
+                {
+                    "exists" => DocumentIndexPartialFilterOperator.Exists,
+                    "eq" => DocumentIndexPartialFilterOperator.Equal,
+                    "ne" => DocumentIndexPartialFilterOperator.NotEqual,
+                    "gt" => DocumentIndexPartialFilterOperator.GreaterThan,
+                    "gte" => DocumentIndexPartialFilterOperator.GreaterThanOrEqual,
+                    "lt" => DocumentIndexPartialFilterOperator.LessThan,
+                    "lte" => DocumentIndexPartialFilterOperator.LessThanOrEqual,
+                    _ => throw new ArgumentException($"不支持的 partial index operator '{filter.Operator}'。"),
+                },
+                filter.ValueScalar);
+
+    private static HashSet<string>? NormalizeChangeFeedOperations(IReadOnlyList<string>? operations)
+    {
+        if (operations is not { Count: > 0 })
+            return null;
+
+        var normalized = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string operation in operations)
+        {
+            string value = operation.Trim().ToLowerInvariant();
+            if (value is not ("insert" or "update" or "delete"))
+                throw new ArgumentException($"不支持的 change feed operation '{operation}'。");
+            normalized.Add(value);
+        }
+        return normalized;
+    }
+
+    private static string BuildChangeFeedFingerprint(
+        string database,
+        IReadOnlySet<string>? operations,
+        string? documentId)
+        => $"change-feed|{database}|{string.Join(',', operations?.Order(StringComparer.Ordinal) ?? Enumerable.Empty<string>())}|{documentId?.Trim() ?? string.Empty}";
+
     private static DocumentAggregationPipeline ToCoreAggregation(DocumentAggregateRequest req)
         => new(req.Pipeline.Select(ToCoreAggregationStage).ToArray());
 
@@ -1075,6 +1329,9 @@ internal static partial class SonnetDbEndpoints
         using var document = JsonDocument.Parse(json);
         return document.RootElement.Clone();
     }
+
+    private static JsonElement? ToNullableJsonElement(string? json)
+        => json is null ? null : ParseJsonElement(json);
 
     private sealed record DocumentFindPage(
         IReadOnlyList<DocumentItemResponse> Documents,

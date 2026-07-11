@@ -52,8 +52,10 @@
       v-if="previewPlan"
       :plan="previewPlan"
       :busy="confirmBusy"
+      :abortable="importProgress.running"
       @cancel="clearPendingOperations"
       @confirm="confirmPendingOperations"
+      @abort="cancelDocumentImport"
     />
 
     <n-alert
@@ -137,6 +139,32 @@
           </n-tabs>
 
           <template v-if="queryTab === 'find'">
+            <div class="document-builder-head">
+              <n-select v-model:value="queryInputMode" size="small" :options="queryInputModeOptions" class="document-builder-mode" />
+              <template v-if="queryInputMode === 'builder'">
+                <n-select v-model:value="queryBuilderLogic" size="small" :options="queryLogicOptions" class="document-builder-logic" />
+                <n-button size="small" secondary @click="addQueryCondition">
+                  <template #icon><Plus :size="15" /></template>
+                  条件
+                </n-button>
+              </template>
+            </div>
+            <div v-if="queryInputMode === 'builder'" class="document-filter-builder">
+              <div v-for="condition in queryConditions" :key="condition.id" class="document-filter-condition">
+                <n-input v-model:value="condition.path" size="small" placeholder="$.field" />
+                <n-select v-model:value="condition.op" size="small" :options="queryOperatorOptions" />
+                <n-input
+                  v-model:value="condition.value"
+                  size="small"
+                  :disabled="condition.op === 'exists'"
+                  :placeholder="condition.op === 'in' || condition.op === 'nin' ? '[1, 2]' : 'JSON value'"
+                />
+                <n-button size="small" quaternary title="删除条件" @click="removeQueryCondition(condition.id)">
+                  <template #icon><X :size="15" /></template>
+                </n-button>
+              </div>
+              <n-empty v-if="queryConditions.length === 0" description="无过滤条件，将扫描当前集合。" />
+            </div>
             <div class="document-editor-grid">
               <n-input
                 v-model:value="idsText"
@@ -145,6 +173,7 @@
                 placeholder="IDs, one per line"
               />
               <n-input
+                v-if="queryInputMode === 'raw'"
                 v-model:value="filterText"
                 type="textarea"
                 :autosize="{ minRows: 3, maxRows: 6 }"
@@ -240,7 +269,16 @@
           <n-tab name="edit" tab="Edit" />
         </n-tabs>
 
-        <section v-if="inspectorTab === 'detail'" class="document-inspector-section">
+        <DocumentAdvancedWorkbench
+          v-if="activeView === 'update' || activeView === 'indexes' || activeView === 'changeFeed'"
+          :mode="activeView"
+          :target-db="targetDb"
+          :collection="activeCollection"
+          @refresh-schema="$emit('refreshSchema')"
+          @refresh-documents="runFind(false)"
+        />
+
+        <section v-else-if="inspectorTab === 'detail'" class="document-inspector-section">
           <template v-if="selectedRow">
             <div class="document-detail-strip">
               <span>{{ selectedRow.id }}</span>
@@ -324,7 +362,23 @@
             <n-button size="small" secondary :disabled="rows.length === 0" @click="exportLoadedJsonl">
               Export loaded JSONL
             </n-button>
+            <n-button v-if="importProgress.running" size="small" tertiary type="warning" @click="cancelDocumentImport">
+              停止后续批次
+            </n-button>
           </n-space>
+          <div v-if="importProgress.total > 0" class="document-import-progress">
+            <n-progress
+              type="line"
+              :percentage="importProgressPercent"
+              :height="8"
+              :processing="importProgress.running"
+              :status="importProgress.cancelled ? 'warning' : importProgress.done >= importProgress.total ? 'success' : 'default'"
+            />
+            <n-text depth="3">
+              {{ importProgress.done }} / {{ importProgress.total }} documents
+              <template v-if="importProgress.cancelled"> · 已停止</template>
+            </n-text>
+          </div>
         </section>
 
         <section v-else class="document-inspector-section">
@@ -384,6 +438,7 @@ import {
   NEmpty,
   NInput,
   NInputNumber,
+  NProgress,
   NSelect,
   NSpace,
   NTab,
@@ -395,6 +450,7 @@ import {
   type DataTableRowKey,
   type SelectOption,
 } from 'naive-ui';
+import { Activity, ListFilter, PencilLine, Plus, X } from 'lucide-vue-next';
 import {
   aggregateDocuments,
   countDocuments,
@@ -429,6 +485,7 @@ import {
   type MaintenanceResponse,
 } from '@/api/schema';
 import WorkbenchHistoryDrawer from '@/components/WorkbenchHistoryDrawer.vue';
+import DocumentAdvancedWorkbench from '@/components/DocumentAdvancedWorkbench.vue';
 import WorkbenchResultPanel from '@/components/WorkbenchResultPanel.vue';
 import WorkbenchSectionTabs, { type WorkbenchSectionTab } from '@/components/WorkbenchSectionTabs.vue';
 import WriteApprovalPanel from '@/components/WriteApprovalPanel.vue';
@@ -463,8 +520,16 @@ const emit = defineEmits<{
 
 type QueryTab = 'find' | 'aggregate' | 'distinct';
 type InspectorTab = 'detail' | 'edit' | 'validator' | 'import' | 'indexes';
-type DocumentView = 'documents' | 'query' | 'validator' | 'indexes' | 'import';
+type DocumentView = 'documents' | 'query' | 'update' | 'validator' | 'indexes' | 'changeFeed' | 'import';
 type ImportMode = 'insert' | 'replace';
+type QueryInputMode = 'builder' | 'raw';
+
+interface QueryCondition {
+  id: number;
+  path: string;
+  op: string;
+  value: string;
+}
 
 interface DocumentRow {
   id: string;
@@ -511,9 +576,11 @@ const inspectorTab = ref<InspectorTab>('detail');
 const activeView = ref<DocumentView>('documents');
 const documentSections: WorkbenchSectionTab[] = [
   { key: 'documents', label: 'Documents' },
-  { key: 'query', label: '查询' },
+  { key: 'query', label: '查询', icon: ListFilter },
+  { key: 'update', label: '更新', icon: PencilLine },
   { key: 'validator', label: 'Validator' },
   { key: 'indexes', label: '索引' },
+  { key: 'changeFeed', label: 'Change Feed', icon: Activity },
   { key: 'import', label: '导入 / 导出' },
 ];
 const documentSectionTitle = computed(() => documentSections.find((item) => item.key === activeView.value)?.label ?? '文档详情');
@@ -527,6 +594,12 @@ function selectDocumentView(view: DocumentView): void {
   inspectorTab.value = 'detail';
 }
 const idsText = ref('');
+const queryInputMode = ref<QueryInputMode>('builder');
+const queryBuilderLogic = ref<'and' | 'or'>('and');
+const queryConditions = ref<QueryCondition[]>([
+  { id: 1, path: '$.site', op: 'eq', value: '"north"' },
+]);
+let nextQueryConditionId = 2;
 const filterText = ref('');
 const projectionText = ref('');
 const sortText = ref('');
@@ -548,6 +621,11 @@ const validatorPrecheckResult = ref('');
 const importIdPath = ref('_id');
 const importMode = ref<ImportMode>('insert');
 const importText = ref('');
+const importProgress = ref({ done: 0, total: 0, running: false, cancelled: false });
+const importProgressPercent = computed(() => importProgress.value.total > 0
+  ? Math.round(importProgress.value.done / importProgress.value.total * 100)
+  : 0);
+let importCancelRequested = false;
 const pendingOperations = ref<PendingOperation[]>([]);
 const latestResult = ref<SqlResultSet | null>(null);
 const latestCommand = ref('');
@@ -651,6 +729,22 @@ const validatorActionOptions: SelectOption[] = [
 const importModeOptions: SelectOption[] = [
   { label: 'Insert only', value: 'insert' },
   { label: 'Replace existing', value: 'replace' },
+];
+
+const queryInputModeOptions: SelectOption[] = [
+  { label: '可视化构建器', value: 'builder' },
+  { label: 'Raw filter JSON', value: 'raw' },
+];
+const queryLogicOptions: SelectOption[] = [
+  { label: '全部满足 (AND)', value: 'and' },
+  { label: '任一满足 (OR)', value: 'or' },
+];
+const queryOperatorOptions: SelectOption[] = [
+  { label: 'Equal', value: 'eq' }, { label: 'Not equal', value: 'ne' },
+  { label: 'Greater than', value: 'gt' }, { label: 'Greater or equal', value: 'gte' },
+  { label: 'Less than', value: 'lt' }, { label: 'Less or equal', value: 'lte' },
+  { label: 'In', value: 'in' }, { label: 'Not in', value: 'nin' },
+  { label: 'Exists', value: 'exists' }, { label: 'Contains', value: 'contains' },
 ];
 
 const documentColumns = computed<DataTableColumns<DocumentRow>>(() => [
@@ -882,7 +976,11 @@ function applyFindResponse(response: DocumentFindResponse, append: boolean, elap
 
 function buildFindRequest(append: boolean): { ok: true; request: DocumentFindRequest } | { ok: false; message: string } {
   const ids = parseIds(idsText.value);
-  const filter = parseOptionalJson<DocumentFilter>(filterText.value, 'Filter must be a JSON object.');
+  const filter = activeView.value !== 'query'
+    ? { ok: true as const, value: undefined }
+    : queryInputMode.value === 'builder'
+      ? buildQueryFilter()
+      : parseOptionalJson<DocumentFilter>(filterText.value, 'Filter must be a JSON object.');
   if (!filter.ok) return filter;
   const projection = parseProjection(projectionText.value);
   if (!projection.ok) return projection;
@@ -900,6 +998,32 @@ function buildFindRequest(append: boolean): { ok: true; request: DocumentFindReq
       continuationToken: append ? continuationToken.value || undefined : undefined,
     },
   };
+}
+
+function addQueryCondition(): void {
+  queryConditions.value.push({ id: nextQueryConditionId, path: '$.', op: 'eq', value: 'null' });
+  nextQueryConditionId += 1;
+}
+
+function removeQueryCondition(id: number): void {
+  queryConditions.value = queryConditions.value.filter((condition) => condition.id !== id);
+}
+
+function buildQueryFilter(): { ok: true; value?: DocumentFilter } | { ok: false; message: string } {
+  const filters: DocumentFilter[] = [];
+  for (const condition of queryConditions.value) {
+    const path = condition.path.trim();
+    if (!path) return { ok: false, message: '查询条件 path 不可为空。' };
+    let value: unknown = true;
+    if (condition.op !== 'exists') {
+      try { value = JSON.parse(condition.value); }
+      catch { return { ok: false, message: `${path} 的值必须是合法 JSON。字符串需要使用双引号。` }; }
+    }
+    filters.push({ path, op: condition.op, value });
+  }
+  if (filters.length === 0) return { ok: true, value: undefined };
+  if (filters.length === 1) return { ok: true, value: filters[0] };
+  return { ok: true, value: queryBuilderLogic.value === 'and' ? { and: filters } : { or: filters } };
 }
 
 function stageCreateCollection(): void {
@@ -1056,13 +1180,12 @@ function stageImportDocuments(): void {
     detail: `${items.length} documents parsed from JSONL / JSON input.`,
     severity: 'write',
     command: `documents.${importMode.value === 'replace' ? 'replaceMany' : 'insertMany'} ${activeCollectionName.value}\n${items.length} documents`,
-    run: async () => {
-      const response = importMode.value === 'replace'
-        ? await updateOneByOne(items)
-        : await insertManyDocuments(auth.api, props.targetDb, activeCollectionName.value, { documents: items, ordered: false });
-      return outcomeFromWrite(importMode.value === 'replace' ? 'replace_import' : 'insert_import', activeCollectionName.value, response);
-    },
+    run: () => runDocumentImport(items, importMode.value),
   }]);
+}
+
+function cancelDocumentImport(): void {
+  importCancelRequested = true;
 }
 
 function stageRebuildIndex(indexName: string, targetModel: 'document_json' | 'document_fulltext'): void {
@@ -1136,7 +1259,63 @@ async function refreshAfterWrite(): Promise<void> {
   await runFind(false);
 }
 
-async function updateOneByOne(items: Array<{ id: string; document: unknown }>): Promise<DocumentWriteResponse> {
+async function runDocumentImport(
+  items: Array<{ id: string; document: unknown }>,
+  mode: ImportMode,
+): Promise<OperationOutcome> {
+  const collection = activeCollectionName.value;
+  const totals: DocumentWriteResponse = {
+    collection,
+    inserted: 0,
+    matched: 0,
+    modified: 0,
+    deleted: 0,
+    errors: null,
+  };
+  const errors: NonNullable<DocumentWriteResponse['errors']> = [];
+  const batchSize = 100;
+  importCancelRequested = false;
+  importProgress.value = { done: 0, total: items.length, running: true, cancelled: false };
+
+  try {
+    for (let offset = 0; offset < items.length; offset += batchSize) {
+      if (importCancelRequested) break;
+      const batch = items.slice(offset, offset + batchSize);
+      const response = mode === 'replace'
+        ? await updateOneByOne(batch, offset)
+        : await insertManyDocuments(auth.api, props.targetDb, collection, { documents: batch, ordered: false });
+      totals.inserted += response.inserted ?? 0;
+      totals.matched += response.matched ?? 0;
+      totals.modified += response.modified ?? 0;
+      totals.deleted += response.deleted ?? 0;
+      if (response.errors) {
+        errors.push(...response.errors.map((error) => ({
+          ...error,
+          index: mode === 'replace' ? error.index : offset + error.index,
+        })));
+      }
+      importProgress.value = {
+        ...importProgress.value,
+        done: Math.min(offset + batch.length, items.length),
+      };
+    }
+  } finally {
+    const cancelled = importCancelRequested && importProgress.value.done < items.length;
+    importProgress.value = { ...importProgress.value, running: false, cancelled };
+  }
+
+  totals.errors = errors.length > 0 ? errors : null;
+  const outcome = outcomeFromWrite(mode === 'replace' ? 'replace_import' : 'insert_import', collection, totals);
+  if (importProgress.value.cancelled) {
+    outcome.detail = `${outcome.detail} · stopped after ${importProgress.value.done}/${items.length}`;
+  }
+  return outcome;
+}
+
+async function updateOneByOne(
+  items: Array<{ id: string; document: unknown }>,
+  baseIndex = 0,
+): Promise<DocumentWriteResponse> {
   let inserted = 0;
   let matched = 0;
   let modified = 0;
@@ -1151,10 +1330,15 @@ async function updateOneByOne(items: Array<{ id: string; document: unknown }>): 
       inserted += response.inserted ?? 0;
       matched += response.matched ?? 0;
       modified += response.modified ?? 0;
-      if (response.errors) errors.push(...response.errors);
+      if (response.errors) {
+        errors.push(...response.errors.map((error) => ({
+          ...error,
+          index: baseIndex + index + error.index,
+        })));
+      }
     } catch (error) {
       errors.push({
-        index,
+        index: baseIndex + index,
         id: item.id,
         code: 'replace_failed',
         message: errorToMessage(error, 'replace failed'),
@@ -1713,7 +1897,7 @@ watch(validatorAction, (action) => {
 }
 
 .document-body.is-focused {
-  grid-template-columns: minmax(520px, 820px);
+  grid-template-columns: minmax(520px, 1180px);
   justify-content: center;
   padding: 20px;
   overflow: auto;
@@ -1838,6 +2022,36 @@ watch(validatorAction, (action) => {
   gap: 8px;
   padding: 10px 12px;
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.document-builder-head,
+.document-filter-condition {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.document-builder-mode {
+  width: 170px;
+}
+
+.document-builder-logic {
+  width: 160px;
+}
+
+.document-filter-builder {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--sndb-border);
+  border-radius: var(--sndb-radius);
+  background: var(--sndb-surface);
+}
+
+.document-filter-condition {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) 150px minmax(150px, 1.2fr) 34px;
 }
 
 .document-editor-grid,
@@ -1972,6 +2186,12 @@ watch(validatorAction, (action) => {
   line-height: 1.45;
 }
 
+.document-import-progress {
+  display: grid;
+  gap: 5px;
+  padding-top: 2px;
+}
+
 .document-result {
   flex: 0 0 240px;
   min-height: 220px;
@@ -2011,6 +2231,7 @@ watch(validatorAction, (action) => {
 
   .document-stats,
   .document-editor-grid,
+  .document-filter-condition,
   .document-query-row,
   .document-query-row--distinct {
     grid-template-columns: 1fr;

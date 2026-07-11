@@ -78,6 +78,7 @@ The M29 #259 slice extends this roadmap without turning VS Code into the full We
 - consumes #245 management metadata for KV, vector, full-text, and MQ
 - adds read-only preview commands for KV scan and MQ browse
 - adds vector search-preview and full-text search/analyze commands
+- adds a read-only Document find panel with filter/projection/sort and cursor paging
 - reuses the Query Result panel for multi-model previews
 - keeps write operations and governance workflows in Web Admin / Studio
 

@@ -22,6 +22,10 @@ test('SonnetDbClient consumes the shared multi-model management contracts', asyn
   assert.equal((await client.fetchSetupStatus()).needsSetup, false);
   assert.deepEqual(await client.listDatabases(), { databases: ['factory'] });
   assert.equal((await client.fetchSchema('factory')).tables?.[0]?.name, 'orders');
+  assert.equal((await client.findDocuments('factory', 'device_profiles', {
+    filter: { path: '$.status', op: 'eq', value: 'online' },
+    limit: 25,
+  })).documents[0]?.id, 'device-001');
   assert.deepEqual(await client.fetchKvKeyspaces('factory'), ['sessions']);
   assert.equal((await client.scanKvEntries('factory', 'sessions')).entries[0]?.key, 'device:001');
   assert.equal((await client.fetchVectorIndexes('factory'))[0]?.measurement, 'sensor_readings');
@@ -47,7 +51,7 @@ test('SonnetDbClient consumes the shared multi-model management contracts', asyn
   assert.equal(sql.end?.rowCount, 1);
   assert.equal((await client.ingestBulk('factory', 'sensor_readings', 'lp', Buffer.from('value=1 1'))).written, 1);
 
-  assert.equal(requests.length, 15);
+  assert.equal(requests.length, 16);
   assert.ok(requests.every((entry) => entry.endsWith('Bearer smoke-token')));
 });
 
@@ -64,6 +68,20 @@ function handleRequest(request: IncomingMessage, response: ServerResponse, reque
       tables: [{ name: 'orders', columns: [], primaryKey: [], indexes: [], createdUtc: '2026-07-10T08:00:00Z' }],
       documentCollections: [],
       indexes: [],
+    });
+  }
+  if (path === '/v1/db/factory/documents/device_profiles/find') {
+    return writeJson(response, {
+      collection: 'device_profiles',
+      documents: [{ id: 'device-001', document: { status: 'online' }, version: 4 }],
+      count: 1,
+      limit: 25,
+      skip: 0,
+      continuationToken: null,
+      hasMore: false,
+      batchSize: 1,
+      snapshotVersion: 4,
+      cursorExpiresAtUtc: null,
     });
   }
   if (path === '/v1/db/factory/kv/keyspaces') return writeJson(response, { keyspaces: ['sessions'] });

@@ -199,10 +199,16 @@ POST   /v1/db/{db}/documents/{collection}/find
 POST   /v1/db/{db}/documents/{collection}/find-one
 POST   /v1/db/{db}/documents/{collection}/update-one
 POST   /v1/db/{db}/documents/{collection}/update-many
+POST   /v1/db/{db}/documents/{collection}/update-preview
 POST   /v1/db/{db}/documents/{collection}/delete-one
 POST   /v1/db/{db}/documents/{collection}/delete-many
 POST   /v1/db/{db}/documents/{collection}/count
 POST   /v1/db/{db}/documents/{collection}/distinct
+POST   /v1/db/{db}/documents/{collection}/aggregate
+POST   /v1/db/{db}/documents/{collection}/indexes
+DELETE /v1/db/{db}/documents/{collection}/indexes/{index}
+POST   /v1/db/{db}/documents/{collection}/indexes/validate
+POST   /v1/db/{db}/documents/{collection}/change-feed
 ```
 
 ```json
@@ -230,8 +236,30 @@ POST   /v1/db/{db}/documents/{collection}/distinct
   "skip": 0
 }
 
-// update-one：第一版为整文档替换，不是 $set/$inc 局部更新
+// update-one：整文档替换
 { "id": "dev-1", "document": { "site": "north", "kind": "pump", "status": "ok" } }
+
+// update-preview / update-one / update-many：同一套局部更新执行器
+{
+  "filter": { "path": "$.site", "op": "eq", "value": "north" },
+  "update": { "set": { "$.status": "active" }, "inc": { "$.revision": 1 } },
+  "many": true,
+  "limit": 20,
+  "upsert": false
+}
+
+// compound + unique + sparse + partial index
+{
+  "name": "ux_site_serial",
+  "paths": ["$.site", "$.serial"],
+  "isUnique": true,
+  "isSparse": true,
+  "partialFilter": { "path": "$.active", "operator": "eq", "valueScalar": "true" }
+}
+
+// change feed：首请求从 now 或 beginning 开始，后续原样回传 resumeToken
+{ "startAt": "now", "operations": ["insert", "update", "delete"], "limit": 100 }
+{ "resumeToken": "<opaque token>", "operations": ["insert", "update", "delete"], "limit": 100 }
 
 // distinct：按 JSON path 返回标量 distinct 值
 { "path": "$.site" }
@@ -258,7 +286,11 @@ POST   /v1/db/{db}/documents/{collection}/distinct
 `filter` 操作符支持 `eq/ne/gt/gte/lt/lte/in/nin/exists/contains` 与 `and/or/not` 组合；`path` 可写 `_id` / `id`、`document` / `json` 或 JSON path。`exists` 会区分 path 缺失与 JSON `null`：path 存在且值为 `null` 时仍视为存在。
 `aggregate` 支持 `$match` / `$project` / `$group` / `$sort` / `$limit` / `$skip` / `$unwind` / `$count` / `$distinct` 等价阶段；`$group.accumulators[].op` 支持 `count`、`sum`、`avg`、`min`、`max`、`first`、`last`、`distinct`。SQL 侧也可以直接在 document collection 上使用 `GROUP BY json_value(document, '$.path')` 与 `count/sum/avg/min/max/first/last`。
 
-find 支持 cursor 分页：首个请求传 `limit`（服务器最大 batch size 为 1000），响应中的 `continuationToken` 不为空时，把它原样放入下一次 find 请求即可继续读取；续页 token 绑定 collection、查询形状、只读快照版本和 15 分钟过期时间，不能与 `skip` 混用。写入导致集合版本变化后，旧 token 会被拒绝，需要重新发起首个 find 请求。当前 Document API 契约刻意不实现 MongoDB wire protocol / BSON command，也不承诺官方 MongoDB Driver 直连；局部更新操作符和批量写事务语义会在 Milestone 21 后续 PR 中补齐。OpenAPI 片段见 [document-api.yaml](openapi/document-api.yaml)。
+find 支持 cursor 分页：首个请求传 `limit`（服务器最大 batch size 为 1000），响应中的 `continuationToken` 不为空时，把它原样放入下一次 find 请求即可继续读取；续页 token 绑定 collection、查询形状、只读快照版本和 15 分钟过期时间，不能与 `skip` 混用。写入导致集合版本变化后，旧 token 会被拒绝，需要重新发起首个 find 请求。
+
+`update-preview` 使用与真实提交相同的服务端局部更新执行器，但不写 WAL、不维护索引、不推进 change feed；响应提供逐文档 `before/after/isUpsert/changed`。索引管理契约支持 compound、unique、sparse、partial 与 TTL 声明，`indexes/validate` 只读比对主文档与索引条目。Change feed 记录所有通过 Document store 写入点产生的 insert/update/delete，持久化于集合 KV/WAL，事件保留 7 天；resume token 绑定数据库、集合、操作过滤和 document ID 过滤，有效期 24 小时，超出保留窗口返回 `410 resume_token_expired`。大于 256 KiB 的单个前后镜像会标记 `payloadTruncated`，但事件元数据与续传序号仍保留。
+
+当前 Document API 契约刻意不实现 MongoDB wire protocol / BSON command，也不承诺官方 MongoDB Driver 直连。OpenAPI 片段见 [document-api.yaml](openapi/document-api.yaml)。
 
 ### JSON 文件虚拟表与导入
 

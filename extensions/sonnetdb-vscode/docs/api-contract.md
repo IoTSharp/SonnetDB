@@ -34,6 +34,7 @@ This document maps SonnetDB server endpoints to VS Code extension features.
 | `POST /v1/db/{db}/mq/topics` | MQ topic section in Explorer |
 | `POST /v1/db/{db}/mq/{topic}/browse` | MQ read-only message preview |
 | `POST /v1/db/{db}/mq/{topic}/monitor` | MQ retained window and lag metadata for previews |
+| `POST /v1/db/{db}/documents/{collection}/find` | read-only Document filter/projection/sort query panel and cursor paging |
 
 The extension deliberately keeps this surface read-only. Full per-model editing, import/export, approval flows, and governance remain Web Admin / Studio responsibilities.
 

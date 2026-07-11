@@ -4,6 +4,8 @@ import {
   CopilotKnowledgeStatusResponse,
   CopilotModelsResponse,
   DatabaseListResponse,
+  DocumentFindRequest,
+  DocumentFindResponse,
   FullTextAnalyzeRequest,
   FullTextAnalyzeResponse,
   FullTextIndexStat,
@@ -49,6 +51,25 @@ export class SonnetDbClient {
 
   public async fetchSchema(database: string): Promise<SchemaResponse> {
     return this.getJson<SchemaResponse>(`/v1/db/${encodeURIComponent(database)}/schema`);
+  }
+
+  public async findDocuments(
+    database: string,
+    collection: string,
+    request: DocumentFindRequest = {},
+  ): Promise<DocumentFindResponse> {
+    const response = await this.postJson<DocumentFindResponse>(
+      `/v1/db/${encodeURIComponent(database)}/documents/${encodeURIComponent(collection)}/find`,
+      request,
+    );
+    return {
+      ...response,
+      documents: Array.isArray(response.documents) ? response.documents : [],
+      count: Number.isFinite(response.count) ? response.count : 0,
+      skip: Number.isFinite(response.skip) ? response.skip : 0,
+      continuationToken: response.continuationToken ?? null,
+      hasMore: Boolean(response.hasMore),
+    };
   }
 
   public async fetchCopilotModels(): Promise<CopilotModelsResponse> {

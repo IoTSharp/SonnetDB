@@ -737,6 +737,11 @@ function handleStudioShortcut(event: KeyboardEvent): void {
   void handleStudioDesktopAction({ id });
 }
 
+function handleWorkbenchResize(): void {
+  if (window.innerWidth < 1100)
+    explorerCollapsed.value = true;
+}
+
 function openRelationSql(sqlText: string): void {
   setWorkbenchTool('sql');
   setSqlDraft(sqlText);
@@ -858,6 +863,8 @@ let unsubscribeDesktopActions: (() => void) | null = null;
 onMounted(async () => {
   unsubscribeDesktopActions = subscribeStudioDesktopActions(handleStudioDesktopAction);
   window.addEventListener('keydown', handleStudioShortcut);
+  window.addEventListener('resize', handleWorkbenchResize);
+  handleWorkbenchResize();
   const bridgeReady = await connections.connectStudioBridge();
   if (bridgeReady) {
     auth.setApiBaseUrl(connections.activeBaseUrl);
@@ -878,6 +885,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   unsubscribeDesktopActions?.();
   window.removeEventListener('keydown', handleStudioShortcut);
+  window.removeEventListener('resize', handleWorkbenchResize);
 });
 </script>
 

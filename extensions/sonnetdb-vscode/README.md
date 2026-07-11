@@ -19,6 +19,7 @@ The current implementation provides:
 - Explorer loading databases, measurements/columns, tables/columns, KV keyspaces, vector indexes, full-text indexes, and MQ topics
 - current-statement and selection SQL execution with schema-aware completion, diagnostics, hover, and `EXPLAIN`
 - a reusable Query Result webview with Table, Raw, and Chart tabs, local history, and CSV/JSON export
+- a read-only Document query panel with filter/projection/sort JSON, cursor paging, and JSON/JSONL export
 - KV and MQ read-only preview panels
 - vector and full-text search preview commands over the M29 #245 contracts
 - a Copilot panel connected to `/v1/copilot/chat/stream`, defaulting to `read-only`, with model, knowledge, and citation status
@@ -74,6 +75,7 @@ extensions/sonnetdb-vscode/
    │  └─ sqlText.ts
    ├─ panels/
    │  ├─ copilotPanel.ts
+   │  ├─ documentQueryPanel.ts
    │  └─ queryResultPanel.ts
    └─ tree/
       └─ sonnetdbTreeDataProvider.ts
@@ -82,7 +84,7 @@ extensions/sonnetdb-vscode/
 ## Working principles
 
 - Phase 1 reuses `POST /v1/db/{db}/sql`, `GET /v1/db/{db}/schema`, `GET /v1/db`, and `POST /v1/copilot/chat/stream`.
-- M29 #259 also reuses `POST /v1/db/{db}/kv/keyspaces`, `POST /v1/db/{db}/kv/{keyspace}/scan`, `POST /v1/db/{db}/vector/indexes`, `POST /v1/db/{db}/vector/search-preview`, `POST /v1/db/{db}/fulltext/indexes`, `POST /v1/db/{db}/fulltext/search-preview`, `POST /v1/db/{db}/fulltext/analyze`, `POST /v1/db/{db}/mq/topics`, `POST /v1/db/{db}/mq/{topic}/browse`, and `POST /v1/db/{db}/mq/{topic}/monitor`.
+- M29 #259 also reuses `POST /v1/db/{db}/documents/{collection}/find`, `POST /v1/db/{db}/kv/keyspaces`, `POST /v1/db/{db}/kv/{keyspace}/scan`, `POST /v1/db/{db}/vector/indexes`, `POST /v1/db/{db}/vector/search-preview`, `POST /v1/db/{db}/fulltext/indexes`, `POST /v1/db/{db}/fulltext/search-preview`, `POST /v1/db/{db}/fulltext/analyze`, `POST /v1/db/{db}/mq/topics`, `POST /v1/db/{db}/mq/{topic}/browse`, and `POST /v1/db/{db}/mq/{topic}/monitor`.
 - Tokens should live in VS Code `SecretStorage`, not in plain-text workspace settings.
 - The first local-mode implementation should start a managed SonnetDB server process for a selected data root instead of embedding the .NET engine directly into the Node extension host.
 - The existing web admin code is the primary reference for NDJSON parsing, SQL dialect keywords, schema completion, chart rendering, and Copilot request payloads.

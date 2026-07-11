@@ -46,6 +46,7 @@
     "onCommand:sonnetdb.newQuery",
     "onCommand:sonnetdb.openCopilot",
     "onCommand:sonnetdb.askCopilot",
+    "onCommand:sonnetdb.queryDocumentCollection",
     "onCommand:sonnetdb.previewKvKeyspace",
     "onCommand:sonnetdb.searchVectorIndex",
     "onCommand:sonnetdb.searchFullTextIndex",
@@ -116,6 +117,10 @@
         "command": "sonnetdb.askCopilot",
         "title": "SonnetDB: Ask Copilot About Current Query",
         "icon": "$(sparkle)"
+      },
+      {
+        "command": "sonnetdb.queryDocumentCollection",
+        "title": "SonnetDB: Query Document Collection"
       },
       {
         "command": "sonnetdb.previewKvKeyspace",
@@ -229,6 +234,11 @@
           "command": "sonnetdb.useDatabase",
           "when": "view == sonnetdb.explorer && viewItem == database",
           "group": "navigation"
+        },
+        {
+          "command": "sonnetdb.queryDocumentCollection",
+          "when": "view == sonnetdb.explorer && viewItem == documentCollection",
+          "group": "inline"
         },
         {
           "command": "sonnetdb.previewKvKeyspace",

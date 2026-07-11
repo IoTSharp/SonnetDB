@@ -16,7 +16,9 @@ const certFilePath = path.join(baseFolder, `${certificateName}.pem`);
 const keyFilePath = path.join(baseFolder, `${certificateName}.key`);
 
 const target =
-  env.ASPNETCORE_HTTPS_PORT && env.ASPNETCORE_HTTPS_PORT !== ''
+  env.SONNETDB_PROXY_TARGET && env.SONNETDB_PROXY_TARGET !== ''
+    ? env.SONNETDB_PROXY_TARGET
+    : env.ASPNETCORE_HTTPS_PORT && env.ASPNETCORE_HTTPS_PORT !== ''
     ? `https://localhost:${env.ASPNETCORE_HTTPS_PORT}`
     : env.ASPNETCORE_URLS
       ? env.ASPNETCORE_URLS.split(';')[0]

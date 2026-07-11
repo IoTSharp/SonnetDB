@@ -98,6 +98,99 @@ export interface DocumentUpdateContract {
   currentDate?: Record<string, unknown> | null;
 }
 
+export interface DocumentUpdatePreviewRequest {
+  filter?: DocumentFilter | null;
+  update: DocumentUpdateContract;
+  many?: boolean;
+  limit?: number;
+  upsert?: boolean;
+  upsertId?: string | null;
+}
+
+export interface DocumentUpdatePreviewItem {
+  id: string;
+  version: number;
+  before?: unknown | null;
+  after: unknown;
+  isUpsert: boolean;
+  changed: boolean;
+}
+
+export interface DocumentUpdatePreviewResponse {
+  collection: string;
+  matched: number;
+  changed: number;
+  documents: DocumentUpdatePreviewItem[];
+}
+
+export interface DocumentIndexPartialFilter {
+  path: string;
+  operator: string;
+  valueScalar?: string | null;
+}
+
+export interface DocumentIndexCreateRequest {
+  name: string;
+  paths: string[];
+  isUnique?: boolean;
+  isSparse?: boolean;
+  partialFilter?: DocumentIndexPartialFilter | null;
+  ttlPath?: string | null;
+  ttlSeconds?: number | null;
+}
+
+export interface DocumentIndexOperationResponse {
+  collection: string;
+  index: string;
+  status: string;
+  paths?: string[] | null;
+}
+
+export interface DocumentIndexConsistencyItem {
+  index: string;
+  isConsistent: boolean;
+  expectedEntries: number;
+  actualEntries: number;
+  missingEntries: number;
+  orphanEntries: number;
+}
+
+export interface DocumentIndexConsistencyResponse {
+  collection: string;
+  documentCount: number;
+  isConsistent: boolean;
+  indexes: DocumentIndexConsistencyItem[];
+}
+
+export interface DocumentChangeFeedRequest {
+  resumeToken?: string | null;
+  startAt?: 'now' | 'beginning';
+  limit?: number;
+  operations?: Array<'insert' | 'update' | 'delete'> | null;
+  documentId?: string | null;
+}
+
+export interface DocumentChangeFeedItem {
+  sequence: number;
+  occurredAtUtc: string;
+  operation: 'insert' | 'update' | 'delete' | string;
+  documentId: string;
+  documentVersion: number;
+  before?: unknown | null;
+  after?: unknown | null;
+  payloadTruncated: boolean;
+}
+
+export interface DocumentChangeFeedResponse {
+  collection: string;
+  changes: DocumentChangeFeedItem[];
+  resumeToken: string;
+  hasMore: boolean;
+  latestSequence: number;
+  oldestAvailableSequence?: number | null;
+  resumeTokenExpiresAtUtc: string;
+}
+
 export interface DocumentUpdateOneRequest {
   id?: string | null;
   document?: unknown;
@@ -260,6 +353,81 @@ export async function updateOneDocument(
 ): Promise<DocumentWriteResponse> {
   const resp = await api.post<DocumentWriteResponse>(
     `/v1/db/${encodeURIComponent(db)}/documents/${encodeURIComponent(collection)}/update-one`,
+    request,
+  );
+  return resp.data;
+}
+
+export async function updateManyDocuments(
+  api: AxiosInstance,
+  db: string,
+  collection: string,
+  request: DocumentUpdateOneRequest,
+): Promise<DocumentWriteResponse> {
+  const resp = await api.post<DocumentWriteResponse>(
+    `/v1/db/${encodeURIComponent(db)}/documents/${encodeURIComponent(collection)}/update-many`,
+    request,
+  );
+  return resp.data;
+}
+
+export async function previewDocumentUpdate(
+  api: AxiosInstance,
+  db: string,
+  collection: string,
+  request: DocumentUpdatePreviewRequest,
+): Promise<DocumentUpdatePreviewResponse> {
+  const resp = await api.post<DocumentUpdatePreviewResponse>(
+    `/v1/db/${encodeURIComponent(db)}/documents/${encodeURIComponent(collection)}/update-preview`,
+    request,
+  );
+  return resp.data;
+}
+
+export async function createDocumentIndex(
+  api: AxiosInstance,
+  db: string,
+  collection: string,
+  request: DocumentIndexCreateRequest,
+): Promise<DocumentIndexOperationResponse> {
+  const resp = await api.post<DocumentIndexOperationResponse>(
+    `/v1/db/${encodeURIComponent(db)}/documents/${encodeURIComponent(collection)}/indexes`,
+    request,
+  );
+  return resp.data;
+}
+
+export async function dropDocumentIndex(
+  api: AxiosInstance,
+  db: string,
+  collection: string,
+  index: string,
+): Promise<DocumentIndexOperationResponse> {
+  const resp = await api.delete<DocumentIndexOperationResponse>(
+    `/v1/db/${encodeURIComponent(db)}/documents/${encodeURIComponent(collection)}/indexes/${encodeURIComponent(index)}`,
+  );
+  return resp.data;
+}
+
+export async function validateDocumentIndexes(
+  api: AxiosInstance,
+  db: string,
+  collection: string,
+): Promise<DocumentIndexConsistencyResponse> {
+  const resp = await api.post<DocumentIndexConsistencyResponse>(
+    `/v1/db/${encodeURIComponent(db)}/documents/${encodeURIComponent(collection)}/indexes/validate`,
+  );
+  return resp.data;
+}
+
+export async function readDocumentChangeFeed(
+  api: AxiosInstance,
+  db: string,
+  collection: string,
+  request: DocumentChangeFeedRequest,
+): Promise<DocumentChangeFeedResponse> {
+  const resp = await api.post<DocumentChangeFeedResponse>(
+    `/v1/db/${encodeURIComponent(db)}/documents/${encodeURIComponent(collection)}/change-feed`,
     request,
   );
   return resp.data;

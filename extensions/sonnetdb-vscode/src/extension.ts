@@ -10,6 +10,7 @@ import { registerProductivityCommands } from './commands/productivityCommands';
 import { registerSqlCompletionProvider } from './language/sqlCompletionProvider';
 import { registerSqlLanguageFeatures } from './language/sqlLanguageFeatures';
 import { CopilotPanel } from './panels/copilotPanel';
+import { DocumentQueryPanel } from './panels/documentQueryPanel';
 import { QueryResultPanel } from './panels/queryResultPanel';
 import { SonnetDbTreeDataProvider, TreeNode } from './tree/sonnetdbTreeDataProvider';
 import { ConnectionStatus } from './ui/connectionStatus';
@@ -30,10 +31,11 @@ export function activate(context: vscode.ExtensionContext): void {
     (profile) => connections.getProbe(profile),
   );
   const resultPanel = new QueryResultPanel(context);
+  const documentQueryPanel = new DocumentQueryPanel(createClient);
   const copilotPanel = new CopilotPanel(getActiveProfile, getToken);
   const managedServer = new ManagedServerService(context, connections);
 
-  context.subscriptions.push(connections, managedServer, new ConnectionStatus(connections));
+  context.subscriptions.push(connections, managedServer, documentQueryPanel, new ConnectionStatus(connections));
   context.subscriptions.push(connections.onDidChange(() => tree.refresh()));
 
   context.subscriptions.push(
@@ -223,6 +225,24 @@ export function activate(context: vscode.ExtensionContext): void {
       const sql = editor ? getEditorSql(editor) : undefined;
       const prompt = sql ? `Explain this query and suggest safe improvements:\n\n${sql}` : '';
       void copilotPanel.show(prompt);
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('sonnetdb.queryDocumentCollection', async (node?: TreeNode) => {
+      if (!node || node.kind !== 'document') {
+        void vscode.window.showWarningMessage('Select a Document collection from the SonnetDB Explorer first.');
+        return;
+      }
+      try {
+        await documentQueryPanel.show({
+          profile: node.profile,
+          database: node.database,
+          collection: node.collection.name,
+        });
+      } catch (error) {
+        showCommandError('Document query panel failed', error);
+      }
     }),
   );
 

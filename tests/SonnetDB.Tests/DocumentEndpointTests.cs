@@ -587,6 +587,117 @@ public sealed class DocumentEndpointTests : IAsyncLifetime
         Assert.Equal("validation_failed", Assert.Single(createdRejectedBody!.Errors!).Code);
     }
 
+    [Fact]
+    public async Task DocumentApi_UpdatePreviewAndIndexDesignerContracts_CloseLoop()
+    {
+        using var admin = CreateClient(AdminToken);
+        var create = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/advanceddocs",
+            new DocumentCollectionCreateRequest(),
+            ServerJsonContext.Default.DocumentCollectionCreateRequest);
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+
+        using var original = JsonDocument.Parse("""{"site":"north","serial":"A-1","score":2}""");
+        var insert = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/advanceddocs/insert-one",
+            new DocumentWriteItem("dev-1", original.RootElement.Clone()),
+            ServerJsonContext.Default.DocumentWriteItem);
+        Assert.Equal(HttpStatusCode.OK, insert.StatusCode);
+
+        using var two = JsonDocument.Parse("2");
+        var preview = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/advanceddocs/update-preview",
+            new DocumentUpdatePreviewRequest(
+                new DocumentFilterContract("_id", "eq", JsonDocument.Parse("\"dev-1\"").RootElement.Clone()),
+                new DocumentUpdateContract(Inc: new Dictionary<string, JsonElement> { ["$.score"] = two.RootElement.Clone() })),
+            ServerJsonContext.Default.DocumentUpdatePreviewRequest);
+        Assert.Equal(HttpStatusCode.OK, preview.StatusCode);
+        var previewBody = await preview.Content.ReadFromJsonAsync(ServerJsonContext.Default.DocumentUpdatePreviewResponse);
+        var previewItem = Assert.Single(previewBody!.Documents);
+        Assert.Equal(2, previewItem.Before!.Value.GetProperty("score").GetInt32());
+        Assert.Equal(4, previewItem.After.GetProperty("score").GetInt32());
+
+        var unchanged = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/advanceddocs/find",
+            new DocumentFindRequest(Id: "dev-1"),
+            ServerJsonContext.Default.DocumentFindRequest);
+        var unchangedBody = await unchanged.Content.ReadFromJsonAsync(ServerJsonContext.Default.DocumentFindResponse);
+        Assert.Equal(2, Assert.Single(unchangedBody!.Documents).Document.GetProperty("score").GetInt32());
+
+        var index = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/advanceddocs/indexes",
+            new DocumentIndexCreateRequest(
+                "ux_site_serial",
+                ["$.site", "$.serial"],
+                IsUnique: true,
+                IsSparse: true,
+                PartialFilter: new DocumentIndexPartialFilterContract("$.site", "exists")),
+            ServerJsonContext.Default.DocumentIndexCreateRequest);
+        Assert.Equal(HttpStatusCode.Created, index.StatusCode);
+
+        var validate = await admin.PostAsync("/v1/db/docapi/documents/advanceddocs/indexes/validate", content: null);
+        Assert.Equal(HttpStatusCode.OK, validate.StatusCode);
+        var validateBody = await validate.Content.ReadFromJsonAsync(ServerJsonContext.Default.DocumentIndexConsistencyResponse);
+        Assert.True(validateBody!.IsConsistent);
+        Assert.True(Assert.Single(validateBody.Indexes).IsConsistent);
+
+        var drop = await admin.DeleteAsync("/v1/db/docapi/documents/advanceddocs/indexes/ux_site_serial");
+        Assert.Equal(HttpStatusCode.OK, drop.StatusCode);
+    }
+
+    [Fact]
+    public async Task DocumentApi_ChangeFeed_ResumesAcrossInsertUpdateDelete()
+    {
+        using var admin = CreateClient(AdminToken);
+        var create = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/feeddocs",
+            new DocumentCollectionCreateRequest(),
+            ServerJsonContext.Default.DocumentCollectionCreateRequest);
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+
+        using var readOnly = CreateClient(ReadOnlyToken);
+        var subscribe = await readOnly.PostAsJsonAsync(
+            "/v1/db/docapi/documents/feeddocs/change-feed",
+            new DocumentChangeFeedRequest(StartAt: "now"),
+            ServerJsonContext.Default.DocumentChangeFeedRequest);
+        Assert.Equal(HttpStatusCode.OK, subscribe.StatusCode);
+        var cursor = await subscribe.Content.ReadFromJsonAsync(ServerJsonContext.Default.DocumentChangeFeedResponse);
+        Assert.NotNull(cursor);
+        Assert.Empty(cursor!.Changes);
+
+        using var first = JsonDocument.Parse("""{"site":"north","score":1}""");
+        Assert.Equal(HttpStatusCode.OK, (await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/feeddocs/insert-one",
+            new DocumentWriteItem("dev-1", first.RootElement.Clone()),
+            ServerJsonContext.Default.DocumentWriteItem)).StatusCode);
+
+        using var inc = JsonDocument.Parse("1");
+        Assert.Equal(HttpStatusCode.OK, (await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/feeddocs/update-one",
+            new DocumentUpdateOneRequest(
+                Id: "dev-1",
+                Update: new DocumentUpdateContract(Inc: new Dictionary<string, JsonElement> { ["$.score"] = inc.RootElement.Clone() })),
+            ServerJsonContext.Default.DocumentUpdateOneRequest)).StatusCode);
+
+        Assert.Equal(HttpStatusCode.OK, (await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/feeddocs/delete-one",
+            new DocumentDeleteOneRequest("dev-1"),
+            ServerJsonContext.Default.DocumentDeleteOneRequest)).StatusCode);
+
+        var poll = await readOnly.PostAsJsonAsync(
+            "/v1/db/docapi/documents/feeddocs/change-feed",
+            new DocumentChangeFeedRequest(ResumeToken: cursor.ResumeToken),
+            ServerJsonContext.Default.DocumentChangeFeedRequest);
+        Assert.Equal(HttpStatusCode.OK, poll.StatusCode);
+        var feed = await poll.Content.ReadFromJsonAsync(ServerJsonContext.Default.DocumentChangeFeedResponse);
+        Assert.Equal(["insert", "update", "delete"], feed!.Changes.Select(static item => item.Operation).ToArray());
+        Assert.Equal([1, 2], feed.Changes.Take(2).Select(static item => item.After!.Value.GetProperty("score").GetInt32()).ToArray());
+        Assert.Null(feed.Changes[0].Before);
+        Assert.Null(feed.Changes[2].After);
+        Assert.Equal("dev-1", feed.Changes[2].DocumentId);
+        Assert.False(string.IsNullOrWhiteSpace(feed.ResumeToken));
+    }
+
     private HttpClient CreateClient(string token)
     {
         var client = new HttpClient { BaseAddress = new Uri(_baseUrl!) };

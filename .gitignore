@@ -432,4 +432,5 @@ FodyWeavers.xsd
 src/SonnetDB/sonnetdb-data/
 .codex-verify/
 output/
-d
+.codex-artifacts/
+.playwright-cli/
