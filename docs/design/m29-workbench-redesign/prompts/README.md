@@ -26,4 +26,4 @@
 | `prototype-16-studio-bridge.png` | Studio 原生桥 / 本地 Server |
 | `prototype-17-vscode.png` | VS Code Explorer / SQL / Copilot |
 
-17 张关键帧已生成到 `../renders/`，统一使用 `gpt-image-2`、1536×1024 和 high quality。Web/Studio 的 16 张关键帧使用参考图 edit；VS Code 帧为避免继承 Web 外壳而使用独立 generate。可在配置 `OPENAI_API_KEY` 与 `OPENAI_BASE_URL` 后运行 `./render-all.ps1` 复现；脚本默认跳过已有文件，使用 `-Force` 可覆盖。
+17 张关键帧属于可再生成的本地产物，不进入 Git。生成时统一使用 `gpt-image-2`、1536×1024 和 high quality；Web/Studio 的 16 张关键帧使用参考图 edit，VS Code 帧为避免继承 Web 外壳而使用独立 generate。可在配置 `OPENAI_API_KEY` 与 `OPENAI_BASE_URL` 后运行 `./render-all.ps1` 输出到 `../renders/`；脚本默认跳过已有文件，使用 `-Force` 可覆盖。

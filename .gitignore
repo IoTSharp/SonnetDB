@@ -434,3 +434,6 @@ src/SonnetDB/sonnetdb-data/
 output/
 .codex-artifacts/
 .playwright-cli/
+
+# Generated M29 prototype renders
+docs/design/m29-workbench-redesign/renders/
