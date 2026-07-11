@@ -77,3 +77,13 @@ jobs:
       - name: Run extension consumer smoke
         working-directory: extensions/sonnetdb-vscode
         run: npm test
+
+      - name: Package VS Code extension
+        working-directory: extensions/sonnetdb-vscode
+        run: npm run package:vsix
+
+      - name: Upload VSIX
+        uses: actions/upload-artifact@v7
+        with:
+          name: sonnetdb-vscode-vsix
+          path: extensions/sonnetdb-vscode/dist/sonnetdb-vscode.vsix

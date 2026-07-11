@@ -305,6 +305,12 @@ export interface SqlResultSet {
   hasColumns: boolean;
 }
 
+export interface BulkIngestResponse {
+  written: number;
+  skipped: number;
+  elapsedMilliseconds: number;
+}
+
 export interface HealthResponse {
   status: string;
   databases: number;
@@ -313,9 +319,36 @@ export interface HealthResponse {
   copilotReady: boolean;
 }
 
+export interface SetupStatusResponse {
+  needsSetup: boolean;
+  suggestedServerId: string;
+  serverId?: string | null;
+  organization?: string | null;
+  userCount: number;
+  databaseCount: number;
+}
+
+export interface ConnectionProbeResult {
+  health: HealthResponse;
+  setup: SetupStatusResponse;
+  checkedAt: number;
+}
+
 export interface CopilotModelsResponse {
   default: string;
   candidates: string[];
+}
+
+export interface CopilotKnowledgeStatusResponse {
+  enabled: boolean;
+  embeddingProvider: string;
+  embeddingFallback: boolean;
+  vectorDimension: number;
+  docsRoots: string[];
+  indexedFiles: number;
+  indexedChunks: number;
+  lastIngestedUtc?: string | null;
+  skillCount: number;
 }
 
 export interface CopilotChatEvent {

@@ -1,0 +1,28 @@
+{
+  "SonnetDB select recent telemetry": {
+    "prefix": "sonnet-select-recent",
+    "body": [
+      "SELECT time, ${1:device_id}, ${2:value}",
+      "FROM ${3:measurement}",
+      "WHERE time >= ${4:0}",
+      "ORDER BY time DESC",
+      "LIMIT ${5:100};"
+    ],
+    "description": "Query recent SonnetDB telemetry"
+  },
+  "SonnetDB create measurement": {
+    "prefix": "sonnet-create-measurement",
+    "body": [
+      "CREATE MEASUREMENT ${1:measurement} (",
+      "  ${2:device_id} TAG STRING,",
+      "  ${3:value} FIELD FLOAT",
+      ");"
+    ],
+    "description": "Create a SonnetDB measurement schema"
+  },
+  "SonnetDB explain": {
+    "prefix": "sonnet-explain",
+    "body": "EXPLAIN ${1:SELECT * FROM measurement LIMIT 100};",
+    "description": "Explain a read-only SonnetDB statement"
+  }
+}

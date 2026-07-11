@@ -783,16 +783,16 @@ PR #89（Core Meter / Activity 基线）
 
 | PR | 主题 | 状态 |
 |----|------|------|
-| #99 | **扩展骨架 + Manifest + Activity Bar 容器**：在 `extensions/sonnetdb-vscode/` 建立 `package.json` / `tsconfig.json` / `src/` / `media/` 结构；注册 `SonnetDB` Activity Bar、基础命令（Add Connection / Refresh / Run Query / Open Copilot / Start Managed Local Server）与 TreeView 骨架；本次仓库先落规划与占位代码，后续实现按下列 PR 继续填充。 | 🚧 |
-| #100 | **远程连接模型 + SecretStorage**：实现连接配置模型（`remote` / `managed-local`）、`SecretStorage` token 持久化、活动连接选择、`/healthz` 探活、`/v1/setup/status` 首次安装探测；连接面板支持测试连通性与提示未初始化状态。 | 📋 |
-| #101 | **Explorer 树：Connections → Databases → Measurements → Columns**：消费 `GET /v1/db` 与 `GET /v1/db/{db}/schema`，展示数据库 / measurement / 列结构；支持刷新 schema、复制 measurement 名、预留 sample rows / open in query runner 入口。 | 📋 |
-| #102 | **SQL 执行链路 + SonnetDB 方言补全**：实现 `POST /v1/db/{db}/sql` ndjson 解析、Run Current Statement / Run Selection 命令；复用 `web/src/components/sonnetdb-dialect.ts` 的关键词与 schema 补全思路，先以编辑器命令为主，不急着上完整 Notebook。 | 📋 |
-| #103 | **结果面板：Table / Raw / Chart 三视图**：新增 Query Result Webview Panel，支持表格、原始 ndjson/JSON、时间序列图表三视图；图表规则复用 Web Admin `SqlResultChart` 的时间列 / 数值列 / tag 分组启发式；补 query history 与导出钩子。 | ✅（由 M29 #259 覆盖核心三视图） |
-| #104 | **VS Code 内置 Copilot 面板**：接入 `POST /v1/copilot/chat/stream`、`GET /v1/copilot/models` 与 `GET /v1/copilot/knowledge/status`；支持 `read-only` / `read-write` 模式切换、模型选择、引用折叠、最近执行 SQL 一键发送到查询面板。 | ✅（由 M29 #259 接线，引用/SQL 回填后续增强） |
-| #105 | **托管本地 SonnetDB Server 模式**：扩展选择本地 `data root` 后，自动启动 / 关闭本地 SonnetDB Server 进程，处理端口占用、日志输出与健康检查；本地与远程共用同一个 HTTP client 与 Explorer/UI。 | 📋 |
-| #106 | **生产力增强**：Create Measurement 向导、bulk import（LP / JSON / Bulk VALUES）、starter snippets、从当前 SQL 或 schema 上下文打开 help / docs / explain 入口。 | 📋 |
-| #107 | **Language Service / LSP Sidecar**：通过独立 C# sidecar 或轻量协议复用现有 `SqlParser` / schema 能力，补 diagnostics、hover、signature help、repair suggestion 与 `explain_sql` 集成。 | 📋 |
-| #108 | **打包发布 + CI + 文档**：补扩展测试、VSIX 打包、Marketplace 元数据、截图与文档；在主 README / docs 中增加安装、连接、权限与本地模式说明。 | 📋 |
+| #99 | **扩展骨架 + Manifest + Activity Bar 容器**：在 `extensions/sonnetdb-vscode/` 建立 `package.json` / `tsconfig.json` / `src/` / `media/` 结构；注册 `SonnetDB` Activity Bar、基础命令（Add Connection / Refresh / Run Query / Open Copilot / Start Managed Local Server）与 TreeView 骨架。 | ✅ |
+| #100 | **远程连接模型 + SecretStorage**：实现连接配置模型（`remote` / `managed-local`）、`SecretStorage` token 持久化、活动连接选择、`/healthz` 探活、`/v1/setup/status` 首次安装探测；连接面板支持测试连通性与提示未初始化状态。 | ✅ |
+| #101 | **Explorer 树：Connections → Databases → Measurements → Columns**：消费 `GET /v1/db` 与 `GET /v1/db/{db}/schema`，展示数据库 / measurement / 列结构；支持刷新 schema、复制 measurement 名与 open in query runner。 | ✅ |
+| #102 | **SQL 执行链路 + SonnetDB 方言补全**：实现 `POST /v1/db/{db}/sql` ndjson 解析、Run Current Statement / Run Selection 命令，并复用 Web Admin 方言思路提供关键词与 schema 补全。 | ✅ |
+| #103 | **结果面板：Table / Raw / Chart 三视图**：Query Result Webview 支持表格、原始 JSON、多数值时间序列图表、query history 与 CSV/JSON 导出。 | ✅ |
+| #104 | **VS Code 内置 Copilot 面板**：接入流式聊天、模型与知识库状态；支持默认只读、显式读写确认、引用显示和当前 SQL 发送。 | ✅ |
+| #105 | **托管本地 SonnetDB Server 模式**：选择 `data root` 后启动 / 关闭本地 Server，处理端口占用、日志输出与健康检查；本地与远程共用 HTTP client 与 Explorer。 | ✅ |
+| #106 | **生产力增强**：Create Measurement 草稿、带确认的 bulk import（LP / JSON / Bulk VALUES）、starter snippets、help / docs / explain 入口。 | ✅ |
+| #107 | **Language Service / LSP Sidecar**：已提供 TypeScript 轻量 diagnostics、hover、schema completion 与 explain；复用 C# `SqlParser` 的 sidecar、signature help 和 repair suggestion 尚未实现。 | 🚧 |
+| #108 | **打包发布 + CI + 文档**：已补测试、VSIX 打包、CI artifact、Marketplace metadata 与安装/权限/本地模式文档；Marketplace 正式发布与 Electron 实机截图尚未完成。 | 🚧 |
 
 ### 首批实现建议
 

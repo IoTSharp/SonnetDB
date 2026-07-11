@@ -1,4 +1,8 @@
-**/*.ts
+src/**
+out/test/**
+out/**/*.map
 tsconfig.json
 .gitignore
 docs/**
+ROADMAP.md
+dist/**

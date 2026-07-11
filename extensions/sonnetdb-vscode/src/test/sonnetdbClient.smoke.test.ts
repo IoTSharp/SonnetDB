@@ -18,6 +18,8 @@ test('SonnetDbClient consumes the shared multi-model management contracts', asyn
   const address = server.address() as AddressInfo;
   const client = new SonnetDbClient(`http://127.0.0.1:${address.port}`, 'smoke-token');
 
+  assert.equal((await client.checkHealth()).status, 'ok');
+  assert.equal((await client.fetchSetupStatus()).needsSetup, false);
   assert.deepEqual(await client.listDatabases(), { databases: ['factory'] });
   assert.equal((await client.fetchSchema('factory')).tables?.[0]?.name, 'orders');
   assert.deepEqual(await client.fetchKvKeyspaces('factory'), ['sessions']);
@@ -43,8 +45,9 @@ test('SonnetDbClient consumes the shared multi-model management contracts', asyn
   assert.deepEqual(sql.columns, ['device_id', 'temperature']);
   assert.deepEqual(sql.rows, [['pump-01', 23.5]]);
   assert.equal(sql.end?.rowCount, 1);
+  assert.equal((await client.ingestBulk('factory', 'sensor_readings', 'lp', Buffer.from('value=1 1'))).written, 1);
 
-  assert.equal(requests.length, 12);
+  assert.equal(requests.length, 15);
   assert.ok(requests.every((entry) => entry.endsWith('Bearer smoke-token')));
 });
 
@@ -52,6 +55,8 @@ function handleRequest(request: IncomingMessage, response: ServerResponse, reque
   const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
   requests.push(`${request.method} ${path} ${request.headers.authorization ?? ''}`);
 
+  if (path === '/healthz') return writeJson(response, { status: 'ok', databases: 1, uptimeSeconds: 10, copilotEnabled: true, copilotReady: true });
+  if (path === '/v1/setup/status') return writeJson(response, { needsSetup: false, suggestedServerId: 'factory', serverId: 'factory', organization: 'test', userCount: 1, databaseCount: 1 });
   if (path === '/v1/db') return writeJson(response, { databases: ['factory'] });
   if (path === '/v1/db/factory/schema') {
     return writeJson(response, {
@@ -97,6 +102,9 @@ function handleRequest(request: IncomingMessage, response: ServerResponse, reque
       JSON.stringify({ type: 'end', rowCount: 1, recordsAffected: -1, elapsedMs: 0.4 }),
     ].join('\n'));
     return;
+  }
+  if (path === '/v1/db/factory/measurements/sensor_readings/lp') {
+    return writeJson(response, { written: 1, skipped: 0, elapsedMilliseconds: 0.3 });
   }
 
   writeJson(response, { code: 'not_found', message: path }, 404);

@@ -1,45 +1,40 @@
 import * as vscode from 'vscode';
 import { getDefaultBaseUrl, getDefaultQueryMaxRows } from './core/config';
+import { ConnectionService } from './core/connectionService';
+import { ManagedServerService } from './core/managedServerService';
 import { SonnetDbClient } from './core/sonnetdbClient';
+import { getEditorSql } from './core/sqlContext';
 import { SonnetDbConnectionProfile } from './core/types';
 import { registerRunQueryCommand } from './commands/runQueryCommand';
+import { registerProductivityCommands } from './commands/productivityCommands';
+import { registerSqlCompletionProvider } from './language/sqlCompletionProvider';
+import { registerSqlLanguageFeatures } from './language/sqlLanguageFeatures';
 import { CopilotPanel } from './panels/copilotPanel';
 import { QueryResultPanel } from './panels/queryResultPanel';
 import { SonnetDbTreeDataProvider, TreeNode } from './tree/sonnetdbTreeDataProvider';
-
-const ProfilesStorageKey = 'sonnetdb.connectionProfiles';
-const ActiveProfileStorageKey = 'sonnetdb.activeProfileId';
+import { ConnectionStatus } from './ui/connectionStatus';
 
 export function activate(context: vscode.ExtensionContext): void {
-  const profiles = loadProfiles(context);
-  let activeProfileId = context.globalState.get<string>(ActiveProfileStorageKey) ?? profiles[0]?.id;
-
-  const getActiveProfile = (): SonnetDbConnectionProfile | undefined =>
-    profiles.find((profile) => profile.id === activeProfileId);
-  const getToken = async (profile: SonnetDbConnectionProfile): Promise<string | undefined> =>
-    context.secrets.get(getSecretKey(profile.id));
-  const persistProfiles = async (): Promise<void> => {
-    await context.globalState.update(ProfilesStorageKey, profiles.map(cloneProfile));
-  };
+  const connections = new ConnectionService(context);
+  const getActiveProfile = (): SonnetDbConnectionProfile | undefined => connections.getActiveProfile();
+  const getToken = (profile: SonnetDbConnectionProfile): Promise<string | undefined> => connections.getToken(profile);
   const setActiveProfile = async (profile: SonnetDbConnectionProfile, database?: string): Promise<void> => {
-    activeProfileId = profile.id;
-    if (database) {
-      profile.defaultDatabase = database;
-    }
-    await persistProfiles();
-    await context.globalState.update(ActiveProfileStorageKey, activeProfileId);
-    tree.refresh();
+    await connections.setActive(profile, database);
   };
-  const createClient = async (profile: SonnetDbConnectionProfile): Promise<SonnetDbClient> =>
-    new SonnetDbClient(profile.baseUrl, await getToken(profile));
+  const createClient = (profile: SonnetDbConnectionProfile): Promise<SonnetDbClient> => connections.createClient(profile);
 
   const tree = new SonnetDbTreeDataProvider(
-    () => profiles,
+    () => connections.getProfiles(),
     getToken,
-    () => activeProfileId,
+    () => connections.getActiveProfileId(),
+    (profile) => connections.getProbe(profile),
   );
-  const resultPanel = new QueryResultPanel();
+  const resultPanel = new QueryResultPanel(context);
   const copilotPanel = new CopilotPanel(getActiveProfile, getToken);
+  const managedServer = new ManagedServerService(context, connections);
+
+  context.subscriptions.push(connections, managedServer, new ConnectionStatus(connections));
+  context.subscriptions.push(connections.onDidChange(() => tree.refresh()));
 
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider('sonnetdb.explorer', tree),
@@ -67,27 +62,137 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
-      const profile: SonnetDbConnectionProfile = {
-        id: `profile-${Date.now()}`,
-        label,
-        kind: 'remote',
-        baseUrl,
-      };
-
-      profiles.push(profile);
-      await setActiveProfile(profile);
-
       const token = await vscode.window.showInputBox({
         prompt: 'Bearer token (stored in SecretStorage)',
         password: true,
         ignoreFocusOut: true,
       });
 
-      if (token) {
-        await context.secrets.store(getSecretKey(profile.id), token);
+      const profile: SonnetDbConnectionProfile = {
+        id: `profile-${Date.now()}`,
+        label,
+        kind: 'remote',
+        baseUrl: normalizeBaseUrl(baseUrl),
+      };
+
+      try {
+        const probeClient = new SonnetDbClient(profile.baseUrl, token || undefined);
+        const [health, setup] = await Promise.all([
+          probeClient.checkHealth(),
+          probeClient.fetchSetupStatus(),
+        ]);
+        if (health.status !== 'ok') {
+          throw new Error(`Server reported ${health.status}.`);
+        }
+        if (setup.needsSetup) {
+          void vscode.window.showWarningMessage(
+            `${label} is reachable but requires first-time setup. Open ${profile.baseUrl}/admin/ to initialize it.`,
+          );
+        }
+      } catch (error) {
+        const choice = await vscode.window.showWarningMessage(
+          `Could not verify ${profile.baseUrl}: ${errorMessage(error)}`,
+          { modal: true },
+          'Save Anyway',
+        );
+        if (choice !== 'Save Anyway') {
+          return;
+        }
       }
 
+      await connections.add(profile, token || undefined);
+      void connections.probe(profile).catch(() => undefined);
       void vscode.window.showInformationMessage(`Added SonnetDB connection "${label}".`);
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('sonnetdb.selectConnection', async () => {
+      const selected = await vscode.window.showQuickPick(
+        connections.getProfiles().map((profile) => ({
+          label: profile.label,
+          description: profile.baseUrl,
+          profile,
+        })),
+        { placeHolder: 'Select the active SonnetDB connection' },
+      );
+      if (selected) {
+        await connections.setActive(selected.profile);
+        void connections.probe(selected.profile).catch(() => undefined);
+      } else if (connections.getProfiles().length === 0) {
+        await vscode.commands.executeCommand('sonnetdb.addConnection');
+      }
+    }),
+    vscode.commands.registerCommand('sonnetdb.selectDatabase', async () => {
+      const profile = connections.getActiveProfile();
+      if (!profile) {
+        await vscode.commands.executeCommand('sonnetdb.selectConnection');
+        return;
+      }
+      try {
+        const databases = (await (await connections.createClient(profile)).listDatabases()).databases;
+        const database = await vscode.window.showQuickPick(databases, { placeHolder: 'Select the active database' });
+        if (database) {
+          await connections.setActive(profile, database);
+        }
+      } catch (error) {
+        showCommandError('Database list failed', error);
+      }
+    }),
+    vscode.commands.registerCommand('sonnetdb.testConnection', async (node?: TreeNode) => {
+      const profile = node?.kind === 'connection' ? node.profile : connections.getActiveProfile();
+      if (!profile) {
+        void vscode.window.showWarningMessage('Select a SonnetDB connection first.');
+        return;
+      }
+      await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: `Testing ${profile.label}` },
+        async () => {
+          try {
+            const result = await connections.probe(profile);
+            const setup = result.setup.needsSetup ? ' · setup required' : '';
+            void vscode.window.showInformationMessage(
+              `${profile.label} is healthy · ${result.health.databases} databases${setup}`,
+            );
+          } catch (error) {
+            showCommandError(`Connection ${profile.label} failed`, error);
+          }
+        },
+      );
+    }),
+    vscode.commands.registerCommand('sonnetdb.editConnection', async (node?: TreeNode) => {
+      const profile = node?.kind === 'connection' ? node.profile : connections.getActiveProfile();
+      if (!profile) {
+        return;
+      }
+      const label = await vscode.window.showInputBox({ prompt: 'Connection label', value: profile.label });
+      if (!label) {
+        return;
+      }
+      const baseUrl = await vscode.window.showInputBox({ prompt: 'SonnetDB base URL', value: profile.baseUrl });
+      if (!baseUrl) {
+        return;
+      }
+      const token = await vscode.window.showInputBox({
+        prompt: 'New bearer token (leave blank to keep the current token)',
+        password: true,
+      });
+      await connections.update(profile, { label, baseUrl: normalizeBaseUrl(baseUrl) }, token || undefined);
+      void connections.probe(profile).catch(() => undefined);
+    }),
+    vscode.commands.registerCommand('sonnetdb.removeConnection', async (node?: TreeNode) => {
+      const profile = node?.kind === 'connection' ? node.profile : connections.getActiveProfile();
+      if (!profile) {
+        return;
+      }
+      const choice = await vscode.window.showWarningMessage(
+        `Remove SonnetDB connection "${profile.label}" and its stored token?`,
+        { modal: true },
+        'Remove',
+      );
+      if (choice === 'Remove') {
+        await connections.remove(profile);
+      }
     }),
   );
 
@@ -112,6 +217,12 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('sonnetdb.openCopilot', () => {
       void copilotPanel.show();
+    }),
+    vscode.commands.registerCommand('sonnetdb.askCopilot', () => {
+      const editor = vscode.window.activeTextEditor;
+      const sql = editor ? getEditorSql(editor) : undefined;
+      const prompt = sql ? `Explain this query and suggest safe improvements:\n\n${sql}` : '';
+      void copilotPanel.show(prompt);
     }),
   );
 
@@ -374,11 +485,9 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('sonnetdb.startManagedLocalServer', () => {
-      void vscode.window.showInformationMessage(
-        'Managed local server mode is planned for PR #105.',
-      );
-    }),
+    vscode.commands.registerCommand('sonnetdb.startManagedLocalServer', () => managedServer.start()),
+    vscode.commands.registerCommand('sonnetdb.stopManagedLocalServer', () => managedServer.stop()),
+    vscode.commands.registerCommand('sonnetdb.showManagedServerOutput', () => managedServer.showOutput()),
   );
 
   registerRunQueryCommand(
@@ -386,42 +495,19 @@ export function activate(context: vscode.ExtensionContext): void {
     getActiveProfile,
     getToken,
     resultPanel,
+    (profile, database) => connections.setActive(profile, database),
   );
+  registerSqlCompletionProvider(context, getActiveProfile, createClient);
+  registerSqlLanguageFeatures(context);
+  registerProductivityCommands(context, getActiveProfile, createClient, resultPanel);
+
+  const activeProfile = connections.getActiveProfile();
+  if (activeProfile) {
+    void connections.probe(activeProfile).catch(() => undefined);
+  }
 }
 
 export function deactivate(): void {}
-
-function loadProfiles(context: vscode.ExtensionContext): SonnetDbConnectionProfile[] {
-  const stored = context.globalState.get<SonnetDbConnectionProfile[]>(ProfilesStorageKey, []);
-  return Array.isArray(stored) ? stored.filter(isProfile) : [];
-}
-
-function isProfile(value: unknown): value is SonnetDbConnectionProfile {
-  if (!value || typeof value !== 'object') {
-    return false;
-  }
-  const record = value as Record<string, unknown>;
-  return typeof record.id === 'string'
-    && typeof record.label === 'string'
-    && typeof record.baseUrl === 'string'
-    && (record.kind === 'remote' || record.kind === 'managed-local');
-}
-
-function cloneProfile(profile: SonnetDbConnectionProfile): SonnetDbConnectionProfile {
-  return {
-    id: profile.id,
-    label: profile.label,
-    kind: profile.kind,
-    baseUrl: profile.baseUrl,
-    defaultDatabase: profile.defaultDatabase,
-    tokenSecretKey: profile.tokenSecretKey,
-    dataRoot: profile.dataRoot,
-  };
-}
-
-function getSecretKey(profileId: string): string {
-  return `sonnetdb.connection.${profileId}.token`;
-}
 
 function boundedPreviewLimit(): number {
   return Math.min(1000, Math.max(1, getDefaultQueryMaxRows()));
@@ -482,6 +568,13 @@ function formatKeyValues(values: Array<{ key: string; value: string }> | null | 
 }
 
 function showCommandError(title: string, error: unknown): void {
-  const message = error instanceof Error ? error.message : String(error);
-  void vscode.window.showErrorMessage(`${title}: ${message}`);
+  void vscode.window.showErrorMessage(`${title}: ${errorMessage(error)}`);
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function normalizeBaseUrl(value: string): string {
+  return value.trim().replace(/\/+$/u, '');
 }

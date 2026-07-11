@@ -1,10 +1,27 @@
 {
   "name": "sonnetdb-vscode",
   "displayName": "SonnetDB",
-  "description": "Official SonnetDB extension for Visual Studio Code.",
-  "version": "0.0.1",
-  "private": true,
+  "description": "Connect to SonnetDB, explore multi-model schema, run SQL, chart results, and use read-only Copilot from VS Code.",
+  "version": "0.1.0",
+  "publisher": "iotsharp",
+  "preview": true,
+  "private": false,
   "license": "MIT",
+  "homepage": "https://github.com/IoTSharp/SonnetDB",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/IoTSharp/SonnetDB.git"
+  },
+  "bugs": {
+    "url": "https://github.com/IoTSharp/SonnetDB/issues"
+  },
+  "keywords": [
+    "sonnetdb",
+    "database",
+    "sql",
+    "timeseries",
+    "iot"
+  ],
   "engines": {
     "vscode": "^1.100.0"
   },
@@ -17,15 +34,27 @@
     "onView:sonnetdb.explorer",
     "onCommand:sonnetdb.addConnection",
     "onCommand:sonnetdb.refreshExplorer",
+    "onCommand:sonnetdb.selectConnection",
+    "onCommand:sonnetdb.selectDatabase",
+    "onCommand:sonnetdb.testConnection",
+    "onCommand:sonnetdb.editConnection",
+    "onCommand:sonnetdb.removeConnection",
     "onCommand:sonnetdb.useDatabase",
     "onCommand:sonnetdb.runQuery",
+    "onCommand:sonnetdb.runSelection",
+    "onCommand:sonnetdb.explainQuery",
+    "onCommand:sonnetdb.newQuery",
     "onCommand:sonnetdb.openCopilot",
+    "onCommand:sonnetdb.askCopilot",
     "onCommand:sonnetdb.previewKvKeyspace",
     "onCommand:sonnetdb.searchVectorIndex",
     "onCommand:sonnetdb.searchFullTextIndex",
     "onCommand:sonnetdb.analyzeFullText",
     "onCommand:sonnetdb.previewMqTopic",
-    "onCommand:sonnetdb.startManagedLocalServer"
+    "onCommand:sonnetdb.startManagedLocalServer",
+    "onCommand:sonnetdb.stopManagedLocalServer",
+    "onCommand:sonnetdb.createMeasurement",
+    "onCommand:sonnetdb.bulkImport"
   ],
   "contributes": {
     "commands": [
@@ -38,16 +67,55 @@
         "title": "SonnetDB: Refresh Explorer"
       },
       {
+        "command": "sonnetdb.selectConnection",
+        "title": "SonnetDB: Select Connection"
+      },
+      {
+        "command": "sonnetdb.selectDatabase",
+        "title": "SonnetDB: Select Database"
+      },
+      {
+        "command": "sonnetdb.testConnection",
+        "title": "SonnetDB: Test Connection"
+      },
+      {
+        "command": "sonnetdb.editConnection",
+        "title": "SonnetDB: Edit Connection"
+      },
+      {
+        "command": "sonnetdb.removeConnection",
+        "title": "SonnetDB: Remove Connection"
+      },
+      {
         "command": "sonnetdb.useDatabase",
         "title": "SonnetDB: Use Database"
       },
       {
         "command": "sonnetdb.runQuery",
-        "title": "SonnetDB: Run Query"
+        "title": "SonnetDB: Run Current Statement",
+        "icon": "$(run)"
+      },
+      {
+        "command": "sonnetdb.runSelection",
+        "title": "SonnetDB: Run Selection"
+      },
+      {
+        "command": "sonnetdb.explainQuery",
+        "title": "SonnetDB: Explain Current Statement",
+        "icon": "$(info)"
+      },
+      {
+        "command": "sonnetdb.newQuery",
+        "title": "SonnetDB: New Query"
       },
       {
         "command": "sonnetdb.openCopilot",
         "title": "SonnetDB: Open Copilot"
+      },
+      {
+        "command": "sonnetdb.askCopilot",
+        "title": "SonnetDB: Ask Copilot About Current Query",
+        "icon": "$(sparkle)"
       },
       {
         "command": "sonnetdb.previewKvKeyspace",
@@ -72,6 +140,38 @@
       {
         "command": "sonnetdb.startManagedLocalServer",
         "title": "SonnetDB: Start Managed Local Server"
+      },
+      {
+        "command": "sonnetdb.stopManagedLocalServer",
+        "title": "SonnetDB: Stop Managed Local Server"
+      },
+      {
+        "command": "sonnetdb.showManagedServerOutput",
+        "title": "SonnetDB: Show Managed Server Output"
+      },
+      {
+        "command": "sonnetdb.showQueryHistory",
+        "title": "SonnetDB: Show Query History"
+      },
+      {
+        "command": "sonnetdb.openObjectQuery",
+        "title": "SonnetDB: Open in Query Editor"
+      },
+      {
+        "command": "sonnetdb.copyObjectName",
+        "title": "SonnetDB: Copy Object Name"
+      },
+      {
+        "command": "sonnetdb.createMeasurement",
+        "title": "SonnetDB: Create Measurement Draft"
+      },
+      {
+        "command": "sonnetdb.bulkImport",
+        "title": "SonnetDB: Bulk Import"
+      },
+      {
+        "command": "sonnetdb.openSqlReference",
+        "title": "SonnetDB: Open SQL Reference"
       }
     ],
     "viewsContainers": {
@@ -102,9 +202,29 @@
           "command": "sonnetdb.refreshExplorer",
           "when": "view == sonnetdb.explorer",
           "group": "navigation"
+        },
+        {
+          "command": "sonnetdb.newQuery",
+          "when": "view == sonnetdb.explorer",
+          "group": "navigation"
         }
       ],
       "view/item/context": [
+        {
+          "command": "sonnetdb.testConnection",
+          "when": "view == sonnetdb.explorer && viewItem =~ /^connection/",
+          "group": "inline"
+        },
+        {
+          "command": "sonnetdb.editConnection",
+          "when": "view == sonnetdb.explorer && viewItem =~ /^connection/",
+          "group": "navigation@10"
+        },
+        {
+          "command": "sonnetdb.removeConnection",
+          "when": "view == sonnetdb.explorer && viewItem =~ /^connection/",
+          "group": "navigation@20"
+        },
         {
           "command": "sonnetdb.useDatabase",
           "when": "view == sonnetdb.explorer && viewItem == database",
@@ -134,9 +254,55 @@
           "command": "sonnetdb.previewMqTopic",
           "when": "view == sonnetdb.explorer && viewItem == mqTopic",
           "group": "inline"
+        },
+        {
+          "command": "sonnetdb.openObjectQuery",
+          "when": "view == sonnetdb.explorer && (viewItem == measurement || viewItem == table)",
+          "group": "inline"
+        },
+        {
+          "command": "sonnetdb.copyObjectName",
+          "when": "view == sonnetdb.explorer && (viewItem == measurement || viewItem == table || viewItem == column)",
+          "group": "navigation@30"
+        },
+        {
+          "command": "sonnetdb.bulkImport",
+          "when": "view == sonnetdb.explorer && viewItem == measurement",
+          "group": "navigation@40"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "sonnetdb.runQuery",
+          "when": "editorLangId == sql",
+          "group": "navigation@1"
+        },
+        {
+          "command": "sonnetdb.explainQuery",
+          "when": "editorLangId == sql",
+          "group": "navigation@2"
+        },
+        {
+          "command": "sonnetdb.askCopilot",
+          "when": "editorLangId == sql",
+          "group": "navigation@3"
         }
       ]
     },
+    "keybindings": [
+      {
+        "command": "sonnetdb.runQuery",
+        "key": "ctrl+enter",
+        "mac": "cmd+enter",
+        "when": "editorTextFocus && editorLangId == sql"
+      },
+      {
+        "command": "sonnetdb.runSelection",
+        "key": "ctrl+shift+enter",
+        "mac": "cmd+shift+enter",
+        "when": "editorHasSelection && editorLangId == sql"
+      }
+    ],
     "configuration": {
       "title": "SonnetDB",
       "properties": {
@@ -150,19 +316,42 @@
           "default": 1000,
           "minimum": 1,
           "description": "Default client-side row cap for query preview surfaces."
+        },
+        "sonnetdb.managedLocal.baseUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:5080",
+          "description": "HTTP URL used by the extension-managed local SonnetDB Server."
+        },
+        "sonnetdb.managedLocal.serverPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional path to SonnetDB.exe, SonnetDB.dll, or SonnetDB.csproj."
+        },
+        "sonnetdb.managedLocal.keepRunningOnExit": {
+          "type": "boolean",
+          "default": false,
+          "description": "Keep extension-managed SonnetDB Server processes running when VS Code exits."
         }
       }
-    }
+    },
+    "snippets": [
+      {
+        "language": "sql",
+        "path": "./snippets/sonnetdb.json"
+      }
+    ]
   },
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "lint": "tsc --noEmit -p ./",
-    "test": "npm run compile && node --test out/test/sonnetdbClient.smoke.test.js"
+    "test": "npm run compile && node --test out/test/*.test.js",
+    "package:vsix": "npm run test && node -e \"require('node:fs').mkdirSync('dist',{recursive:true})\" && vsce package --no-dependencies --out dist/sonnetdb-vscode.vsix"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",
     "@types/vscode": "^1.100.0",
+    "@vscode/vsce": "^3.9.2",
     "typescript": "^5.8.3"
   }
 }

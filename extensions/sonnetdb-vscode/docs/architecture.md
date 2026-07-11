@@ -13,7 +13,7 @@ The extension should have three layers:
    - HTTP client
    - NDJSON parser
    - Copilot SSE client
-3. Optional managed local runtime
+3. Managed local runtime
    - start and stop a local SonnetDB server process
    - point that server at a selected data root
 
@@ -42,13 +42,14 @@ Using `SonnetDB.Data` directly inside the extension host would require:
 
 That path is still useful later, especially for language services, but it should not block the first extension release.
 
-## 4. Local mode direction
+## 4. Local mode
 
-The preferred local-mode design is:
+The implemented local-mode design is:
 
 - user picks a local SonnetDB data root
 - extension starts a managed SonnetDB server process
 - extension connects to that local server through the same HTTP client used for remote mode
+- extension polls `/healthz`, captures stdout/stderr in a dedicated output channel, and stops owned children on exit by default
 
 Benefits:
 
@@ -79,4 +80,8 @@ Recommended VS Code surfaces:
 - unit tests for NDJSON parsing and endpoint payload normalization
 - integration tests against a local SonnetDB server process
 - smoke tests for explorer tree loading and query execution
-- later: VS Code extension tests for command registration and webview rendering
+- VSIX packaging in CI; full Electron workbench automation remains a release follow-up
+
+## 8. Language-service boundary
+
+The TypeScript host provides schema completion, lightweight delimiter diagnostics, keyword hover, and `EXPLAIN` commands. It deliberately does not duplicate the full C# parser. Rich parser diagnostics, signature help, and repair suggestions remain assigned to the optional C# LSP sidecar in #107.

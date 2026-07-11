@@ -1,12 +1,45 @@
 import * as vscode from 'vscode';
 import { SqlResultSet } from '../core/types';
 
+interface QueryHistoryEntry {
+  id: string;
+  timestamp: number;
+  sql: string;
+  connectionLabel?: string;
+  database?: string;
+  rowCount: number;
+  elapsedMs?: number;
+  failed: boolean;
+}
+
+interface ResultPayload {
+  title: string;
+  result: SqlResultSet;
+  source: { label: string; text: string };
+  context?: { connectionLabel?: string; database?: string };
+  raw: unknown;
+}
+
+const QueryHistoryStorageKey = 'sonnetdb.queryHistory';
+
 export class QueryResultPanel {
-  public show(result: SqlResultSet, sql: string): void {
+  private panel: vscode.WebviewPanel | undefined;
+  private payload: ResultPayload | undefined;
+
+  public constructor(private readonly context: vscode.ExtensionContext) {
+    context.subscriptions.push(vscode.commands.registerCommand('sonnetdb.showQueryHistory', () => this.showHistory()));
+  }
+
+  public show(
+    result: SqlResultSet,
+    sql: string,
+    connectionLabel?: string,
+    database?: string,
+  ): void {
     this.showResult('SonnetDB Query Result', result, {
       label: 'Query',
       text: sql,
-    });
+    }, { connectionLabel, database });
   }
 
   public showRows(title: string, columns: string[], rows: unknown[][], raw?: unknown, sourceText?: string): void {
@@ -19,40 +52,122 @@ export class QueryResultPanel {
     }, {
       label: 'Source',
       text: sourceText ?? title,
-    }, raw);
+    }, undefined, raw);
   }
 
   private showResult(
     title: string,
     result: SqlResultSet,
     source: { label: string; text: string },
+    context?: { connectionLabel?: string; database?: string },
     raw?: unknown,
   ): void {
-    const panel = vscode.window.createWebviewPanel(
-      'sonnetdb.queryResult',
+    this.payload = {
       title,
-      vscode.ViewColumn.Beside,
-      {
-        enableScripts: true,
-      },
-    );
+      result,
+      source,
+      context,
+      raw: raw ?? result,
+    };
+    if (!this.panel) {
+      this.panel = vscode.window.createWebviewPanel(
+        'sonnetdb.queryResult',
+        title,
+        vscode.ViewColumn.Beside,
+        { enableScripts: true, retainContextWhenHidden: true },
+      );
+      this.panel.onDidDispose(() => {
+        this.panel = undefined;
+      });
+      this.panel.webview.onDidReceiveMessage((message: { type?: string; format?: string }) => {
+        if (message.type === 'export' && (message.format === 'csv' || message.format === 'json')) {
+          void this.exportResult(message.format);
+        }
+      });
+    } else {
+      this.panel.reveal(vscode.ViewColumn.Beside, true);
+    }
+    this.panel.title = title;
+    this.panel.webview.html = this.renderHtml(title, result, source, context, raw);
+    if (source.label === 'Query') {
+      void this.recordHistory(source.text, result, context);
+    }
+  }
 
-    panel.webview.html = this.renderHtml(title, result, source, raw);
+  private async recordHistory(
+    sql: string,
+    result: SqlResultSet,
+    viewContext?: { connectionLabel?: string; database?: string },
+  ): Promise<void> {
+    const history = this.context.globalState.get<QueryHistoryEntry[]>(QueryHistoryStorageKey, []);
+    history.unshift({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      timestamp: Date.now(),
+      sql,
+      connectionLabel: viewContext?.connectionLabel,
+      database: viewContext?.database,
+      rowCount: result.end?.rowCount ?? result.rows.length,
+      elapsedMs: result.end?.elapsedMs,
+      failed: Boolean(result.error),
+    });
+    await this.context.globalState.update(QueryHistoryStorageKey, history.slice(0, 50));
+  }
+
+  private async showHistory(): Promise<void> {
+    const history = this.context.globalState.get<QueryHistoryEntry[]>(QueryHistoryStorageKey, []);
+    if (history.length === 0) {
+      void vscode.window.showInformationMessage('SonnetDB query history is empty.');
+      return;
+    }
+    const selected = await vscode.window.showQuickPick(history.map((entry) => ({
+      label: entry.sql.split(/\r?\n/u)[0].slice(0, 100),
+      description: `${entry.failed ? 'failed' : `${entry.rowCount} rows`} · ${new Date(entry.timestamp).toLocaleString()}`,
+      detail: [entry.connectionLabel, entry.database, entry.elapsedMs === undefined ? undefined : `${entry.elapsedMs} ms`]
+        .filter(Boolean)
+        .join(' / '),
+      entry,
+    })), { placeHolder: 'Restore a SonnetDB query from local history' });
+    if (!selected) {
+      return;
+    }
+    const document = await vscode.workspace.openTextDocument({ language: 'sql', content: selected.entry.sql });
+    await vscode.window.showTextDocument(document);
+  }
+
+  private async exportResult(format: 'csv' | 'json'): Promise<void> {
+    if (!this.payload) {
+      return;
+    }
+    const uri = await vscode.window.showSaveDialog({
+      saveLabel: `Export ${format.toUpperCase()}`,
+      filters: format === 'csv' ? { CSV: ['csv'] } : { JSON: ['json'] },
+      defaultUri: vscode.Uri.file(`sonnetdb-result.${format}`),
+    });
+    if (!uri) {
+      return;
+    }
+    const text = format === 'csv'
+      ? toCsv(this.payload.result.columns, this.payload.result.rows)
+      : JSON.stringify(this.payload.raw, null, 2);
+    await vscode.workspace.fs.writeFile(uri, Buffer.from(text, 'utf8'));
+    void vscode.window.showInformationMessage(`Exported SonnetDB result to ${uri.fsPath}.`);
   }
 
   private renderHtml(
     title: string,
     result: SqlResultSet,
     source: { label: string; text: string },
+    viewContext?: { connectionLabel?: string; database?: string },
     raw?: unknown,
   ): string {
     const nonce = createNonce();
-    const payload = escapeHtml(JSON.stringify({
+    const payload = Buffer.from(JSON.stringify({
       result,
       raw: raw ?? result,
       source,
+      context: viewContext,
       title,
-    }));
+    }), 'utf8').toString('base64');
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -97,8 +212,19 @@ export class QueryResultPanel {
       }
       .tabs {
         display: flex;
+        align-items: center;
         gap: 4px;
         border-bottom: 1px solid var(--vscode-panel-border);
+      }
+      .tabs .summary {
+        margin-left: auto;
+        color: var(--vscode-descriptionForeground);
+        font-size: 12px;
+      }
+      .tabs .export {
+        border: 1px solid var(--vscode-button-border, transparent);
+        padding: 4px 8px;
+        margin-left: 4px;
       }
       button {
         appearance: none;
@@ -178,6 +304,9 @@ export class QueryResultPanel {
         <button data-tab="table" role="tab" aria-selected="true">Table</button>
         <button data-tab="raw" role="tab" aria-selected="false">Raw</button>
         <button data-tab="chart" role="tab" aria-selected="false">Chart</button>
+        <span id="summary" class="summary"></span>
+        <button class="export" data-export="csv" title="Export result as CSV">Export CSV</button>
+        <button class="export" data-export="json" title="Export result as JSON">Export JSON</button>
       </div>
       <section id="table" class="pane active" role="tabpanel"></section>
       <section id="raw" class="pane" role="tabpanel"></section>
@@ -185,13 +314,20 @@ export class QueryResultPanel {
     </div>
     <script type="application/json" id="payload" nonce="${nonce}">${payload}</script>
     <script nonce="${nonce}">
-      const data = JSON.parse(document.getElementById('payload').textContent);
+      const encodedPayload = document.getElementById('payload').textContent.trim();
+      const payloadBytes = Uint8Array.from(atob(encodedPayload), (character) => character.charCodeAt(0));
+      const data = JSON.parse(new TextDecoder().decode(payloadBytes));
+      const vscode = acquireVsCodeApi();
       const result = data.result;
       const rows = Array.isArray(result.rows) ? result.rows : [];
       const columns = Array.isArray(result.columns) ? result.columns : [];
 
       document.getElementById('source-title').textContent = data.source.label;
       document.getElementById('source-text').textContent = data.source.text || '';
+      const rowCount = result.end && Number.isFinite(result.end.rowCount) ? result.end.rowCount : rows.length;
+      const elapsed = result.end && Number.isFinite(result.end.elapsedMs) ? ' · ' + result.end.elapsedMs + ' ms' : '';
+      const target = data.context && [data.context.connectionLabel, data.context.database].filter(Boolean).join(' / ');
+      document.getElementById('summary').textContent = rowCount + ' rows' + elapsed + (target ? ' · ' + target : '');
 
       if (result.error && result.error.message) {
         const error = document.getElementById('error');
@@ -201,6 +337,9 @@ export class QueryResultPanel {
 
       for (const tab of document.querySelectorAll('[data-tab]')) {
         tab.addEventListener('click', () => activateTab(tab.dataset.tab));
+      }
+      for (const button of document.querySelectorAll('[data-export]')) {
+        button.addEventListener('click', () => vscode.postMessage({ type: 'export', format: button.dataset.export }));
       }
 
       renderTable();
@@ -302,57 +441,62 @@ export class QueryResultPanel {
         ctx.lineTo(width - pad, height - pad);
         ctx.stroke();
 
-        const values = chart.values;
+        const values = chart.series.flatMap((series) => series.values);
         const min = Math.min(...values);
         const max = Math.max(...values);
         const span = max === min ? 1 : max - min;
-        const xStep = values.length <= 1 ? 0 : (width - pad * 2) / (values.length - 1);
-
-        ctx.strokeStyle = getCss('--vscode-charts-blue') || '#3794ff';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        values.forEach((value, index) => {
-          const x = pad + xStep * index;
-          const y = height - pad - ((value - min) / span) * (height - pad * 2);
-          if (index === 0) {
-            ctx.moveTo(x, y);
-          } else {
-            ctx.lineTo(x, y);
-          }
+        const colors = [
+          getCss('--vscode-charts-blue') || '#3794ff',
+          getCss('--vscode-charts-green') || '#89d185',
+          getCss('--vscode-charts-orange') || '#d18616',
+          getCss('--vscode-charts-purple') || '#b180d7',
+        ];
+        chart.series.forEach((series, seriesIndex) => {
+          const xStep = series.values.length <= 1 ? 0 : (width - pad * 2) / (series.values.length - 1);
+          ctx.strokeStyle = colors[seriesIndex % colors.length];
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          series.values.forEach((value, index) => {
+            const x = pad + xStep * index;
+            const y = height - pad - ((value - min) / span) * (height - pad * 2);
+            if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          });
+          ctx.stroke();
         });
-        ctx.stroke();
 
         ctx.fillStyle = getCss('--vscode-foreground') || '#ddd';
         ctx.font = '12px ' + getComputedStyle(document.body).fontFamily;
-        ctx.fillText(chart.yColumn + ' (' + min.toPrecision(4) + ' - ' + max.toPrecision(4) + ')', pad, 24);
+        ctx.fillText(chart.series.map((series) => series.column).join(' · ') + ' (' + min.toPrecision(4) + ' - ' + max.toPrecision(4) + ')', pad, 24);
         ctx.fillText(chart.xColumn, width - pad - 120, height - 12);
       }
 
       function inferChart() {
+        const x = columns
+          .map((column, index) => ({ column, index }))
+          .find((entry) => /(^time$|timestamp|_at$|utc$)/iu.test(String(entry.column)))
+          ?? { column: columns[0] || 'row', index: columns.length ? 0 : -1 };
         const numericColumns = columns
           .map((column, index) => ({ column, index }))
-          .filter((entry) => rows.some((row) => typeof Number(Array.isArray(row) ? row[entry.index] : undefined) === 'number'
-            && Number.isFinite(Number(Array.isArray(row) ? row[entry.index] : undefined))));
+          .filter((entry) => entry.index !== x.index && rows.some((row) =>
+            Number.isFinite(Number(Array.isArray(row) ? row[entry.index] : undefined))))
+          .slice(0, 4);
         if (!numericColumns.length) {
           return null;
         }
 
-        const y = numericColumns[numericColumns.length - 1];
-        const x = columns
-          .map((column, index) => ({ column, index }))
-          .find((entry) => entry.index !== y.index) ?? { column: 'row', index: -1 };
-
-        const values = rows
-          .map((row) => Number(Array.isArray(row) ? row[y.index] : undefined))
-          .filter((value) => Number.isFinite(value));
-        if (!values.length) {
+        const series = numericColumns.map((entry) => ({
+          column: String(entry.column),
+          values: rows
+            .map((row) => Number(Array.isArray(row) ? row[entry.index] : undefined))
+            .filter((value) => Number.isFinite(value)),
+        })).filter((entry) => entry.values.length > 0);
+        if (!series.length) {
           return null;
         }
 
         return {
           xColumn: String(x.column),
-          yColumn: String(y.column),
-          values,
+          series,
         };
       }
 
@@ -390,4 +534,19 @@ function escapeHtml(value: string): string {
     .replace(/</gu, '&lt;')
     .replace(/>/gu, '&gt;')
     .replace(/"/gu, '&quot;');
+}
+
+function toCsv(columns: string[], rows: unknown[][]): string {
+  return [columns, ...rows]
+    .map((row) => row.map(csvCell).join(','))
+    .join('\r\n');
+}
+
+function csvCell(value: unknown): string {
+  const text = value === null || value === undefined
+    ? ''
+    : typeof value === 'object'
+      ? JSON.stringify(value)
+      : String(value);
+  return /[",\r\n]/u.test(text) ? `"${text.replace(/"/gu, '""')}"` : text;
 }

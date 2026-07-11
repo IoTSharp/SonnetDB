@@ -1,5 +1,7 @@
 import {
+  BulkIngestResponse,
   CopilotChatEvent,
+  CopilotKnowledgeStatusResponse,
   CopilotModelsResponse,
   DatabaseListResponse,
   FullTextAnalyzeRequest,
@@ -18,6 +20,7 @@ import {
   MqTopicInfo,
   MqTopicListResponse,
   SchemaResponse,
+  SetupStatusResponse,
   SqlResultSet,
   VectorEmbedPreviewResponse,
   VectorIndexStat,
@@ -36,6 +39,10 @@ export class SonnetDbClient {
     return this.getJson<HealthResponse>('/healthz');
   }
 
+  public async fetchSetupStatus(): Promise<SetupStatusResponse> {
+    return this.getJson<SetupStatusResponse>('/v1/setup/status');
+  }
+
   public async listDatabases(): Promise<DatabaseListResponse> {
     return this.getJson<DatabaseListResponse>('/v1/db');
   }
@@ -46,6 +53,10 @@ export class SonnetDbClient {
 
   public async fetchCopilotModels(): Promise<CopilotModelsResponse> {
     return this.getJson<CopilotModelsResponse>('/v1/copilot/models');
+  }
+
+  public async fetchCopilotKnowledgeStatus(): Promise<CopilotKnowledgeStatusResponse> {
+    return this.getJson<CopilotKnowledgeStatusResponse>('/v1/copilot/knowledge/status');
   }
 
   public async fetchKvKeyspaces(database: string): Promise<string[]> {
@@ -187,6 +198,29 @@ export class SonnetDbClient {
       },
       hasColumns: false,
     };
+  }
+
+  public async ingestBulk(
+    database: string,
+    measurement: string,
+    format: 'lp' | 'json' | 'bulk',
+    payload: Uint8Array,
+  ): Promise<BulkIngestResponse> {
+    const response = await fetch(
+      this.toUrl(`/v1/db/${encodeURIComponent(database)}/measurements/${encodeURIComponent(measurement)}/${format}`),
+      {
+        method: 'POST',
+        headers: this.buildHeaders({
+          'Content-Type': format === 'json' ? 'application/json' : 'text/plain; charset=utf-8',
+        }),
+        body: Buffer.from(payload),
+      },
+    );
+    const body = await response.text();
+    if (!response.ok) {
+      throw new Error(body || `HTTP ${response.status}`);
+    }
+    return JSON.parse(body) as BulkIngestResponse;
   }
 
   public async streamCopilot(

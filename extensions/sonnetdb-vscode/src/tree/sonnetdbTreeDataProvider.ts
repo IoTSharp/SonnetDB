@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import { SonnetDbClient } from '../core/sonnetdbClient';
 import {
   BackupStatusInfo,
+  ColumnInfo,
+  ConnectionProbeResult,
   DocumentCollectionInfo,
   FullTextIndexStat,
   IndexLifecycleInfo,
@@ -22,6 +24,7 @@ export type TreeNode =
   | { kind: 'section'; profile: SonnetDbConnectionProfile; database: string; section: SchemaSection; snapshot: DatabaseExplorerSnapshot }
   | { kind: 'measurement'; profile: SonnetDbConnectionProfile; database: string; measurement: MeasurementInfo }
   | { kind: 'table'; profile: SonnetDbConnectionProfile; database: string; table: TableInfo }
+  | { kind: 'column'; name: string; dataType: string; role: string }
   | { kind: 'document'; profile: SonnetDbConnectionProfile; database: string; collection: DocumentCollectionInfo }
   | { kind: 'index'; profile: SonnetDbConnectionProfile; database: string; index: IndexLifecycleInfo }
   | { kind: 'backup'; profile: SonnetDbConnectionProfile; database: string; backupStatus: BackupStatusInfo | null }
@@ -67,6 +70,7 @@ export class SonnetDbTreeDataProvider implements vscode.TreeDataProvider<TreeNod
     private readonly getProfiles: () => SonnetDbConnectionProfile[],
     private readonly getToken: (profile: SonnetDbConnectionProfile) => Promise<string | undefined>,
     private readonly getActiveProfileId: () => string | undefined,
+    private readonly getProbe: (profile: SonnetDbConnectionProfile) => ConnectionProbeResult | undefined,
   ) {}
 
   public refresh(): void {
@@ -87,7 +91,14 @@ export class SonnetDbTreeDataProvider implements vscode.TreeDataProvider<TreeNod
     switch (element.kind) {
       case 'connection': {
         const item = new vscode.TreeItem(element.profile.label, vscode.TreeItemCollapsibleState.Collapsed);
-        item.description = element.active ? `${element.profile.baseUrl} · active` : element.profile.baseUrl;
+        const probe = this.getProbe(element.profile);
+        const state = probe?.setup.needsSetup
+          ? 'setup required'
+          : probe?.health.status === 'ok'
+            ? 'healthy'
+            : 'unchecked';
+        item.description = `${element.profile.kind === 'remote' ? 'remote' : 'managed local'} · ${state}${element.active ? ' · active' : ''}`;
+        item.tooltip = `${element.profile.baseUrl}${probe ? `\n${probe.health.databases} databases · ${Math.round(probe.health.uptimeSeconds)}s uptime` : ''}`;
         item.contextValue = element.active ? 'connection.active' : 'connection';
         item.iconPath = new vscode.ThemeIcon('server');
         return item;
@@ -117,17 +128,24 @@ export class SonnetDbTreeDataProvider implements vscode.TreeDataProvider<TreeNod
         return item;
       }
       case 'measurement': {
-        const item = new vscode.TreeItem(element.measurement.name, vscode.TreeItemCollapsibleState.None);
+        const item = new vscode.TreeItem(element.measurement.name, vscode.TreeItemCollapsibleState.Collapsed);
         item.description = `${element.measurement.columns.length} columns`;
         item.contextValue = 'measurement';
         item.iconPath = new vscode.ThemeIcon('pulse');
         return item;
       }
       case 'table': {
-        const item = new vscode.TreeItem(element.table.name, vscode.TreeItemCollapsibleState.None);
+        const item = new vscode.TreeItem(element.table.name, vscode.TreeItemCollapsibleState.Collapsed);
         item.description = `${element.table.columns.length} columns, ${element.table.indexes.length} indexes`;
         item.contextValue = 'table';
         item.iconPath = new vscode.ThemeIcon('table');
+        return item;
+      }
+      case 'column': {
+        const item = new vscode.TreeItem(element.name, vscode.TreeItemCollapsibleState.None);
+        item.description = `${element.dataType} · ${element.role}`;
+        item.contextValue = 'column';
+        item.iconPath = new vscode.ThemeIcon(columnIcon(element.role));
         return item;
       }
       case 'document': {
@@ -236,6 +254,18 @@ export class SonnetDbTreeDataProvider implements vscode.TreeDataProvider<TreeNod
           return this.loadDatabaseExplorer(element.profile, element.name);
         case 'section':
           return getSectionChildren(element);
+        case 'measurement':
+          return element.measurement.columns.map((column) => measurementColumnNode(column));
+        case 'table':
+          return element.table.columns
+            .slice()
+            .sort((left, right) => left.ordinal - right.ordinal)
+            .map((column) => ({
+              kind: 'column' as const,
+              name: column.name,
+              dataType: column.dataType,
+              role: column.isPrimaryKey ? 'primary key' : column.isNullable ? 'nullable' : 'required',
+            }));
         case 'kvKeyspace':
           return this.loadKvEntries(element);
         case 'mqTopic':
@@ -484,6 +514,24 @@ function sectionIcon(section: SchemaSection): string {
     case 'fulltext': return 'whole-word';
     case 'mq': return 'broadcast';
     case 'backup': return 'archive';
+  }
+}
+
+function measurementColumnNode(column: ColumnInfo): Extract<TreeNode, { kind: 'column' }> {
+  return {
+    kind: 'column',
+    name: column.name,
+    dataType: column.vectorDimension ? `${column.dataType}(${column.vectorDimension})` : column.dataType,
+    role: column.role,
+  };
+}
+
+function columnIcon(role: string): string {
+  switch (role.toLowerCase()) {
+    case 'tag': return 'tag';
+    case 'time': return 'clock';
+    case 'primary key': return 'key';
+    default: return 'symbol-field';
   }
 }
 

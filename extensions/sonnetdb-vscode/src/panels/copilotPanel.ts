@@ -1,6 +1,10 @@
 import * as vscode from 'vscode';
 import { SonnetDbClient } from '../core/sonnetdbClient';
-import { CopilotChatEvent, SonnetDbConnectionProfile } from '../core/types';
+import {
+  CopilotChatEvent,
+  CopilotKnowledgeStatusResponse,
+  SonnetDbConnectionProfile,
+} from '../core/types';
 
 type CopilotMode = 'read-only' | 'read-write';
 
@@ -11,7 +15,12 @@ interface CopilotWebviewAskMessage {
   model?: string;
 }
 
-type CopilotWebviewMessage = CopilotWebviewAskMessage;
+interface CopilotWebviewModeMessage {
+  type: 'requestMode';
+  mode: CopilotMode;
+}
+
+type CopilotWebviewMessage = CopilotWebviewAskMessage | CopilotWebviewModeMessage;
 
 export class CopilotPanel {
   public constructor(
@@ -19,7 +28,7 @@ export class CopilotPanel {
     private readonly getToken: (profile: SonnetDbConnectionProfile) => Promise<string | undefined>,
   ) {}
 
-  public async show(): Promise<void> {
+  public async show(initialPrompt = ''): Promise<void> {
     const profile = this.getActiveProfile();
     if (!profile) {
       void vscode.window.showWarningMessage('No active SonnetDB connection is selected yet.');
@@ -38,8 +47,12 @@ export class CopilotPanel {
 
     const token = await this.getToken(profile);
     const client = new SonnetDbClient(profile.baseUrl, token);
-    const models = await this.tryFetchModels(client);
+    const [models, knowledge] = await Promise.all([
+      this.tryFetchModels(client),
+      this.tryFetchKnowledge(client),
+    ]);
     const messages: Array<{ role: string; content: string }> = [];
+    let readWriteApproved = false;
 
     const panel = vscode.window.createWebviewPanel(
       'sonnetdb.copilot',
@@ -50,9 +63,27 @@ export class CopilotPanel {
       },
     );
 
-    panel.webview.html = this.renderHtml(profile, database, models);
+    panel.webview.html = this.renderHtml(profile, database, models, knowledge, initialPrompt);
 
     panel.webview.onDidReceiveMessage(async (message: CopilotWebviewMessage) => {
+      if (message.type === 'requestMode') {
+        if (message.mode === 'read-only') {
+          readWriteApproved = false;
+          await panel.webview.postMessage({ type: 'modeApproved', mode: 'read-only' });
+          return;
+        }
+        const approved = await vscode.window.showWarningMessage(
+          'Enable read-write SonnetDB Copilot for this panel? Credentials and server permissions still apply, and every higher-risk action must be reviewed.',
+          { modal: true },
+          'Enable Read-write',
+        );
+        readWriteApproved = approved === 'Enable Read-write';
+        await panel.webview.postMessage({
+          type: 'modeApproved',
+          mode: readWriteApproved ? 'read-write' : 'read-only',
+        });
+        return;
+      }
       if (message.type !== 'ask') {
         return;
       }
@@ -62,7 +93,7 @@ export class CopilotPanel {
         return;
       }
 
-      if (message.mode === 'read-write') {
+      if (message.mode === 'read-write' && !readWriteApproved) {
         const approved = await vscode.window.showWarningMessage(
           'Allow SonnetDB Copilot to run in read-write mode for this request?',
           { modal: true },
@@ -72,6 +103,7 @@ export class CopilotPanel {
           await panel.webview.postMessage({ type: 'error', message: 'Read-write request cancelled.' });
           return;
         }
+        readWriteApproved = true;
       }
 
       messages.push({ role: 'user', content: text });
@@ -116,10 +148,20 @@ export class CopilotPanel {
     }
   }
 
+  private async tryFetchKnowledge(client: SonnetDbClient): Promise<CopilotKnowledgeStatusResponse | undefined> {
+    try {
+      return await client.fetchCopilotKnowledgeStatus();
+    } catch {
+      return undefined;
+    }
+  }
+
   private renderHtml(
     profile: SonnetDbConnectionProfile,
     database: string,
     models: { defaultModel: string; candidates: string[] },
+    knowledge: CopilotKnowledgeStatusResponse | undefined,
+    initialPrompt: string,
   ): string {
     const nonce = createNonce();
     const modelOptions = models.candidates
@@ -161,6 +203,9 @@ export class CopilotPanel {
         color: var(--vscode-descriptionForeground);
         font-size: 12px;
       }
+      .readiness {
+        margin-top: 4px;
+      }
       main {
         overflow: auto;
         padding: 12px;
@@ -194,6 +239,12 @@ export class CopilotPanel {
         word-break: break-word;
         font-family: var(--vscode-editor-font-family);
         font-size: var(--vscode-editor-font-size);
+      }
+      .citations {
+        margin: 8px 0 0;
+        padding-left: 18px;
+        color: var(--vscode-textLink-foreground);
+        font-size: 12px;
       }
       form {
         display: grid;
@@ -246,10 +297,13 @@ export class CopilotPanel {
       <header>
         <strong>${escapeHtml(profile.label)} / ${escapeHtml(database)}</strong>
         <span>${escapeHtml(profile.baseUrl)}</span>
+        <div class="readiness">Read-only by default · ${knowledge?.enabled
+          ? `${knowledge.indexedFiles} knowledge files · ${knowledge.skillCount} skills`
+          : 'knowledge status unavailable'}</div>
       </header>
       <main id="messages"></main>
       <form id="composer">
-        <textarea id="prompt" placeholder="Ask SonnetDB Copilot"></textarea>
+        <textarea id="prompt" placeholder="Ask about the current database, schema, or query">${escapeHtml(initialPrompt)}</textarea>
         <div class="controls">
           <select id="mode" aria-label="Mode">
             <option value="read-only" selected>read-only</option>
@@ -269,6 +323,15 @@ export class CopilotPanel {
       const form = document.getElementById('composer');
       const prompt = document.getElementById('prompt');
       const send = document.getElementById('send');
+      const mode = document.getElementById('mode');
+
+      mode.addEventListener('change', () => {
+        const requested = mode.value;
+        if (requested === 'read-write') {
+          mode.value = 'read-only';
+        }
+        vscode.postMessage({ type: 'requestMode', mode: requested });
+      });
 
       form.addEventListener('submit', (event) => {
         event.preventDefault();
@@ -300,6 +363,10 @@ export class CopilotPanel {
         }
         if (message.type === 'done') {
           send.disabled = false;
+          return;
+        }
+        if (message.type === 'modeApproved') {
+          mode.value = message.mode;
         }
       });
 
@@ -313,6 +380,9 @@ export class CopilotPanel {
         }
         if (event.toolName) {
           append('tool', event.toolName, [event.toolArguments, event.toolResult].filter(Boolean).join('\\n\\n'));
+        }
+        if (Array.isArray(event.citations) && event.citations.length) {
+          appendCitations(event.citations);
         }
         if (!text && !event.toolName) {
           append('tool', event.type || 'event', JSON.stringify(event, null, 2));
@@ -329,6 +399,22 @@ export class CopilotPanel {
         item.append(heading, body);
         messages.appendChild(item);
         messages.scrollTop = messages.scrollHeight;
+      }
+
+      function appendCitations(citations) {
+        const item = document.createElement('section');
+        item.className = 'entry assistant';
+        const heading = document.createElement('h3');
+        heading.textContent = 'Sources';
+        const list = document.createElement('ol');
+        list.className = 'citations';
+        citations.forEach((citation, index) => {
+          const row = document.createElement('li');
+          row.textContent = citation.title || citation.source || citation.section || ('Source ' + (index + 1));
+          list.appendChild(row);
+        });
+        item.append(heading, list);
+        messages.appendChild(item);
       }
     </script>
   </body>

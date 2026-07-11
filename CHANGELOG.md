@@ -7,6 +7,7 @@
 
 ### Added
 
+- **M18 SonnetDB for VS Code 首个可用闭环**：扩展完成远程连接库、`SecretStorage` token、健康与首次安装探测、状态栏、Connection → Database → Measurement/Table → Column Explorer、当前语句/选区执行、schema 方言补全、轻量 diagnostics/hover、EXPLAIN、Table/Raw/Chart 结果三视图、本地查询历史与 CSV/JSON 导出；Copilot 接入模型/知识库/引用并保持 read-only 默认与 read-write 显式确认。新增托管本地 Server 的 data root 选择、进程启停、日志与 `/healthz` 轮询，以及 Create Measurement 草稿、带确认的 LP/JSON/Bulk VALUES 导入、SQL snippets。补齐 VSIX 打包脚本、CI artifact、Marketplace 元数据和安装/权限/本地模式文档；C# `SqlParser` LSP sidecar 与 Marketplace 正式发布仍保留在 #107/#108 后续。
 - **M29 页面矩阵缺口收口与全量位图**：连接库新增逐 profile `/healthz` 探测、延迟/错误/最后状态展示与一键刷新；对象存储新增可分页 Multipart 活动会话和分片详情契约，工作台可跨标签页恢复、续传、完成或中止会话；Studio bridge 新增二进制打开/保存和目录选择，data root 可查看、手输、原生选择、持久化并用于 Server 启停，对象上传下载、Multipart 分片和备份/恢复目录均优先使用宿主能力。`docs/design/m29-workbench-redesign/renders` 按现有 17 组提示词和参考图生成全部 1536×1024 `gpt-image-2` high-quality 关键帧，并加入可复现的 `render-all.ps1`。
 - **M29 全量 UI 设计深化**：`docs/design/m29-workbench-redesign` 从 MQ 单页概念扩展为完整设计包，新增八模型工作台、共享结果/历史/写审批、连接库与 Studio bridge、VS Code Remote-first 子集的页面覆盖矩阵、视觉 token、交互规范、17 张高保真关键帧提示词，以及无需后端即可切换全部工作台和关键安全操作的静态交互原型；本变更只提供设计基线，不修改 `web/src`、管理契约、权限或数据模型语义。
 - **M29 多模型管理工作台界面重构**：Web Admin 按确认原型升级为 64px 全局功能轨、56px 顶部命令栏、304px 可折叠资源浏览器和统一对象页签；八模型工作台统一字号、控件高度、数据行、边框与检查器密度。SonnetMQ 拆分为概览、消息、消费者组和配置四个任务视图，桌面保留消息表与详情双栏，窄屏改为表格/检查器互斥切换；保留既有管理契约、权限、写审批、历史和 Studio bridge 行为。
