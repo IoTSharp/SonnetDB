@@ -26,6 +26,8 @@ internal static partial class SonnetDbEndpoints
         var httpClientFactory = app.Services.GetRequiredService<IHttpClientFactory>();
         var copilotReadiness = app.Services.GetRequiredService<CopilotReadiness>();
 
+        CopilotStateEndpointHandler.Map(app, app.Services.GetRequiredService<CopilotStateStore>());
+
         AiEndpointHandler.Map(
             app,
             aiConfigStore,
@@ -39,6 +41,7 @@ internal static partial class SonnetDbEndpoints
             aiConfigStore,
             app.Services.GetRequiredService<ICopilotCloudGatewayClient>(),
             app.Services.GetRequiredService<CopilotLocalToolExecutor>(),
+            app.Services.GetRequiredService<CopilotStateStore>(),
             grants,
             registry);
 

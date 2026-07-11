@@ -192,3 +192,68 @@ public sealed record CopilotChatEvent(
     IReadOnlyList<string>? ToolNames = null,
     IReadOnlyList<CopilotCitation>? Citations = null,
     int? Attempt = null);
+
+/// <summary>
+/// 创建或更新 Copilot 会话的请求。
+/// </summary>
+public sealed record CopilotConversationUpsertRequest(
+    string? Id = null,
+    string? Title = null,
+    string? Database = null);
+
+/// <summary>
+/// Copilot 服务端会话摘要。
+/// </summary>
+public sealed record CopilotConversationResponse(
+    string Id,
+    string Title,
+    string? Database,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset UpdatedAtUtc,
+    int MessageCount);
+
+/// <summary>
+/// 当前认证主体的 Copilot 会话列表。
+/// </summary>
+public sealed record CopilotConversationListResponse(IReadOnlyList<CopilotConversationResponse> Conversations);
+
+/// <summary>
+/// Copilot 服务端持久化消息。
+/// </summary>
+public sealed record CopilotMessageResponse(
+    string Id,
+    string ConversationId,
+    string Role,
+    string Content,
+    IReadOnlyList<CopilotCitation>? Citations,
+    string? Model,
+    long InputTokens,
+    long OutputTokens,
+    DateTimeOffset CreatedAtUtc);
+
+/// <summary>
+/// 单个 Copilot 会话的消息列表。
+/// </summary>
+public sealed record CopilotMessageListResponse(IReadOnlyList<CopilotMessageResponse> Messages);
+
+/// <summary>
+/// Copilot 用量的模型维度摘要。
+/// </summary>
+public sealed record CopilotModelMetricsResponse(string Model, long RequestCount, long TotalTokens);
+
+/// <summary>
+/// 当前认证主体在指定窗口内的 Copilot 调用量与 token 摘要。
+/// </summary>
+public sealed record CopilotMetricsResponse(
+    DateTimeOffset FromUtc,
+    DateTimeOffset ToUtc,
+    long RequestCount,
+    long SucceededCount,
+    long FailedCount,
+    long InputTokens,
+    long OutputTokens,
+    long TotalTokens,
+    long ToolCalls,
+    double AverageDurationMilliseconds,
+    bool IncludesEstimatedTokens,
+    IReadOnlyList<CopilotModelMetricsResponse> Models);

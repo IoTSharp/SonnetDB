@@ -1,6 +1,28 @@
 <template>
   <n-card title="Copilot 设置" :bordered="false">
     <n-space vertical :size="20">
+      <section class="copilot-usage-summary">
+        <div>
+          <n-text depth="3">最近 1 小时调用</n-text>
+          <strong>{{ usage?.requestCount ?? 0 }}</strong>
+        </div>
+        <div>
+          <n-text depth="3">输入 tokens</n-text>
+          <strong>{{ formatNumber(usage?.inputTokens ?? 0) }}</strong>
+        </div>
+        <div>
+          <n-text depth="3">输出 tokens</n-text>
+          <strong>{{ formatNumber(usage?.outputTokens ?? 0) }}</strong>
+        </div>
+        <div>
+          <n-text depth="3">总 tokens</n-text>
+          <strong>{{ formatNumber(usage?.totalTokens ?? 0) }}{{ usage?.includesEstimatedTokens ? ' *' : '' }}</strong>
+        </div>
+      </section>
+      <n-text v-if="usage?.includesEstimatedTokens" depth="3" style="font-size: 12px">
+        * 云端未返回完整 usage 的调用使用服务端估算值。
+      </n-text>
+
       <n-card size="small" embedded :bordered="false" title="sonnetdb.com 账号绑定">
         <template #header-extra>
           <n-button size="small" quaternary :loading="loadingConfig" @click="load">刷新</n-button>
@@ -97,6 +119,7 @@ import {
   type AiCloudDeviceCodeResponse,
   type AiConfigResponse,
 } from '@/api/ai';
+import { fetchCopilotMetrics, type CopilotMetricsSummary } from '@/api/copilot';
 
 const auth = useAuthStore();
 
@@ -115,6 +138,7 @@ const modelsLoading = ref(false);
 const models = ref<string[]>([]);
 const defaultModel = ref('');
 const modelsErr = ref('');
+const usage = ref<CopilotMetricsSummary | null>(null);
 
 const isCloudBound = computed(() => config.value?.isCloudBound === true);
 
@@ -133,10 +157,19 @@ function formatTime(iso: string): string {
   }
 }
 
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat('zh-CN').format(value);
+}
+
 async function load(): Promise<void> {
   loadingConfig.value = true;
   try {
-    config.value = await fetchAiConfig(auth.api);
+    const [nextConfig, nextUsage] = await Promise.all([
+      fetchAiConfig(auth.api),
+      fetchCopilotMetrics(auth.api),
+    ]);
+    config.value = nextConfig;
+    usage.value = nextUsage;
     if (config.value.isCloudBound) {
       void loadModels();
     }
@@ -262,3 +295,30 @@ onBeforeUnmount(() => {
   clearPollTimer();
 });
 </script>
+
+<style scoped>
+.copilot-usage-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--n-border-color);
+}
+
+.copilot-usage-summary > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.copilot-usage-summary strong {
+  font-size: 20px;
+  font-weight: 650;
+}
+
+@media (max-width: 720px) {
+  .copilot-usage-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+</style>

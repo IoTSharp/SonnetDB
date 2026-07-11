@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using System.Diagnostics;
 using SonnetDB.Auth;
 using SonnetDB.Catalog;
 using SonnetDB.Contracts;
@@ -26,14 +27,15 @@ internal static class CopilotChatEndpointHandler
         AiConfigStore configStore,
         ICopilotCloudGatewayClient cloudClient,
         CopilotLocalToolExecutor toolExecutor,
+        CopilotStateStore stateStore,
         GrantsStore grantsStore,
         TsdbRegistry registry)
     {
         app.MapMethods("/v1/copilot/chat", ["POST"], (RequestDelegate)(ctx =>
-            HandleAsync(ctx, configStore, cloudClient, toolExecutor, grantsStore, registry, sse: false)));
+            HandleAsync(ctx, configStore, cloudClient, toolExecutor, stateStore, grantsStore, registry, sse: false)));
 
         app.MapMethods("/v1/copilot/chat/stream", ["POST"], (RequestDelegate)(ctx =>
-            HandleAsync(ctx, configStore, cloudClient, toolExecutor, grantsStore, registry, sse: true)));
+            HandleAsync(ctx, configStore, cloudClient, toolExecutor, stateStore, grantsStore, registry, sse: true)));
     }
 
     private static async Task HandleAsync(
@@ -41,6 +43,7 @@ internal static class CopilotChatEndpointHandler
         AiConfigStore configStore,
         ICopilotCloudGatewayClient cloudClient,
         CopilotLocalToolExecutor toolExecutor,
+        CopilotStateStore stateStore,
         GrantsStore grantsStore,
         TsdbRegistry registry,
         bool sse)
@@ -147,6 +150,21 @@ internal static class CopilotChatEndpointHandler
             allowWrite,
             canUseControlPlane);
         var cloudRequest = BuildCloudRequest(req, messages, databaseName, database, databasePermission, allowWrite, canUseControlPlane);
+        var conversationId = cloudRequest.ConversationId
+            ?? throw new InvalidOperationException("Copilot 会话 ID 未生成。");
+        var owner = CopilotStateStore.ResolveOwner(ctx);
+        var latestUserMessage = messages.Last(static message =>
+            string.Equals(message.Role, "user", StringComparison.OrdinalIgnoreCase));
+        try
+        {
+            stateStore.UpsertConversation(owner, conversationId, latestUserMessage.Content, databaseName);
+            stateStore.AppendMessage(owner, conversationId, "user", latestUserMessage.Content);
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            await WriteErrorAsync(ctx, StatusCodes.Status403Forbidden, "forbidden", exception.Message).ConfigureAwait(false);
+            return;
+        }
 
         ctx.Response.StatusCode = StatusCodes.Status200OK;
         ctx.Response.ContentType = sse
@@ -155,9 +173,14 @@ internal static class CopilotChatEndpointHandler
         ctx.Response.Headers.CacheControl = "no-cache";
         ctx.Response.Headers.Append("X-Accel-Buffering", "no");
 
+        var startedAt = Stopwatch.GetTimestamp();
+        using var activity = CopilotDiagnostics.ActivitySource.StartActivity("copilot.chat", ActivityKind.Server);
+        activity?.SetTag("copilot.mode", cloudRequest.Mode);
+        activity?.SetTag("copilot.conversation_id", cloudRequest.ConversationId);
+        var run = new CopilotRunSummary();
         try
         {
-            await RunCloudConversationAsync(
+            run = await RunCloudConversationAsync(
                 ctx,
                 cfg,
                 cloudClient,
@@ -172,6 +195,7 @@ internal static class CopilotChatEndpointHandler
         }
         catch (Exception ex)
         {
+            run.ErrorMessage = ex.Message;
             await WriteMappedEventAsync(
                 ctx,
                 new CopilotChatEvent("error", Message: ex.Message),
@@ -181,6 +205,55 @@ internal static class CopilotChatEndpointHandler
                 new CopilotChatEvent("done", Message: "completed"),
                 sse).ConfigureAwait(false);
         }
+        finally
+        {
+            var duration = Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
+            var inputTokens = run.InputTokens ?? EstimateTokens(messages.Select(static message => message.Content));
+            var outputTokens = run.OutputTokens ?? EstimateTokens([run.FinalAnswer ?? string.Empty]);
+            var totalTokens = run.TotalTokens ?? checked(inputTokens + outputTokens);
+            var estimated = !run.InputTokens.HasValue || !run.OutputTokens.HasValue || !run.TotalTokens.HasValue;
+
+            stateStore.RecordUsage(owner, new CopilotUsageRecord(
+                conversationId,
+                run.Model,
+                cloudRequest.Mode,
+                inputTokens,
+                outputTokens,
+                totalTokens,
+                estimated,
+                run.ToolCalls,
+                duration,
+                run.Succeeded,
+                DateTimeOffset.UtcNow));
+            if (!string.IsNullOrWhiteSpace(run.FinalAnswer))
+            {
+                stateStore.AppendMessage(
+                    owner,
+                    conversationId,
+                    "assistant",
+                    run.FinalAnswer,
+                    run.Citations,
+                    run.Model,
+                    inputTokens,
+                    outputTokens);
+            }
+
+            var tags = new TagList
+            {
+                { "model", run.Model ?? "unknown" },
+                { "mode", cloudRequest.Mode },
+                { "succeeded", run.Succeeded },
+            };
+            CopilotDiagnostics.ChatRequests.Add(1, tags);
+            CopilotDiagnostics.ChatDuration.Record(duration, tags);
+            CopilotDiagnostics.ChatTokens.Add(inputTokens, new TagList { { "direction", "input" }, { "model", run.Model ?? "unknown" } });
+            CopilotDiagnostics.ChatTokens.Add(outputTokens, new TagList { { "direction", "output" }, { "model", run.Model ?? "unknown" } });
+            activity?.SetTag("copilot.model", run.Model);
+            activity?.SetTag("copilot.tokens.input", inputTokens);
+            activity?.SetTag("copilot.tokens.output", outputTokens);
+            activity?.SetTag("copilot.tool_calls", run.ToolCalls);
+            activity?.SetStatus(run.Succeeded ? ActivityStatusCode.Ok : ActivityStatusCode.Error, run.ErrorMessage);
+        }
 
         if (sse)
         {
@@ -189,7 +262,7 @@ internal static class CopilotChatEndpointHandler
         }
     }
 
-    private static async Task RunCloudConversationAsync(
+    private static async Task<CopilotRunSummary> RunCloudConversationAsync(
         HttpContext ctx,
         SonnetDB.Configuration.AiOptions options,
         ICopilotCloudGatewayClient cloudClient,
@@ -198,17 +271,21 @@ internal static class CopilotChatEndpointHandler
         CopilotCloudChatRequest cloudRequest,
         bool sse)
     {
+        var summary = new CopilotRunSummary();
         var finalSeen = false;
         var doneSeen = false;
+        var countedToolCalls = new HashSet<string>(StringComparer.Ordinal);
 
         for (var round = 0; round < MaxCloudToolRounds; round++)
         {
             var response = await cloudClient.ChatAsync(options, cloudRequest, ctx.RequestAborted)
                 .ConfigureAwait(false);
+            summary.CaptureUsage(response.Events);
             var handledToolCall = false;
 
             foreach (var cloudEvent in response.Events)
             {
+                summary.Capture(cloudEvent);
                 var isToolResultRequired = string.Equals(
                     cloudEvent.Type,
                     "tool_result_required",
@@ -227,6 +304,9 @@ internal static class CopilotChatEndpointHandler
                     if (string.Equals(mapped.Type, "final", StringComparison.OrdinalIgnoreCase))
                     {
                         finalSeen = true;
+                        summary.Succeeded = true;
+                        summary.FinalAnswer = mapped.Answer;
+                        summary.Citations = mapped.Citations;
                     }
 
                     if (string.Equals(mapped.Type, "done", StringComparison.OrdinalIgnoreCase))
@@ -245,6 +325,12 @@ internal static class CopilotChatEndpointHandler
                     }
 
                     handledToolCall = true;
+                    var toolCallId = cloudEvent.Tool.ToolCallId ?? cloudEvent.Tool.Name;
+                    if (countedToolCalls.Add(toolCallId))
+                    {
+                        summary.ToolCalls++;
+                        CopilotDiagnostics.ToolCalls.Add(1, new TagList { { "tool.name", cloudEvent.Tool.Name } });
+                    }
                     var localResult = cloudEvent.Tool.RequiresConfirmation
                         ? CreateConfirmationRequiredResult(cloudEvent.Tool)
                         : toolExecutor.Execute(localContext, cloudEvent.Tool);
@@ -269,7 +355,7 @@ internal static class CopilotChatEndpointHandler
                         .ConfigureAwait(false);
                 }
 
-                return;
+                return summary;
             }
 
             if (!handledToolCall)
@@ -278,7 +364,7 @@ internal static class CopilotChatEndpointHandler
                     ctx,
                     new CopilotChatEvent("done", Message: "completed"),
                     sse).ConfigureAwait(false);
-                return;
+                return summary;
             }
         }
 
@@ -288,6 +374,8 @@ internal static class CopilotChatEndpointHandler
             sse).ConfigureAwait(false);
         await WriteMappedEventAsync(ctx, new CopilotChatEvent("done", Message: "completed"), sse)
             .ConfigureAwait(false);
+        summary.ErrorMessage = "云端 Copilot 工具循环超过最大轮次。";
+        return summary;
     }
 
     private static async Task SubmitToolResultAsync(
@@ -656,6 +744,24 @@ internal static class CopilotChatEndpointHandler
     private static string GetClientVersion()
         => typeof(CopilotChatEndpointHandler).Assembly.GetName().Version?.ToString(3) ?? "unknown";
 
+    private static long EstimateTokens(IEnumerable<string> values)
+    {
+        long asciiCharacters = 0;
+        long nonAsciiCharacters = 0;
+        foreach (var value in values)
+        {
+            foreach (var character in value)
+            {
+                if (character <= 0x7f)
+                    asciiCharacters++;
+                else
+                    nonAsciiCharacters++;
+            }
+        }
+
+        return (asciiCharacters + 3) / 4 + nonAsciiCharacters;
+    }
+
     private static string FormatColumnDataType(MeasurementColumn column)
     {
         if (column.DataType == FieldType.Vector && column.VectorDimension is int dimension)
@@ -672,5 +778,59 @@ internal static class CopilotChatEndpointHandler
             FieldType.Vector => "vector",
             _ => column.DataType.ToString().ToLowerInvariant()
         };
+    }
+
+    private sealed class CopilotRunSummary
+    {
+        public bool Succeeded { get; set; }
+
+        public string? ErrorMessage { get; set; }
+
+        public string? FinalAnswer { get; set; }
+
+        public IReadOnlyList<CopilotCitation>? Citations { get; set; }
+
+        public string? Model { get; private set; }
+
+        public long? InputTokens { get; private set; }
+
+        public long? OutputTokens { get; private set; }
+
+        public long? TotalTokens { get; private set; }
+
+        public long ToolCalls { get; set; }
+
+        public void Capture(CopilotCloudRuntimeEvent cloudEvent)
+        {
+            if (!string.IsNullOrWhiteSpace(cloudEvent.Model))
+                Model = cloudEvent.Model.Trim();
+        }
+
+        public void CaptureUsage(IReadOnlyList<CopilotCloudRuntimeEvent> events)
+        {
+            var input = MaxUsage(events, static item => item.Usage?.InputTokens ?? item.InputTokens);
+            var output = MaxUsage(events, static item => item.Usage?.OutputTokens ?? item.OutputTokens);
+            var total = MaxUsage(events, static item => item.Usage?.TotalTokens ?? item.TotalTokens);
+            if (input.HasValue)
+                InputTokens = checked((InputTokens ?? 0) + Math.Max(0, input.Value));
+            if (output.HasValue)
+                OutputTokens = checked((OutputTokens ?? 0) + Math.Max(0, output.Value));
+            if (total.HasValue)
+                TotalTokens = checked((TotalTokens ?? 0) + Math.Max(0, total.Value));
+        }
+
+        private static long? MaxUsage(
+            IReadOnlyList<CopilotCloudRuntimeEvent> events,
+            Func<CopilotCloudRuntimeEvent, long?> selector)
+        {
+            long? maximum = null;
+            foreach (var cloudEvent in events)
+            {
+                var value = selector(cloudEvent);
+                if (value.HasValue && (!maximum.HasValue || value.Value > maximum.Value))
+                    maximum = value.Value;
+            }
+            return maximum;
+        }
     }
 }

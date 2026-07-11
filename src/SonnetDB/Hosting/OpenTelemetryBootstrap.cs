@@ -43,6 +43,7 @@ internal static class OpenTelemetryBootstrap
                 metrics
                     .AddMeter(SonnetDbMeter.MeterName)
                     .AddMeter("SonnetDB.Server")
+                    .AddMeter("SonnetDB.Copilot")
                     .AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation();
 

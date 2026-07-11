@@ -1,3 +1,5 @@
+import type { AxiosInstance } from 'axios';
+
 export interface CopilotMessage {
   role: string;
   content: string;
@@ -195,6 +197,67 @@ export interface CopilotChatRequest {
    * - `read-write`：在凭据本身具备写权限的前提下允许 execute_sql 写入。
    */
   mode?: 'read-only' | 'read-write';
+}
+
+export interface CopilotConversationSummary {
+  id: string;
+  title: string;
+  database?: string | null;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  messageCount: number;
+}
+
+export interface CopilotMetricsSummary {
+  fromUtc: string;
+  toUtc: string;
+  requestCount: number;
+  succeededCount: number;
+  failedCount: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  toolCalls: number;
+  averageDurationMilliseconds: number;
+  includesEstimatedTokens: boolean;
+  models: Array<{ model: string; requestCount: number; totalTokens: number }>;
+}
+
+export async function listCopilotConversations(api: AxiosInstance): Promise<CopilotConversationSummary[]> {
+  const response = await api.get<{ conversations: CopilotConversationSummary[] }>('/v1/copilot/conversations');
+  return response.data.conversations ?? [];
+}
+
+export async function upsertCopilotConversation(
+  api: AxiosInstance,
+  request: { id?: string; title?: string; database?: string },
+): Promise<CopilotConversationSummary> {
+  const response = await api.post<CopilotConversationSummary>('/v1/copilot/conversations', request);
+  return response.data;
+}
+
+export async function listCopilotMessages(api: AxiosInstance, conversationId: string): Promise<CopilotMessage[]> {
+  const response = await api.get<{ messages: Array<CopilotMessage & { createdAtUtc: string }> }>(
+    `/v1/copilot/conversations/${encodeURIComponent(conversationId)}/messages`,
+  );
+  return (response.data.messages ?? []).map((item) => ({
+    role: item.role,
+    content: item.content,
+    ...(item.citations && item.citations.length > 0 ? { citations: item.citations } : {}),
+  }));
+}
+
+export async function deleteCopilotConversation(api: AxiosInstance, conversationId: string): Promise<void> {
+  await api.delete(`/v1/copilot/conversations/${encodeURIComponent(conversationId)}`);
+}
+
+export async function clearCopilotConversations(api: AxiosInstance): Promise<void> {
+  await api.delete('/v1/copilot/conversations');
+}
+
+export async function fetchCopilotMetrics(api: AxiosInstance, windowMinutes = 60): Promise<CopilotMetricsSummary> {
+  const response = await api.get<CopilotMetricsSummary>('/v1/copilot/metrics', { params: { windowMinutes } });
+  return response.data;
 }
 
 export async function* streamCopilotChat(

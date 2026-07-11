@@ -164,6 +164,74 @@ public sealed class CopilotChatEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task CopilotChat_PersistsConversationAndMetrics_ForCrossDeviceSync()
+    {
+        SaveCloudConfig();
+        _cloud!.EnqueueChat(
+            new CopilotCloudRuntimeEvent(
+                Type: "final",
+                RequestId: "req-persist",
+                ConversationId: "server-sync-1",
+                Answer: "服务端会话已保存。",
+                Model: "gpt-test",
+                Usage: new CopilotCloudUsage(InputTokens: 21, OutputTokens: 9, TotalTokens: 30)),
+            CloudEvent("done", message: "completed"));
+
+        using (var firstDevice = CreateClient(AdminToken))
+        {
+            using var response = await firstDevice.PostAsync(
+                "/v1/copilot/chat",
+                JsonContent.Create(
+                    new CopilotChatRequest(DatabaseName, "保存这次对话", ConversationId: "server-sync-1"),
+                    ServerJsonContext.Default.CopilotChatRequest));
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            _ = await ReadNdjsonEventsAsync(response);
+        }
+
+        using var secondDevice = CreateClient(AdminToken);
+        var conversationsJson = await secondDevice.GetStringAsync("/v1/copilot/conversations");
+        var conversations = JsonSerializer.Deserialize(
+            conversationsJson,
+            ServerJsonContext.Default.CopilotConversationListResponse);
+        var conversation = Assert.Single(conversations!.Conversations);
+        Assert.Equal("server-sync-1", conversation.Id);
+        Assert.Equal(2, conversation.MessageCount);
+
+        var messagesJson = await secondDevice.GetStringAsync("/v1/copilot/conversations/server-sync-1/messages");
+        var messages = JsonSerializer.Deserialize(messagesJson, ServerJsonContext.Default.CopilotMessageListResponse);
+        Assert.Equal(["user", "assistant"], messages!.Messages.Select(static message => message.Role));
+        Assert.Equal("服务端会话已保存。", messages.Messages[1].Content);
+
+        var metricsJson = await secondDevice.GetStringAsync("/v1/copilot/metrics?windowMinutes=60");
+        var metrics = JsonSerializer.Deserialize(metricsJson, ServerJsonContext.Default.CopilotMetricsResponse);
+        Assert.Equal(1, metrics!.RequestCount);
+        Assert.Equal(21, metrics.InputTokens);
+        Assert.Equal(9, metrics.OutputTokens);
+        Assert.Equal(30, metrics.TotalTokens);
+        Assert.False(metrics.IncludesEstimatedTokens);
+        Assert.Equal("gpt-test", Assert.Single(metrics.Models).Model);
+    }
+
+    [Fact]
+    public async Task CopilotConversations_AreIsolatedByAuthenticatedOwner()
+    {
+        using var admin = CreateClient(AdminToken);
+        var created = await admin.PostAsync(
+            "/v1/copilot/conversations",
+            JsonContent.Create(
+                new CopilotConversationUpsertRequest("admin-session", "管理员会话", DatabaseName),
+                ServerJsonContext.Default.CopilotConversationUpsertRequest));
+        Assert.Equal(HttpStatusCode.OK, created.StatusCode);
+
+        await ExecuteSqlAsync(admin, "CREATE USER session_reader WITH PASSWORD 'p'");
+        var readerToken = await LoginAsync("session_reader", "p");
+        using var otherDevice = CreateClient(readerToken);
+        var json = await otherDevice.GetStringAsync("/v1/copilot/conversations");
+        var response = JsonSerializer.Deserialize(json, ServerJsonContext.Default.CopilotConversationListResponse);
+        Assert.Empty(response!.Conversations);
+    }
+
+    [Fact]
     public async Task CopilotChatStream_WhenCloudNeedsToolResult_ExecutesLocalToolAndContinues()
     {
         SaveCloudConfig();

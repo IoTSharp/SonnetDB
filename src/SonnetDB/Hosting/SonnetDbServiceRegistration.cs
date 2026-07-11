@@ -108,6 +108,7 @@ internal static class SonnetDbServiceRegistration
         // Copilot 云端运行时：本地仅提供上下文摘要与受权限保护的工具执行。
         builder.Services.AddSingleton<ICopilotCloudGatewayClient, CopilotCloudGatewayClient>();
         builder.Services.AddSingleton<CopilotLocalToolExecutor>();
+        builder.Services.AddSingleton<CopilotStateStore>();
 
         // PR #64：文档摄入与检索（Knowledge 库 __copilot__）。
         // 当前在线 Copilot 流程已切到 ai.sonnetdb.com，下面的本地索引服务仅保留为兼容/手动诊断能力。

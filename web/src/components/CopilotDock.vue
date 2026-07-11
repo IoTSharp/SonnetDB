@@ -33,7 +33,7 @@
                   <template #trigger>
                     <n-button size="tiny" quaternary type="error" :disabled="sessions.recent.length === 0">清空</n-button>
                   </template>
-                  确认清空全部本地会话历史？此操作不可恢复。
+                  确认清空服务端全部会话历史？此操作会同步到所有设备且不可恢复。
                 </n-popconfirm>
               </n-space>
             </div>
@@ -50,7 +50,7 @@
                 <div class="copilot-dock__sessions-item-main">
                   <div class="copilot-dock__sessions-item-title" :title="s.title">{{ s.title }}</div>
                   <div class="copilot-dock__sessions-item-meta">
-                    {{ s.db || '(无数据库)' }} · {{ Math.floor(s.messages.length / 2) }} 轮 · {{ formatRelative(s.updatedAt) }}
+                    {{ s.db || '(无数据库)' }} · {{ Math.floor(s.messageCount / 2) }} 轮 · {{ formatRelative(s.updatedAt) }}
                   </div>
                 </div>
                 <n-space size="small" :wrap="false" class="copilot-dock__sessions-item-actions">
@@ -111,6 +111,12 @@
       <n-text depth="3" style="font-size: 11px; margin-left: 6px">
         {{ permissionMode === 'read-only' ? 'Copilot 只能查询' : '可执行写入（仍受凭据权限约束）' }}
       </n-text>
+    </section>
+
+    <section v-if="usageSummary" class="copilot-dock__usage">
+      <span>近 1 小时 {{ usageSummary.requestCount }} 次调用</span>
+      <span>{{ formatTokenCount(usageSummary.totalTokens) }} tokens{{ usageSummary.includesEstimatedTokens ? '（含估算）' : '' }}</span>
+      <span>{{ usageSummary.toolCalls }} 次工具调用</span>
     </section>
 
     <!-- M6: 页面上下文 -->
@@ -255,9 +261,11 @@ import type { SqlResultSet } from '@/api/sql';
 import { listDatabases } from '@/api/server';
 import { execControlPlaneSql, isValidIdentifier } from '@/api/sql';
 import {
+  fetchCopilotMetrics,
   streamCopilotChat,
   type CopilotChatEvent,
   type CopilotCitation,
+  type CopilotMetricsSummary,
   type CopilotMessage,
 } from '@/api/copilot';
 import { pickStarters, type CopilotStarter } from '@/copilot/starters';
@@ -285,6 +293,7 @@ const messages = computed<CopilotMessage[]>(() => sessions.current?.messages ?? 
 const streamBuffer = ref('');
 const streamCitations = ref<CopilotCitation[]>([]);
 const running = ref(false);
+const usageSummary = ref<CopilotMetricsSummary | null>(null);
 const errorMsg = ref('');
 const abort = ref<AbortController | null>(null);
 
@@ -302,22 +311,8 @@ const contextEnabled = ref(true);
 // === M7: 权限模式 ===
 type PermissionMode = 'read-only' | 'read-write';
 type CloudMode = 'sql_assist' | 'sql_analyze' | 'db_maintenance' | 'knowledge_qa';
-const PERM_STORAGE_KEY = 'sndb.copilot.permission.v1';
 const permissionMode = ref<PermissionMode>('read-only');
 const permConfirmVisible = ref(false);  // 内联确认条显示状态
-try {
-  const saved = localStorage.getItem(PERM_STORAGE_KEY);
-  if (saved === 'read-write') permissionMode.value = 'read-write';
-} catch {
-  // 忽略 localStorage 不可用
-}
-watch(permissionMode, (mode) => {
-  try {
-    localStorage.setItem(PERM_STORAGE_KEY, mode);
-  } catch {
-    // 忽略
-  }
-});
 
 const markdownRenderer = new Renderer();
 markdownRenderer.html = ({ text }: Tokens.HTML | Tokens.Tag) => escapeHtml(text);
@@ -705,6 +700,19 @@ function buildContextMessage(): CopilotMessage | null {
 function open(): void {
   visible.value = true;
   void reloadDbs();
+  void reloadCopilotState();
+}
+
+async function reloadCopilotState(): Promise<void> {
+  try {
+    await sessions.refresh(auth.api);
+    if (!sessions.currentId && sessions.recent.length > 0) {
+      await sessions.switchTo(auth.api, sessions.recent[0].id);
+    }
+    usageSummary.value = await fetchCopilotMetrics(auth.api);
+  } catch (error: unknown) {
+    errorMsg.value = error instanceof Error ? error.message : String(error);
+  }
 }
 
 function close(): void {
@@ -1147,7 +1155,7 @@ async function send(): Promise<void> {
   const requestDb = provisioningDb || targetDb;
 
   // 没有当前会话则先建一个；切换数据库时同步到当前会话。
-  const activeSession = sessions.current ?? sessions.create(requestDb);
+  const activeSession = sessions.current ?? await sessions.create(auth.api, requestDb);
   if (requestDb && activeSession.db !== requestDb) {
     activeSession.db = requestDb;
   }
@@ -1236,15 +1244,15 @@ function stop(): void {
 }
 
 // === 会话历史（M5）===
-function onNewSession(): void {
-  sessions.create(effectiveDb.value);
+async function onNewSession(): Promise<void> {
+  await sessions.create(auth.api, effectiveDb.value);
   streamBuffer.value = '';
   streamCitations.value = [];
   errorMsg.value = '';
 }
 
-function onSwitchSession(id: string): void {
-  sessions.switchTo(id);
+async function onSwitchSession(id: string): Promise<void> {
+  await sessions.switchTo(auth.api, id);
   streamBuffer.value = '';
   streamCitations.value = [];
   errorMsg.value = '';
@@ -1257,15 +1265,15 @@ function onSwitchSession(id: string): void {
   }
 }
 
-function onRemoveSession(id: string): void {
-  sessions.remove(id);
+async function onRemoveSession(id: string): Promise<void> {
+  await sessions.remove(auth.api, id);
   streamBuffer.value = '';
   streamCitations.value = [];
   errorMsg.value = '';
 }
 
-function onClearAll(): void {
-  sessions.clearAll();
+async function onClearAll(): Promise<void> {
+  await sessions.clearAll(auth.api);
   streamBuffer.value = '';
   streamCitations.value = [];
   errorMsg.value = '';
@@ -1279,7 +1287,7 @@ function onRenameSession(s: CopilotSession): void {
     positiveText: '保存',
     negativeText: '取消',
     onPositiveClick: () => {
-      sessions.rename(s.id, inputRef.value);
+      void sessions.rename(auth.api, s.id, inputRef.value);
     },
   });
 }
@@ -1291,6 +1299,10 @@ function formatRelative(ts: number): string {
   if (diff < 86_400_000) return `${Math.floor(diff / 3600_000)} 小时前`;
   if (diff < 7 * 86_400_000) return `${Math.floor(diff / 86_400_000)} 天前`;
   try { return new Date(ts).toLocaleDateString(); } catch { return ''; }
+}
+
+function formatTokenCount(value: number): string {
+  return new Intl.NumberFormat('zh-CN', { notation: value >= 10_000 ? 'compact' : 'standard' }).format(value);
 }
 
 async function scrollToBottom(): Promise<void> {
@@ -1326,6 +1338,7 @@ function onDragEnd(): void {
 watch(() => auth.isAuthenticated, (val) => {
   if (val && visible.value) {
     void reloadDbs();
+    void reloadCopilotState();
   }
 });
 
@@ -1439,6 +1452,17 @@ onMounted(() => {
   align-items: center;
   flex-wrap: wrap;
   gap: 4px;
+}
+.copilot-dock__usage {
+  min-height: 28px;
+  padding: 5px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--sndb-ink-soft, #678);
+  font-size: 11px;
+  border-bottom: 1px solid var(--sndb-border, #e5e9f0);
+  white-space: nowrap;
 }
 .copilot-dock__perm-confirm {
   display: flex;

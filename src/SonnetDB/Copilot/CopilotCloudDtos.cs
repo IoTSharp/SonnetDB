@@ -58,7 +58,16 @@ internal sealed record CopilotCloudRuntimeEvent(
     [property: JsonPropertyName("prompt")] CopilotCloudPromptReference? Prompt = null,
     [property: JsonPropertyName("model")] string? Model = null,
     [property: JsonPropertyName("provider")] string? Provider = null,
-    [property: JsonPropertyName("requiresClientAction")] bool? RequiresClientAction = null);
+    [property: JsonPropertyName("requiresClientAction")] bool? RequiresClientAction = null,
+    [property: JsonPropertyName("usage")] CopilotCloudUsage? Usage = null,
+    [property: JsonPropertyName("inputTokens")] long? InputTokens = null,
+    [property: JsonPropertyName("outputTokens")] long? OutputTokens = null,
+    [property: JsonPropertyName("totalTokens")] long? TotalTokens = null);
+
+internal sealed record CopilotCloudUsage(
+    [property: JsonPropertyName("inputTokens")] long? InputTokens = null,
+    [property: JsonPropertyName("outputTokens")] long? OutputTokens = null,
+    [property: JsonPropertyName("totalTokens")] long? TotalTokens = null);
 
 internal sealed record CopilotCloudToolCallEvent(
     string ToolCallId,
