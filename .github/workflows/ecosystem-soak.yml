@@ -1,0 +1,59 @@
+name: Ecosystem Soak
+
+on:
+  schedule:
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'Profile (soak should use a dedicated runner when hosted limits are insufficient)'
+        required: true
+        default: quick
+        type: choice
+        options:
+          - quick
+          - ci
+          - soak
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ecosystem-soak-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  NUGET_XMLDOC_MODE: skip
+
+jobs:
+  soak:
+    runs-on: ubuntu-latest
+    timeout-minutes: 720
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Run ecosystem profile
+        env:
+          PROFILE: ${{ inputs.profile || 'quick' }}
+        run: |
+          dotnet run --project tests/SonnetDB.EcosystemSoak/SonnetDB.EcosystemSoak.csproj \
+            --configuration Release \
+            -- \
+            --profile "$PROFILE" \
+            --output "artifacts/ecosystem-soak/$PROFILE"
+
+      - name: Upload ecosystem evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ecosystem-soak-${{ inputs.profile || 'quick' }}-${{ github.sha }}
+          path: artifacts/ecosystem-soak/${{ inputs.profile || 'quick' }}

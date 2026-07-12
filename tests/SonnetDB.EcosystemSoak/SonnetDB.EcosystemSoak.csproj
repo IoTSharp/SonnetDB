@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SonnetDB.Core\SonnetDB.Core.csproj" />
+    <ProjectReference Include="..\..\src\SonnetDB.Data\SonnetDB.Data.csproj" />
+    <ProjectReference Include="..\..\src\SonnetDB.EntityFrameworkCore\SonnetDB.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="..\..\extensions\SonnetDB.Caching.Distributed\SonnetDB.Caching.Distributed.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+</Project>
