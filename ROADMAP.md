@@ -1117,15 +1117,22 @@ C ABI 从「嵌入式示例」升级为独立产品路线：底座改走 `Sonnet
 
 ## 性能优化待办（2026 审计后回收的中等优先项）
 
-以下是一次完整审计后留下的纯性能优化点；功能上是对的，只是热路径里有可优化的常数因子或代数复杂度。每项都有目标位置和现状成本，便于后续按需安排。
+以下是一次完整审计后留下的纯性能优化点；功能上是对的，只是热路径里有可优化的常数因子或代数复杂度。2026-07-12 已按当前实现重新复核，完成状态以本表为准。
 
-| 编号 | 位置 | 现状 | 建议改造 | 估时 |
-|------|------|------|---------|------|
-| P1 | `src/SonnetDB.Core/Query/KnnExecutor.cs:103` | 每个候选都调用 `TombstoneTable.IsCovered` —— 内部锁 + `ToArray()` 快照 | 提到 ScanSegment 之前一次性拿快照（已在 KnnExecutor 顶层做 GetForSeriesField 检查），把候选过滤改成直接遍历该快照 | 15 分钟 |
-| P2 | `src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.cs` 子查询路径 | 同一个子查询 SELECT 子树在每个外层行上重新执行；只要不引用外层列就能 memoize | 对 ExistsExpression / SubqueryExpression 加 `Cache<SelectStatement, IReadOnlyList<...>\>`，先做一次 "是否相关" 静态判定；非相关查询执行 0 或 1 次 | 30 分钟 |
-| P3 | `src/SonnetDB.Core/FullText/DocumentFullTextIndexStore.cs` ExpandFuzzyTermQuery | 模糊扩展时把 tombstoned term 也参与编辑距离计算 | 让内置全文引擎的 EnumerateTerms 暴露一份 "未 tombstone" 视图，或者在 PersistentFullTextIndex 端先过滤；当前简单做法是上层把展开候选再用一次 Search 验证 | 10 分钟 |
-| P4 | `src/SonnetDB.Core/Tables/TableManager.cs` ExpandCascadeDeletesLocked | BFS 每一步都对子表做 `childStore.Scan()` 全表线性扫描——O(parents × FKs × N) | 在子表 FK 列上建临时哈希索引（`Dictionary<keyBytes, List<row>>`），或直接给 FK 列建持久化二级索引，cascade 改成索引查找 | 60 分钟 |
+| 编号 | 位置 | 复核现状 | 建议改造 | 状态 |
+|------|------|----------|----------|------|
+| P1 | `src/SonnetDB.Core/Query/KnnExecutor.cs:129`、`src/SonnetDB.Core/Engine/TombstoneTable.cs:71` | M28 #208 已把 `IsCovered` / `GetForSeriesField` 改为 `Volatile` 发布的 per-key 不可变快照，读路径不再加锁或逐次 `ToArray()`；原审计缺陷已消除 | 原项关闭；高墓碑基数下仍可进一步合并区间、按查询时间窗判定是否需要放弃 ANN，并在距离计算前过滤墓碑点 | ✅ 已关闭（#208） |
+| P2 | `src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.cs` 子查询路径 | 单个 `SubqueryMemo` 已贯穿同一顶层 SELECT 的递归子查询、JOIN、WHERE、投影、聚合、排序和函数参数；相关子查询仍由运行时探针识别并逐行或逐候选执行 | 已增加四类表达式位置的非相关/相关回归与内部执行计数；10k 外层行和 10k JOIN 候选基准均确认非相关子树只执行 1 次 | ✅ 已完成 |
+| P3 | `src/SonnetDB.Core/FullText/DocumentFullTextIndexStore.cs:254`、`src/SonnetDB.Core/FullText/Storage/PersistentFullTextIndex.cs:222` | `EnumerateTerms` 仍枚举所有活动段的历史 term，源码明确包含已全部 tombstone 的 term；多字段、多 token fuzzy 查询还会重复持锁建 `HashSet` 和计算编辑距离 | 在持久全文索引内维护按代次失效的活跃 term 快照，并让同一次查询的字段/token 共享快照；先完成活跃视图和缓存，再用基准决定是否引入 BK-tree/Levenshtein automaton | 📋 待处理 |
+| P4 | `src/SonnetDB.Core/Tables/TableManager.cs:510` | BFS 对每个父键重新 `Catalog.Snapshot()`，并对每条匹配 FK 调用物化式 `childStore.Scan()`；已有精确二级索引查询 `TableStore.GetByIndex` 也未被利用，复杂度仍为 O(parents × FKs × N) | 每批只构建一次反向 FK 元数据；优先使用列序完全匹配的二级索引，未建索引时每个 child/FK 只扫描一次并构建临时哈希索引 | 📋 待处理 |
 
-这些不阻塞功能正确性，不影响 parity 通过率，并且在小数据量上不会被察觉。当任一线上场景遇到瓶颈时（高基数 KNN / 重相关子查询 / 高基数 fuzzy / 万行级 cascade）按需挑出来做。
+### 2026-07-12 复核后的实施顺序与验收
 
-> **与 Milestone 28 的关系**：本表是上一轮审计遗留的独立性能小项，其中 P2（子查询 memoize）已被 [Milestone 28](#milestone-28--可靠性并发正确性与热路径加固reliability--concurrency--performance-hardening) 的 #216 吸收合并落地；P1（KnnExecutor tombstone 快照）与 M28 #208/#226 相邻，可一并处理。P3（fuzzy tombstone 视图）与 P4（cascade delete 哈希索引）不在 M28 范围内，保留在本表按需推进。Milestone 28（已收官，详细正文见 [docs/roadmap-history.md](docs/roadmap-history.md)）是 2026 年更完整一轮跨子系统审计（54 项）的成果，涵盖数据可靠性、并发正确性、SQL 正确性与更广的热路径。
+1. **P2 已完成**：memo 生命周期已统一；SELECT 投影、ORDER BY、JOIN ON、函数参数均有非相关/相关子查询回归，10k 外层行和 10k JOIN 候选基准确认非相关子树执行次数为 1。
+2. **再做 P4**：先复用匹配的持久二级索引，再提供单批临时哈希回退；用 100k 子行、100 个父键的 cascade / set-null 基准证明子表解码从约 1000 万行降到一次扫描或 100 次索引查找，并保留多级、循环 FK、显式触及行和事务回滚测试。
+3. **随后处理 P3**：增加“仅历史 tombstoned term 不进入 fuzzy 候选”的测试，并用 100k term、90% tombstone、多字段多 token 场景记录查询延迟与分配；避免用逐 term `Search` 验证造成 segments × candidates 的新放大。
+4. **P1 只作为后续增强**：用 disjoint / overlapping tombstone 时间窗分别验证 ANN gate；只有基准显示墓碑区间扫描仍占主要成本时，再增加排序合并区间和二分覆盖索引。
+
+这些未完成项不阻塞功能正确性或 parity，但 P4 的批量父键删除会把重复工作乘到数据规模上，P3 的高基数 fuzzy 查询也会产生明显的重复计算；两项都不能再按原表中的 10/60 分钟估时处理，实现时应分别拆成独立性能变更并提交基准证据。
+
+> **与 Milestone 28 的关系**：P1 的原始锁与拷贝问题已由 M28 #208 完整消除并关闭。P2 由 M28 #216 完成 WHERE 第一批，后续性能变更已将 memo 贯穿其它表达式位置，因此本次标记为整体完成。P3（fuzzy 活跃 term 视图）与 P4（cascade delete 索引查找）仍不在 M28 已交付范围内。Milestone 28（已收官，详细正文见 [docs/roadmap-history.md](docs/roadmap-history.md)）仍保持收官状态；这里记录的是其后续性能缺口，不回改历史里程碑结论。
