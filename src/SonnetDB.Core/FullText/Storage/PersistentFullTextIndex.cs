@@ -20,8 +20,11 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
     private readonly Dictionary<string, (long SegmentId, int LocalId)> _liveDocuments = new(StringComparer.Ordinal);
     private readonly Dictionary<string, MutableFieldStats> _fieldStats = new(StringComparer.Ordinal);
     private readonly HashSet<long> _dirtyTombstoneSegments = new();
+    private readonly Dictionary<string, ActiveTermSnapshot> _activeTermSnapshots = new(StringComparer.Ordinal);
 
     private IndexManifest _manifest;
+    private long _termGeneration;
+    private long _activeTermSnapshotBuildCount;
     private bool _mergeScheduled;
     private Task? _backgroundMergeTask;
 
@@ -103,6 +106,7 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
             {
                 TombstoneExisting(document.Id.Value);
             }
+            InvalidateActiveTermSnapshotsLocked();
 
             long segmentId = _manifest.NextSegmentId++;
             SegmentData data = BuildSegment(segmentId, unique);
@@ -138,6 +142,7 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
                 return false;
             }
 
+            InvalidateActiveTermSnapshotsLocked();
             SaveManifest();
             return true;
         }
@@ -153,12 +158,18 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
         lock (_lock)
         {
             int deleted = 0;
-            foreach (DocumentId id in ids)
+            try
             {
-                if (TombstoneExisting(id.Value))
+                foreach (DocumentId id in ids)
                 {
-                    deleted++;
+                    if (TombstoneExisting(id.Value))
+                        deleted++;
                 }
+            }
+            finally
+            {
+                if (deleted > 0)
+                    InvalidateActiveTermSnapshotsLocked();
             }
 
             if (deleted > 0)
@@ -213,10 +224,8 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
     }
 
     /// <summary>
-    /// 枚举指定字段下所有活跃 segment 中出现过的 term，用于实现 fuzzy / wildcard 这类需要
-    /// 在索引侧做 term 展开的查询。返回的是去重后的快照，与并发写互斥。
-    /// 注意：由于不依赖 tombstone 信息，被全部 tombstone 的 term 也会出现在结果里——
-    /// 调用方在收集到候选 term 后通过 <see cref="Search(Query.Query, int)"/> 二次过滤即可。
+    /// 枚举指定字段下至少仍被一篇可见文档引用的 term，用于实现 fuzzy / wildcard term 展开。
+    /// 返回按写入代次缓存的去重快照；仅存在于已全部 tombstone posting 中的历史 term 不会返回。
     /// </summary>
     /// <param name="field">字段名。</param>
     public IReadOnlyCollection<string> EnumerateTerms(string field)
@@ -225,13 +234,39 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
 
         lock (_lock)
         {
-            HashSet<string> terms = new(StringComparer.Ordinal);
-            foreach (SegmentReader segment in _segments.Values)
+            return GetActiveTermsLocked(field);
+        }
+    }
+
+    /// <summary>
+    /// 在一次持锁区间内取得多个字段的活跃 term 快照，供同一查询的所有 token 共享。
+    /// </summary>
+    /// <param name="fields">需要读取的字段。</param>
+    /// <returns>按字段名索引的活跃 term 快照。</returns>
+    internal IReadOnlyDictionary<string, IReadOnlyCollection<string>> SnapshotActiveTerms(
+        IReadOnlyList<string> fields)
+    {
+        ArgumentNullException.ThrowIfNull(fields);
+        lock (_lock)
+        {
+            var result = new Dictionary<string, IReadOnlyCollection<string>>(fields.Count, StringComparer.Ordinal);
+            foreach (string field in fields)
             {
-                foreach (string term in segment.EnumerateTerms(field))
-                    terms.Add(term);
+                ArgumentException.ThrowIfNullOrWhiteSpace(field);
+                if (!result.ContainsKey(field))
+                    result.Add(field, GetActiveTermsLocked(field));
             }
-            return terms;
+            return result;
+        }
+    }
+
+    /// <summary>活跃 term 快照实际重建次数，供性能回归测试和基准校验。</summary>
+    internal long ActiveTermSnapshotBuildCount
+    {
+        get
+        {
+            lock (_lock)
+                return _activeTermSnapshotBuildCount;
         }
     }
 
@@ -351,6 +386,46 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
         RemoveDocumentFieldStats(existing.SegmentId, existing.LocalId);
         return true;
     }
+
+    private IReadOnlyCollection<string> GetActiveTermsLocked(string field)
+    {
+        if (_activeTermSnapshots.TryGetValue(field, out var cached)
+            && cached.Generation == _termGeneration)
+        {
+            return cached.Terms;
+        }
+
+        var terms = new HashSet<string>(StringComparer.Ordinal);
+        foreach (SegmentReader segment in _segments.Values)
+        {
+            HashSet<int> tombstones = _tombstones[segment.Id];
+            foreach (string term in segment.EnumerateTerms(field))
+            {
+                if (terms.Contains(term)
+                    || !segment.TryGetPostings(field, term, out Dictionary<int, int>? postings))
+                {
+                    continue;
+                }
+
+                foreach (int localId in postings.Keys)
+                {
+                    if (!tombstones.Contains(localId))
+                    {
+                        terms.Add(term);
+                        break;
+                    }
+                }
+            }
+        }
+
+        IReadOnlyCollection<string> snapshot = Array.AsReadOnly(terms.ToArray());
+        _activeTermSnapshots[field] = new ActiveTermSnapshot(_termGeneration, snapshot);
+        _activeTermSnapshotBuildCount++;
+        return snapshot;
+    }
+
+    private void InvalidateActiveTermSnapshotsLocked()
+        => _termGeneration++;
 
     private SegmentData BuildSegment(long id, IReadOnlyList<Document> documents)
     {
@@ -836,6 +911,10 @@ public sealed class PersistentFullTextIndex : IFullTextIndex, IIndexStorage
     }
 
     private readonly record struct FieldStats(int DocumentCount, long TotalLength);
+
+    private readonly record struct ActiveTermSnapshot(
+        long Generation,
+        IReadOnlyCollection<string> Terms);
 
     private sealed class MutableFieldStats
     {

@@ -351,6 +351,33 @@ public sealed class PersistentFullTextIndexTests : IDisposable
         Assert.Empty(Directory.GetFiles(Path.Combine(_directory, "segments"), "*.seg"));
     }
 
+    [Fact]
+    public void EnumerateTerms_TombstonedOnlyTermsAreExcludedAndSnapshotInvalidatesByGeneration()
+    {
+        PersistentFullTextIndex index = Open();
+        index.IndexMany(
+        [
+            new Document(new DocumentId("old")).Set("body", "obsolete shared"),
+            new Document(new DocumentId("live")).Set("body", "active shared"),
+        ]);
+        Assert.True(index.Delete(new DocumentId("old")));
+
+        IReadOnlyCollection<string> first = index.EnumerateTerms("body");
+        IReadOnlyCollection<string> cached = index.EnumerateTerms("body");
+
+        Assert.DoesNotContain("obsolete", first);
+        Assert.Contains("active", first);
+        Assert.Contains("shared", first);
+        Assert.Same(first, cached);
+        Assert.Equal(1, index.ActiveTermSnapshotBuildCount);
+
+        index.Index(new Document(new DocumentId("new")).Set("body", "fresh"));
+        IReadOnlyCollection<string> afterWrite = index.EnumerateTerms("body");
+
+        Assert.Contains("fresh", afterWrite);
+        Assert.Equal(2, index.ActiveTermSnapshotBuildCount);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_directory))

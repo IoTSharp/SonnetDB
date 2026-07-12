@@ -28,14 +28,15 @@ internal static class CopilotChatEndpointHandler
         ICopilotCloudGatewayClient cloudClient,
         CopilotLocalToolExecutor toolExecutor,
         CopilotStateStore stateStore,
+        CopilotInFlightTracker inFlightTracker,
         GrantsStore grantsStore,
         TsdbRegistry registry)
     {
         app.MapMethods("/v1/copilot/chat", ["POST"], (RequestDelegate)(ctx =>
-            HandleAsync(ctx, configStore, cloudClient, toolExecutor, stateStore, grantsStore, registry, sse: false)));
+            HandleAsync(ctx, configStore, cloudClient, toolExecutor, stateStore, inFlightTracker, grantsStore, registry, sse: false)));
 
         app.MapMethods("/v1/copilot/chat/stream", ["POST"], (RequestDelegate)(ctx =>
-            HandleAsync(ctx, configStore, cloudClient, toolExecutor, stateStore, grantsStore, registry, sse: true)));
+            HandleAsync(ctx, configStore, cloudClient, toolExecutor, stateStore, inFlightTracker, grantsStore, registry, sse: true)));
     }
 
     private static async Task HandleAsync(
@@ -44,6 +45,7 @@ internal static class CopilotChatEndpointHandler
         ICopilotCloudGatewayClient cloudClient,
         CopilotLocalToolExecutor toolExecutor,
         CopilotStateStore stateStore,
+        CopilotInFlightTracker inFlightTracker,
         GrantsStore grantsStore,
         TsdbRegistry registry,
         bool sse)
@@ -174,6 +176,7 @@ internal static class CopilotChatEndpointHandler
         ctx.Response.Headers.Append("X-Accel-Buffering", "no");
 
         var startedAt = Stopwatch.GetTimestamp();
+        using var inFlightLease = inFlightTracker.Enter();
         using var activity = CopilotDiagnostics.ActivitySource.StartActivity("copilot.chat", ActivityKind.Server);
         activity?.SetTag("copilot.mode", cloudRequest.Mode);
         activity?.SetTag("copilot.conversation_id", cloudRequest.ConversationId);
@@ -333,7 +336,7 @@ internal static class CopilotChatEndpointHandler
                     }
                     var localResult = cloudEvent.Tool.RequiresConfirmation
                         ? CreateConfirmationRequiredResult(cloudEvent.Tool)
-                        : toolExecutor.Execute(localContext, cloudEvent.Tool);
+                        : ExecuteLocalTool(toolExecutor, localContext, cloudEvent.Tool);
                     var toolResultEvent = CreateLocalToolResultEvent(cloudEvent, localResult);
                     await WriteMappedEventAsync(ctx, toolResultEvent, sse).ConfigureAwait(false);
 
@@ -376,6 +379,39 @@ internal static class CopilotChatEndpointHandler
             .ConfigureAwait(false);
         summary.ErrorMessage = "云端 Copilot 工具循环超过最大轮次。";
         return summary;
+    }
+
+    /// <summary>
+    /// 执行云端请求的本地工具，并生成与内置 Agent 一致的工具子 span。
+    /// </summary>
+    private static CopilotLocalToolResult ExecuteLocalTool(
+        CopilotLocalToolExecutor toolExecutor,
+        CopilotLocalToolContext localContext,
+        CopilotCloudToolCallEvent tool)
+    {
+        using var activity = CopilotDiagnostics.ActivitySource.StartActivity(
+            CopilotDiagnostics.RunToolActivityName,
+            ActivityKind.Internal);
+        activity?.SetTag("tool.name", tool.Name);
+        activity?.SetTag("tool.arguments.length", tool.Arguments.GetRawText().Length);
+
+        try
+        {
+            var result = toolExecutor.Execute(localContext, tool);
+            activity?.SetTag("tool.success", result.Ok);
+            if (!result.Ok)
+            {
+                activity?.SetStatus(ActivityStatusCode.Error);
+                activity?.SetTag("error.type", result.ErrorCode ?? "tool_failed");
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            CopilotDiagnostics.RecordFailure(activity, ex);
+            throw;
+        }
     }
 
     private static async Task SubmitToolResultAsync(

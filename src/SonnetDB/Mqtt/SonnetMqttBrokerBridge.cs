@@ -5,6 +5,7 @@ using MQTTnet.Protocol;
 using MQTTnet.Server;
 using SonnetDB.Auth;
 using SonnetDB.Configuration;
+using SonnetDB.Diagnostics;
 using SonnetDB.Hosting;
 using SonnetMQ;
 
@@ -349,7 +350,7 @@ internal sealed class SonnetMqttBrokerBridge
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "MQTT SonnetMQ 推送桥异常终止：{Topic}", mqttTopic);
+            _logger.MqttMqPumpFailed(ex, mqttTopic);
         }
         finally
         {

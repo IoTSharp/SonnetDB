@@ -15,7 +15,7 @@
 | Milestone | 主题 | PR 范围 | 状态 |
 |-----------|------|---------|------|
 | 0~16 | 早期路线（脚手架 → Copilot 产品化） | #1 ~ #88 | ✅（摘要见下「已完成里程碑」，详情见归档） |
-| 17 | 可观测性与运行时可见性（OTel + 结构化日志 + 诊断端点） | #89 ~ #98 | 🚧（#89~#92、#94~#95、#97 ✅；#93、#96、#98 📋） |
+| 17 | 可观测性与运行时可见性（OTel + 结构化日志 + 诊断端点） | #89 ~ #98 | ✅ |
 | 18 | VS Code 数据库扩展（SonnetDB for VS Code） | #99 ~ #108 | 🚧（#99~#106 ✅；#107 C# parser diagnostics 第一批 ✅、signature/repair 待续；#108 Marketplace/实机验收待续） |
 | 19 | 生态适配底座能力（关系 + KV/缓存 + 对象桶 + 大量 measurement） | #109 ~ #126 | 🚧（#109~#117、#122/#123 ✅；余项按需） |
 | 20 | 多模能力对齐与平移测试（Parity） | #127 ~ #136 | ✅ |
@@ -43,7 +43,7 @@
 > - **Milestone 30 — 多协议设备接入扩展**：在 M28 已交付的 MQTT 双形态之上补 Sparkplug B（骑 #242 broker）、CoAP、Line Protocol UDP 三条被动接收通道，三段独立可并行，全部收敛既有 BulkIngest 落库。
 >
 > **进行中（按带宽穿插）**：
-> - **M17 可观测性**：#89~#92、#94~#95、#97 已落地（含 Copilot 知识召回指标和细粒度 Agent span）；下一步推进 #93、#96，最后由 #98 完成文档与端到端联调，详见 M17「可观测性与 Copilot 下一步规划」小节。
+> - **M17 可观测性**：#89~#98 已完成，已覆盖结构化日志、Diagnostic Dump、Copilot 指标与细粒度 Agent span、观测文档、可选本地观测栈和完整 trace 端到端验证。
 > - **M27 Industrial Data Agent**：M28 收官后 #184 端到端工业异常 Demo 阻塞解除、可启动；#183/#185 纯文档随时可做。
 > - **M18 VS Code**：#99~#106 首个可用闭环与 #107 C# Parser diagnostics sidecar 第一批已完成；下一步补 signature help / repair suggestion，再进入 #108 Marketplace 正式发布与 Electron 实机验收。**M19 生态底座**余项为对象治理 / 通用迁移原语 / 大量 measurement 长稳。
 >
@@ -128,7 +128,7 @@
 
 ### 界面收口顺序
 
-1. **P0 运维可见性**：M17 #92、#94、#95、#97 已完成 Web Admin 对应闭环；下一项为 #96 Diagnostic Dump 端点。
+1. **P0 运维可见性**：M17 #89~#98 已完成，包括仅管理员可采集的 Diagnostic Dump、可选本地观测栈以及 HTTP → Copilot → 工具 → Core 查询 → Segment 读取的端到端追踪验证。
 2. **P1 VS Code 产品化**：M18 #107 → #108，完成 LSP sidecar、真实 Extension Host UI e2e、截图和 Marketplace 发布。
 3. **P1 Studio 收口**：补安装包与桌面宿主生命周期实机自动化验收。
 4. **P2 模型体验补口**：Document update/index/change feed、KV 文件 round-trip、MQ 消息文件导入、向量编辑/导入和全文独立导入均已完成；后续按 M32 继续 Document 引擎与迁移工具，小于 800px 完整治理暂缓。
@@ -748,12 +748,12 @@ D 收口：
 | #90 | **M17.2：Server OpenTelemetry 引导**：在 `src/SonnetDB`（Server 入口）引入 `OpenTelemetry.Extensions.Hosting`，按官方推荐结构注册 `WithMetrics(b => b.AddMeter("SonnetDB.Core", "SonnetDB.Server").AddAspNetCoreInstrumentation().AddHttpClientInstrumentation())` 与 `WithTracing(b => b.AddSource("SonnetDB.Core", "SonnetDB.Copilot").AddAspNetCoreInstrumentation())`。Resource attributes 自动包含 `service.name=sonnetdb`、`service.version`、`service.instance.id`、`host.name`。OTLP Exporter 走 `OTEL_EXPORTER_OTLP_ENDPOINT` 环境变量，默认不导出（Console exporter 仅在 `Development` 启用）。 | ✅ |
 | #91 | **M17.3：Prometheus 端点 + Web 内嵌指标面板**：可选启用 `/metrics`（`OpenTelemetry.Exporter.Prometheus.AspNetCore`），用 `Observability:Prometheus:Enabled=true` 开关。Web Admin 新增「监控」侧边栏，使用 `fetch('/metrics')` 客户端解析 prom 文本，实时绘制：写入吞吐（`sonnetdb.write.points`）、查询 P95（histogram bucket 还原）、MemTable 大小、Segment 数、WAL 落盘延迟、Copilot 调用数 / token 总量。零图表第三方依赖，使用既有 `naive-ui` + 简易 SVG 折线（与现有 dashboard 风格一致）。 | ✅ |
 | #92 | **M17.4：Copilot 指标与追踪**：`SonnetDB.Copilot` 命名空间下新增 `CopilotMeter`（`Meter("SonnetDB.Copilot")`）记录 `copilot.chat.requests`（按 model / mode tag）、`copilot.chat.duration`、`copilot.chat.tokens`（in/out）、`copilot.tool.calls`（按 tool name tag）、`copilot.knowledge.recall.hits` / `.misses`；Agent 每次 `PlanToolsAsync` / `RunToolAsync` / `GenerateAnswerAsync` 都开 `Activity` span，把 `tool.name`、`tool.arguments.length`、`tool.result.rows` 写到 tags。CopilotDock 与 AiSettingsView 增加「最近 1 小时调用 / token 用量」摘要卡片（消费 `/v1/copilot/metrics` 简化端点）。 | ✅ |
-| #93 | **M17.5：结构化日志统一**：所有 `ILogger` 调用改用源生成日志（`[LoggerMessage]`），消除运行时 string interpolation 装箱。统一日志事件分类（Write / Query / Flush / Compaction / Wal / Copilot / Auth / Http）与 EventId 区段（1000~1999 写入；2000~2999 查询；…）。在 `Program.cs` 引入 `JsonConsoleFormatter`，生产模式默认输出 JSON 行（`logging.json`），开发模式保持单行简化格式。 | 📋 |
+| #93 | **M17.5：结构化日志统一**：所有 `ILogger` 调用改用源生成日志（`[LoggerMessage]`），消除运行时 string interpolation 装箱。统一日志事件分类（Write / Query / Flush / Compaction / Wal / Copilot / Auth / Http）与 EventId 区段（1000~1999 写入；2000~2999 查询；…）。在 `Program.cs` 引入 `JsonConsoleFormatter`，生产模式默认输出 JSON 行（`logging.json`），开发模式保持单行简化格式。 | ✅ |
 | #94 | **M17.6：Health / Readiness 端点扩展**：把现有 `/healthz` 拆为 `/healthz/live`（进程存活）与 `/healthz/ready`（细分 checks：`segment_store_writable`、`wal_writable`、`copilot_provider_reachable`、`copilot_embedding_provider_reachable`）。引入 `IHealthCheck` 接口的 SonnetDB 实现（无第三方依赖），结果以 ASP.NET Core HealthChecks 标准 JSON 输出。Web Admin 顶部状态条改为消费 `/healthz/ready`，单独显示 4 个 check 的颜色点。 | ✅ |
 | #95 | **M17.7：Slow Query Log + Top-N 查询统计**：可选开关 `Observability:SlowQueryLog:Enabled=true` + `ThresholdMs=10000`，并支持 30s / 60s 分级。`QueryEngine.Execute` 完成后若超过阈值则发 `Activity.RecordException`-风格的结构化日志事件，并写入内存环形缓冲（`SonnetDB.Diagnostics.SlowQueryRing` 默认 256 条）。新增 `GET /v1/diagnostics/slow-queries` 与 `GET /v1/diagnostics/top-queries`（按归一化 SQL 指纹聚合 count / p50 / p95 / max）。Web Admin SQL Console 旁边新增「慢查询」抽屉。 | ✅ |
-| #96 | **M17.8：Diagnostic Dump 端点**：新增 `GET /v1/diagnostics/dump`（仅 admin token）返回 JSON 快照：进程 GC（`GC.GetGCMemoryInfo()` / `GC.GetTotalMemory(false)`）、ThreadPool（`ThreadPool.GetAvailableThreads`）、SonnetDB 内部计数（每 db 的 MemTable 大小 / Segment 数 / 待 Compaction 任务 / WAL 文件列表 / Copilot 在飞会话数）。**禁止 dump 用户数据点本身**，仅 metadata。CLI 新增 `sonnetdb-cli diag dump` 命令直接调该端点，便于复现性能问题时一键采集。 | 📋 |
+| #96 | **M17.8：Diagnostic Dump 端点**：新增 `GET /v1/diagnostics/dump`（仅 admin token）返回 JSON 快照：进程 GC（`GC.GetGCMemoryInfo()` / `GC.GetTotalMemory(false)`）、ThreadPool（`ThreadPool.GetAvailableThreads`）、SonnetDB 内部计数（每 db 的 MemTable 大小 / Segment 数 / 待 Compaction 任务 / WAL 文件列表 / Copilot 在飞会话数）。**禁止 dump 用户数据点本身**，仅 metadata。CLI 新增 `sndb diag dump` 命令直接调该端点，便于复现性能问题时一键采集。 | ✅ |
 | #97 | **M17.9：Copilot 服务端会话持久化（M16 M5 二阶段）**：在 `__copilot__` 系统库新增 `conversations`、`messages` 与 `usage_events` 三张关系系统表；新增 `GET/POST/DELETE /v1/copilot/conversations[/{id}]`、`GET /v1/copilot/conversations/{id}/messages` 与 `GET /v1/copilot/metrics`。CopilotDock 从服务端加载历史，认证用户按用户名隔离，静态 Token 按不可逆哈希隔离；不再使用浏览器 `localStorage` 回退。会话、消息、引用与用量支持重启恢复和跨设备同步。 | ✅ |
-| #98 | **M17.10：CHANGELOG / docs / OTel 端到端验证**：补 `docs/observability.md`（指标列表、追踪 span 树、health checks 含义、prom scrape 配置示例、`OTEL_EXPORTER_OTLP_ENDPOINT` 与本地 Aspire Dashboard 联调）；补 `docs/troubleshooting.md`（常见慢查询模式 + diagnostic dump 解读）；补 docker-compose 示例追加可选 `otel-collector` + `prometheus` + `grafana` 三服务（`profile: observability`，默认不启动）；端到端验证：嵌入式启动 → 触发写入 / 查询 / Copilot 调用 → 在 Aspire Dashboard 看到完整 trace（HTTP → SQL → Segment 读取 → Copilot Agent → tool 调用）。 | 📋 |
+| #98 | **M17.10：CHANGELOG / docs / OTel 端到端验证**：补 `docs/observability.md`（指标列表、追踪 span 树、health checks 含义、prom scrape 配置示例、`OTEL_EXPORTER_OTLP_ENDPOINT` 与本地 Aspire Dashboard 联调）；补 `docs/troubleshooting.md`（常见慢查询模式 + diagnostic dump 解读）；补 docker-compose 示例追加可选 `otel-collector` + `prometheus` + `grafana` 三服务（`profile: observability`，默认不启动）；端到端验证：嵌入式启动 → 触发写入 / 查询 / Copilot 调用 → 在 Aspire Dashboard 看到完整 trace（HTTP → SQL → Segment 读取 → Copilot Agent → tool 调用）。 | ✅ |
 
 ### 推进顺序
 
@@ -780,10 +780,10 @@ PR #89（Core Meter / Activity 基线）
 **可观测性第二波顺序（#92 → #98，各项解锁什么）**：
 
 - **#92 Copilot 指标 / 追踪** —— `copilot.chat.*` / `copilot.tool.*` / `copilot.knowledge.recall.*` 指标 + Agent span。**优先级最高**：M29 #253 的 MQ 吞吐 / 积压曲线与 Copilot 用量卡片都显式依赖它。
-- **#93 结构化日志** —— `[LoggerMessage]` 源生成 + JSON 行 + EventId 分区，消除装箱、便于集中式日志检索。
+- **#93 结构化日志（已完成）** —— `[LoggerMessage]` 源生成 + JSON 行 + EventId 分区，消除装箱、便于集中式日志检索。
 - **#94 Health Live/Ready 拆分** —— `/healthz/live` vs `/healthz/ready`（segment / wal / copilot provider 细分 check），供编排探活。
 - **#95 慢查询 Log + Top-N 统计** —— 归一化 SQL 指纹聚合 p50/p95/max，Web Admin 慢查询抽屉。
-- **#96 诊断 Dump 端点** —— GC / ThreadPool / 每 db 内部计数快照（仅 metadata，不含用户数据点），CLI 一键采集。
+- **#96 诊断 Dump 端点（已完成）** —— GC / ThreadPool / 每 db 内部计数快照（仅 metadata，不含用户数据点），CLI 一键采集。
 - **#97 Copilot 服务端会话持久化（已完成）** —— `__copilot__` 系统库存会话 / 消息 / 用量事实，按认证 owner 跨设备同步，不再回落 localStorage。
 - **#98 文档 + docker-compose + 端到端联调** —— `docs/observability.md`、Aspire Dashboard / OTLP Collector 全链路 trace 验证。
 
@@ -792,7 +792,7 @@ PR #89（Core Meter / Activity 基线）
 - **M17 侧**：#92（指标）+ #97（会话服务端持久化、跨设备同步）。
 - **M27 侧（M28 已收官、依赖解除）**：#184 端到端工业异常 Demo（P5 MQTT 内建 broker + P0/P2 可靠写入已就绪，**现可启动**）、#187 eval 与成本指标（provider / model / tool 调用数 / 失败原因 / 近似 token 成本；仍建议推迟到有真实采纳之后）；#183（MCP 工具契约文档化）/ #185（provider-neutral 配置样例）纯文档，随时可做。
 
-**建议下一步排序**：**#92 已补齐**知识召回 hit/miss 与细粒度 Agent 子 span；**M27 #184 Demo** 可与 M17 第二波并行；#93、#96 按运维带宽推进，#98 最后收口。
+**完成状态**：#89~#98 已全部落地；后续观测能力按实际生产反馈拆分新条目，不再扩展 M17 范围。
 
 **前置依赖**：Milestone 16 已合并。本 Milestone 不破坏 SonnetDB Core 二进制格式，对 `__copilot__` 系统库新增 measurement 走现有 schema 升级路径（`SeriesCatalog` 自动 upsert）。**Core 仍坚持零第三方运行时依赖**，OpenTelemetry SDK 只允许出现在 `src/SonnetDB`（Server 程序集）的 `csproj`。
 
@@ -1117,15 +1117,34 @@ C ABI 从「嵌入式示例」升级为独立产品路线：底座改走 `Sonnet
 
 ## 性能优化待办（2026 审计后回收的中等优先项）
 
-以下是一次完整审计后留下的纯性能优化点；功能上是对的，只是热路径里有可优化的常数因子或代数复杂度。每项都有目标位置和现状成本，便于后续按需安排。
+以下是一次完整审计后留下的纯性能优化点；功能上是对的，只是热路径里有可优化的常数因子或代数复杂度。2026-07-12 已按当前实现重新复核，完成状态以本表为准。
 
-| 编号 | 位置 | 现状 | 建议改造 | 估时 |
-|------|------|------|---------|------|
-| P1 | `src/SonnetDB.Core/Query/KnnExecutor.cs:103` | 每个候选都调用 `TombstoneTable.IsCovered` —— 内部锁 + `ToArray()` 快照 | 提到 ScanSegment 之前一次性拿快照（已在 KnnExecutor 顶层做 GetForSeriesField 检查），把候选过滤改成直接遍历该快照 | 15 分钟 |
-| P2 | `src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.cs` 子查询路径 | 同一个子查询 SELECT 子树在每个外层行上重新执行；只要不引用外层列就能 memoize | 对 ExistsExpression / SubqueryExpression 加 `Cache<SelectStatement, IReadOnlyList<...>\>`，先做一次 "是否相关" 静态判定；非相关查询执行 0 或 1 次 | 30 分钟 |
-| P3 | `src/SonnetDB.Core/FullText/DocumentFullTextIndexStore.cs` ExpandFuzzyTermQuery | 模糊扩展时把 tombstoned term 也参与编辑距离计算 | 让内置全文引擎的 EnumerateTerms 暴露一份 "未 tombstone" 视图，或者在 PersistentFullTextIndex 端先过滤；当前简单做法是上层把展开候选再用一次 Search 验证 | 10 分钟 |
-| P4 | `src/SonnetDB.Core/Tables/TableManager.cs` ExpandCascadeDeletesLocked | BFS 每一步都对子表做 `childStore.Scan()` 全表线性扫描——O(parents × FKs × N) | 在子表 FK 列上建临时哈希索引（`Dictionary<keyBytes, List<row>>`），或直接给 FK 列建持久化二级索引，cascade 改成索引查找 | 60 分钟 |
+| 编号 | 位置 | 复核现状 | 建议改造 | 状态 |
+|------|------|----------|----------|------|
+| P1 | `src/SonnetDB.Core/Query/KnnExecutor.cs:129`、`src/SonnetDB.Core/Engine/TombstoneTable.cs:71` | M28 #208 已把 `IsCovered` / `GetForSeriesField` 改为 `Volatile` 发布的 per-key 不可变快照，读路径不再加锁或逐次 `ToArray()`；原审计缺陷已消除 | 原项关闭；高墓碑基数下仍可进一步合并区间、按查询时间窗判定是否需要放弃 ANN，并在距离计算前过滤墓碑点 | ✅ 已关闭（#208） |
+| P2 | `src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.cs` 子查询路径 | 单个 `SubqueryMemo` 已贯穿同一顶层 SELECT 的递归子查询、JOIN、WHERE、投影、聚合、排序和函数参数；相关子查询仍由运行时探针识别并逐行或逐候选执行 | 已增加四类表达式位置的非相关/相关回归与内部执行计数；10k 外层行和 10k JOIN 候选基准均确认非相关子树只执行 1 次 | ✅ 已完成 |
+| P3 | `src/SonnetDB.Core/FullText/DocumentFullTextIndexStore.cs`、`src/SonnetDB.Core/FullText/Storage/PersistentFullTextIndex.cs` | 持久全文索引现按写入代次缓存仍有非 tombstone posting 的活跃 term；删除、批量删除和写入会使快照失效，同一次 fuzzy 查询一次取得全部字段快照并由所有 token 共享。Damerau-Levenshtein 改为三行滚动 DP，短 term 走栈缓冲、长 term 走 `ArrayPool<int>` | 100k term、90% tombstone、双字段双 token 基准为 23.96 ms / 549.15 KB；滚动 DP 前同场景为 27.25 ms / 20.68 MB，分配下降约 97.4%。活跃 term 与代次失效、历史 tombstoned-only term 排除、查询共享均有执行计数回归 | ✅ 已完成 |
+| P4 | `src/SonnetDB.Core/Tables/TableManager.cs` | 级联展开每批只取一次 catalog 快照并建立 `principal -> FK` 反向元数据；完整 FK 列序存在二级索引时按父键调用 `GetByIndex`，否则每个 child/FK 只扫描一次并按父主键编码建立临时哈希桶 | 100k 子行、100 父键、CASCADE/SET NULL 四组合基准均用内部计数确认：无索引固定为 1 次扫描/100k 解码，有索引固定为 100 次查找/0 次回退扫描；多级、显式触及行、准备失败不提交及索引列序回退均有回归。全父键高选择率下单扫快于 100 次索引查找，批量自适应留作后续独立优化 | ✅ 已完成 |
 
-这些不阻塞功能正确性，不影响 parity 通过率，并且在小数据量上不会被察觉。当任一线上场景遇到瓶颈时（高基数 KNN / 重相关子查询 / 高基数 fuzzy / 万行级 cascade）按需挑出来做。
+### 2026-07-12 复核后的实施顺序与验收
 
-> **与 Milestone 28 的关系**：本表是上一轮审计遗留的独立性能小项，其中 P2（子查询 memoize）已被 [Milestone 28](#milestone-28--可靠性并发正确性与热路径加固reliability--concurrency--performance-hardening) 的 #216 吸收合并落地；P1（KnnExecutor tombstone 快照）与 M28 #208/#226 相邻，可一并处理。P3（fuzzy tombstone 视图）与 P4（cascade delete 哈希索引）不在 M28 范围内，保留在本表按需推进。Milestone 28（已收官，详细正文见 [docs/roadmap-history.md](docs/roadmap-history.md)）是 2026 年更完整一轮跨子系统审计（54 项）的成果，涵盖数据可靠性、并发正确性、SQL 正确性与更广的热路径。
+1. **P2 已完成**：memo 生命周期已统一；SELECT 投影、ORDER BY、JOIN ON、函数参数均有非相关/相关子查询回归，10k 外层行和 10k JOIN 候选基准确认非相关子树执行次数为 1。
+2. **P4 已完成**：匹配的持久二级索引与单批临时哈希回退均已接入；100k 子行、100 个父键的 cascade / set-null 基准通过执行计数证明子表解码从约 1000 万行降到一次扫描或 100 次索引查找，并保留多级、显式触及行和事务失败回滚覆盖。
+3. **P3 已完成**：仅历史 tombstoned term 不再进入 fuzzy 候选；活跃快照按写入代次失效并在同一查询内跨 token 共享。100k term、90% tombstone、双字段双 token 基准记录为 23.96 ms / 549.15 KB，未引入逐 term `Search`、BK-tree 或 Levenshtein automaton。
+4. **P1 只作为后续增强**：用 disjoint / overlapping tombstone 时间窗分别验证 ANN gate；只有基准显示墓碑区间扫描仍占主要成本时，再增加排序合并区间和二分覆盖索引。
+
+P3/P4 的原始重复工作已经关闭。P4 基准同时显示：当一次删除覆盖全部父键时，单次哈希扫描（CASCADE 约 212.7 ms、SET NULL 约 185.1 ms）优于 100 次持久索引查找（约 916.5 ms / 1,006.2 ms）；后续如增加按父键选择率切换索引或单扫的自适应策略，应作为新的独立性能项，不回开本次完成状态。
+
+### 后续性能观察项（未排期）
+
+以下项目来自 P1/P3/P4 收口后的基准结论，不属于已完成项的遗留验收，也不回开 P1/P3/P4。只有触发条件成立并取得独立基准证据后，才进入正式实现排期。
+
+| 编号 | 方向 | 触发条件与设计边界 | 验收要求 | 状态 |
+|------|------|--------------------|----------|------|
+| PF1 | 级联删除按选择率自适应查找 | 在 100k 及更大子表上补 1/10/50/100 个父键、均匀/倾斜分布、CASCADE/SET NULL 的选择率矩阵；低选择率继续使用完整 FK 二级索引，高选择率允许切换为单次扫描临时哈希。策略必须基于可解释的批量规模/代价信号，不能把某次机器上的固定父键数量直接写成通用阈值 | 与强制索引、强制单扫两条参考路径对拍，选择结果语义完全一致；自适应路径 Median/P90 不应明显劣于同场景更优参考路径（目标不超过 1.2 倍），并保持每批一次 catalog 快照、循环 FK 去重、显式触及行优先和事务回滚测试 | 👀 观察，未排期 |
+| PF2 | 高活跃词基数 fuzzy 词典结构 | 先把基准从“100k 历史 term、10k 活跃 term”扩展到 100k/500k 活跃 term、多字段、多 token；只有活跃快照线性枚举成为主要 CPU 成本或 P90 超出检索预算时，才比较 BK-tree 与 Levenshtein automaton。不得用逐 term `Search` 验证，不引入近似召回或第三方运行时依赖 | 新结构与线性枚举生成完全相同的候选 term 集，保留编辑距离阈值、代次失效和查询内共享语义；提交构建成本、查询 Median/P90、分配、索引内存和写后失效成本，至少证明查询延迟有稳定 2 倍收益后再替换线性路径 | 👀 观察，未排期 |
+| PF3 | ANN tombstone gate 与区间索引 | 在 disjoint/overlapping tombstone 时间窗和高墓碑基数下复核 ANN 放弃条件；只有墓碑区间扫描仍占主要成本时，才合并排序区间、按查询时间窗快速判定，并在距离计算前过滤已覆盖点 | ANN/暴力扫召回对拍不退化；分别记录无墓碑、低/高墓碑基数下的 P50/P90、距离计算次数和分配，证明 gate 不会让低墓碑常规查询回退 | 👀 观察，未排期 |
+
+PF1 优先级高于 PF2/PF3：它已有本轮 100% 父键覆盖基准证明索引路径在高选择率下明显落后；PF2 当前 10k 活跃 term 场景为 23.96 ms / 549.15 KB，PF3 的原始锁与拷贝问题也已关闭，两者暂时只保留基准门槛，不提前引入复杂索引结构。
+
+> **与 Milestone 28 的关系**：P1 的原始锁与拷贝问题已由 M28 #208 完整消除并关闭。P2 由 M28 #216 完成 WHERE 第一批，后续性能变更已将 memo 贯穿其它表达式位置。P3（fuzzy 活跃 term 视图）与 P4（cascade delete 索引查找）作为 M28 收官后的独立性能补齐现已完成；Milestone 28（已收官，详细正文见 [docs/roadmap-history.md](docs/roadmap-history.md)）的历史结论不变。

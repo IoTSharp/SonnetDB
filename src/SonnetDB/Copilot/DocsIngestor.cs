@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using SonnetDB.Diagnostics;
 using SonnetDB.Catalog;
 using SonnetDB.Engine;
 using SonnetDB.Hosting;
@@ -179,9 +180,7 @@ internal sealed class DocsIngestor
         var usesLegacyTagCompatibility = UsesLegacyTagCompatibility(docsSchema);
         if (usesLegacyTagCompatibility)
         {
-            _logger.LogWarning(
-                "Legacy docs schema detected in {Measurement}: section/title are TAG columns. Reserved characters will be normalized for compatibility during ingest.",
-                DocsMeasurementName);
+            _logger.CopilotLegacyDocsSchema(DocsMeasurementName);
         }
 
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -208,7 +207,7 @@ internal sealed class DocsIngestor
             ["source", "section", "title", "content", "time", "embedding"],
             rows);
         SqlExecutor.ExecuteStatement(database, statement);
-        _logger.LogInformation("Indexed {ChunkCount} chunks for docs source {Source}.", chunks.Count, file.Source);
+        _logger.CopilotDocsSourceIndexed(chunks.Count, file.Source);
     }
 
     private static void InsertState(Tsdb database, DocsSourceFile file, string storedSource, int chunkCount)

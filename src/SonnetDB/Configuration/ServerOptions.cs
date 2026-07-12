@@ -84,7 +84,7 @@ public sealed class ServerOptions
 
 /// <summary>
 /// 可观测性配置（M17 #90/#91）。指标 / 追踪默认开启（无导出目标时近零开销）；
-/// Prometheus 端点默认关闭，需显式启用。
+/// Prometheus 与 Diagnostic Dump 端点默认关闭，需显式启用。
 /// </summary>
 public sealed class ObservabilityOptions
 {
@@ -93,6 +93,18 @@ public sealed class ObservabilityOptions
 
     /// <summary>慢查询日志与 Top-N 统计配置。</summary>
     public SlowQueryLogOptions SlowQueryLog { get; set; } = new();
+
+    /// <summary>管理员 Diagnostic Dump 端点配置。</summary>
+    public DiagnosticDumpOptions DiagnosticDump { get; set; } = new();
+}
+
+/// <summary>
+/// Diagnostic Dump 端点配置。端点默认不映射，需显式启用。
+/// </summary>
+public sealed class DiagnosticDumpOptions
+{
+    /// <summary>是否启用 <c>GET /v1/diagnostics/dump</c>。默认 <c>false</c>。</summary>
+    public bool Enabled { get; set; }
 }
 
 /// <summary>

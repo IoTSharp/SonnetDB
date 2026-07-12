@@ -27,4 +27,10 @@ sndb repl --connection "Data Source=./demo-data"
 sndb sql --connection "Data Source=sonnetdb+http://127.0.0.1:5080/metrics;Token=sonnetdb-admin-token" --command "SHOW DATABASES"
 ```
 
+启用服务端 `SonnetDBServer:Observability:DiagnosticDump:Enabled=true` 后，可用 admin token 一键采集仅含 metadata 的诊断快照：
+
+```bash
+sndb diag dump --endpoint http://127.0.0.1:5080 --token sonnetdb-admin-token --output ./diagnostic-dump.json
+```
+
 完整发布产物说明见仓库根目录 `docs/releases/`。

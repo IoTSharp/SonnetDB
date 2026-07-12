@@ -378,6 +378,17 @@ public sealed class TableManager : IDisposable
     /// <param name="mutationsByTable">按表名分组的行变更。</param>
     /// <returns>实际影响的行数。</returns>
     public int ApplyTransaction(IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> mutationsByTable)
+        => ApplyTransaction(mutationsByTable, metrics: null);
+
+    /// <summary>
+    /// 在同一数据库内原子提交多表 DML，并记录级联删除查找路径的内部性能计数。
+    /// </summary>
+    /// <param name="mutationsByTable">按表名分组的行变更。</param>
+    /// <param name="metrics">级联删除展开阶段的执行计数。</param>
+    /// <returns>实际影响的行数。</returns>
+    internal int ApplyTransaction(
+        IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> mutationsByTable,
+        CascadeDeleteExecutionMetrics? metrics)
     {
         ArgumentNullException.ThrowIfNull(mutationsByTable);
         if (mutationsByTable.Count == 0)
@@ -388,7 +399,7 @@ public sealed class TableManager : IDisposable
             ThrowIfDisposed();
             // 在准备 batch 之前展开 ON DELETE CASCADE：递归把所有引用了被删父行的级联子行加入待删队列，
             // 这样后续 ValidatePrincipalDeletesLocked 看到子行已被该事务删除，不会误报外键违反。
-            var expandedMutations = ExpandCascadeDeletesLocked(mutationsByTable);
+            var expandedMutations = ExpandCascadeDeletesLocked(mutationsByTable, metrics);
             var prepared = new Dictionary<string, (TableStore Store, TableStore.PreparedTableBatch Batch)>(StringComparer.Ordinal);
             foreach (var (tableName, mutations) in expandedMutations)
             {
@@ -508,23 +519,46 @@ public sealed class TableManager : IDisposable
     /// 已经在事务里被用户显式修改或已计划删除的子行不会被重复加入；其它修改类型的 mutation 原样保留。
     /// </summary>
     private IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> ExpandCascadeDeletesLocked(
-        IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> mutationsByTable)
+        IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> mutationsByTable,
+        CascadeDeleteExecutionMetrics? metrics)
     {
-        // 先快速检查：catalog 里是否存在任何 CASCADE / SET NULL FK，否则零开销直接原路返回。
-        bool anyReferentialAction = false;
-        foreach (var schema in Catalog.Snapshot())
+        // 单批只读取一次 catalog，并预先建立 principal table -> referencing FK 的反向关系。
+        // 后续 BFS 不再为每个父键重复复制 catalog 或遍历无关 schema。
+        IReadOnlyList<TableSchema> schemas = Catalog.Snapshot();
+        if (metrics is not null)
+            metrics.CatalogSnapshotCount++;
+
+        var schemasByName = new Dictionary<string, TableSchema>(schemas.Count, StringComparer.Ordinal);
+        foreach (var schema in schemas)
+            schemasByName.Add(schema.Name, schema);
+
+        var lookupsByPrincipal = new Dictionary<string, List<CascadeForeignKeyLookup>>(StringComparer.Ordinal);
+        foreach (var childSchema in schemas)
         {
-            foreach (var fk in schema.ForeignKeys)
+            foreach (var fk in childSchema.ForeignKeys)
             {
-                if (fk.OnDelete is ForeignKeyAction.Cascade or ForeignKeyAction.SetNull)
+                if (fk.OnDelete is not (ForeignKeyAction.Cascade or ForeignKeyAction.SetNull))
+                    continue;
+                if (!schemasByName.TryGetValue(fk.PrincipalTable, out var principalSchema))
+                    continue;
+                if (!fk.PrincipalColumns.SequenceEqual(principalSchema.PrimaryKey, StringComparer.Ordinal))
                 {
-                    anyReferentialAction = true;
-                    break;
+                    throw new NotSupportedException(
+                        $"外键 '{fk.Name}' ON DELETE {(fk.OnDelete == ForeignKeyAction.Cascade ? "CASCADE" : "SET NULL")} 要求引用列顺序与父表 PRIMARY KEY 完全一致。");
                 }
+
+                TableIndex? index = childSchema.Indexes.FirstOrDefault(candidate =>
+                    candidate.JsonPath is null
+                    && candidate.Columns.SequenceEqual(fk.Columns, StringComparer.Ordinal));
+                if (!lookupsByPrincipal.TryGetValue(fk.PrincipalTable, out var lookups))
+                {
+                    lookups = new List<CascadeForeignKeyLookup>();
+                    lookupsByPrincipal.Add(fk.PrincipalTable, lookups);
+                }
+                lookups.Add(new CascadeForeignKeyLookup(principalSchema, childSchema, fk, index));
             }
-            if (anyReferentialAction) break;
         }
-        if (!anyReferentialAction)
+        if (lookupsByPrincipal.Count == 0)
             return mutationsByTable;
 
         // 构造可变工作集（保留 mutation 顺序），以及每表"已触及行"的 PK 集合（HEX 编码）：
@@ -537,8 +571,8 @@ public sealed class TableManager : IDisposable
 
         foreach (var (tableName, mutations) in mutationsByTable)
         {
-            var schema = Catalog.TryGet(tableName)
-                ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+            if (!schemasByName.TryGetValue(tableName, out var schema))
+                throw new InvalidOperationException($"table '{tableName}' 不存在。");
             var list = new List<TableRowMutation>(mutations);
             working[tableName] = list;
             var deletedSet = new HashSet<string>(StringComparer.Ordinal);
@@ -561,70 +595,57 @@ public sealed class TableManager : IDisposable
         while (queue.Count > 0)
         {
             var (parentTable, parentPk) = queue.Dequeue();
-            var parentSchema = Catalog.TryGet(parentTable);
-            if (parentSchema is null) continue;
+            if (!lookupsByPrincipal.TryGetValue(parentTable, out var lookups))
+                continue;
 
-            foreach (var childSchema in Catalog.Snapshot())
+            foreach (var lookup in lookups)
             {
-                foreach (var fk in childSchema.ForeignKeys)
+                var childSchema = lookup.ChildSchema;
+                var fk = lookup.ForeignKey;
+                var childStore = OpenStoreLocked(childSchema);
+                var childDeleteSet = pendingDeletePks.TryGetValue(childSchema.Name, out var existingDeleteSet)
+                    ? existingDeleteSet
+                    : pendingDeletePks[childSchema.Name] = new HashSet<string>(StringComparer.Ordinal);
+                var childTouchedSet = touchedPks.TryGetValue(childSchema.Name, out var existingTouchedSet)
+                    ? existingTouchedSet
+                    : touchedPks[childSchema.Name] = new HashSet<string>(StringComparer.Ordinal);
+                var childList = working.TryGetValue(childSchema.Name, out var existingList)
+                    ? existingList
+                    : working[childSchema.Name] = new List<TableRowMutation>();
+
+                foreach (var childRow in lookup.FindRows(childStore, parentPk, metrics))
                 {
-                    if (fk.OnDelete is not (ForeignKeyAction.Cascade or ForeignKeyAction.SetNull)) continue;
-                    if (!string.Equals(fk.PrincipalTable, parentTable, StringComparison.Ordinal)) continue;
+                    var childPk = ExtractPrimaryKeyValues(childSchema, childRow);
+                    byte[] childPkBytes = TableKeyCodec.EncodePrimaryKeyValues(childSchema, childPk);
+                    string childPkText = Convert.ToHexString(childPkBytes);
 
-                    // 防御性检查：与 ValidateForeignKeyRowLocked 保持一致——若 FK 引用列
-                    // 顺序与父表 PRIMARY KEY 不一致，按 PK 顺序提取的 parentPk 与按 FK 顺序
-                    // 提取的 childFkValues 会逐元素错位，导致级联静默漏删/漏置空（数据完整性破坏）。
-                    // 当前 schema 校验通常已经在 INSERT 路径上挡住这种 FK，但为防御 ALTER 类
-                    // 漏校验路径，这一层显式拒绝执行——主动报错而不是错删/漏删。
-                    if (!fk.PrincipalColumns.SequenceEqual(parentSchema.PrimaryKey, StringComparer.Ordinal))
-                        throw new NotSupportedException(
-                            $"外键 '{fk.Name}' ON DELETE {(fk.OnDelete == ForeignKeyAction.Cascade ? "CASCADE" : "SET NULL")} 要求引用列顺序与父表 PRIMARY KEY 完全一致。");
-
-                    var childStore = OpenStoreLocked(childSchema);
-                    var childDeleteSet = pendingDeletePks.TryGetValue(childSchema.Name, out var existingDeleteSet)
-                        ? existingDeleteSet
-                        : pendingDeletePks[childSchema.Name] = new HashSet<string>(StringComparer.Ordinal);
-                    var childTouchedSet = touchedPks.TryGetValue(childSchema.Name, out var existingTouchedSet)
-                        ? existingTouchedSet
-                        : touchedPks[childSchema.Name] = new HashSet<string>(StringComparer.Ordinal);
-                    var childList = working.TryGetValue(childSchema.Name, out var existingList)
-                        ? existingList
-                        : working[childSchema.Name] = new List<TableRowMutation>();
-
-                    foreach (var childRow in childStore.Scan())
+                    if (fk.OnDelete == ForeignKeyAction.Cascade)
                     {
-                        var childFkValues = ExtractForeignKeyValues(childSchema, childRow, fk);
-                        if (childFkValues is null) continue;
-                        if (!ValuesEqual(childFkValues, parentPk)) continue;
+                        // 用户显式修改或删除的行由原 mutation 负责；若修改后仍引用父行，
+                        // 后续 FK 校验会拒绝整批，不在展开阶段制造同一行的重复 mutation。
+                        if (childTouchedSet.Contains(childPkText))
+                            continue;
+                        if (!childDeleteSet.Add(childPkText))
+                            continue;
+                        childTouchedSet.Add(childPkText);
+                        childList.Add(new TableRowMutation(PrimaryKeyValues: childPk, NewValues: null));
+                        queue.Enqueue((childSchema.Name, childPk));
+                    }
+                    else
+                    {
+                        // SET NULL：子行已被计划删除或已被本事务触及则跳过（删除优先、避免重复修改）。
+                        if (childDeleteSet.Contains(childPkText)) continue;
+                        if (!childTouchedSet.Add(childPkText)) continue;
 
-                        var childPk = ExtractPrimaryKeyValues(childSchema, childRow);
-                        byte[] childPkBytes = TableKeyCodec.EncodePrimaryKeyValues(childSchema, childPk);
-                        string childPkText = Convert.ToHexString(childPkBytes);
-
-                        if (fk.OnDelete == ForeignKeyAction.Cascade)
+                        var nulledValues = childRow.Values.ToArray();
+                        foreach (var fkColumn in fk.Columns)
                         {
-                            if (!childDeleteSet.Add(childPkText))
-                                continue;
-                            childTouchedSet.Add(childPkText);
-                            childList.Add(new TableRowMutation(PrimaryKeyValues: childPk, NewValues: null));
-                            queue.Enqueue((childSchema.Name, childPk));
+                            var column = childSchema.TryGetColumn(fkColumn)
+                                ?? throw new InvalidOperationException($"外键 '{fk.Name}' 引用了未知列 '{fkColumn}'。");
+                            nulledValues[column.Ordinal] = null;
                         }
-                        else
-                        {
-                            // SET NULL：子行已被计划删除或已被本事务触及则跳过（删除优先、避免重复修改）。
-                            if (childDeleteSet.Contains(childPkText)) continue;
-                            if (!childTouchedSet.Add(childPkText)) continue;
 
-                            var nulledValues = childRow.Values.ToArray();
-                            foreach (var fkColumn in fk.Columns)
-                            {
-                                var column = childSchema.TryGetColumn(fkColumn)
-                                    ?? throw new InvalidOperationException($"外键 '{fk.Name}' 引用了未知列 '{fkColumn}'。");
-                                nulledValues[column.Ordinal] = null;
-                            }
-
-                            childList.Add(new TableRowMutation(PrimaryKeyValues: childPk, NewValues: nulledValues));
-                        }
+                        childList.Add(new TableRowMutation(PrimaryKeyValues: childPk, NewValues: nulledValues));
                     }
                 }
             }
@@ -634,6 +655,79 @@ public sealed class TableManager : IDisposable
         foreach (var (k, v) in working)
             result[k] = v;
         return result;
+    }
+
+    /// <summary>
+    /// 表示单条反向外键关系在一次级联展开中的行查找器。
+    /// </summary>
+    private sealed class CascadeForeignKeyLookup
+    {
+        private Dictionary<byte[], List<TableRow>>? _fallbackRows;
+
+        public CascadeForeignKeyLookup(
+            TableSchema principalSchema,
+            TableSchema childSchema,
+            TableForeignKey foreignKey,
+            TableIndex? index)
+        {
+            PrincipalSchema = principalSchema;
+            ChildSchema = childSchema;
+            ForeignKey = foreignKey;
+            Index = index;
+        }
+
+        private TableSchema PrincipalSchema { get; }
+
+        private TableIndex? Index { get; }
+
+        public TableSchema ChildSchema { get; }
+
+        public TableForeignKey ForeignKey { get; }
+
+        /// <summary>
+        /// 优先按完整 FK 列索引查找；未建索引时惰性扫描一次子表并按父主键编码分桶。
+        /// </summary>
+        public IReadOnlyList<TableRow> FindRows(
+            TableStore childStore,
+            IReadOnlyList<object?> parentPrimaryKey,
+            CascadeDeleteExecutionMetrics? metrics)
+        {
+            if (Index is not null)
+            {
+                if (metrics is not null)
+                    metrics.PersistentIndexLookupCount++;
+                return childStore.GetByIndex(Index, parentPrimaryKey);
+            }
+
+            if (_fallbackRows is null)
+            {
+                IReadOnlyList<TableRow> rows = childStore.Scan();
+                if (metrics is not null)
+                {
+                    metrics.FallbackScanCount++;
+                    metrics.FallbackDecodedRowCount += rows.Count;
+                }
+
+                _fallbackRows = new Dictionary<byte[], List<TableRow>>(KvKeyComparer.Instance);
+                foreach (var row in rows)
+                {
+                    IReadOnlyList<object?>? values = ExtractForeignKeyValues(ChildSchema, row, ForeignKey);
+                    if (values is null)
+                        continue;
+
+                    byte[] key = TableKeyCodec.EncodePrimaryKeyValues(PrincipalSchema, values);
+                    if (!_fallbackRows.TryGetValue(key, out var bucket))
+                    {
+                        bucket = new List<TableRow>();
+                        _fallbackRows.Add(key, bucket);
+                    }
+                    bucket.Add(row);
+                }
+            }
+
+            byte[] parentKey = TableKeyCodec.EncodePrimaryKeyValues(PrincipalSchema, parentPrimaryKey);
+            return _fallbackRows.TryGetValue(parentKey, out var matches) ? matches : [];
+        }
     }
 
     private void ValidateAddedForeignKeyLocked(TableSchema childSchema, TableForeignKey foreignKey)
@@ -853,4 +947,22 @@ public sealed class TableManager : IDisposable
     }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
+}
+
+/// <summary>
+/// 记录单次事务中级联删除展开所使用的 catalog、索引与回退扫描次数。
+/// </summary>
+internal sealed class CascadeDeleteExecutionMetrics
+{
+    /// <summary>级联展开读取 catalog 快照的次数。</summary>
+    public int CatalogSnapshotCount { get; internal set; }
+
+    /// <summary>按持久二级索引执行等值查找的次数。</summary>
+    public int PersistentIndexLookupCount { get; internal set; }
+
+    /// <summary>缺少匹配索引时执行子表全量扫描的次数。</summary>
+    public int FallbackScanCount { get; internal set; }
+
+    /// <summary>回退扫描实际解码的子表行数。</summary>
+    public long FallbackDecodedRowCount { get; internal set; }
 }

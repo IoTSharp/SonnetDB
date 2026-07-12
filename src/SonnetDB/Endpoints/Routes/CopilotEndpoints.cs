@@ -42,6 +42,7 @@ internal static partial class SonnetDbEndpoints
             app.Services.GetRequiredService<ICopilotCloudGatewayClient>(),
             app.Services.GetRequiredService<CopilotLocalToolExecutor>(),
             app.Services.GetRequiredService<CopilotStateStore>(),
+            app.Services.GetRequiredService<CopilotInFlightTracker>(),
             grants,
             registry);
 

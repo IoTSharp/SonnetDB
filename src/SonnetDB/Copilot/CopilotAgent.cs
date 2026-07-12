@@ -7,6 +7,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using SonnetDB.Catalog;
 using SonnetDB.Contracts;
+using SonnetDB.Diagnostics;
 using SonnetDB.Engine;
 using SonnetDB.Exceptions;
 using SonnetDB.Hosting;
@@ -266,14 +267,14 @@ internal sealed class CopilotAgent
                 return result;
             }
 
-            _logger.LogWarning("Copilot planner returned non-JSON content: {Response}", response);
+            _logger.CopilotPlannerInvalidResponse(response);
             activity?.SetTag("copilot.plan.fallback", true);
         }
         catch (Exception ex)
         {
             CopilotDiagnostics.RecordFailure(activity, ex);
             activity?.SetTag("copilot.plan.fallback", true);
-            _logger.LogWarning(ex, "Copilot planner failed, falling back to heuristics.");
+            _logger.CopilotPlannerFailed(ex);
         }
 
         var fallback = EnsureWriteDraftPlan(BuildHeuristicPlan(conversation.LatestUserMessage, measurements), conversation.LatestUserMessage);
@@ -322,7 +323,7 @@ internal sealed class CopilotAgent
         {
             CopilotDiagnostics.RecordFailure(activity, ex);
             activity?.SetTag("copilot.answer.fallback", true);
-            _logger.LogWarning(ex, "Copilot final answer generation failed, using deterministic fallback.");
+            _logger.CopilotAnswerGenerationFailed(ex);
         }
 
         activity?.SetTag("copilot.answer.source", "deterministic");
@@ -1293,7 +1294,7 @@ internal sealed class CopilotAgent
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Copilot SQL repair failed for sql={Sql}.", tool.Sql);
+            _logger.CopilotSqlRepairFailed(ex, tool.Sql);
             return null;
         }
     }

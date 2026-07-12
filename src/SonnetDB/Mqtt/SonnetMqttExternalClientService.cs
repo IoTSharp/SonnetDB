@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using MQTTnet;
 using MQTTnet.Protocol;
 using SonnetDB.Configuration;
+using SonnetDB.Diagnostics;
 
 namespace SonnetDB.Mqtt;
 
@@ -39,7 +40,7 @@ internal sealed class SonnetMqttExternalClientService : BackgroundService
 
         if (!TryValidateOptions(out string validationError))
         {
-            _logger.LogError("外部 MQTT client 配置无效：{Error}", validationError);
+            _logger.ExternalMqttConfigurationInvalid(validationError);
             return;
         }
 
@@ -62,7 +63,7 @@ internal sealed class SonnetMqttExternalClientService : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "外部 MQTT broker 连接或订阅失败：{Host}:{Port}", _options.Host, _options.Port);
+                _logger.ExternalMqttConnectionFailed(ex, _options.Host, _options.Port);
             }
             finally
             {
@@ -118,11 +119,7 @@ internal sealed class SonnetMqttExternalClientService : BackgroundService
             disconnected.TrySetResult();
             if (!stoppingToken.IsCancellationRequested)
             {
-                _logger.LogWarning(
-                    "外部 MQTT broker 连接断开：{Host}:{Port}，原因 {Reason}。",
-                    _options.Host,
-                    _options.Port,
-                    args.Reason);
+                _logger.ExternalMqttDisconnected(_options.Host, _options.Port, (int)args.Reason);
             }
 
             return Task.CompletedTask;
@@ -136,11 +133,10 @@ internal sealed class SonnetMqttExternalClientService : BackgroundService
         var connectResult = await client.ConnectAsync(clientOptions, stoppingToken).ConfigureAwait(false);
         if (connectResult.ResultCode != MqttClientConnectResultCode.Success)
         {
-            _logger.LogWarning(
-                "外部 MQTT broker 连接被拒绝：{Host}:{Port}，结果 {ResultCode}，原因 {ReasonString}。",
+            _logger.ExternalMqttConnectionRejected(
                 _options.Host,
                 _options.Port,
-                connectResult.ResultCode,
+                (int)connectResult.ResultCode,
                 connectResult.ReasonString);
             return false;
         }
@@ -148,15 +144,11 @@ internal sealed class SonnetMqttExternalClientService : BackgroundService
         int subscribed = await SubscribeAllAsync(client, stoppingToken).ConfigureAwait(false);
         if (subscribed == 0)
         {
-            _logger.LogError("外部 MQTT client 没有成功订阅任何 topic filter。");
+            _logger.ExternalMqttNoSubscriptions();
             return false;
         }
 
-        _logger.LogInformation(
-            "外部 MQTT client 已连接 {Host}:{Port}，订阅 {Count} 个 topic filter。",
-            _options.Host,
-            _options.Port,
-            subscribed);
+        _logger.ExternalMqttConnected(_options.Host, _options.Port, subscribed);
 
         await disconnected.Task.WaitAsync(stoppingToken).ConfigureAwait(false);
         return true;
@@ -192,9 +184,7 @@ internal sealed class SonnetMqttExternalClientService : BackgroundService
                 continue;
             }
 
-            _logger.LogWarning(
-                "外部 MQTT broker 拒绝一个订阅项：{ResultCode}。",
-                item.ResultCode);
+            _logger.ExternalMqttSubscriptionRejected((int)item.ResultCode);
         }
 
         return accepted;
@@ -207,7 +197,7 @@ internal sealed class SonnetMqttExternalClientService : BackgroundService
             if (!MqttTopicParser.TryParse(message.Topic, out var route, out string error)
                 || route.Kind != MqttTopicKind.Measurement)
             {
-                _logger.LogDebug("忽略外部 MQTT 消息：topic {Topic} 未匹配 measurement 路由，原因 {Error}。", message.Topic, error);
+                _logger.ExternalMqttMessageIgnored(message.Topic, error);
                 return;
             }
 
@@ -221,23 +211,15 @@ internal sealed class SonnetMqttExternalClientService : BackgroundService
                     out var reasonCode,
                     out string reason))
             {
-                _logger.LogWarning(
-                    "外部 MQTT 消息落库失败：Topic={Topic}, ReasonCode={ReasonCode}, Reason={Reason}",
-                    message.Topic,
-                    reasonCode,
-                    reason);
+                _logger.ExternalMqttIngestFailed(message.Topic, (int)reasonCode, reason);
                 return;
             }
 
-            _logger.LogDebug(
-                "外部 MQTT 消息已落库：Topic={Topic}, Written={Written}, Skipped={Skipped}",
-                message.Topic,
-                result.Written,
-                result.Skipped);
+            _logger.ExternalMqttIngested(message.Topic, result.Written, result.Skipped);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "处理外部 MQTT 消息失败：{Topic}", message.Topic);
+            _logger.ExternalMqttMessageFailed(ex, message.Topic);
         }
     }
 

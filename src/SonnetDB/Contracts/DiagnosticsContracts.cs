@@ -79,3 +79,88 @@ public sealed record TopQueryListResponse(
     int Capacity,
     int SampleCount,
     IReadOnlyList<TopQueryDiagnosticEntry> Items);
+
+/// <summary>
+/// Diagnostic Dump 顶层响应。
+/// </summary>
+/// <param name="TimestampUtcMs">采集时间（Unix 毫秒，UTC）。</param>
+/// <param name="Process">进程级摘要。</param>
+/// <param name="Gc">GC 内存摘要。</param>
+/// <param name="ThreadPool">ThreadPool 摘要。</param>
+/// <param name="Copilot">Copilot 运行时摘要。</param>
+/// <param name="Databases">逐数据库运行时 metadata。</param>
+public sealed record DiagnosticDumpResponse(
+    long TimestampUtcMs,
+    ProcessDiagnosticSnapshot Process,
+    GcDiagnosticSnapshot Gc,
+    ThreadPoolDiagnosticSnapshot ThreadPool,
+    CopilotRuntimeDiagnosticSnapshot Copilot,
+    IReadOnlyList<DatabaseDiagnosticSnapshot> Databases);
+
+/// <summary>
+/// 进程级诊断摘要。
+/// </summary>
+/// <param name="ProcessId">当前进程 ID。</param>
+/// <param name="UptimeMs">当前进程运行时长近似值（毫秒）。</param>
+/// <param name="WorkingSetBytes">当前进程工作集字节数。</param>
+public sealed record ProcessDiagnosticSnapshot(int ProcessId, long UptimeMs, long WorkingSetBytes);
+
+/// <summary>
+/// GC 内存诊断摘要。
+/// </summary>
+public sealed record GcDiagnosticSnapshot(
+    long TotalMemoryBytes,
+    long HeapSizeBytes,
+    long FragmentedBytes,
+    long TotalCommittedBytes,
+    long MemoryLoadBytes,
+    long TotalAvailableMemoryBytes,
+    long HighMemoryLoadThresholdBytes,
+    long PinnedObjectsCount,
+    long FinalizationPendingCount,
+    int Gen0Collections,
+    int Gen1Collections,
+    int Gen2Collections);
+
+/// <summary>
+/// ThreadPool 诊断摘要。
+/// </summary>
+public sealed record ThreadPoolDiagnosticSnapshot(
+    int ThreadCount,
+    long PendingWorkItemCount,
+    long CompletedWorkItemCount,
+    int AvailableWorkerThreads,
+    int AvailableCompletionPortThreads,
+    int MinWorkerThreads,
+    int MinCompletionPortThreads,
+    int MaxWorkerThreads,
+    int MaxCompletionPortThreads);
+
+/// <summary>
+/// Copilot 运行时诊断摘要。
+/// </summary>
+/// <param name="InFlightSessions">当前正在执行的 Copilot 会话请求数。</param>
+public sealed record CopilotRuntimeDiagnosticSnapshot(long InFlightSessions);
+
+/// <summary>
+/// 单数据库运行时诊断 metadata。
+/// </summary>
+public sealed record DatabaseDiagnosticSnapshot(
+    string Name,
+    long MemTableEstimatedBytes,
+    long MemTablePointCount,
+    int SegmentCount,
+    long PendingFlushTasks,
+    int PendingCompactionTasks,
+    long CheckpointLsn,
+    IReadOnlyList<WalFileDiagnosticEntry> WalFiles);
+
+/// <summary>
+/// WAL 文件诊断 metadata，不包含文件路径或记录内容。
+/// </summary>
+public sealed record WalFileDiagnosticEntry(
+    string FileName,
+    long FileLength,
+    long StartLsn,
+    long? LastLsn,
+    bool IsActive);

@@ -423,11 +423,22 @@ public sealed class SegmentReader : IDisposable
     /// <exception cref="SegmentCorruptedException">Block CRC32 校验失败时抛出（当 VerifyBlockCrc = true）。</exception>
     public BlockData ReadBlock(in BlockDescriptor descriptor)
     {
+        using var activity = Diagnostics.SonnetDbActivitySource.StartOperation(
+            "sonnetdb.segment.read",
+            "segment.read");
+        int payloadBytes = descriptor.FieldNameUtf8Length
+            + descriptor.TimestampPayloadLength
+            + descriptor.ValuePayloadLength;
+        activity?.SetTag("sonnetdb.segment.id", Header.SegmentId);
+        activity?.SetTag("sonnetdb.segment.block.index", descriptor.Index);
+        activity?.SetTag("sonnetdb.segment.block.points", descriptor.Count);
+        activity?.SetTag("sonnetdb.segment.block.bytes", payloadBytes);
+        activity?.SetTag("sonnetdb.segment.cache.hit", false);
+
         ThrowIfDisposed();
 
         Diagnostics.SonnetDbMeter.SegmentBlockReads.Add(1);
-        Diagnostics.SonnetDbMeter.SegmentBlockReadBytes.Add(
-            descriptor.FieldNameUtf8Length + descriptor.TimestampPayloadLength + descriptor.ValuePayloadLength);
+        Diagnostics.SonnetDbMeter.SegmentBlockReadBytes.Add(payloadBytes);
 
         var source = _source!;
 

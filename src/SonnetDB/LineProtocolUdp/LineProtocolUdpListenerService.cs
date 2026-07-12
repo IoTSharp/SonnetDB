@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Text;
 using Microsoft.Extensions.Options;
 using SonnetDB.Configuration;
+using SonnetDB.Diagnostics;
 using SonnetDB.Hosting;
 using SonnetDB.Ingest;
 
@@ -50,10 +51,7 @@ internal sealed class LineProtocolUdpListenerService : BackgroundService
     {
         using var udp = new UdpClient(new IPEndPoint(IPAddress.Any, _options.Port));
         var local = (IPEndPoint)udp.Client.LocalEndPoint!;
-        _logger.LogInformation(
-            "Line Protocol UDP 监听已启用：0.0.0.0:{Port} -> database '{Database}'，无鉴权/无 ack，仅限可信内网。",
-            local.Port,
-            _options.Database);
+        _logger.LineProtocolUdpStarted(local.Port, _options.Database);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -72,7 +70,7 @@ internal sealed class LineProtocolUdpListenerService : BackgroundService
             }
             catch (SocketException ex) when (stoppingToken.IsCancellationRequested)
             {
-                _logger.LogDebug(ex, "Line Protocol UDP 监听停止。");
+                _logger.LineProtocolUdpStopped(ex);
                 break;
             }
 
@@ -111,20 +109,13 @@ internal sealed class LineProtocolUdpListenerService : BackgroundService
         var payload = datagram.Buffer.AsMemory();
         if (payload.Length > _options.MaxDatagramBytes)
         {
-            _logger.LogWarning(
-                "丢弃超过限制的 Line Protocol UDP 数据报：Remote={Remote}, Bytes={Bytes}, Limit={Limit}",
-                datagram.RemoteEndPoint,
-                payload.Length,
-                _options.MaxDatagramBytes);
+            _logger.LineProtocolUdpOversized(datagram.RemoteEndPoint, payload.Length, _options.MaxDatagramBytes);
             return;
         }
 
         if (!_registry.TryGet(_options.Database, out var tsdb))
         {
-            _logger.LogWarning(
-                "丢弃 Line Protocol UDP 数据报：目标数据库 '{Database}' 不存在。Remote={Remote}",
-                _options.Database,
-                datagram.RemoteEndPoint);
+            _logger.LineProtocolUdpDatabaseMissing(_options.Database, datagram.RemoteEndPoint);
             return;
         }
 
@@ -144,44 +135,24 @@ internal sealed class LineProtocolUdpListenerService : BackgroundService
 
             if (result.Written > 0 || result.Skipped > 0)
             {
-                _logger.LogDebug(
-                    "Line Protocol UDP 数据报已落库：Remote={Remote}, Written={Written}, Skipped={Skipped}",
-                    datagram.RemoteEndPoint,
-                    result.Written,
-                    result.Skipped);
+                _logger.LineProtocolUdpIngested(datagram.RemoteEndPoint, result.Written, result.Skipped);
             }
         }
         catch (BulkIngestException ex)
         {
-            _logger.LogWarning(
-                ex,
-                "Line Protocol UDP 数据报解析或写入失败：Remote={Remote}, Bytes={Bytes}",
-                datagram.RemoteEndPoint,
-                payload.Length);
+            _logger.LineProtocolUdpIngestFailed(ex, datagram.RemoteEndPoint, payload.Length);
         }
         catch (DecoderFallbackException ex)
         {
-            _logger.LogWarning(
-                ex,
-                "Line Protocol UDP 数据报不是有效 UTF-8：Remote={Remote}, Bytes={Bytes}",
-                datagram.RemoteEndPoint,
-                payload.Length);
+            _logger.LineProtocolUdpInvalidUtf8(ex, datagram.RemoteEndPoint, payload.Length);
         }
         catch (ArgumentException ex)
         {
-            _logger.LogWarning(
-                ex,
-                "Line Protocol UDP 数据报写入参数无效：Remote={Remote}, Bytes={Bytes}",
-                datagram.RemoteEndPoint,
-                payload.Length);
+            _logger.LineProtocolUdpInvalidArguments(ex, datagram.RemoteEndPoint, payload.Length);
         }
         catch (Exception ex)
         {
-            _logger.LogError(
-                ex,
-                "Line Protocol UDP 数据报处理失败：Remote={Remote}, Bytes={Bytes}",
-                datagram.RemoteEndPoint,
-                payload.Length);
+            _logger.LineProtocolUdpFailed(ex, datagram.RemoteEndPoint, payload.Length);
         }
         finally
         {
