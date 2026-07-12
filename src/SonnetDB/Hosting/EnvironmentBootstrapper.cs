@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SonnetDB.Auth;
+using SonnetDB.Diagnostics;
 
 namespace SonnetDB.Hosting;
 
@@ -63,15 +64,14 @@ internal static class EnvironmentBootstrapper
                 userCount: users.Count,
                 databaseCount: registry.Count);
 
-            logger.LogInformation(
-                "环境变量引导完成：已创建超级用户 '{User}'{Db}。",
+            logger.EnvironmentBootstrapCompleted(
                 user,
-                string.IsNullOrWhiteSpace(database) ? string.Empty : $" 与默认数据库 '{database}'");
+                string.IsNullOrWhiteSpace(database) ? null : database);
         }
         catch (Exception ex)
         {
             // 幂等：用户已存在 / 库已存在等异常只记日志，不阻断启动。
-            logger.LogWarning(ex, "环境变量引导未完成（可能已初始化或参数非法）：{Message}", ex.Message);
+            logger.EnvironmentBootstrapFailed(ex, ex.Message);
         }
     }
 }

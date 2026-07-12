@@ -7,6 +7,7 @@
 
 ### Added
 
+- **M17 #93 结构化日志统一**：Server 自有 `ILogger` 事件统一迁移到 `[LoggerMessage]` 源生成路径，按 Write 1000、Query 2000、Flush 3000、Compaction 4000、Wal 5000、Copilot 6000、Auth 7000、Http 8000 分段治理 EventId，并用稳定 `EventName` 暴露日志分类；生产及非 Development 环境默认输出带 Activity TraceId/SpanId 的 JSON 行，Development 保持单行文本控制台格式。
 - **M17 #92 Copilot 知识召回指标与细粒度追踪**：`SonnetDB.Copilot` Meter 新增 `copilot.knowledge.recall.hits` / `.misses`，由文档知识检索入口按每次查询记录一次命中或未命中，覆盖 Agent、REST 与 MCP 调用面；`PlanToolsAsync`、`RunToolAsync`、`GenerateAnswerAsync` 新增独立子 span，工具 span 携带 `tool.name`、`tool.arguments.length`、`tool.result.rows`，规划与回答 span 标记模型/回退来源及结果规模，异常仅记录类型而不写入可能包含用户数据的消息。
 
 - **M18 #107 VS Code C# SQL 解析器诊断 sidecar（第一批）**：新增 `SonnetDB.LanguageServer` 无状态 stdio 进程，使用 source-generated JSON 行协议复用核心 `SqlParser`，向编辑器返回精确字符偏移的词法/语法错误；VS Code 扩展增加进程发现、生命周期、请求超时、输出日志和 TypeScript 轻量诊断降级，并支持通过配置指定 executable / DLL / csproj。VSIX 打包会发布 framework-dependent .NET 10 sidecar，CI 同时执行 .NET 服务测试与 Node 协议测试；signature help、repair suggestion 与标准 LSP framing 仍归 #107 后续批次。

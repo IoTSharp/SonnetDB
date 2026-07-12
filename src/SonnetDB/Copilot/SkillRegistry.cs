@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using SonnetDB.Diagnostics;
 using SonnetDB.Engine;
 using SonnetDB.Hosting;
 using SonnetDB.Sql.Ast;
@@ -271,7 +272,7 @@ internal sealed class SkillRegistry
             ]]);
 
         SqlExecutor.ExecuteStatement(database, statement);
-        _logger.LogInformation("Indexed skill {Skill} ({Path}).", skill.Name, skill.RelativePath);
+        _logger.CopilotSkillIndexed(skill.Name, skill.RelativePath);
     }
 
     private static void InsertState(Tsdb database, SkillDocument skill)

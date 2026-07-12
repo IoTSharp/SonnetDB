@@ -35,6 +35,7 @@ public static class Program
         Action<IServiceCollection>? configureServices = null)
     {
         var builder = WebApplication.CreateSlimBuilder(args);
+        ServerLogging.Configure(builder);
 
         if (OperatingSystem.IsWindows())
         {

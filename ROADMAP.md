@@ -15,7 +15,7 @@
 | Milestone | 主题 | PR 范围 | 状态 |
 |-----------|------|---------|------|
 | 0~16 | 早期路线（脚手架 → Copilot 产品化） | #1 ~ #88 | ✅（摘要见下「已完成里程碑」，详情见归档） |
-| 17 | 可观测性与运行时可见性（OTel + 结构化日志 + 诊断端点） | #89 ~ #98 | 🚧（#89~#92、#94~#95、#97 ✅；#93、#96、#98 📋） |
+| 17 | 可观测性与运行时可见性（OTel + 结构化日志 + 诊断端点） | #89 ~ #98 | 🚧（#89~#95、#97 ✅；#96、#98 📋） |
 | 18 | VS Code 数据库扩展（SonnetDB for VS Code） | #99 ~ #108 | 🚧（#99~#106 ✅；#107 C# parser diagnostics 第一批 ✅、signature/repair 待续；#108 Marketplace/实机验收待续） |
 | 19 | 生态适配底座能力（关系 + KV/缓存 + 对象桶 + 大量 measurement） | #109 ~ #126 | 🚧（#109~#117、#122/#123 ✅；余项按需） |
 | 20 | 多模能力对齐与平移测试（Parity） | #127 ~ #136 | ✅ |
@@ -43,7 +43,7 @@
 > - **Milestone 30 — 多协议设备接入扩展**：在 M28 已交付的 MQTT 双形态之上补 Sparkplug B（骑 #242 broker）、CoAP、Line Protocol UDP 三条被动接收通道，三段独立可并行，全部收敛既有 BulkIngest 落库。
 >
 > **进行中（按带宽穿插）**：
-> - **M17 可观测性**：#89~#92、#94~#95、#97 已落地（含 Copilot 知识召回指标和细粒度 Agent span）；下一步推进 #93、#96，最后由 #98 完成文档与端到端联调，详见 M17「可观测性与 Copilot 下一步规划」小节。
+> - **M17 可观测性**：#89~#95、#97 已落地（含结构化日志、Copilot 知识召回指标和细粒度 Agent span）；下一步推进 #96，最后由 #98 完成文档与端到端联调，详见 M17「可观测性与 Copilot 下一步规划」小节。
 > - **M27 Industrial Data Agent**：M28 收官后 #184 端到端工业异常 Demo 阻塞解除、可启动；#183/#185 纯文档随时可做。
 > - **M18 VS Code**：#99~#106 首个可用闭环与 #107 C# Parser diagnostics sidecar 第一批已完成；下一步补 signature help / repair suggestion，再进入 #108 Marketplace 正式发布与 Electron 实机验收。**M19 生态底座**余项为对象治理 / 通用迁移原语 / 大量 measurement 长稳。
 >
@@ -748,7 +748,7 @@ D 收口：
 | #90 | **M17.2：Server OpenTelemetry 引导**：在 `src/SonnetDB`（Server 入口）引入 `OpenTelemetry.Extensions.Hosting`，按官方推荐结构注册 `WithMetrics(b => b.AddMeter("SonnetDB.Core", "SonnetDB.Server").AddAspNetCoreInstrumentation().AddHttpClientInstrumentation())` 与 `WithTracing(b => b.AddSource("SonnetDB.Core", "SonnetDB.Copilot").AddAspNetCoreInstrumentation())`。Resource attributes 自动包含 `service.name=sonnetdb`、`service.version`、`service.instance.id`、`host.name`。OTLP Exporter 走 `OTEL_EXPORTER_OTLP_ENDPOINT` 环境变量，默认不导出（Console exporter 仅在 `Development` 启用）。 | ✅ |
 | #91 | **M17.3：Prometheus 端点 + Web 内嵌指标面板**：可选启用 `/metrics`（`OpenTelemetry.Exporter.Prometheus.AspNetCore`），用 `Observability:Prometheus:Enabled=true` 开关。Web Admin 新增「监控」侧边栏，使用 `fetch('/metrics')` 客户端解析 prom 文本，实时绘制：写入吞吐（`sonnetdb.write.points`）、查询 P95（histogram bucket 还原）、MemTable 大小、Segment 数、WAL 落盘延迟、Copilot 调用数 / token 总量。零图表第三方依赖，使用既有 `naive-ui` + 简易 SVG 折线（与现有 dashboard 风格一致）。 | ✅ |
 | #92 | **M17.4：Copilot 指标与追踪**：`SonnetDB.Copilot` 命名空间下新增 `CopilotMeter`（`Meter("SonnetDB.Copilot")`）记录 `copilot.chat.requests`（按 model / mode tag）、`copilot.chat.duration`、`copilot.chat.tokens`（in/out）、`copilot.tool.calls`（按 tool name tag）、`copilot.knowledge.recall.hits` / `.misses`；Agent 每次 `PlanToolsAsync` / `RunToolAsync` / `GenerateAnswerAsync` 都开 `Activity` span，把 `tool.name`、`tool.arguments.length`、`tool.result.rows` 写到 tags。CopilotDock 与 AiSettingsView 增加「最近 1 小时调用 / token 用量」摘要卡片（消费 `/v1/copilot/metrics` 简化端点）。 | ✅ |
-| #93 | **M17.5：结构化日志统一**：所有 `ILogger` 调用改用源生成日志（`[LoggerMessage]`），消除运行时 string interpolation 装箱。统一日志事件分类（Write / Query / Flush / Compaction / Wal / Copilot / Auth / Http）与 EventId 区段（1000~1999 写入；2000~2999 查询；…）。在 `Program.cs` 引入 `JsonConsoleFormatter`，生产模式默认输出 JSON 行（`logging.json`），开发模式保持单行简化格式。 | 📋 |
+| #93 | **M17.5：结构化日志统一**：所有 `ILogger` 调用改用源生成日志（`[LoggerMessage]`），消除运行时 string interpolation 装箱。统一日志事件分类（Write / Query / Flush / Compaction / Wal / Copilot / Auth / Http）与 EventId 区段（1000~1999 写入；2000~2999 查询；…）。在 `Program.cs` 引入 `JsonConsoleFormatter`，生产模式默认输出 JSON 行（`logging.json`），开发模式保持单行简化格式。 | ✅ |
 | #94 | **M17.6：Health / Readiness 端点扩展**：把现有 `/healthz` 拆为 `/healthz/live`（进程存活）与 `/healthz/ready`（细分 checks：`segment_store_writable`、`wal_writable`、`copilot_provider_reachable`、`copilot_embedding_provider_reachable`）。引入 `IHealthCheck` 接口的 SonnetDB 实现（无第三方依赖），结果以 ASP.NET Core HealthChecks 标准 JSON 输出。Web Admin 顶部状态条改为消费 `/healthz/ready`，单独显示 4 个 check 的颜色点。 | ✅ |
 | #95 | **M17.7：Slow Query Log + Top-N 查询统计**：可选开关 `Observability:SlowQueryLog:Enabled=true` + `ThresholdMs=10000`，并支持 30s / 60s 分级。`QueryEngine.Execute` 完成后若超过阈值则发 `Activity.RecordException`-风格的结构化日志事件，并写入内存环形缓冲（`SonnetDB.Diagnostics.SlowQueryRing` 默认 256 条）。新增 `GET /v1/diagnostics/slow-queries` 与 `GET /v1/diagnostics/top-queries`（按归一化 SQL 指纹聚合 count / p50 / p95 / max）。Web Admin SQL Console 旁边新增「慢查询」抽屉。 | ✅ |
 | #96 | **M17.8：Diagnostic Dump 端点**：新增 `GET /v1/diagnostics/dump`（仅 admin token）返回 JSON 快照：进程 GC（`GC.GetGCMemoryInfo()` / `GC.GetTotalMemory(false)`）、ThreadPool（`ThreadPool.GetAvailableThreads`）、SonnetDB 内部计数（每 db 的 MemTable 大小 / Segment 数 / 待 Compaction 任务 / WAL 文件列表 / Copilot 在飞会话数）。**禁止 dump 用户数据点本身**，仅 metadata。CLI 新增 `sonnetdb-cli diag dump` 命令直接调该端点，便于复现性能问题时一键采集。 | 📋 |
@@ -780,7 +780,7 @@ PR #89（Core Meter / Activity 基线）
 **可观测性第二波顺序（#92 → #98，各项解锁什么）**：
 
 - **#92 Copilot 指标 / 追踪** —— `copilot.chat.*` / `copilot.tool.*` / `copilot.knowledge.recall.*` 指标 + Agent span。**优先级最高**：M29 #253 的 MQ 吞吐 / 积压曲线与 Copilot 用量卡片都显式依赖它。
-- **#93 结构化日志** —— `[LoggerMessage]` 源生成 + JSON 行 + EventId 分区，消除装箱、便于集中式日志检索。
+- **#93 结构化日志（已完成）** —— `[LoggerMessage]` 源生成 + JSON 行 + EventId 分区，消除装箱、便于集中式日志检索。
 - **#94 Health Live/Ready 拆分** —— `/healthz/live` vs `/healthz/ready`（segment / wal / copilot provider 细分 check），供编排探活。
 - **#95 慢查询 Log + Top-N 统计** —— 归一化 SQL 指纹聚合 p50/p95/max，Web Admin 慢查询抽屉。
 - **#96 诊断 Dump 端点** —— GC / ThreadPool / 每 db 内部计数快照（仅 metadata，不含用户数据点），CLI 一键采集。
@@ -792,7 +792,7 @@ PR #89（Core Meter / Activity 基线）
 - **M17 侧**：#92（指标）+ #97（会话服务端持久化、跨设备同步）。
 - **M27 侧（M28 已收官、依赖解除）**：#184 端到端工业异常 Demo（P5 MQTT 内建 broker + P0/P2 可靠写入已就绪，**现可启动**）、#187 eval 与成本指标（provider / model / tool 调用数 / 失败原因 / 近似 token 成本；仍建议推迟到有真实采纳之后）；#183（MCP 工具契约文档化）/ #185（provider-neutral 配置样例）纯文档，随时可做。
 
-**建议下一步排序**：**#92 已补齐**知识召回 hit/miss 与细粒度 Agent 子 span；**M27 #184 Demo** 可与 M17 第二波并行；#93、#96 按运维带宽推进，#98 最后收口。
+**建议下一步排序**：**#92 已补齐**知识召回 hit/miss 与细粒度 Agent 子 span，**#93 已完成**源生成结构化日志与生产 JSON formatter；**M27 #184 Demo** 可与 M17 第二波并行；下一步推进 #96，#98 最后收口。
 
 **前置依赖**：Milestone 16 已合并。本 Milestone 不破坏 SonnetDB Core 二进制格式，对 `__copilot__` 系统库新增 measurement 走现有 schema 升级路径（`SeriesCatalog` 自动 upsert）。**Core 仍坚持零第三方运行时依赖**，OpenTelemetry SDK 只允许出现在 `src/SonnetDB`（Server 程序集）的 `csproj`。
 

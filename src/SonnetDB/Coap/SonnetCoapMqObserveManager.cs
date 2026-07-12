@@ -4,6 +4,7 @@ using CoAP.Server.Routing;
 using Microsoft.Extensions.Options;
 using SonnetDB.Auth;
 using SonnetDB.Configuration;
+using SonnetDB.Diagnostics;
 using SonnetDB.Endpoints;
 using SonnetDB.Hosting;
 using SonnetMQ;
@@ -214,7 +215,7 @@ internal sealed class SonnetCoapMqObserveManager : IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "CoAP Observe 推送桥异常终止：{Topic}", pump.QualifiedTopic);
+            _logger.CoapObservePumpFailed(ex, pump.QualifiedTopic);
         }
         finally
         {

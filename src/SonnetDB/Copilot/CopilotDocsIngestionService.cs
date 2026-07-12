@@ -2,6 +2,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SonnetDB.Configuration;
+using SonnetDB.Diagnostics;
 
 namespace SonnetDB.Copilot;
 
@@ -45,9 +46,7 @@ internal sealed class CopilotDocsIngestionService : BackgroundService
         var snapshot = _readiness.Evaluate();
         if (!snapshot.EmbeddingReady)
         {
-            _logger.LogInformation(
-                "Copilot docs auto-ingest skipped: embedding provider not ready (reason={Reason}).",
-                snapshot.Reason);
+            _logger.CopilotDocsIngestSkipped(snapshot.Reason);
             return;
         }
 
@@ -55,8 +54,7 @@ internal sealed class CopilotDocsIngestionService : BackgroundService
         {
             var stats = await _ingestor.IngestAsync(_copilot.Docs.Roots, force: false, dryRun: false, stoppingToken)
                 .ConfigureAwait(false);
-            _logger.LogInformation(
-                "Copilot docs auto-ingest completed: scanned={Scanned}, indexed={Indexed}, skipped={Skipped}, deleted={Deleted}, chunks={Chunks}.",
+            _logger.CopilotDocsIngestCompleted(
                 stats.ScannedFiles,
                 stats.IndexedFiles,
                 stats.SkippedFiles,
@@ -69,7 +67,7 @@ internal sealed class CopilotDocsIngestionService : BackgroundService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Copilot docs auto-ingest failed; continuing startup.");
+            _logger.CopilotDocsIngestFailed(ex);
         }
     }
 }

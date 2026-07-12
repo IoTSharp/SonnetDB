@@ -152,6 +152,7 @@ internal sealed partial class SlowQueryDiagnostics
 
     [LoggerMessage(
         EventId = 2001,
+        EventName = "Query.Slow",
         Level = LogLevel.Warning,
         Message = "慢查询 database={Database} fingerprint={Fingerprint} elapsed_ms={ElapsedMs} severity={Severity} failed={Failed} normalized_sql={NormalizedSql}")]
     private static partial void LogSlow(
@@ -165,6 +166,7 @@ internal sealed partial class SlowQueryDiagnostics
 
     [LoggerMessage(
         EventId = 2002,
+        EventName = "Query.Critical",
         Level = LogLevel.Error,
         Message = "严重慢查询 database={Database} fingerprint={Fingerprint} elapsed_ms={ElapsedMs} failed={Failed} normalized_sql={NormalizedSql}")]
     private static partial void LogCritical(

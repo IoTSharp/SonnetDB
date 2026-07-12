@@ -5,6 +5,7 @@ using CoAP.Server.Routing;
 using Microsoft.Extensions.Options;
 using SonnetDB.Auth;
 using SonnetDB.Configuration;
+using SonnetDB.Diagnostics;
 using SonnetDB.Endpoints;
 using SonnetDB.Hosting;
 using SonnetDB.Ingest;
@@ -69,7 +70,7 @@ internal sealed class SonnetCoapMeasurementIngestor
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "CoAP 写入处理失败：{Source}", context.RemoteEndPoint);
+            _logger.CoapIngestFailed(ex, context.RemoteEndPoint?.ToString() ?? "unknown");
             return Text(StatusCode.InternalServerError, "CoAP 写入处理失败。");
         }
     }
