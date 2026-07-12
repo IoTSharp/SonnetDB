@@ -356,6 +356,39 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Remote_Transaction_WithSerializableReads_ReturnsTransactionViewAndCommits()
+    {
+        await using var connection = new SndbConnection(RemoteConnString());
+        await connection.OpenAsync();
+
+        await using (var setup = connection.CreateCommand())
+        {
+            setup.CommandText = "CREATE TABLE tx_serializable (id INT, name STRING, PRIMARY KEY (id))";
+            await setup.ExecuteNonQueryAsync();
+            setup.CommandText = "INSERT INTO tx_serializable (id, name) VALUES (1, 'pump')";
+            await setup.ExecuteNonQueryAsync();
+        }
+
+        await using var transaction = Assert.IsType<SndbTransaction>(
+            await connection.BeginTransactionAsync(IsolationLevel.Serializable));
+        Assert.Equal(IsolationLevel.Serializable, transaction.IsolationLevel);
+
+        Assert.Equal(new long[] { 1L }, await ReadIdsAsync(connection, "tx_serializable", transaction));
+
+        await using (var insert = connection.CreateCommand())
+        {
+            insert.Transaction = transaction;
+            insert.CommandText = "INSERT INTO tx_serializable (id, name) VALUES (2, 'fan')";
+            await insert.ExecuteNonQueryAsync();
+        }
+
+        Assert.Equal(new long[] { 1L, 2L }, await ReadIdsAsync(connection, "tx_serializable", transaction));
+        await transaction.CommitAsync();
+
+        Assert.Equal(new long[] { 1L, 2L }, await ReadIdsAsync(connection, "tx_serializable"));
+    }
+
+    [Fact]
     public void Remote_ReadOnlyToken_InsertForbidden()
     {
         // 先用 admin 建表
@@ -407,9 +440,13 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         Assert.Equal("db_not_found", ex.Error);
     }
 
-    private static async Task<long[]> ReadIdsAsync(SndbConnection connection, string tableName)
+    private static async Task<long[]> ReadIdsAsync(
+        SndbConnection connection,
+        string tableName,
+        SndbTransaction? transaction = null)
     {
         await using var cmd = connection.CreateCommand();
+        cmd.Transaction = transaction;
         cmd.CommandText = $"SELECT id FROM {tableName} ORDER BY id";
         await using var reader = await cmd.ExecuteReaderAsync();
         var ids = new List<long>();

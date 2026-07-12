@@ -5,6 +5,14 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- 修复关系表唯一索引把多个 `NULL` 值误判为冲突的问题；唯一索引任一列为 `NULL` 时不再生成唯一键，事务批量提交和重启索引重建保持一致，同时仍拒绝重复非空值。
+- 修复 Server Dockerfile 遗漏 `IoTSharp.CoAP.NET` 子模块项目与源码，导致递归 checkout 无法 restore/publish SonnetDB 镜像的问题。
+- 修复远程 EF provider 通过二进制帧查询不存在数据库时返回 HTTP 200 + `db_not_found`，migration history 未识别该错误并阻断自动建库的问题。
+- 修复 ADO.NET 轻事务拒绝 EF Core 常用 `Serializable` 隔离级别、远程事务内查询无法返回事务视图，以及 EF provider 误报 savepoint 支持的问题；远程查询会在回滚批次中重放缓冲写入，支持读己之写而不提前提交。
+- 补齐关系表单表与关联查询的 `coalesce(...)` 标量函数执行，兼容 EF Core 对可空字符串投影生成的 `COALESCE(column, '')`。
+
 ### Added
 
 - **M30 #264 Sparkplug B 生命周期与命令闭环**：新增 edge node 级 `bdSeq`/0..255 `seq` 状态机、序列缺口与缺失 BIRTH 上下文检测，自动经内建 broker 发布 `NCMD Node Control/Rebirth=true`；`NDEATH`/`DDEATH` 更新节点和设备离线状态，BIRTH alias 快照原子持久化到 `DataRoot/.system` 并支持重启恢复。Primary Host Application 启停发布 retained `STATE/ONLINE|OFFLINE`；edge node 可按数据库读权限订阅精确 NCMD/DCMD/STATE topic。人工 NCMD/DCMD 默认关闭，启用后仍要求数据库 Admin 与 MQTT v5 `sndb-approved=true` 双重审批。新增生命周期、alias 恢复、命令编码和真实 MQTT 闭环测试及三项 Prometheus 计数。

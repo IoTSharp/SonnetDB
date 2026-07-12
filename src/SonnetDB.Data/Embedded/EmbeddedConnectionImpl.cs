@@ -186,8 +186,13 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
     {
         if (_tsdb is null || _state != ConnectionState.Open)
             throw new InvalidOperationException("连接未打开。");
-        if (isolationLevel is not IsolationLevel.Unspecified and not IsolationLevel.ReadCommitted)
-            throw new NotSupportedException("SonnetDB 轻事务当前仅支持默认隔离级别。");
+        if (isolationLevel is not IsolationLevel.Unspecified
+            and not IsolationLevel.ReadCommitted
+            and not IsolationLevel.Serializable)
+        {
+            throw new NotSupportedException(
+                "SonnetDB 轻事务当前仅支持 ReadCommitted 和 Serializable 隔离级别。");
+        }
 
         return new SqlTransactionContext();
     }

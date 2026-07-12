@@ -220,7 +220,7 @@ internal sealed class RemoteExecutionResult : IExecutionResult
         return result;
     }
 
-    private static object? ReadScalar(JsonElement element) => element.ValueKind switch
+    internal static object? ReadScalar(JsonElement element) => element.ValueKind switch
     {
         JsonValueKind.Null => null,
         JsonValueKind.True => true,

@@ -1,5 +1,4 @@
 using System.Data;
-using System.Net;
 using Microsoft.EntityFrameworkCore.Migrations;
 using SonnetDB.Data;
 
@@ -250,8 +249,7 @@ public sealed class SonnetDbHistoryRepository : HistoryRepository
     }
 
     private static bool IsDatabaseNotFound(SndbServerException ex)
-        => ex.StatusCode == HttpStatusCode.NotFound
-            && string.Equals(ex.Error, "db_not_found", StringComparison.Ordinal);
+        => string.Equals(ex.Error, "db_not_found", StringComparison.Ordinal);
 
     private bool IsHistoryTableNotFound(SndbServerException ex)
         => string.Equals(ex.Error, "sql_error", StringComparison.Ordinal)

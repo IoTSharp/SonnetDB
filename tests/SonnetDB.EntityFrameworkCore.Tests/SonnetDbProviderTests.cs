@@ -791,6 +791,71 @@ public sealed class SonnetDbProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task RemoteDatabaseMigrate_WithMissingDatabase_CreatesDatabaseAndAppliesMigrations()
+    {
+        const string token = "ef-remote-admin";
+        var database = "ef_remote_new_migration_" + Guid.NewGuid().ToString("N");
+        var dataRoot = Path.Combine(Path.GetTempPath(), "sndb-ef-remote-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dataRoot);
+
+        await using var app = EfTestServerHost.Build(new ServerOptions
+        {
+            DataRoot = dataRoot,
+            AutoLoadExistingDatabases = true,
+            AllowAnonymousProbes = true,
+            Tokens = new Dictionary<string, string>
+            {
+                [token] = ServerRoles.Admin,
+            },
+        });
+
+        try
+        {
+            await app.StartAsync();
+            var addresses = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()
+                ?? throw new InvalidOperationException("Kestrel 未暴露监听地址。");
+            var baseUrl = addresses.Addresses.First();
+            var connectionString = $"Data Source=sonnetdb+http://{new Uri(baseUrl).Authority}/{database};Token={token};Timeout=30";
+
+            using var context = new MigrationDeviceContext(
+                new DbContextOptionsBuilder<MigrationDeviceContext>()
+                    .UseSonnetDB(connectionString)
+                    .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning))
+                    .Options);
+
+            Assert.Equal(
+                ["20260613000100_InitialDevices", "20260613000200_AddDeviceEnabled"],
+                (await context.Database.GetPendingMigrationsAsync()).ToArray());
+
+            await context.Database.MigrateAsync();
+
+            var creator = context.Database.GetService<IRelationalDatabaseCreator>();
+            Assert.True(await creator.ExistsAsync());
+            Assert.True(await ColumnExistsAsync(context, "Devices", "Enabled"));
+            Assert.Equal(2, await CountRowsAsync(context, "__EFMigrationsHistory"));
+
+            await using var transaction = await context.Database.BeginTransactionAsync(
+                System.Data.IsolationLevel.Serializable);
+            Assert.False(transaction.SupportsSavepoints);
+            context.Devices.Add(new MigrationDevice { Id = 1, Name = "pump", Enabled = true });
+            await context.SaveChangesAsync();
+            context.Devices.Add(new MigrationDevice { Id = 2, Name = "fan", Enabled = false });
+            await context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            Assert.Equal(2, await context.Devices.CountAsync());
+        }
+        finally
+        {
+            await app.StopAsync();
+            if (Directory.Exists(dataRoot))
+            {
+                try { Directory.Delete(dataRoot, recursive: true); } catch { /* best-effort */ }
+            }
+        }
+    }
+
+    [Fact]
     public async Task RemoteDatabaseMigrate_WithExistingHistorySkipsAlreadyAppliedMigration()
     {
         const string token = "ef-remote-admin";
