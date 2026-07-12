@@ -336,7 +336,7 @@ internal static class CopilotChatEndpointHandler
                     }
                     var localResult = cloudEvent.Tool.RequiresConfirmation
                         ? CreateConfirmationRequiredResult(cloudEvent.Tool)
-                        : toolExecutor.Execute(localContext, cloudEvent.Tool);
+                        : ExecuteLocalTool(toolExecutor, localContext, cloudEvent.Tool);
                     var toolResultEvent = CreateLocalToolResultEvent(cloudEvent, localResult);
                     await WriteMappedEventAsync(ctx, toolResultEvent, sse).ConfigureAwait(false);
 
@@ -379,6 +379,39 @@ internal static class CopilotChatEndpointHandler
             .ConfigureAwait(false);
         summary.ErrorMessage = "云端 Copilot 工具循环超过最大轮次。";
         return summary;
+    }
+
+    /// <summary>
+    /// 执行云端请求的本地工具，并生成与内置 Agent 一致的工具子 span。
+    /// </summary>
+    private static CopilotLocalToolResult ExecuteLocalTool(
+        CopilotLocalToolExecutor toolExecutor,
+        CopilotLocalToolContext localContext,
+        CopilotCloudToolCallEvent tool)
+    {
+        using var activity = CopilotDiagnostics.ActivitySource.StartActivity(
+            CopilotDiagnostics.RunToolActivityName,
+            ActivityKind.Internal);
+        activity?.SetTag("tool.name", tool.Name);
+        activity?.SetTag("tool.arguments.length", tool.Arguments.GetRawText().Length);
+
+        try
+        {
+            var result = toolExecutor.Execute(localContext, tool);
+            activity?.SetTag("tool.success", result.Ok);
+            if (!result.Ok)
+            {
+                activity?.SetStatus(ActivityStatusCode.Error);
+                activity?.SetTag("error.type", result.ErrorCode ?? "tool_failed");
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            CopilotDiagnostics.RecordFailure(activity, ex);
+            throw;
+        }
     }
 
     private static async Task SubmitToolResultAsync(

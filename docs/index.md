@@ -52,6 +52,8 @@ SonnetDB 是一个面向 C# / .NET 10 工业边缘应用的本地优先数据引
 | 通过 EF Core DbContext 与现有 .NET 应用集成 | [EF Core Provider]({{ site.docs_baseurl | default: '/help' }}/efcore/) |
 | 使用 `sndb` 命令行工具 | [CLI 参考]({{ site.docs_baseurl | default: '/help' }}/cli-reference/) |
 | 走 Line Protocol、JSON 或批量 VALUES 快路径 | [批量写入]({{ site.docs_baseurl | default: '/help' }}/bulk-ingest/) |
+| 接入 Prometheus、OTLP、Grafana 或 Aspire Dashboard | [可观测性]({{ site.docs_baseurl | default: '/help' }}/observability/) |
+| 定位慢查询、内存、ThreadPool、Flush 或 Compaction 问题 | [故障排查]({{ site.docs_baseurl | default: '/help' }}/troubleshooting/) |
 | 了解当前组件关系与存储路径 | [架构总览]({{ site.docs_baseurl | default: '/help' }}/architecture/) 和 [文件格式与目录布局]({{ site.docs_baseurl | default: '/help' }}/file-format/) |
 | 复核最近的性能、可靠性和格式演进 | [性能与可靠性近期变更]({{ site.docs_baseurl | default: '/help' }}/performance-reliability-updates/) |
 | 查看发布产物与打包说明 | [发布与打包]({{ site.docs_baseurl | default: '/help' }}/releases/) |
