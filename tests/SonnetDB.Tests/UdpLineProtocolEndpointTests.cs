@@ -93,16 +93,32 @@ public sealed class UdpLineProtocolEndpointTests : IAsyncLifetime
         byte[] bytes = Encoding.UTF8.GetBytes(payload);
         await udp.SendAsync(bytes, "127.0.0.1", _udpPort);
 
-        await WaitForRowsAsync(expectedRows: 2);
+        await WaitForRowsAsync("udp", expectedRows: 2);
     }
 
-    private async Task WaitForRowsAsync(int expectedRows)
+    [Fact]
+    public async Task UdpLineProtocol_InvalidDatagrams_DoNotStopListener()
+    {
+        using var udp = new UdpClient();
+        await udp.SendAsync(new byte[4097], "127.0.0.1", _udpPort);
+        byte[] invalidUtf8 = [0xC3, 0x28];
+        await udp.SendAsync(invalidUtf8, "127.0.0.1", _udpPort);
+        await udp.SendAsync(Encoding.UTF8.GetBytes("invalid-line-protocol"), "127.0.0.1", _udpPort);
+        await udp.SendAsync(
+            Encoding.UTF8.GetBytes("udp_cpu,host=recovered value=13 3000"),
+            "127.0.0.1",
+            _udpPort);
+
+        await WaitForRowsAsync("recovered", expectedRows: 1);
+    }
+
+    private async Task WaitForRowsAsync(string host, int expectedRows)
     {
         var deadline = DateTimeOffset.UtcNow.AddSeconds(5);
         int lastRows = 0;
         while (DateTimeOffset.UtcNow < deadline)
         {
-            lastRows = await CountRowsAsync();
+            lastRows = await CountRowsAsync(host);
             if (lastRows == expectedRows)
                 return;
 
@@ -112,12 +128,12 @@ public sealed class UdpLineProtocolEndpointTests : IAsyncLifetime
         Assert.Equal(expectedRows, lastRows);
     }
 
-    private async Task<int> CountRowsAsync()
+    private async Task<int> CountRowsAsync(string host)
     {
         using var client = CreateClient();
         var select = await client.PostAsync($"/v1/db/{DbName}/sql",
             JsonContent.Create(
-                new SqlRequest("SELECT value FROM udp_cpu WHERE host='udp'"),
+                new SqlRequest($"SELECT value FROM udp_cpu WHERE host='{host}'"),
                 ServerJsonContext.Default.SqlRequest));
         Assert.True(select.IsSuccessStatusCode, await select.Content.ReadAsStringAsync());
         string text = await select.Content.ReadAsStringAsync();

@@ -17,6 +17,7 @@
     <PackageReference Include="MeiliSearch" />
     <PackageReference Include="MongoDB.Driver" />
     <PackageReference Include="ClickHouse.Client" />
+    <PackageReference Include="MQTTnet" />
     <PackageReference Include="NATS.Client.Core" />
     <PackageReference Include="NATS.Client.JetStream" />
     <PackageReference Include="Npgsql" />
@@ -38,6 +39,7 @@
     <ProjectReference Include="..\..\src\SonnetDB.Core\SonnetDB.Core.csproj" />
     <ProjectReference Include="..\..\src\SonnetDB\SonnetDB.csproj" />
     <ProjectReference Include="..\..\src\SonnetDB.Data\SonnetDB.Data.csproj" />
+    <ProjectReference Include="..\..\extensions\IoTSharp.CoAP.NET\CoAP.NET\CoAP.NET.csproj" />
   </ItemGroup>
 
   <ItemGroup>

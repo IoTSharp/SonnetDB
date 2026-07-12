@@ -16,6 +16,9 @@ namespace SonnetDB.LineProtocolUdp;
 internal sealed class LineProtocolUdpListenerService : BackgroundService
 {
     internal const int UdpPayloadLimit = 65_507;
+    private static readonly Encoding StrictUtf8 = new UTF8Encoding(
+        encoderShouldEmitUTF8Identifier: false,
+        throwOnInvalidBytes: true);
 
     private readonly TsdbRegistry _registry;
     private readonly ServerMetrics _metrics;
@@ -122,9 +125,9 @@ internal sealed class LineProtocolUdpListenerService : BackgroundService
         char[]? charBuffer = null;
         try
         {
-            int maxChars = Encoding.UTF8.GetMaxCharCount(payload.Length);
+            int maxChars = StrictUtf8.GetMaxCharCount(payload.Length);
             charBuffer = ArrayPool<char>.Shared.Rent(maxChars);
-            int charCount = Encoding.UTF8.GetChars(payload.Span, charBuffer);
+            int charCount = StrictUtf8.GetChars(payload.Span, charBuffer);
             var reader = new LineProtocolReader(
                 new ReadOnlyMemory<char>(charBuffer, 0, charCount),
                 _precision,

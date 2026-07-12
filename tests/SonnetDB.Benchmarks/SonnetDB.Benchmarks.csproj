@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\SonnetDB.Core\SonnetDB.Core.csproj" />
+    <ProjectReference Include="..\..\src\SonnetDB\SonnetDB.csproj" />
   </ItemGroup>
 
 </Project>

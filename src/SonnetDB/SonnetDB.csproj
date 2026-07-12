@@ -64,6 +64,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="SonnetDB.Tests" />
+    <InternalsVisibleTo Include="SonnetDB.Benchmarks" />
   </ItemGroup>
 
   <ItemGroup>
