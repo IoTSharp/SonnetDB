@@ -47,4 +47,22 @@ foreach (var row in result.Rows)
 }
 ```
 
+## 迁移与校验
+
+`MigrationService` 复用一致性备份 manifest，提供 `Export`、`Scan`、`Checksum`、`ImportDryRun` 和 `Import`：
+
+```csharp
+using SonnetDB.Backup;
+
+var migration = new MigrationService();
+var export = migration.Export(db, new MigrationExportOptions
+{
+    PackageDirectory = "./exports/demo-v1",
+});
+
+Console.WriteLine($"{export.Checksum.Verified}: {export.Checksum.PackageSha256}");
+```
+
+迁移包用于兼容 SonnetDB 数据库格式间的离线迁移和回滚准备，不是跨数据库产品的逻辑交换格式。
+
 更多发布包、CLI 与服务端说明见仓库根目录 `docs/releases/`。

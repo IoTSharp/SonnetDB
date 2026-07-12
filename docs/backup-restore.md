@@ -107,3 +107,42 @@ SonnetDB 备份 manifest 区分主数据和派生数据：
 | `POST /v1/db/{db}/maintenance` | `restore_dry_run` | 校验备份和目标目录策略但不复制文件，仅 server admin 可调用 |
 
 后台重建队列、定时策略、增量备份、远端对象存储、在线恢复和企业审计审批仍留给后续批次。
+
+## 应用内通用迁移原语
+
+`SonnetDB.Core` 的 `MigrationService` 在 `BackupService` 之上提供稳定的组合门面：
+
+| 方法 | 行为 |
+| --- | --- |
+| `Export` | 建立一致性 checkpoint，导出目录迁移包并立即校验 |
+| `Scan` | 只读返回模型、文件、索引、一致性点和容量摘要 |
+| `Checksum` | 校验逐文件 SHA-256，并计算稳定的包级 SHA-256 |
+| `ImportDryRun` | 校验迁移包与目标目录策略，不创建目标目录 |
+| `Import` | 预检通过后恢复到新的数据库目录 |
+
+```csharp
+using SonnetDB.Backup;
+
+var migration = new MigrationService();
+var exported = migration.Export(database, new MigrationExportOptions
+{
+    PackageDirectory = "./exports/metrics-v1",
+});
+
+var dryRun = migration.ImportDryRun(new MigrationImportOptions
+{
+    PackageDirectory = "./exports/metrics-v1",
+    TargetDirectory = "./data/metrics-restored",
+});
+
+if (dryRun.IsValid)
+{
+    migration.Import(new MigrationImportOptions
+    {
+        PackageDirectory = "./exports/metrics-v1",
+        TargetDirectory = "./data/metrics-restored",
+    });
+}
+```
+
+迁移包与 manifest 的 `DatabaseFormat` 绑定，适合同一兼容格式间的离线迁移和回滚准备，不是跨数据库产品的逻辑交换格式。调用方不得把 `VerifyBeforeImport=false` 视为已校验；此时 `MigrationChecksumResult.Verified` 为 `false`。

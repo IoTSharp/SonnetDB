@@ -949,10 +949,10 @@ extensions/
 | #115 | **EF migrations history 与典型 ApplicationDbContext 兼容基线**：补齐 SonnetDB EF provider 的 migrations history 支持（`__EFMigrationsHistory` 或等价可配置历史表），让 `Database.Migrate()`、迁移升级、回滚、重复执行幂等检查和空库初始化成为 provider 入口验收；典型 ASP.NET Core Identity / ApplicationDbContext 兼容样例只作为 provider 通用测试，不承载上层项目路线图。 | ✅ |
 | #116 | **KV TTL 与缓存 Provider**：在 KV keyspace 增加 expires-at metadata、惰性过期 + 后台清理、命名空间、批量 get/set/remove、前缀删除和过期统计；新增 EasyCaching provider 与可选 `IDistributedCache` provider。 | ✅ |
 | #117 | **对象桶 API 第一版**：新增 bucket/object metadata 表、multipart upload 会话、etag/sha256、range read、copy object、delete marker、object tags、presigned URL；HTTP API 覆盖通用对象存储常用子集。 | ✅ |
-| #118 | **对象生命周期、版本、审计与配额**：补 bucket policy、retention/lifecycle、object versioning、legal hold 占位、访问审计、容量统计和 quota；Web Admin 增加 Buckets / Objects / Multipart / Audit 页面。**UI 页面收编进 M29 #256 统一对象工作台，#118 只保留后端治理能力（见 M29「管理界面归口」表）。** | 🚧 |
-| #119 | **生态接入样例与 Profile 文档边界**：保留 SonnetDB 作为嵌入式/远程服务、EF、缓存和对象桶的通用接入样例；具体 IoTSharp Profile、灰度、双写、回滚和生产验收迁出到 IoTSharp 仓库维护。 | 🚧 |
-| #120 | **通用迁移与校验原语评估**：只规划 SonnetDB 通用 export/import、checksum、scan、backup/restore 原语；不在本仓库维护 `iotsharp migrate/verify/rollback` 等上层产品专用命令。 | 📋 |
-| #121 | **通用长稳、压测和故障恢复报告**：覆盖 SonnetDB EF Core provider、批量写入、KV TTL、对象 multipart、备份恢复、断电恢复、升级回滚；上层 Profile 长稳报告由上层项目维护。 | 📋 |
+| #118 | **对象生命周期、版本、审计与配额**：已落 bucket policy 持久化占位、retention/lifecycle 执行、object versioning、legal hold、访问审计、容量统计和 quota 强制；远程/嵌入式客户端与 Server 回归覆盖配额超限、保留阻断、legal hold、生命周期和审计。**UI 已收编进 M29 #256 统一对象工作台。** | ✅ |
+| #119 | **生态接入样例与 Profile 文档边界**：新增可编译运行的 `samples/SonnetDB.EcosystemSample`，同一连接字符串覆盖嵌入式/远程、ADO.NET、EF Core、`IDistributedCache` 和对象桶；`docs/ecosystem-integration.md` 明确具体 Profile、灰度、双写、回滚和生产验收由上层仓库维护。 | ✅ |
+| #120 | **通用迁移与校验原语**：新增 `MigrationService` 的 export、scan、checksum、import dry-run/import 组合门面，复用一致性 checkpoint、manifest、逐文件 SHA-256、包级稳定摘要和恢复目录安全检查；多模型测试覆盖关系、时序、KV、对象桶恢复及篡改拒绝，不引入上层产品专用命令。 | ✅ |
+| #121 | **通用长稳、压测和故障恢复报告**：新增 `tests/SonnetDB.EcosystemSoak` quick/ci/soak 三档 runner，覆盖 EF Core provider、批量/大量 measurement、KV TTL、对象 multipart、迁移校验、快照回滚、真子进程强杀和 torn WAL 掉电恢复，输出 JSON/Markdown 并由每周/手动 workflow 归档；上层 Profile 报告继续由上层项目维护。 | ✅ |
 | #122 | **大量物理分表文件布局与启动扫描优化**：面向大量 measurement / 大量 segment 场景，设计并实现分层 segment 目录布局（例如按 segmentId 前缀或时间桶拆分）、目录枚举兼容层、备份扫描优化、旧段清理策略和布局迁移工具；保留旧 `segments/{id}.SDBSEG` 读取兼容。 | ✅ |
 | #123 | **Compaction manifest 与重复段恢复**：为 compaction 引入 manifest 或等价 superseded segment 状态，记录 source segments、target segment、提交阶段和清理阶段；启动时根据 manifest 忽略或清理被替代旧段，解决 crash after swap before delete 后新旧段同时加载导致重复数据的问题。 | ✅ |
 | #124 | **SegmentManager 增量索引与后台维护成本控制**：将 `AddSegment` / `SwapSegments` 从全量重建索引快照优化为增量更新或分层索引发布；补充大量 segment 下 flush、compaction、retention、query 并发时的 CPU、内存和暂停时间基准。 | 📋 |
@@ -990,7 +990,7 @@ extensions/
 - EF Core provider 可通过典型 `ApplicationDbContext` 迁移历史表创建、迁移升级/回滚、重复迁移幂等检查、Identity 登录、主数据 CRUD 和核心查询；
 - KV/cache provider 的 TTL 行为、批量操作、命名空间、过期清理和并发语义有独立测试；
 - SonnetDB SQL 模式匹配能力必须覆盖 `LIKE`、`NOT LIKE`、`regexp_like` 在 `WHERE` 与 `SELECT` 中的行为，并明确正则超时、模式长度、编译缓存和 scan filter 边界；
-- object storage API 覆盖上传、下载、删除、range read、multipart、presigned URL、版本、生命周期和审计回归；quota 与 Web Admin 继续推进；
+- object storage API 覆盖上传、下载、删除、range read、multipart、presigned URL、版本、生命周期、审计和 quota 回归；Web Admin 由 M29 #256 统一对象工作台承接；
 - 向量搜索可通过 `VECTOR(N)`、KNN、向量索引重建、topK/distance 校验和过滤组合回归；
 - 全文搜索可通过全文索引创建/删除/展示、中文/英文查询、BM25 排序、分页和索引重建回归；
 - 通用迁移与校验原语支持导出、导入、checksum、scan、backup/restore 组合；上层业务双写和回滚流程由上层项目维护；
