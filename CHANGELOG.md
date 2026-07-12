@@ -7,6 +7,7 @@
 
 ### Added
 
+- **M29 多模型管理工作台质量门禁加固**：独立管理工作台 workflow 新增真实 Kestrel 上的 8 条 Server 管理契约端到端测试与 Windows Studio Release 编译，并把共享 DTO、管理端点、JSON context 和契约测试纳入路径触发；Web 门禁按实际 43 条 Chromium e2e 记录，VS Code 继续执行 9 条 consumer / language-helper smoke 并生成开发验证用 VSIX。管理工具文档同步给出四面的可重复验证命令，明确开发 VSIX 不等同于 M18 #108 的 Extension Host / Electron 实机与 Marketplace 正式发布验收。
 - **M17 #96 Diagnostic Dump**：新增默认关闭、仅 admin 可访问的 `GET /v1/diagnostics/dump`，返回进程/GC/ThreadPool、逐数据库 MemTable/Segment/Flush/Compaction/WAL metadata 与 Copilot 在飞会话数；Core 以维护锁和稳定读租约生成快照，WAL 仅暴露文件名与 LSN/长度，禁止返回路径、记录或用户点值。CLI 新增 `sndb diag dump`，支持 Bearer token、超时及直接写入 JSON 文件。
 - **M17 #98 可观测性文档与端到端联调**：新增指标、span 树、health checks、Prometheus/OTLP/Aspire Dashboard 操作手册和慢查询/Diagnostic Dump 排障指南；Docker Compose 增加默认不启动的 `observability` profile，按需提供 OTel Collector、Prometheus 与 Grafana。补齐 `sonnetdb.segment.read` 与云端 Copilot 本地工具子 span，并用真实 Kestrel 断言 HTTP → `copilot.chat` → `copilot.agent.run_tool` → Core 查询 → Segment 物理读取的同 TraceId 父子链路。
 - **M17 #93 结构化日志统一**：Server 自有 `ILogger` 事件统一迁移到 `[LoggerMessage]` 源生成路径，按 Write 1000、Query 2000、Flush 3000、Compaction 4000、Wal 5000、Copilot 6000、Auth 7000、Http 8000 分段治理 EventId，并用稳定 `EventName` 暴露日志分类；生产及非 Development 环境默认输出带 Activity TraceId/SpanId 的 JSON 行，Development 保持单行文本控制台格式。

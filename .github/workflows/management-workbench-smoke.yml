@@ -5,8 +5,12 @@ on:
     paths:
       - 'web/**'
       - 'extensions/sonnetdb-vscode/**'
+      - 'src/SonnetDB/Contracts/Dtos.cs'
+      - 'src/SonnetDB/Endpoints/Routes/ManagementContractEndpoints.cs'
+      - 'src/SonnetDB/Json/ServerJsonContext.cs'
       - 'src/SonnetDB.LanguageServer/**'
       - 'tests/SonnetDB.LanguageServer.Tests/**'
+      - 'tests/SonnetDB.Tests/ManagementContractEndpointTests.cs'
       - 'src/SonnetDB.Studio/**'
       - 'docs/management-tools.md'
       - '.github/workflows/management-workbench-smoke.yml'
@@ -15,8 +19,12 @@ on:
     paths:
       - 'web/**'
       - 'extensions/sonnetdb-vscode/**'
+      - 'src/SonnetDB/Contracts/Dtos.cs'
+      - 'src/SonnetDB/Endpoints/Routes/ManagementContractEndpoints.cs'
+      - 'src/SonnetDB/Json/ServerJsonContext.cs'
       - 'src/SonnetDB.LanguageServer/**'
       - 'tests/SonnetDB.LanguageServer.Tests/**'
+      - 'tests/SonnetDB.Tests/ManagementContractEndpointTests.cs'
       - 'src/SonnetDB.Studio/**'
       - 'docs/management-tools.md'
       - '.github/workflows/management-workbench-smoke.yml'
@@ -26,6 +34,33 @@ permissions:
   contents: read
 
 jobs:
+  server-contracts:
+    name: Server management contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Test multi-model management contracts
+        run: >-
+          dotnet test tests/SonnetDB.Tests/SonnetDB.Tests.csproj
+          --configuration Release
+          --artifacts-path artifacts/management-contracts
+          --filter FullyQualifiedName~ManagementContractEndpointTests
+          --results-directory artifacts/test-results/management-contracts
+          --logger "trx;LogFileName=management-contracts.trx"
+
+      - name: Upload contract test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: management-contract-results
+          path: artifacts/test-results/management-contracts
+          if-no-files-found: ignore
+
   web-admin:
     name: Web Admin and Studio bridge
     runs-on: ubuntu-latest
@@ -61,6 +96,22 @@ jobs:
           name: management-workbench-playwright
           path: artifacts/playwright
           if-no-files-found: ignore
+
+  studio-host:
+    name: Studio desktop host
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build Studio host
+        run: >-
+          dotnet build src/SonnetDB.Studio/SonnetDB.Studio.csproj
+          --configuration Release
+          --artifacts-path artifacts/studio-host
 
   vscode-consumer:
     name: VS Code HTTP consumer
