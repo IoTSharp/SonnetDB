@@ -36,6 +36,7 @@ public static class SonnetDbServiceCollectionExtensions
             .TryAdd<IDatabaseProvider, SonnetDbDatabaseProvider>()
             .TryAdd<IProviderConventionSetBuilder, SonnetDbConventionSetBuilder>()
             .TryAdd<IRelationalConnection, SonnetDbRelationalConnection>()
+            .TryAdd<IRelationalTransactionFactory, SonnetDbRelationalTransactionFactory>()
             .TryAdd<IRelationalDatabaseCreator, SonnetDbDatabaseCreator>()
             .TryAdd<IQueryCompilationContextFactory, SonnetDbQueryCompilationContextFactory>()
             .TryAdd<IRelationalTypeMappingSource, SonnetDbTypeMappingSource>()

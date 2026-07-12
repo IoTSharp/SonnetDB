@@ -1244,7 +1244,20 @@ internal static class RelationalSelectExecutor
             return EvaluateScalar(tsdb, function.Arguments[0], columns, row, outerScope)?.ToString()?.ToUpperInvariant();
         }
 
-        throw new InvalidOperationException("关系表当前仅支持 json_value(json_column, '$.path')、lower(value)、upper(value) 函数。");
+        if (string.Equals(function.Name, "coalesce", StringComparison.OrdinalIgnoreCase)
+            && function.Arguments.Count > 0)
+        {
+            foreach (var argument in function.Arguments)
+            {
+                var value = EvaluateScalar(tsdb, argument, columns, row, outerScope);
+                if (value is not null)
+                    return value;
+            }
+
+            return null;
+        }
+
+        throw new InvalidOperationException("关系表当前仅支持 json_value(json_column, '$.path')、lower(value)、upper(value)、coalesce(...) 函数。");
     }
 
     /// <summary>

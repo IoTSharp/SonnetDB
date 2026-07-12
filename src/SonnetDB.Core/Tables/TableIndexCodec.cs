@@ -144,6 +144,8 @@ internal static class TableIndexCodec
         byte[]? prefix = TryEncodeIndexPrefix(index, rowValues, schema);
         if (prefix is null)
             return null;
+        if (index.IsUnique && HasNullColumnValue(index, rowValues, schema))
+            return null;
         int suffixBytes = index.IsUnique ? 0 : 4 + primaryKey.Length;
         var key = new byte[prefix.Length + suffixBytes];
         prefix.CopyTo(key);
@@ -154,6 +156,24 @@ internal static class TableIndexCodec
         }
 
         return key;
+    }
+
+    private static bool HasNullColumnValue(
+        TableIndex index,
+        IReadOnlyList<object?> rowValues,
+        TableSchema schema)
+    {
+        if (!string.IsNullOrWhiteSpace(index.JsonPath))
+            return false;
+
+        foreach (var columnName in index.Columns)
+        {
+            var column = schema.TryGetColumn(columnName)!;
+            if (rowValues[column.Ordinal] is null)
+                return true;
+        }
+
+        return false;
     }
 
     public static byte[] EncodeIndexEntryValue(ReadOnlySpan<byte> primaryKey)

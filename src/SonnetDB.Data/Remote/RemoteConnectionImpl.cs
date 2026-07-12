@@ -110,6 +110,13 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
 
         if (transaction is not null)
         {
+            if (IsFrameEligibleReadOnly(sql))
+            {
+                return ExecuteTransactionalReadRequestAsync(transaction, sql, CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult();
+            }
+
             transaction.Add(sql);
             return MaterializedExecutionResult.NonQuery(0);
         }
@@ -149,6 +156,9 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
 
         if (transaction is not null)
         {
+            if (IsFrameEligibleReadOnly(sql))
+                return ExecuteTransactionalReadRequestAsync(transaction, sql, cancellationToken);
+
             transaction.Add(sql);
             return Task.FromResult<IExecutionResult>(MaterializedExecutionResult.NonQuery(0));
         }
@@ -475,8 +485,13 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
     {
         if (_http is null || _state != ConnectionState.Open)
             throw new InvalidOperationException("连接未打开。");
-        if (isolationLevel is not IsolationLevel.Unspecified and not IsolationLevel.ReadCommitted)
-            throw new NotSupportedException("SonnetDB 轻事务当前仅支持默认隔离级别。");
+        if (isolationLevel is not IsolationLevel.Unspecified
+            and not IsolationLevel.ReadCommitted
+            and not IsolationLevel.Serializable)
+        {
+            throw new NotSupportedException(
+                "SonnetDB 轻事务当前仅支持 ReadCommitted 和 Serializable 隔离级别。");
+        }
 
         return new RemoteTransactionState();
     }
@@ -581,6 +596,98 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                 throw new SndbServerException(error, message, System.Net.HttpStatusCode.OK);
             }
         }
+    }
+
+    private async Task<IExecutionResult> ExecuteTransactionalReadRequestAsync(
+        RemoteTransactionState transaction,
+        string sql,
+        CancellationToken cancellationToken)
+    {
+        var statements = new List<SqlRequestBody>(transaction.Statements.Count + 3)
+        {
+            new() { Sql = "BEGIN" },
+        };
+        statements.AddRange(transaction.Statements.Select(static statement => new SqlRequestBody { Sql = statement }));
+        statements.Add(new SqlRequestBody { Sql = sql });
+        statements.Add(new SqlRequestBody { Sql = "ROLLBACK" });
+
+        if (_http is null || _state != ConnectionState.Open)
+            throw new InvalidOperationException("连接未打开。");
+
+        var url = $"v1/db/{Uri.EscapeDataString(_database)}/sql/batch";
+        var json = JsonSerializer.Serialize(
+            new SqlBatchRequestBody { Statements = statements },
+            RemoteJsonContext.Default.SqlBatchRequestBody);
+        using var request = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = new StringContent(json, Encoding.UTF8, "application/json"),
+        };
+        using var response = await _http.SendAsync(
+                request,
+                HttpCompletionOption.ResponseContentRead,
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+
+        string[] columns = [];
+        var rows = new List<IReadOnlyList<object?>>();
+        var readingRows = false;
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: false);
+        while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
+        {
+            if (line.Length == 0)
+                continue;
+
+            using var document = JsonDocument.Parse(line);
+            var root = document.RootElement;
+            if (root.ValueKind == JsonValueKind.Array && readingRows)
+            {
+                rows.Add(root.EnumerateArray().Select(RemoteExecutionResult.ReadScalar).ToArray());
+                continue;
+            }
+
+            if (root.ValueKind != JsonValueKind.Object)
+                continue;
+            if (root.TryGetProperty("error", out var errorProperty)
+                && errorProperty.ValueKind == JsonValueKind.String)
+            {
+                var error = errorProperty.GetString() ?? "sql_error";
+                var message = root.TryGetProperty("message", out var messageProperty)
+                    && messageProperty.ValueKind == JsonValueKind.String
+                        ? messageProperty.GetString() ?? string.Empty
+                        : string.Empty;
+                throw new SndbServerException(error, message, HttpStatusCode.OK);
+            }
+
+            if (!root.TryGetProperty("type", out var typeProperty)
+                || typeProperty.ValueKind != JsonValueKind.String)
+            {
+                continue;
+            }
+
+            switch (typeProperty.GetString())
+            {
+                case "meta":
+                    columns = root.TryGetProperty("columns", out var columnsProperty)
+                        && columnsProperty.ValueKind == JsonValueKind.Array
+                            ? columnsProperty.EnumerateArray()
+                                .Select(static column => column.GetString() ?? string.Empty)
+                                .ToArray()
+                            : [];
+                    readingRows = true;
+                    break;
+                case "end" when readingRows:
+                    readingRows = false;
+                    break;
+            }
+        }
+
+        if (columns.Length == 0)
+            throw new InvalidDataException("远程事务查询响应缺少列元信息。");
+
+        return MaterializedExecutionResult.FromSelect(new SelectExecutionResult(columns, rows));
     }
 
     private static string? TryGetParam(SndbParameterCollection parameters, string name)

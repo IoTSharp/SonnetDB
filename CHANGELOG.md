@@ -5,6 +5,14 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- 修复关系表唯一索引把多个 `NULL` 值误判为冲突的问题；唯一索引任一列为 `NULL` 时不再生成唯一键，事务批量提交和重启索引重建保持一致，同时仍拒绝重复非空值。
+- 修复 Server Dockerfile 遗漏 `IoTSharp.CoAP.NET` 子模块项目与源码，导致递归 checkout 无法 restore/publish SonnetDB 镜像的问题。
+- 修复远程 EF provider 通过二进制帧查询不存在数据库时返回 HTTP 200 + `db_not_found`，migration history 未识别该错误并阻断自动建库的问题。
+- 修复 ADO.NET 轻事务拒绝 EF Core 常用 `Serializable` 隔离级别、远程事务内查询无法返回事务视图，以及 EF provider 误报 savepoint 支持的问题；远程查询会在回滚批次中重放缓冲写入，支持读己之写而不提前提交。
+- 补齐关系表单表与关联查询的 `coalesce(...)` 标量函数执行，兼容 EF Core 对可空字符串投影生成的 `COALESCE(column, '')`。
+
 ### Added
 
 - **M17 #92 Copilot 知识召回指标与细粒度追踪**：`SonnetDB.Copilot` Meter 新增 `copilot.knowledge.recall.hits` / `.misses`，由文档知识检索入口按每次查询记录一次命中或未命中，覆盖 Agent、REST 与 MCP 调用面；`PlanToolsAsync`、`RunToolAsync`、`GenerateAnswerAsync` 新增独立子 span，工具 span 携带 `tool.name`、`tool.arguments.length`、`tool.result.rows`，规划与回答 span 标记模型/回退来源及结果规模，异常仅记录类型而不写入可能包含用户数据的消息。

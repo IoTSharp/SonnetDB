@@ -1194,7 +1194,20 @@ internal static class TableSqlExecutor
             return EvaluateScalar(function.Arguments[0], schema, row)?.ToString()?.ToUpperInvariant();
         }
 
-        throw new InvalidOperationException("关系表当前仅支持 json_value(json_column, '$.path')、lower(value)、upper(value) 函数。");
+        if (string.Equals(function.Name, "coalesce", StringComparison.OrdinalIgnoreCase)
+            && function.Arguments.Count > 0)
+        {
+            foreach (var argument in function.Arguments)
+            {
+                var value = EvaluateScalar(argument, schema, row);
+                if (value is not null)
+                    return value;
+            }
+
+            return null;
+        }
+
+        throw new InvalidOperationException("关系表当前仅支持 json_value(json_column, '$.path')、lower(value)、upper(value)、coalesce(...) 函数。");
     }
 
     private static object EvaluateArithmetic(BinaryExpression binary, TableSchema schema, IReadOnlyList<object?> row)

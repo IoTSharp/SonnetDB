@@ -1213,6 +1213,51 @@ public sealed class SqlExecutorTableTests : IDisposable
     }
 
     [Fact]
+    public void UniqueIndex_WithNullValues_AllowsMultipleRowsAcrossTransactionAndReopen()
+    {
+        using (var db = Tsdb.Open(Options()))
+        {
+            SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, serial STRING, PRIMARY KEY (id))");
+            SqlExecutor.Execute(db, "CREATE UNIQUE INDEX ux_devices_serial ON devices (serial)");
+            SqlExecutor.ExecuteScript(db, """
+                BEGIN;
+                INSERT INTO devices (id, serial) VALUES (1, NULL);
+                INSERT INTO devices (id, serial) VALUES (2, NULL);
+                COMMIT;
+                """);
+            SqlExecutor.Execute(db, "INSERT INTO devices (id, serial) VALUES (3, 'A-1')");
+
+            Assert.ThrowsAny<InvalidOperationException>(() =>
+                SqlExecutor.Execute(db, "INSERT INTO devices (id, serial) VALUES (4, 'A-1')"));
+        }
+
+        using var reopened = Tsdb.Open(Options());
+        var rows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            reopened,
+            "SELECT id FROM devices ORDER BY id"));
+        Assert.Equal([1L, 2L, 3L], rows.Rows.Select(static row => (long)row[0]!).ToArray());
+    }
+
+    [Fact]
+    public void SelectJoin_WithCoalesce_ReturnsFirstNonNullValue()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE app_users (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE TABLE app_roles (id INT, user_id INT, PRIMARY KEY (id), FOREIGN KEY (user_id) REFERENCES app_users (id))");
+        SqlExecutor.Execute(db, "INSERT INTO app_users (id, name) VALUES (1, NULL), (2, 'alice')");
+        SqlExecutor.Execute(db, "INSERT INTO app_roles (id, user_id) VALUES (10, 1), (20, 2)");
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT coalesce(u.name, '') AS name
+            FROM app_roles AS r
+            INNER JOIN app_users AS u ON r.user_id = u.id
+            ORDER BY r.id
+            """));
+
+        Assert.Equal([string.Empty, "alice"], result.Rows.Select(static row => (string)row[0]!).ToArray());
+    }
+
+    [Fact]
     public void UpdateAndDelete_MaintainSecondaryIndexes()
     {
         using var db = Tsdb.Open(Options());

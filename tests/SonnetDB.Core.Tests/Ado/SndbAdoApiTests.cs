@@ -114,6 +114,25 @@ public sealed class TsdbAdoApiTests : IDisposable
     }
 
     [Fact]
+    public void BeginTransaction_WithSerializableIsolation_CommitsSingleTableDml()
+    {
+        using var connection = OpenConn();
+        ExecNonQuery(connection, "CREATE TABLE tx_serializable (id INT, name STRING, PRIMARY KEY (id))");
+
+        using var transaction = connection.BeginTransaction(IsolationLevel.Serializable);
+        Assert.Equal(IsolationLevel.Serializable, transaction.IsolationLevel);
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "INSERT INTO tx_serializable (id, name) VALUES (1, 'pump')";
+        command.ExecuteNonQuery();
+        transaction.Commit();
+
+        using var query = connection.CreateCommand();
+        query.CommandText = "SELECT id FROM tx_serializable";
+        Assert.Equal(1L, query.ExecuteScalar());
+    }
+
+    [Fact]
     public void BeginTransaction_SelectSeesOwnBufferedWrites()
     {
         // #218：同一事务内的 SELECT 应看到本事务尚未提交的缓冲写（read-your-writes）。
