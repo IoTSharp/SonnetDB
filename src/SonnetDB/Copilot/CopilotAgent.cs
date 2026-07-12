@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -129,7 +130,7 @@ internal sealed class CopilotAgent
                 ToolName: tool.Name,
                 ToolArguments: toolArguments);
 
-            var execution = await ExecuteToolAsync(
+            var execution = await RunToolAsync(
                 context,
                 conversation,
                 docs,
@@ -230,8 +231,17 @@ internal sealed class CopilotAgent
         HashSet<string> executedToolKeys,
         CancellationToken cancellationToken)
     {
+        using var activity = CopilotDiagnostics.ActivitySource.StartActivity(
+            CopilotDiagnostics.PlanToolsActivityName,
+            ActivityKind.Internal);
+
         if (TryBuildProvisioningPlan(context, conversation, observations, out var provisioningPlan))
-            return FilterExecutedTools(provisioningPlan, executedToolKeys);
+        {
+            var result = FilterExecutedTools(provisioningPlan, executedToolKeys);
+            activity?.SetTag("copilot.plan.source", "provisioning");
+            activity?.SetTag("copilot.plan.tool_count", result.Count);
+            return result;
+        }
 
         var measurements = GetMeasurements(context.DatabaseName, context.Database);
         var plannerPrompt = BuildPlannerPrompt(context, conversation, docs, loadedSkills, observations);
@@ -250,18 +260,27 @@ internal sealed class CopilotAgent
             {
                 var sanitized = SanitizePlan(plan.Tools, measurements, conversation.LatestUserMessage);
                 var augmented = EnsureWriteDraftPlan(sanitized, conversation.LatestUserMessage);
-                return FilterExecutedTools(augmented, executedToolKeys);
+                var result = FilterExecutedTools(augmented, executedToolKeys);
+                activity?.SetTag("copilot.plan.source", "model");
+                activity?.SetTag("copilot.plan.tool_count", result.Count);
+                return result;
             }
 
             _logger.LogWarning("Copilot planner returned non-JSON content: {Response}", response);
+            activity?.SetTag("copilot.plan.fallback", true);
         }
         catch (Exception ex)
         {
+            CopilotDiagnostics.RecordFailure(activity, ex);
+            activity?.SetTag("copilot.plan.fallback", true);
             _logger.LogWarning(ex, "Copilot planner failed, falling back to heuristics.");
         }
 
         var fallback = EnsureWriteDraftPlan(BuildHeuristicPlan(conversation.LatestUserMessage, measurements), conversation.LatestUserMessage);
-        return FilterExecutedTools(fallback, executedToolKeys);
+        var fallbackResult = FilterExecutedTools(fallback, executedToolKeys);
+        activity?.SetTag("copilot.plan.source", "heuristic");
+        activity?.SetTag("copilot.plan.tool_count", fallbackResult.Count);
+        return fallbackResult;
     }
 
     private async Task<string> GenerateAnswerAsync(
@@ -273,6 +292,12 @@ internal sealed class CopilotAgent
         IReadOnlyList<CopilotCitation> citations,
         CancellationToken cancellationToken)
     {
+        using var activity = CopilotDiagnostics.ActivitySource.StartActivity(
+            CopilotDiagnostics.GenerateAnswerActivityName,
+            ActivityKind.Internal);
+        activity?.SetTag("copilot.answer.observation_count", observations.Count);
+        activity?.SetTag("copilot.answer.citation_count", citations.Count);
+
         var prompt = BuildAnswerPrompt(context, conversation, docs, loadedSkills, observations, citations);
 
         try
@@ -286,13 +311,21 @@ internal sealed class CopilotAgent
                 cancellationToken).ConfigureAwait(false);
 
             if (!string.IsNullOrWhiteSpace(answer))
+            {
+                activity?.SetTag("copilot.answer.source", "model");
                 return answer.Trim();
+            }
+
+            activity?.SetTag("copilot.answer.fallback", true);
         }
         catch (Exception ex)
         {
+            CopilotDiagnostics.RecordFailure(activity, ex);
+            activity?.SetTag("copilot.answer.fallback", true);
             _logger.LogWarning(ex, "Copilot final answer generation failed, using deterministic fallback.");
         }
 
+        activity?.SetTag("copilot.answer.source", "deterministic");
         return BuildFallbackAnswer(context, conversation, observations, citations);
     }
 
@@ -771,7 +804,7 @@ internal sealed class CopilotAgent
             ?? throw new InvalidOperationException($"工具 {toolName} 需要数据库上下文，但数据库 '{databaseName}' 当前不存在或不可用。");
     }
 
-    private async Task<CopilotToolExecutionResult> ExecuteToolAsync(
+    private async Task<CopilotToolExecutionResult> RunToolAsync(
         CopilotAgentContext context,
         CopilotConversation conversation,
         IReadOnlyList<DocsSearchResult> docs,
@@ -779,38 +812,76 @@ internal sealed class CopilotAgent
         CopilotToolInvocation tool,
         CancellationToken cancellationToken)
     {
-        switch (tool.Name)
+        using var activity = CopilotDiagnostics.ActivitySource.StartActivity(
+            CopilotDiagnostics.RunToolActivityName,
+            ActivityKind.Internal);
+        if (activity is not null)
         {
-            case "list_databases":
-                return new CopilotToolExecutionResult(
+            activity.SetTag("tool.name", tool.Name);
+            activity.SetTag("tool.arguments.length", FormatToolArguments(tool).Length);
+        }
+
+        try
+        {
+            var result = tool.Name switch
+            {
+                "list_databases" => new CopilotToolExecutionResult(
                     tool,
                     SerializeToolResult(
                         new McpDatabaseListResult(context.DatabaseName, context.VisibleDatabases),
                         ServerJsonContext.Default.McpDatabaseListResult),
-                    []);
-            case "list_measurements":
-                return new CopilotToolExecutionResult(tool, ExecuteListMeasurements(context, tool), []);
-            case "describe_measurement":
-                return new CopilotToolExecutionResult(tool, ExecuteDescribeMeasurement(context, tool), []);
-            case "sample_rows":
-                return new CopilotToolExecutionResult(tool, ExecuteSampleRows(context, tool), []);
-            case "explain_sql":
-                return new CopilotToolExecutionResult(tool, ExecuteExplainSql(context, tool), []);
-            case "draft_sql":
-                return new CopilotToolExecutionResult(tool, ExecuteDraftSql(context, tool), []);
-            case "execute_sql":
-                return new CopilotToolExecutionResult(tool, ExecuteExecuteSql(context, tool), []);
-            case "query_sql":
-                return await ExecuteQuerySqlWithRepairAsync(
+                    []),
+                "list_measurements" => new CopilotToolExecutionResult(tool, ExecuteListMeasurements(context, tool), []),
+                "describe_measurement" => new CopilotToolExecutionResult(tool, ExecuteDescribeMeasurement(context, tool), []),
+                "sample_rows" => new CopilotToolExecutionResult(tool, ExecuteSampleRows(context, tool), []),
+                "explain_sql" => new CopilotToolExecutionResult(tool, ExecuteExplainSql(context, tool), []),
+                "draft_sql" => new CopilotToolExecutionResult(tool, ExecuteDraftSql(context, tool), []),
+                "execute_sql" => new CopilotToolExecutionResult(tool, ExecuteExecuteSql(context, tool), []),
+                "query_sql" => await ExecuteQuerySqlWithRepairAsync(
                     context,
                     conversation,
                     docs,
                     loadedSkills,
                     tool,
-                    cancellationToken).ConfigureAwait(false);
-            default:
-                throw new InvalidOperationException($"不支持的 Copilot 工具 '{tool.Name}'。");
+                    cancellationToken).ConfigureAwait(false),
+                _ => throw new InvalidOperationException($"不支持的 Copilot 工具 '{tool.Name}'。"),
+            };
+
+            activity?.SetTag("tool.result.rows", GetToolResultRowCount(result.ResultJson));
+            return result;
         }
+        catch (Exception ex)
+        {
+            CopilotDiagnostics.RecordFailure(activity, ex);
+            throw;
+        }
+    }
+
+    private static int GetToolResultRowCount(string resultJson)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(resultJson);
+            var root = document.RootElement;
+            if (root.TryGetProperty("returnedRows", out var returnedRows)
+                && returnedRows.ValueKind == JsonValueKind.Number
+                && returnedRows.TryGetInt32(out var returnedCount))
+            {
+                return returnedCount;
+            }
+
+            foreach (var propertyName in new[] { "rows", "measurements", "databases", "columns" })
+            {
+                if (root.TryGetProperty(propertyName, out var values) && values.ValueKind == JsonValueKind.Array)
+                    return values.GetArrayLength();
+            }
+        }
+        catch (JsonException)
+        {
+            // 工具错误可能返回非 JSON 文本；span 仍写入 0，保持 tag 结构稳定。
+        }
+
+        return 0;
     }
 
     private string ExecuteListMeasurements(CopilotAgentContext context, CopilotToolInvocation tool)

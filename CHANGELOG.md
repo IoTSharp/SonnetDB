@@ -7,6 +7,8 @@
 
 ### Added
 
+- **M17 #92 Copilot 知识召回指标与细粒度追踪**：`SonnetDB.Copilot` Meter 新增 `copilot.knowledge.recall.hits` / `.misses`，由文档知识检索入口按每次查询记录一次命中或未命中，覆盖 Agent、REST 与 MCP 调用面；`PlanToolsAsync`、`RunToolAsync`、`GenerateAnswerAsync` 新增独立子 span，工具 span 携带 `tool.name`、`tool.arguments.length`、`tool.result.rows`，规划与回答 span 标记模型/回退来源及结果规模，异常仅记录类型而不写入可能包含用户数据的消息。
+
 - **M18 #107 VS Code C# SQL 解析器诊断 sidecar（第一批）**：新增 `SonnetDB.LanguageServer` 无状态 stdio 进程，使用 source-generated JSON 行协议复用核心 `SqlParser`，向编辑器返回精确字符偏移的词法/语法错误；VS Code 扩展增加进程发现、生命周期、请求超时、输出日志和 TypeScript 轻量诊断降级，并支持通过配置指定 executable / DLL / csproj。VSIX 打包会发布 framework-dependent .NET 10 sidecar，CI 同时执行 .NET 服务测试与 Node 协议测试；signature help、repair suggestion 与标准 LSP framing 仍归 #107 后续批次。
 - **Web Admin 多模型文件写入收口**：KV 工作台新增保留 Base64 原值和逐 key expiry 的 JSONL round-trip 导出/导入；SonnetMQ 工作台新增 JSON/JSONL/NDJSON 消息文件导入，支持逐条 topic、headers、Base64 或 JSON payload 并按文件顺序审批发布；Vector 工作台新增数据编辑/导入页，复用 Measurement 点身份、批处理与停止/续传语义，补齐 VECTOR 有限数值、schema 维度校验和安全 SQL 字面量；FullText 工作台新增面向当前索引集合的独立 JSON/JSONL/NDJSON 导入入口，继续通过 Document API 维护主数据和派生索引。所有写入均保留 bearer grant、`WriteApprovalPanel`、结果与历史边界。
 - **M25 #174 Document 长稳、容量与发布治理**：新增独立 `tests/SonnetDB.DocumentSoak` runner，提供 quick / million / ten-million 三档真实文档规模 profile，统一输出写入、索引创建/查询/rebuild、TTL 清理、冷启动、子进程异常退出恢复、备份恢复与 working set/private/managed 内存曲线的 JSON/Markdown 报告；新增手动 `Document Store Soak` workflow。提交 10,000 文档 quick profile 的本机 PASS 基线，并在能力矩阵、容量报告与 MongoDB-like 迁移指南中明确 MongoDB 差异、不支持项、Studio 入口、推荐规模和百万/千万档必须在目标硬件取得发布证据的门禁。

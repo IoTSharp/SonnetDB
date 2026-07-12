@@ -43,14 +43,19 @@ internal sealed class DocsSearchService
 
         var database = _ingestor.GetKnowledgeDb();
         if (database.Measurements.TryGet(DocsIngestor.DocsMeasurementName) is null)
+        {
+            CopilotDiagnostics.RecordKnowledgeRecall(hit: false);
             return [];
+        }
 
         var candidateCount = Math.Max(k * CandidateMultiplier, MinimumCandidateCount);
         var vectorHits = ExecuteVectorSearch(database, embedding, candidateCount);
         var queryTerms = Tokenize(query);
         var lexicalHits = ExecuteLexicalSearch(database, query, queryTerms, candidateCount);
 
-        return MergeAndRank(query, queryTerms, vectorHits, lexicalHits, k);
+        var results = MergeAndRank(query, queryTerms, vectorHits, lexicalHits, k);
+        CopilotDiagnostics.RecordKnowledgeRecall(results.Count > 0);
+        return results;
     }
 
     private static IReadOnlyList<DocsSearchResult> ExecuteVectorSearch(
