@@ -14,6 +14,7 @@ internal sealed class SparkplugIngestor
 {
     private readonly TsdbRegistry _registry;
     private readonly SparkplugAliasStore _aliases;
+    private readonly SparkplugLifecycleStore _lifecycle;
     private readonly ServerMetrics _metrics;
     private readonly SparkplugOptions _options;
     private readonly ILogger<SparkplugIngestor> _logger;
@@ -21,12 +22,14 @@ internal sealed class SparkplugIngestor
     public SparkplugIngestor(
         TsdbRegistry registry,
         SparkplugAliasStore aliases,
+        SparkplugLifecycleStore lifecycle,
         ServerMetrics metrics,
         IOptions<ServerOptions> options,
         ILogger<SparkplugIngestor> logger)
     {
         _registry = registry;
         _aliases = aliases;
+        _lifecycle = lifecycle;
         _metrics = metrics;
         _options = options.Value.Mqtt.Sparkplug;
         _logger = logger;
@@ -40,10 +43,12 @@ internal sealed class SparkplugIngestor
         ReadOnlyMemory<byte> payload,
         string topic,
         out BulkIngestResult result,
+        out bool requiresRebirth,
         out MqttPubAckReasonCode reasonCode,
         out string reason)
     {
         result = default;
+        requiresRebirth = false;
         reasonCode = MqttPubAckReasonCode.Success;
         reason = string.Empty;
 
@@ -64,6 +69,28 @@ internal sealed class SparkplugIngestor
         try
         {
             var reader = new SparkplugPayloadReader(payload, route, _aliases);
+            SparkplugLifecycleDecision decision = _lifecycle.Process(
+                route,
+                reader.Sequence,
+                reader.BirthDeathSequence);
+            requiresRebirth = decision.RequiresRebirth;
+            if (!decision.Accepted)
+            {
+                if (requiresRebirth)
+                    _metrics.RecordSparkplugSequenceGap();
+                reason = decision.Reason;
+                return true;
+            }
+
+            if (route.IsDeath)
+            {
+                _metrics.RecordSparkplugLifecycleMessage();
+                return true;
+            }
+
+            reader.CommitBirthAliases();
+            if (route.IsBirth)
+                _metrics.RecordSparkplugLifecycleMessage();
             var ingestResult = BulkIngestor.Ingest(
                 tsdb,
                 reader,
@@ -77,6 +104,12 @@ internal sealed class SparkplugIngestor
                 result.Skipped,
                 reader.OrphanMetrics,
                 reader.UnsupportedMetrics);
+            if (reader.OrphanMetrics > 0)
+            {
+                requiresRebirth = _lifecycle.MarkRebirthRequired(route);
+                if (requiresRebirth)
+                    _metrics.RecordSparkplugSequenceGap();
+            }
             _logger.SparkplugIngested(
                 topic,
                 result.Written,
@@ -104,6 +137,39 @@ internal sealed class SparkplugIngestor
             reasonCode = MqttPubAckReasonCode.PayloadFormatInvalid;
             reason = ex.Message;
             _logger.SparkplugIngestFailed(topic, reason);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 在下行命令进入 broker 分发前校验 payload 大小和 protobuf 结构。
+    /// </summary>
+    public bool TryValidateCommand(
+        in SparkplugTopicRoute route,
+        ReadOnlyMemory<byte> payload,
+        out MqttPubAckReasonCode reasonCode,
+        out string reason)
+    {
+        reasonCode = MqttPubAckReasonCode.Success;
+        reason = string.Empty;
+        if (_options.MaxPayloadBytes <= 0 || payload.Length > _options.MaxPayloadBytes)
+        {
+            reasonCode = MqttPubAckReasonCode.PayloadFormatInvalid;
+            reason = $"Sparkplug payload 超过 {_options.MaxPayloadBytes} 字节限制。";
+            return false;
+        }
+
+        try
+        {
+            var reader = new SparkplugPayloadReader(payload, route, _aliases);
+            if (reader.MetricCount == 0)
+                throw new BulkIngestException("Sparkplug NCMD/DCMD payload 至少需要一个 metric。");
+            return true;
+        }
+        catch (Exception ex) when (ex is BulkIngestException or ArgumentException or OverflowException)
+        {
+            reasonCode = MqttPubAckReasonCode.PayloadFormatInvalid;
+            reason = ex.Message;
             return false;
         }
     }

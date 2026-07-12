@@ -198,6 +198,21 @@ public sealed class SparkplugOptions
     /// 单条 Sparkplug MQTT payload 最大字节数。默认 1 MiB。
     /// </summary>
     public int MaxPayloadBytes { get; set; } = 1024 * 1024;
+
+    /// <summary>
+    /// Primary Host Application 标识，用于 retained <c>spBv1.0/STATE/{hostId}</c>。
+    /// </summary>
+    public string HostId { get; set; } = "sonnetdb-primary";
+
+    /// <summary>
+    /// 是否发布 primary host 的 ONLINE/OFFLINE STATE。默认开启。
+    /// </summary>
+    public bool PublishHostState { get; set; } = true;
+
+    /// <summary>
+    /// 是否允许外部 MQTT 管理员发布 NCMD/DCMD。默认关闭；开启后仍需显式审批属性。
+    /// </summary>
+    public bool AllowCommands { get; set; }
 }
 
 /// <summary>

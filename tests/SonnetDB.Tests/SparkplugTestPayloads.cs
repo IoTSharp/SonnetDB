@@ -9,6 +9,12 @@ namespace SonnetDB.Tests;
 internal static class SparkplugTestPayloads
 {
     public static byte[] Payload(ulong timestamp, params Metric[] metrics)
+        => PayloadCore(timestamp, sequence: null, metrics);
+
+    public static byte[] PayloadWithSequence(ulong timestamp, byte sequence, params Metric[] metrics)
+        => PayloadCore(timestamp, sequence, metrics);
+
+    private static byte[] PayloadCore(ulong timestamp, byte? sequence, params Metric[] metrics)
     {
         using var stream = new MemoryStream();
         WriteTag(stream, 1, 0);
@@ -19,6 +25,11 @@ internal static class SparkplugTestPayloads
             WriteTag(stream, 2, 2);
             WriteVarint(stream, (ulong)encoded.Length);
             stream.Write(encoded);
+        }
+        if (sequence.HasValue)
+        {
+            WriteTag(stream, 3, 0);
+            WriteVarint(stream, sequence.Value);
         }
         return stream.ToArray();
     }
@@ -37,6 +48,9 @@ internal static class SparkplugTestPayloads
 
     public static Metric String(string? name, ulong? alias, string value, ulong? timestamp = null)
         => new(name, alias, timestamp, 12, null, null, null, null, null, value, null, false);
+
+    public static Metric UInt64(string? name, ulong? alias, ulong value, ulong? timestamp = null)
+        => new(name, alias, timestamp, 8, null, value, null, null, null, null, null, false);
 
     public static Metric Bytes(string? name, ulong? alias, byte[] value, ulong? timestamp = null)
         => new(name, alias, timestamp, 17, null, null, null, null, null, null, value, false);

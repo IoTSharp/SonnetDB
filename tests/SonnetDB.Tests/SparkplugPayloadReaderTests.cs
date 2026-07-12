@@ -14,6 +14,10 @@ public sealed class SparkplugPayloadReaderTests
     [InlineData("spBv1.0/factory/NDATA/edge-1", "NData", null)]
     [InlineData("spBv1.0/factory/DBIRTH/edge-1/device-7", "DBirth", "device-7")]
     [InlineData("spBv1.0/factory/DDATA/edge-1/device-7", "DData", "device-7")]
+    [InlineData("spBv1.0/factory/NDEATH/edge-1", "NDeath", null)]
+    [InlineData("spBv1.0/factory/DDEATH/edge-1/device-7", "DDeath", "device-7")]
+    [InlineData("spBv1.0/factory/NCMD/edge-1", "NCommand", null)]
+    [InlineData("spBv1.0/factory/DCMD/edge-1/device-7", "DCommand", "device-7")]
     public void TryParse_ValidNamespace_ReturnsTypedRoute(
         string topic,
         string messageType,
@@ -29,7 +33,7 @@ public sealed class SparkplugPayloadReaderTests
     [Theory]
     [InlineData("spBv1.0/factory/DBIRTH/edge-1")]
     [InlineData("spBv1.0/factory/NBIRTH/edge-1/device-7")]
-    [InlineData("spBv1.0/factory/NDEATH/edge-1")]
+    [InlineData("spBv1.0/factory/UNKNOWN/edge-1")]
     [InlineData("SPBV1.0/factory/NBIRTH/edge-1")]
     public void TryParse_InvalidOrFutureNamespace_ReturnsFalse(string topic)
     {
@@ -43,23 +47,28 @@ public sealed class SparkplugPayloadReaderTests
         var aliases = new SparkplugAliasStore();
         var birthRoute = Parse("spBv1.0/factory/NBIRTH/edge-1");
         var birth = new SparkplugPayloadReader(
-            SparkplugTestPayloads.Payload(
+            SparkplugTestPayloads.PayloadWithSequence(
                 1000,
+                0,
+                SparkplugTestPayloads.UInt64("bdSeq", null, 5),
                 SparkplugTestPayloads.Int32("Line/Speed", 1, 42),
                 SparkplugTestPayloads.String("State", 2, "running"),
                 SparkplugTestPayloads.Bytes("Blob", 3, [1, 2, 3]),
                 SparkplugTestPayloads.Null("Missing", 4)),
             birthRoute,
             aliases);
+        birth.CommitBirthAliases();
 
         var birthPoints = Drain(birth);
 
-        Assert.Equal(2, birthPoints.Count);
+        Assert.Equal(3, birthPoints.Count);
+        Assert.Equal((byte)0, birth.Sequence);
+        Assert.Equal((ulong)5, birth.BirthDeathSequence);
         Assert.Equal(2, birth.SkippedMetrics);
         Assert.Equal(1, birth.UnsupportedMetrics);
         Assert.Equal(1, aliases.RegisteredEntityCount);
-        Assert.Equal(42, birthPoints[0].Fields["Line/Speed"].AsLong());
-        Assert.Equal("running", birthPoints[1].Fields["State"].AsString());
+        Assert.Equal(42, birthPoints[1].Fields["Line/Speed"].AsLong());
+        Assert.Equal("running", birthPoints[2].Fields["State"].AsString());
 
         var dataRoute = Parse("spBv1.0/factory/NDATA/edge-1");
         var data = new SparkplugPayloadReader(

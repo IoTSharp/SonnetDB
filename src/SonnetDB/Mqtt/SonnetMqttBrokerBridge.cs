@@ -29,6 +29,7 @@ internal sealed class SonnetMqttBrokerBridge
     private readonly ConcurrentDictionary<string, MqttClientPrincipal> _principals = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, byte>> _clientMqSubscriptions = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, TopicPump> _topicPumps = new(StringComparer.Ordinal);
+    private readonly TaskCompletionSource<MqttServer> _serverReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private int _configured;
     private MqttServer? _server;
 
@@ -57,6 +58,7 @@ internal sealed class SonnetMqttBrokerBridge
             return;
 
         _server = server;
+        _serverReady.TrySetResult(server);
         server.ValidatingConnectionAsync += ValidateConnectionAsync;
         server.InterceptingSubscriptionAsync += InterceptSubscriptionAsync;
         server.InterceptingClientEnqueueAsync += InterceptClientEnqueueAsync;
@@ -101,6 +103,37 @@ internal sealed class SonnetMqttBrokerBridge
 
         if (!MqttTopicParser.TryParse(args.TopicFilter.Topic, out var route, out string error))
         {
+            if (SparkplugTopicParser.IsCommandOrStateTopic(args.TopicFilter.Topic))
+            {
+                bool isConfiguredState = string.Equals(
+                    args.TopicFilter.Topic,
+                    $"spBv1.0/STATE/{_options.Mqtt.Sparkplug.HostId}",
+                    StringComparison.Ordinal);
+                if (args.TopicFilter.Topic.StartsWith("spBv1.0/STATE/", StringComparison.Ordinal)
+                    && !isConfiguredState)
+                {
+                    RejectSubscription(
+                        args,
+                        MqttSubscribeReasonCode.TopicFilterInvalid,
+                        "只能订阅当前配置 HostId 的 Sparkplug STATE topic。");
+                    return Task.CompletedTask;
+                }
+
+                if (!AuthorizeSparkplug(principal, DatabasePermission.Read, out string sparkplugAuthError))
+                {
+                    RejectSubscription(args, MqttSubscribeReasonCode.NotAuthorized, sparkplugAuthError);
+                    return Task.CompletedTask;
+                }
+
+                if (isConfiguredState && _options.Mqtt.Sparkplug.PublishHostState)
+                {
+                    return EnsureHostStateAndGrantSubscriptionAsync(args);
+                }
+
+                GrantSubscription(args);
+                return Task.CompletedTask;
+            }
+
             var code = args.TopicFilter.Topic.Contains('+', StringComparison.Ordinal) || args.TopicFilter.Topic.Contains('#', StringComparison.Ordinal)
                 ? MqttSubscribeReasonCode.WildcardSubscriptionsNotSupported
                 : MqttSubscribeReasonCode.TopicFilterInvalid;
@@ -121,20 +154,21 @@ internal sealed class SonnetMqttBrokerBridge
             return Task.CompletedTask;
         }
 
-        args.ProcessSubscription = true;
-        args.Response.ReasonCode = args.TopicFilter.QualityOfServiceLevel == MqttQualityOfServiceLevel.AtLeastOnce
-            ? MqttSubscribeReasonCode.GrantedQoS1
-            : MqttSubscribeReasonCode.GrantedQoS0;
+        GrantSubscription(args);
         return Task.CompletedTask;
     }
 
     private async Task InterceptClientEnqueueAsync(InterceptingClientApplicationMessageEnqueueEventArgs args)
     {
-        if (!MqttTopicParser.TryParse(args.ApplicationMessage.Topic, out var route, out _))
+        bool isManagedTopic = MqttTopicParser.TryParse(args.ApplicationMessage.Topic, out var route, out _);
+        bool isSparkplugTopic = SparkplugTopicParser.IsCommandOrStateTopic(args.ApplicationMessage.Topic);
+        if (!isManagedTopic && !isSparkplugTopic)
             return;
 
         var principal = await TryGetPrincipalForReceiverAsync(args.ReceiverClientId).ConfigureAwait(false);
-        if (principal is null || !Authorize(route, principal, DatabasePermission.Read, out _))
+        if (principal is null
+            || (isManagedTopic && !Authorize(route, principal, DatabasePermission.Read, out _))
+            || (isSparkplugTopic && !AuthorizeSparkplug(principal, DatabasePermission.Read, out _)))
         {
             args.AcceptEnqueue = false;
         }
@@ -142,6 +176,20 @@ internal sealed class SonnetMqttBrokerBridge
 
     private Task ClientSubscribedTopicAsync(ClientSubscribedTopicEventArgs args)
     {
+        if (_options.Mqtt.Sparkplug.PublishHostState
+            && string.Equals(
+                args.TopicFilter.Topic,
+                $"spBv1.0/STATE/{_options.Mqtt.Sparkplug.HostId}",
+                StringComparison.Ordinal))
+        {
+            return PublishInternalAsync(
+                args.TopicFilter.Topic,
+                System.Text.Encoding.UTF8.GetBytes("ONLINE"),
+                MqttQualityOfServiceLevel.AtLeastOnce,
+                retain: true,
+                CancellationToken.None);
+        }
+
         if (!MqttTopicParser.TryParse(args.TopicFilter.Topic, out var route, out _)
             || route.Kind != MqttTopicKind.Mq)
             return Task.CompletedTask;
@@ -378,6 +426,106 @@ internal sealed class SonnetMqttBrokerBridge
             SenderUserName = "sonnetdb",
         };
         await _server.InjectApplicationMessage(injected, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// 以 SonnetDB 内部身份向内建 broker 注入 STATE 或 Sparkplug 命令。
+    /// </summary>
+    public async Task PublishInternalAsync(
+        string topic,
+        ReadOnlyMemory<byte> payload,
+        MqttQualityOfServiceLevel qualityOfService,
+        bool retain,
+        CancellationToken cancellationToken)
+    {
+        MqttServer server = await _serverReady.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+        var message = new MqttApplicationMessageBuilder()
+            .WithTopic(topic)
+            .WithPayload(payload.ToArray())
+            .WithQualityOfServiceLevel(qualityOfService)
+            .WithRetainFlag(retain)
+            .Build();
+        var injected = new InjectedMqttApplicationMessage(message)
+        {
+            CustomSessionItems = new System.Collections.Hashtable { [InternalPublishSessionKey] = true },
+            SenderClientId = "sonnetdb",
+            SenderUserName = "sonnetdb",
+        };
+        while (true)
+        {
+            try
+            {
+                if (retain)
+                    await server.UpdateRetainedMessageAsync(message).ConfigureAwait(false);
+                await server.InjectApplicationMessage(injected, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+            catch (InvalidOperationException) when (!cancellationToken.IsCancellationRequested)
+            {
+                // UseMqttServer 会先提供实例，再由 hosted service 启动 broker。
+                await Task.Delay(TimeSpan.FromMilliseconds(25), cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private bool AuthorizeSparkplug(
+        MqttClientPrincipal principal,
+        DatabasePermission required,
+        out string error)
+    {
+        if (!_options.Mqtt.Sparkplug.Enabled)
+        {
+            error = "Sparkplug B 接入未启用。";
+            return false;
+        }
+
+        if (!_registry.TryGet(_options.Mqtt.Sparkplug.Database, out _))
+        {
+            error = $"Sparkplug 目标数据库 '{_options.Mqtt.Sparkplug.Database}' 不存在。";
+            return false;
+        }
+
+        if (!principal.HasPermission(_grants, _options.Mqtt.Sparkplug.Database, required))
+        {
+            error = $"当前 MQTT 凭据对数据库 '{_options.Mqtt.Sparkplug.Database}' 没有 {required.ToString().ToLowerInvariant()} 权限。";
+            return false;
+        }
+
+        error = string.Empty;
+        return true;
+    }
+
+    private async Task EnsureHostStateAndGrantSubscriptionAsync(InterceptingSubscriptionEventArgs args)
+    {
+        MqttServer server = await _serverReady.Task.ConfigureAwait(false);
+        var message = new MqttApplicationMessageBuilder()
+            .WithTopic($"spBv1.0/STATE/{_options.Mqtt.Sparkplug.HostId}")
+            .WithPayload(System.Text.Encoding.UTF8.GetBytes("ONLINE"))
+            .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+            .WithRetainFlag(true)
+            .Build();
+        while (true)
+        {
+            try
+            {
+                await server.UpdateRetainedMessageAsync(message).ConfigureAwait(false);
+                break;
+            }
+            catch (InvalidOperationException)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(25)).ConfigureAwait(false);
+            }
+        }
+
+        GrantSubscription(args);
+    }
+
+    private static void GrantSubscription(InterceptingSubscriptionEventArgs args)
+    {
+        args.ProcessSubscription = true;
+        args.Response.ReasonCode = args.TopicFilter.QualityOfServiceLevel == MqttQualityOfServiceLevel.AtLeastOnce
+            ? MqttSubscribeReasonCode.GrantedQoS1
+            : MqttSubscribeReasonCode.GrantedQoS0;
     }
 
     private static void RejectSubscription(InterceptingSubscriptionEventArgs args, MqttSubscribeReasonCode reasonCode, string reason)

@@ -17,6 +17,9 @@ public sealed class ServerMetrics
     private long _sparkplugMetricsSkipped;
     private long _sparkplugOrphanMetrics;
     private long _sparkplugUnsupportedMetrics;
+    private long _sparkplugLifecycleMessages;
+    private long _sparkplugSequenceGaps;
+    private long _sparkplugRebirthCommands;
 
     /// <summary>服务运行时间（秒）。</summary>
     public double UptimeSeconds => _uptime.Elapsed.TotalSeconds;
@@ -45,6 +48,15 @@ public sealed class ServerMetrics
     /// <summary>因类型不受支持跳过的 Sparkplug metric 数。</summary>
     public long SparkplugUnsupportedMetrics => Interlocked.Read(ref _sparkplugUnsupportedMetrics);
 
+    /// <summary>累计处理的 BIRTH/DEATH 生命周期消息数。</summary>
+    public long SparkplugLifecycleMessages => Interlocked.Read(ref _sparkplugLifecycleMessages);
+
+    /// <summary>累计发现的序列或 BIRTH 上下文缺口数。</summary>
+    public long SparkplugSequenceGaps => Interlocked.Read(ref _sparkplugSequenceGaps);
+
+    /// <summary>累计发布的自动 Rebirth 命令数。</summary>
+    public long SparkplugRebirthCommands => Interlocked.Read(ref _sparkplugRebirthCommands);
+
     /// <summary>记录一次 SQL 请求。</summary>
     public void RecordSqlRequest() => Interlocked.Increment(ref _sqlRequests);
 
@@ -67,6 +79,15 @@ public sealed class ServerMetrics
         Interlocked.Add(ref _sparkplugOrphanMetrics, orphan);
         Interlocked.Add(ref _sparkplugUnsupportedMetrics, unsupported);
     }
+
+    /// <summary>记录一条不落库的 Sparkplug 生命周期消息。</summary>
+    public void RecordSparkplugLifecycleMessage() => Interlocked.Increment(ref _sparkplugLifecycleMessages);
+
+    /// <summary>记录一次 Sparkplug 序列或 BIRTH 上下文缺口。</summary>
+    public void RecordSparkplugSequenceGap() => Interlocked.Increment(ref _sparkplugSequenceGaps);
+
+    /// <summary>记录一条由 host application 发布的 Rebirth 命令。</summary>
+    public void RecordSparkplugRebirthCommand() => Interlocked.Increment(ref _sparkplugRebirthCommands);
 }
 
 /// <summary>
@@ -120,6 +141,18 @@ public static class PrometheusFormatter
         sb.AppendLine("# HELP sonnetdb_sparkplug_unsupported_metrics_total Sparkplug B non-scalar or unsupported metrics.");
         sb.AppendLine("# TYPE sonnetdb_sparkplug_unsupported_metrics_total counter");
         sb.Append("sonnetdb_sparkplug_unsupported_metrics_total ").Append(metrics.SparkplugUnsupportedMetrics).AppendLine();
+
+        sb.AppendLine("# HELP sonnetdb_sparkplug_lifecycle_messages_total Sparkplug B birth/death lifecycle messages.");
+        sb.AppendLine("# TYPE sonnetdb_sparkplug_lifecycle_messages_total counter");
+        sb.Append("sonnetdb_sparkplug_lifecycle_messages_total ").Append(metrics.SparkplugLifecycleMessages).AppendLine();
+
+        sb.AppendLine("# HELP sonnetdb_sparkplug_sequence_gaps_total Sparkplug B sequence or birth-context gaps.");
+        sb.AppendLine("# TYPE sonnetdb_sparkplug_sequence_gaps_total counter");
+        sb.Append("sonnetdb_sparkplug_sequence_gaps_total ").Append(metrics.SparkplugSequenceGaps).AppendLine();
+
+        sb.AppendLine("# HELP sonnetdb_sparkplug_rebirth_commands_total Sparkplug B automatic rebirth commands.");
+        sb.AppendLine("# TYPE sonnetdb_sparkplug_rebirth_commands_total counter");
+        sb.Append("sonnetdb_sparkplug_rebirth_commands_total ").Append(metrics.SparkplugRebirthCommands).AppendLine();
 
         // 每个 db 的活跃 segment 数 + memtable 点数（粗粒度，后续可扩展）
         sb.AppendLine("# HELP sonnetdb_segments Active segment count per database.");

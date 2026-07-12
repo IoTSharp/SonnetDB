@@ -20,7 +20,7 @@ internal sealed class SparkplugPayloadReader : IPointReader
     private int _cursor;
 
     /// <summary>
-    /// 创建 reader，并在 BIRTH 消息上原子刷新当前实体的 alias 快照。
+    /// 创建 reader。BIRTH alias 仅在生命周期校验通过后由调用方提交。
     /// </summary>
     public SparkplugPayloadReader(
         ReadOnlyMemory<byte> payload,
@@ -35,16 +35,18 @@ internal sealed class SparkplugPayloadReader : IPointReader
         _metrics = decoded.Metrics;
         _payloadTimestamp = ToTimestamp(decoded.Timestamp, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
         _tags = CreateTags(route);
-
-        if (route.IsBirth)
-        {
-            aliases.ReplaceBirthAliases(
-                route,
-                _metrics
-                    .Where(static metric => metric.Alias.HasValue && !string.IsNullOrWhiteSpace(metric.Name))
-                    .Select(static metric => (metric.Alias!.Value, metric.Name!)));
-        }
+        Sequence = decoded.Sequence;
+        BirthDeathSequence = FindBirthDeathSequence(_metrics);
     }
+
+    /// <summary>Payload 顶层的 0..255 滚动序列号。</summary>
+    public byte? Sequence { get; }
+
+    /// <summary>BIRTH/DEATH 中由 <c>bdSeq</c> metric 携带的会话序列。</summary>
+    public ulong? BirthDeathSequence { get; }
+
+    /// <summary>Payload 中解码出的 metric 数量。</summary>
+    public int MetricCount => _metrics.Count;
 
     /// <summary>被跳过的 metric 总数。</summary>
     public int SkippedMetrics { get; private set; }
@@ -54,6 +56,21 @@ internal sealed class SparkplugPayloadReader : IPointReader
 
     /// <summary>因类型不是 SonnetDB 标量 field 而跳过的 metric 数。</summary>
     public int UnsupportedMetrics { get; private set; }
+
+    /// <summary>
+    /// 生命周期校验通过后提交本次 BIRTH 的 alias 快照。
+    /// </summary>
+    public void CommitBirthAliases()
+    {
+        if (!_route.IsBirth)
+            return;
+
+        _aliases.ReplaceBirthAliases(
+            _route,
+            _metrics
+                .Where(static metric => metric.Alias.HasValue && !string.IsNullOrWhiteSpace(metric.Name))
+                .Select(static metric => (metric.Alias!.Value, metric.Name!)));
+    }
 
     /// <inheritdoc />
     public bool TryRead(out Point point)
@@ -113,6 +130,7 @@ internal sealed class SparkplugPayloadReader : IPointReader
     {
         var metrics = new List<SparkplugMetric>();
         ulong? timestamp = null;
+        byte? sequence = null;
         int cursor = 0;
         while (cursor < payload.Length)
         {
@@ -128,13 +146,34 @@ internal sealed class SparkplugPayloadReader : IPointReader
                     var metricBytes = ReadLengthDelimited(payload, ref cursor, "Payload.metrics");
                     metrics.Add(DecodeMetric(metricBytes));
                     break;
+                case 3:
+                    RequireWireType(wireType, 0, "Payload.seq");
+                    ulong rawSequence = ReadVarint(payload.Span, ref cursor, "Payload.seq");
+                    if (rawSequence > byte.MaxValue)
+                        throw new BulkIngestException("Sparkplug protobuf Payload.seq 必须位于 0..255。");
+                    sequence = (byte)rawSequence;
+                    break;
                 default:
                     SkipField(payload.Span, ref cursor, wireType, "Payload");
                     break;
             }
         }
 
-        return new SparkplugPayload(timestamp, metrics);
+        return new SparkplugPayload(timestamp, sequence, metrics);
+    }
+
+    private static ulong? FindBirthDeathSequence(IReadOnlyList<SparkplugMetric> metrics)
+    {
+        foreach (SparkplugMetric metric in metrics)
+        {
+            if (string.Equals(metric.Name, "bdSeq", StringComparison.Ordinal)
+                && metric.LongValue.HasValue)
+            {
+                return metric.LongValue.Value;
+            }
+        }
+
+        return null;
     }
 
     private static SparkplugMetric DecodeMetric(ReadOnlyMemory<byte> payload)
@@ -388,7 +427,10 @@ internal sealed class SparkplugPayloadReader : IPointReader
             throw new BulkIngestException($"Sparkplug protobuf {field}: fixed-width 字段被截断。");
     }
 
-    private sealed record SparkplugPayload(ulong? Timestamp, IReadOnlyList<SparkplugMetric> Metrics);
+    private sealed record SparkplugPayload(
+        ulong? Timestamp,
+        byte? Sequence,
+        IReadOnlyList<SparkplugMetric> Metrics);
 
     private sealed class SparkplugMetric
     {

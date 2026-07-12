@@ -2,6 +2,7 @@ using System.Buffers;
 using Microsoft.Extensions.Options;
 using MQTTnet.AspNetCore.Routing;
 using MQTTnet.AspNetCore.Routing.Attributes;
+using MQTTnet.Packets;
 using MQTTnet.Protocol;
 using SonnetDB.Auth;
 using SonnetDB.Configuration;
@@ -21,17 +22,20 @@ internal sealed class SparkplugMqttController : MqttBaseController
     private readonly GrantsStore _grants;
     private readonly SparkplugOptions _options;
     private readonly SparkplugIngestor _ingestor;
+    private readonly SparkplugHostApplicationService _hostApplication;
 
     public SparkplugMqttController(
         TsdbRegistry registry,
         GrantsStore grants,
         IOptions<ServerOptions> options,
-        SparkplugIngestor ingestor)
+        SparkplugIngestor ingestor,
+        SparkplugHostApplicationService hostApplication)
     {
         _registry = registry;
         _grants = grants;
         _options = options.Value.Mqtt.Sparkplug;
         _ingestor = ingestor;
+        _hostApplication = hostApplication;
     }
 
     /// <summary>
@@ -82,25 +86,80 @@ internal sealed class SparkplugMqttController : MqttBaseController
         if (!_registry.TryGet(_options.Database, out _))
             return Reject(MqttPubAckReasonCode.ImplementationSpecificError, $"Sparkplug 目标数据库 '{_options.Database}' 不存在。");
 
-        if (!MqttContext.SessionItems.Contains(SonnetMqttBrokerBridge.PrincipalSessionKey)
-            || MqttContext.SessionItems[SonnetMqttBrokerBridge.PrincipalSessionKey] is not MqttClientPrincipal principal)
+        bool internalPublish = IsInternalPublish();
+        MqttClientPrincipal? principal = null;
+        if (!internalPublish)
         {
-            return Reject(MqttPubAckReasonCode.NotAuthorized, "MQTT 会话未通过 SonnetDB 鉴权。");
+            if (!MqttContext.SessionItems.Contains(SonnetMqttBrokerBridge.PrincipalSessionKey)
+                || MqttContext.SessionItems[SonnetMqttBrokerBridge.PrincipalSessionKey] is not MqttClientPrincipal authenticated)
+            {
+                return Reject(MqttPubAckReasonCode.NotAuthorized, "MQTT 会话未通过 SonnetDB 鉴权。");
+            }
+
+            principal = authenticated;
         }
 
-        if (!principal.HasPermission(_grants, _options.Database, DatabasePermission.Write))
+        if (!internalPublish
+            && !principal!.HasPermission(_grants, _options.Database, DatabasePermission.Write))
         {
             return Reject(
                 MqttPubAckReasonCode.NotAuthorized,
                 $"当前 MQTT 凭据对数据库 '{_options.Database}' 没有 write 权限。");
         }
 
+        if (route.IsCommand)
+            return HandleCommand(route, principal, internalPublish);
+
         if (!_ingestor.TryIngest(
                 route,
                 Message.Payload.ToArray(),
                 Message.Topic,
                 out _,
+                out bool requiresRebirth,
                 out var reasonCode,
+                out string reason))
+        {
+            return Reject(reasonCode, reason);
+        }
+
+        if (requiresRebirth)
+            _hostApplication.RequestRebirth(route.GroupId, route.EdgeNodeId);
+
+        return Acknowledge();
+    }
+
+    private MqttResult HandleCommand(
+        in SparkplugTopicRoute route,
+        MqttClientPrincipal? principal,
+        bool internalPublish)
+    {
+        if (!internalPublish)
+        {
+            if (!_options.AllowCommands)
+            {
+                return Reject(
+                    MqttPubAckReasonCode.NotAuthorized,
+                    "Sparkplug NCMD/DCMD 默认关闭；需显式启用 SonnetDBServer:Mqtt:Sparkplug:AllowCommands。");
+            }
+
+            if (principal is null
+                || principal.GetEffectivePermission(_grants, _options.Database) < DatabasePermission.Admin)
+            {
+                return Reject(MqttPubAckReasonCode.NotAuthorized, "Sparkplug 下行命令仅允许数据库管理员发布。");
+            }
+
+            if (!HasExplicitApproval())
+            {
+                return Reject(
+                    MqttPubAckReasonCode.NotAuthorized,
+                    "Sparkplug 下行命令缺少 MQTT v5 user property: sndb-approved=true。");
+            }
+        }
+
+        if (!_ingestor.TryValidateCommand(
+                route,
+                Message.Payload.ToArray(),
+                out MqttPubAckReasonCode reasonCode,
                 out string reason))
         {
             return Reject(reasonCode, reason);
@@ -109,6 +168,16 @@ internal sealed class SparkplugMqttController : MqttBaseController
         return Acknowledge();
     }
 
+    private bool IsInternalPublish()
+        => MqttContext.SessionItems.Contains(SonnetMqttBrokerBridge.InternalPublishSessionKey)
+            && MqttContext.SessionItems[SonnetMqttBrokerBridge.InternalPublishSessionKey] is true;
+
+    private bool HasExplicitApproval()
+        => Message.UserProperties is { Count: > 0 } properties
+            && properties.Any(static property =>
+                string.Equals(property.Name, "sndb-approved", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(property.ReadValueAsString(), "true", StringComparison.OrdinalIgnoreCase));
+
     private static string ToWireName(SparkplugMessageType messageType)
         => messageType switch
         {
@@ -116,6 +185,10 @@ internal sealed class SparkplugMqttController : MqttBaseController
             SparkplugMessageType.DBirth => "DBIRTH",
             SparkplugMessageType.NData => "NDATA",
             SparkplugMessageType.DData => "DDATA",
+            SparkplugMessageType.NDeath => "NDEATH",
+            SparkplugMessageType.DDeath => "DDEATH",
+            SparkplugMessageType.NCommand => "NCMD",
+            SparkplugMessageType.DCommand => "DCMD",
             _ => string.Empty,
         };
 }

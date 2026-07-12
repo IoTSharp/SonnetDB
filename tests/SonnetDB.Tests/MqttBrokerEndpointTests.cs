@@ -12,9 +12,11 @@ using Microsoft.Extensions.DependencyInjection;
 using MQTTnet;
 using MQTTnet.Formatter;
 using MQTTnet.Protocol;
+using MQTTnet.Server;
 using SonnetDB.Configuration;
 using SonnetDB.Contracts;
 using SonnetDB.Json;
+using SonnetDB.Mqtt;
 using Xunit;
 
 namespace SonnetDB.Tests;
@@ -22,6 +24,7 @@ namespace SonnetDB.Tests;
 /// <summary>
 /// M28 P5b #242 内建 MQTT broker 端到端测试：设备直连入库、鉴权与 SonnetMQ 订阅推送。
 /// </summary>
+[Collection(MqttBrokerTestCollection.Name)]
 public sealed class MqttBrokerEndpointTests : IAsyncLifetime
 {
     private WebApplication? _app;
@@ -60,6 +63,9 @@ public sealed class MqttBrokerEndpointTests : IAsyncLifetime
                     Enabled = true,
                     Database = "sparkplug",
                     MaxPayloadBytes = 1024 * 1024,
+                    HostId = "sonnetdb-primary",
+                    PublishHostState = true,
+                    AllowCommands = true,
                 },
             },
         };
@@ -123,8 +129,10 @@ public sealed class MqttBrokerEndpointTests : IAsyncLifetime
         {
             var birth = new MqttApplicationMessageBuilder()
                 .WithTopic("spBv1.0/factory/NBIRTH/edge01")
-                .WithPayload(SparkplugTestPayloads.Payload(
+                .WithPayload(SparkplugTestPayloads.PayloadWithSequence(
                     1000,
+                    0,
+                    SparkplugTestPayloads.UInt64("bdSeq", null, 1),
                     SparkplugTestPayloads.Float("temperature", 1, 21.5f)))
                 .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
                 .Build();
@@ -133,8 +141,9 @@ public sealed class MqttBrokerEndpointTests : IAsyncLifetime
 
             var data = new MqttApplicationMessageBuilder()
                 .WithTopic("spBv1.0/factory/NDATA/edge01")
-                .WithPayload(SparkplugTestPayloads.Payload(
+                .WithPayload(SparkplugTestPayloads.PayloadWithSequence(
                     2000,
+                    1,
                     SparkplugTestPayloads.Float(null, 1, 37.25f)))
                 .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
                 .Build();
@@ -150,6 +159,139 @@ public sealed class MqttBrokerEndpointTests : IAsyncLifetime
             db,
             "SELECT temperature FROM edge01 WHERE group_id='factory' AND edge_node_id='edge01' AND time >= 2000 AND time <= 2000");
         Assert.Equal(1, rows);
+    }
+
+    [Fact]
+    public async Task MqttPublishSparkplug_SequenceGap_PublishesRebirthCommandAndSkipsData()
+    {
+        const string db = "sparkplug";
+        await CreateDatabaseAsync(db);
+        var received = new TaskCompletionSource<MqttApplicationMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = await ConnectMqttAsync(ReadWriteToken, "sparkplug-rebirth-node");
+        client.ApplicationMessageReceivedAsync += args =>
+        {
+            received.TrySetResult(args.ApplicationMessage);
+            return Task.CompletedTask;
+        };
+
+        try
+        {
+            var subscribe = await client.SubscribeAsync(
+                new MqttClientSubscribeOptionsBuilder()
+                    .WithTopicFilter("spBv1.0/factory/NCMD/edgegap", MqttQualityOfServiceLevel.AtLeastOnce)
+                    .Build(),
+                CancellationToken.None);
+            Assert.Equal(MqttClientSubscribeResultCode.GrantedQoS1, Assert.Single(subscribe.Items).ResultCode);
+
+            var birth = new MqttApplicationMessageBuilder()
+                .WithTopic("spBv1.0/factory/NBIRTH/edgegap")
+                .WithPayload(SparkplugTestPayloads.PayloadWithSequence(
+                    1000,
+                    0,
+                    SparkplugTestPayloads.UInt64("bdSeq", null, 1),
+                    SparkplugTestPayloads.Float("temperature", 1, 20)))
+                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+                .Build();
+            Assert.True((await client.PublishAsync(birth, CancellationToken.None)).IsSuccess);
+
+            var gap = new MqttApplicationMessageBuilder()
+                .WithTopic("spBv1.0/factory/NDATA/edgegap")
+                .WithPayload(SparkplugTestPayloads.PayloadWithSequence(
+                    2000,
+                    2,
+                    SparkplugTestPayloads.Float(null, 1, 99)))
+                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+                .Build();
+            Assert.True((await client.PublishAsync(gap, CancellationToken.None)).IsSuccess);
+
+            MqttApplicationMessage command = await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal("spBv1.0/factory/NCMD/edgegap", command.Topic);
+            var reader = new SparkplugPayloadReader(
+                command.Payload.ToArray(),
+                ParseSparkplug("spBv1.0/factory/NCMD/edgegap"),
+                new SparkplugAliasStore());
+            Assert.True(reader.TryRead(out SonnetDB.Model.Point point));
+            Assert.True(point.Fields["Node Control/Rebirth"].AsBool());
+        }
+        finally
+        {
+            await DisconnectMqttAsync(client);
+        }
+
+        int rows = await CountSelectRowsAsync(
+            db,
+            "SELECT temperature FROM edgegap WHERE time >= 2000 AND time <= 2000");
+        Assert.Equal(0, rows);
+    }
+
+    [Fact]
+    public async Task MqttPublishSparkplug_CommandRequiresAdminAndExplicitApproval()
+    {
+        await CreateDatabaseAsync("sparkplug");
+        byte[] payload = SparkplugCommandEncoder.EncodeRebirth(1);
+
+        var readWrite = await ConnectMqttAsync(ReadWriteToken, "sparkplug-command-rw");
+        try
+        {
+            var denied = await readWrite.PublishAsync(
+                CreateApprovedCommand(payload),
+                CancellationToken.None);
+            Assert.False(denied.IsSuccess);
+            Assert.Equal(MqttClientPublishReasonCode.NotAuthorized, denied.ReasonCode);
+        }
+        finally
+        {
+            await DisconnectMqttAsync(readWrite);
+        }
+
+        var admin = await ConnectMqttAsync(AdminToken, "sparkplug-command-admin");
+        try
+        {
+            var unapproved = new MqttApplicationMessageBuilder()
+                .WithTopic("spBv1.0/factory/NCMD/edge-command")
+                .WithPayload(payload)
+                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+                .Build();
+            var missingApproval = await admin.PublishAsync(unapproved, CancellationToken.None);
+            Assert.False(missingApproval.IsSuccess);
+            Assert.Equal(MqttClientPublishReasonCode.NotAuthorized, missingApproval.ReasonCode);
+
+            var approved = await admin.PublishAsync(
+                CreateApprovedCommand(payload),
+                CancellationToken.None);
+            Assert.True(approved.IsSuccess, approved.ReasonString);
+        }
+        finally
+        {
+            await DisconnectMqttAsync(admin);
+        }
+    }
+
+    [Fact]
+    public async Task MqttSubscribeSparkplugHostState_ReceivesRetainedOnlineState()
+    {
+        await CreateDatabaseAsync("sparkplug");
+        var client = await ConnectMqttAsync(ReadOnlyToken, "sparkplug-state-reader");
+
+        try
+        {
+            var result = await client.SubscribeAsync(
+                new MqttClientSubscribeOptionsBuilder()
+                    .WithTopicFilter("spBv1.0/STATE/sonnetdb-primary", MqttQualityOfServiceLevel.AtLeastOnce)
+                    .Build(),
+                CancellationToken.None);
+            Assert.Equal(MqttClientSubscribeResultCode.GrantedQoS1, Assert.Single(result.Items).ResultCode);
+
+            var server = _app!.Services.GetRequiredService<MqttServer>();
+            MqttApplicationMessage state = await server.GetRetainedMessageAsync(
+                "spBv1.0/STATE/sonnetdb-primary");
+            Assert.Equal("ONLINE", Encoding.UTF8.GetString(state.Payload.ToArray()));
+            Assert.True(state.Retain);
+        }
+        finally
+        {
+            await DisconnectMqttAsync(client);
+        }
     }
 
     [Fact]
@@ -294,6 +436,23 @@ public sealed class MqttBrokerEndpointTests : IAsyncLifetime
         return client;
     }
 
+    private static MqttApplicationMessage CreateApprovedCommand(byte[] payload)
+        => new MqttApplicationMessageBuilder()
+            .WithTopic("spBv1.0/factory/NCMD/edge-command")
+            .WithPayload(payload)
+            .WithUserProperty("sndb-approved", (ReadOnlyMemory<byte>)"true"u8.ToArray())
+            .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+            .Build();
+
+    private static SonnetDB.Mqtt.SparkplugTopicRoute ParseSparkplug(string topic)
+    {
+        Assert.True(SonnetDB.Mqtt.SparkplugTopicParser.TryParse(
+            topic,
+            out SonnetDB.Mqtt.SparkplugTopicRoute route,
+            out string error), error);
+        return route;
+    }
+
     private async Task CreateDatabaseAsync(string db)
     {
         using var client = CreateHttpClient();
@@ -414,4 +573,13 @@ public sealed class MqttBrokerEndpointTests : IAsyncLifetime
             listener.Stop();
         }
     }
+}
+
+/// <summary>
+/// MQTTnet 的进程内 broker 与生成路由共享宿主级资源，端到端实例不并行启动。
+/// </summary>
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class MqttBrokerTestCollection
+{
+    public const string Name = "mqtt-broker-endpoint-tests";
 }

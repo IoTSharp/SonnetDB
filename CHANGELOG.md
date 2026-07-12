@@ -7,6 +7,7 @@
 
 ### Added
 
+- **M30 #264 Sparkplug B 生命周期与命令闭环**：新增 edge node 级 `bdSeq`/0..255 `seq` 状态机、序列缺口与缺失 BIRTH 上下文检测，自动经内建 broker 发布 `NCMD Node Control/Rebirth=true`；`NDEATH`/`DDEATH` 更新节点和设备离线状态，BIRTH alias 快照原子持久化到 `DataRoot/.system` 并支持重启恢复。Primary Host Application 启停发布 retained `STATE/ONLINE|OFFLINE`；edge node 可按数据库读权限订阅精确 NCMD/DCMD/STATE topic。人工 NCMD/DCMD 默认关闭，启用后仍要求数据库 Admin 与 MQTT v5 `sndb-approved=true` 双重审批。新增生命周期、alias 恢复、命令编码和真实 MQTT 闭环测试及三项 Prometheus 计数。
 - **M30 #263 Sparkplug B payload 解码与落库**：内建 MQTT broker 新增 `spBv1.0/{group}/{NBIRTH|DBIRTH|NDATA|DDATA}/{edgeNode}/[{device}]` 接入，手写零依赖 protobuf reader，BIRTH 原子刷新进程内 alias 表，DATA 按 alias 解析后直接生成 `Point` 进入 `BulkIngestor`；新增显式目标数据库、写权限、payload 上限、结构化日志与四项 Prometheus 计数。MQTT routing 子模块新增独立 `MQTTnet.AspNetCore.Routing.SourceGeneration` analyzer，Sparkplug controller 由编译期 route/DI/action 委托执行，不与 CoAP generator 产生引用或运行时耦合。
 - **M29 多模型管理工作台质量门禁加固**：独立管理工作台 workflow 新增真实 Kestrel 上的 8 条 Server 管理契约端到端测试与 Windows Studio Release 编译，并把共享 DTO、管理端点、JSON context 和契约测试纳入路径触发；Web 门禁按实际 43 条 Chromium e2e 记录，VS Code 继续执行 9 条 consumer / language-helper smoke 并生成开发验证用 VSIX。管理工具文档同步给出四面的可重复验证命令，明确开发 VSIX 不等同于 M18 #108 的 Extension Host / Electron 实机与 Marketplace 正式发布验收。
 - **M17 #96 Diagnostic Dump**：新增默认关闭、仅 admin 可访问的 `GET /v1/diagnostics/dump`，返回进程/GC/ThreadPool、逐数据库 MemTable/Segment/Flush/Compaction/WAL metadata 与 Copilot 在飞会话数；Core 以维护锁和稳定读租约生成快照，WAL 仅暴露文件名与 LSN/长度，禁止返回路径、记录或用户点值。CLI 新增 `sndb diag dump`，支持 Bearer token、超时及直接写入 JSON 文件。

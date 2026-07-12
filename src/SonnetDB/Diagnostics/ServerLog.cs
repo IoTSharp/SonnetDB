@@ -121,6 +121,26 @@ internal static partial class ServerLog
         Message = "Sparkplug 消息解析或落库失败：Topic={Topic}, Reason={Reason}")]
     internal static partial void SparkplugIngestFailed(this ILogger logger, string topic, string reason);
 
+    [LoggerMessage(EventId = 1026, EventName = "Write.SparkplugAliasLoadFailed", Level = LogLevel.Warning,
+        Message = "Sparkplug alias 快照加载失败，已从空状态启动：Path={Path}")]
+    internal static partial void SparkplugAliasLoadFailed(this ILogger logger, Exception exception, string path);
+
+    [LoggerMessage(EventId = 1027, EventName = "Write.SparkplugAliasSaveFailed", Level = LogLevel.Error,
+        Message = "Sparkplug alias 快照持久化失败：Path={Path}")]
+    internal static partial void SparkplugAliasSaveFailed(this ILogger logger, Exception exception, string path);
+
+    [LoggerMessage(EventId = 1028, EventName = "Write.SparkplugRebirthPublished", Level = LogLevel.Information,
+        Message = "Sparkplug Rebirth 命令已发布：Topic={Topic}")]
+    internal static partial void SparkplugRebirthPublished(this ILogger logger, string topic);
+
+    [LoggerMessage(EventId = 1029, EventName = "Write.SparkplugHostStatePublishFailed", Level = LogLevel.Warning,
+        Message = "Sparkplug Primary Host STATE 发布失败：HostId={HostId}, State={State}")]
+    internal static partial void SparkplugHostStatePublishFailed(
+        this ILogger logger,
+        Exception exception,
+        string hostId,
+        string state);
+
     // Copilot：6000~6999
     [LoggerMessage(EventId = 6001, EventName = "Copilot.PlannerInvalidResponse", Level = LogLevel.Warning,
         Message = "Copilot planner returned non-JSON content: {Response}")]

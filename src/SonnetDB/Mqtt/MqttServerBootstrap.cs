@@ -51,6 +51,12 @@ internal static class MqttServerBootstrap
                 throw new InvalidOperationException("SonnetDBServer:Mqtt:Sparkplug:Database 必须为合法数据库名。");
             if (mqttOptions.Sparkplug.MaxPayloadBytes <= 0)
                 throw new InvalidOperationException("SonnetDBServer:Mqtt:Sparkplug:MaxPayloadBytes 必须大于 0。");
+            if (string.IsNullOrWhiteSpace(mqttOptions.Sparkplug.HostId)
+                || mqttOptions.Sparkplug.HostId.Length > 255
+                || mqttOptions.Sparkplug.HostId.AsSpan().IndexOfAny("/+#\n\r\t") >= 0)
+            {
+                throw new InvalidOperationException("SonnetDBServer:Mqtt:Sparkplug:HostId 必须为合法的单段 topic 标识。");
+            }
         }
 
         builder.Services.AddSingleton<SonnetMqttMeasurementIngestor>();
@@ -58,8 +64,10 @@ internal static class MqttServerBootstrap
         if (brokerEnabled)
         {
             builder.Services.AddSingleton<SparkplugAliasStore>();
+            builder.Services.AddSingleton<SparkplugLifecycleStore>();
             builder.Services.AddSingleton<SparkplugIngestor>();
             builder.Services.AddSingleton<SonnetMqttBrokerBridge>();
+            builder.Services.AddSingleton<SparkplugHostApplicationService>();
             // AOT 安全：用泛型控制器重载（编译期已知类型）替代程序集扫描重载。
             builder.Services.AddMqttControllers<SonnetMqttController>(options =>
                 options.WithCaseSensitiveTopicMatching());
@@ -70,6 +78,9 @@ internal static class MqttServerBootstrap
                 .AddHostedMqttServerWithServices(options => options.WithoutDefaultEndpoint())
                 .AddMqttConnectionHandler()
                 .AddConnections();
+            // 晚于 broker 注册，保证启动时 broker 先就绪、停止时 STATE/OFFLINE 先发出。
+            builder.Services.AddHostedService(static services =>
+                services.GetRequiredService<SparkplugHostApplicationService>());
         }
 
         if (externalClientEnabled)

@@ -9,6 +9,10 @@ internal enum SparkplugMessageType
     DBirth,
     NData,
     DData,
+    NDeath,
+    DDeath,
+    NCommand,
+    DCommand,
 }
 
 /// <summary>
@@ -23,8 +27,17 @@ internal readonly record struct SparkplugTopicRoute(
     /// <summary>当前消息是否为 BIRTH 快照。</summary>
     public bool IsBirth => MessageType is SparkplugMessageType.NBirth or SparkplugMessageType.DBirth;
 
+    /// <summary>当前消息是否为死亡通知。</summary>
+    public bool IsDeath => MessageType is SparkplugMessageType.NDeath or SparkplugMessageType.DDeath;
+
+    /// <summary>当前消息是否为下行命令。</summary>
+    public bool IsCommand => MessageType is SparkplugMessageType.NCommand or SparkplugMessageType.DCommand;
+
     /// <summary>当前消息是否属于设备级 topic。</summary>
-    public bool IsDevice => MessageType is SparkplugMessageType.DBirth or SparkplugMessageType.DData;
+    public bool IsDevice => MessageType is SparkplugMessageType.DBirth
+        or SparkplugMessageType.DData
+        or SparkplugMessageType.DDeath
+        or SparkplugMessageType.DCommand;
 
     /// <summary>metric 写入使用的 measurement。</summary>
     public string Measurement => DeviceId ?? EdgeNodeId;
@@ -35,6 +48,24 @@ internal readonly record struct SparkplugTopicRoute(
 /// </summary>
 internal static class SparkplugTopicParser
 {
+    /// <summary>
+    /// 校验 edge node 可订阅的精确 NCMD/DCMD 或 Primary Host STATE topic。
+    /// </summary>
+    public static bool IsCommandOrStateTopic(string? topic)
+    {
+        if (TryParse(topic, out SparkplugTopicRoute route, out _))
+            return route.IsCommand;
+
+        if (string.IsNullOrWhiteSpace(topic))
+            return false;
+
+        string[] segments = topic.Split('/', StringSplitOptions.None);
+        return segments.Length == 3
+            && string.Equals(segments[0], "spBv1.0", StringComparison.Ordinal)
+            && string.Equals(segments[1], "STATE", StringComparison.Ordinal)
+            && IsValidIdentifier(segments[2]);
+    }
+
     /// <summary>
     /// 解析 <c>spBv1.0/{group}/{messageType}/{edgeNode}/[{device}]</c> topic。
     /// </summary>
@@ -59,11 +90,14 @@ internal static class SparkplugTopicParser
 
         if (!TryParseMessageType(segments[2], out var messageType))
         {
-            error = $"#263 仅处理 NBIRTH/DBIRTH/NDATA/DDATA，收到 '{segments[2]}'。";
+            error = $"不支持 Sparkplug 消息类型 '{segments[2]}'。";
             return false;
         }
 
-        bool deviceMessage = messageType is SparkplugMessageType.DBirth or SparkplugMessageType.DData;
+        bool deviceMessage = messageType is SparkplugMessageType.DBirth
+            or SparkplugMessageType.DData
+            or SparkplugMessageType.DDeath
+            or SparkplugMessageType.DCommand;
         if (deviceMessage != (segments.Length == 5))
         {
             error = deviceMessage
@@ -93,9 +127,14 @@ internal static class SparkplugTopicParser
             "DBIRTH" => SparkplugMessageType.DBirth,
             "NDATA" => SparkplugMessageType.NData,
             "DDATA" => SparkplugMessageType.DData,
+            "NDEATH" => SparkplugMessageType.NDeath,
+            "DDEATH" => SparkplugMessageType.DDeath,
+            "NCMD" => SparkplugMessageType.NCommand,
+            "DCMD" => SparkplugMessageType.DCommand,
             _ => default,
         };
-        return value is "NBIRTH" or "DBIRTH" or "NDATA" or "DDATA";
+        return value is "NBIRTH" or "DBIRTH" or "NDATA" or "DDATA"
+            or "NDEATH" or "DDEATH" or "NCMD" or "DCMD";
     }
 
     private static bool IsValidIdentifier(string value)
