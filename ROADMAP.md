@@ -15,7 +15,7 @@
 | Milestone | 主题 | PR 范围 | 状态 |
 |-----------|------|---------|------|
 | 0~16 | 早期路线（脚手架 → Copilot 产品化） | #1 ~ #88 | ✅（摘要见下「已完成里程碑」，详情见归档） |
-| 17 | 可观测性与运行时可见性（OTel + 结构化日志 + 诊断端点） | #89 ~ #98 | 🚧（#89~#95、#97 ✅；#96、#98 📋） |
+| 17 | 可观测性与运行时可见性（OTel + 结构化日志 + 诊断端点） | #89 ~ #98 | 🚧（#89~#97 ✅；#98 📋） |
 | 18 | VS Code 数据库扩展（SonnetDB for VS Code） | #99 ~ #108 | 🚧（#99~#106 ✅；#107 C# parser diagnostics 第一批 ✅、signature/repair 待续；#108 Marketplace/实机验收待续） |
 | 19 | 生态适配底座能力（关系 + KV/缓存 + 对象桶 + 大量 measurement） | #109 ~ #126 | 🚧（#109~#117、#122/#123 ✅；余项按需） |
 | 20 | 多模能力对齐与平移测试（Parity） | #127 ~ #136 | ✅ |
@@ -43,7 +43,7 @@
 > - **Milestone 30 — 多协议设备接入扩展**：在 M28 已交付的 MQTT 双形态之上补 Sparkplug B（骑 #242 broker）、CoAP、Line Protocol UDP 三条被动接收通道，三段独立可并行，全部收敛既有 BulkIngest 落库。
 >
 > **进行中（按带宽穿插）**：
-> - **M17 可观测性**：#89~#95、#97 已落地（含结构化日志、Copilot 知识召回指标和细粒度 Agent span）；下一步推进 #96，最后由 #98 完成文档与端到端联调，详见 M17「可观测性与 Copilot 下一步规划」小节。
+> - **M17 可观测性**：#89~#97 已落地（含结构化日志、Diagnostic Dump、Copilot 知识召回指标和细粒度 Agent span）；下一步由 #98 完成文档与端到端联调，详见 M17「可观测性与 Copilot 下一步规划」小节。
 > - **M27 Industrial Data Agent**：M28 收官后 #184 端到端工业异常 Demo 阻塞解除、可启动；#183/#185 纯文档随时可做。
 > - **M18 VS Code**：#99~#106 首个可用闭环与 #107 C# Parser diagnostics sidecar 第一批已完成；下一步补 signature help / repair suggestion，再进入 #108 Marketplace 正式发布与 Electron 实机验收。**M19 生态底座**余项为对象治理 / 通用迁移原语 / 大量 measurement 长稳。
 >
@@ -128,7 +128,7 @@
 
 ### 界面收口顺序
 
-1. **P0 运维可见性**：M17 #92、#94、#95、#97 已完成 Web Admin 对应闭环；下一项为 #96 Diagnostic Dump 端点。
+1. **P0 运维可见性**：M17 #92、#94~#97 已完成，包括仅管理员可采集的 Diagnostic Dump；下一项由 #98 完成文档与端到端联调。
 2. **P1 VS Code 产品化**：M18 #107 → #108，完成 LSP sidecar、真实 Extension Host UI e2e、截图和 Marketplace 发布。
 3. **P1 Studio 收口**：补安装包与桌面宿主生命周期实机自动化验收。
 4. **P2 模型体验补口**：Document update/index/change feed、KV 文件 round-trip、MQ 消息文件导入、向量编辑/导入和全文独立导入均已完成；后续按 M32 继续 Document 引擎与迁移工具，小于 800px 完整治理暂缓。
@@ -751,7 +751,7 @@ D 收口：
 | #93 | **M17.5：结构化日志统一**：所有 `ILogger` 调用改用源生成日志（`[LoggerMessage]`），消除运行时 string interpolation 装箱。统一日志事件分类（Write / Query / Flush / Compaction / Wal / Copilot / Auth / Http）与 EventId 区段（1000~1999 写入；2000~2999 查询；…）。在 `Program.cs` 引入 `JsonConsoleFormatter`，生产模式默认输出 JSON 行（`logging.json`），开发模式保持单行简化格式。 | ✅ |
 | #94 | **M17.6：Health / Readiness 端点扩展**：把现有 `/healthz` 拆为 `/healthz/live`（进程存活）与 `/healthz/ready`（细分 checks：`segment_store_writable`、`wal_writable`、`copilot_provider_reachable`、`copilot_embedding_provider_reachable`）。引入 `IHealthCheck` 接口的 SonnetDB 实现（无第三方依赖），结果以 ASP.NET Core HealthChecks 标准 JSON 输出。Web Admin 顶部状态条改为消费 `/healthz/ready`，单独显示 4 个 check 的颜色点。 | ✅ |
 | #95 | **M17.7：Slow Query Log + Top-N 查询统计**：可选开关 `Observability:SlowQueryLog:Enabled=true` + `ThresholdMs=10000`，并支持 30s / 60s 分级。`QueryEngine.Execute` 完成后若超过阈值则发 `Activity.RecordException`-风格的结构化日志事件，并写入内存环形缓冲（`SonnetDB.Diagnostics.SlowQueryRing` 默认 256 条）。新增 `GET /v1/diagnostics/slow-queries` 与 `GET /v1/diagnostics/top-queries`（按归一化 SQL 指纹聚合 count / p50 / p95 / max）。Web Admin SQL Console 旁边新增「慢查询」抽屉。 | ✅ |
-| #96 | **M17.8：Diagnostic Dump 端点**：新增 `GET /v1/diagnostics/dump`（仅 admin token）返回 JSON 快照：进程 GC（`GC.GetGCMemoryInfo()` / `GC.GetTotalMemory(false)`）、ThreadPool（`ThreadPool.GetAvailableThreads`）、SonnetDB 内部计数（每 db 的 MemTable 大小 / Segment 数 / 待 Compaction 任务 / WAL 文件列表 / Copilot 在飞会话数）。**禁止 dump 用户数据点本身**，仅 metadata。CLI 新增 `sonnetdb-cli diag dump` 命令直接调该端点，便于复现性能问题时一键采集。 | 📋 |
+| #96 | **M17.8：Diagnostic Dump 端点**：新增 `GET /v1/diagnostics/dump`（仅 admin token）返回 JSON 快照：进程 GC（`GC.GetGCMemoryInfo()` / `GC.GetTotalMemory(false)`）、ThreadPool（`ThreadPool.GetAvailableThreads`）、SonnetDB 内部计数（每 db 的 MemTable 大小 / Segment 数 / 待 Compaction 任务 / WAL 文件列表 / Copilot 在飞会话数）。**禁止 dump 用户数据点本身**，仅 metadata。CLI 新增 `sndb diag dump` 命令直接调该端点，便于复现性能问题时一键采集。 | ✅ |
 | #97 | **M17.9：Copilot 服务端会话持久化（M16 M5 二阶段）**：在 `__copilot__` 系统库新增 `conversations`、`messages` 与 `usage_events` 三张关系系统表；新增 `GET/POST/DELETE /v1/copilot/conversations[/{id}]`、`GET /v1/copilot/conversations/{id}/messages` 与 `GET /v1/copilot/metrics`。CopilotDock 从服务端加载历史，认证用户按用户名隔离，静态 Token 按不可逆哈希隔离；不再使用浏览器 `localStorage` 回退。会话、消息、引用与用量支持重启恢复和跨设备同步。 | ✅ |
 | #98 | **M17.10：CHANGELOG / docs / OTel 端到端验证**：补 `docs/observability.md`（指标列表、追踪 span 树、health checks 含义、prom scrape 配置示例、`OTEL_EXPORTER_OTLP_ENDPOINT` 与本地 Aspire Dashboard 联调）；补 `docs/troubleshooting.md`（常见慢查询模式 + diagnostic dump 解读）；补 docker-compose 示例追加可选 `otel-collector` + `prometheus` + `grafana` 三服务（`profile: observability`，默认不启动）；端到端验证：嵌入式启动 → 触发写入 / 查询 / Copilot 调用 → 在 Aspire Dashboard 看到完整 trace（HTTP → SQL → Segment 读取 → Copilot Agent → tool 调用）。 | 📋 |
 
@@ -783,7 +783,7 @@ PR #89（Core Meter / Activity 基线）
 - **#93 结构化日志（已完成）** —— `[LoggerMessage]` 源生成 + JSON 行 + EventId 分区，消除装箱、便于集中式日志检索。
 - **#94 Health Live/Ready 拆分** —— `/healthz/live` vs `/healthz/ready`（segment / wal / copilot provider 细分 check），供编排探活。
 - **#95 慢查询 Log + Top-N 统计** —— 归一化 SQL 指纹聚合 p50/p95/max，Web Admin 慢查询抽屉。
-- **#96 诊断 Dump 端点** —— GC / ThreadPool / 每 db 内部计数快照（仅 metadata，不含用户数据点），CLI 一键采集。
+- **#96 诊断 Dump 端点（已完成）** —— GC / ThreadPool / 每 db 内部计数快照（仅 metadata，不含用户数据点），CLI 一键采集。
 - **#97 Copilot 服务端会话持久化（已完成）** —— `__copilot__` 系统库存会话 / 消息 / 用量事实，按认证 owner 跨设备同步，不再回落 localStorage。
 - **#98 文档 + docker-compose + 端到端联调** —— `docs/observability.md`、Aspire Dashboard / OTLP Collector 全链路 trace 验证。
 
@@ -792,7 +792,7 @@ PR #89（Core Meter / Activity 基线）
 - **M17 侧**：#92（指标）+ #97（会话服务端持久化、跨设备同步）。
 - **M27 侧（M28 已收官、依赖解除）**：#184 端到端工业异常 Demo（P5 MQTT 内建 broker + P0/P2 可靠写入已就绪，**现可启动**）、#187 eval 与成本指标（provider / model / tool 调用数 / 失败原因 / 近似 token 成本；仍建议推迟到有真实采纳之后）；#183（MCP 工具契约文档化）/ #185（provider-neutral 配置样例）纯文档，随时可做。
 
-**建议下一步排序**：**#92 已补齐**知识召回 hit/miss 与细粒度 Agent 子 span，**#93 已完成**源生成结构化日志与生产 JSON formatter；**M27 #184 Demo** 可与 M17 第二波并行；下一步推进 #96，#98 最后收口。
+**建议下一步排序**：**#92 已补齐**知识召回 hit/miss 与细粒度 Agent 子 span，**#93 已完成**源生成结构化日志与生产 JSON formatter，**#96 已完成**管理员 Diagnostic Dump 与 CLI 一键采集；**M27 #184 Demo** 可并行，下一步由 #98 收口文档和端到端联调。
 
 **前置依赖**：Milestone 16 已合并。本 Milestone 不破坏 SonnetDB Core 二进制格式，对 `__copilot__` 系统库新增 measurement 走现有 schema 升级路径（`SeriesCatalog` 自动 upsert）。**Core 仍坚持零第三方运行时依赖**，OpenTelemetry SDK 只允许出现在 `src/SonnetDB`（Server 程序集）的 `csproj`。
 

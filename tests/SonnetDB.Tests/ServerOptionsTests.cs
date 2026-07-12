@@ -8,7 +8,7 @@ namespace SonnetDB.Tests;
 public sealed class ServerOptionsTests
 {
     [Fact]
-    public void Defaults_UseProductionSlowQueryThresholds()
+    public void Defaults_UseProductionObservabilitySettings()
     {
         var options = new ServerOptions();
 
@@ -18,6 +18,22 @@ public sealed class ServerOptionsTests
         Assert.Equal(30_000, slowQuery.WarningThresholdMs);
         Assert.Equal(60_000, slowQuery.CriticalThresholdMs);
         Assert.Equal(256, slowQuery.Capacity);
+        Assert.False(options.Observability.DiagnosticDump.Enabled);
+    }
+
+    [Fact]
+    public void Bind_WithDiagnosticDumpEnabled_AppliesExplicitOptIn()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SonnetDBServer:Observability:DiagnosticDump:Enabled"] = "true",
+            })
+            .Build();
+
+        var options = ServerOptionsBinder.Bind(configuration);
+
+        Assert.True(options.Observability.DiagnosticDump.Enabled);
     }
 
     [Fact]

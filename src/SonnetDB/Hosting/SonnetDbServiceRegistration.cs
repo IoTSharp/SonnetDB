@@ -46,6 +46,7 @@ internal static class SonnetDbServiceRegistration
             return new SlowQueryRing(Math.Clamp(options.Capacity, 16, 4096));
         });
         builder.Services.AddSingleton<SlowQueryDiagnostics>();
+        builder.Services.AddSingleton<DiagnosticDumpService>();
         builder.Services.AddSingleton<SonnetDbMcpContextAccessor>();
         builder.Services.AddSingleton<SonnetDbMcpSchemaCache>();
         builder.Services.AddSingleton<SonnetDbMcpExplainSqlService>();
@@ -85,6 +86,7 @@ internal static class SonnetDbServiceRegistration
             return store;
         });
         builder.Services.AddSingleton<CopilotReadiness>();
+        builder.Services.AddSingleton<CopilotInFlightTracker>();
         builder.Services.AddHttpClient();
         builder.Services.AddHealthChecks()
             .AddCheck<SegmentStoreWritableHealthCheck>(

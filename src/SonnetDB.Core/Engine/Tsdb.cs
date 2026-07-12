@@ -147,6 +147,61 @@ public sealed class Tsdb : IDisposable
         }
     }
 
+    /// <summary>
+    /// 获取仅含运行时计数与 WAL 文件元数据的线程安全诊断快照。
+    /// </summary>
+    /// <remarks>
+    /// 快照不会枚举或返回用户数据点、字段值或 WAL 记录内容。待压缩任务数是在维护锁内，
+    /// 基于稳定 Segment 读租约按当前 Compaction 策略即时规划得到。
+    /// </remarks>
+    /// <returns>当前引擎运行时诊断快照。</returns>
+    public TsdbRuntimeDiagnosticSnapshot GetRuntimeDiagnosticSnapshot()
+    {
+        lock (_maintenanceSync)
+        {
+            long memTableEstimatedBytes;
+            long memTablePointCount;
+            long pendingFlushTasks;
+            long checkpointLsn;
+            IReadOnlyList<WalFileDiagnosticSnapshot> walFiles;
+
+            lock (_writeSync)
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                memTableEstimatedBytes = _activeMemTable.EstimatedBytes;
+                memTablePointCount = _activeMemTable.PointCount;
+                pendingFlushTasks = _flushPump?.PendingCount ?? 0;
+                checkpointLsn = _checkpointLsn;
+
+                var activeWalPath = _walSet?.ActiveSegmentPath;
+                walFiles = _walSet?.Segments
+                    .Select(segment => new WalFileDiagnosticSnapshot(
+                        Path.GetFileName(segment.Path),
+                        segment.FileLength,
+                        segment.StartLsn,
+                        segment.HasLastLsn ? segment.LastLsn : null,
+                        string.Equals(segment.Path, activeWalPath, StringComparison.OrdinalIgnoreCase)))
+                    .ToArray()
+                    ?? [];
+            }
+
+            using var lease = Segments.AcquireSnapshot();
+            var readers = lease.Readers;
+            var pendingCompactionTasks = _options.Compaction.Enabled
+                ? CompactionPlanner.Plan(readers, _options.Compaction).Count
+                : 0;
+
+            return new TsdbRuntimeDiagnosticSnapshot(
+                memTableEstimatedBytes,
+                memTablePointCount,
+                readers.Count,
+                pendingFlushTasks,
+                pendingCompactionTasks,
+                checkpointLsn,
+                walFiles);
+        }
+    }
+
     /// <summary>后台 Flush 策略（供 BackgroundFlushWorker 访问）。</summary>
     internal MemTableFlushPolicy BackgroundFlushPolicy => _options.FlushPolicy;
     internal SegmentWriterOptions CompactionWriterOptions => _options.SegmentWriterOptions;

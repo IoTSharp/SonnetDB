@@ -7,6 +7,7 @@
 
 ### Added
 
+- **M17 #96 Diagnostic Dump**：新增默认关闭、仅 admin 可访问的 `GET /v1/diagnostics/dump`，返回进程/GC/ThreadPool、逐数据库 MemTable/Segment/Flush/Compaction/WAL metadata 与 Copilot 在飞会话数；Core 以维护锁和稳定读租约生成快照，WAL 仅暴露文件名与 LSN/长度，禁止返回路径、记录或用户点值。CLI 新增 `sndb diag dump`，支持 Bearer token、超时及直接写入 JSON 文件。
 - **M17 #93 结构化日志统一**：Server 自有 `ILogger` 事件统一迁移到 `[LoggerMessage]` 源生成路径，按 Write 1000、Query 2000、Flush 3000、Compaction 4000、Wal 5000、Copilot 6000、Auth 7000、Http 8000 分段治理 EventId，并用稳定 `EventName` 暴露日志分类；生产及非 Development 环境默认输出带 Activity TraceId/SpanId 的 JSON 行，Development 保持单行文本控制台格式。
 - **M17 #92 Copilot 知识召回指标与细粒度追踪**：`SonnetDB.Copilot` Meter 新增 `copilot.knowledge.recall.hits` / `.misses`，由文档知识检索入口按每次查询记录一次命中或未命中，覆盖 Agent、REST 与 MCP 调用面；`PlanToolsAsync`、`RunToolAsync`、`GenerateAnswerAsync` 新增独立子 span，工具 span 携带 `tool.name`、`tool.arguments.length`、`tool.result.rows`，规划与回答 span 标记模型/回退来源及结果规模，异常仅记录类型而不写入可能包含用户数据的消息。
 

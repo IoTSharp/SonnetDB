@@ -60,6 +60,7 @@ internal sealed class CliApplication
                 "connect" => RunConnect(args),
                 "backup" => RunBackup(args),
                 "copilot" => new CopilotCommandRunner(_output, _error).Run(args),
+                "diag" => new DiagnosticCommandRunner(_output, _error).Run(args),
                 _ => FailParse($"未知命令 '{command}'。"),
             };
         }
@@ -1034,6 +1035,7 @@ SonnetDB CLI __VERSION__
   sndb backup  restore --path ./backup --target ./restored [--overwrite] [--no-verify] [--rebuild-indexes]
   sndb backup  rebuild-indexes --path ./restored
   sndb copilot ingest [--root ./docs]... [--endpoint http://host] [--token t] [--force] [--dry-run]
+  sndb diag dump [--endpoint http://host] [--token admin-token] [--output ./diagnostic-dump.json]
 
 示例:
   sndb local  --path ./demo-data --save-profile home --default

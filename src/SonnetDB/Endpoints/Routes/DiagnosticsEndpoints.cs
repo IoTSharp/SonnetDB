@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using SonnetDB.Auth;
+using SonnetDB.Configuration;
 using SonnetDB.Contracts;
 using SonnetDB.Diagnostics;
 using SonnetDB.Hosting;
@@ -14,12 +16,28 @@ internal static partial class SonnetDbEndpoints
     private const string DiagnosticsControlPlaneDatabase = "__control";
 
     /// <summary>
-    /// 映射慢查询明细与 Top-N 指纹聚合诊断端点。
+    /// 映射管理员 Diagnostic Dump、慢查询明细与 Top-N 指纹聚合诊断端点。
     /// </summary>
     private static void MapDiagnosticsEndpoints(this WebApplication app)
     {
         var diagnostics = app.Services.GetRequiredService<SlowQueryDiagnostics>();
         var grants = app.Services.GetRequiredService<GrantsStore>();
+
+        var dumpEnabled = app.Services.GetRequiredService<IOptions<ServerOptions>>()
+            .Value.Observability.DiagnosticDump.Enabled;
+        if (dumpEnabled)
+        {
+            var dumpService = app.Services.GetRequiredService<DiagnosticDumpService>();
+            app.MapGet("/v1/diagnostics/dump", (HttpContext ctx) =>
+            {
+                if (!DatabaseAccessEvaluator.IsServerAdmin(ctx))
+                    return ForbiddenResult("仅 admin 可读取 Diagnostic Dump。");
+
+                return Results.Json(
+                    dumpService.Capture(),
+                    ServerJsonContext.Default.DiagnosticDumpResponse);
+            });
+        }
 
         app.MapGet("/v1/diagnostics/slow-queries", (HttpContext ctx) =>
         {

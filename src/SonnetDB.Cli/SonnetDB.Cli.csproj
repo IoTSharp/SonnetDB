@@ -4,7 +4,7 @@
     <OutputType>Exe</OutputType>
     <PackageId>SonnetDB.Cli</PackageId>
     <Title>SonnetDB.Cli</Title>
-    <Description>SonnetDB 命令行工具，支持本地或远程执行 SQL、交互式 REPL 与版本查询。</Description>
+    <Description>SonnetDB 命令行工具，支持本地或远程 SQL、交互式 REPL、备份与运行时诊断采集。</Description>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>sndb</ToolCommandName>
     <PackageReadmeFile>PackageReadme.md</PackageReadmeFile>

@@ -28,14 +28,15 @@ internal static class CopilotChatEndpointHandler
         ICopilotCloudGatewayClient cloudClient,
         CopilotLocalToolExecutor toolExecutor,
         CopilotStateStore stateStore,
+        CopilotInFlightTracker inFlightTracker,
         GrantsStore grantsStore,
         TsdbRegistry registry)
     {
         app.MapMethods("/v1/copilot/chat", ["POST"], (RequestDelegate)(ctx =>
-            HandleAsync(ctx, configStore, cloudClient, toolExecutor, stateStore, grantsStore, registry, sse: false)));
+            HandleAsync(ctx, configStore, cloudClient, toolExecutor, stateStore, inFlightTracker, grantsStore, registry, sse: false)));
 
         app.MapMethods("/v1/copilot/chat/stream", ["POST"], (RequestDelegate)(ctx =>
-            HandleAsync(ctx, configStore, cloudClient, toolExecutor, stateStore, grantsStore, registry, sse: true)));
+            HandleAsync(ctx, configStore, cloudClient, toolExecutor, stateStore, inFlightTracker, grantsStore, registry, sse: true)));
     }
 
     private static async Task HandleAsync(
@@ -44,6 +45,7 @@ internal static class CopilotChatEndpointHandler
         ICopilotCloudGatewayClient cloudClient,
         CopilotLocalToolExecutor toolExecutor,
         CopilotStateStore stateStore,
+        CopilotInFlightTracker inFlightTracker,
         GrantsStore grantsStore,
         TsdbRegistry registry,
         bool sse)
@@ -174,6 +176,7 @@ internal static class CopilotChatEndpointHandler
         ctx.Response.Headers.Append("X-Accel-Buffering", "no");
 
         var startedAt = Stopwatch.GetTimestamp();
+        using var inFlightLease = inFlightTracker.Enter();
         using var activity = CopilotDiagnostics.ActivitySource.StartActivity("copilot.chat", ActivityKind.Server);
         activity?.SetTag("copilot.mode", cloudRequest.Mode);
         activity?.SetTag("copilot.conversation_id", cloudRequest.ConversationId);
