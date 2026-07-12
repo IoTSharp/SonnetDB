@@ -11,8 +11,30 @@ namespace SonnetDB.Sql.Execution;
 /// </summary>
 internal static class RelationalSelectExecutor
 {
+    /// <summary>
+    /// 执行顶层关系 SELECT，并为本次查询创建统一的子查询记忆表。
+    /// </summary>
+    /// <param name="tsdb">目标数据库。</param>
+    /// <param name="statement">待执行的 SELECT AST。</param>
+    /// <returns>关系查询结果。</returns>
     public static SelectExecutionResult Execute(Tsdb tsdb, SelectStatement statement)
-        => Execute(tsdb, statement, outerScope: null);
+        => Execute(tsdb, statement, outerScope: null, new SubqueryMemo(metrics: null));
+
+    /// <summary>
+    /// 使用子查询执行指标运行关系查询，供回归测试和基准验证记忆化效果。
+    /// </summary>
+    /// <param name="tsdb">目标数据库。</param>
+    /// <param name="statement">待执行的 SELECT AST。</param>
+    /// <param name="metrics">接收实际子查询执行次数与缓存命中次数的指标。</param>
+    /// <returns>关系查询结果。</returns>
+    internal static SelectExecutionResult Execute(
+        Tsdb tsdb,
+        SelectStatement statement,
+        RelationalSelectExecutionMetrics metrics)
+    {
+        ArgumentNullException.ThrowIfNull(metrics);
+        return Execute(tsdb, statement, outerScope: null, new SubqueryMemo(metrics));
+    }
 
     /// <summary>
     /// 相关子查询入口：携带外层 (列, 行) 上下文执行子 SELECT。
@@ -22,7 +44,8 @@ internal static class RelationalSelectExecutor
     private static SelectExecutionResult Execute(
         Tsdb tsdb,
         SelectStatement statement,
-        RelationalScope? outerScope)
+        RelationalScope? outerScope,
+        SubqueryMemo memo)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
@@ -34,11 +57,8 @@ internal static class RelationalSelectExecutor
         foreach (var join in statement.JoinClauses)
         {
             var right = LoadJoin(tsdb, join);
-            relation = Join(tsdb, relation, right, join.On, join.Kind, outerScope);
+            relation = Join(tsdb, relation, right, join.On, join.Kind, outerScope, memo);
         }
-
-        // #216：本层查询的子查询记忆表——非相关子查询整段外层扫描只执行一次并缓存。
-        var memo = new SubqueryMemo();
 
         if (statement.Where is not null)
         {
@@ -52,15 +72,15 @@ internal static class RelationalSelectExecutor
             || statement.GroupBy.Count > 0
             || statement.Having is not null)
         {
-            var aggregateProjection = ExecuteAggregateProjection(tsdb, statement, relation, outerScope);
+            var aggregateProjection = ExecuteAggregateProjection(tsdb, statement, relation, outerScope, memo);
             return ApplyOrderByAndPagination(aggregateProjection, statement.OrderByList, statement.Pagination);
         }
 
         var canApplyRelationOrderBy = CanApplyRelationOrderBy(statement.OrderByList, relation);
         var orderedRelation = canApplyRelationOrderBy
-            ? ApplyRelationOrderBy(tsdb, relation, statement.OrderByList, outerScope)
+            ? ApplyRelationOrderBy(tsdb, relation, statement.OrderByList, outerScope, memo)
             : relation;
-        var projected = ExecuteRawProjection(tsdb, statement, orderedRelation, outerScope);
+        var projected = ExecuteRawProjection(tsdb, statement, orderedRelation, outerScope, memo);
         if (statement.OrderByList.Count > 0 && !canApplyRelationOrderBy)
             return ApplyOrderByAndPagination(projected, statement.OrderByList, statement.Pagination);
         return ApplyPagination(projected, statement.Pagination);
@@ -89,12 +109,15 @@ internal static class RelationalSelectExecutor
     /// <summary>
     /// 子查询结果记忆表（#216）：按子查询 <see cref="SelectStatement"/> AST 节点身份缓存。
     /// 非相关子查询整段外层扫描只执行一次；已判定为相关的子查询记入 <see cref="_correlated"/>，此后每行照常执行。
-    /// 生命周期 = 一次顶层关系查询执行（跨其全部外层行）。
+    /// 生命周期 = 一次顶层关系查询执行，并由所有递归表达式子查询共享。
     /// </summary>
     private sealed class SubqueryMemo
     {
         private readonly Dictionary<SelectStatement, SelectExecutionResult> _cache = new(ReferenceEqualityComparer.Instance);
         private readonly HashSet<SelectStatement> _correlated = new(ReferenceEqualityComparer.Instance);
+        private readonly RelationalSelectExecutionMetrics? _metrics;
+
+        public SubqueryMemo(RelationalSelectExecutionMetrics? metrics) => _metrics = metrics;
 
         public bool TryGetCached(SelectStatement subquery, out SelectExecutionResult result)
             => _cache.TryGetValue(subquery, out result!);
@@ -105,6 +128,10 @@ internal static class RelationalSelectExecutor
             => _cache[subquery] = result;
 
         public void MarkCorrelated(SelectStatement subquery) => _correlated.Add(subquery);
+
+        public void RecordExecution() => _metrics?.RecordSubqueryExecution();
+
+        public void RecordCacheHit() => _metrics?.RecordSubqueryCacheHit();
     }
 
     public static bool NeedsRelationalPath(SelectStatement statement)
@@ -174,18 +201,32 @@ internal static class RelationalSelectExecutor
             : column;
     }
 
-    private static Relation Join(Tsdb tsdb, Relation left, Relation right, SqlExpression on, JoinKind kind, RelationalScope? outerScope = null)
+    private static Relation Join(
+        Tsdb tsdb,
+        Relation left,
+        Relation right,
+        SqlExpression on,
+        JoinKind kind,
+        RelationalScope? outerScope,
+        SubqueryMemo memo)
     {
         // #215：等值连接走哈希连接（O(N+M)），替换全物化嵌套循环笛卡尔积（O(N×M)）。
         // 仅当 ON 能拆出至少一组 left_col = right_col 等值键、且无相关子查询等复杂依赖时启用；
         // 否则回退嵌套循环。残差（非等值）合取项在候选对上再求值，保持语义完全一致。
         if (TryPlanHashJoin(left, right, on, out var keyPairs, out var residual))
-            return HashJoin(tsdb, left, right, keyPairs, residual, kind, outerScope);
+            return HashJoin(tsdb, left, right, keyPairs, residual, kind, outerScope, memo);
 
-        return NestedLoopJoin(tsdb, left, right, on, kind, outerScope);
+        return NestedLoopJoin(tsdb, left, right, on, kind, outerScope, memo);
     }
 
-    private static Relation NestedLoopJoin(Tsdb tsdb, Relation left, Relation right, SqlExpression on, JoinKind kind, RelationalScope? outerScope)
+    private static Relation NestedLoopJoin(
+        Tsdb tsdb,
+        Relation left,
+        Relation right,
+        SqlExpression on,
+        JoinKind kind,
+        RelationalScope? outerScope,
+        SubqueryMemo memo)
     {
         var columns = left.Columns.Concat(right.Columns).ToArray();
         var rows = new List<object?[]>();
@@ -200,7 +241,7 @@ internal static class RelationalSelectExecutor
                 // M2 修复：JOIN ON 中如果出现引用外层列的标量子查询 / EXISTS，
                 // 旧实现丢掉 outerScope —— 那种写法会在 GetColumnValue 里报"未知列"。
                 // 现在把当前 SELECT 的 outerScope 透传给 JOIN ON 求值。
-                if (EvaluateBoolean(tsdb, on, columns, row, outerScope))
+                if (EvaluateBoolean(tsdb, on, columns, row, outerScope, memo))
                 {
                     matched = true;
                     rows.Add(row);
@@ -293,7 +334,8 @@ internal static class RelationalSelectExecutor
         List<JoinKeyPair> keyPairs,
         List<SqlExpression> residual,
         JoinKind kind,
-        RelationalScope? outerScope)
+        RelationalScope? outerScope,
+        SubqueryMemo memo)
     {
         var columns = left.Columns.Concat(right.Columns).ToArray();
         var rows = new List<object?[]>();
@@ -326,7 +368,7 @@ internal static class RelationalSelectExecutor
                     Array.Copy(leftRow, row, leftRow.Length);
                     Array.Copy(rightRow, 0, row, leftRow.Length, rightRow.Length);
 
-                    if (hasResidual && !ResidualHolds(tsdb, residual, columns, row, outerScope))
+                    if (hasResidual && !ResidualHolds(tsdb, residual, columns, row, outerScope, memo))
                         continue;
 
                     matched = true;
@@ -345,11 +387,17 @@ internal static class RelationalSelectExecutor
         return new Relation(columns, rows);
     }
 
-    private static bool ResidualHolds(Tsdb tsdb, List<SqlExpression> residual, IReadOnlyList<RelColumn> columns, IReadOnlyList<object?> row, RelationalScope? outerScope)
+    private static bool ResidualHolds(
+        Tsdb tsdb,
+        List<SqlExpression> residual,
+        IReadOnlyList<RelColumn> columns,
+        IReadOnlyList<object?> row,
+        RelationalScope? outerScope,
+        SubqueryMemo memo)
     {
         foreach (var conjunct in residual)
         {
-            if (!EvaluateBoolean(tsdb, conjunct, columns, row, outerScope))
+            if (!EvaluateBoolean(tsdb, conjunct, columns, row, outerScope, memo))
                 return false;
         }
         return true;
@@ -431,7 +479,8 @@ internal static class RelationalSelectExecutor
         Tsdb tsdb,
         SelectStatement statement,
         Relation relation,
-        RelationalScope? outerScope = null)
+        RelationalScope? outerScope,
+        SubqueryMemo memo)
     {
         var projections = BuildRawProjections(statement.Projections, relation);
         var rows = new List<IReadOnlyList<object?>>(relation.Rows.Count);
@@ -439,7 +488,7 @@ internal static class RelationalSelectExecutor
         {
             var output = new object?[projections.Count];
             for (int i = 0; i < projections.Count; i++)
-                output[i] = EvaluateScalar(tsdb, projections[i].Expression, relation.Columns, row, outerScope);
+                output[i] = EvaluateScalar(tsdb, projections[i].Expression, relation.Columns, row, outerScope, memo);
             rows.Add(output);
         }
 
@@ -447,7 +496,35 @@ internal static class RelationalSelectExecutor
     }
 
     private static bool CanApplyRelationOrderBy(IReadOnlyList<OrderBySpec> orderBy, Relation relation)
-        => orderBy.All(order => order.Expression is IdentifierExpression id && TryResolveInRelation(relation, id) is not null);
+        => orderBy.All(order => CanEvaluateAgainstRelation(order.Expression, relation));
+
+    /// <summary>
+    /// 判断排序表达式是否能在投影前直接基于关系行求值；子查询内部拥有独立列作用域，
+    /// 仅需把当前关系作为其外层作用域。无法解析的裸标识符保留给投影别名排序路径。
+    /// </summary>
+    private static bool CanEvaluateAgainstRelation(SqlExpression expression, Relation relation)
+    {
+        return expression switch
+        {
+            LiteralExpression or DurationLiteralExpression or SubqueryExpression or ExistsExpression => true,
+            IdentifierExpression identifier => TryResolveInRelation(relation, identifier) is not null,
+            UnaryExpression unary => CanEvaluateAgainstRelation(unary.Operand, relation),
+            BinaryExpression binary => CanEvaluateAgainstRelation(binary.Left, relation)
+                && CanEvaluateAgainstRelation(binary.Right, relation),
+            IsNullExpression isNull => CanEvaluateAgainstRelation(isNull.Operand, relation),
+            InExpression inExpression => CanEvaluateAgainstRelation(inExpression.Value, relation)
+                && (inExpression.Subquery is not null
+                    || inExpression.Values.All(value => CanEvaluateAgainstRelation(value, relation))),
+            CaseExpression caseExpression => caseExpression.WhenClauses.All(when =>
+                    CanEvaluateAgainstRelation(when.Condition, relation)
+                    && CanEvaluateAgainstRelation(when.Result, relation))
+                && (caseExpression.Else is null || CanEvaluateAgainstRelation(caseExpression.Else, relation)),
+            FunctionCallExpression function when !function.IsStar =>
+                function.Arguments.All(argument => CanEvaluateAgainstRelation(argument, relation)),
+            NamedArgumentExpression named => CanEvaluateAgainstRelation(named.Value, relation),
+            _ => false,
+        };
+    }
 
     private static int? TryResolveInRelation(Relation relation, IdentifierExpression identifier)
     {
@@ -473,14 +550,15 @@ internal static class RelationalSelectExecutor
         Tsdb tsdb,
         SelectStatement statement,
         Relation relation,
-        RelationalScope? outerScope = null)
+        RelationalScope? outerScope,
+        SubqueryMemo memo)
     {
         var projections = BuildAggregateProjections(statement.Projections, statement.GroupBy, relation);
         var groups = new Dictionary<GroupKey, List<object?[]>>();
         foreach (var row in relation.Rows)
         {
             var keyValues = statement.GroupBy
-                .Select(group => EvaluateScalar(tsdb, group, relation.Columns, row))
+                .Select(group => EvaluateScalar(tsdb, group, relation.Columns, row, outerScope, memo))
                 .ToArray();
             var key = new GroupKey(keyValues);
             if (!groups.TryGetValue(key, out var bucket))
@@ -512,7 +590,9 @@ internal static class RelationalSelectExecutor
                     tsdb,
                     projections[i].Aggregate!,
                     relation.Columns,
-                    relation.Rows);
+                    relation.Rows,
+                    outerScope,
+                    memo);
         }
 
         foreach (var group in groups.Values)
@@ -522,7 +602,7 @@ internal static class RelationalSelectExecutor
                 : group[0];
 
             if (statement.Having is not null
-                && !EvaluateHavingPredicate(tsdb, statement.Having, relation.Columns, representative, group))
+                && !EvaluateHavingPredicate(tsdb, statement.Having, relation.Columns, representative, group, outerScope, memo))
             {
                 continue;
             }
@@ -532,9 +612,11 @@ internal static class RelationalSelectExecutor
             {
                 var projection = projections[i];
                 output[i] = projection.Aggregate is null
-                    ? EvaluateScalar(tsdb, projection.Expression, relation.Columns, representative)
+                    ? EvaluateScalar(tsdb, projection.Expression, relation.Columns, representative, outerScope, memo)
                     : EvaluateAggregate(tsdb, projection.Aggregate, relation.Columns, group,
-                        allIntegralInput: allIntegralByProjection?[i] ?? false);
+                        allIntegralInput: allIntegralByProjection?[i] ?? false,
+                        outerScope,
+                        memo);
             }
             rows.Add(output);
         }
@@ -550,7 +632,9 @@ internal static class RelationalSelectExecutor
         Tsdb tsdb,
         AggregateSpec aggregate,
         IReadOnlyList<RelColumn> columns,
-        IReadOnlyList<object?[]> allRows)
+        IReadOnlyList<object?[]> allRows,
+        RelationalScope? outerScope,
+        SubqueryMemo memo)
     {
         var fn = aggregate.Function;
         if (fn.IsStar) return true; // count(*) 不关心输入类型
@@ -558,7 +642,7 @@ internal static class RelationalSelectExecutor
 
         foreach (var row in allRows)
         {
-            var v = EvaluateScalar(tsdb, fn.Arguments[0], columns, row);
+            var v = EvaluateScalar(tsdb, fn.Arguments[0], columns, row, outerScope, memo);
             if (v is null) continue;
             if (v is not (byte or short or int or long))
                 return false;
@@ -643,38 +727,42 @@ internal static class RelationalSelectExecutor
         SqlExpression expression,
         IReadOnlyList<RelColumn> columns,
         IReadOnlyList<object?> representative,
-        IReadOnlyList<object?[]> group)
-        => EvaluateHavingKleene(tsdb, expression, columns, representative, group) == true;
+        IReadOnlyList<object?[]> group,
+        RelationalScope? outerScope,
+        SubqueryMemo memo)
+        => EvaluateHavingKleene(tsdb, expression, columns, representative, group, outerScope, memo) == true;
 
     private static bool? EvaluateHavingKleene(
         Tsdb tsdb,
         SqlExpression expression,
         IReadOnlyList<RelColumn> columns,
         IReadOnlyList<object?> representative,
-        IReadOnlyList<object?[]> group)
+        IReadOnlyList<object?[]> group,
+        RelationalScope? outerScope,
+        SubqueryMemo memo)
     {
         if (expression is BinaryExpression binary)
         {
             if (binary.Operator == SqlBinaryOperator.And)
             {
-                var left = EvaluateHavingKleene(tsdb, binary.Left, columns, representative, group);
+                var left = EvaluateHavingKleene(tsdb, binary.Left, columns, representative, group, outerScope, memo);
                 if (left == false) return false;
-                var right = EvaluateHavingKleene(tsdb, binary.Right, columns, representative, group);
+                var right = EvaluateHavingKleene(tsdb, binary.Right, columns, representative, group, outerScope, memo);
                 if (right == false) return false;
                 return left is null || right is null ? null : true;
             }
             if (binary.Operator == SqlBinaryOperator.Or)
             {
-                var left = EvaluateHavingKleene(tsdb, binary.Left, columns, representative, group);
+                var left = EvaluateHavingKleene(tsdb, binary.Left, columns, representative, group, outerScope, memo);
                 if (left == true) return true;
-                var right = EvaluateHavingKleene(tsdb, binary.Right, columns, representative, group);
+                var right = EvaluateHavingKleene(tsdb, binary.Right, columns, representative, group, outerScope, memo);
                 if (right == true) return true;
                 return left is null || right is null ? null : false;
             }
             if (IsComparisonOperator(binary.Operator))
             {
-                var left = EvaluateHavingScalar(tsdb, binary.Left, columns, representative, group);
-                var right = EvaluateHavingScalar(tsdb, binary.Right, columns, representative, group);
+                var left = EvaluateHavingScalar(tsdb, binary.Left, columns, representative, group, outerScope, memo);
+                var right = EvaluateHavingScalar(tsdb, binary.Right, columns, representative, group, outerScope, memo);
                 if (left is null || right is null)
                     return null;
                 int? compare = CompareScalar(left, right);
@@ -696,20 +784,20 @@ internal static class RelationalSelectExecutor
         }
         else if (expression is UnaryExpression { Operator: SqlUnaryOperator.Not } unary)
         {
-            var operand = EvaluateHavingKleene(tsdb, unary.Operand, columns, representative, group);
+            var operand = EvaluateHavingKleene(tsdb, unary.Operand, columns, representative, group, outerScope, memo);
             return operand is null ? null : !operand;
         }
         else if (expression is IsNullExpression isNull)
         {
-            var isNullValue = EvaluateHavingScalar(tsdb, isNull.Operand, columns, representative, group) is null;
+            var isNullValue = EvaluateHavingScalar(tsdb, isNull.Operand, columns, representative, group, outerScope, memo) is null;
             return isNull.Negated ? !isNullValue : isNullValue;
         }
         else if (expression is InExpression inExpression)
         {
-            return EvaluateIn(tsdb, inExpression, columns, representative);
+            return EvaluateIn(tsdb, inExpression, columns, representative, outerScope, memo);
         }
 
-        var value = EvaluateHavingScalar(tsdb, expression, columns, representative, group);
+        var value = EvaluateHavingScalar(tsdb, expression, columns, representative, group, outerScope, memo);
         if (value is null)
             return null;
         if (value is bool b)
@@ -729,10 +817,12 @@ internal static class RelationalSelectExecutor
         SqlExpression expression,
         IReadOnlyList<RelColumn> columns,
         IReadOnlyList<object?> representative,
-        IReadOnlyList<object?[]> group)
+        IReadOnlyList<object?[]> group,
+        RelationalScope? outerScope,
+        SubqueryMemo memo)
     {
-        var inlined = InlineAggregates(tsdb, expression, columns, group);
-        return EvaluateScalar(tsdb, inlined, columns, representative);
+        var inlined = InlineAggregates(tsdb, expression, columns, group, outerScope, memo);
+        return EvaluateScalar(tsdb, inlined, columns, representative, outerScope, memo);
     }
 
     /// <summary>
@@ -743,26 +833,29 @@ internal static class RelationalSelectExecutor
         Tsdb tsdb,
         SqlExpression expression,
         IReadOnlyList<RelColumn> columns,
-        IReadOnlyList<object?[]> group)
+        IReadOnlyList<object?[]> group,
+        RelationalScope? outerScope,
+        SubqueryMemo memo)
     {
         switch (expression)
         {
             case FunctionCallExpression aggCall when IsAggregateFunction(aggCall.Name):
                 {
-                    var value = EvaluateAggregate(tsdb, new AggregateSpec(aggCall), columns, group);
+                    var value = EvaluateAggregate(tsdb, new AggregateSpec(aggCall), columns, group,
+                        outerScope: outerScope, memo: memo);
                     return WrapValueAsLiteral(value);
                 }
             case BinaryExpression binary:
                 {
-                    var left = InlineAggregates(tsdb, binary.Left, columns, group);
-                    var right = InlineAggregates(tsdb, binary.Right, columns, group);
+                    var left = InlineAggregates(tsdb, binary.Left, columns, group, outerScope, memo);
+                    var right = InlineAggregates(tsdb, binary.Right, columns, group, outerScope, memo);
                     if (ReferenceEquals(left, binary.Left) && ReferenceEquals(right, binary.Right))
                         return expression;
                     return binary with { Left = left, Right = right };
                 }
             case UnaryExpression unary:
                 {
-                    var operand = InlineAggregates(tsdb, unary.Operand, columns, group);
+                    var operand = InlineAggregates(tsdb, unary.Operand, columns, group, outerScope, memo);
                     if (ReferenceEquals(operand, unary.Operand))
                         return expression;
                     return unary with { Operand = operand };
@@ -773,7 +866,7 @@ internal static class RelationalSelectExecutor
                     bool changed = false;
                     for (int i = 0; i < scalarCall.Arguments.Count; i++)
                     {
-                        args[i] = InlineAggregates(tsdb, scalarCall.Arguments[i], columns, group);
+                        args[i] = InlineAggregates(tsdb, scalarCall.Arguments[i], columns, group, outerScope, memo);
                         if (!ReferenceEquals(args[i], scalarCall.Arguments[i]))
                             changed = true;
                     }
@@ -857,7 +950,9 @@ internal static class RelationalSelectExecutor
         AggregateSpec aggregate,
         IReadOnlyList<RelColumn> columns,
         IReadOnlyList<object?[]> rows,
-        bool allIntegralInput = false)
+        bool allIntegralInput = false,
+        RelationalScope? outerScope = null,
+        SubqueryMemo? memo = null)
     {
         var fn = aggregate.Function;
         var name = fn.Name.ToLowerInvariant();
@@ -866,12 +961,12 @@ internal static class RelationalSelectExecutor
             if (fn.IsStar)
                 return (long)rows.Count;
             RequireArgumentCount(fn, 1);
-            return rows.LongCount(row => EvaluateScalar(tsdb, fn.Arguments[0], columns, row) is not null);
+            return rows.LongCount(row => EvaluateScalar(tsdb, fn.Arguments[0], columns, row, outerScope, memo) is not null);
         }
 
         RequireArgumentCount(fn, 1);
         var rawValues = rows
-            .Select(row => EvaluateScalar(tsdb, fn.Arguments[0], columns, row))
+            .Select(row => EvaluateScalar(tsdb, fn.Arguments[0], columns, row, outerScope, memo))
             .Where(static value => value is not null)
             .ToArray();
 
@@ -1107,7 +1202,7 @@ internal static class RelationalSelectExecutor
     /// <summary>
     /// 执行子查询并记忆化（#216）：命中 memo 缓存直接复用；否则带相关性探针执行一次，
     /// 探针未置位（未读任何外层列）则缓存为非相关，供本层后续外层行复用；置位则标记相关、每行照常执行。
-    /// memo 为 null（聚合/投影等无外层行迭代的上下文）时退化为普通执行。
+    /// 同一顶层 SELECT 的 WHERE、投影、排序、JOIN 和函数参数共享 memo，递归子查询也沿用该实例。
     /// </summary>
     private static SelectExecutionResult ExecuteSubqueryMemoized(
         Tsdb tsdb,
@@ -1118,18 +1213,23 @@ internal static class RelationalSelectExecutor
         SubqueryMemo? memo)
     {
         if (memo is not null && memo.TryGetCached(subquery, out var cached))
+        {
+            memo.RecordCacheHit();
             return cached;
+        }
 
         if (memo is null || memo.IsKnownCorrelated(subquery))
         {
             var inner = new RelationalScope(columns, row, outerScope);
-            return Execute(tsdb, subquery, inner);
+            memo?.RecordExecution();
+            return Execute(tsdb, subquery, inner, memo ?? new SubqueryMemo(metrics: null));
         }
 
         // 首次评估：挂探针执行；未触外层则缓存为非相关。
         var probe = new CorrelationProbe();
         var probedScope = new RelationalScope(columns, row, outerScope, probe);
-        var result = Execute(tsdb, subquery, probedScope);
+        memo.RecordExecution();
+        var result = Execute(tsdb, subquery, probedScope, memo);
         if (probe.Tripped)
             memo.MarkCorrelated(subquery);
         else
@@ -1153,7 +1253,7 @@ internal static class RelationalSelectExecutor
             UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => -RequireDouble(EvaluateScalar(tsdb, unary.Operand, columns, row, outerScope, memo), "一元负号"),
             BinaryExpression binary when IsArithmeticOperator(binary.Operator) => EvaluateArithmetic(tsdb, binary, columns, row, outerScope, memo),
             CaseExpression caseExpression => EvaluateCase(tsdb, caseExpression, columns, row, outerScope, memo),
-            FunctionCallExpression function => EvaluateFunction(tsdb, function, columns, row, outerScope),
+            FunctionCallExpression function => EvaluateFunction(tsdb, function, columns, row, outerScope, memo),
             SubqueryExpression subquery => EvaluateScalarSubquery(tsdb, subquery, columns, row, outerScope, memo),
             ExistsExpression exists => EvaluateExists(tsdb, exists, columns, row, outerScope, memo),
             _ => throw new InvalidOperationException($"关系表表达式暂不支持 '{expression.GetType().Name}'。"),
@@ -1214,7 +1314,8 @@ internal static class RelationalSelectExecutor
         FunctionCallExpression function,
         IReadOnlyList<RelColumn> columns,
         IReadOnlyList<object?> row,
-        RelationalScope? outerScope = null)
+        RelationalScope? outerScope = null,
+        SubqueryMemo? memo = null)
     {
         if (IsAggregateFunction(function.Name))
             throw new InvalidOperationException($"聚合函数 '{function.Name}' 只能出现在聚合投影中。");
@@ -1228,20 +1329,20 @@ internal static class RelationalSelectExecutor
             && function.Arguments.Count == 2
             && function.Arguments[1] is LiteralExpression { Kind: SqlLiteralKind.String, StringValue: var path })
         {
-            var json = EvaluateScalar(tsdb, function.Arguments[0], columns, row, outerScope) as string;
+            var json = EvaluateScalar(tsdb, function.Arguments[0], columns, row, outerScope, memo) as string;
             return JsonPathEvaluator.Evaluate(json, path!);
         }
 
         if (string.Equals(function.Name, "lower", StringComparison.OrdinalIgnoreCase)
             && function.Arguments.Count == 1)
         {
-            return EvaluateScalar(tsdb, function.Arguments[0], columns, row, outerScope)?.ToString()?.ToLowerInvariant();
+            return EvaluateScalar(tsdb, function.Arguments[0], columns, row, outerScope, memo)?.ToString()?.ToLowerInvariant();
         }
 
         if (string.Equals(function.Name, "upper", StringComparison.OrdinalIgnoreCase)
             && function.Arguments.Count == 1)
         {
-            return EvaluateScalar(tsdb, function.Arguments[0], columns, row, outerScope)?.ToString()?.ToUpperInvariant();
+            return EvaluateScalar(tsdb, function.Arguments[0], columns, row, outerScope, memo)?.ToString()?.ToUpperInvariant();
         }
 
         throw new InvalidOperationException("关系表当前仅支持 json_value(json_column, '$.path')、lower(value)、upper(value) 函数。");
@@ -1397,7 +1498,8 @@ internal static class RelationalSelectExecutor
         Tsdb tsdb,
         Relation relation,
         IReadOnlyList<OrderBySpec> orderBy,
-        RelationalScope? outerScope)
+        RelationalScope? outerScope,
+        SubqueryMemo memo)
     {
         if (orderBy.Count == 0)
             return relation;
@@ -1406,7 +1508,7 @@ internal static class RelationalSelectExecutor
             .Select(row => new RelationSortRow(
                 row,
                 orderBy
-                    .Select(order => EvaluateScalar(tsdb, order.Expression, relation.Columns, row, outerScope))
+                    .Select(order => EvaluateScalar(tsdb, order.Expression, relation.Columns, row, outerScope, memo))
                     .ToArray()))
             .OrderBy(row => row, new RelationSortComparer(orderBy.Select(static order => order.Direction).ToArray()))
             .Select(static row => row.Row)
@@ -1497,7 +1599,11 @@ internal static class RelationalSelectExecutor
                 return true;
         if (statement.Where is not null && ContainsSubquery(statement.Where))
             return true;
-        if (statement.OrderBy is not null && ContainsSubquery(statement.OrderBy.Expression))
+        if (statement.GroupBy.Any(ContainsSubquery))
+            return true;
+        if (statement.Having is not null && ContainsSubquery(statement.Having))
+            return true;
+        if (statement.OrderByList.Any(order => ContainsSubquery(order.Expression)))
             return true;
         foreach (var join in statement.JoinClauses)
             if (ContainsSubquery(join.On) || (join.Subquery is not null && ContainsSubquery(join.Subquery)))
@@ -1511,6 +1617,7 @@ internal static class RelationalSelectExecutor
             SubqueryExpression => true,
             ExistsExpression => true,
             UnaryExpression unary => ContainsSubquery(unary.Operand),
+            IsNullExpression isNull => ContainsSubquery(isNull.Operand),
             BinaryExpression binary => ContainsSubquery(binary.Left) || ContainsSubquery(binary.Right),
             InExpression inExpression => inExpression.Subquery is not null
                 || ContainsSubquery(inExpression.Value)
@@ -1708,4 +1815,22 @@ internal static class RelationalSelectExecutor
             return CompareScalar(x, y) ?? 0;
         }
     }
+}
+
+/// <summary>
+/// 关系 SELECT 子查询记忆化的内部执行指标，仅用于回归测试和性能基准。
+/// </summary>
+internal sealed class RelationalSelectExecutionMetrics
+{
+    /// <summary>未命中缓存、实际进入子查询执行器的次数。</summary>
+    public int SubqueryExecutionCount { get; private set; }
+
+    /// <summary>非相关子查询结果的缓存命中次数。</summary>
+    public int SubqueryCacheHitCount { get; private set; }
+
+    /// <summary>记录一次实际子查询执行。</summary>
+    internal void RecordSubqueryExecution() => SubqueryExecutionCount++;
+
+    /// <summary>记录一次非相关子查询缓存命中。</summary>
+    internal void RecordSubqueryCacheHit() => SubqueryCacheHitCount++;
 }

@@ -1349,11 +1349,6 @@ public sealed class SqlParser
         while (true)
         {
             var expression = ParseExpression();
-            if (expression is not IdentifierExpression)
-            {
-                throw Error("ORDER BY 当前仅支持列名");
-            }
-
             var direction = SortDirection.Ascending;
             if (Current.Kind == TokenKind.KeywordAsc)
             {
