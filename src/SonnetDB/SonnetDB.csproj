@@ -37,6 +37,7 @@
       子模块 HEAD 已修复（slim routing for Native AOT），源码引用即可零告警 AOT 发布。
     -->
     <ProjectReference Include="..\..\extensions\MQTTnet.AspNetCore.Routing\Source\MQTTnet.AspNetCore.Routing.csproj" />
+    <ProjectReference Include="..\..\extensions\MQTTnet.AspNetCore.Routing\SourceGeneration\MQTTnet.AspNetCore.Routing.SourceGeneration.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>

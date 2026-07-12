@@ -107,6 +107,20 @@ internal static partial class ServerLog
         Message = "MQTT SonnetMQ 推送桥异常终止：{Topic}")]
     internal static partial void MqttMqPumpFailed(this ILogger logger, Exception exception, string topic);
 
+    [LoggerMessage(EventId = 1024, EventName = "Write.SparkplugIngested", Level = LogLevel.Debug,
+        Message = "Sparkplug 消息已落库：Topic={Topic}, Written={Written}, Skipped={Skipped}, Orphan={Orphan}, Unsupported={Unsupported}")]
+    internal static partial void SparkplugIngested(
+        this ILogger logger,
+        string topic,
+        int written,
+        int skipped,
+        int orphan,
+        int unsupported);
+
+    [LoggerMessage(EventId = 1025, EventName = "Write.SparkplugIngestFailed", Level = LogLevel.Warning,
+        Message = "Sparkplug 消息解析或落库失败：Topic={Topic}, Reason={Reason}")]
+    internal static partial void SparkplugIngestFailed(this ILogger logger, string topic, string reason);
+
     // Copilot：6000~6999
     [LoggerMessage(EventId = 6001, EventName = "Copilot.PlannerInvalidResponse", Level = LogLevel.Warning,
         Message = "Copilot planner returned non-JSON content: {Response}")]

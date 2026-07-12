@@ -55,6 +55,12 @@ public sealed class MqttBrokerEndpointTests : IAsyncLifetime
                 Port = _mqttPort,
                 WebSocketPath = string.Empty,
                 MaxMqSubscriptionsPerClient = 8,
+                Sparkplug = new SparkplugOptions
+                {
+                    Enabled = true,
+                    Database = "sparkplug",
+                    MaxPayloadBytes = 1024 * 1024,
+                },
             },
         };
 
@@ -104,6 +110,72 @@ public sealed class MqttBrokerEndpointTests : IAsyncLifetime
 
         int rows = await CountSelectRowsAsync(db, "SELECT value FROM cpu WHERE host='mqtt' AND time >= 1000 AND time <= 1000");
         Assert.Equal(1, rows);
+    }
+
+    [Fact]
+    public async Task MqttPublishSparkplug_BirthThenAliasData_WritesResolvedMetric()
+    {
+        const string db = "sparkplug";
+        await CreateDatabaseAsync(db);
+
+        var client = await ConnectMqttAsync(ReadWriteToken, "sparkplug-writer");
+        try
+        {
+            var birth = new MqttApplicationMessageBuilder()
+                .WithTopic("spBv1.0/factory/NBIRTH/edge01")
+                .WithPayload(SparkplugTestPayloads.Payload(
+                    1000,
+                    SparkplugTestPayloads.Float("temperature", 1, 21.5f)))
+                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+                .Build();
+            var birthResult = await client.PublishAsync(birth, CancellationToken.None);
+            Assert.True(birthResult.IsSuccess, birthResult.ReasonString);
+
+            var data = new MqttApplicationMessageBuilder()
+                .WithTopic("spBv1.0/factory/NDATA/edge01")
+                .WithPayload(SparkplugTestPayloads.Payload(
+                    2000,
+                    SparkplugTestPayloads.Float(null, 1, 37.25f)))
+                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+                .Build();
+            var dataResult = await client.PublishAsync(data, CancellationToken.None);
+            Assert.True(dataResult.IsSuccess, dataResult.ReasonString);
+        }
+        finally
+        {
+            await DisconnectMqttAsync(client);
+        }
+
+        int rows = await CountSelectRowsAsync(
+            db,
+            "SELECT temperature FROM edge01 WHERE group_id='factory' AND edge_node_id='edge01' AND time >= 2000 AND time <= 2000");
+        Assert.Equal(1, rows);
+    }
+
+    [Fact]
+    public async Task MqttPublishSparkplug_WithReadOnlyToken_ReturnsNotAuthorized()
+    {
+        await CreateDatabaseAsync("sparkplug");
+        var client = await ConnectMqttAsync(ReadOnlyToken, "sparkplug-readonly");
+        try
+        {
+            var message = new MqttApplicationMessageBuilder()
+                .WithTopic("spBv1.0/factory/NBIRTH/edge01")
+                .WithPayload(SparkplugTestPayloads.Payload(
+                    1000,
+                    SparkplugTestPayloads.Float("temperature", 1, 21.5f)))
+                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+                .Build();
+
+            var result = await client.PublishAsync(message, CancellationToken.None);
+
+            Assert.False(result.IsSuccess);
+            Assert.Equal(MqttClientPublishReasonCode.NotAuthorized, result.ReasonCode);
+        }
+        finally
+        {
+            await DisconnectMqttAsync(client);
+        }
     }
 
     [Fact]

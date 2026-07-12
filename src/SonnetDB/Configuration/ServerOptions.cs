@@ -169,9 +169,35 @@ public sealed class MqttBrokerOptions
     public int MaxMqSubscriptionsPerClient { get; set; } = 32;
 
     /// <summary>
+    /// Sparkplug B 工业遥测接入配置。
+    /// </summary>
+    public SparkplugOptions Sparkplug { get; set; } = new();
+
+    /// <summary>
     /// 订阅外部 MQTT broker 的 client 配置（M28 P5b #243）。
     /// </summary>
     public MqttExternalClientOptions ExternalClient { get; set; } = new();
+}
+
+/// <summary>
+/// Sparkplug B payload 解码和目标数据库配置。
+/// </summary>
+public sealed class SparkplugOptions
+{
+    /// <summary>
+    /// 是否处理 <c>spBv1.0/...</c> topic。默认关闭，需显式指定目标数据库后启用。
+    /// </summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>
+    /// Sparkplug metric 写入的 SonnetDB 数据库。数据库需预先创建。
+    /// </summary>
+    public string Database { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 单条 Sparkplug MQTT payload 最大字节数。默认 1 MiB。
+    /// </summary>
+    public int MaxPayloadBytes { get; set; } = 1024 * 1024;
 }
 
 /// <summary>

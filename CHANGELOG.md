@@ -7,6 +7,7 @@
 
 ### Added
 
+- **M30 #263 Sparkplug B payload 解码与落库**：内建 MQTT broker 新增 `spBv1.0/{group}/{NBIRTH|DBIRTH|NDATA|DDATA}/{edgeNode}/[{device}]` 接入，手写零依赖 protobuf reader，BIRTH 原子刷新进程内 alias 表，DATA 按 alias 解析后直接生成 `Point` 进入 `BulkIngestor`；新增显式目标数据库、写权限、payload 上限、结构化日志与四项 Prometheus 计数。MQTT routing 子模块新增独立 `MQTTnet.AspNetCore.Routing.SourceGeneration` analyzer，Sparkplug controller 由编译期 route/DI/action 委托执行，不与 CoAP generator 产生引用或运行时耦合。
 - **M29 多模型管理工作台质量门禁加固**：独立管理工作台 workflow 新增真实 Kestrel 上的 8 条 Server 管理契约端到端测试与 Windows Studio Release 编译，并把共享 DTO、管理端点、JSON context 和契约测试纳入路径触发；Web 门禁按实际 43 条 Chromium e2e 记录，VS Code 继续执行 9 条 consumer / language-helper smoke 并生成开发验证用 VSIX。管理工具文档同步给出四面的可重复验证命令，明确开发 VSIX 不等同于 M18 #108 的 Extension Host / Electron 实机与 Marketplace 正式发布验收。
 - **M17 #96 Diagnostic Dump**：新增默认关闭、仅 admin 可访问的 `GET /v1/diagnostics/dump`，返回进程/GC/ThreadPool、逐数据库 MemTable/Segment/Flush/Compaction/WAL metadata 与 Copilot 在飞会话数；Core 以维护锁和稳定读租约生成快照，WAL 仅暴露文件名与 LSN/长度，禁止返回路径、记录或用户点值。CLI 新增 `sndb diag dump`，支持 Bearer token、超时及直接写入 JSON 文件。
 - **M17 #98 可观测性文档与端到端联调**：新增指标、span 树、health checks、Prometheus/OTLP/Aspire Dashboard 操作手册和慢查询/Diagnostic Dump 排障指南；Docker Compose 增加默认不启动的 `observability` profile，按需提供 OTel Collector、Prometheus 与 Grafana。补齐 `sonnetdb.segment.read` 与云端 Copilot 本地工具子 span，并用真实 Kestrel 断言 HTTP → `copilot.chat` → `copilot.agent.run_tool` → Core 查询 → Segment 物理读取的同 TraceId 父子链路。

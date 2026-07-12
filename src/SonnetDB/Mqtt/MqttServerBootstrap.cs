@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using MQTTnet.AspNetCore;
 using MQTTnet.AspNetCore.Routing;
 using SonnetDB.Configuration;
+using SonnetDB.Hosting;
 
 namespace SonnetDB.Mqtt;
 
@@ -44,14 +45,26 @@ internal static class MqttServerBootstrap
         if (!brokerEnabled && !externalClientEnabled)
             return;
 
+        if (brokerEnabled && mqttOptions.Sparkplug.Enabled)
+        {
+            if (!TsdbRegistry.IsValidName(mqttOptions.Sparkplug.Database))
+                throw new InvalidOperationException("SonnetDBServer:Mqtt:Sparkplug:Database 必须为合法数据库名。");
+            if (mqttOptions.Sparkplug.MaxPayloadBytes <= 0)
+                throw new InvalidOperationException("SonnetDBServer:Mqtt:Sparkplug:MaxPayloadBytes 必须大于 0。");
+        }
+
         builder.Services.AddSingleton<SonnetMqttMeasurementIngestor>();
 
         if (brokerEnabled)
         {
+            builder.Services.AddSingleton<SparkplugAliasStore>();
+            builder.Services.AddSingleton<SparkplugIngestor>();
             builder.Services.AddSingleton<SonnetMqttBrokerBridge>();
             // AOT 安全：用泛型控制器重载（编译期已知类型）替代程序集扫描重载。
             builder.Services.AddMqttControllers<SonnetMqttController>(options =>
                 options.WithCaseSensitiveTopicMatching());
+            builder.Services.AddMqttApplicationMessageSlimRouting(static routes =>
+                global::MyGeneratedMqttEndpoints.Map(routes));
 
             builder.Services
                 .AddHostedMqttServerWithServices(options => options.WithoutDefaultEndpoint())
@@ -78,6 +91,7 @@ internal static class MqttServerBootstrap
         {
             bridge.Configure(server);
             server.WithAttributeRouting(app.Services, allowUnmatchedRoutes: false);
+            server.WithApplicationMessageRouting(app.Services);
         });
 
         if (!string.IsNullOrWhiteSpace(serverOptions.Mqtt.WebSocketPath))
