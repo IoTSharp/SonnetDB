@@ -53,6 +53,7 @@
 
 ### Changed
 
+- **性能优化待办 P3/P4 收口**：持久全文索引新增按写入代次失效的活跃 term 快照，排除仅剩 tombstone posting 的历史词项，并让同一次多字段、多 token fuzzy 查询共享快照；Damerau-Levenshtein 改为栈/池化三行滚动 DP。100k term、90% tombstone、双字段双 token 基准为 23.96 ms / 549.15 KB，较滚动 DP 前的 27.25 ms / 20.68 MB 减少约 97.4% 分配。关系表级联删除每批只构建一次反向 FK 元数据，完整 FK 列序优先复用持久二级索引，未建匹配索引时每个 child/FK 只扫描一次并建立临时哈希桶；100k 子行、100 父键的 CASCADE/SET NULL 基准以内部计数确认路径固定为一次扫描或 100 次索引查找。
 - **P2 关系子查询路径性能补齐**：`RelationalSelectExecutor` 将单个 per-query memo 贯穿递归子查询、JOIN、WHERE、SELECT 投影、聚合、ORDER BY 与函数参数；非相关子查询跨外层行或 JOIN 候选只执行一次，相关子查询继续逐行求值。ORDER BY 解析同步开放表达式子查询，并补齐四类位置的相关/非相关回归以及 10k 外层行、10k JOIN 候选基准和执行次数断言。
 - **M33 #287 `ORDER BY time DESC LIMIT N` latest-N 下推（perf）**：`PointQuery` 以 opt-in `init` 属性新增 `QueryDirection`，默认升序并保持既有 5 参数构造器与解构契约不变；`BlockSourceMerger` 新增按 block `MaxTimestamp` 推进的倒序惰性合并，Segment 从最新 block 向前解码，MemTable / Segment / tombstone 统一在倒序流上于过滤后应用 Limit。SQL 对无 residual / Geo / window / scalar 的 raw `ORDER BY time DESC` 有界分页启用跨字段、跨 series 时间轴倒序合并，复杂查询继续回退原 Top-N 物化路径。200k 时刻、3 field、16 个落盘段、`LIMIT 64` 热查询中，Median 从全量排序参考的 276.897 ms 降至 57.050 us，单次分配从 193.3 MiB 降至 57 KiB；8 段读取量验收只读取最新 block。
 - **M33 #286 raw LIMIT/OFFSET 下推（perf）**：简单 raw 查询不再先为每个 field 构造全量 `List<DataPoint>`、`SortedSet<long>` 与 ts lookup 后才分页，而是直接 k-way 合并跨字段时间轴，按原自然 series 顺序或全局 `ORDER BY time ASC` 顺序跳过 OFFSET、凑够 Fetch 后释放全部点流快照租约。raw 行仍以不同时间戳并集为一行，稀疏字段输出 null；residual、Geo、window、scalar 与无 Fetch 上限的查询保持原路径。相同基准口径下 `LIMIT 64` Median 从 358.437 ms 降至 54.410 us，单次分配从 187.2 MiB 降至 56.26 KiB；8 段读取量验收只读取首个 block。

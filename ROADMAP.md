@@ -1123,16 +1123,28 @@ C ABI 从「嵌入式示例」升级为独立产品路线：底座改走 `Sonnet
 |------|------|----------|----------|------|
 | P1 | `src/SonnetDB.Core/Query/KnnExecutor.cs:129`、`src/SonnetDB.Core/Engine/TombstoneTable.cs:71` | M28 #208 已把 `IsCovered` / `GetForSeriesField` 改为 `Volatile` 发布的 per-key 不可变快照，读路径不再加锁或逐次 `ToArray()`；原审计缺陷已消除 | 原项关闭；高墓碑基数下仍可进一步合并区间、按查询时间窗判定是否需要放弃 ANN，并在距离计算前过滤墓碑点 | ✅ 已关闭（#208） |
 | P2 | `src/SonnetDB.Core/Sql/Execution/RelationalSelectExecutor.cs` 子查询路径 | 单个 `SubqueryMemo` 已贯穿同一顶层 SELECT 的递归子查询、JOIN、WHERE、投影、聚合、排序和函数参数；相关子查询仍由运行时探针识别并逐行或逐候选执行 | 已增加四类表达式位置的非相关/相关回归与内部执行计数；10k 外层行和 10k JOIN 候选基准均确认非相关子树只执行 1 次 | ✅ 已完成 |
-| P3 | `src/SonnetDB.Core/FullText/DocumentFullTextIndexStore.cs:254`、`src/SonnetDB.Core/FullText/Storage/PersistentFullTextIndex.cs:222` | `EnumerateTerms` 仍枚举所有活动段的历史 term，源码明确包含已全部 tombstone 的 term；多字段、多 token fuzzy 查询还会重复持锁建 `HashSet` 和计算编辑距离 | 在持久全文索引内维护按代次失效的活跃 term 快照，并让同一次查询的字段/token 共享快照；先完成活跃视图和缓存，再用基准决定是否引入 BK-tree/Levenshtein automaton | 📋 待处理 |
-| P4 | `src/SonnetDB.Core/Tables/TableManager.cs:510` | BFS 对每个父键重新 `Catalog.Snapshot()`，并对每条匹配 FK 调用物化式 `childStore.Scan()`；已有精确二级索引查询 `TableStore.GetByIndex` 也未被利用，复杂度仍为 O(parents × FKs × N) | 每批只构建一次反向 FK 元数据；优先使用列序完全匹配的二级索引，未建索引时每个 child/FK 只扫描一次并构建临时哈希索引 | 📋 待处理 |
+| P3 | `src/SonnetDB.Core/FullText/DocumentFullTextIndexStore.cs`、`src/SonnetDB.Core/FullText/Storage/PersistentFullTextIndex.cs` | 持久全文索引现按写入代次缓存仍有非 tombstone posting 的活跃 term；删除、批量删除和写入会使快照失效，同一次 fuzzy 查询一次取得全部字段快照并由所有 token 共享。Damerau-Levenshtein 改为三行滚动 DP，短 term 走栈缓冲、长 term 走 `ArrayPool<int>` | 100k term、90% tombstone、双字段双 token 基准为 23.96 ms / 549.15 KB；滚动 DP 前同场景为 27.25 ms / 20.68 MB，分配下降约 97.4%。活跃 term 与代次失效、历史 tombstoned-only term 排除、查询共享均有执行计数回归 | ✅ 已完成 |
+| P4 | `src/SonnetDB.Core/Tables/TableManager.cs` | 级联展开每批只取一次 catalog 快照并建立 `principal -> FK` 反向元数据；完整 FK 列序存在二级索引时按父键调用 `GetByIndex`，否则每个 child/FK 只扫描一次并按父主键编码建立临时哈希桶 | 100k 子行、100 父键、CASCADE/SET NULL 四组合基准均用内部计数确认：无索引固定为 1 次扫描/100k 解码，有索引固定为 100 次查找/0 次回退扫描；多级、显式触及行、准备失败不提交及索引列序回退均有回归。全父键高选择率下单扫快于 100 次索引查找，批量自适应留作后续独立优化 | ✅ 已完成 |
 
 ### 2026-07-12 复核后的实施顺序与验收
 
 1. **P2 已完成**：memo 生命周期已统一；SELECT 投影、ORDER BY、JOIN ON、函数参数均有非相关/相关子查询回归，10k 外层行和 10k JOIN 候选基准确认非相关子树执行次数为 1。
-2. **再做 P4**：先复用匹配的持久二级索引，再提供单批临时哈希回退；用 100k 子行、100 个父键的 cascade / set-null 基准证明子表解码从约 1000 万行降到一次扫描或 100 次索引查找，并保留多级、循环 FK、显式触及行和事务回滚测试。
-3. **随后处理 P3**：增加“仅历史 tombstoned term 不进入 fuzzy 候选”的测试，并用 100k term、90% tombstone、多字段多 token 场景记录查询延迟与分配；避免用逐 term `Search` 验证造成 segments × candidates 的新放大。
+2. **P4 已完成**：匹配的持久二级索引与单批临时哈希回退均已接入；100k 子行、100 个父键的 cascade / set-null 基准通过执行计数证明子表解码从约 1000 万行降到一次扫描或 100 次索引查找，并保留多级、显式触及行和事务失败回滚覆盖。
+3. **P3 已完成**：仅历史 tombstoned term 不再进入 fuzzy 候选；活跃快照按写入代次失效并在同一查询内跨 token 共享。100k term、90% tombstone、双字段双 token 基准记录为 23.96 ms / 549.15 KB，未引入逐 term `Search`、BK-tree 或 Levenshtein automaton。
 4. **P1 只作为后续增强**：用 disjoint / overlapping tombstone 时间窗分别验证 ANN gate；只有基准显示墓碑区间扫描仍占主要成本时，再增加排序合并区间和二分覆盖索引。
 
-这些未完成项不阻塞功能正确性或 parity，但 P4 的批量父键删除会把重复工作乘到数据规模上，P3 的高基数 fuzzy 查询也会产生明显的重复计算；两项都不能再按原表中的 10/60 分钟估时处理，实现时应分别拆成独立性能变更并提交基准证据。
+P3/P4 的原始重复工作已经关闭。P4 基准同时显示：当一次删除覆盖全部父键时，单次哈希扫描（CASCADE 约 212.7 ms、SET NULL 约 185.1 ms）优于 100 次持久索引查找（约 916.5 ms / 1,006.2 ms）；后续如增加按父键选择率切换索引或单扫的自适应策略，应作为新的独立性能项，不回开本次完成状态。
 
-> **与 Milestone 28 的关系**：P1 的原始锁与拷贝问题已由 M28 #208 完整消除并关闭。P2 由 M28 #216 完成 WHERE 第一批，后续性能变更已将 memo 贯穿其它表达式位置，因此本次标记为整体完成。P3（fuzzy 活跃 term 视图）与 P4（cascade delete 索引查找）仍不在 M28 已交付范围内。Milestone 28（已收官，详细正文见 [docs/roadmap-history.md](docs/roadmap-history.md)）仍保持收官状态；这里记录的是其后续性能缺口，不回改历史里程碑结论。
+### 后续性能观察项（未排期）
+
+以下项目来自 P1/P3/P4 收口后的基准结论，不属于已完成项的遗留验收，也不回开 P1/P3/P4。只有触发条件成立并取得独立基准证据后，才进入正式实现排期。
+
+| 编号 | 方向 | 触发条件与设计边界 | 验收要求 | 状态 |
+|------|------|--------------------|----------|------|
+| PF1 | 级联删除按选择率自适应查找 | 在 100k 及更大子表上补 1/10/50/100 个父键、均匀/倾斜分布、CASCADE/SET NULL 的选择率矩阵；低选择率继续使用完整 FK 二级索引，高选择率允许切换为单次扫描临时哈希。策略必须基于可解释的批量规模/代价信号，不能把某次机器上的固定父键数量直接写成通用阈值 | 与强制索引、强制单扫两条参考路径对拍，选择结果语义完全一致；自适应路径 Median/P90 不应明显劣于同场景更优参考路径（目标不超过 1.2 倍），并保持每批一次 catalog 快照、循环 FK 去重、显式触及行优先和事务回滚测试 | 👀 观察，未排期 |
+| PF2 | 高活跃词基数 fuzzy 词典结构 | 先把基准从“100k 历史 term、10k 活跃 term”扩展到 100k/500k 活跃 term、多字段、多 token；只有活跃快照线性枚举成为主要 CPU 成本或 P90 超出检索预算时，才比较 BK-tree 与 Levenshtein automaton。不得用逐 term `Search` 验证，不引入近似召回或第三方运行时依赖 | 新结构与线性枚举生成完全相同的候选 term 集，保留编辑距离阈值、代次失效和查询内共享语义；提交构建成本、查询 Median/P90、分配、索引内存和写后失效成本，至少证明查询延迟有稳定 2 倍收益后再替换线性路径 | 👀 观察，未排期 |
+| PF3 | ANN tombstone gate 与区间索引 | 在 disjoint/overlapping tombstone 时间窗和高墓碑基数下复核 ANN 放弃条件；只有墓碑区间扫描仍占主要成本时，才合并排序区间、按查询时间窗快速判定，并在距离计算前过滤已覆盖点 | ANN/暴力扫召回对拍不退化；分别记录无墓碑、低/高墓碑基数下的 P50/P90、距离计算次数和分配，证明 gate 不会让低墓碑常规查询回退 | 👀 观察，未排期 |
+
+PF1 优先级高于 PF2/PF3：它已有本轮 100% 父键覆盖基准证明索引路径在高选择率下明显落后；PF2 当前 10k 活跃 term 场景为 23.96 ms / 549.15 KB，PF3 的原始锁与拷贝问题也已关闭，两者暂时只保留基准门槛，不提前引入复杂索引结构。
+
+> **与 Milestone 28 的关系**：P1 的原始锁与拷贝问题已由 M28 #208 完整消除并关闭。P2 由 M28 #216 完成 WHERE 第一批，后续性能变更已将 memo 贯穿其它表达式位置。P3（fuzzy 活跃 term 视图）与 P4（cascade delete 索引查找）作为 M28 收官后的独立性能补齐现已完成；Milestone 28（已收官，详细正文见 [docs/roadmap-history.md](docs/roadmap-history.md)）的历史结论不变。

@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Globalization;
 using System.Text.Json;
 using SonnetDB.Documents;
@@ -44,24 +45,25 @@ public sealed class DocumentFullTextIndexStore
         }
     }
 
-    /// <summary>当前索引中可见字段词项的近似总数，按字段和 term 去重。</summary>
+    /// <summary>当前索引中可见字段词项总数，按字段和 term 去重。</summary>
     public int TermCount
     {
         get
         {
             lock (_sync)
             {
-                var terms = new HashSet<string>(StringComparer.Ordinal);
-                foreach (string fieldName in _definition.Fields)
-                {
-                    foreach (string term in _index.EnumerateTerms(fieldName))
-                        terms.Add(fieldName + "\u0000" + term);
-                }
-
-                return terms.Count;
+                IReadOnlyDictionary<string, IReadOnlyCollection<string>> snapshots =
+                    _index.SnapshotActiveTerms(_definition.Fields);
+                int count = 0;
+                foreach (var terms in snapshots.Values)
+                    count += terms.Count;
+                return count;
             }
         }
     }
+
+    /// <summary>活跃 term 快照实际重建次数，供性能回归测试和基准校验。</summary>
+    internal long ActiveTermSnapshotBuildCount => _index.ActiveTermSnapshotBuildCount;
 
     /// <summary>
     /// 打开全文索引目录。
@@ -202,9 +204,21 @@ public sealed class DocumentFullTextIndexStore
 
         if (field == "*")
         {
+            IReadOnlyDictionary<string, IReadOnlyCollection<string>>? activeTerms =
+                mode == FullTextSearchMode.Fuzzy
+                    ? _index.SnapshotActiveTerms(_definition.Fields)
+                    : null;
             var fieldQueries = new SonnetDB.FullText.Query.Query[_definition.Fields.Count];
             for (int i = 0; i < _definition.Fields.Count; i++)
-                fieldQueries[i] = BuildFieldQuery(_definition.Fields[i], tokens, mode, queryKind);
+            {
+                string fieldName = _definition.Fields[i];
+                fieldQueries[i] = BuildFieldQuery(
+                    fieldName,
+                    tokens,
+                    mode,
+                    queryKind,
+                    activeTerms is null ? null : activeTerms[fieldName]);
+            }
             return fieldQueries.Length == 1 ? fieldQueries[0] : new OrQuery(fieldQueries);
         }
 
@@ -215,14 +229,18 @@ public sealed class DocumentFullTextIndexStore
                 $"全文索引 '{_definition.Name}' 不包含字段 '{normalizedField}'。");
         }
 
-        return BuildFieldQuery(normalizedField, tokens, mode, queryKind);
+        IReadOnlyCollection<string>? fieldTerms = mode == FullTextSearchMode.Fuzzy
+            ? _index.SnapshotActiveTerms([normalizedField])[normalizedField]
+            : null;
+        return BuildFieldQuery(normalizedField, tokens, mode, queryKind, fieldTerms);
     }
 
     private SonnetDB.FullText.Query.Query BuildFieldQuery(
         string field,
         IReadOnlyList<string> tokens,
         FullTextSearchMode mode,
-        FullTextQueryKind queryKind)
+        FullTextQueryKind queryKind,
+        IReadOnlyCollection<string>? activeTerms)
     {
         if (queryKind == FullTextQueryKind.Phrase)
             return tokens.Count == 1 ? new TermQuery(field, tokens[0]) : new PhraseQuery(field, tokens);
@@ -231,7 +249,7 @@ public sealed class DocumentFullTextIndexStore
         {
             var expanded = new SonnetDB.FullText.Query.Query[tokens.Count];
             for (int i = 0; i < tokens.Count; i++)
-                expanded[i] = ExpandFuzzyTermQuery(field, tokens[i]);
+                expanded[i] = ExpandFuzzyTermQuery(field, tokens[i], activeTerms!);
             return tokens.Count == 1
                 ? expanded[0]
                 : queryKind == FullTextQueryKind.Any ? new OrQuery(expanded) : new AndQuery(expanded);
@@ -251,15 +269,17 @@ public sealed class DocumentFullTextIndexStore
     /// 阈值随 term 长度递增：≤2 字符要求精确（容错距离 0），3-4 字符容 1 编辑，≥5 字符容 2 编辑。
     /// 若展开后无候选，回退到原 term 的 TermQuery，至少不会引入误判。
     /// </summary>
-    private SonnetDB.FullText.Query.Query ExpandFuzzyTermQuery(string field, string queryToken)
+    private static SonnetDB.FullText.Query.Query ExpandFuzzyTermQuery(
+        string field,
+        string queryToken,
+        IReadOnlyCollection<string> activeTerms)
     {
         int maxEdits = ComputeFuzzyMaxEdits(queryToken);
         if (maxEdits == 0)
             return new TermQuery(field, queryToken);
 
-        var candidates = _index.EnumerateTerms(field);
         var matches = new List<string>();
-        foreach (string term in candidates)
+        foreach (string term in activeTerms)
         {
             // 长度差超过 maxEdits 时编辑距离一定 > maxEdits，直接剪枝避免 O(N²) DP。
             if (Math.Abs(term.Length - queryToken.Length) > maxEdits)
@@ -415,30 +435,53 @@ internal static class DamerauLevenshtein
         if (la == 0) return lb;
         if (lb == 0) return la;
 
-        // 经典动态规划：dp[i][j] = 把 a[..i] 变成 b[..j] 的最小编辑数。
-        // 使用 (la+1) × (lb+1) 数组；la 一般 ≤ 几十，开销可控。
-        var dp = new int[la + 1, lb + 1];
-        for (int i = 0; i <= la; i++) dp[i, 0] = i;
-        for (int j = 0; j <= lb; j++) dp[0, j] = j;
-
-        for (int i = 1; i <= la; i++)
+        // 相邻交换只依赖当前行、前一行和前两行。短 term 使用栈缓冲，
+        // 长 term 租用数组，避免 fuzzy 枚举为每个候选分配二维矩阵。
+        int rowLength = lb + 1;
+        int bufferLength = checked(rowLength * 3);
+        int[]? rented = null;
+        Span<int> buffer = bufferLength <= 384
+            ? stackalloc int[bufferLength]
+            : (rented = ArrayPool<int>.Shared.Rent(bufferLength)).AsSpan(0, bufferLength);
+        try
         {
-            int rowMin = int.MaxValue;
-            for (int j = 1; j <= lb; j++)
-            {
-                int cost = a[i - 1] == b[j - 1] ? 0 : 1;
-                int min = Math.Min(
-                    Math.Min(dp[i - 1, j] + 1, dp[i, j - 1] + 1),
-                    dp[i - 1, j - 1] + cost);
-                if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1])
-                    min = Math.Min(min, dp[i - 2, j - 2] + 1); // transposition
-                dp[i, j] = min;
-                if (min < rowMin) rowMin = min;
-            }
-            if (rowMin > maxDistance) return maxDistance + 1;
-        }
+            Span<int> previousPrevious = buffer[..rowLength];
+            Span<int> previous = buffer.Slice(rowLength, rowLength);
+            Span<int> current = buffer.Slice(rowLength * 2, rowLength);
+            for (int j = 0; j <= lb; j++)
+                previous[j] = j;
 
-        return dp[la, lb];
+            for (int i = 1; i <= la; i++)
+            {
+                current[0] = i;
+                int rowMin = current[0];
+                for (int j = 1; j <= lb; j++)
+                {
+                    int cost = a[i - 1] == b[j - 1] ? 0 : 1;
+                    int min = Math.Min(
+                        Math.Min(previous[j] + 1, current[j - 1] + 1),
+                        previous[j - 1] + cost);
+                    if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1])
+                        min = Math.Min(min, previousPrevious[j - 2] + 1);
+                    current[j] = min;
+                    if (min < rowMin) rowMin = min;
+                }
+                if (rowMin > maxDistance)
+                    return maxDistance + 1;
+
+                Span<int> swap = previousPrevious;
+                previousPrevious = previous;
+                previous = current;
+                current = swap;
+            }
+
+            return previous[lb];
+        }
+        finally
+        {
+            if (rented is not null)
+                ArrayPool<int>.Shared.Return(rented);
+        }
     }
 }
 
