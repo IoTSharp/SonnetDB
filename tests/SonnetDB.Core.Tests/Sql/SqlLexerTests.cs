@@ -16,10 +16,10 @@ public class SqlLexerTests
     [Fact]
     public void Tokenize_KeywordsAreCaseInsensitive()
     {
-        var tokens = SqlLexer.Tokenize("Select FROM where Group By Time");
+        var tokens = SqlLexer.Tokenize("Select UNION FROM where Group By Time");
         var kinds = new[]
         {
-            TokenKind.KeywordSelect, TokenKind.KeywordFrom, TokenKind.KeywordWhere,
+            TokenKind.KeywordSelect, TokenKind.KeywordUnion, TokenKind.KeywordFrom, TokenKind.KeywordWhere,
             TokenKind.KeywordGroup, TokenKind.KeywordBy, TokenKind.KeywordTime,
             TokenKind.EndOfFile,
         };

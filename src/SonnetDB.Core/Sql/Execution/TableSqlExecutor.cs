@@ -269,6 +269,7 @@ internal static class TableSqlExecutor
             throw new InvalidOperationException("关系表 MVP 暂不支持 GROUP BY。");
 
         var projections = BuildProjections(statement.Projections, schema);
+        var hiddenOrderColumns = ResolveHiddenOrderColumns(projections, statement.OrderByList, schema);
         var rows = LoadSelectCandidateRows(tsdb.Tables.Open(schema.Name), schema, statement.Where);
         var filtered = new List<IReadOnlyList<object?>>();
         foreach (var row in rows)
@@ -276,16 +277,23 @@ internal static class TableSqlExecutor
             if (!EvaluateWhere(statement.Where, schema, row.Values))
                 continue;
 
-            var output = new object?[projections.Length];
+            var output = new object?[projections.Length + hiddenOrderColumns.Length];
             for (int i = 0; i < projections.Length; i++)
                 output[i] = EvaluateProjection(projections[i], schema, row.Values);
+            for (int i = 0; i < hiddenOrderColumns.Length; i++)
+                output[projections.Length + i] = row.Values[hiddenOrderColumns[i].Ordinal];
             filtered.Add(output);
         }
 
         var result = new SelectExecutionResult(
-            projections.Select(static p => p.ColumnName).ToArray(),
+            projections.Select(static projection => projection.ColumnName)
+                .Concat(hiddenOrderColumns.Select(static column => column.Name))
+                .ToArray(),
             filtered);
-        return ApplyOrderByAndPagination(result, statement.OrderByList, statement.Pagination);
+        var ordered = ApplyOrderByAndPagination(result, statement.OrderByList, statement.Pagination);
+        return hiddenOrderColumns.Length == 0
+            ? ordered
+            : RemoveHiddenOrderColumns(ordered, projections.Length);
     }
 
     public static RowsAffectedExecutionResult ExecuteDelete(Tsdb tsdb, DeleteStatement statement, TableSchema schema)
@@ -1384,6 +1392,45 @@ internal static class TableSqlExecutor
                 return (ColumnIndex: columnIndex, order.Direction);
             })
             .ToArray();
+
+    private static TableColumn[] ResolveHiddenOrderColumns(
+        IReadOnlyList<Projection> projections,
+        IReadOnlyList<OrderBySpec> orderBy,
+        TableSchema schema)
+    {
+        var projectedNames = projections
+            .Select(static projection => projection.ColumnName)
+            .ToHashSet(StringComparer.Ordinal);
+        var hiddenOrdinals = new HashSet<int>();
+        var hiddenColumns = new List<TableColumn>();
+
+        foreach (var order in orderBy)
+        {
+            if (order.Expression is not IdentifierExpression identifier
+                || projectedNames.Contains(identifier.Name))
+            {
+                continue;
+            }
+
+            var column = schema.TryGetColumn(identifier.Name);
+            if (column is not null && hiddenOrdinals.Add(column.Ordinal))
+                hiddenColumns.Add(column);
+        }
+
+        return hiddenColumns.ToArray();
+    }
+
+    private static SelectExecutionResult RemoveHiddenOrderColumns(
+        SelectExecutionResult result,
+        int visibleColumnCount)
+    {
+        var rows = result.Rows
+            .Select(row => (IReadOnlyList<object?>)row.Take(visibleColumnCount).ToArray())
+            .ToArray();
+        return new SelectExecutionResult(
+            result.Columns.Take(visibleColumnCount).ToArray(),
+            rows);
+    }
 
     private sealed class ResultRowSortComparer(IReadOnlyList<(int ColumnIndex, SortDirection Direction)> sortItems)
         : IComparer<IReadOnlyList<object?>>

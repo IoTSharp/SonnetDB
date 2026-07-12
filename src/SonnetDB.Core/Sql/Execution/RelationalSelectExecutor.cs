@@ -50,6 +50,13 @@ internal static class RelationalSelectExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
+        if (statement.UnionStatements.Count != 0)
+        {
+            return SqlExecutor.ExecuteUnion(
+                statement,
+                branch => Execute(tsdb, branch, outerScope, memo));
+        }
+
         if (statement.TableValuedFunction is not null)
             throw new InvalidOperationException("关系型 SELECT 暂不支持 FROM 表值函数。");
 

@@ -727,6 +727,9 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(statement);
         using var _ = SonnetDB.Query.Functions.UserFunctionRegistry.EnterScope(tsdb.Functions);
 
+        if (statement.UnionStatements.Count != 0)
+            return ExecuteUnion(tsdb, statement);
+
         if (!statement.Distinct)
             return ExecuteSelectDispatch(tsdb, statement);
 
@@ -823,6 +826,109 @@ public static class SqlExecutor
             float or double or decimal => Convert.ToDouble(value, CultureInfo.InvariantCulture),
             _ => value,
         };
+    }
+
+    private static SelectExecutionResult ExecuteUnion(Tsdb tsdb, SelectStatement statement)
+        => ExecuteUnion(statement, branch => ExecuteSelect(tsdb, branch));
+
+    internal static SelectExecutionResult ExecuteUnion(
+        SelectStatement statement,
+        Func<SelectStatement, SelectExecutionResult> executeBranch)
+    {
+        ArgumentNullException.ThrowIfNull(statement);
+        ArgumentNullException.ThrowIfNull(executeBranch);
+        var left = statement with
+        {
+            Unions = null,
+            OrderBy = null,
+            OrderByItems = null,
+            Pagination = null
+        };
+        var first = executeBranch(left);
+        var rows = new List<IReadOnlyList<object?>>(first.Rows);
+
+        foreach (var union in statement.UnionStatements)
+        {
+            var branch = executeBranch(union);
+            if (branch.Columns.Count != first.Columns.Count)
+            {
+                throw new InvalidOperationException(
+                    $"UNION 分支列数不一致：期望 {first.Columns.Count} 列，实际 {branch.Columns.Count} 列。");
+            }
+
+            rows.AddRange(branch.Rows);
+        }
+
+        var combined = ApplyDistinct(new SelectExecutionResult(first.Columns, rows));
+        return ApplyResultOrderByAndPagination(combined, statement.OrderByList, statement.Pagination);
+    }
+
+    private static SelectExecutionResult ApplyResultOrderByAndPagination(
+        SelectExecutionResult result,
+        IReadOnlyList<OrderBySpec> orderBy,
+        PaginationSpec? pagination)
+    {
+        if (orderBy.Count == 0)
+            return pagination is null ? result : ApplyResultPagination(result, pagination);
+
+        var sortItems = orderBy.Select(order =>
+        {
+            if (order.Expression is not IdentifierExpression identifier)
+                throw new InvalidOperationException("UNION ORDER BY 当前仅支持结果列名。");
+
+            int columnIndex = -1;
+            for (int i = 0; i < result.Columns.Count; i++)
+            {
+                if (string.Equals(result.Columns[i], identifier.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    columnIndex = i;
+                    break;
+                }
+            }
+
+            if (columnIndex < 0)
+                throw new InvalidOperationException($"UNION ORDER BY 引用了结果集中不存在的列 '{identifier.Name}'。");
+            return (ColumnIndex: columnIndex, order.Direction);
+        }).ToArray();
+
+        var comparer = new UnionResultRowComparer(sortItems);
+        var rows = TopN.OrderByThenPaginate(
+            result.Rows,
+            comparer,
+            pagination?.Offset ?? 0,
+            pagination?.Fetch);
+        return new SelectExecutionResult(result.Columns, rows);
+    }
+
+    private sealed class UnionResultRowComparer(
+        IReadOnlyList<(int ColumnIndex, SortDirection Direction)> sortItems)
+        : IComparer<IReadOnlyList<object?>>
+    {
+        public int Compare(IReadOnlyList<object?>? x, IReadOnlyList<object?>? y)
+        {
+            if (ReferenceEquals(x, y))
+                return 0;
+            if (x is null)
+                return -1;
+            if (y is null)
+                return 1;
+
+            foreach (var item in sortItems)
+            {
+                int comparison;
+                if (x[item.ColumnIndex] is null)
+                    comparison = y[item.ColumnIndex] is null ? 0 : -1;
+                else if (y[item.ColumnIndex] is null)
+                    comparison = 1;
+                else
+                    comparison = SqlScalarComparer.Compare(x[item.ColumnIndex], y[item.ColumnIndex]) ?? 0;
+
+                if (comparison != 0)
+                    return item.Direction == SortDirection.Descending ? -comparison : comparison;
+            }
+
+            return 0;
+        }
     }
 
     private static SelectExecutionResult ExecuteSelectDispatch(Tsdb tsdb, SelectStatement statement)

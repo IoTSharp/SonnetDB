@@ -1105,6 +1105,28 @@ public sealed class SqlParser
 
     private SelectStatement ParseSelect()
     {
+        var statement = ParseSelectCore();
+        var unions = new List<SelectStatement>();
+        while (Current.Kind == TokenKind.KeywordUnion)
+        {
+            Advance();
+            unions.Add(ParseSelectCore());
+        }
+
+        var orderByItems = ParseOptionalOrderBy();
+        var orderBy = orderByItems.Count > 0 ? orderByItems[0] : null;
+        var pagination = ParseOptionalPagination();
+        return statement with
+        {
+            Unions = unions,
+            OrderBy = orderBy,
+            OrderByItems = orderByItems,
+            Pagination = pagination
+        };
+    }
+
+    private SelectStatement ParseSelectCore()
+    {
         Expect(TokenKind.KeywordSelect);
         bool distinct = false;
         if (Current.Kind == TokenKind.KeywordDistinct)
@@ -1200,24 +1222,17 @@ public sealed class SqlParser
             having = ParseExpression();
         }
 
-        var orderByItems = ParseOptionalOrderBy();
-        var orderBy = orderByItems.Count > 0 ? orderByItems[0] : null;
-        var pagination = ParseOptionalPagination();
-
         return new SelectStatement(
             projections,
             measurement,
             where,
             groupBy,
             TableValuedFunction: tvf,
-            Pagination: pagination,
-            OrderBy: orderBy,
             TableAlias: tableAlias,
             Join: joins.Count == 0 ? null : joins[0],
             FromSubquery: fromSubquery,
             Joins: joins,
             Having: having,
-            OrderByItems: orderByItems,
             Distinct: distinct);
     }
 

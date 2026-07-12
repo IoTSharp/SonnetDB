@@ -264,6 +264,21 @@ public class SqlParserTests
     }
 
     [Fact]
+    public void Parse_SelectUnionWithCompoundOrderAndPagination_StoresBranchesAndTail()
+    {
+        var stmt = Assert.IsType<SelectStatement>(SqlParser.Parse(
+            "SELECT user_id FROM direct_roles UNION SELECT user_id FROM team_roles ORDER BY user_id LIMIT 5"));
+
+        var union = Assert.Single(stmt.UnionStatements);
+        Assert.Equal("direct_roles", stmt.Measurement);
+        Assert.Equal("team_roles", union.Measurement);
+        Assert.Empty(union.OrderByList);
+        var orderBy = Assert.Single(stmt.OrderByList);
+        Assert.Equal("user_id", Assert.IsType<IdentifierExpression>(orderBy.Expression).Name);
+        Assert.Equal(5, stmt.Pagination?.Fetch);
+    }
+
+    [Fact]
     public void Parse_Select_AllowsDoubleSlashCommentInsideStatement()
     {
         var stmt = (SelectStatement)SqlParser.Parse("SELECT // note\r\n* FROM cpu");

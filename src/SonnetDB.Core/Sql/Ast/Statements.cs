@@ -364,6 +364,7 @@ public sealed record InsertStatement(
 /// <param name="Join">可选 JOIN 子句；兼容旧调用方，等价于 <see cref="Joins"/> 第一项。</param>
 /// <param name="FromSubquery">FROM 子句若为子查询则非 <c>null</c>。</param>
 /// <param name="Joins">JOIN 子句列表；为空集合时表示无 JOIN。</param>
+/// <param name="Unions">后续 UNION SELECT 分支；所有分支列数必须一致，结果默认去重。</param>
 public sealed record SelectStatement(
     IReadOnlyList<SelectItem> Projections,
     string Measurement,
@@ -378,15 +379,19 @@ public sealed record SelectStatement(
     IReadOnlyList<JoinClause>? Joins = null,
     SqlExpression? Having = null,
     IReadOnlyList<OrderBySpec>? OrderByItems = null,
-    bool Distinct = false) : SqlStatement
+    bool Distinct = false,
+    IReadOnlyList<SelectStatement>? Unions = null) : SqlStatement
 {
     /// <summary>当前 SELECT 的 JOIN 列表。</summary>
-    public IReadOnlyList<JoinClause> JoinClauses { get; } =
+    public IReadOnlyList<JoinClause> JoinClauses =>
         Joins ?? (Join is null ? Array.Empty<JoinClause>() : new[] { Join });
 
     /// <summary>当前 SELECT 的完整 ORDER BY 列表。</summary>
-    public IReadOnlyList<OrderBySpec> OrderByList { get; } =
+    public IReadOnlyList<OrderBySpec> OrderByList =>
         OrderByItems ?? (OrderBy is null ? Array.Empty<OrderBySpec>() : new[] { OrderBy });
+
+    /// <summary>当前 SELECT 后续的 UNION 分支。</summary>
+    public IReadOnlyList<SelectStatement> UnionStatements => Unions ?? Array.Empty<SelectStatement>();
 }
 
 /// <summary>

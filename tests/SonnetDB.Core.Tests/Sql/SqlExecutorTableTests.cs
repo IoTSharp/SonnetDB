@@ -242,6 +242,57 @@ public sealed class SqlExecutorTableTests : IDisposable
     }
 
     [Fact]
+    public void Select_OrderByNonProjectedColumn_SortsAndPaginatesWithoutExposingColumn()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, """
+            INSERT INTO devices (id, name)
+            VALUES (1, 'charlie'),
+                   (2, 'alpha'),
+                   (3, 'bravo'),
+                   (4, 'delta')
+            """);
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM devices ORDER BY name LIMIT 2 OFFSET 1"));
+
+        Assert.Equal(["id"], result.Columns);
+        Assert.Equal([3L, 1L], result.Rows.Select(row => (long)row[0]!).ToArray());
+    }
+
+    [Fact]
+    public void Select_InSubqueryWithUnionAndJoin_ReturnsDistinctUsersInOuterOrder()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE app_users (id STRING, normalized_name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE TABLE direct_roles (repository_id INT, user_id STRING, PRIMARY KEY (repository_id, user_id))");
+        SqlExecutor.Execute(db, "CREATE TABLE team_roles (repository_id INT, team_id INT, PRIMARY KEY (repository_id, team_id))");
+        SqlExecutor.Execute(db, "CREATE TABLE user_teams (team_id INT, user_id STRING, PRIMARY KEY (team_id, user_id))");
+        SqlExecutor.Execute(db, "INSERT INTO app_users (id, normalized_name) VALUES ('u1', 'BOB'), ('u2', 'ALICE'), ('u3', 'CAROL')");
+        SqlExecutor.Execute(db, "INSERT INTO direct_roles (repository_id, user_id) VALUES (1, 'u1')");
+        SqlExecutor.Execute(db, "INSERT INTO team_roles (repository_id, team_id) VALUES (1, 10)");
+        SqlExecutor.Execute(db, "INSERT INTO user_teams (team_id, user_id) VALUES (10, 'u1'), (10, 'u2')");
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT u.id
+            FROM app_users AS u
+            WHERE u.id IN (
+                SELECT d.user_id
+                FROM direct_roles AS d
+                WHERE d.repository_id = 1
+                UNION
+                SELECT ut.user_id
+                FROM team_roles AS t
+                INNER JOIN user_teams AS ut ON t.team_id = ut.team_id
+                WHERE t.repository_id = 1)
+            ORDER BY u.normalized_name
+            """));
+
+        Assert.Equal(["u2", "u1"], result.Rows.Select(row => (string)row[0]!).ToArray());
+    }
+
+    [Fact]
     public void Select_EfStyleIsNotNullPredicate_ReturnsRows()
     {
         using var db = Tsdb.Open(Options());

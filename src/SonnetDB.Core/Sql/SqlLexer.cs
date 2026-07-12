@@ -47,6 +47,7 @@ public sealed class SqlLexer
         ["values"] = TokenKind.KeywordValues,
         ["select"] = TokenKind.KeywordSelect,
         ["distinct"] = TokenKind.KeywordDistinct,
+        ["union"] = TokenKind.KeywordUnion,
         ["from"] = TokenKind.KeywordFrom,
         ["join"] = TokenKind.KeywordJoin,
         ["inner"] = TokenKind.KeywordInner,

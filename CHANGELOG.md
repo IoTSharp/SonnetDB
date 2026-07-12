@@ -7,6 +7,8 @@
 
 ### Fixed
 
+- 修复关系表 `ORDER BY` 必须引用投影结果列的问题；单表查询现在可按未投影的源列排序和分页，内部排序键不会泄漏到结果列，兼容 EF Core 先排序后投影 DTO 的 SQL。
+- 新增关系查询 `UNION` 默认去重、参数绑定和 compound 排序/分页执行，支持 EF Core 在 `IN` 子查询中合并直接角色与团队角色的标准 SQL。
 - 修复关系表唯一索引把多个 `NULL` 值误判为冲突的问题；唯一索引任一列为 `NULL` 时不再生成唯一键，事务批量提交和重启索引重建保持一致，同时仍拒绝重复非空值。
 - 修复 Server Dockerfile 遗漏 `IoTSharp.CoAP.NET` 子模块项目与源码，导致递归 checkout 无法 restore/publish SonnetDB 镜像的问题。
 - 修复远程 EF provider 通过二进制帧查询不存在数据库时返回 HTTP 200 + `db_not_found`，migration history 未识别该错误并阻断自动建库的问题。

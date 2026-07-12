@@ -82,6 +82,8 @@ public enum TokenKind
     KeywordSelect,
     /// <summary>DISTINCT（SELECT DISTINCT 去重）。</summary>
     KeywordDistinct,
+    /// <summary>UNION（合并 SELECT 结果并去重）。</summary>
+    KeywordUnion,
     KeywordFrom,
     /// <summary>JOIN（MM4 时序 measurement JOIN 关系维表）。</summary>
     KeywordJoin,

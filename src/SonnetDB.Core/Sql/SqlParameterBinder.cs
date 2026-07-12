@@ -52,6 +52,7 @@ public static class SqlParameterBinder
         var orderByItems = BindOrderBy(select.OrderByList, p);
         var joins = BindJoins(select.JoinClauses, p);
         var fromSubquery = select.FromSubquery is null ? null : BindSelect(select.FromSubquery, p);
+        var unions = select.UnionStatements.Select(union => BindSelect(union, p)).ToArray();
         var pagination = BindPagination(select.Pagination, p);
 
         return select with
@@ -66,6 +67,7 @@ public static class SqlParameterBinder
             Join = null,
             Joins = joins,
             FromSubquery = fromSubquery,
+            Unions = unions,
         };
     }
 
