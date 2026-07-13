@@ -201,6 +201,53 @@ public sealed class SegmentManagerTests : IDisposable
             Assert.NotEmpty(mgr.Index.LookupCandidates((ulong)i, "f", 1000L, 2000L));
     }
 
+    [Fact]
+    public void SwapSegments_OneForOne_PrunesRemovedIndexCache()
+    {
+        WriteSegment(1L, 0x1UL, "f", 1000L, 2000L);
+        using var mgr = SegmentManager.Open(_tempDir);
+
+        long currentId = 1L;
+        for (long nextId = 2L; nextId <= 20L; nextId++)
+        {
+            WriteSegment(nextId, (ulong)nextId, "f", nextId * 1000L, nextId * 1000L + 500L);
+            mgr.SwapSegments([currentId], SegPath(nextId));
+            currentId = nextId;
+
+            Assert.Equal(1, mgr.SegmentCount);
+            Assert.Equal(mgr.SegmentCount, mgr.CachedIndexCount);
+        }
+    }
+
+    [Fact]
+    public void DropSegments_WithoutMatches_DoesNotPublishSnapshot()
+    {
+        WriteSegment(1L);
+        using var mgr = SegmentManager.Open(_tempDir);
+        var before = mgr.CurrentSnapshot;
+
+        var dropped = mgr.DropSegments([99L]);
+
+        Assert.Empty(dropped);
+        Assert.Same(before, mgr.CurrentSnapshot);
+    }
+
+    [Fact]
+    public void InitializeActiveMemTable_ReusesPublishedSegmentState()
+    {
+        WriteSegment(1L);
+        using var mgr = SegmentManager.Open(_tempDir);
+        var before = mgr.CurrentSnapshot;
+
+        mgr.InitializeActiveMemTable(new MemTable());
+
+        var after = mgr.CurrentSnapshot;
+        Assert.NotSame(before, after);
+        Assert.Same(before.Index, after.Index);
+        Assert.Same(before.ReaderStates, after.ReaderStates);
+        Assert.Same(before.Readers, after.Readers);
+    }
+
     // ── Dispose ──────────────────────────────────────────────────────────────
 
     [Fact]

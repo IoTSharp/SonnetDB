@@ -7,6 +7,7 @@
 
 ### Fixed
 
+- **M19 #124 SegmentManager 增量发布收口**：修复一换一 `SwapSegments` 因活动段数不变而永久保留已移除 `_indexById` 项的问题；移除段现在同步修剪索引缓存，无命中 `DropSegments` 不再发布等价快照。reader 集合改为有序字典，使 add/swap/drop 发布从重复 O(N log N) 排序降为 O(N) 顺序复制；纯 MemTable 切换复用现有 index/reader state/readers，使密封发布恢复为 O(1)。
 - 修复关系表 `ORDER BY` 必须引用投影结果列的问题；单表查询现在可按未投影的源列排序和分页，内部排序键不会泄漏到结果列，兼容 EF Core 先排序后投影 DTO 的 SQL。
 - 新增关系查询 `UNION` 默认去重、参数绑定和 compound 排序/分页执行，支持 EF Core 在 `IN` 子查询中合并直接角色与团队角色的标准 SQL。
 - 修复关系表唯一索引把多个 `NULL` 值误判为冲突的问题；唯一索引任一列为 `NULL` 时不再生成唯一键，事务批量提交和重启索引重建保持一致，同时仍拒绝重复非空值。
@@ -17,6 +18,7 @@
 
 ### Added
 
+- **M19 #124 维护发布基准与 #124~#126.1 复核**：新增 `SegmentManagerMaintenanceBenchmark`，覆盖 16/256/1024 段、0/4 个真实 QueryEngine 并发 worker 下的 flush add、compaction swap、retention drop，并以 #207 前的全量 `SegmentIndex.Build` 作为参考；新增 M19 优化项复核报告，按当前实现重新界定 #125 长稳扩展、#126 正则治理和 #126.1 批量删除存储设计。
 - **M19 #118~#121 生态适配底座闭环**：对象桶后端治理完成 policy、retention/lifecycle、versioning、legal hold、审计、容量和 quota；新增可运行的嵌入式/远程 ADO.NET + EF Core + `IDistributedCache` + 对象桶生态样例及 Profile 边界文档。Core 新增基于一致性 manifest 的 `MigrationService`，提供 export/scan/checksum/import dry-run/import、包级稳定 SHA-256 和篡改拒绝。新增 `EcosystemSoak` quick/ci/soak runner 与每周/手动 workflow，统一报告 EF、批量/大量 measurement、KV TTL、multipart、多模型备份恢复、快照回滚、真子进程强杀和 torn WAL 掉电恢复；2026-07-12 quick 基线全阶段 PASS。
 - **M30 #264 Sparkplug B 生命周期与命令闭环**：新增 edge node 级 `bdSeq`/0..255 `seq` 状态机、序列缺口与缺失 BIRTH 上下文检测，自动经内建 broker 发布 `NCMD Node Control/Rebirth=true`；`NDEATH`/`DDEATH` 更新节点和设备离线状态，BIRTH alias 快照原子持久化到 `DataRoot/.system` 并支持重启恢复。Primary Host Application 启停发布 retained `STATE/ONLINE|OFFLINE`；edge node 可按数据库读权限订阅精确 NCMD/DCMD/STATE topic。人工 NCMD/DCMD 默认关闭，启用后仍要求数据库 Admin 与 MQTT v5 `sndb-approved=true` 双重审批。新增生命周期、alias 恢复、命令编码和真实 MQTT 闭环测试及三项 Prometheus 计数。
 - **M30 #263 Sparkplug B payload 解码与落库**：内建 MQTT broker 新增 `spBv1.0/{group}/{NBIRTH|DBIRTH|NDATA|DDATA}/{edgeNode}/[{device}]` 接入，手写零依赖 protobuf reader，BIRTH 原子刷新进程内 alias 表，DATA 按 alias 解析后直接生成 `Point` 进入 `BulkIngestor`；新增显式目标数据库、写权限、payload 上限、结构化日志与四项 Prometheus 计数。MQTT routing 子模块新增独立 `MQTTnet.AspNetCore.Routing.SourceGeneration` analyzer，Sparkplug controller 由编译期 route/DI/action 委托执行，不与 CoAP generator 产生引用或运行时耦合。

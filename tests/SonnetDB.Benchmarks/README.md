@@ -40,6 +40,12 @@ dotnet run --project eng/benchmarks/run-benchmarks/run-benchmarks.csproj -- --fi
 # 仅运行压缩（Compaction）基准
 dotnet run --project eng/benchmarks/run-benchmarks/run-benchmarks.csproj -- --filter *Compaction*
 
+# 仅运行 SegmentManager 维护发布基准（不需要外部数据库）
+dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --filter *SegmentManagerMaintenance*
+
+# 快速验证 #124 基准的 setup / 并发 query / cleanup 生命周期
+dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --segment-maintenance-smoke
+
 # 仅运行向量召回基准
 dotnet run --project eng/benchmarks/run-benchmarks/run-benchmarks.csproj -- --filter *Vector*
 
@@ -145,6 +151,15 @@ IoTDB 使用 `GROUP BY ([start,end), 60000ms)`；TimescaleDB 使用 `time_bucket
 
 预先写入多个 `.SDBSEG` 段，然后执行一次 `4 -> 1` 的段合并，
 用于度量 SonnetDB 引擎在真实段文件上的 Compaction 耗时与内存分配。
+
+### SegmentManagerMaintenanceBenchmark（M19 #124）
+
+预先生成 16 / 256 / 1024 个小段，分别测量 `AddSegment`（flush 发布）、
+`SwapSegments`（compaction 发布）和 `DropSegments`（retention 发布）。
+`QueryWorkers=4` 时由真实 `QueryEngine` 持续执行跨段点查询，覆盖快照租约与 reader 延迟释放；
+`FullIndexRebuildReference` 复现 #207 前对全部存活段执行 `SegmentIndex.Build` 的参考成本。
+输出 Median、P90 与维护线程托管分配，具体边界与解释见
+[M19 优化项复核](../../docs/benchmarks/m19-optimization-reassessment.md)。
 
 ### PidBenchmark（PID 控制函数）
 
@@ -379,4 +394,3 @@ dotnet run --project eng/benchmarks/run-benchmarks/run-benchmarks.csproj -- --fi
 - **TDengine schemaless LP**（996 ms / 61.22 MB）比同库 REST INSERT 子表路径（44,137 ms / 156.08 MB）快约 **44×**、分配缩到 **39%**，体现 schemaless 快路径与走 SQL parser 路径的差异。
 - **SonnetDB LP / JSON / Bulk 三端点**（1,120–1,352 ms / 34–71 MB）已进入「约 1,000 ms 级 1M 点 + ≤ 80 MB 分配」区间，比 SQL Batch (/sql/batch) 路径快约 **15–17×**、分配缩到 **5–11%**；比嵌入式仅多 **~2.0–2.5×**额外开销（HTTP + Kestrel + Auth + JSON/LP 解析）。
 ```
-

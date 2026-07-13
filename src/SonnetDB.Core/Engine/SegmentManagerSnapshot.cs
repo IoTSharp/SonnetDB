@@ -17,14 +17,15 @@ internal sealed class SegmentManagerSnapshot
         MultiSegmentIndex index,
         IReadOnlyList<SegmentReaderLeaseState> readerStates,
         MemTable? activeMemTable = null,
-        IReadOnlyList<MemTable>? sealingMemTables = null)
+        IReadOnlyList<MemTable>? sealingMemTables = null,
+        IReadOnlyList<SegmentReader>? readers = null)
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(readerStates);
 
         Index = index;
         _readerStates = readerStates;
-        Readers = readerStates.Select(static state => state.Reader).ToArray();
+        Readers = readers ?? readerStates.Select(static state => state.Reader).ToArray();
         ActiveMemTable = activeMemTable;
         SealingMemTables = sealingMemTables ?? EmptyMemTables;
     }
@@ -32,6 +33,9 @@ internal sealed class SegmentManagerSnapshot
     public MultiSegmentIndex Index { get; }
 
     public IReadOnlyList<SegmentReader> Readers { get; }
+
+    /// <summary>快照持有的 reader 租约状态；纯 MemTable 发布可安全复用该不可变列表。</summary>
+    internal IReadOnlyList<SegmentReaderLeaseState> ReaderStates => _readerStates;
 
     /// <summary>
     /// 当前活跃 MemTable（写入目标）；SegmentManager 初始快照或纯段测试场景下可能为 null。
