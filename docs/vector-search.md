@@ -1,55 +1,70 @@
-# Vector Search with SonnetDB
+# SonnetDB 向量与混合检索
 
-SonnetDB v1 为时序数据的向量列（`VECTOR(dim)`）提供 **brute-force KNN（K-最近邻）** 查询能力，
-通过内置表值函数 `knn(...)` 以标准 SQL 语法完成端到端的嵌入向量检索。
+SonnetDB 当前同时支持两类向量主数据：
 
----
+- Measurement 的 `FIELD VECTOR(N)`，适合带时间、TAG 和其它遥测字段的向量数据。
+- Document Collection 中 JSON 数组形式的向量字段，适合通用文档、知识块和应用记录。
 
-## 目录
+两类模型都保留精确扫描作为正确性回退。Measurement 可声明 HNSW、IVF、IVF-PQ 或 Vamana 段内 ANN 索引；Document Collection 可声明持久 HNSW 向量索引，并与全文 BM25 组成 Hybrid Search。SonnetDB 还通过 `SonnetDB.Data` 提供 `Microsoft.Extensions.VectorData` adapter。
 
-1. [Schema 设计](#schema-设计)
-2. [写入向量数据](#写入向量数据)
-3. [KNN 查询语法](#knn-查询语法)
-4. [距离度量](#距离度量)
-5. [返回结果结构](#返回结果结构)
-6. [WHERE 子句过滤](#where-子句过滤)
-7. [嵌入式 API 示例](#嵌入式-api-示例)
-8. [限制与后续规划](#限制与后续规划)
+> SonnetDB 当前是具备向量、全文、Document 和对象存储能力的多模型数据库。数据库不会自动为图片、音频、视频或任意对象生成 embedding；原始内容摄取、模型版本和多模态索引生命周期归 Milestone 35。
 
 ---
 
-## Schema 设计
+## 能力选择
 
-在 `CREATE MEASUREMENT` 中声明 `FIELD VECTOR(dim)` 列，其中 `dim` 是向量维度（正整数）。
+| 需求 | 推荐入口 |
+|---|---|
+| 带时间和 TAG 过滤的向量检索 | Measurement `VECTOR(N)` + `knn(...)` |
+| 通用记录 / 文档向量检索 | Document Collection + `vector_search(...)` |
+| 文本 BM25 + 向量融合 | Document Collection + `hybrid_search(...)` |
+| 遥测向量关联知识文档 | Measurement + Document 的 `hybrid_search(...)` |
+| .NET Vector Store 抽象 | `SonnetDB.Data.VectorData` |
+| 原始图片 / 文件保存 | Object Bucket；应用负责生成向量并写入 Document / Measurement |
+
+## Measurement 向量
+
+### Schema 与 ANN 索引
+
+在 `CREATE MEASUREMENT` 中声明 `FIELD VECTOR(dim)`。一个 Measurement 可以包含多个不同维度的向量字段。
 
 ```sql
 CREATE MEASUREMENT documents (
-    source  TAG,
-    title   FIELD STRING,
-    embedding FIELD VECTOR(1536)
+    source TAG,
+    title FIELD STRING,
+    embedding FIELD VECTOR(3)
+        WITH INDEX hnsw(
+            m=16,
+            ef=64,
+            ef_construction=200,
+            metric='cosine'
+        )
 );
 ```
 
-> 一个 Measurement 中可同时包含多个 `VECTOR` 列（各自独立存储）。
+Measurement 向量索引支持：
 
----
+- `hnsw(m, ef[, ef_construction][, metric])`
+- `ivf(nlist, nprobe[, max_iterations][, metric])`
+- `ivf_pq(nlist, nprobe, m, nbits[, max_iterations][, metric])`
+- `vamana(max_degree, search_list_size, alpha, beam_width[, metric])`
 
-## 写入向量数据
+索引是由主数据构建的派生结构。未声明索引、索引暂不可用、查询条件不适合 ANN，或 ANN 候选不足以保证结果时，查询会保留精确扫描 / 补偿路径。
 
-使用标准 `INSERT INTO ... VALUES` 语句，向量字面量以 `[f1, f2, ..., fN]` 形式提供：
+### 写入
+
+向量字面量使用 `[f1, f2, ..., fN]`：
 
 ```sql
 INSERT INTO documents (source, title, embedding, time) VALUES
-    ('wiki', '量子计算简介', [0.12, -0.34, 0.57, ...], 1700000000000),
-    ('wiki', '神经网络基础', [0.88, 0.23, -0.11, ...], 1700000001000),
-    ('blog', '时序数据库选型', [0.03, 0.74, 0.16, ...], 1700000002000);
+    ('wiki', '量子计算简介', [0.12, -0.34, 0.57], 1700000000000),
+    ('wiki', '神经网络基础', [0.88, 0.23, -0.11], 1700000001000),
+    ('blog', '时序数据库选型', [0.03, 0.74, 0.16], 1700000002000);
 ```
 
-向量维度必须与 schema 中声明的 `dim` 精确匹配，否则写入时抛出错误。
+示例使用 3 维向量便于阅读；生产模型通常使用更高维度，实际写入长度必须与 schema 的 `VECTOR(N)` 完全一致，且所有分量必须是有限数值。
 
----
-
-## KNN 查询语法
+### KNN 查询
 
 ```sql
 SELECT *
@@ -57,125 +72,126 @@ FROM knn(measurement, column, query_vector, k [, metric])
 [WHERE tag_condition [AND time_condition]]
 ```
 
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `measurement` | 标识符 | 目标 measurement 名称 |
-| `column` | 标识符 | 用于检索的 `VECTOR` 类型 FIELD 列名 |
-| `query_vector` | 向量字面量 `[f, ...]` | 与列声明维度相同的查询向量 |
-| `k` | 正整数字面量 | 返回最近邻数量上限 |
-| `metric` | 字符串字面量（可选） | 距离度量方式，默认 `'cosine'` |
-
-### 示例
+| 参数 | 说明 |
+|---|---|
+| `measurement` | 目标 Measurement |
+| `column` | `VECTOR` 类型 FIELD 列 |
+| `query_vector` | 与列维度一致的查询向量 |
+| `k` | 返回最近邻数量上限 |
+| `metric` | 可选，默认 `cosine` |
 
 ```sql
--- 默认余弦距离，最近 5 条
-SELECT * FROM knn(documents, embedding, [0.12, -0.34, 0.57], 5);
+-- 余弦距离 Top-5
+SELECT *
+FROM knn(documents, embedding, [0.12, -0.34, 0.57], 5);
 
--- L2（欧几里得）距离，最近 10 条
-SELECT * FROM knn(documents, embedding, [0.12, -0.34, 0.57], 10, 'l2');
-
--- 带 tag 过滤：只在 source='wiki' 的序列中检索
-SELECT * FROM knn(documents, embedding, [0.12, -0.34, 0.57], 5, 'cosine')
-WHERE source = 'wiki';
-
--- 带时间范围过滤
-SELECT * FROM knn(documents, embedding, [0.12, -0.34, 0.57], 5)
-WHERE time >= 1700000000000 AND time < 1700000002000;
+-- TAG 与时间范围过滤
+SELECT *
+FROM knn(documents, embedding, [0.12, -0.34, 0.57], 10, 'l2')
+WHERE source = 'wiki'
+  AND time >= 1700000000000
+  AND time < 1700000002000;
 ```
 
----
+`knn(...)` 返回固定顺序的 `time`、`distance`、全部 TAG 和全部 FIELD。距离越小表示越相似；向量 FIELD 会以 `float[]` 返回。
+
+Measurement 的 TAG / 时间条件会用于缩小候选范围。执行器只在索引度量、维度、数据状态和过滤条件满足要求时使用 ANN，并在必要时补偿或回退，不把 ANN 的近似候选误报成精确过滤结果。
 
 ## 距离度量
 
-| 参数值 | 含义 | 适用场景 |
-|--------|------|---------|
-| `'cosine'` / `'cosine_distance'` | 余弦距离 = 1 − 余弦相似度，值域 `[0, 2]` | 文本嵌入、归一化向量 |
-| `'l2'` / `'l2_distance'` / `'euclidean'` | 欧几里得距离 = √Σ(aᵢ−bᵢ)² | 绝对距离度量 |
-| `'inner_product'` / `'dot'` / `'ip'` | 负内积 = −(a·b)，越小内积越大 | 已归一化、希望最大化点积的场景 |
+| 名称 | 含义 | 常见用途 |
+|---|---|---|
+| `cosine` / `cosine_distance` | `1 - cosine_similarity` | 文本、图片等归一化 embedding |
+| `l2` / `l2_distance` / `euclidean` | 欧几里得距离 | 需要绝对几何距离的向量 |
+| `inner_product` / `dot` / `ip` | 负内积，越小表示内积越大 | 已按模型约定归一化的向量 |
 
-所有度量均满足「值越小 = 向量越相似」，结果按距离升序返回。
+索引声明与查询使用的 metric 必须一致，才能命中对应 ANN 路径。相同维度不代表不同 embedding 模型生成的向量可以互相比较；应用当前必须自行保存和校验模型信息，M35 将补正式的 Embedding Profile。
 
----
+## Document 向量搜索
 
-## 返回结果结构
+Document Collection 把 JSON 文档作为主数据，向量字段是 JSON number array。`vector_search(...)` 可直接执行精确检索，也可命中相同 path、维度和 metric 的持久 HNSW 索引。
 
-`knn(...)` 返回如下固定列顺序：
-
-| 列名 | 类型 | 说明 |
-|------|------|------|
-| `time` | `long`（毫秒） | 数据点时间戳 |
-| `distance` | `double` | 与查询向量的距离 |
-| `<tag1>`, `<tag2>`, ... | `string` | Measurement 中所有 TAG 列（按声明顺序） |
-| `<field1>`, `<field2>`, ... | 各字段类型 | Measurement 中所有 FIELD 列（按声明顺序） |
-
-> **注意**：向量 FIELD 列本身也会出现在结果中，以 `float[]` 形式返回。
-
----
-
-## WHERE 子句过滤
-
-`knn(...)` 的 `WHERE` 子句与普通 `SELECT` 完全一致，支持：
-
-- **Tag 等值过滤**：`source = 'wiki'`
-- **时间范围过滤**：`time >= T1 AND time < T2`（Unix 毫秒整数）
-
-`WHERE` 同时影响「参与召回的序列」（tag 过滤）和「参与召回的时间窗」（time 过滤），
-可有效缩减暴力扫描范围。
-
----
-
-## 嵌入式 API 示例
-
-以下示例展示如何通过 C# 嵌入式 API 完成「写入 → 检索」的完整流程：
-
-```csharp
-using SonnetDB.Engine;
-using SonnetDB.Sql;
-using SonnetDB.Sql.Execution;
-
-// 打开数据库
-using var db = Tsdb.Open(new TsdbOptions { RootDirectory = "/data/my-db" });
-
-// 建表
-SqlExecutor.Execute(db,
-    "CREATE MEASUREMENT documents (source TAG, embedding FIELD VECTOR(4))");
-
-// 写入向量
-SqlExecutor.Execute(db,
-    "INSERT INTO documents (source, embedding, time) VALUES " +
-    "('news', [0.1, 0.2, 0.3, 0.4], 1700000000000), " +
-    "('news', [0.9, 0.8, 0.7, 0.6], 1700000001000), " +
-    "('blog', [0.5, 0.5, 0.5, 0.5], 1700000002000)");
-
-// KNN 查询：查找余弦距离最近的 2 条
-float[] queryEmbedding = [0.1f, 0.2f, 0.3f, 0.4f];
-string queryVec = string.Join(", ", queryEmbedding);
-
-var result = (SelectExecutionResult)SqlExecutor.Execute(db,
-    $"SELECT * FROM knn(documents, embedding, [{queryVec}], 2)");
-
-Console.WriteLine($"Columns: {string.Join(", ", result.Columns)}");
-foreach (var row in result.Rows)
-{
-    long time = (long)row[0]!;
-    double dist = (double)row[1]!;
-    string source = (string)row[2]!;
-    Console.WriteLine($"  time={time}, dist={dist:F4}, source={source}");
-}
-// 输出示例：
-//   Columns: time, distance, source, embedding
-//   time=1700000000000, dist=0.0000, source=news
-//   time=1700000002000, dist=0.0093, source=blog
+```sql
+CREATE VECTOR INDEX idx_logs_embedding ON logs ('$.embedding')
+WITH (
+    dimensions = 3,
+    metric = 'cosine',
+    m = 16,
+    ef_construction = 200,
+    ef_search = 64
+);
 ```
 
----
+```sql
+SELECT id,
+       json_value(document, '$.title') AS title,
+       vector_distance() AS distance,
+       vector_score() AS score
+FROM vector_search(
+    source => logs,
+    vector_field => '$.embedding',
+    vector => [1, 0, 0],
+    k => 20,
+    metric => 'cosine'
+)
+ORDER BY distance;
+```
 
-## 限制与后续规划
+当前 Document ANN 边界：
 
-| 当前版本（PR #60）| 后续规划 |
-|---|---|
-| brute-force 顺扫（无 ANN 索引） | HNSW 段内索引（PR #6x） |
-| 多序列并行扫描（`Parallel.ForEach`） | SIMD（`TensorPrimitives`）加速距离计算 |
-| 仅支持 `SELECT *` 投影 | 支持具名列投影 |
-| `k` 为正整数字面量 | 支持参数绑定 `@k` |
-| 查询向量为字面量 `[...]` | 支持参数绑定 `@queryVec` |
+- 无 `WHERE`、按距离升序、path / dimension / metric 匹配时可以使用持久向量索引。
+- 带 `WHERE` 时当前回退为先过滤、再精确扫描，保证过滤后的 Top-K 语义正确。
+- `EXPLAIN` 会显示 `document_vector_index` 或 `document_vector_scan` 及索引名 / vector path。
+- `INSERT` / `UPDATE` / `DELETE` 会维护派生索引；索引缺失或损坏时可从 Document 主数据重建。
+
+带 metadata filter 的 ANN pre-filter、精确补偿和 `similar-by-id` 归 M35 #298。实现前不能把当前带过滤的精确回退描述为 filtered ANN。
+
+## Hybrid Search
+
+Document Hybrid Search 把全文 BM25 与向量分数融合：
+
+```sql
+SELECT id,
+       bm25_score() AS text_score,
+       vector_distance() AS distance,
+       hybrid_score() AS score
+FROM hybrid_search(
+    source => logs,
+    text_index => ft_logs_message,
+    text_field => '$.message',
+    text => 'pump alarm',
+    vector_field => '$.embedding',
+    vector => [1, 0, 0],
+    k => 20,
+    text_weight => 0.6,
+    vector_weight => 0.4
+)
+WHERE site = 'north'
+ORDER BY score DESC;
+```
+
+当前融合分数为归一化 BM25 与向量分数的加权和，默认权重各为 0.5。结果可以投影 `bm25_score()`、`vector_distance()`、`vector_score()` 和 `hybrid_score()`。
+
+`hybrid_search(...)` 还支持 Measurement KNN 与 Document 知识条目的关联融合。完整命名参数、关系维表过滤和结果伪列见 [SQL 参考](sql-reference.md#measurement-knn-与知识文档融合)。
+
+## .NET 与管理入口
+
+- 嵌入式与远程 SQL 均支持 Measurement `knn(...)`、Document `vector_search(...)` 和 `hybrid_search(...)`。
+- 二进制帧协议的 `vector` service 使用紧凑 f32 传输 Measurement 查询向量与结果，REST 保留兼容入口。
+- `SonnetDB.Data` 提供 `Microsoft.Extensions.VectorData` adapter，默认把通用 VectorData collection 映射为 Document Collection。
+- Web Admin / Studio 的 Vector Playground 支持原始 `float[]`、文本 embedding、Top-K、受限 metadata filter、命中详情和索引参数查看。
+- Playground 的文本 embedding 复用 Copilot Provider，仅生成查询向量，不自动为已有业务数据建索引。
+
+## 当前限制与后续路线
+
+| 当前能力 | 当前边界 | 后续归口 |
+|---|---|---|
+| Measurement ANN | 支持 HNSW / IVF / IVF-PQ / Vamana，必要时精确回退 | 继续以 recall、过滤和恢复基准治理 |
+| Document ANN | 持久 HNSW；无过滤查询可走 ANN | M35 #298 filtered ANN / similar-by-id |
+| Embedding Provider | Copilot 入口当前只处理文本 | M35 #300 多模态 Provider |
+| 对象存储 + 向量 | 两类能力已存在，但没有自动关联和索引状态机 | M35 #297 / #299 |
+| 以图搜图 | 尚无图片摄取、模型 profile 和产品 API | M35 #301 |
+| 通用 RAG | Copilot 有内部文档管线，仍固定 384 维并维护私有检索逻辑 | M35 #302 |
+| 音视频检索 | 尚无 transcript / 关键帧 / timecode 分段模型 | M35 #304 |
+
+SonnetDB 在 M35 首个图片检索闭环完成前，应使用“多模型数据库、具备多模态检索底座”的表述，不应把现有向量字段本身等同于已经完成的多模态产品能力。

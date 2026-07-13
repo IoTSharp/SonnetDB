@@ -32,6 +32,7 @@
 | 32 | Document Store MongoDB-like 易用性增强 | #272 ~ #281 | 📋（后续池；承接 M21/M24/M25） |
 | 33 | 时序聚合执行与下推优化（aggregate execution & pushdown） | #282 ~ #287 | ✅（Geo 正确性、多聚合复用、残差流式化、count(*) 专路、LIMIT 与 latest-N 下推全部收口） |
 | 34 | Modbus TCP 内建映射表（主站采集 + 从站暴露） | #288 ~ #296 | 📋（新增路线；以 SQL DDL 定义寄存器与表字段映射） |
+| 35 | 语义内容与多模态检索（Semantic Content & Multimodal Retrieval） | #297 ~ #305 | 📋（后续路线；先补过滤 ANN 与内容索引生命周期，再交付以图搜图和通用 RAG） |
 | MM9 | 多模型统一备份、恢复和管理工具第一批 | BackupService + sndb backup | ✅ |
 
 ---
@@ -50,6 +51,7 @@
 > **后续池**：
 > - **M32 Document Store MongoDB-like 易用性增强**：在 M21 单机能力、M24 管理面、M25 parity/长稳之后，集中补齐 MongoDB 日常开发体验缺口。第一目标是让 SonnetDB Document Store 对应用开发者“像 MongoDB 一样顺手”，不是立即承诺 MongoDB wire protocol / BSON command / 官方 Driver 直连。
 > - **M34 Modbus TCP 内建映射表**：把“建表时定义寄存器 ↔ 表字段 ↔ 类型转换”的能力作为独立路线推进，明确区分 **主站/client**（SonnetDB 主动连接外部从站/server 采集和写寄存器）与 **从站/server**（SonnetDB 暴露 Modbus TCP 端口，外部主站读写映射字段）。该路线不再藏在 M30 的被动接入边界内。
+> - **M35 语义内容与多模态检索**：复用对象桶、Document、全文、向量与 Hybrid Search，补齐原始内容到 embedding 的异步索引链路。第一批先做 metadata-filtered ANN、Embedding Profile、内容清单与任务生命周期，再交付图片搜图片、文字搜图片和通用 RAG；音视频分段检索后置，推荐系统和 Agent Memory 保持上层适配器 / 示例边界。
 >
 > **已收官**：M28（可靠性 / 并发正确性 / 热路径加固，P0~P5 + SDK 补口全部完成）、M20 Parity、M21 Document Store、M23 搜索/向量合并、M24 Document 管理面、M25 Document 发布治理、M26 连接器。详细正文见 [docs/roadmap-history.md](docs/roadmap-history.md)。
 
@@ -138,9 +140,9 @@
 
 ## Milestone 29 — 多模型统一管理工作台（Multi-Model Management Workbench）
 
-> **背景**：SonnetDB 已是覆盖 8 种数据模型的多模态库（时序 / 关系 SQL / 文档 / KV / 全文 / 向量 / 对象存储 / 消息队列 SonnetMQ），但管理工具只覆盖了「时序 + SQL」一条线。当前唯一成型的 UI 是 `web/`（Vue3 + Naive UI + ECharts + CodeMirror）Web Admin：有 Dashboard、SQL Console（即 Studio 工作台）、schema 树、结果表/图、Trajectory 地图、Events 监控（SSE）、Users/Grants/Tokens、Copilot；`src/SonnetDB.Studio` 只是把 `web/dist` 打包进 WebView2 的桌面壳，**无任何独立能力**；VS Code 扩展（M18）大部分仍是脚手架（只有 Explorer 树 + SQL 执行客户端能跑）。对照 pgAdmin / SSMS / Navicat / DBeaver（关系）、RedisInsight（KV）、Kafka UI / RabbitMQ Management / EMQX Dashboard（MQ）、Milvus Attu / Qdrant / Weaviate Console（向量）、Kibana / OpenSearch Dashboards（全文）、MinIO Console（对象）、MongoDB Compass（文档），SonnetDB 缺一整批 per-model 管理工作台。
+> **背景**：SonnetDB 已是覆盖 8 种数据模型的多模型数据库（时序 / 关系 SQL / 文档 / KV / 全文 / 向量 / 对象存储 / 消息队列 SonnetMQ），但管理工具只覆盖了「时序 + SQL」一条线。这里的“多模型”指数据库数据模型，不等同于图片、文本、音频、视频语义互通的“多模态”；后者归 M35 语义内容与多模态检索路线。当前唯一成型的 UI 是 `web/`（Vue3 + Naive UI + ECharts + CodeMirror）Web Admin：有 Dashboard、SQL Console（即 Studio 工作台）、schema 树、结果表/图、Trajectory 地图、Events 监控（SSE）、Users/Grants/Tokens、Copilot；`src/SonnetDB.Studio` 只是把 `web/dist` 打包进 WebView2 的桌面壳，**无任何独立能力**；VS Code 扩展（M18）大部分仍是脚手架（只有 Explorer 树 + SQL 执行客户端能跑）。对照 pgAdmin / SSMS / Navicat / DBeaver（关系）、RedisInsight（KV）、Kafka UI / RabbitMQ Management / EMQX Dashboard（MQ）、Milvus Attu / Qdrant / Weaviate Console（向量）、Kibana / OpenSearch Dashboards（全文）、MinIO Console（对象）、MongoDB Compass（文档），SonnetDB 缺一整批 per-model 管理工作台。
 >
-> **核心策略**：把「管理工具」从三个孤立工程重构为「一张能力矩阵 × 三个交付面」——(1) **Web Admin 旗舰**，逐模型做到对标单品级别（**本里程碑推进优先级最高的交付面**）；(2) **Studio 桌面** = 打包的 Web Admin + 桌面原生桥（原生文件对话框、磁盘连接库、本地 data-root 托管 server）；(3) **VS Code** = 开发者子集，复用同一批 HTTP 契约。世界级多模态管理工具 = 统一 Explorer + 外壳 + 每模型一个专用工作台，各自向该模型最好的单品看齐；三面共享同一套 server contract、权限模型与写审批框架，不各写各的。
+> **核心策略**：把「管理工具」从三个孤立工程重构为「一张能力矩阵 × 三个交付面」——(1) **Web Admin 旗舰**，逐模型做到对标单品级别（**本里程碑推进优先级最高的交付面**）；(2) **Studio 桌面** = 打包的 Web Admin + 桌面原生桥（原生文件对话框、磁盘连接库、本地 data-root 托管 server）；(3) **VS Code** = 开发者子集，复用同一批 HTTP 契约。世界级多模型管理工具 = 统一 Explorer + 外壳 + 每模型一个专用工作台，各自向该模型最好的单品看齐；三面共享同一套 server contract、权限模型与写审批框架，不各写各的。
 >
 > **边界**（与 M24 / M28 一致）：本里程碑只做**管理面 + 最小只读 metadata / browse 契约**。UI 消费 M19 / M21 / M23 / M28 已交付的引擎能力与 HTTP API；发现后端缺必要只读 metadata 时可补最小 server contract，但**不新增任何查询语义、索引语义、存储格式或写入语义**——所有写操作复用既有 data-plane API（SQL / Document / KV / Object / MQ 端点）。**文档模型管理面仍归 M24（#170~#172）**，**对象存储后端治理仍归 M19 #118**；本里程碑只把它们接入统一外壳并补齐对象浏览体验，不重复造引擎能力。`SonnetDB.Core` 零第三方依赖不变；契约新增走 Server 层。
 
@@ -726,6 +728,123 @@ D 收口：
 - **不**默认开放 502 端口或匿名写入；所有 Modbus runtime 默认关闭，生产启用必须显式配置。
 - **不**用普通 `SELECT` 做实时阻塞式 PLC 读取；查询读取 SonnetDB 已采集状态，实时刷新通过轮询 runtime 或显式维护命令处理。
 - **不**允许外部主站写入绕过审计、权限和 staging policy 直接修改关键业务表。
+
+---
+
+## Milestone 35 — 语义内容与多模态检索（Semantic Content & Multimodal Retrieval）
+
+> **背景**：SonnetDB 已具备对象桶、Document Collection、全文 BM25、Document Vector、Measurement `VECTOR(N)`、HNSW / IVF / IVF-PQ / Vamana、Hybrid Search、Embedding Provider 和 Vector Playground。这些能力说明 SonnetDB 已有多模态检索的数据库底座，但还没有把“原始图片 / 文档 / 音视频 → 内容提取 → embedding → 索引 → 跨模态查询 → 更新删除闭环”串成可直接使用的产品能力。
+>
+> **定位**：M35 不新增第九种数据模型，也不把模型推理塞进数据库内核。它在现有五类能力上增加一层可治理的语义内容索引：
+>
+> ```text
+> Object Bucket（原始内容）
+>        ↓
+> Server / 可选扩展（提取、分块、Embedding、异步任务）
+>        ↓
+> Document Collection（内容清单、来源、模型版本、chunk / timecode、状态）
+>        ↓
+> FullText / Vector 派生索引（可重建）
+>        ↓
+> SQL / HTTP / SDK / Studio（向量、相似对象、以图搜图、RAG）
+> ```
+>
+> **术语边界**：
+> - **多模型数据库**表示时序、关系、KV、Document、全文、向量、对象、消息队列共享一个引擎。
+> - **多模态检索**表示文字、图片、音频、视频片段通过兼容的 embedding 空间或文本派生内容进行语义互查。
+> - 在 #301 以图搜图闭环完成前，对外只宣称“具备多模态检索底座”，不宣称已经提供完整多模态数据库体验。
+
+### 领域与组件边界
+
+| 组件 | 负责 | 不负责 |
+|---|---|---|
+| `SonnetDB.Core` | 确定性的向量存储、索引、过滤、相似度计算、全文与融合查询、索引重建 | 下载模型、解析媒体、调用云端 AI、同步执行不可控推理 |
+| SonnetDB Server | Provider 编排、异步摄取任务、权限、审计、限流、状态与查询 API | 绕过数据库主数据直接维护隐藏向量副本 |
+| Object Bucket | 原始图片、音频、视频、PDF 及版本 / ETag / hash | 把大对象字节复制进向量索引或 JSON 文档 |
+| Document Collection | 内容清单、object reference、MIME、hash、来源、chunk / timecode、embedding profile、索引状态 | 代替对象桶保存大文件 |
+| FullText / Vector Index | 可重建的派生检索结构 | 成为第二套权威主数据或隐藏 catalog |
+| Web Admin / Studio / SDK | 摄取、状态、查询、命中解释、人工重试与评测 | 在浏览器内静默上传敏感内容到外部 Provider |
+
+### 第一版内容清单
+
+M35 第一版不新增 `IMAGE` / `AUDIO` / `VIDEO` SQL 类型，而是在受治理的 Document Collection 中保存稳定清单。具体 JSON 字段名由 #297 设计定稿，但至少覆盖：
+
+- `objectRef`：bucket、key、version / etag；原始字节唯一来源。
+- `contentHash`、`mimeType`、`modality`、`size`、`source`：幂等和过滤基础。
+- `embeddingProfileId`：生成向量的 provider、model、revision、dimension、metric、normalization 与支持模态。
+- `indexState`：pending / running / ready / stale / failed、attempt、lastError、updatedAt。
+- `text` / `chunks` / `segments`：OCR、文档切片、音视频转写、关键帧和 `startMs` / `endMs`。
+- 一个内容项可有多个命名向量字段，例如视觉向量、文本向量、OCR 向量；查询必须选择明确 profile，不把同维但不同模型的向量混在一起比较。
+
+### 阶段总览
+
+| 阶段 | 主题 | PR 范围 | 目标 |
+|---|---|---|---|
+| **A** | 检索正确性与语义合同 | #297 ~ #298 | 定义内容 / Profile 合同，补 metadata-filtered ANN 与相似对象查询原语 |
+| **B** | 摄取与 Provider | #299 ~ #300 | 建立对象到 Document / Vector / FullText 的异步、幂等、可恢复索引链路 |
+| **C** | 首批产品场景 | #301 ~ #302 | 交付以图搜图 / 文搜图和可复用 RAG 摄取检索 |
+| **D** | 检索质量 | #303 | 融合、去重、重排钩子、离线评测与可解释性 |
+| **E** | 扩展模态与产品收口 | #304 ~ #305 | 音视频分段模型、管理面、恢复 / 备份 / 安全 / 容量验收 |
+
+### PR 拆分
+
+| PR | 标题与范围 | 状态 |
+|---|---|---|
+| #297 | **Semantic Content 合同与 Embedding Profile**：定义内容清单、object reference、chunk / segment、索引状态和 `EmbeddingProfile` 合同；profile 明确 provider、model、revision、dimension、metric、normalization、supported modalities 和数据外发策略。首版优先用系统 Document / Table 主数据承载，不为保存模型元数据直接修改既有向量索引二进制格式；补 schema validator、API DTO、AOT JSON context、迁移与不支持项文档。 | 📋 |
+| #298 | **Metadata-filtered ANN + similar-by-id**：为 Document Vector 增加可解释的过滤 ANN 计划，支持基于 `_id` / JSON path 索引候选集的 pre-filter，或 oversampling + 精确补偿；候选不足时必须回退精确扫描，不能静默返回错误 Top-K。新增按文档 / 内容 ID 读取既有向量后搜索相似项的 SQL / API / SDK 原语；`EXPLAIN` 显示 prefilter、ANN、补偿与回退原因。 | 📋 |
+| #299 | **语义内容异步摄取与索引生命周期**：Server 新增默认关闭的摄取 worker，把对象版本 / ETag 与内容清单绑定，支持 pending/running/ready/stale/failed、幂等 hash、重试、取消、限流、背压和重启恢复；对象覆盖 / 删除后标记派生内容失效并对账清理。对象与 Document 跨模型更新采用显式状态机和 reconciliation，不伪装成当前不存在的跨模型原子事务。 | 📋 |
+| #300 | **多模态 Embedding Provider 边界**：保留现有文本 `IEmbeddingProvider` 兼容入口，新增可表达 text / object reference / stream 与 MIME 的内容 embedding 抽象及 capability discovery；Server / 可选扩展支持 provider-neutral 的本地或远程实现。云端 Provider 必须显式配置、记录目标 / 模型 / 内容类型与调用审计，默认不允许把对象桶内容静默外发；`SonnetDB.Core` 不引入模型运行时或媒体解码依赖。 | 📋 |
+| #301 | **以图搜图 MVP**：以图片作为第一种正式多模态内容，支持图片搜图片、文字搜图片、图片搜相关文字 / 文档；复用对象桶保存原图与缩略图，Document 保存 OCR / 描述 / profile / 向量，全文 + 向量做融合召回。提供 HTTP / SDK 和 Studio playground，结果展示缩略图、距离 / 融合分数、来源、模型 profile 与命中过滤条件；首批工业样例覆盖缺陷图片、设备铭牌和现场设备照片。 | 📋 |
+| #302 | **通用 RAG 摄取与检索**：把 Copilot 私有 docs 管线中固定 measurement、固定 384 维和手写词法扫描收敛到 Document Collection + 原生 FullText / Vector / Hybrid Search；开放可复用 ingest SDK / CLI，支持 Markdown / text 第一批、稳定 chunk ID、overlap、来源引用、增量更新、删除同步和 profile 变更重建。Copilot 迁移需保留现有知识库回滚路径与引用语义。 | 📋 |
+| #303 | **Hybrid 质量、重排与评测框架**：在现有加权融合之外评估并实现 RRF / score normalization、重复 chunk 抑制、同源多命中合并和可选 rerank hook；查询结果返回各分量分数与最终排序原因。新增 image→image、text→image、RAG 检索集，报告 Recall@K / nDCG、过滤命中正确性、P50/P95、索引体积和重建时间；ANN 门禁不得低于现有 parity 的 Recall@10 基线。 | 📋 |
+| #304 | **音频 / 视频分段检索模型**：在 #301 稳定后扩展 transcript、关键帧和 `startMs` / `endMs` segment；查询返回具体片段而不是整文件单向量。解码、ASR、OCR、抽帧由 Server 可选扩展或外部工具完成，Core 只保存清单、文本、向量和时间范围；第一版不内置完整媒体处理平台。 | 📋 |
+| #305 | **管理面、安全、恢复与容量收口**：Web Admin / Studio 新增 Semantic Content 工作台，覆盖对象选择、摄取状态、失败重试、profile、以图 / 文字查询、命中详情与索引健康；补对象覆盖 / 删除、Provider 失败、进程重启、索引重建、备份恢复、模型换代、敏感内容外发审计和 10k / 100k 内容档容量报告。更新 README 时按实际完成度决定是否从“多模态检索底座”升级为“多模态检索能力”。 | 📋 |
+
+### 推进顺序
+
+```text
+A 检索地基：
+#297（内容与 Profile 合同）
+  → #298（Filtered ANN + similar-by-id）
+
+B 摄取链路：
+#297 → #299（任务 / 对账 / 生命周期）
+          → #300（多模态 Provider）
+
+C 首批场景：
+#298 + #299 + #300
+  ├→ #301（图片搜图片 / 文字搜图片）
+  └→ #302（通用 RAG）
+
+D 质量：
+#301 + #302 → #303（融合与 eval）
+
+E 扩展和收口：
+#301 → #304（音视频片段）
+#303 + #304 → #305（管理面 / 安全 / 恢复 / 容量）
+```
+
+> **优先级**：#297 / #298 是数据库通用能力，优先于具体媒体 Demo；#301 图片检索与 #302 通用 RAG 是第一批可交付产品场景，可在地基完成后并行。#304 音视频后置，避免第一版同时承担解码、ASR、抽帧和大文件资源治理。M35 不替代当前 M27 Industrial Data Agent、M32 Document 易用性或 M34 Modbus 路线；开始派单时应先确认这三条当前路线的带宽与依赖。
+
+### 验收标准
+
+- 同一内容版本只生成一组指定 profile 的有效派生数据；重复摄取幂等，对象覆盖 / 删除后旧 chunk、向量和全文命中最终可对账清除。
+- 查询向量与目标索引的 profile / dimension / metric 不兼容时明确拒绝，不仅按维度碰巧相同就允许混查。
+- Document Vector 带 metadata filter 时可以命中可解释的 ANN / pre-filter 路径；不满足正确性条件时自动精确补偿或回退，并在 `EXPLAIN` / 指标中可见。
+- 图片搜索同时通过 image→image 与 text→image 固定数据集；结果可定位原对象版本、缩略图、profile、距离和过滤条件。
+- 通用 RAG 支持增量摄取、稳定引用、删除同步、profile 换代重建；Copilot 不再维护一套绕开 Document FullText / Vector 的私有检索主路径。
+- Provider 调用满足权限、超时、取消、限流、审计和数据外发策略；本地部署可以完全关闭云端外发。
+- 备份恢复保存对象与内容主数据，派生全文 / 向量索引可校验和重建；重启和中途失败不会把 `running` 永久伪装成完成。
+
+### 不做的事
+
+- **不**新增 `IMAGE` / `AUDIO` / `VIDEO` Core 数据类型；原始媒体保留在对象桶。
+- **不**允许普通 `INSERT` / `SELECT` 在 Core 查询线程中同步调用外部模型、下载模型或解码大文件。
+- **不**把 embedding 向量、全文索引或缩略图变成第二套权威主数据；派生数据必须可重建。
+- **不**承诺不同 embedding 模型、不同 revision 或不同归一化方式的向量可以直接比较。
+- **不**在 M35 内实现完整推荐系统；Core 只提供 similar-by-id、过滤、融合和重排原语，业务特征、反馈闭环与实验平台归上层应用。
+- **不**把 Agent Memory 做成 Core 专用领域。遵守当前 M22 边界，优先以独立 adapter / 示例消费 Document、Vector、TTL 和时间排序能力；只有沉淀出数据库通用缺口才回到 Core / Server。
+- **不**借“多模态”扩张为分布式向量集群、媒体资产管理平台或视频处理平台；SonnetDB 仍是单机、本地优先的数据引擎。
 
 ---
 
