@@ -4,6 +4,7 @@ using SonnetDB.Diagnostics;
 using SonnetDB.Engine;
 using SonnetDB.Engine.Compaction;
 using SonnetDB.Engine.Retention;
+using SonnetDB.Kv;
 using SonnetDB.Memory;
 using SonnetDB.Model;
 using SonnetDB.Query;
@@ -66,6 +67,7 @@ public sealed class SonnetDbMeterTests : IDisposable
         private readonly MeterListener _listener = new();
         private readonly object _sync = new();
         private readonly Dictionary<string, long> _longSums = new();
+        private readonly Dictionary<string, List<(long Value, KeyValuePair<string, object?>[] Tags)>> _longMeasurements = new();
         private readonly Dictionary<string, List<(double Value, KeyValuePair<string, object?>[] Tags)>> _doubles = new();
 
         public MetricCollector()
@@ -80,6 +82,9 @@ public sealed class SonnetDbMeterTests : IDisposable
                 lock (_sync)
                 {
                     _longSums[inst.Name] = _longSums.GetValueOrDefault(inst.Name) + value;
+                    if (!_longMeasurements.TryGetValue(inst.Name, out var list))
+                        _longMeasurements[inst.Name] = list = [];
+                    list.Add((value, tags.ToArray()));
                 }
             });
             _listener.SetMeasurementEventCallback<double>((inst, value, tags, _) =>
@@ -104,6 +109,24 @@ public sealed class SonnetDbMeterTests : IDisposable
         {
             lock (_sync)
                 return _doubles.TryGetValue(name, out var list) ? list.ToArray() : Array.Empty<(double, KeyValuePair<string, object?>[])>();
+        }
+
+        public long LongLast(string name, string database)
+        {
+            lock (_sync)
+            {
+                if (!_longMeasurements.TryGetValue(name, out var list))
+                    return 0;
+                for (int i = list.Count - 1; i >= 0; i--)
+                {
+                    if (list[i].Tags.Any(tag => tag.Key == "sonnetdb.database"
+                        && string.Equals(tag.Value as string, database, StringComparison.Ordinal)))
+                    {
+                        return list[i].Value;
+                    }
+                }
+                return 0;
+            }
         }
 
         public void RecordObservable() => _listener.RecordObservableInstruments();
@@ -161,6 +184,77 @@ public sealed class SonnetDbMeterTests : IDisposable
         db.Write(CreatePoint(0));
 
         Assert.True(collector.Doubles("sonnetdb.wal.fsync.duration").Count >= 1);
+    }
+
+    [Fact]
+    public void KvGenerationAndCleanup_RecordTaskMetrics()
+    {
+        using var collector = new MetricCollector();
+        using var db = Tsdb.Open(MakeOptions() with
+        {
+            Kv = KvOptions.Default with
+            {
+                ExpirerEnabled = false,
+                CleanupEnabled = false,
+            },
+        });
+        var kv = db.Keyspaces.Open("metrics-cache");
+        kv.Put("old", [1]);
+        kv.Compact();
+
+        kv.Clear();
+        kv.CleanupPendingFiles(maxFiles: 1);
+
+        Assert.Equal(1, collector.LongSum("sonnetdb.kv.generation.changes"));
+        Assert.Equal(1, collector.LongSum("sonnetdb.kv.clear.keys"));
+        Assert.Equal(1, collector.LongSum("sonnetdb.kv.cleanup.files"));
+        Assert.True(collector.LongSum("sonnetdb.kv.cleanup.bytes") > 0);
+        Assert.Single(collector.Doubles("sonnetdb.kv.clear.duration"));
+        Assert.Single(collector.Doubles("sonnetdb.kv.cleanup.duration"));
+    }
+
+    [Fact]
+    public void KvCleanupWorker_RecordsThrottlePendingAndRateMetrics()
+    {
+        using var collector = new MetricCollector();
+        using var db = Tsdb.Open(MakeOptions() with
+        {
+            Kv = KvOptions.Default with
+            {
+                ExpirerEnabled = false,
+                CleanupEnabled = true,
+                CleanupPollInterval = TimeSpan.FromMilliseconds(20),
+                CleanupMaxFilesPerRound = 1,
+                CleanupPauseWhenQueriesActive = false,
+                CleanupPauseWhenFlushPending = false,
+                CleanupMaxCpuPercent = 0,
+                CleanupMaxMemoryLoadPercent = 0,
+            },
+        });
+        db._kvCleanupThrottleHook = static () => KvCleanupThrottleReason.ActiveQueries;
+        var kv = db.Keyspaces.Open("metrics-pressure");
+        kv.Put("old", [1]);
+        long sequence = kv.Compact();
+        string segment = KvKeyspace.SegmentPath(kv.RootDirectory, sequence);
+        kv.Clear();
+
+        Assert.True(SpinWait.SpinUntil(
+            () => db.GetKvMaintenanceStatus().ThrottledRounds > 0,
+            TimeSpan.FromSeconds(3)));
+        collector.RecordObservable();
+        string database = Path.GetFileName(_tempDir);
+        Assert.True(collector.LongSum("sonnetdb.kv.cleanup.throttled") >= 1);
+        Assert.True(collector.LongLast("sonnetdb.kv.cleanup.pending.files", database) >= 1);
+        Assert.True(collector.LongLast("sonnetdb.kv.cleanup.pending.bytes", database) > 0);
+
+        db._kvCleanupThrottleHook = static () => KvCleanupThrottleReason.None;
+        Assert.True(SpinWait.SpinUntil(() => !File.Exists(segment), TimeSpan.FromSeconds(3)));
+        collector.RecordObservable();
+        Assert.Equal(0, collector.LongLast("sonnetdb.kv.cleanup.pending.files", database));
+        Assert.True(collector.Doubles("sonnetdb.kv.cleanup.rate")
+            .Last(item => item.Tags.Any(tag => tag.Key == "sonnetdb.database"
+                && string.Equals(tag.Value as string, database, StringComparison.Ordinal)))
+            .Value > 0);
     }
 
     [Fact]

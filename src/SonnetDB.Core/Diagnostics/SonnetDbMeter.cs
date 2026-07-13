@@ -86,12 +86,58 @@ public static class SonnetDbMeter
         "sonnetdb.query.duration", unit: "ms",
         description: "Latency of query execution (streaming enumeration start to completion).");
 
+    // ── KV generation / cleanup ─────────────────────────────────────────────
+
+    /// <summary>Keyspace generation 切换次数。</summary>
+    internal static readonly Counter<long> KvGenerationChanges = Meter.CreateCounter<long>(
+        "sonnetdb.kv.generation.changes", unit: "{generation}",
+        description: "KV keyspace generation changes committed by clear/truncate operations.");
+
+    /// <summary>generation 切换一次隐藏的 key 数。</summary>
+    internal static readonly Counter<long> KvClearedKeys = Meter.CreateCounter<long>(
+        "sonnetdb.kv.clear.keys", unit: "{key}",
+        description: "Keys made invisible by KV generation changes.");
+
+    /// <summary>generation 切换端到端耗时。</summary>
+    internal static readonly Histogram<double> KvClearDuration = Meter.CreateHistogram<double>(
+        "sonnetdb.kv.clear.duration", unit: "ms",
+        description: "Latency of a durable KV generation change including WAL and generation metadata fsync.");
+
+    /// <summary>后台回收的旧 KV state 文件数。</summary>
+    internal static readonly Counter<long> KvCleanupFiles = Meter.CreateCounter<long>(
+        "sonnetdb.kv.cleanup.files", unit: "{file}",
+        description: "Obsolete KV state files reclaimed by manifest-driven cleanup.");
+
+    /// <summary>后台回收的旧 KV state 字节数。</summary>
+    internal static readonly Counter<long> KvCleanupBytes = Meter.CreateCounter<long>(
+        "sonnetdb.kv.cleanup.bytes", unit: "By",
+        description: "Obsolete KV state bytes reclaimed by manifest-driven cleanup.");
+
+    /// <summary>单轮 keyspace cleanup 耗时。</summary>
+    internal static readonly Histogram<double> KvCleanupDuration = Meter.CreateHistogram<double>(
+        "sonnetdb.kv.cleanup.duration", unit: "ms",
+        description: "Latency of one manifest-driven KV cleanup round.");
+
+    /// <summary>因资源压力暂停的 generation 回收轮数；tag <c>reason</c>。</summary>
+    internal static readonly Counter<long> KvCleanupThrottled = Meter.CreateCounter<long>(
+        "sonnetdb.kv.cleanup.throttled", unit: "{round}",
+        description: "KV cleanup rounds paused by query, flush, CPU, or memory pressure.");
+
+    /// <summary>generation 后台回收失败次数。</summary>
+    internal static readonly Counter<long> KvCleanupFailures = Meter.CreateCounter<long>(
+        "sonnetdb.kv.cleanup.failures", unit: "{failure}",
+        description: "KV generation cleanup failures captured by the background worker.");
+
     // ── 复用 tag（避免热路径每次分配 KeyValuePair 的装箱/字符串） ─────────────
 
     internal static readonly KeyValuePair<string, object?> OutcomeOk = new("outcome", "ok");
     internal static readonly KeyValuePair<string, object?> OutcomeError = new("outcome", "error");
     internal static readonly KeyValuePair<string, object?> OperationPoints = new("db.operation", "points");
     internal static readonly KeyValuePair<string, object?> OperationAggregate = new("db.operation", "aggregate");
+    internal static readonly KeyValuePair<string, object?> ThrottleActiveQueries = new("reason", "active_queries");
+    internal static readonly KeyValuePair<string, object?> ThrottleFlushPending = new("reason", "flush_pending");
+    internal static readonly KeyValuePair<string, object?> ThrottleCpuPressure = new("reason", "cpu_pressure");
+    internal static readonly KeyValuePair<string, object?> ThrottleMemoryPressure = new("reason", "memory_pressure");
 
     // ── per-db ObservableGauge（引擎实例注册表） ──────────────────────────────
 
@@ -114,6 +160,15 @@ public static class SonnetDbMeter
         Meter.CreateObservableGauge(
             "sonnetdb.flush.pending", ObserveFlushPending, unit: "{request}",
             description: "Sealed MemTables queued (or in-flight) in the flush pump, per database.");
+        Meter.CreateObservableGauge(
+            "sonnetdb.kv.cleanup.pending.files", ObserveKvCleanupPendingFiles, unit: "{file}",
+            description: "Obsolete KV state files still pending cleanup, per database.");
+        Meter.CreateObservableGauge(
+            "sonnetdb.kv.cleanup.pending.bytes", ObserveKvCleanupPendingBytes, unit: "By",
+            description: "Obsolete KV state bytes still pending cleanup, per database.");
+        Meter.CreateObservableGauge(
+            "sonnetdb.kv.cleanup.rate", ObserveKvCleanupRate, unit: "By/s",
+            description: "Bytes reclaimed per second by the most recent KV cleanup round, per database.");
     }
 
     /// <summary>
@@ -153,6 +208,15 @@ public static class SonnetDbMeter
     private static IEnumerable<Measurement<long>> ObserveFlushPending()
         => Observe(static e => e.FlushPumpPendingCount);
 
+    private static IEnumerable<Measurement<long>> ObserveKvCleanupPendingFiles()
+        => Observe(static e => e.KvCleanupPendingFiles);
+
+    private static IEnumerable<Measurement<long>> ObserveKvCleanupPendingBytes()
+        => Observe(static e => e.KvCleanupPendingBytes);
+
+    private static IEnumerable<Measurement<double>> ObserveKvCleanupRate()
+        => ObserveDouble(static e => e.KvCleanupBytesPerSecond);
+
     private static List<Measurement<long>> Observe(Func<Tsdb, long> selector)
     {
         var result = new List<Measurement<long>>(Engines.Count);
@@ -172,6 +236,30 @@ public static class SonnetDbMeter
             catch
             {
                 // 与并发 Dispose 竞争时观测失败可安全跳过（下一轮观测不再包含该实例）。
+            }
+        }
+
+        return result;
+    }
+
+    private static List<Measurement<double>> ObserveDouble(Func<Tsdb, double> selector)
+    {
+        var result = new List<Measurement<double>>(Engines.Count);
+        foreach (var (id, entry) in Engines)
+        {
+            if (!entry.Engine.TryGetTarget(out var engine))
+            {
+                Engines.TryRemove(id, out _);
+                continue;
+            }
+
+            try
+            {
+                result.Add(new Measurement<double>(selector(engine), entry.Tag));
+            }
+            catch
+            {
+                // 与并发 Dispose 竞争时跳过本轮观测。
             }
         }
 

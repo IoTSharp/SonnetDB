@@ -103,6 +103,8 @@ public enum TokenKind
     KeywordHaving,
     KeywordTime,
     KeywordDelete,
+    /// <summary>TRUNCATE TABLE generation 快速清表。</summary>
+    KeywordTruncate,
     /// <summary>UPDATE（关系表 DML）。</summary>
     KeywordUpdate,
     /// <summary>SET（UPDATE SET 子句）。</summary>

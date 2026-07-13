@@ -1,6 +1,6 @@
 using System.Collections.Frozen;
-using System.Text.RegularExpressions;
 using SonnetDB.Query;
+using SonnetDB.Sql.Execution;
 
 namespace SonnetDB.Documents;
 
@@ -445,9 +445,9 @@ public sealed class DocumentCollectionSchema
             {
                 try
                 {
-                    _ = Regex.IsMatch(string.Empty, pattern, RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(250));
+                    RegexPatternMatcher.ValidatePattern(pattern);
                 }
-                catch (ArgumentException ex)
+                catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
                 {
                     throw new ArgumentException($"validator path '{path}' 的 pattern 无效：{ex.Message}", nameof(validator), ex);
                 }

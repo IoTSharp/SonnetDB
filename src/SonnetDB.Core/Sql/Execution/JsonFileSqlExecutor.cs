@@ -417,12 +417,22 @@ internal static class JsonFileSqlExecutor
 
     private static object? EvaluateFunction(FunctionCallExpression function, JsonFileRow row)
     {
+        if (string.Equals(function.Name, "regexp_like", StringComparison.OrdinalIgnoreCase))
+        {
+            if (function.IsStar || function.Arguments.Count is < 2 or > 3)
+                throw new InvalidOperationException("函数 regexp_like 需要 2~3 个参数。");
+            return RegexPatternMatcher.IsMatch(
+                EvaluateScalar(function.Arguments[0], row),
+                EvaluateScalar(function.Arguments[1], row),
+                function.Arguments.Count == 3 ? EvaluateScalar(function.Arguments[2], row) : null);
+        }
+
         if (!string.Equals(function.Name, "json_value", StringComparison.OrdinalIgnoreCase)
             || function.IsStar
             || function.Arguments.Count != 2
             || function.Arguments[1] is not LiteralExpression { Kind: SqlLiteralKind.String, StringValue: var path })
         {
-            throw new InvalidOperationException("JSON 虚拟表当前仅支持 json_value(document, '$.path') 函数。");
+            throw new InvalidOperationException("JSON 虚拟表当前仅支持 json_value(document, '$.path') 与 regexp_like(...) 函数。");
         }
 
         var json = EvaluateScalar(function.Arguments[0], row) as string;

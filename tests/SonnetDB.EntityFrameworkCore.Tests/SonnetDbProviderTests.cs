@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.EntityFrameworkCore.Query;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
+using System.Text.RegularExpressions;
 using SonnetDB.Configuration;
 using SonnetDB.Data;
 using SonnetDB.EntityFrameworkCore.Extensions;
@@ -172,6 +173,39 @@ public sealed class SonnetDbProviderTests : IDisposable
         Assert.DoesNotContain("starts_with", sql, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("ends_with", sql, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("contains(", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void QueryTranslation_RegexIsMatch_UsesRegexpLike()
+    {
+        using var context = new DeviceContext(CreateOptions<DeviceContext>());
+
+        var sql = context.Devices
+            .Where(item => Regex.IsMatch(item.Name, "^pump-[0-9]+$", RegexOptions.IgnoreCase))
+            .ToQueryString();
+
+        Assert.Contains("REGEXP_LIKE", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("'i'", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Query_RegexIsMatch_FiltersRows()
+    {
+        using var context = new DeviceContext(CreateOptions<DeviceContext>());
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE \"Devices\" (\"Id\" INT NOT NULL, \"Name\" STRING NOT NULL, \"Enabled\" BOOL NOT NULL, PRIMARY KEY (\"Id\"))");
+        context.Devices.AddRange(
+            new Device { Id = 1, Name = "Pump-001", Enabled = true },
+            new Device { Id = 2, Name = "pump-A", Enabled = true },
+            new Device { Id = 3, Name = "fan-001", Enabled = true });
+        await context.SaveChangesAsync();
+
+        var ids = await context.Devices
+            .Where(item => Regex.IsMatch(item.Name, "^pump-[0-9]+$", RegexOptions.IgnoreCase))
+            .Select(item => item.Id)
+            .ToArrayAsync();
+
+        Assert.Equal([1L], ids);
     }
 
     [Fact]

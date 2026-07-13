@@ -17,7 +17,7 @@
 | 0~16 | 早期路线（脚手架 → Copilot 产品化） | #1 ~ #88 | ✅（摘要见下「已完成里程碑」，详情见归档） |
 | 17 | 可观测性与运行时可见性（OTel + 结构化日志 + 诊断端点） | #89 ~ #98 | ✅ |
 | 18 | VS Code 数据库扩展（SonnetDB for VS Code） | #99 ~ #108 | 🚧（#99~#106 ✅；#107 C# parser diagnostics 第一批 ✅、signature/repair 待续；#108 Marketplace/实机验收待续） |
-| 19 | 生态适配底座能力（关系 + KV/缓存 + 对象桶 + 大量 measurement） | #109 ~ #126.1 | 🚧（#109~#125 ✅；#126/#126.1 按复核路线推进） |
+| 19 | 生态适配底座能力（关系 + KV/缓存 + 对象桶 + 大量 measurement） | #109 ~ #126.1 | ✅ |
 | 20 | 多模能力对齐与平移测试（Parity） | #127 ~ #136 | ✅ |
 | 21 | Document Store 单机能力升级（MongoDB-like） | #137 ~ #146 | ✅ |
 | 23 | 搜索与向量引擎合并（DotSearch / DotVector 收编） | #160 ~ #169 | ✅ |
@@ -45,7 +45,7 @@
 > **进行中（按带宽穿插）**：
 > - **M17 可观测性**：#89~#98 已完成，已覆盖结构化日志、Diagnostic Dump、Copilot 指标与细粒度 Agent span、观测文档、可选本地观测栈和完整 trace 端到端验证。
 > - **M27 Industrial Data Agent**：M28 收官后 #184 端到端工业异常 Demo 阻塞解除、可启动；#183/#185 纯文档随时可做。
-> - **M18 VS Code**：#99~#106 首个可用闭环与 #107 C# Parser diagnostics sidecar 第一批已完成；下一步补 signature help / repair suggestion，再进入 #108 Marketplace 正式发布与 Electron 实机验收。**M19 生态底座**已完成 #125 大量 measurement/长稳专项，余项按复核路线推进 #126 正则治理与 #126.1 批量删除存储设计。
+> - **M18 VS Code**：#99~#106 首个可用闭环与 #107 C# Parser diagnostics sidecar 第一批已完成；下一步补 signature help / repair suggestion，再进入 #108 Marketplace 正式发布与 Electron 实机验收。**M19 生态底座** #109~#126.1 已全部收官，正则治理与 generation/批量 tombstone 删除闭环见 [M19 #126/#126.1 契约](docs/m19-regex-bulk-delete.md)。
 >
 > **后续池**：
 > - **M32 Document Store MongoDB-like 易用性增强**：在 M21 单机能力、M24 管理面、M25 parity/长稳之后，集中补齐 MongoDB 日常开发体验缺口。第一目标是让 SonnetDB Document Store 对应用开发者“像 MongoDB 一样顺手”，不是立即承诺 MongoDB wire protocol / BSON command / 官方 Driver 直连。
@@ -957,8 +957,8 @@ extensions/
 | #123 | **Compaction manifest 与重复段恢复**：为 compaction 引入 manifest 或等价 superseded segment 状态，记录 source segments、target segment、提交阶段和清理阶段；启动时根据 manifest 忽略或清理被替代旧段，解决 crash after swap before delete 后新旧段同时加载导致重复数据的问题。 | ✅ |
 | #124 | **SegmentManager 增量索引与后台维护成本控制**：#207 已落每段索引缓存，本轮进一步修复一换一 swap 遗留旧索引、用有序 reader 集合把段发布从 O(N log N) 降为 O(N)、让纯 MemTable 发布真实复用 O(1) reader/index 快照；新增 16/256/1024 段、0/4 个并发 QueryEngine worker 下 add/swap/drop 与旧全量 build 参考基准。更复杂分层索引只在基准证明 O(N) 发布仍超预算时继续。详见 [复核报告](docs/benchmarks/m19-optimization-reassessment.md)。 | ✅ |
 | #125 | **大量 measurement / 长稳专项扩展**：继续扩展 `SonnetDB.EcosystemSoak`，新增 high-cardinality、small-segments、maintenance-chaos、many-measurements 四个正交 profile；覆盖百万级 series、万级小 segment、确定性随机 kill/reopen、后台 flush/compaction/retention、目录/备份/drop，并输出缺失/重复/额外点/值摘要、working set/托管内存峰值、查询/恢复 P50/P95/P99 与显式容量边界。workflow 支持四档手动归档，默认容量档须在目标硬件生成发布证据。 | ✅ |
-| #126 | **SQL 正则契约治理与 EF 翻译**：当前已支持 `REGEX` / `NOT REGEX` 和 250ms timeout，不再按“首次引入正则”实施。第一阶段统一 matcher，补模式/输入预算、受限缓存、`regexp_like(input, pattern[, flags])`、`REGEXP`/`RLIKE` 别名、EXPLAIN scan filter、跨模型回归和 EF `Regex.IsMatch` 翻译；`regexp_substr/replace/instr` 与 `^literal` 前缀剪枝后置到真实需求和索引能力具备之后。 | 🚧（已有部分能力，需治理） |
-| #126.1 | **关系表大批量删除与后台回收**：关系 table 已基于 KV delete record/tombstone，且已有同步 compact，不再叠加第二套 row tombstone。先补 delete/truncate 基准与 table/keyspace generation 整表快路径，再设计 KV 批量 tombstone、原子可见性发布、可恢复后台 cleanup manifest、资源节流和任务指标；避免用 `Task.Run` 简单搬移同步逐行删除。 | 📋（必要，需先完成存储设计） |
+| #126 | **SQL 正则契约治理与 EF 翻译**：统一 SQL/Document Validator matcher，固定 250ms timeout、4096 pattern 字符、1Mi input 字符和 128 项有界缓存；交付 `regexp_like(input, pattern[, flags])`、`REGEXP`/`RLIKE` 别名、EXPLAIN `scan_filter`、跨模型回归和 EF `Regex.IsMatch` 翻译。`regexp_substr/replace/instr` 与 `^literal` 前缀剪枝按原边界后置。 | ✅ |
+| #126.1 | **关系表大批量删除与后台回收**：复用 KV tombstone，交付带 commit record 的分块 batch delete（运行时/恢复原子）、table/keyspace generation、`TRUNCATE TABLE` 与 `DELETE WHERE TRUE` 快路、v4 state generation、可恢复 cleanup manifest、重启后未打开实例发现、state 文件删除白名单、文件预算与查询/flush/CPU/内存压力节流、pending/rate/reason/error 任务观测和四路径基准/smoke；入站外键保持拒绝或回退既有级联语义。 | ✅ |
 
 ### 推进顺序
 
@@ -980,8 +980,8 @@ extensions/
   → #123（Compaction manifest / 重复段恢复，已完成）
   → #124（增量索引 / 后台维护成本，已完成）
   → #125（扩展 #121 的大量 measurement / 长稳专项，已完成）
-  → #126（正则契约治理 / EF 翻译）
-  → #126.1（关系表大批量删除 / 后台回收，先设计）
+  → #126（正则契约治理 / EF 翻译，已完成）
+  → #126.1（关系表大批量删除 / 后台回收，已完成）
 ```
 
 ### 验收标准

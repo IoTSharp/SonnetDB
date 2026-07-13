@@ -7,6 +7,7 @@
 
 ### Fixed
 
+- 修复 Copilot 同一会话在相同毫秒追加多条消息时，重启后可能被随机消息主键打乱顺序的问题；追加时间现在按 DATETIME 的毫秒持久化粒度单调推进。
 - **M19 #124 SegmentManager 增量发布收口**：修复一换一 `SwapSegments` 因活动段数不变而永久保留已移除 `_indexById` 项的问题；移除段现在同步修剪索引缓存，无命中 `DropSegments` 不再发布等价快照。reader 集合改为有序字典，使 add/swap/drop 发布从重复 O(N log N) 排序降为 O(N) 顺序复制；纯 MemTable 切换复用现有 index/reader state/readers，使密封发布恢复为 O(1)。
 - 修复关系表 `ORDER BY` 必须引用投影结果列的问题；单表查询现在可按未投影的源列排序和分页，内部排序键不会泄漏到结果列，兼容 EF Core 先排序后投影 DTO 的 SQL。
 - 新增关系查询 `UNION` 默认去重、参数绑定和 compound 排序/分页执行，支持 EF Core 在 `IN` 子查询中合并直接角色与团队角色的标准 SQL。
@@ -18,6 +19,7 @@
 
 ### Added
 
+- **M19 #126 / #126.1 生态底座收官**：SQL 与 Document Validator 统一使用带 250ms timeout、模式/输入预算和 128 项有界缓存的正则 matcher；新增 `regexp_like(input, pattern[, flags])`、`REGEXP`/`RLIKE`、EXPLAIN `scan_filter` 和 EF Core `Regex.IsMatch` 翻译。KV WAL 新增带 commit record 的分块 batch-delete，恢复仅发布完整提交；关系表新增 generation 行数快照、`TRUNCATE TABLE` 与 `DELETE WHERE TRUE` 快路。KV state v4 持久化 generation，`generation.meta` + cleanup manifest 保证崩溃后旧 state 不复活；后台维护可发现重启后未打开实例，严格限制 state 删除路径，并按文件预算及查询/flush/CPU/内存压力节流，公开 pending 字节、速率、原因与最近错误。新增 generation/cleanup 指标、恢复/外键/跨模型测试和 `TableDeleteBenchmark` smoke。
 - **M19 #125 大量 measurement / 长稳专项扩展**：在既有 `SonnetDB.EcosystemSoak` 中新增 `high-cardinality`、`small-segments`、`maintenance-chaos`、`many-measurements` 四个正交 profile，覆盖百万级 series、万级小 segment、后台 flush/compaction/retention 期间的确定性随机 kill/reopen，以及大量 measurement 的目录枚举、备份、retention 与 drop。JSON/Markdown 报告新增阶段 working set/托管内存峰值、查询/恢复 P50/P95/P99、series/time/value 缺失/重复/额外点/值摘要和每档“能验证/不能证明”的容量边界；workflow 支持手动运行并归档四档证据。
 - **M19 #124 维护发布基准与 #124~#126.1 复核**：新增 `SegmentManagerMaintenanceBenchmark`，覆盖 16/256/1024 段、0/4 个真实 QueryEngine 并发 worker 下的 flush add、compaction swap、retention drop，并以 #207 前的全量 `SegmentIndex.Build` 作为参考；新增 M19 优化项复核报告，按当前实现重新界定 #125 长稳扩展、#126 正则治理和 #126.1 批量删除存储设计。
 - **M19 #118~#121 生态适配底座闭环**：对象桶后端治理完成 policy、retention/lifecycle、versioning、legal hold、审计、容量和 quota；新增可运行的嵌入式/远程 ADO.NET + EF Core + `IDistributedCache` + 对象桶生态样例及 Profile 边界文档。Core 新增基于一致性 manifest 的 `MigrationService`，提供 export/scan/checksum/import dry-run/import、包级稳定 SHA-256 和篡改拒绝。新增 `EcosystemSoak` quick/ci/soak runner 与每周/手动 workflow，统一报告 EF、批量/大量 measurement、KV TTL、multipart、多模型备份恢复、快照回滚、真子进程强杀和 torn WAL 掉电恢复；2026-07-12 quick 基线全阶段 PASS。

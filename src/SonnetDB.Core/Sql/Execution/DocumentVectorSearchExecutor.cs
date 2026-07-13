@@ -363,6 +363,16 @@ internal static class DocumentVectorSearchExecutor
         if (string.Equals(function.Name, "vector_score", StringComparison.OrdinalIgnoreCase))
             return RequireNoArguments(function, row.VectorScore);
 
+        if (string.Equals(function.Name, "regexp_like", StringComparison.OrdinalIgnoreCase))
+        {
+            if (function.Arguments.Count is < 2 or > 3)
+                throw new InvalidOperationException("函数 regexp_like 需要 2~3 个参数。");
+            return RegexPatternMatcher.IsMatch(
+                EvaluateScalar(function.Arguments[0], row),
+                EvaluateScalar(function.Arguments[1], row),
+                function.Arguments.Count == 3 ? EvaluateScalar(function.Arguments[2], row) : null);
+        }
+
         if (string.Equals(function.Name, "json_value", StringComparison.OrdinalIgnoreCase)
             && function.Arguments.Count == 2
             && function.Arguments[1] is LiteralExpression { Kind: SqlLiteralKind.String, StringValue: var path })
@@ -372,7 +382,7 @@ internal static class DocumentVectorSearchExecutor
         }
 
         throw new InvalidOperationException(
-            "vector_search 当前仅支持 json_value(document, '$.path')、vector_distance() 与 vector_score() 函数。");
+            "vector_search 当前仅支持 json_value(document, '$.path')、regexp_like(...)、vector_distance() 与 vector_score() 函数。");
     }
 
     private static object? RequireNoArguments(FunctionCallExpression function, object? value)

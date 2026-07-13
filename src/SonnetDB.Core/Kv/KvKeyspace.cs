@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Text;
+using SonnetDB.Diagnostics;
 
 namespace SonnetDB.Kv;
 
@@ -14,6 +16,7 @@ public sealed class KvKeyspace : IDisposable
     private KvDiskState? _diskState;
     private KvWalFile? _wal;
     private long _lastSequence;
+    private long _generation;
     private bool _disposed;
 
     private KvKeyspace(
@@ -23,6 +26,7 @@ public sealed class KvKeyspace : IDisposable
         Dictionary<byte[], KvValueEntry> values,
         KvDiskState? diskState,
         long lastSequence,
+        long generation,
         KvWalFile wal)
     {
         Name = name;
@@ -31,6 +35,7 @@ public sealed class KvKeyspace : IDisposable
         _values = values;
         _diskState = diskState;
         _lastSequence = lastSequence;
+        _generation = generation;
         _wal = wal;
     }
 
@@ -60,6 +65,16 @@ public sealed class KvKeyspace : IDisposable
         }
     }
 
+    /// <summary>当前 keyspace generation；执行 <see cref="Clear"/> 后单调递增。</summary>
+    public long Generation
+    {
+        get
+        {
+            lock (_sync)
+                return _generation;
+        }
+    }
+
     internal bool IsDisposed
     {
         get
@@ -86,8 +101,10 @@ public sealed class KvKeyspace : IDisposable
         Directory.CreateDirectory(SnapshotsDirectory(rootDirectory));
         Directory.CreateDirectory(SegmentsDirectory(rootDirectory));
 
-        var state = LoadLatestState(rootDirectory);
+        long durableGeneration = KvGenerationFile.Load(rootDirectory);
+        var state = LoadLatestState(rootDirectory, durableGeneration);
         long lastSequence = state.Sequence;
+        var pendingDeleteBatches = new Dictionary<long, PendingDeleteBatch>();
 
         string walPath = ActiveWalPath(rootDirectory);
         foreach (var record in KvWalFile.Replay(walPath))
@@ -95,12 +112,25 @@ public sealed class KvKeyspace : IDisposable
             if (record.Sequence <= state.Sequence)
                 continue;
 
-            ApplyRecord(state, record);
+            ApplyRecord(state, record, pendingDeleteBatches);
             lastSequence = Math.Max(lastSequence, record.Sequence);
         }
 
+        if (state.Generation > durableGeneration)
+            KvGenerationFile.Save(rootDirectory, state.Generation);
+
         var wal = KvWalFile.Open(walPath, lastSequence + 1, options.WalBufferSize);
-        return new KvKeyspace(name, rootDirectory, options, state.Values, state.DiskState, lastSequence, wal);
+        var keyspace = new KvKeyspace(
+            name,
+            rootDirectory,
+            options,
+            state.Values,
+            state.DiskState,
+            lastSequence,
+            state.Generation,
+            wal);
+        keyspace.EnsureCleanupManifestLocked();
+        return keyspace;
     }
 
     /// <summary>
@@ -539,15 +569,180 @@ public sealed class KvKeyspace : IDisposable
     public int DeleteMany(IEnumerable<string> keys)
     {
         ArgumentNullException.ThrowIfNull(keys);
-        int removed = 0;
+        var encoded = new List<byte[]>();
         foreach (string key in keys)
         {
             ArgumentNullException.ThrowIfNull(key);
-            if (Delete(key))
-                removed++;
+            encoded.Add(Encoding.UTF8.GetBytes(key));
         }
 
-        return removed;
+        return DeleteMany(encoded);
+    }
+
+    /// <summary>
+    /// 批量删除二进制 key；每个 WAL batch record 在一次 fsync 后整体发布到内存读视图。
+    /// 超过配置预算时按有界批次发布，避免构造无界 WAL payload。
+    /// </summary>
+    public int DeleteMany(IEnumerable<ReadOnlyMemory<byte>> keys)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        var copied = new List<byte[]>();
+        foreach (var key in keys)
+            copied.Add(key.ToArray());
+        return DeleteMany(copied);
+    }
+
+    internal int DeleteMany(IReadOnlyList<byte[]> keys)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        if (keys.Count == 0)
+            return 0;
+
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var unique = new HashSet<byte[]>(KvKeyComparer.Instance);
+            var existing = new List<byte[]>(keys.Count);
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            for (int i = 0; i < keys.Count; i++)
+            {
+                byte[] key = keys[i];
+                ArgumentNullException.ThrowIfNull(key);
+                ValidateKey(key, _options);
+                if (!unique.Add(key))
+                    continue;
+                if (!TryGetEntryLocked(key, out var entry))
+                    continue;
+                if (entry.IsExpired(now))
+                {
+                    DeleteExistingLocked(key);
+                    continue;
+                }
+
+                existing.Add(key);
+            }
+
+            return DeleteManyExistingLocked(existing);
+        }
+    }
+
+    /// <summary>
+    /// 原子切换到新的空 generation。旧 state 文件退出读视图后由后台 manifest 任务限速回收。
+    /// </summary>
+    public KvClearResult Clear()
+    {
+        long startTimestamp = SonnetDbMeter.KvClearDuration.Enabled ? Stopwatch.GetTimestamp() : 0;
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            int removed = CountVisibleLocked();
+            long nextGeneration = checked(_generation + 1);
+            long sequence = _wal!.AppendClearGeneration(nextGeneration);
+            _wal.Sync();
+
+            // generation 文件是 WAL 轮转后的恢复权威；先持久化，再删除仅含旧 generation 的 WAL。
+            KvGenerationFile.Save(RootDirectory, nextGeneration);
+            _generation = nextGeneration;
+            _lastSequence = sequence;
+            _values.Clear();
+            ReplaceDiskStateLocked(null);
+            ResetWalLocked(sequence + 1);
+            int pending = EnsureCleanupManifestLocked();
+
+            SonnetDbMeter.KvClearedKeys.Add(removed);
+            SonnetDbMeter.KvGenerationChanges.Add(1);
+            if (startTimestamp != 0)
+                SonnetDbMeter.KvClearDuration.Record(Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds);
+            return new KvClearResult(removed, nextGeneration, pending);
+        }
+    }
+
+    /// <summary>返回当前 generation 回收任务状态。</summary>
+    public KvCleanupStatus GetCleanupStatus()
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var manifest = LoadCurrentCleanupManifestLocked();
+            if (manifest is null)
+                return new KvCleanupStatus(_generation, 0, 0);
+
+            long bytes = 0;
+            foreach (string relativePath in manifest.Files)
+            {
+                string path = ResolveCleanupPath(relativePath);
+                if (File.Exists(path))
+                    bytes = checked(bytes + new FileInfo(path).Length);
+            }
+
+            return new KvCleanupStatus(_generation, manifest.Files.Count, bytes);
+        }
+    }
+
+    /// <summary>按文件数预算执行一轮可恢复旧 generation 回收。</summary>
+    public int CleanupPendingFiles(int? maxFiles = null)
+        => CleanupPendingFilesWithResult(maxFiles).ProcessedEntries;
+
+    /// <summary>执行一轮回收，并返回后台调度与状态指标需要的完整结果。</summary>
+    internal KvCleanupRoundResult CleanupPendingFilesWithResult(int? maxFiles = null)
+    {
+        int take = maxFiles ?? _options.CleanupMaxFilesPerRound;
+        if (take <= 0)
+            return KvCleanupRoundResult.Empty;
+
+        long startTimestamp = SonnetDbMeter.KvCleanupDuration.Enabled ? Stopwatch.GetTimestamp() : 0;
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var manifest = LoadCurrentCleanupManifestLocked();
+            if (manifest is null)
+                return KvCleanupRoundResult.Empty;
+
+            var remaining = manifest.Files.ToList();
+            int removed = 0;
+            int deletedFiles = 0;
+            long removedBytes = 0;
+            while (removed < remaining.Count && removed < take)
+            {
+                string relativePath = remaining[removed];
+                string path = ResolveCleanupPath(relativePath);
+                if (File.Exists(path))
+                {
+                    long length = new FileInfo(path).Length;
+                    File.Delete(path);
+                    removedBytes = checked(removedBytes + length);
+                    deletedFiles++;
+                }
+
+                removed++;
+            }
+
+            remaining.RemoveRange(0, removed);
+
+            if (remaining.Count == 0)
+                KvCleanupManifest.Delete(RootDirectory);
+            else
+                KvCleanupManifest.Save(RootDirectory, manifest with { Files = remaining });
+
+            long pendingBytes = 0;
+            foreach (string relativePath in remaining)
+            {
+                string path = ResolveCleanupPath(relativePath);
+                if (File.Exists(path))
+                    pendingBytes = checked(pendingBytes + new FileInfo(path).Length);
+            }
+
+            SonnetDbMeter.KvCleanupFiles.Add(deletedFiles);
+            SonnetDbMeter.KvCleanupBytes.Add(removedBytes);
+            if (startTimestamp != 0)
+                SonnetDbMeter.KvCleanupDuration.Record(Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds);
+            return new KvCleanupRoundResult(
+                removed,
+                deletedFiles,
+                removedBytes,
+                remaining.Count,
+                pendingBytes);
+        }
     }
 
     /// <summary>
@@ -702,14 +897,7 @@ public sealed class KvKeyspace : IDisposable
                 .Take(take)
                 .ToArray();
 
-            int removed = 0;
-            foreach (byte[] key in keys)
-            {
-                if (DeleteExistingLocked(key))
-                    removed++;
-            }
-
-            return removed;
+            return DeleteManyExistingLocked(keys);
         }
     }
 
@@ -819,7 +1007,8 @@ public sealed class KvKeyspace : IDisposable
                 snapshotPath,
                 sequence,
                 EnumerateVisibleEntriesLocked(prefix: [], afterKey: null),
-                CountVisibleLocked());
+                CountVisibleLocked(),
+                _generation);
             var newDiskState = KvStateFile.OpenDiskState(snapshotPath);
             ResetWalLocked(sequence + 1);
             _values.Clear();
@@ -846,7 +1035,8 @@ public sealed class KvKeyspace : IDisposable
                 segmentPath,
                 sequence,
                 EnumerateVisibleEntriesLocked(prefix: [], afterKey: null),
-                CountVisibleLocked());
+                CountVisibleLocked(),
+                _generation);
             var newDiskState = KvStateFile.OpenDiskState(segmentPath);
             ResetWalLocked(sequence + 1);
             _values.Clear();
@@ -890,25 +1080,41 @@ public sealed class KvKeyspace : IDisposable
     internal static string SegmentPath(string rootDirectory, long sequence) =>
         Path.Combine(SegmentsDirectory(rootDirectory), $"{sequence:D20}.SDBKVSEG");
 
-    private static KvStateSnapshot LoadLatestState(string rootDirectory)
+    private static KvStateSnapshot LoadLatestState(string rootDirectory, long generation)
     {
         var candidates = new List<(long Sequence, bool IsSegment, string Path)>();
         AddStateCandidates(candidates, SnapshotsDirectory(rootDirectory), "*.SDBKVSNP", isSegment: false);
         AddStateCandidates(candidates, SegmentsDirectory(rootDirectory), "*.SDBKVSEG", isSegment: true);
 
         if (candidates.Count == 0)
-            return new KvStateSnapshot(0, new Dictionary<byte[], KvValueEntry>(KvKeyComparer.Instance), diskState: null);
+            return new KvStateSnapshot(
+                0,
+                generation,
+                new Dictionary<byte[], KvValueEntry>(KvKeyComparer.Instance),
+                diskState: null);
 
-        var latest = candidates
+        foreach (var candidate in candidates
             .OrderByDescending(static x => x.Sequence)
-            .ThenByDescending(static x => x.IsSegment)
-            .First();
+            .ThenByDescending(static x => x.IsSegment))
+        {
+            var diskState = KvStateFile.OpenDiskState(candidate.Path);
+            if (diskState.Generation == generation)
+            {
+                return new KvStateSnapshot(
+                    diskState.Sequence,
+                    generation,
+                    new Dictionary<byte[], KvValueEntry>(KvKeyComparer.Instance),
+                    diskState);
+            }
 
-        var diskState = KvStateFile.OpenDiskState(latest.Path);
+            diskState.Dispose();
+        }
+
         return new KvStateSnapshot(
-            diskState.Sequence,
+            0,
+            generation,
             new Dictionary<byte[], KvValueEntry>(KvKeyComparer.Instance),
-            diskState);
+            diskState: null);
     }
 
     private static void AddStateCandidates(
@@ -928,18 +1134,58 @@ public sealed class KvKeyspace : IDisposable
         }
     }
 
-    private static void ApplyRecord(KvStateSnapshot state, KvWalRecord record)
+    private static void ApplyRecord(
+        KvStateSnapshot state,
+        KvWalRecord record,
+        Dictionary<long, PendingDeleteBatch> pendingDeleteBatches)
     {
-        if (record.Kind == KvWalRecordKind.Put)
+        switch (record.Kind)
         {
-            state.Values[record.Key] = new KvValueEntry(record.Value ?? [], record.Sequence, record.ExpiresAtUtc);
-            return;
-        }
+            case KvWalRecordKind.Put:
+                state.Values[record.Key] = new KvValueEntry(record.Value ?? [], record.Sequence, record.ExpiresAtUtc);
+                return;
 
-        if (state.DiskState is not null && state.DiskState.Contains(record.Key))
-            state.Values[record.Key] = KvValueEntry.Deleted(record.Sequence);
+            case KvWalRecordKind.ClearGeneration:
+                state.Values.Clear();
+                state.DiskState?.Dispose();
+                state.DiskState = null;
+                state.Generation = KvWalFile.DecodeGeneration(record);
+                pendingDeleteBatches.Clear();
+                return;
+
+            case KvWalRecordKind.DeleteBatch:
+                var chunk = KvWalFile.DecodeDeleteBatch(record);
+                if (!pendingDeleteBatches.TryGetValue(chunk.BatchId, out var pending))
+                {
+                    pending = new PendingDeleteBatch(chunk.TotalChunks);
+                    pendingDeleteBatches.Add(chunk.BatchId, pending);
+                }
+                pending.Add(chunk);
+                return;
+
+            case KvWalRecordKind.DeleteBatchCommit:
+                var commit = KvWalFile.DecodeDeleteBatchCommit(record);
+                if (!pendingDeleteBatches.Remove(commit.BatchId, out var committedBatch))
+                    throw new InvalidDataException("KV batch-delete commit 缺少对应 chunk。");
+                foreach (byte[] key in committedBatch.Complete(commit))
+                    ApplyDeleteRecord(state, key, record.Sequence);
+                return;
+
+            case KvWalRecordKind.Delete:
+                ApplyDeleteRecord(state, record.Key, record.Sequence);
+                return;
+
+            default:
+                throw new InvalidDataException($"不支持的 KV WAL record kind '{record.Kind}'。");
+        }
+    }
+
+    private static void ApplyDeleteRecord(KvStateSnapshot state, byte[] key, long sequence)
+    {
+        if (state.DiskState is not null && state.DiskState.Contains(key))
+            state.Values[key] = KvValueEntry.Deleted(sequence);
         else
-            state.Values.Remove(record.Key);
+            state.Values.Remove(key);
     }
 
     private static void ValidateKey(ReadOnlySpan<byte> key, KvOptions options)
@@ -1026,12 +1272,68 @@ public sealed class KvKeyspace : IDisposable
             _wal.Sync();
 
         if (_diskState is not null && _diskState.Contains(key))
-            _values[key.ToArray()] = KvValueEntry.Deleted(sequence);
+            _values[key] = KvValueEntry.Deleted(sequence);
         else
             _values.Remove(key);
 
         _lastSequence = sequence;
         return true;
+    }
+
+    private int DeleteManyExistingLocked(IReadOnlyList<byte[]> keys)
+    {
+        if (keys.Count == 0)
+            return 0;
+        if (_options.BatchDeleteMaxKeys <= 0 || _options.BatchDeleteMaxBytes <= sizeof(int))
+            throw new InvalidOperationException("KV batch-delete 配置必须提供正数 key 数与 payload 字节预算。");
+
+        byte[][] materialized = keys as byte[][] ?? keys.ToArray();
+        int estimatedChunks = (materialized.Length + _options.BatchDeleteMaxKeys - 1)
+            / _options.BatchDeleteMaxKeys;
+        var chunks = new List<ArraySegment<byte[]>>(estimatedChunks);
+        int offset = 0;
+        while (offset < keys.Count)
+        {
+            int payloadBytes = sizeof(long) + (sizeof(int) * 3);
+            int count = 0;
+            while (offset + count < keys.Count && count < _options.BatchDeleteMaxKeys)
+            {
+                int keyBytes = checked(sizeof(int) + keys[offset + count].Length);
+                if (count > 0 && payloadBytes + keyBytes > _options.BatchDeleteMaxBytes)
+                    break;
+                if (payloadBytes + keyBytes > _options.BatchDeleteMaxBytes)
+                {
+                    throw new InvalidOperationException(
+                        $"KV batch-delete 单个 key 超过 payload 预算 {_options.BatchDeleteMaxBytes} 字节。");
+                }
+
+                payloadBytes += keyBytes;
+                count++;
+            }
+
+            chunks.Add(new ArraySegment<byte[]>(materialized, offset, count));
+            offset += count;
+        }
+
+        long batchId = _wal!.NextSequence;
+        for (int i = 0; i < chunks.Count; i++)
+            _wal.AppendDeleteBatch(batchId, i, chunks.Count, chunks[i]);
+        long commitSequence = _wal.AppendDeleteBatchCommit(batchId, chunks.Count, materialized.Length);
+        if (_options.SyncWalOnEveryWrite)
+            _wal.Sync();
+
+        for (int i = 0; i < materialized.Length; i++)
+            ApplyDeleteLocked(materialized[i], commitSequence);
+        _lastSequence = commitSequence;
+        return materialized.Length;
+    }
+
+    private void ApplyDeleteLocked(byte[] key, long sequence)
+    {
+        if (_diskState is not null && _diskState.Contains(key))
+            _values[key] = KvValueEntry.Deleted(sequence);
+        else
+            _values.Remove(key);
     }
 
     private long PutLocked(byte[] keyCopy, byte[] valueCopy, DateTimeOffset? expiresAtUtc)
@@ -1150,6 +1452,117 @@ public sealed class KvKeyspace : IDisposable
         old?.Dispose();
     }
 
+    private int EnsureCleanupManifestLocked()
+    {
+        var files = new List<string>();
+        CollectObsoleteStateFiles(SnapshotsDirectory(RootDirectory), "*.SDBKVSNP", files);
+        CollectObsoleteStateFiles(SegmentsDirectory(RootDirectory), "*.SDBKVSEG", files);
+        files.Sort(StringComparer.Ordinal);
+
+        if (files.Count == 0)
+        {
+            KvCleanupManifest.Delete(RootDirectory);
+            return 0;
+        }
+
+        KvCleanupManifest.Save(
+            RootDirectory,
+            new KvCleanupManifestModel(
+                KvCleanupManifestModel.CurrentVersion,
+                _generation,
+                DateTime.UtcNow.Ticks,
+                files));
+        return files.Count;
+    }
+
+    private void CollectObsoleteStateFiles(string directory, string pattern, List<string> files)
+    {
+        if (!Directory.Exists(directory))
+            return;
+
+        foreach (string path in Directory.EnumerateFiles(directory, pattern))
+        {
+            try
+            {
+                using var state = KvStateFile.OpenDiskState(path);
+                if (state.Generation < _generation)
+                    files.Add(Path.GetRelativePath(RootDirectory, path));
+            }
+            catch (InvalidDataException)
+            {
+                // 未知或损坏文件不能由 generation cleanup 猜测删除，交由显式修复工具处理。
+            }
+        }
+    }
+
+    private KvCleanupManifestModel? LoadCurrentCleanupManifestLocked()
+    {
+        KvCleanupManifestModel? manifest;
+        try
+        {
+            manifest = KvCleanupManifest.Load(RootDirectory);
+        }
+        catch (Exception ex) when (ex is InvalidDataException or System.Text.Json.JsonException)
+        {
+            EnsureCleanupManifestLocked();
+            manifest = KvCleanupManifest.Load(RootDirectory);
+        }
+
+        if (manifest is null)
+        {
+            if (EnsureCleanupManifestLocked() == 0)
+                return null;
+            manifest = KvCleanupManifest.Load(RootDirectory);
+        }
+
+        if (manifest is null)
+            return null;
+        if (manifest.Version != KvCleanupManifestModel.CurrentVersion || manifest.Generation != _generation)
+        {
+            if (EnsureCleanupManifestLocked() == 0)
+                return null;
+            manifest = KvCleanupManifest.Load(RootDirectory);
+        }
+
+        return manifest;
+    }
+
+    private string ResolveCleanupPath(string relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath) || Path.IsPathRooted(relativePath))
+            throw new InvalidDataException("KV cleanup manifest 包含非法路径。");
+
+        string root = Path.GetFullPath(RootDirectory);
+        string path = Path.GetFullPath(Path.Combine(root, relativePath));
+        string relative = Path.GetRelativePath(root, path);
+        if (relative == ".."
+            || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+            || relative.StartsWith(".." + Path.AltDirectorySeparatorChar, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("KV cleanup manifest 路径越出 keyspace 根目录。");
+        }
+
+        string directory = Path.GetDirectoryName(relative) ?? string.Empty;
+        string extension = Path.GetExtension(relative);
+        bool validContainer =
+            directory.Equals("snapshots", StringComparison.Ordinal)
+                && extension.Equals(".SDBKVSNP", StringComparison.Ordinal)
+            || directory.Equals("segments", StringComparison.Ordinal)
+                && extension.Equals(".SDBKVSEG", StringComparison.Ordinal);
+        if (!validContainer
+            || !long.TryParse(
+                Path.GetFileNameWithoutExtension(relative),
+                System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out long sequence)
+            || sequence < 0)
+        {
+            throw new InvalidDataException("KV cleanup manifest 只能引用 snapshots/segments 下的 state 文件。");
+        }
+
+        return path;
+    }
+
     private static long ParseInteger(byte[] value)
     {
         string text = Encoding.UTF8.GetString(value);
@@ -1166,4 +1579,40 @@ public sealed class KvKeyspace : IDisposable
     }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
+
+    private sealed class PendingDeleteBatch
+    {
+        private const int MaxChunks = 65_536;
+        private readonly KvDeleteBatchChunk?[] _chunks;
+
+        public PendingDeleteBatch(int totalChunks)
+        {
+            if (totalChunks is <= 0 or > MaxChunks)
+                throw new InvalidDataException("KV batch-delete totalChunks 无效。");
+            _chunks = new KvDeleteBatchChunk[totalChunks];
+        }
+
+        public void Add(KvDeleteBatchChunk chunk)
+        {
+            if (chunk.TotalChunks != _chunks.Length || _chunks[chunk.ChunkIndex] is not null)
+                throw new InvalidDataException("KV batch-delete chunk 序列无效或重复。");
+            _chunks[chunk.ChunkIndex] = chunk;
+        }
+
+        public IReadOnlyList<byte[]> Complete(KvDeleteBatchCommit commit)
+        {
+            if (commit.TotalChunks != _chunks.Length)
+                throw new InvalidDataException("KV batch-delete commit 对应的 chunk 不完整。");
+            var keys = new List<byte[]>(commit.TotalKeys);
+            foreach (var chunk in _chunks)
+            {
+                if (chunk is null)
+                    throw new InvalidDataException("KV batch-delete commit 对应的 chunk 不完整。");
+                keys.AddRange(chunk!.Keys);
+            }
+            if (keys.Count != commit.TotalKeys)
+                throw new InvalidDataException("KV batch-delete commit 的 key 总数不匹配。");
+            return keys;
+        }
+    }
 }

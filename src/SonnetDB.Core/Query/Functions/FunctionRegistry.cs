@@ -5,6 +5,7 @@ using SonnetDB.Query.Functions.Aggregates;
 using SonnetDB.Query.Functions.Control;
 using SonnetDB.Query.Functions.Window;
 using SonnetDB.Sql.Ast;
+using SonnetDB.Sql.Execution;
 using SonnetDB.Storage.Format;
 
 namespace SonnetDB.Query.Functions;
@@ -142,6 +143,8 @@ public static class FunctionRegistry
         new BuiltInScalarFunction("sqrt", 1, 1, static args => Math.Sqrt(RequireDouble(args[0], "sqrt"))),
         new BuiltInScalarFunction("log", 1, 2, EvaluateLog),
         new BuiltInScalarFunction("coalesce", 1, int.MaxValue, EvaluateCoalesce),
+        new BuiltInScalarFunction("regexp_like", 2, 3, static args =>
+            RegexPatternMatcher.IsMatch(args[0], args[1], args.Count == 3 ? args[2] : null)),
         new BuiltInScalarFunction("cosine_distance", 2, 2, EvaluateCosineDistance),
         new BuiltInScalarFunction("l2_distance", 2, 2, EvaluateL2Distance),
         new BuiltInScalarFunction("inner_product", 2, 2, EvaluateInnerProduct),

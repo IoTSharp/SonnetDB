@@ -519,6 +519,10 @@ public sealed record DeleteStatement(
     string Measurement,
     SqlExpression Where) : SqlStatement;
 
+/// <summary><c>TRUNCATE TABLE name</c> generation 快速清表。</summary>
+/// <param name="TableName">目标关系表名称。</param>
+public sealed record TruncateTableStatement(string TableName) : SqlStatement;
+
 /// <summary>
 /// <c>UPDATE table SET col = expr [, ...] WHERE expr</c>。
 /// </summary>

@@ -107,13 +107,59 @@ public sealed class KvKeyspaceManager : IDisposable
         {
             ThrowIfDisposed();
             int removed = 0;
-            foreach (var keyspace in _opened.Values.ToArray())
+            foreach (var keyspace in _opened.Values)
             {
                 if (!keyspace.IsDisposed)
                     removed += keyspace.CleanExpired(utcNow, limitPerKeyspace);
             }
 
             return removed;
+        }
+    }
+
+    /// <summary>按每 keyspace 文件预算执行一轮 generation 旧文件回收。</summary>
+    public int CleanupPendingOpened(int? maxFilesPerKeyspace = null)
+        => CleanupPendingOpenedWithResult(maxFilesPerKeyspace).ProcessedEntries;
+
+    internal KvCleanupRoundResult CleanupPendingOpenedWithResult(int? maxFilesPerKeyspace = null)
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            DiscoverCleanupKeyspacesLocked();
+
+            KvCleanupRoundResult result = KvCleanupRoundResult.Empty;
+            foreach (var keyspace in _opened.Values)
+            {
+                if (!keyspace.IsDisposed
+                    && File.Exists(Path.Combine(keyspace.RootDirectory, KvCleanupManifest.FileName)))
+                {
+                    result += keyspace.CleanupPendingFilesWithResult(maxFilesPerKeyspace);
+                }
+            }
+
+            return result;
+        }
+    }
+
+    internal KvCleanupRoundResult GetCleanupStatusOpened()
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            DiscoverCleanupKeyspacesLocked();
+            KvCleanupRoundResult result = KvCleanupRoundResult.Empty;
+            foreach (var keyspace in _opened.Values.ToArray())
+            {
+                if (keyspace.IsDisposed
+                    || !File.Exists(Path.Combine(keyspace.RootDirectory, KvCleanupManifest.FileName)))
+                {
+                    continue;
+                }
+                KvCleanupStatus status = keyspace.GetCleanupStatus();
+                result += new KvCleanupRoundResult(0, 0, 0, status.PendingFiles, status.PendingBytes);
+            }
+            return result;
         }
     }
 
@@ -159,6 +205,22 @@ public sealed class KvKeyspaceManager : IDisposable
         }
 
         return true;
+    }
+
+    private void DiscoverCleanupKeyspacesLocked()
+    {
+        foreach (string directory in Directory.EnumerateDirectories(KeyspacesDirectory))
+        {
+            string? name = Path.GetFileName(directory);
+            if (!IsValidName(name)
+                || !File.Exists(Path.Combine(directory, KvCleanupManifest.FileName)))
+            {
+                continue;
+            }
+
+            if (!_opened.TryGetValue(name!, out var existing) || existing.IsDisposed)
+                _opened[name!] = KvKeyspace.Open(name!, directory, _options);
+        }
     }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);

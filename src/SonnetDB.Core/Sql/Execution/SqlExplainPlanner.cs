@@ -28,7 +28,8 @@ public sealed record SqlExplainExecutionResult(
     int TagFilterCount,
     string? AccessPath = null,
     string? IndexName = null,
-    DocumentQueryPlan? DocumentPlan = null);
+    DocumentQueryPlan? DocumentPlan = null,
+    string? ScanFilter = null);
 
 /// <summary>
 /// 为只读 SQL 估算查询将扫描的段数、block 数和行数。
@@ -97,6 +98,7 @@ public static class SqlExplainPlanner
             new object?[] { "tag_filter_count", result.TagFilterCount },
             new object?[] { "access_path", result.AccessPath },
             new object?[] { "index_name", result.IndexName },
+            new object?[] { "scan_filter", result.ScanFilter },
         };
 
         if (result.DocumentPlan is { } documentPlan)
@@ -343,6 +345,7 @@ public static class SqlExplainPlanner
         Tsdb tsdb,
         SelectStatement statement)
     {
+        string? scanFilter = DescribeScanFilter(statement.Where);
         if (DocumentVectorSearchExecutor.IsVectorSearch(statement))
         {
             var vectorSearchSchema = tsdb.Documents.Catalog.TryGet(statement.Measurement)
@@ -363,7 +366,8 @@ public static class SqlExplainPlanner
                 HasTimeFilter: statement.Where is not null,
                 TagFilterCount: 0,
                 AccessPath: accessPath,
-                IndexName: indexName);
+                IndexName: indexName,
+                ScanFilter: scanFilter);
         }
 
         if (HybridSearchExecutor.IsHybridSearch(statement))
@@ -386,7 +390,8 @@ public static class SqlExplainPlanner
                     HasTimeFilter: statement.Where is not null,
                     TagFilterCount: 0,
                     AccessPath: hybridAccessPath,
-                    IndexName: hybridIndexName);
+                    IndexName: hybridIndexName,
+                    ScanFilter: scanFilter);
             }
 
             var hybridMeasurementSchema = tsdb.Measurements.TryGet(statement.Measurement)
@@ -407,7 +412,8 @@ public static class SqlExplainPlanner
                 HasTimeFilter: statement.Where is not null,
                 TagFilterCount: 0,
                 AccessPath: measurementAccessPath,
-                IndexName: measurementIndexName);
+                IndexName: measurementIndexName,
+                ScanFilter: scanFilter);
         }
 
         if (statement.Join is not null)
@@ -426,7 +432,8 @@ public static class SqlExplainPlanner
                 HasTimeFilter: joinPlan.FilterPlan.MeasurementWhere.TimeRange != TimeRange.All,
                 TagFilterCount: joinPlan.FilterPlan.MeasurementWhere.TagFilter.Count,
                 AccessPath: joinPlan.AccessPath,
-                IndexName: joinPlan.IndexName);
+                IndexName: joinPlan.IndexName,
+                ScanFilter: scanFilter);
         }
 
         var documentSchema = tsdb.Documents.Catalog.TryGet(statement.Measurement);
@@ -447,7 +454,8 @@ public static class SqlExplainPlanner
                 TagFilterCount: 0,
                 AccessPath: documentPlan.AccessPath,
                 IndexName: documentPlan.IndexName,
-                DocumentPlan: documentPlan);
+                DocumentPlan: documentPlan,
+                ScanFilter: scanFilter);
         }
 
         var tableSchema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
@@ -468,7 +476,8 @@ public static class SqlExplainPlanner
                 HasTimeFilter: statement.Where is not null,
                 TagFilterCount: 0,
                 AccessPath: accessPath,
-                IndexName: indexName);
+                IndexName: indexName,
+                ScanFilter: scanFilter);
         }
 
         if (statement.TableValuedFunction is FunctionCallExpression { Name: var tvfName }
@@ -489,7 +498,8 @@ public static class SqlExplainPlanner
                 HasTimeFilter: statement.Where is not null,
                 TagFilterCount: 0,
                 AccessPath: accessPath,
-                IndexName: indexName);
+                IndexName: indexName,
+                ScanFilter: scanFilter);
         }
 
         if (statement.TableValuedFunction is FunctionCallExpression { Name: var otherTvfName }
@@ -554,7 +564,35 @@ public static class SqlExplainPlanner
             HasTimeFilter: where.TimeRange != TimeRange.All,
             TagFilterCount: where.TagFilter.Count,
             AccessPath: where.TagFilter.Count > 0 ? "tag_index" : "measurement_scan",
-            IndexName: null);
+            IndexName: null,
+            ScanFilter: scanFilter);
+    }
+
+    private static string? DescribeScanFilter(SqlExpression? expression)
+        => ContainsRegex(expression)
+            ? $"regex_residual(timeout_ms={(long)RegexPatternMatcher.MatchTimeout.TotalMilliseconds},pattern_chars<={RegexPatternMatcher.MaxPatternLength},input_chars<={RegexPatternMatcher.MaxInputLength})"
+            : null;
+
+    private static bool ContainsRegex(SqlExpression? expression)
+    {
+        return expression switch
+        {
+            null => false,
+            BinaryExpression { Operator: SqlBinaryOperator.Regex or SqlBinaryOperator.NotRegex } => true,
+            BinaryExpression binary => ContainsRegex(binary.Left) || ContainsRegex(binary.Right),
+            UnaryExpression unary => ContainsRegex(unary.Operand),
+            IsNullExpression isNull => ContainsRegex(isNull.Operand),
+            InExpression inExpression => ContainsRegex(inExpression.Value)
+                || inExpression.Values.Any(ContainsRegex),
+            CaseExpression caseExpression => caseExpression.WhenClauses.Any(static when =>
+                    ContainsRegex(when.Condition) || ContainsRegex(when.Result))
+                || ContainsRegex(caseExpression.Else),
+            FunctionCallExpression function => string.Equals(
+                    function.Name, "regexp_like", StringComparison.OrdinalIgnoreCase)
+                || function.Arguments.Any(ContainsRegex),
+            NamedArgumentExpression named => ContainsRegex(named.Value),
+            _ => false,
+        };
     }
 
     private static (string AccessPath, string? IndexName, int EstimatedRows) ExplainTableAccess(

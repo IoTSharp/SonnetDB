@@ -97,6 +97,7 @@ public sealed class SqlParser
             TokenKind.KeywordImport => ParseImport(),
             TokenKind.KeywordSelect => ParseSelect(),
             TokenKind.KeywordDelete => ParseDelete(),
+            TokenKind.KeywordTruncate => ParseTruncate(),
             TokenKind.KeywordUpdate => ParseUpdate(),
             TokenKind.KeywordDrop => ParseDrop(),
             TokenKind.KeywordAlter => ParseAlter(),
@@ -107,7 +108,7 @@ public sealed class SqlParser
             TokenKind.KeywordIssue => ParseIssue(),
             TokenKind.KeywordDescribe => ParseDescribe(),
             TokenKind.KeywordDesc => ParseDescribe(),
-            _ => throw Error("期望 CREATE / INSERT / IMPORT / SELECT / DELETE / UPDATE / DROP / ALTER / GRANT / REVOKE / SHOW / EXPLAIN / ISSUE / DESCRIBE / BEGIN / COMMIT / ROLLBACK 关键字"),
+            _ => throw Error("期望 CREATE / INSERT / IMPORT / SELECT / DELETE / TRUNCATE / UPDATE / DROP / ALTER / GRANT / REVOKE / SHOW / EXPLAIN / ISSUE / DESCRIBE / BEGIN / COMMIT / ROLLBACK 关键字"),
         };
     }
 
@@ -1525,6 +1526,13 @@ public sealed class SqlParser
         Expect(TokenKind.KeywordWhere);
         var where = ParseExpression();
         return new DeleteStatement(measurement, where);
+    }
+
+    private TruncateTableStatement ParseTruncate()
+    {
+        Expect(TokenKind.KeywordTruncate);
+        Expect(TokenKind.KeywordTable);
+        return new TruncateTableStatement(ExpectIdentifierName());
     }
 
     // ── UPDATE ─────────────────────────────────────────────────────────────

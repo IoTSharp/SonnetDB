@@ -123,6 +123,25 @@ public sealed class Tsdb : IDisposable
     public Exception? LastError => Volatile.Read(ref _lastError);
 
     /// <summary>
+    /// 返回 KV generation 后台回收的进度、速率、最近节流原因与错误类型。
+    /// </summary>
+    public KvMaintenanceStatus GetKvMaintenanceStatus()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        KvCleanupRoundResult current = GetCleanupStatusFromBackground();
+        return _kvExpirerWorker?.GetStatus(current)
+            ?? new KvMaintenanceStatus(
+                0,
+                0,
+                current.PendingFiles,
+                current.PendingBytes,
+                0,
+                0,
+                null,
+                null);
+    }
+
+    /// <summary>
     /// 引擎内部捕获到可诊断异常时触发的事件。事件处理器抛出的异常会被忽略，以保持调用方语义稳定。
     /// </summary>
     public event EventHandler<TsdbDiagnosticEvent>? DiagnosticEvent;
@@ -208,6 +227,12 @@ public sealed class Tsdb : IDisposable
 
     /// <summary>flush 泵当前排队中（含正在处理）的请求数；供 <see cref="SonnetDbMeter"/> 观测。</summary>
     internal long FlushPumpPendingCount => _flushPump?.PendingCount ?? 0;
+
+    internal long KvCleanupPendingFiles => _kvExpirerWorker?.CleanupPendingFiles ?? 0;
+
+    internal long KvCleanupPendingBytes => _kvExpirerWorker?.CleanupPendingBytes ?? 0;
+
+    internal double KvCleanupBytesPerSecond => _kvExpirerWorker?.LastCleanupBytesPerSecond ?? 0;
 
     /// <summary>
     /// 获取一次统一读快照租约：一次调用原子拿到 {active + sealing MemTable + 段读取器} 一致视图。
@@ -390,7 +415,7 @@ public sealed class Tsdb : IDisposable
             tsdb._retentionWorker.Start();
         }
 
-        if (options.Kv.ExpirerEnabled)
+        if (options.Kv.ExpirerEnabled || options.Kv.CleanupEnabled)
         {
             tsdb._kvExpirerWorker = new KvExpirerWorker(tsdb, options.Kv);
             tsdb._kvExpirerWorker.Start();
@@ -1154,8 +1179,27 @@ public sealed class Tsdb : IDisposable
         return Keyspaces.CleanExpiredOpened(DateTimeOffset.UtcNow, limitPerKeyspace);
     }
 
+    internal KvCleanupRoundResult CleanupKeyspacesFromBackground(int maxFilesPerKeyspace)
+    {
+        _kvCleanupFaultHook?.Invoke();
+        return Keyspaces.CleanupPendingOpenedWithResult(maxFilesPerKeyspace)
+            + Tables.CleanupPendingFilesWithResult(maxFilesPerKeyspace);
+    }
+
+    internal KvCleanupRoundResult GetCleanupStatusFromBackground()
+        => Keyspaces.GetCleanupStatusOpened() + Tables.GetCleanupStatusOpened();
+
+    internal KvCleanupThrottleReason GetInjectedCleanupThrottleReason()
+        => _kvCleanupThrottleHook?.Invoke() ?? KvCleanupThrottleReason.None;
+
     /// <summary>仅供测试注入 KV 过期清理故障；生产恒为 null。</summary>
     internal Action? _kvExpirerFaultHook;
+
+    /// <summary>仅供测试注入 generation cleanup 节流原因；生产恒为 null。</summary>
+    internal Func<KvCleanupThrottleReason>? _kvCleanupThrottleHook;
+
+    /// <summary>仅供测试注入 generation cleanup 故障；生产恒为 null。</summary>
+    internal Action? _kvCleanupFaultHook;
 
     private void WritePointLocked(Point point)
     {

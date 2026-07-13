@@ -8,7 +8,7 @@ internal static class KvStateFile
     private const int HeaderSize = 64;
     private const int EntryPrefixBytesV1 = 16;
     private const int EntryPrefixBytesV2 = 24;
-    private const int CurrentVersion = 3;
+    private const int CurrentVersion = 4;
 
     private static ReadOnlySpan<byte> SnapshotMagic => "SDBKVSNP"u8;
     private static ReadOnlySpan<byte> SegmentMagic => "SDBKVSEG"u8;
@@ -16,28 +16,32 @@ internal static class KvStateFile
     public static void SaveSnapshot(
         string path,
         long sequence,
-        IReadOnlyDictionary<byte[], KvValueEntry> values)
-        => SaveSnapshot(path, sequence, values.OrderBy(static x => x.Key, KvKeyComparer.Instance), values.Count);
+        IReadOnlyDictionary<byte[], KvValueEntry> values,
+        long generation = 0)
+        => SaveSnapshot(path, sequence, values.OrderBy(static x => x.Key, KvKeyComparer.Instance), values.Count, generation);
 
     public static void SaveSnapshot(
         string path,
         long sequence,
         IEnumerable<KeyValuePair<byte[], KvValueEntry>> orderedValues,
-        int count)
-        => Save(path, SnapshotMagic, sequence, orderedValues, count);
+        int count,
+        long generation = 0)
+        => Save(path, SnapshotMagic, sequence, orderedValues, count, generation);
 
     public static void SaveSegment(
         string path,
         long sequence,
-        IReadOnlyDictionary<byte[], KvValueEntry> values)
-        => SaveSegment(path, sequence, values.OrderBy(static x => x.Key, KvKeyComparer.Instance), values.Count);
+        IReadOnlyDictionary<byte[], KvValueEntry> values,
+        long generation = 0)
+        => SaveSegment(path, sequence, values.OrderBy(static x => x.Key, KvKeyComparer.Instance), values.Count, generation);
 
     public static void SaveSegment(
         string path,
         long sequence,
         IEnumerable<KeyValuePair<byte[], KvValueEntry>> orderedValues,
-        int count)
-        => Save(path, SegmentMagic, sequence, orderedValues, count);
+        int count,
+        long generation = 0)
+        => Save(path, SegmentMagic, sequence, orderedValues, count, generation);
 
     public static KvDiskState OpenDiskState(string path)
     {
@@ -91,7 +95,7 @@ internal static class KvStateFile
                 expectedCrc));
         }
 
-        return new KvDiskState(path, header.Sequence, entries);
+        return new KvDiskState(path, header.Sequence, header.Generation, entries);
     }
 
     public static KvStateSnapshot Load(string path)
@@ -138,7 +142,7 @@ internal static class KvStateFile
             values[key] = new KvValueEntry(value, entryVersion, expiresAtUtc);
         }
 
-        return new KvStateSnapshot(header.Sequence, values, diskState: null);
+        return new KvStateSnapshot(header.Sequence, header.Generation, values, diskState: null);
     }
 
     private static void Save(
@@ -146,12 +150,14 @@ internal static class KvStateFile
         ReadOnlySpan<byte> magic,
         long sequence,
         IEnumerable<KeyValuePair<byte[], KvValueEntry>> orderedValues,
-        int count)
+        int count,
+        long generation)
     {
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(orderedValues);
         ArgumentOutOfRangeException.ThrowIfNegative(sequence);
         ArgumentOutOfRangeException.ThrowIfNegative(count);
+        ArgumentOutOfRangeException.ThrowIfNegative(generation);
 
         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
         string tempPath = path + ".tmp";
@@ -165,6 +171,7 @@ internal static class KvStateFile
             BinaryPrimitives.WriteInt64LittleEndian(header.Slice(16, 8), DateTime.UtcNow.Ticks);
             BinaryPrimitives.WriteInt64LittleEndian(header.Slice(24, 8), sequence);
             BinaryPrimitives.WriteInt32LittleEndian(header.Slice(32, 4), count);
+            BinaryPrimitives.WriteInt64LittleEndian(header.Slice(36, 8), generation);
             BinaryPrimitives.WriteUInt32LittleEndian(header.Slice(60, 4), Crc32.HashToUInt32(header[..60]));
             fs.Write(header);
 
@@ -221,10 +228,13 @@ internal static class KvStateFile
 
         long sequence = BinaryPrimitives.ReadInt64LittleEndian(header.Slice(24, 8));
         int count = BinaryPrimitives.ReadInt32LittleEndian(header.Slice(32, 4));
-        if (sequence < 0 || count < 0)
+        long generation = version >= 4
+            ? BinaryPrimitives.ReadInt64LittleEndian(header.Slice(36, 8))
+            : 0;
+        if (sequence < 0 || count < 0 || generation < 0)
             throw new InvalidDataException("KV state header contains invalid counters.");
 
-        return new KvStateHeader(version, sequence, count);
+        return new KvStateHeader(version, sequence, count, generation);
     }
 
     private static void ValidateEntryHeader(int keyLength, int valueLength, long expiresAtUtcTicks)
@@ -257,23 +267,30 @@ internal static class KvStateFile
         return total;
     }
 
-    private readonly record struct KvStateHeader(int Version, long Sequence, int Count);
+    private readonly record struct KvStateHeader(int Version, long Sequence, int Count, long Generation);
 }
 
 internal sealed class KvStateSnapshot
 {
-    public KvStateSnapshot(long sequence, Dictionary<byte[], KvValueEntry> values, KvDiskState? diskState)
+    public KvStateSnapshot(
+        long sequence,
+        long generation,
+        Dictionary<byte[], KvValueEntry> values,
+        KvDiskState? diskState)
     {
         Sequence = sequence;
+        Generation = generation;
         Values = values;
         DiskState = diskState;
     }
 
     public long Sequence { get; }
 
+    public long Generation { get; set; }
+
     public Dictionary<byte[], KvValueEntry> Values { get; }
 
-    public KvDiskState? DiskState { get; }
+    public KvDiskState? DiskState { get; set; }
 }
 
 internal sealed class KvDiskState : IDisposable
@@ -283,12 +300,13 @@ internal sealed class KvDiskState : IDisposable
     private readonly FileStream _stream;
     private bool _disposed;
 
-    public KvDiskState(string path, long sequence, IReadOnlyList<KvDiskIndexEntry> entries)
+    public KvDiskState(string path, long sequence, long generation, IReadOnlyList<KvDiskIndexEntry> entries)
     {
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(entries);
         Path = path;
         Sequence = sequence;
+        Generation = generation;
         _entries = entries.ToArray();
         _stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
     }
@@ -296,6 +314,8 @@ internal sealed class KvDiskState : IDisposable
     public string Path { get; }
 
     public long Sequence { get; }
+
+    public long Generation { get; }
 
     public int Count => _entries.Length;
 

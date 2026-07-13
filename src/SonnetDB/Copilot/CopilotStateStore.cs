@@ -153,6 +153,16 @@ internal sealed class CopilotStateStore
             if (!string.Equals(conversation.Values[1] as string, owner, StringComparison.Ordinal))
                 throw new UnauthorizedAccessException("无权访问该 Copilot 会话。");
 
+            long existingMessageCount = conversation.Values[6] as long? ?? 0L;
+            DateTime previousTimestamp = ToDateTimeOffset(conversation.Values[5]).UtcDateTime;
+            if (existingMessageCount > 0
+                && timestamp <= previousTimestamp
+                && previousTimestamp.Ticks <= DateTime.MaxValue.Ticks - TimeSpan.TicksPerMillisecond)
+            {
+                // DATETIME 按 Unix 毫秒持久化；至少推进 1ms，避免重启后随机 GUID 主键打乱消息。
+                timestamp = previousTimestamp.AddMilliseconds(1);
+            }
+
             var citationList = citations is null ? null : citations.ToList();
             var citationsJson = citationList is { Count: > 0 }
                 ? JsonSerializer.Serialize(citationList, ServerJsonContext.Default.ListCopilotCitation)
@@ -173,7 +183,7 @@ internal sealed class CopilotStateStore
             var nextTitle = conversation.Values[2] as string ?? "新会话";
             if (normalizedRole == "user" && string.Equals(nextTitle, "新会话", StringComparison.Ordinal))
                 nextTitle = NormalizeTitle(content, nextTitle);
-            var messageCount = (conversation.Values[6] as long? ?? 0L) + 1;
+            var messageCount = existingMessageCount + 1;
             _conversations.Upsert([
                 conversationId,
                 owner,

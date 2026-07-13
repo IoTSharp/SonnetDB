@@ -46,6 +46,12 @@ dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --filter *SegmentMa
 # 快速验证 #124 基准的 setup / 并发 query / cleanup 生命周期
 dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --segment-maintenance-smoke
 
+# 关系表逐行删除 / 批量 tombstone / generation / TRUNCATE 对照（不需要外部数据库）
+dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --filter '*TableDelete*'
+
+# 快速验证 #126.1 四条 delete/truncate 路径
+dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --table-delete-smoke
+
 # 仅运行向量召回基准
 dotnet run --project eng/benchmarks/run-benchmarks/run-benchmarks.csproj -- --filter *Vector*
 

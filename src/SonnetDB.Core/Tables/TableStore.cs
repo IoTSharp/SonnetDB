@@ -10,6 +10,7 @@ public sealed class TableStore : IDisposable
     private readonly object _sync = new();
     private readonly KvKeyspace _keyspace;
     private TableSchema _schema;
+    private int _rowCount;
 
     internal TableStore(TableSchema schema, KvKeyspace keyspace)
     {
@@ -19,6 +20,7 @@ public sealed class TableStore : IDisposable
         _keyspace = keyspace;
         MigrateLegacyRowsLocked();
         RebuildIndexesLocked();
+        _rowCount = _keyspace.CountPrefix([(byte)'r']);
     }
 
     /// <summary>表 schema。</summary>
@@ -30,6 +32,22 @@ public sealed class TableStore : IDisposable
                 return _schema;
         }
     }
+
+    /// <summary>当前 generation 中的关系行数。</summary>
+    public int RowCount
+    {
+        get
+        {
+            lock (_sync)
+                return _rowCount;
+        }
+    }
+
+    /// <summary>底层 rowstore 当前 generation。</summary>
+    public long Generation => _keyspace.Generation;
+
+    /// <summary>底层 rowstore generation 旧文件回收状态。</summary>
+    public KvCleanupStatus GetCleanupStatus() => _keyspace.GetCleanupStatus();
 
     /// <summary>
     /// 插入或覆盖一行。
@@ -49,6 +67,8 @@ public sealed class TableStore : IDisposable
             var operation = TableMutationOperation.Update(rowKey, oldRow, new TableRow(values.ToArray(), primaryKey));
             ValidateUniqueIndexesLocked(schema, operation);
             ApplyMutationLocked(schema, operation, value);
+            if (oldRow is null)
+                _rowCount++;
         }
     }
 
@@ -73,6 +93,7 @@ public sealed class TableStore : IDisposable
             var operation = TableMutationOperation.Insert(rowKey, newRow);
             ValidateUniqueIndexesLocked(schema, operation);
             ApplyMutationLocked(schema, operation, value);
+            _rowCount++;
         }
     }
 
@@ -128,6 +149,7 @@ public sealed class TableStore : IDisposable
             {
                 foreach (var operation in operations)
                     ApplyMutationLocked(schema, operation, TableRowCodec.Encode(schema, operation.NewRow!.Values), applied);
+                _rowCount = checked(_rowCount + operations.Count);
             }
             catch
             {
@@ -179,8 +201,16 @@ public sealed class TableStore : IDisposable
         ArgumentNullException.ThrowIfNull(batch);
         lock (_sync)
         {
-            ApplyPreparedBatchLocked(batch);
-            return batch.AffectedRows;
+            try
+            {
+                ApplyPreparedBatchLocked(batch);
+                return batch.AffectedRows;
+            }
+            catch
+            {
+                RollbackAppliedLocked(batch.Applied);
+                throw;
+            }
         }
     }
 
@@ -188,7 +218,14 @@ public sealed class TableStore : IDisposable
     {
         ArgumentNullException.ThrowIfNull(batch);
         lock (_sync)
+        {
             RollbackAppliedLocked(batch.Applied);
+            if (batch.RowCountApplied)
+            {
+                _rowCount = checked(_rowCount - batch.RowCountDelta);
+                batch.RowCountApplied = false;
+            }
+        }
     }
 
     /// <summary>
@@ -227,9 +264,27 @@ public sealed class TableStore : IDisposable
                 return false;
 
             ApplyMutationLocked(schema, TableMutationOperation.Delete(rowKey, oldRow), encodedNewRow: null);
+            _rowCount--;
             return true;
         }
     }
+
+    /// <summary>切换到底层 KV 的新 generation，并返回被清空的关系行数。</summary>
+    internal (int Rows, KvClearResult Clear) Truncate()
+    {
+        lock (_sync)
+        {
+            int rows = _rowCount;
+            KvClearResult result = _keyspace.Clear();
+            _rowCount = 0;
+            return (rows, result);
+        }
+    }
+
+    internal int CleanupPendingFiles(int maxFiles) => _keyspace.CleanupPendingFiles(maxFiles);
+
+    internal KvCleanupRoundResult CleanupPendingFilesWithResult(int maxFiles)
+        => _keyspace.CleanupPendingFilesWithResult(maxFiles);
 
     /// <summary>
     /// 扫描当前表的所有行，按主键字节序升序返回。
@@ -669,11 +724,21 @@ public sealed class TableStore : IDisposable
         }
 
         var affected = operations.Count(static operation => operation.OldRow is not null || operation.NewRow is not null);
+        int rowCountDelta = 0;
+        for (int i = 0; i < operations.Count; i++)
+        {
+            var operation = operations[i];
+            if (operation.OldRow is null && operation.NewRow is not null)
+                rowCountDelta++;
+            else if (operation.OldRow is not null && operation.NewRow is null)
+                rowCountDelta--;
+        }
         return new PreparedTableBatch(
             schema,
             operations,
             affected,
-            new List<RollbackAction>(operations.Count * Math.Max(1, schema.Indexes.Count + 1)));
+            new List<RollbackAction>(operations.Count * Math.Max(1, schema.Indexes.Count + 1)),
+            rowCountDelta);
     }
 
     private void ApplyPreparedBatchLocked(PreparedTableBatch batch)
@@ -681,17 +746,49 @@ public sealed class TableStore : IDisposable
         if (!ReferenceEquals(batch.Schema, _schema))
             throw new InvalidOperationException($"table '{_schema.Name}' schema 已变化，无法提交已准备的轻事务批次。");
 
-        foreach (var operation in batch.Operations)
+        bool isPureDeleteBatch = batch.Operations.Count > 1;
+        for (int i = 0; isPureDeleteBatch && i < batch.Operations.Count; i++)
         {
-            if (operation.OldRow is null && operation.NewRow is null)
-                continue;
-
-            ApplyMutationLocked(
-                batch.Schema,
-                operation,
-                operation.NewRow is null ? null : TableRowCodec.Encode(batch.Schema, operation.NewRow.Values),
-                batch.Applied);
+            var operation = batch.Operations[i];
+            isPureDeleteBatch = operation.OldRow is not null && operation.NewRow is null;
         }
+
+        if (isPureDeleteBatch)
+        {
+            var keys = new List<byte[]>(batch.Operations.Count * Math.Max(1, batch.Schema.Indexes.Count + 1));
+            foreach (var operation in batch.Operations)
+            {
+                foreach (var indexEntry in BuildIndexEntries(batch.Schema, operation.OldRow!))
+                {
+                    keys.Add(indexEntry.Key);
+                    batch.Applied.Add(RollbackAction.Put(indexEntry.Key, indexEntry.Value));
+                }
+
+                keys.Add(operation.RowKey);
+                batch.Applied.Add(RollbackAction.Put(
+                    operation.RowKey,
+                    TableRowCodec.Encode(batch.Schema, operation.OldRow!.Values)));
+            }
+
+            _keyspace.DeleteMany(keys);
+        }
+        else
+        {
+            foreach (var operation in batch.Operations)
+            {
+                if (operation.OldRow is null && operation.NewRow is null)
+                    continue;
+
+                ApplyMutationLocked(
+                    batch.Schema,
+                    operation,
+                    operation.NewRow is null ? null : TableRowCodec.Encode(batch.Schema, operation.NewRow.Values),
+                    batch.Applied);
+            }
+        }
+
+        _rowCount = checked(_rowCount + batch.RowCountDelta);
+        batch.RowCountApplied = true;
     }
 
     private static void ValidateRowVersion(TableSchema schema, TableRowMutation mutation, TableRow? oldRow)
@@ -751,8 +848,10 @@ public sealed class TableStore : IDisposable
         TableSchema Schema,
         IReadOnlyList<TableMutationOperation> Operations,
         int AffectedRows,
-        List<RollbackAction> Applied)
+        List<RollbackAction> Applied,
+        int RowCountDelta)
     {
+        public bool RowCountApplied { get; set; }
         public IReadOnlyList<TableRow> FinalRows
             => Operations
                 .Where(static operation => operation.NewRow is not null)

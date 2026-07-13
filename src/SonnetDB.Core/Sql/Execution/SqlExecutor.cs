@@ -1,5 +1,6 @@
 ﻿using System.Globalization;
 using SonnetDB.Catalog;
+using SonnetDB.Diagnostics;
 using SonnetDB.Engine;
 using SonnetDB.Model;
 using SonnetDB.Sql.Ast;
@@ -201,6 +202,7 @@ public static class SqlExecutor
             InsertStatement insert => ExecuteInsert(tsdb, insert, transaction),
             SelectStatement select => ExecuteSelect(tsdb, select),
             DeleteStatement delete => ExecuteDelete(tsdb, delete, transaction),
+            TruncateTableStatement truncate => ExecuteTruncate(tsdb, truncate, transaction),
             UpdateStatement update => ExecuteUpdate(tsdb, update, transaction),
             DropMeasurementStatement dropMeasurement => ExecuteDropMeasurement(tsdb, dropMeasurement),
             DropTableStatement dropTable => TableSqlExecutor.ExecuteDropTable(tsdb, dropTable),
@@ -725,6 +727,7 @@ public static class SqlExecutor
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
+        using var queryLoad = QueryActivityTracker.Enter();
         using var _ = SonnetDB.Query.Functions.UserFunctionRegistry.EnterScope(tsdb.Functions);
 
         if (statement.UnionStatements.Count != 0)
@@ -1259,6 +1262,19 @@ public static class SqlExecutor
     /// <exception cref="InvalidOperationException">measurement 不存在 / WHERE 包含不支持的表达式。</exception>
     public static DeleteExecutionResult ExecuteDelete(Tsdb tsdb, DeleteStatement statement)
         => ExecuteDelete(tsdb, statement, transaction: null);
+
+    private static RowsAffectedExecutionResult ExecuteTruncate(
+        Tsdb tsdb,
+        TruncateTableStatement statement,
+        SqlTransactionContext? transaction)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+        if (transaction is not null)
+            throw new NotSupportedException("TRUNCATE TABLE 不允许在轻事务中执行。");
+        int rows = tsdb.Tables.Truncate(statement.TableName);
+        return new RowsAffectedExecutionResult(statement.TableName, rows, "truncate_generation");
+    }
 
     private static DeleteExecutionResult ExecuteDelete(Tsdb tsdb, DeleteStatement statement, SqlTransactionContext? transaction)
     {

@@ -381,6 +381,86 @@ public sealed class TableManager : IDisposable
         => ApplyTransaction(mutationsByTable, metrics: null);
 
     /// <summary>
+    /// 通过 table/keyspace generation 快速清空整表。存在入站外键时拒绝，避免绕过引用约束或级联语义。
+    /// </summary>
+    /// <param name="name">关系表名称。</param>
+    /// <returns>切换前的关系行数。</returns>
+    public int Truncate(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var schema = Catalog.TryGet(name)
+                ?? throw new InvalidOperationException($"table '{name}' 不存在。");
+            if (HasInboundForeignKeyLocked(name))
+            {
+                throw new InvalidOperationException(
+                    $"table '{name}' 被外键引用，TRUNCATE 不允许绕过引用约束；请使用 DELETE 触发既有级联/限制语义。");
+            }
+
+            return OpenStoreLocked(schema).Truncate().Rows;
+        }
+    }
+
+    /// <summary>无入站外键时尝试 generation 快速清表，供 DELETE WHERE TRUE 使用。</summary>
+    internal bool TryTruncateFast(string name, out int rows)
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var schema = Catalog.TryGet(name)
+                ?? throw new InvalidOperationException($"table '{name}' 不存在。");
+            if (HasInboundForeignKeyLocked(name))
+            {
+                rows = 0;
+                return false;
+            }
+
+            rows = OpenStoreLocked(schema).Truncate().Rows;
+            return true;
+        }
+    }
+
+    internal int CleanupPendingFiles(int maxFilesPerTable)
+        => CleanupPendingFilesWithResult(maxFilesPerTable).ProcessedEntries;
+
+    internal KvCleanupRoundResult CleanupPendingFilesWithResult(int maxFilesPerTable)
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            DiscoverCleanupTablesLocked();
+
+            KvCleanupRoundResult result = KvCleanupRoundResult.Empty;
+            foreach (var (name, store) in _stores)
+            {
+                if (File.Exists(Path.Combine(TableDirectory(name), KvCleanupManifest.FileName)))
+                    result += store.CleanupPendingFilesWithResult(maxFilesPerTable);
+            }
+            return result;
+        }
+    }
+
+    internal KvCleanupRoundResult GetCleanupStatusOpened()
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            DiscoverCleanupTablesLocked();
+            KvCleanupRoundResult result = KvCleanupRoundResult.Empty;
+            foreach (var (name, store) in _stores)
+            {
+                if (!File.Exists(Path.Combine(TableDirectory(name), KvCleanupManifest.FileName)))
+                    continue;
+                KvCleanupStatus status = store.GetCleanupStatus();
+                result += new KvCleanupRoundResult(0, 0, 0, status.PendingFiles, status.PendingBytes);
+            }
+            return result;
+        }
+    }
+
+    /// <summary>
     /// 在同一数据库内原子提交多表 DML，并记录级联删除查找路径的内部性能计数。
     /// </summary>
     /// <param name="mutationsByTable">按表名分组的行变更。</param>
@@ -944,6 +1024,20 @@ public sealed class TableManager : IDisposable
     {
         byte[] bytes = System.Text.Encoding.UTF8.GetBytes(name);
         return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    private bool HasInboundForeignKeyLocked(string tableName)
+        => Catalog.Snapshot().Any(schema => schema.ForeignKeys.Any(foreignKey =>
+            string.Equals(foreignKey.PrincipalTable, tableName, StringComparison.Ordinal)));
+
+    private void DiscoverCleanupTablesLocked()
+    {
+        foreach (var schema in Catalog.Snapshot())
+        {
+            string manifestPath = Path.Combine(TableDirectory(schema.Name), KvCleanupManifest.FileName);
+            if (File.Exists(manifestPath))
+                _ = OpenStoreLocked(schema);
+        }
     }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);

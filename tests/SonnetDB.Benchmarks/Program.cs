@@ -14,6 +14,7 @@ using SonnetDB.Benchmarks.Benchmarks;
 //   dotnet run -c Release -- --filter *SparkplugDecode* （Sparkplug protobuf 解码与 Point 映射）
 //   dotnet run -c Release -- --mq-latency   （SonnetMQ publish 尾延迟百分位）
 //   dotnet run -c Release -- --segment-maintenance-smoke （#124 基准生命周期烟测）
+//   dotnet run -c Release -- --table-delete-smoke （#126.1 delete/truncate 路径烟测）
 //   dotnet run -c Release -- --filter *         （运行所有基准）
 //
 // 运行前请先启动外部数据库（见 docker/docker-compose.yml）：
@@ -21,6 +22,12 @@ using SonnetDB.Benchmarks.Benchmarks;
 if (args.Contains("--segment-maintenance-smoke", StringComparer.OrdinalIgnoreCase))
 {
     RunSegmentMaintenanceSmoke();
+    return;
+}
+
+if (args.Contains("--table-delete-smoke", StringComparer.OrdinalIgnoreCase))
+{
+    RunTableDeleteSmoke();
     return;
 }
 
@@ -100,4 +107,26 @@ static void RunIteration(
     {
         benchmark.IterationCleanup();
     }
+}
+
+static void RunTableDeleteSmoke()
+{
+    var benchmark = new TableDeleteBenchmark { Rows = 1_000 };
+    benchmark.IterationSetup();
+    try
+    {
+        if (benchmark.DeleteRowByRow() != benchmark.Rows
+            || benchmark.DeleteWithBatchTombstones() != benchmark.Rows
+            || benchmark.DeleteWithGeneration() != benchmark.Rows
+            || benchmark.TruncateTable() != benchmark.Rows)
+        {
+            throw new InvalidDataException("table delete smoke 返回的受影响行数不一致。");
+        }
+    }
+    finally
+    {
+        benchmark.IterationCleanup();
+    }
+
+    Console.WriteLine("table-delete-smoke=PASS");
 }

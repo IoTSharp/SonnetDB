@@ -1224,6 +1224,16 @@ internal static class HybridSearchExecutor
         if (string.Equals(function.Name, "hybrid_score", StringComparison.OrdinalIgnoreCase))
             return RequireNoArguments(function, row.HybridScore);
 
+        if (string.Equals(function.Name, "regexp_like", StringComparison.OrdinalIgnoreCase))
+        {
+            if (function.Arguments.Count is < 2 or > 3)
+                throw new InvalidOperationException("函数 regexp_like 需要 2~3 个参数。");
+            return RegexPatternMatcher.IsMatch(
+                EvaluateScalar(function.Arguments[0], row),
+                EvaluateScalar(function.Arguments[1], row),
+                function.Arguments.Count == 3 ? EvaluateScalar(function.Arguments[2], row) : null);
+        }
+
         if (string.Equals(function.Name, "json_value", StringComparison.OrdinalIgnoreCase)
             && function.Arguments.Count == 2
             && function.Arguments[1] is LiteralExpression { Kind: SqlLiteralKind.String, StringValue: var path })
@@ -1233,7 +1243,7 @@ internal static class HybridSearchExecutor
         }
 
         throw new InvalidOperationException(
-            "hybrid_search 当前仅支持 json_value(document, '$.path')、bm25_score()、vector_distance()、vector_score() 与 hybrid_score() 函数。");
+            "hybrid_search 当前仅支持 json_value(document, '$.path')、regexp_like(...)、bm25_score()、vector_distance()、vector_score() 与 hybrid_score() 函数。");
     }
 
     private static object? EvaluateFunction(FunctionCallExpression function, KnowledgeHybridRow row)
@@ -1258,6 +1268,16 @@ internal static class HybridSearchExecutor
         if (string.Equals(function.Name, "hybrid_score", StringComparison.OrdinalIgnoreCase))
             return RequireNoArguments(function, row.HybridScore);
 
+        if (string.Equals(function.Name, "regexp_like", StringComparison.OrdinalIgnoreCase))
+        {
+            if (function.Arguments.Count is < 2 or > 3)
+                throw new InvalidOperationException("函数 regexp_like 需要 2~3 个参数。");
+            return RegexPatternMatcher.IsMatch(
+                EvaluateScalar(function.Arguments[0], row),
+                EvaluateScalar(function.Arguments[1], row),
+                function.Arguments.Count == 3 ? EvaluateScalar(function.Arguments[2], row) : null);
+        }
+
         if (string.Equals(function.Name, "json_value", StringComparison.OrdinalIgnoreCase)
             && function.Arguments.Count == 2
             && function.Arguments[1] is LiteralExpression { Kind: SqlLiteralKind.String, StringValue: var path })
@@ -1267,7 +1287,7 @@ internal static class HybridSearchExecutor
         }
 
         throw new InvalidOperationException(
-            "hybrid_search 当前仅支持 json_value(document, '$.path')、bm25_score()、measurement_distance()、measurement_score()、document_vector_distance()、document_vector_score() 与 hybrid_score() 函数。");
+            "hybrid_search 当前仅支持 json_value(document, '$.path')、regexp_like(...)、bm25_score()、measurement_distance()、measurement_score()、document_vector_distance()、document_vector_score() 与 hybrid_score() 函数。");
     }
 
     private static object? RequireNoArguments(FunctionCallExpression function, object? value)

@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
-using System.Text.RegularExpressions;
+using SonnetDB.Sql.Execution;
 
 namespace SonnetDB.Documents;
 
@@ -181,7 +181,7 @@ public static class DocumentValidatorExecutor
         }
 
         string value = element.GetString() ?? string.Empty;
-        if (!Regex.IsMatch(value, rule.Pattern!, RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(250)))
+        if (!RegexPatternMatcher.IsMatch(value, rule.Pattern!))
         {
             failures.Add(new DocumentValidationFailure(
                 rule.Path,

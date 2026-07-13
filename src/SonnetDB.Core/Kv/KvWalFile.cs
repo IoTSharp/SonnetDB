@@ -88,6 +88,86 @@ internal sealed class KvWalFile : IDisposable
         return sequence;
     }
 
+    /// <summary>追加 generation 切换记录。</summary>
+    public long AppendClearGeneration(long generation)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(generation);
+        Span<byte> payload = stackalloc byte[8];
+        BinaryPrimitives.WriteInt64LittleEndian(payload, generation);
+        long sequence = _nextSequence++;
+        AppendRecord(KvWalRecordKind.ClearGeneration, sequence, ReadOnlySpan<byte>.Empty, payload, expiresAtUtc: null);
+        return sequence;
+    }
+
+    /// <summary>把一批 delete tombstone 编码为单个带 CRC 的 WAL record。</summary>
+    public long AppendDeleteBatch(
+        long batchId,
+        int chunkIndex,
+        int totalChunks,
+        IReadOnlyList<byte[]> keys)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchId);
+        ArgumentOutOfRangeException.ThrowIfNegative(chunkIndex);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(totalChunks);
+        if (chunkIndex >= totalChunks)
+            throw new ArgumentOutOfRangeException(nameof(chunkIndex));
+        ArgumentNullException.ThrowIfNull(keys);
+        if (keys.Count == 0)
+            throw new ArgumentException("KV batch delete 至少需要一个 key。", nameof(keys));
+
+        const int metadataBytes = sizeof(long) + (sizeof(int) * 3);
+        int payloadLength = metadataBytes;
+        for (int i = 0; i < keys.Count; i++)
+        {
+            ArgumentNullException.ThrowIfNull(keys[i]);
+            if (keys[i].Length == 0)
+                throw new ArgumentException("KV batch delete key 不能为空。", nameof(keys));
+            payloadLength = checked(payloadLength + sizeof(int) + keys[i].Length);
+        }
+
+        byte[] rented = ArrayPool<byte>.Shared.Rent(payloadLength);
+        Span<byte> payload = rented.AsSpan(0, payloadLength);
+        try
+        {
+            BinaryPrimitives.WriteInt64LittleEndian(payload[..sizeof(long)], batchId);
+            BinaryPrimitives.WriteInt32LittleEndian(payload.Slice(sizeof(long), sizeof(int)), chunkIndex);
+            BinaryPrimitives.WriteInt32LittleEndian(payload.Slice(sizeof(long) + sizeof(int), sizeof(int)), totalChunks);
+            BinaryPrimitives.WriteInt32LittleEndian(payload.Slice(sizeof(long) + (sizeof(int) * 2), sizeof(int)), keys.Count);
+            int offset = metadataBytes;
+            for (int i = 0; i < keys.Count; i++)
+            {
+                byte[] key = keys[i];
+                BinaryPrimitives.WriteInt32LittleEndian(payload.Slice(offset, sizeof(int)), key.Length);
+                offset += sizeof(int);
+                key.CopyTo(payload.Slice(offset, key.Length));
+                offset += key.Length;
+            }
+
+            long sequence = _nextSequence++;
+            AppendRecord(KvWalRecordKind.DeleteBatch, sequence, ReadOnlySpan<byte>.Empty, payload, expiresAtUtc: null);
+            return sequence;
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(rented);
+        }
+    }
+
+    /// <summary>追加 batch-delete commit record；恢复端只应用完整且已提交的 chunk 集合。</summary>
+    public long AppendDeleteBatchCommit(long batchId, int totalChunks, int totalKeys)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(batchId);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(totalChunks);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(totalKeys);
+        Span<byte> payload = stackalloc byte[sizeof(long) + (sizeof(int) * 2)];
+        BinaryPrimitives.WriteInt64LittleEndian(payload[..sizeof(long)], batchId);
+        BinaryPrimitives.WriteInt32LittleEndian(payload.Slice(sizeof(long), sizeof(int)), totalChunks);
+        BinaryPrimitives.WriteInt32LittleEndian(payload.Slice(sizeof(long) + sizeof(int), sizeof(int)), totalKeys);
+        long sequence = _nextSequence++;
+        AppendRecord(KvWalRecordKind.DeleteBatchCommit, sequence, ReadOnlySpan<byte>.Empty, payload, expiresAtUtc: null);
+        return sequence;
+    }
+
     public void Sync()
     {
         ThrowIfDisposed();
@@ -147,13 +227,24 @@ internal sealed class KvWalFile : IDisposable
                     yield break;
 
                 if (!TryReadPayload(
+                    kind,
                     payload.AsSpan(0, payloadLength),
                     out byte[] key,
                     out byte[]? value,
                     out DateTimeOffset? expiresAtUtc))
                     yield break;
 
-                yield return new KvWalRecord(kind, sequence, key, kind == KvWalRecordKind.Put ? value : null, expiresAtUtc);
+                yield return new KvWalRecord(
+                    kind,
+                    sequence,
+                    key,
+                    kind is KvWalRecordKind.Put
+                        or KvWalRecordKind.ClearGeneration
+                        or KvWalRecordKind.DeleteBatch
+                        or KvWalRecordKind.DeleteBatchCommit
+                        ? value
+                        : null,
+                    expiresAtUtc);
             }
             finally
             {
@@ -169,8 +260,8 @@ internal sealed class KvWalFile : IDisposable
         ReadOnlySpan<byte> value,
         DateTimeOffset? expiresAtUtc)
     {
-        int valueLength = kind == KvWalRecordKind.Put ? value.Length : -1;
-        int payloadLength = PayloadPrefixBytesV2 + key.Length + Math.Max(valueLength, 0);
+        int valueLength = kind == KvWalRecordKind.Delete ? -1 : value.Length;
+        int payloadLength = checked(PayloadPrefixBytesV2 + key.Length + Math.Max(valueLength, 0));
 
         byte[]? rented = null;
         Span<byte> payload = payloadLength <= MaxStackPayloadBytes
@@ -251,7 +342,7 @@ internal sealed class KvWalFile : IDisposable
             if (headerRead < RecordHeaderSize)
                 break;
 
-            if (!TryParseRecordHeader(header, fs.Length - fs.Position, out _, out long sequence, out int payloadLength))
+            if (!TryParseRecordHeader(header, fs.Length - fs.Position, out var kind, out long sequence, out int payloadLength))
                 break;
 
             byte[] payload = ArrayPool<byte>.Shared.Rent(Math.Max(payloadLength, 1));
@@ -266,7 +357,7 @@ internal sealed class KvWalFile : IDisposable
                 if (expectedPayloadCrc != actualPayloadCrc)
                     break;
 
-                if (!TryReadPayload(payload.AsSpan(0, payloadLength), out _, out _, out _))
+                if (!TryReadPayload(kind, payload.AsSpan(0, payloadLength), out _, out _, out _))
                     break;
 
                 lastSequence = sequence;
@@ -302,7 +393,11 @@ internal sealed class KvWalFile : IDisposable
             return false;
 
         byte rawKind = header[4];
-        if (rawKind != (byte)KvWalRecordKind.Put && rawKind != (byte)KvWalRecordKind.Delete)
+        if (rawKind != (byte)KvWalRecordKind.Put
+            && rawKind != (byte)KvWalRecordKind.Delete
+            && rawKind != (byte)KvWalRecordKind.ClearGeneration
+            && rawKind != (byte)KvWalRecordKind.DeleteBatch
+            && rawKind != (byte)KvWalRecordKind.DeleteBatchCommit)
             return false;
 
         kind = (KvWalRecordKind)rawKind;
@@ -311,6 +406,7 @@ internal sealed class KvWalFile : IDisposable
     }
 
     private static bool TryReadPayload(
+        KvWalRecordKind kind,
         ReadOnlySpan<byte> payload,
         out byte[] key,
         out byte[]? value,
@@ -325,7 +421,21 @@ internal sealed class KvWalFile : IDisposable
 
         int keyLength = BinaryPrimitives.ReadInt32LittleEndian(payload[..4]);
         int valueLength = BinaryPrimitives.ReadInt32LittleEndian(payload.Slice(4, 4));
-        if (keyLength <= 0 || valueLength < -1)
+        if (keyLength < 0 || valueLength < -1)
+            return false;
+
+        bool validShape = kind switch
+        {
+            KvWalRecordKind.Put => keyLength > 0 && valueLength >= 0,
+            KvWalRecordKind.Delete => keyLength > 0 && valueLength == -1,
+            KvWalRecordKind.ClearGeneration => keyLength == 0 && valueLength == sizeof(long),
+            KvWalRecordKind.DeleteBatch => keyLength == 0
+                && valueLength >= sizeof(long) + (sizeof(int) * 4),
+            KvWalRecordKind.DeleteBatchCommit => keyLength == 0
+                && valueLength == sizeof(long) + (sizeof(int) * 2),
+            _ => false,
+        };
+        if (!validShape)
             return false;
 
         int expectedLengthV1 = PayloadPrefixBytesV1 + keyLength + Math.Max(valueLength, 0);
@@ -350,6 +460,63 @@ internal sealed class KvWalFile : IDisposable
         return true;
     }
 
+    internal static long DecodeGeneration(KvWalRecord record)
+    {
+        if (record.Kind != KvWalRecordKind.ClearGeneration || record.Value is not { Length: sizeof(long) })
+            throw new InvalidDataException("KV generation WAL record payload is invalid.");
+        long generation = BinaryPrimitives.ReadInt64LittleEndian(record.Value);
+        if (generation <= 0)
+            throw new InvalidDataException("KV generation WAL record contains an invalid generation.");
+        return generation;
+    }
+
+    internal static KvDeleteBatchChunk DecodeDeleteBatch(KvWalRecord record)
+    {
+        const int metadataBytes = sizeof(long) + (sizeof(int) * 3);
+        if (record.Kind != KvWalRecordKind.DeleteBatch || record.Value is not { Length: >= metadataBytes + sizeof(int) } payload)
+            throw new InvalidDataException("KV batch-delete WAL record payload is invalid.");
+
+        long batchId = BinaryPrimitives.ReadInt64LittleEndian(payload.AsSpan(0, sizeof(long)));
+        int chunkIndex = BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(sizeof(long), sizeof(int)));
+        int totalChunks = BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(sizeof(long) + sizeof(int), sizeof(int)));
+        int count = BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(sizeof(long) + (sizeof(int) * 2), sizeof(int)));
+        if (batchId <= 0 || chunkIndex < 0 || totalChunks <= 0 || chunkIndex >= totalChunks || count <= 0)
+            throw new InvalidDataException("KV batch-delete WAL record contains an invalid count.");
+        var keys = new List<byte[]>(count);
+        int offset = metadataBytes;
+        for (int i = 0; i < count; i++)
+        {
+            if (offset > payload.Length - sizeof(int))
+                throw new InvalidDataException("KV batch-delete WAL record is truncated.");
+            int length = BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(offset, sizeof(int)));
+            offset += sizeof(int);
+            if (length <= 0 || offset > payload.Length - length)
+                throw new InvalidDataException("KV batch-delete WAL record contains an invalid key length.");
+            keys.Add(payload.AsSpan(offset, length).ToArray());
+            offset += length;
+        }
+
+        if (offset != payload.Length)
+            throw new InvalidDataException("KV batch-delete WAL record contains trailing bytes.");
+        return new KvDeleteBatchChunk(batchId, chunkIndex, totalChunks, keys);
+    }
+
+    internal static KvDeleteBatchCommit DecodeDeleteBatchCommit(KvWalRecord record)
+    {
+        if (record.Kind != KvWalRecordKind.DeleteBatchCommit
+            || record.Value is not { Length: sizeof(long) + (sizeof(int) * 2) } payload)
+        {
+            throw new InvalidDataException("KV batch-delete commit WAL record payload is invalid.");
+        }
+
+        long batchId = BinaryPrimitives.ReadInt64LittleEndian(payload.AsSpan(0, sizeof(long)));
+        int totalChunks = BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(sizeof(long), sizeof(int)));
+        int totalKeys = BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(sizeof(long) + sizeof(int), sizeof(int)));
+        if (batchId <= 0 || totalChunks <= 0 || totalKeys <= 0)
+            throw new InvalidDataException("KV batch-delete commit WAL record contains invalid metadata.");
+        return new KvDeleteBatchCommit(batchId, totalChunks, totalKeys);
+    }
+
     private static int ReadExact(Stream stream, Span<byte> buffer)
     {
         int total = 0;
@@ -366,3 +533,11 @@ internal sealed class KvWalFile : IDisposable
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
 }
+
+internal sealed record KvDeleteBatchChunk(
+    long BatchId,
+    int ChunkIndex,
+    int TotalChunks,
+    IReadOnlyList<byte[]> Keys);
+
+internal readonly record struct KvDeleteBatchCommit(long BatchId, int TotalChunks, int TotalKeys);

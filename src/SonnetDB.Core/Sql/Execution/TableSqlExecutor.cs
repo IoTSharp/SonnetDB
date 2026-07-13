@@ -302,6 +302,12 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(statement);
         ArgumentNullException.ThrowIfNull(schema);
 
+        if (statement.Where is LiteralExpression { Kind: SqlLiteralKind.Boolean, BooleanValue: true }
+            && tsdb.Tables.TryTruncateFast(schema.Name, out int truncated))
+        {
+            return new RowsAffectedExecutionResult(schema.Name, truncated, "delete_generation");
+        }
+
         int deleted = 0;
         if (TryExtractPrimaryKeyValues(schema, statement.Where, allowExtraPredicates: false, out var keyValues))
         {
@@ -1215,7 +1221,22 @@ internal static class TableSqlExecutor
             return null;
         }
 
-        throw new InvalidOperationException("关系表当前仅支持 json_value(json_column, '$.path')、lower(value)、upper(value)、coalesce(...) 函数。");
+        if (string.Equals(function.Name, "regexp_like", StringComparison.OrdinalIgnoreCase))
+        {
+            ValidateRegexpLikeArguments(function);
+            return RegexPatternMatcher.IsMatch(
+                EvaluateScalar(function.Arguments[0], schema, row),
+                EvaluateScalar(function.Arguments[1], schema, row),
+                function.Arguments.Count == 3 ? EvaluateScalar(function.Arguments[2], schema, row) : null);
+        }
+
+        throw new InvalidOperationException("关系表当前仅支持 json_value(json_column, '$.path')、lower(value)、upper(value)、coalesce(...)、regexp_like(...) 函数。");
+    }
+
+    private static void ValidateRegexpLikeArguments(FunctionCallExpression function)
+    {
+        if (function.IsStar || function.Arguments.Count is < 2 or > 3)
+            throw new InvalidOperationException("函数 regexp_like 需要 2~3 个参数。");
     }
 
     private static object EvaluateArithmetic(BinaryExpression binary, TableSchema schema, IReadOnlyList<object?> row)

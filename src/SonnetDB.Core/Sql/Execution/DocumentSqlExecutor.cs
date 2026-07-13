@@ -1725,6 +1725,16 @@ internal static class DocumentSqlExecutor
         DocumentRow row,
         IReadOnlyDictionary<string, double> matchScores)
     {
+        if (string.Equals(function.Name, "regexp_like", StringComparison.OrdinalIgnoreCase))
+        {
+            if (function.IsStar || function.Arguments.Count is < 2 or > 3)
+                throw new InvalidOperationException("函数 regexp_like 需要 2~3 个参数。");
+            return RegexPatternMatcher.IsMatch(
+                EvaluateScalar(function.Arguments[0], row, matchScores),
+                EvaluateScalar(function.Arguments[1], row, matchScores),
+                function.Arguments.Count == 3 ? EvaluateScalar(function.Arguments[2], row, matchScores) : null);
+        }
+
         if (string.Equals(function.Name, "match", StringComparison.OrdinalIgnoreCase))
             return matchScores.ContainsKey(row.Id);
 
@@ -1740,7 +1750,7 @@ internal static class DocumentSqlExecutor
             || function.Arguments.Count != 2
             || function.Arguments[1] is not LiteralExpression { Kind: SqlLiteralKind.String, StringValue: var path })
         {
-            throw new InvalidOperationException("文档集合当前仅支持 json_value(document, '$.path')、match(...) 与 bm25_score() 函数。");
+            throw new InvalidOperationException("文档集合当前仅支持 json_value(document, '$.path')、regexp_like(...)、match(...) 与 bm25_score() 函数。");
         }
 
         var json = EvaluateScalar(function.Arguments[0], row, matchScores) as string;

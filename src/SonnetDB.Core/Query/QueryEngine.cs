@@ -119,6 +119,7 @@ public sealed class QueryEngine
     {
         ArgumentNullException.ThrowIfNull(query);
 
+        using var queryLoad = QueryActivityTracker.Enter();
         // 计量覆盖整个流式枚举周期（含提前 break：finally 在枚举器 Dispose 时运行）。
         // 未监听时 StartOperation 返回 null、Enabled=false 短路，近零开销（M17 #89）。
         using var activity = SonnetDbActivitySource.StartOperation("sonnetdb.query.points", "points");
@@ -437,9 +438,17 @@ public sealed class QueryEngine
     {
         ArgumentNullException.ThrowIfNull(query);
 
-        var buckets = ShouldUsePointAggregatePath(query)
-            ? ExecuteAggregateViaPoints(query)
-            : ExecuteAggregateFast(query);
+        IEnumerable<AggregateBucket> buckets;
+        if (ShouldUsePointAggregatePath(query))
+        {
+            // 逐点路径由 Execute(PointQuery) 在实际枚举周期内登记查询压力。
+            buckets = ExecuteAggregateViaPoints(query);
+        }
+        else
+        {
+            using var queryLoad = QueryActivityTracker.Enter();
+            buckets = ExecuteAggregateFast(query);
+        }
 
         return InstrumentAggregate(buckets);
     }
@@ -699,6 +708,7 @@ public sealed class QueryEngine
     {
         ArgumentNullException.ThrowIfNull(query);
 
+        using var queryLoad = QueryActivityTracker.Enter();
         using var activity = SonnetDbActivitySource.StartOperation("sonnetdb.query.aggregate", "aggregate");
         long startTimestamp = SonnetDbMeter.QueryDuration.Enabled ? Stopwatch.GetTimestamp() : 0;
         try
@@ -1063,6 +1073,7 @@ public sealed class QueryEngine
         ArgumentNullException.ThrowIfNull(seriesIds);
         ArgumentNullException.ThrowIfNull(fieldName);
 
+        using var queryLoad = QueryActivityTracker.Enter();
         var result = new Dictionary<ulong, IReadOnlyList<AggregateBucket>>(seriesIds.Count);
 
         // 共享一份段索引快照与 reader 映射，避免每个 series 重复重建。

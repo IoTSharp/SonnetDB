@@ -1365,7 +1365,19 @@ internal static class RelationalSelectExecutor
             return null;
         }
 
-        throw new InvalidOperationException("关系表当前仅支持 json_value(json_column, '$.path')、lower(value)、upper(value)、coalesce(...) 函数。");
+        if (string.Equals(function.Name, "regexp_like", StringComparison.OrdinalIgnoreCase))
+        {
+            if (function.Arguments.Count is < 2 or > 3)
+                throw new InvalidOperationException("函数 regexp_like 需要 2~3 个参数。");
+            return RegexPatternMatcher.IsMatch(
+                EvaluateScalar(tsdb, function.Arguments[0], columns, row, outerScope, memo),
+                EvaluateScalar(tsdb, function.Arguments[1], columns, row, outerScope, memo),
+                function.Arguments.Count == 3
+                    ? EvaluateScalar(tsdb, function.Arguments[2], columns, row, outerScope, memo)
+                    : null);
+        }
+
+        throw new InvalidOperationException("关系表当前仅支持 json_value(json_column, '$.path')、lower(value)、upper(value)、coalesce(...)、regexp_like(...) 函数。");
     }
 
     /// <summary>
