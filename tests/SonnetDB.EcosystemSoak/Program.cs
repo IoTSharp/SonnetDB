@@ -28,6 +28,8 @@ internal static class Program
     {
         if (args.Length > 0 && string.Equals(args[0], "--crash-worker", StringComparison.Ordinal))
             return RunCrashWorker(args);
+        if (args.Length > 0 && string.Equals(args[0], "--maintenance-chaos-worker", StringComparison.Ordinal))
+            return SpecializedSoakRunner.RunMaintenanceChaosWorker(args);
 
         var options = SoakOptions.Parse(args);
         Directory.CreateDirectory(options.OutputDirectory);
@@ -60,7 +62,8 @@ internal static class Program
                 Environment.MachineName,
                 Environment.ProcessorCount,
                 GC.GetGCMemoryInfo().TotalAvailableMemoryBytes),
-            cycles);
+            cycles,
+            SoakReportSummary.Create(options, cycles));
         await WriteReportAsync(report, options.OutputDirectory).ConfigureAwait(false);
 
         if (!options.KeepData)
@@ -72,6 +75,9 @@ internal static class Program
 
     private static async Task<SoakCycleResult> RunCycleAsync(SoakOptions options, int cycle)
     {
+        if (options.IsSpecializedProfile)
+            return await SpecializedSoakRunner.RunCycleAsync(options, cycle).ConfigureAwait(false);
+
         string cycleRoot = Path.Combine(options.WorkRoot, $"cycle-{cycle:D4}");
         string databaseRoot = Path.Combine(cycleRoot, "database");
         Directory.CreateDirectory(databaseRoot);
@@ -286,11 +292,14 @@ internal static class Program
         return new SoakCycleResult(cycle, startedUtc, DateTimeOffset.UtcNow, phases);
     }
 
-    private static async Task<SoakPhaseResult> MeasureAsync(string name, Func<Task<PhaseMeasurement>> action)
+    /// <summary>测量阶段耗时、吞吐和进程资源峰值，并合并专项证据。</summary>
+    internal static async Task<SoakPhaseResult> MeasureAsync(string name, Func<Task<PhaseMeasurement>> action)
     {
+        using var resources = new PhaseResourceMonitor();
         var watch = Stopwatch.StartNew();
         var measurement = await action().ConfigureAwait(false);
         watch.Stop();
+        resources.Stop();
         double seconds = Math.Max(watch.Elapsed.TotalSeconds, 0.000001);
         return new SoakPhaseResult(
             name,
@@ -298,11 +307,22 @@ internal static class Program
             measurement.Operations,
             measurement.Operations / seconds,
             GC.GetTotalMemory(forceFullCollection: false),
+            resources.PeakManagedMemoryBytes,
+            resources.PeakWorkingSetBytes,
+            measurement.Integrity,
+            measurement.RecoveryLatencySamplesMilliseconds,
+            measurement.QueryLatencySamplesMilliseconds,
             measurement.Details);
     }
 
-    private static PhaseMeasurement PhaseData(long operations, params (string Key, string Value)[] details)
-        => new(operations, details.ToDictionary(static item => item.Key, static item => item.Value, StringComparer.Ordinal));
+    /// <summary>为不包含专项分位数或完整性摘要的既有阶段创建测量结果。</summary>
+    internal static PhaseMeasurement PhaseData(long operations, params (string Key, string Value)[] details)
+        => new(
+            operations,
+            details.ToDictionary(static item => item.Key, static item => item.Value, StringComparer.Ordinal),
+            null,
+            [],
+            []);
 
     private static SelectExecutionResult AssertSelect(Tsdb db, string sql)
         => SqlExecutor.Execute(db, sql) as SelectExecutionResult
@@ -469,17 +489,33 @@ internal static class Program
         text.AppendLine($"- Finished UTC: `{report.FinishedUtc:O}`");
         text.AppendLine($"- Runtime: `{report.Environment.Framework}` on `{report.Environment.Os}`");
         text.AppendLine($"- Shape: `{report.Options.Measurements}` measurements x `{report.Options.PointsPerMeasurement}` points, `{report.Options.Cycles}` cycle(s)");
+        text.AppendLine($"- Peak working set: `{report.Summary.PeakWorkingSetBytes}` bytes");
+        text.AppendLine($"- Peak managed memory: `{report.Summary.PeakManagedMemoryBytes}` bytes");
         text.AppendLine();
-        text.AppendLine("| Cycle | Phase | Duration ms | Operations | Operations/sec | Managed bytes |");
-        text.AppendLine("| ---: | --- | ---: | ---: | ---: | ---: |");
+        text.AppendLine("| Cycle | Phase | Duration ms | Operations | Operations/sec | Managed bytes | Peak working set | Peak managed |");
+        text.AppendLine("| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |");
         foreach (var cycle in report.Cycles)
         {
             foreach (var phase in cycle.Phases)
             {
                 text.AppendLine(string.Create(
                     CultureInfo.InvariantCulture,
-                    $"| {cycle.Cycle} | {phase.Name} | {phase.DurationMilliseconds:F2} | {phase.Operations} | {phase.OperationsPerSecond:F2} | {phase.ManagedMemoryBytes} |"));
+                    $"| {cycle.Cycle} | {phase.Name} | {phase.DurationMilliseconds:F2} | {phase.Operations} | {phase.OperationsPerSecond:F2} | {phase.ManagedMemoryBytes} | {phase.PeakWorkingSetBytes} | {phase.PeakManagedMemoryBytes} |"));
             }
+        }
+
+        AppendLatencySummary(text, "Recovery latency", report.Summary.RecoveryLatency);
+        AppendLatencySummary(text, "Query latency", report.Summary.QueryLatency);
+
+        if (report.Summary.Integrity is { } integrity)
+        {
+            text.AppendLine();
+            text.AppendLine("## Integrity summary");
+            text.AppendLine();
+            text.AppendLine($"- Scope: `{integrity.Scope}`");
+            text.AppendLine($"- Expected / observed: `{integrity.ExpectedPoints}` / `{integrity.ObservedPoints}`");
+            text.AppendLine($"- Missing / duplicate / unexpected / value mismatch: `{integrity.MissingPoints}` / `{integrity.DuplicatePoints}` / `{integrity.UnexpectedPoints}` / `{integrity.ValueMismatches}`");
+            text.AppendLine($"- Digest match: `{integrity.DigestMatches}`");
         }
 
         text.AppendLine();
@@ -494,6 +530,19 @@ internal static class Program
             }
         }
 
+        text.AppendLine();
+        text.AppendLine("## Capacity boundary");
+        text.AppendLine();
+        text.AppendLine("### What this profile improves or validates");
+        text.AppendLine();
+        foreach (string item in report.Summary.CapacityBoundary.Validates)
+            text.AppendLine($"- {item}");
+        text.AppendLine();
+        text.AppendLine("### What this profile does not improve or prove");
+        text.AppendLine();
+        foreach (string item in report.Summary.CapacityBoundary.DoesNotProve)
+            text.AppendLine($"- {item}");
+
         if (!report.Succeeded)
         {
             text.AppendLine();
@@ -505,6 +554,22 @@ internal static class Program
         }
 
         return text.ToString();
+    }
+
+    private static void AppendLatencySummary(
+        StringBuilder text,
+        string title,
+        SoakLatencySummary? latency)
+    {
+        if (latency is null)
+            return;
+
+        text.AppendLine();
+        text.AppendLine($"## {title}");
+        text.AppendLine();
+        text.AppendLine(string.Create(
+            CultureInfo.InvariantCulture,
+            $"- Samples: `{latency.Samples}`, min/P50/P95/P99/max: `{latency.MinimumMilliseconds:F2}` / `{latency.P50Milliseconds:F2}` / `{latency.P95Milliseconds:F2}` / `{latency.P99Milliseconds:F2}` / `{latency.MaximumMilliseconds:F2}` ms"));
     }
 
     private static void TryDelete(string path)
@@ -534,7 +599,20 @@ internal sealed class SoakOptions
     public required int CacheTtlMilliseconds { get; init; }
     public required int MultipartParts { get; init; }
     public required int MultipartPartBytes { get; init; }
+    public required int Series { get; init; }
+    public required int TargetSegments { get; init; }
+    public required int PointsPerSegment { get; init; }
+    public required int RestartCount { get; init; }
+    public required int RecoverySamples { get; init; }
+    public required int QuerySamples { get; init; }
+    public required int MaintenanceBatches { get; init; }
+    public required int PointsPerBatch { get; init; }
+    public required int DropMeasurements { get; init; }
+    public required int RandomSeed { get; init; }
     public required bool KeepData { get; init; }
+
+    public bool IsSpecializedProfile => Profile is
+        "high-cardinality" or "small-segments" or "maintenance-chaos" or "many-measurements";
 
     public SoakReportOptions ToReportOptions() => new(
         Cycles,
@@ -544,18 +622,34 @@ internal sealed class SoakOptions
         CacheEntries,
         CacheTtlMilliseconds,
         MultipartParts,
-        MultipartPartBytes);
+        MultipartPartBytes,
+        Series,
+        TargetSegments,
+        PointsPerSegment,
+        RestartCount,
+        RecoverySamples,
+        QuerySamples,
+        MaintenanceBatches,
+        PointsPerBatch,
+        DropMeasurements,
+        RandomSeed);
 
     public static SoakOptions Parse(string[] args)
     {
-        string profile = ReadValue(args, "--profile") ?? "quick";
-        var defaults = profile.ToLowerInvariant() switch
+        string profile = (ReadValue(args, "--profile") ?? "quick").ToLowerInvariant();
+        ProfileDefaults defaults = profile switch
         {
             "quick" => new ProfileDefaults(1, 100, 64, 16, 100, 100, 3, 64 * 1024),
             "ci" => new ProfileDefaults(2, 1_000, 1_000, 100, 1_000, 200, 4, 1024 * 1024),
             "soak" => new ProfileDefaults(10, 10_000, 10_000, 1_000, 100_000, 500, 8, 5 * 1024 * 1024),
-            _ => throw new ArgumentException("--profile 必须是 quick、ci 或 soak。"),
+            "high-cardinality" => new ProfileDefaults(1, 1, 1, 1, 1, 1, 1, 1),
+            "small-segments" => new ProfileDefaults(1, 1, 1, 1, 1, 1, 1, 1),
+            "maintenance-chaos" => new ProfileDefaults(1, 1, 1, 1, 1, 1, 1, 1),
+            "many-measurements" => new ProfileDefaults(1, 1, 10_000, 1, 1, 1, 1, 1),
+            _ => throw new ArgumentException(
+                "--profile 必须是 quick、ci、soak、high-cardinality、small-segments、maintenance-chaos 或 many-measurements。"),
         };
+        SpecializedProfileDefaults specialized = SpecializedProfileDefaults.For(profile);
 
         string workRoot = Path.GetFullPath(ReadValue(args, "--work")
             ?? Path.Combine(Path.GetTempPath(), "sonnetdb-ecosystem-soak", Guid.NewGuid().ToString("N")));
@@ -577,6 +671,16 @@ internal sealed class SoakOptions
             CacheTtlMilliseconds = PositiveInt(args, "--cache-ttl-ms", defaults.CacheTtlMilliseconds),
             MultipartParts = PositiveInt(args, "--multipart-parts", defaults.MultipartParts),
             MultipartPartBytes = PositiveInt(args, "--multipart-part-bytes", defaults.MultipartPartBytes),
+            Series = PositiveInt(args, "--series", specialized.Series),
+            TargetSegments = PositiveInt(args, "--target-segments", specialized.TargetSegments),
+            PointsPerSegment = PositiveInt(args, "--points-per-segment", specialized.PointsPerSegment),
+            RestartCount = PositiveInt(args, "--restart-count", specialized.RestartCount),
+            RecoverySamples = PositiveInt(args, "--recovery-samples", specialized.RecoverySamples),
+            QuerySamples = PositiveInt(args, "--query-samples", specialized.QuerySamples),
+            MaintenanceBatches = PositiveInt(args, "--maintenance-batches", specialized.MaintenanceBatches),
+            PointsPerBatch = PositiveInt(args, "--points-per-batch", specialized.PointsPerBatch),
+            DropMeasurements = PositiveInt(args, "--drop-measurements", specialized.DropMeasurements),
+            RandomSeed = PositiveInt(args, "--random-seed", specialized.RandomSeed),
             KeepData = args.Contains("--keep-data", StringComparer.Ordinal),
         };
     }
@@ -645,7 +749,34 @@ internal sealed record ProfileDefaults(
     int MultipartParts,
     int MultipartPartBytes);
 
-internal sealed record PhaseMeasurement(long Operations, IReadOnlyDictionary<string, string> Details);
+internal sealed record SpecializedProfileDefaults(
+    int Series,
+    int TargetSegments,
+    int PointsPerSegment,
+    int RestartCount,
+    int RecoverySamples,
+    int QuerySamples,
+    int MaintenanceBatches,
+    int PointsPerBatch,
+    int DropMeasurements,
+    int RandomSeed)
+{
+    public static SpecializedProfileDefaults For(string profile) => profile switch
+    {
+        "high-cardinality" => new(1_000_000, 1, 1, 1, 5, 100, 1, 4_096, 1, 125),
+        "small-segments" => new(32, 10_000, 1, 1, 5, 100, 1, 1, 1, 125),
+        "maintenance-chaos" => new(64, 1, 1, 20, 20, 100, 4, 64, 1, 125),
+        "many-measurements" => new(1, 100, 1, 1, 5, 100, 1, 100, 100, 125),
+        _ => new(1, 1, 1, 1, 1, 1, 1, 1, 1, 125),
+    };
+}
+
+internal sealed record PhaseMeasurement(
+    long Operations,
+    IReadOnlyDictionary<string, string> Details,
+    SoakIntegritySummary? Integrity,
+    IReadOnlyList<double> RecoveryLatencySamplesMilliseconds,
+    IReadOnlyList<double> QueryLatencySamplesMilliseconds);
 
 internal sealed record SoakReportOptions(
     int Cycles,
@@ -655,7 +786,17 @@ internal sealed record SoakReportOptions(
     int CacheEntries,
     int CacheTtlMilliseconds,
     int MultipartParts,
-    int MultipartPartBytes);
+    int MultipartPartBytes,
+    int Series,
+    int TargetSegments,
+    int PointsPerSegment,
+    int RestartCount,
+    int RecoverySamples,
+    int QuerySamples,
+    int MaintenanceBatches,
+    int PointsPerBatch,
+    int DropMeasurements,
+    int RandomSeed);
 
 internal sealed record SoakEnvironment(
     string Os,
@@ -671,6 +812,11 @@ internal sealed record SoakPhaseResult(
     long Operations,
     double OperationsPerSecond,
     long ManagedMemoryBytes,
+    long PeakManagedMemoryBytes,
+    long PeakWorkingSetBytes,
+    SoakIntegritySummary? Integrity,
+    IReadOnlyList<double> RecoveryLatencySamplesMilliseconds,
+    IReadOnlyList<double> QueryLatencySamplesMilliseconds,
     IReadOnlyDictionary<string, string> Details);
 
 internal sealed record SoakCycleResult(
@@ -687,7 +833,204 @@ internal sealed record EcosystemSoakReport(
     string? Failure,
     SoakReportOptions Options,
     SoakEnvironment Environment,
-    IReadOnlyList<SoakCycleResult> Cycles);
+    IReadOnlyList<SoakCycleResult> Cycles,
+    SoakReportSummary Summary);
+
+internal sealed record SoakIntegritySummary(
+    string Scope,
+    long ExpectedPoints,
+    long ObservedPoints,
+    long MissingPoints,
+    long DuplicatePoints,
+    long UnexpectedPoints,
+    long ValueMismatches,
+    bool DigestMatches);
+
+internal sealed record SoakLatencySummary(
+    int Samples,
+    double MinimumMilliseconds,
+    double P50Milliseconds,
+    double P95Milliseconds,
+    double P99Milliseconds,
+    double MaximumMilliseconds)
+{
+    /// <summary>按 nearest-rank 规则汇总延迟样本。</summary>
+    public static SoakLatencySummary? Create(IEnumerable<double> samples)
+    {
+        double[] sorted = samples.Order().ToArray();
+        if (sorted.Length == 0)
+            return null;
+
+        return new SoakLatencySummary(
+            sorted.Length,
+            sorted[0],
+            Percentile(sorted, 0.50),
+            Percentile(sorted, 0.95),
+            Percentile(sorted, 0.99),
+            sorted[^1]);
+    }
+
+    private static double Percentile(IReadOnlyList<double> sorted, double percentile)
+    {
+        int index = (int)Math.Ceiling(percentile * sorted.Count) - 1;
+        return sorted[Math.Clamp(index, 0, sorted.Count - 1)];
+    }
+}
+
+internal sealed record SoakCapacityBoundary(
+    IReadOnlyList<string> Validates,
+    IReadOnlyList<string> DoesNotProve);
+
+internal sealed record SoakReportSummary(
+    long PeakWorkingSetBytes,
+    long PeakManagedMemoryBytes,
+    SoakIntegritySummary? Integrity,
+    SoakLatencySummary? RecoveryLatency,
+    SoakLatencySummary? QueryLatency,
+    SoakCapacityBoundary CapacityBoundary)
+{
+    /// <summary>从全部阶段聚合资源峰值、完整性、分位数和容量边界。</summary>
+    public static SoakReportSummary Create(
+        SoakOptions options,
+        IReadOnlyList<SoakCycleResult> cycles)
+    {
+        SoakPhaseResult[] phases = cycles.SelectMany(static cycle => cycle.Phases).ToArray();
+        SoakIntegritySummary[] integrity = phases
+            .Select(static phase => phase.Integrity)
+            .OfType<SoakIntegritySummary>()
+            .ToArray();
+
+        SoakIntegritySummary? aggregate = integrity.Length == 0
+            ? null
+            : new SoakIntegritySummary(
+                string.Join(",", integrity.Select(static item => item.Scope).Distinct(StringComparer.Ordinal)),
+                integrity.Sum(static item => item.ExpectedPoints),
+                integrity.Sum(static item => item.ObservedPoints),
+                integrity.Sum(static item => item.MissingPoints),
+                integrity.Sum(static item => item.DuplicatePoints),
+                integrity.Sum(static item => item.UnexpectedPoints),
+                integrity.Sum(static item => item.ValueMismatches),
+                integrity.All(static item => item.DigestMatches));
+
+        return new SoakReportSummary(
+            phases.Select(static phase => phase.PeakWorkingSetBytes).DefaultIfEmpty().Max(),
+            phases.Select(static phase => phase.PeakManagedMemoryBytes).DefaultIfEmpty().Max(),
+            aggregate,
+            SoakLatencySummary.Create(phases.SelectMany(static phase => phase.RecoveryLatencySamplesMilliseconds)),
+            SoakLatencySummary.Create(phases.SelectMany(static phase => phase.QueryLatencySamplesMilliseconds)),
+            BuildCapacityBoundary(options.Profile));
+    }
+
+    private static SoakCapacityBoundary BuildCapacityBoundary(string profile) => profile switch
+    {
+        "high-cardinality" => new(
+            [
+                "验证大量 tag 组合下 catalog、倒排 tag index、目录持久化与冷启动成本。",
+                "用确定性抽样核对 series、timestamp 与 value，并报告查询和恢复分位数。",
+            ],
+            [
+                "不验证海量 segment、后台 compaction I/O 或服务端多租户并发。",
+                "抽样点校验不能替代对百万 series 全量逐点扫描。",
+            ]),
+        "small-segments" => new(
+            [
+                "验证主动多次 flush 后大量小 segment 的发布、枚举、查询、完整性与冷启动成本。",
+                "量化 #124 增量发布之后仍然存在的段数量、解码与恢复成本。",
+            ],
+            [
+                "#124 不会减少 segment 文件数量，也不会消除 compaction I/O。",
+                "禁用 compaction 的专项结果不能代表启用后台维护后的稳态段数量。",
+            ]),
+        "maintenance-chaos" => new(
+            [
+                "验证后台 flush、compaction、retention 并发期间的确定性随机 kill/reopen。",
+                "按已确认序列核对缺失、重复、额外点和值，并报告多轮恢复分位数。",
+            ],
+            [
+                "Process.Kill 不是内核崩溃或整机掉电模型。",
+                "固定种子与给定规模的通过结果不是无限运行稳定性证明。",
+            ]),
+        "many-measurements" => new(
+            [
+                "验证大量 measurement 下目录枚举、备份扫描、drop、retention 与冷启动。",
+                "报告 measurement/segment/备份文件规模及恢复分位数。",
+            ],
+            [
+                "每个 measurement 的低 series 数不能代表单 measurement 高基数。",
+                "嵌入式结果不包含 HTTP、认证、租户隔离或远程客户端开销。",
+            ]),
+        _ => new(
+            ["验证 EF、时序、KV、对象、迁移、崩溃恢复组合路径在给定规模下可重复通过。"],
+            ["quick/ci 数字不是生产容量、服务端 SLA 或长期稳定性结论。"]),
+    };
+}
+
+internal sealed class PhaseResourceMonitor : IDisposable
+{
+    private readonly ManualResetEventSlim _stop = new(false);
+    private readonly Process _process = Process.GetCurrentProcess();
+    private readonly Thread _thread;
+    private int _stopped;
+    private long _peakManagedMemoryBytes;
+    private long _peakWorkingSetBytes;
+
+    public PhaseResourceMonitor()
+    {
+        Sample();
+        _thread = new Thread(Run)
+        {
+            IsBackground = true,
+            Name = "SonnetDB-EcosystemSoak-ResourceMonitor",
+        };
+        _thread.Start();
+    }
+
+    public long PeakManagedMemoryBytes => Interlocked.Read(ref _peakManagedMemoryBytes);
+
+    public long PeakWorkingSetBytes => Interlocked.Read(ref _peakWorkingSetBytes);
+
+    public void Stop()
+    {
+        if (Interlocked.Exchange(ref _stopped, 1) != 0)
+            return;
+
+        _stop.Set();
+        _thread.Join();
+        Sample();
+    }
+
+    public void Dispose()
+    {
+        Stop();
+        _process.Dispose();
+        _stop.Dispose();
+    }
+
+    private void Run()
+    {
+        while (!_stop.Wait(TimeSpan.FromMilliseconds(25)))
+            Sample();
+    }
+
+    private void Sample()
+    {
+        UpdateMaximum(ref _peakManagedMemoryBytes, GC.GetTotalMemory(forceFullCollection: false));
+        _process.Refresh();
+        UpdateMaximum(ref _peakWorkingSetBytes, _process.WorkingSet64);
+    }
+
+    private static void UpdateMaximum(ref long location, long value)
+    {
+        long current = Interlocked.Read(ref location);
+        while (value > current)
+        {
+            long observed = Interlocked.CompareExchange(ref location, value, current);
+            if (observed == current)
+                return;
+            current = observed;
+        }
+    }
+}
 
 [JsonSourceGenerationOptions(WriteIndented = true)]
 [JsonSerializable(typeof(EcosystemSoakReport))]
@@ -695,5 +1038,10 @@ internal sealed record EcosystemSoakReport(
 [JsonSerializable(typeof(SoakEnvironment))]
 [JsonSerializable(typeof(SoakCycleResult))]
 [JsonSerializable(typeof(SoakPhaseResult))]
+[JsonSerializable(typeof(SoakIntegritySummary))]
+[JsonSerializable(typeof(SoakLatencySummary))]
+[JsonSerializable(typeof(SoakCapacityBoundary))]
+[JsonSerializable(typeof(SoakReportSummary))]
 [JsonSerializable(typeof(Dictionary<string, string>))]
+[JsonSerializable(typeof(List<double>))]
 internal sealed partial class EcosystemSoakJsonContext : JsonSerializerContext;

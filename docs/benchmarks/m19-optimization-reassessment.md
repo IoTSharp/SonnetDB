@@ -12,11 +12,11 @@ permalink: /benchmarks/m19-optimization-reassessment/
 | 项目 | 当前覆盖 | 必要性 | 调整后的方向 |
 | --- | --- | --- | --- |
 | #124 SegmentManager | 核心增量索引已由 #207 落地，但一换一 compaction 会遗留旧索引缓存，且发布仍重复排序；此前没有专项基准 | 高，先修正确性和可测性 | 修复缓存清理，发布从 O(N log N) 降为 O(N)，补 add/swap/drop + 并发查询基准；更复杂分层索引须由数据证明 |
-| #125 大量 measurement / 长稳 | #121 已有 quick/ci/soak，soak 为 10k measurement、每轮 10M 点 | 高，但原计划与 #121 大量重叠 | 扩展现有 runner，只补百万 series、海量小段、维护并发、随机重启、重复检测和恢复分位数 |
+| #125 大量 measurement / 长稳 | #121 的 quick/ci/soak 已扩展四个正交专项 profile，覆盖百万 series、万级小段、维护并发与随机重启 | 已完成，避免与 #121 重复 | 默认容量档在目标硬件归档报告；开发/CI 用缩规模参数做功能预检 |
 | #126 SQL 正则 | 已有 `REGEX` / `NOT REGEX`、250 ms timeout 和 ADO 回归 | 中高，属于契约和资源治理，不是单纯性能优化 | 先统一 matcher、模式长度、受限缓存、`regexp_like`、EXPLAIN 和 EF 翻译；二阶段函数和前缀剪枝后置 |
 | #126.1 关系批量删除 | table 已建在 KV tombstone 语义上，也有同步 `Compact()`；SQL 仍物化全部 mutation 并逐行删除索引和主键 | 高，是当前最需要深入设计的一项 | 不再引入第二套 row tombstone；先做整表 generation/truncate 和 KV 批量原语，再设计可恢复的异步谓词删除任务 |
 
-优先级建议：`#124 收口 -> #126.1 设计与基准 -> #125 扩展 -> #126 契约补齐`。`#126` 可独立并行，但不应以正则函数数量挤占批量删除的存储设计工作。
+#124 与 #125 已按复核方向收口。剩余优先级仍是 `#126.1 设计与基准 -> #126 契约补齐`；`#126` 可独立并行，但不应以正则函数数量挤占批量删除的存储设计工作。
 
 ## #124：当前实现与本次收口
 
@@ -55,28 +55,18 @@ BenchmarkDotNet 输出维护线程的 Median、P90 和 managed allocation；`Que
 
 暂不继续引入树状/分层持久索引。当前发布仍需构造不可变的 O(N) 段列表，但读路径获得简单、连续、无锁的一致快照。只有 1024+ 段基准显示发布 P90 或分配超出目标预算时，才值得用更复杂的数据结构交换读路径复杂度。
 
-## #125：保留，但改为 #121 的专项扩展
+## #125：已作为 #121 的专项扩展交付
 
-`tests/SonnetDB.EcosystemSoak` 已实现 quick/ci/soak 三档。soak 每轮写入 10k measurement x 1000 点，即 10M 点，并覆盖备份恢复、强杀和 torn WAL。因此原计划中的“新增大量 measurement 长稳套件”已经过期，不能再建第二套 runner。
+`tests/SonnetDB.EcosystemSoak` 保留 quick/ci/soak 三档组合验收，并在同一个 runner 中交付四个正交专项 profile，没有新增第二套长稳框架：
 
-现有套件仍不能回答这些问题：
+1. `high-cardinality`：默认 1M series、每 series 1 点，测 catalog、tag index、采样点完整性、启动、内存和查询分位数。
+2. `small-segments`：固定总点数，默认主动 flush 10k segment，做全量 series/time/value 摘要并测查询和恢复。
+3. `maintenance-chaos`：后台 flush/compaction/retention 开启，以固定随机种子执行 20 轮真子进程 kill/reopen，按已确认序列统计缺失、重复、额外点和值差异。
+4. `many-measurements`：默认 10k measurement，覆盖目录枚举、备份扫描、drop、retention、冷启动和查询。
 
-- 每个 measurement 当前只有一个 tag 组合，未形成百万级 series；
-- 一轮批量写完后只 `FlushNow()` 一次，不能形成海量小 segment；
-- `Open()` 明确关闭 background flush 和 compaction，也未启用 retention 并发；
-- 崩溃注入是固定的 128 点小样本，不是在维护阶段随机重启；
-- 恢复只校验总数，没有按 series/time/value 做重复与缺失摘要；
-- 报告只有单次阶段耗时和当前 managed bytes，没有冷启动/恢复 P50/P95/P99、working set 峰值或 query latency 分位数；
-- 当前公开基线是 quick PASS，不是 soak 容量结论。
+统一 JSON/Markdown 报告现在记录阶段 working set/托管内存峰值、恢复与查询 nearest-rank P50/P95/P99、结构化完整性摘要，并按 profile 写明“能验证什么”和“不能证明什么”。`Ecosystem Soak` workflow 可手动选择四个专项档并归档证据。
 
-建议在现有 runner 增加正交 profile，而不是把所有维度乘成一个不可运行的巨型场景：
-
-1. `high-cardinality`：100k/1M series，少量点，测 catalog、tag index、启动和内存。
-2. `small-segments`：固定总点数，主动多次 flush，测 1k/10k segment 的发布、查询和恢复。
-3. `maintenance-chaos`：后台 flush/compaction/retention 开启，随机 kill/reopen，按确定性数据摘要检测重复和缺失。
-4. `many-measurements`：延续 10k measurement，专测目录枚举、备份、drop/retention 和冷启动。
-
-报告必须同时写明“改善什么”和“不能改善什么”。例如 #124 只能降低内存索引发布成本，不能减少 segment 文件数量、解码成本或 compaction I/O；这些必须由 compaction 策略和容量边界解决。
+容量边界保持明确：#124 只能降低内存索引发布成本，不能减少 segment 文件数量、解码成本或 compaction I/O；`maintenance-chaos` 的 `Process.Kill` 也不等价于内核崩溃或整机掉电。默认百万/万级容量档不进入普通 PR 主 CI，必须在固定规格目标硬件运行并保留报告，缩规模 PASS 不能替代发布容量结论。
 
 ## #126：已有半套能力，重点应转为治理
 
