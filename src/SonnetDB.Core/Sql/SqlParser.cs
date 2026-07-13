@@ -84,6 +84,20 @@ public sealed class SqlParser
         return list;
     }
 
+    /// <summary>
+    /// 解析独立 SQL 谓词表达式，供持久化约束重建 AST。
+    /// </summary>
+    /// <param name="source">不含外围 <c>CHECK (...)</c> 的表达式文本。</param>
+    /// <returns>已解析表达式。</returns>
+    public static SqlExpression ParsePredicate(string source)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(source);
+        var parser = new SqlParser(SqlLexer.Tokenize(source));
+        var expression = parser.ParseExpression();
+        parser.ExpectEndOfFile();
+        return expression;
+    }
+
     /// <summary>解析下一条语句。</summary>
     public SqlStatement ParseStatement()
     {
@@ -435,6 +449,7 @@ public sealed class SqlParser
         var columns = new List<TableColumnDefinition>();
         var primaryKey = new List<string>();
         var foreignKeys = new List<TableForeignKeyClause>();
+        var checkConstraints = new List<TableCheckConstraintClause>();
         while (true)
         {
             if (Current.Kind == TokenKind.KeywordPrimary)
@@ -446,6 +461,18 @@ public sealed class SqlParser
             else if (Current.Kind == TokenKind.KeywordForeign)
             {
                 foreignKeys.Add(ParseForeignKeyClause());
+            }
+            else if (Current.Kind == TokenKind.KeywordCheck)
+            {
+                checkConstraints.Add(ParseCheckConstraintClause(constraintName: null));
+            }
+            else if (IsIdentifier("constraint"))
+            {
+                Advance();
+                var constraintName = ExpectIdentifierName();
+                if (Current.Kind != TokenKind.KeywordCheck)
+                    throw Error("CREATE TABLE 的命名约束当前期望 CHECK");
+                checkConstraints.Add(ParseCheckConstraintClause(constraintName));
             }
             else
             {
@@ -462,7 +489,7 @@ public sealed class SqlParser
         }
 
         Expect(TokenKind.RightParen);
-        return new CreateTableStatement(name, columns, primaryKey, ifNotExists, foreignKeys);
+        return new CreateTableStatement(name, columns, primaryKey, ifNotExists, foreignKeys, checkConstraints);
     }
 
     private TableColumnDefinition ParseTableColumnDefinition()
@@ -589,6 +616,18 @@ public sealed class SqlParser
         }
 
         return new TableForeignKeyClause(columns, principalTable, principalColumns, onDelete);
+    }
+
+    private TableCheckConstraintClause ParseCheckConstraintClause(string? constraintName)
+    {
+        Expect(TokenKind.KeywordCheck);
+        Expect(TokenKind.LeftParen);
+        var expression = ParseExpression();
+        Expect(TokenKind.RightParen);
+        return new TableCheckConstraintClause(
+            constraintName,
+            SqlExpressionFormatter.Format(expression),
+            expression);
     }
 
     private ForeignKeyAction ParseOnDeleteAction()
@@ -2567,11 +2606,18 @@ public sealed class SqlParser
             if (Current.Kind == TokenKind.KeywordForeign)
                 return ParseAlterTableAddForeignKey(tableName, constraintName: null);
 
+            if (Current.Kind == TokenKind.KeywordCheck)
+                return ParseAlterTableAddCheckConstraint(tableName, constraintName: null);
+
             if (IsIdentifier("constraint"))
             {
                 Advance();
                 var constraintName = ExpectIdentifierName();
-                return ParseAlterTableAddForeignKey(tableName, constraintName);
+                if (Current.Kind == TokenKind.KeywordForeign)
+                    return ParseAlterTableAddForeignKey(tableName, constraintName);
+                if (Current.Kind == TokenKind.KeywordCheck)
+                    return ParseAlterTableAddCheckConstraint(tableName, constraintName);
+                throw Error("ALTER TABLE ADD CONSTRAINT 后面期望 FOREIGN KEY 或 CHECK");
             }
 
             return ParseAlterTableAddColumn(tableName);
@@ -2615,7 +2661,7 @@ public sealed class SqlParser
             return new AlterTableRenameTableStatement(tableName, ExpectIdentifierName());
         }
 
-        throw Error("ALTER TABLE 后面期望 ADD COLUMN / ADD FOREIGN KEY / DROP COLUMN / DROP CONSTRAINT / RENAME COLUMN / RENAME TO");
+        throw Error("ALTER TABLE 后面期望 ADD COLUMN / ADD FOREIGN KEY / ADD CHECK / DROP COLUMN / DROP CONSTRAINT / RENAME COLUMN / RENAME TO");
     }
 
     private AlterTableAddForeignKeyStatement ParseAlterTableAddForeignKey(string tableName, string? constraintName)
@@ -2628,6 +2674,18 @@ public sealed class SqlParser
             clause.PrincipalTable,
             clause.PrincipalColumns,
             clause.OnDelete);
+    }
+
+    private AlterTableAddCheckConstraintStatement ParseAlterTableAddCheckConstraint(
+        string tableName,
+        string? constraintName)
+    {
+        var clause = ParseCheckConstraintClause(constraintName);
+        return new AlterTableAddCheckConstraintStatement(
+            tableName,
+            constraintName,
+            clause.ExpressionSql,
+            clause.Expression);
     }
 
     /// <summary><c>ALTER USER name WITH PASSWORD 'pwd'</c>。</summary>

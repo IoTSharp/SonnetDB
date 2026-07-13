@@ -10,6 +10,7 @@ public sealed class TableSchema
 {
     private readonly FrozenDictionary<string, TableColumn> _columnsByName;
     private readonly FrozenDictionary<string, TableIndex> _indexesByName;
+    private readonly FrozenDictionary<string, TableCheckConstraint> _checkConstraintsByName;
 
     private TableSchema(
         string name,
@@ -17,6 +18,7 @@ public sealed class TableSchema
         IReadOnlyList<string> primaryKey,
         IReadOnlyList<TableIndex> indexes,
         IReadOnlyList<TableForeignKey> foreignKeys,
+        IReadOnlyList<TableCheckConstraint> checkConstraints,
         long createdAtUtcTicks)
     {
         Name = name;
@@ -24,9 +26,11 @@ public sealed class TableSchema
         PrimaryKey = primaryKey;
         Indexes = indexes;
         ForeignKeys = foreignKeys;
+        CheckConstraints = checkConstraints;
         CreatedAtUtcTicks = createdAtUtcTicks;
         _columnsByName = columns.ToFrozenDictionary(c => c.Name, StringComparer.Ordinal);
         _indexesByName = indexes.ToFrozenDictionary(i => i.Name, StringComparer.Ordinal);
+        _checkConstraintsByName = checkConstraints.ToFrozenDictionary(c => c.Name, StringComparer.Ordinal);
     }
 
     /// <summary>表名。</summary>
@@ -44,6 +48,9 @@ public sealed class TableSchema
     /// <summary>按创建顺序排列的外键声明。</summary>
     public IReadOnlyList<TableForeignKey> ForeignKeys { get; }
 
+    /// <summary>按创建顺序排列的检查约束声明。</summary>
+    public IReadOnlyList<TableCheckConstraint> CheckConstraints { get; }
+
     /// <summary>创建时间 UTC ticks。</summary>
     public long CreatedAtUtcTicks { get; }
 
@@ -53,7 +60,11 @@ public sealed class TableSchema
     /// <param name="name">表名。</param>
     /// <param name="columns">列定义。</param>
     /// <param name="primaryKey">主键列名。</param>
+    /// <param name="indexes">二级索引声明。</param>
+    /// <param name="foreignKeys">外键声明。</param>
+    /// <param name="rowVersionColumns">乐观并发版本列名。</param>
     /// <param name="createdAtUtcTicks">创建时间 UTC ticks；为 0 时使用当前时间。</param>
+    /// <param name="checkConstraints">检查约束声明。</param>
     public static TableSchema Create(
         string name,
         IReadOnlyList<(string Name, TableColumnType DataType, bool IsNullable)> columns,
@@ -61,7 +72,8 @@ public sealed class TableSchema
         IReadOnlyList<TableIndexDefinition>? indexes = null,
         IReadOnlyList<TableForeignKeyDefinition>? foreignKeys = null,
         IReadOnlySet<string>? rowVersionColumns = null,
-        long createdAtUtcTicks = 0)
+        long createdAtUtcTicks = 0,
+        IReadOnlyList<TableCheckConstraintDefinition>? checkConstraints = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(columns);
@@ -108,6 +120,14 @@ public sealed class TableSchema
         ValidateRowVersionColumns(name, columnList);
         var indexList = BuildIndexes(name, columnList, primaryKeySet, indexes, createdAtUtcTicks);
         var foreignKeyList = BuildForeignKeys(name, columnList, foreignKeys);
+        var checkConstraintList = BuildCheckConstraints(name, columnList, checkConstraints);
+        var constraintNames = foreignKeyList.Select(static constraint => constraint.Name)
+            .ToHashSet(StringComparer.Ordinal);
+        foreach (var checkConstraint in checkConstraintList)
+        {
+            if (!constraintNames.Add(checkConstraint.Name))
+                throw new ArgumentException($"关系表 '{name}' 中约束 '{checkConstraint.Name}' 重复。", nameof(checkConstraints));
+        }
 
         return new TableSchema(
             name,
@@ -115,6 +135,7 @@ public sealed class TableSchema
             primaryKeyList.AsReadOnly(),
             indexList.AsReadOnly(),
             foreignKeyList.AsReadOnly(),
+            checkConstraintList.AsReadOnly(),
             createdAtUtcTicks == 0 ? DateTime.UtcNow.Ticks : createdAtUtcTicks);
     }
 
@@ -152,6 +173,17 @@ public sealed class TableSchema
     }
 
     /// <summary>
+    /// 尝试按约束名查找检查约束。
+    /// </summary>
+    /// <param name="name">检查约束名。</param>
+    /// <returns>找到时返回约束；否则返回 <c>null</c>。</returns>
+    public TableCheckConstraint? TryGetCheckConstraint(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        return _checkConstraintsByName.TryGetValue(name, out var constraint) ? constraint : null;
+    }
+
+    /// <summary>
     /// 返回添加指定索引后的新 schema。
     /// </summary>
     /// <param name="definition">索引声明。</param>
@@ -172,7 +204,8 @@ public sealed class TableSchema
             definitions,
             ForeignKeyDefinitions(),
             RowVersionColumnNames(),
-            CreatedAtUtcTicks);
+            CreatedAtUtcTicks,
+            CheckConstraintDefinitions());
     }
 
     /// <summary>
@@ -197,7 +230,8 @@ public sealed class TableSchema
             definitions,
             ForeignKeyDefinitions(),
             RowVersionColumnNames(),
-            CreatedAtUtcTicks);
+            CreatedAtUtcTicks,
+            CheckConstraintDefinitions());
     }
 
     /// <summary>
@@ -225,7 +259,8 @@ public sealed class TableSchema
             IndexDefinitions(),
             definitions,
             RowVersionColumnNames(),
-            CreatedAtUtcTicks);
+            CreatedAtUtcTicks,
+            CheckConstraintDefinitions());
     }
 
     /// <summary>
@@ -251,7 +286,61 @@ public sealed class TableSchema
             IndexDefinitions(),
             definitions,
             RowVersionColumnNames(),
-            CreatedAtUtcTicks);
+            CreatedAtUtcTicks,
+            CheckConstraintDefinitions());
+    }
+
+    /// <summary>
+    /// 返回添加指定检查约束后的新 schema。
+    /// </summary>
+    /// <param name="definition">检查约束声明。</param>
+    /// <returns>新 schema。</returns>
+    public TableSchema WithCheckConstraint(TableCheckConstraintDefinition definition)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        if (!string.IsNullOrWhiteSpace(definition.Name)
+            && (TryGetCheckConstraint(definition.Name) is not null
+                || TryGetForeignKey(definition.Name) is not null))
+        {
+            throw new InvalidOperationException($"table '{Name}' 中约束 '{definition.Name}' 已存在。");
+        }
+
+        return Create(
+            Name,
+            Columns.Select(static c => (c.Name, c.DataType, c.IsNullable)).ToArray(),
+            PrimaryKey,
+            IndexDefinitions(),
+            ForeignKeyDefinitions(),
+            RowVersionColumnNames(),
+            CreatedAtUtcTicks,
+            CheckConstraintDefinitions().Append(definition).ToArray());
+    }
+
+    /// <summary>
+    /// 返回删除指定检查约束后的新 schema。
+    /// </summary>
+    /// <param name="constraintName">检查约束名。</param>
+    /// <returns>约束存在时返回新 schema；否则返回当前实例。</returns>
+    public TableSchema WithoutCheckConstraint(string constraintName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(constraintName);
+        if (!_checkConstraintsByName.ContainsKey(constraintName))
+            return this;
+
+        return Create(
+            Name,
+            Columns.Select(static c => (c.Name, c.DataType, c.IsNullable)).ToArray(),
+            PrimaryKey,
+            IndexDefinitions(),
+            ForeignKeyDefinitions(),
+            RowVersionColumnNames(),
+            CreatedAtUtcTicks,
+            CheckConstraints
+                .Where(constraint => !string.Equals(constraint.Name, constraintName, StringComparison.Ordinal))
+                .Select(static constraint => new TableCheckConstraintDefinition(
+                    constraint.Name,
+                    constraint.ExpressionSql))
+                .ToArray());
     }
 
     /// <summary>
@@ -272,7 +361,8 @@ public sealed class TableSchema
             IndexDefinitions(),
             ForeignKeyDefinitions(),
             RowVersionColumnNames(),
-            CreatedAtUtcTicks);
+            CreatedAtUtcTicks,
+            CheckConstraintDefinitions());
     }
 
     /// <summary>
@@ -295,6 +385,11 @@ public sealed class TableSchema
             if (foreignKey.Columns.Any(c => string.Equals(c, name, StringComparison.Ordinal)))
                 throw new InvalidOperationException($"列 '{name}' 被外键 '{foreignKey.Name}' 引用，不能删除。");
         }
+        foreach (var checkConstraint in CheckConstraints)
+        {
+            if (checkConstraint.ReferencesColumn(name))
+                throw new InvalidOperationException($"列 '{name}' 被检查约束 '{checkConstraint.Name}' 引用，不能删除。");
+        }
 
         return Create(
             Name,
@@ -305,7 +400,8 @@ public sealed class TableSchema
             IndexDefinitions(),
             ForeignKeyDefinitions(),
             RowVersionColumnNames(exceptColumn: name),
-            CreatedAtUtcTicks);
+            CreatedAtUtcTicks,
+            CheckConstraintDefinitions());
     }
 
     /// <summary>
@@ -321,6 +417,8 @@ public sealed class TableSchema
             throw new InvalidOperationException($"table '{Name}' 中列 '{newName}' 已存在。");
         if (column.IsPrimaryKey)
             throw new InvalidOperationException("ALTER TABLE RENAME COLUMN 当前不支持重命名 PRIMARY KEY 列。");
+        if (CheckConstraints.Any(constraint => constraint.ReferencesColumn(oldName)))
+            throw new InvalidOperationException($"列 '{oldName}' 被 CHECK 约束引用，当前不能重命名。");
 
         return Create(
             Name,
@@ -332,7 +430,8 @@ public sealed class TableSchema
             IndexDefinitions(renameColumn: (oldName, newName)),
             ForeignKeyDefinitions(renameColumn: (oldName, newName)),
             RowVersionColumnNames(renameColumn: (oldName, newName)),
-            CreatedAtUtcTicks);
+            CreatedAtUtcTicks,
+            CheckConstraintDefinitions());
     }
 
     /// <summary>
@@ -346,7 +445,8 @@ public sealed class TableSchema
             IndexDefinitions(),
             ForeignKeyDefinitions(),
             RowVersionColumnNames(),
-            CreatedAtUtcTicks);
+            CreatedAtUtcTicks,
+            CheckConstraintDefinitions());
 
     /// <summary>返回当前表的乐观并发列；未声明时返回 <c>null</c>。</summary>
     public TableColumn? RowVersionColumn
@@ -463,6 +563,36 @@ public sealed class TableSchema
         return result;
     }
 
+    private static List<TableCheckConstraint> BuildCheckConstraints(
+        string tableName,
+        IReadOnlyList<TableColumn> columns,
+        IReadOnlyList<TableCheckConstraintDefinition>? checkConstraints)
+    {
+        var result = new List<TableCheckConstraint>();
+        if (checkConstraints is null || checkConstraints.Count == 0)
+            return result;
+
+        var columnNames = columns.Select(static column => column.Name).ToHashSet(StringComparer.Ordinal);
+        var seenNames = new HashSet<string>(StringComparer.Ordinal);
+        for (var i = 0; i < checkConstraints.Count; i++)
+        {
+            var definition = checkConstraints[i];
+            var name = string.IsNullOrWhiteSpace(definition.Name)
+                ? $"ck_{tableName}_{i + 1}"
+                : definition.Name;
+            if (!seenNames.Add(name))
+                throw new ArgumentException($"关系表 '{tableName}' 中检查约束 '{name}' 重复。", nameof(checkConstraints));
+
+            result.Add(TableCheckConstraint.Create(
+                tableName,
+                columnNames,
+                name,
+                definition.ExpressionSql));
+        }
+
+        return result;
+    }
+
     private static void ValidateRowVersionColumns(string tableName, IReadOnlyList<TableColumn> columns)
     {
         var rowVersionColumns = columns.Where(static c => c.IsRowVersion).ToArray();
@@ -499,6 +629,13 @@ public sealed class TableSchema
 
             return new TableForeignKeyDefinition(f.Name, columns, f.PrincipalTable, f.PrincipalColumns, f.OnDelete);
         }).ToArray();
+
+    private IReadOnlyList<TableCheckConstraintDefinition> CheckConstraintDefinitions()
+        => CheckConstraints
+            .Select(static constraint => new TableCheckConstraintDefinition(
+                constraint.Name,
+                constraint.ExpressionSql))
+            .ToArray();
 
     private IReadOnlySet<string> RowVersionColumnNames(
         (string OldName, string NewName)? renameColumn = null,

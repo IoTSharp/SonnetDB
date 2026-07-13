@@ -78,6 +78,22 @@ public class SqlParserTests
         Assert.Equal(ForeignKeyAction.NoAction, unnamed.OnDelete);
     }
 
+    [Fact]
+    public void Parse_CreateAndAlterTableCheckConstraint_ReturnsAst()
+    {
+        var create = Assert.IsType<CreateTableStatement>(SqlParser.Parse(
+            "CREATE TABLE Devices (Id INT, Role STRING, PRIMARY KEY (Id), CONSTRAINT CK_Devices_Role CHECK (Role IN ('Member', 'Owner')))"));
+        var createConstraint = Assert.Single(create.CheckConstraintClauses);
+        Assert.Equal("CK_Devices_Role", createConstraint.Name);
+        Assert.Equal("(\"Role\" IN ('Member', 'Owner'))", createConstraint.ExpressionSql);
+
+        var alter = Assert.IsType<AlterTableAddCheckConstraintStatement>(SqlParser.Parse(
+            "ALTER TABLE Devices ADD CONSTRAINT CK_Devices_Role CHECK (Role IN ('Member', 'Owner'))"));
+        Assert.Equal("Devices", alter.TableName);
+        Assert.Equal("CK_Devices_Role", alter.ConstraintName);
+        Assert.Equal("(\"Role\" IN ('Member', 'Owner'))", alter.ExpressionSql);
+    }
+
     [Theory]
     [InlineData("ON DELETE CASCADE", ForeignKeyAction.Cascade)]
     [InlineData("ON DELETE SET NULL", ForeignKeyAction.SetNull)]

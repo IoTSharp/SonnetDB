@@ -18,6 +18,8 @@
 
 ### Added
 
+- 新增关系表 `CHECK` constraint 完整链路：支持 `CREATE TABLE` 与 `ALTER TABLE ADD/DROP CONSTRAINT`、新增约束前扫描存量数据、INSERT/UPDATE 三值逻辑校验、稳定错误码、catalog 持久化与重启恢复，并补齐 EF Core `AddCheckConstraint` / `DropCheckConstraint` migration SQL。`tables.tblschema` codec 向后兼容升级为 v6，v1-v5 文件继续可读。
+
 - **M19 #124 维护发布基准与 #124~#126.1 复核**：新增 `SegmentManagerMaintenanceBenchmark`，覆盖 16/256/1024 段、0/4 个真实 QueryEngine 并发 worker 下的 flush add、compaction swap、retention drop，并以 #207 前的全量 `SegmentIndex.Build` 作为参考；新增 M19 优化项复核报告，按当前实现重新界定 #125 长稳扩展、#126 正则治理和 #126.1 批量删除存储设计。
 - **M19 #118~#121 生态适配底座闭环**：对象桶后端治理完成 policy、retention/lifecycle、versioning、legal hold、审计、容量和 quota；新增可运行的嵌入式/远程 ADO.NET + EF Core + `IDistributedCache` + 对象桶生态样例及 Profile 边界文档。Core 新增基于一致性 manifest 的 `MigrationService`，提供 export/scan/checksum/import dry-run/import、包级稳定 SHA-256 和篡改拒绝。新增 `EcosystemSoak` quick/ci/soak runner 与每周/手动 workflow，统一报告 EF、批量/大量 measurement、KV TTL、multipart、多模型备份恢复、快照回滚、真子进程强杀和 torn WAL 掉电恢复；2026-07-12 quick 基线全阶段 PASS。
 - **M30 #264 Sparkplug B 生命周期与命令闭环**：新增 edge node 级 `bdSeq`/0..255 `seq` 状态机、序列缺口与缺失 BIRTH 上下文检测，自动经内建 broker 发布 `NCMD Node Control/Rebirth=true`；`NDEATH`/`DDEATH` 更新节点和设备离线状态，BIRTH alias 快照原子持久化到 `DataRoot/.system` 并支持重启恢复。Primary Host Application 启停发布 retained `STATE/ONLINE|OFFLINE`；edge node 可按数据库读权限订阅精确 NCMD/DCMD/STATE topic。人工 NCMD/DCMD 默认关闭，启用后仍要求数据库 Admin 与 MQTT v5 `sndb-approved=true` 双重审批。新增生命周期、alias 恢复、命令编码和真实 MQTT 闭环测试及三项 Prometheus 计数。

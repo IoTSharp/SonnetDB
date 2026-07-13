@@ -1204,6 +1204,108 @@ public sealed class SqlExecutorTableTests : IDisposable
     }
 
     [Fact]
+    public void CreateTable_WithCheckConstraint_EnforcesFalseAndAllowsUnknown()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, """
+            CREATE TABLE Devices (
+                Id INT,
+                Role STRING,
+                PRIMARY KEY (Id),
+                CONSTRAINT CK_Devices_Role CHECK (Role IN ('Member', 'Owner'))
+            )
+            """);
+
+        SqlExecutor.Execute(db, "INSERT INTO Devices (Id, Role) VALUES (1, 'Owner'), (2, NULL)");
+        var ex = Assert.Throws<TableConstraintException>(() =>
+            SqlExecutor.Execute(db, "INSERT INTO Devices (Id, Role) VALUES (3, 'Invalid')"));
+
+        Assert.Equal(TableConstraintException.CheckViolation, ex.ErrorCode);
+        Assert.Equal("CK_Devices_Role", ex.ConstraintName);
+        var rows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "SELECT Id FROM Devices ORDER BY Id"));
+        Assert.Equal([1L, 2L], rows.Rows.Select(static row => (long)row[0]!).ToArray());
+    }
+
+    [Fact]
+    public void CreateTable_WithNullableArithmeticCheck_PropagatesUnknown()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, """
+            CREATE TABLE Devices (
+                Id INT,
+                Threshold INT,
+                PRIMARY KEY (Id),
+                CHECK (-(Threshold + 1) < 0)
+            )
+            """);
+
+        SqlExecutor.Execute(db, "INSERT INTO Devices (Id, Threshold) VALUES (1, NULL), (2, 0)");
+        var ex = Assert.Throws<TableConstraintException>(() =>
+            SqlExecutor.Execute(db, "INSERT INTO Devices (Id, Threshold) VALUES (3, -2)"));
+
+        Assert.Equal(TableConstraintException.CheckViolation, ex.ErrorCode);
+    }
+
+    [Theory]
+    [InlineData("sum(Value) > 0")]
+    [InlineData("unknown_function(Value) > 0")]
+    public void CreateTable_WithUnsupportedCheckFunction_RejectsDefinition(string expression)
+    {
+        using var db = Tsdb.Open(Options());
+
+        Assert.Throws<NotSupportedException>(() => SqlExecutor.Execute(
+            db,
+            $"CREATE TABLE Devices (Id INT, Value INT, PRIMARY KEY (Id), CHECK ({expression}))"));
+        Assert.Null(db.Tables.Catalog.TryGet("Devices"));
+    }
+
+    [Fact]
+    public void AlterTable_AddCheckConstraint_ValidatesPersistsAndCanBeDropped()
+    {
+        using (var db = Tsdb.Open(Options()))
+        {
+            SqlExecutor.Execute(db, "CREATE TABLE Devices (Id INT, Role STRING, PRIMARY KEY (Id))");
+            SqlExecutor.Execute(db, "INSERT INTO Devices (Id, Role) VALUES (1, 'Owner')");
+            SqlExecutor.Execute(db, """
+                ALTER TABLE Devices
+                ADD CONSTRAINT CK_Devices_Role CHECK (Role IN ('Member', 'Owner'))
+                """);
+
+            var constraint = Assert.Single(db.Tables.Catalog.TryGet("Devices")!.CheckConstraints);
+            Assert.Equal("CK_Devices_Role", constraint.Name);
+            Assert.Throws<TableConstraintException>(() =>
+                SqlExecutor.Execute(db, "UPDATE Devices SET Role = 'Invalid' WHERE Id = 1"));
+        }
+
+        using (var reopened = Tsdb.Open(Options()))
+        {
+            Assert.Single(reopened.Tables.Catalog.TryGet("Devices")!.CheckConstraints);
+            Assert.Throws<TableConstraintException>(() =>
+                SqlExecutor.Execute(reopened, "INSERT INTO Devices (Id, Role) VALUES (2, 'Invalid')"));
+
+            SqlExecutor.Execute(reopened, "ALTER TABLE Devices DROP CONSTRAINT CK_Devices_Role");
+            SqlExecutor.Execute(reopened, "INSERT INTO Devices (Id, Role) VALUES (2, 'Invalid')");
+            Assert.Empty(reopened.Tables.Catalog.TryGet("Devices")!.CheckConstraints);
+        }
+    }
+
+    [Fact]
+    public void AlterTable_AddCheckConstraint_WithExistingViolation_RejectsSchemaChange()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE Devices (Id INT, Role STRING, PRIMARY KEY (Id))");
+        SqlExecutor.Execute(db, "INSERT INTO Devices (Id, Role) VALUES (1, 'Invalid')");
+
+        var ex = Assert.Throws<TableConstraintException>(() => SqlExecutor.Execute(db, """
+            ALTER TABLE Devices
+            ADD CONSTRAINT CK_Devices_Role CHECK (Role IN ('Member', 'Owner'))
+            """));
+
+        Assert.Equal(TableConstraintException.CheckViolation, ex.ErrorCode);
+        Assert.Empty(db.Tables.Catalog.TryGet("Devices")!.CheckConstraints);
+    }
+
+    [Fact]
     public void CreateJsonPathIndex_OnTable_PersistsAndSelectUsesIndex()
     {
         using (var db = Tsdb.Open(Options()))

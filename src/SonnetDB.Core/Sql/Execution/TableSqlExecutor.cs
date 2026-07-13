@@ -52,12 +52,18 @@ internal static class TableSqlExecutor
             .Where(static c => c.IsRowVersion)
             .Select(static c => c.Name)
             .ToHashSet(StringComparer.Ordinal);
+        var checkConstraints = statement.CheckConstraintClauses
+            .Select(static constraint => new TableCheckConstraintDefinition(
+                constraint.Name ?? string.Empty,
+                constraint.ExpressionSql))
+            .ToArray();
         var schema = TableSchema.Create(
             statement.Name,
             columns,
             statement.PrimaryKey,
             foreignKeys: foreignKeys,
-            rowVersionColumns: rowVersionColumns);
+            rowVersionColumns: rowVersionColumns,
+            checkConstraints: checkConstraints);
         tsdb.Tables.Create(schema);
         return schema;
     }
@@ -157,6 +163,21 @@ internal static class TableSqlExecutor
         return new RowsAffectedExecutionResult(statement.TableName, 1, "alter_table_add_foreign_key");
     }
 
+    public static RowsAffectedExecutionResult ExecuteAlterTableAddCheckConstraint(
+        Tsdb tsdb,
+        AlterTableAddCheckConstraintStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        tsdb.Tables.AddCheckConstraint(
+            statement.TableName,
+            new TableCheckConstraintDefinition(
+                statement.ConstraintName ?? string.Empty,
+                statement.ExpressionSql));
+        return new RowsAffectedExecutionResult(statement.TableName, 1, "alter_table_add_check_constraint");
+    }
+
     public static RowsAffectedExecutionResult ExecuteAlterTableDropColumn(Tsdb tsdb, AlterTableDropColumnStatement statement)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
@@ -179,7 +200,8 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
-        bool removed = tsdb.Tables.DropForeignKey(statement.TableName, statement.ConstraintName);
+        bool removed = tsdb.Tables.DropForeignKey(statement.TableName, statement.ConstraintName)
+            || tsdb.Tables.DropCheckConstraint(statement.TableName, statement.ConstraintName);
         return new RowsAffectedExecutionResult(statement.TableName, removed ? 1 : 0, "alter_table_drop_constraint");
     }
 
@@ -1007,6 +1029,19 @@ internal static class TableSqlExecutor
         return EvaluateBoolean(expression, schema, row);
     }
 
+    internal static bool EvaluateCheckConstraint(
+        SqlExpression expression,
+        TableSchema schema,
+        IReadOnlyList<object?> row)
+    {
+        ArgumentNullException.ThrowIfNull(expression);
+        ArgumentNullException.ThrowIfNull(schema);
+        ArgumentNullException.ThrowIfNull(row);
+
+        // SQL CHECK 只拒绝明确 FALSE；TRUE 与 UNKNOWN（NULL 传播）均通过。
+        return EvaluateKleene(expression, schema, row) != false;
+    }
+
     private static bool EvaluateBoolean(SqlExpression expression, TableSchema schema, IReadOnlyList<object?> row)
         => EvaluateKleene(expression, schema, row) == true;
 
@@ -1156,7 +1191,7 @@ internal static class TableSqlExecutor
             LiteralExpression literal => EvaluateLiteral(literal),
             IdentifierExpression identifier => GetColumnValue(schema, row, identifier.Name),
             FunctionCallExpression function => EvaluateFunction(function, schema, row),
-            UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => -RequireDouble(EvaluateScalar(unary.Operand, schema, row), "一元负号"),
+            UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => EvaluateNegation(unary, schema, row),
             BinaryExpression binary when IsArithmeticOperator(binary.Operator) => EvaluateArithmetic(binary, schema, row),
             CaseExpression caseExpression => EvaluateCase(caseExpression, schema, row),
             _ => throw new InvalidOperationException(
@@ -1218,10 +1253,22 @@ internal static class TableSqlExecutor
         throw new InvalidOperationException("关系表当前仅支持 json_value(json_column, '$.path')、lower(value)、upper(value)、coalesce(...) 函数。");
     }
 
-    private static object EvaluateArithmetic(BinaryExpression binary, TableSchema schema, IReadOnlyList<object?> row)
+    private static object? EvaluateNegation(
+        UnaryExpression unary,
+        TableSchema schema,
+        IReadOnlyList<object?> row)
+    {
+        var value = EvaluateScalar(unary.Operand, schema, row);
+        return value is null ? null : -RequireDouble(value, "一元负号");
+    }
+
+    private static object? EvaluateArithmetic(BinaryExpression binary, TableSchema schema, IReadOnlyList<object?> row)
     {
         var leftValue = EvaluateScalar(binary.Left, schema, row);
         var rightValue = EvaluateScalar(binary.Right, schema, row);
+        if (leftValue is null || rightValue is null)
+            return null;
+
         if (binary.Operator == SqlBinaryOperator.Add
             && (leftValue is string || rightValue is string))
         {
