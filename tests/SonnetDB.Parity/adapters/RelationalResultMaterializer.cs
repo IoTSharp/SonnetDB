@@ -47,7 +47,7 @@ internal static class RelationalResultMaterializer
             long v => v,
             float v => (double)v,
             double v => v,
-            decimal v => (double)v,
+            decimal v => NormalizeDecimal(v),
             bool v => v,
             string v => v,
             DateTime v => v.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture),
@@ -55,4 +55,9 @@ internal static class RelationalResultMaterializer
             _ => Convert.ToString(value, CultureInfo.InvariantCulture),
         };
     }
+
+    private static object NormalizeDecimal(decimal value)
+        => decimal.Truncate(value) == value && value >= long.MinValue && value <= long.MaxValue
+            ? (object)(long)value
+            : (double)value;
 }

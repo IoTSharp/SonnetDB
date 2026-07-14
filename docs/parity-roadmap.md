@@ -178,7 +178,7 @@ assertions:
 
 - **单 bridge 网络** `parity-net`，避免与本机已有 service 冲突。
 - **端口偏移** 2x000 系列（25080/25432/26379/28086 等），不与原服务默认端口冲突。
-- **healthcheck 全量配齐**，harness `depends_on: condition: service_healthy`。
+- **readiness 分层**：镜像内原生命令可用于本地 compose health；nightly 由宿主 runner 探测 HTTP/TCP，禁止依赖第三方镜像内未提供的 shell、curl 或 wget。
 - **profiles**: `light`（仅 sonnetdb + pg + redis + minio + nats + harness，~1.5GB RAM）、`full`（全 12 个服务，~6-8GB RAM）。
 - **named volumes** 命名稳定，`docker compose down -v` 一键清空。
 - **harness 服务**：.NET 10 console，跑 xUnit 用例，把每场景 JSON + Markdown 报告写到 `harness-reports` volume。
@@ -192,6 +192,7 @@ assertions:
   - **可靠性测试通过** = 红绿门槛（数据丢失超合同就 fail CI）。
   - **算法准确度通过** = 红绿门槛（容差超阈值就 fail CI）。
   - **性能数字** = warning only，写到 `tests/SonnetDB.Parity/reports/<run-id>.md` 并贴 PR 评论，不阻塞 merge。
+- restore、build、compose/readiness 或测试阶段失败时仍必须输出 schema v2 `summary.json` / `summary.md`；`gateFailures` 使用稳定 `gap_reason` 区分 `restore_failed`、`build_failed`、`stack_start_failed`、`parity_test_failed`、`reliability_test_failed` 和 `parity_report_missing`。
 - nightly 运行结果 push 到 [parity-results 分支](https://github.com/IoTSharp/SonnetDB/tree/parity-results)（孤立分支，每次覆盖），README 通过 badge 展示最新通过率。
 
 ## 风险与边界

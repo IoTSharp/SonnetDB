@@ -24,7 +24,7 @@
 | 15~17 | GEO/轨迹、Copilot UX、可观测性 | ✅ | 功能与测试已落地；会话以服务端持久化为准，不回退 `localStorage`。 |
 | 18 | SonnetDB for VS Code | 🚧 | `0.4.1` 已发布且哈希一致；仅最终 Electron 实机截图待补。 |
 | 19 | 生态适配底座 | 🚧 | #109~#124、#126/#126.1 实现完成；#125 四个默认容量档缺固定目标硬件报告。 |
-| 20 | 多模型 Parity | 🚧 | 套件已实现，但近期 scheduled run 未产出有效 summary；修复后仍需 nightly 连续证据。 |
+| 20 | 多模型 Parity | 🚧 | 套件、宿主 readiness 与失败路径结构化 summary 已实现；仍需完整 scheduled run 和 7 天 nightly 连续证据。 |
 | 21 | Document Store 单机能力 | ✅ | 常用单机 Document 子集已落地。 |
 | 22 | 上层应用/示例候选 | ⏸️ | 不作为 SonnetDB 内置里程碑；通用能力缺口再回收。 |
 | 23 | 搜索与向量引擎合并 | ✅ | DotSearch / DotVector 能力已收编。 |
@@ -72,7 +72,8 @@
 
 Parity 场景、适配器和 compose 已存在，但“完成”还需要：
 
-- 修复后的完整 compose 在 CI 中健康启动，并实际运行全部场景，而不是只通过 `docker compose config`。
+- ✅ workflow 已改为宿主 readiness 探测；restore、build、stack 或 test 失败仍生成带稳定 `gap_reason`、commit SHA 和门禁分类的 schema v2 summary，并保留容器诊断。
+- 修复后的完整 compose 仍需在 CI 中健康启动并实际运行全部场景，而不是只通过 `docker compose config`。
 - scheduled workflow 连续 7 天成功率不低于 95%，每次都生成非空 summary 和结构化 `gap_reason`。
 - NATS、VictoriaMetrics 等第三方镜像的健康检查不得依赖镜像内不存在的 shell/wget；探活由宿主 workflow 或可用的原生命令完成。
 - 失败 run 必须保留容器日志、测试报告和 commit SHA，不能发布 `No summary was produced for this run.` 作为完成证据。

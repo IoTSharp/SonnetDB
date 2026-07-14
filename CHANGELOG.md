@@ -7,6 +7,7 @@
 
 ### Fixed
 
+- 修复 Parity workflow 在 restore、build 或 compose/readiness 阶段失败后跳过汇总、只能向 `parity-results` 发布 `No summary was produced` 的问题；各阶段现在保留真实 outcome，失败 run 仍生成 schema v2 JSON/Markdown、稳定 `gap_reason`、commit SHA 与容器诊断。服务 readiness 统一从 GitHub runner 宿主探测，不再由 `docker compose --wait` 依赖第三方镜像内工具；SonnetDB 容器强制从当前提交构建，避免误测旧的 `iotsharp/sonnetdb:parity` 镜像。同步修复 PostgreSQL `sum(BIGINT)` 的整数 `decimal` 被误归一化为 `double`、导致 `groupby_having` 自检失败的问题，并新增汇总合同与数值类型回归测试。
 - 修复 Parity full/light 栈使用 shell-less NATS、VictoriaMetrics 镜像时仍执行 `CMD-SHELL wget`，导致服务永远 unhealthy、nightly 无法进入测试的问题；改由 workflow 在宿主侧探测 HTTP health，并保留 NATS monitor 端口。
 - 修复 Server Native AOT 的全局 `PublishAot=true` 被透传到两个 `netstandard2.0` Roslyn source generator、触发 `NETSDK1207` 的问题；Server 改用项目局部 `SonnetDbPublishAot` 开关，CI 和发布脚本同步更新。
 - 修复 KV generation 后台维护的空轮询覆盖最近实际清理速率并计入实际回收轮数的问题；无任务轮询现在只刷新 pending 状态，节流恢复指标不再受轮询时序影响。

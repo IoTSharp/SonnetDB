@@ -16,6 +16,12 @@ param(
 
     [string] $CommitSha = "",
 
+    [int] $RestoreExitCode = 0,
+
+    [int] $BuildExitCode = 0,
+
+    [int] $StackExitCode = 0,
+
     [int] $ParityTestExitCode = 0,
 
     [int] $ReliabilityTestExitCode = 0
@@ -61,7 +67,8 @@ function Add-GateFailure {
         [string] $Gate,
         [string] $Suite,
         [string] $Scenario,
-        [string] $Reason
+        [string] $Reason,
+        [string] $GapReason
     )
 
     $Failures.Add([ordered]@{
@@ -69,6 +76,7 @@ function Add-GateFailure {
         suite = $Suite
         scenario = $Scenario
         reason = $Reason
+        gap_reason = $GapReason
     })
 }
 
@@ -130,7 +138,7 @@ foreach ($file in $reportFiles) {
             } else {
                 $gate = "accuracy"
             }
-            Add-GateFailure $failures $gate $suiteName ([string]$scenario.name) $reason
+            Add-GateFailure $failures $gate $suiteName ([string]$scenario.name) $reason "scenario_failed"
             continue
         }
 
@@ -154,16 +162,32 @@ foreach ($file in $reportFiles) {
     })
 }
 
+if ($RestoreExitCode -ne 0) {
+    Add-GateFailure $failures "infrastructure" "dotnet-restore" "parity-projects" "dotnet restore exited with code $RestoreExitCode" "restore_failed"
+}
+
+if ($BuildExitCode -ne 0) {
+    Add-GateFailure $failures "infrastructure" "dotnet-build" "parity-projects" "dotnet build exited with code $BuildExitCode" "build_failed"
+}
+
+if ($StackExitCode -ne 0) {
+    Add-GateFailure $failures "infrastructure" "docker-compose" "parity-stack" "parity stack startup or readiness checks failed with code $StackExitCode" "stack_start_failed"
+}
+
 if ($ParityTestExitCode -ne 0) {
-    Add-GateFailure $failures "capability" "dotnet-test" "parity" "dotnet test exited with code $ParityTestExitCode"
+    Add-GateFailure $failures "capability" "dotnet-test" "parity" "dotnet test exited with code $ParityTestExitCode" "parity_test_failed"
 }
 
 if ($ReliabilityTestExitCode -ne 0) {
-    Add-GateFailure $failures "reliability" "dotnet-test" "crash-reliability" "crash reliability test exited with code $ReliabilityTestExitCode"
+    Add-GateFailure $failures "reliability" "dotnet-test" "crash-reliability" "crash reliability test exited with code $ReliabilityTestExitCode" "reliability_test_failed"
 }
 
-if ($totalScenarios -eq 0 -and $ParityTestExitCode -eq 0) {
-    Add-GateFailure $failures "capability" "reporting" "parity-report" "no parity report.json files were found"
+if ($totalScenarios -eq 0 `
+    -and $RestoreExitCode -eq 0 `
+    -and $BuildExitCode -eq 0 `
+    -and $StackExitCode -eq 0 `
+    -and $ParityTestExitCode -eq 0) {
+    Add-GateFailure $failures "capability" "reporting" "parity-report" "no parity report.json files were found" "parity_report_missing"
 }
 
 $passRate = if ($totalScenarios -eq 0) { 0 } else { [Math]::Round(($passedScenarios + $skippedScenarios) * 100.0 / $totalScenarios, 2) }
@@ -172,7 +196,7 @@ $badgeColor = if ($failures.Count -eq 0) { "brightgreen" } else { "red" }
 $badgeUrl = "https://img.shields.io/badge/parity-$passRate%25-$badgeColor"
 
 $summary = [ordered]@{
-    schemaVersion = 1
+    schemaVersion = 2
     label = "parity"
     message = "$passRate%"
     color = $badgeColor
@@ -225,11 +249,11 @@ $md.Add("")
 if ($failures.Count -eq 0) {
     $md.Add("No capability, reliability, or accuracy gate failures.")
 } else {
-    $md.Add("| Gate | Suite | Scenario | Reason |")
-    $md.Add("|---|---|---|---|")
+    $md.Add("| Gate | Suite | Scenario | Gap reason | Reason |")
+    $md.Add("|---|---|---|---|---|")
     foreach ($failure in $failures) {
         $reason = ([string]$failure.reason).Replace("|", "\|")
-        $md.Add("| $($failure.gate) | $($failure.suite) | $($failure.scenario) | $reason |")
+        $md.Add("| $($failure.gate) | $($failure.suite) | $($failure.scenario) | $($failure.gap_reason) | $reason |")
     }
 }
 $md.Add("")

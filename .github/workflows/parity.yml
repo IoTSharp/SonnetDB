@@ -74,44 +74,104 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-parity-nuget-
 
-      - name: Restore parity projects
+      - name: Validate parity reporter contract
         if: steps.selection.outputs.run == 'true'
+        shell: pwsh
+        run: ./tests/SonnetDB.Parity/scripts/test-summarize-parity.ps1
+
+      - name: Restore parity projects
+        id: restore
+        if: steps.selection.outputs.run == 'true'
+        continue-on-error: true
         run: |
           dotnet restore tests/SonnetDB.Parity/SonnetDB.Parity.csproj
           dotnet restore tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj
 
       - name: Build parity projects
-        if: steps.selection.outputs.run == 'true'
+        id: build
+        if: steps.selection.outputs.run == 'true' && steps.restore.outcome == 'success'
+        continue-on-error: true
         run: |
           dotnet build tests/SonnetDB.Parity/SonnetDB.Parity.csproj --configuration Release --no-restore /warnaserror
           dotnet build tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj --configuration Release --no-restore /warnaserror
 
       - name: Start parity stack
-        if: steps.selection.outputs.run == 'true'
+        id: stack
+        if: steps.selection.outputs.run == 'true' && steps.build.outcome == 'success'
+        continue-on-error: true
         working-directory: tests/SonnetDB.Parity
         shell: bash
         run: |
-          services="sonnetdb postgres redis minio nats"
+          services=(sonnetdb postgres redis minio nats)
           if [[ "${{ matrix.profile }}" == "full" ]]; then
-            services="$services influxdb victoriametrics mosquitto meilisearch qdrant clickhouse mongodb"
+            services+=(influxdb victoriametrics mosquitto meilisearch qdrant clickhouse mongodb)
           fi
-          if ! docker compose -f docker-compose.parity.yml --profile ${{ matrix.profile }} up -d --wait --wait-timeout 300 $services; then
+
+          capture_diagnostics() {
             diagnostics="${GITHUB_WORKSPACE}/artifacts/parity/${{ matrix.profile }}/stack-diagnostics"
             mkdir -p "$diagnostics"
             docker compose -f docker-compose.parity.yml --profile ${{ matrix.profile }} ps -a > "$diagnostics/compose-ps.txt" || true
             docker compose -f docker-compose.parity.yml --profile ${{ matrix.profile }} logs --no-color --tail=200 > "$diagnostics/compose-logs.txt" || true
-            echo "Parity stack failed to become healthy. Diagnostics were written to $diagnostics."
+          }
+
+          wait_http() {
+            local service_name="$1"
+            local url="$2"
+            for _ in $(seq 1 60); do
+              if curl --fail --silent --connect-timeout 2 --max-time 5 "$url" >/dev/null 2>&1; then
+                return 0
+              fi
+              sleep 2
+            done
+            echo "$service_name did not become ready at $url."
+            return 1
+          }
+
+          wait_tcp() {
+            local service_name="$1"
+            local port="$2"
+            for _ in $(seq 1 60); do
+              if timeout 2 bash -c "</dev/tcp/127.0.0.1/$port" 2>/dev/null; then
+                return 0
+              fi
+              sleep 2
+            done
+            echo "$service_name did not accept TCP connections on port $port."
+            return 1
+          }
+
+          if ! docker compose -f docker-compose.parity.yml --profile ${{ matrix.profile }} up -d --build "${services[@]}"; then
+            capture_diagnostics
+            echo "Parity stack failed to start."
             exit 1
           fi
-          curl --fail --silent --show-error --retry 30 --retry-delay 2 --retry-all-errors \
-            http://127.0.0.1:28222/healthz >/dev/null
+
+          readiness_failed=0
+          wait_http "SonnetDB" "http://127.0.0.1:25080/healthz" || readiness_failed=1
+          wait_tcp "PostgreSQL" 25432 || readiness_failed=1
+          wait_tcp "Redis" 26379 || readiness_failed=1
+          wait_http "MinIO" "http://127.0.0.1:25000/minio/health/live" || readiness_failed=1
+          wait_tcp "NATS client" 24222 || readiness_failed=1
+          wait_http "NATS monitor" "http://127.0.0.1:28222/healthz" || readiness_failed=1
+
           if [[ "${{ matrix.profile }}" == "full" ]]; then
-            curl --fail --silent --show-error --retry 30 --retry-delay 2 --retry-all-errors \
-              http://127.0.0.1:28428/health >/dev/null
+            wait_http "InfluxDB" "http://127.0.0.1:28086/health" || readiness_failed=1
+            wait_http "VictoriaMetrics" "http://127.0.0.1:28428/health" || readiness_failed=1
+            wait_tcp "Mosquitto" 21883 || readiness_failed=1
+            wait_http "Meilisearch" "http://127.0.0.1:27700/health" || readiness_failed=1
+            wait_http "Qdrant" "http://127.0.0.1:26333/readyz" || readiness_failed=1
+            wait_http "ClickHouse" "http://127.0.0.1:28123/ping" || readiness_failed=1
+            wait_tcp "MongoDB" 27017 || readiness_failed=1
+          fi
+
+          if [[ "$readiness_failed" -ne 0 ]]; then
+            capture_diagnostics
+            echo "Parity stack failed host-side readiness probes."
+            exit 1
           fi
 
       - name: Run parity gates
-        if: steps.selection.outputs.run == 'true'
+        if: steps.selection.outputs.run == 'true' && steps.stack.outcome == 'success'
         id: parity
         shell: pwsh
         continue-on-error: true
@@ -146,7 +206,7 @@ jobs:
             --results-directory "artifacts/parity/${{ matrix.profile }}/test-results"
 
       - name: Run reliability gates
-        if: steps.selection.outputs.run == 'true'
+        if: steps.selection.outputs.run == 'true' && steps.build.outcome == 'success'
         id: reliability
         shell: pwsh
         continue-on-error: true
@@ -158,13 +218,17 @@ jobs:
             --results-directory "artifacts/parity/${{ matrix.profile }}/test-results"
 
       - name: Summarize parity reports
-        if: steps.selection.outputs.run == 'true'
+        id: summary
+        if: steps.selection.outputs.run == 'true' && always()
         shell: pwsh
         run: |
+          $restoreExit = if ('${{ steps.restore.outcome }}' -eq 'failure') { 1 } else { 0 }
+          $buildExit = if ('${{ steps.build.outcome }}' -eq 'failure') { 1 } else { 0 }
+          $stackExit = if ('${{ steps.stack.outcome }}' -eq 'failure') { 1 } else { 0 }
           $parityExit = 0
           $reliabilityExit = 0
-          if ('${{ steps.parity.outcome }}' -ne 'success') { $parityExit = 1 }
-          if ('${{ steps.reliability.outcome }}' -ne 'success') { $reliabilityExit = 1 }
+          if ('${{ steps.parity.outcome }}' -eq 'failure') { $parityExit = 1 }
+          if ('${{ steps.reliability.outcome }}' -eq 'failure') { $reliabilityExit = 1 }
           ./tests/SonnetDB.Parity/reports/summarize-parity.ps1 `
             -ReportRoot "artifacts/parity/${{ matrix.profile }}/raw" `
             -OutputDirectory "artifacts/parity/${{ matrix.profile }}" `
@@ -173,8 +237,24 @@ jobs:
             -RunId "${{ github.run_id }}" `
             -RunNumber "${{ github.run_number }}" `
             -CommitSha "${{ github.sha }}" `
+            -RestoreExitCode $restoreExit `
+            -BuildExitCode $buildExit `
+            -StackExitCode $stackExit `
             -ParityTestExitCode $parityExit `
             -ReliabilityTestExitCode $reliabilityExit
+
+      - name: Capture failed-run stack diagnostics
+        if: >-
+          steps.selection.outputs.run == 'true' && always() &&
+          steps.stack.outcome == 'success' &&
+          (steps.parity.outcome == 'failure' || steps.reliability.outcome == 'failure' || steps.summary.outcome == 'failure')
+        working-directory: tests/SonnetDB.Parity
+        shell: bash
+        run: |
+          diagnostics="${GITHUB_WORKSPACE}/artifacts/parity/${{ matrix.profile }}/stack-diagnostics"
+          mkdir -p "$diagnostics"
+          docker compose -f docker-compose.parity.yml --profile ${{ matrix.profile }} ps -a > "$diagnostics/compose-ps.txt" || true
+          docker compose -f docker-compose.parity.yml --profile ${{ matrix.profile }} logs --no-color --tail=200 > "$diagnostics/compose-logs.txt" || true
 
       - name: Upload parity reports
         if: steps.selection.outputs.run == 'true' && always()
@@ -184,12 +264,22 @@ jobs:
           path: artifacts/parity/${{ matrix.profile }}
 
       - name: Gate parity result
-        if: steps.selection.outputs.run == 'true'
+        if: steps.selection.outputs.run == 'true' && always()
         shell: pwsh
         run: |
           $failed = @()
-          if ('${{ steps.parity.outcome }}' -ne 'success') { $failed += 'parity' }
-          if ('${{ steps.reliability.outcome }}' -ne 'success') { $failed += 'reliability' }
+          if ('${{ steps.restore.outcome }}' -eq 'failure') { $failed += 'restore' }
+          if ('${{ steps.build.outcome }}' -eq 'failure') { $failed += 'build' }
+          if ('${{ steps.stack.outcome }}' -eq 'failure') { $failed += 'stack' }
+          if ('${{ steps.parity.outcome }}' -eq 'failure') { $failed += 'parity' }
+          if ('${{ steps.reliability.outcome }}' -eq 'failure') { $failed += 'reliability' }
+          $summaryPath = "artifacts/parity/${{ matrix.profile }}/summary.json"
+          if (-not (Test-Path $summaryPath)) {
+            $failed += 'summary'
+          } elseif ($failed.Count -eq 0) {
+            $summary = Get-Content -Raw $summaryPath | ConvertFrom-Json
+            if ($summary.status -ne 'passing') { $failed += 'summary-gates' }
+          }
           if ($failed.Count -gt 0) {
             Write-Error "Parity gate failed: $($failed -join ', '). See uploaded reports."
             exit 1
