@@ -24,7 +24,8 @@ CREATE TABLE devices (
     metadata JSON NULL,
     payload BLOB NULL,
     PRIMARY KEY (id),
-    FOREIGN KEY (site_id) REFERENCES sites (id)
+    FOREIGN KEY (site_id) REFERENCES sites (id),
+    CONSTRAINT ck_devices_name CHECK (name IN ('pump', 'fan', 'valve'))
 )
 ```
 
@@ -37,7 +38,18 @@ CREATE TABLE devices (
 - `JSON` 当前按 UTF-8 字符串存储；可用 `json_value(json_col, '$.path')` 做 path 投影和过滤。
 - 二级索引使用 `CREATE INDEX` 单独声明。
 - `FOREIGN KEY (...) REFERENCES parent (...)` 第一版只支持表级声明，引用列必须等于被引用表 `PRIMARY KEY`；外键列任一为 `NULL` 时跳过校验。
+- `CHECK (expression)` 支持命名或未命名表级约束；表达式可引用当前表列、字面量、基础运算、`IN`、`IS NULL`、`CASE` 和当前关系执行器支持的标量函数，不支持限定列名、参数、聚合或子查询。
+- CHECK 按 SQL 三值逻辑执行：只有明确 `FALSE` 拒绝写入，`TRUE` 和由 `NULL` 传播得到的 `UNKNOWN` 均通过。
 - `ROWVERSION` 只能声明在一个 `INT` 列上；`INSERT` 自动写入 `1`，`UPDATE` 自动递增，可用 `WHERE id = ... AND version = ...` 获得乐观并发冲突检测。
+
+已有表可追加或删除检查约束。追加前会扫描存量行；任一行明确违反约束时 DDL 失败且 catalog 保持原状。
+
+```sql
+ALTER TABLE devices
+ADD CONSTRAINT ck_devices_name CHECK (name IN ('pump', 'fan', 'valve'));
+
+ALTER TABLE devices DROP CONSTRAINT ck_devices_name;
+```
 
 ### `CREATE INDEX` / `DROP INDEX`
 
@@ -106,8 +118,8 @@ COMMIT;
 
 - 轻事务支持同一数据库内多个关系表的 `INSERT` / `UPDATE` / `DELETE` 原子提交与回滚。
 - 不支持嵌套事务、measurement / document 写入事务、DDL 事务或跨数据库事务。在事务上下文内执行 measurement（时序）`INSERT` / `DELETE` 或文档集合写入会抛 `NotSupportedException`（这类写入直接落 WAL/tombstone，`ROLLBACK` 无法撤销，故显式拒绝而非静默写入造成"假回滚"）。
-- `COMMIT` 前会校验 NOT NULL、主键、唯一索引、外键和 ROWVERSION 乐观并发列；任一失败时，不会留下已应用的 rowstore / index 变更。
-- 稳定约束错误码：`table_unique_violation`、`table_foreign_key_violation`、`table_concurrency_conflict`。
+- `COMMIT` 前会校验 NOT NULL、主键、唯一索引、外键、CHECK 和 ROWVERSION 乐观并发列；任一失败时，不会留下已应用的 rowstore / index 变更。
+- 稳定约束错误码：`table_unique_violation`、`table_foreign_key_violation`、`table_check_violation`、`table_concurrency_conflict`。
 - 隔离级别边界：ADO.NET 仅接受默认 / `ReadCommitted` 轻事务；当前语义是单连接排队、提交时获取表管理器锁并一次性校验/应用，不提供 MVCC、可重复读、序列化隔离或跨进程长事务。
 
 ### 时序 JOIN 关系维表

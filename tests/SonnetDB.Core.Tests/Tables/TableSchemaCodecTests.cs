@@ -1,3 +1,5 @@
+using System.Buffers.Binary;
+using System.IO.Hashing;
 using SonnetDB.Tables;
 using Xunit;
 
@@ -40,7 +42,11 @@ public sealed class TableSchemaCodecTests : IDisposable
                 new TableForeignKeyDefinition("fk_devices_sites", ["name"], "sites", ["id"]),
             ],
             rowVersionColumns: new HashSet<string>(["version"], StringComparer.Ordinal),
-            createdAtUtcTicks: 1234);
+            createdAtUtcTicks: 1234,
+            checkConstraints:
+            [
+                new TableCheckConstraintDefinition("ck_devices_name", "name IN ('pump', 'fan')"),
+            ]);
 
         string path = Path.Combine(_root, TableSchemaCodec.FileName);
         TableSchemaCodec.Save(path, [schema]);
@@ -49,6 +55,9 @@ public sealed class TableSchemaCodecTests : IDisposable
         Assert.Equal("devices", loaded.Name);
         Assert.Equal(1234, loaded.CreatedAtUtcTicks);
         Assert.Equal(["id"], loaded.PrimaryKey);
+        var checkConstraint = Assert.Single(loaded.CheckConstraints);
+        Assert.Equal("ck_devices_name", checkConstraint.Name);
+        Assert.Equal("(\"name\" IN ('pump', 'fan'))", checkConstraint.ExpressionSql);
         Assert.Equal(4, loaded.Columns.Count);
         Assert.True(loaded.Columns[0].IsPrimaryKey);
         Assert.False(loaded.Columns[0].IsNullable);
@@ -82,5 +91,38 @@ public sealed class TableSchemaCodecTests : IDisposable
 
         Assert.False(schema.Columns[0].IsNullable);
         Assert.True(schema.Columns[1].IsNullable);
+    }
+
+    [Fact]
+    public void Load_WithVersion5Schema_RemainsBackwardCompatible()
+    {
+        var schema = TableSchema.Create(
+            "legacy",
+            [("id", TableColumnType.Int64, false)],
+            ["id"],
+            createdAtUtcTicks: 1234);
+        string path = Path.Combine(_root, TableSchemaCodec.FileName);
+        TableSchemaCodec.Save(path, [schema]);
+
+        byte[] current = File.ReadAllBytes(path);
+        const int headerSize = 32;
+        const int footerSize = 16;
+        int currentFooterOffset = current.Length - footerSize;
+        int legacyFooterOffset = currentFooterOffset - sizeof(ushort);
+        var legacy = new byte[current.Length - sizeof(ushort)];
+        current.AsSpan(0, legacyFooterOffset).CopyTo(legacy);
+        current.AsSpan(currentFooterOffset, footerSize).CopyTo(legacy.AsSpan(legacyFooterOffset));
+        BinaryPrimitives.WriteInt32LittleEndian(legacy.AsSpan(8, sizeof(int)), 5);
+
+        var crc = new Crc32();
+        crc.Append(legacy.AsSpan(headerSize, legacyFooterOffset - headerSize));
+        BinaryPrimitives.WriteUInt32LittleEndian(
+            legacy.AsSpan(legacyFooterOffset, sizeof(uint)),
+            crc.GetCurrentHashAsUInt32());
+        File.WriteAllBytes(path, legacy);
+
+        var loaded = Assert.Single(TableSchemaCodec.Load(path));
+        Assert.Equal("legacy", loaded.Name);
+        Assert.Empty(loaded.CheckConstraints);
     }
 }

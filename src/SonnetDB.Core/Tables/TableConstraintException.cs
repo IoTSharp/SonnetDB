@@ -11,6 +11,9 @@ public sealed class TableConstraintException : InvalidOperationException
     /// <summary>外键约束冲突错误码。</summary>
     public const string ForeignKeyViolation = "table_foreign_key_violation";
 
+    /// <summary>检查约束冲突错误码。</summary>
+    public const string CheckViolation = "table_check_violation";
+
     /// <summary>乐观并发冲突错误码。</summary>
     public const string ConcurrencyConflict = "table_concurrency_conflict";
 

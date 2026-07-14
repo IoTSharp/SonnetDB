@@ -551,6 +551,12 @@ public sealed class SonnetDbProviderTests : IDisposable
                 Columns = ["Id"]
             }
         };
+        create.CheckConstraints.Add(new AddCheckConstraintOperation
+        {
+            Name = "CK_Devices_Name",
+            Table = "Devices",
+            Sql = "Name IN ('pump', 'fan')"
+        });
         var drop = new DropTableOperation { Name = "Devices" };
 
         var upSql = Assert.Single(generator.Generate([create]));
@@ -559,6 +565,10 @@ public sealed class SonnetDbProviderTests : IDisposable
         Assert.Contains("CREATE TABLE \"Devices\"", upSql.CommandText, StringComparison.Ordinal);
         Assert.Contains("\"Id\" INT NOT NULL", upSql.CommandText, StringComparison.Ordinal);
         Assert.Contains("PRIMARY KEY (\"Id\")", upSql.CommandText, StringComparison.Ordinal);
+        Assert.Contains(
+            "CONSTRAINT \"CK_Devices_Name\" CHECK (Name IN ('pump', 'fan'))",
+            upSql.CommandText,
+            StringComparison.Ordinal);
         Assert.Contains("DROP TABLE IF EXISTS \"Devices\"", downSql.CommandText, StringComparison.Ordinal);
     }
 
@@ -617,6 +627,36 @@ public sealed class SonnetDbProviderTests : IDisposable
         Assert.Contains(
             "ALTER TABLE \"Device\" ADD CONSTRAINT \"FK_Device_AuthorizedKeys_AuthorizedKeyId\" FOREIGN KEY (\"AuthorizedKeyId\") REFERENCES \"AuthorizedKeys\" (\"Id\")",
             sql.CommandText,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MigrationsSqlGenerator_AddDropCheckConstraint_GeneratesSonnetDbAlterTable()
+    {
+        using var context = new DeviceContext(CreateOptions<DeviceContext>());
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var add = new AddCheckConstraintOperation
+        {
+            Name = "CK_Devices_Name",
+            Table = "Devices",
+            Sql = "Name IN ('pump', 'fan')"
+        };
+        var drop = new DropCheckConstraintOperation
+        {
+            Name = "CK_Devices_Name",
+            Table = "Devices"
+        };
+
+        var addSql = Assert.Single(generator.Generate([add]));
+        var dropSql = Assert.Single(generator.Generate([drop]));
+
+        Assert.Contains(
+            "ALTER TABLE \"Devices\" ADD CONSTRAINT \"CK_Devices_Name\" CHECK (Name IN ('pump', 'fan'))",
+            addSql.CommandText,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ALTER TABLE \"Devices\" DROP CONSTRAINT \"CK_Devices_Name\"",
+            dropSql.CommandText,
             StringComparison.Ordinal);
     }
 

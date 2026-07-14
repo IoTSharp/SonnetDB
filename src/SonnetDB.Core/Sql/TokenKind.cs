@@ -181,6 +181,8 @@ public enum TokenKind
     KeywordKey,
     /// <summary>FOREIGN（FOREIGN KEY 子句）。</summary>
     KeywordForeign,
+    /// <summary>CHECK（关系表检查约束）。</summary>
+    KeywordCheck,
     /// <summary>REFERENCES（FOREIGN KEY 引用子句）。</summary>
     KeywordReferences,
     /// <summary>ROWVERSION（关系表乐观并发列）。</summary>

@@ -117,6 +117,7 @@ public sealed class SqlLexer
         ["primary"] = TokenKind.KeywordPrimary,
         ["key"] = TokenKind.KeywordKey,
         ["foreign"] = TokenKind.KeywordForeign,
+        ["check"] = TokenKind.KeywordCheck,
         ["references"] = TokenKind.KeywordReferences,
         ["rowversion"] = TokenKind.KeywordRowVersion,
 

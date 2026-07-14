@@ -18,7 +18,7 @@ public static class TableSchemaCodec
     private static readonly byte[] _magic = "SDBTBLv1"u8.ToArray();
     private static readonly Encoding _utf8 = Encoding.UTF8;
 
-    private const int _formatVersion = 5;
+    private const int _formatVersion = 6;
     private const int _headerSize = 32;
     private const int _footerSize = 16;
 
@@ -182,7 +182,35 @@ public static class TableSchemaCodec
                 foreignKeys.Add(ReadForeignKey(source, crc, tableIndex, i, version));
         }
 
-        return TableSchema.Create(name, columns, primaryKey, indexes, foreignKeys, rowVersionColumns, createdAt);
+        var checkConstraints = new List<TableCheckConstraintDefinition>();
+        if (version >= 6)
+        {
+            ReadExactSpan(source, countBuffer, $"table {tableIndex} checkConstraintCount");
+            crc.Append(countBuffer);
+            int checkConstraintCount = BinaryPrimitives.ReadUInt16LittleEndian(countBuffer);
+            for (int i = 0; i < checkConstraintCount; i++)
+            {
+                string constraintName = ReadString(
+                    source,
+                    crc,
+                    $"table {tableIndex} check constraint {i} name");
+                string expressionSql = ReadString(
+                    source,
+                    crc,
+                    $"table {tableIndex} check constraint {i} expression");
+                checkConstraints.Add(new TableCheckConstraintDefinition(constraintName, expressionSql));
+            }
+        }
+
+        return TableSchema.Create(
+            name,
+            columns,
+            primaryKey,
+            indexes,
+            foreignKeys,
+            rowVersionColumns,
+            createdAt,
+            checkConstraints);
     }
 
     private static void Save(IReadOnlyList<TableSchema> schemas, Stream destination)
@@ -273,6 +301,17 @@ public static class TableSchemaCodec
             totalSize += 1; // v5+：ON DELETE action byte
         }
 
+        totalSize += 2;
+        foreach (var checkConstraint in schema.CheckConstraints)
+        {
+            totalSize += CheckedStringSize(
+                checkConstraint.Name,
+                $"Table '{schema.Name}' 的检查约束名称过长。");
+            totalSize += CheckedStringSize(
+                checkConstraint.ExpressionSql,
+                $"Table '{schema.Name}' 的检查约束 '{checkConstraint.Name}' 表达式过长。");
+        }
+
         byte[] buffer = ArrayPool<byte>.Shared.Rent(totalSize);
         try
         {
@@ -345,6 +384,19 @@ public static class TableSchemaCodec
                     WriteString(ref writer, column, $"Table '{schema.Name}' 的外键 '{foreignKey.Name}' 引用列名过长。");
                 // v5+：ON DELETE 动作字节（0=NoAction, 1=Cascade, 2=SetNull）
                 writer.WriteByte((byte)foreignKey.OnDelete);
+            }
+
+            writer.WriteUInt16((ushort)schema.CheckConstraints.Count);
+            foreach (var checkConstraint in schema.CheckConstraints)
+            {
+                WriteString(
+                    ref writer,
+                    checkConstraint.Name,
+                    $"Table '{schema.Name}' 的检查约束名称过长。");
+                WriteString(
+                    ref writer,
+                    checkConstraint.ExpressionSql,
+                    $"Table '{schema.Name}' 的检查约束 '{checkConstraint.Name}' 表达式过长。");
             }
 
             crc.Append(buffer.AsSpan(0, totalSize));

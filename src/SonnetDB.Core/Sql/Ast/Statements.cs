@@ -17,22 +17,27 @@ public sealed record CreateMeasurementStatement(
     bool IfNotExists = false) : SqlStatement;
 
 /// <summary>
-/// <c>CREATE TABLE [IF NOT EXISTS] name (col TYPE [NULL|NOT NULL] [ROWVERSION], ..., PRIMARY KEY (...), FOREIGN KEY (...) REFERENCES ... (...))</c>。
+/// <c>CREATE TABLE [IF NOT EXISTS] name (col TYPE [NULL|NOT NULL] [ROWVERSION], ..., PRIMARY KEY (...), FOREIGN KEY (...) REFERENCES ... (...), CONSTRAINT name CHECK (...))</c>。
 /// </summary>
 /// <param name="Name">关系表名称。</param>
 /// <param name="Columns">列定义（按声明顺序）。</param>
 /// <param name="PrimaryKey">主键列名（按声明顺序）。</param>
 /// <param name="IfNotExists">是否带 <c>IF NOT EXISTS</c> 修饰；为 <c>true</c> 时同名表已存在则视为成功。</param>
 /// <param name="ForeignKeys">表级外键声明。</param>
+/// <param name="CheckConstraints">表级检查约束声明。</param>
 public sealed record CreateTableStatement(
     string Name,
     IReadOnlyList<TableColumnDefinition> Columns,
     IReadOnlyList<string> PrimaryKey,
     bool IfNotExists = false,
-    IReadOnlyList<TableForeignKeyClause>? ForeignKeys = null) : SqlStatement
+    IReadOnlyList<TableForeignKeyClause>? ForeignKeys = null,
+    IReadOnlyList<TableCheckConstraintClause>? CheckConstraints = null) : SqlStatement
 {
     /// <summary>当前表级外键声明。</summary>
     public IReadOnlyList<TableForeignKeyClause> ForeignKeyClauses { get; } = ForeignKeys ?? Array.Empty<TableForeignKeyClause>();
+
+    /// <summary>当前表级检查约束声明。</summary>
+    public IReadOnlyList<TableCheckConstraintClause> CheckConstraintClauses { get; } = CheckConstraints ?? Array.Empty<TableCheckConstraintClause>();
 }
 
 /// <summary>外键 ON DELETE 引用动作（NoAction / Cascade / SetNull）。</summary>
@@ -56,6 +61,15 @@ public sealed record TableForeignKeyClause(
     string PrincipalTable,
     IReadOnlyList<string> PrincipalColumns,
     ForeignKeyAction OnDelete = ForeignKeyAction.NoAction);
+
+/// <summary>关系表表级检查约束声明。</summary>
+/// <param name="Name">约束名；未命名时为空。</param>
+/// <param name="ExpressionSql">可持久化的规范化表达式文本。</param>
+/// <param name="Expression">已解析的检查表达式。</param>
+public sealed record TableCheckConstraintClause(
+    string? Name,
+    string ExpressionSql,
+    SqlExpression Expression);
 
 /// <summary>
 /// <c>CREATE DOCUMENT COLLECTION [IF NOT EXISTS] name</c>。
@@ -239,6 +253,19 @@ public sealed record AlterTableAddForeignKeyStatement(
     string PrincipalTable,
     IReadOnlyList<string> PrincipalColumns,
     ForeignKeyAction OnDelete = ForeignKeyAction.NoAction) : SqlStatement;
+
+/// <summary>
+/// <c>ALTER TABLE table ADD [CONSTRAINT name] CHECK (expression)</c>。
+/// </summary>
+/// <param name="TableName">目标关系表名称。</param>
+/// <param name="ConstraintName">检查约束名；为空时由表 schema 自动生成。</param>
+/// <param name="ExpressionSql">可持久化的规范化表达式文本。</param>
+/// <param name="Expression">已解析的检查表达式。</param>
+public sealed record AlterTableAddCheckConstraintStatement(
+    string TableName,
+    string? ConstraintName,
+    string ExpressionSql,
+    SqlExpression Expression) : SqlStatement;
 
 /// <summary>
 /// <c>ALTER TABLE table DROP COLUMN [IF EXISTS] col</c>。

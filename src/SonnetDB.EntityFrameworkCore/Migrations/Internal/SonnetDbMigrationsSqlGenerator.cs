@@ -53,6 +53,12 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
                 builder.AppendLine(",");
                 ForeignKeyConstraint(foreignKey, model, builder);
             }
+
+            foreach (var checkConstraint in operation.CheckConstraints)
+            {
+                builder.AppendLine(",");
+                AppendCheckConstraint(checkConstraint, builder);
+            }
         }
 
         builder.AppendLine().Append(")");
@@ -244,6 +250,34 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
 
     /// <inheritdoc />
     protected override void Generate(
+        AddCheckConstraintOperation operation,
+        IModel? model,
+        MigrationCommandListBuilder builder)
+    {
+        builder.Append("ALTER TABLE ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table))
+            .Append(" ADD ");
+        AppendCheckConstraint(operation, builder);
+        builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+        EndStatement(builder);
+    }
+
+    /// <inheritdoc />
+    protected override void Generate(
+        DropCheckConstraintOperation operation,
+        IModel? model,
+        MigrationCommandListBuilder builder)
+    {
+        builder.Append("ALTER TABLE ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table))
+            .Append(" DROP CONSTRAINT ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
+            .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+        EndStatement(builder);
+    }
+
+    /// <inheritdoc />
+    protected override void Generate(
         InsertDataOperation operation,
         IModel? model,
         MigrationCommandListBuilder builder,
@@ -367,6 +401,17 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
                 builder.Append(" ON DELETE SET NULL");
                 break;
         }
+    }
+
+    private void AppendCheckConstraint(
+        AddCheckConstraintOperation operation,
+        MigrationCommandListBuilder builder)
+    {
+        builder.Append("CONSTRAINT ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
+            .Append(" CHECK (")
+            .Append(operation.Sql)
+            .Append(")");
     }
 
     private static string GenerateSqlLiteral(object? value)

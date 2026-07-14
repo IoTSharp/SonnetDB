@@ -1,5 +1,6 @@
 using SonnetDB.Kv;
 using SonnetDB.Sql.Ast;
+using SonnetDB.Sql.Execution;
 
 namespace SonnetDB.Tables;
 
@@ -210,6 +211,86 @@ public sealed class TableManager : IDisposable
             }
 
             return foreignKey;
+        }
+    }
+
+    /// <summary>
+    /// 删除关系表检查约束声明。
+    /// </summary>
+    /// <param name="tableName">表名。</param>
+    /// <param name="constraintName">检查约束名。</param>
+    /// <returns>约束存在并删除时返回 <c>true</c>。</returns>
+    public bool DropCheckConstraint(string tableName, string constraintName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(constraintName);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var current = Catalog.TryGet(tableName)
+                ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+            var updated = current.WithoutCheckConstraint(constraintName);
+            if (ReferenceEquals(updated, current))
+                return false;
+
+            var store = OpenStoreLocked(current);
+            store.ApplySchema(updated);
+            Catalog.LoadOrReplace(updated);
+            try
+            {
+                PersistCatalogLocked();
+            }
+            catch
+            {
+                store.ApplySchema(current);
+                Catalog.LoadOrReplace(current);
+                throw;
+            }
+
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// 为已有关系表添加检查约束，并验证当前存量数据。
+    /// </summary>
+    /// <param name="tableName">目标关系表名称。</param>
+    /// <param name="definition">检查约束声明。</param>
+    /// <returns>添加后的检查约束。</returns>
+    public TableCheckConstraint AddCheckConstraint(
+        string tableName,
+        TableCheckConstraintDefinition definition)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+        ArgumentNullException.ThrowIfNull(definition);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var current = Catalog.TryGet(tableName)
+                ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+            var updated = current.WithCheckConstraint(definition);
+            var checkConstraint = string.IsNullOrWhiteSpace(definition.Name)
+                ? updated.CheckConstraints[^1]
+                : updated.TryGetCheckConstraint(definition.Name)
+                    ?? throw new InvalidOperationException("内部错误：检查约束创建后未能读取 schema。");
+
+            ValidateAddedCheckConstraintLocked(updated, checkConstraint);
+
+            var store = OpenStoreLocked(current);
+            store.ApplySchema(updated);
+            Catalog.LoadOrReplace(updated);
+            try
+            {
+                PersistCatalogLocked();
+            }
+            catch
+            {
+                store.ApplySchema(current);
+                Catalog.LoadOrReplace(current);
+                throw;
+            }
+
+            return checkConstraint;
         }
     }
 
@@ -489,6 +570,7 @@ public sealed class TableManager : IDisposable
                 prepared.Add(tableName, (store, store.PrepareBatch(mutations)));
             }
 
+            ValidateCheckConstraintsLocked(prepared);
             ValidateForeignKeysLocked(prepared);
 
             var applied = new List<(TableStore Store, TableStore.PreparedTableBatch Batch)>(prepared.Count);
@@ -834,6 +916,44 @@ public sealed class TableManager : IDisposable
                     $"外键 '{foreignKey.Name}' 冲突：table '{childSchema.Name}' 已有数据引用了不存在的 '{foreignKey.PrincipalTable}' 主键。");
             }
         }
+    }
+
+    private void ValidateAddedCheckConstraintLocked(
+        TableSchema schema,
+        TableCheckConstraint checkConstraint)
+    {
+        var store = OpenStoreLocked(schema);
+        foreach (var row in store.Scan())
+            ValidateCheckConstraintRow(schema, row, checkConstraint);
+    }
+
+    private static void ValidateCheckConstraintsLocked(
+        IReadOnlyDictionary<string, (TableStore Store, TableStore.PreparedTableBatch Batch)> prepared)
+    {
+        foreach (var entry in prepared.Values)
+        {
+            var schema = entry.Batch.Schema;
+            foreach (var row in entry.Batch.FinalRows)
+            {
+                foreach (var checkConstraint in schema.CheckConstraints)
+                    ValidateCheckConstraintRow(schema, row, checkConstraint);
+            }
+        }
+    }
+
+    private static void ValidateCheckConstraintRow(
+        TableSchema schema,
+        TableRow row,
+        TableCheckConstraint checkConstraint)
+    {
+        if (TableSqlExecutor.EvaluateCheckConstraint(checkConstraint.Expression, schema, row.Values))
+            return;
+
+        throw new TableConstraintException(
+            TableConstraintException.CheckViolation,
+            schema.Name,
+            checkConstraint.Name,
+            $"检查约束 '{checkConstraint.Name}' 冲突：table '{schema.Name}' 的行不满足 CHECK ({checkConstraint.ExpressionSql})。");
     }
 
     private void ValidateForeignKeysLocked(
