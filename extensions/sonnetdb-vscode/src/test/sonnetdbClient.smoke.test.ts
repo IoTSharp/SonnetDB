@@ -44,6 +44,9 @@ test('SonnetDbClient consumes the shared multi-model management contracts', asyn
   assert.equal((await client.analyzeFullText('factory', { tokenizer: 'unicode', text: 'pump alarm' })).tokens.length, 2);
   assert.equal((await client.fetchMqTopics('factory'))[0]?.topic, 'telemetry.raw');
   assert.equal((await client.browseMqMessages('factory', 'telemetry.raw')).messages[0]?.offset, 47);
+  assert.equal((await client.fetchMqMonitor('factory', 'telemetry.raw')).consumers[0]?.lag, 2);
+  assert.equal((await client.fetchObjectBuckets('factory'))[0]?.name, 'raw-data');
+  assert.equal((await client.listObjects('factory', 'raw-data', { prefix: 'images/', maxKeys: 25 })).objects[0]?.key, 'images/pump-01.jpg');
 
   const sql = await client.executeSql('factory', 'SELECT * FROM sensor_readings LIMIT 1');
   assert.deepEqual(sql.columns, ['device_id', 'temperature']);
@@ -51,7 +54,7 @@ test('SonnetDbClient consumes the shared multi-model management contracts', asyn
   assert.equal(sql.end?.rowCount, 1);
   assert.equal((await client.ingestBulk('factory', 'sensor_readings', 'lp', Buffer.from('value=1 1'))).written, 1);
 
-  assert.equal(requests.length, 16);
+  assert.equal(requests.length, 19);
   assert.ok(requests.every((entry) => entry.endsWith('Bearer smoke-token')));
 });
 
@@ -111,6 +114,42 @@ function handleRequest(request: IncomingMessage, response: ServerResponse, reque
   }
   if (path === '/v1/db/factory/mq/telemetry.raw/browse') {
     return writeJson(response, { messages: [{ topic: 'telemetry.raw', offset: 47, timestampUtc: '2026-07-10T08:00:00Z', headers: {}, payload: 'e30=' }] });
+  }
+  if (path === '/v1/db/factory/mq/telemetry.raw/monitor') {
+    return writeJson(response, {
+      topic: 'telemetry.raw',
+      messageCount: 48,
+      nextOffset: 48,
+      retainedStartOffset: 0,
+      consumers: [{ consumerGroup: 'ingest', committedOffset: 46, lag: 2, progressRatio: 0.96, status: 'healthy' }],
+      retention: { retentionIntervalMilliseconds: 60000, trimAcknowledgedMessages: true, ackRetentionMinOffsetDelta: 100, segmentMaxBytes: 1048576, hotTailMaxBytes: 1048576, segmentCacheSize: 4 },
+      deadLetter: { mode: 'disabled', candidateTopics: [] },
+    });
+  }
+  if (path === '/v1/db/factory/s3') {
+    return writeJson(response, [{ name: 'raw-data', purpose: 'source media', createdUtc: '2026-07-10T08:00:00Z', updatedUtc: '2026-07-10T08:00:00Z' }]);
+  }
+  if (path === '/v1/db/factory/s3/raw-data') {
+    return writeJson(response, {
+      bucket: 'raw-data',
+      prefix: 'images/',
+      maxKeys: 25,
+      isTruncated: false,
+      objects: [{
+        bucket: 'raw-data',
+        key: 'images/pump-01.jpg',
+        versionId: 'v1',
+        contentType: 'image/jpeg',
+        sizeBytes: 1024,
+        eTag: 'etag-1',
+        sha256: 'sha-1',
+        isDeleteMarker: false,
+        createdUtc: '2026-07-10T08:00:00Z',
+        updatedUtc: '2026-07-10T08:00:00Z',
+        metadata: {},
+        tags: { site: 'north' },
+      }],
+    });
   }
   if (path === '/v1/db/factory/sql') {
     response.writeHead(200, { 'Content-Type': 'application/x-ndjson' });

@@ -149,3 +149,23 @@ jobs:
         with:
           name: sonnetdb-vscode-vsix
           path: extensions/sonnetdb-vscode/dist/sonnetdb-vscode.vsix
+
+  vscode-extension-host:
+    name: VS Code Extension Host
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: extensions/sonnetdb-vscode/package-lock.json
+
+      - name: Install extension dependencies
+        working-directory: extensions/sonnetdb-vscode
+        run: npm ci
+
+      - name: Run Extension Host smoke
+        working-directory: extensions/sonnetdb-vscode
+        run: npm run test:host

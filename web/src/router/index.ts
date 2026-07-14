@@ -1,20 +1,21 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import WelcomeView from '@/views/WelcomeView.vue';
-import SetupView from '@/views/SetupView.vue';
-import LoginView from '@/views/LoginView.vue';
-import AutoLoginView from '@/views/AutoLoginView.vue';
-import AppShell from '@/views/AppShell.vue';
-import DashboardView from '@/views/DashboardView.vue';
-import SqlConsoleView from '@/views/SqlConsoleView.vue';
-import EventsView from '@/views/EventsView.vue';
-import MonitoringView from '@/views/MonitoringView.vue';
-import UsersView from '@/views/UsersView.vue';
-import GrantsView from '@/views/GrantsView.vue';
-import TokensView from '@/views/TokensView.vue';
-import AiSettingsView from '@/views/AiSettingsView.vue';
-import CopilotTestView from '@/views/CopilotTestView.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useSetupStore } from '@/stores/setup';
+
+const SetupView = () => import('@/views/SetupView.vue');
+const LoginView = () => import('@/views/LoginView.vue');
+const AutoLoginView = () => import('@/views/AutoLoginView.vue');
+const AppShell = () => import('@/views/AppShell.vue');
+const DashboardView = () => import('@/views/DashboardView.vue');
+const SqlConsoleView = () => import('@/views/SqlConsoleView.vue');
+const EventsView = () => import('@/views/EventsView.vue');
+const MonitoringView = () => import('@/views/MonitoringView.vue');
+const UsersView = () => import('@/views/UsersView.vue');
+const GrantsView = () => import('@/views/GrantsView.vue');
+const TokensView = () => import('@/views/TokensView.vue');
+const AiSettingsView = () => import('@/views/AiSettingsView.vue');
+const CopilotTestView = () => import('@/views/CopilotTestView.vue');
 
 const router = createRouter({
   history: createWebHistory('/'),

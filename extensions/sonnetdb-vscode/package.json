@@ -1,8 +1,8 @@
 {
   "name": "sonnetdb-vscode",
   "displayName": "SonnetDB",
-  "description": "Connect to SonnetDB, explore multi-model schema, run SQL, chart results, and use read-only Copilot from VS Code.",
-  "version": "0.2.0",
+  "description": "Connect to SonnetDB, explore multi-model schema, run SQL, chart and map results, and use read-only Copilot from VS Code.",
+  "version": "0.4.1",
   "publisher": "iotsharp",
   "preview": true,
   "private": false,
@@ -21,7 +21,8 @@
     "database",
     "sql",
     "timeseries",
-    "iot"
+    "iot",
+    "geopoint"
   ],
   "engines": {
     "vscode": "^1.100.0"
@@ -54,6 +55,8 @@
     "onCommand:sonnetdb.searchFullTextIndex",
     "onCommand:sonnetdb.analyzeFullText",
     "onCommand:sonnetdb.previewMqTopic",
+    "onCommand:sonnetdb.previewObjectBucket",
+    "onCommand:sonnetdb.showRuntimeMonitor",
     "onCommand:sonnetdb.startManagedLocalServer",
     "onCommand:sonnetdb.stopManagedLocalServer",
     "onCommand:sonnetdb.createMeasurement",
@@ -145,6 +148,15 @@
         "title": "SonnetDB: Preview MQ Topic"
       },
       {
+        "command": "sonnetdb.previewObjectBucket",
+        "title": "SonnetDB: Preview Object Bucket"
+      },
+      {
+        "command": "sonnetdb.showRuntimeMonitor",
+        "title": "SonnetDB: Show Runtime Monitor",
+        "icon": "$(pulse)"
+      },
+      {
         "command": "sonnetdb.startManagedLocalServer",
         "title": "SonnetDB: Start Managed Local Server"
       },
@@ -214,6 +226,11 @@
           "command": "sonnetdb.newQuery",
           "when": "view == sonnetdb.explorer",
           "group": "navigation"
+        },
+        {
+          "command": "sonnetdb.showRuntimeMonitor",
+          "when": "view == sonnetdb.explorer",
+          "group": "navigation"
         }
       ],
       "view/item/context": [
@@ -265,6 +282,16 @@
         {
           "command": "sonnetdb.previewMqTopic",
           "when": "view == sonnetdb.explorer && viewItem == mqTopic",
+          "group": "inline"
+        },
+        {
+          "command": "sonnetdb.showRuntimeMonitor",
+          "when": "view == sonnetdb.explorer && (viewItem == database || viewItem == mqTopic)",
+          "group": "navigation@25"
+        },
+        {
+          "command": "sonnetdb.previewObjectBucket",
+          "when": "view == sonnetdb.explorer && viewItem == objectBucket",
           "group": "inline"
         },
         {
@@ -369,6 +396,7 @@
     "watch": "tsc -watch -p ./",
     "lint": "tsc --noEmit -p ./",
     "test": "npm run compile && node --test out/test/*.test.js",
+    "test:host": "npm run compile && node ./scripts/run-extension-host-smoke.mjs",
     "clean:language-server": "node -e \"require('node:fs').rmSync('language-server',{recursive:true,force:true})\"",
     "build:language-server": "npm run clean:language-server && dotnet publish ../../src/SonnetDB.LanguageServer/SonnetDB.LanguageServer.csproj --configuration Release --output language-server -p:UseAppHost=false",
     "package:vsix": "npm run test && npm run build:language-server && node -e \"require('node:fs').mkdirSync('dist',{recursive:true})\" && vsce package --no-dependencies --out dist/sonnetdb-vscode.vsix"

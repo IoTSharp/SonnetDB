@@ -506,6 +506,102 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   context.subscriptions.push(
+    vscode.commands.registerCommand('sonnetdb.previewObjectBucket', async (node?: TreeNode) => {
+      if (!node || node.kind !== 'objectBucket') {
+        void vscode.window.showWarningMessage('Select an object bucket from the SonnetDB Explorer first.');
+        return;
+      }
+
+      try {
+        const prefix = await vscode.window.showInputBox({
+          prompt: 'Optional object key prefix',
+          ignoreFocusOut: true,
+        });
+        if (prefix === undefined) {
+          return;
+        }
+        const client = await createClient(node.profile);
+        const response = await client.listObjects(node.database, node.bucket.name, {
+          prefix: prefix.trim() || null,
+          maxKeys: boundedPreviewLimit(),
+        });
+        resultPanel.showRows(
+          `Objects ${node.database}/${node.bucket.name}`,
+          ['key', 'contentType', 'sizeBytes', 'updatedUtc', 'versionId', 'eTag', 'metadata', 'tags'],
+          response.objects.map((object) => [
+            object.key,
+            object.contentType,
+            object.sizeBytes,
+            object.updatedUtc,
+            object.versionId,
+            object.eTag,
+            JSON.stringify(object.metadata ?? {}),
+            JSON.stringify(object.tags ?? {}),
+          ]),
+          { bucket: node.bucket, response },
+          `GET /v1/db/${node.database}/s3/${node.bucket.name}`,
+        );
+      } catch (error) {
+        showCommandError('Object bucket preview failed', error);
+      }
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('sonnetdb.showRuntimeMonitor', async (node?: TreeNode) => {
+      const activeProfile = getActiveProfile();
+      const profile = node && 'profile' in node ? node.profile : activeProfile;
+      const database = node?.kind === 'database'
+        ? node.name
+        : node && 'database' in node
+          ? node.database
+          : activeProfile?.defaultDatabase;
+      if (!profile || !database) {
+        void vscode.window.showWarningMessage('Select an active SonnetDB database first.');
+        return;
+      }
+
+      try {
+        const client = await createClient(profile);
+        const health = await client.checkHealth();
+        const topics = node?.kind === 'mqTopic'
+          ? [node.topic]
+          : (await client.fetchMqTopics(database)).slice(0, 50);
+        const monitors = await Promise.all(topics.map(async (topic) => ({
+          topic,
+          monitor: await client.fetchMqMonitor(database, topic.topic),
+        })));
+        resultPanel.showRows(
+          `Runtime ${profile.label} / ${database}`,
+          ['scope', 'name', 'status', 'primary', 'secondary', 'detail'],
+          [
+            [
+              'instance',
+              profile.label,
+              health.status,
+              `${health.databases} databases`,
+              `${Math.round(health.uptimeSeconds)}s uptime`,
+              health.copilotEnabled ? `Copilot ${health.copilotReady ? 'ready' : 'not ready'}` : 'Copilot disabled',
+            ],
+            ...monitors.map(({ topic, monitor }) => [
+              'mq',
+              topic.topic,
+              monitor.consumers.some((consumer) => consumer.status !== 'healthy') ? 'attention' : 'healthy',
+              `${monitor.messageCount} messages`,
+              `${monitor.consumers.reduce((sum, consumer) => sum + consumer.lag, 0)} total lag`,
+              `${monitor.consumers.length} groups · retained ${monitor.retainedStartOffset}..${monitor.nextOffset} · DLQ ${monitor.deadLetter.mode}`,
+            ]),
+          ],
+          { health, topics: monitors },
+          `GET /healthz + POST /v1/db/${database}/mq/*/monitor`,
+        );
+      } catch (error) {
+        showCommandError('Runtime monitor failed', error);
+      }
+    }),
+  );
+
+  context.subscriptions.push(
     vscode.commands.registerCommand('sonnetdb.startManagedLocalServer', () => managedServer.start()),
     vscode.commands.registerCommand('sonnetdb.stopManagedLocalServer', () => managedServer.stop()),
     vscode.commands.registerCommand('sonnetdb.showManagedServerOutput', () => managedServer.showOutput()),

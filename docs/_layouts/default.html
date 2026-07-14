@@ -4,6 +4,7 @@
   {% assign docs_baseurl = site.docs_baseurl | default: '/help' %}
   {% assign app_link_url = site.app_link_url | default: '/admin/' %}
   {% assign app_link_text = site.app_link_text | default: '管理' %}
+  {% assign vscode_marketplace_url = site.vscode_marketplace_url %}
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% if page.title %}{{ page.title }} | {% endif %}SonnetDB Docs</title>
@@ -46,6 +47,9 @@
       </nav>
 
       <div class="header-actions">
+        {% if vscode_marketplace_url %}
+        <a class="ghost-link" href="{{ vscode_marketplace_url }}" target="_blank" rel="noreferrer">VS Code</a>
+        {% endif %}
         {% if app_link_url %}
         <a class="ghost-link" href="{{ app_link_url }}">{{ app_link_text }}</a>
         {% endif %}

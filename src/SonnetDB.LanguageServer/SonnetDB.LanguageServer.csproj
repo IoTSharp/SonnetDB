@@ -12,4 +12,8 @@
     <ProjectReference Include="..\SonnetDB.Core\SonnetDB.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="SonnetDB.LanguageServer.Tests" />
+  </ItemGroup>
+
 </Project>

@@ -15,18 +15,18 @@
       <n-space size="small" align="center" :wrap="false">
         <span v-if="meta" class="sql-result-card__meta">{{ meta }}</span>
         <n-tabs
-          v-if="hasRows"
+          v-if="hasRows && showViewSwitcher"
           v-model:value="view"
           type="segment"
           size="small"
           style="min-width: 220px"
         >
-          <n-tab v-if="explainPlan" name="plan" tab="Plan" />
-          <n-tab name="table" tab="Table" />
-          <n-tab name="raw" tab="Raw" />
-          <n-tab name="json" tab="JSON" />
-          <n-tab name="chart" tab="Chart" />
-          <n-tab v-if="hasGeoPoints" name="map" tab="Map" />
+          <n-tab v-if="explainPlan && isViewAvailable('plan')" name="plan" tab="Plan" />
+          <n-tab v-if="isViewAvailable('table')" name="table" tab="Table" />
+          <n-tab v-if="isViewAvailable('raw')" name="raw" tab="Raw" />
+          <n-tab v-if="isViewAvailable('json')" name="json" tab="JSON" />
+          <n-tab v-if="isViewAvailable('chart')" name="chart" tab="Chart" />
+          <n-tab v-if="hasGeoPoints && isViewAvailable('map')" name="map" tab="Map" />
         </n-tabs>
       </n-space>
     </template>
@@ -89,16 +89,23 @@ import { rowsToObjects, type SqlResultSet } from '@/api/sql';
 import { parseVisualExplainPlan } from '@/utils/explainPlan';
 import { formatSqlValue, parseGeoPointValue } from '@/utils/sqlValue';
 
+type View = 'plan' | 'table' | 'raw' | 'json' | 'chart' | 'map';
+
 interface Props {
   index: number;
   sql: string;
   result: SqlResultSet;
   displayRows?: unknown[][];
+  viewMode?: View;
+  showViewSwitcher?: boolean;
+  availableViews?: View[];
 }
-const props = defineProps<Props>();
-
-type View = 'plan' | 'table' | 'raw' | 'json' | 'chart' | 'map';
-const view = ref<View>('table');
+const props = withDefaults(defineProps<Props>(), {
+  viewMode: undefined,
+  showViewSwitcher: true,
+  availableViews: () => ['plan', 'table', 'raw', 'json', 'chart', 'map'],
+});
+const view = ref<View>(props.viewMode ?? 'table');
 
 const visibleRows = computed(() => props.displayRows ?? props.result.rows);
 const visibleResult = computed<SqlResultSet>(() => ({
@@ -125,7 +132,15 @@ const hasChartData = computed(() => {
   return props.result.columns.some((column) => isTimeLikeColumn(column));
 });
 
+function isViewAvailable(value: View): boolean {
+  return props.availableViews.includes(value);
+}
+
 watch([hasRows, explainPlan, () => props.result.columns, visibleRows], () => {
+  if (props.viewMode) {
+    view.value = props.viewMode;
+    return;
+  }
   if (!hasRows.value) {
     view.value = 'raw';
     return;
@@ -148,6 +163,10 @@ watch([hasRows, explainPlan, () => props.result.columns, visibleRows], () => {
 
   view.value = 'table';
 }, { immediate: true });
+
+watch(() => props.viewMode, (value) => {
+  if (value) view.value = value;
+});
 
 const trimmedSql = computed(() => {
   const oneLine = props.sql.replace(/\s+/g, ' ').trim();

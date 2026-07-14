@@ -125,7 +125,6 @@
         @confirm-preview="confirmPreview"
         @clear-error="clearActiveError"
         @history-select="openHistoryEntry"
-        @open-trajectory="setWorkbenchTool('trajectory')"
         />
 
         <RelationalTableWorkbench
@@ -236,24 +235,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { NDropdown, useMessage } from 'naive-ui';
+import AsyncWorkbenchLoading from '@/components/AsyncWorkbenchLoading.vue';
 import CreateDatabaseDialog from '@/components/CreateDatabaseDialog.vue';
-import DocumentCollectionWorkbench from '@/components/DocumentCollectionWorkbench.vue';
-import FullTextSearchWorkbench from '@/components/FullTextSearchWorkbench.vue';
-import KvKeyspaceWorkbench from '@/components/KvKeyspaceWorkbench.vue';
 import ManagementExplorerSidebar from '@/components/ManagementExplorerSidebar.vue';
-import MeasurementWorkbench from '@/components/MeasurementWorkbench.vue';
-import ObjectBucketWorkbench from '@/components/ObjectBucketWorkbench.vue';
-import RelationalTableWorkbench from '@/components/RelationalTableWorkbench.vue';
 import RemoteConnectionDialog from '@/components/RemoteConnectionDialog.vue';
 import SlowQueryDrawer from '@/components/SlowQueryDrawer.vue';
-import SonnetMqWorkbench from '@/components/SonnetMqWorkbench.vue';
 import SqlQueryWorkspace from '@/components/SqlQueryWorkspace.vue';
 import StudioWorkspaceTabs, { type StudioWorkspaceTab } from '@/components/StudioWorkspaceTabs.vue';
-import VectorSearchWorkbench from '@/components/VectorSearchWorkbench.vue';
 import WorkbenchHistoryDrawer from '@/components/WorkbenchHistoryDrawer.vue';
-import TrajectoryMap from '@/views/TrajectoryMap.vue';
 import type { FullTextIndexStat, VectorIndexStat } from '@/api/management';
 import type { DocumentCollectionInfo } from '@/api/schema';
 import {
@@ -274,6 +265,44 @@ import {
 } from '@/stores/sqlConsole';
 import { useWorkbenchHistoryStore } from '@/stores/workbenchHistory';
 import type { WorkbenchTool } from '@/utils/sqlWorkbench';
+
+const asyncWorkbenchOptions = { loadingComponent: AsyncWorkbenchLoading, delay: 120, suspensible: false };
+const DocumentCollectionWorkbench = defineAsyncComponent({
+  ...asyncWorkbenchOptions,
+  loader: () => import('@/components/DocumentCollectionWorkbench.vue'),
+});
+const FullTextSearchWorkbench = defineAsyncComponent({
+  ...asyncWorkbenchOptions,
+  loader: () => import('@/components/FullTextSearchWorkbench.vue'),
+});
+const KvKeyspaceWorkbench = defineAsyncComponent({
+  ...asyncWorkbenchOptions,
+  loader: () => import('@/components/KvKeyspaceWorkbench.vue'),
+});
+const MeasurementWorkbench = defineAsyncComponent({
+  ...asyncWorkbenchOptions,
+  loader: () => import('@/components/MeasurementWorkbench.vue'),
+});
+const ObjectBucketWorkbench = defineAsyncComponent({
+  ...asyncWorkbenchOptions,
+  loader: () => import('@/components/ObjectBucketWorkbench.vue'),
+});
+const RelationalTableWorkbench = defineAsyncComponent({
+  ...asyncWorkbenchOptions,
+  loader: () => import('@/components/RelationalTableWorkbench.vue'),
+});
+const SonnetMqWorkbench = defineAsyncComponent({
+  ...asyncWorkbenchOptions,
+  loader: () => import('@/components/SonnetMqWorkbench.vue'),
+});
+const VectorSearchWorkbench = defineAsyncComponent({
+  ...asyncWorkbenchOptions,
+  loader: () => import('@/components/VectorSearchWorkbench.vue'),
+});
+const TrajectoryMap = defineAsyncComponent({
+  ...asyncWorkbenchOptions,
+  loader: () => import('@/views/TrajectoryMap.vue'),
+});
 
 const auth = useAuthStore();
 const connections = useConnectionsStore();

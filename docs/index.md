@@ -14,6 +14,7 @@ SonnetDB 是一个面向 C# / .NET 10 工业边缘应用的本地优先数据引
 <div class="hero-link-row">
   <a class="hero-link hero-link-primary" href="{{ site.home_primary_url | default: '/admin/' }}">{{ site.home_primary_text | default: '打开管理界面' }}</a>
   <a class="hero-link hero-link-secondary" href="{{ site.docs_baseurl | default: '/help' }}/getting-started/">开始使用</a>
+  <a class="hero-link hero-link-secondary" href="https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode">安装 VS Code 扩展</a>
 </div>
 
 <div class="callout-grid">
@@ -40,6 +41,7 @@ SonnetDB 是一个面向 C# / .NET 10 工业边缘应用的本地优先数据引
 | 编写 `CREATE/INSERT/SELECT/DELETE` 或控制面 SQL | [SQL 参考]({{ site.docs_baseurl | default: '/help' }}/sql-reference/) |
 | 想直接复制一段常用 SQL 模板 | [SQL Cookbook]({{ site.docs_baseurl | default: '/help' }}/sql-cookbook/) |
 | 使用 SonnetDB Studio 浏览 schema、编辑 SQL、做 staged preview | [SonnetDB Studio]({{ site.docs_baseurl | default: '/help' }}/web-workbench/) |
+| 在 VS Code 中连接 SonnetDB、浏览 schema、执行 SQL 和查看结果 | [从 Visual Studio Marketplace 安装 SonnetDB 扩展](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode) |
 | 对比 Web Admin、Studio 桌面、VS Code 的八模型管理能力 | [管理工具与三面能力矩阵]({{ site.docs_baseurl | default: '/help' }}/management-tools/) |
 | 了解 Copilot 如何辅助 SQL、排障和知识检索 | [SonnetDB Studio]({{ site.docs_baseurl | default: '/help' }}/web-workbench/) 和 [Copilot 技能库](https://github.com/IoTSharp/SonnetDB/tree/main/copilot/skills) |
 | 配置 Copilot Provider、模型分组或本地模型 | [Copilot Provider 与模型目录]({{ site.docs_baseurl | default: '/help' }}/copilot-providers/) |
@@ -71,7 +73,8 @@ SonnetDB 现在由这些主线组成：
 5. CLI 工具 `SonnetDB.Cli`
 6. SonnetDB Studio 与 CopilotDock
 7. C、Go、Rust、Java、Python、VB6、PureBasic 等连接器
-8. 面向 AI / Agent 的 `llms.txt`、MCP 工具和工业应用文档
+8. [SonnetDB for VS Code](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode)
+9. 面向 AI / Agent 的 `llms.txt`、MCP 工具和工业应用文档
 
 这几部分共享同一套底层存储格式和大部分 SQL 行为。服务端额外增加了：
 

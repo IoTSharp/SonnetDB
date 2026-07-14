@@ -16,6 +16,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/)
 [![GitHub Release](https://img.shields.io/github/v/release/IoTSharp/SonnetDB?label=Release)](https://github.com/IoTSharp/SonnetDB/releases)
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/iotsharp.sonnetdb-vscode?label=VS%20Code)](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode)
 
 ## 🧩 What Is SonnetDB
 
@@ -54,6 +55,7 @@ The relational SQL surface is a practical subset covering common queries, aggreg
 | Server | Docker / HTTP API / Web Admin |
 | .NET ecosystem | ADO.NET, EF Core, `IDistributedCache` / EasyCaching provider |
 | CLI | `sndb` for local / remote SQL, backup, and maintenance |
+| VS Code | [Install the official SonnetDB extension](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode) to connect, browse schema, run SQL, and inspect results in the editor |
 | Binary frame protocol | High-throughput frame access over HTTP/2 across all seven models (data plane); REST kept for compatibility |
 | Device ingest | Built-in MQTT broker (devices publish straight into the DB) + external MQTT client (subscribe to existing EMQX / Mosquitto) |
 | Multi-language | C, Go, Rust, Java, Python, VB6, and PureBasic connectors |
@@ -160,6 +162,17 @@ More CLI, ADO.NET, document-client, embedded, remote, and bulk-ingest examples a
 
 ## 📦 Ecosystem Downloads
 
+### VS Code
+
+[![Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/iotsharp.sonnetdb-vscode?label=SonnetDB)](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode)
+[![Marketplace Installs](https://img.shields.io/visual-studio-marketplace/i/iotsharp.sonnetdb-vscode?label=Installs)](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode)
+
+Search for `SonnetDB` in the VS Code Extensions view, or run:
+
+```bash
+code --install-extension iotsharp.sonnetdb-vscode
+```
+
 ### NuGet
 
 [![SonnetDB.Core Version](https://img.shields.io/nuget/v/SonnetDB.Core?label=SonnetDB.Core)](https://www.nuget.org/packages/SonnetDB.Core)
@@ -195,6 +208,7 @@ More CLI, ADO.NET, document-client, embedded, remote, and bulk-ingest examples a
 | `extensions/SonnetDB.Caching.Distributed` | `IDistributedCache` provider backed by SonnetDB KV keyspaces |
 | `web` | Admin frontend (SonnetDB Studio, global CopilotDock, published SPA assets) |
 | `src/SonnetDB.Studio` | NativeWebHost-based SonnetDB Studio desktop shell |
+| `extensions/sonnetdb-vscode` | [Official VS Code extension](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode) for remote/managed-local connections, Explorer, SQL, result views, and Copilot |
 | `docs` | JekyllNet documentation site source, bundled into the Docker image |
 
 ## 📚 Deep-Dive Docs
@@ -208,6 +222,7 @@ README keeps the product overview and shortest setup path. Detailed material liv
 | SQL grammar, functions, control-plane SQL | [SQL Reference](docs/sql-reference.md), [SQL Cookbook](docs/sql-cookbook.md) |
 | Web Admin, SQL Workbench, Copilot | [SonnetDB Workbench](docs/web-workbench.md) |
 | Copilot providers, model groups, local models | [Copilot Provider and Model Catalog](docs/copilot-providers.md) |
+| VS Code installation, connections, and extension development | [Install from Marketplace](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode), [SonnetDB for VS Code](extensions/sonnetdb-vscode/README.md) |
 | Embedded API, ADO.NET, EF Core, CLI | [Embedded API](docs/embedded-api.md), [ADO.NET](docs/ado-net.md), [CLI](docs/cli-reference.md) |
 | Bulk ingest, Line Protocol, JSON ingest | [Bulk Ingest](docs/bulk-ingest.md) |
 | KV, documents, full-text, vector, Hybrid Search | [KV Keyspace](docs/kv-keyspace.md), [Document Store](docs/document-store.md), [Vector Search](docs/vector-search.md) |

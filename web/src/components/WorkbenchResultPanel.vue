@@ -1,10 +1,12 @@
 <template>
-  <Teleport to="body">
+  <Teleport to="body" :disabled="inline">
   <section
-    v-show="open"
+    v-show="inline || open"
     class="workbench-result-panel"
-    data-workbench-result-drawer
-    :style="{ left: `${drawerLeft}px` }"
+    :class="{ 'is-inline': inline }"
+    :data-workbench-result-drawer="inline ? undefined : ''"
+    :data-workbench-result-inline="inline ? '' : undefined"
+    :style="inline ? undefined : { left: `${drawerLeft}px` }"
   >
     <div class="workbench-result-panel__toolbar">
       <div class="workbench-result-panel__identity">
@@ -29,7 +31,7 @@
         <n-button size="small" quaternary title="Export result set as JSON" :disabled="!canExport" @click="downloadJson">
           JSON
         </n-button>
-        <n-button size="small" quaternary title="关闭结果" @click="open = false">
+        <n-button v-if="!inline" size="small" quaternary title="关闭结果" @click="open = false">
           <template #icon><X :size="16" /></template>
         </n-button>
       </div>
@@ -52,6 +54,9 @@
         :sql="sql"
         :result="result"
         :display-rows="displayRows"
+        :view-mode="viewMode"
+        :show-view-switcher="showViewSwitcher"
+        :available-views="availableViews"
       />
 
       <n-empty v-else-if="ranOnce" description="Statement executed without rows." />
@@ -91,6 +96,10 @@ const props = withDefaults(defineProps<{
   ranOnce?: boolean;
   emptyDescription?: string;
   fileName?: string;
+  inline?: boolean;
+  viewMode?: 'plan' | 'table' | 'raw' | 'json' | 'chart' | 'map';
+  showViewSwitcher?: boolean;
+  availableViews?: Array<'plan' | 'table' | 'raw' | 'json' | 'chart' | 'map'>;
 }>(), {
   title: 'Results',
   sql: '',
@@ -99,6 +108,10 @@ const props = withDefaults(defineProps<{
   ranOnce: false,
   emptyDescription: 'Run an operation to see results.',
   fileName: 'result',
+  inline: false,
+  viewMode: undefined,
+  showViewSwitcher: true,
+  availableViews: () => ['plan', 'table', 'raw', 'json', 'chart', 'map'],
 });
 
 defineEmits<{
@@ -213,15 +226,19 @@ function onKeydown(event: KeyboardEvent): void {
 }
 
 onMounted(() => {
-  window.addEventListener('sndb:toggle-result', onToggleResult);
-  window.addEventListener('keydown', onKeydown);
-  window.addEventListener('resize', updateDrawerOffset);
+  if (!props.inline) {
+    window.addEventListener('sndb:toggle-result', onToggleResult);
+    window.addEventListener('keydown', onKeydown);
+    window.addEventListener('resize', updateDrawerOffset);
+  }
 });
 
 onBeforeUnmount(() => {
-  window.removeEventListener('sndb:toggle-result', onToggleResult);
-  window.removeEventListener('keydown', onKeydown);
-  window.removeEventListener('resize', updateDrawerOffset);
+  if (!props.inline) {
+    window.removeEventListener('sndb:toggle-result', onToggleResult);
+    window.removeEventListener('keydown', onKeydown);
+    window.removeEventListener('resize', updateDrawerOffset);
+  }
 });
 </script>
 
@@ -239,6 +256,31 @@ onBeforeUnmount(() => {
   border-top: 1px solid var(--sndb-border-strong);
   background: #fff;
   box-shadow: 0 -12px 30px rgba(23, 33, 43, 0.1);
+}
+
+.workbench-result-panel.is-inline {
+  position: static;
+  z-index: auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border-top: 0;
+  box-shadow: none;
+}
+
+.workbench-result-panel.is-inline .workbench-result-panel__toolbar {
+  min-height: 48px;
+  background: var(--sndb-surface-subtle);
+}
+
+.workbench-result-panel.is-inline .workbench-result-panel__body {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.workbench-result-panel.is-inline .workbench-result-panel__result {
+  width: calc(100% - 24px);
+  box-sizing: border-box;
 }
 
 .workbench-result-panel__toolbar {

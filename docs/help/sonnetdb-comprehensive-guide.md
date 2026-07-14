@@ -1665,16 +1665,32 @@ curl -N http://127.0.0.1:5080/v1/events
 
 ### 22.1 概述
 
-SonnetDB for VS Code 扩展（开发中）提供远程连接、SQL 执行、结果展示和 Copilot 面板。
+SonnetDB for VS Code 已发布到 Visual Studio Marketplace：
 
-### 22.2 规划功能
+- [打开 SonnetDB Marketplace 页面](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode)
+- 在 VS Code 扩展视图中搜索 `SonnetDB`
+- 或使用命令行安装：
 
-- 远程服务器连接管理器
-- 数据库浏览器（树形视图）
-- SQL 编辑器与执行
-- 结果数据查看器
-- Copilot AI 辅助面板
-- 本地管理服务器
+```bash
+code --install-extension iotsharp.sonnetdb-vscode
+```
+
+### 22.2 当前能力
+
+- 远程连接 profile 与 `SecretStorage` Token
+- 数据库、Measurement、关系表、文档、KV、向量、全文、MQ 和对象桶 Explorer
+- SQL 当前语句/选区执行、schema 补全、诊断、签名帮助与快速修复
+- Table / Raw / Chart 结果视图，GEOPOINT 查询可切换 Trajectory
+- 只读多模型预览、查询历史和 CSV/JSON 导出
+- Copilot 面板，默认 read-only，切换 read-write 前显式确认
+- 扩展托管的本地 SonnetDB Server 启停、健康检查和日志
+
+### 22.3 开始使用
+
+1. 安装扩展并打开 SonnetDB Activity Bar。
+2. 添加远程连接，填写 SonnetDB Server URL，并将 Token 交给 VS Code `SecretStorage` 保存。
+3. 选择活动数据库后打开 SQL 文件。
+4. 使用 `Ctrl+Enter` 执行当前语句，或使用 `Ctrl+Shift+Enter` 执行选区。
 
 ---
 

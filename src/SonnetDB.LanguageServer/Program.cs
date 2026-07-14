@@ -1,42 +1,68 @@
-using System.Text;
 using System.Text.Json;
 using SonnetDB.LanguageServer;
 
-Console.InputEncoding = Encoding.UTF8;
-Console.OutputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+using Stream input = Console.OpenStandardInput();
+await using Stream output = Console.OpenStandardOutput();
 
-while (await Console.In.ReadLineAsync() is { } line)
+while (LanguageServerFraming.ReadMessage(input) is { } payload)
 {
-    if (string.IsNullOrWhiteSpace(line))
-        continue;
-
-    LanguageServerResponse response;
+    JsonRpcResponse response;
     try
     {
-        var request = JsonSerializer.Deserialize(line, LanguageServerJsonContext.Default.LanguageServerRequest);
+        var request = JsonSerializer.Deserialize(payload, LanguageServerJsonContext.Default.JsonRpcRequest);
         response = request is null
-            ? new LanguageServerResponse(0, [], "请求不能为空。")
+            ? ErrorResponse(0, -32600, "请求不能为空。")
             : HandleRequest(request);
     }
     catch (JsonException exception)
     {
-        response = new LanguageServerResponse(0, [], $"无效的 JSON 请求：{exception.Message}");
+        response = ErrorResponse(0, -32700, $"无效的 JSON 请求：{exception.Message}");
     }
 
-    string json = JsonSerializer.Serialize(response, LanguageServerJsonContext.Default.LanguageServerResponse);
-    await Console.Out.WriteLineAsync(json);
-    await Console.Out.FlushAsync();
+    byte[] responsePayload = JsonSerializer.SerializeToUtf8Bytes(
+        response,
+        LanguageServerJsonContext.Default.JsonRpcResponse);
+    await LanguageServerFraming.WriteMessageAsync(output, responsePayload);
 }
 
-static LanguageServerResponse HandleRequest(LanguageServerRequest request)
+static JsonRpcResponse HandleRequest(JsonRpcRequest request)
 {
+    int id = request.Id ?? 0;
+    if (!string.Equals(request.Jsonrpc, "2.0", StringComparison.Ordinal))
+        return ErrorResponse(id, -32600, "jsonrpc 必须为 2.0。");
+
     return request.Method switch
     {
-        "ping" => new LanguageServerResponse(request.Id, []),
-        "validate" when request.Text is not null => new LanguageServerResponse(
-            request.Id,
-            SqlValidationService.Validate(request.Text)),
-        "validate" => new LanguageServerResponse(request.Id, [], "validate 请求缺少 text。"),
-        _ => new LanguageServerResponse(request.Id, [], $"不支持的方法：{request.Method}"),
+        "initialize" => ResultResponse(id, new InitializeResult(
+            new ServerCapabilities("SonnetDB SQL parser diagnostics over JSON-RPC/LSP framing.")),
+            LanguageServerJsonContext.Default.InitializeResult),
+        "ping" => ResultResponse(id, new LanguageValidationResult([]), LanguageServerJsonContext.Default.LanguageValidationResult),
+        "sonnetdb/validate" or "validate" => Validate(id, request.Params),
+        _ => ErrorResponse(id, -32601, $"不支持的方法：{request.Method}"),
     };
+}
+
+static JsonRpcResponse Validate(int id, JsonElement? parameters)
+{
+    if (parameters is not { ValueKind: JsonValueKind.Object } value)
+        return ErrorResponse(id, -32602, "sonnetdb/validate 请求缺少 params。");
+
+    var request = value.Deserialize(LanguageServerJsonContext.Default.LanguageValidationParams);
+    if (request?.Text is null)
+        return ErrorResponse(id, -32602, "sonnetdb/validate 请求缺少 text。");
+
+    return ResultResponse(
+        id,
+        new LanguageValidationResult(SqlValidationService.Validate(request.Text)),
+        LanguageServerJsonContext.Default.LanguageValidationResult);
+}
+
+static JsonRpcResponse ResultResponse<T>(int id, T result, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo)
+{
+    return new JsonRpcResponse("2.0", id, JsonSerializer.SerializeToElement(result, typeInfo));
+}
+
+static JsonRpcResponse ErrorResponse(int id, int code, string message)
+{
+    return new JsonRpcResponse("2.0", id, null, new JsonRpcError(code, message));
 }

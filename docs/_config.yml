@@ -7,3 +7,4 @@ app_link_url: /admin/
 app_link_text: 管理
 home_primary_url: /admin/
 home_primary_text: 打开管理界面
+vscode_marketplace_url: https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode

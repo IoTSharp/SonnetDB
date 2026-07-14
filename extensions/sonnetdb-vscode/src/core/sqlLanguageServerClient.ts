@@ -13,9 +13,15 @@ export interface LanguageServerDiagnostic {
 }
 
 interface LanguageServerResponse {
+  jsonrpc: '2.0';
   id: number;
-  diagnostics: LanguageServerDiagnostic[];
-  error?: string;
+  result?: {
+    diagnostics: LanguageServerDiagnostic[];
+  };
+  error?: {
+    code: number;
+    message: string;
+  };
 }
 
 interface PendingRequest {
@@ -26,7 +32,7 @@ interface PendingRequest {
 
 export class SqlLanguageServerClient {
   private process: ChildProcessWithoutNullStreams | undefined;
-  private stdoutBuffer = '';
+  private stdoutBuffer = Buffer.alloc(0);
   private nextRequestId = 1;
   private readonly pending = new Map<number, PendingRequest>();
   private disposed = false;
@@ -55,7 +61,14 @@ export class SqlLanguageServerClient {
         reject(new Error(`SonnetDB language server timed out after ${timeoutMilliseconds} ms.`));
       }, timeoutMilliseconds);
       this.pending.set(id, { resolve, reject, timeout });
-      process.stdin.write(`${JSON.stringify({ id, method: 'validate', text })}\n`, (error) => {
+      const payload = Buffer.from(JSON.stringify({
+        jsonrpc: '2.0',
+        id,
+        method: 'sonnetdb/validate',
+        params: { text },
+      }), 'utf8');
+      const header = Buffer.from(`Content-Length: ${payload.byteLength}\r\n\r\n`, 'ascii');
+      process.stdin.write(Buffer.concat([header, payload]), (error) => {
         if (error) {
           this.rejectRequest(id, error);
         }
@@ -84,9 +97,8 @@ export class SqlLanguageServerClient {
       windowsHide: true,
     });
     this.process = process;
-    process.stdout.setEncoding('utf8');
     process.stderr.setEncoding('utf8');
-    process.stdout.on('data', (chunk: string) => this.consumeStdout(chunk));
+    process.stdout.on('data', (chunk: Buffer) => this.consumeStdout(chunk));
     process.stderr.on('data', (chunk: string) => this.log(chunk.trimEnd()));
     process.once('error', (error) => this.handleExit(error));
     process.once('exit', (code, signal) => this.handleExit(
@@ -95,16 +107,31 @@ export class SqlLanguageServerClient {
     return process;
   }
 
-  private consumeStdout(chunk: string): void {
-    this.stdoutBuffer += chunk;
-    const lines = this.stdoutBuffer.split(/\r?\n/u);
-    this.stdoutBuffer = lines.pop() ?? '';
-    for (const line of lines) {
-      if (!line.trim()) {
+  private consumeStdout(chunk: Buffer): void {
+    this.stdoutBuffer = Buffer.concat([this.stdoutBuffer, chunk]);
+    const delimiter = Buffer.from('\r\n\r\n', 'ascii');
+    while (true) {
+      const headerEnd = this.stdoutBuffer.indexOf(delimiter);
+      if (headerEnd < 0) {
+        return;
+      }
+      const header = this.stdoutBuffer.subarray(0, headerEnd).toString('ascii');
+      const match = header.match(/(?:^|\r\n)Content-Length:\s*(\d+)\s*(?:\r\n|$)/iu);
+      if (!match) {
+        this.log('Invalid language server response: missing Content-Length header');
+        this.stdoutBuffer = this.stdoutBuffer.subarray(headerEnd + delimiter.length);
         continue;
       }
+      const contentLength = Number.parseInt(match[1], 10);
+      const payloadStart = headerEnd + delimiter.length;
+      const payloadEnd = payloadStart + contentLength;
+      if (this.stdoutBuffer.length < payloadEnd) {
+        return;
+      }
+      const payload = this.stdoutBuffer.subarray(payloadStart, payloadEnd).toString('utf8');
+      this.stdoutBuffer = this.stdoutBuffer.subarray(payloadEnd);
       try {
-        this.handleResponse(JSON.parse(line) as unknown);
+        this.handleResponse(JSON.parse(payload) as unknown);
       } catch (error) {
         this.log(`Invalid language server response: ${errorMessage(error)}`);
       }
@@ -122,10 +149,10 @@ export class SqlLanguageServerClient {
     clearTimeout(pending.timeout);
     this.pending.delete(value.id);
     if (value.error) {
-      pending.reject(new Error(value.error));
+      pending.reject(new Error(value.error.message));
     } else {
       this.retryAfter = 0;
-      pending.resolve(value.diagnostics);
+      pending.resolve(value.result?.diagnostics ?? []);
     }
   }
 
@@ -151,7 +178,7 @@ export class SqlLanguageServerClient {
     }
     this.process = undefined;
     this.retryAfter = Date.now() + 30_000;
-    this.stdoutBuffer = '';
+    this.stdoutBuffer = Buffer.alloc(0);
     this.rejectAll(error);
   }
 }
@@ -161,10 +188,25 @@ function isLanguageServerResponse(value: unknown): value is LanguageServerRespon
     return false;
   }
   const record = value as Record<string, unknown>;
-  return Number.isInteger(record.id)
-    && Array.isArray(record.diagnostics)
-    && record.diagnostics.every(isDiagnostic)
-    && (record.error === undefined || typeof record.error === 'string');
+  if (record.jsonrpc !== '2.0' || !Number.isInteger(record.id)) {
+    return false;
+  }
+  if (record.error !== undefined) {
+    return isLanguageServerError(record.error);
+  }
+  if (!record.result || typeof record.result !== 'object') {
+    return false;
+  }
+  const result = record.result as Record<string, unknown>;
+  return Array.isArray(result.diagnostics) && result.diagnostics.every(isDiagnostic);
+}
+
+function isLanguageServerError(value: unknown): boolean {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return Number.isInteger(record.code) && typeof record.message === 'string';
 }
 
 function isDiagnostic(value: unknown): value is LanguageServerDiagnostic {

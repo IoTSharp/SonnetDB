@@ -46,6 +46,7 @@ The VS Code extension should copy or adapt these ideas from the current web admi
 - schema loading from `web/src/api/schema.ts`
 - SonnetDB SQL dialect keywords from `web/src/components/sonnetdb-dialect.ts`
 - chart heuristics from `web/src/components/SqlResultChart.vue`
+- GEOPOINT parsing and trajectory heuristics from `web/src/utils/sqlValue.ts` and `web/src/components/ResultMapPreview.vue`
 - Copilot request shape from `web/src/api/copilot.ts`
 
 ## Data models worth mirroring in the extension

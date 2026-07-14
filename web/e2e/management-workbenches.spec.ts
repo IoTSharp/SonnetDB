@@ -208,10 +208,24 @@ for (const workbench of workbenches) {
     await expect(surface).toBeVisible();
     await expect(surface).toContainText(workbench.identity);
     if (workbench.tool === '') {
+      const editor = surface.locator('.editor-shell');
+      const resultRegion = surface.getByTestId('sql-result-region');
+      await expect(editor).toBeVisible();
+      await expect(resultRegion).toBeVisible();
+      const editorBox = await editor.boundingBox();
+      const resultBox = await resultRegion.boundingBox();
+      expect(editorBox).not.toBeNull();
+      expect(resultBox).not.toBeNull();
+      expect(resultBox!.y).toBeGreaterThanOrEqual(editorBox!.y + editorBox!.height - 1);
+
+      await surface.getByRole('button', { name: 'Run', exact: true }).click();
+      await expect(resultRegion.locator('.workbench-section-tab.is-active')).toHaveText('表格');
+      await expect(resultRegion).toContainText('line-01');
+      await expect(editor).toBeVisible();
+
       await page.getByTitle('查看结果').click();
-      const resultDrawer = page.locator('[data-workbench-result-drawer]');
-      await expect(resultDrawer).toBeVisible();
-      await expect(resultDrawer).toContainText('SQL results');
+      await expect(resultRegion).toBeVisible();
+      await expect(page.locator('[data-workbench-result-drawer]')).toHaveCount(0);
     }
     if (process.env.SONNETDB_CAPTURE_M29 === '1') {
       await captureM29(page, `default-${workbench.tool || 'sql'}`);

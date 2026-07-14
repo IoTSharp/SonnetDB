@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace SonnetDB.LanguageServer;
@@ -20,16 +21,30 @@ public static class DiagnosticSeverity
 /// <param name="Length">诊断覆盖的字符数。</param>
 public sealed record LanguageDiagnostic(string Severity, string Message, int Offset, int Length);
 
-internal sealed record LanguageServerRequest(int Id, string Method, string? Text);
+internal sealed record JsonRpcRequest(string Jsonrpc, int? Id, string Method, JsonElement? Params);
 
-internal sealed record LanguageServerResponse(
+internal sealed record JsonRpcResponse(
+    string Jsonrpc,
     int Id,
-    IReadOnlyList<LanguageDiagnostic> Diagnostics,
-    string? Error = null);
+    JsonElement? Result = null,
+    JsonRpcError? Error = null);
+
+internal sealed record JsonRpcError(int Code, string Message);
+
+internal sealed record LanguageValidationParams(string? Text);
+
+internal sealed record LanguageValidationResult(IReadOnlyList<LanguageDiagnostic> Diagnostics);
+
+internal sealed record InitializeResult(ServerCapabilities Capabilities);
+
+internal sealed record ServerCapabilities(string Experimental);
 
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
-[JsonSerializable(typeof(LanguageServerRequest))]
-[JsonSerializable(typeof(LanguageServerResponse))]
+[JsonSerializable(typeof(JsonRpcRequest))]
+[JsonSerializable(typeof(JsonRpcResponse))]
+[JsonSerializable(typeof(LanguageValidationParams))]
+[JsonSerializable(typeof(LanguageValidationResult))]
+[JsonSerializable(typeof(InitializeResult))]
 internal sealed partial class LanguageServerJsonContext : JsonSerializerContext;

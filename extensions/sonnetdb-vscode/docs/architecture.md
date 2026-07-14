@@ -18,7 +18,7 @@ The extension should have three layers:
    - point that server at a selected data root
 4. SQL language sidecar
    - reuse the C# `SqlParser` without duplicating grammar in TypeScript
-   - exchange stateless JSON-line validation requests over stdin/stdout
+   - exchange stateless JSON-RPC 2.0 requests over standard LSP `Content-Length` frames on stdin/stdout
    - fall back to lightweight TypeScript diagnostics when unavailable
 
 ## 2. Why remote-first
@@ -67,7 +67,7 @@ Recommended VS Code surfaces:
 
 - activity bar container: explorer tree and connection actions
 - command palette: add connection, run query, open result panel, open Copilot
-- custom result webview: table, raw JSON, chart
+- custom result webview: table, raw JSON, chart, and conditional GEOPOINT trajectory
 - read-only multi-model preview commands: KV scan, MQ browse, vector search, full-text search/analyze
 - optional future notebook: query workbook for demos and onboarding
 - optional future chat participant: SonnetDB-aware assistant entry
@@ -88,4 +88,4 @@ Recommended VS Code surfaces:
 
 ## 8. Language-service boundary
 
-The TypeScript host provides schema completion, lightweight delimiter diagnostics, keyword hover, and `EXPLAIN` commands. The optional packaged sidecar now reuses the full C# parser for lexical and syntax diagnostics through an AOT-friendly JSON-line protocol. Signature help, repair suggestions, and a standard LSP transport remain later #107 slices.
+The TypeScript host provides schema completion, lightweight delimiter diagnostics, keyword hover, function signature help, repair suggestions, and `EXPLAIN` commands. The optional packaged sidecar reuses the full C# parser for lexical and syntax diagnostics through AOT-friendly JSON-RPC 2.0 messages with standard LSP framing. The host automatically falls back to lightweight diagnostics when the sidecar or .NET runtime is unavailable.

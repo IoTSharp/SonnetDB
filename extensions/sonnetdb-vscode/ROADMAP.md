@@ -11,7 +11,7 @@ Core goals:
 - connect to remote SonnetDB servers
 - browse databases, measurements, and columns
 - run SonnetDB SQL with schema-aware completion
-- render query results in table, raw, and chart views
+- render query results in table, raw, chart, and GEOPOINT trajectory views
 - expose SonnetDB Copilot inside VS Code
 - add managed local-server mode for opening local data directories
 
@@ -31,12 +31,12 @@ Core goals:
 | #100 | Remote connection profiles: connection model, `SecretStorage`, health check, setup-state detection, active connection selection | Implemented |
 | #101 | Explorer tree: connections -> databases -> measurements -> columns, schema refresh, sample rows entry point | Implemented |
 | #102 | SQL execution: run current statement, run selection, NDJSON parser, raw result model, schema-aware completion bootstrap | Implemented |
-| #103 | Result UI: webview panel with table/raw/chart tabs, query history, export-to-file hooks | Implemented |
+| #103 | Result UI: webview panel with table/raw/chart tabs, query history, export-to-file hooks | Implemented; `0.4.0` adds conditional GEOPOINT Trajectory rendering |
 | #104 | Copilot panel: `/v1/copilot/chat/stream`, mode switch (`read-only` / `read-write`), model selector, citation view | Implemented |
 | #105 | Managed local mode: start/stop SonnetDB server for a selected data root, port detection, bootstrap flow | Implemented |
 | #106 | Productivity features: create-measurement wizard, bulk import flow, starter snippets, open help from editor context | Implemented |
-| #107 | Language-service sidecar: SQL diagnostics, hover, richer completion, explain and repair hooks | Implemented: packaged C# parser diagnostics, TypeScript fallback, signature help, and delimiter quick fixes |
-| #108 | Packaging and release: tests, CI, VSIX build, Marketplace metadata, docs, screenshots | `0.2.0` release candidate is ready with package audit and isolated install smoke; Marketplace publication is an explicit release action, while automated Electron journeys remain follow-up hardening |
+| #107 | Language-service sidecar: SQL diagnostics, hover, richer completion, explain and repair hooks | Implemented: packaged C# parser diagnostics, TypeScript fallback, signature help, delimiter quick fixes, and JSON-RPC 2.0 over standard LSP framing |
+| #108 | Packaging and release: tests, CI, VSIX build, Marketplace metadata, docs, screenshots | `0.4.0` is published and verified on Marketplace; `0.4.1` refreshes the end-user guide and canonical brand assets; final Electron screenshots remain |
 
 ## First wave acceptance criteria
 
@@ -81,6 +81,8 @@ The M29 #259 slice extends this roadmap without turning VS Code into the full We
 - adds a read-only Document find panel with filter/projection/sort and cursor paging
 - reuses the Query Result panel for multi-model previews
 - keeps write operations and governance workflows in Web Admin / Studio
+
+The `0.3.0` follow-up adds read-only Object Bucket browsing and instance/MQ runtime snapshots. `0.4.0` adds a read-only GEOPOINT Trajectory result view without widening the extension's server contracts or write surface. `0.4.1` is a Marketplace presentation patch that moves contributor material out of the published README and synchronizes the extension icons with the canonical SonnetDB logo. Object writes, retention, lifecycle, quota, and MQ governance stay in Web Admin / Studio.
 
 ## Notes on local mode
 

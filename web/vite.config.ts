@@ -62,6 +62,9 @@ export default defineConfig(({ mode }) => {
           manualChunks: {
             vue: ['vue', 'vue-router', 'pinia'],
             naive: ['naive-ui'],
+            editor: ['codemirror', '@codemirror/lang-sql'],
+            visualization: ['echarts', 'maplibre-gl'],
+            content: ['marked'],
           },
         },
       },

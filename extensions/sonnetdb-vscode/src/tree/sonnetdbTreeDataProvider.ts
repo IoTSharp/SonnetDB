@@ -11,6 +11,8 @@ import {
   MeasurementInfo,
   MqMessageResponse,
   MqTopicInfo,
+  ObjectBucketInfo,
+  ObjectInfo,
   SchemaResponse,
   SonnetDbConnectionProfile,
   TableInfo,
@@ -34,6 +36,8 @@ export type TreeNode =
   | { kind: 'fullTextIndex'; profile: SonnetDbConnectionProfile; database: string; index: FullTextIndexStat }
   | { kind: 'mqTopic'; profile: SonnetDbConnectionProfile; database: string; topic: MqTopicInfo }
   | { kind: 'mqMessage'; profile: SonnetDbConnectionProfile; database: string; topic: string; message: MqMessageResponse }
+  | { kind: 'objectBucket'; profile: SonnetDbConnectionProfile; database: string; bucket: ObjectBucketInfo }
+  | { kind: 'object'; profile: SonnetDbConnectionProfile; database: string; bucket: string; object: ObjectInfo }
   | { kind: 'error'; label: string; description?: string };
 
 type SchemaSection =
@@ -45,6 +49,7 @@ type SchemaSection =
   | 'vector'
   | 'fulltext'
   | 'mq'
+  | 'objects'
   | 'backup';
 
 interface DatabaseExplorerSnapshot {
@@ -53,6 +58,7 @@ interface DatabaseExplorerSnapshot {
   vectorIndexes: VectorIndexStat[];
   fullTextIndexes: FullTextIndexStat[];
   mqTopics: MqTopicInfo[];
+  objectBuckets: ObjectBucketInfo[];
   errors: Partial<Record<SchemaSection, string>>;
 }
 
@@ -235,6 +241,32 @@ export class SonnetDbTreeDataProvider implements vscode.TreeDataProvider<TreeNod
         item.tooltip = previewBase64(element.message.payload, 240);
         return item;
       }
+      case 'objectBucket': {
+        const item = new vscode.TreeItem(element.bucket.name, vscode.TreeItemCollapsibleState.Collapsed);
+        item.description = element.bucket.purpose || 'Object bucket';
+        item.contextValue = 'objectBucket';
+        item.iconPath = new vscode.ThemeIcon('package');
+        item.command = {
+          command: 'sonnetdb.previewObjectBucket',
+          title: 'Preview Object Bucket',
+          arguments: [element],
+        };
+        return item;
+      }
+      case 'object': {
+        const item = new vscode.TreeItem(element.object.key, vscode.TreeItemCollapsibleState.None);
+        item.description = `${formatBytes(element.object.sizeBytes)} · ${element.object.contentType}`;
+        item.contextValue = 'object';
+        item.iconPath = new vscode.ThemeIcon(element.object.isDeleteMarker ? 'trash' : 'file-binary');
+        item.tooltip = new vscode.MarkdownString([
+          `\`${escapeMarkdown(element.object.key)}\``,
+          '',
+          `${formatBytes(element.object.sizeBytes)} · ${escapeMarkdown(element.object.contentType)}`,
+          '',
+          `ETag: \`${escapeMarkdown(element.object.eTag)}\``,
+        ].join('\n'));
+        return item;
+      }
       case 'error': {
         const item = new vscode.TreeItem(element.label, vscode.TreeItemCollapsibleState.None);
         item.description = element.description;
@@ -270,6 +302,8 @@ export class SonnetDbTreeDataProvider implements vscode.TreeDataProvider<TreeNod
           return this.loadKvEntries(element);
         case 'mqTopic':
           return this.loadMqMessages(element);
+        case 'objectBucket':
+          return this.loadObjects(element);
         default:
           return [];
       }
@@ -317,11 +351,12 @@ export class SonnetDbTreeDataProvider implements vscode.TreeDataProvider<TreeNod
       const token = await this.getToken(profile);
       const client = new SonnetDbClient(profile.baseUrl, token);
       const schema = await client.fetchSchema(database);
-      const [kv, vector, fulltext, mq] = await Promise.all([
+      const [kv, vector, fulltext, mq, objects] = await Promise.all([
         safe(() => client.fetchKvKeyspaces(database), []),
         safe(() => client.fetchVectorIndexes(database), []),
         safe(() => client.fetchFullTextIndexes(database), []),
         safe(() => client.fetchMqTopics(database), []),
+        safe(() => client.fetchObjectBuckets(database), []),
       ]);
 
       const snapshot: DatabaseExplorerSnapshot = {
@@ -330,14 +365,16 @@ export class SonnetDbTreeDataProvider implements vscode.TreeDataProvider<TreeNod
         vectorIndexes: vector.value,
         fullTextIndexes: fulltext.value,
         mqTopics: mq.value,
+        objectBuckets: objects.value,
         errors: {
           kv: kv.error,
           vector: vector.error,
           fulltext: fulltext.error,
           mq: mq.error,
+          objects: objects.error,
         },
       };
-      const sections: SchemaSection[] = ['measurements', 'tables', 'documents', 'indexes', 'kv', 'vector', 'fulltext', 'mq', 'backup'];
+      const sections: SchemaSection[] = ['measurements', 'tables', 'documents', 'indexes', 'kv', 'vector', 'fulltext', 'mq', 'objects', 'backup'];
       return sections.map((section) => ({ kind: 'section', profile, database, section, snapshot }));
     } catch (error) {
       return [{
@@ -396,6 +433,30 @@ export class SonnetDbTreeDataProvider implements vscode.TreeDataProvider<TreeNod
       return [{
         kind: 'error',
         label: 'Failed to load messages',
+        description: error instanceof Error ? error.message : undefined,
+      }];
+    }
+  }
+
+  private async loadObjects(element: Extract<TreeNode, { kind: 'objectBucket' }>): Promise<TreeNode[]> {
+    try {
+      const token = await this.getToken(element.profile);
+      const client = new SonnetDbClient(element.profile.baseUrl, token);
+      const response = await client.listObjects(element.database, element.bucket.name, { maxKeys: 50 });
+      if (response.objects.length === 0) {
+        return [{ kind: 'error', label: 'No objects' }];
+      }
+      return response.objects.map((object) => ({
+        kind: 'object',
+        profile: element.profile,
+        database: element.database,
+        bucket: element.bucket.name,
+        object,
+      }));
+    } catch (error) {
+      return [{
+        kind: 'error',
+        label: 'Failed to load objects',
         description: error instanceof Error ? error.message : undefined,
       }];
     }
@@ -465,6 +526,13 @@ function getSectionChildren(section: Extract<TreeNode, { kind: 'section' }>): Tr
         database: section.database,
         topic,
       }));
+    case 'objects':
+      return section.snapshot.objectBuckets.map((bucket) => ({
+        kind: 'objectBucket',
+        profile: section.profile,
+        database: section.database,
+        bucket,
+      }));
     case 'backup':
       return [{
         kind: 'backup',
@@ -485,6 +553,7 @@ function getSectionCounts(snapshot: DatabaseExplorerSnapshot): Record<SchemaSect
     vector: snapshot.vectorIndexes.length,
     fulltext: snapshot.fullTextIndexes.length,
     mq: snapshot.mqTopics.length,
+    objects: snapshot.objectBuckets.length,
     backup: snapshot.schema.backupStatus ? 1 : 0,
   };
 }
@@ -499,6 +568,7 @@ function sectionLabel(section: SchemaSection): string {
     case 'vector': return 'Vector Indexes';
     case 'fulltext': return 'FullText Indexes';
     case 'mq': return 'MQ Topics';
+    case 'objects': return 'Object Buckets';
     case 'backup': return 'Backup';
   }
 }
@@ -513,8 +583,23 @@ function sectionIcon(section: SchemaSection): string {
     case 'vector': return 'symbol-array';
     case 'fulltext': return 'whole-word';
     case 'mq': return 'broadcast';
+    case 'objects': return 'package';
     case 'backup': return 'archive';
   }
+}
+
+function formatBytes(value: number): string {
+  if (!Number.isFinite(value) || value < 1024) {
+    return `${Math.max(0, value)} B`;
+  }
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let size = value / 1024;
+  let index = 0;
+  while (size >= 1024 && index < units.length - 1) {
+    size /= 1024;
+    index += 1;
+  }
+  return `${size.toFixed(size >= 10 ? 1 : 2)} ${units[index]}`;
 }
 
 function measurementColumnNode(column: ColumnInfo): Extract<TreeNode, { kind: 'column' }> {

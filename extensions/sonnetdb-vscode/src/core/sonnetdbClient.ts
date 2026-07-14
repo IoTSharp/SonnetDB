@@ -21,6 +21,9 @@ import {
   MqMonitorResponse,
   MqTopicInfo,
   MqTopicListResponse,
+  ObjectBucketInfo,
+  ObjectListRequest,
+  ObjectListResponse,
   SchemaResponse,
   SetupStatusResponse,
   SqlResultSet,
@@ -188,6 +191,38 @@ export class SonnetDbClient {
     return this.postJson<MqMonitorResponse>(
       `/v1/db/${encodeURIComponent(database)}/mq/${encodeURIComponent(topic)}/monitor`,
     );
+  }
+
+  public async fetchObjectBuckets(database: string): Promise<ObjectBucketInfo[]> {
+    const response = await this.getJson<ObjectBucketInfo[]>(
+      `/v1/db/${encodeURIComponent(database)}/s3`,
+    );
+    return Array.isArray(response) ? response : [];
+  }
+
+  public async listObjects(
+    database: string,
+    bucket: string,
+    request: ObjectListRequest = {},
+  ): Promise<ObjectListResponse> {
+    const parameters = new URLSearchParams({ 'list-type': '2' });
+    if (request.prefix) {
+      parameters.set('prefix', request.prefix);
+    }
+    if (request.maxKeys) {
+      parameters.set('max-keys', String(request.maxKeys));
+    }
+    if (request.continuationToken) {
+      parameters.set('continuation-token', request.continuationToken);
+    }
+    const response = await this.getJson<ObjectListResponse>(
+      `/v1/db/${encodeURIComponent(database)}/s3/${encodeURIComponent(bucket)}?${parameters.toString()}`,
+    );
+    return {
+      ...response,
+      objects: Array.isArray(response.objects) ? response.objects : [],
+      isTruncated: Boolean(response.isTruncated),
+    };
   }
 
   public async executeSql(database: string, sql: string): Promise<SqlResultSet> {

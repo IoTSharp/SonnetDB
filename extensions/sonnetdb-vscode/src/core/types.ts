@@ -333,6 +333,44 @@ export interface MqMonitorResponse {
   deadLetter: MqDeadLetterInfo;
 }
 
+export interface ObjectBucketInfo {
+  name: string;
+  purpose: string;
+  createdUtc: string;
+  updatedUtc: string;
+}
+
+export interface ObjectInfo {
+  bucket: string;
+  key: string;
+  versionId: string;
+  contentType: string;
+  sizeBytes: number;
+  eTag: string;
+  sha256: string;
+  isDeleteMarker: boolean;
+  createdUtc: string;
+  updatedUtc: string;
+  metadata: Record<string, string>;
+  tags: Record<string, string>;
+}
+
+export interface ObjectListRequest {
+  prefix?: string | null;
+  maxKeys?: number | null;
+  continuationToken?: string | null;
+}
+
+export interface ObjectListResponse {
+  bucket: string;
+  prefix: string;
+  maxKeys: number;
+  continuationToken?: string | null;
+  nextContinuationToken?: string | null;
+  isTruncated: boolean;
+  objects: ObjectInfo[];
+}
+
 export interface SqlEnd {
   type: 'end';
   rowCount: number;

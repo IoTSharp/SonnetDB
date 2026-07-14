@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { inferTrajectory } from '../core/geoResult';
 import { SqlResultSet } from '../core/types';
 
 interface QueryHistoryEntry {
@@ -167,6 +168,7 @@ export class QueryResultPanel {
       source,
       context: viewContext,
       title,
+      trajectory: inferTrajectory(result.columns, result.rows),
     }), 'utf8').toString('base64');
 
     return `<!DOCTYPE html>
@@ -213,6 +215,7 @@ export class QueryResultPanel {
       .tabs {
         display: flex;
         align-items: center;
+        flex-wrap: wrap;
         gap: 4px;
         border-bottom: 1px solid var(--vscode-panel-border);
       }
@@ -220,6 +223,7 @@ export class QueryResultPanel {
         margin-left: auto;
         color: var(--vscode-descriptionForeground);
         font-size: 12px;
+        white-space: nowrap;
       }
       .tabs .export {
         border: 1px solid var(--vscode-button-border, transparent);
@@ -281,8 +285,24 @@ export class QueryResultPanel {
       canvas {
         width: 100%;
         height: min(420px, calc(100vh - 210px));
+        box-sizing: border-box;
         border: 1px solid var(--vscode-panel-border);
         background: var(--vscode-editor-background);
+      }
+      #trajectory canvas {
+        height: min(500px, calc(100vh - 240px));
+      }
+      .trajectory-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 16px;
+        margin-bottom: 8px;
+        color: var(--vscode-descriptionForeground);
+        font-size: 12px;
+      }
+      .trajectory-meta strong {
+        color: var(--vscode-foreground);
+        font-weight: 600;
       }
       .error {
         margin: 0 0 12px;
@@ -304,6 +324,7 @@ export class QueryResultPanel {
         <button data-tab="table" role="tab" aria-selected="true">Table</button>
         <button data-tab="raw" role="tab" aria-selected="false">Raw</button>
         <button data-tab="chart" role="tab" aria-selected="false">Chart</button>
+        <button data-tab="trajectory" role="tab" aria-selected="false" hidden>Trajectory</button>
         <span id="summary" class="summary"></span>
         <button class="export" data-export="csv" title="Export result as CSV">Export CSV</button>
         <button class="export" data-export="json" title="Export result as JSON">Export JSON</button>
@@ -311,6 +332,7 @@ export class QueryResultPanel {
       <section id="table" class="pane active" role="tabpanel"></section>
       <section id="raw" class="pane" role="tabpanel"></section>
       <section id="chart" class="pane" role="tabpanel"></section>
+      <section id="trajectory" class="pane" role="tabpanel"></section>
     </div>
     <script type="application/json" id="payload" nonce="${nonce}">${payload}</script>
     <script nonce="${nonce}">
@@ -345,6 +367,7 @@ export class QueryResultPanel {
       renderTable();
       renderRaw();
       renderChart();
+      renderTrajectory();
 
       function activateTab(name) {
         for (const tab of document.querySelectorAll('[data-tab]')) {
@@ -355,6 +378,9 @@ export class QueryResultPanel {
         }
         if (name === 'chart') {
           drawChart();
+        }
+        if (name === 'trajectory') {
+          drawTrajectory();
         }
       }
 
@@ -498,6 +524,169 @@ export class QueryResultPanel {
           xColumn: String(x.column),
           series,
         };
+      }
+
+      function renderTrajectory() {
+        const target = document.getElementById('trajectory');
+        const trajectory = data.trajectory;
+        if (!trajectory || !Array.isArray(trajectory.series) || !trajectory.series.length) {
+          target.innerHTML = '<div class="notice">No GEOPOINT column found for trajectory rendering.</div>';
+          return;
+        }
+
+        document.querySelector('[data-tab="trajectory"]').hidden = false;
+        const meta = document.createElement('div');
+        meta.className = 'trajectory-meta';
+        const fields = [
+          ['GEOPOINT', trajectory.geoColumn],
+          ['Points', String(trajectory.pointCount)],
+          ['Tracks', String(trajectory.series.length)],
+          ['Order', trajectory.timeColumn || 'result order'],
+          ['Group', trajectory.groupColumn || 'single track'],
+        ];
+        for (const field of fields) {
+          const item = document.createElement('span');
+          const label = document.createElement('strong');
+          label.textContent = field[0] + ': ';
+          item.append(label, document.createTextNode(field[1]));
+          meta.appendChild(item);
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 1200;
+        canvas.height = 500;
+        canvas.setAttribute('role', 'img');
+        canvas.setAttribute('aria-label', trajectory.pointCount + ' geographic points in ' + trajectory.series.length + ' trajectories');
+        target.replaceChildren(meta, canvas);
+      }
+
+      function drawTrajectory() {
+        const canvas = document.querySelector('#trajectory canvas');
+        const trajectory = data.trajectory;
+        if (!canvas || !trajectory) {
+          return;
+        }
+
+        const ctx = canvas.getContext('2d');
+        const width = canvas.width;
+        const height = canvas.height;
+        const pad = { left: 72, right: 28, top: 54, bottom: 54 };
+        const plotWidth = width - pad.left - pad.right;
+        const plotHeight = height - pad.top - pad.bottom;
+        const bounds = trajectory.bounds;
+        const lonSpan = bounds.maxLon - bounds.minLon || 0.02;
+        const latSpan = bounds.maxLat - bounds.minLat || 0.02;
+        const minLon = bounds.minLon - lonSpan * 0.06;
+        const maxLon = bounds.maxLon + lonSpan * 0.06;
+        const minLat = bounds.minLat - latSpan * 0.06;
+        const maxLat = bounds.maxLat + latSpan * 0.06;
+        const midLat = (minLat + maxLat) / 2;
+        const lonFactor = Math.max(0.15, Math.cos(midLat * Math.PI / 180));
+        const projectedWidth = (maxLon - minLon) * lonFactor;
+        const projectedHeight = maxLat - minLat;
+        const scale = Math.min(plotWidth / projectedWidth, plotHeight / projectedHeight);
+        const usedWidth = projectedWidth * scale;
+        const usedHeight = projectedHeight * scale;
+        const offsetX = pad.left + (plotWidth - usedWidth) / 2;
+        const offsetY = pad.top + (plotHeight - usedHeight) / 2;
+        const mapX = (lon) => offsetX + (lon - minLon) * lonFactor * scale;
+        const mapY = (lat) => offsetY + (maxLat - lat) * scale;
+
+        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = getCss('--vscode-editor-background') || '#1e1e1e';
+        ctx.fillRect(0, 0, width, height);
+        ctx.strokeStyle = getCss('--vscode-panel-border') || '#555';
+        ctx.fillStyle = getCss('--vscode-descriptionForeground') || '#999';
+        ctx.font = '11px ' + getComputedStyle(document.body).fontFamily;
+        ctx.lineWidth = 1;
+
+        for (let step = 0; step <= 4; step += 1) {
+          const lon = minLon + ((maxLon - minLon) * step) / 4;
+          const lat = minLat + ((maxLat - minLat) * step) / 4;
+          const x = mapX(lon);
+          const y = mapY(lat);
+          ctx.globalAlpha = 0.55;
+          ctx.beginPath();
+          ctx.moveTo(x, offsetY);
+          ctx.lineTo(x, offsetY + usedHeight);
+          ctx.moveTo(offsetX, y);
+          ctx.lineTo(offsetX + usedWidth, y);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+          ctx.fillText(lon.toFixed(5), x - 28, offsetY + usedHeight + 22);
+          ctx.fillText(lat.toFixed(5), 8, y + 4);
+        }
+
+        const colors = [
+          getCss('--vscode-charts-blue') || '#3794ff',
+          getCss('--vscode-charts-green') || '#89d185',
+          getCss('--vscode-charts-orange') || '#d18616',
+          getCss('--vscode-charts-purple') || '#b180d7',
+          getCss('--vscode-charts-red') || '#f14c4c',
+          getCss('--vscode-charts-yellow') || '#cca700',
+        ];
+
+        trajectory.series.forEach((series, seriesIndex) => {
+          const color = colors[seriesIndex % colors.length];
+          ctx.strokeStyle = color;
+          ctx.fillStyle = color;
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          series.points.forEach((point, pointIndex) => {
+            const x = mapX(point.lon);
+            const y = mapY(point.lat);
+            if (pointIndex === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          });
+          ctx.stroke();
+
+          if (series.points.length <= 200) {
+            for (const point of series.points) {
+              ctx.beginPath();
+              ctx.arc(mapX(point.lon), mapY(point.lat), 3, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+
+          const start = series.points[0];
+          const end = series.points[series.points.length - 1];
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(mapX(start.lon), mapY(start.lat), 7, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.fillRect(mapX(end.lon) - 6, mapY(end.lat) - 6, 12, 12);
+        });
+
+        let legendX = pad.left;
+        let renderedLegendCount = 0;
+        ctx.font = '12px ' + getComputedStyle(document.body).fontFamily;
+        for (let seriesIndex = 0; seriesIndex < trajectory.series.length; seriesIndex += 1) {
+          const series = trajectory.series[seriesIndex];
+          const color = colors[seriesIndex % colors.length];
+          const rawLabel = series.name + ' (' + series.points.length + ')';
+          const label = rawLabel.length > 24 ? rawLabel.slice(0, 21) + '...' : rawLabel;
+          const itemWidth = Math.min(190, ctx.measureText(label).width + 42);
+          if (legendX + itemWidth > width - pad.right) {
+            break;
+          }
+          ctx.fillStyle = color;
+          ctx.fillRect(legendX, 20, 14, 4);
+          ctx.fillStyle = getCss('--vscode-foreground') || '#ddd';
+          ctx.fillText(label, legendX + 20, 26);
+          legendX += itemWidth;
+          renderedLegendCount += 1;
+        }
+        if (renderedLegendCount < trajectory.series.length) {
+          ctx.fillStyle = getCss('--vscode-descriptionForeground') || '#999';
+          ctx.fillText('+' + (trajectory.series.length - renderedLegendCount) + ' tracks', legendX + 4, 26);
+        }
+
+        ctx.fillStyle = getCss('--vscode-descriptionForeground') || '#999';
+        ctx.fillText('Longitude', offsetX + usedWidth - 58, height - 12);
+        ctx.save();
+        ctx.translate(15, offsetY + 48);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText('Latitude', 0, 0);
+        ctx.restore();
       }
 
       function formatCell(value) {

@@ -11,4 +11,5 @@ package-lock.json
 docs/**
 ROADMAP.md
 dist/**
+scripts/**
 language-server/*.pdb
