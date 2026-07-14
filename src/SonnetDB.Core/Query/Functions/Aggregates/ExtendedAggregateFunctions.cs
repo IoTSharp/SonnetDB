@@ -1,7 +1,7 @@
 ﻿using SonnetDB.Catalog;
 using SonnetDB.Model;
-using SonnetDB.Storage.Format;
 using SonnetDB.Sql.Ast;
+using SonnetDB.Storage.Format;
 
 namespace SonnetDB.Query.Functions.Aggregates;
 

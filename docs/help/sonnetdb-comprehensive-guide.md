@@ -1438,7 +1438,7 @@ SonnetDB 的 SQL 控制台支持四种结果展示模式：
 
 ### 19.1 概述
 
-SonnetDB Copilot 是一个内建的 AI 助手，基于 Microsoft Agent Framework 构建，提供嵌入、聊天、知识库、技能库和 MCP 工具集成。
+SonnetDB Copilot 是一个内建 AI 助手，当前使用 `Microsoft.Extensions.AI` 风格的 provider 抽象和自研 `CopilotAgent`，提供嵌入、聊天、知识库、技能库和 MCP 工具集成。Microsoft Agent Framework 尚未接入。
 
 ### 19.2 架构
 
@@ -1465,7 +1465,7 @@ SonnetDB Copilot 是一个内建的 AI 助手，基于 Microsoft Agent Framework
 | 提供程序 | 说明 | 默认 |
 |----------|------|------|
 | BuiltinHashEmbedding | 零依赖，SHA-256+词袋哈希投影 384 维 | 默认 |
-| LocalOnnxEmbedding | bge-small-zh-v1.5 ONNX 模型 | 可选 |
+| LocalOnnxEmbedding | bge-small-zh-v1.5 ONNX 配置占位；执行尚未接通 | 不可用 |
 | OpenAICompatibleEmbedding | OpenAI 兼容 API | 可选 |
 
 ### 19.4 聊天提供程序

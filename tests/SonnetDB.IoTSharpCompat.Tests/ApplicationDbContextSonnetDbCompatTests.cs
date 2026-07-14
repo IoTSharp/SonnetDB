@@ -79,6 +79,9 @@ public sealed class ApplicationDbContextSonnetDbCompatTests : IDisposable
     {
         await using var scope = _provider.CreateAsyncScope();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var expectedMigrations = context.Database.GetMigrations().ToArray();
+
+        Assert.NotEmpty(expectedMigrations);
 
         await context.Database.MigrateAsync();
 
@@ -92,12 +95,7 @@ public sealed class ApplicationDbContextSonnetDbCompatTests : IDisposable
         Assert.Contains("FlowRules", tableNames);
 
         var migrations = (await context.Database.GetAppliedMigrationsAsync()).ToArray();
-        Assert.Equal(
-            [
-                "20260613145712_InitialSonnetDbApplicationDbContext",
-                "20260702090000_AddDeviceLatestQueryIndexes"
-            ],
-            migrations);
+        Assert.Equal(expectedMigrations, migrations);
 
         await context.Database.MigrateAsync();
         Assert.Equal(migrations, (await context.Database.GetAppliedMigrationsAsync()).ToArray());

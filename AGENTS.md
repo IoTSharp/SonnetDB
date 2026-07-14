@@ -10,9 +10,9 @@
 
 > 可以通过 SQL 语句进行 `INSERT` 和 `SELECT` 时序数据，以数据库目录为持久化边界，嵌入式进程内运行，并可扩展到服务端、多模型和 AI Copilot 场景。
 
-当前推进：**Milestone 27 — Industrial Data Agent 与 AI-ready 产品化路线** 是对外门面与中长期 AI 产品主线，但当前状态为**滞后**；**Milestone 17 — 可观测性与运行时可见性**、**Milestone 18 — VS Code 数据库扩展** 并行推进（详见 [ROADMAP.md](ROADMAP.md)）。
+当前推进以 [ROADMAP.md](ROADMAP.md) 的 2026-07-14 核查结果为准：先恢复 Parity/nightly 和容量发布证据，再推进 **Milestone 27 — Industrial Data Agent** 的真实 provider/Agent 接线，随后处理 M32、M34 和 M35 的未完成能力。
 
-> 当前派单焦点：M27 优先追赶 #183~#188（工具契约、工业 Demo、provider-neutral、本地模型、写入审批二阶段、eval 与成本指标），避免 AI-ready 对外门面长期只停留在 #182 文档第一批；M17 #89~#98 已完成。M18 #99~#107、#108 Extension Host smoke、隔离安装验收和 VS Code `0.4.0` Marketplace 发布已完成，`0.4.0` 同步补齐 GEOPOINT 轨迹结果视图，后续只处理最终 Electron 截图。M22 重新定位为“基于 SonnetDB 的上层应用 / 示例方案候选”，不作为 SonnetDB 内置里程碑，暂停 #150~#159 内置派单；只有沉淀出可复用数据库能力缺口时，才拆成独立 Core / Server / Studio PR。M14、M15、M16、M20、M21、M23、M24、M25、M26 已完成或收口；Document 后续易用性缺口统一进入 M32，不再把旧 M16 子任务作为当前派单目标。
+> 当前派单焦点：M20 修复后的完整 Parity stack 与 7 天 nightly 证据；M19 #125 和 M25 #174 的固定目标硬件报告；M27 typed MCP 合同、工业 Demo、在线 `IChatProvider` 接线、本地 embedding、Microsoft Agent Framework 真实集成或如实边界说明，以及 eval/成本指标。M18 `0.4.1` 已发布，只剩最终 Electron 截图；M29 功能实现完成，只剩 Studio 安装包和宿主生命周期实机验收。M14 不再标记为完全完成：当前是 `Microsoft.Extensions.AI` 抽象加自研 `CopilotAgent`，本地 ONNX 与在线 provider-neutral 路径尚未接通。M22 仍是上层应用/示例候选，不作为内置里程碑。M32 只处理当前真实缺口，不重复开发已经落地的 update、索引、change feed 和管理界面。
 
 ---
 

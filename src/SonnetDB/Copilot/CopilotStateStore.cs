@@ -89,7 +89,7 @@ internal sealed class CopilotStateStore
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(owner);
         var conversationId = NormalizeId(id) ?? "sndb_" + Guid.NewGuid().ToString("N");
-        var timestamp = (now ?? DateTimeOffset.UtcNow).UtcDateTime;
+        var timestamp = NormalizeStorageTimestamp(now ?? DateTimeOffset.UtcNow);
 
         lock (_sync)
         {
@@ -142,7 +142,7 @@ internal sealed class CopilotStateStore
         ArgumentException.ThrowIfNullOrWhiteSpace(conversationId);
         ArgumentException.ThrowIfNullOrWhiteSpace(role);
         ArgumentNullException.ThrowIfNull(content);
-        var timestamp = (now ?? DateTimeOffset.UtcNow).UtcDateTime;
+        var timestamp = NormalizeStorageTimestamp(now ?? DateTimeOffset.UtcNow);
         var normalizedRole = role.Trim().ToLowerInvariant();
         var messageId = "msg_" + Guid.NewGuid().ToString("N");
 
@@ -466,6 +466,9 @@ internal sealed class CopilotStateStore
             DateTimeOffset dateTimeOffset => dateTimeOffset,
             _ => throw new InvalidDataException("Copilot 系统表包含无效时间值。"),
         };
+
+    private static DateTime NormalizeStorageTimestamp(DateTimeOffset value)
+        => DateTimeOffset.FromUnixTimeMilliseconds(value.ToUnixTimeMilliseconds()).UtcDateTime;
 
     private static string NormalizeTitle(string? value, string fallback)
     {

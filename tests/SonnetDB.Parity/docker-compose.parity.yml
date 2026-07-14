@@ -108,11 +108,7 @@ services:
     networks: [parity-net]
     ports:
       - "${PARITY_NATS_PORT:-24222}:4222"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q -O- http://localhost:8222/healthz || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
+      - "${PARITY_NATS_MONITOR_PORT:-28222}:8222"
     profiles: [light, full]
 
   # ── 仅 full 栈 ─────────────────────────────────────────────────────────
@@ -146,11 +142,6 @@ services:
       - "${PARITY_VM_PORT:-28428}:8428"
     volumes:
       - vm-data:/vm-data
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q -O- http://localhost:8428/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
     profiles: [full]
 
   mosquitto:
@@ -285,5 +276,5 @@ services:
       minio:
         condition: service_healthy
       nats:
-        condition: service_healthy
+        condition: service_started
     profiles: [light, full]

@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
-using SonnetDB.Diagnostics;
 using SonnetDB.Catalog;
+using SonnetDB.Diagnostics;
 using SonnetDB.Engine;
 using SonnetDB.Hosting;
 using SonnetDB.Sql.Ast;

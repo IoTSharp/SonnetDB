@@ -113,7 +113,7 @@ jobs:
         run: dotnet publish src/SonnetDB.Cli/SonnetDB.Cli.csproj -c Release -r ${{ matrix.rid }} -p:PublishAot=true /warnaserror
 
       - name: Publish SonnetDB (Native AOT)
-        run: dotnet publish src/SonnetDB/SonnetDB.csproj -c Release -r ${{ matrix.rid }} -p:PublishAot=true /warnaserror
+        run: dotnet publish src/SonnetDB/SonnetDB.csproj -c Release -r ${{ matrix.rid }} -p:SonnetDbPublishAot=true /warnaserror
 
       - name: Show AOT artifacts
         shell: bash

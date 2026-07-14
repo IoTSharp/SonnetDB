@@ -340,7 +340,7 @@ internal sealed class SparkplugPayloadReader : IPointReader
 
             byte current = span[cursor++];
             if (shift == 63 && (current & 0xFE) != 0)
-                throw new BulkIngestException($"Sparkplug protobuf {field}: varint 超出 UInt64。" );
+                throw new BulkIngestException($"Sparkplug protobuf {field}: varint 超出 UInt64。");
             value |= (ulong)(current & 0x7F) << shift;
             if ((current & 0x80) == 0)
                 return value;
@@ -411,14 +411,14 @@ internal sealed class SparkplugPayloadReader : IPointReader
                 cursor += sizeof(uint);
                 break;
             default:
-                throw new BulkIngestException($"Sparkplug protobuf {scope}: 不支持 wire type {wireType}。" );
+                throw new BulkIngestException($"Sparkplug protobuf {scope}: 不支持 wire type {wireType}。");
         }
     }
 
     private static void RequireWireType(int actual, int expected, string field)
     {
         if (actual != expected)
-            throw new BulkIngestException($"Sparkplug protobuf {field}: wire type 应为 {expected}，实际 {actual}。" );
+            throw new BulkIngestException($"Sparkplug protobuf {field}: wire type 应为 {expected}，实际 {actual}。");
     }
 
     private static void EnsureRemaining(ReadOnlySpan<byte> span, int cursor, int count, string field)

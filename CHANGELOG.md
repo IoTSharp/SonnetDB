@@ -7,6 +7,10 @@
 
 ### Fixed
 
+- 修复 Parity full/light 栈使用 shell-less NATS、VictoriaMetrics 镜像时仍执行 `CMD-SHELL wget`，导致服务永远 unhealthy、nightly 无法进入测试的问题；改由 workflow 在宿主侧探测 HTTP health，并保留 NATS monitor 端口。
+- 修复 Server Native AOT 的全局 `PublishAot=true` 被透传到两个 `netstandard2.0` Roslyn source generator、触发 `NETSDK1207` 的问题；Server 改用项目局部 `SonnetDbPublishAot` 开关，CI 和发布脚本同步更新。
+- 修复 KV generation 后台维护的空轮询覆盖最近实际清理速率并计入实际回收轮数的问题；无任务轮询现在只刷新 pending 状态，节流恢复指标不再受轮询时序影响。
+- 修复 IoTSharp compatibility 测试硬编码两条 EF migration，新增 migration 后误报失败的问题；测试改为验证当前 provider 全部 migration 均已应用且重复执行幂等。
 - 修复 Copilot 同一会话在相同毫秒追加多条消息时，重启后可能被随机消息主键打乱顺序的问题；追加时间现在按 DATETIME 的毫秒持久化粒度单调推进。
 - **M19 #124 SegmentManager 增量发布收口**：修复一换一 `SwapSegments` 因活动段数不变而永久保留已移除 `_indexById` 项的问题；移除段现在同步修剪索引缓存，无命中 `DropSegments` 不再发布等价快照。reader 集合改为有序字典，使 add/swap/drop 发布从重复 O(N log N) 排序降为 O(N) 顺序复制；纯 MemTable 切换复用现有 index/reader state/readers，使密封发布恢复为 O(1)。
 - 修复关系表 `ORDER BY` 必须引用投影结果列的问题；单表查询现在可按未投影的源列排序和分页，内部排序键不会泄漏到结果列，兼容 EF Core 先排序后投影 DTO 的 SQL。
@@ -78,6 +82,7 @@
 
 ### Changed
 
+- 依据代码入口、自动化、CI/容量和发布证据重新核查并压缩 `ROADMAP.md`；重新打开 M14/M19/M20/M25/M27/M29 的未接线或待补证部分，M32 只保留尚未实现的 Document 能力，完成里程碑改为结果摘要。
 - **VS Code `0.4.1` Marketplace 用户门面与品牌统一**：扩展发布页移除目录结构、内部工作原理、本地构建与验证等开发内容，改为覆盖安装、连接、查询、结果页签、多模型只读预览、Copilot、本地 Server 与排障的用户指南；开发资料迁入不随 VSIX 打包的 `docs/development.md`。Marketplace 与 Activity Bar 图标统一同步自项目官方 `web/public/favicon` 品牌资产，不再维护扩展专用绘制版本。
 - **开源项目门面增加 VS Code Marketplace 入口**：中英文 README 顶部徽章、接入方式、生态下载和深入文档均加入 `iotsharp.sonnetdb-vscode` 安装链接与 `code --install-extension` 命令；帮助中心首页、全局页头、管理工具能力矩阵和综合指南同步提供安装入口，并把旧“扩展开发中”描述更新为当前已交付能力。
 - **Web Admin SQL 结果区内嵌化**：SQL 工具栏、编辑器和状态栏固定在工作区上方，查询提示、表格、图表与轨迹统一在编辑器下方的四个结果页签中显示；有列结果自动切到表格，错误、无结果和写入审批自动切到提示。SQL 页面不再打开共享结果抽屉，其他多模型工作台继续保留原有浮动结果面板。

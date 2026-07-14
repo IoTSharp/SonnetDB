@@ -5,6 +5,8 @@ date: 2026-04-25
 
 # 新闻稿
 
+> **2026-07-14 勘误**：发布稿原文把设计目标写成了已交付事实。当前实现采用 `Microsoft.Extensions.AI` 风格抽象和自研 `CopilotAgent`，没有接入 Microsoft Agent Framework；本地 ONNX provider 尚未执行模型；Web Copilot 对话仍由云端 Runtime 编排。以下能力说明已按实际实现修正。
+
 ## SonnetDB 里程碑三：AI Copilot 与生态发布
 ### 内建 AI 助手、MCP 协议集成、批量写入引擎与 VS Code 扩展
 
@@ -12,11 +14,11 @@ date: 2026-04-25
 
 ### SonnetDB Copilot：数据库内建的 AI 助手
 
-SonnetDB Copilot 基于 Microsoft Agent Framework 构建，是业界首款直接嵌入时序数据库的 AI 助手：
+SonnetDB Copilot 由自研 `CopilotAgent` 编排，并通过 provider 抽象组合知识库、技能和 MCP 工具：
 
 **嵌入提供程序**：
 - BuiltinHashEmbedding：零依赖的 SHA-256 + 词袋哈希投影 384 维嵌入
-- LocalOnnxEmbedding：bge-small-zh-v1.5 ONNX 本地模型
+- LocalOnnxEmbedding：仅有配置与类型占位，当前版本尚不可执行
 - OpenAICompatibleEmbedding：兼容 OpenAI API 的远程嵌入
 
 **聊天提供程序**：支持 OpenAI、Azure OpenAI、DashScope（阿里通义千问）、ZhiPu（智谱）、Moonshot（月之暗面）、DeepSeek
@@ -33,7 +35,7 @@ SonnetDB Copilot 基于 Microsoft Agent Framework 构建，是业界首款直接
 - **页面感知**：自动感知当前页面上下文，提供快捷操作
 - **读写模式**：只读浏览模式与可写执行模式切换
 - **模型选择器**：支持多个 AI 模型一键切换
-- **会话历史**：localStorage 持久化，最多 50 个历史会话
+- **会话历史**：服务端持久化并按 owner 隔离，支持跨设备同步
 - **SQL 发送**：对话中生成的 SQL 一键发送到控制台执行
 - **权限审批**：写入操作需用户确认批准
 - **启动模板**：7 类预设提示模板

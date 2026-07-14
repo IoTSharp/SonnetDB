@@ -79,7 +79,7 @@ function Publish-Binaries
     $null = & dotnet publish (Join-Path $RepoRoot 'src/SonnetDB/SonnetDB.csproj') `
         -c $Configuration `
         -r $TargetRid `
-        -p:PublishAot=true `
+        -p:SonnetDbPublishAot=true `
         -p:Version=$Version `
         -p:BuildAdminUi=$($BuildAdminUi.IsPresent.ToString().ToLowerInvariant()) `
         -o $serverPublishDir `

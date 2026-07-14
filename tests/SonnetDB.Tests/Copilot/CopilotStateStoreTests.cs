@@ -54,7 +54,9 @@ public sealed class CopilotStateStoreTests
             var conversation = Assert.Single(second.ListConversations(owner));
             Assert.Equal("restart-session", conversation.Id);
             Assert.Equal(2, conversation.MessageCount);
-            Assert.Equal(["user", "assistant"], second.ListMessages(owner, conversation.Id).Select(static message => message.Role));
+            var messages = second.ListMessages(owner, conversation.Id);
+            Assert.Equal(["user", "assistant"], messages.Select(static message => message.Role));
+            Assert.True(messages[0].CreatedAtUtc < messages[1].CreatedAtUtc);
 
             var metrics = second.GetMetrics(owner, TimeSpan.FromHours(1), now.AddMinutes(1));
             Assert.Equal(1, metrics.RequestCount);

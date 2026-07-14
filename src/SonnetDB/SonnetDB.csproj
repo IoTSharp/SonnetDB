@@ -11,11 +11,13 @@
     <SpaProxyRedirectUrl>https://localhost:5173/admin/</SpaProxyRedirectUrl>
 
     <!--
-      AOT 优先。Native AOT publish 需要在命令行/CI 里加 -p:PublishAot=true。
+      AOT 优先。Native AOT publish 需要在命令行/CI 里加 -p:SonnetDbPublishAot=true。
       这里默认不打开 PublishAot，避免日常 `dotnet build` 触发完整 AOT 链路（速度慢且不必要）。
       但通过 IsAotCompatible（继承自 Directory.Build.props）已经在 build 阶段开启了 IL/AOT 分析器，
       所以违反 AOT 兼容性的代码会立刻在 build 时报错。
     -->
+    <!-- 使用项目专用开关，避免全局 PublishAot 属性传入 netstandard2.0 Roslyn 生成器。 -->
+    <PublishAot Condition="'$(SonnetDbPublishAot)' == 'true'">true</PublishAot>
     <InvariantGlobalization>true</InvariantGlobalization>
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
     <!--
@@ -30,6 +32,7 @@
   <ItemGroup>
     <ProjectReference Include="..\SonnetDB.Core\SonnetDB.Core.csproj" />
     <ProjectReference Include="..\..\extensions\IoTSharp.CoAP.NET\CoAP.NET\CoAP.NET.csproj" />
+    <!-- 构建期 Roslyn 生成器保持 netstandard2.0，不能继承宿主发布的 RID/AOT 属性。 -->
     <ProjectReference Include="..\..\extensions\IoTSharp.CoAP.NET\CoAP.NET.SourceGeneration\CoAP.NET.SourceGeneration.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <!--
       M28 P5b：MQTT 路由从 NuGet 包切到 git 子模块源码引用。

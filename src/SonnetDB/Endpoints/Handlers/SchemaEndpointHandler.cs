@@ -1,5 +1,5 @@
-﻿using SonnetDB.Contracts;
-using System.Text.Json;
+﻿using System.Text.Json;
+using SonnetDB.Contracts;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
 using SonnetDB.Json;

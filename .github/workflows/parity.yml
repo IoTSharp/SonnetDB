@@ -103,6 +103,12 @@ jobs:
             echo "Parity stack failed to become healthy. Diagnostics were written to $diagnostics."
             exit 1
           fi
+          curl --fail --silent --show-error --retry 30 --retry-delay 2 --retry-all-errors \
+            http://127.0.0.1:28222/healthz >/dev/null
+          if [[ "${{ matrix.profile }}" == "full" ]]; then
+            curl --fail --silent --show-error --retry 30 --retry-delay 2 --retry-all-errors \
+              http://127.0.0.1:28428/health >/dev/null
+          fi
 
       - name: Run parity gates
         if: steps.selection.outputs.run == 'true'

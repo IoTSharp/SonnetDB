@@ -1,7 +1,7 @@
-﻿using System.Text.Json;
+﻿using System.Diagnostics;
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
-using System.Diagnostics;
 using SonnetDB.Auth;
 using SonnetDB.Catalog;
 using SonnetDB.Contracts;

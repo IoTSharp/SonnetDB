@@ -153,12 +153,14 @@ internal sealed class KvExpirerWorker : IDisposable
                     KvCleanupRoundResult result = _owner.CleanupKeyspacesFromBackground(limit);
                     TimeSpan elapsed = Stopwatch.GetElapsedTime(started);
                     Interlocked.Add(ref _cleanupFiles, result.DeletedFiles);
-                    Interlocked.Increment(ref _cleanupRounds);
+                    if (result.ProcessedEntries > 0)
+                        Interlocked.Increment(ref _cleanupRounds);
                     UpdatePending(result);
-                    double rate = result.RemovedBytes == 0 || elapsed <= TimeSpan.Zero
-                        ? 0
-                        : result.RemovedBytes / elapsed.TotalSeconds;
-                    Interlocked.Exchange(ref _cleanupRateBits, BitConverter.DoubleToInt64Bits(rate));
+                    if (result.RemovedBytes > 0 && elapsed > TimeSpan.Zero)
+                    {
+                        double rate = result.RemovedBytes / elapsed.TotalSeconds;
+                        Interlocked.Exchange(ref _cleanupRateBits, BitConverter.DoubleToInt64Bits(rate));
+                    }
                 }
                 catch (Exception ex)
                 {
