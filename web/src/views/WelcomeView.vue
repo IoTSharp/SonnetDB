@@ -7,7 +7,7 @@
         </div>
         <div class="brand-copy">
           <span class="brand-name">SonnetDB</span>
-          <span class="brand-tagline">AI-native 多模型数据底座</span>
+          <span class="brand-tagline">八种数据模型 · 一套引擎</span>
         </div>
       </div>
       <nav class="hero-nav" aria-label="页面导航">
@@ -23,10 +23,10 @@
       <section id="overview" class="hero-panel">
         <div class="hero-copy">
           <div class="hero-eyebrow">产品定位</div>
-          <h1>一套面向设备、业务、搜索和 AI 协作的多模型数据底座。</h1>
+          <h1>八种数据模型，一套引擎。</h1>
           <p class="hero-subtitle">
-            SonnetDB 支持嵌入式和服务端两种运行方式，提供 SQL、ADO.NET、EF Core、CLI、HTTP API、Web Admin、MCP 和多语言连接器。
-            当前版本已经覆盖时序、关系表、KV、文档、全文、向量、Hybrid Search、对象桶、消息队列和 Copilot 智能协作等能力。
+            SonnetDB 支持嵌入式和服务端两种运行方式，通过 SQL、ADO.NET、EF Core、CLI、HTTP API、Web Admin、MCP 和多语言连接器提供统一访问。
+            当前版本覆盖时序、关系表、KV、文档、全文、向量、对象桶和消息队列，Copilot 与 MCP 作为受治理的扩展入口。
           </p>
 
           <div class="hero-actions">

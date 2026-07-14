@@ -1,13 +1,13 @@
 ﻿---
 layout: default
 title: "SonnetDB 文档中心"
-description: "SonnetDB 当前版本的产品、开发与部署文档总览，覆盖工业边缘数据引擎、Copilot、Studio、嵌入式、ADO.NET、CLI、服务端和批量写入。"
+description: "SonnetDB 多模型数据引擎的产品、开发与部署文档总览，覆盖八种数据模型、嵌入式、服务端、Studio、Copilot、ADO.NET、CLI 和批量写入。"
 permalink: /
 ---
 
-SonnetDB 是一个面向 C# / .NET 10 工业边缘应用的本地优先数据引擎。它以设备遥测和时序数据为核心起点，同时提供关系表、KV、JSON 文档、全文检索、向量检索、Hybrid Search、对象桶、本地消息队列、SonnetDB Studio 和 Copilot 智能协作能力。
+SonnetDB 是一款多模型数据引擎。它在一套引擎中提供时序、关系表、KV、JSON 文档、全文检索、向量检索、对象桶和消息队列，并配套 SQL、标准 API、SonnetDB Studio、Copilot 与 MCP 接口。
 
-它的产品门面不是“再做一个大而全数据库”，而是让设备网关、采集程序、轻量 MES / SCADA、离线数据记录器和 Industrial Data Agent 可以在一个本地数据库目录里完成主要数据工作。
+“八种数据模型，一套引擎”是 SonnetDB 的核心产品口径。它支持嵌入式与服务端部署，可用于本地应用、业务系统、设备与边缘节点、搜索与 AI 应用等不同场景；具体行业和部署方式不构成产品定位限制。
 
 当前版本的持久化方式是数据库目录中的多文件布局，不再以“单文件数据库”作为产品描述。文档中的示例、目录结构和启动方式都以当前仓库代码为准。
 
@@ -20,10 +20,10 @@ SonnetDB 是一个面向 C# / .NET 10 工业边缘应用的本地优先数据引
 <div class="callout-grid">
   <section class="callout-card">
     <strong>嵌入式与服务端</strong>
-    <p>可在进程内打开数据库目录，也可作为 HTTP 服务运行，并通过同一套 SQL 访问。</p>
+    <p>可在进程内打开数据库目录，也可作为 HTTP 服务运行，并通过 SQL 与标准 API 访问。</p>
   </section>
   <section class="callout-card">
-    <strong>工业边缘数据核心</strong>
+    <strong>八种数据模型</strong>
     <p>支持设备时序、关系表、KV、JSON 文档、全文、向量、Hybrid Search、对象桶和本地消息队列。</p>
   </section>
   <section class="callout-card">

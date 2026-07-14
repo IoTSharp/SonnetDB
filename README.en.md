@@ -4,7 +4,7 @@
 
 <h1 align="center">SonnetDB</h1>
 
-<p align="center">A multi-model, local-first data engine · Eight data models, one engine, one SQL</p>
+<p align="center">Eight data models. One engine.</p>
 
 <p align="center">
   <a href="README.md">中文</a> | <a href="README.en.md">English</a>
@@ -20,13 +20,13 @@
 
 ## 🧩 What Is SonnetDB
 
-**SonnetDB is a multi-model, local-first data engine.**
+**SonnetDB is a multi-model data engine.**
 
-It unifies time-series, relational tables, key-value, JSON documents, full-text search, vector search, object storage, and a message queue — eight kinds of data capability that usually take eight separate systems — into one engine behind one SQL and API surface. One SonnetDB is a complete data foundation.
+It unifies time-series, relational tables, key-value, JSON documents, full-text search, vector search, object storage, and a message queue — eight kinds of data capability that usually require several separate systems — in one engine accessed through SQL, standard APIs, and management tools.
 
-The core value is not "many features" but **unification**: every model shares the same query language, the same permission model, and the same persistence and backup/restore machinery. What used to require assembling, operating, and syncing a whole heterogeneous stack — a time-series store, a cache, a search engine, an object store, a message broker — is now handled by one process, one SQL surface, one admin console. This is not several systems bundled together; it is one engine wired through at the storage layer.
+The core value is not "many features" but **unification**: eight data models share one process, one permission and operations boundary, one backup/restore workflow, and one admin console. This is not several independent products bundled together; the capabilities live in one engine.
 
-Deployment stays light too: embed it as a library in-process, or deploy it as a standalone server — both forms share exactly the same SQL and API semantics.
+Deployment stays flexible: embed it as an in-process library or run it as a standalone server for local applications, devices and edge nodes, business systems, private environments, and other workloads.
 
 ## 🗂️ Eight Data Models, One Shared Semantics
 
@@ -253,6 +253,8 @@ To avoid overselling, here is what SonnetDB is **not**, and where its current li
 - **Benchmarks are same-machine and rough**: the numbers in this README and the docs come from same-machine comparisons on a single dev box, used for relative reference and regression — they **do not** predict performance on your production hardware.
 
 Within these boundaries, the goal is to make "one component for the common data needs" reliable, fast enough, and good enough.
+
+C# / .NET is the core implementation and primary integration ecosystem. Embedded deployments, servers, industrial edge, device data, and AI applications are deployment options or use cases rather than the product category itself.
 
 ## 🧭 Design Principles
 

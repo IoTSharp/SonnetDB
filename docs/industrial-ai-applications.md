@@ -1,15 +1,15 @@
 ---
 layout: default
 title: "使用 SonnetDB 构建工业 AI 应用"
-description: "SonnetDB 作为 .NET 工业边缘数据引擎和 Industrial Data Agent 数据底座的定位、架构与路线。"
+description: "SonnetDB 多模型数据引擎在工业边缘和 Industrial Data Agent 场景中的架构、用法与路线。"
 permalink: /industrial-ai-applications/
 ---
 
-SonnetDB 的产品门面应优先理解为：
+SonnetDB 的核心产品定位是：
 
-> **面向 .NET 工业边缘应用的本地优先数据引擎。**
+> **八种数据模型，一套引擎。**
 
-它不是单纯的时序数据库，也不只是“多模型数据库”这个横向能力标签。更准确的工程价值是：在工厂局域网、边缘网关、Windows 工控机、离线采集程序和私有化部署场景里，用一个可嵌入、可服务化部署的 SonnetDB 承接设备指标、配置、状态、文档、检索、对象和 Copilot 协作。
+工业边缘是 SonnetDB 的应用场景之一，而不是产品类别。在工厂局域网、边缘网关、Windows 工控机、离线采集程序和私有化部署场景里，可以用一个 SonnetDB 承接设备指标、配置、状态、文档、检索、对象和消息，并通过授权的 Copilot / MCP / Agent 接口使用这些数据。
 
 ## 为什么工业 AI 需要本地数据引擎
 
@@ -101,7 +101,7 @@ docker run --rm -p 5080:5080 -v ./sonnetdb-data:/data iotsharp/sonnetdb:latest
 为了让开发者和 AI Agent 更容易理解 SonnetDB，仓库维护以下入口：
 
 - `llms.txt`：给模型和 Agent 读取的项目定位、适用场景和关键链接。
-- `README.md` / `README.en.md`：项目门面，优先强调 .NET 工业边缘数据引擎。
+- `README.md` / `README.en.md`：项目门面，统一说明多模型数据引擎及其能力边界。
 - `docs/sql-reference.md`：SonnetDB SQL 方言的事实来源。
 - `docs/sql-cookbook.md`：可直接复制的查询模板。
 - `docs/web-workbench.md`：Studio、CopilotDock、上下文感知和写入审批说明。
@@ -117,10 +117,10 @@ docker run --rm -p 5080:5080 -v ./sonnetdb-data:/data iotsharp/sonnetdb:latest
 
 ## 产品路线
 
-短期重点是门面和可发现性：
+短期重点是合同和可发现性：
 
-- README 第一屏统一为 “local-first data engine for .NET industrial edge applications”。
-- 新增 `llms.txt` 和工业 AI 应用文档。
+- README、文档首页和 `llms.txt` 统一使用“八种数据模型，一套引擎”的核心定位。
+- 工业 AI 文档和示例明确自身是重点场景，不替代 SonnetDB 的通用引擎定位。
 - 示例、文档和 Copilot starter prompt 优先使用工业设备、边缘网关、诊断和运维场景。
 
 中期重点是 Industrial Data Agent：
@@ -129,7 +129,7 @@ docker run --rm -p 5080:5080 -v ./sonnetdb-data:/data iotsharp/sonnetdb:latest
 - MCP 工具围绕 schema、sample rows、SQL draft、read-only query、explain、诊断报告和写入审批稳定化。
 - 会话历史、页面上下文、权限选择、模型选择和 Copilot 指标继续产品化。
 
-长期重点是 provider-neutral 和工业边缘平台化：
+长期重点是 provider-neutral 和受治理的集成：
 
 - Chat / embedding provider 不绑定单一模型供应商。
 - 支持 OpenAI-compatible 网关、云端模型、本地 Ollama / vLLM 和私有化模型部署。

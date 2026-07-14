@@ -31,7 +31,7 @@
 | 24 | Document 管理面 | ✅ | Explorer、Validator、导入导出和维护入口已接入共享工作台。 |
 | 25 | Document 验收与发布治理 | 🚧 | parity 与文档完成；#174 仅有 1 万文档 quick 证据，百万/千万档未验证。 |
 | 26 | 连接器路线 | ✅ | C ABI 与多语言入口已交付，连接器 release workflow 通过。 |
-| 27 | Industrial Data Agent | 🚧 | 定位、工具合同、运行时接线、Demo 和 eval 仍有实际缺口。 |
+| 27 | AI / Agent 数据访问与治理 | 🚧 | 产品定位已校准；工具合同、运行时接线、工业 Demo 和 eval 仍有实际缺口。 |
 | 28 | 可靠性、并发与热路径加固 | ✅ | P0~P5 与 SDK 补口已收官。 |
 | 29 | 多模型统一管理工作台 | 🚧 | Web/Studio/VS Code 功能与合同已落地；Studio 安装包和宿主生命周期仍需实机验收。 |
 | 30 | Sparkplug B / CoAP / UDP 接入 | ✅ | 协议入口、生命周期、安全、parity 和基准已落地。 |
@@ -91,13 +91,13 @@ Web/Bridge smoke、Server 管理合同、Web Admin、Studio Release build 和 VS
 - 验证托管 Server 的启动、停止、异常退出、宿主退出策略、端口冲突和日志/健康状态。
 - 保存实机报告与截图；这项完成后 M29 才转为 ✅。
 
-## Milestone 27 — Industrial Data Agent
+## Milestone 27 — AI / Agent 数据访问与治理
 
-目标是把 SonnetDB 收敛为“面向 .NET 工业边缘应用的本地优先数据引擎 + 可信 Agent”。当前实现不是 Microsoft Agent Framework：实际为 `Microsoft.Extensions.AI` 抽象加自研 `CopilotAgent`；`LocalOnnxEmbeddingProvider.EmbedAsync` 尚未执行模型；在线 `/v1/copilot/chat` 只走 `ICopilotCloudGatewayClient`。在接线完成前，文档必须如实描述这些边界。
+目标是在不改变 SonnetDB“八种数据模型，一套引擎”核心定位的前提下，为 Copilot、MCP 和外部 Agent 提供受权限、审计与人工确认约束的数据访问能力。工业数据诊断是验证该能力的示例之一，不是产品类别。当前实现不是 Microsoft Agent Framework：实际为 `Microsoft.Extensions.AI` 抽象加自研 `CopilotAgent`；`LocalOnnxEmbeddingProvider.EmbedAsync` 尚未执行模型；在线 `/v1/copilot/chat` 只走 `ICopilotCloudGatewayClient`。在接线完成前，文档必须如实描述这些边界。
 
 | 项目 | 剩余交付 | 状态 |
 |---|---|---|
-| #182 产品定位 | README / README.en 第一屏改为明确的 `.NET industrial edge local-first data engine`，统一中文/英文入口和 `llms.txt`。 | 🚧 |
+| #182 产品定位校准 | README / README.en、文档首页、`llms.txt` 和产品欢迎页统一为“八种数据模型，一套引擎”；实现语言、部署方式、行业场景和 Agent 能力按层表达，不进入一级定位。 | ✅ |
 | #183 MCP 合同 | 为现有 list/describe/sample/query/explain/docs 工具形成稳定 typed contract，写清参数、返回、权限、错误和版本兼容；不新增大工具面。 | 🚧 |
 | #184 工业 Demo | 用 MQTT/HTTP 写入温度、电流、振动，演示异常设备查询、维修建议、引用和报告；数据模型、脚本、文档和视频口径一致。 | 📋 |
 | #185 Provider 接线 | 配置样例和模型分组已完成；仍需让在线 Chat 按配置走 `IChatProvider` 或云 Gateway，并实现可运行的本地 embedding/provider 路径。 | 🚧 |
@@ -106,7 +106,7 @@ Web/Bridge smoke、Server 管理合同、Web Admin、Studio Release build 和 VS
 | #187 Eval/成本 | 增加异常设备、慢查询、schema、维修建议和审批场景，记录 provider/model/tool/失败原因/token 成本，并给出可复现报告。 | 📋 |
 | #188 上层边界 | IoTSharp 联合样例归 IoTSharp；SonnetDB 只提供授权 MCP、通用引擎和 Agent 素材。 | ✅ |
 
-验收要求：本地关闭云端外发时仍有一条可运行路径；高风险写入必须经权限和人工确认；外部 Agent 只通过授权 MCP/HTTP 合同访问，不直读目录或系统表。
+验收要求：AI / Agent 文案不得替代多模型引擎的核心产品定位；本地关闭云端外发时仍有一条可运行路径；高风险写入必须经权限和人工确认；外部 Agent 只通过授权 MCP/HTTP 合同访问，不直读目录或系统表。
 
 ## Milestone 32 — Document MongoDB-like 易用性
 
