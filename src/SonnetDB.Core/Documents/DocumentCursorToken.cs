@@ -51,16 +51,23 @@ public static class DocumentCursorToken
         }
         catch (FormatException ex)
         {
-            throw new InvalidOperationException("document cursor token is invalid.", ex);
+            throw new DocumentCursorException(
+                DocumentCursorErrorCodes.InvalidToken,
+                "document cursor token is invalid.",
+                ex);
         }
 
         string[] parts = text.Split('\n');
         if (parts.Length != 8)
-            throw new InvalidOperationException("document cursor token is invalid.");
+            throw new DocumentCursorException(
+                DocumentCursorErrorCodes.InvalidToken,
+                "document cursor token is invalid.");
 
         string payload = string.Join("\n", parts.AsSpan(0, 7).ToArray());
         if (!FixedTimeEquals(parts[7], Sign(payload)))
-            throw new InvalidOperationException("document cursor token signature is invalid.");
+            throw new DocumentCursorException(
+                DocumentCursorErrorCodes.InvalidToken,
+                "document cursor token signature is invalid.");
 
         if (!int.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out int version)
             || version != CurrentVersion
@@ -69,7 +76,9 @@ public static class DocumentCursorToken
             || !int.TryParse(parts[5], NumberStyles.None, CultureInfo.InvariantCulture, out int offset)
             || offset < 0)
         {
-            throw new InvalidOperationException("document cursor token is invalid.");
+            throw new DocumentCursorException(
+                DocumentCursorErrorCodes.InvalidToken,
+                "document cursor token is invalid.");
         }
 
         string lastId = Unescape(parts[6]);

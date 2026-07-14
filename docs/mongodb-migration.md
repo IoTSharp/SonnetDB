@@ -33,7 +33,7 @@ permalink: /mongodb-migration/
 |---|---|---|
 | `IMongoCollection.InsertOneAsync` | `SndbDocumentClient.InsertOneAsync` | 调用方提供字符串 ID |
 | `InsertManyAsync` | `InsertManyAsync(..., ordered)` | 返回稳定 per-item error code |
-| `Find(...).Project().Sort()` | `FindAsync(SndbDocumentFindOptions)` | filter/projection/sort 使用 SonnetDB DTO |
+| `Find(...).Project().Sort()` | `FindAsync(SndbDocumentFindOptions)` / `FindCursor` | 类型化 builder 生成 SonnetDB DTO；cursor 可逐页枚举 |
 | `UpdateOne/UpdateMany` | `UpdateOneAsync` / `UpdateManyAsync` | 支持的 operator 见能力矩阵 |
 | `DeleteOne/DeleteMany` | `DeleteOneAsync` / `DeleteManyAsync` | bulk delete 可选 ordered |
 | `CountDocuments` | `CountAsync` | 当前过滤计数能力以 API 参考为准 |
@@ -46,7 +46,6 @@ permalink: /mongodb-migration/
 最小示例：
 
 ```csharp
-using System.Text.Json;
 using SonnetDB.Data.Documents;
 
 using var documents = new SndbDocumentClient("Data Source=./data");
@@ -56,14 +55,31 @@ await documents.InsertOneAsync(
     "device-001",
     """{"site":"east","status":"online","score":42}""");
 
-using var east = JsonDocument.Parse("\"east\"");
-var result = await documents.FindAsync(
+var filter = new SndbDocumentFilterBuilder()
+    .Equal("$.site", "east")
+    .GreaterThanOrEqual("$.score", 10)
+    .Build();
+var projection = new SndbDocumentProjectionBuilder()
+    .Include("_id")
+    .Include("$.status", "status")
+    .Build();
+var sort = new SndbDocumentSortBuilder()
+    .Descending("$.score")
+    .Build();
+
+var cursor = documents.FindCursor(
     "devices",
     new SndbDocumentFindOptions(
-        Filter: new SndbDocumentFilter("$.site", "eq", east.RootElement.Clone()),
-        Sort: [new SndbDocumentSort("$.score", Descending: true)],
+        Filter: filter,
+        Projection: projection,
+        Sort: sort,
         Limit: 100));
+
+await foreach (var document in cursor.ReadAllAsync())
+    Console.WriteLine(document.Json);
 ```
+
+builder 只减少 SonnetDB DTO 的字符串操作符与 `JsonElement` 样板，不接受 MongoDB FilterDefinition。cursor 也不是 MongoDB server cursor：token 只能交回原集合和同一查询形状；收到 `document_cursor_invalid/mismatch/expired/stale` 时必须重新发起查询并按业务规则处理可能重复读取。
 
 完整 DTO 和端点说明见 [SQL 参考的 Document API 章节](sql-reference.md#document-api)。
 

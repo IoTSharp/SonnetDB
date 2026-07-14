@@ -1,6 +1,7 @@
 using System.Text.Json;
 using SonnetDB.Data;
 using SonnetDB.Data.Documents;
+using SonnetDB.Documents;
 using Xunit;
 
 namespace SonnetDB.Core.Tests.Documents;
@@ -118,6 +119,62 @@ public sealed class SndbDocumentClientTests : IDisposable
     }
 
     [Fact]
+    public async Task DocumentClient_TypedBuilders_QueryAndUpdateWithoutManualJson()
+    {
+        using var client = new SndbDocumentClient(new SndbConnectionStringBuilder
+        {
+            DataSource = _root,
+        }.ConnectionString);
+
+        await client.CreateCollectionAsync("devices");
+        await client.InsertManyAsync("devices", [
+            new KeyValuePair<string, string>("dev-1", """{"site":"north","kind":"pump","score":7,"tags":["hot"]}"""),
+            new KeyValuePair<string, string>("dev-2", """{"site":"south","kind":"fan","score":3,"tags":["cold"]}"""),
+            new KeyValuePair<string, string>("dev-3", """{"site":"north","kind":"pump","score":9,"tags":["hot","critical"]}"""),
+        ]);
+
+        var filter = new SndbDocumentFilterBuilder()
+            .Equal("$.site", "north")
+            .GreaterThanOrEqual("$.score", 5)
+            .In("$.kind", "pump", "fan")
+            .Add(SndbDocumentFilters.Not(SndbDocumentFilters.Contains("$.tags", "cold")))
+            .Build();
+        var projection = new SndbDocumentProjectionBuilder()
+            .Include("_id")
+            .Include("$.score", "score")
+            .Build();
+        var sort = new SndbDocumentSortBuilder()
+            .Descending("$.score")
+            .Ascending("_id")
+            .Build();
+
+        var documents = await client.FindAsync(
+            "devices",
+            new SndbDocumentFindOptions(Filter: filter, Projection: projection, Sort: sort));
+
+        Assert.Equal(["dev-3", "dev-1"], documents.Select(static document => document.Id).ToArray());
+        Assert.Equal("""{"_id":"dev-3","score":9}""", documents[0].Json);
+
+        var update = new SndbDocumentUpdateBuilder()
+            .Set("$.status", "online")
+            .Increment("$.score", 2)
+            .Unset("$.legacy")
+            .AddToSet("$.tags", "verified")
+            .CurrentDate("$.updatedAt", SndbDocumentCurrentDateKind.Timestamp)
+            .Build();
+        var result = await client.UpdateOneAsync("devices", SndbDocumentFilters.Equal("_id", "dev-1"), update);
+
+        Assert.Equal(1, result.Modified);
+        using var updated = JsonDocument.Parse((await client.FindOneAsync("devices", "dev-1"))!.Json);
+        Assert.Equal("online", updated.RootElement.GetProperty("status").GetString());
+        Assert.Equal(9, updated.RootElement.GetProperty("score").GetInt32());
+        Assert.Equal(
+            ["hot", "verified"],
+            updated.RootElement.GetProperty("tags").EnumerateArray().Select(static value => value.GetString()!).ToArray());
+        Assert.True(updated.RootElement.GetProperty("updatedAt").TryGetInt64(out _));
+    }
+
+    [Fact]
     public async Task DocumentClient_FindPageAsync_WithCursor_ReturnsBatches()
     {
         using var client = new SndbDocumentClient(new SndbConnectionStringBuilder
@@ -138,12 +195,63 @@ public sealed class SndbDocumentClientTests : IDisposable
         Assert.NotNull(first.ContinuationToken);
         Assert.NotNull(first.CursorExpiresAtUtc);
 
+        var state = DocumentCursorToken.Decode(first.ContinuationToken!);
+        string expiredToken = DocumentCursorToken.Encode(state with
+        {
+            ExpiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(-1),
+        });
+        var expired = await Assert.ThrowsAsync<DocumentCursorException>(() =>
+            client.FindPageAsync("devices", new SndbDocumentFindOptions(
+                Limit: 2,
+                ContinuationToken: expiredToken)));
+        Assert.Equal(DocumentCursorErrorCodes.Expired, expired.Code);
+
         var second = await client.FindPageAsync("devices", new SndbDocumentFindOptions(
             Limit: 2,
             ContinuationToken: first.ContinuationToken));
         Assert.Equal(["dev-3"], second.Documents.Select(static doc => doc.Id).ToArray());
         Assert.False(second.HasMore);
         Assert.Null(second.ContinuationToken);
+    }
+
+    [Fact]
+    public async Task DocumentClient_FindCursor_ReadAllAsync_StreamsAllPages()
+    {
+        using var client = new SndbDocumentClient(new SndbConnectionStringBuilder
+        {
+            DataSource = _root,
+        }.ConnectionString);
+
+        await client.CreateCollectionAsync("devices");
+        await client.InsertManyAsync("devices", [
+            new KeyValuePair<string, string>("dev-1", """{"score":1}"""),
+            new KeyValuePair<string, string>("dev-2", """{"score":2}"""),
+            new KeyValuePair<string, string>("dev-3", """{"score":3}"""),
+            new KeyValuePair<string, string>("dev-4", """{"score":4}"""),
+            new KeyValuePair<string, string>("dev-5", """{"score":5}"""),
+        ]);
+
+        var cursor = client.FindCursor("devices", new SndbDocumentFindOptions(Limit: 2));
+        var ids = new List<string>();
+        await foreach (var document in cursor.ReadAllAsync())
+            ids.Add(document.Id);
+
+        Assert.Equal(["dev-1", "dev-2", "dev-3", "dev-4", "dev-5"], ids);
+        Assert.True(cursor.IsExhausted);
+        Assert.NotNull(cursor.Current);
+        Assert.Equal(["dev-5"], cursor.Current!.Documents.Select(static document => document.Id).ToArray());
+        Assert.False(await cursor.MoveNextAsync());
+
+        var first = await client.FindPageAsync("devices", new SndbDocumentFindOptions(Limit: 2));
+        var resumed = client.FindCursor("devices", new SndbDocumentFindOptions(
+            Limit: 2,
+            ContinuationToken: first.ContinuationToken));
+        var resumedIds = new List<string>();
+        await foreach (var document in resumed.ReadAllAsync())
+            resumedIds.Add(document.Id);
+
+        Assert.Equal(["dev-3", "dev-4", "dev-5"], resumedIds);
+        Assert.Null(resumed.ContinuationToken);
     }
 
     [Fact]
@@ -165,10 +273,11 @@ public sealed class SndbDocumentClientTests : IDisposable
 
         await client.InsertOneAsync("devices", "dev-3", """{"site":"north","score":3}""");
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var ex = await Assert.ThrowsAsync<DocumentCursorException>(() =>
             client.FindPageAsync("devices", new SndbDocumentFindOptions(
                 Limit: 1,
                 ContinuationToken: first.ContinuationToken)));
+        Assert.Equal(DocumentCursorErrorCodes.SnapshotStale, ex.Code);
         Assert.Contains("snapshot is stale", ex.Message, StringComparison.Ordinal);
     }
 

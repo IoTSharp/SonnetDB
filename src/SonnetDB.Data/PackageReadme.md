@@ -98,4 +98,31 @@ public sealed class KnowledgeRecord
 
 `measurement` 仍用于时序数据和时序 `VECTOR(N)` 列；通用 VectorData collection 不默认映射到 measurement，避免把非时序记录强行绑定到时间轴。
 
+## Document Store
+
+`SonnetDB.Data.Documents` 提供嵌入式与远程共用的 `SndbDocumentClient`。类型化 builder 会生成 SonnetDB 自有 Document DTO，不要求手写 filter 操作符或构造 `JsonElement`；它不表示 MongoDB Driver 或 wire protocol 兼容。
+
+```csharp
+using SonnetDB.Data.Documents;
+
+using var documents = new SndbDocumentClient("Data Source=./demo-data");
+await documents.CreateCollectionAsync("devices");
+
+var filter = new SndbDocumentFilterBuilder()
+    .Equal("$.site", "north")
+    .GreaterThanOrEqual("$.score", 5)
+    .Build();
+var sort = new SndbDocumentSortBuilder()
+    .Descending("$.score")
+    .Build();
+
+var cursor = documents.FindCursor(
+    "devices",
+    new SndbDocumentFindOptions(Filter: filter, Sort: sort, Limit: 100));
+await foreach (var document in cursor.ReadAllAsync())
+    Console.WriteLine(document.Json);
+```
+
+continuation token 绑定集合、查询形状、快照版本和过期时间。无效、错配、过期或快照失效时会抛出带 `DocumentCursorErrorCodes` 稳定 code 的 `DocumentCursorException`，调用方应重新发起查询，不能静默从头读取。
+
 发布包和默认示例配置见仓库根目录 `docs/releases/`。

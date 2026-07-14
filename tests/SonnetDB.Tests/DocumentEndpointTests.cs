@@ -11,6 +11,7 @@ using SonnetDB.Contracts;
 using SonnetDB.Data;
 using SonnetDB.Data.Documents;
 using SonnetDB.Data.Remote;
+using SonnetDB.Documents;
 using SonnetDB.Json;
 using Xunit;
 
@@ -162,6 +163,10 @@ public sealed class DocumentEndpointTests : IAsyncLifetime
         var duplicate = await client.InsertOneAsync("clientdocs", "a", """{"category":"duplicate"}""");
         Assert.True(duplicate.HasErrors);
         Assert.Equal("duplicate_key", Assert.Single(duplicate.Errors!).Code);
+        var cursorError = await Assert.ThrowsAsync<DocumentCursorException>(() =>
+            client.FindPageAsync("clientdocs", new SndbDocumentFindOptions(
+                ContinuationToken: "not-a-valid-token")));
+        Assert.Equal(DocumentCursorErrorCodes.InvalidToken, cursorError.Code);
         var deleted = await client.DeleteManyAsync("clientdocs", ["b", "missing"]);
         Assert.Equal(1, deleted.Deleted);
 
@@ -294,6 +299,20 @@ public sealed class DocumentEndpointTests : IAsyncLifetime
                 ContinuationToken: firstBody.ContinuationToken),
             ServerJsonContext.Default.DocumentFindRequest);
         Assert.Equal(HttpStatusCode.BadRequest, mismatched.StatusCode);
+        using var mismatchError = JsonDocument.Parse(await mismatched.Content.ReadAsStringAsync());
+        Assert.Equal(
+            DocumentCursorErrorCodes.QueryMismatch,
+            mismatchError.RootElement.GetProperty("error").GetString());
+
+        var invalid = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/pagedocs/find",
+            new DocumentFindRequest(Limit: 2, ContinuationToken: "not-a-valid-token"),
+            ServerJsonContext.Default.DocumentFindRequest);
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+        using var invalidError = JsonDocument.Parse(await invalid.Content.ReadAsStringAsync());
+        Assert.Equal(
+            DocumentCursorErrorCodes.InvalidToken,
+            invalidError.RootElement.GetProperty("error").GetString());
     }
 
     [Fact]

@@ -14,9 +14,9 @@ SonnetDB Document Store 面向嵌入式、边缘和单节点工业应用中的 J
 | 领域 | 当前能力 | 边界 |
 |---|---|---|
 | 集合与 CRUD | create/drop collection、insert one/many、find one/many、replace、delete one/many | ID 是 SonnetDB 字符串 ID，不是 MongoDB `ObjectId` 自动生成语义 |
-| 查询 | `_id`/JSON path；`eq/ne/gt/gte/lt/lte/in/nin/exists/contains`；AND/OR/NOT | 不承诺 MongoDB MQL 全集、正则、`$expr`、`$where` 或 BSON 类型排序完全一致 |
-| 投影与排序 | 多字段 projection、稳定排序、limit/skip | 复杂数组投影和 MongoDB expression projection 不在当前契约内 |
-| 分页 | 有过期时间和 snapshot version 的 continuation token | 不是 MongoDB cursor/wire protocol；token 只能交回 SonnetDB API |
+| 查询 | `_id`/JSON path；`eq/ne/gt/gte/lt/lte/in/nin/exists/contains`；AND/OR/NOT；.NET 类型化 filter builder | 不承诺 MongoDB MQL 全集、正则、`$expr`、`$where` 或 BSON 类型排序完全一致 |
+| 投影与排序 | 多字段 projection、稳定排序、limit/skip；.NET projection/sort builder | 复杂数组投影和 MongoDB expression projection 不在当前契约内 |
+| 分页 | 有过期时间和 snapshot version 的 continuation token；.NET cursor 支持逐页读取和 `await foreach` | 不是 MongoDB cursor/wire protocol；token 只能交回 SonnetDB API |
 | 局部更新 | `$set/$unset/$inc/$min/$max/$rename/$push/$pull/$addToSet/$currentDate`、upsert、multi | 不支持 MongoDB 全部数组 positional/operator 语法 |
 | 索引 | 单字段/复合、unique、sparse、partial、TTL；在线 rebuild；planner/explain | 不声明 MongoDB multikey、hashed、wildcard、2d/2dsphere 索引兼容 |
 | 聚合 | `$match/$project/$group/$sort/$limit/$skip/$unwind/$count/$distinct`；count/sum/avg/min/max/first/last/distinct | 不是完整 MongoDB aggregation pipeline；不支持 `$lookup` 等跨集合 stage |
@@ -29,12 +29,14 @@ SonnetDB Document Store 面向嵌入式、边缘和单节点工业应用中的 J
 
 ## 接入入口
 
-- .NET：`SonnetDB.Data.Documents.SndbDocumentClient`，嵌入式和远程使用同一 API。
+- .NET：`SonnetDB.Data.Documents.SndbDocumentClient`，嵌入式和远程使用同一 API；filter/projection/sort/update builder 生成现有 DTO，`FindCursor` 负责 continuation token 续页。
 - HTTP：`/v1/db/{db}/documents/{collection}` 下的私有 JSON API。
 - SQL：`CREATE DOCUMENT COLLECTION`、`CREATE INDEX`、`ALTER DOCUMENT COLLECTION ... SET VALIDATOR` 及 JSON path 查询。
 - 管理面：Web Admin 的统一 Explorer 选择 Collections，进入 Document Explorer；SonnetDB Studio 桌面复用同一管理面。当前 VS Code 扩展只承担明确的只读/开发者子集，不宣称完整 Document 编辑面。
 
 读操作要求数据库 `Read` 权限，写入、导入、validator 和索引维护要求 `Write` 或对应管理权限。Studio 的导入、rebuild 和 validator 保存必须经过 preview/dry-run/confirm 中至少一种防误操作步骤。
+
+游标 token 无效、查询形状错配、过期或快照变化分别使用 `document_cursor_invalid`、`document_cursor_mismatch`、`document_cursor_expired`、`document_cursor_stale`。这些错误要求调用方明确重新发起查询；SDK 不会静默跳过、复用旧快照或自动从头读取。
 
 ## 不支持项
 

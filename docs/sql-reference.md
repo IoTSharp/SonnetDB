@@ -194,11 +194,11 @@ DROP DOCUMENT COLLECTION device_docs;
 
 - 文档集合固定暴露 `id` 和 `document` / `json` 两个伪列；`SELECT *` 展开为 `id, document`。
 - `INSERT` 需要提供 `id` 与 `document` 或 `json`，JSON 文本会用 `System.Text.Json` 校验并规范化为紧凑 JSON。
-- `UPDATE` 当前仅支持 `SET document = '<json>'`，按命中文档整体替换。
+- SQL `UPDATE` 使用 `SET document = '<json>'` 做整体替换；局部更新操作符通过 Document HTTP API 或 `SndbDocumentClient.UpdateOneAsync/UpdateManyAsync` 调用。
 - `json_value(document, '$.path')` 支持 `$`、点属性、`$['property']` 和数组下标，例如 `$.metrics.temp`、`$['display-name']`、`$.tags[0]`。
 - `CREATE JSON INDEX` 建立基础 path 等值索引；`WHERE json_value(document, '$.type') = 'pump'` 可走该索引，`EXPLAIN` 的 `access_path` 会显示 `json_path_index`。
 - `id = '...'` 会走文档 ID 读取；其它条件走集合扫描后过滤。
-- 第一版不提供 MongoDB 兼容 API、跨文档复杂事务或 JSON schema 校验。
+- 不提供 MongoDB wire/Driver 兼容 API 或跨文档复杂事务；集合 validator 支持 SonnetDB 自有 required/type/range/enum/pattern 子集。
 
 Document Store 也提供私有 JSON HTTP API 与 `SndbDocumentClient`，用于不想拼 SQL 的应用代码。端点统一位于 `/v1/db/{db}/documents/{collection}` 下，读操作需要数据库 `Read` 权限，写操作需要 `Write` 权限：
 

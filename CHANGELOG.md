@@ -23,6 +23,7 @@
 
 ### Added
 
+- **M32 Document SDK 易用性第一批**：`SndbDocumentClient` 新增 extend-only 的 filter/projection/sort/update builder 和 AOT 友好 `SndbDocumentValue`，常用标量与调用方 `JsonTypeInfo<T>` 不再要求手工拼 JSON；新增 `FindCursor`、逐页 `MoveNextAsync` 与 `ReadAllAsync`，统一嵌入式/HTTP 的 `document_cursor_invalid/mismatch/expired/stale` 稳定错误码。旧 DTO、方法签名及成功请求/响应 payload 保持不变；游标失败的 HTTP `error` 从通用 `bad_request` 细化为上述稳定 code，混合 Bulk 结果模型仍按 M32 后续任务推进。
 - **M18 VS Code `0.4.0` GEOPOINT 轨迹结果视图**：Query Result Webview 在检测到 GeoJSON Point、`POINT(lat, lon)`、坐标数组或常见经纬度对象时显示 `Trajectory` 页签；轨迹按时间列排序，按低基数设备/TAG 列分组，并使用 VS Code 主题色绘制坐标网格、路径、点位和起终点。新增纯 TypeScript 测试覆盖解析、分组、排序、边界和向量列误判防护，Extension Host smoke 同步验证轨迹视图已进入打包代码；`0.4.0` 已发布到 [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode)，远端 VSIX SHA256 与本地发布产物一致。
 - **M18 VS Code `0.3.0` 与管理面加载收口**：扩展新增 Object Bucket / Object metadata 只读 Explorer 与预览、实例 health 和 SonnetMQ lag/retention/DLQ 监控快照；C# `SqlParser` sidecar 改用 JSON-RPC 2.0 + 标准 LSP `Content-Length` framing，并加入隔离 user-data/extension 目录的真实 VS Code Extension Host smoke 与 Windows CI。Web Admin 路由和八模型工作台改为按需加载，生产入口主 chunk 从约 2.65 MB 降至约 56 KB，同时保留 43 条 Chromium e2e 门禁。Marketplace 发布与最终 Electron 截图仍为独立授权动作。
 

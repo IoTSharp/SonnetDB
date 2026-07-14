@@ -36,7 +36,7 @@
 | 29 | 多模型统一管理工作台 | 🚧 | Web/Studio/VS Code 功能与合同已落地；Studio 安装包和宿主生命周期仍需实机验收。 |
 | 30 | Sparkplug B / CoAP / UDP 接入 | ✅ | 协议入口、生命周期、安全、parity 和基准已落地。 |
 | 31 | 时序聚合类型语义 | ✅ | selector / categorical aggregates 已落地。 |
-| 32 | Document MongoDB-like 易用性 | 📋 | 已完成项已从计划中移除，只保留真实能力缺口。 |
+| 32 | Document MongoDB-like 易用性 | 🚧 | SDK builder、分页 cursor 与稳定游标错误码已落地；批量结果、缺失查询/更新/索引语义、迁移工具和 gap report 继续推进。 |
 | 33 | 时序聚合执行与下推 | ✅ | Geo 正确性、多聚合复用、残差流式化、count(*)、LIMIT/latest-N 下推已落地。 |
 | 34 | Modbus TCP 内建映射表 | 📋 | 尚未开始。 |
 | 35 | 语义内容与多模态检索 | 📋 | 尚未开始。 |
@@ -114,7 +114,7 @@ Web/Bridge smoke、Server 管理合同、Web Admin、Studio Release build 和 VS
 
 | 方向 | 真实剩余工作 | 状态 |
 |---|---|---|
-| SDK | 类型化 filter/projection/sort/update builder、分页 cursor、标准错误码和批量结果模型，减少手写 JSON。 | 📋 |
+| SDK | ✅ 类型化 filter/projection/sort/update builder、AOT 类型值、分页 cursor 与 invalid/mismatch/expired/stale 标准错误码；🚧 统一批量结果模型仍与下方混合 Bulk 一并推进。 | 🚧 |
 | 更新 | `$mul`、`$pop`、`findOneAndUpdate` 的 before/after 返回语义和完整单文档原子性。 | 📋 |
 | 查询 | `$elemMatch`、`$regex`、`$type`、`$size`、`$all`、复杂 `$not`、嵌套 path 边界和基础 collation。 | 📋 |
 | 索引 | multikey 与 wildcard 语义、恢复一致性、planner/EXPLAIN；现有 compound/unique/sparse/partial/TTL 不重做。 | 📋 |

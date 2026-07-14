@@ -260,6 +260,21 @@ public sealed class SndbDocumentClient : IDisposable
     }
 
     /// <summary>
+    /// 创建按只读快照逐页读取查询结果的客户端游标。
+    /// </summary>
+    /// <param name="collection">文档集合名称。</param>
+    /// <param name="options">查询与每页数量选项。</param>
+    /// <returns>尚未开始读取的客户端游标。</returns>
+    public SndbDocumentCursor FindCursor(
+        string collection,
+        SndbDocumentFindOptions? options = null)
+    {
+        ThrowIfDisposed();
+        ValidateCollection(collection);
+        return new SndbDocumentCursor(this, collection, options ?? new SndbDocumentFindOptions());
+    }
+
+    /// <summary>
     /// 分页查询文档，并返回 continuation token。
     /// </summary>
     /// <param name="collection">文档集合名称。</param>
@@ -294,22 +309,29 @@ public sealed class SndbDocumentClient : IDisposable
                 return framedPage;
         }
 
-        using var response = await PostJsonAsync(
-            CollectionActionUrl(collection, "find"),
-            new DocumentFindRequest(
-                options.Id,
-                options.Ids,
-                options.Limit,
-                options.Skip,
-                options.Filter,
-                options.Projection,
-                options.Sort,
-                options.ContinuationToken),
-            SndbDocumentClientJsonContext.Default.DocumentFindRequest,
-            cancellationToken).ConfigureAwait(false);
-        var body = await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentFindResponse, cancellationToken)
-            .ConfigureAwait(false);
-        return ToPage(body, limit);
+        try
+        {
+            using var response = await PostJsonAsync(
+                CollectionActionUrl(collection, "find"),
+                new DocumentFindRequest(
+                    options.Id,
+                    options.Ids,
+                    options.Limit,
+                    options.Skip,
+                    options.Filter,
+                    options.Projection,
+                    options.Sort,
+                    options.ContinuationToken),
+                SndbDocumentClientJsonContext.Default.DocumentFindRequest,
+                cancellationToken).ConfigureAwait(false);
+            var body = await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentFindResponse, cancellationToken)
+                .ConfigureAwait(false);
+            return ToPage(body, limit);
+        }
+        catch (SndbServerException ex) when (DocumentCursorErrorCodes.IsCursorError(ex.Error))
+        {
+            throw new DocumentCursorException(ex.Error, ex.ServerMessage, ex);
+        }
     }
 
     /// <summary>
@@ -1125,13 +1147,23 @@ public sealed class SndbDocumentClient : IDisposable
         if (!string.Equals(state.Collection, collection, StringComparison.Ordinal)
             || !string.Equals(state.QueryFingerprint, fingerprint, StringComparison.Ordinal))
         {
-            throw new InvalidOperationException("document cursor token does not match this find request.");
+            throw new DocumentCursorException(
+                DocumentCursorErrorCodes.QueryMismatch,
+                "document cursor token does not match this find request.");
         }
 
         if (state.ExpiresAtUtc <= DateTimeOffset.UtcNow)
-            throw new InvalidOperationException("document cursor token has expired.");
+        {
+            throw new DocumentCursorException(
+                DocumentCursorErrorCodes.Expired,
+                "document cursor token has expired.");
+        }
         if (state.SnapshotVersion != currentVersion)
-            throw new InvalidOperationException("document cursor snapshot is stale; restart the find request.");
+        {
+            throw new DocumentCursorException(
+                DocumentCursorErrorCodes.SnapshotStale,
+                "document cursor snapshot is stale; restart the find request.");
+        }
 
         return state;
     }

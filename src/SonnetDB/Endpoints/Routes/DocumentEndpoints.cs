@@ -186,6 +186,11 @@ internal static partial class SonnetDbEndpoints
             {
                 page = FindDocumentPage(collection, store, req);
             }
+            catch (DocumentCursorException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, ex.Code, ex.Message).ConfigureAwait(false);
+                return;
+            }
             catch (ArgumentException ex)
             {
                 await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
@@ -962,13 +967,23 @@ internal static partial class SonnetDbEndpoints
         if (!string.Equals(state.Collection, collection, StringComparison.Ordinal)
             || !string.Equals(state.QueryFingerprint, fingerprint, StringComparison.Ordinal))
         {
-            throw new InvalidOperationException("document cursor token does not match this find request.");
+            throw new DocumentCursorException(
+                DocumentCursorErrorCodes.QueryMismatch,
+                "document cursor token does not match this find request.");
         }
 
         if (state.ExpiresAtUtc <= DateTimeOffset.UtcNow)
-            throw new InvalidOperationException("document cursor token has expired.");
+        {
+            throw new DocumentCursorException(
+                DocumentCursorErrorCodes.Expired,
+                "document cursor token has expired.");
+        }
         if (state.SnapshotVersion != currentVersion)
-            throw new InvalidOperationException("document cursor snapshot is stale; restart the find request.");
+        {
+            throw new DocumentCursorException(
+                DocumentCursorErrorCodes.SnapshotStale,
+                "document cursor snapshot is stale; restart the find request.");
+        }
 
         return state;
     }

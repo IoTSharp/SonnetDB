@@ -12,7 +12,7 @@ namespace SonnetDB.Data.Documents;
 public sealed record SndbDocument(string Id, string Json, long Version);
 
 /// <summary>
-/// 文档查询选项。第一版仅支持按 ID / ID 列表或集合顺序扫描。
+/// 文档查询选项，支持 ID、filter、projection、sort 与 continuation token 分页。
 /// </summary>
 /// <param name="Id">可选单文档 ID。</param>
 /// <param name="Ids">可选文档 ID 列表。</param>
