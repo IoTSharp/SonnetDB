@@ -22,7 +22,7 @@
 | 0~13 | 引擎、SQL、服务端、函数、向量底座 | ✅ | 实现与测试已落地，详情归档。 |
 | 14 | SonnetDB Copilot | 🚧 | MCP、知识库、skills 和自研 `CopilotAgent` 已落地；Microsoft Agent Framework、本地 ONNX 执行和在线 provider-neutral 接线未完成，转入 M27。 |
 | 15~17 | GEO/轨迹、Copilot UX、可观测性 | ✅ | 功能与测试已落地；会话以服务端持久化为准，不回退 `localStorage`。 |
-| 18 | SonnetDB for VS Code | 🚧 | `0.4.1` 已发布且哈希一致；仅最终 Electron 实机截图待补。 |
+| 18 | SonnetDB for VS Code | ✅ | `0.4.1` 已发布；smoke、隔离 VSIX 安装和本地/Marketplace SHA256 对拍通过。 |
 | 19 | 生态适配底座 | 🚧 | #109~#124、#126/#126.1 实现完成；#125 四个默认容量档缺固定目标硬件报告。 |
 | 20 | 多模型 Parity | 🚧 | 套件、宿主 readiness 与失败路径结构化 summary 已实现；仍需完整 scheduled run 和 7 天 nightly 连续证据。 |
 | 21 | Document Store 单机能力 | ✅ | 常用单机 Document 子集已落地。 |
@@ -40,22 +40,19 @@
 | 33 | 时序聚合执行与下推 | ✅ | Geo 正确性、多聚合复用、残差流式化、count(*)、LIMIT/latest-N 下推已落地。 |
 | 34 | Modbus TCP 内建映射表 | 📋 | 尚未开始。 |
 | 35 | 语义内容与多模态检索 | 📋 | 尚未开始。 |
+| 36 | 八模型专用品类易用性对齐 | 📋 | 已完成参照分析；按真实缺口吸收高频工作流，不做协议或产品全集兼容。 |
 | MM9 | 多模型备份恢复第一批 | ✅ | `BackupService` 与 `sndb backup` 已落地。 |
 
 ## 当前推进顺序
 
 1. 恢复 M20 Parity nightly 的有效报告，并补齐 M19/M25 目标硬件容量证据。
 2. 完成 M27 的真实 provider/Agent 接线、工业 Demo 和 eval，消除历史虚标。
-3. 收口 M18 Electron 截图和 M29 Studio 安装包/宿主生命周期实机验收。
+3. 收口 M29 Studio 安装包/宿主生命周期实机验收。
 4. 按真实差距推进 M32，不重复实现已有 update/index/change feed/UI 能力。
 5. M34 先做合同、DDL 和安全边界；M35 在过滤 ANN 与内容生命周期地基完成后再做媒体场景。
+6. M36 先完成八模型 golden journey 与 gap catalog；实现顺序为高频客户端工作流 -> 查询诊断 -> 高级治理，Document 继续归 M32，向量高级项复用 M35 地基。
 
 ## 待补验收证据
-
-### M18 — VS Code 发布收口
-
-- ✅ `0.4.1` 已发布；Node、Language Server、Extension Host smoke、隔离 VSIX 安装和本地/Marketplace SHA256 对拍通过。
-- 🚧 在干净的 VS Code Electron 宿主中保留最终功能截图，覆盖激活、Explorer、SQL 结果、diagnostics、signature help 和 quick fix。
 
 ### M19 — 生态容量证据
 
@@ -90,7 +87,8 @@ Web/Bridge smoke、Server 管理合同、Web Admin、Studio Release build 和 VS
 
 - 在干净 Windows 环境安装 Studio 安装包，验证首次启动、升级/卸载和数据目录保留策略。
 - 验证托管 Server 的启动、停止、异常退出、宿主退出策略、端口冲突和日志/健康状态。
-- 保存实机报告与截图；这项完成后 M29 才转为 ✅。
+
+上述功能性实机验收完成后，M29 转为 ✅。
 
 ## Milestone 27 — AI / Agent 数据访问与治理
 
@@ -166,6 +164,55 @@ SonnetDB 同时支持两个明确角色：主站/client 主动轮询外部 PLC/R
 
 顺序固定为 #297/#298 地基 → #299/#300 摄取/provider → #301/#302 首批场景 → #303 质量 → #304/#305 扩展收口 → #306~#309 专业视觉。完成 #301 前只宣称“具备多模态检索底座”。所有生物特征能力默认关闭，并要求用途、权限、访问/导出审计、保留期限和删除闭环。
 
+## Milestone 36 — 八模型专用品类易用性对齐
+
+目标是让每种数据模型都保留该品类用户熟悉的高频工作流，同时共享 SonnetDB 的连接、权限、审计、错误和运维边界。M20 回答“能力和结果是否对得上”，M29 回答“管理工具是否有入口”，M32 深化 Document MongoDB-like 易用性；本里程碑只处理从第一次成功调用到分页、批处理、失败恢复和诊断的**产品易用性**，不重复三者已经完成的工作。
+
+参照产品是学习来源，不是兼容承诺。每项能力进入实现前都必须用代码、公开 API、真实产品入口、测试和文档建立 `supported / partial / planned / not_planned` 证据；已存在的能力只补入口或文档，不得重新实现。
+
+### 逐模型分析与取舍
+
+| 数据模型 | 主要参照与学习理由 | 已有基线，不重复建设 | 优先吸收的易用性 | 明确不吸收 |
+|---|---|---|---|---|
+| Document | MongoDB / MongoDB Compass：文档心智、builder、cursor、局部更新、索引与迁移诊断成熟。 | CRUD、常用 update、分页、索引、aggregation 子集、validator、change feed 和管理面已存在。 | 类型化 builder、常用缺失操作符、multikey/wildcard、混合 bulk、可执行迁移与结构化 gap report，全部归 M32。 | MongoDB wire/BSON command、官方 Driver 直连、replica set、sharding、分布式事务。 |
+| 关系 SQL | PostgreSQL：SQL 行为与错误诊断；SQLite：嵌入式零配置；EF Core / DBeaver：.NET 与开发工作流。 | ADO.NET、EF Core、参数绑定、轻事务、主外键/索引/CHECK/ROWVERSION、EXPLAIN 和关系工作台已存在。 | `RETURNING`、`INSERT ... ON CONFLICT` 等高频 DML；可定位错误与稳定 code/hint；实际行数/耗时诊断；连接、取消、超时和 schema migration 的清晰入口。 | pgwire、完整 PostgreSQL 方言/extension、MVCC 全隔离级别、存储过程全集、HA 管理面。 |
+| 时序 | InfluxDB：Point/Line Protocol 与批量 Write API；VictoriaMetrics / Grafana Explore：range query 与排障；TimescaleDB：SQL 连续性。 | measurement/tag/field/time、自动 schema 演进、LP/JSON/Bulk、窗口/填充/聚合、Retention、图表与多协议接入已存在。 | 类型化 Point writer、批量 flush/retry/backpressure 与逐项错误；range/aggregate/gap-fill 查询 builder 和流式结果；precision/schema/cardinality/retention 预检与摄取诊断。 | Flux/PromQL 全语言兼容、分布式集群、无限基数承诺、把采集 Agent 或长期任务调度器塞进 Core。 |
+| KV / Cache | Redis：原子 key 操作、TTL 和条件写心智；RedisInsight：namespace、类型与过期诊断；.NET Cache：框架接入。 | bytes get/set、many、prefix scan/delete、TTL、INCR/DECR、CAS、`IDistributedCache`、EasyCaching 和 KV 工作台已存在。 | `NX/XX` 风格条件写、get-and-set/delete；AOT 友好的 UTF-8/JSON codec；异步 cursor/pipeline、批量分项结果、hot key/expiry/容量诊断。 | RESP/redis-cli 直连、List/Set/Hash/Stream 全数据结构、Lua、Pub/Sub、Redis Cluster 或跨 keyspace 事务。 |
+| 全文检索 | Meilisearch：单一 Search 请求、typo tolerance、filter/facet 和 task 状态；OpenSearch/Kibana：analyzer 与 relevance explain。 | Document 全文索引、BM25、Unicode/CJK/Jieba、exact/fuzzy/phrase/boolean、Document filter、analyze、rebuild、客户端高亮和 playground 已存在。 | 用类型化 `SearchRequest/Result` 汇总现有 mode/filter/page；补 sort、facet distribution、服务端 matched offset/highlight；增加 searchable/filterable/sortable fields、synonym/stopword/typo 设置、analyzer diff、score explain 和 rebuild progress。 | Elasticsearch Query DSL 全集、聚合分析平台、分片副本集群、把全文索引变成第二份主数据。 |
+| 向量检索 | Qdrant：point/payload/filter 与 collection UX；`Microsoft.Extensions.VectorData`：.NET 抽象；pgvector：SQL 组合能力。 | Measurement/Document 向量、HNSW/IVF/IVF-PQ/Vamana、精确回退、Hybrid Search、VectorData adapter 和 playground 已存在。 | 以 VectorData 为 .NET 默认入口，补齐 batch/filter/threshold/include 与 SonnetDB extension options；Measurement 仅补其不能表达的原生请求；增加 fast/balanced/accurate preset、维度/模型预检、index health、ANN/scan fallback explain 与质量报告。filtered ANN、similar-by-id 和 Embedding Profile 复用 M35 #297/#298。 | Qdrant/Milvus wire、第二套 collection/vector catalog、自动偷跑 embedding、分布式 shard/replica、用向量替代精确等值语义。 |
+| 对象存储 | S3 SDK：stream、conditional request 与 Transfer Manager；MinIO Console：bucket/prefix、multipart 和治理渐进呈现。 | bucket/object、stream/range、continuation、multipart、version/lifecycle/retention/legal hold/audit/quota/presign 和工作台已存在。 | 自动 multipart 的传输管理器、并发/重试/校验和/断点续传/进度；`If-Match/If-None-Match`、metadata/content type；异步分页和带 dry-run 的 `cp/sync`。 | SigV4/S3 wire 全兼容、跨节点复制、纠删码集群、把 prefix 伪装成真正目录或承诺 POSIX 文件系统语义。 |
+| 消息队列 | NATS JetStream：简洁 producer/consumer 与 drain；RabbitMQ：ack/nack/retry/DLQ；Kafka：offset/time/lag 与批处理运维。 | publish/batch、pull/ack、consumer offset、持久 replay、push stream、retention、MQTT 桥接和 MQ 工作台已存在。 | 高层 producer/consumer builder、`IAsyncEnumerable`、manual/auto ack、prefetch/backpressure 与 graceful drain；nack/redelivery/max-delivery/DLQ、message-id 去重、offset reset 和可解释 lag。 | Kafka/AMQP/NATS wire、partition rebalance、broker 集群、跨节点 consumer group、未经证明的 exactly-once。 |
+
+### 交付拆分
+
+| PR | 交付 | 状态 |
+|---|---|---|
+| #310 | 八模型 usability gap catalog 与可执行 golden journey：记录每个常用任务的当前入口、证据、手写样板量、失败恢复和 `supported/partial/planned/not_planned`；与 M20 capability report 分开。 | 📋 |
+| #311 | 统一新客户端合同：连接/鉴权、取消/超时、分页、批量分项错误、correlation id、仅对可安全重试操作启用的 retry/idempotency 元数据；不强行抹平各模型概念。 | 📋 |
+| #312 | SQL 高频 DML：`RETURNING`、SonnetDB-native `INSERT ... ON CONFLICT` 子集、ADO.NET/EF Core 映射和稳定冲突结果。 | 📋 |
+| #313 | SQL 开发诊断：带位置/code/hint 的解析与执行错误、`EXPLAIN ANALYZE` 实际行数/耗时/回退原因，以及取消和超时闭环。 | 📋 |
+| #314 | 时序类型化 Write API：Point builder、precision、batch/flush、限界背压、传输级重试、逐项错误和 dispose/drain；嵌入式与远程语义一致。 | 📋 |
+| #315 | 时序 Query API 与建模诊断：range/aggregate/window/gap-fill builder、流式结果，以及 schema/cardinality/retention/坏点预检；不新增第二套查询引擎。 | 📋 |
+| #316 | KV 条件与类型化 API：NX/XX、get-and-set/delete、UTF-8 与基于 `JsonTypeInfo<T>` 的 AOT JSON codec，保持 raw bytes 为底层权威语义。 | 📋 |
+| #317 | KV 大 keyspace 工作流：异步 cursor、pipeline/batch 分项结果、取消/背压和 hot-key/expiry/容量诊断；现有 many/prefix/TTL 不重做。 | 📋 |
+| #318 | FullText 高层 Search API：复用现有 query kind、Document filter 和分页，形成 query/filter/sort/facet/highlight/page typed contract；补服务端 matched offsets/terms 与稳定 score metadata。 | 📋 |
+| #319 | FullText 设置与诊断：searchable/filterable/sortable fields、synonym/stopword/typo policy、analyzer diff、relevance explain 和可观察 rebuild task。 | 📋 |
+| #320 | Vector 高层 Search API：以 VectorData adapter 为默认入口补 batch/filter/threshold/include/exact 与 fast/balanced/accurate preset；SonnetDB-specific 能力用 extension options 表达，不另建 collection API。 | 📋 |
+| #321 | Vector 生命周期与解释：dimension/metric/Embedding Profile preflight、index health/rebuild progress、ANN/scan/补偿原因与 recall report；依赖 M35 #297/#298 的部分不得提前复制实现。 | 📋 |
+| #322 | Object Transfer Manager：自动 multipart 阈值/part size/并发、checksum、retry、resume、progress、取消和资源释放，基于现有 `SndbObjectStorageClient`。 | 📋 |
+| #323 | Object 日常文件流：conditional put/get、metadata/content type、异步 continuation，以及 CLI `cp/sync --dry-run`、冲突与删除保护。 | 📋 |
+| #324 | SonnetMQ 高层 consumer：producer/consumer builder、push/pull `IAsyncEnumerable`、prefetch、manual/auto ack、限界背压、取消和 graceful drain。 | 📋 |
+| #325 | SonnetMQ 投递失败治理：nack/redelivery/max-delivery/DLQ、message-id 去重窗口、offset earliest/latest/time/explicit reset、lag 与丢弃原因诊断。 | 📋 |
+| #326 | 八模型收口：每模型一个嵌入式/远程同代码或最小差异样例，SDK/API/Workbench/CLI 能力矩阵、结构化 gap report 和用户任务 e2e；Document 结果汇总自 M32，不复制任务。 | 📋 |
+
+### 顺序与验收
+
+顺序固定为 #310 先建立证据，#311 固化共享合同；随后优先 #314/#316/#322/#324 四条高频客户端路径，再推进 SQL/全文/向量的查询与诊断，最后以 #326 收口。M32 可独立推进；#321 中的 filtered ANN、similar-by-id 与 Embedding Profile 必须等待 M35 #297/#298，不得另建旁路。
+
+完成要求：每个模型至少有一个 20 行左右的最小成功样例和一个生产化样例；嵌入式/远程对同一合同做 parity；分页或流式读取内存有界；取消可停止真实工作；重试不会把非幂等写静默执行两次；错误包含稳定 code、操作与可行动建议且不泄露数据；对应产品入口和自动化测试真实接线。UI 控件只能在引擎/SDK 语义完成后开放。M36 不以“拥有与参照产品同名功能”判定完成，而以 golden journey 可运行、gap 可解释、失败可恢复来判定。
+
+总边界：不新增任何竞品 wire protocol，不宣称完整替代专用数据库，不引入分布式复制/分片/集群，不为统一表面 API 混淆八种模型的原生语义，也不把外部采集、媒体推理或长运行工作流塞进 Core。
+
 ## 性能观察项
 
 以下不是已完成里程碑的遗留验收，只有触发条件成立并取得独立基准后才排期：
@@ -182,6 +229,7 @@ SonnetDB 同时支持两个明确角色：主站/client 主动轮询外部 PLC/R
 |---|---|
 | 0~13 | Safe-only 存储引擎、WAL/Segment/Compaction、SQL/ADO.NET、Server/Web、函数、向量与知识库底座。 |
 | 15~17 | GEOPOINT/轨迹、Copilot 产品 UX、OTel/结构化日志/诊断/health/慢查询/服务端会话。 |
+| 18 | VS Code 扩展 `0.4.1` 发布、smoke、隔离 VSIX 安装和 Marketplace 产物校验。 |
 | 21 | Document CRUD、查询/分页、局部更新第一批、索引、aggregation 子集、validator 和单机恢复。 |
 | 23 | 全文与向量引擎收编、持久索引与 Hybrid Search。 |
 | 24 | Document Explorer、Validator、导入导出、rebuild 与共享审批。 |
