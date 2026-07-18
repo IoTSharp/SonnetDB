@@ -1169,13 +1169,10 @@ internal static class RelationalSelectExecutor
         SubqueryMemo? memo = null)
     {
         var value = EvaluateScalar(tsdb, expression.Value, columns, row, outerScope, memo);
-        if (value is null)
-            return null;
-
         var sawNull = false;
         bool Matches(object? candidate)
         {
-            if (candidate is null)
+            if (value is null || candidate is null)
             {
                 sawNull = true;
                 return false;

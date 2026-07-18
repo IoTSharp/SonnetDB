@@ -318,20 +318,32 @@ internal static class TableSqlExecutor
             : RemoveHiddenOrderColumns(ordered, projections.Length);
     }
 
+    internal static IReadOnlyList<string> ResolveProjectionColumnNames(
+        SelectStatement statement,
+        TableSchema schema)
+    {
+        ArgumentNullException.ThrowIfNull(statement);
+        ArgumentNullException.ThrowIfNull(schema);
+        return BuildProjections(statement.Projections, schema)
+            .Select(static projection => projection.ColumnName)
+            .ToArray();
+    }
+
     public static RowsAffectedExecutionResult ExecuteDelete(Tsdb tsdb, DeleteStatement statement, TableSchema schema)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
         ArgumentNullException.ThrowIfNull(schema);
 
-        if (statement.Where is LiteralExpression { Kind: SqlLiteralKind.Boolean, BooleanValue: true }
+        var where = TableInSubqueryExecutor.Materialize(tsdb, statement.Where, schema);
+        if (where is LiteralExpression { Kind: SqlLiteralKind.Boolean, BooleanValue: true }
             && tsdb.Tables.TryTruncateFast(schema.Name, out int truncated))
         {
             return new RowsAffectedExecutionResult(schema.Name, truncated, "delete_generation");
         }
 
         int deleted = 0;
-        if (TryExtractPrimaryKeyValues(schema, statement.Where, allowExtraPredicates: false, out var keyValues))
+        if (TryExtractPrimaryKeyValues(schema, where, allowExtraPredicates: false, out var keyValues))
         {
             deleted = tsdb.Tables.ApplyTransaction(
                 new Dictionary<string, IReadOnlyList<TableRowMutation>>(StringComparer.Ordinal)
@@ -343,9 +355,10 @@ internal static class TableSqlExecutor
 
         var store = tsdb.Tables.Open(schema.Name);
         var mutations = new List<TableRowMutation>();
-        foreach (var row in LoadCandidateRows(store, schema, statement.Where))
+        var candidateRows = LoadMutationCandidateRows(store, schema, where, out bool predicateSatisfied);
+        foreach (var row in candidateRows)
         {
-            if (!EvaluateWhere(statement.Where, schema, row.Values))
+            if (!predicateSatisfied && !EvaluateWhere(where, schema, row.Values))
                 continue;
 
             var primaryKeyValues = ExtractPrimaryKeyValues(schema, row.Values);
@@ -369,11 +382,13 @@ internal static class TableSqlExecutor
             ?? throw new InvalidOperationException($"table '{statement.TableName}' 不存在。");
         var store = tsdb.Tables.Open(schema.Name);
         var assignments = BindAssignments(statement, schema);
+        var where = TableInSubqueryExecutor.Materialize(tsdb, statement.Where, schema);
 
         var mutations = new List<TableRowMutation>();
-        foreach (var row in LoadCandidateRows(store, schema, statement.Where))
+        var candidateRows = LoadMutationCandidateRows(store, schema, where, out bool predicateSatisfied);
+        foreach (var row in candidateRows)
         {
-            if (!EvaluateWhere(statement.Where, schema, row.Values))
+            if (!predicateSatisfied && !EvaluateWhere(where, schema, row.Values))
                 continue;
 
             var values = row.Values.ToArray();
@@ -386,7 +401,7 @@ internal static class TableSqlExecutor
             mutations.Add(new TableRowMutation(ExtractPrimaryKeyValues(schema, row.Values), values, expectedRowVersion));
         }
 
-        ThrowIfStaleRowVersionPredicate(schema, store, statement.Where, mutations.Count);
+        ThrowIfStaleRowVersionPredicate(schema, store, where, mutations.Count);
 
         int updated = tsdb.Tables.ApplyTransaction(
             new Dictionary<string, IReadOnlyList<TableRowMutation>>(StringComparer.Ordinal)
@@ -404,13 +419,16 @@ internal static class TableSqlExecutor
 
         var schema = tsdb.Tables.Catalog.TryGet(statement.TableName)
             ?? throw new InvalidOperationException($"table '{statement.TableName}' 不存在。");
+        ThrowIfBufferedTargetMakesSubqueryViewInconsistent(transaction, schema, statement.Where);
         var store = tsdb.Tables.Open(schema.Name);
         var assignments = BindAssignments(statement, schema);
+        var where = TableInSubqueryExecutor.Materialize(tsdb, statement.Where, schema);
 
         int updated = 0;
-        foreach (var row in LoadCandidateRows(store, schema, statement.Where))
+        var candidateRows = LoadMutationCandidateRows(store, schema, where, out bool predicateSatisfied);
+        foreach (var row in candidateRows)
         {
-            if (!EvaluateWhere(statement.Where, schema, row.Values))
+            if (!predicateSatisfied && !EvaluateWhere(where, schema, row.Values))
                 continue;
 
             var values = row.Values.ToArray();
@@ -426,7 +444,7 @@ internal static class TableSqlExecutor
             updated++;
         }
 
-        ThrowIfStaleRowVersionPredicate(schema, store, statement.Where, updated);
+        ThrowIfStaleRowVersionPredicate(schema, store, where, updated);
 
         return new RowsAffectedExecutionResult(schema.Name, updated, "update");
     }
@@ -438,11 +456,14 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(statement);
         ArgumentNullException.ThrowIfNull(schema);
 
+        ThrowIfBufferedTargetMakesSubqueryViewInconsistent(transaction, schema, statement.Where);
+        var where = TableInSubqueryExecutor.Materialize(tsdb, statement.Where, schema);
         var store = tsdb.Tables.Open(schema.Name);
         int deleted = 0;
-        foreach (var row in LoadCandidateRows(store, schema, statement.Where))
+        var candidateRows = LoadMutationCandidateRows(store, schema, where, out bool predicateSatisfied);
+        foreach (var row in candidateRows)
         {
-            if (!EvaluateWhere(statement.Where, schema, row.Values))
+            if (!predicateSatisfied && !EvaluateWhere(where, schema, row.Values))
                 continue;
 
             transaction.AddTableMutation(
@@ -452,6 +473,19 @@ internal static class TableSqlExecutor
         }
 
         return new RowsAffectedExecutionResult(schema.Name, deleted, "delete");
+    }
+
+    private static void ThrowIfBufferedTargetMakesSubqueryViewInconsistent(
+        SqlTransactionContext transaction,
+        TableSchema schema,
+        SqlExpression where)
+    {
+        if (TableInSubqueryExecutor.ContainsInSubquery(where)
+            && transaction.TryGetBufferedMutations(schema.Name, out _))
+        {
+            throw new NotSupportedException(
+                $"轻事务中 table '{schema.Name}' 已有缓冲写时，不支持对该表执行带 IN 子查询的 UPDATE/DELETE。");
+        }
     }
 
     public static RowsAffectedExecutionResult CommitTransaction(Tsdb tsdb, SqlTransactionContext transaction)
@@ -653,6 +687,85 @@ internal static class TableSqlExecutor
 
         return store.Scan();
     }
+
+    /// <summary>
+    /// A materialized positive IN over a single-column primary key can use point reads. This is
+    /// especially important for cleanup queries whose rows contain large image/video values.
+    /// </summary>
+    private static IReadOnlyList<TableRow> LoadMutationCandidateRows(
+        TableStore store,
+        TableSchema schema,
+        SqlExpression where,
+        out bool predicateSatisfied)
+    {
+        predicateSatisfied = false;
+        if (schema.PrimaryKey.Count != 1
+            || where is not InExpression
+            {
+                Negated: false,
+                Subquery: null,
+                Value: IdentifierExpression identifier,
+            } inExpression
+            || !string.Equals(identifier.Name, schema.PrimaryKey[0], StringComparison.Ordinal)
+            || (identifier.Qualifier is not null
+                && !string.Equals(identifier.Qualifier, schema.Name, StringComparison.OrdinalIgnoreCase))
+            || inExpression.Values.Any(static value => value is not MaterializedSubqueryValueExpression))
+        {
+            return LoadCandidateRows(store, schema, where);
+        }
+
+        var primaryKeyColumn = schema.TryGetColumn(schema.PrimaryKey[0])!;
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var rows = new List<TableRow>(inExpression.Values.Count);
+        foreach (var expression in inExpression.Values.Cast<MaterializedSubqueryValueExpression>())
+        {
+            if (expression.Value is null)
+                continue;
+            if (!CanUsePrimaryKeyPointLookup(primaryKeyColumn.DataType, expression.Value))
+                return LoadCandidateRows(store, schema, where);
+
+            object? keyValue;
+            try
+            {
+                keyValue = ConvertTableValue(expression.Value, primaryKeyColumn);
+            }
+            catch (Exception exception) when (exception is InvalidOperationException
+                or ArgumentOutOfRangeException
+                or InvalidCastException
+                or FormatException
+                or OverflowException)
+            {
+                // Cross-type SQL equality can be broader than physical key encoding; preserve
+                // semantics by falling back to the normal predicate scan when a value cannot bind.
+                return LoadCandidateRows(store, schema, where);
+            }
+
+            byte[] encoded = TableKeyCodec.EncodePrimaryKeyValues(schema, [keyValue]);
+            if (!seen.Add(Convert.ToHexString(encoded)))
+                continue;
+            var row = store.GetByPrimaryKey([keyValue]);
+            if (row is not null)
+                rows.Add(row);
+        }
+
+        predicateSatisfied = true;
+        return rows;
+    }
+
+    private static bool CanUsePrimaryKeyPointLookup(TableColumnType type, object value)
+        => type switch
+        {
+            TableColumnType.Int64 => value is
+                byte or sbyte or short or ushort or int or uint or long or ulong,
+            // SQL Float64 equality treats +0.0 and -0.0 as equal, while physical keys preserve
+            // their distinct IEEE bit patterns. A single point read is therefore not complete.
+            TableColumnType.Float64 => false,
+            TableColumnType.Boolean => value is bool,
+            TableColumnType.String or TableColumnType.Json => value is string,
+            TableColumnType.DateTime => value is DateTime or DateTimeOffset or long,
+            TableColumnType.Blob => value is byte[],
+            _ => false,
+        };
 
     /// <summary>
     /// SELECT 候选行加载：在已提交基线上叠加当前 ambient 轻事务对本表的缓冲写（read-your-writes，#218）。
@@ -1167,14 +1280,11 @@ internal static class TableSqlExecutor
             throw new InvalidOperationException("单表执行路径不支持 IN 子查询。");
 
         var value = EvaluateScalar(expression.Value, schema, row);
-        if (value is null)
-            return null;
-
         var sawNull = false;
         foreach (var item in expression.Values)
         {
             var candidate = EvaluateScalar(item, schema, row);
-            if (candidate is null)
+            if (value is null || candidate is null)
             {
                 sawNull = true;
                 continue;
@@ -1195,6 +1305,7 @@ internal static class TableSqlExecutor
         return expression switch
         {
             LiteralExpression literal => EvaluateLiteral(literal),
+            MaterializedSubqueryValueExpression materialized => materialized.Value,
             IdentifierExpression identifier => GetColumnValue(schema, row, identifier.Name),
             FunctionCallExpression function => EvaluateFunction(function, schema, row),
             UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => EvaluateNegation(unary, schema, row),

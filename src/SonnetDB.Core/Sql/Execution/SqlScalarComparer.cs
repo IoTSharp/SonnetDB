@@ -21,6 +21,10 @@ internal static class SqlScalarComparer
         if (TryCompareTemporal(left, right, out var temporalComparison))
             return temporalComparison == 0;
 
+        if (IsExactNumeric(left) && IsExactNumeric(right))
+            return Convert.ToDecimal(left, CultureInfo.InvariantCulture)
+                .Equals(Convert.ToDecimal(right, CultureInfo.InvariantCulture));
+
         if (IsNumeric(left) && IsNumeric(right))
             return Convert.ToDouble(left, CultureInfo.InvariantCulture)
                 .Equals(Convert.ToDouble(right, CultureInfo.InvariantCulture));
@@ -38,6 +42,10 @@ internal static class SqlScalarComparer
 
         if (TryCompareTemporal(left, right, out var temporalComparison))
             return temporalComparison;
+
+        if (IsExactNumeric(left) && IsExactNumeric(right))
+            return Convert.ToDecimal(left, CultureInfo.InvariantCulture)
+                .CompareTo(Convert.ToDecimal(right, CultureInfo.InvariantCulture));
 
         if (IsNumeric(left) && IsNumeric(right))
             return Convert.ToDouble(left, CultureInfo.InvariantCulture)
@@ -104,4 +112,11 @@ internal static class SqlScalarComparer
         int or uint or
         long or ulong or
         float or double or decimal;
+
+    private static bool IsExactNumeric(object value) => value is
+        byte or sbyte or
+        short or ushort or
+        int or uint or
+        long or ulong or
+        decimal;
 }
