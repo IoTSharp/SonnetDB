@@ -7,6 +7,10 @@
 
 ### Fixed
 
+- 修复 KV checkpoint 在 WAL 轮换、generation 清空、进程关闭和异常恢复交错时可能留下不连续恢复链或过早删除唯一日志的问题；新增 sealed WAL 严格校验、状态文件全量 CRC 验证、目录项强制落盘、自动 checkpoint 预算与写入背压，并覆盖截断、损坏、失败重试和关闭竞态。
+- 修复关系表每次打开都重新迁移旧行并全量重建索引的问题；迁移完成标记按 generation 与 schema 指纹持久化，索引仅在确认 WAL 干净关闭后发布一次性令牌，异常退出后仍会保守重建。
+- 修复 Frame unary/stream 处理在响应写入取消、channel 背压或 writer 故障时未必归还当前 `PipeReader.ReadResult`、且独立 writer 故障可能挂住 reader 与订阅 pump 的问题；读写任务现在统一取消和回收，并传播非取消故障。
+- 修复远程 ADO.NET 与 EF Core 在 `Protocol=frame-http2` 下只编码 Frame payload、但 REST 回退和数据库控制面仍可能协商 HTTP/1.1 的问题；该模式现在对查询、写入、schema 与建库生命周期统一要求 exact HTTP/2。
 - 修复 Parity workflow 在 restore、build 或 compose/readiness 阶段失败后跳过汇总、只能向 `parity-results` 发布 `No summary was produced` 的问题；各阶段现在保留真实 outcome，失败 run 仍生成 schema v2 JSON/Markdown、稳定 `gap_reason`、commit SHA 与容器诊断。服务 readiness 统一从 GitHub runner 宿主探测，不再由 `docker compose --wait` 依赖第三方镜像内工具；SonnetDB 容器强制从当前提交构建，避免误测旧的 `iotsharp/sonnetdb:parity` 镜像。同步修复 PostgreSQL `sum(BIGINT)` 的整数 `decimal` 被误归一化为 `double`、导致 `groupby_having` 自检失败的问题，并新增汇总合同与数值类型回归测试。
 - 修复 Parity full/light 栈使用 shell-less NATS、VictoriaMetrics 镜像时仍执行 `CMD-SHELL wget`，导致服务永远 unhealthy、nightly 无法进入测试的问题；改由 workflow 在宿主侧探测 HTTP health，并保留 NATS monitor 端口。
 - 修复 Server Native AOT 的全局 `PublishAot=true` 被透传到两个 `netstandard2.0` Roslyn source generator、触发 `NETSDK1207` 的问题；Server 改用项目局部 `SonnetDbPublishAot` 开关，CI 和发布脚本同步更新。
@@ -24,6 +28,8 @@
 
 ### Added
 
+- Server 新增数据库级 SQL HTTP 并发准入，REST `/sql`、`/sql/batch` 与 Frame SQL query 共享有界 permit/queue；队列满时 REST 在读取请求体前返回 `503` 与 `Retry-After`，Frame 返回保留 `streamId` 的 `sql_overloaded` 错误帧，许可数和队列长度可通过配置调整。
+- 关系表 `UPDATE` / `DELETE` 新增以普通关系表或 measurement 为数据源的非相关单列 `IN (SELECT ...)` 与 `NOT IN (SELECT ...)` 执行：子查询一次物化，支持参数、排序、分页、空集和 `NULL` 三值逻辑；相关、多列或未建立静态绑定合同的数据源在重型扫描前明确拒绝。正向单列主键 `IN` 使用点读，访问路径回归测试固定木垒 `TranCleaner` 形状 SQL 仅保留内层一次扫描、外层不再二次全表解码。
 - **M32 Document SDK 易用性第一批**：`SndbDocumentClient` 新增 extend-only 的 filter/projection/sort/update builder 和 AOT 友好 `SndbDocumentValue`，常用标量与调用方 `JsonTypeInfo<T>` 不再要求手工拼 JSON；新增 `FindCursor`、逐页 `MoveNextAsync` 与 `ReadAllAsync`，统一嵌入式/HTTP 的 `document_cursor_invalid/mismatch/expired/stale` 稳定错误码。旧 DTO、方法签名及成功请求/响应 payload 保持不变；游标失败的 HTTP `error` 从通用 `bad_request` 细化为上述稳定 code，混合 Bulk 结果模型仍按 M32 后续任务推进。
 - **M36 八模型专用品类易用性对齐规划**：逐项评估 Document、关系 SQL、时序、KV、全文、向量、对象存储和 SonnetMQ 可从 MongoDB、PostgreSQL/SQLite、InfluxDB、Redis、Meilisearch/OpenSearch、Qdrant/VectorData、S3/MinIO、NATS/RabbitMQ/Kafka 学习的高频工作流；新增 #310~#326 的 gap catalog、共享客户端合同、模型专用 SDK/诊断与 golden journey 路线。明确参照产品只用于学习心智、默认值和失败恢复，不新增竞品 wire protocol、分布式能力或完整替代主张，并让 Document 继续归 M32、filtered ANN/Embedding Profile 继续复用 M35 地基。
 - **M18 VS Code `0.4.0` GEOPOINT 轨迹结果视图**：Query Result Webview 在检测到 GeoJSON Point、`POINT(lat, lon)`、坐标数组或常见经纬度对象时显示 `Trajectory` 页签；轨迹按时间列排序，按低基数设备/TAG 列分组，并使用 VS Code 主题色绘制坐标网格、路径、点位和起终点。新增纯 TypeScript 测试覆盖解析、分组、排序、边界和向量列误判防护，Extension Host smoke 同步验证轨迹视图已进入打包代码；`0.4.0` 已发布到 [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode)，远端 VSIX SHA256 与本地发布产物一致。

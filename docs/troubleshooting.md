@@ -9,6 +9,25 @@ permalink: /troubleshooting/
 
 排查顺序建议保持一致：先看 `/healthz/ready` 判断依赖是否可用，再用 metrics 确认异常时间窗，用 trace 定位路径，最后采集 Diagnostic Dump 查看当时的进程和数据库 metadata。Diagnostic Dump 不替代持续监控，也不包含用户数据点、WAL 内容、measurement 名或绝对路径。
 
+## SQL 请求过载保护
+
+`POST /v1/db/{db}/sql`、`/sql/batch` 与 `Protocol=frame-http2` 的 SQL query 帧共享同一个数据库级并发限制。每个数据库默认允许 4 个执行中请求和 8 个异步排队请求；REST 队列满后立即返回 `503 Service Unavailable`、`Retry-After: 1`，且不会先读取或反序列化请求体。frame-http2 队列满后保持 HTTP 200 帧协议语义，返回原 `streamId` 的 `sql_overloaded` 错误帧；若 HTTP 响应尚未开始，也附带 `Retry-After: 1`。
+
+容器现场可通过环境变量调整：
+
+```text
+SONNETDB_SonnetDBServer__SqlHttpAdmission__PermitLimit=4
+SONNETDB_SonnetDBServer__SqlHttpAdmission__QueueLimit=8
+```
+
+许可数最小为 1、最大为 256；队列最小为 0、最大为 4096。客户端收到 `sql_overloaded` 时应遵守 `Retry-After` 并使用有界重试，不应无间隔立即重放。
+
+## 关系表 `IN (SELECT ...)` 更新与删除
+
+关系表 `UPDATE` / `DELETE` 支持以普通关系表或 measurement 为数据源的非相关、单列 `IN (SELECT ...)` 与 `NOT IN (SELECT ...)`。子查询在外层行遍历前只执行一次，参数、`ORDER BY`、`LIMIT`、空结果和 `NULL` 三值逻辑均按普通 `SELECT` 处理；多列结果与相关子查询会在执行重型扫描前明确拒绝。Document、information schema、TVF、vector/hybrid 等暂未建立静态绑定合同的数据源会在扫描前返回明确的“不支持”错误。正向单列主键 `IN` 会把物化结果转为主键点读，避免外层再次全表解码宽行。
+
+该快路只消除外层重复扫描，不改变内层 `SELECT` 的访问路径。如果内层按无索引列过滤或排序，`TableStore` 仍需扫描并解码完整行；图片、视频或大 Base64 列所在宽表不应以秒级周期运行这类清理 SQL。应先降低调度频率、使用有界批次，并通过访问路径计数或实际内存指标确认内层扫描成本可接受。轻事务中目标表已有缓冲写时，带 `IN` 子查询的 `UPDATE` / `DELETE` 会被明确拒绝，避免内外层事务视图不一致。
+
 ## 慢查询入口
 
 慢查询采集默认开启，基础、警告和严重阈值分别为 10、30、60 秒。可以通过配置调整：
