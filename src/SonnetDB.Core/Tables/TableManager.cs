@@ -664,9 +664,24 @@ public sealed class TableManager : IDisposable
 
         string tableDirectory = TableDirectory(schema.Name);
         var kv = KvKeyspace.Open("table." + schema.Name, tableDirectory, _kvOptions);
-        var store = new TableStore(schema, kv);
-        _stores[schema.Name] = store;
-        return store;
+        try
+        {
+            var store = new TableStore(schema, kv);
+            _stores[schema.Name] = store;
+            return store;
+        }
+        catch
+        {
+            try
+            {
+                kv.Dispose();
+            }
+            catch
+            {
+                // Preserve the table-open failure; a later open will retry WAL recovery.
+            }
+            throw;
+        }
     }
 
     private string TableDirectory(string name) => Path.Combine(_rootDirectory, "rowstore", EncodeName(name));

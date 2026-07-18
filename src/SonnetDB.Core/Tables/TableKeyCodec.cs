@@ -51,6 +51,51 @@ internal static class TableKeyCodec
         return buffer;
     }
 
+    /// <summary>
+    /// 仅按 schema 校验一段字节是否可能是完整的旧版主键编码，不解码或分配主键值。
+    /// </summary>
+    public static bool IsEncodedPrimaryKey(TableSchema schema, ReadOnlySpan<byte> encoded)
+    {
+        ArgumentNullException.ThrowIfNull(schema);
+
+        int offset = 0;
+        foreach (string columnName in schema.PrimaryKey)
+        {
+            var column = schema.TryGetColumn(columnName)
+                ?? throw new InvalidOperationException($"PRIMARY KEY 引用了未知列 '{columnName}'。");
+            int remaining = encoded.Length - offset;
+            switch (column.DataType)
+            {
+                case TableColumnType.Int64:
+                case TableColumnType.Float64:
+                case TableColumnType.DateTime:
+                    if (remaining < sizeof(long))
+                        return false;
+                    offset += sizeof(long);
+                    break;
+                case TableColumnType.Boolean:
+                    if (remaining < sizeof(byte) || encoded[offset] > 1)
+                        return false;
+                    offset += sizeof(byte);
+                    break;
+                case TableColumnType.String:
+                case TableColumnType.Json:
+                case TableColumnType.Blob:
+                    if (remaining < sizeof(int))
+                        return false;
+                    int length = BinaryPrimitives.ReadInt32BigEndian(encoded.Slice(offset, sizeof(int)));
+                    if (length < 0 || length > remaining - sizeof(int))
+                        return false;
+                    offset += sizeof(int) + length;
+                    break;
+                default:
+                    throw new InvalidOperationException($"不支持的主键列类型 {column.DataType}。");
+            }
+        }
+
+        return offset == encoded.Length;
+    }
+
     private static int GetEncodedSize(TableColumn column, object value)
         => column.DataType switch
         {

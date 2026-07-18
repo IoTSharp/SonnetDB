@@ -7,10 +7,15 @@ namespace SonnetDB.Tables;
 /// </summary>
 public sealed class TableStore : IDisposable
 {
+    private const int MaintenanceKeyPageSize = 256;
+    private const int IndexRebuildRowPageSize = 4;
     private readonly object _sync = new();
     private readonly KvKeyspace _keyspace;
     private TableSchema _schema;
     private int _rowCount;
+    private long _fullScanCount;
+    private long _primaryKeyLookupCount;
+    private bool _disposed;
 
     internal TableStore(TableSchema schema, KvKeyspace keyspace)
     {
@@ -18,8 +23,28 @@ public sealed class TableStore : IDisposable
         ArgumentNullException.ThrowIfNull(keyspace);
         _schema = schema;
         _keyspace = keyspace;
-        MigrateLegacyRowsLocked();
-        RebuildIndexesLocked();
+        byte[] schemaFingerprint = TableStoreMaintenanceFile.ComputeSchemaFingerprint(schema);
+        if (!TableStoreMaintenanceFile.IsLegacyMigrationComplete(
+            keyspace.RootDirectory,
+            keyspace.Generation,
+            schemaFingerprint))
+        {
+            MigrateLegacyRowsLocked();
+            keyspace.SyncWalForMaintenance();
+            TableStoreMaintenanceFile.MarkLegacyMigrationComplete(
+                keyspace.RootDirectory,
+                keyspace.Generation,
+                schemaFingerprint);
+        }
+
+        if (!TableStoreMaintenanceFile.ConsumeCleanIndexes(
+            keyspace.RootDirectory,
+            keyspace.Generation,
+            keyspace.LastSequence,
+            schemaFingerprint))
+        {
+            RebuildIndexesLocked();
+        }
         _rowCount = _keyspace.CountPrefix([(byte)'r']);
     }
 
@@ -45,6 +70,12 @@ public sealed class TableStore : IDisposable
 
     /// <summary>底层 rowstore 当前 generation。</summary>
     public long Generation => _keyspace.Generation;
+
+    /// <summary>公开全表扫描累计次数，供访问计划回归测试观测。</summary>
+    internal long FullScanCount => Interlocked.Read(ref _fullScanCount);
+
+    /// <summary>公开主键点读累计次数，供访问计划回归测试观测。</summary>
+    internal long PrimaryKeyLookupCount => Interlocked.Read(ref _primaryKeyLookupCount);
 
     /// <summary>底层 rowstore generation 旧文件回收状态。</summary>
     public KvCleanupStatus GetCleanupStatus() => _keyspace.GetCleanupStatus();
@@ -235,6 +266,7 @@ public sealed class TableStore : IDisposable
     /// <returns>找到时返回行；否则返回 null。</returns>
     public TableRow? GetByPrimaryKey(IReadOnlyList<object?> primaryKeyValues)
     {
+        Interlocked.Increment(ref _primaryKeyLookupCount);
         lock (_sync)
         {
             var schema = _schema;
@@ -292,6 +324,7 @@ public sealed class TableStore : IDisposable
     /// <param name="limit">最多返回行数。</param>
     public IReadOnlyList<TableRow> Scan(int? limit = null)
     {
+        Interlocked.Increment(ref _fullScanCount);
         lock (_sync)
         {
             var schema = _schema;
@@ -428,9 +461,27 @@ public sealed class TableStore : IDisposable
     internal long CreateSnapshot() => _keyspace.CreateSnapshot();
 
     /// <summary>
-    /// 关闭底层 KV keyspace。
+    /// 关闭底层 KV keyspace，并在 WAL 成功同步后发布索引干净关闭令牌。
     /// </summary>
-    public void Dispose() => _keyspace.Dispose();
+    public void Dispose()
+    {
+        lock (_sync)
+        {
+            if (_disposed)
+                return;
+
+            long generation = _keyspace.Generation;
+            long sequence = _keyspace.LastSequence;
+            byte[] schemaFingerprint = TableStoreMaintenanceFile.ComputeSchemaFingerprint(_schema);
+            _keyspace.Dispose();
+            TableStoreMaintenanceFile.MarkIndexesClean(
+                _keyspace.RootDirectory,
+                generation,
+                sequence,
+                schemaFingerprint);
+            _disposed = true;
+        }
+    }
 
     private void ValidateRow(TableSchema schema, IReadOnlyList<object?> values)
     {
@@ -598,52 +649,87 @@ public sealed class TableStore : IDisposable
 
     private void RebuildIndexesLocked()
     {
-        foreach (var entry in _keyspace.ScanPrefix(new byte[] { (byte)'i' }, int.MaxValue))
-            _keyspace.Delete(entry.Key.Span);
+        byte[] afterKey = [];
+        while (true)
+        {
+            var keys = _keyspace.ScanKeysPrefixAfter([(byte)'i'], afterKey, MaintenanceKeyPageSize);
+            if (keys.Count == 0)
+                break;
+
+            afterKey = keys[^1];
+            _keyspace.DeleteMany(keys);
+        }
 
         if (_schema.Indexes.Count == 0)
             return;
 
-        foreach (var rowEntry in _keyspace.ScanPrefix(new byte[] { (byte)'r' }, int.MaxValue))
+        afterKey = [];
+        while (true)
         {
-            var primaryKey = TableIndexCodec.DecodePrimaryKeyFromRowKey(rowEntry.Key).ToArray();
-            var row = new TableRow(TableRowCodec.Decode(_schema, rowEntry.Value.Span), primaryKey);
-            var entries = BuildIndexEntries(_schema, row);
-            foreach (var indexEntry in entries)
-            {
-                if (_keyspace.Get(indexEntry.Key) is not null
-                    && TryResolveUniqueIndexConflict(_schema, entries, indexEntry.Key) is { } index)
-                {
-                    throw UniqueViolation(_schema, index, "无法重建索引");
-                }
+            var rows = _keyspace.ScanPrefixAfter([(byte)'r'], afterKey, IndexRebuildRowPageSize);
+            if (rows.Count == 0)
+                break;
 
-                _keyspace.Put(indexEntry.Key, indexEntry.Value);
+            afterKey = rows[^1].Key.ToArray();
+            foreach (var rowEntry in rows)
+            {
+                var primaryKey = TableIndexCodec.DecodePrimaryKeyFromRowKey(rowEntry.Key).ToArray();
+                var row = new TableRow(TableRowCodec.Decode(_schema, rowEntry.Value.Span), primaryKey);
+                var entries = BuildIndexEntries(_schema, row);
+                foreach (var indexEntry in entries)
+                {
+                    if (_keyspace.Get(indexEntry.Key) is not null
+                        && TryResolveUniqueIndexConflict(_schema, entries, indexEntry.Key) is { } index)
+                    {
+                        throw UniqueViolation(_schema, index, "无法重建索引");
+                    }
+
+                    _keyspace.Put(indexEntry.Key, indexEntry.Value);
+                }
             }
         }
     }
 
     private void MigrateLegacyRowsLocked()
     {
-        var legacyEntries = _keyspace.ScanPrefix(ReadOnlySpan<byte>.Empty, int.MaxValue)
-            .Where(e => IsLegacyRowEntry(_schema, e))
-            .ToArray();
-
-        foreach (var entry in legacyEntries)
+        byte[] afterKey = [];
+        while (true)
         {
-            byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(entry.Key.Span);
-            if (_keyspace.Get(rowKey) is null)
-                _keyspace.Put(rowKey, entry.Value.Span);
-            _keyspace.Delete(entry.Key.Span);
+            var keys = _keyspace.ScanKeysPrefixAfter(
+                ReadOnlySpan<byte>.Empty,
+                afterKey,
+                MaintenanceKeyPageSize);
+            if (keys.Count == 0)
+                break;
+
+            afterKey = keys[^1];
+            foreach (var key in keys)
+            {
+                if (!TableKeyCodec.IsEncodedPrimaryKey(_schema, key))
+                    continue;
+
+                byte[]? value = _keyspace.Get(key);
+                if (value is null || !IsLegacyRowEntry(_schema, key, value))
+                    continue;
+
+                byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(key);
+                if (_keyspace.Get(rowKey) is null)
+                    _keyspace.Put(rowKey, value);
+                _keyspace.Delete(key);
+            }
         }
     }
 
-    private static bool IsLegacyRowEntry(TableSchema schema, KvEntry entry)
+    private static bool IsLegacyRowEntry(
+        TableSchema schema,
+        ReadOnlySpan<byte> key,
+        ReadOnlySpan<byte> value)
     {
         try
         {
-            var values = TableRowCodec.Decode(schema, entry.Value.Span);
+            var values = TableRowCodec.Decode(schema, value);
             byte[] primaryKey = TableKeyCodec.EncodePrimaryKey(schema, values);
-            if (entry.Key.Span.SequenceEqual(primaryKey))
+            if (key.SequenceEqual(primaryKey))
                 return true;
 
             return false;
