@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Buffers.Binary;
 using System.IO.Hashing;
 
@@ -247,10 +248,10 @@ internal static class KvStateFile
 
     private static uint ComputeEntryCrc(byte[] key, byte[] value)
     {
-        byte[] payload = new byte[key.Length + value.Length];
-        key.CopyTo(payload.AsSpan(0, key.Length));
-        value.CopyTo(payload.AsSpan(key.Length, value.Length));
-        return Crc32.HashToUInt32(payload);
+        var crc = new Crc32();
+        crc.Append(key);
+        crc.Append(value);
+        return crc.GetCurrentHashAsUInt32();
     }
 
     private static int ReadExact(Stream stream, Span<byte> buffer)
@@ -348,23 +349,60 @@ internal sealed class KvDiskState : IDisposable
     public KvValueEntry Read(KvDiskIndexEntry entry)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        byte[] payload = new byte[entry.Key.Length + entry.ValueLength];
-        entry.Key.CopyTo(payload.AsSpan(0, entry.Key.Length));
+        byte[] value = new byte[entry.ValueLength];
 
         lock (_sync)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             _stream.Position = entry.ValueOffset;
-            if (ReadExact(_stream, payload.AsSpan(entry.Key.Length, entry.ValueLength)) < entry.ValueLength)
+            if (ReadExact(_stream, value) < entry.ValueLength)
                 throw new InvalidDataException("KV state entry value is truncated.");
         }
 
-        uint actualCrc = Crc32.HashToUInt32(payload);
+        var crc = new Crc32();
+        crc.Append(entry.Key);
+        crc.Append(value);
+        uint actualCrc = crc.GetCurrentHashAsUInt32();
         if (actualCrc != entry.PayloadCrc)
             throw new InvalidDataException("KV state entry CRC mismatch.");
 
-        byte[] value = payload.AsSpan(entry.Key.Length, entry.ValueLength).ToArray();
         return new KvValueEntry(value, entry.Version, entry.ExpiresAtUtc);
+    }
+
+    public void ValidateAllEntries()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        byte[] buffer = ArrayPool<byte>.Shared.Rent(64 * 1024);
+        try
+        {
+            var crc = new Crc32();
+            lock (_sync)
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                foreach (KvDiskIndexEntry entry in _entries)
+                {
+                    crc.Reset();
+                    crc.Append(entry.Key);
+                    _stream.Position = entry.ValueOffset;
+                    int remaining = entry.ValueLength;
+                    while (remaining > 0)
+                    {
+                        int read = _stream.Read(buffer, 0, Math.Min(buffer.Length, remaining));
+                        if (read == 0)
+                            throw new InvalidDataException("KV state entry value is truncated.");
+                        crc.Append(buffer.AsSpan(0, read));
+                        remaining -= read;
+                    }
+
+                    if (crc.GetCurrentHashAsUInt32() != entry.PayloadCrc)
+                        throw new InvalidDataException("KV state entry CRC mismatch.");
+                }
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
     }
 
     public void Dispose()

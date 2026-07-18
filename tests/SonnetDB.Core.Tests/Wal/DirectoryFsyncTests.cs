@@ -43,4 +43,46 @@ public sealed class DirectoryFsyncTests : IDisposable
         Assert.Null(Record.Exception(() => DirectoryFsync.FlushBestEffort(
             Path.Combine(_tempDir, "does-not-exist"))));
     }
+
+    [Fact]
+    public void FlushRequired_ExistingDirectory_CompletesDurableMetadataFlush()
+    {
+        string temporary = Path.Combine(_tempDir, "required.tmp");
+        string published = Path.Combine(_tempDir, "required.dat");
+        File.WriteAllText(temporary, "durable");
+        File.Move(temporary, published, overwrite: true);
+
+        DirectoryFsync.FlushRequired(_tempDir);
+    }
+
+    [Fact]
+    public void FlushRequired_NestedWalDirectory_CompletesDurableMetadataFlush()
+    {
+        string walDirectory = Path.Combine(_tempDir, "tables", "rowstore", "table", "wal");
+        Directory.CreateDirectory(walDirectory);
+        string activeWal = Path.Combine(walDirectory, "active.SDBKVWAL");
+        using (var stream = new FileStream(activeWal, FileMode.CreateNew, FileAccess.Write, FileShare.Read))
+        {
+            stream.Write(new byte[64]);
+            stream.Flush(flushToDisk: true);
+        }
+
+        DirectoryFsync.FlushRequired(walDirectory);
+    }
+
+    [Fact]
+    public void FlushRequired_NonAsciiDirectoryName_UsesUtf8Path()
+    {
+        string directory = Path.Combine(_tempDir, "目录-测试");
+        Directory.CreateDirectory(directory);
+
+        DirectoryFsync.FlushRequired(directory);
+    }
+
+    [Fact]
+    public void FlushRequired_MissingDirectory_FailsClosed()
+    {
+        Assert.Throws<DirectoryNotFoundException>(() => DirectoryFsync.FlushRequired(
+            Path.Combine(_tempDir, "does-not-exist")));
+    }
 }

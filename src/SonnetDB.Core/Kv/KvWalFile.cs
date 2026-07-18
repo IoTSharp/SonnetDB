@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.IO.Hashing;
+using System.Runtime.ExceptionServices;
 
 namespace SonnetDB.Kv;
 
@@ -19,21 +20,55 @@ internal sealed class KvWalFile : IDisposable
     private FileStream? _fileStream;
     private BufferedStream? _stream;
     private long _nextSequence;
+    private long _length;
     private bool _disposed;
 
-    private KvWalFile(string path, FileStream fileStream, BufferedStream stream, long nextSequence)
+    internal Action? DisposeFlushTestHook { get; set; }
+
+    private KvWalFile(
+        string path,
+        FileStream fileStream,
+        BufferedStream stream,
+        long firstSequence,
+        long nextSequence,
+        long length)
     {
         Path = path;
         _fileStream = fileStream;
         _stream = stream;
+        FirstSequence = firstSequence;
         _nextSequence = nextSequence;
+        _length = length;
     }
 
     public string Path { get; }
 
+    public long FirstSequence { get; }
+
     public long NextSequence => _nextSequence;
 
+    public long Length => _length;
+
+    public bool HasRecords => _length > HeaderSize;
+
     public static KvWalFile Open(string path, long startSequence, int bufferSize)
+        => Open(
+            path,
+            startSequence,
+            bufferSize,
+            replayRecord: null,
+            requireStartSequence: false,
+            requireRecordSequenceContinuity: false,
+            allowLegacyFirstRecordSequence: false);
+
+    public static KvWalFile Open(
+        string path,
+        long startSequence,
+        int bufferSize,
+        Action<KvWalRecord>? replayRecord,
+        bool requireStartSequence = false,
+        bool requireRecordSequenceContinuity = false,
+        bool allowLegacyFirstRecordSequence = false)
     {
         ArgumentNullException.ThrowIfNull(path);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(startSequence);
@@ -45,16 +80,35 @@ internal sealed class KvWalFile : IDisposable
         var fs = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
         try
         {
+            long firstSequence = startSequence;
             long nextSequence = startSequence;
             long validLength = HeaderSize;
 
             if (fileExists)
             {
-                ReadAndValidateHeader(fs);
-                (long lastSequence, validLength) = ScanForLastValidRecord(fs);
+                firstSequence = ReadAndValidateHeader(fs);
+                if (requireStartSequence && firstSequence != startSequence)
+                {
+                    throw new InvalidDataException(
+                        $"KV active WAL sequence chain is discontinuous: expected {startSequence}, " +
+                        $"but '{System.IO.Path.GetFileName(path)}' starts at {firstSequence}.");
+                }
+                (long lastSequence, validLength) = ScanForLastValidRecord(
+                    fs,
+                    firstSequence,
+                    replayRecord,
+                    requireRecordSequenceContinuity,
+                    allowLegacyFirstRecordSequence);
                 if (lastSequence >= 0)
                     nextSequence = Math.Max(startSequence, lastSequence + 1);
                 fs.SetLength(validLength);
+
+                if (lastSequence < 0 && firstSequence != nextSequence)
+                {
+                    fs.SetLength(0);
+                    WriteHeader(fs, nextSequence);
+                    firstSequence = nextSequence;
+                }
             }
             else
             {
@@ -63,7 +117,7 @@ internal sealed class KvWalFile : IDisposable
 
             fs.Position = validLength;
             var stream = new BufferedStream(fs, bufferSize);
-            return new KvWalFile(path, fs, stream, nextSequence);
+            return new KvWalFile(path, fs, stream, firstSequence, nextSequence, validLength);
         }
         catch
         {
@@ -175,28 +229,108 @@ internal sealed class KvWalFile : IDisposable
         _fileStream!.Flush(flushToDisk: true);
     }
 
+    public void Seal(string sealedPath)
+    {
+        ArgumentNullException.ThrowIfNull(sealedPath);
+        ThrowIfDisposed();
+        Dispose();
+        File.Move(Path, sealedPath);
+        SonnetDB.Wal.DirectoryFsync.FlushBestEffort(
+            System.IO.Path.GetDirectoryName(sealedPath) ?? string.Empty);
+    }
+
     public void Dispose()
     {
         if (_disposed)
             return;
 
         _disposed = true;
+        BufferedStream? stream = _stream;
+        FileStream? fileStream = _fileStream;
+        _stream = null;
+        _fileStream = null;
+        Exception? failure = null;
         try
         {
-            _stream?.Flush();
-            _fileStream?.Flush(flushToDisk: true);
+            DisposeFlushTestHook?.Invoke();
+            stream?.Flush();
+            fileStream?.Flush(flushToDisk: true);
         }
-        finally
+        catch (Exception ex)
         {
-            _stream?.Dispose();
-            _fileStream = null;
-            _stream = null;
+            failure = ex;
         }
+
+        try
+        {
+            stream?.Dispose();
+        }
+        catch (Exception) when (failure is not null)
+        {
+        }
+        catch (Exception ex)
+        {
+            failure = ex;
+        }
+
+        try
+        {
+            fileStream?.Dispose();
+        }
+        catch (Exception) when (failure is not null)
+        {
+        }
+        catch (Exception ex)
+        {
+            failure = ex;
+        }
+
+        if (failure is not null)
+            ExceptionDispatchInfo.Capture(failure).Throw();
     }
 
     public static IEnumerable<KvWalRecord> Replay(string path)
     {
         ArgumentNullException.ThrowIfNull(path);
+        return LooksLikeSealedWalPath(path)
+            ? ReplaySealedRecords(path, expectedFirstSequence: null)
+            : ReplayRecoverable(path);
+    }
+
+    internal static KvWalHeaderInfo ReadHeaderInfo(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        return ReadAndValidateHeaderInfo(fs);
+    }
+
+    internal static KvWalReplayInfo ReplaySealed(
+        string path,
+        Action<KvWalRecord> replayRecord,
+        long? expectedFirstSequence = null)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(replayRecord);
+        if (expectedFirstSequence is <= 0)
+            throw new ArgumentOutOfRangeException(nameof(expectedFirstSequence));
+
+        long firstSequence = 0;
+        long lastSequence = 0;
+        long recordCount = 0;
+        foreach (KvWalRecord record in ReplaySealedRecords(path, expectedFirstSequence))
+        {
+            if (recordCount == 0)
+                firstSequence = record.Sequence;
+            lastSequence = record.Sequence;
+            recordCount++;
+            replayRecord(record);
+        }
+
+        return new KvWalReplayInfo(firstSequence, lastSequence, recordCount);
+    }
+
+    private static IEnumerable<KvWalRecord> ReplayRecoverable(string path)
+    {
         if (!File.Exists(path))
             yield break;
 
@@ -253,6 +387,97 @@ internal sealed class KvWalFile : IDisposable
         }
     }
 
+    private static IEnumerable<KvWalRecord> ReplaySealedRecords(
+        string path,
+        long? expectedFirstSequence)
+    {
+        if (!TryParseSealedWalEndSequence(path, out long filenameEndSequence))
+            throw new InvalidDataException($"KV sealed WAL filename is invalid: '{System.IO.Path.GetFileName(path)}'.");
+        if (!File.Exists(path))
+            throw new FileNotFoundException("KV sealed WAL does not exist.", path);
+
+        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        long headerFirstSequence = ReadAndValidateHeader(fs);
+        if (expectedFirstSequence.HasValue && headerFirstSequence != expectedFirstSequence.GetValueOrDefault())
+        {
+            throw new InvalidDataException(
+                $"KV sealed WAL sequence chain is discontinuous: expected {expectedFirstSequence.Value}, " +
+                $"but '{System.IO.Path.GetFileName(path)}' starts at {headerFirstSequence}.");
+        }
+
+        long nextSequence = headerFirstSequence;
+        long lastSequence = 0;
+        long recordCount = 0;
+        byte[] headerBuffer = new byte[RecordHeaderSize];
+        while (fs.Position < fs.Length)
+        {
+            Span<byte> header = headerBuffer;
+            int headerRead = ReadExact(fs, header);
+            if (headerRead < RecordHeaderSize)
+                throw InvalidSealedWal(path, "record header is truncated");
+
+            if (!TryParseRecordHeader(
+                header,
+                fs.Length - fs.Position,
+                out var kind,
+                out long sequence,
+                out int payloadLength))
+            {
+                throw InvalidSealedWal(path, "record header is invalid or its payload is truncated");
+            }
+
+            if (sequence != nextSequence)
+            {
+                throw InvalidSealedWal(
+                    path,
+                    $"record sequence is discontinuous: expected {nextSequence}, found {sequence}");
+            }
+
+            byte[] payload = ArrayPool<byte>.Shared.Rent(Math.Max(payloadLength, 1));
+            try
+            {
+                int payloadRead = payloadLength == 0 ? 0 : ReadExact(fs, payload.AsSpan(0, payloadLength));
+                if (payloadRead < payloadLength)
+                    throw InvalidSealedWal(path, "record payload is truncated");
+
+                uint expectedPayloadCrc = BinaryPrimitives.ReadUInt32LittleEndian(header.Slice(24, 4));
+                uint actualPayloadCrc = Crc32.HashToUInt32(payload.AsSpan(0, payloadLength));
+                if (expectedPayloadCrc != actualPayloadCrc)
+                    throw InvalidSealedWal(path, "record payload CRC is invalid");
+
+                if (!TryReadPayload(
+                    kind,
+                    payload.AsSpan(0, payloadLength),
+                    out byte[] key,
+                    out byte[]? value,
+                    out DateTimeOffset? expiresAtUtc))
+                {
+                    throw InvalidSealedWal(path, "record payload is invalid");
+                }
+
+                lastSequence = sequence;
+                recordCount++;
+                if (sequence == long.MaxValue)
+                    throw InvalidSealedWal(path, "record sequence exceeds the supported range");
+                nextSequence = sequence + 1;
+                yield return CreateRecord(kind, sequence, key, value, expiresAtUtc);
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(payload);
+            }
+        }
+
+        if (recordCount == 0)
+            throw InvalidSealedWal(path, "file contains no records");
+        if (lastSequence != filenameEndSequence)
+        {
+            throw InvalidSealedWal(
+                path,
+                $"filename end sequence {filenameEndSequence} does not match final record {lastSequence}");
+        }
+    }
+
     private void AppendRecord(
         KvWalRecordKind kind,
         long sequence,
@@ -287,6 +512,7 @@ internal sealed class KvWalFile : IDisposable
 
             _stream!.Write(header);
             _stream.Write(payload);
+            _length = checked(_length + RecordHeaderSize + payloadLength);
         }
         finally
         {
@@ -309,7 +535,10 @@ internal sealed class KvWalFile : IDisposable
         fs.Flush(flushToDisk: true);
     }
 
-    private static void ReadAndValidateHeader(FileStream fs)
+    private static long ReadAndValidateHeader(FileStream fs)
+        => ReadAndValidateHeaderInfo(fs).FirstSequence;
+
+    private static KvWalHeaderInfo ReadAndValidateHeaderInfo(FileStream fs)
     {
         Span<byte> header = stackalloc byte[HeaderSize];
         fs.Position = 0;
@@ -319,20 +548,32 @@ internal sealed class KvWalFile : IDisposable
         uint expectedCrc = BinaryPrimitives.ReadUInt32LittleEndian(header.Slice(60, 4));
         uint actualCrc = Crc32.HashToUInt32(header[..60]);
         int version = BinaryPrimitives.ReadInt32LittleEndian(header.Slice(8, 4));
+        long createdUtcTicks = BinaryPrimitives.ReadInt64LittleEndian(header.Slice(16, 8));
+        long firstSequence = BinaryPrimitives.ReadInt64LittleEndian(header.Slice(24, 8));
         if (!header[..8].SequenceEqual(Magic) ||
             version is < 1 or > CurrentVersion ||
             BinaryPrimitives.ReadInt32LittleEndian(header.Slice(12, 4)) != HeaderSize ||
+            firstSequence <= 0 ||
             expectedCrc != actualCrc)
         {
             throw new InvalidDataException("KV WAL header is invalid.");
         }
+
+        return new KvWalHeaderInfo(firstSequence, createdUtcTicks);
     }
 
-    private static (long LastSequence, long LastValidOffset) ScanForLastValidRecord(FileStream fs)
+    private static (long LastSequence, long LastValidOffset) ScanForLastValidRecord(
+        FileStream fs,
+        long firstSequence,
+        Action<KvWalRecord>? replayRecord,
+        bool requireSequenceContinuity,
+        bool allowLegacyFirstRecordSequence)
     {
         fs.Position = HeaderSize;
         long lastSequence = -1;
         long lastValidOffset = HeaderSize;
+        long expectedSequence = firstSequence;
+        bool firstRecord = true;
 
         byte[] headerBuffer = new byte[RecordHeaderSize];
         while (true)
@@ -344,6 +585,24 @@ internal sealed class KvWalFile : IDisposable
 
             if (!TryParseRecordHeader(header, fs.Length - fs.Position, out var kind, out long sequence, out int payloadLength))
                 break;
+            if (sequence != expectedSequence)
+            {
+                if (allowLegacyFirstRecordSequence && firstRecord)
+                {
+                    expectedSequence = sequence;
+                }
+                else
+                {
+                    if (requireSequenceContinuity)
+                    {
+                        throw new InvalidDataException(
+                            $"KV active WAL record sequence is discontinuous: expected {expectedSequence}, " +
+                            $"found {sequence}.");
+                    }
+
+                    break;
+                }
+            }
 
             byte[] payload = ArrayPool<byte>.Shared.Rent(Math.Max(payloadLength, 1));
             try
@@ -355,13 +614,29 @@ internal sealed class KvWalFile : IDisposable
                 uint expectedPayloadCrc = BinaryPrimitives.ReadUInt32LittleEndian(header.Slice(24, 4));
                 uint actualPayloadCrc = Crc32.HashToUInt32(payload.AsSpan(0, payloadLength));
                 if (expectedPayloadCrc != actualPayloadCrc)
+                {
+                    ThrowIfActiveWalHasLaterBytes(fs, "payload CRC mismatch");
                     break;
+                }
 
-                if (!TryReadPayload(kind, payload.AsSpan(0, payloadLength), out _, out _, out _))
+                if (!TryReadPayload(
+                    kind,
+                    payload.AsSpan(0, payloadLength),
+                    out byte[] key,
+                    out byte[]? value,
+                    out DateTimeOffset? expiresAtUtc))
+                {
+                    ThrowIfActiveWalHasLaterBytes(fs, "invalid payload");
                     break;
+                }
 
                 lastSequence = sequence;
                 lastValidOffset = fs.Position;
+                replayRecord?.Invoke(CreateRecord(kind, sequence, key, value, expiresAtUtc));
+                firstRecord = false;
+                if (sequence == long.MaxValue)
+                    break;
+                expectedSequence = sequence + 1;
             }
             finally
             {
@@ -371,6 +646,59 @@ internal sealed class KvWalFile : IDisposable
 
         return (lastSequence, lastValidOffset);
     }
+
+    private static void ThrowIfActiveWalHasLaterBytes(FileStream fs, string reason)
+    {
+        if (fs.Position < fs.Length)
+        {
+            throw new InvalidDataException(
+                $"KV active WAL contains {reason} before the physical tail; refusing to discard later records.");
+        }
+    }
+
+    private static bool LooksLikeSealedWalPath(string path)
+    {
+        string fileName = System.IO.Path.GetFileName(path);
+        return fileName.StartsWith("sealed-", StringComparison.Ordinal)
+            && fileName.EndsWith(".SDBKVWAL", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryParseSealedWalEndSequence(string path, out long sequence)
+    {
+        const string Prefix = "sealed-";
+        sequence = 0;
+        if (!LooksLikeSealedWalPath(path))
+            return false;
+
+        string name = System.IO.Path.GetFileNameWithoutExtension(path);
+        return long.TryParse(
+            name.AsSpan(Prefix.Length),
+            System.Globalization.NumberStyles.None,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out sequence)
+            && sequence > 0;
+    }
+
+    private static InvalidDataException InvalidSealedWal(string path, string reason)
+        => new($"KV sealed WAL '{System.IO.Path.GetFileName(path)}' is invalid: {reason}.");
+
+    private static KvWalRecord CreateRecord(
+        KvWalRecordKind kind,
+        long sequence,
+        byte[] key,
+        byte[]? value,
+        DateTimeOffset? expiresAtUtc)
+        => new(
+            kind,
+            sequence,
+            key,
+            kind is KvWalRecordKind.Put
+                or KvWalRecordKind.ClearGeneration
+                or KvWalRecordKind.DeleteBatch
+                or KvWalRecordKind.DeleteBatchCommit
+                ? value
+                : null,
+            expiresAtUtc);
 
     private static bool TryParseRecordHeader(
         ReadOnlySpan<byte> header,
@@ -541,3 +869,10 @@ internal sealed record KvDeleteBatchChunk(
     IReadOnlyList<byte[]> Keys);
 
 internal readonly record struct KvDeleteBatchCommit(long BatchId, int TotalChunks, int TotalKeys);
+
+internal readonly record struct KvWalReplayInfo(long FirstSequence, long LastSequence, long RecordCount)
+{
+    public long NextSequence => checked(LastSequence + 1);
+}
+
+internal readonly record struct KvWalHeaderInfo(long FirstSequence, long CreatedUtcTicks);

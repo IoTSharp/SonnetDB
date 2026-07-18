@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.ExceptionServices;
 using System.Text;
 using SonnetDB.Diagnostics;
 
@@ -11,12 +12,20 @@ namespace SonnetDB.Kv;
 public sealed class KvKeyspace : IDisposable
 {
     private readonly object _sync = new();
-    private readonly Dictionary<byte[], KvValueEntry> _values;
+    private readonly SemaphoreSlim _checkpointGate = new(1, 1);
     private readonly KvOptions _options;
+    private Dictionary<byte[], KvValueEntry> _values;
+    private Dictionary<byte[], KvValueEntry>? _frozenValues;
     private KvDiskState? _diskState;
     private KvWalFile? _wal;
+    private KvCheckpointState? _checkpointState;
     private long _lastSequence;
     private long _generation;
+    private bool _autoCheckpointQueued;
+    private bool _autoCheckpointReschedule;
+    private bool _autoCheckpointForceReschedule;
+    private int _autoCheckpointFailureCount;
+    private Exception? _writeFault;
     private bool _disposed;
 
     private KvKeyspace(
@@ -84,6 +93,63 @@ public sealed class KvKeyspace : IDisposable
         }
     }
 
+    internal long ActiveWalLength
+    {
+        get
+        {
+            lock (_sync)
+                return _wal?.Length ?? 0;
+        }
+    }
+
+    internal int MutableOverlayEntryCount
+    {
+        get
+        {
+            lock (_sync)
+                return _values.Count;
+        }
+    }
+
+    internal int PendingOverlayEntryCount
+    {
+        get
+        {
+            lock (_sync)
+                return _frozenValues?.Count ?? 0;
+        }
+    }
+
+    internal Exception? LastCheckpointException { get; private set; }
+
+    internal Action<KvCheckpointPhase>? CheckpointTestHook { get; set; }
+
+    internal Action? WriteBackpressureTestHook { get; set; }
+
+    internal Action? GenerationSaveTestHook { get; set; }
+
+    internal Action? WalDisposeFlushTestHook
+    {
+        set
+        {
+            lock (_sync)
+            {
+                if (_wal is not null)
+                    _wal.DisposeFlushTestHook = value;
+            }
+        }
+    }
+
+    /// <summary>在发布依赖当前 KV 内容的外部维护标记前，显式同步 WAL。</summary>
+    internal void SyncWalForMaintenance()
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            _wal!.Sync();
+        }
+    }
+
     internal void ValidateWrite(ReadOnlySpan<byte> key, ReadOnlySpan<byte> value)
     {
         ValidateKey(key, _options);
@@ -101,36 +167,152 @@ public sealed class KvKeyspace : IDisposable
         Directory.CreateDirectory(SnapshotsDirectory(rootDirectory));
         Directory.CreateDirectory(SegmentsDirectory(rootDirectory));
 
-        long durableGeneration = KvGenerationFile.Load(rootDirectory);
+        KvGenerationMetadata generationMetadata = KvGenerationFile.LoadMetadata(rootDirectory);
+        long durableGeneration = generationMetadata.Generation;
+        long recoveredResetSequence = generationMetadata.ResetSequence;
         var state = LoadLatestState(rootDirectory, durableGeneration);
         long lastSequence = state.Sequence;
+        bool awaitingGenerationBoundary = durableGeneration > 0 && state.Sequence == 0;
+        bool legacyResetWal = false;
+        long legacyResetStartSequence = 1;
+        long? nextReplaySequence = !awaitingGenerationBoundary
+            ? checked(state.Sequence + 1)
+            : null;
         var pendingDeleteBatches = new Dictionary<long, PendingDeleteBatch>();
-
         string walPath = ActiveWalPath(rootDirectory);
-        foreach (var record in KvWalFile.Replay(walPath))
+        IReadOnlyList<string> sealedWalPaths = EnumerateSealedWalPaths(rootDirectory);
+        IReadOnlyList<string> replaySealedWalPaths = sealedWalPaths;
+        KvWalFile? wal = null;
+
+        try
         {
-            if (record.Sequence <= state.Sequence)
-                continue;
+            if (awaitingGenerationBoundary)
+            {
+                bool activeWalMissingOrEmpty = !File.Exists(walPath) || new FileInfo(walPath).Length == 0;
+                if (activeWalMissingOrEmpty && sealedWalPaths.Count == 0)
+                {
+                    awaitingGenerationBoundary = false;
+                    nextReplaySequence = generationMetadata.ResetSequence > 0
+                        ? generationMetadata.ResetSequence
+                        : 1;
+                    lastSequence = nextReplaySequence.Value - 1;
+                }
+                else if (!activeWalMissingOrEmpty)
+                {
+                    KvWalHeaderInfo activeHeader = KvWalFile.ReadHeaderInfo(walPath);
+                    long resetBoundary = generationMetadata.ResetSequence > 0
+                        ? generationMetadata.ResetSequence
+                        : activeHeader.FirstSequence;
+                    bool sealedWalPredatesReset = sealedWalPaths.All(path =>
+                        TryParseSealedWalSequence(path, out long endSequence)
+                        && endSequence < resetBoundary);
+                    bool resetWalIsDurable = generationMetadata.ResetSequence > 0
+                        ? activeHeader.FirstSequence == generationMetadata.ResetSequence
+                        : generationMetadata.CreatedUtcTicks > 0
+                            && activeHeader.CreatedUtcTicks >= generationMetadata.CreatedUtcTicks;
+                    if (resetWalIsDurable
+                        && sealedWalPredatesReset)
+                    {
+                        awaitingGenerationBoundary = false;
+                        legacyResetWal = true;
+                        legacyResetStartSequence = resetBoundary;
+                        nextReplaySequence = null;
+                        lastSequence = activeHeader.FirstSequence - 1;
+                        replaySealedWalPaths = Array.Empty<string>();
+                    }
+                }
+            }
 
-            ApplyRecord(state, record, pendingDeleteBatches);
-            lastSequence = Math.Max(lastSequence, record.Sequence);
+            void ApplyReplayRecord(KvWalRecord record)
+            {
+                if (record.Sequence <= state.Sequence)
+                    return;
+
+                if (awaitingGenerationBoundary)
+                {
+                    lastSequence = record.Sequence;
+                    if (record.Kind == KvWalRecordKind.ClearGeneration
+                        && KvWalFile.DecodeGeneration(record) >= durableGeneration)
+                    {
+                        ApplyRecord(state, record, pendingDeleteBatches);
+                        awaitingGenerationBoundary = false;
+                        recoveredResetSequence = checked(record.Sequence + 1);
+                        nextReplaySequence = recoveredResetSequence;
+                    }
+                    return;
+                }
+
+                if (nextReplaySequence.HasValue && record.Sequence != nextReplaySequence.Value)
+                {
+                    throw new InvalidDataException(
+                        $"KV WAL sequence chain is discontinuous: expected {nextReplaySequence.Value}, " +
+                        $"found {record.Sequence}.");
+                }
+
+                if (record.Kind == KvWalRecordKind.ClearGeneration
+                    && KvWalFile.DecodeGeneration(record) < state.Generation)
+                {
+                    throw new InvalidDataException(
+                        "KV WAL contains a generation rollback after the durable generation boundary.");
+                }
+
+                ApplyRecord(state, record, pendingDeleteBatches);
+                if (record.Kind == KvWalRecordKind.ClearGeneration)
+                    recoveredResetSequence = checked(record.Sequence + 1);
+                lastSequence = record.Sequence;
+                nextReplaySequence = checked(record.Sequence + 1);
+            }
+
+            foreach (string sealedWalPath in replaySealedWalPaths)
+                KvWalFile.ReplaySealed(sealedWalPath, ApplyReplayRecord);
+
+            wal = KvWalFile.Open(
+                walPath,
+                legacyResetWal
+                    ? legacyResetStartSequence
+                    : Math.Max(nextReplaySequence ?? 1, 1),
+                options.WalBufferSize,
+                ApplyReplayRecord,
+                requireStartSequence: legacyResetWal || nextReplaySequence.HasValue,
+                requireRecordSequenceContinuity: true,
+                allowLegacyFirstRecordSequence: legacyResetWal);
+            SonnetDB.Wal.DirectoryFsync.FlushRequired(WalDirectory(rootDirectory));
+            lastSequence = Math.Max(lastSequence, wal.NextSequence - 1);
+            if (awaitingGenerationBoundary)
+            {
+                throw new InvalidDataException(
+                    $"KV WAL does not contain the durable generation {durableGeneration} boundary.");
+            }
+            if (state.Generation < durableGeneration)
+            {
+                throw new InvalidDataException(
+                    $"KV recovered generation {state.Generation} is older than durable generation {durableGeneration}.");
+            }
+            if (state.Generation > durableGeneration)
+                KvGenerationFile.Save(rootDirectory, state.Generation, recoveredResetSequence);
+            else if (legacyResetWal && generationMetadata.Version < 2)
+                KvGenerationFile.Save(rootDirectory, state.Generation, legacyResetStartSequence);
+
+            var keyspace = new KvKeyspace(
+                name,
+                rootDirectory,
+                options,
+                state.Values,
+                state.DiskState,
+                lastSequence,
+                state.Generation,
+                wal);
+            keyspace.EnsureCleanupManifestLocked();
+            lock (keyspace._sync)
+                keyspace.ScheduleAutoCheckpointLocked(force: sealedWalPaths.Count > 0);
+            return keyspace;
         }
-
-        if (state.Generation > durableGeneration)
-            KvGenerationFile.Save(rootDirectory, state.Generation);
-
-        var wal = KvWalFile.Open(walPath, lastSequence + 1, options.WalBufferSize);
-        var keyspace = new KvKeyspace(
-            name,
-            rootDirectory,
-            options,
-            state.Values,
-            state.DiskState,
-            lastSequence,
-            state.Generation,
-            wal);
-        keyspace.EnsureCleanupManifestLocked();
-        return keyspace;
+        catch
+        {
+            wal?.Dispose();
+            state.DiskState?.Dispose();
+            throw;
+        }
     }
 
     /// <summary>
@@ -151,6 +333,7 @@ public sealed class KvKeyspace : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
+            WaitForWriteBudgetLocked();
             return PutLocked(keyCopy, valueCopy, expiresAtUtc);
         }
     }
@@ -266,6 +449,7 @@ public sealed class KvKeyspace : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
+            WaitForWriteBudgetLocked();
             DateTimeOffset? expiresAtUtc = null;
             long current = 0;
             if (TryGetEntryLocked(lookup, out var entry))
@@ -345,6 +529,7 @@ public sealed class KvKeyspace : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
+            WaitForWriteBudgetLocked();
             long currentVersion = 0;
             if (TryGetEntryLocked(lookup, out var entry))
             {
@@ -407,6 +592,7 @@ public sealed class KvKeyspace : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
+            WaitForWriteBudgetLocked();
             if (!TryGetEntryLocked(lookup, out var entry))
                 return false;
             if (TryDeleteExpiredLocked(lookup, entry, DateTimeOffset.UtcNow))
@@ -437,6 +623,7 @@ public sealed class KvKeyspace : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
+            WaitForWriteBudgetLocked();
             if (!TryGetEntryLocked(lookup, out var entry))
                 return false;
             if (TryDeleteExpiredLocked(lookup, entry, DateTimeOffset.UtcNow))
@@ -505,6 +692,7 @@ public sealed class KvKeyspace : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
+            WaitForWriteBudgetLocked();
             if (!TryGetEntryLocked(lookup, out var entry))
                 return false;
 
@@ -601,8 +789,10 @@ public sealed class KvKeyspace : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
+            WaitForWriteBudgetLocked();
             var unique = new HashSet<byte[]>(KvKeyComparer.Instance);
-            var existing = new List<byte[]>(keys.Count);
+            var keysToDelete = new List<byte[]>(keys.Count);
+            int removed = 0;
             DateTimeOffset now = DateTimeOffset.UtcNow;
             for (int i = 0; i < keys.Count; i++)
             {
@@ -613,16 +803,13 @@ public sealed class KvKeyspace : IDisposable
                     continue;
                 if (!TryGetEntryLocked(key, out var entry))
                     continue;
-                if (entry.IsExpired(now))
-                {
-                    DeleteExistingLocked(key);
-                    continue;
-                }
-
-                existing.Add(key);
+                if (!entry.IsExpired(now))
+                    removed++;
+                keysToDelete.Add(key);
             }
 
-            return DeleteManyExistingLocked(existing);
+            DeleteManyExistingLocked(keysToDelete);
+            return removed;
         }
     }
 
@@ -632,29 +819,69 @@ public sealed class KvKeyspace : IDisposable
     public KvClearResult Clear()
     {
         long startTimestamp = SonnetDbMeter.KvClearDuration.Enabled ? Stopwatch.GetTimestamp() : 0;
+        KvDiskState? diskToDispose = null;
+        KvClearResult result;
+        Exception? maintenanceFailure = null;
         lock (_sync)
         {
             ThrowIfDisposed();
+            ThrowIfWriteFaultedLocked();
             int removed = CountVisibleLocked();
             long nextGeneration = checked(_generation + 1);
             long sequence = _wal!.AppendClearGeneration(nextGeneration);
             _wal.Sync();
 
-            // generation 文件是 WAL 轮转后的恢复权威；先持久化，再删除仅含旧 generation 的 WAL。
-            KvGenerationFile.Save(RootDirectory, nextGeneration);
+            // WAL fsync 是 Clear 的提交点；后续元数据维护失败时，内存视图也必须保持已清空。
             _generation = nextGeneration;
             _lastSequence = sequence;
             _values.Clear();
-            ReplaceDiskStateLocked(null);
-            ResetWalLocked(sequence + 1);
-            int pending = EnsureCleanupManifestLocked();
+            _frozenValues = null;
+
+            KvCheckpointState? invalidatedCheckpoint = _checkpointState;
+            _checkpointState = null;
+            if (invalidatedCheckpoint is null
+                || !invalidatedCheckpoint.IsRunning
+                || !ReferenceEquals(invalidatedCheckpoint.DiskState, _diskState))
+            {
+                diskToDispose = _diskState;
+            }
+            _diskState = null;
+
+            int pending = 0;
+            try
+            {
+                GenerationSaveTestHook?.Invoke();
+                KvGenerationFile.Save(RootDirectory, nextGeneration, checked(sequence + 1));
+                ResetWalLocked(sequence + 1);
+                foreach (string sealedWalPath in EnumerateSealedWalPaths(RootDirectory))
+                    File.Delete(sealedWalPath);
+                SonnetDB.Wal.DirectoryFsync.FlushRequired(WalDirectory(RootDirectory));
+                pending = EnsureCleanupManifestLocked();
+            }
+            catch (Exception ex)
+            {
+                _writeFault = ex;
+                LastCheckpointException = ex;
+                maintenanceFailure = ex;
+            }
+            Monitor.PulseAll(_sync);
 
             SonnetDbMeter.KvClearedKeys.Add(removed);
             SonnetDbMeter.KvGenerationChanges.Add(1);
             if (startTimestamp != 0)
                 SonnetDbMeter.KvClearDuration.Record(Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds);
-            return new KvClearResult(removed, nextGeneration, pending);
+            result = new KvClearResult(removed, nextGeneration, pending);
         }
+
+        diskToDispose?.Dispose();
+        if (maintenanceFailure is not null)
+        {
+            throw new IOException(
+                "KV clear committed to WAL, but generation metadata maintenance failed; " +
+                "the keyspace is read-only until it is reopened.",
+                maintenanceFailure);
+        }
+        return result;
     }
 
     /// <summary>返回当前 generation 回收任务状态。</summary>
@@ -815,6 +1042,43 @@ public sealed class KvKeyspace : IDisposable
     }
 
     /// <summary>
+    /// 按 key 前缀分页扫描当前内存视图，只复制 key，不读取或复制 value。
+    /// 供需要先按 key 筛选候选项的内部维护流程使用。
+    /// </summary>
+    internal IReadOnlyList<byte[]> ScanKeysPrefixAfter(
+        ReadOnlySpan<byte> prefix,
+        ReadOnlySpan<byte> afterKey,
+        int limit)
+    {
+        if (limit <= 0)
+            return Array.Empty<byte[]>();
+
+        byte[] prefixCopy = prefix.ToArray();
+        byte[]? afterKeyCopy = afterKey.IsEmpty ? null : afterKey.ToArray();
+
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var keys = new List<byte[]>(Math.Min(limit, CountVisibleLocked()));
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            foreach (var pair in EnumerateVisibleEntriesLocked(
+                prefixCopy,
+                afterKeyCopy,
+                readDiskValues: false))
+            {
+                if (TryDeleteExpiredLocked(pair.Key, pair.Value, now))
+                    continue;
+
+                keys.Add(pair.Key.ToArray());
+                if (keys.Count >= limit)
+                    break;
+            }
+
+            return keys;
+        }
+    }
+
+    /// <summary>
     /// 统计指定 key 前缀下的可见 key 数量，不读取 value。
     /// </summary>
     /// <param name="prefix">key 前缀；为空时统计全部 key。</param>
@@ -892,6 +1156,7 @@ public sealed class KvKeyspace : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
+            WaitForWriteBudgetLocked();
             var keys = EnumerateVisibleEntriesLocked(prefixCopy, afterKey: null, readDiskValues: false)
                 .Select(static pair => pair.Key.ToArray())
                 .Take(take)
@@ -928,21 +1193,14 @@ public sealed class KvKeyspace : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
+            WaitForWriteBudgetLocked();
             var keys = _values
                 .Where(pair => pair.Value.IsExpired(now))
                 .OrderBy(static pair => pair.Key, KvKeyComparer.Instance)
                 .Take(take)
                 .Select(static pair => pair.Key.ToArray())
                 .ToArray();
-
-            int removed = 0;
-            foreach (byte[] key in keys)
-            {
-                if (DeleteExistingLocked(key))
-                    removed++;
-            }
-
-            return removed;
+            return DeleteManyExistingLocked(keys);
         }
     }
 
@@ -995,74 +1253,118 @@ public sealed class KvKeyspace : IDisposable
     /// </summary>
     /// <returns>快照覆盖到的版本号。</returns>
     public long CreateSnapshot()
-    {
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            CleanExpiredLocked(DateTimeOffset.UtcNow, int.MaxValue);
-            _wal!.Sync();
-            long sequence = _lastSequence;
-            string snapshotPath = SnapshotPath(RootDirectory, sequence);
-            KvStateFile.SaveSnapshot(
-                snapshotPath,
-                sequence,
-                EnumerateVisibleEntriesLocked(prefix: [], afterKey: null),
-                CountVisibleLocked(),
-                _generation);
-            var newDiskState = KvStateFile.OpenDiskState(snapshotPath);
-            ResetWalLocked(sequence + 1);
-            _values.Clear();
-            ReplaceDiskStateLocked(newDiskState);
-            DeleteOlderFiles(SnapshotsDirectory(RootDirectory), "*.SDBKVSNP", sequence);
-            return sequence;
-        }
-    }
+        => RunCheckpoint(isSegment: false);
 
     /// <summary>
     /// 将当前 keyspace 压实为一个不可变段文件，并截断已压实版本之前的 KV WAL。
     /// </summary>
     /// <returns>压实覆盖到的版本号。</returns>
     public long Compact()
-    {
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            CleanExpiredLocked(DateTimeOffset.UtcNow, int.MaxValue);
-            _wal!.Sync();
-            long sequence = _lastSequence;
-            string segmentPath = SegmentPath(RootDirectory, sequence);
-            KvStateFile.SaveSegment(
-                segmentPath,
-                sequence,
-                EnumerateVisibleEntriesLocked(prefix: [], afterKey: null),
-                CountVisibleLocked(),
-                _generation);
-            var newDiskState = KvStateFile.OpenDiskState(segmentPath);
-            ResetWalLocked(sequence + 1);
-            _values.Clear();
-            ReplaceDiskStateLocked(newDiskState);
-            DeleteOlderFiles(SegmentsDirectory(RootDirectory), "*.SDBKVSEG", sequence);
-            DeleteOlderFiles(SnapshotsDirectory(RootDirectory), "*.SDBKVSNP", sequence);
-            return sequence;
-        }
-    }
+        => RunCheckpoint(isSegment: true);
 
     /// <summary>
     /// 关闭 keyspace 并刷盘 KV WAL。
     /// </summary>
     public void Dispose()
     {
+        bool checkpointRunning;
+        KvWalFile? wal;
         lock (_sync)
         {
             if (_disposed)
                 return;
 
             _disposed = true;
-            _wal?.Dispose();
-            _diskState?.Dispose();
+            wal = _wal;
             _wal = null;
+            _values.Clear();
+            _frozenValues = null;
+            checkpointRunning = _checkpointState?.IsRunning == true;
+            Monitor.PulseAll(_sync);
+        }
+
+        Exception? failure = null;
+        try
+        {
+            wal?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            failure = ex;
+        }
+
+        try
+        {
+            if (!checkpointRunning)
+            {
+                CompleteDeferredDispose();
+            }
+            else
+            {
+                TimeSpan timeout = _options.CheckpointShutdownTimeout > TimeSpan.Zero
+                    ? _options.CheckpointShutdownTimeout
+                    : TimeSpan.Zero;
+                if (_checkpointGate.Wait(timeout))
+                {
+                    _checkpointGate.Release();
+                    CompleteDeferredDispose();
+                }
+            }
+        }
+        catch (Exception) when (failure is not null)
+        {
+        }
+        catch (Exception ex)
+        {
+            failure = ex;
+        }
+
+        if (failure is not null)
+            ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
+    private void CompleteDeferredDispose()
+    {
+        KvDiskState? checkpointDisk;
+        KvDiskState? currentDisk;
+        lock (_sync)
+        {
+            if (!_disposed || _checkpointState?.IsRunning == true)
+                return;
+
+            checkpointDisk = _checkpointState?.DiskState;
+            currentDisk = _diskState;
+            _checkpointState = null;
             _diskState = null;
         }
+
+        Exception? failure = null;
+        if (!ReferenceEquals(checkpointDisk, currentDisk))
+        {
+            try
+            {
+                checkpointDisk?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                failure = ex;
+            }
+        }
+
+        try
+        {
+            currentDisk?.Dispose();
+        }
+        catch (Exception) when (failure is not null)
+        {
+        }
+        catch (Exception ex)
+        {
+            failure = ex;
+        }
+
+        if (failure is not null)
+            ExceptionDispatchInfo.Capture(failure).Throw();
     }
 
     internal static string WalDirectory(string rootDirectory) => Path.Combine(rootDirectory, "wal");
@@ -1073,6 +1375,9 @@ public sealed class KvKeyspace : IDisposable
 
     internal static string ActiveWalPath(string rootDirectory) =>
         Path.Combine(WalDirectory(rootDirectory), "active.SDBKVWAL");
+
+    internal static string SealedWalPath(string rootDirectory, long sequence) =>
+        Path.Combine(WalDirectory(rootDirectory), $"sealed-{sequence:D20}.SDBKVWAL");
 
     internal static string SnapshotPath(string rootDirectory, long sequence) =>
         Path.Combine(SnapshotsDirectory(rootDirectory), $"{sequence:D20}.SDBKVSNP");
@@ -1214,6 +1519,438 @@ public sealed class KvKeyspace : IDisposable
             throw new ArgumentException("KV expires-at 必须使用 UTC 时间。", parameterName);
     }
 
+    private long RunCheckpoint(bool isSegment)
+    {
+        _checkpointGate.Wait();
+        try
+        {
+            return RunCheckpointCore(isSegment);
+        }
+        finally
+        {
+            _checkpointGate.Release();
+            CompleteDeferredDispose();
+        }
+    }
+
+    private long RunCheckpointCore(bool isSegment)
+    {
+        KvCheckpointState? checkpoint;
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            ThrowIfWriteFaultedLocked();
+            checkpoint = FreezeCheckpointLocked(isSegment);
+            if (checkpoint is null)
+                return _lastSequence;
+
+            checkpoint.IsRunning = true;
+            LastCheckpointException = null;
+            Monitor.PulseAll(_sync);
+        }
+
+        string statePath = checkpoint.IsSegment
+            ? SegmentPath(RootDirectory, checkpoint.Sequence)
+            : SnapshotPath(RootDirectory, checkpoint.Sequence);
+        KvDiskState? openedState = null;
+        KvDiskState? oldDiskState = null;
+        bool stateSaved = false;
+        bool published = false;
+        try
+        {
+            CheckpointTestHook?.Invoke(KvCheckpointPhase.AfterFreeze);
+
+            int count = CountVisible(checkpoint.Values, secondary: null, checkpoint.DiskState);
+            var entries = EnumerateVisibleEntries(
+                checkpoint.Values,
+                secondary: null,
+                checkpoint.DiskState,
+                prefix: [],
+                afterKey: null,
+                readDiskValues: true);
+            if (checkpoint.IsSegment)
+            {
+                KvStateFile.SaveSegment(
+                    statePath,
+                    checkpoint.Sequence,
+                    entries,
+                    count,
+                    checkpoint.Generation);
+            }
+            else
+            {
+                KvStateFile.SaveSnapshot(
+                    statePath,
+                    checkpoint.Sequence,
+                    entries,
+                    count,
+                    checkpoint.Generation);
+            }
+            stateSaved = true;
+            CheckpointTestHook?.Invoke(KvCheckpointPhase.BeforeStateDirectoryFsync);
+            SonnetDB.Wal.DirectoryFsync.FlushRequired(
+                Path.GetDirectoryName(statePath) ?? string.Empty);
+            CheckpointTestHook?.Invoke(KvCheckpointPhase.AfterStateSavedBeforePublish);
+            openedState = KvStateFile.OpenDiskState(statePath);
+            openedState.ValidateAllEntries();
+
+            bool invalidated;
+            bool checkpointOwnsOldDisk;
+            lock (_sync)
+            {
+                invalidated = _disposed
+                    || !ReferenceEquals(_checkpointState, checkpoint)
+                    || _generation != checkpoint.Generation;
+                checkpoint.IsRunning = false;
+                checkpointOwnsOldDisk = !ReferenceEquals(_diskState, checkpoint.DiskState);
+                if (!invalidated)
+                {
+                    oldDiskState = _diskState;
+                    _diskState = openedState;
+                    openedState = null;
+                    _frozenValues = null;
+                    _checkpointState = null;
+                    LastCheckpointException = null;
+                    published = true;
+                }
+                Monitor.PulseAll(_sync);
+            }
+
+            if (invalidated)
+            {
+                openedState?.Dispose();
+                openedState = null;
+                if (checkpointOwnsOldDisk)
+                    checkpoint.DiskState?.Dispose();
+                File.Delete(statePath);
+                SonnetDB.Wal.DirectoryFsync.FlushBestEffort(
+                    Path.GetDirectoryName(statePath) ?? string.Empty);
+                return checkpoint.Sequence;
+            }
+
+            oldDiskState?.Dispose();
+            oldDiskState = null;
+
+            CheckpointTestHook?.Invoke(KvCheckpointPhase.AfterStatePublishBeforeWalCleanup);
+            foreach (string sealedWalPath in checkpoint.SealedWalPaths)
+                File.Delete(sealedWalPath);
+            SonnetDB.Wal.DirectoryFsync.FlushBestEffort(WalDirectory(RootDirectory));
+
+            if (checkpoint.IsSegment)
+            {
+                DeleteOlderFiles(SegmentsDirectory(RootDirectory), "*.SDBKVSEG", checkpoint.Sequence);
+                DeleteOlderFiles(SnapshotsDirectory(RootDirectory), "*.SDBKVSNP", checkpoint.Sequence);
+            }
+            else
+            {
+                DeleteOlderFiles(SnapshotsDirectory(RootDirectory), "*.SDBKVSNP", checkpoint.Sequence);
+            }
+
+            return checkpoint.Sequence;
+        }
+        catch (Exception ex)
+        {
+            openedState?.Dispose();
+            oldDiskState?.Dispose();
+
+            bool invalidated;
+            bool checkpointOwnsOldDisk;
+            lock (_sync)
+            {
+                checkpoint.IsRunning = false;
+                invalidated = !ReferenceEquals(_checkpointState, checkpoint);
+                checkpointOwnsOldDisk = !ReferenceEquals(_diskState, checkpoint.DiskState);
+                if (!published && !invalidated)
+                    LastCheckpointException = ex;
+                Monitor.PulseAll(_sync);
+            }
+
+            if (!published)
+            {
+                if (invalidated && checkpointOwnsOldDisk)
+                    checkpoint.DiskState?.Dispose();
+                if (stateSaved)
+                {
+                    File.Delete(statePath);
+                    SonnetDB.Wal.DirectoryFsync.FlushBestEffort(
+                        Path.GetDirectoryName(statePath) ?? string.Empty);
+                }
+            }
+
+            throw;
+        }
+    }
+
+    private KvCheckpointState? FreezeCheckpointLocked(bool isSegment)
+    {
+        if (_checkpointState is not null)
+            return _checkpointState;
+
+        string[] sealedWalPaths = EnumerateSealedWalPaths(RootDirectory)
+            .Where(path => TryParseSealedWalSequence(path, out long sequence) && sequence <= _lastSequence)
+            .ToArray();
+        if (_values.Count == 0 && _lastSequence <= (_diskState?.Sequence ?? 0))
+        {
+            if (_wal!.HasRecords)
+                ResetWalLocked(_lastSequence + 1);
+            foreach (string sealedWalPath in sealedWalPaths)
+                File.Delete(sealedWalPath);
+            SonnetDB.Wal.DirectoryFsync.FlushBestEffort(WalDirectory(RootDirectory));
+            return null;
+        }
+        if (!_wal!.HasRecords && _values.Count == 0 && sealedWalPaths.Length == 0)
+            return null;
+
+        long sequence = _lastSequence;
+        if (_wal.HasRecords)
+        {
+            string newlySealedPath = SealedWalPath(RootDirectory, sequence);
+            bool activeWalSealed = false;
+            try
+            {
+                _wal.Seal(newlySealedPath);
+                activeWalSealed = true;
+                _wal = KvWalFile.Open(
+                    ActiveWalPath(RootDirectory),
+                    Math.Max(sequence + 1, 1),
+                    _options.WalBufferSize);
+                SonnetDB.Wal.DirectoryFsync.FlushRequired(WalDirectory(RootDirectory));
+            }
+            catch
+            {
+                string activeWalPath = ActiveWalPath(RootDirectory);
+                if (activeWalSealed && File.Exists(newlySealedPath))
+                {
+                    File.Delete(activeWalPath);
+                    File.Move(newlySealedPath, activeWalPath);
+                    SonnetDB.Wal.DirectoryFsync.FlushBestEffort(WalDirectory(RootDirectory));
+                }
+                _wal = KvWalFile.Open(
+                    activeWalPath,
+                    Math.Max(sequence + 1, 1),
+                    _options.WalBufferSize);
+                throw;
+            }
+
+            sealedWalPaths = sealedWalPaths.Append(newlySealedPath).ToArray();
+        }
+
+        var frozen = _values;
+        _values = new Dictionary<byte[], KvValueEntry>(KvKeyComparer.Instance);
+        _frozenValues = frozen;
+        _checkpointState = new KvCheckpointState(
+            sequence,
+            _generation,
+            isSegment,
+            frozen,
+            _diskState,
+            sealedWalPaths);
+        return _checkpointState;
+    }
+
+    private void ScheduleAutoCheckpointLocked(bool force = false, TimeSpan? delay = null)
+    {
+        if (_disposed || !_options.AutoCheckpointEnabled)
+            return;
+        if (!force && !IsCheckpointDueLocked())
+            return;
+
+        if (_autoCheckpointQueued)
+        {
+            _autoCheckpointReschedule = true;
+            _autoCheckpointForceReschedule |= force;
+            return;
+        }
+
+        _autoCheckpointQueued = true;
+        KvCheckpointScheduler.Enqueue(this, delay ?? TimeSpan.Zero);
+    }
+
+    private bool IsCheckpointDueLocked()
+    {
+        if (_checkpointState is not null)
+            return true;
+
+        return IsWriteBudgetExhaustedLocked();
+    }
+
+    private bool IsWriteBudgetExhaustedLocked()
+    {
+        bool walExhausted = _options.MaxWalBytes > 0
+            && _wal!.Length >= _options.MaxWalBytes;
+        bool overlayExhausted = _options.MaxOverlayEntries > 0
+            && _values.Count >= _options.MaxOverlayEntries;
+        return walExhausted || overlayExhausted;
+    }
+
+    private void WaitForWriteBudgetLocked()
+    {
+        ThrowIfWriteFaultedLocked();
+        if (!_options.AutoCheckpointEnabled || !IsWriteBudgetExhaustedLocked())
+            return;
+
+        TimeSpan timeout = _options.CheckpointWriteBackpressureTimeout;
+        if (timeout <= TimeSpan.Zero)
+        {
+            throw new InvalidOperationException(
+                "KV checkpoint write backpressure timeout must be greater than zero.");
+        }
+
+        long started = Stopwatch.GetTimestamp();
+        while (IsWriteBudgetExhaustedLocked())
+        {
+            ScheduleAutoCheckpointLocked(force: true);
+            if (LastCheckpointException is { } checkpointFailure
+                && _checkpointState?.IsRunning != true)
+            {
+                RecordCheckpointBackpressure(started, rejected: true);
+                throw new IOException(
+                    "KV write rejected because the automatic checkpoint failed while the WAL budget was exhausted.",
+                    checkpointFailure);
+            }
+
+            TimeSpan remaining = timeout - Stopwatch.GetElapsedTime(started);
+            if (remaining <= TimeSpan.Zero)
+            {
+                RecordCheckpointBackpressure(started, rejected: true);
+                throw CreateCheckpointBackpressureTimeout(timeout);
+            }
+
+            TimeSpan wait = remaining > TimeSpan.FromMilliseconds(int.MaxValue)
+                ? TimeSpan.FromMilliseconds(int.MaxValue)
+                : remaining;
+            WriteBackpressureTestHook?.Invoke();
+            if (!Monitor.Wait(_sync, wait))
+            {
+                RecordCheckpointBackpressure(started, rejected: true);
+                throw CreateCheckpointBackpressureTimeout(timeout);
+            }
+
+            ThrowIfDisposed();
+        }
+
+        RecordCheckpointBackpressure(started, rejected: false);
+    }
+
+    private static void RecordCheckpointBackpressure(long started, bool rejected)
+    {
+        SonnetDbMeter.KvCheckpointBackpressureDuration.Record(
+            Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+        if (rejected)
+            SonnetDbMeter.KvCheckpointWriteRejections.Add(1);
+    }
+
+    private static IOException CreateCheckpointBackpressureTimeout(TimeSpan timeout)
+        => new(
+            $"KV write waited {timeout} for automatic checkpoint backpressure and was rejected before WAL append.",
+            new TimeoutException("KV automatic checkpoint did not free the write budget in time."));
+
+    internal void RunAutoCheckpointWorker()
+    {
+        bool failed = false;
+        try
+        {
+            _checkpointGate.Wait();
+            try
+            {
+                lock (_sync)
+                {
+                    if (_disposed)
+                        return;
+                }
+
+                RunCheckpointCore(isSegment: true);
+                lock (_sync)
+                    LastCheckpointException = null;
+            }
+            catch (Exception ex)
+            {
+                lock (_sync)
+                {
+                    LastCheckpointException = ex;
+                    _autoCheckpointFailureCount = Math.Min(_autoCheckpointFailureCount + 1, 30);
+                    failed = true;
+                    SonnetDbMeter.KvCheckpointFailures.Add(1);
+                    Monitor.PulseAll(_sync);
+                }
+            }
+            finally
+            {
+                _checkpointGate.Release();
+                CompleteDeferredDispose();
+            }
+        }
+        finally
+        {
+            lock (_sync)
+            {
+                _autoCheckpointQueued = false;
+                if (!failed)
+                    _autoCheckpointFailureCount = 0;
+
+                bool forceReschedule = _autoCheckpointForceReschedule || failed;
+                bool reschedule = !_disposed
+                    && (forceReschedule
+                        || _autoCheckpointReschedule
+                        || IsCheckpointDueLocked());
+                _autoCheckpointReschedule = false;
+                _autoCheckpointForceReschedule = false;
+                if (reschedule)
+                {
+                    TimeSpan delay = failed
+                        ? CheckpointRetryDelay(_autoCheckpointFailureCount)
+                        : TimeSpan.Zero;
+                    ScheduleAutoCheckpointLocked(force: forceReschedule, delay: delay);
+                }
+                Monitor.PulseAll(_sync);
+            }
+        }
+    }
+
+    private static TimeSpan CheckpointRetryDelay(int failureCount)
+    {
+        int exponent = Math.Clamp(failureCount - 1, 0, 5);
+        return TimeSpan.FromSeconds(1 << exponent);
+    }
+
+    private static IReadOnlyList<string> EnumerateSealedWalPaths(string rootDirectory)
+    {
+        string walDirectory = WalDirectory(rootDirectory);
+        if (!Directory.Exists(walDirectory))
+            return Array.Empty<string>();
+
+        var paths = new List<(long Sequence, string Path)>();
+        foreach (string path in Directory.EnumerateFiles(walDirectory, "sealed-*.SDBKVWAL"))
+        {
+            if (!TryParseSealedWalSequence(path, out long sequence))
+            {
+                throw new InvalidDataException(
+                    $"KV sealed WAL filename is invalid: '{Path.GetFileName(path)}'.");
+            }
+
+            paths.Add((sequence, path));
+        }
+
+        return paths
+            .OrderBy(static item => item.Sequence)
+            .Select(static item => item.Path)
+            .ToArray();
+    }
+
+    private static bool TryParseSealedWalSequence(string path, out long sequence)
+    {
+        const string Prefix = "sealed-";
+        sequence = 0;
+        string name = Path.GetFileNameWithoutExtension(path);
+        return name.StartsWith(Prefix, StringComparison.Ordinal)
+            && long.TryParse(
+                name.AsSpan(Prefix.Length),
+                System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out sequence)
+            && sequence > 0;
+    }
+
     private static void DeleteOlderFiles(string directory, string pattern, long keepSequence)
     {
         if (!Directory.Exists(directory))
@@ -1233,6 +1970,7 @@ public sealed class KvKeyspace : IDisposable
         string walPath = ActiveWalPath(RootDirectory);
         File.Delete(walPath);
         _wal = KvWalFile.Open(walPath, Math.Max(nextSequence, 1), _options.WalBufferSize);
+        SonnetDB.Wal.DirectoryFsync.FlushRequired(WalDirectory(RootDirectory));
     }
 
     private bool TryDeleteExpiredLocked(byte[] key, KvValueEntry entry, DateTimeOffset utcNow)
@@ -1240,26 +1978,15 @@ public sealed class KvKeyspace : IDisposable
         if (!entry.IsExpired(utcNow))
             return false;
 
-        DeleteExistingLocked(key);
-        return true;
-    }
-
-    private int CleanExpiredLocked(DateTimeOffset utcNow, int limit)
-    {
-        var keys = EnumerateVisibleEntriesLocked(prefix: [], afterKey: null, readDiskValues: false)
-            .Where(pair => pair.Value.IsExpired(utcNow))
-            .Select(static pair => pair.Key.ToArray())
-            .Take(limit)
-            .ToArray();
-
-        int removed = 0;
-        foreach (byte[] key in keys)
+        if (_writeFault is not null
+            || _options.AutoCheckpointEnabled && IsWriteBudgetExhaustedLocked())
         {
-            if (DeleteExistingLocked(key))
-                removed++;
+            ScheduleAutoCheckpointLocked(force: true);
+            return true;
         }
 
-        return removed;
+        DeleteExistingLocked(key);
+        return true;
     }
 
     private bool DeleteExistingLocked(byte[] key)
@@ -1271,12 +1998,10 @@ public sealed class KvKeyspace : IDisposable
         if (_options.SyncWalOnEveryWrite)
             _wal.Sync();
 
-        if (_diskState is not null && _diskState.Contains(key))
-            _values[key] = KvValueEntry.Deleted(sequence);
-        else
-            _values.Remove(key);
+        ApplyDeleteLocked(key, sequence);
 
         _lastSequence = sequence;
+        ScheduleAutoCheckpointLocked();
         return true;
     }
 
@@ -1291,6 +2016,7 @@ public sealed class KvKeyspace : IDisposable
         int estimatedChunks = (materialized.Length + _options.BatchDeleteMaxKeys - 1)
             / _options.BatchDeleteMaxKeys;
         var chunks = new List<ArraySegment<byte[]>>(estimatedChunks);
+        long requiredWalBytes = 0;
         int offset = 0;
         while (offset < keys.Count)
         {
@@ -1312,8 +2038,12 @@ public sealed class KvKeyspace : IDisposable
             }
 
             chunks.Add(new ArraySegment<byte[]>(materialized, offset, count));
+            requiredWalBytes = checked(requiredWalBytes + 32L + 16L + payloadBytes);
             offset += count;
         }
+
+        requiredWalBytes = checked(requiredWalBytes + 32L + 16L + sizeof(long) + (sizeof(int) * 2));
+        EnsureAtomicDeleteBatchFitsBudgetLocked(materialized.Length, requiredWalBytes);
 
         long batchId = _wal!.NextSequence;
         for (int i = 0; i < chunks.Count; i++)
@@ -1325,12 +2055,33 @@ public sealed class KvKeyspace : IDisposable
         for (int i = 0; i < materialized.Length; i++)
             ApplyDeleteLocked(materialized[i], commitSequence);
         _lastSequence = commitSequence;
+        ScheduleAutoCheckpointLocked();
         return materialized.Length;
+    }
+
+    private void EnsureAtomicDeleteBatchFitsBudgetLocked(int keyCount, long requiredWalBytes)
+    {
+        if (!_options.AutoCheckpointEnabled)
+            return;
+
+        bool walWouldExceedBudget = _options.MaxWalBytes > 0
+            && (requiredWalBytes > _options.MaxWalBytes
+                || _wal!.Length > _options.MaxWalBytes - requiredWalBytes);
+        bool overlayWouldExceedBudget = _options.MaxOverlayEntries > 0
+            && (long)_values.Count + keyCount > _options.MaxOverlayEntries;
+        if (!walWouldExceedBudget && !overlayWouldExceedBudget)
+            return;
+
+        ScheduleAutoCheckpointLocked(force: true);
+        SonnetDbMeter.KvCheckpointWriteRejections.Add(1);
+        throw new IOException(
+            "KV atomic delete batch was rejected before WAL append because it exceeds the checkpoint budget; " +
+            "retry with a smaller batch after checkpoint completion.");
     }
 
     private void ApplyDeleteLocked(byte[] key, long sequence)
     {
-        if (_diskState is not null && _diskState.Contains(key))
+        if (BaseContainsVisibleLocked(key))
             _values[key] = KvValueEntry.Deleted(sequence);
         else
             _values.Remove(key);
@@ -1344,6 +2095,7 @@ public sealed class KvKeyspace : IDisposable
 
         _values[keyCopy] = new KvValueEntry(valueCopy, sequence, expiresAtUtc);
         _lastSequence = sequence;
+        ScheduleAutoCheckpointLocked();
         return sequence;
     }
 
@@ -1352,43 +2104,168 @@ public sealed class KvKeyspace : IDisposable
         if (_values.TryGetValue(key.ToArray(), out entry!))
             return !entry.IsDeleted;
 
+        if (_frozenValues?.TryGetValue(key.ToArray(), out entry!) == true)
+            return !entry.IsDeleted;
+
         entry = _diskState?.Get(key)!;
         return entry is not null;
     }
 
-    private int CountVisibleLocked()
+    private bool BaseContainsVisibleLocked(ReadOnlySpan<byte> key)
     {
-        int count = _diskState?.Count ?? 0;
-        foreach (var pair in _values)
-        {
-            bool existsOnDisk = _diskState?.Contains(pair.Key) == true;
-            if (pair.Value.IsDeleted)
-            {
-                if (existsOnDisk)
-                    count--;
-                continue;
-            }
+        if (_frozenValues?.TryGetValue(key.ToArray(), out var frozenEntry) == true)
+            return !frozenEntry.IsDeleted;
+        return _diskState?.Contains(key) == true;
+    }
 
-            if (!existsOnDisk)
-                count++;
+    private int CountVisibleLocked()
+        => CountVisible(_values, _frozenValues, _diskState);
+
+    private static int CountVisible(
+        IReadOnlyDictionary<byte[], KvValueEntry> primary,
+        IReadOnlyDictionary<byte[], KvValueEntry>? secondary,
+        KvDiskState? diskState)
+    {
+        int count = diskState?.Count ?? 0;
+        if (secondary is not null)
+        {
+            foreach (var pair in secondary)
+                count = AdjustVisibleCount(count, pair.Value, diskState?.Contains(pair.Key) == true);
+        }
+
+        foreach (var pair in primary)
+        {
+            bool existsInLowerLayer;
+            if (secondary?.TryGetValue(pair.Key, out var secondaryEntry) == true)
+                existsInLowerLayer = !secondaryEntry.IsDeleted;
+            else
+                existsInLowerLayer = diskState?.Contains(pair.Key) == true;
+            count = AdjustVisibleCount(count, pair.Value, existsInLowerLayer);
         }
 
         return count;
+    }
+
+    private static int AdjustVisibleCount(int count, KvValueEntry entry, bool existsInLowerLayer)
+    {
+        if (entry.IsDeleted)
+            return existsInLowerLayer ? count - 1 : count;
+        return existsInLowerLayer ? count : count + 1;
     }
 
     private IEnumerable<KeyValuePair<byte[], KvValueEntry>> EnumerateVisibleEntriesLocked(
         byte[] prefix,
         byte[]? afterKey,
         bool readDiskValues = true)
+        => EnumerateVisibleEntries(
+            _values,
+            _frozenValues,
+            _diskState,
+            prefix,
+            afterKey,
+            readDiskValues);
+
+    private static IEnumerable<KeyValuePair<byte[], KvValueEntry>> EnumerateVisibleEntries(
+        IReadOnlyDictionary<byte[], KvValueEntry> primary,
+        IReadOnlyDictionary<byte[], KvValueEntry>? secondary,
+        KvDiskState? diskState,
+        byte[] prefix,
+        byte[]? afterKey,
+        bool readDiskValues)
     {
-        using var memory = _values
+        if (secondary is null)
+        {
+            foreach (var pair in EnumerateOverlayAndDisk(
+                primary,
+                diskState,
+                prefix,
+                afterKey,
+                readDiskValues))
+            {
+                yield return pair;
+            }
+            yield break;
+        }
+
+        var lowerLayer = EnumerateOverlayAndDisk(
+            secondary,
+            diskState,
+            prefix,
+            afterKey,
+            readDiskValues);
+        foreach (var pair in MergeOverlayAndLowerLayer(primary, lowerLayer, prefix, afterKey))
+            yield return pair;
+    }
+
+    private static IEnumerable<KeyValuePair<byte[], KvValueEntry>> MergeOverlayAndLowerLayer(
+        IReadOnlyDictionary<byte[], KvValueEntry> overlay,
+        IEnumerable<KeyValuePair<byte[], KvValueEntry>> lowerLayer,
+        byte[] prefix,
+        byte[]? afterKey)
+    {
+        using var memory = overlay
             .Where(pair => !pair.Value.IsDeleted
                 && pair.Key.AsSpan().StartsWith(prefix)
                 && (afterKey is null || KvKeyComparer.Instance.Compare(pair.Key, afterKey) > 0))
             .OrderBy(static pair => pair.Key, KvKeyComparer.Instance)
             .GetEnumerator();
+        using var lower = lowerLayer.GetEnumerator();
 
-        using var disk = (_diskState?.ScanPrefixAfter(prefix, afterKey)
+        bool hasMemory = memory.MoveNext();
+        bool hasLower = lower.MoveNext();
+        while (hasMemory || hasLower)
+        {
+            if (!hasLower)
+            {
+                yield return memory.Current;
+                hasMemory = memory.MoveNext();
+                continue;
+            }
+
+            if (!hasMemory)
+            {
+                if (!overlay.ContainsKey(lower.Current.Key))
+                    yield return lower.Current;
+                hasLower = lower.MoveNext();
+                continue;
+            }
+
+            int comparison = KvKeyComparer.Instance.Compare(memory.Current.Key, lower.Current.Key);
+            if (comparison < 0)
+            {
+                yield return memory.Current;
+                hasMemory = memory.MoveNext();
+                continue;
+            }
+
+            if (comparison == 0)
+            {
+                yield return memory.Current;
+                hasMemory = memory.MoveNext();
+                hasLower = lower.MoveNext();
+                continue;
+            }
+
+            if (!overlay.ContainsKey(lower.Current.Key))
+                yield return lower.Current;
+            hasLower = lower.MoveNext();
+        }
+    }
+
+    private static IEnumerable<KeyValuePair<byte[], KvValueEntry>> EnumerateOverlayAndDisk(
+        IReadOnlyDictionary<byte[], KvValueEntry> overlay,
+        KvDiskState? diskState,
+        byte[] prefix,
+        byte[]? afterKey,
+        bool readDiskValues)
+    {
+        using var memory = overlay
+            .Where(pair => !pair.Value.IsDeleted
+                && pair.Key.AsSpan().StartsWith(prefix)
+                && (afterKey is null || KvKeyComparer.Instance.Compare(pair.Key, afterKey) > 0))
+            .OrderBy(static pair => pair.Key, KvKeyComparer.Instance)
+            .GetEnumerator();
+        using var disk = (diskState?.ScanPrefixAfter(prefix, afterKey)
                 ?? Enumerable.Empty<KvDiskIndexEntry>())
             .GetEnumerator();
 
@@ -1398,9 +2275,7 @@ public sealed class KvKeyspace : IDisposable
         {
             if (!hasDisk)
             {
-                yield return new KeyValuePair<byte[], KvValueEntry>(
-                    memory.Current.Key,
-                    memory.Current.Value);
+                yield return memory.Current;
                 hasMemory = memory.MoveNext();
                 continue;
             }
@@ -1408,10 +2283,12 @@ public sealed class KvKeyspace : IDisposable
             if (!hasMemory)
             {
                 var diskEntry = disk.Current;
-                if (!_values.ContainsKey(diskEntry.Key))
+                if (!overlay.ContainsKey(diskEntry.Key))
+                {
                     yield return new KeyValuePair<byte[], KvValueEntry>(
                         diskEntry.Key,
-                        readDiskValues ? _diskState!.Read(diskEntry) : diskEntry.ToValueEntry());
+                        readDiskValues ? diskState!.Read(diskEntry) : diskEntry.ToValueEntry());
+                }
                 hasDisk = disk.MoveNext();
                 continue;
             }
@@ -1419,28 +2296,26 @@ public sealed class KvKeyspace : IDisposable
             int comparison = KvKeyComparer.Instance.Compare(memory.Current.Key, disk.Current.Key);
             if (comparison < 0)
             {
-                yield return new KeyValuePair<byte[], KvValueEntry>(
-                    memory.Current.Key,
-                    memory.Current.Value);
+                yield return memory.Current;
                 hasMemory = memory.MoveNext();
                 continue;
             }
 
             if (comparison == 0)
             {
-                yield return new KeyValuePair<byte[], KvValueEntry>(
-                    memory.Current.Key,
-                    memory.Current.Value);
+                yield return memory.Current;
                 hasMemory = memory.MoveNext();
                 hasDisk = disk.MoveNext();
                 continue;
             }
 
             var currentDisk = disk.Current;
-            if (!_values.ContainsKey(currentDisk.Key))
+            if (!overlay.ContainsKey(currentDisk.Key))
+            {
                 yield return new KeyValuePair<byte[], KvValueEntry>(
                     currentDisk.Key,
-                    readDiskValues ? _diskState!.Read(currentDisk) : currentDisk.ToValueEntry());
+                    readDiskValues ? diskState!.Read(currentDisk) : currentDisk.ToValueEntry());
+            }
             hasDisk = disk.MoveNext();
         }
     }
@@ -1580,6 +2455,49 @@ public sealed class KvKeyspace : IDisposable
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
 
+    private void ThrowIfWriteFaultedLocked()
+    {
+        if (_writeFault is not null)
+        {
+            throw new IOException(
+                "KV keyspace is read-only after a committed maintenance failure; reopen it before writing.",
+                _writeFault);
+        }
+    }
+
+    private sealed class KvCheckpointState
+    {
+        public KvCheckpointState(
+            long sequence,
+            long generation,
+            bool isSegment,
+            Dictionary<byte[], KvValueEntry> values,
+            KvDiskState? diskState,
+            IReadOnlyList<string> sealedWalPaths)
+        {
+            Sequence = sequence;
+            Generation = generation;
+            IsSegment = isSegment;
+            Values = values;
+            DiskState = diskState;
+            SealedWalPaths = sealedWalPaths;
+        }
+
+        public long Sequence { get; }
+
+        public long Generation { get; }
+
+        public bool IsSegment { get; }
+
+        public Dictionary<byte[], KvValueEntry> Values { get; }
+
+        public KvDiskState? DiskState { get; }
+
+        public IReadOnlyList<string> SealedWalPaths { get; }
+
+        public bool IsRunning { get; set; }
+    }
+
     private sealed class PendingDeleteBatch
     {
         private const int MaxChunks = 65_536;
@@ -1613,6 +2531,101 @@ public sealed class KvKeyspace : IDisposable
             if (keys.Count != commit.TotalKeys)
                 throw new InvalidDataException("KV batch-delete commit 的 key 总数不匹配。");
             return keys;
+        }
+    }
+}
+
+internal enum KvCheckpointPhase
+{
+    AfterFreeze,
+    BeforeStateDirectoryFsync,
+    AfterStateSavedBeforePublish,
+    AfterStatePublishBeforeWalCleanup,
+}
+
+internal static class KvCheckpointScheduler
+{
+    private static readonly object Sync = new();
+    private static readonly Queue<KvKeyspace> Pending = new();
+    private static readonly PriorityQueue<KvKeyspace, long> Delayed = new();
+    private static readonly Thread[] Workers = StartWorkers();
+
+    public static void Enqueue(KvKeyspace keyspace, TimeSpan delay)
+    {
+        ArgumentNullException.ThrowIfNull(keyspace);
+        if (delay < TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(delay));
+
+        lock (Sync)
+        {
+            if (delay == TimeSpan.Zero)
+            {
+                Pending.Enqueue(keyspace);
+            }
+            else
+            {
+                long delayMilliseconds = Math.Max(1, (long)Math.Ceiling(delay.TotalMilliseconds));
+                Delayed.Enqueue(keyspace, checked(Environment.TickCount64 + delayMilliseconds));
+            }
+
+            Monitor.PulseAll(Sync);
+        }
+    }
+
+    private static Thread[] StartWorkers()
+    {
+        var workers = new Thread[2];
+        for (int i = 0; i < workers.Length; i++)
+        {
+            workers[i] = new Thread(Run)
+            {
+                IsBackground = true,
+                Name = $"SonnetDB.KvCheckpoint.{i + 1}",
+            };
+            workers[i].Start();
+        }
+
+        return workers;
+    }
+
+    private static void Run()
+    {
+        while (true)
+        {
+            KvKeyspace keyspace;
+            lock (Sync)
+            {
+                while (true)
+                {
+                    long now = Environment.TickCount64;
+                    while (Delayed.TryPeek(out _, out long dueAt) && dueAt <= now)
+                        Pending.Enqueue(Delayed.Dequeue());
+
+                    if (Pending.Count > 0)
+                        break;
+
+                    if (!Delayed.TryPeek(out _, out long nextDueAt))
+                    {
+                        Monitor.Wait(Sync);
+                        continue;
+                    }
+
+                    long remaining = nextDueAt - now;
+                    Monitor.Wait(Sync, (int)Math.Min(remaining, int.MaxValue));
+                }
+
+                keyspace = Pending.Dequeue();
+            }
+
+            try
+            {
+                keyspace.RunAutoCheckpointWorker();
+            }
+            catch
+            {
+                // A keyspace-level cleanup/dispose failure must not terminate a shared worker.
+                SonnetDbMeter.KvCheckpointFailures.Add(1);
+            }
         }
     }
 }

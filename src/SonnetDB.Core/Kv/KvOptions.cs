@@ -14,6 +14,32 @@ public sealed record KvOptions
     /// </summary>
     public bool SyncWalOnEveryWrite { get; init; } = true;
 
+    /// <summary>是否在 WAL 或内存覆盖层达到预算后自动创建后台检查点。</summary>
+    public bool AutoCheckpointEnabled { get; init; } = true;
+
+    /// <summary>
+    /// 自动检查点允许的活跃 WAL 最大字节数，默认 256 MB；小于等于 0 时关闭字节预算。
+    /// 单条记录可能使文件短暂超过该值，检查点期间的新写入记录在新的活跃 WAL 中。
+    /// </summary>
+    public long MaxWalBytes { get; init; } = 256L * 1024 * 1024;
+
+    /// <summary>
+    /// 自动检查点允许的可变内存覆盖层最大条目数，默认 100,000；小于等于 0 时关闭条目预算。
+    /// </summary>
+    public int MaxOverlayEntries { get; init; } = 100_000;
+
+    /// <summary>
+    /// 写入因检查点预算耗尽而等待的最长时间，默认 30 秒。超时或后台检查点失败时，
+    /// 写入会在追加 WAL 之前失败，避免 WAL 与内存覆盖层无界增长。
+    /// </summary>
+    public TimeSpan CheckpointWriteBackpressureTimeout { get; init; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// 关闭 keyspace 时等待在途检查点的最长时间，默认 5 秒。超时后关闭立即返回，
+    /// 在途检查点结束时再释放它持有的只读 state；WAL 会在等待前同步关闭。
+    /// </summary>
+    public TimeSpan CheckpointShutdownTimeout { get; init; } = TimeSpan.FromSeconds(5);
+
     /// <summary>单个 key 的最大字节数，默认 64 KB。</summary>
     public int MaxKeyBytes { get; init; } = 64 * 1024;
 

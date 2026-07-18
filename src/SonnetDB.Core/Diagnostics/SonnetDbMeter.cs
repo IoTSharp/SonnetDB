@@ -128,6 +128,21 @@ public static class SonnetDbMeter
         "sonnetdb.kv.cleanup.failures", unit: "{failure}",
         description: "KV generation cleanup failures captured by the background worker.");
 
+    /// <summary>KV 自动检查点后台失败次数。</summary>
+    internal static readonly Counter<long> KvCheckpointFailures = Meter.CreateCounter<long>(
+        "sonnetdb.kv.checkpoint.failures", unit: "{failure}",
+        description: "KV automatic checkpoint failures scheduled for delayed retry.");
+
+    /// <summary>KV 写入因检查点预算耗尽而等待的时长。</summary>
+    internal static readonly Histogram<double> KvCheckpointBackpressureDuration = Meter.CreateHistogram<double>(
+        "sonnetdb.kv.checkpoint.backpressure.duration", unit: "ms",
+        description: "KV write latency spent waiting for checkpoint budget backpressure.");
+
+    /// <summary>KV 检查点失败或背压超时导致的写入拒绝次数。</summary>
+    internal static readonly Counter<long> KvCheckpointWriteRejections = Meter.CreateCounter<long>(
+        "sonnetdb.kv.checkpoint.write.rejections", unit: "{write}",
+        description: "KV writes rejected before WAL append after checkpoint failure or backpressure timeout.");
+
     // ── 复用 tag（避免热路径每次分配 KeyValuePair 的装箱/字符串） ─────────────
 
     internal static readonly KeyValuePair<string, object?> OutcomeOk = new("outcome", "ok");
