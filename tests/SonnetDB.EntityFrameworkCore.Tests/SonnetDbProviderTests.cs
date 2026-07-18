@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.EntityFrameworkCore;
@@ -865,6 +867,78 @@ public sealed class SonnetDbProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task RemoteDatabaseCreator_FrameHttp2_UsesExactHttp2ForServerControlPlane()
+    {
+        const string token = "ef-remote-h2-admin";
+        const string database = "ef_remote_h2_lifecycle";
+        var dataRoot = Path.Combine(Path.GetTempPath(), "sndb-ef-remote-h2-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dataRoot);
+        var requests = new ConcurrentQueue<(string Method, string Path, string Protocol)>();
+
+        await using var app = EfTestServerHost.Build(
+            new ServerOptions
+            {
+                DataRoot = dataRoot,
+                AutoLoadExistingDatabases = true,
+                AllowAnonymousProbes = true,
+                Tokens = new Dictionary<string, string>
+                {
+                    [token] = ServerRoles.Admin,
+                },
+            },
+            extraArgs: ["--Kestrel:Endpoints:Http:Protocols=Http2"]);
+        app.Use(async (context, next) =>
+        {
+            requests.Enqueue((
+                context.Request.Method,
+                context.Request.Path.Value ?? string.Empty,
+                context.Request.Protocol));
+            await next(context);
+        });
+
+        try
+        {
+            await app.StartAsync();
+            var addresses = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()
+                ?? throw new InvalidOperationException("Kestrel 未暴露监听地址。");
+            var baseUrl = Assert.Single(addresses.Addresses);
+            var connectionString =
+                $"Data Source=sonnetdb+http://{new Uri(baseUrl).Authority}/{database};" +
+                $"Token={token};Timeout=30;Protocol=frame-http2";
+
+            using var context = new DeviceContext(
+                new DbContextOptionsBuilder<DeviceContext>()
+                    .UseSonnetDB(connectionString)
+                    .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning))
+                    .Options);
+
+            var creator = context.Database.GetService<IRelationalDatabaseCreator>();
+            Assert.False(await creator.ExistsAsync());
+            await creator.CreateAsync();
+            Assert.True(await creator.ExistsAsync());
+            await creator.DeleteAsync();
+            Assert.False(await creator.ExistsAsync());
+
+            var observed = requests.ToArray();
+            Assert.Collection(
+                observed,
+                request => Assert.Equal(("GET", $"/v1/db/{database}/schema", "HTTP/2"), request),
+                request => Assert.Equal(("POST", "/v1/db", "HTTP/2"), request),
+                request => Assert.Equal(("GET", $"/v1/db/{database}/schema", "HTTP/2"), request),
+                request => Assert.Equal(("DELETE", $"/v1/db/{database}", "HTTP/2"), request),
+                request => Assert.Equal(("GET", $"/v1/db/{database}/schema", "HTTP/2"), request));
+        }
+        finally
+        {
+            await app.StopAsync();
+            if (Directory.Exists(dataRoot))
+            {
+                try { Directory.Delete(dataRoot, recursive: true); } catch { /* best-effort */ }
+            }
+        }
+    }
+
+    [Fact]
     public async Task RemoteDatabaseMigrate_WithMissingDatabase_CreatesDatabaseAndAppliesMigrations()
     {
         const string token = "ef-remote-admin";
@@ -930,22 +1004,33 @@ public sealed class SonnetDbProviderTests : IDisposable
     }
 
     [Fact]
-    public async Task RemoteDatabaseMigrate_WithExistingHistorySkipsAlreadyAppliedMigration()
+    public async Task RemoteDatabaseMigrate_WithExistingHistoryOverFrameHttp2_SkipsAlreadyAppliedMigration()
     {
         const string token = "ef-remote-admin";
         var database = "ef_remote_migration_history_" + Guid.NewGuid().ToString("N");
         var dataRoot = Path.Combine(Path.GetTempPath(), "sndb-ef-remote-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dataRoot);
+        var requests = new ConcurrentQueue<(string Method, string Path, string Protocol)>();
 
-        await using var app = EfTestServerHost.Build(new ServerOptions
-        {
-            DataRoot = dataRoot,
-            AutoLoadExistingDatabases = true,
-            AllowAnonymousProbes = true,
-            Tokens = new Dictionary<string, string>
+        await using var app = EfTestServerHost.Build(
+            new ServerOptions
             {
-                [token] = ServerRoles.Admin,
+                DataRoot = dataRoot,
+                AutoLoadExistingDatabases = true,
+                AllowAnonymousProbes = true,
+                Tokens = new Dictionary<string, string>
+                {
+                    [token] = ServerRoles.Admin,
+                },
             },
+            extraArgs: ["--Kestrel:Endpoints:Http:Protocols=Http2"]);
+        app.Use(async (context, next) =>
+        {
+            requests.Enqueue((
+                context.Request.Method,
+                context.Request.Path.Value ?? string.Empty,
+                context.Request.Protocol));
+            await next(context);
         });
 
         try
@@ -954,7 +1039,9 @@ public sealed class SonnetDbProviderTests : IDisposable
             var addresses = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()
                 ?? throw new InvalidOperationException("Kestrel 未暴露监听地址。");
             var baseUrl = addresses.Addresses.First();
-            var connectionString = $"Data Source=sonnetdb+http://{new Uri(baseUrl).Authority}/{database};Token={token};Timeout=30";
+            var connectionString =
+                $"Data Source=sonnetdb+http://{new Uri(baseUrl).Authority}/{database};" +
+                $"Token={token};Timeout=30;Protocol=frame-http2";
 
             using var context = new MigrationDeviceContext(
                 new DbContextOptionsBuilder<MigrationDeviceContext>()
@@ -982,6 +1069,11 @@ public sealed class SonnetDbProviderTests : IDisposable
 
             Assert.True(await ColumnExistsAsync(context, "Devices", "Enabled"));
             Assert.Equal(2, await CountRowsAsync(context, "__EFMigrationsHistory"));
+
+            var observed = requests.ToArray();
+            Assert.Contains(observed, request => request.Method == "POST" && request.Path == "/v1/db");
+            Assert.Contains(observed, request => request.Path == $"/v1/db/{database}/sql");
+            Assert.All(observed, request => Assert.Equal("HTTP/2", request.Protocol));
         }
         finally
         {

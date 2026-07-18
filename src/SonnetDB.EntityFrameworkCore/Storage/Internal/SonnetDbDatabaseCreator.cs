@@ -1,5 +1,6 @@
 using System.Data;
 using System.Data.Common;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -187,7 +188,14 @@ public sealed class SonnetDbDatabaseCreator : RelationalDatabaseCreator
         if (string.IsNullOrWhiteSpace(database))
             throw new InvalidOperationException("远程 SonnetDB EF 连接缺少数据库名。");
 
-        endpoint = new RemoteDatabaseEndpoint(baseUrl, database, builder.Username, builder.Password, builder.Token, builder.Timeout);
+        endpoint = new RemoteDatabaseEndpoint(
+            baseUrl,
+            database,
+            builder.Username,
+            builder.Password,
+            builder.Token,
+            builder.Timeout,
+            builder.ResolveProtocol());
         return true;
     }
 
@@ -196,8 +204,12 @@ public sealed class SonnetDbDatabaseCreator : RelationalDatabaseCreator
         CancellationToken cancellationToken)
     {
         using var http = CreateRemoteHttpClient(endpoint);
-        using var response = await http.GetAsync(
-                $"v1/db/{Uri.EscapeDataString(endpoint.Database)}/schema",
+        using var request = CreateRemoteRequest(
+            http,
+            HttpMethod.Get,
+            $"v1/db/{Uri.EscapeDataString(endpoint.Database)}/schema");
+        using var response = await http.SendAsync(
+                request,
                 HttpCompletionOption.ResponseContentRead,
                 cancellationToken)
             .ConfigureAwait(false);
@@ -215,13 +227,14 @@ public sealed class SonnetDbDatabaseCreator : RelationalDatabaseCreator
         CancellationToken cancellationToken)
     {
         using var http = CreateRemoteHttpClient(endpoint);
-        using var request = new HttpRequestMessage(HttpMethod.Post, "v1/db")
-        {
-            Content = new StringContent(
+        using var request = CreateRemoteRequest(
+            http,
+            HttpMethod.Post,
+            "v1/db",
+            new StringContent(
                 "{\"name\":\"" + EscapeJson(endpoint.Database) + "\"}",
                 Encoding.UTF8,
-                "application/json"),
-        };
+                "application/json"));
 
         using var response = await http.SendAsync(request, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
@@ -233,9 +246,11 @@ public sealed class SonnetDbDatabaseCreator : RelationalDatabaseCreator
         CancellationToken cancellationToken)
     {
         using var http = CreateRemoteHttpClient(endpoint);
-        using var response = await http.DeleteAsync(
-                $"v1/db/{Uri.EscapeDataString(endpoint.Database)}",
-                cancellationToken)
+        using var request = CreateRemoteRequest(
+            http,
+            HttpMethod.Delete,
+            $"v1/db/{Uri.EscapeDataString(endpoint.Database)}");
+        using var response = await http.SendAsync(request, cancellationToken)
             .ConfigureAwait(false);
 
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
@@ -251,6 +266,11 @@ public sealed class SonnetDbDatabaseCreator : RelationalDatabaseCreator
             BaseAddress = new Uri(endpoint.BaseUrl, UriKind.Absolute),
             Timeout = TimeSpan.FromSeconds(endpoint.TimeoutSeconds),
         };
+        if (endpoint.Protocol == SndbTransportProtocol.FrameHttp2)
+        {
+            http.DefaultRequestVersion = HttpVersion.Version20;
+            http.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionExact;
+        }
         if (!string.IsNullOrWhiteSpace(endpoint.Username))
         {
             var raw = $"{endpoint.Username}:{endpoint.Password ?? string.Empty}";
@@ -263,6 +283,18 @@ public sealed class SonnetDbDatabaseCreator : RelationalDatabaseCreator
         }
         return http;
     }
+
+    private static HttpRequestMessage CreateRemoteRequest(
+        HttpClient http,
+        HttpMethod method,
+        string requestUri,
+        HttpContent? content = null)
+        => new(method, requestUri)
+        {
+            Version = http.DefaultRequestVersion,
+            VersionPolicy = http.DefaultVersionPolicy,
+            Content = content,
+        };
 
     private static async Task<InvalidOperationException> BuildRemoteDatabaseExceptionAsync(
         string operation,
@@ -287,5 +319,6 @@ public sealed class SonnetDbDatabaseCreator : RelationalDatabaseCreator
         string? Username,
         string? Password,
         string? Token,
-        int TimeoutSeconds);
+        int TimeoutSeconds,
+        SndbTransportProtocol Protocol);
 }

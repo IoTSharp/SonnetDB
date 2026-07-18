@@ -1,4 +1,5 @@
 using System.Data;
+using System.Net;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -19,6 +20,7 @@ public sealed class TsdbBulkFrameTransportParityTests : IAsyncLifetime
 {
     private WebApplication? _app;
     private string _baseUrl = string.Empty;
+    private string _frameH2Url = string.Empty;
     private string? _dataRoot;
     private const string _adminToken = "tsdb-bulk-admin";
     private const string _readOnlyToken = "tsdb-bulk-ro";
@@ -40,11 +42,23 @@ public sealed class TsdbBulkFrameTransportParityTests : IAsyncLifetime
                 [_readOnlyToken] = ServerRoles.ReadOnly,
             },
         };
-        _app = TestServerHost.Build(options);
+        _app = TestServerHost.Build(options, extraArgs:
+        [
+            "--Kestrel:Endpoints:FrameH2:Url=http://127.0.0.1:0",
+            "--Kestrel:Endpoints:FrameH2:Protocols=Http2",
+        ]);
         await _app.StartAsync();
         var addresses = _app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()
             ?? throw new InvalidOperationException("Kestrel 未暴露监听地址。");
-        _baseUrl = addresses.Addresses.First();
+        foreach (string address in addresses.Addresses)
+        {
+            if (await ProbeIsHttp11Async(address))
+                _baseUrl = address;
+            else
+                _frameH2Url = address;
+        }
+        Assert.NotEmpty(_baseUrl);
+        Assert.NotEmpty(_frameH2Url);
 
         using var http = new HttpClient { BaseAddress = new Uri(_baseUrl) };
         http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _adminToken);
@@ -67,7 +81,10 @@ public sealed class TsdbBulkFrameTransportParityTests : IAsyncLifetime
     }
 
     private string ConnString(string protocol, string token = _adminToken)
-        => $"Data Source=sonnetdb+http://{new Uri(_baseUrl).Authority}/{_dbName};Token={token};Timeout=30;Protocol={protocol}";
+    {
+        string baseUrl = protocol == "frame-http2" ? _frameH2Url : _baseUrl;
+        return $"Data Source=sonnetdb+http://{new Uri(baseUrl).Authority}/{_dbName};Token={token};Timeout=30;Protocol={protocol}";
+    }
 
     private SndbConnection Open(string protocol, string token = _adminToken)
     {
@@ -218,8 +235,9 @@ public sealed class TsdbBulkFrameTransportParityTests : IAsyncLifetime
     [InlineData("rest")]
     public void UnknownDb_NotFound_SameCode(string protocol)
     {
+        string baseUrl = protocol == "frame-http2" ? _frameH2Url : _baseUrl;
         var conn = new SndbConnection(
-            $"Data Source=sonnetdb+http://{new Uri(_baseUrl).Authority}/no_such_db;Token={_adminToken};Timeout=30;Protocol={protocol}");
+            $"Data Source=sonnetdb+http://{new Uri(baseUrl).Authority}/no_such_db;Token={_adminToken};Timeout=30;Protocol={protocol}");
         conn.Open();
         using var cmd = conn.CreateCommand();
         cmd.CommandType = CommandType.TableDirect;
@@ -277,5 +295,24 @@ public sealed class TsdbBulkFrameTransportParityTests : IAsyncLifetime
         while (r.Read())
             list.Add(Convert.ToDouble(r.GetValue(valueOrdinal)));
         return list;
+    }
+
+    private static async Task<bool> ProbeIsHttp11Async(string address)
+    {
+        using var client = new HttpClient();
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, address + "/healthz")
+            {
+                Version = HttpVersion.Version11,
+                VersionPolicy = HttpVersionPolicy.RequestVersionExact,
+            };
+            using var response = await client.SendAsync(request);
+            return response.IsSuccessStatusCode;
+        }
+        catch (HttpRequestException)
+        {
+            return false;
+        }
     }
 }

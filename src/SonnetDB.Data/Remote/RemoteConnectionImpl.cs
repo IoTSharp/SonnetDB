@@ -52,13 +52,19 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             throw new InvalidOperationException(
                 "远程连接缺少数据库名：请设置 'Database='，或在旧格式 Data Source URL 路径中提供（如 sonnetdb+http://host/db）。");
 
+        var protocol = _builder.ResolveProtocol();
         _http = RemoteHttpClientFactory.Create(
             new Uri(_baseUrl, UriKind.Absolute),
             _builder.Username,
             _builder.Password,
             _builder.Token,
             TimeSpan.FromSeconds(_builder.Timeout));
-        _frames = new FrameChannel(_http, _builder.ResolveProtocol());
+        if (protocol == SndbTransportProtocol.FrameHttp2)
+        {
+            _http.DefaultRequestVersion = HttpVersion.Version20;
+            _http.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionExact;
+        }
+        _frames = new FrameChannel(_http, protocol);
 
         _state = ConnectionState.Open;
     }
@@ -186,10 +192,10 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         var body = new SqlRequestBody { Sql = sql };
         var json = JsonSerializer.Serialize(body, RemoteJsonContext.Default.SqlRequestBody);
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, url)
-        {
-            Content = new StringContent(json, Encoding.UTF8, "application/json"),
-        };
+        using var request = CreateRequest(
+            HttpMethod.Post,
+            url,
+            new StringContent(json, Encoding.UTF8, "application/json"));
 
         var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
             .ConfigureAwait(false);
@@ -389,10 +395,10 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         string contentType = format == BulkPayloadFormat.Json
             ? "application/json"
             : "text/plain";
-        using var request = new HttpRequestMessage(HttpMethod.Post, url.ToString())
-        {
-            Content = new StringContent(payload.ToString(), Encoding.UTF8, contentType),
-        };
+        using var request = CreateRequest(
+            HttpMethod.Post,
+            url.ToString(),
+            new StringContent(payload.ToString(), Encoding.UTF8, contentType));
 
         using var response = await _http!.SendAsync(request, HttpCompletionOption.ResponseContentRead, cancellationToken)
             .ConfigureAwait(false);
@@ -568,10 +574,10 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             new SqlBatchRequestBody { Statements = [.. statements] },
             RemoteJsonContext.Default.SqlBatchRequestBody);
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, url)
-        {
-            Content = new StringContent(json, Encoding.UTF8, "application/json"),
-        };
+        using var request = CreateRequest(
+            HttpMethod.Post,
+            url,
+            new StringContent(json, Encoding.UTF8, "application/json"));
         using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseContentRead, cancellationToken)
             .ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
@@ -618,10 +624,10 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         var json = JsonSerializer.Serialize(
             new SqlBatchRequestBody { Statements = statements },
             RemoteJsonContext.Default.SqlBatchRequestBody);
-        using var request = new HttpRequestMessage(HttpMethod.Post, url)
-        {
-            Content = new StringContent(json, Encoding.UTF8, "application/json"),
-        };
+        using var request = CreateRequest(
+            HttpMethod.Post,
+            url,
+            new StringContent(json, Encoding.UTF8, "application/json"));
         using var response = await _http.SendAsync(
                 request,
                 HttpCompletionOption.ResponseContentRead,
@@ -753,6 +759,17 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             RemoteTransactionState transaction => transaction,
             _ => throw new InvalidOperationException("事务状态不是远程 SonnetDB 轻事务。"),
         };
+
+    private HttpRequestMessage CreateRequest(HttpMethod method, string url, HttpContent? content = null)
+    {
+        var http = _http ?? throw new InvalidOperationException("连接未打开。");
+        return new HttpRequestMessage(method, url)
+        {
+            Version = http.DefaultRequestVersion,
+            VersionPolicy = http.DefaultVersionPolicy,
+            Content = content,
+        };
+    }
 
     private static RemoteTransactionState GetRequiredTransactionState(object transactionState)
         => GetTransactionState(transactionState)

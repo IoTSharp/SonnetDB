@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using Microsoft.AspNetCore.Builder;
@@ -23,6 +24,7 @@ public sealed class FrameTransportParityTests : IAsyncLifetime
 {
     private WebApplication? _app;
     private string _baseUrl = string.Empty;
+    private string _frameH2Url = string.Empty;
     private string? _dataRoot;
     private const string _adminToken = "parity-admin";
     private const string _dbName = "parity_e2e";
@@ -39,11 +41,23 @@ public sealed class FrameTransportParityTests : IAsyncLifetime
             AllowAnonymousProbes = true,
             Tokens = new Dictionary<string, string> { [_adminToken] = ServerRoles.Admin },
         };
-        _app = TestServerHost.Build(options);
+        _app = TestServerHost.Build(options, extraArgs:
+        [
+            "--Kestrel:Endpoints:FrameH2:Url=http://127.0.0.1:0",
+            "--Kestrel:Endpoints:FrameH2:Protocols=Http2",
+        ]);
         await _app.StartAsync();
         var addresses = _app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()
             ?? throw new InvalidOperationException("Kestrel 未暴露监听地址。");
-        _baseUrl = addresses.Addresses.First();
+        foreach (string address in addresses.Addresses)
+        {
+            if (await ProbeIsHttp11Async(address))
+                _baseUrl = address;
+            else
+                _frameH2Url = address;
+        }
+        Assert.NotEmpty(_baseUrl);
+        Assert.NotEmpty(_frameH2Url);
 
         using var http = new HttpClient { BaseAddress = new Uri(_baseUrl) };
         http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _adminToken);
@@ -67,6 +81,12 @@ public sealed class FrameTransportParityTests : IAsyncLifetime
 
     private string ConnString(string protocol)
         => $"Data Source=sonnetdb+http://{new Uri(_baseUrl).Authority}/{_dbName};Token={_adminToken};Timeout=30;Protocol={protocol}";
+
+    private string AdoConnString(string protocol)
+    {
+        string baseUrl = protocol == "frame-http2" ? _frameH2Url : _baseUrl;
+        return $"Data Source=sonnetdb+http://{new Uri(baseUrl).Authority}/{_dbName};Token={_adminToken};Timeout=30;Protocol={protocol}";
+    }
 
     // ────────────────────────────── MQ ──────────────────────────────
 
@@ -203,7 +223,7 @@ public sealed class FrameTransportParityTests : IAsyncLifetime
     {
         SeedCpuMeasurement();
 
-        using var c = new SndbConnection(ConnString(protocol));
+        using var c = new SndbConnection(AdoConnString(protocol));
         c.Open();
         using var sel = c.CreateCommand();
         sel.CommandText = "SELECT time, host, value FROM cpu ORDER BY time";
@@ -223,7 +243,7 @@ public sealed class FrameTransportParityTests : IAsyncLifetime
     [Fact]
     public void AdoSql_Write_FallsBackToRest_UnderFrameProtocol()
     {
-        using var c = new SndbConnection(ConnString("frame-http2"));
+        using var c = new SndbConnection(AdoConnString("frame-http2"));
         c.Open();
         using (var ddl = c.CreateCommand())
         {
@@ -240,7 +260,7 @@ public sealed class FrameTransportParityTests : IAsyncLifetime
     {
         // 记录在案的类型差异（docs/frame-protocol.md）：DATETIME 列在帧路径返回 DateTime、
         // REST NDJSON 路径返回 ISO 字符串。写与建表走 REST，只读 SELECT 分别验证两传输的类型。
-        using (var c = new SndbConnection(ConnString("rest")))
+        using (var c = new SndbConnection(AdoConnString("rest")))
         {
             c.Open();
             using var ddl = c.CreateCommand();
@@ -251,7 +271,7 @@ public sealed class FrameTransportParityTests : IAsyncLifetime
             ins.ExecuteNonQuery();
         }
 
-        using (var frameConn = new SndbConnection(ConnString("frame-http2")))
+        using (var frameConn = new SndbConnection(AdoConnString("frame-http2")))
         {
             frameConn.Open();
             using var sel = frameConn.CreateCommand();
@@ -261,7 +281,7 @@ public sealed class FrameTransportParityTests : IAsyncLifetime
             Assert.IsType<DateTime>(r.GetValue(0)); // 帧富类型
         }
 
-        using (var restConn = new SndbConnection(ConnString("rest")))
+        using (var restConn = new SndbConnection(AdoConnString("rest")))
         {
             restConn.Open();
             using var sel = restConn.CreateCommand();
@@ -274,7 +294,7 @@ public sealed class FrameTransportParityTests : IAsyncLifetime
 
     private void SeedCpuMeasurement()
     {
-        using var c = new SndbConnection(ConnString("rest"));
+        using var c = new SndbConnection(AdoConnString("rest"));
         c.Open();
         using var ddl = c.CreateCommand();
         ddl.CommandText = "CREATE MEASUREMENT cpu (host TAG, value FIELD FLOAT)";
@@ -282,5 +302,24 @@ public sealed class FrameTransportParityTests : IAsyncLifetime
         using var ins = c.CreateCommand();
         ins.CommandText = "INSERT INTO cpu (time, host, value) VALUES (1000, 'a', 1.5), (2000, 'a', 2.5)";
         ins.ExecuteNonQuery();
+    }
+
+    private static async Task<bool> ProbeIsHttp11Async(string address)
+    {
+        using var client = new HttpClient();
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, address + "/healthz")
+            {
+                Version = HttpVersion.Version11,
+                VersionPolicy = HttpVersionPolicy.RequestVersionExact,
+            };
+            using var response = await client.SendAsync(request);
+            return response.IsSuccessStatusCode;
+        }
+        catch (HttpRequestException)
+        {
+            return false;
+        }
     }
 }

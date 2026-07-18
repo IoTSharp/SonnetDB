@@ -9,15 +9,23 @@ internal static class EfTestServerHost
 {
     public static WebApplication Build(
         ServerOptions options,
-        Action<IServiceCollection>? configureServices = null)
+        Action<IServiceCollection>? configureServices = null,
+        IReadOnlyList<string>? extraArgs = null)
     {
         var contentRoot = Path.Combine(Path.GetTempPath(), "sonnetdb-ef-test-host-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(contentRoot);
         WriteAppSettings(contentRoot, options);
 
-        var app = Program.BuildApp(
-            ["--contentRoot", contentRoot, "--Kestrel:Endpoints:Http:Url=http://127.0.0.1:0"],
-            configureServices);
+        var args = new List<string>
+        {
+            "--contentRoot",
+            contentRoot,
+            "--Kestrel:Endpoints:Http:Url=http://127.0.0.1:0",
+        };
+        if (extraArgs is not null)
+            args.AddRange(extraArgs);
+
+        var app = Program.BuildApp(args.ToArray(), configureServices);
 
         app.Lifetime.ApplicationStopped.Register(static state =>
         {
