@@ -59,95 +59,100 @@ internal static class FrameEndpointHandler
             {
                 ReadResult result = await reader.ReadAsync(ctx.RequestAborted).ConfigureAwait(false);
                 ReadOnlySequence<byte> buffer = result.Buffer;
-
-                while (true)
+                try
                 {
-                    FrameHeader header;
-                    ReadOnlySequence<byte> payload;
-                    try
+                    while (true)
                     {
-                        if (!FrameCodec.TryReadFrame(ref buffer, out header, out payload))
-                            break;
-                    }
-                    catch (FrameFormatException ex)
-                    {
-                        // 帧边界不可恢复（声明长度超限），无法继续解析后续字节
-                        await RespondFramingErrorAsync(ctx, writer, frameCount, "bad_frame", ex.Message).ConfigureAwait(false);
-                        reader.AdvanceTo(buffer.End);
-                        return;
-                    }
-
-                    frameCount++;
-                    string? envelopeError = ValidateEnvelope(in header, out string envelopeErrorCode);
-                    if (envelopeError is not null)
-                    {
-                        if (frameCount == 1 && !ctx.Response.HasStarted)
+                        FrameHeader header;
+                        ReadOnlySequence<byte> payload;
+                        try
                         {
-                            await WriteJsonErrorAsync(ctx, StatusCodes.Status400BadRequest, envelopeErrorCode, envelopeError).ConfigureAwait(false);
-                            reader.AdvanceTo(buffer.End);
+                            if (!FrameCodec.TryReadFrame(ref buffer, out header, out payload))
+                                break;
+                        }
+                        catch (FrameFormatException ex)
+                        {
+                            // 帧边界不可恢复（声明长度超限），丢弃本次读取的剩余字节。
+                            buffer = buffer.Slice(buffer.End);
+                            await RespondFramingErrorAsync(ctx, writer, frameCount, "bad_frame", ex.Message).ConfigureAwait(false);
                             return;
                         }
 
+                        frameCount++;
+                        string? envelopeError = ValidateEnvelope(in header, out string envelopeErrorCode);
+                        if (envelopeError is not null)
+                        {
+                            if (frameCount == 1 && !ctx.Response.HasStarted)
+                            {
+                                buffer = buffer.Slice(buffer.End);
+                                await WriteJsonErrorAsync(ctx, StatusCodes.Status400BadRequest, envelopeErrorCode, envelopeError).ConfigureAwait(false);
+                                return;
+                            }
+
+                            EnsureFrameResponseStarted(ctx);
+                            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, envelopeErrorCode, envelopeError);
+                            await writer.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
+                            continue;
+                        }
+
                         EnsureFrameResponseStarted(ctx);
-                        FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, envelopeErrorCode, envelopeError);
+                        if (header.Service == (byte)FrameService.Sql)
+                            await ExecuteSqlQueryAsync(ctx, registry, grants, metrics, writer, header, payload).ConfigureAwait(false);
+                        else if (header.Service == (byte)FrameService.Vector)
+                            await ExecuteVectorSearchAsync(ctx, registry, grants, metrics, writer, header, payload).ConfigureAwait(false);
+                        else if (header.Service == (byte)FrameService.Object)
+                            await ExecuteObjectOpAsync(ctx, registry, grants, writer, header, payload).ConfigureAwait(false);
+                        else
+                            DispatchFrame(ctx, registry, grants, mqStore, metrics, writer, header, payload);
                         await writer.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
-                        continue;
                     }
 
-                    EnsureFrameResponseStarted(ctx);
-                    if (header.Service == (byte)FrameService.Sql)
-                        await ExecuteSqlQueryAsync(ctx, registry, grants, metrics, writer, header, payload).ConfigureAwait(false);
-                    else if (header.Service == (byte)FrameService.Vector)
-                        await ExecuteVectorSearchAsync(ctx, registry, grants, metrics, writer, header, payload).ConfigureAwait(false);
-                    else if (header.Service == (byte)FrameService.Object)
-                        await ExecuteObjectOpAsync(ctx, registry, grants, writer, header, payload).ConfigureAwait(false);
-                    else
-                        DispatchFrame(ctx, registry, grants, mqStore, metrics, writer, header, payload);
-                    await writer.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
-                }
-
-                if (result.IsCompleted)
-                {
-                    if (buffer.Length > 0)
+                    if (result.IsCompleted)
                     {
-                        // 尾部残帧：能解析出帧头就回显其 streamId，否则用 0
-                        uint streamId = 0;
-                        byte service = 0, op = 0;
-                        if (buffer.Length >= FrameHeader.Size)
+                        if (buffer.Length > 0)
                         {
-                            Span<byte> headerBytes = stackalloc byte[FrameHeader.Size];
-                            buffer.Slice(0, FrameHeader.Size).CopyTo(headerBytes);
-                            if (FrameHeader.TryRead(headerBytes, out FrameHeader partial))
+                            // 尾部残帧：能解析出帧头就回显其 streamId，否则用 0
+                            uint streamId = 0;
+                            byte service = 0, op = 0;
+                            if (buffer.Length >= FrameHeader.Size)
                             {
-                                streamId = partial.StreamId;
-                                service = partial.Service;
-                                op = partial.Op;
+                                Span<byte> headerBytes = stackalloc byte[FrameHeader.Size];
+                                buffer.Slice(0, FrameHeader.Size).CopyTo(headerBytes);
+                                if (FrameHeader.TryRead(headerBytes, out FrameHeader partial))
+                                {
+                                    streamId = partial.StreamId;
+                                    service = partial.Service;
+                                    op = partial.Op;
+                                }
+                            }
+
+                            if (frameCount == 0 && !ctx.Response.HasStarted)
+                            {
+                                await WriteJsonErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_frame",
+                                    "请求体包含不完整的帧。").ConfigureAwait(false);
+                            }
+                            else
+                            {
+                                EnsureFrameResponseStarted(ctx);
+                                FrameCodec.WriteErrorFrame(writer, service, op, streamId, "bad_frame", "请求体尾部包含不完整的帧。");
+                                await writer.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
                             }
                         }
-
-                        if (frameCount == 0 && !ctx.Response.HasStarted)
+                        else if (frameCount == 0)
                         {
-                            await WriteJsonErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_frame",
-                                "请求体包含不完整的帧。").ConfigureAwait(false);
+                            await WriteJsonErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request",
+                                "帧端点请求体为空。").ConfigureAwait(false);
                         }
-                        else
-                        {
-                            EnsureFrameResponseStarted(ctx);
-                            FrameCodec.WriteErrorFrame(writer, service, op, streamId, "bad_frame", "请求体尾部包含不完整的帧。");
-                            await writer.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
-                        }
-                    }
-                    else if (frameCount == 0)
-                    {
-                        await WriteJsonErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request",
-                            "帧端点请求体为空。").ConfigureAwait(false);
-                    }
 
-                    reader.AdvanceTo(buffer.End);
-                    return;
+                        buffer = buffer.Slice(buffer.End);
+                        return;
+                    }
                 }
-
-                reader.AdvanceTo(buffer.Start, buffer.End);
+                finally
+                {
+                    // PipeReader 要求每个成功取得的 ReadResult 在任意退出路径都恰好 AdvanceTo 一次。
+                    reader.AdvanceTo(buffer.Start, buffer.End);
+                }
             }
         }
         catch (OperationCanceledException) when (ctx.RequestAborted.IsCancellationRequested)
@@ -392,6 +397,28 @@ internal static class FrameEndpointHandler
                     _ => "bad_request",
                 };
                 FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, code, access.Message);
+                return;
+            }
+
+            using var admissionLease = await ctx.RequestServices
+                .GetRequiredService<SqlHttpRequestAdmission>()
+                .AcquireAsync(request.Db, ctx.RequestAborted)
+                .ConfigureAwait(false);
+            if (!admissionLease.IsAcquired)
+            {
+                metrics.RecordSqlError();
+                if (!ctx.Response.HasStarted)
+                {
+                    ctx.Response.Headers["Retry-After"] = SqlHttpRequestAdmission.RetryAfterSeconds
+                        .ToString(System.Globalization.CultureInfo.InvariantCulture);
+                }
+                FrameCodec.WriteErrorFrame(
+                    writer,
+                    header.Service,
+                    header.Op,
+                    header.StreamId,
+                    "sql_overloaded",
+                    $"数据库 '{request.Db}' 的 SQL 请求已达到并发与等待队列上限，请稍后重试。");
                 return;
             }
 

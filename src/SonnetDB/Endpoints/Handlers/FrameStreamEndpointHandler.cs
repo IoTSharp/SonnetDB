@@ -79,33 +79,58 @@ internal static class FrameStreamEndpointHandler
         // writer 绑定 RequestAborted（非 connectionCts）：正常 EOF teardown 时 connectionCts 取消只停 producer，
         // writer 仍排空 channel 里已入队的推送帧；仅客户端真正中止（RequestAborted）才让 writer 立即退出。
         Task writerTask = RunWriterAsync(ctx, channel.Reader, ctx.RequestAborted);
+        Task readerTask = RunReaderAsync(
+            ctx,
+            registry,
+            grants,
+            mqStore,
+            identity,
+            channel.Writer,
+            subscriptions,
+            connectionCts.Token);
 
-        try
+        // reader 和 writer 是对等的连接生命周期。writer 的编码/Flush 故障不能只留在独立任务中，
+        // 否则 reader 与订阅 pump 会永久挂起。任一方结束都进入同一 teardown。
+        Task completedTask = await Task.WhenAny(readerTask, writerTask).ConfigureAwait(false);
+
+        // teardown 确定性顺序：先取消（唤醒 reader 及所有 pump 的 WaitForMessagesAsync/WriteAsync）
+        // → 等所有 producer 退出 → 完成 channel → 等 writer 正常排空或结束故障。
+        connectionCts.Cancel();
+        await ObserveCompletionAsync(readerTask).ConfigureAwait(false);
+
+        Subscription[] remaining;
+        lock (subscriptions)
         {
-            await RunReaderAsync(ctx, registry, grants, mqStore, identity, channel.Writer, subscriptions, connectionCts.Token)
-                .ConfigureAwait(false);
+            remaining = new Subscription[subscriptions.Count];
+            subscriptions.Values.CopyTo(remaining, 0);
         }
-        finally
+
+        try { await Task.WhenAll(Array.ConvertAll(remaining, s => s.PumpTask)).ConfigureAwait(false); }
+        catch { /* pump 取消/故障已在各自帧内处理；此处仅确保退出 */ }
+        foreach (Subscription sub in remaining)
+            sub.Cancellation.Dispose();
+
+        channel.Writer.TryComplete();
+        await ObserveCompletionAsync(writerTask).ConfigureAwait(false);
+
+        // teardown 完成后重新 await，使非取消故障不被清理逻辑吞掉。
+        // 优先传播最先结束一侧的故障；若其正常结束，再观察另一侧。
+        if (ReferenceEquals(completedTask, writerTask))
         {
-            // teardown 确定性顺序：先取消（唤醒所有 pump 的 WaitForMessagesAsync/WriteAsync）→ 等 pump 退出
-            // → 完成 channel → 等 writer 排空。此顺序下没有 producer 在 channel 完成后仍尝试写入。
-            connectionCts.Cancel();
-            Subscription[] remaining;
-            lock (subscriptions)
-            {
-                remaining = new Subscription[subscriptions.Count];
-                subscriptions.Values.CopyTo(remaining, 0);
-            }
-
-            try { await Task.WhenAll(Array.ConvertAll(remaining, s => s.PumpTask)).ConfigureAwait(false); }
-            catch { /* pump 取消/故障已在各自帧内处理；此处仅确保退出 */ }
-            foreach (Subscription sub in remaining)
-                sub.Cancellation.Dispose();
-
-            channel.Writer.TryComplete();
-            try { await writerTask.ConfigureAwait(false); }
-            catch { /* 客户端中止时 writer 的 FlushAsync 抛 OCE，忽略 */ }
+            await writerTask.ConfigureAwait(false);
+            await readerTask.ConfigureAwait(false);
         }
+        else
+        {
+            await readerTask.ConfigureAwait(false);
+            await writerTask.ConfigureAwait(false);
+        }
+    }
+
+    private static async Task ObserveCompletionAsync(Task task)
+    {
+        try { await task.ConfigureAwait(false); }
+        catch { /* teardown 先确保对端退出，随后由 HandleAsync 按任务完成顺序传播 */ }
     }
 
     // ────────────────────────────── writer task（独占 PipeWriter）──────────────────────────────
@@ -122,7 +147,7 @@ internal static class FrameStreamEndpointHandler
                 await writer.FlushAsync(ct).ConfigureAwait(false);
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             // 连接关闭，静默结束。
         }
@@ -147,31 +172,37 @@ internal static class FrameStreamEndpointHandler
             {
                 ReadResult result = await reader.ReadAsync(ct).ConfigureAwait(false);
                 ReadOnlySequence<byte> buffer = result.Buffer;
-
-                while (true)
+                try
                 {
-                    FrameHeader header;
-                    ReadOnlySequence<byte> payload;
-                    try
+                    while (true)
                     {
-                        if (!FrameCodec.TryReadFrame(ref buffer, out header, out payload))
-                            break;
+                        FrameHeader header;
+                        ReadOnlySequence<byte> payload;
+                        try
+                        {
+                            if (!FrameCodec.TryReadFrame(ref buffer, out header, out payload))
+                                break;
+                        }
+                        catch (FrameFormatException ex)
+                        {
+                            // 帧边界不可恢复：丢弃本次读取的剩余字节并回连接级错误帧。
+                            buffer = buffer.Slice(buffer.End);
+                            await EnqueueAsync(outbound, OutboundFrame.Error(0, 0, 0, "bad_frame", ex.Message), ct).ConfigureAwait(false);
+                            return;
+                        }
+
+                        await HandleControlFrameAsync(ctx, registry, grants, mqStore, identity, outbound, subscriptions, header, payload, ct)
+                            .ConfigureAwait(false);
                     }
-                    catch (FrameFormatException ex)
-                    {
-                        // 帧边界不可恢复：回一个连接级错误帧后终止读取。
-                        await EnqueueAsync(outbound, OutboundFrame.Error(0, 0, 0, "bad_frame", ex.Message), ct).ConfigureAwait(false);
-                        reader.AdvanceTo(buffer.End);
+
+                    if (result.IsCompleted)
                         return;
-                    }
-
-                    await HandleControlFrameAsync(ctx, registry, grants, mqStore, identity, outbound, subscriptions, header, payload, ct)
-                        .ConfigureAwait(false);
                 }
-
-                reader.AdvanceTo(buffer.Start, buffer.End);
-                if (result.IsCompleted)
-                    return;
+                finally
+                {
+                    // 取消或 producer/channel 故障也必须归还当前 ReadResult，避免 Kestrel 再读同一 Pipe 时失败。
+                    reader.AdvanceTo(buffer.Start, buffer.End);
+                }
             }
         }
         catch (OperationCanceledException)

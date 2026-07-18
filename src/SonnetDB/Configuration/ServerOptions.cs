@@ -57,6 +57,11 @@ public sealed class ServerOptions
     public int MetricsTickSeconds { get; set; } = 5;
 
     /// <summary>
+    /// REST 与 frame-http2 SQL 请求的数据库级并发准入配置。
+    /// </summary>
+    public SqlHttpAdmissionOptions SqlHttpAdmission { get; set; } = new();
+
+    /// <summary>
     /// 可观测性配置（M17）。绑定路径：<c>"SonnetDBServer:Observability"</c>。
     /// </summary>
     public ObservabilityOptions Observability { get; set; } = new();
@@ -80,6 +85,23 @@ public sealed class ServerOptions
     /// Copilot 子系统配置。
     /// </summary>
     public CopilotOptions Copilot { get; set; } = new();
+}
+
+/// <summary>
+/// <c>POST /v1/db/{db}/sql</c>、<c>/sql/batch</c> 与 frame-http2 SQL query 的
+/// 数据库级并发准入配置。
+/// 每个数据库拥有独立的许可和等待队列，避免慢存储路径耗尽服务器线程与内存。
+/// </summary>
+public sealed class SqlHttpAdmissionOptions
+{
+    /// <summary>每个数据库可同时执行的 SQL HTTP 请求数。默认 <c>4</c>。</summary>
+    public int PermitLimit { get; set; } = 4;
+
+    /// <summary>
+    /// 每个数据库允许异步等待许可的请求数。默认 <c>8</c>；超出后 REST 返回 503，
+    /// frame-http2 返回 <c>sql_overloaded</c> 错误帧。
+    /// </summary>
+    public int QueueLimit { get; set; } = 8;
 }
 
 /// <summary>

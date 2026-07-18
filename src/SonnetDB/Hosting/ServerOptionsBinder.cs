@@ -53,6 +53,15 @@ internal static class ServerOptionsBinder
             options.Observability.SlowQueryLog.Capacity,
             16,
             4096);
+
+        options.SqlHttpAdmission.PermitLimit = Math.Clamp(
+            options.SqlHttpAdmission.PermitLimit,
+            1,
+            256);
+        options.SqlHttpAdmission.QueueLimit = Math.Clamp(
+            options.SqlHttpAdmission.QueueLimit,
+            0,
+            4096);
     }
 
     private static void ApplyLegacySlowQueryOptions(IConfigurationSection serverSection, ServerOptions options)

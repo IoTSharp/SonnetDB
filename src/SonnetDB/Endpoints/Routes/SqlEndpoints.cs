@@ -1,4 +1,6 @@
 ﻿using System.Text.Json;
+using System.Globalization;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,6 +26,7 @@ internal static partial class SonnetDbEndpoints
         var users = app.Services.GetRequiredService<UserStore>();
         var grants = app.Services.GetRequiredService<GrantsStore>();
         var metrics = app.Services.GetRequiredService<ServerMetrics>();
+        var admission = app.Services.GetRequiredService<SqlHttpRequestAdmission>();
 
         // ---- SQL ----
         var controlPlane = app.Services.GetRequiredService<SonnetDB.Sql.Execution.IControlPlane>();
@@ -33,6 +36,9 @@ internal static partial class SonnetDbEndpoints
                 return;
             var databasePermission = DatabaseAccessEvaluator.GetEffectivePermission(ctx, grants, db);
             if (!await TryRequireDatabasePermissionAsync(ctx, db, databasePermission, DatabasePermission.Read).ConfigureAwait(false))
+                return;
+            using var admissionLease = await TryAcquireSqlHttpAdmissionAsync(ctx, admission, db).ConfigureAwait(false);
+            if (admissionLease is null)
                 return;
             var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.SqlRequest).ConfigureAwait(false);
             if (req is null)
@@ -54,6 +60,9 @@ internal static partial class SonnetDbEndpoints
             var databasePermission = DatabaseAccessEvaluator.GetEffectivePermission(ctx, grants, db);
             if (!await TryRequireDatabasePermissionAsync(ctx, db, databasePermission, DatabasePermission.Read).ConfigureAwait(false))
                 return;
+            using var admissionLease = await TryAcquireSqlHttpAdmissionAsync(ctx, admission, db).ConfigureAwait(false);
+            if (admissionLease is null)
+                return;
             var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.SqlBatchRequest).ConfigureAwait(false);
             if (req is null || req.Statements.Count == 0)
             {
@@ -66,5 +75,34 @@ internal static partial class SonnetDbEndpoints
                 DatabaseAccessEvaluator.IsServerAdmin(ctx),
                 scopedControlPlane).ConfigureAwait(false);
         });
+    }
+
+    private static async Task<RateLimitLease?> TryAcquireSqlHttpAdmissionAsync(
+        HttpContext ctx,
+        SqlHttpRequestAdmission admission,
+        string database)
+    {
+        RateLimitLease lease;
+        try
+        {
+            lease = await admission.AcquireAsync(database, ctx.RequestAborted).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (ctx.RequestAborted.IsCancellationRequested)
+        {
+            return null;
+        }
+
+        if (lease.IsAcquired)
+            return lease;
+
+        lease.Dispose();
+        ctx.Response.Headers["Retry-After"] = SqlHttpRequestAdmission.RetryAfterSeconds
+            .ToString(CultureInfo.InvariantCulture);
+        await WriteSimpleErrorAsync(
+            ctx,
+            StatusCodes.Status503ServiceUnavailable,
+            "sql_overloaded",
+            $"数据库 '{database}' 的 SQL 请求已达到并发与等待队列上限，请稍后重试。").ConfigureAwait(false);
+        return null;
     }
 }

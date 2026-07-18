@@ -19,6 +19,8 @@ public sealed class ServerOptionsTests
         Assert.Equal(60_000, slowQuery.CriticalThresholdMs);
         Assert.Equal(256, slowQuery.Capacity);
         Assert.False(options.Observability.DiagnosticDump.Enabled);
+        Assert.Equal(4, options.SqlHttpAdmission.PermitLimit);
+        Assert.Equal(8, options.SqlHttpAdmission.QueueLimit);
     }
 
     [Fact]
@@ -71,5 +73,35 @@ public sealed class ServerOptionsTests
         var options = ServerOptionsBinder.Bind(configuration).Observability.SlowQueryLog;
 
         Assert.Equal(125, options.ThresholdMs);
+    }
+
+    [Fact]
+    public void Bind_WithSqlHttpAdmissionValues_AppliesAndBoundsConfiguration()
+    {
+        var configured = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SonnetDBServer:SqlHttpAdmission:PermitLimit"] = "2",
+                ["SonnetDBServer:SqlHttpAdmission:QueueLimit"] = "12",
+            })
+            .Build();
+
+        var configuredOptions = ServerOptionsBinder.Bind(configured).SqlHttpAdmission;
+
+        Assert.Equal(2, configuredOptions.PermitLimit);
+        Assert.Equal(12, configuredOptions.QueueLimit);
+
+        var outOfRange = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SonnetDBServer:SqlHttpAdmission:PermitLimit"] = "0",
+                ["SonnetDBServer:SqlHttpAdmission:QueueLimit"] = "5000",
+            })
+            .Build();
+
+        var boundedOptions = ServerOptionsBinder.Bind(outOfRange).SqlHttpAdmission;
+
+        Assert.Equal(1, boundedOptions.PermitLimit);
+        Assert.Equal(4096, boundedOptions.QueueLimit);
     }
 }
