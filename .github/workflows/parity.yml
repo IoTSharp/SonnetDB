@@ -60,7 +60,7 @@ jobs:
         with:
           submodules: recursive
 
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@v6
         if: steps.selection.outputs.run == 'true'
         with:
           global-json-file: global.json
