@@ -19,16 +19,43 @@ internal static class RemoteHttpClientFactory
     /// </summary>
     public static HttpClient Create(Uri baseAddress, string? username, string? password, string? token, TimeSpan timeout)
     {
-        var handler = Handlers.GetOrAdd(BuildHandlerKey(baseAddress), static _ => new SocketsHttpHandler
-        {
-            AutomaticDecompression = DecompressionMethods.All,
-            ConnectTimeout = TimeSpan.FromSeconds(5),
-            MaxConnectionsPerServer = 64,
-            PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
-            PooledConnectionLifetime = TimeSpan.FromMinutes(10),
-        });
+        var handler = Handlers.GetOrAdd(BuildHandlerKey(baseAddress), static _ => CreateHandler());
+        return CreateClient(baseAddress, username, password, token, timeout, handler, disposeHandler: false);
+    }
 
-        var client = new HttpClient(handler, disposeHandler: false)
+    /// <summary>
+    /// 创建拥有独立连接池的客户端，释放客户端时同时释放连接池。
+    /// </summary>
+    public static HttpClient CreateDedicated(
+        Uri baseAddress,
+        string? username,
+        string? password,
+        string? token,
+        TimeSpan timeout)
+    {
+        var handler = CreateHandler(TimeSpan.FromSeconds(30));
+        return CreateClient(baseAddress, username, password, token, timeout, handler, disposeHandler: true);
+    }
+
+    private static SocketsHttpHandler CreateHandler(TimeSpan? pooledConnectionIdleTimeout = null) => new()
+    {
+        AutomaticDecompression = DecompressionMethods.All,
+        ConnectTimeout = TimeSpan.FromSeconds(5),
+        MaxConnectionsPerServer = 64,
+        PooledConnectionIdleTimeout = pooledConnectionIdleTimeout ?? TimeSpan.FromMinutes(2),
+        PooledConnectionLifetime = TimeSpan.FromMinutes(10),
+    };
+
+    private static HttpClient CreateClient(
+        Uri baseAddress,
+        string? username,
+        string? password,
+        string? token,
+        TimeSpan timeout,
+        SocketsHttpHandler handler,
+        bool disposeHandler)
+    {
+        var client = new HttpClient(handler, disposeHandler)
         {
             BaseAddress = baseAddress,
             Timeout = timeout,

@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
@@ -22,6 +23,7 @@ public sealed class SndbObjectStorageClient : IDisposable
     private static readonly IReadOnlyDictionary<string, string> EmptyMap = new Dictionary<string, string>(0);
 
     private readonly SndbConnectionStringBuilder _builder;
+    private readonly bool _useDedicatedHttpHandler;
     private HttpClient? _http;
     private FrameChannel? _frames;
     private Tsdb? _embedded;
@@ -31,9 +33,23 @@ public sealed class SndbObjectStorageClient : IDisposable
     /// <summary>
     /// 使用 SonnetDB 连接字符串创建对象桶客户端。
     /// </summary>
+    /// <param name="connectionString">SonnetDB 连接字符串。</param>
     public SndbObjectStorageClient(string connectionString)
+        : this(connectionString, useDedicatedHttpHandler: false)
+    {
+    }
+
+    /// <summary>
+    /// 使用 SonnetDB 连接字符串创建对象桶客户端，并可选择独立的 HTTP 连接池。
+    /// </summary>
+    /// <param name="connectionString">SonnetDB 连接字符串。</param>
+    /// <param name="useDedicatedHttpHandler">
+    /// 是否为此客户端创建独立 HTTP 连接池；默认构造函数仍复用进程级共享连接池。
+    /// </param>
+    public SndbObjectStorageClient(string connectionString, bool useDedicatedHttpHandler)
     {
         _builder = new SndbConnectionStringBuilder(connectionString);
+        _useDedicatedHttpHandler = useDedicatedHttpHandler;
         Open();
     }
 
@@ -917,13 +933,27 @@ public sealed class SndbObjectStorageClient : IDisposable
         if (string.IsNullOrWhiteSpace(_database))
             throw new InvalidOperationException("远程对象存储客户端缺少数据库名。");
 
-        _http = RemoteHttpClientFactory.Create(
-            new Uri(baseUrl, UriKind.Absolute),
-            _builder.Username,
-            _builder.Password,
-            _builder.Token,
-            TimeSpan.FromSeconds(_builder.Timeout));
-        _frames = new FrameChannel(_http, _builder.ResolveProtocol());
+        var baseAddress = new Uri(baseUrl, UriKind.Absolute);
+        var protocol = _builder.ResolveProtocol();
+        _http = _useDedicatedHttpHandler
+            ? RemoteHttpClientFactory.CreateDedicated(
+                baseAddress,
+                _builder.Username,
+                _builder.Password,
+                _builder.Token,
+                TimeSpan.FromSeconds(_builder.Timeout))
+            : RemoteHttpClientFactory.Create(
+                baseAddress,
+                _builder.Username,
+                _builder.Password,
+                _builder.Token,
+                TimeSpan.FromSeconds(_builder.Timeout));
+        if (_useDedicatedHttpHandler && protocol == SndbTransportProtocol.Rest)
+        {
+            _http.DefaultRequestVersion = HttpVersion.Version11;
+            _http.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionExact;
+        }
+        _frames = new FrameChannel(_http, protocol);
     }
 
     private async Task<HttpResponseMessage> PostJsonAsync<T>(
@@ -935,7 +965,11 @@ public sealed class SndbObjectStorageClient : IDisposable
         using var content = JsonContent.Create(value, typeInfo);
         var response = await _http!.PostAsync(url, content, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
-            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+        {
+            var error = await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+            response.Dispose();
+            throw error;
+        }
         return response;
     }
 
@@ -948,7 +982,11 @@ public sealed class SndbObjectStorageClient : IDisposable
         using var content = JsonContent.Create(value, typeInfo);
         var response = await _http!.PutAsync(url, content, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
-            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+        {
+            var error = await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+            response.Dispose();
+            throw error;
+        }
         return response;
     }
 
@@ -956,7 +994,11 @@ public sealed class SndbObjectStorageClient : IDisposable
     {
         var response = await _http!.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
-            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+        {
+            var error = await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+            response.Dispose();
+            throw error;
+        }
         return response;
     }
 
@@ -972,16 +1014,28 @@ public sealed class SndbObjectStorageClient : IDisposable
 
     private static async Task<SndbServerException> BuildHttpErrorAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
+        string body = string.Empty;
         try
         {
-            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-            var error = await JsonSerializer.DeserializeAsync(stream, RemoteJsonContext.Default.ServerErrorBody, cancellationToken)
-                .ConfigureAwait(false);
-            if (error is not null)
-                return new SndbServerException(error.Error, error.Message, response.StatusCode);
+            body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         }
         catch
         {
+        }
+
+        if (!string.IsNullOrWhiteSpace(body))
+        {
+            try
+            {
+                var error = JsonSerializer.Deserialize(body, RemoteJsonContext.Default.ServerErrorBody);
+                if (error is not null)
+                    return new SndbServerException(error.Error, error.Message, response.StatusCode);
+            }
+            catch
+            {
+            }
+
+            return new SndbServerException("http_error", body.Trim(), response.StatusCode);
         }
 
         return new SndbServerException("http_error", response.ReasonPhrase ?? "SonnetDB HTTP error.", response.StatusCode);

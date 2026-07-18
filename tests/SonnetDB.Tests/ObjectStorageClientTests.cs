@@ -64,10 +64,10 @@ public sealed class ObjectStorageClientTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task RemoteClient_PutReadDelete_RoundTrips()
+    public async Task RemoteClient_WithDedicatedPool_PutReadDelete_RoundTrips()
     {
         var connectionString = $"Data Source=sonnetdb+http://{new Uri(_baseUrl!).Authority}/objectsclient;Token={AdminToken};Timeout=30";
-        using var client = new SndbObjectStorageClient(connectionString);
+        using var client = new SndbObjectStorageClient(connectionString, useDedicatedHttpHandler: true);
         await client.CreateBucketAsync("iotsharp-blob-storage", "iotsharp-blob-storage");
 
         await using var input = new MemoryStream(Encoding.UTF8.GetBytes("blob payload"));
