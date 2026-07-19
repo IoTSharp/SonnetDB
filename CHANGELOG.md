@@ -7,6 +7,7 @@
 
 ### Fixed
 
+- 修复 `SndbObjectStorageClient` 在 `Protocol=frame-http2` 下仍使用默认 HTTP/1.1 的问题；对象帧 PUT/GET 及同客户端的 REST 回退操作现在统一要求 exact HTTP/2，可连接 h2c 专用端口。
 - 修复 `SndbMqClient` 在 `Protocol=frame-http2` 下虽使用二进制帧 payload、但仍以 HTTP/1.1 发送请求的问题；该模式现在对 MQ 帧操作及 stats REST 请求统一要求 exact HTTP/2，可直接连接只接受 h2c 的 5081 端口。
 - 对象存储客户端新增显式独立 HTTP 连接池选项，用于隔离长驻宿主内 SQL/Frame 流量与流式对象上传的连接复用和背压；默认构造函数继续复用原共享连接池，保持既有性能与 Frame 兼容行为。非 JSON HTTP 错误响应现在保留服务端原始正文且失败响应会及时释放，避免诊断时只剩通用状态短语或连续失败累积响应资源。
 - 修复 KV checkpoint 在 WAL 轮换、generation 清空、进程关闭和异常恢复交错时可能留下不连续恢复链或过早删除唯一日志的问题；新增 sealed WAL 严格校验、状态文件全量 CRC 验证、目录项强制落盘、自动 checkpoint 预算与写入背压，并覆盖截断、损坏、失败重试和关闭竞态。

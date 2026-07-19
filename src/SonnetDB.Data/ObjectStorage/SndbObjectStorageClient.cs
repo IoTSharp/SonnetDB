@@ -110,7 +110,7 @@ public sealed class SndbObjectStorageClient : IDisposable
         if (_embedded is not null)
             return new SndbObjectStore(_embedded).DeleteBucket(bucket);
 
-        using var request = new HttpRequestMessage(HttpMethod.Delete, BucketUrl(bucket));
+        using var request = CreateRequest(HttpMethod.Delete, BucketUrl(bucket));
         using var response = await _http!.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
             .ConfigureAwait(false);
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
@@ -180,11 +180,8 @@ public sealed class SndbObjectStorageClient : IDisposable
         IReadOnlyDictionary<string, string>? tags,
         CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Put, ObjectUrl(bucket, key))
-        {
-            Content = new StreamContent(content),
-        };
-        request.Content.Headers.ContentType = MediaTypeHeaderValue.Parse(contentType ?? "application/octet-stream");
+        using var request = CreateRequest(HttpMethod.Put, ObjectUrl(bucket, key), new StreamContent(content));
+        request.Content!.Headers.ContentType = MediaTypeHeaderValue.Parse(contentType ?? "application/octet-stream");
         AddMetadataHeaders(request, metadata);
         AddTagHeader(request, tags);
 
@@ -276,7 +273,7 @@ public sealed class SndbObjectStorageClient : IDisposable
         if (_embedded is not null)
             return new SndbObjectStore(_embedded).HeadObject(bucket, key);
 
-        using var request = new HttpRequestMessage(HttpMethod.Head, ObjectUrl(bucket, key));
+        using var request = CreateRequest(HttpMethod.Head, ObjectUrl(bucket, key));
         using var response = await _http!.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             return null;
@@ -386,7 +383,7 @@ public sealed class SndbObjectStorageClient : IDisposable
         SndbObjectRange? range,
         CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, ObjectUrl(bucket, key));
+        using var request = CreateRequest(HttpMethod.Get, ObjectUrl(bucket, key));
         if (range.HasValue)
         {
             long start = range.Value.Offset;
@@ -446,7 +443,7 @@ public sealed class SndbObjectStorageClient : IDisposable
         if (_embedded is not null)
             return await new SndbObjectStore(_embedded).CopyObjectAsync(sourceBucket, sourceKey, destinationBucket, destinationKey, cancellationToken: cancellationToken).ConfigureAwait(false);
 
-        using var request = new HttpRequestMessage(HttpMethod.Put, ObjectUrl(destinationBucket, destinationKey));
+        using var request = CreateRequest(HttpMethod.Put, ObjectUrl(destinationBucket, destinationKey));
         request.Headers.TryAddWithoutValidation("x-amz-copy-source", "/" + sourceBucket + "/" + sourceKey);
         using var response = await SendAsync(request, cancellationToken).ConfigureAwait(false);
         _ = await ReadJsonAsync(response, SndbObjectClientJsonContext.Default.ObjectCopyResponse, cancellationToken).ConfigureAwait(false);
@@ -466,7 +463,7 @@ public sealed class SndbObjectStorageClient : IDisposable
             return;
         }
 
-        using var request = new HttpRequestMessage(HttpMethod.Delete, ObjectUrl(bucket, key));
+        using var request = CreateRequest(HttpMethod.Delete, ObjectUrl(bucket, key));
         using var response = await SendAsync(request, cancellationToken).ConfigureAwait(false);
     }
 
@@ -827,10 +824,10 @@ public sealed class SndbObjectStorageClient : IDisposable
         if (_embedded is not null)
             return await new SndbObjectStore(_embedded).UploadPartAsync(uploadId, partNumber, content, cancellationToken).ConfigureAwait(false);
 
-        using var request = new HttpRequestMessage(HttpMethod.Put, ObjectUrl(bucket, key) + $"?uploadId={Uri.EscapeDataString(uploadId)}&partNumber={partNumber}")
-        {
-            Content = new StreamContent(content),
-        };
+        using var request = CreateRequest(
+            HttpMethod.Put,
+            ObjectUrl(bucket, key) + $"?uploadId={Uri.EscapeDataString(uploadId)}&partNumber={partNumber}",
+            new StreamContent(content));
         using var response = await SendAsync(request, cancellationToken).ConfigureAwait(false);
         var body = await ReadJsonAsync(response, SndbObjectClientJsonContext.Default.MultipartPartResponse, cancellationToken).ConfigureAwait(false);
         return new SndbMultipartPartInfo(body.PartNumber, body.SizeBytes, body.ETag, body.Sha256);
@@ -874,7 +871,9 @@ public sealed class SndbObjectStorageClient : IDisposable
             return;
         }
 
-        using var request = new HttpRequestMessage(HttpMethod.Delete, ObjectUrl(bucket, key) + "?uploadId=" + Uri.EscapeDataString(uploadId));
+        using var request = CreateRequest(
+            HttpMethod.Delete,
+            ObjectUrl(bucket, key) + "?uploadId=" + Uri.EscapeDataString(uploadId));
         using var response = await SendAsync(request, cancellationToken).ConfigureAwait(false);
     }
 
@@ -948,12 +947,28 @@ public sealed class SndbObjectStorageClient : IDisposable
                 _builder.Password,
                 _builder.Token,
                 TimeSpan.FromSeconds(_builder.Timeout));
-        if (_useDedicatedHttpHandler && protocol == SndbTransportProtocol.Rest)
+        if (protocol == SndbTransportProtocol.FrameHttp2)
+        {
+            _http.DefaultRequestVersion = HttpVersion.Version20;
+            _http.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionExact;
+        }
+        else if (_useDedicatedHttpHandler && protocol == SndbTransportProtocol.Rest)
         {
             _http.DefaultRequestVersion = HttpVersion.Version11;
             _http.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionExact;
         }
         _frames = new FrameChannel(_http, protocol);
+    }
+
+    private HttpRequestMessage CreateRequest(HttpMethod method, string url, HttpContent? content = null)
+    {
+        var http = _http ?? throw new InvalidOperationException("远程连接未打开。");
+        return new HttpRequestMessage(method, url)
+        {
+            Version = http.DefaultRequestVersion,
+            VersionPolicy = http.DefaultVersionPolicy,
+            Content = content,
+        };
     }
 
     private async Task<HttpResponseMessage> PostJsonAsync<T>(

@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using Microsoft.AspNetCore.Builder;
@@ -21,6 +22,7 @@ public sealed class ObjectFrameTransportParityTests : IAsyncLifetime
 {
     private WebApplication? _app;
     private string _baseUrl = string.Empty;
+    private string _frameH2Url = string.Empty;
     private string? _dataRoot;
     private const string _adminToken = "obj-parity-admin";
     private const string _readOnlyToken = "obj-parity-ro";
@@ -43,11 +45,23 @@ public sealed class ObjectFrameTransportParityTests : IAsyncLifetime
                 [_readOnlyToken] = ServerRoles.ReadOnly,
             },
         };
-        _app = TestServerHost.Build(options);
+        _app = TestServerHost.Build(options, extraArgs:
+        [
+            "--Kestrel:Endpoints:FrameH2:Url=http://127.0.0.1:0",
+            "--Kestrel:Endpoints:FrameH2:Protocols=Http2",
+        ]);
         await _app.StartAsync();
         var addresses = _app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()
             ?? throw new InvalidOperationException("Kestrel 未暴露监听地址。");
-        _baseUrl = addresses.Addresses.First();
+        foreach (string address in addresses.Addresses)
+        {
+            if (await ProbeIsHttp11Async(address))
+                _baseUrl = address;
+            else
+                _frameH2Url = address;
+        }
+        Assert.NotEmpty(_baseUrl);
+        Assert.NotEmpty(_frameH2Url);
 
         using var http = new HttpClient { BaseAddress = new Uri(_baseUrl) };
         http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _adminToken);
@@ -74,7 +88,10 @@ public sealed class ObjectFrameTransportParityTests : IAsyncLifetime
     }
 
     private string ConnString(string protocol, string token = _adminToken)
-        => $"Data Source=sonnetdb+http://{new Uri(_baseUrl).Authority}/{_dbName};Token={token};Timeout=30;Protocol={protocol}";
+    {
+        string baseUrl = protocol == "frame-http2" ? _frameH2Url : _baseUrl;
+        return $"Data Source=sonnetdb+http://{new Uri(baseUrl).Authority}/{_dbName};Token={token};Timeout=30;Protocol={protocol}";
+    }
 
     private static async Task<byte[]> ReadAllAsync(SndbObjectReadResult result)
     {
@@ -91,7 +108,7 @@ public sealed class ObjectFrameTransportParityTests : IAsyncLifetime
     [InlineData("rest")]
     public async Task PutThenGet_RawBytes_RoundTrip(string protocol)
     {
-        using var client = new SndbObjectStorageClient(ConnString(protocol));
+        using var client = new SndbObjectStorageClient(ConnString(protocol), useDedicatedHttpHandler: true);
         string key = "raw/" + protocol + ".bin";
         byte[] content = [0x00, 0x01, 0x7F, 0x80, 0xFE, 0xFF, 0x00, 0x42];
         // metadata 值走 REST 时经 x-amz-meta-* 头（仅 ASCII），故此处用 ASCII；UTF-8 元数据是帧独有能力。
@@ -231,5 +248,24 @@ public sealed class ObjectFrameTransportParityTests : IAsyncLifetime
         Assert.True(read!.IsRange);
         byte[] slice = await ReadAllAsync(read);
         Assert.Equal(content.Skip(100).Take(50).ToArray(), slice);
+    }
+
+    private static async Task<bool> ProbeIsHttp11Async(string address)
+    {
+        using var client = new HttpClient();
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, address + "/healthz")
+            {
+                Version = HttpVersion.Version11,
+                VersionPolicy = HttpVersionPolicy.RequestVersionExact,
+            };
+            using var response = await client.SendAsync(request);
+            return response.IsSuccessStatusCode;
+        }
+        catch (HttpRequestException)
+        {
+            return false;
+        }
     }
 }
