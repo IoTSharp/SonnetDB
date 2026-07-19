@@ -476,6 +476,41 @@ public sealed class SonnetMqStoreTests : IDisposable
     }
 
     [Fact]
+    public void ColdPull_FromSparseAnchor_SkipsEarlierLargePayloadBodies()
+    {
+        const int payloadBytes = 256 * 1024;
+        const int targetOffset = 15;
+        var options = new SonnetMqOptions
+        {
+            Path = _root,
+            HotTailMaxBytes = 128,
+            OffsetIndexStride = 1024,
+            RetentionInterval = TimeSpan.Zero,
+        };
+
+        using var store = SonnetMqStore.Open(options);
+        var entries = Enumerable.Range(0, 20)
+            .Select(index =>
+            {
+                var payload = new byte[payloadBytes];
+                BitConverter.TryWriteBytes(payload, index);
+                return new SonnetMqPublishEntry(payload);
+            })
+            .ToArray();
+        store.PublishMany("iot.large-images", entries);
+
+        long readBefore = store.ColdPayloadBytesRead;
+        long skippedBefore = store.ColdPayloadBytesSkipped;
+        var messages = store.Pull("iot.large-images", targetOffset, 1);
+
+        Assert.Single(messages);
+        Assert.Equal(targetOffset, messages[0].Offset);
+        Assert.Equal(targetOffset, BitConverter.ToInt32(messages[0].Payload));
+        Assert.Equal(payloadBytes, store.ColdPayloadBytesRead - readBefore);
+        Assert.Equal((long)targetOffset * payloadBytes, store.ColdPayloadBytesSkipped - skippedBefore);
+    }
+
+    [Fact]
     public void ColdPull_CrossesColdHotBoundary_InSingleCall()
     {
         // 小 HotTailMaxBytes + 小 SegmentMaxBytes → 冷段 + 热尾同存；从被驱逐的 offset 连续拉 maxCount 条

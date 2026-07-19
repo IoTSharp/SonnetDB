@@ -33,6 +33,8 @@ public sealed class SonnetMqStore : IDisposable
     private Thread? _retentionWorker;
     private CancellationTokenSource? _retentionCts;
     private FileStream? _singleFileStream;
+    private long _coldPayloadBytesRead;
+    private long _coldPayloadBytesSkipped;
     private bool _disposed;
 
     private SonnetMqStore(SonnetMqOptions options)
@@ -83,6 +85,10 @@ public sealed class SonnetMqStore : IDisposable
             throw;
         }
     }
+
+    internal long ColdPayloadBytesRead => Interlocked.Read(ref _coldPayloadBytesRead);
+
+    internal long ColdPayloadBytesSkipped => Interlocked.Read(ref _coldPayloadBytesSkipped);
 
     /// <summary>
     /// 获取当前队列实例的运行选项快照，供管理端点展示 retention 与段缓存参数。
@@ -762,7 +768,14 @@ public sealed class SonnetMqStore : IDisposable
             bool advancedSegment = false;
             while (results.Count < maxCount && position < length)
             {
-                if (!TryReadRecordAt(handle, position, length, out var record, out long nextPosition))
+                if (!TryReadRecordAt(
+                    handle,
+                    position,
+                    length,
+                    next,
+                    state.HotTailStartOffset,
+                    out var record,
+                    out long nextPosition))
                     break;
                 position = nextPosition;
 
@@ -810,7 +823,14 @@ public sealed class SonnetMqStore : IDisposable
     /// <summary>
     /// 从只读句柄 + 文件位置解码一条记录（与 <see cref="ReplayStream"/> 字段解析同构，数据源换成句柄）。
     /// </summary>
-    private static bool TryReadRecordAt(SafeFileHandle handle, long position, long length, out ColdRecord record, out long nextPosition)
+    private bool TryReadRecordAt(
+        SafeFileHandle handle,
+        long position,
+        long length,
+        long materializeFromOffset,
+        long materializeBeforeOffset,
+        out ColdRecord record,
+        out long nextPosition)
     {
         record = default;
         nextPosition = position;
@@ -847,6 +867,17 @@ public sealed class SonnetMqStore : IDisposable
             return true;
         }
 
+        // Sparse indexes intentionally land before the requested offset. Those records only need
+        // their fixed header to advance to the next file position. The same applies after reaching
+        // the resident hot-tail boundary. Avoid reading or allocating their potentially huge bodies.
+        if (offsetOrNext < materializeFromOffset || offsetOrNext >= materializeBeforeOffset)
+        {
+            if (payloadLength > 0)
+                Interlocked.Add(ref _coldPayloadBytesSkipped, payloadLength);
+            record = new ColdRecord(type, offsetOrNext, ticks, EmptyHeaders.Instance, []);
+            return true;
+        }
+
         // 跳过 topic，读 meta + payload。
         var headers = EmptyHeaders.Instance as IReadOnlyDictionary<string, string>;
         if (metaLength > 0)
@@ -865,7 +896,10 @@ public sealed class SonnetMqStore : IDisposable
 
         byte[] payload = payloadLength == 0 ? [] : new byte[payloadLength];
         if (payloadLength > 0)
+        {
             ReadExactAt(handle, payload, bodyPosition + topicLength + metaLength);
+            Interlocked.Add(ref _coldPayloadBytesRead, payloadLength);
+        }
 
         record = new ColdRecord(type, offsetOrNext, ticks, headers, payload);
         return true;
@@ -938,7 +972,14 @@ public sealed class SonnetMqStore : IDisposable
         long length = RandomAccess.GetLength(handle);
         long position = 0;
         bool any = false;
-        while (TryReadRecordAt(handle, position, length, out var record, out long nextPosition))
+        while (TryReadRecordAt(
+            handle,
+            position,
+            length,
+            long.MaxValue,
+            long.MaxValue,
+            out var record,
+            out long nextPosition))
         {
             position = nextPosition;
             if (record.Type == RecordTypeMessage)
