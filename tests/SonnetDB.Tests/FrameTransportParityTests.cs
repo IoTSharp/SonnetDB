@@ -82,7 +82,7 @@ public sealed class FrameTransportParityTests : IAsyncLifetime
     private string ConnString(string protocol)
         => $"Data Source=sonnetdb+http://{new Uri(_baseUrl).Authority}/{_dbName};Token={_adminToken};Timeout=30;Protocol={protocol}";
 
-    private string AdoConnString(string protocol)
+    private string ExactTransportConnString(string protocol)
     {
         string baseUrl = protocol == "frame-http2" ? _frameH2Url : _baseUrl;
         return $"Data Source=sonnetdb+http://{new Uri(baseUrl).Authority}/{_dbName};Token={_adminToken};Timeout=30;Protocol={protocol}";
@@ -95,7 +95,7 @@ public sealed class FrameTransportParityTests : IAsyncLifetime
     [InlineData("rest")]
     public async Task Mq_Publish_Pull_Ack_Batch_Stats(string protocol)
     {
-        using var mq = new SndbMqClient(ConnString(protocol));
+        using var mq = new SndbMqClient(ExactTransportConnString(protocol));
         string topic = "mq_" + protocol.Replace('-', '_');
 
         byte[] p1 = [0x00, 0x7F, 0x80, 0xFF];
@@ -223,7 +223,7 @@ public sealed class FrameTransportParityTests : IAsyncLifetime
     {
         SeedCpuMeasurement();
 
-        using var c = new SndbConnection(AdoConnString(protocol));
+        using var c = new SndbConnection(ExactTransportConnString(protocol));
         c.Open();
         using var sel = c.CreateCommand();
         sel.CommandText = "SELECT time, host, value FROM cpu ORDER BY time";
@@ -243,7 +243,7 @@ public sealed class FrameTransportParityTests : IAsyncLifetime
     [Fact]
     public void AdoSql_Write_FallsBackToRest_UnderFrameProtocol()
     {
-        using var c = new SndbConnection(AdoConnString("frame-http2"));
+        using var c = new SndbConnection(ExactTransportConnString("frame-http2"));
         c.Open();
         using (var ddl = c.CreateCommand())
         {
@@ -260,7 +260,7 @@ public sealed class FrameTransportParityTests : IAsyncLifetime
     {
         // 记录在案的类型差异（docs/frame-protocol.md）：DATETIME 列在帧路径返回 DateTime、
         // REST NDJSON 路径返回 ISO 字符串。写与建表走 REST，只读 SELECT 分别验证两传输的类型。
-        using (var c = new SndbConnection(AdoConnString("rest")))
+        using (var c = new SndbConnection(ExactTransportConnString("rest")))
         {
             c.Open();
             using var ddl = c.CreateCommand();
@@ -271,7 +271,7 @@ public sealed class FrameTransportParityTests : IAsyncLifetime
             ins.ExecuteNonQuery();
         }
 
-        using (var frameConn = new SndbConnection(AdoConnString("frame-http2")))
+        using (var frameConn = new SndbConnection(ExactTransportConnString("frame-http2")))
         {
             frameConn.Open();
             using var sel = frameConn.CreateCommand();
@@ -281,7 +281,7 @@ public sealed class FrameTransportParityTests : IAsyncLifetime
             Assert.IsType<DateTime>(r.GetValue(0)); // 帧富类型
         }
 
-        using (var restConn = new SndbConnection(AdoConnString("rest")))
+        using (var restConn = new SndbConnection(ExactTransportConnString("rest")))
         {
             restConn.Open();
             using var sel = restConn.CreateCommand();
@@ -294,7 +294,7 @@ public sealed class FrameTransportParityTests : IAsyncLifetime
 
     private void SeedCpuMeasurement()
     {
-        using var c = new SndbConnection(AdoConnString("rest"));
+        using var c = new SndbConnection(ExactTransportConnString("rest"));
         c.Open();
         using var ddl = c.CreateCommand();
         ddl.CommandText = "CREATE MEASUREMENT cpu (host TAG, value FIELD FLOAT)";
