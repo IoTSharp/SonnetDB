@@ -1,5 +1,5 @@
-using SonnetDB.Kv;
 using SonnetDB.Diagnostics;
+using SonnetDB.Kv;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
 
