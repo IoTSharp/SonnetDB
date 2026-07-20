@@ -3,27 +3,27 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup Label="Core">
-    <PackageVersion Include="Microsoft.AspNetCore.SpaProxy" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.AspNetCore.SpaProxy" Version="10.0.10" />
     <PackageVersion Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
-    <PackageVersion Include="System.IO.Hashing" Version="10.0.9" />
-    <PackageVersion Include="System.Numerics.Tensors" Version="10.0.9" />
-    <PackageVersion Include="ModelContextProtocol" Version="1.4.0" />
-    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.7.0" />
-    <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="1.4.0" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.9" />
+    <PackageVersion Include="System.IO.Hashing" Version="10.0.10" />
+    <PackageVersion Include="System.Numerics.Tensors" Version="10.0.10" />
+    <PackageVersion Include="ModelContextProtocol" Version="1.4.1" />
+    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.8.0" />
+    <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="1.4.1" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.10" />
     <PackageVersion Include="NativeWebHost" Version="2.0.0" />
     <PackageVersion Include="NativeWebHost.Windows" Version="2.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Caching.Abstractions" Version="10.0.9" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.9" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.9" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.9" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.9" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.9" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.9" />
-    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.9" />
-    <PackageVersion Include="Microsoft.Extensions.VectorData.Abstractions" Version="10.7.0" />
-    <PackageVersion Include="Microsoft.ML.OnnxRuntime" Version="1.27.0" />
+    <PackageVersion Include="Microsoft.Extensions.Caching.Abstractions" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.VectorData.Abstractions" Version="10.8.0" />
+    <PackageVersion Include="Microsoft.ML.OnnxRuntime" Version="1.27.1" />
     <PackageVersion Include="EasyCaching.Core" Version="1.9.2" />
     <!-- Snappy block-format 解压（Prometheus Remote Write 入站端点用），纯托管、AOT 友好。 -->
     <PackageVersion Include="Snappier" Version="1.3.1" />
@@ -33,12 +33,12 @@
       OpenTelemetry SDK 仅允许出现在 src/SonnetDB（Server 程序集）：Core 只用 BCL Meter/ActivitySource（M17）。
       Prometheus.AspNetCore 上游尚无稳定版（规范仍 experimental），固定 beta 版本。
     -->
-    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.16.0" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.16.0" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.16.0" />
-    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.16.0" />
-    <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.16.0" />
-    <PackageVersion Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" Version="1.16.0-beta.1" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.17.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.17.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.17.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.17.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.17.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" Version="1.17.0-beta.1" />
     <PackageVersion Include="MQTTnet" Version="5.2.0.1603" />
     <PackageVersion Include="MQTTnet.AspNetCore" Version="5.2.0.1603" />
     <PackageVersion Include="MQTTnet.Server" Version="5.2.0.1603" />
@@ -46,35 +46,35 @@
       MQTTnet.AspNetCore.Routing 不再走 NuGet 包引用：改为 extensions/MQTTnet.AspNetCore.Routing
       git 子模块的源码 ProjectReference（已修复 NativeAOT 的 IL2104/IL3053）。
     -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.9" />
-    <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.9" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.9" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.9" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.3.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.6.0" />
   </ItemGroup>
   <ItemGroup Label="Test">
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
     <PackageVersion Include="nunit" Version="3.13.3" />
-    <PackageVersion Include="NUnit3TestAdapter" Version="4.6.0" />
-    <PackageVersion Include="Testcontainers" Version="4.12.0" />
+    <PackageVersion Include="NUnit3TestAdapter" Version="6.2.0" />
+    <PackageVersion Include="Testcontainers" Version="4.13.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
     <PackageVersion Include="coverlet.collector" Version="10.0.1" />
-    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.10" />
     <PackageVersion Include="Qdrant.Client" Version="1.18.1" />
-    <PackageVersion Include="StackExchange.Redis" Version="3.0.7" />
-    <PackageVersion Include="AWSSDK.S3" Version="4.0.25.3" />
-    <PackageVersion Include="NATS.Client.Core" Version="2.8.2" />
-    <PackageVersion Include="NATS.Client.JetStream" Version="2.8.2" />
+    <PackageVersion Include="StackExchange.Redis" Version="3.0.17" />
+    <PackageVersion Include="AWSSDK.S3" Version="4.0.101.3" />
+    <PackageVersion Include="NATS.Client.Core" Version="3.0.0" />
+    <PackageVersion Include="NATS.Client.JetStream" Version="3.0.0" />
     <PackageVersion Include="MeiliSearch" Version="0.20.0" />
     <PackageVersion Include="MongoDB.Driver" Version="3.10.0" />
     <PackageVersion Include="ClickHouse.Client" Version="7.14.0" />
-    <PackageVersion Include="OpenTelemetry.Exporter.InMemory" Version="1.16.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.InMemory" Version="1.17.0" />
   </ItemGroup>
   <ItemGroup Label="Benchmark">
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
-    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.9" />
-    <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.10" />
+    <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.4" />
     <PackageVersion Include="InfluxDB.Client" Version="5.1.0" />
     <PackageVersion Include="LiteDB" Version="5.0.21" />
     <PackageVersion Include="Npgsql" Version="10.0.3" />

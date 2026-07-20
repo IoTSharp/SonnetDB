@@ -42,7 +42,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
@@ -52,7 +52,7 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         if: matrix.install_go
         with:
           go-version: '1.22.x'

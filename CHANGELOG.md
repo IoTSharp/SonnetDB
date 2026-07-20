@@ -7,6 +7,7 @@
 
 ### Fixed
 
+- 修复 OpenTelemetry 端到端测试在 exporter 回调与断言并发访问普通 `List<Activity>` 时随机抛出集合已修改异常的问题；导出活动改用同步集合并基于稳定快照断言。
 - 修复 SonnetMQ 冷读消费者为定位目标 offset 仍读取此前大 payload、导致积压恢复受历史消息体大小拖慢的问题；扫描现在跳过目标位点前的消息正文，仅读取目标批次 payload。
 - 修复 `SndbObjectStorageClient` 在 `Protocol=frame-http2` 下仍使用默认 HTTP/1.1 的问题；对象帧 PUT/GET 及同客户端的 REST 回退操作现在统一要求 exact HTTP/2，可连接 h2c 专用端口。
 - 修复 `SndbMqClient` 在 `Protocol=frame-http2` 下虽使用二进制帧 payload、但仍以 HTTP/1.1 发送请求的问题；该模式现在对 MQ 帧操作及 stats REST 请求统一要求 exact HTTP/2，可直接连接只接受 h2c 的 5081 端口。
@@ -368,7 +369,7 @@
 - **PR #77 — 地理空间基准 + 文档完善**：新增 `GeoQueryBenchmark`，覆盖 `100k` 默认轨迹点和可选 `1M` 档位下的 `geo_within`、`geo_bbox`、`trajectory_length` 与 `GEOPOINT` range scan；README 与 `docs/geo-spatial.md` 补齐地理空间功能矩阵、Web Admin / SQL Console 地图用法、基准运行方式和车辆追踪 / 户外运动 / IoT 地理围栏端到端示例。
 
 ### Changed
-- **NuGet / Actions dependency refresh**：按 NuGet latest stable 与当前 GitHub dependency PR 批量升级中央包版本，覆盖 .NET 10.0.9 系列、`Microsoft.Extensions.AI 10.7.0`、`ModelContextProtocol 1.4.0`、`Microsoft.ML.OnnxRuntime 1.27.0`、`Microsoft.NET.Test.Sdk 18.7.0`、`Testcontainers 4.12.0`、`coverlet.collector 10.0.1`、`AWSSDK.S3 4.0.25.3`、`NATS.Client 2.8.2`、`StackExchange.Redis 3.0.7`、`MeiliSearch 0.20.0`、`InfluxDB.Client 5.1.0`、`Npgsql 10.0.3` 等；GitHub workflows 的 `actions/checkout` 同步升级到 `v7`。
+- **NuGet / Actions dependency refresh**：按 NuGet latest stable 与当前 GitHub dependency PR 批量升级中央包版本，覆盖 .NET `10.0.10` 系列、`Microsoft.Extensions.AI 10.8.0`、`ModelContextProtocol 1.4.1`、`Microsoft.ML.OnnxRuntime 1.27.1`、OpenTelemetry `1.17.0`、`Microsoft.NET.Test.Sdk 18.8.1`、`Testcontainers 4.13.0`、Roslyn `5.6.0`、NATS client `3.0.0`、`AWSSDK.S3 4.0.101.3`、`StackExchange.Redis 3.0.17` 与 SQLite native bundle `3.0.4`；两个源码子模块同步升级 Roslyn fallback、MSTest 和 NUnit adapter。GitHub workflows 同步使用 `actions/setup-dotnet@v6`、`actions/setup-node@v7`、`actions/setup-go@v7` 与 `actions/upload-artifact@v7`。
 - **门面文档叙事收敛**：根 README / README.en 改为“一句话定位 + 能力矩阵 + 使用方式 + 专题文档索引”的简洁结构，剔除长 SQL 函数表、架构细节和基准明细，突出时序、关系、KV、文档、全文、向量、对象存储、消息队列、Copilot、Workbench、MCP 和多语言连接器；文档首页、Workbench 文档和 Web 欢迎页同步从单一时序数据库定位升级为多模型数据底座定位。
 - NuGet 发布链路新增 `SonnetDB.EntityFrameworkCore`：EF Core Provider 现在会随 `eng/release.ps1 -Tasks nuget`、GitHub Publish workflow、SDK Bundle 和发布文档一起输出。
 - 文档统一修正 ADO.NET 提供程序的 NuGet 包名：`src/SonnetDB.Data` 发布为 `SonnetDB`，代码命名空间仍为 `SonnetDB.Data`；根 README、文档首页、综合指南、包说明和产品首页同步收敛当前能力说明。

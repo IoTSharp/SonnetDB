@@ -25,7 +25,7 @@ public sealed class ObservabilityTraceEndToEndTests : IAsyncLifetime
     private const string AdminToken = "otel-e2e-admin";
     private const string DatabaseName = "otel_e2e";
 
-    private readonly List<Activity> _exportedActivities = [];
+    private readonly SynchronizedActivityCollection _exportedActivities = new();
     private readonly TraceCloudGatewayClient _cloud = new();
     private WebApplication? _app;
     private string? _dataRoot;
@@ -83,10 +83,7 @@ public sealed class ObservabilityTraceEndToEndTests : IAsyncLifetime
         Assert.True(registry.TryGet(DatabaseName, out var database));
         Assert.NotNull(database.FlushNow());
 
-        lock (_exportedActivities)
-        {
-            _exportedActivities.Clear();
-        }
+        _exportedActivities.Clear();
     }
 
     public async Task DisposeAsync()
@@ -127,12 +124,9 @@ public sealed class ObservabilityTraceEndToEndTests : IAsyncLifetime
         var tracerProvider = _app!.Services.GetRequiredService<TracerProvider>();
         Assert.True(tracerProvider.ForceFlush(10_000));
 
-        Activity[] trace;
-        lock (_exportedActivities)
-        {
-            var chat = Assert.Single(_exportedActivities, static item => item.DisplayName == "copilot.chat");
-            trace = _exportedActivities.Where(item => item.TraceId == chat.TraceId).ToArray();
-        }
+        Activity[] exportedActivities = _exportedActivities.Snapshot();
+        var chat = Assert.Single(exportedActivities, static item => item.DisplayName == "copilot.chat");
+        Activity[] trace = exportedActivities.Where(item => item.TraceId == chat.TraceId).ToArray();
 
         var copilotChat = Assert.Single(trace, static item => item.DisplayName == "copilot.chat");
         var http = Assert.Single(trace, item => item.SpanId == copilotChat.ParentSpanId);
@@ -196,6 +190,65 @@ public sealed class ObservabilityTraceEndToEndTests : IAsyncLifetime
     {
         using var document = JsonDocument.Parse(json);
         return document.RootElement.Clone();
+    }
+
+    private sealed class SynchronizedActivityCollection : ICollection<Activity>
+    {
+        private readonly object _gate = new();
+        private readonly List<Activity> _items = [];
+
+        public int Count
+        {
+            get
+            {
+                lock (_gate)
+                    return _items.Count;
+            }
+        }
+
+        public bool IsReadOnly => false;
+
+        public void Add(Activity item)
+        {
+            lock (_gate)
+                _items.Add(item);
+        }
+
+        public void Clear()
+        {
+            lock (_gate)
+                _items.Clear();
+        }
+
+        public bool Contains(Activity item)
+        {
+            lock (_gate)
+                return _items.Contains(item);
+        }
+
+        public void CopyTo(Activity[] array, int arrayIndex)
+        {
+            lock (_gate)
+                _items.CopyTo(array, arrayIndex);
+        }
+
+        public bool Remove(Activity item)
+        {
+            lock (_gate)
+                return _items.Remove(item);
+        }
+
+        public Activity[] Snapshot()
+        {
+            lock (_gate)
+                return _items.ToArray();
+        }
+
+        public IEnumerator<Activity> GetEnumerator()
+            => ((IEnumerable<Activity>)Snapshot()).GetEnumerator();
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+            => GetEnumerator();
     }
 
     private sealed class TraceCloudGatewayClient : ICopilotCloudGatewayClient
