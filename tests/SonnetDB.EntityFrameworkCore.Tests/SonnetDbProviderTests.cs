@@ -94,6 +94,118 @@ public sealed class SonnetDbProviderTests : IDisposable
     }
 
     [Fact]
+    public async Task Query_DateTimeNowDate_TranslatesAndExecutes()
+    {
+        using var context = new EventContext(CreateOptions<EventContext>());
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE \"Events\" (\"Id\" INT NOT NULL, \"OccurredAt\" DATETIME NOT NULL, PRIMARY KEY (\"Id\"))");
+        var today = DateTime.Now.Date;
+        context.Events.AddRange(
+            new EventRecord { Id = 1, OccurredAt = today },
+            new EventRecord { Id = 2, OccurredAt = today.AddDays(-1) });
+        await context.SaveChangesAsync();
+
+        var query = context.Events.Where(item =>
+            DateTime.Now.Date >= item.OccurredAt
+            && DateTime.Now.Date <= item.OccurredAt);
+        var sql = query.ToQueryString();
+        var todaySql = context.Events
+            .Where(item => item.OccurredAt == DateTime.Today)
+            .ToQueryString();
+        var ids = await query.Select(item => item.Id).ToArrayAsync();
+
+        Assert.Contains("CURRENT_DATETIME", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("DATE_ONLY", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("CURRENT_DATETIME", todaySql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("DATE_ONLY", todaySql, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal([1L], ids);
+    }
+
+    [Fact]
+    public async Task Query_DateMembersAndAddMethods_TranslateAndExecute()
+    {
+        using var context = new EventContext(CreateOptions<EventContext>());
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE \"Events\" (\"Id\" INT NOT NULL, \"OccurredAt\" DATETIME NOT NULL, PRIMARY KEY (\"Id\"))");
+        context.Events.AddRange(
+            new EventRecord
+            {
+                Id = 1,
+                OccurredAt = new DateTime(2026, 7, 10, 15, 48, 56, 123, DateTimeKind.Utc)
+            },
+            new EventRecord
+            {
+                Id = 2,
+                OccurredAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            });
+        await context.SaveChangesAsync();
+
+        var expected = new DateTime(2026, 7, 11, 15, 48, 56, 123, DateTimeKind.Utc);
+        var query = context.Events.Where(item =>
+            item.OccurredAt.Year == 2026
+            && item.OccurredAt.Month == 7
+            && item.OccurredAt.Day == 10
+            && item.OccurredAt.Millisecond == 123
+            && item.OccurredAt.AddDays(1) == expected);
+        var sql = query.ToQueryString();
+        var ids = await query.Select(item => item.Id).ToArrayAsync();
+        var projection = await context.Events
+            .Where(item => item.Id == 1)
+            .Select(item => new
+            {
+                Date = item.OccurredAt.Date,
+                NextDay = item.OccurredAt.AddDays(1)
+            })
+            .SingleAsync();
+
+        Assert.Contains("DATE_PART", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("DATE_ADD_DATETIME", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal([1L], ids);
+        Assert.Equal(new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc), projection.Date);
+        Assert.Equal(expected, projection.NextDay);
+    }
+
+    [Fact]
+    public async Task Query_DateTimeOffsetMembersAndMethods_TranslateAndExecute()
+    {
+        using var context = new OffsetEventContext(CreateOptions<OffsetEventContext>());
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE \"OffsetEvents\" (\"Id\" INT NOT NULL, \"OccurredAt\" DATETIME NOT NULL, PRIMARY KEY (\"Id\"))");
+        var occurredAt = new DateTimeOffset(2026, 7, 10, 15, 48, 56, TimeSpan.Zero);
+        context.Events.Add(new OffsetEventRecord { Id = 1, OccurredAt = occurredAt });
+        await context.SaveChangesAsync();
+
+        var expected = occurredAt.AddHours(2);
+        var unixMilliseconds = occurredAt.ToUnixTimeMilliseconds();
+        var query = context.Events.Where(item =>
+            item.OccurredAt.Year == 2026
+            && item.OccurredAt.AddHours(2) == expected
+            && item.OccurredAt.ToUnixTimeMilliseconds() == unixMilliseconds
+            && item.OccurredAt <= DateTimeOffset.UtcNow);
+        var sql = query.ToQueryString();
+        var projection = await query
+            .Select(item => new
+            {
+                Date = item.OccurredAt.Date,
+                Adjusted = item.OccurredAt.AddHours(2),
+                DateTime = item.OccurredAt.DateTime,
+                UtcDateTime = item.OccurredAt.UtcDateTime,
+                LocalDateTime = item.OccurredAt.LocalDateTime
+            })
+            .SingleAsync();
+
+        Assert.Contains("DATE_PART", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("DATE_ADD_DATETIME_OFFSET", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("TO_UNIX_MILLISECONDS", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("CURRENT_UTC_DATETIME_OFFSET", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(occurredAt.Date, projection.Date);
+        Assert.Equal(expected, projection.Adjusted);
+        Assert.Equal(occurredAt.DateTime, projection.DateTime);
+        Assert.Equal(occurredAt.UtcDateTime, projection.UtcDateTime);
+        Assert.Equal(occurredAt.LocalDateTime, projection.LocalDateTime);
+    }
+
+    [Fact]
     public async Task UseSonnetDB_WithExistingConnection_PerformsCrud()
     {
         await using var connection = new SndbConnection($"Data Source={_root}");
@@ -1200,6 +1312,29 @@ public sealed class SonnetDbProviderTests : IDisposable
         public long Id { get; set; }
 
         public DateTime OccurredAt { get; set; }
+    }
+
+    private sealed class OffsetEventContext(DbContextOptions<OffsetEventContext> options) : DbContext(options)
+    {
+        public DbSet<OffsetEventRecord> Events => Set<OffsetEventRecord>();
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<OffsetEventRecord>(entity =>
+            {
+                entity.ToTable("OffsetEvents");
+                entity.HasKey(item => item.Id);
+                entity.Property(item => item.Id).HasColumnType("INT").ValueGeneratedNever();
+                entity.Property(item => item.OccurredAt).HasColumnType("DATETIME");
+            });
+        }
+    }
+
+    private sealed class OffsetEventRecord
+    {
+        public long Id { get; set; }
+
+        public DateTimeOffset OccurredAt { get; set; }
     }
 
     private sealed class Device

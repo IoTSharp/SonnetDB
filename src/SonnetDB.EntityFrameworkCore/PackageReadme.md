@@ -38,5 +38,6 @@ var online = await context.Devices
 - 支持关系表基础 CRUD、类型映射、SQL 生成和 `ToQueryString()`。
 - 支持 migrations SQL、默认 `__EFMigrationsHistory` 和自定义 history table。
 - 支持 `StartsWith`、`EndsWith`、`Contains` 到 `LIKE` 的基础字符串模式翻译。
+- 支持 `DateTime` / `DateTimeOffset` 的 `Now`、`UtcNow`、`Today`、`Date`、常用日期分量、`AddYears` 至 `AddTicks`，以及 `DateTimeOffset.ToUnixTimeSeconds()` / `ToUnixTimeMilliseconds()` 翻译。
 
 该 Provider 依赖 SonnetDB 当前关系表能力，完整兼容性以仓库测试和发布说明为准。

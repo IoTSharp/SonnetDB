@@ -223,6 +223,32 @@ public sealed class SqlExecutorTableTests : IDisposable
     }
 
     [Fact]
+    public void Select_WithDateScalarFunctions_TransformsDateTimeValues()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE events (id INT, occurred_at DATETIME, PRIMARY KEY (id))");
+        var occurredAt = new DateTime(2026, 7, 10, 15, 48, 56, 123, DateTimeKind.Utc);
+        var unixMilliseconds = new DateTimeOffset(occurredAt).ToUnixTimeMilliseconds();
+        SqlExecutor.Execute(db,
+            $"INSERT INTO events (id, occurred_at) VALUES (1, {unixMilliseconds})");
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT DATE_ONLY(occurred_at),
+                   DATE_PART('year', occurred_at),
+                   DATE_PART('day_of_week', occurred_at),
+                   DATE_ADD(occurred_at, 1, 'day')
+            FROM events
+            WHERE DATE_PART('month', occurred_at) = 7
+            """));
+
+        var row = Assert.Single(result.Rows);
+        Assert.Equal(new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc), row[0]);
+        Assert.Equal(2026, row[1]);
+        Assert.Equal((int)DayOfWeek.Friday, row[2]);
+        Assert.Equal(new DateTimeOffset(occurredAt.AddDays(1)), row[3]);
+    }
+
+    [Fact]
     public void Select_OrderByMultipleColumns_SortsRows()
     {
         using var db = Tsdb.Open(Options());
@@ -1477,6 +1503,38 @@ public sealed class SqlExecutorTableTests : IDisposable
         Assert.Equal(2, result.Rows.Count);
         Assert.Equal(new object?[] { 3000L, "Pump A", "north", 21.0 }, result.Rows[0]);
         Assert.Equal(new object?[] { 1000L, "Pump A", "north", 20.5 }, result.Rows[1]);
+    }
+
+    [Fact]
+    public void Select_DateScalarFunction_WorksAcrossJoinExecutionPaths()
+    {
+        using var db = Tsdb.Open(Options());
+        var occurredAt = new DateTime(2026, 7, 10, 15, 48, 56, DateTimeKind.Utc);
+        var unixMilliseconds = new DateTimeOffset(occurredAt).ToUnixTimeMilliseconds();
+        SqlExecutor.Execute(db, "CREATE TABLE sites (id INT, installed_at DATETIME, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "CREATE TABLE devices (id STRING, site_id INT, installed_at DATETIME, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE MEASUREMENT temperature (device_id TAG, value FIELD FLOAT)");
+        SqlExecutor.Execute(db, $"INSERT INTO sites (id, installed_at) VALUES (1, {unixMilliseconds})");
+        SqlExecutor.Execute(db,
+            $"INSERT INTO devices (id, site_id, installed_at) VALUES ('dev-1', 1, {unixMilliseconds})");
+        SqlExecutor.Execute(db,
+            "INSERT INTO temperature (time, device_id, value) VALUES (1000, 'dev-1', 20.5)");
+
+        var relationalJoin = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT DATE_PART('year', s.installed_at)
+            FROM devices d
+            JOIN sites s ON d.site_id = s.id
+            """));
+        var measurementJoin = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT t.time
+            FROM temperature t
+            JOIN devices d ON t.device_id = d.id
+            WHERE DATE_PART('year', d.installed_at) = 2026
+            """));
+
+        Assert.Equal(2026, relationalJoin.Rows.Single()[0]);
+        Assert.Equal(1000L, measurementJoin.Rows.Single()[0]);
     }
 
     [Fact]

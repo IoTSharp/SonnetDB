@@ -1,6 +1,7 @@
 using System.Globalization;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
+using SonnetDB.Query.Functions;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Tables;
 
@@ -1374,7 +1375,15 @@ internal static class RelationalSelectExecutor
                     : null);
         }
 
-        throw new InvalidOperationException("关系表当前仅支持 json_value(json_column, '$.path')、lower(value)、upper(value)、coalesce(...)、regexp_like(...) 函数。");
+        if (FunctionRegistry.TryGetScalar(function.Name, out var scalarFunction))
+        {
+            var arguments = function.Arguments
+                .Select(argument => EvaluateScalar(tsdb, argument, columns, row, outerScope, memo))
+                .ToArray();
+            return scalarFunction.Evaluate(arguments);
+        }
+
+        throw new InvalidOperationException($"关系表不支持标量函数 '{function.Name}'。");
     }
 
     /// <summary>

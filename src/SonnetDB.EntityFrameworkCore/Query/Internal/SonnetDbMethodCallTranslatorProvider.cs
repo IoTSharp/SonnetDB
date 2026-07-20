@@ -16,6 +16,7 @@ public sealed class SonnetDbMethodCallTranslatorProvider : RelationalMethodCallT
     {
         AddTranslators(
         [
+            new SonnetDbDateTimeMethodTranslator(dependencies.SqlExpressionFactory),
             new SonnetDbRegexMethodTranslator(dependencies.SqlExpressionFactory),
             new SonnetDbStringMethodTranslator(dependencies.SqlExpressionFactory),
         ]);

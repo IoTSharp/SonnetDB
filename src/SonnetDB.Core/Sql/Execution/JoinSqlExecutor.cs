@@ -3,6 +3,7 @@ using SonnetDB.Catalog;
 using SonnetDB.Engine;
 using SonnetDB.Model;
 using SonnetDB.Query;
+using SonnetDB.Query.Functions;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Storage.Format;
 using SonnetDB.Tables;
@@ -463,11 +464,26 @@ internal static class JoinSqlExecutor
             LiteralExpression literal => EvaluateLiteral(literal),
             DurationLiteralExpression duration => duration.Milliseconds,
             IdentifierExpression identifier => context.GetValue(identifier),
+            FunctionCallExpression function => EvaluateFunction(function, context),
             UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => -RequireDouble(EvaluateScalar(unary.Operand, context), "一元负号"),
             BinaryExpression binary when IsArithmeticOperator(binary.Operator) => EvaluateArithmetic(binary, context),
             _ => throw new InvalidOperationException(
                 $"JOIN 表达式暂不支持 '{expression.GetType().Name}'。"),
         };
+
+    private static object? EvaluateFunction(FunctionCallExpression function, JoinRowContext context)
+    {
+        if (function.IsStar)
+            throw new InvalidOperationException($"JOIN 标量函数 {function.Name}(*) 非法。");
+
+        if (!FunctionRegistry.TryGetScalar(function.Name, out var scalarFunction))
+            throw new InvalidOperationException($"JOIN 不支持标量函数 '{function.Name}'。");
+
+        var arguments = function.Arguments
+            .Select(argument => EvaluateScalar(argument, context))
+            .ToArray();
+        return scalarFunction.Evaluate(arguments);
+    }
 
     private static object EvaluateArithmetic(BinaryExpression binary, JoinRowContext context)
     {

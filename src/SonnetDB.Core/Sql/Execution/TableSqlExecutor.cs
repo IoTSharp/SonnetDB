@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
+using SonnetDB.Query.Functions;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Tables;
 
@@ -1376,7 +1377,15 @@ internal static class TableSqlExecutor
                 function.Arguments.Count == 3 ? EvaluateScalar(function.Arguments[2], schema, row) : null);
         }
 
-        throw new InvalidOperationException("关系表当前仅支持 json_value(json_column, '$.path')、lower(value)、upper(value)、coalesce(...)、regexp_like(...) 函数。");
+        if (FunctionRegistry.TryGetScalar(function.Name, out var scalarFunction))
+        {
+            var arguments = function.Arguments
+                .Select(argument => EvaluateScalar(argument, schema, row))
+                .ToArray();
+            return scalarFunction.Evaluate(arguments);
+        }
+
+        throw new InvalidOperationException($"关系表不支持标量函数 '{function.Name}'。");
     }
 
     private static void ValidateRegexpLikeArguments(FunctionCallExpression function)

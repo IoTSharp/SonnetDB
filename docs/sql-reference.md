@@ -42,6 +42,24 @@ CREATE TABLE devices (
 - CHECK 按 SQL 三值逻辑执行：只有明确 `FALSE` 拒绝写入，`TRUE` 和由 `NULL` 传播得到的 `UNKNOWN` 均通过。
 - `ROWVERSION` 只能声明在一个 `INT` 列上；`INSERT` 自动写入 `1`，`UPDATE` 自动递增，可用 `WHERE id = ... AND version = ...` 获得乐观并发冲突检测。
 
+关系查询可在投影和谓词中使用以下日期标量函数：
+
+```sql
+SELECT DATE_ONLY(installed_at),
+       DATE_PART('year', installed_at),
+       DATE_ADD(installed_at, 7, 'day'),
+       TO_UNIX_MILLISECONDS(installed_at)
+FROM devices
+WHERE installed_at <= CURRENT_UTC_DATETIME();
+```
+
+- `CURRENT_DATETIME()` / `CURRENT_UTC_DATETIME()` 返回服务器本地时间 / UTC 时间；`CURRENT_DATETIME_OFFSET()` / `CURRENT_UTC_DATETIME_OFFSET()` 返回对应的 `DateTimeOffset`。
+- `DATE_ONLY(value)` 返回日期零点。
+- `DATE_PART(part, value)` 支持 `year`、`quarter`、`month`、`day`、`day_of_year`、`day_of_week`、`hour`、`minute`、`second`、`millisecond`、`microsecond`、`nanosecond`；`day_of_week` 与 .NET 一致，星期日为 `0`。
+- `DATE_ADD(value, amount, part)` 支持 `year`、`month`、`day`、`hour`、`minute`、`second`、`millisecond`、`microsecond`、`tick`；`year`、`month`、`tick` 要求整数增量。
+- `TO_UNIX_MILLISECONDS(value)` / `TO_UNIX_SECONDS(value)` 返回 Unix 时间。
+- 日期函数接受 `DATETIME` 或 Unix 毫秒；输入为 `NULL` 时结果为 `NULL`。时序分桶仍使用 `GROUP BY time(1m)` 等语法，不使用 `DATE_TRUNC`。
+
 已有表可追加或删除检查约束。追加前会扫描存量行；任一行明确违反约束时 DDL 失败且 catalog 保持原状。
 
 ```sql
@@ -659,7 +677,7 @@ SELECT 1 AS ok FROM cpu LIMIT 1
 - `SELECT *` 会展开为 `time + 所有 tag 列 + 所有 field 列`。
 - 支持字面量投影（如 `SELECT 1 ... LIMIT 1`），会按匹配到的时间轴返回常量列。
 - 当某个时间点缺少某个 field 时，结果列会返回 `NULL`。
-- 标量函数当前支持 `abs`、`round`、`sqrt`、`log`、`coalesce`。
+- 标量函数当前支持 `abs`、`round`、`sqrt`、`log`、`coalesce`、`lower`、`upper`、`regexp_like` 及上述日期函数。
 - 标量函数当前仅支持出现在 `SELECT` 投影中，可嵌套，也可接收算术表达式参数。
 - 支持 `FROM measurement [AS] alias` 单表别名，以及 `alias.column` / `alias."Column"` 限定列名；执行前会校验限定符必须匹配当前别名。
 - `coalesce(...)` 只会在当前结果行存在时参与求值；它不会额外扩展原始查询的时间轴。
