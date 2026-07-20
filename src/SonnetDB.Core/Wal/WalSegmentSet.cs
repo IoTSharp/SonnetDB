@@ -538,18 +538,13 @@ public sealed class WalSegmentSet : IDisposable
     {
         // WAL fsync 单点计量（M17 #89）：所有 fsync（每写 fsync / group-commit / flush checkpoint /
         // Delete 强制同步）都汇聚到这里。未监听时 Enabled=false 短路，不取时间戳。
-        long startTimestamp = Diagnostics.SonnetDbMeter.WalFsyncDuration.Enabled
-            ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
+        long startTimestamp = Diagnostics.SonnetDbMeter.StartWalFsyncTiming();
 
         _activeWriter!.Sync();
         _syncCount++;
         UpdateActiveSegmentInfoLocked();
 
-        if (startTimestamp != 0)
-        {
-            Diagnostics.SonnetDbMeter.WalFsyncDuration.Record(
-                System.Diagnostics.Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds);
-        }
+        Diagnostics.SonnetDbMeter.RecordTsdbWalFsync(startTimestamp);
     }
 
     private void ThrowIfDisposed()

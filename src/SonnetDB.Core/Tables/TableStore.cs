@@ -15,6 +15,7 @@ public sealed class TableStore : IDisposable
     private int _rowCount;
     private long _fullScanCount;
     private long _primaryKeyLookupCount;
+    private long _uniqueIndexValidationScanCount;
     private bool _disposed;
 
     internal TableStore(TableSchema schema, KvKeyspace keyspace)
@@ -77,6 +78,9 @@ public sealed class TableStore : IDisposable
     /// <summary>公开主键点读累计次数，供访问计划回归测试观测。</summary>
     internal long PrimaryKeyLookupCount => Interlocked.Read(ref _primaryKeyLookupCount);
 
+    /// <summary>公开唯一索引持久扫描累计次数，供未变化索引回归测试观测。</summary>
+    internal long UniqueIndexValidationScanCount => Interlocked.Read(ref _uniqueIndexValidationScanCount);
+
     /// <summary>底层 rowstore generation 旧文件回收状态。</summary>
     public KvCleanupStatus GetCleanupStatus() => _keyspace.GetCleanupStatus();
 
@@ -94,10 +98,9 @@ public sealed class TableStore : IDisposable
             byte[] primaryKey = TableKeyCodec.EncodePrimaryKey(schema, values);
             byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
             var oldRow = TryGetByRowKeyLocked(schema, rowKey);
-            byte[] value = TableRowCodec.Encode(schema, values);
             var operation = TableMutationOperation.Update(rowKey, oldRow, new TableRow(values.ToArray(), primaryKey));
             ValidateUniqueIndexesLocked(schema, operation);
-            ApplyMutationLocked(schema, operation, value);
+            ApplyMutationLocked(schema, operation);
             if (oldRow is null)
                 _rowCount++;
         }
@@ -119,11 +122,10 @@ public sealed class TableStore : IDisposable
             if (_keyspace.Get(rowKey) is not null)
                 throw new InvalidOperationException($"table '{schema.Name}' 中主键已存在。");
 
-            byte[] value = TableRowCodec.Encode(schema, values);
             var newRow = new TableRow(values.ToArray(), primaryKey);
             var operation = TableMutationOperation.Insert(rowKey, newRow);
             ValidateUniqueIndexesLocked(schema, operation);
-            ApplyMutationLocked(schema, operation, value);
+            ApplyMutationLocked(schema, operation);
             _rowCount++;
         }
     }
@@ -178,8 +180,7 @@ public sealed class TableStore : IDisposable
             var applied = new List<RollbackAction>(operations.Count * Math.Max(1, schema.Indexes.Count + 1));
             try
             {
-                foreach (var operation in operations)
-                    ApplyMutationLocked(schema, operation, TableRowCodec.Encode(schema, operation.NewRow!.Values), applied);
+                ApplyMutationsLocked(schema, operations, applied);
                 _rowCount = checked(_rowCount + operations.Count);
             }
             catch
@@ -295,7 +296,7 @@ public sealed class TableStore : IDisposable
             if (oldRow is null)
                 return false;
 
-            ApplyMutationLocked(schema, TableMutationOperation.Delete(rowKey, oldRow), encodedNewRow: null);
+            ApplyMutationLocked(schema, TableMutationOperation.Delete(rowKey, oldRow));
             _rowCount--;
             return true;
         }
@@ -513,18 +514,34 @@ public sealed class TableStore : IDisposable
 
         foreach (var index in schema.Indexes.Where(static i => i.IsUnique))
         {
+            byte[]? indexKey = TableIndexCodec.TryEncodeIndexEntryKey(
+                index,
+                operation.NewRow.Values,
+                schema,
+                operation.NewRow.PrimaryKey.Span);
+            if (indexKey is null)
+                continue;
+            if (operation.OldRow is not null)
+            {
+                byte[]? oldIndexKey = TableIndexCodec.TryEncodeIndexEntryKey(
+                    index,
+                    operation.OldRow.Values,
+                    schema,
+                    operation.OldRow.PrimaryKey.Span);
+                if (oldIndexKey is not null
+                    && oldIndexKey.AsSpan().SequenceEqual(indexKey)
+                    && operation.OldRow.PrimaryKey.Span.SequenceEqual(operation.NewRow.PrimaryKey.Span))
+                {
+                    continue;
+                }
+            }
+
             byte[]? prefix = TableIndexCodec.TryEncodeIndexPrefix(index, operation.NewRow.Values, schema);
             if (prefix is null)
                 continue;
+            Interlocked.Increment(ref _uniqueIndexValidationScanCount);
             foreach (var entry in _keyspace.ScanPrefix(prefix))
             {
-                byte[]? indexKey = TableIndexCodec.TryEncodeIndexEntryKey(
-                    index,
-                    operation.NewRow.Values,
-                    schema,
-                    operation.NewRow.PrimaryKey.Span);
-                if (indexKey is null)
-                    continue;
                 if (!entry.Key.Span.SequenceEqual(indexKey))
                     continue;
 
@@ -558,61 +575,73 @@ public sealed class TableStore : IDisposable
         }
     }
 
-    private void ApplyMutationLocked(TableSchema schema, TableMutationOperation operation, byte[]? encodedNewRow)
-        => ApplyMutationLocked(schema, operation, encodedNewRow, applied: null);
+    private void ApplyMutationLocked(TableSchema schema, TableMutationOperation operation)
+        => ApplyMutationsLocked(schema, [operation], applied: null);
 
-    private void ApplyMutationLocked(
+    private void ApplyMutationsLocked(
         TableSchema schema,
-        TableMutationOperation operation,
-        byte[]? encodedNewRow,
+        IReadOnlyList<TableMutationOperation> operations,
         List<RollbackAction>? applied)
     {
-        var oldIndexKeys = operation.OldRow is null
-            ? []
-            : BuildIndexEntries(schema, operation.OldRow);
-        var newIndexKeys = operation.NewRow is null
-            ? []
-            : BuildIndexEntries(schema, operation.NewRow);
-
-        try
+        var desiredValues = new Dictionary<byte[], byte[]?>(KvKeyComparer.Instance);
+        for (int i = 0; i < operations.Count; i++)
         {
-            foreach (var indexEntry in oldIndexKeys)
+            TableMutationOperation operation = operations[i];
+            if (operation.OldRow is null && operation.NewRow is null)
+                continue;
+
+            if (operation.OldRow is not null)
             {
-                byte[]? previous = _keyspace.Get(indexEntry.Key);
-                if (_keyspace.Delete(indexEntry.Key))
-                    applied?.Add(RollbackAction.Put(indexEntry.Key, previous ?? indexEntry.Value));
+                foreach (IndexEntry indexEntry in BuildIndexEntries(schema, operation.OldRow))
+                    desiredValues[indexEntry.Key] = null;
             }
 
             if (operation.NewRow is null)
             {
-                byte[]? previous = _keyspace.Get(operation.RowKey);
-                if (_keyspace.Delete(operation.RowKey))
-                    applied?.Add(RollbackAction.Put(operation.RowKey, previous ?? []));
+                desiredValues[operation.RowKey] = null;
             }
             else
             {
-                byte[]? previous = _keyspace.Get(operation.RowKey);
-                _keyspace.Put(operation.RowKey, encodedNewRow ?? TableRowCodec.Encode(schema, operation.NewRow.Values));
-                applied?.Add(previous is null
-                    ? RollbackAction.Delete(operation.RowKey)
-                    : RollbackAction.Put(operation.RowKey, previous));
+                desiredValues[operation.RowKey] = TableRowCodec.Encode(schema, operation.NewRow.Values);
+                foreach (IndexEntry indexEntry in BuildIndexEntries(schema, operation.NewRow))
+                    desiredValues[indexEntry.Key] = indexEntry.Value;
+            }
+        }
+
+        var mutations = new List<KvBatchMutation>(desiredValues.Count);
+        var rollback = applied is null ? null : new List<RollbackAction>(desiredValues.Count);
+        foreach ((byte[] key, byte[]? desiredValue) in desiredValues)
+        {
+            byte[]? previous = _keyspace.Get(key);
+            if (desiredValue is null)
+            {
+                if (previous is null)
+                    continue;
+                mutations.Add(KvBatchMutation.Delete(key));
+            }
+            else
+            {
+                bool isPrimaryRow = key.Length > 0 && key[0] == (byte)'r';
+                if (!isPrimaryRow
+                    && previous is not null
+                    && previous.AsSpan().SequenceEqual(desiredValue))
+                {
+                    continue;
+                }
+                mutations.Add(KvBatchMutation.Put(key, desiredValue));
             }
 
-            foreach (var indexEntry in newIndexKeys)
-            {
-                byte[]? previous = _keyspace.Get(indexEntry.Key);
-                _keyspace.Put(indexEntry.Key, indexEntry.Value);
-                applied?.Add(previous is null
-                    ? RollbackAction.Delete(indexEntry.Key)
-                    : RollbackAction.Put(indexEntry.Key, previous));
-            }
+            rollback?.Add(previous is null
+                ? RollbackAction.Delete(key)
+                : RollbackAction.Put(key, previous));
         }
-        catch
-        {
-            if (applied is not null)
-                RollbackAppliedLocked(applied);
-            throw;
-        }
+
+        if (mutations.Count == 0)
+            return;
+
+        _keyspace.ApplyBatch(mutations);
+        if (rollback is not null)
+            applied!.AddRange(rollback);
     }
 
     private IReadOnlyList<IndexEntry> BuildIndexEntries(TableSchema schema, TableRow row)
@@ -750,15 +779,20 @@ public sealed class TableStore : IDisposable
 
     private void RollbackAppliedLocked(List<RollbackAction> applied)
     {
+        if (applied.Count == 0)
+            return;
+
+        var mutations = new List<KvBatchMutation>(applied.Count);
         for (int i = applied.Count - 1; i >= 0; i--)
         {
             var action = applied[i];
             if (action.Value is null)
-                _keyspace.Delete(action.Key);
+                mutations.Add(KvBatchMutation.Delete(action.Key));
             else
-                _keyspace.Put(action.Key, action.Value);
+                mutations.Add(KvBatchMutation.Put(action.Key, action.Value));
         }
 
+        _keyspace.ApplyBatch(mutations);
         applied.Clear();
     }
 
@@ -832,46 +866,7 @@ public sealed class TableStore : IDisposable
         if (!ReferenceEquals(batch.Schema, _schema))
             throw new InvalidOperationException($"table '{_schema.Name}' schema 已变化，无法提交已准备的轻事务批次。");
 
-        bool isPureDeleteBatch = batch.Operations.Count > 1;
-        for (int i = 0; isPureDeleteBatch && i < batch.Operations.Count; i++)
-        {
-            var operation = batch.Operations[i];
-            isPureDeleteBatch = operation.OldRow is not null && operation.NewRow is null;
-        }
-
-        if (isPureDeleteBatch)
-        {
-            var keys = new List<byte[]>(batch.Operations.Count * Math.Max(1, batch.Schema.Indexes.Count + 1));
-            foreach (var operation in batch.Operations)
-            {
-                foreach (var indexEntry in BuildIndexEntries(batch.Schema, operation.OldRow!))
-                {
-                    keys.Add(indexEntry.Key);
-                    batch.Applied.Add(RollbackAction.Put(indexEntry.Key, indexEntry.Value));
-                }
-
-                keys.Add(operation.RowKey);
-                batch.Applied.Add(RollbackAction.Put(
-                    operation.RowKey,
-                    TableRowCodec.Encode(batch.Schema, operation.OldRow!.Values)));
-            }
-
-            _keyspace.DeleteMany(keys);
-        }
-        else
-        {
-            foreach (var operation in batch.Operations)
-            {
-                if (operation.OldRow is null && operation.NewRow is null)
-                    continue;
-
-                ApplyMutationLocked(
-                    batch.Schema,
-                    operation,
-                    operation.NewRow is null ? null : TableRowCodec.Encode(batch.Schema, operation.NewRow.Values),
-                    batch.Applied);
-            }
-        }
+        ApplyMutationsLocked(batch.Schema, batch.Operations, batch.Applied);
 
         _rowCount = checked(_rowCount + batch.RowCountDelta);
         batch.RowCountApplied = true;

@@ -33,6 +33,8 @@
 
 ### Added
 
+- KV WAL 升级为 v3，新增单 record、CRC-protected mixed put/delete 原子 batch；关系表在单个 table/keyspace 内把一个 prepared batch 合并为一次 WAL append 与至多一次 fsync，并跳过 key/value 未变化的二级索引写入和唯一索引扫描。reader 继续兼容 v1/v2，打开旧 active WAL 时会先密封再创建 v3 active；`PutMany` 现在原子提交且所有返回项共享同一 batch 版本。v3 active WAL 不支持降级后继续写入，跨 table/keyspace 的 crash-atomic coordinator WAL 仍不在此变更范围内。
+- 新增 `sonnetdb.lock.wait.duration` 关键存储锁等待直方图（固定 `lock.name=table_manager|kv_keyspace`），并让既有 `sonnetdb.wal.fsync.duration` 同时覆盖 TSDB/KV WAL、使用固定 `wal.kind=tsdb|kv` 区分低基数样本。
 - Server 新增数据库级 SQL HTTP 并发准入，REST `/sql`、`/sql/batch` 与 Frame SQL query 共享有界 permit/queue；队列满时 REST 在读取请求体前返回 `503` 与 `Retry-After`，Frame 返回保留 `streamId` 的 `sql_overloaded` 错误帧，许可数和队列长度可通过配置调整。
 - 关系表 `UPDATE` / `DELETE` 新增以普通关系表或 measurement 为数据源的非相关单列 `IN (SELECT ...)` 与 `NOT IN (SELECT ...)` 执行：子查询一次物化，支持参数、排序、分页、空集和 `NULL` 三值逻辑；相关、多列或未建立静态绑定合同的数据源在重型扫描前明确拒绝。正向单列主键 `IN` 使用点读，访问路径回归测试固定木垒 `TranCleaner` 形状 SQL 仅保留内层一次扫描、外层不再二次全表解码。
 - **M32 Document SDK 易用性第一批**：`SndbDocumentClient` 新增 extend-only 的 filter/projection/sort/update builder 和 AOT 友好 `SndbDocumentValue`，常用标量与调用方 `JsonTypeInfo<T>` 不再要求手工拼 JSON；新增 `FindCursor`、逐页 `MoveNextAsync` 与 `ReadAllAsync`，统一嵌入式/HTTP 的 `document_cursor_invalid/mismatch/expired/stale` 稳定错误码。旧 DTO、方法签名及成功请求/响应 payload 保持不变；游标失败的 HTTP `error` 从通用 `bad_request` 细化为上述稳定 code，混合 Bulk 结果模型仍按 M32 后续任务推进。

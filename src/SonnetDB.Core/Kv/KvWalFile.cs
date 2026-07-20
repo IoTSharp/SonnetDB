@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Buffers.Binary;
 using System.IO.Hashing;
 using System.Runtime.ExceptionServices;
+using SonnetDB.Diagnostics;
 
 namespace SonnetDB.Kv;
 
@@ -13,7 +14,9 @@ internal sealed class KvWalFile : IDisposable
     private const int PayloadPrefixBytesV1 = 8;
     private const int PayloadPrefixBytesV2 = 16;
     private const int HeaderCrcOffset = 28;
-    private const int CurrentVersion = 2;
+    private const int CurrentVersion = 3;
+    private const int MutationBatchMetadataBytes = sizeof(int);
+    private const int MutationMetadataBytes = sizeof(int) + sizeof(int) + sizeof(long);
 
     private static ReadOnlySpan<byte> Magic => "SDBKVWAL"u8;
 
@@ -24,11 +27,13 @@ internal sealed class KvWalFile : IDisposable
     private bool _disposed;
 
     internal Action? DisposeFlushTestHook { get; set; }
+    internal Action? SyncTestHook { get; set; }
 
     private KvWalFile(
         string path,
         FileStream fileStream,
         BufferedStream stream,
+        int version,
         long firstSequence,
         long nextSequence,
         long length)
@@ -36,12 +41,17 @@ internal sealed class KvWalFile : IDisposable
         Path = path;
         _fileStream = fileStream;
         _stream = stream;
+        Version = version;
         FirstSequence = firstSequence;
         _nextSequence = nextSequence;
         _length = length;
     }
 
     public string Path { get; }
+
+    public int Version { get; }
+
+    public bool SupportsMutationBatch => Version >= CurrentVersion;
 
     public long FirstSequence { get; }
 
@@ -80,13 +90,16 @@ internal sealed class KvWalFile : IDisposable
         var fs = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
         try
         {
+            int version = CurrentVersion;
             long firstSequence = startSequence;
             long nextSequence = startSequence;
             long validLength = HeaderSize;
 
             if (fileExists)
             {
-                firstSequence = ReadAndValidateHeader(fs);
+                KvWalHeaderInfo headerInfo = ReadAndValidateHeaderInfo(fs);
+                version = headerInfo.Version;
+                firstSequence = headerInfo.FirstSequence;
                 if (requireStartSequence && firstSequence != startSequence)
                 {
                     throw new InvalidDataException(
@@ -117,7 +130,7 @@ internal sealed class KvWalFile : IDisposable
 
             fs.Position = validLength;
             var stream = new BufferedStream(fs, bufferSize);
-            return new KvWalFile(path, fs, stream, firstSequence, nextSequence, validLength);
+            return new KvWalFile(path, fs, stream, version, firstSequence, nextSequence, validLength);
         }
         catch
         {
@@ -141,6 +154,62 @@ internal sealed class KvWalFile : IDisposable
         AppendRecord(KvWalRecordKind.Delete, sequence, key, default, expiresAtUtc: null);
         return sequence;
     }
+
+    /// <summary>把 mixed put/delete mutation 编码成单个带 CRC 的原子 WAL record。</summary>
+    public long AppendMutationBatch(IReadOnlyList<KvBatchMutation> mutations)
+    {
+        ArgumentNullException.ThrowIfNull(mutations);
+        ThrowIfDisposed();
+        if (!SupportsMutationBatch)
+            throw new InvalidOperationException("KV WAL v3 atomic batch cannot be appended to a legacy active WAL.");
+        if (mutations.Count == 0)
+            throw new ArgumentException("KV atomic batch 至少需要一个 mutation。", nameof(mutations));
+
+        int payloadLength = CalculateMutationBatchPayloadBytes(mutations);
+        byte[] rented = ArrayPool<byte>.Shared.Rent(payloadLength);
+        Span<byte> payload = rented.AsSpan(0, payloadLength);
+        try
+        {
+            BinaryPrimitives.WriteInt32LittleEndian(payload[..sizeof(int)], mutations.Count);
+            int offset = MutationBatchMetadataBytes;
+            for (int i = 0; i < mutations.Count; i++)
+            {
+                KvBatchMutation mutation = mutations[i];
+                ArgumentNullException.ThrowIfNull(mutation);
+                ArgumentNullException.ThrowIfNull(mutation.Key);
+                if (mutation.Key.Length == 0)
+                    throw new ArgumentException("KV atomic batch key 不能为空。", nameof(mutations));
+                if (mutation.Value is null && mutation.ExpiresAtUtc.HasValue)
+                    throw new ArgumentException("KV delete mutation 不能设置 expires-at。", nameof(mutations));
+
+                int valueLength = mutation.Value?.Length ?? -1;
+                BinaryPrimitives.WriteInt32LittleEndian(payload.Slice(offset, sizeof(int)), mutation.Key.Length);
+                offset += sizeof(int);
+                BinaryPrimitives.WriteInt32LittleEndian(payload.Slice(offset, sizeof(int)), valueLength);
+                offset += sizeof(int);
+                BinaryPrimitives.WriteInt64LittleEndian(payload.Slice(offset, sizeof(long)), mutation.ExpiresAtUtc?.UtcTicks ?? 0);
+                offset += sizeof(long);
+                mutation.Key.CopyTo(payload.Slice(offset, mutation.Key.Length));
+                offset += mutation.Key.Length;
+                if (mutation.Value is { Length: > 0 } value)
+                {
+                    value.CopyTo(payload.Slice(offset, value.Length));
+                    offset += value.Length;
+                }
+            }
+
+            long sequence = _nextSequence++;
+            AppendRecord(KvWalRecordKind.MutationBatch, sequence, ReadOnlySpan<byte>.Empty, payload, expiresAtUtc: null);
+            return sequence;
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(rented);
+        }
+    }
+
+    internal static long CalculateMutationBatchRecordBytes(IReadOnlyList<KvBatchMutation> mutations)
+        => checked(RecordHeaderSize + PayloadPrefixBytesV2 + (long)CalculateMutationBatchPayloadBytes(mutations));
 
     /// <summary>追加 generation 切换记录。</summary>
     public long AppendClearGeneration(long generation)
@@ -225,8 +294,11 @@ internal sealed class KvWalFile : IDisposable
     public void Sync()
     {
         ThrowIfDisposed();
+        long startTimestamp = SonnetDbMeter.StartWalFsyncTiming();
+        SyncTestHook?.Invoke();
         _stream!.Flush();
         _fileStream!.Flush(flushToDisk: true);
+        SonnetDbMeter.RecordKvWalFsync(startTimestamp);
     }
 
     public void Seal(string sealedPath)
@@ -376,6 +448,7 @@ internal sealed class KvWalFile : IDisposable
                         or KvWalRecordKind.ClearGeneration
                         or KvWalRecordKind.DeleteBatch
                         or KvWalRecordKind.DeleteBatchCommit
+                        or KvWalRecordKind.MutationBatch
                         ? value
                         : null,
                     expiresAtUtc);
@@ -559,7 +632,7 @@ internal sealed class KvWalFile : IDisposable
             throw new InvalidDataException("KV WAL header is invalid.");
         }
 
-        return new KvWalHeaderInfo(firstSequence, createdUtcTicks);
+        return new KvWalHeaderInfo(version, firstSequence, createdUtcTicks);
     }
 
     private static (long LastSequence, long LastValidOffset) ScanForLastValidRecord(
@@ -696,6 +769,7 @@ internal sealed class KvWalFile : IDisposable
                 or KvWalRecordKind.ClearGeneration
                 or KvWalRecordKind.DeleteBatch
                 or KvWalRecordKind.DeleteBatchCommit
+                or KvWalRecordKind.MutationBatch
                 ? value
                 : null,
             expiresAtUtc);
@@ -725,7 +799,8 @@ internal sealed class KvWalFile : IDisposable
             && rawKind != (byte)KvWalRecordKind.Delete
             && rawKind != (byte)KvWalRecordKind.ClearGeneration
             && rawKind != (byte)KvWalRecordKind.DeleteBatch
-            && rawKind != (byte)KvWalRecordKind.DeleteBatchCommit)
+            && rawKind != (byte)KvWalRecordKind.DeleteBatchCommit
+            && rawKind != (byte)KvWalRecordKind.MutationBatch)
             return false;
 
         kind = (KvWalRecordKind)rawKind;
@@ -761,6 +836,8 @@ internal sealed class KvWalFile : IDisposable
                 && valueLength >= sizeof(long) + (sizeof(int) * 4),
             KvWalRecordKind.DeleteBatchCommit => keyLength == 0
                 && valueLength == sizeof(long) + (sizeof(int) * 2),
+            KvWalRecordKind.MutationBatch => keyLength == 0
+                && valueLength >= MutationBatchMetadataBytes + MutationMetadataBytes + 1,
             _ => false,
         };
         if (!validShape)
@@ -845,6 +922,91 @@ internal sealed class KvWalFile : IDisposable
         return new KvDeleteBatchCommit(batchId, totalChunks, totalKeys);
     }
 
+    internal static IReadOnlyList<KvBatchMutation> DecodeMutationBatch(KvWalRecord record)
+    {
+        if (record.Kind != KvWalRecordKind.MutationBatch
+            || record.Value is not { Length: >= MutationBatchMetadataBytes + MutationMetadataBytes + 1 } payload)
+        {
+            throw new InvalidDataException("KV atomic batch WAL record payload is invalid.");
+        }
+
+        int count = BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(0, sizeof(int)));
+        int maximumCount = (payload.Length - MutationBatchMetadataBytes) / (MutationMetadataBytes + 1);
+        if (count <= 0 || count > maximumCount)
+            throw new InvalidDataException("KV atomic batch WAL record contains an invalid mutation count.");
+
+        var mutations = new List<KvBatchMutation>(count);
+        int offset = MutationBatchMetadataBytes;
+        for (int i = 0; i < count; i++)
+        {
+            if (offset > payload.Length - MutationMetadataBytes)
+                throw new InvalidDataException("KV atomic batch WAL record is truncated.");
+
+            int keyLength = BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(offset, sizeof(int)));
+            offset += sizeof(int);
+            int valueLength = BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(offset, sizeof(int)));
+            offset += sizeof(int);
+            long expiresAtUtcTicks = BinaryPrimitives.ReadInt64LittleEndian(payload.AsSpan(offset, sizeof(long)));
+            offset += sizeof(long);
+            if (keyLength <= 0 || valueLength < -1 || expiresAtUtcTicks < 0)
+                throw new InvalidDataException("KV atomic batch WAL record contains invalid mutation metadata.");
+            if (valueLength < 0 && expiresAtUtcTicks != 0)
+                throw new InvalidDataException("KV atomic batch delete mutation contains expires-at metadata.");
+
+            int mutationBytes;
+            try
+            {
+                mutationBytes = checked(keyLength + Math.Max(valueLength, 0));
+            }
+            catch (OverflowException ex)
+            {
+                throw new InvalidDataException("KV atomic batch mutation length overflowed.", ex);
+            }
+            if (offset > payload.Length - mutationBytes)
+                throw new InvalidDataException("KV atomic batch WAL record contains a truncated mutation.");
+
+            byte[] key = payload.AsSpan(offset, keyLength).ToArray();
+            offset += keyLength;
+            byte[]? value = valueLength < 0 ? null : payload.AsSpan(offset, valueLength).ToArray();
+            offset += Math.Max(valueLength, 0);
+            DateTimeOffset? expiresAtUtc;
+            try
+            {
+                expiresAtUtc = expiresAtUtcTicks == 0
+                    ? null
+                    : new DateTimeOffset(expiresAtUtcTicks, TimeSpan.Zero);
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                throw new InvalidDataException("KV atomic batch WAL record contains an invalid expires-at value.", ex);
+            }
+            mutations.Add(new KvBatchMutation(key, value, expiresAtUtc));
+        }
+
+        if (offset != payload.Length)
+            throw new InvalidDataException("KV atomic batch WAL record contains trailing bytes.");
+        return mutations;
+    }
+
+    private static int CalculateMutationBatchPayloadBytes(IReadOnlyList<KvBatchMutation> mutations)
+    {
+        long payloadLength = MutationBatchMetadataBytes;
+        for (int i = 0; i < mutations.Count; i++)
+        {
+            KvBatchMutation mutation = mutations[i];
+            ArgumentNullException.ThrowIfNull(mutation);
+            ArgumentNullException.ThrowIfNull(mutation.Key);
+            payloadLength = checked(payloadLength
+                + MutationMetadataBytes
+                + mutation.Key.Length
+                + (mutation.Value?.Length ?? 0));
+        }
+
+        if (payloadLength > int.MaxValue - PayloadPrefixBytesV2)
+            throw new ArgumentOutOfRangeException(nameof(mutations), "KV atomic batch WAL payload is too large.");
+        return (int)payloadLength;
+    }
+
     private static int ReadExact(Stream stream, Span<byte> buffer)
     {
         int total = 0;
@@ -875,4 +1037,4 @@ internal readonly record struct KvWalReplayInfo(long FirstSequence, long LastSeq
     public long NextSequence => checked(LastSequence + 1);
 }
 
-internal readonly record struct KvWalHeaderInfo(long FirstSequence, long CreatedUtcTicks);
+internal readonly record struct KvWalHeaderInfo(int Version, long FirstSequence, long CreatedUtcTicks);

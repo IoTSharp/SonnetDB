@@ -128,6 +128,8 @@ public sealed class KvKeyspace : IDisposable
 
     internal Action? GenerationSaveTestHook { get; set; }
 
+    internal Action? BaseLookupTestHook { get; set; }
+
     internal Action? WalDisposeFlushTestHook
     {
         set
@@ -136,6 +138,18 @@ public sealed class KvKeyspace : IDisposable
             {
                 if (_wal is not null)
                     _wal.DisposeFlushTestHook = value;
+            }
+        }
+    }
+
+    internal Action? WalSyncTestHook
+    {
+        set
+        {
+            lock (_sync)
+            {
+                if (_wal is not null)
+                    _wal.SyncTestHook = value;
             }
         }
     }
@@ -182,6 +196,7 @@ public sealed class KvKeyspace : IDisposable
         string walPath = ActiveWalPath(rootDirectory);
         IReadOnlyList<string> sealedWalPaths = EnumerateSealedWalPaths(rootDirectory);
         IReadOnlyList<string> replaySealedWalPaths = sealedWalPaths;
+        bool upgradedLegacyWalWithRecords = false;
         KvWalFile? wal = null;
 
         try
@@ -276,6 +291,11 @@ public sealed class KvKeyspace : IDisposable
                 requireStartSequence: legacyResetWal || nextReplaySequence.HasValue,
                 requireRecordSequenceContinuity: true,
                 allowLegacyFirstRecordSequence: legacyResetWal);
+            if (!wal.SupportsMutationBatch)
+            {
+                upgradedLegacyWalWithRecords = wal.HasRecords;
+                wal = UpgradeLegacyActiveWal(rootDirectory, wal, options);
+            }
             SonnetDB.Wal.DirectoryFsync.FlushRequired(WalDirectory(rootDirectory));
             lastSequence = Math.Max(lastSequence, wal.NextSequence - 1);
             if (awaitingGenerationBoundary)
@@ -304,7 +324,7 @@ public sealed class KvKeyspace : IDisposable
                 wal);
             keyspace.EnsureCleanupManifestLocked();
             lock (keyspace._sync)
-                keyspace.ScheduleAutoCheckpointLocked(force: sealedWalPaths.Count > 0);
+                keyspace.ScheduleAutoCheckpointLocked(force: sealedWalPaths.Count > 0 || upgradedLegacyWalWithRecords);
             return keyspace;
         }
         catch
@@ -330,8 +350,10 @@ public sealed class KvKeyspace : IDisposable
         byte[] keyCopy = key.ToArray();
         byte[] valueCopy = value.ToArray();
 
+        long lockWait = SonnetDbMeter.StartLockWaitTiming();
         lock (_sync)
         {
+            SonnetDbMeter.RecordKvKeyspaceLockWait(lockWait);
             ThrowIfDisposed();
             WaitForWriteBudgetLocked();
             return PutLocked(keyCopy, valueCopy, expiresAtUtc);
@@ -689,8 +711,10 @@ public sealed class KvKeyspace : IDisposable
         ValidateKey(key, _options);
         byte[] lookup = key.ToArray();
 
+        long lockWait = SonnetDbMeter.StartLockWaitTiming();
         lock (_sync)
         {
+            SonnetDbMeter.RecordKvKeyspaceLockWait(lockWait);
             ThrowIfDisposed();
             WaitForWriteBudgetLocked();
             if (!TryGetEntryLocked(lookup, out var entry))
@@ -739,15 +763,101 @@ public sealed class KvKeyspace : IDisposable
         DateTimeOffset? expiresAtUtc = null)
     {
         ArgumentNullException.ThrowIfNull(values);
-        var result = new Dictionary<string, long>(StringComparer.Ordinal);
+        ValidateExpiresAtUtc(expiresAtUtc);
+        var operations = new List<KvBatchMutation>();
+        var keys = new List<string>();
         foreach (var pair in values)
         {
             ArgumentNullException.ThrowIfNull(pair.Key);
             ArgumentNullException.ThrowIfNull(pair.Value);
-            result[pair.Key] = Put(pair.Key, pair.Value, expiresAtUtc);
+            byte[] key = Encoding.UTF8.GetBytes(pair.Key);
+            ValidateKey(key, _options);
+            ValidateValue(pair.Value, _options);
+            operations.Add(KvBatchMutation.Put(key, pair.Value.ToArray(), expiresAtUtc));
+            keys.Add(pair.Key);
         }
 
+        var result = new Dictionary<string, long>(StringComparer.Ordinal);
+        if (operations.Count == 0)
+            return result;
+
+        long version = ApplyBatch(operations);
+        foreach (string key in keys)
+            result[key] = version;
         return result;
+    }
+
+    /// <summary>
+    /// 把 mixed put/delete 作为单个 CRC-protected WAL record 提交；在当前 keyspace 内整批发布，
+    /// 且启用 <see cref="KvOptions.SyncWalOnEveryWrite"/> 时整批只执行一次 fsync。
+    /// </summary>
+    internal long ApplyBatch(IReadOnlyList<KvBatchMutation> mutations)
+    {
+        ArgumentNullException.ThrowIfNull(mutations);
+        if (mutations.Count == 0)
+            return LastSequence;
+
+        var canonical = new Dictionary<byte[], KvBatchMutation>(KvKeyComparer.Instance);
+        for (int i = 0; i < mutations.Count; i++)
+        {
+            KvBatchMutation mutation = mutations[i];
+            ArgumentNullException.ThrowIfNull(mutation);
+            ArgumentNullException.ThrowIfNull(mutation.Key);
+            ValidateKey(mutation.Key, _options);
+            if (mutation.Value is { } value)
+                ValidateValue(value, _options);
+            else if (mutation.ExpiresAtUtc.HasValue)
+                throw new ArgumentException("KV delete mutation 不能设置 expires-at。", nameof(mutations));
+            ValidateExpiresAtUtc(mutation.ExpiresAtUtc);
+
+            byte[] keyCopy = mutation.Key.ToArray();
+            canonical[keyCopy] = mutation.Value is null
+                ? KvBatchMutation.Delete(keyCopy)
+                : KvBatchMutation.Put(keyCopy, mutation.Value.ToArray(), mutation.ExpiresAtUtc);
+        }
+
+        KvBatchMutation[] batch = canonical.Values.ToArray();
+        long requiredWalBytes = KvWalFile.CalculateMutationBatchRecordBytes(batch);
+        long lockWait = SonnetDbMeter.StartLockWaitTiming();
+        lock (_sync)
+        {
+            SonnetDbMeter.RecordKvKeyspaceLockWait(lockWait);
+            ThrowIfDisposed();
+            WaitForWriteBudgetLocked();
+            long expectedSequence = _wal!.NextSequence;
+            var publishPlan = PrepareMutationPublishPlanLocked(batch, expectedSequence);
+            EnsureAtomicMutationBatchFitsBudgetLocked(publishPlan.OverlayEntryCount, requiredWalBytes);
+            _values.EnsureCapacity(publishPlan.OverlayEntryCount);
+
+            long sequence;
+            try
+            {
+                sequence = _wal.AppendMutationBatch(batch);
+                if (_options.SyncWalOnEveryWrite)
+                    _wal.Sync();
+            }
+            catch (Exception ex)
+            {
+                _writeFault = ex;
+                throw;
+            }
+            Debug.Assert(sequence == expectedSequence);
+
+            for (int i = 0; i < batch.Length; i++)
+            {
+                if (publishPlan.Values[i] is null)
+                    _values.Remove(batch[i].Key);
+            }
+            for (int i = 0; i < batch.Length; i++)
+            {
+                if (publishPlan.Values[i] is { } value)
+                    _values[batch[i].Key] = value;
+            }
+
+            _lastSequence = sequence;
+            ScheduleAutoCheckpointLocked();
+            return sequence;
+        }
     }
 
     /// <summary>
@@ -786,8 +896,10 @@ public sealed class KvKeyspace : IDisposable
         if (keys.Count == 0)
             return 0;
 
+        long lockWait = SonnetDbMeter.StartLockWaitTiming();
         lock (_sync)
         {
+            SonnetDbMeter.RecordKvKeyspaceLockWait(lockWait);
             ThrowIfDisposed();
             WaitForWriteBudgetLocked();
             var unique = new HashSet<byte[]>(KvKeyComparer.Instance);
@@ -1480,6 +1592,23 @@ public sealed class KvKeyspace : IDisposable
                 ApplyDeleteRecord(state, record.Key, record.Sequence);
                 return;
 
+            case KvWalRecordKind.MutationBatch:
+                foreach (KvBatchMutation mutation in KvWalFile.DecodeMutationBatch(record))
+                {
+                    if (mutation.Value is null)
+                    {
+                        ApplyDeleteRecord(state, mutation.Key, record.Sequence);
+                    }
+                    else
+                    {
+                        state.Values[mutation.Key] = new KvValueEntry(
+                            mutation.Value,
+                            record.Sequence,
+                            mutation.ExpiresAtUtc);
+                    }
+                }
+                return;
+
             default:
                 throw new InvalidDataException($"不支持的 KV WAL record kind '{record.Kind}'。");
         }
@@ -1973,6 +2102,24 @@ public sealed class KvKeyspace : IDisposable
         SonnetDB.Wal.DirectoryFsync.FlushRequired(WalDirectory(RootDirectory));
     }
 
+    private static KvWalFile UpgradeLegacyActiveWal(string rootDirectory, KvWalFile legacyWal, KvOptions options)
+    {
+        long nextSequence = legacyWal.NextSequence;
+        string activeWalPath = ActiveWalPath(rootDirectory);
+        if (legacyWal.HasRecords)
+        {
+            string sealedWalPath = SealedWalPath(rootDirectory, checked(nextSequence - 1));
+            legacyWal.Seal(sealedWalPath);
+        }
+        else
+        {
+            legacyWal.Dispose();
+            File.Delete(activeWalPath);
+        }
+
+        return KvWalFile.Open(activeWalPath, nextSequence, options.WalBufferSize);
+    }
+
     private bool TryDeleteExpiredLocked(byte[] key, KvValueEntry entry, DateTimeOffset utcNow)
     {
         if (!entry.IsExpired(utcNow))
@@ -1994,11 +2141,29 @@ public sealed class KvKeyspace : IDisposable
         if (!TryGetEntryLocked(key, out _))
             return false;
 
-        long sequence = _wal!.AppendDelete(key);
-        if (_options.SyncWalOnEveryWrite)
-            _wal.Sync();
-
-        ApplyDeleteLocked(key, sequence);
+        long expectedSequence = _wal!.NextSequence;
+        KvValueEntry? publishedValue = BaseContainsVisibleLocked(key)
+            ? KvValueEntry.Deleted(expectedSequence)
+            : null;
+        int overlayEntryCount = ProjectOverlayEntryCountLocked(
+            _values.Count,
+            key,
+            publishedValue is not null);
+        _values.EnsureCapacity(overlayEntryCount);
+        long sequence;
+        try
+        {
+            sequence = _wal!.AppendDelete(key);
+            if (_options.SyncWalOnEveryWrite)
+                _wal.Sync();
+        }
+        catch (Exception ex)
+        {
+            _writeFault = ex;
+            throw;
+        }
+        Debug.Assert(sequence == expectedSequence);
+        PublishPlannedValueLocked(key, publishedValue);
 
         _lastSequence = sequence;
         ScheduleAutoCheckpointLocked();
@@ -2043,23 +2208,46 @@ public sealed class KvKeyspace : IDisposable
         }
 
         requiredWalBytes = checked(requiredWalBytes + 32L + 16L + sizeof(long) + (sizeof(int) * 2));
-        EnsureAtomicDeleteBatchFitsBudgetLocked(materialized.Length, requiredWalBytes);
-
         long batchId = _wal!.NextSequence;
-        for (int i = 0; i < chunks.Count; i++)
-            _wal.AppendDeleteBatch(batchId, i, chunks.Count, chunks[i]);
-        long commitSequence = _wal.AppendDeleteBatchCommit(batchId, chunks.Count, materialized.Length);
-        if (_options.SyncWalOnEveryWrite)
-            _wal.Sync();
+        long expectedCommitSequence = checked(batchId + chunks.Count);
+        var publishPlan = PrepareDeletePublishPlanLocked(materialized, expectedCommitSequence);
+        EnsureAtomicDeleteBatchFitsBudgetLocked(publishPlan.OverlayEntryCount, requiredWalBytes);
+        _values.EnsureCapacity(publishPlan.OverlayEntryCount);
+
+        long commitSequence;
+        try
+        {
+            for (int i = 0; i < chunks.Count; i++)
+                _wal.AppendDeleteBatch(batchId, i, chunks.Count, chunks[i]);
+            commitSequence = _wal.AppendDeleteBatchCommit(batchId, chunks.Count, materialized.Length);
+            if (_options.SyncWalOnEveryWrite)
+                _wal.Sync();
+        }
+        catch (Exception ex)
+        {
+            _writeFault = ex;
+            throw;
+        }
+        Debug.Assert(commitSequence == expectedCommitSequence);
 
         for (int i = 0; i < materialized.Length; i++)
-            ApplyDeleteLocked(materialized[i], commitSequence);
+        {
+            if (publishPlan.Values[i] is null)
+                _values.Remove(materialized[i]);
+        }
+        for (int i = 0; i < materialized.Length; i++)
+        {
+            if (publishPlan.Values[i] is { } value)
+                _values[materialized[i]] = value;
+        }
         _lastSequence = commitSequence;
         ScheduleAutoCheckpointLocked();
         return materialized.Length;
     }
 
-    private void EnsureAtomicDeleteBatchFitsBudgetLocked(int keyCount, long requiredWalBytes)
+    private void EnsureAtomicDeleteBatchFitsBudgetLocked(
+        int overlayEntryCount,
+        long requiredWalBytes)
     {
         if (!_options.AutoCheckpointEnabled)
             return;
@@ -2068,7 +2256,7 @@ public sealed class KvKeyspace : IDisposable
             && (requiredWalBytes > _options.MaxWalBytes
                 || _wal!.Length > _options.MaxWalBytes - requiredWalBytes);
         bool overlayWouldExceedBudget = _options.MaxOverlayEntries > 0
-            && (long)_values.Count + keyCount > _options.MaxOverlayEntries;
+            && overlayEntryCount > _options.MaxOverlayEntries;
         if (!walWouldExceedBudget && !overlayWouldExceedBudget)
             return;
 
@@ -2079,10 +2267,78 @@ public sealed class KvKeyspace : IDisposable
             "retry with a smaller batch after checkpoint completion.");
     }
 
-    private void ApplyDeleteLocked(byte[] key, long sequence)
+    private void EnsureAtomicMutationBatchFitsBudgetLocked(
+        int overlayEntryCount,
+        long requiredWalBytes)
     {
-        if (BaseContainsVisibleLocked(key))
-            _values[key] = KvValueEntry.Deleted(sequence);
+        if (!_options.AutoCheckpointEnabled)
+            return;
+
+        bool walWouldExceedBudget = _options.MaxWalBytes > 0
+            && (requiredWalBytes > _options.MaxWalBytes
+                || _wal!.Length > _options.MaxWalBytes - requiredWalBytes);
+        bool overlayWouldExceedBudget = _options.MaxOverlayEntries > 0
+            && overlayEntryCount > _options.MaxOverlayEntries;
+        if (!walWouldExceedBudget && !overlayWouldExceedBudget)
+            return;
+
+        ScheduleAutoCheckpointLocked(force: true);
+        SonnetDbMeter.KvCheckpointWriteRejections.Add(1);
+        throw new IOException(
+            "KV atomic mutation batch was rejected before WAL append because it exceeds the checkpoint budget; "
+            + "retry with a smaller batch after checkpoint completion.");
+    }
+
+    private (KvValueEntry?[] Values, int OverlayEntryCount) PrepareDeletePublishPlanLocked(
+        IReadOnlyList<byte[]> keys,
+        long sequence)
+    {
+        var values = new KvValueEntry?[keys.Count];
+        int entryCount = _values.Count;
+        for (int i = 0; i < keys.Count; i++)
+        {
+            byte[] key = keys[i];
+            KvValueEntry? value = BaseContainsVisibleLocked(key)
+                ? KvValueEntry.Deleted(sequence)
+                : null;
+            values[i] = value;
+            entryCount = ProjectOverlayEntryCountLocked(entryCount, key, value is not null);
+        }
+        return (values, entryCount);
+    }
+
+    private (KvValueEntry?[] Values, int OverlayEntryCount) PrepareMutationPublishPlanLocked(
+        IReadOnlyList<KvBatchMutation> mutations,
+        long sequence)
+    {
+        var values = new KvValueEntry?[mutations.Count];
+        int entryCount = _values.Count;
+        for (int i = 0; i < mutations.Count; i++)
+        {
+            KvBatchMutation mutation = mutations[i];
+            KvValueEntry? value = mutation.Value is { } payload
+                ? new KvValueEntry(payload, sequence, mutation.ExpiresAtUtc)
+                : BaseContainsVisibleLocked(mutation.Key)
+                    ? KvValueEntry.Deleted(sequence)
+                    : null;
+            values[i] = value;
+            entryCount = ProjectOverlayEntryCountLocked(entryCount, mutation.Key, value is not null);
+        }
+        return (values, entryCount);
+    }
+
+    private int ProjectOverlayEntryCountLocked(int entryCount, byte[] key, bool remainsInOverlay)
+    {
+        bool currentlyInOverlay = _values.ContainsKey(key);
+        if (currentlyInOverlay == remainsInOverlay)
+            return entryCount;
+        return remainsInOverlay ? checked(entryCount + 1) : entryCount - 1;
+    }
+
+    private void PublishPlannedValueLocked(byte[] key, KvValueEntry? value)
+    {
+        if (value is not null)
+            _values[key] = value;
         else
             _values.Remove(key);
     }
@@ -2113,6 +2369,7 @@ public sealed class KvKeyspace : IDisposable
 
     private bool BaseContainsVisibleLocked(ReadOnlySpan<byte> key)
     {
+        BaseLookupTestHook?.Invoke();
         if (_frozenValues?.TryGetValue(key.ToArray(), out var frozenEntry) == true)
             return !frozenEntry.IsDeleted;
         return _diskState?.Contains(key) == true;
@@ -2460,7 +2717,7 @@ public sealed class KvKeyspace : IDisposable
         if (_writeFault is not null)
         {
             throw new IOException(
-                "KV keyspace is read-only after a committed maintenance failure; reopen it before writing.",
+                "KV keyspace is read-only after a WAL or committed maintenance failure; reopen it before writing.",
                 _writeFault);
         }
     }

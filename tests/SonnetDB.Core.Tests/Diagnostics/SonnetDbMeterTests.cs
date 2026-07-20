@@ -187,6 +187,38 @@ public sealed class SonnetDbMeterTests : IDisposable
     }
 
     [Fact]
+    public void WalFsyncTiming_RecordKinds_ReportsFixedTags()
+    {
+        using var collector = new MetricCollector();
+
+        long tsdbStart = SonnetDbMeter.StartWalFsyncTiming();
+        SonnetDbMeter.RecordTsdbWalFsync(tsdbStart);
+        long kvStart = SonnetDbMeter.StartWalFsyncTiming();
+        SonnetDbMeter.RecordKvWalFsync(kvStart);
+
+        var measurements = collector.Doubles("sonnetdb.wal.fsync.duration");
+        Assert.Contains(measurements, measurement => HasTag(measurement.Tags, "wal.kind", "tsdb"));
+        Assert.Contains(measurements, measurement => HasTag(measurement.Tags, "wal.kind", "kv"));
+        Assert.All(measurements, measurement => Assert.True(measurement.Value >= 0));
+    }
+
+    [Fact]
+    public void LockWaitTiming_RecordKinds_ReportsFixedTags()
+    {
+        using var collector = new MetricCollector();
+
+        long tableManagerStart = SonnetDbMeter.StartLockWaitTiming();
+        SonnetDbMeter.RecordTableManagerLockWait(tableManagerStart);
+        long kvKeyspaceStart = SonnetDbMeter.StartLockWaitTiming();
+        SonnetDbMeter.RecordKvKeyspaceLockWait(kvKeyspaceStart);
+
+        var measurements = collector.Doubles("sonnetdb.lock.wait.duration");
+        Assert.Contains(measurements, measurement => HasTag(measurement.Tags, "lock.name", "table_manager"));
+        Assert.Contains(measurements, measurement => HasTag(measurement.Tags, "lock.name", "kv_keyspace"));
+        Assert.All(measurements, measurement => Assert.True(measurement.Value >= 0));
+    }
+
+    [Fact]
     public void KvGenerationAndCleanup_RecordTaskMetrics()
     {
         using var collector = new MetricCollector();
@@ -520,4 +552,10 @@ public sealed class SonnetDbMeterTests : IDisposable
             1_700_000_000_000L + index,
             new Dictionary<string, string> { ["host"] = "h1" },
             new Dictionary<string, FieldValue> { ["value"] = FieldValue.FromDouble(index) });
+
+    private static bool HasTag(
+        IReadOnlyList<KeyValuePair<string, object?>> tags,
+        string key,
+        string value)
+        => tags.Any(tag => tag.Key == key && string.Equals(tag.Value as string, value, StringComparison.Ordinal));
 }

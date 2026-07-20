@@ -7,6 +7,7 @@ internal enum KvWalRecordKind : byte
     ClearGeneration = 3,
     DeleteBatch = 4,
     DeleteBatchCommit = 5,
+    MutationBatch = 6,
 }
 
 internal sealed class KvWalRecord

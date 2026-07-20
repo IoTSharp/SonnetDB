@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using SonnetDB.Engine;
 
@@ -38,10 +39,51 @@ public static class SonnetDbMeter
 
     // ── WAL ──────────────────────────────────────────────────────────────────
 
-    /// <summary>WAL fsync 时延（所有 fsync 汇聚于 <c>WalSegmentSet.Sync</c>，此处单点计量）。</summary>
+    /// <summary>
+    /// WAL fsync 时延；tag <c>wal.kind</c> ∈ tsdb|kv，分别覆盖时序 WAL 与 KV WAL。
+    /// </summary>
     internal static readonly Histogram<double> WalFsyncDuration = Meter.CreateHistogram<double>(
         "sonnetdb.wal.fsync.duration", unit: "ms",
         description: "Latency of WAL fsync (FlushFileBuffers / fdatasync).");
+
+    // WAL kind tags are deliberately closed over by the helpers below. This keeps callers from
+    // introducing table/key names or other high-cardinality values on the shared histogram.
+    private static readonly KeyValuePair<string, object?> WalKindTsdb = new("wal.kind", "tsdb");
+    private static readonly KeyValuePair<string, object?> WalKindKv = new("wal.kind", "kv");
+
+    /// <summary>仅在 WAL fsync 直方图启用时取得计时起点。</summary>
+    internal static long StartWalFsyncTiming()
+        => WalFsyncDuration.Enabled ? Stopwatch.GetTimestamp() : 0;
+
+    /// <summary>记录 TSDB WAL fsync 耗时。</summary>
+    internal static void RecordTsdbWalFsync(long startTimestamp)
+        => RecordElapsed(WalFsyncDuration, startTimestamp, WalKindTsdb);
+
+    /// <summary>记录 KV WAL fsync 耗时。</summary>
+    internal static void RecordKvWalFsync(long startTimestamp)
+        => RecordElapsed(WalFsyncDuration, startTimestamp, WalKindKv);
+
+    // ── 锁等待 ──────────────────────────────────────────────────────────────
+
+    /// <summary>获取关键存储锁前的等待耗时；tag <c>lock.name</c> 使用固定低基数集合。</summary>
+    internal static readonly Histogram<double> LockWaitDuration = Meter.CreateHistogram<double>(
+        "sonnetdb.lock.wait.duration", unit: "ms",
+        description: "Time spent waiting to acquire a critical storage lock.");
+
+    private static readonly KeyValuePair<string, object?> LockTableManager = new("lock.name", "table_manager");
+    private static readonly KeyValuePair<string, object?> LockKvKeyspace = new("lock.name", "kv_keyspace");
+
+    /// <summary>仅在锁等待直方图启用时取得计时起点。</summary>
+    internal static long StartLockWaitTiming()
+        => LockWaitDuration.Enabled ? Stopwatch.GetTimestamp() : 0;
+
+    /// <summary>记录关系事务管理器全局锁的等待耗时。</summary>
+    internal static void RecordTableManagerLockWait(long startTimestamp)
+        => RecordElapsed(LockWaitDuration, startTimestamp, LockTableManager);
+
+    /// <summary>记录 KV keyspace 锁的等待耗时。</summary>
+    internal static void RecordKvKeyspaceLockWait(long startTimestamp)
+        => RecordElapsed(LockWaitDuration, startTimestamp, LockKvKeyspace);
 
     // ── Flush ────────────────────────────────────────────────────────────────
 
@@ -153,6 +195,17 @@ public static class SonnetDbMeter
     internal static readonly KeyValuePair<string, object?> ThrottleFlushPending = new("reason", "flush_pending");
     internal static readonly KeyValuePair<string, object?> ThrottleCpuPressure = new("reason", "cpu_pressure");
     internal static readonly KeyValuePair<string, object?> ThrottleMemoryPressure = new("reason", "memory_pressure");
+
+    private static void RecordElapsed(
+        Histogram<double> histogram,
+        long startTimestamp,
+        KeyValuePair<string, object?> tag)
+    {
+        if (startTimestamp == 0)
+            return;
+
+        histogram.Record(Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds, tag);
+    }
 
     // ── per-db ObservableGauge（引擎实例注册表） ──────────────────────────────
 

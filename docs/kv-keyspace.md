@@ -40,6 +40,7 @@ kv.Delete("device:1001");
 | --- | --- |
 | `Tsdb.Keyspaces.Open(name)` | 打开或创建 keyspace。名称只允许字母、数字、点、下划线和短横线。 |
 | `Put(key, value, expiresAtUtc?)` | 写入或覆盖 key，返回单调递增版本号。可选 `DateTimeOffset` 指定到期时间；到期后读到 `false`/`null`，由后台 GC 真正回收。 |
+| `PutMany(values, expiresAtUtc?)` | 把多个 key 编码为单条原子 WAL batch；所有返回项共享同一个 batch commit 版本。 |
 | `Get(key)` / `TryGet(key, out value)` | 读取当前值，返回 value 副本。 |
 | `Delete(key)` | 删除 key。不存在时返回 `false`。 |
 | `ScanPrefix(prefix, limit)` | 按 key 字节序升序返回当前快照。 |
@@ -76,6 +77,8 @@ KV 使用独立文件格式，不复用时序写入路径的 `.SDBWAL` 或 `.SDB
 1. 加载最新 `segments/*.SDBKVSEG` 或 `snapshots/*.SDBKVSNP`。
 2. 回放 `wal/active.SDBKVWAL` 中高于该版本的记录。
 3. 遇到 WAL 尾部截断、header CRC 或 payload CRC 不匹配时停止在最后一条合法记录。
+
+KV WAL v3 增加 mixed put/delete `MutationBatch` record。batch 由单个 header CRC + payload CRC 保护，恢复时只会整批应用或整批忽略；v1/v2 仍可读取，旧 active WAL 在打开时会先密封，再创建 v3 active WAL。该原子性边界仅限单个 keyspace，不包含跨 table/keyspace 事务。
 
 `KvOptions.SyncWalOnEveryWrite` 默认开启，适合 metadata 和小对象场景。高吞吐场景可以关闭每写 fsync，再由调用方按需通过快照或压实形成更稳定的恢复点。
 

@@ -1,4 +1,5 @@
 using SonnetDB.Kv;
+using SonnetDB.Diagnostics;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
 
@@ -454,8 +455,12 @@ public sealed class TableManager : IDisposable
     }
 
     /// <summary>
-    /// 在同一数据库内原子提交多表 DML 轻事务。
+    /// 在同一数据库内提交多表 DML 轻事务；进程内失败通过反向补偿回滚。
     /// </summary>
+    /// <remarks>
+    /// 每个 table 使用独立 keyspace/WAL，因此本方法不提供跨 keyspace 的掉电原子性；
+    /// 单个 table/keyspace batch 的 WAL 提交是原子的。
+    /// </remarks>
     /// <param name="mutationsByTable">按表名分组的行变更。</param>
     /// <returns>实际影响的行数。</returns>
     public int ApplyTransaction(IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> mutationsByTable)
@@ -542,7 +547,7 @@ public sealed class TableManager : IDisposable
     }
 
     /// <summary>
-    /// 在同一数据库内原子提交多表 DML，并记录级联删除查找路径的内部性能计数。
+    /// 在同一数据库内提交多表 DML，并记录级联删除查找路径的内部性能计数。
     /// </summary>
     /// <param name="mutationsByTable">按表名分组的行变更。</param>
     /// <param name="metrics">级联删除展开阶段的执行计数。</param>
@@ -555,8 +560,10 @@ public sealed class TableManager : IDisposable
         if (mutationsByTable.Count == 0)
             return 0;
 
+        long lockWait = SonnetDbMeter.StartLockWaitTiming();
         lock (_sync)
         {
+            SonnetDbMeter.RecordTableManagerLockWait(lockWait);
             ThrowIfDisposed();
             // 在准备 batch 之前展开 ON DELETE CASCADE：递归把所有引用了被删父行的级联子行加入待删队列，
             // 这样后续 ValidatePrincipalDeletesLocked 看到子行已被该事务删除，不会误报外键违反。
