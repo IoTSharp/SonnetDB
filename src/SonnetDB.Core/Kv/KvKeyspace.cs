@@ -25,6 +25,7 @@ public sealed class KvKeyspace : IDisposable
     private bool _autoCheckpointReschedule;
     private bool _autoCheckpointForceReschedule;
     private int _autoCheckpointFailureCount;
+    private long _autoCheckpointScheduleCount;
     private Exception? _writeFault;
     private bool _disposed;
 
@@ -117,6 +118,15 @@ public sealed class KvKeyspace : IDisposable
         {
             lock (_sync)
                 return _frozenValues?.Count ?? 0;
+        }
+    }
+
+    internal long AutoCheckpointScheduleCount
+    {
+        get
+        {
+            lock (_sync)
+                return _autoCheckpointScheduleCount;
         }
     }
 
@@ -823,16 +833,30 @@ public sealed class KvKeyspace : IDisposable
         {
             SonnetDbMeter.RecordKvKeyspaceLockWait(lockWait);
             ThrowIfDisposed();
-            WaitForWriteBudgetLocked();
-            long expectedSequence = _wal!.NextSequence;
-            var publishPlan = PrepareMutationPublishPlanLocked(batch, expectedSequence);
-            EnsureAtomicMutationBatchFitsBudgetLocked(publishPlan.OverlayEntryCount, requiredWalBytes);
+            long expectedSequence;
+            (KvValueEntry?[] Values, int OverlayEntryCount, int PostCheckpointOverlayEntryCount) publishPlan;
+            while (true)
+            {
+                ThrowIfWriteFaultedLocked();
+                expectedSequence = _wal!.NextSequence;
+                publishPlan = PrepareMutationPublishPlanLocked(batch, expectedSequence);
+                if (TryAdmitAtomicBatchLocked(
+                    publishPlan.OverlayEntryCount,
+                    publishPlan.PostCheckpointOverlayEntryCount,
+                    requiredWalBytes,
+                    "atomic mutation batch"))
+                {
+                    break;
+                }
+
+                WaitForWriteBudgetLocked();
+            }
             _values.EnsureCapacity(publishPlan.OverlayEntryCount);
 
             long sequence;
             try
             {
-                sequence = _wal.AppendMutationBatch(batch);
+                sequence = _wal!.AppendMutationBatch(batch);
                 if (_options.SyncWalOnEveryWrite)
                     _wal.Sync();
             }
@@ -901,27 +925,39 @@ public sealed class KvKeyspace : IDisposable
         {
             SonnetDbMeter.RecordKvKeyspaceLockWait(lockWait);
             ThrowIfDisposed();
-            WaitForWriteBudgetLocked();
+            ThrowIfWriteFaultedLocked();
             var unique = new HashSet<byte[]>(KvKeyComparer.Instance);
-            var keysToDelete = new List<byte[]>(keys.Count);
-            int removed = 0;
-            DateTimeOffset now = DateTimeOffset.UtcNow;
+            var candidates = new List<byte[]>(keys.Count);
             for (int i = 0; i < keys.Count; i++)
             {
                 byte[] key = keys[i];
                 ArgumentNullException.ThrowIfNull(key);
                 ValidateKey(key, _options);
-                if (!unique.Add(key))
-                    continue;
-                if (!TryGetEntryLocked(key, out var entry))
-                    continue;
-                if (!entry.IsExpired(now))
-                    removed++;
-                keysToDelete.Add(key);
+                if (unique.Add(key))
+                    candidates.Add(key);
             }
 
-            DeleteManyExistingLocked(keysToDelete);
-            return removed;
+            while (true)
+            {
+                ThrowIfWriteFaultedLocked();
+                var keysToDelete = new List<byte[]>(candidates.Count);
+                int removed = 0;
+                DateTimeOffset now = DateTimeOffset.UtcNow;
+                for (int i = 0; i < candidates.Count; i++)
+                {
+                    byte[] key = candidates[i];
+                    if (!TryGetEntryLocked(key, out var entry))
+                        continue;
+                    if (!entry.IsExpired(now))
+                        removed++;
+                    keysToDelete.Add(key);
+                }
+
+                if (TryDeleteManyExistingLocked(keysToDelete))
+                    return removed;
+
+                WaitForWriteBudgetLocked();
+            }
         }
     }
 
@@ -1884,6 +1920,7 @@ public sealed class KvKeyspace : IDisposable
         if (!force && !IsCheckpointDueLocked())
             return;
 
+        _autoCheckpointScheduleCount++;
         if (_autoCheckpointQueued)
         {
             _autoCheckpointReschedule = true;
@@ -1906,6 +1943,7 @@ public sealed class KvKeyspace : IDisposable
     private bool IsWriteBudgetExhaustedLocked()
     {
         bool walExhausted = _options.MaxWalBytes > 0
+            && _wal!.HasRecords
             && _wal!.Length >= _options.MaxWalBytes;
         bool overlayExhausted = _options.MaxOverlayEntries > 0
             && _values.Count >= _options.MaxOverlayEntries;
@@ -2172,8 +2210,19 @@ public sealed class KvKeyspace : IDisposable
 
     private int DeleteManyExistingLocked(IReadOnlyList<byte[]> keys)
     {
+        if (!TryDeleteManyExistingLocked(keys))
+        {
+            throw new InvalidOperationException(
+                "KV write budget became exhausted while the keyspace lock was held.");
+        }
+
+        return keys.Count;
+    }
+
+    private bool TryDeleteManyExistingLocked(IReadOnlyList<byte[]> keys)
+    {
         if (keys.Count == 0)
-            return 0;
+            return true;
         if (_options.BatchDeleteMaxKeys <= 0 || _options.BatchDeleteMaxBytes <= sizeof(int))
             throw new InvalidOperationException("KV batch-delete 配置必须提供正数 key 数与 payload 字节预算。");
 
@@ -2211,15 +2260,22 @@ public sealed class KvKeyspace : IDisposable
         long batchId = _wal!.NextSequence;
         long expectedCommitSequence = checked(batchId + chunks.Count);
         var publishPlan = PrepareDeletePublishPlanLocked(materialized, expectedCommitSequence);
-        EnsureAtomicDeleteBatchFitsBudgetLocked(publishPlan.OverlayEntryCount, requiredWalBytes);
+        if (!TryAdmitAtomicBatchLocked(
+            publishPlan.OverlayEntryCount,
+            publishPlan.PostCheckpointOverlayEntryCount,
+            requiredWalBytes,
+            "atomic delete batch"))
+        {
+            return false;
+        }
         _values.EnsureCapacity(publishPlan.OverlayEntryCount);
 
         long commitSequence;
         try
         {
             for (int i = 0; i < chunks.Count; i++)
-                _wal.AppendDeleteBatch(batchId, i, chunks.Count, chunks[i]);
-            commitSequence = _wal.AppendDeleteBatchCommit(batchId, chunks.Count, materialized.Length);
+                _wal!.AppendDeleteBatch(batchId, i, chunks.Count, chunks[i]);
+            commitSequence = _wal!.AppendDeleteBatchCommit(batchId, chunks.Count, materialized.Length);
             if (_options.SyncWalOnEveryWrite)
                 _wal.Sync();
         }
@@ -2242,59 +2298,71 @@ public sealed class KvKeyspace : IDisposable
         }
         _lastSequence = commitSequence;
         ScheduleAutoCheckpointLocked();
-        return materialized.Length;
+        return true;
     }
 
-    private void EnsureAtomicDeleteBatchFitsBudgetLocked(
+    private bool TryAdmitAtomicBatchLocked(
         int overlayEntryCount,
-        long requiredWalBytes)
+        int postCheckpointOverlayEntryCount,
+        long requiredWalBytes,
+        string batchName)
     {
         if (!_options.AutoCheckpointEnabled)
-            return;
+            return true;
 
-        bool walWouldExceedBudget = _options.MaxWalBytes > 0
-            && (requiredWalBytes > _options.MaxWalBytes
-                || _wal!.Length > _options.MaxWalBytes - requiredWalBytes);
-        bool overlayWouldExceedBudget = _options.MaxOverlayEntries > 0
-            && overlayEntryCount > _options.MaxOverlayEntries;
-        if (!walWouldExceedBudget && !overlayWouldExceedBudget)
-            return;
+        bool currentWouldExceed = WouldExceedAtomicBatchBudgetLocked(
+            overlayEntryCount,
+            requiredWalBytes);
+        bool currentBudgetExhausted = IsWriteBudgetExhaustedLocked();
+        if (currentWouldExceed
+            && !CanFitFreshCheckpointBudget(postCheckpointOverlayEntryCount, requiredWalBytes))
+        {
+            SonnetDbMeter.KvCheckpointWriteRejections.Add(1);
+            throw new IOException(
+                $"KV {batchName} was rejected before WAL append because the batch itself exceeds the fresh checkpoint budget; " +
+                "reduce the batch size or increase/disable MaxWalBytes or MaxOverlayEntries.");
+        }
+
+        if (currentBudgetExhausted)
+            return false;
+
+        if (!currentWouldExceed)
+            return true;
 
         ScheduleAutoCheckpointLocked(force: true);
         SonnetDbMeter.KvCheckpointWriteRejections.Add(1);
         throw new IOException(
-            "KV atomic delete batch was rejected before WAL append because it exceeds the checkpoint budget; " +
-            "retry with a smaller batch after checkpoint completion.");
+            $"KV {batchName} was rejected before WAL append because it exceeds the current checkpoint budget; " +
+            "retry after checkpoint completion.");
     }
 
-    private void EnsureAtomicMutationBatchFitsBudgetLocked(
+    private bool WouldExceedWalBudgetLocked(long currentWalLength, long requiredWalBytes)
+        => _options.MaxWalBytes > 0
+            && (requiredWalBytes > _options.MaxWalBytes
+                || currentWalLength > _options.MaxWalBytes - requiredWalBytes);
+
+    private bool WouldExceedAtomicBatchBudgetLocked(
         int overlayEntryCount,
         long requiredWalBytes)
-    {
-        if (!_options.AutoCheckpointEnabled)
-            return;
+        => WouldExceedWalBudgetLocked(_wal!.Length, requiredWalBytes)
+            || _options.MaxOverlayEntries > 0
+                && overlayEntryCount > _options.MaxOverlayEntries;
 
-        bool walWouldExceedBudget = _options.MaxWalBytes > 0
-            && (requiredWalBytes > _options.MaxWalBytes
-                || _wal!.Length > _options.MaxWalBytes - requiredWalBytes);
-        bool overlayWouldExceedBudget = _options.MaxOverlayEntries > 0
-            && overlayEntryCount > _options.MaxOverlayEntries;
-        if (!walWouldExceedBudget && !overlayWouldExceedBudget)
-            return;
+    private bool CanFitFreshCheckpointBudget(
+        int postCheckpointOverlayEntryCount,
+        long requiredWalBytes)
+        => (_options.MaxWalBytes <= 0
+            || !WouldExceedWalBudgetLocked(KvWalFile.HeaderSize, requiredWalBytes))
+            && (_options.MaxOverlayEntries <= 0
+                || postCheckpointOverlayEntryCount <= _options.MaxOverlayEntries);
 
-        ScheduleAutoCheckpointLocked(force: true);
-        SonnetDbMeter.KvCheckpointWriteRejections.Add(1);
-        throw new IOException(
-            "KV atomic mutation batch was rejected before WAL append because it exceeds the checkpoint budget; "
-            + "retry with a smaller batch after checkpoint completion.");
-    }
-
-    private (KvValueEntry?[] Values, int OverlayEntryCount) PrepareDeletePublishPlanLocked(
+    private (KvValueEntry?[] Values, int OverlayEntryCount, int PostCheckpointOverlayEntryCount) PrepareDeletePublishPlanLocked(
         IReadOnlyList<byte[]> keys,
         long sequence)
     {
         var values = new KvValueEntry?[keys.Count];
         int entryCount = _values.Count;
+        int postCheckpointEntryCount = 0;
         for (int i = 0; i < keys.Count; i++)
         {
             byte[] key = keys[i];
@@ -2303,16 +2371,19 @@ public sealed class KvKeyspace : IDisposable
                 : null;
             values[i] = value;
             entryCount = ProjectOverlayEntryCountLocked(entryCount, key, value is not null);
+            if (RequiresOverlayEntryAfterCheckpointLocked(key, value))
+                postCheckpointEntryCount++;
         }
-        return (values, entryCount);
+        return (values, entryCount, postCheckpointEntryCount);
     }
 
-    private (KvValueEntry?[] Values, int OverlayEntryCount) PrepareMutationPublishPlanLocked(
+    private (KvValueEntry?[] Values, int OverlayEntryCount, int PostCheckpointOverlayEntryCount) PrepareMutationPublishPlanLocked(
         IReadOnlyList<KvBatchMutation> mutations,
         long sequence)
     {
         var values = new KvValueEntry?[mutations.Count];
         int entryCount = _values.Count;
+        int postCheckpointEntryCount = 0;
         for (int i = 0; i < mutations.Count; i++)
         {
             KvBatchMutation mutation = mutations[i];
@@ -2323,8 +2394,23 @@ public sealed class KvKeyspace : IDisposable
                     : null;
             values[i] = value;
             entryCount = ProjectOverlayEntryCountLocked(entryCount, mutation.Key, value is not null);
+            if (mutation.Value is not null
+                || RequiresOverlayEntryAfterCheckpointLocked(mutation.Key, value))
+            {
+                postCheckpointEntryCount++;
+            }
         }
-        return (values, entryCount);
+        return (values, entryCount, postCheckpointEntryCount);
+    }
+
+    private bool RequiresOverlayEntryAfterCheckpointLocked(
+        byte[] key,
+        KvValueEntry? plannedValue)
+    {
+        // checkpoint 会保留未标记删除的过期物理条目，显式 delete 仍需为它写 tombstone。
+        if (_values.TryGetValue(key, out var currentValue))
+            return !currentValue.IsDeleted;
+        return plannedValue is not null;
     }
 
     private int ProjectOverlayEntryCountLocked(int entryCount, byte[] key, bool remainsInOverlay)

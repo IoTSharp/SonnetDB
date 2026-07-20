@@ -19,7 +19,7 @@ public sealed record KvOptions
 
     /// <summary>
     /// 自动检查点允许的活跃 WAL 最大字节数，默认 256 MB；小于等于 0 时关闭字节预算。
-    /// 单条记录可能使文件短暂超过该值，检查点期间的新写入记录在新的活跃 WAL 中。
+    /// 普通单条写入可能使文件短暂超过该值；原子 batch 则在追加前要求新 WAL 文件头与该 batch 的全部 records 一起装入预算。
     /// </summary>
     public long MaxWalBytes { get; init; } = 256L * 1024 * 1024;
 

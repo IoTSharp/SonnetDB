@@ -126,6 +126,69 @@ public sealed class KvCheckpointSafetyTests : IDisposable
     }
 
     [Fact]
+    public async Task DeleteMany_BackpressureWait_ReevaluatesKeysAfterConcurrentClear()
+    {
+        using var db = Open(KvOptions.Default with
+        {
+            AutoCheckpointEnabled = true,
+            MaxWalBytes = long.MaxValue,
+            MaxOverlayEntries = 2,
+            CheckpointWriteBackpressureTimeout = TimeSpan.FromSeconds(20),
+            SyncWalOnEveryWrite = false,
+            ExpirerEnabled = false,
+            CleanupEnabled = false,
+        });
+        var kv = db.Keyspaces.Open("delete-replan-after-wait");
+        using var checkpointFrozen = new ManualResetEventSlim();
+        using var releaseCheckpoint = new ManualResetEventSlim();
+        using var writerWaiting = new ManualResetEventSlim();
+        Task<long>? checkpoint = null;
+        Task<int>? delete = null;
+
+        kv.Put("expired", [1], DateTimeOffset.UtcNow.AddMinutes(-1));
+        kv.CheckpointTestHook = phase =>
+        {
+            if (phase == KvCheckpointPhase.AfterFreeze)
+            {
+                checkpointFrozen.Set();
+                if (!releaseCheckpoint.Wait(TimeSpan.FromSeconds(20)))
+                    throw new TimeoutException("test did not release the paused checkpoint");
+            }
+        };
+
+        try
+        {
+            checkpoint = StartDedicated(kv.Compact);
+            Assert.True(checkpointFrozen.Wait(TimeSpan.FromSeconds(10)));
+            kv.Put("pressure:1", [2]);
+            kv.Put("pressure:2", [3]);
+
+            kv.WriteBackpressureTestHook = writerWaiting.Set;
+            delete = StartDedicated(() => kv.DeleteMany(["expired"]));
+            Assert.True(writerWaiting.Wait(TimeSpan.FromSeconds(10)));
+            kv.WriteBackpressureTestHook = null;
+            long sequenceBeforeClear = kv.LastSequence;
+
+            KvClearResult clear = kv.Clear();
+
+            Assert.Equal(1, clear.Generation);
+            Assert.Equal(0, await delete.WaitAsync(TimeSpan.FromSeconds(10)));
+            Assert.Equal(sequenceBeforeClear + 1, kv.LastSequence);
+            Assert.Null(kv.Get("expired"));
+        }
+        finally
+        {
+            kv.WriteBackpressureTestHook = null;
+            kv.CheckpointTestHook = null;
+            releaseCheckpoint.Set();
+            if (checkpoint is not null)
+                await checkpoint.WaitAsync(TimeSpan.FromSeconds(10));
+            if (delete is not null)
+                await delete.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+    }
+
+    [Fact]
     public void PausedCheckpoint_InOneKeyspace_DoesNotStarveAnotherKeyspace()
     {
         using var db = Open(KvOptions.Default with
@@ -351,7 +414,8 @@ public sealed class KvCheckpointSafetyTests : IDisposable
         var restored = db.Keyspaces.Open("delete-wal-budget");
         long walLength = restored.ActiveWalLength;
 
-        Assert.Throws<IOException>(() => restored.DeleteMany(keys));
+        IOException error = Assert.Throws<IOException>(() => restored.DeleteMany(keys));
+        Assert.Contains("fresh checkpoint budget", error.Message, StringComparison.Ordinal);
         Assert.Equal(walLength, restored.ActiveWalLength);
     }
 
@@ -378,7 +442,8 @@ public sealed class KvCheckpointSafetyTests : IDisposable
         var restored = db.Keyspaces.Open("delete-overlay-budget");
         long walLength = restored.ActiveWalLength;
 
-        Assert.Throws<IOException>(() => restored.DeleteMany(keys));
+        IOException error = Assert.Throws<IOException>(() => restored.DeleteMany(keys));
+        Assert.Contains("fresh checkpoint budget", error.Message, StringComparison.Ordinal);
         Assert.Equal(walLength, restored.ActiveWalLength);
         Assert.Equal(3, restored.Count);
     }

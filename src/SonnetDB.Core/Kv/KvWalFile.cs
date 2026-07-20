@@ -8,7 +8,7 @@ namespace SonnetDB.Kv;
 
 internal sealed class KvWalFile : IDisposable
 {
-    private const int HeaderSize = 64;
+    internal const int HeaderSize = 64;
     private const int RecordHeaderSize = 32;
     private const int MaxStackPayloadBytes = 1024;
     private const int PayloadPrefixBytesV1 = 8;

@@ -109,21 +109,160 @@ public sealed class KvAtomicBatchTests : IDisposable
     [Fact]
     public void ApplyBatch_FinalOverlayAboveBudget_IsRejectedBeforeWalAppend()
     {
-        using var keyspace = KvKeyspace.Open("overlay-rejection", _root, OverlayBudgetOptions(2));
-        keyspace.Put("existing", [1]);
-        long walLength = keyspace.ActiveWalLength;
+        var options = OverlayBudgetOptions(2);
+        long previousSequence;
+        using (var keyspace = KvKeyspace.Open("overlay-rejection", _root, options))
+        {
+            keyspace.Put("existing", [1]);
+            previousSequence = keyspace.LastSequence;
+            long walLength = keyspace.ActiveWalLength;
+            long checkpointSchedules = keyspace.AutoCheckpointScheduleCount;
 
-        Assert.Throws<IOException>(() => keyspace.ApplyBatch(
+            IOException error = Assert.Throws<IOException>(() => keyspace.ApplyBatch(
+            [
+                KvBatchMutation.Put("existing"u8.ToArray(), [2]),
+                KvBatchMutation.Put("new:1"u8.ToArray(), [3]),
+                KvBatchMutation.Put("new:2"u8.ToArray(), [4]),
+            ]));
+
+            Assert.Contains("fresh checkpoint budget", error.Message, StringComparison.Ordinal);
+            Assert.Equal(previousSequence, keyspace.LastSequence);
+            Assert.Equal(walLength, keyspace.ActiveWalLength);
+            Assert.Equal(checkpointSchedules, keyspace.AutoCheckpointScheduleCount);
+            Assert.Equal([1], keyspace.Get("existing"));
+            Assert.Null(keyspace.Get("new:1"));
+            Assert.Null(keyspace.Get("new:2"));
+        }
+
+        using var recovered = KvKeyspace.Open("overlay-rejection", _root, Options());
+        Assert.Equal(previousSequence, recovered.LastSequence);
+        Assert.Equal([1], recovered.Get("existing"));
+        Assert.Null(recovered.Get("new:1"));
+        Assert.Null(recovered.Get("new:2"));
+    }
+
+    [Fact]
+    public void ApplyBatch_OverlayBudget_CurrentOverlayCanBeCheckpointedAndRetried()
+    {
+        using var keyspace = KvKeyspace.Open("overlay-retry", _root, OverlayBudgetOptions(2));
+        keyspace.Put("existing", [1]);
+
+        IReadOnlyList<KvBatchMutation> batch =
         [
-            KvBatchMutation.Put("existing"u8.ToArray(), [2]),
             KvBatchMutation.Put("new:1"u8.ToArray(), [3]),
             KvBatchMutation.Put("new:2"u8.ToArray(), [4]),
-        ]));
+        ];
+        IOException error = Assert.Throws<IOException>(() => keyspace.ApplyBatch(batch));
 
-        Assert.Equal(walLength, keyspace.ActiveWalLength);
+        Assert.Contains("current checkpoint budget", error.Message, StringComparison.Ordinal);
+        WaitForAutomaticCheckpoint(keyspace);
+
+        keyspace.ApplyBatch(batch);
+
         Assert.Equal([1], keyspace.Get("existing"));
-        Assert.Null(keyspace.Get("new:1"));
-        Assert.Null(keyspace.Get("new:2"));
+        Assert.Equal([3], keyspace.Get("new:1"));
+        Assert.Equal([4], keyspace.Get("new:2"));
+    }
+
+    [Fact]
+    public void ApplyBatch_WalBudget_RecordAboveFreshBudget_IsRejectedWithoutCheckpoint()
+    {
+        IReadOnlyList<KvBatchMutation> batch =
+        [
+            KvBatchMutation.Put("large"u8.ToArray(), new byte[100]),
+        ];
+        long maxWalBytes = KvWalFile.HeaderSize
+            + KvWalFile.CalculateMutationBatchRecordBytes(batch)
+            - 1;
+        using var keyspace = KvKeyspace.Open(
+            "wal-intrinsic-rejection",
+            _root,
+            OverlayBudgetOptions(int.MaxValue) with { MaxWalBytes = maxWalBytes });
+        keyspace.Put("existing", [1]);
+        long walLength = keyspace.ActiveWalLength;
+        long checkpointSchedules = keyspace.AutoCheckpointScheduleCount;
+
+        IOException error = Assert.Throws<IOException>(() => keyspace.ApplyBatch(batch));
+
+        Assert.Contains("fresh checkpoint budget", error.Message, StringComparison.Ordinal);
+        Assert.Equal(walLength, keyspace.ActiveWalLength);
+        Assert.Equal(checkpointSchedules, keyspace.AutoCheckpointScheduleCount);
+        Assert.Equal([1], keyspace.Get("existing"));
+        Assert.Null(keyspace.Get("large"));
+    }
+
+    [Fact]
+    public void ApplyBatch_WalBudget_CurrentWalCanBeCheckpointedAndRetried()
+    {
+        IReadOnlyList<KvBatchMutation> batch =
+        [
+            KvBatchMutation.Put("small"u8.ToArray(), [2]),
+        ];
+        long maxWalBytes = KvWalFile.HeaderSize
+            + KvWalFile.CalculateMutationBatchRecordBytes(batch);
+        using var keyspace = KvKeyspace.Open(
+            "wal-retry",
+            _root,
+            OverlayBudgetOptions(int.MaxValue) with { MaxWalBytes = maxWalBytes });
+        keyspace.Put("existing", [1]);
+
+        IOException error = Assert.Throws<IOException>(() => keyspace.ApplyBatch(batch));
+
+        Assert.Contains("current checkpoint budget", error.Message, StringComparison.Ordinal);
+        WaitForAutomaticCheckpoint(keyspace);
+        keyspace.ApplyBatch(batch);
+
+        Assert.Equal([1], keyspace.Get("existing"));
+        Assert.Equal([2], keyspace.Get("small"));
+    }
+
+    [Fact]
+    public void ApplyBatch_WalBudget_HeaderOnlyLimitIsRejectedWithoutBackpressureWait()
+    {
+        using var keyspace = KvKeyspace.Open(
+            "wal-header-limit",
+            _root,
+            OverlayBudgetOptions(int.MaxValue) with
+            {
+                MaxWalBytes = KvWalFile.HeaderSize,
+                CheckpointWriteBackpressureTimeout = TimeSpan.FromMilliseconds(100),
+            });
+        Assert.Equal(0, keyspace.AutoCheckpointScheduleCount);
+
+        IOException error = Assert.Throws<IOException>(() => keyspace.ApplyBatch(
+            [KvBatchMutation.Put("key"u8.ToArray(), [1])]));
+
+        Assert.Contains("fresh checkpoint budget", error.Message, StringComparison.Ordinal);
+        Assert.Equal(KvWalFile.HeaderSize, keyspace.ActiveWalLength);
+        Assert.Equal(0, keyspace.AutoCheckpointScheduleCount);
+    }
+
+    [Fact]
+    public void DeleteMany_OverlayBudget_CurrentOverlayCanBeCheckpointedAndRetried()
+    {
+        using (var preparation = KvKeyspace.Open("delete-overlay-retry", _root, Options()))
+        {
+            preparation.Put("durable:1", [1]);
+            preparation.Put("durable:2", [2]);
+            preparation.Compact();
+        }
+
+        using var keyspace = KvKeyspace.Open(
+            "delete-overlay-retry",
+            _root,
+            OverlayBudgetOptions(2));
+        keyspace.Put("unrelated", [9]);
+
+        IOException error = Assert.Throws<IOException>(() =>
+            keyspace.DeleteMany(["durable:1", "durable:2"]));
+
+        Assert.Contains("current checkpoint budget", error.Message, StringComparison.Ordinal);
+        WaitForAutomaticCheckpoint(keyspace);
+        Assert.Equal(2, keyspace.DeleteMany(["durable:1", "durable:2"]));
+
+        Assert.Equal([9], keyspace.Get("unrelated"));
+        Assert.Null(keyspace.Get("durable:1"));
+        Assert.Null(keyspace.Get("durable:2"));
     }
 
     [Fact]
@@ -287,4 +426,16 @@ public sealed class KvAtomicBatchTests : IDisposable
             ExpirerEnabled = false,
             CleanupEnabled = false,
         };
+
+    private static void WaitForAutomaticCheckpoint(KvKeyspace keyspace)
+    {
+        bool completed = SpinWait.SpinUntil(
+            () => keyspace.MutableOverlayEntryCount == 0
+                && keyspace.PendingOverlayEntryCount == 0
+                && keyspace.ActiveWalLength == KvWalFile.HeaderSize,
+            TimeSpan.FromSeconds(10));
+        Assert.True(completed, keyspace.LastCheckpointException?.ToString());
+        Assert.Null(keyspace.LastCheckpointException);
+    }
+
 }

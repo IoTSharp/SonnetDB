@@ -180,10 +180,10 @@ public static class SonnetDbMeter
         "sonnetdb.kv.checkpoint.backpressure.duration", unit: "ms",
         description: "KV write latency spent waiting for checkpoint budget backpressure.");
 
-    /// <summary>KV 检查点失败或背压超时导致的写入拒绝次数。</summary>
+    /// <summary>KV 因当前或 fresh 原子批次预算、检查点失败或背压超时而拒绝写入的次数。</summary>
     internal static readonly Counter<long> KvCheckpointWriteRejections = Meter.CreateCounter<long>(
         "sonnetdb.kv.checkpoint.write.rejections", unit: "{write}",
-        description: "KV writes rejected before WAL append after checkpoint failure or backpressure timeout.");
+        description: "KV writes rejected before WAL append because an atomic batch exceeded the current or fresh budget, checkpoint failed, or backpressure timed out.");
 
     // ── 复用 tag（避免热路径每次分配 KeyValuePair 的装箱/字符串） ─────────────
 

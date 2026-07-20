@@ -7,6 +7,7 @@
 
 ### Fixed
 
+- 修复 KV 原子批次在当前余量与 fresh WAL/overlay 预算中都无法容纳时仍额外调度 checkpoint 的问题；此类批次现在会在 WAL 追加前直接拒绝并提示调整批量或预算，可由 checkpoint 释放的当前压力仍保留原有背压与重试行为。
 - 修复 OpenTelemetry 端到端测试在 exporter 回调与断言并发访问普通 `List<Activity>` 时随机抛出集合已修改异常的问题；导出活动改用同步集合并基于稳定快照断言。
 - 修复 SonnetMQ 冷读消费者为定位目标 offset 仍读取此前大 payload、导致积压恢复受历史消息体大小拖慢的问题；扫描现在跳过目标位点前的消息正文，仅读取目标批次 payload。
 - 修复 `SndbObjectStorageClient` 在 `Protocol=frame-http2` 下仍使用默认 HTTP/1.1 的问题；对象帧 PUT/GET 及同客户端的 REST 回退操作现在统一要求 exact HTTP/2，可连接 h2c 专用端口。
