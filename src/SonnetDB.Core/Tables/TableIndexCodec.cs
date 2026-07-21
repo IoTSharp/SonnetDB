@@ -71,15 +71,17 @@ internal static class TableIndexCodec
         ArgumentNullException.ThrowIfNull(indexColumnValues);
         ArgumentNullException.ThrowIfNull(schema);
 
-        if (indexColumnValues.Count != index.Columns.Count)
-            throw new ArgumentException("索引值数量与索引列数量不一致。", nameof(indexColumnValues));
+        if (indexColumnValues.Count > index.Columns.Count)
+            throw new ArgumentException("索引值必须从首列开始连续提供，且不能超过索引列数量。", nameof(indexColumnValues));
+        if (!string.IsNullOrWhiteSpace(index.JsonPath) && indexColumnValues.Count > 1)
+            throw new ArgumentException("JSON path 索引最多提供一个索引值。", nameof(indexColumnValues));
 
         byte[] indexNameBytes = _utf8.GetBytes(index.Name);
         if (indexNameBytes.Length > ushort.MaxValue)
             throw new InvalidOperationException($"索引 '{index.Name}' 名称过长。");
 
         int totalSize = 1 + 2 + indexNameBytes.Length;
-        if (!string.IsNullOrWhiteSpace(index.JsonPath))
+        if (!string.IsNullOrWhiteSpace(index.JsonPath) && indexColumnValues.Count == 1)
         {
             ResolveJsonPathColumn(index, schema);
             if (indexColumnValues[0] is null)
@@ -88,7 +90,7 @@ internal static class TableIndexCodec
         }
         else
         {
-            for (int i = 0; i < index.Columns.Count; i++)
+            for (int i = 0; i < indexColumnValues.Count; i++)
             {
                 var column = schema.TryGetColumn(index.Columns[i])
                     ?? throw new InvalidOperationException($"索引 '{index.Name}' 引用了未知列 '{index.Columns[i]}'。");
@@ -104,13 +106,13 @@ internal static class TableIndexCodec
         indexNameBytes.CopyTo(buffer.AsSpan(offset));
         offset += indexNameBytes.Length;
 
-        if (!string.IsNullOrWhiteSpace(index.JsonPath))
+        if (!string.IsNullOrWhiteSpace(index.JsonPath) && indexColumnValues.Count == 1)
         {
             offset += WriteEncodedScalar(buffer.AsSpan(offset), indexColumnValues[0]);
         }
         else
         {
-            for (int i = 0; i < index.Columns.Count; i++)
+            for (int i = 0; i < indexColumnValues.Count; i++)
             {
                 var column = schema.TryGetColumn(index.Columns[i])!;
                 offset += WriteEncodedValue(buffer.AsSpan(offset), column, indexColumnValues[i]);
@@ -118,6 +120,53 @@ internal static class TableIndexCodec
         }
 
         return buffer;
+    }
+
+    /// <summary>
+    /// 在连续等值前缀后编码下一列的有符号范围界值，不改变既有索引值编码。
+    /// </summary>
+    public static byte[] EncodeRangeValuePrefix(
+        TableIndex index,
+        IReadOnlyList<object?> equalityPrefixValues,
+        long value,
+        TableSchema schema)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        ArgumentNullException.ThrowIfNull(equalityPrefixValues);
+        ArgumentNullException.ThrowIfNull(schema);
+        if (!string.IsNullOrWhiteSpace(index.JsonPath)
+            || equalityPrefixValues.Count >= index.Columns.Count)
+        {
+            throw new ArgumentException("范围界值必须位于普通联合索引等值前缀的下一列。", nameof(equalityPrefixValues));
+        }
+
+        var values = new object?[equalityPrefixValues.Count + 1];
+        for (int i = 0; i < equalityPrefixValues.Count; i++)
+            values[i] = equalityPrefixValues[i];
+        values[^1] = value;
+        return EncodeLookupPrefix(index, values, schema)
+            ?? throw new InvalidOperationException($"索引 '{index.Name}' 的范围界值无法编码。");
+    }
+
+    /// <summary>
+    /// 计算覆盖指定字节前缀全部 key 的最小排他上界。
+    /// </summary>
+    public static byte[] GetPrefixSuccessor(ReadOnlySpan<byte> prefix)
+    {
+        if (prefix.IsEmpty)
+            throw new ArgumentException("空前缀不存在有限后继。", nameof(prefix));
+
+        byte[] successor = prefix.ToArray();
+        for (int i = successor.Length - 1; i >= 0; i--)
+        {
+            if (successor[i] == byte.MaxValue)
+                continue;
+
+            successor[i]++;
+            return successor[..(i + 1)];
+        }
+
+        throw new ArgumentException("全 0xFF 前缀不存在有限后继。", nameof(prefix));
     }
 
     public static byte[] EncodePrimaryRowKey(ReadOnlySpan<byte> primaryKey)

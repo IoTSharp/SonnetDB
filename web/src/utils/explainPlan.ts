@@ -70,6 +70,8 @@ const AccessPathLabels: Record<string, string> = {
   tag_index: 'Tag index',
   table_scan: 'Table scan',
   secondary_index: 'Secondary index',
+  secondary_index_prefix: 'Secondary index prefix',
+  secondary_index_range: 'Secondary index range',
   json_path_index: 'JSON path index',
   primary_key: 'Primary key lookup',
   document_id: 'Document id lookup',

@@ -86,7 +86,9 @@ DROP INDEX idx_devices_site ON devices;
 - 索引名在单表内唯一。
 - 索引列必须存在，可包含 1 个或多个列。
 - 唯一索引会在 `INSERT` / `UPDATE` / 轻事务提交时校验现有数据和同批数据冲突。
-- `SELECT` / `UPDATE` / `DELETE` 的 `WHERE` 覆盖索引全部列的等值条件时，可先走二级索引候选行，再执行完整 WHERE 过滤。
+- `SELECT` / `UPDATE` / `DELETE` 会使用联合索引从首列开始的最长连续等值前缀；索引未覆盖的条件继续对候选行执行完整 `WHERE` 过滤。
+- 连续等值前缀后的下一列为 `INT` 或 `DATETIME` 时，`<`、`<=`、`>`、`>=` 可继续作为索引范围。例如索引 `(a, b, c, d)` 可服务 `a = ? AND b = ? AND c >= ? AND c < ?`，`d` 和其它条件作为残余过滤。
+- 联合索引缺少首列等值或范围条件时不能从中间列开始使用；遇到第一个未绑定列后，后续列只作为残余条件。
 - 索引内容不作为第二份权威数据保存；rowstore 是主数据，索引可重建。
 
 ### 关系表 DML
@@ -115,7 +117,7 @@ WHERE id = 2;
 - `UPDATE` 支持更新非主键列；当前不支持更新主键列。
 - `SELECT` 支持 `*`、列投影、字面量投影、`WHERE` 中的 `AND` / `OR` / `NOT`、基础比较和简单数值运算。
 - 关系表 `JSON` 列支持 `json_value(metadata, '$.site')` 这类 path 表达式；对象或数组结果会以紧凑 JSON 字符串返回。
-- `WHERE` 覆盖完整主键等值条件时会走主键读取；覆盖完整二级索引等值条件时会走二级索引候选行；其它条件走表扫描后过滤。
+- `WHERE` 覆盖完整主键等值条件时会走主键读取；二级索引按最长连续左前缀选择，并可在首个未绑定的 `INT` / `DATETIME` 列继续做范围扫描；其它条件在候选行上过滤。
 - `ORDER BY` 支持结果集中的任意列名；`LIMIT` / `OFFSET` / `FETCH` 语法与 measurement 查询一致。
 
 ### 关系表轻事务
@@ -159,7 +161,7 @@ LIMIT 100;
 - 支持 `JOIN` / `INNER JOIN`，语义为 inner join。
 - JOIN 左侧必须是 measurement，右侧必须是关系表。
 - `ON` 当前仅支持一个等值条件，且 measurement 侧连接键必须是 `TAG` 列；关系表侧可连接主键列或普通列。
-- measurement 侧 `tag = '...'` 和 `time` 范围过滤会先下推到时序查询；关系表侧 `WHERE` 条件会先用主键或二级索引候选行，再做完整过滤。
+- measurement 侧 `tag = '...'` 和 `time` 范围过滤会先下推到时序查询；关系表侧 `WHERE` 条件会先用主键、二级索引等值前缀或数值/时间范围取得候选行，再做完整过滤。
 - 输出投影支持 `time`、measurement tag / field、table 列和字面量；有歧义的列名必须使用 `alias.column`。
 - `ORDER BY` 可引用 JOIN 结果中的 measurement 或 table 列，并在分页前执行。
 - `EXPLAIN` 支持 JOIN 查询，`access_path` 会显示 measurement 与 table 双侧下推路径，例如 `measurement:tag_index;table:secondary_index;join:hash`。
@@ -919,7 +921,7 @@ EXPLAIN DESCRIBE MEASUREMENT cpu;
 - `DESCRIBE DOCUMENT COLLECTION <name>`
 
 当前不支持对 `INSERT`、`DELETE`、`CREATE`、`DROP`、用户/授权/Token 控制面 SQL 做 `EXPLAIN`。
-返回字段包括 `database`、`statement_type`、`measurement`、`matched_series_count`、`estimated_segment_count`、`estimated_block_count`、`estimated_scanned_rows`、`estimated_memtable_rows`、`estimated_segment_rows`、`has_time_filter`、`tag_filter_count`、`access_path` 与 `index_name`。关系表查询的 `access_path` 可能是 `primary_key`、`secondary_index`、`json_path_index` 或 `table_scan`；文档集合查询可能是 `document_id`、`json_path_index`、`fulltext_index` 或 `document_scan`；JSON 文件虚拟表会显示 `json_file_virtual_table`。
+返回字段包括 `database`、`statement_type`、`measurement`、`matched_series_count`、`estimated_segment_count`、`estimated_block_count`、`estimated_scanned_rows`、`estimated_memtable_rows`、`estimated_segment_rows`、`has_time_filter`、`tag_filter_count`、`access_path` 与 `index_name`。关系表查询的 `access_path` 可能是 `primary_key`、`secondary_index`、`secondary_index_prefix`、`secondary_index_range`、`json_path_index` 或 `table_scan`；文档集合查询可能是 `document_id`、`json_path_index`、`fulltext_index` 或 `document_scan`；JSON 文件虚拟表会显示 `json_file_virtual_table`。
 
 ## 控制面 SQL
 

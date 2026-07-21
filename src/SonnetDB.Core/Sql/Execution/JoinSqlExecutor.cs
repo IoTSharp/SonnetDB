@@ -193,34 +193,25 @@ internal static class JoinSqlExecutor
         TableSchema schema,
         SqlExpression? where)
     {
-        if (TableSqlExecutor.ChooseBestIndexForWhere(schema, where, out var values) is { } index)
-            return (string.IsNullOrWhiteSpace(index.JsonPath) ? "secondary_index" : "json_path_index",
-                index.Name,
-                store.GetByIndex(index, values).Count);
-
-        if (TryHasPrimaryKeyFilter(schema, where))
-            return ("primary_key", "primary", values.Count == 0 ? 0 : 1);
-
-        return ("table_scan", null, store.Scan().Count);
-    }
-
-    private static bool TryHasPrimaryKeyFilter(TableSchema schema, SqlExpression? where)
-    {
-        if (where is null)
-            return false;
-
-        var names = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var leaf in CrossModelFilterPlanner.FlattenAnd(where))
+        if (TableSqlExecutor.ChooseBestIndexAccessPlan(schema, where) is { } plan)
         {
-            if (leaf is not BinaryExpression { Operator: SqlBinaryOperator.Equal } binary)
-                continue;
-
-            var identifier = binary.Left as IdentifierExpression ?? binary.Right as IdentifierExpression;
-            if (identifier is not null)
-                names.Add(identifier.Name);
+            string accessPath = !string.IsNullOrWhiteSpace(plan.Index.JsonPath)
+                ? "json_path_index"
+                : plan.Range is not null
+                    ? "secondary_index_range"
+                    : plan.IsFullEquality ? "secondary_index" : "secondary_index_prefix";
+            int rows = plan.Range is not null
+                ? store.GetByIndexRange(plan.Index, plan.EqualityPrefixValues, plan.Range).Count
+                : plan.IsFullEquality
+                    ? store.GetByIndex(plan.Index, plan.EqualityPrefixValues).Count
+                    : store.GetByIndexPrefix(plan.Index, plan.EqualityPrefixValues).Count;
+            return (accessPath, plan.Index.Name, rows);
         }
 
-        return schema.PrimaryKey.All(names.Contains);
+        if (TableSqlExecutor.CanUsePrimaryKeyLookup(schema, where))
+            return ("primary_key", "primary", 1);
+
+        return ("table_scan", null, store.Scan().Count);
     }
 
     private static IReadOnlyDictionary<JoinKey, IReadOnlyList<TableRow>> BuildTableHash(

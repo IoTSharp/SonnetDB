@@ -72,6 +72,97 @@ public sealed class KvKeyspaceTests : IDisposable
         Assert.Equal(["device:2", "device:3"], rows.Select(static row => Encoding.UTF8.GetString(row.Key.Span)).ToArray());
     }
 
+    /// <summary>
+    /// 验证内存态范围扫描同时遵守前缀、半开边界、页大小和严格排他的 continuation。
+    /// </summary>
+    [Fact]
+    public void ScanRange_InMemory_EnforcesPrefixBoundsAndExclusiveContinuation()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        var kv = db.Keyspaces.Open("assets");
+
+        kv.Put("idx:a:00", [0]);
+        kv.Put("idx:a:01", [1]);
+        kv.Put("idx:a:02", [2]);
+        kv.Put("idx:a:03", [3]);
+        kv.Put("idx:a:04", [4]);
+        kv.Put("idx:b:02", [9]);
+
+        var firstPage = kv.ScanRange(
+            "idx:a:",
+            startInclusive: "idx:a:01",
+            endExclusive: "idx:a:04",
+            afterKey: null,
+            limit: 2);
+        var secondPage = kv.ScanRange(
+            "idx:a:",
+            startInclusive: "idx:a:01",
+            endExclusive: "idx:a:04",
+            afterKey: "idx:a:02",
+            limit: 2);
+
+        Assert.Equal(
+            ["idx:a:01", "idx:a:02"],
+            firstPage.Select(static row => Encoding.UTF8.GetString(row.Key.Span)).ToArray());
+        Assert.Equal(
+            ["idx:a:03"],
+            secondPage.Select(static row => Encoding.UTF8.GetString(row.Key.Span)).ToArray());
+    }
+
+    /// <summary>
+    /// 验证 checkpoint 冻结期间范围扫描正确合并可变层、冻结层和磁盘层的覆盖与删除。
+    /// </summary>
+    [Fact]
+    public async Task ScanRange_DuringCheckpoint_MergesMutableFrozenAndDiskLayers()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        var kv = db.Keyspaces.Open("assets");
+        kv.Put("idx:01", Encoding.UTF8.GetBytes("disk-one"));
+        kv.Put("idx:02", Encoding.UTF8.GetBytes("disk-two"));
+        kv.Put("idx:03", Encoding.UTF8.GetBytes("disk-three"));
+        kv.Compact();
+
+        kv.Put("idx:02", Encoding.UTF8.GetBytes("frozen-two"));
+        kv.Put("idx:04", Encoding.UTF8.GetBytes("frozen-four"));
+        Assert.True(kv.Delete("idx:03"));
+
+        using var frozen = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        kv.CheckpointTestHook = phase =>
+        {
+            if (phase != KvCheckpointPhase.AfterFreeze)
+                return;
+
+            frozen.Set();
+            if (!release.Wait(TimeSpan.FromSeconds(30)))
+                throw new TimeoutException("测试未释放冻结的 KV checkpoint。");
+        };
+
+        Task<long> checkpoint = Task.Run(kv.Compact);
+        try
+        {
+            Assert.True(frozen.Wait(TimeSpan.FromSeconds(10)));
+            kv.Put("idx:01", Encoding.UTF8.GetBytes("mutable-one"));
+            Assert.True(kv.Delete("idx:02"));
+            kv.Put("idx:05", Encoding.UTF8.GetBytes("mutable-five"));
+
+            var rows = kv.ScanRange("idx:", "idx:01", "idx:06", afterKey: null, limit: 10);
+
+            Assert.Equal(
+                ["idx:01", "idx:04", "idx:05"],
+                rows.Select(static row => Encoding.UTF8.GetString(row.Key.Span)).ToArray());
+            Assert.Equal(
+                ["mutable-one", "frozen-four", "mutable-five"],
+                rows.Select(static row => Encoding.UTF8.GetString(row.Value.Span)).ToArray());
+        }
+        finally
+        {
+            release.Set();
+        }
+
+        await checkpoint.WaitAsync(TimeSpan.FromSeconds(10));
+    }
+
     [Fact]
     public void CountPrefix_MatchesScanAndSkipsExpiredAndDeleted()
     {
@@ -212,6 +303,43 @@ public sealed class KvKeyspaceTests : IDisposable
         Assert.Single(nextPage);
         Assert.Equal("doc:003", Encoding.UTF8.GetString(nextPage[0].Key.Span));
         Assert.Equal("three", Encoding.UTF8.GetString(nextPage[0].Value.Span));
+    }
+
+    /// <summary>
+    /// 验证重开后的磁盘范围扫描与后续内存覆盖、删除和新增记录按同一视图合并。
+    /// </summary>
+    [Fact]
+    public void ScanRange_AfterCompactAndReopen_MergesDiskAndOverlayWithinBounds()
+    {
+        using (var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root }))
+        {
+            var kv = db.Keyspaces.Open("range-disk");
+            kv.Put("idx:01", Encoding.UTF8.GetBytes("one"));
+            kv.Put("idx:02", Encoding.UTF8.GetBytes("old-two"));
+            kv.Put("idx:03", Encoding.UTF8.GetBytes("three"));
+            kv.Put("other:01", [9]);
+            kv.Compact();
+        }
+
+        using var reopened = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        var restored = reopened.Keyspaces.Open("range-disk");
+        restored.Put("idx:02", Encoding.UTF8.GetBytes("new-two"));
+        Assert.True(restored.Delete("idx:03"));
+        restored.Put("idx:04", Encoding.UTF8.GetBytes("four"));
+
+        var rows = restored.ScanRange(
+            Encoding.UTF8.GetBytes("idx:"),
+            Encoding.UTF8.GetBytes("idx:01"),
+            Encoding.UTF8.GetBytes("idx:05"),
+            Encoding.UTF8.GetBytes("idx:01"),
+            limit: 10);
+
+        Assert.Equal(
+            ["idx:02", "idx:04"],
+            rows.Select(static row => Encoding.UTF8.GetString(row.Key.Span)).ToArray());
+        Assert.Equal(
+            ["new-two", "four"],
+            rows.Select(static row => Encoding.UTF8.GetString(row.Value.Span)).ToArray());
     }
 
     [Fact]

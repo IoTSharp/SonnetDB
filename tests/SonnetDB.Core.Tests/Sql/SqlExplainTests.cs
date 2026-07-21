@@ -113,4 +113,35 @@ public sealed class SqlExplainTests : IDisposable
         Assert.Contains("table:secondary_index", (string)values["access_path"]!);
         Assert.Equal("hosts.idx_hosts_site", values["index_name"]);
     }
+
+    /// <summary>
+    /// 验证 JOIN EXPLAIN 与普通关系查询复用同一二级索引范围计划。
+    /// </summary>
+    [Fact]
+    public void Execute_ExplainJoinSelect_ReportsSecondaryIndexRange()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE MEASUREMENT cpu_range (host TAG, usage FIELD FLOAT)");
+        SqlExecutor.Execute(db, "CREATE TABLE hosts_range (id STRING, rank INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE INDEX idx_hosts_range_rank ON hosts_range (rank)");
+        SqlExecutor.Execute(db,
+            "INSERT INTO hosts_range (id, rank) VALUES ('h1', -1), ('h2', 0), ('h3', 2)");
+        SqlExecutor.Execute(db,
+            "INSERT INTO cpu_range (time, host, usage) VALUES (1000, 'h1', 0.5), (2000, 'h2', 0.7)");
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            EXPLAIN SELECT c.time, h.rank
+            FROM cpu_range c
+            JOIN hosts_range h ON c.host = h.id
+            WHERE h.rank >= -1 AND h.rank < 2 AND c.host = 'h1'
+            """));
+        var values = result.Rows.ToDictionary(
+            static row => (string)row[0]!,
+            static row => row[1],
+            StringComparer.Ordinal);
+
+        Assert.Contains("table:secondary_index_range", (string)values["access_path"]!);
+        Assert.Equal("hosts_range.idx_hosts_range_rank", values["index_name"]);
+        Assert.Equal(3L, Convert.ToInt64(values["estimated_scanned_rows"]));
+    }
 }

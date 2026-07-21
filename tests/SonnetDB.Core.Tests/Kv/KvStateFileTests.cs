@@ -58,6 +58,75 @@ public sealed class KvStateFileTests : IDisposable
         Assert.Equal(value, restored.Value);
     }
 
+    /// <summary>
+    /// 验证磁盘范围扫描从 lower-bound 开始，并在上界或离开前缀时立即停止。
+    /// </summary>
+    [Fact]
+    public void DiskScanRange_UsesLowerBoundAndStopsAtEndOrPrefixBoundary()
+    {
+        string path = Path.Combine(_root, "range.SDBKVSNP");
+        string[] keys =
+        [
+            "aaa:00",
+            "idx:00",
+            "idx:01",
+            "idx:02",
+            "idx:03",
+            "idx:04",
+            "idx:05",
+            "idx2:00",
+            "zzz:00",
+        ];
+        KeyValuePair<byte[], KvValueEntry>[] entries = keys
+            .Select(static (key, index) => new KeyValuePair<byte[], KvValueEntry>(
+                Encoding.UTF8.GetBytes(key),
+                new KvValueEntry([(byte)index], version: index + 1)))
+            .ToArray();
+        KvStateFile.SaveSnapshot(path, sequence: entries.Length, entries, entries.Length);
+
+        using KvDiskState state = KvStateFile.OpenDiskState(path);
+        var visited = new List<int>();
+        state.ScanIndexVisitedTestHook = visited.Add;
+
+        var page = state.ScanRange(
+                Encoding.UTF8.GetBytes("idx:"),
+                Encoding.UTF8.GetBytes("idx:02"),
+                Encoding.UTF8.GetBytes("idx:05"),
+                Encoding.UTF8.GetBytes("idx:03"))
+            .ToArray();
+
+        Assert.Equal(
+            ["idx:04"],
+            page.Select(static entry => Encoding.UTF8.GetString(entry.Key)).ToArray());
+        Assert.Equal([5, 6], visited);
+
+        visited.Clear();
+        var startWins = state.ScanRange(
+                Encoding.UTF8.GetBytes("idx:"),
+                Encoding.UTF8.GetBytes("idx:02"),
+                Encoding.UTF8.GetBytes("idx:04"),
+                Encoding.UTF8.GetBytes("idx:01"))
+            .ToArray();
+
+        Assert.Equal(
+            ["idx:02", "idx:03"],
+            startWins.Select(static entry => Encoding.UTF8.GetString(entry.Key)).ToArray());
+        Assert.Equal([3, 4, 5], visited);
+
+        visited.Clear();
+        var allPrefixRows = state.ScanRange(
+                Encoding.UTF8.GetBytes("idx:"),
+                startInclusive: null,
+                endExclusive: null,
+                afterKey: null)
+            .ToArray();
+
+        Assert.Equal(
+            ["idx:00", "idx:01", "idx:02", "idx:03", "idx:04", "idx:05"],
+            allPrefixRows.Select(static entry => Encoding.UTF8.GetString(entry.Key)).ToArray());
+        Assert.Equal([1, 2, 3, 4, 5, 6, 7], visited);
+    }
+
     [Fact]
     public void SaveSnapshot_LargeValue_DoesNotAllocateCombinedCrcPayload()
     {

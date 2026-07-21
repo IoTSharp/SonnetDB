@@ -293,7 +293,11 @@ internal static class TableSqlExecutor
 
         var projections = BuildProjections(statement.Projections, schema);
         var hiddenOrderColumns = ResolveHiddenOrderColumns(projections, statement.OrderByList, schema);
-        var rows = LoadSelectCandidateRows(tsdb.Tables.Open(schema.Name), schema, statement.Where);
+        var (rows, rangeOrderSatisfied) = LoadSelectCandidateRowsForStatement(
+            tsdb.Tables.Open(schema.Name),
+            schema,
+            statement,
+            projections);
         var filtered = new List<IReadOnlyList<object?>>();
         foreach (var row in rows)
         {
@@ -313,7 +317,9 @@ internal static class TableSqlExecutor
                 .Concat(hiddenOrderColumns.Select(static column => column.Name))
                 .ToArray(),
             filtered);
-        var ordered = ApplyOrderByAndPagination(result, statement.OrderByList, statement.Pagination);
+        var ordered = rangeOrderSatisfied
+            ? ApplyPagination(result, statement.Pagination)
+            : ApplyOrderByAndPagination(result, statement.OrderByList, statement.Pagination);
         return hiddenOrderColumns.Length == 0
             ? ordered
             : RemoveHiddenOrderColumns(ordered, projections.Length);
@@ -683,8 +689,15 @@ internal static class TableSqlExecutor
             return row is null ? Array.Empty<TableRow>() : [row];
         }
 
-        if (TryExtractSecondaryIndexValues(schema, where, out var index, out var indexValues))
-            return store.GetByIndex(index, indexValues);
+        if (ChooseBestIndexAccessPlan(schema, where) is { } plan)
+        {
+            if (plan.Range is not null)
+                return store.GetByIndexRange(plan.Index, plan.EqualityPrefixValues, plan.Range);
+
+            return plan.IsFullEquality
+                ? store.GetByIndex(plan.Index, plan.EqualityPrefixValues)
+                : store.GetByIndexPrefix(plan.Index, plan.EqualityPrefixValues);
+        }
 
         return store.Scan();
     }
@@ -787,6 +800,155 @@ internal static class TableSqlExecutor
     }
 
     /// <summary>
+    /// 为普通关系 SELECT 加载候选行；仅在范围索引已满足单列升序且 WHERE 无残余时下推分页上限。
+    /// </summary>
+    private static (IReadOnlyList<TableRow> Rows, bool RangeOrderSatisfied) LoadSelectCandidateRowsForStatement(
+        TableStore store,
+        TableSchema schema,
+        SelectStatement statement,
+        IReadOnlyList<Projection> projections)
+    {
+        var transaction = SqlTransactionContext.Current;
+        if (transaction is not null && transaction.TryGetBufferedMutations(schema.Name, out var buffered))
+            return (ApplyMutationOverlay(schema, store.Scan(), buffered), false);
+
+        var plan = ChooseBestIndexAccessPlan(schema, statement.Where);
+        if (plan?.Range is not null
+            && TryGetOrderedRangeCandidateLimit(
+                statement,
+                schema,
+                projections,
+                plan,
+                out int candidateLimit))
+        {
+            return (
+                store.GetByIndexRange(plan.Index, plan.EqualityPrefixValues, plan.Range, candidateLimit),
+                true);
+        }
+
+        return (LoadCandidateRows(store, schema, statement.Where), false);
+    }
+
+    /// <summary>
+    /// 判断范围索引能否同时满足 ORDER BY ASC 与 LIMIT/OFFSET，并计算安全的候选读取上限。
+    /// </summary>
+    private static bool TryGetOrderedRangeCandidateLimit(
+        SelectStatement statement,
+        TableSchema schema,
+        IReadOnlyList<Projection> projections,
+        TableIndexAccessPlan plan,
+        out int candidateLimit)
+    {
+        candidateLimit = 0;
+        if (plan.Range is null
+            || statement.Pagination?.Fetch is not int fetch
+            || statement.OrderByList.Count != 1
+            || statement.OrderByList[0] is not
+            {
+                Direction: SortDirection.Ascending,
+                Expression: IdentifierExpression orderIdentifier,
+            }
+            || !OrderByResolvesToRangeColumn(orderIdentifier, projections, plan.Range.Column)
+            || !IsWhereFullyCoveredByRangePlan(statement.Where, schema, plan))
+        {
+            return false;
+        }
+
+        long requested = (long)statement.Pagination.Offset + fetch;
+        candidateLimit = requested > int.MaxValue ? int.MaxValue : (int)requested;
+        return true;
+    }
+
+    /// <summary>
+    /// 按关系 SELECT 当前的别名优先规则确认 ORDER BY 最终绑定到原始范围列。
+    /// </summary>
+    private static bool OrderByResolvesToRangeColumn(
+        IdentifierExpression orderIdentifier,
+        IReadOnlyList<Projection> projections,
+        TableColumn rangeColumn)
+    {
+        foreach (var projection in projections)
+        {
+            if (!string.Equals(projection.ColumnName, orderIdentifier.Name, StringComparison.Ordinal))
+                continue;
+
+            return projection.Kind == ProjectionKind.Column
+                && projection.Column?.Ordinal == rangeColumn.Ordinal;
+        }
+
+        // ORDER BY 未命中投影名时，执行器会把同名源列作为隐藏排序列。
+        return string.Equals(orderIdentifier.Name, rangeColumn.Name, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 确认 WHERE 的每个 AND 叶子都已由等值前缀或范围约束表达，防止在残余过滤前错误截断候选。
+    /// </summary>
+    private static bool IsWhereFullyCoveredByRangePlan(
+        SqlExpression? where,
+        TableSchema schema,
+        TableIndexAccessPlan plan)
+    {
+        if (where is null || plan.Range is null)
+            return false;
+
+        foreach (var leaf in FlattenAnd(where))
+        {
+            if (leaf is BinaryExpression { Operator: SqlBinaryOperator.Equal } equality)
+            {
+                var (identifier, expression) = NormalizeIdentifierComparison(equality);
+                if (identifier is null || expression is null)
+                    return false;
+
+                int equalityIndex = -1;
+                for (int i = 0; i < plan.EqualityPrefixValues.Count; i++)
+                {
+                    if (string.Equals(plan.Index.Columns[i], identifier.Name, StringComparison.Ordinal))
+                    {
+                        equalityIndex = i;
+                        break;
+                    }
+                }
+
+                if (equalityIndex < 0)
+                    return false;
+
+                var column = schema.TryGetColumn(identifier.Name)
+                    ?? throw new InvalidOperationException($"索引 '{plan.Index.Name}' 引用了未知列 '{identifier.Name}'。");
+                try
+                {
+                    if (!ValuesEqual(ConvertTableValue(expression, column), plan.EqualityPrefixValues[equalityIndex]))
+                        return false;
+                }
+                catch (Exception exception) when (exception is InvalidOperationException
+                    or ArgumentOutOfRangeException
+                    or InvalidCastException
+                    or FormatException
+                    or OverflowException)
+                {
+                    return false;
+                }
+
+                continue;
+            }
+
+            if (leaf is BinaryExpression rangeComparison
+                && TryNormalizeRangeComparison(
+                    rangeComparison,
+                    plan.Range.Column.Name,
+                    out _,
+                    out var rangeExpression)
+                && TryConvertRangeBound(rangeExpression, plan.Range.Column, out _))
+            {
+                continue;
+            }
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
     /// 把轻事务缓冲的 insert/update/delete 叠加到已提交基线行上（按主键合并，保序追加新插入）。
     /// 主键编码复用 <see cref="TableKeyCodec"/>，与 COMMIT 时 <see cref="TableStore.ApplyBatch"/> 的键语义一致。
     /// </summary>
@@ -873,11 +1035,19 @@ internal static class TableSqlExecutor
 
             var column = schema.TryGetColumn(keyColumnName)
                 ?? throw new InvalidOperationException($"PRIMARY KEY 引用了未知列 '{keyColumnName}'。");
+            if (!CanUseIndexEqualityLookup(column, expression))
+                return false;
             try
             {
                 values[i] = ConvertTableValue(expression, column);
+                if (values[i] is null)
+                    return false;
             }
-            catch (InvalidOperationException)
+            catch (Exception exception) when (exception is InvalidOperationException
+                or ArgumentOutOfRangeException
+                or InvalidCastException
+                or FormatException
+                or OverflowException)
             {
                 return false;
             }
@@ -887,88 +1057,321 @@ internal static class TableSqlExecutor
         return true;
     }
 
-    internal static TableIndex? ChooseBestIndexForWhere(
+    internal static TableIndexAccessPlan? ChooseBestIndexAccessPlan(
         TableSchema schema,
-        SqlExpression? where,
-        out IReadOnlyList<object?> indexValues)
+        SqlExpression? where)
     {
-        if (TryExtractPrimaryKeyValues(schema, where, allowExtraPredicates: true, out var primaryKeyValues))
-        {
-            indexValues = primaryKeyValues;
+        if (TryExtractPrimaryKeyValues(schema, where, allowExtraPredicates: true, out _))
             return null;
-        }
-
-        if (TryExtractSecondaryIndexValues(schema, where, out var index, out var values))
-        {
-            indexValues = values;
-            return index;
-        }
-
-        indexValues = [];
-        return null;
-    }
-
-    private static bool TryExtractSecondaryIndexValues(
-        TableSchema schema,
-        SqlExpression? where,
-        out TableIndex index,
-        out IReadOnlyList<object?> indexValues)
-    {
-        index = null!;
-        indexValues = [];
         if (where is null || schema.Indexes.Count == 0)
-            return false;
+            return null;
+
+        bool hasColumnEqualities = TryCollectEqualityExpressions(
+            where,
+            allowNonEquality: true,
+            out var equalityByColumn);
+        TableIndexAccessPlan? bestPlan = null;
 
         foreach (var candidate in schema.Indexes.OrderByDescending(static i => i.Columns.Count))
         {
+            IReadOnlyList<object?> candidateValues;
+            TableIndexRange? candidateRange = null;
             if (!string.IsNullOrWhiteSpace(candidate.JsonPath))
             {
-                if (TryExtractJsonPathIndexValue(candidate, where, out var jsonPathValue))
-                {
-                    index = candidate;
-                    indexValues = [jsonPathValue];
-                    return true;
-                }
+                if (!TryExtractJsonPathIndexValue(candidate, where, out var jsonPathValue))
+                    continue;
 
-                continue;
+                candidateValues = [jsonPathValue];
             }
-
-            if (!TryCollectEqualityExpressions(where, allowNonEquality: true, out var equalityByColumn))
-                return false;
-
-            var values = new object?[candidate.Columns.Count];
-            var matched = true;
-            for (int i = 0; i < candidate.Columns.Count; i++)
+            else
             {
-                if (!equalityByColumn.TryGetValue(candidate.Columns[i], out var expression))
+                var values = new List<object?>(candidate.Columns.Count);
+                if (hasColumnEqualities)
                 {
-                    matched = false;
-                    break;
+                    for (int i = 0; i < candidate.Columns.Count; i++)
+                    {
+                        if (!equalityByColumn.TryGetValue(candidate.Columns[i], out var expression))
+                            break;
+
+                        var column = schema.TryGetColumn(candidate.Columns[i])
+                            ?? throw new InvalidOperationException($"索引 '{candidate.Name}' 引用了未知列 '{candidate.Columns[i]}'。");
+                        if (!CanUseIndexEqualityLookup(column, expression))
+                            break;
+                        try
+                        {
+                            values.Add(ConvertTableValue(expression, column));
+                        }
+                        catch (Exception exception) when (exception is InvalidOperationException
+                            or ArgumentOutOfRangeException
+                            or InvalidCastException
+                            or FormatException
+                            or OverflowException)
+                        {
+                            // 已成功绑定的前导列仍可缩小候选集，当前列及其后缀留给残余谓词判断。
+                            break;
+                        }
+                    }
                 }
 
-                var column = schema.TryGetColumn(candidate.Columns[i])
-                    ?? throw new InvalidOperationException($"索引 '{candidate.Name}' 引用了未知列 '{candidate.Columns[i]}'。");
-                try
+                if (values.Count < candidate.Columns.Count)
                 {
-                    values[i] = ConvertTableValue(expression, column);
+                    var rangeColumn = schema.TryGetColumn(candidate.Columns[values.Count])
+                        ?? throw new InvalidOperationException($"索引 '{candidate.Name}' 引用了未知列 '{candidate.Columns[values.Count]}'。");
+                    if (rangeColumn.DataType is TableColumnType.Int64 or TableColumnType.DateTime)
+                        _ = TryExtractIndexRange(where, rangeColumn, out candidateRange);
                 }
-                catch (InvalidOperationException)
+
+                if (values.Count == 0 && candidateRange is null)
+                    continue;
+
+                int matchedColumnCount = values.Count + (candidateRange is null ? 0 : 1);
+                bool isFullEquality = candidateRange is null && values.Count == candidate.Columns.Count;
+                if (!isFullEquality
+                    && candidate.IsUnique
+                    && HasNullableUnmatchedIndexColumn(schema, candidate, matchedColumnCount))
                 {
-                    matched = false;
-                    break;
+                    // 唯一索引不保存任何含 NULL 的键；未绑定可空后缀会使前缀或范围扫描漏行。
+                    continue;
                 }
+
+                candidateValues = values;
             }
 
-            if (!matched)
-                continue;
+            var candidatePlan = new TableIndexAccessPlan(candidate, candidateValues, candidateRange);
+            if (bestPlan is null
+                || candidatePlan.MatchedColumnCount > bestPlan.MatchedColumnCount
+                || (candidatePlan.MatchedColumnCount == bestPlan.MatchedColumnCount
+                    && candidatePlan.EqualityPrefixValues.Count > bestPlan.EqualityPrefixValues.Count)
+                || (candidatePlan.MatchedColumnCount == bestPlan.MatchedColumnCount
+                    && candidatePlan.EqualityPrefixValues.Count == bestPlan.EqualityPrefixValues.Count
+                    && candidatePlan.IsFullEquality
+                    && !bestPlan.IsFullEquality))
+            {
+                bestPlan = candidatePlan;
+            }
+        }
 
-            index = candidate;
-            indexValues = values;
-            return true;
+        return bestPlan;
+    }
+
+    /// <summary>
+    /// 判断 WHERE 是否能按完整主键字面量执行点查，供执行与 EXPLAIN 复用同一判定。
+    /// </summary>
+    internal static bool CanUsePrimaryKeyLookup(TableSchema schema, SqlExpression? where)
+        => TryExtractPrimaryKeyValues(schema, where, allowExtraPredicates: true, out _);
+
+    /// <summary>
+    /// 判断 SQL 等值字面量是否能由单个物理键完整覆盖，避免数值折叠或多种位表示漏行。
+    /// </summary>
+    private static bool CanUseIndexEqualityLookup(TableColumn column, SqlExpression expression)
+    {
+        object? value;
+        try
+        {
+            if (expression is LiteralExpression literal)
+            {
+                value = EvaluateLiteral(literal);
+            }
+            else if (expression is UnaryExpression
+            {
+                Operator: SqlUnaryOperator.Negate,
+                Operand: LiteralExpression negatedLiteral,
+            })
+            {
+                value = NegateLiteral(negatedLiteral);
+            }
+            else if (expression is DurationLiteralExpression duration)
+            {
+                value = duration.Milliseconds;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or OverflowException)
+        {
+            return false;
+        }
+
+        // “= NULL”没有 SQL 真值行；允许空前缀候选仍不会漏掉有效结果。
+        return value is null || CanUsePrimaryKeyPointLookup(column.DataType, value);
+    }
+
+    /// <summary>
+    /// 判断唯一联合索引未绑定的后缀中是否存在可空列。
+    /// </summary>
+    private static bool HasNullableUnmatchedIndexColumn(
+        TableSchema schema,
+        TableIndex index,
+        int matchedColumnCount)
+    {
+        for (int i = matchedColumnCount; i < index.Columns.Count; i++)
+        {
+            var column = schema.TryGetColumn(index.Columns[i])
+                ?? throw new InvalidOperationException($"索引 '{index.Name}' 引用了未知列 '{index.Columns[i]}'。");
+            if (column.IsNullable)
+                return true;
         }
 
         return false;
     }
+
+    /// <summary>
+    /// 从 AND 谓词中提取指定 Int64/DATETIME 列的最强上下界。
+    /// 无法无损绑定的比较保留为残余条件，不参与物理范围裁剪。
+    /// </summary>
+    private static bool TryExtractIndexRange(
+        SqlExpression where,
+        TableColumn column,
+        out TableIndexRange? range)
+    {
+        TableIndexRangeBound? lower = null;
+        TableIndexRangeBound? upper = null;
+        foreach (var leaf in FlattenAnd(where))
+        {
+            if (leaf is not BinaryExpression binary
+                || !TryNormalizeRangeComparison(binary, column.Name, out var rangeOperator, out var expression)
+                || !TryConvertRangeBound(expression, column, out long value))
+            {
+                continue;
+            }
+
+            switch (rangeOperator)
+            {
+                case SqlBinaryOperator.GreaterThan:
+                    lower = SelectStrongerLower(lower, new TableIndexRangeBound(value, Inclusive: false));
+                    break;
+                case SqlBinaryOperator.GreaterThanOrEqual:
+                    lower = SelectStrongerLower(lower, new TableIndexRangeBound(value, Inclusive: true));
+                    break;
+                case SqlBinaryOperator.LessThan:
+                    upper = SelectStrongerUpper(upper, new TableIndexRangeBound(value, Inclusive: false));
+                    break;
+                case SqlBinaryOperator.LessThanOrEqual:
+                    upper = SelectStrongerUpper(upper, new TableIndexRangeBound(value, Inclusive: true));
+                    break;
+            }
+        }
+
+        range = lower is null && upper is null
+            ? null
+            : new TableIndexRange(column, lower, upper);
+        return range is not null;
+    }
+
+    /// <summary>
+    /// 把列位于比较右侧的条件翻转为统一的“列 operator 值”形式。
+    /// </summary>
+    private static bool TryNormalizeRangeComparison(
+        BinaryExpression binary,
+        string columnName,
+        out SqlBinaryOperator rangeOperator,
+        out SqlExpression expression)
+    {
+        rangeOperator = binary.Operator;
+        expression = null!;
+        if (binary.Operator is not (SqlBinaryOperator.LessThan
+            or SqlBinaryOperator.LessThanOrEqual
+            or SqlBinaryOperator.GreaterThan
+            or SqlBinaryOperator.GreaterThanOrEqual))
+        {
+            return false;
+        }
+
+        if (binary.Left is IdentifierExpression left
+            && string.Equals(left.Name, columnName, StringComparison.Ordinal))
+        {
+            expression = binary.Right;
+            return true;
+        }
+
+        if (binary.Right is not IdentifierExpression right
+            || !string.Equals(right.Name, columnName, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        rangeOperator = binary.Operator switch
+        {
+            SqlBinaryOperator.LessThan => SqlBinaryOperator.GreaterThan,
+            SqlBinaryOperator.LessThanOrEqual => SqlBinaryOperator.GreaterThanOrEqual,
+            SqlBinaryOperator.GreaterThan => SqlBinaryOperator.LessThan,
+            SqlBinaryOperator.GreaterThanOrEqual => SqlBinaryOperator.LessThanOrEqual,
+            _ => throw new InvalidOperationException("内部错误：无法翻转非范围比较运算符。"),
+        };
+        expression = binary.Left;
+        return true;
+    }
+
+    /// <summary>
+    /// 把范围字面量无损转换为索引使用的有符号值；DATETIME 统一为 Unix 毫秒。
+    /// </summary>
+    private static bool TryConvertRangeBound(
+        SqlExpression expression,
+        TableColumn column,
+        out long value)
+    {
+        value = 0;
+        if (!IsIntegralRangeLiteral(expression))
+            return false;
+
+        try
+        {
+            object? converted = ConvertTableValue(expression, column);
+            value = column.DataType switch
+            {
+                TableColumnType.Int64 => (long)converted!,
+                TableColumnType.DateTime => new DateTimeOffset((DateTime)converted!).ToUnixTimeMilliseconds(),
+                _ => throw new InvalidOperationException("范围索引只支持 Int64 或 DATETIME。"),
+            };
+            return true;
+        }
+        catch (Exception exception) when (exception is InvalidOperationException
+            or ArgumentOutOfRangeException
+            or InvalidCastException
+            or FormatException
+            or OverflowException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 判断表达式是否是不会因数值舍入改变比较语义的整数范围字面量。
+    /// </summary>
+    private static bool IsIntegralRangeLiteral(SqlExpression expression)
+        => expression is LiteralExpression { Kind: SqlLiteralKind.Integer }
+            or UnaryExpression
+            {
+                Operator: SqlUnaryOperator.Negate,
+                Operand: LiteralExpression { Kind: SqlLiteralKind.Integer }
+            }
+            or DurationLiteralExpression;
+
+    /// <summary>
+    /// 合并下界，值更大或同值排他的边界更强。
+    /// </summary>
+    private static TableIndexRangeBound SelectStrongerLower(
+        TableIndexRangeBound? current,
+        TableIndexRangeBound candidate)
+        => current is null
+            || candidate.Value > current.Value.Value
+            || (candidate.Value == current.Value.Value && !candidate.Inclusive && current.Value.Inclusive)
+                ? candidate
+                : current.Value;
+
+    /// <summary>
+    /// 合并上界，值更小或同值排他的边界更强。
+    /// </summary>
+    private static TableIndexRangeBound SelectStrongerUpper(
+        TableIndexRangeBound? current,
+        TableIndexRangeBound candidate)
+        => current is null
+            || candidate.Value < current.Value.Value
+            || (candidate.Value == current.Value.Value && !candidate.Inclusive && current.Value.Inclusive)
+                ? candidate
+                : current.Value;
 
     private static bool TryExtractJsonPathIndexValue(
         TableIndex index,

@@ -81,6 +81,9 @@ public sealed class TableStore : IDisposable
     /// <summary>公开唯一索引持久扫描累计次数，供未变化索引回归测试观测。</summary>
     internal long UniqueIndexValidationScanCount => Interlocked.Read(ref _uniqueIndexValidationScanCount);
 
+    /// <summary>测试范围查询时记录实际下推到索引扫描的候选上限。</summary>
+    internal Action<int>? RangeScanLimitTestHook { get; set; }
+
     /// <summary>底层 rowstore generation 旧文件回收状态。</summary>
     public KvCleanupStatus GetCleanupStatus() => _keyspace.GetCleanupStatus();
 
@@ -342,7 +345,7 @@ public sealed class TableStore : IDisposable
     }
 
     /// <summary>
-    /// 按二级索引前缀读取候选行。
+    /// 按完整二级索引等值键读取候选行。
     /// </summary>
     /// <param name="index">索引声明。</param>
     /// <param name="indexColumnValues">与索引列数量一致的等值谓词。</param>
@@ -353,26 +356,205 @@ public sealed class TableStore : IDisposable
         ArgumentNullException.ThrowIfNull(indexColumnValues);
         lock (_sync)
         {
-            var schema = _schema;
             if (indexColumnValues.Count != index.Columns.Count)
                 throw new ArgumentException("索引值数量与索引列数量不一致。", nameof(indexColumnValues));
 
-            byte[]? prefix = TableIndexCodec.EncodeLookupPrefix(index, indexColumnValues, schema);
-            if (prefix is null)
-                return [];
-            var entries = _keyspace.ScanPrefix(prefix, limit ?? int.MaxValue);
-            var rows = new List<TableRow>(entries.Count);
-            foreach (var entry in entries)
+            return GetByIndexPrefixLocked(index, indexColumnValues, limit);
+        }
+    }
+
+    /// <summary>
+    /// 按联合二级索引的连续首列等值前缀读取候选行。
+    /// </summary>
+    /// <param name="index">索引声明。</param>
+    /// <param name="indexColumnValues">从索引首列开始连续匹配的等值谓词值。</param>
+    /// <param name="limit">最多返回行数。</param>
+    /// <returns>索引中命中该前缀的候选行。</returns>
+    public IReadOnlyList<TableRow> GetByIndexPrefix(
+        TableIndex index,
+        IReadOnlyList<object?> indexColumnValues,
+        int? limit = null)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        ArgumentNullException.ThrowIfNull(indexColumnValues);
+        lock (_sync)
+        {
+            if (indexColumnValues.Count == 0 || indexColumnValues.Count > index.Columns.Count)
             {
-                byte[] primaryKey = entry.Value.Span.ToArray();
-                byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
-                byte[]? payload = _keyspace.Get(rowKey);
-                if (payload is null)
-                    continue;
-                rows.Add(new TableRow(TableRowCodec.Decode(schema, payload), primaryKey));
+                throw new ArgumentException(
+                    "索引前缀值必须从首列开始连续提供，且不能超过索引列数量。",
+                    nameof(indexColumnValues));
+            }
+
+            return GetByIndexPrefixLocked(index, indexColumnValues, limit);
+        }
+    }
+
+    /// <summary>
+    /// 按联合二级索引的连续等值前缀和下一列 Int64/DATETIME 范围读取候选行。
+    /// 返回顺序是范围列的逻辑升序，不受现有 signed big-endian 物理排序跨零影响。
+    /// </summary>
+    internal IReadOnlyList<TableRow> GetByIndexRange(
+        TableIndex index,
+        IReadOnlyList<object?> equalityPrefixValues,
+        TableIndexRange range,
+        int? limit = null)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        ArgumentNullException.ThrowIfNull(equalityPrefixValues);
+        ArgumentNullException.ThrowIfNull(range);
+        lock (_sync)
+        {
+            var schema = _schema;
+            if (!string.IsNullOrWhiteSpace(index.JsonPath)
+                || equalityPrefixValues.Count >= index.Columns.Count)
+            {
+                throw new ArgumentException("范围扫描要求普通联合索引仍有一个未绑定的下一列。", nameof(equalityPrefixValues));
+            }
+
+            var expectedColumn = schema.TryGetColumn(index.Columns[equalityPrefixValues.Count])
+                ?? throw new InvalidOperationException($"索引 '{index.Name}' 引用了未知列 '{index.Columns[equalityPrefixValues.Count]}'。");
+            if (!string.Equals(expectedColumn.Name, range.Column.Name, StringComparison.Ordinal)
+                || expectedColumn.DataType is not (TableColumnType.Int64 or TableColumnType.DateTime))
+            {
+                throw new ArgumentException("范围列必须是索引等值前缀后的 Int64 或 DATETIME 列。", nameof(range));
+            }
+
+            int take = limit ?? int.MaxValue;
+            if (take <= 0)
+                return [];
+            RangeScanLimitTestHook?.Invoke(take);
+
+            byte[] prefix = TableIndexCodec.EncodeLookupPrefix(index, equalityPrefixValues, schema)
+                ?? throw new InvalidOperationException($"索引 '{index.Name}' 的等值前缀无法编码。");
+            var keyRanges = BuildSignedKeyRanges(index, equalityPrefixValues, range, schema);
+            var rows = new List<TableRow>();
+            foreach (var keyRange in keyRanges)
+            {
+                int remaining = take - rows.Count;
+                if (remaining <= 0)
+                    break;
+
+                var entries = _keyspace.ScanRange(
+                    prefix,
+                    keyRange.StartInclusive,
+                    keyRange.EndExclusive,
+                    afterKey: ReadOnlySpan<byte>.Empty,
+                    remaining);
+                MaterializeIndexEntriesLocked(schema, entries, rows);
             }
 
             return rows;
+        }
+    }
+
+    /// <summary>
+    /// 在持有表锁时扫描二级索引前缀并回表物化候选行。
+    /// </summary>
+    private IReadOnlyList<TableRow> GetByIndexPrefixLocked(
+        TableIndex index,
+        IReadOnlyList<object?> indexColumnValues,
+        int? limit)
+    {
+        var schema = _schema;
+        byte[]? prefix = TableIndexCodec.EncodeLookupPrefix(index, indexColumnValues, schema);
+        if (prefix is null)
+            return [];
+        var entries = _keyspace.ScanPrefix(prefix, limit ?? int.MaxValue);
+        var rows = new List<TableRow>(entries.Count);
+        foreach (var entry in entries)
+        {
+            byte[] primaryKey = entry.Value.Span.ToArray();
+            byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
+            byte[]? payload = _keyspace.Get(rowKey);
+            if (payload is null)
+                continue;
+            rows.Add(new TableRow(TableRowCodec.Decode(schema, payload), primaryKey));
+        }
+
+        return rows;
+    }
+
+    /// <summary>
+    /// 把 signed big-endian 的物理顺序拆成负数、非负数两个逻辑升序区间。
+    /// </summary>
+    private static IReadOnlyList<TableIndexKeyRange> BuildSignedKeyRanges(
+        TableIndex index,
+        IReadOnlyList<object?> equalityPrefixValues,
+        TableIndexRange range,
+        TableSchema schema)
+    {
+        var ranges = new List<TableIndexKeyRange>(2);
+        TryAddSignedSegment(long.MinValue, -1, index, equalityPrefixValues, range, schema, ranges);
+        TryAddSignedSegment(0, long.MaxValue, index, equalityPrefixValues, range, schema, ranges);
+        return ranges;
+    }
+
+    /// <summary>
+    /// 求逻辑范围与一个同号区间的交集，并转换为半开物理 key 范围。
+    /// </summary>
+    private static void TryAddSignedSegment(
+        long segmentMinimum,
+        long segmentMaximum,
+        TableIndex index,
+        IReadOnlyList<object?> equalityPrefixValues,
+        TableIndexRange range,
+        TableSchema schema,
+        List<TableIndexKeyRange> destination)
+    {
+        var lower = range.Lower is { } requestedLower && requestedLower.Value >= segmentMinimum
+            ? requestedLower
+            : new TableIndexRangeBound(segmentMinimum, Inclusive: true);
+        var upper = range.Upper is { } requestedUpper && requestedUpper.Value <= segmentMaximum
+            ? requestedUpper
+            : new TableIndexRangeBound(segmentMaximum, Inclusive: true);
+
+        if (lower.Value < segmentMinimum
+            || lower.Value > segmentMaximum
+            || upper.Value < segmentMinimum
+            || upper.Value > segmentMaximum
+            || lower.Value > upper.Value
+            || (lower.Value == upper.Value && (!lower.Inclusive || !upper.Inclusive)))
+        {
+            return;
+        }
+
+        byte[] lowerPrefix = TableIndexCodec.EncodeRangeValuePrefix(
+            index,
+            equalityPrefixValues,
+            lower.Value,
+            schema);
+        byte[] upperPrefix = TableIndexCodec.EncodeRangeValuePrefix(
+            index,
+            equalityPrefixValues,
+            upper.Value,
+            schema);
+        byte[] startInclusive = lower.Inclusive
+            ? lowerPrefix
+            : TableIndexCodec.GetPrefixSuccessor(lowerPrefix);
+        byte[] endExclusive = upper.Inclusive
+            ? TableIndexCodec.GetPrefixSuccessor(upperPrefix)
+            : upperPrefix;
+        if (SonnetDB.Kv.KvKeyComparer.Instance.Compare(startInclusive, endExclusive) < 0)
+            destination.Add(new TableIndexKeyRange(startInclusive, endExclusive));
+    }
+
+    /// <summary>
+    /// 回表物化二级索引条目，忽略已经被并发删除的主行。
+    /// </summary>
+    private void MaterializeIndexEntriesLocked(
+        TableSchema schema,
+        IReadOnlyList<SonnetDB.Kv.KvEntry> entries,
+        List<TableRow> rows)
+    {
+        foreach (var entry in entries)
+        {
+            byte[] primaryKey = entry.Value.Span.ToArray();
+            byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
+            byte[]? payload = _keyspace.Get(rowKey);
+            if (payload is null)
+                continue;
+            rows.Add(new TableRow(TableRowCodec.Decode(schema, payload), primaryKey));
         }
     }
 

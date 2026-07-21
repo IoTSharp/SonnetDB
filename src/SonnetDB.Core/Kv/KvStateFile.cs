@@ -301,6 +301,9 @@ internal sealed class KvDiskState : IDisposable
     private readonly FileStream _stream;
     private bool _disposed;
 
+    /// <summary>测试扫描时记录实际检查的磁盘索引位置。</summary>
+    internal Action<int>? ScanIndexVisitedTestHook { get; set; }
+
     public KvDiskState(string path, long sequence, long generation, IReadOnlyList<KvDiskIndexEntry> entries)
     {
         ArgumentNullException.ThrowIfNull(path);
@@ -331,16 +334,54 @@ internal sealed class KvDiskState : IDisposable
         return Read(_entries[index]);
     }
 
+    /// <summary>
+    /// 兼容旧前缀分页扫描，并严格从指定 key 之后继续读取。
+    /// </summary>
     public IEnumerable<KvDiskIndexEntry> ScanPrefixAfter(byte[] prefix, byte[]? afterKey)
+        => ScanRange(prefix, startInclusive: null, endExclusive: null, afterKey);
+
+    /// <summary>
+    /// 按前缀和半开区间扫描磁盘索引，并严格排除 continuation key。
+    /// </summary>
+    /// <param name="prefix">必须匹配的 key 前缀。</param>
+    /// <param name="startInclusive">包含的起始 key；null 表示无显式下界。</param>
+    /// <param name="endExclusive">不包含的结束 key；null 表示无显式上界。</param>
+    /// <param name="afterKey">上一页最后一个 key；null 表示无 continuation。</param>
+    /// <returns>按 key 字节序升序排列的磁盘索引项。</returns>
+    public IEnumerable<KvDiskIndexEntry> ScanRange(
+        byte[] prefix,
+        byte[]? startInclusive,
+        byte[]? endExclusive,
+        byte[]? afterKey)
     {
         ArgumentNullException.ThrowIfNull(prefix);
-        for (int i = 0; i < _entries.Length; i++)
+
+        byte[] lowerBound = prefix;
+        bool lowerBoundExclusive = false;
+        if (startInclusive is not null && Compare(startInclusive, lowerBound) > 0)
+            lowerBound = startInclusive;
+        if (afterKey is not null && Compare(afterKey, lowerBound) >= 0)
+        {
+            lowerBound = afterKey;
+            lowerBoundExclusive = true;
+        }
+
+        int startIndex = LowerBound(lowerBound);
+        if (lowerBoundExclusive
+            && startIndex < _entries.Length
+            && Compare(_entries[startIndex].Key, lowerBound) == 0)
+        {
+            startIndex++;
+        }
+
+        for (int i = startIndex; i < _entries.Length; i++)
         {
             var entry = _entries[i];
+            ScanIndexVisitedTestHook?.Invoke(i);
             if (!entry.Key.AsSpan().StartsWith(prefix))
-                continue;
-            if (afterKey is not null && KvKeyComparer.Instance.Compare(entry.Key, afterKey) <= 0)
-                continue;
+                yield break;
+            if (endExclusive is not null && Compare(entry.Key, endExclusive) >= 0)
+                yield break;
 
             yield return entry;
         }
@@ -434,6 +475,25 @@ internal sealed class KvDiskState : IDisposable
         }
 
         return -1;
+    }
+
+    /// <summary>
+    /// 使用二分查找返回第一个大于等于目标 key 的磁盘索引位置。
+    /// </summary>
+    private int LowerBound(ReadOnlySpan<byte> key)
+    {
+        int lo = 0;
+        int hi = _entries.Length;
+        while (lo < hi)
+        {
+            int mid = lo + ((hi - lo) / 2);
+            if (Compare(_entries[mid].Key, key) < 0)
+                lo = mid + 1;
+            else
+                hi = mid;
+        }
+
+        return lo;
     }
 
     private static int Compare(ReadOnlySpan<byte> left, ReadOnlySpan<byte> right)

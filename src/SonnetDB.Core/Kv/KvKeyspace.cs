@@ -1155,8 +1155,44 @@ public sealed class KvKeyspace : IDisposable
         return ScanPrefixAfter(prefix, afterKey.IsEmpty ? null : afterKey.ToArray(), limit);
     }
 
+    /// <summary>
+    /// 在指定 key 前缀内执行半开区间分页扫描，结果同时满足
+    /// <c>startInclusive &lt;= key &lt; endExclusive</c>，并严格位于 continuation key 之后。
+    /// </summary>
+    /// <param name="prefix">key 前缀；为空时不限制前缀。</param>
+    /// <param name="startInclusive">包含的起始 key；为空时不设置下界。</param>
+    /// <param name="endExclusive">不包含的结束 key；为空时不设置上界。</param>
+    /// <param name="afterKey">上一页最后一个 key；为空时不设置 continuation，提供后严格排除该 key。</param>
+    /// <param name="limit">最大返回行数；小于等于 0 时返回空集合。</param>
+    /// <returns>按 key 字节序升序排列的结果快照。</returns>
+    public IReadOnlyList<KvEntry> ScanRange(
+        ReadOnlySpan<byte> prefix,
+        ReadOnlySpan<byte> startInclusive,
+        ReadOnlySpan<byte> endExclusive,
+        ReadOnlySpan<byte> afterKey,
+        int? limit = null)
+    {
+        return ScanRangeCore(
+            prefix,
+            startInclusive.IsEmpty ? null : startInclusive.ToArray(),
+            endExclusive.IsEmpty ? null : endExclusive.ToArray(),
+            afterKey.IsEmpty ? null : afterKey.ToArray(),
+            limit);
+    }
+
     private IReadOnlyList<KvEntry> ScanPrefixAfter(
         ReadOnlySpan<byte> prefix,
+        byte[]? afterKey,
+        int? limit)
+        => ScanRangeCore(prefix, startInclusive: null, endExclusive: null, afterKey, limit);
+
+    /// <summary>
+    /// 在锁内合并可变层、冻结层和磁盘层，并按指定范围生成稳定结果快照。
+    /// </summary>
+    private IReadOnlyList<KvEntry> ScanRangeCore(
+        ReadOnlySpan<byte> prefix,
+        byte[]? startInclusive,
+        byte[]? endExclusive,
         byte[]? afterKey,
         int? limit)
     {
@@ -1171,7 +1207,11 @@ public sealed class KvKeyspace : IDisposable
             ThrowIfDisposed();
             var rows = new List<KvEntry>(Math.Min(take, CountVisibleLocked()));
             DateTimeOffset now = DateTimeOffset.UtcNow;
-            foreach (var pair in EnumerateVisibleEntriesLocked(prefixCopy, afterKey))
+            foreach (var pair in EnumerateVisibleEntriesLocked(
+                prefixCopy,
+                afterKey,
+                startInclusive: startInclusive,
+                endExclusive: endExclusive))
             {
                 if (TryDeleteExpiredLocked(pair.Key, pair.Value, now))
                     continue;
@@ -1283,6 +1323,31 @@ public sealed class KvKeyspace : IDisposable
         ArgumentNullException.ThrowIfNull(prefix);
         return ScanPrefixAfter(
             Encoding.UTF8.GetBytes(prefix),
+            string.IsNullOrEmpty(afterKey) ? null : Encoding.UTF8.GetBytes(afterKey),
+            limit);
+    }
+
+    /// <summary>
+    /// 使用 UTF-8 编码在指定字符串前缀内执行半开区间分页扫描。
+    /// </summary>
+    /// <param name="prefix">key 前缀；空字符串表示不限制前缀。</param>
+    /// <param name="startInclusive">包含的起始 key；null 或空字符串表示不设置下界。</param>
+    /// <param name="endExclusive">不包含的结束 key；null 或空字符串表示不设置上界。</param>
+    /// <param name="afterKey">上一页最后一个 key；null 或空字符串表示无 continuation，提供后严格排除该 key。</param>
+    /// <param name="limit">最大返回行数；小于等于 0 时返回空集合。</param>
+    /// <returns>按 UTF-8 key 字节序升序排列的结果快照。</returns>
+    public IReadOnlyList<KvEntry> ScanRange(
+        string prefix,
+        string? startInclusive,
+        string? endExclusive,
+        string? afterKey,
+        int? limit = null)
+    {
+        ArgumentNullException.ThrowIfNull(prefix);
+        return ScanRangeCore(
+            Encoding.UTF8.GetBytes(prefix),
+            string.IsNullOrEmpty(startInclusive) ? null : Encoding.UTF8.GetBytes(startInclusive),
+            string.IsNullOrEmpty(endExclusive) ? null : Encoding.UTF8.GetBytes(endExclusive),
             string.IsNullOrEmpty(afterKey) ? null : Encoding.UTF8.GetBytes(afterKey),
             limit);
     }
@@ -2499,14 +2564,18 @@ public sealed class KvKeyspace : IDisposable
     private IEnumerable<KeyValuePair<byte[], KvValueEntry>> EnumerateVisibleEntriesLocked(
         byte[] prefix,
         byte[]? afterKey,
-        bool readDiskValues = true)
+        bool readDiskValues = true,
+        byte[]? startInclusive = null,
+        byte[]? endExclusive = null)
         => EnumerateVisibleEntries(
             _values,
             _frozenValues,
             _diskState,
             prefix,
             afterKey,
-            readDiskValues);
+            readDiskValues,
+            startInclusive,
+            endExclusive);
 
     private static IEnumerable<KeyValuePair<byte[], KvValueEntry>> EnumerateVisibleEntries(
         IReadOnlyDictionary<byte[], KvValueEntry> primary,
@@ -2514,7 +2583,9 @@ public sealed class KvKeyspace : IDisposable
         KvDiskState? diskState,
         byte[] prefix,
         byte[]? afterKey,
-        bool readDiskValues)
+        bool readDiskValues,
+        byte[]? startInclusive = null,
+        byte[]? endExclusive = null)
     {
         if (secondary is null)
         {
@@ -2523,7 +2594,9 @@ public sealed class KvKeyspace : IDisposable
                 diskState,
                 prefix,
                 afterKey,
-                readDiskValues))
+                readDiskValues,
+                startInclusive,
+                endExclusive))
             {
                 yield return pair;
             }
@@ -2535,8 +2608,16 @@ public sealed class KvKeyspace : IDisposable
             diskState,
             prefix,
             afterKey,
-            readDiskValues);
-        foreach (var pair in MergeOverlayAndLowerLayer(primary, lowerLayer, prefix, afterKey))
+            readDiskValues,
+            startInclusive,
+            endExclusive);
+        foreach (var pair in MergeOverlayAndLowerLayer(
+            primary,
+            lowerLayer,
+            prefix,
+            afterKey,
+            startInclusive,
+            endExclusive))
             yield return pair;
     }
 
@@ -2544,11 +2625,15 @@ public sealed class KvKeyspace : IDisposable
         IReadOnlyDictionary<byte[], KvValueEntry> overlay,
         IEnumerable<KeyValuePair<byte[], KvValueEntry>> lowerLayer,
         byte[] prefix,
-        byte[]? afterKey)
+        byte[]? afterKey,
+        byte[]? startInclusive,
+        byte[]? endExclusive)
     {
         using var memory = overlay
             .Where(pair => !pair.Value.IsDeleted
                 && pair.Key.AsSpan().StartsWith(prefix)
+                && (startInclusive is null || KvKeyComparer.Instance.Compare(pair.Key, startInclusive) >= 0)
+                && (endExclusive is null || KvKeyComparer.Instance.Compare(pair.Key, endExclusive) < 0)
                 && (afterKey is null || KvKeyComparer.Instance.Compare(pair.Key, afterKey) > 0))
             .OrderBy(static pair => pair.Key, KvKeyComparer.Instance)
             .GetEnumerator();
@@ -2600,15 +2685,19 @@ public sealed class KvKeyspace : IDisposable
         KvDiskState? diskState,
         byte[] prefix,
         byte[]? afterKey,
-        bool readDiskValues)
+        bool readDiskValues,
+        byte[]? startInclusive,
+        byte[]? endExclusive)
     {
         using var memory = overlay
             .Where(pair => !pair.Value.IsDeleted
                 && pair.Key.AsSpan().StartsWith(prefix)
+                && (startInclusive is null || KvKeyComparer.Instance.Compare(pair.Key, startInclusive) >= 0)
+                && (endExclusive is null || KvKeyComparer.Instance.Compare(pair.Key, endExclusive) < 0)
                 && (afterKey is null || KvKeyComparer.Instance.Compare(pair.Key, afterKey) > 0))
             .OrderBy(static pair => pair.Key, KvKeyComparer.Instance)
             .GetEnumerator();
-        using var disk = (diskState?.ScanPrefixAfter(prefix, afterKey)
+        using var disk = (diskState?.ScanRange(prefix, startInclusive, endExclusive, afterKey)
                 ?? Enumerable.Empty<KvDiskIndexEntry>())
             .GetEnumerator();
 

@@ -1147,6 +1147,595 @@ public sealed class SqlExecutorTableTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// 验证优化器优先选择绑定列数更多的联合索引，并把索引外谓词留给残余过滤。
+    /// </summary>
+    [Fact]
+    public void CompositeIndex_WithExtraPredicates_UsesLongestLeftPrefix()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, """
+            CREATE TABLE routes (
+                id INT,
+                a STRING NOT NULL,
+                b STRING NOT NULL,
+                c STRING NOT NULL,
+                d STRING NOT NULL,
+                marker STRING,
+                PRIMARY KEY (id)
+            )
+            """);
+        SqlExecutor.Execute(db, """
+            INSERT INTO routes (id, a, b, c, d, marker)
+            VALUES (1, 'x', 'y', 'z', 'd1', 'keep'),
+                   (2, 'x', 'y', 'z', 'd2', 'drop'),
+                   (3, 'x', 'y', 'other', 'd3', 'keep'),
+                   (4, 'q', 'y', 'z', 'd4', 'keep')
+            """);
+        SqlExecutor.Execute(db, "CREATE INDEX idx_routes_ab ON routes (a, b)");
+        SqlExecutor.Execute(db, "CREATE INDEX idx_routes_abcd ON routes (a, b, c, d)");
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT id FROM routes
+            WHERE a = 'x' AND b = 'y' AND c = 'z' AND marker = 'keep'
+            ORDER BY id
+            """));
+        Assert.Equal([1L], result.Rows.Select(static row => (long)row[0]!).ToArray());
+
+        var prefixExplain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            EXPLAIN SELECT id FROM routes
+            WHERE a = 'x' AND b = 'y' AND c = 'z' AND marker = 'keep'
+            """));
+        var prefixValues = prefixExplain.Rows.ToDictionary(
+            static row => (string)row[0]!,
+            static row => row[1],
+            StringComparer.Ordinal);
+        Assert.Equal("secondary_index_prefix", prefixValues["access_path"]);
+        Assert.Equal("idx_routes_abcd", prefixValues["index_name"]);
+        Assert.Equal(2L, Convert.ToInt64(prefixValues["estimated_scanned_rows"]));
+
+        SqlExecutor.Execute(db, "DROP INDEX idx_routes_abcd ON routes");
+        var fullExplain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            EXPLAIN SELECT id FROM routes
+            WHERE a = 'x' AND b = 'y' AND c = 'z'
+            """));
+        var fullValues = fullExplain.Rows.ToDictionary(
+            static row => (string)row[0]!,
+            static row => row[1],
+            StringComparer.Ordinal);
+        Assert.Equal("secondary_index", fullValues["access_path"]);
+        Assert.Equal("idx_routes_ab", fullValues["index_name"]);
+        Assert.Equal(3L, Convert.ToInt64(fullValues["estimated_scanned_rows"]));
+
+        var noLeadingColumnExplain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "EXPLAIN SELECT id FROM routes WHERE b = 'y' AND c = 'z'"));
+        var noLeadingColumnValues = noLeadingColumnExplain.Rows.ToDictionary(
+            static row => (string)row[0]!,
+            static row => row[1],
+            StringComparer.Ordinal);
+        Assert.Equal("table_scan", noLeadingColumnValues["access_path"]);
+        Assert.Null(noLeadingColumnValues["index_name"]);
+    }
+
+    /// <summary>
+    /// 验证可空后缀的唯一联合索引不会用于不完整前缀，完整等值查询仍保留唯一索引路径。
+    /// </summary>
+    [Fact]
+    public void UniqueCompositeIndex_WithNullableSuffix_PreservesCompleteResults()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, """
+            CREATE TABLE accounts (
+                id INT,
+                tenant STRING NOT NULL,
+                serial STRING,
+                PRIMARY KEY (id)
+            )
+            """);
+        SqlExecutor.Execute(db, """
+            INSERT INTO accounts (id, tenant, serial)
+            VALUES (1, 'north', 'A-1'), (2, 'north', NULL), (3, 'south', 'B-1')
+            """);
+        SqlExecutor.Execute(db, "CREATE UNIQUE INDEX ux_accounts_tenant_serial ON accounts (tenant, serial)");
+
+        var prefixResult = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM accounts WHERE tenant = 'north' ORDER BY id"));
+        Assert.Equal([1L, 2L], prefixResult.Rows.Select(static row => (long)row[0]!).ToArray());
+
+        var prefixExplain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "EXPLAIN SELECT id FROM accounts WHERE tenant = 'north'"));
+        var prefixValues = prefixExplain.Rows.ToDictionary(
+            static row => (string)row[0]!,
+            static row => row[1],
+            StringComparer.Ordinal);
+        Assert.Equal("table_scan", prefixValues["access_path"]);
+
+        var exactExplain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            EXPLAIN SELECT id FROM accounts
+            WHERE tenant = 'north' AND serial = 'A-1'
+            """));
+        var exactValues = exactExplain.Rows.ToDictionary(
+            static row => (string)row[0]!,
+            static row => row[1],
+            StringComparer.Ordinal);
+        Assert.Equal("secondary_index", exactValues["access_path"]);
+        Assert.Equal("ux_accounts_tenant_serial", exactValues["index_name"]);
+        Assert.Equal(1L, Convert.ToInt64(exactValues["estimated_scanned_rows"]));
+    }
+
+    /// <summary>
+    /// 验证 Int64 范围索引覆盖负数、非负数、跨零、同值和排他空区间。
+    /// </summary>
+    [Fact]
+    public void SecondaryIndexRange_Int64Bounds_ReturnsCompleteLogicalOrder()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE samples (id INT, value INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, """
+            INSERT INTO samples (id, value)
+            VALUES (1, -3), (2, -2), (3, -1), (4, 0), (5, 1), (6, 2), (7, 3)
+            """);
+        SqlExecutor.Execute(
+            db,
+            databaseName: null,
+            "INSERT INTO samples (id, value) VALUES (8, @minimum), (9, @maximum)",
+            new SqlParameters().AddNamed("minimum", long.MinValue).AddNamed("maximum", long.MaxValue),
+            controlPlane: null);
+        SqlExecutor.Execute(db, "CREATE INDEX idx_samples_value ON samples (value)");
+
+        var inclusive = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT value FROM samples WHERE value >= -2 AND value <= 2"));
+        Assert.Equal([-2L, -1L, 0L, 1L, 2L], inclusive.Rows.Select(static row => (long)row[0]!).ToArray());
+
+        var exclusive = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT value FROM samples WHERE value > -2 AND value < 2"));
+        Assert.Equal([-1L, 0L, 1L], exclusive.Rows.Select(static row => (long)row[0]!).ToArray());
+
+        var negative = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT value FROM samples WHERE value >= -3 AND value < -1"));
+        Assert.Equal([-3L, -2L], negative.Rows.Select(static row => (long)row[0]!).ToArray());
+
+        var positive = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT value FROM samples WHERE value > 0 AND value <= 2"));
+        Assert.Equal([1L, 2L], positive.Rows.Select(static row => (long)row[0]!).ToArray());
+
+        var reversed = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT value FROM samples WHERE -2 <= value AND 2 > value"));
+        Assert.Equal([-2L, -1L, 0L, 1L], reversed.Rows.Select(static row => (long)row[0]!).ToArray());
+
+        var same = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT value FROM samples WHERE value >= 0 AND value <= 0"));
+        Assert.Equal(0L, Assert.Single(same.Rows)[0]);
+
+        var empty = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT value FROM samples WHERE value > 0 AND value < 0"));
+        Assert.Empty(empty.Rows);
+
+        var minimum = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            db,
+            databaseName: null,
+            "SELECT value FROM samples WHERE value >= @bound AND value <= @bound",
+            new SqlParameters().AddNamed("bound", long.MinValue),
+            controlPlane: null));
+        Assert.Equal(long.MinValue, Assert.Single(minimum.Rows)[0]);
+
+        var maximum = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            db,
+            databaseName: null,
+            "SELECT value FROM samples WHERE value >= @bound AND value <= @bound",
+            new SqlParameters().AddNamed("bound", long.MaxValue),
+            controlPlane: null));
+        Assert.Equal(long.MaxValue, Assert.Single(maximum.Rows)[0]);
+
+        var aboveMaximum = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            db,
+            databaseName: null,
+            "SELECT value FROM samples WHERE value > @bound",
+            new SqlParameters().AddNamed("bound", long.MaxValue),
+            controlPlane: null));
+        Assert.Empty(aboveMaximum.Rows);
+
+        var belowMinimum = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            db,
+            databaseName: null,
+            "SELECT value FROM samples WHERE value < @bound",
+            new SqlParameters().AddNamed("bound", long.MinValue),
+            controlPlane: null));
+        Assert.Empty(belowMinimum.Rows);
+
+        var explain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "EXPLAIN SELECT value FROM samples WHERE value >= -2 AND value <= 2"));
+        var explainValues = explain.Rows.ToDictionary(
+            static row => (string)row[0]!,
+            static row => row[1],
+            StringComparer.Ordinal);
+        Assert.Equal("secondary_index_range", explainValues["access_path"]);
+        Assert.Equal("idx_samples_value", explainValues["index_name"]);
+        Assert.Equal(5L, Convert.ToInt64(explainValues["estimated_scanned_rows"]));
+    }
+
+    /// <summary>
+    /// 验证联合索引使用最长等值左前缀和下一列范围，并把后续条件留给残余过滤。
+    /// </summary>
+    [Fact]
+    public void CompositeSecondaryIndexRange_WithResidualAndMissingColumns_PreservesRows()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, """
+            CREATE TABLE route_events (
+                id INT,
+                tenant STRING NOT NULL,
+                lane STRING NOT NULL,
+                occurred INT NOT NULL,
+                suffix STRING NOT NULL,
+                marker STRING,
+                PRIMARY KEY (id)
+            )
+            """);
+        SqlExecutor.Execute(db, """
+            INSERT INTO route_events (id, tenant, lane, occurred, suffix, marker)
+            VALUES (1, 'north', 'A', -1, 'd1', 'keep'),
+                   (2, 'north', 'A', 0, 'd1', 'drop'),
+                   (3, 'north', 'A', 1, 'd1', 'keep'),
+                   (4, 'north', 'B', 0, 'd1', 'keep'),
+                   (5, 'north', 'A', 2, 'd1', 'keep'),
+                   (6, 'south', 'A', 0, 'd1', 'keep'),
+                   (7, 'north', 'A', 1, 'd2', 'drop')
+            """);
+        SqlExecutor.Execute(db,
+            "CREATE INDEX idx_route_events_tenant_lane_occurred_suffix ON route_events (tenant, lane, occurred, suffix)");
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT id FROM route_events
+            WHERE tenant = 'north' AND lane = 'A'
+              AND occurred >= -1 AND occurred <= 1
+              AND marker = 'keep'
+            """));
+        Assert.Equal([1L, 3L], result.Rows.Select(static row => (long)row[0]!).ToArray());
+
+        var rangeExplain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            EXPLAIN SELECT id FROM route_events
+            WHERE tenant = 'north' AND lane = 'A'
+              AND occurred >= -1 AND occurred <= 1
+              AND marker = 'keep'
+            """));
+        var rangeValues = rangeExplain.Rows.ToDictionary(
+            static row => (string)row[0]!,
+            static row => row[1],
+            StringComparer.Ordinal);
+        Assert.Equal("secondary_index_range", rangeValues["access_path"]);
+        Assert.Equal("idx_route_events_tenant_lane_occurred_suffix", rangeValues["index_name"]);
+        Assert.Equal(4L, Convert.ToInt64(rangeValues["estimated_scanned_rows"]));
+
+        var missingMiddleExplain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            EXPLAIN SELECT id FROM route_events
+            WHERE tenant = 'north' AND occurred >= -1 AND occurred <= 1
+            """));
+        var missingMiddleValues = missingMiddleExplain.Rows.ToDictionary(
+            static row => (string)row[0]!,
+            static row => row[1],
+            StringComparer.Ordinal);
+        Assert.Equal("secondary_index_prefix", missingMiddleValues["access_path"]);
+
+        var missingLeadingExplain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "EXPLAIN SELECT id FROM route_events WHERE occurred >= -1 AND occurred <= 1"));
+        var missingLeadingValues = missingLeadingExplain.Rows.ToDictionary(
+            static row => (string)row[0]!,
+            static row => row[1],
+            StringComparer.Ordinal);
+        Assert.Equal("table_scan", missingLeadingValues["access_path"]);
+    }
+
+    /// <summary>
+    /// 验证唯一联合索引的范围列后仍有可空后缀时回退扫描，避免漏掉未写入索引的 NULL 行。
+    /// </summary>
+    [Fact]
+    public void UniqueCompositeSecondaryIndexRange_WithNullableSuffix_FallsBackWithoutMissingRows()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, """
+            CREATE TABLE unique_range_suffix (
+                id INT,
+                a STRING NOT NULL,
+                b STRING NOT NULL,
+                c INT NOT NULL,
+                d STRING,
+                PRIMARY KEY (id)
+            )
+            """);
+        SqlExecutor.Execute(db, """
+            INSERT INTO unique_range_suffix (id, a, b, c, d)
+            VALUES (1, 'x', 'y', 0, 'd1'),
+                   (2, 'x', 'y', 0, NULL),
+                   (3, 'x', 'y', 1, 'd2'),
+                   (4, 'x', 'y', 1, NULL),
+                   (5, 'q', 'y', 0, NULL)
+            """);
+        SqlExecutor.Execute(db, """
+            CREATE UNIQUE INDEX ux_unique_range_suffix_abcd
+            ON unique_range_suffix (a, b, c, d)
+            """);
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT id FROM unique_range_suffix
+            WHERE a = 'x' AND b = 'y' AND c >= 0 AND c <= 1
+            ORDER BY id
+            """));
+        Assert.Equal([1L, 2L, 3L, 4L], result.Rows.Select(static row => (long)row[0]!).ToArray());
+
+        var explain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            EXPLAIN SELECT id FROM unique_range_suffix
+            WHERE a = 'x' AND b = 'y' AND c >= 0 AND c <= 1
+            """));
+        var values = explain.Rows.ToDictionary(
+            static row => (string)row[0]!,
+            static row => row[1],
+            StringComparer.Ordinal);
+        Assert.Equal("table_scan", values["access_path"]);
+    }
+
+    /// <summary>
+    /// 验证 DATETIME 范围跨 Unix epoch，并在关闭重开后继续走磁盘范围索引。
+    /// </summary>
+    [Fact]
+    public void SecondaryIndexRange_DateTimeAcrossEpoch_PersistsAfterReopen()
+    {
+        using (var db = Tsdb.Open(Options()))
+        {
+            SqlExecutor.Execute(db, "CREATE TABLE events_range (id INT, occurred_at DATETIME, PRIMARY KEY (id))");
+            SqlExecutor.Execute(db, databaseName: null, """
+                INSERT INTO events_range (id, occurred_at)
+                VALUES (1, @t1), (2, @t2), (3, @t3), (4, @t4), (5, @t5)
+                """,
+                new SqlParameters()
+                    .AddNamed("t1", DateTimeOffset.FromUnixTimeMilliseconds(-2000).UtcDateTime)
+                    .AddNamed("t2", DateTimeOffset.FromUnixTimeMilliseconds(-1000).UtcDateTime)
+                    .AddNamed("t3", DateTime.UnixEpoch)
+                    .AddNamed("t4", DateTimeOffset.FromUnixTimeMilliseconds(1000).UtcDateTime)
+                    .AddNamed("t5", DateTimeOffset.FromUnixTimeMilliseconds(2000).UtcDateTime),
+                controlPlane: null);
+            SqlExecutor.Execute(db, "CREATE INDEX idx_events_range_time ON events_range (occurred_at)");
+            var preEpochLimits = new List<int>();
+            db.Tables.Open("events_range").RangeScanLimitTestHook = preEpochLimits.Add;
+
+            var beforeCheckpoint = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+                db,
+                databaseName: null,
+                "SELECT id FROM events_range WHERE occurred_at >= @from AND occurred_at <= @to",
+                new SqlParameters()
+                    .AddNamed("from", DateTimeOffset.FromUnixTimeMilliseconds(-1000).UtcDateTime)
+                    .AddNamed("to", DateTimeOffset.FromUnixTimeMilliseconds(1000).UtcDateTime),
+                controlPlane: null));
+            Assert.Equal([2L, 3L, 4L], beforeCheckpoint.Rows.Select(static row => (long)row[0]!).ToArray());
+            Assert.Equal([int.MaxValue], preEpochLimits);
+            db.Keyspaces.CheckpointOpened();
+        }
+
+        using var reopened = Tsdb.Open(Options());
+        var afterReopen = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened,
+            "SELECT id FROM events_range WHERE occurred_at < 2000"));
+        Assert.Equal([1L, 2L, 3L, 4L], afterReopen.Rows.Select(static row => (long)row[0]!).ToArray());
+
+        var explain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened,
+            "EXPLAIN SELECT id FROM events_range WHERE occurred_at < 2000"));
+        var values = explain.Rows.ToDictionary(
+            static row => (string)row[0]!,
+            static row => row[1],
+            StringComparer.Ordinal);
+        Assert.Equal("secondary_index_range", values["access_path"]);
+
+        var observedLimits = new List<int>();
+        reopened.Tables.Open("events_range").RangeScanLimitTestHook = observedLimits.Add;
+        var retentionShape = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened, """
+            SELECT id FROM events_range
+            WHERE occurred_at < 2000
+            ORDER BY occurred_at ASC
+            LIMIT 2 OFFSET 1
+            """));
+        Assert.Equal([2L, 3L], retentionShape.Rows.Select(static row => (long)row[0]!).ToArray());
+        Assert.Equal([3], observedLimits);
+    }
+
+    /// <summary>
+    /// 验证不能无损转换为 Int64 边界的小数比较回退扫描，避免范围裁剪漏行。
+    /// </summary>
+    [Fact]
+    public void SecondaryIndexRange_FractionalIntBoundary_FallsBackToScan()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE integer_bounds (id INT, value INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "INSERT INTO integer_bounds (id, value) VALUES (1, -2), (2, -1), (3, 0), (4, 1), (5, 2)");
+        SqlExecutor.Execute(db, "CREATE INDEX idx_integer_bounds_value ON integer_bounds (value)");
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT value FROM integer_bounds WHERE value > -1.5 AND value < 1.5 ORDER BY value"));
+        Assert.Equal([-1L, 0L, 1L], result.Rows.Select(static row => (long)row[0]!).ToArray());
+
+        var explain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "EXPLAIN SELECT value FROM integer_bounds WHERE value > -1.5 AND value < 1.5"));
+        var values = explain.Rows.ToDictionary(
+            static row => (string)row[0]!,
+            static row => row[1],
+            StringComparer.Ordinal);
+        Assert.Equal("table_scan", values["access_path"]);
+    }
+
+    /// <summary>
+    /// 验证 SQL 等值比物理键更宽时回退扫描，覆盖 Float64 正负零和大整数浮点折叠。
+    /// </summary>
+    [Fact]
+    public void SecondaryIndexEquality_NonCanonicalNumericKeys_FallBackWithoutMissingRows()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE float_keys (id INT, value FLOAT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "INSERT INTO float_keys (id, value) VALUES (1, 0.0), (2, -0.0), (3, 1.0)");
+        SqlExecutor.Execute(db, "CREATE INDEX idx_float_keys_value ON float_keys (value)");
+
+        var zeroRows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM float_keys WHERE value = 0.0 ORDER BY id"));
+        Assert.Equal([1L, 2L], zeroRows.Rows.Select(static row => (long)row[0]!).ToArray());
+
+        var zeroExplain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "EXPLAIN SELECT id FROM float_keys WHERE value = 0.0"));
+        var zeroPlan = zeroExplain.Rows.ToDictionary(
+            static row => (string)row[0]!,
+            static row => row[1],
+            StringComparer.Ordinal);
+        Assert.Equal("table_scan", zeroPlan["access_path"]);
+
+        SqlExecutor.Execute(db, "CREATE TABLE large_integer_keys (id INT, value INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, """
+            INSERT INTO large_integer_keys (id, value)
+            VALUES (1, 9007199254740992), (2, 9007199254740993), (3, 9007199254740994)
+            """);
+        SqlExecutor.Execute(db,
+            "CREATE INDEX idx_large_integer_keys_value ON large_integer_keys (value)");
+
+        var foldedRows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT id FROM large_integer_keys
+            WHERE value = 9007199254740992.0
+            ORDER BY id
+            """));
+        Assert.Equal([1L, 2L], foldedRows.Rows.Select(static row => (long)row[0]!).ToArray());
+
+        var foldedExplain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            EXPLAIN SELECT id FROM large_integer_keys
+            WHERE value = 9007199254740992.0
+            """));
+        var foldedPlan = foldedExplain.Rows.ToDictionary(
+            static row => (string)row[0]!,
+            static row => row[1],
+            StringComparer.Ordinal);
+        Assert.Equal("table_scan", foldedPlan["access_path"]);
+    }
+
+    /// <summary>
+    /// 验证范围索引满足单列升序时把 OFFSET + LIMIT 下推为候选上限。
+    /// </summary>
+    [Fact]
+    public void SecondaryIndexRange_OrderByAscendingWithPagination_PushesCandidateLimit()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE ordered_range (id INT, value INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, """
+            INSERT INTO ordered_range (id, value)
+            VALUES (1, -5), (2, -4), (3, -3), (4, -2), (5, -1),
+                   (6, 0), (7, 1), (8, 2), (9, 3), (10, 4), (11, 5)
+            """);
+        SqlExecutor.Execute(db, "CREATE INDEX idx_ordered_range_value ON ordered_range (value)");
+        var observedLimits = new List<int>();
+        db.Tables.Open("ordered_range").RangeScanLimitTestHook = observedLimits.Add;
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT id, value FROM ordered_range
+            WHERE value >= -5 AND value <= 5
+            ORDER BY value ASC
+            LIMIT 2 OFFSET 3
+            """));
+
+        Assert.Equal([-2L, -1L], result.Rows.Select(static row => (long)row[1]!).ToArray());
+        Assert.Equal([5], observedLimits);
+    }
+
+    /// <summary>
+    /// 验证存在残余谓词时不按原始候选截断，LIMIT/OFFSET 在完整过滤后计数。
+    /// </summary>
+    [Fact]
+    public void SecondaryIndexRange_OrderByWithResidual_FiltersBeforePagination()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, """
+            CREATE TABLE residual_range (
+                id INT,
+                value INT,
+                marker STRING,
+                PRIMARY KEY (id)
+            )
+            """);
+        SqlExecutor.Execute(db, """
+            INSERT INTO residual_range (id, value, marker)
+            VALUES (1, 0, 'drop'), (2, 1, 'keep'), (3, 2, 'drop'),
+                   (4, 3, 'keep'), (5, 4, 'keep'), (6, 5, 'keep')
+            """);
+        SqlExecutor.Execute(db, "CREATE INDEX idx_residual_range_value ON residual_range (value)");
+        var observedLimits = new List<int>();
+        db.Tables.Open("residual_range").RangeScanLimitTestHook = observedLimits.Add;
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT id, value FROM residual_range
+            WHERE value >= 0 AND value <= 5 AND marker = 'keep'
+            ORDER BY value ASC
+            LIMIT 2 OFFSET 1
+            """));
+
+        Assert.Equal([3L, 4L], result.Rows.Select(static row => (long)row[1]!).ToArray());
+        Assert.Equal([int.MaxValue], observedLimits);
+    }
+
+    /// <summary>
+    /// 验证与范围列同名的投影别名不会被误判为索引已满足排序。
+    /// </summary>
+    [Fact]
+    public void SecondaryIndexRange_OrderByShadowingAlias_DoesNotPushPagination()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE alias_range (id INT, value INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "INSERT INTO alias_range (id, value) VALUES (1, 0), (2, 1), (3, 2), (4, 3)");
+        SqlExecutor.Execute(db, "CREATE INDEX idx_alias_range_value ON alias_range (value)");
+        var observedLimits = new List<int>();
+        db.Tables.Open("alias_range").RangeScanLimitTestHook = observedLimits.Add;
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT id,
+                   CASE
+                       WHEN id = 1 THEN 100
+                       WHEN id = 2 THEN 0
+                       WHEN id = 3 THEN 50
+                       ELSE 25
+                   END AS value
+            FROM alias_range
+            WHERE value >= 0 AND value <= 3
+            ORDER BY value ASC
+            LIMIT 2
+            """));
+
+        Assert.Equal([2L, 4L], result.Rows.Select(static row => (long)row[0]!).ToArray());
+        Assert.Equal([int.MaxValue], observedLimits);
+    }
+
+    /// <summary>
+    /// 验证事务 overlay 存在时禁用范围分页下推，并保留缓冲插入、更新和删除的排序视图。
+    /// </summary>
+    [Fact]
+    public void SecondaryIndexRange_OrderByWithTransactionOverlay_DoesNotPushPagination()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE transaction_range (id INT, value INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "INSERT INTO transaction_range (id, value) VALUES (1, 0), (2, 2), (3, 4)");
+        SqlExecutor.Execute(db, "CREATE INDEX idx_transaction_range_value ON transaction_range (value)");
+        var observedLimits = new List<int>();
+        db.Tables.Open("transaction_range").RangeScanLimitTestHook = observedLimits.Add;
+
+        var results = SqlExecutor.ExecuteScript(db, """
+            BEGIN;
+            INSERT INTO transaction_range (id, value) VALUES (4, 1);
+            UPDATE transaction_range SET value = 3 WHERE id = 1;
+            DELETE FROM transaction_range WHERE id = 2;
+            SELECT id, value FROM transaction_range
+            WHERE value >= 0 AND value <= 4
+            ORDER BY value ASC
+            LIMIT 2;
+            ROLLBACK;
+            """);
+
+        var inTransaction = Assert.IsType<SelectExecutionResult>(results[4]);
+        Assert.Equal([4L, 1L], inTransaction.Rows.Select(static row => (long)row[0]!).ToArray());
+        Assert.Empty(observedLimits);
+    }
+
     [Fact]
     public void CreateIndex_IfNotExists_IsIdempotent()
     {
