@@ -1,0 +1,303 @@
+{
+  "runId": "relational-1ece6835",
+  "startedAtUtc": "2026-07-24T05:26:21.6156513+00:00",
+  "scenarios": [
+    {
+      "name": "relational_hello_world",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 2,
+          "metrics": {
+            "row_count": 2
+          }
+        },
+        {
+          "backend": "postgres",
+          "status": "pass",
+          "rowCount": 2,
+          "metrics": {
+            "row_count": 2
+          }
+        }
+      ]
+    },
+    {
+      "name": "tpcc_lite",
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "skipped",
+          "gapReason": "backend \u0027sonnetdb\u0027 lacks required capabilities: RelationalTpccLite",
+          "rowCount": 0,
+          "metrics": {}
+        },
+        {
+          "backend": "postgres",
+          "status": "skipped",
+          "gapReason": "long profile disabled; set PARITY_TPCC_FULL=1 to run 5 warehouses for 30 minutes",
+          "rowCount": 0,
+          "metrics": {
+            "warehouses": 5,
+            "duration_seconds": 1800
+          }
+        }
+      ]
+    },
+    {
+      "name": "fk_cascade_constraint",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1
+          }
+        },
+        {
+          "backend": "postgres",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1
+          }
+        }
+      ]
+    },
+    {
+      "name": "isolation_read_committed",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 2,
+          "metrics": {
+            "row_count": 2
+          }
+        },
+        {
+          "backend": "postgres",
+          "status": "pass",
+          "rowCount": 2,
+          "metrics": {
+            "row_count": 2
+          }
+        }
+      ]
+    },
+    {
+      "name": "subquery_correlated",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1
+          }
+        },
+        {
+          "backend": "postgres",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1
+          }
+        }
+      ]
+    },
+    {
+      "name": "groupby_having",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 2,
+          "metrics": {
+            "row_count": 2
+          }
+        },
+        {
+          "backend": "postgres",
+          "status": "pass",
+          "rowCount": 2,
+          "metrics": {
+            "row_count": 2
+          }
+        }
+      ]
+    },
+    {
+      "name": "information_schema_introspection",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 3,
+          "metrics": {
+            "row_count": 3
+          }
+        },
+        {
+          "backend": "postgres",
+          "status": "pass",
+          "rowCount": 3,
+          "metrics": {
+            "row_count": 3
+          }
+        }
+      ]
+    },
+    {
+      "name": "update_returning_count",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 2,
+          "metrics": {
+            "row_count": 2,
+            "sonnetdb_returning_gap": "UPDATE RETURNING not advertised; verified count via ExecuteNonQuery"
+          }
+        },
+        {
+          "backend": "postgres",
+          "status": "pass",
+          "rowCount": 2,
+          "metrics": {
+            "row_count": 2,
+            "sonnetdb_returning_gap": null
+          }
+        }
+      ]
+    },
+    {
+      "name": "alter_table_evolution",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 2,
+          "metrics": {
+            "row_count": 2
+          }
+        },
+        {
+          "backend": "postgres",
+          "status": "pass",
+          "rowCount": 2,
+          "metrics": {
+            "row_count": 2
+          }
+        }
+      ]
+    }
+  ],
+  "capabilityGaps": [
+    {
+      "scenario": "relational_hello_world",
+      "required": "Relational",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "postgres": "pass"
+      }
+    },
+    {
+      "scenario": "tpcc_lite",
+      "required": "Relational, RelationalTpccLite",
+      "sonnetDb": "skipped",
+      "backendStatuses": {
+        "sonnetdb": "skipped",
+        "postgres": "skipped"
+      },
+      "sonnetDbGap": "backend \u0027sonnetdb\u0027 lacks required capabilities: RelationalTpccLite"
+    },
+    {
+      "scenario": "fk_cascade_constraint",
+      "required": "Relational, SqlForeignKey, SqlCascadeDelete",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "postgres": "pass"
+      }
+    },
+    {
+      "scenario": "isolation_read_committed",
+      "required": "Relational, SqlReadCommitted",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "postgres": "pass"
+      }
+    },
+    {
+      "scenario": "subquery_correlated",
+      "required": "Relational, SqlSubquery, SqlCorrelatedSubquery",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "postgres": "pass"
+      }
+    },
+    {
+      "scenario": "groupby_having",
+      "required": "Relational, SqlGroupBy, SqlHaving",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "postgres": "pass"
+      }
+    },
+    {
+      "scenario": "information_schema_introspection",
+      "required": "Relational, SqlInformationSchema",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "postgres": "pass"
+      }
+    },
+    {
+      "scenario": "update_returning_count",
+      "required": "Relational, SqlUpdateCount",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "postgres": "pass"
+      }
+    },
+    {
+      "scenario": "alter_table_evolution",
+      "required": "Relational, SqlAlterTable",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "postgres": "pass"
+      }
+    }
+  ],
+  "backends": [
+    "sonnetdb",
+    "postgres"
+  ]
+}

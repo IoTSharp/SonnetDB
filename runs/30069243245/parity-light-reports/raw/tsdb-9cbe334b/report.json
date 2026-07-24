@@ -1,0 +1,283 @@
+{
+  "runId": "tsdb-9cbe334b",
+  "startedAtUtc": "2026-07-24T05:26:17.2987248+00:00",
+  "scenarios": [
+    {
+      "name": "ingest_1m_points",
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "points": 10000,
+            "elapsed_ms": 457.5697,
+            "points_per_second": 21854.593955849785
+          }
+        },
+        {
+          "backend": "influxdb",
+          "status": "skipped",
+          "gapReason": "influxdb unreachable (compose full \u672A\u542F\u52A8\u6216 PARITY_* \u672A\u914D\u7F6E)",
+          "rowCount": 0,
+          "metrics": {}
+        },
+        {
+          "backend": "victoriametrics",
+          "status": "skipped",
+          "gapReason": "victoriametrics unreachable (compose full \u672A\u542F\u52A8\u6216 PARITY_* \u672A\u914D\u7F6E)",
+          "rowCount": 0,
+          "metrics": {}
+        }
+      ]
+    },
+    {
+      "name": "groupby_time_window",
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 2,
+          "metrics": {
+            "row_count": 2
+          }
+        },
+        {
+          "backend": "influxdb",
+          "status": "skipped",
+          "gapReason": "influxdb unreachable (compose full \u672A\u542F\u52A8\u6216 PARITY_* \u672A\u914D\u7F6E)",
+          "rowCount": 0,
+          "metrics": {}
+        },
+        {
+          "backend": "victoriametrics",
+          "status": "skipped",
+          "gapReason": "victoriametrics unreachable (compose full \u672A\u542F\u52A8\u6216 PARITY_* \u672A\u914D\u7F6E)",
+          "rowCount": 0,
+          "metrics": {}
+        }
+      ]
+    },
+    {
+      "name": "derivative_accuracy",
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 30,
+          "metrics": {
+            "row_count": 30
+          }
+        },
+        {
+          "backend": "influxdb",
+          "status": "skipped",
+          "gapReason": "influxdb unreachable (compose full \u672A\u542F\u52A8\u6216 PARITY_* \u672A\u914D\u7F6E)",
+          "rowCount": 0,
+          "metrics": {}
+        },
+        {
+          "backend": "victoriametrics",
+          "status": "skipped",
+          "gapReason": "victoriametrics unreachable (compose full \u672A\u542F\u52A8\u6216 PARITY_* \u672A\u914D\u7F6E)",
+          "rowCount": 0,
+          "metrics": {}
+        }
+      ]
+    },
+    {
+      "name": "rate_irate_consistency",
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 30,
+          "metrics": {
+            "row_count": 30
+          }
+        },
+        {
+          "backend": "influxdb",
+          "status": "skipped",
+          "gapReason": "influxdb unreachable (compose full \u672A\u542F\u52A8\u6216 PARITY_* \u672A\u914D\u7F6E)",
+          "rowCount": 0,
+          "metrics": {}
+        },
+        {
+          "backend": "victoriametrics",
+          "status": "skipped",
+          "gapReason": "victoriametrics unreachable (compose full \u672A\u542F\u52A8\u6216 PARITY_* \u672A\u914D\u7F6E)",
+          "rowCount": 0,
+          "metrics": {}
+        }
+      ]
+    },
+    {
+      "name": "holt_winters_forecast_recall",
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 6,
+          "metrics": {
+            "row_count": 6
+          }
+        },
+        {
+          "backend": "influxdb",
+          "status": "skipped",
+          "gapReason": "influxdb unreachable (compose full \u672A\u542F\u52A8\u6216 PARITY_* \u672A\u914D\u7F6E)",
+          "rowCount": 0,
+          "metrics": {}
+        },
+        {
+          "backend": "victoriametrics",
+          "status": "skipped",
+          "gapReason": "victoriametrics unreachable (compose full \u672A\u542F\u52A8\u6216 PARITY_* \u672A\u914D\u7F6E)",
+          "rowCount": 0,
+          "metrics": {}
+        }
+      ]
+    },
+    {
+      "name": "percentile_p95_tdigest_vs_quantile",
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1
+          }
+        },
+        {
+          "backend": "influxdb",
+          "status": "skipped",
+          "gapReason": "influxdb unreachable (compose full \u672A\u542F\u52A8\u6216 PARITY_* \u672A\u914D\u7F6E)",
+          "rowCount": 0,
+          "metrics": {}
+        },
+        {
+          "backend": "victoriametrics",
+          "status": "skipped",
+          "gapReason": "victoriametrics unreachable (compose full \u672A\u542F\u52A8\u6216 PARITY_* \u672A\u914D\u7F6E)",
+          "rowCount": 0,
+          "metrics": {}
+        }
+      ]
+    },
+    {
+      "name": "distinct_count_hll_2pct_error",
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "expected_cardinality": 500
+          }
+        },
+        {
+          "backend": "influxdb",
+          "status": "skipped",
+          "gapReason": "influxdb unreachable (compose full \u672A\u542F\u52A8\u6216 PARITY_* \u672A\u914D\u7F6E)",
+          "rowCount": 0,
+          "metrics": {}
+        },
+        {
+          "backend": "victoriametrics",
+          "status": "skipped",
+          "gapReason": "victoriametrics unreachable (compose full \u672A\u542F\u52A8\u6216 PARITY_* \u672A\u914D\u7F6E)",
+          "rowCount": 0,
+          "metrics": {}
+        }
+      ]
+    }
+  ],
+  "capabilityGaps": [
+    {
+      "scenario": "ingest_1m_points",
+      "required": "TimeSeries, TimeSeriesRemoteWrite",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "influxdb": "skipped",
+        "victoriametrics": "skipped"
+      }
+    },
+    {
+      "scenario": "groupby_time_window",
+      "required": "TimeSeries, TimeSeriesGroupByTime",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "influxdb": "skipped",
+        "victoriametrics": "skipped"
+      }
+    },
+    {
+      "scenario": "derivative_accuracy",
+      "required": "TimeSeries, TimeSeriesDerivative",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "influxdb": "skipped",
+        "victoriametrics": "skipped"
+      }
+    },
+    {
+      "scenario": "rate_irate_consistency",
+      "required": "TimeSeries, TimeSeriesRateIrate",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "influxdb": "skipped",
+        "victoriametrics": "skipped"
+      }
+    },
+    {
+      "scenario": "holt_winters_forecast_recall",
+      "required": "TimeSeries, TimeSeriesHoltWinters",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "influxdb": "skipped",
+        "victoriametrics": "skipped"
+      }
+    },
+    {
+      "scenario": "percentile_p95_tdigest_vs_quantile",
+      "required": "TimeSeries, TimeSeriesQuantile",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "influxdb": "skipped",
+        "victoriametrics": "skipped"
+      }
+    },
+    {
+      "scenario": "distinct_count_hll_2pct_error",
+      "required": "TimeSeries, TimeSeriesDistinctCount",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "influxdb": "skipped",
+        "victoriametrics": "skipped"
+      }
+    }
+  ],
+  "backends": [
+    "sonnetdb",
+    "influxdb",
+    "victoriametrics"
+  ]
+}

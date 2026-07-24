@@ -1,0 +1,115 @@
+minio-1  | ERRO: Calculating checksum failed: open minio: no such file or directory
+minio-1  | INFO: Formatting 1st pool, 1 set(s), 1 drives per set.
+minio-1  | INFO: WARNING: Host local has more than 0 drives of set. A host failure will result in data becoming unavailable.
+nats-1   | [1] 2026/07/24 05:25:57.564067 [INF] Starting nats-server
+nats-1   | [1] 2026/07/24 05:25:57.566896 [INF]   Version:  2.10.29
+nats-1   | [1] 2026/07/24 05:25:57.567016 [INF]   Git:      [f91ddd8]
+nats-1   | [1] 2026/07/24 05:25:57.567057 [INF]   Name:     NB3MSXCTS45NGDDTN4XGISAI5F6EIIUVB4HMPBQWVHQAJUIP3ORLWKEV
+nats-1   | [1] 2026/07/24 05:25:57.567106 [INF]   Node:     QTy5lIsY
+minio-1  | MinIO Object Storage Server
+minio-1  | Copyright: 2015-2026 MinIO, Inc.
+minio-1  | License: GNU AGPLv3 - https://www.gnu.org/licenses/agpl-3.0.html
+minio-1  | Version: RELEASE.2024-09-22T00-33-43Z (go1.22.7 linux/amd64)
+minio-1  | 
+minio-1  | API: http://172.18.0.6:9000  http://127.0.0.1:9000 
+sonnetdb-1  | {"Timestamp":"2026-07-24T05:25:58.304Z","EventId":0,"LogLevel":"Warning","Category":"Microsoft.AspNetCore.Server.Kestrel","Message":"Overriding address(es) \u0027http://*:8080\u0027. Binding to endpoints defined via IConfiguration and/or UseKestrel() instead.","State":{"addresses":"http://*:8080","{OriginalFormat}":"Overriding address(es) \u0027{addresses}\u0027. Binding to endpoints defined via IConfiguration and/or UseKestrel() instead."},"Scopes":[]}
+sonnetdb-1  | {"Timestamp":"2026-07-24T05:25:58.317Z","EventId":14,"LogLevel":"Information","Category":"Microsoft.Hosting.Lifetime","Message":"Now listening on: http://[::]:1883","State":{"address":"http://[::]:1883","{OriginalFormat}":"Now listening on: {address}"},"Scopes":[]}
+sonnetdb-1  | {"Timestamp":"2026-07-24T05:25:58.317Z","EventId":14,"LogLevel":"Information","Category":"Microsoft.Hosting.Lifetime","Message":"Now listening on: http://0.0.0.0:5081","State":{"address":"http://0.0.0.0:5081","{OriginalFormat}":"Now listening on: {address}"},"Scopes":[]}
+sonnetdb-1  | {"Timestamp":"2026-07-24T05:25:58.318Z","EventId":14,"LogLevel":"Information","Category":"Microsoft.Hosting.Lifetime","Message":"Now listening on: http://0.0.0.0:5080","State":{"address":"http://0.0.0.0:5080","{OriginalFormat}":"Now listening on: {address}"},"Scopes":[]}
+sonnetdb-1  | {"Timestamp":"2026-07-24T05:25:58.322Z","EventId":0,"LogLevel":"Information","Category":"Microsoft.Hosting.Lifetime","Message":"Application started. Press Ctrl\u002BC to shut down.","State":{"{OriginalFormat}":"Application started. Press Ctrl\u002BC to shut down."},"Scopes":[]}
+sonnetdb-1  | {"Timestamp":"2026-07-24T05:25:58.323Z","EventId":0,"LogLevel":"Information","Category":"Microsoft.Hosting.Lifetime","Message":"Hosting environment: Production","State":{"EnvName":"Production","{OriginalFormat}":"Hosting environment: {EnvName}"},"Scopes":[]}
+sonnetdb-1  | {"Timestamp":"2026-07-24T05:25:58.324Z","EventId":0,"LogLevel":"Information","Category":"Microsoft.Hosting.Lifetime","Message":"Content root path: /app","State":{"ContentRoot":"/app","{OriginalFormat}":"Content root path: {ContentRoot}"},"Scopes":[]}
+minio-1  | WebUI: http://172.18.0.6:9001 http://127.0.0.1:9001  
+minio-1     | 
+minio-1     | Docs: https://docs.min.io
+minio-1     | INFO: 
+minio-1     |  You are running an older version of MinIO released 11 months before the latest release 
+minio-1     |  Update: Run `mc admin update ALIAS` 
+minio-1     | 
+nats-1   | [1] 2026/07/24 05:25:57.567297 [INF]   ID:       NB3MSXCTS45NGDDTN4XGISAI5F6EIIUVB4HMPBQWVHQAJUIP3ORLWKEV
+nats-1      | [1] 2026/07/24 05:25:57.568453 [INF] Starting http monitor on 0.0.0.0:8222
+nats-1      | [1] 2026/07/24 05:25:57.568674 [INF] Starting JetStream
+nats-1      | [1] 2026/07/24 05:25:57.568751 [WRN] Temporary storage directory used, data could be lost on system reboot
+nats-1      | [1] 2026/07/24 05:25:57.569193 [INF]     _ ___ _____ ___ _____ ___ ___   _   __  __
+minio-1     | 
+nats-1      | [1] 2026/07/24 05:25:57.569287 [INF]  _ | | __|_   _/ __|_   _| _ \ __| /_\ |  \/  |
+nats-1      | [1] 2026/07/24 05:25:57.569362 [INF] | || | _|  | | \__ \ | | |   / _| / _ \| |\/| |
+nats-1      | [1] 2026/07/24 05:25:57.569433 [INF]  \__/|___| |_| |___/ |_| |_|_\___/_/ \_\_|  |_|
+nats-1      | [1] 2026/07/24 05:25:57.569503 [INF] 
+postgres-1  | The files belonging to this database system will be owned by user "postgres".
+redis-1     | 1:C 24 Jul 2026 05:25:57.547 # WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. Being disabled, it can also cause failures without low memory condition, see https://github.com/jemalloc/jemalloc/issues/1328. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.
+postgres-1  | This user must also own the server process.
+redis-1     | 1:C 24 Jul 2026 05:25:57.547 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
+redis-1     | 1:C 24 Jul 2026 05:25:57.548 * Redis version=7.4.9, bits=64, commit=00000000, modified=0, pid=1, just started
+nats-1      | [1] 2026/07/24 05:25:57.569565 [INF]          https://docs.nats.io/jetstream
+nats-1      | [1] 2026/07/24 05:25:57.569612 [INF] 
+redis-1     | 1:C 24 Jul 2026 05:25:57.548 # Warning: no config file specified, using the default config. In order to specify a config file use redis-server /path/to/redis.conf
+nats-1      | [1] 2026/07/24 05:25:57.569681 [INF] ---------------- JETSTREAM ----------------
+nats-1      | [1] 2026/07/24 05:25:57.569745 [INF]   Max Memory:      11.71 GB
+nats-1      | [1] 2026/07/24 05:25:57.569816 [INF]   Max Storage:     60.57 GB
+nats-1      | [1] 2026/07/24 05:25:57.569863 [INF]   Store Directory: "/tmp/nats/jetstream"
+nats-1      | [1] 2026/07/24 05:25:57.569944 [INF] -------------------------------------------
+nats-1      | [1] 2026/07/24 05:25:57.570414 [INF] Listening for client connections on 0.0.0.0:4222
+nats-1      | [1] 2026/07/24 05:25:57.573135 [INF] Server is ready
+postgres-1  | 
+postgres-1  | The database cluster will be initialized with locale "en_US.utf8".
+postgres-1  | The default database encoding has accordingly been set to "UTF8".
+redis-1     | 1:M 24 Jul 2026 05:25:57.548 * monotonic clock: POSIX clock_gettime
+redis-1     | 1:M 24 Jul 2026 05:25:57.549 * Running mode=standalone, port=6379.
+redis-1     | 1:M 24 Jul 2026 05:25:57.549 * Server initialized
+redis-1     | 1:M 24 Jul 2026 05:25:57.549 * Ready to accept connections tcp
+postgres-1  | The default text search configuration will be set to "english".
+postgres-1  | 
+postgres-1  | Data page checksums are disabled.
+postgres-1  | 
+postgres-1  | fixing permissions on existing directory /var/lib/postgresql/data ... ok
+postgres-1  | creating subdirectories ... ok
+postgres-1  | selecting dynamic shared memory implementation ... posix
+postgres-1  | selecting default max_connections ... 100
+postgres-1  | selecting default shared_buffers ... 128MB
+postgres-1  | selecting default time zone ... Etc/UTC
+postgres-1  | creating configuration files ... ok
+postgres-1  | running bootstrap script ... ok
+postgres-1  | performing post-bootstrap initialization ... ok
+postgres-1  | syncing data to disk ... ok
+postgres-1  | 
+postgres-1  | 
+postgres-1  | Success. You can now start the database server using:
+postgres-1  | 
+postgres-1  |     pg_ctl -D /var/lib/postgresql/data -l logfile start
+postgres-1  | 
+postgres-1  | initdb: warning: enabling "trust" authentication for local connections
+postgres-1  | initdb: hint: You can change this by editing pg_hba.conf or using the option -A, or --auth-local and --auth-host, the next time you run initdb.
+postgres-1  | waiting for server to start....2026-07-24 05:25:58.319 UTC [48] LOG:  starting PostgreSQL 16.4 (Debian 16.4-1.pgdg120+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14) 12.2.0, 64-bit
+postgres-1  | 2026-07-24 05:25:58.320 UTC [48] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+postgres-1  | 2026-07-24 05:25:58.323 UTC [51] LOG:  database system was shut down at 2026-07-24 05:25:58 UTC
+postgres-1  | 2026-07-24 05:25:58.327 UTC [48] LOG:  database system is ready to accept connections
+postgres-1  |  done
+postgres-1  | server started
+postgres-1  | CREATE DATABASE
+postgres-1  | 
+postgres-1  | 
+postgres-1  | /usr/local/bin/docker-entrypoint.sh: ignoring /docker-entrypoint-initdb.d/*
+postgres-1  | 
+postgres-1  | 2026-07-24 05:25:58.504 UTC [48] LOG:  received fast shutdown request
+postgres-1  | waiting for server to shut down....2026-07-24 05:25:58.504 UTC [48] LOG:  aborting any active transactions
+postgres-1  | 2026-07-24 05:25:58.507 UTC [48] LOG:  background worker "logical replication launcher" (PID 54) exited with exit code 1
+postgres-1  | 2026-07-24 05:25:58.507 UTC [49] LOG:  shutting down
+postgres-1  | 2026-07-24 05:25:58.507 UTC [49] LOG:  checkpoint starting: shutdown immediate
+postgres-1  | 2026-07-24 05:25:58.524 UTC [49] LOG:  checkpoint complete: wrote 922 buffers (5.6%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.014 s, sync=0.002 s, total=0.018 s; sync files=301, longest=0.001 s, average=0.001 s; distance=4255 kB, estimate=4255 kB; lsn=0/19120F8, redo lsn=0/19120F8
+postgres-1  | 2026-07-24 05:25:58.532 UTC [48] LOG:  database system is shut down
+postgres-1  |  done
+postgres-1  | server stopped
+postgres-1  | 
+postgres-1  | PostgreSQL init process complete; ready for start up.
+postgres-1  | 
+postgres-1  | 2026-07-24 05:25:58.628 UTC [1] LOG:  starting PostgreSQL 16.4 (Debian 16.4-1.pgdg120+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14) 12.2.0, 64-bit
+postgres-1  | 2026-07-24 05:25:58.628 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+postgres-1  | 2026-07-24 05:25:58.628 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+postgres-1  | 2026-07-24 05:25:58.629 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+postgres-1  | 2026-07-24 05:25:58.632 UTC [64] LOG:  database system was shut down at 2026-07-24 05:25:58 UTC
+postgres-1  | 2026-07-24 05:25:58.637 UTC [1] LOG:  database system is ready to accept connections
+postgres-1  | 2026-07-24 05:26:21.874 UTC [88] ERROR:  cannot drop table customers because other objects depend on it
+postgres-1  | 2026-07-24 05:26:21.874 UTC [88] DETAIL:  constraint orders_customer_id_fkey on table orders depends on table customers
+postgres-1  | 2026-07-24 05:26:21.874 UTC [88] HINT:  Use DROP ... CASCADE to drop the dependent objects too.
+postgres-1  | 2026-07-24 05:26:21.874 UTC [88] STATEMENT:  DROP TABLE IF EXISTS customers

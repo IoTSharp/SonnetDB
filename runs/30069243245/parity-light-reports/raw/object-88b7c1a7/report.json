@@ -1,0 +1,180 @@
+{
+  "runId": "object-88b7c1a7",
+  "startedAtUtc": "2026-07-24T05:26:16.5837119+00:00",
+  "scenarios": [
+    {
+      "name": "putget_1gb_object",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "size_bytes": 262144
+          }
+        },
+        {
+          "backend": "minio",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "size_bytes": 262144
+          }
+        }
+      ]
+    },
+    {
+      "name": "multipart_upload_5gb",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "part_size_bytes": 5242880
+          }
+        },
+        {
+          "backend": "minio",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "part_size_bytes": 5242880
+          }
+        }
+      ]
+    },
+    {
+      "name": "range_read_offsets",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1
+          }
+        },
+        {
+          "backend": "minio",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1
+          }
+        }
+      ]
+    },
+    {
+      "name": "list_objects_v2_pagination",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "last_key": "logs/006.txt"
+          }
+        },
+        {
+          "backend": "minio",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "last_key": "logs/006.txt"
+          }
+        }
+      ]
+    },
+    {
+      "name": "copy_delete_presigned_url_lifecycle",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "presign_status": 501
+          }
+        },
+        {
+          "backend": "minio",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "presign_status": 200
+          }
+        }
+      ]
+    }
+  ],
+  "capabilityGaps": [
+    {
+      "scenario": "putget_1gb_object",
+      "required": "Object",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "minio": "pass"
+      }
+    },
+    {
+      "scenario": "multipart_upload_5gb",
+      "required": "Object, ObjectMultipart",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "minio": "pass"
+      }
+    },
+    {
+      "scenario": "range_read_offsets",
+      "required": "Object",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "minio": "pass"
+      }
+    },
+    {
+      "scenario": "list_objects_v2_pagination",
+      "required": "Object",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "minio": "pass"
+      }
+    },
+    {
+      "scenario": "copy_delete_presigned_url_lifecycle",
+      "required": "Object",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "minio": "pass"
+      }
+    }
+  ],
+  "backends": [
+    "sonnetdb",
+    "minio"
+  ]
+}

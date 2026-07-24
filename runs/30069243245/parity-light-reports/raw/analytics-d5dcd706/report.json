@@ -1,0 +1,168 @@
+{
+  "runId": "analytics-d5dcd706",
+  "startedAtUtc": "2026-07-24T05:26:16.3134129+00:00",
+  "scenarios": [
+    {
+      "name": "groupby_time_1b_rows_wallclock",
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 30,
+          "metrics": {
+            "row_count": 30,
+            "input_rows": 120,
+            "wallclock_ms": 41,
+            "performance_gating": "warning_only"
+          }
+        },
+        {
+          "backend": "clickhouse",
+          "status": "skipped",
+          "gapReason": "clickhouse unreachable (compose full/light \u672A\u542F\u52A8\u6216 PARITY_* \u672A\u914D\u7F6E)",
+          "rowCount": 0,
+          "metrics": {}
+        }
+      ]
+    },
+    {
+      "name": "window_avg_7day",
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 28,
+          "metrics": {
+            "row_count": 28
+          }
+        },
+        {
+          "backend": "clickhouse",
+          "status": "skipped",
+          "gapReason": "clickhouse unreachable (compose full/light \u672A\u542F\u52A8\u6216 PARITY_* \u672A\u914D\u7F6E)",
+          "rowCount": 0,
+          "metrics": {}
+        }
+      ]
+    },
+    {
+      "name": "topn_per_device",
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 5,
+          "metrics": {
+            "row_count": 5
+          }
+        },
+        {
+          "backend": "clickhouse",
+          "status": "skipped",
+          "gapReason": "clickhouse unreachable (compose full/light \u672A\u542F\u52A8\u6216 PARITY_* \u672A\u914D\u7F6E)",
+          "rowCount": 0,
+          "metrics": {}
+        }
+      ]
+    },
+    {
+      "name": "columnar_compression_ratio",
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "compression_ratio": 0.038312181816288926,
+            "input_rows": 480,
+            "performance_gating": "warning_only"
+          }
+        },
+        {
+          "backend": "clickhouse",
+          "status": "skipped",
+          "gapReason": "clickhouse unreachable (compose full/light \u672A\u542F\u52A8\u6216 PARITY_* \u672A\u914D\u7F6E)",
+          "rowCount": 0,
+          "metrics": {}
+        }
+      ]
+    },
+    {
+      "name": "percentile_accuracy_p50_p95_p99",
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1
+          }
+        },
+        {
+          "backend": "clickhouse",
+          "status": "skipped",
+          "gapReason": "clickhouse unreachable (compose full/light \u672A\u542F\u52A8\u6216 PARITY_* \u672A\u914D\u7F6E)",
+          "rowCount": 0,
+          "metrics": {}
+        }
+      ]
+    }
+  ],
+  "capabilityGaps": [
+    {
+      "scenario": "groupby_time_1b_rows_wallclock",
+      "required": "Analytics, AnalyticsGroupByTime",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "clickhouse": "skipped"
+      }
+    },
+    {
+      "scenario": "window_avg_7day",
+      "required": "Analytics, SqlWindowFunction",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "clickhouse": "skipped"
+      }
+    },
+    {
+      "scenario": "topn_per_device",
+      "required": "Analytics, AnalyticsTopN",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "clickhouse": "skipped"
+      }
+    },
+    {
+      "scenario": "columnar_compression_ratio",
+      "required": "Analytics, AnalyticsCompressionRatio",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "clickhouse": "skipped"
+      }
+    },
+    {
+      "scenario": "percentile_accuracy_p50_p95_p99",
+      "required": "Analytics, AccuracyPercentile",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "clickhouse": "skipped"
+      }
+    }
+  ],
+  "backends": [
+    "sonnetdb",
+    "clickhouse"
+  ]
+}

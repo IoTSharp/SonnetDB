@@ -1,0 +1,157 @@
+{
+  "runId": "document-c37e1a7f",
+  "startedAtUtc": "2026-07-24T05:26:13.8610664+00:00",
+  "scenarios": [
+    {
+      "name": "document_crud_filter_projection_sort",
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 3,
+          "metrics": {
+            "deleted": 1,
+            "remaining": 3
+          }
+        },
+        {
+          "backend": "mongodb",
+          "status": "skipped",
+          "gapReason": "gap_reason=mongodb_unreachable; MongoDB reference container is not running or PARITY_MONGO_URL is invalid",
+          "rowCount": 0,
+          "metrics": {}
+        }
+      ]
+    },
+    {
+      "name": "document_update_operators",
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {}
+        },
+        {
+          "backend": "mongodb",
+          "status": "skipped",
+          "gapReason": "gap_reason=mongodb_unreachable; MongoDB reference container is not running or PARITY_MONGO_URL is invalid",
+          "rowCount": 0,
+          "metrics": {}
+        }
+      ]
+    },
+    {
+      "name": "document_index_unique_ttl",
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "ttl_wait_seconds": 0
+          }
+        },
+        {
+          "backend": "mongodb",
+          "status": "skipped",
+          "gapReason": "gap_reason=mongodb_unreachable; MongoDB reference container is not running or PARITY_MONGO_URL is invalid",
+          "rowCount": 0,
+          "metrics": {}
+        }
+      ]
+    },
+    {
+      "name": "document_aggregation_group_average",
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 2,
+          "metrics": {}
+        },
+        {
+          "backend": "mongodb",
+          "status": "skipped",
+          "gapReason": "gap_reason=mongodb_unreachable; MongoDB reference container is not running or PARITY_MONGO_URL is invalid",
+          "rowCount": 0,
+          "metrics": {}
+        }
+      ]
+    },
+    {
+      "name": "document_concurrent_write_recovery_index_consistency",
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {}
+        },
+        {
+          "backend": "mongodb",
+          "status": "skipped",
+          "gapReason": "gap_reason=mongodb_unreachable; MongoDB reference container is not running or PARITY_MONGO_URL is invalid",
+          "rowCount": 0,
+          "metrics": {}
+        }
+      ]
+    }
+  ],
+  "capabilityGaps": [
+    {
+      "scenario": "document_crud_filter_projection_sort",
+      "required": "Document",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "mongodb": "skipped"
+      }
+    },
+    {
+      "scenario": "document_update_operators",
+      "required": "Document",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "mongodb": "skipped"
+      }
+    },
+    {
+      "scenario": "document_index_unique_ttl",
+      "required": "Document",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "mongodb": "skipped"
+      }
+    },
+    {
+      "scenario": "document_aggregation_group_average",
+      "required": "Document",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "mongodb": "skipped"
+      }
+    },
+    {
+      "scenario": "document_concurrent_write_recovery_index_consistency",
+      "required": "Document",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "mongodb": "skipped"
+      }
+    }
+  ],
+  "backends": [
+    "sonnetdb",
+    "mongodb"
+  ]
+}

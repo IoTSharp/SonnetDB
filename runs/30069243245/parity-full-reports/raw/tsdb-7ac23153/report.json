@@ -1,0 +1,330 @@
+{
+  "runId": "tsdb-7ac23153",
+  "startedAtUtc": "2026-07-24T05:26:48.6092411+00:00",
+  "scenarios": [
+    {
+      "name": "ingest_1m_points",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "points": 10000,
+            "elapsed_ms": 412.1148,
+            "points_per_second": 24265.083418503775
+          }
+        },
+        {
+          "backend": "influxdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "points": 10000,
+            "elapsed_ms": 243.2042,
+            "points_per_second": 41117.71096058374
+          }
+        },
+        {
+          "backend": "victoriametrics",
+          "status": "fail",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "points": 10000,
+            "elapsed_ms": 38.5147,
+            "points_per_second": 259641.1240383542
+          }
+        }
+      ]
+    },
+    {
+      "name": "groupby_time_window",
+      "withinTolerance": false,
+      "differences": [
+        "victoriametrics: row count mismatch: expected 2, actual 0"
+      ],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 2,
+          "metrics": {
+            "row_count": 2
+          }
+        },
+        {
+          "backend": "influxdb",
+          "status": "pass",
+          "rowCount": 2,
+          "metrics": {
+            "row_count": 2
+          }
+        },
+        {
+          "backend": "victoriametrics",
+          "status": "pass",
+          "rowCount": 0,
+          "metrics": {
+            "row_count": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "derivative_accuracy",
+      "withinTolerance": false,
+      "differences": [
+        "influxdb: row count mismatch: expected 30, actual 29",
+        "victoriametrics: row count mismatch: expected 30, actual 0"
+      ],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 30,
+          "metrics": {
+            "row_count": 30
+          }
+        },
+        {
+          "backend": "influxdb",
+          "status": "pass",
+          "rowCount": 29,
+          "metrics": {
+            "row_count": 29
+          }
+        },
+        {
+          "backend": "victoriametrics",
+          "status": "pass",
+          "rowCount": 0,
+          "metrics": {
+            "row_count": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "rate_irate_consistency",
+      "withinTolerance": false,
+      "differences": [
+        "influxdb: row count mismatch: expected 30, actual 29",
+        "victoriametrics: row count mismatch: expected 30, actual 0"
+      ],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 30,
+          "metrics": {
+            "row_count": 30
+          }
+        },
+        {
+          "backend": "influxdb",
+          "status": "pass",
+          "rowCount": 29,
+          "metrics": {
+            "row_count": 29
+          }
+        },
+        {
+          "backend": "victoriametrics",
+          "status": "pass",
+          "rowCount": 0,
+          "metrics": {
+            "row_count": 0
+          }
+        }
+      ]
+    },
+    {
+      "name": "holt_winters_forecast_recall",
+      "withinTolerance": false,
+      "differences": [
+        "influxdb: row 0 column 0 (time) mismatch: expected \u00271704067280000\u0027, actual \u00270\u0027",
+        "influxdb: row 1 column 0 (time) mismatch: expected \u00271704067281000\u0027, actual \u00271\u0027",
+        "influxdb: row 2 column 0 (time) mismatch: expected \u00271704067282000\u0027, actual \u00272\u0027",
+        "influxdb: row 3 column 0 (time) mismatch: expected \u00271704067283000\u0027, actual \u00273\u0027",
+        "influxdb: row 4 column 0 (time) mismatch: expected \u00271704067284000\u0027, actual \u00274\u0027",
+        "influxdb: row 5 column 0 (time) mismatch: expected \u00271704067285000\u0027, actual \u00275\u0027"
+      ],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 6,
+          "metrics": {
+            "row_count": 6
+          }
+        },
+        {
+          "backend": "influxdb",
+          "status": "pass",
+          "rowCount": 6,
+          "metrics": {
+            "row_count": 6
+          }
+        },
+        {
+          "backend": "victoriametrics",
+          "status": "skipped",
+          "gapReason": "backend \u0027victoriametrics\u0027 lacks required capabilities: TimeSeriesHoltWinters",
+          "rowCount": 0,
+          "metrics": {}
+        }
+      ]
+    },
+    {
+      "name": "percentile_p95_tdigest_vs_quantile",
+      "withinTolerance": false,
+      "differences": [
+        "victoriametrics: row 0 column 0 (percentile) mismatch: expected \u002794.06\u0027, actual \u00270\u0027"
+      ],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1
+          }
+        },
+        {
+          "backend": "influxdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1
+          }
+        },
+        {
+          "backend": "victoriametrics",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1
+          }
+        }
+      ]
+    },
+    {
+      "name": "distinct_count_hll_2pct_error",
+      "withinTolerance": false,
+      "differences": [
+        "victoriametrics: row 0 column 0 (distinct_count(value)) mismatch: expected \u0027503\u0027, actual \u00270\u0027"
+      ],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "expected_cardinality": 500
+          }
+        },
+        {
+          "backend": "influxdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "expected_cardinality": 500
+          }
+        },
+        {
+          "backend": "victoriametrics",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "expected_cardinality": 500
+          }
+        }
+      ]
+    }
+  ],
+  "capabilityGaps": [
+    {
+      "scenario": "ingest_1m_points",
+      "required": "TimeSeries, TimeSeriesRemoteWrite",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "influxdb": "pass",
+        "victoriametrics": "fail"
+      }
+    },
+    {
+      "scenario": "groupby_time_window",
+      "required": "TimeSeries, TimeSeriesGroupByTime",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "influxdb": "pass",
+        "victoriametrics": "pass"
+      }
+    },
+    {
+      "scenario": "derivative_accuracy",
+      "required": "TimeSeries, TimeSeriesDerivative",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "influxdb": "pass",
+        "victoriametrics": "pass"
+      }
+    },
+    {
+      "scenario": "rate_irate_consistency",
+      "required": "TimeSeries, TimeSeriesRateIrate",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "influxdb": "pass",
+        "victoriametrics": "pass"
+      }
+    },
+    {
+      "scenario": "holt_winters_forecast_recall",
+      "required": "TimeSeries, TimeSeriesHoltWinters",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "influxdb": "pass",
+        "victoriametrics": "skipped"
+      }
+    },
+    {
+      "scenario": "percentile_p95_tdigest_vs_quantile",
+      "required": "TimeSeries, TimeSeriesQuantile",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "influxdb": "pass",
+        "victoriametrics": "pass"
+      }
+    },
+    {
+      "scenario": "distinct_count_hll_2pct_error",
+      "required": "TimeSeries, TimeSeriesDistinctCount",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "influxdb": "pass",
+        "victoriametrics": "pass"
+      }
+    }
+  ],
+  "backends": [
+    "sonnetdb",
+    "influxdb",
+    "victoriametrics"
+  ]
+}

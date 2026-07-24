@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 2,
+  "label": "parity",
+  "message": "100%",
+  "color": "red",
+  "profile": "light",
+  "status": "failing",
+  "passRate": 100.0,
+  "totalScenarios": 50,
+  "passedScenarios": 23,
+  "skippedScenarios": 27,
+  "failedScenarios": 0,
+  "warningOnlyScenarios": 2,
+  "generatedAtUtc": "2026-07-24T05:26:28.8734421Z",
+  "repository": "IoTSharp/SonnetDB",
+  "runId": "30069243245",
+  "runNumber": "39",
+  "commitSha": "4d5ba246ac2dc6dcfa51ae079340f52db6a7948a",
+  "badgeUrl": "https://img.shields.io/badge/parity-100%25-red",
+  "suites": [
+    {
+      "suite": "analytics-d5dcd706",
+      "total": 5,
+      "passed": 0,
+      "skipped": 5,
+      "failed": 0,
+      "source": "./artifacts/parity/light/raw/analytics-d5dcd706/report.json"
+    },
+    {
+      "suite": "document-c37e1a7f",
+      "total": 5,
+      "passed": 0,
+      "skipped": 5,
+      "failed": 0,
+      "source": "./artifacts/parity/light/raw/document-c37e1a7f/report.json"
+    },
+    {
+      "suite": "fulltext-1931b614",
+      "total": 6,
+      "passed": 0,
+      "skipped": 6,
+      "failed": 0,
+      "source": "./artifacts/parity/light/raw/fulltext-1931b614/report.json"
+    },
+    {
+      "suite": "kv-526e080b",
+      "total": 5,
+      "passed": 5,
+      "skipped": 0,
+      "failed": 0,
+      "source": "./artifacts/parity/light/raw/kv-526e080b/report.json"
+    },
+    {
+      "suite": "mq-741c98e5",
+      "total": 5,
+      "passed": 5,
+      "skipped": 0,
+      "failed": 0,
+      "source": "./artifacts/parity/light/raw/mq-741c98e5/report.json"
+    },
+    {
+      "suite": "object-88b7c1a7",
+      "total": 5,
+      "passed": 5,
+      "skipped": 0,
+      "failed": 0,
+      "source": "./artifacts/parity/light/raw/object-88b7c1a7/report.json"
+    },
+    {
+      "suite": "relational-1ece6835",
+      "total": 9,
+      "passed": 8,
+      "skipped": 1,
+      "failed": 0,
+      "source": "./artifacts/parity/light/raw/relational-1ece6835/report.json"
+    },
+    {
+      "suite": "tsdb-9cbe334b",
+      "total": 7,
+      "passed": 0,
+      "skipped": 7,
+      "failed": 0,
+      "source": "./artifacts/parity/light/raw/tsdb-9cbe334b/report.json"
+    },
+    {
+      "suite": "vector-4aa41b30",
+      "total": 3,
+      "passed": 0,
+      "skipped": 3,
+      "failed": 0,
+      "source": "./artifacts/parity/light/raw/vector-4aa41b30/report.json"
+    }
+  ],
+  "gateFailures": [
+    {
+      "gate": "capability",
+      "suite": "dotnet-test",
+      "scenario": "parity",
+      "reason": "dotnet test exited with code 1",
+      "gap_reason": "parity_test_failed"
+    }
+  ],
+  "performanceWarnings": [
+    {
+      "suite": "analytics-d5dcd706",
+      "scenario": "groupby_time_1b_rows_wallclock",
+      "reason": "performance metrics are warning only"
+    },
+    {
+      "suite": "analytics-d5dcd706",
+      "scenario": "columnar_compression_ratio",
+      "reason": "performance metrics are warning only"
+    }
+  ]
+}

@@ -1,0 +1,227 @@
+{
+  "schemaVersion": 2,
+  "label": "parity",
+  "message": "68%",
+  "color": "red",
+  "profile": "full",
+  "status": "failing",
+  "passRate": 68.0,
+  "totalScenarios": 50,
+  "passedScenarios": 28,
+  "skippedScenarios": 6,
+  "failedScenarios": 16,
+  "warningOnlyScenarios": 2,
+  "generatedAtUtc": "2026-07-24T05:27:11.5536197Z",
+  "repository": "IoTSharp/SonnetDB",
+  "runId": "30069243245",
+  "runNumber": "39",
+  "commitSha": "4d5ba246ac2dc6dcfa51ae079340f52db6a7948a",
+  "badgeUrl": "https://img.shields.io/badge/parity-68%25-red",
+  "suites": [
+    {
+      "suite": "analytics-d3b57fc2",
+      "total": 5,
+      "passed": 0,
+      "skipped": 5,
+      "failed": 0,
+      "source": "./artifacts/parity/full/raw/analytics-d3b57fc2/report.json"
+    },
+    {
+      "suite": "document-55f2d355",
+      "total": 5,
+      "passed": 5,
+      "skipped": 0,
+      "failed": 0,
+      "source": "./artifacts/parity/full/raw/document-55f2d355/report.json"
+    },
+    {
+      "suite": "fulltext-5e76b952",
+      "total": 6,
+      "passed": 0,
+      "skipped": 0,
+      "failed": 6,
+      "source": "./artifacts/parity/full/raw/fulltext-5e76b952/report.json"
+    },
+    {
+      "suite": "kv-37045fe6",
+      "total": 5,
+      "passed": 5,
+      "skipped": 0,
+      "failed": 0,
+      "source": "./artifacts/parity/full/raw/kv-37045fe6/report.json"
+    },
+    {
+      "suite": "mq-ebec3fb3",
+      "total": 5,
+      "passed": 5,
+      "skipped": 0,
+      "failed": 0,
+      "source": "./artifacts/parity/full/raw/mq-ebec3fb3/report.json"
+    },
+    {
+      "suite": "object-3b41e36f",
+      "total": 5,
+      "passed": 5,
+      "skipped": 0,
+      "failed": 0,
+      "source": "./artifacts/parity/full/raw/object-3b41e36f/report.json"
+    },
+    {
+      "suite": "relational-8ef2430b",
+      "total": 9,
+      "passed": 8,
+      "skipped": 1,
+      "failed": 0,
+      "source": "./artifacts/parity/full/raw/relational-8ef2430b/report.json"
+    },
+    {
+      "suite": "tsdb-7ac23153",
+      "total": 7,
+      "passed": 0,
+      "skipped": 0,
+      "failed": 7,
+      "source": "./artifacts/parity/full/raw/tsdb-7ac23153/report.json"
+    },
+    {
+      "suite": "vector-cfc208ed",
+      "total": 3,
+      "passed": 0,
+      "skipped": 0,
+      "failed": 3,
+      "source": "./artifacts/parity/full/raw/vector-cfc208ed/report.json"
+    }
+  ],
+  "gateFailures": [
+    {
+      "gate": "accuracy",
+      "suite": "fulltext-5e76b952",
+      "scenario": "index_1m_documents",
+      "reason": "backend reported fail",
+      "gap_reason": "scenario_failed"
+    },
+    {
+      "gate": "accuracy",
+      "suite": "fulltext-5e76b952",
+      "scenario": "bm25_ranking_top10_overlap",
+      "reason": "backend reported fail",
+      "gap_reason": "scenario_failed"
+    },
+    {
+      "gate": "accuracy",
+      "suite": "fulltext-5e76b952",
+      "scenario": "cjk_tokenize_correctness",
+      "reason": "backend reported fail",
+      "gap_reason": "scenario_failed"
+    },
+    {
+      "gate": "accuracy",
+      "suite": "fulltext-5e76b952",
+      "scenario": "facet_filter_query",
+      "reason": "backend reported fail",
+      "gap_reason": "scenario_failed"
+    },
+    {
+      "gate": "accuracy",
+      "suite": "fulltext-5e76b952",
+      "scenario": "incremental_update_during_query",
+      "reason": "backend reported fail",
+      "gap_reason": "scenario_failed"
+    },
+    {
+      "gate": "accuracy",
+      "suite": "fulltext-5e76b952",
+      "scenario": "typo_tolerant_query",
+      "reason": "backend reported fail",
+      "gap_reason": "scenario_failed"
+    },
+    {
+      "gate": "capability",
+      "suite": "tsdb-7ac23153",
+      "scenario": "ingest_1m_points",
+      "reason": "backend reported fail",
+      "gap_reason": "scenario_failed"
+    },
+    {
+      "gate": "accuracy",
+      "suite": "tsdb-7ac23153",
+      "scenario": "groupby_time_window",
+      "reason": "victoriametrics: row count mismatch: expected 2, actual 0",
+      "gap_reason": "scenario_failed"
+    },
+    {
+      "gate": "accuracy",
+      "suite": "tsdb-7ac23153",
+      "scenario": "derivative_accuracy",
+      "reason": "influxdb: row count mismatch: expected 30, actual 29; victoriametrics: row count mismatch: expected 30, actual 0",
+      "gap_reason": "scenario_failed"
+    },
+    {
+      "gate": "accuracy",
+      "suite": "tsdb-7ac23153",
+      "scenario": "rate_irate_consistency",
+      "reason": "influxdb: row count mismatch: expected 30, actual 29; victoriametrics: row count mismatch: expected 30, actual 0",
+      "gap_reason": "scenario_failed"
+    },
+    {
+      "gate": "accuracy",
+      "suite": "tsdb-7ac23153",
+      "scenario": "holt_winters_forecast_recall",
+      "reason": "influxdb: row 0 column 0 (time) mismatch: expected '1704067280000', actual '0'; influxdb: row 1 column 0 (time) mismatch: expected '1704067281000', actual '1'; influxdb: row 2 column 0 (time) mismatch: expected '1704067282000', actual '2'; influxdb: row 3 column 0 (time) mismatch: expected '1704067283000', actual '3'; influxdb: row 4 column 0 (time) mismatch: expected '1704067284000', actual '4'; influxdb: row 5 column 0 (time) mismatch: expected '1704067285000', actual '5'",
+      "gap_reason": "scenario_failed"
+    },
+    {
+      "gate": "accuracy",
+      "suite": "tsdb-7ac23153",
+      "scenario": "percentile_p95_tdigest_vs_quantile",
+      "reason": "victoriametrics: row 0 column 0 (percentile) mismatch: expected '94.06', actual '0'",
+      "gap_reason": "scenario_failed"
+    },
+    {
+      "gate": "accuracy",
+      "suite": "tsdb-7ac23153",
+      "scenario": "distinct_count_hll_2pct_error",
+      "reason": "victoriametrics: row 0 column 0 (distinct_count(value)) mismatch: expected '503', actual '0'",
+      "gap_reason": "scenario_failed"
+    },
+    {
+      "gate": "capability",
+      "suite": "vector-cfc208ed",
+      "scenario": "ann_recall_at_10",
+      "reason": "backend reported fail",
+      "gap_reason": "scenario_failed"
+    },
+    {
+      "gate": "accuracy",
+      "suite": "vector-cfc208ed",
+      "scenario": "filtered_search",
+      "reason": "backend reported fail",
+      "gap_reason": "scenario_failed"
+    },
+    {
+      "gate": "capability",
+      "suite": "vector-cfc208ed",
+      "scenario": "upsert_during_query",
+      "reason": "backend reported fail",
+      "gap_reason": "scenario_failed"
+    },
+    {
+      "gate": "capability",
+      "suite": "dotnet-test",
+      "scenario": "parity",
+      "reason": "dotnet test exited with code 1",
+      "gap_reason": "parity_test_failed"
+    }
+  ],
+  "performanceWarnings": [
+    {
+      "suite": "analytics-d3b57fc2",
+      "scenario": "groupby_time_1b_rows_wallclock",
+      "reason": "performance metrics are warning only"
+    },
+    {
+      "suite": "analytics-d3b57fc2",
+      "scenario": "columnar_compression_ratio",
+      "reason": "performance metrics are warning only"
+    }
+  ]
+}

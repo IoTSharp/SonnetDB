@@ -1,0 +1,162 @@
+{
+  "runId": "document-55f2d355",
+  "startedAtUtc": "2026-07-24T05:26:46.2299205+00:00",
+  "scenarios": [
+    {
+      "name": "document_crud_filter_projection_sort",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 3,
+          "metrics": {
+            "deleted": 1,
+            "remaining": 3
+          }
+        },
+        {
+          "backend": "mongodb",
+          "status": "pass",
+          "rowCount": 3,
+          "metrics": {
+            "deleted": 1,
+            "remaining": 3
+          }
+        }
+      ]
+    },
+    {
+      "name": "document_update_operators",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {}
+        },
+        {
+          "backend": "mongodb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {}
+        }
+      ]
+    },
+    {
+      "name": "document_index_unique_ttl",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "ttl_wait_seconds": 0
+          }
+        },
+        {
+          "backend": "mongodb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "ttl_wait_seconds": 10
+          }
+        }
+      ]
+    },
+    {
+      "name": "document_aggregation_group_average",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 2,
+          "metrics": {}
+        },
+        {
+          "backend": "mongodb",
+          "status": "pass",
+          "rowCount": 2,
+          "metrics": {}
+        }
+      ]
+    },
+    {
+      "name": "document_concurrent_write_recovery_index_consistency",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {}
+        },
+        {
+          "backend": "mongodb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {}
+        }
+      ]
+    }
+  ],
+  "capabilityGaps": [
+    {
+      "scenario": "document_crud_filter_projection_sort",
+      "required": "Document",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "mongodb": "pass"
+      }
+    },
+    {
+      "scenario": "document_update_operators",
+      "required": "Document",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "mongodb": "pass"
+      }
+    },
+    {
+      "scenario": "document_index_unique_ttl",
+      "required": "Document",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "mongodb": "pass"
+      }
+    },
+    {
+      "scenario": "document_aggregation_group_average",
+      "required": "Document",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "mongodb": "pass"
+      }
+    },
+    {
+      "scenario": "document_concurrent_write_recovery_index_consistency",
+      "required": "Document",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "mongodb": "pass"
+      }
+    }
+  ],
+  "backends": [
+    "sonnetdb",
+    "mongodb"
+  ]
+}

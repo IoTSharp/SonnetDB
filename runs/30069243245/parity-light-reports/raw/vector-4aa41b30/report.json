@@ -1,0 +1,106 @@
+{
+  "runId": "vector-4aa41b30",
+  "startedAtUtc": "2026-07-24T05:26:18.0181777+00:00",
+  "scenarios": [
+    {
+      "name": "ann_recall_at_10",
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "recall_at_10": 1,
+            "records": 2000
+          }
+        },
+        {
+          "backend": "qdrant",
+          "status": "skipped",
+          "gapReason": "qdrant unreachable (compose full/light \u672A\u542F\u52A8\u6216 PARITY_* \u672A\u914D\u7F6E)",
+          "rowCount": 0,
+          "metrics": {}
+        }
+      ]
+    },
+    {
+      "name": "filtered_search",
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "filtered_matches": 10
+          }
+        },
+        {
+          "backend": "qdrant",
+          "status": "skipped",
+          "gapReason": "qdrant unreachable (compose full/light \u672A\u542F\u52A8\u6216 PARITY_* \u672A\u914D\u7F6E)",
+          "rowCount": 0,
+          "metrics": {}
+        }
+      ]
+    },
+    {
+      "name": "upsert_during_query",
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "non_empty_queries": 20
+          }
+        },
+        {
+          "backend": "qdrant",
+          "status": "skipped",
+          "gapReason": "qdrant unreachable (compose full/light \u672A\u542F\u52A8\u6216 PARITY_* \u672A\u914D\u7F6E)",
+          "rowCount": 0,
+          "metrics": {}
+        }
+      ]
+    }
+  ],
+  "capabilityGaps": [
+    {
+      "scenario": "ann_recall_at_10",
+      "required": "Vector",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "qdrant": "skipped"
+      }
+    },
+    {
+      "scenario": "filtered_search",
+      "required": "Vector, HnswFiltered",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "qdrant": "skipped"
+      }
+    },
+    {
+      "scenario": "upsert_during_query",
+      "required": "Vector",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "qdrant": "skipped"
+      }
+    }
+  ],
+  "backends": [
+    "sonnetdb",
+    "qdrant"
+  ]
+}

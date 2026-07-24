@@ -1,0 +1,178 @@
+{
+  "runId": "mq-741c98e5",
+  "startedAtUtc": "2026-07-24T05:26:22.0713767+00:00",
+  "scenarios": [
+    {
+      "name": "publish_consume_ack",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1
+          }
+        },
+        {
+          "backend": "nats",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1
+          }
+        }
+      ]
+    },
+    {
+      "name": "consumer_group_offset",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1
+          }
+        },
+        {
+          "backend": "nats",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1
+          }
+        }
+      ]
+    },
+    {
+      "name": "replay_after_restart",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1
+          }
+        },
+        {
+          "backend": "nats",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1
+          }
+        }
+      ]
+    },
+    {
+      "name": "fan_out_10p_10c",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "producer_count": 10,
+            "consumer_group_count": 10
+          }
+        },
+        {
+          "backend": "nats",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "producer_count": 10,
+            "consumer_group_count": 10
+          }
+        }
+      ]
+    },
+    {
+      "name": "backpressure_unbounded_producer",
+      "withinTolerance": true,
+      "differences": [],
+      "backends": [
+        {
+          "backend": "sonnetdb",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "publish_per_sec": 1114144.0588268063
+          }
+        },
+        {
+          "backend": "nats",
+          "status": "pass",
+          "rowCount": 1,
+          "metrics": {
+            "row_count": 1,
+            "publish_per_sec": 3732.120344459779
+          }
+        }
+      ]
+    }
+  ],
+  "capabilityGaps": [
+    {
+      "scenario": "publish_consume_ack",
+      "required": "Mq, MqConsumerGroup",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "nats": "pass"
+      }
+    },
+    {
+      "scenario": "consumer_group_offset",
+      "required": "Mq, MqConsumerGroup",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "nats": "pass"
+      }
+    },
+    {
+      "scenario": "replay_after_restart",
+      "required": "Mq, MqReplayFromOffset",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "nats": "pass"
+      }
+    },
+    {
+      "scenario": "fan_out_10p_10c",
+      "required": "Mq, MqConsumerGroup",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "nats": "pass"
+      }
+    },
+    {
+      "scenario": "backpressure_unbounded_producer",
+      "required": "Mq, MqReplayFromOffset",
+      "sonnetDb": "pass",
+      "backendStatuses": {
+        "sonnetdb": "pass",
+        "nats": "pass"
+      }
+    }
+  ],
+  "backends": [
+    "sonnetdb",
+    "nats"
+  ]
+}
