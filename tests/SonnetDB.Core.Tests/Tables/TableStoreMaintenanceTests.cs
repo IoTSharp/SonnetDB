@@ -19,6 +19,24 @@ public sealed class TableStoreMaintenanceTests : IDisposable
         try { Directory.Delete(_root, recursive: true); } catch { }
     }
 
+    /// <summary>验证分页 key 扫描不会为了列表预分配而全量统计 KV。</summary>
+    [Fact]
+    public void ScanKeysPrefixAfter_WithLimit_DoesNotCountAllVisibleEntries()
+    {
+        string path = Path.Combine(_root, "bounded-key-scan");
+        using var keyspace = KvKeyspace.Open("bounded-key-scan", path, KvOptions.Default);
+        for (var index = 0; index < 1024; index++)
+            keyspace.Put($"row:{index:D4}", "value"u8);
+
+        var countVisibleCalls = 0;
+        keyspace.CountVisibleTestHook = () => countVisibleCalls++;
+
+        var keys = keyspace.ScanKeysPrefixAfter("row:"u8, ReadOnlySpan<byte>.Empty, limit: 16);
+
+        Assert.Equal(16, keys.Count);
+        Assert.Equal(0, countVisibleCalls);
+    }
+
     [Fact]
     public void ScanKeysPrefixAfter_LargeValue_DoesNotCopyValue()
     {

@@ -11,6 +11,7 @@ namespace SonnetDB.Kv;
 /// </summary>
 public sealed class KvKeyspace : IDisposable
 {
+    private const int ScanResultInitialCapacity = 256;
     private readonly object _sync = new();
     private readonly SemaphoreSlim _checkpointGate = new(1, 1);
     private readonly KvOptions _options;
@@ -139,6 +140,9 @@ public sealed class KvKeyspace : IDisposable
     internal Action? GenerationSaveTestHook { get; set; }
 
     internal Action? BaseLookupTestHook { get; set; }
+
+    /// <summary>测试扫描路径是否触发全量可见项计数。</summary>
+    internal Action? CountVisibleTestHook { get; set; }
 
     internal Action? WalDisposeFlushTestHook
     {
@@ -1205,7 +1209,8 @@ public sealed class KvKeyspace : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
-            var rows = new List<KvEntry>(Math.Min(take, CountVisibleLocked()));
+            // 分页扫描不能为预分配容量遍历整个 KV，否则维护任务会随页数退化为平方复杂度。
+            var rows = new List<KvEntry>(Math.Min(take, ScanResultInitialCapacity));
             DateTimeOffset now = DateTimeOffset.UtcNow;
             foreach (var pair in EnumerateVisibleEntriesLocked(
                 prefixCopy,
@@ -1247,7 +1252,8 @@ public sealed class KvKeyspace : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
-            var keys = new List<byte[]>(Math.Min(limit, CountVisibleLocked()));
+            // 维护扫描通常按小页执行，固定有界容量可避免每页先做一次全量计数。
+            var keys = new List<byte[]>(Math.Min(limit, ScanResultInitialCapacity));
             DateTimeOffset now = DateTimeOffset.UtcNow;
             foreach (var pair in EnumerateVisibleEntriesLocked(
                 prefixCopy,
@@ -2527,7 +2533,10 @@ public sealed class KvKeyspace : IDisposable
     }
 
     private int CountVisibleLocked()
-        => CountVisible(_values, _frozenValues, _diskState);
+    {
+        CountVisibleTestHook?.Invoke();
+        return CountVisible(_values, _frozenValues, _diskState);
+    }
 
     private static int CountVisible(
         IReadOnlyDictionary<byte[], KvValueEntry> primary,
