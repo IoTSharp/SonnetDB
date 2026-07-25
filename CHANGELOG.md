@@ -36,6 +36,7 @@
 
 ### Added
 
+- SQL 标量表达式补齐：`SELECT` 在无 FROM、关系表、measurement、document、JOIN、JSON 虚拟表、向量/混合搜索、`INFORMATION_SCHEMA` 及内置 forecast/knn 表值函数路径统一支持顶层 `+ - * / %` 表达式；整数加减乘模保留 Int64、除法返回 Float64、NULL 传播、除零/模零报错，`+` 不再隐式拼接字符串并新增显式 `concat(...)`。普通关系表与 measurement 还支持 CASE、比较、逻辑、IS NULL、IN 的三值投影，关系表 BOOL 列可接收谓词 UPDATE 右值。关系表 `UPDATE ... SET` 支持引用原行列与标量函数，所有右值按原行快照求值，显式写 ROWVERSION 被拒绝，普通单条 UPDATE 的扫描到提交在同一锁内，保证并发 `SET value = value + 1` 不丢更新；用户 UDF 回调改在该锁外执行以避免死锁。轻事务内连续更新会读取自身缓冲，INSERT/UPDATE/DELETE 按主键归并且各语句失败不残留部分 mutation。聚合投影支持 `count(*) + 1`、`round(avg(value), 2)` 等外包表达式并保持整数聚合精度。新增 `modbus_int32`、`modbus_uint32`、`modbus_float32`，覆盖 `ABCD/BADC/CDAB/DCBA` 两寄存器字节序、NULL 与严格输入范围校验。
 - KV WAL 升级为 v3，新增单 record、CRC-protected mixed put/delete 原子 batch；关系表在单个 table/keyspace 内把一个 prepared batch 合并为一次 WAL append 与至多一次 fsync，并跳过 key/value 未变化的二级索引写入和唯一索引扫描。reader 继续兼容 v1/v2，打开旧 active WAL 时会先密封再创建 v3 active；`PutMany` 现在原子提交且所有返回项共享同一 batch 版本。v3 active WAL 不支持降级后继续写入，跨 table/keyspace 的 crash-atomic coordinator WAL 仍不在此变更范围内。
 - 新增 `sonnetdb.lock.wait.duration` 关键存储锁等待直方图（固定 `lock.name=table_manager|kv_keyspace`），并让既有 `sonnetdb.wal.fsync.duration` 同时覆盖 TSDB/KV WAL、使用固定 `wal.kind=tsdb|kv` 区分低基数样本。
 - Server 新增数据库级 SQL HTTP 并发准入，REST `/sql`、`/sql/batch` 与 Frame SQL query 共享有界 permit/queue；队列满时 REST 在读取请求体前返回 `503` 与 `Retry-After`，Frame 返回保留 `streamId` 的 `sql_overloaded` 错误帧，许可数和队列长度可通过配置调整。

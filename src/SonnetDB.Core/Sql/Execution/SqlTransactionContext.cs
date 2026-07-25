@@ -47,6 +47,79 @@ public sealed class SqlTransactionContext
     }
 
     /// <summary>
+    /// 按主键归并同一事务内连续的 INSERT、UPDATE、DELETE，保存最终净变化和首次并发版本。
+    /// </summary>
+    internal void AddOrMergeTableMutation(TableSchema schema, TableRowMutation mutation)
+    {
+        ArgumentNullException.ThrowIfNull(schema);
+        ArgumentNullException.ThrowIfNull(mutation);
+        ThrowIfCompleted();
+
+        if (!_tableMutations.TryGetValue(schema.Name, out var list))
+        {
+            list = [];
+            _tableMutations.Add(schema.Name, list);
+        }
+
+        byte[] mutationKey = GetMutationPrimaryKey(schema, mutation);
+        for (int i = 0; i < list.Count; i++)
+        {
+            if (!GetMutationPrimaryKey(schema, list[i]).AsSpan().SequenceEqual(mutationKey))
+                continue;
+
+            var previous = list[i];
+            bool previousIsInsert = previous.PrimaryKeyValues is null;
+            bool previousIsDelete = previous.PrimaryKeyValues is not null && previous.NewValues is null;
+            bool mutationIsInsert = mutation.PrimaryKeyValues is null;
+            bool mutationIsDelete = mutation.PrimaryKeyValues is not null && mutation.NewValues is null;
+            if (previousIsInsert && mutationIsDelete)
+            {
+                // 本事务先插入再删除同一主键时没有净变更。
+                list.RemoveAt(i);
+                return;
+            }
+
+            if (previousIsDelete && mutationIsInsert)
+            {
+                // 删除后重新插入视为替换：校验原行版本，但采用新 INSERT 初始化后的完整行值。
+                list[i] = new TableRowMutation(
+                    previous.PrimaryKeyValues,
+                    mutation.NewValues,
+                    previous.ExpectedRowVersion);
+                return;
+            }
+
+            if (mutationIsInsert)
+            {
+                // INSERT 接在 INSERT/UPDATE 后仍是重复主键操作，保留两条 mutation 交由 COMMIT 报错。
+                list.Add(mutation);
+                return;
+            }
+
+            // INSERT→UPDATE、UPDATE→UPDATE、UPDATE→DELETE 都保留首次操作的并发基线。
+            list[i] = new TableRowMutation(
+                previous.PrimaryKeyValues,
+                mutation.NewValues,
+                previous.ExpectedRowVersion);
+            return;
+        }
+
+        list.Add(mutation);
+    }
+
+    /// <summary>
+    /// 获取 mutation 的规范主键字节；INSERT 从新行取键，其余操作使用显式主键值。
+    /// </summary>
+    private static byte[] GetMutationPrimaryKey(TableSchema schema, TableRowMutation mutation)
+    {
+        if (mutation.PrimaryKeyValues is not null)
+            return TableKeyCodec.EncodePrimaryKeyValues(schema, mutation.PrimaryKeyValues);
+        if (mutation.NewValues is not null)
+            return TableKeyCodec.EncodePrimaryKey(schema, mutation.NewValues);
+        throw new InvalidOperationException("关系表 mutation 缺少主键和新行值。");
+    }
+
+    /// <summary>
     /// 读取某表本事务已缓冲、尚未提交的变更序列（按加入顺序）。供 read-your-writes 叠加使用（#218）。
     /// 无缓冲变更时返回 <c>false</c>。
     /// </summary>

@@ -6,6 +6,7 @@ using SonnetDB.Engine;
 using SonnetDB.FullText;
 using SonnetDB.Model;
 using SonnetDB.Query;
+using SonnetDB.Query.Functions;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Storage.Format;
 using SonnetDB.Tables;
@@ -1019,8 +1020,8 @@ internal static class HybridSearchExecutor
                     break;
 
                 default:
-                    throw new InvalidOperationException(
-                        $"hybrid_search SELECT 暂不支持投影表达式 '{item.Expression.GetType().Name}'。");
+                    projections.Add(new Projection(item.Alias ?? "expression", item.Expression));
+                    break;
             }
         }
 
@@ -1076,8 +1077,8 @@ internal static class HybridSearchExecutor
                     break;
 
                 default:
-                    throw new InvalidOperationException(
-                        $"hybrid_search SELECT 暂不支持投影表达式 '{item.Expression.GetType().Name}'。");
+                    projections.Add(new Projection(item.Alias ?? "expression", item.Expression));
+                    break;
             }
         }
 
@@ -1189,7 +1190,7 @@ internal static class HybridSearchExecutor
             LiteralExpression literal => EvaluateLiteral(literal),
             IdentifierExpression identifier => GetIdentifierValue(identifier, row),
             FunctionCallExpression function => EvaluateFunction(function, row),
-            UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => -RequireDouble(EvaluateScalar(unary.Operand, row), "一元负号"),
+            UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => SqlScalarOperations.Negate(EvaluateScalar(unary.Operand, row)),
             BinaryExpression binary when IsArithmeticOperator(binary.Operator) => EvaluateArithmetic(binary, row),
             _ => throw new InvalidOperationException(
                 $"hybrid_search 表达式暂不支持 '{expression.GetType().Name}'。"),
@@ -1203,7 +1204,7 @@ internal static class HybridSearchExecutor
             LiteralExpression literal => EvaluateLiteral(literal),
             IdentifierExpression identifier => GetIdentifierValue(identifier, row),
             FunctionCallExpression function => EvaluateFunction(function, row),
-            UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => -RequireDouble(EvaluateScalar(unary.Operand, row), "一元负号"),
+            UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => SqlScalarOperations.Negate(EvaluateScalar(unary.Operand, row)),
             BinaryExpression binary when IsArithmeticOperator(binary.Operator) => EvaluateArithmetic(binary, row),
             _ => throw new InvalidOperationException(
                 $"hybrid_search 表达式暂不支持 '{expression.GetType().Name}'。"),
@@ -1242,8 +1243,13 @@ internal static class HybridSearchExecutor
             return JsonPathEvaluator.Evaluate(json, path!);
         }
 
-        throw new InvalidOperationException(
-            "hybrid_search 当前仅支持 json_value(document, '$.path')、regexp_like(...)、bm25_score()、vector_distance()、vector_score() 与 hybrid_score() 函数。");
+        if (FunctionRegistry.TryGetScalar(function.Name, out var scalarFunction))
+        {
+            var arguments = function.Arguments.Select(argument => EvaluateScalar(argument, row)).ToArray();
+            return scalarFunction.Evaluate(arguments);
+        }
+
+        throw new InvalidOperationException($"hybrid_search 不支持标量函数 '{function.Name}'。");
     }
 
     private static object? EvaluateFunction(FunctionCallExpression function, KnowledgeHybridRow row)
@@ -1286,8 +1292,13 @@ internal static class HybridSearchExecutor
             return JsonPathEvaluator.Evaluate(json, path!);
         }
 
-        throw new InvalidOperationException(
-            "hybrid_search 当前仅支持 json_value(document, '$.path')、regexp_like(...)、bm25_score()、measurement_distance()、measurement_score()、document_vector_distance()、document_vector_score() 与 hybrid_score() 函数。");
+        if (FunctionRegistry.TryGetScalar(function.Name, out var scalarFunction))
+        {
+            var arguments = function.Arguments.Select(argument => EvaluateScalar(argument, row)).ToArray();
+            return scalarFunction.Evaluate(arguments);
+        }
+
+        throw new InvalidOperationException($"hybrid_search 不支持标量函数 '{function.Name}'。");
     }
 
     private static object? RequireNoArguments(FunctionCallExpression function, object? value)
@@ -1297,34 +1308,24 @@ internal static class HybridSearchExecutor
         return value;
     }
 
-    private static object EvaluateArithmetic(BinaryExpression binary, HybridRow row)
+    /// <summary>
+    /// 在一条文档混合搜索结果上计算共享数值算术表达式。
+    /// </summary>
+    private static object? EvaluateArithmetic(BinaryExpression binary, HybridRow row)
     {
-        var left = RequireDouble(EvaluateScalar(binary.Left, row), binary.Operator.ToString());
-        var right = RequireDouble(EvaluateScalar(binary.Right, row), binary.Operator.ToString());
-        return binary.Operator switch
-        {
-            SqlBinaryOperator.Add => left + right,
-            SqlBinaryOperator.Subtract => left - right,
-            SqlBinaryOperator.Multiply => left * right,
-            SqlBinaryOperator.Divide => left / right,
-            SqlBinaryOperator.Modulo => left % right,
-            _ => throw new InvalidOperationException($"不支持的算术运算符 {binary.Operator}。"),
-        };
+        var left = EvaluateScalar(binary.Left, row);
+        var right = EvaluateScalar(binary.Right, row);
+        return SqlScalarOperations.EvaluateArithmetic(binary.Operator, left, right);
     }
 
-    private static object EvaluateArithmetic(BinaryExpression binary, KnowledgeHybridRow row)
+    /// <summary>
+    /// 在一条知识混合搜索结果上计算共享数值算术表达式。
+    /// </summary>
+    private static object? EvaluateArithmetic(BinaryExpression binary, KnowledgeHybridRow row)
     {
-        var left = RequireDouble(EvaluateScalar(binary.Left, row), binary.Operator.ToString());
-        var right = RequireDouble(EvaluateScalar(binary.Right, row), binary.Operator.ToString());
-        return binary.Operator switch
-        {
-            SqlBinaryOperator.Add => left + right,
-            SqlBinaryOperator.Subtract => left - right,
-            SqlBinaryOperator.Multiply => left * right,
-            SqlBinaryOperator.Divide => left / right,
-            SqlBinaryOperator.Modulo => left % right,
-            _ => throw new InvalidOperationException($"不支持的算术运算符 {binary.Operator}。"),
-        };
+        var left = EvaluateScalar(binary.Left, row);
+        var right = EvaluateScalar(binary.Right, row);
+        return SqlScalarOperations.EvaluateArithmetic(binary.Operator, left, right);
     }
 
     private static object? GetIdentifierValue(IdentifierExpression identifier, HybridRow row)

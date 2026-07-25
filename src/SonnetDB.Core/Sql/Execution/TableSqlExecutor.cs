@@ -262,6 +262,7 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(schema);
 
         var bindings = BindInsertColumns(statement, schema);
+        var mutations = new List<TableRowMutation>(statement.Rows.Count);
         foreach (var row in statement.Rows)
         {
             var values = new object?[schema.Columns.Count];
@@ -273,10 +274,14 @@ internal static class TableSqlExecutor
 
             ApplyInsertRowVersion(schema, values);
             ValidateRequiredColumns(schema, values);
-            transaction.AddTableMutation(schema.Name, new TableRowMutation(PrimaryKeyValues: null, values));
+            mutations.Add(new TableRowMutation(PrimaryKeyValues: null, values));
         }
 
-        return new InsertExecutionResult(schema.Name, statement.Rows.Count);
+        // 整条 INSERT 的所有行都转换、校验成功后再写缓冲，避免后续行失败留下部分插入。
+        foreach (var mutation in mutations)
+            transaction.AddOrMergeTableMutation(schema, mutation);
+
+        return new InsertExecutionResult(schema.Name, mutations.Count);
     }
 
     public static SelectExecutionResult ExecuteSelect(Tsdb tsdb, SelectStatement statement, TableSchema schema)
@@ -389,8 +394,30 @@ internal static class TableSqlExecutor
             ?? throw new InvalidOperationException($"table '{statement.TableName}' 不存在。");
         var store = tsdb.Tables.Open(schema.Name);
         var assignments = BindAssignments(statement, schema);
+        // IN 子查询可能间接执行用户代码，必须在表管理锁之外完成物化；赋值表达式仍在锁内按最新行求值。
         var where = TableInSubqueryExecutor.Materialize(tsdb, statement.Where, schema);
 
+        // UDF 是任意用户回调，可能等待另一个 SQL 线程，不能在全局表管理锁内执行。
+        if (ContainsUserScalarFunction(tsdb.Functions, where)
+            || assignments.Any(assignment => ContainsUserScalarFunction(tsdb.Functions, assignment.Value)))
+        {
+            return ExecuteBoundUpdate(tsdb, schema, store, assignments, where);
+        }
+
+        return tsdb.Tables.ExecuteLocked(() =>
+            ExecuteBoundUpdate(tsdb, schema, store, assignments, where));
+    }
+
+    /// <summary>
+    /// 对已绑定的关系表 UPDATE 扫描候选行、按原行快照计算全部右值并统一提交。
+    /// </summary>
+    private static RowsAffectedExecutionResult ExecuteBoundUpdate(
+        Tsdb tsdb,
+        TableSchema schema,
+        TableStore store,
+        IReadOnlyList<BoundAssignment> assignments,
+        SqlExpression where)
+    {
         var mutations = new List<TableRowMutation>();
         var candidateRows = LoadMutationCandidateRows(store, schema, where, out bool predicateSatisfied);
         foreach (var row in candidateRows)
@@ -400,12 +427,17 @@ internal static class TableSqlExecutor
 
             var values = row.Values.ToArray();
             foreach (var assignment in assignments)
-                values[assignment.Column.Ordinal] = ConvertTableValue(assignment.Value, assignment.Column);
+            {
+                // 同一 SET 子句中的所有右值都读取更新前的原行，保证 SET a=b, b=a 可正确交换。
+                var evaluated = EvaluateScalar(assignment.Value, schema, row.Values);
+                values[assignment.Column.Ordinal] = ConvertTableValue(evaluated, assignment.Column);
+            }
 
             ValidateRequiredColumns(schema, values);
             var expectedRowVersion = ExtractRowVersion(schema, row.Values);
             ApplyUpdateRowVersion(schema, values, expectedRowVersion);
-            mutations.Add(new TableRowMutation(ExtractPrimaryKeyValues(schema, row.Values), values, expectedRowVersion));
+            mutations.Add(new TableRowMutation(
+                ExtractPrimaryKeyValues(schema, row.Values), values, expectedRowVersion));
         }
 
         ThrowIfStaleRowVersionPredicate(schema, store, where, mutations.Count);
@@ -416,6 +448,40 @@ internal static class TableSqlExecutor
                 [schema.Name] = mutations,
             });
         return new RowsAffectedExecutionResult(schema.Name, updated, "update");
+    }
+
+    /// <summary>
+    /// 递归判断表达式是否调用当前数据库注册的用户标量函数，供 UPDATE 选择锁外回调路径。
+    /// </summary>
+    private static bool ContainsUserScalarFunction(
+        UserFunctionRegistry functions,
+        SqlExpression expression)
+    {
+        switch (expression)
+        {
+            case FunctionCallExpression function:
+                if (functions.TryGetScalar(function.Name, out _))
+                    return true;
+                return function.Arguments.Any(argument => ContainsUserScalarFunction(functions, argument));
+            case UnaryExpression unary:
+                return ContainsUserScalarFunction(functions, unary.Operand);
+            case BinaryExpression binary:
+                return ContainsUserScalarFunction(functions, binary.Left)
+                    || ContainsUserScalarFunction(functions, binary.Right);
+            case CaseExpression caseExpression:
+                return caseExpression.WhenClauses.Any(clause =>
+                        ContainsUserScalarFunction(functions, clause.Condition)
+                        || ContainsUserScalarFunction(functions, clause.Result))
+                    || (caseExpression.Else is not null
+                        && ContainsUserScalarFunction(functions, caseExpression.Else));
+            case IsNullExpression isNull:
+                return ContainsUserScalarFunction(functions, isNull.Operand);
+            case InExpression inExpression:
+                return ContainsUserScalarFunction(functions, inExpression.Value)
+                    || inExpression.Values.Any(value => ContainsUserScalarFunction(functions, value));
+            default:
+                return false;
+        }
     }
 
     public static RowsAffectedExecutionResult QueueUpdate(SqlTransactionContext transaction, Tsdb tsdb, UpdateStatement statement)
@@ -431,8 +497,18 @@ internal static class TableSqlExecutor
         var assignments = BindAssignments(statement, schema);
         var where = TableInSubqueryExecutor.Materialize(tsdb, statement.Where, schema);
 
-        int updated = 0;
-        var candidateRows = LoadMutationCandidateRows(store, schema, where, out bool predicateSatisfied);
+        var mutations = new List<TableRowMutation>();
+        IReadOnlyList<TableRow> candidateRows;
+        bool predicateSatisfied;
+        if (transaction.TryGetBufferedMutations(schema.Name, out var buffered))
+        {
+            candidateRows = ApplyMutationOverlay(schema, store.Scan(), buffered);
+            predicateSatisfied = false;
+        }
+        else
+        {
+            candidateRows = LoadMutationCandidateRows(store, schema, where, out predicateSatisfied);
+        }
         foreach (var row in candidateRows)
         {
             if (!predicateSatisfied && !EvaluateWhere(where, schema, row.Values))
@@ -440,20 +516,26 @@ internal static class TableSqlExecutor
 
             var values = row.Values.ToArray();
             foreach (var assignment in assignments)
-                values[assignment.Column.Ordinal] = ConvertTableValue(assignment.Value, assignment.Column);
+            {
+                // 事务缓冲路径同样使用原行快照，避免赋值顺序改变 SQL 语义。
+                var evaluated = EvaluateScalar(assignment.Value, schema, row.Values);
+                values[assignment.Column.Ordinal] = ConvertTableValue(evaluated, assignment.Column);
+            }
 
             ValidateRequiredColumns(schema, values);
             var expectedRowVersion = ExtractRowVersion(schema, row.Values);
             ApplyUpdateRowVersion(schema, values, expectedRowVersion);
-            transaction.AddTableMutation(
-                schema.Name,
-                new TableRowMutation(ExtractPrimaryKeyValues(schema, row.Values), values, expectedRowVersion));
-            updated++;
+            mutations.Add(new TableRowMutation(
+                ExtractPrimaryKeyValues(schema, row.Values), values, expectedRowVersion));
         }
 
-        ThrowIfStaleRowVersionPredicate(schema, store, where, updated);
+        ThrowIfStaleRowVersionPredicate(schema, store, where, mutations.Count);
 
-        return new RowsAffectedExecutionResult(schema.Name, updated, "update");
+        // 整条语句全部求值成功后才写入事务缓冲，避免后续行失败时残留部分 UPDATE。
+        foreach (var mutation in mutations)
+            transaction.AddOrMergeTableMutation(schema, mutation);
+
+        return new RowsAffectedExecutionResult(schema.Name, mutations.Count, "update");
     }
 
     public static RowsAffectedExecutionResult QueueDelete(SqlTransactionContext transaction, Tsdb tsdb, DeleteStatement statement, TableSchema schema)
@@ -466,20 +548,34 @@ internal static class TableSqlExecutor
         ThrowIfBufferedTargetMakesSubqueryViewInconsistent(transaction, schema, statement.Where);
         var where = TableInSubqueryExecutor.Materialize(tsdb, statement.Where, schema);
         var store = tsdb.Tables.Open(schema.Name);
-        int deleted = 0;
-        var candidateRows = LoadMutationCandidateRows(store, schema, where, out bool predicateSatisfied);
+        var mutations = new List<TableRowMutation>();
+        IReadOnlyList<TableRow> candidateRows;
+        bool predicateSatisfied;
+        if (transaction.TryGetBufferedMutations(schema.Name, out var buffered))
+        {
+            // DELETE 必须读取本事务前序写入；叠加后索引谓词已不能直接视为满足。
+            candidateRows = ApplyMutationOverlay(schema, store.Scan(), buffered);
+            predicateSatisfied = false;
+        }
+        else
+        {
+            candidateRows = LoadMutationCandidateRows(store, schema, where, out predicateSatisfied);
+        }
+
         foreach (var row in candidateRows)
         {
             if (!predicateSatisfied && !EvaluateWhere(where, schema, row.Values))
                 continue;
 
-            transaction.AddTableMutation(
-                schema.Name,
-                new TableRowMutation(ExtractPrimaryKeyValues(schema, row.Values), NewValues: null, ExtractRowVersion(schema, row.Values)));
-            deleted++;
+            mutations.Add(new TableRowMutation(
+                ExtractPrimaryKeyValues(schema, row.Values), NewValues: null, ExtractRowVersion(schema, row.Values)));
         }
 
-        return new RowsAffectedExecutionResult(schema.Name, deleted, "delete");
+        // WHERE 对全部候选行求值成功后再合并，保证一条 DELETE 在事务缓冲中也是语句原子的。
+        foreach (var mutation in mutations)
+            transaction.AddOrMergeTableMutation(schema, mutation);
+
+        return new RowsAffectedExecutionResult(schema.Name, mutations.Count, "delete");
     }
 
     private static void ThrowIfBufferedTargetMakesSubqueryViewInconsistent(
@@ -603,11 +699,174 @@ internal static class TableSqlExecutor
                 ?? throw new InvalidOperationException($"table '{schema.Name}' 中不存在列 '{assignment.ColumnName}'。");
             if (column.IsPrimaryKey)
                 throw new InvalidOperationException("关系表 MVP 暂不支持更新 PRIMARY KEY 列。");
+            if (column.IsRowVersion)
+                throw new InvalidOperationException($"ROWVERSION 列 '{column.Name}' 由数据库自动维护，不允许显式赋值。");
+
+            ValidateTableValueExpression(assignment.Value, schema, "UPDATE SET");
 
             assignments.Add(new BoundAssignment(column, assignment.Value));
         }
 
         return [.. assignments];
+    }
+
+    /// <summary>
+    /// 在扫描行之前校验关系表值表达式，确保空结果也会报告未知列、错误参数或常量运算错误。
+    /// </summary>
+    private static void ValidateTableValueExpression(
+        SqlExpression expression,
+        TableSchema schema,
+        string context)
+    {
+        switch (expression)
+        {
+            case LiteralExpression or DurationLiteralExpression:
+                return;
+            case IdentifierExpression identifier:
+                _ = schema.TryGetColumn(identifier.Name)
+                    ?? throw new InvalidOperationException($"{context} 中引用了未知列 '{identifier.Name}'。");
+                return;
+            case UnaryExpression { Operator: SqlUnaryOperator.Negate } unary:
+                ValidateTableValueExpression(unary.Operand, schema, context);
+                ValidateConstantArithmeticExpression(unary, schema);
+                return;
+            case BinaryExpression binary when IsArithmeticOperator(binary.Operator):
+                ValidateTableValueExpression(binary.Left, schema, context);
+                ValidateTableValueExpression(binary.Right, schema, context);
+                ValidateConstantArithmeticExpression(binary, schema);
+                return;
+            case BinaryExpression binary when binary.Operator is SqlBinaryOperator.And or SqlBinaryOperator.Or
+                || IsComparisonOperator(binary.Operator):
+                ValidateTablePredicate(binary, schema, context);
+                return;
+            case UnaryExpression { Operator: SqlUnaryOperator.Not } unary:
+                ValidateTablePredicate(unary, schema, context);
+                return;
+            case IsNullExpression isNull:
+                ValidateTablePredicate(isNull, schema, context);
+                return;
+            case InExpression inExpression:
+                ValidateTablePredicate(inExpression, schema, context);
+                return;
+            case CaseExpression caseExpression:
+                foreach (var when in caseExpression.WhenClauses)
+                {
+                    ValidateTablePredicate(when.Condition, schema, context);
+                    ValidateTableValueExpression(when.Result, schema, context);
+                }
+                if (caseExpression.Else is not null)
+                    ValidateTableValueExpression(caseExpression.Else, schema, context);
+                return;
+            case FunctionCallExpression function
+                when string.Equals(function.Name, "json_value", StringComparison.OrdinalIgnoreCase):
+                ValidateJsonValueFunction(function, schema, context);
+                return;
+            case FunctionCallExpression function when !function.IsStar
+                && FunctionRegistry.TryGetScalar(function.Name, out var scalarFunction):
+                ValidateScalarFunctionArgumentCount(function, scalarFunction);
+                foreach (var argument in function.Arguments)
+                    ValidateTableValueExpression(argument, schema, context);
+                return;
+            default:
+                throw new InvalidOperationException(
+                    $"{context} 暂不支持表达式 '{expression.GetType().Name}'。");
+        }
+    }
+
+    /// <summary>
+    /// 校验关系表 CASE WHEN 中使用的布尔谓词及其标量叶子节点。
+    /// </summary>
+    private static void ValidateTablePredicate(
+        SqlExpression expression,
+        TableSchema schema,
+        string context)
+    {
+        switch (expression)
+        {
+            case BinaryExpression binary when binary.Operator is SqlBinaryOperator.And or SqlBinaryOperator.Or
+                || IsComparisonOperator(binary.Operator):
+                ValidateTablePredicate(binary.Left, schema, context);
+                ValidateTablePredicate(binary.Right, schema, context);
+                return;
+            case UnaryExpression { Operator: SqlUnaryOperator.Not } unary:
+                ValidateTablePredicate(unary.Operand, schema, context);
+                return;
+            case IsNullExpression isNull:
+                ValidateTableValueExpression(isNull.Operand, schema, context);
+                return;
+            case InExpression { Subquery: null } inExpression:
+                ValidateTableValueExpression(inExpression.Value, schema, context);
+                foreach (var item in inExpression.Values)
+                    ValidateTableValueExpression(item, schema, context);
+                return;
+            case InExpression:
+                throw new InvalidOperationException($"{context} 的 CASE 条件暂不支持 IN 子查询。");
+            default:
+                ValidateTableValueExpression(expression, schema, context);
+                return;
+        }
+    }
+
+    /// <summary>
+    /// 校验关系表 json_value 的固定参数形状，并递归校验 JSON 来源表达式。
+    /// </summary>
+    private static void ValidateJsonValueFunction(
+        FunctionCallExpression function,
+        TableSchema schema,
+        string context)
+    {
+        if (function.IsStar
+            || function.Arguments.Count != 2
+            || function.Arguments[1] is not LiteralExpression { Kind: SqlLiteralKind.String })
+        {
+            throw new InvalidOperationException("json_value 需要两个参数，第二个参数必须是 JSON path 字符串字面量。");
+        }
+
+        ValidateTableValueExpression(function.Arguments[0], schema, context);
+    }
+
+    /// <summary>
+    /// 对不含列和函数的常量算术子树立即求值，使类型、除零和溢出错误不依赖是否扫描到行。
+    /// </summary>
+    private static void ValidateConstantArithmeticExpression(
+        SqlExpression expression,
+        TableSchema schema)
+    {
+        if (IsConstantArithmeticExpression(expression))
+            _ = EvaluateScalar(expression, schema, Array.Empty<object?>());
+    }
+
+    /// <summary>
+    /// 判断表达式是否只由字面量、duration、一元负号和基础算术构成。
+    /// </summary>
+    private static bool IsConstantArithmeticExpression(SqlExpression expression)
+        => expression switch
+        {
+            LiteralExpression or DurationLiteralExpression => true,
+            UnaryExpression { Operator: SqlUnaryOperator.Negate } unary =>
+                IsConstantArithmeticExpression(unary.Operand),
+            BinaryExpression binary when IsArithmeticOperator(binary.Operator) =>
+                IsConstantArithmeticExpression(binary.Left)
+                && IsConstantArithmeticExpression(binary.Right),
+            _ => false,
+        };
+
+    /// <summary>
+    /// 在扫描关系表前校验标量函数参数个数，保证空结果语句也能报告调用错误。
+    /// </summary>
+    private static void ValidateScalarFunctionArgumentCount(
+        FunctionCallExpression function,
+        IScalarFunction scalarFunction)
+    {
+        if (function.Arguments.Count < scalarFunction.MinArgumentCount
+            || function.Arguments.Count > scalarFunction.MaxArgumentCount)
+        {
+            string expected = scalarFunction.MinArgumentCount == scalarFunction.MaxArgumentCount
+                ? scalarFunction.MinArgumentCount.ToString(CultureInfo.InvariantCulture)
+                : $"{scalarFunction.MinArgumentCount}~{scalarFunction.MaxArgumentCount}";
+            throw new InvalidOperationException(
+                $"函数 {function.Name} 需要 {expected} 个参数，实际为 {function.Arguments.Count}。");
+        }
     }
 
     private static void ValidateRequiredColumns(TableSchema schema, IReadOnlyList<object?> values)
@@ -785,7 +1044,7 @@ internal static class TableSqlExecutor
     /// SELECT 候选行加载：在已提交基线上叠加当前 ambient 轻事务对本表的缓冲写（read-your-writes，#218）。
     /// 无活动事务、事务已结束或该表无缓冲写时走既有 PK/二级索引/scan 快路径；一旦本表有缓冲写，
     /// 则改为全表 scan 后叠加缓冲变更（快路径可能漏掉尚未提交的插入行或返回被缓冲更新覆盖前的旧值），
-    /// 由调用方 WHERE 再过滤。仅用于 SELECT 读路径，不改变 queue update/delete 的候选加载。
+    /// 由调用方 WHERE 再过滤。事务 UPDATE/DELETE 也复用该叠加逻辑读取自身前序缓冲。
     /// </summary>
     internal static IReadOnlyList<TableRow> LoadSelectCandidateRows(
         TableStore store,
@@ -1498,6 +1757,9 @@ internal static class TableSqlExecutor
         var projections = new List<Projection>(items.Count);
         foreach (var item in items)
         {
+            if (item.Expression is not StarExpression)
+                ValidateTableValueExpression(item.Expression, schema, "SELECT 投影");
+
             switch (item.Expression)
             {
                 case StarExpression:
@@ -1526,8 +1788,8 @@ internal static class TableSqlExecutor
                     break;
 
                 default:
-                    throw new InvalidOperationException(
-                        $"关系表 SELECT 暂不支持投影表达式 '{item.Expression.GetType().Name}'。");
+                    projections.Add(Projection.Expression(item.Alias ?? "expression", item.Expression));
+                    break;
             }
         }
 
@@ -1709,11 +1971,17 @@ internal static class TableSqlExecutor
         return expression switch
         {
             LiteralExpression literal => EvaluateLiteral(literal),
+            DurationLiteralExpression duration => duration.Milliseconds,
             MaterializedSubqueryValueExpression materialized => materialized.Value,
             IdentifierExpression identifier => GetColumnValue(schema, row, identifier.Name),
             FunctionCallExpression function => EvaluateFunction(function, schema, row),
             UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => EvaluateNegation(unary, schema, row),
             BinaryExpression binary when IsArithmeticOperator(binary.Operator) => EvaluateArithmetic(binary, schema, row),
+            BinaryExpression binary when binary.Operator is SqlBinaryOperator.And or SqlBinaryOperator.Or
+                || IsComparisonOperator(binary.Operator) => EvaluateKleene(binary, schema, row),
+            UnaryExpression { Operator: SqlUnaryOperator.Not } unary => EvaluateKleene(unary, schema, row),
+            IsNullExpression isNull => EvaluateKleene(isNull, schema, row),
+            InExpression inExpression => EvaluateKleene(inExpression, schema, row),
             CaseExpression caseExpression => EvaluateCase(caseExpression, schema, row),
             _ => throw new InvalidOperationException(
                 $"关系表表达式暂不支持 '{expression.GetType().Name}'。"),
@@ -1803,34 +2071,14 @@ internal static class TableSqlExecutor
         IReadOnlyList<object?> row)
     {
         var value = EvaluateScalar(unary.Operand, schema, row);
-        return value is null ? null : -RequireDouble(value, "一元负号");
+        return SqlScalarOperations.Negate(value);
     }
 
     private static object? EvaluateArithmetic(BinaryExpression binary, TableSchema schema, IReadOnlyList<object?> row)
     {
         var leftValue = EvaluateScalar(binary.Left, schema, row);
         var rightValue = EvaluateScalar(binary.Right, schema, row);
-        if (leftValue is null || rightValue is null)
-            return null;
-
-        if (binary.Operator == SqlBinaryOperator.Add
-            && (leftValue is string || rightValue is string))
-        {
-            return Convert.ToString(leftValue, CultureInfo.InvariantCulture)
-                + Convert.ToString(rightValue, CultureInfo.InvariantCulture);
-        }
-
-        var left = RequireDouble(leftValue, binary.Operator.ToString());
-        var right = RequireDouble(rightValue, binary.Operator.ToString());
-        return binary.Operator switch
-        {
-            SqlBinaryOperator.Add => left + right,
-            SqlBinaryOperator.Subtract => left - right,
-            SqlBinaryOperator.Multiply => left * right,
-            SqlBinaryOperator.Divide => left / right,
-            SqlBinaryOperator.Modulo => left % right,
-            _ => throw new InvalidOperationException($"不支持的算术运算符 {binary.Operator}。"),
-        };
+        return SqlScalarOperations.EvaluateArithmetic(binary.Operator, leftValue, rightValue);
     }
 
     private static object? GetColumnValue(TableSchema schema, IReadOnlyList<object?> row, string name)
@@ -2280,12 +2528,15 @@ internal static class TableSqlExecutor
         object? ConstantValue,
         SqlExpression? ExpressionValue = null)
     {
+        /// <summary>创建直接读取关系表列的投影。</summary>
         public static Projection ForColumn(TableColumn column, string columnName)
             => new(ProjectionKind.Column, columnName, column, null);
 
+        /// <summary>创建在每一结果行返回固定值的投影。</summary>
         public static Projection Constant(object? value, string columnName)
             => new(ProjectionKind.Constant, columnName, null, value);
 
+        /// <summary>创建在每一关系表行上动态求值的标量表达式投影。</summary>
         public static Projection Expression(string columnName, SqlExpression expression)
             => new(ProjectionKind.Expression, columnName, null, null, expression);
     }

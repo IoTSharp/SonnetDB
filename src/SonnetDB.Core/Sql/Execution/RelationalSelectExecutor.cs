@@ -586,21 +586,35 @@ internal static class RelationalSelectExecutor
         // 这个判断必须跨所有组、整个结果集计算一次，否则不同组各自看自己的子集会得到
         // 不一致的结论：A 组返回 long 120、B 组返回 double 120.0，同一列异质类型。
         bool[]? allIntegralByProjection = null;
+        var allIntegralByNestedAggregate = new Dictionary<FunctionCallExpression, bool>(
+            ReferenceEqualityComparer.Instance);
         for (int i = 0; i < projections.Count; i++)
         {
-            if (projections[i].Aggregate is null) continue;
-            allIntegralByProjection ??= new bool[projections.Count];
-            // Q15：优先用 schema 静态类型判定聚合输入是否整型——命中即省去全量预扫，
-            // 且对大 long 保持整型累加不丢精度。仅当输入表达式静态类型未知
-            // （算术 / 函数派生列 / 子查询列）时才回退逐行预扫。
-            allIntegralByProjection[i] = InferAggregateInputIntegral(projections[i].Aggregate!, relation.Columns)
-                ?? IsAggregateInputAllIntegral(
-                    tsdb,
-                    projections[i].Aggregate!,
-                    relation.Columns,
-                    relation.Rows,
-                    outerScope,
-                    memo);
+            if (projections[i].Aggregate is not null)
+            {
+                allIntegralByProjection ??= new bool[projections.Count];
+                allIntegralByProjection[i] = IsIntegralAggregateInput(
+                    tsdb, projections[i].Aggregate!, relation, outerScope, memo);
+                continue;
+            }
+
+            foreach (var function in EnumerateAggregateCalls(projections[i].Expression))
+            {
+                var aggregate = new AggregateSpec(function);
+                allIntegralByNestedAggregate[function] = IsIntegralAggregateInput(
+                    tsdb, aggregate, relation, outerScope, memo);
+            }
+        }
+
+        if (statement.Having is not null)
+        {
+            // HAVING 与投影共享同一套全结果集类型推断，避免大整数聚合在谓词中降为 Double。
+            foreach (var function in EnumerateAggregateCalls(statement.Having))
+            {
+                var aggregate = new AggregateSpec(function);
+                allIntegralByNestedAggregate[function] = IsIntegralAggregateInput(
+                    tsdb, aggregate, relation, outerScope, memo);
+            }
         }
 
         foreach (var group in groups.Values)
@@ -610,7 +624,9 @@ internal static class RelationalSelectExecutor
                 : group[0];
 
             if (statement.Having is not null
-                && !EvaluateHavingPredicate(tsdb, statement.Having, relation.Columns, representative, group, outerScope, memo))
+                && !EvaluateHavingPredicate(
+                    tsdb, statement.Having, relation.Columns, representative, group,
+                    allIntegralByNestedAggregate, outerScope, memo))
             {
                 continue;
             }
@@ -620,7 +636,11 @@ internal static class RelationalSelectExecutor
             {
                 var projection = projections[i];
                 output[i] = projection.Aggregate is null
-                    ? EvaluateScalar(tsdb, projection.Expression, relation.Columns, representative, outerScope, memo)
+                    ? ContainsAggregate(projection.Expression)
+                        ? EvaluateAggregateProjectionExpression(
+                            tsdb, projection.Expression, relation.Columns, representative, group,
+                            allIntegralByNestedAggregate, outerScope, memo)
+                        : EvaluateScalar(tsdb, projection.Expression, relation.Columns, representative, outerScope, memo)
                     : EvaluateAggregate(tsdb, projection.Aggregate, relation.Columns, group,
                         allIntegralInput: allIntegralByProjection?[i] ?? false,
                         outerScope,
@@ -631,6 +651,37 @@ internal static class RelationalSelectExecutor
 
         return new SelectExecutionResult(projections.Select(static p => p.Name).ToArray(), rows);
     }
+
+    /// <summary>
+    /// 先内联投影表达式中的聚合调用，再按普通标量表达式求值，例如 count(*) + 1。
+    /// </summary>
+    private static object? EvaluateAggregateProjectionExpression(
+        Tsdb tsdb,
+        SqlExpression expression,
+        IReadOnlyList<RelColumn> columns,
+        IReadOnlyList<object?> representative,
+        IReadOnlyList<object?[]> group,
+        IReadOnlyDictionary<FunctionCallExpression, bool> allIntegralByAggregate,
+        RelationalScope? outerScope,
+        SubqueryMemo memo)
+    {
+        var inlined = InlineAggregates(
+            tsdb, expression, columns, group, outerScope, memo, allIntegralByAggregate);
+        return EvaluateScalar(tsdb, inlined, columns, representative, outerScope, memo);
+    }
+
+    /// <summary>
+    /// 统一判定关系聚合输入是否全为整数，优先使用 schema 静态类型，无法确定时才扫描完整结果集。
+    /// </summary>
+    private static bool IsIntegralAggregateInput(
+        Tsdb tsdb,
+        AggregateSpec aggregate,
+        Relation relation,
+        RelationalScope? outerScope,
+        SubqueryMemo memo)
+        => InferAggregateInputIntegral(aggregate, relation.Columns)
+            ?? IsAggregateInputAllIntegral(
+                tsdb, aggregate, relation.Columns, relation.Rows, outerScope, memo);
 
     /// <summary>
     /// 判定某个聚合的输入表达式在 <paramref name="allRows"/> 全集合上是否只产出整数（或 null）。
@@ -736,9 +787,12 @@ internal static class RelationalSelectExecutor
         IReadOnlyList<RelColumn> columns,
         IReadOnlyList<object?> representative,
         IReadOnlyList<object?[]> group,
+        IReadOnlyDictionary<FunctionCallExpression, bool> allIntegralByAggregate,
         RelationalScope? outerScope,
         SubqueryMemo memo)
-        => EvaluateHavingKleene(tsdb, expression, columns, representative, group, outerScope, memo) == true;
+        => EvaluateHavingKleene(
+            tsdb, expression, columns, representative, group,
+            allIntegralByAggregate, outerScope, memo) == true;
 
     private static bool? EvaluateHavingKleene(
         Tsdb tsdb,
@@ -746,6 +800,7 @@ internal static class RelationalSelectExecutor
         IReadOnlyList<RelColumn> columns,
         IReadOnlyList<object?> representative,
         IReadOnlyList<object?[]> group,
+        IReadOnlyDictionary<FunctionCallExpression, bool> allIntegralByAggregate,
         RelationalScope? outerScope,
         SubqueryMemo memo)
     {
@@ -753,24 +808,36 @@ internal static class RelationalSelectExecutor
         {
             if (binary.Operator == SqlBinaryOperator.And)
             {
-                var left = EvaluateHavingKleene(tsdb, binary.Left, columns, representative, group, outerScope, memo);
+                var left = EvaluateHavingKleene(
+                    tsdb, binary.Left, columns, representative, group,
+                    allIntegralByAggregate, outerScope, memo);
                 if (left == false) return false;
-                var right = EvaluateHavingKleene(tsdb, binary.Right, columns, representative, group, outerScope, memo);
+                var right = EvaluateHavingKleene(
+                    tsdb, binary.Right, columns, representative, group,
+                    allIntegralByAggregate, outerScope, memo);
                 if (right == false) return false;
                 return left is null || right is null ? null : true;
             }
             if (binary.Operator == SqlBinaryOperator.Or)
             {
-                var left = EvaluateHavingKleene(tsdb, binary.Left, columns, representative, group, outerScope, memo);
+                var left = EvaluateHavingKleene(
+                    tsdb, binary.Left, columns, representative, group,
+                    allIntegralByAggregate, outerScope, memo);
                 if (left == true) return true;
-                var right = EvaluateHavingKleene(tsdb, binary.Right, columns, representative, group, outerScope, memo);
+                var right = EvaluateHavingKleene(
+                    tsdb, binary.Right, columns, representative, group,
+                    allIntegralByAggregate, outerScope, memo);
                 if (right == true) return true;
                 return left is null || right is null ? null : false;
             }
             if (IsComparisonOperator(binary.Operator))
             {
-                var left = EvaluateHavingScalar(tsdb, binary.Left, columns, representative, group, outerScope, memo);
-                var right = EvaluateHavingScalar(tsdb, binary.Right, columns, representative, group, outerScope, memo);
+                var left = EvaluateHavingScalar(
+                    tsdb, binary.Left, columns, representative, group,
+                    allIntegralByAggregate, outerScope, memo);
+                var right = EvaluateHavingScalar(
+                    tsdb, binary.Right, columns, representative, group,
+                    allIntegralByAggregate, outerScope, memo);
                 if (left is null || right is null)
                     return null;
                 int? compare = CompareScalar(left, right);
@@ -792,20 +859,28 @@ internal static class RelationalSelectExecutor
         }
         else if (expression is UnaryExpression { Operator: SqlUnaryOperator.Not } unary)
         {
-            var operand = EvaluateHavingKleene(tsdb, unary.Operand, columns, representative, group, outerScope, memo);
+            var operand = EvaluateHavingKleene(
+                tsdb, unary.Operand, columns, representative, group,
+                allIntegralByAggregate, outerScope, memo);
             return operand is null ? null : !operand;
         }
         else if (expression is IsNullExpression isNull)
         {
-            var isNullValue = EvaluateHavingScalar(tsdb, isNull.Operand, columns, representative, group, outerScope, memo) is null;
+            var isNullValue = EvaluateHavingScalar(
+                tsdb, isNull.Operand, columns, representative, group,
+                allIntegralByAggregate, outerScope, memo) is null;
             return isNull.Negated ? !isNullValue : isNullValue;
         }
         else if (expression is InExpression inExpression)
         {
-            return EvaluateIn(tsdb, inExpression, columns, representative, outerScope, memo);
+            var inlined = (InExpression)InlineAggregates(
+                tsdb, inExpression, columns, group, outerScope, memo, allIntegralByAggregate);
+            return EvaluateIn(tsdb, inlined, columns, representative, outerScope, memo);
         }
 
-        var value = EvaluateHavingScalar(tsdb, expression, columns, representative, group, outerScope, memo);
+        var value = EvaluateHavingScalar(
+            tsdb, expression, columns, representative, group,
+            allIntegralByAggregate, outerScope, memo);
         if (value is null)
             return null;
         if (value is bool b)
@@ -826,10 +901,12 @@ internal static class RelationalSelectExecutor
         IReadOnlyList<RelColumn> columns,
         IReadOnlyList<object?> representative,
         IReadOnlyList<object?[]> group,
+        IReadOnlyDictionary<FunctionCallExpression, bool> allIntegralByAggregate,
         RelationalScope? outerScope,
         SubqueryMemo memo)
     {
-        var inlined = InlineAggregates(tsdb, expression, columns, group, outerScope, memo);
+        var inlined = InlineAggregates(
+            tsdb, expression, columns, group, outerScope, memo, allIntegralByAggregate);
         return EvaluateScalar(tsdb, inlined, columns, representative, outerScope, memo);
     }
 
@@ -843,27 +920,34 @@ internal static class RelationalSelectExecutor
         IReadOnlyList<RelColumn> columns,
         IReadOnlyList<object?[]> group,
         RelationalScope? outerScope,
-        SubqueryMemo memo)
+        SubqueryMemo memo,
+        IReadOnlyDictionary<FunctionCallExpression, bool>? allIntegralByAggregate = null)
     {
         switch (expression)
         {
             case FunctionCallExpression aggCall when IsAggregateFunction(aggCall.Name):
                 {
+                    bool allIntegralInput = allIntegralByAggregate is not null
+                        && allIntegralByAggregate.TryGetValue(aggCall, out var integral)
+                        && integral;
                     var value = EvaluateAggregate(tsdb, new AggregateSpec(aggCall), columns, group,
-                        outerScope: outerScope, memo: memo);
+                        allIntegralInput, outerScope, memo);
                     return WrapValueAsLiteral(value);
                 }
             case BinaryExpression binary:
                 {
-                    var left = InlineAggregates(tsdb, binary.Left, columns, group, outerScope, memo);
-                    var right = InlineAggregates(tsdb, binary.Right, columns, group, outerScope, memo);
+                    var left = InlineAggregates(
+                        tsdb, binary.Left, columns, group, outerScope, memo, allIntegralByAggregate);
+                    var right = InlineAggregates(
+                        tsdb, binary.Right, columns, group, outerScope, memo, allIntegralByAggregate);
                     if (ReferenceEquals(left, binary.Left) && ReferenceEquals(right, binary.Right))
                         return expression;
                     return binary with { Left = left, Right = right };
                 }
             case UnaryExpression unary:
                 {
-                    var operand = InlineAggregates(tsdb, unary.Operand, columns, group, outerScope, memo);
+                    var operand = InlineAggregates(
+                        tsdb, unary.Operand, columns, group, outerScope, memo, allIntegralByAggregate);
                     if (ReferenceEquals(operand, unary.Operand))
                         return expression;
                     return unary with { Operand = operand };
@@ -874,12 +958,51 @@ internal static class RelationalSelectExecutor
                     bool changed = false;
                     for (int i = 0; i < scalarCall.Arguments.Count; i++)
                     {
-                        args[i] = InlineAggregates(tsdb, scalarCall.Arguments[i], columns, group, outerScope, memo);
+                        args[i] = InlineAggregates(
+                            tsdb, scalarCall.Arguments[i], columns, group, outerScope, memo,
+                            allIntegralByAggregate);
                         if (!ReferenceEquals(args[i], scalarCall.Arguments[i]))
                             changed = true;
                     }
                     return changed ? scalarCall with { Arguments = args } : expression;
                 }
+            case CaseExpression caseExpression:
+                {
+                    var clauses = caseExpression.WhenClauses
+                        .Select(clause => clause with
+                        {
+                            Condition = InlineAggregates(
+                                tsdb, clause.Condition, columns, group, outerScope, memo,
+                                allIntegralByAggregate),
+                            Result = InlineAggregates(
+                                tsdb, clause.Result, columns, group, outerScope, memo,
+                                allIntegralByAggregate),
+                        })
+                        .ToArray();
+                    var elseExpression = caseExpression.Else is null
+                        ? null
+                        : InlineAggregates(
+                            tsdb, caseExpression.Else, columns, group, outerScope, memo,
+                            allIntegralByAggregate);
+                    return caseExpression with { WhenClauses = clauses, Else = elseExpression };
+                }
+            case IsNullExpression isNull:
+                return isNull with
+                {
+                    Operand = InlineAggregates(
+                        tsdb, isNull.Operand, columns, group, outerScope, memo,
+                        allIntegralByAggregate),
+                };
+            case InExpression inExpression:
+                return inExpression with
+                {
+                    Value = InlineAggregates(
+                        tsdb, inExpression.Value, columns, group, outerScope, memo,
+                        allIntegralByAggregate),
+                    Values = inExpression.Values.Select(value => InlineAggregates(
+                        tsdb, value, columns, group, outerScope, memo,
+                        allIntegralByAggregate)).ToArray(),
+                };
             default:
                 return expression;
         }
@@ -940,6 +1063,12 @@ internal static class RelationalSelectExecutor
                     item.Alias ?? FormatExpressionName(function),
                     item.Expression,
                     new AggregateSpec(function)));
+                continue;
+            }
+
+            if (ContainsAggregate(item.Expression))
+            {
+                result.Add(new Projection(item.Alias ?? FormatExpressionName(item.Expression), item.Expression));
                 continue;
             }
 
@@ -1255,8 +1384,13 @@ internal static class RelationalSelectExecutor
             LiteralExpression literal => EvaluateLiteral(literal),
             DurationLiteralExpression duration => duration.Milliseconds,
             IdentifierExpression identifier => GetColumnValue(columns, row, identifier, outerScope),
-            UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => -RequireDouble(EvaluateScalar(tsdb, unary.Operand, columns, row, outerScope, memo), "一元负号"),
+            UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => SqlScalarOperations.Negate(EvaluateScalar(tsdb, unary.Operand, columns, row, outerScope, memo)),
             BinaryExpression binary when IsArithmeticOperator(binary.Operator) => EvaluateArithmetic(tsdb, binary, columns, row, outerScope, memo),
+            BinaryExpression binary when binary.Operator is SqlBinaryOperator.And or SqlBinaryOperator.Or
+                || IsComparisonOperator(binary.Operator) => EvaluateKleene(tsdb, binary, columns, row, outerScope, memo),
+            UnaryExpression { Operator: SqlUnaryOperator.Not } unary => EvaluateKleene(tsdb, unary, columns, row, outerScope, memo),
+            IsNullExpression isNull => EvaluateKleene(tsdb, isNull, columns, row, outerScope, memo),
+            InExpression inExpression => EvaluateKleene(tsdb, inExpression, columns, row, outerScope, memo),
             CaseExpression caseExpression => EvaluateCase(tsdb, caseExpression, columns, row, outerScope, memo),
             FunctionCallExpression function => EvaluateFunction(tsdb, function, columns, row, outerScope, memo),
             SubqueryExpression subquery => EvaluateScalarSubquery(tsdb, subquery, columns, row, outerScope, memo),
@@ -1284,7 +1418,10 @@ internal static class RelationalSelectExecutor
             : EvaluateScalar(tsdb, expression.Else, columns, row, outerScope, memo);
     }
 
-    private static object EvaluateArithmetic(
+    /// <summary>
+    /// 在关系结果行及可选外层作用域中计算共享数值算术表达式。
+    /// </summary>
+    private static object? EvaluateArithmetic(
         Tsdb? tsdb,
         BinaryExpression binary,
         IReadOnlyList<RelColumn> columns,
@@ -1294,24 +1431,7 @@ internal static class RelationalSelectExecutor
     {
         var leftValue = EvaluateScalar(tsdb, binary.Left, columns, row, outerScope, memo);
         var rightValue = EvaluateScalar(tsdb, binary.Right, columns, row, outerScope, memo);
-        if (binary.Operator == SqlBinaryOperator.Add
-            && (leftValue is string || rightValue is string))
-        {
-            return Convert.ToString(leftValue, CultureInfo.InvariantCulture)
-                + Convert.ToString(rightValue, CultureInfo.InvariantCulture);
-        }
-
-        var left = RequireDouble(leftValue, binary.Operator.ToString());
-        var right = RequireDouble(rightValue, binary.Operator.ToString());
-        return binary.Operator switch
-        {
-            SqlBinaryOperator.Add => left + right,
-            SqlBinaryOperator.Subtract => left - right,
-            SqlBinaryOperator.Multiply => left * right,
-            SqlBinaryOperator.Divide => left / right,
-            SqlBinaryOperator.Modulo => left % right,
-            _ => throw new InvalidOperationException($"不支持的算术运算符 {binary.Operator}。"),
-        };
+        return SqlScalarOperations.EvaluateArithmetic(binary.Operator, leftValue, rightValue);
     }
 
     private static object? EvaluateFunction(
@@ -1628,7 +1748,77 @@ internal static class RelationalSelectExecutor
     }
 
     private static bool ContainsAggregate(IReadOnlyList<SelectItem> items)
-        => items.Any(static item => item.Expression is FunctionCallExpression function && IsAggregateFunction(function.Name));
+        => items.Any(static item => ContainsAggregate(item.Expression));
+
+    /// <summary>
+    /// 递归判断标量表达式树中是否包含聚合函数调用。
+    /// </summary>
+    private static bool ContainsAggregate(SqlExpression expression)
+        => expression switch
+        {
+            FunctionCallExpression function when IsAggregateFunction(function.Name) => true,
+            FunctionCallExpression function => function.Arguments.Any(ContainsAggregate),
+            UnaryExpression unary => ContainsAggregate(unary.Operand),
+            BinaryExpression binary => ContainsAggregate(binary.Left) || ContainsAggregate(binary.Right),
+            CaseExpression caseExpression => caseExpression.WhenClauses.Any(when =>
+                    ContainsAggregate(when.Condition) || ContainsAggregate(when.Result))
+                || (caseExpression.Else is not null && ContainsAggregate(caseExpression.Else)),
+            IsNullExpression isNull => ContainsAggregate(isNull.Operand),
+            InExpression inExpression => ContainsAggregate(inExpression.Value)
+                || inExpression.Values.Any(ContainsAggregate),
+            _ => false,
+        };
+
+    /// <summary>
+    /// 递归枚举关系投影表达式中的聚合调用，供复合聚合表达式预先确定返回数值类型。
+    /// </summary>
+    private static IEnumerable<FunctionCallExpression> EnumerateAggregateCalls(SqlExpression expression)
+    {
+        switch (expression)
+        {
+            case FunctionCallExpression function when IsAggregateFunction(function.Name):
+                yield return function;
+                yield break;
+            case FunctionCallExpression function:
+                foreach (var argument in function.Arguments)
+                    foreach (var aggregate in EnumerateAggregateCalls(argument))
+                        yield return aggregate;
+                yield break;
+            case UnaryExpression unary:
+                foreach (var aggregate in EnumerateAggregateCalls(unary.Operand))
+                    yield return aggregate;
+                yield break;
+            case BinaryExpression binary:
+                foreach (var aggregate in EnumerateAggregateCalls(binary.Left))
+                    yield return aggregate;
+                foreach (var aggregate in EnumerateAggregateCalls(binary.Right))
+                    yield return aggregate;
+                yield break;
+            case CaseExpression caseExpression:
+                foreach (var clause in caseExpression.WhenClauses)
+                {
+                    foreach (var aggregate in EnumerateAggregateCalls(clause.Condition))
+                        yield return aggregate;
+                    foreach (var aggregate in EnumerateAggregateCalls(clause.Result))
+                        yield return aggregate;
+                }
+                if (caseExpression.Else is not null)
+                    foreach (var aggregate in EnumerateAggregateCalls(caseExpression.Else))
+                        yield return aggregate;
+                yield break;
+            case IsNullExpression isNull:
+                foreach (var aggregate in EnumerateAggregateCalls(isNull.Operand))
+                    yield return aggregate;
+                yield break;
+            case InExpression inExpression:
+                foreach (var aggregate in EnumerateAggregateCalls(inExpression.Value))
+                    yield return aggregate;
+                foreach (var value in inExpression.Values)
+                    foreach (var aggregate in EnumerateAggregateCalls(value))
+                        yield return aggregate;
+                yield break;
+        }
+    }
 
     private static bool ContainsSubquery(SelectStatement statement)
     {

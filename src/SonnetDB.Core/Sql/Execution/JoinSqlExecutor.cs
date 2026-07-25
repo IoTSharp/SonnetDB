@@ -54,7 +54,7 @@ internal static class JoinSqlExecutor
             projections,
             filterPlan.ResidualExpression,
             statement.OrderBy,
-            measurementSchema);
+            scope);
 
         var rows = new List<ResultRow>();
         foreach (var series in matchedSeries)
@@ -269,8 +269,8 @@ internal static class JoinSqlExecutor
                     break;
 
                 default:
-                    throw new InvalidOperationException(
-                        $"MM4 JOIN 第一版暂不支持投影表达式 '{item.Expression.GetType().Name}'。");
+                    projections.Add(Projection.ForExpression(item.Alias ?? "expression", item.Expression));
+                    break;
             }
         }
 
@@ -299,31 +299,56 @@ internal static class JoinSqlExecutor
         }
     }
 
+    /// <summary>
+    /// 按 JOIN 绑定结果收集真正来自 measurement 的 FIELD，避免同名维表列错误改变时间轴。
+    /// </summary>
     private static IReadOnlyList<string> CollectRequiredMeasurementFields(
         IReadOnlyList<Projection> projections,
         SqlExpression? residualWhere,
         OrderBySpec? orderBy,
-        MeasurementSchema schema)
+        JoinScope scope)
     {
         var fields = new HashSet<string>(StringComparer.Ordinal);
         foreach (var projection in projections)
         {
             if (projection.Resolved.MeasurementColumn is { Role: MeasurementColumnRole.Field } column)
                 fields.Add(column.Name);
+
+            if (projection.Expression is not null)
+            {
+                foreach (var identifier in EnumerateIdentifiers(projection.Expression))
+                {
+                    var resolved = scope.Resolve(identifier);
+                    if (resolved is
+                        {
+                            Source: JoinSource.Measurement,
+                            MeasurementColumn.Role: MeasurementColumnRole.Field,
+                        })
+                    {
+                        fields.Add(resolved.MeasurementColumn.Name);
+                    }
+                }
+            }
         }
 
         foreach (var expression in EnumerateOptionalExpressions(residualWhere, orderBy?.Expression))
         {
             foreach (var identifier in EnumerateIdentifiers(expression))
             {
-                var column = schema.TryGetColumn(identifier.Name);
-                if (column is { Role: MeasurementColumnRole.Field })
-                    fields.Add(column.Name);
+                var resolved = scope.Resolve(identifier);
+                if (resolved is
+                    {
+                        Source: JoinSource.Measurement,
+                        MeasurementColumn.Role: MeasurementColumnRole.Field,
+                    })
+                {
+                    fields.Add(resolved.MeasurementColumn.Name);
+                }
             }
         }
 
         if (fields.Count == 0)
-            fields.Add(schema.FieldColumns.First().Name);
+            fields.Add(scope.MeasurementSchema.FieldColumns.First().Name);
         return fields.ToArray();
     }
 
@@ -362,6 +387,7 @@ internal static class JoinSqlExecutor
         => projection.Kind switch
         {
             ProjectionKind.Column => EvaluateScalar(projection.Expression!, context),
+            ProjectionKind.Expression => EvaluateScalar(projection.Expression!, context),
             ProjectionKind.Constant => projection.ConstantValue,
             _ => throw new InvalidOperationException("未知 JOIN 投影类型。"),
         };
@@ -456,7 +482,7 @@ internal static class JoinSqlExecutor
             DurationLiteralExpression duration => duration.Milliseconds,
             IdentifierExpression identifier => context.GetValue(identifier),
             FunctionCallExpression function => EvaluateFunction(function, context),
-            UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => -RequireDouble(EvaluateScalar(unary.Operand, context), "一元负号"),
+            UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => SqlScalarOperations.Negate(EvaluateScalar(unary.Operand, context)),
             BinaryExpression binary when IsArithmeticOperator(binary.Operator) => EvaluateArithmetic(binary, context),
             _ => throw new InvalidOperationException(
                 $"JOIN 表达式暂不支持 '{expression.GetType().Name}'。"),
@@ -476,19 +502,14 @@ internal static class JoinSqlExecutor
         return scalarFunction.Evaluate(arguments);
     }
 
-    private static object EvaluateArithmetic(BinaryExpression binary, JoinRowContext context)
+    /// <summary>
+    /// 在当前 JOIN 行上下文中计算共享数值算术表达式。
+    /// </summary>
+    private static object? EvaluateArithmetic(BinaryExpression binary, JoinRowContext context)
     {
-        var left = RequireDouble(EvaluateScalar(binary.Left, context), binary.Operator.ToString());
-        var right = RequireDouble(EvaluateScalar(binary.Right, context), binary.Operator.ToString());
-        return binary.Operator switch
-        {
-            SqlBinaryOperator.Add => left + right,
-            SqlBinaryOperator.Subtract => left - right,
-            SqlBinaryOperator.Multiply => left * right,
-            SqlBinaryOperator.Divide => left / right,
-            SqlBinaryOperator.Modulo => left % right,
-            _ => throw new InvalidOperationException($"不支持的算术运算符 {binary.Operator}。"),
-        };
+        var left = EvaluateScalar(binary.Left, context);
+        var right = EvaluateScalar(binary.Right, context);
+        return SqlScalarOperations.EvaluateArithmetic(binary.Operator, left, right);
     }
 
     private static IEnumerable<ResultRow> ApplyOrderBy(List<ResultRow> rows, OrderBySpec? orderBy)
@@ -660,7 +681,7 @@ internal static class JoinSqlExecutor
     private sealed record Projection(
         ProjectionKind Kind,
         string ColumnName,
-        IdentifierExpression? Expression,
+        SqlExpression? Expression,
         ResolvedIdentifier Resolved,
         object? ConstantValue)
     {
@@ -669,11 +690,18 @@ internal static class JoinSqlExecutor
 
         public static Projection Constant(string columnName, object? value)
             => new(ProjectionKind.Constant, columnName, null, default, value);
+
+        /// <summary>
+        /// 创建需要按 JOIN 行上下文求值的通用标量投影。
+        /// </summary>
+        public static Projection ForExpression(string columnName, SqlExpression expression)
+            => new(ProjectionKind.Expression, columnName, expression, default, null);
     }
 
     private enum ProjectionKind
     {
         Column,
+        Expression,
         Constant,
     }
 

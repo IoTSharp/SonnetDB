@@ -9,6 +9,71 @@ permalink: /sql-reference/
 
 ## 数据面 SQL
 
+### 标量表达式与数值语义
+
+`SELECT` 投影和关系表 `UPDATE ... SET` 支持由列、字面量、括号、标量函数及以下运算符组成的数值表达式：
+
+```sql
+SELECT 2 * 5 + 1 AS constant_value;
+SELECT value + 1 AS next_value, (high - low) * 0.5 AS adjusted FROM readings;
+UPDATE counters SET value = value + 1 WHERE id = 1;
+```
+
+- 支持二元 `+`、`-`、`*`、`/`、`%` 和一元 `+`、`-`；优先级为一元运算 > 乘除取模 > 加减，括号可显式改变顺序。
+- 整数加、减、乘、取模保留 `Int64`；任一操作数为浮点时返回 `Float64`；除法始终返回 `Float64`，所以 `5 / 2` 返回 `2.5`。
+- 任一算术操作数为 `NULL` 时结果为 `NULL`。除数或模数为 `0` 时抛出执行错误，不返回 `Infinity` / `NaN`。
+- `+` 只做数值加法，不把字符串隐式转成数字，也不做字符串拼接。字符串连接使用 `concat(...)`；其中 `NULL` 参数按空字符串处理。
+- 支持聚合结果外包算术或标量函数，例如 `count(*) + 1`、`round(avg(value) + 0.25, 2)`；关系表、measurement 和 document collection 查询遵循同一规则。
+- 普通关系表和 measurement 投影还支持 searched `CASE WHEN`、比较、`AND` / `OR` / `NOT`、`IS [NOT] NULL` 及不含子查询的 `IN` / `NOT IN`，并按 SQL 三值逻辑保留 `UNKNOWN`；BOOL 列也可在 `UPDATE SET` 右值中直接接收这类谓词结果。
+- 支持无 `FROM` 的常量表达式查询，例如 `SELECT 2 * 5 + 1`，便于探活和计算。
+- 相同基础投影语义也适用于 JOIN、JSON 虚拟表、向量/混合搜索、`INFORMATION_SCHEMA` 以及内置 `forecast(...)` / `knn(...)` 表值函数。
+- `a++`、`a--`、`a += 1`、`a -= 1` 不是 SQL 赋值语法，不支持；应写 `SET a = a + 1`。`SET a = +2` 合法，但含义只是把正数 `2` 赋给 `a`。
+
+关系表单条 `UPDATE` 还遵循以下规则：
+
+- 同一个 `SET` 中的所有右值都读取更新前的原行，因此 `SET a = b, b = a` 会正确交换两列。
+- 表达式先对所有命中行求值并校验，再统一提交；任一行除零、溢出或类型不匹配时，整条语句不留下部分更新。
+- 非显式事务中的单条 `UPDATE` 把候选扫描、表达式求值和提交放在同一个表管理锁内，并发执行 `SET value = value + 1` 不会丢更新。
+- 通过 `Tsdb.Functions` 注册的用户标量函数属于任意应用回调，UPDATE 会在表管理锁外执行它，避免回调等待其他 SQL 线程时死锁；该分支需要并发冲突检测时应使用 `ROWVERSION`。
+- `ROWVERSION` 由数据库自动维护，不能出现在 `SET` 左侧；需要乐观并发控制时在 `WHERE` 中携带旧版本值。
+
+### Modbus 32 位寄存器解码
+
+以下标量函数把两只已经由 Modbus 协议层解析为 `0..65535` 的 16 位寄存器，还原成一个 32 位值：
+
+| 函数 | 返回类型 | 说明 |
+| --- | --- | --- |
+| `modbus_int32(first_register, second_register, byte_order)` | `Int64` | 按有符号 32 位二补码解码 |
+| `modbus_uint32(first_register, second_register, byte_order)` | `Int64` | 按无符号 32 位解码；完整覆盖 `0..4294967295` |
+| `modbus_float32(first_register, second_register, byte_order)` | `Float64` | 按 IEEE-754 binary32 解码，再提升为 SQL Float64 |
+
+`byte_order` 不区分大小写，表示设备送来的四字节源布局：
+
+| 源布局 | 第一个寄存器 | 第二个寄存器 | 还原动作 |
+| --- | --- | --- | --- |
+| `ABCD` | `AB` | `CD` | 保持原序 |
+| `BADC` | `BA` | `DC` | 各 16 位字内交换字节 |
+| `CDAB` | `CD` | `AB` | 交换两个 16 位字 |
+| `DCBA` | `DC` | `BA` | 反转全部四字节 |
+
+例如以下四个表达式都把源寄存器还原为 `0x12345678`，返回十进制 `305419896`：
+
+```sql
+SELECT modbus_uint32(4660, 22136, 'ABCD');
+SELECT modbus_uint32(13330, 30806, 'BADC');
+SELECT modbus_uint32(22136, 4660, 'CDAB');
+SELECT modbus_uint32(30806, 13330, 'DCBA');
+```
+
+有符号与浮点示例：
+
+```sql
+SELECT modbus_int32(65535, 65534, 'ABCD'); -- -2
+SELECT modbus_float32(16256, 0, 'ABCD');   -- 1.0
+```
+
+任一参数为 `NULL` 时结果为 `NULL`；寄存器越界、寄存器含小数、顺序名未知或参数类型错误时会抛出执行错误。
+
 ### `CREATE TABLE`
 
 定义关系表 schema。关系表 MVP 使用 KV-backed rowstore 存放在数据库目录的 `tables/` 下，不修改时序 `.SDBWAL` / `.SDBSEG` 格式。
@@ -40,7 +105,7 @@ CREATE TABLE devices (
 - `FOREIGN KEY (...) REFERENCES parent (...)` 第一版只支持表级声明，引用列必须等于被引用表 `PRIMARY KEY`；外键列任一为 `NULL` 时跳过校验。
 - `CHECK (expression)` 支持命名或未命名表级约束；表达式可引用当前表列、字面量、基础运算、`IN`、`IS NULL`、`CASE` 和当前关系执行器支持的标量函数，不支持限定列名、参数、聚合或子查询。
 - CHECK 按 SQL 三值逻辑执行：只有明确 `FALSE` 拒绝写入，`TRUE` 和由 `NULL` 传播得到的 `UNKNOWN` 均通过。
-- `ROWVERSION` 只能声明在一个 `INT` 列上；`INSERT` 自动写入 `1`，`UPDATE` 自动递增，可用 `WHERE id = ... AND version = ...` 获得乐观并发冲突检测。
+- `ROWVERSION` 只能声明在一个 `INT` 列上；`INSERT` 自动写入 `1`，`UPDATE` 自动递增，禁止通过 `SET` 显式赋值，可用 `WHERE id = ... AND version = ...` 获得乐观并发冲突检测。
 
 关系查询可在投影和谓词中使用以下日期标量函数：
 
@@ -104,7 +169,7 @@ ORDER BY id DESC
 LIMIT 10;
 
 UPDATE devices
-SET name = 'pump-01b'
+SET name = 'pump-01b', retry_count = retry_count + 1
 WHERE id = 1;
 
 DELETE FROM devices
@@ -114,8 +179,8 @@ WHERE id = 2;
 当前行为：
 
 - `INSERT` 按主键插入；主键已存在时返回错误，不会静默覆盖。
-- `UPDATE` 支持更新非主键列；当前不支持更新主键列。
-- `SELECT` 支持 `*`、列投影、字面量投影、`WHERE` 中的 `AND` / `OR` / `NOT`、基础比较和简单数值运算。
+- `UPDATE` 支持把列、字面量、算术和标量函数组合成右值表达式；当前不支持更新主键或显式更新 `ROWVERSION` 列。
+- `SELECT` 支持 `*`、列投影、字面量投影、标量表达式投影，以及 `WHERE` 中的 `AND` / `OR` / `NOT` 和基础比较。
 - 关系表 `JSON` 列支持 `json_value(metadata, '$.site')` 这类 path 表达式；对象或数组结果会以紧凑 JSON 字符串返回。
 - `WHERE` 覆盖完整主键等值条件时会走主键读取；二级索引按最长连续左前缀选择，并可在首个未绑定的 `INT` / `DATETIME` 列继续做范围扫描；其它条件在候选行上过滤。
 - `ORDER BY` 支持结果集中的任意列名；`LIMIT` / `OFFSET` / `FETCH` 语法与 measurement 查询一致。
@@ -139,6 +204,8 @@ COMMIT;
 - 轻事务支持同一数据库内多个关系表的 `INSERT` / `UPDATE` / `DELETE` 原子提交与回滚。
 - 不支持嵌套事务、measurement / document 写入事务、DDL 事务或跨数据库事务。在事务上下文内执行 measurement（时序）`INSERT` / `DELETE` 或文档集合写入会抛 `NotSupportedException`（这类写入直接落 WAL/tombstone，`ROLLBACK` 无法撤销，故显式拒绝而非静默写入造成"假回滚"）。
 - `COMMIT` 前会校验 NOT NULL、主键、唯一索引、外键、CHECK 和 ROWVERSION 乐观并发列；任一失败时，不会留下已应用的 rowstore / index 变更。
+- 同一轻事务内的后续 `UPDATE` 会读取并合并该事务已缓冲的同一行变更，因此连续两次 `SET value = value + 1` 会累计两次。跨事务并发仍是 ReadCommitted；需要检测排队后到提交前的覆盖冲突时，应为表声明 `ROWVERSION` 并在 `WHERE` 中携带旧版本。
+- 同一轻事务内的 `INSERT` / `UPDATE` / `DELETE` 会按主键归并最终净变化，例如 `INSERT→DELETE` 不产生提交写入，`UPDATE→DELETE` 只提交删除，`DELETE→INSERT` 提交替换；每条多行 INSERT/DELETE 只有在全部行求值和校验成功后才写入事务缓冲。
 - 稳定约束错误码：`table_unique_violation`、`table_foreign_key_violation`、`table_check_violation`、`table_concurrency_conflict`。
 - 隔离级别边界：ADO.NET 仅接受默认 / `ReadCommitted` 轻事务；当前语义是单连接排队、提交时获取表管理器锁并一次性校验/应用，不提供 MVCC、可重复读、序列化隔离或跨进程长事务。
 
@@ -162,7 +229,7 @@ LIMIT 100;
 - JOIN 左侧必须是 measurement，右侧必须是关系表。
 - `ON` 当前仅支持一个等值条件，且 measurement 侧连接键必须是 `TAG` 列；关系表侧可连接主键列或普通列。
 - measurement 侧 `tag = '...'` 和 `time` 范围过滤会先下推到时序查询；关系表侧 `WHERE` 条件会先用主键、二级索引等值前缀或数值/时间范围取得候选行，再做完整过滤。
-- 输出投影支持 `time`、measurement tag / field、table 列和字面量；有歧义的列名必须使用 `alias.column`。
+- 输出投影支持 `time`、measurement tag / field、table 列、字面量及标量算术/函数表达式；有歧义的列名必须使用 `alias.column`。
 - `ORDER BY` 可引用 JOIN 结果中的 measurement 或 table 列，并在分页前执行。
 - `EXPLAIN` 支持 JOIN 查询，`access_path` 会显示 measurement 与 table 双侧下推路径，例如 `measurement:tag_index;table:secondary_index;join:hash`。
 
@@ -170,7 +237,7 @@ LIMIT 100;
 
 - 不支持 `LEFT JOIN` / `RIGHT JOIN` / `FULL JOIN`。
 - 不支持 measurement 与 measurement JOIN、table 与 table JOIN、多表 JOIN、子查询 JOIN。
-- JOIN 查询暂不支持聚合、`GROUP BY`、窗口函数或标量函数投影。
+- JOIN 查询暂不支持聚合、`GROUP BY` 或窗口函数。
 
 ### JSON 文档集合
 
@@ -650,10 +717,14 @@ WHERE host = 'server-01' AND time >= 1713676800000 AND time < 1713677400000
 ORDER BY time ASC
 ```
 
-标量函数投影：
+标量函数与算术投影：
 
 ```sql
 SELECT abs(-usage), round(usage / 3, 2), sqrt(count), log(count, 10), coalesce(label, 'n/a')
+FROM cpu
+WHERE host = 'server-01'
+
+SELECT usage + 1 AS next_usage, 2 * 5 + 1 AS constant_value
 FROM cpu
 WHERE host = 'server-01'
 ```
@@ -679,8 +750,8 @@ SELECT 1 AS ok FROM cpu LIMIT 1
 - `SELECT *` 会展开为 `time + 所有 tag 列 + 所有 field 列`。
 - 支持字面量投影（如 `SELECT 1 ... LIMIT 1`），会按匹配到的时间轴返回常量列。
 - 当某个时间点缺少某个 field 时，结果列会返回 `NULL`。
-- 标量函数当前支持 `abs`、`round`、`sqrt`、`log`、`coalesce`、`lower`、`upper`、`regexp_like` 及上述日期函数。
-- 标量函数当前仅支持出现在 `SELECT` 投影中，可嵌套，也可接收算术表达式参数。
+- 标量函数支持 `abs`、`round`、`sqrt`、`log`、`coalesce`、`concat`、`lower`、`upper`、`regexp_like`、`modbus_int32`、`modbus_uint32`、`modbus_float32` 及上述日期函数。
+- 标量函数可嵌套并接收算术表达式参数；算术表达式也可直接作为顶层投影。
 - 支持 `FROM measurement [AS] alias` 单表别名，以及 `alias.column` / `alias."Column"` 限定列名；执行前会校验限定符必须匹配当前别名。
 - `coalesce(...)` 只会在当前结果行存在时参与求值；它不会额外扩展原始查询的时间轴。
 - 结果按时间升序返回。
@@ -758,6 +829,8 @@ WHERE host = 'server-01'
 ```sql
 SELECT count(*) FROM cpu WHERE host = 'server-01'
 SELECT count(1) FROM cpu WHERE host = 'server-01'
+SELECT count(*) + 1 AS rows_with_sentinel FROM cpu WHERE host = 'server-01'
+SELECT round(avg(usage) + 0.25, 2) AS adjusted_average FROM cpu WHERE host = 'server-01'
 ```
 
 > `count(*)` 计的是**行/时刻**数：同一 series 下多个 field 列写在同一时间戳算作一行，不同时间戳（含只写了部分 field 的稀疏行）取并集去重。多 series 场景下不同 series 的同一时间戳属于不同的行。`count(field)` 则只计该 field 列有值的时刻数。

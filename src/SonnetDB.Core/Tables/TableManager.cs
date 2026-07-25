@@ -467,6 +467,24 @@ public sealed class TableManager : IDisposable
         => ApplyTransaction(mutationsByTable, metrics: null);
 
     /// <summary>
+    /// 在表管理器互斥锁内执行读改写操作，供需要把候选扫描与提交组成单个原子步骤的 SQL DML 使用。
+    /// </summary>
+    /// <typeparam name="TResult">操作结果类型。</typeparam>
+    /// <param name="action">需要在锁内执行的操作。</param>
+    /// <returns>操作返回值。</returns>
+    internal TResult ExecuteLocked<TResult>(Func<TResult> action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        long lockWait = SonnetDbMeter.StartLockWaitTiming();
+        lock (_sync)
+        {
+            SonnetDbMeter.RecordTableManagerLockWait(lockWait);
+            ThrowIfDisposed();
+            return action();
+        }
+    }
+
+    /// <summary>
     /// 通过 table/keyspace generation 快速清空整表。存在入站外键时拒绝，避免绕过引用约束或级联语义。
     /// </summary>
     /// <param name="name">关系表名称。</param>

@@ -174,7 +174,9 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(statement);
 
         // read-your-writes：把活动轻事务设为 ambient，供 SELECT 读路径叠加本事务缓冲写（#218）。
-        using var _ = SqlTransactionContext.EnterScope(transaction);
+        using var transactionScope = SqlTransactionContext.EnterScope(transaction);
+        // UDF 解析必须覆盖 DML 的绑定与求值阶段，不能只在 SELECT 分发器内建立作用域。
+        using var functionScope = SonnetDB.Query.Functions.UserFunctionRegistry.EnterScope(tsdb.Functions);
 
         return statement switch
         {
@@ -729,7 +731,8 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
         using var queryLoad = QueryActivityTracker.Enter();
-        using var _ = SonnetDB.Query.Functions.UserFunctionRegistry.EnterScope(tsdb.Functions);
+        // ExecuteSelect 也是公开入口，直接调用时仍需建立当前数据库的 UDF 作用域。
+        using var functionScope = SonnetDB.Query.Functions.UserFunctionRegistry.EnterScope(tsdb.Functions);
 
         if (statement.UnionStatements.Count != 0)
             return ExecuteUnion(tsdb, statement);
@@ -1164,18 +1167,27 @@ public static class SqlExecutor
         if (projections.Count == 1 && projections[0].Expression is StarExpression)
             return (columns, rows);
 
-        var ordinals = new List<int>(projections.Count);
+        var expressions = new List<SqlExpression>(projections.Count);
         var outputColumns = new List<string>(projections.Count);
         foreach (var projection in projections)
         {
-            if (projection.Expression is not IdentifierExpression id)
-                throw new InvalidOperationException("INFORMATION_SCHEMA SELECT 当前仅支持 * 或列名投影。");
-            ordinals.Add(FindInformationSchemaColumn(columns, id.Name));
-            outputColumns.Add(projection.Alias ?? id.Name);
+            SqlProjectionExpressionEvaluator.Validate(
+                projection.Expression,
+                identifier => columns.Any(column => string.Equals(
+                    column, identifier.Name, StringComparison.OrdinalIgnoreCase)),
+                "INFORMATION_SCHEMA");
+            expressions.Add(projection.Expression);
+            outputColumns.Add(projection.Alias
+                ?? (projection.Expression as IdentifierExpression)?.Name
+                ?? "expression");
         }
 
         var projectedRows = rows
-            .Select(row => (IReadOnlyList<object?>)ordinals.Select(ordinal => row[ordinal]).ToArray())
+            .Select(row => (IReadOnlyList<object?>)expressions.Select(expression =>
+                SqlProjectionExpressionEvaluator.Evaluate(
+                    expression,
+                    identifier => row[FindInformationSchemaColumn(columns, identifier.Name)],
+                    "INFORMATION_SCHEMA")).ToArray())
             .ToArray();
         return (outputColumns, projectedRows);
     }
