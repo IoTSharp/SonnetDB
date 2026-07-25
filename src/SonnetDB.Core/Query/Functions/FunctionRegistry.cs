@@ -143,6 +143,7 @@ public static class FunctionRegistry
         new BuiltInScalarFunction("sqrt", 1, 1, static args => Math.Sqrt(RequireDouble(args[0], "sqrt"))),
         new BuiltInScalarFunction("log", 1, 2, EvaluateLog),
         new BuiltInScalarFunction("coalesce", 1, int.MaxValue, EvaluateCoalesce),
+        new BuiltInScalarFunction("concat", 1, int.MaxValue, EvaluateConcat),
         new BuiltInScalarFunction("lower", 1, 1, static args => args[0]?.ToString()?.ToLowerInvariant()),
         new BuiltInScalarFunction("upper", 1, 1, static args => args[0]?.ToString()?.ToUpperInvariant()),
         new BuiltInScalarFunction("regexp_like", 2, 3, static args =>
@@ -161,6 +162,9 @@ public static class FunctionRegistry
         new BuiltInScalarFunction("to_datetime", 1, 1, SqlDateTimeFunctions.ToDateTime),
         new BuiltInScalarFunction("to_utc_datetime", 1, 1, SqlDateTimeFunctions.ToUtcDateTime),
         new BuiltInScalarFunction("to_local_datetime", 1, 1, SqlDateTimeFunctions.ToLocalDateTime),
+        new BuiltInScalarFunction("modbus_int32", 3, 3, ModbusRegisterFunctions.DecodeInt32),
+        new BuiltInScalarFunction("modbus_uint32", 3, 3, ModbusRegisterFunctions.DecodeUInt32),
+        new BuiltInScalarFunction("modbus_float32", 3, 3, ModbusRegisterFunctions.DecodeFloat32),
         new BuiltInScalarFunction("cosine_distance", 2, 2, EvaluateCosineDistance),
         new BuiltInScalarFunction("l2_distance", 2, 2, EvaluateL2Distance),
         new BuiltInScalarFunction("inner_product", 2, 2, EvaluateInnerProduct),
@@ -270,6 +274,13 @@ public static class FunctionRegistry
 
         return null;
     }
+
+    /// <summary>
+    /// 按参数顺序连接 invariant 字符串表示；NULL 参数按空字符串处理。
+    /// </summary>
+    private static object EvaluateConcat(IReadOnlyList<object?> args)
+        => string.Concat(args.Select(static value =>
+            Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty));
 
     private static object? EvaluateCosineDistance(IReadOnlyList<object?> args)
     {

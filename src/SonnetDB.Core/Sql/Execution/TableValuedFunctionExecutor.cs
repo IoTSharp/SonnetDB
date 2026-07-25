@@ -135,9 +135,6 @@ internal static class TableValuedFunctionExecutor
         return ApplyTableValuedProjection("forecast", sourceColumnNames, rows, statement.Projections);
     }
 
-    private static bool IsSelectStar(IReadOnlyList<SelectItem> projections)
-        => projections.Count == 1 && projections[0].Expression is StarExpression && projections[0].Alias is null;
-
     private static SelectExecutionResult ApplyTableValuedProjection(
         string functionName,
         IReadOnlyList<string> sourceColumns,
@@ -157,7 +154,7 @@ internal static class TableValuedFunctionExecutor
                     if (item.Alias is not null)
                         throw new InvalidOperationException("'*' 不允许带 alias。");
                     for (int i = 0; i < sourceColumns.Count; i++)
-                        projected.Add(new TableValuedProjection(sourceColumns[i], i));
+                        projected.Add(new TableValuedProjection(sourceColumns[i], i, null));
                     break;
 
                 case IdentifierExpression id:
@@ -166,12 +163,18 @@ internal static class TableValuedFunctionExecutor
                         throw new InvalidOperationException(
                             $"{functionName}(...) 表值函数没有输出列 '{id.Name}'。");
                     }
-                    projected.Add(new TableValuedProjection(item.Alias ?? id.Name, ordinal));
+                    projected.Add(new TableValuedProjection(item.Alias ?? id.Name, ordinal, null));
                     break;
 
                 default:
-                    throw new InvalidOperationException(
-                        $"{functionName}(...) 表值函数投影当前仅支持 * 或输出列名。");
+                    string context = $"{functionName}(...) 表值函数";
+                    SqlProjectionExpressionEvaluator.Validate(
+                        item.Expression,
+                        identifier => lookup.ContainsKey(identifier.Name),
+                        context);
+                    projected.Add(new TableValuedProjection(
+                        item.Alias ?? "expression", null, item.Expression));
+                    break;
             }
         }
 
@@ -180,14 +183,28 @@ internal static class TableValuedFunctionExecutor
         {
             var row = new object?[projected.Count];
             for (int i = 0; i < projected.Count; i++)
-                row[i] = sourceRow[projected[i].SourceOrdinal];
+            {
+                var projection = projected[i];
+                row[i] = projection.SourceOrdinal is int ordinal
+                    ? sourceRow[ordinal]
+                    : SqlProjectionExpressionEvaluator.Evaluate(
+                        projection.Expression!,
+                        identifier => sourceRow[lookup[identifier.Name]],
+                        $"{functionName}(...) 表值函数");
+            }
             rows.Add(row);
         }
 
         return new SelectExecutionResult(projected.Select(static p => p.ColumnName).ToArray(), rows);
     }
 
-    private sealed record TableValuedProjection(string ColumnName, int SourceOrdinal);
+    /// <summary>
+    /// 描述表值函数的直接列投影或动态表达式投影。
+    /// </summary>
+    private sealed record TableValuedProjection(
+        string ColumnName,
+        int? SourceOrdinal,
+        SqlExpression? Expression);
 
     private static int ResolvePositiveIntLiteral(SqlExpression arg, string name)
     {
@@ -258,16 +275,13 @@ internal static class TableValuedFunctionExecutor
             ? ResolveKnnMetric(call.Arguments[4])
             : KnnMetric.Cosine;
 
-        // SELECT * 校验
-        if (!IsSelectStar(statement.Projections))
-            throw new InvalidOperationException(
-                "knn(...) 表值函数当前仅支持 SELECT *；请在外层查询投影具体列。");
-
         // WHERE 子句：tag 过滤 + 时间范围
         var where = WhereClauseDecomposer.Decompose(statement.Where, schema);
 
-        return ExecuteKnnSearch(tsdb, statement.Measurement, columnId.Name, queryArray, k, metric,
+        var result = ExecuteKnnSearch(tsdb, statement.Measurement, columnId.Name, queryArray, k, metric,
             where.TagFilter, where.TimeRange);
+        return ApplyTableValuedProjection(
+            "knn", result.Columns, result.Rows, statement.Projections);
     }
 
     /// <summary>

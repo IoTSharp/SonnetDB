@@ -30,6 +30,27 @@ public sealed class SonnetDbQuerySqlGenerator : QuerySqlGenerator
         return base.VisitSqlConstant(sqlConstantExpression);
     }
 
+    /// <summary>
+    /// 将 C# 字符串加法生成为 concat，避免与 SonnetDB 的数值加法语义冲突。
+    /// </summary>
+    /// <param name="sqlBinaryExpression">待生成的 SQL 二元表达式。</param>
+    /// <returns>已访问的 SQL 表达式。</returns>
+    protected override Expression VisitSqlBinary(SqlBinaryExpression sqlBinaryExpression)
+    {
+        if (sqlBinaryExpression.OperatorType == ExpressionType.Add
+            && sqlBinaryExpression.Type == typeof(string))
+        {
+            Sql.Append("concat(");
+            Visit(sqlBinaryExpression.Left);
+            Sql.Append(", ");
+            Visit(sqlBinaryExpression.Right);
+            Sql.Append(")");
+            return sqlBinaryExpression;
+        }
+
+        return base.VisitSqlBinary(sqlBinaryExpression);
+    }
+
     /// <inheritdoc />
     protected override void GenerateLimitOffset(SelectExpression selectExpression)
     {

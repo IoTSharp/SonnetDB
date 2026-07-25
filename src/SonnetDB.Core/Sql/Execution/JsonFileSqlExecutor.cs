@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
+using SonnetDB.Query.Functions;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Tables;
 
@@ -344,7 +345,8 @@ internal static class JsonFileSqlExecutor
                     projections.Add(new Projection(item.Alias ?? FormatLiteralColumnName(literal), item.Expression));
                     break;
                 default:
-                    throw new InvalidOperationException($"JSON 虚拟表 SELECT 暂不支持投影表达式 '{item.Expression.GetType().Name}'。");
+                    projections.Add(new Projection(item.Alias ?? "expression", item.Expression));
+                    break;
             }
         }
 
@@ -411,7 +413,12 @@ internal static class JsonFileSqlExecutor
             LiteralExpression literal => EvaluateLiteral(literal),
             IdentifierExpression identifier => GetIdentifierValue(identifier, row),
             FunctionCallExpression function => EvaluateFunction(function, row),
-            UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => -Convert.ToDouble(EvaluateScalar(unary.Operand, row), CultureInfo.InvariantCulture),
+            UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => SqlScalarOperations.Negate(EvaluateScalar(unary.Operand, row)),
+            BinaryExpression binary when IsArithmeticOperator(binary.Operator) =>
+                SqlScalarOperations.EvaluateArithmetic(
+                    binary.Operator,
+                    EvaluateScalar(binary.Left, row),
+                    EvaluateScalar(binary.Right, row)),
             _ => throw new InvalidOperationException($"JSON 虚拟表表达式暂不支持 '{expression.GetType().Name}'。"),
         };
 
@@ -427,16 +434,22 @@ internal static class JsonFileSqlExecutor
                 function.Arguments.Count == 3 ? EvaluateScalar(function.Arguments[2], row) : null);
         }
 
-        if (!string.Equals(function.Name, "json_value", StringComparison.OrdinalIgnoreCase)
-            || function.IsStar
-            || function.Arguments.Count != 2
-            || function.Arguments[1] is not LiteralExpression { Kind: SqlLiteralKind.String, StringValue: var path })
+        if (string.Equals(function.Name, "json_value", StringComparison.OrdinalIgnoreCase)
+            && !function.IsStar
+            && function.Arguments.Count == 2
+            && function.Arguments[1] is LiteralExpression { Kind: SqlLiteralKind.String, StringValue: var path })
         {
-            throw new InvalidOperationException("JSON 虚拟表当前仅支持 json_value(document, '$.path') 与 regexp_like(...) 函数。");
+            var json = EvaluateScalar(function.Arguments[0], row) as string;
+            return JsonPathEvaluator.Evaluate(json, path!);
         }
 
-        var json = EvaluateScalar(function.Arguments[0], row) as string;
-        return JsonPathEvaluator.Evaluate(json, path!);
+        if (!function.IsStar && FunctionRegistry.TryGetScalar(function.Name, out var scalarFunction))
+        {
+            var arguments = function.Arguments.Select(argument => EvaluateScalar(argument, row)).ToArray();
+            return scalarFunction.Evaluate(arguments);
+        }
+
+        throw new InvalidOperationException($"JSON 虚拟表不支持标量函数 '{function.Name}'。");
     }
 
     private static object? GetIdentifierValue(IdentifierExpression identifier, JsonFileRow row)
@@ -465,6 +478,16 @@ internal static class JsonFileSqlExecutor
         SqlLiteralKind.String => literal.StringValue,
         _ => throw new InvalidOperationException($"不支持的字面量类型 {literal.Kind}。"),
     };
+
+    /// <summary>
+    /// 判断 JSON 虚拟表标量表达式可使用的算术运算符。
+    /// </summary>
+    private static bool IsArithmeticOperator(SqlBinaryOperator value) => value is
+        SqlBinaryOperator.Add or
+        SqlBinaryOperator.Subtract or
+        SqlBinaryOperator.Multiply or
+        SqlBinaryOperator.Divide or
+        SqlBinaryOperator.Modulo;
 
     private static SelectExecutionResult ApplyOrderBy(SelectExecutionResult result, OrderBySpec? orderBy)
     {

@@ -3,6 +3,7 @@ using System.Text.Json;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
 using SonnetDB.FullText;
+using SonnetDB.Query.Functions;
 using SonnetDB.Sql.Ast;
 
 namespace SonnetDB.Sql.Execution;
@@ -737,10 +738,10 @@ internal static class DocumentSqlExecutor
             var output = new object?[projections.Length];
             for (int i = 0; i < projections.Length; i++)
             {
-                output[i] = projections[i].Expression is FunctionCallExpression function
-                    && IsAggregateFunction(function.Name)
-                        ? EvaluateAggregate(function, group, matchScores)
-                        : EvaluateScalar(projections[i].Expression, representative, matchScores);
+                var expression = projections[i].Expression;
+                output[i] = ContainsAggregate(expression)
+                    ? EvaluateScalar(InlineAggregates(expression, group, matchScores), representative, matchScores)
+                    : EvaluateScalar(expression, representative, matchScores);
             }
 
             resultRows.Add(output);
@@ -755,7 +756,7 @@ internal static class DocumentSqlExecutor
     {
         foreach (var projection in projections)
         {
-            if (projection.Expression is FunctionCallExpression function && IsAggregateFunction(function.Name))
+            if (ContainsAggregate(projection.Expression))
                 continue;
             if (statement.GroupBy.Any(group => ExpressionEquals(group, projection.Expression)))
                 continue;
@@ -845,6 +846,21 @@ internal static class DocumentSqlExecutor
             {
                 Arguments = function.Arguments.Select(argument => InlineAggregates(argument, group, matchScores)).ToArray(),
             },
+            CaseExpression caseExpression => caseExpression with
+            {
+                WhenClauses = caseExpression.WhenClauses.Select(clause => clause with
+                {
+                    Condition = InlineAggregates(clause.Condition, group, matchScores),
+                    Result = InlineAggregates(clause.Result, group, matchScores),
+                }).ToArray(),
+                Else = caseExpression.Else is null
+                    ? null
+                    : InlineAggregates(caseExpression.Else, group, matchScores),
+            },
+            IsNullExpression isNull => isNull with
+            {
+                Operand = InlineAggregates(isNull.Operand, group, matchScores),
+            },
             _ => expression,
         };
     }
@@ -918,9 +934,28 @@ internal static class DocumentSqlExecutor
             _ => LiteralExpression.String(Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty),
         };
 
+    /// <summary>
+    /// 判断文档投影集合中是否存在聚合调用。
+    /// </summary>
     private static bool ContainsAggregate(Projection[] projections)
-        => projections.Any(static projection =>
-            projection.Expression is FunctionCallExpression function && IsAggregateFunction(function.Name));
+        => projections.Any(static projection => ContainsAggregate(projection.Expression));
+
+    /// <summary>
+    /// 递归判断文档投影表达式中是否包含聚合函数调用。
+    /// </summary>
+    private static bool ContainsAggregate(SqlExpression expression)
+        => expression switch
+        {
+            FunctionCallExpression function when IsAggregateFunction(function.Name) => true,
+            FunctionCallExpression function => function.Arguments.Any(ContainsAggregate),
+            UnaryExpression unary => ContainsAggregate(unary.Operand),
+            BinaryExpression binary => ContainsAggregate(binary.Left) || ContainsAggregate(binary.Right),
+            CaseExpression caseExpression => caseExpression.WhenClauses.Any(when =>
+                    ContainsAggregate(when.Condition) || ContainsAggregate(when.Result))
+                || (caseExpression.Else is not null && ContainsAggregate(caseExpression.Else)),
+            IsNullExpression isNull => ContainsAggregate(isNull.Operand),
+            _ => false,
+        };
 
     private static bool IsAggregateFunction(string name)
         => name.Equals("count", StringComparison.OrdinalIgnoreCase)
@@ -1620,8 +1655,8 @@ internal static class DocumentSqlExecutor
                     break;
 
                 default:
-                    throw new InvalidOperationException(
-                        $"文档集合 SELECT 暂不支持投影表达式 '{item.Expression.GetType().Name}'。");
+                    projections.Add(new Projection(item.Alias ?? "expression", item.Expression));
+                    break;
             }
         }
 
@@ -1713,11 +1748,35 @@ internal static class DocumentSqlExecutor
             LiteralExpression literal => EvaluateLiteral(literal),
             IdentifierExpression identifier => GetIdentifierValue(identifier, row),
             FunctionCallExpression function => EvaluateFunction(function, row, matchScores),
-            UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => -RequireDouble(EvaluateScalar(unary.Operand, row, matchScores), "一元负号"),
+            UnaryExpression { Operator: SqlUnaryOperator.Negate } unary => SqlScalarOperations.Negate(EvaluateScalar(unary.Operand, row, matchScores)),
             BinaryExpression binary when IsArithmeticOperator(binary.Operator) => EvaluateArithmetic(binary, row, matchScores),
+            BinaryExpression binary when binary.Operator is SqlBinaryOperator.And or SqlBinaryOperator.Or
+                || IsComparisonOperator(binary.Operator) => EvaluateBoolean(binary, row, matchScores),
+            UnaryExpression { Operator: SqlUnaryOperator.Not } unary => EvaluateBoolean(unary, row, matchScores),
+            IsNullExpression isNull => EvaluateBoolean(isNull, row, matchScores),
+            CaseExpression caseExpression => EvaluateCase(caseExpression, row, matchScores),
             _ => throw new InvalidOperationException(
                 $"文档集合表达式暂不支持 '{expression.GetType().Name}'。"),
         };
+    }
+
+    /// <summary>
+    /// 按顺序计算文档 CASE 分支；WHEN 为 TRUE 时返回对应结果，否则使用 ELSE 或 NULL。
+    /// </summary>
+    private static object? EvaluateCase(
+        CaseExpression expression,
+        DocumentRow row,
+        IReadOnlyDictionary<string, double> matchScores)
+    {
+        foreach (var clause in expression.WhenClauses)
+        {
+            if (EvaluateBoolean(clause.Condition, row, matchScores))
+                return EvaluateScalar(clause.Result, row, matchScores);
+        }
+
+        return expression.Else is null
+            ? null
+            : EvaluateScalar(expression.Else, row, matchScores);
     }
 
     private static object? EvaluateFunction(
@@ -1745,34 +1804,37 @@ internal static class DocumentSqlExecutor
             return matchScores.TryGetValue(row.Id, out double score) ? score : null;
         }
 
-        if (!string.Equals(function.Name, "json_value", StringComparison.OrdinalIgnoreCase)
-            || function.IsStar
-            || function.Arguments.Count != 2
-            || function.Arguments[1] is not LiteralExpression { Kind: SqlLiteralKind.String, StringValue: var path })
+        if (string.Equals(function.Name, "json_value", StringComparison.OrdinalIgnoreCase)
+            && !function.IsStar
+            && function.Arguments.Count == 2
+            && function.Arguments[1] is LiteralExpression { Kind: SqlLiteralKind.String, StringValue: var path })
         {
-            throw new InvalidOperationException("文档集合当前仅支持 json_value(document, '$.path')、regexp_like(...)、match(...) 与 bm25_score() 函数。");
+            var json = EvaluateScalar(function.Arguments[0], row, matchScores) as string;
+            return JsonPathEvaluator.Evaluate(json, path!);
         }
 
-        var json = EvaluateScalar(function.Arguments[0], row, matchScores) as string;
-        return JsonPathEvaluator.Evaluate(json, path!);
+        if (!function.IsStar && FunctionRegistry.TryGetScalar(function.Name, out var scalarFunction))
+        {
+            var arguments = function.Arguments
+                .Select(argument => EvaluateScalar(argument, row, matchScores))
+                .ToArray();
+            return scalarFunction.Evaluate(arguments);
+        }
+
+        throw new InvalidOperationException($"文档集合不支持标量函数 '{function.Name}'。");
     }
 
-    private static object EvaluateArithmetic(
+    /// <summary>
+    /// 在当前文档行及全文匹配分数上下文中计算共享数值算术表达式。
+    /// </summary>
+    private static object? EvaluateArithmetic(
         BinaryExpression binary,
         DocumentRow row,
         IReadOnlyDictionary<string, double> matchScores)
     {
-        var left = RequireDouble(EvaluateScalar(binary.Left, row, matchScores), binary.Operator.ToString());
-        var right = RequireDouble(EvaluateScalar(binary.Right, row, matchScores), binary.Operator.ToString());
-        return binary.Operator switch
-        {
-            SqlBinaryOperator.Add => left + right,
-            SqlBinaryOperator.Subtract => left - right,
-            SqlBinaryOperator.Multiply => left * right,
-            SqlBinaryOperator.Divide => left / right,
-            SqlBinaryOperator.Modulo => left % right,
-            _ => throw new InvalidOperationException($"不支持的算术运算符 {binary.Operator}。"),
-        };
+        var left = EvaluateScalar(binary.Left, row, matchScores);
+        var right = EvaluateScalar(binary.Right, row, matchScores);
+        return SqlScalarOperations.EvaluateArithmetic(binary.Operator, left, right);
     }
 
     private static object? GetIdentifierValue(IdentifierExpression identifier, DocumentRow row)

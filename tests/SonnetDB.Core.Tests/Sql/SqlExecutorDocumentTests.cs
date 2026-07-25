@@ -734,7 +734,8 @@ public sealed class SqlExecutorDocumentTests : IDisposable
         CreateHybridSearchFixture(db);
 
         var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
-            SELECT id, bm25_score() AS text_score, vector_distance() AS distance, hybrid_score() AS score
+            SELECT id, bm25_score() AS text_score, vector_distance() AS distance,
+                   hybrid_score() AS score, hybrid_score() + 1 AS adjusted_score
             FROM hybrid_search(
                 source => logs,
                 text_index => ft_logs_message,
@@ -748,11 +749,15 @@ public sealed class SqlExecutorDocumentTests : IDisposable
             ORDER BY score DESC
             """));
 
-        Assert.Equal(new[] { "id", "text_score", "distance", "score" }, result.Columns);
+        Assert.Equal(new[] { "id", "text_score", "distance", "score", "adjusted_score" }, result.Columns);
         Assert.Equal(["log-1", "log-2", "log-3"], result.Rows.Select(static row => (string)row[0]!).ToArray());
         Assert.True(Convert.ToDouble(result.Rows[0][3]) > Convert.ToDouble(result.Rows[1][3]));
         Assert.True(Convert.ToDouble(result.Rows[1][3]) > Convert.ToDouble(result.Rows[2][3]));
         Assert.Equal(0.0, Convert.ToDouble(result.Rows[0][2]), 6);
+        Assert.Equal(
+            Convert.ToDouble(result.Rows[0][3]) + 1d,
+            Convert.ToDouble(result.Rows[0][4]),
+            12);
     }
 
     [Fact]
@@ -798,17 +803,19 @@ public sealed class SqlExecutorDocumentTests : IDisposable
         CreateHybridSearchFixture(db);
 
         var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
-            SELECT id, site, vector_distance() AS distance, vector_score() AS score
+            SELECT id, site, vector_distance() AS distance, vector_score() AS score,
+                   vector_distance() + 1 AS adjusted_distance
             FROM vector_search(source => logs, vector_field => '$.embedding', vector => [1, 0, 0], k => 4)
             WHERE site = 'north'
             ORDER BY distance
             """));
 
-        Assert.Equal(new[] { "id", "site", "distance", "score" }, result.Columns);
+        Assert.Equal(new[] { "id", "site", "distance", "score", "adjusted_distance" }, result.Columns);
         Assert.Equal(["log-1", "log-3"], result.Rows.Select(static row => (string)row[0]!).ToArray());
         Assert.All(result.Rows, static row => Assert.Equal("north", row[1]));
         Assert.Equal(0.0, Convert.ToDouble(result.Rows[0][2]), 6);
         Assert.True(Convert.ToDouble(result.Rows[0][3]) > Convert.ToDouble(result.Rows[1][3]));
+        Assert.Equal(1d, Convert.ToDouble(result.Rows[0][4]), 12);
     }
 
     [Fact]

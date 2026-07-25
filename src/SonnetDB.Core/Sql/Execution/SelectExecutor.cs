@@ -33,7 +33,8 @@ internal static class SelectExecutor
         // 分类投影
         var classified = ClassifyProjections(statement.Projections, schema);
 
-        bool hasAggregate = classified.Any(p => p.Kind == ProjectionKind.Aggregate);
+        bool hasAggregate = classified.Any(p =>
+            p.Kind is ProjectionKind.Aggregate or ProjectionKind.AggregateExpression);
         var groupByTime = ResolveGroupByTime(statement.GroupBy);
 
         if (hasAggregate && HasUnsupportedNonAggregateProjection(classified, groupByTime))
@@ -104,6 +105,7 @@ internal static class SelectExecutor
 
         if (!HasProjectionKind(projections, ProjectionKind.Time)
             || HasProjectionKind(projections, ProjectionKind.Aggregate)
+            || HasProjectionKind(projections, ProjectionKind.AggregateExpression)
             || HasProjectionKind(projections, ProjectionKind.Scalar)
             || HasProjectionKind(projections, ProjectionKind.Window))
         {
@@ -334,6 +336,7 @@ internal static class SelectExecutor
         Field,
         Constant,
         Aggregate,
+        AggregateExpression,
         Scalar,
         Window,
     }
@@ -345,7 +348,8 @@ internal static class SelectExecutor
         FunctionCallExpression? Function,
         IScalarFunction? ScalarFunction = null,
         IWindowFunction? WindowFunction = null,
-        object? ConstantValue = null);
+        object? ConstantValue = null,
+        SqlExpression? ScalarExpression = null);
 
     private static IReadOnlyList<Projection> ClassifyProjections(
         IReadOnlyList<SelectItem> items,
@@ -390,10 +394,31 @@ internal static class SelectExecutor
                         break;
                     }
 
+                    if (ContainsAggregateCall(fn))
+                    {
+                        result.Add(new Projection(
+                            item.Alias ?? "expression",
+                            ProjectionKind.AggregateExpression,
+                            null,
+                            null,
+                            ScalarExpression: fn));
+                        break;
+                    }
+
                     if (kind == FunctionKind.Scalar && FunctionRegistry.TryGetScalar(fn.Name, out var scalarFunction))
                     {
+                        SqlProjectionExpressionEvaluator.Validate(
+                            fn,
+                            identifier => IsMeasurementProjectionIdentifier(identifier, schema),
+                            "measurement SELECT 投影");
                         var scalarColumnName = item.Alias ?? FormatFunctionColumnName(fn);
-                        result.Add(new Projection(scalarColumnName, ProjectionKind.Scalar, null, fn, scalarFunction));
+                        result.Add(new Projection(
+                            scalarColumnName,
+                            ProjectionKind.Scalar,
+                            null,
+                            fn,
+                            scalarFunction,
+                            ScalarExpression: fn));
                         break;
                     }
 
@@ -415,6 +440,28 @@ internal static class SelectExecutor
                         $"未知函数 '{fn.Name}'；当前仅支持内置 aggregate/scalar 函数。"
                     );
 
+                case SqlExpression expression when ContainsAggregateCall(expression):
+                    result.Add(new Projection(
+                        item.Alias ?? "expression",
+                        ProjectionKind.AggregateExpression,
+                        null,
+                        null,
+                        ScalarExpression: item.Expression));
+                    break;
+
+                case SqlExpression expression:
+                    SqlProjectionExpressionEvaluator.Validate(
+                        expression,
+                        identifier => IsMeasurementProjectionIdentifier(identifier, schema),
+                        "measurement SELECT 投影");
+                    result.Add(new Projection(
+                        item.Alias ?? "expression",
+                        ProjectionKind.Scalar,
+                        null,
+                        null,
+                        ScalarExpression: item.Expression));
+                    break;
+
                 default:
                     throw new InvalidOperationException(
                         $"不支持的投影表达式类型 '{item.Expression.GetType().Name}'。");
@@ -422,6 +469,15 @@ internal static class SelectExecutor
         }
         return result;
     }
+
+    /// <summary>
+    /// 判断 measurement 投影中的标识符是否为 time 或已声明的 TAG/FIELD 列。
+    /// </summary>
+    private static bool IsMeasurementProjectionIdentifier(
+        IdentifierExpression identifier,
+        MeasurementSchema schema)
+        => string.Equals(identifier.Name, "time", StringComparison.OrdinalIgnoreCase)
+            || schema.TryGetColumn(identifier.Name) is not null;
 
     private static Projection BuildIdentifierProjection(string name, string? alias, MeasurementSchema schema)
     {
@@ -441,7 +497,7 @@ internal static class SelectExecutor
     {
         foreach (var projection in projections)
         {
-            if (projection.Kind == ProjectionKind.Aggregate)
+            if (projection.Kind is ProjectionKind.Aggregate or ProjectionKind.AggregateExpression)
                 continue;
 
             if (groupByTime is not null && projection.Kind == ProjectionKind.Time)
@@ -495,6 +551,7 @@ internal static class SelectExecutor
             || where.GeoFilters.Count != 0
             || projections.Any(static projection =>
                 projection.Kind is ProjectionKind.Aggregate
+                    or ProjectionKind.AggregateExpression
                     or ProjectionKind.Scalar
                     or ProjectionKind.Window))
         {
@@ -731,7 +788,7 @@ internal static class SelectExecutor
         var fieldCols = projections
             .Where(p => p.Kind == ProjectionKind.Field)
             .Select(p => p.Column!.Name)
-            .Concat(GetScalarFieldDependencies(projections))
+            .Concat(GetScalarFieldDependencies(projections, schema))
             .Concat(windowEvaluators.OfType<IWindowEvaluator>().Select(e => e.FieldName))
             .Concat(where.GeoFilters.Select(f => f.FieldName))
             .Concat(GetResidualFieldDependencies(where.Residual, schema))
@@ -954,39 +1011,84 @@ internal static class SelectExecutor
         }
     }
 
-    private static IEnumerable<string> GetScalarFieldDependencies(IReadOnlyList<Projection> projections)
+    /// <summary>
+    /// 汇总全部 measurement 标量投影依赖的 FIELD 列名。
+    /// </summary>
+    private static IEnumerable<string> GetScalarFieldDependencies(
+        IReadOnlyList<Projection> projections,
+        MeasurementSchema schema)
     {
         foreach (var projection in projections)
         {
-            if (projection.Kind != ProjectionKind.Scalar || projection.Function is null)
+            if (projection.Kind != ProjectionKind.Scalar)
                 continue;
 
-            foreach (var fieldName in GetScalarFieldDependencies(projection.Function))
+            var expression = projection.ScalarExpression ?? projection.Function;
+            if (expression is null)
+                continue;
+
+            foreach (var fieldName in GetScalarFieldDependencies(expression, schema))
                 yield return fieldName;
         }
     }
 
-    private static IEnumerable<string> GetScalarFieldDependencies(SqlExpression expression)
+    /// <summary>
+    /// 收集 measurement 标量投影真正依赖的 FIELD，并在扫描前拒绝未知列；TAG 与 time 不触发字段读取。
+    /// </summary>
+    private static IEnumerable<string> GetScalarFieldDependencies(
+        SqlExpression expression,
+        MeasurementSchema schema)
     {
         switch (expression)
         {
-            case IdentifierExpression id when !string.Equals(id.Name, "time", StringComparison.OrdinalIgnoreCase):
-                yield return id.Name;
+            case IdentifierExpression id:
+                if (string.Equals(id.Name, "time", StringComparison.OrdinalIgnoreCase))
+                    yield break;
+
+                var column = schema.TryGetColumn(id.Name)
+                    ?? throw new InvalidOperationException($"SELECT 中引用了未知列 '{id.Name}'。");
+                if (column.Role == MeasurementColumnRole.Field)
+                    yield return column.Name;
                 yield break;
             case FunctionCallExpression fn:
                 foreach (var arg in fn.Arguments)
-                    foreach (var fieldName in GetScalarFieldDependencies(arg))
+                    foreach (var fieldName in GetScalarFieldDependencies(arg, schema))
                         yield return fieldName;
                 yield break;
             case UnaryExpression unary:
-                foreach (var fieldName in GetScalarFieldDependencies(unary.Operand))
+                foreach (var fieldName in GetScalarFieldDependencies(unary.Operand, schema))
                     yield return fieldName;
                 yield break;
             case BinaryExpression binary:
-                foreach (var fieldName in GetScalarFieldDependencies(binary.Left))
+                foreach (var fieldName in GetScalarFieldDependencies(binary.Left, schema))
                     yield return fieldName;
-                foreach (var fieldName in GetScalarFieldDependencies(binary.Right))
+                foreach (var fieldName in GetScalarFieldDependencies(binary.Right, schema))
                     yield return fieldName;
+                yield break;
+            case CaseExpression caseExpression:
+                foreach (var clause in caseExpression.WhenClauses)
+                {
+                    foreach (var fieldName in GetScalarFieldDependencies(clause.Condition, schema))
+                        yield return fieldName;
+                    foreach (var fieldName in GetScalarFieldDependencies(clause.Result, schema))
+                        yield return fieldName;
+                }
+                if (caseExpression.Else is not null)
+                {
+                    foreach (var fieldName in GetScalarFieldDependencies(caseExpression.Else, schema))
+                        yield return fieldName;
+                }
+                yield break;
+            case IsNullExpression isNull:
+                foreach (var fieldName in GetScalarFieldDependencies(isNull.Operand, schema))
+                    yield return fieldName;
+                yield break;
+            case InExpression inExpression:
+                foreach (var fieldName in GetScalarFieldDependencies(inExpression.Value, schema))
+                    yield return fieldName;
+                foreach (var value in inExpression.Values)
+                    foreach (var fieldName in GetScalarFieldDependencies(value, schema))
+                        yield return fieldName;
                 yield break;
             default:
                 yield break;
@@ -1037,6 +1139,15 @@ internal static class SelectExecutor
             case FunctionCallExpression fn:
                 foreach (var arg in fn.Arguments)
                     foreach (var n in CollectIdentifierNames(arg)) yield return n;
+                yield break;
+            case CaseExpression caseExpression:
+                foreach (var clause in caseExpression.WhenClauses)
+                {
+                    foreach (var n in CollectIdentifierNames(clause.Condition)) yield return n;
+                    foreach (var n in CollectIdentifierNames(clause.Result)) yield return n;
+                }
+                if (caseExpression.Else is not null)
+                    foreach (var n in CollectIdentifierNames(caseExpression.Else)) yield return n;
                 yield break;
             default:
                 yield break;
@@ -1128,64 +1239,43 @@ internal static class SelectExecutor
         SeriesEntry series,
         IReadOnlyDictionary<string, Dictionary<long, FieldValue>> fieldLookups)
     {
-        var scalarFunction = projection.ScalarFunction
-            ?? throw new InvalidOperationException("内部错误：缺少标量函数实现。");
-        var function = projection.Function
-            ?? throw new InvalidOperationException("内部错误：缺少函数调用表达式。");
-
-        var args = new object?[function.Arguments.Count];
-        for (int i = 0; i < function.Arguments.Count; i++)
-            args[i] = EvaluateScalarArgument(function.Arguments[i], timestamp, series, fieldLookups);
-
-        return scalarFunction.Evaluate(args);
+        var expression = projection.ScalarExpression ?? projection.Function
+            ?? throw new InvalidOperationException("内部错误：缺少标量投影表达式。");
+        return EvaluateScalarArgument(expression, timestamp, series, fieldLookups);
     }
 
+    /// <summary>
+    /// 使用共享投影求值器计算当前 measurement 行上的标量表达式。
+    /// </summary>
     private static object? EvaluateScalarArgument(
         SqlExpression expression,
         long timestamp,
         SeriesEntry series,
         IReadOnlyDictionary<string, Dictionary<long, FieldValue>> fieldLookups)
-    {
-        return expression switch
-        {
-            IdentifierExpression id when string.Equals(id.Name, "time", StringComparison.OrdinalIgnoreCase)
-                => timestamp,
-            IdentifierExpression id when series.Tags.TryGetValue(id.Name, out var tagValue)
-                => tagValue,
-            IdentifierExpression id when fieldLookups.TryGetValue(id.Name, out var values)
-                => values.TryGetValue(timestamp, out var value) ? UnboxFieldValue(value) : null,
-            IdentifierExpression id when fieldLookups.ContainsKey(id.Name)
-                => null,
-            IdentifierExpression id
-                => throw new InvalidOperationException($"SELECT 中引用了未知列 '{id.Name}'。"),
-            LiteralExpression literal => EvaluateLiteral(literal),
-            UnaryExpression unary => EvaluateUnaryExpression(unary, timestamp, series, fieldLookups),
-            BinaryExpression binary => EvaluateBinaryExpression(binary, timestamp, series, fieldLookups),
-            VectorLiteralExpression vector => EvaluateVectorLiteral(vector),
-            GeoPointLiteralExpression geoPoint => GeoPoint.Create(geoPoint.Lat, geoPoint.Lon),
-            FunctionCallExpression nested when FunctionRegistry.TryGetScalar(nested.Name, out var scalarFunction)
-                => EvaluateNestedScalarFunction(nested, scalarFunction, timestamp, series, fieldLookups),
-            FunctionCallExpression nested
-                => throw new InvalidOperationException($"标量上下文不支持函数 '{nested.Name}'。"),
-            _ => throw new InvalidOperationException(
-                $"不支持的标量表达式类型 '{expression.GetType().Name}'。"),
-        };
-    }
+        => SqlProjectionExpressionEvaluator.Evaluate(
+            expression,
+            identifier => ResolveMeasurementProjectionIdentifier(
+                identifier, timestamp, series, fieldLookups),
+            "measurement SELECT 投影");
 
-    private static object? EvaluateNestedScalarFunction(
-        FunctionCallExpression function,
-        IScalarFunction scalarFunction,
+    /// <summary>
+    /// 从当前 measurement 行解析 time、TAG 和 FIELD 标识符；稀疏 FIELD 在当前时刻缺值时返回 NULL。
+    /// </summary>
+    private static object? ResolveMeasurementProjectionIdentifier(
+        IdentifierExpression identifier,
         long timestamp,
         SeriesEntry series,
         IReadOnlyDictionary<string, Dictionary<long, FieldValue>> fieldLookups)
     {
-        if (function.IsStar)
-            throw new InvalidOperationException($"标量函数 {function.Name}(*) 非法。");
-
-        var args = new object?[function.Arguments.Count];
-        for (int i = 0; i < function.Arguments.Count; i++)
-            args[i] = EvaluateScalarArgument(function.Arguments[i], timestamp, series, fieldLookups);
-        return scalarFunction.Evaluate(args);
+        if (string.Equals(identifier.Name, "time", StringComparison.OrdinalIgnoreCase))
+            return timestamp;
+        if (series.Tags.TryGetValue(identifier.Name, out var tagValue))
+            return tagValue;
+        if (fieldLookups.TryGetValue(identifier.Name, out var values))
+            return values.TryGetValue(timestamp, out var value) ? UnboxFieldValue(value) : null;
+        if (fieldLookups.ContainsKey(identifier.Name))
+            return null;
+        throw new InvalidOperationException($"SELECT 中引用了未知列 '{identifier.Name}'。");
     }
 
     // ── 残差谓词逐点求值（#217，三值 Kleene 逻辑）──────────────────────────────
@@ -1226,7 +1316,7 @@ internal static class SelectExecutor
                     if (r == true) return true;
                     return l is null || r is null ? null : false;
                 }
-                if (IsResidualComparisonOperator(binary.Operator))
+                if (IsComparisonOperator(binary.Operator))
                     return EvaluateResidualComparison(binary, timestamp, series, fieldLookups);
                 break;
 
@@ -1311,39 +1401,27 @@ internal static class SelectExecutor
         return expression.Negated ? true : false;
     }
 
-    private static bool IsResidualComparisonOperator(SqlBinaryOperator op) => op is
+    /// <summary>
+    /// 判断时序表达式支持的基础比较、LIKE 与正则运算符。
+    /// </summary>
+    private static bool IsComparisonOperator(SqlBinaryOperator op) => op is
         SqlBinaryOperator.Equal or SqlBinaryOperator.NotEqual or
         SqlBinaryOperator.LessThan or SqlBinaryOperator.LessThanOrEqual or
         SqlBinaryOperator.GreaterThan or SqlBinaryOperator.GreaterThanOrEqual or
         SqlBinaryOperator.Like or SqlBinaryOperator.NotLike or
         SqlBinaryOperator.Regex or SqlBinaryOperator.NotRegex;
 
+    /// <summary>
+    /// 使用统一 SQL 标量规则判断 measurement 残差操作数是否相等。
+    /// </summary>
     private static bool ResidualValuesEqual(object? left, object? right)
-    {
-        if (left is null || right is null)
-            return left is null && right is null;
-        if (IsResidualNumeric(left) && IsResidualNumeric(right))
-            return Convert.ToDouble(left, CultureInfo.InvariantCulture)
-                .Equals(Convert.ToDouble(right, CultureInfo.InvariantCulture));
-        return Equals(left, right);
-    }
+        => SqlScalarComparer.ValuesEqual(left, right);
 
+    /// <summary>
+    /// 使用统一 SQL 标量规则比较 measurement 残差操作数。
+    /// </summary>
     private static int? CompareResidualValues(object? left, object? right)
-    {
-        if (left is null || right is null)
-            return null;
-        if (IsResidualNumeric(left) && IsResidualNumeric(right))
-            return Convert.ToDouble(left, CultureInfo.InvariantCulture)
-                .CompareTo(Convert.ToDouble(right, CultureInfo.InvariantCulture));
-        if (left is string ls && right is string rs)
-            return string.Compare(ls, rs, StringComparison.Ordinal);
-        if (left is bool lb && right is bool rb)
-            return lb.CompareTo(rb);
-        return null;
-    }
-
-    private static bool IsResidualNumeric(object value) => value is
-        byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal;
+        => SqlScalarComparer.Compare(left, right);
 
 
     private static object? EvaluateLiteral(LiteralExpression literal) => literal.Kind switch
@@ -1364,46 +1442,15 @@ internal static class SelectExecutor
         return result;
     }
 
-    private static object? EvaluateUnaryExpression(
-        UnaryExpression expression,
-        long timestamp,
-        SeriesEntry series,
-        IReadOnlyDictionary<string, Dictionary<long, FieldValue>> fieldLookups)
-    {
-        var operand = EvaluateScalarArgument(expression.Operand, timestamp, series, fieldLookups);
-        return expression.Operator switch
-        {
-            SqlUnaryOperator.Negate => -RequireDouble(operand, "一元负号"),
-            SqlUnaryOperator.Not => !RequireBoolean(operand, "NOT"),
-            _ => throw new InvalidOperationException($"不支持的一元运算 {expression.Operator}。"),
-        };
-    }
-
-    private static object? EvaluateBinaryExpression(
-        BinaryExpression expression,
-        long timestamp,
-        SeriesEntry series,
-        IReadOnlyDictionary<string, Dictionary<long, FieldValue>> fieldLookups)
-    {
-        var left = EvaluateScalarArgument(expression.Left, timestamp, series, fieldLookups);
-        var right = EvaluateScalarArgument(expression.Right, timestamp, series, fieldLookups);
-
-        return expression.Operator switch
-        {
-            SqlBinaryOperator.Add => RequireDouble(left, "+") + RequireDouble(right, "+"),
-            SqlBinaryOperator.Subtract => RequireDouble(left, "-") - RequireDouble(right, "-"),
-            SqlBinaryOperator.Multiply => RequireDouble(left, "*") * RequireDouble(right, "*"),
-            SqlBinaryOperator.Divide => RequireDouble(left, "/") / RequireDouble(right, "/"),
-            SqlBinaryOperator.Modulo => RequireDouble(left, "%") % RequireDouble(right, "%"),
-            _ => throw new InvalidOperationException($"标量函数参数内不支持运算 {expression.Operator}。"),
-        };
-    }
-
-    private static bool RequireBoolean(object? value, string operatorName)
-    {
-        if (value is bool b) return b;
-        throw new InvalidOperationException($"运算 {operatorName} 需要布尔参数。");
-    }
+    /// <summary>
+    /// 判断时序标量表达式支持的五种数值算术运算符。
+    /// </summary>
+    private static bool IsArithmeticOperator(SqlBinaryOperator value) => value is
+        SqlBinaryOperator.Add or
+        SqlBinaryOperator.Subtract or
+        SqlBinaryOperator.Multiply or
+        SqlBinaryOperator.Divide or
+        SqlBinaryOperator.Modulo;
 
     private static double RequireDouble(object? value, string functionName)
     {
@@ -1580,15 +1627,17 @@ internal static class SelectExecutor
     {
         long bucketSizeMs = groupByTime?.BucketSizeMs ?? 0;
 
-        // 数值 legacy 聚合走 BucketState 快路径；selector、categorical 与扩展聚合走 IAggregateAccumulator。
-        var aggregateProjections = projections
-            .Where(static p => p.Kind == ProjectionKind.Aggregate)
+        // 收集裸聚合及复合表达式中的聚合调用；槽位顺序在整次执行期间保持稳定。
+        var aggregateCalls = projections
+            .Where(static projection =>
+                projection.Kind is ProjectionKind.Aggregate or ProjectionKind.AggregateExpression)
+            .SelectMany(static projection => EnumerateAggregateCalls(
+                projection.Function ?? projection.ScalarExpression!))
             .ToList();
 
-        var aggSpecs = aggregateProjections.Select(p =>
+        var aggSpecs = aggregateCalls.Select(fn =>
         {
-            var fn = p.Function!;
-            var spec = ResolveAggregateSpec(fn, p.ColumnName, schema);
+            var spec = ResolveAggregateSpec(fn, FormatFunctionColumnName(fn), schema);
             if (spec.LegacyAggregator is Aggregator.First or Aggregator.Last
                 && matchedSeries.Count > 1)
             {
@@ -1723,13 +1772,19 @@ internal static class SelectExecutor
         foreach (var (bucketStart, slots) in bucketAccumulators)
         {
             var row = new object?[projections.Count];
-            var aggregateIndex = 0;
+            var aggregateValues = new object?[slots.Length];
+            for (int slotIndex = 0; slotIndex < slots.Length; slotIndex++)
+                aggregateValues[slotIndex] = slots[slotIndex].Finalize();
+
             for (int i = 0; i < projections.Count; i++)
             {
                 row[i] = projections[i].Kind switch
                 {
                     ProjectionKind.Time => bucketStart,
-                    ProjectionKind.Aggregate => slots[aggregateIndex++].Finalize(),
+                    ProjectionKind.Aggregate => aggregateValues[
+                        FindAggregateCallIndex(aggregateCalls, projections[i].Function!)],
+                    ProjectionKind.AggregateExpression => EvaluateAggregateResultExpression(
+                        projections[i].ScalarExpression!, aggregateCalls, aggregateValues),
                     _ => throw new InvalidOperationException("内部错误：聚合模式仅支持聚合函数与 GROUP BY time(...) 的 time 投影。"),
                 };
             }
@@ -1739,6 +1794,262 @@ internal static class SelectExecutor
 
         var columnNames = projections.Select(p => p.ColumnName).ToList();
         return new SelectExecutionResult(columnNames, rows);
+    }
+
+    /// <summary>
+    /// 递归枚举投影表达式中的聚合函数，供聚合执行器为每个调用建立独立累加槽。
+    /// </summary>
+    private static IEnumerable<FunctionCallExpression> EnumerateAggregateCalls(SqlExpression expression)
+    {
+        switch (expression)
+        {
+            case FunctionCallExpression function
+                when FunctionRegistry.GetFunctionKind(function.Name) == FunctionKind.Aggregate:
+                yield return function;
+                yield break;
+            case FunctionCallExpression function:
+                foreach (var argument in function.Arguments)
+                    foreach (var aggregate in EnumerateAggregateCalls(argument))
+                        yield return aggregate;
+                yield break;
+            case UnaryExpression unary:
+                foreach (var aggregate in EnumerateAggregateCalls(unary.Operand))
+                    yield return aggregate;
+                yield break;
+            case BinaryExpression binary:
+                foreach (var aggregate in EnumerateAggregateCalls(binary.Left))
+                    yield return aggregate;
+                foreach (var aggregate in EnumerateAggregateCalls(binary.Right))
+                    yield return aggregate;
+                yield break;
+            case CaseExpression caseExpression:
+                foreach (var clause in caseExpression.WhenClauses)
+                {
+                    foreach (var aggregate in EnumerateAggregateCalls(clause.Condition))
+                        yield return aggregate;
+                    foreach (var aggregate in EnumerateAggregateCalls(clause.Result))
+                        yield return aggregate;
+                }
+                if (caseExpression.Else is not null)
+                    foreach (var aggregate in EnumerateAggregateCalls(caseExpression.Else))
+                        yield return aggregate;
+                yield break;
+            case IsNullExpression isNull:
+                foreach (var aggregate in EnumerateAggregateCalls(isNull.Operand))
+                    yield return aggregate;
+                yield break;
+            case InExpression inExpression:
+                foreach (var aggregate in EnumerateAggregateCalls(inExpression.Value))
+                    yield return aggregate;
+                foreach (var value in inExpression.Values)
+                    foreach (var aggregate in EnumerateAggregateCalls(value))
+                        yield return aggregate;
+                yield break;
+        }
+    }
+
+    /// <summary>
+    /// 递归判断投影表达式是否包含任意已注册聚合函数。
+    /// </summary>
+    private static bool ContainsAggregateCall(SqlExpression expression)
+        => EnumerateAggregateCalls(expression).Any();
+
+    /// <summary>
+    /// 在已完成的聚合槽位上计算外层标量表达式，例如 round(avg(value), 2) 或 count(*) + 1。
+    /// </summary>
+    private static object? EvaluateAggregateResultExpression(
+        SqlExpression expression,
+        IReadOnlyList<FunctionCallExpression> aggregateCalls,
+        IReadOnlyList<object?> aggregateValues)
+    {
+        switch (expression)
+        {
+            case LiteralExpression literal:
+                return EvaluateLiteral(literal);
+            case DurationLiteralExpression duration:
+                return duration.Milliseconds;
+            case UnaryExpression { Operator: SqlUnaryOperator.Negate } unary:
+                return SqlScalarOperations.Negate(
+                    EvaluateAggregateResultExpression(unary.Operand, aggregateCalls, aggregateValues));
+            case UnaryExpression { Operator: SqlUnaryOperator.Not } unary:
+                return NegateAggregatePredicate(EvaluateAggregatePredicate(
+                    unary.Operand, aggregateCalls, aggregateValues));
+            case BinaryExpression binary when IsArithmeticOperator(binary.Operator):
+                return SqlScalarOperations.EvaluateArithmetic(
+                    binary.Operator,
+                    EvaluateAggregateResultExpression(binary.Left, aggregateCalls, aggregateValues),
+                    EvaluateAggregateResultExpression(binary.Right, aggregateCalls, aggregateValues));
+            case BinaryExpression binary when binary.Operator is SqlBinaryOperator.And or SqlBinaryOperator.Or
+                || IsComparisonOperator(binary.Operator):
+                return EvaluateAggregatePredicate(binary, aggregateCalls, aggregateValues);
+            case IsNullExpression isNull:
+                return EvaluateAggregatePredicate(isNull, aggregateCalls, aggregateValues);
+            case InExpression inExpression:
+                return EvaluateAggregatePredicate(inExpression, aggregateCalls, aggregateValues);
+            case CaseExpression caseExpression:
+                foreach (var clause in caseExpression.WhenClauses)
+                {
+                    if (EvaluateAggregatePredicate(
+                        clause.Condition, aggregateCalls, aggregateValues) == true)
+                    {
+                        return EvaluateAggregateResultExpression(
+                            clause.Result, aggregateCalls, aggregateValues);
+                    }
+                }
+                return caseExpression.Else is null
+                    ? null
+                    : EvaluateAggregateResultExpression(
+                        caseExpression.Else, aggregateCalls, aggregateValues);
+            case FunctionCallExpression function
+                when FunctionRegistry.GetFunctionKind(function.Name) == FunctionKind.Aggregate:
+                return aggregateValues[FindAggregateCallIndex(aggregateCalls, function)];
+            case FunctionCallExpression function when !function.IsStar
+                && FunctionRegistry.TryGetScalar(function.Name, out var scalarFunction):
+                var arguments = function.Arguments
+                    .Select(argument => EvaluateAggregateResultExpression(
+                        argument, aggregateCalls, aggregateValues))
+                    .ToArray();
+                return scalarFunction.Evaluate(arguments);
+            default:
+                throw new InvalidOperationException(
+                    $"时序聚合结果暂不支持表达式 '{expression.GetType().Name}'。");
+        }
+    }
+
+    /// <summary>
+    /// 按 SQL 三值逻辑计算 measurement 聚合结果外层的逻辑、比较、空值与 IN 谓词。
+    /// </summary>
+    private static bool? EvaluateAggregatePredicate(
+        SqlExpression expression,
+        IReadOnlyList<FunctionCallExpression> aggregateCalls,
+        IReadOnlyList<object?> aggregateValues)
+    {
+        switch (expression)
+        {
+            case BinaryExpression { Operator: SqlBinaryOperator.And } binary:
+                {
+                    var left = EvaluateAggregatePredicate(binary.Left, aggregateCalls, aggregateValues);
+                    if (left == false) return false;
+                    var right = EvaluateAggregatePredicate(binary.Right, aggregateCalls, aggregateValues);
+                    if (right == false) return false;
+                    return left is null || right is null ? null : true;
+                }
+            case BinaryExpression { Operator: SqlBinaryOperator.Or } binary:
+                {
+                    var left = EvaluateAggregatePredicate(binary.Left, aggregateCalls, aggregateValues);
+                    if (left == true) return true;
+                    var right = EvaluateAggregatePredicate(binary.Right, aggregateCalls, aggregateValues);
+                    if (right == true) return true;
+                    return left is null || right is null ? null : false;
+                }
+            case BinaryExpression binary when IsComparisonOperator(binary.Operator):
+                {
+                    var left = EvaluateAggregateResultExpression(
+                        binary.Left, aggregateCalls, aggregateValues);
+                    var right = EvaluateAggregateResultExpression(
+                        binary.Right, aggregateCalls, aggregateValues);
+                    if (left is null || right is null)
+                        return null;
+
+                    int? comparison = SqlScalarComparer.Compare(left, right);
+                    return binary.Operator switch
+                    {
+                        SqlBinaryOperator.Equal => SqlScalarComparer.ValuesEqual(left, right),
+                        SqlBinaryOperator.NotEqual => !SqlScalarComparer.ValuesEqual(left, right),
+                        SqlBinaryOperator.LessThan => comparison is < 0,
+                        SqlBinaryOperator.LessThanOrEqual => comparison is <= 0,
+                        SqlBinaryOperator.GreaterThan => comparison is > 0,
+                        SqlBinaryOperator.GreaterThanOrEqual => comparison is >= 0,
+                        SqlBinaryOperator.Like => LikePatternMatcher.IsMatch(left, right),
+                        SqlBinaryOperator.NotLike => !LikePatternMatcher.IsMatch(left, right),
+                        SqlBinaryOperator.Regex => RegexPatternMatcher.IsMatch(left, right),
+                        SqlBinaryOperator.NotRegex => !RegexPatternMatcher.IsMatch(left, right),
+                        _ => throw new InvalidOperationException(
+                            $"时序聚合结果不支持比较运算符 {binary.Operator}。"),
+                    };
+                }
+            case UnaryExpression { Operator: SqlUnaryOperator.Not } unary:
+                return NegateAggregatePredicate(EvaluateAggregatePredicate(
+                    unary.Operand, aggregateCalls, aggregateValues));
+            case IsNullExpression isNull:
+                var isNullValue = EvaluateAggregateResultExpression(
+                    isNull.Operand, aggregateCalls, aggregateValues) is null;
+                return isNull.Negated ? !isNullValue : isNullValue;
+            case InExpression inExpression:
+                return EvaluateAggregateIn(
+                    inExpression, aggregateCalls, aggregateValues);
+            default:
+                var value = EvaluateAggregateResultExpression(
+                    expression, aggregateCalls, aggregateValues);
+                return value switch
+                {
+                    null => null,
+                    bool boolean => boolean,
+                    _ => throw new InvalidOperationException(
+                        "时序聚合结果的谓词必须计算为布尔值。"),
+                };
+        }
+    }
+
+    /// <summary>
+    /// 计算不含子查询的 measurement 聚合结果 IN 谓词，并保留 NULL 导致的 UNKNOWN。
+    /// </summary>
+    private static bool? EvaluateAggregateIn(
+        InExpression expression,
+        IReadOnlyList<FunctionCallExpression> aggregateCalls,
+        IReadOnlyList<object?> aggregateValues)
+    {
+        if (expression.Subquery is not null)
+            throw new InvalidOperationException("时序聚合结果表达式暂不支持 IN 子查询。");
+
+        var value = EvaluateAggregateResultExpression(
+            expression.Value, aggregateCalls, aggregateValues);
+        if (value is null)
+            return null;
+
+        bool sawNull = false;
+        foreach (var item in expression.Values)
+        {
+            var candidate = EvaluateAggregateResultExpression(
+                item, aggregateCalls, aggregateValues);
+            if (candidate is null)
+            {
+                sawNull = true;
+                continue;
+            }
+            if (SqlScalarComparer.ValuesEqual(value, candidate))
+                return expression.Negated ? false : true;
+        }
+
+        if (sawNull)
+            return null;
+        return expression.Negated ? true : false;
+    }
+
+    /// <summary>
+    /// 对 measurement 聚合谓词应用 SQL NOT，并保留 UNKNOWN。
+    /// </summary>
+    private static bool? NegateAggregatePredicate(bool? value)
+        => value is null ? null : !value.Value;
+
+    /// <summary>
+    /// 按 AST 节点身份定位聚合槽；结构相等仅作为缓存或 AST 重写后的兼容回退。
+    /// </summary>
+    private static int FindAggregateCallIndex(
+        IReadOnlyList<FunctionCallExpression> aggregateCalls,
+        FunctionCallExpression target)
+    {
+        for (int i = 0; i < aggregateCalls.Count; i++)
+        {
+            if (ReferenceEquals(aggregateCalls[i], target))
+                return i;
+        }
+        for (int i = 0; i < aggregateCalls.Count; i++)
+        {
+            if (Equals(aggregateCalls[i], target))
+                return i;
+        }
+        throw new InvalidOperationException($"内部错误：未找到聚合函数 '{target.Name}' 的结果槽。");
     }
 
     /// <summary>
