@@ -356,6 +356,27 @@ public sealed class SonnetDbProviderTests : IDisposable
             .ToArrayAsync());
     }
 
+    /// <summary>
+    /// 验证 C# 字符串加法使用 concat 生成并可由 SonnetDB 正常执行。
+    /// </summary>
+    [Fact]
+    public async Task Query_StringConcatenation_UsesConcatAndExecutes()
+    {
+        using var context = new DeviceContext(CreateOptions<DeviceContext>());
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE \"Devices\" (\"Id\" INT NOT NULL, \"Name\" STRING NOT NULL, \"Enabled\" BOOL NOT NULL, PRIMARY KEY (\"Id\"))");
+        context.Devices.Add(new Device { Id = 1, Name = "pump", Enabled = true });
+        await context.SaveChangesAsync();
+
+        var query = context.Devices.Select(item => "device:" + item.Name + ":online");
+        var sql = query.ToQueryString();
+        var label = await query.SingleAsync();
+
+        Assert.Contains("concat(", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(" + ", sql, StringComparison.Ordinal);
+        Assert.Equal("device:pump:online", label);
+    }
+
     [Fact]
     public async Task Query_SkipTakeProjection_Executes()
     {
