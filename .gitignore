@@ -437,3 +437,4 @@ output/
 
 # Generated M29 prototype renders
 docs/design/m29-workbench-redesign/renders/
+graphify-out/
