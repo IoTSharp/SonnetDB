@@ -105,6 +105,7 @@
 
 ### Changed
 
+- SonnetDB Dockerfile 支持通过构建参数替换 Node、.NET SDK 和 ASP.NET Runtime 基础镜像；构建阶段使用 `BUILDPLATFORM`，运行阶段继承 Compose 的 `TARGETPLATFORM`，同一构建定义可输出 AMD64 与 ARM64 镜像。
 - **#182 产品定位校准**：README、文档首页、`llms.txt`、产品欢迎页和路线图统一使用“八种数据模型，一套引擎”；核心产品定义为不绑定实现语言、部署方式或行业场景的多模型数据引擎，嵌入式、服务端、工业边缘和 AI 应用按能力与场景表达，并移除“八种模型都由一套 SQL 完整覆盖”和 `AI-native` 等易误解表述。
 - 依据代码入口、自动化、CI/容量和发布证据重新核查并压缩 `ROADMAP.md`；重新打开 M14/M19/M20/M25/M27/M29 的未接线或待补证部分，M32 只保留尚未实现的 Document 能力，完成里程碑改为结果摘要。
 - **VS Code `0.4.1` Marketplace 用户门面与品牌统一**：扩展发布页移除目录结构、内部工作原理、本地构建与验证等开发内容，改为覆盖安装、连接、查询、结果页签、多模型只读预览、Copilot、本地 Server 与排障的用户指南；开发资料迁入不随 VSIX 打包的 `docs/development.md`。Marketplace 与 Activity Bar 图标统一同步自项目官方 `web/public/favicon` 品牌资产，不再维护扩展专用绘制版本。

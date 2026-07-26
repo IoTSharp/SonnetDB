@@ -1,13 +1,20 @@
-# SonnetDB multi-stage Docker build.
+# syntax=docker/dockerfile:1.7
+
+ARG NODE_IMAGE=node:24-bookworm-slim
+ARG DOTNET_SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:10.0
+ARG DOTNET_RUNTIME_IMAGE=mcr.microsoft.com/dotnet/aspnet:10.0
+
+# SonnetDB 多阶段 Docker 构建。基础镜像可由构建参数替换，目标 CPU 架构由 Compose 的 platform 传入。
 # Build from the repository root:
 #   docker build -f src/SonnetDB/Dockerfile -t iotsharp/sonnetdb .
 #
 # Run:
 #   docker run -p 5080:5080 -v sonnetdb-data:/data iotsharp/sonnetdb
 
-FROM node:24-bookworm-slim AS node-tooling
+FROM --platform=$BUILDPLATFORM ${NODE_IMAGE} AS node-tooling
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+# Web 和托管代码在构建机架构上生成，避免在 QEMU 中执行 Node 与 .NET SDK。
+FROM --platform=$BUILDPLATFORM ${DOTNET_SDK_IMAGE} AS build
 WORKDIR /repo
 
 COPY --from=node-tooling /usr/local/bin/ /usr/local/bin/
@@ -53,7 +60,8 @@ RUN dotnet publish src/SonnetDB/SonnetDB.csproj \
     -p:BuildAdminUi=true \
     -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+# 运行镜像遵循 Compose 传入的 TARGETPLATFORM，可构建 linux/amd64 或 linux/arm64。
+FROM --platform=$TARGETPLATFORM ${DOTNET_RUNTIME_IMAGE} AS runtime
 WORKDIR /app
 
 RUN apt-get update \
