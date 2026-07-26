@@ -325,6 +325,179 @@
           </div>
         </section>
 
+        <section v-else-if="inspectorTab === 'semantic'" class="object-inspector-section object-semantic-section">
+          <div class="object-form-block">
+            <div class="object-section-title object-section-title--standalone">
+              <span>异步摄取与缩略图</span>
+              <n-tag
+                size="small"
+                :type="semanticRuntime?.ready ? 'success' : 'warning'"
+                :bordered="false"
+              >
+                {{ semanticRuntime?.effectiveBackend ?? 'unavailable' }}
+              </n-tag>
+            </div>
+            <div class="object-semantic-switches">
+              <label>
+                <n-switch v-model:value="semanticOptionsDraft.asyncIngestionEnabled" size="small" />
+                <span>异步语义摄取</span>
+              </label>
+              <label>
+                <n-switch v-model:value="semanticOptionsDraft.thumbnailEnabled" size="small" />
+                <span>生成 WebP 缩略图</span>
+              </label>
+            </div>
+            <div class="object-form-row object-form-row--three">
+              <n-input-number v-model:value="semanticOptionsDraft.thumbnailMaxWidth" size="small" :min="16" :max="4096" placeholder="最大宽度" />
+              <n-input-number v-model:value="semanticOptionsDraft.thumbnailMaxHeight" size="small" :min="16" :max="4096" placeholder="最大高度" />
+              <n-input-number v-model:value="semanticOptionsDraft.thumbnailQuality" size="small" :min="1" :max="100" placeholder="WebP 质量" />
+            </div>
+            <n-space size="small" align="center" :wrap="true">
+              <n-button size="small" secondary :disabled="!activeBucket" @click="stageSetSemanticOptions">
+                <template #icon><Save :size="15" /></template>
+                暂存配置
+              </n-button>
+              <n-button size="small" secondary :disabled="!activeBucket" @click="stageSemanticBackfill">
+                <template #icon><Layers3 :size="15" /></template>
+                补录当前对象
+              </n-button>
+              <n-text depth="3" class="object-semantic-runtime">
+                {{ semanticRuntime?.provider ?? 'provider unknown' }} · {{ semanticRuntime?.profile ?? '-' }}
+              </n-text>
+            </n-space>
+          </div>
+
+          <div class="object-form-block">
+            <div class="object-section-title object-section-title--standalone">
+              <span>当前对象处理状态</span>
+              <n-tag v-if="processingStatus" size="small" :type="processingTagType" :bordered="false">
+                {{ processingStatus.status }}
+              </n-tag>
+            </div>
+            <div v-if="selectedObject" class="object-semantic-current">
+              <div class="object-thumbnail-frame">
+                <img v-if="selectedThumbnailUrl" :src="selectedThumbnailUrl" :alt="selectedObject.key">
+                <ImageIcon v-else :size="24" aria-hidden="true" />
+              </div>
+              <div class="object-semantic-current__meta">
+                <strong>{{ selectedObject.key }}</strong>
+                <span>{{ processingStatus?.operation ?? 'not queued' }} · attempts {{ processingStatus?.attempts ?? 0 }}</span>
+                <span class="object-semantic-id">{{ processingStatus?.semanticImageId ?? 'No semantic image ID' }}</span>
+              </div>
+              <n-space size="small" align="center" :wrap="true" class="object-semantic-current__actions">
+                <n-button size="small" quaternary :loading="loadingProcessing" @click="loadSelectedProcessing">
+                  <template #icon><RefreshCw :size="15" /></template>
+                  刷新
+                </n-button>
+                <n-button size="small" secondary :disabled="!selectedObject" @click="stageRequeueSelectedObject">
+                  <template #icon><RotateCcw :size="15" /></template>
+                  重新入队
+                </n-button>
+                <n-button
+                  size="small"
+                  secondary
+                  :disabled="!processingStatus?.semanticImageId"
+                  @click="searchSimilarToSelected"
+                >
+                  <template #icon><ScanSearch :size="15" /></template>
+                  查找相似项
+                </n-button>
+              </n-space>
+            </div>
+            <n-empty v-else description="在对象浏览中选择一张图片。" />
+          </div>
+
+          <div class="object-semantic-search">
+            <div class="object-semantic-search__head">
+              <n-radio-group v-model:value="semanticSearchMode" size="small">
+                <n-radio-button value="text">文搜图</n-radio-button>
+                <n-radio-button value="image">图搜图</n-radio-button>
+                <n-radio-button value="similar">按 ID 相似</n-radio-button>
+              </n-radio-group>
+              <n-switch v-model:value="semanticExplain" size="small">
+                <template #checked>Explain</template>
+                <template #unchecked>Explain</template>
+              </n-switch>
+            </div>
+
+            <n-input
+              v-if="semanticSearchMode === 'text'"
+              v-model:value="semanticText"
+              size="small"
+              clearable
+              placeholder="例如：夜间车道上的红色重型卡车"
+              @keydown.enter="runSemanticSearch"
+            />
+            <template v-else-if="semanticSearchMode === 'image'">
+              <input ref="semanticFileInput" type="file" accept="image/*" class="object-file-input" @change="onSemanticFileChange">
+              <n-button size="small" secondary @click="semanticFileInput?.click()">
+                <template #icon><ImageUp :size="15" /></template>
+                {{ semanticImageFile?.name ?? '选择查询图片' }}
+              </n-button>
+            </template>
+            <n-input
+              v-else
+              v-model:value="similarImageId"
+              size="small"
+              clearable
+              placeholder="已摄取图片 ID"
+              @keydown.enter="runSemanticSearch"
+            />
+
+            <div class="object-semantic-query-options">
+              <n-input-number v-model:value="semanticTopK" size="small" :min="1" :max="100" placeholder="Top K" />
+              <n-input-number v-model:value="semanticMinScore" size="small" :min="-1" :max="1" :step="0.05" clearable placeholder="最低分数" />
+              <n-input v-model:value="semanticFilterBucket" size="small" clearable placeholder="Bucket" />
+              <n-input v-model:value="semanticFilterPrefix" size="small" clearable placeholder="Key prefix" />
+              <n-input v-model:value="semanticFilterContentType" size="small" clearable placeholder="Content-Type" />
+            </div>
+            <div class="object-form-row">
+              <n-input v-model:value="semanticMetadataText" type="textarea" :autosize="{ minRows: 2, maxRows: 5 }" placeholder="Metadata key=value" />
+              <n-input v-model:value="semanticTagsText" type="textarea" :autosize="{ minRows: 2, maxRows: 5 }" placeholder="Tags key=value" />
+            </div>
+            <n-button
+              size="small"
+              type="primary"
+              :loading="searchingSemantic"
+              :disabled="!canRunSemanticSearch"
+              @click="runSemanticSearch"
+            >
+              <template #icon><Search :size="15" /></template>
+              执行检索
+            </n-button>
+          </div>
+
+          <div v-if="semanticSearchResult" class="object-semantic-results">
+            <div class="object-semantic-result-summary">
+              <span>{{ semanticSearchResult.hits.length }} hits</span>
+              <span>{{ semanticSearchResult.backend }}</span>
+              <span v-if="semanticSearchResult.searchMode">{{ semanticSearchResult.searchMode }}</span>
+              <span v-if="semanticSearchResult.candidateCount != null">
+                {{ semanticSearchResult.filteredCandidateCount ?? 0 }} / {{ semanticSearchResult.candidateCount }} candidates
+              </span>
+            </div>
+            <button
+              v-for="hit in semanticSearchResult.hits"
+              :key="hit.id"
+              type="button"
+              class="object-semantic-hit"
+              @click="selectSemanticHit(hit)"
+            >
+              <span class="object-semantic-hit__preview">
+                <img v-if="semanticHitUrls[hit.id]" :src="semanticHitUrls[hit.id]" :alt="hit.sourceKey || hit.fileName || hit.id">
+                <ImageIcon v-else :size="20" aria-hidden="true" />
+              </span>
+              <span class="object-semantic-hit__body">
+                <strong>{{ hit.sourceKey || hit.fileName || hit.id }}</strong>
+                <small>{{ hit.sourceBucket || 'direct ingest' }} · {{ hit.contentType }} · {{ formatBytes(hit.sizeBytes) }}</small>
+              </span>
+              <span class="object-semantic-hit__score">{{ hit.score.toFixed(4) }}</span>
+              <ChevronRight :size="16" aria-hidden="true" />
+            </button>
+            <n-empty v-if="semanticSearchResult.hits.length === 0" description="没有符合条件的图片。" />
+          </div>
+        </section>
+
         <section v-else-if="inspectorTab === 'upload'" class="object-inspector-section">
           <div class="object-form-block">
             <n-text class="object-section-title object-section-title--standalone">Put object</n-text>
@@ -484,7 +657,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, onMounted, reactive, ref, watch } from 'vue';
+import { computed, h, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import {
   NAlert,
   NButton,
@@ -492,6 +665,8 @@ import {
   NEmpty,
   NInput,
   NInputNumber,
+  NRadioButton,
+  NRadioGroup,
   NSelect,
   NSpace,
   NSwitch,
@@ -502,10 +677,22 @@ import {
   type DataTableRowKey,
   type SelectOption,
 } from 'naive-ui';
+import {
+  ChevronRight,
+  Image as ImageIcon,
+  ImageUp,
+  Layers3,
+  RefreshCw,
+  RotateCcw,
+  Save,
+  ScanSearch,
+  Search,
+} from 'lucide-vue-next';
 import type { ObjectBucketInfo } from '@/api/management';
 import {
   abortMultipartUpload,
   applyBucketLifecycle,
+  backfillBucketSemanticObjects,
   completeMultipartUpload,
   copyObject,
   createObjectBucket,
@@ -518,8 +705,11 @@ import {
   getBucketQuota,
   getBucketRetention,
   getBucketStats,
+  getBucketSemanticOptions,
   getObjectBlob,
   getObjectLegalHold,
+  getObjectProcessingStatus,
+  getObjectThumbnailBlob,
   getObjectTags,
   initiateMultipartUpload,
   listMultipartUploads,
@@ -528,10 +718,12 @@ import {
   listObjects,
   listObjectVersions,
   putObject,
+  enqueueObjectProcessing,
   setBucketLifecycle,
   setBucketPolicy,
   setBucketQuota,
   setBucketRetention,
+  setBucketSemanticOptions,
   setObjectLegalHold,
   setObjectTags,
   uploadMultipartPart,
@@ -541,11 +733,23 @@ import {
   type ObjectAuditEntryResponse,
   type ObjectBucketResponse,
   type ObjectInfoResponse,
+  type ObjectProcessingStatusResponse,
   type ObjectLifecycleResponse,
   type ObjectQuotaResponse,
   type ObjectRetentionResponse,
   type ObjectStatsResponse,
 } from '@/api/objectStorage';
+import {
+  getProtectedImageBlob,
+  getSemanticSearchStatus,
+  searchImagesByImage,
+  searchImagesByText,
+  searchSimilarImages,
+  type ImageSearchFilter,
+  type ImageSearchHit,
+  type ImageSearchResponse,
+  type SemanticSearchStatusResponse,
+} from '@/api/semanticSearch';
 import { currentStudioNativeBridge } from '@/api/studioNativeBridge';
 import type { SqlResultSet } from '@/api/sql';
 import WorkbenchHistoryDrawer from '@/components/WorkbenchHistoryDrawer.vue';
@@ -581,7 +785,8 @@ const emit = defineEmits<{
 }>();
 
 type PreviewMode = 'text' | 'hex' | 'base64';
-type InspectorTab = 'preview' | 'governance' | 'upload' | 'multipart' | 'audit';
+type InspectorTab = 'preview' | 'governance' | 'semantic' | 'upload' | 'multipart' | 'audit';
+type SemanticSearchMode = 'text' | 'image' | 'similar';
 
 interface ObjectRow extends ObjectInfoResponse {
   tagCount: number;
@@ -645,6 +850,7 @@ const inspectorTab = ref<InspectorTab>('preview');
 const objectSections: WorkbenchSectionTab[] = [
   { key: 'preview', label: '对象浏览' },
   { key: 'governance', label: '治理' },
+  { key: 'semantic', label: '图片语义' },
   { key: 'upload', label: '上传 / 下载' },
   { key: 'multipart', label: 'Multipart' },
   { key: 'audit', label: '审计' },
@@ -674,6 +880,7 @@ const multipartPartNumber = ref<number | null>(1);
 const multipartFile = ref<File | null>(null);
 const uploadFileInput = ref<HTMLInputElement | null>(null);
 const multipartFileInput = ref<HTMLInputElement | null>(null);
+const semanticFileInput = ref<HTMLInputElement | null>(null);
 const auditPrefix = ref('');
 const auditMaxEntries = ref<number | null>(100);
 const legalHoldEnabled = ref(false);
@@ -685,6 +892,25 @@ const latestResult = ref<SqlResultSet | null>(null);
 const latestCommand = ref('');
 const ranOnce = ref(false);
 const historyVisible = ref(false);
+const semanticRuntime = ref<SemanticSearchStatusResponse | null>(null);
+const processingStatus = ref<ObjectProcessingStatusResponse | null>(null);
+const loadingProcessing = ref(false);
+const selectedThumbnailUrl = ref('');
+const semanticSearchMode = ref<SemanticSearchMode>('text');
+const semanticText = ref('');
+const semanticImageFile = ref<File | null>(null);
+const similarImageId = ref('');
+const semanticTopK = ref<number | null>(12);
+const semanticMinScore = ref<number | null>(null);
+const semanticFilterBucket = ref('');
+const semanticFilterPrefix = ref('');
+const semanticFilterContentType = ref('');
+const semanticMetadataText = ref('');
+const semanticTagsText = ref('');
+const semanticExplain = ref(true);
+const searchingSemantic = ref(false);
+const semanticSearchResult = ref<ImageSearchResponse | null>(null);
+const semanticHitUrls = ref<Record<string, string>>({});
 
 const multipartSessionOptions = computed(() => multipartSessions.value.map((session) => ({
   label: `${session.upload.key} · ${session.parts.length} parts · ${session.status}`,
@@ -710,6 +936,20 @@ const quotaDraft = reactive<Omit<ObjectQuotaResponse, 'bucket' | 'updatedUtc'>>(
   maxObjectVersions: null,
 });
 
+const semanticOptionsDraft = reactive<{
+  asyncIngestionEnabled: boolean;
+  thumbnailEnabled: boolean;
+  thumbnailMaxWidth: number | null;
+  thumbnailMaxHeight: number | null;
+  thumbnailQuality: number | null;
+}>({
+  asyncIngestionEnabled: false,
+  thumbnailEnabled: false,
+  thumbnailMaxWidth: 320,
+  thumbnailMaxHeight: 320,
+  thumbnailQuality: 80,
+});
+
 const listLimitOptions: SelectOption[] = [
   { label: '50 objects', value: 50 },
   { label: '100 objects', value: 100 },
@@ -732,6 +972,23 @@ const presignMethodOptions: SelectOption[] = [
 ];
 
 const activeBucket = computed(() => props.bucket || localBuckets.value[0]?.name || '');
+
+const processingTagType = computed<'default' | 'error' | 'info' | 'success' | 'warning'>(() => {
+  switch (processingStatus.value?.status) {
+    case 'completed': return 'success';
+    case 'failed': return 'error';
+    case 'processing': return 'warning';
+    case 'pending': return 'info';
+    default: return 'default';
+  }
+});
+
+const canRunSemanticSearch = computed(() => {
+  if (!props.targetDb || searchingSemantic.value) return false;
+  if (semanticSearchMode.value === 'text') return semanticText.value.trim().length > 0;
+  if (semanticSearchMode.value === 'image') return semanticImageFile.value !== null;
+  return similarImageId.value.trim().length > 0;
+});
 
 const selectedBucket = computed({
   get: () => activeBucket.value,
@@ -954,12 +1211,14 @@ async function loadBucketList(): Promise<void> {
 }
 
 async function loadGovernance(bucket: string): Promise<void> {
-  const [nextStats, lifecycle, retention, quota, policy] = await Promise.all([
+  const [nextStats, lifecycle, retention, quota, policy, semanticOptions, runtime] = await Promise.all([
     getBucketStats(auth.api, props.targetDb, bucket),
     getBucketLifecycle(auth.api, props.targetDb, bucket),
     getBucketRetention(auth.api, props.targetDb, bucket),
     getBucketQuota(auth.api, props.targetDb, bucket),
     getBucketPolicy(auth.api, props.targetDb, bucket),
+    getBucketSemanticOptions(auth.api, props.targetDb, bucket),
+    getSemanticSearchStatus(auth.api),
   ]);
   stats.value = nextStats;
   lifecycleDraft.expireCurrentAfterDays = lifecycle.expireCurrentAfterDays ?? null;
@@ -970,6 +1229,13 @@ async function loadGovernance(bucket: string): Promise<void> {
   quotaDraft.maxSizeBytes = quota.maxSizeBytes ?? null;
   quotaDraft.maxObjectVersions = quota.maxObjectVersions ?? null;
   policyDraft.value = policy.policyJson ?? '';
+  semanticOptionsDraft.asyncIngestionEnabled = semanticOptions.asyncIngestionEnabled;
+  semanticOptionsDraft.thumbnailEnabled = semanticOptions.thumbnailEnabled;
+  semanticOptionsDraft.thumbnailMaxWidth = semanticOptions.thumbnailMaxWidth;
+  semanticOptionsDraft.thumbnailMaxHeight = semanticOptions.thumbnailMaxHeight;
+  semanticOptionsDraft.thumbnailQuality = semanticOptions.thumbnailQuality;
+  semanticRuntime.value = runtime;
+  semanticFilterBucket.value = bucket;
 }
 
 async function loadObjects(reset: boolean): Promise<void> {
@@ -1146,6 +1412,170 @@ function clearBucketMetadata(): void {
   retentionDraft.retainNoncurrentForDays = null;
   quotaDraft.maxSizeBytes = null;
   quotaDraft.maxObjectVersions = null;
+  semanticOptionsDraft.asyncIngestionEnabled = false;
+  semanticOptionsDraft.thumbnailEnabled = false;
+  semanticOptionsDraft.thumbnailMaxWidth = 320;
+  semanticOptionsDraft.thumbnailMaxHeight = 320;
+  semanticOptionsDraft.thumbnailQuality = 80;
+  semanticRuntime.value = null;
+  processingStatus.value = null;
+  semanticFilterBucket.value = '';
+  clearSelectedThumbnail();
+  clearSemanticHitUrls();
+  semanticSearchResult.value = null;
+}
+
+async function loadSelectedProcessing(): Promise<void> {
+  const row = selectedObject.value;
+  processingStatus.value = null;
+  clearSelectedThumbnail();
+  if (!row) return;
+  loadingProcessing.value = true;
+  try {
+    const status = await getObjectProcessingStatus(auth.api, props.targetDb, row.bucket, row.key);
+    processingStatus.value = status;
+    if (status.semanticImageId) similarImageId.value = status.semanticImageId;
+    if (status.thumbnailUrl) {
+      const blob = await getObjectThumbnailBlob(auth.api, props.targetDb, row.bucket, row.key);
+      selectedThumbnailUrl.value = URL.createObjectURL(blob);
+    }
+  } catch {
+    // 未开启派生处理或任务尚未创建时保持空状态。
+  } finally {
+    loadingProcessing.value = false;
+  }
+}
+
+async function searchSimilarToSelected(): Promise<void> {
+  const id = processingStatus.value?.semanticImageId;
+  if (!id) return;
+  similarImageId.value = id;
+  semanticSearchMode.value = 'similar';
+  await runSemanticSearch();
+}
+
+function onSemanticFileChange(event: Event): void {
+  const input = event.target as HTMLInputElement;
+  semanticImageFile.value = input.files?.[0] ?? null;
+}
+
+async function runSemanticSearch(): Promise<void> {
+  if (!canRunSemanticSearch.value) return;
+  const metadata = parseKeyValueMap(semanticMetadataText.value);
+  if (!metadata.ok) {
+    errorMsg.value = metadata.message;
+    return;
+  }
+  const tags = parseKeyValueMap(semanticTagsText.value);
+  if (!tags.ok) {
+    errorMsg.value = tags.message;
+    return;
+  }
+
+  const filter = buildSemanticFilter(metadata.value, tags.value);
+  const request = {
+    topK: semanticTopK.value,
+    minScore: semanticMinScore.value,
+    filter,
+    explain: semanticExplain.value,
+  };
+  searchingSemantic.value = true;
+  errorMsg.value = '';
+  const started = performance.now();
+  try {
+    let response: ImageSearchResponse;
+    let command: string;
+    if (semanticSearchMode.value === 'text') {
+      command = `POST /v1/db/${props.targetDb}/images/search/text`;
+      response = await searchImagesByText(auth.api, props.targetDb, semanticText.value.trim(), request);
+    } else if (semanticSearchMode.value === 'image') {
+      command = `POST /v1/db/${props.targetDb}/images/search/image`;
+      response = await searchImagesByImage(auth.api, props.targetDb, semanticImageFile.value!, request);
+    } else {
+      const id = similarImageId.value.trim();
+      command = `POST /v1/db/${props.targetDb}/images/${id}/similar`;
+      response = await searchSimilarImages(auth.api, props.targetDb, id, request);
+    }
+
+    semanticSearchResult.value = response;
+    latestCommand.value = command;
+    latestResult.value = resultFromSemanticHits(response.hits, performanceElapsed(started));
+    ranOnce.value = true;
+    recordHistory(
+      'success',
+      'Semantic image search',
+      'search',
+      command,
+      `${response.hits.length} hits via ${response.backend}`,
+      response.hits.length,
+      -1,
+      performanceElapsed(started),
+    );
+    await loadSemanticHitPreviews(response.hits);
+  } catch (error) {
+    const msg = errorToMessage(error, '图片语义检索失败');
+    errorMsg.value = msg;
+    latestResult.value = errorResult(msg);
+    ranOnce.value = true;
+  } finally {
+    searchingSemantic.value = false;
+  }
+}
+
+function buildSemanticFilter(
+  metadata: Record<string, string>,
+  tags: Record<string, string>,
+): ImageSearchFilter | null {
+  const filter: ImageSearchFilter = {
+    sourceBucket: semanticFilterBucket.value.trim() || null,
+    sourceKeyPrefix: semanticFilterPrefix.value.trim() || null,
+    contentType: semanticFilterContentType.value.trim() || null,
+    metadata: Object.keys(metadata).length > 0 ? metadata : null,
+    tags: Object.keys(tags).length > 0 ? tags : null,
+  };
+  return filter.sourceBucket
+    || filter.sourceKeyPrefix
+    || filter.contentType
+    || filter.metadata
+    || filter.tags
+    ? filter
+    : null;
+}
+
+function selectSemanticHit(hit: ImageSearchHit): void {
+  similarImageId.value = hit.id;
+  semanticSearchMode.value = 'similar';
+  if (hit.sourceBucket === activeBucket.value && hit.sourceKey) {
+    const row = rows.value.find((item) => item.key === hit.sourceKey);
+    if (row) selectedKey.value = row.key;
+  }
+}
+
+async function loadSemanticHitPreviews(hits: ImageSearchHit[]): Promise<void> {
+  clearSemanticHitUrls();
+  await Promise.all(hits.slice(0, 24).map(async (hit) => {
+    const source = hit.thumbnailUrl || hit.contentUrl;
+    if (!source) return;
+    try {
+      const blob = await getProtectedImageBlob(auth.api, source);
+      semanticHitUrls.value = {
+        ...semanticHitUrls.value,
+        [hit.id]: URL.createObjectURL(blob),
+      };
+    } catch {
+      // 单张预览失败不影响其余检索结果和相似度信息。
+    }
+  }));
+}
+
+function clearSelectedThumbnail(): void {
+  if (selectedThumbnailUrl.value) URL.revokeObjectURL(selectedThumbnailUrl.value);
+  selectedThumbnailUrl.value = '';
+}
+
+function clearSemanticHitUrls(): void {
+  for (const url of Object.values(semanticHitUrls.value)) URL.revokeObjectURL(url);
+  semanticHitUrls.value = {};
 }
 
 async function loadPreview(versionId?: string | null): Promise<void> {
@@ -1418,6 +1848,83 @@ function stageApplyLifecycle(): void {
       const response = await applyBucketLifecycle(auth.api, props.targetDb, bucket);
       const affected = response.expiredCurrentObjects + response.removedNoncurrentVersions + response.removedDeleteMarkers;
       return { action: 'bucket.lifecycle.apply', target: bucket, succeeded: true, affected, detail: `${affected} versions/markers affected` };
+    },
+  }];
+}
+
+function stageSetSemanticOptions(): void {
+  const bucket = activeBucket.value;
+  if (!bucket) return;
+  pendingOperations.value = [{
+    id: makeOperationId('bucket_semantic_options'),
+    label: 'Set semantic image options',
+    detail: bucket,
+    severity: 'write',
+    command: `PUT /v1/db/${props.targetDb}/s3/${bucket}?semantic`,
+    run: async () => {
+      const response = await setBucketSemanticOptions(auth.api, props.targetDb, bucket, {
+        asyncIngestionEnabled: semanticOptionsDraft.asyncIngestionEnabled,
+        thumbnailEnabled: semanticOptionsDraft.thumbnailEnabled,
+        thumbnailMaxWidth: semanticOptionsDraft.thumbnailMaxWidth ?? 320,
+        thumbnailMaxHeight: semanticOptionsDraft.thumbnailMaxHeight ?? 320,
+        thumbnailQuality: semanticOptionsDraft.thumbnailQuality ?? 80,
+      });
+      return {
+        action: 'bucket.semantic.set',
+        target: bucket,
+        succeeded: true,
+        affected: 1,
+        detail: `ingestion=${response.asyncIngestionEnabled}, thumbnail=${response.thumbnailEnabled}`,
+      };
+    },
+  }];
+}
+
+function stageSemanticBackfill(): void {
+  const bucket = activeBucket.value;
+  if (!bucket) return;
+  pendingOperations.value = [{
+    id: makeOperationId('bucket_semantic_backfill'),
+    label: 'Backfill semantic images',
+    detail: bucket,
+    severity: 'write',
+    command: `POST /v1/db/${props.targetDb}/s3/${bucket}?semantic`,
+    run: async () => {
+      const response = await backfillBucketSemanticObjects(auth.api, props.targetDb, bucket);
+      return {
+        action: 'bucket.semantic.backfill',
+        target: bucket,
+        succeeded: true,
+        affected: response.queuedObjects,
+        detail: `${response.queuedObjects}/${response.scannedObjects} queued`,
+      };
+    },
+  }];
+}
+
+function stageRequeueSelectedObject(): void {
+  const row = selectedObject.value;
+  if (!row) return;
+  pendingOperations.value = [{
+    id: makeOperationId('object_semantic_requeue'),
+    label: 'Requeue image processing',
+    detail: row.key,
+    severity: 'write',
+    command: `POST /v1/db/${props.targetDb}/s3/${row.bucket}/${row.key}?processing`,
+    run: async () => {
+      processingStatus.value = await enqueueObjectProcessing(
+        auth.api,
+        props.targetDb,
+        row.bucket,
+        row.key,
+      );
+      return {
+        action: 'object.semantic.requeue',
+        target: row.key,
+        succeeded: true,
+        affected: 1,
+        detail: processingStatus.value.jobId,
+      };
     },
   }];
 }
@@ -1794,6 +2301,25 @@ function resultFromObjects(objects: ObjectRow[], elapsedMs: number): SqlResultSe
   };
 }
 
+function resultFromSemanticHits(hits: ImageSearchHit[], elapsedMs: number): SqlResultSet {
+  return {
+    columns: ['id', 'score', 'distance', 'bucket', 'key', 'contentType', 'sizeBytes', 'updatedUtc'],
+    rows: hits.map((hit) => [
+      hit.id,
+      hit.score,
+      hit.distance,
+      hit.sourceBucket ?? null,
+      hit.sourceKey ?? hit.fileName ?? null,
+      hit.contentType,
+      hit.sizeBytes,
+      hit.updatedUtc,
+    ]),
+    end: { type: 'end', rowCount: hits.length, recordsAffected: -1, elapsedMs },
+    error: null,
+    hasColumns: true,
+  };
+}
+
 function resultFromOutcomes(outcomes: OperationOutcome[], elapsedMs: number): SqlResultSet {
   return {
     columns: ['action', 'target', 'succeeded', 'affected', 'detail'],
@@ -1925,7 +2451,7 @@ function recordHistory(
   elapsedMs: number,
 ): void {
   history.record({
-    kind: action === 'browse' ? 'query' : 'operation',
+    kind: action === 'browse' || action === 'search' ? 'query' : 'operation',
     status,
     title,
     target: activeBucket.value,
@@ -1982,6 +2508,8 @@ watch(selectedObject, async (row) => {
   versions.value = [];
   legalHoldEnabled.value = false;
   legalHoldReason.value = '';
+  processingStatus.value = null;
+  clearSelectedThumbnail();
   if (row) {
     try {
       const [tags, hold] = await Promise.all([
@@ -1995,11 +2523,17 @@ watch(selectedObject, async (row) => {
       // 对象可能在列表后被删除，下一次 refresh 会同步状态。
     }
     await loadVersions(row.key);
+    await loadSelectedProcessing();
   }
 });
 
 onMounted(() => {
   void refreshAll();
+});
+
+onBeforeUnmount(() => {
+  clearSelectedThumbnail();
+  clearSemanticHitUrls();
 });
 </script>
 
@@ -2394,6 +2928,183 @@ onMounted(() => {
   grid-template-columns: minmax(0, 1fr) 86px auto;
 }
 
+.object-semantic-section {
+  gap: 12px;
+}
+
+.object-semantic-switches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.object-semantic-switches label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--sndb-ink-strong);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.object-semantic-runtime {
+  font-size: 11px;
+}
+
+.object-semantic-current {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+}
+
+.object-thumbnail-frame,
+.object-semantic-hit__preview {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 5px;
+  background: #f1f5f5;
+  color: var(--sndb-ink-soft);
+}
+
+.object-thumbnail-frame {
+  width: 58px;
+  height: 58px;
+}
+
+.object-thumbnail-frame img,
+.object-semantic-hit__preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.object-semantic-current__meta {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--sndb-ink-soft);
+  font-size: 11px;
+}
+
+.object-semantic-current__meta strong,
+.object-semantic-id {
+  overflow: hidden;
+  color: var(--sndb-ink-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.object-semantic-current__actions {
+  grid-column: 1 / -1;
+}
+
+.object-semantic-search {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 10px 0;
+  border-top: 1px solid rgba(15, 23, 42, 0.1);
+}
+
+.object-semantic-search__head,
+.object-semantic-result-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.object-semantic-query-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.object-semantic-results {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 0;
+  padding-top: 4px;
+}
+
+.object-semantic-result-summary {
+  justify-content: flex-start;
+  color: var(--sndb-ink-soft);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.object-semantic-result-summary span {
+  padding-right: 8px;
+  border-right: 1px solid rgba(15, 23, 42, 0.14);
+}
+
+.object-semantic-result-summary span:last-child {
+  border-right: 0;
+}
+
+.object-semantic-hit {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto 16px;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  padding: 6px 4px;
+  border: 0;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.object-semantic-hit:hover {
+  background: rgba(13, 59, 102, 0.06);
+}
+
+.object-semantic-hit__preview {
+  width: 38px;
+  height: 38px;
+}
+
+.object-semantic-hit__body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.object-semantic-hit__body strong,
+.object-semantic-hit__body small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.object-semantic-hit__body strong {
+  color: var(--sndb-ink-strong);
+  font-size: 12px;
+}
+
+.object-semantic-hit__body small {
+  color: var(--sndb-ink-soft);
+  font-size: 10px;
+}
+
+.object-semantic-hit__score {
+  color: var(--sndb-brand);
+  font-family: "SFMono-Regular", "Cascadia Code", Consolas, monospace;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .object-preview {
   min-height: 150px;
   max-height: 260px;
@@ -2521,6 +3232,11 @@ onMounted(() => {
     overflow: visible;
   }
 
+  .object-body.is-focused {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 10px;
+  }
+
   .object-nav,
   .object-inspector {
     border-right: 0;
@@ -2545,6 +3261,16 @@ onMounted(() => {
   .object-form-row--hold,
   .object-form-row--audit {
     grid-template-columns: 1fr;
+  }
+
+  .object-semantic-query-options {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .object-semantic-section {
+    padding-right: 56px;
   }
 }
 </style>

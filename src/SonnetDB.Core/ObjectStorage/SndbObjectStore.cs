@@ -20,6 +20,7 @@ public sealed class SndbObjectStore
     private const string LifecyclePrefix = "lifecycle:";
     private const string RetentionPrefix = "retention:";
     private const string QuotaPrefix = "quota:";
+    private const string SemanticOptionsPrefix = "semantic-options:";
     private const string LegalHoldPrefix = "legalhold:";
     private const string AuditPrefix = "audit:";
     private const string UploadPrefix = "multipart:";
@@ -113,6 +114,7 @@ public sealed class SndbObjectStore
             _metadata.Delete(LifecycleKey(bucket));
             _metadata.Delete(RetentionKey(bucket));
             _metadata.Delete(QuotaKey(bucket));
+            _metadata.Delete(SemanticOptionsKey(bucket));
             AppendAudit("bucket.delete", bucket, null, null);
         }
 
@@ -513,6 +515,7 @@ public sealed class SndbObjectStore
         int expiredCurrent = 0;
         int removedNoncurrent = 0;
         int removedDeleteMarkers = 0;
+        var expiredObjects = new List<SndbLifecycleExpiredObject>();
         foreach (var version in versions)
         {
             bool isLatest = latestByKey.TryGetValue(version.Key, out string? latestVersion)
@@ -539,6 +542,10 @@ public sealed class SndbObjectStore
                         continue;
 
                     DeleteObject(bucket, version.Key);
+                    expiredObjects.Add(new SndbLifecycleExpiredObject(
+                        version.Key,
+                        version.VersionId,
+                        version.ContentType));
                     expiredCurrent++;
                 }
                 continue;
@@ -560,7 +567,10 @@ public sealed class SndbObjectStore
             ["removedNoncurrentVersions"] = removedNoncurrent.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["removedDeleteMarkers"] = removedDeleteMarkers.ToString(System.Globalization.CultureInfo.InvariantCulture),
         });
-        return new SndbBucketLifecycleApplyResult(bucket, expiredCurrent, removedNoncurrent, removedDeleteMarkers);
+        return new SndbBucketLifecycleApplyResult(bucket, expiredCurrent, removedNoncurrent, removedDeleteMarkers)
+        {
+            ExpiredObjects = expiredObjects,
+        };
     }
 
     /// <summary>
@@ -634,6 +644,70 @@ public sealed class SndbObjectStore
             ["maxObjectVersions"] = maxObjectVersions?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
         });
         return ToQuotaInfo(record);
+    }
+
+    /// <summary>
+    /// 获取 Bucket 图片语义摄取与缩略图选项；未配置时返回全关闭默认值。
+    /// </summary>
+    public SndbBucketSemanticOptionsInfo GetSemanticOptions(string bucket)
+    {
+        EnsureBucket(bucket);
+        var entry = _metadata.GetEntry(SemanticOptionsKey(bucket));
+        if (entry is null)
+        {
+            return new SndbBucketSemanticOptionsInfo(
+                bucket,
+                AsyncIngestionEnabled: false,
+                ThumbnailEnabled: false,
+                ThumbnailMaxWidth: 320,
+                ThumbnailMaxHeight: 320,
+                ThumbnailQuality: 80,
+                DateTimeOffset.MinValue);
+        }
+
+        var record = Deserialize(
+            entry.Value.Span,
+            SndbObjectStoreJsonContext.Default.SndbBucketSemanticOptionsRecord);
+        return ToSemanticOptionsInfo(record);
+    }
+
+    /// <summary>
+    /// 设置 Bucket 图片语义摄取与缩略图选项；功能保持显式 opt-in。
+    /// </summary>
+    public SndbBucketSemanticOptionsInfo SetSemanticOptions(
+        string bucket,
+        bool asyncIngestionEnabled,
+        bool thumbnailEnabled,
+        int thumbnailMaxWidth,
+        int thumbnailMaxHeight,
+        int thumbnailQuality)
+    {
+        EnsureBucket(bucket);
+        ValidateThumbnailDimension(thumbnailMaxWidth, nameof(thumbnailMaxWidth));
+        ValidateThumbnailDimension(thumbnailMaxHeight, nameof(thumbnailMaxHeight));
+        if (thumbnailQuality is < 1 or > 100)
+            throw new ArgumentOutOfRangeException(nameof(thumbnailQuality), "缩略图质量必须位于 1 到 100。");
+
+        var record = new SndbBucketSemanticOptionsRecord(
+            bucket,
+            asyncIngestionEnabled,
+            thumbnailEnabled,
+            thumbnailMaxWidth,
+            thumbnailMaxHeight,
+            thumbnailQuality,
+            DateTimeOffset.UtcNow);
+        _metadata.Put(
+            SemanticOptionsKey(bucket),
+            Serialize(record, SndbObjectStoreJsonContext.Default.SndbBucketSemanticOptionsRecord));
+        AppendAudit("bucket.semantic_options.set", bucket, null, null, new Dictionary<string, string>
+        {
+            ["asyncIngestionEnabled"] = asyncIngestionEnabled ? "true" : "false",
+            ["thumbnailEnabled"] = thumbnailEnabled ? "true" : "false",
+            ["thumbnailMaxWidth"] = thumbnailMaxWidth.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["thumbnailMaxHeight"] = thumbnailMaxHeight.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["thumbnailQuality"] = thumbnailQuality.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        });
+        return ToSemanticOptionsInfo(record);
     }
 
     /// <summary>
@@ -1148,6 +1222,17 @@ public sealed class SndbObjectStore
             record.MaxObjectVersions,
             record.UpdatedUtc);
 
+    private static SndbBucketSemanticOptionsInfo ToSemanticOptionsInfo(
+        SndbBucketSemanticOptionsRecord record) =>
+        new(
+            record.Bucket,
+            record.AsyncIngestionEnabled,
+            record.ThumbnailEnabled,
+            record.ThumbnailMaxWidth,
+            record.ThumbnailMaxHeight,
+            record.ThumbnailQuality,
+            record.UpdatedUtc);
+
     private static SndbObjectLegalHoldInfo ToLegalHoldInfo(SndbObjectLegalHoldRecord record) =>
         new(
             record.Bucket,
@@ -1445,6 +1530,8 @@ public sealed class SndbObjectStore
 
     private static string QuotaKey(string bucket) => QuotaPrefix + bucket;
 
+    private static string SemanticOptionsKey(string bucket) => SemanticOptionsPrefix + bucket;
+
     private static string LegalHoldKey(string bucket, string key, string versionId) =>
         LegalHoldPrefix + bucket + "/" + EscapeKey(key) + "/" + versionId;
 
@@ -1593,6 +1680,16 @@ public sealed class SndbObjectStore
     {
         if (value is < 0)
             throw new ArgumentOutOfRangeException(parameterName, "Quota cannot be negative.");
+    }
+
+    private static void ValidateThumbnailDimension(int value, string parameterName)
+    {
+        if (value is < 16 or > 4_096)
+        {
+            throw new ArgumentOutOfRangeException(
+                parameterName,
+                "缩略图宽高必须位于 16 到 4096 像素。");
+        }
     }
 
     private static bool IsRetained(DateTimeOffset createdUtc, int? days)

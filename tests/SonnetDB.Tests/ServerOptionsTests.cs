@@ -21,6 +21,36 @@ public sealed class ServerOptionsTests
         Assert.False(options.Observability.DiagnosticDump.Enabled);
         Assert.Equal(4, options.SqlHttpAdmission.PermitLimit);
         Assert.Equal(8, options.SqlHttpAdmission.QueueLimit);
+        Assert.False(options.SemanticSearch.Enabled);
+        Assert.Equal("auto", options.SemanticSearch.Backend);
+        Assert.Equal(768, options.SemanticSearch.Dimensions);
+        Assert.Equal("input_ids", options.SemanticSearch.TextInputName);
+        Assert.Equal("pooler_output", options.SemanticSearch.TextOutputName);
+        Assert.Equal("pixel_values", options.SemanticSearch.VisionInputName);
+        Assert.Equal("pooler_output", options.SemanticSearch.VisionOutputName);
+    }
+
+    [Fact]
+    public void Bind_WithSemanticSearchValues_AppliesAndBoundsConfiguration()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SonnetDBServer:SemanticSearch:Enabled"] = "true",
+                ["SonnetDBServer:SemanticSearch:Backend"] = "usearch",
+                ["SonnetDBServer:SemanticSearch:Dimensions"] = "768",
+                ["SonnetDBServer:SemanticSearch:DefaultTopK"] = "5000",
+                ["SonnetDBServer:SemanticSearch:MaxTopK"] = "12",
+            })
+            .Build();
+
+        var options = ServerOptionsBinder.Bind(configuration).SemanticSearch;
+
+        Assert.True(options.Enabled);
+        Assert.Equal("usearch", options.Backend);
+        Assert.Equal(768, options.Dimensions);
+        Assert.Equal(12, options.MaxTopK);
+        Assert.Equal(12, options.DefaultTopK);
     }
 
     [Fact]

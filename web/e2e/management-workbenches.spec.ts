@@ -592,6 +592,52 @@ test('object workbench restores a persisted multipart session and parts', async 
   await expect(surface.locator('tbody tr')).toHaveCount(2);
 });
 
+test('object workbench configures and searches semantic images', async ({ page }) => {
+  await page.goto('/admin/app/sql?tool=bucket');
+  const surface = page.getByTestId('workbench-bucket');
+  await surface.locator('.workbench-section-tabs').getByRole('button', { name: '图片语义', exact: true }).click();
+
+  await expect(surface).toContainText('异步摄取与缩略图');
+  await expect(surface).toContainText('usearch');
+  await expect(surface).toContainText('siglip2-onnx');
+  await expect(surface.getByText('异步语义摄取', { exact: true })).toBeVisible();
+  await expect(surface.getByText('生成 WebP 缩略图', { exact: true })).toBeVisible();
+
+  await surface.getByPlaceholder('例如：夜间车道上的红色重型卡车').fill('红色重型卡车');
+  await surface.getByRole('button', { name: '执行检索', exact: true }).click();
+  await expect(surface).toContainText('captures/line-1.jpg');
+  await expect(surface).toContainText('1 / 24 candidates');
+  await expect(surface).toContainText('exact-filtered');
+  if (process.env.SONNETDB_CAPTURE_M35 === '1') {
+    await captureM35(page, 'semantic-images-desktop');
+    await surface.locator('.object-semantic-section').evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+    await captureM35(page, 'semantic-images-results-desktop');
+  }
+});
+
+test('semantic image workbench remains usable at the narrow desktop breakpoint', async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 900 });
+  await page.goto('/admin/app/sql?tool=bucket');
+  const collapseExplorer = page.getByTitle('收起资源浏览器');
+  if (await collapseExplorer.isVisible()) await collapseExplorer.click();
+  const surface = page.getByTestId('workbench-bucket');
+  await surface.locator('.workbench-section-tabs').getByRole('button', { name: '图片语义', exact: true }).click();
+  await expect(surface.getByRole('button', { name: '执行检索', exact: true })).toBeVisible();
+  await expect(page.locator('html')).not.toHaveCSS('overflow-x', 'scroll');
+});
+
+test('semantic image workbench fits a mobile viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/admin/app/sql?tool=bucket');
+  const surface = page.getByTestId('workbench-bucket');
+  await surface.locator('.workbench-section-tabs').getByRole('button', { name: '图片语义', exact: true }).click();
+  await expect(surface.getByRole('button', { name: '执行检索', exact: true })).toBeVisible();
+  await expect(page.locator('html')).not.toHaveCSS('overflow-x', 'scroll');
+  if (process.env.SONNETDB_CAPTURE_M35 === '1') await captureM35(page, 'semantic-images-mobile');
+});
+
 async function mockManagementContracts(page: Page): Promise<void> {
   await page.route('**/v1/**', async (route) => {
     const request = route.request();
@@ -600,6 +646,19 @@ async function mockManagementContracts(page: Page): Promise<void> {
 
     if (path === '/v1/setup/status') {
       return json(route, { needsSetup: false, suggestedServerId: 'sndb-e2e', serverId: 'sndb-e2e', organization: 'SonnetDB E2E', userCount: 1, databaseCount: 1 });
+    }
+    if (path === '/v1/semantic-search/status') {
+      return json(route, {
+        enabled: true,
+        ready: true,
+        provider: 'siglip2-onnx',
+        profile: 'siglip2-so400m-patch14-384',
+        dimensions: 1152,
+        configuredBackend: 'auto',
+        effectiveBackend: 'usearch',
+        capabilities: ['text-to-image', 'image-to-image'],
+        reason: null,
+      });
     }
     if (path === '/v1/db') return json(route, { databases: [database] });
     if (path === `/v1/db/${database}/schema`) return json(route, schema);
@@ -656,6 +715,37 @@ async function mockManagementContracts(page: Page): Promise<void> {
     }
     if (path === `/v1/db/${database}/s3` && url.search === '') return json(route, buckets);
     if (path === `/v1/db/${database}/s3/inspection-media`) return mockBucketRequest(route, url);
+    if (path === `/v1/db/${database}/images/search/text`) {
+      return json(route, {
+        queryKind: 'text',
+        profile: 'siglip2-so400m-patch14-384',
+        backend: 'exact-filtered',
+        searchMode: 'exact-filtered',
+        candidateCount: 24,
+        filteredCandidateCount: 1,
+        hits: [{
+          id: 'obj-e2e-line-1',
+          score: 0.9231,
+          distance: 0.0769,
+          fileName: 'line-1.jpg',
+          contentType: 'image/jpeg',
+          sizeBytes: 2048,
+          sha256: 'semantic-e2e-sha',
+          sourceUri: null,
+          contentUrl: `/v1/db/${database}/images/obj-e2e-line-1/content`,
+          updatedUtc: now,
+          sourceBucket: 'inspection-media',
+          sourceKey: 'captures/line-1.jpg',
+          sourceVersionId: 'v1',
+          thumbnailUrl: null,
+          metadata: { line: '1' },
+          tags: { class: 'truck' },
+        }],
+      });
+    }
+    if (path === `/v1/db/${database}/images/obj-e2e-line-1/content`) {
+      return route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+    }
 
     return json(route, { code: 'e2e_contract_not_mocked', message: `${request.method()} ${path}${url.search}` }, 501);
   });
@@ -729,6 +819,20 @@ async function mockBucketRequest(route: Route, url: URL): Promise<void> {
   if (url.searchParams.has('stats')) {
     return json(route, { bucket: 'inspection-media', currentObjectCount: 1, currentSizeBytes: 2048, objectVersionCount: 1, objectVersionSizeBytes: 2048, deleteMarkerCount: 0, multipartUploadCount: 0, multipartPartCount: 0, multipartPartSizeBytes: 0, quotaMaxSizeBytes: 10485760, quotaMaxObjectVersions: 1000, quotaRemainingSizeBytes: 10483712, quotaRemainingObjectVersions: 999 });
   }
+  if (url.searchParams.has('semantic')) {
+    if (route.request().method() === 'POST') {
+      return json(route, { bucket: 'inspection-media', scannedObjects: 1, queuedObjects: 1, skippedObjects: 0 });
+    }
+    return json(route, {
+      bucket: 'inspection-media',
+      asyncIngestionEnabled: false,
+      thumbnailEnabled: false,
+      thumbnailMaxWidth: 320,
+      thumbnailMaxHeight: 320,
+      thumbnailQuality: 80,
+      updatedUtc: now,
+    });
+  }
   if (url.searchParams.has('lifecycle')) return json(route, { bucket: 'inspection-media', expireCurrentAfterDays: 90, expireNoncurrentAfterDays: 30, expireDeleteMarkerAfterDays: 7, updatedUtc: now });
   if (url.searchParams.has('retention')) return json(route, { bucket: 'inspection-media', retainCurrentForDays: 30, retainNoncurrentForDays: 7, updatedUtc: now });
   if (url.searchParams.has('quota')) return json(route, { bucket: 'inspection-media', maxSizeBytes: 10485760, maxObjectVersions: 1000, updatedUtc: now });
@@ -772,6 +876,12 @@ async function ndjson(route: Route): Promise<void> {
 
 async function captureM29(page: Page, name: string): Promise<void> {
   const directory = resolve(process.cwd(), '../output/playwright/m29-implementation');
+  mkdirSync(directory, { recursive: true });
+  await page.screenshot({ path: resolve(directory, `${name}.png`), fullPage: true });
+}
+
+async function captureM35(page: Page, name: string): Promise<void> {
+  const directory = resolve(process.cwd(), '../output/playwright/semantic-images');
   mkdirSync(directory, { recursive: true });
   await page.screenshot({ path: resolve(directory, `${name}.png`), fullPage: true });
 }

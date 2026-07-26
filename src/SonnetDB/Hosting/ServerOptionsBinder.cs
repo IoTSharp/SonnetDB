@@ -62,6 +62,19 @@ internal static class ServerOptionsBinder
             options.SqlHttpAdmission.QueueLimit,
             0,
             4096);
+
+        options.SemanticSearch.Dimensions = Math.Clamp(options.SemanticSearch.Dimensions, 1, 65_536);
+        options.SemanticSearch.MaxTextTokens = Math.Clamp(options.SemanticSearch.MaxTextTokens, 2, 4_096);
+        options.SemanticSearch.ImageSize = Math.Clamp(options.SemanticSearch.ImageSize, 16, 4_096);
+        options.SemanticSearch.MaxImageBytes = Math.Clamp(
+            options.SemanticSearch.MaxImageBytes,
+            1,
+            512 * 1024 * 1024);
+        options.SemanticSearch.MaxTopK = Math.Clamp(options.SemanticSearch.MaxTopK, 1, 1_000);
+        options.SemanticSearch.DefaultTopK = Math.Clamp(
+            options.SemanticSearch.DefaultTopK,
+            1,
+            options.SemanticSearch.MaxTopK);
     }
 
     private static void ApplyLegacySlowQueryOptions(IConfigurationSection serverSection, ServerOptions options)

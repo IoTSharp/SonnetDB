@@ -85,6 +85,74 @@ public sealed class ServerOptions
     /// Copilot 子系统配置。
     /// </summary>
     public CopilotOptions Copilot { get; set; } = new();
+
+    /// <summary>
+    /// 语义图片检索配置。模型文件由部署者提供，SonnetDB 不在运行时下载模型。
+    /// </summary>
+    public SemanticSearchOptions SemanticSearch { get; set; } = new();
+}
+
+/// <summary>
+/// SigLIP2 文本/图片 embedding 与图片检索配置。
+/// </summary>
+public sealed class SemanticSearchOptions
+{
+    /// <summary>是否启用语义图片检索端点。默认关闭。</summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>多模态 provider 名称。当前支持 <c>siglip2-onnx</c>。</summary>
+    public string Provider { get; set; } = "siglip2-onnx";
+
+    /// <summary>写入图片索引的 embedding profile 标识。</summary>
+    public string Profile { get; set; } = "siglip2-base-patch16-224";
+
+    /// <summary>SigLIP2 文本编码器 ONNX 文件路径。</summary>
+    public string TextModelPath { get; set; } = string.Empty;
+
+    /// <summary>SigLIP2 视觉编码器 ONNX 文件路径。</summary>
+    public string VisionModelPath { get; set; } = string.Empty;
+
+    /// <summary>SentencePiece <c>tokenizer.model</c> 文件路径。</summary>
+    public string TokenizerModelPath { get; set; } = string.Empty;
+
+    /// <summary>文本与图片 embedding 维度。SigLIP2 base 默认 768。</summary>
+    public int Dimensions { get; set; } = 768;
+
+    /// <summary>文本编码最大 token 数，包含 EOS 与右侧 padding。</summary>
+    public int MaxTextTokens { get; set; } = 64;
+
+    /// <summary>输入图片统一缩放的宽高。SigLIP2 patch16-224 默认 224。</summary>
+    public int ImageSize { get; set; } = 224;
+
+    /// <summary>单张输入图片最大字节数。默认 20 MiB。</summary>
+    public int MaxImageBytes { get; set; } = 20 * 1024 * 1024;
+
+    /// <summary>文本模型输入 tensor 名称。</summary>
+    public string TextInputName { get; set; } = "input_ids";
+
+    /// <summary>文本模型输出 tensor 名称。</summary>
+    public string TextOutputName { get; set; } = "pooler_output";
+
+    /// <summary>视觉模型输入 tensor 名称。</summary>
+    public string VisionInputName { get; set; } = "pixel_values";
+
+    /// <summary>视觉模型输出 tensor 名称。</summary>
+    public string VisionOutputName { get; set; } = "pooler_output";
+
+    /// <summary>
+    /// ANN 后端。支持 <c>auto</c>、<c>managed</c> 与 <c>usearch</c>；默认在受支持平台优先
+    /// USearch，否则使用托管 HNSW。
+    /// </summary>
+    public string Backend { get; set; } = "auto";
+
+    /// <summary>USearch 不受当前 RID 支持或加载失败时，是否回退到托管 HNSW。</summary>
+    public bool FallbackToManaged { get; set; } = true;
+
+    /// <summary>搜索默认返回条数。</summary>
+    public int DefaultTopK { get; set; } = 10;
+
+    /// <summary>单次搜索允许的最大返回条数。</summary>
+    public int MaxTopK { get; set; } = 100;
 }
 
 /// <summary>

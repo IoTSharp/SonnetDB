@@ -27,6 +27,7 @@
   </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/SonnetDB.EcosystemSample/SonnetDB.EcosystemSample.csproj" />
+    <Project Path="samples/SonnetDB.SemanticImages/SonnetDB.SemanticImages.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/SonnetDB.Accuracy.Tests/SonnetDB.Accuracy.Tests.csproj" />

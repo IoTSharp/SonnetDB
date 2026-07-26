@@ -230,6 +230,7 @@ README 只保留项目概览和最短入门路径，完整说明在专题文档�
 | VS Code 扩展安装、连接与开发 | [从 Marketplace 安装](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode)、[SonnetDB for VS Code](extensions/sonnetdb-vscode/README.md) |
 | 嵌入式 API、ADO.NET、EF Core、CLI | [嵌入式 API](docs/embedded-api.md)、[ADO.NET](docs/ado-net.md)、[CLI](docs/cli-reference.md) |
 | .NET 生态接入与 Profile 边界 | [生态接入](docs/ecosystem-integration.md)、[可运行样例](samples/SonnetDB.EcosystemSample/README.md) |
+| SigLIP2 文搜图、图搜图与 Bucket 异步摄取 | [语义图片检索](docs/semantic-image-search.md)、[工业图片样例](samples/SonnetDB.SemanticImages/README.md) |
 | 批量写入、Line Protocol、JSON ingest | [批量写入](docs/bulk-ingest.md) |
 | KV、文档、全文、向量、Hybrid Search | [KV Keyspace](docs/kv-keyspace.md)、[Document Store](docs/document-store.md)、[向量搜索](docs/vector-search.md) |
 | 二进制帧协议、MQTT 与 Sparkplug B 接入 | [帧协议](docs/frame-protocol.md)、[Sparkplug B](docs/sparkplug-b.md) |

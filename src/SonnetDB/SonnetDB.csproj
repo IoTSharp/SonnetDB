@@ -50,6 +50,11 @@
     <PackageReference Include="Microsoft.Extensions.AI" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime" />
+    <!-- M35：SigLIP2 的 SentencePiece tokenizer 与纯托管图片预处理；Core 仍保持零第三方依赖。 -->
+    <PackageReference Include="Microsoft.ML.Tokenizers" />
+    <PackageReference Include="SixLabors.ImageSharp" />
+    <!-- USearch 仅作为受平台限制的可选派生 ANN 后端，不替代默认的托管 HNSW。 -->
+    <PackageReference Include="Cloud.Unum.USearch" />
     <PackageReference Include="Snappier" />
     <!-- M17 #90：OTel 引导 + OTLP/Console exporter。仅 Server 程序集；Core 保持零第三方。 -->
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" />

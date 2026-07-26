@@ -141,7 +141,21 @@ public sealed record ObjectLifecycleApplyResponse(
     string Bucket,
     int ExpiredCurrentObjects,
     int RemovedNoncurrentVersions,
-    int RemovedDeleteMarkers);
+    int RemovedDeleteMarkers)
+{
+    /// <summary>本次执行中过期的当前对象身份。</summary>
+    public IReadOnlyList<ObjectLifecycleExpiredObjectResponse> ExpiredObjects { get; init; }
+        = Array.Empty<ObjectLifecycleExpiredObjectResponse>();
+
+    /// <summary>为语义索引和缩略图排入的清理任务数量。</summary>
+    public int SemanticCleanupJobs { get; init; }
+}
+
+/// <summary>生命周期执行中过期的当前对象身份。</summary>
+public sealed record ObjectLifecycleExpiredObjectResponse(
+    string Key,
+    string VersionId,
+    string ContentType);
 
 /// <summary>Bucket 对象保留策略请求。</summary>
 public sealed record ObjectRetentionRequest(
@@ -176,6 +190,49 @@ public sealed record ObjectQuotaResponse(
     long? MaxSizeBytes,
     long? MaxObjectVersions,
     DateTimeOffset UpdatedUtc);
+
+/// <summary>
+/// Bucket 图片语义摄取与缩略图选项请求；所有派生处理默认关闭。
+/// </summary>
+/// <param name="AsyncIngestionEnabled">是否异步生成图片 embedding 并加入语义索引。</param>
+/// <param name="ThumbnailEnabled">是否异步生成 WebP 缩略图。</param>
+/// <param name="ThumbnailMaxWidth">缩略图最大宽度。</param>
+/// <param name="ThumbnailMaxHeight">缩略图最大高度。</param>
+/// <param name="ThumbnailQuality">WebP 有损质量，范围 1 到 100。</param>
+public sealed record ObjectBucketSemanticOptionsRequest(
+    bool AsyncIngestionEnabled = false,
+    bool ThumbnailEnabled = false,
+    int ThumbnailMaxWidth = 320,
+    int ThumbnailMaxHeight = 320,
+    int ThumbnailQuality = 80);
+
+/// <summary>
+/// Bucket 图片语义摄取与缩略图选项响应。
+/// </summary>
+/// <param name="Bucket">Bucket 名称。</param>
+/// <param name="AsyncIngestionEnabled">是否异步生成图片 embedding。</param>
+/// <param name="ThumbnailEnabled">是否异步生成 WebP 缩略图。</param>
+/// <param name="ThumbnailMaxWidth">缩略图最大宽度。</param>
+/// <param name="ThumbnailMaxHeight">缩略图最大高度。</param>
+/// <param name="ThumbnailQuality">WebP 质量。</param>
+/// <param name="UpdatedUtc">最近更新时间；未配置时为 Unix Epoch。</param>
+public sealed record ObjectBucketSemanticOptionsResponse(
+    string Bucket,
+    bool AsyncIngestionEnabled,
+    bool ThumbnailEnabled,
+    int ThumbnailMaxWidth,
+    int ThumbnailMaxHeight,
+    int ThumbnailQuality,
+    DateTimeOffset UpdatedUtc);
+
+/// <summary>
+/// 对 Bucket 当前可见对象执行语义摄取/缩略图补录的结果。
+/// </summary>
+public sealed record ObjectBucketSemanticBackfillResponse(
+    string Bucket,
+    int ScannedObjects,
+    int QueuedObjects,
+    int SkippedObjects);
 
 /// <summary>Bucket 容量统计响应。</summary>
 public sealed record ObjectStatsResponse(

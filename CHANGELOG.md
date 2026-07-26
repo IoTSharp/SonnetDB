@@ -36,6 +36,9 @@
 
 ### Added
 
+- 新增 SigLIP2 ONNX 多模态 embedding provider 与语义图片 REST API，支持图片摄取、原图/缩略图读取、文搜图、图搜图、similar-by-id、metadata/tag/source 过滤、按需 explain 和删除；原图复用 Object Bucket，profile 隔离的元数据与向量复用 Document/HNSW 持久化索引。ANN 默认使用 `auto`：官方 USearch 原生资产可用时启用 USearch，其他 RID 或加载失败时回退到纯托管 HNSW；带过滤条件时使用完整精确余弦扫描保证召回。Bucket 新增默认关闭的异步语义摄取与 WebP 缩略图选项，并提供 KV 持久化任务、幂等版本、退避重试、取消/替代、有界队列背压补偿、重启恢复、补录和处理状态接口；新增 provider/实际后端状态发现和 HTTP 端到端测试，不把大模型下载纳入 Server 启动路径。
+- 补齐 M35 图片工作流：生命周期过期会返回被删除当前对象身份并排入语义索引/缩略图清理；Studio 对象桶工作台新增默认关闭的语义摄取和缩略图配置、Backfill、对象处理状态、缩略图预览，以及文搜图、图搜图、similar-by-id、过滤与 explain；新增 AOT 兼容的 `SonnetDB.SemanticImages` 工业图片样例。
+
 - SQL 标量表达式补齐：`SELECT` 在无 FROM、关系表、measurement、document、JOIN、JSON 虚拟表、向量/混合搜索、`INFORMATION_SCHEMA` 及内置 forecast/knn 表值函数路径统一支持顶层 `+ - * / %` 表达式；整数加减乘模保留 Int64、除法返回 Float64、NULL 传播、除零/模零报错，`+` 不再隐式拼接字符串并新增显式 `concat(...)`。普通关系表与 measurement 还支持 CASE、比较、逻辑、IS NULL、IN 的三值投影，关系表 BOOL 列可接收谓词 UPDATE 右值。关系表 `UPDATE ... SET` 支持引用原行列与标量函数，所有右值按原行快照求值，显式写 ROWVERSION 被拒绝，普通单条 UPDATE 的扫描到提交在同一锁内，保证并发 `SET value = value + 1` 不丢更新；用户 UDF 回调改在该锁外执行以避免死锁。轻事务内连续更新会读取自身缓冲，INSERT/UPDATE/DELETE 按主键归并且各语句失败不残留部分 mutation。聚合投影支持 `count(*) + 1`、`round(avg(value), 2)` 等外包表达式并保持整数聚合精度。新增 `modbus_int32`、`modbus_uint32`、`modbus_float32`，覆盖 `ABCD/BADC/CDAB/DCBA` 两寄存器字节序、NULL 与严格输入范围校验。
 - KV WAL 升级为 v3，新增单 record、CRC-protected mixed put/delete 原子 batch；关系表在单个 table/keyspace 内把一个 prepared batch 合并为一次 WAL append 与至多一次 fsync，并跳过 key/value 未变化的二级索引写入和唯一索引扫描。reader 继续兼容 v1/v2，打开旧 active WAL 时会先密封再创建 v3 active；`PutMany` 现在原子提交且所有返回项共享同一 batch 版本。v3 active WAL 不支持降级后继续写入，跨 table/keyspace 的 crash-atomic coordinator WAL 仍不在此变更范围内。
 - 新增 `sonnetdb.lock.wait.duration` 关键存储锁等待直方图（固定 `lock.name=table_manager|kv_keyspace`），并让既有 `sonnetdb.wal.fsync.duration` 同时覆盖 TSDB/KV WAL、使用固定 `wal.kind=tsdb|kv` 区分低基数样本。

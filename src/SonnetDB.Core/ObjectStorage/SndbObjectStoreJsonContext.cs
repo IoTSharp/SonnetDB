@@ -12,6 +12,7 @@ namespace SonnetDB.ObjectStorage;
 [JsonSerializable(typeof(SndbBucketLifecycleRecord))]
 [JsonSerializable(typeof(SndbBucketRetentionRecord))]
 [JsonSerializable(typeof(SndbBucketQuotaRecord))]
+[JsonSerializable(typeof(SndbBucketSemanticOptionsRecord))]
 [JsonSerializable(typeof(SndbObjectLegalHoldRecord))]
 [JsonSerializable(typeof(SndbObjectAuditRecord))]
 [JsonSerializable(typeof(SndbMultipartUploadRecord))]
@@ -63,6 +64,15 @@ internal sealed record SndbBucketQuotaRecord(
     string Bucket,
     long? MaxSizeBytes,
     long? MaxObjectVersions,
+    DateTimeOffset UpdatedUtc);
+
+internal sealed record SndbBucketSemanticOptionsRecord(
+    string Bucket,
+    bool AsyncIngestionEnabled,
+    bool ThumbnailEnabled,
+    int ThumbnailMaxWidth,
+    int ThumbnailMaxHeight,
+    int ThumbnailQuality,
     DateTimeOffset UpdatedUtc);
 
 internal sealed record SndbObjectLegalHoldRecord(

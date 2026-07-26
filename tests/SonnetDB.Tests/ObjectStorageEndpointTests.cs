@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 using SonnetDB.Configuration;
 using SonnetDB.Contracts;
 using SonnetDB.Json;
@@ -241,12 +243,12 @@ public sealed class ObjectStorageEndpointTests : IAsyncLifetime
 
         var delete = await client.PostAsJsonAsync(
             $"/v1/db/objects/s3/{bucket}?delete",
-            new ObjectDeleteManyRequest(["logs/a.txt", "logs/c.txt"]),
+            new ObjectDeleteManyRequest(["logs/a.txt", "logs/a.txt", "logs/c.txt"]),
             ServerJsonContext.Default.ObjectDeleteManyRequest);
         Assert.Equal(HttpStatusCode.OK, delete.StatusCode);
         using (var json = JsonDocument.Parse(await delete.Content.ReadAsStringAsync()))
         {
-            Assert.Equal(2, json.RootElement.GetProperty("deleted").GetArrayLength());
+            Assert.Equal(3, json.RootElement.GetProperty("deleted").GetArrayLength());
             Assert.All(json.RootElement.GetProperty("deleted").EnumerateArray(), item =>
             {
                 Assert.True(item.GetProperty("deleteMarker").GetBoolean());
@@ -438,6 +440,61 @@ public sealed class ObjectStorageEndpointTests : IAsyncLifetime
             Assert.Contains("object.delete_marker", actions);
             Assert.Contains("object.legal_hold.enable", actions);
         }
+    }
+
+    [Fact]
+    public async Task ObjectStorage_ThumbnailOnlyOption_WorksWhenSemanticProviderIsDisabled()
+    {
+        using var client = CreateClient();
+        const string bucket = "thumbnail-only";
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await client.PutAsJsonAsync(
+                $"/v1/db/objects/s3/{bucket}",
+                new ObjectBucketCreateRequest("attachment"),
+                ServerJsonContext.Default.ObjectBucketCreateRequest)).StatusCode);
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await client.PutAsJsonAsync(
+                $"/v1/db/objects/s3/{bucket}?semantic",
+                new ObjectBucketSemanticOptionsRequest(
+                    ThumbnailEnabled: true,
+                    ThumbnailMaxWidth: 24,
+                    ThumbnailMaxHeight: 24),
+                ServerJsonContext.Default.ObjectBucketSemanticOptionsRequest)).StatusCode);
+
+        byte[] encoded;
+        using (var image = new Image<Rgb24>(48, 24, new Rgb24(10, 120, 220)))
+        using (var output = new MemoryStream())
+        {
+            image.SaveAsPng(output);
+            encoded = output.ToArray();
+        }
+
+        using var content = new ByteArrayContent(encoded);
+        content.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+        var put = await client.PutAsync($"/v1/db/objects/s3/{bucket}/photo.png", content);
+        Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+        Assert.True(put.Headers.Contains("x-sonnetdb-processing-job-id"));
+
+        ObjectProcessingStatusResponse? status = null;
+        for (int attempt = 0; attempt < 100; attempt++)
+        {
+            status = await client.GetFromJsonAsync(
+                $"/v1/db/objects/s3/{bucket}/photo.png?processing",
+                ServerJsonContext.Default.ObjectProcessingStatusResponse);
+            if (string.Equals(status?.Status, "completed", StringComparison.Ordinal))
+                break;
+            await Task.Delay(50);
+        }
+        Assert.Equal("completed", status?.Status);
+        Assert.False(status!.SemanticRequested);
+        Assert.True(status.ThumbnailRequested);
+        Assert.Null(status.SemanticImageId);
+
+        var thumbnail = await client.GetAsync($"/v1/db/objects/s3/{bucket}/photo.png?thumbnail");
+        Assert.Equal(HttpStatusCode.OK, thumbnail.StatusCode);
+        Assert.Equal("image/webp", thumbnail.Content.Headers.ContentType?.MediaType);
     }
 
     private static async Task PutPartAsync(HttpClient client, string bucket, string uploadId, int partNumber, string content)

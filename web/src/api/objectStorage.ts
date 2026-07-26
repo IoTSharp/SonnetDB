@@ -121,6 +121,47 @@ export interface ObjectLifecycleApplyResponse {
   expiredCurrentObjects: number;
   removedNoncurrentVersions: number;
   removedDeleteMarkers: number;
+  expiredObjects?: Array<{
+    key: string;
+    versionId: string;
+    contentType: string;
+  }> | null;
+  semanticCleanupJobs: number;
+}
+
+export interface ObjectBucketSemanticOptionsResponse {
+  bucket: string;
+  asyncIngestionEnabled: boolean;
+  thumbnailEnabled: boolean;
+  thumbnailMaxWidth: number;
+  thumbnailMaxHeight: number;
+  thumbnailQuality: number;
+  updatedUtc: string;
+}
+
+export interface ObjectBucketSemanticBackfillResponse {
+  bucket: string;
+  scannedObjects: number;
+  queuedObjects: number;
+  skippedObjects: number;
+}
+
+export interface ObjectProcessingStatusResponse {
+  jobId: string;
+  bucket: string;
+  key: string;
+  versionId: string;
+  operation: string;
+  status: string;
+  semanticRequested: boolean;
+  thumbnailRequested: boolean;
+  attempts: number;
+  error?: string | null;
+  semanticImageId?: string | null;
+  thumbnailUrl?: string | null;
+  createdUtc: string;
+  updatedUtc: string;
+  nextAttemptUtc?: string | null;
 }
 
 export interface ObjectRetentionResponse {
@@ -459,6 +500,64 @@ export async function applyBucketLifecycle(
   bucket: string,
 ): Promise<ObjectLifecycleApplyResponse> {
   const resp = await api.post<ObjectLifecycleApplyResponse>(`${bucketUrl(db, bucket)}?lifecycle`);
+  return resp.data;
+}
+
+export async function getBucketSemanticOptions(
+  api: AxiosInstance,
+  db: string,
+  bucket: string,
+): Promise<ObjectBucketSemanticOptionsResponse> {
+  const resp = await api.get<ObjectBucketSemanticOptionsResponse>(`${bucketUrl(db, bucket)}?semantic`);
+  return resp.data;
+}
+
+export async function setBucketSemanticOptions(
+  api: AxiosInstance,
+  db: string,
+  bucket: string,
+  request: Omit<ObjectBucketSemanticOptionsResponse, 'bucket' | 'updatedUtc'>,
+): Promise<ObjectBucketSemanticOptionsResponse> {
+  const resp = await api.put<ObjectBucketSemanticOptionsResponse>(`${bucketUrl(db, bucket)}?semantic`, request);
+  return resp.data;
+}
+
+export async function backfillBucketSemanticObjects(
+  api: AxiosInstance,
+  db: string,
+  bucket: string,
+): Promise<ObjectBucketSemanticBackfillResponse> {
+  const resp = await api.post<ObjectBucketSemanticBackfillResponse>(`${bucketUrl(db, bucket)}?semantic`);
+  return resp.data;
+}
+
+export async function getObjectProcessingStatus(
+  api: AxiosInstance,
+  db: string,
+  bucket: string,
+  key: string,
+): Promise<ObjectProcessingStatusResponse> {
+  const resp = await api.get<ObjectProcessingStatusResponse>(`${objectUrl(db, bucket, key)}?processing`);
+  return resp.data;
+}
+
+export async function enqueueObjectProcessing(
+  api: AxiosInstance,
+  db: string,
+  bucket: string,
+  key: string,
+): Promise<ObjectProcessingStatusResponse> {
+  const resp = await api.post<ObjectProcessingStatusResponse>(`${objectUrl(db, bucket, key)}?processing`);
+  return resp.data;
+}
+
+export async function getObjectThumbnailBlob(
+  api: AxiosInstance,
+  db: string,
+  bucket: string,
+  key: string,
+): Promise<Blob> {
+  const resp = await api.get<Blob>(`${objectUrl(db, bucket, key)}?thumbnail`, { responseType: 'blob' });
   return resp.data;
 }
 

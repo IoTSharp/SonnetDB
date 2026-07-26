@@ -13,6 +13,7 @@ using SonnetDB.Json;
 using SonnetDB.LineProtocolUdp;
 using SonnetDB.Mcp;
 using SonnetDB.Mqtt;
+using SonnetDB.SemanticSearch;
 using SonnetMQ;
 
 namespace SonnetDB.Hosting;
@@ -133,6 +134,21 @@ internal static class SonnetDbServiceRegistration
             throw new InvalidOperationException($"Unsupported copilot chat provider '{options.Provider}'.");
         });
 
+        // M35：多模态 provider 仅位于 Server 层；Core 继续只负责确定性对象/文档/向量存储。
+        builder.Services.AddSingleton<IMultimodalEmbeddingProvider>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<ServerOptions>>().Value.SemanticSearch;
+            if (!options.Enabled)
+                return new DisabledMultimodalEmbeddingProvider(options);
+            if (string.Equals(options.Provider, "siglip2-onnx", StringComparison.OrdinalIgnoreCase))
+                return new SigLip2OnnxEmbeddingProvider(options);
+
+            throw new InvalidOperationException($"Unsupported multimodal embedding provider '{options.Provider}'.");
+        });
+        builder.Services.AddSingleton<USearchSemanticIndexRegistry>();
+        builder.Services.AddSingleton<SemanticImageSearchService>();
+        builder.Services.AddSingleton<ObjectSemanticProcessingService>();
+
         // Copilot 云端运行时：本地仅提供上下文摘要与受权限保护的工具执行。
         builder.Services.AddSingleton<ICopilotCloudGatewayClient, CopilotCloudGatewayClient>();
         builder.Services.AddSingleton<CopilotLocalToolExecutor>();
@@ -182,6 +198,9 @@ internal static class SonnetDbServiceRegistration
 
         // 在应用关闭时优雅释放所有 Tsdb 实例。
         builder.Services.AddSingleton<IHostedService>(sp => new RegistryShutdownHook(sp.GetRequiredService<TsdbRegistry>()));
+        // 注册在 RegistryShutdownHook 之后，使停止时先取消派生任务，再释放 Tsdb。
+        builder.Services.AddSingleton<IHostedService>(sp =>
+            sp.GetRequiredService<ObjectSemanticProcessingService>());
 
         MqttServerBootstrap.ConfigureServices(builder, serverOptions.Mqtt);
         CoapServerBootstrap.ConfigureServices(builder, serverOptions.Coap);

@@ -107,7 +107,18 @@ internal sealed record ObjectLifecycleApplyResponse(
     string Bucket,
     int ExpiredCurrentObjects,
     int RemovedNoncurrentVersions,
-    int RemovedDeleteMarkers);
+    int RemovedDeleteMarkers)
+{
+    public IReadOnlyList<ObjectLifecycleExpiredObjectResponse> ExpiredObjects { get; init; }
+        = Array.Empty<ObjectLifecycleExpiredObjectResponse>();
+
+    public int SemanticCleanupJobs { get; init; }
+}
+
+internal sealed record ObjectLifecycleExpiredObjectResponse(
+    string Key,
+    string VersionId,
+    string ContentType);
 
 internal sealed record ObjectRetentionRequest(
     int? RetainCurrentForDays = null,

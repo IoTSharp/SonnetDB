@@ -4,6 +4,7 @@ using SonnetDB.Contracts;
 using SonnetDB.Copilot;
 using SonnetDB.Mcp;
 using SonnetDB.Model;
+using SonnetDB.SemanticSearch;
 
 namespace SonnetDB.Json;
 
@@ -206,6 +207,9 @@ namespace SonnetDB.Json;
 [JsonSerializable(typeof(ObjectLegalHoldResponse))]
 [JsonSerializable(typeof(ObjectQuotaRequest))]
 [JsonSerializable(typeof(ObjectQuotaResponse))]
+[JsonSerializable(typeof(ObjectBucketSemanticOptionsRequest))]
+[JsonSerializable(typeof(ObjectBucketSemanticOptionsResponse))]
+[JsonSerializable(typeof(ObjectBucketSemanticBackfillResponse))]
 [JsonSerializable(typeof(ObjectStatsResponse))]
 [JsonSerializable(typeof(ObjectAuditEntryResponse))]
 [JsonSerializable(typeof(ObjectAuditListResponse))]
@@ -300,6 +304,19 @@ namespace SonnetDB.Json;
 [JsonSerializable(typeof(AiChatRequest))]
 [JsonSerializable(typeof(AiMessage))]
 [JsonSerializable(typeof(AiStatusResponse))]
+[JsonSerializable(typeof(SemanticSearchStatusResponse))]
+[JsonSerializable(typeof(ImageTextSearchRequest))]
+[JsonSerializable(typeof(ImageSearchFilter))]
+[JsonSerializable(typeof(SimilarImageSearchRequest))]
+[JsonSerializable(typeof(ImageIngestResponse))]
+[JsonSerializable(typeof(ImageInfoResponse))]
+[JsonSerializable(typeof(ImageSearchHit))]
+[JsonSerializable(typeof(ImageSearchResponse))]
+[JsonSerializable(typeof(ImageDeleteResponse))]
+[JsonSerializable(typeof(List<ImageSearchHit>))]
+[JsonSerializable(typeof(SemanticImageDocument))]
+[JsonSerializable(typeof(SemanticObjectProcessingJob))]
+[JsonSerializable(typeof(ObjectProcessingStatusResponse))]
 [JsonSerializable(typeof(List<AiMessage>))]
 // ---- AI SSE 内部事件 ----
 [JsonSerializable(typeof(SseTokenEvent))]

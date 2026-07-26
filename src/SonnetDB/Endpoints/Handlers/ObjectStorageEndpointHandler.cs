@@ -1,11 +1,13 @@
 ﻿using System.Globalization;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using SonnetDB.Auth;
 using SonnetDB.Contracts;
 using SonnetDB.Engine;
 using SonnetDB.Json;
 using SonnetDB.ObjectStorage;
+using SonnetDB.SemanticSearch;
 
 namespace SonnetDB.Endpoints;
 
@@ -92,10 +94,69 @@ internal static class ObjectStorageEndpointHandler
                 return;
             }
 
+            if (HttpMethods.IsPut(ctx.Request.Method) && ctx.Request.Query.ContainsKey("semantic"))
+            {
+                var request = await ReadJsonAsync(
+                    ctx,
+                    ServerJsonContext.Default.ObjectBucketSemanticOptionsRequest).ConfigureAwait(false);
+                if (request is null)
+                {
+                    await WriteErrorAsync(
+                        ctx,
+                        StatusCodes.Status400BadRequest,
+                        "bad_request",
+                        "Semantic options request body is required.").ConfigureAwait(false);
+                    return;
+                }
+
+                var options = store.SetSemanticOptions(
+                    bucket,
+                    request.AsyncIngestionEnabled,
+                    request.ThumbnailEnabled,
+                    request.ThumbnailMaxWidth,
+                    request.ThumbnailMaxHeight,
+                    request.ThumbnailQuality);
+                await Results.Json(
+                        ToSemanticOptionsResponse(options),
+                        ServerJsonContext.Default.ObjectBucketSemanticOptionsResponse)
+                    .ExecuteAsync(ctx).ConfigureAwait(false);
+                return;
+            }
+
             if (HttpMethods.IsPost(ctx.Request.Method) && ctx.Request.Query.ContainsKey("lifecycle"))
             {
                 var applied = store.ApplyLifecycle(bucket);
-                await Results.Json(ToLifecycleApplyResponse(applied), ServerJsonContext.Default.ObjectLifecycleApplyResponse).ExecuteAsync(ctx).ConfigureAwait(false);
+                int cleanupJobs = 0;
+                var processing = ctx.RequestServices.GetRequiredService<ObjectSemanticProcessingService>();
+                string database = GetDatabaseName(ctx);
+                foreach (var expired in applied.ExpiredObjects)
+                {
+                    if (processing.EnqueueDeletion(
+                            database,
+                            tsdb,
+                            bucket,
+                            expired.Key,
+                            expired.VersionId,
+                            expired.ContentType) is not null)
+                    {
+                        cleanupJobs++;
+                    }
+                }
+                await Results.Json(
+                        ToLifecycleApplyResponse(applied, cleanupJobs),
+                        ServerJsonContext.Default.ObjectLifecycleApplyResponse)
+                    .ExecuteAsync(ctx).ConfigureAwait(false);
+                return;
+            }
+
+            if (HttpMethods.IsPost(ctx.Request.Method) && ctx.Request.Query.ContainsKey("semantic"))
+            {
+                var result = ctx.RequestServices.GetRequiredService<ObjectSemanticProcessingService>()
+                    .EnqueueBucket(GetDatabaseName(ctx), tsdb, bucket);
+                await Results.Json(
+                        result,
+                        ServerJsonContext.Default.ObjectBucketSemanticBackfillResponse)
+                    .ExecuteAsync(ctx).ConfigureAwait(false);
                 return;
             }
 
@@ -108,7 +169,17 @@ internal static class ObjectStorageEndpointHandler
                     return;
                 }
 
+                var previous = request.Keys
+                    .Distinct(StringComparer.Ordinal)
+                    .Select(key => store.HeadObject(bucket, key))
+                    .Where(static info => info is not null)
+                    .ToDictionary(static info => info!.Key, static info => info!, StringComparer.Ordinal);
                 var deleted = store.DeleteObjects(bucket, request.Keys);
+                foreach (var item in deleted.Deleted)
+                {
+                    if (item.ErrorCode is null && previous.Remove(item.Key, out var info))
+                        EnqueueObjectDeletion(ctx, tsdb, info);
+                }
                 await Results.Json(ToDeleteManyResponse(deleted), ServerJsonContext.Default.ObjectDeleteManyResponse).ExecuteAsync(ctx).ConfigureAwait(false);
                 return;
             }
@@ -200,6 +271,16 @@ internal static class ObjectStorageEndpointHandler
                     return;
                 }
 
+                if (ctx.Request.Query.ContainsKey("semantic"))
+                {
+                    var options = store.GetSemanticOptions(bucket);
+                    await Results.Json(
+                            ToSemanticOptionsResponse(options),
+                            ServerJsonContext.Default.ObjectBucketSemanticOptionsResponse)
+                        .ExecuteAsync(ctx).ConfigureAwait(false);
+                    return;
+                }
+
                 if (ctx.Request.Query.ContainsKey("stats"))
                 {
                     var stats = store.GetStats(bucket);
@@ -269,7 +350,7 @@ internal static class ObjectStorageEndpointHandler
 
             if (ctx.Request.Query.TryGetValue("uploadId", out var uploadIdValues))
             {
-                await HandleMultipartAsync(ctx, store, bucket, key, uploadIdValues.ToString()).ConfigureAwait(false);
+                await HandleMultipartAsync(ctx, tsdb, store, bucket, key, uploadIdValues.ToString()).ConfigureAwait(false);
                 return;
             }
 
@@ -281,13 +362,25 @@ internal static class ObjectStorageEndpointHandler
 
             if (ctx.Request.Query.ContainsKey("tagging"))
             {
-                await HandleTagsAsync(ctx, store, bucket, key).ConfigureAwait(false);
+                await HandleTagsAsync(ctx, tsdb, store, bucket, key).ConfigureAwait(false);
+                return;
+            }
+
+            if (ctx.Request.Query.ContainsKey("processing"))
+            {
+                await HandleProcessingAsync(ctx, tsdb, store, bucket, key).ConfigureAwait(false);
+                return;
+            }
+
+            if (ctx.Request.Query.ContainsKey("thumbnail") && HttpMethods.IsGet(ctx.Request.Method))
+            {
+                await HandleThumbnailAsync(ctx, tsdb, bucket, key).ConfigureAwait(false);
                 return;
             }
 
             if (ctx.Request.Headers.TryGetValue("x-amz-copy-source", out var copySource) && HttpMethods.IsPut(ctx.Request.Method))
             {
-                await CopyObjectAsync(ctx, store, bucket, key, copySource.ToString()).ConfigureAwait(false);
+                await CopyObjectAsync(ctx, tsdb, store, bucket, key, copySource.ToString()).ConfigureAwait(false);
                 return;
             }
 
@@ -301,6 +394,7 @@ internal static class ObjectStorageEndpointHandler
                     ReadMetadataHeaders(ctx),
                     ReadTagsFromHeader(ctx),
                     ctx.RequestAborted).ConfigureAwait(false);
+                EnqueueObjectProcessing(ctx, tsdb, info);
                 WriteObjectHeaders(ctx, info);
                 await Results.Json(ToObjectResponse(info), ServerJsonContext.Default.ObjectInfoResponse).ExecuteAsync(ctx).ConfigureAwait(false);
                 return;
@@ -353,7 +447,10 @@ internal static class ObjectStorageEndpointHandler
 
             if (HttpMethods.IsDelete(ctx.Request.Method))
             {
+                var previous = store.HeadObject(bucket, key);
                 var marker = store.DeleteObject(bucket, key);
+                if (previous is not null)
+                    EnqueueObjectDeletion(ctx, tsdb, previous);
                 ctx.Response.Headers.ETag = marker.ETag;
                 ctx.Response.Headers["x-amz-delete-marker"] = "true";
                 ctx.Response.Headers["x-amz-version-id"] = marker.VersionId;
@@ -385,7 +482,13 @@ internal static class ObjectStorageEndpointHandler
         await HandleObjectAsync(ctx, tsdb, bucket, key).ConfigureAwait(false);
     }
 
-    private static async Task HandleMultipartAsync(HttpContext ctx, SndbObjectStore store, string bucket, string key, string uploadId)
+    private static async Task HandleMultipartAsync(
+        HttpContext ctx,
+        Tsdb tsdb,
+        SndbObjectStore store,
+        string bucket,
+        string key,
+        string uploadId)
     {
         if (HttpMethods.IsGet(ctx.Request.Method))
         {
@@ -426,6 +529,7 @@ internal static class ObjectStorageEndpointHandler
             }
 
             var info = await store.CompleteMultipartUploadAsync(uploadId, request.PartNumbers, ctx.RequestAborted).ConfigureAwait(false);
+            EnqueueObjectProcessing(ctx, tsdb, info);
             WriteObjectHeaders(ctx, info);
             await Results.Json(ToObjectResponse(info), ServerJsonContext.Default.ObjectInfoResponse).ExecuteAsync(ctx).ConfigureAwait(false);
             return;
@@ -444,7 +548,7 @@ internal static class ObjectStorageEndpointHandler
     private static async Task InitiateMultipartUploadAsync(HttpContext ctx, SndbObjectStore store, string bucket, string key)
     {
         MultipartUploadCreateRequest? request = null;
-        if (ctx.Request.ContentLength is > 0)
+        if (ctx.Request.ContentLength != 0)
             request = await ReadJsonAsync(ctx, ServerJsonContext.Default.MultipartUploadCreateRequest).ConfigureAwait(false);
 
         var upload = store.InitiateMultipartUpload(
@@ -517,7 +621,12 @@ internal static class ObjectStorageEndpointHandler
         await WriteErrorAsync(ctx, StatusCodes.Status405MethodNotAllowed, "method_not_allowed", "Unsupported legal hold method.").ConfigureAwait(false);
     }
 
-    private static async Task HandleTagsAsync(HttpContext ctx, SndbObjectStore store, string bucket, string key)
+    private static async Task HandleTagsAsync(
+        HttpContext ctx,
+        Tsdb tsdb,
+        SndbObjectStore store,
+        string bucket,
+        string key)
     {
         if (HttpMethods.IsGet(ctx.Request.Method))
         {
@@ -542,6 +651,7 @@ internal static class ObjectStorageEndpointHandler
             }
 
             var info = store.SetObjectTags(bucket, key, request.Tags);
+            EnqueueObjectProcessing(ctx, tsdb, info, force: true);
             await Results.Json(ToObjectResponse(info), ServerJsonContext.Default.ObjectInfoResponse).ExecuteAsync(ctx).ConfigureAwait(false);
             return;
         }
@@ -549,7 +659,13 @@ internal static class ObjectStorageEndpointHandler
         await WriteErrorAsync(ctx, StatusCodes.Status405MethodNotAllowed, "method_not_allowed", "Unsupported tagging method.").ConfigureAwait(false);
     }
 
-    private static async Task CopyObjectAsync(HttpContext ctx, SndbObjectStore store, string bucket, string key, string source)
+    private static async Task CopyObjectAsync(
+        HttpContext ctx,
+        Tsdb tsdb,
+        SndbObjectStore store,
+        string bucket,
+        string key,
+        string source)
     {
         var parsed = ParseCopySource(source);
         if (parsed is null)
@@ -567,6 +683,7 @@ internal static class ObjectStorageEndpointHandler
             ReadTagsFromHeaderOrNull(ctx),
             ctx.RequestAborted).ConfigureAwait(false);
 
+        EnqueueObjectProcessing(ctx, tsdb, info);
         WriteObjectHeaders(ctx, info);
         await Results.Json(new ObjectCopyResponse(info.ETag, info.Sha256, info.VersionId), ServerJsonContext.Default.ObjectCopyResponse).ExecuteAsync(ctx).ConfigureAwait(false);
     }
@@ -688,6 +805,101 @@ internal static class ObjectStorageEndpointHandler
             ctx.Response.Headers["x-amz-meta-" + pair.Key] = pair.Value;
     }
 
+    private static async Task HandleProcessingAsync(
+        HttpContext ctx,
+        Tsdb tsdb,
+        SndbObjectStore store,
+        string bucket,
+        string key)
+    {
+        var processing = ctx.RequestServices.GetRequiredService<ObjectSemanticProcessingService>();
+        string database = GetDatabaseName(ctx);
+        ObjectProcessingStatusResponse? status;
+        if (HttpMethods.IsPost(ctx.Request.Method))
+        {
+            var info = store.HeadObject(bucket, key);
+            status = info is null ? null : processing.EnqueueIfEnabled(database, tsdb, info, force: true);
+        }
+        else if (HttpMethods.IsGet(ctx.Request.Method))
+        {
+            status = processing.GetStatus(database, tsdb, bucket, key);
+        }
+        else
+        {
+            await WriteErrorAsync(
+                ctx,
+                StatusCodes.Status405MethodNotAllowed,
+                "method_not_allowed",
+                "Processing status supports GET and POST.").ConfigureAwait(false);
+            return;
+        }
+
+        if (status is null)
+        {
+            await WriteErrorAsync(
+                ctx,
+                StatusCodes.Status404NotFound,
+                "processing_job_not_found",
+                "No processing job exists for the current object version.").ConfigureAwait(false);
+            return;
+        }
+
+        await Results.Json(status, ServerJsonContext.Default.ObjectProcessingStatusResponse)
+            .ExecuteAsync(ctx).ConfigureAwait(false);
+    }
+
+    private static async Task HandleThumbnailAsync(
+        HttpContext ctx,
+        Tsdb tsdb,
+        string bucket,
+        string key)
+    {
+        var read = ctx.RequestServices.GetRequiredService<ObjectSemanticProcessingService>()
+            .OpenThumbnail(tsdb, bucket, key);
+        if (read is null)
+        {
+            await WriteErrorAsync(
+                ctx,
+                StatusCodes.Status404NotFound,
+                "thumbnail_not_found",
+                "Thumbnail is disabled, pending, or unavailable.").ConfigureAwait(false);
+            return;
+        }
+
+        await using (read.Content)
+        {
+            ctx.Response.StatusCode = StatusCodes.Status200OK;
+            ctx.Response.ContentType = read.Info.ContentType;
+            ctx.Response.ContentLength = read.Length;
+            ctx.Response.Headers.ETag = read.Info.ETag;
+            await read.Content.CopyToAsync(ctx.Response.Body, ctx.RequestAborted).ConfigureAwait(false);
+        }
+    }
+
+    private static void EnqueueObjectProcessing(
+        HttpContext ctx,
+        Tsdb tsdb,
+        SndbObjectInfo info,
+        bool force = false)
+    {
+        var status = ctx.RequestServices.GetRequiredService<ObjectSemanticProcessingService>()
+            .EnqueueIfEnabled(GetDatabaseName(ctx), tsdb, info, force);
+        if (status is not null)
+            ctx.Response.Headers["x-sonnetdb-processing-job-id"] = status.JobId;
+    }
+
+    private static void EnqueueObjectDeletion(HttpContext ctx, Tsdb tsdb, SndbObjectInfo info)
+    {
+        var status = ctx.RequestServices.GetRequiredService<ObjectSemanticProcessingService>()
+            .EnqueueDeletion(GetDatabaseName(ctx), tsdb, info);
+        if (status is not null)
+            ctx.Response.Headers["x-sonnetdb-processing-job-id"] = status.JobId;
+    }
+
+    private static string GetDatabaseName(HttpContext ctx)
+        => Convert.ToString(ctx.Request.RouteValues["db"], CultureInfo.InvariantCulture)
+            ?? throw new InvalidOperationException("Database route value is missing.");
+
     private static ObjectBucketResponse ToBucketResponse(SndbBucketInfo bucket) =>
         new(bucket.Name, bucket.Purpose, bucket.CreatedUtc, bucket.UpdatedUtc);
 
@@ -731,8 +943,21 @@ internal static class ObjectStorageEndpointHandler
             lifecycle.ExpireDeleteMarkerAfterDays,
             lifecycle.UpdatedUtc);
 
-    private static ObjectLifecycleApplyResponse ToLifecycleApplyResponse(SndbBucketLifecycleApplyResult result) =>
-        new(result.Bucket, result.ExpiredCurrentObjects, result.RemovedNoncurrentVersions, result.RemovedDeleteMarkers);
+    private static ObjectLifecycleApplyResponse ToLifecycleApplyResponse(
+        SndbBucketLifecycleApplyResult result,
+        int semanticCleanupJobs) =>
+        new(
+            result.Bucket,
+            result.ExpiredCurrentObjects,
+            result.RemovedNoncurrentVersions,
+            result.RemovedDeleteMarkers)
+        {
+            ExpiredObjects = result.ExpiredObjects.Select(static item => new ObjectLifecycleExpiredObjectResponse(
+                item.Key,
+                item.VersionId,
+                item.ContentType)).ToArray(),
+            SemanticCleanupJobs = semanticCleanupJobs,
+        };
 
     private static ObjectRetentionResponse ToRetentionResponse(SndbBucketRetentionInfo retention) =>
         new(
@@ -752,6 +977,17 @@ internal static class ObjectStorageEndpointHandler
 
     private static ObjectQuotaResponse ToQuotaResponse(SndbBucketQuotaInfo quota) =>
         new(quota.Bucket, quota.MaxSizeBytes, quota.MaxObjectVersions, quota.UpdatedUtc);
+
+    private static ObjectBucketSemanticOptionsResponse ToSemanticOptionsResponse(
+        SndbBucketSemanticOptionsInfo options) =>
+        new(
+            options.Bucket,
+            options.AsyncIngestionEnabled,
+            options.ThumbnailEnabled,
+            options.ThumbnailMaxWidth,
+            options.ThumbnailMaxHeight,
+            options.ThumbnailQuality,
+            options.UpdatedUtc == DateTimeOffset.MinValue ? DateTimeOffset.UnixEpoch : options.UpdatedUtc);
 
     private static ObjectStatsResponse ToStatsResponse(SndbBucketStatsInfo stats) =>
         new(

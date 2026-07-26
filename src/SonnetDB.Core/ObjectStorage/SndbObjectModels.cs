@@ -149,7 +149,27 @@ public sealed record SndbBucketLifecycleApplyResult(
     string Bucket,
     int ExpiredCurrentObjects,
     int RemovedNoncurrentVersions,
-    int RemovedDeleteMarkers);
+    int RemovedDeleteMarkers)
+{
+    /// <summary>
+    /// 本次生命周期执行中过期的当前对象，用于调用方清理对象派生数据。
+    /// </summary>
+    public IReadOnlyList<SndbLifecycleExpiredObject> ExpiredObjects { get; init; }
+        = Array.Empty<SndbLifecycleExpiredObject>();
+
+    /// <summary>
+    /// 为语义索引和缩略图排入的清理任务数量；嵌入式对象存储执行时为零。
+    /// </summary>
+    public int SemanticCleanupJobs { get; init; }
+}
+
+/// <summary>
+/// 生命周期执行中过期的当前对象身份。
+/// </summary>
+public sealed record SndbLifecycleExpiredObject(
+    string Key,
+    string VersionId,
+    string ContentType);
 
 /// <summary>
 /// Bucket 对象保留策略。
@@ -178,6 +198,18 @@ public sealed record SndbBucketQuotaInfo(
     string Bucket,
     long? MaxSizeBytes,
     long? MaxObjectVersions,
+    DateTimeOffset UpdatedUtc);
+
+/// <summary>
+/// Bucket 图片语义摄取与缩略图派生选项；两个功能默认均关闭。
+/// </summary>
+public sealed record SndbBucketSemanticOptionsInfo(
+    string Bucket,
+    bool AsyncIngestionEnabled,
+    bool ThumbnailEnabled,
+    int ThumbnailMaxWidth,
+    int ThumbnailMaxHeight,
+    int ThumbnailQuality,
     DateTimeOffset UpdatedUtc);
 
 /// <summary>

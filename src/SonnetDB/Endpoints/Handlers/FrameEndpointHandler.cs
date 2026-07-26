@@ -15,6 +15,7 @@ using SonnetDB.Json;
 using SonnetDB.Kv;
 using SonnetDB.ObjectStorage;
 using SonnetDB.Protocol;
+using SonnetDB.SemanticSearch;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
@@ -971,6 +972,8 @@ internal static class FrameEndpointHandler
             request.Metadata.Count == 0 ? null : request.Metadata,
             request.Tags.Count == 0 ? null : request.Tags,
             ctx.RequestAborted).ConfigureAwait(false);
+        _ = ctx.RequestServices.GetRequiredService<ObjectSemanticProcessingService>()
+            .EnqueueIfEnabled(request.Db, tsdb, info);
         ObjectFrameCodec.EncodePutResponse(writer, header.StreamId, info);
     }
 

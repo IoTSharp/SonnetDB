@@ -605,7 +605,17 @@ public sealed class SndbObjectStorageClient : IDisposable
             body.Bucket,
             body.ExpiredCurrentObjects,
             body.RemovedNoncurrentVersions,
-            body.RemovedDeleteMarkers);
+            body.RemovedDeleteMarkers)
+        {
+            ExpiredObjects = body.ExpiredObjects?
+                .Select(static item => new SndbLifecycleExpiredObject(
+                    item.Key,
+                    item.VersionId,
+                    item.ContentType))
+                .ToArray()
+                ?? Array.Empty<SndbLifecycleExpiredObject>(),
+            SemanticCleanupJobs = body.SemanticCleanupJobs,
+        };
     }
 
     /// <summary>
