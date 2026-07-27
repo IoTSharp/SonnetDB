@@ -11,6 +11,7 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SonnetDB.Configuration;
 using SonnetDB.Contracts;
+using SonnetDB.Data.ObjectStorage;
 using SonnetDB.Json;
 using Xunit;
 
@@ -495,6 +496,17 @@ public sealed class ObjectStorageEndpointTests : IAsyncLifetime
         var thumbnail = await client.GetAsync($"/v1/db/objects/s3/{bucket}/photo.png?thumbnail");
         Assert.Equal(HttpStatusCode.OK, thumbnail.StatusCode);
         Assert.Equal("image/webp", thumbnail.Content.Headers.ContentType?.MediaType);
+
+        var connectionString = $"Data Source=sonnetdb+http://{new Uri(_baseUrl!).Authority}/objects;Token={AdminToken};Timeout=30;Protocol=rest";
+        using var objectClient = new SndbObjectStorageClient(connectionString);
+        var clientThumbnail = await objectClient.OpenThumbnailAsync(bucket, "photo.png");
+        Assert.NotNull(clientThumbnail);
+        await using (clientThumbnail!.Content)
+        {
+            Assert.Equal("image/webp", clientThumbnail.Info.ContentType);
+            Assert.True(clientThumbnail.Length > 0);
+            Assert.Equal(clientThumbnail.Length, clientThumbnail.TotalLength);
+        }
     }
 
     private static async Task PutPartAsync(HttpClient client, string bucket, string uploadId, int partNumber, string content)

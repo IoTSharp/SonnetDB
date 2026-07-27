@@ -139,17 +139,25 @@ public sealed class SndbObjectStore
 
         string versionId = CreateVersionId();
         string storagePath = BuildObjectStoragePath(bucket, key, versionId);
-        Directory.CreateDirectory(Path.GetDirectoryName(storagePath)!);
+        string storageDirectory = Path.GetDirectoryName(storagePath)!;
+        Directory.CreateDirectory(storageDirectory);
+        string temporaryPath = Path.Combine(
+            storageDirectory,
+            $".{Path.GetFileName(storagePath)}.{Guid.NewGuid():N}.tmp");
 
-        var (size, etag, sha256) = await WriteContentAndHashAsync(content, storagePath, cancellationToken).ConfigureAwait(false);
+        long size;
+        string etag;
+        string sha256;
         try
         {
+            // 临时文件与最终文件位于同一目录，校验完成后通过原子改名发布完整对象。
+            (size, etag, sha256) = await WriteContentAndHashAsync(content, temporaryPath, cancellationToken).ConfigureAwait(false);
             EnsureQuotaAllowsDelta(bucket, size, additionalObjectVersions: 1);
+            File.Move(temporaryPath, storagePath, overwrite: false);
         }
-        catch
+        finally
         {
-            TryDeleteFile(storagePath);
-            throw;
+            TryDeleteFile(temporaryPath);
         }
 
         var now = DateTimeOffset.UtcNow;

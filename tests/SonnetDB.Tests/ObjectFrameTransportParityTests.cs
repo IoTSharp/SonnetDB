@@ -246,6 +246,9 @@ public sealed class ObjectFrameTransportParityTests : IAsyncLifetime
         var read = await client.OpenReadAsync(_bucket, key, new SndbObjectRange(100, 50));
         Assert.NotNull(read);
         Assert.True(read!.IsRange);
+        Assert.Equal(100, read.Offset);
+        Assert.Equal(50, read.Length);
+        Assert.Equal(content.LongLength, read.TotalLength);
         byte[] slice = await ReadAllAsync(read);
         Assert.Equal(content.Skip(100).Take(50).ToArray(), slice);
     }

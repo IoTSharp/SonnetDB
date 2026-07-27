@@ -71,7 +71,8 @@ public sealed record SndbObjectReadResult(
     Stream Content,
     long Offset,
     long Length,
-    bool IsRange);
+    bool IsRange,
+    long TotalLength = 0);
 
 /// <summary>
 /// Multipart upload 会话摘要。

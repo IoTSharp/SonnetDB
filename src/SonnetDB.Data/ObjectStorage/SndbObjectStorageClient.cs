@@ -320,6 +320,27 @@ public sealed class SndbObjectStorageClient : IDisposable
         return await OpenReadRestAsync(bucket, key, range, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// 读取服务端为当前对象版本生成的 WebP 缩略图；未启用或仍在处理时返回 <see langword="null"/>。
+    /// </summary>
+    public async Task<SndbObjectReadResult?> OpenThumbnailAsync(
+        string bucket,
+        string key,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        if (_embedded is not null)
+            return null;
+
+        return await OpenReadRestAsync(
+                bucket,
+                key,
+                range: null,
+                cancellationToken,
+                querySuffix: "?thumbnail")
+            .ConfigureAwait(false);
+    }
+
     private async Task<FrameReadOutcome?> TryOpenReadFrameAsync(string bucket, string key, CancellationToken cancellationToken)
     {
         var w = new ArrayBufferWriter<byte>();
@@ -374,16 +395,23 @@ public sealed class SndbObjectStorageClient : IDisposable
             DateTimeOffset.MinValue,
             meta.Metadata,
             meta.Tags);
-        return new FrameReadOutcome(new SndbObjectReadResult(info, content, 0, meta.SizeBytes, IsRange: false));
+        return new FrameReadOutcome(new SndbObjectReadResult(
+            info,
+            content,
+            0,
+            meta.SizeBytes,
+            IsRange: false,
+            TotalLength: meta.SizeBytes));
     }
 
     private async Task<SndbObjectReadResult?> OpenReadRestAsync(
         string bucket,
         string key,
         SndbObjectRange? range,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string querySuffix = "")
     {
-        using var request = CreateRequest(HttpMethod.Get, ObjectUrl(bucket, key));
+        using var request = CreateRequest(HttpMethod.Get, ObjectUrl(bucket, key) + querySuffix);
         if (range.HasValue)
         {
             long start = range.Value.Offset;
@@ -407,12 +435,15 @@ public sealed class SndbObjectStorageClient : IDisposable
         }
 
         var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        var responseLength = response.Content.Headers.ContentLength ?? 0;
+        var totalLength = response.Content.Headers.ContentRange?.Length
+            ?? (range.HasValue ? 0 : responseLength);
         var info = new SndbObjectInfo(
             bucket,
             key,
             response.Headers.TryGetValues("x-amz-version-id", out var versionValues) ? versionValues.FirstOrDefault() ?? string.Empty : string.Empty,
             response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream",
-            response.Content.Headers.ContentLength ?? 0,
+            totalLength > 0 ? totalLength : responseLength,
             response.Headers.ETag?.Tag ?? string.Empty,
             response.Headers.TryGetValues("x-amz-meta-sha256", out var shaValues) ? shaValues.FirstOrDefault() ?? string.Empty : string.Empty,
             false,
@@ -425,8 +456,9 @@ public sealed class SndbObjectStorageClient : IDisposable
             info,
             new ResponseOwnedStream(response, stream),
             range?.Offset ?? 0,
-            response.Content.Headers.ContentLength ?? 0,
-            response.StatusCode == System.Net.HttpStatusCode.PartialContent);
+            responseLength,
+            response.StatusCode == System.Net.HttpStatusCode.PartialContent,
+            totalLength);
     }
 
     /// <summary>
