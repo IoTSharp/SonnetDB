@@ -756,7 +756,7 @@ internal sealed class SemanticImageSearchService : IDisposable
         if (index.Dimensions != _provider.Info.Dimensions)
         {
             throw new InvalidOperationException(
-                $"语义图片集合维度为 {index.Dimensions}，provider 输出维度为 {_provider.Info.Dimensions}。" );
+                $"语义图片集合维度为 {index.Dimensions}，provider 输出维度为 {_provider.Info.Dimensions}。");
         }
         return tsdb.Documents.Open(collectionName);
     }
@@ -813,7 +813,7 @@ internal sealed class SemanticImageSearchService : IDisposable
         if (embedding.Length != _provider.Info.Dimensions)
         {
             throw new InvalidDataException(
-                $"Provider 返回 {embedding.Length} 维向量，profile 声明 {_provider.Info.Dimensions} 维。" );
+                $"Provider 返回 {embedding.Length} 维向量，profile 声明 {_provider.Info.Dimensions} 维。");
         }
     }
 

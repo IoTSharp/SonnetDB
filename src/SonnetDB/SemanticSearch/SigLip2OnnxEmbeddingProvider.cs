@@ -281,7 +281,7 @@ public sealed class SigLip2OnnxEmbeddingProvider : IMultimodalEmbeddingProvider,
         if (embedding.Length != _options.Dimensions)
         {
             throw new InvalidDataException(
-                $"SigLIP2 输出维度为 {embedding.Length}，配置要求 {_options.Dimensions}。请检查模型与 Dimensions。" );
+                $"SigLIP2 输出维度为 {embedding.Length}，配置要求 {_options.Dimensions}。请检查模型与 Dimensions。");
         }
 
         double sumSquares = 0;

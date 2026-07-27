@@ -77,18 +77,23 @@ public sealed class TsdbWalGroupCommitTests : IDisposable
         db.CreateMeasurement(CreateMetricSchema());
 
         using var ready = new CountdownEvent(writeCount);
-        var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var start = new ManualResetEventSlim();
+        // 使用专用线程保证所有写入者已就绪，避免线程池饥饿把一次并发写拆成多个伪批次。
         var tasks = Enumerable.Range(0, writeCount)
-            .Select(async i =>
-            {
-                ready.Signal();
-                await start.Task.ConfigureAwait(false);
-                db.Write(CreateMetricPoint(i, "h1"));
-            })
+            .Select(i => Task.Factory.StartNew(
+                () =>
+                {
+                    ready.Signal();
+                    start.Wait();
+                    db.Write(CreateMetricPoint(i, "h1"));
+                },
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default))
             .ToArray();
 
         Assert.True(ready.Wait(TimeSpan.FromSeconds(5)));
-        start.SetResult();
+        start.Set();
 
         await Task.WhenAll(tasks);
 

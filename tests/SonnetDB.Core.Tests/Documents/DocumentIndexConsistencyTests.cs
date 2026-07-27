@@ -119,7 +119,8 @@ public sealed class DocumentIndexConsistencyTests : IDisposable
         var store = db.Documents.Open("docs");
 
         long expiredMs = DateTimeOffset.UtcNow.AddMinutes(-10).ToUnixTimeMilliseconds();
-        long freshMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        // 保留样本放到未来，避免慢速 CI 的磁盘写入跨过 1 秒 TTL 边界。
+        long freshMs = DateTimeOffset.UtcNow.AddMinutes(10).ToUnixTimeMilliseconds();
         store.Insert("old", $$"""{"kind":"pump","createdAt":{{expiredMs}}}""");
         store.Insert("new", $$"""{"kind":"fan","createdAt":{{freshMs}}}""");
 

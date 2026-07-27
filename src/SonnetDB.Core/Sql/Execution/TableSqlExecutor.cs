@@ -1602,10 +1602,10 @@ internal static class TableSqlExecutor
     private static bool IsIntegralRangeLiteral(SqlExpression expression)
         => expression is LiteralExpression { Kind: SqlLiteralKind.Integer }
             or UnaryExpression
-            {
-                Operator: SqlUnaryOperator.Negate,
-                Operand: LiteralExpression { Kind: SqlLiteralKind.Integer }
-            }
+        {
+            Operator: SqlUnaryOperator.Negate,
+            Operand: LiteralExpression { Kind: SqlLiteralKind.Integer }
+        }
             or DurationLiteralExpression;
 
     /// <summary>
