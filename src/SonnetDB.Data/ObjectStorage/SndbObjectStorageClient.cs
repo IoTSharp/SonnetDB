@@ -121,6 +121,70 @@ public sealed class SndbObjectStorageClient : IDisposable
         return new SndbBucketInfo(body.Name, body.Purpose, body.CreatedUtc, body.UpdatedUtc);
     }
 
+    /// <summary>读取对象桶的图片语义摄取与缩略图配置。</summary>
+    public async Task<SndbBucketSemanticOptionsInfo> GetSemanticOptionsAsync(
+        string bucket,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        if (_embedded is not null)
+            return new SndbObjectStore(_embedded).GetSemanticOptions(bucket);
+
+        using var response = await _http!
+            .GetAsync(BucketUrl(bucket) + "?semantic", cancellationToken)
+            .ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+
+        var body = await ReadJsonAsync(
+                response,
+                SndbObjectClientJsonContext.Default.ObjectBucketSemanticOptionsResponse,
+                cancellationToken)
+            .ConfigureAwait(false);
+        return ToSemanticOptionsInfo(body);
+    }
+
+    /// <summary>设置对象桶的图片语义摄取与缩略图配置。</summary>
+    public async Task<SndbBucketSemanticOptionsInfo> SetSemanticOptionsAsync(
+        string bucket,
+        bool asyncIngestionEnabled,
+        bool thumbnailEnabled,
+        int thumbnailMaxWidth = 320,
+        int thumbnailMaxHeight = 320,
+        int thumbnailQuality = 80,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        if (_embedded is not null)
+        {
+            return new SndbObjectStore(_embedded).SetSemanticOptions(
+                bucket,
+                asyncIngestionEnabled,
+                thumbnailEnabled,
+                thumbnailMaxWidth,
+                thumbnailMaxHeight,
+                thumbnailQuality);
+        }
+
+        using var response = await PutJsonAsync(
+                BucketUrl(bucket) + "?semantic",
+                new ObjectBucketSemanticOptionsRequest(
+                    asyncIngestionEnabled,
+                    thumbnailEnabled,
+                    thumbnailMaxWidth,
+                    thumbnailMaxHeight,
+                    thumbnailQuality),
+                SndbObjectClientJsonContext.Default.ObjectBucketSemanticOptionsRequest,
+                cancellationToken)
+            .ConfigureAwait(false);
+        var body = await ReadJsonAsync(
+                response,
+                SndbObjectClientJsonContext.Default.ObjectBucketSemanticOptionsResponse,
+                cancellationToken)
+            .ConfigureAwait(false);
+        return ToSemanticOptionsInfo(body);
+    }
+
     /// <summary>
     /// 删除空 bucket。
     /// </summary>
@@ -442,9 +506,23 @@ public sealed class SndbObjectStorageClient : IDisposable
         {
             long start = range.Value.Offset;
             long? length = range.Value.Length;
-            request.Headers.Range = length.HasValue
-                ? new RangeHeaderValue(start, start + length.Value - 1)
-                : new RangeHeaderValue(start, null);
+            if (range.Value.IsSuffix)
+            {
+                // suffix Range 必须保留为 bytes=-N，不能把起点误编码为零。
+                if (!length.HasValue || length.Value <= 0)
+                    throw new ArgumentOutOfRangeException(nameof(range), "suffix Range 长度必须大于零。");
+                request.Headers.Range = new RangeHeaderValue(null, length.Value);
+            }
+            else if (length.HasValue)
+            {
+                if (start < 0 || length.Value <= 0 || length.Value - 1 > long.MaxValue - start)
+                    throw new ArgumentOutOfRangeException(nameof(range), "对象读取范围超出整数边界。");
+                request.Headers.Range = new RangeHeaderValue(start, start + length.Value - 1);
+            }
+            else
+            {
+                request.Headers.Range = new RangeHeaderValue(start, null);
+            }
         }
 
         HttpResponseMessage? response = await _http!.SendAsync(
@@ -1191,6 +1269,18 @@ public sealed class SndbObjectStorageClient : IDisposable
 
     private static SndbBucketQuotaInfo ToQuotaInfo(ObjectQuotaResponse body) =>
         new(body.Bucket, body.MaxSizeBytes, body.MaxObjectVersions, body.UpdatedUtc);
+
+    /// <summary>把远程配置 DTO 转换为对象存储公共模型。</summary>
+    private static SndbBucketSemanticOptionsInfo ToSemanticOptionsInfo(
+        ObjectBucketSemanticOptionsResponse body) =>
+        new(
+            body.Bucket,
+            body.AsyncIngestionEnabled,
+            body.ThumbnailEnabled,
+            body.ThumbnailMaxWidth,
+            body.ThumbnailMaxHeight,
+            body.ThumbnailQuality,
+            body.UpdatedUtc);
 
     private static SndbBucketStatsInfo ToStatsInfo(ObjectStatsResponse body) =>
         new(

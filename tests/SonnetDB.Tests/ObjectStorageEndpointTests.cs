@@ -105,6 +105,22 @@ public sealed class ObjectStorageEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.PartialContent, range.StatusCode);
         Assert.Equal("2345", await range.Content.ReadAsStringAsync());
 
+        // suffix Range 应直接返回对象末尾内容，不需要客户端先读取完整对象。
+        using var suffixRequest = new HttpRequestMessage(HttpMethod.Get, $"/v1/db/objects/s3/{bucket}/firmware/v1.bin");
+        suffixRequest.Headers.Range = new RangeHeaderValue(null, 4);
+        var suffix = await client.SendAsync(suffixRequest);
+        Assert.Equal(HttpStatusCode.PartialContent, suffix.StatusCode);
+        Assert.Equal("6789", await suffix.Content.ReadAsStringAsync());
+        Assert.Equal("bytes 6-9/10", suffix.Content.Headers.ContentRange?.ToString());
+
+        using var unsatisfiedRequest = new HttpRequestMessage(HttpMethod.Get, $"/v1/db/objects/s3/{bucket}/firmware/v1.bin");
+        unsatisfiedRequest.Headers.Range = new RangeHeaderValue(100, null);
+        var unsatisfied = await client.SendAsync(unsatisfiedRequest);
+        Assert.Equal(HttpStatusCode.RequestedRangeNotSatisfiable, unsatisfied.StatusCode);
+        Assert.Equal("bytes */10", unsatisfied.Content.Headers.ContentRange?.ToString());
+        Assert.Contains("bytes", unsatisfied.Headers.AcceptRanges);
+        Assert.Empty(await unsatisfied.Content.ReadAsByteArrayAsync());
+
         using var copyRequest = new HttpRequestMessage(HttpMethod.Put, $"/v1/db/objects/s3/{bucket}/backup/v1.bin");
         copyRequest.Headers.TryAddWithoutValidation("x-amz-copy-source", $"/{bucket}/firmware/v1.bin");
         var copy = await client.SendAsync(copyRequest);

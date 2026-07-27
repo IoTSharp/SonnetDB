@@ -285,6 +285,20 @@ public sealed record SndbObjectAuditEntry(
 /// </summary>
 public readonly record struct SndbObjectRange(long Offset, long? Length)
 {
+    // -1 是历史构造函数允许创建但 Resolve 会拒绝的值，保留为 suffix 范围的内部标记，
+    // 从而不改变公开值类型的构造函数、Deconstruct 方法和内存布局。
+    /// <summary>判断当前范围是否表示从对象末尾向前读取。</summary>
+    public bool IsSuffix => Offset == -1;
+
+    /// <summary>创建从对象末尾向前读取指定字节数的范围。</summary>
+    public static SndbObjectRange FromSuffix(long length)
+    {
+        if (length <= 0)
+            throw new ArgumentOutOfRangeException(nameof(length));
+
+        return new SndbObjectRange(-1, length);
+    }
+
     /// <summary>
     /// 按对象长度计算最终读取边界。
     /// </summary>
@@ -292,6 +306,18 @@ public readonly record struct SndbObjectRange(long Offset, long? Length)
     {
         if (objectLength < 0)
             throw new ArgumentOutOfRangeException(nameof(objectLength));
+        if (Length is < 0)
+            throw new ArgumentOutOfRangeException(nameof(Length));
+
+        if (IsSuffix)
+        {
+            if (!Length.HasValue || Length.Value <= 0)
+                throw new ArgumentOutOfRangeException(nameof(Length));
+
+            long suffixLength = Math.Min(Length.Value, objectLength);
+            return (objectLength - suffixLength, suffixLength);
+        }
+
         if (Offset < 0)
             throw new ArgumentOutOfRangeException(nameof(Offset));
         if (Offset >= objectLength)
@@ -299,8 +325,6 @@ public readonly record struct SndbObjectRange(long Offset, long? Length)
 
         long remaining = objectLength - Offset;
         long length = Length is null ? remaining : Math.Min(Length.Value, remaining);
-        if (length < 0)
-            throw new ArgumentOutOfRangeException(nameof(Length));
 
         return (Offset, length);
     }

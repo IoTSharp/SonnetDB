@@ -427,6 +427,16 @@ internal static class ObjectStorageEndpointHandler
 
                 await using (result.Content)
                 {
+                    if (result.IsRange && result.Length == 0 && result.Offset >= result.Info.SizeBytes)
+                    {
+                        // 越界范围不能输出零长度 206，否则会生成 start 大于 end 的非法 Content-Range。
+                        ctx.Response.StatusCode = StatusCodes.Status416RangeNotSatisfiable;
+                        ctx.Response.ContentLength = 0;
+                        ctx.Response.Headers.AcceptRanges = "bytes";
+                        ctx.Response.Headers.ContentRange = $"bytes */{result.Info.SizeBytes}";
+                        return;
+                    }
+
                     WriteObjectHeaders(ctx, result.Info);
                     ctx.Response.ContentType = result.Info.ContentType;
                     ctx.Response.ContentLength = result.Length;
@@ -762,24 +772,50 @@ internal static class ObjectStorageEndpointHandler
             return null;
 
         const string prefix = "bytes=";
-        if (!rangeHeader.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        string normalized = rangeHeader.Trim();
+        if (!normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             return null;
 
-        string range = rangeHeader[prefix.Length..];
+        string range = normalized[prefix.Length..].Trim();
+        // 当前对象端点只下推单段范围；多段请求回退完整响应，避免拼接响应和额外缓冲。
+        if (range.Length == 0 || range.Contains(',', StringComparison.Ordinal))
+            return null;
+
         int separator = range.IndexOf('-', StringComparison.Ordinal);
         if (separator < 0)
             return null;
 
-        if (!long.TryParse(range[..separator], NumberStyles.None, CultureInfo.InvariantCulture, out long start))
+        string startText = range[..separator].Trim();
+        string endText = range[(separator + 1)..].Trim();
+        if (startText.Length == 0)
+        {
+            // RFC 9110 suffix-range-spec：bytes=-N 表示对象末尾 N 个字节。
+            return long.TryParse(endText, NumberStyles.None, CultureInfo.InvariantCulture, out long suffixLength)
+                && suffixLength > 0
+                ? SndbObjectRange.FromSuffix(suffixLength)
+                : null;
+        }
+
+        if (!long.TryParse(startText, NumberStyles.None, CultureInfo.InvariantCulture, out long start)
+            || start < 0)
             return null;
 
-        long? length = null;
-        string endText = range[(separator + 1)..];
-        if (!string.IsNullOrWhiteSpace(endText)
-            && long.TryParse(endText, NumberStyles.None, CultureInfo.InvariantCulture, out long end)
-            && end >= start)
+        if (endText.Length == 0)
+            return new SndbObjectRange(start, null);
+
+        if (!long.TryParse(endText, NumberStyles.None, CultureInfo.InvariantCulture, out long end)
+            || end < start)
+            return null;
+
+        long length;
+        try
         {
-            length = end - start + 1;
+            length = checked(end - start + 1);
+        }
+        catch (OverflowException)
+        {
+            // 从零开始且结束位置为 long.MaxValue 等价于开放范围。
+            return new SndbObjectRange(start, null);
         }
 
         return new SndbObjectRange(start, length);

@@ -10,6 +10,24 @@ internal sealed record ObjectBucketResponse(
     DateTimeOffset CreatedUtc,
     DateTimeOffset UpdatedUtc);
 
+/// <summary>对象桶图片摄取和缩略图派生配置请求。</summary>
+internal sealed record ObjectBucketSemanticOptionsRequest(
+    bool AsyncIngestionEnabled = false,
+    bool ThumbnailEnabled = false,
+    int ThumbnailMaxWidth = 320,
+    int ThumbnailMaxHeight = 320,
+    int ThumbnailQuality = 80);
+
+/// <summary>对象桶图片摄取和缩略图派生配置响应。</summary>
+internal sealed record ObjectBucketSemanticOptionsResponse(
+    string Bucket,
+    bool AsyncIngestionEnabled,
+    bool ThumbnailEnabled,
+    int ThumbnailMaxWidth,
+    int ThumbnailMaxHeight,
+    int ThumbnailQuality,
+    DateTimeOffset UpdatedUtc);
+
 internal sealed record ObjectInfoResponse(
     string Bucket,
     string Key,
@@ -183,6 +201,8 @@ internal sealed record ObjectAuditListResponse(
 [JsonSerializable(typeof(ObjectBucketCreateRequest))]
 [JsonSerializable(typeof(ObjectBucketResponse))]
 [JsonSerializable(typeof(ObjectBucketResponse[]))]
+[JsonSerializable(typeof(ObjectBucketSemanticOptionsRequest))]
+[JsonSerializable(typeof(ObjectBucketSemanticOptionsResponse))]
 [JsonSerializable(typeof(ObjectInfoResponse))]
 [JsonSerializable(typeof(ObjectListResponse))]
 [JsonSerializable(typeof(ObjectDeleteManyRequest))]

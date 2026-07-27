@@ -7,6 +7,8 @@
 
 ### Fixed
 
+- 对象存储 GET 现在支持 `bytes=-N` suffix Range，并对越界单段范围返回标准 `416` 与 `Content-Range: bytes */size`；客户端同步保留 suffix 语义，避免播放器回退为完整下载。
+- 对象桶客户端新增语义配置读写和缩略图端点支持，媒体服务启动时可幂等初始化图片/视频桶并只对图片桶启用 WebP 缩略图。
 - 修复对象 PUT 在最终文件发布后、元数据批次于 WAL 追加前被拒绝时遗留孤立文件的问题；对象版本、latest 指针和 PUT 审计现通过单个 KV 原子批次提交，提交结果不确定时保留完整内容，避免可恢复元数据指向被主动删除的正文。内容写入改用真正的异步顺序 `FileStream`，并在 rename 前强制正文落盘、rename 后强制目录项落盘；嵌入式及远程完整/范围读取同步返回对象总长度，同时保留读取结果原有五参数构造函数和五元素解构，并继续提供含总长度的六参数 API。
 - 优化关系表联合二级索引选择：等值谓词按最长连续左前缀命中，下一列 Int64/DATETIME 范围通过 KV 半开区间与磁盘 lower-bound 扫描，signed big-endian 跨零时按负数/非负数分段且不改变磁盘编码；EXPLAIN 区分完整键、`secondary_index_prefix` 与 `secondary_index_range`。单范围列升序且 WHERE 无残余、无事务 overlay 时安全下推 LIMIT/OFFSET，其他条件继续完整残余过滤；缺少首列和不支持的范围类型按可用前缀或全表扫描回退，并避免可空后缀的唯一索引漏行。
 - 修复 EF Core provider 无法翻译 `DateTime.Now.Date` 的问题；新增 `DateTime` / `DateTimeOffset` 的当前时间、日期截断、日期分量、`AddYears` 至 `AddTicks` 及 Unix 时间转换翻译。关系 SQL 同步提供注册式日期标量函数，并在单表、关系 JOIN 与时序 JOIN 谓词路径复用同一函数注册表。

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Text;
 using SonnetDB.Data.ObjectStorage;
 using SonnetDB.ObjectStorage;
 
@@ -64,6 +65,33 @@ public sealed class SndbObjectStorageClientTests
         Assert.Equal(expected, actual.ToArray());
     }
 
+    /// <summary>验证远程客户端不会把 suffix Range 错编码为从零开始的普通范围。</summary>
+    [Fact]
+    public async Task OpenReadAsync_SuffixRange_UsesSuffixHeader()
+    {
+        HttpRequestMessage? captured = null;
+        var response = new HttpResponseMessage(HttpStatusCode.PartialContent)
+        {
+            Content = new ByteArrayContent([7, 8, 9, 10])
+        };
+        response.Content.Headers.ContentRange = new ContentRangeHeaderValue(6, 9, 10);
+        using var client = CreateClient(new StubHandler(request =>
+        {
+            captured = request;
+            return response;
+        }));
+
+        var result = Assert.IsType<SndbObjectReadResult>(
+            await client.OpenReadAsync("media", "video.bin", SndbObjectRange.FromSuffix(4)));
+        await using (result.Content)
+        {
+            Assert.Equal("bytes=-4", captured?.Headers.Range?.ToString());
+            Assert.Equal(6, result.Offset);
+            Assert.Equal(4, result.Length);
+            Assert.Equal(10, result.TotalLength);
+        }
+    }
+
     /// <summary>
     /// 验证创建响应内容流失败时及时释放 HTTP 响应。
     /// </summary>
@@ -103,6 +131,69 @@ public sealed class SndbObjectStorageClientTests
 
         Assert.Same(expected, actual);
         Assert.True(response.IsDisposed);
+    }
+
+    /// <summary>验证远程客户端能够读取并更新桶语义配置，且请求使用既有 semantic 端点。</summary>
+    [Fact]
+    public async Task SemanticOptionsAsync_RemoteRoundTripsThroughBucketEndpoint()
+    {
+        var requests = new List<(HttpMethod Method, string Path, string Body)>();
+        using var client = CreateClient(new StubHandler(request =>
+        {
+            var body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult() ?? string.Empty;
+            requests.Add((request.Method, request.RequestUri!.PathAndQuery, body));
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    "{\"bucket\":\"media\",\"asyncIngestionEnabled\":true,\"thumbnailEnabled\":true,\"thumbnailMaxWidth\":320,\"thumbnailMaxHeight\":320,\"thumbnailQuality\":80,\"updatedUtc\":\"2026-07-27T00:00:00Z\"}",
+                    Encoding.UTF8,
+                    "application/json")
+            };
+        }));
+
+        var current = await client.GetSemanticOptionsAsync("media");
+        var updated = await client.SetSemanticOptionsAsync("media", true, true);
+
+        Assert.True(current.AsyncIngestionEnabled);
+        Assert.True(current.ThumbnailEnabled);
+        Assert.True(updated.ThumbnailEnabled);
+        Assert.Collection(
+            requests,
+            get =>
+            {
+                Assert.Equal(HttpMethod.Get, get.Method);
+                Assert.Equal("/v1/db/testdb/s3/media?semantic", get.Path);
+            },
+            put =>
+            {
+                Assert.Equal(HttpMethod.Put, put.Method);
+                Assert.Equal("/v1/db/testdb/s3/media?semantic", put.Path);
+                Assert.Contains("\"thumbnailEnabled\":true", put.Body, StringComparison.Ordinal);
+                Assert.Contains("\"asyncIngestionEnabled\":true", put.Body, StringComparison.Ordinal);
+            });
+    }
+
+    /// <summary>验证嵌入式客户端直接复用对象桶语义配置，不依赖 HTTP 服务。</summary>
+    [Fact]
+    public async Task SemanticOptionsAsync_EmbeddedPersistsConfiguration()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"sonnetdb-semantic-{Guid.NewGuid():N}");
+        try
+        {
+            using var client = new SndbObjectStorageClient($"Data Source={root};Mode=Embedded");
+            await client.CreateBucketAsync("media");
+            var updated = await client.SetSemanticOptionsAsync("media", true, true, 320, 320, 80);
+            var current = await client.GetSemanticOptionsAsync("media");
+
+            Assert.True(updated.AsyncIngestionEnabled);
+            Assert.True(current.AsyncIngestionEnabled);
+            Assert.True(current.ThumbnailEnabled);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
     }
 
     /// <summary>
