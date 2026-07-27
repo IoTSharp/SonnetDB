@@ -29,6 +29,7 @@ public sealed class SndbObjectStore
     private const string Active = "active";
     private const string Completed = "completed";
     private const string Aborted = "aborted";
+    private const int ObjectIoBufferSize = 128 * 1024;
     private static readonly Encoding Utf8 = new UTF8Encoding(false);
 
     private readonly KvKeyspace _metadata;
@@ -137,6 +138,9 @@ public sealed class SndbObjectStore
         ValidateObjectKey(key);
         ArgumentNullException.ThrowIfNull(content);
 
+        string normalizedContentType = NormalizeContentType(contentType);
+        Dictionary<string, string> normalizedMetadata = NormalizeMap(metadata);
+        Dictionary<string, string> normalizedTags = NormalizeMap(tags);
         string versionId = CreateVersionId();
         string storagePath = BuildObjectStoragePath(bucket, key, versionId);
         string storageDirectory = Path.GetDirectoryName(storagePath)!;
@@ -148,41 +152,71 @@ public sealed class SndbObjectStore
         long size;
         string etag;
         string sha256;
+        bool finalFileMoved = false;
         try
         {
             // 临时文件与最终文件位于同一目录，校验完成后通过原子改名发布完整对象。
             (size, etag, sha256) = await WriteContentAndHashAsync(content, temporaryPath, cancellationToken).ConfigureAwait(false);
             EnsureQuotaAllowsDelta(bucket, size, additionalObjectVersions: 1);
             File.Move(temporaryPath, storagePath, overwrite: false);
+            finalFileMoved = true;
+            // 先持久化 rename 对应的目录项，再提交引用该正文的 KV 元数据。
+            SonnetDB.Wal.DirectoryFsync.FlushRequired(storageDirectory);
+        }
+        catch
+        {
+            // 目录落盘失败发生在元数据提交前，清理已改名但尚未关联的正文。
+            if (finalFileMoved)
+            {
+                TryDeleteFile(storagePath);
+                SonnetDB.Wal.DirectoryFsync.FlushBestEffort(storageDirectory);
+            }
+            throw;
         }
         finally
         {
             TryDeleteFile(temporaryPath);
         }
 
-        var now = DateTimeOffset.UtcNow;
-        var record = new SndbObjectRecord(
-            bucket,
-            key,
-            versionId,
-            NormalizeContentType(contentType),
-            size,
-            etag,
-            sha256,
-            ToRelativeStoragePath(storagePath),
-            IsDeleteMarker: false,
-            now,
-            now,
-            NormalizeMap(metadata),
-            NormalizeMap(tags));
-
-        PersistObjectRecord(record);
-        AppendAudit("object.put", bucket, key, versionId, new Dictionary<string, string>
+        SndbObjectRecord record;
+        try
         {
-            ["sizeBytes"] = size.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            ["etag"] = etag,
-            ["sha256"] = sha256,
-        });
+            var now = DateTimeOffset.UtcNow;
+            record = new SndbObjectRecord(
+                bucket,
+                key,
+                versionId,
+                normalizedContentType,
+                size,
+                etag,
+                sha256,
+                ToRelativeStoragePath(storagePath),
+                IsDeleteMarker: false,
+                now,
+                now,
+                normalizedMetadata,
+                normalizedTags);
+            var audit = CreateAuditRecord("object.put", bucket, key, versionId, new Dictionary<string, string>
+            {
+                ["sizeBytes"] = size.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["etag"] = etag,
+                ["sha256"] = sha256,
+            });
+
+            // 对象版本、latest 指针和审计记录作为一个 KV 批次发布，失败时删除尚未关联的最终文件。
+            PersistObjectRecord(record, audit);
+        }
+        catch (Exception ex)
+        {
+            // WAL 已开始追加时提交结果不确定，保留完整文件供重启恢复；明确的提交前失败才可安全清理。
+            if (!_metadata.IsWriteCommitOutcomeUnknown(ex))
+            {
+                TryDeleteFile(storagePath);
+                SonnetDB.Wal.DirectoryFsync.FlushBestEffort(storageDirectory);
+            }
+            throw;
+        }
+
         return ToInfo(record);
     }
 
@@ -303,7 +337,13 @@ public sealed class SndbObjectStore
             ["length"] = length.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["range"] = range.HasValue ? "true" : "false",
         });
-        return new SndbObjectReadResult(ToInfo(record), new BoundedReadStream(stream, length), offset, length, range.HasValue);
+        return new SndbObjectReadResult(
+            ToInfo(record),
+            new BoundedReadStream(stream, length),
+            offset,
+            length,
+            range.HasValue,
+            record.SizeBytes);
     }
 
     /// <summary>
@@ -1105,10 +1145,28 @@ public sealed class SndbObjectStore
             : Deserialize(entry.Value.Span, SndbObjectStoreJsonContext.Default.SndbObjectRecord);
     }
 
-    private void PersistObjectRecord(SndbObjectRecord record)
+    /// <summary>
+    /// 原子发布对象版本元数据、latest 指针及可选审计记录。
+    /// </summary>
+    private void PersistObjectRecord(SndbObjectRecord record, SndbObjectAuditRecord? audit = null)
     {
-        _metadata.Put(ObjectKey(record.Bucket, record.Key, record.VersionId), Serialize(record, SndbObjectStoreJsonContext.Default.SndbObjectRecord));
-        _metadata.Put(LatestObjectKey(record.Bucket, record.Key), Utf8.GetBytes(record.VersionId));
+        var mutations = new List<KvBatchMutation>(audit is null ? 2 : 3)
+        {
+            KvBatchMutation.Put(
+                Utf8.GetBytes(ObjectKey(record.Bucket, record.Key, record.VersionId)),
+                Serialize(record, SndbObjectStoreJsonContext.Default.SndbObjectRecord)),
+            KvBatchMutation.Put(
+                Utf8.GetBytes(LatestObjectKey(record.Bucket, record.Key)),
+                Utf8.GetBytes(record.VersionId)),
+        };
+        if (audit is not null)
+        {
+            mutations.Add(KvBatchMutation.Put(
+                Utf8.GetBytes(AuditKey(audit.Bucket, audit.Id)),
+                Serialize(audit, SndbObjectStoreJsonContext.Default.SndbObjectAuditRecord)));
+        }
+
+        _metadata.ApplyBatch(mutations);
     }
 
     private void RemoveObjectVersion(string bucket, string key, string versionId)
@@ -1420,9 +1478,23 @@ public sealed class SndbObjectStore
         string? versionId,
         IReadOnlyDictionary<string, string>? details = null)
     {
+        SndbObjectAuditRecord record = CreateAuditRecord(action, bucket, key, versionId, details);
+        _metadata.Put(AuditKey(bucket, record.Id), Serialize(record, SndbObjectStoreJsonContext.Default.SndbObjectAuditRecord));
+    }
+
+    /// <summary>
+    /// 创建规范化的对象存储审计记录。
+    /// </summary>
+    private static SndbObjectAuditRecord CreateAuditRecord(
+        string action,
+        string bucket,
+        string? key,
+        string? versionId,
+        IReadOnlyDictionary<string, string>? details = null)
+    {
         var now = DateTimeOffset.UtcNow;
         string id = now.ToUnixTimeMilliseconds().ToString("D13") + "-" + Guid.NewGuid().ToString("N");
-        var record = new SndbObjectAuditRecord(
+        return new SndbObjectAuditRecord(
             id,
             action,
             bucket,
@@ -1430,18 +1502,26 @@ public sealed class SndbObjectStore
             versionId,
             now,
             NormalizeMap(details));
-        _metadata.Put(AuditKey(bucket, id), Serialize(record, SndbObjectStoreJsonContext.Default.SndbObjectAuditRecord));
     }
 
+    /// <summary>
+    /// 将对象内容异步写入文件，并在单次遍历中计算大小、ETag 与 SHA-256。
+    /// </summary>
     private static async Task<(long Size, string ETag, string Sha256)> WriteContentAndHashAsync(
         Stream content,
         string destinationPath,
         CancellationToken cancellationToken)
     {
-        await using var destination = File.Create(destinationPath);
+        await using var destination = new FileStream(
+            destinationPath,
+            FileMode.CreateNew,
+            FileAccess.Write,
+            FileShare.None,
+            ObjectIoBufferSize,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
         using var md5 = MD5.Create();
         using var sha256 = SHA256.Create();
-        byte[] buffer = ArrayPool<byte>.Shared.Rent(128 * 1024);
+        byte[] buffer = ArrayPool<byte>.Shared.Rent(ObjectIoBufferSize);
         long size = 0;
         try
         {
@@ -1459,6 +1539,8 @@ public sealed class SndbObjectStore
 
             md5.TransformFinalBlock([], 0, 0);
             sha256.TransformFinalBlock([], 0, 0);
+            // 单次强制落盘确保正文先于后续 rename 与元数据 WAL 持久化。
+            destination.Flush(flushToDisk: true);
             return (size, QuoteHex(md5.Hash!), Convert.ToHexString(sha256.Hash!).ToLowerInvariant());
         }
         finally

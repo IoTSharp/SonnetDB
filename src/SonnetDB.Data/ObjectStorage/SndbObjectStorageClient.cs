@@ -54,6 +54,26 @@ public sealed class SndbObjectStorageClient : IDisposable
     }
 
     /// <summary>
+    /// 使用调用方提供的 HTTP 客户端创建远程对象桶客户端，供传输边界测试注入响应。
+    /// </summary>
+    /// <param name="connectionString">SonnetDB 远程连接字符串。</param>
+    /// <param name="httpClient">由本对象桶客户端接管并在释放时一并释放的 HTTP 客户端。</param>
+    internal SndbObjectStorageClient(string connectionString, HttpClient httpClient)
+    {
+        ArgumentNullException.ThrowIfNull(httpClient);
+        _builder = new SndbConnectionStringBuilder(connectionString);
+        _useDedicatedHttpHandler = false;
+        if (_builder.ResolveMode() == SndbProviderMode.Embedded)
+            throw new ArgumentException("测试 HTTP 客户端仅适用于远程连接。", nameof(connectionString));
+
+        _database = _builder.ResolveDatabase();
+        if (string.IsNullOrWhiteSpace(_database))
+            throw new InvalidOperationException("远程对象存储客户端缺少数据库名。");
+        httpClient.BaseAddress ??= new Uri(_builder.ResolveBaseUrl(), UriKind.Absolute);
+        ConfigureRemoteClient(httpClient, _builder.ResolveProtocol());
+    }
+
+    /// <summary>
     /// 当前连接模式。
     /// </summary>
     public SndbProviderMode ProviderMode => _builder.ResolveMode();
@@ -323,6 +343,10 @@ public sealed class SndbObjectStorageClient : IDisposable
     /// <summary>
     /// 读取服务端为当前对象版本生成的 WebP 缩略图；未启用或仍在处理时返回 <see langword="null"/>。
     /// </summary>
+    /// <param name="bucket">原始对象所在的 bucket。</param>
+    /// <param name="key">原始对象 key。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>缩略图读取结果；缩略图不可用时返回 <see langword="null"/>。</returns>
     public async Task<SndbObjectReadResult?> OpenThumbnailAsync(
         string bucket,
         string key,
@@ -400,8 +424,10 @@ public sealed class SndbObjectStorageClient : IDisposable
             content,
             0,
             meta.SizeBytes,
-            IsRange: false,
-            TotalLength: meta.SizeBytes));
+            IsRange: false)
+        {
+            TotalLength = meta.SizeBytes,
+        });
     }
 
     private async Task<SndbObjectReadResult?> OpenReadRestAsync(
@@ -421,44 +447,55 @@ public sealed class SndbObjectStorageClient : IDisposable
                 : new RangeHeaderValue(start, null);
         }
 
-        var response = await _http!.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+        HttpResponseMessage? response = await _http!.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken)
+            .ConfigureAwait(false);
+        try
         {
-            response.Dispose();
-            return null;
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                return null;
+            if (!response.IsSuccessStatusCode)
+                throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+
+            var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            bool isRangeResponse = response.StatusCode == System.Net.HttpStatusCode.PartialContent;
+            ContentRangeHeaderValue? contentRange = response.Content.Headers.ContentRange;
+            long responseLength = response.Content.Headers.ContentLength
+                ?? (isRangeResponse ? ResolveContentRangeLength(contentRange) : 0);
+            // 以服务端实际响应为准；代理忽略 Range 并返回 200 时，偏移必须回到零且总长度取完整响应长度。
+            long responseOffset = isRangeResponse ? contentRange?.From ?? range?.Offset ?? 0 : 0;
+            long totalLength = isRangeResponse ? contentRange?.Length ?? 0 : responseLength;
+            var info = new SndbObjectInfo(
+                bucket,
+                key,
+                response.Headers.TryGetValues("x-amz-version-id", out var versionValues) ? versionValues.FirstOrDefault() ?? string.Empty : string.Empty,
+                response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream",
+                totalLength > 0 ? totalLength : responseLength,
+                response.Headers.ETag?.Tag ?? string.Empty,
+                response.Headers.TryGetValues("x-amz-meta-sha256", out var shaValues) ? shaValues.FirstOrDefault() ?? string.Empty : string.Empty,
+                false,
+                DateTimeOffset.MinValue,
+                DateTimeOffset.MinValue,
+                new Dictionary<string, string>(),
+                new Dictionary<string, string>());
+
+            var result = new SndbObjectReadResult(
+                info,
+                new ResponseOwnedStream(response, stream),
+                responseOffset,
+                responseLength,
+                isRangeResponse,
+                totalLength);
+            // 从这里开始由结果流接管 response，finally 不再释放成功返回的响应。
+            response = null;
+            return result;
         }
-        if (!response.IsSuccessStatusCode)
+        finally
         {
-            var error = await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
-            response.Dispose();
-            throw error;
+            response?.Dispose();
         }
-
-        var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        var responseLength = response.Content.Headers.ContentLength ?? 0;
-        var totalLength = response.Content.Headers.ContentRange?.Length
-            ?? (range.HasValue ? 0 : responseLength);
-        var info = new SndbObjectInfo(
-            bucket,
-            key,
-            response.Headers.TryGetValues("x-amz-version-id", out var versionValues) ? versionValues.FirstOrDefault() ?? string.Empty : string.Empty,
-            response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream",
-            totalLength > 0 ? totalLength : responseLength,
-            response.Headers.ETag?.Tag ?? string.Empty,
-            response.Headers.TryGetValues("x-amz-meta-sha256", out var shaValues) ? shaValues.FirstOrDefault() ?? string.Empty : string.Empty,
-            false,
-            DateTimeOffset.MinValue,
-            DateTimeOffset.MinValue,
-            new Dictionary<string, string>(),
-            new Dictionary<string, string>());
-
-        return new SndbObjectReadResult(
-            info,
-            new ResponseOwnedStream(response, stream),
-            range?.Offset ?? 0,
-            responseLength,
-            response.StatusCode == System.Net.HttpStatusCode.PartialContent,
-            totalLength);
     }
 
     /// <summary>
@@ -976,7 +1013,7 @@ public sealed class SndbObjectStorageClient : IDisposable
 
         var baseAddress = new Uri(baseUrl, UriKind.Absolute);
         var protocol = _builder.ResolveProtocol();
-        _http = _useDedicatedHttpHandler
+        HttpClient httpClient = _useDedicatedHttpHandler
             ? RemoteHttpClientFactory.CreateDedicated(
                 baseAddress,
                 _builder.Username,
@@ -989,6 +1026,15 @@ public sealed class SndbObjectStorageClient : IDisposable
                 _builder.Password,
                 _builder.Token,
                 TimeSpan.FromSeconds(_builder.Timeout));
+        ConfigureRemoteClient(httpClient, protocol);
+    }
+
+    /// <summary>
+    /// 配置远程 HTTP 版本策略与对象帧通道。
+    /// </summary>
+    private void ConfigureRemoteClient(HttpClient httpClient, SndbTransportProtocol protocol)
+    {
+        _http = httpClient;
         if (protocol == SndbTransportProtocol.FrameHttp2)
         {
             _http.DefaultRequestVersion = HttpVersion.Version20;
@@ -1000,6 +1046,16 @@ public sealed class SndbObjectStorageClient : IDisposable
             _http.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionExact;
         }
         _frames = new FrameChannel(_http, protocol);
+    }
+
+    /// <summary>
+    /// 在响应未声明 Content-Length 时，从 Content-Range 推导当前分段长度。
+    /// </summary>
+    private static long ResolveContentRangeLength(ContentRangeHeaderValue? contentRange)
+    {
+        if (contentRange?.From is not long from || contentRange.To is not long to || to < from)
+            return 0;
+        return checked(to - from + 1);
     }
 
     private HttpRequestMessage CreateRequest(HttpMethod method, string url, HttpContent? content = null)
@@ -1237,14 +1293,29 @@ public sealed class SndbObjectStorageClient : IDisposable
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
         public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) => _inner.ReadAsync(buffer, cancellationToken);
 
+        /// <summary>
+        /// 释放内容流，并确保内容流释放失败时仍释放其所属 HTTP 响应。
+        /// </summary>
         protected override void Dispose(bool disposing)
         {
-            if (disposing)
+            try
             {
-                _inner.Dispose();
-                _response.Dispose();
+                if (disposing)
+                {
+                    try
+                    {
+                        _inner.Dispose();
+                    }
+                    finally
+                    {
+                        _response.Dispose();
+                    }
+                }
             }
-            base.Dispose(disposing);
+            finally
+            {
+                base.Dispose(disposing);
+            }
         }
     }
 }

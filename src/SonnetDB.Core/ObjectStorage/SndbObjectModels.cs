@@ -66,13 +66,50 @@ public sealed record SndbObjectVersionListResult(
 /// <summary>
 /// 对象读取结果。
 /// </summary>
+/// <param name="Info">对象元数据。</param>
+/// <param name="Content">当前读取范围对应的内容流。</param>
+/// <param name="Offset">内容流在完整对象中的起始偏移。</param>
+/// <param name="Length">当前内容流的字节数。</param>
+/// <param name="IsRange">是否为范围读取。</param>
+/// <param name="TotalLength">完整对象的总字节数；无法确定时为零。</param>
 public sealed record SndbObjectReadResult(
     SndbObjectInfo Info,
     Stream Content,
     long Offset,
     long Length,
     bool IsRange,
-    long TotalLength = 0);
+    long TotalLength = 0)
+{
+    /// <summary>
+    /// 使用原有五参数 API 创建对象读取结果，完整对象长度未知时保持为零。
+    /// </summary>
+    public SndbObjectReadResult(
+        SndbObjectInfo Info,
+        Stream Content,
+        long Offset,
+        long Length,
+        bool IsRange)
+        : this(Info, Content, Offset, Length, IsRange, TotalLength: 0)
+    {
+    }
+
+    /// <summary>
+    /// 按原有五元素形式解构读取结果，兼容已编译的旧调用方。
+    /// </summary>
+    public void Deconstruct(
+        out SndbObjectInfo Info,
+        out Stream Content,
+        out long Offset,
+        out long Length,
+        out bool IsRange)
+    {
+        Info = this.Info;
+        Content = this.Content;
+        Offset = this.Offset;
+        Length = this.Length;
+        IsRange = this.IsRange;
+    }
+}
 
 /// <summary>
 /// Multipart upload 会话摘要。

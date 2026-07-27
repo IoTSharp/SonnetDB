@@ -7,6 +7,7 @@
 
 ### Fixed
 
+- 修复对象 PUT 在最终文件发布后、元数据批次于 WAL 追加前被拒绝时遗留孤立文件的问题；对象版本、latest 指针和 PUT 审计现通过单个 KV 原子批次提交，提交结果不确定时保留完整内容，避免可恢复元数据指向被主动删除的正文。内容写入改用真正的异步顺序 `FileStream`，并在 rename 前强制正文落盘、rename 后强制目录项落盘；嵌入式及远程完整/范围读取同步返回对象总长度，同时保留读取结果原有五参数构造函数和五元素解构，并继续提供含总长度的六参数 API。
 - 优化关系表联合二级索引选择：等值谓词按最长连续左前缀命中，下一列 Int64/DATETIME 范围通过 KV 半开区间与磁盘 lower-bound 扫描，signed big-endian 跨零时按负数/非负数分段且不改变磁盘编码；EXPLAIN 区分完整键、`secondary_index_prefix` 与 `secondary_index_range`。单范围列升序且 WHERE 无残余、无事务 overlay 时安全下推 LIMIT/OFFSET，其他条件继续完整残余过滤；缺少首列和不支持的范围类型按可用前缀或全表扫描回退，并避免可空后缀的唯一索引漏行。
 - 修复 EF Core provider 无法翻译 `DateTime.Now.Date` 的问题；新增 `DateTime` / `DateTimeOffset` 的当前时间、日期截断、日期分量、`AddYears` 至 `AddTicks` 及 Unix 时间转换翻译。关系 SQL 同步提供注册式日期标量函数，并在单表、关系 JOIN 与时序 JOIN 谓词路径复用同一函数注册表。
 - 修复 KV 原子批次在当前余量与 fresh WAL/overlay 预算中都无法容纳时仍额外调度 checkpoint 的问题；此类批次现在会在 WAL 追加前直接拒绝并提示调整批量或预算，可由 checkpoint 释放的当前压力仍保留原有背压与重试行为。

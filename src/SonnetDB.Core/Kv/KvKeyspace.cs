@@ -168,6 +168,16 @@ public sealed class KvKeyspace : IDisposable
         }
     }
 
+    /// <summary>
+    /// 判断指定异常是否来自 WAL 追加或同步阶段；此时批次可能在重启后恢复，调用方不得删除关联内容。
+    /// </summary>
+    internal bool IsWriteCommitOutcomeUnknown(Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        lock (_sync)
+            return ReferenceEquals(_writeFault, exception);
+    }
+
     /// <summary>在发布依赖当前 KV 内容的外部维护标记前，显式同步 WAL。</summary>
     internal void SyncWalForMaintenance()
     {
