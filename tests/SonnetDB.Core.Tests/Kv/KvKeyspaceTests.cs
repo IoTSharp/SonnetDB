@@ -138,7 +138,7 @@ public sealed class KvKeyspaceTests : IDisposable
                 throw new TimeoutException("测试未释放冻结的 KV checkpoint。");
         };
 
-        Task<long> checkpoint = Task.Run(kv.Compact);
+        Task<long> checkpoint = StartDedicated(kv.Compact);
         try
         {
             Assert.True(frozen.Wait(TimeSpan.FromSeconds(10)));
@@ -618,5 +618,30 @@ public sealed class KvKeyspaceTests : IDisposable
         Assert.Equal(1, ns.DeletePrefix("flow:"));
         Assert.Null(ns.Get("flow:a"));
         Assert.NotNull(kv.Get("flow:a"));
+    }
+
+    /// <summary>
+    /// 使用独立线程执行会被测试门闩暂停的操作，避免 CI 并行测试时线程池调度延迟导致误报。
+    /// </summary>
+    private static Task<T> StartDedicated<T>(Func<T> action)
+    {
+        var completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                completion.SetResult(action());
+            }
+            catch (Exception ex)
+            {
+                completion.SetException(ex);
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "SonnetDB.KvKeyspaceTest",
+        };
+        thread.Start();
+        return completion.Task;
     }
 }
