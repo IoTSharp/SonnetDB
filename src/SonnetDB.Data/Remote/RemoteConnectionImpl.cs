@@ -228,6 +228,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                 ShowMeasurementsStatement or
                 ShowTablesStatement or
                 ShowViewsStatement or
+                ShowMaterializedViewsStatement or
                 ShowTableIndexesStatement or
                 ShowDocumentCollectionsStatement or
                 ShowDocumentIndexesStatement or
@@ -235,6 +236,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                 DescribeMeasurementStatement or
                 DescribeTableStatement or
                 DescribeViewStatement or
+                DescribeMaterializedViewStatement or
                 DescribeDocumentCollectionStatement or
                 ExplainStatement;
         }

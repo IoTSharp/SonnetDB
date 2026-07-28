@@ -4,6 +4,7 @@ using SonnetDB.Engine;
 using SonnetDB.Query.Functions;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Tables;
+using SonnetDB.Views;
 
 namespace SonnetDB.Sql.Execution;
 
@@ -162,9 +163,12 @@ internal static class RelationalSelectExecutor
         if (statement.FromSubquery is not null)
             return LoadSubquery(tsdb, statement.FromSubquery, alias);
 
-        var schema = tsdb.Tables.Catalog.TryGet(statement.Measurement)
-            ?? throw new InvalidOperationException($"table '{statement.Measurement}' 不存在。");
-        return LoadTable(tsdb, schema, alias);
+        var schema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
+        if (schema is not null)
+            return LoadTable(tsdb, schema, alias);
+        if (tsdb.MaterializedViews.Catalog.TryGet(statement.Measurement) is not null)
+            return LoadMaterializedView(tsdb.MaterializedViews, statement.Measurement, alias);
+        throw new InvalidOperationException($"table/materialized view '{statement.Measurement}' 不存在。");
     }
 
     private static Relation LoadJoin(Tsdb tsdb, JoinClause join)
@@ -172,9 +176,12 @@ internal static class RelationalSelectExecutor
         if (join.Subquery is not null)
             return LoadSubquery(tsdb, join.Subquery, join.Alias);
 
-        var schema = tsdb.Tables.Catalog.TryGet(join.TableName)
-            ?? throw new InvalidOperationException($"JOIN 右侧 table '{join.TableName}' 不存在。");
-        return LoadTable(tsdb, schema, join.Alias);
+        var schema = tsdb.Tables.Catalog.TryGet(join.TableName);
+        if (schema is not null)
+            return LoadTable(tsdb, schema, join.Alias);
+        if (tsdb.MaterializedViews.Catalog.TryGet(join.TableName) is not null)
+            return LoadMaterializedView(tsdb.MaterializedViews, join.TableName, join.Alias);
+        throw new InvalidOperationException($"JOIN 右侧 table/materialized view '{join.TableName}' 不存在。");
     }
 
     private static Relation LoadTable(Tsdb tsdb, TableSchema schema, string alias)
@@ -185,6 +192,21 @@ internal static class RelationalSelectExecutor
         // read-your-writes：叠加当前 ambient 轻事务对本表的缓冲写（#218）。
         var rows = TableSqlExecutor.LoadSelectCandidateRows(tsdb.Tables.Open(schema.Name), schema, where: null)
             .Select(row => row.Values.ToArray())
+            .ToArray();
+        return new Relation(columns, rows);
+    }
+
+    private static Relation LoadMaterializedView(
+        MaterializedViewManager manager,
+        string name,
+        string alias)
+    {
+        SelectExecutionResult snapshot = manager.ReadSnapshot(name);
+        var columns = snapshot.Columns
+            .Select(column => new RelColumn(alias, NormalizeSubqueryColumnName(column), column))
+            .ToArray();
+        var rows = snapshot.Rows
+            .Select(static row => row.ToArray())
             .ToArray();
         return new Relation(columns, rows);
     }

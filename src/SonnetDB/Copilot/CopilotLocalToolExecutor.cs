@@ -527,17 +527,22 @@ internal sealed class CopilotLocalToolExecutor
             DeleteStatement delete => ("delete", delete.Measurement, true),
             CreateTableStatement createTable => ("create_table", createTable.Name, true),
             CreateViewStatement createView => ("create_view", createView.Name, true),
+            CreateMaterializedViewStatement createMaterializedView => ("create_materialized_view", createMaterializedView.Name, true),
+            RefreshMaterializedViewStatement refreshMaterializedView => ("refresh_materialized_view", refreshMaterializedView.Name, true),
             DropMeasurementStatement dropMeasurement => ("drop_measurement", dropMeasurement.Name, true),
             DropTableStatement dropTable => ("drop_table", dropTable.Name, true),
             DropViewStatement dropView => ("drop_view", dropView.Name, true),
+            DropMaterializedViewStatement dropMaterializedView => ("drop_materialized_view", dropMaterializedView.Name, true),
             UpdateStatement update => ("update", update.TableName, true),
             SelectStatement select => ("select", select.Measurement, false),
             ShowMeasurementsStatement => ("show_measurements", null, false),
             ShowTablesStatement => ("show_tables", null, false),
             ShowViewsStatement => ("show_views", null, false),
+            ShowMaterializedViewsStatement => ("show_materialized_views", null, false),
             DescribeMeasurementStatement describe => ("describe_measurement", describe.Name, false),
             DescribeTableStatement describeTable => ("describe_table", describeTable.Name, false),
             DescribeViewStatement describeView => ("describe_view", describeView.Name, false),
+            DescribeMaterializedViewStatement describeMaterializedView => ("describe_materialized_view", describeMaterializedView.Name, false),
             _ => ("unknown", null, false)
         };
 
@@ -546,9 +551,12 @@ internal sealed class CopilotLocalToolExecutor
             or CreateMeasurementStatement
             or CreateTableStatement
             or CreateViewStatement
+            or CreateMaterializedViewStatement
+            or RefreshMaterializedViewStatement
             or DropMeasurementStatement
             or DropTableStatement
             or DropViewStatement
+            or DropMaterializedViewStatement
             or InsertStatement
             or UpdateStatement
             or DeleteStatement
@@ -556,18 +564,22 @@ internal sealed class CopilotLocalToolExecutor
             or ShowMeasurementsStatement
             or ShowTablesStatement
             or ShowViewsStatement
+            or ShowMaterializedViewsStatement
             or DescribeMeasurementStatement
             or DescribeTableStatement
-            or DescribeViewStatement;
+            or DescribeViewStatement
+            or DescribeMaterializedViewStatement;
 
     private static bool IsReadOnlyStatement(SqlStatement statement)
         => statement is SelectStatement
             or ShowMeasurementsStatement
             or ShowTablesStatement
             or ShowViewsStatement
+            or ShowMaterializedViewsStatement
             or DescribeMeasurementStatement
             or DescribeTableStatement
             or DescribeViewStatement
+            or DescribeMaterializedViewStatement
             or ExplainStatement;
 
     private static string GetReadOnlyStatementType(SqlStatement statement)
@@ -577,9 +589,11 @@ internal sealed class CopilotLocalToolExecutor
             ShowMeasurementsStatement => "show_measurements",
             ShowTablesStatement => "show_tables",
             ShowViewsStatement => "show_views",
+            ShowMaterializedViewsStatement => "show_materialized_views",
             DescribeMeasurementStatement => "describe_measurement",
             DescribeTableStatement => "describe_table",
             DescribeViewStatement => "describe_view",
+            DescribeMaterializedViewStatement => "describe_materialized_view",
             ExplainStatement => "explain",
             _ => "unknown"
         };

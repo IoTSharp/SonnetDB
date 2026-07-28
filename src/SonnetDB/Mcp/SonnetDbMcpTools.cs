@@ -268,9 +268,11 @@ internal sealed class SonnetDbMcpTools
         ShowMeasurementsStatement => "show_measurements",
         ShowTablesStatement => "show_tables",
         ShowViewsStatement => "show_views",
+        ShowMaterializedViewsStatement => "show_materialized_views",
         DescribeMeasurementStatement => "describe_measurement",
         DescribeTableStatement => "describe_table",
         DescribeViewStatement => "describe_view",
+        DescribeMaterializedViewStatement => "describe_materialized_view",
         ExplainStatement => "explain",
         _ => "unknown",
     };
@@ -280,9 +282,11 @@ internal sealed class SonnetDbMcpTools
             or ShowMeasurementsStatement
             or ShowTablesStatement
             or ShowViewsStatement
+            or ShowMaterializedViewsStatement
             or DescribeMeasurementStatement
             or DescribeTableStatement
             or DescribeViewStatement
+            or DescribeMaterializedViewStatement
             or ExplainStatement;
 
     /// <summary>

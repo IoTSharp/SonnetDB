@@ -94,6 +94,26 @@ public sealed record CreateViewStatement(
     bool IfNotExists = false) : SqlStatement;
 
 /// <summary>
+/// <c>CREATE MATERIALIZED VIEW [IF NOT EXISTS] name AS SELECT ...</c>。
+/// 创建操作只持久化定义；首个可读代际由显式 <c>REFRESH MATERIALIZED VIEW</c> 发布。
+/// </summary>
+/// <param name="Name">物化视图名称。</param>
+/// <param name="Query">已解析的 SELECT 定义。</param>
+/// <param name="DefinitionSql">不含 CREATE 前缀的原始 SELECT 文本。</param>
+/// <param name="IfNotExists">同名物化视图已存在时是否视为成功。</param>
+public sealed record CreateMaterializedViewStatement(
+    string Name,
+    SelectStatement Query,
+    string DefinitionSql,
+    bool IfNotExists = false) : SqlStatement;
+
+/// <summary>
+/// <c>REFRESH MATERIALIZED VIEW name</c>：显式生成并原子发布一个全量物理代际。
+/// </summary>
+/// <param name="Name">物化视图名称。</param>
+public sealed record RefreshMaterializedViewStatement(string Name) : SqlStatement;
+
+/// <summary>
 /// <c>CREATE [UNIQUE] INDEX [IF NOT EXISTS] index_name ON table_name (col, ...)</c>。
 /// </summary>
 /// <param name="IndexName">索引名。</param>
@@ -607,6 +627,13 @@ public sealed record DropDocumentCollectionStatement(string Name) : SqlStatement
 public sealed record DropViewStatement(string Name, bool IfExists = false) : SqlStatement;
 
 /// <summary>
+/// <c>DROP MATERIALIZED VIEW [IF EXISTS] name</c>：删除定义及物理代际。
+/// </summary>
+/// <param name="Name">物化视图名称。</param>
+/// <param name="IfExists">物化视图不存在时是否视为成功。</param>
+public sealed record DropMaterializedViewStatement(string Name, bool IfExists = false) : SqlStatement;
+
+/// <summary>
 /// <c>DROP INDEX index_name ON table_name</c>：删除关系表二级索引声明。
 /// </summary>
 /// <param name="IndexName">索引名。</param>
@@ -661,6 +688,11 @@ public sealed record ShowTablesStatement : SqlStatement;
 public sealed record ShowViewsStatement : SqlStatement;
 
 /// <summary>
+/// <c>SHOW MATERIALIZED VIEWS</c>：列出物化视图及刷新状态。
+/// </summary>
+public sealed record ShowMaterializedViewsStatement : SqlStatement;
+
+/// <summary>
 /// <c>SHOW DOCUMENT COLLECTIONS</c>：列出当前数据库中所有 JSON 文档集合。
 /// </summary>
 public sealed record ShowDocumentCollectionsStatement : SqlStatement;
@@ -703,6 +735,12 @@ public sealed record DescribeTableStatement(string Name) : SqlStatement;
 public sealed record DescribeViewStatement(string Name) : SqlStatement;
 
 /// <summary>
+/// <c>DESCRIBE MATERIALIZED VIEW name</c>：返回定义、依赖和刷新元数据。
+/// </summary>
+/// <param name="Name">物化视图名称。</param>
+public sealed record DescribeMaterializedViewStatement(string Name) : SqlStatement;
+
+/// <summary>
 /// <c>DESCRIBE DOCUMENT COLLECTION &lt;name&gt;</c>：描述指定文档集合。
 /// </summary>
 /// <param name="Name">目标文档集合名称。</param>
@@ -710,7 +748,7 @@ public sealed record DescribeDocumentCollectionStatement(string Name) : SqlState
 
 /// <summary>
 /// <c>EXPLAIN &lt;read-only statement&gt;</c>：对只读语句返回估算扫描与命中统计。
-/// 当前仅支持 <c>SELECT</c>、<c>SHOW MEASUREMENTS</c> / <c>SHOW TABLES</c> 与 <c>DESCRIBE [MEASUREMENT|TABLE]</c>。
+/// 当前支持 <c>SELECT</c>、各类只读 <c>SHOW</c> 与 <c>DESCRIBE</c> 语句。
 /// </summary>
 /// <param name="Statement">被解释的只读语句。</param>
 public sealed record ExplainStatement(SqlStatement Statement) : SqlStatement;

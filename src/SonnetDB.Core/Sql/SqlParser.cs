@@ -108,6 +108,9 @@ public sealed class SqlParser
     /// <summary>解析下一条语句。</summary>
     public SqlStatement ParseStatement()
     {
+        if (IsIdentifier("refresh"))
+            return ParseRefreshMaterializedView();
+
         return Current.Kind switch
         {
             TokenKind.KeywordCreate => ParseCreate(),
@@ -129,7 +132,7 @@ public sealed class SqlParser
             TokenKind.KeywordIssue => ParseIssue(),
             TokenKind.KeywordDescribe => ParseDescribe(),
             TokenKind.KeywordDesc => ParseDescribe(),
-            _ => throw Error("期望 CREATE / INSERT / IMPORT / SELECT / DELETE / TRUNCATE / UPDATE / DROP / ALTER / GRANT / REVOKE / SHOW / EXPLAIN / ISSUE / DESCRIBE / BEGIN / COMMIT / ROLLBACK 关键字"),
+            _ => throw Error("期望 CREATE / REFRESH / INSERT / IMPORT / SELECT / DELETE / TRUNCATE / UPDATE / DROP / ALTER / GRANT / REVOKE / SHOW / EXPLAIN / ISSUE / DESCRIBE / BEGIN / COMMIT / ROLLBACK 关键字"),
         };
     }
 
@@ -158,6 +161,16 @@ public sealed class SqlParser
 
         if (IsIndexKeyword())
             return ParseCreateIndexBody(unique, sparse, ttl);
+
+        if (IsIdentifier("materialized"))
+        {
+            if (unique || sparse || ttl)
+                throw Error("CREATE MATERIALIZED VIEW 不支持 UNIQUE / SPARSE / TTL 修饰符");
+            Advance();
+            if (!IsIdentifier("view"))
+                throw Error("CREATE MATERIALIZED 后面期望 VIEW");
+            return ParseCreateMaterializedViewBody();
+        }
 
         if (IsIdentifier("view"))
         {
@@ -197,6 +210,37 @@ public sealed class SqlParser
             ? FormatTokenRange(definitionTokenStart, _index)
             : _source[definitionStart..definitionEnd].Trim();
         return new CreateViewStatement(name, query, definitionSql, ifNotExists);
+    }
+
+    private CreateMaterializedViewStatement ParseCreateMaterializedViewBody()
+    {
+        Advance(); // VIEW 保持为非保留标识符。
+        bool ifNotExists = ParseOptionalIfNotExists();
+        string name = ExpectIdentifierName();
+        Expect(TokenKind.KeywordAs);
+        if (Current.Kind != TokenKind.KeywordSelect)
+            throw Error("CREATE MATERIALIZED VIEW ... AS 后面期望 SELECT");
+
+        int definitionStart = Current.Position;
+        int definitionTokenStart = _index;
+        var query = ParseSelect();
+        int definitionEnd = Current.Position;
+        string definitionSql = _source is null
+            ? FormatTokenRange(definitionTokenStart, _index)
+            : _source[definitionStart..definitionEnd].Trim();
+        return new CreateMaterializedViewStatement(name, query, definitionSql, ifNotExists);
+    }
+
+    private RefreshMaterializedViewStatement ParseRefreshMaterializedView()
+    {
+        Advance(); // REFRESH 保持为非保留标识符。
+        if (!IsIdentifier("materialized"))
+            throw Error("REFRESH 后面期望 MATERIALIZED VIEW");
+        Advance();
+        if (!IsIdentifier("view"))
+            throw Error("REFRESH MATERIALIZED 后面期望 VIEW");
+        Advance();
+        return new RefreshMaterializedViewStatement(ExpectIdentifierName());
     }
 
     private string FormatTokenRange(int start, int end)
@@ -2612,6 +2656,18 @@ public sealed class SqlParser
                 Advance();
                 return new DropDatabaseStatement(ExpectIdentifierName());
             default:
+                if (IsIdentifier("materialized"))
+                {
+                    Advance();
+                    if (!IsIdentifier("view"))
+                        throw Error("DROP MATERIALIZED 后面期望 VIEW");
+                    Advance();
+                    bool dropMaterializedViewIfExists = ParseOptionalIfExists();
+                    return new DropMaterializedViewStatement(
+                        ExpectIdentifierName(),
+                        dropMaterializedViewIfExists);
+                }
+
                 if (IsIdentifier("view"))
                 {
                     Advance();
@@ -2888,6 +2944,15 @@ public sealed class SqlParser
 
                 throw Error("SHOW FULLTEXT 后面期望 INDEXES");
             default:
+                if (IsIdentifier("materialized"))
+                {
+                    Advance();
+                    if (!IsIdentifier("views"))
+                        throw Error("SHOW MATERIALIZED 后面期望 VIEWS");
+                    Advance();
+                    return new ShowMaterializedViewsStatement();
+                }
+
                 if (IsIdentifier("views"))
                 {
                     Advance();
@@ -2926,6 +2991,7 @@ public sealed class SqlParser
             and not ShowMeasurementsStatement
             and not ShowTablesStatement
             and not ShowViewsStatement
+            and not ShowMaterializedViewsStatement
             and not ShowTableIndexesStatement
             and not ShowDocumentCollectionsStatement
             and not ShowDocumentIndexesStatement
@@ -2933,6 +2999,7 @@ public sealed class SqlParser
             and not DescribeMeasurementStatement
             and not DescribeTableStatement
             and not DescribeViewStatement
+            and not DescribeMaterializedViewStatement
             and not DescribeDocumentCollectionStatement)
         {
             throw Error("EXPLAIN 仅支持 SELECT / SHOW MEASUREMENTS / SHOW TABLES / SHOW VIEWS / SHOW DOCUMENT COLLECTIONS / DESCRIBE [MEASUREMENT|TABLE|VIEW|DOCUMENT COLLECTION]");
@@ -2965,6 +3032,15 @@ public sealed class SqlParser
         {
             Advance();
             return new DescribeViewStatement(ExpectIdentifierName());
+        }
+
+        if (IsIdentifier("materialized"))
+        {
+            Advance();
+            if (!IsIdentifier("view"))
+                throw Error("DESCRIBE MATERIALIZED 后面期望 VIEW");
+            Advance();
+            return new DescribeMaterializedViewStatement(ExpectIdentifierName());
         }
 
         if (Current.Kind == TokenKind.KeywordMeasurement)

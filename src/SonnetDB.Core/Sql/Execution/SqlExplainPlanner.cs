@@ -64,6 +64,7 @@ public static class SqlExplainPlanner
             ShowMeasurementsStatement => ExplainShowMeasurements(databaseName, tsdb),
             ShowTablesStatement => ExplainShowTables(databaseName, tsdb),
             ShowViewsStatement => ExplainShowViews(databaseName, tsdb),
+            ShowMaterializedViewsStatement => ExplainShowMaterializedViews(databaseName, tsdb),
             ShowDocumentCollectionsStatement => ExplainShowDocumentCollections(databaseName, tsdb),
             ShowTableIndexesStatement showIndexes => ExplainShowIndexes(databaseName, tsdb, showIndexes.TableName),
             ShowDocumentIndexesStatement showDocumentIndexes => ExplainShowDocumentIndexes(databaseName, tsdb, showDocumentIndexes.CollectionName),
@@ -71,6 +72,10 @@ public static class SqlExplainPlanner
             DescribeMeasurementStatement describe => ExplainDescribeMeasurement(databaseName, tsdb, describe.Name),
             DescribeTableStatement describeTable => ExplainDescribeTable(databaseName, tsdb, describeTable.Name),
             DescribeViewStatement describeView => ExplainDescribeView(databaseName, tsdb, describeView.Name),
+            DescribeMaterializedViewStatement describeMaterializedView => ExplainDescribeMaterializedView(
+                databaseName,
+                tsdb,
+                describeMaterializedView.Name),
             DescribeDocumentCollectionStatement describeDocumentCollection => ExplainDescribeDocumentCollection(databaseName, tsdb, describeDocumentCollection.Name),
             SelectStatement select => ExplainSelect(databaseName, tsdb, select),
             _ => throw new InvalidOperationException(
@@ -173,6 +178,25 @@ public static class SqlExplainPlanner
         return new SqlExplainExecutionResult(
             Database: databaseName,
             StatementType: "show_views",
+            Measurement: null,
+            MatchedSeriesCount: 0,
+            EstimatedSegmentCount: 0,
+            EstimatedBlockCount: 0,
+            EstimatedScannedRows: viewCount,
+            EstimatedMemTableRows: 0,
+            EstimatedSegmentRows: 0,
+            HasTimeFilter: false,
+            TagFilterCount: 0,
+            AccessPath: "catalog",
+            IndexName: null);
+    }
+
+    private static SqlExplainExecutionResult ExplainShowMaterializedViews(string? databaseName, Tsdb tsdb)
+    {
+        int viewCount = tsdb.MaterializedViews.Catalog.Count;
+        return new SqlExplainExecutionResult(
+            Database: databaseName,
+            StatementType: "show_materialized_views",
             Measurement: null,
             MatchedSeriesCount: 0,
             EstimatedSegmentCount: 0,
@@ -360,6 +384,30 @@ public static class SqlExplainPlanner
             IndexName: null);
     }
 
+    private static SqlExplainExecutionResult ExplainDescribeMaterializedView(
+        string? databaseName,
+        Tsdb tsdb,
+        string viewName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(viewName);
+        var definition = tsdb.MaterializedViews.Catalog.TryGet(viewName)
+            ?? throw new InvalidOperationException($"materialized view '{viewName}' 不存在。");
+        return new SqlExplainExecutionResult(
+            Database: databaseName,
+            StatementType: "describe_materialized_view",
+            Measurement: definition.Name,
+            MatchedSeriesCount: 0,
+            EstimatedSegmentCount: 0,
+            EstimatedBlockCount: 0,
+            EstimatedScannedRows: 1,
+            EstimatedMemTableRows: 0,
+            EstimatedSegmentRows: 0,
+            HasTimeFilter: false,
+            TagFilterCount: 0,
+            AccessPath: "catalog",
+            IndexName: null);
+    }
+
     private static SqlExplainExecutionResult ExplainDescribeDocumentCollection(
         string? databaseName,
         Tsdb tsdb,
@@ -408,6 +456,29 @@ public static class SqlExplainPlanner
                 HasTimeFilter: statement.Where is not null,
                 TagFilterCount: 0,
                 AccessPath: "view_expansion",
+                IndexName: null,
+                ScanFilter: DescribeScanFilter(statement.Where));
+        }
+
+        if (statement.FromSubquery is null
+            && statement.TableValuedFunction is null
+            && tsdb.MaterializedViews.Catalog.TryGet(statement.Measurement) is { } materializedView)
+        {
+            return new SqlExplainExecutionResult(
+                Database: databaseName,
+                StatementType: "select_materialized_view",
+                Measurement: materializedView.Name,
+                MatchedSeriesCount: 0,
+                EstimatedSegmentCount: materializedView.ActiveGeneration == 0 ? 0 : 1,
+                EstimatedBlockCount: 0,
+                EstimatedScannedRows: materializedView.RowCount,
+                EstimatedMemTableRows: 0,
+                EstimatedSegmentRows: materializedView.RowCount,
+                HasTimeFilter: statement.Where is not null,
+                TagFilterCount: 0,
+                AccessPath: materializedView.ActiveGeneration == 0
+                    ? "materialized_view_uninitialized"
+                    : "materialized_view_snapshot",
                 IndexName: null,
                 ScanFilter: DescribeScanFilter(statement.Where));
         }

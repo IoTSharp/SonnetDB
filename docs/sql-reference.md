@@ -172,7 +172,43 @@ DROP VIEW IF EXISTS active_devices;
 - 创建时会拒绝不存在的数据源、与基础对象重名的视图和自引用；运行时还会拒绝直接或间接循环，并限制最多 32 层展开。
 - 被视图引用的基础对象不能执行 `DROP` 或 schema `ALTER`；被其他视图引用的视图也不能删除。首版不支持 `CASCADE`、`OR REPLACE` 或跨数据库依赖，应先按依赖顺序显式删除视图。
 - `EXPLAIN SELECT ... FROM view` 将访问路径标记为 `view_expansion`；当前不会把展开后各基础扫描的估算值汇总到视图层。
-- 物化视图不属于本语法；它需要独立的物理结果存储和原子刷新生命周期，按 M37 #328 后续实现。
+
+### 物化视图
+
+物化视图保存 SELECT 定义和最近一次成功刷新的物理结果。创建只登记定义，不隐式执行查询；首次读取前必须显式刷新：
+
+```sql
+CREATE MATERIALIZED VIEW active_device_cache AS
+SELECT id, name, site_id
+FROM active_devices;
+
+REFRESH MATERIALIZED VIEW active_device_cache;
+SELECT name FROM active_device_cache ORDER BY id;
+```
+
+基础数据后续变化不会自动进入已发布快照。再次执行 `REFRESH MATERIALIZED VIEW` 会全量计算一个新代际；新代际完整写入并落盘后才原子切换读指针。刷新期间读者继续读取旧代际，刷新失败也保留旧代际，并把状态改为 `failed`、记录错误。尚无成功代际时读取会明确提示先刷新。
+
+管理语法：
+
+```sql
+CREATE MATERIALIZED VIEW IF NOT EXISTS active_device_cache AS SELECT * FROM active_devices;
+SHOW MATERIALIZED VIEWS;
+DESCRIBE MATERIALIZED VIEW active_device_cache;
+DROP MATERIALIZED VIEW active_device_cache;
+DROP MATERIALIZED VIEW IF EXISTS active_device_cache;
+```
+
+`SHOW MATERIALIZED VIEWS` 返回 `name`、`status`、`definition_version`、`active_generation`、`row_count`、最近成功刷新的 `refreshed_utc` 和 `error`。`DESCRIBE MATERIALIZED VIEW` 另返回 SELECT `definition`、直接 `dependencies`、`created_utc`、最近尝试结束时间 `last_refresh_utc` 与 `last_successful_refresh_utc`。状态为 `uninitialized`、`refreshing`、`ready` 或 `failed`。
+
+`information_schema.tables` 以 `table_type = 'MATERIALIZED VIEW'` 列出物化视图；`information_schema.materialized_views` 提供相同定义和刷新元数据。`EXPLAIN SELECT ... FROM materialized_view` 使用 `materialized_view_snapshot` 访问路径并按活动代际行数估算扫描。
+
+当前行为与限制：
+
+- 定义目录和物理结果位于独立的 `materialized-views/`；目录和快照均有版本与 CRC，不修改已有表、measurement、document 或 Segment 格式。
+- 物化快照是只读关系源，可参与外层过滤、投影、聚合、子查询和关系 JOIN；定义本身仍复用现有表、measurement、document、逻辑视图和当前 SELECT 执行路径。
+- 定义不能包含参数占位符、未知数据源或自引用；物化视图与基础对象、逻辑视图共用名称空间和依赖删除/ALTER 保护。
+- `REFRESH` 需要数据库写权限，不能在活动轻事务内执行，同一物化视图不允许并发刷新；`SHOW`、`DESCRIBE` 和读取只需要读权限并继续经过现有 Frame、MCP、Copilot 与审计入口。
+- 首版只支持显式全量刷新。不支持增量刷新、定时调度、后台自动刷新、`OR REPLACE`、`CASCADE` 或跨数据库依赖。
 
 ### `CREATE INDEX` / `DROP INDEX`
 
@@ -940,14 +976,15 @@ WHERE time >= now() - 30d
 
 ## 元数据查询
 
-### `SHOW MEASUREMENTS` / `SHOW TABLES` / `SHOW VIEWS`
+### `SHOW MEASUREMENTS` / `SHOW TABLES` / `SHOW VIEWS` / `SHOW MATERIALIZED VIEWS`
 
-`SHOW MEASUREMENTS` 列出当前数据库中所有时序 measurement，`SHOW TABLES` 列出当前数据库中所有关系表，两者都按字典序升序返回单列 `name`。`SHOW VIEWS` 按名称升序返回 `name` 与 `created_utc`。
+`SHOW MEASUREMENTS` 列出当前数据库中所有时序 measurement，`SHOW TABLES` 列出当前数据库中所有关系表，两者都按字典序升序返回单列 `name`。`SHOW VIEWS` 按名称升序返回 `name` 与 `created_utc`。`SHOW MATERIALIZED VIEWS` 返回名称、刷新状态、定义/活动代际、行数、最近成功刷新时间与错误。
 
 ```sql
 SHOW MEASUREMENTS;
 SHOW TABLES;
 SHOW VIEWS;
+SHOW MATERIALIZED VIEWS;
 ```
 
 | name |
@@ -1001,6 +1038,14 @@ DESCRIBE VIEW active_devices;
 | `dependencies` | string | 按字典序排列、逗号分隔的直接数据源 |
 | `created_utc` | datetime | UTC 创建时间 |
 
+### `DESCRIBE MATERIALIZED VIEW <name>`
+
+返回物化视图定义、依赖、活动代际和最近刷新状态；完整列合同见前文“物化视图”。
+
+```sql
+DESCRIBE MATERIALIZED VIEW active_device_cache;
+```
+
 ### `DESCRIBE [MEASUREMENT] <name>` / `DESC <name>`
 
 描述指定 measurement 的列结构，按 `CREATE MEASUREMENT` 声明顺序返回三列：
@@ -1043,11 +1088,12 @@ EXPLAIN DESCRIBE MEASUREMENT cpu;
 当前支持范围：
 
 - `SELECT ...`
-- `SHOW MEASUREMENTS` / `SHOW TABLES` / `SHOW VIEWS` / `SHOW DOCUMENT COLLECTIONS`
+- `SHOW MEASUREMENTS` / `SHOW TABLES` / `SHOW VIEWS` / `SHOW MATERIALIZED VIEWS` / `SHOW DOCUMENT COLLECTIONS`
 - `SHOW INDEXES ON <table>` / `SHOW JSON INDEXES ON <collection>` / `SHOW FULLTEXT INDEXES ON <collection>`
 - `DESCRIBE [MEASUREMENT] <name>` / `DESC <name>`
 - `DESCRIBE TABLE <name>`
 - `DESCRIBE VIEW <name>`
+- `DESCRIBE MATERIALIZED VIEW <name>`
 - `DESCRIBE DOCUMENT COLLECTION <name>`
 
 当前不支持对 `INSERT`、`DELETE`、`CREATE`、`DROP`、用户/授权/Token 控制面 SQL 做 `EXPLAIN`。

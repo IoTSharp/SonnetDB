@@ -25,6 +25,17 @@ public static class SqlExecutor
         new List<string>(2) { "name", "created_utc" }.AsReadOnly();
     private static readonly IReadOnlyList<string> _describeViewColumns =
         new List<string>(4) { "name", "definition", "dependencies", "created_utc" }.AsReadOnly();
+    private static readonly IReadOnlyList<string> _showMaterializedViewColumns =
+        new List<string>(7)
+        {
+            "name", "status", "definition_version", "active_generation", "row_count", "refreshed_utc", "error"
+        }.AsReadOnly();
+    private static readonly IReadOnlyList<string> _describeMaterializedViewColumns =
+        new List<string>(11)
+        {
+            "name", "definition", "dependencies", "definition_version", "status", "active_generation",
+            "row_count", "created_utc", "last_refresh_utc", "last_successful_refresh_utc", "error"
+        }.AsReadOnly();
     private static readonly IReadOnlyList<string> _userColumns =
         new List<string>(4) { "name", "is_superuser", "created_utc", "token_count" }.AsReadOnly();
     private static readonly IReadOnlyList<string> _grantColumns =
@@ -194,6 +205,7 @@ public static class SqlExecutor
             CreateTableStatement createTable => TableSqlExecutor.ExecuteCreateTable(tsdb, createTable),
             CreateDocumentCollectionStatement createDocumentCollection => DocumentSqlExecutor.ExecuteCreateCollection(tsdb, createDocumentCollection),
             CreateViewStatement createView => ExecuteCreateView(tsdb, createView),
+            CreateMaterializedViewStatement createMaterializedView => ExecuteCreateMaterializedView(tsdb, createMaterializedView),
             CreateTableIndexStatement createIndex => ExecuteCreateIndex(tsdb, createIndex),
             CreateDocumentIndexStatement createDocumentIndex => DocumentSqlExecutor.ExecuteCreateIndex(tsdb, createDocumentIndex),
             CreateDocumentPathIndexStatement createDocumentIndex => DocumentSqlExecutor.ExecuteCreateIndex(
@@ -209,6 +221,7 @@ public static class SqlExecutor
             ImportJsonStatement importJson => JsonFileSqlExecutor.ExecuteImport(tsdb, importJson),
             InsertStatement insert => ExecuteInsert(tsdb, insert, transaction),
             SelectStatement select => ExecuteSelect(tsdb, select),
+            RefreshMaterializedViewStatement refreshMaterializedView => ExecuteRefreshMaterializedView(tsdb, refreshMaterializedView),
             DeleteStatement delete => ExecuteDelete(tsdb, delete, transaction),
             TruncateTableStatement truncate => ExecuteTruncate(tsdb, truncate, transaction),
             UpdateStatement update => ExecuteUpdate(tsdb, update, transaction),
@@ -216,6 +229,7 @@ public static class SqlExecutor
             DropTableStatement dropTable => TableSqlExecutor.ExecuteDropTable(tsdb, dropTable),
             DropDocumentCollectionStatement dropDocumentCollection => DocumentSqlExecutor.ExecuteDropCollection(tsdb, dropDocumentCollection),
             DropViewStatement dropView => ExecuteDropView(tsdb, dropView),
+            DropMaterializedViewStatement dropMaterializedView => ExecuteDropMaterializedView(tsdb, dropMaterializedView),
             DropTableIndexStatement dropIndex => TableSqlExecutor.ExecuteDropIndex(tsdb, dropIndex),
             DropDocumentPathIndexStatement dropDocumentIndex => DocumentSqlExecutor.ExecuteDropIndex(tsdb, dropDocumentIndex),
             DropFullTextIndexStatement dropFullTextIndex => DocumentSqlExecutor.ExecuteDropFullTextIndex(tsdb, dropFullTextIndex),
@@ -232,6 +246,7 @@ public static class SqlExecutor
             ShowMeasurementsStatement => ShowMeasurements(tsdb),
             ShowTablesStatement => TableSqlExecutor.ShowTables(tsdb),
             ShowViewsStatement => ShowViews(tsdb),
+            ShowMaterializedViewsStatement => ShowMaterializedViews(tsdb),
             ShowDocumentCollectionsStatement => DocumentSqlExecutor.ShowCollections(tsdb),
             ShowTableIndexesStatement showIndexes => TableSqlExecutor.ShowIndexes(tsdb, showIndexes.TableName),
             ShowDocumentIndexesStatement showDocumentIndexes => DocumentSqlExecutor.ShowIndexes(tsdb, showDocumentIndexes.CollectionName),
@@ -239,6 +254,7 @@ public static class SqlExecutor
             DescribeMeasurementStatement describe => DescribeMeasurement(tsdb, describe.Name),
             DescribeTableStatement describeTable => TableSqlExecutor.DescribeTable(tsdb, describeTable.Name),
             DescribeViewStatement describeView => DescribeView(tsdb, describeView.Name),
+            DescribeMaterializedViewStatement describeMaterializedView => DescribeMaterializedView(tsdb, describeMaterializedView.Name),
             DescribeDocumentCollectionStatement describeDocumentCollection => DocumentSqlExecutor.DescribeCollection(tsdb, describeDocumentCollection.Name),
             ExplainStatement explain => ExecuteExplain(tsdb, databaseName, explain),
             CreateUserStatement createUser => ExecuteControlPlane(controlPlane,
@@ -303,7 +319,8 @@ public static class SqlExecutor
 
         if (tsdb.Tables.Catalog.TryGet(statement.Name) is not null
             || tsdb.Measurements.Contains(statement.Name)
-            || tsdb.Documents.Catalog.TryGet(statement.Name) is not null)
+            || tsdb.Documents.Catalog.TryGet(statement.Name) is not null
+            || tsdb.MaterializedViews.Catalog.TryGet(statement.Name) is not null)
         {
             throw new InvalidOperationException(
                 $"无法创建 view '{statement.Name}'：同名基础对象已存在。");
@@ -339,23 +356,115 @@ public static class SqlExecutor
         return definition;
     }
 
+    private static MaterializedViewDefinition ExecuteCreateMaterializedView(
+        Tsdb tsdb,
+        CreateMaterializedViewStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        if (tsdb.Tables.Catalog.TryGet(statement.Name) is not null
+            || tsdb.Measurements.Contains(statement.Name)
+            || tsdb.Documents.Catalog.TryGet(statement.Name) is not null
+            || tsdb.Views.Catalog.TryGet(statement.Name) is not null)
+        {
+            throw new InvalidOperationException(
+                $"无法创建 materialized view '{statement.Name}'：同名基础对象或 view 已存在。");
+        }
+
+        if (tsdb.MaterializedViews.Catalog.TryGet(statement.Name) is { } existing)
+        {
+            if (statement.IfNotExists)
+                return existing;
+            throw new InvalidOperationException($"materialized view '{statement.Name}' 已存在。");
+        }
+
+        var definition = MaterializedViewDefinition.Create(
+            statement.Name,
+            statement.DefinitionSql,
+            statement.Query);
+        ValidateViewDependencies(tsdb, definition.Name, definition.Dependencies, "materialized view");
+        tsdb.MaterializedViews.Create(definition);
+        return definition;
+    }
+
+    private static RowsAffectedExecutionResult ExecuteRefreshMaterializedView(
+        Tsdb tsdb,
+        RefreshMaterializedViewStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+        if (SqlTransactionContext.Current is not null)
+            throw new InvalidOperationException("REFRESH MATERIALIZED VIEW 不能在活动轻事务内执行。");
+        var definition = tsdb.MaterializedViews.Catalog.TryGet(statement.Name)
+            ?? throw new InvalidOperationException($"materialized view '{statement.Name}' 不存在。");
+        var result = tsdb.MaterializedViews.Refresh(
+            statement.Name,
+            () => ExecuteSelect(tsdb, definition.Query));
+        return new RowsAffectedExecutionResult(statement.Name, result.Rows.Count, "refresh_materialized_view");
+    }
+
     private static RowsAffectedExecutionResult ExecuteDropView(Tsdb tsdb, DropViewStatement statement)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
-        var dependents = tsdb.Views.FindDependents(statement.Name);
-        if (dependents.Count != 0)
+        var viewDependents = tsdb.Views.FindDependents(statement.Name);
+        var materializedDependents = tsdb.MaterializedViews.FindDependents(statement.Name);
+        if (viewDependents.Count != 0 || materializedDependents.Count != 0)
         {
+            string dependents = FormatDependentNames(viewDependents, materializedDependents);
             throw new InvalidOperationException(
-                $"无法删除 view '{statement.Name}'：view "
-                + $"'{string.Join("', '", dependents.Select(static view => view.Name))}' 仍依赖它。");
+                $"无法删除 view '{statement.Name}'：view/materialized view '{dependents}' 仍依赖它。");
         }
 
         bool removed = tsdb.Views.Drop(statement.Name);
         if (!removed && !statement.IfExists)
             throw new InvalidOperationException($"view '{statement.Name}' 不存在。");
         return new RowsAffectedExecutionResult(statement.Name, removed ? 1 : 0, "drop_view");
+    }
+
+    private static RowsAffectedExecutionResult ExecuteDropMaterializedView(
+        Tsdb tsdb,
+        DropMaterializedViewStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        var viewDependents = tsdb.Views.FindDependents(statement.Name);
+        var materializedDependents = tsdb.MaterializedViews.FindDependents(statement.Name);
+        if (viewDependents.Count != 0 || materializedDependents.Count != 0)
+        {
+            string dependents = FormatDependentNames(viewDependents, materializedDependents);
+            throw new InvalidOperationException(
+                $"无法删除 materialized view '{statement.Name}'：view/materialized view '{dependents}' 仍依赖它。");
+        }
+
+        bool removed = tsdb.MaterializedViews.Drop(statement.Name);
+        if (!removed && !statement.IfExists)
+            throw new InvalidOperationException($"materialized view '{statement.Name}' 不存在。");
+        return new RowsAffectedExecutionResult(
+            statement.Name,
+            removed ? 1 : 0,
+            "drop_materialized_view");
+    }
+
+    private static void ValidateViewDependencies(
+        Tsdb tsdb,
+        string name,
+        IReadOnlyList<string> dependencies,
+        string objectType)
+    {
+        foreach (string dependency in dependencies)
+        {
+            if (string.Equals(dependency, name, StringComparison.Ordinal))
+                throw new InvalidOperationException($"{objectType} '{name}' 不能直接或间接引用自身。");
+            if (!IsKnownViewSource(tsdb, dependency))
+            {
+                throw new InvalidOperationException(
+                    $"{objectType} '{name}' 引用了不存在的数据源 '{dependency}'。");
+            }
+        }
     }
 
     private static bool IsKnownViewSource(Tsdb tsdb, string name)
@@ -366,13 +475,15 @@ public static class SqlExecutor
                 || name.Equals("information_schema.columns", StringComparison.OrdinalIgnoreCase)
                 || name.Equals("information_schema.indexes", StringComparison.OrdinalIgnoreCase)
                 || name.Equals("information_schema.foreign_keys", StringComparison.OrdinalIgnoreCase)
-                || name.Equals("information_schema.views", StringComparison.OrdinalIgnoreCase);
+                || name.Equals("information_schema.views", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("information_schema.materialized_views", StringComparison.OrdinalIgnoreCase);
         }
 
         return tsdb.Tables.Catalog.TryGet(name) is not null
             || tsdb.Measurements.Contains(name)
             || tsdb.Documents.Catalog.TryGet(name) is not null
-            || tsdb.Views.Catalog.TryGet(name) is not null;
+            || tsdb.Views.Catalog.TryGet(name) is not null
+            || tsdb.MaterializedViews.Catalog.TryGet(name) is not null;
     }
 
     internal static void EnsureNameDoesNotBelongToView(
@@ -385,6 +496,11 @@ public static class SqlExecutor
             throw new InvalidOperationException(
                 $"无法创建 {objectType} '{objectName}'：同名 view 已存在。");
         }
+        if (tsdb.MaterializedViews.Catalog.TryGet(objectName) is not null)
+        {
+            throw new InvalidOperationException(
+                $"无法创建 {objectType} '{objectName}'：同名 materialized view 已存在。");
+        }
     }
 
     internal static void EnsureNoViewDependents(
@@ -392,14 +508,25 @@ public static class SqlExecutor
         string objectName,
         string operation)
     {
-        var dependents = tsdb.Views.FindDependents(objectName);
-        if (dependents.Count == 0)
+        var viewDependents = tsdb.Views.FindDependents(objectName);
+        var materializedDependents = tsdb.MaterializedViews.FindDependents(objectName);
+        if (viewDependents.Count == 0 && materializedDependents.Count == 0)
             return;
 
+        string dependents = FormatDependentNames(viewDependents, materializedDependents);
         throw new InvalidOperationException(
-            $"无法执行 {operation}：view "
-            + $"'{string.Join("', '", dependents.Select(static view => view.Name))}' 依赖对象 '{objectName}'。");
+            $"无法执行 {operation}：view/materialized view "
+            + $"'{dependents}' 依赖对象 '{objectName}'。");
     }
+
+    private static string FormatDependentNames(
+        IReadOnlyList<ViewDefinition> viewDependents,
+        IReadOnlyList<MaterializedViewDefinition> materializedDependents)
+        => string.Join(
+            "', '",
+            viewDependents.Select(static view => view.Name)
+                .Concat(materializedDependents.Select(static view => view.Name))
+                .OrderBy(static name => name, StringComparer.Ordinal));
 
     private static SelectExecutionResult ExecuteExplain(Tsdb tsdb, string? databaseName, ExplainStatement statement)
     {
@@ -447,6 +574,53 @@ public static class SqlExecutor
         };
         return new SelectExecutionResult(_describeViewColumns, rows);
     }
+
+    private static SelectExecutionResult ShowMaterializedViews(Tsdb tsdb)
+    {
+        var rows = tsdb.MaterializedViews.Catalog.Snapshot()
+            .Select(static definition => (IReadOnlyList<object?>)new object?[]
+            {
+                definition.Name,
+                FormatMaterializedViewStatus(definition.Status),
+                definition.DefinitionVersion,
+                definition.ActiveGeneration,
+                definition.RowCount,
+                OptionalUtcDateTime(definition.LastSuccessfulRefreshAtUtcTicks),
+                definition.LastError,
+            })
+            .ToArray();
+        return new SelectExecutionResult(_showMaterializedViewColumns, rows);
+    }
+
+    private static SelectExecutionResult DescribeMaterializedView(Tsdb tsdb, string name)
+    {
+        var definition = tsdb.MaterializedViews.Catalog.TryGet(name)
+            ?? throw new InvalidOperationException($"materialized view '{name}' 不存在。");
+        IReadOnlyList<IReadOnlyList<object?>> rows =
+        [
+            new object?[]
+            {
+                definition.Name,
+                definition.DefinitionSql,
+                string.Join(",", definition.Dependencies),
+                definition.DefinitionVersion,
+                FormatMaterializedViewStatus(definition.Status),
+                definition.ActiveGeneration,
+                definition.RowCount,
+                new DateTime(definition.CreatedAtUtcTicks, DateTimeKind.Utc),
+                OptionalUtcDateTime(definition.LastRefreshAtUtcTicks),
+                OptionalUtcDateTime(definition.LastSuccessfulRefreshAtUtcTicks),
+                definition.LastError,
+            },
+        ];
+        return new SelectExecutionResult(_describeMaterializedViewColumns, rows);
+    }
+
+    private static string FormatMaterializedViewStatus(MaterializedViewRefreshStatus status)
+        => status.ToString().ToLowerInvariant();
+
+    private static DateTime? OptionalUtcDateTime(long ticks)
+        => ticks == 0 ? null : new DateTime(ticks, DateTimeKind.Utc);
 
     private static SelectExecutionResult DescribeMeasurement(Tsdb tsdb, string name)
     {
@@ -1099,6 +1273,11 @@ public static class SqlExecutor
         var tableSchema = statement.FromSubquery is null
             ? tsdb.Tables.Catalog.TryGet(statement.Measurement)
             : null;
+        var materializedView = statement.FromSubquery is null
+            ? tsdb.MaterializedViews.Catalog.TryGet(statement.Measurement)
+            : null;
+        if (materializedView is not null)
+            return RelationalSelectExecutor.Execute(tsdb, statement);
         if (DocumentVectorSearchExecutor.IsVectorSearch(statement))
             return DocumentVectorSearchExecutor.Execute(tsdb, statement);
         if (HybridSearchExecutor.IsHybridSearch(statement))
@@ -1150,6 +1329,7 @@ public static class SqlExecutor
             "information_schema.indexes" => BuildInformationSchemaIndexes(tsdb),
             "information_schema.foreign_keys" => BuildInformationSchemaForeignKeys(tsdb),
             "information_schema.views" => BuildInformationSchemaViews(tsdb),
+            "information_schema.materialized_views" => BuildInformationSchemaMaterializedViews(tsdb),
             _ => throw new InvalidOperationException($"未知 INFORMATION_SCHEMA 视图 '{statement.Measurement}'。"),
         };
 
@@ -1173,6 +1353,8 @@ public static class SqlExecutor
             rows.Add(new object?[] { "main", collection.Name, "DOCUMENT COLLECTION" });
         foreach (var view in tsdb.Views.Catalog.Snapshot())
             rows.Add(new object?[] { "main", view.Name, "VIEW" });
+        foreach (var view in tsdb.MaterializedViews.Catalog.Snapshot())
+            rows.Add(new object?[] { "main", view.Name, "MATERIALIZED VIEW" });
         return (columns, rows.OrderBy(static r => (string)r[1]!, StringComparer.Ordinal).ToArray());
     }
 
@@ -1186,6 +1368,33 @@ public static class SqlExecutor
                 definition.Name,
                 definition.DefinitionSql,
                 new DateTime(definition.CreatedAtUtcTicks, DateTimeKind.Utc),
+            })
+            .ToArray();
+        return (columns, rows);
+    }
+
+    private static (IReadOnlyList<string> Columns, IReadOnlyList<IReadOnlyList<object?>> Rows) BuildInformationSchemaMaterializedViews(Tsdb tsdb)
+    {
+        var columns = new[]
+        {
+            "table_schema", "table_name", "view_definition", "definition_version", "status",
+            "active_generation", "row_count", "created_utc", "last_refresh_utc",
+            "last_successful_refresh_utc", "error"
+        };
+        var rows = tsdb.MaterializedViews.Catalog.Snapshot()
+            .Select(static definition => (IReadOnlyList<object?>)new object?[]
+            {
+                "main",
+                definition.Name,
+                definition.DefinitionSql,
+                definition.DefinitionVersion,
+                FormatMaterializedViewStatus(definition.Status),
+                definition.ActiveGeneration,
+                definition.RowCount,
+                new DateTime(definition.CreatedAtUtcTicks, DateTimeKind.Utc),
+                OptionalUtcDateTime(definition.LastRefreshAtUtcTicks),
+                OptionalUtcDateTime(definition.LastSuccessfulRefreshAtUtcTicks),
+                definition.LastError,
             })
             .ToArray();
         return (columns, rows);

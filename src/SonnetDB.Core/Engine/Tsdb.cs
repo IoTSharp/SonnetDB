@@ -42,6 +42,7 @@ public sealed class Tsdb : IDisposable
     private readonly TableManager _tables;
     private readonly DocumentCollectionManager _documents;
     private readonly ViewManager _views;
+    private readonly MaterializedViewManager _materializedViews;
 
     private WalSegmentSet? _walSet;
     private long _nextSegmentId;
@@ -115,6 +116,9 @@ public sealed class Tsdb : IDisposable
     /// 逻辑视图管理器，提供持久化定义目录与依赖查询。
     /// </summary>
     public ViewManager Views => _views;
+
+    /// <summary>物化视图定义、刷新状态和物理代际管理器。</summary>
+    public MaterializedViewManager MaterializedViews => _materializedViews;
 
     /// <summary>进程内墓碑集合，支持查询过滤与 Compaction 消化。</summary>
     public TombstoneTable Tombstones { get; private set; } = new TombstoneTable();
@@ -322,6 +326,8 @@ public sealed class Tsdb : IDisposable
             options.UseSimdNumericAggregates);
         Functions = new UserFunctionRegistry(options.AllowUserFunctions);
         _views = new ViewManager(TsdbPaths.ViewsDir(options.RootDirectory));
+        _materializedViews = new MaterializedViewManager(
+            TsdbPaths.MaterializedViewsDir(options.RootDirectory));
         _keyspaces = new KvKeyspaceManager(TsdbPaths.KvDir(options.RootDirectory), options.Kv);
         _tables = new TableManager(
             TsdbPaths.TablesDir(options.RootDirectory),
@@ -354,6 +360,7 @@ public sealed class Tsdb : IDisposable
         Directory.CreateDirectory(TsdbPaths.TablesDir(root));
         Directory.CreateDirectory(TsdbPaths.DocumentsDir(root));
         Directory.CreateDirectory(TsdbPaths.ViewsDir(root));
+        Directory.CreateDirectory(TsdbPaths.MaterializedViewsDir(root));
 
         // 加载 measurement schema 集合（文件不存在时返回空集合）
         var measurements = new MeasurementCatalog();
@@ -1677,17 +1684,28 @@ public sealed class Tsdb : IDisposable
             throw new InvalidOperationException(
                 $"无法创建 {objectType} '{objectName}'：同名 view 已存在。");
         }
+        if (_materializedViews.Catalog.TryGet(objectName) is not null)
+        {
+            throw new InvalidOperationException(
+                $"无法创建 {objectType} '{objectName}'：同名 materialized view 已存在。");
+        }
     }
 
     private void EnsureNoViewDependents(string objectName, string operation)
     {
-        var dependents = _views.FindDependents(objectName);
-        if (dependents.Count == 0)
+        var viewDependents = _views.FindDependents(objectName);
+        var materializedDependents = _materializedViews.FindDependents(objectName);
+        if (viewDependents.Count == 0 && materializedDependents.Count == 0)
             return;
 
+        string dependents = string.Join(
+            "', '",
+            viewDependents.Select(static view => view.Name)
+                .Concat(materializedDependents.Select(static view => view.Name))
+                .Order(StringComparer.Ordinal));
         throw new InvalidOperationException(
-            $"无法执行 {operation}：view "
-            + $"'{string.Join("', '", dependents.Select(static view => view.Name))}' 依赖对象 '{objectName}'。");
+            $"无法执行 {operation}：view/materialized view "
+            + $"'{dependents}' 依赖对象 '{objectName}'。");
     }
 
     /// <summary>

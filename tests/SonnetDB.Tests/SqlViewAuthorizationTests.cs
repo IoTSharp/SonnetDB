@@ -9,6 +9,8 @@ public sealed class SqlViewAuthorizationTests
     [Theory]
     [InlineData("SHOW VIEWS")]
     [InlineData("DESCRIBE VIEW active_devices")]
+    [InlineData("SHOW MATERIALIZED VIEWS")]
+    [InlineData("DESCRIBE MATERIALIZED VIEW active_devices")]
     [InlineData("SELECT * FROM active_devices")]
     public void RequiresWritePermission_ViewReadStatements_ReturnsFalse(string sql)
         => Assert.False(SqlEndpointHandler.RequiresWritePermission(SqlParser.Parse(sql)));
@@ -16,6 +18,9 @@ public sealed class SqlViewAuthorizationTests
     [Theory]
     [InlineData("CREATE VIEW active_devices AS SELECT * FROM devices")]
     [InlineData("DROP VIEW active_devices")]
+    [InlineData("CREATE MATERIALIZED VIEW active_devices AS SELECT * FROM devices")]
+    [InlineData("REFRESH MATERIALIZED VIEW active_devices")]
+    [InlineData("DROP MATERIALIZED VIEW active_devices")]
     public void RequiresWritePermission_ViewDdl_ReturnsTrue(string sql)
         => Assert.True(SqlEndpointHandler.RequiresWritePermission(SqlParser.Parse(sql)));
 }
