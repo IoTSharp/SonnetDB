@@ -25,6 +25,8 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
+        SqlExecutor.EnsureNameDoesNotBelongToView(tsdb, statement.Name, "table");
+
         if (statement.IfNotExists)
         {
             var existing = tsdb.Tables.Catalog.TryGet(statement.Name);
@@ -110,6 +112,8 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
+        SqlExecutor.EnsureNoViewDependents(tsdb, statement.Name, "DROP TABLE");
+
         bool removed = tsdb.Tables.Drop(statement.Name);
         if (!removed && !statement.IfExists)
             throw new InvalidOperationException($"table '{statement.Name}' 不存在。");
@@ -130,6 +134,8 @@ internal static class TableSqlExecutor
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
+
+        SqlExecutor.EnsureNoViewDependents(tsdb, statement.TableName, "ALTER TABLE");
 
         var dataType = MapTableColumnType(statement.DataType);
         var isNullable = statement.Nullability != ColumnNullability.NotNull;
@@ -153,6 +159,8 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
+        SqlExecutor.EnsureNoViewDependents(tsdb, statement.TableName, "ALTER TABLE");
+
         tsdb.Tables.AddForeignKey(
             statement.TableName,
             new TableForeignKeyDefinition(
@@ -171,6 +179,8 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
+        SqlExecutor.EnsureNoViewDependents(tsdb, statement.TableName, "ALTER TABLE");
+
         tsdb.Tables.AddCheckConstraint(
             statement.TableName,
             new TableCheckConstraintDefinition(
@@ -183,6 +193,8 @@ internal static class TableSqlExecutor
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
+
+        SqlExecutor.EnsureNoViewDependents(tsdb, statement.TableName, "ALTER TABLE");
 
         if (statement.IfExists)
         {
@@ -201,6 +213,8 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
+        SqlExecutor.EnsureNoViewDependents(tsdb, statement.TableName, "ALTER TABLE");
+
         bool removed = tsdb.Tables.DropForeignKey(statement.TableName, statement.ConstraintName)
             || tsdb.Tables.DropCheckConstraint(statement.TableName, statement.ConstraintName);
         return new RowsAffectedExecutionResult(statement.TableName, removed ? 1 : 0, "alter_table_drop_constraint");
@@ -211,6 +225,8 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
+        SqlExecutor.EnsureNoViewDependents(tsdb, statement.TableName, "ALTER TABLE");
+
         tsdb.Tables.AlterTableRenameColumn(statement.TableName, statement.OldColumnName, statement.NewColumnName);
         return new RowsAffectedExecutionResult(statement.TableName, 1, "alter_table_rename_column");
     }
@@ -219,6 +235,8 @@ internal static class TableSqlExecutor
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
+
+        SqlExecutor.EnsureNoViewDependents(tsdb, statement.OldTableName, "ALTER TABLE RENAME");
 
         tsdb.Tables.RenameTable(statement.OldTableName, statement.NewTableName);
         return new RowsAffectedExecutionResult(statement.NewTableName, 1, "alter_table_rename_table");

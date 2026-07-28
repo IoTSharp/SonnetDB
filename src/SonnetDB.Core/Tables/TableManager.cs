@@ -13,6 +13,8 @@ public sealed class TableManager : IDisposable
     private readonly object _sync = new();
     private readonly string _rootDirectory;
     private readonly KvOptions _kvOptions;
+    private readonly Action<string, string>? _nameAvailabilityGuard;
+    private readonly Action<string, string>? _schemaMutationGuard;
     private readonly Dictionary<string, TableStore> _stores = new(StringComparer.Ordinal);
     private bool _disposed;
 
@@ -22,12 +24,23 @@ public sealed class TableManager : IDisposable
     /// <param name="rootDirectory">tables 根目录。</param>
     /// <param name="kvOptions">底层 KV 选项。</param>
     public TableManager(string rootDirectory, KvOptions kvOptions)
+        : this(rootDirectory, kvOptions, nameAvailabilityGuard: null, schemaMutationGuard: null)
+    {
+    }
+
+    internal TableManager(
+        string rootDirectory,
+        KvOptions kvOptions,
+        Action<string, string>? nameAvailabilityGuard,
+        Action<string, string>? schemaMutationGuard)
     {
         ArgumentNullException.ThrowIfNull(rootDirectory);
         ArgumentNullException.ThrowIfNull(kvOptions);
 
         _rootDirectory = rootDirectory;
         _kvOptions = kvOptions;
+        _nameAvailabilityGuard = nameAvailabilityGuard;
+        _schemaMutationGuard = schemaMutationGuard;
         Directory.CreateDirectory(_rootDirectory);
 
         Catalog = new TableCatalog();
@@ -48,6 +61,7 @@ public sealed class TableManager : IDisposable
     public void Create(TableSchema schema)
     {
         ArgumentNullException.ThrowIfNull(schema);
+        _nameAvailabilityGuard?.Invoke(schema.Name, "table");
         lock (_sync)
         {
             ThrowIfDisposed();
@@ -147,6 +161,7 @@ public sealed class TableManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(constraintName);
+        _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
         lock (_sync)
         {
             ThrowIfDisposed();
@@ -184,6 +199,7 @@ public sealed class TableManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentNullException.ThrowIfNull(definition);
+        _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
         lock (_sync)
         {
             ThrowIfDisposed();
@@ -225,6 +241,7 @@ public sealed class TableManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(constraintName);
+        _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
         lock (_sync)
         {
             ThrowIfDisposed();
@@ -264,6 +281,7 @@ public sealed class TableManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentNullException.ThrowIfNull(definition);
+        _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
         lock (_sync)
         {
             ThrowIfDisposed();
@@ -299,6 +317,7 @@ public sealed class TableManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
+        _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
         lock (_sync)
         {
             ThrowIfDisposed();
@@ -321,6 +340,7 @@ public sealed class TableManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
+        _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
         lock (_sync)
         {
             ThrowIfDisposed();
@@ -351,6 +371,7 @@ public sealed class TableManager : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(oldColumnName);
         ArgumentException.ThrowIfNullOrWhiteSpace(newColumnName);
+        _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
         lock (_sync)
         {
             ThrowIfDisposed();
@@ -366,6 +387,8 @@ public sealed class TableManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(oldName);
         ArgumentException.ThrowIfNullOrWhiteSpace(newName);
+        _schemaMutationGuard?.Invoke(oldName, "ALTER TABLE RENAME");
+        _nameAvailabilityGuard?.Invoke(newName, "table");
         lock (_sync)
         {
             ThrowIfDisposed();
@@ -436,6 +459,7 @@ public sealed class TableManager : IDisposable
     public bool Drop(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
+        _schemaMutationGuard?.Invoke(name, "DROP TABLE");
         lock (_sync)
         {
             ThrowIfDisposed();

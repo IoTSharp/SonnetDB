@@ -63,16 +63,18 @@ public static class SqlExplainPlanner
         {
             ShowMeasurementsStatement => ExplainShowMeasurements(databaseName, tsdb),
             ShowTablesStatement => ExplainShowTables(databaseName, tsdb),
+            ShowViewsStatement => ExplainShowViews(databaseName, tsdb),
             ShowDocumentCollectionsStatement => ExplainShowDocumentCollections(databaseName, tsdb),
             ShowTableIndexesStatement showIndexes => ExplainShowIndexes(databaseName, tsdb, showIndexes.TableName),
             ShowDocumentIndexesStatement showDocumentIndexes => ExplainShowDocumentIndexes(databaseName, tsdb, showDocumentIndexes.CollectionName),
             ShowFullTextIndexesStatement showFullTextIndexes => ExplainShowFullTextIndexes(databaseName, tsdb, showFullTextIndexes.CollectionName),
             DescribeMeasurementStatement describe => ExplainDescribeMeasurement(databaseName, tsdb, describe.Name),
             DescribeTableStatement describeTable => ExplainDescribeTable(databaseName, tsdb, describeTable.Name),
+            DescribeViewStatement describeView => ExplainDescribeView(databaseName, tsdb, describeView.Name),
             DescribeDocumentCollectionStatement describeDocumentCollection => ExplainDescribeDocumentCollection(databaseName, tsdb, describeDocumentCollection.Name),
             SelectStatement select => ExplainSelect(databaseName, tsdb, select),
             _ => throw new InvalidOperationException(
-                "EXPLAIN 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES / SHOW DOCUMENT COLLECTIONS / SHOW INDEXES / SHOW JSON INDEXES / SHOW FULLTEXT INDEXES 与 DESCRIBE [MEASUREMENT|TABLE|DOCUMENT COLLECTION]。"),
+                "EXPLAIN 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES / SHOW VIEWS / SHOW DOCUMENT COLLECTIONS / SHOW INDEXES / SHOW JSON INDEXES / SHOW FULLTEXT INDEXES 与 DESCRIBE [MEASUREMENT|TABLE|VIEW|DOCUMENT COLLECTION]。"),
         };
     }
 
@@ -157,6 +159,25 @@ public static class SqlExplainPlanner
             EstimatedSegmentCount: 0,
             EstimatedBlockCount: 0,
             EstimatedScannedRows: tableCount,
+            EstimatedMemTableRows: 0,
+            EstimatedSegmentRows: 0,
+            HasTimeFilter: false,
+            TagFilterCount: 0,
+            AccessPath: "catalog",
+            IndexName: null);
+    }
+
+    private static SqlExplainExecutionResult ExplainShowViews(string? databaseName, Tsdb tsdb)
+    {
+        int viewCount = tsdb.Views.Catalog.Count;
+        return new SqlExplainExecutionResult(
+            Database: databaseName,
+            StatementType: "show_views",
+            Measurement: null,
+            MatchedSeriesCount: 0,
+            EstimatedSegmentCount: 0,
+            EstimatedBlockCount: 0,
+            EstimatedScannedRows: viewCount,
             EstimatedMemTableRows: 0,
             EstimatedSegmentRows: 0,
             HasTimeFilter: false,
@@ -314,6 +335,31 @@ public static class SqlExplainPlanner
             IndexName: null);
     }
 
+    private static SqlExplainExecutionResult ExplainDescribeView(
+        string? databaseName,
+        Tsdb tsdb,
+        string viewName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(viewName);
+
+        var definition = tsdb.Views.Catalog.TryGet(viewName)
+            ?? throw new InvalidOperationException($"view '{viewName}' 不存在。");
+        return new SqlExplainExecutionResult(
+            Database: databaseName,
+            StatementType: "describe_view",
+            Measurement: definition.Name,
+            MatchedSeriesCount: 0,
+            EstimatedSegmentCount: 0,
+            EstimatedBlockCount: 0,
+            EstimatedScannedRows: 1,
+            EstimatedMemTableRows: 0,
+            EstimatedSegmentRows: 0,
+            HasTimeFilter: false,
+            TagFilterCount: 0,
+            AccessPath: "catalog",
+            IndexName: null);
+    }
+
     private static SqlExplainExecutionResult ExplainDescribeDocumentCollection(
         string? databaseName,
         Tsdb tsdb,
@@ -345,6 +391,27 @@ public static class SqlExplainPlanner
         Tsdb tsdb,
         SelectStatement statement)
     {
+        if (statement.FromSubquery is null
+            && statement.TableValuedFunction is null
+            && tsdb.Views.Catalog.TryGet(statement.Measurement) is { } view)
+        {
+            return new SqlExplainExecutionResult(
+                Database: databaseName,
+                StatementType: "select_view",
+                Measurement: view.Name,
+                MatchedSeriesCount: 0,
+                EstimatedSegmentCount: 0,
+                EstimatedBlockCount: 0,
+                EstimatedScannedRows: 0,
+                EstimatedMemTableRows: 0,
+                EstimatedSegmentRows: 0,
+                HasTimeFilter: statement.Where is not null,
+                TagFilterCount: 0,
+                AccessPath: "view_expansion",
+                IndexName: null,
+                ScanFilter: DescribeScanFilter(statement.Where));
+        }
+
         string? scanFilter = DescribeScanFilter(statement.Where);
         if (DocumentVectorSearchExecutor.IsVectorSearch(statement))
         {

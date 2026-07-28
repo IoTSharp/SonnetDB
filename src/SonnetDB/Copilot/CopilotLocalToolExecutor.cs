@@ -526,14 +526,18 @@ internal sealed class CopilotLocalToolExecutor
             InsertStatement insert => ("insert", insert.Measurement, true),
             DeleteStatement delete => ("delete", delete.Measurement, true),
             CreateTableStatement createTable => ("create_table", createTable.Name, true),
+            CreateViewStatement createView => ("create_view", createView.Name, true),
             DropMeasurementStatement dropMeasurement => ("drop_measurement", dropMeasurement.Name, true),
             DropTableStatement dropTable => ("drop_table", dropTable.Name, true),
+            DropViewStatement dropView => ("drop_view", dropView.Name, true),
             UpdateStatement update => ("update", update.TableName, true),
             SelectStatement select => ("select", select.Measurement, false),
             ShowMeasurementsStatement => ("show_measurements", null, false),
             ShowTablesStatement => ("show_tables", null, false),
+            ShowViewsStatement => ("show_views", null, false),
             DescribeMeasurementStatement describe => ("describe_measurement", describe.Name, false),
             DescribeTableStatement describeTable => ("describe_table", describeTable.Name, false),
+            DescribeViewStatement describeView => ("describe_view", describeView.Name, false),
             _ => ("unknown", null, false)
         };
 
@@ -541,23 +545,29 @@ internal sealed class CopilotLocalToolExecutor
         => statement is CreateDatabaseStatement
             or CreateMeasurementStatement
             or CreateTableStatement
+            or CreateViewStatement
             or DropMeasurementStatement
             or DropTableStatement
+            or DropViewStatement
             or InsertStatement
             or UpdateStatement
             or DeleteStatement
             or SelectStatement
             or ShowMeasurementsStatement
             or ShowTablesStatement
+            or ShowViewsStatement
             or DescribeMeasurementStatement
-            or DescribeTableStatement;
+            or DescribeTableStatement
+            or DescribeViewStatement;
 
     private static bool IsReadOnlyStatement(SqlStatement statement)
         => statement is SelectStatement
             or ShowMeasurementsStatement
             or ShowTablesStatement
+            or ShowViewsStatement
             or DescribeMeasurementStatement
             or DescribeTableStatement
+            or DescribeViewStatement
             or ExplainStatement;
 
     private static string GetReadOnlyStatementType(SqlStatement statement)
@@ -566,8 +576,10 @@ internal sealed class CopilotLocalToolExecutor
             SelectStatement => "select",
             ShowMeasurementsStatement => "show_measurements",
             ShowTablesStatement => "show_tables",
+            ShowViewsStatement => "show_views",
             DescribeMeasurementStatement => "describe_measurement",
             DescribeTableStatement => "describe_table",
+            DescribeViewStatement => "describe_view",
             ExplainStatement => "explain",
             _ => "unknown"
         };

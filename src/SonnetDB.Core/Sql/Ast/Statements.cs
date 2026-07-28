@@ -81,6 +81,19 @@ public sealed record CreateDocumentCollectionStatement(
     bool IfNotExists = false) : SqlStatement;
 
 /// <summary>
+/// <c>CREATE VIEW [IF NOT EXISTS] name AS SELECT ...</c>。
+/// </summary>
+/// <param name="Name">视图名称。</param>
+/// <param name="Query">已解析的 SELECT 定义。</param>
+/// <param name="DefinitionSql">不含 CREATE VIEW 前缀的原始 SELECT 文本。</param>
+/// <param name="IfNotExists">同名视图已存在时是否视为成功。</param>
+public sealed record CreateViewStatement(
+    string Name,
+    SelectStatement Query,
+    string DefinitionSql,
+    bool IfNotExists = false) : SqlStatement;
+
+/// <summary>
 /// <c>CREATE [UNIQUE] INDEX [IF NOT EXISTS] index_name ON table_name (col, ...)</c>。
 /// </summary>
 /// <param name="IndexName">索引名。</param>
@@ -587,6 +600,13 @@ public sealed record DropMeasurementStatement(string Name, bool IfExists = false
 public sealed record DropDocumentCollectionStatement(string Name) : SqlStatement;
 
 /// <summary>
+/// <c>DROP VIEW [IF EXISTS] name</c>：删除逻辑视图定义。
+/// </summary>
+/// <param name="Name">视图名称。</param>
+/// <param name="IfExists">视图不存在时是否视为成功。</param>
+public sealed record DropViewStatement(string Name, bool IfExists = false) : SqlStatement;
+
+/// <summary>
 /// <c>DROP INDEX index_name ON table_name</c>：删除关系表二级索引声明。
 /// </summary>
 /// <param name="IndexName">索引名。</param>
@@ -636,6 +656,11 @@ public sealed record ShowMeasurementsStatement : SqlStatement;
 public sealed record ShowTablesStatement : SqlStatement;
 
 /// <summary>
+/// <c>SHOW VIEWS</c>：列出当前数据库的逻辑视图。
+/// </summary>
+public sealed record ShowViewsStatement : SqlStatement;
+
+/// <summary>
 /// <c>SHOW DOCUMENT COLLECTIONS</c>：列出当前数据库中所有 JSON 文档集合。
 /// </summary>
 public sealed record ShowDocumentCollectionsStatement : SqlStatement;
@@ -670,6 +695,12 @@ public sealed record DescribeMeasurementStatement(string Name) : SqlStatement;
 /// </summary>
 /// <param name="Name">目标关系表名称。</param>
 public sealed record DescribeTableStatement(string Name) : SqlStatement;
+
+/// <summary>
+/// <c>DESCRIBE VIEW name</c>：返回逻辑视图定义和直接依赖。
+/// </summary>
+/// <param name="Name">视图名称。</param>
+public sealed record DescribeViewStatement(string Name) : SqlStatement;
 
 /// <summary>
 /// <c>DESCRIBE DOCUMENT COLLECTION &lt;name&gt;</c>：描述指定文档集合。

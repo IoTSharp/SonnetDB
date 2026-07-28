@@ -11,6 +11,7 @@ using SonnetDB.Query;
 using SonnetDB.Query.Functions;
 using SonnetDB.Storage.Segments;
 using SonnetDB.Tables;
+using SonnetDB.Views;
 using SonnetDB.Wal;
 
 namespace SonnetDB.Engine;
@@ -40,6 +41,7 @@ public sealed class Tsdb : IDisposable
     private readonly KvKeyspaceManager _keyspaces;
     private readonly TableManager _tables;
     private readonly DocumentCollectionManager _documents;
+    private readonly ViewManager _views;
 
     private WalSegmentSet? _walSet;
     private long _nextSegmentId;
@@ -108,6 +110,11 @@ public sealed class Tsdb : IDisposable
     /// JSON 文档集合管理器，提供 document collection schema catalog 与 KV-backed 主数据。
     /// </summary>
     public DocumentCollectionManager Documents => _documents;
+
+    /// <summary>
+    /// 逻辑视图管理器，提供持久化定义目录与依赖查询。
+    /// </summary>
+    public ViewManager Views => _views;
 
     /// <summary>进程内墓碑集合，支持查询过滤与 Compaction 消化。</summary>
     public TombstoneTable Tombstones { get; private set; } = new TombstoneTable();
@@ -314,9 +321,18 @@ public sealed class Tsdb : IDisposable
             Tombstones,
             options.UseSimdNumericAggregates);
         Functions = new UserFunctionRegistry(options.AllowUserFunctions);
+        _views = new ViewManager(TsdbPaths.ViewsDir(options.RootDirectory));
         _keyspaces = new KvKeyspaceManager(TsdbPaths.KvDir(options.RootDirectory), options.Kv);
-        _tables = new TableManager(TsdbPaths.TablesDir(options.RootDirectory), options.Kv);
-        _documents = new DocumentCollectionManager(TsdbPaths.DocumentsDir(options.RootDirectory), options.Kv);
+        _tables = new TableManager(
+            TsdbPaths.TablesDir(options.RootDirectory),
+            options.Kv,
+            EnsureViewNameAvailable,
+            EnsureNoViewDependents);
+        _documents = new DocumentCollectionManager(
+            TsdbPaths.DocumentsDir(options.RootDirectory),
+            options.Kv,
+            EnsureViewNameAvailable,
+            EnsureNoViewDependents);
         _checkpointLsn = checkpointLsn;
         _lastTombstoneCheckpointUtcTicks = DateTime.UtcNow.Ticks;
     }
@@ -337,6 +353,7 @@ public sealed class Tsdb : IDisposable
         Directory.CreateDirectory(TsdbPaths.KvDir(root));
         Directory.CreateDirectory(TsdbPaths.TablesDir(root));
         Directory.CreateDirectory(TsdbPaths.DocumentsDir(root));
+        Directory.CreateDirectory(TsdbPaths.ViewsDir(root));
 
         // 加载 measurement schema 集合（文件不存在时返回空集合）
         var measurements = new MeasurementCatalog();
@@ -679,6 +696,7 @@ public sealed class Tsdb : IDisposable
     public MeasurementSchema CreateMeasurement(MeasurementSchema schema)
     {
         ArgumentNullException.ThrowIfNull(schema);
+        EnsureViewNameAvailable(schema.Name, "measurement");
 
         lock (_writeSync)
         {
@@ -701,6 +719,7 @@ public sealed class Tsdb : IDisposable
     public bool DropMeasurement(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
+        EnsureNoViewDependents(name, "DROP MEASUREMENT");
 
         // 先取维护锁（外），再取写锁（内）：与 Compaction / Retention 互斥，杜绝它们并发变更段集合
         // 导致的 use-after-dispose / 数据复活；锁序 _maintenanceSync → _writeSync 全局一致。
@@ -1649,6 +1668,26 @@ public sealed class Tsdb : IDisposable
 
         CatalogFileCodec.Save(Catalog, TsdbPaths.CatalogPath(RootDirectory));
         _catalogDirty = false;
+    }
+
+    private void EnsureViewNameAvailable(string objectName, string objectType)
+    {
+        if (_views.Catalog.TryGet(objectName) is not null)
+        {
+            throw new InvalidOperationException(
+                $"无法创建 {objectType} '{objectName}'：同名 view 已存在。");
+        }
+    }
+
+    private void EnsureNoViewDependents(string objectName, string operation)
+    {
+        var dependents = _views.FindDependents(objectName);
+        if (dependents.Count == 0)
+            return;
+
+        throw new InvalidOperationException(
+            $"无法执行 {operation}：view "
+            + $"'{string.Join("', '", dependents.Select(static view => view.Name))}' 依赖对象 '{objectName}'。");
     }
 
     /// <summary>

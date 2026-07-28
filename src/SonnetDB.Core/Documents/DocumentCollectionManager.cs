@@ -12,6 +12,8 @@ public sealed class DocumentCollectionManager : IDisposable
     private readonly object _sync = new();
     private readonly string _rootDirectory;
     private readonly KvOptions _kvOptions;
+    private readonly Action<string, string>? _nameAvailabilityGuard;
+    private readonly Action<string, string>? _schemaMutationGuard;
     private readonly Dictionary<string, DocumentCollectionStore> _stores = new(StringComparer.Ordinal);
     private bool _disposed;
 
@@ -21,12 +23,23 @@ public sealed class DocumentCollectionManager : IDisposable
     /// <param name="rootDirectory">documents 根目录。</param>
     /// <param name="kvOptions">底层 KV 选项。</param>
     public DocumentCollectionManager(string rootDirectory, KvOptions kvOptions)
+        : this(rootDirectory, kvOptions, nameAvailabilityGuard: null, schemaMutationGuard: null)
+    {
+    }
+
+    internal DocumentCollectionManager(
+        string rootDirectory,
+        KvOptions kvOptions,
+        Action<string, string>? nameAvailabilityGuard,
+        Action<string, string>? schemaMutationGuard)
     {
         ArgumentNullException.ThrowIfNull(rootDirectory);
         ArgumentNullException.ThrowIfNull(kvOptions);
 
         _rootDirectory = rootDirectory;
         _kvOptions = kvOptions;
+        _nameAvailabilityGuard = nameAvailabilityGuard;
+        _schemaMutationGuard = schemaMutationGuard;
         Directory.CreateDirectory(_rootDirectory);
 
         Catalog = new DocumentCollectionCatalog();
@@ -47,6 +60,7 @@ public sealed class DocumentCollectionManager : IDisposable
     public void Create(DocumentCollectionSchema schema)
     {
         ArgumentNullException.ThrowIfNull(schema);
+        _nameAvailabilityGuard?.Invoke(schema.Name, "document collection");
         lock (_sync)
         {
             ThrowIfDisposed();
@@ -182,6 +196,7 @@ public sealed class DocumentCollectionManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
         ArgumentNullException.ThrowIfNull(definition);
+        _schemaMutationGuard?.Invoke(collectionName, "ALTER DOCUMENT COLLECTION");
         lock (_sync)
         {
             ThrowIfDisposed();
@@ -216,6 +231,7 @@ public sealed class DocumentCollectionManager : IDisposable
     public bool DropValidator(string collectionName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
+        _schemaMutationGuard?.Invoke(collectionName, "ALTER DOCUMENT COLLECTION");
         lock (_sync)
         {
             ThrowIfDisposed();
@@ -432,6 +448,7 @@ public sealed class DocumentCollectionManager : IDisposable
     public bool Drop(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
+        _schemaMutationGuard?.Invoke(name, "DROP DOCUMENT COLLECTION");
         lock (_sync)
         {
             ThrowIfDisposed();

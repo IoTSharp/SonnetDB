@@ -134,6 +134,46 @@ ADD CONSTRAINT ck_devices_name CHECK (name IN ('pump', 'fan', 'valve'));
 ALTER TABLE devices DROP CONSTRAINT ck_devices_name;
 ```
 
+### 逻辑视图
+
+逻辑视图保存一条 SELECT 定义，不保存查询结果。读取视图时，SonnetDB 将定义展开为派生表并复用现有查询执行器，因此视图可以基于关系表、measurement、document collection、其他视图以及当前已经支持的 JOIN、UNION 和子查询。
+
+```sql
+CREATE VIEW active_devices AS
+SELECT id, name, site_id
+FROM devices
+WHERE enabled = TRUE;
+
+CREATE VIEW IF NOT EXISTS north_devices AS
+SELECT d.id, d.name
+FROM active_devices d
+JOIN sites s ON d.site_id = s.id
+WHERE s.name = 'north';
+
+SELECT name FROM north_devices ORDER BY name;
+```
+
+管理语法：
+
+```sql
+SHOW VIEWS;
+DESCRIBE VIEW active_devices;
+DROP VIEW active_devices;
+DROP VIEW IF EXISTS active_devices;
+```
+
+`SHOW VIEWS` 返回 `name`、`created_utc`。`DESCRIBE VIEW` 返回单行 `name`、`definition`、逗号分隔的直接 `dependencies` 和 `created_utc`。`information_schema.tables` 以 `table_type = 'VIEW'` 列出视图，`information_schema.views` 提供 `table_schema`、`table_name`、`view_definition`、`created_utc`。
+
+当前行为与限制：
+
+- 定义以独立的 `views/views.sdbview` 目录文件持久化，重启后重新解析；不修改表、measurement、document 或 Segment 的现有二进制格式。
+- 视图采用读取时展开和晚绑定数据语义，基础数据变更会立即反映到后续查询；视图本身不能作为 `INSERT`、`UPDATE` 或 `DELETE` 目标。
+- 持久化定义不能包含 `?`、`@name` 或 `:name` 参数占位符；调用方参数只能用于查询视图的外层 SELECT。
+- 创建时会拒绝不存在的数据源、与基础对象重名的视图和自引用；运行时还会拒绝直接或间接循环，并限制最多 32 层展开。
+- 被视图引用的基础对象不能执行 `DROP` 或 schema `ALTER`；被其他视图引用的视图也不能删除。首版不支持 `CASCADE`、`OR REPLACE` 或跨数据库依赖，应先按依赖顺序显式删除视图。
+- `EXPLAIN SELECT ... FROM view` 将访问路径标记为 `view_expansion`；当前不会把展开后各基础扫描的估算值汇总到视图层。
+- 物化视图不属于本语法；它需要独立的物理结果存储和原子刷新生命周期，按 M37 #328 后续实现。
+
 ### `CREATE INDEX` / `DROP INDEX`
 
 关系表支持普通二级索引和唯一索引。索引声明随 table schema 持久化，索引内容从 rowstore 派生，打开表或 schema 变更时可重建。
@@ -900,13 +940,14 @@ WHERE time >= now() - 30d
 
 ## 元数据查询
 
-### `SHOW MEASUREMENTS` / `SHOW TABLES`
+### `SHOW MEASUREMENTS` / `SHOW TABLES` / `SHOW VIEWS`
 
-`SHOW MEASUREMENTS` 列出当前数据库中所有时序 measurement，`SHOW TABLES` 列出当前数据库中所有关系表。两者都按字典序升序返回单列 `name`。
+`SHOW MEASUREMENTS` 列出当前数据库中所有时序 measurement，`SHOW TABLES` 列出当前数据库中所有关系表，两者都按字典序升序返回单列 `name`。`SHOW VIEWS` 按名称升序返回 `name` 与 `created_utc`。
 
 ```sql
 SHOW MEASUREMENTS;
 SHOW TABLES;
+SHOW VIEWS;
 ```
 
 | name |
@@ -944,6 +985,21 @@ SHOW INDEXES ON devices;
 ```sql
 DESCRIBE TABLE devices;
 ```
+
+### `DESCRIBE VIEW <name>`
+
+返回逻辑视图的名称、SELECT 定义、直接依赖和 UTC 创建时间：
+
+```sql
+DESCRIBE VIEW active_devices;
+```
+
+| 列 | 类型 | 说明 |
+|----|------|------|
+| `name` | string | 视图名称 |
+| `definition` | string | 不含 `CREATE VIEW ... AS` 前缀的 SELECT SQL |
+| `dependencies` | string | 按字典序排列、逗号分隔的直接数据源 |
+| `created_utc` | datetime | UTC 创建时间 |
 
 ### `DESCRIBE [MEASUREMENT] <name>` / `DESC <name>`
 
@@ -987,10 +1043,11 @@ EXPLAIN DESCRIBE MEASUREMENT cpu;
 当前支持范围：
 
 - `SELECT ...`
-- `SHOW MEASUREMENTS` / `SHOW TABLES` / `SHOW DOCUMENT COLLECTIONS`
+- `SHOW MEASUREMENTS` / `SHOW TABLES` / `SHOW VIEWS` / `SHOW DOCUMENT COLLECTIONS`
 - `SHOW INDEXES ON <table>` / `SHOW JSON INDEXES ON <collection>` / `SHOW FULLTEXT INDEXES ON <collection>`
 - `DESCRIBE [MEASUREMENT] <name>` / `DESC <name>`
 - `DESCRIBE TABLE <name>`
+- `DESCRIBE VIEW <name>`
 - `DESCRIBE DOCUMENT COLLECTION <name>`
 
 当前不支持对 `INSERT`、`DELETE`、`CREATE`、`DROP`、用户/授权/Token 控制面 SQL 做 `EXPLAIN`。

@@ -481,12 +481,14 @@ internal static class SqlEndpointHandler
         (SelectStatement or
         ShowMeasurementsStatement or
         ShowTablesStatement or
+        ShowViewsStatement or
         ShowTableIndexesStatement or
         ShowDocumentCollectionsStatement or
         ShowDocumentIndexesStatement or
         ShowFullTextIndexesStatement or
         DescribeMeasurementStatement or
         DescribeTableStatement or
+        DescribeViewStatement or
         DescribeDocumentCollectionStatement or
         ExplainStatement or
         ShowDatabasesStatement);

@@ -9,13 +9,17 @@
 /// ├── catalog.SDBCAT
 /// ├── wal/
 /// │   └── active.SDBWAL
-/// └── segments/
-///     ├── v2/
-///     │   └── 00/
-///     │       └── 0000000000000000/
-///     │           ├── 0000000000000001.SDBSEG
-///     │           └── ...
-///     └── 0000000000000001.SDBSEG  (legacy flat layout, read-compatible)
+/// ├── segments/
+/// │   ├── v2/
+/// │   │   └── 00/
+/// │   │       └── 0000000000000000/
+/// │   │           ├── 0000000000000001.SDBSEG
+/// │   │           └── ...
+/// │   └── 0000000000000001.SDBSEG  (legacy flat layout, read-compatible)
+/// ├── tables/
+/// ├── documents/
+/// └── views/
+///     └── views.sdbview
 /// </code>
 /// </para>
 /// </summary>
@@ -44,6 +48,9 @@ public static class TsdbPaths
 
     /// <summary>JSON 文档集合子目录名。</summary>
     public const string DocumentsDirName = "documents";
+
+    /// <summary>逻辑视图子目录名。</summary>
+    public const string ViewsDirName = "views";
 
     /// <summary>Segment 文件扩展名。</summary>
     public const string SegmentFileExtension = ".SDBSEG";
@@ -142,6 +149,14 @@ public static class TsdbPaths
     /// <returns>JSON 文档集合目录路径。</returns>
     public static string DocumentsDir(string root) =>
         Path.Combine(root, DocumentsDirName);
+
+    /// <summary>
+    /// 返回逻辑视图子目录的完整路径：<c>{root}/views</c>。
+    /// </summary>
+    /// <param name="root">数据库根目录路径。</param>
+    /// <returns>逻辑视图目录路径。</returns>
+    public static string ViewsDir(string root) =>
+        Path.Combine(root, ViewsDirName);
 
     /// <summary>
     /// 返回指定 SegmentId 对应的段文件完整路径：

@@ -8,12 +8,13 @@ namespace SonnetDB.Sql;
 /// <remarks>
 /// 支持的语句：<c>CREATE MEASUREMENT</c> / <c>INSERT INTO ... VALUES</c> /
 /// <c>SELECT ... FROM ... [WHERE ...] [GROUP BY time(...)]</c> / <c>DELETE FROM ... WHERE ...</c> /
-/// <c>CREATE TABLE</c> / <c>UPDATE</c> 等关系表 MVP 语句。
+/// <c>CREATE TABLE</c> / <c>CREATE VIEW</c> / <c>UPDATE</c> 等关系表 MVP 语句。
 /// 不做任何语义校验（measurement / column 是否存在留给执行层）。
 /// </remarks>
 public sealed class SqlParser
 {
     private readonly IReadOnlyList<Token> _tokens;
+    private readonly string? _source;
     private int _index;
     private int _parameterOrdinal;
 
@@ -29,11 +30,17 @@ public sealed class SqlParser
     /// <summary>构造解析器实例。</summary>
     /// <param name="tokens">已经词法化的 token 序列（必须以 EOF 结尾）。</param>
     public SqlParser(IReadOnlyList<Token> tokens)
+        : this(tokens, source: null)
+    {
+    }
+
+    private SqlParser(IReadOnlyList<Token> tokens, string? source)
     {
         ArgumentNullException.ThrowIfNull(tokens);
         if (tokens.Count == 0 || tokens[^1].Kind != TokenKind.EndOfFile)
             throw new ArgumentException("token 序列必须以 EndOfFile 结尾。", nameof(tokens));
         _tokens = tokens;
+        _source = source;
         _index = 0;
     }
 
@@ -61,7 +68,7 @@ public sealed class SqlParser
     private static SqlStatement ParseUncached(string source)
     {
         var tokens = SqlLexer.Tokenize(source);
-        var parser = new SqlParser(tokens);
+        var parser = new SqlParser(tokens, source);
         var statement = parser.ParseStatement();
         parser.ConsumeOptionalSemicolon();
         parser.ExpectEndOfFile();
@@ -74,7 +81,7 @@ public sealed class SqlParser
     public static IReadOnlyList<SqlStatement> ParseScript(string source)
     {
         var tokens = SqlLexer.Tokenize(source);
-        var parser = new SqlParser(tokens);
+        var parser = new SqlParser(tokens, source);
         var list = new List<SqlStatement>();
         while (parser.Current.Kind != TokenKind.EndOfFile)
         {
@@ -92,7 +99,7 @@ public sealed class SqlParser
     public static SqlExpression ParsePredicate(string source)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(source);
-        var parser = new SqlParser(SqlLexer.Tokenize(source));
+        var parser = new SqlParser(SqlLexer.Tokenize(source), source);
         var expression = parser.ParseExpression();
         parser.ExpectEndOfFile();
         return expression;
@@ -152,6 +159,13 @@ public sealed class SqlParser
         if (IsIndexKeyword())
             return ParseCreateIndexBody(unique, sparse, ttl);
 
+        if (IsIdentifier("view"))
+        {
+            if (unique || sparse || ttl)
+                throw Error("CREATE VIEW 不支持 UNIQUE / SPARSE / TTL 修饰符");
+            return ParseCreateViewBody();
+        }
+
         return Current.Kind switch
         {
             TokenKind.KeywordMeasurement => ParseCreateMeasurementBody(),
@@ -162,8 +176,57 @@ public sealed class SqlParser
             TokenKind.KeywordVector => ParseCreateVectorBody(),
             TokenKind.KeywordUser => ParseCreateUserBody(),
             TokenKind.KeywordDatabase => ParseCreateDatabaseBody(),
-            _ => throw Error("CREATE 后面期望 MEASUREMENT / TABLE / DOCUMENT COLLECTION / JSON INDEX / FULLTEXT INDEX / VECTOR INDEX / INDEX / USER / DATABASE"),
+            _ => throw Error("CREATE 后面期望 MEASUREMENT / TABLE / VIEW / DOCUMENT COLLECTION / JSON INDEX / FULLTEXT INDEX / VECTOR INDEX / INDEX / USER / DATABASE"),
         };
+    }
+
+    private CreateViewStatement ParseCreateViewBody()
+    {
+        Advance(); // VIEW 保持为非保留标识符，避免破坏已有同名列和对象。
+        bool ifNotExists = ParseOptionalIfNotExists();
+        string name = ExpectIdentifierName();
+        Expect(TokenKind.KeywordAs);
+        if (Current.Kind != TokenKind.KeywordSelect)
+            throw Error("CREATE VIEW ... AS 后面期望 SELECT");
+
+        int definitionStart = Current.Position;
+        int definitionTokenStart = _index;
+        var query = ParseSelect();
+        int definitionEnd = Current.Position;
+        string definitionSql = _source is null
+            ? FormatTokenRange(definitionTokenStart, _index)
+            : _source[definitionStart..definitionEnd].Trim();
+        return new CreateViewStatement(name, query, definitionSql, ifNotExists);
+    }
+
+    private string FormatTokenRange(int start, int end)
+    {
+        var builder = new System.Text.StringBuilder();
+        for (int i = start; i < end; i++)
+        {
+            if (builder.Length != 0)
+                builder.Append(' ');
+            var token = _tokens[i];
+            switch (token.Kind)
+            {
+                case TokenKind.IdentifierLiteral:
+                    builder.Append('"').Append(token.Text.Replace("\"", "\"\"", StringComparison.Ordinal)).Append('"');
+                    break;
+                case TokenKind.StringLiteral:
+                    builder.Append('\'').Append(token.Text.Replace("'", "''", StringComparison.Ordinal)).Append('\'');
+                    break;
+                case TokenKind.DurationLiteral:
+                    builder.Append(token.IntegerValue).Append("ms");
+                    break;
+                case TokenKind.Parameter:
+                    builder.Append(string.IsNullOrEmpty(token.Text) ? "?" : "@" + token.Text);
+                    break;
+                default:
+                    builder.Append(token.Text);
+                    break;
+            }
+        }
+        return builder.ToString();
     }
 
     private CreateTableIndexStatement ParseCreateIndexBody(bool unique, bool sparse, bool ttl)
@@ -2549,6 +2612,13 @@ public sealed class SqlParser
                 Advance();
                 return new DropDatabaseStatement(ExpectIdentifierName());
             default:
+                if (IsIdentifier("view"))
+                {
+                    Advance();
+                    bool dropViewIfExists = ParseOptionalIfExists();
+                    return new DropViewStatement(ExpectIdentifierName(), dropViewIfExists);
+                }
+
                 if (IsIdentifier("index"))
                 {
                     Advance();
@@ -2557,7 +2627,7 @@ public sealed class SqlParser
                     return new DropTableIndexStatement(fallbackIndexName, ExpectIdentifierName());
                 }
 
-                throw Error("DROP 后面期望 MEASUREMENT / TABLE / INDEX / JSON INDEX / FULLTEXT INDEX / USER 或 DATABASE");
+                throw Error("DROP 后面期望 MEASUREMENT / TABLE / VIEW / INDEX / JSON INDEX / FULLTEXT INDEX / USER 或 DATABASE");
         }
     }
 
@@ -2818,6 +2888,12 @@ public sealed class SqlParser
 
                 throw Error("SHOW FULLTEXT 后面期望 INDEXES");
             default:
+                if (IsIdentifier("views"))
+                {
+                    Advance();
+                    return new ShowViewsStatement();
+                }
+
                 if (IsIdentifier("indexes"))
                 {
                     Advance();
@@ -2825,7 +2901,7 @@ public sealed class SqlParser
                     return new ShowTableIndexesStatement(ExpectIdentifierName());
                 }
 
-                throw Error("SHOW 后面期望 USERS / GRANTS / DATABASES / TOKENS / MEASUREMENTS / TABLES / INDEXES");
+                throw Error("SHOW 后面期望 USERS / GRANTS / DATABASES / TOKENS / MEASUREMENTS / TABLES / VIEWS / INDEXES");
         }
     }
 
@@ -2843,21 +2919,23 @@ public sealed class SqlParser
             TokenKind.KeywordShow => ParseShow(),
             TokenKind.KeywordDescribe => ParseDescribe(),
             TokenKind.KeywordDesc => ParseDescribe(),
-            _ => throw Error("EXPLAIN 后面期望 SELECT / SHOW MEASUREMENTS / SHOW TABLES / SHOW DOCUMENT COLLECTIONS / DESCRIBE [MEASUREMENT|TABLE|DOCUMENT COLLECTION]"),
+            _ => throw Error("EXPLAIN 后面期望 SELECT / SHOW MEASUREMENTS / SHOW TABLES / SHOW VIEWS / SHOW DOCUMENT COLLECTIONS / DESCRIBE [MEASUREMENT|TABLE|VIEW|DOCUMENT COLLECTION]"),
         };
 
         if (statement is not SelectStatement
             and not ShowMeasurementsStatement
             and not ShowTablesStatement
+            and not ShowViewsStatement
             and not ShowTableIndexesStatement
             and not ShowDocumentCollectionsStatement
             and not ShowDocumentIndexesStatement
             and not ShowFullTextIndexesStatement
             and not DescribeMeasurementStatement
             and not DescribeTableStatement
+            and not DescribeViewStatement
             and not DescribeDocumentCollectionStatement)
         {
-            throw Error("EXPLAIN 仅支持 SELECT / SHOW MEASUREMENTS / SHOW TABLES / SHOW DOCUMENT COLLECTIONS / DESCRIBE [MEASUREMENT|TABLE|DOCUMENT COLLECTION]");
+            throw Error("EXPLAIN 仅支持 SELECT / SHOW MEASUREMENTS / SHOW TABLES / SHOW VIEWS / SHOW DOCUMENT COLLECTIONS / DESCRIBE [MEASUREMENT|TABLE|VIEW|DOCUMENT COLLECTION]");
         }
 
         return new ExplainStatement(statement);
@@ -2881,6 +2959,12 @@ public sealed class SqlParser
             Advance();
             Expect(TokenKind.KeywordCollection);
             return new DescribeDocumentCollectionStatement(ExpectIdentifierName());
+        }
+
+        if (IsIdentifier("view"))
+        {
+            Advance();
+            return new DescribeViewStatement(ExpectIdentifierName());
         }
 
         if (Current.Kind == TokenKind.KeywordMeasurement)

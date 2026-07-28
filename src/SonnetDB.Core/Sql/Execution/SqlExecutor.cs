@@ -6,6 +6,7 @@ using SonnetDB.Model;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Storage.Format;
 using SonnetDB.Tables;
+using SonnetDB.Views;
 
 namespace SonnetDB.Sql.Execution;
 
@@ -20,6 +21,10 @@ public static class SqlExecutor
         new List<string>(1) { "name" }.AsReadOnly();
     private static readonly IReadOnlyList<string> _describeMeasurementColumns =
         new List<string>(3) { "column_name", "column_type", "data_type" }.AsReadOnly();
+    private static readonly IReadOnlyList<string> _showViewColumns =
+        new List<string>(2) { "name", "created_utc" }.AsReadOnly();
+    private static readonly IReadOnlyList<string> _describeViewColumns =
+        new List<string>(4) { "name", "definition", "dependencies", "created_utc" }.AsReadOnly();
     private static readonly IReadOnlyList<string> _userColumns =
         new List<string>(4) { "name", "is_superuser", "created_utc", "token_count" }.AsReadOnly();
     private static readonly IReadOnlyList<string> _grantColumns =
@@ -188,6 +193,7 @@ public static class SqlExecutor
             CreateMeasurementStatement create => ExecuteCreateMeasurement(tsdb, create),
             CreateTableStatement createTable => TableSqlExecutor.ExecuteCreateTable(tsdb, createTable),
             CreateDocumentCollectionStatement createDocumentCollection => DocumentSqlExecutor.ExecuteCreateCollection(tsdb, createDocumentCollection),
+            CreateViewStatement createView => ExecuteCreateView(tsdb, createView),
             CreateTableIndexStatement createIndex => ExecuteCreateIndex(tsdb, createIndex),
             CreateDocumentIndexStatement createDocumentIndex => DocumentSqlExecutor.ExecuteCreateIndex(tsdb, createDocumentIndex),
             CreateDocumentPathIndexStatement createDocumentIndex => DocumentSqlExecutor.ExecuteCreateIndex(
@@ -209,6 +215,7 @@ public static class SqlExecutor
             DropMeasurementStatement dropMeasurement => ExecuteDropMeasurement(tsdb, dropMeasurement),
             DropTableStatement dropTable => TableSqlExecutor.ExecuteDropTable(tsdb, dropTable),
             DropDocumentCollectionStatement dropDocumentCollection => DocumentSqlExecutor.ExecuteDropCollection(tsdb, dropDocumentCollection),
+            DropViewStatement dropView => ExecuteDropView(tsdb, dropView),
             DropTableIndexStatement dropIndex => TableSqlExecutor.ExecuteDropIndex(tsdb, dropIndex),
             DropDocumentPathIndexStatement dropDocumentIndex => DocumentSqlExecutor.ExecuteDropIndex(tsdb, dropDocumentIndex),
             DropFullTextIndexStatement dropFullTextIndex => DocumentSqlExecutor.ExecuteDropFullTextIndex(tsdb, dropFullTextIndex),
@@ -224,12 +231,14 @@ public static class SqlExecutor
             AlterDocumentCollectionDropValidatorStatement dropValidator => DocumentSqlExecutor.ExecuteDropValidator(tsdb, dropValidator),
             ShowMeasurementsStatement => ShowMeasurements(tsdb),
             ShowTablesStatement => TableSqlExecutor.ShowTables(tsdb),
+            ShowViewsStatement => ShowViews(tsdb),
             ShowDocumentCollectionsStatement => DocumentSqlExecutor.ShowCollections(tsdb),
             ShowTableIndexesStatement showIndexes => TableSqlExecutor.ShowIndexes(tsdb, showIndexes.TableName),
             ShowDocumentIndexesStatement showDocumentIndexes => DocumentSqlExecutor.ShowIndexes(tsdb, showDocumentIndexes.CollectionName),
             ShowFullTextIndexesStatement showFullTextIndexes => DocumentSqlExecutor.ShowFullTextIndexes(tsdb, showFullTextIndexes.CollectionName),
             DescribeMeasurementStatement describe => DescribeMeasurement(tsdb, describe.Name),
             DescribeTableStatement describeTable => TableSqlExecutor.DescribeTable(tsdb, describeTable.Name),
+            DescribeViewStatement describeView => DescribeView(tsdb, describeView.Name),
             DescribeDocumentCollectionStatement describeDocumentCollection => DocumentSqlExecutor.DescribeCollection(tsdb, describeDocumentCollection.Name),
             ExplainStatement explain => ExecuteExplain(tsdb, databaseName, explain),
             CreateUserStatement createUser => ExecuteControlPlane(controlPlane,
@@ -287,6 +296,111 @@ public static class SqlExecutor
         return TableSqlExecutor.ExecuteCreateIndex(tsdb, statement);
     }
 
+    private static ViewDefinition ExecuteCreateView(Tsdb tsdb, CreateViewStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        if (tsdb.Tables.Catalog.TryGet(statement.Name) is not null
+            || tsdb.Measurements.Contains(statement.Name)
+            || tsdb.Documents.Catalog.TryGet(statement.Name) is not null)
+        {
+            throw new InvalidOperationException(
+                $"无法创建 view '{statement.Name}'：同名基础对象已存在。");
+        }
+
+        if (tsdb.Views.Catalog.TryGet(statement.Name) is { } existing)
+        {
+            if (statement.IfNotExists)
+                return existing;
+            throw new InvalidOperationException($"view '{statement.Name}' 已存在。");
+        }
+
+        var definition = ViewDefinition.Create(
+            statement.Name,
+            statement.DefinitionSql,
+            statement.Query);
+        foreach (string dependency in definition.Dependencies)
+        {
+            if (string.Equals(dependency, statement.Name, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"view '{statement.Name}' 不能直接或间接引用自身。");
+            }
+
+            if (!IsKnownViewSource(tsdb, dependency))
+            {
+                throw new InvalidOperationException(
+                    $"view '{statement.Name}' 引用了不存在的数据源 '{dependency}'。");
+            }
+        }
+
+        tsdb.Views.Create(definition);
+        return definition;
+    }
+
+    private static RowsAffectedExecutionResult ExecuteDropView(Tsdb tsdb, DropViewStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        var dependents = tsdb.Views.FindDependents(statement.Name);
+        if (dependents.Count != 0)
+        {
+            throw new InvalidOperationException(
+                $"无法删除 view '{statement.Name}'：view "
+                + $"'{string.Join("', '", dependents.Select(static view => view.Name))}' 仍依赖它。");
+        }
+
+        bool removed = tsdb.Views.Drop(statement.Name);
+        if (!removed && !statement.IfExists)
+            throw new InvalidOperationException($"view '{statement.Name}' 不存在。");
+        return new RowsAffectedExecutionResult(statement.Name, removed ? 1 : 0, "drop_view");
+    }
+
+    private static bool IsKnownViewSource(Tsdb tsdb, string name)
+    {
+        if (name.StartsWith("information_schema.", StringComparison.OrdinalIgnoreCase))
+        {
+            return name.Equals("information_schema.tables", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("information_schema.columns", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("information_schema.indexes", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("information_schema.foreign_keys", StringComparison.OrdinalIgnoreCase)
+                || name.Equals("information_schema.views", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return tsdb.Tables.Catalog.TryGet(name) is not null
+            || tsdb.Measurements.Contains(name)
+            || tsdb.Documents.Catalog.TryGet(name) is not null
+            || tsdb.Views.Catalog.TryGet(name) is not null;
+    }
+
+    internal static void EnsureNameDoesNotBelongToView(
+        Tsdb tsdb,
+        string objectName,
+        string objectType)
+    {
+        if (tsdb.Views.Catalog.TryGet(objectName) is not null)
+        {
+            throw new InvalidOperationException(
+                $"无法创建 {objectType} '{objectName}'：同名 view 已存在。");
+        }
+    }
+
+    internal static void EnsureNoViewDependents(
+        Tsdb tsdb,
+        string objectName,
+        string operation)
+    {
+        var dependents = tsdb.Views.FindDependents(objectName);
+        if (dependents.Count == 0)
+            return;
+
+        throw new InvalidOperationException(
+            $"无法执行 {operation}：view "
+            + $"'{string.Join("', '", dependents.Select(static view => view.Name))}' 依赖对象 '{objectName}'。");
+    }
+
     private static SelectExecutionResult ExecuteExplain(Tsdb tsdb, string? databaseName, ExplainStatement statement)
     {
         var explain = SqlExplainPlanner.Explain(databaseName, tsdb, statement.Statement);
@@ -300,6 +414,38 @@ public static class SqlExecutor
         foreach (var schema in snapshot)
             rows.Add(new object?[] { schema.Name });
         return new SelectExecutionResult(_nameColumns, rows);
+    }
+
+    private static SelectExecutionResult ShowViews(Tsdb tsdb)
+    {
+        var snapshot = tsdb.Views.Catalog.Snapshot();
+        var rows = new List<IReadOnlyList<object?>>(snapshot.Count);
+        foreach (var definition in snapshot)
+        {
+            rows.Add(new object?[]
+            {
+                definition.Name,
+                new DateTime(definition.CreatedAtUtcTicks, DateTimeKind.Utc),
+            });
+        }
+        return new SelectExecutionResult(_showViewColumns, rows);
+    }
+
+    private static SelectExecutionResult DescribeView(Tsdb tsdb, string name)
+    {
+        var definition = tsdb.Views.Catalog.TryGet(name)
+            ?? throw new InvalidOperationException($"view '{name}' 不存在。");
+        var rows = new List<IReadOnlyList<object?>>(1)
+        {
+            new object?[]
+            {
+                definition.Name,
+                definition.DefinitionSql,
+                string.Join(",", definition.Dependencies),
+                new DateTime(definition.CreatedAtUtcTicks, DateTimeKind.Utc),
+            },
+        };
+        return new SelectExecutionResult(_describeViewColumns, rows);
     }
 
     private static SelectExecutionResult DescribeMeasurement(Tsdb tsdb, string name)
@@ -464,6 +610,8 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
+        EnsureNameDoesNotBelongToView(tsdb, statement.Name, "measurement");
+
         // IF NOT EXISTS：同名 measurement 已存在则直接复用，不校验列定义是否一致。
         if (statement.IfNotExists)
         {
@@ -503,6 +651,8 @@ public static class SqlExecutor
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
+
+        EnsureNoViewDependents(tsdb, statement.Name, "DROP MEASUREMENT");
 
         bool removed = tsdb.DropMeasurement(statement.Name);
         if (!removed && !statement.IfExists)
@@ -733,6 +883,9 @@ public static class SqlExecutor
         using var queryLoad = QueryActivityTracker.Enter();
         // ExecuteSelect 也是公开入口，直接调用时仍需建立当前数据库的 UDF 作用域。
         using var functionScope = SonnetDB.Query.Functions.UserFunctionRegistry.EnterScope(tsdb.Functions);
+
+        if (tsdb.Views.Catalog.Count != 0)
+            statement = ViewExpander.Expand(tsdb.Views.Catalog, statement);
 
         if (statement.UnionStatements.Count != 0)
             return ExecuteUnion(tsdb, statement);
@@ -996,6 +1149,7 @@ public static class SqlExecutor
             "information_schema.columns" => BuildInformationSchemaColumns(tsdb),
             "information_schema.indexes" => BuildInformationSchemaIndexes(tsdb),
             "information_schema.foreign_keys" => BuildInformationSchemaForeignKeys(tsdb),
+            "information_schema.views" => BuildInformationSchemaViews(tsdb),
             _ => throw new InvalidOperationException($"未知 INFORMATION_SCHEMA 视图 '{statement.Measurement}'。"),
         };
 
@@ -1017,7 +1171,24 @@ public static class SqlExecutor
             rows.Add(new object?[] { "main", measurement.Name, "MEASUREMENT" });
         foreach (var collection in tsdb.Documents.Catalog.Snapshot())
             rows.Add(new object?[] { "main", collection.Name, "DOCUMENT COLLECTION" });
+        foreach (var view in tsdb.Views.Catalog.Snapshot())
+            rows.Add(new object?[] { "main", view.Name, "VIEW" });
         return (columns, rows.OrderBy(static r => (string)r[1]!, StringComparer.Ordinal).ToArray());
+    }
+
+    private static (IReadOnlyList<string> Columns, IReadOnlyList<IReadOnlyList<object?>> Rows) BuildInformationSchemaViews(Tsdb tsdb)
+    {
+        var columns = new[] { "table_schema", "table_name", "view_definition", "created_utc" };
+        var rows = tsdb.Views.Catalog.Snapshot()
+            .Select(static definition => (IReadOnlyList<object?>)new object?[]
+            {
+                "main",
+                definition.Name,
+                definition.DefinitionSql,
+                new DateTime(definition.CreatedAtUtcTicks, DateTimeKind.Utc),
+            })
+            .ToArray();
+        return (columns, rows);
     }
 
     private static (IReadOnlyList<string> Columns, IReadOnlyList<IReadOnlyList<object?>> Rows) BuildInformationSchemaColumns(Tsdb tsdb)

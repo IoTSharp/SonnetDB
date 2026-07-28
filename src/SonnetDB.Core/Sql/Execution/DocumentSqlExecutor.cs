@@ -27,6 +27,8 @@ internal static class DocumentSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
+        SqlExecutor.EnsureNameDoesNotBelongToView(tsdb, statement.Name, "document collection");
+
         if (statement.IfNotExists)
         {
             var existing = tsdb.Documents.Catalog.TryGet(statement.Name);
@@ -102,6 +104,8 @@ internal static class DocumentSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
+        SqlExecutor.EnsureNoViewDependents(tsdb, statement.Name, "DROP DOCUMENT COLLECTION");
+
         bool removed = tsdb.Documents.Drop(statement.Name);
         return new RowsAffectedExecutionResult(statement.Name, removed ? 1 : 0, "drop_document_collection");
     }
@@ -138,6 +142,8 @@ internal static class DocumentSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
+        SqlExecutor.EnsureNoViewDependents(tsdb, statement.CollectionName, "ALTER DOCUMENT COLLECTION");
+
         var definition = ParseValidatorDefinition(statement.ValidatorJson, statement.ValidationAction);
         tsdb.Documents.SetValidator(statement.CollectionName, definition);
         return new RowsAffectedExecutionResult(statement.CollectionName, 1, "set_document_validator");
@@ -147,6 +153,8 @@ internal static class DocumentSqlExecutor
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
+
+        SqlExecutor.EnsureNoViewDependents(tsdb, statement.CollectionName, "ALTER DOCUMENT COLLECTION");
 
         bool removed = tsdb.Documents.DropValidator(statement.CollectionName);
         return new RowsAffectedExecutionResult(statement.CollectionName, removed ? 1 : 0, "drop_document_validator");

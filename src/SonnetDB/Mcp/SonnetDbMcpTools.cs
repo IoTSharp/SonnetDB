@@ -250,7 +250,7 @@ internal sealed class SonnetDbMcpTools
             if (!IsReadOnlyMcpStatement(statement))
             {
                 return SonnetDbMcpResults.Error(
-                    "explain_sql 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES 与 DESCRIBE [MEASUREMENT|TABLE]。");
+                    "explain_sql 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES / SHOW VIEWS 与 DESCRIBE [MEASUREMENT|TABLE|VIEW]。");
             }
 
             var payload = explainSqlService.Explain(databaseName, tsdb, statement);
@@ -267,8 +267,10 @@ internal sealed class SonnetDbMcpTools
         SelectStatement => "select",
         ShowMeasurementsStatement => "show_measurements",
         ShowTablesStatement => "show_tables",
+        ShowViewsStatement => "show_views",
         DescribeMeasurementStatement => "describe_measurement",
         DescribeTableStatement => "describe_table",
+        DescribeViewStatement => "describe_view",
         ExplainStatement => "explain",
         _ => "unknown",
     };
@@ -277,8 +279,10 @@ internal sealed class SonnetDbMcpTools
         => statement is SelectStatement
             or ShowMeasurementsStatement
             or ShowTablesStatement
+            or ShowViewsStatement
             or DescribeMeasurementStatement
             or DescribeTableStatement
+            or DescribeViewStatement
             or ExplainStatement;
 
     /// <summary>
