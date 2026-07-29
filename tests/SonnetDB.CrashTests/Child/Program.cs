@@ -1,7 +1,10 @@
 using SonnetDB.Engine;
 using SonnetDB.Engine.Compaction;
+using SonnetDB.Kv;
 using SonnetDB.Memory;
 using SonnetDB.Model;
+using SonnetDB.Sql;
+using SonnetDB.Sql.Execution;
 using SonnetDB.Storage.Segments;
 
 if (args.Length < 3)
@@ -29,6 +32,9 @@ switch (scenario)
         return 0;
     case "crash_kill9_os_flushed_writes":
         RunKillOsFlushedWrites(root, readyFile);
+        return 0;
+    case "crash_kill9_between_trigger_table_commits":
+        RunKillBetweenTriggerTableCommits(root, readyFile);
         return 0;
     default:
         Console.Error.WriteLine($"Unknown scenario '{scenario}'.");
@@ -166,6 +172,47 @@ static void RunKillOsFlushedWrites(string root, string readyFile)
     // 就绪后等待被 kill；已确认写只在 WAL（已 flush 到 OS）与进程内 MemTable 中。
     File.WriteAllText(readyFile, "ready");
     Thread.Sleep(Timeout.Infinite);
+}
+
+// #333：在独立关系表 keyspace 的提交间隔注入真进程终止，记录 V1 AFTER ROW
+// 触发器的跨 WAL 边界。该场景用于证据报告，不改变生产提交合同。
+static void RunKillBetweenTriggerTableCommits(string root, string readyFile)
+{
+    using var db = Tsdb.Open(new TsdbOptions
+    {
+        RootDirectory = root,
+        Kv = KvOptions.Default with
+        {
+            SyncWalOnEveryWrite = true,
+            ExpirerEnabled = false,
+            CleanupEnabled = false,
+        },
+        BackgroundFlush = new BackgroundFlushOptions { Enabled = false },
+        Compaction = new CompactionPolicy { Enabled = false },
+    });
+
+    SqlExecutor.Execute(db,
+        "CREATE TABLE orders (id INT, status STRING, PRIMARY KEY (id))");
+    SqlExecutor.Execute(db,
+        "CREATE TABLE audit_outbox (event_id INT, order_id INT, PRIMARY KEY (event_id))");
+    SqlExecutor.Execute(db, """
+        CREATE TRIGGER orders_audit AFTER INSERT ON orders FOR EACH ROW
+        LANGUAGE SQL AS BEGIN
+            INSERT INTO audit_outbox (event_id, order_id) VALUES (NEW.id, NEW.id);
+        END
+        """);
+
+    db.Tables.ApplyTransactionAfterTableTestHook = tableName =>
+    {
+        if (!string.Equals(tableName, "orders", StringComparison.Ordinal))
+            return;
+
+        // The parent waits for this marker and then terminates this process.
+        // Keep the callback blocked so the next table cannot be applied.
+        File.WriteAllText(readyFile, "source-table-applied");
+        Thread.Sleep(Timeout.Infinite);
+    };
+    SqlExecutor.Execute(db, "INSERT INTO orders (id, status) VALUES (1, 'new')");
 }
 
 static Point MakePoint(string measurement, long timestamp, string host, double value)

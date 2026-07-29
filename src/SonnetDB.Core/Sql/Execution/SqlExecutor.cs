@@ -119,6 +119,33 @@ public static class SqlExecutor
     }
 
     /// <summary>
+    /// 使用显式治理选项执行单条参数化 SQL 语句。
+    /// </summary>
+    /// <param name="tsdb">目标数据库实例。</param>
+    /// <param name="databaseName">当前数据库名；未知可为 <c>null</c>。</param>
+    /// <param name="sql">单条 SQL 文本。</param>
+    /// <param name="parameters">参数值集合；为 <c>null</c> 时不做参数绑定。</param>
+    /// <param name="controlPlane">控制面实现；为 <c>null</c> 时控制面 DDL 抛 <see cref="NotSupportedException"/>。</param>
+    /// <param name="options">取消、调用方、权限和例程上限。</param>
+    /// <returns>语句执行结果对象。</returns>
+    public static object? Execute(
+        Tsdb tsdb,
+        string? databaseName,
+        string sql,
+        SqlParameters? parameters,
+        IControlPlane? controlPlane,
+        SqlExecutionOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(sql);
+        ArgumentNullException.ThrowIfNull(options);
+
+        var statement = SqlParser.Parse(sql);
+        statement = SqlParameterBinder.Bind(statement, parameters);
+        return ExecuteStatement(tsdb, databaseName, statement, controlPlane, transaction: null, options);
+    }
+
+    /// <summary>
     /// 解析并执行一段 SQL 脚本，支持 <c>BEGIN</c> / <c>COMMIT</c> / <c>ROLLBACK</c> 轻事务。
     /// </summary>
     /// <param name="tsdb">目标数据库实例。</param>
@@ -128,12 +155,49 @@ public static class SqlExecutor
         => ExecuteScript(tsdb, databaseName: null, sql: sql, controlPlane: null);
 
     /// <summary>
+    /// 使用显式治理选项执行一段 SQL 脚本，支持 <c>BEGIN</c> / <c>COMMIT</c> /
+    /// <c>ROLLBACK</c> 轻事务。
+    /// </summary>
+    /// <param name="tsdb">目标数据库实例。</param>
+    /// <param name="sql">SQL 脚本文本。</param>
+    /// <param name="options">取消、调用方、权限和例程上限。</param>
+    /// <returns>每条语句的执行结果。</returns>
+    public static IReadOnlyList<object?> ExecuteScript(
+        Tsdb tsdb,
+        string sql,
+        SqlExecutionOptions options)
+        => ExecuteScript(
+            tsdb,
+            databaseName: null,
+            sql: sql,
+            controlPlane: null,
+            options: options);
+
+    /// <summary>
     /// 解析并执行一段 SQL 脚本，支持可选控制面与轻事务。
     /// </summary>
     public static IReadOnlyList<object?> ExecuteScript(Tsdb tsdb, string? databaseName, string sql, IControlPlane? controlPlane = null)
+        => ExecuteScript(tsdb, databaseName, sql, controlPlane, SqlExecutionOptions.Default);
+
+    /// <summary>
+    /// 使用显式治理选项执行一段 SQL 脚本，可选传入控制面。
+    /// </summary>
+    /// <param name="tsdb">目标数据库实例。</param>
+    /// <param name="databaseName">当前数据库名；未知可为 <c>null</c>。</param>
+    /// <param name="sql">SQL 脚本文本。</param>
+    /// <param name="controlPlane">控制面实现。</param>
+    /// <param name="options">取消、调用方、权限和例程上限。</param>
+    /// <returns>每条语句的执行结果。</returns>
+    public static IReadOnlyList<object?> ExecuteScript(
+        Tsdb tsdb,
+        string? databaseName,
+        string sql,
+        IControlPlane? controlPlane,
+        SqlExecutionOptions options)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(sql);
+        ArgumentNullException.ThrowIfNull(options);
 
         var statements = SqlParser.ParseScript(sql);
         var results = new List<object?>(statements.Count);
@@ -143,7 +207,7 @@ public static class SqlExecutor
             if (statement is BeginTransactionStatement && transaction is not null && !transaction.IsCompleted)
                 throw new InvalidOperationException("当前已有活动轻事务，不能嵌套 BEGIN。");
 
-            var result = ExecuteStatement(tsdb, databaseName, statement, controlPlane, transaction);
+            var result = ExecuteStatement(tsdb, databaseName, statement, controlPlane, transaction, options);
             if (result is SqlTransactionContext started)
             {
                 transaction = started;

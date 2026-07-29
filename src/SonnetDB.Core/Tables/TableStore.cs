@@ -72,6 +72,11 @@ public sealed class TableStore : IDisposable
     /// <summary>底层 rowstore 当前 generation。</summary>
     public long Generation => _keyspace.Generation;
 
+    /// <summary>
+    /// 返回当前表 active WAL 的逻辑长度，供基准和恢复证据读取。
+    /// </summary>
+    internal long ActiveWalLengthForEvidence => _keyspace.ActiveWalLength;
+
     /// <summary>公开全表扫描累计次数，供访问计划回归测试观测。</summary>
     internal long FullScanCount => Interlocked.Read(ref _fullScanCount);
 

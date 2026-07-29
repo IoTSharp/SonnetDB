@@ -310,6 +310,14 @@ DROP TRIGGER IF EXISTS audit_device_insert;
 
 嵌入式调用可通过 `RoutineManager.Diagnostics` 读取最近 256 条不含参数值/行内容的调用审计和累计指标。Server `/metrics` 按数据库公开 `sonnetdb_procedure_*` 与 `sonnetdb_trigger_*` 调用、失败和累计耗时指标。稳定错误码包括 `procedure_not_found`、`trigger_not_found`、`routine_invalid_arguments`、`routine_recursive_call`、`trigger_recursion`、`routine_depth_limit`、`routine_statement_limit`、`routine_result_row_limit`、`routine_cancelled`、`routine_forbidden`、`routine_dependency`、`trigger_context` 和 `routine_execution_failed`。
 
+M39 #333 的证据入口位于 `tests/SonnetDB.Benchmarks`：`--m39-trigger-evidence` 会固定审计 outbox、
+派生汇总和状态流转保护 journey，并以 1/100/10,000 行批量 INSERT 记录无触发器、V1 行触发器和客户端候选
+statement 参考的吞吐、关系表 WAL/rowstore 增量、托管内存、分配与失败回滚成本；UPDATE/DELETE
+当前只做 journey 功能对拍，尚无同规模成本样本。候选路径只是
+显式事务参考实现，不增加 SQL 语法。关系表使用独立 keyspace/WAL，进程终止可能在源表和触发
+目标表之间留下 partial commit；此边界由 CrashTests 的真进程强杀与重启 replay 场景固定，不能
+解释为跨 keyspace 掉电原子性或 exactly-once。
+
 ### `CREATE INDEX` / `DROP INDEX`
 
 关系表支持普通二级索引和唯一索引。索引声明随 table schema 持久化，索引内容从 rowstore 派生，打开表或 schema 变更时可重建。

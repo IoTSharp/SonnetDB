@@ -4,6 +4,8 @@ using SonnetDB.Engine.Compaction;
 using SonnetDB.Memory;
 using SonnetDB.Model;
 using SonnetDB.Query;
+using SonnetDB.Sql;
+using SonnetDB.Sql.Execution;
 using SonnetDB.Storage.Segments;
 using SonnetDB.Wal;
 using Xunit;
@@ -83,6 +85,28 @@ public sealed class CrashReliabilityTests : IDisposable
 
         int total = QueryPointCount(db, "osflush", "h");
         Assert.Equal(300, total);
+    }
+
+    [Fact]
+    public void crash_kill9_betweenTriggerTableCommits_ReopenReportsMeasuredPartialPair()
+    {
+        // #333：关系表 source 与 trigger outbox 使用独立 KV WAL。子进程在 source
+        // batch 已落盘、outbox 尚未应用的确定性间隔被 kill；恢复必须如实暴露
+        // partial pair，而不是把 V1 宣称成跨 keyspace exactly-once。
+        string root = RunKillScenario(
+            "crash_kill9_between_trigger_table_commits",
+            TimeSpan.Zero);
+
+        using var database = Tsdb.Open(MakeOptions(root));
+        var orders = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            database,
+            "SELECT * FROM orders"));
+        var audit = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            database,
+            "SELECT * FROM audit_outbox"));
+
+        Assert.Single(orders.Rows);
+        Assert.Empty(audit.Rows);
     }
 
     [Fact]

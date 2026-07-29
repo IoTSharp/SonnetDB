@@ -1,0 +1,71 @@
+name: M39 SQL Trigger Evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      quick:
+        description: 'Run one-row report smoke instead of the full 1/100/10,000 matrix'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: m39-trigger-evidence-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  NUGET_XMLDOC_MODE: skip
+
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Restore evidence projects
+        run: |
+          dotnet restore tests/SonnetDB.Benchmarks/SonnetDB.Benchmarks.csproj
+          dotnet restore tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj
+          dotnet restore tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj
+
+      - name: Run golden journey and commit failure tests
+        run: |
+          dotnet test tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj \
+            --configuration Release --no-restore \
+            --filter 'FullyQualifiedName~SqlTriggerV2BaselineTests'
+
+      - name: Run real process-kill replay test
+        run: |
+          dotnet test tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj \
+            --configuration Release --no-restore \
+            --filter 'FullyQualifiedName~betweenTriggerTableCommits'
+
+      - name: Run M39 cost and rollback report
+        env:
+          QUICK: ${{ inputs.quick }}
+          M39_CRASH_EVIDENCE_VERIFIED: 'true'
+        run: |
+          args=(--m39-trigger-evidence --output artifacts/m39-trigger-v2)
+          if [ "$QUICK" = "true" ]; then args+=(--quick); fi
+          dotnet run --project tests/SonnetDB.Benchmarks/SonnetDB.Benchmarks.csproj \
+            --configuration Release -- "${args[@]}"
+
+      - name: Upload M39 evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: m39-trigger-v2-${{ github.sha }}
+          path: artifacts/m39-trigger-v2

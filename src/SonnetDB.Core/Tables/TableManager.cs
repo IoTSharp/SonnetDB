@@ -18,6 +18,11 @@ public sealed class TableManager : IDisposable
     private readonly Dictionary<string, TableStore> _stores = new(StringComparer.Ordinal);
     private bool _disposed;
 
+    // M39 #333 crash/commit evidence hook.  It is intentionally internal and
+    // unset in production; tests use it to stop between independent keyspace
+    // commits without changing the public transaction contract.
+    internal Action<string>? ApplyTransactionAfterTableTestHook { get; set; }
+
     /// <summary>
     /// 初始化表管理器。
     /// </summary>
@@ -626,10 +631,11 @@ public sealed class TableManager : IDisposable
             try
             {
                 var affected = 0;
-                foreach (var entry in prepared.Values)
+                foreach (var (tableName, entry) in prepared)
                 {
                     affected += entry.Store.ApplyPreparedBatch(entry.Batch);
                     applied.Add(entry);
+                    ApplyTransactionAfterTableTestHook?.Invoke(tableName);
                 }
 
                 return affected;
@@ -686,6 +692,24 @@ public sealed class TableManager : IDisposable
             foreach (string name in names)
                 OpenStoreLocked(Catalog.TryGet(name)!).CreateSnapshot();
             return names;
+        }
+    }
+
+    /// <summary>
+    /// 返回已打开关系表 active WAL 的逻辑长度总和，供 M39 基准读取未刷出的 WAL。
+    /// </summary>
+    internal long ActiveWalBytesForEvidence
+    {
+        get
+        {
+            lock (_sync)
+            {
+                ThrowIfDisposed();
+                long total = 0;
+                foreach (TableStore store in _stores.Values)
+                    total = checked(total + store.ActiveWalLengthForEvidence);
+                return total;
+            }
         }
     }
 
