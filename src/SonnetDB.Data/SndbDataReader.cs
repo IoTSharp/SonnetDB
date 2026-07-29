@@ -123,6 +123,29 @@ public sealed class SndbDataReader : DbDataReader
     /// <inheritdoc />
     public override float GetFloat(int ordinal) => Convert.ToSingle(GetValue(ordinal), CultureInfo.InvariantCulture);
 
+    /// <summary>
+    /// 以指定类型读取当前行的列值；请求 <see cref="DateTimeOffset"/> 时统一按 UTC 时刻语义转换。
+    /// </summary>
+    /// <typeparam name="T">调用方期望的值类型。</typeparam>
+    /// <param name="ordinal">从零开始的列序号。</param>
+    /// <returns>转换后的列值。</returns>
+    public override T GetFieldValue<T>(int ordinal)
+    {
+        var value = GetValue(ordinal);
+        if (typeof(T) != typeof(DateTimeOffset))
+            return (T)value;
+
+        // DATETIME 列在存储层返回 DateTime；Unix 毫秒和原生 DateTimeOffset 也使用同一 UTC 契约。
+        DateTimeOffset dateTimeOffset = value switch
+        {
+            DateTime dateTime => new(DateTime.SpecifyKind(dateTime, DateTimeKind.Utc)),
+            DateTimeOffset offset => offset.ToUniversalTime(),
+            long unixMilliseconds => DateTimeOffset.FromUnixTimeMilliseconds(unixMilliseconds),
+            _ => throw new InvalidCastException($"列 {ordinal} 的值无法转换为 DateTimeOffset。"),
+        };
+        return (T)(object)dateTimeOffset;
+    }
+
     /// <inheritdoc />
     public override Guid GetGuid(int ordinal)
     {

@@ -1,7 +1,9 @@
 ﻿using System.Data;
 using System.Data.Common;
 using SonnetDB.Data;
+using SonnetDB.Data.Embedded;
 using SonnetDB.Model;
+using SonnetDB.Sql.Execution;
 using Xunit;
 
 namespace SonnetDB.Core.Tests.Ado;
@@ -46,6 +48,18 @@ public sealed class TsdbAdoApiTests : IDisposable
         ExecNonQuery(c, "CREATE MEASUREMENT cpu (host TAG, value FIELD FLOAT)");
     }
 
+    /// <summary>
+    /// 用单列执行结果创建已经定位到首行的数据读取器。
+    /// </summary>
+    private static SndbDataReader CreateSingleValueReader(object value)
+    {
+        var result = MaterializedExecutionResult.FromSelect(
+            new SelectExecutionResult(["value"], [[value]]));
+        var reader = new SndbDataReader(result, CommandBehavior.Default, connection: null);
+        Assert.True(reader.Read());
+        return reader;
+    }
+
     // ── Connection ────────────────────────────────────────────────────────────
 
     [Fact]
@@ -78,6 +92,26 @@ public sealed class TsdbAdoApiTests : IDisposable
         c.Close();
         Assert.Equal(ConnectionState.Closed, c.State);
         Assert.Null(c.UnderlyingTsdb);
+    }
+
+    [Fact]
+    public async Task GetFieldValue_WithSupportedTimestampValues_ReturnsUtcDateTimeOffset()
+    {
+        var expected = new DateTimeOffset(2026, 7, 29, 3, 4, 5, TimeSpan.Zero);
+
+        using var dateTimeReader = CreateSingleValueReader(expected.UtcDateTime);
+        Assert.Equal(expected, dateTimeReader.GetFieldValue<DateTimeOffset>(0));
+
+        using var unixMillisecondsReader = CreateSingleValueReader(expected.ToUnixTimeMilliseconds());
+        Assert.Equal(expected, unixMillisecondsReader.GetFieldValue<DateTimeOffset>(0));
+
+        using var offsetReader = CreateSingleValueReader(expected.ToOffset(TimeSpan.FromHours(8)));
+        var offsetValue = offsetReader.GetFieldValue<DateTimeOffset>(0);
+        Assert.Equal(expected, offsetValue);
+        Assert.Equal(TimeSpan.Zero, offsetValue.Offset);
+
+        await using var asyncReader = CreateSingleValueReader(expected.UtcDateTime);
+        Assert.Equal(expected, await asyncReader.GetFieldValueAsync<DateTimeOffset>(0));
     }
 
     [Fact]
