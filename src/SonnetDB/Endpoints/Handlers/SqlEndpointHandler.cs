@@ -223,7 +223,18 @@ internal static class SqlEndpointHandler
                 if (executable is BeginTransactionStatement && transaction is not null && !transaction.IsCompleted)
                     throw new InvalidOperationException("当前已有活动轻事务，不能嵌套 BEGIN。");
 
-                object? result = SqlExecutor.ExecuteStatement(tsdb, databaseName, executable, controlPlane, transaction);
+                object? result = SqlExecutor.ExecuteStatement(
+                    tsdb,
+                    databaseName,
+                    executable,
+                    controlPlane,
+                    transaction,
+                    new SqlExecutionOptions
+                    {
+                        CancellationToken = context.RequestAborted,
+                        Caller = ResolveRoutineCaller(context, isAdmin),
+                        CanWrite = canWrite,
+                    });
                 if (result is SqlTransactionContext started)
                     transaction = started;
                 else if (executable is CommitTransactionStatement or RollbackTransactionStatement)
@@ -313,6 +324,13 @@ internal static class SqlEndpointHandler
                 metrics.RecordSqlError();
                 RecordSlow(diagnostics, diagnosticsDatabase, stmt.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
                 await WriteErrorAsync(context, ex.ErrorCode, ex.Message).ConfigureAwait(false);
+                return;
+            }
+            catch (RoutineExecutionException ex)
+            {
+                metrics.RecordSqlError();
+                RecordSlow(diagnostics, diagnosticsDatabase, stmt.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                await WriteErrorAsync(context, ex.Code, ex.Message).ConfigureAwait(false);
                 return;
             }
             catch (Exception ex)
@@ -406,7 +424,7 @@ internal static class SqlEndpointHandler
         {
             context.Response.StatusCode = code switch
             {
-                "forbidden" => StatusCodes.Status403Forbidden,
+                "forbidden" or RoutineErrorCodes.Forbidden => StatusCodes.Status403Forbidden,
                 "db_not_found" => StatusCodes.Status404NotFound,
                 "unauthorized" => StatusCodes.Status401Unauthorized,
                 _ => StatusCodes.Status400BadRequest,
@@ -479,10 +497,13 @@ internal static class SqlEndpointHandler
     /// </summary>
     internal static bool RequiresWritePermission(SqlStatement statement) => statement is not
         (SelectStatement or
+        CallProcedureStatement or
         ShowMeasurementsStatement or
         ShowTablesStatement or
         ShowViewsStatement or
         ShowMaterializedViewsStatement or
+        ShowProceduresStatement or
+        ShowTriggersStatement or
         ShowTableIndexesStatement or
         ShowDocumentCollectionsStatement or
         ShowDocumentIndexesStatement or
@@ -491,9 +512,18 @@ internal static class SqlEndpointHandler
         DescribeTableStatement or
         DescribeViewStatement or
         DescribeMaterializedViewStatement or
+        DescribeProcedureStatement or
+        DescribeTriggerStatement or
         DescribeDocumentCollectionStatement or
         ExplainStatement or
         ShowDatabasesStatement);
+
+    private static string ResolveRoutineCaller(HttpContext context, bool isAdmin)
+    {
+        if (BearerAuthMiddleware.GetUser(context) is { } user)
+            return user.UserName;
+        return isAdmin ? "admin" : "remote";
+    }
 
     internal static void RecordSlow(
         SlowQueryDiagnostics? diagnostics,

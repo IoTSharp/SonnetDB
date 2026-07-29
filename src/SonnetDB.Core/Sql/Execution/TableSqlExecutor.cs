@@ -2,7 +2,9 @@ using System.Globalization;
 using System.Text;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
+using SonnetDB.Exceptions;
 using SonnetDB.Query.Functions;
+using SonnetDB.Routines;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Tables;
 
@@ -274,6 +276,13 @@ internal static class TableSqlExecutor
     }
 
     public static InsertExecutionResult QueueInsert(SqlTransactionContext transaction, InsertStatement statement, TableSchema schema)
+        => QueueInsert(transaction, statement, schema, out _);
+
+    internal static InsertExecutionResult QueueInsert(
+        SqlTransactionContext transaction,
+        InsertStatement statement,
+        TableSchema schema,
+        out IReadOnlyList<TableRowChange> changes)
     {
         ArgumentNullException.ThrowIfNull(transaction);
         ArgumentNullException.ThrowIfNull(statement);
@@ -281,6 +290,7 @@ internal static class TableSqlExecutor
 
         var bindings = BindInsertColumns(statement, schema);
         var mutations = new List<TableRowMutation>(statement.Rows.Count);
+        var rowChanges = new List<TableRowChange>(statement.Rows.Count);
         foreach (var row in statement.Rows)
         {
             var values = new object?[schema.Columns.Count];
@@ -293,12 +303,14 @@ internal static class TableSqlExecutor
             ApplyInsertRowVersion(schema, values);
             ValidateRequiredColumns(schema, values);
             mutations.Add(new TableRowMutation(PrimaryKeyValues: null, values));
+            rowChanges.Add(new TableRowChange(schema, OldValues: null, values.ToArray()));
         }
 
         // 整条 INSERT 的所有行都转换、校验成功后再写缓冲，避免后续行失败留下部分插入。
         foreach (var mutation in mutations)
             transaction.AddOrMergeTableMutation(schema, mutation);
 
+        changes = rowChanges;
         return new InsertExecutionResult(schema.Name, mutations.Count);
     }
 
@@ -503,6 +515,13 @@ internal static class TableSqlExecutor
     }
 
     public static RowsAffectedExecutionResult QueueUpdate(SqlTransactionContext transaction, Tsdb tsdb, UpdateStatement statement)
+        => QueueUpdate(transaction, tsdb, statement, out _);
+
+    internal static RowsAffectedExecutionResult QueueUpdate(
+        SqlTransactionContext transaction,
+        Tsdb tsdb,
+        UpdateStatement statement,
+        out IReadOnlyList<TableRowChange> changes)
     {
         ArgumentNullException.ThrowIfNull(transaction);
         ArgumentNullException.ThrowIfNull(tsdb);
@@ -516,6 +535,7 @@ internal static class TableSqlExecutor
         var where = TableInSubqueryExecutor.Materialize(tsdb, statement.Where, schema);
 
         var mutations = new List<TableRowMutation>();
+        var rowChanges = new List<TableRowChange>();
         IReadOnlyList<TableRow> candidateRows;
         bool predicateSatisfied;
         if (transaction.TryGetBufferedMutations(schema.Name, out var buffered))
@@ -545,6 +565,7 @@ internal static class TableSqlExecutor
             ApplyUpdateRowVersion(schema, values, expectedRowVersion);
             mutations.Add(new TableRowMutation(
                 ExtractPrimaryKeyValues(schema, row.Values), values, expectedRowVersion));
+            rowChanges.Add(new TableRowChange(schema, row.Values.ToArray(), values.ToArray()));
         }
 
         ThrowIfStaleRowVersionPredicate(schema, store, where, mutations.Count);
@@ -553,10 +574,19 @@ internal static class TableSqlExecutor
         foreach (var mutation in mutations)
             transaction.AddOrMergeTableMutation(schema, mutation);
 
+        changes = rowChanges;
         return new RowsAffectedExecutionResult(schema.Name, mutations.Count, "update");
     }
 
     public static RowsAffectedExecutionResult QueueDelete(SqlTransactionContext transaction, Tsdb tsdb, DeleteStatement statement, TableSchema schema)
+        => QueueDelete(transaction, tsdb, statement, schema, out _);
+
+    internal static RowsAffectedExecutionResult QueueDelete(
+        SqlTransactionContext transaction,
+        Tsdb tsdb,
+        DeleteStatement statement,
+        TableSchema schema,
+        out IReadOnlyList<TableRowChange> changes)
     {
         ArgumentNullException.ThrowIfNull(transaction);
         ArgumentNullException.ThrowIfNull(tsdb);
@@ -567,6 +597,7 @@ internal static class TableSqlExecutor
         var where = TableInSubqueryExecutor.Materialize(tsdb, statement.Where, schema);
         var store = tsdb.Tables.Open(schema.Name);
         var mutations = new List<TableRowMutation>();
+        var rowChanges = new List<TableRowChange>();
         IReadOnlyList<TableRow> candidateRows;
         bool predicateSatisfied;
         if (transaction.TryGetBufferedMutations(schema.Name, out var buffered))
@@ -587,12 +618,14 @@ internal static class TableSqlExecutor
 
             mutations.Add(new TableRowMutation(
                 ExtractPrimaryKeyValues(schema, row.Values), NewValues: null, ExtractRowVersion(schema, row.Values)));
+            rowChanges.Add(new TableRowChange(schema, row.Values.ToArray(), NewValues: null));
         }
 
         // WHERE 对全部候选行求值成功后再合并，保证一条 DELETE 在事务缓冲中也是语句原子的。
         foreach (var mutation in mutations)
             transaction.AddOrMergeTableMutation(schema, mutation);
 
+        changes = rowChanges;
         return new RowsAffectedExecutionResult(schema.Name, mutations.Count, "delete");
     }
 
@@ -614,7 +647,19 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(transaction);
 
-        int affected = tsdb.Tables.ApplyTransaction(transaction.SnapshotTableMutations());
+        int affected;
+        try
+        {
+            affected = tsdb.Tables.ApplyTransaction(transaction.SnapshotTableMutations());
+        }
+        catch
+        {
+            tsdb.Routines.Diagnostics.MarkTriggerTransactionFailure(
+                transaction.SnapshotTriggerAuditSequences(),
+                RoutineErrorCodes.ExecutionFailed);
+            transaction.ClearTriggerAuditSequences();
+            throw;
+        }
 
         transaction.MarkCompleted();
         return new RowsAffectedExecutionResult("*", affected, "commit");

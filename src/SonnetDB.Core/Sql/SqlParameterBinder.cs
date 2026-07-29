@@ -39,6 +39,7 @@ public static class SqlParameterBinder
             InsertStatement insert => BindInsert(insert, parameters),
             UpdateStatement update => BindUpdate(update, parameters),
             DeleteStatement delete => delete with { Where = BindExpr(delete.Where, parameters) },
+            CallProcedureStatement call => call with { Arguments = BindExprList(call.Arguments, parameters) },
             _ => statement, // DDL / 控制面语句不含参数占位符
         };
     }

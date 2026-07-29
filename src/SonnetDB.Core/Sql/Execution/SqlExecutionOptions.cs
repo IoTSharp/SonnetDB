@@ -1,0 +1,34 @@
+namespace SonnetDB.Sql.Execution;
+
+/// <summary>单次 SQL 执行向过程/触发器运行时传递的治理选项。</summary>
+public sealed record SqlExecutionOptions
+{
+    /// <summary>默认嵌入式执行选项。</summary>
+    public static SqlExecutionOptions Default { get; } = new();
+
+    /// <summary>取消令牌。</summary>
+    public CancellationToken CancellationToken { get; init; }
+
+    /// <summary>审计调用方标识；不记录参数值或行数据。</summary>
+    public string Caller { get; init; } = "embedded";
+
+    /// <summary>调用方是否具备当前数据库写权限。</summary>
+    public bool CanWrite { get; init; } = true;
+
+    /// <summary>单次调用链最多执行的 body 语句数。</summary>
+    public int MaxRoutineStatements { get; init; } = 64;
+
+    /// <summary>过程与触发器调用链最大深度。</summary>
+    public int MaxRoutineDepth { get; init; } = 8;
+
+    /// <summary>单次过程调用累计允许返回的最大结果行数。</summary>
+    public int MaxRoutineResultRows { get; init; } = 10_000;
+
+    internal void Validate()
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(Caller);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxRoutineStatements);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxRoutineDepth);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxRoutineResultRows);
+    }
+}

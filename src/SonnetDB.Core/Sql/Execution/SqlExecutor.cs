@@ -3,6 +3,7 @@ using SonnetDB.Catalog;
 using SonnetDB.Diagnostics;
 using SonnetDB.Engine;
 using SonnetDB.Model;
+using SonnetDB.Routines;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Storage.Format;
 using SonnetDB.Tables;
@@ -35,6 +36,21 @@ public static class SqlExecutor
         {
             "name", "definition", "dependencies", "definition_version", "status", "active_generation",
             "row_count", "created_utc", "last_refresh_utc", "last_successful_refresh_utc", "error"
+        }.AsReadOnly();
+    private static readonly IReadOnlyList<string> _showProcedureColumns =
+        new List<string>(5) { "name", "parameters", "language", "requires_write", "created_utc" }.AsReadOnly();
+    private static readonly IReadOnlyList<string> _describeProcedureColumns =
+        new List<string>(8)
+        {
+            "name", "parameters", "language", "body", "object_dependencies",
+            "procedure_dependencies", "requires_write", "created_utc"
+        }.AsReadOnly();
+    private static readonly IReadOnlyList<string> _showTriggerColumns =
+        new List<string>(5) { "name", "table_name", "event", "when", "created_utc" }.AsReadOnly();
+    private static readonly IReadOnlyList<string> _describeTriggerColumns =
+        new List<string>(8)
+        {
+            "name", "table_name", "event", "when", "language", "body", "dependencies", "created_utc"
         }.AsReadOnly();
     private static readonly IReadOnlyList<string> _userColumns =
         new List<string>(4) { "name", "is_superuser", "created_utc", "token_count" }.AsReadOnly();
@@ -185,10 +201,38 @@ public static class SqlExecutor
         SqlStatement statement,
         IControlPlane? controlPlane,
         SqlTransactionContext? transaction)
+        => ExecuteStatement(
+            tsdb,
+            databaseName,
+            statement,
+            controlPlane,
+            transaction,
+            SqlExecutionOptions.Default);
+
+    /// <summary>
+    /// 使用显式治理选项执行一条已解析语句；现有重载保持默认嵌入式行为。
+    /// </summary>
+    /// <param name="tsdb">目标数据库。</param>
+    /// <param name="databaseName">可选数据库名。</param>
+    /// <param name="statement">已解析 AST。</param>
+    /// <param name="controlPlane">可选控制面。</param>
+    /// <param name="transaction">可选轻事务。</param>
+    /// <param name="options">取消、调用方、权限和例程上限。</param>
+    /// <returns>语句执行结果。</returns>
+    public static object? ExecuteStatement(
+        Tsdb tsdb,
+        string? databaseName,
+        SqlStatement statement,
+        IControlPlane? controlPlane,
+        SqlTransactionContext? transaction,
+        SqlExecutionOptions options)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
+        ArgumentNullException.ThrowIfNull(options);
 
+        using var routineExecutionScope = RoutineExecutionContext.EnterRoot(options);
+        RoutineExecutionContext.Current!.CheckCancellation();
         // read-your-writes：把活动轻事务设为 ambient，供 SELECT 读路径叠加本事务缓冲写（#218）。
         using var transactionScope = SqlTransactionContext.EnterScope(transaction);
         // UDF 解析必须覆盖 DML 的绑定与求值阶段，不能只在 SELECT 分发器内建立作用域。
@@ -206,6 +250,8 @@ public static class SqlExecutor
             CreateDocumentCollectionStatement createDocumentCollection => DocumentSqlExecutor.ExecuteCreateCollection(tsdb, createDocumentCollection),
             CreateViewStatement createView => ExecuteCreateView(tsdb, createView),
             CreateMaterializedViewStatement createMaterializedView => ExecuteCreateMaterializedView(tsdb, createMaterializedView),
+            CreateProcedureStatement createProcedure => SqlRoutineRuntime.CreateProcedure(tsdb, createProcedure),
+            CreateTriggerStatement createTrigger => SqlRoutineRuntime.CreateTrigger(tsdb, createTrigger),
             CreateTableIndexStatement createIndex => ExecuteCreateIndex(tsdb, createIndex),
             CreateDocumentIndexStatement createDocumentIndex => DocumentSqlExecutor.ExecuteCreateIndex(tsdb, createDocumentIndex),
             CreateDocumentPathIndexStatement createDocumentIndex => DocumentSqlExecutor.ExecuteCreateIndex(
@@ -219,17 +265,20 @@ public static class SqlExecutor
             CreateFullTextIndexStatement createFullTextIndex => DocumentSqlExecutor.ExecuteCreateFullTextIndex(tsdb, createFullTextIndex),
             CreateDocumentVectorIndexStatement createVectorIndex => DocumentSqlExecutor.ExecuteCreateVectorIndex(tsdb, createVectorIndex),
             ImportJsonStatement importJson => JsonFileSqlExecutor.ExecuteImport(tsdb, importJson),
-            InsertStatement insert => ExecuteInsert(tsdb, insert, transaction),
+            InsertStatement insert => ExecuteInsert(tsdb, databaseName, insert, controlPlane, transaction),
             SelectStatement select => ExecuteSelect(tsdb, select),
+            CallProcedureStatement call => SqlRoutineRuntime.ExecuteCall(tsdb, databaseName, call, controlPlane, transaction),
             RefreshMaterializedViewStatement refreshMaterializedView => ExecuteRefreshMaterializedView(tsdb, refreshMaterializedView),
-            DeleteStatement delete => ExecuteDelete(tsdb, delete, transaction),
+            DeleteStatement delete => ExecuteDelete(tsdb, databaseName, delete, controlPlane, transaction),
             TruncateTableStatement truncate => ExecuteTruncate(tsdb, truncate, transaction),
-            UpdateStatement update => ExecuteUpdate(tsdb, update, transaction),
+            UpdateStatement update => ExecuteUpdate(tsdb, databaseName, update, controlPlane, transaction),
             DropMeasurementStatement dropMeasurement => ExecuteDropMeasurement(tsdb, dropMeasurement),
             DropTableStatement dropTable => TableSqlExecutor.ExecuteDropTable(tsdb, dropTable),
             DropDocumentCollectionStatement dropDocumentCollection => DocumentSqlExecutor.ExecuteDropCollection(tsdb, dropDocumentCollection),
             DropViewStatement dropView => ExecuteDropView(tsdb, dropView),
             DropMaterializedViewStatement dropMaterializedView => ExecuteDropMaterializedView(tsdb, dropMaterializedView),
+            DropProcedureStatement dropProcedure => SqlRoutineRuntime.DropProcedure(tsdb, dropProcedure),
+            DropTriggerStatement dropTrigger => SqlRoutineRuntime.DropTrigger(tsdb, dropTrigger),
             DropTableIndexStatement dropIndex => TableSqlExecutor.ExecuteDropIndex(tsdb, dropIndex),
             DropDocumentPathIndexStatement dropDocumentIndex => DocumentSqlExecutor.ExecuteDropIndex(tsdb, dropDocumentIndex),
             DropFullTextIndexStatement dropFullTextIndex => DocumentSqlExecutor.ExecuteDropFullTextIndex(tsdb, dropFullTextIndex),
@@ -247,6 +296,8 @@ public static class SqlExecutor
             ShowTablesStatement => TableSqlExecutor.ShowTables(tsdb),
             ShowViewsStatement => ShowViews(tsdb),
             ShowMaterializedViewsStatement => ShowMaterializedViews(tsdb),
+            ShowProceduresStatement => ShowProcedures(tsdb),
+            ShowTriggersStatement showTriggers => ShowTriggers(tsdb, showTriggers.TableName),
             ShowDocumentCollectionsStatement => DocumentSqlExecutor.ShowCollections(tsdb),
             ShowTableIndexesStatement showIndexes => TableSqlExecutor.ShowIndexes(tsdb, showIndexes.TableName),
             ShowDocumentIndexesStatement showDocumentIndexes => DocumentSqlExecutor.ShowIndexes(tsdb, showDocumentIndexes.CollectionName),
@@ -255,6 +306,8 @@ public static class SqlExecutor
             DescribeTableStatement describeTable => TableSqlExecutor.DescribeTable(tsdb, describeTable.Name),
             DescribeViewStatement describeView => DescribeView(tsdb, describeView.Name),
             DescribeMaterializedViewStatement describeMaterializedView => DescribeMaterializedView(tsdb, describeMaterializedView.Name),
+            DescribeProcedureStatement describeProcedure => DescribeProcedure(tsdb, describeProcedure.Name),
+            DescribeTriggerStatement describeTrigger => DescribeTrigger(tsdb, describeTrigger.Name),
             DescribeDocumentCollectionStatement describeDocumentCollection => DocumentSqlExecutor.DescribeCollection(tsdb, describeDocumentCollection.Name),
             ExplainStatement explain => ExecuteExplain(tsdb, databaseName, explain),
             CreateUserStatement createUser => ExecuteControlPlane(controlPlane,
@@ -467,7 +520,7 @@ public static class SqlExecutor
         }
     }
 
-    private static bool IsKnownViewSource(Tsdb tsdb, string name)
+    internal static bool IsKnownViewSource(Tsdb tsdb, string name)
     {
         if (name.StartsWith("information_schema.", StringComparison.OrdinalIgnoreCase))
         {
@@ -508,6 +561,7 @@ public static class SqlExecutor
         string objectName,
         string operation)
     {
+        SqlRoutineRuntime.EnsureNoDependents(tsdb, objectName, operation);
         var viewDependents = tsdb.Views.FindDependents(objectName);
         var materializedDependents = tsdb.MaterializedViews.FindDependents(objectName);
         if (viewDependents.Count == 0 && materializedDependents.Count == 0)
@@ -591,6 +645,93 @@ public static class SqlExecutor
             .ToArray();
         return new SelectExecutionResult(_showMaterializedViewColumns, rows);
     }
+
+    private static SelectExecutionResult ShowProcedures(Tsdb tsdb)
+    {
+        var rows = tsdb.Routines.ListProcedures()
+            .Select(definition => (IReadOnlyList<object?>)new object?[]
+            {
+                definition.Name,
+                FormatProcedureParameters(definition.Parameters),
+                definition.Language,
+                SqlRoutineRuntime.RequiresWrite(tsdb, definition),
+                new DateTime(definition.CreatedAtUtcTicks, DateTimeKind.Utc),
+            })
+            .ToArray();
+        return new SelectExecutionResult(_showProcedureColumns, rows);
+    }
+
+    private static SelectExecutionResult DescribeProcedure(Tsdb tsdb, string name)
+    {
+        var definition = tsdb.Routines.TryGetProcedure(name)
+            ?? throw new SonnetDB.Exceptions.RoutineExecutionException(
+                SonnetDB.Exceptions.RoutineErrorCodes.ProcedureNotFound,
+                $"procedure '{name}' 不存在。");
+        IReadOnlyList<IReadOnlyList<object?>> rows =
+        [
+            new object?[]
+            {
+                definition.Name,
+                FormatProcedureParameters(definition.Parameters),
+                definition.Language,
+                definition.BodySql,
+                string.Join(",", definition.ObjectDependencies),
+                string.Join(",", definition.ProcedureDependencies),
+                SqlRoutineRuntime.RequiresWrite(tsdb, definition),
+                new DateTime(definition.CreatedAtUtcTicks, DateTimeKind.Utc),
+            },
+        ];
+        return new SelectExecutionResult(_describeProcedureColumns, rows);
+    }
+
+    private static SelectExecutionResult ShowTriggers(Tsdb tsdb, string? tableName)
+    {
+        var rows = tsdb.Routines.ListTriggers(tableName)
+            .Select(static definition => (IReadOnlyList<object?>)new object?[]
+            {
+                definition.Name,
+                definition.TableName,
+                definition.Event.ToString().ToLowerInvariant(),
+                definition.WhenSql,
+                new DateTime(definition.CreatedAtUtcTicks, DateTimeKind.Utc),
+            })
+            .ToArray();
+        return new SelectExecutionResult(_showTriggerColumns, rows);
+    }
+
+    private static SelectExecutionResult DescribeTrigger(Tsdb tsdb, string name)
+    {
+        var definition = tsdb.Routines.TryGetTrigger(name)
+            ?? throw new SonnetDB.Exceptions.RoutineExecutionException(
+                SonnetDB.Exceptions.RoutineErrorCodes.TriggerNotFound,
+                $"trigger '{name}' 不存在。");
+        IReadOnlyList<IReadOnlyList<object?>> rows =
+        [
+            new object?[]
+            {
+                definition.Name,
+                definition.TableName,
+                definition.Event.ToString().ToLowerInvariant(),
+                definition.WhenSql,
+                definition.Language,
+                definition.BodySql,
+                string.Join(",", definition.ObjectDependencies),
+                new DateTime(definition.CreatedAtUtcTicks, DateTimeKind.Utc),
+            },
+        ];
+        return new SelectExecutionResult(_describeTriggerColumns, rows);
+    }
+
+    private static string FormatProcedureParameters(IReadOnlyList<SqlProcedureParameter> parameters)
+        => string.Join(", ", parameters.Select(static parameter =>
+            $"IN {parameter.Name} {parameter.DataType switch
+            {
+                SqlProcedureParameterType.Int64 => "INT",
+                SqlProcedureParameterType.Float64 => "FLOAT",
+                SqlProcedureParameterType.Boolean => "BOOL",
+                SqlProcedureParameterType.String => "STRING",
+                _ => throw new ArgumentOutOfRangeException(nameof(parameter.DataType)),
+            }}"));
 
     private static SelectExecutionResult DescribeMaterializedView(Tsdb tsdb, string name)
     {
@@ -900,9 +1041,19 @@ public static class SqlExecutor
     /// <exception cref="ArgumentNullException">任何参数为 null。</exception>
     /// <exception cref="InvalidOperationException">未提供任何 Field / 类型不兼容等校验失败时抛出。</exception>
     public static InsertExecutionResult ExecuteInsert(Tsdb tsdb, InsertStatement statement)
-        => ExecuteInsert(tsdb, statement, transaction: null);
+        => ExecuteInsert(
+            tsdb,
+            databaseName: null,
+            statement,
+            controlPlane: null,
+            transaction: null);
 
-    private static InsertExecutionResult ExecuteInsert(Tsdb tsdb, InsertStatement statement, SqlTransactionContext? transaction)
+    private static InsertExecutionResult ExecuteInsert(
+        Tsdb tsdb,
+        string? databaseName,
+        InsertStatement statement,
+        IControlPlane? controlPlane,
+        SqlTransactionContext? transaction)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
@@ -917,9 +1068,13 @@ public static class SqlExecutor
 
         var tableSchema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
         if (tableSchema is not null)
-            return transaction is null
-                ? TableSqlExecutor.ExecuteInsert(tsdb, statement, tableSchema)
-                : TableSqlExecutor.QueueInsert(transaction, statement, tableSchema);
+            return ExecuteTableInsertWithTriggers(
+                tsdb,
+                databaseName,
+                statement,
+                tableSchema,
+                controlPlane,
+                transaction);
 
         // measurement 写入直接落 WAL/MemTable，不进事务缓冲；轻事务 ROLLBACK 无法撤销它，
         // 因此在事务上下文内显式拒绝，避免"ROLLBACK 后数据仍在"的假回滚（与文档写入一致）。
@@ -1654,7 +1809,12 @@ public static class SqlExecutor
     /// <exception cref="ArgumentNullException">任何参数为 null。</exception>
     /// <exception cref="InvalidOperationException">measurement 不存在 / WHERE 包含不支持的表达式。</exception>
     public static DeleteExecutionResult ExecuteDelete(Tsdb tsdb, DeleteStatement statement)
-        => ExecuteDelete(tsdb, statement, transaction: null);
+        => ExecuteDelete(
+            tsdb,
+            databaseName: null,
+            statement,
+            controlPlane: null,
+            transaction: null);
 
     private static RowsAffectedExecutionResult ExecuteTruncate(
         Tsdb tsdb,
@@ -1669,7 +1829,12 @@ public static class SqlExecutor
         return new RowsAffectedExecutionResult(statement.TableName, rows, "truncate_generation");
     }
 
-    private static DeleteExecutionResult ExecuteDelete(Tsdb tsdb, DeleteStatement statement, SqlTransactionContext? transaction)
+    private static DeleteExecutionResult ExecuteDelete(
+        Tsdb tsdb,
+        string? databaseName,
+        DeleteStatement statement,
+        IControlPlane? controlPlane,
+        SqlTransactionContext? transaction)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
@@ -1684,9 +1849,13 @@ public static class SqlExecutor
         var tableSchema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
         if (tableSchema is not null)
         {
-            var affected = transaction is null
-                ? TableSqlExecutor.ExecuteDelete(tsdb, statement, tableSchema).RowsAffected
-                : TableSqlExecutor.QueueDelete(transaction, tsdb, statement, tableSchema).RowsAffected;
+            var affected = ExecuteTableDeleteWithTriggers(
+                tsdb,
+                databaseName,
+                statement,
+                tableSchema,
+                controlPlane,
+                transaction).RowsAffected;
             return new DeleteExecutionResult(
                 statement.Measurement,
                 SeriesAffected: affected,
@@ -1701,7 +1870,12 @@ public static class SqlExecutor
         return DeleteExecutor.Execute(tsdb, statement);
     }
 
-    private static RowsAffectedExecutionResult ExecuteUpdate(Tsdb tsdb, UpdateStatement update, SqlTransactionContext? transaction)
+    private static RowsAffectedExecutionResult ExecuteUpdate(
+        Tsdb tsdb,
+        string? databaseName,
+        UpdateStatement update,
+        IControlPlane? controlPlane,
+        SqlTransactionContext? transaction)
     {
         var documentSchema = tsdb.Documents.Catalog.TryGet(update.TableName);
         if (documentSchema is not null)
@@ -1711,9 +1885,174 @@ public static class SqlExecutor
             return DocumentSqlExecutor.ExecuteUpdate(tsdb, update, documentSchema);
         }
 
-        return transaction is null
-            ? TableSqlExecutor.ExecuteUpdate(tsdb, update)
-            : TableSqlExecutor.QueueUpdate(transaction, tsdb, update);
+        return ExecuteTableUpdateWithTriggers(
+            tsdb,
+            databaseName,
+            update,
+            controlPlane,
+            transaction);
+    }
+
+    private static InsertExecutionResult ExecuteTableInsertWithTriggers(
+        Tsdb tsdb,
+        string? databaseName,
+        InsertStatement statement,
+        TableSchema schema,
+        IControlPlane? controlPlane,
+        SqlTransactionContext? transaction)
+    {
+        bool hasTriggers = tsdb.Routines.FindTriggers(schema.Name, SqlTriggerEvent.Insert).Count != 0;
+        if (transaction is null && !hasTriggers)
+            return TableSqlExecutor.ExecuteInsert(tsdb, statement, schema);
+
+        bool ownsTransaction = transaction is null;
+        var effectiveTransaction = transaction ?? new SqlTransactionContext();
+        var savepoint = effectiveTransaction.CreateSavepoint();
+        try
+        {
+            var result = TableSqlExecutor.QueueInsert(
+                effectiveTransaction,
+                statement,
+                schema,
+                out var changes);
+            IReadOnlyList<long> triggerAuditSequences = SqlRoutineRuntime.FireTriggers(
+                tsdb,
+                databaseName,
+                SqlTriggerEvent.Insert,
+                changes,
+                controlPlane,
+                effectiveTransaction);
+            effectiveTransaction.AddTriggerAuditSequences(triggerAuditSequences);
+            if (ownsTransaction)
+                TableSqlExecutor.CommitTransaction(tsdb, effectiveTransaction);
+            return result;
+        }
+        catch (Exception exception)
+        {
+            tsdb.Routines.Diagnostics.MarkTriggerTransactionFailure(
+                effectiveTransaction.SnapshotTriggerAuditSequencesSince(savepoint),
+                exception is SonnetDB.Exceptions.RoutineExecutionException routine
+                    ? routine.Code
+                    : SonnetDB.Exceptions.RoutineErrorCodes.ExecutionFailed);
+            if (!ownsTransaction)
+                effectiveTransaction.RollbackTo(savepoint);
+            if (hasTriggers && exception is not SonnetDB.Exceptions.RoutineExecutionException)
+            {
+                throw new SonnetDB.Exceptions.RoutineExecutionException(
+                    SonnetDB.Exceptions.RoutineErrorCodes.ExecutionFailed,
+                    $"AFTER INSERT 触发器事务提交失败：{exception.Message}",
+                    exception);
+            }
+            throw;
+        }
+    }
+
+    private static RowsAffectedExecutionResult ExecuteTableUpdateWithTriggers(
+        Tsdb tsdb,
+        string? databaseName,
+        UpdateStatement statement,
+        IControlPlane? controlPlane,
+        SqlTransactionContext? transaction)
+    {
+        bool hasTriggers = tsdb.Routines.FindTriggers(statement.TableName, SqlTriggerEvent.Update).Count != 0;
+        if (transaction is null && !hasTriggers)
+            return TableSqlExecutor.ExecuteUpdate(tsdb, statement);
+
+        bool ownsTransaction = transaction is null;
+        var effectiveTransaction = transaction ?? new SqlTransactionContext();
+        var savepoint = effectiveTransaction.CreateSavepoint();
+        try
+        {
+            var result = TableSqlExecutor.QueueUpdate(
+                effectiveTransaction,
+                tsdb,
+                statement,
+                out var changes);
+            IReadOnlyList<long> triggerAuditSequences = SqlRoutineRuntime.FireTriggers(
+                tsdb,
+                databaseName,
+                SqlTriggerEvent.Update,
+                changes,
+                controlPlane,
+                effectiveTransaction);
+            effectiveTransaction.AddTriggerAuditSequences(triggerAuditSequences);
+            if (ownsTransaction)
+                TableSqlExecutor.CommitTransaction(tsdb, effectiveTransaction);
+            return result;
+        }
+        catch (Exception exception)
+        {
+            tsdb.Routines.Diagnostics.MarkTriggerTransactionFailure(
+                effectiveTransaction.SnapshotTriggerAuditSequencesSince(savepoint),
+                exception is SonnetDB.Exceptions.RoutineExecutionException routine
+                    ? routine.Code
+                    : SonnetDB.Exceptions.RoutineErrorCodes.ExecutionFailed);
+            if (!ownsTransaction)
+                effectiveTransaction.RollbackTo(savepoint);
+            if (hasTriggers && exception is not SonnetDB.Exceptions.RoutineExecutionException)
+            {
+                throw new SonnetDB.Exceptions.RoutineExecutionException(
+                    SonnetDB.Exceptions.RoutineErrorCodes.ExecutionFailed,
+                    $"AFTER UPDATE 触发器事务提交失败：{exception.Message}",
+                    exception);
+            }
+            throw;
+        }
+    }
+
+    private static RowsAffectedExecutionResult ExecuteTableDeleteWithTriggers(
+        Tsdb tsdb,
+        string? databaseName,
+        DeleteStatement statement,
+        TableSchema schema,
+        IControlPlane? controlPlane,
+        SqlTransactionContext? transaction)
+    {
+        bool hasTriggers = tsdb.Routines.FindTriggers(schema.Name, SqlTriggerEvent.Delete).Count != 0;
+        if (transaction is null && !hasTriggers)
+            return TableSqlExecutor.ExecuteDelete(tsdb, statement, schema);
+
+        bool ownsTransaction = transaction is null;
+        var effectiveTransaction = transaction ?? new SqlTransactionContext();
+        var savepoint = effectiveTransaction.CreateSavepoint();
+        try
+        {
+            var result = TableSqlExecutor.QueueDelete(
+                effectiveTransaction,
+                tsdb,
+                statement,
+                schema,
+                out var changes);
+            IReadOnlyList<long> triggerAuditSequences = SqlRoutineRuntime.FireTriggers(
+                tsdb,
+                databaseName,
+                SqlTriggerEvent.Delete,
+                changes,
+                controlPlane,
+                effectiveTransaction);
+            effectiveTransaction.AddTriggerAuditSequences(triggerAuditSequences);
+            if (ownsTransaction)
+                TableSqlExecutor.CommitTransaction(tsdb, effectiveTransaction);
+            return result;
+        }
+        catch (Exception exception)
+        {
+            tsdb.Routines.Diagnostics.MarkTriggerTransactionFailure(
+                effectiveTransaction.SnapshotTriggerAuditSequencesSince(savepoint),
+                exception is SonnetDB.Exceptions.RoutineExecutionException routine
+                    ? routine.Code
+                    : SonnetDB.Exceptions.RoutineErrorCodes.ExecutionFailed);
+            if (!ownsTransaction)
+                effectiveTransaction.RollbackTo(savepoint);
+            if (hasTriggers && exception is not SonnetDB.Exceptions.RoutineExecutionException)
+            {
+                throw new SonnetDB.Exceptions.RoutineExecutionException(
+                    SonnetDB.Exceptions.RoutineErrorCodes.ExecutionFailed,
+                    $"AFTER DELETE 触发器事务提交失败：{exception.Message}",
+                    exception);
+            }
+            throw;
+        }
     }
 
     private static LiteralExpression AsLiteral(SqlExpression expr, string columnName)

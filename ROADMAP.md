@@ -42,7 +42,8 @@
 | 35 | 语义内容与多模态检索 | 📋 | 尚未开始。 |
 | 36 | 八模型专用品类易用性对齐 | 📋 | 已完成参照分析；按真实缺口吸收高频工作流，不做协议或产品全集兼容。 |
 | 37 | 视图与物化视图 | ✅ | #327 逻辑视图与 #328 显式全量刷新物化视图均已实现。 |
-| 38 | SQL 存储过程与触发器 | 📋 | 仅规划 SQL 语言运行时；C# 脚本、动态库及其他外部脚本运行时暂停。 |
+| 38 | SQL 存储过程与触发器 | ✅ | #329~#332 已完成 SQL 过程、关系表 AFTER ROW 触发器及治理收口；外部脚本运行时保持暂停。 |
+| 39 | SQL 触发器第二版 | 📋 | gap catalog 已建立；先补工业 journey、批量成本和 crash/replay 证据，再决定高级语义与多模型范围。 |
 | MM9 | 多模型备份恢复第一批 | ✅ | `BackupService` 与 `sndb backup` 已落地。 |
 
 ## 当前推进顺序
@@ -53,6 +54,7 @@
 4. 按真实差距推进 M32，不重复实现已有 update/index/change feed/UI 能力。
 5. M34 先做合同、DDL 和安全边界；M35 在过滤 ANN 与内容生命周期地基完成后再做媒体场景。
 6. M36 先完成八模型 golden journey 与 gap catalog；实现顺序为高频客户端工作流 -> 查询诊断 -> 高级治理，Document 继续归 M32，向量高级项复用 M35 地基。
+7. M39 先执行 #333 触发器 V2 证据门禁；未证明 V1 在真实 journey 上存在缺口前，不直接扩展 BEFORE、statement-level 或多模型触发器。
 
 ## 待补验收证据
 
@@ -232,12 +234,28 @@ SonnetDB 同时支持两个明确角色：主站/client 主动轮询外部 PLC/R
 
 | PR | 交付 | 状态 |
 |---|---|---|
-| #329 | SQL 过程合同与目录：定稿 `CREATE PROCEDURE` / `DROP PROCEDURE` / `SHOW PROCEDURES` / `DESCRIBE PROCEDURE` / `CALL`，支持有序 IN 参数、SQL body、创建时间和 `LANGUAGE SQL`；使用独立版本化目录持久化，禁止重载、默认参数、OUT/INOUT 和动态 SQL。 | 📋 |
-| #330 | SQL 过程执行：复用现有 parser、binder、executor 和轻事务；参数按 AST 绑定而非文本替换，定义时完成语法与对象依赖校验；明确多语句结果合同、调用方权限、失败回滚、取消、语句数/嵌套深度/结果行数上限与递归拒绝。 | 📋 |
-| #331 | SQL 触发器第一版：定稿关系表 `AFTER INSERT/UPDATE/DELETE` 的 `FOR EACH ROW` 语义、`OLD`/`NEW` 只读行上下文、确定性触发顺序和 `WHEN` 条件；触发动作只允许受限 SQL body，与发起 DML 同一提交边界，任一失败回滚原操作。Document/measurement 触发器在写放大、批量语义和恢复证据完成前不宣称支持。 | 📋 |
-| #332 | 过程/触发器治理收口：依赖图与 DROP/ALTER 阻断、调用链审计、稳定错误码、执行耗时和失败指标、备份恢复、崩溃恢复、权限越权测试、递归/语句炸弹/大结果防护，以及嵌入式与远程 parity。 | 📋 |
+| #329 | SQL 过程合同与目录：定稿 `CREATE PROCEDURE` / `DROP PROCEDURE` / `SHOW PROCEDURES` / `DESCRIBE PROCEDURE` / `CALL`，支持有序 IN 参数、SQL body、创建时间和 `LANGUAGE SQL`；使用独立版本化目录持久化，禁止重载、默认参数、OUT/INOUT 和动态 SQL。 | ✅ |
+| #330 | SQL 过程执行：复用现有 parser、binder、executor 和轻事务；参数按 AST 绑定而非文本替换，定义时完成语法与对象依赖校验；明确多语句结果合同、调用方权限、失败回滚、取消、语句数/嵌套深度/结果行数上限与递归拒绝。 | ✅ |
+| #331 | SQL 触发器第一版：定稿关系表 `AFTER INSERT/UPDATE/DELETE` 的 `FOR EACH ROW` 语义、`OLD`/`NEW` 只读行上下文、确定性触发顺序和 `WHEN` 条件；触发动作只允许受限 SQL body，与发起 DML 同一提交边界，任一失败回滚原操作。Document/measurement 触发器在写放大、批量语义和恢复证据完成前不宣称支持。 | ✅ |
+| #332 | 过程/触发器治理收口：依赖图与 DROP/ALTER 阻断、调用链审计、稳定错误码、执行耗时和失败指标、备份恢复、崩溃恢复、权限越权测试、递归/语句炸弹/大结果防护，以及嵌入式与远程 parity。 | ✅ |
 
 顺序固定为 #329 先冻结目录与公开合同，#330 完成可调用 SQL 过程，再以同一运行时实现 #331 触发器，最后 #332 做治理与恢复收口。不得在 #329/#330 中顺带引入外部语言宿主。
+
+## Milestone 39 — SQL 触发器第二版
+
+第二版从 V1 的可执行证据出发，不以 PostgreSQL/MySQL 语法全集为目标。每项高级语义必须先说明工业 journey、事务边界、批量复杂度和恢复行为；外部语言宿主仍不在本里程碑范围内。
+
+| PR | 交付 | 状态 |
+|---|---|---|
+| #333 | V2 gap baseline：固定审计 outbox、派生汇总、状态流转保护三条关系表 golden journey；建立 1/100/10,000 行 DML 下无触发器、V1 row trigger 与候选 statement trigger 的吞吐、WAL、内存和回滚成本矩阵；加入触发动作中途失败、提交失败、进程终止、重启 replay 的 crash-injection 证据，并据此确认后续条目的优先级。 | 📋 |
+| #334 | 生命周期与确定性顺序：设计 `ALTER TRIGGER ... ENABLE/DISABLE`、原子替换或重命名，以及显式 `FOLLOWS` / `PRECEDES` 顺序合同；目录更新必须保持落盘后发布、依赖安全和备份恢复兼容，禁用状态不能改变历史创建顺序。 | 📋 |
+| #335 | 语句级触发器与 transition tables：在 #333 证明逐行写放大是主要瓶颈后，实现 `FOR EACH STATEMENT` 及只读 `OLD TABLE` / `NEW TABLE`；固定空影响集、批量 UPDATE/DELETE、同语句多行、触发器链和失败回滚语义，避免把 transition set 无界复制到内存。 | 📋 |
+| #336 | 受控 BEFORE 语义：仅面向关系表 `BEFORE INSERT/UPDATE`，先冻结校验/改写顺序、生成列/ROWVERSION/主外键/CHECK 交互和只读 OLD 规则；若允许修改 NEW，必须使用受限赋值合同，不允许任意递归 DML 或绕过约束。`INSTEAD OF` 与可写视图另行评估。 | 📋 |
+| #337 | 诊断与治理：提供按触发器过滤的执行/失败/回滚原因与延迟分布、最近调用链查询、定义级 `EXPLAIN`/dry-run，以及不记录参数值和行内容的可持久审计导出；指标标签必须有界，提交失败与已回滚动作不能被报告为已提交成功。 | 📋 |
+| #338 | 高级事务语义准入：评估 deferred trigger、constraint trigger 和显式 order group 是否解决 #333 的真实场景；给出死锁、取消、保存点、调用深度和提交阶段错误合同。`AFTER COMMIT` 异步动作优先建模为 durable outbox worker，不伪装成与原 DML 原子的普通触发器。 | 📋 |
+| #339 | Document / measurement 准入：分别量化批量摄取写放大、乱序/重放、幂等键、保留策略、compaction、备份恢复和高基数影响；只有模型原生事件合同和 crash/replay 对拍通过后才实现。不得把关系行 `OLD`/`NEW` 生硬套到 document patch 或 measurement batch。 | 📋 |
+
+执行顺序为 #333 -> #334/#337；#335、#336 和 #338 由 baseline 证据决定是否进入实现，#339 始终独立过模型语义与容量门禁。V2 不默认包含多事件合并语法、异步网络调用、外部脚本、跨数据库触发器或分布式 exactly-once。
 
 ## 性能观察项
 
@@ -264,6 +282,7 @@ SonnetDB 同时支持两个明确角色：主站/client 主动轮询外部 PLC/R
 | 30 | Sparkplug B、CoAP、Line Protocol UDP 的接入、生命周期、安全、parity 和基准。 |
 | 31 | 字符串/布尔等 selector 与 categorical aggregate 类型语义。 |
 | 33 | 聚合正确性、多聚合复用、残差流式化、count(*) 专路和 LIMIT/latest-N 下推。 |
+| 37~38 | 持久化逻辑/物化视图，以及 SQL 存储过程、关系表 AFTER ROW 触发器与治理收口。 |
 | MM9 | 多模型备份、检查、校验和恢复 CLI 第一批。 |
 
 详细历史只用于追溯，不覆盖本文件的当前完成判定；若历史文档与当前实现冲突，以代码、可执行测试和本文件的审计结论为准。

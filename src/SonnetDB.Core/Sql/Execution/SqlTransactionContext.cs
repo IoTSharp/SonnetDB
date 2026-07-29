@@ -19,6 +19,7 @@ public sealed class SqlTransactionContext
     private static readonly AsyncLocal<SqlTransactionContext?> _current = new();
 
     private readonly Dictionary<string, List<TableRowMutation>> _tableMutations = new(StringComparer.Ordinal);
+    private readonly List<long> _triggerAuditSequences = [];
     private bool _completed;
 
     /// <summary>事务是否已经提交或回滚。</summary>
@@ -140,6 +141,51 @@ public sealed class SqlTransactionContext
             static p => p.Key,
             static p => (IReadOnlyList<TableRowMutation>)p.Value.ToArray(),
             StringComparer.Ordinal);
+
+    internal void AddTriggerAuditSequences(IReadOnlyList<long> auditSequences)
+    {
+        ArgumentNullException.ThrowIfNull(auditSequences);
+        ThrowIfCompleted();
+        _triggerAuditSequences.AddRange(auditSequences);
+    }
+
+    internal IReadOnlyList<long> SnapshotTriggerAuditSequences()
+        => _triggerAuditSequences.ToArray();
+
+    internal void ClearTriggerAuditSequences()
+        => _triggerAuditSequences.Clear();
+
+    internal IReadOnlyList<long> SnapshotTriggerAuditSequencesSince(Savepoint savepoint)
+    {
+        ArgumentNullException.ThrowIfNull(savepoint);
+        return _triggerAuditSequences.Skip(savepoint.TriggerAuditSequenceCount).ToArray();
+    }
+
+    internal Savepoint CreateSavepoint()
+        => new(_tableMutations.ToDictionary(
+            static pair => pair.Key,
+            static pair => pair.Value.ToList(),
+            StringComparer.Ordinal),
+            _triggerAuditSequences.Count);
+
+    internal void RollbackTo(Savepoint savepoint)
+    {
+        ArgumentNullException.ThrowIfNull(savepoint);
+        ThrowIfCompleted();
+        _tableMutations.Clear();
+        foreach (var pair in savepoint.TableMutations)
+            _tableMutations.Add(pair.Key, pair.Value.ToList());
+        if (_triggerAuditSequences.Count > savepoint.TriggerAuditSequenceCount)
+        {
+            _triggerAuditSequences.RemoveRange(
+                savepoint.TriggerAuditSequenceCount,
+                _triggerAuditSequences.Count - savepoint.TriggerAuditSequenceCount);
+        }
+    }
+
+    internal sealed record Savepoint(
+        IReadOnlyDictionary<string, List<TableRowMutation>> TableMutations,
+        int TriggerAuditSequenceCount);
 
     internal void MarkCompleted()
         => _completed = true;

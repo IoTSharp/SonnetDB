@@ -110,6 +110,8 @@ public sealed class SqlParser
     {
         if (IsIdentifier("refresh"))
             return ParseRefreshMaterializedView();
+        if (IsIdentifier("call"))
+            return ParseCallProcedure();
 
         return Current.Kind switch
         {
@@ -132,7 +134,7 @@ public sealed class SqlParser
             TokenKind.KeywordIssue => ParseIssue(),
             TokenKind.KeywordDescribe => ParseDescribe(),
             TokenKind.KeywordDesc => ParseDescribe(),
-            _ => throw Error("期望 CREATE / REFRESH / INSERT / IMPORT / SELECT / DELETE / TRUNCATE / UPDATE / DROP / ALTER / GRANT / REVOKE / SHOW / EXPLAIN / ISSUE / DESCRIBE / BEGIN / COMMIT / ROLLBACK 关键字"),
+            _ => throw Error("期望 CREATE / REFRESH / CALL / INSERT / IMPORT / SELECT / DELETE / TRUNCATE / UPDATE / DROP / ALTER / GRANT / REVOKE / SHOW / EXPLAIN / ISSUE / DESCRIBE / BEGIN / COMMIT / ROLLBACK 关键字"),
         };
     }
 
@@ -179,6 +181,20 @@ public sealed class SqlParser
             return ParseCreateViewBody();
         }
 
+        if (IsIdentifier("procedure"))
+        {
+            if (unique || sparse || ttl)
+                throw Error("CREATE PROCEDURE 不支持 UNIQUE / SPARSE / TTL 修饰符");
+            return ParseCreateProcedureBody();
+        }
+
+        if (IsIdentifier("trigger"))
+        {
+            if (unique || sparse || ttl)
+                throw Error("CREATE TRIGGER 不支持 UNIQUE / SPARSE / TTL 修饰符");
+            return ParseCreateTriggerBody();
+        }
+
         return Current.Kind switch
         {
             TokenKind.KeywordMeasurement => ParseCreateMeasurementBody(),
@@ -189,8 +205,156 @@ public sealed class SqlParser
             TokenKind.KeywordVector => ParseCreateVectorBody(),
             TokenKind.KeywordUser => ParseCreateUserBody(),
             TokenKind.KeywordDatabase => ParseCreateDatabaseBody(),
-            _ => throw Error("CREATE 后面期望 MEASUREMENT / TABLE / VIEW / DOCUMENT COLLECTION / JSON INDEX / FULLTEXT INDEX / VECTOR INDEX / INDEX / USER / DATABASE"),
+            _ => throw Error("CREATE 后面期望 MEASUREMENT / TABLE / VIEW / PROCEDURE / TRIGGER / DOCUMENT COLLECTION / JSON INDEX / FULLTEXT INDEX / VECTOR INDEX / INDEX / USER / DATABASE"),
         };
+    }
+
+    private CreateProcedureStatement ParseCreateProcedureBody()
+    {
+        Advance(); // PROCEDURE 保持为非保留标识符。
+        string name = ExpectIdentifierName();
+        Expect(TokenKind.LeftParen);
+        var parameters = new List<SqlProcedureParameter>();
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        if (Current.Kind != TokenKind.RightParen)
+        {
+            while (true)
+            {
+                if (IsIdentifier("out") || IsIdentifier("inout"))
+                    throw Error("SQL 过程首版只支持 IN 参数，不支持 OUT / INOUT");
+                Expect(TokenKind.KeywordIn);
+                string parameterName = ExpectIdentifierName();
+                if (!names.Add(parameterName))
+                    throw Error($"过程参数 '{parameterName}' 重复声明");
+                parameters.Add(new SqlProcedureParameter(parameterName, ParseProcedureParameterType()));
+                if (Current.Kind != TokenKind.Comma)
+                    break;
+                Advance();
+            }
+        }
+        Expect(TokenKind.RightParen);
+        var (body, bodySql) = ParseLanguageSqlBody("CREATE PROCEDURE");
+        return new CreateProcedureStatement(name, parameters, body, bodySql);
+    }
+
+    private CreateTriggerStatement ParseCreateTriggerBody()
+    {
+        Advance(); // TRIGGER 保持为非保留标识符。
+        string name = ExpectIdentifierName();
+        ExpectIdentifier("after", "CREATE TRIGGER 后面期望 AFTER");
+        SqlTriggerEvent triggerEvent = Current.Kind switch
+        {
+            TokenKind.KeywordInsert => SqlTriggerEvent.Insert,
+            TokenKind.KeywordUpdate => SqlTriggerEvent.Update,
+            TokenKind.KeywordDelete => SqlTriggerEvent.Delete,
+            _ => throw Error("AFTER 后面期望 INSERT / UPDATE / DELETE"),
+        };
+        Advance();
+        Expect(TokenKind.KeywordOn);
+        string tableName = ExpectIdentifierName();
+        Expect(TokenKind.KeywordFor);
+        ExpectIdentifier("each", "FOR 后面期望 EACH ROW");
+        ExpectIdentifier("row", "FOR EACH 后面期望 ROW");
+
+        SqlExpression? when = null;
+        string? whenSql = null;
+        if (Current.Kind == TokenKind.KeywordWhen)
+        {
+            Advance();
+            Expect(TokenKind.LeftParen);
+            when = ParseExpression();
+            Expect(TokenKind.RightParen);
+            whenSql = SqlExpressionFormatter.Format(when);
+        }
+
+        var (body, bodySql) = ParseLanguageSqlBody("CREATE TRIGGER");
+        return new CreateTriggerStatement(
+            name,
+            tableName,
+            triggerEvent,
+            when,
+            whenSql,
+            body,
+            bodySql);
+    }
+
+    private SqlProcedureParameterType ParseProcedureParameterType()
+    {
+        var type = Current.Kind switch
+        {
+            TokenKind.KeywordInt => SqlProcedureParameterType.Int64,
+            TokenKind.KeywordFloat => SqlProcedureParameterType.Float64,
+            TokenKind.KeywordBool => SqlProcedureParameterType.Boolean,
+            TokenKind.KeywordString => SqlProcedureParameterType.String,
+            _ => throw Error("过程参数类型只支持 INT / FLOAT / BOOL / STRING"),
+        };
+        Advance();
+        return type;
+    }
+
+    private (IReadOnlyList<SqlStatement> Statements, string Sql) ParseLanguageSqlBody(string context)
+    {
+        ExpectIdentifier("language", $"{context} 后面期望 LANGUAGE SQL");
+        ExpectIdentifier("sql", $"{context} LANGUAGE 后面只支持 SQL");
+        Expect(TokenKind.KeywordAs);
+        Expect(TokenKind.KeywordBegin);
+
+        int bodyTokenStart = _index;
+        int bodyStart = Current.Position;
+        int depth = 1;
+        int cursor = _index;
+        for (; cursor < _tokens.Count; cursor++)
+        {
+            TokenKind kind = _tokens[cursor].Kind;
+            if (kind is TokenKind.KeywordBegin or TokenKind.KeywordCase)
+            {
+                depth++;
+            }
+            else if (kind == TokenKind.KeywordEnd)
+            {
+                depth--;
+                if (depth == 0)
+                    break;
+            }
+            else if (kind == TokenKind.EndOfFile)
+            {
+                break;
+            }
+        }
+
+        if (cursor >= _tokens.Count || _tokens[cursor].Kind != TokenKind.KeywordEnd || depth != 0)
+            throw Error($"{context} SQL body 缺少 END");
+
+        int bodyEnd = _tokens[cursor].Position;
+        string bodySql = _source is null
+            ? FormatTokenRange(bodyTokenStart, cursor)
+            : _source[bodyStart..bodyEnd].Trim();
+        if (string.IsNullOrWhiteSpace(bodySql))
+            throw Error($"{context} SQL body 不能为空");
+
+        _index = cursor + 1;
+        IReadOnlyList<SqlStatement> statements = ParseScript(bodySql);
+        return (statements, bodySql);
+    }
+
+    private CallProcedureStatement ParseCallProcedure()
+    {
+        Advance(); // CALL 保持为非保留标识符。
+        string name = ExpectIdentifierName();
+        Expect(TokenKind.LeftParen);
+        var arguments = new List<SqlExpression>();
+        if (Current.Kind != TokenKind.RightParen)
+        {
+            while (true)
+            {
+                arguments.Add(ParseExpression());
+                if (Current.Kind != TokenKind.Comma)
+                    break;
+                Advance();
+            }
+        }
+        Expect(TokenKind.RightParen);
+        return new CallProcedureStatement(name, arguments);
     }
 
     private CreateViewStatement ParseCreateViewBody()
@@ -2675,6 +2839,20 @@ public sealed class SqlParser
                     return new DropViewStatement(ExpectIdentifierName(), dropViewIfExists);
                 }
 
+                if (IsIdentifier("procedure"))
+                {
+                    Advance();
+                    bool ifExists = ParseOptionalIfExists();
+                    return new DropProcedureStatement(ExpectIdentifierName(), ifExists);
+                }
+
+                if (IsIdentifier("trigger"))
+                {
+                    Advance();
+                    bool ifExists = ParseOptionalIfExists();
+                    return new DropTriggerStatement(ExpectIdentifierName(), ifExists);
+                }
+
                 if (IsIdentifier("index"))
                 {
                     Advance();
@@ -2683,7 +2861,7 @@ public sealed class SqlParser
                     return new DropTableIndexStatement(fallbackIndexName, ExpectIdentifierName());
                 }
 
-                throw Error("DROP 后面期望 MEASUREMENT / TABLE / VIEW / INDEX / JSON INDEX / FULLTEXT INDEX / USER 或 DATABASE");
+                throw Error("DROP 后面期望 MEASUREMENT / TABLE / VIEW / PROCEDURE / TRIGGER / INDEX / JSON INDEX / FULLTEXT INDEX / USER 或 DATABASE");
         }
     }
 
@@ -2959,6 +3137,24 @@ public sealed class SqlParser
                     return new ShowViewsStatement();
                 }
 
+                if (IsIdentifier("procedures"))
+                {
+                    Advance();
+                    return new ShowProceduresStatement();
+                }
+
+                if (IsIdentifier("triggers"))
+                {
+                    Advance();
+                    string? tableName = null;
+                    if (Current.Kind == TokenKind.KeywordOn)
+                    {
+                        Advance();
+                        tableName = ExpectIdentifierName();
+                    }
+                    return new ShowTriggersStatement(tableName);
+                }
+
                 if (IsIdentifier("indexes"))
                 {
                     Advance();
@@ -2966,7 +3162,7 @@ public sealed class SqlParser
                     return new ShowTableIndexesStatement(ExpectIdentifierName());
                 }
 
-                throw Error("SHOW 后面期望 USERS / GRANTS / DATABASES / TOKENS / MEASUREMENTS / TABLES / VIEWS / INDEXES");
+                throw Error("SHOW 后面期望 USERS / GRANTS / DATABASES / TOKENS / MEASUREMENTS / TABLES / VIEWS / PROCEDURES / TRIGGERS / INDEXES");
         }
     }
 
@@ -3032,6 +3228,18 @@ public sealed class SqlParser
         {
             Advance();
             return new DescribeViewStatement(ExpectIdentifierName());
+        }
+
+        if (IsIdentifier("procedure"))
+        {
+            Advance();
+            return new DescribeProcedureStatement(ExpectIdentifierName());
+        }
+
+        if (IsIdentifier("trigger"))
+        {
+            Advance();
+            return new DescribeTriggerStatement(ExpectIdentifierName());
         }
 
         if (IsIdentifier("materialized"))

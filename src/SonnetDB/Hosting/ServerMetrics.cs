@@ -126,6 +126,33 @@ public static class PrometheusFormatter
         sb.AppendLine("# TYPE sonnetdb_rows_returned_total counter");
         sb.Append("sonnetdb_rows_returned_total ").Append(metrics.RowsReturned).AppendLine();
 
+        sb.AppendLine("# HELP sonnetdb_procedure_executions_total Total SQL procedure invocations per database.");
+        sb.AppendLine("# TYPE sonnetdb_procedure_executions_total counter");
+        sb.AppendLine("# HELP sonnetdb_procedure_failures_total Failed SQL procedure invocations per database.");
+        sb.AppendLine("# TYPE sonnetdb_procedure_failures_total counter");
+        sb.AppendLine("# HELP sonnetdb_procedure_elapsed_milliseconds_total Cumulative SQL procedure duration per database.");
+        sb.AppendLine("# TYPE sonnetdb_procedure_elapsed_milliseconds_total counter");
+        sb.AppendLine("# HELP sonnetdb_trigger_executions_total Total SQL trigger invocations per database.");
+        sb.AppendLine("# TYPE sonnetdb_trigger_executions_total counter");
+        sb.AppendLine("# HELP sonnetdb_trigger_failures_total Failed SQL trigger invocations per database.");
+        sb.AppendLine("# TYPE sonnetdb_trigger_failures_total counter");
+        sb.AppendLine("# HELP sonnetdb_trigger_elapsed_milliseconds_total Cumulative SQL trigger duration per database.");
+        sb.AppendLine("# TYPE sonnetdb_trigger_elapsed_milliseconds_total counter");
+        foreach (var name in registry.ListDatabases())
+        {
+            if (!registry.TryGet(name, out var db))
+                continue;
+            var routineMetrics = db.Routines.Diagnostics.GetMetrics();
+            sb.Append("sonnetdb_procedure_executions_total{db=\"").Append(name).Append("\"} ").Append(routineMetrics.ProcedureExecutions).AppendLine();
+            sb.Append("sonnetdb_procedure_failures_total{db=\"").Append(name).Append("\"} ").Append(routineMetrics.ProcedureFailures).AppendLine();
+            sb.Append("sonnetdb_procedure_elapsed_milliseconds_total{db=\"").Append(name).Append("\"} ")
+                .Append(routineMetrics.ProcedureElapsedMilliseconds.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)).AppendLine();
+            sb.Append("sonnetdb_trigger_executions_total{db=\"").Append(name).Append("\"} ").Append(routineMetrics.TriggerExecutions).AppendLine();
+            sb.Append("sonnetdb_trigger_failures_total{db=\"").Append(name).Append("\"} ").Append(routineMetrics.TriggerFailures).AppendLine();
+            sb.Append("sonnetdb_trigger_elapsed_milliseconds_total{db=\"").Append(name).Append("\"} ")
+                .Append(routineMetrics.TriggerElapsedMilliseconds.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)).AppendLine();
+        }
+
         sb.AppendLine("# HELP sonnetdb_sparkplug_messages_total Successfully processed Sparkplug B messages.");
         sb.AppendLine("# TYPE sonnetdb_sparkplug_messages_total counter");
         sb.Append("sonnetdb_sparkplug_messages_total ").Append(metrics.SparkplugMessages).AppendLine();

@@ -294,6 +294,78 @@ public sealed class SqlFrameEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Routine_RestReadOnlyCaller_CanReadButCannotEscalateWrite()
+    {
+        using var admin = CreateClient();
+        using var ro = CreateClient(_readOnlyToken);
+        await ExecRestSqlAsync(admin, "CREATE TABLE sf_routine (id INT, PRIMARY KEY (id))");
+        await ExecRestSqlAsync(admin, "INSERT INTO sf_routine (id) VALUES (1)");
+        await ExecRestSqlAsync(admin, """
+            CREATE PROCEDURE sf_read () LANGUAGE SQL AS BEGIN
+                SELECT id FROM sf_routine ORDER BY id;
+            END
+            """);
+        await ExecRestSqlAsync(admin, """
+            CREATE PROCEDURE sf_write () LANGUAGE SQL AS BEGIN
+                INSERT INTO sf_routine (id) VALUES (2);
+            END
+            """);
+
+        using var readResponse = await ro.PostAsync($"/v1/db/{_dbName}/sql",
+            JsonContent.Create(new SqlRequest("CALL sf_read()"), ServerJsonContext.Default.SqlRequest));
+        string readBody = await readResponse.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, readResponse.StatusCode);
+        Assert.DoesNotContain("\"error\"", readBody);
+        Assert.Contains("[1]", readBody);
+
+        using var writeResponse = await ro.PostAsync($"/v1/db/{_dbName}/sql",
+            JsonContent.Create(new SqlRequest("CALL sf_write()"), ServerJsonContext.Default.SqlRequest));
+        string writeBody = await writeResponse.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.Forbidden, writeResponse.StatusCode);
+        Assert.Contains("\"error\":\"routine_forbidden\"", writeBody);
+
+        (_, List<object?[]> rows, _, _) = await QueryFrameAsync(admin, "SELECT id FROM sf_routine ORDER BY id");
+        Assert.Single(rows);
+    }
+
+    [Fact]
+    public async Task Routine_FrameReadOnlyChannel_CanReadButCannotInvokeWriteProcedure()
+    {
+        using var admin = CreateClient();
+        using var ro = CreateClient(_readOnlyToken);
+        await ExecRestSqlAsync(admin, "CREATE TABLE sf_frame_routine (id INT, PRIMARY KEY (id))");
+        await ExecRestSqlAsync(admin, "INSERT INTO sf_frame_routine (id) VALUES (7)");
+        await ExecRestSqlAsync(admin, """
+            CREATE PROCEDURE sf_frame_read () LANGUAGE SQL AS BEGIN
+                SELECT id FROM sf_frame_routine ORDER BY id;
+            END
+            """);
+        await ExecRestSqlAsync(admin, """
+            CREATE PROCEDURE sf_frame_write () LANGUAGE SQL AS BEGIN
+                INSERT INTO sf_frame_routine (id) VALUES (8);
+            END
+            """);
+
+        (_, List<object?[]> rows, long rowCount, _) = await QueryFrameAsync(ro, "CALL sf_frame_read()", streamId: 20);
+        Assert.Equal(1, rowCount);
+        Assert.Equal(7L, rows[0][0]);
+
+        var writer = new ArrayBufferWriter<byte>();
+        SqlFrameCodec.EncodeQueryRequest(writer, 21, _dbName, "CALL sf_frame_write()");
+        var frames = await PostFramesAsync(ro, writer.WrittenMemory.ToArray());
+
+        Assert.Single(frames);
+        Assert.True(frames[0].Header.IsError);
+        Assert.Equal(21u, frames[0].Header.StreamId);
+        (string code, _) = FrameCodec.ReadErrorPayload(frames[0].Payload);
+        Assert.Equal("routine_forbidden", code);
+
+        (_, rows, rowCount, _) = await QueryFrameAsync(admin, "SELECT id FROM sf_frame_routine ORDER BY id", streamId: 22);
+        Assert.Equal(1, rowCount);
+        Assert.Equal(7L, rows[0][0]);
+    }
+
+    [Fact]
     public async Task Query_WriteStatement_RejectedBadRequest()
     {
         using var admin = CreateClient();

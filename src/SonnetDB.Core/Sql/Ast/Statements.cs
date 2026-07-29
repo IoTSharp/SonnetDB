@@ -107,6 +107,80 @@ public sealed record CreateMaterializedViewStatement(
     string DefinitionSql,
     bool IfNotExists = false) : SqlStatement;
 
+/// <summary>SQL 过程 IN 参数支持的首版标量类型。</summary>
+public enum SqlProcedureParameterType
+{
+    /// <summary>64 位有符号整数。</summary>
+    Int64,
+    /// <summary>64 位浮点数。</summary>
+    Float64,
+    /// <summary>布尔值。</summary>
+    Boolean,
+    /// <summary>UTF-8 字符串。</summary>
+    String,
+}
+
+/// <summary>SQL 过程的有序 IN 参数声明。</summary>
+/// <param name="Name">参数名，不含 <c>@</c> 前缀。</param>
+/// <param name="DataType">参数标量类型。</param>
+public sealed record SqlProcedureParameter(
+    string Name,
+    SqlProcedureParameterType DataType);
+
+/// <summary>
+/// <c>CREATE PROCEDURE name (IN p TYPE, ...) LANGUAGE SQL AS BEGIN ... END</c>。
+/// </summary>
+/// <param name="Name">过程名称；同一数据库内不允许重载。</param>
+/// <param name="Parameters">按声明顺序排列的 IN 参数。</param>
+/// <param name="Body">已经解析的 SQL body。</param>
+/// <param name="BodySql">不含外围 <c>BEGIN</c>/<c>END</c> 的 SQL 文本。</param>
+/// <param name="Language">语言标识；首版只接受 <c>SQL</c>。</param>
+public sealed record CreateProcedureStatement(
+    string Name,
+    IReadOnlyList<SqlProcedureParameter> Parameters,
+    IReadOnlyList<SqlStatement> Body,
+    string BodySql,
+    string Language = "SQL") : SqlStatement;
+
+/// <summary><c>CALL name(arg, ...)</c>。</summary>
+/// <param name="Name">过程名称。</param>
+/// <param name="Arguments">按位置排列的实参表达式。</param>
+public sealed record CallProcedureStatement(
+    string Name,
+    IReadOnlyList<SqlExpression> Arguments) : SqlStatement;
+
+/// <summary>关系表行级触发器事件。</summary>
+public enum SqlTriggerEvent
+{
+    /// <summary>AFTER INSERT。</summary>
+    Insert,
+    /// <summary>AFTER UPDATE。</summary>
+    Update,
+    /// <summary>AFTER DELETE。</summary>
+    Delete,
+}
+
+/// <summary>
+/// <c>CREATE TRIGGER name AFTER event ON table FOR EACH ROW [WHEN (...)] LANGUAGE SQL AS BEGIN ... END</c>。
+/// </summary>
+/// <param name="Name">触发器名称。</param>
+/// <param name="TableName">目标关系表。</param>
+/// <param name="Event">AFTER 行事件。</param>
+/// <param name="When">可选只读行条件。</param>
+/// <param name="WhenSql">可选条件的规范化 SQL。</param>
+/// <param name="Body">已经解析的受限 SQL body。</param>
+/// <param name="BodySql">不含外围 <c>BEGIN</c>/<c>END</c> 的 SQL 文本。</param>
+/// <param name="Language">语言标识；首版只接受 <c>SQL</c>。</param>
+public sealed record CreateTriggerStatement(
+    string Name,
+    string TableName,
+    SqlTriggerEvent Event,
+    SqlExpression? When,
+    string? WhenSql,
+    IReadOnlyList<SqlStatement> Body,
+    string BodySql,
+    string Language = "SQL") : SqlStatement;
+
 /// <summary>
 /// <c>REFRESH MATERIALIZED VIEW name</c>：显式生成并原子发布一个全量物理代际。
 /// </summary>
@@ -633,6 +707,16 @@ public sealed record DropViewStatement(string Name, bool IfExists = false) : Sql
 /// <param name="IfExists">物化视图不存在时是否视为成功。</param>
 public sealed record DropMaterializedViewStatement(string Name, bool IfExists = false) : SqlStatement;
 
+/// <summary><c>DROP PROCEDURE [IF EXISTS] name</c>。</summary>
+/// <param name="Name">过程名称。</param>
+/// <param name="IfExists">过程不存在时是否视为成功。</param>
+public sealed record DropProcedureStatement(string Name, bool IfExists = false) : SqlStatement;
+
+/// <summary><c>DROP TRIGGER [IF EXISTS] name</c>。</summary>
+/// <param name="Name">触发器名称。</param>
+/// <param name="IfExists">触发器不存在时是否视为成功。</param>
+public sealed record DropTriggerStatement(string Name, bool IfExists = false) : SqlStatement;
+
 /// <summary>
 /// <c>DROP INDEX index_name ON table_name</c>：删除关系表二级索引声明。
 /// </summary>
@@ -692,6 +776,13 @@ public sealed record ShowViewsStatement : SqlStatement;
 /// </summary>
 public sealed record ShowMaterializedViewsStatement : SqlStatement;
 
+/// <summary><c>SHOW PROCEDURES</c>。</summary>
+public sealed record ShowProceduresStatement : SqlStatement;
+
+/// <summary><c>SHOW TRIGGERS [ON table]</c>。</summary>
+/// <param name="TableName">可选目标表过滤。</param>
+public sealed record ShowTriggersStatement(string? TableName = null) : SqlStatement;
+
 /// <summary>
 /// <c>SHOW DOCUMENT COLLECTIONS</c>：列出当前数据库中所有 JSON 文档集合。
 /// </summary>
@@ -739,6 +830,14 @@ public sealed record DescribeViewStatement(string Name) : SqlStatement;
 /// </summary>
 /// <param name="Name">物化视图名称。</param>
 public sealed record DescribeMaterializedViewStatement(string Name) : SqlStatement;
+
+/// <summary><c>DESCRIBE PROCEDURE name</c>。</summary>
+/// <param name="Name">过程名称。</param>
+public sealed record DescribeProcedureStatement(string Name) : SqlStatement;
+
+/// <summary><c>DESCRIBE TRIGGER name</c>。</summary>
+/// <param name="Name">触发器名称。</param>
+public sealed record DescribeTriggerStatement(string Name) : SqlStatement;
 
 /// <summary>
 /// <c>DESCRIBE DOCUMENT COLLECTION &lt;name&gt;</c>：描述指定文档集合。

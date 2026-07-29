@@ -9,6 +9,7 @@ using SonnetDB.Memory;
 using SonnetDB.Model;
 using SonnetDB.Query;
 using SonnetDB.Query.Functions;
+using SonnetDB.Routines;
 using SonnetDB.Storage.Segments;
 using SonnetDB.Tables;
 using SonnetDB.Views;
@@ -43,6 +44,7 @@ public sealed class Tsdb : IDisposable
     private readonly DocumentCollectionManager _documents;
     private readonly ViewManager _views;
     private readonly MaterializedViewManager _materializedViews;
+    private readonly RoutineManager _routines;
 
     private WalSegmentSet? _walSet;
     private long _nextSegmentId;
@@ -119,6 +121,9 @@ public sealed class Tsdb : IDisposable
 
     /// <summary>物化视图定义、刷新状态和物理代际管理器。</summary>
     public MaterializedViewManager MaterializedViews => _materializedViews;
+
+    /// <summary>SQL 过程、关系表触发器及其治理诊断管理器。</summary>
+    public RoutineManager Routines => _routines;
 
     /// <summary>进程内墓碑集合，支持查询过滤与 Compaction 消化。</summary>
     public TombstoneTable Tombstones { get; private set; } = new TombstoneTable();
@@ -328,6 +333,7 @@ public sealed class Tsdb : IDisposable
         _views = new ViewManager(TsdbPaths.ViewsDir(options.RootDirectory));
         _materializedViews = new MaterializedViewManager(
             TsdbPaths.MaterializedViewsDir(options.RootDirectory));
+        _routines = new RoutineManager(TsdbPaths.RoutinesDir(options.RootDirectory));
         _keyspaces = new KvKeyspaceManager(TsdbPaths.KvDir(options.RootDirectory), options.Kv);
         _tables = new TableManager(
             TsdbPaths.TablesDir(options.RootDirectory),
@@ -361,6 +367,7 @@ public sealed class Tsdb : IDisposable
         Directory.CreateDirectory(TsdbPaths.DocumentsDir(root));
         Directory.CreateDirectory(TsdbPaths.ViewsDir(root));
         Directory.CreateDirectory(TsdbPaths.MaterializedViewsDir(root));
+        Directory.CreateDirectory(TsdbPaths.RoutinesDir(root));
 
         // 加载 measurement schema 集合（文件不存在时返回空集合）
         var measurements = new MeasurementCatalog();
@@ -1693,6 +1700,7 @@ public sealed class Tsdb : IDisposable
 
     private void EnsureNoViewDependents(string objectName, string operation)
     {
+        SqlRoutineRuntime.EnsureNoDependents(this, objectName, operation);
         var viewDependents = _views.FindDependents(objectName);
         var materializedDependents = _materializedViews.FindDependents(objectName);
         if (viewDependents.Count == 0 && materializedDependents.Count == 0)

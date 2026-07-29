@@ -23,6 +23,8 @@
 /// └── materialized-views/
 ///     ├── materialized-views.sdbmv
 ///     └── data/
+/// └── routines/
+///     └── routines.sdbrtn
 /// </code>
 /// </para>
 /// </summary>
@@ -57,6 +59,9 @@ public static class TsdbPaths
 
     /// <summary>物化视图定义和派生存储子目录名。</summary>
     public const string MaterializedViewsDirName = "materialized-views";
+
+    /// <summary>SQL 过程与触发器目录名。</summary>
+    public const string RoutinesDirName = "routines";
 
     /// <summary>Segment 文件扩展名。</summary>
     public const string SegmentFileExtension = ".SDBSEG";
@@ -171,6 +176,14 @@ public static class TsdbPaths
     /// <returns>物化视图目录路径。</returns>
     public static string MaterializedViewsDir(string root) =>
         Path.Combine(root, MaterializedViewsDirName);
+
+    /// <summary>
+    /// 返回 SQL 过程与触发器目录：<c>{root}/routines</c>。
+    /// </summary>
+    /// <param name="root">数据库根目录路径。</param>
+    /// <returns>例程目录路径。</returns>
+    public static string RoutinesDir(string root) =>
+        Path.Combine(root, RoutinesDirName);
 
     /// <summary>
     /// 返回指定 SegmentId 对应的段文件完整路径：

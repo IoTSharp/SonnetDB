@@ -9,6 +9,7 @@ using SonnetDB.Contracts;
 using SonnetDB.Diagnostics;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
+using SonnetDB.Exceptions;
 using SonnetDB.Hosting;
 using SonnetDB.Ingest;
 using SonnetDB.Json;
@@ -442,7 +443,18 @@ internal static class FrameEndpointHandler
                 return;
             }
 
-            object? result = SqlExecutor.ExecuteStatement(tsdb, request.Db, parsed, controlPlane: null);
+            object? result = SqlExecutor.ExecuteStatement(
+                tsdb,
+                request.Db,
+                parsed,
+                controlPlane: null,
+                transaction: null,
+                new SqlExecutionOptions
+                {
+                    CancellationToken = ctx.RequestAborted,
+                    Caller = BearerAuthMiddleware.GetUser(ctx)?.UserName ?? "frame",
+                    CanWrite = false,
+                });
             if (result is not SelectExecutionResult select)
             {
                 metrics.RecordSqlError();
@@ -479,7 +491,12 @@ internal static class FrameEndpointHandler
             metrics.RecordSqlError();
             SqlEndpointHandler.RecordSlow(diagnostics, request.Db, request.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
             // meta/rows 帧可能已写出：错误帧同 streamId 追加，客户端按「end 前收到错误帧」终止该查询
-            string code = ex is ArgumentException ? "bad_request" : "sql_error";
+            string code = ex switch
+            {
+                RoutineExecutionException routine => routine.Code,
+                ArgumentException => "bad_request",
+                _ => "sql_error",
+            };
             FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, code, ex.Message);
         }
     }

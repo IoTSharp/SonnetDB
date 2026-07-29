@@ -210,6 +210,106 @@ DROP MATERIALIZED VIEW IF EXISTS active_device_cache;
 - `REFRESH` 需要数据库写权限，不能在活动轻事务内执行，同一物化视图不允许并发刷新；`SHOW`、`DESCRIBE` 和读取只需要读权限并继续经过现有 Frame、MCP、Copilot 与审计入口。
 - 首版只支持显式全量刷新。不支持增量刷新、定时调度、后台自动刷新、`OR REPLACE`、`CASCADE` 或跨数据库依赖。
 
+### SQL 存储过程
+
+存储过程首版只支持 `LANGUAGE SQL`、有序 IN 参数和静态 SQL body。参数类型为 `INT`、`FLOAT`、`BOOL`、`STRING`，body 通过 `@参数名` 引用参数；绑定发生在 AST 上，不执行文本替换。
+
+```sql
+CREATE PROCEDURE add_device (
+    IN p_id INT,
+    IN p_name STRING,
+    IN p_enabled BOOL
+)
+LANGUAGE SQL AS BEGIN
+    INSERT INTO devices (id, name, enabled)
+    VALUES (@p_id, @p_name, @p_enabled);
+
+    SELECT id, name, enabled
+    FROM devices
+    WHERE id = @p_id;
+END;
+
+CALL add_device(1, 'pump-01', TRUE);
+```
+
+管理语法：
+
+```sql
+SHOW PROCEDURES;
+DESCRIBE PROCEDURE add_device;
+DROP PROCEDURE add_device;
+DROP PROCEDURE IF EXISTS add_device;
+```
+
+`SHOW PROCEDURES` 返回 `name`、`parameters`、`language`、传递计算后的 `requires_write` 和 `created_utc`。`DESCRIBE PROCEDURE` 返回 `name`、`parameters`、`language`、`body`、`object_dependencies`、`procedure_dependencies`、`requires_write`、`created_utc`。
+
+执行合同：
+
+- body 允许 `SELECT`、`INSERT`、`UPDATE`、`DELETE` 和 `CALL`；写目标必须是关系表，首版不允许过程写 measurement 或 document collection。SELECT 继续复用当前支持的数据源与查询执行器。
+- 定义时解析全部语句并校验命名参数、数据对象和已存在的被调用过程。过程不能重载，不支持默认参数、OUT/INOUT、动态 SQL、DDL 或外部语言运行时。
+- 多语句过程只向调用方返回 body 最后一条语句的结果；中间 SELECT 参与结果行数治理，但不形成多个远程结果集。
+- 直接或传递包含写入的过程自动使用轻事务；失败时整次调用回滚。位于调用方已有事务中时使用保存点，只撤销该次失败调用新增的 mutation。
+- 默认单次调用链最多执行 64 条 body 语句、嵌套 8 层、累计产生 10,000 行 SELECT 结果；拒绝直接或间接递归，并在语句边界检查取消。
+- 写权限按完整调用图传递计算。只读凭据可调用只读过程，不能通过外层只读过程调用内层写过程提升权限；Frame SQL query 通道固定为只读，因此也只能调用只读过程。
+- `CREATE/DROP PROCEDURE` 不能在活动轻事务中执行。基础对象 `DROP/ALTER` 和被调用过程 `DROP` 会在仍有依赖时返回 `routine_dependency`。
+
+过程与触发器定义共同保存在数据库目录的 `routines/routines.sdbrtn`。该目录使用独立版本、little-endian 编码、CRC32、大小/数量上限和临时文件原子替换；备份恢复自动包含该目录，打开时拒绝损坏或未知版本。
+
+### SQL 触发器
+
+触发器首版只支持关系表 `AFTER INSERT`、`AFTER UPDATE`、`AFTER DELETE` 的 `FOR EACH ROW` 语义。每个定义只绑定一个事件，`OLD` / `NEW` 是只读行上下文。
+
+```sql
+CREATE TRIGGER audit_device_insert
+AFTER INSERT ON devices
+FOR EACH ROW
+WHEN (NEW.enabled = TRUE)
+LANGUAGE SQL AS BEGIN
+    INSERT INTO device_audit (event_id, device_id, action, old_name, new_name)
+    VALUES (NEW.id * 10 + 1, NEW.id, 'insert', NULL, NEW.name);
+END;
+
+CREATE TRIGGER audit_device_update
+AFTER UPDATE ON devices
+FOR EACH ROW
+WHEN (OLD.name != NEW.name)
+LANGUAGE SQL AS BEGIN
+    INSERT INTO device_audit (event_id, device_id, action, old_name, new_name)
+    VALUES (NEW.id * 10 + 2, NEW.id, 'update', OLD.name, NEW.name);
+END;
+
+CREATE TRIGGER audit_device_delete
+AFTER DELETE ON devices
+FOR EACH ROW
+LANGUAGE SQL AS BEGIN
+    INSERT INTO device_audit (event_id, device_id, action, old_name, new_name)
+    VALUES (OLD.id * 10 + 3, OLD.id, 'delete', OLD.name, NULL);
+END;
+```
+
+管理语法：
+
+```sql
+SHOW TRIGGERS;
+SHOW TRIGGERS ON devices;
+DESCRIBE TRIGGER audit_device_insert;
+DROP TRIGGER audit_device_insert;
+DROP TRIGGER IF EXISTS audit_device_insert;
+```
+
+`SHOW TRIGGERS` 返回 `name`、`table_name`、`event`、`when`、`created_utc`；`ON table` 只保留指定关系表。`DESCRIBE TRIGGER` 返回 `name`、`table_name`、`event`、`when`、`language`、`body`、`dependencies`、`created_utc`。
+
+当前语义与限制：
+
+- INSERT 事件只能引用 `NEW`，DELETE 事件只能引用 `OLD`，UPDATE 可同时引用两者。`WHEN` 中的列必须显式写为 `OLD.column` / `NEW.column`，不允许参数或子查询。
+- body 只允许以关系表为目标的 `INSERT`、`UPDATE`、`DELETE`，不允许 SELECT、CALL、DDL、measurement/document 写入或外部副作用。
+- 执行顺序固定为原 DML 行顺序，其次是触发器创建时间，最后是触发器名称。触发器链共享同一个语句数和嵌套深度预算；同一调用链中的触发器递归会被拒绝。
+- 原 DML 与全部触发动作使用同一轻事务提交边界。任一 `WHEN` 求值、body 执行或最终约束提交失败都会撤销原行和触发动作；调用方已有事务中则回滚到本条 DML 的保存点。
+- 目标表或 body 依赖的关系表仍被触发器引用时，`DROP/ALTER` 会被阻断。`CREATE/DROP TRIGGER` 不能在活动轻事务中执行。
+- V1 不支持 BEFORE、FOR EACH STATEMENT、transition tables、启用/禁用、显式顺序子句、deferred/constraint trigger、多事件合并、Document 或 measurement 触发器。这些能力按 M39 的成本和恢复证据逐项准入。
+
+嵌入式调用可通过 `RoutineManager.Diagnostics` 读取最近 256 条不含参数值/行内容的调用审计和累计指标。Server `/metrics` 按数据库公开 `sonnetdb_procedure_*` 与 `sonnetdb_trigger_*` 调用、失败和累计耗时指标。稳定错误码包括 `procedure_not_found`、`trigger_not_found`、`routine_invalid_arguments`、`routine_recursive_call`、`trigger_recursion`、`routine_depth_limit`、`routine_statement_limit`、`routine_result_row_limit`、`routine_cancelled`、`routine_forbidden`、`routine_dependency`、`trigger_context` 和 `routine_execution_failed`。
+
 ### `CREATE INDEX` / `DROP INDEX`
 
 关系表支持普通二级索引和唯一索引。索引声明随 table schema 持久化，索引内容从 rowstore 派生，打开表或 schema 变更时可重建。
@@ -976,15 +1076,17 @@ WHERE time >= now() - 30d
 
 ## 元数据查询
 
-### `SHOW MEASUREMENTS` / `SHOW TABLES` / `SHOW VIEWS` / `SHOW MATERIALIZED VIEWS`
+### `SHOW MEASUREMENTS` / `SHOW TABLES` / `SHOW VIEWS` / `SHOW MATERIALIZED VIEWS` / `SHOW PROCEDURES` / `SHOW TRIGGERS`
 
-`SHOW MEASUREMENTS` 列出当前数据库中所有时序 measurement，`SHOW TABLES` 列出当前数据库中所有关系表，两者都按字典序升序返回单列 `name`。`SHOW VIEWS` 按名称升序返回 `name` 与 `created_utc`。`SHOW MATERIALIZED VIEWS` 返回名称、刷新状态、定义/活动代际、行数、最近成功刷新时间与错误。
+`SHOW MEASUREMENTS` 列出当前数据库中所有时序 measurement，`SHOW TABLES` 列出当前数据库中所有关系表，两者都按字典序升序返回单列 `name`。`SHOW VIEWS` 按名称升序返回 `name` 与 `created_utc`。`SHOW MATERIALIZED VIEWS` 返回名称、刷新状态、定义/活动代际、行数、最近成功刷新时间与错误。`SHOW PROCEDURES` 与 `SHOW TRIGGERS [ON table]` 的列合同见前文对应章节。
 
 ```sql
 SHOW MEASUREMENTS;
 SHOW TABLES;
 SHOW VIEWS;
 SHOW MATERIALIZED VIEWS;
+SHOW PROCEDURES;
+SHOW TRIGGERS ON devices;
 ```
 
 | name |
