@@ -175,6 +175,9 @@ public sealed class SonnetDbProviderTests : IDisposable
         context.Events.Add(new OffsetEventRecord { Id = 1, OccurredAt = occurredAt });
         await context.SaveChangesAsync();
 
+        var materialized = await context.Events.AsNoTracking().SingleAsync(item => item.Id == 1);
+        Assert.Equal(occurredAt, materialized.OccurredAt);
+
         var expected = occurredAt.AddHours(2);
         var unixMilliseconds = occurredAt.ToUnixTimeMilliseconds();
         var query = context.Events.Where(item =>
