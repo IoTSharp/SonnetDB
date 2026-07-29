@@ -788,6 +788,16 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                 ParseTableColumnType(column.DataType),
                 column.IsNullable))
             .ToArray();
+        var defaults = table.Columns
+            .Where(static column => column.DefaultExpressionSql is not null)
+            .ToDictionary(
+                static column => column.Name,
+                static column => column.DefaultExpressionSql,
+                StringComparer.Ordinal);
+        var rowVersionColumns = table.Columns
+            .Where(static column => column.IsRowVersion)
+            .Select(static column => column.Name)
+            .ToHashSet(StringComparer.Ordinal);
         var indexes = table.Indexes
             .Select(static index => new TableIndexDefinition(
                 index.Name,
@@ -797,12 +807,16 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                 index.JsonPath))
             .ToArray();
 
-        return TableSchema.Create(
+        return TableSchema.CreateWithDefaults(
             table.Name,
             columns,
             table.PrimaryKey,
             indexes,
-            createdAtUtcTicks: table.CreatedUtc.UtcDateTime.Ticks);
+            foreignKeys: null,
+            rowVersionColumns: rowVersionColumns,
+            createdAtUtcTicks: table.CreatedUtc.UtcDateTime.Ticks,
+            checkConstraints: null,
+            columnDefaults: defaults);
     }
 
     private static TableColumnType ParseTableColumnType(string value)

@@ -111,7 +111,7 @@
             >
               <span>{{ column.name }}</span>
               <small>
-                {{ column.dataType }}{{ column.isNullable ? ' · NULL' : ' · NOT NULL' }}{{ column.isPrimaryKey ? ' · PK' : '' }}
+                {{ column.dataType }}{{ column.isNullable ? ' · NULL' : ' · NOT NULL' }}{{ column.isPrimaryKey ? ' · PK' : '' }}{{ column.isRowVersion ? ' · ROWVERSION' : '' }}{{ column.defaultExpressionSql ? ` · DEFAULT ${column.defaultExpressionSql}` : '' }}
               </small>
             </article>
           </div>
@@ -180,6 +180,56 @@
                 <label class="schema-field schema-field--check">
                   <span>Options</span>
                   <n-checkbox v-model:checked="dropColumn.ifExists">IF EXISTS</n-checkbox>
+                </label>
+              </div>
+            </section>
+
+            <section class="schema-designer__operation" data-testid="alter-column-operation">
+              <div class="schema-designer__operation-head">
+                <strong>Alter column</strong>
+                <n-button size="small" type="warning" secondary @click="stageAlterColumn">Stage</n-button>
+              </div>
+              <div class="schema-designer__form-grid">
+                <label class="schema-field">
+                  <span>Column</span>
+                  <n-select
+                    v-model:value="alterColumn.name"
+                    size="small"
+                    :options="alterColumnOptions"
+                    aria-label="Alter column"
+                    @update:value="selectAlterColumn"
+                  />
+                </label>
+                <label class="schema-field">
+                  <span>Target type</span>
+                  <n-select
+                    v-model:value="alterColumn.dataType"
+                    size="small"
+                    :options="dataTypeOptions"
+                    aria-label="Alter column type"
+                  />
+                </label>
+                <label class="schema-field schema-field--check">
+                  <span>Nullability</span>
+                  <n-checkbox v-model:checked="alterColumn.nullable" aria-label="Alter column nullable">NULL</n-checkbox>
+                </label>
+                <label class="schema-field">
+                  <span>Default action</span>
+                  <n-select
+                    v-model:value="alterColumn.defaultAction"
+                    size="small"
+                    :options="alterDefaultActionOptions"
+                    aria-label="Alter column default action"
+                  />
+                </label>
+                <label v-if="alterColumn.defaultAction === 'set'" class="schema-field schema-field--wide">
+                  <span>Default value</span>
+                  <n-input
+                    v-model:value="alterColumn.defaultValue"
+                    size="small"
+                    placeholder="value or expression literal"
+                    aria-label="Alter column default value"
+                  />
                 </label>
               </div>
             </section>
@@ -289,6 +339,16 @@ interface AddColumnDraft {
   defaultValue: string;
 }
 
+type AlterDefaultAction = 'keep' | 'set' | 'drop';
+
+interface AlterColumnDraft {
+  name: string;
+  dataType: string;
+  nullable: boolean;
+  defaultAction: AlterDefaultAction;
+  defaultValue: string;
+}
+
 const auth = useAuthStore();
 const connections = useConnectionsStore();
 const history = useWorkbenchHistoryStore();
@@ -304,6 +364,12 @@ const dataTypeOptions: SelectOption[] = [
   { label: 'BLOB', value: 'BLOB' },
 ];
 
+const alterDefaultActionOptions: SelectOption[] = [
+  { label: 'Keep current default', value: 'keep' },
+  { label: 'Set default', value: 'set' },
+  { label: 'Drop default', value: 'drop' },
+];
+
 const createTableName = ref('');
 const createIfNotExists = ref(true);
 const createColumns = ref<CreateColumnDraft[]>([]);
@@ -312,6 +378,13 @@ const addColumn = reactive<AddColumnDraft>({
   name: '',
   dataType: 'STRING',
   nullable: true,
+  defaultValue: '',
+});
+const alterColumn = reactive<AlterColumnDraft>({
+  name: '',
+  dataType: 'STRING',
+  nullable: true,
+  defaultAction: 'keep',
   defaultValue: '',
 });
 const renameColumn = reactive({
@@ -340,6 +413,13 @@ const alterableColumnOptions = computed<SelectOption[]>(() =>
       value: column.name,
     })));
 
+const alterColumnOptions = computed<SelectOption[]>(() =>
+  tableColumns.value
+    .filter((column) => !column.isPrimaryKey && !column.isRowVersion)
+    .map((column) => ({
+      label: `${column.name} · ${column.dataType}`,
+      value: column.name,
+    })));
 const droppableColumnOptions = alterableColumnOptions;
 
 const pendingSqlText = computed(() => pendingDdl.value.map((item) => item.sql).join('\n\n'));
@@ -382,10 +462,21 @@ function resetDrafts(): void {
   addColumn.dataType = 'STRING';
   addColumn.nullable = true;
   addColumn.defaultValue = '';
+  selectAlterColumn(String(alterColumnOptions.value[0]?.value ?? ''));
   renameColumn.oldName = String(alterableColumnOptions.value[0]?.value ?? '');
   renameColumn.newName = '';
   dropColumn.name = String(droppableColumnOptions.value[0]?.value ?? '');
   dropColumn.ifExists = true;
+}
+
+function selectAlterColumn(value: string | null): void {
+  const name = value ?? '';
+  alterColumn.name = name;
+  const column = tableColumns.value.find((candidate) => candidate.name === name);
+  alterColumn.dataType = column ? normalizeSqlDataType(column.dataType) : 'STRING';
+  alterColumn.nullable = column?.isNullable ?? true;
+  alterColumn.defaultAction = 'keep';
+  alterColumn.defaultValue = '';
 }
 
 function addCreateColumn(): void {
@@ -484,6 +575,46 @@ function stageAddColumn(): void {
     'Add column',
     `${name} ${addColumn.dataType}`,
     'write',
+  );
+}
+
+function stageAlterColumn(): void {
+  const table = requireTable();
+  const name = alterColumn.name;
+  const column = tableColumns.value.find((candidate) => candidate.name === name);
+  if (!column) {
+    message.error('Choose a column to alter.');
+    return;
+  }
+  if (column.isPrimaryKey || column.isRowVersion) {
+    message.error('Primary key and rowversion columns cannot be altered here.');
+    return;
+  }
+
+  const dataType = normalizeSqlDataType(alterColumn.dataType);
+  let defaultClause = '';
+  try {
+    if (alterColumn.defaultAction === 'set') {
+      const value = alterColumn.defaultValue.trim();
+      if (!value) {
+        message.error('Enter a default value or choose Keep current default.');
+        return;
+      }
+      defaultClause = ` SET DEFAULT ${formatDefaultExpression(value, dataType)}`;
+    } else if (alterColumn.defaultAction === 'drop') {
+      defaultClause = ' DROP DEFAULT';
+    }
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : 'Invalid DEFAULT value.');
+    return;
+  }
+
+  const nullability = alterColumn.nullable ? 'NULL' : 'NOT NULL';
+  stageDdl(
+    `ALTER TABLE ${formatSqlIdentifier(table.name)} ALTER COLUMN ${formatSqlIdentifier(name)} TYPE ${dataType} ${nullability}${defaultClause};`,
+    'Alter column',
+    `${name} ${dataType} ${nullability}`,
+    'danger',
   );
 }
 
@@ -620,6 +751,29 @@ function validateCreateTable(): { ok: true } | { ok: false; message: string } {
   return { ok: true };
 }
 
+function normalizeSqlDataType(dataType: string): string {
+  switch (dataType.trim().toUpperCase()) {
+    case 'INT64':
+    case 'INTEGER':
+    case 'BIGINT':
+      return 'INT';
+    case 'FLOAT64':
+    case 'DOUBLE':
+    case 'REAL':
+      return 'FLOAT';
+    case 'BOOLEAN':
+      return 'BOOL';
+    case 'TEXT':
+      return 'STRING';
+    case 'TIMESTAMP':
+      return 'DATETIME';
+    case 'BINARY':
+      return 'BLOB';
+    default:
+      return dataType.trim().toUpperCase();
+  }
+}
+
 function formatDefaultExpression(value: string, dataType: string): string {
   const trimmed = value.trim();
   if (/^(STRING|DATETIME|JSON|BLOB)$/i.test(dataType)) {
@@ -640,12 +794,21 @@ function formatDefaultExpression(value: string, dataType: string): string {
     return trimmed.toUpperCase();
   }
 
+  if (/^INT$/i.test(dataType)) {
+    if (!/^[+-]?\d+$/.test(trimmed)) {
+      throw new Error('INT default must be an integer.');
+    }
+
+    const parsed = BigInt(trimmed);
+    if (parsed < -9_223_372_036_854_775_808n || parsed > 9_223_372_036_854_775_807n) {
+      throw new Error('INT default must fit in the signed 64-bit range.');
+    }
+    return trimmed;
+  }
+
   const parsed = Number(trimmed);
   if (!Number.isFinite(parsed)) {
     throw new Error(`${dataType} default must be numeric.`);
-  }
-  if (/^INT$/i.test(dataType) && !Number.isInteger(parsed)) {
-    throw new Error('INT default must be an integer.');
   }
   return String(parsed);
 }

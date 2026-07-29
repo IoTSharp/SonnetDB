@@ -24,6 +24,7 @@ const schema = {
         { name: 'id', dataType: 'INT64', isPrimaryKey: true, isNullable: false, ordinal: 0 },
         { name: 'status', dataType: 'STRING', isPrimaryKey: false, isNullable: false, ordinal: 1 },
         { name: 'amount', dataType: 'DOUBLE', isPrimaryKey: false, isNullable: false, ordinal: 2 },
+        { name: 'version', dataType: 'INT64', isPrimaryKey: false, isNullable: false, isRowVersion: true, ordinal: 3 },
       ],
       primaryKey: ['id'],
       indexes: [],
@@ -275,6 +276,53 @@ for (const taskView of taskViews) {
     }
   });
 }
+
+test('Relation designer limits ROWVERSION only in ALTER COLUMN options', async ({ page }) => {
+  await page.goto('/admin/app/sql?tool=table');
+  const surface = page.getByTestId('workbench-table');
+  await surface.locator('.workbench-section-tabs').getByRole('button', { name: '设计器', exact: true }).click();
+
+  const expectations = [
+    { operation: 'Alter column', includesRowVersion: false },
+    { operation: 'Rename column', includesRowVersion: true },
+    { operation: 'Drop column', includesRowVersion: true },
+  ] as const;
+
+  for (const expectation of expectations) {
+    const operation = surface.locator('.schema-designer__operation')
+      .filter({ hasText: expectation.operation });
+    await operation.locator('.n-base-selection').first().click();
+
+    const menu = page.locator('.n-base-select-menu:visible');
+    await expect(menu).toBeVisible();
+    if (expectation.includesRowVersion) {
+      await expect(menu).toContainText('version · INT64');
+    } else {
+      await expect(menu).not.toContainText('version · INT64');
+    }
+
+    await page.keyboard.press('Escape');
+    await expect(menu).not.toBeVisible();
+  }
+});
+
+test('Relation designer preserves signed 64-bit integer defaults exactly', async ({ page }) => {
+  await page.goto('/admin/app/sql?tool=table');
+  const surface = page.getByTestId('workbench-table');
+  await surface.locator('.workbench-section-tabs').getByRole('button', { name: '设计器', exact: true }).click();
+
+  const operation = surface.getByTestId('alter-column-operation');
+  await operation.getByLabel('Alter column type').click();
+  await page.locator('.n-base-select-option').filter({ hasText: /^INT$/ }).click();
+  await operation.getByLabel('Alter column default action').click();
+  await page.locator('.n-base-select-option').filter({ hasText: 'Set default' }).click();
+  await operation.getByLabel('Alter column default value').fill('9007199254740993');
+  await operation.getByRole('button', { name: 'Stage', exact: true }).click();
+
+  await expect(surface.locator('.schema-designer__sql')).toContainText(
+    'ALTER TABLE orders ALTER COLUMN status TYPE INT NOT NULL SET DEFAULT 9007199254740993;',
+  );
+});
 
 test('Document update preview and change feed viewer render server results', async ({ page }) => {
   await page.goto('/admin/app/sql?tool=document');

@@ -3,6 +3,17 @@
 /// <summary>SQL 表达式节点抽象基类。</summary>
 public abstract record SqlExpression;
 
+/// <summary>
+/// DML 中请求使用目标列已声明默认值的 <c>DEFAULT</c> 关键字。
+/// 该节点只允许作为关系表 <c>INSERT ... VALUES</c> 的单个值，
+/// 或 <c>UPDATE ... SET column = DEFAULT</c> 的完整右值。
+/// </summary>
+public sealed record DefaultValueExpression : SqlExpression
+{
+    /// <summary>共享单例实例。</summary>
+    public static DefaultValueExpression Instance { get; } = new();
+}
+
 /// <summary>字面量类别。</summary>
 public enum SqlLiteralKind
 {

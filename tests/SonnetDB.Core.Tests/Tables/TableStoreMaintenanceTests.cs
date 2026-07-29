@@ -57,6 +57,33 @@ public sealed class TableStoreMaintenanceTests : IDisposable
     }
 
     [Fact]
+    public void SchemaFingerprint_WithColumnDefault_RemainsIndexCompatible()
+    {
+        var withoutDefault = TableSchema.Create(
+            "devices",
+            [("id", TableColumnType.Int64, false), ("site", TableColumnType.String, true)],
+            ["id"],
+            createdAtUtcTicks: 1234);
+        var withDefault = TableSchema.CreateWithDefaults(
+            "devices",
+            [("id", TableColumnType.Int64, false), ("site", TableColumnType.String, true)],
+            ["id"],
+            indexes: null,
+            foreignKeys: null,
+            rowVersionColumns: null,
+            createdAtUtcTicks: 1234,
+            checkConstraints: null,
+            columnDefaults: new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                ["site"] = "'north'",
+            });
+
+        Assert.Equal(
+            TableStoreMaintenanceFile.ComputeSchemaFingerprint(withoutDefault),
+            TableStoreMaintenanceFile.ComputeSchemaFingerprint(withDefault));
+    }
+
+    [Fact]
     public void Open_ModernLargeBlobWithoutIndexes_DoesNotMaterializeRowValue()
     {
         string path = Path.Combine(_root, "large-table");

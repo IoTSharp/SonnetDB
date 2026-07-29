@@ -21,6 +21,9 @@ internal static class SqlExpressionFormatter
             case LiteralExpression literal:
                 AppendLiteral(builder, literal);
                 return;
+            case DurationLiteralExpression duration:
+                builder.Append(duration.Milliseconds.ToString(CultureInfo.InvariantCulture));
+                return;
             case IdentifierExpression identifier:
                 if (!string.IsNullOrWhiteSpace(identifier.Qualifier))
                 {

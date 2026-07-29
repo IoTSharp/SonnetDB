@@ -117,9 +117,11 @@ public sealed class SqlExecutorTableTests : IDisposable
 
             var describe = Assert.IsType<SelectExecutionResult>(
                 SqlExecutor.Execute(reopened, "DESCRIBE TABLE devices"));
-            Assert.Equal(new[] { "column_name", "data_type", "is_nullable", "is_primary_key", "ordinal" }, describe.Columns);
-            Assert.Equal(new object?[] { "id", "int64", false, true, 0L }, describe.Rows[0]);
-            Assert.Equal(new object?[] { "metadata", "json", true, false, 2L }, describe.Rows[2]);
+            Assert.Equal(
+                new[] { "column_name", "data_type", "is_nullable", "is_primary_key", "ordinal", "column_default" },
+                describe.Columns);
+            Assert.Equal(new object?[] { "id", "int64", false, true, 0L, null }, describe.Rows[0]);
+            Assert.Equal(new object?[] { "metadata", "json", true, false, 2L, null }, describe.Rows[2]);
         }
     }
 
@@ -1060,6 +1062,525 @@ public sealed class SqlExecutorTableTests : IDisposable
     }
 
     [Fact]
+    public void ColumnDefaults_CreateAddAndOmittedInsert_AppliesAndPersistsAcrossReopen()
+    {
+        using (var db = Tsdb.Open(Options()))
+        {
+            SqlExecutor.Execute(db, """
+                CREATE TABLE devices (
+                    id INT,
+                    site STRING NOT NULL DEFAULT 'north',
+                    retries INT DEFAULT 3,
+                    PRIMARY KEY (id)
+                )
+                """);
+            SqlExecutor.Execute(db, "INSERT INTO devices (id) VALUES (1)");
+            SqlExecutor.Execute(db,
+                "ALTER TABLE devices ADD COLUMN enabled BOOL NOT NULL DEFAULT TRUE");
+            SqlExecutor.Execute(db, "INSERT INTO devices (id) VALUES (2)");
+
+            var rows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+                "SELECT id, site, retries, enabled FROM devices ORDER BY id"));
+            Assert.Equal(new object?[] { 1L, "north", 3L, true }, rows.Rows[0]);
+            Assert.Equal(new object?[] { 2L, "north", 3L, true }, rows.Rows[1]);
+
+            var schema = db.Tables.Catalog.TryGet("devices")!;
+            Assert.Equal("'north'", schema.TryGetColumn("site")!.DefaultExpressionSql);
+            Assert.Equal("3", schema.TryGetColumn("retries")!.DefaultExpressionSql);
+            Assert.Equal("TRUE", schema.TryGetColumn("enabled")!.DefaultExpressionSql);
+        }
+
+        using (var reopened = Tsdb.Open(Options()))
+        {
+            SqlExecutor.Execute(reopened, "INSERT INTO devices (id) VALUES (3)");
+
+            var row = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened,
+                "SELECT site, retries, enabled FROM devices WHERE id = 3"));
+            Assert.Equal(new object?[] { "north", 3L, true }, row.Rows.Single());
+            Assert.Equal(
+                "'north'",
+                reopened.Tables.Catalog.TryGet("devices")!.TryGetColumn("site")!.DefaultExpressionSql);
+        }
+    }
+
+    [Fact]
+    public void Insert_DefaultMarkersAndDefaultValues_ApplyDeclaredDefaults()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, """
+            CREATE TABLE devices (
+                id INT DEFAULT 100,
+                label STRING NOT NULL DEFAULT upper('auto'),
+                retries INT DEFAULT 3,
+                PRIMARY KEY (id)
+            )
+            """);
+
+        SqlExecutor.Execute(db, """
+            INSERT INTO devices (id, label, retries) VALUES
+                (1, DEFAULT, DEFAULT),
+                (2, 'manual', DEFAULT),
+                (3, DEFAULT, 9)
+            """);
+        SqlExecutor.Execute(db, "INSERT INTO devices DEFAULT VALUES");
+
+        var rows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id, label, retries FROM devices ORDER BY id"));
+        Assert.Equal(new object?[] { 1L, "AUTO", 3L }, rows.Rows[0]);
+        Assert.Equal(new object?[] { 2L, "manual", 3L }, rows.Rows[1]);
+        Assert.Equal(new object?[] { 3L, "AUTO", 9L }, rows.Rows[2]);
+        Assert.Equal(new object?[] { 100L, "AUTO", 3L }, rows.Rows[3]);
+    }
+
+    [Fact]
+    public void DmlDefault_WithoutDeclaredDefault_UsesImplicitNullAndKeepsNotNullAtomic()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, """
+            CREATE TABLE devices (
+                id INT DEFAULT 2,
+                label STRING NULL,
+                required STRING NOT NULL DEFAULT 'ready',
+                PRIMARY KEY (id)
+            )
+            """);
+
+        SqlExecutor.Execute(db,
+            "INSERT INTO devices (id, label, required) VALUES (1, DEFAULT, 'manual')");
+        SqlExecutor.Execute(db, "UPDATE devices SET label = 'set' WHERE id = 1");
+        SqlExecutor.Execute(db, "UPDATE devices SET label = DEFAULT WHERE id = 1");
+        SqlExecutor.Execute(db, "INSERT INTO devices DEFAULT VALUES");
+
+        var rows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id, label, required FROM devices ORDER BY id"));
+        Assert.Equal(new object?[] { 1L, null, "manual" }, rows.Rows[0]);
+        Assert.Equal(new object?[] { 2L, null, "ready" }, rows.Rows[1]);
+
+        SqlExecutor.Execute(db, """
+            CREATE TABLE strict_devices (
+                id INT DEFAULT 10,
+                required STRING NOT NULL,
+                PRIMARY KEY (id)
+            )
+            """);
+        var insertError = Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db,
+            "INSERT INTO strict_devices (id, required) VALUES (1, DEFAULT)"));
+        Assert.Contains("required", insertError.Message, StringComparison.Ordinal);
+
+        var defaultValuesError = Assert.Throws<InvalidOperationException>(() =>
+            SqlExecutor.Execute(db, "INSERT INTO strict_devices DEFAULT VALUES"));
+        Assert.Contains("required", defaultValuesError.Message, StringComparison.Ordinal);
+
+        SqlExecutor.Execute(db,
+            "INSERT INTO strict_devices (id, required) VALUES (2, 'preserved')");
+        var updateError = Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db,
+            "UPDATE strict_devices SET required = DEFAULT WHERE id = 2"));
+        Assert.Contains("required", updateError.Message, StringComparison.Ordinal);
+
+        var strictRows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id, required FROM strict_devices ORDER BY id"));
+        Assert.Single(strictRows.Rows);
+        Assert.Equal(new object?[] { 2L, "preserved" }, strictRows.Rows[0]);
+    }
+
+    [Fact]
+    public void LightTransaction_InsertAndUpdateDefault_EvaluateDynamicDefault()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, """
+            CREATE TABLE events (
+                id INT,
+                touched_at DATETIME NOT NULL DEFAULT current_utc_datetime(),
+                PRIMARY KEY (id)
+            )
+            """);
+
+        var insertBefore = DateTime.UtcNow;
+        SqlExecutor.ExecuteScript(db, """
+            BEGIN;
+            INSERT INTO events (id, touched_at) VALUES (1, DEFAULT);
+            COMMIT;
+            """);
+        var insertAfter = DateTime.UtcNow;
+        var inserted = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT touched_at FROM events WHERE id = 1"));
+        var insertedAt = Assert.IsType<DateTime>(inserted.Rows.Single()[0]);
+        Assert.InRange(insertedAt, insertBefore.AddMilliseconds(-5), insertAfter.AddMilliseconds(5));
+
+        Thread.Sleep(40);
+        var updateBefore = DateTime.UtcNow;
+        SqlExecutor.ExecuteScript(db, """
+            BEGIN;
+            UPDATE events SET touched_at = DEFAULT WHERE id = 1;
+            COMMIT;
+            """);
+        var updateAfter = DateTime.UtcNow;
+
+        var updated = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT touched_at FROM events WHERE id = 1"));
+        var updatedAt = Assert.IsType<DateTime>(updated.Rows.Single()[0]);
+        Assert.InRange(updatedAt, updateBefore.AddMilliseconds(-5), updateAfter.AddMilliseconds(5));
+        Assert.True(updatedAt > insertedAt, $"expected DEFAULT to be evaluated again: {insertedAt:O} vs {updatedAt:O}");
+    }
+
+    [Fact]
+    public void AlterColumn_SetDropDefault_ChangesOmittedInsertBehaviorAndPersists()
+    {
+        using (var db = Tsdb.Open(Options()))
+        {
+            SqlExecutor.Execute(db,
+                "CREATE TABLE devices (id INT, label STRING DEFAULT 'first', PRIMARY KEY (id))");
+            SqlExecutor.Execute(db, "INSERT INTO devices (id) VALUES (1)");
+            SqlExecutor.Execute(db,
+                "ALTER TABLE devices ALTER COLUMN label SET DEFAULT 'second'");
+            SqlExecutor.Execute(db, "INSERT INTO devices (id) VALUES (2)");
+            SqlExecutor.Execute(db,
+                "ALTER TABLE devices ALTER COLUMN label DROP DEFAULT");
+            SqlExecutor.Execute(db, "INSERT INTO devices (id) VALUES (3)");
+
+            var rows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+                "SELECT id, label FROM devices ORDER BY id"));
+            Assert.Equal(new object?[] { 1L, "first" }, rows.Rows[0]);
+            Assert.Equal(new object?[] { 2L, "second" }, rows.Rows[1]);
+            Assert.Equal(new object?[] { 3L, null }, rows.Rows[2]);
+        }
+
+        using (var reopened = Tsdb.Open(Options()))
+        {
+            var label = reopened.Tables.Catalog.TryGet("devices")!.TryGetColumn("label")!;
+            Assert.Null(label.DefaultExpressionSql);
+
+            SqlExecutor.Execute(reopened, "INSERT INTO devices (id) VALUES (4)");
+            var row = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened,
+                "SELECT label FROM devices WHERE id = 4"));
+            Assert.Null(row.Rows.Single()[0]);
+        }
+    }
+
+    [Fact]
+    public void AlterColumn_MetadataOnlyChanges_DoNotRewriteRowWal()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db,
+            "CREATE TABLE devices (id INT, label STRING NULL, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "INSERT INTO devices (id, label) VALUES (1, 'pump'), (2, 'fan')");
+        SqlExecutor.Execute(db, "CREATE INDEX idx_devices_label ON devices (label)");
+        var store = db.Tables.Open("devices");
+        long walLength = store.ActiveWalLengthForEvidence;
+
+        SqlExecutor.Execute(db,
+            "ALTER TABLE devices ALTER COLUMN label SET DEFAULT 'unknown'");
+        SqlExecutor.Execute(db,
+            "ALTER TABLE devices ALTER COLUMN label SET NOT NULL");
+        SqlExecutor.Execute(db,
+            "ALTER TABLE devices ALTER COLUMN label DROP NOT NULL");
+        SqlExecutor.Execute(db,
+            "ALTER TABLE devices RENAME COLUMN label TO display_name");
+
+        Assert.Equal(walLength, store.ActiveWalLengthForEvidence);
+        var rows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id, display_name FROM devices WHERE display_name = 'pump'"));
+        Assert.Equal(new object?[] { 1L, "pump" }, Assert.Single(rows.Rows));
+        Assert.Equal(
+            "'unknown'",
+            db.Tables.Catalog.TryGet("devices")!.TryGetColumn("display_name")!.DefaultExpressionSql);
+    }
+
+    [Fact]
+    public void AlterColumn_TypeConversion_PreservesCheckConstraintAndIndexAcrossReopen()
+    {
+        using (var db = Tsdb.Open(Options()))
+        {
+            SqlExecutor.Execute(db, """
+                CREATE TABLE metrics (
+                    id INT,
+                    score INT NOT NULL,
+                    PRIMARY KEY (id),
+                    CONSTRAINT ck_metrics_score CHECK (score >= 0)
+                )
+                """);
+            SqlExecutor.Execute(db, "INSERT INTO metrics (id, score) VALUES (1, 5), (2, 7)");
+            SqlExecutor.Execute(db, "CREATE INDEX idx_metrics_score ON metrics (score)");
+
+            SqlExecutor.Execute(db,
+                "ALTER TABLE metrics ALTER COLUMN score SET DATA TYPE FLOAT");
+
+            var schema = db.Tables.Catalog.TryGet("metrics")!;
+            Assert.Equal(TableColumnType.Float64, schema.TryGetColumn("score")!.DataType);
+            Assert.Equal("idx_metrics_score", Assert.Single(schema.Indexes).Name);
+            Assert.Equal("ck_metrics_score", Assert.Single(schema.CheckConstraints).Name);
+
+            var rows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+                "SELECT id, score FROM metrics ORDER BY id"));
+            Assert.Equal(new object?[] { 1L, 5d }, rows.Rows[0]);
+            Assert.Equal(new object?[] { 2L, 7d }, rows.Rows[1]);
+
+            var violation = Assert.Throws<TableConstraintException>(() => SqlExecutor.Execute(db,
+                "INSERT INTO metrics (id, score) VALUES (3, -1)"));
+            Assert.Equal(TableConstraintException.CheckViolation, violation.ErrorCode);
+        }
+
+        using (var reopened = Tsdb.Open(Options()))
+        {
+            var schema = reopened.Tables.Catalog.TryGet("metrics")!;
+            Assert.Equal(TableColumnType.Float64, schema.TryGetColumn("score")!.DataType);
+            Assert.Single(schema.Indexes);
+            Assert.Single(schema.CheckConstraints);
+            var row = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened,
+                "SELECT score FROM metrics WHERE id = 2"));
+            Assert.Equal(7d, row.Rows.Single()[0]);
+        }
+    }
+
+    [Fact]
+    public void AlterColumn_TypeConversionWithInvalidData_RollsBackSchemaAndRows()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db,
+            "CREATE TABLE devices (id INT, code STRING NOT NULL, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "INSERT INTO devices (id, code) VALUES (1, '42'), (2, 'not-a-number')");
+        var store = db.Tables.Open("devices");
+        long walLength = store.ActiveWalLengthForEvidence;
+
+        var exception = Record.Exception(() => SqlExecutor.Execute(db,
+            "ALTER TABLE devices ALTER COLUMN code TYPE INT"));
+
+        Assert.NotNull(exception);
+        Assert.True(exception is FormatException or InvalidOperationException, exception.ToString());
+        Assert.Equal(
+            TableColumnType.String,
+            db.Tables.Catalog.TryGet("devices")!.TryGetColumn("code")!.DataType);
+        var rows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id, code FROM devices ORDER BY id"));
+        Assert.Equal(new object?[] { 1L, "42" }, rows.Rows[0]);
+        Assert.Equal(new object?[] { 2L, "not-a-number" }, rows.Rows[1]);
+        Assert.Equal(walLength, store.ActiveWalLengthForEvidence);
+    }
+
+    [Fact]
+    public void AlterColumn_LossyNumericConversion_RejectsFractionalValuesAndRollsBack()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db,
+            "CREATE TABLE readings (id INT, value FLOAT NOT NULL, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "INSERT INTO readings (id, value) VALUES (1, 1.5), (2, 42.0)");
+
+        var exception = Record.Exception(() => SqlExecutor.Execute(db,
+            "ALTER TABLE readings ALTER COLUMN value TYPE INT"));
+
+        Assert.NotNull(exception);
+        Assert.True(exception is InvalidOperationException or OverflowException, exception.ToString());
+        var schema = db.Tables.Catalog.TryGet("readings")!;
+        Assert.Equal(TableColumnType.Float64, schema.TryGetColumn("value")!.DataType);
+        var rows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id, value FROM readings ORDER BY id"));
+        Assert.Equal(new object?[] { 1L, 1.5d }, rows.Rows[0]);
+        Assert.Equal(new object?[] { 2L, 42d }, rows.Rows[1]);
+    }
+
+    [Fact]
+    public void AlterColumn_LossyIntegerToFloatConversion_RejectsPrecisionLossAndRollsBack()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db,
+            "CREATE TABLE readings (id INT, value INT NOT NULL, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "INSERT INTO readings (id, value) VALUES (1, 9007199254740993)");
+
+        var exception = Record.Exception(() => SqlExecutor.Execute(db,
+            "ALTER TABLE readings ALTER COLUMN value TYPE FLOAT"));
+
+        Assert.NotNull(exception);
+        Assert.IsType<InvalidOperationException>(exception);
+        var schema = db.Tables.Catalog.TryGet("readings")!;
+        Assert.Equal(TableColumnType.Int64, schema.TryGetColumn("value")!.DataType);
+        var row = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT value FROM readings WHERE id = 1"));
+        Assert.Equal(9_007_199_254_740_993L, row.Rows.Single()[0]);
+    }
+
+    [Fact]
+    public void AlterColumn_LosslessLargeIntegerToFloatConversion_Succeeds()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db,
+            "CREATE TABLE readings (id INT, value INT NOT NULL, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, """
+            INSERT INTO readings (id, value) VALUES
+                (1, 9007199254740992),
+                (2, 9007199254740994),
+                (3, 1234567890123456)
+            """);
+
+        SqlExecutor.Execute(db, "ALTER TABLE readings ALTER COLUMN value TYPE FLOAT");
+
+        var rows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT value FROM readings ORDER BY id"));
+        Assert.Equal(
+            [9_007_199_254_740_992d, 9_007_199_254_740_994d, 1_234_567_890_123_456d],
+            rows.Rows.Select(static row => (double)row[0]!).ToArray());
+    }
+
+    [Fact]
+    public void AlterColumn_LosslessIntegralFloatToIntegerConversion_Succeeds()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db,
+            "CREATE TABLE readings (id INT, value FLOAT NOT NULL, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "INSERT INTO readings (id, value) VALUES (1, 9007199254740992.0), (2, 42.0)");
+
+        SqlExecutor.Execute(db, "ALTER TABLE readings ALTER COLUMN value TYPE INT");
+
+        var rows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT value FROM readings ORDER BY id"));
+        Assert.Equal(
+            [9_007_199_254_740_992L, 42L],
+            rows.Rows.Select(static row => (long)row[0]!).ToArray());
+    }
+
+    [Fact]
+    public void AlterColumn_TypeConversionCreatingUniqueConflict_RollsBackSchemaRowsAndIndex()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db,
+            "CREATE TABLE devices (id INT, code STRING NOT NULL, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "INSERT INTO devices (id, code) VALUES (1, '1'), (2, '01')");
+        SqlExecutor.Execute(db, "CREATE UNIQUE INDEX ux_devices_code ON devices (code)");
+
+        var exception = Assert.Throws<TableConstraintException>(() => SqlExecutor.Execute(db,
+            "ALTER TABLE devices ALTER COLUMN code TYPE INT"));
+
+        Assert.Equal(TableConstraintException.UniqueViolation, exception.ErrorCode);
+        var schema = db.Tables.Catalog.TryGet("devices")!;
+        Assert.Equal(TableColumnType.String, schema.TryGetColumn("code")!.DataType);
+        Assert.Equal("ux_devices_code", Assert.Single(schema.Indexes).Name);
+        var rows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT code FROM devices ORDER BY id"));
+        Assert.Equal(["1", "01"], rows.Rows.Select(static row => (string)row[0]!).ToArray());
+    }
+
+    [Fact]
+    public void AlterColumn_SetNotNull_ValidatesExistingRowsAndDropNotNullRestoresNullability()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db,
+            "CREATE TABLE devices (id INT, name STRING NULL, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "INSERT INTO devices (id, name) VALUES (1, NULL)");
+
+        Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db,
+            "ALTER TABLE devices ALTER COLUMN name SET NOT NULL"));
+        Assert.True(db.Tables.Catalog.TryGet("devices")!.TryGetColumn("name")!.IsNullable);
+
+        SqlExecutor.Execute(db, "UPDATE devices SET name = 'pump' WHERE id = 1");
+        SqlExecutor.Execute(db, "ALTER TABLE devices ALTER COLUMN name SET NOT NULL");
+        Assert.False(db.Tables.Catalog.TryGet("devices")!.TryGetColumn("name")!.IsNullable);
+        Assert.Throws<InvalidOperationException>(() =>
+            SqlExecutor.Execute(db, "INSERT INTO devices (id) VALUES (2)"));
+
+        SqlExecutor.Execute(db, "ALTER TABLE devices ALTER COLUMN name DROP NOT NULL");
+        Assert.True(db.Tables.Catalog.TryGet("devices")!.TryGetColumn("name")!.IsNullable);
+        SqlExecutor.Execute(db, "INSERT INTO devices (id) VALUES (2)");
+        var row = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT name FROM devices WHERE id = 2"));
+        Assert.Null(row.Rows.Single()[0]);
+    }
+
+    [Fact]
+    public void AlterColumn_PrimaryKeyRowVersionAndForeignKeyTypeChanges_AreRejected()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE parents (id INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, """
+            CREATE TABLE children (
+                id INT,
+                parent_id INT,
+                version INT ROWVERSION,
+                PRIMARY KEY (id),
+                FOREIGN KEY (parent_id) REFERENCES parents (id)
+            )
+            """);
+
+        Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db,
+            "ALTER TABLE children ALTER COLUMN id TYPE STRING"));
+        Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db,
+            "ALTER TABLE children ALTER COLUMN id DROP NOT NULL"));
+        Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db,
+            "ALTER TABLE children ALTER COLUMN version TYPE STRING"));
+        Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db,
+            "ALTER TABLE children ALTER COLUMN version TYPE INT"));
+        Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db,
+            "ALTER TABLE children ALTER COLUMN version SET NOT NULL"));
+        Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db,
+            "ALTER TABLE children ALTER COLUMN version SET DEFAULT 1"));
+        Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db,
+            "ALTER TABLE children ALTER COLUMN version DROP DEFAULT"));
+        Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db,
+            "ALTER TABLE children ALTER COLUMN parent_id TYPE STRING"));
+
+        var schema = db.Tables.Catalog.TryGet("children")!;
+        Assert.Equal(TableColumnType.Int64, schema.TryGetColumn("id")!.DataType);
+        Assert.Equal(TableColumnType.Int64, schema.TryGetColumn("version")!.DataType);
+        Assert.Equal(TableColumnType.Int64, schema.TryGetColumn("parent_id")!.DataType);
+        Assert.Single(schema.ForeignKeys);
+    }
+
+    [Fact]
+    public void AlterColumn_DynamicDefaultFunction_EvaluatesPerInsertAndAfterReopen()
+    {
+        using (var db = Tsdb.Open(Options()))
+        {
+            SqlExecutor.Execute(db, """
+                CREATE TABLE events (
+                    id INT,
+                    created_at DATETIME NOT NULL DEFAULT current_utc_datetime(),
+                    PRIMARY KEY (id)
+                )
+                """);
+
+            Thread.Sleep(40);
+            var firstBefore = DateTime.UtcNow;
+            SqlExecutor.Execute(db, "INSERT INTO events (id) VALUES (1)");
+            var firstAfter = DateTime.UtcNow;
+            Thread.Sleep(40);
+            var secondBefore = DateTime.UtcNow;
+            SqlExecutor.Execute(db, "INSERT INTO events (id) VALUES (2)");
+            var secondAfter = DateTime.UtcNow;
+
+            var rows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+                "SELECT id, created_at FROM events ORDER BY id"));
+            var first = Assert.IsType<DateTime>(rows.Rows[0][1]);
+            var second = Assert.IsType<DateTime>(rows.Rows[1][1]);
+            Assert.InRange(first, firstBefore.AddMilliseconds(-5), firstAfter.AddMilliseconds(5));
+            Assert.InRange(second, secondBefore.AddMilliseconds(-5), secondAfter.AddMilliseconds(5));
+            Assert.True(second > first, $"expected per-insert defaults to advance: {first:O} vs {second:O}");
+        }
+
+        using (var reopened = Tsdb.Open(Options()))
+        {
+            Thread.Sleep(40);
+            var thirdBefore = DateTime.UtcNow;
+            SqlExecutor.Execute(reopened, "INSERT INTO events (id) VALUES (3)");
+            var thirdAfter = DateTime.UtcNow;
+
+            var row = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened,
+                "SELECT created_at FROM events WHERE id = 3"));
+            var third = Assert.IsType<DateTime>(row.Rows.Single()[0]);
+            Assert.InRange(third, thirdBefore.AddMilliseconds(-5), thirdAfter.AddMilliseconds(5));
+            var second = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened,
+                "SELECT created_at FROM events WHERE id = 2"));
+            Assert.True(third > Assert.IsType<DateTime>(second.Rows.Single()[0]));
+            var defaultSql = reopened.Tables.Catalog.TryGet("events")!.TryGetColumn("created_at")!.DefaultExpressionSql;
+            Assert.NotNull(defaultSql);
+            Assert.Contains("current_utc_datetime", defaultSql, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Fact]
     public void AlterTable_RenameTable_MovesRowstoreAndPersists()
     {
         using (var db = Tsdb.Open(Options()))
@@ -1081,6 +1602,80 @@ public sealed class SqlExecutorTableTests : IDisposable
                 Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened, "SHOW TABLES")).Rows,
                 row => string.Equals((string?)row[0], "devices", StringComparison.Ordinal));
         }
+    }
+
+    [Fact]
+    public void ReferencedTable_RenameAndDrop_AreRejectedWithoutMutationAcrossReopen()
+    {
+        using (var db = Tsdb.Open(Options()))
+        {
+            SqlExecutor.Execute(db,
+                "CREATE TABLE parents (id INT, name STRING, PRIMARY KEY (id))");
+            SqlExecutor.Execute(db, """
+                CREATE TABLE children (
+                    id INT,
+                    parent_id INT,
+                    name STRING,
+                    PRIMARY KEY (id),
+                    FOREIGN KEY (parent_id) REFERENCES parents (id)
+                )
+                """);
+            SqlExecutor.Execute(db, "INSERT INTO parents (id, name) VALUES (1, 'parent')");
+            SqlExecutor.Execute(db,
+                "INSERT INTO children (id, parent_id, name) VALUES (10, 1, 'child')");
+
+            var renameException = Assert.Throws<InvalidOperationException>(() =>
+                SqlExecutor.Execute(db, "ALTER TABLE parents RENAME TO renamed_parents"));
+            Assert.Contains("外键", renameException.Message, StringComparison.Ordinal);
+            Assert.Contains("引用", renameException.Message, StringComparison.Ordinal);
+            Assert.Contains("重命名", renameException.Message, StringComparison.Ordinal);
+
+            var dropException = Assert.Throws<InvalidOperationException>(() =>
+                SqlExecutor.Execute(db, "DROP TABLE parents"));
+            Assert.Contains("外键", dropException.Message, StringComparison.Ordinal);
+            Assert.Contains("引用", dropException.Message, StringComparison.Ordinal);
+            Assert.Contains("删除", dropException.Message, StringComparison.Ordinal);
+
+            Assert.Null(db.Tables.Catalog.TryGet("renamed_parents"));
+            AssertReferencedTableFixtureIsUnchanged(db);
+        }
+
+        using (var reopened = Tsdb.Open(Options()))
+        {
+            AssertReferencedTableFixtureIsUnchanged(reopened);
+            Assert.Throws<InvalidOperationException>(() =>
+                SqlExecutor.Execute(reopened, "ALTER TABLE parents RENAME TO renamed_parents"));
+            Assert.Throws<InvalidOperationException>(() =>
+                SqlExecutor.Execute(reopened, "DROP TABLE parents"));
+
+            var foreignKeyException = Assert.Throws<TableConstraintException>(() =>
+                SqlExecutor.Execute(reopened,
+                    "INSERT INTO children (id, parent_id, name) VALUES (11, 999, 'orphan')"));
+            Assert.Equal(TableConstraintException.ForeignKeyViolation, foreignKeyException.ErrorCode);
+        }
+    }
+
+    private static void AssertReferencedTableFixtureIsUnchanged(Tsdb db)
+    {
+        var parentSchema = db.Tables.Catalog.TryGet("parents");
+        Assert.NotNull(parentSchema);
+        Assert.Equal(["id", "name"], parentSchema.Columns.Select(static column => column.Name).ToArray());
+
+        var childSchema = db.Tables.Catalog.TryGet("children");
+        Assert.NotNull(childSchema);
+        Assert.Equal(["id", "parent_id", "name"], childSchema.Columns.Select(static column => column.Name).ToArray());
+        var foreignKey = Assert.Single(childSchema.ForeignKeys);
+        Assert.Equal("parents", foreignKey.PrincipalTable);
+        Assert.Equal(["parent_id"], foreignKey.Columns);
+        Assert.Equal(["id"], foreignKey.PrincipalColumns);
+
+        var parents = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id, name FROM parents"));
+        Assert.Equal(new object?[] { 1L, "parent" }, Assert.Single(parents.Rows));
+
+        var children = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id, parent_id, name FROM children"));
+        Assert.Equal(new object?[] { 10L, 1L, "child" }, Assert.Single(children.Rows));
     }
 
     [Fact]
@@ -2206,6 +2801,126 @@ public sealed class SqlExecutorTableTests : IDisposable
         var afterRollback = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
             "SELECT id FROM devices ORDER BY id"));
         Assert.Equal([1L, 2L], afterRollback.Rows.Select(static r => (long)r[0]!).ToArray());
+    }
+
+    [Fact]
+    public void ExecuteScript_InsertOmittingDefaultedColumns_AppliesDefaultsOnCommit()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db,
+            "CREATE TABLE devices (id INT, site STRING NOT NULL DEFAULT 'north', PRIMARY KEY (id))");
+
+        SqlExecutor.ExecuteScript(db, """
+            BEGIN;
+            INSERT INTO devices (id) VALUES (1);
+            INSERT INTO devices (id, site) VALUES (2, 'south');
+            COMMIT;
+            """);
+
+        var rows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id, site FROM devices ORDER BY id"));
+        Assert.Equal(new object?[] { 1L, "north" }, rows.Rows[0]);
+        Assert.Equal(new object?[] { 2L, "south" }, rows.Rows[1]);
+    }
+
+    [Fact]
+    public void ExplicitTransaction_InsertOmittingDefaultedColumns_AppliesDefaultsOnCommit()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db,
+            "CREATE TABLE devices (id INT, site STRING NOT NULL DEFAULT 'north', PRIMARY KEY (id))");
+        var schema = db.Tables.Catalog.TryGet("devices")!;
+        var transaction = new SqlTransactionContext();
+        var statement = Assert.IsType<InsertStatement>(SqlParser.Parse(
+            "INSERT INTO devices (id) VALUES (1)"));
+
+        TableSqlExecutor.QueueInsert(transaction, statement, schema);
+        TableSqlExecutor.CommitTransaction(db, transaction);
+
+        var row = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id, site FROM devices WHERE id = 1"));
+        Assert.Equal(new object?[] { 1L, "north" }, row.Rows.Single());
+    }
+
+    [Fact]
+    public void LightTransaction_AlterColumn_IsRejectedAndRollbackLeavesSchemaUnchanged()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, """
+            CREATE TABLE devices (
+                id INT,
+                reading INT NULL DEFAULT 7,
+                PRIMARY KEY (id)
+            )
+            """);
+        SqlExecutor.Execute(db, "INSERT INTO devices (id) VALUES (1)");
+        var transaction = Assert.IsType<SqlTransactionContext>(
+            SqlExecutor.ExecuteStatement(db, SqlParser.Parse("BEGIN")));
+        var alterColumn = SqlParser.Parse(
+            "ALTER TABLE devices ALTER COLUMN reading FLOAT NOT NULL");
+
+        var error = Assert.Throws<NotSupportedException>(() =>
+            SqlExecutor.ExecuteStatement(
+                db,
+                databaseName: null,
+                statement: alterColumn,
+                controlPlane: null,
+                transaction: transaction));
+
+        Assert.Contains("DDL", error.Message, StringComparison.Ordinal);
+        Assert.Contains("活动轻事务", error.Message, StringComparison.Ordinal);
+        var beforeRollback = db.Tables.Catalog.TryGet("devices")!.TryGetColumn("reading")!;
+        Assert.Equal(TableColumnType.Int64, beforeRollback.DataType);
+        Assert.True(beforeRollback.IsNullable);
+        Assert.Equal("7", beforeRollback.DefaultExpressionSql);
+
+        SqlExecutor.ExecuteStatement(
+            db,
+            databaseName: null,
+            statement: SqlParser.Parse("ROLLBACK"),
+            controlPlane: null,
+            transaction: transaction);
+
+        Assert.True(transaction.IsCompleted);
+        var afterRollback = db.Tables.Catalog.TryGet("devices")!.TryGetColumn("reading")!;
+        Assert.Equal(TableColumnType.Int64, afterRollback.DataType);
+        Assert.True(afterRollback.IsNullable);
+        Assert.Equal("7", afterRollback.DefaultExpressionSql);
+        var row = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT reading FROM devices WHERE id = 1"));
+        Assert.Equal(7L, row.Rows.Single()[0]);
+    }
+
+    [Fact]
+    public void LightTransaction_ImportJson_IsRejectedBeforeFileIo()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db,
+            "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
+        var transaction = Assert.IsType<SqlTransactionContext>(
+            SqlExecutor.ExecuteStatement(db, SqlParser.Parse("BEGIN")));
+
+        var error = Assert.Throws<NotSupportedException>(() =>
+            SqlExecutor.ExecuteStatement(
+                db,
+                databaseName: null,
+                statement: SqlParser.Parse(
+                    "IMPORT JSON 'does-not-exist.json' INTO devices FORMAT ARRAY"),
+                controlPlane: null,
+                transaction: transaction));
+
+        Assert.Contains("IMPORT JSON", error.Message, StringComparison.Ordinal);
+        Assert.Contains("活动轻事务", error.Message, StringComparison.Ordinal);
+
+        SqlExecutor.ExecuteStatement(
+            db,
+            databaseName: null,
+            statement: SqlParser.Parse("ROLLBACK"),
+            controlPlane: null,
+            transaction: transaction);
+        var rows = Assert.IsType<SelectExecutionResult>(
+            SqlExecutor.Execute(db, "SELECT id FROM devices"));
+        Assert.Empty(rows.Rows);
     }
 
     [Fact]

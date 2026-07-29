@@ -1,18 +1,19 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using SonnetDB.Data;
 
 namespace SonnetDB.EntityFrameworkCore.Migrations.Internal;
 
 /// <summary>
-/// SonnetDB EF Core migrations history table support.
+/// 提供 SonnetDB EF Core migration 历史表支持。
 /// </summary>
-public sealed class SonnetDbHistoryRepository : HistoryRepository
+public sealed class SonnetDbHistoryRepository : HistoryRepository, IHistoryRepository
 {
     /// <summary>
-    /// Creates the SonnetDB migrations history repository.
+    /// 创建 SonnetDB migration 历史仓储。
     /// </summary>
-    /// <param name="dependencies">History repository dependencies.</param>
+    /// <param name="dependencies">历史仓储依赖项。</param>
     public SonnetDbHistoryRepository(HistoryRepositoryDependencies dependencies)
         : base(dependencies)
     {
@@ -112,6 +113,24 @@ public sealed class SonnetDbHistoryRepository : HistoryRepository
     /// <inheritdoc />
     public override string GetCreateScript()
         => BuildCreateScript(ifNotExists: false);
+
+    bool IHistoryRepository.CreateIfNotExists()
+        => Dependencies.MigrationCommandExecutor.ExecuteNonQuery(
+            BuildCreateIfNotExistsCommands(),
+            Dependencies.Connection,
+            new MigrationExecutionState(),
+            commitTransaction: true,
+            isolationLevel: null) != 0;
+
+    async Task<bool> IHistoryRepository.CreateIfNotExistsAsync(
+        CancellationToken cancellationToken)
+        => await Dependencies.MigrationCommandExecutor.ExecuteNonQueryAsync(
+            BuildCreateIfNotExistsCommands(),
+            Dependencies.Connection,
+            new MigrationExecutionState(),
+            commitTransaction: true,
+            isolationLevel: null,
+            cancellationToken).ConfigureAwait(false) != 0;
 
     /// <inheritdoc />
     public override IReadOnlyList<HistoryRow> GetAppliedMigrations()
@@ -233,6 +252,16 @@ public sealed class SonnetDbHistoryRepository : HistoryRepository
             + "));"
             + Environment.NewLine;
     }
+
+    private IReadOnlyList<MigrationCommand> BuildCreateIfNotExistsCommands()
+        => Dependencies.MigrationsSqlGenerator.Generate(
+            [
+                new SqlOperation
+                {
+                    Sql = GetCreateIfNotExistsScript(),
+                    SuppressTransaction = true,
+                },
+            ]);
 
     private string BuildAppliedMigrationsSql()
     {

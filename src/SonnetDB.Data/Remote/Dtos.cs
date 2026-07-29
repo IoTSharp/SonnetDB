@@ -120,7 +120,9 @@ internal sealed record RemoteTableColumnInfo(
     string DataType,
     bool IsPrimaryKey,
     bool IsNullable,
-    int Ordinal);
+    int Ordinal,
+    bool IsRowVersion = false,
+    string? DefaultExpressionSql = null);
 
 internal sealed record RemoteTableIndexInfo(
     string Name,

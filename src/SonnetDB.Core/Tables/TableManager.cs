@@ -319,6 +319,21 @@ public sealed class TableManager : IDisposable
     }
 
     public void AlterTableAddColumn(string tableName, string columnName, TableColumnType dataType, bool isNullable, object? defaultValue)
+        => AlterTableAddColumn(
+            tableName,
+            columnName,
+            dataType,
+            isNullable,
+            defaultValue,
+            defaultExpressionSql: null);
+
+    internal void AlterTableAddColumn(
+        string tableName,
+        string columnName,
+        TableColumnType dataType,
+        bool isNullable,
+        object? defaultValue,
+        string? defaultExpressionSql)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
@@ -328,7 +343,7 @@ public sealed class TableManager : IDisposable
             ThrowIfDisposed();
             var current = Catalog.TryGet(tableName)
                 ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
-            var updated = current.WithAddedColumn(columnName, dataType, isNullable);
+            var updated = current.WithAddedColumn(columnName, dataType, isNullable, defaultExpressionSql);
             var store = OpenStoreLocked(current);
             ApplySchemaTransformLocked(current, updated, store, (_, row) =>
             {
@@ -338,6 +353,60 @@ public sealed class TableManager : IDisposable
                 values[^1] = defaultValue;
                 return values;
             });
+        }
+    }
+
+    internal void AlterTableAlterColumn(
+        string tableName,
+        string columnName,
+        TableColumnType dataType,
+        bool isNullable,
+        string? defaultExpressionSql,
+        Func<object?, object?>? convertValue)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
+        _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            var current = Catalog.TryGet(tableName)
+                ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+            var currentColumn = current.TryGetColumn(columnName)
+                ?? throw new InvalidOperationException($"table '{tableName}' 中不存在列 '{columnName}'。");
+            var changesType = currentColumn.DataType != dataType;
+            if (changesType)
+            {
+                ArgumentNullException.ThrowIfNull(convertValue);
+                EnsureColumnTypeIsNotReferencedByForeignKeyLocked(current, currentColumn);
+            }
+
+            var updated = current.WithAlteredColumn(
+                columnName,
+                dataType,
+                isNullable,
+                defaultExpressionSql);
+            var store = OpenStoreLocked(current);
+            if (!changesType)
+            {
+                if (currentColumn.IsNullable && !isNullable)
+                    store.ValidateExistingRows(updated);
+                ApplyMetadataSchemaLocked(current, updated, store);
+                return;
+            }
+
+            ApplySchemaTransformLocked(
+                current,
+                updated,
+                store,
+                (_, row) =>
+                {
+                    var values = row.Values.ToArray();
+                    if (changesType && values[currentColumn.Ordinal] is not null)
+                        values[currentColumn.Ordinal] = convertValue!(values[currentColumn.Ordinal]);
+                    return values;
+                },
+                ValidateAlteredRowCheckConstraints);
         }
     }
 
@@ -384,7 +453,7 @@ public sealed class TableManager : IDisposable
                 ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
             var updated = current.WithRenamedColumn(oldColumnName, newColumnName);
             var store = OpenStoreLocked(current);
-            ApplySchemaTransformLocked(current, updated, store, (_, row) => row.Values.ToArray());
+            ApplyMetadataSchemaLocked(current, updated, store);
         }
     }
 
@@ -401,6 +470,7 @@ public sealed class TableManager : IDisposable
                 ?? throw new InvalidOperationException($"table '{oldName}' 不存在。");
             if (Catalog.TryGet(newName) is not null)
                 throw new InvalidOperationException($"table '{newName}' 已存在。");
+            EnsureTableIsNotReferencedByForeignKeyLocked(oldName, "重命名");
 
             var updated = current.WithName(newName);
             var oldDirectory = TableDirectory(oldName);
@@ -468,8 +538,10 @@ public sealed class TableManager : IDisposable
         lock (_sync)
         {
             ThrowIfDisposed();
-            if (!Catalog.Remove(name))
+            if (Catalog.TryGet(name) is null)
                 return false;
+            EnsureTableIsNotReferencedByForeignKeyLocked(name, "删除");
+            _ = Catalog.Remove(name);
 
             if (_stores.Remove(name, out var store))
                 store.Dispose();
@@ -1212,9 +1284,10 @@ public sealed class TableManager : IDisposable
         TableSchema current,
         TableSchema updated,
         TableStore store,
-        Func<TableSchema, TableRow, IReadOnlyList<object?>> transform)
+        Func<TableSchema, TableRow, IReadOnlyList<object?>> transform,
+        Action<TableSchema, IReadOnlyList<object?>>? validate = null)
     {
-        var rollback = store.ApplySchemaTransform(updated, transform);
+        var rollback = store.ApplySchemaTransform(updated, transform, validate);
         Catalog.LoadOrReplace(updated);
         try
         {
@@ -1228,6 +1301,62 @@ public sealed class TableManager : IDisposable
         }
     }
 
+    private void ApplyMetadataSchemaLocked(
+        TableSchema current,
+        TableSchema updated,
+        TableStore store)
+    {
+        store.ApplyMetadataSchema(updated);
+        Catalog.LoadOrReplace(updated);
+        try
+        {
+            PersistCatalogLocked();
+        }
+        catch
+        {
+            store.ApplyMetadataSchema(current);
+            Catalog.LoadOrReplace(current);
+            throw;
+        }
+    }
+
+    private void EnsureColumnTypeIsNotReferencedByForeignKeyLocked(
+        TableSchema schema,
+        TableColumn column)
+    {
+        foreach (var foreignKey in schema.ForeignKeys)
+        {
+            if (foreignKey.Columns.Any(name => string.Equals(name, column.Name, StringComparison.Ordinal)))
+            {
+                throw new InvalidOperationException(
+                    $"列 '{column.Name}' 被外键 '{foreignKey.Name}' 引用，修改类型前必须先删除该约束。");
+            }
+        }
+
+        foreach (var candidate in Catalog.Snapshot())
+        {
+            foreach (var foreignKey in candidate.ForeignKeys)
+            {
+                if (string.Equals(foreignKey.PrincipalTable, schema.Name, StringComparison.Ordinal)
+                    && foreignKey.PrincipalColumns.Any(name =>
+                        string.Equals(name, column.Name, StringComparison.Ordinal)))
+                {
+                    throw new InvalidOperationException(
+                        $"列 '{column.Name}' 被 table '{candidate.Name}' 的外键 '{foreignKey.Name}' 引用，修改类型前必须先删除该约束。");
+                }
+            }
+        }
+    }
+
+    private static void ValidateAlteredRowCheckConstraints(
+        TableSchema schema,
+        IReadOnlyList<object?> values)
+    {
+        var row = new TableRow(values);
+        foreach (var checkConstraint in schema.CheckConstraints)
+            ValidateCheckConstraintRow(schema, row, checkConstraint);
+    }
+
     private static string EncodeName(string name)
     {
         byte[] bytes = System.Text.Encoding.UTF8.GetBytes(name);
@@ -1237,6 +1366,21 @@ public sealed class TableManager : IDisposable
     private bool HasInboundForeignKeyLocked(string tableName)
         => Catalog.Snapshot().Any(schema => schema.ForeignKeys.Any(foreignKey =>
             string.Equals(foreignKey.PrincipalTable, tableName, StringComparison.Ordinal)));
+
+    private void EnsureTableIsNotReferencedByForeignKeyLocked(string tableName, string operation)
+    {
+        foreach (var schema in Catalog.Snapshot())
+        {
+            foreach (var foreignKey in schema.ForeignKeys)
+            {
+                if (!string.Equals(foreignKey.PrincipalTable, tableName, StringComparison.Ordinal))
+                    continue;
+
+                throw new InvalidOperationException(
+                    $"table '{tableName}' 被 table '{schema.Name}' 的外键 '{foreignKey.Name}' 引用，不能{operation}；请先删除该外键约束。");
+            }
+        }
+    }
 
     private void DiscoverCleanupTablesLocked()
     {

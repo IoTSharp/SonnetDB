@@ -31,6 +31,7 @@ export interface TableColumnInfo {
   isNullable: boolean;
   ordinal: number;
   isRowVersion?: boolean;
+  defaultExpressionSql?: string | null;
 }
 
 export interface TableIndexInfo {

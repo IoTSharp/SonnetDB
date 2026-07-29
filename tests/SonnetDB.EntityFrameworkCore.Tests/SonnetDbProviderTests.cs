@@ -708,6 +708,85 @@ public sealed class SonnetDbProviderTests : IDisposable
     }
 
     [Fact]
+    public void MigrationsSqlGenerator_DdlCommandsSuppressTransactionsButInsertDataDoesNot()
+    {
+        using var context = new DeviceContext(CreateOptions<DeviceContext>());
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var createTable = new CreateTableOperation
+        {
+            Name = "Devices",
+            Columns =
+            {
+                new AddColumnOperation
+                {
+                    Table = "Devices",
+                    Name = "Id",
+                    ClrType = typeof(long),
+                    ColumnType = "INT",
+                    IsNullable = false
+                }
+            }
+        };
+        var addColumn = new AddColumnOperation
+        {
+            Table = "Devices",
+            Name = "Name",
+            ClrType = typeof(string),
+            ColumnType = "STRING",
+            IsNullable = true
+        };
+        var alterColumn = new AlterColumnOperation
+        {
+            Table = "Devices",
+            Name = "Name",
+            ClrType = typeof(string),
+            ColumnType = "STRING",
+            IsNullable = false,
+            DefaultValue = "unknown",
+            OldColumn = new AddColumnOperation
+            {
+                Table = "Devices",
+                Name = "Name",
+                ClrType = typeof(string),
+                ColumnType = "STRING",
+                IsNullable = true
+            }
+        };
+        var insertData = new InsertDataOperation
+        {
+            Table = "Devices",
+            Columns = ["Id"],
+            ColumnTypes = ["INT"],
+            Values = new object[,] { { 1L } }
+        };
+
+        var commands = generator.Generate([createTable, addColumn, alterColumn, insertData]);
+
+        Assert.Collection(
+            commands,
+            command =>
+            {
+                Assert.Contains("CREATE TABLE", command.CommandText, StringComparison.Ordinal);
+                Assert.True(command.TransactionSuppressed);
+            },
+            command =>
+            {
+                Assert.Contains("ADD COLUMN", command.CommandText, StringComparison.Ordinal);
+                Assert.True(command.TransactionSuppressed);
+            },
+            command =>
+            {
+                Assert.Contains("ALTER COLUMN", command.CommandText, StringComparison.Ordinal);
+                Assert.True(command.TransactionSuppressed);
+            },
+            command =>
+            {
+                Assert.Contains("INSERT INTO", command.CommandText, StringComparison.Ordinal);
+                Assert.False(command.TransactionSuppressed);
+            });
+    }
+
+    [Fact]
     public void MigrationsSqlGenerator_CreateIndex_UsesIdempotentSonnetDbDdl()
     {
         using var context = new DeviceContext(CreateOptions<DeviceContext>());
@@ -865,32 +944,171 @@ public sealed class SonnetDbProviderTests : IDisposable
     }
 
     [Fact]
+    public void MigrationsSqlGenerator_AlterColumn_GeneratesTypeNullabilityAndDefault()
+    {
+        using var context = new DeviceContext(CreateOptions<DeviceContext>());
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var alterColumn = new AlterColumnOperation
+        {
+            Table = "Devices",
+            Name = "LegacyCode",
+            ClrType = typeof(string),
+            ColumnType = "STRING",
+            IsNullable = true,
+            DefaultValue = "unknown",
+            OldColumn = new AddColumnOperation
+            {
+                Table = "Devices",
+                Name = "LegacyCode",
+                ClrType = typeof(long),
+                ColumnType = "INT",
+                IsNullable = false
+            }
+        };
+
+        var sql = Assert.Single(generator.Generate([alterColumn]));
+
+        Assert.Contains(
+            "ALTER TABLE \"Devices\" ALTER COLUMN \"LegacyCode\" TYPE STRING NULL SET DEFAULT 'unknown'",
+            sql.CommandText,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MigrationsSqlGenerator_AlterColumnWithoutDefault_GeneratesDropDefault()
+    {
+        using var context = new DeviceContext(CreateOptions<DeviceContext>());
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var alterColumn = new AlterColumnOperation
+        {
+            Table = "Devices",
+            Name = "Name",
+            ClrType = typeof(string),
+            ColumnType = "STRING",
+            IsNullable = false,
+            OldColumn = new AddColumnOperation
+            {
+                Table = "Devices",
+                Name = "Name",
+                ClrType = typeof(string),
+                ColumnType = "STRING",
+                IsNullable = true,
+                DefaultValue = "legacy"
+            }
+        };
+
+        var sql = Assert.Single(generator.Generate([alterColumn]));
+
+        Assert.Contains(
+            "ALTER TABLE \"Devices\" ALTER COLUMN \"Name\" TYPE STRING NOT NULL DROP DEFAULT",
+            sql.CommandText,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MigrationsSqlGenerator_AlterColumnWithSqlDefault_EmitsRawDefaultExpression()
+    {
+        using var context = new DeviceContext(CreateOptions<DeviceContext>());
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var alterColumn = new AlterColumnOperation
+        {
+            Table = "Devices",
+            Name = "Retries",
+            ClrType = typeof(long),
+            ColumnType = "INT",
+            IsNullable = false,
+            DefaultValueSql = "42",
+            OldColumn = new AddColumnOperation
+            {
+                Table = "Devices",
+                Name = "Retries",
+                ClrType = typeof(long),
+                ColumnType = "INT",
+                IsNullable = false,
+                DefaultValue = 0L
+            }
+        };
+
+        var sql = Assert.Single(generator.Generate([alterColumn]));
+
+        Assert.Contains(
+            "ALTER TABLE \"Devices\" ALTER COLUMN \"Retries\" TYPE INT NOT NULL SET DEFAULT 42",
+            sql.CommandText,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MigrationsSqlGenerator_AlterComputedColumn_ThrowsNotSupported()
+    {
+        using var context = new DeviceContext(CreateOptions<DeviceContext>());
+        var generator = context.GetService<IMigrationsSqlGenerator>();
+        var alterColumn = new AlterColumnOperation
+        {
+            Table = "Devices",
+            Name = "DisplayName",
+            ClrType = typeof(string),
+            ColumnType = "STRING",
+            IsNullable = true,
+            ComputedColumnSql = "Name"
+        };
+
+        var exception = Assert.Throws<NotSupportedException>(() => generator.Generate([alterColumn]));
+
+        Assert.Contains("计算列", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task DatabaseMigrate_WithHistoryTable_InitializesUpgradesRollsBackAndIsIdempotent()
     {
         using var context = new MigrationDeviceContext(CreateOptions<MigrationDeviceContext>());
+        var migrator = context.GetService<IMigrator>();
 
+        await migrator.MigrateAsync("20260613000200_AddDeviceEnabled");
+
+        await context.Database.ExecuteSqlRawAsync(
+            "INSERT INTO \"Devices\" (\"Id\", \"Name\", \"Enabled\") VALUES (1, 'pump', TRUE)");
         await context.Database.MigrateAsync();
 
         Assert.True(await HistoryTableExistsAsync(context, "__EFMigrationsHistory"));
         Assert.Equal(
-            ["20260613000100_InitialDevices", "20260613000200_AddDeviceEnabled"],
+            [
+                "20260613000100_InitialDevices",
+                "20260613000200_AddDeviceEnabled",
+                "20260613000300_AddAndAlterDeviceRetryCount",
+            ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.True(await ColumnExistsAsync(context, "Devices", "Enabled"));
+        Assert.Equal(
+            ("float64", true, "2.5"),
+            await ReadColumnDefinitionAsync(context, "Devices", "RetryCount"));
+        Assert.Equal(0d, await ReadDoubleAsync(context, "Devices", "RetryCount", 1));
+
+        await context.Database.ExecuteSqlRawAsync(
+            "INSERT INTO \"Devices\" (\"Id\", \"Name\", \"Enabled\") VALUES (2, 'fan', FALSE)");
+        Assert.Equal(2.5d, await ReadDoubleAsync(context, "Devices", "RetryCount", 2));
 
         await context.Database.MigrateAsync();
-        Assert.Equal(2, await CountRowsAsync(context, "__EFMigrationsHistory"));
+        Assert.Equal(3, await CountRowsAsync(context, "__EFMigrationsHistory"));
 
-        var migrator = context.GetService<IMigrator>();
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM \"Devices\" WHERE \"Id\" >= 0");
         await migrator.MigrateAsync("20260613000100_InitialDevices");
 
         Assert.Equal(["20260613000100_InitialDevices"], (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.False(await ColumnExistsAsync(context, "Devices", "Enabled"));
+        Assert.False(await ColumnExistsAsync(context, "Devices", "RetryCount"));
 
         await context.Database.MigrateAsync();
         Assert.Equal(
-            ["20260613000100_InitialDevices", "20260613000200_AddDeviceEnabled"],
+            [
+                "20260613000100_InitialDevices",
+                "20260613000200_AddDeviceEnabled",
+                "20260613000300_AddAndAlterDeviceRetryCount",
+            ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.True(await ColumnExistsAsync(context, "Devices", "Enabled"));
+        Assert.Equal(
+            ("float64", true, "2.5"),
+            await ReadColumnDefinitionAsync(context, "Devices", "RetryCount"));
     }
 
     [Fact]
@@ -908,7 +1126,7 @@ public sealed class SonnetDbProviderTests : IDisposable
 
         Assert.True(await HistoryTableExistsAsync(context, "__SonnetHistory"));
         Assert.False(await HistoryTableExistsAsync(context, "__EFMigrationsHistory"));
-        Assert.Equal(2, await CountRowsAsync(context, "__SonnetHistory"));
+        Assert.Equal(3, await CountRowsAsync(context, "__SonnetHistory"));
     }
 
     [Fact]
@@ -1105,7 +1323,11 @@ public sealed class SonnetDbProviderTests : IDisposable
                     .Options);
 
             Assert.Equal(
-                ["20260613000100_InitialDevices", "20260613000200_AddDeviceEnabled"],
+                [
+                    "20260613000100_InitialDevices",
+                    "20260613000200_AddDeviceEnabled",
+                    "20260613000300_AddAndAlterDeviceRetryCount",
+                ],
                 (await context.Database.GetPendingMigrationsAsync()).ToArray());
 
             await context.Database.MigrateAsync();
@@ -1113,7 +1335,10 @@ public sealed class SonnetDbProviderTests : IDisposable
             var creator = context.Database.GetService<IRelationalDatabaseCreator>();
             Assert.True(await creator.ExistsAsync());
             Assert.True(await ColumnExistsAsync(context, "Devices", "Enabled"));
-            Assert.Equal(2, await CountRowsAsync(context, "__EFMigrationsHistory"));
+            Assert.Equal(
+                ("float64", true, "2.5"),
+                await ReadColumnDefinitionAsync(context, "Devices", "RetryCount"));
+            Assert.Equal(3, await CountRowsAsync(context, "__EFMigrationsHistory"));
 
             await using var transaction = await context.Database.BeginTransactionAsync(
                 System.Data.IsolationLevel.Serializable);
@@ -1195,13 +1420,19 @@ public sealed class SonnetDbProviderTests : IDisposable
                 ["20260613000100_InitialDevices"],
                 (await context.Database.GetAppliedMigrationsAsync()).ToArray());
             Assert.Equal(
-                ["20260613000200_AddDeviceEnabled"],
+                [
+                    "20260613000200_AddDeviceEnabled",
+                    "20260613000300_AddAndAlterDeviceRetryCount",
+                ],
                 (await context.Database.GetPendingMigrationsAsync()).ToArray());
 
             await context.Database.MigrateAsync();
 
             Assert.True(await ColumnExistsAsync(context, "Devices", "Enabled"));
-            Assert.Equal(2, await CountRowsAsync(context, "__EFMigrationsHistory"));
+            Assert.Equal(
+                ("float64", true, "2.5"),
+                await ReadColumnDefinitionAsync(context, "Devices", "RetryCount"));
+            Assert.Equal(3, await CountRowsAsync(context, "__EFMigrationsHistory"));
 
             var observed = requests.ToArray();
             Assert.Contains(observed, request => request.Method == "POST" && request.Path == "/v1/db");
@@ -1266,6 +1497,56 @@ public sealed class SonnetDbProviderTests : IDisposable
             }
 
             return false;
+        }
+        finally
+        {
+            await context.Database.CloseConnectionAsync();
+        }
+    }
+
+    private static async Task<(string DataType, bool IsNullable, string? DefaultExpressionSql)> ReadColumnDefinitionAsync(
+        DbContext context,
+        string tableName,
+        string columnName)
+    {
+        await using var command = context.Database.GetDbConnection().CreateCommand();
+        command.CommandText = $"DESCRIBE TABLE \"{tableName}\"";
+        await context.Database.OpenConnectionAsync();
+        try
+        {
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                if (!string.Equals(reader.GetString(0), columnName, StringComparison.Ordinal))
+                    continue;
+
+                return (
+                    reader.GetString(1),
+                    reader.GetBoolean(2),
+                    reader.IsDBNull(5) ? null : reader.GetString(5));
+            }
+
+            throw new InvalidOperationException($"table '{tableName}' 中不存在列 '{columnName}'。");
+        }
+        finally
+        {
+            await context.Database.CloseConnectionAsync();
+        }
+    }
+
+    private static async Task<double> ReadDoubleAsync(
+        DbContext context,
+        string tableName,
+        string columnName,
+        long id)
+    {
+        await using var command = context.Database.GetDbConnection().CreateCommand();
+        command.CommandText = $"SELECT \"{columnName}\" FROM \"{tableName}\" WHERE \"Id\" = {id}";
+        await context.Database.OpenConnectionAsync();
+        try
+        {
+            object? value = await command.ExecuteScalarAsync();
+            return Convert.ToDouble(value, System.Globalization.CultureInfo.InvariantCulture);
         }
         finally
         {
@@ -1526,6 +1807,7 @@ public sealed class MigrationDeviceContext(DbContextOptions<MigrationDeviceConte
             entity.Property(item => item.Id).HasColumnType("INT").ValueGeneratedNever();
             entity.Property(item => item.Name).HasColumnType("STRING").IsRequired();
             entity.Property(item => item.Enabled).HasColumnType("BOOL");
+            entity.Property(item => item.RetryCount).HasColumnType("FLOAT");
         });
     }
 }
@@ -1537,6 +1819,8 @@ public sealed class MigrationDevice
     public string Name { get; set; } = string.Empty;
 
     public bool Enabled { get; set; }
+
+    public double? RetryCount { get; set; }
 }
 
 [DbContext(typeof(MigrationDeviceContext))]
@@ -1573,4 +1857,44 @@ public sealed class AddDeviceEnabled : Migration
 
     protected override void Down(MigrationBuilder migrationBuilder)
         => migrationBuilder.DropColumn("Enabled", "Devices");
+}
+
+[DbContext(typeof(MigrationDeviceContext))]
+[Migration("20260613000300_AddAndAlterDeviceRetryCount")]
+public sealed class AddAndAlterDeviceRetryCount : Migration
+{
+    protected override void Up(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.AddColumn<long>(
+            name: "RetryCount",
+            table: "Devices",
+            type: "INT",
+            nullable: false,
+            defaultValue: 0L);
+        migrationBuilder.AlterColumn<double>(
+            name: "RetryCount",
+            table: "Devices",
+            type: "FLOAT",
+            nullable: true,
+            defaultValue: 2.5d,
+            oldClrType: typeof(long),
+            oldType: "INT",
+            oldNullable: false,
+            oldDefaultValue: 0L);
+    }
+
+    protected override void Down(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.AlterColumn<long>(
+            name: "RetryCount",
+            table: "Devices",
+            type: "INT",
+            nullable: false,
+            defaultValue: 0L,
+            oldClrType: typeof(double),
+            oldType: "FLOAT",
+            oldNullable: true,
+            oldDefaultValue: 2.5d);
+        migrationBuilder.DropColumn("RetryCount", "Devices");
+    }
 }

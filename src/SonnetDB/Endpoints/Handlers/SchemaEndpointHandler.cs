@@ -69,7 +69,10 @@ internal static class SchemaEndpointHandler
                     column.IsPrimaryKey,
                     column.IsNullable,
                     column.Ordinal,
-                    column.IsRowVersion));
+                    column.IsRowVersion)
+                {
+                    DefaultExpressionSql = column.DefaultExpressionSql,
+                });
             }
 
             var indexes = new List<TableIndexInfo>(schema.Indexes.Count);

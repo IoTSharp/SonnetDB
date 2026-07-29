@@ -41,7 +41,11 @@ public sealed record TableColumnInfo(
     bool IsPrimaryKey,
     bool IsNullable,
     int Ordinal,
-    bool IsRowVersion = false);
+    bool IsRowVersion = false)
+{
+    /// <summary>规范化的列默认表达式；没有默认值时为 <c>null</c>。</summary>
+    public string? DefaultExpressionSql { get; init; }
+}
 
 /// <summary>关系表外键信息。</summary>
 public sealed record TableForeignKeyInfo(

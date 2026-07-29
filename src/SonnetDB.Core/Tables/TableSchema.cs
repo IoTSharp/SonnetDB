@@ -74,6 +74,39 @@ public sealed class TableSchema
         IReadOnlySet<string>? rowVersionColumns = null,
         long createdAtUtcTicks = 0,
         IReadOnlyList<TableCheckConstraintDefinition>? checkConstraints = null)
+        => CreateWithDefaults(
+            name,
+            columns,
+            primaryKey,
+            indexes,
+            foreignKeys,
+            rowVersionColumns,
+            createdAtUtcTicks,
+            checkConstraints,
+            columnDefaults: null);
+
+    /// <summary>
+    /// 创建关系表 schema，并附带可持久化的列默认值定义。
+    /// </summary>
+    /// <param name="name">表名。</param>
+    /// <param name="columns">列定义。</param>
+    /// <param name="primaryKey">主键列名。</param>
+    /// <param name="indexes">二级索引声明。</param>
+    /// <param name="foreignKeys">外键声明。</param>
+    /// <param name="rowVersionColumns">乐观并发版本列名。</param>
+    /// <param name="createdAtUtcTicks">创建时间 UTC ticks。</param>
+    /// <param name="checkConstraints">检查约束声明。</param>
+    /// <param name="columnDefaults">列名到规范化默认表达式的映射。</param>
+    public static TableSchema CreateWithDefaults(
+        string name,
+        IReadOnlyList<(string Name, TableColumnType DataType, bool IsNullable)> columns,
+        IReadOnlyList<string> primaryKey,
+        IReadOnlyList<TableIndexDefinition>? indexes,
+        IReadOnlyList<TableForeignKeyDefinition>? foreignKeys,
+        IReadOnlySet<string>? rowVersionColumns,
+        long createdAtUtcTicks,
+        IReadOnlyList<TableCheckConstraintDefinition>? checkConstraints,
+        IReadOnlyDictionary<string, string?>? columnDefaults)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(columns);
@@ -95,7 +128,41 @@ public sealed class TableSchema
             if (!Enum.IsDefined(column.DataType))
                 throw new ArgumentException($"关系表 '{name}' 的列 '{column.Name}' 使用了未知类型 {column.DataType}。", nameof(columns));
             bool isRowVersion = rowVersionColumns?.Contains(column.Name) == true;
-            columnList.Add(new TableColumn(column.Name, column.DataType, IsPrimaryKey: false, column.IsNullable, i, isRowVersion));
+            string? defaultExpressionSql = columnDefaults is not null
+                && columnDefaults.TryGetValue(column.Name, out var configuredDefault)
+                    ? configuredDefault
+                    : null;
+            if (columnDefaults?.ContainsKey(column.Name) == true
+                && string.IsNullOrWhiteSpace(defaultExpressionSql))
+            {
+                throw new ArgumentException($"关系表 '{name}' 的列 '{column.Name}' 默认表达式不能为空。", nameof(columnDefaults));
+            }
+            if (isRowVersion && defaultExpressionSql is not null)
+            {
+                throw new ArgumentException(
+                    $"关系表 '{name}' 的 ROWVERSION 列 '{column.Name}' 不允许声明默认值。",
+                    nameof(columnDefaults));
+            }
+
+            var tableColumn = new TableColumn(
+                column.Name,
+                column.DataType,
+                IsPrimaryKey: false,
+                column.IsNullable,
+                i,
+                isRowVersion);
+            if (defaultExpressionSql is not null)
+                tableColumn = tableColumn with { DefaultExpressionSql = defaultExpressionSql };
+            columnList.Add(tableColumn);
+        }
+
+        if (columnDefaults is not null)
+        {
+            foreach (var defaultColumn in columnDefaults.Keys)
+            {
+                if (!seen.Contains(defaultColumn))
+                    throw new ArgumentException($"默认值引用了未知列 '{defaultColumn}'。", nameof(columnDefaults));
+            }
         }
 
         var primaryKeyList = new List<string>(primaryKey.Count);
@@ -197,7 +264,7 @@ public sealed class TableSchema
             .Select(static i => new TableIndexDefinition(i.Name, i.Columns, i.IsUnique, i.CreatedAtUtcTicks, i.JsonPath))
             .Append(definition)
             .ToArray();
-        return Create(
+        return CreateWithDefaults(
             Name,
             Columns.Select(static c => (c.Name, c.DataType, c.IsNullable)).ToArray(),
             PrimaryKey,
@@ -205,7 +272,8 @@ public sealed class TableSchema
             ForeignKeyDefinitions(),
             RowVersionColumnNames(),
             CreatedAtUtcTicks,
-            CheckConstraintDefinitions());
+            CheckConstraintDefinitions(),
+            ColumnDefaultDefinitions());
     }
 
     /// <summary>
@@ -223,7 +291,7 @@ public sealed class TableSchema
             .Where(i => !string.Equals(i.Name, indexName, StringComparison.Ordinal))
             .Select(static i => new TableIndexDefinition(i.Name, i.Columns, i.IsUnique, i.CreatedAtUtcTicks, i.JsonPath))
             .ToArray();
-        return Create(
+        return CreateWithDefaults(
             Name,
             Columns.Select(static c => (c.Name, c.DataType, c.IsNullable)).ToArray(),
             PrimaryKey,
@@ -231,7 +299,8 @@ public sealed class TableSchema
             ForeignKeyDefinitions(),
             RowVersionColumnNames(),
             CreatedAtUtcTicks,
-            CheckConstraintDefinitions());
+            CheckConstraintDefinitions(),
+            ColumnDefaultDefinitions());
     }
 
     /// <summary>
@@ -252,7 +321,7 @@ public sealed class TableSchema
             .Where(f => !string.Equals(f.Name, target.Name, StringComparison.Ordinal))
             .Select(static f => new TableForeignKeyDefinition(f.Name, f.Columns, f.PrincipalTable, f.PrincipalColumns, f.OnDelete))
             .ToArray();
-        return Create(
+        return CreateWithDefaults(
             Name,
             Columns.Select(static c => (c.Name, c.DataType, c.IsNullable)).ToArray(),
             PrimaryKey,
@@ -260,7 +329,8 @@ public sealed class TableSchema
             definitions,
             RowVersionColumnNames(),
             CreatedAtUtcTicks,
-            CheckConstraintDefinitions());
+            CheckConstraintDefinitions(),
+            ColumnDefaultDefinitions());
     }
 
     /// <summary>
@@ -279,7 +349,7 @@ public sealed class TableSchema
         var definitions = ForeignKeyDefinitions()
             .Append(definition)
             .ToArray();
-        return Create(
+        return CreateWithDefaults(
             Name,
             Columns.Select(static c => (c.Name, c.DataType, c.IsNullable)).ToArray(),
             PrimaryKey,
@@ -287,7 +357,8 @@ public sealed class TableSchema
             definitions,
             RowVersionColumnNames(),
             CreatedAtUtcTicks,
-            CheckConstraintDefinitions());
+            CheckConstraintDefinitions(),
+            ColumnDefaultDefinitions());
     }
 
     /// <summary>
@@ -305,7 +376,7 @@ public sealed class TableSchema
             throw new InvalidOperationException($"table '{Name}' 中约束 '{definition.Name}' 已存在。");
         }
 
-        return Create(
+        return CreateWithDefaults(
             Name,
             Columns.Select(static c => (c.Name, c.DataType, c.IsNullable)).ToArray(),
             PrimaryKey,
@@ -313,7 +384,8 @@ public sealed class TableSchema
             ForeignKeyDefinitions(),
             RowVersionColumnNames(),
             CreatedAtUtcTicks,
-            CheckConstraintDefinitions().Append(definition).ToArray());
+            CheckConstraintDefinitions().Append(definition).ToArray(),
+            ColumnDefaultDefinitions());
     }
 
     /// <summary>
@@ -327,7 +399,7 @@ public sealed class TableSchema
         if (!_checkConstraintsByName.ContainsKey(constraintName))
             return this;
 
-        return Create(
+        return CreateWithDefaults(
             Name,
             Columns.Select(static c => (c.Name, c.DataType, c.IsNullable)).ToArray(),
             PrimaryKey,
@@ -340,19 +412,41 @@ public sealed class TableSchema
                 .Select(static constraint => new TableCheckConstraintDefinition(
                     constraint.Name,
                     constraint.ExpressionSql))
-                .ToArray());
+                .ToArray(),
+            ColumnDefaultDefinitions());
     }
 
     /// <summary>
     /// 返回添加列后的新 schema。新增列追加到末尾。
     /// </summary>
     public TableSchema WithAddedColumn(string name, TableColumnType dataType, bool isNullable)
+        => WithAddedColumn(name, dataType, isNullable, defaultExpressionSql: null);
+
+    /// <summary>
+    /// 返回添加列后的新 schema，并保存该列的默认表达式。
+    /// </summary>
+    /// <param name="name">列名。</param>
+    /// <param name="dataType">列数据类型。</param>
+    /// <param name="isNullable">是否允许 NULL。</param>
+    /// <param name="defaultExpressionSql">规范化默认表达式；没有默认值时为 <c>null</c>。</param>
+    public TableSchema WithAddedColumn(
+        string name,
+        TableColumnType dataType,
+        bool isNullable,
+        string? defaultExpressionSql)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         if (_columnsByName.ContainsKey(name))
             throw new InvalidOperationException($"table '{Name}' 中列 '{name}' 已存在。");
 
-        return Create(
+        var defaults = ColumnDefaultDefinitions().ToDictionary(
+            static pair => pair.Key,
+            static pair => pair.Value,
+            StringComparer.Ordinal);
+        if (defaultExpressionSql is not null)
+            defaults[name] = defaultExpressionSql;
+
+        return CreateWithDefaults(
             Name,
             Columns.Select(static c => (c.Name, c.DataType, c.IsNullable))
                 .Append((name, dataType, isNullable))
@@ -362,7 +456,56 @@ public sealed class TableSchema
             ForeignKeyDefinitions(),
             RowVersionColumnNames(),
             CreatedAtUtcTicks,
-            CheckConstraintDefinitions());
+            CheckConstraintDefinitions(),
+            defaults);
+    }
+
+    /// <summary>
+    /// 返回修改指定列类型、空值约束和默认值后的新 schema。
+    /// </summary>
+    /// <param name="name">列名。</param>
+    /// <param name="dataType">目标数据类型。</param>
+    /// <param name="isNullable">目标空值约束。</param>
+    /// <param name="defaultExpressionSql">目标默认表达式；<c>null</c> 表示没有默认值。</param>
+    public TableSchema WithAlteredColumn(
+        string name,
+        TableColumnType dataType,
+        bool isNullable,
+        string? defaultExpressionSql)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        var column = TryGetColumn(name)
+            ?? throw new InvalidOperationException($"table '{Name}' 中不存在列 '{name}'。");
+        if (column.IsPrimaryKey && (column.DataType != dataType || isNullable))
+            throw new InvalidOperationException("ALTER TABLE ALTER COLUMN 当前不支持修改 PRIMARY KEY 列的类型或空值约束。");
+        if (column.IsRowVersion
+            && (column.DataType != dataType || isNullable || defaultExpressionSql is not null))
+        {
+            throw new InvalidOperationException("ALTER TABLE ALTER COLUMN 当前不支持修改 ROWVERSION 列定义。");
+        }
+
+        var defaults = ColumnDefaultDefinitions().ToDictionary(
+            static pair => pair.Key,
+            static pair => pair.Value,
+            StringComparer.Ordinal);
+        if (defaultExpressionSql is null)
+            defaults.Remove(name);
+        else
+            defaults[name] = defaultExpressionSql;
+
+        return CreateWithDefaults(
+            Name,
+            Columns.Select(c => string.Equals(c.Name, name, StringComparison.Ordinal)
+                    ? (c.Name, dataType, isNullable)
+                    : (c.Name, c.DataType, c.IsNullable))
+                .ToArray(),
+            PrimaryKey,
+            IndexDefinitions(),
+            ForeignKeyDefinitions(),
+            RowVersionColumnNames(),
+            CreatedAtUtcTicks,
+            CheckConstraintDefinitions(),
+            defaults);
     }
 
     /// <summary>
@@ -391,7 +534,7 @@ public sealed class TableSchema
                 throw new InvalidOperationException($"列 '{name}' 被检查约束 '{checkConstraint.Name}' 引用，不能删除。");
         }
 
-        return Create(
+        return CreateWithDefaults(
             Name,
             Columns.Where(c => !string.Equals(c.Name, name, StringComparison.Ordinal))
                 .Select(static c => (c.Name, c.DataType, c.IsNullable))
@@ -401,7 +544,8 @@ public sealed class TableSchema
             ForeignKeyDefinitions(),
             RowVersionColumnNames(exceptColumn: name),
             CreatedAtUtcTicks,
-            CheckConstraintDefinitions());
+            CheckConstraintDefinitions(),
+            ColumnDefaultDefinitions(exceptColumn: name));
     }
 
     /// <summary>
@@ -420,7 +564,7 @@ public sealed class TableSchema
         if (CheckConstraints.Any(constraint => constraint.ReferencesColumn(oldName)))
             throw new InvalidOperationException($"列 '{oldName}' 被 CHECK 约束引用，当前不能重命名。");
 
-        return Create(
+        return CreateWithDefaults(
             Name,
             Columns.Select(c => string.Equals(c.Name, oldName, StringComparison.Ordinal)
                     ? (newName, c.DataType, c.IsNullable)
@@ -431,14 +575,15 @@ public sealed class TableSchema
             ForeignKeyDefinitions(renameColumn: (oldName, newName)),
             RowVersionColumnNames(renameColumn: (oldName, newName)),
             CreatedAtUtcTicks,
-            CheckConstraintDefinitions());
+            CheckConstraintDefinitions(),
+            ColumnDefaultDefinitions(renameColumn: (oldName, newName)));
     }
 
     /// <summary>
     /// 返回重命名表后的新 schema。
     /// </summary>
     public TableSchema WithName(string name)
-        => Create(
+        => CreateWithDefaults(
             name,
             Columns.Select(static c => (c.Name, c.DataType, c.IsNullable)).ToArray(),
             PrimaryKey,
@@ -446,7 +591,8 @@ public sealed class TableSchema
             ForeignKeyDefinitions(),
             RowVersionColumnNames(),
             CreatedAtUtcTicks,
-            CheckConstraintDefinitions());
+            CheckConstraintDefinitions(),
+            ColumnDefaultDefinitions());
 
     /// <summary>返回当前表的乐观并发列；未声明时返回 <c>null</c>。</summary>
     public TableColumn? RowVersionColumn
@@ -636,6 +782,29 @@ public sealed class TableSchema
                 constraint.Name,
                 constraint.ExpressionSql))
             .ToArray();
+
+    private IReadOnlyDictionary<string, string?> ColumnDefaultDefinitions(
+        (string OldName, string NewName)? renameColumn = null,
+        string? exceptColumn = null)
+    {
+        var defaults = new Dictionary<string, string?>(StringComparer.Ordinal);
+        foreach (var column in Columns)
+        {
+            if (column.DefaultExpressionSql is null
+                || string.Equals(column.Name, exceptColumn, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var name = renameColumn is { } rename
+                && string.Equals(column.Name, rename.OldName, StringComparison.Ordinal)
+                    ? rename.NewName
+                    : column.Name;
+            defaults.Add(name, column.DefaultExpressionSql);
+        }
+
+        return defaults;
+    }
 
     private IReadOnlySet<string> RowVersionColumnNames(
         (string OldName, string NewName)? renameColumn = null,

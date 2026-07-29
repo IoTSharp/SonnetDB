@@ -118,6 +118,67 @@ public class SqlParserTests
         Assert.True(stmt.IfExists);
     }
 
+    [Theory]
+    [InlineData("ALTER TABLE devices ALTER COLUMN reading TYPE FLOAT")]
+    [InlineData("ALTER TABLE devices ALTER COLUMN reading SET DATA TYPE FLOAT")]
+    public void Parse_AlterTableAlterColumnTypeVariants_ReturnsAst(string sql)
+    {
+        var stmt = Assert.IsType<AlterTableAlterColumnStatement>(SqlParser.Parse(sql));
+
+        Assert.Equal("devices", stmt.TableName);
+        Assert.Equal("reading", stmt.ColumnName);
+        Assert.Equal(SqlDataType.Float64, stmt.DataType);
+        Assert.Equal(ColumnNullability.Unspecified, stmt.Nullability);
+        Assert.Equal(ColumnDefaultAction.Unchanged, stmt.DefaultAction);
+        Assert.Null(stmt.DefaultExpression);
+    }
+
+    [Theory]
+    [InlineData("ALTER TABLE devices ALTER COLUMN reading SET NOT NULL", ColumnNullability.NotNull)]
+    [InlineData("ALTER TABLE devices ALTER COLUMN reading DROP NOT NULL", ColumnNullability.Nullable)]
+    public void Parse_AlterTableAlterColumnNullabilityVariants_ReturnsAst(
+        string sql,
+        ColumnNullability expected)
+    {
+        var stmt = Assert.IsType<AlterTableAlterColumnStatement>(SqlParser.Parse(sql));
+
+        Assert.Null(stmt.DataType);
+        Assert.Equal(expected, stmt.Nullability);
+        Assert.Equal(ColumnDefaultAction.Unchanged, stmt.DefaultAction);
+    }
+
+    [Fact]
+    public void Parse_AlterTableAlterColumnSetDropDefault_ReturnsAst()
+    {
+        var set = Assert.IsType<AlterTableAlterColumnStatement>(SqlParser.Parse(
+            "ALTER TABLE devices ALTER COLUMN site SET DEFAULT 'north'"));
+        Assert.Equal(ColumnDefaultAction.Set, set.DefaultAction);
+        Assert.Equal(LiteralExpression.String("north"), set.DefaultExpression);
+
+        var drop = Assert.IsType<AlterTableAlterColumnStatement>(SqlParser.Parse(
+            "ALTER TABLE devices ALTER COLUMN site DROP DEFAULT"));
+        Assert.Equal(ColumnDefaultAction.Drop, drop.DefaultAction);
+        Assert.Null(drop.DefaultExpression);
+    }
+
+    [Fact]
+    public void Parse_AlterTableAlterColumnSqlServerForm_ReturnsCombinedAst()
+    {
+        var stmt = Assert.IsType<AlterTableAlterColumnStatement>(SqlParser.Parse(
+            "ALTER TABLE devices ALTER COLUMN reading FLOAT NOT NULL"));
+
+        Assert.Equal(SqlDataType.Float64, stmt.DataType);
+        Assert.Equal(ColumnNullability.NotNull, stmt.Nullability);
+        Assert.Equal(ColumnDefaultAction.Unchanged, stmt.DefaultAction);
+    }
+
+    [Fact]
+    public void Parse_AlterTableAlterColumnUsingExpression_ThrowsSqlParseException()
+    {
+        Assert.Throws<SqlParseException>(() => SqlParser.Parse(
+            "ALTER TABLE devices ALTER COLUMN reading TYPE INT USING round(reading)"));
+    }
+
     [Fact]
     public void Parse_ShowDropFullTextIndexes_ReturnsAst()
     {
@@ -250,6 +311,42 @@ public class SqlParserTests
             "INSERT INTO m (a, b) VALUES (TRUE, NULL)");
         Assert.Equal(LiteralExpression.Bool(true), stmt.Rows[0][0]);
         Assert.Equal(LiteralExpression.Null(), stmt.Rows[0][1]);
+    }
+
+    [Fact]
+    public void Parse_Insert_DefaultValuesAndMixedDefaultMarkers_ReturnAst()
+    {
+        var mixed = Assert.IsType<InsertStatement>(SqlParser.Parse(
+            "INSERT INTO devices (id, label) VALUES (1, DEFAULT), (2, 'manual'), (3, DEFAULT)"));
+
+        Assert.False(mixed.IsDefaultValues);
+        Assert.IsType<DefaultValueExpression>(mixed.Rows[0][1]);
+        Assert.Equal(LiteralExpression.String("manual"), mixed.Rows[1][1]);
+        Assert.IsType<DefaultValueExpression>(mixed.Rows[2][1]);
+
+        var allDefaults = Assert.IsType<InsertStatement>(
+            SqlParser.Parse("INSERT INTO devices DEFAULT VALUES"));
+        Assert.True(allDefaults.IsDefaultValues);
+        Assert.Empty(allDefaults.Columns);
+        Assert.Single(allDefaults.Rows);
+        Assert.Empty(allDefaults.Rows[0]);
+    }
+
+    [Fact]
+    public void Parse_Update_DefaultMarker_ReturnsAst()
+    {
+        var statement = Assert.IsType<UpdateStatement>(
+            SqlParser.Parse("UPDATE devices SET label = DEFAULT WHERE id = 1"));
+
+        Assert.IsType<DefaultValueExpression>(Assert.Single(statement.Assignments).Value);
+    }
+
+    [Theory]
+    [InlineData("INSERT INTO devices (id) VALUES (DEFAULT + 1)")]
+    [InlineData("UPDATE devices SET id = DEFAULT + 1 WHERE id = 1")]
+    public void Parse_DmlDefaultInsideExpression_Throws(string sql)
+    {
+        Assert.Throws<SqlParseException>(() => SqlParser.Parse(sql));
     }
 
     // ── SELECT ────────────────────────────────────────────────────────────

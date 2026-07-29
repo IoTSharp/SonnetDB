@@ -157,7 +157,7 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         using var connection = OpenAdoSchemaMatrixConnection(mode);
         using (var ddl = connection.CreateCommand())
         {
-            ddl.CommandText = "CREATE TABLE schema_devices (id INT, name STRING NULL, enabled BOOL, PRIMARY KEY (id))";
+            ddl.CommandText = "CREATE TABLE schema_devices (id INT, name STRING NULL, enabled BOOL DEFAULT TRUE, version INT ROWVERSION, PRIMARY KEY (id))";
             Assert.Equal(0, ddl.ExecuteNonQuery());
             ddl.CommandText = "CREATE UNIQUE INDEX ux_schema_devices_name ON schema_devices (name)";
             Assert.Equal(0, ddl.ExecuteNonQuery());
@@ -176,7 +176,7 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
 
         var columns = connection.GetSchema("Columns", [null, null, "schema_devices", null]);
         Assert.Equal(
-            ["id", "name", "enabled"],
+            ["id", "name", "enabled", "version"],
             columns.Rows.Cast<DataRow>().Select(static row => (string)row["COLUMN_NAME"]).ToArray());
         Assert.Contains(
             columns.Rows.Cast<DataRow>(),
@@ -184,6 +184,14 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
                 && (bool)row["IS_PRIMARY_KEY"]
                 && !(bool)row["IS_NULLABLE"]
                 && string.Equals((string)row["DATA_TYPE"], "INT", StringComparison.Ordinal));
+        Assert.Contains(
+            columns.Rows.Cast<DataRow>(),
+            row => string.Equals((string)row["COLUMN_NAME"], "enabled", StringComparison.Ordinal)
+                && string.Equals((string)row["COLUMN_DEFAULT"], "TRUE", StringComparison.Ordinal));
+        Assert.Contains(
+            columns.Rows.Cast<DataRow>(),
+            row => string.Equals((string)row["COLUMN_NAME"], "version", StringComparison.Ordinal)
+                && (bool)row["IS_ROW_VERSION"]);
 
         var indexes = connection.GetSchema("Indexes", [null, null, "schema_devices", "ux_schema_devices_name"]);
         var index = Assert.Single(indexes.Rows.Cast<DataRow>());

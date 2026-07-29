@@ -332,7 +332,11 @@ public sealed record TableColumnDefinition(
     string Name,
     SqlDataType DataType,
     ColumnNullability Nullability = ColumnNullability.Unspecified,
-    bool IsRowVersion = false);
+    bool IsRowVersion = false)
+{
+    /// <summary>列默认值表达式。</summary>
+    public SqlExpression? DefaultExpression { get; init; }
+}
 
 /// <summary>
 /// <c>ALTER TABLE table ADD COLUMN col TYPE [NULL|NOT NULL] [DEFAULT expr]</c>。
@@ -342,6 +346,24 @@ public sealed record AlterTableAddColumnStatement(
     string ColumnName,
     SqlDataType DataType,
     ColumnNullability Nullability = ColumnNullability.Unspecified,
+    SqlExpression? DefaultExpression = null) : SqlStatement;
+
+/// <summary>
+/// <c>ALTER TABLE table ALTER [COLUMN] col [TYPE type|SET DATA TYPE type] [NULL|NOT NULL] [SET|DROP DEFAULT]</c>。
+/// 每条语句至少包含一种变更；SQL Server 风格的类型和空值修饰符可以在同一条语句中出现。
+/// </summary>
+/// <param name="TableName">目标关系表名称。</param>
+/// <param name="ColumnName">目标列名。</param>
+/// <param name="DataType">新的数据类型；为空表示不修改类型。</param>
+/// <param name="Nullability">新的空值修饰；未指定表示不修改。</param>
+/// <param name="DefaultAction">默认值变更动作。</param>
+/// <param name="DefaultExpression">SET DEFAULT 使用的表达式。</param>
+public sealed record AlterTableAlterColumnStatement(
+    string TableName,
+    string ColumnName,
+    SqlDataType? DataType = null,
+    ColumnNullability Nullability = ColumnNullability.Unspecified,
+    ColumnDefaultAction DefaultAction = ColumnDefaultAction.Unchanged,
     SqlExpression? DefaultExpression = null) : SqlStatement;
 
 /// <summary>
@@ -472,15 +494,26 @@ public sealed record ColumnDefinition(
     SqlExpression? DefaultExpression = null);
 
 /// <summary>
-/// <c>INSERT INTO measurement (col, ...) VALUES (v, ...), (...)</c>。
+/// <c>INSERT INTO measurement (col, ...) VALUES (v, ...), (...)</c>，
+/// 或关系表专用的 <c>INSERT INTO table DEFAULT VALUES</c>。
 /// </summary>
 /// <param name="Measurement">目标 measurement 名称。</param>
 /// <param name="Columns">列名列表（按 VALUES 行内位置顺序）。</param>
-/// <param name="Rows">每行的字面量表达式（与 <paramref name="Columns"/> 等长）。</param>
+/// <param name="Rows">
+/// 每行的值表达式（与 <paramref name="Columns"/> 等长）；
+/// <c>DEFAULT VALUES</c> 使用一个空行并由 <see cref="IsDefaultValues"/> 标记。
+/// </param>
 public sealed record InsertStatement(
     string Measurement,
     IReadOnlyList<string> Columns,
-    IReadOnlyList<IReadOnlyList<SqlExpression>> Rows) : SqlStatement;
+    IReadOnlyList<IReadOnlyList<SqlExpression>> Rows) : SqlStatement
+{
+    /// <summary>
+    /// 是否为 <c>INSERT INTO table DEFAULT VALUES</c>。
+    /// 为保持既有构造器与解构 API 兼容，该语法通过 init 属性标记。
+    /// </summary>
+    public bool IsDefaultValues { get; init; }
+}
 
 /// <summary>
 /// <c>SELECT projections FROM measurement [JOIN table ON expr] [WHERE expr] [GROUP BY expr, ...]</c>。

@@ -772,13 +772,14 @@ public sealed class SqlParser
         SqlExpression? defaultExpression = null;
         var isRowVersion = false;
         ParseTableColumnModifiers(ref nullability, ref defaultExpression, ref isRowVersion);
-        if (defaultExpression is not null)
-            throw Error("CREATE TABLE 当前不支持列 DEFAULT；请在后续 ALTER TABLE ADD COLUMN 中使用 DEFAULT");
 
         if (isRowVersion && dataType != SqlDataType.Int64)
             throw Error("ROWVERSION 列必须使用 INT 类型");
 
-        return new TableColumnDefinition(columnName, dataType, nullability, isRowVersion);
+        return new TableColumnDefinition(columnName, dataType, nullability, isRowVersion)
+        {
+            DefaultExpression = defaultExpression,
+        };
     }
 
     private AlterTableAddColumnStatement ParseAlterTableAddColumn(string tableName)
@@ -1326,6 +1327,19 @@ public sealed class SqlParser
         Expect(TokenKind.KeywordInto);
         var measurement = ExpectIdentifierName();
 
+        if (Current.Kind == TokenKind.KeywordDefault)
+        {
+            Advance();
+            Expect(TokenKind.KeywordValues);
+            return new InsertStatement(
+                measurement,
+                Array.Empty<string>(),
+                new[] { (IReadOnlyList<SqlExpression>)Array.Empty<SqlExpression>() })
+            {
+                IsDefaultValues = true,
+            };
+        }
+
         Expect(TokenKind.LeftParen);
         var columns = new List<string>();
         columns.Add(ExpectColumnName());
@@ -1399,11 +1413,11 @@ public sealed class SqlParser
         var rowStart = Current.Position;
         Expect(TokenKind.LeftParen);
         var values = new List<SqlExpression>(expectedColumnCount);
-        values.Add(ParseExpression());
+        values.Add(ParseDmlValue());
         while (Current.Kind == TokenKind.Comma)
         {
             Advance();
-            values.Add(ParseExpression());
+            values.Add(ParseDmlValue());
         }
         Expect(TokenKind.RightParen);
         if (values.Count != expectedColumnCount)
@@ -1872,8 +1886,17 @@ public sealed class SqlParser
     {
         var column = ExpectColumnName();
         Expect(TokenKind.Equal);
-        var value = ParseExpression();
+        var value = ParseDmlValue();
         return new UpdateAssignment(column, value);
+    }
+
+    private SqlExpression ParseDmlValue()
+    {
+        if (Current.Kind != TokenKind.KeywordDefault)
+            return ParseExpression();
+
+        Advance();
+        return DefaultValueExpression.Instance;
     }
 
     // ── 表达式（按优先级从低到高） ──────────────────────────────────────────
@@ -2912,6 +2935,12 @@ public sealed class SqlParser
     {
         Expect(TokenKind.KeywordTable);
         var tableName = ExpectIdentifierName();
+        if (Current.Kind == TokenKind.KeywordAlter)
+        {
+            Advance();
+            return ParseAlterTableAlterColumn(tableName);
+        }
+
         if (IsIdentifier("add"))
         {
             Advance();
@@ -2973,7 +3002,137 @@ public sealed class SqlParser
             return new AlterTableRenameTableStatement(tableName, ExpectIdentifierName());
         }
 
-        throw Error("ALTER TABLE 后面期望 ADD COLUMN / ADD FOREIGN KEY / ADD CHECK / DROP COLUMN / DROP CONSTRAINT / RENAME COLUMN / RENAME TO");
+        throw Error("ALTER TABLE 后面期望 ADD COLUMN / ADD FOREIGN KEY / ADD CHECK / ALTER COLUMN / DROP COLUMN / DROP CONSTRAINT / RENAME COLUMN / RENAME TO");
+    }
+
+    private AlterTableAlterColumnStatement ParseAlterTableAlterColumn(string tableName)
+    {
+        if (Current.Kind == TokenKind.KeywordColumn)
+            Advance();
+
+        var columnName = ExpectColumnName();
+        SqlDataType? dataType = null;
+        ColumnNullability nullability = ColumnNullability.Unspecified;
+        var defaultAction = ColumnDefaultAction.Unchanged;
+        SqlExpression? defaultExpression = null;
+        var changed = false;
+
+        while (true)
+        {
+            if (Current.Kind is TokenKind.KeywordInt or TokenKind.KeywordFloat
+                or TokenKind.KeywordBool or TokenKind.KeywordString
+                or TokenKind.KeywordDateTime or TokenKind.KeywordBlob or TokenKind.KeywordJson
+                or TokenKind.KeywordVector)
+            {
+                if (dataType is not null)
+                    throw Error("ALTER COLUMN 数据类型重复声明");
+                dataType = ParseTableDataType();
+                changed = true;
+                continue;
+            }
+
+            if (IsIdentifier("type"))
+            {
+                Advance();
+                if (dataType is not null)
+                    throw Error("ALTER COLUMN 数据类型重复声明");
+                dataType = ParseTableDataType();
+                changed = true;
+                continue;
+            }
+
+            if (Current.Kind == TokenKind.KeywordNull)
+            {
+                SetNullability(ref nullability, ColumnNullability.Nullable);
+                Advance();
+                changed = true;
+                continue;
+            }
+
+            if (Current.Kind == TokenKind.KeywordNot)
+            {
+                Advance();
+                Expect(TokenKind.KeywordNull);
+                SetNullability(ref nullability, ColumnNullability.NotNull);
+                changed = true;
+                continue;
+            }
+
+            if (Current.Kind == TokenKind.KeywordSet)
+            {
+                Advance();
+                if (IsIdentifier("data"))
+                {
+                    Advance();
+                    ExpectIdentifier("type", "ALTER COLUMN SET DATA 后面期望 TYPE");
+                    if (dataType is not null)
+                        throw Error("ALTER COLUMN 数据类型重复声明");
+                    dataType = ParseTableDataType();
+                    changed = true;
+                    continue;
+                }
+
+                if (Current.Kind == TokenKind.KeywordNot)
+                {
+                    Advance();
+                    Expect(TokenKind.KeywordNull);
+                    SetNullability(ref nullability, ColumnNullability.NotNull);
+                    changed = true;
+                    continue;
+                }
+
+                if (Current.Kind == TokenKind.KeywordDefault)
+                {
+                    Advance();
+                    if (defaultAction != ColumnDefaultAction.Unchanged)
+                        throw Error("ALTER COLUMN DEFAULT 变更重复声明");
+                    defaultExpression = ParseExpression();
+                    defaultAction = ColumnDefaultAction.Set;
+                    changed = true;
+                    continue;
+                }
+
+                throw Error("ALTER COLUMN SET 后面期望 DATA TYPE / NOT NULL / DEFAULT");
+            }
+
+            if (Current.Kind == TokenKind.KeywordDrop)
+            {
+                Advance();
+                if (Current.Kind == TokenKind.KeywordNot)
+                {
+                    Advance();
+                    Expect(TokenKind.KeywordNull);
+                    SetNullability(ref nullability, ColumnNullability.Nullable);
+                    changed = true;
+                    continue;
+                }
+
+                if (Current.Kind == TokenKind.KeywordDefault)
+                {
+                    Advance();
+                    if (defaultAction != ColumnDefaultAction.Unchanged)
+                        throw Error("ALTER COLUMN DEFAULT 变更重复声明");
+                    defaultAction = ColumnDefaultAction.Drop;
+                    changed = true;
+                    continue;
+                }
+
+                throw Error("ALTER COLUMN DROP 后面期望 NOT NULL / DEFAULT");
+            }
+
+            break;
+        }
+
+        if (!changed)
+            throw Error("ALTER TABLE ALTER COLUMN 至少需要指定一种变更");
+
+        return new AlterTableAlterColumnStatement(
+            tableName,
+            columnName,
+            dataType,
+            nullability,
+            defaultAction,
+            defaultExpression);
     }
 
     private AlterTableAddForeignKeyStatement ParseAlterTableAddForeignKey(string tableName, string? constraintName)

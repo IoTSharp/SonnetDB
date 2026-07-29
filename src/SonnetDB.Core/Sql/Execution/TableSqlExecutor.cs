@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Numerics;
 using System.Text;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
@@ -18,7 +19,7 @@ internal static class TableSqlExecutor
     private static readonly IReadOnlyList<string> _nameColumns =
         new List<string>(1) { "name" }.AsReadOnly();
     private static readonly IReadOnlyList<string> _describeTableColumns =
-        new List<string>(5) { "column_name", "data_type", "is_nullable", "is_primary_key", "ordinal" }.AsReadOnly();
+        new List<string>(6) { "column_name", "data_type", "is_nullable", "is_primary_key", "ordinal", "column_default" }.AsReadOnly();
     private static readonly IReadOnlyList<string> _showIndexColumns =
         new List<string>(4) { "index_name", "is_unique", "columns", "created_utc" }.AsReadOnly();
 
@@ -37,12 +38,30 @@ internal static class TableSqlExecutor
         }
 
         var columns = new List<(string Name, TableColumnType DataType, bool IsNullable)>(statement.Columns.Count);
+        var columnDefaults = new Dictionary<string, string?>(StringComparer.Ordinal);
         foreach (var column in statement.Columns)
         {
+            var dataType = MapTableColumnType(column.DataType);
+            var isPrimaryKey = statement.PrimaryKey.Contains(column.Name, StringComparer.Ordinal);
+            var isNullable = column.Nullability != ColumnNullability.NotNull && !isPrimaryKey;
+            if (column.DefaultExpression is not null)
+            {
+                if (column.IsRowVersion)
+                    throw new InvalidOperationException("ROWVERSION 列不允许声明 DEFAULT。");
+                var tempColumn = new TableColumn(
+                    column.Name,
+                    dataType,
+                    IsPrimaryKey: false,
+                    isNullable,
+                    Ordinal: 0);
+                var defaultSql = ValidateAndFormatDefault(column.DefaultExpression, tempColumn);
+                columnDefaults.Add(column.Name, defaultSql);
+            }
+
             columns.Add((
                 column.Name,
-                MapTableColumnType(column.DataType),
-                column.Nullability != ColumnNullability.NotNull));
+                dataType,
+                isNullable));
         }
 
         var foreignKeys = statement.ForeignKeyClauses
@@ -62,13 +81,16 @@ internal static class TableSqlExecutor
                 constraint.Name ?? string.Empty,
                 constraint.ExpressionSql))
             .ToArray();
-        var schema = TableSchema.Create(
+        var schema = TableSchema.CreateWithDefaults(
             statement.Name,
             columns,
             statement.PrimaryKey,
+            indexes: null,
             foreignKeys: foreignKeys,
             rowVersionColumns: rowVersionColumns,
-            checkConstraints: checkConstraints);
+            createdAtUtcTicks: 0,
+            checkConstraints: checkConstraints,
+            columnDefaults: columnDefaults);
         tsdb.Tables.Create(schema);
         return schema;
     }
@@ -142,18 +164,100 @@ internal static class TableSqlExecutor
         var dataType = MapTableColumnType(statement.DataType);
         var isNullable = statement.Nullability != ColumnNullability.NotNull;
         object? defaultValue = null;
+        string? defaultExpressionSql = null;
         if (statement.DefaultExpression is not null)
         {
             var tempColumn = new TableColumn(statement.ColumnName, dataType, IsPrimaryKey: false, isNullable, Ordinal: 0);
-            defaultValue = ConvertTableValue(statement.DefaultExpression, tempColumn);
+            defaultExpressionSql = ValidateAndFormatDefault(statement.DefaultExpression, tempColumn);
+            defaultValue = EvaluateAndConvertDefault(statement.DefaultExpression, tempColumn);
         }
         else if (!isNullable)
         {
             throw new InvalidOperationException("ALTER TABLE ADD COLUMN 添加 NOT NULL 列时必须提供 DEFAULT。");
         }
 
-        tsdb.Tables.AlterTableAddColumn(statement.TableName, statement.ColumnName, dataType, isNullable, defaultValue);
+        tsdb.Tables.AlterTableAddColumn(
+            statement.TableName,
+            statement.ColumnName,
+            dataType,
+            isNullable,
+            defaultValue,
+            defaultExpressionSql);
         return new RowsAffectedExecutionResult(statement.TableName, 1, "alter_table_add_column");
+    }
+
+    public static RowsAffectedExecutionResult ExecuteAlterTableAlterColumn(
+        Tsdb tsdb,
+        AlterTableAlterColumnStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        SqlExecutor.EnsureNoViewDependents(tsdb, statement.TableName, "ALTER TABLE");
+
+        var schema = tsdb.Tables.Catalog.TryGet(statement.TableName)
+            ?? throw new InvalidOperationException($"table '{statement.TableName}' 不存在。");
+        var currentColumn = schema.TryGetColumn(statement.ColumnName)
+            ?? throw new InvalidOperationException(
+                $"table '{statement.TableName}' 中不存在列 '{statement.ColumnName}'。");
+        if (currentColumn.IsRowVersion)
+        {
+            throw new InvalidOperationException(
+                "ALTER TABLE ALTER COLUMN 当前不支持修改 ROWVERSION 列定义。");
+        }
+
+        var targetType = statement.DataType is null
+            ? currentColumn.DataType
+            : MapTableColumnType(statement.DataType.Value);
+        var targetNullable = statement.Nullability switch
+        {
+            ColumnNullability.Unspecified => currentColumn.IsNullable,
+            ColumnNullability.Nullable => true,
+            ColumnNullability.NotNull => false,
+            _ => throw new ArgumentOutOfRangeException(nameof(statement)),
+        };
+        var targetColumn = currentColumn with
+        {
+            DataType = targetType,
+            IsNullable = targetNullable,
+        };
+
+        string? targetDefaultSql = statement.DefaultAction switch
+        {
+            ColumnDefaultAction.Unchanged => currentColumn.DefaultExpressionSql,
+            ColumnDefaultAction.Drop => null,
+            ColumnDefaultAction.Set when statement.DefaultExpression is not null =>
+                ValidateAndFormatDefault(statement.DefaultExpression, targetColumn),
+            ColumnDefaultAction.Set => throw new InvalidOperationException("ALTER COLUMN SET DEFAULT 缺少默认表达式。"),
+            _ => throw new ArgumentOutOfRangeException(nameof(statement)),
+        };
+
+        if (statement.DefaultAction == ColumnDefaultAction.Unchanged
+            && targetDefaultSql is not null)
+        {
+            _ = EvaluateAndConvertSchemaDefault(SqlParser.ParsePredicate(targetDefaultSql), targetColumn);
+        }
+
+        if (!targetNullable && targetDefaultSql is not null)
+        {
+            var defaultValue = EvaluateAndConvertSchemaDefault(
+                SqlParser.ParsePredicate(targetDefaultSql),
+                targetColumn);
+            if (defaultValue is null)
+            {
+                throw new InvalidOperationException(
+                    $"NOT NULL 列 '{statement.ColumnName}' 的 DEFAULT 不能是 NULL。");
+            }
+        }
+
+        tsdb.Tables.AlterTableAlterColumn(
+            statement.TableName,
+            statement.ColumnName,
+            targetType,
+            targetNullable,
+            targetDefaultSql,
+            value => ConvertTableValueForSchemaChange(value, targetColumn));
+        return new RowsAffectedExecutionResult(statement.TableName, 1, "alter_table_alter_column");
     }
 
     public static RowsAffectedExecutionResult ExecuteAlterTableAddForeignKey(Tsdb tsdb, AlterTableAddForeignKeyStatement statement)
@@ -251,6 +355,7 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(schema);
 
         var bindings = BindInsertColumns(statement, schema);
+        var defaults = BindInsertDefaults(schema, bindings);
 
         var mutations = new List<TableRowMutation>(statement.Rows.Count);
         foreach (var row in statement.Rows)
@@ -259,9 +364,10 @@ internal static class TableSqlExecutor
             for (int i = 0; i < bindings.Length; i++)
             {
                 var column = bindings[i];
-                values[column.Ordinal] = ConvertTableValue(row[i], column);
+                values[column.Ordinal] = ConvertInsertValue(row[i], column);
             }
 
+            ApplyInsertDefaults(defaults, values);
             ApplyInsertRowVersion(schema, values);
             ValidateRequiredColumns(schema, values);
             mutations.Add(new TableRowMutation(PrimaryKeyValues: null, values));
@@ -289,6 +395,7 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(schema);
 
         var bindings = BindInsertColumns(statement, schema);
+        var defaults = BindInsertDefaults(schema, bindings);
         var mutations = new List<TableRowMutation>(statement.Rows.Count);
         var rowChanges = new List<TableRowChange>(statement.Rows.Count);
         foreach (var row in statement.Rows)
@@ -297,9 +404,10 @@ internal static class TableSqlExecutor
             for (int i = 0; i < bindings.Length; i++)
             {
                 var column = bindings[i];
-                values[column.Ordinal] = ConvertTableValue(row[i], column);
+                values[column.Ordinal] = ConvertInsertValue(row[i], column);
             }
 
+            ApplyInsertDefaults(defaults, values);
             ApplyInsertRowVersion(schema, values);
             ValidateRequiredColumns(schema, values);
             mutations.Add(new TableRowMutation(PrimaryKeyValues: null, values));
@@ -459,8 +567,7 @@ internal static class TableSqlExecutor
             foreach (var assignment in assignments)
             {
                 // 同一 SET 子句中的所有右值都读取更新前的原行，保证 SET a=b, b=a 可正确交换。
-                var evaluated = EvaluateScalar(assignment.Value, schema, row.Values);
-                values[assignment.Column.Ordinal] = ConvertTableValue(evaluated, assignment.Column);
+                values[assignment.Column.Ordinal] = EvaluateAssignment(assignment, schema, row.Values);
             }
 
             ValidateRequiredColumns(schema, values);
@@ -556,8 +663,7 @@ internal static class TableSqlExecutor
             foreach (var assignment in assignments)
             {
                 // 事务缓冲路径同样使用原行快照，避免赋值顺序改变 SQL 语义。
-                var evaluated = EvaluateScalar(assignment.Value, schema, row.Values);
-                values[assignment.Column.Ordinal] = ConvertTableValue(evaluated, assignment.Column);
+                values[assignment.Column.Ordinal] = EvaluateAssignment(assignment, schema, row.Values);
             }
 
             ValidateRequiredColumns(schema, values);
@@ -693,6 +799,7 @@ internal static class TableSqlExecutor
                 column.IsNullable,
                 column.IsPrimaryKey,
                 (long)column.Ordinal,
+                column.DefaultExpressionSql,
             });
         }
 
@@ -734,6 +841,16 @@ internal static class TableSqlExecutor
 
     private static TableColumn[] BindInsertColumns(InsertStatement statement, TableSchema schema)
     {
+        if (statement.IsDefaultValues)
+        {
+            if (statement.Columns.Count != 0
+                || statement.Rows.Count != 1
+                || statement.Rows[0].Count != 0)
+            {
+                throw new InvalidOperationException("INSERT DEFAULT VALUES AST 的列和值必须为空。");
+            }
+        }
+
         var bindings = new TableColumn[statement.Columns.Count];
         var seen = new HashSet<string>(StringComparer.Ordinal);
         for (int i = 0; i < statement.Columns.Count; i++)
@@ -747,6 +864,55 @@ internal static class TableSqlExecutor
         }
 
         return bindings;
+    }
+
+    private static object? ConvertInsertValue(SqlExpression expression, TableColumn column)
+    {
+        if (expression is not DefaultValueExpression)
+            return ConvertTableValue(expression, column);
+
+        return TryEvaluateColumnDefault(column, out var defaultValue)
+            ? defaultValue
+            : null;
+    }
+
+    private static BoundColumnDefault[] BindInsertDefaults(
+        TableSchema schema,
+        IReadOnlyList<TableColumn> bindings)
+    {
+        var assignedOrdinals = bindings
+            .Select(static column => column.Ordinal)
+            .ToHashSet();
+        return schema.Columns
+            .Where(column => column.DefaultExpressionSql is not null
+                && !assignedOrdinals.Contains(column.Ordinal))
+            .Select(static column => new BoundColumnDefault(
+                column,
+                SqlParser.ParsePredicate(column.DefaultExpressionSql!)))
+            .ToArray();
+    }
+
+    private static void ApplyInsertDefaults(
+        IReadOnlyList<BoundColumnDefault> defaults,
+        object?[] values)
+    {
+        foreach (var binding in defaults)
+            values[binding.Column.Ordinal] = EvaluateAndConvertDefault(binding.Expression, binding.Column);
+    }
+
+    internal static bool TryEvaluateColumnDefault(TableColumn column, out object? value)
+    {
+        ArgumentNullException.ThrowIfNull(column);
+        if (column.DefaultExpressionSql is null)
+        {
+            value = null;
+            return false;
+        }
+
+        value = EvaluateAndConvertDefault(
+            SqlParser.ParsePredicate(column.DefaultExpressionSql),
+            column);
+        return true;
     }
 
     private static BoundAssignment[] BindAssignments(UpdateStatement statement, TableSchema schema)
@@ -765,12 +931,34 @@ internal static class TableSqlExecutor
             if (column.IsRowVersion)
                 throw new InvalidOperationException($"ROWVERSION 列 '{column.Name}' 由数据库自动维护，不允许显式赋值。");
 
+            if (assignment.Value is DefaultValueExpression)
+            {
+                assignments.Add(new BoundAssignment(column, assignment.Value, UsesDefault: true));
+                continue;
+            }
+
             ValidateTableValueExpression(assignment.Value, schema, "UPDATE SET");
 
-            assignments.Add(new BoundAssignment(column, assignment.Value));
+            assignments.Add(new BoundAssignment(column, assignment.Value, UsesDefault: false));
         }
 
         return [.. assignments];
+    }
+
+    private static object? EvaluateAssignment(
+        BoundAssignment assignment,
+        TableSchema schema,
+        IReadOnlyList<object?> row)
+    {
+        if (assignment.UsesDefault)
+        {
+            return TryEvaluateColumnDefault(assignment.Column, out var defaultValue)
+                ? defaultValue
+                : null;
+        }
+
+        var evaluated = EvaluateScalar(assignment.Value, schema, row);
+        return ConvertTableValue(evaluated, assignment.Column);
     }
 
     /// <summary>
@@ -2165,6 +2353,51 @@ internal static class TableSqlExecutor
         return ConvertTableValue(value, column);
     }
 
+    private static string ValidateAndFormatDefault(SqlExpression expression, TableColumn column)
+    {
+        var value = EvaluateAndConvertSchemaDefault(expression, column);
+        if (!column.IsNullable && value is null)
+            throw new InvalidOperationException($"NOT NULL 列 '{column.Name}' 的 DEFAULT 不能是 NULL。");
+        return SqlExpressionFormatter.Format(expression);
+    }
+
+    private static object? EvaluateAndConvertDefault(SqlExpression expression, TableColumn column)
+        => ConvertTableValue(EvaluateDefaultExpression(expression), column);
+
+    private static object? EvaluateAndConvertSchemaDefault(SqlExpression expression, TableColumn column)
+        => ConvertTableValueForSchemaChange(EvaluateDefaultExpression(expression), column);
+
+    private static object? EvaluateDefaultExpression(SqlExpression expression)
+    {
+        return expression switch
+        {
+            LiteralExpression literal => EvaluateLiteral(literal),
+            DurationLiteralExpression duration => duration.Milliseconds,
+            UnaryExpression { Operator: SqlUnaryOperator.Negate } unary =>
+                SqlScalarOperations.Negate(EvaluateDefaultExpression(unary.Operand)),
+            BinaryExpression binary when IsArithmeticOperator(binary.Operator) =>
+                SqlScalarOperations.EvaluateArithmetic(
+                    binary.Operator,
+                    EvaluateDefaultExpression(binary.Left),
+                    EvaluateDefaultExpression(binary.Right)),
+            FunctionCallExpression { IsStar: false } function => EvaluateDefaultFunction(function),
+            _ => throw new InvalidOperationException(
+                $"列 DEFAULT 只支持字面量、常量算术和内置标量函数，不支持 {expression.GetType().Name}。"),
+        };
+    }
+
+    private static object? EvaluateDefaultFunction(FunctionCallExpression function)
+    {
+        var scalarFunction = FunctionRegistry.ScalarFunctions.FirstOrDefault(candidate =>
+            string.Equals(candidate.Name, function.Name, StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidOperationException($"列 DEFAULT 不支持标量函数 '{function.Name}'。");
+        ValidateScalarFunctionArgumentCount(function, scalarFunction);
+        var arguments = function.Arguments
+            .Select(EvaluateDefaultExpression)
+            .ToArray();
+        return scalarFunction.Evaluate(arguments);
+    }
+
     private static object? ConvertTableValue(object? value, TableColumn column)
     {
         if (value is null)
@@ -2188,6 +2421,135 @@ internal static class TableSqlExecutor
             _ => throw new NotSupportedException($"不支持的关系表类型 {column.DataType}。"),
         };
     }
+
+    /// <summary>
+    /// Schema 迁移使用的严格类型转换。普通 INSERT 保持既有的数值兼容转换，
+    /// 但 ALTER COLUMN 不能静默舍入或丢失整数精度。
+    /// </summary>
+    private static object? ConvertTableValueForSchemaChange(object? value, TableColumn column)
+    {
+        var converted = ConvertTableValue(value, column);
+        if (value is null || converted is null)
+            return converted;
+
+        if (column.DataType == TableColumnType.Int64)
+        {
+            long integerTarget = (long)converted;
+            bool isLossy = value switch
+            {
+                float floatSource => !float.IsFinite(floatSource) || (float)integerTarget != floatSource,
+                double doubleSource => !double.IsFinite(doubleSource) || (double)integerTarget != doubleSource,
+                _ when TryGetDecimalNumeric(value, out var decimalSource) =>
+                    decimalSource != decimal.Truncate(decimalSource)
+                    || decimalSource < long.MinValue
+                    || decimalSource > long.MaxValue
+                    || integerTarget != decimalSource,
+                _ => false,
+            };
+            if (isLossy)
+            {
+                throw LossySchemaConversion(value, column);
+            }
+        }
+        else if (column.DataType == TableColumnType.Float64)
+        {
+            double floatingTarget = (double)converted;
+            if (!double.IsFinite(floatingTarget))
+                throw LossySchemaConversion(value, column);
+
+            if (TryGetIntegerNumeric(value, out var integerSource))
+            {
+                if (floatingTarget != Math.Truncate(floatingTarget)
+                    || new BigInteger(floatingTarget) != integerSource)
+                {
+                    throw LossySchemaConversion(value, column);
+                }
+            }
+            else if (TryGetDecimalNumeric(value, out var floatingSource))
+            {
+                decimal roundTripped;
+                try
+                {
+                    roundTripped = Convert.ToDecimal(floatingTarget, CultureInfo.InvariantCulture);
+                }
+                catch (OverflowException)
+                {
+                    throw LossySchemaConversion(value, column);
+                }
+
+                if (roundTripped != floatingSource)
+                    throw LossySchemaConversion(value, column);
+            }
+        }
+
+        return converted;
+    }
+
+    private static bool TryGetDecimalNumeric(object value, out decimal numeric)
+    {
+        switch (value)
+        {
+            case byte or sbyte or short or ushort or int or uint or long or ulong or decimal:
+                numeric = Convert.ToDecimal(value, CultureInfo.InvariantCulture);
+                return true;
+            case float f when float.IsFinite(f):
+                numeric = Convert.ToDecimal(f, CultureInfo.InvariantCulture);
+                return true;
+            case double d when double.IsFinite(d):
+                try
+                {
+                    numeric = Convert.ToDecimal(d, CultureInfo.InvariantCulture);
+                    return true;
+                }
+                catch (OverflowException)
+                {
+                    break;
+                }
+            case string s when decimal.TryParse(
+                s,
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out var parsed):
+                numeric = parsed;
+                return true;
+        }
+
+        numeric = default;
+        return false;
+    }
+
+    private static bool TryGetIntegerNumeric(object value, out BigInteger numeric)
+    {
+        switch (value)
+        {
+            case byte or sbyte or short or ushort or int or uint or long or ulong:
+                numeric = new BigInteger(Convert.ToDecimal(value, CultureInfo.InvariantCulture));
+                return true;
+            case decimal source when source == decimal.Truncate(source):
+                numeric = new BigInteger(source);
+                return true;
+            case float source when float.IsFinite(source) && source == MathF.Truncate(source):
+                numeric = new BigInteger(source);
+                return true;
+            case double source when double.IsFinite(source) && source == Math.Truncate(source):
+                numeric = new BigInteger(source);
+                return true;
+            case string source when decimal.TryParse(
+                source,
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out var parsed) && parsed == decimal.Truncate(parsed):
+                numeric = new BigInteger(parsed);
+                return true;
+            default:
+                numeric = default;
+                return false;
+        }
+    }
+
+    private static InvalidOperationException LossySchemaConversion(object value, TableColumn column)
+        => new(
+            $"ALTER COLUMN 不能将值 '{value}' 无损转换为列 '{column.Name}' 的 {column.DataType} 类型。");
 
     private static object ConvertDateTimeValue(object value, TableColumn column)
     {
@@ -2575,7 +2937,9 @@ internal static class TableSqlExecutor
     private static InvalidOperationException TypeMismatch(TableColumn column, object value)
         => new($"列 '{column.Name}' 期望 {column.DataType}，实际值类型为 {value.GetType().Name}。");
 
-    private sealed record BoundAssignment(TableColumn Column, SqlExpression Value);
+    private sealed record BoundAssignment(TableColumn Column, SqlExpression Value, bool UsesDefault);
+
+    private sealed record BoundColumnDefault(TableColumn Column, SqlExpression Expression);
 
     private enum ProjectionKind
     {

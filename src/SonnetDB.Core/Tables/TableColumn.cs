@@ -15,4 +15,10 @@ public sealed record TableColumn(
     bool IsPrimaryKey,
     bool IsNullable,
     int Ordinal,
-    bool IsRowVersion = false);
+    bool IsRowVersion = false)
+{
+    /// <summary>
+    /// 默认值表达式的规范化 SQL 文本；没有默认值时为 <c>null</c>。
+    /// </summary>
+    public string? DefaultExpressionSql { get; init; }
+}

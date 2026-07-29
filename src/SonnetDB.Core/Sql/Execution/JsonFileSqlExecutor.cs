@@ -42,7 +42,11 @@ internal static class JsonFileSqlExecutor
         return ApplyPagination(ApplyOrderBy(result, statement.OrderBy), statement.Pagination);
     }
 
-    public static InsertExecutionResult ExecuteImport(Tsdb tsdb, ImportJsonStatement statement)
+    public static InsertExecutionResult ExecuteImport(
+        Tsdb tsdb,
+        string? databaseName,
+        ImportJsonStatement statement,
+        IControlPlane? controlPlane)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
@@ -51,7 +55,7 @@ internal static class JsonFileSqlExecutor
             return ImportIntoDocumentCollection(tsdb, statement, documentSchema);
 
         if (tsdb.Tables.Catalog.TryGet(statement.TargetName) is { } tableSchema)
-            return ImportIntoTable(tsdb, statement, tableSchema);
+            return ImportIntoTable(tsdb, databaseName, statement, tableSchema, controlPlane);
 
         throw new InvalidOperationException(
             $"IMPORT JSON 目标 '{statement.TargetName}' 不存在；请先 CREATE DOCUMENT COLLECTION 或 CREATE TABLE。");
@@ -79,41 +83,80 @@ internal static class JsonFileSqlExecutor
 
     private static InsertExecutionResult ImportIntoTable(
         Tsdb tsdb,
+        string? databaseName,
         ImportJsonStatement statement,
-        TableSchema schema)
+        TableSchema schema,
+        IControlPlane? controlPlane)
     {
         var rows = ReadRows(statement.FilePath, statement.Format, statement.IdPath);
         if (rows.Count == 0)
             return new InsertExecutionResult(schema.Name, 0);
 
-        var tableRows = new List<IReadOnlyList<object?>>(rows.Count);
+        var columns = schema.Columns
+            .Where(static column => !column.IsRowVersion)
+            .ToArray();
+        var insertRows = new List<IReadOnlyList<SqlExpression>>(rows.Count);
         foreach (var row in rows)
-            tableRows.Add(ConvertJsonObjectToTableRow(schema, row));
+            insertRows.Add(ConvertJsonObjectToInsertRow(schema, columns, row));
 
-        int inserted = tsdb.Tables.Open(schema.Name).InsertMany(tableRows);
-        return new InsertExecutionResult(schema.Name, inserted);
+        var insert = new InsertStatement(
+            schema.Name,
+            columns.Select(static column => column.Name).ToArray(),
+            insertRows);
+        return SqlExecutor.ExecuteImportedTableInsert(
+            tsdb,
+            databaseName,
+            insert,
+            schema,
+            controlPlane);
     }
 
-    private static object?[] ConvertJsonObjectToTableRow(TableSchema schema, JsonFileRow fileRow)
+    private static SqlExpression[] ConvertJsonObjectToInsertRow(
+        TableSchema schema,
+        IReadOnlyList<TableColumn> columns,
+        JsonFileRow fileRow)
     {
         using var document = JsonDocument.Parse(fileRow.Document);
         if (document.RootElement.ValueKind != JsonValueKind.Object)
             throw new InvalidOperationException("IMPORT JSON INTO table 要求每条 JSON 记录是对象。");
 
-        var values = new object?[schema.Columns.Count];
-        foreach (var column in schema.Columns)
+        if (schema.RowVersionColumn is { } rowVersionColumn
+            && document.RootElement.TryGetProperty(rowVersionColumn.Name, out _))
         {
+            throw new InvalidOperationException(
+                $"ROWVERSION 列 '{rowVersionColumn.Name}' 由数据库自动维护，IMPORT JSON 不允许显式提供该属性。");
+        }
+
+        var values = new SqlExpression[columns.Count];
+        for (int i = 0; i < columns.Count; i++)
+        {
+            var column = columns[i];
             if (!document.RootElement.TryGetProperty(column.Name, out var element))
             {
-                values[column.Ordinal] = null;
+                values[i] = DefaultValueExpression.Instance;
                 continue;
             }
 
-            values[column.Ordinal] = ConvertJsonElementToColumnValue(column, element);
+            values[i] = ConvertColumnValueToLiteral(ConvertJsonElementToColumnValue(column, element));
         }
 
         return values;
     }
+
+    private static LiteralExpression ConvertColumnValueToLiteral(object? value)
+        => value switch
+        {
+            null => LiteralExpression.Null(),
+            bool booleanValue => LiteralExpression.Bool(booleanValue),
+            long integerValue => LiteralExpression.Integer(integerValue),
+            double floatingValue => LiteralExpression.Float(floatingValue),
+            string stringValue => LiteralExpression.String(stringValue),
+            DateTime dateTimeValue => LiteralExpression.String(
+                dateTimeValue.ToString("O", CultureInfo.InvariantCulture)),
+            byte[] blobValue => LiteralExpression.String(Convert.ToBase64String(blobValue)),
+            _ => throw new InvalidOperationException(
+                $"IMPORT JSON 无法将运行时值类型 '{value.GetType().Name}' 转换为 SQL 字面量。"),
+        };
 
     private static object? ConvertJsonElementToColumnValue(TableColumn column, JsonElement element)
     {

@@ -7,6 +7,9 @@
 
 ### Fixed
 
+- 修复活动轻事务统一拒绝 DDL 后 EF Core migration 被默认事务包裹而失败的问题；provider 生成的 DDL 现在显式 transaction-suppressed，嵌入式与远程 migration 均在事务外执行 schema 语句。关系表 `ALTER COLUMN` 的纯默认值/空值约束变更和列重命名不再重写 row WAL，失败预检也不再误写原 payload；ROWVERSION 默认值不变量下沉到公共 schema 工厂，默认值不再导致旧表 maintenance 指纹失效。
+- 修复 `IMPORT JSON ... INTO table` 绕过关系 INSERT 约束与 ROWVERSION/触发器语义的问题；关系表导入现在把缺失属性映射为 `DEFAULT`，通过标准单批提交路径统一校验 CHECK、外键等约束，自动生成版本列，并在任一记录失败时不留下部分写入。
+- 活动轻事务现在会在文件读取和写入前明确拒绝 `IMPORT JSON`，避免导入绕过关系表事务缓冲并在 `ROLLBACK` 后留下已写数据。
 - 对象存储 GET 现在支持 `bytes=-N` suffix Range，并对越界单段范围返回标准 `416` 与 `Content-Range: bytes */size`；客户端同步保留 suffix 语义，避免播放器回退为完整下载。
 - 对象桶客户端新增语义配置读写和缩略图端点支持，媒体服务启动时可幂等初始化图片/视频桶并只对图片桶启用 WebP 缩略图。
 - 修复对象 PUT 在最终文件发布后、元数据批次于 WAL 追加前被拒绝时遗留孤立文件的问题；对象版本、latest 指针和 PUT 审计现通过单个 KV 原子批次提交，提交结果不确定时保留完整内容，避免可恢复元数据指向被主动删除的正文。内容写入改用真正的异步顺序 `FileStream`，并在 rename 前强制正文落盘、rename 后强制目录项落盘；嵌入式及远程完整/范围读取同步返回对象总长度，同时保留读取结果原有五参数构造函数和五元素解构，并继续提供含总长度的六参数 API。
@@ -39,6 +42,7 @@
 
 ### Added
 
+- 新增关系表列默认值与 `ALTER TABLE ... ALTER [COLUMN]` 完整链路：支持 `TYPE` / `SET DATA TYPE`、`NULL` / `NOT NULL`、`SET/DROP NOT NULL`、`SET/DROP DEFAULT` 以及 SQL Server 风格的类型与空值约束组合写法；`CREATE TABLE` 和 `ADD COLUMN` 的默认表达式会持久化，并在后续 `INSERT` 省略对应列、`VALUES(DEFAULT)`、`INSERT ... DEFAULT VALUES` 与 `UPDATE ... SET column = DEFAULT` 时逐行应用。目标列没有显式默认值时，`DEFAULT` 按 SQL 常规语义产生隐式 `NULL`，再由列空值约束统一校验；这些 DML 形式仅适用于关系表。类型转换、NOT NULL、唯一索引和 CHECK 校验失败时，在进程内会恢复原 schema、数据与索引；行 payload 与 catalog 之间尚无迁移 journal，不承诺进程终止或掉电时的 schema 变更原子性。PRIMARY KEY、ROWVERSION、外键类型和依赖对象继续受保护；EF Core migration SQL、远程 schema 元数据与 Web 表设计器同步覆盖该能力。`tables/tables.tblschema` codec 向后兼容升级为 v7，v1-v6 文件继续可读且旧列视为无默认值；写入 v7 后，不支持 v7 的旧版 SonnetDB 不能读取该 schema 文件。
 - **M39 #333 SQL 触发器 V2 gap baseline（第一批）**：固定审计 outbox、派生汇总和状态流转保护三条关系表 golden journey；新增以批量 INSERT 为代表的 1/100/10,000 行无触发器、V1 `FOR EACH ROW` 与客户端候选 statement 参考的成功成本及失败回滚矩阵，输出 source-generated JSON/Markdown 报告。新增提交失败、触发动作中途失败、真进程终止和 WAL replay 自动化证据；报告明确 UPDATE/DELETE 同规模成本、固定硬件复测和跨关系表 keyspace 掉电原子性尚未证明，不提前宣称 `FOR EACH STATEMENT`、transition table 或多模型触发器。
 - **M38 #329~#332 SQL 存储过程与触发器 V1**：新增仅限 `LANGUAGE SQL` 的 `CREATE/DROP/SHOW/DESCRIBE PROCEDURE`、`CALL` 与关系表 `AFTER INSERT/UPDATE/DELETE FOR EACH ROW` 触发器；过程支持有序 IN 参数、AST 参数绑定、嵌套调用、最终语句结果合同和传递写权限，触发器支持只读 `OLD`/`NEW`、`WHEN` 与确定性执行顺序。定义保存在独立版本化、little-endian、CRC 校验并原子替换的 `routines/routines.sdbrtn`；关系写入复用轻事务和保存点，过程或触发器失败会回滚全部相关 mutation。新增依赖 DROP/ALTER 阻断、稳定错误码、取消/递归/语句数/深度/结果行数限制、脱敏有界调用审计、数据库级 Prometheus 调用/失败/耗时指标，以及备份恢复、crash reopen、REST/Frame 权限 parity 测试。首版不包含 OUT/INOUT、默认参数、动态 SQL、外部语言、BEFORE/statement-level/deferred trigger 或 Document/measurement 触发器；V2 gap catalog 转入 M39 #333~#339。
 - **M37 #328 物化视图**：新增 `CREATE MATERIALIZED VIEW [IF NOT EXISTS] ... AS SELECT ...`、显式全量 `REFRESH MATERIALIZED VIEW`、`DROP MATERIALIZED VIEW [IF EXISTS]`、`SHOW/DESCRIBE MATERIALIZED VIEW` 与 `information_schema.materialized_views`。定义和刷新元数据保存在独立版本化、CRC 校验并原子替换的目录；查询结果写入 `materialized-views/data` 下的新临时代际，快照完成落盘后才切换活动代际，刷新期间和刷新失败后继续读取上一成功版本。快照格式覆盖 SQL 标量、时间、Blob、向量和 GeoPoint；重启会恢复被中断刷新为失败状态并清理未发布文件。名称冲突、参数化/未知/自引用定义、基础对象 DROP/ALTER、被依赖视图删除、轻事务内刷新和并发刷新均明确拒绝；服务端权限、帧只读路由、MCP、Copilot、EXPLAIN 与审计入口同步接线。首版不包含增量刷新、调度、后台自动刷新、`OR REPLACE`、`CASCADE` 或跨数据库依赖。

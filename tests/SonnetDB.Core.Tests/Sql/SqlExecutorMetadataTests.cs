@@ -274,6 +274,31 @@ public class SqlExecutorMetadataTests : IDisposable
     }
 
     [Fact]
+    public void InformationSchemaColumns_ReportsPersistedColumnDefaults()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, """
+            CREATE TABLE devices (
+                id INT,
+                site STRING DEFAULT 'north',
+                retries INT NULL,
+                PRIMARY KEY (id)
+            )
+            """);
+
+        var columns = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT column_name, column_default
+            FROM information_schema.columns
+            WHERE table_name = 'devices'
+            ORDER BY ordinal_position
+            """));
+
+        Assert.Equal(new object?[] { "id", null }, columns.Rows[0]);
+        Assert.Equal(new object?[] { "site", "'north'" }, columns.Rows[1]);
+        Assert.Equal(new object?[] { "retries", null }, columns.Rows[2]);
+    }
+
+    [Fact]
     public void ParseShow_Measurements_ProducesShowMeasurementsAst()
     {
         var stmt = SqlParser.Parse("SHOW MEASUREMENTS");

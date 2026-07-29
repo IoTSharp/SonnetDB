@@ -83,7 +83,8 @@ CREATE TABLE devices (
     id INT NOT NULL,
     site_id INT NULL,
     name STRING NOT NULL,
-    enabled BOOL,
+    enabled BOOL NOT NULL DEFAULT TRUE,
+    retry_count INT DEFAULT 0,
     version INT ROWVERSION,
     installed_at DATETIME NULL,
     metadata JSON NULL,
@@ -101,6 +102,10 @@ CREATE TABLE devices (
 - `DATETIME` 可写 Unix 毫秒整数或 ISO-8601 字符串，查询时返回 UTC `DateTime`。
 - `BLOB` 可写 base64 字符串；ADO.NET 参数可直接传 `byte[]`。
 - `JSON` 当前按 UTF-8 字符串存储；可用 `json_value(json_col, '$.path')` 做 path 投影和过滤。
+- 普通列可声明 `DEFAULT <expr>`；默认表达式支持字面量、常量算术和内置标量函数，不能引用列、参数、聚合或子查询。`ROWVERSION` 列不能声明默认值。
+- `INSERT` 省略带默认值的列，或在 `VALUES` 对应位置写 `DEFAULT` 时，会在每一行写入时求值并应用目标列的默认表达式；显式写入 `NULL` 不会改用默认值。目标列没有声明显式默认值时，`DEFAULT` 按 SQL 常规语义产生隐式 `NULL`：可空列成功，非空列由现有约束拒绝。
+- `INSERT INTO table DEFAULT VALUES` 会为每个非 `ROWVERSION` 列使用其默认值；没有显式默认值的列产生隐式 `NULL`。`UPDATE table SET column = DEFAULT WHERE ...` 会按每个命中行重新求值默认表达式，轻事务路径保持相同语义。
+- `VALUES(DEFAULT)`、`DEFAULT VALUES` 和 `UPDATE SET ... = DEFAULT` 只适用于关系表；measurement 与文档集合会明确拒绝。
 - 二级索引使用 `CREATE INDEX` 单独声明。
 - `FOREIGN KEY (...) REFERENCES parent (...)` 第一版只支持表级声明，引用列必须等于被引用表 `PRIMARY KEY`；外键列任一为 `NULL` 时跳过校验。
 - `CHECK (expression)` 支持命名或未命名表级约束；表达式可引用当前表列、字面量、基础运算、`IN`、`IS NULL`、`CASE` 和当前关系执行器支持的标量函数，不支持限定列名、参数、聚合或子查询。
@@ -125,12 +130,52 @@ WHERE installed_at <= CURRENT_UTC_DATETIME();
 - `TO_UNIX_MILLISECONDS(value)` / `TO_UNIX_SECONDS(value)` 返回 Unix 时间。
 - 日期函数接受 `DATETIME` 或 Unix 毫秒；输入为 `NULL` 时结果为 `NULL`。时序分桶仍使用 `GROUP BY time(1m)` 等语法，不使用 `DATE_TRUNC`。
 
-已有表可追加或删除检查约束。追加前会扫描存量行；任一行明确违反约束时 DDL 失败且 catalog 保持原状。
+### `ALTER TABLE`
+
+关系表支持新增、修改、删除和重命名列，以及重命名表：
+
+```sql
+ALTER TABLE devices ADD COLUMN region STRING NOT NULL DEFAULT 'north';
+ALTER TABLE devices ALTER COLUMN retry_count TYPE FLOAT;
+ALTER TABLE devices ALTER COLUMN region SET DATA TYPE STRING;
+ALTER TABLE devices ALTER COLUMN region SET NOT NULL;
+ALTER TABLE devices ALTER COLUMN region DROP NOT NULL;
+ALTER TABLE devices ALTER COLUMN region SET DEFAULT 'east';
+ALTER TABLE devices ALTER COLUMN region DROP DEFAULT;
+ALTER TABLE devices RENAME COLUMN region TO site;
+ALTER TABLE devices DROP COLUMN site;
+ALTER TABLE devices RENAME TO managed_devices;
+```
+
+`ALTER COLUMN` 的完整语法为：
+
+```sql
+ALTER TABLE table_name ALTER [COLUMN] column_name
+    [TYPE data_type | SET DATA TYPE data_type | data_type]
+    [NULL | NOT NULL | SET NOT NULL | DROP NOT NULL]
+    [SET DEFAULT expression | DROP DEFAULT];
+```
+
+- 每条语句至少要指定一种变更；类型、空值约束和默认值动作各自最多出现一次，可以组合在同一条语句中。
+- `TYPE FLOAT` 与 `SET DATA TYPE FLOAT` 是两种等价的类型变更写法；省略 `TYPE` 的 `FLOAT` 形式用于 SQL Server 风格组合，例如 `ALTER TABLE devices ALTER COLUMN retry_count FLOAT NOT NULL`。
+- 类型变更会转换全部存量非空值并重建派生索引。当前不支持 `USING expression` 自定义转换；任一值无法转换，或转换后违反唯一索引、CHECK、NOT NULL 等约束时，在进程内整条 DDL 恢复原 schema、数据和索引。行 payload 与 catalog 发布之间尚无迁移 journal，因此不将该恢复边界解释为进程终止或掉电原子性。
+- 真正改变物理类型的迁移当前使用单个 KV 原子 batch，受 `KvOptions.MaxOverlayEntries` 和 `KvOptions.MaxWalBytes` 限制（默认分别为 100,000 条 mutation 和 256 MiB WAL）。超出预算时会在写 WAL 前拒绝；应先提高预算，或通过新表分批迁移。`SET/DROP DEFAULT`、`DROP NOT NULL` 和列重命名只发布元数据，不受该 batch 行数限制。
+- `SET NOT NULL` 会分页扫描并验证全部存量行，但不会重写 row payload；`DROP NOT NULL` 与直接写 `NULL` 等价，`NOT NULL` 与 `SET NOT NULL` 等价。
+- `SET DEFAULT` 只影响之后省略该列的 `INSERT`，不会回填存量行；`DROP DEFAULT` 只移除后续插入的默认行为。目标类型或空值约束发生变化时，保留或新设的默认表达式也会按新定义重新校验。
+- PRIMARY KEY 列不能修改类型或改为可空；ROWVERSION 列不能修改类型、空值约束或默认值；参与外键的引用列或被引用列不能修改类型，必须先删除相应外键约束。
+- 被逻辑视图、物化视图、存储过程或触发器依赖的表仍受既有依赖保护，必须先移除依赖对象再修改 schema。
+- `ADD COLUMN ... NOT NULL` 当前即使目标表为空也要求 `DEFAULT`；有入站外键引用的父表不能 `RENAME TABLE` 或 `DROP TABLE`，必须先删除子表外键。
+
+已有表还可追加或删除外键和检查约束。追加约束前会扫描存量行；任一行违反约束时 DDL 失败且 catalog 保持原状。
 
 ```sql
 ALTER TABLE devices
+ADD CONSTRAINT fk_devices_site FOREIGN KEY (site_id) REFERENCES sites (id);
+
+ALTER TABLE devices
 ADD CONSTRAINT ck_devices_name CHECK (name IN ('pump', 'fan', 'valve'));
 
+ALTER TABLE devices DROP CONSTRAINT fk_devices_site;
 ALTER TABLE devices DROP CONSTRAINT ck_devices_name;
 ```
 
@@ -386,7 +431,7 @@ COMMIT;
 当前边界：
 
 - 轻事务支持同一数据库内多个关系表的 `INSERT` / `UPDATE` / `DELETE` 原子提交与回滚。
-- 不支持嵌套事务、measurement / document 写入事务、DDL 事务或跨数据库事务。在事务上下文内执行 measurement（时序）`INSERT` / `DELETE` 或文档集合写入会抛 `NotSupportedException`（这类写入直接落 WAL/tombstone，`ROLLBACK` 无法撤销，故显式拒绝而非静默写入造成"假回滚"）。
+- 不支持嵌套事务、measurement / document 写入事务、DDL 事务、`IMPORT JSON` 或跨数据库事务。在事务上下文内执行 measurement（时序）`INSERT` / `DELETE`、文档集合写入、DDL 或文件导入会抛 `NotSupportedException`（这些操作不进入关系表事务缓冲，`ROLLBACK` 无法撤销，故显式拒绝而非静默执行造成"假回滚"）。
 - `COMMIT` 前会校验 NOT NULL、主键、唯一索引、外键、CHECK 和 ROWVERSION 乐观并发列；任一失败时，不会留下已应用的 rowstore / index 变更。
 - 同一轻事务内的后续 `UPDATE` 会读取并合并该事务已缓冲的同一行变更，因此连续两次 `SET value = value + 1` 会累计两次。跨事务并发仍是 ReadCommitted；需要检测排队后到提交前的覆盖冲突时，应为表声明 `ROWVERSION` 并在 `WHERE` 中携带旧版本。
 - 同一轻事务内的 `INSERT` / `UPDATE` / `DELETE` 会按主键归并最终净变化，例如 `INSERT→DELETE` 不产生提交写入，`UPDATE→DELETE` 只提交删除，`DELETE→INSERT` 提交替换；每条多行 INSERT/DELETE 只有在全部行求值和校验成功后才写入事务缓冲。
@@ -619,7 +664,8 @@ FORMAT ARRAY;
 
 - 格式支持 `AUTO`、`ARRAY` 和 `LINES`；`AUTO` 会识别顶层数组 / 单对象 / JSON Lines。
 - 导入 document collection 时每条记录整体写入 `document`，ID 来自 `ID PATH`、默认 `$.id` 或 `ordinal`。
-- 导入 table 时要求每条记录是对象，并按列名映射到表列；对象 / 数组可写入 `JSON` 列。
+- 导入 table 时要求每条记录是对象，并按列名映射到表列；对象 / 数组可写入 `JSON` 列。缺失属性按关系 INSERT 的 `DEFAULT` 语义处理，显式 JSON `null` 仍写入 `NULL`。
+- table 导入复用普通关系 INSERT 的单批提交和触发器路径，会统一校验 NOT NULL、主键、唯一索引、外键与 CHECK，并自动生成 ROWVERSION；JSON 中显式提供 ROWVERSION 属性会拒绝整批导入。任一记录或触发器失败时不会留下部分关系行。document collection 导入仍按记录执行 upsert，不承诺整文件原子性。
 - JSON 文件虚拟表不维护索引；`EXPLAIN` 的 `access_path` 显示 `json_file_virtual_table`。
 
 ### 关系表 JSON path 索引
@@ -861,7 +907,7 @@ CREATE MEASUREMENT cpu (
 
 - SonnetDB 的 field 是稀疏的：同一个 measurement 的不同时间点可以携带不同 field 集合。
 - 如果某个时间点没有写入某个 field，查询该列时结果为 `NULL`；这表示“该时间点未记录该字段”，不是 schema 约束失败。
-- 写入时不要用 `DEFAULT` 或显式 `NULL` 表达缺值；请省略该 field，或在应用侧写入具体默认值。
+- measurement 不支持关系表 DML 的 `DEFAULT` 形式；`VALUES(DEFAULT)` 与 `DEFAULT VALUES` 会明确拒绝。表达缺值时请省略该 field，或在应用侧写入具体值；显式 `NULL` 也不是 field 的默认值。
 
 ### `INSERT INTO ... VALUES`
 

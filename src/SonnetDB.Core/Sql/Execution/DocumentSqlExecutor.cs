@@ -166,6 +166,13 @@ internal static class DocumentSqlExecutor
         ArgumentNullException.ThrowIfNull(statement);
         ArgumentNullException.ThrowIfNull(schema);
 
+        if (statement.IsDefaultValues
+            || statement.Rows.Any(static row => row.Any(static value => value is DefaultValueExpression)))
+        {
+            throw new InvalidOperationException(
+                "DEFAULT VALUES 和 VALUES(DEFAULT) 仅支持关系表；文档集合没有列 DEFAULT。");
+        }
+
         int idColumn = FindRequiredColumn(statement.Columns, "id");
         int documentColumn = FindRequiredDocumentColumn(statement.Columns);
         var store = tsdb.Documents.Open(schema.Name);
@@ -277,6 +284,12 @@ internal static class DocumentSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
         ArgumentNullException.ThrowIfNull(schema);
+
+        if (statement.Assignments.Any(static assignment => assignment.Value is DefaultValueExpression))
+        {
+            throw new InvalidOperationException(
+                "UPDATE SET column = DEFAULT 仅支持关系表；文档集合没有列 DEFAULT。");
+        }
 
         if (statement.Assignments.Count != 1
             || !IsDocumentColumn(statement.Assignments[0].ColumnName))

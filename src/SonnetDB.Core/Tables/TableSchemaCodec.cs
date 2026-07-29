@@ -18,7 +18,7 @@ public static class TableSchemaCodec
     private static readonly byte[] _magic = "SDBTBLv1"u8.ToArray();
     private static readonly Encoding _utf8 = Encoding.UTF8;
 
-    private const int _formatVersion = 6;
+    private const int _formatVersion = 7;
     private const int _headerSize = 32;
     private const int _footerSize = 16;
 
@@ -139,6 +139,7 @@ public static class TableSchemaCodec
             throw new InvalidDataException($"TableSchema: table '{name}' has no columns.");
 
         var columns = new List<(string Name, TableColumnType DataType, bool IsNullable)>(columnCount);
+        var columnDefaults = new Dictionary<string, string?>(StringComparer.Ordinal);
         var rowVersionColumns = new HashSet<string>(StringComparer.Ordinal);
         var primaryKey = new List<string>();
         Span<byte> flags = stackalloc byte[2];
@@ -156,6 +157,15 @@ public static class TableSchemaCodec
             bool isNullable = (flags[1] & 0b0000_0010) != 0;
             bool isRowVersion = version >= 4 && (flags[1] & 0b0000_0100) != 0;
             columns.Add((columnName, type, isNullable));
+            if (version >= 7)
+            {
+                string defaultExpressionSql = ReadString(
+                    source,
+                    crc,
+                    $"table {tableIndex} column {i} default expression");
+                if (!string.IsNullOrEmpty(defaultExpressionSql))
+                    columnDefaults.Add(columnName, defaultExpressionSql);
+            }
             if (isPrimaryKey)
                 primaryKey.Add(columnName);
             if (isRowVersion)
@@ -202,7 +212,7 @@ public static class TableSchemaCodec
             }
         }
 
-        return TableSchema.Create(
+        return TableSchema.CreateWithDefaults(
             name,
             columns,
             primaryKey,
@@ -210,7 +220,8 @@ public static class TableSchemaCodec
             foreignKeys,
             rowVersionColumns,
             createdAt,
-            checkConstraints);
+            checkConstraints,
+            columnDefaults);
     }
 
     private static void Save(IReadOnlyList<TableSchema> schemas, Stream destination)
@@ -256,6 +267,9 @@ public static class TableSchemaCodec
                 throw new InvalidDataException($"Table '{schema.Name}' 的列 '{schema.Columns[i].Name}' 名称过长。");
             columnNameLengths[i] = length;
             totalSize += 2 + length + 2;
+            totalSize += CheckedStringSize(
+                schema.Columns[i].DefaultExpressionSql ?? string.Empty,
+                $"Table '{schema.Name}' 的列 '{schema.Columns[i].Name}' 默认表达式过长。");
         }
 
         var indexNameLengths = new int[schema.Indexes.Count];
@@ -338,6 +352,10 @@ public static class TableSchemaCodec
                 if (column.IsRowVersion)
                     flags |= 0b0000_0100;
                 writer.WriteByte(flags);
+                WriteString(
+                    ref writer,
+                    column.DefaultExpressionSql ?? string.Empty,
+                    $"Table '{schema.Name}' 的列 '{column.Name}' 默认表达式过长。");
             }
 
             writer.WriteUInt16((ushort)schema.Indexes.Count);

@@ -22,6 +22,17 @@ public enum ColumnNullability
     NotNull,
 }
 
+/// <summary>关系表列默认值的 ALTER 动作。</summary>
+public enum ColumnDefaultAction
+{
+    /// <summary>不修改当前默认值。</summary>
+    Unchanged,
+    /// <summary>设置或替换默认值。</summary>
+    Set,
+    /// <summary>删除当前默认值。</summary>
+    Drop,
+}
+
 /// <summary>SQL 层支持的列数据类型，对应 <see cref="SonnetDB.Storage.Format.FieldType"/>。</summary>
 public enum SqlDataType
 {

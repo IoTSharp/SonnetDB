@@ -469,7 +469,7 @@ public sealed class SndbConnection : DbConnection
                     schema.Name,
                     column.Name,
                     column.Ordinal + 1,
-                    DBNull.Value,
+                    (object?)column.DefaultExpressionSql ?? DBNull.Value,
                     column.IsNullable,
                     FormatTableColumnType(column.DataType),
                     GetCharacterMaximumLength(column.DataType),

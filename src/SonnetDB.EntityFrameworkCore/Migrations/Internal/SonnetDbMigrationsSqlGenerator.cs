@@ -66,7 +66,7 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
         if (terminate)
         {
             builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
-            EndStatement(builder);
+            EndDdlStatement(builder);
         }
     }
 
@@ -83,7 +83,7 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
         if (terminate)
         {
             builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
-            EndStatement(builder);
+            EndDdlStatement(builder);
         }
     }
 
@@ -102,8 +102,44 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
         if (terminate)
         {
             builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
-            EndStatement(builder);
+            EndDdlStatement(builder);
         }
+    }
+
+    /// <inheritdoc />
+    protected override void Generate(
+        AlterColumnOperation operation,
+        IModel? model,
+        MigrationCommandListBuilder builder)
+    {
+        if (operation.ComputedColumnSql is not null)
+        {
+            throw new NotSupportedException("SonnetDB 当前不支持通过 ALTER COLUMN 创建或修改计算列。");
+        }
+
+        builder.Append("ALTER TABLE ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table))
+            .Append(" ALTER COLUMN ")
+            .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
+            .Append(" TYPE ")
+            .Append(GetColumnType(operation.Schema, operation.Table, operation.Name, operation, model))
+            .Append(operation.IsNullable ? " NULL" : " NOT NULL");
+
+        if (operation.DefaultValueSql is not null)
+        {
+            builder.Append(" SET DEFAULT ").Append(operation.DefaultValueSql);
+        }
+        else if (operation.DefaultValue is not null)
+        {
+            builder.Append(" SET DEFAULT ").Append(GenerateSqlLiteral(operation.DefaultValue));
+        }
+        else
+        {
+            builder.Append(" DROP DEFAULT");
+        }
+
+        builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
+        EndDdlStatement(builder);
     }
 
     /// <inheritdoc />
@@ -121,7 +157,7 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
         if (terminate)
         {
             builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
-            EndStatement(builder);
+            EndDdlStatement(builder);
         }
     }
 
@@ -138,7 +174,7 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
             .Append(" TO ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.NewName!));
         builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
-        EndStatement(builder);
+        EndDdlStatement(builder);
     }
 
     /// <inheritdoc />
@@ -154,7 +190,7 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
             .Append(" RENAME TO ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.NewName));
         builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
-        EndStatement(builder);
+        EndDdlStatement(builder);
     }
 
     /// <inheritdoc />
@@ -181,7 +217,7 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
         if (terminate)
         {
             builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
-            EndStatement(builder);
+            EndDdlStatement(builder);
         }
     }
 
@@ -202,7 +238,7 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
         if (terminate)
         {
             builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
-            EndStatement(builder);
+            EndDdlStatement(builder);
         }
     }
 
@@ -221,7 +257,7 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
         if (terminate)
         {
             builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
-            EndStatement(builder);
+            EndDdlStatement(builder);
         }
     }
 
@@ -244,7 +280,7 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
         if (terminate)
         {
             builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
-            EndStatement(builder);
+            EndDdlStatement(builder);
         }
     }
 
@@ -259,7 +295,7 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
             .Append(" ADD ");
         AppendCheckConstraint(operation, builder);
         builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
-        EndStatement(builder);
+        EndDdlStatement(builder);
     }
 
     /// <inheritdoc />
@@ -273,7 +309,7 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
             .Append(" DROP CONSTRAINT ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Name))
             .AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);
-        EndStatement(builder);
+        EndDdlStatement(builder);
     }
 
     /// <inheritdoc />
@@ -358,7 +394,12 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
             builder.Append(" NOT NULL");
         }
 
-        if (operation.DefaultValue is not null)
+        if (operation.DefaultValueSql is not null)
+        {
+            builder.Append(" DEFAULT ")
+                .Append(operation.DefaultValueSql);
+        }
+        else if (operation.DefaultValue is not null)
         {
             builder.Append(" DEFAULT ")
                 .Append(GenerateSqlLiteral(operation.DefaultValue));
@@ -413,6 +454,9 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
             .Append(operation.Sql)
             .Append(")");
     }
+
+    private void EndDdlStatement(MigrationCommandListBuilder builder)
+        => EndStatement(builder, suppressTransaction: true);
 
     private static string GenerateSqlLiteral(object? value)
         => value switch

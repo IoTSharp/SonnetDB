@@ -4,6 +4,7 @@ using SonnetDB.FullText;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
+using SonnetDB.Tables;
 using Xunit;
 
 namespace SonnetDB.Core.Tests.Sql;
@@ -187,6 +188,32 @@ public sealed class SqlExecutorDocumentTests : IDisposable
         var all = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
             "SELECT id FROM device_docs ORDER BY id"));
         Assert.Equal(["dev-1"], all.Rows.Select(static r => (string)r[0]!).ToArray());
+    }
+
+    [Fact]
+    public void DocumentCollection_DmlDefaultForms_AreRejectedAsTableOnly()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE DOCUMENT COLLECTION device_docs");
+
+        var defaultValuesError = Assert.Throws<InvalidOperationException>(() =>
+            SqlExecutor.Execute(db, "INSERT INTO device_docs DEFAULT VALUES"));
+        Assert.Contains("仅支持关系表", defaultValuesError.Message, StringComparison.Ordinal);
+
+        var valueDefaultError = Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db, """
+            INSERT INTO device_docs (id, document)
+            VALUES ('dev-1', DEFAULT)
+            """));
+        Assert.Contains("仅支持关系表", valueDefaultError.Message, StringComparison.Ordinal);
+
+        SqlExecutor.Execute(db, """
+            INSERT INTO device_docs (id, document)
+            VALUES ('dev-1', '{"site":"north"}')
+            """);
+        var updateDefaultError = Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db, """
+            UPDATE device_docs SET document = DEFAULT WHERE id = 'dev-1'
+            """));
+        Assert.Contains("仅支持关系表", updateDefaultError.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1106,6 +1133,209 @@ public sealed class SqlExecutorDocumentTests : IDisposable
 
         Assert.Equal(new object?[] { 1L, "north" }, result.Rows[0]);
         Assert.Equal(new object?[] { 2L, "south" }, result.Rows[1]);
+    }
+
+    [Fact]
+    public void ImportJson_IntoTable_AppliesPersistedDefaultsToMissingPropertiesAfterReopen()
+    {
+        string path = Path.Combine(_root, "table-defaults.json");
+        File.WriteAllText(path, """
+            [
+              {"id":1},
+              {"id":2,"site":"south","retries":5},
+              {"id":3,"site":null}
+            ]
+            """);
+
+        using (var db = Tsdb.Open(Options()))
+        {
+            SqlExecutor.Execute(db, """
+                CREATE TABLE devices (
+                    id INT,
+                    site STRING DEFAULT 'north',
+                    retries INT NOT NULL DEFAULT 3,
+                    PRIMARY KEY (id)
+                )
+                """);
+        }
+
+        using (var reopened = Tsdb.Open(Options()))
+        {
+            var imported = Assert.IsType<InsertExecutionResult>(SqlExecutor.Execute(reopened, $"""
+                IMPORT JSON '{EscapeSql(path)}' INTO devices FORMAT ARRAY
+                """));
+            Assert.Equal(3, imported.RowsInserted);
+
+            var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(reopened, """
+                SELECT id, site, retries
+                FROM devices
+                ORDER BY id
+                """));
+            Assert.Equal(new object?[] { 1L, "north", 3L }, result.Rows[0]);
+            Assert.Equal(new object?[] { 2L, "south", 5L }, result.Rows[1]);
+            Assert.Equal(new object?[] { 3L, null, 3L }, result.Rows[2]);
+        }
+    }
+
+    [Fact]
+    public void ImportJson_IntoTable_InvokesAfterInsertTriggerForEveryRow()
+    {
+        string path = Path.Combine(_root, "table-trigger.json");
+        File.WriteAllText(path, """
+            [
+              {"id":1,"name":"pump"},
+              {"id":2,"name":"fan"}
+            ]
+            """);
+
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db,
+            "CREATE TABLE devices (id INT, name STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "CREATE TABLE device_audit (device_id INT, name STRING, PRIMARY KEY (device_id))");
+        SqlExecutor.Execute(db, """
+            CREATE TRIGGER devices_audit_insert AFTER INSERT ON devices FOR EACH ROW
+            LANGUAGE SQL AS BEGIN
+                INSERT INTO device_audit (device_id, name) VALUES (NEW.id, NEW.name);
+            END
+            """);
+
+        var imported = Assert.IsType<InsertExecutionResult>(SqlExecutor.Execute(db, $"""
+            IMPORT JSON '{EscapeSql(path)}' INTO devices FORMAT ARRAY
+            """));
+        Assert.Equal(2, imported.RowsInserted);
+
+        var sourceRows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id, name FROM devices ORDER BY id"));
+        var auditRows = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT device_id, name FROM device_audit ORDER BY device_id"));
+        Assert.Equal(2, sourceRows.Rows.Count);
+        Assert.Equal(2, auditRows.Rows.Count);
+        Assert.Equal(sourceRows.Rows, auditRows.Rows);
+    }
+
+    [Fact]
+    public void ImportJson_IntoTableWithoutRowVersion_GeneratesInitialRowVersion()
+    {
+        string path = Path.Combine(_root, "table-rowversion.json");
+        File.WriteAllText(path, """
+            [
+              {"id":1,"name":"pump"}
+            ]
+            """);
+
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, """
+            CREATE TABLE devices (
+                id INT,
+                name STRING,
+                version INT ROWVERSION,
+                PRIMARY KEY (id)
+            )
+            """);
+
+        var imported = Assert.IsType<InsertExecutionResult>(SqlExecutor.Execute(db, $"""
+            IMPORT JSON '{EscapeSql(path)}' INTO devices FORMAT ARRAY
+            """));
+        Assert.Equal(1, imported.RowsInserted);
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id, version FROM devices"));
+        Assert.Equal(new object?[] { 1L, 1L }, result.Rows.Single());
+    }
+
+    [Fact]
+    public void ImportJson_IntoTableWithExplicitRowVersion_RejectsEntireBatch()
+    {
+        string path = Path.Combine(_root, "table-explicit-rowversion.json");
+        File.WriteAllText(path, """
+            [
+              {"id":1,"name":"pump","version":9}
+            ]
+            """);
+
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, """
+            CREATE TABLE devices (
+                id INT,
+                name STRING,
+                version INT ROWVERSION,
+                PRIMARY KEY (id)
+            )
+            """);
+
+        var exception = Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db, $"""
+            IMPORT JSON '{EscapeSql(path)}' INTO devices FORMAT ARRAY
+            """));
+        Assert.Contains("ROWVERSION", exception.Message, StringComparison.OrdinalIgnoreCase);
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM devices"));
+        Assert.Empty(result.Rows);
+    }
+
+    [Fact]
+    public void ImportJson_IntoTableWithCheckViolation_RejectsEntireBatch()
+    {
+        string path = Path.Combine(_root, "table-check-violation.json");
+        File.WriteAllText(path, """
+            [
+              {"id":1,"score":5},
+              {"id":2,"score":-1}
+            ]
+            """);
+
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, """
+            CREATE TABLE metrics (
+                id INT,
+                score INT NOT NULL,
+                PRIMARY KEY (id),
+                CONSTRAINT ck_metrics_score CHECK (score >= 0)
+            )
+            """);
+
+        var exception = Assert.Throws<TableConstraintException>(() => SqlExecutor.Execute(db, $"""
+            IMPORT JSON '{EscapeSql(path)}' INTO metrics FORMAT ARRAY
+            """));
+        Assert.Equal(TableConstraintException.CheckViolation, exception.ErrorCode);
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM metrics"));
+        Assert.Empty(result.Rows);
+    }
+
+    [Fact]
+    public void ImportJson_IntoTableWithForeignKeyViolation_RejectsEntireBatch()
+    {
+        string path = Path.Combine(_root, "table-foreign-key-violation.json");
+        File.WriteAllText(path, """
+            [
+              {"id":10,"site_id":1},
+              {"id":11,"site_id":404}
+            ]
+            """);
+
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE sites (id INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, """
+            CREATE TABLE devices (
+                id INT,
+                site_id INT,
+                PRIMARY KEY (id),
+                FOREIGN KEY (site_id) REFERENCES sites (id)
+            )
+            """);
+        SqlExecutor.Execute(db, "INSERT INTO sites (id) VALUES (1)");
+
+        var exception = Assert.Throws<TableConstraintException>(() => SqlExecutor.Execute(db, $"""
+            IMPORT JSON '{EscapeSql(path)}' INTO devices FORMAT ARRAY
+            """));
+        Assert.Equal(TableConstraintException.ForeignKeyViolation, exception.ErrorCode);
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM devices"));
+        Assert.Empty(result.Rows);
     }
 
     private static string EscapeSql(string value)

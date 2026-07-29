@@ -70,6 +70,8 @@ ctx.Database.EnsureCreated();
 
 EF Core 标准 migrations 流水线 (`dotnet ef migrations add`, `dotnet ef database update`) 也可正常使用；如果迁移类放在独立程序集，记得在 `UseSonnetDB` 里通过 `MigrationsAssembly` 指定。
 
+SonnetDB 的关系轻事务不包含 DDL。Provider 生成的 `CREATE` / `ALTER` / `DROP` migration 命令会标记为 transaction-suppressed，由 EF Core 在轻事务外执行；migration history 的关系 DML 仍使用正常事务边界。因此 migration 失败可以继续通过 EF 的 down migration 修正，但不承诺把已经执行的多个 DDL 作为一个可回滚事务。通过 `migrationBuilder.Sql(...)` 手写 DDL 时也应设置 `suppressTransaction: true`。
+
 ## 注意事项
 
 - Provider 当前实现关系型表的 CRUD、JOIN、SHOW INDEXES、EXPLAIN、显式事务回滚等；不实现分布式事务、复杂的物化视图、cross-database 跨库查询。

@@ -100,6 +100,29 @@ public class SqlExecutorInsertTests : IDisposable
         Assert.InRange(points[0].Timestamp, before, after);
     }
 
+    [Theory]
+    [InlineData("INSERT INTO cpu DEFAULT VALUES")]
+    [InlineData("INSERT INTO cpu (host, usage) VALUES (DEFAULT, 1.0)")]
+    public void Insert_DefaultForms_AreRejectedAsRelationalTableOnly(string sql)
+    {
+        using var db = OpenWithSchema(Options());
+
+        var error = Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(db, sql));
+
+        Assert.Contains("仅支持关系表", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Update_DefaultForm_IsRejectedAsRelationalTableOnly()
+    {
+        using var db = OpenWithSchema(Options());
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            SqlExecutor.Execute(db, "UPDATE cpu SET usage = DEFAULT WHERE time = 1000"));
+
+        Assert.Contains("仅支持关系表", error.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Insert_IntegerLiteralPromotesToFloat()
     {

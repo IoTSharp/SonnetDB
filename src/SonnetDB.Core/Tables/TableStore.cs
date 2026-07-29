@@ -583,9 +583,45 @@ public sealed class TableStore : IDisposable
         }
     }
 
+    internal void ApplyMetadataSchema(TableSchema schema)
+    {
+        ArgumentNullException.ThrowIfNull(schema);
+        lock (_sync)
+            _schema = schema;
+    }
+
+    internal void ValidateExistingRows(
+        TableSchema schema,
+        Action<TableSchema, IReadOnlyList<object?>>? validate = null)
+    {
+        ArgumentNullException.ThrowIfNull(schema);
+        lock (_sync)
+        {
+            byte[] afterKey = [];
+            while (true)
+            {
+                var entries = _keyspace.ScanPrefixAfter(
+                    [(byte)'r'],
+                    afterKey,
+                    MaintenanceKeyPageSize);
+                if (entries.Count == 0)
+                    break;
+
+                afterKey = entries[^1].Key.ToArray();
+                foreach (var entry in entries)
+                {
+                    var values = TableRowCodec.Decode(_schema, entry.Value.Span);
+                    ValidateRow(schema, values);
+                    validate?.Invoke(schema, values);
+                }
+            }
+        }
+    }
+
     internal Action ApplySchemaTransform(
         TableSchema schema,
-        Func<TableSchema, TableRow, IReadOnlyList<object?>> transform)
+        Func<TableSchema, TableRow, IReadOnlyList<object?>> transform,
+        Action<TableSchema, IReadOnlyList<object?>>? validate = null)
     {
         ArgumentNullException.ThrowIfNull(schema);
         ArgumentNullException.ThrowIfNull(transform);
@@ -596,6 +632,7 @@ public sealed class TableStore : IDisposable
                 .Select(entry => (Key: entry.Key.ToArray(), Value: entry.Value.ToArray()))
                 .ToArray();
             var transformedRows = new List<(byte[] Key, byte[] Value)>(originalPayloads.Length);
+            var payloadsApplied = false;
 
             try
             {
@@ -605,6 +642,7 @@ public sealed class TableStore : IDisposable
                     var row = new TableRow(TableRowCodec.Decode(previous, entry.Value.AsSpan()), primaryKey);
                     var values = transform(previous, row);
                     ValidateRow(schema, values);
+                    validate?.Invoke(schema, values);
 
                     var transformedPrimaryKey = TableKeyCodec.EncodePrimaryKey(schema, values);
                     if (!transformedPrimaryKey.AsSpan().SequenceEqual(primaryKey))
@@ -613,8 +651,10 @@ public sealed class TableStore : IDisposable
                     transformedRows.Add((entry.Key, TableRowCodec.Encode(schema, values)));
                 }
 
-                foreach (var row in transformedRows)
-                    _keyspace.Put(row.Key, row.Value);
+                _keyspace.ApplyBatch(transformedRows
+                    .Select(static row => KvBatchMutation.Put(row.Key, row.Value))
+                    .ToArray());
+                payloadsApplied = true;
 
                 _schema = schema;
                 RebuildIndexesLocked();
@@ -622,10 +662,13 @@ public sealed class TableStore : IDisposable
             }
             catch
             {
-                foreach (var entry in originalPayloads)
-                    _keyspace.Put(entry.Key, entry.Value);
-                _schema = previous;
-                RebuildIndexesLocked();
+                if (payloadsApplied)
+                {
+                    foreach (var entry in originalPayloads)
+                        _keyspace.Put(entry.Key, entry.Value);
+                    _schema = previous;
+                    RebuildIndexesLocked();
+                }
                 throw;
             }
         }
@@ -635,8 +678,6 @@ public sealed class TableStore : IDisposable
     {
         lock (_sync)
         {
-            foreach (var current in _keyspace.ScanPrefix(new byte[] { (byte)'r' }, int.MaxValue))
-                _keyspace.Delete(current.Key.Span);
             foreach (var entry in payloads)
                 _keyspace.Put(entry.Key, entry.Value);
             _schema = schema;

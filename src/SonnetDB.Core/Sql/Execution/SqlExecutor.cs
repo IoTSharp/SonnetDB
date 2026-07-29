@@ -294,6 +294,7 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
         ArgumentNullException.ThrowIfNull(options);
+        RejectUnsupportedStatementInActiveTransaction(statement, transaction);
 
         using var routineExecutionScope = RoutineExecutionContext.EnterRoot(options);
         RoutineExecutionContext.Current!.CheckCancellation();
@@ -328,13 +329,17 @@ public static class SqlExecutor
             CreateTableJsonPathIndexStatement createTableJsonIndex => TableSqlExecutor.ExecuteCreateJsonPathIndex(tsdb, createTableJsonIndex),
             CreateFullTextIndexStatement createFullTextIndex => DocumentSqlExecutor.ExecuteCreateFullTextIndex(tsdb, createFullTextIndex),
             CreateDocumentVectorIndexStatement createVectorIndex => DocumentSqlExecutor.ExecuteCreateVectorIndex(tsdb, createVectorIndex),
-            ImportJsonStatement importJson => JsonFileSqlExecutor.ExecuteImport(tsdb, importJson),
+            ImportJsonStatement importJson => JsonFileSqlExecutor.ExecuteImport(
+                tsdb,
+                databaseName,
+                importJson,
+                controlPlane),
             InsertStatement insert => ExecuteInsert(tsdb, databaseName, insert, controlPlane, transaction),
             SelectStatement select => ExecuteSelect(tsdb, select),
             CallProcedureStatement call => SqlRoutineRuntime.ExecuteCall(tsdb, databaseName, call, controlPlane, transaction),
             RefreshMaterializedViewStatement refreshMaterializedView => ExecuteRefreshMaterializedView(tsdb, refreshMaterializedView),
             DeleteStatement delete => ExecuteDelete(tsdb, databaseName, delete, controlPlane, transaction),
-            TruncateTableStatement truncate => ExecuteTruncate(tsdb, truncate, transaction),
+            TruncateTableStatement truncate => ExecuteTruncate(tsdb, truncate),
             UpdateStatement update => ExecuteUpdate(tsdb, databaseName, update, controlPlane, transaction),
             DropMeasurementStatement dropMeasurement => ExecuteDropMeasurement(tsdb, dropMeasurement),
             DropTableStatement dropTable => TableSqlExecutor.ExecuteDropTable(tsdb, dropTable),
@@ -348,6 +353,7 @@ public static class SqlExecutor
             DropFullTextIndexStatement dropFullTextIndex => DocumentSqlExecutor.ExecuteDropFullTextIndex(tsdb, dropFullTextIndex),
             DropDocumentVectorIndexStatement dropVectorIndex => DocumentSqlExecutor.ExecuteDropVectorIndex(tsdb, dropVectorIndex),
             AlterTableAddColumnStatement alterAddColumn => TableSqlExecutor.ExecuteAlterTableAddColumn(tsdb, alterAddColumn),
+            AlterTableAlterColumnStatement alterColumn => TableSqlExecutor.ExecuteAlterTableAlterColumn(tsdb, alterColumn),
             AlterTableAddForeignKeyStatement alterAddForeignKey => TableSqlExecutor.ExecuteAlterTableAddForeignKey(tsdb, alterAddForeignKey),
             AlterTableAddCheckConstraintStatement alterAddCheckConstraint => TableSqlExecutor.ExecuteAlterTableAddCheckConstraint(tsdb, alterAddCheckConstraint),
             AlterTableDropColumnStatement alterDropColumn => TableSqlExecutor.ExecuteAlterTableDropColumn(tsdb, alterDropColumn),
@@ -399,6 +405,74 @@ public static class SqlExecutor
                 $"SQL 语句类型 '{statement.GetType().Name}' 尚未实现。"),
         };
     }
+
+    // 轻事务只缓冲关系表 DML；schema、控制面和文件导入必须在进入执行分支前拒绝。
+    private static void RejectUnsupportedStatementInActiveTransaction(
+        SqlStatement statement,
+        SqlTransactionContext? transaction)
+    {
+        if (transaction is null || transaction.IsCompleted)
+            return;
+
+        if (statement is ImportJsonStatement)
+        {
+            throw new NotSupportedException(
+                "IMPORT JSON 不能在活动轻事务内执行；文件导入不会进入事务缓冲。请在事务外执行。");
+        }
+
+        if (!IsDdlStatement(statement))
+            return;
+
+        throw new NotSupportedException(
+            "DDL 语句不能在活动轻事务内执行；请在 BEGIN 前或 COMMIT/ROLLBACK 后执行。");
+    }
+
+    private static bool IsDdlStatement(SqlStatement statement)
+        => statement is
+            CreateMeasurementStatement
+            or CreateTableStatement
+            or CreateDocumentCollectionStatement
+            or CreateViewStatement
+            or CreateMaterializedViewStatement
+            or CreateProcedureStatement
+            or CreateTriggerStatement
+            or CreateTableIndexStatement
+            or CreateDocumentIndexStatement
+            or CreateDocumentPathIndexStatement
+            or CreateTableJsonPathIndexStatement
+            or CreateFullTextIndexStatement
+            or CreateDocumentVectorIndexStatement
+            or AlterTableAddColumnStatement
+            or AlterTableAlterColumnStatement
+            or AlterTableAddForeignKeyStatement
+            or AlterTableAddCheckConstraintStatement
+            or AlterTableDropColumnStatement
+            or AlterTableDropConstraintStatement
+            or AlterTableRenameColumnStatement
+            or AlterTableRenameTableStatement
+            or AlterDocumentCollectionSetValidatorStatement
+            or AlterDocumentCollectionDropValidatorStatement
+            or DropMeasurementStatement
+            or DropTableStatement
+            or DropDocumentCollectionStatement
+            or DropViewStatement
+            or DropMaterializedViewStatement
+            or DropProcedureStatement
+            or DropTriggerStatement
+            or DropTableIndexStatement
+            or DropDocumentPathIndexStatement
+            or DropFullTextIndexStatement
+            or DropDocumentVectorIndexStatement
+            or TruncateTableStatement
+            or CreateUserStatement
+            or AlterUserPasswordStatement
+            or DropUserStatement
+            or GrantStatement
+            or RevokeStatement
+            or CreateDatabaseStatement
+            or DropDatabaseStatement
+            or IssueTokenStatement
+            or RevokeTokenStatement;
 
     private static RowsAffectedExecutionResult RollbackTransaction(SqlTransactionContext? transaction)
     {
@@ -1140,6 +1214,13 @@ public static class SqlExecutor
                 controlPlane,
                 transaction);
 
+        if (statement.IsDefaultValues
+            || statement.Rows.Any(static row => row.Any(static value => value is DefaultValueExpression)))
+        {
+            throw new InvalidOperationException(
+                "DEFAULT VALUES 和 VALUES(DEFAULT) 仅支持关系表；measurement 没有关系表列 DEFAULT。");
+        }
+
         // measurement 写入直接落 WAL/MemTable，不进事务缓冲；轻事务 ROLLBACK 无法撤销它，
         // 因此在事务上下文内显式拒绝，避免"ROLLBACK 后数据仍在"的假回滚（与文档写入一致）。
         if (transaction is not null)
@@ -1259,6 +1340,25 @@ public static class SqlExecutor
         }
 
         return new InsertExecutionResult(statement.Measurement, written);
+    }
+
+    internal static InsertExecutionResult ExecuteImportedTableInsert(
+        Tsdb tsdb,
+        string? databaseName,
+        InsertStatement statement,
+        TableSchema schema,
+        IControlPlane? controlPlane)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+        ArgumentNullException.ThrowIfNull(schema);
+        return ExecuteTableInsertWithTriggers(
+            tsdb,
+            databaseName,
+            statement,
+            schema,
+            controlPlane,
+            transaction: null);
     }
 
     /// <summary>
@@ -1621,7 +1721,11 @@ public static class SqlExecutor
 
     private static (IReadOnlyList<string> Columns, IReadOnlyList<IReadOnlyList<object?>> Rows) BuildInformationSchemaColumns(Tsdb tsdb)
     {
-        var columns = new[] { "table_schema", "table_name", "column_name", "ordinal_position", "data_type", "is_nullable", "is_primary_key" };
+        var columns = new[]
+        {
+            "table_schema", "table_name", "column_name", "ordinal_position", "data_type",
+            "is_nullable", "is_primary_key", "column_default"
+        };
         var rows = new List<IReadOnlyList<object?>>();
         foreach (var table in tsdb.Tables.Catalog.Snapshot())
         {
@@ -1636,6 +1740,7 @@ public static class SqlExecutor
                     FormatInformationSchemaTableType(column.DataType),
                     column.IsNullable ? "YES" : "NO",
                     column.IsPrimaryKey,
+                    column.DefaultExpressionSql,
                 });
             }
         }
@@ -1654,6 +1759,7 @@ public static class SqlExecutor
                     column.DataType.ToString().ToLowerInvariant(),
                     "YES",
                     false,
+                    null,
                 });
             }
         }
@@ -1882,13 +1988,10 @@ public static class SqlExecutor
 
     private static RowsAffectedExecutionResult ExecuteTruncate(
         Tsdb tsdb,
-        TruncateTableStatement statement,
-        SqlTransactionContext? transaction)
+        TruncateTableStatement statement)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
-        if (transaction is not null)
-            throw new NotSupportedException("TRUNCATE TABLE 不允许在轻事务中执行。");
         int rows = tsdb.Tables.Truncate(statement.TableName);
         return new RowsAffectedExecutionResult(statement.TableName, rows, "truncate_generation");
     }
@@ -1947,6 +2050,14 @@ public static class SqlExecutor
             if (transaction is not null)
                 throw new NotSupportedException("轻事务当前不支持文档集合更新。");
             return DocumentSqlExecutor.ExecuteUpdate(tsdb, update, documentSchema);
+        }
+
+        if (tsdb.Tables.Catalog.TryGet(update.TableName) is null
+            && tsdb.Measurements.TryGet(update.TableName) is not null
+            && update.Assignments.Any(static assignment => assignment.Value is DefaultValueExpression))
+        {
+            throw new InvalidOperationException(
+                "UPDATE SET column = DEFAULT 仅支持关系表；measurement 不支持 UPDATE 或关系表列 DEFAULT。");
         }
 
         return ExecuteTableUpdateWithTriggers(
