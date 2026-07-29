@@ -22,7 +22,7 @@ const target =
     ? `https://localhost:${env.ASPNETCORE_HTTPS_PORT}`
     : env.ASPNETCORE_URLS
       ? env.ASPNETCORE_URLS.split(';')[0]
-      : 'https://localhost:60844';
+      : 'http://localhost:5080';
 
 export default defineConfig(({ mode }) => {
   const useHttps = mode !== 'e2e';

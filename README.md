@@ -116,7 +116,7 @@ docker run --rm -p 5080:5080 -v ./sonnetdb-data:/data sonnetdb
 - `http://127.0.0.1:5080/admin/`
 - `http://127.0.0.1:5080/help/`
 
-当 `/data/.system` 为空时，`/admin/` 会进入首次安装流程，要求设置服务器 ID、组织名称、管理员用户名 / 密码，以及初始静态 Bearer Token。
+当 `/data/.system` 为空时，`/admin/` 会进入首次安装流程。向导会根据主机名和本机硬件指纹生成稳定的服务器 ID，并默认填写组织名称、管理员用户名和随机 Bearer Token；管理员密码必须手动输入。
 
 ### 3. 🔗 通过 ADO.NET 访问
 

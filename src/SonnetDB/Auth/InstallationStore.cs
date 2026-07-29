@@ -139,9 +139,7 @@ internal sealed class InstallationStore
 
     internal static string GetSuggestedServerId()
     {
-        Span<byte> buffer = stackalloc byte[4];
-        System.Security.Cryptography.RandomNumberGenerator.Fill(buffer);
-        return $"sndb-{Convert.ToHexStringLower(buffer)}";
+        return HostServerIdGenerator.GetSuggestedServerId();
     }
 }
 

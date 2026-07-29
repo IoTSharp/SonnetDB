@@ -54,13 +54,14 @@
               v-model:value="password"
               type="password"
               show-password-on="click"
+              autocomplete="new-password"
               placeholder="至少一组可记忆的强密码"
             />
           </n-form-item>
           <n-form-item label="初始 Bearer Token">
             <n-input-group>
               <n-input v-model:value="bearerToken" placeholder="tsl_..." />
-              <n-button @click="regenerateToken">重新生成</n-button>
+              <n-button attr-type="button" @click="regenerateToken">重新生成</n-button>
             </n-input-group>
           </n-form-item>
 
@@ -69,8 +70,15 @@
           </div>
 
           <div class="setup-actions">
-            <n-button tertiary @click="goHome">稍后再看</n-button>
-            <n-button type="primary" attr-type="submit" :loading="submitting">完成初始化</n-button>
+            <n-button tertiary attr-type="button" @click="goHome">稍后再看</n-button>
+            <n-button
+              type="primary"
+              attr-type="submit"
+              :disabled="!setupReady"
+              :loading="submitting"
+            >
+              完成初始化
+            </n-button>
           </div>
         </n-form>
       </div>
@@ -90,13 +98,15 @@ const router = useRouter();
 const auth = useAuthStore();
 const setup = useSetupStore();
 
-const serverId = ref('');
-const organization = ref('');
+const localSuggestedServerId = setup.suggestedServerId;
+const serverId = ref(localSuggestedServerId);
+const organization = ref('Default Organization');
 const username = ref('admin');
-const password = ref('Admin123!');
-const bearerToken = ref('');
+const password = ref('');
+const bearerToken = ref(generateToken());
 const error = ref<string | null>(null);
 const submitting = ref(false);
+const setupReady = ref(false);
 
 function generateToken(): string {
   const bytes = new Uint8Array(18);
@@ -114,7 +124,22 @@ function goHome(): void {
 }
 
 async function onSubmit(): Promise<void> {
-  if (!serverId.value || !organization.value || !username.value || !password.value || !bearerToken.value) {
+  if (!setupReady.value) {
+    error.value = '无法连接 SonnetDB Server，请确认服务端已启动后重试。';
+    return;
+  }
+
+  const normalizedServerId = serverId.value.trim();
+  const normalizedOrganization = organization.value.trim();
+  const normalizedUsername = username.value.trim();
+  const normalizedBearerToken = bearerToken.value.trim();
+
+  if (!password.value) {
+    error.value = '请输入管理员密码。';
+    return;
+  }
+
+  if (!normalizedServerId || !normalizedOrganization || !normalizedUsername || !normalizedBearerToken) {
     error.value = '请完整填写所有初始化字段。';
     return;
   }
@@ -123,11 +148,11 @@ async function onSubmit(): Promise<void> {
   error.value = null;
   try {
     const response = await setup.bootstrap({
-      serverId: serverId.value,
-      organization: organization.value,
-      username: username.value,
+      serverId: normalizedServerId,
+      organization: normalizedOrganization,
+      username: normalizedUsername,
       password: password.value,
-      bearerToken: bearerToken.value,
+      bearerToken: normalizedBearerToken,
     });
 
     auth.apply({
@@ -147,19 +172,20 @@ async function onSubmit(): Promise<void> {
 }
 
 onMounted(async () => {
-  const status = await setup.ensureLoaded();
-  if (!status.needsSetup) {
-    await router.replace(auth.isAuthenticated ? { name: 'dashboard' } : { name: 'login' });
-    return;
-  }
+  try {
+    const status = await setup.ensureLoaded();
+    if (!status.needsSetup) {
+      await router.replace(auth.isAuthenticated ? { name: 'dashboard' } : { name: 'login' });
+      return;
+    }
 
-  if (!serverId.value) {
-    serverId.value = status.suggestedServerId;
+    if (!serverId.value || serverId.value === localSuggestedServerId) {
+      serverId.value = status.suggestedServerId;
+    }
+    setupReady.value = true;
+  } catch {
+    error.value = '无法连接 SonnetDB Server，请确认服务端已启动后重试。';
   }
-  if (!organization.value) {
-    organization.value = 'Default Organization';
-  }
-  regenerateToken();
 });
 </script>
 

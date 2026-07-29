@@ -88,6 +88,10 @@ public sealed class SetupEndToEndTests : IAsyncLifetime
         Assert.Null(resp.Organization);
         Assert.Equal(0, resp.UserCount);
         Assert.Equal(0, resp.DatabaseCount);
+
+        var repeatedResp = await client.GetFromJsonAsync<SetupStatusResponse>("/v1/setup/status", ServerJsonContext.Default.SetupStatusResponse);
+        Assert.NotNull(repeatedResp);
+        Assert.Equal(resp.SuggestedServerId, repeatedResp!.SuggestedServerId);
     }
 
     [Fact]

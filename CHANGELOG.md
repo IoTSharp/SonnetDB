@@ -7,6 +7,7 @@
 
 ### Fixed
 
+- 修复 Web Admin 首次安装页在 SonnetDB Server 未启动时把空字段的示例 placeholder 显示成默认值、提交后误报“请完整填写所有初始化字段”的问题，并把 Vite / launch profile 的开发代理目标统一到服务端真实监听的 `5080`；服务器 ID、组织、管理员用户名和初始 Bearer Token 现在进入页面即写入真实默认值，仅管理员密码保持空白并要求手动输入，状态接口不可达时会显示连接错误并禁用提交。服务端推荐 ID 改为 `sndb-<规范化主机名>-<短哈希>`，在 Windows 使用 MachineGuid、主板/BIOS/CPU 信息，在 Linux 使用 machine-id、DMI/CPU 信息生成稳定指纹；原始硬件标识仅参与 SHA-256，不通过 API 或日志暴露。
 - 修复活动轻事务统一拒绝 DDL 后 EF Core migration 被默认事务包裹而失败的问题；provider 生成的 DDL 现在显式 transaction-suppressed，嵌入式与远程 migration 均在事务外执行 schema 语句。关系表 `ALTER COLUMN` 的纯默认值/空值约束变更和列重命名不再重写 row WAL，失败预检也不再误写原 payload；ROWVERSION 默认值不变量下沉到公共 schema 工厂，默认值不再导致旧表 maintenance 指纹失效。
 - 修复 `IMPORT JSON ... INTO table` 绕过关系 INSERT 约束与 ROWVERSION/触发器语义的问题；关系表导入现在把缺失属性映射为 `DEFAULT`，通过标准单批提交路径统一校验 CHECK、外键等约束，自动生成版本列，并在任一记录失败时不留下部分写入。
 - 活动轻事务现在会在文件读取和写入前明确拒绝 `IMPORT JSON`，避免导入绕过关系表事务缓冲并在 `ROLLBACK` 后留下已写数据。
