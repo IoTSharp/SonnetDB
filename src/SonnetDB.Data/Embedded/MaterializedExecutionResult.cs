@@ -66,8 +66,10 @@ internal sealed class MaterializedExecutionResult : IExecutionResult
 
     public void Dispose() { /* 无非托管资源 */ }
 
-    public static MaterializedExecutionResult FromSelect(SelectExecutionResult result)
-        => new(result.Columns, result.Rows, recordsAffected: -1);
+    public static MaterializedExecutionResult FromSelect(
+        SelectExecutionResult result,
+        int recordsAffected = -1)
+        => new(result.Columns, result.Rows, recordsAffected);
 
     public static MaterializedExecutionResult NonQuery(int recordsAffected)
         => new(Array.Empty<string>(), Array.Empty<IReadOnlyList<object?>>(), recordsAffected);

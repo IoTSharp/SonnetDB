@@ -261,9 +261,15 @@ internal static class SqlEndpointHandler
                                 return;
                             }
                             metrics.AddInsertedRows(ins.RowsInserted);
+                            long rowCount = 0;
+                            if (ins.Returning is { } returning)
+                            {
+                                rowCount = await WriteSelectAsync(context, returning, writerOptions).ConfigureAwait(false);
+                                metrics.AddReturnedRows(rowCount);
+                            }
                             var elapsed = sw.Elapsed.TotalMilliseconds;
-                            await WriteEndAsync(context, writerOptions, rowCount: 0, recordsAffected: ins.RowsInserted, elapsed).ConfigureAwait(false);
-                            RecordSlow(diagnostics, diagnosticsDatabase, stmt.Sql, elapsed, 0, ins.RowsInserted, failed: false);
+                            await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: ins.RowsInserted, elapsed).ConfigureAwait(false);
+                            RecordSlow(diagnostics, diagnosticsDatabase, stmt.Sql, elapsed, rowCount, ins.RowsInserted, failed: false);
                             break;
                         }
                     case DeleteExecutionResult del:

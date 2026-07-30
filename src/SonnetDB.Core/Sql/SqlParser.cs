@@ -1358,13 +1358,13 @@ public sealed class SqlParser
         {
             Advance();
             Expect(TokenKind.KeywordValues);
-            return new InsertStatement(
+            return ParseInsertReturning(new InsertStatement(
                 measurement,
                 Array.Empty<string>(),
                 new[] { (IReadOnlyList<SqlExpression>)Array.Empty<SqlExpression>() })
             {
                 IsDefaultValues = true,
-            };
+            });
         }
 
         Expect(TokenKind.LeftParen);
@@ -1387,7 +1387,29 @@ public sealed class SqlParser
             rows.Add(ParseValueRow(columns.Count));
         }
 
-        return new InsertStatement(measurement, columns, rows);
+        return ParseInsertReturning(new InsertStatement(measurement, columns, rows));
+    }
+
+    private InsertStatement ParseInsertReturning(InsertStatement statement)
+    {
+        if (!IsIdentifier("returning"))
+            return statement;
+
+        Advance();
+        if (Current.Kind == TokenKind.Star)
+        {
+            Advance();
+            return statement with { ReturningColumns = ["*"] };
+        }
+
+        var columns = new List<string> { ExpectColumnName() };
+        while (Current.Kind == TokenKind.Comma)
+        {
+            Advance();
+            columns.Add(ExpectColumnName());
+        }
+
+        return statement with { ReturningColumns = columns };
     }
 
     private ImportJsonStatement ParseImport()

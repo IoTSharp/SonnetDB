@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Metadata.Conventions.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Query;
@@ -9,6 +10,7 @@ using Microsoft.EntityFrameworkCore.ValueGeneration;
 using Microsoft.Extensions.DependencyInjection;
 using SonnetDB.EntityFrameworkCore.Diagnostics.Internal;
 using SonnetDB.EntityFrameworkCore.Metadata.Conventions.Internal;
+using SonnetDB.EntityFrameworkCore.Metadata.Internal;
 using SonnetDB.EntityFrameworkCore.Migrations.Internal;
 using SonnetDB.EntityFrameworkCore.Query.Internal;
 using SonnetDB.EntityFrameworkCore.Storage.Internal;
@@ -35,6 +37,7 @@ public static class SonnetDbServiceCollectionExtensions
             .TryAdd<LoggingDefinitions, SonnetDbLoggingDefinitions>()
             .TryAdd<IDatabaseProvider, SonnetDbDatabaseProvider>()
             .TryAdd<IProviderConventionSetBuilder, SonnetDbConventionSetBuilder>()
+            .TryAdd<IRelationalAnnotationProvider, SonnetDbAnnotationProvider>()
             .TryAdd<IRelationalConnection, SonnetDbRelationalConnection>()
             .TryAdd<IRelationalTransactionFactory, SonnetDbRelationalTransactionFactory>()
             .TryAdd<IRelationalDatabaseCreator, SonnetDbDatabaseCreator>()

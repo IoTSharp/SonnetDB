@@ -95,6 +95,8 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
         return result switch
         {
             SelectExecutionResult select => MaterializedExecutionResult.FromSelect(select),
+            InsertExecutionResult { Returning: { } returning } insert =>
+                MaterializedExecutionResult.FromSelect(returning, insert.RowsInserted),
             InsertExecutionResult insert => MaterializedExecutionResult.NonQuery(insert.RowsInserted),
             DeleteExecutionResult delete => MaterializedExecutionResult.NonQuery(delete.TombstonesAdded),
             RowsAffectedExecutionResult affected => MaterializedExecutionResult.NonQuery(affected.RowsAffected),

@@ -312,6 +312,61 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         Assert.Equal(3L, v);
     }
 
+    [Theory]
+    [InlineData("embedded")]
+    [InlineData("remote")]
+    public void ExecuteScalar_InsertReturning_EmbeddedAndRemote_ReturnsGeneratedId(string mode)
+    {
+        using var connection = OpenAdoSchemaMatrixConnection(mode);
+        using (var ddl = connection.CreateCommand())
+        {
+            ddl.CommandText = "CREATE TABLE returning_scalar (id INT AUTO_INCREMENT, name STRING, PRIMARY KEY (id))";
+            Assert.Equal(0, ddl.ExecuteNonQuery());
+        }
+
+        using (var insert = connection.CreateCommand())
+        {
+            insert.CommandText = "INSERT INTO returning_scalar (name) VALUES ('pump') RETURNING id";
+            Assert.Equal(1L, Assert.IsType<long>(insert.ExecuteScalar()));
+
+            insert.CommandText = "INSERT INTO returning_scalar (name) VALUES ('fan') RETURNING id";
+            Assert.Equal(1, insert.ExecuteNonQuery());
+        }
+
+        using var select = connection.CreateCommand();
+        select.CommandText = "SELECT count(*) FROM returning_scalar";
+        Assert.Equal(2L, Assert.IsType<long>(select.ExecuteScalar()));
+    }
+
+    [Theory]
+    [InlineData("embedded")]
+    [InlineData("remote")]
+    public void ExecuteReader_InsertReturning_EmbeddedAndRemote_ReturnsRowsAndRecordsAffected(string mode)
+    {
+        using var connection = OpenAdoSchemaMatrixConnection(mode);
+        using (var ddl = connection.CreateCommand())
+        {
+            ddl.CommandText = "CREATE TABLE returning_reader (id INT AUTO_INCREMENT, name STRING, PRIMARY KEY (id))";
+            Assert.Equal(0, ddl.ExecuteNonQuery());
+        }
+
+        using var insert = connection.CreateCommand();
+        insert.CommandText = "INSERT INTO returning_reader (name) VALUES ('pump'), ('fan') RETURNING id, name";
+        using var reader = insert.ExecuteReader();
+
+        Assert.Equal(2, reader.FieldCount);
+        Assert.Equal("id", reader.GetName(0));
+        Assert.Equal("name", reader.GetName(1));
+        Assert.True(reader.Read());
+        Assert.Equal(1L, reader.GetInt64(0));
+        Assert.Equal("pump", reader.GetString(1));
+        Assert.True(reader.Read());
+        Assert.Equal(2L, reader.GetInt64(0));
+        Assert.Equal("fan", reader.GetString(1));
+        Assert.False(reader.Read());
+        Assert.Equal(2, reader.RecordsAffected);
+    }
+
     [Fact]
     public async Task Remote_Transaction_CommitsViaSqlBatch()
     {
@@ -399,6 +454,52 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         await transaction.CommitAsync();
 
         Assert.Equal(new long[] { 1L, 2L }, await ReadIdsAsync(connection, "tx_serializable"));
+    }
+
+    [Fact]
+    public async Task RemoteTransaction_InsertReturningWithConcurrentInsert_CommitsReservedId()
+    {
+        await using var transactionConnection = new SndbConnection(RemoteConnString());
+        await transactionConnection.OpenAsync();
+        await using var concurrentConnection = new SndbConnection(RemoteConnString());
+        await concurrentConnection.OpenAsync();
+
+        await using (var ddl = transactionConnection.CreateCommand())
+        {
+            ddl.CommandText = "CREATE TABLE tx_returning (id INT AUTO_INCREMENT, name STRING, PRIMARY KEY (id))";
+            Assert.Equal(0, await ddl.ExecuteNonQueryAsync());
+        }
+
+        await using var transaction = Assert.IsType<SndbTransaction>(
+            await transactionConnection.BeginTransactionAsync());
+        long reservedId;
+        await using (var insert = transactionConnection.CreateCommand())
+        {
+            insert.Transaction = transaction;
+            insert.CommandText = "INSERT INTO tx_returning (name) VALUES ('reserved') RETURNING id";
+            reservedId = Assert.IsType<long>(await insert.ExecuteScalarAsync());
+        }
+
+        long concurrentId;
+        await using (var insert = concurrentConnection.CreateCommand())
+        {
+            insert.CommandText = "INSERT INTO tx_returning (name) VALUES ('concurrent') RETURNING id";
+            concurrentId = Assert.IsType<long>(await insert.ExecuteScalarAsync());
+        }
+
+        Assert.NotEqual(reservedId, concurrentId);
+        await transaction.CommitAsync();
+
+        await using var select = transactionConnection.CreateCommand();
+        select.CommandText = "SELECT id, name FROM tx_returning ORDER BY id";
+        await using var reader = await select.ExecuteReaderAsync();
+        var rows = new Dictionary<string, long>(StringComparer.Ordinal);
+        while (await reader.ReadAsync())
+            rows.Add(reader.GetString(1), reader.GetInt64(0));
+
+        Assert.Equal(2, rows.Count);
+        Assert.Equal(reservedId, rows["reserved"]);
+        Assert.Equal(concurrentId, rows["concurrent"]);
     }
 
     [Fact]

@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.EntityFrameworkCore.Query;
@@ -69,6 +70,194 @@ public sealed class SonnetDbProviderTests : IDisposable
         await context.SaveChangesAsync();
 
         Assert.Empty(await context.Devices.ToListAsync());
+    }
+
+    [Fact]
+    public void GenerateCreateScript_WithIntegerValueGeneratedOnAdd_EmitsAutoIncrement()
+    {
+        using var context = new GeneratedKeysContext(CreateOptions<GeneratedKeysContext>());
+
+        var script = context.Database.GenerateCreateScript();
+
+        Assert.Contains("CREATE TABLE \"GeneratedInts\"", script, StringComparison.Ordinal);
+        Assert.Contains("CREATE TABLE \"GeneratedLongs\"", script, StringComparison.Ordinal);
+        Assert.Equal(
+            2,
+            Regex.Matches(script, "\"Id\" INT AUTO_INCREMENT NOT NULL", RegexOptions.IgnoreCase).Count);
+    }
+
+    [Fact]
+    public void GenerateCreateScript_WithValueGeneratedNever_DoesNotEmitAutoIncrement()
+    {
+        using var context = new ManualKeyContext(CreateOptions<ManualKeyContext>());
+
+        var script = context.Database.GenerateCreateScript();
+
+        Assert.Contains("\"Id\" INT NOT NULL", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("AUTO_INCREMENT", script, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SaveChanges_WithValueGeneratedNever_PreservesClientKey()
+    {
+        using var context = new ManualKeyContext(CreateOptions<ManualKeyContext>());
+        await context.Database.EnsureCreatedAsync();
+        var entity = new ManualKeyEntity { Id = 42, Name = "pump" };
+
+        var entry = context.Entities.Add(entity);
+
+        Assert.False(entry.Property(item => item.Id).IsTemporary);
+
+        await context.SaveChangesAsync();
+
+        Assert.Equal(42L, entity.Id);
+        context.ChangeTracker.Clear();
+        Assert.Equal("pump", await context.Entities
+            .Where(item => item.Id == entity.Id)
+            .Select(item => item.Name)
+            .SingleAsync());
+    }
+
+    [Fact]
+    public async Task SaveChanges_WithValueGeneratedOnAddInteger_UsesDatabaseGeneratedKey()
+    {
+        using var context = new GeneratedKeysContext(CreateOptions<GeneratedKeysContext>());
+        await context.Database.EnsureCreatedAsync();
+        var entity = new GeneratedIntEntity { Name = "pump" };
+
+        var entry = context.GeneratedInts.Add(entity);
+
+        var idEntry = entry.Property(item => item.Id);
+        Assert.Equal(ValueGenerated.OnAdd, idEntry.Metadata.ValueGenerated);
+        Assert.True(idEntry.IsTemporary);
+
+        await context.SaveChangesAsync();
+
+        Assert.Equal(1, entity.Id);
+        Assert.False(entry.Property(item => item.Id).IsTemporary);
+        context.ChangeTracker.Clear();
+        Assert.Equal("pump", await context.GeneratedInts
+            .Where(item => item.Id == entity.Id)
+            .Select(item => item.Name)
+            .SingleAsync());
+    }
+
+    [Fact]
+    public async Task SaveChanges_WithMultipleGeneratedKeys_PropagatesReturnedValues()
+    {
+        using var context = new GeneratedKeysContext(CreateOptions<GeneratedKeysContext>());
+        await context.Database.EnsureCreatedAsync();
+        var first = new GeneratedLongEntity { Name = "pump" };
+        var second = new GeneratedLongEntity { Name = "fan" };
+
+        context.GeneratedLongs.AddRange(first, second);
+
+        Assert.True(context.Entry(first).Property(item => item.Id).IsTemporary);
+        Assert.True(context.Entry(second).Property(item => item.Id).IsTemporary);
+
+        await context.SaveChangesAsync();
+
+        Assert.Equal([1L, 2L], [first.Id, second.Id]);
+        Assert.False(context.Entry(first).Property(item => item.Id).IsTemporary);
+        Assert.False(context.Entry(second).Property(item => item.Id).IsTemporary);
+        context.ChangeTracker.Clear();
+        var storedIds = await context.GeneratedLongs
+            .OrderBy(item => item.Id)
+            .Select(item => item.Id)
+            .ToArrayAsync();
+        Assert.Equal([1L, 2L], storedIds);
+    }
+
+    [Fact]
+    public async Task SaveChanges_WithGeneratedParentKey_PropagatesForeignKeyToChild()
+    {
+        using var context = new GeneratedRelationshipContext(CreateOptions<GeneratedRelationshipContext>());
+        await context.Database.EnsureCreatedAsync();
+        var parent = new GeneratedParent
+        {
+            Name = "plant",
+            Children =
+            [
+                new GeneratedChild { Id = 100, Name = "pump" },
+            ],
+        };
+
+        context.Parents.Add(parent);
+
+        Assert.True(context.Entry(parent).Property(item => item.Id).IsTemporary);
+
+        await context.SaveChangesAsync();
+
+        var child = Assert.Single(parent.Children);
+        Assert.Equal(1L, parent.Id);
+        Assert.Equal(parent.Id, child.ParentId);
+        context.ChangeTracker.Clear();
+
+        var storedChild = await context.Children
+            .Include(item => item.Parent)
+            .SingleAsync(item => item.Id == child.Id);
+        Assert.Equal(parent.Id, storedChild.ParentId);
+        Assert.Equal(parent.Id, storedChild.Parent.Id);
+    }
+
+    [Fact]
+    public async Task RemoteSaveChanges_WithMultipleGeneratedKeys_UsesDatabaseGeneratedValues()
+    {
+        const string token = "ef-remote-generated-keys";
+        var database = "ef_remote_generated_keys_" + Guid.NewGuid().ToString("N");
+        var dataRoot = Path.Combine(Path.GetTempPath(), "sndb-ef-remote-keys-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dataRoot);
+
+        await using var app = EfTestServerHost.Build(new ServerOptions
+        {
+            DataRoot = dataRoot,
+            AutoLoadExistingDatabases = true,
+            AllowAnonymousProbes = true,
+            Tokens = new Dictionary<string, string>
+            {
+                [token] = ServerRoles.Admin,
+            },
+        });
+
+        try
+        {
+            await app.StartAsync();
+            var addresses = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()
+                ?? throw new InvalidOperationException("Kestrel 未暴露监听地址。");
+            var baseUrl = addresses.Addresses.First();
+            var connectionString =
+                $"Data Source=sonnetdb+http://{new Uri(baseUrl).Authority}/{database};Token={token};Timeout=30";
+            using var context = new GeneratedKeysContext(
+                new DbContextOptionsBuilder<GeneratedKeysContext>()
+                    .UseSonnetDB(connectionString)
+                    .ConfigureWarnings(warnings => warnings.Ignore(RelationalEventId.PendingModelChangesWarning))
+                    .Options);
+            await context.Database.EnsureCreatedAsync();
+            var first = new GeneratedLongEntity { Name = "pump" };
+            var second = new GeneratedLongEntity { Name = "fan" };
+
+            context.GeneratedLongs.AddRange(first, second);
+            Assert.True(context.Entry(first).Property(item => item.Id).IsTemporary);
+            Assert.True(context.Entry(second).Property(item => item.Id).IsTemporary);
+
+            await context.SaveChangesAsync();
+
+            Assert.Equal([1L, 2L], [first.Id, second.Id]);
+            context.ChangeTracker.Clear();
+            var storedIds = await context.GeneratedLongs
+                .OrderBy(item => item.Id)
+                .Select(item => item.Id)
+                .ToArrayAsync();
+            Assert.Equal([1L, 2L], storedIds);
+        }
+        finally
+        {
+            await app.StopAsync();
+            if (Directory.Exists(dataRoot))
+            {
+                try { Directory.Delete(dataRoot, recursive: true); } catch { /* best-effort */ }
+            }
+        }
     }
 
     [Fact]
@@ -1577,6 +1766,121 @@ public sealed class SonnetDbProviderTests : IDisposable
         {
             await context.Database.CloseConnectionAsync();
         }
+    }
+
+    private sealed class GeneratedKeysContext(DbContextOptions<GeneratedKeysContext> options) : DbContext(options)
+    {
+        public DbSet<GeneratedIntEntity> GeneratedInts => Set<GeneratedIntEntity>();
+
+        public DbSet<GeneratedLongEntity> GeneratedLongs => Set<GeneratedLongEntity>();
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<GeneratedIntEntity>(entity =>
+            {
+                entity.ToTable("GeneratedInts");
+                entity.HasKey(item => item.Id);
+                entity.Property(item => item.Id).HasColumnType("INT");
+                entity.Property(item => item.Name).HasColumnType("STRING").IsRequired();
+            });
+
+            modelBuilder.Entity<GeneratedLongEntity>(entity =>
+            {
+                entity.ToTable("GeneratedLongs");
+                entity.HasKey(item => item.Id);
+                entity.Property(item => item.Id).HasColumnType("INT").ValueGeneratedOnAdd();
+                entity.Property(item => item.Name).HasColumnType("STRING").IsRequired();
+            });
+        }
+    }
+
+    private sealed class GeneratedIntEntity
+    {
+        public int Id { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class GeneratedLongEntity
+    {
+        public long Id { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class ManualKeyContext(DbContextOptions<ManualKeyContext> options) : DbContext(options)
+    {
+        public DbSet<ManualKeyEntity> Entities => Set<ManualKeyEntity>();
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<ManualKeyEntity>(entity =>
+            {
+                entity.ToTable("ManualKeys");
+                entity.HasKey(item => item.Id);
+                entity.Property(item => item.Id).HasColumnType("INT").ValueGeneratedNever();
+                entity.Property(item => item.Name).HasColumnType("STRING").IsRequired();
+            });
+        }
+    }
+
+    private sealed class ManualKeyEntity
+    {
+        public long Id { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class GeneratedRelationshipContext(DbContextOptions<GeneratedRelationshipContext> options)
+        : DbContext(options)
+    {
+        public DbSet<GeneratedParent> Parents => Set<GeneratedParent>();
+
+        public DbSet<GeneratedChild> Children => Set<GeneratedChild>();
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<GeneratedParent>(entity =>
+            {
+                entity.ToTable("GeneratedParents");
+                entity.HasKey(item => item.Id);
+                entity.Property(item => item.Id).HasColumnType("INT").ValueGeneratedOnAdd();
+                entity.Property(item => item.Name).HasColumnType("STRING").IsRequired();
+                entity.HasMany(item => item.Children)
+                    .WithOne(item => item.Parent)
+                    .HasForeignKey(item => item.ParentId)
+                    .IsRequired();
+            });
+
+            modelBuilder.Entity<GeneratedChild>(entity =>
+            {
+                entity.ToTable("GeneratedChildren");
+                entity.HasKey(item => item.Id);
+                entity.Property(item => item.Id).HasColumnType("INT").ValueGeneratedNever();
+                entity.Property(item => item.ParentId).HasColumnType("INT");
+                entity.Property(item => item.Name).HasColumnType("STRING").IsRequired();
+            });
+        }
+    }
+
+    private sealed class GeneratedParent
+    {
+        public long Id { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+
+        public List<GeneratedChild> Children { get; set; } = [];
+    }
+
+    private sealed class GeneratedChild
+    {
+        public long Id { get; set; }
+
+        public long ParentId { get; set; }
+
+        public GeneratedParent Parent { get; set; } = null!;
+
+        public string Name { get; set; } = string.Empty;
     }
 
     private sealed class DeviceContext(DbContextOptions<DeviceContext> options) : DbContext(options)

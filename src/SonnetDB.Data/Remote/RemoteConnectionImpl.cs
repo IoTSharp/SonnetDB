@@ -123,6 +123,16 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                     .GetResult();
             }
 
+            if (TryParseReturningInsert(sql, out var insert))
+            {
+                return ExecuteTransactionalInsertReturningRequestAsync(
+                        transaction,
+                        insert,
+                        CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult();
+            }
+
             transaction.Add(sql);
             return MaterializedExecutionResult.NonQuery(0);
         }
@@ -164,6 +174,9 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         {
             if (IsFrameEligibleReadOnly(sql))
                 return ExecuteTransactionalReadRequestAsync(transaction, sql, cancellationToken);
+
+            if (TryParseReturningInsert(sql, out var insert))
+                return ExecuteTransactionalInsertReturningRequestAsync(transaction, insert, cancellationToken);
 
             transaction.Add(sql);
             return Task.FromResult<IExecutionResult>(MaterializedExecutionResult.NonQuery(0));
@@ -244,6 +257,25 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         {
             return false;
         }
+    }
+
+    private static bool TryParseReturningInsert(string sql, out InsertStatement statement)
+    {
+        try
+        {
+            if (SqlParser.Parse(sql) is InsertStatement { ReturningColumns.Count: > 0 } insert)
+            {
+                statement = insert;
+                return true;
+            }
+        }
+        catch (SqlParseException)
+        {
+            // 保留既有事务行为：无法在客户端解析的写语句仍由提交批次交给服务端报告错误。
+        }
+
+        statement = null!;
+        return false;
     }
 
     /// <summary>
@@ -613,6 +645,58 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         string sql,
         CancellationToken cancellationToken)
     {
+        var preview = await ExecuteTransactionPreviewAsync(transaction, sql, cancellationToken)
+            .ConfigureAwait(false);
+        return MaterializedExecutionResult.FromSelect(
+            new SelectExecutionResult(preview.Columns, preview.Rows),
+            preview.RecordsAffected);
+    }
+
+    private async Task<IExecutionResult> ExecuteTransactionalInsertReturningRequestAsync(
+        RemoteTransactionState transaction,
+        InsertStatement statement,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<TableSchema> tables = await SnapshotTablesAsync(cancellationToken).ConfigureAwait(false);
+        var schema = tables.FirstOrDefault(table => string.Equals(
+                table.Name,
+                statement.Measurement,
+                StringComparison.Ordinal))
+            ?? throw new InvalidOperationException($"table '{statement.Measurement}' 不存在。");
+        var returningColumns = ResolveReturningColumns(statement, schema);
+
+        string previewSql = BuildInsertSql(statement, returningAllColumns: true);
+        var preview = await ExecuteTransactionPreviewAsync(transaction, previewSql, cancellationToken)
+            .ConfigureAwait(false);
+        if (preview.Columns.Count != schema.Columns.Count
+            || !preview.Columns.SequenceEqual(schema.Columns.Select(static column => column.Name), StringComparer.Ordinal))
+        {
+            throw new InvalidDataException(
+                $"远程事务 INSERT RETURNING * 的列元信息与 table '{schema.Name}' schema 不一致。");
+        }
+
+        var projectedRows = new IReadOnlyList<object?>[preview.Rows.Count];
+        for (int rowIndex = 0; rowIndex < preview.Rows.Count; rowIndex++)
+        {
+            var row = new object?[returningColumns.Length];
+            for (int columnIndex = 0; columnIndex < returningColumns.Length; columnIndex++)
+                row[columnIndex] = preview.Rows[rowIndex][returningColumns[columnIndex].Ordinal];
+            projectedRows[rowIndex] = row;
+        }
+
+        transaction.Add(BuildReservedInsertSql(schema, preview.Rows));
+        return MaterializedExecutionResult.FromSelect(
+            new SelectExecutionResult(
+                returningColumns.Select(static column => column.Name).ToArray(),
+                projectedRows),
+            preview.RecordsAffected);
+    }
+
+    private async Task<TransactionPreviewResult> ExecuteTransactionPreviewAsync(
+        RemoteTransactionState transaction,
+        string sql,
+        CancellationToken cancellationToken)
+    {
         var statements = new List<SqlRequestBody>(transaction.Statements.Count + 3)
         {
             new() { Sql = "BEGIN" },
@@ -643,6 +727,8 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
         string[] columns = [];
         var rows = new List<IReadOnlyList<object?>>();
         var readingRows = false;
+        var sawResult = false;
+        var recordsAffected = -1;
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: false);
         while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
@@ -680,6 +766,8 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             switch (typeProperty.GetString())
             {
                 case "meta":
+                    if (sawResult || readingRows)
+                        throw new InvalidDataException("远程事务预览响应包含多个结果集。");
                     columns = root.TryGetProperty("columns", out var columnsProperty)
                         && columnsProperty.ValueKind == JsonValueKind.Array
                             ? columnsProperty.EnumerateArray()
@@ -689,16 +777,168 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                     readingRows = true;
                     break;
                 case "end" when readingRows:
+                    if (root.TryGetProperty("recordsAffected", out var recordsAffectedProperty)
+                        && recordsAffectedProperty.ValueKind == JsonValueKind.Number)
+                    {
+                        recordsAffected = recordsAffectedProperty.GetInt32();
+                    }
                     readingRows = false;
+                    sawResult = true;
                     break;
             }
         }
 
-        if (columns.Length == 0)
+        if (!sawResult || columns.Length == 0)
             throw new InvalidDataException("远程事务查询响应缺少列元信息。");
 
-        return MaterializedExecutionResult.FromSelect(new SelectExecutionResult(columns, rows));
+        return new TransactionPreviewResult(columns, rows, recordsAffected);
     }
+
+    private static TableColumn[] ResolveReturningColumns(InsertStatement statement, TableSchema schema)
+    {
+        if (statement.ReturningColumns.Count == 1 && statement.ReturningColumns[0] == "*")
+            return [.. schema.Columns];
+
+        var columns = new TableColumn[statement.ReturningColumns.Count];
+        for (int i = 0; i < columns.Length; i++)
+        {
+            string name = statement.ReturningColumns[i];
+            columns[i] = schema.TryGetColumn(name)
+                ?? throw new InvalidOperationException(
+                    $"table '{schema.Name}' 的 RETURNING 中不存在列 '{name}'。");
+        }
+
+        return columns;
+    }
+
+    private static string BuildInsertSql(InsertStatement statement, bool returningAllColumns)
+    {
+        var sql = new StringBuilder();
+        sql.Append("INSERT INTO ");
+        AppendIdentifier(sql, statement.Measurement);
+        if (statement.IsDefaultValues)
+        {
+            sql.Append(" DEFAULT VALUES");
+        }
+        else
+        {
+            sql.Append(" (");
+            for (int i = 0; i < statement.Columns.Count; i++)
+            {
+                if (i > 0)
+                    sql.Append(", ");
+                AppendIdentifier(sql, statement.Columns[i]);
+            }
+
+            sql.Append(") VALUES ");
+            for (int rowIndex = 0; rowIndex < statement.Rows.Count; rowIndex++)
+            {
+                if (rowIndex > 0)
+                    sql.Append(", ");
+                sql.Append('(');
+                IReadOnlyList<SqlExpression> row = statement.Rows[rowIndex];
+                for (int columnIndex = 0; columnIndex < row.Count; columnIndex++)
+                {
+                    if (columnIndex > 0)
+                        sql.Append(", ");
+                    AppendInsertExpression(sql, row[columnIndex]);
+                }
+                sql.Append(')');
+            }
+        }
+
+        if (returningAllColumns)
+            sql.Append(" RETURNING *");
+        return sql.ToString();
+    }
+
+    private static string BuildReservedInsertSql(
+        TableSchema schema,
+        IReadOnlyList<IReadOnlyList<object?>> rows)
+    {
+        var columns = schema.Columns.Where(static column => !column.IsRowVersion).ToArray();
+        var sql = new StringBuilder();
+        sql.Append("INSERT INTO ");
+        AppendIdentifier(sql, schema.Name);
+        if (columns.Length == 0)
+        {
+            if (rows.Count != 1)
+            {
+                throw new NotSupportedException(
+                    "远程事务不能回放仅含 ROWVERSION 列的多行 INSERT RETURNING。");
+            }
+
+            return sql.Append(" DEFAULT VALUES").ToString();
+        }
+
+        sql.Append(" (");
+        for (int i = 0; i < columns.Length; i++)
+        {
+            if (i > 0)
+                sql.Append(", ");
+            AppendIdentifier(sql, columns[i].Name);
+        }
+        sql.Append(") VALUES ");
+
+        for (int rowIndex = 0; rowIndex < rows.Count; rowIndex++)
+        {
+            if (rowIndex > 0)
+                sql.Append(", ");
+            sql.Append('(');
+            for (int columnIndex = 0; columnIndex < columns.Length; columnIndex++)
+            {
+                if (columnIndex > 0)
+                    sql.Append(", ");
+                sql.Append(ParameterBinder.FormatLiteral(rows[rowIndex][columns[columnIndex].Ordinal]));
+            }
+            sql.Append(')');
+        }
+
+        return sql.ToString();
+    }
+
+    private static void AppendInsertExpression(StringBuilder sql, SqlExpression expression)
+    {
+        switch (expression)
+        {
+            case DefaultValueExpression:
+                sql.Append("DEFAULT");
+                return;
+            case LiteralExpression { Kind: SqlLiteralKind.Null }:
+                sql.Append("NULL");
+                return;
+            case LiteralExpression { Kind: SqlLiteralKind.Boolean } literal:
+                sql.Append(literal.BooleanValue ? "TRUE" : "FALSE");
+                return;
+            case LiteralExpression { Kind: SqlLiteralKind.Integer } literal:
+                sql.Append(literal.IntegerValue.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                return;
+            case LiteralExpression { Kind: SqlLiteralKind.Float } literal:
+                sql.Append(literal.FloatValue.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
+                return;
+            case LiteralExpression { Kind: SqlLiteralKind.String } literal:
+                sql.Append(ParameterBinder.FormatLiteral(literal.StringValue ?? string.Empty));
+                return;
+            case DurationLiteralExpression duration:
+                sql.Append(duration.Milliseconds.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                return;
+            case UnaryExpression { Operator: SqlUnaryOperator.Negate } unary:
+                sql.Append('-');
+                AppendInsertExpression(sql, unary.Operand);
+                return;
+            default:
+                throw new NotSupportedException(
+                    $"远程事务 INSERT RETURNING 暂不支持值表达式 '{expression.GetType().Name}'。");
+        }
+    }
+
+    private static void AppendIdentifier(StringBuilder sql, string identifier)
+        => sql.Append('"').Append(identifier.Replace("\"", "\"\"", StringComparison.Ordinal)).Append('"');
+
+    private sealed record TransactionPreviewResult(
+        IReadOnlyList<string> Columns,
+        IReadOnlyList<IReadOnlyList<object?>> Rows,
+        int RecordsAffected);
 
     private static string? TryGetParam(SndbParameterCollection parameters, string name)
     {

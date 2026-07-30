@@ -10,6 +10,10 @@ namespace SonnetDB.Tables;
 /// </summary>
 public sealed class TableManager : IDisposable
 {
+    private static readonly IReadOnlyDictionary<string, IReadOnlyList<TableRow>> _emptyFinalRows =
+        new System.Collections.ObjectModel.ReadOnlyDictionary<string, IReadOnlyList<TableRow>>(
+            new Dictionary<string, IReadOnlyList<TableRow>>(StringComparer.Ordinal));
+
     private readonly object _sync = new();
     private readonly string _rootDirectory;
     private readonly KvOptions _kvOptions;
@@ -674,10 +678,26 @@ public sealed class TableManager : IDisposable
     internal int ApplyTransaction(
         IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> mutationsByTable,
         CascadeDeleteExecutionMetrics? metrics)
+        => ApplyTransactionCore(mutationsByTable, metrics, includeFinalRows: false, out _);
+
+    /// <summary>提交多表 DML，并返回准备阶段生成且实际提交的最终行快照。</summary>
+    internal int ApplyTransaction(
+        IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> mutationsByTable,
+        out IReadOnlyDictionary<string, IReadOnlyList<TableRow>> finalRows)
+        => ApplyTransactionCore(mutationsByTable, metrics: null, includeFinalRows: true, out finalRows);
+
+    private int ApplyTransactionCore(
+        IReadOnlyDictionary<string, IReadOnlyList<TableRowMutation>> mutationsByTable,
+        CascadeDeleteExecutionMetrics? metrics,
+        bool includeFinalRows,
+        out IReadOnlyDictionary<string, IReadOnlyList<TableRow>> finalRows)
     {
         ArgumentNullException.ThrowIfNull(mutationsByTable);
         if (mutationsByTable.Count == 0)
+        {
+            finalRows = _emptyFinalRows;
             return 0;
+        }
 
         long lockWait = SonnetDbMeter.StartLockWaitTiming();
         lock (_sync)
@@ -710,6 +730,12 @@ public sealed class TableManager : IDisposable
                     ApplyTransactionAfterTableTestHook?.Invoke(tableName);
                 }
 
+                finalRows = includeFinalRows
+                    ? prepared.ToDictionary(
+                        static pair => pair.Key,
+                        static pair => pair.Value.Batch.FinalRows,
+                        StringComparer.Ordinal)
+                    : _emptyFinalRows;
                 return affected;
             }
             catch

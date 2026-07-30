@@ -121,7 +121,6 @@ internal sealed class RemoteExecutionResult : IExecutionResult
                 {
                     if (root.TryGetProperty("recordsAffected", out var ra) && ra.ValueKind == JsonValueKind.Number)
                         RecordsAffected = ra.GetInt32();
-                    if (_columns.Length > 0) RecordsAffected = -1;
                     _ended = true;
                     return false;
                 }

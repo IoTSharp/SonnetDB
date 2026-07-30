@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.EntityFrameworkCore.Update;
+using SonnetDB.EntityFrameworkCore.Metadata.Internal;
 
 namespace SonnetDB.EntityFrameworkCore.Migrations.Internal;
 
@@ -94,6 +95,12 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
         MigrationCommandListBuilder builder,
         bool terminate = true)
     {
+        if (IsAutoIncrement(operation))
+        {
+            throw new NotSupportedException(
+                "SonnetDB 当前不支持通过 ALTER TABLE ADD COLUMN 新增 AUTO_INCREMENT 列；请在 CREATE TABLE 时声明。");
+        }
+
         builder.Append("ALTER TABLE ")
             .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(operation.Table))
             .Append(" ADD COLUMN ");
@@ -112,6 +119,12 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
         IModel? model,
         MigrationCommandListBuilder builder)
     {
+        if (IsAutoIncrement(operation) || IsAutoIncrement(operation.OldColumn))
+        {
+            throw new NotSupportedException(
+                "SonnetDB 当前不支持通过 ALTER COLUMN 新增、修改或移除 AUTO_INCREMENT 属性；请重建该表。");
+        }
+
         if (operation.ComputedColumnSql is not null)
         {
             throw new NotSupportedException("SonnetDB 当前不支持通过 ALTER COLUMN 创建或修改计算列。");
@@ -389,6 +402,9 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
             .Append(" ")
             .Append(GetColumnType(schema, table, name, operation, model));
 
+        if (IsAutoIncrement(operation))
+            builder.Append(" AUTO_INCREMENT");
+
         if (!operation.IsNullable)
         {
             builder.Append(" NOT NULL");
@@ -405,6 +421,9 @@ public sealed class SonnetDbMigrationsSqlGenerator : MigrationsSqlGenerator
                 .Append(GenerateSqlLiteral(operation.DefaultValue));
         }
     }
+
+    private static bool IsAutoIncrement(ColumnOperation operation)
+        => operation[SonnetDbAnnotationNames.AutoIncrement] as bool? == true;
 
     /// <inheritdoc />
     protected override void PrimaryKeyConstraint(

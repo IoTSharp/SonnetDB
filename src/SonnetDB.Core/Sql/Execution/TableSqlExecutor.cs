@@ -366,6 +366,7 @@ internal static class TableSqlExecutor
 
         var bindings = BindInsertColumns(statement, schema);
         var defaults = BindInsertDefaults(schema, bindings);
+        var returningColumns = BindReturningColumns(statement, schema);
 
         var valuesRows = new List<object?[]>(statement.Rows.Count);
         foreach (var row in statement.Rows)
@@ -387,12 +388,24 @@ internal static class TableSqlExecutor
             .Select(static values => new TableRowMutation(PrimaryKeyValues: null, values))
             .ToList();
 
-        int inserted = tsdb.Tables.ApplyTransaction(
-            new Dictionary<string, IReadOnlyList<TableRowMutation>>(StringComparer.Ordinal)
-            {
-                [schema.Name] = mutations,
-            });
-        return new InsertExecutionResult(schema.Name, inserted);
+        var mutationsByTable = new Dictionary<string, IReadOnlyList<TableRowMutation>>(StringComparer.Ordinal)
+        {
+            [schema.Name] = mutations,
+        };
+        if (returningColumns.Length == 0)
+        {
+            int inserted = tsdb.Tables.ApplyTransaction(mutationsByTable);
+            return new InsertExecutionResult(schema.Name, inserted);
+        }
+
+        int insertedWithRows = tsdb.Tables.ApplyTransaction(mutationsByTable, out var finalRowsByTable);
+        if (!finalRowsByTable.TryGetValue(schema.Name, out var finalRows))
+            throw new InvalidOperationException($"table '{schema.Name}' 的 INSERT 提交结果缺少最终行。");
+
+        var insertedRows = finalRows
+            .Select(static row => row.Values.ToArray())
+            .ToArray();
+        return CreateInsertResult(schema.Name, insertedWithRows, returningColumns, insertedRows);
     }
 
     public static InsertExecutionResult QueueInsert(SqlTransactionContext transaction, InsertStatement statement, TableSchema schema)
@@ -424,6 +437,7 @@ internal static class TableSqlExecutor
 
         var bindings = BindInsertColumns(statement, schema);
         var defaults = BindInsertDefaults(schema, bindings);
+        var returningColumns = BindReturningColumns(statement, schema);
         var valuesRows = new List<object?[]>(statement.Rows.Count);
         foreach (var row in statement.Rows)
         {
@@ -462,7 +476,50 @@ internal static class TableSqlExecutor
             transaction.AddOrMergeTableMutation(schema, mutation);
 
         changes = rowChanges;
-        return new InsertExecutionResult(schema.Name, mutations.Count);
+        return CreateInsertResult(schema.Name, mutations.Count, returningColumns, valuesRows);
+    }
+
+    private static TableColumn[] BindReturningColumns(InsertStatement statement, TableSchema schema)
+    {
+        if (statement.ReturningColumns.Count == 0)
+            return [];
+
+        if (statement.ReturningColumns.Count == 1 && statement.ReturningColumns[0] == "*")
+            return [.. schema.Columns];
+
+        var columns = new TableColumn[statement.ReturningColumns.Count];
+        for (int i = 0; i < columns.Length; i++)
+        {
+            string name = statement.ReturningColumns[i];
+            columns[i] = schema.TryGetColumn(name)
+                ?? throw new InvalidOperationException(
+                    $"table '{schema.Name}' 的 RETURNING 中不存在列 '{name}'。");
+        }
+
+        return columns;
+    }
+
+    private static InsertExecutionResult CreateInsertResult(
+        string tableName,
+        int rowsInserted,
+        IReadOnlyList<TableColumn> returningColumns,
+        IReadOnlyList<object?[]> insertedRows)
+    {
+        var result = new InsertExecutionResult(tableName, rowsInserted);
+        if (returningColumns.Count == 0)
+            return result;
+
+        var columns = returningColumns.Select(static column => column.Name).ToArray();
+        var rows = new IReadOnlyList<object?>[insertedRows.Count];
+        for (int r = 0; r < insertedRows.Count; r++)
+        {
+            var row = new object?[returningColumns.Count];
+            for (int c = 0; c < returningColumns.Count; c++)
+                row[c] = insertedRows[r][returningColumns[c].Ordinal];
+            rows[r] = row;
+        }
+
+        return result with { Returning = new SelectExecutionResult(columns, rows) };
     }
 
     public static SelectExecutionResult ExecuteSelect(Tsdb tsdb, SelectStatement statement, TableSchema schema)

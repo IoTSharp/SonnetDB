@@ -24,14 +24,11 @@ public sealed class SonnetDbUpdateSqlGenerator : UpdateSqlGenerator
         int commandPosition,
         out bool requiresTransaction)
     {
-        requiresTransaction = false;
-        AppendInsertCommand(
+        return AppendInsertReturningOperation(
             commandStringBuilder,
-            command.TableName,
-            command.Schema,
-            command.ColumnModifications.Where(static operation => operation.IsWrite).ToList(),
-            []);
-        return ResultSetMapping.NoResults;
+            command,
+            commandPosition,
+            out requiresTransaction);
     }
 
     /// <inheritdoc />

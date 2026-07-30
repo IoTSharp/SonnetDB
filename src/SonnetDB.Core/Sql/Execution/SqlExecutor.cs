@@ -1199,6 +1199,8 @@ public static class SqlExecutor
         var documentSchema = tsdb.Documents.Catalog.TryGet(statement.Measurement);
         if (documentSchema is not null)
         {
+            if (statement.ReturningColumns.Count != 0)
+                throw new NotSupportedException("INSERT ... RETURNING 当前仅支持关系表。");
             if (transaction is not null)
                 throw new NotSupportedException("轻事务当前不支持文档集合写入。");
             return DocumentSqlExecutor.ExecuteInsert(tsdb, statement, documentSchema);
@@ -1213,6 +1215,9 @@ public static class SqlExecutor
                 tableSchema,
                 controlPlane,
                 transaction);
+
+        if (statement.ReturningColumns.Count != 0)
+            throw new NotSupportedException("INSERT ... RETURNING 当前仅支持关系表。");
 
         if (statement.IsDefaultValues
             || statement.Rows.Any(static row => row.Any(static value => value is DefaultValueExpression)))

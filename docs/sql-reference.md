@@ -116,7 +116,9 @@ CREATE TABLE devices (
 - 自增列由数据库维护，不允许通过 `UPDATE SET` 显式修改；底层 `TableStore` 批量 mutation 若写入更大的显式值，仍会推进高水位以保护后续分配。
 - 自增高水位持久化在表的 KV/WAL 中，并在并发写入前预留；约束失败、触发器失败或事务回滚可能留下间隙，已分配值不会复用。`DELETE` 不重置序列，`TRUNCATE TABLE` 切换 generation 后从 `1` 重新开始；超过 `INT` 的 `Int64` 上限会明确报错。
 - 普通 `INSERT` 在提交阶段的表管理锁内分配自增值；事务或触发器为了向 `NEW` 行提前暴露生成值而进行的预留会记录当时的 generation。若并发 `TRUNCATE TABLE` 已切换 generation，陈旧事务会在提交前明确失败，不会把重置前的预留值写入新 generation。
-- 当前 `INSERT` 执行结果只返回影响行数，尚不支持 `RETURNING` 或 last-insert-id；ADO.NET 不能从同一插入命令读取生成值，EF Core provider 的 `ValueGenerated.OnAdd` 整数键仍使用客户端生成器，不会自动切换为数据库自增列。
+- 关系表 `INSERT` 支持 `RETURNING column [, ...]` 和 `RETURNING *`；返回行使用完成默认值、`ROWVERSION` 与 `AUTO_INCREMENT` 生成后的最终值，多行结果保持 `VALUES` 的插入顺序。首版只允许列名或 `*`，不支持表达式和别名；measurement 与文档集合会明确拒绝 `RETURNING`。
+- ADO.NET 可用 `ExecuteScalar("INSERT ... RETURNING id")` 取得本条语句生成的首个 ID，作为语句级 last-insert-id；`ExecuteReader` 可读取完整返回行，同时 `RecordsAffected` 保留实际插入行数。SonnetDB 不维护连接级 `LAST_INSERT_ID()` 状态。
+- EF Core provider 会把常规 `int` / `long` `ValueGenerated.OnAdd` 列建为 `INT AUTO_INCREMENT`，INSERT 不发送临时跟踪键，并通过 `RETURNING` 把数据库生成值回填实体；`ValueGeneratedNever()` 仍按显式客户端键处理。
 
 关系查询可在投影和谓词中使用以下日期标量函数：
 
@@ -397,6 +399,10 @@ DROP INDEX idx_devices_site ON devices;
 INSERT INTO devices (id, name, enabled)
 VALUES (1, 'pump-01', TRUE), (2, 'fan-02', FALSE);
 
+INSERT INTO devices (name, enabled)
+VALUES ('valve-03', TRUE), ('motor-04', FALSE)
+RETURNING id, version;
+
 SELECT id, name
 FROM devices
 WHERE enabled = TRUE AND id > 1
@@ -414,6 +420,7 @@ WHERE id = 2;
 当前行为：
 
 - `INSERT` 按主键插入；主键已存在时返回错误，不会静默覆盖。
+- `INSERT ... RETURNING` 在同一语句中返回成功插入后的列值；`RETURNING *` 按表 schema 顺序返回全部列。未知列会在写入前报错，不留下部分数据。
 - `UPDATE` 支持把列、字面量、算术和标量函数组合成右值表达式；当前不支持更新主键或显式更新 `ROWVERSION` 列。
 - `SELECT` 支持 `*`、列投影、字面量投影、标量表达式投影，以及 `WHERE` 中的 `AND` / `OR` / `NOT` 和基础比较。
 - 关系表 `JSON` 列支持 `json_value(metadata, '$.site')` 这类 path 表达式；对象或数组结果会以紧凑 JSON 字符串返回。

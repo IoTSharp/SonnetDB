@@ -179,7 +179,7 @@ SonnetDB 同时支持两个明确角色：主站/client 主动轮询外部 PLC/R
 | 数据模型 | 主要参照与学习理由 | 已有基线，不重复建设 | 优先吸收的易用性 | 明确不吸收 |
 |---|---|---|---|---|
 | Document | MongoDB / MongoDB Compass：文档心智、builder、cursor、局部更新、索引与迁移诊断成熟。 | CRUD、常用 update、分页、索引、aggregation 子集、validator、change feed 和管理面已存在。 | 类型化 builder、常用缺失操作符、multikey/wildcard、混合 bulk、可执行迁移与结构化 gap report，全部归 M32。 | MongoDB wire/BSON command、官方 Driver 直连、replica set、sharding、分布式事务。 |
-| 关系 SQL | PostgreSQL：SQL 行为与错误诊断；SQLite：嵌入式零配置；EF Core / DBeaver：.NET 与开发工作流。 | ADO.NET、EF Core、参数绑定、轻事务、主外键/索引/CHECK/ROWVERSION、EXPLAIN 和关系工作台已存在。 | `RETURNING`、`INSERT ... ON CONFLICT` 等高频 DML；可定位错误与稳定 code/hint；实际行数/耗时诊断；连接、取消、超时和 schema migration 的清晰入口。 | pgwire、完整 PostgreSQL 方言/extension、MVCC 全隔离级别、存储过程全集、HA 管理面。 |
+| 关系 SQL | PostgreSQL：SQL 行为与错误诊断；SQLite：嵌入式零配置；EF Core / DBeaver：.NET 与开发工作流。 | ADO.NET、EF Core、参数绑定、轻事务、主外键/索引/CHECK/ROWVERSION、`INSERT ... RETURNING`、数据库生成整数键回填、EXPLAIN 和关系工作台已存在。 | `UPDATE/DELETE ... RETURNING`、`INSERT ... ON CONFLICT` 等高频 DML；可定位错误与稳定 code/hint；实际行数/耗时诊断；连接、取消、超时和 schema migration 的清晰入口。 | pgwire、完整 PostgreSQL 方言/extension、MVCC 全隔离级别、存储过程全集、HA 管理面。 |
 | 时序 | InfluxDB：Point/Line Protocol 与批量 Write API；VictoriaMetrics / Grafana Explore：range query 与排障；TimescaleDB：SQL 连续性。 | measurement/tag/field/time、自动 schema 演进、LP/JSON/Bulk、窗口/填充/聚合、Retention、图表与多协议接入已存在。 | 类型化 Point writer、批量 flush/retry/backpressure 与逐项错误；range/aggregate/gap-fill 查询 builder 和流式结果；precision/schema/cardinality/retention 预检与摄取诊断。 | Flux/PromQL 全语言兼容、分布式集群、无限基数承诺、把采集 Agent 或长期任务调度器塞进 Core。 |
 | KV / Cache | Redis：原子 key 操作、TTL 和条件写心智；RedisInsight：namespace、类型与过期诊断；.NET Cache：框架接入。 | bytes get/set、many、prefix scan/delete、TTL、INCR/DECR、CAS、`IDistributedCache`、EasyCaching 和 KV 工作台已存在。 | `NX/XX` 风格条件写、get-and-set/delete；AOT 友好的 UTF-8/JSON codec；异步 cursor/pipeline、批量分项结果、hot key/expiry/容量诊断。 | RESP/redis-cli 直连、List/Set/Hash/Stream 全数据结构、Lua、Pub/Sub、Redis Cluster 或跨 keyspace 事务。 |
 | 全文检索 | Meilisearch：单一 Search 请求、typo tolerance、filter/facet 和 task 状态；OpenSearch/Kibana：analyzer 与 relevance explain。 | Document 全文索引、BM25、Unicode/CJK/Jieba、exact/fuzzy/phrase/boolean、Document filter、analyze、rebuild、客户端高亮和 playground 已存在。 | 用类型化 `SearchRequest/Result` 汇总现有 mode/filter/page；补 sort、facet distribution、服务端 matched offset/highlight；增加 searchable/filterable/sortable fields、synonym/stopword/typo 设置、analyzer diff、score explain 和 rebuild progress。 | Elasticsearch Query DSL 全集、聚合分析平台、分片副本集群、把全文索引变成第二份主数据。 |
@@ -193,7 +193,7 @@ SonnetDB 同时支持两个明确角色：主站/client 主动轮询外部 PLC/R
 |---|---|---|
 | #310 | 八模型 usability gap catalog 与可执行 golden journey：记录每个常用任务的当前入口、证据、手写样板量、失败恢复和 `supported/partial/planned/not_planned`；与 M20 capability report 分开。 | 📋 |
 | #311 | 统一新客户端合同：连接/鉴权、取消/超时、分页、批量分项错误、correlation id、仅对可安全重试操作启用的 retry/idempotency 元数据；不强行抹平各模型概念。 | 📋 |
-| #312 | SQL 高频 DML：`RETURNING`、SonnetDB-native `INSERT ... ON CONFLICT` 子集、ADO.NET/EF Core 映射和稳定冲突结果。 | 📋 |
+| #312 | SQL 高频 DML：关系表 `INSERT ... RETURNING`、ADO.NET 语句级 last-insert-id 与 EF Core 数据库生成整数键回填已落地；仍需 `UPDATE/DELETE ... RETURNING`、SonnetDB-native `INSERT ... ON CONFLICT` 子集和稳定冲突结果。 | 🚧 |
 | #313 | SQL 开发诊断：带位置/code/hint 的解析与执行错误、`EXPLAIN ANALYZE` 实际行数/耗时/回退原因，以及取消和超时闭环。 | 📋 |
 | #314 | 时序类型化 Write API：Point builder、precision、batch/flush、限界背压、传输级重试、逐项错误和 dispose/drain；嵌入式与远程语义一致。 | 📋 |
 | #315 | 时序 Query API 与建模诊断：range/aggregate/window/gap-fill builder、流式结果，以及 schema/cardinality/retention/坏点预检；不新增第二套查询引擎。 | 📋 |

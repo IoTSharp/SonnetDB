@@ -518,6 +518,12 @@ public sealed record InsertStatement(
     /// 为保持既有构造器与解构 API 兼容，该语法通过 init 属性标记。
     /// </summary>
     public bool IsDefaultValues { get; init; }
+
+    /// <summary>
+    /// <c>RETURNING</c> 请求返回的列名；单个 <c>*</c> 表示返回关系表全部列。
+    /// 空集合表示未声明 <c>RETURNING</c>。
+    /// </summary>
+    public IReadOnlyList<string> ReturningColumns { get; init; } = Array.Empty<string>();
 }
 
 /// <summary>
