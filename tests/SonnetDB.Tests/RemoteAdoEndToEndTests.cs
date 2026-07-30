@@ -157,7 +157,7 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         using var connection = OpenAdoSchemaMatrixConnection(mode);
         using (var ddl = connection.CreateCommand())
         {
-            ddl.CommandText = "CREATE TABLE schema_devices (id INT, name STRING NULL, enabled BOOL DEFAULT TRUE, version INT ROWVERSION, PRIMARY KEY (id))";
+            ddl.CommandText = "CREATE TABLE schema_devices (id INT AUTO_INCREMENT, name STRING NULL, enabled BOOL DEFAULT TRUE, version INT ROWVERSION, PRIMARY KEY (id))";
             Assert.Equal(0, ddl.ExecuteNonQuery());
             ddl.CommandText = "CREATE UNIQUE INDEX ux_schema_devices_name ON schema_devices (name)";
             Assert.Equal(0, ddl.ExecuteNonQuery());
@@ -182,8 +182,13 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
             columns.Rows.Cast<DataRow>(),
             row => string.Equals((string)row["COLUMN_NAME"], "id", StringComparison.Ordinal)
                 && (bool)row["IS_PRIMARY_KEY"]
+                && (bool)row["IS_AUTO_INCREMENT"]
                 && !(bool)row["IS_NULLABLE"]
                 && string.Equals((string)row["DATA_TYPE"], "INT", StringComparison.Ordinal));
+        Assert.Contains(
+            columns.Rows.Cast<DataRow>(),
+            row => string.Equals((string)row["COLUMN_NAME"], "name", StringComparison.Ordinal)
+                && !(bool)row["IS_AUTO_INCREMENT"]);
         Assert.Contains(
             columns.Rows.Cast<DataRow>(),
             row => string.Equals((string)row["COLUMN_NAME"], "enabled", StringComparison.Ordinal)

@@ -450,6 +450,7 @@ public sealed class SndbConnection : DbConnection
         table.Columns.Add("NUMERIC_SCALE", typeof(short));
         table.Columns.Add("IS_PRIMARY_KEY", typeof(bool));
         table.Columns.Add("IS_ROW_VERSION", typeof(bool));
+        table.Columns.Add("IS_AUTO_INCREMENT", typeof(bool));
 
         var tableNameRestriction = Restriction(restrictionValues, 2);
         var columnNameRestriction = Restriction(restrictionValues, 3);
@@ -476,7 +477,8 @@ public sealed class SndbConnection : DbConnection
                     GetNumericPrecision(column.DataType),
                     GetNumericScale(column.DataType),
                     column.IsPrimaryKey,
-                    column.IsRowVersion);
+                    column.IsRowVersion,
+                    column.IsAutoIncrement);
             }
         }
 
@@ -551,7 +553,15 @@ public sealed class SndbConnection : DbConnection
         table.Columns.Add("LiteralPrefix", typeof(string));
         table.Columns.Add("LiteralSuffix", typeof(string));
 
-        AddDataType(table, "INT", DbType.Int64, typeof(long), 19, searchable: true, fixedLength: true);
+        AddDataType(
+            table,
+            "INT",
+            DbType.Int64,
+            typeof(long),
+            19,
+            searchable: true,
+            fixedLength: true,
+            autoIncrementable: true);
         AddDataType(table, "FLOAT", DbType.Double, typeof(double), 15, searchable: true, fixedLength: true, maximumScale: 15);
         AddDataType(table, "BOOL", DbType.Boolean, typeof(bool), 1, searchable: true, fixedLength: true);
         AddDataType(table, "STRING", DbType.String, typeof(string), int.MaxValue, searchable: true, searchableWithLike: true, caseSensitive: true, isLong: true, literalPrefix: "'", literalSuffix: "'");
@@ -592,6 +602,7 @@ public sealed class SndbConnection : DbConnection
         bool fixedLength = false,
         bool caseSensitive = false,
         bool isLong = false,
+        bool autoIncrementable = false,
         short maximumScale = 0,
         string literalPrefix = "",
         string literalSuffix = "")
@@ -603,7 +614,7 @@ public sealed class SndbConnection : DbConnection
             typeName,
             string.Empty,
             runtimeType.FullName ?? runtimeType.Name,
-            false,
+            autoIncrementable,
             true,
             caseSensitive,
             fixedLength,

@@ -19,7 +19,10 @@ internal static class TableSqlExecutor
     private static readonly IReadOnlyList<string> _nameColumns =
         new List<string>(1) { "name" }.AsReadOnly();
     private static readonly IReadOnlyList<string> _describeTableColumns =
-        new List<string>(6) { "column_name", "data_type", "is_nullable", "is_primary_key", "ordinal", "column_default" }.AsReadOnly();
+        new List<string>(7)
+        {
+            "column_name", "data_type", "is_nullable", "is_primary_key", "ordinal", "column_default", "is_auto_increment"
+        }.AsReadOnly();
     private static readonly IReadOnlyList<string> _showIndexColumns =
         new List<string>(4) { "index_name", "is_unique", "columns", "created_utc" }.AsReadOnly();
 
@@ -39,15 +42,21 @@ internal static class TableSqlExecutor
 
         var columns = new List<(string Name, TableColumnType DataType, bool IsNullable)>(statement.Columns.Count);
         var columnDefaults = new Dictionary<string, string?>(StringComparer.Ordinal);
+        var autoIncrementColumns = new HashSet<string>(StringComparer.Ordinal);
         foreach (var column in statement.Columns)
         {
             var dataType = MapTableColumnType(column.DataType);
             var isPrimaryKey = statement.PrimaryKey.Contains(column.Name, StringComparer.Ordinal);
-            var isNullable = column.Nullability != ColumnNullability.NotNull && !isPrimaryKey;
+            var isAutoIncrement = column.IsAutoIncrement;
+            var isNullable = column.Nullability != ColumnNullability.NotNull && !isPrimaryKey && !isAutoIncrement;
+            if (isAutoIncrement)
+                autoIncrementColumns.Add(column.Name);
             if (column.DefaultExpression is not null)
             {
                 if (column.IsRowVersion)
                     throw new InvalidOperationException("ROWVERSION 列不允许声明 DEFAULT。");
+                if (column.IsAutoIncrement)
+                    throw new InvalidOperationException("AUTO_INCREMENT 列不允许声明 DEFAULT。");
                 var tempColumn = new TableColumn(
                     column.Name,
                     dataType,
@@ -90,7 +99,8 @@ internal static class TableSqlExecutor
             rowVersionColumns: rowVersionColumns,
             createdAtUtcTicks: 0,
             checkConstraints: checkConstraints,
-            columnDefaults: columnDefaults);
+            columnDefaults: columnDefaults,
+            autoIncrementColumns: autoIncrementColumns);
         tsdb.Tables.Create(schema);
         return schema;
     }
@@ -357,7 +367,7 @@ internal static class TableSqlExecutor
         var bindings = BindInsertColumns(statement, schema);
         var defaults = BindInsertDefaults(schema, bindings);
 
-        var mutations = new List<TableRowMutation>(statement.Rows.Count);
+        var valuesRows = new List<object?[]>(statement.Rows.Count);
         foreach (var row in statement.Rows)
         {
             var values = new object?[schema.Columns.Count];
@@ -370,8 +380,12 @@ internal static class TableSqlExecutor
             ApplyInsertDefaults(defaults, values);
             ApplyInsertRowVersion(schema, values);
             ValidateRequiredColumns(schema, values);
-            mutations.Add(new TableRowMutation(PrimaryKeyValues: null, values));
+            valuesRows.Add(values);
         }
+
+        var mutations = valuesRows
+            .Select(static values => new TableRowMutation(PrimaryKeyValues: null, values))
+            .ToList();
 
         int inserted = tsdb.Tables.ApplyTransaction(
             new Dictionary<string, IReadOnlyList<TableRowMutation>>(StringComparer.Ordinal)
@@ -382,9 +396,23 @@ internal static class TableSqlExecutor
     }
 
     public static InsertExecutionResult QueueInsert(SqlTransactionContext transaction, InsertStatement statement, TableSchema schema)
-        => QueueInsert(transaction, statement, schema, out _);
+        => QueueInsertCore(
+            tsdb: null,
+            transaction,
+            statement,
+            schema,
+            out _);
 
     internal static InsertExecutionResult QueueInsert(
+        Tsdb tsdb,
+        SqlTransactionContext transaction,
+        InsertStatement statement,
+        TableSchema schema,
+        out IReadOnlyList<TableRowChange> changes)
+        => QueueInsertCore(tsdb, transaction, statement, schema, out changes);
+
+    private static InsertExecutionResult QueueInsertCore(
+        Tsdb? tsdb,
         SqlTransactionContext transaction,
         InsertStatement statement,
         TableSchema schema,
@@ -396,8 +424,7 @@ internal static class TableSqlExecutor
 
         var bindings = BindInsertColumns(statement, schema);
         var defaults = BindInsertDefaults(schema, bindings);
-        var mutations = new List<TableRowMutation>(statement.Rows.Count);
-        var rowChanges = new List<TableRowChange>(statement.Rows.Count);
+        var valuesRows = new List<object?[]>(statement.Rows.Count);
         foreach (var row in statement.Rows)
         {
             var values = new object?[schema.Columns.Count];
@@ -410,6 +437,22 @@ internal static class TableSqlExecutor
             ApplyInsertDefaults(defaults, values);
             ApplyInsertRowVersion(schema, values);
             ValidateRequiredColumns(schema, values);
+            valuesRows.Add(values);
+        }
+
+        if (tsdb is not null && schema.AutoIncrementColumn is { } autoIncrementColumn)
+        {
+            bool reservedGeneratedValue = valuesRows.Any(
+                values => values[autoIncrementColumn.Ordinal] is null);
+            long generation = tsdb.Tables.Open(schema.Name).ApplyAutoIncrement(valuesRows);
+            if (reservedGeneratedValue)
+                transaction.RecordAutoIncrementReservation(schema.Name, generation);
+        }
+
+        var mutations = new List<TableRowMutation>(valuesRows.Count);
+        var rowChanges = new List<TableRowChange>(valuesRows.Count);
+        foreach (var values in valuesRows)
+        {
             mutations.Add(new TableRowMutation(PrimaryKeyValues: null, values));
             rowChanges.Add(new TableRowChange(schema, OldValues: null, values.ToArray()));
         }
@@ -486,7 +529,8 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(schema);
 
         var where = TableInSubqueryExecutor.Materialize(tsdb, statement.Where, schema);
-        if (where is LiteralExpression { Kind: SqlLiteralKind.Boolean, BooleanValue: true }
+        if (schema.AutoIncrementColumn is null
+            && where is LiteralExpression { Kind: SqlLiteralKind.Boolean, BooleanValue: true }
             && tsdb.Tables.TryTruncateFast(schema.Name, out int truncated))
         {
             return new RowsAffectedExecutionResult(schema.Name, truncated, "delete_generation");
@@ -756,7 +800,25 @@ internal static class TableSqlExecutor
         int affected;
         try
         {
-            affected = tsdb.Tables.ApplyTransaction(transaction.SnapshotTableMutations());
+            var mutations = transaction.SnapshotTableMutations();
+            var reservationGenerations = transaction.SnapshotAutoIncrementReservationGenerations();
+            affected = reservationGenerations.Count == 0
+                ? tsdb.Tables.ApplyTransaction(mutations)
+                : tsdb.Tables.ExecuteLocked(() =>
+                {
+                    foreach (var (tableName, expectedGeneration) in reservationGenerations)
+                    {
+                        long actualGeneration = tsdb.Tables.Open(tableName).Generation;
+                        if (actualGeneration != expectedGeneration)
+                        {
+                            throw new InvalidOperationException(
+                                $"table '{tableName}' 在 AUTO_INCREMENT 值预留后执行了 TRUNCATE；"
+                                + $"预留 generation={expectedGeneration}，当前 generation={actualGeneration}，事务已拒绝提交。");
+                        }
+                    }
+
+                    return tsdb.Tables.ApplyTransaction(mutations);
+                });
         }
         catch
         {
@@ -800,6 +862,7 @@ internal static class TableSqlExecutor
                 column.IsPrimaryKey,
                 (long)column.Ordinal,
                 column.DefaultExpressionSql,
+                column.IsAutoIncrement,
             });
         }
 
@@ -930,6 +993,8 @@ internal static class TableSqlExecutor
                 throw new InvalidOperationException("关系表 MVP 暂不支持更新 PRIMARY KEY 列。");
             if (column.IsRowVersion)
                 throw new InvalidOperationException($"ROWVERSION 列 '{column.Name}' 由数据库自动维护，不允许显式赋值。");
+            if (column.IsAutoIncrement)
+                throw new InvalidOperationException($"AUTO_INCREMENT 列 '{column.Name}' 由数据库自动维护，不允许 UPDATE 显式赋值。");
 
             if (assignment.Value is DefaultValueExpression)
             {
@@ -1128,7 +1193,7 @@ internal static class TableSqlExecutor
         for (int i = 0; i < schema.Columns.Count; i++)
         {
             var column = schema.Columns[i];
-            if (values[i] is null && !column.IsNullable)
+            if (values[i] is null && !column.IsNullable && !column.IsAutoIncrement)
                 throw new InvalidOperationException($"列 '{column.Name}' 不允许为 NULL。");
         }
     }

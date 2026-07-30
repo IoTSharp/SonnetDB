@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using SonnetDB.Kv;
 
 namespace SonnetDB.Tables;
@@ -7,6 +8,7 @@ namespace SonnetDB.Tables;
 /// </summary>
 public sealed class TableStore : IDisposable
 {
+    private static readonly byte[] _autoIncrementStateKey = [(byte)'m', (byte)'a'];
     private const int MaintenanceKeyPageSize = 256;
     private const int IndexRebuildRowPageSize = 4;
     private readonly object _sync = new();
@@ -93,6 +95,22 @@ public sealed class TableStore : IDisposable
     public KvCleanupStatus GetCleanupStatus() => _keyspace.GetCleanupStatus();
 
     /// <summary>
+    /// 为待插入行填充自增列，并持久化新的序列高水位。
+    /// </summary>
+    /// <param name="rows">按 schema 列顺序排列的可变行值。</param>
+    /// <returns>完成预留时底层 rowstore 的 generation。</returns>
+    internal long ApplyAutoIncrement(IReadOnlyList<object?[]> rows)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+        lock (_sync)
+        {
+            if (rows.Count > 0)
+                ApplyAutoIncrementLocked(_schema, rows);
+            return _keyspace.Generation;
+        }
+    }
+
+    /// <summary>
     /// 插入或覆盖一行。
     /// </summary>
     /// <param name="values">按 schema 列顺序排列的行值。</param>
@@ -102,11 +120,13 @@ public sealed class TableStore : IDisposable
         lock (_sync)
         {
             var schema = _schema;
-            ValidateRow(schema, values);
-            byte[] primaryKey = TableKeyCodec.EncodePrimaryKey(schema, values);
+            var normalizedValues = values.ToArray();
+            ApplyAutoIncrementLocked(schema, [normalizedValues]);
+            ValidateRow(schema, normalizedValues);
+            byte[] primaryKey = TableKeyCodec.EncodePrimaryKey(schema, normalizedValues);
             byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
             var oldRow = TryGetByRowKeyLocked(schema, rowKey);
-            var operation = TableMutationOperation.Update(rowKey, oldRow, new TableRow(values.ToArray(), primaryKey));
+            var operation = TableMutationOperation.Update(rowKey, oldRow, new TableRow(normalizedValues, primaryKey));
             ValidateUniqueIndexesLocked(schema, operation);
             ApplyMutationLocked(schema, operation);
             if (oldRow is null)
@@ -124,13 +144,15 @@ public sealed class TableStore : IDisposable
         lock (_sync)
         {
             var schema = _schema;
-            ValidateRow(schema, values);
-            byte[] primaryKey = TableKeyCodec.EncodePrimaryKey(schema, values);
+            var normalizedValues = values.ToArray();
+            ApplyAutoIncrementLocked(schema, [normalizedValues]);
+            ValidateRow(schema, normalizedValues);
+            byte[] primaryKey = TableKeyCodec.EncodePrimaryKey(schema, normalizedValues);
             byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
             if (_keyspace.Get(rowKey) is not null)
                 throw new InvalidOperationException($"table '{schema.Name}' 中主键已存在。");
 
-            var newRow = new TableRow(values.ToArray(), primaryKey);
+            var newRow = new TableRow(normalizedValues, primaryKey);
             var operation = TableMutationOperation.Insert(rowKey, newRow);
             ValidateUniqueIndexesLocked(schema, operation);
             ApplyMutationLocked(schema, operation);
@@ -152,10 +174,12 @@ public sealed class TableStore : IDisposable
         lock (_sync)
         {
             var schema = _schema;
+            var normalizedRows = rows.Select(static row => row.ToArray()).ToArray();
+            ApplyAutoIncrementLocked(schema, normalizedRows);
             var operations = new List<TableMutationOperation>(rows.Count);
             var pendingRowKeys = new HashSet<string>(StringComparer.Ordinal);
             var pendingUniqueKeys = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var values in rows)
+            foreach (var values in normalizedRows)
             {
                 ValidateRow(schema, values);
                 byte[] primaryKey = TableKeyCodec.EncodePrimaryKey(schema, values);
@@ -725,6 +749,121 @@ public sealed class TableStore : IDisposable
         }
     }
 
+    private void ApplyAutoIncrementLocked(TableSchema schema, IReadOnlyList<object?[]> rows)
+    {
+        var column = schema.AutoIncrementColumn;
+        if (column is null || rows.Count == 0)
+            return;
+
+        long current = ReadAutoIncrementStateLocked();
+        bool changed = false;
+        try
+        {
+            foreach (var values in rows)
+            {
+                if (values.Length != schema.Columns.Count)
+                    throw new ArgumentException("行值数量必须与表 schema 列数量一致。", nameof(rows));
+
+                ApplyAutoIncrementValue(column, values, allocateMissing: true, ref current, ref changed);
+            }
+        }
+        finally
+        {
+            WriteAutoIncrementStateLocked(current, changed);
+        }
+    }
+
+    private void ApplyAutoIncrementMutationsLocked(
+        TableSchema schema,
+        IReadOnlyList<(object?[] Values, bool AllocateMissing)> rows)
+    {
+        var column = schema.AutoIncrementColumn;
+        if (column is null || rows.Count == 0)
+            return;
+
+        long current = ReadAutoIncrementStateLocked();
+        bool changed = false;
+        try
+        {
+            foreach (var row in rows)
+            {
+                if (row.Values.Length != schema.Columns.Count)
+                    throw new ArgumentException("行值数量必须与表 schema 列数量一致。", nameof(rows));
+
+                ApplyAutoIncrementValue(
+                    column,
+                    row.Values,
+                    row.AllocateMissing,
+                    ref current,
+                    ref changed);
+            }
+        }
+        finally
+        {
+            WriteAutoIncrementStateLocked(current, changed);
+        }
+    }
+
+    private static void ApplyAutoIncrementValue(
+        TableColumn column,
+        object?[] values,
+        bool allocateMissing,
+        ref long current,
+        ref bool changed)
+    {
+        if (values[column.Ordinal] is null)
+        {
+            if (!allocateMissing)
+                return;
+
+            values[column.Ordinal] = checked(current + 1);
+            current = (long)values[column.Ordinal]!;
+            changed = true;
+            return;
+        }
+
+        long explicitValue = ToAutoIncrementValue(values[column.Ordinal]!, column.Name);
+        if (explicitValue <= current)
+            return;
+
+        current = explicitValue;
+        changed = true;
+    }
+
+    private void WriteAutoIncrementStateLocked(long current, bool changed)
+    {
+        if (!changed)
+            return;
+
+        Span<byte> buffer = stackalloc byte[sizeof(long)];
+        BinaryPrimitives.WriteInt64LittleEndian(buffer, current);
+        _keyspace.Put(_autoIncrementStateKey, buffer.ToArray());
+    }
+
+    private long ReadAutoIncrementStateLocked()
+    {
+        byte[]? payload = _keyspace.Get(_autoIncrementStateKey);
+        if (payload is null)
+            return 0L;
+        if (payload.Length != sizeof(long))
+            throw new InvalidDataException("关系表自增序列状态损坏。");
+        return BinaryPrimitives.ReadInt64LittleEndian(payload);
+    }
+
+    private static long ToAutoIncrementValue(object value, string columnName)
+        => value switch
+        {
+            byte v => v,
+            sbyte v => v,
+            short v => v,
+            ushort v => v,
+            int v => v,
+            uint v => v,
+            long v => v,
+            ulong v => checked((long)v),
+            _ => throw new InvalidOperationException($"AUTO_INCREMENT 列 '{columnName}' 只能写入整数值。"),
+        };
+
     private TableRow? TryGetByRowKeyLocked(TableSchema schema, ReadOnlySpan<byte> rowKey)
     {
         byte[]? payload = _keyspace.Get(rowKey);
@@ -1027,10 +1166,27 @@ public sealed class TableStore : IDisposable
     private PreparedTableBatch PrepareBatchLocked(IReadOnlyList<TableRowMutation> mutations)
     {
         var schema = _schema;
-        var operations = new List<TableMutationOperation>(mutations.Count);
+        var normalizedMutations = new List<TableRowMutation>(mutations.Count);
+        var autoIncrementRows = new List<(object?[] Values, bool AllocateMissing)>(mutations.Count);
+        foreach (var mutation in mutations)
+        {
+            if (mutation.NewValues is null)
+            {
+                normalizedMutations.Add(mutation);
+                continue;
+            }
+
+            var values = mutation.NewValues.ToArray();
+            autoIncrementRows.Add((values, mutation.PrimaryKeyValues is null));
+            normalizedMutations.Add(mutation with { NewValues = values });
+        }
+
+        ApplyAutoIncrementMutationsLocked(schema, autoIncrementRows);
+
+        var operations = new List<TableMutationOperation>(normalizedMutations.Count);
         var pendingRowKeys = new HashSet<string>(StringComparer.Ordinal);
         var pendingUniqueKeys = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var mutation in mutations)
+        foreach (var mutation in normalizedMutations)
         {
             if (mutation.NewValues is not null)
                 ValidateRow(schema, mutation.NewValues);

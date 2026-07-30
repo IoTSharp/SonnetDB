@@ -118,10 +118,13 @@ public sealed class SqlExecutorTableTests : IDisposable
             var describe = Assert.IsType<SelectExecutionResult>(
                 SqlExecutor.Execute(reopened, "DESCRIBE TABLE devices"));
             Assert.Equal(
-                new[] { "column_name", "data_type", "is_nullable", "is_primary_key", "ordinal", "column_default" },
+                new[]
+                {
+                    "column_name", "data_type", "is_nullable", "is_primary_key", "ordinal", "column_default", "is_auto_increment"
+                },
                 describe.Columns);
-            Assert.Equal(new object?[] { "id", "int64", false, true, 0L, null }, describe.Rows[0]);
-            Assert.Equal(new object?[] { "metadata", "json", true, false, 2L, null }, describe.Rows[2]);
+            Assert.Equal(new object?[] { "id", "int64", false, true, 0L, null, false }, describe.Rows[0]);
+            Assert.Equal(new object?[] { "metadata", "json", true, false, 2L, null, false }, describe.Rows[2]);
         }
     }
 

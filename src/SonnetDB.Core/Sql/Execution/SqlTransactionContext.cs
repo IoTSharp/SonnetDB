@@ -19,6 +19,7 @@ public sealed class SqlTransactionContext
     private static readonly AsyncLocal<SqlTransactionContext?> _current = new();
 
     private readonly Dictionary<string, List<TableRowMutation>> _tableMutations = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, long> _autoIncrementReservationGenerations = new(StringComparer.Ordinal);
     private readonly List<long> _triggerAuditSequences = [];
     private bool _completed;
 
@@ -142,6 +143,25 @@ public sealed class SqlTransactionContext
             static p => (IReadOnlyList<TableRowMutation>)p.Value.ToArray(),
             StringComparer.Ordinal);
 
+    internal void RecordAutoIncrementReservation(string tableName, long generation)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+        ArgumentOutOfRangeException.ThrowIfNegative(generation);
+        ThrowIfCompleted();
+
+        if (_autoIncrementReservationGenerations.TryGetValue(tableName, out long existing)
+            && existing != generation)
+        {
+            throw new InvalidOperationException(
+                $"table '{tableName}' 在 AUTO_INCREMENT 值预留期间执行了 TRUNCATE；当前事务不能跨 generation 继续写入。");
+        }
+
+        _autoIncrementReservationGenerations[tableName] = generation;
+    }
+
+    internal IReadOnlyDictionary<string, long> SnapshotAutoIncrementReservationGenerations()
+        => _autoIncrementReservationGenerations.ToDictionary(StringComparer.Ordinal);
+
     internal void AddTriggerAuditSequences(IReadOnlyList<long> auditSequences)
     {
         ArgumentNullException.ThrowIfNull(auditSequences);
@@ -166,6 +186,7 @@ public sealed class SqlTransactionContext
             static pair => pair.Key,
             static pair => pair.Value.ToList(),
             StringComparer.Ordinal),
+            _autoIncrementReservationGenerations.ToDictionary(StringComparer.Ordinal),
             _triggerAuditSequences.Count);
 
     internal void RollbackTo(Savepoint savepoint)
@@ -175,6 +196,9 @@ public sealed class SqlTransactionContext
         _tableMutations.Clear();
         foreach (var pair in savepoint.TableMutations)
             _tableMutations.Add(pair.Key, pair.Value.ToList());
+        _autoIncrementReservationGenerations.Clear();
+        foreach (var pair in savepoint.AutoIncrementReservationGenerations)
+            _autoIncrementReservationGenerations.Add(pair.Key, pair.Value);
         if (_triggerAuditSequences.Count > savepoint.TriggerAuditSequenceCount)
         {
             _triggerAuditSequences.RemoveRange(
@@ -185,6 +209,7 @@ public sealed class SqlTransactionContext
 
     internal sealed record Savepoint(
         IReadOnlyDictionary<string, List<TableRowMutation>> TableMutations,
+        IReadOnlyDictionary<string, long> AutoIncrementReservationGenerations,
         int TriggerAuditSequenceCount);
 
     internal void MarkCompleted()

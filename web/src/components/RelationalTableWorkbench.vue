@@ -75,7 +75,7 @@
         </n-space>
       </div>
       <div class="relation-insert__grid">
-        <label v-for="column in tableColumns" :key="column.name" class="relation-field">
+        <label v-for="column in insertableColumns" :key="column.name" class="relation-field">
           <span>
             {{ column.name }}
             <small>{{ column.dataType }}{{ column.isNullable ? ' · nullable' : '' }}</small>
@@ -355,6 +355,8 @@ const pageSizeOptions: SelectOption[] = [
 
 const tableColumns = computed(() =>
   [...(props.table?.columns ?? [])].sort((a, b) => a.ordinal - b.ordinal));
+const insertableColumns = computed(() =>
+  tableColumns.value.filter((column) => !column.isAutoIncrement && !column.isRowVersion));
 
 const primaryKeyColumns = computed(() => props.table?.primaryKey ?? []);
 
@@ -453,13 +455,17 @@ function renderColumnTitle(column: TableColumnInfo) {
     h('small', [
       column.dataType,
       column.isPrimaryKey ? ' · PK' : '',
+      column.isAutoIncrement ? ' · AUTO' : '',
       column.isNullable ? ' · NULL' : '',
     ].join('')),
   ]);
 }
 
 function renderCell(row: GridRow, column: TableColumnInfo) {
-  if (editingRows[row.__rowKey] && !column.isPrimaryKey) {
+  if (editingRows[row.__rowKey]
+    && !column.isPrimaryKey
+    && !column.isAutoIncrement
+    && !column.isRowVersion) {
     const draft = editDrafts[row.__rowKey];
     return renderDraftEditor(column, draft, (value) => {
       draft[column.name] = value;
@@ -687,7 +693,7 @@ function cancelEdit(row: GridRow): void {
 
 function stageInsert(): void {
   if (!props.table) return;
-  const values = collectDraftValues(insertDraft, tableColumns.value);
+  const values = collectDraftValues(insertDraft, insertableColumns.value);
   if (!values.ok) {
     message.error(values.message);
     return;
@@ -695,18 +701,20 @@ function stageInsert(): void {
 
   const opId = makeOperationId('insert');
   const parameters: SqlParameters = {};
-  const placeholders = tableColumns.value.map((column, index) => {
+  const placeholders = insertableColumns.value.map((column, index) => {
     const paramName = makeParamName('ins', column.name, index, opId);
     parameters[paramName] = sqlParameterFromValue(values.values[column.name]);
     return `@${paramName}`;
   });
-  const sql = [
-    `INSERT INTO ${formatSqlIdentifier(props.table.name)} (`,
-    `  ${tableColumns.value.map((column) => formatSqlIdentifier(column.name)).join(', ')}`,
-    ') VALUES (',
-    `  ${placeholders.join(', ')}`,
-    ');',
-  ].join('\n');
+  const sql = insertableColumns.value.length === 0
+    ? `INSERT INTO ${formatSqlIdentifier(props.table.name)} DEFAULT VALUES;`
+    : [
+      `INSERT INTO ${formatSqlIdentifier(props.table.name)} (`,
+      `  ${insertableColumns.value.map((column) => formatSqlIdentifier(column.name)).join(', ')}`,
+      ') VALUES (',
+      `  ${placeholders.join(', ')}`,
+      ');',
+    ].join('\n');
 
   pendingOperations.value.push({
     id: opId,
@@ -714,7 +722,7 @@ function stageInsert(): void {
     sql,
     parameters,
     label: 'Insert row',
-    detail: `${tableColumns.value.length} values`,
+    detail: `${insertableColumns.value.length} values`,
     severity: 'write',
   });
   resetInsertDraft();
@@ -724,7 +732,8 @@ function stageInsert(): void {
 function stageUpdate(row: GridRow): void {
   if (!props.table) return;
   const draft = editDrafts[row.__rowKey];
-  const editableColumns = tableColumns.value.filter((column) => !column.isPrimaryKey);
+  const editableColumns = tableColumns.value.filter((column) =>
+    !column.isPrimaryKey && !column.isAutoIncrement && !column.isRowVersion);
   const values = collectDraftValues(draft, editableColumns);
   if (!values.ok) {
     message.error(values.message);
@@ -881,7 +890,7 @@ function resetInsertDraft(): void {
   for (const key of Object.keys(insertDraft)) {
     delete insertDraft[key];
   }
-  for (const column of tableColumns.value) {
+  for (const column of insertableColumns.value) {
     insertDraft[column.name] = defaultDraftValue(column);
   }
 }

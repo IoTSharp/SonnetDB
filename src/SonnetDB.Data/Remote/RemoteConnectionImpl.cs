@@ -798,6 +798,10 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             .Where(static column => column.IsRowVersion)
             .Select(static column => column.Name)
             .ToHashSet(StringComparer.Ordinal);
+        var autoIncrementColumns = table.Columns
+            .Where(static column => column.IsAutoIncrement)
+            .Select(static column => column.Name)
+            .ToHashSet(StringComparer.Ordinal);
         var indexes = table.Indexes
             .Select(static index => new TableIndexDefinition(
                 index.Name,
@@ -816,7 +820,8 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
             rowVersionColumns: rowVersionColumns,
             createdAtUtcTicks: table.CreatedUtc.UtcDateTime.Ticks,
             checkConstraints: null,
-            columnDefaults: defaults);
+            columnDefaults: defaults,
+            autoIncrementColumns: autoIncrementColumns);
     }
 
     private static TableColumnType ParseTableColumnType(string value)

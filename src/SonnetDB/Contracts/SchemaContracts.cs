@@ -43,6 +43,9 @@ public sealed record TableColumnInfo(
     int Ordinal,
     bool IsRowVersion = false)
 {
+    /// <summary>是否由数据库在插入时自动分配递增整数值。</summary>
+    public bool IsAutoIncrement { get; init; }
+
     /// <summary>规范化的列默认表达式；没有默认值时为 <c>null</c>。</summary>
     public string? DefaultExpressionSql { get; init; }
 }

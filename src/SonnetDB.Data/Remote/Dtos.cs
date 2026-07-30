@@ -122,7 +122,10 @@ internal sealed record RemoteTableColumnInfo(
     bool IsNullable,
     int Ordinal,
     bool IsRowVersion = false,
-    string? DefaultExpressionSql = null);
+    string? DefaultExpressionSql = null)
+{
+    public bool IsAutoIncrement { get; init; }
+}
 
 internal sealed record RemoteTableIndexInfo(
     string Name,

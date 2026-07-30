@@ -53,7 +53,6 @@ export function validateImportRows(
 ): ImportValidationResult {
   const errors: ImportRowError[] = [...parsed.errors];
   const prepared: PreparedImportRow[] = [];
-  const mappedColumns = table.columns.filter((column) => Boolean(mapping[column.name]));
 
   for (let rowIndex = 0; rowIndex < parsed.rows.length; rowIndex++) {
     const rowNumber = rowIndex + 2;
@@ -64,7 +63,7 @@ export function validateImportRows(
     for (const column of table.columns) {
       const sourceName = mapping[column.name];
       if (!sourceName) {
-        if (!column.isNullable && !column.isRowVersion && !column.isPrimaryKey) {
+        if (!column.isNullable && !column.isRowVersion && !column.isPrimaryKey && !column.isAutoIncrement) {
           errors.push({
             rowNumber,
             column: column.name,
@@ -72,7 +71,7 @@ export function validateImportRows(
           });
           rowHasErrors = true;
         }
-        if (column.isPrimaryKey && !column.isRowVersion) {
+        if (column.isPrimaryKey && !column.isRowVersion && !column.isAutoIncrement) {
           errors.push({
             rowNumber,
             column: column.name,
@@ -97,7 +96,7 @@ export function validateImportRows(
       values[column.name] = coerced.value;
     }
 
-    if (!rowHasErrors && mappedColumns.length > 0) {
+    if (!rowHasErrors) {
       prepared.push({ rowNumber, values });
     }
   }
@@ -112,6 +111,13 @@ export function buildImportStatements(
 ): SqlStatementRequest[] {
   const columns = table.columns.filter((column) => Boolean(mapping[column.name]));
   return rows.map((row, rowIndex) => {
+    if (columns.length === 0) {
+      return {
+        sql: `INSERT INTO ${formatSqlIdentifier(table.name)} DEFAULT VALUES;`,
+        parameters: {},
+      };
+    }
+
     const parameters: SqlParameters = {};
     const parameterNames = columns.map((column, columnIndex) => {
       const name = makeParameterName(column.name, rowIndex, columnIndex);
@@ -139,6 +145,8 @@ export function buildTableDdl(table: TableInfo): string {
     ];
     if (column.isRowVersion) {
       parts.push('ROWVERSION');
+    } else if (column.isAutoIncrement) {
+      parts.push('AUTO_INCREMENT');
     } else {
       parts.push(column.isNullable ? 'NULL' : 'NOT NULL');
     }

@@ -18,7 +18,7 @@ public static class TableSchemaCodec
     private static readonly byte[] _magic = "SDBTBLv1"u8.ToArray();
     private static readonly Encoding _utf8 = Encoding.UTF8;
 
-    private const int _formatVersion = 7;
+    private const int _formatVersion = 8;
     private const int _headerSize = 32;
     private const int _footerSize = 16;
 
@@ -141,6 +141,7 @@ public static class TableSchemaCodec
         var columns = new List<(string Name, TableColumnType DataType, bool IsNullable)>(columnCount);
         var columnDefaults = new Dictionary<string, string?>(StringComparer.Ordinal);
         var rowVersionColumns = new HashSet<string>(StringComparer.Ordinal);
+        var autoIncrementColumns = new HashSet<string>(StringComparer.Ordinal);
         var primaryKey = new List<string>();
         Span<byte> flags = stackalloc byte[2];
         for (int i = 0; i < columnCount; i++)
@@ -156,6 +157,7 @@ public static class TableSchemaCodec
             bool isPrimaryKey = (flags[1] & 0b0000_0001) != 0;
             bool isNullable = (flags[1] & 0b0000_0010) != 0;
             bool isRowVersion = version >= 4 && (flags[1] & 0b0000_0100) != 0;
+            bool isAutoIncrement = version >= 8 && (flags[1] & 0b0000_1000) != 0;
             columns.Add((columnName, type, isNullable));
             if (version >= 7)
             {
@@ -170,6 +172,8 @@ public static class TableSchemaCodec
                 primaryKey.Add(columnName);
             if (isRowVersion)
                 rowVersionColumns.Add(columnName);
+            if (isAutoIncrement)
+                autoIncrementColumns.Add(columnName);
         }
 
         var indexes = new List<TableIndexDefinition>();
@@ -221,7 +225,8 @@ public static class TableSchemaCodec
             rowVersionColumns,
             createdAt,
             checkConstraints,
-            columnDefaults);
+            columnDefaults,
+            autoIncrementColumns);
     }
 
     private static void Save(IReadOnlyList<TableSchema> schemas, Stream destination)
@@ -351,6 +356,8 @@ public static class TableSchemaCodec
                     flags |= 0b0000_0010;
                 if (column.IsRowVersion)
                     flags |= 0b0000_0100;
+                if (column.IsAutoIncrement)
+                    flags |= 0b0000_1000;
                 writer.WriteByte(flags);
                 WriteString(
                     ref writer,

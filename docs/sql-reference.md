@@ -80,7 +80,7 @@ SELECT modbus_float32(16256, 0, 'ABCD');   -- 1.0
 
 ```sql
 CREATE TABLE devices (
-    id INT NOT NULL,
+    id INT AUTO_INCREMENT,
     site_id INT NULL,
     name STRING NOT NULL,
     enabled BOOL NOT NULL DEFAULT TRUE,
@@ -111,6 +111,12 @@ CREATE TABLE devices (
 - `CHECK (expression)` 支持命名或未命名表级约束；表达式可引用当前表列、字面量、基础运算、`IN`、`IS NULL`、`CASE` 和当前关系执行器支持的标量函数，不支持限定列名、参数、聚合或子查询。
 - CHECK 按 SQL 三值逻辑执行：只有明确 `FALSE` 拒绝写入，`TRUE` 和由 `NULL` 传播得到的 `UNKNOWN` 均通过。
 - `ROWVERSION` 只能声明在一个 `INT` 列上；`INSERT` 自动写入 `1`，`UPDATE` 自动递增，禁止通过 `SET` 显式赋值，可用 `WHERE id = ... AND version = ...` 获得乐观并发冲突检测。
+- 每张表最多可有一个 `INT AUTO_INCREMENT` 列；兼容拼写 `AUTOINCREMENT` 和 `IDENTITY`。该列隐式为 `NOT NULL`，不能同时声明 `NULL`、`DEFAULT` 或 `ROWVERSION`。
+- `INSERT` 省略自增列、写入 `NULL` 或 `DEFAULT` 时，从 `1` 开始分配单调递增值；显式整数仍可写入，且高于当前高水位时会推进后续分配。自增属性本身不创建唯一约束，需要唯一性时仍应把该列加入 `PRIMARY KEY` 或唯一索引。
+- 自增列由数据库维护，不允许通过 `UPDATE SET` 显式修改；底层 `TableStore` 批量 mutation 若写入更大的显式值，仍会推进高水位以保护后续分配。
+- 自增高水位持久化在表的 KV/WAL 中，并在并发写入前预留；约束失败、触发器失败或事务回滚可能留下间隙，已分配值不会复用。`DELETE` 不重置序列，`TRUNCATE TABLE` 切换 generation 后从 `1` 重新开始；超过 `INT` 的 `Int64` 上限会明确报错。
+- 普通 `INSERT` 在提交阶段的表管理锁内分配自增值；事务或触发器为了向 `NEW` 行提前暴露生成值而进行的预留会记录当时的 generation。若并发 `TRUNCATE TABLE` 已切换 generation，陈旧事务会在提交前明确失败，不会把重置前的预留值写入新 generation。
+- 当前 `INSERT` 执行结果只返回影响行数，尚不支持 `RETURNING` 或 last-insert-id；ADO.NET 不能从同一插入命令读取生成值，EF Core provider 的 `ValueGenerated.OnAdd` 整数键仍使用客户端生成器，不会自动切换为数据库自增列。
 
 关系查询可在投影和谓词中使用以下日期标量函数：
 
@@ -1174,6 +1180,8 @@ SHOW INDEXES ON devices;
 | `is_nullable` | bool | 是否允许 `NULL` |
 | `is_primary_key` | bool | 是否属于主键 |
 | `ordinal` | int64 | 声明顺序 |
+| `column_default` | string/null | 规范化默认表达式；没有默认值时为 `NULL` |
+| `is_auto_increment` | bool | 是否为数据库自动分配递增整数的列 |
 
 ```sql
 DESCRIBE TABLE devices;

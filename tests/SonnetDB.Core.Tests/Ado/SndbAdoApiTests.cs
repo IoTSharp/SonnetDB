@@ -386,6 +386,10 @@ public sealed class TsdbAdoApiTests : IDisposable
             dataTypes.Rows.Cast<DataRow>(),
             row => string.Equals((string)row["TypeName"], "JSON", StringComparison.Ordinal)
                    && (int)row["ProviderDbType"] == (int)DbType.String);
+        Assert.Contains(
+            dataTypes.Rows.Cast<DataRow>(),
+            row => string.Equals((string)row["TypeName"], "INT", StringComparison.Ordinal)
+                && (bool)row["IsAutoIncrementable"]);
 
         var reservedWords = c.GetSchema(DbMetaDataCollectionNames.ReservedWords);
         Assert.Contains(

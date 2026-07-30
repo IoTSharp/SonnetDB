@@ -127,6 +127,53 @@ public sealed class TableSchemaCodecTests : IDisposable
     }
 
     [Fact]
+    public void SaveLoad_WithAutoIncrementColumn_RoundTripsAutoIncrementFlag()
+    {
+        var schema = TableSchema.CreateWithDefaults(
+            "events",
+            [
+                ("id", TableColumnType.Int64, false),
+                ("name", TableColumnType.String, false),
+            ],
+            ["id"],
+            indexes: null,
+            foreignKeys: null,
+            rowVersionColumns: null,
+            createdAtUtcTicks: 1234,
+            checkConstraints: null,
+            columnDefaults: null,
+            autoIncrementColumns: new HashSet<string>(["id"], StringComparer.Ordinal));
+        string path = Path.Combine(_root, TableSchemaCodec.FileName);
+
+        TableSchemaCodec.Save(path, [schema]);
+
+        var loaded = Assert.Single(TableSchemaCodec.Load(path));
+        Assert.True(loaded.TryGetColumn("id")!.IsAutoIncrement);
+        Assert.Equal("id", loaded.AutoIncrementColumn!.Name);
+        Assert.False(loaded.TryGetColumn("name")!.IsAutoIncrement);
+    }
+
+    [Fact]
+    public void CreateWithDefaults_WithNullableAutoIncrementColumn_ForcesNotNull()
+    {
+        var schema = TableSchema.CreateWithDefaults(
+            "events",
+            [("id", TableColumnType.Int64, true)],
+            ["id"],
+            indexes: null,
+            foreignKeys: null,
+            rowVersionColumns: null,
+            createdAtUtcTicks: 1234,
+            checkConstraints: null,
+            columnDefaults: null,
+            autoIncrementColumns: new HashSet<string>(["id"], StringComparer.Ordinal));
+
+        var column = Assert.Single(schema.Columns);
+        Assert.True(column.IsAutoIncrement);
+        Assert.False(column.IsNullable);
+    }
+
+    [Fact]
     public void CreateWithDefaults_WithRowVersionDefault_ThrowsArgumentException()
     {
         var error = Assert.Throws<ArgumentException>(() => TableSchema.CreateWithDefaults(
@@ -293,21 +340,43 @@ public sealed class TableSchemaCodecTests : IDisposable
         Assert.Null(loaded.Columns[0].DefaultExpressionSql);
     }
 
+    [Fact]
+    public void Load_WithVersion7Schema_TreatsColumnsAsNonAutoIncrement()
+    {
+        var schema = TableSchema.Create(
+            "legacy",
+            [("id", TableColumnType.Int64, false)],
+            ["id"],
+            createdAtUtcTicks: 1234);
+        string path = Path.Combine(_root, TableSchemaCodec.FileName);
+        TableSchemaCodec.Save(path, [schema]);
+
+        DowngradeSingleColumnSchema(path, formatVersion: 7);
+
+        var loaded = Assert.Single(TableSchemaCodec.Load(path));
+        Assert.Equal("legacy", loaded.Name);
+        Assert.False(loaded.Columns[0].IsAutoIncrement);
+        Assert.Null(loaded.AutoIncrementColumn);
+    }
+
     private static void DowngradeSingleColumnSchema(string path, int formatVersion)
     {
         const int headerSize = 32;
         const int footerSize = 16;
         byte[] content = File.ReadAllBytes(path);
 
-        int tableNameLength = BinaryPrimitives.ReadUInt16LittleEndian(
-            content.AsSpan(headerSize, sizeof(ushort)));
-        int columnOffset = headerSize + sizeof(ushort) + tableNameLength + sizeof(long) + sizeof(ushort);
-        int columnNameLength = BinaryPrimitives.ReadUInt16LittleEndian(
-            content.AsSpan(columnOffset, sizeof(ushort)));
-        int defaultOffset = columnOffset + sizeof(ushort) + columnNameLength + 2;
-        int defaultLength = BinaryPrimitives.ReadUInt16LittleEndian(
-            content.AsSpan(defaultOffset, sizeof(ushort)));
-        content = RemoveRange(content, defaultOffset, sizeof(ushort) + defaultLength);
+        if (formatVersion < 7)
+        {
+            int tableNameLength = BinaryPrimitives.ReadUInt16LittleEndian(
+                content.AsSpan(headerSize, sizeof(ushort)));
+            int columnOffset = headerSize + sizeof(ushort) + tableNameLength + sizeof(long) + sizeof(ushort);
+            int columnNameLength = BinaryPrimitives.ReadUInt16LittleEndian(
+                content.AsSpan(columnOffset, sizeof(ushort)));
+            int defaultOffset = columnOffset + sizeof(ushort) + columnNameLength + 2;
+            int defaultLength = BinaryPrimitives.ReadUInt16LittleEndian(
+                content.AsSpan(defaultOffset, sizeof(ushort)));
+            content = RemoveRange(content, defaultOffset, sizeof(ushort) + defaultLength);
+        }
 
         if (formatVersion < 6)
         {

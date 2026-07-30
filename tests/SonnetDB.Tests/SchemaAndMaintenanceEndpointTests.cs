@@ -93,6 +93,9 @@ public sealed class SchemaAndMaintenanceEndpointTests : IAsyncLifetime
         var table = root.GetProperty("tables").EnumerateArray()
             .Single(item => item.GetProperty("name").GetString() == "devices");
         Assert.Equal("devices", table.GetProperty("name").GetString());
+        var idColumn = table.GetProperty("columns").EnumerateArray()
+            .Single(column => column.GetProperty("name").GetString() == "id");
+        Assert.True(idColumn.GetProperty("isAutoIncrement").GetBoolean());
         var enabledColumn = table.GetProperty("columns").EnumerateArray()
             .Single(column => column.GetProperty("name").GetString() == "enabled");
         Assert.Equal("TRUE", enabledColumn.GetProperty("defaultExpressionSql").GetString());
@@ -373,7 +376,7 @@ public sealed class SchemaAndMaintenanceEndpointTests : IAsyncLifetime
         await ExecuteSqlAsync(client, dbName,
             "CREATE TABLE sites (id STRING, name STRING, PRIMARY KEY (id))");
         await ExecuteSqlAsync(client, dbName,
-            "CREATE TABLE devices (id INT, site STRING NULL, enabled BOOL DEFAULT true, metadata JSON, PRIMARY KEY (id), FOREIGN KEY (site) REFERENCES sites (id) ON DELETE SET NULL)");
+            "CREATE TABLE devices (id INT AUTO_INCREMENT, site STRING NULL, enabled BOOL DEFAULT true, metadata JSON, PRIMARY KEY (id), FOREIGN KEY (site) REFERENCES sites (id) ON DELETE SET NULL)");
         await ExecuteSqlAsync(client, dbName,
             "INSERT INTO sites (id, name) VALUES ('north', 'North Site')");
         await ExecuteSqlAsync(client, dbName,

@@ -107,6 +107,42 @@ public sealed class TableSchema
         long createdAtUtcTicks,
         IReadOnlyList<TableCheckConstraintDefinition>? checkConstraints,
         IReadOnlyDictionary<string, string?>? columnDefaults)
+        => CreateWithDefaults(
+            name,
+            columns,
+            primaryKey,
+            indexes,
+            foreignKeys,
+            rowVersionColumns,
+            createdAtUtcTicks,
+            checkConstraints,
+            columnDefaults,
+            autoIncrementColumns: null);
+
+    /// <summary>
+    /// 创建关系表 schema，并附带可持久化的列默认值与自增列定义。
+    /// </summary>
+    /// <param name="name">表名。</param>
+    /// <param name="columns">列定义。</param>
+    /// <param name="primaryKey">主键列名。</param>
+    /// <param name="indexes">二级索引定义。</param>
+    /// <param name="foreignKeys">外键定义。</param>
+    /// <param name="rowVersionColumns">乐观并发版本列名。</param>
+    /// <param name="createdAtUtcTicks">创建时间 UTC ticks。</param>
+    /// <param name="checkConstraints">检查约束定义。</param>
+    /// <param name="columnDefaults">列名到规范化默认表达式的映射。</param>
+    /// <param name="autoIncrementColumns">由数据库自动分配递增整数的列名集合。</param>
+    public static TableSchema CreateWithDefaults(
+        string name,
+        IReadOnlyList<(string Name, TableColumnType DataType, bool IsNullable)> columns,
+        IReadOnlyList<string> primaryKey,
+        IReadOnlyList<TableIndexDefinition>? indexes,
+        IReadOnlyList<TableForeignKeyDefinition>? foreignKeys,
+        IReadOnlySet<string>? rowVersionColumns,
+        long createdAtUtcTicks,
+        IReadOnlyList<TableCheckConstraintDefinition>? checkConstraints,
+        IReadOnlyDictionary<string, string?>? columnDefaults,
+        IReadOnlySet<string>? autoIncrementColumns)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(columns);
@@ -118,6 +154,9 @@ public sealed class TableSchema
             throw new ArgumentException("关系表 MVP 要求声明 PRIMARY KEY。", nameof(primaryKey));
 
         var seen = new HashSet<string>(StringComparer.Ordinal);
+        var autoIncrementSet = autoIncrementColumns is null
+            ? new HashSet<string>(StringComparer.Ordinal)
+            : new HashSet<string>(autoIncrementColumns, StringComparer.Ordinal);
         var columnList = new List<TableColumn>(columns.Count);
         for (int i = 0; i < columns.Count; i++)
         {
@@ -128,6 +167,7 @@ public sealed class TableSchema
             if (!Enum.IsDefined(column.DataType))
                 throw new ArgumentException($"关系表 '{name}' 的列 '{column.Name}' 使用了未知类型 {column.DataType}。", nameof(columns));
             bool isRowVersion = rowVersionColumns?.Contains(column.Name) == true;
+            bool isAutoIncrement = autoIncrementSet.Contains(column.Name);
             string? defaultExpressionSql = columnDefaults is not null
                 && columnDefaults.TryGetValue(column.Name, out var configuredDefault)
                     ? configuredDefault
@@ -143,14 +183,33 @@ public sealed class TableSchema
                     $"关系表 '{name}' 的 ROWVERSION 列 '{column.Name}' 不允许声明默认值。",
                     nameof(columnDefaults));
             }
-
+            if (isAutoIncrement && column.DataType != TableColumnType.Int64)
+            {
+                throw new ArgumentException(
+                    $"关系表 '{name}' 的 AUTO_INCREMENT 列 '{column.Name}' 必须是 INT 类型。",
+                    nameof(autoIncrementColumns));
+            }
+            if (isAutoIncrement && isRowVersion)
+            {
+                throw new ArgumentException(
+                    $"关系表 '{name}' 的列 '{column.Name}' 不能同时是 AUTO_INCREMENT 和 ROWVERSION。",
+                    nameof(autoIncrementColumns));
+            }
+            if (isAutoIncrement && defaultExpressionSql is not null)
+            {
+                throw new ArgumentException(
+                    $"关系表 '{name}' 的 AUTO_INCREMENT 列 '{column.Name}' 不允许声明默认值。",
+                    nameof(autoIncrementColumns));
+            }
             var tableColumn = new TableColumn(
                 column.Name,
                 column.DataType,
                 IsPrimaryKey: false,
-                column.IsNullable,
+                column.IsNullable && !isAutoIncrement,
                 i,
                 isRowVersion);
+            if (isAutoIncrement)
+                tableColumn = tableColumn with { IsAutoIncrement = true };
             if (defaultExpressionSql is not null)
                 tableColumn = tableColumn with { DefaultExpressionSql = defaultExpressionSql };
             columnList.Add(tableColumn);
@@ -164,6 +223,16 @@ public sealed class TableSchema
                     throw new ArgumentException($"默认值引用了未知列 '{defaultColumn}'。", nameof(columnDefaults));
             }
         }
+
+        foreach (var autoColumn in autoIncrementSet)
+        {
+            if (!seen.Contains(autoColumn))
+                throw new ArgumentException($"AUTO_INCREMENT 引用了未知列 '{autoColumn}'。", nameof(autoIncrementColumns));
+        }
+
+        var autoIncrementColumnList = columnList.Where(static column => column.IsAutoIncrement).ToArray();
+        if (autoIncrementColumnList.Length > 1)
+            throw new ArgumentException($"关系表 '{name}' 最多只能声明一个 AUTO_INCREMENT 列。", nameof(autoIncrementColumns));
 
         var primaryKeyList = new List<string>(primaryKey.Count);
         var primaryKeySet = new HashSet<string>(StringComparer.Ordinal);
@@ -273,7 +342,8 @@ public sealed class TableSchema
             RowVersionColumnNames(),
             CreatedAtUtcTicks,
             CheckConstraintDefinitions(),
-            ColumnDefaultDefinitions());
+            ColumnDefaultDefinitions(),
+            AutoIncrementColumnNames());
     }
 
     /// <summary>
@@ -300,7 +370,8 @@ public sealed class TableSchema
             RowVersionColumnNames(),
             CreatedAtUtcTicks,
             CheckConstraintDefinitions(),
-            ColumnDefaultDefinitions());
+            ColumnDefaultDefinitions(),
+            AutoIncrementColumnNames());
     }
 
     /// <summary>
@@ -330,7 +401,8 @@ public sealed class TableSchema
             RowVersionColumnNames(),
             CreatedAtUtcTicks,
             CheckConstraintDefinitions(),
-            ColumnDefaultDefinitions());
+            ColumnDefaultDefinitions(),
+            AutoIncrementColumnNames());
     }
 
     /// <summary>
@@ -358,7 +430,8 @@ public sealed class TableSchema
             RowVersionColumnNames(),
             CreatedAtUtcTicks,
             CheckConstraintDefinitions(),
-            ColumnDefaultDefinitions());
+            ColumnDefaultDefinitions(),
+            AutoIncrementColumnNames());
     }
 
     /// <summary>
@@ -385,7 +458,8 @@ public sealed class TableSchema
             RowVersionColumnNames(),
             CreatedAtUtcTicks,
             CheckConstraintDefinitions().Append(definition).ToArray(),
-            ColumnDefaultDefinitions());
+            ColumnDefaultDefinitions(),
+            AutoIncrementColumnNames());
     }
 
     /// <summary>
@@ -413,7 +487,8 @@ public sealed class TableSchema
                     constraint.Name,
                     constraint.ExpressionSql))
                 .ToArray(),
-            ColumnDefaultDefinitions());
+            ColumnDefaultDefinitions(),
+            AutoIncrementColumnNames());
     }
 
     /// <summary>
@@ -457,7 +532,8 @@ public sealed class TableSchema
             RowVersionColumnNames(),
             CreatedAtUtcTicks,
             CheckConstraintDefinitions(),
-            defaults);
+            defaults,
+            AutoIncrementColumnNames());
     }
 
     /// <summary>
@@ -483,6 +559,11 @@ public sealed class TableSchema
         {
             throw new InvalidOperationException("ALTER TABLE ALTER COLUMN 当前不支持修改 ROWVERSION 列定义。");
         }
+        if (column.IsAutoIncrement
+            && (column.DataType != dataType || isNullable || defaultExpressionSql is not null))
+        {
+            throw new InvalidOperationException("ALTER TABLE ALTER COLUMN 当前不支持修改 AUTO_INCREMENT 列定义。");
+        }
 
         var defaults = ColumnDefaultDefinitions().ToDictionary(
             static pair => pair.Key,
@@ -505,7 +586,8 @@ public sealed class TableSchema
             RowVersionColumnNames(),
             CreatedAtUtcTicks,
             CheckConstraintDefinitions(),
-            defaults);
+            defaults,
+            AutoIncrementColumnNames());
     }
 
     /// <summary>
@@ -545,7 +627,8 @@ public sealed class TableSchema
             RowVersionColumnNames(exceptColumn: name),
             CreatedAtUtcTicks,
             CheckConstraintDefinitions(),
-            ColumnDefaultDefinitions(exceptColumn: name));
+            ColumnDefaultDefinitions(exceptColumn: name),
+            AutoIncrementColumnNames(exceptColumn: name));
     }
 
     /// <summary>
@@ -576,7 +659,8 @@ public sealed class TableSchema
             RowVersionColumnNames(renameColumn: (oldName, newName)),
             CreatedAtUtcTicks,
             CheckConstraintDefinitions(),
-            ColumnDefaultDefinitions(renameColumn: (oldName, newName)));
+            ColumnDefaultDefinitions(renameColumn: (oldName, newName)),
+            AutoIncrementColumnNames(renameColumn: (oldName, newName)));
     }
 
     /// <summary>
@@ -592,11 +676,16 @@ public sealed class TableSchema
             RowVersionColumnNames(),
             CreatedAtUtcTicks,
             CheckConstraintDefinitions(),
-            ColumnDefaultDefinitions());
+            ColumnDefaultDefinitions(),
+            AutoIncrementColumnNames());
 
     /// <summary>返回当前表的乐观并发列；未声明时返回 <c>null</c>。</summary>
     public TableColumn? RowVersionColumn
         => Columns.FirstOrDefault(static c => c.IsRowVersion);
+
+    /// <summary>返回当前表的自增列；未声明时返回 <c>null</c>。</summary>
+    public TableColumn? AutoIncrementColumn
+        => Columns.FirstOrDefault(static c => c.IsAutoIncrement);
 
     private static List<TableIndex> BuildIndexes(
         string tableName,
@@ -811,6 +900,16 @@ public sealed class TableSchema
         string? exceptColumn = null)
         => Columns
             .Where(c => c.IsRowVersion && !string.Equals(c.Name, exceptColumn, StringComparison.Ordinal))
+            .Select(c => renameColumn is { } rename && string.Equals(c.Name, rename.OldName, StringComparison.Ordinal)
+                ? rename.NewName
+                : c.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+    private IReadOnlySet<string> AutoIncrementColumnNames(
+        (string OldName, string NewName)? renameColumn = null,
+        string? exceptColumn = null)
+        => Columns
+            .Where(c => c.IsAutoIncrement && !string.Equals(c.Name, exceptColumn, StringComparison.Ordinal))
             .Select(c => renameColumn is { } rename && string.Equals(c.Name, rename.OldName, StringComparison.Ordinal)
                 ? rename.NewName
                 : c.Name)

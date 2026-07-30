@@ -334,6 +334,11 @@ public sealed record TableColumnDefinition(
     ColumnNullability Nullability = ColumnNullability.Unspecified,
     bool IsRowVersion = false)
 {
+    /// <summary>
+    /// 是否由数据库在插入时自动分配单调递增的整数值。
+    /// </summary>
+    public bool IsAutoIncrement { get; init; }
+
     /// <summary>列默认值表达式。</summary>
     public SqlExpression? DefaultExpression { get; init; }
 }

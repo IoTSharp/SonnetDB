@@ -71,6 +71,7 @@ internal static class SchemaEndpointHandler
                     column.Ordinal,
                     column.IsRowVersion)
                 {
+                    IsAutoIncrement = column.IsAutoIncrement,
                     DefaultExpressionSql = column.DefaultExpressionSql,
                 });
             }

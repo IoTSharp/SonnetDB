@@ -1724,7 +1724,7 @@ public static class SqlExecutor
         var columns = new[]
         {
             "table_schema", "table_name", "column_name", "ordinal_position", "data_type",
-            "is_nullable", "is_primary_key", "column_default"
+            "is_nullable", "is_primary_key", "column_default", "is_auto_increment"
         };
         var rows = new List<IReadOnlyList<object?>>();
         foreach (var table in tsdb.Tables.Catalog.Snapshot())
@@ -1741,6 +1741,7 @@ public static class SqlExecutor
                     column.IsNullable ? "YES" : "NO",
                     column.IsPrimaryKey,
                     column.DefaultExpressionSql,
+                    column.IsAutoIncrement,
                 });
             }
         }
@@ -1760,6 +1761,7 @@ public static class SqlExecutor
                     "YES",
                     false,
                     null,
+                    false,
                 });
             }
         }
@@ -2086,6 +2088,7 @@ public static class SqlExecutor
         try
         {
             var result = TableSqlExecutor.QueueInsert(
+                tsdb,
                 effectiveTransaction,
                 statement,
                 schema,

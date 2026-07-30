@@ -61,6 +61,7 @@
             <span>Name</span>
             <span>Type</span>
             <span>Nullable</span>
+            <span>Auto</span>
             <span>Primary key</span>
             <span />
           </div>
@@ -73,8 +74,13 @@
             <n-select v-model:value="column.dataType" size="small" :options="dataTypeOptions" />
             <n-checkbox
               :checked="column.nullable"
-              :disabled="column.primaryKey"
+              :disabled="column.primaryKey || column.autoIncrement"
               @update:checked="column.nullable = $event"
+            />
+            <n-checkbox
+              :checked="column.autoIncrement"
+              :disabled="column.dataType !== 'INT' && !column.autoIncrement"
+              @update:checked="setCreateColumnAutoIncrement(column, $event)"
             />
             <n-checkbox
               :checked="column.primaryKey"
@@ -111,7 +117,7 @@
             >
               <span>{{ column.name }}</span>
               <small>
-                {{ column.dataType }}{{ column.isNullable ? ' · NULL' : ' · NOT NULL' }}{{ column.isPrimaryKey ? ' · PK' : '' }}{{ column.isRowVersion ? ' · ROWVERSION' : '' }}{{ column.defaultExpressionSql ? ` · DEFAULT ${column.defaultExpressionSql}` : '' }}
+                {{ column.dataType }}{{ column.isNullable ? ' · NULL' : ' · NOT NULL' }}{{ column.isPrimaryKey ? ' · PK' : '' }}{{ column.isRowVersion ? ' · ROWVERSION' : '' }}{{ column.isAutoIncrement ? ' · AUTO' : '' }}{{ column.defaultExpressionSql ? ` · DEFAULT ${column.defaultExpressionSql}` : '' }}
               </small>
             </article>
           </div>
@@ -329,6 +335,7 @@ interface CreateColumnDraft {
   name: string;
   dataType: string;
   nullable: boolean;
+  autoIncrement: boolean;
   primaryKey: boolean;
 }
 
@@ -415,7 +422,7 @@ const alterableColumnOptions = computed<SelectOption[]>(() =>
 
 const alterColumnOptions = computed<SelectOption[]>(() =>
   tableColumns.value
-    .filter((column) => !column.isPrimaryKey && !column.isRowVersion)
+    .filter((column) => !column.isPrimaryKey && !column.isRowVersion && !column.isAutoIncrement)
     .map((column) => ({
       label: `${column.name} · ${column.dataType}`,
       value: column.name,
@@ -454,8 +461,8 @@ function resetDrafts(): void {
   createTableName.value = props.table ? `${props.table.name}_new` : '';
   createIfNotExists.value = true;
   createColumns.value = [
-    { id: makeDraftId(), name: 'id', dataType: 'INT', nullable: false, primaryKey: true },
-    { id: makeDraftId(), name: 'name', dataType: 'STRING', nullable: false, primaryKey: false },
+    { id: makeDraftId(), name: 'id', dataType: 'INT', nullable: false, autoIncrement: false, primaryKey: true },
+    { id: makeDraftId(), name: 'name', dataType: 'STRING', nullable: false, autoIncrement: false, primaryKey: false },
   ];
   renameTableName.value = props.table?.name ?? '';
   addColumn.name = '';
@@ -485,6 +492,7 @@ function addCreateColumn(): void {
     name: '',
     dataType: 'STRING',
     nullable: true,
+    autoIncrement: false,
     primaryKey: false,
   });
 }
@@ -501,6 +509,16 @@ function setCreateColumnPrimaryKey(column: CreateColumnDraft, value: boolean): v
   }
 }
 
+function setCreateColumnAutoIncrement(column: CreateColumnDraft, value: boolean): void {
+  for (const candidate of createColumns.value) {
+    candidate.autoIncrement = candidate.id === column.id && value;
+  }
+  if (value) {
+    column.dataType = 'INT';
+    column.nullable = false;
+  }
+}
+
 function stageCreateTable(): void {
   const validation = validateCreateTable();
   if (!validation.ok) {
@@ -510,6 +528,9 @@ function stageCreateTable(): void {
 
   const tableName = createTableName.value.trim();
   const columns = createColumns.value.map((column) => {
+    if (column.autoIncrement) {
+      return `  ${formatSqlIdentifier(column.name.trim())} ${column.dataType} AUTO_INCREMENT`;
+    }
     const nullability = column.primaryKey || !column.nullable ? 'NOT NULL' : 'NULL';
     return `  ${formatSqlIdentifier(column.name.trim())} ${column.dataType} ${nullability}`;
   });
@@ -743,6 +764,9 @@ function validateCreateTable(): { ok: true } | { ok: false; message: string } {
       return { ok: false, message: `Duplicate column name: ${name}.` };
     }
     names.add(name);
+    if (column.autoIncrement && column.dataType !== 'INT') {
+      return { ok: false, message: `AUTO_INCREMENT column ${name} must use INT.` };
+    }
   }
 
   if (!createColumns.value.some((column) => column.primaryKey)) {
@@ -972,10 +996,10 @@ watch(
 
 .schema-designer__draft-row {
   display: grid;
-  grid-template-columns: minmax(130px, 1fr) 124px 80px 96px 74px;
+  grid-template-columns: minmax(130px, 1fr) 124px 72px 64px 96px 74px;
   gap: 8px;
   align-items: center;
-  min-width: 620px;
+  min-width: 700px;
 }
 
 .schema-designer__draft-row--head {

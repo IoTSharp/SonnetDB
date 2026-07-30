@@ -18,6 +18,11 @@ public sealed record TableColumn(
     bool IsRowVersion = false)
 {
     /// <summary>
+    /// 是否由数据库在插入时自动分配单调递增的整数值。
+    /// </summary>
+    public bool IsAutoIncrement { get; init; }
+
+    /// <summary>
     /// 默认值表达式的规范化 SQL 文本；没有默认值时为 <c>null</c>。
     /// </summary>
     public string? DefaultExpressionSql { get; init; }

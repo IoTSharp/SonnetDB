@@ -771,13 +771,25 @@ public sealed class SqlParser
         ColumnNullability nullability = ColumnNullability.Unspecified;
         SqlExpression? defaultExpression = null;
         var isRowVersion = false;
-        ParseTableColumnModifiers(ref nullability, ref defaultExpression, ref isRowVersion);
+        var isAutoIncrement = false;
+        ParseTableColumnModifiers(ref nullability, ref defaultExpression, ref isRowVersion, ref isAutoIncrement);
 
         if (isRowVersion && dataType != SqlDataType.Int64)
             throw Error("ROWVERSION 列必须使用 INT 类型");
+        if (isAutoIncrement && dataType != SqlDataType.Int64)
+            throw Error("AUTO_INCREMENT 列必须使用 INT 类型");
+        if (isAutoIncrement && isRowVersion)
+            throw Error("AUTO_INCREMENT 与 ROWVERSION 不能声明在同一列上");
+        if (isAutoIncrement && defaultExpression is not null)
+            throw Error("AUTO_INCREMENT 列不允许声明 DEFAULT");
+        if (isAutoIncrement && nullability == ColumnNullability.Nullable)
+            throw Error("AUTO_INCREMENT 列不允许声明 NULL");
+        if (isAutoIncrement && nullability == ColumnNullability.Unspecified)
+            nullability = ColumnNullability.NotNull;
 
         return new TableColumnDefinition(columnName, dataType, nullability, isRowVersion)
         {
+            IsAutoIncrement = isAutoIncrement,
             DefaultExpression = defaultExpression,
         };
     }
@@ -792,16 +804,20 @@ public sealed class SqlParser
         ColumnNullability nullability = ColumnNullability.Unspecified;
         SqlExpression? defaultExpression = null;
         var isRowVersion = false;
-        ParseTableColumnModifiers(ref nullability, ref defaultExpression, ref isRowVersion);
+        var isAutoIncrement = false;
+        ParseTableColumnModifiers(ref nullability, ref defaultExpression, ref isRowVersion, ref isAutoIncrement);
         if (isRowVersion)
             throw Error("ALTER TABLE ADD COLUMN 当前不支持新增 ROWVERSION 列");
+        if (isAutoIncrement)
+            throw Error("ALTER TABLE ADD COLUMN 当前不支持新增 AUTO_INCREMENT 列");
         return new AlterTableAddColumnStatement(tableName, columnName, dataType, nullability, defaultExpression);
     }
 
     private void ParseTableColumnModifiers(
         ref ColumnNullability nullability,
         ref SqlExpression? defaultExpression,
-        ref bool isRowVersion)
+        ref bool isRowVersion,
+        ref bool isAutoIncrement)
     {
         while (true)
         {
@@ -833,6 +849,17 @@ public sealed class SqlParser
                         throw Error("ROWVERSION 列不允许声明 NULL");
                     if (nullability == ColumnNullability.Unspecified)
                         nullability = ColumnNullability.NotNull;
+                    Advance();
+                    continue;
+
+                case TokenKind.IdentifierLiteral when IsIdentifier("auto_increment")
+                    || IsIdentifier("autoincrement")
+                    || IsIdentifier("identity"):
+                    if (isAutoIncrement)
+                        throw Error("AUTO_INCREMENT 子句重复声明");
+                    if (nullability == ColumnNullability.Nullable)
+                        throw Error("AUTO_INCREMENT 列不允许声明 NULL");
+                    isAutoIncrement = true;
                     Advance();
                     continue;
 
