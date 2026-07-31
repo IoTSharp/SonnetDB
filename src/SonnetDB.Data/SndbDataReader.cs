@@ -135,15 +135,63 @@ public sealed class SndbDataReader : DbDataReader
         if (typeof(T) != typeof(DateTimeOffset))
             return (T)value;
 
-        // DATETIME 列在存储层返回 DateTime；Unix 毫秒和原生 DateTimeOffset 也使用同一 UTC 契约。
+        // 历史 DATETIME 列可能以整数或浮点 Unix 毫秒保存，统一恢复为 UTC 时刻。
         DateTimeOffset dateTimeOffset = value switch
         {
             DateTime dateTime => new(DateTime.SpecifyKind(dateTime, DateTimeKind.Utc)),
             DateTimeOffset offset => offset.ToUniversalTime(),
             long unixMilliseconds => DateTimeOffset.FromUnixTimeMilliseconds(unixMilliseconds),
+            double unixMilliseconds => FromNumericUnixMilliseconds(unixMilliseconds, ordinal),
+            float unixMilliseconds => FromNumericUnixMilliseconds(unixMilliseconds, ordinal),
+            decimal unixMilliseconds => FromNumericUnixMilliseconds(unixMilliseconds, ordinal),
+            string timestamp => FromTextTimestamp(timestamp, ordinal),
             _ => throw new InvalidCastException($"列 {ordinal} 的值无法转换为 DateTimeOffset。"),
         };
         return (T)(object)dateTimeOffset;
+    }
+
+    /// <summary>解析远程协议返回的标准时间文本或数字型 Unix 毫秒文本。</summary>
+    private static DateTimeOffset FromTextTimestamp(string value, int ordinal)
+    {
+        if (decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var milliseconds))
+        {
+            return FromNumericUnixMilliseconds(milliseconds, ordinal);
+        }
+
+        if (DateTimeOffset.TryParse(
+            value,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+            out var timestamp))
+        {
+            return timestamp;
+        }
+
+        throw new InvalidCastException($"列 {ordinal} 的文本不是有效的时间戳。");
+    }
+
+    /// <summary>
+    /// 把存储层返回的数值型 Unix 毫秒转换为 UTC 时间，只接受有限且没有小数部分的值。
+    /// </summary>
+    private static DateTimeOffset FromNumericUnixMilliseconds<TNumber>(TNumber value, int ordinal)
+        where TNumber : struct, IConvertible
+    {
+        try
+        {
+            var milliseconds = Convert.ToDecimal(value, CultureInfo.InvariantCulture);
+            if (decimal.Truncate(milliseconds) != milliseconds
+                || milliseconds < DateTimeOffset.MinValue.ToUnixTimeMilliseconds()
+                || milliseconds > DateTimeOffset.MaxValue.ToUnixTimeMilliseconds())
+            {
+                throw new InvalidCastException($"列 {ordinal} 的数值不是有效的 Unix 毫秒时间戳。");
+            }
+
+            return DateTimeOffset.FromUnixTimeMilliseconds(decimal.ToInt64(milliseconds));
+        }
+        catch (Exception exception) when (exception is OverflowException or FormatException)
+        {
+            throw new InvalidCastException($"列 {ordinal} 的数值不是有效的 Unix 毫秒时间戳。", exception);
+        }
     }
 
     /// <inheritdoc />

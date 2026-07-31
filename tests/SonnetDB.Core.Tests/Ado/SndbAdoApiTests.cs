@@ -1,5 +1,6 @@
 ﻿using System.Data;
 using System.Data.Common;
+using System.Globalization;
 using SonnetDB.Data;
 using SonnetDB.Data.Embedded;
 using SonnetDB.Model;
@@ -105,6 +106,18 @@ public sealed class TsdbAdoApiTests : IDisposable
         using var unixMillisecondsReader = CreateSingleValueReader(expected.ToUnixTimeMilliseconds());
         Assert.Equal(expected, unixMillisecondsReader.GetFieldValue<DateTimeOffset>(0));
 
+        using var doubleUnixMillisecondsReader = CreateSingleValueReader((double)expected.ToUnixTimeMilliseconds());
+        Assert.Equal(expected, doubleUnixMillisecondsReader.GetFieldValue<DateTimeOffset>(0));
+
+        using var legacyNegativeMillisecondsReader = CreateSingleValueReader((double)DateTimeOffset.MinValue.ToUnixTimeMilliseconds());
+        Assert.Equal(DateTimeOffset.MinValue, legacyNegativeMillisecondsReader.GetFieldValue<DateTimeOffset>(0));
+
+        using var isoTextReader = CreateSingleValueReader(expected.ToString("O"));
+        Assert.Equal(expected, isoTextReader.GetFieldValue<DateTimeOffset>(0));
+
+        using var numericTextReader = CreateSingleValueReader(expected.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture));
+        Assert.Equal(expected, numericTextReader.GetFieldValue<DateTimeOffset>(0));
+
         using var offsetReader = CreateSingleValueReader(expected.ToOffset(TimeSpan.FromHours(8)));
         var offsetValue = offsetReader.GetFieldValue<DateTimeOffset>(0);
         Assert.Equal(expected, offsetValue);
@@ -112,6 +125,17 @@ public sealed class TsdbAdoApiTests : IDisposable
 
         await using var asyncReader = CreateSingleValueReader(expected.UtcDateTime);
         Assert.Equal(expected, await asyncReader.GetFieldValueAsync<DateTimeOffset>(0));
+    }
+
+    /// <summary>数值时间戳必须是有限、完整且位于 DateTimeOffset 范围内的 Unix 毫秒。</summary>
+    [Theory]
+    [InlineData(1.5d)]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    public void GetFieldValue_WithInvalidNumericTimestamp_Throws(double value)
+    {
+        using var reader = CreateSingleValueReader(value);
+        Assert.Throws<InvalidCastException>(() => reader.GetFieldValue<DateTimeOffset>(0));
     }
 
     [Fact]
