@@ -31,7 +31,7 @@
 | 24 | Document 管理面 | ✅ | Explorer、Validator、导入导出和维护入口已接入共享工作台。 |
 | 25 | Document 验收与发布治理 | 🚧 | parity 与文档完成；#174 仅有 1 万文档 quick 证据，百万/千万档未验证。 |
 | 26 | 连接器路线 | ✅ | C ABI 与多语言入口已交付，连接器 release workflow 通过。 |
-| 27 | AI / Agent 数据访问与治理 | 🚧 | 产品定位已校准；工具合同、运行时接线、工业 Demo 和 eval 仍有实际缺口。 |
+| 27 | AI / Agent 数据访问与治理 | 🚧 | 产品定位已校准；工具合同、运行时接线、双网客户端 Copilot、工业 Demo 和 eval 仍有实际缺口。 |
 | 28 | 可靠性、并发与热路径加固 | ✅ | P0~P5 与 SDK 补口已收官。 |
 | 29 | 多模型统一管理工作台 | 🚧 | Web/Studio/VS Code 功能与合同已落地；Studio 安装包和宿主生命周期仍需实机验收。 |
 | 30 | Sparkplug B / CoAP / UDP 接入 | ✅ | 协议入口、生命周期、安全、parity 和基准已落地。 |
@@ -49,7 +49,7 @@
 ## 当前推进顺序
 
 1. 恢复 M20 Parity nightly 的有效报告，并补齐 M19/M25 目标硬件容量证据。
-2. 完成 M27 的真实 provider/Agent 接线、工业 Demo 和 eval，消除历史虚标。
+2. 完成 M27 的真实 provider/Agent 接线、双网客户端 Copilot、工业 Demo 和 eval，消除历史虚标。
 3. 收口 M29 Studio 安装包/宿主生命周期实机验收。
 4. 按真实差距推进 M32，不重复实现已有 update/index/change feed/UI 能力。
 5. M34 先做合同、DDL 和安全边界；M35 在过滤 ANN 与内容生命周期地基完成后再做媒体场景。
@@ -108,6 +108,39 @@ Web/Bridge smoke、Server 管理合同、Web Admin、Studio Release build 和 VS
 | #186 写审批 | 已移交 M29，共享 staged preview/dry-run/confirm 已完成；M27 只消费。 | ➡️ |
 | #187 Eval/成本 | 增加异常设备、慢查询、schema、维修建议和审批场景，记录 provider/model/tool/失败原因/token 成本，并给出可复现报告。 | 📋 |
 | #188 上层边界 | IoTSharp 联合样例归 IoTSharp；SonnetDB 只提供授权 MCP、通用引擎和 Agent 素材。 | ✅ |
+| #340 双网客户端 Copilot | 在数据库服务器不能访问公网、浏览器或 Studio 同时可访问内网和公网时，由访问端编排外部 AI 与本地授权工具；保留服务端中继模式，首版只读。 | 📋 |
+
+### #340 — 双网客户端 Copilot
+
+目标是支持典型的双网部署：SonnetDB Server 位于不能访问公网的内网，用户通过具备内外网连接的浏览器或 Studio 使用 Copilot。访问端是 Copilot host，分别连接外部 AI 服务与内网 SonnetDB；外部 AI 不直连内网，数据库服务器也不承担公网代理。
+
+架构必须保持以下边界：
+
+- 数据库凭据只发送到当前活动 SonnetDB 连接的受信 origin，外部 AI 的短期凭据只发送到批准的公网 origin；日志、错误和重试不得串用或泄露两类 token。
+- 浏览器或 Studio 负责对话与 tool-call 状态机；数据库授权、SQL AST 分类、行数/字节/超时限制、结果脱敏和审计仍由 SonnetDB 服务端执行。
+- 本地工具面优先复用 `/mcp/{db}` 的 typed、只读合同；不得让模型直接调用原始 `/v1/sql`，不得增加任意 URL 代理，也不得把本地 MCP 暴露到公网。
+- 外部数据出域必须显式启用，并采用按需 schema、聚合优先、结果截断和敏感列脱敏；工具结果只能作为结构化、不可信数据返回模型，不能拼入 system prompt。
+- 运行模式显式区分 `ServerRelay`、`BrowserDirect`、`StudioNative` 和 `Disabled`。不同模式代表不同数据路径，不得根据一次探活结果静默切换。
+- 当前代码使用 `ai.sonnetdb.com`。若正式入口迁移到 `sonnet.vip`，必须先冻结版本化的认证、模型发现、流式事件、tool call/result、取消、续流和错误合同，不能只替换域名。
+
+分层交付：
+
+| 阶段 | 交付 |
+|---|---|
+| Client runtime 合同 | 抽取统一 Copilot transport 和事件状态机，保留现有 server relay；加入独立的本地/公网 readiness、run id、tool call id、sequence/cursor、幂等和取消合同。会话、消息和 usage 仍回写 SonnetDB 服务端持久化，客户端只同步状态，不回退 `localStorage` 作为权威来源。 |
+| 本地工具会话 | 基于当前 HTTP 身份和数据库 grant 返回 permission-filtered capability/context；每次工具调用在服务端重新授权并强制限制行数、返回字节、执行时间、并发和总出域预算。 |
+| Browser Direct | 外部服务支持 CORS preflight、Bearer public-client OAuth（Device Flow 或 PKCE）及 `fetch` POST 流式 NDJSON/SSE；access token 默认只驻留内存，页面使用 HTTPS 和受限 CSP `connect-src`。 |
+| Studio Native | 由固定目标、非通用代理的 native broker 访问公网并使用系统凭据库保存 refresh token/BYOK；接入前收紧 Bridge origin、握手和 token 传递，不能把 bridge token 放入 URL 或浏览器存储。 |
+| 治理与写入 | 第一阶段只开放只读 MCP。写工具后续消费 M29 的 staged approval，并增加由服务端签发、绑定 user/database/run/tool-call/规范化参数哈希/expiry 的一次性 confirmation challenge；模型或浏览器的 `confirmed=true` 不构成授权。 |
+| 审计与评测 | 记录模式、provider/model、数据库、工具、规范化参数或 SQL hash、行数、字节数、脱敏策略、审批和失败原因，默认不记录原始结果；纳入 M27 eval 与成本报告。 |
+
+#340 验收要求：
+
+- 在 SonnetDB Server 的 DNS 与公网出口均被阻断时，具备双网连接的浏览器和 Studio 均能完成一条真实的只读 grounded Copilot 流程，网络证据确认服务器没有产生 AI 外连。
+- 自动化测试证明 SonnetDB token 从不发送到公网、外部 AI token 从不发送到数据库服务器，未知工具、合同版本不匹配和未批准数据出域均 fail closed。
+- 覆盖 CORS preflight、分片流解析、取消、断线续流、重复 tool call、客户端代理和四种本地/公网可用性组合；公网不可用时不得自动排队或重放包含数据库结果的请求。
+- 本地工具调用保留现有认证与 database grant，并有 SQL AST、系统库、行数、字节、时间和并发门禁；第一阶段不存在可绕过人工确认的写路径。
+- 页面刷新或 Studio 重连后可从 SonnetDB 服务端恢复会话；现有 `ServerRelay` 路径继续通过回归测试，客户端模式与服务端模式之间不得静默切换。
 
 验收要求：AI / Agent 文案不得替代多模型引擎的核心产品定位；本地关闭云端外发时仍有一条可运行路径；高风险写入必须经权限和人工确认；外部 Agent 只通过授权 MCP/HTTP 合同访问，不直读目录或系统表。
 
