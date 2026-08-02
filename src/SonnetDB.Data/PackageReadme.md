@@ -125,4 +125,8 @@ await foreach (var document in cursor.ReadAllAsync())
 
 continuation token 绑定集合、查询形状、快照版本和过期时间。无效、错配、过期或快照失效时会抛出带 `DocumentCursorErrorCodes` 稳定 code 的 `DocumentCursorException`，调用方应重新发起查询，不能静默从头读取。
 
+`FindOneAndUpdateAsync` 在一个文档原子边界内返回 before/after image。`BulkWriteAsync` 可混合 insert、replace、update、delete 与 upsert，ordered 失败整批零变更，unordered 把有效项作为一个 collection 内原子批次提交；逐项结果包含稳定错误码。可选 `requestId` 在 24 小时内绑定长度前缀请求指纹，安全重试会返回 `Replayed=true`，同一 ID 携带不同 payload 会返回 `idempotency_conflict`。
+
+完整可运行代码见仓库中的 `samples/SonnetDB.DocumentQuickstart`；MongoDB 迁移边界、CLI dump/NDJSON 导入和机器差异目录见 `docs/mongodb-migration.md` 与 `docs/document-mongodb-gap.json`。这些入口不表示 MongoDB wire protocol、BSON command 或官方 Driver 兼容。
+
 发布包和默认示例配置见仓库根目录 `docs/releases/`。

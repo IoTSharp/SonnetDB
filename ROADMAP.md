@@ -36,7 +36,7 @@
 | 29 | 多模型统一管理工作台 | 🚧 | Web/Studio/VS Code 功能与合同已落地；Studio 安装包和宿主生命周期仍需实机验收。 |
 | 30 | Sparkplug B / CoAP / UDP 接入 | ✅ | 协议入口、生命周期、安全、parity 和基准已落地。 |
 | 31 | 时序聚合类型语义 | ✅ | selector / categorical aggregates 已落地。 |
-| 32 | Document MongoDB-like 易用性 | 🚧 | SDK builder、分页 cursor 与稳定游标错误码已落地；批量结果、缺失查询/更新/索引语义、迁移工具和 gap report 继续推进。 |
+| 32 | Document MongoDB-like 易用性 | ✅ | SDK、查询/更新、multikey/wildcard 索引、aggregation、mixed Bulk、迁移 CLI、Workbench、Quickstart 与结构化 gap report 已闭环。 |
 | 33 | 时序聚合执行与下推 | ✅ | Geo 正确性、多聚合复用、残差流式化、count(*)、LIMIT/latest-N 下推已落地。 |
 | 34 | Modbus TCP 内建映射表 | 📋 | 尚未开始。 |
 | 35 | 语义内容与多模态检索 | 📋 | 尚未开始。 |
@@ -51,10 +51,9 @@
 1. 恢复 M20 Parity nightly 的有效报告，并补齐 M19/M25 目标硬件容量证据。
 2. 完成 M27 的真实 provider/Agent 接线、双网客户端 Copilot、工业 Demo 和 eval，消除历史虚标。
 3. 收口 M29 Studio 安装包/宿主生命周期实机验收。
-4. 按真实差距推进 M32，不重复实现已有 update/index/change feed/UI 能力。
-5. M34 先做合同、DDL 和安全边界；M35 在过滤 ANN 与内容生命周期地基完成后再做媒体场景。
-6. M36 先完成八模型 golden journey 与 gap catalog；实现顺序为高频客户端工作流 -> 查询诊断 -> 高级治理，Document 继续归 M32，向量高级项复用 M35 地基。
-7. M39 先执行 #333 触发器 V2 证据门禁；未证明 V1 在真实 journey 上存在缺口前，不直接扩展 BEFORE、statement-level 或多模型触发器。
+4. M34 先做合同、DDL 和安全边界；M35 在过滤 ANN 与内容生命周期地基完成后再做媒体场景。
+5. M36 先完成八模型 golden journey 与 gap catalog；实现顺序为高频客户端工作流 -> 查询诊断 -> 高级治理，Document 复用已完成的 M32 结果，向量高级项复用 M35 地基。
+6. M39 先执行 #333 触发器 V2 证据门禁；未证明 V1 在真实 journey 上存在缺口前，不直接扩展 BEFORE、statement-level 或多模型触发器。
 
 ## 待补验收证据
 
@@ -146,20 +145,11 @@ Web/Bridge smoke、Server 管理合同、Web Admin、Studio Release build 和 VS
 
 ## Milestone 32 — Document MongoDB-like 易用性
 
-已实现基线：`$set/$unset/$inc/$min/$max/$rename/$push/$pull/$addToSet/$currentDate`、upsert、update preview、compound/unique/sparse/partial/TTL 索引、planner/validate、Document change feed，以及 Web/Studio 查询、更新、索引和 feed 界面。以下计划不得再次把这些能力列为待实现。
+已完成：在既有 update、compound/unique/sparse/partial/TTL 索引、change feed 和管理面基础上，补齐类型化 SDK builder、AOT 友好值、分页 cursor 与稳定错误码；新增 `$mul/$pop`、原子 `findOneAndUpdate`、常用数组/类型/正则查询、递归 `$not` 和基础 ordinal collation。path index 支持 multikey/wildcard、parallel-array 拒绝、typed key、planner/EXPLAIN 与崩溃后派生索引修复；aggregation 支持 computed project/group expression、`push/addToSet` 和完整 unwind。
 
-| 方向 | 真实剩余工作 | 状态 |
-|---|---|---|
-| SDK | ✅ 类型化 filter/projection/sort/update builder、AOT 类型值、分页 cursor 与 invalid/mismatch/expired/stale 标准错误码；🚧 统一批量结果模型仍与下方混合 Bulk 一并推进。 | 🚧 |
-| 更新 | `$mul`、`$pop`、`findOneAndUpdate` 的 before/after 返回语义和完整单文档原子性。 | 📋 |
-| 查询 | `$elemMatch`、`$regex`、`$type`、`$size`、`$all`、复杂 `$not`、嵌套 path 边界和基础 collation。 | 📋 |
-| 索引 | multikey 与 wildcard 语义、恢复一致性、planner/EXPLAIN；现有 compound/unique/sparse/partial/TTL 不重做。 | 📋 |
-| Aggregation | 深化 `$unwind/$project/$group` 表达式，评估 `$lookup/$facet/$bucket` 的 SonnetDB-native 子集，并保持流式/分页边界。 | 📋 |
-| Bulk | 混合 insert/update/delete/upsert 的 ordered/unordered 结果、分项错误、重试安全和明确的批次事务边界。 | 📋 |
-| 迁移 | 可执行的 MongoDB dump/NDJSON/Extended JSON 导入、索引建议、dry-run 和机器可读差异报告；现有说明文档不等于迁移工具。 | 📋 |
-| 收口 | 用结构化 gap report 标记 supported/partial/planned/not_planned，并补示例应用；UI 只在引擎语义完成后开放对应控件。 | 📋 |
+mixed Bulk 已统一 Core、HTTP、.NET SDK 与 Web/Studio 的 ordered/unordered、逐项结果、单 collection 原子边界、稳定批次上限错误和 24 小时 `requestId` 重放。`sndb document import` 可执行 JSON/NDJSON、常用 Extended JSON 和 mongodump BSON 子集导入，提供 dry-run、checkpoint/resume、确定性批次 ID、索引建议与机器报告；Document Quickstart、OpenAPI、迁移指南和 `docs/document-mongodb-gap.json` 提供可运行入口及 supported/partial/planned/not_planned 证据。
 
-边界：不承诺 MongoDB wire protocol、BSON command、官方 Driver 直连、replica set、sharding 或分布式事务；对外只使用 “Document Store” 或 “MongoDB-like workloads”。
+边界保持不变：不承诺 MongoDB wire protocol、BSON command、官方 Driver 直连、replica set、sharding、跨 collection 事务、locale collation、完整 aggregation/BSON 或 positional array update；对外只使用 “Document Store” 或 “MongoDB-like workloads”。
 
 ## Milestone 34 — Modbus TCP 内建映射表
 

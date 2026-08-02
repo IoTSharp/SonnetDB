@@ -170,6 +170,47 @@ internal static partial class SonnetDbEndpoints
             await WriteDocumentWriteResponseAsync(ctx, collection, result).ConfigureAwait(false);
         });
 
+        app.MapPost("/v1/db/{db}/documents/{collection}/bulk-write", async (HttpContext ctx, string db, string collection) =>
+        {
+            if (!await TryResolveDocumentCollectionAsync(ctx, registry, grants, db, collection, DatabasePermission.Write, mustExist: true).ConfigureAwait(false))
+                return;
+            var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.DocumentBulkWriteRequest).ConfigureAwait(false);
+            if (req is null || req.Operations.Count == 0)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "bulk-write 需要提供非空 operations。").ConfigureAwait(false);
+                return;
+            }
+
+            registry.TryGet(db, out var tsdb);
+            DocumentWriteResult result;
+            try
+            {
+                result = tsdb.Documents.Open(collection).BulkWrite(
+                    req.Operations.Select(ToCoreBulkWriteOperation),
+                    req.Ordered,
+                    req.RequestId);
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                result = new DocumentWriteResult(
+                    errors: [new DocumentWriteError(-1, null, SonnetDB.Documents.DocumentWriteErrorCodes.BatchTooLarge, ex.Message)],
+                    requestId: req.RequestId,
+                    committed: false);
+            }
+            catch (ArgumentException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+                return;
+            }
+            catch (InvalidOperationException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+                return;
+            }
+
+            await WriteDocumentBulkResponseAsync(ctx, collection, result).ConfigureAwait(false);
+        });
+
         app.MapPost("/v1/db/{db}/documents/{collection}/find", async (HttpContext ctx, string db, string collection) =>
         {
             if (!await TryResolveDocumentCollectionAsync(ctx, registry, grants, db, collection, DatabasePermission.Read, mustExist: true).ConfigureAwait(false))
@@ -279,6 +320,39 @@ internal static partial class SonnetDbEndpoints
                 return;
             var replaceResult = store.Replace(req.Id, req.Document.Value.GetRawText());
             await WriteDocumentWriteResponseAsync(ctx, collection, replaceResult).ConfigureAwait(false);
+        });
+
+        app.MapPost("/v1/db/{db}/documents/{collection}/find-one-and-update", async (HttpContext ctx, string db, string collection) =>
+        {
+            if (!await TryResolveDocumentCollectionAsync(ctx, registry, grants, db, collection, DatabasePermission.Write, mustExist: true).ConfigureAwait(false))
+                return;
+            var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.DocumentFindOneAndUpdateRequest).ConfigureAwait(false);
+            if (req is null)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体不可为空。").ConfigureAwait(false);
+                return;
+            }
+
+            try
+            {
+                DocumentReturnDocument returnDocument = ParseReturnDocument(req.ReturnDocument);
+                registry.TryGet(db, out var tsdb);
+                var result = tsdb.Documents.Open(collection).FindOneAndUpdate(
+                    MergeUpdateRequestFilters(req.Id, req.Filter),
+                    ToCoreUpdate(req.Update),
+                    returnDocument,
+                    req.Upsert,
+                    req.UpsertId ?? req.Id);
+                await WriteFindOneAndUpdateResponseAsync(ctx, collection, result).ConfigureAwait(false);
+            }
+            catch (ArgumentException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+            }
+            catch (InvalidOperationException ex)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", ex.Message).ConfigureAwait(false);
+            }
         });
 
         app.MapPost("/v1/db/{db}/documents/{collection}/update-many", async (HttpContext ctx, string db, string collection) =>
@@ -395,7 +469,8 @@ internal static partial class SonnetDbEndpoints
                     IsSparse: req.IsSparse,
                     PartialFilter: ToCorePartialFilter(req.PartialFilter),
                     TtlPath: req.TtlPath,
-                    TtlSeconds: req.TtlSeconds));
+                    TtlSeconds: req.TtlSeconds,
+                    Kind: ParseDocumentIndexKind(req.Kind)));
                 await Results.Json(
                     new DocumentIndexOperationResponse(collection, index.Name, "created", index.Paths),
                     ServerJsonContext.Default.DocumentIndexOperationResponse,
@@ -703,6 +778,57 @@ internal static partial class SonnetDbEndpoints
             statusCode: statusCode).ExecuteAsync(ctx).ConfigureAwait(false);
     }
 
+    private static async Task WriteFindOneAndUpdateResponseAsync(
+        HttpContext ctx,
+        string collection,
+        DocumentFindOneAndUpdateResult result)
+    {
+        var writeResult = result.WriteResult;
+        await Results.Json(
+            new DocumentFindOneAndUpdateResponse(
+                collection,
+                result.Document is not null,
+                result.Document is null ? null : ToDocumentItemResponse(result.Document),
+                writeResult.Inserted,
+                writeResult.Matched,
+                writeResult.Modified,
+                ToContractWriteErrors(writeResult.Errors)),
+            ServerJsonContext.Default.DocumentFindOneAndUpdateResponse,
+            statusCode: GetDocumentWriteStatusCode(writeResult)).ExecuteAsync(ctx).ConfigureAwait(false);
+    }
+
+    private static async Task WriteDocumentBulkResponseAsync(
+        HttpContext ctx,
+        string collection,
+        DocumentWriteResult result)
+    {
+        var items = result.Items.Select(static item => new DocumentBulkWriteItemResponse(
+            item.Index,
+            item.Operation,
+            item.Id,
+            item.Status,
+            item.Inserted,
+            item.Matched,
+            item.Modified,
+            item.Deleted,
+            item.UpsertedId,
+            item.Error is null ? null : ToContractWriteError(item.Error))).ToArray();
+        await Results.Json(
+            new DocumentBulkWriteResponse(
+                collection,
+                result.Inserted,
+                result.Matched,
+                result.Modified,
+                result.Deleted,
+                items,
+                ToContractWriteErrors(result.Errors),
+                result.RequestId,
+                result.Replayed,
+                result.Committed),
+            ServerJsonContext.Default.DocumentBulkWriteResponse,
+            statusCode: GetDocumentWriteStatusCode(result)).ExecuteAsync(ctx).ConfigureAwait(false);
+    }
+
     private static int GetDocumentWriteStatusCode(DocumentWriteResult result)
     {
         if (!result.HasErrors)
@@ -717,7 +843,9 @@ internal static partial class SonnetDbEndpoints
         return code switch
         {
             SonnetDB.Documents.DocumentWriteErrorCodes.DuplicateKey
-                or SonnetDB.Documents.DocumentWriteErrorCodes.WriteConflict => StatusCodes.Status409Conflict,
+                or SonnetDB.Documents.DocumentWriteErrorCodes.WriteConflict
+                or SonnetDB.Documents.DocumentWriteErrorCodes.IdempotencyConflict => StatusCodes.Status409Conflict,
+            SonnetDB.Documents.DocumentWriteErrorCodes.BatchTooLarge => StatusCodes.Status413PayloadTooLarge,
             SonnetDB.Documents.DocumentWriteErrorCodes.ValidationFailed
                 or SonnetDB.Documents.DocumentWriteErrorCodes.DocumentTooLarge => StatusCodes.Status400BadRequest,
             _ => StatusCodes.Status400BadRequest,
@@ -731,14 +859,14 @@ internal static partial class SonnetDbEndpoints
             result.Matched,
             result.Modified,
             result.Deleted,
-            result.Errors.Count == 0
-                ? null
-                : result.Errors.Select(static error => new DocumentWriteErrorResponse(
-                    error.Index,
-                    error.Id,
-                    error.Code,
-                    error.Message,
-                    error.Severity)).ToArray());
+            ToContractWriteErrors(result.Errors));
+
+    private static IReadOnlyList<DocumentWriteErrorResponse>? ToContractWriteErrors(
+        IReadOnlyList<DocumentWriteError> errors)
+        => errors.Count == 0 ? null : errors.Select(ToContractWriteError).ToArray();
+
+    private static DocumentWriteErrorResponse ToContractWriteError(DocumentWriteError error)
+        => new(error.Index, error.Id, error.Code, error.Message, error.Severity);
 
     private static DocumentValidatorDefinition? ToCoreValidator(DocumentValidatorContract? validator)
     {
@@ -952,7 +1080,8 @@ internal static partial class SonnetDbEndpoints
             Projection: ToCoreProjection(req.Projection),
             Sort: ToCoreSort(req.Sort),
             Limit: limit,
-            Skip: req.Skip);
+            Skip: req.Skip,
+            Collation: ParseCollation(req.Collation));
 
     private static DocumentCursorState? DecodeAndValidateCursor(
         string? token,
@@ -1021,7 +1150,8 @@ internal static partial class SonnetDbEndpoints
     private static bool HasAdvancedDocumentQuery(DocumentFindRequest req)
         => req.Filter is not null
             || req.Projection is { Count: > 0 }
-            || req.Sort is { Count: > 0 };
+            || req.Sort is { Count: > 0 }
+            || ParseCollation(req.Collation) != DocumentCollation.Ordinal;
 
     private static DocumentFilter? MergeRequestFilters(DocumentFindRequest req)
     {
@@ -1062,6 +1192,7 @@ internal static partial class SonnetDbEndpoints
         if (filter is null)
             return null;
 
+        // 保留旧 payload 的组合优先级；空 AND/OR 继续回退为字段条件。
         if (filter.And is { Count: > 0 })
             return new DocumentAndFilter(filter.And.Select(ToRequiredCoreFilter).ToArray());
         if (filter.Or is { Count: > 0 })
@@ -1070,12 +1201,23 @@ internal static partial class SonnetDbEndpoints
             return new DocumentNotFilter(ToRequiredCoreFilter(filter.Not));
 
         var op = ParseFilterOperator(filter.Op);
+        object? value = op switch
+        {
+            DocumentFilterOperator.ElementMatch => filter.ElemMatch is null
+                ? throw new InvalidOperationException("$elemMatch 必须提供 elemMatch 子过滤表达式。")
+                : ToRequiredCoreFilter(filter.ElemMatch),
+            DocumentFilterOperator.Regex => new DocumentRegex(ReadRegexPattern(filter.Value), filter.RegexOptions),
+            DocumentFilterOperator.Exists => ToBooleanOrDefault(filter.Value),
+            _ => ToCoreValue(filter.Value),
+        };
+        if (op != DocumentFilterOperator.ElementMatch && filter.ElemMatch is not null)
+            throw new InvalidOperationException("elemMatch 子表达式只能与 elemMatch 操作符一起使用。");
+        if (op != DocumentFilterOperator.Regex && filter.RegexOptions is not null)
+            throw new InvalidOperationException("regexOptions 只能与 regex 操作符一起使用。");
         return new DocumentFieldFilter(
             ToCoreField(filter.Path),
             op,
-            op == DocumentFilterOperator.Exists
-                ? ToBooleanOrDefault(filter.Value)
-                : ToCoreValue(filter.Value));
+            value);
     }
 
     private static DocumentFilter ToRequiredCoreFilter(DocumentFilterContract filter)
@@ -1145,7 +1287,25 @@ internal static partial class SonnetDbEndpoints
             "nin" => DocumentFilterOperator.NotIn,
             "exists" => DocumentFilterOperator.Exists,
             "contains" => DocumentFilterOperator.Contains,
+            "elemmatch" or "elem_match" => DocumentFilterOperator.ElementMatch,
+            "regex" => DocumentFilterOperator.Regex,
+            "type" => DocumentFilterOperator.Type,
+            "size" => DocumentFilterOperator.Size,
+            "all" => DocumentFilterOperator.All,
             _ => throw new InvalidOperationException($"不支持的 document filter op '{op}'。"),
+        };
+
+    private static string ReadRegexPattern(JsonElement? value)
+        => value is { ValueKind: JsonValueKind.String }
+            ? value.Value.GetString() ?? string.Empty
+            : throw new InvalidOperationException("regex 操作符的 value 必须是字符串 pattern。");
+
+    private static DocumentCollation ParseCollation(string? value)
+        => value?.Trim().ToLowerInvariant() switch
+        {
+            null or "" or "simple" or "ordinal" => DocumentCollation.Ordinal,
+            "ordinal_ignore_case" or "ordinalignorecase" => DocumentCollation.OrdinalIgnoreCase,
+            _ => throw new InvalidOperationException("collation 仅支持 ordinal/simple 或 ordinal_ignore_case。"),
         };
 
     private static object? ToCoreValue(JsonElement? value)
@@ -1189,7 +1349,43 @@ internal static partial class SonnetDbEndpoints
             update.Push,
             update.Pull,
             update.AddToSet,
-            update.CurrentDate);
+            update.CurrentDate,
+            update.Mul,
+            update.Pop);
+
+    private static DocumentBulkWriteOperation ToCoreBulkWriteOperation(DocumentBulkWriteOperationContract operation)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        return new DocumentBulkWriteOperation(
+            ParseBulkWriteOperationType(operation.Type),
+            operation.Id,
+            operation.Document?.GetRawText(),
+            ToCoreFilter(operation.Filter),
+            operation.Update is null ? null : ToCoreUpdate(operation.Update),
+            operation.Upsert,
+            operation.UpsertId,
+            operation.ExpectedVersion);
+    }
+
+    private static DocumentBulkWriteOperationType ParseBulkWriteOperationType(string type)
+        => type?.Trim().ToLowerInvariant() switch
+        {
+            "insertone" or "insert_one" => DocumentBulkWriteOperationType.InsertOne,
+            "replaceone" or "replace_one" => DocumentBulkWriteOperationType.ReplaceOne,
+            "updateone" or "update_one" => DocumentBulkWriteOperationType.UpdateOne,
+            "updatemany" or "update_many" => DocumentBulkWriteOperationType.UpdateMany,
+            "deleteone" or "delete_one" => DocumentBulkWriteOperationType.DeleteOne,
+            "deletemany" or "delete_many" => DocumentBulkWriteOperationType.DeleteMany,
+            _ => throw new ArgumentException($"不支持的 bulk operation type '{type}'。", nameof(type)),
+        };
+
+    private static DocumentReturnDocument ParseReturnDocument(string value)
+        => value?.Trim().ToLowerInvariant() switch
+        {
+            null or "" or "before" => DocumentReturnDocument.Before,
+            "after" => DocumentReturnDocument.After,
+            _ => throw new ArgumentException("returnDocument 必须是 before 或 after。", nameof(value)),
+        };
 
     private static DocumentIndexPartialFilter? ToCorePartialFilter(DocumentIndexPartialFilterContract? filter)
         => filter is null
@@ -1208,6 +1404,14 @@ internal static partial class SonnetDbEndpoints
                     _ => throw new ArgumentException($"不支持的 partial index operator '{filter.Operator}'。"),
                 },
                 filter.ValueScalar);
+
+    private static DocumentIndexKind ParseDocumentIndexKind(string? kind)
+        => kind?.Trim().ToLowerInvariant() switch
+        {
+            null or "" or "path" => DocumentIndexKind.Path,
+            "wildcard" => DocumentIndexKind.Wildcard,
+            _ => throw new ArgumentException("document index kind 必须是 path 或 wildcard。", nameof(kind)),
+        };
 
     private static HashSet<string>? NormalizeChangeFeedOperations(IReadOnlyList<string>? operations)
     {
@@ -1242,9 +1446,8 @@ internal static partial class SonnetDbEndpoints
 
         if (stage.Match is not null)
             return new DocumentMatchStage(ToRequiredCoreFilter(stage.Match));
-        if (stage.Project is not null)
-            return new DocumentProjectStage(ToCoreProjection(stage.Project)
-                ?? throw new InvalidOperationException("$project 需要至少一个投影字段。"));
+        if (stage.Project is not null || stage.ComputedFields is not null)
+            return ToCoreProjectStage(stage.Project, stage.ComputedFields);
         if (stage.Group is not null)
             return ToCoreGroupStage(stage.Group);
         if (stage.Sort is not null)
@@ -1257,7 +1460,8 @@ internal static partial class SonnetDbEndpoints
             return new DocumentUnwindStage(
                 ToCoreField(stage.Unwind.Path),
                 stage.Unwind.Name,
-                stage.Unwind.PreserveNullAndEmptyArrays);
+                stage.Unwind.PreserveNullAndEmptyArrays,
+                stage.Unwind.IncludeArrayIndex);
         if (stage.Count is not null)
             return new DocumentCountStage(string.IsNullOrWhiteSpace(stage.Count) ? "count" : stage.Count);
         if (stage.Distinct is not null)
@@ -1273,7 +1477,7 @@ internal static partial class SonnetDbEndpoints
     {
         int count = 0;
         if (stage.Match is not null) count++;
-        if (stage.Project is not null) count++;
+        if (stage.Project is not null || stage.ComputedFields is not null) count++;
         if (stage.Group is not null) count++;
         if (stage.Sort is not null) count++;
         if (stage.Limit is not null) count++;
@@ -1287,19 +1491,114 @@ internal static partial class SonnetDbEndpoints
     private static DocumentGroupStage ToCoreGroupStage(DocumentAggregateGroupContract group)
     {
         var keys = group.Keys is { Count: > 0 }
-            ? group.Keys.Select(static key => new DocumentAggregationGroupKey(key.Name, ToCoreField(key.Path))).ToArray()
+            ? group.Keys.Select(ToCoreGroupKey).ToArray()
             : Array.Empty<DocumentAggregationGroupKey>();
         var accumulators = group.Accumulators is { Count: > 0 }
-            ? group.Accumulators.Select(static accumulator => new DocumentAggregationAccumulator(
-                accumulator.Name,
-                ParseAccumulatorOperator(accumulator.Op),
-                string.IsNullOrWhiteSpace(accumulator.Path) ? null : ToCoreField(accumulator.Path))).ToArray()
+            ? group.Accumulators.Select(ToCoreAccumulator).ToArray()
             : Array.Empty<DocumentAggregationAccumulator>();
 
         if (keys.Length == 0 && accumulators.Length == 0)
             throw new InvalidOperationException("$group 至少需要一个 key 或 accumulator。");
 
         return new DocumentGroupStage(keys, accumulators);
+    }
+
+    private static DocumentProjectStage ToCoreProjectStage(
+        IReadOnlyList<DocumentProjectionContract>? projection,
+        IReadOnlyList<DocumentAggregateComputedFieldContract>? computedFields)
+    {
+        DocumentProjection coreProjection = ToCoreProjection(projection) ?? new DocumentProjection([]);
+        DocumentAggregationComputedField[] computed = computedFields is { Count: > 0 }
+            ? computedFields.Select(static field => new DocumentAggregationComputedField(
+                field.Name,
+                ToCoreAggregationExpression(field.Expression))).ToArray()
+            : [];
+        if (coreProjection.Fields.Count == 0 && computed.Length == 0)
+            throw new InvalidOperationException("$project 需要至少一个投影字段或计算字段。");
+        return new DocumentProjectStage(coreProjection, computed);
+    }
+
+    private static DocumentAggregationGroupKey ToCoreGroupKey(DocumentAggregateGroupKeyContract key)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        return key.Expression is not null
+            ? DocumentAggregationGroupKey.FromExpression(
+                key.Name,
+                ToCoreAggregationExpression(key.Expression))
+            : new DocumentAggregationGroupKey(
+                key.Name,
+                ToCoreField(key.Path ?? throw new InvalidOperationException("$group key 需要 path 或 expression。")));
+    }
+
+    private static DocumentAggregationAccumulator ToCoreAccumulator(
+        DocumentAggregateAccumulatorContract accumulator)
+    {
+        ArgumentNullException.ThrowIfNull(accumulator);
+        DocumentAggregationAccumulatorOperator op = ParseAccumulatorOperator(accumulator.Op);
+        return accumulator.Expression is not null
+            ? DocumentAggregationAccumulator.FromExpression(
+                accumulator.Name,
+                op,
+                ToCoreAggregationExpression(accumulator.Expression))
+            : new DocumentAggregationAccumulator(
+                accumulator.Name,
+                op,
+                string.IsNullOrWhiteSpace(accumulator.Path) ? null : ToCoreField(accumulator.Path));
+    }
+
+    private static DocumentAggregationExpression ToCoreAggregationExpression(
+        DocumentAggregateExpressionContract expression,
+        int depth = 0)
+    {
+        ArgumentNullException.ThrowIfNull(expression);
+        if (depth > 64)
+            throw new InvalidOperationException("Document aggregation expression depth 超过上限 64。");
+
+        string op = NormalizeAggregationExpressionOperator(expression.Op);
+        IReadOnlyList<DocumentAggregateExpressionContract> arguments = expression.Arguments ?? [];
+        DocumentAggregationExpression ConvertArgument(int index)
+            => ToCoreAggregationExpression(arguments[index], depth + 1);
+
+        return op switch
+        {
+            "field" when arguments.Count == 0 => new DocumentAggregationFieldExpression(
+                ToCoreField(expression.Path
+                    ?? throw new InvalidOperationException("field 表达式需要 path。"))),
+            "literal" when arguments.Count == 0 && expression.Path is null =>
+                new DocumentAggregationLiteralExpression(expression.Value?.Clone()),
+            "add" when arguments.Count == 2 =>
+                new DocumentAggregationAddExpression(ConvertArgument(0), ConvertArgument(1)),
+            "subtract" when arguments.Count == 2 =>
+                new DocumentAggregationSubtractExpression(ConvertArgument(0), ConvertArgument(1)),
+            "multiply" when arguments.Count == 2 =>
+                new DocumentAggregationMultiplyExpression(ConvertArgument(0), ConvertArgument(1)),
+            "divide" when arguments.Count == 2 =>
+                new DocumentAggregationDivideExpression(ConvertArgument(0), ConvertArgument(1)),
+            "concat" when arguments.Count > 0 =>
+                new DocumentAggregationConcatExpression(arguments
+                    .Select(value => ToCoreAggregationExpression(value, depth + 1))
+                    .ToArray()),
+            "if_null" when arguments.Count == 2 =>
+                new DocumentAggregationIfNullExpression(ConvertArgument(0), ConvertArgument(1)),
+            "cond" when arguments.Count == 3 =>
+                new DocumentAggregationCondExpression(
+                    ConvertArgument(0),
+                    ConvertArgument(1),
+                    ConvertArgument(2)),
+            _ => throw new InvalidOperationException(
+                $"聚合表达式 '{expression.Op}' 的参数形态无效。"),
+        };
+    }
+
+    private static string NormalizeAggregationExpressionOperator(string op)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(op);
+        string normalized = op.Trim().TrimStart('$').Replace('-', '_').ToLowerInvariant();
+        return normalized switch
+        {
+            "ifnull" => "if_null",
+            _ => normalized,
+        };
     }
 
     private static DocumentAggregationAccumulatorOperator ParseAccumulatorOperator(string op)
@@ -1313,6 +1612,8 @@ internal static partial class SonnetDbEndpoints
             "first" => DocumentAggregationAccumulatorOperator.First,
             "last" => DocumentAggregationAccumulatorOperator.Last,
             "distinct" => DocumentAggregationAccumulatorOperator.Distinct,
+            "push" => DocumentAggregationAccumulatorOperator.Push,
+            "addtoset" or "add_to_set" => DocumentAggregationAccumulatorOperator.AddToSet,
             _ => throw new InvalidOperationException($"不支持的 document aggregate accumulator '{op}'。"),
         };
 

@@ -344,24 +344,47 @@ test('Document update preview and change feed viewer render server results', asy
 
 test('Document import reports batch progress and stops before the next batch', async ({ page }) => {
   let batches = 0;
-  await page.route(`**/v1/db/${database}/documents/device_profiles/insert-many`, async (route) => {
+  let firstImportedId = '';
+  await page.route(`**/v1/db/${database}/documents/device_profiles/bulk-write`, async (route) => {
     batches += 1;
-    const body = route.request().postDataJSON() as { documents?: unknown[] };
+    const body = route.request().postDataJSON() as {
+      operations?: Array<{ id?: string }>;
+      requestId?: string;
+    };
+    const operations = body.operations ?? [];
+    firstImportedId = operations[0]?.id ?? '';
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 800));
     await json(route, {
       collection: 'device_profiles',
-      inserted: body.documents?.length ?? 0,
+      inserted: Math.max(0, operations.length - 1),
       matched: 0,
       modified: 0,
       deleted: 0,
-      errors: null,
+      items: operations.map((operation, index) => ({
+        index,
+        operation: 'insertOne',
+        id: operation.id,
+        status: index === 0 ? 'failed' : 'succeeded',
+        inserted: index === 0 ? 0 : 1,
+        matched: 0,
+        modified: 0,
+        deleted: 0,
+        error: index === 0 ? { index, id: operation.id, code: 'duplicate_key', message: 'duplicate id', severity: 'error' } : null,
+      })),
+      errors: [{ index: 0, id: operations[0]?.id, code: 'duplicate_key', message: 'duplicate id', severity: 'error' }],
+      requestId: body.requestId,
+      replayed: false,
+      committed: true,
     });
   });
 
   await page.goto('/admin/app/sql?tool=document');
   const surface = page.getByTestId('workbench-document');
   await surface.locator('.workbench-section-tabs').getByRole('button', { name: '导入 / 导出', exact: true }).click();
-  const documents = Array.from({ length: 101 }, (_, index) => JSON.stringify({ _id: `device-${index}`, value: index }));
+  const documents = Array.from({ length: 101 }, (_, index) => JSON.stringify({
+    _id: index === 0 ? { $oid: '64b64c2032f9a13f4c8e0001' } : `device-${index}`,
+    value: index,
+  }));
   await surface.getByPlaceholder('JSON array, JSONL, or { id, document } items').fill(documents.join('\n'));
   await surface.getByRole('button', { name: 'Stage import', exact: true }).click();
 
@@ -370,6 +393,8 @@ test('Document import reports batch progress and stops before the next batch', a
   await approval.getByRole('button', { name: '停止后续批次', exact: true }).click();
 
   await expect(surface).toContainText('100 / 101 documents · 已停止');
+  await expect(surface).toContainText('duplicate_key');
+  expect(firstImportedId).toBe('64b64c2032f9a13f4c8e0001');
   expect(batches).toBe(1);
 });
 

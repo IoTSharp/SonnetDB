@@ -22,7 +22,7 @@ internal static class DocumentAggregationExecutor
             working = stage switch
             {
                 DocumentMatchStage match => ApplyMatch(working, match.Filter),
-                DocumentProjectStage project => ApplyProject(working, project.Projection),
+                DocumentProjectStage project => ApplyProject(working, project),
                 DocumentGroupStage group => ApplyGroup(working, group),
                 DocumentSortStage sort => ApplySort(working, sort.Sort),
                 DocumentLimitStage limit => ApplyLimit(working, limit.Limit),
@@ -51,18 +51,52 @@ internal static class DocumentAggregationExecutor
                     throw new ArgumentOutOfRangeException(nameof(pipeline), "$skip 不能为负数。");
                 case DocumentDistinctStage { Limit: <= 0 }:
                     throw new ArgumentOutOfRangeException(nameof(pipeline), "$distinct.limit 必须大于 0。");
+                case DocumentProjectStage project:
+                    ArgumentNullException.ThrowIfNull(project.Projection);
+                    foreach (var computed in project.ComputedFields ?? [])
+                    {
+                        ArgumentException.ThrowIfNullOrWhiteSpace(computed.Name);
+                        ValidateExpression(computed.Expression);
+                    }
+                    break;
+                case DocumentGroupStage group:
+                    ArgumentNullException.ThrowIfNull(group.Keys);
+                    ArgumentNullException.ThrowIfNull(group.Accumulators);
+                    foreach (var key in group.Keys)
+                    {
+                        ArgumentException.ThrowIfNullOrWhiteSpace(key.Name);
+                        if (key.Expression is not null)
+                            ValidateExpression(key.Expression);
+                        else
+                            ArgumentNullException.ThrowIfNull(key.Field);
+                    }
+                    foreach (var accumulator in group.Accumulators)
+                    {
+                        ArgumentException.ThrowIfNullOrWhiteSpace(accumulator.Name);
+                        if (!Enum.IsDefined(accumulator.Operator))
+                            throw new InvalidOperationException($"不支持的文档聚合函数 '{accumulator.Operator}'。");
+                        if (accumulator.Expression is not null)
+                            ValidateExpression(accumulator.Expression);
+                    }
+                    break;
+                case DocumentUnwindStage unwind when unwind.IncludeArrayIndex is not null
+                    && string.IsNullOrWhiteSpace(unwind.IncludeArrayIndex):
+                    throw new ArgumentException("$unwind.includeArrayIndex 不能为空白字符串。", nameof(pipeline));
             }
         }
     }
 
     private static List<AggregateRow> ApplyMatch(List<AggregateRow> rows, DocumentFilter filter)
-        => rows
-            .Where(row => DocumentQueryPlanner.Matches(filter, row.ToDocumentRow()))
-            .ToList();
-
-    private static List<AggregateRow> ApplyProject(List<AggregateRow> rows, DocumentProjection projection)
     {
-        if (projection.Fields.Count == 0)
+        DocumentQueryPlanner.ValidateFilter(filter);
+        return rows
+            .Where(row => DocumentQueryPlanner.MatchesValidated(filter, row.ToDocumentRow()))
+            .ToList();
+    }
+
+    private static List<AggregateRow> ApplyProject(List<AggregateRow> rows, DocumentProjectStage stage)
+    {
+        if (stage.Projection.Fields.Count == 0 && (stage.ComputedFields?.Count ?? 0) == 0)
             return rows;
 
         var projected = new List<AggregateRow>(rows.Count);
@@ -72,7 +106,7 @@ internal static class DocumentAggregationExecutor
             projected.Add(row with
             {
                 Id = row.Id ?? $"project:{i.ToString(CultureInfo.InvariantCulture)}",
-                Json = ProjectJson(row, projection),
+                Json = ProjectJson(row, stage),
             });
         }
 
@@ -84,7 +118,11 @@ internal static class DocumentAggregationExecutor
         var groups = new Dictionary<string, GroupState>(StringComparer.Ordinal);
         foreach (var row in rows)
         {
-            var keyValues = stage.Keys.Select(key => ReadValueOrNull(row, key.Field)).ToArray();
+            var keyValues = stage.Keys
+                .Select(key => key.Expression is not null
+                    ? EvaluateExpression(row, key.Expression)
+                    : ReadValueOrNull(row, key.Field!))
+                .ToArray();
             string key = BuildGroupKey(keyValues);
             if (!groups.TryGetValue(key, out var state))
             {
@@ -140,7 +178,14 @@ internal static class DocumentAggregationExecutor
             if (!TryResolveElement(document.RootElement, stage.Field, out var element))
             {
                 if (stage.PreserveNullAndEmptyArrays)
-                    output.Add(row);
+                    output.Add(row with { Json = WriteUnwindPreserved(row.Json, stage) });
+                continue;
+            }
+
+            if (element.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+            {
+                if (stage.PreserveNullAndEmptyArrays)
+                    output.Add(row with { Json = WriteUnwindPreserved(row.Json, stage) });
                 continue;
             }
 
@@ -150,7 +195,7 @@ internal static class DocumentAggregationExecutor
                 if (length == 0)
                 {
                     if (stage.PreserveNullAndEmptyArrays)
-                        output.Add(row);
+                        output.Add(row with { Json = WriteUnwindPreserved(row.Json, stage) });
                     continue;
                 }
 
@@ -160,7 +205,7 @@ internal static class DocumentAggregationExecutor
                     output.Add(row with
                     {
                         Id = $"{row.Id ?? "row"}:{index.ToString(CultureInfo.InvariantCulture)}",
-                        Json = WriteUnwindValue(row.Json, stage, item),
+                        Json = WriteUnwindValue(row.Json, stage, item, index),
                     });
                     index++;
                 }
@@ -168,7 +213,7 @@ internal static class DocumentAggregationExecutor
                 continue;
             }
 
-            output.Add(row with { Json = WriteUnwindValue(row.Json, stage, element) });
+            output.Add(row with { Json = WriteUnwindValue(row.Json, stage, element, arrayIndex: null) });
         }
 
         return output;
@@ -210,42 +255,197 @@ internal static class DocumentAggregationExecutor
     }
 
     private static object? ReadValueOrNull(AggregateRow row, DocumentFieldRef field)
-        => DocumentQueryPlanner.TryGetFieldValue(row.ToDocumentRow(), field, out var value) ? value : null;
-
-    private static string ProjectJson(AggregateRow row, DocumentProjection projection)
     {
-        var buffer = new ArrayBufferWriter<byte>();
-        using (var writer = new Utf8JsonWriter(buffer))
+        if (field.Kind == DocumentFieldKind.Id)
+            return row.Id;
+
+        using var document = JsonDocument.Parse(row.Json);
+        JsonElement element;
+        if (field.Kind == DocumentFieldKind.Document)
         {
-            writer.WriteStartObject();
-            foreach (var field in projection.Fields)
-            {
-                if (field.Field.Kind == DocumentFieldKind.Id)
-                {
-                    writer.WritePropertyName(field.Name);
-                    writer.WriteStringValue(row.Id);
-                    continue;
-                }
-
-                if (TryGetFieldElement(row, field.Field, out var owner, out var element))
-                {
-                    writer.WritePropertyName(field.Name);
-                    using (owner)
-                        element.WriteTo(writer);
-                    continue;
-                }
-
-                if (DocumentQueryPlanner.TryGetFieldValue(row.ToDocumentRow(), field.Field, out object? value))
-                {
-                    writer.WritePropertyName(field.Name);
-                    WriteJsonValue(writer, value);
-                }
-            }
-
-            writer.WriteEndObject();
+            element = document.RootElement;
+        }
+        else if (field.Kind == DocumentFieldKind.JsonPath
+                 && field.Path is not null
+                 && JsonPathEvaluator.TryResolve(document.RootElement, JsonPath.Parse(field.Path), out var resolved))
+        {
+            element = resolved;
+        }
+        else
+        {
+            return null;
         }
 
-        return Encoding.UTF8.GetString(buffer.WrittenSpan);
+        return ConvertAggregationElement(element);
+    }
+
+    private static void ValidateExpression(DocumentAggregationExpression expression, int depth = 0)
+    {
+        ArgumentNullException.ThrowIfNull(expression);
+        if (depth > 64)
+            throw new InvalidOperationException("Document aggregation expression depth 超过上限 64。");
+
+        switch (expression)
+        {
+            case DocumentAggregationFieldExpression field:
+                ArgumentNullException.ThrowIfNull(field.Field);
+                return;
+            case DocumentAggregationLiteralExpression:
+                return;
+            case DocumentAggregationAddExpression add:
+                ValidateExpression(add.Left, depth + 1);
+                ValidateExpression(add.Right, depth + 1);
+                return;
+            case DocumentAggregationSubtractExpression subtract:
+                ValidateExpression(subtract.Left, depth + 1);
+                ValidateExpression(subtract.Right, depth + 1);
+                return;
+            case DocumentAggregationMultiplyExpression multiply:
+                ValidateExpression(multiply.Left, depth + 1);
+                ValidateExpression(multiply.Right, depth + 1);
+                return;
+            case DocumentAggregationDivideExpression divide:
+                ValidateExpression(divide.Left, depth + 1);
+                ValidateExpression(divide.Right, depth + 1);
+                return;
+            case DocumentAggregationConcatExpression concat:
+                ArgumentNullException.ThrowIfNull(concat.Values);
+                if (concat.Values.Count == 0)
+                    throw new InvalidOperationException("$concat 至少需要一个输入表达式。");
+                foreach (var value in concat.Values)
+                    ValidateExpression(value, depth + 1);
+                return;
+            case DocumentAggregationIfNullExpression ifNull:
+                ValidateExpression(ifNull.Input, depth + 1);
+                ValidateExpression(ifNull.Replacement, depth + 1);
+                return;
+            case DocumentAggregationCondExpression cond:
+                ValidateExpression(cond.Condition, depth + 1);
+                ValidateExpression(cond.IfTrue, depth + 1);
+                ValidateExpression(cond.IfFalse, depth + 1);
+                return;
+            default:
+                throw new InvalidOperationException(
+                    $"不支持的文档聚合表达式 '{expression.GetType().Name}'。");
+        }
+    }
+
+    private static object? EvaluateExpression(AggregateRow row, DocumentAggregationExpression expression)
+        => expression switch
+        {
+            DocumentAggregationFieldExpression field => ReadValueOrNull(row, field.Field),
+            DocumentAggregationLiteralExpression literal => NormalizeValue(literal.Value),
+            DocumentAggregationAddExpression add => EvaluateNumericBinary(row, add.Left, add.Right, "+"),
+            DocumentAggregationSubtractExpression subtract => EvaluateNumericBinary(row, subtract.Left, subtract.Right, "-"),
+            DocumentAggregationMultiplyExpression multiply => EvaluateNumericBinary(row, multiply.Left, multiply.Right, "*"),
+            DocumentAggregationDivideExpression divide => EvaluateNumericBinary(row, divide.Left, divide.Right, "/"),
+            DocumentAggregationConcatExpression concat => EvaluateConcat(row, concat),
+            DocumentAggregationIfNullExpression ifNull => EvaluateExpression(row, ifNull.Input)
+                ?? EvaluateExpression(row, ifNull.Replacement),
+            DocumentAggregationCondExpression cond => IsTruthy(EvaluateExpression(row, cond.Condition))
+                ? EvaluateExpression(row, cond.IfTrue)
+                : EvaluateExpression(row, cond.IfFalse),
+            _ => throw new InvalidOperationException(
+                $"不支持的文档聚合表达式 '{expression.GetType().Name}'。"),
+        };
+
+    private static object? EvaluateNumericBinary(
+        AggregateRow row,
+        DocumentAggregationExpression leftExpression,
+        DocumentAggregationExpression rightExpression,
+        string operation)
+    {
+        object? left = EvaluateExpression(row, leftExpression);
+        object? right = EvaluateExpression(row, rightExpression);
+        if (left is null || right is null)
+            return null;
+        if (!IsNumeric(left) || !IsNumeric(right))
+            throw new InvalidOperationException($"聚合数值表达式 '{operation}' 只接受 number 输入。");
+
+        try
+        {
+            decimal leftNumber = Convert.ToDecimal(left, CultureInfo.InvariantCulture);
+            decimal rightNumber = Convert.ToDecimal(right, CultureInfo.InvariantCulture);
+            return operation switch
+            {
+                "+" => NormalizeNumber(leftNumber + rightNumber),
+                "-" => NormalizeNumber(leftNumber - rightNumber),
+                "*" => NormalizeNumber(leftNumber * rightNumber),
+                "/" when rightNumber == 0 => throw new DivideByZeroException("Document aggregation $divide 的除数不能为零。"),
+                "/" => NormalizeNumber(leftNumber / rightNumber),
+                _ => throw new InvalidOperationException($"未知聚合数值运算 '{operation}'。"),
+            };
+        }
+        catch (OverflowException)
+        {
+            double leftNumber = Convert.ToDouble(left, CultureInfo.InvariantCulture);
+            double rightNumber = Convert.ToDouble(right, CultureInfo.InvariantCulture);
+            if (operation == "/" && rightNumber == 0)
+                throw new DivideByZeroException("Document aggregation $divide 的除数不能为零。");
+            return operation switch
+            {
+                "+" => leftNumber + rightNumber,
+                "-" => leftNumber - rightNumber,
+                "*" => leftNumber * rightNumber,
+                "/" => leftNumber / rightNumber,
+                _ => throw new InvalidOperationException($"未知聚合数值运算 '{operation}'。"),
+            };
+        }
+    }
+
+    private static object? EvaluateConcat(AggregateRow row, DocumentAggregationConcatExpression expression)
+    {
+        var builder = new StringBuilder();
+        foreach (var item in expression.Values)
+        {
+            object? value = EvaluateExpression(row, item);
+            if (value is null)
+                return null;
+            if (value is not string text)
+                throw new InvalidOperationException("$concat 只接受 string 输入。");
+            builder.Append(text);
+        }
+
+        return builder.ToString();
+    }
+
+    private static bool IsTruthy(object? value)
+        => value switch
+        {
+            null => false,
+            bool boolean => boolean,
+            byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal =>
+                Convert.ToDecimal(value, CultureInfo.InvariantCulture) != 0,
+            string text => text.Length != 0,
+            _ => true,
+        };
+
+    private static string ProjectJson(AggregateRow row, DocumentProjectStage stage)
+    {
+        var root = new JsonObject();
+        foreach (var field in stage.Projection.Fields)
+        {
+            if (field.Field.Kind == DocumentFieldKind.Id)
+            {
+                root[field.Name] = JsonValue.Create(row.Id);
+                continue;
+            }
+
+            if (TryGetFieldElement(row, field.Field, out var owner, out var element))
+            {
+                using (owner)
+                    root[field.Name] = JsonNode.Parse(element.GetRawText());
+                continue;
+            }
+
+            if (DocumentQueryPlanner.TryGetFieldValue(row.ToDocumentRow(), field.Field, out object? value))
+                root[field.Name] = ToJsonNode(value);
+        }
+
+        foreach (var computed in stage.ComputedFields ?? [])
+            root[computed.Name] = ToJsonNode(EvaluateExpression(row, computed.Expression));
+
+        return Normalize(root);
     }
 
     private static bool TryGetFieldElement(
@@ -289,7 +489,11 @@ internal static class DocumentAggregationExecutor
         return JsonPathEvaluator.TryResolve(root, JsonPath.Parse(field.Path), out element);
     }
 
-    private static string WriteUnwindValue(string json, DocumentUnwindStage stage, JsonElement value)
+    private static string WriteUnwindValue(
+        string json,
+        DocumentUnwindStage stage,
+        JsonElement value,
+        long? arrayIndex)
     {
         JsonNode? root = JsonNode.Parse(json);
         JsonNode? node = JsonNode.Parse(value.GetRawText());
@@ -298,16 +502,42 @@ internal static class DocumentAggregationExecutor
             if (root is not JsonObject obj)
                 obj = new JsonObject { ["document"] = root?.DeepClone() };
             obj[stage.Name] = node;
-            return Normalize(obj);
+            root = obj;
+        }
+        else if (stage.Field.Kind == DocumentFieldKind.Document)
+        {
+            root = node;
+        }
+        else
+        {
+            if (stage.Field.Kind != DocumentFieldKind.JsonPath || stage.Field.Path is null)
+                throw new InvalidOperationException("$unwind 不支持 _id 字段。");
+            SetValue(ref root, JsonPath.Parse(stage.Field.Path), node);
         }
 
-        if (stage.Field.Kind == DocumentFieldKind.Document)
-            return Normalize(node);
-        if (stage.Field.Kind != DocumentFieldKind.JsonPath || stage.Field.Path is null)
-            throw new InvalidOperationException("$unwind 不支持 _id 字段。");
-
-        SetValue(ref root, JsonPath.Parse(stage.Field.Path), node);
+        SetUnwindArrayIndex(ref root, stage.IncludeArrayIndex, arrayIndex);
         return Normalize(root);
+    }
+
+    private static string WriteUnwindPreserved(string json, DocumentUnwindStage stage)
+    {
+        JsonNode? root = JsonNode.Parse(json);
+        SetUnwindArrayIndex(ref root, stage.IncludeArrayIndex, arrayIndex: null);
+        return Normalize(root);
+    }
+
+    private static void SetUnwindArrayIndex(ref JsonNode? root, string? name, long? arrayIndex)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return;
+
+        if (root is not JsonObject obj)
+        {
+            obj = new JsonObject { ["document"] = root?.DeepClone() };
+            root = obj;
+        }
+
+        obj[name] = arrayIndex is null ? null : JsonValue.Create(arrayIndex.Value);
     }
 
     private static void SetValue(ref JsonNode? root, JsonPath path, JsonNode? value)
@@ -413,7 +643,9 @@ internal static class DocumentAggregationExecutor
                     WriteJsonValue(writer, item);
                 writer.WriteEndArray();
                 break;
-            case string text when TryWriteRawJsonValue(writer, text):
+            case StructuredJsonValue structured:
+                using (var document = JsonDocument.Parse(structured.Json))
+                    document.RootElement.WriteTo(writer);
                 break;
             case string text:
                 writer.WriteStringValue(text);
@@ -421,27 +653,6 @@ internal static class DocumentAggregationExecutor
             default:
                 writer.WriteStringValue(Convert.ToString(value, CultureInfo.InvariantCulture));
                 break;
-        }
-    }
-
-    private static bool TryWriteRawJsonValue(Utf8JsonWriter writer, string text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-            return false;
-
-        char first = text.TrimStart()[0];
-        if (first != '{' && first != '[')
-            return false;
-
-        try
-        {
-            using var document = JsonDocument.Parse(text);
-            document.RootElement.WriteTo(writer);
-            return true;
-        }
-        catch (JsonException)
-        {
-            return false;
         }
     }
 
@@ -461,8 +672,8 @@ internal static class DocumentAggregationExecutor
                 return JsonValue.Create(Convert.ToDouble(value, CultureInfo.InvariantCulture));
             case decimal decimalValue:
                 return JsonValue.Create(decimalValue);
-            case string text when TryParseJsonNode(text, out var node):
-                return node;
+            case StructuredJsonValue structured:
+                return JsonNode.Parse(structured.Json);
             case string text:
                 return JsonValue.Create(text);
             case IReadOnlyList<object?> values:
@@ -475,27 +686,6 @@ internal static class DocumentAggregationExecutor
         }
     }
 
-    private static bool TryParseJsonNode(string text, out JsonNode? node)
-    {
-        node = null;
-        if (string.IsNullOrWhiteSpace(text))
-            return false;
-
-        char first = text.TrimStart()[0];
-        if (first != '{' && first != '[')
-            return false;
-
-        try
-        {
-            node = JsonNode.Parse(text);
-            return true;
-        }
-        catch (JsonException)
-        {
-            return false;
-        }
-    }
-
     private static string Normalize(JsonNode? node)
     {
         var buffer = new ArrayBufferWriter<byte>();
@@ -505,7 +695,18 @@ internal static class DocumentAggregationExecutor
     }
 
     private static string BuildGroupKey(IReadOnlyList<object?> values)
-        => string.Join('\u001f', values.Select(BuildValueKey));
+    {
+        var builder = new StringBuilder();
+        foreach (object? value in values)
+        {
+            string part = BuildValueKey(value);
+            builder.Append(part.Length.ToString(CultureInfo.InvariantCulture));
+            builder.Append(':');
+            builder.Append(part);
+        }
+
+        return builder.ToString();
+    }
 
     private static string BuildValueKey(object? value)
     {
@@ -513,12 +714,35 @@ internal static class DocumentAggregationExecutor
         if (value is null)
             return "null:";
         if (IsNumeric(value))
-            return "number:" + Convert.ToDecimal(value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture);
-        return value.GetType().Name + ":" + Convert.ToString(value, CultureInfo.InvariantCulture);
+        {
+            try
+            {
+                return "number:" + Convert.ToDecimal(value, CultureInfo.InvariantCulture)
+                    .ToString("G29", CultureInfo.InvariantCulture);
+            }
+            catch (OverflowException)
+            {
+                return "number:" + Convert.ToDouble(value, CultureInfo.InvariantCulture)
+                    .ToString("R", CultureInfo.InvariantCulture);
+            }
+        }
+
+        return value switch
+        {
+            bool boolean => boolean ? "boolean:true" : "boolean:false",
+            string text => "string:" + text,
+            StructuredJsonValue structured => $"{structured.Kind.ToString().ToLowerInvariant()}:" + structured.Json,
+            _ => value.GetType().FullName + ":" + Convert.ToString(value, CultureInfo.InvariantCulture),
+        };
     }
 
     private static object? NormalizeValue(object? value)
-        => value is JsonElement element ? JsonPathEvaluator.ConvertElement(element) : value;
+        => value is JsonElement element ? ConvertAggregationElement(element) : value;
+
+    private static object? ConvertAggregationElement(JsonElement element)
+        => element.ValueKind is JsonValueKind.Object or JsonValueKind.Array
+            ? new StructuredJsonValue(element.ValueKind, element.GetRawText())
+            : JsonPathEvaluator.ConvertElement(element);
 
     private static int CompareValues(object? left, object? right)
     {
@@ -547,10 +771,19 @@ internal static class DocumentAggregationExecutor
     private static bool IsNumeric(object value)
         => value is byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal;
 
+    private static object NormalizeNumber(decimal value)
+        => decimal.Truncate(value) == value
+            && value <= long.MaxValue
+            && value >= long.MinValue
+                ? decimal.ToInt64(value)
+                : value;
+
     private sealed record AggregateRow(string? Id, string Json, long Version)
     {
         public DocumentRow ToDocumentRow() => new(Id ?? string.Empty, Json, Version);
     }
+
+    private sealed record StructuredJsonValue(JsonValueKind Kind, string Json);
 
     private sealed record GroupState(object?[] KeyValues, AccumulatorState[] Accumulators);
 
@@ -566,6 +799,7 @@ internal static class DocumentAggregationExecutor
         private bool _hasFirst;
         private readonly List<object?> _distinct = [];
         private readonly HashSet<string> _distinctKeys = new(StringComparer.Ordinal);
+        private readonly List<object?> _pushed = [];
 
         public AccumulatorState(DocumentAggregationAccumulator definition)
         {
@@ -577,7 +811,9 @@ internal static class DocumentAggregationExecutor
         public void Add(AggregateRow row)
         {
             _count++;
-            object? value = Definition.Field is null ? null : ReadValueOrNull(row, Definition.Field);
+            object? value = Definition.Expression is not null
+                ? EvaluateExpression(row, Definition.Expression)
+                : Definition.Field is null ? null : ReadValueOrNull(row, Definition.Field);
             switch (Definition.Operator)
             {
                 case DocumentAggregationAccumulatorOperator.Count:
@@ -615,9 +851,14 @@ internal static class DocumentAggregationExecutor
                     break;
 
                 case DocumentAggregationAccumulatorOperator.Distinct:
+                case DocumentAggregationAccumulatorOperator.AddToSet:
                     string key = BuildValueKey(value);
                     if (_distinctKeys.Add(key))
                         _distinct.Add(value);
+                    break;
+
+                case DocumentAggregationAccumulatorOperator.Push:
+                    _pushed.Add(value);
                     break;
 
                 default:
@@ -636,15 +877,10 @@ internal static class DocumentAggregationExecutor
                 DocumentAggregationAccumulatorOperator.First => _first,
                 DocumentAggregationAccumulatorOperator.Last => _last,
                 DocumentAggregationAccumulatorOperator.Distinct => _distinct,
+                DocumentAggregationAccumulatorOperator.AddToSet => _distinct,
+                DocumentAggregationAccumulatorOperator.Push => _pushed,
                 _ => throw new InvalidOperationException($"不支持的文档聚合函数 '{Definition.Operator}'。"),
             };
-
-        private static object NormalizeNumber(decimal value)
-            => decimal.Truncate(value) == value
-                && value <= long.MaxValue
-                && value >= long.MinValue
-                    ? decimal.ToInt64(value)
-                    : value;
     }
 
     private sealed class AggregateRowComparer : IComparer<AggregateRow>

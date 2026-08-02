@@ -18,7 +18,7 @@ public static class DocumentCollectionSchemaCodec
     private static readonly byte[] _magic = "SDBDOCv1"u8.ToArray();
     private static readonly Encoding _utf8 = Encoding.UTF8;
 
-    private const int FormatVersion = 5;
+    private const int FormatVersion = 6;
     private const int MinFormatVersion = 1;
     private const int HeaderSize = 32;
     private const int FooterSize = 16;
@@ -133,7 +133,7 @@ public static class DocumentCollectionSchemaCodec
         for (int i = 0; i < indexCount; i++)
         {
             indexes.Add(version >= 3
-                ? ReadDocumentIndex(source, crc, collectionIndex, i)
+                ? ReadDocumentIndex(source, crc, collectionIndex, i, version)
                 : ReadLegacyDocumentIndex(source, crc, collectionIndex, i));
         }
 
@@ -198,7 +198,12 @@ public static class DocumentCollectionSchemaCodec
         return new DocumentPathIndexDefinition(indexName, path, indexCreatedAt);
     }
 
-    private static DocumentPathIndexDefinition ReadDocumentIndex(Stream source, Crc32 crc, int collectionIndex, int index)
+    private static DocumentPathIndexDefinition ReadDocumentIndex(
+        Stream source,
+        Crc32 crc,
+        int collectionIndex,
+        int index,
+        int version)
     {
         string indexName = ReadString(source, crc, $"collection {collectionIndex} index {index} name");
         int pathCount = ReadUInt16(source, crc, $"collection {collectionIndex} index {index} pathCount");
@@ -207,6 +212,14 @@ public static class DocumentCollectionSchemaCodec
             paths[pathIndex] = ReadString(source, crc, $"collection {collectionIndex} index {index} path {pathIndex}");
 
         byte flags = ReadByte(source, crc, $"collection {collectionIndex} index {index} flags");
+        DocumentIndexKind kind = DocumentIndexKind.Path;
+        if (version >= 6)
+        {
+            byte kindByte = ReadByte(source, crc, $"collection {collectionIndex} index {index} kind");
+            if (!Enum.IsDefined(typeof(DocumentIndexKind), (int)kindByte))
+                throw new InvalidDataException("DocumentCollectionSchema: invalid document index kind.");
+            kind = (DocumentIndexKind)kindByte;
+        }
         var partialFilter = ReadPartialFilter(source, crc, collectionIndex, index);
         string? ttlPath = ReadNullableString(source, crc, $"collection {collectionIndex} index {index} ttlPath");
         long? ttlSeconds = ReadNullableInt64(source, crc, $"collection {collectionIndex} index {index} ttlSeconds");
@@ -220,7 +233,8 @@ public static class DocumentCollectionSchemaCodec
             IsSparse: (flags & 0b0000_0010) != 0,
             partialFilter,
             ttlPath,
-            ttlSeconds);
+            ttlSeconds,
+            kind);
     }
 
     private static DocumentIndexPartialFilter? ReadPartialFilter(Stream source, Crc32 crc, int collectionIndex, int index)
@@ -287,6 +301,7 @@ public static class DocumentCollectionSchemaCodec
             if (index.IsSparse)
                 flags |= 0b0000_0010;
             body.WriteByte(flags);
+            body.WriteByte((byte)index.Kind);
             WritePartialFilter(body, index.PartialFilter);
             WriteNullableString(body, index.TtlPath);
             WriteNullableInt64(body, index.TtlSeconds);

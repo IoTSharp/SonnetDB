@@ -7,6 +7,8 @@ export interface DocumentFilter {
   and?: DocumentFilter[];
   or?: DocumentFilter[];
   not?: DocumentFilter;
+  elemMatch?: DocumentFilter;
+  regexOptions?: string;
 }
 
 export interface DocumentProjection {
@@ -28,6 +30,7 @@ export interface DocumentFindRequest {
   limit?: number;
   skip?: number;
   continuationToken?: string;
+  collation?: 'ordinal' | 'ordinalIgnoreCase';
 }
 
 export interface DocumentItemResponse {
@@ -96,6 +99,33 @@ export interface DocumentUpdateContract {
   pull?: Record<string, unknown> | null;
   addToSet?: Record<string, unknown> | null;
   currentDate?: Record<string, unknown> | null;
+  mul?: Record<string, unknown> | null;
+  pop?: Record<string, unknown> | null;
+}
+
+export type DocumentBulkWriteOperationType =
+  | 'insertOne'
+  | 'replaceOne'
+  | 'updateOne'
+  | 'updateMany'
+  | 'deleteOne'
+  | 'deleteMany';
+
+export interface DocumentBulkWriteOperation {
+  type: DocumentBulkWriteOperationType;
+  id?: string | null;
+  document?: unknown;
+  filter?: DocumentFilter | null;
+  update?: DocumentUpdateContract | null;
+  upsert?: boolean;
+  upsertId?: string | null;
+  expectedVersion?: number | null;
+}
+
+export interface DocumentBulkWriteRequest {
+  operations: DocumentBulkWriteOperation[];
+  ordered?: boolean;
+  requestId?: string | null;
 }
 
 export interface DocumentUpdatePreviewRequest {
@@ -226,6 +256,26 @@ export interface DocumentWriteResponse {
   errors?: DocumentWriteErrorResponse[] | null;
 }
 
+export interface DocumentBulkWriteItemResponse {
+  index: number;
+  operation: string;
+  id?: string | null;
+  status: 'succeeded' | 'no_op' | 'failed' | 'not_attempted' | string;
+  inserted: number;
+  matched: number;
+  modified: number;
+  deleted: number;
+  upsertedId?: string | null;
+  error?: DocumentWriteErrorResponse | null;
+}
+
+export interface DocumentBulkWriteResponse extends DocumentWriteResponse {
+  items: DocumentBulkWriteItemResponse[];
+  requestId?: string | null;
+  replayed: boolean;
+  committed: boolean;
+}
+
 export interface DocumentValidatorResponse {
   collection: string;
   status: string;
@@ -330,6 +380,33 @@ export async function insertManyDocuments(
     request,
   );
   return resp.data;
+}
+
+export async function bulkWriteDocuments(
+  api: AxiosInstance,
+  db: string,
+  collection: string,
+  request: DocumentBulkWriteRequest,
+): Promise<DocumentBulkWriteResponse> {
+  try {
+    const resp = await api.post<DocumentBulkWriteResponse>(
+      `/v1/db/${encodeURIComponent(db)}/documents/${encodeURIComponent(collection)}/bulk-write`,
+      request,
+    );
+    return resp.data;
+  } catch (error) {
+    const data = (error as { response?: { data?: unknown } }).response?.data;
+    if (isDocumentBulkWriteResponse(data)) return data;
+    throw error;
+  }
+}
+
+function isDocumentBulkWriteResponse(value: unknown): value is DocumentBulkWriteResponse {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<DocumentBulkWriteResponse>;
+  return typeof candidate.collection === 'string'
+    && Array.isArray(candidate.items)
+    && typeof candidate.committed === 'boolean';
 }
 
 export async function findDocuments(

@@ -19,6 +19,12 @@ namespace SonnetDB.Cli;
 [JsonSerializable(typeof(CliCopilotSkillsHit))]
 [JsonSerializable(typeof(CliCopilotSkillLoadResponse))]
 [JsonSerializable(typeof(List<CliCopilotSkillsHit>))]
+[JsonSerializable(typeof(DocumentImportReport))]
+[JsonSerializable(typeof(DocumentImportCheckpoint))]
+[JsonSerializable(typeof(List<DocumentImportItemError>))]
+[JsonSerializable(typeof(List<DocumentImportGap>))]
+[JsonSerializable(typeof(List<DocumentImportIndexSuggestion>))]
+[JsonSerializable(typeof(System.Text.Json.JsonElement))]
 internal sealed partial class CliJsonContext : JsonSerializerContext;
 
 /// <summary>

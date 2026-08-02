@@ -121,6 +121,10 @@ public static class JsonPathEvaluator
     /// <param name="path">已解析 JSON path。</param>
     /// <param name="value">解析成功时的元素。</param>
     /// <returns>解析成功返回 true，否则返回 false。</returns>
+    /// <remarks>
+    /// 本方法不会隐式遍历数组，数组访问必须由 path 中的显式非负下标表达。
+    /// 文档查询规划器在 dotted path 上提供的数组 fan-out 不属于本方法的解析语义。
+    /// </remarks>
     public static bool TryResolve(JsonElement root, JsonPath path, out JsonElement value)
     {
         ArgumentNullException.ThrowIfNull(path);

@@ -149,6 +149,53 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DocumentWriteResponse'
+  /v1/db/{db}/documents/{collection}/bulk-write:
+    post:
+      summary: Execute a mixed insert, replace, update, delete, and upsert batch.
+      description: >
+        Successful operations commit as one collection-local atomic KV batch.
+        Ordered failures commit no document changes; unordered failures commit
+        the valid subset atomically. requestId results are retained for 24 hours.
+      parameters:
+        - $ref: '#/components/parameters/db'
+        - $ref: '#/components/parameters/collection'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentBulkWriteRequest'
+      responses:
+        '200':
+          description: Batch committed or a prior idempotent result was replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentBulkWriteResponse'
+        '207':
+          description: Unordered batch committed its valid subset and returned item errors.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentBulkWriteResponse'
+        '400':
+          description: Empty request or ordered validation failure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentBulkWriteResponse'
+        '409':
+          description: Duplicate key, write conflict, or idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentBulkWriteResponse'
+        '413':
+          description: Operation count, canonical payload, or atomic storage batch exceeds its budget; no document mutations are committed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentBulkWriteResponse'
   /v1/db/{db}/documents/{collection}/find:
     post:
       summary: Find documents with filter, projection, sort, limit, skip, and cursor pagination.
@@ -207,6 +254,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DocumentWriteResponse'
+  /v1/db/{db}/documents/{collection}/find-one-and-update:
+    post:
+      summary: Atomically find and update one document.
+      description: Returns the before or after image from the same single-document mutation.
+      parameters:
+        - $ref: '#/components/parameters/db'
+        - $ref: '#/components/parameters/collection'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentFindOneAndUpdateRequest'
+      responses:
+        '200':
+          description: Match, upsert, and selected before/after image.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentFindOneAndUpdateResponse'
+        '400':
+          description: Invalid filter, update, upsert, or returnDocument value.
   /v1/db/{db}/documents/{collection}/update-many:
     post:
       summary: Replace many existing documents.
@@ -376,7 +445,7 @@ paths:
                 $ref: '#/components/schemas/DocumentUpdatePreviewResponse'
   /v1/db/{db}/documents/{collection}/indexes:
     post:
-      summary: Create a compound, unique, sparse, partial, or TTL document index.
+      summary: Create a path, multikey, wildcard, unique, sparse, partial, or TTL document index.
       parameters:
         - $ref: '#/components/parameters/db'
         - $ref: '#/components/parameters/collection'
@@ -525,6 +594,11 @@ components:
           type: string
           nullable: true
           description: Token returned by a previous find response. Cannot be combined with skip.
+        collation:
+          type: string
+          enum: [ordinal, ordinal_ignore_case]
+          default: ordinal
+          description: Basic string comparison mode for filters and sorting.
     DocumentFilter:
       type: object
       description: Recursive filter AST. Leaf paths accept _id/id, document/json, or JSON path such as $.metrics.temp.
@@ -534,7 +608,7 @@ components:
           example: $.site
         op:
           type: string
-          enum: [eq, ne, gt, gte, lt, lte, in, nin, exists, contains]
+          enum: [eq, ne, gt, gte, lt, lte, in, nin, exists, contains, elemMatch, regex, type, size, all]
           default: eq
         value:
           nullable: true
@@ -549,6 +623,13 @@ components:
             $ref: '#/components/schemas/DocumentFilter'
         not:
           $ref: '#/components/schemas/DocumentFilter'
+        elemMatch:
+          $ref: '#/components/schemas/DocumentFilter'
+          description: Element-level filter used only when op is elemMatch.
+        regexOptions:
+          type: string
+          pattern: '^[icmsx]*$'
+          description: Bounded regular-expression options. Regex case handling is independent of collation.
     DocumentProjection:
       type: object
       properties:
@@ -640,6 +721,13 @@ components:
         pull: { type: object, additionalProperties: true }
         addToSet: { type: object, additionalProperties: true }
         currentDate: { type: object, additionalProperties: true }
+        mul: { type: object, additionalProperties: true }
+        pop:
+          type: object
+          description: JSON path values must be -1 (first element) or 1 (last element).
+          additionalProperties:
+            type: integer
+            enum: [-1, 1]
     DocumentUpdateOneRequest:
       type: object
       properties:
@@ -665,6 +753,38 @@ components:
         upsert: { type: boolean, default: false }
         upsertId: { type: string, nullable: true }
         ordered: { type: boolean, default: true }
+    DocumentFindOneAndUpdateRequest:
+      type: object
+      required: [update]
+      properties:
+        id: { type: string, nullable: true }
+        filter:
+          $ref: '#/components/schemas/DocumentFilter'
+        update:
+          $ref: '#/components/schemas/DocumentUpdate'
+        upsert: { type: boolean, default: false }
+        upsertId: { type: string, nullable: true }
+        returnDocument:
+          type: string
+          enum: [before, after]
+          default: before
+    DocumentFindOneAndUpdateResponse:
+      type: object
+      properties:
+        collection: { type: string }
+        found: { type: boolean }
+        document:
+          allOf:
+            - $ref: '#/components/schemas/DocumentItemResponse'
+          nullable: true
+        inserted: { type: integer }
+        matched: { type: integer }
+        modified: { type: integer }
+        errors:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/DocumentWriteError'
     DocumentDeleteOneRequest:
       type: object
       required: [id]
@@ -694,7 +814,7 @@ components:
           nullable: true
         code:
           type: string
-          enum: [duplicate_key, validation_failed, write_conflict, document_too_large]
+          enum: [duplicate_key, validation_failed, write_conflict, document_too_large, batch_too_large, idempotency_conflict, not_attempted]
         message:
           type: string
         severity:
@@ -719,6 +839,75 @@ components:
           nullable: true
           items:
             $ref: '#/components/schemas/DocumentWriteError'
+    DocumentBulkWriteOperation:
+      type: object
+      description: Fields that are not meaningful for the selected operation type are rejected with validation_failed.
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [insertOne, replaceOne, updateOne, updateMany, deleteOne, deleteMany]
+        id: { type: string, nullable: true }
+        document: { nullable: true }
+        filter:
+          $ref: '#/components/schemas/DocumentFilter'
+        update:
+          $ref: '#/components/schemas/DocumentUpdate'
+        upsert: { type: boolean, default: false }
+        upsertId: { type: string, nullable: true }
+        expectedVersion: { type: integer, format: int64, minimum: 0, nullable: true }
+    DocumentBulkWriteRequest:
+      type: object
+      required: [operations]
+      properties:
+        operations:
+          type: array
+          minItems: 1
+          maxItems: 1000
+          items:
+            $ref: '#/components/schemas/DocumentBulkWriteOperation'
+        ordered: { type: boolean, default: true }
+        requestId:
+          type: string
+          maxLength: 256
+          nullable: true
+          description: Collection-local idempotency key retained for 24 hours.
+    DocumentBulkWriteItemResponse:
+      type: object
+      properties:
+        index: { type: integer, minimum: 0 }
+        operation: { type: string }
+        id: { type: string, nullable: true }
+        status: { type: string, enum: [succeeded, no_op, failed, not_attempted] }
+        inserted: { type: integer }
+        matched: { type: integer }
+        modified: { type: integer }
+        deleted: { type: integer }
+        upsertedId: { type: string, nullable: true }
+        error:
+          allOf:
+            - $ref: '#/components/schemas/DocumentWriteError'
+          nullable: true
+    DocumentBulkWriteResponse:
+      type: object
+      properties:
+        collection: { type: string }
+        inserted: { type: integer }
+        matched: { type: integer }
+        modified: { type: integer }
+        deleted: { type: integer }
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentBulkWriteItemResponse'
+        errors:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/DocumentWriteError'
+        requestId: { type: string, nullable: true }
+        replayed: { type: boolean }
+        committed: { type: boolean }
     DocumentValidator:
       type: object
       required: [rules]
@@ -845,7 +1034,7 @@ components:
             $ref: '#/components/schemas/DocumentAggregateStage'
     DocumentAggregateStage:
       type: object
-      description: Exactly one $xxx property must be present.
+      description: Exactly one stage discriminator must be present. computedFields may accompany $project.
       properties:
         $match:
           $ref: '#/components/schemas/DocumentFilter'
@@ -872,6 +1061,40 @@ components:
           default: count
         $distinct:
           $ref: '#/components/schemas/DocumentAggregateDistinct'
+        computedFields:
+          type: array
+          description: Computed fields evaluated by the same $project stage.
+          items:
+            $ref: '#/components/schemas/DocumentAggregateComputedField'
+    DocumentAggregateComputedField:
+      type: object
+      required: [name, expression]
+      properties:
+        name:
+          type: string
+        expression:
+          $ref: '#/components/schemas/DocumentAggregateExpression'
+    DocumentAggregateExpression:
+      type: object
+      required: [op]
+      description: >
+        SonnetDB-native expression AST. field requires path; literal uses value;
+        arithmetic and if_null require two arguments; cond requires three;
+        concat accepts one or more arguments.
+      properties:
+        op:
+          type: string
+          enum: [field, literal, add, subtract, multiply, divide, concat, if_null, cond]
+        path:
+          type: string
+          nullable: true
+        value:
+          nullable: true
+        arguments:
+          type: array
+          maxItems: 64
+          items:
+            $ref: '#/components/schemas/DocumentAggregateExpression'
     DocumentAggregateGroup:
       type: object
       properties:
@@ -885,13 +1108,16 @@ components:
             $ref: '#/components/schemas/DocumentAggregateAccumulator'
     DocumentAggregateGroupKey:
       type: object
-      required: [name, path]
+      required: [name]
       properties:
         name:
           type: string
         path:
           type: string
+          nullable: true
           example: $.site
+        expression:
+          $ref: '#/components/schemas/DocumentAggregateExpression'
     DocumentAggregateAccumulator:
       type: object
       required: [name, op]
@@ -900,11 +1126,13 @@ components:
           type: string
         op:
           type: string
-          enum: [count, sum, avg, average, min, max, first, last, distinct]
+          enum: [count, sum, avg, average, min, max, first, last, distinct, push, addToSet]
         path:
           type: string
           nullable: true
           example: $.score
+        expression:
+          $ref: '#/components/schemas/DocumentAggregateExpression'
     DocumentAggregateUnwind:
       type: object
       required: [path]
@@ -918,6 +1146,9 @@ components:
         preserveNullAndEmptyArrays:
           type: boolean
           default: false
+        includeArrayIndex:
+          type: string
+          nullable: true
     DocumentAggregateDistinct:
       type: object
       required: [path]
@@ -1005,6 +1236,11 @@ components:
             valueScalar: { type: string, nullable: true }
         ttlPath: { type: string, nullable: true }
         ttlSeconds: { type: integer, format: int64, minimum: 1, nullable: true }
+        kind:
+          type: string
+          enum: [path, wildcard]
+          default: path
+          description: wildcard requires exactly one subtree root path and cannot be unique or TTL.
     DocumentIndexConsistencyResponse:
       type: object
       properties:

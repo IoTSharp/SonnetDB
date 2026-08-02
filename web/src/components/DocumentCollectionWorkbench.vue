@@ -194,8 +194,9 @@
                 placeholder="Sort JSON array or lines: $.score desc"
               />
             </div>
-            <div class="document-query-row">
+            <div class="document-query-row document-query-row--pagination">
               <n-input-number v-model:value="skip" size="small" :min="0" :show-button="false" placeholder="Skip" />
+              <n-select v-model:value="queryCollation" size="small" :options="queryCollationOptions" />
               <n-input v-model:value="continuationToken" size="small" clearable placeholder="Continuation token" />
               <n-button size="small" secondary :loading="countBusy" :disabled="!activeCollectionName" @click="runCount">
                 Count
@@ -345,6 +346,13 @@
         </section>
 
         <section v-else-if="inspectorTab === 'import'" class="document-inspector-section">
+          <input
+            ref="importFileInput"
+            class="document-file-input"
+            type="file"
+            accept=".json,.jsonl,.ndjson,application/json,application/x-ndjson"
+            @change="onImportFileSelected"
+          />
           <div class="document-query-row">
             <n-input v-model:value="importIdPath" size="small" placeholder="_id or $.id" />
             <n-select v-model:value="importMode" size="small" :options="importModeOptions" />
@@ -356,6 +364,10 @@
             placeholder="JSON array, JSONL, or { id, document } items"
           />
           <n-space size="small" align="center" :wrap="true">
+            <n-button size="small" secondary :disabled="importProgress.running" @click="pickImportFile">
+              <template #icon><FolderOpen :size="15" /></template>
+              Open file
+            </n-button>
             <n-button size="small" type="primary" :disabled="!activeCollectionName || !importText.trim()" @click="stageImportDocuments">
               Stage import
             </n-button>
@@ -379,6 +391,16 @@
               <template v-if="importProgress.cancelled"> · 已停止</template>
             </n-text>
           </div>
+          <n-data-table
+            v-if="importErrors.length > 0"
+            :columns="importErrorColumns"
+            :data="importErrors"
+            :bordered="false"
+            :single-line="false"
+            :pagination="false"
+            size="small"
+            class="document-import-errors"
+          />
         </section>
 
         <section v-else class="document-inspector-section">
@@ -450,9 +472,10 @@ import {
   type DataTableRowKey,
   type SelectOption,
 } from 'naive-ui';
-import { Activity, ListFilter, PencilLine, Plus, X } from 'lucide-vue-next';
+import { Activity, FolderOpen, ListFilter, PencilLine, Plus, X } from 'lucide-vue-next';
 import {
   aggregateDocuments,
+  bulkWriteDocuments,
   countDocuments,
   createDocumentCollection,
   deleteManyDocuments,
@@ -461,11 +484,11 @@ import {
   dropDocumentCollection,
   dropDocumentValidator,
   findDocuments,
-  insertManyDocuments,
   insertOneDocument,
   setDocumentValidator,
   updateOneDocument,
   type DocumentAggregateStage,
+  type DocumentBulkWriteOperation,
   type DocumentDistinctResponse,
   type DocumentFilter,
   type DocumentFindRequest,
@@ -475,7 +498,9 @@ import {
   type DocumentSort,
   type DocumentValidator,
   type DocumentWriteResponse,
+  type DocumentWriteErrorResponse,
 } from '@/api/documents';
+import { getStudioNativeBridge } from '@/api/studioNativeBridge';
 import type { SqlResultSet } from '@/api/sql';
 import {
   runMaintenance,
@@ -609,6 +634,7 @@ const distinctLimit = ref<number | null>(50);
 const limit = ref<number | null>(100);
 const skip = ref<number | null>(0);
 const continuationToken = ref('');
+const queryCollation = ref<'ordinal' | 'ordinalIgnoreCase'>('ordinal');
 const hasMore = ref(false);
 const cursorExpiresAtUtc = ref<string | null>(null);
 const totalCount = ref<number | null>(null);
@@ -621,6 +647,8 @@ const validatorPrecheckResult = ref('');
 const importIdPath = ref('_id');
 const importMode = ref<ImportMode>('insert');
 const importText = ref('');
+const importFileInput = ref<HTMLInputElement | null>(null);
+const importErrors = ref<DocumentWriteErrorResponse[]>([]);
 const importProgress = ref({ done: 0, total: 0, running: false, cancelled: false });
 const importProgressPercent = computed(() => importProgress.value.total > 0
   ? Math.round(importProgress.value.done / importProgress.value.total * 100)
@@ -730,6 +758,10 @@ const importModeOptions: SelectOption[] = [
   { label: 'Insert only', value: 'insert' },
   { label: 'Replace existing', value: 'replace' },
 ];
+const queryCollationOptions: SelectOption[] = [
+  { label: 'Ordinal', value: 'ordinal' },
+  { label: 'Ordinal ignore case', value: 'ordinalIgnoreCase' },
+];
 
 const queryInputModeOptions: SelectOption[] = [
   { label: '可视化构建器', value: 'builder' },
@@ -744,6 +776,8 @@ const queryOperatorOptions: SelectOption[] = [
   { label: 'Greater than', value: 'gt' }, { label: 'Greater or equal', value: 'gte' },
   { label: 'Less than', value: 'lt' }, { label: 'Less or equal', value: 'lte' },
   { label: 'In', value: 'in' }, { label: 'Not in', value: 'nin' },
+  { label: 'Regex', value: 'regex' }, { label: 'Type', value: 'type' },
+  { label: 'Array size', value: 'size' }, { label: 'Array contains all', value: 'all' },
   { label: 'Exists', value: 'exists' }, { label: 'Contains', value: 'contains' },
 ];
 
@@ -801,6 +835,13 @@ const jsonIndexColumns = computed<DataTableColumns<DocumentJsonIndexInfo>>(() =>
     }, { default: () => 'Rebuild' }),
   },
 ]);
+
+const importErrorColumns: DataTableColumns<DocumentWriteErrorResponse> = [
+  { title: 'Row', key: 'index', width: 72, render: (row) => row.index >= 0 ? (row.index + 1).toString() : '-' },
+  { title: 'ID', key: 'id', width: 160, ellipsis: { tooltip: true }, render: (row) => row.id ?? '-' },
+  { title: 'Code', key: 'code', width: 150, ellipsis: { tooltip: true } },
+  { title: 'Message', key: 'message', minWidth: 260, ellipsis: { tooltip: true } },
+];
 
 const fullTextIndexColumns = computed<DataTableColumns<DocumentFullTextIndexInfo>>(() => [
   {
@@ -996,6 +1037,7 @@ function buildFindRequest(append: boolean): { ok: true; request: DocumentFindReq
       limit: limit.value ?? 100,
       skip: append ? 0 : skip.value ?? 0,
       continuationToken: append ? continuationToken.value || undefined : undefined,
+      collation: queryCollation.value,
     },
   };
 }
@@ -1174,14 +1216,59 @@ function stageImportDocuments(): void {
     return;
   }
   const items = parsed.items;
+  const requestId = makeOperationId('document_import');
+  importErrors.value = [];
   setPendingOperations([{
     id: makeOperationId('import_docs'),
     label: importMode.value === 'replace' ? 'Replace import' : 'Insert import',
-    detail: `${items.length} documents parsed from JSONL / JSON input.`,
+    detail: `${items.length} documents passed local parsing; commit uses unordered mixed Bulk batches.`,
     severity: 'write',
     command: `documents.${importMode.value === 'replace' ? 'replaceMany' : 'insertMany'} ${activeCollectionName.value}\n${items.length} documents`,
-    run: () => runDocumentImport(items, importMode.value),
+    run: () => runDocumentImport(items, importMode.value, requestId),
   }]);
+}
+
+async function pickImportFile(): Promise<void> {
+  errorMsg.value = '';
+  try {
+    const bridge = await getStudioNativeBridge();
+    if (bridge?.manifest.capabilities.includes('dialogs.openFile')) {
+      const result = await bridge.openTextFile({
+        title: 'Open Document import',
+        filters: [
+          { name: 'Document import', extensions: ['json', 'jsonl', 'ndjson'] },
+          { name: 'JSON', extensions: ['json'] },
+          { name: 'NDJSON', extensions: ['jsonl', 'ndjson'] },
+        ],
+        maxBytes: 64 * 1024 * 1024,
+      });
+      if (result.error) throw new Error(result.error);
+      if (result.canceled || result.content === null) return;
+      importText.value = result.content;
+      message.success(`Loaded ${result.fileName ?? 'Document import file'}.`);
+      return;
+    }
+  } catch (error) {
+    message.warning(errorToMessage(error, 'Studio file picker is unavailable.'));
+  }
+
+  importFileInput.value?.click();
+}
+
+async function onImportFileSelected(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  try {
+    if (file.size > 64 * 1024 * 1024)
+      throw new Error('Workbench import files are limited to 64 MiB; use sndb document import for larger migrations.');
+    importText.value = await file.text();
+    message.success(`Loaded ${file.name}.`);
+  } catch (error) {
+    errorMsg.value = errorToMessage(error, 'Unable to read the import file.');
+  } finally {
+    input.value = '';
+  }
 }
 
 function cancelDocumentImport(): void {
@@ -1262,6 +1349,7 @@ async function refreshAfterWrite(): Promise<void> {
 async function runDocumentImport(
   items: Array<{ id: string; document: unknown }>,
   mode: ImportMode,
+  requestId: string,
 ): Promise<OperationOutcome> {
   const collection = activeCollectionName.value;
   const totals: DocumentWriteResponse = {
@@ -1275,15 +1363,21 @@ async function runDocumentImport(
   const errors: NonNullable<DocumentWriteResponse['errors']> = [];
   const batchSize = 100;
   importCancelRequested = false;
+  importErrors.value = [];
   importProgress.value = { done: 0, total: items.length, running: true, cancelled: false };
 
   try {
     for (let offset = 0; offset < items.length; offset += batchSize) {
       if (importCancelRequested) break;
       const batch = items.slice(offset, offset + batchSize);
-      const response = mode === 'replace'
-        ? await updateOneByOne(batch, offset)
-        : await insertManyDocuments(auth.api, props.targetDb, collection, { documents: batch, ordered: false });
+      const operations: DocumentBulkWriteOperation[] = batch.map((item) => mode === 'replace'
+        ? { type: 'replaceOne', id: item.id, document: item.document }
+        : { type: 'insertOne', id: item.id, document: item.document });
+      const response = await bulkWriteDocuments(auth.api, props.targetDb, collection, {
+        operations,
+        ordered: false,
+        requestId: `${requestId}-${offset / batchSize}`,
+      });
       totals.inserted += response.inserted ?? 0;
       totals.matched += response.matched ?? 0;
       totals.modified += response.modified ?? 0;
@@ -1291,7 +1385,7 @@ async function runDocumentImport(
       if (response.errors) {
         errors.push(...response.errors.map((error) => ({
           ...error,
-          index: mode === 'replace' ? error.index : offset + error.index,
+          index: error.index >= 0 ? offset + error.index : -1,
         })));
       }
       importProgress.value = {
@@ -1305,55 +1399,12 @@ async function runDocumentImport(
   }
 
   totals.errors = errors.length > 0 ? errors : null;
+  importErrors.value = errors;
   const outcome = outcomeFromWrite(mode === 'replace' ? 'replace_import' : 'insert_import', collection, totals);
   if (importProgress.value.cancelled) {
     outcome.detail = `${outcome.detail} · stopped after ${importProgress.value.done}/${items.length}`;
   }
   return outcome;
-}
-
-async function updateOneByOne(
-  items: Array<{ id: string; document: unknown }>,
-  baseIndex = 0,
-): Promise<DocumentWriteResponse> {
-  let inserted = 0;
-  let matched = 0;
-  let modified = 0;
-  const errors: NonNullable<DocumentWriteResponse['errors']> = [];
-  for (let index = 0; index < items.length; index += 1) {
-    const item = items[index];
-    try {
-      const response = await updateOneDocument(auth.api, props.targetDb, activeCollectionName.value, {
-        id: item.id,
-        document: item.document,
-      });
-      inserted += response.inserted ?? 0;
-      matched += response.matched ?? 0;
-      modified += response.modified ?? 0;
-      if (response.errors) {
-        errors.push(...response.errors.map((error) => ({
-          ...error,
-          index: baseIndex + index + error.index,
-        })));
-      }
-    } catch (error) {
-      errors.push({
-        index: baseIndex + index,
-        id: item.id,
-        code: 'replace_failed',
-        message: errorToMessage(error, 'replace failed'),
-        severity: 'error',
-      });
-    }
-  }
-  return {
-    collection: activeCollectionName.value,
-    inserted,
-    matched,
-    modified,
-    deleted: 0,
-    errors: errors.length > 0 ? errors : null,
-  };
 }
 
 function precheckValidatorSample(): void {
@@ -1484,21 +1535,64 @@ function parseImportDocuments(text: string, idPath: string):
     }
   }
 
-  const items = values.map((value, index) => {
+  const items: Array<{ id: string; document: unknown }> = [];
+  for (let index = 0; index < values.length; index += 1) {
+    const value = values[index];
     const maybePair = value && typeof value === 'object' ? value as Record<string, unknown> : null;
     if (maybePair && typeof maybePair.id === 'string' && 'document' in maybePair) {
-      return { id: maybePair.id, document: maybePair.document };
+      items.push({ id: maybePair.id, document: maybePair.document });
+      continue;
     }
     const idValue = readPath(value, idPath);
-    const id = idValue == null || idValue === ''
-      ? `doc-${Date.now().toString(36)}-${index + 1}`
-      : String(idValue);
-    return { id, document: value };
-  });
+    const id = normalizeImportId(idValue, index);
+    if (!id.ok) return id;
+    items.push({ id: id.value, document: value });
+  }
 
   return items.length === 0
     ? { ok: false, message: 'No documents parsed from import input.' }
     : { ok: true, items };
+}
+
+function normalizeImportId(
+  value: unknown,
+  index: number,
+): { ok: true; value: string } | { ok: false; message: string } {
+  if (value == null || value === '') {
+    const generated = typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${index + 1}`;
+    return { ok: true, value: `doc-${generated}` };
+  }
+  if (typeof value === 'string') return { ok: true, value };
+  if (typeof value === 'number' && Number.isFinite(value)) return { ok: true, value: value.toString() };
+  if (typeof value === 'boolean') return { ok: true, value: value ? 'true' : 'false' };
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return { ok: false, message: `Document ${index + 1} has an unsupported _id value.` };
+  }
+
+  const extended = value as Record<string, unknown>;
+  const keys = Object.keys(extended);
+  if (keys.length === 1 && typeof extended.$oid === 'string' && /^[0-9a-fA-F]{24}$/.test(extended.$oid))
+    return { ok: true, value: extended.$oid.toLowerCase() };
+  if (keys.length === 1
+    && typeof extended.$uuid === 'string'
+    && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(extended.$uuid))
+    return { ok: true, value: extended.$uuid.toLowerCase() };
+
+  const numericKinds = ['$numberInt', '$numberLong', '$numberDouble', '$numberDecimal'] as const;
+  for (const kind of numericKinds) {
+    const scalar = extended[kind];
+    const integerIsValid = kind !== '$numberInt' && kind !== '$numberLong'
+      || typeof scalar === 'string' && /^-?(0|[1-9][0-9]*)$/.test(scalar);
+    if (keys.length === 1 && typeof scalar === 'string' && scalar.length > 0 && integerIsValid)
+      return { ok: true, value: `${kind.slice(1)}:${scalar}` };
+  }
+
+  return {
+    ok: false,
+    message: `Document ${index + 1} has a complex _id. Use a string, number, $oid, $uuid, or Extended JSON numeric wrapper.`,
+  };
 }
 
 function parseJson<T>(text: string, messageText: string): { ok: true; value: T } | { ok: false; message: string } {
@@ -2069,6 +2163,10 @@ watch(validatorAction, (action) => {
   grid-template-columns: minmax(0, 110px) minmax(0, 1fr) auto;
 }
 
+.document-query-row--pagination {
+  grid-template-columns: minmax(0, 110px) minmax(150px, 180px) minmax(180px, 1fr) auto;
+}
+
 .document-query-row--distinct {
   grid-template-columns: minmax(0, 1fr) 110px auto;
 }
@@ -2192,6 +2290,15 @@ watch(validatorAction, (action) => {
   padding-top: 2px;
 }
 
+.document-file-input {
+  display: none;
+}
+
+.document-import-errors {
+  min-height: 120px;
+  max-height: 260px;
+}
+
 .document-result {
   flex: 0 0 240px;
   min-height: 220px;
@@ -2233,6 +2340,7 @@ watch(validatorAction, (action) => {
   .document-editor-grid,
   .document-filter-condition,
   .document-query-row,
+  .document-query-row--pagination,
   .document-query-row--distinct {
     grid-template-columns: 1fr;
   }

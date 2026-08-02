@@ -9,9 +9,12 @@ namespace SonnetDB.Documents;
 /// <summary>
 /// 单个 JSON 文档集合的 KV-backed 主数据与 path 索引存储。
 /// </summary>
-public sealed class DocumentCollectionStore : IDisposable
+public sealed partial class DocumentCollectionStore : IDisposable
 {
     private static readonly TimeSpan ChangeFeedRetention = TimeSpan.FromDays(7);
+    private static readonly byte[] _derivedIndexRepairKey = [(byte)'m', (byte)'r'];
+    private const int MaxIndexEntriesPerDocument = 4096;
+    private const int MaxIndexTraversalDepth = 64;
     private readonly object _sync = new();
     private readonly KvKeyspace _keyspace;
     private readonly Func<DocumentFullTextIndex, DocumentFullTextIndexStore> _fullTextIndexFactory;
@@ -38,6 +41,7 @@ public sealed class DocumentCollectionStore : IDisposable
         RebuildIndexesLocked();
         ReconcileFullTextStoresLocked(schema, rebuildAll: false);
         ReconcileVectorStoresLocked(schema, rebuildAll: false);
+        RepairDerivedIndexesIfNeededLocked();
         PurgeExpiredDocumentsLocked();
     }
 
@@ -68,6 +72,9 @@ public sealed class DocumentCollectionStore : IDisposable
     internal long FullScanCount => Interlocked.Read(ref _fullScanCount);
 
     private long _fullScanCount;
+
+    /// <summary>主 KV batch 提交后、派生索引更新前的测试注入点。</summary>
+    internal Action? AfterPrimaryBatchCommitTestHook { get; set; }
 
     /// <summary>
     /// 按文档 ID 插入或覆盖 JSON 文档。
@@ -555,9 +562,9 @@ public sealed class DocumentCollectionStore : IDisposable
             PurgeExpiredDocumentsLocked();
             var schema = _schema;
 
-            var expectedByIndex = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+            var expectedByIndex = new Dictionary<string, Dictionary<string, string>>(StringComparer.Ordinal);
             foreach (var index in schema.Indexes)
-                expectedByIndex[index.Name] = new HashSet<string>(StringComparer.Ordinal);
+                expectedByIndex[index.Name] = new Dictionary<string, string>(StringComparer.Ordinal);
 
             var vectorPaths = schema.VectorIndexes
                 .Select(index => (index, path: JsonPath.Parse(index.Path)))
@@ -573,7 +580,10 @@ public sealed class DocumentCollectionStore : IDisposable
                 string id = DocumentIndexCodec.DecodeIdFromDocumentKey(rowEntry.Key);
                 var row = new DocumentRow(id, Encoding.UTF8.GetString(rowEntry.Value.Span), rowEntry.Version);
                 foreach (var indexEntry in BuildIndexEntries(schema, row))
-                    expectedByIndex[indexEntry.Index.Name].Add(Convert.ToBase64String(indexEntry.Key));
+                {
+                    expectedByIndex[indexEntry.Index.Name][Convert.ToBase64String(indexEntry.Key)] =
+                        DocumentIndexCodec.DecodeIndexEntryValue(indexEntry.Value);
+                }
 
                 foreach (var (vectorIndex, path) in vectorPaths)
                 {
@@ -592,7 +602,7 @@ public sealed class DocumentCollectionStore : IDisposable
                 }
             }
 
-            var actualByIndex = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+            var actualByIndex = new Dictionary<string, Dictionary<string, string>>(StringComparer.Ordinal);
             foreach (var entry in _keyspace.ScanPrefix(new byte[] { (byte)'i' }, int.MaxValue))
             {
                 string? indexName = DocumentIndexCodec.TryDecodeIndexNameFromEntryKey(entry.Key.Span);
@@ -600,8 +610,9 @@ public sealed class DocumentCollectionStore : IDisposable
                     continue;
 
                 if (!actualByIndex.TryGetValue(indexName, out var set))
-                    actualByIndex[indexName] = set = new HashSet<string>(StringComparer.Ordinal);
-                set.Add(Convert.ToBase64String(entry.Key.Span));
+                    actualByIndex[indexName] = set = new Dictionary<string, string>(StringComparer.Ordinal);
+                set[Convert.ToBase64String(entry.Key.Span)] =
+                    DocumentIndexCodec.DecodeIndexEntryValue(entry.Value.Span);
             }
 
             var indexEntries = new List<DocumentIndexConsistencyEntry>(schema.Indexes.Count);
@@ -611,11 +622,15 @@ public sealed class DocumentCollectionStore : IDisposable
                 var expected = expectedByIndex[index.Name];
                 var actual = actualByIndex.TryGetValue(index.Name, out var set)
                     ? set
-                    : new HashSet<string>(StringComparer.Ordinal);
+                    : new Dictionary<string, string>(StringComparer.Ordinal);
 
-                int missing = expected.Count(key => !actual.Contains(key));
-                int orphan = actual.Count(key => !expected.Contains(key));
-                if (missing > 0)
+                int missing = expected.Count(pair =>
+                    !actual.TryGetValue(pair.Key, out string? actualId)
+                    || !string.Equals(actualId, pair.Value, StringComparison.Ordinal));
+                int orphan = actual.Count(pair =>
+                    !expected.TryGetValue(pair.Key, out string? expectedId)
+                    || !string.Equals(expectedId, pair.Value, StringComparison.Ordinal));
+                if (missing > 0 || orphan > 0)
                     isConsistent = false;
 
                 indexEntries.Add(new DocumentIndexConsistencyEntry(
@@ -662,6 +677,24 @@ public sealed class DocumentCollectionStore : IDisposable
             foreach (var entry in _keyspace.ScanPrefix(new byte[] { (byte)'i' }, 1))
             {
                 _keyspace.Delete(entry.Key.Span);
+                return true;
+            }
+
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 保留第一条二级索引 key，但把其 owner value 改成指定文档 ID，供一致性校验验证 wrong-owner 场景。
+    /// </summary>
+    internal bool CorruptFirstIndexEntryValueForTest(string documentId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
+        lock (_sync)
+        {
+            foreach (var entry in _keyspace.ScanPrefix(new byte[] { (byte)'i' }, 1))
+            {
+                _keyspace.Put(entry.Key.Span, DocumentIndexCodec.EncodeIndexEntryValue(documentId));
                 return true;
             }
 
@@ -742,6 +775,7 @@ public sealed class DocumentCollectionStore : IDisposable
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(values);
+        EnsurePathIndex(index);
         lock (_sync)
         {
             PurgeExpiredDocumentsLocked();
@@ -788,6 +822,7 @@ public sealed class DocumentCollectionStore : IDisposable
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(values);
+        EnsurePathIndex(index);
         lock (_sync)
         {
             PurgeExpiredDocumentsLocked();
@@ -838,6 +873,7 @@ public sealed class DocumentCollectionStore : IDisposable
         int? limit = null)
     {
         ArgumentNullException.ThrowIfNull(index);
+        EnsurePathIndex(index);
         lock (_sync)
         {
             PurgeExpiredDocumentsLocked();
@@ -888,6 +924,7 @@ public sealed class DocumentCollectionStore : IDisposable
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(values);
+        EnsurePathIndex(index);
         lock (_sync)
         {
             PurgeExpiredDocumentsLocked();
@@ -905,10 +942,67 @@ public sealed class DocumentCollectionStore : IDisposable
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(values);
+        EnsurePathIndex(index);
         lock (_sync)
         {
             PurgeExpiredDocumentsLocked();
             return CountIndexEntriesLocked(index, values, allowPrefix: true);
+        }
+    }
+
+    /// <summary>
+    /// 按 wildcard 索引中的具体 JSON path 与等值读取候选文档；最终谓词仍由 planner 复检。
+    /// </summary>
+    internal IReadOnlyList<DocumentRow> GetByWildcardIndex(
+        DocumentPathIndex index,
+        string path,
+        object? value)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        if (index.Kind != DocumentIndexKind.Wildcard)
+            throw new ArgumentException("指定索引不是 wildcard index。", nameof(index));
+
+        string normalizedPath = JsonPath.Parse(path).Text;
+        IReadOnlyList<DocumentIndexKeyPart> parts =
+        [
+            DocumentIndexKeyPart.FromString(normalizedPath),
+            DocumentIndexKeyPart.FromValue(value),
+        ];
+        lock (_sync)
+        {
+            PurgeExpiredDocumentsLocked();
+            var entries = _keyspace.ScanPrefix(DocumentIndexCodec.EncodeIndexPrefix(index, parts), int.MaxValue);
+            var rows = new List<DocumentRow>(entries.Count);
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var entry in entries)
+            {
+                string id = DocumentIndexCodec.DecodeIndexEntryValue(entry.Value.Span);
+                if (!seen.Add(id))
+                    continue;
+                if (GetLocked(id) is { } row)
+                    rows.Add(row);
+            }
+
+            return rows;
+        }
+    }
+
+    /// <summary>统计 wildcard 索引中具体 path 与等值对应的候选条目。</summary>
+    internal int CountByWildcardIndex(DocumentPathIndex index, string path, object? value)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        if (index.Kind != DocumentIndexKind.Wildcard)
+            throw new ArgumentException("指定索引不是 wildcard index。", nameof(index));
+
+        IReadOnlyList<DocumentIndexKeyPart> parts =
+        [
+            DocumentIndexKeyPart.FromString(JsonPath.Parse(path).Text),
+            DocumentIndexKeyPart.FromValue(value),
+        ];
+        lock (_sync)
+        {
+            PurgeExpiredDocumentsLocked();
+            return _keyspace.CountPrefix(DocumentIndexCodec.EncodeIndexPrefix(index, parts));
         }
     }
 
@@ -1375,12 +1469,8 @@ public sealed class DocumentCollectionStore : IDisposable
             if (!ShouldIndexDocument(index, document.RootElement))
                 continue;
 
-            var values = BuildIndexKeyParts(index, document.RootElement);
-            if (values is null)
-                continue;
-
-            byte[] key = DocumentIndexCodec.EncodeIndexEntryKey(index, values, row.Id);
-            plannedUniqueIdsByKey[Convert.ToBase64String(key)] = row.Id;
+            foreach (var indexEntry in BuildIndexEntries(index, document.RootElement, row.Id))
+                plannedUniqueIdsByKey[Convert.ToBase64String(indexEntry.Key)] = row.Id;
         }
     }
 
@@ -1409,115 +1499,136 @@ public sealed class DocumentCollectionStore : IDisposable
     }
 
     private void ApplyPlannedMutationLocked(DocumentCollectionSchema schema, PendingDocumentMutation mutation)
-    {
-        ApplyPlannedMutationKvLocked(schema, mutation);
-
-        if (mutation.OldRow is not null)
-        {
-            foreach (var index in schema.FullTextIndexes)
-                OpenFullTextStoreLocked(index, rebuildIfMissing: false).Delete(mutation.OldRow.Id);
-            foreach (var index in schema.VectorIndexes)
-                OpenVectorStoreLocked(index, rebuildIfMissing: false)?.Delete(mutation.OldRow.Id);
-        }
-
-        if (mutation.NewRow is not null)
-        {
-            foreach (var index in schema.FullTextIndexes)
-                OpenFullTextStoreLocked(index, rebuildIfMissing: false).Upsert(mutation.NewRow);
-            foreach (var index in schema.VectorIndexes)
-                OpenVectorStoreLocked(index, rebuildIfMissing: false)?.Upsert(mutation.NewRow);
-        }
-    }
+        => ApplyPlannedMutationsLocked(schema, [mutation]);
 
     /// <summary>
-    /// 批量应用变更：KV 逐条应用，全文索引与向量索引整批维护（每索引累积 delete/upsert），
-    /// 避免每文档一个单文档段 + 一次 manifest 全量改写。
+    /// 批量应用变更：主文档、JSON path 索引、change feed 与元数据作为一个 KV batch 原子提交，
+    /// 全文和向量派生索引在提交后整批维护，并由 repair marker 保证异常退出后的重开自愈。
     /// </summary>
-    private void ApplyPlannedMutationsLocked(DocumentCollectionSchema schema, IReadOnlyList<PendingDocumentMutation> operations)
+    private void ApplyPlannedMutationsLocked(
+        DocumentCollectionSchema schema,
+        IReadOnlyList<PendingDocumentMutation> operations,
+        IReadOnlyList<KvBatchMutation>? additionalMutations = null)
     {
-        if (operations.Count == 0)
+        if (operations.Count == 0 && (additionalMutations is null || additionalMutations.Count == 0))
             return;
 
-        if (operations.Count == 1 || (schema.FullTextIndexes.Count == 0 && schema.VectorIndexes.Count == 0))
+        bool hasDerivedIndexes = schema.FullTextIndexes.Count != 0 || schema.VectorIndexes.Count != 0;
+        long initialChangeSequence = _latestChangeSequence;
+        long committedChangeSequence = checked(initialChangeSequence + operations.Count);
+        DateTimeOffset[] occurredAtUtc = operations
+            .Select(static _ => DateTimeOffset.UtcNow)
+            .ToArray();
+
+        _keyspace.ApplyBatch(documentVersion =>
         {
-            foreach (var operation in operations)
-                ApplyPlannedMutationLocked(schema, operation);
-            return;
-        }
+            long changeSequence = initialChangeSequence;
+            var kvMutations = new List<KvBatchMutation>(
+                operations.Count * Math.Max(4, schema.Indexes.Count * 2 + 4)
+                + (additionalMutations?.Count ?? 0));
 
-        List<string>? deletes = null;
-        List<DocumentRow>? upserts = null;
+            for (int operationIndex = 0; operationIndex < operations.Count; operationIndex++)
+            {
+                PendingDocumentMutation operation = operations[operationIndex];
+                if (operation.OldRow is not null)
+                {
+                    foreach (var indexEntry in BuildIndexEntries(schema, operation.OldRow))
+                        kvMutations.Add(KvBatchMutation.Delete(indexEntry.Key));
+                }
+
+                if (operation.NewRow is null)
+                {
+                    kvMutations.Add(KvBatchMutation.Delete(operation.DocumentKey));
+                }
+                else
+                {
+                    kvMutations.Add(KvBatchMutation.Put(
+                        operation.DocumentKey,
+                        Encoding.UTF8.GetBytes(operation.NewRow.Json)));
+                    foreach (var indexEntry in BuildIndexEntries(schema, operation.NewRow))
+                        kvMutations.Add(KvBatchMutation.Put(indexEntry.Key, indexEntry.Value));
+                }
+
+                changeSequence = checked(changeSequence + 1);
+                DateTimeOffset changedAt = occurredAtUtc[operationIndex];
+                string changeOperation = operation.NewRow is null
+                    ? "delete"
+                    : operation.OldRow is null ? "insert" : "update";
+                kvMutations.Add(KvBatchMutation.Put(
+                    DocumentChangeFeedCodec.EncodeKey(changeSequence),
+                    DocumentChangeFeedCodec.Encode(
+                        changeSequence,
+                        changedAt,
+                        changeOperation,
+                        operation.NewRow?.Id ?? operation.OldRow!.Id,
+                        documentVersion,
+                        operation.OldRow?.Json,
+                        operation.NewRow?.Json),
+                    changedAt.Add(ChangeFeedRetention)));
+            }
+
+            if (operations.Count != 0)
+            {
+                kvMutations.Add(KvBatchMutation.Put(
+                    DocumentChangeFeedCodec.SequenceKey.ToArray(),
+                    Encoding.UTF8.GetBytes(committedChangeSequence.ToString(
+                        System.Globalization.CultureInfo.InvariantCulture))));
+                if (hasDerivedIndexes)
+                    kvMutations.Add(KvBatchMutation.Put(_derivedIndexRepairKey, [1]));
+            }
+
+            if (additionalMutations is not null)
+                kvMutations.AddRange(additionalMutations);
+            return kvMutations;
+        });
+        _latestChangeSequence = committedChangeSequence;
+        AfterPrimaryBatchCommitTestHook?.Invoke();
+
+        if (!hasDerivedIndexes || operations.Count == 0)
+            return;
+
+        var finalRowsById = new Dictionary<string, DocumentRow?>(StringComparer.Ordinal);
         foreach (var operation in operations)
+            finalRowsById[operation.NewRow?.Id ?? operation.OldRow!.Id] = operation.NewRow;
+        string[] deletes = finalRowsById
+            .Where(static pair => pair.Value is null)
+            .Select(static pair => pair.Key)
+            .ToArray();
+        DocumentRow[] upserts = finalRowsById
+            .Where(static pair => pair.Value is not null)
+            .Select(static pair => pair.Value!)
+            .ToArray();
+
+        try
         {
-            ApplyPlannedMutationKvLocked(schema, operation);
-            if (operation.OldRow is not null && operation.NewRow is null)
-                (deletes ??= new List<string>()).Add(operation.OldRow.Id);
-            if (operation.NewRow is not null)
-                (upserts ??= new List<DocumentRow>()).Add(operation.NewRow);
-        }
+            foreach (var index in schema.FullTextIndexes)
+            {
+                var store = OpenFullTextStoreLocked(index, rebuildIfMissing: false);
+                if (deletes.Length != 0)
+                    store.DeleteMany(deletes);
+                if (upserts.Length != 0)
+                    store.UpsertMany(upserts);
+            }
 
-        foreach (var index in schema.FullTextIndexes)
+            foreach (var index in schema.VectorIndexes)
+            {
+                var store = OpenVectorStoreLocked(index, rebuildIfMissing: false);
+                if (store is null)
+                    continue;
+                if (deletes.Length != 0)
+                    store.DeleteMany(deletes);
+                if (upserts.Length != 0)
+                    store.UpsertMany(upserts);
+            }
+
+            _keyspace.Delete(_derivedIndexRepairKey);
+        }
+        catch
         {
-            var store = OpenFullTextStoreLocked(index, rebuildIfMissing: false);
-            if (deletes is not null)
-                store.DeleteMany(deletes);
-            if (upserts is not null)
-                store.UpsertMany(upserts);
+            // KV 已提交时不能让调用方因一次派生索引瞬时失败而误重试同一业务写入。
+            // 全量重建成功即完成本次提交；重建仍失败时 marker 保留，供重开集合继续修复。
+            RepairDerivedIndexesIfNeededLocked();
         }
-
-        foreach (var index in schema.VectorIndexes)
-        {
-            var store = OpenVectorStoreLocked(index, rebuildIfMissing: false);
-            if (store is null)
-                continue;
-            if (deletes is not null)
-                store.DeleteMany(deletes);
-            if (upserts is not null)
-                store.UpsertMany(upserts);
-        }
-    }
-
-    private void ApplyPlannedMutationKvLocked(DocumentCollectionSchema schema, PendingDocumentMutation mutation)
-    {
-        foreach (var indexEntry in mutation.OldRow is null ? [] : BuildIndexEntries(schema, mutation.OldRow))
-            _keyspace.Delete(indexEntry.Key);
-
-        if (mutation.NewRow is null)
-        {
-            _keyspace.Delete(mutation.DocumentKey);
-            AppendChangeFeedLocked(mutation, _keyspace.LastSequence);
-            return;
-        }
-
-        long documentVersion = _keyspace.Put(mutation.DocumentKey, Encoding.UTF8.GetBytes(mutation.NewRow.Json));
-        foreach (var indexEntry in BuildIndexEntries(schema, mutation.NewRow))
-            _keyspace.Put(indexEntry.Key, indexEntry.Value);
-        AppendChangeFeedLocked(mutation, documentVersion);
-    }
-
-    private void AppendChangeFeedLocked(PendingDocumentMutation mutation, long documentVersion)
-    {
-        long sequence = checked(_latestChangeSequence + 1);
-        var occurredAtUtc = DateTimeOffset.UtcNow;
-        string operation = mutation.NewRow is null
-            ? "delete"
-            : mutation.OldRow is null ? "insert" : "update";
-        byte[] value = DocumentChangeFeedCodec.Encode(
-            sequence,
-            occurredAtUtc,
-            operation,
-            mutation.NewRow?.Id ?? mutation.OldRow!.Id,
-            documentVersion,
-            mutation.OldRow?.Json,
-            mutation.NewRow?.Json);
-        _keyspace.Put(
-            DocumentChangeFeedCodec.EncodeKey(sequence),
-            value,
-            occurredAtUtc.Add(ChangeFeedRetention));
-        _latestChangeSequence = sequence;
-        _keyspace.Put(
-            DocumentChangeFeedCodec.SequenceKey,
-            Encoding.UTF8.GetBytes(sequence.ToString(System.Globalization.CultureInfo.InvariantCulture)));
     }
 
     private long ReadLatestChangeSequenceLocked()
@@ -1570,19 +1681,22 @@ public sealed class DocumentCollectionStore : IDisposable
         {
             if (!ShouldIndexDocument(index, document.RootElement))
                 continue;
-
-            var values = BuildIndexKeyParts(index, document.RootElement);
-            if (values is null)
-                continue;
-
-            entries.Add(new IndexEntry(
-                index,
-                DocumentIndexCodec.EncodeIndexEntryKey(index, values, row.Id),
-                DocumentIndexCodec.EncodeIndexEntryValue(row.Id)));
+            entries.AddRange(BuildIndexEntries(index, document.RootElement, row.Id));
         }
 
         return entries;
     }
+
+    private static IReadOnlyList<IndexEntry> BuildIndexEntries(
+        DocumentPathIndex index,
+        JsonElement root,
+        string documentId)
+        => index.Kind switch
+        {
+            DocumentIndexKind.Path => BuildPathIndexEntries(index, root, documentId),
+            DocumentIndexKind.Wildcard => BuildWildcardIndexEntries(index, root, documentId),
+            _ => throw new InvalidOperationException($"不支持的文档索引类型 '{index.Kind}'。"),
+        };
 
     private void ValidateUniqueIndexesLocked(
         DocumentCollectionSchema schema,
@@ -1599,29 +1713,27 @@ public sealed class DocumentCollectionStore : IDisposable
             if (!ShouldIndexDocument(index, document.RootElement))
                 continue;
 
-            var values = BuildIndexKeyParts(index, document.RootElement);
-            if (values is null)
-                continue;
-
-            byte[] key = DocumentIndexCodec.EncodeIndexEntryKey(index, values, newRow.Id);
-            string keyText = Convert.ToBase64String(key);
-            if (pendingUniqueIdsByKey is not null
-                && pendingUniqueIdsByKey.TryGetValue(keyText, out string? pendingId)
-                && !string.Equals(pendingId, newRow.Id, StringComparison.Ordinal))
+            foreach (var indexEntry in BuildIndexEntries(index, document.RootElement, newRow.Id))
             {
-                throw new InvalidOperationException(
-                    $"document collection '{schema.Name}' unique index '{index.Name}' duplicate key.");
+                string keyText = Convert.ToBase64String(indexEntry.Key);
+                if (pendingUniqueIdsByKey is not null
+                    && pendingUniqueIdsByKey.TryGetValue(keyText, out string? pendingId)
+                    && !string.Equals(pendingId, newRow.Id, StringComparison.Ordinal))
+                {
+                    throw new InvalidOperationException(
+                        $"document collection '{schema.Name}' unique index '{index.Name}' duplicate key.");
+                }
+
+                byte[]? existing = _keyspace.Get(indexEntry.Key);
+                if (existing is null)
+                    continue;
+
+                string existingId = DocumentIndexCodec.DecodeIndexEntryValue(existing);
+                if (oldRow is not null && string.Equals(existingId, oldRow.Id, StringComparison.Ordinal))
+                    continue;
+
+                throw new InvalidOperationException($"文档集合 '{schema.Name}' 的唯一索引 '{index.Name}' 冲突。");
             }
-
-            byte[]? existing = _keyspace.Get(key);
-            if (existing is null)
-                continue;
-
-            string existingId = DocumentIndexCodec.DecodeIndexEntryValue(existing);
-            if (oldRow is not null && string.Equals(existingId, oldRow.Id, StringComparison.Ordinal))
-                continue;
-
-            throw new InvalidOperationException($"文档集合 '{schema.Name}' 的唯一索引 '{index.Name}' 冲突。");
         }
     }
 
@@ -1632,54 +1744,286 @@ public sealed class DocumentCollectionStore : IDisposable
             _keyspace.ValidateWrite(indexEntry.Key, indexEntry.Value);
     }
 
-    private static IReadOnlyList<DocumentIndexKeyPart>? BuildIndexKeyParts(DocumentPathIndex index, JsonElement root)
+    private static IReadOnlyList<IndexEntry> BuildPathIndexEntries(
+        DocumentPathIndex index,
+        JsonElement root,
+        string documentId)
     {
-        var values = new DocumentIndexKeyPart[index.Paths.Count];
+        var valuesByPath = new List<IReadOnlyList<DocumentIndexKeyPart>>(index.Paths.Count);
+        int expandedPaths = 0;
         for (int i = 0; i < index.Paths.Count; i++)
         {
             var path = JsonPath.Parse(index.Paths[i]);
-            if (!JsonPathEvaluator.TryResolve(root, path, out var element))
-            {
-                if (index.IsSparse)
-                    return null;
-
-                values[i] = DocumentIndexKeyPart.Missing;
-                continue;
-            }
-
-            if (element.ValueKind == JsonValueKind.Null)
-            {
-                if (index.IsSparse)
-                    return null;
-
-                values[i] = DocumentIndexKeyPart.Null;
-                continue;
-            }
-
-            object? value = element.ValueKind switch
-            {
-                JsonValueKind.True => true,
-                JsonValueKind.False => false,
-                JsonValueKind.String => element.GetString(),
-                JsonValueKind.Number => element.TryGetInt64(out long longValue) ? longValue : element.GetDouble(),
-                JsonValueKind.Object or JsonValueKind.Array => element.GetRawText(),
-                _ => null,
-            };
-
-            string? scalar = JsonPathEvaluator.ToIndexScalar(value);
-            if (scalar is null)
-            {
-                if (index.IsSparse)
-                    return null;
-
-                values[i] = DocumentIndexKeyPart.Null;
-                continue;
-            }
-
-            values[i] = DocumentIndexKeyPart.FromScalar(scalar);
+            var values = new List<DocumentIndexKeyPart>();
+            bool expanded = false;
+            ResolvePathIndexValues(root, path.Segments, segmentIndex: 0, depth: 0, values, ref expanded);
+            values = values
+                .DistinctBy(static value => ((int)value.Kind, value.Scalar))
+                .Where(value => !index.IsSparse
+                    || value.Kind is not (DocumentIndexKeyPartKind.Missing or DocumentIndexKeyPartKind.Null))
+                .ToList();
+            if (values.Count == 0)
+                return [];
+            if (expanded)
+                expandedPaths++;
+            valuesByPath.Add(values);
         }
 
-        return values;
+        if (expandedPaths > 1)
+        {
+            throw new InvalidOperationException(
+                $"Document compound index '{index.Name}' 不支持 parallel arrays；一个文档最多只能展开一个 path。");
+        }
+
+        var combinations = new List<DocumentIndexKeyPart[]> { new DocumentIndexKeyPart[index.Paths.Count] };
+        for (int pathIndex = 0; pathIndex < valuesByPath.Count; pathIndex++)
+        {
+            var next = new List<DocumentIndexKeyPart[]>();
+            foreach (var combination in combinations)
+            {
+                foreach (var value in valuesByPath[pathIndex])
+                {
+                    var copy = (DocumentIndexKeyPart[])combination.Clone();
+                    copy[pathIndex] = value;
+                    next.Add(copy);
+                    EnsureIndexEntryLimit(index, next.Count);
+                }
+            }
+
+            combinations = next;
+        }
+
+        return EncodeDistinctIndexEntries(index, documentId, combinations);
+    }
+
+    private static IReadOnlyList<IndexEntry> BuildWildcardIndexEntries(
+        DocumentPathIndex index,
+        JsonElement root,
+        string documentId)
+    {
+        var subtreeRoots = new List<JsonElement>();
+        ResolvePathElements(
+            root,
+            JsonPath.Parse(index.Path).Segments,
+            segmentIndex: 0,
+            depth: 0,
+            subtreeRoots);
+        if (subtreeRoots.Count == 0)
+            return [];
+
+        var parts = new List<IReadOnlyList<DocumentIndexKeyPart>>();
+        var seen = new HashSet<(string Path, DocumentIndexKeyPartKind Kind, string? Scalar)>();
+        foreach (var subtreeRoot in subtreeRoots)
+            EnumerateWildcardValues(index, subtreeRoot, index.Path, depth: 0, parts, seen);
+        return EncodeDistinctIndexEntries(index, documentId, parts);
+    }
+
+    private static IReadOnlyList<IndexEntry> EncodeDistinctIndexEntries(
+        DocumentPathIndex index,
+        string documentId,
+        IEnumerable<IReadOnlyList<DocumentIndexKeyPart>> values)
+    {
+        byte[] encodedId = DocumentIndexCodec.EncodeIndexEntryValue(documentId);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var entries = new List<IndexEntry>();
+        foreach (var value in values)
+        {
+            byte[] key = DocumentIndexCodec.EncodeIndexEntryKey(index, value, documentId);
+            if (!seen.Add(Convert.ToBase64String(key)))
+                continue;
+            entries.Add(new IndexEntry(index, key, encodedId));
+            EnsureIndexEntryLimit(index, entries.Count);
+        }
+
+        return entries;
+    }
+
+    private static void ResolvePathIndexValues(
+        JsonElement current,
+        IReadOnlyList<JsonPathSegment> segments,
+        int segmentIndex,
+        int depth,
+        ICollection<DocumentIndexKeyPart> output,
+        ref bool expanded)
+    {
+        EnsureIndexTraversalDepth(depth);
+        if (segmentIndex == segments.Count)
+        {
+            AddTerminalIndexValues(current, depth, output, ref expanded);
+            return;
+        }
+
+        JsonPathSegment segment = segments[segmentIndex];
+        if (current.ValueKind == JsonValueKind.Array && segment.Kind == JsonPathSegmentKind.Property)
+        {
+            expanded = true;
+            if (current.GetArrayLength() == 0)
+            {
+                output.Add(DocumentIndexKeyPart.Missing);
+                return;
+            }
+
+            foreach (var item in current.EnumerateArray())
+                ResolvePathIndexValues(item, segments, segmentIndex, depth + 1, output, ref expanded);
+            return;
+        }
+
+        if (segment.Kind == JsonPathSegmentKind.Property)
+        {
+            if (current.ValueKind == JsonValueKind.Object
+                && current.TryGetProperty(segment.PropertyName!, out var property))
+            {
+                ResolvePathIndexValues(property, segments, segmentIndex + 1, depth + 1, output, ref expanded);
+            }
+            else
+            {
+                output.Add(DocumentIndexKeyPart.Missing);
+            }
+            return;
+        }
+
+        if (current.ValueKind == JsonValueKind.Array && segment.ArrayIndex < current.GetArrayLength())
+        {
+            ResolvePathIndexValues(
+                current[segment.ArrayIndex],
+                segments,
+                segmentIndex + 1,
+                depth + 1,
+                output,
+                ref expanded);
+        }
+        else
+        {
+            output.Add(DocumentIndexKeyPart.Missing);
+        }
+    }
+
+    private static void AddTerminalIndexValues(
+        JsonElement element,
+        int depth,
+        ICollection<DocumentIndexKeyPart> output,
+        ref bool expanded)
+    {
+        EnsureIndexTraversalDepth(depth);
+        if (element.ValueKind != JsonValueKind.Array)
+        {
+            output.Add(IndexPartFromElement(element));
+            return;
+        }
+
+        expanded = true;
+        if (element.GetArrayLength() == 0)
+        {
+            output.Add(DocumentIndexKeyPart.FromArray(element.GetRawText()));
+            return;
+        }
+
+        foreach (var item in element.EnumerateArray())
+            AddTerminalIndexValues(item, depth + 1, output, ref expanded);
+    }
+
+    private static void ResolvePathElements(
+        JsonElement current,
+        IReadOnlyList<JsonPathSegment> segments,
+        int segmentIndex,
+        int depth,
+        ICollection<JsonElement> output)
+    {
+        EnsureIndexTraversalDepth(depth);
+        if (segmentIndex == segments.Count)
+        {
+            output.Add(current);
+            return;
+        }
+
+        JsonPathSegment segment = segments[segmentIndex];
+        if (current.ValueKind == JsonValueKind.Array && segment.Kind == JsonPathSegmentKind.Property)
+        {
+            foreach (var item in current.EnumerateArray())
+                ResolvePathElements(item, segments, segmentIndex, depth + 1, output);
+            return;
+        }
+
+        if (segment.Kind == JsonPathSegmentKind.Property)
+        {
+            if (current.ValueKind == JsonValueKind.Object
+                && current.TryGetProperty(segment.PropertyName!, out var property))
+            {
+                ResolvePathElements(property, segments, segmentIndex + 1, depth + 1, output);
+            }
+            return;
+        }
+
+        if (current.ValueKind == JsonValueKind.Array && segment.ArrayIndex < current.GetArrayLength())
+            ResolvePathElements(current[segment.ArrayIndex], segments, segmentIndex + 1, depth + 1, output);
+    }
+
+    private static void EnumerateWildcardValues(
+        DocumentPathIndex index,
+        JsonElement current,
+        string concretePath,
+        int depth,
+        ICollection<IReadOnlyList<DocumentIndexKeyPart>> output,
+        ISet<(string Path, DocumentIndexKeyPartKind Kind, string? Scalar)> seen)
+    {
+        EnsureIndexTraversalDepth(depth);
+        if (current.ValueKind == JsonValueKind.Object && current.EnumerateObject().Any())
+        {
+            foreach (var property in current.EnumerateObject())
+            {
+                string childPath = JsonPath.Parse(
+                    concretePath + "['" + property.Name.Replace("'", "''", StringComparison.Ordinal) + "']").Text;
+                EnumerateWildcardValues(index, property.Value, childPath, depth + 1, output, seen);
+            }
+            return;
+        }
+
+        if (current.ValueKind == JsonValueKind.Array && current.GetArrayLength() != 0)
+        {
+            foreach (var item in current.EnumerateArray())
+                EnumerateWildcardValues(index, item, concretePath, depth + 1, output, seen);
+            return;
+        }
+
+        DocumentIndexKeyPart value = IndexPartFromElement(current);
+        if (index.IsSparse && value.Kind == DocumentIndexKeyPartKind.Null)
+            return;
+
+        if (!seen.Add((concretePath, value.Kind, value.Scalar)))
+            return;
+        output.Add([DocumentIndexKeyPart.FromString(concretePath), value]);
+        EnsureIndexEntryLimit(index, output.Count);
+    }
+
+    private static DocumentIndexKeyPart IndexPartFromElement(JsonElement element)
+        => element.ValueKind switch
+        {
+            JsonValueKind.Null or JsonValueKind.Undefined => DocumentIndexKeyPart.Null,
+            JsonValueKind.True => DocumentIndexKeyPart.FromBoolean(true),
+            JsonValueKind.False => DocumentIndexKeyPart.FromBoolean(false),
+            JsonValueKind.Number => DocumentIndexKeyPart.FromNumber(element.GetRawText()),
+            JsonValueKind.String => DocumentIndexKeyPart.FromString(element.GetString() ?? string.Empty),
+            JsonValueKind.Object => DocumentIndexKeyPart.FromObject(element.GetRawText()),
+            JsonValueKind.Array => DocumentIndexKeyPart.FromArray(element.GetRawText()),
+            _ => DocumentIndexKeyPart.Null,
+        };
+
+    private static void EnsureIndexEntryLimit(DocumentPathIndex index, int count)
+    {
+        if (count > MaxIndexEntriesPerDocument)
+        {
+            throw new InvalidOperationException(
+                $"Document index '{index.Name}' 单文档条目数超过上限 {MaxIndexEntriesPerDocument}。");
+        }
+    }
+
+    private static void EnsureIndexTraversalDepth(int depth)
+    {
+        if (depth > MaxIndexTraversalDepth)
+        {
+            throw new InvalidOperationException(
+                $"Document index traversal depth 超过上限 {MaxIndexTraversalDepth}。");
+        }
     }
 
     private static bool ShouldIndexDocument(DocumentPathIndex index, JsonElement root)
@@ -1744,41 +2088,63 @@ public sealed class DocumentCollectionStore : IDisposable
 
     private static IReadOnlyList<DocumentIndexKeyPart> EncodeLookupPartVariants(DocumentPathIndex index, object? value)
     {
-        if (value is not null)
-        {
-            string? scalar = JsonPathEvaluator.ToIndexScalar(value);
-            return scalar is null
-                ? [DocumentIndexKeyPart.Null]
-                : [DocumentIndexKeyPart.FromScalar(scalar)];
-        }
+        if (value is null && index.IsSparse)
+            return [];
+        return value is null
+            ? [DocumentIndexKeyPart.Null]
+            : [DocumentIndexKeyPart.FromValue(value)];
+    }
 
-        return index.IsSparse
-            ? []
-            : [DocumentIndexKeyPart.Null];
+    private static void EnsurePathIndex(DocumentPathIndex index)
+    {
+        if (index.Kind != DocumentIndexKind.Path)
+        {
+            throw new ArgumentException(
+                "Wildcard index 必须通过具体 JSON path 访问。",
+                nameof(index));
+        }
     }
 
     private void RebuildIndexesLocked()
     {
-        foreach (var entry in _keyspace.ScanPrefix(new byte[] { (byte)'i' }, int.MaxValue))
-            _keyspace.Delete(entry.Key.Span);
-
-        if (_schema.Indexes.Count == 0)
-            return;
-
+        var expected = new Dictionary<string, IndexEntry>(StringComparer.Ordinal);
         foreach (var rowEntry in _keyspace.ScanPrefix(new byte[] { (byte)'d' }, int.MaxValue))
         {
             string id = DocumentIndexCodec.DecodeIdFromDocumentKey(rowEntry.Key);
             var row = new DocumentRow(id, Encoding.UTF8.GetString(rowEntry.Value.Span), rowEntry.Version);
             foreach (var indexEntry in BuildIndexEntries(_schema, row))
             {
-                if (indexEntry.Index.IsUnique && _keyspace.Get(indexEntry.Key) is not null)
+                string key = Convert.ToBase64String(indexEntry.Key);
+                if (indexEntry.Index.IsUnique
+                    && expected.TryGetValue(key, out var duplicate)
+                    && !duplicate.Value.AsSpan().SequenceEqual(indexEntry.Value))
                 {
                     throw new InvalidOperationException($"文档集合 '{_schema.Name}' 的唯一索引 '{indexEntry.Index.Name}' 冲突，无法重建索引。");
                 }
 
-                _keyspace.Put(indexEntry.Key, indexEntry.Value);
+                expected[key] = indexEntry;
             }
         }
+
+        var actualEntries = _keyspace.ScanPrefix(new byte[] { (byte)'i' }, int.MaxValue);
+        var actual = actualEntries.ToDictionary(
+            static entry => Convert.ToBase64String(entry.Key.Span),
+            static entry => entry,
+            StringComparer.Ordinal);
+        bool unchanged = actual.Count == expected.Count
+            && expected.All(pair =>
+                actual.TryGetValue(pair.Key, out var entry)
+                && entry.Value.Span.SequenceEqual(pair.Value.Value));
+        if (unchanged)
+            return;
+
+        var mutations = new List<KvBatchMutation>(actual.Count + expected.Count);
+        foreach (var entry in actualEntries)
+            mutations.Add(KvBatchMutation.Delete(entry.Key.ToArray()));
+        foreach (var entry in expected.Values)
+            mutations.Add(KvBatchMutation.Put(entry.Key, entry.Value));
+        if (mutations.Count != 0)
+            _keyspace.ApplyBatch(mutations);
     }
 
     private void PurgeExpiredDocumentsLocked()
@@ -1890,6 +2256,24 @@ public sealed class DocumentCollectionStore : IDisposable
         }
     }
 
+    /// <summary>
+    /// 主 KV batch 在派生索引更新前会持久化 repair marker。若进程在两阶段之间退出，
+    /// 重开集合时从主文档全量重建全文与向量索引，再清除 marker。
+    /// </summary>
+    private void RepairDerivedIndexesIfNeededLocked()
+    {
+        if (_keyspace.Get(_derivedIndexRepairKey) is null)
+            return;
+
+        var rows = ScanRowsLocked(int.MaxValue);
+        foreach (var index in _schema.FullTextIndexes)
+            OpenFullTextStoreLocked(index, rebuildIfMissing: false).Rebuild(rows);
+        foreach (var index in _schema.VectorIndexes)
+            OpenVectorStoreLocked(index, rebuildIfMissing: false)?.Rebuild(rows);
+
+        _keyspace.Delete(_derivedIndexRepairKey);
+    }
+
     private DocumentVectorIndexStore? OpenVectorStoreLocked(DocumentVectorIndex index, bool rebuildIfMissing)
     {
         if (_vectorIndexFactory is null)
@@ -1930,10 +2314,11 @@ public sealed class DocumentCollectionStore : IDisposable
 
     private IReadOnlyList<DocumentRow> FindMatchingRowsLocked(DocumentFilter? filter, int limit)
     {
+        DocumentQueryPlanner.ValidateFilter(filter);
         var rows = new List<DocumentRow>();
         foreach (var row in ScanRowsLocked(int.MaxValue))
         {
-            if (!DocumentQueryPlanner.Matches(filter, row))
+            if (!DocumentQueryPlanner.MatchesValidated(filter, row))
                 continue;
 
             rows.Add(row);

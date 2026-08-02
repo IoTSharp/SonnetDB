@@ -1,5 +1,7 @@
 using System.Buffers.Binary;
+using System.Globalization;
 using System.Text;
+using System.Text.Json;
 
 namespace SonnetDB.Documents;
 
@@ -31,13 +33,13 @@ internal static class DocumentIndexCodec
     }
 
     public static byte[] EncodeIndexPrefix(DocumentPathIndex index, string scalar)
-        => EncodeIndexPrefix(index, [DocumentIndexKeyPart.FromScalar(scalar)]);
+        => EncodeIndexPrefix(index, [DocumentIndexKeyPart.FromString(scalar)]);
 
     public static byte[] EncodeIndexPrefix(DocumentPathIndex index, IReadOnlyList<DocumentIndexKeyPart> values)
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(values);
-        if (values.Count > index.Paths.Count)
+        if (values.Count > GetKeyPartCount(index))
             throw new ArgumentException("索引值数量与索引 path 数量不一致。", nameof(values));
 
         byte[] indexNameBytes = _utf8.GetBytes(index.Name);
@@ -61,11 +63,11 @@ internal static class DocumentIndexCodec
     }
 
     public static byte[] EncodeIndexEntryKey(DocumentPathIndex index, string scalar, string id)
-        => EncodeIndexEntryKey(index, [DocumentIndexKeyPart.FromScalar(scalar)], id);
+        => EncodeIndexEntryKey(index, [DocumentIndexKeyPart.FromString(scalar)], id);
 
     public static byte[] EncodeIndexEntryKey(DocumentPathIndex index, IReadOnlyList<DocumentIndexKeyPart> values, string id)
     {
-        if (values.Count != index.Paths.Count)
+        if (values.Count != GetKeyPartCount(index))
             throw new ArgumentException("Index entry value count must match the index path count.", nameof(values));
 
         byte[] prefix = EncodeIndexPrefix(index, values);
@@ -103,10 +105,13 @@ internal static class DocumentIndexCodec
         return _utf8.GetString(key.Slice(3, nameLength));
     }
 
+    public static int GetKeyPartCount(DocumentPathIndex index)
+        => index.Kind == DocumentIndexKind.Wildcard ? 2 : index.Paths.Count;
+
     private static int GetEncodedPartSize(DocumentIndexKeyPart value)
-        => value.Kind == DocumentIndexKeyPartKind.Scalar
-            ? 1 + 4 + _utf8.GetByteCount(value.Scalar!)
-            : 1;
+        => value.Kind is DocumentIndexKeyPartKind.Missing or DocumentIndexKeyPartKind.Null
+            ? 1
+            : 1 + 4 + _utf8.GetByteCount(value.Scalar!);
 
     private static int WriteEncodedPart(Span<byte> destination, DocumentIndexKeyPart value)
     {
@@ -114,11 +119,15 @@ internal static class DocumentIndexCodec
         {
             DocumentIndexKeyPartKind.Missing => (byte)0,
             DocumentIndexKeyPartKind.Null => (byte)1,
-            DocumentIndexKeyPartKind.Scalar => (byte)2,
+            DocumentIndexKeyPartKind.Boolean => (byte)2,
+            DocumentIndexKeyPartKind.Number => (byte)3,
+            DocumentIndexKeyPartKind.String => (byte)4,
+            DocumentIndexKeyPartKind.Object => (byte)5,
+            DocumentIndexKeyPartKind.Array => (byte)6,
             _ => throw new InvalidOperationException($"未知文档索引值类型 {value.Kind}。"),
         };
 
-        if (value.Kind != DocumentIndexKeyPartKind.Scalar)
+        if (value.Kind is DocumentIndexKeyPartKind.Missing or DocumentIndexKeyPartKind.Null)
             return 1;
 
         byte[] bytes = _utf8.GetBytes(value.Scalar!);
@@ -134,16 +143,73 @@ internal readonly record struct DocumentIndexKeyPart(DocumentIndexKeyPartKind Ki
 
     public static DocumentIndexKeyPart Null { get; } = new(DocumentIndexKeyPartKind.Null, null);
 
-    public static DocumentIndexKeyPart FromScalar(string scalar)
+    public static DocumentIndexKeyPart FromBoolean(bool value)
+        => new(DocumentIndexKeyPartKind.Boolean, value ? "1" : "0");
+
+    public static DocumentIndexKeyPart FromNumber(object value)
     {
-        ArgumentNullException.ThrowIfNull(scalar);
-        return new DocumentIndexKeyPart(DocumentIndexKeyPartKind.Scalar, scalar);
+        ArgumentNullException.ThrowIfNull(value);
+        string normalized;
+        try
+        {
+            normalized = Convert.ToDecimal(value, CultureInfo.InvariantCulture)
+                .ToString("G29", CultureInfo.InvariantCulture);
+        }
+        catch (Exception ex) when (ex is OverflowException or InvalidCastException or FormatException)
+        {
+            normalized = Convert.ToDouble(value, CultureInfo.InvariantCulture)
+                .ToString("R", CultureInfo.InvariantCulture);
+        }
+
+        return new DocumentIndexKeyPart(DocumentIndexKeyPartKind.Number, normalized);
     }
+
+    public static DocumentIndexKeyPart FromString(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return new DocumentIndexKeyPart(DocumentIndexKeyPartKind.String, value);
+    }
+
+    public static DocumentIndexKeyPart FromObject(string json)
+    {
+        ArgumentNullException.ThrowIfNull(json);
+        return new DocumentIndexKeyPart(DocumentIndexKeyPartKind.Object, json);
+    }
+
+    public static DocumentIndexKeyPart FromArray(string json)
+    {
+        ArgumentNullException.ThrowIfNull(json);
+        return new DocumentIndexKeyPart(DocumentIndexKeyPartKind.Array, json);
+    }
+
+    public static DocumentIndexKeyPart FromValue(object? value)
+        => value switch
+        {
+            null => Null,
+            JsonElement { ValueKind: JsonValueKind.Null or JsonValueKind.Undefined } => Null,
+            JsonElement { ValueKind: JsonValueKind.True } => FromBoolean(true),
+            JsonElement { ValueKind: JsonValueKind.False } => FromBoolean(false),
+            JsonElement { ValueKind: JsonValueKind.Number } element => FromNumber(element.GetRawText()),
+            JsonElement { ValueKind: JsonValueKind.String } element => FromString(element.GetString() ?? string.Empty),
+            JsonElement { ValueKind: JsonValueKind.Object } element => FromObject(element.GetRawText()),
+            JsonElement { ValueKind: JsonValueKind.Array } element => FromArray(element.GetRawText()),
+            bool boolean => FromBoolean(boolean),
+            byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal =>
+                FromNumber(value),
+            DateTime dateTime => FromString(dateTime.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture)),
+            DateTimeOffset dateTimeOffset => FromString(dateTimeOffset.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture)),
+            string text => FromString(text),
+            _ => FromString(Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty),
+        };
 }
 
 internal enum DocumentIndexKeyPartKind
 {
     Missing,
     Null,
-    Scalar,
+    Boolean,
+    Number,
+    String,
+    Object,
+    Array,
 }

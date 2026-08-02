@@ -45,6 +45,8 @@ sndb backup create  --path ./data --output ./backup [--overwrite] [--no-fulltext
 sndb backup inspect --path ./backup
 sndb backup verify  --path ./backup
 sndb backup restore --path ./backup --target ./restored [--overwrite] [--no-verify]
+
+sndb document import --input <file|mongodump-dir> --collection <name> [--dry-run] [<target-options>] [<import-options>]
 ```
 
 ---
@@ -190,6 +192,101 @@ sndb backup dry-run --path ./demo-backup --target ./demo-restored
 sndb backup restore --path ./demo-backup --target ./demo-restored --rebuild-indexes
 sndb backup rebuild-indexes --path ./demo-restored
 ```
+
+---
+
+## `document import`
+
+`document import` 将 JSON、NDJSON 或 mongodump BSON 文档迁入一个 SonnetDB collection。建议先运行 dry-run，再使用 `replace`、checkpoint 和 report 执行可重试迁移。完整的能力边界和迁移验收步骤见 [MongoDB-like 迁移指南](/mongodb-migration/)。
+
+```text
+sndb document import --input <file|mongodump-dir> --collection <name>
+  [--format auto|ndjson|json|json-array|bson] [--mode insert|replace]
+  [--ordered|--unordered] [--batch-size 500] [--id-path _id]
+  [--dry-run] [--no-create] [--report report.json] [--json]
+  [--checkpoint state.json [--resume]]
+  (--connection <conn>|--path <data>|--profile <name>|--use-default|
+   --url <host> --database <db> [--token <token>] [--timeout 100])
+```
+
+### 常用流程
+
+先检查输入和转换报告，不连接目标：
+
+```bash
+sndb document import \
+  --input ./dump/app \
+  --collection devices \
+  --dry-run \
+  --report ./reports/devices-dry-run.json
+```
+
+使用已保存的 profile 分批导入；`replace` 按文档 ID replace/upsert，适合重复执行同一来源：
+
+```bash
+sndb document import \
+  --input ./devices.ndjson \
+  --collection devices \
+  --profile production \
+  --mode replace \
+  --batch-size 500 \
+  --checkpoint ./reports/devices.checkpoint.json \
+  --report ./reports/devices-import.json
+```
+
+进程中断后使用原 checkpoint 继续：
+
+```bash
+sndb document import \
+  --input ./devices.ndjson \
+  --collection devices \
+  --profile production \
+  --mode replace \
+  --batch-size 500 \
+  --checkpoint ./reports/devices.checkpoint.json \
+  --resume \
+  --report ./reports/devices-resume.json
+```
+
+### 参数
+
+| 参数 | 默认值 | 说明 |
+| --- | --- | --- |
+| `--input <path>` / `-i <path>` | 必填 | JSON、JSONL/NDJSON、连接 BSON 文件或 mongodump 目录。JSON array 逐项流式读取；大文件优先使用可隔离单项错误的 NDJSON/BSON。目录输入会读取 `<collection>.bson` 及可选的 `<collection>.metadata.json`。 |
+| `--collection <name>` / `-c <name>` | 必填 | 目标 collection；对于 mongodump 目录也用于选择源 BSON 和 metadata 文件。 |
+| `--format <format>` | `auto` | `auto`、`ndjson`、`json`、`json-array` 或 `bson`。`auto` 按扩展名及 JSON 根节点识别；未识别扩展名按 NDJSON 读取。NDJSON 按有界单行读取，JSON array 按有界单项流式读取。 |
+| `--mode <mode>` | `insert` | `insert` 创建新文档；`replace` 按 ID replace/upsert。 |
+| `--ordered` | 关闭 | 遇到首个错误时使当前批次零变更，并停止后续批次。 |
+| `--unordered` | 开启 | 跳过失败项并继续；同批有效项仍在一个 collection 内原子提交。 |
+| `--batch-size <count>` | `500` | 每批文档数，必须为正整数且不超过 `1000`；同时受约 12 MiB CLI 安全预算约束。 |
+| `--id-path <path>` | `_id` | 文档 ID 路径；支持 `_id` 或 `$.nested.path` 形式，值必须能稳定转换为字符串 ID。 |
+| `--dry-run` | 关闭 | 只读取、规范化并验证源文档，生成 error、gap 和索引建议；不能与 `--resume` 同时使用。 |
+| `--no-create` | 关闭 | 不自动创建目标 collection；目标必须已经存在。 |
+| `--checkpoint <path>` | 无 | 每个已提交批次后原子保存进度、累计错误数和最多 1000 条错误样本，用于中断恢复。 |
+| `--resume` | 关闭 | 从校验通过的 checkpoint 继续；未指定 `--checkpoint` 时查找 `<实际源文件>.sndb-import.checkpoint.json`。 |
+| `--report <path>` | 无 | 将 JSON 迁移报告写入文件，并自动创建父目录。报告包含 `errorCount`、`errorsTruncated` 和最多 1000 条 `errors` 样本。 |
+| `--json` | 关闭 | 将同一 JSON 迁移报告写到 stdout，替代文本摘要。 |
+| `--connection <conn>` | 无 | 使用完整 SonnetDB 连接字符串作为目标。 |
+| `--path <data>` / `-p <data>` | 无 | 使用嵌入式 SonnetDB 数据目录作为目标。 |
+| `--profile <name>` | 无 | 使用指定的 local 或 remote profile。若同名 profile 同时存在于两类中，命令会拒绝歧义。 |
+| `--use-default` | 关闭 | 使用默认 local 或 remote profile。 |
+| `--url <host>` / `-u <host>` | 无 | 直接指定远程 SonnetDB 服务地址，必须同时提供 `--database`。 |
+| `--database <db>` / `-d <db>` | 无 | 直接远程目标的数据库名。 |
+| `--token <token>` / `-t <token>` | 无 | 远程目标的 Bearer token。 |
+| `--timeout <seconds>` | `100` | 远程调用超时秒数，必须为正整数。 |
+| `--help` / `-h` | 无 | 输出 `document import` 用法。 |
+
+`--connection`、`--path`、`--profile`、`--use-default` 和 `--url` 是互斥的目标来源；非 dry-run 必须选择其中一种。直接远程模式还需要 `--database`，可选 `--token` 和 `--timeout`。
+
+### Dry-run 边界
+
+`--dry-run` 可以不提供目标。它不会打开目标连接、创建 collection 或产生任何目标写入；即使同时提供了目标参数，也只解析目标标识。它会检查源文件读取、文档 JSON/BSON 转换、ID 提取和 CLI 批次预算，但**不会验证目标 validator、unique index 或权限**。这些目标约束必须通过真实的小批次导入确认，report 会记录 `dry_run_target_constraints_not_checked` gap。
+
+### Checkpoint 与恢复
+
+首次长迁移应显式指定 `--checkpoint`；只有已提交的批次才会推进 checkpoint，已推进位置之前的累计错误数和有界样本也会保留，resume 不会把不完整迁移误报为成功。为避免失败密集型输入让内存和 checkpoint 无界增长，`errors` 最多保留 1000 条，`errorCount` 始终记录总数，`errorsTruncated` 表示是否截断。恢复时必须保持相同的 source、target、collection、mode、ordering（`--ordered` / `--unordered`）和 `--batch-size`。命令会在连接目标和写入前校验 checkpoint schema、源内容哈希、目标标识及上述选项；任一不匹配都会拒绝恢复。源文件内容或文档顺序发生变化时，不要复用旧 checkpoint。
+
+同一批次的稳定 `requestId` 由源哈希、目标、collection、模式、顺序、批次序号和 payload 派生，网络结果不确定时可用原命令重试。索引建议只供人工评审，命令不会自动创建索引。
 
 ---
 

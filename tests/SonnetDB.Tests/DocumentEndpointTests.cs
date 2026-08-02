@@ -235,6 +235,29 @@ public sealed class DocumentEndpointTests : IAsyncLifetime
         Assert.Equal("""{"_id":"dev-3","temp":24}""", body.Documents[0].Document.GetRawText());
         Assert.Equal("""{"_id":"dev-1","temp":22}""", body.Documents[1].Document.GetRawText());
 
+        using var ignoredLeaf = JsonDocument.Parse("\"south\"");
+        var legacyMixedShape = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/querydocs/find",
+            new DocumentFindRequest(Filter: new DocumentFilterContract(
+                "$.site",
+                "eq",
+                ignoredLeaf.RootElement.Clone(),
+                [new DocumentFilterContract("$.site", "eq", north.RootElement.Clone())],
+                null,
+                null)),
+            ServerJsonContext.Default.DocumentFindRequest);
+        Assert.Equal(HttpStatusCode.OK, legacyMixedShape.StatusCode);
+        var legacyMixedBody = await legacyMixedShape.Content.ReadFromJsonAsync(ServerJsonContext.Default.DocumentFindResponse);
+        Assert.Equal(["dev-1", "dev-3"], legacyMixedBody!.Documents.Select(static x => x.Id).ToArray());
+
+        var legacyEmptyAnd = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/querydocs/find",
+            new DocumentFindRequest(Filter: new DocumentFilterContract(null, null, null, [], null, null)),
+            ServerJsonContext.Default.DocumentFindRequest);
+        Assert.Equal(HttpStatusCode.OK, legacyEmptyAnd.StatusCode);
+        var legacyEmptyBody = await legacyEmptyAnd.Content.ReadFromJsonAsync(ServerJsonContext.Default.DocumentFindResponse);
+        Assert.Empty(legacyEmptyBody!.Documents);
+
         var exists = await admin.PostAsJsonAsync(
             "/v1/db/docapi/documents/querydocs/find",
             new DocumentFindRequest(
@@ -533,6 +556,48 @@ public sealed class DocumentEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task DocumentApi_BulkBudget_Returns413AndRemoteSdkResultWithStableCode()
+    {
+        using var admin = CreateClient(AdminToken);
+        var create = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/bulkbudget",
+            new DocumentCollectionCreateRequest(),
+            ServerJsonContext.Default.DocumentCollectionCreateRequest);
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        DocumentBulkWriteOperationContract[] requestOperations = Enumerable.Range(0, 1001)
+            .Select(index => new DocumentBulkWriteOperationContract("deleteOne", Id: $"missing-{index}"))
+            .ToArray();
+
+        var response = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/bulkbudget/bulk-write",
+            new DocumentBulkWriteRequest(requestOperations),
+            ServerJsonContext.Default.DocumentBulkWriteRequest);
+
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync(ServerJsonContext.Default.DocumentBulkWriteResponse);
+        Assert.False(body!.Committed);
+        Assert.Equal(SonnetDB.Contracts.DocumentWriteErrorCodes.BatchTooLarge, Assert.Single(body.Errors!).Code);
+        Assert.Equal(requestOperations.Length, body.Items.Count);
+        Assert.All(body.Items, item => Assert.Equal("not_attempted", item.Status));
+
+        var connectionString = new SndbConnectionStringBuilder
+        {
+            DataSource = $"sonnetdb+http://{new Uri(_baseUrl!).Authority}/docapi",
+            Token = AdminToken,
+            Timeout = 30,
+        }.ConnectionString;
+        using var client = new SndbDocumentClient(connectionString);
+        var sdk = await client.BulkWriteAsync(
+            "bulkbudget",
+            Enumerable.Range(0, 1001)
+                .Select(index => SndbDocumentBulkWrites.DeleteOne(id: $"missing-{index}")));
+        Assert.False(sdk.Committed);
+        Assert.Equal(SndbDocumentWriteErrorCodes.BatchTooLarge, Assert.Single(sdk.Errors!).Code);
+        Assert.Equal(requestOperations.Length, sdk.Items.Count);
+        Assert.All(sdk.Items, item => Assert.Equal("not_attempted", item.Status));
+    }
+
+    [Fact]
     public async Task DocumentApi_Validator_ErrorAndWarnActions_Work()
     {
         using var admin = CreateClient(AdminToken);
@@ -662,6 +727,180 @@ public sealed class DocumentEndpointTests : IAsyncLifetime
 
         var drop = await admin.DeleteAsync("/v1/db/docapi/documents/advanceddocs/indexes/ux_site_serial");
         Assert.Equal(HttpStatusCode.OK, drop.StatusCode);
+    }
+
+    [Fact]
+    public async Task DocumentApi_M32QueryFindAndModifyAndBulk_RoundTripsThroughRemoteSdk()
+    {
+        var connectionString = new SndbConnectionStringBuilder
+        {
+            DataSource = $"sonnetdb+http://{new Uri(_baseUrl!).Authority}/docapi",
+            Token = AdminToken,
+            Timeout = 30,
+        }.ConnectionString;
+        using var client = new SndbDocumentClient(connectionString);
+        await client.CreateCollectionAsync("m32docs");
+        await client.InsertManyAsync("m32docs", [
+            new KeyValuePair<string, string>(
+                "dev-1",
+                """{"name":"Pump-A","score":3,"tags":["red","hot"],"samples":[{"kind":"temp","value":23}]}"""),
+            new KeyValuePair<string, string>(
+                "dev-2",
+                """{"name":"Fan-B","score":4,"tags":["blue"],"samples":[{"kind":"rpm","value":900}]}"""),
+        ]);
+
+        var filter = SndbDocumentFilters.And(
+            SndbDocumentFilters.Equal("$.name", "pump-a"),
+            SndbDocumentFilters.Regex("$.name", "^pump-[a-z]$", "i"),
+            SndbDocumentFilters.Type("$.samples", SndbDocumentJsonType.Array),
+            SndbDocumentFilters.Size("$.tags", 2),
+            SndbDocumentFilters.All("$.tags", "red", "hot"),
+            SndbDocumentFilters.ElementMatch(
+                "$.samples",
+                SndbDocumentFilters.And(
+                    SndbDocumentFilters.Equal("$.kind", "temp"),
+                    SndbDocumentFilters.GreaterThan("$.value", 20))));
+        var found = await client.FindAsync(
+            "m32docs",
+            new SndbDocumentFindOptions(
+                Filter: filter,
+                Collation: SndbDocumentCollation.OrdinalIgnoreCase));
+        Assert.Equal("dev-1", Assert.Single(found).Id);
+
+        var update = new SndbDocumentUpdateBuilder()
+            .Multiply("$.score", 4)
+            .Pop("$.tags", SndbDocumentPopDirection.First)
+            .Build();
+        var modified = await client.FindOneAndUpdateAsync(
+            "m32docs",
+            new SndbDocumentFindOneAndUpdateOptions(
+                update,
+                Id: "dev-1",
+                ReturnDocument: SndbDocumentReturnDocument.After));
+        Assert.Equal(1, modified.Modified);
+        using (var after = JsonDocument.Parse(modified.Document!.Json))
+        {
+            Assert.Equal(12, after.RootElement.GetProperty("score").GetInt32());
+            Assert.Equal("hot", Assert.Single(after.RootElement.GetProperty("tags").EnumerateArray()).GetString());
+        }
+
+        SndbDocumentBulkWriteOperation[] operations =
+        [
+            SndbDocumentBulkWrites.InsertOne("bulk-a", """{"count":1}"""),
+            SndbDocumentBulkWrites.UpdateOne(
+                SndbDocumentFilters.Equal("_id", "bulk-a"),
+                new SndbDocumentUpdateBuilder().Increment("$.count", 2).Build()),
+            SndbDocumentBulkWrites.InsertOne("bulk-b", """{"temporary":true}"""),
+            SndbDocumentBulkWrites.DeleteOne(id: "bulk-b"),
+        ];
+        var bulk = await client.BulkWriteAsync("m32docs", operations, requestId: "m32-http-retry-1");
+        Assert.True(bulk.Committed);
+        Assert.False(bulk.Replayed);
+        Assert.Equal(2, bulk.Inserted);
+        Assert.Equal(1, bulk.Modified);
+        Assert.Equal(1, bulk.Deleted);
+        Assert.Equal(4, bulk.Items.Count);
+
+        var replay = await client.BulkWriteAsync("m32docs", operations, requestId: "m32-http-retry-1");
+        Assert.True(replay.Replayed);
+        using (var bulkDocument = JsonDocument.Parse((await client.FindOneAsync("m32docs", "bulk-a"))!.Json))
+            Assert.Equal(3, bulkDocument.RootElement.GetProperty("count").GetInt32());
+        Assert.Null(await client.FindOneAsync("m32docs", "bulk-b"));
+    }
+
+    [Fact]
+    public async Task DocumentApi_M32AggregationExpressionsAndWildcardIndex_RoundTrip()
+    {
+        var connectionString = new SndbConnectionStringBuilder
+        {
+            DataSource = $"sonnetdb+http://{new Uri(_baseUrl!).Authority}/docapi",
+            Token = AdminToken,
+            Timeout = 30,
+        }.ConnectionString;
+        using var client = new SndbDocumentClient(connectionString);
+        await client.CreateCollectionAsync("m32aggregate");
+        await client.InsertManyAsync("m32aggregate", [
+            new KeyValuePair<string, string>(
+                "a",
+                """{"category":"pump","qty":2,"price":5,"region":"north","items":["x","y"],"metadata":{"site":"one"}}"""),
+            new KeyValuePair<string, string>(
+                "b",
+                """{"category":"pump","qty":3,"price":4,"region":"south","items":["z"],"metadata":{"site":"two"}}"""),
+        ]);
+
+        SndbDocumentAggregateExpression revenue = SndbDocumentAggregationExpressions.Multiply(
+            SndbDocumentAggregationExpressions.Field("$.qty"),
+            SndbDocumentAggregationExpressions.Field("$.price"));
+        var projected = await client.AggregateAsync("m32aggregate", [
+            new SndbDocumentAggregateStage(
+                Project: [new SndbDocumentProjection("id", "_id")],
+                ComputedFields: [new SndbDocumentAggregateComputedField("revenue", revenue)]),
+        ]);
+        Assert.Equal([10, 12], projected.Documents
+            .Select(static json => ReadIntProperty(json, "revenue"))
+            .Order()
+            .ToArray());
+
+        var grouped = await client.AggregateAsync("m32aggregate", [
+            new SndbDocumentAggregateStage(Group: new SndbDocumentAggregateGroup(
+                Keys: [SndbDocumentAggregateGroupKey.FromExpression(
+                    "category",
+                    SndbDocumentAggregationExpressions.IfNull(
+                        SndbDocumentAggregationExpressions.Field("$.category"),
+                        SndbDocumentAggregationExpressions.Literal("unknown")))],
+                Accumulators: [
+                    new SndbDocumentAggregateAccumulator("revenue", "sum", Expression: revenue),
+                    new SndbDocumentAggregateAccumulator(
+                        "regions",
+                        "addToSet",
+                        Expression: SndbDocumentAggregationExpressions.Field("$.region")),
+                    new SndbDocumentAggregateAccumulator(
+                        "quantities",
+                        "push",
+                        Expression: SndbDocumentAggregationExpressions.Field("$.qty")),
+                ])),
+        ]);
+        using (var group = JsonDocument.Parse(Assert.Single(grouped.Documents)))
+        {
+            Assert.Equal(22, group.RootElement.GetProperty("revenue").GetInt32());
+            Assert.Equal(2, group.RootElement.GetProperty("regions").GetArrayLength());
+            Assert.Equal([2, 3], group.RootElement.GetProperty("quantities")
+                .EnumerateArray()
+                .Select(static value => value.GetInt32())
+                .ToArray());
+        }
+
+        var unwound = await client.AggregateAsync("m32aggregate", [
+            new SndbDocumentAggregateStage(Unwind: new SndbDocumentAggregateUnwind(
+                "$.items",
+                IncludeArrayIndex: "itemIndex")),
+        ]);
+        Assert.Equal([0, 0, 1], unwound.Documents
+            .Select(static json => ReadIntProperty(json, "itemIndex"))
+            .Order()
+            .ToArray());
+
+        using var admin = CreateClient(AdminToken);
+        var createIndex = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/m32aggregate/indexes",
+            new DocumentIndexCreateRequest("metadata_wildcard", ["$.metadata"], Kind: "wildcard"),
+            ServerJsonContext.Default.DocumentIndexCreateRequest);
+        Assert.Equal(HttpStatusCode.Created, createIndex.StatusCode);
+
+        var validate = await admin.PostAsync(
+            "/v1/db/docapi/documents/m32aggregate/indexes/validate",
+            content: null);
+        Assert.Equal(HttpStatusCode.OK, validate.StatusCode);
+        var report = await validate.Content.ReadFromJsonAsync(
+            ServerJsonContext.Default.DocumentIndexConsistencyResponse);
+        Assert.True(report!.IsConsistent);
+        Assert.True(Assert.Single(report.Indexes).IsConsistent);
+
+        static int ReadIntProperty(string json, string property)
+        {
+            using var document = JsonDocument.Parse(json);
+            return document.RootElement.GetProperty(property).GetInt32();
+        }
     }
 
     [Fact]

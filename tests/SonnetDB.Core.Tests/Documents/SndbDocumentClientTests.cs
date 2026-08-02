@@ -116,6 +116,21 @@ public sealed class SndbDocumentClientTests : IDisposable
         Assert.Equal(["dev-3", "dev-1"], docs.Select(static d => d.Id).ToArray());
         Assert.Equal("""{"_id":"dev-3","temp":24}""", docs[0].Json);
         Assert.Equal("""{"_id":"dev-1","temp":22}""", docs[1].Json);
+
+        using var ignoredLeaf = JsonDocument.Parse("\"south\"");
+        var legacyMixedShape = await client.FindAsync("devices", new SndbDocumentFindOptions(
+            Filter: new SndbDocumentFilter(
+                "$.site",
+                "eq",
+                ignoredLeaf.RootElement.Clone(),
+                [new SndbDocumentFilter("$.site", "eq", site.RootElement.Clone())],
+                null,
+                null)));
+        Assert.Equal(["dev-1", "dev-3"], legacyMixedShape.Select(static d => d.Id).ToArray());
+
+        var legacyEmptyAnd = await client.FindAsync("devices", new SndbDocumentFindOptions(
+            Filter: new SndbDocumentFilter(null, null, null, [], null, null)));
+        Assert.Empty(legacyEmptyAnd);
     }
 
     [Fact]
@@ -325,9 +340,14 @@ public sealed class SndbDocumentClientTests : IDisposable
             new SndbDocumentAggregateStage(Match: new SndbDocumentFilter("$.score", "gte", minScore.RootElement.Clone())),
             new SndbDocumentAggregateStage(Unwind: new SndbDocumentAggregateUnwind("$.tags", "tag")),
             new SndbDocumentAggregateStage(Group: new SndbDocumentAggregateGroup(
-                Keys: [new SndbDocumentAggregateGroupKey("site", "$.site")],
+                Keys: [SndbDocumentAggregateGroupKey.FromExpression(
+                    "site",
+                    SndbDocumentAggregationExpressions.Field("$.site"))],
                 Accumulators: [
-                    new SndbDocumentAggregateAccumulator("total", "sum", "$.score"),
+                    new SndbDocumentAggregateAccumulator(
+                        "total",
+                        "sum",
+                        Expression: SndbDocumentAggregationExpressions.Field("$.score")),
                     new SndbDocumentAggregateAccumulator("avgScore", "avg", "$.score"),
                     new SndbDocumentAggregateAccumulator("rows", "count"),
                     new SndbDocumentAggregateAccumulator("tags", "distinct", "$.tag"),
@@ -623,5 +643,48 @@ public sealed class SndbDocumentClientTests : IDisposable
         Assert.True(await client.DropValidatorAsync("devices"));
         var afterDrop = await client.InsertOneAsync("devices", "free", """{"score":2}""");
         Assert.False(afterDrop.HasErrors);
+    }
+
+    [Fact]
+    public async Task DocumentClient_EmbeddedBulkBudget_ReturnsStableBatchTooLargeResult()
+    {
+        using var client = new SndbDocumentClient(new SndbConnectionStringBuilder
+        {
+            DataSource = _root,
+        }.ConnectionString);
+        await client.CreateCollectionAsync("devices");
+        SndbDocumentBulkWriteOperation[] operations = Enumerable.Range(0, 1001)
+            .Select(index => SndbDocumentBulkWrites.DeleteOne(id: $"missing-{index}"))
+            .ToArray();
+
+        var result = await client.BulkWriteAsync("devices", operations);
+
+        Assert.False(result.Committed);
+        Assert.Equal(SndbDocumentWriteErrorCodes.BatchTooLarge, Assert.Single(result.Errors!).Code);
+        Assert.All(result.Items, item => Assert.Equal("not_attempted", item.Status));
+    }
+
+    [Fact]
+    public async Task DocumentClient_BulkWriteEmptyOperations_RejectsBeforeProviderAccess()
+    {
+        using var embedded = new SndbDocumentClient(new SndbConnectionStringBuilder
+        {
+            DataSource = _root,
+        }.ConnectionString);
+        using var remote = new SndbDocumentClient(new SndbConnectionStringBuilder
+        {
+            DataSource = "sonnetdb+http://127.0.0.1:1/unreachable",
+            Timeout = 1,
+        }.ConnectionString);
+
+        var embeddedError = await Assert.ThrowsAsync<ArgumentException>(
+            () => embedded.BulkWriteAsync("missing", []));
+        var remoteError = await Assert.ThrowsAsync<ArgumentException>(
+            () => remote.BulkWriteAsync("missing", []));
+
+        Assert.Equal("operations", embeddedError.ParamName);
+        Assert.Equal("operations", remoteError.ParamName);
+        Assert.Contains("不能为空", embeddedError.Message, StringComparison.Ordinal);
+        Assert.Contains("不能为空", remoteError.Message, StringComparison.Ordinal);
     }
 }

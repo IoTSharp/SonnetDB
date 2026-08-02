@@ -42,6 +42,15 @@ public static class DocumentWriteErrorCodes
 
     /// <summary>文档或派生索引项超过底层存储允许的大小。</summary>
     public const string DocumentTooLarge = "document_too_large";
+
+    /// <summary>原子批次超过底层 WAL 或内存预算，未提交任何变更。</summary>
+    public const string BatchTooLarge = "batch_too_large";
+
+    /// <summary>同一幂等键被用于不同的批量请求。</summary>
+    public const string IdempotencyConflict = "idempotency_conflict";
+
+    /// <summary>有序批次因前序错误而未执行当前项。</summary>
+    public const string NotAttempted = "not_attempted";
 }
 
 /// <summary>
@@ -71,6 +80,12 @@ public sealed record DocumentInsertManyRequest(
 /// <param name="Ids">可选文档 ID 列表。</param>
 /// <param name="Limit">扫描时最多返回的文档数。</param>
 /// <param name="Skip">扫描时跳过的文档数。</param>
+/// <param name="Filter">可选递归过滤表达式。</param>
+/// <param name="Projection">可选投影字段。</param>
+/// <param name="Sort">可选排序字段。</param>
+/// <param name="ContinuationToken">可选 continuation token。</param>
+/// <param name="Collation">字符串过滤与排序校对模式：ordinal 或 ordinal_ignore_case。</param>
+[method: JsonConstructor]
 public sealed record DocumentFindRequest(
     string? Id = null,
     IReadOnlyList<string>? Ids = null,
@@ -79,24 +94,96 @@ public sealed record DocumentFindRequest(
     DocumentFilterContract? Filter = null,
     IReadOnlyList<DocumentProjectionContract>? Projection = null,
     IReadOnlyList<DocumentSortContract>? Sort = null,
-    string? ContinuationToken = null);
+    string? ContinuationToken = null,
+    string? Collation = null)
+{
+    /// <summary>使用默认 ordinal collation 创建查询，保留旧版构造入口。</summary>
+    public DocumentFindRequest(
+        string? Id,
+        IReadOnlyList<string>? Ids,
+        int? Limit,
+        int Skip,
+        DocumentFilterContract? Filter,
+        IReadOnlyList<DocumentProjectionContract>? Projection,
+        IReadOnlyList<DocumentSortContract>? Sort,
+        string? ContinuationToken)
+        : this(Id, Ids, Limit, Skip, Filter, Projection, Sort, ContinuationToken, null)
+    {
+    }
+
+    /// <summary>按旧版八字段形态解构查询。</summary>
+    public void Deconstruct(
+        out string? Id,
+        out IReadOnlyList<string>? Ids,
+        out int? Limit,
+        out int Skip,
+        out DocumentFilterContract? Filter,
+        out IReadOnlyList<DocumentProjectionContract>? Projection,
+        out IReadOnlyList<DocumentSortContract>? Sort,
+        out string? ContinuationToken)
+    {
+        Id = this.Id;
+        Ids = this.Ids;
+        Limit = this.Limit;
+        Skip = this.Skip;
+        Filter = this.Filter;
+        Projection = this.Projection;
+        Sort = this.Sort;
+        ContinuationToken = this.ContinuationToken;
+    }
+}
 
 /// <summary>
 /// Document API 过滤表达式。
 /// </summary>
 /// <param name="Path">JSON path；也可传 <c>_id</c>、<c>id</c>、<c>document</c>。</param>
-/// <param name="Op">操作符：eq/ne/gt/gte/lt/lte/in/nin/exists/contains。</param>
+/// <param name="Op">操作符：eq/ne/gt/gte/lt/lte/in/nin/exists/contains/elemMatch/regex/type/size/all。</param>
 /// <param name="Value">比较值。</param>
 /// <param name="And">AND 子表达式列表。</param>
 /// <param name="Or">OR 子表达式列表。</param>
 /// <param name="Not">NOT 子表达式。</param>
+/// <param name="ElemMatch">$elemMatch 的元素级子过滤表达式。</param>
+/// <param name="RegexOptions">$regex 标志，支持 i/c/m/s/x。</param>
+[method: JsonConstructor]
 public sealed record DocumentFilterContract(
     string? Path = null,
     string? Op = null,
     JsonElement? Value = null,
     IReadOnlyList<DocumentFilterContract>? And = null,
     IReadOnlyList<DocumentFilterContract>? Or = null,
-    DocumentFilterContract? Not = null);
+    DocumentFilterContract? Not = null,
+    DocumentFilterContract? ElemMatch = null,
+    string? RegexOptions = null)
+{
+    /// <summary>创建不含 M32 扩展操作数的过滤器，保留旧版构造入口。</summary>
+    public DocumentFilterContract(
+        string? Path,
+        string? Op,
+        JsonElement? Value,
+        IReadOnlyList<DocumentFilterContract>? And,
+        IReadOnlyList<DocumentFilterContract>? Or,
+        DocumentFilterContract? Not)
+        : this(Path, Op, Value, And, Or, Not, null, null)
+    {
+    }
+
+    /// <summary>按旧版六字段形态解构过滤器。</summary>
+    public void Deconstruct(
+        out string? Path,
+        out string? Op,
+        out JsonElement? Value,
+        out IReadOnlyList<DocumentFilterContract>? And,
+        out IReadOnlyList<DocumentFilterContract>? Or,
+        out DocumentFilterContract? Not)
+    {
+        Path = this.Path;
+        Op = this.Op;
+        Value = this.Value;
+        And = this.And;
+        Or = this.Or;
+        Not = this.Not;
+    }
+}
 
 /// <summary>
 /// Document API 投影字段。
@@ -164,6 +251,9 @@ public sealed record DocumentFindOneResponse(
 /// <param name="Pull">对应 $pull。</param>
 /// <param name="AddToSet">对应 $addToSet。</param>
 /// <param name="CurrentDate">对应 $currentDate。</param>
+/// <param name="Mul">对应 $mul。</param>
+/// <param name="Pop">对应 $pop；值为 -1 时移除首项，1 时移除末项。</param>
+[method: JsonConstructor]
 public sealed record DocumentUpdateContract(
     IReadOnlyDictionary<string, JsonElement>? Set = null,
     IReadOnlyDictionary<string, JsonElement>? Unset = null,
@@ -174,7 +264,51 @@ public sealed record DocumentUpdateContract(
     IReadOnlyDictionary<string, JsonElement>? Push = null,
     IReadOnlyDictionary<string, JsonElement>? Pull = null,
     IReadOnlyDictionary<string, JsonElement>? AddToSet = null,
-    IReadOnlyDictionary<string, JsonElement>? CurrentDate = null);
+    IReadOnlyDictionary<string, JsonElement>? CurrentDate = null,
+    IReadOnlyDictionary<string, JsonElement>? Mul = null,
+    IReadOnlyDictionary<string, JsonElement>? Pop = null)
+{
+    /// <summary>创建不含 <c>$mul</c>/<c>$pop</c> 的更新，保留旧版构造入口。</summary>
+    public DocumentUpdateContract(
+        IReadOnlyDictionary<string, JsonElement>? Set,
+        IReadOnlyDictionary<string, JsonElement>? Unset,
+        IReadOnlyDictionary<string, JsonElement>? Inc,
+        IReadOnlyDictionary<string, JsonElement>? Min,
+        IReadOnlyDictionary<string, JsonElement>? Max,
+        IReadOnlyDictionary<string, string>? Rename,
+        IReadOnlyDictionary<string, JsonElement>? Push,
+        IReadOnlyDictionary<string, JsonElement>? Pull,
+        IReadOnlyDictionary<string, JsonElement>? AddToSet,
+        IReadOnlyDictionary<string, JsonElement>? CurrentDate)
+        : this(Set, Unset, Inc, Min, Max, Rename, Push, Pull, AddToSet, CurrentDate, null, null)
+    {
+    }
+
+    /// <summary>按旧版十字段形态解构更新。</summary>
+    public void Deconstruct(
+        out IReadOnlyDictionary<string, JsonElement>? Set,
+        out IReadOnlyDictionary<string, JsonElement>? Unset,
+        out IReadOnlyDictionary<string, JsonElement>? Inc,
+        out IReadOnlyDictionary<string, JsonElement>? Min,
+        out IReadOnlyDictionary<string, JsonElement>? Max,
+        out IReadOnlyDictionary<string, string>? Rename,
+        out IReadOnlyDictionary<string, JsonElement>? Push,
+        out IReadOnlyDictionary<string, JsonElement>? Pull,
+        out IReadOnlyDictionary<string, JsonElement>? AddToSet,
+        out IReadOnlyDictionary<string, JsonElement>? CurrentDate)
+    {
+        Set = this.Set;
+        Unset = this.Unset;
+        Inc = this.Inc;
+        Min = this.Min;
+        Max = this.Max;
+        Rename = this.Rename;
+        Push = this.Push;
+        Pull = this.Pull;
+        AddToSet = this.AddToSet;
+        CurrentDate = this.CurrentDate;
+    }
+}
 
 /// <summary>
 /// 单文档整体替换或局部更新请求。
@@ -208,6 +342,124 @@ public sealed record DocumentUpdateManyRequest(
     bool Upsert = false,
     string? UpsertId = null,
     bool Ordered = true);
+
+/// <summary>
+/// 原子查找并局部更新单条文档的请求。
+/// </summary>
+/// <param name="Id">可选文档 ID 等值条件。</param>
+/// <param name="Filter">附加过滤条件；与 <paramref name="Id"/> 同时提供时按 AND 合并。</param>
+/// <param name="Update">局部更新操作符。</param>
+/// <param name="Upsert">未匹配时是否插入新文档。</param>
+/// <param name="UpsertId">upsert 文档 ID；为空时尝试从 ID 或过滤条件推断。</param>
+/// <param name="ReturnDocument">返回 before 或 after 文档。</param>
+public sealed record DocumentFindOneAndUpdateRequest(
+    string? Id,
+    DocumentFilterContract? Filter,
+    DocumentUpdateContract Update,
+    bool Upsert = false,
+    string? UpsertId = null,
+    string ReturnDocument = "before");
+
+/// <summary>
+/// 原子查找并局部更新单条文档的响应。
+/// </summary>
+/// <param name="Collection">文档集合名称。</param>
+/// <param name="Found">是否返回了 before/after 文档。</param>
+/// <param name="Document">按请求选择返回的文档；未匹配或 before-upsert 时为空。</param>
+/// <param name="Inserted">upsert 插入数量。</param>
+/// <param name="Matched">匹配数量。</param>
+/// <param name="Modified">实际修改数量。</param>
+/// <param name="Errors">validator 或写入错误。</param>
+public sealed record DocumentFindOneAndUpdateResponse(
+    string Collection,
+    bool Found,
+    DocumentItemResponse? Document,
+    int Inserted,
+    int Matched,
+    int Modified,
+    IReadOnlyList<DocumentWriteErrorResponse>? Errors = null);
+
+/// <summary>
+/// 混合批量写中的一个 insert/replace/update/delete 操作。
+/// </summary>
+/// <param name="Type">insertOne、replaceOne、updateOne、updateMany、deleteOne 或 deleteMany。</param>
+/// <param name="Id">insert/replace 的 ID，或 update/delete 的可选 ID 等值条件。</param>
+/// <param name="Document">insert/replace 的 JSON 文档。</param>
+/// <param name="Filter">update/delete 的过滤条件。</param>
+/// <param name="Update">局部更新操作符。</param>
+/// <param name="Upsert">update/replace 未匹配时是否插入。</param>
+/// <param name="UpsertId">upsert 文档 ID。</param>
+/// <param name="ExpectedVersion">replace 的可选预期版本。</param>
+public sealed record DocumentBulkWriteOperationContract(
+    string Type,
+    string? Id = null,
+    JsonElement? Document = null,
+    DocumentFilterContract? Filter = null,
+    DocumentUpdateContract? Update = null,
+    bool Upsert = false,
+    string? UpsertId = null,
+    long? ExpectedVersion = null);
+
+/// <summary>
+/// 混合批量写请求。
+/// </summary>
+/// <param name="Operations">按请求顺序执行的操作，最多 1000 项。</param>
+/// <param name="Ordered">为 true 时任一错误使整批不提交；为 false 时提交全部有效项。</param>
+/// <param name="RequestId">可选幂等键；同一集合内重试相同请求时返回首次持久化结果。</param>
+public sealed record DocumentBulkWriteRequest(
+    IReadOnlyList<DocumentBulkWriteOperationContract> Operations,
+    bool Ordered = true,
+    string? RequestId = null);
+
+/// <summary>
+/// 混合批量写的单项结果。
+/// </summary>
+/// <param name="Index">原始请求中的零基序号。</param>
+/// <param name="Operation">稳定操作名称。</param>
+/// <param name="Id">目标或 upsert 后的文档 ID。</param>
+/// <param name="Status">succeeded、no_op、failed 或 not_attempted。</param>
+/// <param name="Inserted">插入数量。</param>
+/// <param name="Matched">匹配数量。</param>
+/// <param name="Modified">修改数量。</param>
+/// <param name="Deleted">删除数量。</param>
+/// <param name="UpsertedId">发生 upsert 时的新文档 ID。</param>
+/// <param name="Error">当前项错误或警告。</param>
+public sealed record DocumentBulkWriteItemResponse(
+    int Index,
+    string Operation,
+    string? Id,
+    string Status,
+    int Inserted = 0,
+    int Matched = 0,
+    int Modified = 0,
+    int Deleted = 0,
+    string? UpsertedId = null,
+    DocumentWriteErrorResponse? Error = null);
+
+/// <summary>
+/// 混合批量写响应。
+/// </summary>
+/// <param name="Collection">文档集合名称。</param>
+/// <param name="Inserted">插入总数。</param>
+/// <param name="Matched">匹配总数。</param>
+/// <param name="Modified">修改总数。</param>
+/// <param name="Deleted">删除总数。</param>
+/// <param name="Items">按请求序号排列的逐项结果。</param>
+/// <param name="Errors">批次错误与警告。</param>
+/// <param name="RequestId">调用方幂等键。</param>
+/// <param name="Replayed">是否直接重放首次持久化结果。</param>
+/// <param name="Committed">成功项是否已作为一个 collection 内原子批次提交。</param>
+public sealed record DocumentBulkWriteResponse(
+    string Collection,
+    int Inserted,
+    int Matched,
+    int Modified,
+    int Deleted,
+    IReadOnlyList<DocumentBulkWriteItemResponse> Items,
+    IReadOnlyList<DocumentWriteErrorResponse>? Errors = null,
+    string? RequestId = null,
+    bool Replayed = false,
+    bool Committed = true);
 
 /// <summary>
 /// 局部更新预览请求，不修改集合状态。
@@ -251,6 +503,15 @@ public sealed record DocumentIndexPartialFilterContract(
 /// <summary>
 /// 创建 Document JSON path 索引的请求。
 /// </summary>
+/// <param name="Name">索引名称。</param>
+/// <param name="Paths">显式字段 path，或 wildcard 的单个 subtree root path。</param>
+/// <param name="IsUnique">是否为唯一索引。</param>
+/// <param name="IsSparse">是否跳过 null 或缺失值。</param>
+/// <param name="PartialFilter">可选 partial index 过滤条件。</param>
+/// <param name="TtlPath">可选 TTL 时间字段 path。</param>
+/// <param name="TtlSeconds">TTL 保留秒数。</param>
+/// <param name="Kind">索引类型：path 或 wildcard。</param>
+[method: JsonConstructor]
 public sealed record DocumentIndexCreateRequest(
     string Name,
     IReadOnlyList<string> Paths,
@@ -258,7 +519,41 @@ public sealed record DocumentIndexCreateRequest(
     bool IsSparse = false,
     DocumentIndexPartialFilterContract? PartialFilter = null,
     string? TtlPath = null,
-    long? TtlSeconds = null);
+    long? TtlSeconds = null,
+    string Kind = "path")
+{
+    /// <summary>使用普通 path 索引创建请求，保留旧版构造入口。</summary>
+    public DocumentIndexCreateRequest(
+        string Name,
+        IReadOnlyList<string> Paths,
+        bool IsUnique,
+        bool IsSparse,
+        DocumentIndexPartialFilterContract? PartialFilter,
+        string? TtlPath,
+        long? TtlSeconds)
+        : this(Name, Paths, IsUnique, IsSparse, PartialFilter, TtlPath, TtlSeconds, "path")
+    {
+    }
+
+    /// <summary>按旧版字段形态解构请求，忽略新增的索引类型。</summary>
+    public void Deconstruct(
+        out string Name,
+        out IReadOnlyList<string> Paths,
+        out bool IsUnique,
+        out bool IsSparse,
+        out DocumentIndexPartialFilterContract? PartialFilter,
+        out string? TtlPath,
+        out long? TtlSeconds)
+    {
+        Name = this.Name;
+        Paths = this.Paths;
+        IsUnique = this.IsUnique;
+        IsSparse = this.IsSparse;
+        PartialFilter = this.PartialFilter;
+        TtlPath = this.TtlPath;
+        TtlSeconds = this.TtlSeconds;
+    }
+}
 
 /// <summary>Document 索引生命周期操作响应。</summary>
 public sealed record DocumentIndexOperationResponse(
@@ -456,6 +751,8 @@ public sealed record DocumentAggregateRequest(IReadOnlyList<DocumentAggregateSta
 /// <param name="Unwind">`$unwind` 阶段。</param>
 /// <param name="Count">`$count` 阶段输出字段名。</param>
 /// <param name="Distinct">`$distinct` 等价阶段。</param>
+/// <param name="ComputedFields">`$project` 阶段的可选计算字段。</param>
+[method: JsonConstructor]
 public sealed record DocumentAggregateStageContract(
     [property: JsonPropertyName("$match")] DocumentFilterContract? Match = null,
     [property: JsonPropertyName("$project")] IReadOnlyList<DocumentProjectionContract>? Project = null,
@@ -465,7 +762,65 @@ public sealed record DocumentAggregateStageContract(
     [property: JsonPropertyName("$skip")] int? Skip = null,
     [property: JsonPropertyName("$unwind")] DocumentAggregateUnwindContract? Unwind = null,
     [property: JsonPropertyName("$count")] string? Count = null,
-    [property: JsonPropertyName("$distinct")] DocumentAggregateDistinctContract? Distinct = null);
+    [property: JsonPropertyName("$distinct")] DocumentAggregateDistinctContract? Distinct = null,
+    IReadOnlyList<DocumentAggregateComputedFieldContract>? ComputedFields = null)
+{
+    /// <summary>使用既有九种阶段属性创建聚合阶段，保留旧版构造入口。</summary>
+    public DocumentAggregateStageContract(
+        DocumentFilterContract? Match,
+        IReadOnlyList<DocumentProjectionContract>? Project,
+        DocumentAggregateGroupContract? Group,
+        IReadOnlyList<DocumentSortContract>? Sort,
+        int? Limit,
+        int? Skip,
+        DocumentAggregateUnwindContract? Unwind,
+        string? Count,
+        DocumentAggregateDistinctContract? Distinct)
+        : this(Match, Project, Group, Sort, Limit, Skip, Unwind, Count, Distinct, null)
+    {
+    }
+
+    /// <summary>按旧版九字段形态解构阶段，忽略新增的计算字段。</summary>
+    public void Deconstruct(
+        out DocumentFilterContract? Match,
+        out IReadOnlyList<DocumentProjectionContract>? Project,
+        out DocumentAggregateGroupContract? Group,
+        out IReadOnlyList<DocumentSortContract>? Sort,
+        out int? Limit,
+        out int? Skip,
+        out DocumentAggregateUnwindContract? Unwind,
+        out string? Count,
+        out DocumentAggregateDistinctContract? Distinct)
+    {
+        Match = this.Match;
+        Project = this.Project;
+        Group = this.Group;
+        Sort = this.Sort;
+        Limit = this.Limit;
+        Skip = this.Skip;
+        Unwind = this.Unwind;
+        Count = this.Count;
+        Distinct = this.Distinct;
+    }
+}
+
+/// <summary>`$project` 阶段的一个计算字段。</summary>
+/// <param name="Name">输出字段名。</param>
+/// <param name="Expression">字段值表达式。</param>
+public sealed record DocumentAggregateComputedFieldContract(
+    string Name,
+    DocumentAggregateExpressionContract Expression);
+
+/// <summary>SonnetDB-native 聚合表达式。</summary>
+/// <param name="Op">field、literal、add、subtract、multiply、divide、concat、if_null 或 cond。</param>
+/// <param name="Path">field 表达式读取的字段 path。</param>
+/// <param name="Value">literal 表达式的 JSON 值。</param>
+/// <param name="Arguments">运算表达式的有序参数。</param>
+public sealed record DocumentAggregateExpressionContract(
+    string Op,
+    string? Path = null,
+    JsonElement? Value = null,
+    IReadOnlyList<DocumentAggregateExpressionContract>? Arguments = null);
 
 /// <summary>
 /// `$group` 阶段定义。
@@ -481,15 +836,69 @@ public sealed record DocumentAggregateGroupContract(
 /// </summary>
 /// <param name="Name">输出字段名。</param>
 /// <param name="Path">输入字段路径，可为 `_id` / `id` / `document` / `json` 或 JSON path。</param>
-public sealed record DocumentAggregateGroupKeyContract(string Name, string Path);
+/// <param name="Expression">可选分组表达式；设置时优先于 path。</param>
+[method: JsonConstructor]
+public sealed record DocumentAggregateGroupKeyContract(
+    string Name,
+    string Path,
+    DocumentAggregateExpressionContract? Expression = null)
+{
+    /// <summary>使用字段 path 创建分组键，保留旧版构造入口。</summary>
+    /// <param name="Name">输出字段名。</param>
+    /// <param name="Path">输入字段路径。</param>
+    public DocumentAggregateGroupKeyContract(string Name, string Path)
+        : this(Name, Path, null)
+    {
+    }
+
+    /// <summary>创建使用表达式的分组键。</summary>
+    /// <param name="name">输出字段名。</param>
+    /// <param name="expression">分组表达式。</param>
+    /// <returns>使用指定表达式的分组键。</returns>
+    public static DocumentAggregateGroupKeyContract FromExpression(
+        string name,
+        DocumentAggregateExpressionContract expression)
+    {
+        ArgumentNullException.ThrowIfNull(expression);
+        return new DocumentAggregateGroupKeyContract(name, string.Empty, expression);
+    }
+
+    /// <summary>按旧版字段形态解构分组键。</summary>
+    public void Deconstruct(out string Name, out string Path)
+    {
+        Name = this.Name;
+        Path = this.Path;
+    }
+}
 
 /// <summary>
 /// `$group` 聚合函数。
 /// </summary>
 /// <param name="Name">输出字段名。</param>
-/// <param name="Op">函数名：count/sum/avg/min/max/first/last/distinct。</param>
+/// <param name="Op">函数名：count/sum/avg/min/max/first/last/distinct/push/addToSet。</param>
 /// <param name="Path">输入字段路径；count 可不传。</param>
-public sealed record DocumentAggregateAccumulatorContract(string Name, string Op, string? Path = null);
+/// <param name="Expression">可选输入表达式；设置时优先于 path。</param>
+[method: JsonConstructor]
+public sealed record DocumentAggregateAccumulatorContract(
+    string Name,
+    string Op,
+    string? Path = null,
+    DocumentAggregateExpressionContract? Expression = null)
+{
+    /// <summary>使用字段 path 创建聚合函数，保留旧版构造入口。</summary>
+    public DocumentAggregateAccumulatorContract(string Name, string Op, string? Path)
+        : this(Name, Op, Path, null)
+    {
+    }
+
+    /// <summary>按旧版字段形态解构聚合函数。</summary>
+    public void Deconstruct(out string Name, out string Op, out string? Path)
+    {
+        Name = this.Name;
+        Op = this.Op;
+        Path = this.Path;
+    }
+}
 
 /// <summary>
 /// `$unwind` 阶段定义。
@@ -497,10 +906,34 @@ public sealed record DocumentAggregateAccumulatorContract(string Name, string Op
 /// <param name="Path">要展开的数组字段路径。</param>
 /// <param name="Name">可选输出别名；为空时替换原字段。</param>
 /// <param name="PreserveNullAndEmptyArrays">字段缺失、null 或空数组时是否保留原文档。</param>
+/// <param name="IncludeArrayIndex">可选数组下标输出字段名。</param>
+[method: JsonConstructor]
 public sealed record DocumentAggregateUnwindContract(
     string Path,
     string? Name = null,
-    bool PreserveNullAndEmptyArrays = false);
+    bool PreserveNullAndEmptyArrays = false,
+    string? IncludeArrayIndex = null)
+{
+    /// <summary>创建不输出数组下标的 unwind，保留旧版构造入口。</summary>
+    public DocumentAggregateUnwindContract(
+        string Path,
+        string? Name,
+        bool PreserveNullAndEmptyArrays)
+        : this(Path, Name, PreserveNullAndEmptyArrays, null)
+    {
+    }
+
+    /// <summary>按旧版字段形态解构 unwind。</summary>
+    public void Deconstruct(
+        out string Path,
+        out string? Name,
+        out bool PreserveNullAndEmptyArrays)
+    {
+        Path = this.Path;
+        Name = this.Name;
+        PreserveNullAndEmptyArrays = this.PreserveNullAndEmptyArrays;
+    }
+}
 
 /// <summary>
 /// `$distinct` 等价阶段定义。

@@ -232,7 +232,7 @@ README 只保留项目概览和最短入门路径，完整说明在专题文档�
 | .NET 生态接入与 Profile 边界 | [生态接入](docs/ecosystem-integration.md)、[可运行样例](samples/SonnetDB.EcosystemSample/README.md) |
 | SigLIP2 文搜图、图搜图与 Bucket 异步摄取 | [语义图片检索](docs/semantic-image-search.md)、[工业图片样例](samples/SonnetDB.SemanticImages/README.md) |
 | 批量写入、Line Protocol、JSON ingest | [批量写入](docs/bulk-ingest.md) |
-| KV、文档、全文、向量、Hybrid Search | [KV Keyspace](docs/kv-keyspace.md)、[Document Store](docs/document-store.md)、[向量搜索](docs/vector-search.md) |
+| KV、文档、全文、向量、Hybrid Search | [KV Keyspace](docs/kv-keyspace.md)、[Document Store](docs/document-store.md)、[Document Quickstart](samples/SonnetDB.DocumentQuickstart/README.md)、[MongoDB-like 迁移](docs/mongodb-migration.md)、[向量搜索](docs/vector-search.md) |
 | 二进制帧协议、MQTT 与 Sparkplug B 接入 | [帧协议](docs/frame-protocol.md)、[Sparkplug B](docs/sparkplug-b.md) |
 | 地理空间、轨迹、预测、PID | [地理空间](docs/geo-spatial.md)、[预测](docs/forecast.md)、[PID 控制](docs/pid-control.md) |
 | 架构、目录布局、备份恢复 | [架构总览](docs/architecture.md)、[文件格式](docs/file-format.md)、[备份恢复](docs/backup-restore.md) |

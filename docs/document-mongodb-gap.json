@@ -1,0 +1,291 @@
+{
+  "schemaVersion": 1,
+  "milestone": 32,
+  "product": "SonnetDB Document Store",
+  "positioning": "MongoDB-like document workloads through SonnetDB APIs; not MongoDB protocol compatibility",
+  "statusDefinitions": {
+    "supported": "Implemented, externally reachable, and covered by automated evidence.",
+    "partial": "A documented SonnetDB-native subset is implemented; callers must account for listed differences.",
+    "planned": "Accepted future work outside the completed Milestone 32 scope.",
+    "not_planned": "Explicitly excluded; use the documented alternative."
+  },
+  "features": [
+    {
+      "id": "sdk.typed-builders",
+      "area": "sdk",
+      "status": "supported",
+      "summary": "Typed filter, projection, sort and update builders use AOT-friendly JSON values.",
+      "evidence": [
+        "src/SonnetDB.Data/Documents/SndbDocumentBuilders.cs",
+        "tests/SonnetDB.Core.Tests/Documents/SndbDocumentClientTests.cs"
+      ]
+    },
+    {
+      "id": "sdk.cursor",
+      "area": "sdk",
+      "status": "supported",
+      "summary": "Bounded page cursor with invalid, mismatch, expired and stale error codes.",
+      "evidence": [
+        "src/SonnetDB.Data/Documents/SndbDocumentCursor.cs",
+        "src/SonnetDB.Core/Documents/DocumentCursorToken.cs"
+      ]
+    },
+    {
+      "id": "update.mul-pop",
+      "area": "update",
+      "status": "supported",
+      "summary": "$mul and $pop are available in Core, HTTP and the .NET SDK.",
+      "evidence": [
+        "src/SonnetDB.Core/Documents/DocumentUpdateExecutor.cs",
+        "tests/SonnetDB.Core.Tests/Documents/DocumentUpdateOperatorTests.cs"
+      ]
+    },
+    {
+      "id": "update.find-one-and-update",
+      "area": "update",
+      "status": "supported",
+      "summary": "Atomic filter-and-update returns the before or after document and supports upsert.",
+      "evidence": [
+        "src/SonnetDB.Core/Documents/DocumentCollectionStore.FindAndModify.cs",
+        "tests/SonnetDB.Core.Tests/Documents/DocumentFindOneAndUpdateTests.cs",
+        "tests/SonnetDB.Tests/DocumentEndpointTests.cs"
+      ]
+    },
+    {
+      "id": "query.array-operators",
+      "area": "query",
+      "status": "supported",
+      "summary": "$elemMatch, $size and $all use element-scoped and array-aware semantics.",
+      "evidence": [
+        "src/SonnetDB.Core/Documents/DocumentQueryPlanner.cs",
+        "tests/SonnetDB.Core.Tests/Documents/DocumentQueryOperatorTests.cs"
+      ]
+    },
+    {
+      "id": "query.regex-type-not",
+      "area": "query",
+      "status": "supported",
+      "summary": "Bounded $regex, JSON $type and recursively nested $not are implemented.",
+      "evidence": [
+        "src/SonnetDB.Core/Documents/DocumentQueryModels.cs",
+        "tests/SonnetDB.Core.Tests/Documents/DocumentQueryOperatorTests.cs"
+      ]
+    },
+    {
+      "id": "query.nested-path-boundaries",
+      "area": "query",
+      "status": "supported",
+      "summary": "Object properties, implicit array traversal and explicit numeric array indices have distinct boundaries.",
+      "evidence": [
+        "src/SonnetDB.Core/Documents/JsonPath.cs",
+        "src/SonnetDB.Core/Documents/JsonPathEvaluator.cs",
+        "tests/SonnetDB.Core.Tests/Documents/DocumentQueryOperatorTests.cs"
+      ]
+    },
+    {
+      "id": "query.collation",
+      "area": "query",
+      "status": "supported",
+      "summary": "The M32 basic collation scope supports ordinal and ordinal-ignore-case string filtering and sorting with cursor fingerprint isolation.",
+      "evidence": [
+        "src/SonnetDB.Core/Documents/DocumentQueryModels.cs",
+        "tests/SonnetDB.Core.Tests/Documents/DocumentQueryOperatorTests.cs"
+      ]
+    },
+    {
+      "id": "query.locale-collation",
+      "area": "query",
+      "status": "planned",
+      "summary": "Locale, strength and Unicode-normalization-aware collation is a possible post-M32 extension and has no compatibility promise or delivery date.",
+      "alternative": "Normalize locale-sensitive sort keys into explicit fields before indexing.",
+      "evidence": [
+        "docs/document-store.md"
+      ]
+    },
+    {
+      "id": "index.multikey",
+      "area": "index",
+      "status": "supported",
+      "summary": "Path indexes fan out array values, deduplicate per-document entries and reject compound parallel arrays.",
+      "evidence": [
+        "src/SonnetDB.Core/Documents/DocumentCollectionStore.cs",
+        "tests/SonnetDB.Core.Tests/Documents/DocumentAtomicMultikeyWildcardTests.cs"
+      ]
+    },
+    {
+      "id": "index.wildcard",
+      "area": "index",
+      "status": "supported",
+      "summary": "A subtree wildcard index is creatable through Core and HTTP and is visible to the planner.",
+      "evidence": [
+        "src/SonnetDB.Core/Documents/DocumentCollectionSchema.cs",
+        "src/SonnetDB/Endpoints/Routes/DocumentEndpoints.cs",
+        "tests/SonnetDB.Tests/DocumentEndpointTests.cs"
+      ]
+    },
+    {
+      "id": "index.explain-recovery",
+      "area": "index",
+      "status": "supported",
+      "summary": "EXPLAIN distinguishes path, wildcard and scan access; one WAL batch covers primary/path-index/feed state and a repair marker rebuilds derived indexes.",
+      "evidence": [
+        "src/SonnetDB.Core/Documents/DocumentQueryPlanner.cs",
+        "src/SonnetDB.Core/Kv/KvKeyspace.cs",
+        "tests/SonnetDB.Core.Tests/Documents/DocumentAtomicMultikeyWildcardTests.cs"
+      ]
+    },
+    {
+      "id": "aggregation.expressions",
+      "area": "aggregation",
+      "status": "supported",
+      "summary": "$project and $group accept field/literal/arithmetic/concat/ifNull/cond expressions; group adds push/addToSet and unwind adds array index output.",
+      "evidence": [
+        "src/SonnetDB.Core/Documents/DocumentAggregationExecutor.cs",
+        "tests/SonnetDB.Core.Tests/Documents/DocumentAggregationExpressionTests.cs",
+        "tests/SonnetDB.Tests/DocumentEndpointTests.cs"
+      ]
+    },
+    {
+      "id": "aggregation.mongodb-pipeline",
+      "area": "aggregation",
+      "status": "partial",
+      "summary": "The SonnetDB-native bounded pipeline is not the complete MongoDB aggregation language.",
+      "alternative": "Use supported stages, SonnetDB SQL, or application-side composition.",
+      "evidence": [
+        "docs/document-store.md"
+      ]
+    },
+    {
+      "id": "aggregation.lookup-facet-bucket",
+      "area": "aggregation",
+      "status": "not_planned",
+      "summary": "$lookup, $facet and a dedicated $bucket stage are excluded from the M32 native subset because they add cross-collection or multiply-buffered execution boundaries.",
+      "alternative": "Use SQL JOIN/CASE/grouping, multiple bounded aggregate calls, or application composition.",
+      "evidence": [
+        "docs/document-store.md"
+      ]
+    },
+    {
+      "id": "bulk.mixed-operations",
+      "area": "bulk",
+      "status": "supported",
+      "summary": "One batch may mix insert, replace, update-one, update-many, delete-one, delete-many and upsert with per-item results.",
+      "evidence": [
+        "src/SonnetDB.Core/Documents/DocumentCollectionStore.Bulk.cs",
+        "tests/SonnetDB.Core.Tests/Documents/DocumentBulkWriteTests.cs",
+        "tests/SonnetDB.Tests/DocumentEndpointTests.cs"
+      ]
+    },
+    {
+      "id": "bulk.transaction-boundary",
+      "area": "bulk",
+      "status": "supported",
+      "summary": "Ordered errors commit zero mutations; unordered batches atomically commit their valid subset inside one collection.",
+      "evidence": [
+        "src/SonnetDB.Core/Documents/DocumentCollectionStore.Bulk.cs",
+        "tests/SonnetDB.Core.Tests/Documents/DocumentBulkWriteTests.cs"
+      ]
+    },
+    {
+      "id": "bulk.retry-safety",
+      "area": "bulk",
+      "status": "supported",
+      "summary": "A requestId binds an unambiguous length-prefixed payload fingerprint for 24 hours and persists replay results across restart; mismatched payloads fail with idempotency_conflict.",
+      "evidence": [
+        "src/SonnetDB.Core/Documents/DocumentCollectionStore.Bulk.cs",
+        "tests/SonnetDB.Core.Tests/Documents/DocumentBulkWriteTests.cs"
+      ]
+    },
+    {
+      "id": "bulk.validation-budget",
+      "area": "bulk",
+      "status": "supported",
+      "summary": "Empty requests and irrelevant per-operation fields are rejected; operation-count, canonical-payload and atomic-WAL budget failures return stable batch_too_large without mutations.",
+      "evidence": [
+        "src/SonnetDB.Core/Documents/DocumentCollectionStore.Bulk.cs",
+        "tests/SonnetDB.Core.Tests/Documents/DocumentBulkWriteTests.cs"
+      ]
+    },
+    {
+      "id": "migration.json-extended-json",
+      "area": "migration",
+      "status": "supported",
+      "summary": "sndb document import streams JSON arrays, bounds strict UTF-8 NDJSON records, and converts common Extended JSON scalars with dry-run and machine reports.",
+      "evidence": [
+        "src/SonnetDB.Cli/DocumentImportCommandRunner.cs",
+        "src/SonnetDB.Cli/DocumentImportSourceReader.cs",
+        "tests/SonnetDB.Core.Tests/Cli/DocumentImportCommandTests.cs"
+      ]
+    },
+    {
+      "id": "migration.mongodump-bson",
+      "area": "migration",
+      "status": "partial",
+      "summary": "Concatenated mongodump BSON supports common scalar, object, array, ObjectId, date, binary, regex and timestamp values; Decimal128 and uncommon deprecated/code types require canonical Extended JSON export.",
+      "alternative": "Export canonical Extended JSON when the machine report emits unsupported_bson_type; corrupt or truncated input is reported separately as invalid_bson.",
+      "evidence": [
+        "src/SonnetDB.Cli/BsonDocumentReader.cs",
+        "tests/SonnetDB.Core.Tests/Cli/DocumentImportCommandTests.cs"
+      ]
+    },
+    {
+      "id": "migration.retry-resume-report",
+      "area": "migration",
+      "status": "supported",
+      "summary": "Content-derived batch IDs, validated checkpoints, local/remote profiles, index suggestions, total error counts and bounded error samples make retry and resume explicit.",
+      "evidence": [
+        "src/SonnetDB.Cli/DocumentImportCommandRunner.cs",
+        "src/SonnetDB.Cli/DocumentImportIndexAdvisor.cs",
+        "tests/SonnetDB.Core.Tests/Cli/DocumentImportCommandTests.cs"
+      ]
+    },
+    {
+      "id": "workbench.import",
+      "area": "ui",
+      "status": "supported",
+      "summary": "Web/Studio imports files through the browser or native bridge, safely maps common Extended JSON IDs, writes mixed Bulk batches and renders per-item errors.",
+      "evidence": [
+        "web/src/components/DocumentCollectionWorkbench.vue",
+        "web/e2e/management-workbenches.spec.ts"
+      ]
+    },
+    {
+      "id": "sample.quickstart",
+      "area": "sample",
+      "status": "supported",
+      "summary": "The same sample code runs embedded or remote and demonstrates builders, cursor, findOneAndUpdate, mixed Bulk and replay.",
+      "evidence": [
+        "samples/SonnetDB.DocumentQuickstart/Program.cs",
+        "samples/SonnetDB.DocumentQuickstart/README.md"
+      ]
+    },
+    {
+      "id": "compatibility.mongodb-wire-driver",
+      "area": "compatibility",
+      "status": "not_planned",
+      "summary": "MongoDB wire protocol, BSON commands, MongoDB URI and official driver connectivity are not implemented.",
+      "alternative": "Use SndbDocumentClient, SonnetDB HTTP API or SQL."
+    },
+    {
+      "id": "compatibility.distributed-mongodb",
+      "area": "compatibility",
+      "status": "not_planned",
+      "summary": "Replica set, sharding, cross-database distributed transactions and MongoDB read/write concern are outside the single-node product boundary.",
+      "alternative": "Use deployment-level backup/recovery and explicit application workflows."
+    },
+    {
+      "id": "update.positional-array-operators",
+      "area": "update",
+      "status": "not_planned",
+      "summary": "MongoDB positional $, $[] and arrayFilters syntax are not part of the SonnetDB update contract.",
+      "alternative": "Replace the bounded array/document or perform an explicit read-modify-write with expectedVersion."
+    },
+    {
+      "id": "index.hashed-geospatial",
+      "area": "index",
+      "status": "not_planned",
+      "summary": "MongoDB hashed, 2d and 2dsphere index semantics are not mapped to Document path indexes.",
+      "alternative": "Use explicit normalized fields, SonnetDB geo/SQL capabilities, or application-specific indexing."
+    }
+  ]
+}

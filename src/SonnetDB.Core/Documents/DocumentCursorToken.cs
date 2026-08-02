@@ -129,6 +129,9 @@ public static class DocumentCursorToken
             builder.Append(':').Append(sort.Descending ? 'd' : 'a').Append(']');
         }
 
+        if (query.Collation != DocumentCollation.Ordinal)
+            builder.Append('\n').Append("collation=").Append(query.Collation);
+
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString())));
     }
 
@@ -206,6 +209,22 @@ public static class DocumentCursorToken
 
             case bool boolean:
                 builder.Append("bool:").Append(boolean ? "true" : "false");
+                return;
+
+            case DocumentRegex regex:
+                builder.Append("regex:")
+                    .Append(Escape(regex.Pattern))
+                    .Append(':')
+                    .Append(Escape(regex.Options ?? string.Empty));
+                return;
+
+            case DocumentFilter filter:
+                builder.Append("filter:");
+                AppendFilter(builder, filter);
+                return;
+
+            case DocumentJsonType jsonType:
+                builder.Append("json-type:").Append(jsonType);
                 return;
         }
 

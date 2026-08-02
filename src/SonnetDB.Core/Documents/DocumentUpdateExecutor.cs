@@ -19,10 +19,12 @@ internal static class DocumentUpdateExecutor
         ApplySet(ref root, update.Set);
         ApplyUnset(ref root, update.Unset);
         ApplyInc(ref root, update.Inc);
+        ApplyMul(ref root, update.Mul);
         ApplyMin(ref root, update.Min);
         ApplyMax(ref root, update.Max);
         ApplyPush(ref root, update.Push);
         ApplyPull(ref root, update.Pull);
+        ApplyPop(ref root, update.Pop);
         ApplyAddToSet(ref root, update.AddToSet);
         ApplyCurrentDate(ref root, update.CurrentDate);
         return Normalize(root);
@@ -81,10 +83,12 @@ internal static class DocumentUpdateExecutor
         AddPaths(paths, "$set", update.Set?.Keys);
         AddPaths(paths, "$unset", update.Unset?.Keys);
         AddPaths(paths, "$inc", update.Inc?.Keys);
+        AddPaths(paths, "$mul", update.Mul?.Keys);
         AddPaths(paths, "$min", update.Min?.Keys);
         AddPaths(paths, "$max", update.Max?.Keys);
         AddPaths(paths, "$push", update.Push?.Keys);
         AddPaths(paths, "$pull", update.Pull?.Keys);
+        AddPaths(paths, "$pop", update.Pop?.Keys);
         AddPaths(paths, "$addToSet", update.AddToSet?.Keys);
         AddPaths(paths, "$currentDate", update.CurrentDate?.Keys);
 
@@ -208,6 +212,26 @@ internal static class DocumentUpdateExecutor
         }
     }
 
+    private static void ApplyMul(ref JsonNode? root, IReadOnlyDictionary<string, JsonElement>? mul)
+    {
+        if (mul is null)
+            return;
+
+        foreach (var pair in mul)
+        {
+            var path = JsonPath.Parse(pair.Key);
+            var factor = ReadNumber(pair.Value, "$mul", path);
+            if (!TryGetValue(root, path, out var existing))
+            {
+                SetValue(ref root, path, NumberToJsonNode(factor.Zero));
+                continue;
+            }
+
+            var current = ReadNumber(existing, "$mul", path);
+            SetValue(ref root, path, NumberToJsonNode(current.Multiply(factor)));
+        }
+    }
+
     private static void ApplyMin(ref JsonNode? root, IReadOnlyDictionary<string, JsonElement>? min)
     {
         if (min is null)
@@ -278,6 +302,26 @@ internal static class DocumentUpdateExecutor
         }
     }
 
+    private static void ApplyPop(ref JsonNode? root, IReadOnlyDictionary<string, JsonElement>? pop)
+    {
+        if (pop is null)
+            return;
+
+        foreach (var pair in pop)
+        {
+            var path = JsonPath.Parse(pair.Key);
+            int direction = ReadPopDirection(pair.Value, path);
+            if (!TryGetValue(root, path, out var existing))
+                continue;
+            if (existing is not JsonArray array)
+                throw new InvalidOperationException($"$pop 目标路径 '{path.Text}' 必须是数组。");
+            if (array.Count == 0)
+                continue;
+
+            array.RemoveAt(direction < 0 ? 0 : array.Count - 1);
+        }
+    }
+
     private static void ApplyAddToSet(ref JsonNode? root, IReadOnlyDictionary<string, JsonElement>? addToSet)
     {
         if (addToSet is null)
@@ -331,6 +375,19 @@ internal static class DocumentUpdateExecutor
         }
 
         throw new InvalidOperationException("$currentDate 的值必须是 true、'date' 或 'timestamp'。");
+    }
+
+    private static int ReadPopDirection(JsonElement value, JsonPath path)
+    {
+        if (value.ValueKind != JsonValueKind.Number
+            || !value.TryGetDouble(out double direction)
+            || !double.IsFinite(direction)
+            || direction is not (-1d or 1d))
+        {
+            throw new InvalidOperationException($"$pop 路径 '{path.Text}' 的操作数必须是 -1 或 1。");
+        }
+
+        return direction < 0 ? -1 : 1;
     }
 
     private static JsonArray GetOrCreateArray(ref JsonNode? root, JsonPath path, string op)
@@ -559,9 +616,13 @@ internal static class DocumentUpdateExecutor
         if (element.ValueKind != JsonValueKind.Number)
             throw new InvalidOperationException($"{op} 路径 '{path.Text}' 的操作数必须是数值。");
 
-        return element.TryGetInt64(out long longValue)
-            ? NumberValue.FromInt64(longValue)
-            : NumberValue.FromDouble(element.GetDouble());
+        if (element.TryGetInt64(out long longValue))
+            return NumberValue.FromInt64(longValue);
+
+        double doubleValue = element.GetDouble();
+        if (!double.IsFinite(doubleValue))
+            throw new InvalidOperationException($"{op} 路径 '{path.Text}' 的操作数必须是有限数值。");
+        return NumberValue.FromDouble(doubleValue);
     }
 
     private static NumberValue ReadNumber(JsonNode? node, string op, JsonPath path)
@@ -652,6 +713,8 @@ internal static class DocumentUpdateExecutor
 
         public static NumberValue FromDouble(double value) => new(false, 0, value);
 
+        public NumberValue Zero => IsInteger ? FromInt64(0) : FromDouble(0d);
+
         public NumberValue Add(NumberValue other)
         {
             if (IsInteger && other.IsInteger)
@@ -662,11 +725,35 @@ internal static class DocumentUpdateExecutor
                 }
                 catch (OverflowException)
                 {
-                    return FromDouble(Double + other.Double);
+                    return FromFiniteDouble(Double + other.Double);
                 }
             }
 
-            return FromDouble(Double + other.Double);
+            return FromFiniteDouble(Double + other.Double);
+        }
+
+        public NumberValue Multiply(NumberValue other)
+        {
+            if (IsInteger && other.IsInteger)
+            {
+                try
+                {
+                    return FromInt64(checked(Integer * other.Integer));
+                }
+                catch (OverflowException)
+                {
+                    return FromFiniteDouble(Double * other.Double);
+                }
+            }
+
+            return FromFiniteDouble(Double * other.Double);
+        }
+
+        private static NumberValue FromFiniteDouble(double value)
+        {
+            if (!double.IsFinite(value))
+                throw new InvalidOperationException("数值更新结果超出有限 double 范围。");
+            return FromDouble(value);
         }
     }
 }

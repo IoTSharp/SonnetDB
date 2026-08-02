@@ -147,6 +147,30 @@ public readonly struct SndbDocumentValue
 }
 
 /// <summary>
+/// Document Store 原生 JSON 类型。
+/// </summary>
+public enum SndbDocumentJsonType
+{
+    /// <summary>JSON null。</summary>
+    Null,
+
+    /// <summary>JSON 布尔值。</summary>
+    Boolean,
+
+    /// <summary>JSON 数值。</summary>
+    Number,
+
+    /// <summary>JSON 字符串。</summary>
+    String,
+
+    /// <summary>JSON 对象。</summary>
+    Object,
+
+    /// <summary>JSON 数组。</summary>
+    Array,
+}
+
+/// <summary>
 /// 创建不含字符串操作符的 Document Store filter。
 /// </summary>
 public static class SndbDocumentFilters
@@ -213,6 +237,62 @@ public static class SndbDocumentFilters
     /// <param name="value">要查找的值。</param>
     /// <returns>过滤表达式。</returns>
     public static SndbDocumentFilter Contains(string path, SndbDocumentValue value) => Field(path, "contains", value);
+
+    /// <summary>创建数组元素匹配条件。</summary>
+    /// <param name="path">数组字段 JSON path。</param>
+    /// <param name="filter">针对单个数组元素执行的子过滤表达式。</param>
+    /// <returns>过滤表达式。</returns>
+    public static SndbDocumentFilter ElementMatch(string path, SndbDocumentFilter filter)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentNullException.ThrowIfNull(filter);
+        return new SndbDocumentFilter(path, "elemMatch", ElemMatch: filter);
+    }
+
+    /// <summary>创建有界正则匹配条件。</summary>
+    /// <param name="path">字符串字段 JSON path。</param>
+    /// <param name="pattern">正则模式。</param>
+    /// <param name="options">可选 i/c/m/s/x 标志。</param>
+    /// <returns>过滤表达式。</returns>
+    public static SndbDocumentFilter Regex(string path, string pattern, string? options = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(pattern);
+        var value = (SndbDocumentValue)pattern;
+        var filter = Field(path, "regex", value);
+        return filter with { RegexOptions = options };
+    }
+
+    /// <summary>创建 JSON 类型匹配条件。</summary>
+    /// <param name="path">字段 JSON path。</param>
+    /// <param name="types">允许的 JSON 类型。</param>
+    /// <returns>过滤表达式。</returns>
+    public static SndbDocumentFilter Type(string path, params SndbDocumentJsonType[] types)
+    {
+        ArgumentNullException.ThrowIfNull(types);
+        if (types.Length == 0 || types.Any(static type => !Enum.IsDefined(type)))
+            throw new ArgumentException("至少需要一个有效的 JSON 类型。", nameof(types));
+        var values = types
+            .Select(static type => (SndbDocumentValue)type.ToString().ToLowerInvariant())
+            .ToArray();
+        return Field(path, "type", SndbDocumentValue.Array(values));
+    }
+
+    /// <summary>创建数组长度匹配条件。</summary>
+    /// <param name="path">数组字段 JSON path。</param>
+    /// <param name="size">要求的非负数组长度。</param>
+    /// <returns>过滤表达式。</returns>
+    public static SndbDocumentFilter Size(string path, int size)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(size);
+        return Field(path, "size", size);
+    }
+
+    /// <summary>创建数组包含全部给定值的条件。</summary>
+    /// <param name="path">数组字段 JSON path。</param>
+    /// <param name="values">必须全部存在的值。</param>
+    /// <returns>过滤表达式。</returns>
+    public static SndbDocumentFilter All(string path, params SndbDocumentValue[] values)
+        => Field(path, "all", SndbDocumentValue.Array(values));
 
     /// <summary>创建 AND 组合条件。</summary>
     /// <param name="filters">子过滤表达式。</param>
@@ -331,6 +411,41 @@ public sealed class SndbDocumentFilterBuilder
     /// <returns>当前 builder。</returns>
     public SndbDocumentFilterBuilder Contains(string path, SndbDocumentValue value) => Add(SndbDocumentFilters.Contains(path, value));
 
+    /// <summary>添加数组元素匹配条件。</summary>
+    /// <param name="path">数组字段 JSON path。</param>
+    /// <param name="filter">元素级子过滤表达式。</param>
+    /// <returns>当前 builder。</returns>
+    public SndbDocumentFilterBuilder ElementMatch(string path, SndbDocumentFilter filter)
+        => Add(SndbDocumentFilters.ElementMatch(path, filter));
+
+    /// <summary>添加正则匹配条件。</summary>
+    /// <param name="path">字符串字段 JSON path。</param>
+    /// <param name="pattern">正则模式。</param>
+    /// <param name="options">可选 i/c/m/s/x 标志。</param>
+    /// <returns>当前 builder。</returns>
+    public SndbDocumentFilterBuilder Regex(string path, string pattern, string? options = null)
+        => Add(SndbDocumentFilters.Regex(path, pattern, options));
+
+    /// <summary>添加 JSON 类型匹配条件。</summary>
+    /// <param name="path">字段 JSON path。</param>
+    /// <param name="types">允许的 JSON 类型。</param>
+    /// <returns>当前 builder。</returns>
+    public SndbDocumentFilterBuilder Type(string path, params SndbDocumentJsonType[] types)
+        => Add(SndbDocumentFilters.Type(path, types));
+
+    /// <summary>添加数组长度匹配条件。</summary>
+    /// <param name="path">数组字段 JSON path。</param>
+    /// <param name="size">要求的非负数组长度。</param>
+    /// <returns>当前 builder。</returns>
+    public SndbDocumentFilterBuilder Size(string path, int size) => Add(SndbDocumentFilters.Size(path, size));
+
+    /// <summary>添加数组包含全部给定值的条件。</summary>
+    /// <param name="path">数组字段 JSON path。</param>
+    /// <param name="values">必须全部存在的值。</param>
+    /// <returns>当前 builder。</returns>
+    public SndbDocumentFilterBuilder All(string path, params SndbDocumentValue[] values)
+        => Add(SndbDocumentFilters.All(path, values));
+
     /// <summary>
     /// 生成过滤表达式；多个条件按 AND 组合。
     /// </summary>
@@ -415,6 +530,18 @@ public enum SndbDocumentCurrentDateKind
 }
 
 /// <summary>
+/// Document Store <c>$pop</c> 移除数组元素的方向。
+/// </summary>
+public enum SndbDocumentPopDirection
+{
+    /// <summary>移除数组首项。</summary>
+    First = -1,
+
+    /// <summary>移除数组末项。</summary>
+    Last = 1,
+}
+
+/// <summary>
 /// 构造 Document Store 局部更新操作符集合。
 /// </summary>
 public sealed class SndbDocumentUpdateBuilder
@@ -429,6 +556,8 @@ public sealed class SndbDocumentUpdateBuilder
     private Dictionary<string, JsonElement>? _pull;
     private Dictionary<string, JsonElement>? _addToSet;
     private Dictionary<string, JsonElement>? _currentDate;
+    private Dictionary<string, JsonElement>? _mul;
+    private Dictionary<string, JsonElement>? _pop;
 
     /// <summary>添加 <c>$set</c> 操作。</summary>
     /// <param name="path">目标 JSON path。</param>
@@ -446,6 +575,12 @@ public sealed class SndbDocumentUpdateBuilder
     /// <param name="value">递增数值。</param>
     /// <returns>当前 builder。</returns>
     public SndbDocumentUpdateBuilder Increment(string path, SndbDocumentValue value) { Add(ref _inc, path, value); return this; }
+
+    /// <summary>添加 <c>$mul</c> 操作。</summary>
+    /// <param name="path">目标 JSON path。</param>
+    /// <param name="value">乘数。</param>
+    /// <returns>当前 builder。</returns>
+    public SndbDocumentUpdateBuilder Multiply(string path, SndbDocumentValue value) { Add(ref _mul, path, value); return this; }
 
     /// <summary>添加 <c>$min</c> 操作。</summary>
     /// <param name="path">目标 JSON path。</param>
@@ -489,6 +624,18 @@ public sealed class SndbDocumentUpdateBuilder
     /// <returns>当前 builder。</returns>
     public SndbDocumentUpdateBuilder AddToSet(string path, SndbDocumentValue value) { Add(ref _addToSet, path, value); return this; }
 
+    /// <summary>添加 <c>$pop</c> 操作。</summary>
+    /// <param name="path">数组 JSON path。</param>
+    /// <param name="direction">移除首项或末项。</param>
+    /// <returns>当前 builder。</returns>
+    public SndbDocumentUpdateBuilder Pop(string path, SndbDocumentPopDirection direction = SndbDocumentPopDirection.Last)
+    {
+        if (!Enum.IsDefined(direction))
+            throw new ArgumentOutOfRangeException(nameof(direction), direction, "不支持的 pop 方向。");
+        Add(ref _pop, path, (int)direction);
+        return this;
+    }
+
     /// <summary>添加 <c>$currentDate</c> 操作。</summary>
     /// <param name="path">目标 JSON path。</param>
     /// <param name="kind">日期写入形式。</param>
@@ -512,7 +659,8 @@ public sealed class SndbDocumentUpdateBuilder
     public SndbDocumentUpdate Build()
     {
         if (_set is null && _unset is null && _inc is null && _min is null && _max is null
-            && _rename is null && _push is null && _pull is null && _addToSet is null && _currentDate is null)
+            && _rename is null && _push is null && _pull is null && _addToSet is null && _currentDate is null
+            && _mul is null && _pop is null)
         {
             throw new InvalidOperationException("至少需要添加一个更新操作。");
         }
@@ -527,7 +675,9 @@ public sealed class SndbDocumentUpdateBuilder
             Copy(_push),
             Copy(_pull),
             Copy(_addToSet),
-            Copy(_currentDate));
+            Copy(_currentDate),
+            Copy(_mul),
+            Copy(_pop));
     }
 
     private static void Add(ref Dictionary<string, JsonElement>? target, string path, SndbDocumentValue value)
@@ -540,4 +690,209 @@ public sealed class SndbDocumentUpdateBuilder
         => source is null ? null : new Dictionary<string, JsonElement>(source, StringComparer.Ordinal);
 
     private static void ValidatePath(string path) => ArgumentException.ThrowIfNullOrWhiteSpace(path);
+}
+
+/// <summary>
+/// 构造 mixed bulk write 单项操作的便捷工厂。
+/// </summary>
+public static class SndbDocumentBulkWrites
+{
+    /// <summary>构造 insertOne 操作。</summary>
+    /// <param name="id">文档 ID。</param>
+    /// <param name="json">JSON 文档文本。</param>
+    /// <returns>可传给 bulk write 的操作。</returns>
+    public static SndbDocumentBulkWriteOperation InsertOne(string id, string json)
+        => new(SndbDocumentBulkWriteOperationType.InsertOne, id, json);
+
+    /// <summary>构造 replaceOne 操作。</summary>
+    /// <param name="id">文档 ID。</param>
+    /// <param name="json">JSON 文档文本。</param>
+    /// <param name="upsert">文档不存在时是否插入。</param>
+    /// <param name="expectedVersion">可选预期版本。</param>
+    /// <returns>可传给 bulk write 的操作。</returns>
+    public static SndbDocumentBulkWriteOperation ReplaceOne(
+        string id,
+        string json,
+        bool upsert = false,
+        long? expectedVersion = null)
+        => new(
+            SndbDocumentBulkWriteOperationType.ReplaceOne,
+            id,
+            json,
+            Upsert: upsert,
+            ExpectedVersion: expectedVersion);
+
+    /// <summary>构造 updateOne 操作。</summary>
+    /// <param name="filter">过滤条件。</param>
+    /// <param name="update">局部更新操作符。</param>
+    /// <param name="id">可选 ID 等值条件。</param>
+    /// <param name="upsert">未匹配时是否插入。</param>
+    /// <param name="upsertId">upsert 文档 ID。</param>
+    /// <param name="expectedVersion">可选预期版本。</param>
+    /// <returns>可传给 bulk write 的操作。</returns>
+    public static SndbDocumentBulkWriteOperation UpdateOne(
+        SndbDocumentFilter? filter,
+        SndbDocumentUpdate update,
+        string? id = null,
+        bool upsert = false,
+        string? upsertId = null,
+        long? expectedVersion = null)
+        => new(
+            SndbDocumentBulkWriteOperationType.UpdateOne,
+            id,
+            Filter: filter,
+            Update: update,
+            Upsert: upsert,
+            UpsertId: upsertId,
+            ExpectedVersion: expectedVersion);
+
+    /// <summary>构造 updateMany 操作。</summary>
+    /// <param name="filter">过滤条件；为空时匹配全部文档。</param>
+    /// <param name="update">局部更新操作符。</param>
+    /// <param name="upsert">未匹配时是否插入。</param>
+    /// <param name="upsertId">upsert 文档 ID。</param>
+    /// <returns>可传给 bulk write 的操作。</returns>
+    public static SndbDocumentBulkWriteOperation UpdateMany(
+        SndbDocumentFilter? filter,
+        SndbDocumentUpdate update,
+        bool upsert = false,
+        string? upsertId = null)
+        => new(
+            SndbDocumentBulkWriteOperationType.UpdateMany,
+            Filter: filter,
+            Update: update,
+            Upsert: upsert,
+            UpsertId: upsertId);
+
+    /// <summary>构造 deleteOne 操作。</summary>
+    /// <param name="filter">过滤条件。</param>
+    /// <param name="id">可选 ID 等值条件。</param>
+    /// <param name="expectedVersion">可选预期版本。</param>
+    /// <returns>可传给 bulk write 的操作。</returns>
+    public static SndbDocumentBulkWriteOperation DeleteOne(
+        SndbDocumentFilter? filter = null,
+        string? id = null,
+        long? expectedVersion = null)
+        => new(
+            SndbDocumentBulkWriteOperationType.DeleteOne,
+            id,
+            Filter: filter,
+            ExpectedVersion: expectedVersion);
+
+    /// <summary>构造 deleteMany 操作。</summary>
+    /// <param name="filter">过滤条件；为空时匹配全部文档。</param>
+    /// <returns>可传给 bulk write 的操作。</returns>
+    public static SndbDocumentBulkWriteOperation DeleteMany(SndbDocumentFilter? filter = null)
+        => new(SndbDocumentBulkWriteOperationType.DeleteMany, Filter: filter);
+}
+
+/// <summary>
+/// 构造 SonnetDB-native Document aggregation 表达式。
+/// </summary>
+public static class SndbDocumentAggregationExpressions
+{
+    /// <summary>读取一个文档字段。</summary>
+    /// <param name="path">字段名或 JSON path。</param>
+    /// <returns>字段表达式。</returns>
+    public static SndbDocumentAggregateExpression Field(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        return new("field", Path: path);
+    }
+
+    /// <summary>创建 JSON 字面量表达式。</summary>
+    /// <param name="value">AOT 友好的 JSON 值。</param>
+    /// <returns>字面量表达式。</returns>
+    public static SndbDocumentAggregateExpression Literal(SndbDocumentValue value)
+        => new("literal", Value: value.ToJsonElement());
+
+    /// <summary>创建数值加法表达式。</summary>
+    /// <param name="left">左输入。</param>
+    /// <param name="right">右输入。</param>
+    /// <returns>加法表达式。</returns>
+    public static SndbDocumentAggregateExpression Add(
+        SndbDocumentAggregateExpression left,
+        SndbDocumentAggregateExpression right)
+        => Binary("add", left, right);
+
+    /// <summary>创建数值减法表达式。</summary>
+    /// <param name="left">左输入。</param>
+    /// <param name="right">右输入。</param>
+    /// <returns>减法表达式。</returns>
+    public static SndbDocumentAggregateExpression Subtract(
+        SndbDocumentAggregateExpression left,
+        SndbDocumentAggregateExpression right)
+        => Binary("subtract", left, right);
+
+    /// <summary>创建数值乘法表达式。</summary>
+    /// <param name="left">左输入。</param>
+    /// <param name="right">右输入。</param>
+    /// <returns>乘法表达式。</returns>
+    public static SndbDocumentAggregateExpression Multiply(
+        SndbDocumentAggregateExpression left,
+        SndbDocumentAggregateExpression right)
+        => Binary("multiply", left, right);
+
+    /// <summary>创建数值除法表达式。</summary>
+    /// <param name="left">左输入。</param>
+    /// <param name="right">右输入。</param>
+    /// <returns>除法表达式。</returns>
+    public static SndbDocumentAggregateExpression Divide(
+        SndbDocumentAggregateExpression left,
+        SndbDocumentAggregateExpression right)
+        => Binary("divide", left, right);
+
+    /// <summary>创建字符串拼接表达式。</summary>
+    /// <param name="values">按顺序拼接的输入。</param>
+    /// <returns>字符串拼接表达式。</returns>
+    public static SndbDocumentAggregateExpression Concat(
+        params SndbDocumentAggregateExpression[] values)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        if (values.Length == 0)
+            throw new ArgumentException("concat 至少需要一个输入表达式。", nameof(values));
+        EnsureArguments(values);
+        return new("concat", Arguments: values.ToArray());
+    }
+
+    /// <summary>创建 null 替代表达式。</summary>
+    /// <param name="input">主输入。</param>
+    /// <param name="replacement">主输入为 null 或缺失时使用的值。</param>
+    /// <returns>null 替代表达式。</returns>
+    public static SndbDocumentAggregateExpression IfNull(
+        SndbDocumentAggregateExpression input,
+        SndbDocumentAggregateExpression replacement)
+        => Binary("if_null", input, replacement);
+
+    /// <summary>创建条件分支表达式。</summary>
+    /// <param name="condition">条件输入。</param>
+    /// <param name="ifTrue">条件为真时的输入。</param>
+    /// <param name="ifFalse">条件为假时的输入。</param>
+    /// <returns>条件表达式。</returns>
+    public static SndbDocumentAggregateExpression Cond(
+        SndbDocumentAggregateExpression condition,
+        SndbDocumentAggregateExpression ifTrue,
+        SndbDocumentAggregateExpression ifFalse)
+    {
+        ArgumentNullException.ThrowIfNull(condition);
+        ArgumentNullException.ThrowIfNull(ifTrue);
+        ArgumentNullException.ThrowIfNull(ifFalse);
+        return new("cond", Arguments: [condition, ifTrue, ifFalse]);
+    }
+
+    private static SndbDocumentAggregateExpression Binary(
+        string op,
+        SndbDocumentAggregateExpression left,
+        SndbDocumentAggregateExpression right)
+    {
+        ArgumentNullException.ThrowIfNull(left);
+        ArgumentNullException.ThrowIfNull(right);
+        return new(op, Arguments: [left, right]);
+    }
+
+    private static void EnsureArguments(IEnumerable<SndbDocumentAggregateExpression> values)
+    {
+        foreach (SndbDocumentAggregateExpression value in values)
+            ArgumentNullException.ThrowIfNull(value);
+    }
 }

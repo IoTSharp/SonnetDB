@@ -5,6 +5,10 @@ namespace SonnetDB.Documents;
 /// <summary>
 /// SonnetDB 支持的轻量 JSON path 表达式。
 /// </summary>
+/// <remarks>
+/// 路径解析与 <see cref="JsonPathEvaluator"/> 只支持显式非负数组下标，不支持 wildcard、负下标或隐式数组遍历。
+/// 文档查询规划器可在 dotted path 上执行数组 fan-out；需要多个条件命中同一数组元素时使用 <c>$elemMatch</c>。
+/// </remarks>
 public sealed class JsonPath
 {
     private JsonPath(string text, IReadOnlyList<JsonPathSegment> segments)
@@ -20,7 +24,7 @@ public sealed class JsonPath
     public IReadOnlyList<JsonPathSegment> Segments { get; }
 
     /// <summary>
-    /// 解析 JSON path。当前支持 <c>$</c>、<c>$.name</c>、<c>$['name']</c> 和 <c>$[0]</c> 组合。
+    /// 解析 JSON path。当前支持 <c>$</c>、<c>$.name</c>、<c>$['name']</c> 和显式非负下标 <c>$[0]</c> 组合。
     /// </summary>
     /// <param name="text">JSON path 文本。</param>
     /// <returns>解析后的 JSON path。</returns>

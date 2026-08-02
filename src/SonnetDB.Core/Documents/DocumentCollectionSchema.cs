@@ -76,12 +76,23 @@ public sealed class DocumentCollectionSchema
             foreach (var index in indexes)
             {
                 ArgumentException.ThrowIfNullOrWhiteSpace(index.Name);
+                if (!Enum.IsDefined(index.Kind))
+                    throw new ArgumentException($"文档集合 '{name}' 的索引 '{index.Name}' kind 非法。", nameof(indexes));
                 if (!seenNames.Add(index.Name))
                     throw new ArgumentException($"文档集合 '{name}' 中索引 '{index.Name}' 重复。", nameof(indexes));
                 if (index.Paths.Count == 0)
                     throw new ArgumentException($"文档集合 '{name}' 的索引 '{index.Name}' 至少需要一个 path。", nameof(indexes));
                 if (index.TtlSeconds is <= 0)
                     throw new ArgumentOutOfRangeException(nameof(indexes), "TTL index 的 ttlSeconds 必须大于 0。");
+                if (index.Kind == DocumentIndexKind.Wildcard && index.Paths.Count != 1)
+                    throw new ArgumentException($"Wildcard index '{index.Name}' 只支持一个 subtree root path。", nameof(indexes));
+                if (index.Kind == DocumentIndexKind.Wildcard && index.IsUnique)
+                    throw new ArgumentException($"Wildcard index '{index.Name}' 不支持 unique。", nameof(indexes));
+                if (index.Kind == DocumentIndexKind.Wildcard
+                    && (index.TtlPath is not null || index.TtlSeconds is not null))
+                {
+                    throw new ArgumentException($"Wildcard index '{index.Name}' 不支持 TTL。", nameof(indexes));
+                }
 
                 var paths = new string[index.Paths.Count];
                 var seenPaths = new HashSet<string>(StringComparer.Ordinal);
@@ -109,7 +120,8 @@ public sealed class DocumentCollectionSchema
                     NormalizePartialFilter(index.PartialFilter),
                     ttlPath,
                     index.TtlSeconds,
-                    index.CreatedAtUtcTicks == 0 ? DateTime.UtcNow.Ticks : index.CreatedAtUtcTicks));
+                    index.CreatedAtUtcTicks == 0 ? DateTime.UtcNow.Ticks : index.CreatedAtUtcTicks,
+                    index.Kind));
             }
         }
 
@@ -382,7 +394,8 @@ public sealed class DocumentCollectionSchema
             index.IsSparse,
             index.PartialFilter,
             index.TtlPath,
-            index.TtlSeconds);
+            index.TtlSeconds,
+            index.Kind);
 
     private static DocumentVectorIndexDefinition ToVectorDefinition(DocumentVectorIndex index)
         => new(
@@ -520,6 +533,7 @@ public sealed class DocumentCollectionSchema
 /// <param name="TtlPath">可选 TTL 时间字段 path。</param>
 /// <param name="TtlSeconds">TTL 保留秒数。</param>
 /// <param name="CreatedAtUtcTicks">创建时间 UTC ticks。</param>
+/// <param name="Kind">索引类型：普通 path 索引或 wildcard subtree 索引。</param>
 public sealed record DocumentPathIndex(
     string Name,
     IReadOnlyList<string> Paths,
@@ -528,13 +542,28 @@ public sealed record DocumentPathIndex(
     DocumentIndexPartialFilter? PartialFilter,
     string? TtlPath,
     long? TtlSeconds,
-    long CreatedAtUtcTicks)
+    long CreatedAtUtcTicks,
+    DocumentIndexKind Kind = DocumentIndexKind.Path)
 {
+    /// <summary>创建普通 path 索引声明，保留旧版完整构造入口。</summary>
+    public DocumentPathIndex(
+        string Name,
+        IReadOnlyList<string> Paths,
+        bool IsUnique,
+        bool IsSparse,
+        DocumentIndexPartialFilter? PartialFilter,
+        string? TtlPath,
+        long? TtlSeconds,
+        long CreatedAtUtcTicks)
+        : this(Name, Paths, IsUnique, IsSparse, PartialFilter, TtlPath, TtlSeconds, CreatedAtUtcTicks, DocumentIndexKind.Path)
+    {
+    }
+
     /// <summary>
     /// 创建旧版单字段 JSON path 索引声明。
     /// </summary>
     public DocumentPathIndex(string Name, string Path, long CreatedAtUtcTicks)
-        : this(Name, [Path], IsUnique: false, IsSparse: false, PartialFilter: null, TtlPath: null, TtlSeconds: null, CreatedAtUtcTicks)
+        : this(Name, [Path], IsUnique: false, IsSparse: false, PartialFilter: null, TtlPath: null, TtlSeconds: null, CreatedAtUtcTicks, DocumentIndexKind.Path)
     {
     }
 
@@ -543,6 +572,27 @@ public sealed record DocumentPathIndex(
 
     /// <summary>当前索引是否为 TTL index。</summary>
     public bool IsTtl => !string.IsNullOrWhiteSpace(TtlPath) && TtlSeconds is not null;
+
+    /// <summary>按旧版八字段形态解构索引声明。</summary>
+    public void Deconstruct(
+        out string Name,
+        out IReadOnlyList<string> Paths,
+        out bool IsUnique,
+        out bool IsSparse,
+        out DocumentIndexPartialFilter? PartialFilter,
+        out string? TtlPath,
+        out long? TtlSeconds,
+        out long CreatedAtUtcTicks)
+    {
+        Name = this.Name;
+        Paths = this.Paths;
+        IsUnique = this.IsUnique;
+        IsSparse = this.IsSparse;
+        PartialFilter = this.PartialFilter;
+        TtlPath = this.TtlPath;
+        TtlSeconds = this.TtlSeconds;
+        CreatedAtUtcTicks = this.CreatedAtUtcTicks;
+    }
 }
 
 /// <summary>
@@ -556,6 +606,7 @@ public sealed record DocumentPathIndex(
 /// <param name="PartialFilter">可选 partial index 过滤条件。</param>
 /// <param name="TtlPath">可选 TTL 时间字段 path。</param>
 /// <param name="TtlSeconds">TTL 保留秒数。</param>
+/// <param name="Kind">索引类型：普通 path 索引或 wildcard subtree 索引。</param>
 public sealed record DocumentPathIndexDefinition(
     string Name,
     IReadOnlyList<string> Paths,
@@ -564,8 +615,23 @@ public sealed record DocumentPathIndexDefinition(
     bool IsSparse = false,
     DocumentIndexPartialFilter? PartialFilter = null,
     string? TtlPath = null,
-    long? TtlSeconds = null)
+    long? TtlSeconds = null,
+    DocumentIndexKind Kind = DocumentIndexKind.Path)
 {
+    /// <summary>创建普通 path 索引定义，保留旧版完整构造入口。</summary>
+    public DocumentPathIndexDefinition(
+        string Name,
+        IReadOnlyList<string> Paths,
+        long CreatedAtUtcTicks,
+        bool IsUnique,
+        bool IsSparse,
+        DocumentIndexPartialFilter? PartialFilter,
+        string? TtlPath,
+        long? TtlSeconds)
+        : this(Name, Paths, CreatedAtUtcTicks, IsUnique, IsSparse, PartialFilter, TtlPath, TtlSeconds, DocumentIndexKind.Path)
+    {
+    }
+
     /// <summary>
     /// 创建单字段 JSON path 索引声明。
     /// </summary>
@@ -577,13 +643,60 @@ public sealed record DocumentPathIndexDefinition(
         bool IsSparse = false,
         DocumentIndexPartialFilter? PartialFilter = null,
         string? TtlPath = null,
-        long? TtlSeconds = null)
-        : this(Name, [Path], CreatedAtUtcTicks, IsUnique, IsSparse, PartialFilter, TtlPath, TtlSeconds)
+        long? TtlSeconds = null,
+        DocumentIndexKind Kind = DocumentIndexKind.Path)
+        : this(Name, [Path], CreatedAtUtcTicks, IsUnique, IsSparse, PartialFilter, TtlPath, TtlSeconds, Kind)
+    {
+    }
+
+    /// <summary>创建普通单字段 path 索引定义，保留旧版完整构造入口。</summary>
+    public DocumentPathIndexDefinition(
+        string Name,
+        string Path,
+        long CreatedAtUtcTicks,
+        bool IsUnique,
+        bool IsSparse,
+        DocumentIndexPartialFilter? PartialFilter,
+        string? TtlPath,
+        long? TtlSeconds)
+        : this(Name, [Path], CreatedAtUtcTicks, IsUnique, IsSparse, PartialFilter, TtlPath, TtlSeconds, DocumentIndexKind.Path)
     {
     }
 
     /// <summary>首个索引字段 path，兼容旧 JSON path 索引调用方。</summary>
     public string Path => Paths.Count == 0 ? string.Empty : Paths[0];
+
+    /// <summary>按旧版八字段形态解构索引定义。</summary>
+    public void Deconstruct(
+        out string Name,
+        out IReadOnlyList<string> Paths,
+        out long CreatedAtUtcTicks,
+        out bool IsUnique,
+        out bool IsSparse,
+        out DocumentIndexPartialFilter? PartialFilter,
+        out string? TtlPath,
+        out long? TtlSeconds)
+    {
+        Name = this.Name;
+        Paths = this.Paths;
+        CreatedAtUtcTicks = this.CreatedAtUtcTicks;
+        IsUnique = this.IsUnique;
+        IsSparse = this.IsSparse;
+        PartialFilter = this.PartialFilter;
+        TtlPath = this.TtlPath;
+        TtlSeconds = this.TtlSeconds;
+    }
+}
+
+/// <summary>
+/// 文档二级索引类型。
+/// </summary>
+public enum DocumentIndexKind
+{
+    /// <summary>针对一个或多个显式 JSON path 的索引；数组值自动展开为 multikey 条目。</summary>
+    Path,
+    /// <summary>针对一个 JSON subtree 下所有具体叶子 path 的 wildcard 索引。</summary>
+    Wildcard,
 }
 
 /// <summary>

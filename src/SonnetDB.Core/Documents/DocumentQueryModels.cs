@@ -8,15 +8,57 @@ namespace SonnetDB.Documents;
 /// <param name="Sort">排序字段列表；为空时按文档 ID 稳定升序。</param>
 /// <param name="Limit">最多返回的文档数；为 null 时不限制。</param>
 /// <param name="Skip">跳过的文档数。</param>
+/// <param name="Collation">字符串过滤与排序使用的基础校对模式。</param>
 public sealed record DocumentQuery(
     DocumentFilter? Filter = null,
     DocumentProjection? Projection = null,
     IReadOnlyList<DocumentSort>? Sort = null,
     int? Limit = null,
-    int Skip = 0)
+    int Skip = 0,
+    DocumentCollation Collation = DocumentCollation.Ordinal)
 {
     /// <summary>排序字段列表；为空时按文档 ID 稳定升序。</summary>
     public IReadOnlyList<DocumentSort> Sort { get; } = Sort ?? Array.Empty<DocumentSort>();
+
+    /// <summary>
+    /// 使用默认 ordinal 校对模式创建文档查询，保留既有二进制构造入口。
+    /// </summary>
+    /// <param name="Filter">可选过滤表达式。</param>
+    /// <param name="Projection">可选投影。</param>
+    /// <param name="Sort">排序字段列表。</param>
+    /// <param name="Limit">最多返回的文档数。</param>
+    /// <param name="Skip">跳过的文档数。</param>
+    public DocumentQuery(
+        DocumentFilter? Filter,
+        DocumentProjection? Projection,
+        IReadOnlyList<DocumentSort>? Sort,
+        int? Limit,
+        int Skip)
+        : this(Filter, Projection, Sort, Limit, Skip, DocumentCollation.Ordinal)
+    {
+    }
+
+    /// <summary>
+    /// 按旧版五字段形态解构查询，忽略新增的校对模式。
+    /// </summary>
+    /// <param name="Filter">过滤表达式。</param>
+    /// <param name="Projection">投影。</param>
+    /// <param name="Sort">排序字段列表。</param>
+    /// <param name="Limit">最多返回的文档数。</param>
+    /// <param name="Skip">跳过的文档数。</param>
+    public void Deconstruct(
+        out DocumentFilter? Filter,
+        out DocumentProjection? Projection,
+        out IReadOnlyList<DocumentSort>? Sort,
+        out int? Limit,
+        out int Skip)
+    {
+        Filter = this.Filter;
+        Projection = this.Projection;
+        Sort = this.Sort;
+        Limit = this.Limit;
+        Skip = this.Skip;
+    }
 }
 
 /// <summary>
@@ -47,11 +89,23 @@ public sealed record DocumentNotFilter(DocumentFilter Filter) : DocumentFilter;
 /// </summary>
 /// <param name="Field">文档字段引用。</param>
 /// <param name="Operator">比较运算符。</param>
-/// <param name="Value">比较值；对 <see cref="DocumentFilterOperator.In"/> / <see cref="DocumentFilterOperator.NotIn"/> 为值列表。</param>
+/// <param name="Value">
+/// 操作数：<see cref="DocumentFilterOperator.In"/>、<see cref="DocumentFilterOperator.NotIn"/> 与
+/// <see cref="DocumentFilterOperator.All"/> 使用值列表，<see cref="DocumentFilterOperator.ElementMatch"/>
+/// 使用子过滤表达式，<see cref="DocumentFilterOperator.Regex"/> 使用字符串或 <see cref="DocumentRegex"/>，
+/// <see cref="DocumentFilterOperator.Type"/> 使用 <see cref="DocumentJsonType"/>、类型名或对应列表。
+/// </param>
 public sealed record DocumentFieldFilter(
     DocumentFieldRef Field,
     DocumentFilterOperator Operator,
     object? Value = null) : DocumentFilter;
+
+/// <summary>
+/// 文档正则查询操作数。
+/// </summary>
+/// <param name="Pattern">正则模式。</param>
+/// <param name="Options">可选标志，支持 <c>i/c/m/s/x</c>。</param>
+public sealed record DocumentRegex(string Pattern, string? Options = null);
 
 /// <summary>
 /// 文档字段引用。
@@ -115,6 +169,50 @@ public enum DocumentFilterOperator
     Exists,
     /// <summary>数组、对象 JSON 文本或字符串是否包含给定值。</summary>
     Contains,
+    /// <summary>数组中是否至少有一个元素完整匹配子过滤表达式。</summary>
+    ElementMatch,
+    /// <summary>字符串是否匹配有界正则表达式。</summary>
+    Regex,
+    /// <summary>字段是否属于指定 JSON 类型。</summary>
+    Type,
+    /// <summary>数组长度是否等于指定非负整数。</summary>
+    Size,
+    /// <summary>数组是否包含操作数列表中的全部值。</summary>
+    All,
+}
+
+/// <summary>
+/// 文档 JSON 原生类型。
+/// </summary>
+public enum DocumentJsonType
+{
+    /// <summary>JSON null。</summary>
+    Null,
+    /// <summary>JSON 布尔值。</summary>
+    Boolean,
+    /// <summary>JSON 数值，不细分整数与浮点数。</summary>
+    Number,
+    /// <summary>JSON 字符串。</summary>
+    String,
+    /// <summary>JSON 对象。</summary>
+    Object,
+    /// <summary>JSON 数组。</summary>
+    Array,
+}
+
+/// <summary>
+/// 文档查询支持的基础字符串校对模式。
+/// </summary>
+/// <remarks>
+/// 校对模式只影响字符串值的过滤、数组值比较和排序；JSON 属性名与 path 始终按 ordinal 解析，
+/// 正则大小写规则由 <see cref="DocumentRegex.Options"/> 单独控制。非 ordinal 模式不复用现有 ordinal path 索引。
+/// </remarks>
+public enum DocumentCollation
+{
+    /// <summary>按 Unicode 码元进行大小写敏感的 ordinal 比较。</summary>
+    Ordinal,
+    /// <summary>按 Unicode 码元进行大小写不敏感的 ordinal 比较。</summary>
+    OrdinalIgnoreCase,
 }
 
 /// <summary>

@@ -6,6 +6,34 @@ using SonnetDB.Diagnostics;
 namespace SonnetDB.Kv;
 
 /// <summary>
+/// 创建并识别保持 <see cref="IOException"/> 精确类型兼容的原子批次超限错误。
+/// </summary>
+internal static class KvAtomicBatchErrors
+{
+    private static readonly object TooLargeMarker = new();
+
+    /// <summary>
+    /// 创建带内部分类标记的批次超限异常。
+    /// </summary>
+    /// <param name="message">可行动的批次缩减或预算调整说明。</param>
+    /// <returns>精确类型为 <see cref="IOException"/> 的异常。</returns>
+    internal static IOException CreateTooLarge(string message)
+    {
+        var exception = new IOException(message);
+        exception.Data[TooLargeMarker] = true;
+        return exception;
+    }
+
+    /// <summary>
+    /// 判断 I/O 异常是否由原子批次自身超过空白检查点预算导致。
+    /// </summary>
+    /// <param name="exception">待分类的 I/O 异常。</param>
+    /// <returns>存在内部批次超限标记时返回 <see langword="true"/>。</returns>
+    internal static bool IsTooLarge(IOException exception)
+        => exception.Data[TooLargeMarker] is true;
+}
+
+/// <summary>
 /// SonnetDB 内置 KV Keyspace，提供轻量 <c>Put</c>、<c>Get</c>、<c>Delete</c>、
 /// prefix scan、原子计数、乐观锁与 TTL 能力。
 /// </summary>
@@ -821,38 +849,39 @@ public sealed class KvKeyspace : IDisposable
         if (mutations.Count == 0)
             return LastSequence;
 
-        var canonical = new Dictionary<byte[], KvBatchMutation>(KvKeyComparer.Instance);
-        for (int i = 0; i < mutations.Count; i++)
-        {
-            KvBatchMutation mutation = mutations[i];
-            ArgumentNullException.ThrowIfNull(mutation);
-            ArgumentNullException.ThrowIfNull(mutation.Key);
-            ValidateKey(mutation.Key, _options);
-            if (mutation.Value is { } value)
-                ValidateValue(value, _options);
-            else if (mutation.ExpiresAtUtc.HasValue)
-                throw new ArgumentException("KV delete mutation 不能设置 expires-at。", nameof(mutations));
-            ValidateExpiresAtUtc(mutation.ExpiresAtUtc);
+        return ApplyBatch(_ => mutations);
+    }
 
-            byte[] keyCopy = mutation.Key.ToArray();
-            canonical[keyCopy] = mutation.Value is null
-                ? KvBatchMutation.Delete(keyCopy)
-                : KvBatchMutation.Put(keyCopy, mutation.Value.ToArray(), mutation.ExpiresAtUtc);
-        }
+    /// <summary>
+    /// 在 keyspace 写锁内把即将分配的 WAL sequence 交给 mutation factory，并把返回的
+    /// mixed put/delete 作为单个 CRC-protected WAL record 提交。若写预算等待期间 sequence
+    /// 发生变化，会用新的 sequence 重新构建 mutation，避免调用方猜测版本号。
+    /// </summary>
+    /// <param name="mutationFactory">根据本次提交 sequence 构造 mutation 的工厂。</param>
+    /// <returns>整批共享的提交 sequence。</returns>
+    internal long ApplyBatch(Func<long, IReadOnlyList<KvBatchMutation>> mutationFactory)
+    {
+        ArgumentNullException.ThrowIfNull(mutationFactory);
 
-        KvBatchMutation[] batch = canonical.Values.ToArray();
-        long requiredWalBytes = KvWalFile.CalculateMutationBatchRecordBytes(batch);
         long lockWait = SonnetDbMeter.StartLockWaitTiming();
         lock (_sync)
         {
             SonnetDbMeter.RecordKvKeyspaceLockWait(lockWait);
             ThrowIfDisposed();
             long expectedSequence;
+            KvBatchMutation[] batch;
             (KvValueEntry?[] Values, int OverlayEntryCount, int PostCheckpointOverlayEntryCount) publishPlan;
             while (true)
             {
                 ThrowIfWriteFaultedLocked();
                 expectedSequence = _wal!.NextSequence;
+                batch = CanonicalizeBatchMutations(
+                    mutationFactory(expectedSequence)
+                    ?? throw new InvalidOperationException("KV mutation factory 不能返回 null。"));
+                if (batch.Length == 0)
+                    return _lastSequence;
+
+                long requiredWalBytes = KvWalFile.CalculateMutationBatchRecordBytes(batch);
                 publishPlan = PrepareMutationPublishPlanLocked(batch, expectedSequence);
                 if (TryAdmitAtomicBatchLocked(
                     publishPlan.OverlayEntryCount,
@@ -896,6 +925,30 @@ public sealed class KvKeyspace : IDisposable
             ScheduleAutoCheckpointLocked();
             return sequence;
         }
+    }
+
+    private KvBatchMutation[] CanonicalizeBatchMutations(IReadOnlyList<KvBatchMutation> mutations)
+    {
+        var canonical = new Dictionary<byte[], KvBatchMutation>(KvKeyComparer.Instance);
+        for (int i = 0; i < mutations.Count; i++)
+        {
+            KvBatchMutation mutation = mutations[i];
+            ArgumentNullException.ThrowIfNull(mutation);
+            ArgumentNullException.ThrowIfNull(mutation.Key);
+            ValidateKey(mutation.Key, _options);
+            if (mutation.Value is { } value)
+                ValidateValue(value, _options);
+            else if (mutation.ExpiresAtUtc.HasValue)
+                throw new ArgumentException("KV delete mutation 不能设置 expires-at。", nameof(mutations));
+            ValidateExpiresAtUtc(mutation.ExpiresAtUtc);
+
+            byte[] keyCopy = mutation.Key.ToArray();
+            canonical[keyCopy] = mutation.Value is null
+                ? KvBatchMutation.Delete(keyCopy)
+                : KvBatchMutation.Put(keyCopy, mutation.Value.ToArray(), mutation.ExpiresAtUtc);
+        }
+
+        return canonical.Values.ToArray();
     }
 
     /// <summary>
@@ -2399,7 +2452,7 @@ public sealed class KvKeyspace : IDisposable
             && !CanFitFreshCheckpointBudget(postCheckpointOverlayEntryCount, requiredWalBytes))
         {
             SonnetDbMeter.KvCheckpointWriteRejections.Add(1);
-            throw new IOException(
+            throw KvAtomicBatchErrors.CreateTooLarge(
                 $"KV {batchName} was rejected before WAL append because the batch itself exceeds the fresh checkpoint budget; " +
                 "reduce the batch size or increase/disable MaxWalBytes or MaxOverlayEntries.");
         }

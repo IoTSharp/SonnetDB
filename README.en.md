@@ -225,7 +225,7 @@ README keeps the product overview and shortest setup path. Detailed material liv
 | VS Code installation, connections, and extension development | [Install from Marketplace](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode), [SonnetDB for VS Code](extensions/sonnetdb-vscode/README.md) |
 | Embedded API, ADO.NET, EF Core, CLI | [Embedded API](docs/embedded-api.md), [ADO.NET](docs/ado-net.md), [CLI](docs/cli-reference.md) |
 | Bulk ingest, Line Protocol, JSON ingest | [Bulk Ingest](docs/bulk-ingest.md) |
-| KV, documents, full-text, vector, Hybrid Search | [KV Keyspace](docs/kv-keyspace.md), [Document Store](docs/document-store.md), [Vector Search](docs/vector-search.md) |
+| KV, documents, full-text, vector, Hybrid Search | [KV Keyspace](docs/kv-keyspace.md), [Document Store](docs/document-store.md), [Document Quickstart](samples/SonnetDB.DocumentQuickstart/README.md), [MongoDB-like Migration](docs/mongodb-migration.md), [Vector Search](docs/vector-search.md) |
 | Binary frame protocol, MQTT ingest | [Frame Protocol](docs/frame-protocol.md) |
 | Geospatial, trajectory, forecast, PID | [Geospatial](docs/geo-spatial.md), [Forecast](docs/forecast.md), [PID Control](docs/pid-control.md) |
 | Architecture, file layout, backup/restore | [Architecture](docs/architecture.md), [File Format](docs/file-format.md), [Backup & Restore](docs/backup-restore.md) |

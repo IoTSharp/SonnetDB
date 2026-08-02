@@ -321,7 +321,8 @@ public sealed class SndbDocumentClient : IDisposable
                     options.Filter,
                     options.Projection,
                     options.Sort,
-                    options.ContinuationToken),
+                    options.ContinuationToken,
+                    ToWireCollation(options.Collation)),
                 SndbDocumentClientJsonContext.Default.DocumentFindRequest,
                 cancellationToken).ConfigureAwait(false);
             var body = await ReadJsonAsync(response, SndbDocumentClientJsonContext.Default.DocumentFindResponse, cancellationToken)
@@ -408,6 +409,55 @@ public sealed class SndbDocumentClient : IDisposable
             new DocumentUpdateOneRequest(Id: id, Document: document.RootElement.Clone()),
             SndbDocumentClientJsonContext.Default.DocumentUpdateOneRequest,
             cancellationToken).ConfigureAwait(false));
+    }
+
+    /// <summary>
+    /// 原子查找一条匹配文档、应用局部更新，并返回更新前或更新后文档。
+    /// </summary>
+    /// <param name="collection">文档集合名称。</param>
+    /// <param name="options">过滤、更新、upsert 与返回模式。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>返回文档与统一写入计数。</returns>
+    public async Task<SndbDocumentFindOneAndUpdateResult> FindOneAndUpdateAsync(
+        string collection,
+        SndbDocumentFindOneAndUpdateOptions options,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ValidateCollection(collection);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(options.Update);
+        if (!string.IsNullOrWhiteSpace(options.Id))
+            ValidateId(options.Id);
+        if (!Enum.IsDefined(options.ReturnDocument))
+            throw new ArgumentOutOfRangeException(nameof(options), "不支持的返回文档模式。");
+
+        if (_embedded is not null)
+        {
+            var result = _embedded.Documents.Open(collection).FindOneAndUpdate(
+                MergeClientFilters(options.Id, options.Filter),
+                ToCoreUpdate(options.Update),
+                options.ReturnDocument == SndbDocumentReturnDocument.Before
+                    ? DocumentReturnDocument.Before
+                    : DocumentReturnDocument.After,
+                options.Upsert,
+                options.UpsertId ?? options.Id);
+            return ToClientFindOneAndUpdateResult(collection, result);
+        }
+
+        var response = await PostDocumentResultJsonAsync(
+            CollectionActionUrl(collection, "find-one-and-update"),
+            new DocumentFindOneAndUpdateRequest(
+                options.Id,
+                options.Filter,
+                options.Update,
+                options.Upsert,
+                options.UpsertId,
+                options.ReturnDocument == SndbDocumentReturnDocument.Before ? "before" : "after"),
+            SndbDocumentClientJsonContext.Default.DocumentFindOneAndUpdateRequest,
+            SndbDocumentClientJsonContext.Default.DocumentFindOneAndUpdateResponse,
+            cancellationToken).ConfigureAwait(false);
+        return ToClientFindOneAndUpdateResult(response);
     }
 
     /// <summary>
@@ -584,6 +634,59 @@ public sealed class SndbDocumentClient : IDisposable
             new DocumentDeleteManyRequest(idList, ordered),
             SndbDocumentClientJsonContext.Default.DocumentDeleteManyRequest,
             cancellationToken).ConfigureAwait(false));
+    }
+
+    /// <summary>
+    /// 在一个 collection 内执行 mixed insert/replace/update/delete 批量写。
+    /// </summary>
+    /// <param name="collection">文档集合名称。</param>
+    /// <param name="operations">按请求顺序执行的操作。</param>
+    /// <param name="ordered">为 true 时任一错误使整批不提交；为 false 时提交全部有效项。</param>
+    /// <param name="requestId">可选幂等键；24 小时内相同请求可安全重试。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>批次总计、逐项结果与重放状态。</returns>
+    public async Task<SndbDocumentBulkWriteResult> BulkWriteAsync(
+        string collection,
+        IEnumerable<SndbDocumentBulkWriteOperation> operations,
+        bool ordered = true,
+        string? requestId = null,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ValidateCollection(collection);
+        ArgumentNullException.ThrowIfNull(operations);
+        SndbDocumentBulkWriteOperation[] materialized = operations.ToArray();
+        if (materialized.Length == 0)
+            throw new ArgumentException("bulk operations 不能为空。", nameof(operations));
+
+        if (_embedded is not null)
+        {
+            var result = _embedded.Documents.Open(collection).BulkWrite(
+                materialized.Select(ToCoreBulkWriteOperation),
+                ordered,
+                requestId);
+            return ToClientBulkWriteResult(collection, result);
+        }
+
+        var jsonDocuments = new List<JsonDocument>();
+        try
+        {
+            var requestOperations = materialized
+                .Select(operation => ToBulkWriteContract(operation, jsonDocuments))
+                .ToArray();
+            var response = await PostDocumentResultJsonAsync(
+                CollectionActionUrl(collection, "bulk-write"),
+                new DocumentBulkWriteRequest(requestOperations, ordered, requestId),
+                SndbDocumentClientJsonContext.Default.DocumentBulkWriteRequest,
+                SndbDocumentClientJsonContext.Default.DocumentBulkWriteResponse,
+                cancellationToken).ConfigureAwait(false);
+            return ToClientBulkWriteResult(response);
+        }
+        finally
+        {
+            foreach (var document in jsonDocuments)
+                document.Dispose();
+        }
     }
 
     /// <summary>
@@ -821,6 +924,40 @@ public sealed class SndbDocumentClient : IDisposable
         throw BuildHttpError(response, body);
     }
 
+    private async Task<TResponse> PostDocumentResultJsonAsync<TRequest, TResponse>(
+        string url,
+        TRequest value,
+        System.Text.Json.Serialization.Metadata.JsonTypeInfo<TRequest> requestTypeInfo,
+        System.Text.Json.Serialization.Metadata.JsonTypeInfo<TResponse> responseTypeInfo,
+        CancellationToken cancellationToken)
+    {
+        using var content = JsonContent.Create(value, requestTypeInfo);
+        using var response = await _http!.PostAsync(url, content, cancellationToken).ConfigureAwait(false);
+        string body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        if (response.IsSuccessStatusCode || HasDocumentResultShape(body))
+        {
+            var result = JsonSerializer.Deserialize(body, responseTypeInfo);
+            if (result is not null)
+                return result;
+        }
+
+        throw BuildHttpError(response, body);
+    }
+
+    private static bool HasDocumentResultShape(string body)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            return document.RootElement.ValueKind == JsonValueKind.Object
+                && document.RootElement.TryGetProperty("collection", out _);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
     private static async Task<T> ReadJsonAsync<T>(
         HttpResponseMessage response,
         System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo,
@@ -934,6 +1071,83 @@ public sealed class SndbDocumentClient : IDisposable
                 error.Code,
                 error.Message,
                 error.Severity)).ToArray());
+
+    private static SndbDocumentFindOneAndUpdateResult ToClientFindOneAndUpdateResult(
+        string collection,
+        DocumentFindOneAndUpdateResult result)
+        => new(
+            collection,
+            result.Document is null
+                ? null
+                : new SndbDocument(result.Document.Id, result.Document.Json, result.Document.Version),
+            result.WriteResult.Inserted,
+            result.WriteResult.Matched,
+            result.WriteResult.Modified,
+            result.WriteResult.Errors.Select(ToClientWriteError).ToArray());
+
+    private static SndbDocumentFindOneAndUpdateResult ToClientFindOneAndUpdateResult(
+        DocumentFindOneAndUpdateResponse response)
+        => new(
+            response.Collection,
+            response.Document is null ? null : ToDocument(response.Document),
+            response.Inserted,
+            response.Matched,
+            response.Modified,
+            response.Errors?.Select(ToClientWriteError).ToArray());
+
+    private static SndbDocumentBulkWriteResult ToClientBulkWriteResult(
+        string collection,
+        DocumentWriteResult result)
+        => new(
+            collection,
+            result.Inserted,
+            result.Matched,
+            result.Modified,
+            result.Deleted,
+            result.Items.Select(static item => new SndbDocumentBulkWriteItemResult(
+                item.Index,
+                item.Operation,
+                item.Id,
+                item.Status,
+                item.Inserted,
+                item.Matched,
+                item.Modified,
+                item.Deleted,
+                item.UpsertedId,
+                item.Error is null ? null : ToClientWriteError(item.Error))).ToArray(),
+            result.Errors.Select(ToClientWriteError).ToArray(),
+            result.RequestId,
+            result.Replayed,
+            result.Committed);
+
+    private static SndbDocumentBulkWriteResult ToClientBulkWriteResult(DocumentBulkWriteResponse response)
+        => new(
+            response.Collection,
+            response.Inserted,
+            response.Matched,
+            response.Modified,
+            response.Deleted,
+            response.Items.Select(static item => new SndbDocumentBulkWriteItemResult(
+                item.Index,
+                item.Operation,
+                item.Id,
+                item.Status,
+                item.Inserted,
+                item.Matched,
+                item.Modified,
+                item.Deleted,
+                item.UpsertedId,
+                item.Error is null ? null : ToClientWriteError(item.Error))).ToArray(),
+            response.Errors?.Select(ToClientWriteError).ToArray(),
+            response.RequestId,
+            response.Replayed,
+            response.Committed);
+
+    private static SndbDocumentWriteError ToClientWriteError(DocumentWriteError error)
+        => new(error.Index, error.Id, error.Code, error.Message, error.Severity);
+
+    private static SndbDocumentWriteError ToClientWriteError(DocumentWriteErrorResponse error)
+        => new(error.Index, error.Id, error.Code, error.Message, error.Severity);
 
     private static SndbDocument ToDocument(DocumentItemResponse response) =>
         new(response.Id, response.Document.GetRawText(), response.Version);
@@ -1063,7 +1277,8 @@ public sealed class SndbDocumentClient : IDisposable
             Projection: ToCoreProjection(options.Projection),
             Sort: ToCoreSort(options.Sort),
             Limit: limit,
-            Skip: options.Skip);
+            Skip: options.Skip,
+            Collation: ToCoreCollation(options.Collation));
         string fingerprint = DocumentCursorToken.Fingerprint(collection, query);
         DocumentCursorState? cursor = DecodeCursor(options.ContinuationToken, collection, fingerprint, store.LastVersion);
 
@@ -1204,7 +1419,8 @@ public sealed class SndbDocumentClient : IDisposable
     private static bool HasAdvancedQuery(SndbDocumentFindOptions options)
         => options.Filter is not null
             || options.Projection is { Count: > 0 }
-            || options.Sort is { Count: > 0 };
+            || options.Sort is { Count: > 0 }
+            || ToCoreCollation(options.Collation) != DocumentCollation.Ordinal;
 
     private static DocumentFilter? MergeClientFilters(SndbDocumentFindOptions options)
     {
@@ -1245,6 +1461,7 @@ public sealed class SndbDocumentClient : IDisposable
         if (filter is null)
             return null;
 
+        // 保留旧 payload 的组合优先级；空 AND/OR 继续回退为字段条件。
         if (filter.And is { Count: > 0 })
             return new DocumentAndFilter(filter.And.Select(ToRequiredCoreFilter).ToArray());
         if (filter.Or is { Count: > 0 })
@@ -1253,12 +1470,23 @@ public sealed class SndbDocumentClient : IDisposable
             return new DocumentNotFilter(ToRequiredCoreFilter(filter.Not));
 
         var op = ParseFilterOperator(filter.Op);
+        object? value = op switch
+        {
+            DocumentFilterOperator.ElementMatch => filter.ElemMatch is null
+                ? throw new InvalidOperationException("$elemMatch 必须提供 elemMatch 子过滤表达式。")
+                : ToRequiredCoreFilter(filter.ElemMatch),
+            DocumentFilterOperator.Regex => new DocumentRegex(ReadRegexPattern(filter.Value), filter.RegexOptions),
+            DocumentFilterOperator.Exists => ToBooleanOrDefault(filter.Value),
+            _ => ToCoreValue(filter.Value),
+        };
+        if (op != DocumentFilterOperator.ElementMatch && filter.ElemMatch is not null)
+            throw new InvalidOperationException("elemMatch 子表达式只能与 elemMatch 操作符一起使用。");
+        if (op != DocumentFilterOperator.Regex && filter.RegexOptions is not null)
+            throw new InvalidOperationException("regexOptions 只能与 regex 操作符一起使用。");
         return new DocumentFieldFilter(
             ToCoreField(filter.Path),
             op,
-            op == DocumentFilterOperator.Exists
-                ? ToBooleanOrDefault(filter.Value)
-                : ToCoreValue(filter.Value));
+            value);
     }
 
     private static DocumentFilter ToRequiredCoreFilter(SndbDocumentFilter filter)
@@ -1325,7 +1553,33 @@ public sealed class SndbDocumentClient : IDisposable
             "nin" => DocumentFilterOperator.NotIn,
             "exists" => DocumentFilterOperator.Exists,
             "contains" => DocumentFilterOperator.Contains,
+            "elemmatch" or "elem_match" => DocumentFilterOperator.ElementMatch,
+            "regex" => DocumentFilterOperator.Regex,
+            "type" => DocumentFilterOperator.Type,
+            "size" => DocumentFilterOperator.Size,
+            "all" => DocumentFilterOperator.All,
             _ => throw new InvalidOperationException($"不支持的文档过滤操作符 '{op}'。"),
+        };
+
+    private static string ReadRegexPattern(JsonElement? value)
+        => value is { ValueKind: JsonValueKind.String }
+            ? value.Value.GetString() ?? string.Empty
+            : throw new InvalidOperationException("regex 操作符的 value 必须是字符串 pattern。");
+
+    private static DocumentCollation ToCoreCollation(SndbDocumentCollation collation)
+        => collation switch
+        {
+            SndbDocumentCollation.Ordinal => DocumentCollation.Ordinal,
+            SndbDocumentCollation.OrdinalIgnoreCase => DocumentCollation.OrdinalIgnoreCase,
+            _ => throw new ArgumentOutOfRangeException(nameof(collation), collation, "不支持的文档 collation。"),
+        };
+
+    private static string ToWireCollation(SndbDocumentCollation collation)
+        => collation switch
+        {
+            SndbDocumentCollation.Ordinal => "ordinal",
+            SndbDocumentCollation.OrdinalIgnoreCase => "ordinal_ignore_case",
+            _ => throw new ArgumentOutOfRangeException(nameof(collation), collation, "不支持的文档 collation。"),
         };
 
     private static object? ToCoreValue(JsonElement? value)
@@ -1369,7 +1623,66 @@ public sealed class SndbDocumentClient : IDisposable
             update.Push,
             update.Pull,
             update.AddToSet,
-            update.CurrentDate);
+            update.CurrentDate,
+            update.Mul,
+            update.Pop);
+
+    private static DocumentBulkWriteOperation ToCoreBulkWriteOperation(SndbDocumentBulkWriteOperation operation)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        return new DocumentBulkWriteOperation(
+            operation.Type switch
+            {
+                SndbDocumentBulkWriteOperationType.InsertOne => DocumentBulkWriteOperationType.InsertOne,
+                SndbDocumentBulkWriteOperationType.ReplaceOne => DocumentBulkWriteOperationType.ReplaceOne,
+                SndbDocumentBulkWriteOperationType.UpdateOne => DocumentBulkWriteOperationType.UpdateOne,
+                SndbDocumentBulkWriteOperationType.UpdateMany => DocumentBulkWriteOperationType.UpdateMany,
+                SndbDocumentBulkWriteOperationType.DeleteOne => DocumentBulkWriteOperationType.DeleteOne,
+                SndbDocumentBulkWriteOperationType.DeleteMany => DocumentBulkWriteOperationType.DeleteMany,
+                _ => throw new ArgumentOutOfRangeException(nameof(operation), "不支持的 bulk operation 类型。"),
+            },
+            operation.Id,
+            operation.Json,
+            ToCoreFilter(operation.Filter),
+            operation.Update is null ? null : ToCoreUpdate(operation.Update),
+            operation.Upsert,
+            operation.UpsertId,
+            operation.ExpectedVersion);
+    }
+
+    private static DocumentBulkWriteOperationContract ToBulkWriteContract(
+        SndbDocumentBulkWriteOperation operation,
+        ICollection<JsonDocument> documents)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        JsonElement? document = null;
+        if (operation.Json is not null)
+        {
+            var parsed = JsonDocument.Parse(operation.Json);
+            documents.Add(parsed);
+            document = parsed.RootElement.Clone();
+        }
+
+        string type = operation.Type switch
+        {
+            SndbDocumentBulkWriteOperationType.InsertOne => "insertOne",
+            SndbDocumentBulkWriteOperationType.ReplaceOne => "replaceOne",
+            SndbDocumentBulkWriteOperationType.UpdateOne => "updateOne",
+            SndbDocumentBulkWriteOperationType.UpdateMany => "updateMany",
+            SndbDocumentBulkWriteOperationType.DeleteOne => "deleteOne",
+            SndbDocumentBulkWriteOperationType.DeleteMany => "deleteMany",
+            _ => throw new ArgumentOutOfRangeException(nameof(operation), "不支持的 bulk operation 类型。"),
+        };
+        return new DocumentBulkWriteOperationContract(
+            type,
+            operation.Id,
+            document,
+            operation.Filter,
+            operation.Update,
+            operation.Upsert,
+            operation.UpsertId,
+            operation.ExpectedVersion);
+    }
 
     private static DocumentAggregationPipeline ToCoreAggregation(IReadOnlyList<SndbDocumentAggregateStage> pipeline)
         => new(pipeline.Select(ToCoreAggregationStage).ToArray());
@@ -1382,9 +1695,8 @@ public sealed class SndbDocumentClient : IDisposable
 
         if (stage.Match is not null)
             return new DocumentMatchStage(ToRequiredCoreFilter(stage.Match));
-        if (stage.Project is not null)
-            return new DocumentProjectStage(ToCoreProjection(stage.Project)
-                ?? throw new InvalidOperationException("$project 需要至少一个投影字段。"));
+        if (stage.Project is not null || stage.ComputedFields is not null)
+            return ToCoreProjectStage(stage.Project, stage.ComputedFields);
         if (stage.Group is not null)
             return ToCoreGroupStage(stage.Group);
         if (stage.Sort is not null)
@@ -1397,7 +1709,8 @@ public sealed class SndbDocumentClient : IDisposable
             return new DocumentUnwindStage(
                 ToCoreField(stage.Unwind.Path),
                 stage.Unwind.Name,
-                stage.Unwind.PreserveNullAndEmptyArrays);
+                stage.Unwind.PreserveNullAndEmptyArrays,
+                stage.Unwind.IncludeArrayIndex);
         if (stage.Count is not null)
             return new DocumentCountStage(string.IsNullOrWhiteSpace(stage.Count) ? "count" : stage.Count);
         if (stage.Distinct is not null)
@@ -1413,7 +1726,7 @@ public sealed class SndbDocumentClient : IDisposable
     {
         int count = 0;
         if (stage.Match is not null) count++;
-        if (stage.Project is not null) count++;
+        if (stage.Project is not null || stage.ComputedFields is not null) count++;
         if (stage.Group is not null) count++;
         if (stage.Sort is not null) count++;
         if (stage.Limit is not null) count++;
@@ -1427,19 +1740,114 @@ public sealed class SndbDocumentClient : IDisposable
     private static DocumentGroupStage ToCoreGroupStage(SndbDocumentAggregateGroup group)
     {
         var keys = group.Keys is { Count: > 0 }
-            ? group.Keys.Select(static key => new DocumentAggregationGroupKey(key.Name, ToCoreField(key.Path))).ToArray()
+            ? group.Keys.Select(ToCoreGroupKey).ToArray()
             : Array.Empty<DocumentAggregationGroupKey>();
         var accumulators = group.Accumulators is { Count: > 0 }
-            ? group.Accumulators.Select(static accumulator => new DocumentAggregationAccumulator(
-                accumulator.Name,
-                ParseAccumulatorOperator(accumulator.Op),
-                string.IsNullOrWhiteSpace(accumulator.Path) ? null : ToCoreField(accumulator.Path))).ToArray()
+            ? group.Accumulators.Select(ToCoreAccumulator).ToArray()
             : Array.Empty<DocumentAggregationAccumulator>();
 
         if (keys.Length == 0 && accumulators.Length == 0)
             throw new InvalidOperationException("$group 至少需要一个 key 或 accumulator。");
 
         return new DocumentGroupStage(keys, accumulators);
+    }
+
+    private static DocumentProjectStage ToCoreProjectStage(
+        IReadOnlyList<SndbDocumentProjection>? projection,
+        IReadOnlyList<SndbDocumentAggregateComputedField>? computedFields)
+    {
+        DocumentProjection coreProjection = ToCoreProjection(projection) ?? new DocumentProjection([]);
+        DocumentAggregationComputedField[] computed = computedFields is { Count: > 0 }
+            ? computedFields.Select(static field => new DocumentAggregationComputedField(
+                field.Name,
+                ToCoreAggregationExpression(field.Expression))).ToArray()
+            : [];
+        if (coreProjection.Fields.Count == 0 && computed.Length == 0)
+            throw new InvalidOperationException("$project 需要至少一个投影字段或计算字段。");
+        return new DocumentProjectStage(coreProjection, computed);
+    }
+
+    private static DocumentAggregationGroupKey ToCoreGroupKey(SndbDocumentAggregateGroupKey key)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        return key.Expression is not null
+            ? DocumentAggregationGroupKey.FromExpression(
+                key.Name,
+                ToCoreAggregationExpression(key.Expression))
+            : new DocumentAggregationGroupKey(
+                key.Name,
+                ToCoreField(key.Path ?? throw new InvalidOperationException("$group key 需要 path 或 expression。")));
+    }
+
+    private static DocumentAggregationAccumulator ToCoreAccumulator(
+        SndbDocumentAggregateAccumulator accumulator)
+    {
+        ArgumentNullException.ThrowIfNull(accumulator);
+        DocumentAggregationAccumulatorOperator op = ParseAccumulatorOperator(accumulator.Op);
+        return accumulator.Expression is not null
+            ? DocumentAggregationAccumulator.FromExpression(
+                accumulator.Name,
+                op,
+                ToCoreAggregationExpression(accumulator.Expression))
+            : new DocumentAggregationAccumulator(
+                accumulator.Name,
+                op,
+                string.IsNullOrWhiteSpace(accumulator.Path) ? null : ToCoreField(accumulator.Path));
+    }
+
+    private static DocumentAggregationExpression ToCoreAggregationExpression(
+        SndbDocumentAggregateExpression expression,
+        int depth = 0)
+    {
+        ArgumentNullException.ThrowIfNull(expression);
+        if (depth > 64)
+            throw new InvalidOperationException("Document aggregation expression depth 超过上限 64。");
+
+        string op = NormalizeAggregationExpressionOperator(expression.Op);
+        IReadOnlyList<SndbDocumentAggregateExpression> arguments = expression.Arguments ?? [];
+        DocumentAggregationExpression ConvertArgument(int index)
+            => ToCoreAggregationExpression(arguments[index], depth + 1);
+
+        return op switch
+        {
+            "field" when arguments.Count == 0 => new DocumentAggregationFieldExpression(
+                ToCoreField(expression.Path
+                    ?? throw new InvalidOperationException("field 表达式需要 path。"))),
+            "literal" when arguments.Count == 0 && expression.Path is null =>
+                new DocumentAggregationLiteralExpression(expression.Value?.Clone()),
+            "add" when arguments.Count == 2 =>
+                new DocumentAggregationAddExpression(ConvertArgument(0), ConvertArgument(1)),
+            "subtract" when arguments.Count == 2 =>
+                new DocumentAggregationSubtractExpression(ConvertArgument(0), ConvertArgument(1)),
+            "multiply" when arguments.Count == 2 =>
+                new DocumentAggregationMultiplyExpression(ConvertArgument(0), ConvertArgument(1)),
+            "divide" when arguments.Count == 2 =>
+                new DocumentAggregationDivideExpression(ConvertArgument(0), ConvertArgument(1)),
+            "concat" when arguments.Count > 0 =>
+                new DocumentAggregationConcatExpression(arguments
+                    .Select(value => ToCoreAggregationExpression(value, depth + 1))
+                    .ToArray()),
+            "if_null" when arguments.Count == 2 =>
+                new DocumentAggregationIfNullExpression(ConvertArgument(0), ConvertArgument(1)),
+            "cond" when arguments.Count == 3 =>
+                new DocumentAggregationCondExpression(
+                    ConvertArgument(0),
+                    ConvertArgument(1),
+                    ConvertArgument(2)),
+            _ => throw new InvalidOperationException(
+                $"聚合表达式 '{expression.Op}' 的参数形态无效。"),
+        };
+    }
+
+    private static string NormalizeAggregationExpressionOperator(string op)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(op);
+        string normalized = op.Trim().TrimStart('$').Replace('-', '_').ToLowerInvariant();
+        return normalized switch
+        {
+            "ifnull" => "if_null",
+            _ => normalized,
+        };
     }
 
     private static DocumentAggregationAccumulatorOperator ParseAccumulatorOperator(string op)
@@ -1453,6 +1861,8 @@ public sealed class SndbDocumentClient : IDisposable
             "first" => DocumentAggregationAccumulatorOperator.First,
             "last" => DocumentAggregationAccumulatorOperator.Last,
             "distinct" => DocumentAggregationAccumulatorOperator.Distinct,
+            "push" => DocumentAggregationAccumulatorOperator.Push,
+            "addtoset" or "add_to_set" => DocumentAggregationAccumulatorOperator.AddToSet,
             _ => throw new InvalidOperationException($"不支持的 document aggregate accumulator '{op}'。"),
         };
 
