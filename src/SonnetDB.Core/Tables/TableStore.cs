@@ -1177,7 +1177,7 @@ public sealed class TableStore : IDisposable
                 break;
 
             afterKey = keys[^1];
-            _keyspace.DeleteMany(keys);
+            DeleteIndexKeysForMaintenance(keys);
         }
 
         if (_schema.Indexes.Count == 0)
@@ -1204,8 +1204,50 @@ public sealed class TableStore : IDisposable
                         throw UniqueViolation(_schema, index, "无法重建索引");
                     }
 
-                    _keyspace.Put(indexEntry.Key, indexEntry.Value);
+                    PutIndexEntryForMaintenance(indexEntry.Key, indexEntry.Value);
                 }
+            }
+        }
+    }
+
+    /// <summary>
+    /// 删除一页旧索引；当前预算不足时完成已经排队的检查点后重试同一页。
+    /// 批次自身超过空白预算或检查点真实失败时仍原样终止重建。
+    /// </summary>
+    /// <param name="keys">本页确认存在的旧索引 key。</param>
+    private void DeleteIndexKeysForMaintenance(IReadOnlyList<byte[]> keys)
+    {
+        while (true)
+        {
+            try
+            {
+                _keyspace.DeleteMany(keys);
+                return;
+            }
+            catch (IOException exception) when (KvAtomicBatchErrors.IsRetryableCheckpointPressure(exception))
+            {
+                _keyspace.Compact();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 写回一个重建索引条目；自动检查点超过普通写等待窗口时同步收敛后重试。
+    /// </summary>
+    /// <param name="key">编码后的二级索引 key。</param>
+    /// <param name="value">索引指向的主键 payload。</param>
+    private void PutIndexEntryForMaintenance(byte[] key, byte[] value)
+    {
+        while (true)
+        {
+            try
+            {
+                _keyspace.Put(key, value);
+                return;
+            }
+            catch (IOException exception) when (KvAtomicBatchErrors.IsRetryableCheckpointPressure(exception))
+            {
+                _keyspace.Compact();
             }
         }
     }

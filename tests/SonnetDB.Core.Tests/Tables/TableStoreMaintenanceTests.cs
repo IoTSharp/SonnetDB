@@ -199,6 +199,76 @@ public sealed class TableStoreMaintenanceTests : IDisposable
         recoveredStore.Dispose();
     }
 
+    /// <summary>验证大索引重建跨越当前检查点预算时会等待落盘并继续，而不是让表打开失败。</summary>
+    [Fact]
+    public void MissingCleanToken_IndexRebuildCrossesCheckpointBudget_Completes()
+    {
+        string path = Path.Combine(_root, "budgeted-index-rebuild");
+        var schema = IndexedSchema("budgeted_index_rebuild");
+        var preparationOptions = KvOptions.Default with { SyncWalOnEveryWrite = false };
+        var preparationKeyspace = KvKeyspace.Open("table.budgeted_index_rebuild", path, preparationOptions);
+        var preparationStore = new TableStore(schema, preparationKeyspace);
+        for (var index = 0; index < 900; index++)
+            preparationStore.Insert([Convert.ToInt64(index), $"site-{index:D4}"]);
+        preparationKeyspace.Compact();
+        preparationStore.Dispose();
+
+        File.Delete(Path.Combine(path, TableStoreMaintenanceFile.CleanIndexesFileName));
+        var recoveryOptions = KvOptions.Default with
+        {
+            SyncWalOnEveryWrite = false,
+            MaxOverlayEntries = 280,
+            CheckpointWriteBackpressureTimeout = TimeSpan.FromMilliseconds(1),
+        };
+        var recoveryKeyspace = KvKeyspace.Open("table.budgeted_index_rebuild", path, recoveryOptions);
+        var writeBackpressureWaits = 0;
+        recoveryKeyspace.CheckpointTestHook = phase =>
+        {
+            if (phase == KvCheckpointPhase.AfterFreeze)
+                Thread.Sleep(100);
+        };
+        recoveryKeyspace.WriteBackpressureTestHook = () => Interlocked.Increment(ref writeBackpressureWaits);
+        var recoveryStore = new TableStore(schema, recoveryKeyspace);
+
+        Assert.Equal(900, recoveryStore.RowCount);
+        Assert.True(writeBackpressureWaits > 0);
+        Assert.Single(recoveryStore.GetByIndex(schema.Indexes[0], ["site-0000"]));
+        Assert.Single(recoveryStore.GetByIndex(schema.Indexes[0], ["site-0899"]));
+        recoveryStore.Dispose();
+    }
+
+    /// <summary>验证索引维护遇到真实检查点写盘失败时保留原异常并终止打开。</summary>
+    [Fact]
+    public void MissingCleanToken_CheckpointIoFailure_PropagatesWithoutRetryLoop()
+    {
+        string path = Path.Combine(_root, "failed-index-checkpoint");
+        var schema = IndexedSchema("failed_index_checkpoint");
+        var preparationOptions = KvOptions.Default with { SyncWalOnEveryWrite = false };
+        var preparationKeyspace = KvKeyspace.Open("table.failed_index_checkpoint", path, preparationOptions);
+        var preparationStore = new TableStore(schema, preparationKeyspace);
+        for (var index = 0; index < 300; index++)
+            preparationStore.Insert([Convert.ToInt64(index), $"site-{index:D4}"]);
+        preparationKeyspace.Compact();
+        preparationStore.Dispose();
+
+        File.Delete(Path.Combine(path, TableStoreMaintenanceFile.CleanIndexesFileName));
+        var recoveryOptions = KvOptions.Default with
+        {
+            SyncWalOnEveryWrite = false,
+            MaxOverlayEntries = 280,
+        };
+        using var recoveryKeyspace = KvKeyspace.Open("table.failed_index_checkpoint", path, recoveryOptions);
+        recoveryKeyspace.CheckpointTestHook = phase =>
+        {
+            if (phase == KvCheckpointPhase.BeforeStateDirectoryFsync)
+                throw new IOException("injected index maintenance checkpoint failure");
+        };
+
+        IOException error = Assert.Throws<IOException>(() => new TableStore(schema, recoveryKeyspace));
+
+        Assert.Contains("injected index maintenance checkpoint failure", error.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Dispose_WhenWalFlushFails_DoesNotPublishCleanIndexToken()
     {

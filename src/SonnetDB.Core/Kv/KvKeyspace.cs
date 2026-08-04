@@ -11,6 +11,8 @@ namespace SonnetDB.Kv;
 internal static class KvAtomicBatchErrors
 {
     private static readonly object TooLargeMarker = new();
+    private static readonly object CurrentCheckpointBudgetMarker = new();
+    private static readonly object CheckpointBackpressureTimeoutMarker = new();
 
     /// <summary>
     /// 创建带内部分类标记的批次超限异常。
@@ -31,6 +33,41 @@ internal static class KvAtomicBatchErrors
     /// <returns>存在内部批次超限标记时返回 <see langword="true"/>。</returns>
     internal static bool IsTooLarge(IOException exception)
         => exception.Data[TooLargeMarker] is true;
+
+    /// <summary>
+    /// 创建当前 WAL 或覆盖层需要先完成检查点才能容纳批次的异常。
+    /// </summary>
+    /// <param name="message">提示调用方等待检查点后重试的说明。</param>
+    /// <returns>带内部可重试分类标记的 <see cref="IOException"/>。</returns>
+    internal static IOException CreateCurrentCheckpointBudget(string message)
+    {
+        var exception = new IOException(message);
+        exception.Data[CurrentCheckpointBudgetMarker] = true;
+        return exception;
+    }
+
+    /// <summary>
+    /// 创建等待自动检查点超过有界时间的异常。
+    /// </summary>
+    /// <param name="timeout">本次等待使用的时间上限。</param>
+    /// <returns>带内部可重试分类标记的 <see cref="IOException"/>。</returns>
+    internal static IOException CreateCheckpointBackpressureTimeout(TimeSpan timeout)
+    {
+        var exception = new IOException(
+            $"KV write waited {timeout} for automatic checkpoint backpressure and was rejected before WAL append.",
+            new TimeoutException("KV automatic checkpoint did not free the write budget in time."));
+        exception.Data[CheckpointBackpressureTimeoutMarker] = true;
+        return exception;
+    }
+
+    /// <summary>
+    /// 判断维护写入是否可在同步完成当前检查点后安全重试。
+    /// </summary>
+    /// <param name="exception">待分类的 I/O 异常。</param>
+    /// <returns>异常仅由当前预算或自动检查点等待超时导致时返回 <see langword="true"/>。</returns>
+    internal static bool IsRetryableCheckpointPressure(IOException exception)
+        => exception.Data[CurrentCheckpointBudgetMarker] is true
+            || exception.Data[CheckpointBackpressureTimeoutMarker] is true;
 }
 
 /// <summary>
@@ -2271,9 +2308,7 @@ public sealed class KvKeyspace : IDisposable
     }
 
     private static IOException CreateCheckpointBackpressureTimeout(TimeSpan timeout)
-        => new(
-            $"KV write waited {timeout} for automatic checkpoint backpressure and was rejected before WAL append.",
-            new TimeoutException("KV automatic checkpoint did not free the write budget in time."));
+        => KvAtomicBatchErrors.CreateCheckpointBackpressureTimeout(timeout);
 
     internal void RunAutoCheckpointWorker()
     {
@@ -2594,7 +2629,7 @@ public sealed class KvKeyspace : IDisposable
 
         ScheduleAutoCheckpointLocked(force: true);
         SonnetDbMeter.KvCheckpointWriteRejections.Add(1);
-        throw new IOException(
+        throw KvAtomicBatchErrors.CreateCurrentCheckpointBudget(
             $"KV {batchName} was rejected before WAL append because it exceeds the current checkpoint budget; " +
             "retry after checkpoint completion.");
     }
