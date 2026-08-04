@@ -21,6 +21,8 @@ public sealed class ServerOptionsTests
         Assert.False(options.Observability.DiagnosticDump.Enabled);
         Assert.Equal(4, options.SqlHttpAdmission.PermitLimit);
         Assert.Equal(8, options.SqlHttpAdmission.QueueLimit);
+        Assert.Equal(256L * 1024 * 1024, options.Kv.IndexRebuildMaxWalBytes);
+        Assert.Equal(100_000, options.Kv.IndexRebuildMaxOverlayEntries);
         Assert.False(options.SemanticSearch.Enabled);
         Assert.Equal("auto", options.SemanticSearch.Backend);
         Assert.Equal(768, options.SemanticSearch.Dimensions);
@@ -133,5 +135,36 @@ public sealed class ServerOptionsTests
 
         Assert.Equal(1, boundedOptions.PermitLimit);
         Assert.Equal(4096, boundedOptions.QueueLimit);
+    }
+
+    /// <summary>验证索引重建预算可由部署配置覆盖，并始终限制在明确的安全范围内。</summary>
+    [Fact]
+    public void Bind_WithKvIndexRebuildBudget_AppliesAndBoundsConfiguration()
+    {
+        var configured = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SonnetDBServer:Kv:IndexRebuildMaxWalBytes"] = "3221225472",
+                ["SonnetDBServer:Kv:IndexRebuildMaxOverlayEntries"] = "4000000",
+            })
+            .Build();
+
+        var configuredOptions = ServerOptionsBinder.Bind(configured).Kv;
+
+        Assert.Equal(3L * 1024 * 1024 * 1024, configuredOptions.IndexRebuildMaxWalBytes);
+        Assert.Equal(4_000_000, configuredOptions.IndexRebuildMaxOverlayEntries);
+
+        var outOfRange = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SonnetDBServer:Kv:IndexRebuildMaxWalBytes"] = long.MaxValue.ToString(),
+                ["SonnetDBServer:Kv:IndexRebuildMaxOverlayEntries"] = "0",
+            })
+            .Build();
+
+        var boundedOptions = ServerOptionsBinder.Bind(outOfRange).Kv;
+
+        Assert.Equal(64L * 1024 * 1024 * 1024, boundedOptions.IndexRebuildMaxWalBytes);
+        Assert.Equal(1, boundedOptions.IndexRebuildMaxOverlayEntries);
     }
 }

@@ -68,6 +68,171 @@ public sealed class KvCheckpointSafetyTests : IDisposable
         Assert.Equal(64, restored.ActiveWalLength);
     }
 
+    /// <summary>验证在途检查点期间低于 fresh overlay 预算的普通写不会排队第二轮检查点。</summary>
+    [Fact]
+    public void RunningCheckpoint_WriteBelowFreshBudget_DoesNotReschedule()
+    {
+        using var db = Open(KvOptions.Default with
+        {
+            AutoCheckpointEnabled = true,
+            MaxWalBytes = long.MaxValue,
+            MaxOverlayEntries = 2,
+            SyncWalOnEveryWrite = false,
+        });
+        var kv = db.Keyspaces.Open("no-low-budget-reschedule");
+        using var checkpointFrozen = new ManualResetEventSlim();
+        using var releaseCheckpoint = new ManualResetEventSlim();
+        kv.CheckpointTestHook = phase =>
+        {
+            if (phase != KvCheckpointPhase.AfterFreeze)
+                return;
+            checkpointFrozen.Set();
+            if (!releaseCheckpoint.Wait(TimeSpan.FromSeconds(30)))
+                throw new TimeoutException("test did not release the paused checkpoint");
+        };
+
+        kv.Put("before:1", [1]);
+        kv.Put("before:2", [2]);
+        Assert.True(checkpointFrozen.Wait(TimeSpan.FromSeconds(10)));
+
+        try
+        {
+            long schedulesBeforeWrite = kv.AutoCheckpointScheduleCount;
+            kv.Put("during:1", [3]);
+
+            Assert.Equal(schedulesBeforeWrite, kv.AutoCheckpointScheduleCount);
+            Assert.Equal(1, kv.MutableOverlayEntryCount);
+        }
+        finally
+        {
+            kv.CheckpointTestHook = null;
+            releaseCheckpoint.Set();
+        }
+    }
+
+    /// <summary>验证在途检查点期间 fresh overlay 达到预算后仍准确执行一轮后续检查点。</summary>
+    [Fact]
+    public void RunningCheckpoint_FreshOverlayReachesBudget_ReschedulesOnce()
+    {
+        using var db = Open(KvOptions.Default with
+        {
+            AutoCheckpointEnabled = true,
+            MaxWalBytes = long.MaxValue,
+            MaxOverlayEntries = 2,
+            SyncWalOnEveryWrite = false,
+        });
+        var kv = db.Keyspaces.Open("fresh-budget-reschedule");
+        using var firstCheckpointFrozen = new ManualResetEventSlim();
+        using var releaseFirstCheckpoint = new ManualResetEventSlim();
+        int freezes = 0;
+        kv.CheckpointTestHook = phase =>
+        {
+            if (phase != KvCheckpointPhase.AfterFreeze)
+                return;
+            if (Interlocked.Increment(ref freezes) != 1)
+                return;
+            firstCheckpointFrozen.Set();
+            if (!releaseFirstCheckpoint.Wait(TimeSpan.FromSeconds(30)))
+                throw new TimeoutException("test did not release the paused checkpoint");
+        };
+
+        kv.Put("before:1", [1]);
+        kv.Put("before:2", [2]);
+        Assert.True(firstCheckpointFrozen.Wait(TimeSpan.FromSeconds(10)));
+
+        try
+        {
+            long schedulesBeforeWrites = kv.AutoCheckpointScheduleCount;
+            kv.Put("during:1", [3]);
+            kv.Put("during:2", [4]);
+            Assert.True(kv.AutoCheckpointScheduleCount > schedulesBeforeWrites);
+        }
+        finally
+        {
+            releaseFirstCheckpoint.Set();
+        }
+
+        bool completed = SpinWait.SpinUntil(
+            () => Volatile.Read(ref freezes) == 2
+                && kv.MutableOverlayEntryCount == 0
+                && kv.PendingOverlayEntryCount == 0,
+            TimeSpan.FromSeconds(10));
+        kv.CheckpointTestHook = null;
+
+        Assert.True(completed, kv.LastCheckpointException?.ToString());
+        Assert.Equal(2, Volatile.Read(ref freezes));
+        Assert.Equal([3], kv.Get("during:1")!);
+        Assert.Equal([4], kv.Get("during:2")!);
+    }
+
+    /// <summary>验证 worker 尚未 freeze 时的 force 请求由已排队轮次吸收，不产生冗余第二轮。</summary>
+    [Fact]
+    public async Task QueuedCheckpoint_ForceBeforeFreeze_DoesNotRunRedundantCheckpoint()
+    {
+        using var db = Open(KvOptions.Default with
+        {
+            AutoCheckpointEnabled = true,
+            MaxWalBytes = long.MaxValue,
+            MaxOverlayEntries = 2,
+            CheckpointWriteBackpressureTimeout = TimeSpan.FromSeconds(20),
+            SyncWalOnEveryWrite = false,
+        });
+        var kv = db.Keyspaces.Open("queued-force-before-freeze");
+        using var workerBeforeFreeze = new ManualResetEventSlim();
+        using var releaseWorker = new ManualResetEventSlim();
+        using var writerWaiting = new ManualResetEventSlim();
+        int beforeFreezeCalls = 0;
+        int freezes = 0;
+        Task<long>? blockedWrite = null;
+        kv.CheckpointTestHook = phase =>
+        {
+            if (phase == KvCheckpointPhase.BeforeFreeze
+                && Interlocked.Increment(ref beforeFreezeCalls) == 1)
+            {
+                workerBeforeFreeze.Set();
+                if (!releaseWorker.Wait(TimeSpan.FromSeconds(30)))
+                    throw new TimeoutException("test did not release the queued checkpoint worker");
+            }
+            else if (phase == KvCheckpointPhase.AfterFreeze)
+            {
+                Interlocked.Increment(ref freezes);
+            }
+        };
+
+        try
+        {
+            kv.Put("before:1", [1]);
+            kv.Put("before:2", [2]);
+            Assert.True(workerBeforeFreeze.Wait(TimeSpan.FromSeconds(10)));
+            Assert.True(kv.AutoCheckpointQueued);
+            Assert.Equal(0, kv.PendingOverlayEntryCount);
+
+            kv.WriteBackpressureTestHook = writerWaiting.Set;
+            blockedWrite = StartDedicated(() => kv.Put("after", [3]));
+            Assert.True(writerWaiting.Wait(TimeSpan.FromSeconds(10)));
+            Assert.False(blockedWrite.IsCompleted);
+
+            releaseWorker.Set();
+            await blockedWrite.WaitAsync(TimeSpan.FromSeconds(20));
+            bool completed = SpinWait.SpinUntil(
+                () => !kv.AutoCheckpointQueued && kv.PendingOverlayEntryCount == 0,
+                TimeSpan.FromSeconds(10));
+
+            Assert.True(completed, kv.LastCheckpointException?.ToString());
+            Assert.Equal(1, Volatile.Read(ref freezes));
+            Assert.Equal(1, kv.MutableOverlayEntryCount);
+            Assert.Equal([3], kv.Get("after")!);
+        }
+        finally
+        {
+            kv.WriteBackpressureTestHook = null;
+            kv.CheckpointTestHook = null;
+            releaseWorker.Set();
+            if (blockedWrite is not null)
+                await blockedWrite.WaitAsync(TimeSpan.FromSeconds(20));
+        }
+    }
+
     [Fact]
     public async Task PausedCheckpoint_StopsWritesAtBudgetUntilNextOverlayIsFrozen()
     {

@@ -11,6 +11,7 @@ public sealed class TableStore : IDisposable
     private static readonly byte[] _autoIncrementStateKey = [(byte)'m', (byte)'a'];
     private const int MaintenanceKeyPageSize = 256;
     private const int IndexRebuildRowPageSize = 4;
+    private const int IndexRepairMutationPageSize = 1024;
     private readonly object _sync = new();
     private readonly KvKeyspace _keyspace;
     private TableSchema _schema;
@@ -1141,115 +1142,237 @@ public sealed class TableStore : IDisposable
             return [];
 
         var entries = new List<IndexEntry>(schema.Indexes.Count);
-        foreach (var index in schema.Indexes)
+        for (int indexOrdinal = 0; indexOrdinal < schema.Indexes.Count; indexOrdinal++)
         {
+            var index = schema.Indexes[indexOrdinal];
             byte[]? key = TableIndexCodec.TryEncodeIndexEntryKey(index, row.Values, schema, row.PrimaryKey.Span);
             if (key is null)
                 continue;
             byte[] value = TableIndexCodec.EncodeIndexEntryValue(row.PrimaryKey.Span);
-            entries.Add(new IndexEntry(key, value));
+            entries.Add(new IndexEntry(index, indexOrdinal, key, value));
         }
 
         return entries;
     }
 
-    private static TableIndex? TryResolveUniqueIndexConflict(TableSchema schema, IReadOnlyList<IndexEntry> entries, ReadOnlySpan<byte> candidateKey)
-    {
-        foreach (var index in schema.Indexes.Where(static i => i.IsUnique))
-        {
-            foreach (var entry in entries)
-            {
-                if (entry.Key.AsSpan().SequenceEqual(candidateKey))
-                    return index;
-            }
-        }
-
-        return null;
-    }
-
     private void RebuildIndexesLocked()
     {
-        byte[] afterKey = [];
-        while (true)
-        {
-            var keys = _keyspace.ScanKeysPrefixAfter([(byte)'i'], afterKey, MaintenanceKeyPageSize);
-            if (keys.Count == 0)
-                break;
+        using var budgetScope = _keyspace.EnterIndexRebuildBudgetScope();
+        int actualIndexCount = _keyspace.CountPrefix([(byte)'i']);
+        int expectedIndexCount = RepairExpectedIndexesLocked(out int addedIndexCount);
 
-            afterKey = keys[^1];
-            DeleteIndexKeysForMaintenance(keys);
-        }
-
-        if (_schema.Indexes.Count == 0)
+        // 期望键均已校验或补齐；实际数量相等时不可能再存在额外 stale/orphan 键。
+        if (checked(actualIndexCount + addedIndexCount) == expectedIndexCount)
             return;
 
-        afterKey = [];
-        while (true)
-        {
-            var rows = _keyspace.ScanPrefixAfter([(byte)'r'], afterKey, IndexRebuildRowPageSize);
-            if (rows.Count == 0)
-                break;
+        RemoveUnexpectedIndexesLocked();
+    }
 
-            afterKey = rows[^1].Key.ToArray();
+    /// <summary>
+    /// 单次稳定扫描全部主行，把需要修复的索引顺序写入临时 spool，扫描结束后再按页原子回放。
+    /// 扫描阶段不扩张 KV overlay，内存中始终只保留一页主行及其索引。
+    /// </summary>
+    /// <param name="addedIndexCount">本次实际补写的缺失索引键数量。</param>
+    /// <returns>当前 schema 与全部主行共同要求的索引键数量。</returns>
+    private int RepairExpectedIndexesLocked(out int addedIndexCount)
+    {
+        int added = 0;
+        int expectedIndexCount = 0;
+        if (_schema.Indexes.Count == 0)
+        {
+            addedIndexCount = 0;
+            return expectedIndexCount;
+        }
+
+        using var repairSpool = new TableIndexRepairSpool();
+        _keyspace.ReadStablePrefixPages([(byte)'r'], IndexRebuildRowPageSize, rows =>
+        {
+            var desiredEntries = new Dictionary<byte[], DesiredIndexEntry>(KvKeyComparer.Instance);
             foreach (var rowEntry in rows)
             {
                 var primaryKey = TableIndexCodec.DecodePrimaryKeyFromRowKey(rowEntry.Key).ToArray();
                 var row = new TableRow(TableRowCodec.Decode(_schema, rowEntry.Value.Span), primaryKey);
                 var entries = BuildIndexEntries(_schema, row);
-                foreach (var indexEntry in entries)
+                foreach (var entry in entries)
                 {
-                    if (_keyspace.Get(indexEntry.Key) is not null
-                        && TryResolveUniqueIndexConflict(_schema, entries, indexEntry.Key) is { } index)
+                    TableIndex? uniqueIndex = entry.Index.IsUnique ? entry.Index : null;
+                    if (desiredEntries.TryGetValue(entry.Key, out var previous))
                     {
-                        throw UniqueViolation(_schema, index, "无法重建索引");
+                        if (uniqueIndex is not null
+                            && !previous.Entry.Value.AsSpan().SequenceEqual(entry.Value))
+                        {
+                            throw UniqueViolation(_schema, uniqueIndex, "无法重建索引");
+                        }
+                        continue;
                     }
 
-                    PutIndexEntryForMaintenance(indexEntry.Key, indexEntry.Value);
+                    desiredEntries.Add(entry.Key, new DesiredIndexEntry(entry, uniqueIndex));
+                    expectedIndexCount = checked(expectedIndexCount + 1);
                 }
             }
-        }
+
+            foreach (var desired in desiredEntries.Values)
+            {
+                byte[]? persistedValue = _keyspace.Get(desired.Entry.Key);
+                if (persistedValue is not null
+                    && persistedValue.AsSpan().SequenceEqual(desired.Entry.Value))
+                {
+                    continue;
+                }
+
+                if (persistedValue is not null
+                    && desired.UniqueIndex is { } uniqueIndex
+                    && IsLiveUniqueIndexConflictLocked(desired.Entry.Key, persistedValue))
+                {
+                    throw UniqueViolation(_schema, uniqueIndex, "无法重建索引");
+                }
+
+                int uniqueIndexOrdinal = desired.UniqueIndex is null
+                    ? -1
+                    : desired.Entry.IndexOrdinal;
+                repairSpool.AppendPut(
+                    desired.Entry.Key,
+                    desired.Entry.Value,
+                    uniqueIndexOrdinal);
+                if (persistedValue is null)
+                    added = checked(added + 1);
+            }
+        });
+
+        int mutationPageSize = _keyspace.GetIndexRebuildBatchEntryLimit(IndexRepairMutationPageSize);
+        repairSpool.ReplayPages(mutationPageSize, ApplyExpectedIndexRepairPageLocked);
+        addedIndexCount = added;
+        return expectedIndexCount;
     }
 
     /// <summary>
-    /// 删除一页旧索引；当前预算不足时完成已经排队的检查点后重试同一页。
-    /// 批次自身超过空白预算或检查点真实失败时仍原样终止重建。
+    /// 原子应用一页期望索引修复，并在回放时复核跨扫描页的唯一键冲突。
+    /// 前页已写入的唯一键通过持久值发现，本页重复键通过有界字典发现。
     /// </summary>
-    /// <param name="keys">本页确认存在的旧索引 key。</param>
-    private void DeleteIndexKeysForMaintenance(IReadOnlyList<byte[]> keys)
+    private void ApplyExpectedIndexRepairPageLocked(
+        IReadOnlyList<TableIndexRepairSpoolEntry> entries)
     {
-        while (true)
+        var mutations = new List<KvBatchMutation>(entries.Count);
+        var pendingUniqueValues = new Dictionary<byte[], byte[]>(KvKeyComparer.Instance);
+        foreach (var entry in entries)
         {
-            try
+            if (entry.IsDelete || entry.Value is null)
+                throw new InvalidDataException("Index repair spool contains an unexpected delete record.");
+
+            if (entry.UniqueIndexOrdinal >= 0)
             {
-                _keyspace.DeleteMany(keys);
-                return;
+                if ((uint)entry.UniqueIndexOrdinal >= (uint)_schema.Indexes.Count
+                    || !_schema.Indexes[entry.UniqueIndexOrdinal].IsUnique)
+                {
+                    throw new InvalidDataException("Index repair spool unique index ordinal is invalid.");
+                }
+
+                var uniqueIndex = _schema.Indexes[entry.UniqueIndexOrdinal];
+                if (pendingUniqueValues.TryGetValue(entry.Key, out byte[]? pendingValue))
+                {
+                    if (!pendingValue.AsSpan().SequenceEqual(entry.Value))
+                        throw UniqueViolation(_schema, uniqueIndex, "无法重建索引");
+                    continue;
+                }
+
+                byte[]? persistedValue = _keyspace.Get(entry.Key);
+                if (persistedValue is not null
+                    && persistedValue.AsSpan().SequenceEqual(entry.Value))
+                {
+                    continue;
+                }
+
+                if (persistedValue is not null
+                    && IsLiveUniqueIndexConflictLocked(entry.Key, persistedValue))
+                {
+                    throw UniqueViolation(_schema, uniqueIndex, "无法重建索引");
+                }
+
+                pendingUniqueValues.Add(entry.Key, entry.Value);
             }
-            catch (IOException exception) when (KvAtomicBatchErrors.IsRetryableCheckpointPressure(exception))
-            {
-                _keyspace.Compact();
-            }
+
+            mutations.Add(KvBatchMutation.Put(entry.Key, entry.Value));
         }
+
+        if (mutations.Count > 0)
+            _keyspace.ApplyIndexRebuildBatch(mutations);
     }
 
     /// <summary>
-    /// 写回一个重建索引条目；自动检查点超过普通写等待窗口时同步收敛后重试。
+    /// 单次稳定扫描现有索引，把无主行、未知索引或已不符合当前主行内容的 key 写入临时 spool，
+    /// 扫描结束后再按页原子删除，避免删除 tombstone 反复扩大后续分页扫描成本。
     /// </summary>
-    /// <param name="key">编码后的二级索引 key。</param>
-    /// <param name="value">索引指向的主键 payload。</param>
-    private void PutIndexEntryForMaintenance(byte[] key, byte[] value)
+    private void RemoveUnexpectedIndexesLocked()
     {
-        while (true)
+        using var deleteSpool = new TableIndexRepairSpool();
+        _keyspace.ReadStablePrefixPages([(byte)'i'], MaintenanceKeyPageSize, entries =>
         {
-            try
+            foreach (var entry in entries)
             {
-                _keyspace.Put(key, value);
-                return;
+                if (!IsCurrentIndexEntryLocked(entry))
+                    deleteSpool.AppendDelete(entry.Key.ToArray());
             }
-            catch (IOException exception) when (KvAtomicBatchErrors.IsRetryableCheckpointPressure(exception))
+        });
+
+        int mutationPageSize = _keyspace.GetIndexRebuildBatchEntryLimit(MaintenanceKeyPageSize);
+        deleteSpool.ReplayPages(mutationPageSize, ApplyUnexpectedIndexDeletePageLocked);
+    }
+
+    /// <summary>原子应用一页已确认无效的索引删除。</summary>
+    private void ApplyUnexpectedIndexDeletePageLocked(
+        IReadOnlyList<TableIndexRepairSpoolEntry> entries)
+    {
+        var mutations = new List<KvBatchMutation>(entries.Count);
+        foreach (var entry in entries)
+        {
+            if (!entry.IsDelete || entry.Value is not null || entry.UniqueIndexOrdinal != -1)
+                throw new InvalidDataException("Index repair spool contains an unexpected put record.");
+            mutations.Add(KvBatchMutation.Delete(entry.Key));
+        }
+
+        if (mutations.Count > 0)
+            _keyspace.ApplyIndexRebuildBatch(mutations);
+    }
+
+    /// <summary>核对一个现有索引条目是否仍由其指向的当前主行产生。</summary>
+    private bool IsCurrentIndexEntryLocked(KvEntry entry)
+    {
+        byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(entry.Value.Span);
+        byte[]? rowPayload = _keyspace.Get(rowKey);
+        if (rowPayload is null)
+            return false;
+
+        var row = new TableRow(
+            TableRowCodec.Decode(_schema, rowPayload),
+            entry.Value.ToArray());
+        return BuildIndexEntries(_schema, row).Any(expected =>
+            expected.Key.AsSpan().SequenceEqual(entry.Key.Span)
+            && expected.Value.AsSpan().SequenceEqual(entry.Value.Span));
+    }
+
+    /// <summary>
+    /// 判断唯一索引当前指向的另一主行是否仍真实产生同一个索引键；无主行或行值已变化均属于可修复 stale 条目。
+    /// </summary>
+    private bool IsLiveUniqueIndexConflictLocked(ReadOnlySpan<byte> indexKey, ReadOnlySpan<byte> persistedPrimaryKey)
+    {
+        byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(persistedPrimaryKey);
+        byte[]? rowPayload = _keyspace.Get(rowKey);
+        if (rowPayload is null)
+            return false;
+
+        var row = new TableRow(
+            TableRowCodec.Decode(_schema, rowPayload),
+            persistedPrimaryKey.ToArray());
+        foreach (var entry in BuildIndexEntries(_schema, row))
+        {
+            if (entry.Key.AsSpan().SequenceEqual(indexKey)
+                && entry.Value.AsSpan().SequenceEqual(persistedPrimaryKey))
             {
-                _keyspace.Compact();
+                return true;
             }
         }
+
+        return false;
     }
 
     private void MigrateLegacyRowsLocked()
@@ -1449,7 +1572,14 @@ public sealed class TableStore : IDisposable
                 ? $"唯一索引 '{index.Name}' 冲突。"
                 : $"唯一索引 '{index.Name}' 冲突，{suffix}。");
 
-    private sealed record IndexEntry(byte[] Key, byte[] Value);
+    private sealed record IndexEntry(
+        TableIndex Index,
+        int IndexOrdinal,
+        byte[] Key,
+        byte[] Value);
+
+    /// <summary>一页主行计算出的期望索引条目及其唯一约束信息。</summary>
+    private sealed record DesiredIndexEntry(IndexEntry Entry, TableIndex? UniqueIndex);
 
     internal sealed record TableMutationOperation(
         byte[] RowKey,

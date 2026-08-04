@@ -90,10 +90,10 @@ public sealed class KvKeyspace : IDisposable
     private long _lastSequence;
     private long _generation;
     private bool _autoCheckpointQueued;
-    private bool _autoCheckpointReschedule;
     private bool _autoCheckpointForceReschedule;
     private int _autoCheckpointFailureCount;
     private long _autoCheckpointScheduleCount;
+    private int _indexRebuildBudgetScopeDepth;
     private Exception? _writeFault;
     private FileStream? _lifecycleLease;
     private bool _disposed;
@@ -201,6 +201,15 @@ public sealed class KvKeyspace : IDisposable
         }
     }
 
+    internal bool AutoCheckpointQueued
+    {
+        get
+        {
+            lock (_sync)
+                return _autoCheckpointQueued;
+        }
+    }
+
     internal Exception? LastCheckpointException { get; private set; }
 
     internal Action<KvCheckpointPhase>? CheckpointTestHook { get; set; }
@@ -213,6 +222,9 @@ public sealed class KvKeyspace : IDisposable
 
     /// <summary>测试扫描路径是否触发全量可见项计数。</summary>
     internal Action? CountVisibleTestHook { get; set; }
+
+    /// <summary>测试稳定前缀扫描是否只创建一次底层可见项枚举。</summary>
+    internal Action<ReadOnlyMemory<byte>>? StablePrefixScanTestHook { get; set; }
 
     internal Action? WalDisposeFlushTestHook
     {
@@ -255,6 +267,55 @@ public sealed class KvKeyspace : IDisposable
         {
             ThrowIfDisposed();
             _wal!.Sync();
+        }
+    }
+
+    /// <summary>
+    /// 进入关系表索引恢复专用预算 scope。scope 退出后立即恢复普通写预算，
+    /// 若新覆盖层已达到普通预算，仅合并排队一次后台检查点。
+    /// </summary>
+    /// <returns>释放后恢复普通预算的 scope。</returns>
+    internal IDisposable EnterIndexRebuildBudgetScope()
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            _indexRebuildBudgetScopeDepth = checked(_indexRebuildBudgetScopeDepth + 1);
+            return new IndexRebuildBudgetScope(this);
+        }
+    }
+
+    /// <summary>
+    /// 按当前索引恢复覆盖层预算收缩 mutation 页；预算关闭时保留调用方给出的吞吐上限。
+    /// </summary>
+    /// <param name="preferredPageSize">调用方希望使用的最大页条目数。</param>
+    /// <returns>能够装入空白检查点覆盖层预算的页条目上限。</returns>
+    internal int GetIndexRebuildBatchEntryLimit(int preferredPageSize)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(preferredPageSize);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            if (!_options.AutoCheckpointEnabled)
+                return preferredPageSize;
+            int overlayBudget = EffectiveMaxOverlayEntriesLocked;
+            return overlayBudget > 0
+                ? Math.Min(preferredPageSize, overlayBudget)
+                : preferredPageSize;
+        }
+    }
+
+    /// <summary>退出索引恢复预算 scope，并按恢复后的普通预算合并一次检查点调度。</summary>
+    private void ExitIndexRebuildBudgetScope()
+    {
+        lock (_sync)
+        {
+            if (_indexRebuildBudgetScopeDepth <= 0)
+                throw new InvalidOperationException("KV index rebuild budget scope is not active.");
+
+            _indexRebuildBudgetScopeDepth--;
+            if (_indexRebuildBudgetScopeDepth == 0)
+                ScheduleAutoCheckpointLocked();
         }
     }
 
@@ -924,6 +985,76 @@ public sealed class KvKeyspace : IDisposable
     }
 
     /// <summary>
+    /// 为索引恢复提交一页变更。当前覆盖层放不下批次时等待已排队的后台检查点；
+    /// 整页超过空白 WAL 预算时按顺序有界二分，单条仍超限则保留明确失败。
+    /// </summary>
+    /// <param name="mutations">一页内已确认需要修复的索引变更。</param>
+    /// <returns>最后一个已提交子批次的 sequence；空页返回当前 sequence。</returns>
+    internal long ApplyIndexRebuildBatch(IReadOnlyList<KvBatchMutation> mutations)
+    {
+        ArgumentNullException.ThrowIfNull(mutations);
+        KvBatchMutation[] batch = CanonicalizeBatchMutations(mutations);
+        if (batch.Length == 0)
+            return LastSequence;
+
+        return ApplyCanonicalIndexRebuildBatch(batch);
+    }
+
+    /// <summary>
+    /// 提交已规范化的索引恢复批次；仅在批次自身超出空白预算时二分，递归深度受条目数对数限制。
+    /// </summary>
+    /// <param name="batch">已复制、去重并保持末写入语义的非空批次。</param>
+    /// <returns>最后一个已提交子批次的 sequence。</returns>
+    private long ApplyCanonicalIndexRebuildBatch(KvBatchMutation[] batch)
+    {
+        while (true)
+        {
+            try
+            {
+                return ApplyCanonicalBatch(batch);
+            }
+            catch (IOException exception) when (KvAtomicBatchErrors.IsRetryableCheckpointPressure(exception))
+            {
+                WaitForIndexRebuildCheckpoint();
+            }
+            catch (IOException exception) when (KvAtomicBatchErrors.IsTooLarge(exception) && batch.Length > 1)
+            {
+                int midpoint = batch.Length / 2;
+                _ = ApplyCanonicalIndexRebuildBatch(batch[..midpoint]);
+                return ApplyCanonicalIndexRebuildBatch(batch[midpoint..]);
+            }
+        }
+    }
+
+    /// <summary>等待索引恢复写已触发的后台检查点结束，并保留后台检查点失败为内部异常。</summary>
+    private void WaitForIndexRebuildCheckpoint()
+    {
+        lock (_sync)
+        {
+            while (_autoCheckpointQueued || _checkpointState?.IsRunning == true)
+            {
+                ThrowIfDisposed();
+                if (LastCheckpointException is { } checkpointFailure
+                    && _checkpointState?.IsRunning != true)
+                {
+                    throw CreateIndexRebuildCheckpointFailure(checkpointFailure);
+                }
+
+                Monitor.Wait(_sync);
+            }
+
+            if (LastCheckpointException is { } completedFailure)
+                throw CreateIndexRebuildCheckpointFailure(completedFailure);
+        }
+    }
+
+    /// <summary>把后台检查点故障包装为稳定的 KV 写入 IOException 合同。</summary>
+    private static IOException CreateIndexRebuildCheckpointFailure(Exception checkpointFailure)
+        => new(
+            "KV index rebuild stopped because the automatic checkpoint failed.",
+            checkpointFailure);
+
+    /// <summary>
     /// 乐观读取下一个 WAL sequence 并在锁外构造 mutation；进入写锁后仅当 sequence 仍一致时
     /// 才提交。竞争写或预算等待改变 sequence 时，会在释放锁后用新 sequence 重建 mutation。
     /// </summary>
@@ -1534,6 +1665,51 @@ public sealed class KvKeyspace : IDisposable
     }
 
     /// <summary>
+    /// 在一次锁内可见项枚举中按页读取指定前缀。回调执行期间 keyspace 视图保持稳定，
+    /// 回调只能读取 keyspace，不得调用写入、清理或检查点方法。
+    /// </summary>
+    /// <param name="prefix">key 前缀；为空时扫描全部 key。</param>
+    /// <param name="pageSize">每次回调最多包含的条目数。</param>
+    /// <param name="readPage">同步消费一页稳定结果快照的只读回调。</param>
+    internal void ReadStablePrefixPages(
+        ReadOnlySpan<byte> prefix,
+        int pageSize,
+        Action<IReadOnlyList<KvEntry>> readPage)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pageSize);
+        ArgumentNullException.ThrowIfNull(readPage);
+        byte[] prefixCopy = prefix.ToArray();
+
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            StablePrefixScanTestHook?.Invoke(prefixCopy);
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            var page = new List<KvEntry>(pageSize);
+            foreach (var pair in EnumerateVisibleEntriesLocked(prefixCopy, afterKey: null))
+            {
+                // 稳定只读扫描不触发惰性过期删除，避免回调期间改变正在枚举的 overlay。
+                if (pair.Value.IsExpired(now))
+                    continue;
+
+                page.Add(new KvEntry(
+                    pair.Key.ToArray(),
+                    pair.Value.Value.ToArray(),
+                    pair.Value.Version,
+                    pair.Value.ExpiresAtUtc));
+                if (page.Count < pageSize)
+                    continue;
+
+                readPage(page);
+                page = new List<KvEntry>(pageSize);
+            }
+
+            if (page.Count > 0)
+                readPage(page);
+        }
+    }
+
+    /// <summary>
     /// 统计指定 key 前缀下的可见 key 数量，不读取 value。
     /// </summary>
     /// <param name="prefix">key 前缀；为空时统计全部 key。</param>
@@ -2075,6 +2251,7 @@ public sealed class KvKeyspace : IDisposable
 
     private long RunCheckpointCore(bool isSegment)
     {
+        CheckpointTestHook?.Invoke(KvCheckpointPhase.BeforeFreeze);
         KvCheckpointState? checkpoint;
         lock (_sync)
         {
@@ -2298,8 +2475,8 @@ public sealed class KvKeyspace : IDisposable
         _autoCheckpointScheduleCount++;
         if (_autoCheckpointQueued)
         {
-            _autoCheckpointReschedule = true;
-            _autoCheckpointForceReschedule |= force;
+            // 尚未 freeze 的排队 worker 会吞入当前 overlay，不应因此再空跑一轮。
+            _autoCheckpointForceReschedule |= force && _checkpointState is not null;
             return;
         }
 
@@ -2309,7 +2486,8 @@ public sealed class KvKeyspace : IDisposable
 
     private bool IsCheckpointDueLocked()
     {
-        if (_checkpointState is not null)
+        // 运行中的 checkpoint 已持有冻结视图；只有 fresh overlay 真正达到预算才需要下一轮。
+        if (_checkpointState is { IsRunning: false })
             return true;
 
         return IsWriteBudgetExhaustedLocked();
@@ -2317,13 +2495,25 @@ public sealed class KvKeyspace : IDisposable
 
     private bool IsWriteBudgetExhaustedLocked()
     {
-        bool walExhausted = _options.MaxWalBytes > 0
+        long maxWalBytes = EffectiveMaxWalBytesLocked;
+        int maxOverlayEntries = EffectiveMaxOverlayEntriesLocked;
+        bool walExhausted = maxWalBytes > 0
             && _wal!.HasRecords
-            && _wal!.Length >= _options.MaxWalBytes;
-        bool overlayExhausted = _options.MaxOverlayEntries > 0
-            && _values.Count >= _options.MaxOverlayEntries;
+            && _wal!.Length >= maxWalBytes;
+        bool overlayExhausted = maxOverlayEntries > 0
+            && _values.Count >= maxOverlayEntries;
         return walExhausted || overlayExhausted;
     }
+
+    private long EffectiveMaxWalBytesLocked
+        => _indexRebuildBudgetScopeDepth > 0
+            ? _options.IndexRebuildMaxWalBytes
+            : _options.MaxWalBytes;
+
+    private int EffectiveMaxOverlayEntriesLocked
+        => _indexRebuildBudgetScopeDepth > 0
+            ? _options.IndexRebuildMaxOverlayEntries
+            : _options.MaxOverlayEntries;
 
     private void WaitForWriteBudgetLocked()
     {
@@ -2431,9 +2621,7 @@ public sealed class KvKeyspace : IDisposable
                 bool forceReschedule = _autoCheckpointForceReschedule || failed;
                 bool reschedule = !_disposed
                     && (forceReschedule
-                        || _autoCheckpointReschedule
                         || IsCheckpointDueLocked());
-                _autoCheckpointReschedule = false;
                 _autoCheckpointForceReschedule = false;
                 if (reschedule)
                 {
@@ -2710,24 +2898,27 @@ public sealed class KvKeyspace : IDisposable
     }
 
     private bool WouldExceedWalBudgetLocked(long currentWalLength, long requiredWalBytes)
-        => _options.MaxWalBytes > 0
-            && (requiredWalBytes > _options.MaxWalBytes
-                || currentWalLength > _options.MaxWalBytes - requiredWalBytes);
+    {
+        long maxWalBytes = EffectiveMaxWalBytesLocked;
+        return maxWalBytes > 0
+            && (requiredWalBytes > maxWalBytes
+                || currentWalLength > maxWalBytes - requiredWalBytes);
+    }
 
     private bool WouldExceedAtomicBatchBudgetLocked(
         int overlayEntryCount,
         long requiredWalBytes)
         => WouldExceedWalBudgetLocked(_wal!.Length, requiredWalBytes)
-            || _options.MaxOverlayEntries > 0
-                && overlayEntryCount > _options.MaxOverlayEntries;
+            || EffectiveMaxOverlayEntriesLocked > 0
+                && overlayEntryCount > EffectiveMaxOverlayEntriesLocked;
 
     private bool CanFitFreshCheckpointBudget(
         int postCheckpointOverlayEntryCount,
         long requiredWalBytes)
-        => (_options.MaxWalBytes <= 0
+        => (EffectiveMaxWalBytesLocked <= 0
             || !WouldExceedWalBudgetLocked(KvWalFile.HeaderSize, requiredWalBytes))
-            && (_options.MaxOverlayEntries <= 0
-                || postCheckpointOverlayEntryCount <= _options.MaxOverlayEntries);
+            && (EffectiveMaxOverlayEntriesLocked <= 0
+                || postCheckpointOverlayEntryCount <= EffectiveMaxOverlayEntriesLocked);
 
     private (KvValueEntry?[] Values, int OverlayEntryCount, int PostCheckpointOverlayEntryCount) PrepareDeletePublishPlanLocked(
         IReadOnlyList<byte[]> keys,
@@ -3241,6 +3432,19 @@ public sealed class KvKeyspace : IDisposable
         public bool IsRunning { get; set; }
     }
 
+    /// <summary>确保索引恢复结束时准确恢复普通 KV 检查点预算。</summary>
+    private sealed class IndexRebuildBudgetScope : IDisposable
+    {
+        private KvKeyspace? _owner;
+
+        /// <summary>创建并绑定一个仍处于活动状态的预算 scope。</summary>
+        public IndexRebuildBudgetScope(KvKeyspace owner) => _owner = owner;
+
+        /// <summary>幂等退出预算 scope。</summary>
+        public void Dispose()
+            => Interlocked.Exchange(ref _owner, null)?.ExitIndexRebuildBudgetScope();
+    }
+
     private sealed class PendingDeleteBatch
     {
         private const int MaxChunks = 65_536;
@@ -3280,6 +3484,7 @@ public sealed class KvKeyspace : IDisposable
 
 internal enum KvCheckpointPhase
 {
+    BeforeFreeze,
     AfterFreeze,
     BeforeStateDirectoryFsync,
     AfterStateSavedBeforePublish,

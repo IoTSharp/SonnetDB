@@ -10,6 +10,7 @@ using SonnetDB.Configuration;
 using SonnetDB.Copilot;
 using SonnetDB.Diagnostics;
 using SonnetDB.Json;
+using SonnetDB.Kv;
 using SonnetDB.LineProtocolUdp;
 using SonnetDB.Mcp;
 using SonnetDB.Mqtt;
@@ -55,7 +56,15 @@ internal static class SonnetDbServiceRegistration
         builder.Services.AddSingleton(sp =>
         {
             var options = sp.GetRequiredService<IOptions<ServerOptions>>().Value;
-            var registry = new TsdbRegistry(options.DataRoot, sp.GetRequiredService<EventBroadcaster>());
+            var kvOptions = KvOptions.Default with
+            {
+                IndexRebuildMaxWalBytes = options.Kv.IndexRebuildMaxWalBytes,
+                IndexRebuildMaxOverlayEntries = options.Kv.IndexRebuildMaxOverlayEntries,
+            };
+            var registry = new TsdbRegistry(
+                options.DataRoot,
+                sp.GetRequiredService<EventBroadcaster>(),
+                kvOptions);
             if (options.AutoLoadExistingDatabases)
                 registry.LoadExisting();
             return registry;

@@ -7,6 +7,7 @@
 
 ### Fixed
 
+- 修复关系表异常退出后因缺少 `indexes.clean` 而先删除全部有效索引、再以小预算反复重写大表段的问题；恢复流程现在分页核对并仅原子补写缺失或错值索引、删除 stale/orphan 条目，索引恢复可使用独立的有界 WAL/overlay 预算。自动 checkpoint 只在运行期间的新覆盖层实际达到预算时追加下一轮，避免低于 fresh budget 的写入形成连续压实。
 - 修复 KV keyspace 在关闭等待 checkpoint 超时后提前允许同目录重开、导致旧实例删除新实例候选 state 的竞态；每个 keyspace 现在从恢复前到延迟 checkpoint 完成期间持有独占生命周期租约，运行时锁文件不进入备份或迁移包。
 - 修复 Web Admin 首次安装页在 SonnetDB Server 未启动时把空字段的示例 placeholder 显示成默认值、提交后误报“请完整填写所有初始化字段”的问题，并把 Vite / launch profile 的开发代理目标统一到服务端真实监听的 `5080`；服务器 ID、组织、管理员用户名和初始 Bearer Token 现在进入页面即写入真实默认值，仅管理员密码保持空白并要求手动输入，状态接口不可达时会显示连接错误并禁用提交。服务端推荐 ID 改为 `sndb-<规范化主机名>-<短哈希>`，在 Windows 使用 MachineGuid、主板/BIOS/CPU 信息，在 Linux 使用 machine-id、DMI/CPU 信息生成稳定指纹；原始硬件标识仅参与 SHA-256，不通过 API 或日志暴露。
 - 修复活动轻事务统一拒绝 DDL 后 EF Core migration 被默认事务包裹而失败的问题；provider 生成的 DDL 现在显式 transaction-suppressed，嵌入式与远程 migration 均在事务外执行 schema 语句。关系表 `ALTER COLUMN` 的纯默认值/空值约束变更和列重命名不再重写 row WAL，失败预检也不再误写原 payload；ROWVERSION 默认值不变量下沉到公共 schema 工厂，默认值不再导致旧表 maintenance 指纹失效。

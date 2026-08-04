@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using SonnetDB.Contracts;
 using SonnetDB.Endpoints;
 using SonnetDB.Engine;
+using SonnetDB.Kv;
 
 namespace SonnetDB.Hosting;
 
@@ -23,18 +24,34 @@ public sealed partial class TsdbRegistry : IDisposable
     private readonly object _sync = new();
     private readonly string _dataRoot;
     private readonly EventBroadcaster? _broadcaster;
+    private readonly KvOptions _kvOptions;
     private bool _disposed;
 
     /// <summary>
-    /// 构造注册表。<paramref name="dataRoot"/> 为所有数据库的父目录。
+    /// 使用 Core 默认 KV 选项构造注册表。<paramref name="dataRoot"/> 为所有数据库的父目录。
     /// </summary>
     /// <param name="dataRoot">数据库根目录。</param>
     /// <param name="broadcaster">可选事件广播器；非 null 时 Create/Drop 会广播 <c>db</c> 事件。</param>
     public TsdbRegistry(string dataRoot, EventBroadcaster? broadcaster = null)
+        : this(dataRoot, broadcaster, kvOptions: null)
+    {
+    }
+
+    /// <summary>
+    /// 使用指定 KV 选项构造注册表。<paramref name="dataRoot"/> 为所有数据库的父目录。
+    /// </summary>
+    /// <param name="dataRoot">数据库根目录。</param>
+    /// <param name="broadcaster">可选事件广播器；非 null 时 Create/Drop 会广播 <c>db</c> 事件。</param>
+    /// <param name="kvOptions">所有数据库共用的 KV 选项；为空时使用 Core 默认值。</param>
+    public TsdbRegistry(
+        string dataRoot,
+        EventBroadcaster? broadcaster,
+        KvOptions? kvOptions)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataRoot);
         _dataRoot = Path.GetFullPath(dataRoot);
         _broadcaster = broadcaster;
+        _kvOptions = kvOptions ?? KvOptions.Default;
         Directory.CreateDirectory(_dataRoot);
     }
 
@@ -97,7 +114,12 @@ public sealed partial class TsdbRegistry : IDisposable
 
             var path = Path.Combine(_dataRoot, name);
             Directory.CreateDirectory(path);
-            var instance = Tsdb.Open(new TsdbOptions { RootDirectory = path, AllowUserFunctions = false });
+            var instance = Tsdb.Open(new TsdbOptions
+            {
+                RootDirectory = path,
+                AllowUserFunctions = false,
+                Kv = _kvOptions,
+            });
             _databases[name] = instance;
             tsdb = instance;
             _broadcaster?.Publish(ServerEventFactory.Database(
@@ -119,7 +141,12 @@ public sealed partial class TsdbRegistry : IDisposable
                 var name = Path.GetFileName(dir);
                 if (!IsValidName(name) || _databases.ContainsKey(name))
                     continue;
-                var instance = Tsdb.Open(new TsdbOptions { RootDirectory = dir, AllowUserFunctions = false });
+                var instance = Tsdb.Open(new TsdbOptions
+                {
+                    RootDirectory = dir,
+                    AllowUserFunctions = false,
+                    Kv = _kvOptions,
+                });
                 _databases[name] = instance;
             }
         }

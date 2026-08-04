@@ -62,6 +62,11 @@ public sealed class ServerOptions
     public SqlHttpAdmissionOptions SqlHttpAdmission { get; set; } = new();
 
     /// <summary>
+    /// KV 存储维护配置。这里只放服务器部署需要覆盖的有界恢复预算，日常写入预算仍使用 Core 默认值。
+    /// </summary>
+    public KvStorageOptions Kv { get; set; } = new();
+
+    /// <summary>
     /// 可观测性配置（M17）。绑定路径：<c>"SonnetDBServer:Observability"</c>。
     /// </summary>
     public ObservabilityOptions Observability { get; set; } = new();
@@ -90,6 +95,24 @@ public sealed class ServerOptions
     /// 语义图片检索配置。模型文件由部署者提供，SonnetDB 不在运行时下载模型。
     /// </summary>
     public SemanticSearchOptions SemanticSearch { get; set; } = new();
+}
+
+/// <summary>
+/// KV 关系表索引恢复配置。较大预算只在缺少干净关闭令牌的索引重建期间生效。
+/// </summary>
+public sealed class KvStorageOptions
+{
+    /// <summary>
+    /// 索引重建允许的 WAL 最大字节数，默认与日常预算一致为 256 MiB；
+    /// 服务端绑定会把非正数修正为 1 MiB，避免部署配置意外取消恢复上限。
+    /// </summary>
+    public long IndexRebuildMaxWalBytes { get; set; } = 256L * 1024 * 1024;
+
+    /// <summary>
+    /// 索引重建允许的可变覆盖层最大条目数，默认与日常预算一致为 100,000；
+    /// 服务端绑定会把非正数修正为 1，避免部署配置意外取消恢复上限。
+    /// </summary>
+    public int IndexRebuildMaxOverlayEntries { get; set; } = 100_000;
 }
 
 /// <summary>

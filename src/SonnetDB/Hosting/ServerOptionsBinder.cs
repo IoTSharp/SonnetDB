@@ -63,6 +63,16 @@ internal static class ServerOptionsBinder
             0,
             4096);
 
+        // 索引恢复预算必须保持正数和明确上限，避免配置错误导致无界 WAL 或内存增长。
+        options.Kv.IndexRebuildMaxOverlayEntries = Math.Clamp(
+            options.Kv.IndexRebuildMaxOverlayEntries,
+            1,
+            50_000_000);
+        options.Kv.IndexRebuildMaxWalBytes = Math.Clamp(
+            options.Kv.IndexRebuildMaxWalBytes,
+            1024L * 1024,
+            64L * 1024 * 1024 * 1024);
+
         options.SemanticSearch.Dimensions = Math.Clamp(options.SemanticSearch.Dimensions, 1, 65_536);
         options.SemanticSearch.MaxTextTokens = Math.Clamp(options.SemanticSearch.MaxTextTokens, 2, 4_096);
         options.SemanticSearch.ImageSize = Math.Clamp(options.SemanticSearch.ImageSize, 16, 4_096);
