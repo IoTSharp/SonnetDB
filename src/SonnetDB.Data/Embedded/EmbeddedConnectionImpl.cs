@@ -65,7 +65,19 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
     public void Dispose() => Close();
 
     public IExecutionResult Execute(string sql, SndbParameterCollection parameters, CommandBehavior behavior, object? transactionState)
+        => ExecuteCore(sql, parameters, behavior, transactionState, CancellationToken.None);
+
+    /// <summary>
+    /// 在嵌入式引擎中解析、绑定并执行 SQL，确保异步调用的取消令牌能进入 Core 执行循环。
+    /// </summary>
+    private IExecutionResult ExecuteCore(
+        string sql,
+        SndbParameterCollection parameters,
+        CommandBehavior behavior,
+        object? transactionState,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (_tsdb is null || _state != ConnectionState.Open)
             throw new InvalidOperationException("连接未打开。");
         var transaction = GetTransactionContext(transactionState);
@@ -91,7 +103,13 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
         // #213：把 ADO 参数值绑定进已解析 AST（值绑定而非字符串拼接，防注入 + 复用解析缓存）。
         statement = SqlParameterBinder.Bind(statement, ToSqlParameters(parameters));
 
-        var result = SqlExecutor.ExecuteStatement(_tsdb, databaseName: null, statement, controlPlane: null, transaction);
+        var result = SqlExecutor.ExecuteStatement(
+            _tsdb,
+            databaseName: null,
+            statement,
+            controlPlane: null,
+            transaction,
+            new SqlExecutionOptions { CancellationToken = cancellationToken });
         return result switch
         {
             SelectExecutionResult select => MaterializedExecutionResult.FromSelect(select),
@@ -112,8 +130,7 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
         object? transactionState,
         CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(Execute(sql, parameters, behavior, transactionState));
+        return Task.FromResult(ExecuteCore(sql, parameters, behavior, transactionState, cancellationToken));
     }
 
     /// <summary>
@@ -136,7 +153,16 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
     }
 
     public IExecutionResult ExecuteBulk(string commandText, SndbParameterCollection parameters, object? transactionState)
+        => ExecuteBulkCore(commandText, parameters, transactionState, CancellationToken.None);
+
+    /// <summary>在嵌入式批量摄取中传递命令取消令牌。</summary>
+    private IExecutionResult ExecuteBulkCore(
+        string commandText,
+        SndbParameterCollection parameters,
+        object? transactionState,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (_tsdb is null || _state != ConnectionState.Open)
             throw new InvalidOperationException("连接未打开。");
         if (transactionState is not null)
@@ -165,7 +191,7 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
 
         try
         {
-            var result = BulkIngestor.Ingest(_tsdb, reader, errorPolicy, flushMode);
+            var result = BulkIngestor.Ingest(_tsdb, reader, errorPolicy, flushMode, cancellationToken);
             return MaterializedExecutionResult.NonQuery(result.Written);
         }
         finally
@@ -180,8 +206,7 @@ internal sealed class EmbeddedConnectionImpl : IConnectionImpl
         object? transactionState,
         CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(ExecuteBulk(commandText, parameters, transactionState));
+        return Task.FromResult(ExecuteBulkCore(commandText, parameters, transactionState, cancellationToken));
     }
 
     public object BeginTransaction(IsolationLevel isolationLevel)

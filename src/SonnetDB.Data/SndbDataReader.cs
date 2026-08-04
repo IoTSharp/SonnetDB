@@ -3,6 +3,7 @@ using System.Data;
 using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Runtime.ExceptionServices;
 using SonnetDB.Data.Internal;
 
 namespace SonnetDB.Data;
@@ -16,14 +17,27 @@ public sealed class SndbDataReader : DbDataReader
     private readonly IExecutionResult _result;
     private readonly CommandBehavior _behavior;
     private readonly SndbConnection? _connection;
+    private readonly int _commandTimeout;
+    private readonly CancellationToken _commandCancellationToken;
+    private readonly Action? _releaseExecutionLease;
+    private CancellationTokenSource? _readTimeoutCancellation;
     private bool _hasRow;
     private bool _closed;
 
-    internal SndbDataReader(IExecutionResult result, CommandBehavior behavior, SndbConnection? connection)
+    internal SndbDataReader(
+        IExecutionResult result,
+        CommandBehavior behavior,
+        SndbConnection? connection,
+        int commandTimeout = 0,
+        CancellationToken commandCancellationToken = default,
+        Action? releaseExecutionLease = null)
     {
         _result = result;
         _behavior = behavior;
         _connection = connection;
+        _commandTimeout = commandTimeout;
+        _commandCancellationToken = commandCancellationToken;
+        _releaseExecutionLease = releaseExecutionLease;
     }
 
     /// <inheritdoc />
@@ -333,17 +347,139 @@ public sealed class SndbDataReader : DbDataReader
     public override bool Read()
     {
         if (_closed) return false;
-        _hasRow = _result.ReadNextRow();
-        return _hasRow;
+        if (_commandTimeout <= 0 && !_commandCancellationToken.CanBeCanceled)
+        {
+            // 既无计时器也无命令取消令牌时保持原同步读取快路径。
+            _hasRow = _result.ReadNextRow();
+            return _hasRow;
+        }
+
+        return ReadWithTimeoutAsync(CancellationToken.None)
+            .ConfigureAwait(false)
+            .GetAwaiter()
+            .GetResult();
     }
 
     /// <inheritdoc />
-    public override async Task<bool> ReadAsync(CancellationToken cancellationToken)
+    public override Task<bool> ReadAsync(CancellationToken cancellationToken)
+        => ReadWithTimeoutAsync(cancellationToken);
+
+    /// <summary>
+    /// 为单次行读取建立独立超时窗口，并与本次 ReadAsync 的调用方令牌组合。
+    /// </summary>
+    private async Task<bool> ReadWithTimeoutAsync(CancellationToken callerCancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
+        callerCancellationToken.ThrowIfCancellationRequested();
         if (_closed) return false;
-        _hasRow = await _result.ReadNextRowAsync(cancellationToken).ConfigureAwait(false);
-        return _hasRow;
+
+        if (_commandTimeout <= 0)
+        {
+            if (!_commandCancellationToken.CanBeCanceled)
+            {
+                _hasRow = await _result.ReadNextRowAsync(callerCancellationToken).ConfigureAwait(false);
+                return _hasRow;
+            }
+
+            if (!callerCancellationToken.CanBeCanceled)
+            {
+                try
+                {
+                    _hasRow = await _result.ReadNextRowAsync(_commandCancellationToken).ConfigureAwait(false);
+                    return _hasRow;
+                }
+                catch (OperationCanceledException exception) when (_commandCancellationToken.IsCancellationRequested)
+                {
+                    throw new OperationCanceledException(exception.Message, exception, _commandCancellationToken);
+                }
+            }
+
+            using var commandReadCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                callerCancellationToken,
+                _commandCancellationToken);
+            try
+            {
+                _hasRow = await _result.ReadNextRowAsync(commandReadCancellation.Token).ConfigureAwait(false);
+                return _hasRow;
+            }
+            catch (OperationCanceledException exception) when (callerCancellationToken.IsCancellationRequested)
+            {
+                throw new OperationCanceledException(exception.Message, exception, callerCancellationToken);
+            }
+            catch (OperationCanceledException exception) when (_commandCancellationToken.IsCancellationRequested)
+            {
+                throw new OperationCanceledException(exception.Message, exception, _commandCancellationToken);
+            }
+        }
+
+        var readCancellation = GetReadTimeoutCancellation();
+        readCancellation.CancelAfter(TimeSpan.FromSeconds(_commandTimeout));
+        // 回调只负责取消内部源，不依赖执行上下文；静态回调同时避免闭包分配。
+        var callerRegistration = callerCancellationToken.CanBeCanceled
+            ? callerCancellationToken.UnsafeRegister(
+                static state => ((CancellationTokenSource)state!).Cancel(),
+                readCancellation)
+            : default;
+        var commandRegistration = _commandCancellationToken.CanBeCanceled
+            ? _commandCancellationToken.UnsafeRegister(
+                static state => ((CancellationTokenSource)state!).Cancel(),
+                readCancellation)
+            : default;
+
+        try
+        {
+            _hasRow = await _result.ReadNextRowAsync(readCancellation.Token).ConfigureAwait(false);
+            return _hasRow;
+        }
+        catch (OperationCanceledException exception) when (callerCancellationToken.IsCancellationRequested)
+        {
+            // 调用方取消优先于同一时刻发生的读取超时，并保留原始调用方令牌。
+            throw new OperationCanceledException(exception.Message, exception, callerCancellationToken);
+        }
+        catch (OperationCanceledException exception) when (_commandCancellationToken.IsCancellationRequested)
+        {
+            throw new OperationCanceledException(exception.Message, exception, _commandCancellationToken);
+        }
+        catch (OperationCanceledException exception) when (readCancellation.IsCancellationRequested)
+        {
+            throw new TimeoutException(
+                $"SonnetDB 数据读取超过 CommandTimeout={_commandTimeout} 秒。",
+                exception);
+        }
+        finally
+        {
+            // 必须先断开调用方令牌，避免旧回调在 TryReset 后取消已复用的源。
+            callerRegistration.Dispose();
+            commandRegistration.Dispose();
+            ResetReadTimeoutCancellation(readCancellation);
+        }
+    }
+
+    /// <summary>
+    /// 获取 Reader 级可复用超时源；仅首次读取或上次已取消时创建新实例。
+    /// </summary>
+    private CancellationTokenSource GetReadTimeoutCancellation()
+    {
+        var cancellation = _readTimeoutCancellation;
+        if (cancellation is not null && !cancellation.IsCancellationRequested)
+            return cancellation;
+
+        cancellation?.Dispose();
+        cancellation = new CancellationTokenSource();
+        _readTimeoutCancellation = cancellation;
+        return cancellation;
+    }
+
+    /// <summary>
+    /// 读取完成后停止定时器并清理临时注册；已取消的源立即释放。
+    /// </summary>
+    private void ResetReadTimeoutCancellation(CancellationTokenSource cancellation)
+    {
+        if (cancellation.TryReset())
+            return;
+
+        cancellation.Dispose();
+        if (ReferenceEquals(_readTimeoutCancellation, cancellation))
+            _readTimeoutCancellation = null;
     }
 
     /// <inheritdoc />
@@ -351,9 +487,41 @@ public sealed class SndbDataReader : DbDataReader
     {
         if (_closed) return;
         _closed = true;
-        _result.Dispose();
+        _readTimeoutCancellation?.Dispose();
+        _readTimeoutCancellation = null;
+        ExceptionDispatchInfo? firstFailure = null;
+        try
+        {
+            _result.Dispose();
+        }
+        catch (Exception exception)
+        {
+            firstFailure = ExceptionDispatchInfo.Capture(exception);
+        }
+
+        // 三项清理全部执行，并保留最先发生的异常，避免 CloseConnection 覆盖 Reader 根因。
+        try
+        {
+            _releaseExecutionLease?.Invoke();
+        }
+        catch (Exception exception)
+        {
+            firstFailure ??= ExceptionDispatchInfo.Capture(exception);
+        }
+
         if ((_behavior & CommandBehavior.CloseConnection) != 0)
-            _connection?.Close();
+        {
+            try
+            {
+                _connection?.Close();
+            }
+            catch (Exception exception)
+            {
+                firstFailure ??= ExceptionDispatchInfo.Capture(exception);
+            }
+        }
+
+        firstFailure?.Throw();
     }
 
     /// <inheritdoc />

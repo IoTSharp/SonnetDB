@@ -371,6 +371,7 @@ internal static class TableSqlExecutor
         var valuesRows = new List<object?[]>(statement.Rows.Count);
         foreach (var row in statement.Rows)
         {
+            SqlExecutor.ThrowIfCancellationRequested();
             var values = new object?[schema.Columns.Count];
             for (int i = 0; i < bindings.Length; i++)
             {
@@ -441,6 +442,7 @@ internal static class TableSqlExecutor
         var valuesRows = new List<object?[]>(statement.Rows.Count);
         foreach (var row in statement.Rows)
         {
+            SqlExecutor.ThrowIfCancellationRequested();
             var values = new object?[schema.Columns.Count];
             for (int i = 0; i < bindings.Length; i++)
             {
@@ -467,6 +469,7 @@ internal static class TableSqlExecutor
         var rowChanges = new List<TableRowChange>(valuesRows.Count);
         foreach (var values in valuesRows)
         {
+            SqlExecutor.ThrowIfCancellationRequested();
             mutations.Add(new TableRowMutation(PrimaryKeyValues: null, values));
             rowChanges.Add(new TableRowChange(schema, OldValues: null, values.ToArray()));
         }
@@ -544,6 +547,7 @@ internal static class TableSqlExecutor
         var filtered = new List<IReadOnlyList<object?>>();
         foreach (var row in rows)
         {
+            SqlExecutor.ThrowIfCancellationRequested();
             if (!EvaluateWhere(statement.Where, schema, row.Values))
                 continue;
 
@@ -609,6 +613,7 @@ internal static class TableSqlExecutor
         var candidateRows = LoadMutationCandidateRows(store, schema, where, out bool predicateSatisfied);
         foreach (var row in candidateRows)
         {
+            SqlExecutor.ThrowIfCancellationRequested();
             if (!predicateSatisfied && !EvaluateWhere(where, schema, row.Values))
                 continue;
 
@@ -661,6 +666,7 @@ internal static class TableSqlExecutor
         var candidateRows = LoadMutationCandidateRows(store, schema, where, out bool predicateSatisfied);
         foreach (var row in candidateRows)
         {
+            SqlExecutor.ThrowIfCancellationRequested();
             if (!predicateSatisfied && !EvaluateWhere(where, schema, row.Values))
                 continue;
 
@@ -1432,7 +1438,7 @@ internal static class TableSqlExecutor
     }
 
     /// <summary>
-    /// 为普通关系 SELECT 加载候选行；仅在范围索引已满足单列升序且 WHERE 无残余时下推分页上限。
+    /// 为普通关系 SELECT 加载候选行；仅在范围索引满足升序且 WHERE 无残余时安全下推分页候选上限。
     /// </summary>
     private static (IReadOnlyList<TableRow> Rows, bool RangeOrderSatisfied) LoadSelectCandidateRowsForStatement(
         TableStore store,
@@ -1453,6 +1459,17 @@ internal static class TableSqlExecutor
                 plan,
                 out int candidateLimit))
         {
+            if (statement.OrderByList.Count > 1)
+            {
+                return (
+                    store.GetByIndexRangeThroughValueGroup(
+                        plan.Index,
+                        plan.EqualityPrefixValues,
+                        plan.Range,
+                        candidateLimit),
+                    false);
+            }
+
             return (
                 store.GetByIndexRange(plan.Index, plan.EqualityPrefixValues, plan.Range, candidateLimit),
                 true);
@@ -1462,7 +1479,7 @@ internal static class TableSqlExecutor
     }
 
     /// <summary>
-    /// 判断范围索引能否同时满足 ORDER BY ASC 与 LIMIT/OFFSET，并计算安全的候选读取上限。
+    /// 判断范围索引能否同时满足 ORDER BY ASC 与 LIMIT/OFFSET，并计算安全的分页边界。
     /// </summary>
     private static bool TryGetOrderedRangeCandidateLimit(
         SelectStatement statement,
@@ -1473,31 +1490,87 @@ internal static class TableSqlExecutor
     {
         candidateLimit = 0;
         if (plan.Range is null
-            || statement.Pagination?.Fetch is not int fetch
-            || statement.OrderByList.Count != 1
-            || statement.OrderByList[0] is not
-            {
-                Direction: SortDirection.Ascending,
-                Expression: IdentifierExpression orderIdentifier,
-            }
-            || !OrderByResolvesToRangeColumn(orderIdentifier, projections, plan.Range.Column)
+            || !OrderByMatchesRangeIndexSequence(
+                statement.OrderByList,
+                schema,
+                projections,
+                plan)
             || !IsWhereFullyCoveredByRangePlan(statement.Where, schema, plan))
         {
             return false;
         }
 
-        long requested = (long)statement.Pagination.Offset + fetch;
-        candidateLimit = requested > int.MaxValue ? int.MaxValue : (int)requested;
+        return TryGetPaginationCandidateLimit(statement.Pagination, out candidateLimit);
+    }
+
+    /// <summary>
+    /// 计算可由存储扫描表达的 OFFSET + LIMIT 候选上限，超出 Int32 容量时放弃下推。
+    /// </summary>
+    internal static bool TryGetPaginationCandidateLimit(
+        PaginationSpec? pagination,
+        out int candidateLimit)
+    {
+        candidateLimit = 0;
+        if (pagination?.Fetch is not int fetch)
+            return false;
+
+        long requested = (long)pagination.Offset + fetch;
+        if (requested > int.MaxValue)
+            return false;
+
+        candidateLimit = (int)requested;
         return true;
     }
 
     /// <summary>
-    /// 按关系 SELECT 当前的别名优先规则确认 ORDER BY 最终绑定到原始范围列。
+    /// 确认 ORDER BY 从范围列开始连续匹配索引后缀；非唯一索引还可继续匹配隐式主键后缀。
     /// </summary>
-    private static bool OrderByResolvesToRangeColumn(
+    private static bool OrderByMatchesRangeIndexSequence(
+        IReadOnlyList<OrderBySpec> orderBy,
+        TableSchema schema,
+        IReadOnlyList<Projection> projections,
+        TableIndexAccessPlan plan)
+    {
+        if (plan.Range is null || orderBy.Count == 0)
+            return false;
+
+        int explicitStart = plan.EqualityPrefixValues.Count;
+        int explicitCount = plan.Index.Columns.Count - explicitStart;
+        int implicitCount = plan.Index.IsUnique ? 0 : schema.PrimaryKey.Count;
+        if (orderBy.Count > explicitCount + implicitCount)
+            return false;
+
+        for (int i = 0; i < orderBy.Count; i++)
+        {
+            if (orderBy[i] is not
+                {
+                    Direction: SortDirection.Ascending,
+                    Expression: IdentifierExpression orderIdentifier,
+                })
+            {
+                return false;
+            }
+
+            string expectedColumnName = i < explicitCount
+                ? plan.Index.Columns[explicitStart + i]
+                : schema.PrimaryKey[i - explicitCount];
+            var expectedColumn = schema.TryGetColumn(expectedColumnName)
+                ?? throw new InvalidOperationException(
+                    $"索引 '{plan.Index.Name}' 引用了未知列 '{expectedColumnName}'。");
+            if (!OrderByResolvesToColumn(orderIdentifier, projections, expectedColumn))
+                return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// 按关系 SELECT 当前的别名优先规则确认 ORDER BY 最终绑定到指定原始列。
+    /// </summary>
+    private static bool OrderByResolvesToColumn(
         IdentifierExpression orderIdentifier,
         IReadOnlyList<Projection> projections,
-        TableColumn rangeColumn)
+        TableColumn expectedColumn)
     {
         foreach (var projection in projections)
         {
@@ -1505,11 +1578,11 @@ internal static class TableSqlExecutor
                 continue;
 
             return projection.Kind == ProjectionKind.Column
-                && projection.Column?.Ordinal == rangeColumn.Ordinal;
+                && projection.Column?.Ordinal == expectedColumn.Ordinal;
         }
 
         // ORDER BY 未命中投影名时，执行器会把同名源列作为隐藏排序列。
-        return string.Equals(orderIdentifier.Name, rangeColumn.Name, StringComparison.Ordinal);
+        return string.Equals(orderIdentifier.Name, expectedColumn.Name, StringComparison.Ordinal);
     }
 
     /// <summary>

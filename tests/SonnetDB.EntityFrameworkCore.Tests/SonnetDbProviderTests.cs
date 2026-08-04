@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Data.Common;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -44,6 +45,26 @@ public sealed class SonnetDbProviderTests : IDisposable
         Assert.IsAssignableFrom<IQuerySqlGeneratorFactory>(context.GetService<IQuerySqlGeneratorFactory>());
         Assert.IsAssignableFrom<IMigrationsSqlGenerator>(context.GetService<IMigrationsSqlGenerator>());
         Assert.IsAssignableFrom<IHistoryRepository>(context.GetService<IHistoryRepository>());
+    }
+
+    /// <summary>EF 的命令超时配置必须写入真正执行的 SndbCommand。</summary>
+    [Fact]
+    public async Task SetCommandTimeout_PropagatesToExecutedSndbCommand()
+    {
+        var interceptor = new CommandTimeoutCaptureInterceptor();
+        var options = new DbContextOptionsBuilder<DeviceContext>()
+            .UseSonnetDB($"Data Source={_root}")
+            .AddInterceptors(interceptor)
+            .ConfigureWarnings(warnings => warnings.Ignore(RelationalEventId.PendingModelChangesWarning))
+            .Options;
+        using var context = new DeviceContext(options);
+        context.Database.SetCommandTimeout(5);
+
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE command_timeout_probe (id INT, PRIMARY KEY (id))");
+
+        var command = Assert.IsType<SndbCommand>(interceptor.LastCommand);
+        Assert.Equal(5, command.CommandTimeout);
     }
 
     [Fact]
@@ -1897,6 +1918,33 @@ public sealed class SonnetDbProviderTests : IDisposable
                 entity.Property(item => item.Name).HasColumnType("STRING").IsRequired();
                 entity.Property(item => item.Enabled).HasColumnType("BOOL");
             });
+        }
+    }
+
+    /// <summary>捕获 EF 实际交给 ADO.NET provider 的非查询命令。</summary>
+    private sealed class CommandTimeoutCaptureInterceptor : DbCommandInterceptor
+    {
+        public DbCommand? LastCommand { get; private set; }
+
+        /// <summary>捕获同步非查询命令。</summary>
+        public override InterceptionResult<int> NonQueryExecuting(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<int> result)
+        {
+            LastCommand = command;
+            return result;
+        }
+
+        /// <summary>捕获异步非查询命令。</summary>
+        public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            LastCommand = command;
+            return ValueTask.FromResult(result);
         }
     }
 

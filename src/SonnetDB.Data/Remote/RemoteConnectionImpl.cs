@@ -218,7 +218,7 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                 throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
 
             var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-            return RemoteExecutionResult.Create(response, stream);
+            return await RemoteExecutionResult.CreateAsync(response, stream, cancellationToken).ConfigureAwait(false);
         }
         catch
         {

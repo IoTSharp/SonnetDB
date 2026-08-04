@@ -176,11 +176,15 @@ internal static class DocumentSqlExecutor
         int idColumn = FindRequiredColumn(statement.Columns, "id");
         int documentColumn = FindRequiredDocumentColumn(statement.Columns);
         var store = tsdb.Documents.Open(schema.Name);
-        var requests = statement.Rows
-            .Select(row => new DocumentWriteRequest(
+        var requests = new DocumentWriteRequest[statement.Rows.Count];
+        for (int rowIndex = 0; rowIndex < statement.Rows.Count; rowIndex++)
+        {
+            SqlExecutor.ThrowIfCancellationRequested();
+            var row = statement.Rows[rowIndex];
+            requests[rowIndex] = new DocumentWriteRequest(
                 ConvertId(row[idColumn]),
-                ConvertJson(row[documentColumn])))
-            .ToArray();
+                ConvertJson(row[documentColumn]));
+        }
         var result = store.InsertMany(requests, ordered: true);
         if (result.HasErrors)
             throw new InvalidOperationException(result.Errors.First(static error => error.Severity == DocumentWriteErrorSeverity.Error).Message);
@@ -254,29 +258,38 @@ internal static class DocumentSqlExecutor
         ArgumentNullException.ThrowIfNull(schema);
 
         var store = tsdb.Documents.Open(schema.Name);
-        int deleted = 0;
         if (TryExtractId(statement.Where, out var id))
         {
-            deleted = store.Delete(id) ? 1 : 0;
-        }
-        else
-        {
-            var match = TryExtractMatch(schema, statement.Where, pagination: null);
-            if (match is not null)
-                match = ResolveFullTextMatch(store, match);
-            var matchScores = match is null
-                ? new Dictionary<string, double>(StringComparer.Ordinal)
-                : match.Hits.ToDictionary(static hit => hit.DocumentId, static hit => hit.Score, StringComparer.Ordinal);
-            foreach (var row in LoadCandidateRows(store, schema, statement.Where, match))
-            {
-                if (!EvaluateWhere(statement.Where, row, matchScores))
-                    continue;
-                if (store.Delete(row.Id))
-                    deleted++;
-            }
+            // 直接 ID 删除也走批量提交，避免取消恰好发生在写入前时绕过检查。
+            SqlExecutor.ThrowIfCancellationRequested();
+            var result = store.DeleteMany([id], ordered: true);
+            if (result.HasErrors)
+                throw new InvalidOperationException(result.Errors.First(static error => error.Severity == DocumentWriteErrorSeverity.Error).Message);
+
+            return new DeleteExecutionResult(statement.Measurement, SeriesAffected: result.Deleted, TombstonesAdded: result.Deleted);
         }
 
-        return new DeleteExecutionResult(statement.Measurement, SeriesAffected: deleted, TombstonesAdded: deleted);
+        var match = TryExtractMatch(schema, statement.Where, pagination: null);
+        if (match is not null)
+            match = ResolveFullTextMatch(store, match);
+        var matchScores = match is null
+            ? new Dictionary<string, double>(StringComparer.Ordinal)
+            : match.Hits.ToDictionary(static hit => hit.DocumentId, static hit => hit.Score, StringComparer.Ordinal);
+        var ids = new List<string>();
+        foreach (var row in LoadCandidateRows(store, schema, statement.Where, match))
+        {
+            SqlExecutor.ThrowIfCancellationRequested();
+            if (EvaluateWhere(statement.Where, row, matchScores))
+                ids.Add(row.Id);
+        }
+
+        // 所有候选项完成后再统一写入，保证取消时文档集合保持原状。
+        SqlExecutor.ThrowIfCancellationRequested();
+        var deleteResult = store.DeleteMany(ids, ordered: true);
+        if (deleteResult.HasErrors)
+            throw new InvalidOperationException(deleteResult.Errors.First(static error => error.Severity == DocumentWriteErrorSeverity.Error).Message);
+
+        return new DeleteExecutionResult(statement.Measurement, SeriesAffected: deleteResult.Deleted, TombstonesAdded: deleteResult.Deleted);
     }
 
     public static RowsAffectedExecutionResult ExecuteUpdate(Tsdb tsdb, UpdateStatement statement, DocumentCollectionSchema schema)
@@ -298,25 +311,31 @@ internal static class DocumentSqlExecutor
         }
 
         var store = tsdb.Documents.Open(schema.Name);
-        int updated = 0;
         var match = TryExtractMatch(schema, statement.Where, pagination: null);
         if (match is not null)
             match = ResolveFullTextMatch(store, match);
         var matchScores = match is null
             ? new Dictionary<string, double>(StringComparer.Ordinal)
             : match.Hits.ToDictionary(static hit => hit.DocumentId, static hit => hit.Score, StringComparer.Ordinal);
+        string? json = null;
+        var requests = new List<DocumentWriteRequest>();
         foreach (var row in LoadCandidateRows(store, schema, statement.Where, match))
         {
+            SqlExecutor.ThrowIfCancellationRequested();
             if (!EvaluateWhere(statement.Where, row, matchScores))
                 continue;
 
-            var result = store.Replace(row.Id, ConvertJson(statement.Assignments[0].Value));
-            if (result.HasErrors)
-                throw new InvalidOperationException(result.Errors[0].Message);
-            updated++;
+            json ??= ConvertJson(statement.Assignments[0].Value);
+            requests.Add(new DocumentWriteRequest(row.Id, json, row.Version));
         }
 
-        return new RowsAffectedExecutionResult(schema.Name, updated, "update_document");
+        // 预期版本让批量提交拒绝并发覆盖，取消发生在此检查前则不会落盘任何替换。
+        SqlExecutor.ThrowIfCancellationRequested();
+        var result = store.ReplaceMany(requests, ordered: true);
+        if (result.HasErrors)
+            throw new InvalidOperationException(result.Errors.First(static error => error.Severity == DocumentWriteErrorSeverity.Error).Message);
+
+        return new RowsAffectedExecutionResult(schema.Name, result.Modified, "update_document");
     }
 
     public static SelectExecutionResult ShowCollections(Tsdb tsdb)
@@ -672,6 +691,7 @@ internal static class DocumentSqlExecutor
             var rows = new List<DocumentRow>(match.Hits.Count);
             foreach (var hit in match.Hits)
             {
+                SqlExecutor.ThrowIfCancellationRequested();
                 var row = store.Get(hit.DocumentId);
                 if (row is not null)
                     rows.Add(row);
@@ -701,6 +721,7 @@ internal static class DocumentSqlExecutor
         var filtered = new List<IReadOnlyList<object?>>();
         foreach (var row in rows)
         {
+            SqlExecutor.ThrowIfCancellationRequested();
             if (!EvaluateWhere(where, row, matchScores))
                 continue;
 
@@ -721,12 +742,17 @@ internal static class DocumentSqlExecutor
     {
         ValidateAggregateProjection(statement, projections);
 
-        var filteredRows = rows
-            .Where(row => EvaluateWhere(statement.Where, row, matchScores))
-            .ToArray();
+        var filteredRows = new List<DocumentRow>(rows.Count);
+        foreach (var row in rows)
+        {
+            SqlExecutor.ThrowIfCancellationRequested();
+            if (EvaluateWhere(statement.Where, row, matchScores))
+                filteredRows.Add(row);
+        }
         var groups = new Dictionary<DocumentGroupKey, List<DocumentRow>>();
         foreach (var row in filteredRows)
         {
+            SqlExecutor.ThrowIfCancellationRequested();
             var keyValues = statement.GroupBy
                 .Select(group => EvaluateScalar(group, row, matchScores))
                 .ToArray();
@@ -746,6 +772,7 @@ internal static class DocumentSqlExecutor
         var resultRows = new List<IReadOnlyList<object?>>(groups.Count);
         foreach (var group in groups.Values)
         {
+            SqlExecutor.ThrowIfCancellationRequested();
             var representative = group.Count == 0
                 ? new DocumentRow(string.Empty, "{}", Version: 0)
                 : group[0];

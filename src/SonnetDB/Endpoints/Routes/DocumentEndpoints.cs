@@ -175,7 +175,7 @@ internal static partial class SonnetDbEndpoints
             if (!await TryResolveDocumentCollectionAsync(ctx, registry, grants, db, collection, DatabasePermission.Write, mustExist: true).ConfigureAwait(false))
                 return;
             var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.DocumentBulkWriteRequest).ConfigureAwait(false);
-            if (req is null || req.Operations.Count == 0)
+            if (req is null || req.Operations is not { Count: > 0 })
             {
                 await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "bulk-write 需要提供非空 operations。").ConfigureAwait(false);
                 return;
@@ -327,9 +327,9 @@ internal static partial class SonnetDbEndpoints
             if (!await TryResolveDocumentCollectionAsync(ctx, registry, grants, db, collection, DatabasePermission.Write, mustExist: true).ConfigureAwait(false))
                 return;
             var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.DocumentFindOneAndUpdateRequest).ConfigureAwait(false);
-            if (req is null)
+            if (req is null || req.Update is null)
             {
-                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "请求体不可为空。").ConfigureAwait(false);
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "find-one-and-update 需要提供 update 操作符。").ConfigureAwait(false);
                 return;
             }
 

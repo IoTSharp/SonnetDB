@@ -14,9 +14,12 @@
 - 对象存储 GET 现在支持 `bytes=-N` suffix Range，并对越界单段范围返回标准 `416` 与 `Content-Range: bytes */size`；客户端同步保留 suffix 语义，避免播放器回退为完整下载。
 - 对象桶客户端新增语义配置读写和缩略图端点支持，媒体服务启动时可幂等初始化图片/视频桶并只对图片桶启用 WebP 缩略图。
 - 修复对象 PUT 在最终文件发布后、元数据批次于 WAL 追加前被拒绝时遗留孤立文件的问题；对象版本、latest 指针和 PUT 审计现通过单个 KV 原子批次提交，提交结果不确定时保留完整内容，避免可恢复元数据指向被主动删除的正文。内容写入改用真正的异步顺序 `FileStream`，并在 rename 前强制正文落盘、rename 后强制目录项落盘；嵌入式及远程完整/范围读取同步返回对象总长度，同时保留读取结果原有五参数构造函数和五元素解构，并继续提供含总长度的六参数 API。
+- 修复对象桶删除与并发 PUT/multipart 发布之间的竞态：同 bucket 变更现在按原 bucket KV 版本线性化，删除后同名重建不会接收旧在途写入，配置删除与审计作为一个原子批次提交；新预签名令牌绑定 bucket 版本，旧令牌继续按同一 keyspace 的版本顺序兼容，并在 bucket 重建后自然失效，不新增撤销旁路。multipart part/complete 补齐目录落盘顺序；Abort、替换 part 和生命周期清理遇到损坏或越界存储路径时只完成已提交的元数据语义，不误删外部文件，也不把清理失败反向报告为主操作失败。
 - 优化关系表联合二级索引选择：等值谓词按最长连续左前缀命中，下一列 Int64/DATETIME 范围通过 KV 半开区间与磁盘 lower-bound 扫描，signed big-endian 跨零时按负数/非负数分段且不改变磁盘编码；EXPLAIN 区分完整键、`secondary_index_prefix` 与 `secondary_index_range`。单范围列升序且 WHERE 无残余、无事务 overlay 时安全下推 LIMIT/OFFSET，其他条件继续完整残余过滤；缺少首列和不支持的范围类型按可用前缀或全表扫描回退，并避免可空后缀的唯一索引漏行。
 - 修复 EF Core provider 无法翻译 `DateTime.Now.Date` 的问题；新增 `DateTime` / `DateTimeOffset` 的当前时间、日期截断、日期分量、`AddYears` 至 `AddTicks` 及 Unix 时间转换翻译。关系 SQL 同步提供注册式日期标量函数，并在单表、关系 JOIN 与时序 JOIN 谓词路径复用同一函数注册表。
 - 修复 KV 原子批次在当前余量与 fresh WAL/overlay 预算中都无法容纳时仍额外调度 checkpoint 的问题；此类批次现在会在 WAL 追加前直接拒绝并提示调整批量或预算，可由 checkpoint 释放的当前压力仍保留原有背压与重试行为。
+- 修复文档集合 SQL `UPDATE` / `DELETE` 逐条落盘时，取消或中途失败可能留下部分修改的问题；执行器现在先完成候选规划，更新携带已读版本做并发冲突检测，再以单个 KV 原子 batch 提交。超过 `MaxOverlayEntries` / `MaxWalBytes` 时整条语句在 WAL 追加前拒绝且数据不变，引擎不会通过自动拆批削弱语句原子性。
+- 补齐 ADO.NET `CommandTimeout` 与 `DbCommand.Cancel()` 的真实执行语义：嵌入式、远程请求、流式响应创建及 `DataReader` 逐行读取统一传递取消，调用方取消、手动取消和超时保持可区分的异常；活动 Reader 持有唯一命令租约并在关闭时释放响应、流和取消资源，避免并发复用命令或提前释放导致悬挂读取。
 - 修复 OpenTelemetry 端到端测试在 exporter 回调与断言并发访问普通 `List<Activity>` 时随机抛出集合已修改异常的问题；导出活动改用同步集合并基于稳定快照断言。
 - 修复 SonnetMQ 冷读消费者为定位目标 offset 仍读取此前大 payload、导致积压恢复受历史消息体大小拖慢的问题；扫描现在跳过目标位点前的消息正文，仅读取目标批次 payload。
 - 修复 `SndbObjectStorageClient` 在 `Protocol=frame-http2` 下仍使用默认 HTTP/1.1 的问题；对象帧 PUT/GET 及同客户端的 REST 回退操作现在统一要求 exact HTTP/2，可连接 h2c 专用端口。

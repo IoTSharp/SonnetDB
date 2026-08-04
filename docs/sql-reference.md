@@ -524,6 +524,7 @@ DROP DOCUMENT COLLECTION device_docs;
 - 文档集合固定暴露 `id` 和 `document` / `json` 两个伪列；`SELECT *` 展开为 `id, document`。
 - `INSERT` 需要提供 `id` 与 `document` 或 `json`，JSON 文本会用 `System.Text.Json` 校验并规范化为紧凑 JSON。
 - SQL `UPDATE` 使用 `SET document = '<json>'` 做整体替换；局部更新操作符通过 Document HTTP API 或 `SndbDocumentClient.UpdateOneAsync/UpdateManyAsync` 调用。
+- 单条 SQL `UPDATE` / `DELETE` 会先完成候选规划，再用一个 KV 原子 batch 提交；取消、校验失败或批次预算拒绝不会留下部分修改。该 batch 受 `KvOptions.MaxOverlayEntries` 和 `KvOptions.MaxWalBytes` 限制，超限时会在追加 WAL 前整体拒绝；引擎不会为绕过限制自动拆批，因为拆批会破坏语句原子性。
 - `json_value(document, '$.path')` 支持 `$`、点属性、`$['property']` 和数组下标，例如 `$.metrics.temp`、`$['display-name']`、`$.tags[0]`。
 - `CREATE JSON INDEX` 建立基础 path 等值索引；`WHERE json_value(document, '$.type') = 'pump'` 可走该索引，`EXPLAIN` 的 `access_path` 会显示 `json_path_index`。
 - `id = '...'` 会走文档 ID 读取；其它条件走集合扫描后过滤。

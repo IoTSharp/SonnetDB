@@ -58,7 +58,7 @@ public static class BulkIngestor
         IPointReader reader,
         BulkErrorPolicy errorPolicy = BulkErrorPolicy.FailFast,
         bool flushOnComplete = false)
-        => Ingest(tsdb, reader, errorPolicy, flushOnComplete ? BulkFlushMode.Sync : BulkFlushMode.None);
+        => Ingest(tsdb, reader, errorPolicy, flushOnComplete ? BulkFlushMode.Sync : BulkFlushMode.None, CancellationToken.None);
 
     /// <summary>
     /// 消费 <paramref name="reader"/> 中的所有 <see cref="Point"/>，写入 <paramref name="tsdb"/>，
@@ -69,6 +69,23 @@ public static class BulkIngestor
         IPointReader reader,
         BulkErrorPolicy errorPolicy,
         BulkFlushMode flushMode)
+        => Ingest(tsdb, reader, errorPolicy, flushMode, CancellationToken.None);
+
+    /// <summary>
+    /// 消费全部点并按指定模式 Flush，同时在解析、分批写入和最终 Flush 前响应取消。
+    /// </summary>
+    /// <param name="tsdb">目标数据库实例。</param>
+    /// <param name="reader">点 reader。</param>
+    /// <param name="errorPolicy">错误策略。</param>
+    /// <param name="flushMode">结尾 Flush 行为。</param>
+    /// <param name="cancellationToken">批量摄取取消令牌。</param>
+    /// <returns>包含写入与跳过计数的批量结果。</returns>
+    public static BulkIngestResult Ingest(
+        Tsdb tsdb,
+        IPointReader reader,
+        BulkErrorPolicy errorPolicy,
+        BulkFlushMode flushMode,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(reader);
@@ -82,6 +99,8 @@ public static class BulkIngestor
         {
             while (true)
             {
+                // 逐点轮询，确保 TableDirect 的超时和 Cancel 不会等到整个 payload 结束。
+                cancellationToken.ThrowIfCancellationRequested();
                 Point point;
                 try
                 {
@@ -97,13 +116,13 @@ public static class BulkIngestor
                 buffer[batchCount++] = point;
                 if (batchCount >= BatchSize)
                 {
-                    written += FlushBatch(tsdb, buffer, batchCount, errorPolicy, ref skipped);
+                    written += FlushBatch(tsdb, buffer, batchCount, errorPolicy, ref skipped, cancellationToken);
                     batchCount = 0;
                 }
             }
 
             if (batchCount > 0)
-                written += FlushBatch(tsdb, buffer, batchCount, errorPolicy, ref skipped);
+                written += FlushBatch(tsdb, buffer, batchCount, errorPolicy, ref skipped, cancellationToken);
         }
         finally
         {
@@ -113,6 +132,7 @@ public static class BulkIngestor
 
         if (written > 0)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             switch (flushMode)
             {
                 case BulkFlushMode.Sync:
@@ -127,8 +147,15 @@ public static class BulkIngestor
         return new BulkIngestResult(written, skipped);
     }
 
-    private static int FlushBatch(Tsdb tsdb, Point[] buffer, int count, BulkErrorPolicy policy, ref int skipped)
+    private static int FlushBatch(
+        Tsdb tsdb,
+        Point[] buffer,
+        int count,
+        BulkErrorPolicy policy,
+        ref int skipped,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (policy == BulkErrorPolicy.FailFast)
         {
             try
@@ -145,6 +172,7 @@ public static class BulkIngestor
         int written = 0;
         for (int i = 0; i < count; i++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             try
             {
                 tsdb.Write(buffer[i]);

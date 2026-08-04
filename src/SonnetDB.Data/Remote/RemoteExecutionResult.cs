@@ -143,80 +143,83 @@ internal sealed class RemoteExecutionResult : IExecutionResult
     }
 
     /// <summary>
-    /// 创建实例：先消费 meta 行（或直接读取 end 行用于非 SELECT）。
+    /// 异步创建实例：先消费 meta 行（或直接读取 end 行用于非 SELECT），并允许命令超时取消首包等待。
     /// </summary>
-    public static RemoteExecutionResult Create(HttpResponseMessage response, Stream stream)
+    public static async Task<RemoteExecutionResult> CreateAsync(
+        HttpResponseMessage response,
+        Stream stream,
+        CancellationToken cancellationToken)
     {
         var reader = new StreamReader(stream, System.Text.Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: false);
-
-        string[] columns = Array.Empty<string>();
-        int recordsAffected = -1;
-        bool sawMeta = false;
-        bool ended = false;
-
-        while (!ended)
+        try
         {
-            var line = reader.ReadLine();
-            if (line is null) break;
-            if (line.Length == 0) continue;
+            string[] columns = Array.Empty<string>();
+            int recordsAffected = -1;
+            bool sawMeta = false;
+            bool ended = false;
 
-            using var doc = JsonDocument.Parse(line);
-            var root = doc.RootElement;
-            if (root.ValueKind != JsonValueKind.Object) break;
-
-            if (root.TryGetProperty("error", out var errProp) && errProp.ValueKind == JsonValueKind.String)
+            while (!ended)
             {
-                var error = errProp.GetString() ?? "sql_error";
-                var message = root.TryGetProperty("message", out var msgProp) && msgProp.ValueKind == JsonValueKind.String
-                    ? msgProp.GetString() ?? string.Empty
-                    : string.Empty;
-                reader.Dispose();
-                stream.Dispose();
-                response.Dispose();
-                throw new SndbServerException(error, message, System.Net.HttpStatusCode.OK);
-            }
+                var line = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
+                if (line is null) break;
+                if (line.Length == 0) continue;
 
-            if (root.TryGetProperty("type", out var typeProp) && typeProp.ValueKind == JsonValueKind.String)
-            {
-                var type = typeProp.GetString();
-                if (type == "meta")
+                using var doc = JsonDocument.Parse(line);
+                var root = doc.RootElement;
+                if (root.ValueKind != JsonValueKind.Object) break;
+
+                if (root.TryGetProperty("error", out var errProp) && errProp.ValueKind == JsonValueKind.String)
                 {
-                    sawMeta = true;
-                    if (root.TryGetProperty("columns", out var colsProp) && colsProp.ValueKind == JsonValueKind.Array)
+                    var error = errProp.GetString() ?? "sql_error";
+                    var message = root.TryGetProperty("message", out var msgProp) && msgProp.ValueKind == JsonValueKind.String
+                        ? msgProp.GetString() ?? string.Empty
+                        : string.Empty;
+                    throw new SndbServerException(error, message, System.Net.HttpStatusCode.OK);
+                }
+
+                if (root.TryGetProperty("type", out var typeProp) && typeProp.ValueKind == JsonValueKind.String)
+                {
+                    var type = typeProp.GetString();
+                    if (type == "meta")
                     {
-                        var list = new List<string>(colsProp.GetArrayLength());
-                        foreach (var c in colsProp.EnumerateArray())
-                            list.Add(c.GetString() ?? string.Empty);
-                        columns = [.. list];
-                    }
+                        sawMeta = true;
+                        if (root.TryGetProperty("columns", out var colsProp) && colsProp.ValueKind == JsonValueKind.Array)
+                        {
+                            var list = new List<string>(colsProp.GetArrayLength());
+                            foreach (var c in colsProp.EnumerateArray())
+                                list.Add(c.GetString() ?? string.Empty);
+                            columns = [.. list];
+                        }
 
-                    // 非 SELECT：columns 为空，紧接着应是 end；继续循环消费 end
-                    if (columns.Length == 0) continue;
-                    break; // SELECT：meta 之后就是行数据，交给 ReadNextRow 处理
-                }
-                if (type == "end")
-                {
-                    if (root.TryGetProperty("recordsAffected", out var ra) && ra.ValueKind == JsonValueKind.Number)
-                        recordsAffected = ra.GetInt32();
-                    ended = true;
-                    break;
+                        // 非 SELECT：columns 为空，紧接着应是 end；继续循环消费 end。
+                        if (columns.Length == 0) continue;
+                        break; // SELECT：meta 之后就是行数据，交给 ReadNextRow 处理。
+                    }
+                    if (type == "end")
+                    {
+                        if (root.TryGetProperty("recordsAffected", out var ra) && ra.ValueKind == JsonValueKind.Number)
+                            recordsAffected = ra.GetInt32();
+                        ended = true;
+                        break;
+                    }
                 }
             }
-        }
 
-        if (!sawMeta && !ended)
+            if (!sawMeta && !ended)
+                throw new InvalidDataException("远程响应缺少 meta 或 end 行。");
+
+            var result = new RemoteExecutionResult(response, stream, reader, columns);
+            if (ended)
+                result.RecordsAffected = recordsAffected;
+            return result;
+        }
+        catch
         {
-            // 协议异常：既无 meta 也无 end
+            // 创建失败时读取器尚未移交给结果对象，必须在这里释放整条 HTTP 响应链。
             reader.Dispose();
-            stream.Dispose();
             response.Dispose();
-            throw new InvalidDataException("远程响应缺少 meta 或 end 行。");
+            throw;
         }
-
-        var result = new RemoteExecutionResult(response, stream, reader, columns);
-        if (ended)
-            result.RecordsAffected = recordsAffected;
-        return result;
     }
 
     internal static object? ReadScalar(JsonElement element) => element.ValueKind switch

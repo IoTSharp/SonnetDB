@@ -91,6 +91,9 @@ public sealed class TableStore : IDisposable
     /// <summary>测试范围查询时记录实际下推到索引扫描的候选上限。</summary>
     internal Action<int>? RangeScanLimitTestHook { get; set; }
 
+    /// <summary>测试范围分页是否从上一页索引键继续扫描。</summary>
+    internal Action<bool>? RangeScanContinuationTestHook { get; set; }
+
     /// <summary>底层 rowstore generation 旧文件回收状态。</summary>
     public KvCleanupStatus GetCleanupStatus() => _keyspace.GetCleanupStatus();
 
@@ -478,6 +481,115 @@ public sealed class TableStore : IDisposable
     }
 
     /// <summary>
+    /// 按范围索引顺序读取至少指定数量的有效行，并继续到该范围值的完整并列组结束。
+    /// 每页使用上一页末尾索引键续读，避免为扩展并列组而反复从范围起点扫描。
+    /// </summary>
+    /// <param name="index">已选中的普通二级索引。</param>
+    /// <param name="equalityPrefixValues">索引连续等值前缀。</param>
+    /// <param name="range">等值前缀后范围列的边界。</param>
+    /// <param name="candidateLimit">SQL OFFSET 加 LIMIT 得到的候选行数。</param>
+    /// <returns>包含分页边界范围值完整并列组的候选行。</returns>
+    internal IReadOnlyList<TableRow> GetByIndexRangeThroughValueGroup(
+        TableIndex index,
+        IReadOnlyList<object?> equalityPrefixValues,
+        TableIndexRange range,
+        int candidateLimit)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        ArgumentNullException.ThrowIfNull(equalityPrefixValues);
+        ArgumentNullException.ThrowIfNull(range);
+        if (candidateLimit <= 0)
+            return [];
+
+        lock (_sync)
+        {
+            var schema = _schema;
+            if (!string.IsNullOrWhiteSpace(index.JsonPath)
+                || equalityPrefixValues.Count >= index.Columns.Count)
+            {
+                throw new ArgumentException("范围扫描要求普通联合索引仍有一个未绑定的下一列。", nameof(equalityPrefixValues));
+            }
+
+            var expectedColumn = schema.TryGetColumn(index.Columns[equalityPrefixValues.Count])
+                ?? throw new InvalidOperationException($"索引 '{index.Name}' 引用了未知列 '{index.Columns[equalityPrefixValues.Count]}'。");
+            if (!string.Equals(expectedColumn.Name, range.Column.Name, StringComparison.Ordinal)
+                || expectedColumn.DataType is not (TableColumnType.Int64 or TableColumnType.DateTime))
+            {
+                throw new ArgumentException("范围列必须是索引等值前缀后的 Int64 或 DATETIME 列。", nameof(range));
+            }
+
+            byte[] prefix = TableIndexCodec.EncodeLookupPrefix(index, equalityPrefixValues, schema)
+                ?? throw new InvalidOperationException($"索引 '{index.Name}' 的等值前缀无法编码。");
+            var rows = new List<TableRow>();
+            object? boundaryValue = null;
+            bool boundaryReached = false;
+            int pageLimit = candidateLimit == int.MaxValue ? int.MaxValue : candidateLimit + 1;
+
+            foreach (var keyRange in BuildSignedKeyRanges(index, equalityPrefixValues, range, schema))
+            {
+                byte[] afterKey = [];
+                while (true)
+                {
+                    RangeScanLimitTestHook?.Invoke(pageLimit);
+                    RangeScanContinuationTestHook?.Invoke(afterKey.Length != 0);
+                    var entries = _keyspace.ScanRange(
+                        prefix,
+                        keyRange.StartInclusive,
+                        keyRange.EndExclusive,
+                        afterKey,
+                        pageLimit);
+                    foreach (var entry in entries)
+                    {
+                        TableRow? row = TryMaterializeIndexEntryLocked(schema, entry);
+                        if (row is null)
+                            continue;
+
+                        object? rangeValue = row.Values[range.Column.Ordinal];
+                        if (!boundaryReached)
+                        {
+                            rows.Add(row);
+                            if (rows.Count == candidateLimit)
+                            {
+                                boundaryValue = rangeValue;
+                                boundaryReached = true;
+                            }
+
+                            continue;
+                        }
+
+                        if (!RangeValuesEqual(boundaryValue, rangeValue))
+                            return rows;
+
+                        rows.Add(row);
+                    }
+
+                    if (entries.Count < pageLimit)
+                        break;
+
+                    afterKey = entries[^1].Key.ToArray();
+                    pageLimit = DoubleRangeScanPageLimit(pageLimit);
+                }
+            }
+
+            return rows;
+        }
+    }
+
+    /// <summary>
+    /// 以饱和倍增扩展范围页大小，使超大并列组只被顺序读取一次。
+    /// </summary>
+    private static int DoubleRangeScanPageLimit(int pageLimit)
+        => pageLimit >= int.MaxValue / 2 ? int.MaxValue : pageLimit * 2;
+
+    /// <summary>
+    /// 比较范围列值；DATETIME 统一到 UTC ticks，避免 Kind 差异拆分同一时刻的并列组。
+    /// </summary>
+    private static bool RangeValuesEqual(object? left, object? right)
+        => left is DateTime leftTime && right is DateTime rightTime
+            ? leftTime.ToUniversalTime().Ticks == rightTime.ToUniversalTime().Ticks
+            : Equals(left, right);
+
+    /// <summary>
     /// 在持有表锁时扫描二级索引前缀并回表物化候选行。
     /// </summary>
     private IReadOnlyList<TableRow> GetByIndexPrefixLocked(
@@ -578,13 +690,25 @@ public sealed class TableStore : IDisposable
     {
         foreach (var entry in entries)
         {
-            byte[] primaryKey = entry.Value.Span.ToArray();
-            byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
-            byte[]? payload = _keyspace.Get(rowKey);
-            if (payload is null)
-                continue;
-            rows.Add(new TableRow(TableRowCodec.Decode(schema, payload), primaryKey));
+            TableRow? row = TryMaterializeIndexEntryLocked(schema, entry);
+            if (row is not null)
+                rows.Add(row);
         }
+    }
+
+    /// <summary>
+    /// 由二级索引条目回表物化行，主行已删除时返回空。
+    /// </summary>
+    private TableRow? TryMaterializeIndexEntryLocked(
+        TableSchema schema,
+        SonnetDB.Kv.KvEntry entry)
+    {
+        byte[] primaryKey = entry.Value.Span.ToArray();
+        byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
+        byte[]? payload = _keyspace.Get(rowKey);
+        return payload is null
+            ? null
+            : new TableRow(TableRowCodec.Decode(schema, payload), primaryKey);
     }
 
     internal void ApplySchema(TableSchema schema)

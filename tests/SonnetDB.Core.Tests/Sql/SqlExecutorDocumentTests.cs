@@ -1,6 +1,7 @@
 using SonnetDB.Documents;
 using SonnetDB.Engine;
 using SonnetDB.FullText;
+using SonnetDB.Kv;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
@@ -188,6 +189,72 @@ public sealed class SqlExecutorDocumentTests : IDisposable
         var all = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
             "SELECT id FROM device_docs ORDER BY id"));
         Assert.Equal(["dev-1"], all.Rows.Select(static r => (string)r[0]!).ToArray());
+    }
+
+    /// <summary>
+    /// 验证文档 UPDATE/DELETE 的原子批次超过 WAL 预算时，在追加日志前整体拒绝且不改变任何文档。
+    /// </summary>
+    [Theory]
+    [InlineData("UPDATE budget_docs SET document = '{\"state\":\"updated\"}' WHERE json_value(document, '$.state') = 'pending'")]
+    [InlineData("DELETE FROM budget_docs WHERE json_value(document, '$.state') = 'pending'")]
+    public void DocumentCollection_UpdateDeleteExceedingWalBudget_RejectsBeforeWalAppendAndLeavesDocumentsUntouched(
+        string statement)
+    {
+        using (var setup = Tsdb.Open(Options()))
+        {
+            SqlExecutor.Execute(setup, "CREATE DOCUMENT COLLECTION budget_docs");
+            SqlExecutor.Execute(setup, """
+                INSERT INTO budget_docs (id, document)
+                VALUES
+                  ('doc-1', '{"state":"pending","slot":1}'),
+                  ('doc-2', '{"state":"pending","slot":2}')
+                """);
+            setup.Documents.CheckpointAll();
+        }
+
+        string collectionDirectory = Path.Combine(
+            _root,
+            "documents",
+            "collections",
+            Convert.ToHexString("budget_docs"u8).ToLowerInvariant());
+        string walPath = KvKeyspace.ActiveWalPath(collectionDirectory);
+        var constrainedOptions = Options() with
+        {
+            Kv = KvOptions.Default with
+            {
+                MaxWalBytes = KvWalFile.HeaderSize,
+                CheckpointWriteBackpressureTimeout = TimeSpan.FromMilliseconds(100),
+            },
+        };
+        (string Id, string Json, long Version)[] before;
+
+        using (var db = Tsdb.Open(constrainedOptions))
+        {
+            var store = db.Documents.Open("budget_docs");
+            before = store.Scan()
+                .Select(static row => (row.Id, row.Json, row.Version))
+                .ToArray();
+            Assert.Equal(["doc-1", "doc-2"], before.Select(static row => row.Id).ToArray());
+            long versionBefore = store.LastVersion;
+            long walLengthBefore = new FileInfo(walPath).Length;
+
+            IOException exception = Assert.Throws<IOException>(() => SqlExecutor.Execute(db, statement));
+
+            Assert.Contains("rejected before WAL append", exception.Message, StringComparison.Ordinal);
+            Assert.Equal(walLengthBefore, new FileInfo(walPath).Length);
+            Assert.Equal(versionBefore, store.LastVersion);
+            Assert.Equal(
+                before,
+                store.Scan().Select(static row => (row.Id, row.Json, row.Version)).ToArray());
+        }
+
+        using var reopened = Tsdb.Open(Options());
+        Assert.Equal(
+            before,
+            reopened.Documents.Open("budget_docs")
+                .Scan()
+                .Select(static row => (row.Id, row.Json, row.Version))
+                .ToArray());
     }
 
     [Fact]

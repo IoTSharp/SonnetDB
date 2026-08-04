@@ -40,6 +40,7 @@ internal static class KvAtomicBatchErrors
 public sealed class KvKeyspace : IDisposable
 {
     private const int ScanResultInitialCapacity = 256;
+    private const int MaxOptimisticSequenceFactoryInvalidations = 8;
     private readonly object _sync = new();
     private readonly SemaphoreSlim _checkpointGate = new(1, 1);
     private readonly KvOptions _options;
@@ -846,16 +847,16 @@ public sealed class KvKeyspace : IDisposable
     internal long ApplyBatch(IReadOnlyList<KvBatchMutation> mutations)
     {
         ArgumentNullException.ThrowIfNull(mutations);
-        if (mutations.Count == 0)
+        KvBatchMutation[] batch = CanonicalizeBatchMutations(mutations);
+        if (batch.Length == 0)
             return LastSequence;
 
-        return ApplyBatch(_ => mutations);
+        return ApplyCanonicalBatch(batch);
     }
 
     /// <summary>
-    /// 在 keyspace 写锁内把即将分配的 WAL sequence 交给 mutation factory，并把返回的
-    /// mixed put/delete 作为单个 CRC-protected WAL record 提交。若写预算等待期间 sequence
-    /// 发生变化，会用新的 sequence 重新构建 mutation，避免调用方猜测版本号。
+    /// 乐观读取下一个 WAL sequence 并在锁外构造 mutation；进入写锁后仅当 sequence 仍一致时
+    /// 才提交。竞争写或预算等待改变 sequence 时，会在释放锁后用新 sequence 重建 mutation。
     /// </summary>
     /// <param name="mutationFactory">根据本次提交 sequence 构造 mutation 的工厂。</param>
     /// <returns>整批共享的提交 sequence。</returns>
@@ -863,24 +864,176 @@ public sealed class KvKeyspace : IDisposable
     {
         ArgumentNullException.ThrowIfNull(mutationFactory);
 
+        long expectedSequence = ReadNextMutationSequence();
+        int optimisticInvalidations = 0;
+        while (true)
+        {
+            // 构造、校验和复制可能遍历大量文档索引，必须位于 keyspace 写锁之外。
+            KvBatchMutation[] batch = CanonicalizeBatchMutations(
+                mutationFactory(expectedSequence)
+                ?? throw new InvalidOperationException("KV mutation factory 不能返回 null。"));
+            if (batch.Length == 0)
+            {
+                // 空批次也依赖 factory 观察到的 sequence；竞争写后必须重建，不能静默漏掉新结果。
+                lock (_sync)
+                {
+                    ThrowIfDisposed();
+                    ThrowIfWriteFaultedLocked();
+                    if (_wal!.NextSequence == expectedSequence)
+                        return _lastSequence;
+                    expectedSequence = _wal.NextSequence;
+                }
+
+                if (++optimisticInvalidations >= MaxOptimisticSequenceFactoryInvalidations)
+                    return ApplySequenceFactoryUnderWriteLock(mutationFactory);
+                continue;
+            }
+
+            long lockWait = SonnetDbMeter.StartLockWaitTiming();
+            lock (_sync)
+            {
+                SonnetDbMeter.RecordKvKeyspaceLockWait(lockWait);
+                ThrowIfDisposed();
+                ThrowIfWriteFaultedLocked();
+                while (_wal!.NextSequence == expectedSequence)
+                {
+                    long requiredWalBytes = KvWalFile.CalculateMutationBatchRecordBytes(batch);
+                    var publishPlan = PrepareMutationPublishPlanLocked(batch, expectedSequence);
+                    if (TryAdmitAtomicBatchLocked(
+                        publishPlan.OverlayEntryCount,
+                        publishPlan.PostCheckpointOverlayEntryCount,
+                        requiredWalBytes,
+                        "atomic mutation batch"))
+                    {
+                        return CommitPlannedMutationBatchLocked(batch, publishPlan, expectedSequence);
+                    }
+
+                    // 等待时 Monitor 会暂时释放写锁；sequence 未变化时可复用锁外构造的批次。
+                    WaitForWriteBudgetLocked();
+                }
+
+                // 其他写入已抢先分配 sequence；离开锁后再执行 factory，避免锁内重型重建。
+                expectedSequence = _wal.NextSequence;
+            }
+
+            // 连续竞争达到上限后退化为锁内构造，避免大批次在繁忙 keyspace 中永久饥饿。
+            if (++optimisticInvalidations >= MaxOptimisticSequenceFactoryInvalidations)
+                return ApplySequenceFactoryUnderWriteLock(mutationFactory);
+        }
+    }
+
+    /// <summary>
+    /// 在连续 sequence 竞争后使用锁内工厂保证最终进展；预算等待释放锁后会按新 sequence 重建。
+    /// </summary>
+    /// <param name="mutationFactory">根据本次提交 sequence 构造 mutation 的工厂。</param>
+    /// <returns>整批共享的提交 sequence；空批次返回当前最后 sequence。</returns>
+    private long ApplySequenceFactoryUnderWriteLock(
+        Func<long, IReadOnlyList<KvBatchMutation>> mutationFactory)
+    {
+        long lockWait = SonnetDbMeter.StartLockWaitTiming();
+        lock (_sync)
+        {
+            SonnetDbMeter.RecordKvKeyspaceLockWait(lockWait);
+            ThrowIfDisposed();
+            while (true)
+            {
+                ThrowIfWriteFaultedLocked();
+                long expectedSequence = _wal!.NextSequence;
+                KvBatchMutation[] batch = CanonicalizeBatchMutations(
+                    mutationFactory(expectedSequence)
+                    ?? throw new InvalidOperationException("KV mutation factory 不能返回 null。"));
+                if (batch.Length == 0)
+                    return _lastSequence;
+
+                long requiredWalBytes = KvWalFile.CalculateMutationBatchRecordBytes(batch);
+                var publishPlan = PrepareMutationPublishPlanLocked(batch, expectedSequence);
+                if (TryAdmitAtomicBatchLocked(
+                    publishPlan.OverlayEntryCount,
+                    publishPlan.PostCheckpointOverlayEntryCount,
+                    requiredWalBytes,
+                    "atomic mutation batch"))
+                {
+                    return CommitPlannedMutationBatchLocked(batch, publishPlan, expectedSequence);
+                }
+
+                WaitForWriteBudgetLocked();
+            }
+        }
+    }
+
+    /// <summary>在短写锁内读取可分配 sequence，并保持已释放和写故障的既有检查语义。</summary>
+    private long ReadNextMutationSequence()
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            ThrowIfWriteFaultedLocked();
+            return _wal!.NextSequence;
+        }
+    }
+
+    /// <summary>
+    /// 追加已通过预算校验的单条批次 WAL 记录，并按预先计算的值一次性发布到内存覆盖层。
+    /// </summary>
+    /// <param name="batch">已规范化且独立持有 key/value 的批次。</param>
+    /// <param name="publishPlan">基于预期 sequence 计算的内存发布结果。</param>
+    /// <param name="expectedSequence">即将写入的 WAL sequence。</param>
+    /// <returns>整批共享的提交 sequence。</returns>
+    private long CommitPlannedMutationBatchLocked(
+        KvBatchMutation[] batch,
+        (KvValueEntry?[] Values, int OverlayEntryCount, int PostCheckpointOverlayEntryCount) publishPlan,
+        long expectedSequence)
+    {
+        _values.EnsureCapacity(publishPlan.OverlayEntryCount);
+
+        long sequence;
+        try
+        {
+            sequence = _wal!.AppendMutationBatch(batch);
+            if (_options.SyncWalOnEveryWrite)
+                _wal.Sync();
+        }
+        catch (Exception ex)
+        {
+            _writeFault = ex;
+            throw;
+        }
+        Debug.Assert(sequence == expectedSequence);
+
+        for (int i = 0; i < batch.Length; i++)
+        {
+            if (publishPlan.Values[i] is null)
+                _values.Remove(batch[i].Key);
+        }
+        for (int i = 0; i < batch.Length; i++)
+        {
+            if (publishPlan.Values[i] is { } value)
+                _values[batch[i].Key] = value;
+        }
+
+        _lastSequence = sequence;
+        ScheduleAutoCheckpointLocked();
+        return sequence;
+    }
+
+    /// <summary>
+    /// 在写锁内提交已在锁外规范化的批次；等待检查点预算后会按最新 sequence 重建发布计划。
+    /// </summary>
+    /// <param name="batch">已完成校验、复制和末写入胜出的批次。</param>
+    /// <returns>整批共享的提交 sequence。</returns>
+    private long ApplyCanonicalBatch(KvBatchMutation[] batch)
+    {
         long lockWait = SonnetDbMeter.StartLockWaitTiming();
         lock (_sync)
         {
             SonnetDbMeter.RecordKvKeyspaceLockWait(lockWait);
             ThrowIfDisposed();
             long expectedSequence;
-            KvBatchMutation[] batch;
             (KvValueEntry?[] Values, int OverlayEntryCount, int PostCheckpointOverlayEntryCount) publishPlan;
             while (true)
             {
                 ThrowIfWriteFaultedLocked();
                 expectedSequence = _wal!.NextSequence;
-                batch = CanonicalizeBatchMutations(
-                    mutationFactory(expectedSequence)
-                    ?? throw new InvalidOperationException("KV mutation factory 不能返回 null。"));
-                if (batch.Length == 0)
-                    return _lastSequence;
-
                 long requiredWalBytes = KvWalFile.CalculateMutationBatchRecordBytes(batch);
                 publishPlan = PrepareMutationPublishPlanLocked(batch, expectedSequence);
                 if (TryAdmitAtomicBatchLocked(
@@ -894,39 +1047,15 @@ public sealed class KvKeyspace : IDisposable
 
                 WaitForWriteBudgetLocked();
             }
-            _values.EnsureCapacity(publishPlan.OverlayEntryCount);
-
-            long sequence;
-            try
-            {
-                sequence = _wal!.AppendMutationBatch(batch);
-                if (_options.SyncWalOnEveryWrite)
-                    _wal.Sync();
-            }
-            catch (Exception ex)
-            {
-                _writeFault = ex;
-                throw;
-            }
-            Debug.Assert(sequence == expectedSequence);
-
-            for (int i = 0; i < batch.Length; i++)
-            {
-                if (publishPlan.Values[i] is null)
-                    _values.Remove(batch[i].Key);
-            }
-            for (int i = 0; i < batch.Length; i++)
-            {
-                if (publishPlan.Values[i] is { } value)
-                    _values[batch[i].Key] = value;
-            }
-
-            _lastSequence = sequence;
-            ScheduleAutoCheckpointLocked();
-            return sequence;
+            return CommitPlannedMutationBatchLocked(batch, publishPlan, expectedSequence);
         }
     }
 
+    /// <summary>
+    /// 在锁外校验并复制调用方批次，同时按 key 保留最后一项变更。
+    /// </summary>
+    /// <param name="mutations">调用方提供的原始批次。</param>
+    /// <returns>可安全进入原子写锁的独立批次。</returns>
     private KvBatchMutation[] CanonicalizeBatchMutations(IReadOnlyList<KvBatchMutation> mutations)
     {
         var canonical = new Dictionary<byte[], KvBatchMutation>(KvKeyComparer.Instance);

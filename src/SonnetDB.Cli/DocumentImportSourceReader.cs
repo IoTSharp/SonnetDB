@@ -591,21 +591,10 @@ internal static class DocumentImportSourceReader
         {
             using var source = JsonDocument.Parse(json);
             JsonElement body = source.RootElement;
-            string? id;
-            if (body.ValueKind == JsonValueKind.Object
-                && body.TryGetProperty("id", out var pairId)
-                && pairId.ValueKind == JsonValueKind.String
-                && body.TryGetProperty("document", out var pairDocument))
-            {
-                id = pairId.GetString();
-                body = pairDocument;
-            }
-            else
-            {
-                id = TryResolveId(body, idPath, out var idElement)
-                    ? ConvertId(idElement)
-                    : null;
-            }
+            // JSON/NDJSON 始终按原始业务文档处理，避免把同名 id/document 字段误判为传输包装并丢字段。
+            string? id = TryResolveId(body, idPath, out var idElement)
+                ? ConvertId(idElement)
+                : null;
 
             if (string.IsNullOrWhiteSpace(id))
             {
@@ -647,8 +636,12 @@ internal static class DocumentImportSourceReader
     private static string DetectJsonFormat(string path)
     {
         using var stream = File.OpenRead(path);
-        int value;
-        do value = stream.ReadByte(); while (value >= 0 && char.IsWhiteSpace((char)value));
+        int value = stream.ReadByte();
+        // auto 只识别 UTF-8 JSON；先跳过标准 BOM，再判断首个非空白字节。
+        if (value == 0xEF && stream.ReadByte() == 0xBB && stream.ReadByte() == 0xBF)
+            value = stream.ReadByte();
+        while (value >= 0 && char.IsWhiteSpace((char)value))
+            value = stream.ReadByte();
         return value == '[' ? "json-array" : "json";
     }
 

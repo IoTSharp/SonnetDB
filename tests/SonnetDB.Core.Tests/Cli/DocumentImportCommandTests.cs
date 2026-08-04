@@ -161,6 +161,34 @@ public sealed class DocumentImportCommandTests : IDisposable
         Assert.Equal(2, json.RootElement.GetProperty("documentsValidated").GetInt64());
     }
 
+    /// <summary>验证 auto 能跳过 UTF-8 BOM 并按 JSON array 逐项读取。</summary>
+    [Fact]
+    public void DryRun_Utf8BomJsonArray_AutoDetectsAndStreamsAllDocuments()
+    {
+        string source = Path.Combine(_root, "bom-devices.json");
+        string report = Path.Combine(_root, "bom-array-report.json");
+        File.WriteAllText(
+            source,
+            """[{"_id":"a","value":1},{"_id":"b","value":2}]""",
+            new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+        var app = CreateApp(out _, out var stderr);
+
+        int exitCode = app.Run([
+            "document", "import",
+            "--input", source,
+            "--collection", "devices",
+            "--dry-run",
+            "--report", report,
+        ]);
+
+        Assert.Equal(0, exitCode);
+        Assert.Empty(stderr.ToString());
+        using var json = JsonDocument.Parse(File.ReadAllBytes(report));
+        Assert.Equal("json-array", json.RootElement.GetProperty("sourceFormat").GetString());
+        Assert.Equal(2, json.RootElement.GetProperty("documentsRead").GetInt64());
+        Assert.Equal(2, json.RootElement.GetProperty("documentsValidated").GetInt64());
+    }
+
     [Fact]
     public void DryRun_NdjsonLineAboveBatchBudget_ReportsBoundedError()
     {
@@ -297,6 +325,38 @@ public sealed class DocumentImportCommandTests : IDisposable
         JsonElement value = json.RootElement.GetProperty("value");
         Assert.Equal(JsonValueKind.Object, value.ValueKind);
         Assert.Equal("utc", value.GetProperty("unit").GetString());
+    }
+
+    /// <summary>验证业务文档中的 id/document 同名字段不会触发隐式解包或字段丢失。</summary>
+    [Fact]
+    public async Task JsonImport_IdAndDocumentBusinessFields_PreservesWholeDocumentAndConfiguredId()
+    {
+        string source = Path.Combine(_root, "business-fields.jsonl");
+        string target = Path.Combine(_root, "business-fields-target");
+        File.WriteAllText(
+            source,
+            """{"_id":"mongo-1","id":"biz-1","document":{"value":1},"tenant":"north"}""");
+        var app = CreateApp(out _, out var stderr);
+
+        int exitCode = app.Run([
+            "document", "import",
+            "--input", source,
+            "--collection", "docs",
+            "--path", target,
+            "--id-path", "_id",
+        ]);
+
+        Assert.Equal(0, exitCode);
+        Assert.Empty(stderr.ToString());
+        using var client = new SndbDocumentClient($"Data Source={target}");
+        var row = await client.FindOneAsync("docs", "mongo-1");
+        Assert.NotNull(row);
+        Assert.Null(await client.FindOneAsync("docs", "biz-1"));
+        using var json = JsonDocument.Parse(row.Json);
+        Assert.Equal("mongo-1", json.RootElement.GetProperty("_id").GetString());
+        Assert.Equal("biz-1", json.RootElement.GetProperty("id").GetString());
+        Assert.Equal(1, json.RootElement.GetProperty("document").GetProperty("value").GetInt32());
+        Assert.Equal("north", json.RootElement.GetProperty("tenant").GetString());
     }
 
     [Fact]

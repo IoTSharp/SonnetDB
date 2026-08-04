@@ -297,7 +297,7 @@ public static class SqlExecutor
         RejectUnsupportedStatementInActiveTransaction(statement, transaction);
 
         using var routineExecutionScope = RoutineExecutionContext.EnterRoot(options);
-        RoutineExecutionContext.Current!.CheckCancellation();
+        ThrowIfCancellationRequested();
         // read-your-writes：把活动轻事务设为 ambient，供 SELECT 读路径叠加本事务缓冲写（#218）。
         using var transactionScope = SqlTransactionContext.EnterScope(transaction);
         // UDF 解析必须覆盖 DML 的绑定与求值阶段，不能只在 SELECT 分发器内建立作用域。
@@ -405,6 +405,12 @@ public static class SqlExecutor
                 $"SQL 语句类型 '{statement.GetType().Name}' 尚未实现。"),
         };
     }
+
+    /// <summary>
+    /// 轮询当前 SQL 执行的取消令牌，保留例程取消的标准错误合同。
+    /// </summary>
+    internal static void ThrowIfCancellationRequested()
+        => RoutineExecutionContext.Current?.CheckCancellation();
 
     // 轻事务只缓冲关系表 DML；schema、控制面和文件导入必须在进入执行分支前拒绝。
     private static void RejectUnsupportedStatementInActiveTransaction(

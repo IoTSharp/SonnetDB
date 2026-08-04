@@ -1,4 +1,6 @@
 using System.Buffers;
+using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -31,9 +33,11 @@ public sealed class SndbObjectStore
     private const string Aborted = "aborted";
     private const int ObjectIoBufferSize = 128 * 1024;
     private static readonly Encoding Utf8 = new UTF8Encoding(false);
+    private static readonly ConditionalWeakTable<KvKeyspace, ObjectMutationState> ObjectMutationStates = new();
 
     private readonly KvKeyspace _metadata;
     private readonly string _contentRoot;
+    private readonly ObjectMutationState _objectMutationState;
 
     /// <summary>
     /// 构造对象存储门面。
@@ -42,6 +46,8 @@ public sealed class SndbObjectStore
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         _metadata = tsdb.Keyspaces.Open(MetadataKeyspace);
+        // 同一 keyspace 的多个存储门面共享 bucket gate，避免不同 bucket 的生命周期互相阻塞。
+        _objectMutationState = ObjectMutationStates.GetValue(_metadata, static _ => new ObjectMutationState());
         _contentRoot = Path.Combine(tsdb.RootDirectory, "objects");
         Directory.CreateDirectory(_contentRoot);
     }
@@ -65,20 +71,24 @@ public sealed class SndbObjectStore
     {
         ValidateBucket(bucket);
         string normalizedPurpose = NormalizePurpose(purpose);
-        string key = BucketKey(bucket);
-        var existing = _metadata.GetEntry(key);
-        if (existing is not null)
+        var bucketMutation = GetOrCreateBucketMutationState(bucket);
+        lock (bucketMutation.Gate)
         {
-            var record = Deserialize(existing.Value.Span, SndbObjectStoreJsonContext.Default.SndbBucketRecord);
-            return new SndbBucketInfo(record.Name, record.Purpose, record.CreatedUtc, record.UpdatedUtc);
-        }
+            string key = BucketKey(bucket);
+            var existing = _metadata.GetEntry(key);
+            if (existing is not null)
+            {
+                var record = Deserialize(existing.Value.Span, SndbObjectStoreJsonContext.Default.SndbBucketRecord);
+                return new SndbBucketInfo(record.Name, record.Purpose, record.CreatedUtc, record.UpdatedUtc);
+            }
 
-        var now = DateTimeOffset.UtcNow;
-        var created = new SndbBucketRecord(bucket, normalizedPurpose, now, now);
-        _metadata.Put(key, Serialize(created, SndbObjectStoreJsonContext.Default.SndbBucketRecord));
-        Directory.CreateDirectory(Path.Combine(_contentRoot, BucketHash(bucket)));
-        AppendAudit("bucket.create", bucket, null, null, new Dictionary<string, string> { ["purpose"] = normalizedPurpose });
-        return new SndbBucketInfo(bucket, normalizedPurpose, now, now);
+            var now = DateTimeOffset.UtcNow;
+            var created = new SndbBucketRecord(bucket, normalizedPurpose, now, now);
+            _metadata.Put(key, Serialize(created, SndbObjectStoreJsonContext.Default.SndbBucketRecord));
+            Directory.CreateDirectory(Path.Combine(_contentRoot, BucketHash(bucket)));
+            AppendAudit("bucket.create", bucket, null, null, new Dictionary<string, string> { ["purpose"] = normalizedPurpose });
+            return new SndbBucketInfo(bucket, normalizedPurpose, now, now);
+        }
     }
 
     /// <summary>
@@ -100,26 +110,34 @@ public sealed class SndbObjectStore
     /// </summary>
     public bool DeleteBucket(string bucket)
     {
-        EnsureBucket(bucket);
-        if (_metadata.ScanPrefix(LatestObjectPrefix(bucket), limit: 1).Count > 0
-            || _metadata.ScanPrefix(ObjectBucketPrefix(bucket), limit: 1).Count > 0
-            || HasActiveMultipartUploads(bucket))
+        var bucketMutation = GetBucketMutationState(bucket);
+        lock (bucketMutation.Gate)
         {
-            throw new SndbObjectStorageException("bucket_not_empty", $"Bucket '{bucket}' is not empty.");
-        }
+            EnsureBucket(bucket);
+            if (_metadata.ScanPrefix(LatestObjectPrefix(bucket), limit: 1).Count > 0
+                || _metadata.ScanPrefix(ObjectBucketPrefix(bucket), limit: 1).Count > 0
+                || HasActiveMultipartUploads(bucket))
+            {
+                throw new SndbObjectStorageException("bucket_not_empty", $"Bucket '{bucket}' is not empty.");
+            }
 
-        bool deleted = _metadata.Delete(BucketKey(bucket));
-        if (deleted)
-        {
-            _metadata.Delete(PolicyKey(bucket));
-            _metadata.Delete(LifecycleKey(bucket));
-            _metadata.Delete(RetentionKey(bucket));
-            _metadata.Delete(QuotaKey(bucket));
-            _metadata.Delete(SemanticOptionsKey(bucket));
-            AppendAudit("bucket.delete", bucket, null, null);
-        }
+            var mutations = new List<KvBatchMutation>(7)
+            {
+                KvBatchMutation.Delete(Utf8.GetBytes(BucketKey(bucket))),
+                KvBatchMutation.Delete(Utf8.GetBytes(PolicyKey(bucket))),
+                KvBatchMutation.Delete(Utf8.GetBytes(LifecycleKey(bucket))),
+                KvBatchMutation.Delete(Utf8.GetBytes(RetentionKey(bucket))),
+                KvBatchMutation.Delete(Utf8.GetBytes(QuotaKey(bucket))),
+                KvBatchMutation.Delete(Utf8.GetBytes(SemanticOptionsKey(bucket))),
+            };
 
-        return deleted;
+            SndbObjectAuditRecord audit = CreateAuditRecord("bucket.delete", bucket, null, null);
+            mutations.Add(KvBatchMutation.Put(
+                Utf8.GetBytes(AuditKey(bucket, audit.Id)),
+                Serialize(audit, SndbObjectStoreJsonContext.Default.SndbObjectAuditRecord)));
+            _metadata.ApplyBatch(mutations);
+            return true;
+        }
     }
 
     /// <summary>
@@ -134,13 +152,20 @@ public sealed class SndbObjectStore
         IReadOnlyDictionary<string, string>? tags = null,
         CancellationToken cancellationToken = default)
     {
-        EnsureBucket(bucket);
         ValidateObjectKey(key);
         ArgumentNullException.ThrowIfNull(content);
 
         string normalizedContentType = NormalizeContentType(contentType);
         Dictionary<string, string> normalizedMetadata = NormalizeMap(metadata);
         Dictionary<string, string> normalizedTags = NormalizeMap(tags);
+        var bucketMutation = GetBucketMutationState(bucket);
+        long initialBucketVersion;
+        lock (bucketMutation.Gate)
+        {
+            // 记录本次写入所属 bucket 的 KV 版本，防止删除后同名重建造成 ABA 发布。
+            initialBucketVersion = GetRequiredBucketEntry(bucket).Version;
+        }
+
         string versionId = CreateVersionId();
         string storagePath = BuildObjectStoragePath(bucket, key, versionId);
         string storageDirectory = Path.GetDirectoryName(storagePath)!;
@@ -153,20 +178,57 @@ public sealed class SndbObjectStore
         string etag;
         string sha256;
         bool finalFileMoved = false;
+        SndbObjectRecord record;
         try
         {
             // 临时文件与最终文件位于同一目录，校验完成后通过原子改名发布完整对象。
             (size, etag, sha256) = await WriteContentAndHashAsync(content, temporaryPath, cancellationToken).ConfigureAwait(false);
-            EnsureQuotaAllowsDelta(bucket, size, additionalObjectVersions: 1);
-            File.Move(temporaryPath, storagePath, overwrite: false);
-            finalFileMoved = true;
-            // 先持久化 rename 对应的目录项，再提交引用该正文的 KV 元数据。
-            SonnetDB.Wal.DirectoryFsync.FlushRequired(storageDirectory);
+            lock (bucketMutation.Gate)
+            {
+                // 内容落盘期间 bucket 可能被删除并重建，提交元数据前必须确认仍是原 bucket 实例。
+                KvEntry currentBucketEntry = GetRequiredBucketEntry(bucket);
+                if (currentBucketEntry.Version != initialBucketVersion)
+                {
+                    throw new SndbObjectStorageException(
+                        "bucket_recreated",
+                        $"Bucket '{bucket}' was deleted and recreated while the object was being written.");
+                }
+                EnsureQuotaAllowsDelta(bucket, size, additionalObjectVersions: 1);
+                File.Move(temporaryPath, storagePath, overwrite: false);
+                finalFileMoved = true;
+                // 先持久化 rename 对应的目录项，再提交引用该正文的 KV 元数据。
+                SonnetDB.Wal.DirectoryFsync.FlushRequired(storageDirectory);
+
+                var now = bucketMutation.GetNextVersionTimestamp();
+                record = new SndbObjectRecord(
+                    bucket,
+                    key,
+                    versionId,
+                    normalizedContentType,
+                    size,
+                    etag,
+                    sha256,
+                    ToRelativeStoragePath(storagePath),
+                    IsDeleteMarker: false,
+                    now,
+                    now,
+                    normalizedMetadata,
+                    normalizedTags);
+                var audit = CreateAuditRecord("object.put", bucket, key, versionId, new Dictionary<string, string>
+                {
+                    ["sizeBytes"] = size.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    ["etag"] = etag,
+                    ["sha256"] = sha256,
+                });
+
+                // 对象版本、latest 指针和审计记录作为一个 KV 批次发布。
+                PersistObjectRecord(record, audit);
+            }
         }
-        catch
+        catch (Exception ex)
         {
-            // 目录落盘失败发生在元数据提交前，清理已改名但尚未关联的正文。
-            if (finalFileMoved)
+            // WAL 已开始追加时提交结果不确定，保留完整文件供重启恢复；明确的提交前失败才可安全清理。
+            if (finalFileMoved && !_metadata.IsWriteCommitOutcomeUnknown(ex))
             {
                 TryDeleteFile(storagePath);
                 SonnetDB.Wal.DirectoryFsync.FlushBestEffort(storageDirectory);
@@ -176,45 +238,6 @@ public sealed class SndbObjectStore
         finally
         {
             TryDeleteFile(temporaryPath);
-        }
-
-        SndbObjectRecord record;
-        try
-        {
-            var now = DateTimeOffset.UtcNow;
-            record = new SndbObjectRecord(
-                bucket,
-                key,
-                versionId,
-                normalizedContentType,
-                size,
-                etag,
-                sha256,
-                ToRelativeStoragePath(storagePath),
-                IsDeleteMarker: false,
-                now,
-                now,
-                normalizedMetadata,
-                normalizedTags);
-            var audit = CreateAuditRecord("object.put", bucket, key, versionId, new Dictionary<string, string>
-            {
-                ["sizeBytes"] = size.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                ["etag"] = etag,
-                ["sha256"] = sha256,
-            });
-
-            // 对象版本、latest 指针和审计记录作为一个 KV 批次发布，失败时删除尚未关联的最终文件。
-            PersistObjectRecord(record, audit);
-        }
-        catch (Exception ex)
-        {
-            // WAL 已开始追加时提交结果不确定，保留完整文件供重启恢复；明确的提交前失败才可安全清理。
-            if (!_metadata.IsWriteCommitOutcomeUnknown(ex))
-            {
-                TryDeleteFile(storagePath);
-                SonnetDB.Wal.DirectoryFsync.FlushBestEffort(storageDirectory);
-            }
-            throw;
         }
 
         return ToInfo(record);
@@ -271,25 +294,14 @@ public sealed class SndbObjectStore
     /// </summary>
     public SndbObjectVersionListResult ListObjectVersions(string bucket, string? key = null)
     {
-        EnsureBucket(bucket);
-        if (!string.IsNullOrWhiteSpace(key))
-            ValidateObjectKey(key);
+        var records = LoadOrderedObjectVersionRecords(bucket, key);
+        var versions = new SndbObjectInfo[records.Length];
+        for (int index = 0; index < records.Length; index++)
+            versions[index] = ToInfo(records[index]);
 
-        string prefix = string.IsNullOrWhiteSpace(key)
-            ? ObjectBucketPrefix(bucket)
-            : ObjectKeyPrefix(bucket, key);
-        var versions = _metadata.ScanPrefix(prefix, limit: int.MaxValue)
-            .Select(entry => Deserialize(entry.Value.Span, SndbObjectStoreJsonContext.Default.SndbObjectRecord))
-            .OrderBy(static record => record.Key, StringComparer.Ordinal)
-            .ThenByDescending(static record => record.CreatedUtc)
-            .Select(ToInfo)
-            .ToArray();
-
-        AppendAudit("object.versions.list", bucket, string.IsNullOrWhiteSpace(key) ? null : key, null, new Dictionary<string, string>
-        {
-            ["count"] = versions.Length.ToString(System.Globalization.CultureInfo.InvariantCulture),
-        });
-        return new SndbObjectVersionListResult(bucket, string.IsNullOrWhiteSpace(key) ? null : key, versions);
+        string? normalizedKey = string.IsNullOrWhiteSpace(key) ? null : key;
+        AppendObjectVersionsListAudit(bucket, normalizedKey, versions.Length);
+        return new SndbObjectVersionListResult(bucket, normalizedKey, versions);
     }
 
     /// <summary>
@@ -378,31 +390,34 @@ public sealed class SndbObjectStore
     /// </summary>
     public SndbObjectInfo DeleteObject(string bucket, string key)
     {
-        EnsureBucket(bucket);
         ValidateObjectKey(key);
-        var existing = LoadObjectRecord(bucket, key);
-        if (existing is { IsDeleteMarker: false })
-            EnsureObjectVersionCanBeDeleted(existing, isLatest: true);
+        var bucketMutation = GetBucketMutationState(bucket);
+        lock (bucketMutation.Gate)
+        {
+            EnsureBucket(bucket);
+            var existing = LoadObjectRecord(bucket, key);
+            if (existing is { IsDeleteMarker: false })
+                EnsureObjectVersionCanBeDeleted(existing, isLatest: true);
 
-        var now = DateTimeOffset.UtcNow;
-        var record = new SndbObjectRecord(
-            bucket,
-            key,
-            CreateVersionId(),
-            "application/x-sonnetdb-delete-marker",
-            0,
-            "\"delete-marker\"",
-            new string('0', 64),
-            string.Empty,
-            IsDeleteMarker: true,
-            now,
-            now,
-            [],
-            []);
+            var now = bucketMutation.GetNextVersionTimestamp();
+            var record = new SndbObjectRecord(
+                bucket,
+                key,
+                CreateVersionId(),
+                "application/x-sonnetdb-delete-marker",
+                0,
+                "\"delete-marker\"",
+                new string('0', 64),
+                string.Empty,
+                IsDeleteMarker: true,
+                now,
+                now,
+                [],
+                []);
 
-        PersistObjectRecord(record);
-        AppendAudit("object.delete_marker", bucket, key, record.VersionId);
-        return ToInfo(record);
+            PersistObjectRecord(record, CreateAuditRecord("object.delete_marker", bucket, key, record.VersionId));
+            return ToInfo(record);
+        }
     }
 
     /// <summary>
@@ -415,30 +430,35 @@ public sealed class SndbObjectStore
         if (keys.Count == 0)
             return new SndbObjectDeleteManyResult(bucket, []);
 
-        var deleted = new List<SndbObjectDeleteResult>(keys.Count);
-        foreach (string key in keys)
+        var bucketMutation = GetBucketMutationState(bucket);
+        lock (bucketMutation.Gate)
         {
-            try
+            EnsureBucket(bucket);
+            var deleted = new List<SndbObjectDeleteResult>(keys.Count);
+            foreach (string key in keys)
             {
-                var marker = DeleteObject(bucket, key);
-                deleted.Add(new SndbObjectDeleteResult(key, marker.VersionId, DeleteMarker: true));
+                try
+                {
+                    var marker = DeleteObject(bucket, key);
+                    deleted.Add(new SndbObjectDeleteResult(key, marker.VersionId, DeleteMarker: true));
+                }
+                catch (Exception ex) when (ex is ArgumentException or SndbObjectStorageException)
+                {
+                    deleted.Add(new SndbObjectDeleteResult(
+                        key,
+                        string.Empty,
+                        DeleteMarker: false,
+                        ex is SndbObjectStorageException storage ? storage.Code : "bad_request",
+                        ex.Message));
+                }
             }
-            catch (Exception ex) when (ex is ArgumentException or SndbObjectStorageException)
-            {
-                deleted.Add(new SndbObjectDeleteResult(
-                    key,
-                    string.Empty,
-                    DeleteMarker: false,
-                    ex is SndbObjectStorageException storage ? storage.Code : "bad_request",
-                    ex.Message));
-            }
-        }
 
-        AppendAudit("object.delete_many", bucket, null, null, new Dictionary<string, string>
-        {
-            ["count"] = deleted.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
-        });
-        return new SndbObjectDeleteManyResult(bucket, deleted);
+            AppendAudit("object.delete_many", bucket, null, null, new Dictionary<string, string>
+            {
+                ["count"] = deleted.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            });
+            return new SndbObjectDeleteManyResult(bucket, deleted);
+        }
     }
 
     /// <summary>
@@ -446,18 +466,23 @@ public sealed class SndbObjectStore
     /// </summary>
     public SndbObjectInfo SetObjectTags(string bucket, string key, IReadOnlyDictionary<string, string> tags)
     {
-        EnsureBucket(bucket);
         ValidateObjectKey(key);
         ArgumentNullException.ThrowIfNull(tags);
-        var record = LoadObjectRecord(bucket, key)
-            ?? throw new SndbObjectStorageException("object_not_found", $"Object '{bucket}/{key}' was not found.");
-        if (record.IsDeleteMarker)
-            throw new SndbObjectStorageException("object_not_found", $"Object '{bucket}/{key}' was deleted.");
+        var bucketMutation = GetBucketMutationState(bucket);
+        lock (bucketMutation.Gate)
+        {
+            EnsureBucket(bucket);
+            var record = LoadObjectRecord(bucket, key)
+                ?? throw new SndbObjectStorageException("object_not_found", $"Object '{bucket}/{key}' was not found.");
+            if (record.IsDeleteMarker)
+                throw new SndbObjectStorageException("object_not_found", $"Object '{bucket}/{key}' was deleted.");
 
-        var updated = record with { Tags = NormalizeMap(tags), UpdatedUtc = DateTimeOffset.UtcNow };
-        PersistObjectRecord(updated);
-        AppendAudit("object.tags.set", bucket, key, updated.VersionId, updated.Tags);
-        return ToInfo(updated);
+            var updated = record with { Tags = NormalizeMap(tags), UpdatedUtc = DateTimeOffset.UtcNow };
+            // 标签更新只覆盖既有版本，不能把并发 delete marker 回退为旧的 latest 指针。
+            PersistObjectRecord(updated, updateLatest: false);
+            AppendAudit("object.tags.set", bucket, key, updated.VersionId, updated.Tags);
+            return ToInfo(updated);
+        }
     }
 
     /// <summary>
@@ -479,23 +504,27 @@ public sealed class SndbObjectStore
     /// </summary>
     public SndbBucketPolicyInfo SetPolicy(string bucket, string? policyJson)
     {
-        EnsureBucket(bucket);
         string? normalizedPolicy = NormalizePolicyJson(policyJson);
-        var now = DateTimeOffset.UtcNow;
-        var record = new SndbBucketPolicyRecord(bucket, normalizedPolicy, now);
-
-        if (normalizedPolicy is null)
+        var bucketMutation = GetBucketMutationState(bucket);
+        lock (bucketMutation.Gate)
         {
-            _metadata.Delete(PolicyKey(bucket));
-            AppendAudit("bucket.policy.clear", bucket, null, null);
-        }
-        else
-        {
-            _metadata.Put(PolicyKey(bucket), Serialize(record, SndbObjectStoreJsonContext.Default.SndbBucketPolicyRecord));
-            AppendAudit("bucket.policy.set", bucket, null, null);
-        }
+            EnsureBucket(bucket);
+            var now = DateTimeOffset.UtcNow;
+            var record = new SndbBucketPolicyRecord(bucket, normalizedPolicy, now);
 
-        return new SndbBucketPolicyInfo(bucket, normalizedPolicy, now);
+            if (normalizedPolicy is null)
+            {
+                _metadata.Delete(PolicyKey(bucket));
+                AppendAudit("bucket.policy.clear", bucket, null, null);
+            }
+            else
+            {
+                _metadata.Put(PolicyKey(bucket), Serialize(record, SndbObjectStoreJsonContext.Default.SndbBucketPolicyRecord));
+                AppendAudit("bucket.policy.set", bucket, null, null);
+            }
+
+            return new SndbBucketPolicyInfo(bucket, normalizedPolicy, now);
+        }
     }
 
     /// <summary>
@@ -523,25 +552,28 @@ public sealed class SndbObjectStore
         int? expireNoncurrentAfterDays,
         int? expireDeleteMarkerAfterDays)
     {
-        EnsureBucket(bucket);
         ValidateLifecycleDays(expireCurrentAfterDays);
         ValidateLifecycleDays(expireNoncurrentAfterDays);
         ValidateLifecycleDays(expireDeleteMarkerAfterDays);
-
-        var record = new SndbBucketLifecycleRecord(
-            bucket,
-            expireCurrentAfterDays,
-            expireNoncurrentAfterDays,
-            expireDeleteMarkerAfterDays,
-            DateTimeOffset.UtcNow);
-        _metadata.Put(LifecycleKey(bucket), Serialize(record, SndbObjectStoreJsonContext.Default.SndbBucketLifecycleRecord));
-        AppendAudit("bucket.lifecycle.set", bucket, null, null, new Dictionary<string, string>
+        var bucketMutation = GetBucketMutationState(bucket);
+        lock (bucketMutation.Gate)
         {
-            ["expireCurrentAfterDays"] = expireCurrentAfterDays?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
-            ["expireNoncurrentAfterDays"] = expireNoncurrentAfterDays?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
-            ["expireDeleteMarkerAfterDays"] = expireDeleteMarkerAfterDays?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
-        });
-        return ToLifecycleInfo(record);
+            EnsureBucket(bucket);
+            var record = new SndbBucketLifecycleRecord(
+                bucket,
+                expireCurrentAfterDays,
+                expireNoncurrentAfterDays,
+                expireDeleteMarkerAfterDays,
+                DateTimeOffset.UtcNow);
+            _metadata.Put(LifecycleKey(bucket), Serialize(record, SndbObjectStoreJsonContext.Default.SndbBucketLifecycleRecord));
+            AppendAudit("bucket.lifecycle.set", bucket, null, null, new Dictionary<string, string>
+            {
+                ["expireCurrentAfterDays"] = expireCurrentAfterDays?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
+                ["expireNoncurrentAfterDays"] = expireNoncurrentAfterDays?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
+                ["expireDeleteMarkerAfterDays"] = expireDeleteMarkerAfterDays?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
+            });
+            return ToLifecycleInfo(record);
+        }
     }
 
     /// <summary>
@@ -549,76 +581,96 @@ public sealed class SndbObjectStore
     /// </summary>
     public SndbBucketLifecycleApplyResult ApplyLifecycle(string bucket)
     {
-        EnsureBucket(bucket);
-        var lifecycle = GetLifecycle(bucket);
-        var versions = ListObjectVersions(bucket).Versions
-            .OrderBy(static version => version.Key, StringComparer.Ordinal)
-            .ThenByDescending(static version => version.CreatedUtc)
-            .ToArray();
-
-        var latestByKey = versions
-            .GroupBy(static version => version.Key, StringComparer.Ordinal)
-            .ToDictionary(static group => group.Key, static group => group.First().VersionId, StringComparer.Ordinal);
-
-        int expiredCurrent = 0;
-        int removedNoncurrent = 0;
-        int removedDeleteMarkers = 0;
-        var expiredObjects = new List<SndbLifecycleExpiredObject>();
-        foreach (var version in versions)
+        var bucketMutation = GetBucketMutationState(bucket);
+        lock (bucketMutation.Gate)
         {
-            bool isLatest = latestByKey.TryGetValue(version.Key, out string? latestVersion)
-                && string.Equals(latestVersion, version.VersionId, StringComparison.Ordinal);
+            EnsureBucket(bucket);
+            var lifecycle = GetLifecycle(bucket);
+            var versions = LoadObjectVersionRecords(bucket, key: null);
+            var latestVersionByKey = LoadLatestObjectVersionIds(bucket);
+            AppendObjectVersionsListAudit(bucket, key: null, versions.Length);
 
-            if (version.IsDeleteMarker)
+            var versionsByKey = new Dictionary<string, List<SndbObjectRecord>>(StringComparer.Ordinal);
+            foreach (var version in versions)
             {
-                if (ShouldExpire(version.CreatedUtc, lifecycle.ExpireDeleteMarkerAfterDays))
+                if (!versionsByKey.TryGetValue(version.Key, out var keyVersions))
                 {
-                    if (IsObjectVersionProtected(bucket, version.Key, version.VersionId, isLatest))
-                        continue;
-
-                    RemoveObjectVersion(bucket, version.Key, version.VersionId);
-                    removedDeleteMarkers++;
+                    keyVersions = [];
+                    versionsByKey.Add(version.Key, keyVersions);
                 }
-                continue;
+                keyVersions.Add(version);
             }
 
-            if (isLatest)
+            int expiredCurrent = 0;
+            int removedNoncurrent = 0;
+            int removedDeleteMarkers = 0;
+            var expiredObjects = new List<SndbLifecycleExpiredObject>();
+            var removalsByKey = new Dictionary<string, List<SndbObjectRecord>>(StringComparer.Ordinal);
+            var keysWithNewDeleteMarker = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var version in versions)
             {
-                if (ShouldExpire(version.CreatedUtc, lifecycle.ExpireCurrentAfterDays))
+                // 生命周期的当前/非当前分类以扫描开始时的 latest 指针为准，不能从时间戳排序推断。
+                bool isLatest = latestVersionByKey.TryGetValue(version.Key, out string? latestVersionId)
+                    && string.Equals(latestVersionId, version.VersionId, StringComparison.Ordinal);
+
+                if (version.IsDeleteMarker)
                 {
-                    if (IsObjectVersionProtected(bucket, version.Key, version.VersionId, isLatest))
-                        continue;
-
-                    DeleteObject(bucket, version.Key);
-                    expiredObjects.Add(new SndbLifecycleExpiredObject(
-                        version.Key,
-                        version.VersionId,
-                        version.ContentType));
-                    expiredCurrent++;
-                }
-                continue;
-            }
-
-            if (ShouldExpire(version.CreatedUtc, lifecycle.ExpireNoncurrentAfterDays))
-            {
-                if (IsObjectVersionProtected(bucket, version.Key, version.VersionId, isLatest))
+                    if (ShouldExpire(version.CreatedUtc, lifecycle.ExpireDeleteMarkerAfterDays)
+                        && !IsObjectVersionProtected(version, isLatest, out _, out _))
+                    {
+                        AddLifecycleRemoval(removalsByKey, version);
+                        removedDeleteMarkers++;
+                    }
                     continue;
+                }
 
-                RemoveObjectVersion(bucket, version.Key, version.VersionId);
-                removedNoncurrent++;
+                if (isLatest)
+                {
+                    if (ShouldExpire(version.CreatedUtc, lifecycle.ExpireCurrentAfterDays)
+                        && !IsObjectVersionProtected(version, isLatest, out _, out _))
+                    {
+                        DeleteObject(bucket, version.Key);
+                        keysWithNewDeleteMarker.Add(version.Key);
+                        expiredObjects.Add(new SndbLifecycleExpiredObject(
+                            version.Key,
+                            version.VersionId,
+                            version.ContentType));
+                        expiredCurrent++;
+                    }
+                    continue;
+                }
+
+                if (ShouldExpire(version.CreatedUtc, lifecycle.ExpireNoncurrentAfterDays)
+                    && !IsObjectVersionProtected(version, isLatest, out _, out _))
+                {
+                    AddLifecycleRemoval(removalsByKey, version);
+                    removedNoncurrent++;
+                }
             }
-        }
 
-        AppendAudit("bucket.lifecycle.apply", bucket, null, null, new Dictionary<string, string>
-        {
-            ["expiredCurrentObjects"] = expiredCurrent.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            ["removedNoncurrentVersions"] = removedNoncurrent.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            ["removedDeleteMarkers"] = removedDeleteMarkers.ToString(System.Globalization.CultureInfo.InvariantCulture),
-        });
-        return new SndbBucketLifecycleApplyResult(bucket, expiredCurrent, removedNoncurrent, removedDeleteMarkers)
-        {
-            ExpiredObjects = expiredObjects,
-        };
+            // 每个 key 只提交一次删除批次；不再在每次删版本后重复扫描该 key 的全部历史。
+            foreach (var (key, removals) in removalsByKey)
+            {
+                RemoveObjectVersionsForLifecycle(
+                    bucket,
+                    key,
+                    versionsByKey[key],
+                    removals,
+                    latestVersionByKey.GetValueOrDefault(key),
+                    keysWithNewDeleteMarker.Contains(key));
+            }
+
+            AppendAudit("bucket.lifecycle.apply", bucket, null, null, new Dictionary<string, string>
+            {
+                ["expiredCurrentObjects"] = expiredCurrent.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["removedNoncurrentVersions"] = removedNoncurrent.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["removedDeleteMarkers"] = removedDeleteMarkers.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            });
+            return new SndbBucketLifecycleApplyResult(bucket, expiredCurrent, removedNoncurrent, removedDeleteMarkers)
+            {
+                ExpiredObjects = expiredObjects,
+            };
+        }
     }
 
     /// <summary>
@@ -643,22 +695,25 @@ public sealed class SndbObjectStore
         int? retainCurrentForDays,
         int? retainNoncurrentForDays)
     {
-        EnsureBucket(bucket);
         ValidateLifecycleDays(retainCurrentForDays);
         ValidateLifecycleDays(retainNoncurrentForDays);
-
-        var record = new SndbBucketRetentionRecord(
-            bucket,
-            retainCurrentForDays,
-            retainNoncurrentForDays,
-            DateTimeOffset.UtcNow);
-        _metadata.Put(RetentionKey(bucket), Serialize(record, SndbObjectStoreJsonContext.Default.SndbBucketRetentionRecord));
-        AppendAudit("bucket.retention.set", bucket, null, null, new Dictionary<string, string>
+        var bucketMutation = GetBucketMutationState(bucket);
+        lock (bucketMutation.Gate)
         {
-            ["retainCurrentForDays"] = retainCurrentForDays?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
-            ["retainNoncurrentForDays"] = retainNoncurrentForDays?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
-        });
-        return ToRetentionInfo(record);
+            EnsureBucket(bucket);
+            var record = new SndbBucketRetentionRecord(
+                bucket,
+                retainCurrentForDays,
+                retainNoncurrentForDays,
+                DateTimeOffset.UtcNow);
+            _metadata.Put(RetentionKey(bucket), Serialize(record, SndbObjectStoreJsonContext.Default.SndbBucketRetentionRecord));
+            AppendAudit("bucket.retention.set", bucket, null, null, new Dictionary<string, string>
+            {
+                ["retainCurrentForDays"] = retainCurrentForDays?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
+                ["retainNoncurrentForDays"] = retainNoncurrentForDays?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
+            });
+            return ToRetentionInfo(record);
+        }
     }
 
     /// <summary>
@@ -680,18 +735,21 @@ public sealed class SndbObjectStore
     /// </summary>
     public SndbBucketQuotaInfo SetQuota(string bucket, long? maxSizeBytes, long? maxObjectVersions)
     {
-        EnsureBucket(bucket);
         ValidateQuota(maxSizeBytes, nameof(maxSizeBytes));
         ValidateQuota(maxObjectVersions, nameof(maxObjectVersions));
-
-        var record = new SndbBucketQuotaRecord(bucket, maxSizeBytes, maxObjectVersions, DateTimeOffset.UtcNow);
-        _metadata.Put(QuotaKey(bucket), Serialize(record, SndbObjectStoreJsonContext.Default.SndbBucketQuotaRecord));
-        AppendAudit("bucket.quota.set", bucket, null, null, new Dictionary<string, string>
+        var bucketMutation = GetBucketMutationState(bucket);
+        lock (bucketMutation.Gate)
         {
-            ["maxSizeBytes"] = maxSizeBytes?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
-            ["maxObjectVersions"] = maxObjectVersions?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
-        });
-        return ToQuotaInfo(record);
+            EnsureBucket(bucket);
+            var record = new SndbBucketQuotaRecord(bucket, maxSizeBytes, maxObjectVersions, DateTimeOffset.UtcNow);
+            _metadata.Put(QuotaKey(bucket), Serialize(record, SndbObjectStoreJsonContext.Default.SndbBucketQuotaRecord));
+            AppendAudit("bucket.quota.set", bucket, null, null, new Dictionary<string, string>
+            {
+                ["maxSizeBytes"] = maxSizeBytes?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
+                ["maxObjectVersions"] = maxObjectVersions?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "",
+            });
+            return ToQuotaInfo(record);
+        }
     }
 
     /// <summary>
@@ -730,32 +788,35 @@ public sealed class SndbObjectStore
         int thumbnailMaxHeight,
         int thumbnailQuality)
     {
-        EnsureBucket(bucket);
         ValidateThumbnailDimension(thumbnailMaxWidth, nameof(thumbnailMaxWidth));
         ValidateThumbnailDimension(thumbnailMaxHeight, nameof(thumbnailMaxHeight));
         if (thumbnailQuality is < 1 or > 100)
             throw new ArgumentOutOfRangeException(nameof(thumbnailQuality), "缩略图质量必须位于 1 到 100。");
-
-        var record = new SndbBucketSemanticOptionsRecord(
-            bucket,
-            asyncIngestionEnabled,
-            thumbnailEnabled,
-            thumbnailMaxWidth,
-            thumbnailMaxHeight,
-            thumbnailQuality,
-            DateTimeOffset.UtcNow);
-        _metadata.Put(
-            SemanticOptionsKey(bucket),
-            Serialize(record, SndbObjectStoreJsonContext.Default.SndbBucketSemanticOptionsRecord));
-        AppendAudit("bucket.semantic_options.set", bucket, null, null, new Dictionary<string, string>
+        var bucketMutation = GetBucketMutationState(bucket);
+        lock (bucketMutation.Gate)
         {
-            ["asyncIngestionEnabled"] = asyncIngestionEnabled ? "true" : "false",
-            ["thumbnailEnabled"] = thumbnailEnabled ? "true" : "false",
-            ["thumbnailMaxWidth"] = thumbnailMaxWidth.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            ["thumbnailMaxHeight"] = thumbnailMaxHeight.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            ["thumbnailQuality"] = thumbnailQuality.ToString(System.Globalization.CultureInfo.InvariantCulture),
-        });
-        return ToSemanticOptionsInfo(record);
+            EnsureBucket(bucket);
+            var record = new SndbBucketSemanticOptionsRecord(
+                bucket,
+                asyncIngestionEnabled,
+                thumbnailEnabled,
+                thumbnailMaxWidth,
+                thumbnailMaxHeight,
+                thumbnailQuality,
+                DateTimeOffset.UtcNow);
+            _metadata.Put(
+                SemanticOptionsKey(bucket),
+                Serialize(record, SndbObjectStoreJsonContext.Default.SndbBucketSemanticOptionsRecord));
+            AppendAudit("bucket.semantic_options.set", bucket, null, null, new Dictionary<string, string>
+            {
+                ["asyncIngestionEnabled"] = asyncIngestionEnabled ? "true" : "false",
+                ["thumbnailEnabled"] = thumbnailEnabled ? "true" : "false",
+                ["thumbnailMaxWidth"] = thumbnailMaxWidth.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["thumbnailMaxHeight"] = thumbnailMaxHeight.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["thumbnailQuality"] = thumbnailQuality.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            });
+            return ToSemanticOptionsInfo(record);
+        }
     }
 
     /// <summary>
@@ -808,20 +869,24 @@ public sealed class SndbObjectStore
     /// </summary>
     public SndbObjectLegalHoldInfo SetLegalHold(string bucket, string key, bool enabled, string? reason = null, string? versionId = null)
     {
-        var record = ResolveExistingObjectVersion(bucket, key, versionId);
-        var hold = new SndbObjectLegalHoldRecord(
-            record.Bucket,
-            record.Key,
-            record.VersionId,
-            enabled,
-            NormalizeReason(reason),
-            DateTimeOffset.UtcNow);
-        _metadata.Put(LegalHoldKey(record.Bucket, record.Key, record.VersionId), Serialize(hold, SndbObjectStoreJsonContext.Default.SndbObjectLegalHoldRecord));
-        AppendAudit(enabled ? "object.legal_hold.enable" : "object.legal_hold.disable", record.Bucket, record.Key, record.VersionId, new Dictionary<string, string>
+        var bucketMutation = GetBucketMutationState(bucket);
+        lock (bucketMutation.Gate)
         {
-            ["reason"] = hold.Reason ?? "",
-        });
-        return ToLegalHoldInfo(hold);
+            var record = ResolveExistingObjectVersion(bucket, key, versionId);
+            var hold = new SndbObjectLegalHoldRecord(
+                record.Bucket,
+                record.Key,
+                record.VersionId,
+                enabled,
+                NormalizeReason(reason),
+                DateTimeOffset.UtcNow);
+            _metadata.Put(LegalHoldKey(record.Bucket, record.Key, record.VersionId), Serialize(hold, SndbObjectStoreJsonContext.Default.SndbObjectLegalHoldRecord));
+            AppendAudit(enabled ? "object.legal_hold.enable" : "object.legal_hold.disable", record.Bucket, record.Key, record.VersionId, new Dictionary<string, string>
+            {
+                ["reason"] = hold.Reason ?? "",
+            });
+            return ToLegalHoldInfo(hold);
+        }
     }
 
     /// <summary>
@@ -868,24 +933,28 @@ public sealed class SndbObjectStore
         IReadOnlyDictionary<string, string>? tags = null,
         TimeSpan? expiresAfter = null)
     {
-        EnsureBucket(bucket);
         ValidateObjectKey(key);
-        string uploadId = "mpu_" + Guid.NewGuid().ToString("N");
-        var now = DateTimeOffset.UtcNow;
-        var record = new SndbMultipartUploadRecord(
-            bucket,
-            key,
-            uploadId,
-            NormalizeContentType(contentType),
-            now,
-            now.Add(expiresAfter ?? TimeSpan.FromHours(24)),
-            Active,
-            NormalizeMap(metadata),
-            NormalizeMap(tags));
+        var bucketMutation = GetBucketMutationState(bucket);
+        lock (bucketMutation.Gate)
+        {
+            EnsureBucket(bucket);
+            string uploadId = "mpu_" + Guid.NewGuid().ToString("N");
+            var now = DateTimeOffset.UtcNow;
+            var record = new SndbMultipartUploadRecord(
+                bucket,
+                key,
+                uploadId,
+                NormalizeContentType(contentType),
+                now,
+                now.Add(expiresAfter ?? TimeSpan.FromHours(24)),
+                Active,
+                NormalizeMap(metadata),
+                NormalizeMap(tags));
 
-        _metadata.Put(UploadKey(uploadId), Serialize(record, SndbObjectStoreJsonContext.Default.SndbMultipartUploadRecord));
-        AppendAudit("multipart.initiate", bucket, key, null, new Dictionary<string, string> { ["uploadId"] = uploadId });
-        return ToUploadInfo(record);
+            _metadata.Put(UploadKey(uploadId), Serialize(record, SndbObjectStoreJsonContext.Default.SndbMultipartUploadRecord));
+            AppendAudit("multipart.initiate", bucket, key, null, new Dictionary<string, string> { ["uploadId"] = uploadId });
+            return ToUploadInfo(record);
+        }
     }
 
     /// <summary>
@@ -950,37 +1019,59 @@ public sealed class SndbObjectStore
         Stream content,
         CancellationToken cancellationToken = default)
     {
-        var upload = LoadUpload(uploadId);
-        EnsureActiveUpload(upload);
+        var initialUpload = LoadUpload(uploadId);
+        EnsureActiveUpload(initialUpload);
         if (partNumber is < 1 or > 10_000)
             throw new ArgumentOutOfRangeException(nameof(partNumber), "Part number must be between 1 and 10000.");
         ArgumentNullException.ThrowIfNull(content);
 
-        var existingPart = LoadPart(upload.UploadId, partNumber);
-        string storagePath = BuildMultipartStoragePath(upload.Bucket, upload.UploadId, partNumber, CreateVersionId());
-        Directory.CreateDirectory(Path.GetDirectoryName(storagePath)!);
-        var (size, etag, sha256) = await WriteContentAndHashAsync(content, storagePath, cancellationToken).ConfigureAwait(false);
+        var bucketMutation = GetBucketMutationState(initialUpload.Bucket);
+        string storagePath = BuildMultipartStoragePath(initialUpload.Bucket, initialUpload.UploadId, partNumber, CreateVersionId());
+        string partDirectory = Path.GetDirectoryName(storagePath)!;
+        Directory.CreateDirectory(partDirectory);
+        bool partPublished = false;
         try
         {
-            EnsureQuotaAllowsDelta(upload.Bucket, size - (existingPart?.SizeBytes ?? 0), additionalObjectVersions: 0);
+            var (size, etag, sha256) = await WriteContentAndHashAsync(content, storagePath, cancellationToken).ConfigureAwait(false);
+            string? replacedStoragePath;
+            lock (bucketMutation.Gate)
+            {
+                // 正文写入期间会话或 bucket 可能变化，发布前必须重新读取并校验。
+                var upload = LoadUpload(uploadId);
+                EnsureActiveUpload(upload);
+                EnsureBucket(upload.Bucket);
+                var existingPart = LoadPart(upload.UploadId, partNumber);
+                EnsureQuotaAllowsDelta(upload.Bucket, size - (existingPart?.SizeBytes ?? 0), additionalObjectVersions: 0);
+
+                var record = new SndbMultipartPartRecord(upload.UploadId, partNumber, size, etag, sha256, ToRelativeStoragePath(storagePath), DateTimeOffset.UtcNow);
+                // 正文和目录项必须先于 KV 元数据持久化，避免掉电后留下可见分片但正文缺失。
+                SonnetDB.Wal.DirectoryFsync.FlushRequired(partDirectory);
+                _metadata.Put(PartKey(upload.UploadId, partNumber), Serialize(record, SndbObjectStoreJsonContext.Default.SndbMultipartPartRecord));
+                partPublished = true;
+                replacedStoragePath = existingPart?.StoragePath;
+                AppendAudit("multipart.part.put", upload.Bucket, upload.Key, null, new Dictionary<string, string>
+                {
+                    ["uploadId"] = upload.UploadId,
+                    ["partNumber"] = partNumber.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    ["sizeBytes"] = size.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                });
+            }
+
+            // 新分片发布后，旧正文已经不可见；回收失败最多留下孤儿文件，无需继续占用 bucket gate。
+            if (replacedStoragePath is not null)
+                TryDeleteStorageFile(replacedStoragePath);
+            return new SndbMultipartPartInfo(partNumber, size, etag, sha256);
         }
-        catch
+        catch (Exception ex)
         {
-            TryDeleteFile(storagePath);
+            // 分片元数据提交结果不确定时保留正文，供重启恢复已提交的元数据引用。
+            if (!partPublished && !_metadata.IsWriteCommitOutcomeUnknown(ex))
+            {
+                TryDeleteFile(storagePath);
+                SonnetDB.Wal.DirectoryFsync.FlushBestEffort(partDirectory);
+            }
             throw;
         }
-
-        var record = new SndbMultipartPartRecord(upload.UploadId, partNumber, size, etag, sha256, ToRelativeStoragePath(storagePath), DateTimeOffset.UtcNow);
-        if (existingPart is not null)
-            TryDeleteFile(ResolveStoragePath(existingPart.StoragePath));
-        _metadata.Put(PartKey(upload.UploadId, partNumber), Serialize(record, SndbObjectStoreJsonContext.Default.SndbMultipartPartRecord));
-        AppendAudit("multipart.part.put", upload.Bucket, upload.Key, null, new Dictionary<string, string>
-        {
-            ["uploadId"] = upload.UploadId,
-            ["partNumber"] = partNumber.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            ["sizeBytes"] = size.ToString(System.Globalization.CultureInfo.InvariantCulture),
-        });
-        return new SndbMultipartPartInfo(partNumber, size, etag, sha256);
     }
 
     /// <summary>
@@ -991,67 +1082,142 @@ public sealed class SndbObjectStore
         IReadOnlyList<int> partNumbers,
         CancellationToken cancellationToken = default)
     {
-        var upload = LoadUpload(uploadId);
-        EnsureActiveUpload(upload);
+        var initialUpload = LoadUpload(uploadId);
+        EnsureActiveUpload(initialUpload);
         ArgumentNullException.ThrowIfNull(partNumbers);
         if (partNumbers.Count == 0)
             throw new SndbObjectStorageException("multipart_parts_required", "At least one multipart part is required.");
 
+        int[] requestedPartNumbers = partNumbers.Distinct().Order().ToArray();
         string versionId = CreateVersionId();
-        string storagePath = BuildObjectStoragePath(upload.Bucket, upload.Key, versionId);
-        Directory.CreateDirectory(Path.GetDirectoryName(storagePath)!);
-        var allParts = _metadata.ScanPrefix(PartPrefix + upload.UploadId + ":", limit: int.MaxValue)
-            .Select(entry => Deserialize(entry.Value.Span, SndbObjectStoreJsonContext.Default.SndbMultipartPartRecord))
-            .ToArray();
-        var selectedParts = partNumbers.Distinct().Order()
-            .Select(partNumber => allParts.FirstOrDefault(item => item.PartNumber == partNumber)
-                ?? throw new SndbObjectStorageException("multipart_part_not_found", $"Multipart part {partNumber} was not found."))
-            .ToArray();
-
-        await using (var output = File.Create(storagePath))
+        string storagePath = BuildObjectStoragePath(initialUpload.Bucket, initialUpload.Key, versionId);
+        string storageDirectory = Path.GetDirectoryName(storagePath)!;
+        string temporaryPath = Path.Combine(
+            storageDirectory,
+            $".{Path.GetFileName(storagePath)}.{Guid.NewGuid():N}.tmp");
+        var initialPartEntries = _metadata.ScanPrefix(PartPrefix + initialUpload.UploadId + ":", limit: int.MaxValue);
+        var initialPartsByNumber = new Dictionary<int, SndbMultipartPartRecord>(initialPartEntries.Count);
+        foreach (var entry in initialPartEntries)
         {
-            foreach (var part in selectedParts)
-            {
-                await using var input = File.OpenRead(ResolveStoragePath(part.StoragePath));
-                await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
-            }
+            var part = Deserialize(entry.Value.Span, SndbObjectStoreJsonContext.Default.SndbMultipartPartRecord);
+            initialPartsByNumber.TryAdd(part.PartNumber, part);
         }
 
-        var (size, etag, sha256) = await HashFileAsync(storagePath, cancellationToken).ConfigureAwait(false);
+        var selectedInitialParts = new SndbMultipartPartRecord[requestedPartNumbers.Length];
+        for (int index = 0; index < requestedPartNumbers.Length; index++)
+        {
+            int partNumber = requestedPartNumbers[index];
+            if (!initialPartsByNumber.TryGetValue(partNumber, out SndbMultipartPartRecord? part))
+                throw new SndbObjectStorageException("multipart_part_not_found", $"Multipart part {partNumber} was not found.");
+            selectedInitialParts[index] = part;
+        }
+
+        SndbObjectRecord record;
+        SndbMultipartPartRecord[] publishedParts = [];
+        bool finalFileMoved = false;
+        bool metadataPublished = false;
+        var bucketMutation = GetBucketMutationState(initialUpload.Bucket);
         try
         {
-            EnsureQuotaAllowsDelta(upload.Bucket, size - allParts.Sum(static part => part.SizeBytes), additionalObjectVersions: 1);
+            Directory.CreateDirectory(storageDirectory);
+            // 合并时同步计算摘要并强制正文落盘，避免二次读取和元数据先于内容持久化。
+            var (size, etag, sha256) = await MergeMultipartPartsAsync(
+                selectedInitialParts,
+                temporaryPath,
+                cancellationToken).ConfigureAwait(false);
+            lock (bucketMutation.Gate)
+            {
+                // 合并正文时允许分片继续上传，提交前确认读取到的分片路径仍是当前版本。
+                var upload = LoadUpload(uploadId);
+                EnsureActiveUpload(upload);
+                EnsureBucket(upload.Bucket);
+                var currentParts = _metadata.ScanPrefix(PartPrefix + upload.UploadId + ":", limit: int.MaxValue)
+                    .Select(entry => Deserialize(entry.Value.Span, SndbObjectStoreJsonContext.Default.SndbMultipartPartRecord))
+                    .ToArray();
+                var currentPartsByNumber = new Dictionary<int, SndbMultipartPartRecord>(currentParts.Length);
+                foreach (var part in currentParts)
+                    currentPartsByNumber.TryAdd(part.PartNumber, part);
+
+                var selectedCurrentParts = new SndbMultipartPartRecord[requestedPartNumbers.Length];
+                for (int index = 0; index < requestedPartNumbers.Length; index++)
+                {
+                    int partNumber = requestedPartNumbers[index];
+                    if (!currentPartsByNumber.TryGetValue(partNumber, out SndbMultipartPartRecord? part))
+                        throw new SndbObjectStorageException("multipart_part_not_found", $"Multipart part {partNumber} was not found.");
+                    selectedCurrentParts[index] = part;
+                }
+
+                for (int index = 0; index < selectedInitialParts.Length; index++)
+                {
+                    if (!string.Equals(
+                        selectedInitialParts[index].StoragePath,
+                        selectedCurrentParts[index].StoragePath,
+                        StringComparison.Ordinal))
+                    {
+                        throw new SndbObjectStorageException("multipart_parts_changed", "Multipart parts changed while the upload was being completed.");
+                    }
+                }
+
+                EnsureQuotaAllowsDelta(upload.Bucket, size - currentParts.Sum(static part => part.SizeBytes), additionalObjectVersions: 1);
+                cancellationToken.ThrowIfCancellationRequested();
+                File.Move(temporaryPath, storagePath, overwrite: false);
+                finalFileMoved = true;
+                // 与普通 PUT 一致，先持久化最终目录项，再让 KV 元数据引用该正文。
+                SonnetDB.Wal.DirectoryFsync.FlushRequired(storageDirectory);
+
+                var now = bucketMutation.GetNextVersionTimestamp();
+                record = new SndbObjectRecord(
+                    upload.Bucket,
+                    upload.Key,
+                    versionId,
+                    upload.ContentType,
+                    size,
+                    etag,
+                    sha256,
+                    ToRelativeStoragePath(storagePath),
+                    IsDeleteMarker: false,
+                    now,
+                    now,
+                    upload.Metadata,
+                    upload.Tags);
+
+                var audit = CreateAuditRecord("multipart.complete", upload.Bucket, upload.Key, record.VersionId, new Dictionary<string, string>
+                {
+                    ["uploadId"] = upload.UploadId,
+                    ["parts"] = requestedPartNumbers.Length.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                });
+                var mutations = new List<KvBatchMutation>(4 + currentParts.Length);
+                AddObjectRecordMutations(mutations, record, audit);
+                mutations.Add(KvBatchMutation.Put(
+                    Utf8.GetBytes(UploadKey(upload.UploadId)),
+                    Serialize(upload with { Status = Completed }, SndbObjectStoreJsonContext.Default.SndbMultipartUploadRecord)));
+                foreach (var part in currentParts)
+                    mutations.Add(KvBatchMutation.Delete(Utf8.GetBytes(PartKey(upload.UploadId, part.PartNumber))));
+
+                // 对象可见性、upload 状态和分片元数据必须作为一个 WAL record 发布。
+                _metadata.ApplyBatch(mutations);
+                metadataPublished = true;
+                publishedParts = currentParts;
+            }
+
+            // 元数据提交后才回收分片正文；失败最多留下不可见孤儿，不能破坏活动上传。
+            foreach (var part in publishedParts)
+                TryDeleteStorageFile(part.StoragePath);
         }
-        catch
+        catch (Exception ex)
         {
-            TryDeleteFile(storagePath);
+            // WAL 已开始追加时提交结果不确定，保留完整正文供重启恢复。
+            if (finalFileMoved && !metadataPublished && !_metadata.IsWriteCommitOutcomeUnknown(ex))
+            {
+                TryDeleteFile(storagePath);
+                SonnetDB.Wal.DirectoryFsync.FlushBestEffort(storageDirectory);
+            }
             throw;
         }
-
-        var now = DateTimeOffset.UtcNow;
-        var record = new SndbObjectRecord(
-            upload.Bucket,
-            upload.Key,
-            versionId,
-            upload.ContentType,
-            size,
-            etag,
-            sha256,
-            ToRelativeStoragePath(storagePath),
-            IsDeleteMarker: false,
-            now,
-            now,
-            upload.Metadata,
-            upload.Tags);
-
-        PersistObjectRecord(record);
-        _metadata.Put(UploadKey(upload.UploadId), Serialize(upload with { Status = Completed }, SndbObjectStoreJsonContext.Default.SndbMultipartUploadRecord));
-        CleanupParts(upload.UploadId);
-        AppendAudit("multipart.complete", upload.Bucket, upload.Key, record.VersionId, new Dictionary<string, string>
+        finally
         {
-            ["uploadId"] = upload.UploadId,
-            ["parts"] = partNumbers.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
-        });
+            TryDeleteFile(temporaryPath);
+        }
         return ToInfo(record);
     }
 
@@ -1060,13 +1226,21 @@ public sealed class SndbObjectStore
     /// </summary>
     public void AbortMultipartUpload(string uploadId)
     {
-        var upload = LoadUpload(uploadId);
-        if (upload.Status == Completed)
-            throw new SndbObjectStorageException("multipart_already_completed", "Multipart upload has already completed.");
+        var initialUpload = LoadUpload(uploadId);
+        // 持久化 upload 已证明该 bucket 名曾真实存在；删桶重启后仍需允许幂等清理残余分片。
+        var bucketMutation = GetOrCreateBucketMutationState(initialUpload.Bucket);
+        lock (bucketMutation.Gate)
+        {
+            var upload = LoadUpload(uploadId);
+            if (upload.Status == Completed)
+                throw new SndbObjectStorageException("multipart_already_completed", "Multipart upload has already completed.");
 
-        _metadata.Put(UploadKey(upload.UploadId), Serialize(upload with { Status = Aborted }, SndbObjectStoreJsonContext.Default.SndbMultipartUploadRecord));
-        CleanupParts(upload.UploadId);
-        AppendAudit("multipart.abort", upload.Bucket, upload.Key, null, new Dictionary<string, string> { ["uploadId"] = upload.UploadId });
+            _metadata.Put(UploadKey(upload.UploadId), Serialize(upload with { Status = Aborted }, SndbObjectStoreJsonContext.Default.SndbMultipartUploadRecord));
+            AppendAudit("multipart.abort", upload.Bucket, upload.Key, null, new Dictionary<string, string> { ["uploadId"] = upload.UploadId });
+        }
+
+        // 状态提交后上传与完成都会被 gate 内复检拒绝，分片文件回收无需继续阻塞整个 bucket。
+        CleanupParts(uploadId);
     }
 
     /// <summary>
@@ -1079,26 +1253,37 @@ public sealed class SndbObjectStore
         string key,
         TimeSpan expiresAfter)
     {
-        EnsureBucket(bucket);
         ValidateObjectKey(key);
         method = NormalizeMethod(method);
         if (expiresAfter <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(expiresAfter));
-
-        string token = "sop_" + Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
-        string tokenHash = Sha256Hex(Utf8.GetBytes(token));
-        var now = DateTimeOffset.UtcNow;
-        var record = new SndbPresignedTokenRecord(tokenHash, method, bucket, key, now, now.Add(expiresAfter));
-        _metadata.Put(PresignKey(tokenHash), Serialize(record, SndbObjectStoreJsonContext.Default.SndbPresignedTokenRecord), record.ExpiresUtc);
-        AppendAudit("object.presign.create", bucket, key, null, new Dictionary<string, string>
+        var bucketMutation = GetBucketMutationState(bucket);
+        lock (bucketMutation.Gate)
         {
-            ["method"] = method,
-            ["expiresUtc"] = record.ExpiresUtc.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
-        });
+            KvEntry bucketEntry = GetRequiredBucketEntry(bucket);
+            string token = "sop_" + Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
+            string tokenHash = Sha256Hex(Utf8.GetBytes(token));
+            var now = DateTimeOffset.UtcNow;
+            // 令牌绑定 bucket 的 KV 版本，同名 bucket 删除重建后无需枚举令牌即可全部失效。
+            var record = new SndbPresignedTokenRecord(
+                tokenHash,
+                method,
+                bucket,
+                key,
+                now,
+                now.Add(expiresAfter),
+                bucketEntry.Version);
+            _metadata.Put(PresignKey(tokenHash), Serialize(record, SndbObjectStoreJsonContext.Default.SndbPresignedTokenRecord), record.ExpiresUtc);
+            AppendAudit("object.presign.create", bucket, key, null, new Dictionary<string, string>
+            {
+                ["method"] = method,
+                ["expiresUtc"] = record.ExpiresUtc.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+            });
 
-        string separator = baseUrl.Contains('?', StringComparison.Ordinal) ? "&" : "?";
-        string url = baseUrl + separator + "sndb-presigned=" + Uri.EscapeDataString(token);
-        return new SndbPresignedObjectUrl(url, method, bucket, key, record.ExpiresUtc);
+            string separator = baseUrl.Contains('?', StringComparison.Ordinal) ? "&" : "?";
+            string url = baseUrl + separator + "sndb-presigned=" + Uri.EscapeDataString(token);
+            return new SndbPresignedObjectUrl(url, method, bucket, key, record.ExpiresUtc);
+        }
     }
 
     /// <summary>
@@ -1115,7 +1300,15 @@ public sealed class SndbObjectStore
             return false;
 
         var record = Deserialize(entry.Value.Span, SndbObjectStoreJsonContext.Default.SndbPresignedTokenRecord);
-        return record.ExpiresUtc > DateTimeOffset.UtcNow
+        KvEntry? bucketEntry = _metadata.GetEntry(BucketKey(bucket));
+        // 旧记录没有 BucketVersion；同一 keyspace 中原 bucket 必然先于令牌写入，
+        // 而删除后重建的 bucket 版本必然晚于旧令牌，因此无需迁移或额外撤销状态。
+        bool bucketMatches = bucketEntry is not null
+            && (record.BucketVersion > 0
+                ? record.BucketVersion == bucketEntry.Version
+                : bucketEntry.Version < entry.Version);
+        return bucketMatches
+            && record.ExpiresUtc > DateTimeOffset.UtcNow
             && string.Equals(record.Method, NormalizeMethod(method), StringComparison.Ordinal)
             && string.Equals(record.Bucket, bucket, StringComparison.Ordinal)
             && string.Equals(record.Key, key, StringComparison.Ordinal);
@@ -1123,9 +1316,41 @@ public sealed class SndbObjectStore
 
     private void EnsureBucket(string bucket)
     {
+        _ = GetRequiredBucketEntry(bucket);
+    }
+
+    /// <summary>
+    /// 读取指定 bucket 的元数据条目；不存在时抛出统一错误。
+    /// </summary>
+    private KvEntry GetRequiredBucketEntry(string bucket)
+    {
         ValidateBucket(bucket);
-        if (_metadata.GetEntry(BucketKey(bucket)) is null)
-            throw new SndbObjectStorageException("bucket_not_found", $"Bucket '{bucket}' was not found.");
+        return _metadata.GetEntry(BucketKey(bucket))
+            ?? throw new SndbObjectStorageException("bucket_not_found", $"Bucket '{bucket}' was not found.");
+    }
+
+    /// <summary>
+    /// 获取指定 bucket 的共享提交状态。
+    /// </summary>
+    private BucketMutationState GetBucketMutationState(string bucket)
+    {
+        ValidateBucket(bucket);
+        BucketMutationState? existing = _objectMutationState.FindBucketMutationState(bucket);
+        if (existing is not null)
+            return existing;
+
+        // 只为真实 bucket 缓存 gate，避免随机不存在名称造成常驻字典无界增长。
+        EnsureBucket(bucket);
+        return _objectMutationState.GetBucketMutationState(bucket);
+    }
+
+    /// <summary>
+    /// 获取允许 bucket 尚不存在的共享提交状态，仅供创建入口使用。
+    /// </summary>
+    private BucketMutationState GetOrCreateBucketMutationState(string bucket)
+    {
+        ValidateBucket(bucket);
+        return _objectMutationState.GetBucketMutationState(bucket);
     }
 
     private SndbObjectRecord? LoadObjectRecord(string bucket, string key, string? versionId = null)
@@ -1146,56 +1371,170 @@ public sealed class SndbObjectStore
     }
 
     /// <summary>
+    /// 加载对象版本记录；生命周期使用该无排序快照避免为内部扫描额外排序。
+    /// </summary>
+    private SndbObjectRecord[] LoadObjectVersionRecords(string bucket, string? key)
+    {
+        EnsureBucket(bucket);
+        if (!string.IsNullOrWhiteSpace(key))
+            ValidateObjectKey(key);
+
+        string prefix = string.IsNullOrWhiteSpace(key)
+            ? ObjectBucketPrefix(bucket)
+            : ObjectKeyPrefix(bucket, key);
+        return _metadata.ScanPrefix(prefix, limit: int.MaxValue)
+            .Select(entry => Deserialize(entry.Value.Span, SndbObjectStoreJsonContext.Default.SndbObjectRecord))
+            .ToArray();
+    }
+
+    /// <summary>
+    /// 加载并按公开版本列表约定排序对象记录。
+    /// </summary>
+    private SndbObjectRecord[] LoadOrderedObjectVersionRecords(string bucket, string? key)
+    {
+        return LoadObjectVersionRecords(bucket, key)
+            .OrderBy(static record => record.Key, StringComparer.Ordinal)
+            .ThenByDescending(static record => record.CreatedUtc)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// 加载 bucket 的 latest 指针快照，用于准确区分当前版本和非当前版本。
+    /// </summary>
+    private Dictionary<string, string> LoadLatestObjectVersionIds(string bucket)
+    {
+        string prefix = LatestObjectPrefix(bucket);
+        var latestVersionByKey = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var entry in _metadata.ScanPrefix(prefix, limit: int.MaxValue))
+        {
+            string key = UnescapeKey(Utf8.GetString(entry.Key.Span)[prefix.Length..]);
+            latestVersionByKey[key] = Utf8.GetString(entry.Value.Span);
+        }
+
+        return latestVersionByKey;
+    }
+
+    /// <summary>
+    /// 写入对象版本列表审计，确保公开列表与生命周期内部扫描保持相同审计语义。
+    /// </summary>
+    private void AppendObjectVersionsListAudit(string bucket, string? key, int count)
+    {
+        AppendAudit("object.versions.list", bucket, key, null, new Dictionary<string, string>
+        {
+            ["count"] = count.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        });
+    }
+
+    /// <summary>
     /// 原子发布对象版本元数据、latest 指针及可选审计记录。
     /// </summary>
-    private void PersistObjectRecord(SndbObjectRecord record, SndbObjectAuditRecord? audit = null)
+    private void PersistObjectRecord(
+        SndbObjectRecord record,
+        SndbObjectAuditRecord? audit = null,
+        bool updateLatest = true)
     {
-        var mutations = new List<KvBatchMutation>(audit is null ? 2 : 3)
+        var mutations = new List<KvBatchMutation>((updateLatest ? 2 : 1) + (audit is null ? 0 : 1));
+        AddObjectRecordMutations(mutations, record, audit, updateLatest);
+        _metadata.ApplyBatch(mutations);
+    }
+
+    /// <summary>
+    /// 把对象版本、latest 指针和可选审计追加到调用方批次，供普通 PUT 与 multipart 共用原子发布语义。
+    /// </summary>
+    private static void AddObjectRecordMutations(
+        List<KvBatchMutation> mutations,
+        SndbObjectRecord record,
+        SndbObjectAuditRecord? audit,
+        bool updateLatest = true)
+    {
+        mutations.Add(KvBatchMutation.Put(
+            Utf8.GetBytes(ObjectKey(record.Bucket, record.Key, record.VersionId)),
+            Serialize(record, SndbObjectStoreJsonContext.Default.SndbObjectRecord)));
+        if (updateLatest)
         {
-            KvBatchMutation.Put(
-                Utf8.GetBytes(ObjectKey(record.Bucket, record.Key, record.VersionId)),
-                Serialize(record, SndbObjectStoreJsonContext.Default.SndbObjectRecord)),
-            KvBatchMutation.Put(
+            mutations.Add(KvBatchMutation.Put(
                 Utf8.GetBytes(LatestObjectKey(record.Bucket, record.Key)),
-                Utf8.GetBytes(record.VersionId)),
-        };
+                Utf8.GetBytes(record.VersionId)));
+        }
         if (audit is not null)
         {
             mutations.Add(KvBatchMutation.Put(
                 Utf8.GetBytes(AuditKey(audit.Bucket, audit.Id)),
                 Serialize(audit, SndbObjectStoreJsonContext.Default.SndbObjectAuditRecord)));
         }
-
-        _metadata.ApplyBatch(mutations);
     }
 
-    private void RemoveObjectVersion(string bucket, string key, string versionId)
+    /// <summary>
+    /// 将待删除版本加入按 key 汇总的生命周期删除计划。
+    /// </summary>
+    private static void AddLifecycleRemoval(
+        Dictionary<string, List<SndbObjectRecord>> removalsByKey,
+        SndbObjectRecord version)
     {
-        var record = LoadObjectRecord(bucket, key, versionId);
-        if (record is null)
-            return;
+        if (!removalsByKey.TryGetValue(version.Key, out var removals))
+        {
+            removals = [];
+            removalsByKey.Add(version.Key, removals);
+        }
+        removals.Add(version);
+    }
 
-        string? latestVersionId = null;
-        var latest = _metadata.Get(LatestObjectKey(bucket, key));
-        if (latest is not null)
-            latestVersionId = Utf8.GetString(latest);
-        EnsureObjectVersionCanBeDeleted(record, string.Equals(latestVersionId, versionId, StringComparison.Ordinal));
+    /// <summary>
+    /// 原子移除同一 key 的生命周期过期版本，并仅在删除原 latest 时重建指针。
+    /// </summary>
+    private void RemoveObjectVersionsForLifecycle(
+        string bucket,
+        string key,
+        IReadOnlyList<SndbObjectRecord> keyVersions,
+        IReadOnlyList<SndbObjectRecord> removals,
+        string? initialLatestVersionId,
+        bool hasNewDeleteMarker)
+    {
+        var removedVersionIds = new HashSet<string>(
+            removals.Select(static version => version.VersionId),
+            StringComparer.Ordinal);
+        bool removesLatest = initialLatestVersionId is not null && removedVersionIds.Contains(initialLatestVersionId);
+        var mutations = new List<KvBatchMutation>(removals.Count * 3 + 1);
+        foreach (var version in removals)
+        {
+            mutations.Add(KvBatchMutation.Delete(Utf8.GetBytes(ObjectKey(bucket, key, version.VersionId))));
+            mutations.Add(KvBatchMutation.Delete(Utf8.GetBytes(LegalHoldKey(bucket, key, version.VersionId))));
+            var audit = CreateAuditRecord("object.version.remove", bucket, key, version.VersionId);
+            mutations.Add(KvBatchMutation.Put(
+                Utf8.GetBytes(AuditKey(audit.Bucket, audit.Id)),
+                Serialize(audit, SndbObjectStoreJsonContext.Default.SndbObjectAuditRecord)));
+        }
 
-        if (!string.IsNullOrWhiteSpace(record.StoragePath))
-            TryDeleteFile(ResolveStoragePath(record.StoragePath));
-        _metadata.Delete(ObjectKey(bucket, key, versionId));
-        _metadata.Delete(LegalHoldKey(bucket, key, versionId));
+        if (removesLatest && !hasNewDeleteMarker)
+        {
+            SndbObjectRecord? replacement = null;
+            foreach (var version in keyVersions)
+            {
+                if (removedVersionIds.Contains(version.VersionId))
+                    continue;
 
-        var remaining = _metadata.ScanPrefix(ObjectKeyPrefix(bucket, key), limit: int.MaxValue)
-            .Select(entry => Deserialize(entry.Value.Span, SndbObjectStoreJsonContext.Default.SndbObjectRecord))
-            .OrderByDescending(static item => item.CreatedUtc)
-            .FirstOrDefault();
-        if (remaining is null)
-            _metadata.Delete(LatestObjectKey(bucket, key));
-        else
-            _metadata.Put(LatestObjectKey(bucket, key), Utf8.GetBytes(remaining.VersionId));
+                if (replacement is null
+                    || version.CreatedUtc > replacement.CreatedUtc
+                    || (version.CreatedUtc == replacement.CreatedUtc
+                        && string.CompareOrdinal(version.VersionId, replacement.VersionId) > 0))
+                {
+                    replacement = version;
+                }
+            }
 
-        AppendAudit("object.version.remove", bucket, key, versionId);
+            mutations.Add(replacement is null
+                ? KvBatchMutation.Delete(Utf8.GetBytes(LatestObjectKey(bucket, key)))
+                : KvBatchMutation.Put(Utf8.GetBytes(LatestObjectKey(bucket, key)), Utf8.GetBytes(replacement.VersionId)));
+        }
+
+        _metadata.ApplyBatch(mutations);
+
+        // 先提交元数据删除，正文回收失败时最多遗留孤儿文件，不能反向制造可见对象缺正文。
+        foreach (var version in removals)
+        {
+            if (!string.IsNullOrWhiteSpace(version.StoragePath))
+                TryDeleteStorageFile(version.StoragePath);
+        }
     }
 
     private SndbMultipartUploadRecord LoadUpload(string uploadId)
@@ -1222,7 +1561,7 @@ public sealed class SndbObjectStore
         {
             string key = Utf8.GetString(entry.Key.Span);
             var part = Deserialize(entry.Value.Span, SndbObjectStoreJsonContext.Default.SndbMultipartPartRecord);
-            TryDeleteFile(ResolveStoragePath(part.StoragePath));
+            TryDeleteStorageFile(part.StoragePath);
             _metadata.Delete(key);
         }
     }
@@ -1549,28 +1888,53 @@ public sealed class SndbObjectStore
         }
     }
 
-    private static async Task<(long Size, string ETag, string Sha256)> HashFileAsync(string path, CancellationToken cancellationToken)
+    /// <summary>
+    /// 按请求顺序合并 multipart 分片，在单遍 I/O 中计算摘要并把完整临时文件强制落盘。
+    /// </summary>
+    private async Task<(long Size, string ETag, string Sha256)> MergeMultipartPartsAsync(
+        IReadOnlyList<SndbMultipartPartRecord> parts,
+        string destinationPath,
+        CancellationToken cancellationToken)
     {
-        await using var input = File.OpenRead(path);
+        await using var destination = new FileStream(
+            destinationPath,
+            FileMode.CreateNew,
+            FileAccess.Write,
+            FileShare.None,
+            ObjectIoBufferSize,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
         using var md5 = MD5.Create();
         using var sha256 = SHA256.Create();
-        byte[] buffer = ArrayPool<byte>.Shared.Rent(128 * 1024);
+        byte[] buffer = ArrayPool<byte>.Shared.Rent(ObjectIoBufferSize);
         long size = 0;
         try
         {
-            while (true)
+            foreach (var part in parts)
             {
-                int read = await input.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken).ConfigureAwait(false);
-                if (read == 0)
-                    break;
+                cancellationToken.ThrowIfCancellationRequested();
+                await using var input = new FileStream(
+                    ResolveStoragePath(part.StoragePath),
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.Read | FileShare.Delete,
+                    ObjectIoBufferSize,
+                    FileOptions.Asynchronous | FileOptions.SequentialScan);
+                while (true)
+                {
+                    int read = await input.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken).ConfigureAwait(false);
+                    if (read == 0)
+                        break;
 
-                md5.TransformBlock(buffer, 0, read, null, 0);
-                sha256.TransformBlock(buffer, 0, read, null, 0);
-                size += read;
+                    await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+                    md5.TransformBlock(buffer, 0, read, null, 0);
+                    sha256.TransformBlock(buffer, 0, read, null, 0);
+                    size += read;
+                }
             }
 
             md5.TransformFinalBlock([], 0, 0);
             sha256.TransformFinalBlock([], 0, 0);
+            destination.Flush(flushToDisk: true);
             return (size, QuoteHex(md5.Hash!), Convert.ToHexString(sha256.Hash!).ToLowerInvariant());
         }
         finally
@@ -1597,9 +1961,16 @@ public sealed class SndbObjectStore
     private string ResolveStoragePath(string relativePath)
     {
         string path = Path.GetFullPath(Path.Combine(_contentRoot, relativePath.Replace('/', Path.DirectorySeparatorChar)));
-        string root = Path.GetFullPath(_contentRoot);
-        if (!path.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+        string root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(_contentRoot));
+        string rootWithSeparator = root + Path.DirectorySeparatorChar;
+        StringComparison comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        if (!string.Equals(path, root, comparison)
+            && !path.StartsWith(rootWithSeparator, comparison))
+        {
             throw new SndbObjectStorageException("invalid_storage_path", "Object storage path is invalid.");
+        }
 
         return path;
     }
@@ -1809,6 +2180,21 @@ public sealed class SndbObjectStore
         JsonSerializer.Deserialize(json, typeInfo)
         ?? throw new InvalidDataException("Object storage metadata is empty.");
 
+    /// <summary>只回收内容根目录内的存储文件，损坏的越界元数据保持拒绝且不触碰外部路径。</summary>
+    private void TryDeleteStorageFile(string relativePath)
+    {
+        try
+        {
+            string path = ResolveStoragePath(relativePath);
+            TryDeleteFile(path);
+            SonnetDB.Wal.DirectoryFsync.FlushBestEffort(Path.GetDirectoryName(path)!);
+        }
+        catch (SndbObjectStorageException ex) when (ex.Code == "invalid_storage_path")
+        {
+            // 损坏元数据不能把清理范围扩大到对象根目录之外。
+        }
+    }
+
     private static void TryDeleteFile(string path)
     {
         try
@@ -1833,6 +2219,57 @@ public sealed class SndbObjectStore
         long MultipartUploadCount,
         long MultipartPartCount,
         long MultipartPartSizeBytes);
+
+    /// <summary>
+    /// 保存同一 keyspace 各 bucket 对象提交的共享互斥状态。
+    /// </summary>
+    private sealed class ObjectMutationState
+    {
+        private readonly ConcurrentDictionary<string, BucketMutationState> _bucketMutations =
+            new(StringComparer.Ordinal);
+
+        /// <summary>
+        /// 获取指定 bucket 的共享提交状态。
+        /// </summary>
+        public BucketMutationState GetBucketMutationState(string bucket)
+        {
+            // 不移除 gate，避免删除并重建同名 bucket 时并发操作落到不同锁。
+            return _bucketMutations.GetOrAdd(bucket, static _ => new BucketMutationState());
+        }
+
+        /// <summary>
+        /// 查找已经存在的 bucket 提交状态，不因无效请求创建常驻条目。
+        /// </summary>
+        public BucketMutationState? FindBucketMutationState(string bucket)
+        {
+            _bucketMutations.TryGetValue(bucket, out BucketMutationState? state);
+            return state;
+        }
+    }
+
+    /// <summary>
+    /// 协调单个 bucket 的对象与 multipart 元数据提交。
+    /// </summary>
+    private sealed class BucketMutationState
+    {
+        private long _lastVersionTimestampTicks = DateTimeOffset.MinValue.Ticks;
+
+        /// <summary>
+        /// 获取严格单调的版本时间戳；调用方必须已持有 <see cref="Gate"/>。
+        /// </summary>
+        public DateTimeOffset GetNextVersionTimestamp()
+        {
+            long nowTicks = DateTimeOffset.UtcNow.Ticks;
+            long nextTicks = Math.Max(nowTicks, checked(_lastVersionTimestampTicks + 1));
+            _lastVersionTimestampTicks = nextTicks;
+            return new DateTimeOffset(nextTicks, TimeSpan.Zero);
+        }
+
+        /// <summary>
+        /// 协调同一 bucket 元数据提交的共享锁。
+        /// </summary>
+        public object Gate { get; } = new();
+    }
 
     private sealed class BoundedReadStream : Stream
     {

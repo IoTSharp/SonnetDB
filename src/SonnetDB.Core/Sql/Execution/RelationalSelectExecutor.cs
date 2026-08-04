@@ -65,15 +65,20 @@ internal static class RelationalSelectExecutor
         var relation = LoadFrom(tsdb, statement);
         foreach (var join in statement.JoinClauses)
         {
+            SqlExecutor.ThrowIfCancellationRequested();
             var right = LoadJoin(tsdb, join);
             relation = Join(tsdb, relation, right, join.On, join.Kind, outerScope, memo);
         }
 
         if (statement.Where is not null)
         {
-            var filteredRows = relation.Rows
-                .Where(row => EvaluateBoolean(tsdb, statement.Where, relation.Columns, row, outerScope, memo))
-                .ToArray();
+            var filteredRows = new List<object?[]>(relation.Rows.Count);
+            foreach (var row in relation.Rows)
+            {
+                SqlExecutor.ThrowIfCancellationRequested();
+                if (EvaluateBoolean(tsdb, statement.Where, relation.Columns, row, outerScope, memo))
+                    filteredRows.Add(row);
+            }
             relation = relation with { Rows = filteredRows };
         }
 
@@ -262,9 +267,11 @@ internal static class RelationalSelectExecutor
         var rows = new List<object?[]>();
         foreach (var leftRow in left.Rows)
         {
+            SqlExecutor.ThrowIfCancellationRequested();
             var matched = false;
             foreach (var rightRow in right.Rows)
             {
+                SqlExecutor.ThrowIfCancellationRequested();
                 var row = new object?[leftRow.Length + rightRow.Length];
                 Array.Copy(leftRow, row, leftRow.Length);
                 Array.Copy(rightRow, 0, row, leftRow.Length, rightRow.Length);
@@ -374,6 +381,7 @@ internal static class RelationalSelectExecutor
         var buildTable = new Dictionary<JoinValueKey, List<object?[]>>();
         foreach (var rightRow in right.Rows)
         {
+            SqlExecutor.ThrowIfCancellationRequested();
             if (TryMakeKey(rightRow, keyPairs, useRight: true, out var key))
             {
                 if (!buildTable.TryGetValue(key, out var bucket))
@@ -388,12 +396,14 @@ internal static class RelationalSelectExecutor
         bool hasResidual = residual.Count > 0;
         foreach (var leftRow in left.Rows)
         {
+            SqlExecutor.ThrowIfCancellationRequested();
             bool matched = false;
             if (TryMakeKey(leftRow, keyPairs, useRight: false, out var probeKey)
                 && buildTable.TryGetValue(probeKey, out var candidates))
             {
                 foreach (var rightRow in candidates)
                 {
+                    SqlExecutor.ThrowIfCancellationRequested();
                     var row = new object?[leftRow.Length + rightRow.Length];
                     Array.Copy(leftRow, row, leftRow.Length);
                     Array.Copy(rightRow, 0, row, leftRow.Length, rightRow.Length);
@@ -516,6 +526,7 @@ internal static class RelationalSelectExecutor
         var rows = new List<IReadOnlyList<object?>>(relation.Rows.Count);
         foreach (var row in relation.Rows)
         {
+            SqlExecutor.ThrowIfCancellationRequested();
             var output = new object?[projections.Count];
             for (int i = 0; i < projections.Count; i++)
                 output[i] = EvaluateScalar(tsdb, projections[i].Expression, relation.Columns, row, outerScope, memo);
@@ -587,6 +598,7 @@ internal static class RelationalSelectExecutor
         var groups = new Dictionary<GroupKey, List<object?[]>>();
         foreach (var row in relation.Rows)
         {
+            SqlExecutor.ThrowIfCancellationRequested();
             var keyValues = statement.GroupBy
                 .Select(group => EvaluateScalar(tsdb, group, relation.Columns, row, outerScope, memo))
                 .ToArray();
@@ -641,6 +653,7 @@ internal static class RelationalSelectExecutor
 
         foreach (var group in groups.Values)
         {
+            SqlExecutor.ThrowIfCancellationRequested();
             var representative = group.Count == 0
                 ? Array.Empty<object?>()
                 : group[0];

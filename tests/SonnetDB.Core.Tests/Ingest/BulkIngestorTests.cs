@@ -2,6 +2,7 @@
 using SonnetDB.Engine;
 using SonnetDB.Ingest;
 using SonnetDB.Memory;
+using SonnetDB.Model;
 using SonnetDB.Storage.Format;
 using SonnetDB.Storage.Segments;
 using Xunit;
@@ -148,5 +149,70 @@ public sealed class BulkIngestorTests : IDisposable
         var result = BulkIngestor.Ingest(db, reader);
         Assert.Equal(n, result.Written);
         Assert.Equal((long)n, db.MemTable.PointCount);
+    }
+
+    /// <summary>验证摄取已经进入 reader 后，下一轮循环会确定性响应取消且不提交未满批次。</summary>
+    [Fact]
+    public async Task Ingest_CancellationAfterReaderEntry_StopsBeforeBatchCommit()
+    {
+        using var db = Tsdb.Open(Opts());
+        using var reader = new GatedPointReader();
+        using var cancellation = new CancellationTokenSource();
+        Task ingest = Task.Run(() => BulkIngestor.Ingest(
+            db,
+            reader,
+            BulkErrorPolicy.FailFast,
+            BulkFlushMode.None,
+            cancellation.Token));
+        try
+        {
+            await reader.WaitUntilEnteredAsync().WaitAsync(TimeSpan.FromSeconds(5));
+            cancellation.Cancel();
+            reader.Release();
+
+            await Assert.ThrowsAsync<OperationCanceledException>(() => ingest)
+                .WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(0L, db.MemTable.PointCount);
+        }
+        finally
+        {
+            reader.Release();
+        }
+    }
+
+    /// <summary>在首次读取中设置门闩的测试 reader，用于排除取消发生在摄取入口之前的假阳性。</summary>
+    private sealed class GatedPointReader : IPointReader, IDisposable
+    {
+        private readonly TaskCompletionSource _entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly ManualResetEventSlim _release = new(false);
+        private bool _returned;
+
+        /// <summary>等待摄取循环实际调用 reader。</summary>
+        public Task WaitUntilEnteredAsync() => _entered.Task;
+
+        /// <summary>允许 reader 返回首个点。</summary>
+        public void Release() => _release.Set();
+
+        /// <summary>首个点等待测试线程释放，后续读取结束。</summary>
+        public bool TryRead(out Point point)
+        {
+            if (_returned)
+            {
+                point = null!;
+                return false;
+            }
+
+            _entered.TrySetResult();
+            Assert.True(_release.Wait(TimeSpan.FromSeconds(5)));
+            _returned = true;
+            point = Point.Create(
+                "cpu",
+                1,
+                fields: new Dictionary<string, FieldValue> { ["value"] = FieldValue.FromDouble(1) });
+            return true;
+        }
+
+        /// <summary>释放测试门闩资源。</summary>
+        public void Dispose() => _release.Dispose();
     }
 }

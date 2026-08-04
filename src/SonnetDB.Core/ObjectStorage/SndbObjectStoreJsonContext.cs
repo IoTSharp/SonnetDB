@@ -118,4 +118,5 @@ internal sealed record SndbPresignedTokenRecord(
     string Bucket,
     string Key,
     DateTimeOffset CreatedUtc,
-    DateTimeOffset ExpiresUtc);
+    DateTimeOffset ExpiresUtc,
+    long BucketVersion = 0);

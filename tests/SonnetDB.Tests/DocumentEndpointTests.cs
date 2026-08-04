@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -595,6 +596,37 @@ public sealed class DocumentEndpointTests : IAsyncLifetime
         Assert.Equal(SndbDocumentWriteErrorCodes.BatchTooLarge, Assert.Single(sdk.Errors!).Code);
         Assert.Equal(requestOperations.Length, sdk.Items.Count);
         Assert.All(sdk.Items, item => Assert.Equal("not_attempted", item.Status));
+    }
+
+    /// <summary>验证新增写端点对 null 或缺失的必填字段返回 400，而不是抛出服务端异常。</summary>
+    [Fact]
+    public async Task DocumentApi_NullOrMissingBulkOperationsAndUpdate_Return400()
+    {
+        using var admin = CreateClient(AdminToken);
+        var create = await admin.PostAsJsonAsync(
+            "/v1/db/docapi/documents/invalidrequests",
+            new DocumentCollectionCreateRequest(),
+            ServerJsonContext.Default.DocumentCollectionCreateRequest);
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+
+        (string Path, string Body)[] invalidRequests =
+        [
+            ("bulk-write", """{"operations":null}"""),
+            ("bulk-write", """{}"""),
+            ("find-one-and-update", """{"id":"dev-1","update":null}"""),
+            ("find-one-and-update", """{"id":"dev-1"}"""),
+        ];
+        foreach (var request in invalidRequests)
+        {
+            using var content = new StringContent(request.Body, Encoding.UTF8, "application/json");
+            using var response = await admin.PostAsync(
+                $"/v1/db/docapi/documents/invalidrequests/{request.Path}",
+                content);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            var error = await response.Content.ReadFromJsonAsync(ServerJsonContext.Default.ErrorResponse);
+            Assert.Equal("bad_request", error!.Error);
+        }
     }
 
     [Fact]
