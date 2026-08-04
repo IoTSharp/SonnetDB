@@ -486,6 +486,56 @@ public sealed class KvCheckpointSafetyTests : IDisposable
         File.Delete(movedStatePath);
     }
 
+    /// <summary>验证延迟 checkpoint 完成前，同一根目录不会被新实例打开并参与候选文件回滚。</summary>
+    [Fact]
+    public async Task Dispose_PausedAfterStateSaved_BlocksReopenUntilCheckpointFinishes()
+    {
+        string root = Path.Combine(_root, "deferred-checkpoint-lifecycle-lease");
+        var options = AutoCheckpointDisabled() with
+        {
+            CheckpointShutdownTimeout = TimeSpan.FromMilliseconds(100),
+        };
+        var kv = KvKeyspace.Open("deferred-checkpoint-lifecycle-lease", root, options);
+        kv.Put("before", [1]);
+        kv.Put("shared", [2]);
+        using var stateSaved = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        kv.CheckpointTestHook = phase =>
+        {
+            if (phase != KvCheckpointPhase.AfterStateSavedBeforePublish)
+                return;
+
+            stateSaved.Set();
+            if (!release.Wait(TimeSpan.FromSeconds(30)))
+                throw new TimeoutException("test did not release the saved checkpoint during dispose");
+        };
+        Task<long> checkpoint = StartDedicated(kv.Compact);
+        Assert.True(stateSaved.Wait(TimeSpan.FromSeconds(10)));
+
+        try
+        {
+            var elapsed = Stopwatch.StartNew();
+            kv.Dispose();
+            elapsed.Stop();
+            Assert.InRange(elapsed.Elapsed, TimeSpan.Zero, TimeSpan.FromSeconds(2));
+
+            IOException error = Assert.Throws<IOException>(() =>
+                KvKeyspace.Open("deferred-checkpoint-lifecycle-lease", root, options));
+            Assert.Contains("already owned", error.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            release.Set();
+        }
+
+        await checkpoint.WaitAsync(TimeSpan.FromSeconds(10));
+        using var reopened = KvKeyspace.Open("deferred-checkpoint-lifecycle-lease", root, options);
+        Assert.Equal([1], reopened.Get("before"));
+        Assert.Equal([2], reopened.Get("shared"));
+        reopened.Compact();
+        Assert.Empty(SealedWalFiles(reopened));
+    }
+
     [Fact]
     public void Dispose_WalFlushFailure_StillClosesWalAndStateAndRemainsIdempotent()
     {

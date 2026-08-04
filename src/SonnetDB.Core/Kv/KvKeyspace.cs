@@ -78,6 +78,7 @@ public sealed class KvKeyspace : IDisposable
 {
     private const int ScanResultInitialCapacity = 256;
     private const int MaxOptimisticSequenceFactoryInvalidations = 8;
+    internal const string LifecycleLockFileName = "keyspace.lock";
     private readonly object _sync = new();
     private readonly SemaphoreSlim _checkpointGate = new(1, 1);
     private readonly KvOptions _options;
@@ -94,6 +95,7 @@ public sealed class KvKeyspace : IDisposable
     private int _autoCheckpointFailureCount;
     private long _autoCheckpointScheduleCount;
     private Exception? _writeFault;
+    private FileStream? _lifecycleLease;
     private bool _disposed;
 
     private KvKeyspace(
@@ -104,7 +106,8 @@ public sealed class KvKeyspace : IDisposable
         KvDiskState? diskState,
         long lastSequence,
         long generation,
-        KvWalFile wal)
+        KvWalFile wal,
+        FileStream lifecycleLease)
     {
         Name = name;
         RootDirectory = rootDirectory;
@@ -114,6 +117,7 @@ public sealed class KvKeyspace : IDisposable
         _lastSequence = lastSequence;
         _generation = generation;
         _wal = wal;
+        _lifecycleLease = lifecycleLease;
     }
 
     /// <summary>Keyspace 名称。</summary>
@@ -271,6 +275,33 @@ public sealed class KvKeyspace : IDisposable
         Directory.CreateDirectory(SnapshotsDirectory(rootDirectory));
         Directory.CreateDirectory(SegmentsDirectory(rootDirectory));
 
+        FileStream lifecycleLease = AcquireLifecycleLease(rootDirectory);
+        try
+        {
+            return OpenWithLifecycleLease(name, rootDirectory, options, lifecycleLease);
+        }
+        catch
+        {
+            lifecycleLease.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// 在已持有根目录生命周期租约时恢复 state 与 WAL，并把租约所有权交给新实例。
+    /// </summary>
+    /// <param name="name">Keyspace 名称。</param>
+    /// <param name="rootDirectory">Keyspace 根目录。</param>
+    /// <param name="options">KV 存储选项。</param>
+    /// <param name="lifecycleLease">覆盖整个实例及延迟 checkpoint 生命周期的独占文件租约。</param>
+    /// <returns>恢复完成且独占根目录的 keyspace。</returns>
+    private static KvKeyspace OpenWithLifecycleLease(
+        string name,
+        string rootDirectory,
+        KvOptions options,
+        FileStream lifecycleLease)
+    {
+
         KvGenerationMetadata generationMetadata = KvGenerationFile.LoadMetadata(rootDirectory);
         long durableGeneration = generationMetadata.Generation;
         long recoveredResetSequence = generationMetadata.ResetSequence;
@@ -411,7 +442,8 @@ public sealed class KvKeyspace : IDisposable
                 state.DiskState,
                 lastSequence,
                 state.Generation,
-                wal);
+                wal,
+                lifecycleLease);
             keyspace.EnsureCleanupManifestLocked();
             lock (keyspace._sync)
                 keyspace.ScheduleAutoCheckpointLocked(force: sealedWalPaths.Count > 0 || upgradedLegacyWalWithRecords);
@@ -1775,6 +1807,7 @@ public sealed class KvKeyspace : IDisposable
     {
         KvDiskState? checkpointDisk;
         KvDiskState? currentDisk;
+        FileStream? lifecycleLease;
         lock (_sync)
         {
             if (!_disposed || _checkpointState?.IsRunning == true)
@@ -1784,6 +1817,8 @@ public sealed class KvKeyspace : IDisposable
             currentDisk = _diskState;
             _checkpointState = null;
             _diskState = null;
+            lifecycleLease = _lifecycleLease;
+            _lifecycleLease = null;
         }
 
         Exception? failure = null;
@@ -1802,6 +1837,19 @@ public sealed class KvKeyspace : IDisposable
         try
         {
             currentDisk?.Dispose();
+        }
+        catch (Exception) when (failure is not null)
+        {
+        }
+        catch (Exception ex)
+        {
+            failure = ex;
+        }
+
+        try
+        {
+            // state 句柄全部释放后才能交出目录，避免新实例与旧 checkpoint 的文件回滚重叠。
+            lifecycleLease?.Dispose();
         }
         catch (Exception) when (failure is not null)
         {
@@ -1832,6 +1880,33 @@ public sealed class KvKeyspace : IDisposable
 
     internal static string SegmentPath(string rootDirectory, long sequence) =>
         Path.Combine(SegmentsDirectory(rootDirectory), $"{sequence:D20}.SDBKVSEG");
+
+    /// <summary>
+    /// 在读取任何候选 state 前独占 keyspace 根目录，防止延迟 checkpoint 与重开实例互删文件。
+    /// </summary>
+    /// <param name="rootDirectory">需要独占的 keyspace 根目录。</param>
+    /// <returns>必须随 keyspace 完整生命周期持有的文件句柄。</returns>
+    private static FileStream AcquireLifecycleLease(string rootDirectory)
+    {
+        string path = Path.Combine(rootDirectory, LifecycleLockFileName);
+        try
+        {
+            return new FileStream(
+                path,
+                FileMode.OpenOrCreate,
+                FileAccess.ReadWrite,
+                FileShare.None,
+                bufferSize: 1,
+                FileOptions.None);
+        }
+        catch (IOException exception)
+        {
+            throw new IOException(
+                $"KV keyspace root '{rootDirectory}' is already owned by another live instance " +
+                "or a checkpoint that is still completing disposal.",
+                exception);
+        }
+    }
 
     private static KvStateSnapshot LoadLatestState(string rootDirectory, long generation)
     {

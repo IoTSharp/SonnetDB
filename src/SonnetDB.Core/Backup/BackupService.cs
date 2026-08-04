@@ -340,6 +340,10 @@ public sealed class BackupService
                 return false;
 
             string fileName = Path.GetFileName(normalized);
+            // 生命周期锁只描述正在运行的实例，不能进入可恢复的数据清单。
+            if (string.Equals(fileName, KvKeyspace.LifecycleLockFileName, StringComparison.OrdinalIgnoreCase))
+                return false;
+
             for (int i = 0; i < _transientSuffixes.Length; i++)
             {
                 if (fileName.EndsWith(_transientSuffixes[i], StringComparison.OrdinalIgnoreCase))

@@ -140,6 +140,8 @@ public sealed class BackupServiceTests : IDisposable
                 file.Kind == BackupFileKind.Document &&
                 file.Path.Contains("documents/collections/", StringComparison.Ordinal) &&
                 file.Path.EndsWith(".SDBKVSEG", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(manifest.Files, static file =>
+                Path.GetFileName(file.Path) == "keyspace.lock");
         }
 
         new BackupService().Restore(new BackupRestoreOptions
