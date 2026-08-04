@@ -44,6 +44,7 @@
 | 37 | 视图与物化视图 | ✅ | #327 逻辑视图与 #328 显式全量刷新物化视图均已实现。 |
 | 38 | SQL 存储过程与触发器 | ✅ | #329~#332 已完成 SQL 过程、关系表 AFTER ROW 触发器及治理收口；外部脚本运行时保持暂停。 |
 | 39 | SQL 触发器第二版 | 🚧 | #333 证据 runner、三条关系表 journey 和真进程 crash 场景已接入；UPDATE/DELETE 同规模成本与固定目标硬件矩阵仍待归档，再决定高级语义与多模型范围。 |
+| 40 | 原生属性图数据库 | 📋 | 路线已定稿；按公共地基、Native Graph Preview、SQL/PGQ Graph Beta、生产级单机图数据库四阶段推进，当前尚未实现。 |
 | MM9 | 多模型备份恢复第一批 | ✅ | `BackupService` 与 `sndb backup` 已落地。 |
 
 ## 当前推进顺序
@@ -54,6 +55,7 @@
 4. M34 先做合同、DDL 和安全边界；M35 在过滤 ANN 与内容生命周期地基完成后再做媒体场景。
 5. M36 先完成八模型 golden journey 与 gap catalog；实现顺序为高频客户端工作流 -> 查询诊断 -> 高级治理，Document 复用已完成的 M32 结果，向量高级项复用 M35 地基。
 6. M39 先执行 #333 触发器 V2 证据门禁；未证明 V1 在真实 journey 上存在缺口前，不直接扩展 BEFORE、statement-level 或多模型触发器。
+7. M40 先完成 #341 的 workload/合同证据和 #342~#346 公共存储地基，再进入原生 Graph Preview；它不阻塞 M34/M35 的独立工作，但 M36 不得为 Graph 重复建设客户端、诊断或管理面。正式产品定位在 M40 发布门禁通过前继续保持“八种数据模型，一套引擎”。
 
 ## 待补验收证据
 
@@ -279,6 +281,23 @@ SonnetDB 同时支持两个明确角色：主站/client 主动轮询外部 PLC/R
 | #339 | Document / measurement 准入：分别量化批量摄取写放大、乱序/重放、幂等键、保留策略、compaction、备份恢复和高基数影响；只有模型原生事件合同和 crash/replay 对拍通过后才实现。不得把关系行 `OLD`/`NEW` 生硬套到 document patch 或 measurement batch。 | 📋 |
 
 执行顺序为 #333 -> #334/#337；#335、#336 和 #338 由 baseline 证据决定是否进入实现，#339 始终独立过模型语义与容量门禁。V2 不默认包含多事件合并语法、异步网络调用、外部脚本、跨数据库触发器或分布式 exactly-once。
+
+## Milestone 40 — 原生属性图数据库
+
+目标不是把 `MATCH` 重写为关系 JOIN，而是在现有 KV/WAL/checkpoint/backup 地基上增加一级 Vertex、Edge、Label、Property 和双向 adjacency 存储，同时提供原生 Graph API 与可组合 SQL/PGQ。关系表映射图和原生图共享 Graph Logical Plan 与流式执行算子，但使用不同底层 accessor，`EXPLAIN` 必须如实显示 native adjacency、relation index seek 或 scan fallback。
+
+详细的复用矩阵、key layout、事务不变量、SQL 双入口、逐 PR 验收和容量门禁见 [docs/native-graph-database-roadmap.md](docs/native-graph-database-roadmap.md)。
+
+| 阶段 | PR 范围 | 交付边界 | 状态 |
+|---|---|---|---|
+| Phase 0：公共地基 | #341~#346 | ADR/golden journey、共享 sortable codec、KV snapshot cursor、Graph Catalog、单 graph 原子事务、backup/invariant/crash 骨架；无对外 Graph 能力宣称。 | 📋 |
+| Phase 1：Native Graph Preview | #347~#352 | 原生 GraphStore、双向邻接、属性索引、流式 Expand/BFS/DFS/shortest path、Server/SDK/import 和首轮 Neo4j/容量证据。 | 📋 |
+| Phase 2：SQL/PGQ Graph Beta | #353~#359 | 共享 Graph Logical Plan、原生 graph SQL DDL/DML、SQL/PGQ 关系映射、`GRAPH_TABLE MATCH`、planner/EXPLAIN 和跨模型 SQL 组合。 | 📋 |
+| Phase 3：生产级单机图数据库 | #360~#367 | statement snapshot、supernode/维护、按证据准入的高级路径/算法、可选 GQL 风格入口、知识图谱组合、运维产品面和发布门禁。 | 📋 |
+
+固定边界：一个 graph 一个 keyspace，第一阶段不支持跨 graph/跨模型原子事务；vertex 删除先用 `RESTRICT`，不以静默拆批伪装超大 `DETACH DELETE` 原子性；Graphify/实体抽取/LLM/GraphRAG job 留在 importer、Server 或 SDK；不引入第二套 WAL、SQL 表达式系统、向量/全文索引、权限和备份格式；不承诺 Bolt、完整 Cypher/GQL、RDF 推理或分布式图能力。
+
+阶段名称也是产品宣称门禁：Phase 1 只能称 Native Graph Preview，Phase 2 只能称 SonnetDB Graph Beta。只有 #367 的 LDBC/Graphalytics 子集、7 天 mixed workload、crash/backup/Native AOT 和固定硬件报告通过后，才可称“生产可用的单机原生属性图数据库”，并统一评估把产品定位从八模型更新为九模型。
 
 ## 性能观察项
 
