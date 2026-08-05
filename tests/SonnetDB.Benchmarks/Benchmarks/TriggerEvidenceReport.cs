@@ -13,7 +13,15 @@ namespace SonnetDB.Benchmarks.Benchmarks;
 public static class TriggerEvidenceReportRunner
 {
     private const string CrashEvidenceVerifiedEnvironmentVariable = "M39_CRASH_EVIDENCE_VERIFIED";
+    private static readonly Encoding Utf8WithoutBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
     private static readonly int[] MatrixRows = [1, 100, 10_000];
+    private static readonly TriggerDmlOperation[] MatrixOperations =
+    [
+        TriggerDmlOperation.Insert,
+        TriggerDmlOperation.Update,
+        TriggerDmlOperation.Delete,
+    ];
+    private static readonly TriggerPath[] MatrixPaths = Enum.GetValues<TriggerPath>();
 
     /// <summary>
     /// 执行完整成本/回滚矩阵并将结果写入指定目录。
@@ -48,9 +56,8 @@ public static class TriggerEvidenceReportRunner
         IReadOnlyList<int> rowCounts,
         bool crashTestsVerified)
     {
-        // The workflow sets this marker only after the independent Core and
-        // process-kill tests pass. A caller-provided true value alone must not
-        // turn an unverified report into a positive crash claim.
+        // workflow 只会在独立 Core 与真进程终止测试通过后设置环境标记；调用方单独传入
+        // true 不能把未经验证的报告提升为已验证的 crash/replay 结论。
         crashTestsVerified = crashTestsVerified && ResolveCrashTestsVerified();
         ArgumentException.ThrowIfNullOrWhiteSpace(outputDirectory);
         ArgumentNullException.ThrowIfNull(rowCounts);
@@ -59,65 +66,87 @@ public static class TriggerEvidenceReportRunner
         Directory.CreateDirectory(outputDirectory);
 
         DateTimeOffset startedUtc = DateTimeOffset.UtcNow;
-        var costs = new List<TriggerCostEvidence>(rowCounts.Count * 3);
-        var rollbacks = new List<TriggerRollbackEvidenceRow>(rowCounts.Count * 3);
+        int matrixCapacity = checked(rowCounts.Count * MatrixOperations.Length * MatrixPaths.Length);
+        var costs = new List<TriggerCostEvidence>(matrixCapacity);
+        var rollbacks = new List<TriggerRollbackEvidenceRow>(matrixCapacity);
         foreach (int rows in rowCounts)
         {
-            foreach (TriggerPath path in Enum.GetValues<TriggerPath>())
+            foreach (TriggerDmlOperation operation in MatrixOperations)
             {
-                // The large row-trigger path allocates several GB by design. Collect
-                // between samples so the report measures the next sample rather than
-                // retained heap pressure from a previous path.
-                ForceCollection();
-                var baseline = new TriggerBaselineBenchmark { Rows = rows, Path = path }
-                    .RunSingleIteration();
-                if (baseline.RowsInserted != rows)
+                foreach (TriggerPath path in MatrixPaths)
                 {
-                    throw new InvalidDataException(
-                        $"M39 cost evidence inserted {baseline.RowsInserted} rows; expected {rows} ({path}).");
-                }
-                costs.Add(new TriggerCostEvidence(
-                    rows,
-                    path.ToString(),
-                    baseline.RowsInserted,
-                    baseline.ElapsedMilliseconds,
-                    RowsPerSecond(rows, baseline.ElapsedMilliseconds),
-                    baseline.WalBytes,
-                    baseline.RowStoreBytes,
-                    baseline.WorkingSetBytes,
-                    baseline.ManagedBytes,
-                    baseline.AllocatedBytes));
+                    // 大批量行触发器路径会产生显著分配；样本间主动回收，避免上一组合的
+                    // 保留堆压力污染下一组 operation/path 的观测值。
+                    ForceCollection();
+                    var baseline = new TriggerBaselineBenchmark
+                    {
+                        Rows = rows,
+                        Operation = operation,
+                        Path = path,
+                    }.RunSingleIteration();
+                    if (baseline.Operation != operation || baseline.RowsAffected != rows)
+                    {
+                        throw new InvalidDataException(
+                            $"M39 cost evidence affected {baseline.RowsAffected} rows; expected {rows} "
+                            + $"(operation={operation}, sampleOperation={baseline.Operation}, path={path}).");
+                    }
+                    costs.Add(new TriggerCostEvidence(
+                        rows,
+                        path.ToString(),
+                        baseline.RowsInserted,
+                        baseline.ElapsedMilliseconds,
+                        RowsPerSecond(baseline.RowsAffected, baseline.ElapsedMilliseconds),
+                        baseline.WalBytes,
+                        baseline.RowStoreBytesDelta,
+                        baseline.WorkingSetBytes,
+                        baseline.ManagedBytes,
+                        baseline.AllocatedBytes)
+                    {
+                        Operation = operation.ToString(),
+                        RowsAffected = baseline.RowsAffected,
+                    });
 
-                ForceCollection();
-                var rollback = TriggerRollbackEvidence.RunSingleIteration(rows, path);
-                int expectedAuditRows = path == TriggerPath.NoTrigger ? 0 : 1;
-                if (!rollback.FailedAsExpected
-                    || rollback.SourceRowsAfterRollback != 0
-                    || rollback.AuditRowsAfterRollback != expectedAuditRows)
-                {
-                    throw new InvalidDataException(
-                        $"M39 rollback evidence mismatch: rows={rows}, path={path}, "
-                        + $"failed={rollback.FailedAsExpected}, source={rollback.SourceRowsAfterRollback}, "
-                        + $"audit={rollback.AuditRowsAfterRollback}.");
+                    ForceCollection();
+                    var rollback = TriggerRollbackEvidence.RunSingleIteration(rows, path, operation);
+                    int expectedSourceRows = operation == TriggerDmlOperation.Insert ? 0 : rows;
+                    const int expectedAuditRows = 1;
+                    if (rollback.Operation != operation
+                        || !rollback.FailedAsExpected
+                        || !rollback.SourceStateRestored
+                        || !rollback.AuditStateRestored
+                        || rollback.SourceRowsAfterRollback != expectedSourceRows
+                        || rollback.AuditRowsAfterRollback != expectedAuditRows)
+                    {
+                        throw new InvalidDataException(
+                            $"M39 rollback evidence mismatch: rows={rows}, operation={operation}, path={path}, "
+                            + $"sampleOperation={rollback.Operation}, failed={rollback.FailedAsExpected}, "
+                            + $"sourceRestored={rollback.SourceStateRestored}, "
+                            + $"auditRestored={rollback.AuditStateRestored}, "
+                            + $"source={rollback.SourceRowsAfterRollback}, audit={rollback.AuditRowsAfterRollback}.");
+                    }
+                    rollbacks.Add(new TriggerRollbackEvidenceRow(
+                        rows,
+                        path.ToString(),
+                        rollback.FailedAsExpected,
+                        rollback.ElapsedMilliseconds,
+                        rollback.WalBytes,
+                        rollback.SourceRowsAfterRollback,
+                        rollback.AuditRowsAfterRollback,
+                        rollback.AllocatedBytes,
+                        rollback.FailureCode)
+                    {
+                        Operation = operation.ToString(),
+                        SourceStateRestored = rollback.SourceStateRestored,
+                        AuditStateRestored = rollback.AuditStateRestored,
+                    });
                 }
-                rollbacks.Add(new TriggerRollbackEvidenceRow(
-                    rows,
-                    path.ToString(),
-                    rollback.FailedAsExpected,
-                    rollback.ElapsedMilliseconds,
-                    rollback.WalBytes,
-                    rollback.SourceRowsAfterRollback,
-                    rollback.AuditRowsAfterRollback,
-                    rollback.AllocatedBytes,
-                    rollback.FailureCode));
             }
         }
 
         DateTimeOffset finishedUtc = DateTimeOffset.UtcNow;
-        bool fullMatrix = rowCounts.Count == MatrixRows.Length
-            && MatrixRows.All(rowCounts.Contains);
+        bool fullMatrix = IsFullMatrix(rowCounts, costs, rollbacks);
         var report = new TriggerEvidenceReport(
-            "m39-trigger-v2-baseline-v2",
+            "m39-trigger-v2-baseline-v3",
             "#333",
             ResolveCommitSha(),
             startedUtc,
@@ -171,40 +200,80 @@ public static class TriggerEvidenceReportRunner
                     ? "当前 V1 AFTER ROW 在关系表上可执行，三条 golden journey 的行级合同与进程内回滚已由 Core 测试验证。"
                     : "当前 V1 AFTER ROW 在关系表上可执行；本次命令实际执行了成本/回滚矩阵，golden journey 的 Core 断言未在本命令中运行。",
                 fullMatrix
-                    ? "1、100、10,000 行成本矩阵覆盖无触发器、V1 行触发器和客户端候选 statement 参考路径。"
-                    : "本次运行只覆盖报告中的 RowCounts；它是管线 smoke，不是完整 #333 成本证据。",
+                    ? "1、100、10,000 行的 INSERT、UPDATE、DELETE 成功与回滚矩阵覆盖无触发器、V1 行触发器和客户端事务参考路径。"
+                    : "本次运行覆盖三种 DML 和三条路径，但只覆盖报告中的 RowCounts；它是管线 smoke，不是完整 #333 成本证据。",
                 crashTestsVerified
                     ? "提交失败、真进程终止和重启 replay 已由同一证据流程的自动化测试验证；跨 keyspace 掉电原子性不被宣称。"
                     : "报告仅登记提交失败、真进程终止和重启 replay 的测试入口，本命令未执行这些测试；跨 keyspace 掉电原子性不被宣称。",
             ],
             [
-                "CandidateStatementReference 是显式事务 + 单条汇总写入的客户端参考，不是产品 statement trigger。",
-                "本轮成本矩阵以批量 INSERT 代表写放大；UPDATE/DELETE 只在 golden journey 做功能对拍，尚未有同规模成本样本。",
-                "本报告不是固定硬件容量声明；正式结论还需在目标机器重复并归档原始输出。",
+                "CandidateStatementReference 是显式事务与汇总写入的客户端参考，不构成产品 statement trigger 的实现或语义证明。",
+                "成本与回滚数据只代表报告所记录的本次运行环境，不构成固定硬件容量、生产吞吐或 SLO 声明。",
                 "Document/measurement、BEFORE、transition table、deferred 和 exactly-once 语义仍未准入。",
-            ]);
+            ])
+        {
+            Operations = MatrixOperations.Select(static operation => operation.ToString()).ToArray(),
+        };
 
         string json = JsonSerializer.Serialize(report, TriggerEvidenceJsonContext.Default.TriggerEvidenceReport);
-        File.WriteAllText(Path.Combine(outputDirectory, "report.json"), json, Encoding.UTF8);
-        File.WriteAllText(Path.Combine(outputDirectory, "report.md"), BuildMarkdown(report), Encoding.UTF8);
+        File.WriteAllText(Path.Combine(outputDirectory, "report.json"), json, Utf8WithoutBom);
+        File.WriteAllText(Path.Combine(outputDirectory, "report.md"), BuildMarkdown(report), Utf8WithoutBom);
         return report;
     }
 
+    /// <summary>
+    /// 验证正式证据同时覆盖固定行数、三种 DML 和全部触发器路径，且成功与回滚矩阵均无缺项或重复项。
+    /// </summary>
+    private static bool IsFullMatrix(
+        IReadOnlyList<int> rowCounts,
+        IReadOnlyCollection<TriggerCostEvidence> costs,
+        IReadOnlyCollection<TriggerRollbackEvidenceRow> rollbacks)
+    {
+        if (rowCounts.Count != MatrixRows.Length || !MatrixRows.All(rowCounts.Contains))
+            return false;
+
+        // 用三维组合键对拍两张矩阵，避免仅凭样本总数把重复组合误判为完整覆盖。
+        var expectedKeys = new HashSet<(int Rows, string Operation, string Path)>();
+        foreach (int rows in MatrixRows)
+        {
+            foreach (TriggerDmlOperation operation in MatrixOperations)
+            {
+                foreach (TriggerPath path in MatrixPaths)
+                    expectedKeys.Add((rows, operation.ToString(), path.ToString()));
+            }
+        }
+
+        HashSet<(int Rows, string Operation, string Path)> costKeys = costs
+            .Select(static row => (row.Rows, row.Operation, row.Path))
+            .ToHashSet();
+        HashSet<(int Rows, string Operation, string Path)> rollbackKeys = rollbacks
+            .Select(static row => (row.Rows, row.Operation, row.Path))
+            .ToHashSet();
+        return costs.Count == expectedKeys.Count
+            && rollbacks.Count == expectedKeys.Count
+            && costKeys.SetEquals(expectedKeys)
+            && rollbackKeys.SetEquals(expectedKeys);
+    }
+
+    /// <summary>读取 workflow 在独立 crash/replay 测试通过后设置的验证标记。</summary>
     private static bool ResolveCrashTestsVerified()
         => string.Equals(
             Environment.GetEnvironmentVariable(CrashEvidenceVerifiedEnvironmentVariable),
             "true",
             StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>按受影响行数和耗时计算每秒处理行数，并避免零耗时导致除零。</summary>
     private static double RowsPerSecond(int rows, double elapsedMilliseconds)
         => rows / Math.Max(elapsedMilliseconds / 1_000d, 0.000001d);
 
+    /// <summary>在矩阵样本之间执行完整 GC，降低前一个样本保留内存对后续观测的影响。</summary>
     private static void ForceCollection()
     {
         GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
         GC.WaitForPendingFinalizers();
     }
 
+    /// <summary>解析当前提交 SHA，并在工作区存在改动时附加 dirty 标记。</summary>
     private static string ResolveCommitSha()
     {
         string? configured = Environment.GetEnvironmentVariable("GITHUB_SHA");
@@ -259,6 +328,7 @@ public static class TriggerEvidenceReportRunner
         }
     }
 
+    /// <summary>将机器可读报告渲染为便于审阅的 Markdown 证据。</summary>
     private static string BuildMarkdown(TriggerEvidenceReport report)
     {
         var text = new StringBuilder();
@@ -270,6 +340,7 @@ public static class TriggerEvidenceReportRunner
         text.AppendLine(CultureInfo.InvariantCulture, $"- Started UTC: `{report.StartedUtc:O}`");
         text.AppendLine(CultureInfo.InvariantCulture, $"- Finished UTC: `{report.FinishedUtc:O}`");
         text.AppendLine(CultureInfo.InvariantCulture, $"- Row counts: `{string.Join(", ", report.RowCounts.Select(static value => value.ToString("N0", CultureInfo.InvariantCulture)))}`");
+        text.AppendLine(CultureInfo.InvariantCulture, $"- Operations: `{string.Join(", ", report.Operations)}`");
         text.AppendLine(CultureInfo.InvariantCulture, $"- Crash/replay tests verified in this flow: `{report.CrashTestsVerified}`");
         text.AppendLine(CultureInfo.InvariantCulture, $"- Runtime: `{report.Environment.Framework}` / `{report.Environment.Os}`");
         text.AppendLine(CultureInfo.InvariantCulture, $"- Architecture: `{report.Environment.Architecture}`");
@@ -284,25 +355,27 @@ public static class TriggerEvidenceReportRunner
         text.AppendLine();
         text.AppendLine("## Cost matrix");
         text.AppendLine();
-        text.AppendLine("| Rows | Path | Rows/sec | Elapsed ms | WAL bytes | Rowstore bytes | Working set | Managed | Allocated |");
-        text.AppendLine("| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
+        text.AppendLine("| Rows | Operation | Path | Rows affected | Rows/sec | Elapsed ms | WAL bytes | Rowstore bytes delta | Working set | Managed | Allocated |");
+        text.AppendLine("| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
         foreach (TriggerCostEvidence row in report.CostMatrix)
         {
             text.AppendLine(CultureInfo.InvariantCulture,
-                $"| {row.Rows:N0} | {row.Path} | {row.RowsPerSecond:F2} | {row.ElapsedMilliseconds:F2} | "
-                + $"{row.WalBytes:N0} | {row.RowStoreBytes:N0} | {row.WorkingSetBytes:N0} | "
+                $"| {row.Rows:N0} | {row.Operation} | {row.Path} | {row.RowsAffected:N0} | "
+                + $"{row.RowsPerSecond:F2} | {row.ElapsedMilliseconds:F2} | "
+                + $"{row.WalBytes:N0} | {row.RowStoreBytesDelta:N0} | {row.WorkingSetBytes:N0} | "
                 + $"{row.ManagedBytes:N0} | {row.AllocatedBytes:N0} |");
         }
 
         text.AppendLine();
         text.AppendLine("## Rollback matrix");
         text.AppendLine();
-        text.AppendLine("| Rows | Path | Failed as expected | Elapsed ms | WAL bytes | Source after | Audit after | Failure code |");
-        text.AppendLine("| ---: | --- | --- | ---: | ---: | ---: | ---: | --- |");
+        text.AppendLine("| Rows | Operation | Path | Failed as expected | Source restored | Audit restored | Elapsed ms | WAL bytes | Source after | Audit after | Failure code |");
+        text.AppendLine("| ---: | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- |");
         foreach (TriggerRollbackEvidenceRow row in report.RollbackMatrix)
         {
             text.AppendLine(CultureInfo.InvariantCulture,
-                $"| {row.Rows:N0} | {row.Path} | {row.FailedAsExpected} | {row.ElapsedMilliseconds:F2} | "
+                $"| {row.Rows:N0} | {row.Operation} | {row.Path} | {row.FailedAsExpected} | "
+                + $"{row.SourceStateRestored} | {row.AuditStateRestored} | {row.ElapsedMilliseconds:F2} | "
                 + $"{row.WalBytes:N0} | {row.SourceRowsAfterRollback} | {row.AuditRowsAfterRollback} | {row.FailureCode} |");
         }
 
@@ -317,6 +390,7 @@ public static class TriggerEvidenceReportRunner
         return text.ToString();
     }
 
+    /// <summary>向 Markdown 追加已验证或未证明的边界条目。</summary>
     private static void AppendBoundary(StringBuilder text, string heading, IReadOnlyList<string> values)
     {
         text.AppendLine();
@@ -342,7 +416,11 @@ public sealed record TriggerEvidenceReport(
     TriggerRollbackEvidenceRow[] RollbackMatrix,
     TriggerCrashEvidence[] CrashEvidence,
     string[] Validated,
-    string[] NotProven);
+    string[] NotProven)
+{
+    /// <summary>本报告覆盖的 DML 类型；旧构造调用默认表示仅覆盖 INSERT。</summary>
+    public string[] Operations { get; init; } = [nameof(TriggerDmlOperation.Insert)];
+}
 
 /// <summary>证据运行环境信息。</summary>
 public sealed record TriggerEnvironment(
@@ -369,7 +447,17 @@ public sealed record TriggerCostEvidence(
     long RowStoreBytes,
     long WorkingSetBytes,
     long ManagedBytes,
-    long AllocatedBytes);
+    long AllocatedBytes)
+{
+    /// <summary>本样本执行的 DML 类型；旧构造调用默认仍表示 INSERT。</summary>
+    public string Operation { get; init; } = nameof(TriggerDmlOperation.Insert);
+
+    /// <summary>源 DML 实际受影响的行数；默认沿用兼容字段 RowsInserted。</summary>
+    public int RowsAffected { get; init; } = RowsInserted;
+
+    /// <summary>checkpoint 后 rowstore 文件总量相对 setup 基线的有符号差值。</summary>
+    public long RowStoreBytesDelta => RowStoreBytes;
+}
 
 /// <summary>失败回滚成本样本。</summary>
 public sealed record TriggerRollbackEvidenceRow(
@@ -381,7 +469,17 @@ public sealed record TriggerRollbackEvidenceRow(
     int SourceRowsAfterRollback,
     int AuditRowsAfterRollback,
     long AllocatedBytes,
-    string FailureCode);
+    string FailureCode)
+{
+    /// <summary>本样本执行的 DML 类型；旧构造调用默认仍表示 INSERT。</summary>
+    public string Operation { get; init; } = nameof(TriggerDmlOperation.Insert);
+
+    /// <summary>失败后源表是否逐行恢复到 DML 前状态；旧构造调用保持保守的未验证值。</summary>
+    public bool SourceStateRestored { get; init; }
+
+    /// <summary>失败后审计表是否只保留原始 sentinel；旧构造调用保持保守的未验证值。</summary>
+    public bool AuditStateRestored { get; init; }
+}
 
 /// <summary>崩溃/重放场景的自动化验证索引。</summary>
 public sealed record TriggerCrashEvidence(

@@ -38,6 +38,7 @@ jobs:
       - name: Restore evidence projects
         run: |
           dotnet restore tests/SonnetDB.Benchmarks/SonnetDB.Benchmarks.csproj
+          dotnet restore tests/SonnetDB.Benchmarks.Tests/SonnetDB.Benchmarks.Tests.csproj
           dotnet restore tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj
           dotnet restore tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj
 
@@ -52,6 +53,11 @@ jobs:
           dotnet test tests/SonnetDB.CrashTests/SonnetDB.CrashTests.csproj \
             --configuration Release --no-restore \
             --filter 'FullyQualifiedName~betweenTriggerTableCommits'
+
+      - name: Run evidence report contract tests
+        run: |
+          dotnet test tests/SonnetDB.Benchmarks.Tests/SonnetDB.Benchmarks.Tests.csproj \
+            --configuration Release --no-restore
 
       - name: Run M39 cost and rollback report
         env:

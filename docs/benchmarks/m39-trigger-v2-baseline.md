@@ -11,14 +11,14 @@
 - 数据库：嵌入式 `Tsdb`，每个样本使用独立临时目录；后台 flush、compaction、自动 checkpoint 和过期清理关闭。
 - WAL：`SyncWalOnEveryWrite=false`、`FlushWalToOsOnWrite=true`，以便比较逻辑写放大；这不是掉电耐久性结论。
 - `wal_bytes` 是 DML 前后所有已打开关系表 active WAL 的逻辑长度差，包含尚未从缓冲区刷到文件的记录；它不是 fsync 或掉电耐久性指标。
-- `rowstore_bytes` 是停止计时后执行 `CheckpointAll()` 生成的 `.SDBKVSNP`/`.SDBKVSEG` 文件增量，checkpoint I/O 不计入 `elapsed_ms`。
+- 控制台 `rowstore_bytes_delta` 和 JSON `rowStoreBytesDelta` 是停止计时后执行 `CheckpointAll()` 得到的 `.SDBKVSNP`/`.SDBKVSEG` 文件总量相对 setup checkpoint 的有符号差值，checkpoint I/O 不计入 `elapsed_ms`；DELETE 产生负值时不会被压成 0。JSON 同时保留旧字段 `rowStoreBytes`，两者当前值相同。
 - 行数：`1`、`100`、`10,000`。
-- 报告 schema：`m39-trigger-v2-baseline-v2`；`journeys`、`costMatrix`、`rollbackMatrix` 和 `crashEvidence` 均为机器可读数组。
-- 本轮成本矩阵以批量 `INSERT` 作为写放大代表；`UPDATE`/`DELETE` 的功能合同在 golden journey 中覆盖，尚未纳入同规模计时，属于待补证据。
+- DML：`INSERT`、`UPDATE`、`DELETE`；UPDATE/DELETE 在创建触发器前预置同规模数据并完成 setup checkpoint。
+- 报告 schema：`m39-trigger-v2-baseline-v3`；`operations`、`journeys`、`costMatrix`、`rollbackMatrix` 和 `crashEvidence` 均为机器可读字段。
 - 每档路径：
-  - `NoTrigger`：仅向 `trigger_source` 执行批量 `INSERT`。
-  - `V1RowTrigger`：当前 `AFTER INSERT FOR EACH ROW`，每行向 `trigger_audit` 写一条记录。
-  - `CandidateStatementReference`：显式事务中向源表批量写入，再向汇总表写一条计数记录；这是客户端参考路径，**不是** statement trigger 或 transition table 实现。
+  - `NoTrigger`：仅向 `trigger_source` 执行对应批量 DML。
+  - `V1RowTrigger`：当前对应事件的 `AFTER ... FOR EACH ROW`，每行向 `trigger_audit` 写一条记录。
+  - `CandidateStatementReference`：显式事务中执行源 DML，再向汇总表写一条计数记录；这是客户端参考路径，**不是** statement trigger 或 transition table 实现。
 - V1 的默认 `MaxRoutineStatements=64` 不被产品代码修改。为了让 100/10,000 行成本可观测，基准专用入口将该上限设为 `Rows+64`，并在结果中保留这一前提。
 
 ## 运行命令
@@ -44,7 +44,7 @@ crash/replay 条目标为未运行的测试引用。只有在同一流程先运�
 
 ```powershell
 dotnet run -c Release --project tests/SonnetDB.Benchmarks -- `
-  --m39-trigger-evidence --quick --output "$env:TEMP\sndb-m39-trigger-v2-quick"
+  --m39-trigger-evidence --quick --output "$env:TEMP\sndb-m39-trigger-v3-quick"
 ```
 
 正式 BenchmarkDotNet 统计（3 次测量、无预热；可按需筛选）：
@@ -58,9 +58,9 @@ dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --filter '*TriggerB
 
 ## Smoke 结果示例
 
-以下是 Windows x64 / .NET 10 Release 的一次 smoke（单次样本，不能替代正式统计，也不应被当作固定硬件容量声明）：
+以下是第一批 INSERT-only runner 在 Windows x64 / .NET 10 Release 的一次历史 smoke（单次样本，不能替代 v3 正式统计，也不应被当作固定硬件容量声明）：
 
-| 行数 | 路径 | 耗时 (ms) | WAL (bytes) | rowstore (bytes) | 托管堆 (bytes) | 线程分配 (bytes) |
+| 行数 | 路径 | 耗时 (ms) | WAL (bytes) | rowstore delta (bytes) | 托管堆 (bytes) | 线程分配 (bytes) |
 |---:|---|---:|---:|---:|---:|---:|
 | 1 | NoTrigger | 33.267 | 95 | 119 | 601,232 | 75,496 |
 | 1 | V1RowTrigger | 13.400 | 190 | 238 | 751,600 | 147,688 |
@@ -79,9 +79,10 @@ dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --filter '*TriggerB
 约 2 倍 WAL 和显著分配放大；候选参考路径的单条汇总写入不能证明原子 transition set，也不能用来
 宣称 statement trigger 已实现。
 
-回滚 smoke 对三个路径各跑 `1/100/10,000` 行。失败后源表行数必须为 `0`；V1 和候选路径保留
-预置的 1 条审计基线行，无触发器路径保留 `0` 条。当前失败发生在 prepared batch 发布前，因此
-`wal_bytes=0` 是预期结果，表示没有产生补偿 WAL；提交阶段注入和真实进程终止由独立测试覆盖。
+v3 回滚 smoke 对三种 DML、三个路径各跑 `1/100/10,000` 行。三条路径都在显式事务中先执行源 DML，
+再通过重复写入预置 sentinel 注入同阶段约束失败：INSERT 后源表恢复为空，UPDATE/DELETE 后逐行恢复全部预置值，
+审计表只保留原始 sentinel。失败发生在 WAL 发布前时 `wal_bytes=0` 是预期结果，表示没有产生补偿 WAL；
+提交发布阶段注入和真实进程终止仍由独立测试覆盖。
 
 ## 功能与失败矩阵
 
@@ -92,8 +93,8 @@ dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --filter '*TriggerB
 3. 状态流转保护：非法状态迁移被拒绝，原始行和触发动作均不留下部分结果。
 
 正式 JSON/Markdown 报告的 `journeys` 索引审计 outbox、派生汇总和状态流转保护三条 Core 测试；
-`rollbackMatrix` 对 1/100/10,000 行分别记录无触发器、V1 行触发器和
-客户端候选 statement 参考路径的失败耗时、WAL 增量、残留源行/审计行与稳定失败码。`crashEvidence`
+`costMatrix` 与 `rollbackMatrix` 对三种 DML 的 1/100/10,000 行分别记录无触发器、V1 行触发器和
+客户端候选 statement 参考路径的耗时、WAL/rowstore 差值、受影响行数、精确恢复状态与稳定失败码。`crashEvidence`
 列出 Core 失败注入、提交失败、真进程终止和重启 replay 的自动化测试名称；运行报告不会把未执行的
 进程测试伪装成通过。
 

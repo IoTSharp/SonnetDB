@@ -87,6 +87,7 @@ if (args.Contains("--comparison-server", StringComparer.OrdinalIgnoreCase))
 
 BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
 
+// 执行 SegmentManager 生命周期烟测并验证每个动作返回有效段数量。
 static void RunSegmentMaintenanceSmoke()
 {
     var benchmark = new SegmentManagerMaintenanceBenchmark
@@ -111,6 +112,7 @@ static void RunSegmentMaintenanceSmoke()
     Console.WriteLine("segment-maintenance-smoke=PASS");
 }
 
+// 在独立迭代生命周期内执行一次 SegmentManager 动作。
 static void RunIteration(
     SegmentManagerMaintenanceBenchmark benchmark,
     Func<SegmentManagerMaintenanceBenchmark, int> action)
@@ -127,6 +129,7 @@ static void RunIteration(
     }
 }
 
+// 执行关系表 DELETE/TRUNCATE 各路径烟测并核对受影响行数。
 static void RunTableDeleteSmoke()
 {
     var benchmark = new TableDeleteBenchmark { Rows = 1_000 };
@@ -149,60 +152,78 @@ static void RunTableDeleteSmoke()
     Console.WriteLine("table-delete-smoke=PASS");
 }
 
+// 执行 M39 三种 DML、三条路径的成功与回滚证据矩阵。
 static void RunTriggerBaselineSmoke()
 {
     Console.WriteLine(
-        "rows\tpath\trows_inserted\telapsed_ms\twal_bytes\trowstore_bytes\tworking_set_bytes\tmanaged_bytes\tallocated_bytes");
+        "rows\toperation\tpath\trows_affected\telapsed_ms\twal_bytes\trowstore_bytes_delta\t"
+        + "working_set_bytes\tmanaged_bytes\tallocated_bytes");
     foreach (int rows in new[] { 1, 100, 10_000 })
     {
-        foreach (TriggerPath path in Enum.GetValues<TriggerPath>())
+        foreach (TriggerDmlOperation operation in Enum.GetValues<TriggerDmlOperation>())
         {
-            var sample = new TriggerBaselineBenchmark
+            foreach (TriggerPath path in Enum.GetValues<TriggerPath>())
             {
-                Rows = rows,
-                Path = path,
-            }.RunSingleIteration();
-            Console.WriteLine(
-                $"{sample.Rows}\t{sample.Path}\t{sample.RowsInserted}\t"
-                + $"{sample.ElapsedMilliseconds:F3}\t{sample.WalBytes}\t{sample.RowStoreBytes}\t"
-                + $"{sample.WorkingSetBytes}\t{sample.ManagedBytes}\t{sample.AllocatedBytes}");
-            CollectBetweenEvidenceSamples();
+                var sample = new TriggerBaselineBenchmark
+                {
+                    Rows = rows,
+                    Operation = operation,
+                    Path = path,
+                }.RunSingleIteration();
+                Console.WriteLine(
+                    $"{sample.Rows}\t{sample.Operation}\t{sample.Path}\t{sample.RowsAffected}\t"
+                    + $"{sample.ElapsedMilliseconds:F3}\t{sample.WalBytes}\t{sample.RowStoreBytesDelta}\t"
+                    + $"{sample.WorkingSetBytes}\t{sample.ManagedBytes}\t{sample.AllocatedBytes}");
+                CollectBetweenEvidenceSamples();
+            }
         }
     }
 
     Console.WriteLine(
-        "rollback_rows\tpath\telapsed_ms\twal_bytes\tsource_rows_after_rollback\t"
-        + "audit_rows_after_rollback\tallocated_bytes\tfailure_code");
+        "rollback_rows\toperation\tpath\telapsed_ms\twal_bytes\tsource_rows_after_rollback\t"
+        + "source_state_restored\taudit_state_restored\taudit_rows_after_rollback\t"
+        + "allocated_bytes\tfailure_code");
     foreach (int rows in new[] { 1, 100, 10_000 })
     {
-        foreach (TriggerPath path in Enum.GetValues<TriggerPath>())
+        foreach (TriggerDmlOperation operation in Enum.GetValues<TriggerDmlOperation>())
         {
-            var sample = TriggerRollbackEvidence.RunSingleIteration(rows, path);
-            int expectedAuditRows = path == TriggerPath.NoTrigger ? 0 : 1;
-            if (sample.SourceRowsAfterRollback != 0 || sample.AuditRowsAfterRollback != expectedAuditRows)
+            foreach (TriggerPath path in Enum.GetValues<TriggerPath>())
             {
-                throw new InvalidDataException(
-                    $"M39 rollback evidence mismatch: rows={rows}, path={path}, "
-                    + $"source={sample.SourceRowsAfterRollback}, audit={sample.AuditRowsAfterRollback}");
-            }
+                var sample = TriggerRollbackEvidence.RunSingleIteration(rows, path, operation);
+                int expectedSourceRows = operation == TriggerDmlOperation.Insert ? 0 : rows;
+                const int expectedAuditRows = 1;
+                if (!sample.SourceStateRestored
+                    || !sample.AuditStateRestored
+                    || sample.SourceRowsAfterRollback != expectedSourceRows
+                    || sample.AuditRowsAfterRollback != expectedAuditRows)
+                {
+                    throw new InvalidDataException(
+                        $"M39 rollback evidence mismatch: rows={rows}, operation={operation}, path={path}, "
+                        + $"source={sample.SourceRowsAfterRollback}, restored={sample.SourceStateRestored}, "
+                        + $"audit={sample.AuditRowsAfterRollback}, auditRestored={sample.AuditStateRestored}");
+                }
 
-            Console.WriteLine(
-                $"{sample.Rows}\t{sample.Path}\t{sample.ElapsedMilliseconds:F3}\t{sample.WalBytes}\t"
-                + $"{sample.SourceRowsAfterRollback}\t{sample.AuditRowsAfterRollback}\t"
-                + $"{sample.AllocatedBytes}\t{sample.FailureCode}");
-            CollectBetweenEvidenceSamples();
+                Console.WriteLine(
+                    $"{sample.Rows}\t{sample.Operation}\t{sample.Path}\t"
+                    + $"{sample.ElapsedMilliseconds:F3}\t{sample.WalBytes}\t"
+                    + $"{sample.SourceRowsAfterRollback}\t{sample.SourceStateRestored}\t{sample.AuditStateRestored}\t"
+                    + $"{sample.AuditRowsAfterRollback}\t{sample.AllocatedBytes}\t{sample.FailureCode}");
+                CollectBetweenEvidenceSamples();
+            }
         }
     }
 
     Console.WriteLine("m39-trigger-baseline-smoke=PASS");
 }
 
+// 在证据样本之间回收托管堆，降低前序样本的保留内存干扰。
 static void CollectBetweenEvidenceSamples()
 {
     GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
     GC.WaitForPendingFinalizers();
 }
 
+// 读取报告输出目录；未指定时返回仓库内的默认 artifact 路径。
 static string ReadOutputDirectory(string[] args)
 {
     const string option = "--output";

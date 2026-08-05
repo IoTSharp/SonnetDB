@@ -43,7 +43,7 @@
 | 36 | 八模型专用品类易用性对齐 | 📋 | 已完成参照分析；按真实缺口吸收高频工作流，不做协议或产品全集兼容。 |
 | 37 | 视图与物化视图 | ✅ | #327 逻辑视图与 #328 显式全量刷新物化视图均已实现。 |
 | 38 | SQL 存储过程与触发器 | ✅ | #329~#332 已完成 SQL 过程、关系表 AFTER ROW 触发器及治理收口；外部脚本运行时保持暂停。 |
-| 39 | SQL 触发器第二版 | 🚧 | #333 证据 runner、三条关系表 journey 和真进程 crash 场景已接入；UPDATE/DELETE 同规模成本与固定目标硬件矩阵仍待归档，再决定高级语义与多模型范围。 |
+| 39 | SQL 触发器第二版 | 🚧 | #333 证据 runner、三条关系表 journey、三种 DML 成本/回滚矩阵和真进程 crash 场景已接入；固定目标硬件矩阵仍待归档，再决定高级语义与多模型范围。 |
 | 40 | 原生属性图数据库 | 📋 | 路线已定稿；按公共地基、Native Graph Preview、SQL/PGQ Graph Beta、生产级单机图数据库四阶段推进，当前尚未实现。 |
 | 41 | 关系查询规划与执行性能加固 | 📋 | 木垒生产证据已确认关系查询存在扫描、物化、锁等待和 GC 放大；按可观测性与快速路径、流式执行、统计成本模型、高级 JOIN/spill/并行和生产门禁推进。 |
 | MM9 | 多模型备份恢复第一批 | ✅ | `BackupService` 与 `sndb backup` 已落地。 |
@@ -276,7 +276,7 @@ Phase A 已完成本地合同与持久化地基：DDL、Parser/AST、独立版�
 
 | PR | 交付 | 状态 |
 |---|---|---|
-| #333 | V2 gap baseline：固定审计 outbox、派生汇总、状态流转保护三条关系表 golden journey；建立 1/100/10,000 行 DML 下无触发器、V1 row trigger 与候选 statement trigger 的吞吐、WAL、内存和回滚成本矩阵；加入触发动作中途失败、提交失败、进程终止、重启 replay 的 crash-injection 证据，并据此确认后续条目的优先级。已接入以批量 INSERT 为代表的 `tests/SonnetDB.Benchmarks --m39-trigger-evidence`、`m39-trigger-evidence.yml` 和 CrashTests；UPDATE/DELETE 同规模成本及固定目标硬件复测仍需归档，不作为本地语义准入结论。 | 🚧 |
+| #333 | V2 gap baseline：固定审计 outbox、派生汇总、状态流转保护三条关系表 golden journey；建立 1/100/10,000 行 DML 下无触发器、V1 row trigger 与候选 statement trigger 的吞吐、WAL、内存和回滚成本矩阵；加入触发动作中途失败、提交失败、进程终止、重启 replay 的 crash-injection 证据，并据此确认后续条目的优先级。`tests/SonnetDB.Benchmarks --m39-trigger-evidence` 的 v3 报告现已覆盖 INSERT/UPDATE/DELETE 三种 DML、三条路径及精确回滚状态，并接入 xUnit quick-contract、`m39-trigger-evidence.yml` 和 CrashTests；固定目标硬件复测仍需归档，不以本地 quick 结果代替语义或容量准入结论。 | 🚧 |
 | #334 | 生命周期与确定性顺序：设计 `ALTER TRIGGER ... ENABLE/DISABLE`、原子替换或重命名，以及显式 `FOLLOWS` / `PRECEDES` 顺序合同；目录更新必须保持落盘后发布、依赖安全和备份恢复兼容，禁用状态不能改变历史创建顺序。 | 📋 |
 | #335 | 语句级触发器与 transition tables：在 #333 证明逐行写放大是主要瓶颈后，实现 `FOR EACH STATEMENT` 及只读 `OLD TABLE` / `NEW TABLE`；固定空影响集、批量 UPDATE/DELETE、同语句多行、触发器链和失败回滚语义，避免把 transition set 无界复制到内存。 | 📋 |
 | #336 | 受控 BEFORE 语义：仅面向关系表 `BEFORE INSERT/UPDATE`，先冻结校验/改写顺序、生成列/ROWVERSION/主外键/CHECK 交互和只读 OLD 规则；若允许修改 NEW，必须使用受限赋值合同，不允许任意递归 DML 或绕过约束。`INSTEAD OF` 与可写视图另行评估。 | 📋 |

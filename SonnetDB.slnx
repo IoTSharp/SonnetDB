@@ -32,6 +32,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/SonnetDB.Accuracy.Tests/SonnetDB.Accuracy.Tests.csproj" />
+    <Project Path="tests/SonnetDB.Benchmarks.Tests/SonnetDB.Benchmarks.Tests.csproj" />
     <Project Path="tests/SonnetDB.Benchmarks/SonnetDB.Benchmarks.csproj" />
     <Project Path="tests/SonnetDB.Core.Tests/SonnetDB.Core.Tests.csproj" />
     <Project Path="tests/SonnetDB.EntityFrameworkCore.Tests/SonnetDB.EntityFrameworkCore.Tests.csproj" />
