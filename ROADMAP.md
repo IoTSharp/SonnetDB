@@ -311,6 +311,47 @@ Phase A 已完成本地合同与持久化地基：DDL、Parser/AST、独立版�
 
 2026-08-05 木垒 ARM64 生产只读采样已经满足排期条件：主机 48 核、250 GiB 内存且约 190 GiB 可用，采样期 CPU idle 72%~89%、I/O wait 为 0；SonnetDB RSS 约 27~28 GiB，在约 72.33 SQL QPS、322.60 返回行/秒下产生约 282.39 MiB/s 逻辑读取而物理读取为 0。`GovernanceAudits` 幂等键/`EXISTS`、普通 `IN`、nullable `OR`、多表 JOIN 和倒序分页出现 12~61 秒延迟，简单点查和 `COMMIT` 也受排队、锁等待或 GC 连带影响。该采样是生产问题基线，不代替可重复基准和 profile。
 
+### 已确认缺陷：`EXISTS` 绕过表索引访问路径（#369）
+
+木垒“超限车辆核验”请求超时已经定位到 SonnetDB SQL 执行器，而不是索引损坏或单纯的选择率估算错误。同一张表按唯一二级索引 `IdempotencyKey` 直接等值查询约为 2 ms；原始复合 `EXISTS` 查询耗时 25,465 ms，生产 Top Queries 中同一参数化查询在 61,143 ms 后失败。生产镜像基于 commit `1d94b96`，相关执行器到本次核查的 `cbea6ed` 仍保持相同行为。
+
+当前两条实际执行路径不同：
+
+```text
+普通 SELECT ... WHERE IdempotencyKey = ?
+  -> TableSqlExecutor.LoadSelectCandidateRows
+  -> ChooseBestIndexAccessPlan
+  -> 唯一索引点查 + 残余谓词
+
+SELECT EXISTS (...)
+  -> SqlExecutor 发现子查询
+  -> RelationalSelectExecutor
+  -> LoadTable(... where: null)
+  -> TableStore.Scan() 并物化整表
+  -> 在内存中执行 WHERE
+  -> EvaluateExists 检查 Rows.Count != 0
+```
+
+代码证据集中在 `Sql/Execution`：`SqlExecutor.cs` 的关系路径分派会把包含子查询的语句交给 `RelationalSelectExecutor`；`RelationalSelectExecutor.LoadTable` 以 `where: null` 调用 `TableSqlExecutor.LoadSelectCandidateRows`，随后才过滤已物化的全部行；`EvaluateExists` 执行完整子查询后才检查 `Rows.Count`，没有在首个匹配行处停止。相比之下，`TableSqlExecutor.ChooseBestIndexAccessPlan` 已支持复合条件中的索引前缀和残余谓词，所以问题不是“SonnetDB 不会用现有索引”，而是 `EXISTS` 所走的关系执行路径根本没有把内层谓词交给这套索引规划。相关 `EXISTS` 每处理一条外层候选行都可能再次完整扫描并物化内表，相关子查询最坏会退化到接近 `O(N x M)`。此外，`SqlExplainPlanner` 目前可能按普通表路径报告索引访问，但运行时实际已经分派到关系路径，存在 EXPLAIN 与真实执行不一致的风险。
+
+#369 按以下顺序修复，不依赖 P2 成本模型：
+
+1. 对可证明等价的非相关、单表 `EXISTS`，让内层 SELECT 复用正常表候选行规划，并把“找到一行即返回”作为执行合同，而不是先构造完整 `SelectExecutionResult`。
+2. 在关系执行器中完成 #369 所需的最小单表谓词下推，将可索引谓词传入 `LoadSelectCandidateRows`，同时保留顶层残余谓词；通用 JOIN/视图/外连接谓词下推仍由 #372 收口。
+3. 对相关 `EXISTS`，安全绑定外层值后优先执行内表主键/唯一索引点查或普通索引候选读取；不能证明相关性、NULL 或事务语义等价时显式回退。
+4. 统一 EXPLAIN 与运行时分派，使计划中的 access path、index、residual predicate、early-exit 和 fallback reason 来自实际会执行的路径。
+
+#369 的合并门禁必须包含以下自动化回归：
+
+- 唯一二级索引等值条件位于 `EXISTS` 内时，执行计数证明全表扫描为 0，并且 examined rows 随命中数而不是表总行数增长。
+- “索引等值条件 + 一个或多个残余条件”的复合谓词仍使用索引，残余条件结果与当前执行器差分一致。
+- 非相关和相关 `EXISTS` 都在首个匹配行停止；无匹配时完整检查必要候选且结果正确。
+- 可索引的相关 `EXISTS` 按外层行执行内表索引探测，不重复物化整个内表；不可索引相关谓词保留可取消、可观测的正确回退。
+- 增加 EF Core 生成的参数化 `SELECT EXISTS (...)` 回归语料，覆盖幂等键、附加状态/时间条件、命中、未命中和 NULL。
+- `EXPLAIN` 声明的访问路径与真实执行计数一致，不允许计划显示 index seek 而运行时发生 full scan。
+
+实现必须继续保持 SQL NULL 三值逻辑、参数绑定、事务 overlay/read-your-writes、稳定错误和取消语义，并满足 Core 零第三方运行时依赖、Safe-only 与 Native AOT 约束。TOLNSD 应保留当前应用层超时规避方案，直到修复版本完成生产同语料复测；应用 workaround 与 SonnetDB 根因修复互不替代。
+
 阶段目标按以下顺序收敛：
 
 1. P0 先让访问路径、examined/returned rows、队列/锁等待和分配可见，并消除已确认的 `EXISTS/IN/OR/倒序 Top-N` 扫描放大。
