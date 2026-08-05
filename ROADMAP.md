@@ -45,17 +45,19 @@
 | 38 | SQL 存储过程与触发器 | ✅ | #329~#332 已完成 SQL 过程、关系表 AFTER ROW 触发器及治理收口；外部脚本运行时保持暂停。 |
 | 39 | SQL 触发器第二版 | 🚧 | #333 证据 runner、三条关系表 journey 和真进程 crash 场景已接入；UPDATE/DELETE 同规模成本与固定目标硬件矩阵仍待归档，再决定高级语义与多模型范围。 |
 | 40 | 原生属性图数据库 | 📋 | 路线已定稿；按公共地基、Native Graph Preview、SQL/PGQ Graph Beta、生产级单机图数据库四阶段推进，当前尚未实现。 |
+| 41 | 关系查询规划与执行性能加固 | 📋 | 木垒生产证据已确认关系查询存在扫描、物化、锁等待和 GC 放大；按可观测性与快速路径、流式执行、统计成本模型、高级 JOIN/spill/并行和生产门禁推进。 |
 | MM9 | 多模型备份恢复第一批 | ✅ | `BackupService` 与 `sndb backup` 已落地。 |
 
 ## 当前推进顺序
 
-1. 恢复 M20 Parity nightly 的有效报告，并补齐 M19/M25 目标硬件容量证据。
-2. 完成 M27 的真实 provider/Agent 接线、双网客户端 Copilot、工业 Demo 和 eval，消除历史虚标。
-3. 收口 M29 Studio 安装包/宿主生命周期实机验收。
-4. M34 先做合同、DDL 和安全边界；M35 在过滤 ANN 与内容生命周期地基完成后再做媒体场景。
-5. M36 先完成八模型 golden journey 与 gap catalog；实现顺序为高频客户端工作流 -> 查询诊断 -> 高级治理，Document 复用已完成的 M32 结果，向量高级项复用 M35 地基。
-6. M39 先执行 #333 触发器 V2 证据门禁；未证明 V1 在真实 journey 上存在缺口前，不直接扩展 BEFORE、statement-level 或多模型触发器。
-7. M40 先完成 #341 的 workload/合同证据和 #342~#346 公共存储地基，再进入原生 Graph Preview；它不阻塞 M34/M35 的独立工作，但 M36 不得为 Graph 重复建设客户端、诊断或管理面。正式产品定位在 M40 发布门禁通过前继续保持“八种数据模型，一套引擎”。
+1. M41 P0 作为生产稳定性最高优先级：先完成 #368 基线与可观测性，再交付 #369~#371 的 `EXISTS/IN`、索引并集和倒序 Top-N 快速路径；不得用增加 SQL permit、内存或索引数量代替根因修复。
+2. 恢复 M20 Parity nightly 的有效报告，并补齐 M19/M25 目标硬件容量证据。
+3. 完成 M27 的真实 provider/Agent 接线、双网客户端 Copilot、工业 Demo 和 eval，消除历史虚标。
+4. 收口 M29 Studio 安装包/宿主生命周期实机验收。
+5. M34 先做合同、DDL 和安全边界；M35 在过滤 ANN 与内容生命周期地基完成后再做媒体场景。
+6. M36 先完成八模型 golden journey 与 gap catalog；实现顺序为高频客户端工作流 -> 查询诊断 -> 高级治理，Document 复用已完成的 M32 结果，向量高级项复用 M35 地基。
+7. M39 先执行 #333 触发器 V2 证据门禁；未证明 V1 在真实 journey 上存在缺口前，不直接扩展 BEFORE、statement-level 或多模型触发器。
+8. M40 先完成 #341 的 workload/合同证据和 #342~#346 公共存储地基，再进入原生 Graph Preview；Phase 2 的关系映射规划和流式执行必须复用 M41 的公共计划/算子合同，不得另建一套关系优化器。正式产品定位在 M40 发布门禁通过前继续保持“八种数据模型，一套引擎”。
 
 ## 待补验收证据
 
@@ -298,6 +300,49 @@ SonnetDB 同时支持两个明确角色：主站/client 主动轮询外部 PLC/R
 固定边界：一个 graph 一个 keyspace，第一阶段不支持跨 graph/跨模型原子事务；vertex 删除先用 `RESTRICT`，不以静默拆批伪装超大 `DETACH DELETE` 原子性；Graphify/实体抽取/LLM/GraphRAG job 留在 importer、Server 或 SDK；不引入第二套 WAL、SQL 表达式系统、向量/全文索引、权限和备份格式；不承诺 Bolt、完整 Cypher/GQL、RDF 推理或分布式图能力。
 
 阶段名称也是产品宣称门禁：Phase 1 只能称 Native Graph Preview，Phase 2 只能称 SonnetDB Graph Beta。只有 #367 的 LDBC/Graphalytics 子集、7 天 mixed workload、crash/backup/Native AOT 和固定硬件报告通过后，才可称“生产可用的单机原生属性图数据库”，并统一评估把产品定位从八模型更新为九模型。
+
+## Milestone 41 — 关系查询规划与执行性能加固
+
+目标是在不减少 SQL 能力、不改变事务/持久化/恢复语义的前提下，消除关系查询中的扫描、物化、复制、长锁和 GC 放大，并从当前规则式访问路径选择演进到可解释、可回退的轻量成本优化器。本里程碑不追求 PostgreSQL/MySQL 方言或优化器全集，也不通过降低正确性、关闭审计、放松 fsync、限制既有查询能力或提高无界并发换取基准数字。
+
+### 生产触发证据与目标
+
+2026-08-05 木垒 ARM64 生产只读采样已经满足排期条件：主机 48 核、250 GiB 内存且约 190 GiB 可用，采样期 CPU idle 72%~89%、I/O wait 为 0；SonnetDB RSS 约 27~28 GiB，在约 72.33 SQL QPS、322.60 返回行/秒下产生约 282.39 MiB/s 逻辑读取而物理读取为 0。`GovernanceAudits` 幂等键/`EXISTS`、普通 `IN`、nullable `OR`、多表 JOIN 和倒序分页出现 12~61 秒延迟，简单点查和 `COMMIT` 也受排队、锁等待或 GC 连带影响。该采样是生产问题基线，不代替可重复基准和 profile。
+
+阶段目标按以下顺序收敛：
+
+1. P0 先让访问路径、examined/returned rows、队列/锁等待和分配可见，并消除已确认的 `EXISTS/IN/OR/倒序 Top-N` 扫描放大。
+2. P1 将谓词、投影和 LIMIT 推入各关系输入，以流式 cursor、延迟物化和短锁快照替代完整行列表物化。
+3. P2 建立统计信息、基数/行宽估算、轻量成本模型和可解释的逻辑/物理计划选择。
+4. P3 在工作量已经缩减且内存有界后，再增加 JOIN 算法、spill、受控并行和运行时反馈。
+5. 每一阶段都以差分正确性、故障恢复、固定硬件基准和木垒查询语料回归为准入门禁，不等到全部实现后才验证。
+
+### 交付拆分
+
+| 优先级 | PR | 交付 | 状态 |
+|---|---|---|---|
+| P0 | #368 | 性能合同与可观测性基线：固化木垒慢查询语料和合成数据集；按规范化 query fingerprint 记录访问路径、候选/检查/返回行数、SQL permit 队列等待、表/KV 锁等待、执行时间、分配量、GC、逻辑/物理读写及 fallback reason。指标标签必须有界且不得记录参数值或行内容；慢查询环满载不得丢失聚合计数。 | 📋 |
+| P0 | #369 | `EXISTS`/`Any`、semijoin 与标量 `IN` 快速路径：唯一键/主键条件使用直接探测，普通主键或索引 `IN` 使用去重后的批量 MultiGet；保留残余谓词、NULL 三值逻辑、事务 overlay、稳定输出和参数绑定，无法证明等价时回退现有执行器。 | 📋 |
+| P0 | #370 | `OR` 与多索引候选集合：为可索引分支实现主键集合 union，并按证据准入 intersection；支持 nullable 时间条件等常见形式，统一去重、残余过滤、排序/分页边界和内存阈值，超阈值或不可索引分支使用可解释 fallback。 | 📋 |
+| P0 | #371 | 双向索引 cursor 与早停 Top-N：支持满足排序合同的升/降序索引遍历，将 `LIMIT/OFFSET` 安全下推到候选读取；多列方向、NULL 顺序、非覆盖谓词或事务 overlay 无法保证顺序时继续走现有排序路径。 | 📋 |
+| P1 | #372 | 关系输入谓词与投影下推：在 JOIN 前按绑定列归属拆分并下推单表 WHERE、所需列和安全 LIMIT；顶层残余谓词始终保留，外连接、相关子查询、聚合和视图展开必须有独立等价性测试。 | 📋 |
+| P1 | #373 | 流式关系算子与延迟物化：定义公共 row/candidate cursor，使 scan/filter/project/Top-N/JOIN 可逐批消费；增加 covering/index-only scan，仅在输出或残余谓词需要时读取并解码基表全行；所有阻塞算子必须声明内存行为。 | 📋 |
+| P1 | #374 | KV/Table 快照读取与锁范围收缩：在短锁内取得不可变可见视图或版本化 cursor，在锁外枚举、复制和解码；保持同一 statement snapshot、事务内 read-your-writes、删除/更新 overlay、checkpoint/compaction/WAL replay 和异常释放语义。与 M40 #342~#346 共享 cursor/codec 地基，不重复实现。 | 📋 |
+| P2 | #375 | 轻量统计信息：持久化表/索引行数与页数、平均行宽、NULL fraction、distinct、MCV 和等深直方图；支持显式 `ANALYZE` 与有预算的自动刷新，采样不得长时间阻塞业务，不保存原始敏感值，并记录 freshness/sample rate。 | 📋 |
+| P2 | #376 | 逻辑/物理计划与成本选择：统一 point/range/full/index-union access path，基于基数、选择率、行宽、解码、排序、内存和逻辑 I/O 估算选择计划；首版保持小而确定，不引入无界搜索，统计缺失或估算不可信时使用稳定启发式回退。 | 📋 |
+| P2 | #377 | 可解释计划与实际执行证据：默认 `EXPLAIN` 只读目录/统计元数据，不为估算候选数实际扫描业务数据；为 M36 #313 提供计划树、估算/实际行数、耗时、loops、rows removed、锁/队列等待、峰值内存、spill 和 fallback reason。M36 负责用户侧错误/取消/超时合同，本项只建设共享规划与算子证据源。 | 📋 |
+| P3 | #378 | JOIN 优化：按估算行数和行宽选择 Hash build side，支持 semijoin/antijoin、index nested-loop，并在有序输入和收益证据成立时准入 merge join；建立有限 join-order 枚举与大连接图回退，外连接和 NULL 语义不得被重写破坏。 | 📋 |
+| P3 | #379 | 阻塞算子内存预算与 spill：为 hash join、sort、Top-N、group、distinct 和索引候选集合设置按查询/全局预算、取消和临时文件生命周期；落盘结果必须与内存路径对拍，崩溃后可清理，禁止因预算不足静默截断结果。 | 📋 |
+| P3 | #380 | 受控并行与运行时反馈：仅对估算收益成立的 scan/JOIN/aggregate 启用有界并行，服从 SQL permit、查询内存和取消；记录估算偏差供统计刷新或下一次规划使用，不在执行中改变可观察结果顺序。必须在 #369~#379 已减少扫描并使内存有界后准入。 | 📋 |
+| 发布门禁 | #381 | 生产收口：运行语义差分、并发/事务、crash/replay、backup/restore、Native AOT、固定 ARM64/x64 硬件基准和 7 天 mixed workload；木垒语料分别报告 P50/P95/P99、examined/returned amplification、RSS/分配/GC、锁/队列等待和逻辑/物理 I/O。任一优化回归正确性或恢复保证时不得默认开启。 | 📋 |
+
+### 参考边界、顺序与验收
+
+参考 PostgreSQL 的统计信息、扩展统计、Bitmap Scan、有限 join-order 搜索、计划树和 `EXPLAIN ANALYZE`，参考 MySQL 的持久统计/直方图、range optimizer、Index Merge、semijoin/antijoin、Hash Join 内存界限与 spill；学习其机制和验证方法，不复制 wire protocol、完整 SQL 方言、系统目录或分布式能力。计划缓存只有在参数敏感选择和数据倾斜证据完成后另行准入，不能把单一计划盲目复用于所有参数。
+
+固定执行顺序为 `#368 -> #369/#370/#371 -> #372/#374 -> #373 -> #375/#376/#377 -> #378/#379 -> #380 -> #381`。P0 完成后立即在木垒同语料只读复测；P1 完成后必须证明长扫描不再在表级锁内完成全行解码；P2 完成后必须报告 estimated/actual rows 偏差；P3 不以线程数或单条最佳数字验收，而以混合负载尾延迟、吞吐和内存上界验收。
+
+所有快速路径必须满足以下不变量：索引 union/MultiGet 按主键去重；残余谓词不得丢失；NULL/三值逻辑、排序稳定性、LIMIT/OFFSET、相关子查询和事务可见性不变；WAL/checkpoint/compaction/backup/recovery 合同不变；公开 API 与 EXPLAIN schema 采用 extend-only 演进；Core 保持零第三方运行时依赖、Safe-only 和 Native AOT。每个新计划先与当前执行器做随机化及木垒固定语料差分测试，再按 feature gate/canary 放量；无法证明等价、统计过期或资源预算不足时必须回退到已验证路径并暴露原因。
 
 ## 性能观察项
 
