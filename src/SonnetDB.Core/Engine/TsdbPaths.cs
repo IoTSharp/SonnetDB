@@ -23,8 +23,10 @@
 /// └── materialized-views/
 ///     ├── materialized-views.sdbmv
 ///     └── data/
-/// └── routines/
+/// ├── routines/
 ///     └── routines.sdbrtn
+/// └── modbus/
+///     └── modbus.sdbmodbus
 /// </code>
 /// </para>
 /// </summary>
@@ -62,6 +64,9 @@ public static class TsdbPaths
 
     /// <summary>SQL 过程与触发器目录名。</summary>
     public const string RoutinesDirName = "routines";
+
+    /// <summary>Modbus 内建映射目录名。</summary>
+    public const string ModbusDirName = "modbus";
 
     /// <summary>Segment 文件扩展名。</summary>
     public const string SegmentFileExtension = ".SDBSEG";
@@ -184,6 +189,14 @@ public static class TsdbPaths
     /// <returns>例程目录路径。</returns>
     public static string RoutinesDir(string root) =>
         Path.Combine(root, RoutinesDirName);
+
+    /// <summary>
+    /// 返回 Modbus 内建映射目录：<c>{root}/modbus</c>。
+    /// </summary>
+    /// <param name="root">数据库根目录路径。</param>
+    /// <returns>Modbus 目录路径。</returns>
+    public static string ModbusDir(string root) =>
+        Path.Combine(root, ModbusDirName);
 
     /// <summary>
     /// 返回指定 SegmentId 对应的段文件完整路径：

@@ -5,6 +5,7 @@ using SonnetDB.Catalog;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
 using SonnetDB.Kv;
+using SonnetDB.Modbus;
 using SonnetDB.Storage.Format;
 using SonnetDB.Tables;
 
@@ -22,6 +23,9 @@ public sealed class BackupService
         ".tmp",
         ".temp",
     ];
+
+    /// <summary>仅供并发备份测试在指定文件复制后建立确定性同步点。</summary>
+    internal Action<string>? AfterFileCopiedTestHook { get; set; }
 
     /// <summary>
     /// 创建当前数据库的一致目录备份。
@@ -359,13 +363,18 @@ public sealed class BackupService
         };
     }
 
-    private static IReadOnlyList<string> CopyDatabaseFiles(
+    /// <summary>快照源文件清单并按稳定顺序复制，避免枚举期间新文件混入本次备份。</summary>
+    private IReadOnlyList<string> CopyDatabaseFiles(
         string sourceRoot,
         string destinationRoot,
         Predicate<string> include)
     {
         var copied = new List<string>();
-        foreach (string source in Directory.EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories))
+        string[] sourceFiles = Directory
+            .EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        foreach (string source in sourceFiles)
         {
             string relative = Path.GetRelativePath(sourceRoot, source);
             if (!include(relative))
@@ -375,6 +384,7 @@ public sealed class BackupService
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             CopyFile(source, target);
             copied.Add(relative);
+            AfterFileCopiedTestHook?.Invoke(NormalizeRelativePath(relative));
         }
 
         return copied.AsReadOnly();
@@ -513,7 +523,8 @@ public sealed class BackupService
             return BackupFileKind.Catalog;
         if (string.Equals(fileName, TsdbPaths.MeasurementSchemaFileName, StringComparison.OrdinalIgnoreCase)
             || string.Equals(fileName, TableSchemaCodec.FileName, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(fileName, DocumentCollectionSchemaCodec.FileName, StringComparison.OrdinalIgnoreCase))
+            || string.Equals(fileName, DocumentCollectionSchemaCodec.FileName, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(fileName, ModbusCatalogCodec.FileName, StringComparison.OrdinalIgnoreCase))
             return BackupFileKind.Schema;
         if (string.Equals(fileName, TsdbPaths.TombstoneManifestFileName, StringComparison.OrdinalIgnoreCase))
             return BackupFileKind.Tombstone;

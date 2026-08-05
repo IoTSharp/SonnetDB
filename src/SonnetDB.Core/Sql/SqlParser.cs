@@ -1,5 +1,8 @@
 ﻿using SonnetDB.Sql.Ast;
 
+using System.Globalization;
+using SonnetDB.Modbus;
+
 namespace SonnetDB.Sql;
 
 /// <summary>
@@ -164,6 +167,14 @@ public sealed class SqlParser
         if (IsIndexKeyword())
             return ParseCreateIndexBody(unique, sparse, ttl);
 
+        if (IsIdentifier("modbus"))
+        {
+            if (unique || sparse || ttl)
+                throw Error("CREATE MODBUS 不支持 UNIQUE / SPARSE / TTL 修饰符");
+            Advance();
+            return ParseCreateModbusBody();
+        }
+
         if (IsIdentifier("materialized"))
         {
             if (unique || sparse || ttl)
@@ -205,8 +216,194 @@ public sealed class SqlParser
             TokenKind.KeywordVector => ParseCreateVectorBody(),
             TokenKind.KeywordUser => ParseCreateUserBody(),
             TokenKind.KeywordDatabase => ParseCreateDatabaseBody(),
-            _ => throw Error("CREATE 后面期望 MEASUREMENT / TABLE / VIEW / PROCEDURE / TRIGGER / DOCUMENT COLLECTION / JSON INDEX / FULLTEXT INDEX / VECTOR INDEX / INDEX / USER / DATABASE"),
+            _ => throw Error("CREATE 后面期望 MODBUS / MEASUREMENT / TABLE / VIEW / PROCEDURE / TRIGGER / DOCUMENT COLLECTION / JSON INDEX / FULLTEXT INDEX / VECTOR INDEX / INDEX / USER / DATABASE"),
         };
+    }
+
+    /// <summary>
+    /// 解析 <c>CREATE MODBUS SOURCE</c> 或 <c>CREATE MODBUS ENDPOINT</c> 的对象分派。
+    /// </summary>
+    private SqlStatement ParseCreateModbusBody()
+    {
+        if (IsIdentifier("source"))
+            return ParseCreateModbusSourceBody();
+        if (IsIdentifier("endpoint"))
+            return ParseCreateModbusEndpointBody();
+
+        throw Error("CREATE MODBUS 后面期望 SOURCE / ENDPOINT");
+    }
+
+    /// <summary>
+    /// 解析主动轮询 source 的连接、轮询和默认编码选项。
+    /// </summary>
+    private CreateModbusSourceStatement ParseCreateModbusSourceBody()
+    {
+        Advance(); // SOURCE 是上下文关键字。
+        string name = ExpectIdentifierName();
+        Expect(TokenKind.KeywordWith);
+        Expect(TokenKind.LeftParen);
+
+        string? host = null;
+        int port = 502;
+        byte unitId = 1;
+        var addressingMode = ModbusAddressingMode.Modicon;
+        int pollIntervalMilliseconds = 1_000;
+        int timeoutMilliseconds = 3_000;
+        int retryCount = 3;
+        var byteOrder = ModbusByteOrder.BigEndian;
+        var wordOrder = ModbusWordOrder.BigEndian;
+        var enabled = false;
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        while (Current.Kind != TokenKind.RightParen)
+        {
+            string option = ExpectUniqueModbusOption(seen);
+            switch (option.ToUpperInvariant())
+            {
+                case "TRANSPORT":
+                    ParseModbusTcpTransport();
+                    break;
+                case "ENDPOINT":
+                    (host, port) = ParseModbusHostAndPort(ExpectStringLiteral(), "ENDPOINT");
+                    break;
+                case "UNIT_ID":
+                    unitId = ParseModbusUnitId();
+                    break;
+                case "POLL_INTERVAL":
+                    pollIntervalMilliseconds = ParseModbusDurationMilliseconds("POLL_INTERVAL");
+                    break;
+                case "TIMEOUT":
+                    timeoutMilliseconds = ParseModbusDurationMilliseconds("TIMEOUT");
+                    break;
+                case "RETRY":
+                    retryCount = ExpectNonNegativeInt("RETRY 必须是非负整数");
+                    break;
+                case "ADDRESSING":
+                    addressingMode = ParseModbusAddressingMode();
+                    break;
+                case "BYTE_ORDER":
+                    byteOrder = ParseModbusByteOrder();
+                    break;
+                case "WORD_ORDER":
+                    wordOrder = ParseModbusWordOrder();
+                    break;
+                case "ENABLED":
+                    enabled = ParseModbusBoolean("ENABLED");
+                    break;
+                case "AUDIT":
+                    ParseMandatoryModbusAudit();
+                    break;
+                default:
+                    throw Error($"CREATE MODBUS SOURCE 不支持选项 {option}");
+            }
+
+            ConsumeModbusOptionSeparator();
+        }
+
+        Expect(TokenKind.RightParen);
+        if (string.IsNullOrWhiteSpace(host))
+            throw Error("CREATE MODBUS SOURCE 必须声明 ENDPOINT");
+        if (!seen.Contains("BYTE_ORDER") || !seen.Contains("WORD_ORDER"))
+            throw Error("CREATE MODBUS SOURCE 必须显式声明 BYTE_ORDER 和 WORD_ORDER");
+
+        return new CreateModbusSourceStatement(new ModbusSourceDefinition(
+            name,
+            host,
+            port,
+            unitId,
+            addressingMode,
+            pollIntervalMilliseconds,
+            timeoutMilliseconds,
+            retryCount,
+            byteOrder,
+            wordOrder,
+            enabled));
+    }
+
+    /// <summary>
+    /// 解析从站 endpoint 的监听、安全边界和 staged 写入选项。
+    /// </summary>
+    private CreateModbusEndpointStatement ParseCreateModbusEndpointBody()
+    {
+        Advance(); // ENDPOINT 是上下文关键字。
+        string name = ExpectIdentifierName();
+        Expect(TokenKind.KeywordWith);
+        Expect(TokenKind.LeftParen);
+
+        string bindAddress = "127.0.0.1";
+        int port = 502;
+        byte unitId = 1;
+        int maxConnections = 32;
+        IReadOnlyList<string> allowlist = Array.Empty<string>();
+        var addressingMode = ModbusAddressingMode.Modicon;
+        var byteOrder = ModbusByteOrder.BigEndian;
+        var wordOrder = ModbusWordOrder.BigEndian;
+        var writePolicy = ModbusEndpointWritePolicy.Staged;
+        var enabled = false;
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        while (Current.Kind != TokenKind.RightParen)
+        {
+            string option = ExpectUniqueModbusOption(seen);
+            switch (option.ToUpperInvariant())
+            {
+                case "TRANSPORT":
+                    ParseModbusTcpTransport();
+                    break;
+                case "BIND":
+                    (bindAddress, port) = ParseModbusHostAndPort(ExpectStringLiteral(), "BIND");
+                    break;
+                case "UNIT_ID":
+                    unitId = ParseModbusUnitId();
+                    break;
+                case "ADDRESSING":
+                    addressingMode = ParseModbusAddressingMode();
+                    break;
+                case "BYTE_ORDER":
+                    byteOrder = ParseModbusByteOrder();
+                    break;
+                case "WORD_ORDER":
+                    wordOrder = ParseModbusWordOrder();
+                    break;
+                case "WRITE_POLICY":
+                    writePolicy = ParseModbusEndpointWritePolicy();
+                    break;
+                case "ALLOWLIST":
+                    allowlist = ParseModbusAllowlist();
+                    break;
+                case "MAX_CONNECTIONS":
+                    maxConnections = ExpectPositiveInt("MAX_CONNECTIONS 必须是正整数");
+                    break;
+                case "ENABLED":
+                    enabled = ParseModbusBoolean("ENABLED");
+                    break;
+                case "AUDIT":
+                    ParseMandatoryModbusAudit();
+                    break;
+                default:
+                    throw Error($"CREATE MODBUS ENDPOINT 不支持选项 {option}");
+            }
+
+            ConsumeModbusOptionSeparator();
+        }
+
+        Expect(TokenKind.RightParen);
+        if (!seen.Contains("BIND"))
+            throw Error("CREATE MODBUS ENDPOINT 必须声明 BIND");
+        if (!seen.Contains("BYTE_ORDER") || !seen.Contains("WORD_ORDER"))
+            throw Error("CREATE MODBUS ENDPOINT 必须显式声明 BYTE_ORDER 和 WORD_ORDER");
+        return new CreateModbusEndpointStatement(new ModbusEndpointDefinition(
+            name,
+            bindAddress,
+            port,
+            unitId,
+            maxConnections,
+            allowlist,
+            addressingMode,
+            byteOrder,
+            wordOrder,
+            writePolicy,
+            enabled));
     }
 
     private CreateProcedureStatement ParseCreateProcedureBody()
@@ -761,7 +958,13 @@ public sealed class SqlParser
         }
 
         Expect(TokenKind.RightParen);
-        return new CreateTableStatement(name, columns, primaryKey, ifNotExists, foreignKeys, checkConstraints);
+        ModbusTableBindingClause? modbusBinding = ParseOptionalModbusTableBinding();
+        ValidateModbusTableSyntax(columns, modbusBinding);
+
+        return new CreateTableStatement(name, columns, primaryKey, ifNotExists, foreignKeys, checkConstraints)
+        {
+            ModbusBinding = modbusBinding,
+        };
     }
 
     private TableColumnDefinition ParseTableColumnDefinition()
@@ -773,6 +976,30 @@ public sealed class SqlParser
         var isRowVersion = false;
         var isAutoIncrement = false;
         ParseTableColumnModifiers(ref nullability, ref defaultExpression, ref isRowVersion, ref isAutoIncrement);
+
+        var isModbusSampleTime = false;
+        ModbusColumnMappingClause? modbusMapping = null;
+        while (true)
+        {
+            if (IsIdentifier("sample_time"))
+            {
+                if (isModbusSampleTime)
+                    throw Error("SAMPLE_TIME 子句重复声明");
+                isModbusSampleTime = true;
+                Advance();
+                continue;
+            }
+
+            if (Current.Kind == TokenKind.KeywordFrom || IsIdentifier("expose"))
+            {
+                if (modbusMapping is not null)
+                    throw Error("Modbus 列映射重复声明");
+                modbusMapping = ParseModbusColumnMapping(dataType);
+                continue;
+            }
+
+            break;
+        }
 
         if (isRowVersion && dataType != SqlDataType.Int64)
             throw Error("ROWVERSION 列必须使用 INT 类型");
@@ -786,12 +1013,343 @@ public sealed class SqlParser
             throw Error("AUTO_INCREMENT 列不允许声明 NULL");
         if (isAutoIncrement && nullability == ColumnNullability.Unspecified)
             nullability = ColumnNullability.NotNull;
+        if (isModbusSampleTime && dataType != SqlDataType.DateTime)
+            throw Error("SAMPLE_TIME 列必须使用 DATETIME 类型");
+        if (isModbusSampleTime && modbusMapping is not null)
+            throw Error("SAMPLE_TIME 列不能同时声明 Modbus 地址映射");
 
         return new TableColumnDefinition(columnName, dataType, nullability, isRowVersion)
         {
             IsAutoIncrement = isAutoIncrement,
             DefaultExpression = defaultExpression,
+            ModbusMapping = modbusMapping,
+            IsModbusSampleTime = isModbusSampleTime,
         };
+    }
+
+    /// <summary>
+    /// 解析关系表列上的 <c>FROM MODBUS</c> 或 <c>EXPOSE AS MODBUS</c> 映射。
+    /// </summary>
+    private ModbusColumnMappingClause ParseModbusColumnMapping(SqlDataType sqlDataType)
+    {
+        ModbusMappingDirection direction;
+        if (Current.Kind == TokenKind.KeywordFrom)
+        {
+            direction = ModbusMappingDirection.SourceToTable;
+            Advance();
+            ExpectIdentifier("modbus", "FROM 后面期望 MODBUS");
+        }
+        else
+        {
+            direction = ModbusMappingDirection.TableToEndpoint;
+            Advance(); // EXPOSE 是上下文关键字。
+            Expect(TokenKind.KeywordAs);
+            ExpectIdentifier("modbus", "EXPOSE AS 后面期望 MODBUS");
+        }
+
+        ModbusRegisterArea area = ParseModbusRegisterArea();
+        Expect(TokenKind.LeftParen);
+        int declaredAddress = ExpectNonNegativeInt("Modbus 声明地址必须是非负整数");
+        int? explicitCount = null;
+        if (Current.Kind == TokenKind.Comma)
+        {
+            Advance();
+            explicitCount = ExpectPositiveInt("Modbus 地址数量必须是正整数");
+        }
+        Expect(TokenKind.RightParen);
+
+        int? bitIndex = null;
+        if (Current.Kind == TokenKind.Dot)
+        {
+            Advance();
+            ExpectIdentifier("bit", "Modbus 地址点号后面期望 BIT");
+            Expect(TokenKind.LeftParen);
+            bitIndex = ExpectNonNegativeInt("BIT 索引必须位于 0..15");
+            if (bitIndex > 15)
+                throw Error("BIT 索引必须位于 0..15");
+            Expect(TokenKind.RightParen);
+        }
+
+        Expect(TokenKind.KeywordAs);
+        (ModbusValueType valueType, int stringLength, int inferredCount) = ParseModbusValueType();
+        if (explicitCount is not null && explicitCount.Value != inferredCount)
+            throw Error($"显式 count {explicitCount.Value} 与 wire type 所需数量 {inferredCount} 不一致");
+
+        ModbusByteOrder? byteOrder = null;
+        ModbusWordOrder? wordOrder = null;
+        decimal scale = 1m;
+        decimal offset = 0m;
+        var access = ModbusAccessMode.Read;
+        var scaleSpecified = false;
+        var offsetSpecified = false;
+        var accessSpecified = false;
+
+        while (true)
+        {
+            if (IsIdentifier("byte_order"))
+            {
+                if (byteOrder is not null)
+                    throw Error("BYTE_ORDER 子句重复声明");
+                Advance();
+                byteOrder = ParseModbusByteOrder();
+                continue;
+            }
+
+            if (IsIdentifier("word_order"))
+            {
+                if (wordOrder is not null)
+                    throw Error("WORD_ORDER 子句重复声明");
+                Advance();
+                wordOrder = ParseModbusWordOrder();
+                continue;
+            }
+
+            if (IsIdentifier("scale"))
+            {
+                if (scaleSpecified)
+                    throw Error("SCALE 子句重复声明");
+                Advance();
+                scale = ParseModbusDecimal("SCALE");
+                scaleSpecified = true;
+                continue;
+            }
+
+            if (Current.Kind == TokenKind.KeywordOffset)
+            {
+                if (offsetSpecified)
+                    throw Error("OFFSET 子句重复声明");
+                Advance();
+                offset = ParseModbusDecimal("OFFSET");
+                offsetSpecified = true;
+                continue;
+            }
+
+            if (IsIdentifier("access"))
+            {
+                if (accessSpecified)
+                    throw Error("ACCESS 子句重复声明");
+                Advance();
+                access = ParseModbusAccessMode();
+                accessSpecified = true;
+                continue;
+            }
+
+            break;
+        }
+
+        ValidateModbusColumnMappingSyntax(
+            sqlDataType,
+            area,
+            valueType,
+            bitIndex,
+            scale,
+            scaleSpecified,
+            offsetSpecified,
+            access);
+
+        return new ModbusColumnMappingClause(
+            direction,
+            area,
+            declaredAddress,
+            inferredCount,
+            bitIndex,
+            valueType,
+            stringLength,
+            byteOrder,
+            wordOrder,
+            scale,
+            offset,
+            access);
+    }
+
+    /// <summary>
+    /// 校验无需 catalog 上下文即可确定的列映射类型、区域和访问约束。
+    /// </summary>
+    private void ValidateModbusColumnMappingSyntax(
+        SqlDataType sqlDataType,
+        ModbusRegisterArea area,
+        ModbusValueType valueType,
+        int? bitIndex,
+        decimal scale,
+        bool scaleSpecified,
+        bool offsetSpecified,
+        ModbusAccessMode access)
+    {
+        bool bitArea = area is ModbusRegisterArea.Coil or ModbusRegisterArea.DiscreteInput;
+        bool registerArea = area is ModbusRegisterArea.HoldingRegister or ModbusRegisterArea.InputRegister;
+        if (bitArea && valueType != ModbusValueType.Bit)
+            throw Error("COIL / DISCRETE_INPUT 只支持 BIT wire type");
+        if (bitArea && bitIndex is not null)
+            throw Error(".BIT(n) 只适用于 HOLDING_REGISTER / INPUT_REGISTER");
+        if (registerArea && valueType == ModbusValueType.Bit && bitIndex is null)
+            throw Error("寄存器 BIT 映射必须声明 .BIT(n)");
+        if (bitIndex is not null && valueType != ModbusValueType.Bit)
+            throw Error("声明 .BIT(n) 时 wire type 必须是 BIT");
+
+        if (area is ModbusRegisterArea.DiscreteInput or ModbusRegisterArea.InputRegister
+            && access != ModbusAccessMode.Read)
+        {
+            throw Error("DISCRETE_INPUT / INPUT_REGISTER 只允许 ACCESS READ");
+        }
+        if (bitIndex is not null && access != ModbusAccessMode.Read)
+            throw Error("寄存器 .BIT(n) 第一版只允许 ACCESS READ");
+
+        if (valueType == ModbusValueType.String)
+        {
+            if (sqlDataType != SqlDataType.String)
+                throw Error("STRING wire type 只能映射到 STRING 列");
+            if (scaleSpecified || offsetSpecified)
+                throw Error("STRING wire type 不支持 SCALE / OFFSET");
+        }
+        else if (valueType == ModbusValueType.Bit)
+        {
+            if (sqlDataType != SqlDataType.Boolean)
+                throw Error("BIT wire type 只能映射到 BOOL 列");
+            if (scaleSpecified || offsetSpecified)
+                throw Error("BIT wire type 不支持 SCALE / OFFSET");
+        }
+        else if (sqlDataType is not SqlDataType.Int64 and not SqlDataType.Float64)
+        {
+            throw Error("数值 wire type 只能映射到 INT / FLOAT 列");
+        }
+
+        if (scale == 0m)
+            throw Error("SCALE 不能为 0");
+    }
+
+    /// <summary>
+    /// 解析 CREATE TABLE 尾部可选的 <c>USING MODBUS SOURCE|ENDPOINT</c> 绑定。
+    /// </summary>
+    private ModbusTableBindingClause? ParseOptionalModbusTableBinding()
+    {
+        if (Current.Kind != TokenKind.KeywordUsing)
+            return null;
+
+        Advance();
+        ExpectIdentifier("modbus", "USING 后面期望 MODBUS");
+
+        ModbusMappingDirection direction;
+        if (IsIdentifier("source"))
+        {
+            direction = ModbusMappingDirection.SourceToTable;
+            Advance();
+        }
+        else if (IsIdentifier("endpoint"))
+        {
+            direction = ModbusMappingDirection.TableToEndpoint;
+            Advance();
+        }
+        else
+        {
+            throw Error("USING MODBUS 后面期望 SOURCE / ENDPOINT");
+        }
+
+        string targetName = ExpectIdentifierName();
+        var tableMode = ModbusTableMode.Latest;
+        var errorPolicy = ModbusErrorPolicy.KeepLast;
+        var storeHistory = false;
+        long? rowKey = null;
+        var approvedWriteAction = ModbusApprovedWriteAction.StageOnly;
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        Expect(TokenKind.KeywordWith);
+        Expect(TokenKind.LeftParen);
+        while (Current.Kind != TokenKind.RightParen)
+        {
+            string option = ExpectUniqueModbusOption(seen);
+            string normalized = option.ToUpperInvariant();
+            if (direction == ModbusMappingDirection.SourceToTable)
+            {
+                switch (normalized)
+                {
+                    case "TABLE_MODE":
+                        tableMode = ParseModbusTableMode();
+                        break;
+                    case "ON_ERROR":
+                        errorPolicy = ParseModbusErrorPolicy();
+                        break;
+                    case "STORE":
+                        ExpectIdentifier("history", "STORE 后面期望 HISTORY");
+                        storeHistory = true;
+                        break;
+                    default:
+                        throw Error($"USING MODBUS SOURCE 不支持选项 {option}");
+                }
+            }
+            else
+            {
+                switch (normalized)
+                {
+                    case "ROW":
+                        if (rowKey is not null)
+                            throw Error("Modbus 选项 ROW KEY 重复声明");
+                        Expect(TokenKind.KeywordKey);
+                        rowKey = ParseModbusSignedInteger("ROW KEY");
+                        break;
+                    case "ROW_KEY":
+                        if (rowKey is not null)
+                            throw Error("Modbus 选项 ROW KEY 重复声明");
+                        rowKey = ParseModbusSignedInteger("ROW_KEY");
+                        break;
+                    case "ON_EXTERNAL_WRITE":
+                        approvedWriteAction = ParseModbusApprovedWriteAction();
+                        break;
+                    default:
+                        throw Error($"USING MODBUS ENDPOINT 不支持选项 {option}");
+                }
+            }
+
+            ConsumeModbusOptionSeparator();
+        }
+
+        Expect(TokenKind.RightParen);
+        if (direction == ModbusMappingDirection.TableToEndpoint && rowKey is null)
+            throw Error("USING MODBUS ENDPOINT 必须声明 ROW KEY");
+
+        return new ModbusTableBindingClause(
+            direction,
+            targetName,
+            tableMode,
+            errorPolicy,
+            storeHistory,
+            rowKey,
+            approvedWriteAction);
+    }
+
+    /// <summary>
+    /// 校验表级 target 与列级方向一致，并约束 SAMPLE_TIME 的使用范围。
+    /// </summary>
+    private void ValidateModbusTableSyntax(
+        IReadOnlyList<TableColumnDefinition> columns,
+        ModbusTableBindingClause? binding)
+    {
+        var mappings = columns.Where(static column => column.ModbusMapping is not null).ToArray();
+        var sampleTimeColumns = columns.Where(static column => column.IsModbusSampleTime).ToArray();
+        if (sampleTimeColumns.Length > 1)
+            throw Error("一张 Modbus 表只能声明一个 SAMPLE_TIME 列");
+
+        if (binding is null)
+        {
+            if (mappings.Length > 0 || sampleTimeColumns.Length > 0)
+                throw Error("声明 Modbus 列映射或 SAMPLE_TIME 时必须提供 USING MODBUS 绑定");
+            return;
+        }
+
+        if (mappings.Length == 0)
+            throw Error("USING MODBUS 表必须至少声明一个列映射");
+
+        foreach (TableColumnDefinition column in mappings)
+        {
+            if (column.ModbusMapping!.Direction != binding.Direction)
+            {
+                throw Error(binding.Direction == ModbusMappingDirection.SourceToTable
+                    ? "USING MODBUS SOURCE 表只能包含 FROM MODBUS 列"
+                    : "USING MODBUS ENDPOINT 表只能包含 EXPOSE AS MODBUS 列");
+            }
+        }
+
+        if (binding.Direction == ModbusMappingDirection.TableToEndpoint && sampleTimeColumns.Length > 0)
+            throw Error("SAMPLE_TIME 仅适用于 USING MODBUS SOURCE 表");
     }
 
     private AlterTableAddColumnStatement ParseAlterTableAddColumn(string tableName)
@@ -2665,6 +3223,489 @@ public sealed class SqlParser
         return (float)value;
     }
 
+    /// <summary>
+    /// 读取 WITH 列表中的唯一 Modbus 选项名，并拒绝同名选项重复出现。
+    /// </summary>
+    private string ExpectUniqueModbusOption(HashSet<string> seen)
+    {
+        if (Current.Kind != TokenKind.IdentifierLiteral)
+            throw Error("期望 Modbus 选项名");
+
+        string option = Current.Text;
+        Advance();
+        if (!seen.Add(option))
+            throw Error($"Modbus 选项 {option} 重复声明");
+        return option;
+    }
+
+    /// <summary>
+    /// 消费 Modbus WITH 选项间的逗号，并拒绝缺少分隔符或尾随逗号。
+    /// </summary>
+    private void ConsumeModbusOptionSeparator()
+    {
+        if (Current.Kind == TokenKind.RightParen)
+            return;
+        if (Current.Kind != TokenKind.Comma)
+            throw Error("Modbus WITH 选项之间必须使用逗号分隔");
+
+        Advance();
+        if (Current.Kind == TokenKind.RightParen)
+            throw Error("Modbus WITH 选项列表不允许尾随逗号");
+    }
+
+    /// <summary>
+    /// 解析固定为 TCP 的 TRANSPORT 选项。
+    /// </summary>
+    private void ParseModbusTcpTransport()
+    {
+        if (!IsIdentifier("tcp"))
+            throw Error("Modbus TRANSPORT 第一版仅支持 TCP");
+        Advance();
+    }
+
+    /// <summary>
+    /// 将 <c>host:port</c> 或 <c>[IPv6]:port</c> 字符串拆分为主机与端口。
+    /// </summary>
+    private (string Host, int Port) ParseModbusHostAndPort(string value, string optionName)
+    {
+        string host;
+        string portText;
+        if (value.StartsWith("[", StringComparison.Ordinal))
+        {
+            int closeBracket = value.IndexOf(']');
+            if (closeBracket <= 1 || closeBracket + 1 >= value.Length || value[closeBracket + 1] != ':')
+                throw Error($"{optionName} 必须使用 [IPv6]:port 格式");
+            host = value[1..closeBracket];
+            portText = value[(closeBracket + 2)..];
+        }
+        else
+        {
+            int separator = value.LastIndexOf(':');
+            if (separator <= 0 || separator == value.Length - 1)
+                throw Error($"{optionName} 必须使用 host:port 格式");
+            host = value[..separator];
+            portText = value[(separator + 1)..];
+        }
+
+        if (string.IsNullOrWhiteSpace(host)
+            || host.Any(char.IsWhiteSpace)
+            || !int.TryParse(portText, NumberStyles.None, CultureInfo.InvariantCulture, out int port)
+            || port is < 1 or > 65_535)
+        {
+            throw Error($"{optionName} 的主机或端口无效");
+        }
+
+        return (host, port);
+    }
+
+    /// <summary>
+    /// 解析 0..255 范围内的 Modbus Unit ID。
+    /// </summary>
+    private byte ParseModbusUnitId()
+    {
+        int unitId = ExpectNonNegativeInt("UNIT_ID 必须位于 0..255");
+        if (unitId > byte.MaxValue)
+            throw Error("UNIT_ID 必须位于 0..255");
+        return (byte)unitId;
+    }
+
+    /// <summary>
+    /// 解析 duration token 或字符串形式的正毫秒时长。
+    /// </summary>
+    private int ParseModbusDurationMilliseconds(string optionName)
+    {
+        long milliseconds;
+        if (Current.Kind == TokenKind.DurationLiteral)
+        {
+            milliseconds = Current.IntegerValue;
+            Advance();
+        }
+        else if (Current.Kind == TokenKind.StringLiteral)
+        {
+            string raw = ExpectStringLiteral();
+            milliseconds = ParseModbusDurationString(raw, optionName);
+        }
+        else
+        {
+            throw Error($"{optionName} 必须是 duration 或字符串");
+        }
+
+        if (milliseconds is <= 0 or > int.MaxValue)
+            throw Error($"{optionName} 必须位于 1..Int32.MaxValue 毫秒");
+        return (int)milliseconds;
+    }
+
+    /// <summary>
+    /// 把字符串中的 duration 后缀或标准 TimeSpan 转换为毫秒。
+    /// </summary>
+    private long ParseModbusDurationString(string raw, string optionName)
+    {
+        try
+        {
+            IReadOnlyList<Token> tokens = SqlLexer.Tokenize(raw);
+            if (tokens.Count == 2
+                && tokens[0].Kind == TokenKind.DurationLiteral
+                && tokens[1].Kind == TokenKind.EndOfFile)
+            {
+                return tokens[0].IntegerValue;
+            }
+        }
+        catch (SqlParseException)
+        {
+            // 继续尝试标准 TimeSpan 文本，以便兼容 00:00:01 形式。
+        }
+
+        if (!TimeSpan.TryParse(raw, CultureInfo.InvariantCulture, out TimeSpan duration)
+            || duration <= TimeSpan.Zero
+            || duration.Ticks % TimeSpan.TicksPerMillisecond != 0)
+        {
+            throw Error($"{optionName} 字符串不是有效的毫秒时长");
+        }
+        return checked((long)duration.TotalMilliseconds);
+    }
+
+    /// <summary>
+    /// 解析 TRUE/FALSE 布尔选项。
+    /// </summary>
+    private bool ParseModbusBoolean(string optionName)
+    {
+        if (Current.Kind == TokenKind.KeywordTrue)
+        {
+            Advance();
+            return true;
+        }
+        if (Current.Kind == TokenKind.KeywordFalse)
+        {
+            Advance();
+            return false;
+        }
+        throw Error($"{optionName} 后面期望 TRUE / FALSE");
+    }
+
+    /// <summary>
+    /// 兼容读取 AUDIT TRUE，同时保持审计不可关闭的不变量。
+    /// </summary>
+    private void ParseMandatoryModbusAudit()
+    {
+        if (!ParseModbusBoolean("AUDIT"))
+            throw Error("Modbus 审计不可关闭，AUDIT FALSE 无效");
+    }
+
+    /// <summary>
+    /// 解析单个 CSV 字符串或括号字符串列表形式的 endpoint allowlist。
+    /// </summary>
+    private IReadOnlyList<string> ParseModbusAllowlist()
+    {
+        var entries = new List<string>();
+        if (Current.Kind == TokenKind.LeftParen)
+        {
+            Advance();
+            if (Current.Kind == TokenKind.RightParen)
+                throw Error("ALLOWLIST 至少需要一个 IP 或 CIDR");
+            while (true)
+            {
+                AddModbusAllowlistEntries(entries, ExpectStringLiteral());
+                if (Current.Kind != TokenKind.Comma)
+                    break;
+                Advance();
+            }
+            Expect(TokenKind.RightParen);
+        }
+        else
+        {
+            AddModbusAllowlistEntries(entries, ExpectStringLiteral());
+        }
+
+        if (entries.Count == 0)
+            throw Error("ALLOWLIST 至少需要一个 IP 或 CIDR");
+        return entries.AsReadOnly();
+    }
+
+    /// <summary>
+    /// 拆分并规范化 allowlist CSV 片段，拒绝空白成员和重复成员。
+    /// </summary>
+    private void AddModbusAllowlistEntries(List<string> entries, string csv)
+    {
+        string[] values = csv.Split(',', StringSplitOptions.None);
+        foreach (string value in values)
+        {
+            string entry = value.Trim();
+            if (entry.Length == 0)
+                throw Error("ALLOWLIST 不允许空成员");
+            if (entries.Contains(entry, StringComparer.OrdinalIgnoreCase))
+                throw Error($"ALLOWLIST 成员 {entry} 重复声明");
+            entries.Add(entry);
+        }
+    }
+
+    /// <summary>
+    /// 解析 ZERO_BASED、ONE_BASED 或 MODICON 寻址模式。
+    /// </summary>
+    private ModbusAddressingMode ParseModbusAddressingMode()
+    {
+        string value = ExpectModbusIdentifierValue("ADDRESSING");
+        return value.ToUpperInvariant() switch
+        {
+            "ZERO_BASED" => ModbusAddressingMode.ZeroBased,
+            "ONE_BASED" => ModbusAddressingMode.OneBased,
+            "MODICON" => ModbusAddressingMode.Modicon,
+            _ => throw Error("ADDRESSING 仅支持 ZERO_BASED / ONE_BASED / MODICON"),
+        };
+    }
+
+    /// <summary>
+    /// 解析 BIG_ENDIAN 或 LITTLE_ENDIAN 寄存器内字节序。
+    /// </summary>
+    private ModbusByteOrder ParseModbusByteOrder()
+    {
+        string value = ExpectModbusIdentifierValue("BYTE_ORDER");
+        return value.ToUpperInvariant() switch
+        {
+            "BIG_ENDIAN" => ModbusByteOrder.BigEndian,
+            "LITTLE_ENDIAN" => ModbusByteOrder.LittleEndian,
+            _ => throw Error("BYTE_ORDER 仅支持 BIG_ENDIAN / LITTLE_ENDIAN"),
+        };
+    }
+
+    /// <summary>
+    /// 解析 BIG_ENDIAN 或 LITTLE_ENDIAN 多寄存器字序。
+    /// </summary>
+    private ModbusWordOrder ParseModbusWordOrder()
+    {
+        string value = ExpectModbusIdentifierValue("WORD_ORDER");
+        return value.ToUpperInvariant() switch
+        {
+            "BIG_ENDIAN" => ModbusWordOrder.BigEndian,
+            "LITTLE_ENDIAN" => ModbusWordOrder.LittleEndian,
+            _ => throw Error("WORD_ORDER 仅支持 BIG_ENDIAN / LITTLE_ENDIAN"),
+        };
+    }
+
+    /// <summary>
+    /// 解析 endpoint 的 REJECT 或 STAGED 外部写入口策略。
+    /// </summary>
+    private ModbusEndpointWritePolicy ParseModbusEndpointWritePolicy()
+    {
+        string value = ExpectModbusIdentifierValue("WRITE_POLICY");
+        return value.ToUpperInvariant() switch
+        {
+            "REJECT" => ModbusEndpointWritePolicy.Reject,
+            "STAGED" => ModbusEndpointWritePolicy.Staged,
+            _ => throw Error("WRITE_POLICY 仅支持 REJECT / STAGED"),
+        };
+    }
+
+    /// <summary>
+    /// 解析四个相互独立的 Modbus 地址空间名称。
+    /// </summary>
+    private ModbusRegisterArea ParseModbusRegisterArea()
+    {
+        string value = ExpectModbusIdentifierValue("Modbus area");
+        return value.ToUpperInvariant() switch
+        {
+            "COIL" => ModbusRegisterArea.Coil,
+            "DISCRETE_INPUT" => ModbusRegisterArea.DiscreteInput,
+            "HOLDING_REGISTER" => ModbusRegisterArea.HoldingRegister,
+            "INPUT_REGISTER" => ModbusRegisterArea.InputRegister,
+            _ => throw Error("Modbus area 仅支持 COIL / DISCRETE_INPUT / HOLDING_REGISTER / INPUT_REGISTER"),
+        };
+    }
+
+    /// <summary>
+    /// 解析 wire type，并返回 STRING 长度和推导出的地址数量。
+    /// </summary>
+    private (ModbusValueType ValueType, int StringLength, int RegisterCount) ParseModbusValueType()
+    {
+        if (Current.Kind == TokenKind.KeywordString)
+        {
+            Advance();
+            Expect(TokenKind.LeftParen);
+            int stringLength = ExpectPositiveInt("STRING(n) 的 n 必须是正整数");
+            Expect(TokenKind.RightParen);
+            int registerCount = ModbusValueCodec.GetRegisterCount(ModbusValueType.String, stringLength);
+            return (ModbusValueType.String, stringLength, registerCount);
+        }
+
+        string value = ExpectModbusIdentifierValue("Modbus wire type");
+        ModbusValueType valueType = value.ToUpperInvariant() switch
+        {
+            "BIT" => ModbusValueType.Bit,
+            "INT16" => ModbusValueType.Int16,
+            "UINT16" => ModbusValueType.UInt16,
+            "INT32" => ModbusValueType.Int32,
+            "UINT32" => ModbusValueType.UInt32,
+            "FLOAT32" => ModbusValueType.Float32,
+            "FLOAT64" => ModbusValueType.Float64,
+            "BCD16" => ModbusValueType.Bcd16,
+            "BCD32" => ModbusValueType.Bcd32,
+            _ => throw Error("不支持的 Modbus wire type"),
+        };
+        return (valueType, 0, ModbusValueCodec.GetRegisterCount(valueType));
+    }
+
+    /// <summary>
+    /// 解析 READ、WRITE 或 READ_WRITE 列访问模式。
+    /// </summary>
+    private ModbusAccessMode ParseModbusAccessMode()
+    {
+        if (Current.Kind == TokenKind.KeywordRead)
+        {
+            Advance();
+            return ModbusAccessMode.Read;
+        }
+        if (Current.Kind == TokenKind.KeywordWrite)
+        {
+            Advance();
+            return ModbusAccessMode.Write;
+        }
+        if (IsIdentifier("read_write"))
+        {
+            Advance();
+            return ModbusAccessMode.ReadWrite;
+        }
+        throw Error("ACCESS 仅支持 READ / WRITE / READ_WRITE");
+    }
+
+    /// <summary>
+    /// 解析 LATEST 或 HISTORY source 表模式。
+    /// </summary>
+    private ModbusTableMode ParseModbusTableMode()
+    {
+        string value = ExpectModbusIdentifierValue("TABLE_MODE");
+        return value.ToUpperInvariant() switch
+        {
+            "LATEST" => ModbusTableMode.Latest,
+            "HISTORY" => ModbusTableMode.History,
+            _ => throw Error("TABLE_MODE 仅支持 LATEST / HISTORY"),
+        };
+    }
+
+    /// <summary>
+    /// 解析 KEEP_LAST、NULL、SKIP 或 MARK_BAD 采集错误策略。
+    /// </summary>
+    private ModbusErrorPolicy ParseModbusErrorPolicy()
+    {
+        if (Current.Kind == TokenKind.KeywordNull)
+        {
+            Advance();
+            return ModbusErrorPolicy.Null;
+        }
+
+        string value = ExpectModbusIdentifierValue("ON_ERROR");
+        return value.ToUpperInvariant() switch
+        {
+            "KEEP_LAST" => ModbusErrorPolicy.KeepLast,
+            "SKIP" => ModbusErrorPolicy.Skip,
+            "MARK_BAD" => ModbusErrorPolicy.MarkBad,
+            _ => throw Error("ON_ERROR 仅支持 KEEP_LAST / NULL / SKIP / MARK_BAD"),
+        };
+    }
+
+    /// <summary>
+    /// 解析 endpoint 请求获批后的 STAGE_ONLY 或 UPDATE_TABLE 动作。
+    /// </summary>
+    private ModbusApprovedWriteAction ParseModbusApprovedWriteAction()
+    {
+        string value = ExpectModbusIdentifierValue("ON_EXTERNAL_WRITE");
+        return value.ToUpperInvariant() switch
+        {
+            "STAGE_ONLY" => ModbusApprovedWriteAction.StageOnly,
+            "UPDATE_TABLE" => ModbusApprovedWriteAction.UpdateTable,
+            _ => throw Error("ON_EXTERNAL_WRITE 仅支持 STAGE_ONLY / UPDATE_TABLE"),
+        };
+    }
+
+    /// <summary>
+    /// 解析 SCALE/OFFSET 使用的有符号十进制字面量，避免先经 double 丢失精度。
+    /// </summary>
+    private decimal ParseModbusDecimal(string optionName)
+    {
+        var negative = false;
+        if (Current.Kind == TokenKind.Minus)
+        {
+            negative = true;
+            Advance();
+        }
+        else if (Current.Kind == TokenKind.Plus)
+        {
+            Advance();
+        }
+
+        decimal value;
+        if (Current.Kind == TokenKind.IntegerLiteral)
+        {
+            value = Current.IntegerValue;
+            Advance();
+        }
+        else if (Current.Kind == TokenKind.FloatLiteral
+                 && decimal.TryParse(Current.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out value))
+        {
+            Advance();
+        }
+        else
+        {
+            throw Error($"{optionName} 必须是有限十进制数");
+        }
+
+        return negative ? -value : value;
+    }
+
+    /// <summary>
+    /// 解析 ROW KEY 使用的有符号 Int64 字面量。
+    /// </summary>
+    private long ParseModbusSignedInteger(string optionName)
+    {
+        var negative = false;
+        if (Current.Kind == TokenKind.Minus)
+        {
+            negative = true;
+            Advance();
+        }
+        else if (Current.Kind == TokenKind.Plus)
+        {
+            Advance();
+        }
+
+        if (negative && Current.Kind == TokenKind.Int64MinMagnitudeLiteral)
+        {
+            Advance();
+            return long.MinValue;
+        }
+
+        if (Current.Kind != TokenKind.IntegerLiteral)
+            throw Error($"{optionName} 必须是整数");
+        long value = Current.IntegerValue;
+        Advance();
+        return negative ? -value : value;
+    }
+
+    /// <summary>
+    /// 读取 Modbus 产生式中的非保留标识符值。
+    /// </summary>
+    private string ExpectModbusIdentifierValue(string optionName)
+    {
+        if (Current.Kind != TokenKind.IdentifierLiteral)
+            throw Error($"{optionName} 后面期望标识符");
+        string value = Current.Text;
+        Advance();
+        return value;
+    }
+
+    /// <summary>
+    /// 判断 DESCRIBE 后的 MODBUS 是否确实引出 SOURCE、ENDPOINT 或 TABLE 元数据对象。
+    /// </summary>
+    private bool IsModbusDescribePrefix()
+    {
+        if (!IsIdentifier("modbus"))
+            return false;
+
+        Token next = _tokens[_index + 1];
+        return next.Kind == TokenKind.KeywordTable
+            || next.Kind == TokenKind.IdentifierLiteral
+            && (string.Equals(next.Text, "source", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(next.Text, "endpoint", StringComparison.OrdinalIgnoreCase));
+    }
+
     private static bool IsParameter(string actual, params ReadOnlySpan<string> expected)
     {
         foreach (string candidate in expected)
@@ -3330,6 +4371,22 @@ public sealed class SqlParser
 
                 throw Error("SHOW FULLTEXT 后面期望 INDEXES");
             default:
+                if (IsIdentifier("modbus"))
+                {
+                    Advance();
+                    if (IsIdentifier("sources"))
+                    {
+                        Advance();
+                        return new ShowModbusSourcesStatement();
+                    }
+                    if (IsIdentifier("endpoints"))
+                    {
+                        Advance();
+                        return new ShowModbusEndpointsStatement();
+                    }
+                    throw Error("SHOW MODBUS 后面期望 SOURCES / ENDPOINTS");
+                }
+
                 if (IsIdentifier("materialized"))
                 {
                     Advance();
@@ -3370,7 +4427,7 @@ public sealed class SqlParser
                     return new ShowTableIndexesStatement(ExpectIdentifierName());
                 }
 
-                throw Error("SHOW 后面期望 USERS / GRANTS / DATABASES / TOKENS / MEASUREMENTS / TABLES / VIEWS / PROCEDURES / TRIGGERS / INDEXES");
+                throw Error("SHOW 后面期望 MODBUS / USERS / GRANTS / DATABASES / TOKENS / MEASUREMENTS / TABLES / VIEWS / PROCEDURES / TRIGGERS / INDEXES");
         }
     }
 
@@ -3388,7 +4445,7 @@ public sealed class SqlParser
             TokenKind.KeywordShow => ParseShow(),
             TokenKind.KeywordDescribe => ParseDescribe(),
             TokenKind.KeywordDesc => ParseDescribe(),
-            _ => throw Error("EXPLAIN 后面期望 SELECT / SHOW MEASUREMENTS / SHOW TABLES / SHOW VIEWS / SHOW DOCUMENT COLLECTIONS / DESCRIBE [MEASUREMENT|TABLE|VIEW|DOCUMENT COLLECTION]"),
+            _ => throw Error("EXPLAIN 后面期望 SELECT / SHOW / DESCRIBE 只读语句"),
         };
 
         if (statement is not SelectStatement
@@ -3400,13 +4457,18 @@ public sealed class SqlParser
             and not ShowDocumentCollectionsStatement
             and not ShowDocumentIndexesStatement
             and not ShowFullTextIndexesStatement
+            and not ShowModbusSourcesStatement
+            and not ShowModbusEndpointsStatement
             and not DescribeMeasurementStatement
             and not DescribeTableStatement
             and not DescribeViewStatement
             and not DescribeMaterializedViewStatement
-            and not DescribeDocumentCollectionStatement)
+            and not DescribeDocumentCollectionStatement
+            and not DescribeModbusSourceStatement
+            and not DescribeModbusEndpointStatement
+            and not DescribeModbusTableStatement)
         {
-            throw Error("EXPLAIN 仅支持 SELECT / SHOW MEASUREMENTS / SHOW TABLES / SHOW VIEWS / SHOW DOCUMENT COLLECTIONS / DESCRIBE [MEASUREMENT|TABLE|VIEW|DOCUMENT COLLECTION]");
+            throw Error("EXPLAIN 仅支持 SELECT 及受支持的 SHOW / DESCRIBE 只读语句");
         }
 
         return new ExplainStatement(statement);
@@ -3419,6 +4481,27 @@ public sealed class SqlParser
     {
         // 当前 token 是 DESCRIBE 或 DESC
         Advance();
+        if (IsModbusDescribePrefix())
+        {
+            Advance();
+            if (IsIdentifier("source"))
+            {
+                Advance();
+                return new DescribeModbusSourceStatement(ExpectIdentifierName());
+            }
+            if (IsIdentifier("endpoint"))
+            {
+                Advance();
+                return new DescribeModbusEndpointStatement(ExpectIdentifierName());
+            }
+            if (Current.Kind == TokenKind.KeywordTable)
+            {
+                Advance();
+                return new DescribeModbusTableStatement(ExpectIdentifierName());
+            }
+            throw Error("DESCRIBE MODBUS 后面期望 SOURCE / ENDPOINT / TABLE");
+        }
+
         if (Current.Kind == TokenKind.KeywordTable)
         {
             Advance();

@@ -7,6 +7,7 @@ using SonnetDB.Engine.Retention;
 using SonnetDB.Kv;
 using SonnetDB.Memory;
 using SonnetDB.Model;
+using SonnetDB.Modbus;
 using SonnetDB.Query;
 using SonnetDB.Query.Functions;
 using SonnetDB.Routines;
@@ -32,6 +33,9 @@ public sealed class Tsdb : IDisposable
     private readonly FlushCoordinator _flushCoordinator;
     private readonly WalGroupCommitCoordinator _walGroupCommit;
     private readonly object _writeSync = new();
+    // 锁序固定为 _schemaSync（外）→ _writeSync / TableManager / ModbusManager（内）。
+    // 映射表 DDL 在一次持锁期间串行提交 table 与 Modbus catalog，备份也持锁到文件复制完成。
+    private readonly object _schemaSync = new();
     // 维护操作串行锁：序列化 Compaction / Retention / DropMeasurement 的段读-规划-执行-替换，
     // 防止"compaction 把 retention 刚删的过期数据重新物化"以及后台 worker 无租约读段导致的
     // use-after-dispose（#191）。锁序约定：_maintenanceSync（外）→ _writeSync（内）。
@@ -41,6 +45,7 @@ public sealed class Tsdb : IDisposable
     private readonly HashSet<ulong> _seriesWithWalRecord;
     private readonly KvKeyspaceManager _keyspaces;
     private readonly TableManager _tables;
+    private readonly ModbusManager _modbus;
     private readonly DocumentCollectionManager _documents;
     private readonly ViewManager _views;
     private readonly MaterializedViewManager _materializedViews;
@@ -62,6 +67,12 @@ public sealed class Tsdb : IDisposable
     private long _lastTombstoneCheckpointUtcTicks;
     private Exception? _lastError;
     private long _meterRegistration;
+
+    /// <summary>仅供并发测试确认跨 catalog DDL 即将尝试获取 schema 锁。</summary>
+    internal Action? BeforeSchemaMutationLockTestHook { get; set; }
+
+    /// <summary>仅供并发测试确认跨 catalog DDL 已取得 schema 锁。</summary>
+    internal Action? SchemaMutationLockAcquiredTestHook { get; set; }
 
     /// <summary>
     /// <see cref="WriteMany(ReadOnlySpan{Point})"/> 单次持锁处理的最大点数。超大批量按此粒度分块，
@@ -108,6 +119,11 @@ public sealed class Tsdb : IDisposable
     /// 关系表管理器，提供 SQL 关系表 MVP 的 schema catalog 与 KV-backed rowstore。
     /// </summary>
     public TableManager Tables => _tables;
+
+    /// <summary>
+    /// Modbus source、endpoint 与关系表映射管理器。
+    /// </summary>
+    public ModbusManager Modbus => _modbus;
 
     /// <summary>
     /// JSON 文档集合管理器，提供 document collection schema catalog 与 KV-backed 主数据。
@@ -321,7 +337,6 @@ public sealed class Tsdb : IDisposable
         _catalogDirty = catalogDirty;
         Segments = segmentManager;
         _flushCoordinator = new FlushCoordinator(options);
-        _flushPump = new FlushPump(this);
         _walGroupCommit = new WalGroupCommitCoordinator(options.WalGroupCommit);
         Query = new QueryEngine(
             memTable,
@@ -339,7 +354,12 @@ public sealed class Tsdb : IDisposable
             TsdbPaths.TablesDir(options.RootDirectory),
             options.Kv,
             EnsureViewNameAvailable,
-            EnsureNoViewDependents);
+            EnsureNoTableDependents,
+            _schemaSync);
+        _modbus = new ModbusManager(
+            TsdbPaths.ModbusDir(options.RootDirectory),
+            _tables.Catalog,
+            _schemaSync);
         _documents = new DocumentCollectionManager(
             TsdbPaths.DocumentsDir(options.RootDirectory),
             options.Kv,
@@ -368,6 +388,7 @@ public sealed class Tsdb : IDisposable
         Directory.CreateDirectory(TsdbPaths.ViewsDir(root));
         Directory.CreateDirectory(TsdbPaths.MaterializedViewsDir(root));
         Directory.CreateDirectory(TsdbPaths.RoutinesDir(root));
+        Directory.CreateDirectory(TsdbPaths.ModbusDir(root));
 
         // 加载 measurement schema 集合（文件不存在时返回空集合）
         var measurements = new MeasurementCatalog();
@@ -391,70 +412,115 @@ public sealed class Tsdb : IDisposable
         // 打开 WAL segment 集合（自动升级 legacy active.SDBWAL）
         string walDir = TsdbPaths.WalDir(root);
         var walSet = WalSegmentSet.Open(walDir, options.WalRolling, options.WalBufferSize, initialStartLsn: 1);
-        long durableCheckpointLsn = WalCheckpointFile
-            .TryLoad(
-                WalSegmentLayout.CheckpointPath(walDir),
-                state => IsCheckpointSegmentPresent(root, state))
-            ?.CheckpointLsn ?? 0L;
-
-        // 回放全部 WAL segment，使用 Checkpoint LSN 跳过已落盘记录
-        var memTable = new MemTable();
-        int catalogCountBeforeReplay = catalog.Count;
-        string tombstoneManifestPath = TsdbPaths.TombstoneManifestPath(root);
-        IReadOnlyList<Tombstone> manifestTombstones = TombstoneManifestCodec.Load(tombstoneManifestPath);
-        long durableTombstoneCheckpointLsn = GetMaxTombstoneLsn(manifestTombstones);
-        var result = walSet.ReplayWithCheckpoint(catalog, durableCheckpointLsn, durableTombstoneCheckpointLsn);
-        memTable.ReplayFrom(result.WritePoints);
-        long checkpointLsn = result.CheckpointLsn;
-        bool catalogDirty = catalog.Count != catalogCountBeforeReplay;
-
-        var seriesWithWalRecord = catalog.Snapshot().Select(e => e.Id).ToHashSet();
-
-        var segmentManager = SegmentManager.Open(root, options.SegmentReaderOptions);
-
-        var tsdb = new Tsdb(options, catalog, measurements, memTable, walSet, nextSegmentId, seriesWithWalRecord, segmentManager, checkpointLsn, catalogDirty);
-
-        // 加载墓碑清单（文件不存在时返回空集合）
-        tsdb.Tombstones.LoadFrom(manifestTombstones);
-
-        // 追加 WAL replay 中 checkpoint 之后的 Delete 记录
-        foreach (var del in result.DeleteRecords)
-            tsdb.Tombstones.Add(new Tombstone(del.SeriesId, del.FieldName, del.FromTimestamp, del.ToTimestamp, del.Lsn));
-
-        // 重写一遍 manifest（合并 manifest + WAL replay 的结果）
-        TombstoneManifestCodec.Save(tombstoneManifestPath, tsdb.Tombstones.All);
-
-        // 启动后台 Flush 线程
-        if (options.BackgroundFlush.Enabled)
+        SegmentManager? segmentManager = null;
+        Tsdb? tsdb = null;
+        try
         {
-            tsdb._flushWorker = new BackgroundFlushWorker(tsdb, options.BackgroundFlush);
-            tsdb._flushWorker.Start();
-        }
+            long durableCheckpointLsn = WalCheckpointFile
+                .TryLoad(
+                    WalSegmentLayout.CheckpointPath(walDir),
+                    state => IsCheckpointSegmentPresent(root, state))
+                ?.CheckpointLsn ?? 0L;
 
-        // 启动后台 Compaction 线程
-        if (options.Compaction.Enabled)
+            // 回放全部 WAL segment，使用 Checkpoint LSN 跳过已落盘记录
+            var memTable = new MemTable();
+            int catalogCountBeforeReplay = catalog.Count;
+            string tombstoneManifestPath = TsdbPaths.TombstoneManifestPath(root);
+            IReadOnlyList<Tombstone> manifestTombstones = TombstoneManifestCodec.Load(tombstoneManifestPath);
+            long durableTombstoneCheckpointLsn = GetMaxTombstoneLsn(manifestTombstones);
+            var result = walSet.ReplayWithCheckpoint(catalog, durableCheckpointLsn, durableTombstoneCheckpointLsn);
+            memTable.ReplayFrom(result.WritePoints);
+            long checkpointLsn = result.CheckpointLsn;
+            bool catalogDirty = catalog.Count != catalogCountBeforeReplay;
+
+            var seriesWithWalRecord = catalog.Snapshot().Select(e => e.Id).ToHashSet();
+
+            segmentManager = SegmentManager.Open(root, options.SegmentReaderOptions);
+
+            tsdb = new Tsdb(
+                options,
+                catalog,
+                measurements,
+                memTable,
+                walSet,
+                nextSegmentId,
+                seriesWithWalRecord,
+                segmentManager,
+                checkpointLsn,
+                catalogDirty);
+
+            // 加载墓碑清单（文件不存在时返回空集合）
+            tsdb.Tombstones.LoadFrom(manifestTombstones);
+
+            // 追加 WAL replay 中 checkpoint 之后的 Delete 记录
+            foreach (var del in result.DeleteRecords)
+                tsdb.Tombstones.Add(new Tombstone(del.SeriesId, del.FieldName, del.FromTimestamp, del.ToTimestamp, del.Lsn));
+
+            // 重写一遍 manifest（合并 manifest + WAL replay 的结果）
+            TombstoneManifestCodec.Save(tombstoneManifestPath, tsdb.Tombstones.All);
+
+            // 所有持久化目录校验完成后再启动 flush 泵，避免构造失败遗留永久后台线程。
+            tsdb._flushPump = new FlushPump(tsdb);
+
+            // 启动后台 Flush 线程
+            if (options.BackgroundFlush.Enabled)
+            {
+                tsdb._flushWorker = new BackgroundFlushWorker(tsdb, options.BackgroundFlush);
+                tsdb._flushWorker.Start();
+            }
+
+            // 启动后台 Compaction 线程
+            if (options.Compaction.Enabled)
+            {
+                tsdb._compactionWorker = new CompactionWorker(tsdb, options.Compaction);
+                tsdb._compactionWorker.Start();
+            }
+
+            // 启动后台 Retention 线程
+            if (options.Retention.Enabled)
+            {
+                tsdb._retentionWorker = new RetentionWorker(tsdb, options.Retention);
+                tsdb.Retention = tsdb._retentionWorker;
+                tsdb._retentionWorker.Start();
+            }
+
+            if (options.Kv.ExpirerEnabled || options.Kv.CleanupEnabled)
+            {
+                tsdb._kvExpirerWorker = new KvExpirerWorker(tsdb, options.Kv);
+                tsdb._kvExpirerWorker.Start();
+            }
+
+            tsdb._meterRegistration = SonnetDbMeter.RegisterEngine(tsdb);
+            return tsdb;
+        }
+        catch
         {
-            tsdb._compactionWorker = new CompactionWorker(tsdb, options.Compaction);
-            tsdb._compactionWorker.Start();
-        }
+            if (tsdb is not null)
+            {
+                DisposeAfterFailedOpen(tsdb);
+            }
+            else
+            {
+                // 构造器尚未返回时，WAL 与 Segment 仍由 Open 的局部变量负责释放。
+                segmentManager?.Dispose();
+                walSet.Dispose();
+            }
 
-        // 启动后台 Retention 线程
-        if (options.Retention.Enabled)
+            throw;
+        }
+    }
+
+    /// <summary>数据库对象已构造但启动后续步骤失败时，尽力释放全部资源并保留原始打开异常。</summary>
+    private static void DisposeAfterFailedOpen(Tsdb tsdb)
+    {
+        try
         {
-            tsdb._retentionWorker = new RetentionWorker(tsdb, options.Retention);
-            tsdb.Retention = tsdb._retentionWorker;
-            tsdb._retentionWorker.Start();
+            tsdb.Dispose();
         }
-
-        if (options.Kv.ExpirerEnabled || options.Kv.CleanupEnabled)
+        catch
         {
-            tsdb._kvExpirerWorker = new KvExpirerWorker(tsdb, options.Kv);
-            tsdb._kvExpirerWorker.Start();
+            // 打开阶段的原始异常更有诊断价值；Dispose 已通过 finally 尽力释放底层资源。
         }
-
-        tsdb._meterRegistration = SonnetDbMeter.RegisterEngine(tsdb);
-
-        return tsdb;
     }
 
     /// <summary>
@@ -818,22 +884,44 @@ public sealed class Tsdb : IDisposable
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(afterCheckpoint);
 
-        lock (_writeSync)
+        // schema 锁覆盖 checkpoint、逐文件复制和 manifest 构建，避免备份观察到跨 catalog 的半次 DDL。
+        lock (_schemaSync)
         {
+            lock (_writeSync)
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+
+                SealAndWaitLocked();
+                _walSet?.Sync();
+                TombstoneManifestCodec.Save(TsdbPaths.TombstoneManifestPath(RootDirectory), Tombstones.All);
+                PersistMeasurementSchemasLocked();
+                CatalogFileCodec.Save(Catalog, TsdbPaths.CatalogPath(RootDirectory));
+                _catalogDirty = false;
+
+                Tables.CheckpointAll();
+                Documents.CompactAll();
+                var checkpointedKeyspaces = Keyspaces.CheckpointOpened();
+
+                return afterCheckpoint(this, options, checkpointedKeyspaces);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 在数据库级 schema 锁内执行一次跨 catalog 变更，保证关系表与扩展目录的发布不可交错。
+    /// </summary>
+    /// <typeparam name="TResult">操作返回值类型。</typeparam>
+    /// <param name="action">需要串行执行的 schema 变更。</param>
+    /// <returns>操作返回值。</returns>
+    internal TResult ExecuteSchemaMutation<TResult>(Func<TResult> action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        BeforeSchemaMutationLockTestHook?.Invoke();
+        lock (_schemaSync)
+        {
+            SchemaMutationLockAcquiredTestHook?.Invoke();
             ObjectDisposedException.ThrowIf(_disposed, this);
-
-            SealAndWaitLocked();
-            _walSet?.Sync();
-            TombstoneManifestCodec.Save(TsdbPaths.TombstoneManifestPath(RootDirectory), Tombstones.All);
-            PersistMeasurementSchemasLocked();
-            CatalogFileCodec.Save(Catalog, TsdbPaths.CatalogPath(RootDirectory));
-            _catalogDirty = false;
-
-            Tables.CheckpointAll();
-            Documents.CompactAll();
-            var checkpointedKeyspaces = Keyspaces.CheckpointOpened();
-
-            return afterCheckpoint(this, options, checkpointedKeyspaces);
+            return action();
         }
     }
 
@@ -864,6 +952,9 @@ public sealed class Tsdb : IDisposable
         _flushPump?.Dispose();
         _flushPump = null;
 
+        // 关闭提交段与 DDL、备份使用相同的 schema → write 锁序；在途 schema 变更先完成，
+        // 关闭取得 schema 锁后再处置各 manager，防止关闭返回后继续发布 Modbus 绑定。
+        lock (_schemaSync)
         lock (_writeSync)
         {
             if (_disposed)
@@ -966,23 +1057,30 @@ public sealed class Tsdb : IDisposable
                 {
                     try
                     {
-                        _tables.Dispose();
+                        _modbus.Dispose();
                     }
                     finally
                     {
                         try
                         {
-                            _documents.Dispose();
+                            _tables.Dispose();
                         }
                         finally
                         {
                             try
                             {
-                                _keyspaces.Dispose();
+                                _documents.Dispose();
                             }
                             finally
                             {
-                                Segments.Dispose();
+                                try
+                                {
+                                    _keyspaces.Dispose();
+                                }
+                                finally
+                                {
+                                    Segments.Dispose();
+                                }
                             }
                         }
                     }
@@ -1716,6 +1814,13 @@ public sealed class Tsdb : IDisposable
             + $"'{dependents}' 依赖对象 '{objectName}'。");
     }
 
+    /// <summary>拒绝会使 Modbus、例程或视图引用失效的关系表 schema 变更。</summary>
+    private void EnsureNoTableDependents(string tableName, string operation)
+    {
+        _modbus.EnsureTableCanMutate(tableName, operation);
+        EnsureNoViewDependents(tableName, operation);
+    }
+
     /// <summary>
     /// （仅测试用）模拟进程崩溃：直接关闭 WAL，不保存 catalog，不 Flush MemTable。
     /// </summary>
@@ -1726,6 +1831,7 @@ public sealed class Tsdb : IDisposable
         _flushPump?.Dispose();
         _flushPump = null;
 
+        lock (_schemaSync)
         lock (_writeSync)
         {
             if (_disposed)
@@ -1735,6 +1841,7 @@ public sealed class Tsdb : IDisposable
                 _walGroupCommit.FlushPending(_walSet);
             _walSet?.Dispose();
             _walGroupCommit.Dispose();
+            _modbus.Dispose();
             _tables.Dispose();
             _documents.Dispose();
             _keyspaces.Dispose();

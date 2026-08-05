@@ -38,10 +38,20 @@ internal static class SqlEndpointHandler
         SqlRequest request,
         ServerMetrics metrics,
         bool canWrite,
-        bool isAdmin,
+        bool canAdministerDatabase,
+        bool isServerAdmin,
         IControlPlane? controlPlane)
     {
-        await ExecuteAsync(context, tsdb, databaseName, [request], metrics, canWrite, isAdmin, controlPlane).ConfigureAwait(false);
+        await ExecuteAsync(
+            context,
+            tsdb,
+            databaseName,
+            [request],
+            metrics,
+            canWrite,
+            canAdministerDatabase,
+            isServerAdmin,
+            controlPlane).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -54,10 +64,20 @@ internal static class SqlEndpointHandler
         SqlBatchRequest request,
         ServerMetrics metrics,
         bool canWrite,
-        bool isAdmin,
+        bool canAdministerDatabase,
+        bool isServerAdmin,
         IControlPlane? controlPlane)
     {
-        await ExecuteAsync(context, tsdb, databaseName, request.Statements, metrics, canWrite, isAdmin, controlPlane).ConfigureAwait(false);
+        await ExecuteAsync(
+            context,
+            tsdb,
+            databaseName,
+            request.Statements,
+            metrics,
+            canWrite,
+            canAdministerDatabase,
+            isServerAdmin,
+            controlPlane).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -103,7 +123,12 @@ internal static class SqlEndpointHandler
             return;
         }
 
-        if (!TryAuthorizeControlPlaneStatement(context, parsed, isAdmin, out var authorizationError))
+        if (!TryAuthorizeStatement(
+            context,
+            parsed,
+            canAdministerDatabase: false,
+            isServerAdmin: isAdmin,
+            out var authorizationError))
         {
             metrics.RecordSqlError();
             RecordSlow(diagnostics, _controlPlaneDatabaseLabel, request.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
@@ -167,7 +192,8 @@ internal static class SqlEndpointHandler
         IReadOnlyList<SqlRequest> statements,
         ServerMetrics metrics,
         bool canWrite,
-        bool isAdmin,
+        bool canAdministerDatabase,
+        bool isServerAdmin,
         IControlPlane? controlPlane)
     {
         var diagnostics = context.RequestServices.GetService<SlowQueryDiagnostics>();
@@ -199,7 +225,12 @@ internal static class SqlEndpointHandler
                 ? _controlPlaneDatabaseLabel
                 : databaseName;
 
-            if (!TryAuthorizeControlPlaneStatement(context, parsed, isAdmin, out var authorizationError))
+            if (!TryAuthorizeStatement(
+                context,
+                parsed,
+                canAdministerDatabase,
+                isServerAdmin,
+                out var authorizationError))
             {
                 metrics.RecordSqlError();
                 RecordSlow(diagnostics, diagnosticsDatabase, stmt.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
@@ -232,8 +263,9 @@ internal static class SqlEndpointHandler
                     new SqlExecutionOptions
                     {
                         CancellationToken = context.RequestAborted,
-                        Caller = ResolveRoutineCaller(context, isAdmin),
+                        Caller = ResolveRoutineCaller(context, isServerAdmin),
                         CanWrite = canWrite,
+                        CanAdminister = canAdministerDatabase,
                     });
                 if (result is SqlTransactionContext started)
                     transaction = started;
@@ -451,19 +483,29 @@ internal static class SqlEndpointHandler
         await body.FlushAsync(context.RequestAborted).ConfigureAwait(false);
     }
 
-    private static bool TryAuthorizeControlPlaneStatement(
+    /// <summary>
+    /// 按当前数据库的 Admin 权限与服务端管理权限分别校验 Modbus DDL 和控制面 SQL。
+    /// </summary>
+    private static bool TryAuthorizeStatement(
         HttpContext context,
         SqlStatement statement,
-        bool isAdmin,
+        bool canAdministerDatabase,
+        bool isServerAdmin,
         out string errorMessage)
     {
-        if (IsAdminOnlyControlPlaneStatement(statement) && !isAdmin)
+        if (IsAdminOnlyModbusStatement(statement) && !canAdministerDatabase)
+        {
+            errorMessage = "Modbus source、endpoint 及表映射 DDL 需要当前数据库的 Admin 权限。";
+            return false;
+        }
+
+        if (IsAdminOnlyControlPlaneStatement(statement) && !isServerAdmin)
         {
             errorMessage = "控制面 SQL（CREATE USER / GRANT / CREATE DATABASE / SHOW USERS 等）仅 admin 可执行。";
             return false;
         }
 
-        if (IsSelfServiceControlPlaneStatement(statement) && !(isAdmin || HasSelfServiceControlPlaneAccess(context)))
+        if (IsSelfServiceControlPlaneStatement(statement) && !(isServerAdmin || HasSelfServiceControlPlaneAccess(context)))
         {
             errorMessage = "SHOW GRANTS / SHOW TOKENS / ISSUE TOKEN / REVOKE TOKEN 仅动态用户本人可执行，admin 除外。";
             return false;
@@ -498,6 +540,12 @@ internal static class SqlEndpointHandler
         IssueTokenStatement or
         RevokeTokenStatement;
 
+    /// <summary>判别是否为仅 admin 可执行的 Modbus 数据面 DDL。</summary>
+    private static bool IsAdminOnlyModbusStatement(SqlStatement statement) => statement is
+        CreateModbusSourceStatement or
+        CreateModbusEndpointStatement or
+        CreateTableStatement { ModbusBinding: not null };
+
     /// <summary>
     /// 判别是否为需要数据库写权限的数据面语句。
     /// </summary>
@@ -514,6 +562,8 @@ internal static class SqlEndpointHandler
         ShowDocumentCollectionsStatement or
         ShowDocumentIndexesStatement or
         ShowFullTextIndexesStatement or
+        ShowModbusSourcesStatement or
+        ShowModbusEndpointsStatement or
         DescribeMeasurementStatement or
         DescribeTableStatement or
         DescribeViewStatement or
@@ -521,6 +571,9 @@ internal static class SqlEndpointHandler
         DescribeProcedureStatement or
         DescribeTriggerStatement or
         DescribeDocumentCollectionStatement or
+        DescribeModbusSourceStatement or
+        DescribeModbusEndpointStatement or
+        DescribeModbusTableStatement or
         ExplainStatement or
         ShowDatabasesStatement);
 

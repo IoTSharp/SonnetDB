@@ -295,6 +295,7 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(statement);
         ArgumentNullException.ThrowIfNull(options);
         RejectUnsupportedStatementInActiveTransaction(statement, transaction);
+        EnsureModbusAdministrationAllowed(statement, options);
 
         using var routineExecutionScope = RoutineExecutionContext.EnterRoot(options);
         ThrowIfCancellationRequested();
@@ -310,6 +311,10 @@ public static class SqlExecutor
                 ? throw new InvalidOperationException("COMMIT 前没有活动轻事务。")
                 : TableSqlExecutor.CommitTransaction(tsdb, transaction),
             RollbackTransactionStatement => RollbackTransaction(transaction),
+            CreateModbusSourceStatement createModbusSource =>
+                ModbusSqlExecutor.ExecuteCreateSource(tsdb, createModbusSource),
+            CreateModbusEndpointStatement createModbusEndpoint =>
+                ModbusSqlExecutor.ExecuteCreateEndpoint(tsdb, createModbusEndpoint),
             CreateMeasurementStatement create => ExecuteCreateMeasurement(tsdb, create),
             CreateTableStatement createTable => TableSqlExecutor.ExecuteCreateTable(tsdb, createTable),
             CreateDocumentCollectionStatement createDocumentCollection => DocumentSqlExecutor.ExecuteCreateCollection(tsdb, createDocumentCollection),
@@ -372,6 +377,8 @@ public static class SqlExecutor
             ShowTableIndexesStatement showIndexes => TableSqlExecutor.ShowIndexes(tsdb, showIndexes.TableName),
             ShowDocumentIndexesStatement showDocumentIndexes => DocumentSqlExecutor.ShowIndexes(tsdb, showDocumentIndexes.CollectionName),
             ShowFullTextIndexesStatement showFullTextIndexes => DocumentSqlExecutor.ShowFullTextIndexes(tsdb, showFullTextIndexes.CollectionName),
+            ShowModbusSourcesStatement => ModbusSqlExecutor.ShowSources(tsdb.Modbus.Catalog),
+            ShowModbusEndpointsStatement => ModbusSqlExecutor.ShowEndpoints(tsdb.Modbus.Catalog),
             DescribeMeasurementStatement describe => DescribeMeasurement(tsdb, describe.Name),
             DescribeTableStatement describeTable => TableSqlExecutor.DescribeTable(tsdb, describeTable.Name),
             DescribeViewStatement describeView => DescribeView(tsdb, describeView.Name),
@@ -379,6 +386,12 @@ public static class SqlExecutor
             DescribeProcedureStatement describeProcedure => DescribeProcedure(tsdb, describeProcedure.Name),
             DescribeTriggerStatement describeTrigger => DescribeTrigger(tsdb, describeTrigger.Name),
             DescribeDocumentCollectionStatement describeDocumentCollection => DocumentSqlExecutor.DescribeCollection(tsdb, describeDocumentCollection.Name),
+            DescribeModbusSourceStatement describeModbusSource =>
+                ModbusSqlExecutor.DescribeSource(tsdb.Modbus.Catalog, describeModbusSource.Name),
+            DescribeModbusEndpointStatement describeModbusEndpoint =>
+                ModbusSqlExecutor.DescribeEndpoint(tsdb.Modbus.Catalog, describeModbusEndpoint.Name),
+            DescribeModbusTableStatement describeModbusTable =>
+                ModbusSqlExecutor.DescribeTable(tsdb.Modbus.Catalog, describeModbusTable.Name),
             ExplainStatement explain => ExecuteExplain(tsdb, databaseName, explain),
             CreateUserStatement createUser => ExecuteControlPlane(controlPlane,
                 cp => { cp.CreateUser(createUser.UserName, createUser.Password, createUser.IsSuperuser); return (object)1; }),
@@ -412,6 +425,25 @@ public static class SqlExecutor
     internal static void ThrowIfCancellationRequested()
         => RoutineExecutionContext.Current?.CheckCancellation();
 
+    /// <summary>
+    /// 创建可能在后续版本连接外部设备或监听端口的 Modbus 定义时，强制要求当前数据库的 Admin 权限。
+    /// </summary>
+    private static void EnsureModbusAdministrationAllowed(
+        SqlStatement statement,
+        SqlExecutionOptions options)
+    {
+        if (options.CanAdminister)
+            return;
+        if (statement is not CreateModbusSourceStatement
+            and not CreateModbusEndpointStatement
+            and not CreateTableStatement { ModbusBinding: not null })
+        {
+            return;
+        }
+
+        throw new InvalidOperationException("Modbus source、endpoint 及表映射 DDL 需要当前数据库的 Admin 权限。");
+    }
+
     // 轻事务只缓冲关系表 DML；schema、控制面和文件导入必须在进入执行分支前拒绝。
     private static void RejectUnsupportedStatementInActiveTransaction(
         SqlStatement statement,
@@ -436,6 +468,8 @@ public static class SqlExecutor
     private static bool IsDdlStatement(SqlStatement statement)
         => statement is
             CreateMeasurementStatement
+            or CreateModbusSourceStatement
+            or CreateModbusEndpointStatement
             or CreateTableStatement
             or CreateDocumentCollectionStatement
             or CreateViewStatement

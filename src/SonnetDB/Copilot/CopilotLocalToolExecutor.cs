@@ -300,6 +300,9 @@ internal sealed class CopilotLocalToolExecutor
         return SerializeToolResult(payload, ServerJsonContext.Default.McpSqlQueryResult);
     }
 
+    /// <summary>
+    /// 校验并执行本地 Copilot 的 SQL 工具请求，同时按目标数据库下传实际权限。
+    /// </summary>
     private string ExecuteExecuteSql(CopilotLocalToolContext context, CopilotToolInvocation tool)
     {
         var sql = tool.Sql
@@ -314,8 +317,17 @@ internal sealed class CopilotLocalToolExecutor
         }
 
         var databaseName = ResolveToolDatabaseName(context, tool, statement);
+        // 工具可以显式指定其它可见数据库，因此必须按最终目标库重新计算权限。
+        var databasePermission = string.IsNullOrWhiteSpace(databaseName)
+            ? DatabasePermission.None
+            : DatabaseAccessEvaluator.GetEffectivePermission(
+                context.HttpContext,
+                context.GrantsStore,
+                databaseName);
         var (statementType, measurement, isWrite) = DescribeStatement(statement);
-        if (isWrite && (!context.AllowWrite || !HasDatabasePermission(context, databaseName, DatabasePermission.Write)))
+        var canWrite = context.AllowWrite
+            && DatabaseAccessEvaluator.HasPermission(databasePermission, DatabasePermission.Write);
+        if (isWrite && !canWrite)
         {
             throw new SqlExecutionException(
                 sql,
@@ -346,7 +358,23 @@ internal sealed class CopilotLocalToolExecutor
             else
             {
                 var database = RequireToolDatabase(context, tool, "execute_sql", isWrite ? DatabasePermission.Write : DatabasePermission.Read);
-                executionResult = SqlExecutor.ExecuteStatement(database, executable);
+                // 显式下传治理能力，禁止默认嵌入式选项把 Copilot 提升为数据库管理员。
+                var options = new SqlExecutionOptions
+                {
+                    CancellationToken = context.HttpContext.RequestAborted,
+                    Caller = BearerAuthMiddleware.GetUser(context.HttpContext)?.UserName ?? "copilot",
+                    CanWrite = canWrite,
+                    CanAdminister = DatabaseAccessEvaluator.HasPermission(
+                        databasePermission,
+                        DatabasePermission.Admin),
+                };
+                executionResult = SqlExecutor.ExecuteStatement(
+                    database,
+                    databaseName,
+                    executable,
+                    controlPlane: null,
+                    transaction: null,
+                    options: options);
             }
         }
         catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException or ArgumentException)

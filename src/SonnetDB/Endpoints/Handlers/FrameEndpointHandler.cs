@@ -454,6 +454,7 @@ internal static class FrameEndpointHandler
                     CancellationToken = ctx.RequestAborted,
                     Caller = BearerAuthMiddleware.GetUser(ctx)?.UserName ?? "frame",
                     CanWrite = false,
+                    CanAdminister = false,
                 });
             if (result is not SelectExecutionResult select)
             {

@@ -837,7 +837,10 @@ internal sealed class CopilotAgent
                 "sample_rows" => new CopilotToolExecutionResult(tool, ExecuteSampleRows(context, tool), []),
                 "explain_sql" => new CopilotToolExecutionResult(tool, ExecuteExplainSql(context, tool), []),
                 "draft_sql" => new CopilotToolExecutionResult(tool, ExecuteDraftSql(context, tool), []),
-                "execute_sql" => new CopilotToolExecutionResult(tool, ExecuteExecuteSql(context, tool), []),
+                "execute_sql" => new CopilotToolExecutionResult(
+                    tool,
+                    ExecuteExecuteSql(context, tool, cancellationToken),
+                    []),
                 "query_sql" => await ExecuteQuerySqlWithRepairAsync(
                     context,
                     conversation,
@@ -1064,7 +1067,13 @@ internal sealed class CopilotAgent
         return SerializeToolResult(payload, ServerJsonContext.Default.McpDraftSqlResult);
     }
 
-    private string ExecuteExecuteSql(CopilotAgentContext context, CopilotToolInvocation tool)
+    /// <summary>
+    /// 校验并执行 Agent 发起的 SQL 工具请求，同时下传取消信号和当前数据库的 Admin 权限。
+    /// </summary>
+    private string ExecuteExecuteSql(
+        CopilotAgentContext context,
+        CopilotToolInvocation tool,
+        CancellationToken cancellationToken)
     {
         var sql = tool.Sql
             ?? throw new InvalidOperationException("execute_sql 缺少 sql 参数。");
@@ -1118,7 +1127,21 @@ internal sealed class CopilotAgent
             else
             {
                 var database = RequireToolDatabase(context, tool, "execute_sql");
-                executionResult = SqlExecutor.ExecuteStatement(database, executable);
+                // Legacy Agent 默认不具备管理能力，调用方必须显式授予后才能执行高风险 DDL。
+                var options = new SqlExecutionOptions
+                {
+                    CancellationToken = cancellationToken,
+                    Caller = "copilot",
+                    CanWrite = context.CanWrite,
+                    CanAdminister = context.CanAdministerDatabase,
+                };
+                executionResult = SqlExecutor.ExecuteStatement(
+                    database,
+                    databaseName,
+                    executable,
+                    controlPlane: null,
+                    transaction: null,
+                    options: options);
             }
         }
         catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException or ArgumentException)
@@ -2729,13 +2752,15 @@ internal sealed class CopilotAgent
 /// <param name="CanWrite">当前请求是否允许直接执行写入类工具（同时受权限模式与凭据本身能力约束）。</param>
 /// <param name="ModelOverride">可选模型覆盖（M8）：如果不为空，会传递给 chat provider 作为本次调用的模型名。</param>
 /// <param name="CanUseControlPlane">当前凭据是否具备控制面能力（例如 CREATE DATABASE）。</param>
+/// <param name="CanAdministerDatabase">当前凭据是否具备目标数据库管理能力；默认为不具备。</param>
 internal sealed record CopilotAgentContext(
     string DatabaseName,
     Tsdb? Database,
     IReadOnlyList<string> VisibleDatabases,
     bool CanWrite = false,
     string? ModelOverride = null,
-    bool CanUseControlPlane = false);
+    bool CanUseControlPlane = false,
+    bool CanAdministerDatabase = false);
 
 /// <summary>
 /// 多轮对话的规范化结果。

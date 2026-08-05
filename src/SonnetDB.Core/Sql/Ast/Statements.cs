@@ -38,6 +38,9 @@ public sealed record CreateTableStatement(
 
     /// <summary>当前表级检查约束声明。</summary>
     public IReadOnlyList<TableCheckConstraintClause> CheckConstraintClauses { get; } = CheckConstraints ?? Array.Empty<TableCheckConstraintClause>();
+
+    /// <summary>可选的 Modbus 表级绑定；为空表示普通关系表。</summary>
+    public ModbusTableBindingClause? ModbusBinding { get; init; }
 }
 
 /// <summary>外键 ON DELETE 引用动作（NoAction / Cascade / SetNull）。</summary>
@@ -341,6 +344,12 @@ public sealed record TableColumnDefinition(
 
     /// <summary>列默认值表达式。</summary>
     public SqlExpression? DefaultExpression { get; init; }
+
+    /// <summary>可选的 Modbus 地址映射；为空表示普通关系列。</summary>
+    public ModbusColumnMappingClause? ModbusMapping { get; init; }
+
+    /// <summary>是否由该列记录 Modbus 采样时间。</summary>
+    public bool IsModbusSampleTime { get; init; }
 }
 
 /// <summary>

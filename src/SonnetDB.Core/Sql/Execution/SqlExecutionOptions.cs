@@ -15,6 +15,12 @@ public sealed record SqlExecutionOptions
     /// <summary>调用方是否具备当前数据库写权限。</summary>
     public bool CanWrite { get; init; } = true;
 
+    /// <summary>
+    /// 调用方是否具备当前数据库的 Admin 权限。创建或修改可能触发外部网络连接、监听端口等
+    /// 高风险基础设施定义时，必须同时检查此权限；嵌入式默认值保持向后兼容。
+    /// </summary>
+    public bool CanAdminister { get; init; } = true;
+
     /// <summary>单次调用链最多执行的 body 语句数。</summary>
     public int MaxRoutineStatements { get; init; } = 64;
 

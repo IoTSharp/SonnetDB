@@ -20,6 +20,7 @@ public readonly record struct Token(
     {
         TokenKind.IdentifierLiteral => $"Ident({Text})",
         TokenKind.IntegerLiteral => $"Int({IntegerValue})",
+        TokenKind.Int64MinMagnitudeLiteral => $"IntMagnitude({Text})",
         TokenKind.FloatLiteral => $"Float({DoubleValue})",
         TokenKind.StringLiteral => $"String('{Text}')",
         TokenKind.DurationLiteral => $"Duration({IntegerValue}ms)",

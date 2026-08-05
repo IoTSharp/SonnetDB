@@ -74,6 +74,14 @@ SELECT modbus_float32(16256, 0, 'ABCD');   -- 1.0
 
 任一参数为 `NULL` 时结果为 `NULL`；寄存器越界、寄存器含小数、顺序名未知或参数类型错误时会抛出执行错误。
 
+### Modbus TCP 内建映射 DDL（Phase A）
+
+当前版本已经支持 `CREATE MODBUS SOURCE`、`CREATE MODBUS ENDPOINT`、列级 `FROM MODBUS` / `EXPOSE AS MODBUS`、表级 `USING MODBUS`，以及 `SHOW/DESCRIBE MODBUS` 本地元数据查询。DDL 会把连接定义和规范化地址持久化到独立的版本化 catalog，并在建表时校验四类地址空间、跨度、访问权限、字节序、缩放及 wire type。
+
+Phase A 不包含 TCP 轮询、远端寄存器写入、从站端口监听或外部写审批 runtime。创建定义和普通 `SELECT` 都不会访问 PLC；创建 source、endpoint 或映射表需要当前数据库的 Admin 权限，`SHOW/DESCRIBE MODBUS` 只需要数据库读权限。
+
+完整语法、安全边界、地址归一化、类型表和示例见 [Modbus TCP 内建映射表合同]({{ site.docs_baseurl | default: '/help' }}/modbus-tcp/)。
+
 ### `CREATE TABLE`
 
 定义关系表 schema。关系表 MVP 使用 KV-backed rowstore 存放在数据库目录的 `tables/` 下，不修改时序 `.SDBWAL` / `.SDBSEG` 格式。

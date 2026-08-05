@@ -47,9 +47,13 @@ internal static partial class SonnetDbEndpoints
                 return;
             }
             var scopedControlPlane = CreateScopedControlPlane(ctx, controlPlane, users, grants, registry);
+            bool canWrite = DatabaseAccessEvaluator.HasPermission(databasePermission, DatabasePermission.Write);
+            bool canAdministerDatabase = DatabaseAccessEvaluator.HasPermission(databasePermission, DatabasePermission.Admin);
+            bool isServerAdmin = DatabaseAccessEvaluator.IsServerAdmin(ctx);
             await SqlEndpointHandler.HandleSingleAsync(ctx, tsdb, db, req, metrics,
-                DatabaseAccessEvaluator.HasPermission(databasePermission, DatabasePermission.Write),
-                DatabaseAccessEvaluator.IsServerAdmin(ctx),
+                canWrite,
+                canAdministerDatabase,
+                isServerAdmin,
                 scopedControlPlane).ConfigureAwait(false);
         });
 
@@ -70,9 +74,13 @@ internal static partial class SonnetDbEndpoints
                 return;
             }
             var scopedControlPlane = CreateScopedControlPlane(ctx, controlPlane, users, grants, registry);
+            bool canWrite = DatabaseAccessEvaluator.HasPermission(databasePermission, DatabasePermission.Write);
+            bool canAdministerDatabase = DatabaseAccessEvaluator.HasPermission(databasePermission, DatabasePermission.Admin);
+            bool isServerAdmin = DatabaseAccessEvaluator.IsServerAdmin(ctx);
             await SqlEndpointHandler.HandleBatchAsync(ctx, tsdb, db, req, metrics,
-                DatabaseAccessEvaluator.HasPermission(databasePermission, DatabasePermission.Write),
-                DatabaseAccessEvaluator.IsServerAdmin(ctx),
+                canWrite,
+                canAdministerDatabase,
+                isServerAdmin,
                 scopedControlPlane).ConfigureAwait(false);
         });
     }

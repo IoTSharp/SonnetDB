@@ -225,4 +225,9 @@ public enum TokenKind
     KeywordRollback,
     /// <summary>TRANSACTION，可选轻事务修饰词。</summary>
     KeywordTransaction,
+
+    /// <summary>
+    /// 仅承载十进制幅度 9223372036854775808；产生式只能在显式负号后把它解释为 Int64 最小值。
+    /// </summary>
+    Int64MinMagnitudeLiteral,
 }

@@ -1,6 +1,7 @@
 using SonnetDB.Catalog;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
+using SonnetDB.Modbus;
 using SonnetDB.Memory;
 using SonnetDB.Model;
 using SonnetDB.Query;
@@ -69,6 +70,8 @@ public static class SqlExplainPlanner
             ShowTableIndexesStatement showIndexes => ExplainShowIndexes(databaseName, tsdb, showIndexes.TableName),
             ShowDocumentIndexesStatement showDocumentIndexes => ExplainShowDocumentIndexes(databaseName, tsdb, showDocumentIndexes.CollectionName),
             ShowFullTextIndexesStatement showFullTextIndexes => ExplainShowFullTextIndexes(databaseName, tsdb, showFullTextIndexes.CollectionName),
+            ShowModbusSourcesStatement => ExplainShowModbusSources(databaseName, tsdb.Modbus.Catalog),
+            ShowModbusEndpointsStatement => ExplainShowModbusEndpoints(databaseName, tsdb.Modbus.Catalog),
             DescribeMeasurementStatement describe => ExplainDescribeMeasurement(databaseName, tsdb, describe.Name),
             DescribeTableStatement describeTable => ExplainDescribeTable(databaseName, tsdb, describeTable.Name),
             DescribeViewStatement describeView => ExplainDescribeView(databaseName, tsdb, describeView.Name),
@@ -77,6 +80,18 @@ public static class SqlExplainPlanner
                 tsdb,
                 describeMaterializedView.Name),
             DescribeDocumentCollectionStatement describeDocumentCollection => ExplainDescribeDocumentCollection(databaseName, tsdb, describeDocumentCollection.Name),
+            DescribeModbusSourceStatement describeModbusSource => ExplainDescribeModbusSource(
+                databaseName,
+                tsdb,
+                describeModbusSource.Name),
+            DescribeModbusEndpointStatement describeModbusEndpoint => ExplainDescribeModbusEndpoint(
+                databaseName,
+                tsdb,
+                describeModbusEndpoint.Name),
+            DescribeModbusTableStatement describeModbusTable => ExplainDescribeModbusTable(
+                databaseName,
+                tsdb,
+                describeModbusTable.Name),
             SelectStatement select => ExplainSelect(databaseName, tsdb, select),
             _ => throw new InvalidOperationException(
                 "EXPLAIN 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES / SHOW VIEWS / SHOW DOCUMENT COLLECTIONS / SHOW INDEXES / SHOW JSON INDEXES / SHOW FULLTEXT INDEXES 与 DESCRIBE [MEASUREMENT|TABLE|VIEW|DOCUMENT COLLECTION]。"),
@@ -152,6 +167,96 @@ public static class SqlExplainPlanner
             AccessPath: "catalog",
             IndexName: null);
     }
+
+    /// <summary>从单次目录快照估算 SHOW MODBUS SOURCES 返回行数。</summary>
+    private static SqlExplainExecutionResult ExplainShowModbusSources(
+        string? databaseName,
+        ModbusCatalog catalog)
+    {
+        ModbusCatalogSnapshot snapshot = catalog.CaptureSnapshot();
+        return ExplainCatalogMetadata(
+            databaseName,
+            "show_modbus_sources",
+            measurement: null,
+            snapshot.Sources.Count);
+    }
+
+    /// <summary>从单次目录快照估算 SHOW MODBUS ENDPOINTS 返回行数。</summary>
+    private static SqlExplainExecutionResult ExplainShowModbusEndpoints(
+        string? databaseName,
+        ModbusCatalog catalog)
+    {
+        ModbusCatalogSnapshot snapshot = catalog.CaptureSnapshot();
+        return ExplainCatalogMetadata(
+            databaseName,
+            "show_modbus_endpoints",
+            measurement: null,
+            snapshot.Endpoints.Count);
+    }
+
+    /// <summary>解释一个只读取本地 Modbus source 定义的元数据查询。</summary>
+    private static SqlExplainExecutionResult ExplainDescribeModbusSource(
+        string? databaseName,
+        Tsdb tsdb,
+        string sourceName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceName);
+        ModbusCatalogSnapshot snapshot = tsdb.Modbus.Catalog.CaptureSnapshot();
+        if (!snapshot.Sources.ContainsKey(sourceName))
+            throw new InvalidOperationException($"MODBUS SOURCE '{sourceName}' 不存在。");
+        return ExplainCatalogMetadata(databaseName, "describe_modbus_source", sourceName, 1);
+    }
+
+    /// <summary>解释一个只读取本地 Modbus endpoint 定义的元数据查询。</summary>
+    private static SqlExplainExecutionResult ExplainDescribeModbusEndpoint(
+        string? databaseName,
+        Tsdb tsdb,
+        string endpointName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(endpointName);
+        ModbusCatalogSnapshot snapshot = tsdb.Modbus.Catalog.CaptureSnapshot();
+        if (!snapshot.Endpoints.ContainsKey(endpointName))
+            throw new InvalidOperationException($"MODBUS ENDPOINT '{endpointName}' 不存在。");
+        return ExplainCatalogMetadata(databaseName, "describe_modbus_endpoint", endpointName, 1);
+    }
+
+    /// <summary>解释一个只读取本地 Modbus 表映射的元数据查询。</summary>
+    private static SqlExplainExecutionResult ExplainDescribeModbusTable(
+        string? databaseName,
+        Tsdb tsdb,
+        string tableName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+        ModbusCatalogSnapshot snapshot = tsdb.Modbus.Catalog.CaptureSnapshot();
+        ModbusTableBinding binding = snapshot.Bindings.GetValueOrDefault(tableName)
+            ?? throw new InvalidOperationException($"table '{tableName}' 不存在 MODBUS 绑定。");
+        return ExplainCatalogMetadata(
+            databaseName,
+            "describe_modbus_table",
+            tableName,
+            binding.Columns.Count);
+    }
+
+    /// <summary>构造不扫描关系数据、只访问本地 catalog 的解释结果。</summary>
+    private static SqlExplainExecutionResult ExplainCatalogMetadata(
+        string? databaseName,
+        string statementType,
+        string? measurement,
+        int rowCount)
+        => new(
+            Database: databaseName,
+            StatementType: statementType,
+            Measurement: measurement,
+            MatchedSeriesCount: 0,
+            EstimatedSegmentCount: 0,
+            EstimatedBlockCount: 0,
+            EstimatedScannedRows: rowCount,
+            EstimatedMemTableRows: 0,
+            EstimatedSegmentRows: 0,
+            HasTimeFilter: false,
+            TagFilterCount: 0,
+            AccessPath: "catalog",
+            IndexName: null);
 
     private static SqlExplainExecutionResult ExplainShowTables(string? databaseName, Tsdb tsdb)
     {

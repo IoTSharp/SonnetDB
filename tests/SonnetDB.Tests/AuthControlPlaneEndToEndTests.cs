@@ -307,6 +307,147 @@ public sealed class AuthControlPlaneEndToEndTests : IAsyncLifetime
         Assert.Equal(1, CountDataRows(countBody));
     }
 
+    /// <summary>
+    /// 验证 Modbus DDL 仅 admin 可执行，而只读 metadata 对具有 READ 授权的用户开放。
+    /// </summary>
+    [Fact]
+    public async Task ModbusSql_WriteTokenForbidden_AdminCreates_ReadTokenShowsMetadata()
+    {
+        const string databaseName = "modbus_auth";
+        const string createSourceSql = """
+            CREATE MODBUS SOURCE auth_source
+            WITH (
+                TRANSPORT TCP,
+                ENDPOINT '192.0.2.10:502',
+                UNIT_ID 1,
+                POLL_INTERVAL '1s',
+                TIMEOUT '500ms',
+                RETRY 1,
+                ADDRESSING MODICON,
+                BYTE_ORDER BIG_ENDIAN,
+                WORD_ORDER BIG_ENDIAN
+            )
+            """;
+
+        await CreateDatabaseAsync(databaseName);
+        await ExecuteSqlAsync(databaseName, "CREATE USER modbus_writer WITH PASSWORD 'p'", _adminStaticToken);
+        await ExecuteSqlAsync(
+            databaseName,
+            $"GRANT WRITE ON DATABASE {databaseName} TO modbus_writer",
+            _adminStaticToken);
+
+        string writerToken = await LoginAsync("modbus_writer", "p");
+        using (var writer = CreateClient(writerToken))
+        {
+            var forbidden = await writer.PostAsync(
+                $"/v1/db/{databaseName}/sql",
+                JsonContent.Create(new SqlRequest(createSourceSql), ServerJsonContext.Default.SqlRequest));
+            Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+        }
+
+        await ExecuteSqlAsync(databaseName, createSourceSql, _adminStaticToken);
+        await ExecuteSqlAsync(databaseName, "CREATE USER modbus_reader WITH PASSWORD 'p'", _adminStaticToken);
+        await ExecuteSqlAsync(
+            databaseName,
+            $"GRANT READ ON DATABASE {databaseName} TO modbus_reader",
+            _adminStaticToken);
+
+        string readerToken = await LoginAsync("modbus_reader", "p");
+        using var reader = CreateClient(readerToken);
+        var show = await reader.PostAsync(
+            $"/v1/db/{databaseName}/sql",
+            JsonContent.Create(new SqlRequest("SHOW MODBUS SOURCES"), ServerJsonContext.Default.SqlRequest));
+        string body = await show.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, show.StatusCode);
+        Assert.Contains("auth_source", body, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// 验证数据库级 Admin 可通过单条与批量端点创建 Modbus 定义，但不能执行用户管理控制面 SQL。
+    /// </summary>
+    [Fact]
+    public async Task ModbusSql_DatabaseAdminGrant_AllowsDdlWithoutServerAdminEscalation()
+    {
+        const string databaseName = "modbus_database_admin";
+        const string createSourceSql = """
+            CREATE MODBUS SOURCE db_admin_source
+            WITH (
+                TRANSPORT TCP,
+                ENDPOINT '192.0.2.10:502',
+                UNIT_ID 1,
+                POLL_INTERVAL '1s',
+                TIMEOUT '500ms',
+                RETRY 1,
+                ADDRESSING MODICON,
+                BYTE_ORDER BIG_ENDIAN,
+                WORD_ORDER BIG_ENDIAN,
+                ENABLED FALSE
+            )
+            """;
+        const string createEndpointSql = """
+            CREATE MODBUS ENDPOINT db_admin_endpoint
+            WITH (
+                TRANSPORT TCP,
+                BIND '127.0.0.1:1502',
+                UNIT_ID 1,
+                ADDRESSING MODICON,
+                BYTE_ORDER BIG_ENDIAN,
+                WORD_ORDER LITTLE_ENDIAN,
+                ALLOWLIST ('127.0.0.1'),
+                MAX_CONNECTIONS 8,
+                WRITE_POLICY STAGED,
+                ENABLED FALSE
+            )
+            """;
+        const string createMappedTableSql = """
+            CREATE TABLE db_admin_values (
+                id INT NOT NULL,
+                value INT
+                    FROM MODBUS HOLDING_REGISTER(40001)
+                    AS UINT16,
+                PRIMARY KEY (id)
+            )
+            USING MODBUS SOURCE db_admin_source
+            WITH (TABLE_MODE LATEST, ON_ERROR KEEP_LAST)
+            """;
+
+        await CreateDatabaseAsync(databaseName);
+        await ExecuteSqlAsync(databaseName, "CREATE USER modbus_db_admin WITH PASSWORD 'p'", _adminStaticToken);
+        await ExecuteSqlAsync(
+            databaseName,
+            $"GRANT ADMIN ON DATABASE {databaseName} TO modbus_db_admin",
+            _adminStaticToken);
+
+        string databaseAdminToken = await LoginAsync("modbus_db_admin", "p");
+        using var databaseAdmin = CreateClient(databaseAdminToken);
+
+        var single = await databaseAdmin.PostAsync(
+            $"/v1/db/{databaseName}/sql",
+            JsonContent.Create(new SqlRequest(createSourceSql), ServerJsonContext.Default.SqlRequest));
+        string singleBody = await single.Content.ReadAsStringAsync();
+        Assert.True(single.IsSuccessStatusCode, singleBody);
+        Assert.DoesNotContain("\"error\"", singleBody, StringComparison.Ordinal);
+
+        var batch = await databaseAdmin.PostAsync(
+            $"/v1/db/{databaseName}/sql/batch",
+            JsonContent.Create(
+                new SqlBatchRequest([
+                    new SqlRequest(createEndpointSql),
+                    new SqlRequest(createMappedTableSql),
+                ]),
+                ServerJsonContext.Default.SqlBatchRequest));
+        string batchBody = await batch.Content.ReadAsStringAsync();
+        Assert.True(batch.IsSuccessStatusCode, batchBody);
+        Assert.DoesNotContain("\"error\"", batchBody, StringComparison.Ordinal);
+
+        var forbidden = await databaseAdmin.PostAsync(
+            "/v1/sql",
+            JsonContent.Create(
+                new SqlRequest("CREATE USER escalated_user WITH PASSWORD 'p'"),
+                ServerJsonContext.Default.SqlRequest));
+        Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+    }
+
     // PR #34b-3：/v1/sql 控制面端点（无 db 路径）
 
     [Fact]

@@ -331,6 +331,87 @@ public sealed class CopilotChatEndpointTests : IAsyncLifetime
         Assert.DoesNotContain("danger", showMeasurementsBody, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// 验证 Copilot 创建 Modbus 映射表时拒绝仅有 WRITE 的用户，并允许数据库或服务端管理员执行。
+    /// </summary>
+    [Theory]
+    [InlineData("WRITE", false)]
+    [InlineData("ADMIN", true)]
+    [InlineData("SERVER_ADMIN", true)]
+    public async Task CopilotChat_CreateModbusMappedTable_RequiresDatabaseAdmin(
+        string permission,
+        bool expectedAllowed)
+    {
+        const string createSourceSql = """
+            CREATE MODBUS SOURCE copilot_source
+            WITH (
+                TRANSPORT TCP,
+                ENDPOINT '127.0.0.1:1502',
+                UNIT_ID 1,
+                POLL_INTERVAL '1s',
+                TIMEOUT '500ms',
+                RETRY 1,
+                ADDRESSING MODICON,
+                BYTE_ORDER BIG_ENDIAN,
+                WORD_ORDER BIG_ENDIAN,
+                ENABLED FALSE
+            )
+            """;
+        var suffix = permission.ToLowerInvariant();
+        var tableName = $"copilot_mapped_{suffix}";
+
+        using (var admin = CreateClient(AdminToken))
+        {
+            await ExecuteSqlAsync(admin, createSourceSql);
+        }
+
+        SaveCloudConfig();
+        _cloud!.EnqueueChat(
+            ToolRequiredEvent(
+                "execute_sql",
+                $$"""{"sql":"CREATE TABLE {{tableName}} (id INT NOT NULL, value INT FROM MODBUS HOLDING_REGISTER(40001) AS UINT16, PRIMARY KEY (id)) USING MODBUS SOURCE copilot_source WITH (TABLE_MODE LATEST, ON_ERROR KEEP_LAST)"}""",
+                requestId: $"req-{suffix}",
+                toolCallId: $"tool-{suffix}"),
+            CloudEvent("done", message: "waiting for tool result"));
+        _cloud.EnqueueChat(
+            CloudEvent("final", answer: "Modbus 映射表处理完成。"),
+            CloudEvent("done", message: "completed"));
+
+        using var client = string.Equals(permission, "SERVER_ADMIN", StringComparison.Ordinal)
+            ? CreateClient(AdminToken)
+            : await CreateDatabaseUserClientAsync($"copilot_{suffix}", permission);
+        using var response = await client.PostAsync(
+            "/v1/copilot/chat",
+            JsonContent.Create(
+                new CopilotChatRequest(
+                    DatabaseName,
+                    "创建 Modbus 映射表",
+                    Mode: "read-write",
+                    ConversationId: $"session-{suffix}"),
+                ServerJsonContext.Default.CopilotChatRequest));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var events = await ReadNdjsonEventsAsync(response);
+        _ = Assert.Single(events, static evt => evt.Type == "tool_result");
+        var submitted = Assert.Single(_cloud.ToolResults);
+        Assert.Equal(expectedAllowed, submitted.Result?.Ok ?? false);
+
+        using var verificationClient = CreateClient(AdminToken);
+        var showTablesBody = await ExecuteSqlBodyAsync(verificationClient, DatabaseName, "SHOW TABLES");
+        if (expectedAllowed)
+        {
+            Assert.Contains(tableName, showTablesBody, StringComparison.OrdinalIgnoreCase);
+        }
+        else
+        {
+            Assert.Contains(
+                "当前数据库的 Admin 权限",
+                submitted.Result?.ErrorMessage ?? string.Empty,
+                StringComparison.Ordinal);
+            Assert.DoesNotContain(tableName, showTablesBody, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
     private void SaveCloudConfig(
         string accessToken = "cloud-access-token",
         DateTimeOffset? expiresAtUtc = null)
@@ -352,11 +433,20 @@ public sealed class CopilotChatEndpointTests : IAsyncLifetime
         _cloud!.Reset();
     }
 
-    private async Task<HttpClient> CreateReaderClientAsync(string userName)
+    /// <summary>
+    /// 创建仅有数据库 READ 权限的测试客户端。
+    /// </summary>
+    private Task<HttpClient> CreateReaderClientAsync(string userName)
+        => CreateDatabaseUserClientAsync(userName, "READ");
+
+    /// <summary>
+    /// 创建具有指定数据库权限的测试用户并返回认证客户端。
+    /// </summary>
+    private async Task<HttpClient> CreateDatabaseUserClientAsync(string userName, string permission)
     {
         using var admin = CreateClient(AdminToken);
         await ExecuteSqlAsync(admin, $"CREATE USER {userName} WITH PASSWORD 'p'");
-        await ExecuteSqlAsync(admin, $"GRANT READ ON DATABASE {DatabaseName} TO {userName}");
+        await ExecuteSqlAsync(admin, $"GRANT {permission} ON DATABASE {DatabaseName} TO {userName}");
         var token = await LoginAsync(userName, "p");
         return CreateClient(token);
     }

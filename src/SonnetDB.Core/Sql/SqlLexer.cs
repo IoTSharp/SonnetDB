@@ -414,7 +414,12 @@ public sealed class SqlLexer
         }
 
         if (!long.TryParse(numericText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var intValue))
+        {
+            // 只保留 Int64 最小值所需的无符号幅度，具体产生式必须在显式负号后消费该特殊 token。
+            if (string.Equals(numericText, "9223372036854775808", StringComparison.Ordinal))
+                return new Token(TokenKind.Int64MinMagnitudeLiteral, numericText, start);
             throw new SqlParseException($"整数字面量超出 Int64 范围 '{numericText}'", start);
+        }
 
         return new Token(TokenKind.IntegerLiteral, numericText, start, IntegerValue: intValue);
     }

@@ -4,6 +4,7 @@ using System.Text;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
 using SonnetDB.Exceptions;
+using SonnetDB.Modbus;
 using SonnetDB.Query.Functions;
 using SonnetDB.Routines;
 using SonnetDB.Sql.Ast;
@@ -26,10 +27,23 @@ internal static class TableSqlExecutor
     private static readonly IReadOnlyList<string> _showIndexColumns =
         new List<string>(4) { "index_name", "is_unique", "columns", "created_utc" }.AsReadOnly();
 
+    /// <summary>
+    /// 创建关系表；带 Modbus 映射时在数据库级 schema 锁内串行提交表与绑定。
+    /// </summary>
+    /// <param name="tsdb">目标数据库。</param>
+    /// <param name="statement">CREATE TABLE 语句。</param>
+    /// <returns>创建或已存在的关系表 schema。</returns>
     public static TableSchema ExecuteCreateTable(Tsdb tsdb, CreateTableStatement statement)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
+
+        return tsdb.ExecuteSchemaMutation(() => ExecuteCreateTableLocked(tsdb, statement));
+    }
+
+    /// <summary>在数据库级 schema 锁内执行关系表创建和可选 Modbus 绑定提交。</summary>
+    private static TableSchema ExecuteCreateTableLocked(Tsdb tsdb, CreateTableStatement statement)
+    {
 
         SqlExecutor.EnsureNameDoesNotBelongToView(tsdb, statement.Name, "table");
 
@@ -37,7 +51,17 @@ internal static class TableSqlExecutor
         {
             var existing = tsdb.Tables.Catalog.TryGet(statement.Name);
             if (existing is not null)
+            {
+                if (statement.ModbusBinding is not null
+                    && tsdb.Modbus.Catalog.TryGetBinding(statement.Name) is null)
+                {
+                    throw new InvalidDataException(
+                        $"table '{statement.Name}' 已存在但缺少 MODBUS 绑定；"
+                        + "不能把 CREATE TABLE IF NOT EXISTS 视为成功，请先修复或删除该不完整表。");
+                }
+
                 return existing;
+            }
         }
 
         var columns = new List<(string Name, TableColumnType DataType, bool IsNullable)>(statement.Columns.Count);
@@ -101,7 +125,32 @@ internal static class TableSqlExecutor
             checkConstraints: checkConstraints,
             columnDefaults: columnDefaults,
             autoIncrementColumns: autoIncrementColumns);
+        ModbusTableBinding? modbusBinding = ModbusSqlExecutor.ResolveTableBinding(tsdb, statement, schema);
         tsdb.Tables.Create(schema);
+        if (modbusBinding is null)
+            return schema;
+
+        try
+        {
+            // 两份独立 catalog 按“先表、后绑定”发布；绑定落盘失败时撤销刚创建的表。
+            tsdb.Modbus.CreateBinding(modbusBinding);
+        }
+        catch (Exception bindingException)
+        {
+            try
+            {
+                _ = tsdb.Tables.Drop(schema.Name);
+            }
+            catch (Exception rollbackException)
+            {
+                throw new InvalidOperationException(
+                    $"table '{schema.Name}' 的 MODBUS 绑定创建失败，且关系表回滚失败。",
+                    new AggregateException(bindingException, rollbackException));
+            }
+
+            throw;
+        }
+
         return schema;
     }
 

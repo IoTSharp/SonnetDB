@@ -12,6 +12,9 @@ public sealed class TableCatalog
     private FrozenDictionary<string, TableSchema> _snapshot =
         FrozenDictionary<string, TableSchema>.Empty;
 
+    /// <summary>由所属 TableManager 安装的目录变更守卫；独立 catalog 默认不限制直接变更。</summary>
+    internal Action<string, string>? MutationGuard { get; set; }
+
     /// <summary>当前表数量。</summary>
     public int Count
     {
@@ -29,6 +32,7 @@ public sealed class TableCatalog
     public void Add(TableSchema schema)
     {
         ArgumentNullException.ThrowIfNull(schema);
+        MutationGuard?.Invoke(schema.Name, "ADD");
         lock (_sync)
         {
             if (_mutable.ContainsKey(schema.Name))
@@ -45,6 +49,7 @@ public sealed class TableCatalog
     public void LoadOrReplace(TableSchema schema)
     {
         ArgumentNullException.ThrowIfNull(schema);
+        MutationGuard?.Invoke(schema.Name, "LOAD OR REPLACE");
         lock (_sync)
         {
             _mutable[schema.Name] = schema;
@@ -60,6 +65,7 @@ public sealed class TableCatalog
     public bool Remove(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
+        MutationGuard?.Invoke(name, "REMOVE");
         lock (_sync)
         {
             if (!_mutable.Remove(name))

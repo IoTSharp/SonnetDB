@@ -15,6 +15,7 @@ public sealed class TableManager : IDisposable
             new Dictionary<string, IReadOnlyList<TableRow>>(StringComparer.Ordinal));
 
     private readonly object _sync = new();
+    private readonly object _schemaSync;
     private readonly string _rootDirectory;
     private readonly KvOptions _kvOptions;
     private readonly Action<string, string>? _nameAvailabilityGuard;
@@ -27,25 +28,47 @@ public sealed class TableManager : IDisposable
     // commits without changing the public transaction contract.
     internal Action<string>? ApplyTransactionAfterTableTestHook { get; set; }
 
+    /// <summary>仅供并发测试确认 schema 变更已取得数据库级 schema 锁。</summary>
+    internal Action<string>? SchemaMutationLockAcquiredTestHook { get; set; }
+
+    /// <summary>仅供测试在候选表目录落盘后、内存快照发布前建立确定性同步点。</summary>
+    internal Action? AfterCatalogPersistedBeforePublishTestHook { get; set; }
+
     /// <summary>
     /// 初始化表管理器。
     /// </summary>
     /// <param name="rootDirectory">tables 根目录。</param>
     /// <param name="kvOptions">底层 KV 选项。</param>
     public TableManager(string rootDirectory, KvOptions kvOptions)
-        : this(rootDirectory, kvOptions, nameAvailabilityGuard: null, schemaMutationGuard: null)
+        : this(
+            rootDirectory,
+            kvOptions,
+            nameAvailabilityGuard: null,
+            schemaMutationGuard: null,
+            synchronizationRoot: new object())
     {
     }
 
+    /// <summary>
+    /// 使用数据库级同步根初始化表管理器，使关系表 DDL 可与其它 schema catalog 和备份串行化。
+    /// </summary>
+    /// <param name="rootDirectory">tables 根目录。</param>
+    /// <param name="kvOptions">底层 KV 选项。</param>
+    /// <param name="nameAvailabilityGuard">跨模型名称占用检查。</param>
+    /// <param name="schemaMutationGuard">关系表依赖检查。</param>
+    /// <param name="synchronizationRoot">数据库级 schema 与备份同步根。</param>
     internal TableManager(
         string rootDirectory,
         KvOptions kvOptions,
         Action<string, string>? nameAvailabilityGuard,
-        Action<string, string>? schemaMutationGuard)
+        Action<string, string>? schemaMutationGuard,
+        object synchronizationRoot)
     {
         ArgumentNullException.ThrowIfNull(rootDirectory);
         ArgumentNullException.ThrowIfNull(kvOptions);
+        ArgumentNullException.ThrowIfNull(synchronizationRoot);
 
+        _schemaSync = synchronizationRoot;
         _rootDirectory = rootDirectory;
         _kvOptions = kvOptions;
         _nameAvailabilityGuard = nameAvailabilityGuard;
@@ -55,6 +78,7 @@ public sealed class TableManager : IDisposable
         Catalog = new TableCatalog();
         foreach (var schema in TableSchemaCodec.Load(SchemaPath))
             Catalog.LoadOrReplace(schema);
+        Catalog.MutationGuard = EnsureManagedCatalogMutation;
     }
 
     /// <summary>关系表 catalog。</summary>
@@ -70,19 +94,78 @@ public sealed class TableManager : IDisposable
     public void Create(TableSchema schema)
     {
         ArgumentNullException.ThrowIfNull(schema);
-        _nameAvailabilityGuard?.Invoke(schema.Name, "table");
+        lock (_schemaSync)
         lock (_sync)
         {
+            _nameAvailabilityGuard?.Invoke(schema.Name, "table");
             ThrowIfDisposed();
-            Catalog.Add(schema);
+            if (Catalog.TryGet(schema.Name) is not null)
+                throw new InvalidOperationException($"table '{schema.Name}' 已存在。");
+
+            IReadOnlyList<TableSchema> previousSchemas = Catalog.Snapshot();
+            TableStore? openedStore = null;
+            var catalogPersisted = false;
             try
             {
-                PersistCatalogLocked();
-                _ = OpenStoreLocked(schema);
+                // 先打开 rowstore，再把包含新表的候选 schema 文件落盘；两步都成功后才发布无锁读快照。
+                // 失败期间 SHOW、查询和 Modbus 绑定均不会观察到尚未提交的关系表。
+                openedStore = OpenStoreLocked(schema);
+                var candidateSchemas = previousSchemas.ToList();
+                candidateSchemas.Add(schema);
+                TableSchemaCodec.Save(SchemaPath, candidateSchemas);
+                catalogPersisted = true;
+                AfterCatalogPersistedBeforePublishTestHook?.Invoke();
+                Catalog.Add(schema);
             }
-            catch
+            catch (Exception createException)
             {
-                Catalog.Remove(schema.Name);
+                var rollbackErrors = new List<Exception>();
+
+                // 发布失败时同时恢复内存目录和已替换的 schema 文件，避免 API 报错后重启却出现新表。
+                try
+                {
+                    _ = Catalog.Remove(schema.Name);
+                }
+                catch (Exception rollbackException)
+                {
+                    rollbackErrors.Add(rollbackException);
+                }
+
+                if (catalogPersisted)
+                {
+                    try
+                    {
+                        TableSchemaCodec.Save(SchemaPath, previousSchemas, ".rollback.tmp");
+                    }
+                    catch (Exception rollbackException)
+                    {
+                        rollbackErrors.Add(rollbackException);
+                    }
+                }
+
+                // 创建失败时，本次打开的 store 必须移出管理器并释放文件租约，
+                // 使同一进程和重启后的同名 CREATE 都可以立即重试。
+                if (openedStore is not null
+                    && _stores.Remove(schema.Name, out TableStore? store))
+                {
+                    try
+                    {
+                        store.Dispose();
+                    }
+                    catch (Exception rollbackException)
+                    {
+                        rollbackErrors.Add(rollbackException);
+                    }
+                }
+
+                if (rollbackErrors.Count != 0)
+                {
+                    rollbackErrors.Insert(0, createException);
+                    throw new InvalidOperationException(
+                        $"table '{schema.Name}' 创建失败，且目录或 rowstore 回滚失败。",
+                        new AggregateException(rollbackErrors));
+                }
+
                 throw;
             }
         }
@@ -98,6 +181,7 @@ public sealed class TableManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentNullException.ThrowIfNull(definition);
+        lock (_schemaSync)
         lock (_sync)
         {
             ThrowIfDisposed();
@@ -133,6 +217,7 @@ public sealed class TableManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
+        lock (_schemaSync)
         lock (_sync)
         {
             ThrowIfDisposed();
@@ -170,9 +255,10 @@ public sealed class TableManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(constraintName);
-        _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
+        lock (_schemaSync)
         lock (_sync)
         {
+            _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
             ThrowIfDisposed();
             var current = Catalog.TryGet(tableName)
                 ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
@@ -208,9 +294,10 @@ public sealed class TableManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentNullException.ThrowIfNull(definition);
-        _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
+        lock (_schemaSync)
         lock (_sync)
         {
+            _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
             ThrowIfDisposed();
             var current = Catalog.TryGet(tableName)
                 ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
@@ -250,9 +337,10 @@ public sealed class TableManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(constraintName);
-        _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
+        lock (_schemaSync)
         lock (_sync)
         {
+            _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
             ThrowIfDisposed();
             var current = Catalog.TryGet(tableName)
                 ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
@@ -290,9 +378,10 @@ public sealed class TableManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentNullException.ThrowIfNull(definition);
-        _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
+        lock (_schemaSync)
         lock (_sync)
         {
+            _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
             ThrowIfDisposed();
             var current = Catalog.TryGet(tableName)
                 ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
@@ -322,6 +411,12 @@ public sealed class TableManager : IDisposable
         }
     }
 
+    /// <summary>向关系表追加一列，并用指定默认值回填已有行。</summary>
+    /// <param name="tableName">目标表名。</param>
+    /// <param name="columnName">新增列名。</param>
+    /// <param name="dataType">新增列类型。</param>
+    /// <param name="isNullable">新增列是否允许空值。</param>
+    /// <param name="defaultValue">已有行的回填值。</param>
     public void AlterTableAddColumn(string tableName, string columnName, TableColumnType dataType, bool isNullable, object? defaultValue)
         => AlterTableAddColumn(
             tableName,
@@ -331,6 +426,7 @@ public sealed class TableManager : IDisposable
             defaultValue,
             defaultExpressionSql: null);
 
+    /// <summary>向关系表追加一列，并保留可持久化的默认表达式文本。</summary>
     internal void AlterTableAddColumn(
         string tableName,
         string columnName,
@@ -341,9 +437,10 @@ public sealed class TableManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
-        _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
+        lock (_schemaSync)
         lock (_sync)
         {
+            _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
             ThrowIfDisposed();
             var current = Catalog.TryGet(tableName)
                 ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
@@ -360,6 +457,7 @@ public sealed class TableManager : IDisposable
         }
     }
 
+    /// <summary>修改关系表列定义，并在需要时转换已有行的列值。</summary>
     internal void AlterTableAlterColumn(
         string tableName,
         string columnName,
@@ -370,9 +468,10 @@ public sealed class TableManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
-        _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
+        lock (_schemaSync)
         lock (_sync)
         {
+            _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
             ThrowIfDisposed();
             var current = Catalog.TryGet(tableName)
                 ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
@@ -414,13 +513,17 @@ public sealed class TableManager : IDisposable
         }
     }
 
+    /// <summary>删除关系表列，并重写已有行以移除对应值。</summary>
+    /// <param name="tableName">目标表名。</param>
+    /// <param name="columnName">待删除列名。</param>
     public void AlterTableDropColumn(string tableName, string columnName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
-        _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
+        lock (_schemaSync)
         lock (_sync)
         {
+            _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
             ThrowIfDisposed();
             var current = Catalog.TryGet(tableName)
                 ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
@@ -444,14 +547,19 @@ public sealed class TableManager : IDisposable
         }
     }
 
+    /// <summary>重命名关系表列并同步更新持久化 schema。</summary>
+    /// <param name="tableName">目标表名。</param>
+    /// <param name="oldColumnName">原列名。</param>
+    /// <param name="newColumnName">新列名。</param>
     public void AlterTableRenameColumn(string tableName, string oldColumnName, string newColumnName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(oldColumnName);
         ArgumentException.ThrowIfNullOrWhiteSpace(newColumnName);
-        _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
+        lock (_schemaSync)
         lock (_sync)
         {
+            _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
             ThrowIfDisposed();
             var current = Catalog.TryGet(tableName)
                 ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
@@ -461,14 +569,18 @@ public sealed class TableManager : IDisposable
         }
     }
 
+    /// <summary>重命名关系表及其 rowstore 目录。</summary>
+    /// <param name="oldName">原表名。</param>
+    /// <param name="newName">新表名。</param>
     public void RenameTable(string oldName, string newName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(oldName);
         ArgumentException.ThrowIfNullOrWhiteSpace(newName);
-        _schemaMutationGuard?.Invoke(oldName, "ALTER TABLE RENAME");
-        _nameAvailabilityGuard?.Invoke(newName, "table");
+        lock (_schemaSync)
         lock (_sync)
         {
+            _schemaMutationGuard?.Invoke(oldName, "ALTER TABLE RENAME");
+            _nameAvailabilityGuard?.Invoke(newName, "table");
             ThrowIfDisposed();
             var current = Catalog.TryGet(oldName)
                 ?? throw new InvalidOperationException($"table '{oldName}' 不存在。");
@@ -518,6 +630,7 @@ public sealed class TableManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
+        lock (_schemaSync)
         lock (_sync)
         {
             ThrowIfDisposed();
@@ -538,24 +651,28 @@ public sealed class TableManager : IDisposable
     public bool Drop(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
-        _schemaMutationGuard?.Invoke(name, "DROP TABLE");
-        lock (_sync)
+        lock (_schemaSync)
         {
-            ThrowIfDisposed();
-            if (Catalog.TryGet(name) is null)
-                return false;
-            EnsureTableIsNotReferencedByForeignKeyLocked(name, "删除");
-            _ = Catalog.Remove(name);
+            SchemaMutationLockAcquiredTestHook?.Invoke("DROP TABLE");
+            lock (_sync)
+            {
+                _schemaMutationGuard?.Invoke(name, "DROP TABLE");
+                ThrowIfDisposed();
+                if (Catalog.TryGet(name) is null)
+                    return false;
+                EnsureTableIsNotReferencedByForeignKeyLocked(name, "删除");
+                _ = Catalog.Remove(name);
 
-            if (_stores.Remove(name, out var store))
-                store.Dispose();
+                if (_stores.Remove(name, out var store))
+                    store.Dispose();
 
-            PersistCatalogLocked();
-            string tableDirectory = TableDirectory(name);
-            if (Directory.Exists(tableDirectory))
-                Directory.Delete(tableDirectory, recursive: true);
+                PersistCatalogLocked();
+                string tableDirectory = TableDirectory(name);
+                if (Directory.Exists(tableDirectory))
+                    Directory.Delete(tableDirectory, recursive: true);
 
-            return true;
+                return true;
+            }
         }
     }
 
@@ -1418,6 +1535,17 @@ public sealed class TableManager : IDisposable
         }
     }
 
+    /// <summary>阻止调用方绕过 TableManager 的 schema 锁、依赖检查和持久化路径直接修改目录。</summary>
+    private void EnsureManagedCatalogMutation(string tableName, string operation)
+    {
+        if (!Monitor.IsEntered(_schemaSync))
+        {
+            throw new InvalidOperationException(
+                $"不能直接对受管理的 TableCatalog 执行 {operation} '{tableName}'；请使用 TableManager 的 schema API。");
+        }
+    }
+
+    /// <summary>管理器释放后拒绝继续访问已打开的关系表资源。</summary>
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
 }
 
