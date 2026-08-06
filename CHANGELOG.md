@@ -7,6 +7,7 @@
 
 ### Fixed
 
+- **M41 #369 EXISTS 查询规划第一批**：普通单表 `EXISTS` 现在复用主键与二级索引候选规划，保留完整残余谓词、SQL NULL 三值逻辑和参数绑定，并在候选复检遇到首个真值行时停止；相关子查询会在索引探测前绑定外层值，避免首次 miss 被错误缓存。活动轻事务继续通过全表扫描叠加写集以保持 read-your-writes，`EXPLAIN SELECT EXISTS (...)` 与运行时共享 access path、index、residual、early-exit 和 fallback reason。复杂来源、聚合、排序/分页及不可安全绑定表达式仍显式回退原关系执行器；本批不宣称完成 #369 的标量 `IN`、MultiGet 或通用 semijoin。
 - 修复 M34 映射表绑定创建与关系表 DROP/ALTER 的跨 catalog 竞态，以及在线备份可能复制到不一致 table/Modbus schema 的问题；两类 DDL 与备份现共享数据库级 schema 串行边界，同时保持 Dispose/Crash 的无反向锁序。Modbus catalog 打开失败会释放 WAL、Segment 和启动资源，修复文件后可在同一进程立即重开；`CREATE TABLE IF NOT EXISTS ... USING MODBUS` 遇到已有表但缺少绑定的崩溃中间态会明确拒绝，不再静默报告成功。
 - 修复关系表异常退出后因缺少 `indexes.clean` 而先删除全部有效索引、再以小预算反复重写大表段的问题；恢复流程现在分页核对并仅原子补写缺失或错值索引、删除 stale/orphan 条目，索引恢复可使用独立的有界 WAL/overlay 预算。自动 checkpoint 只在运行期间的新覆盖层实际达到预算时追加下一轮，避免低于 fresh budget 的写入形成连续压实。
 - 修复 KV keyspace 在关闭等待 checkpoint 超时后提前允许同目录重开、导致旧实例删除新实例候选 state 的竞态；每个 keyspace 现在从恢复前到延迟 checkpoint 完成期间持有独占生命周期租约，运行时锁文件不进入备份或迁移包。

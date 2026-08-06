@@ -93,6 +93,54 @@ public sealed class SonnetDbProviderTests : IDisposable
         Assert.Empty(await context.Devices.ToListAsync());
     }
 
+    /// <summary>
+    /// 验证 EF Core 的参数化 AnyAsync 生成 EXISTS，并在同一查询形状下保持命中、未命中和 NULL 语义。
+    /// </summary>
+    [Fact]
+    public async Task AnyAsync_WithIndexedKeyAndResidualPredicates_ExecutesParameterizedExists()
+    {
+        var interceptor = new ReaderCommandCaptureInterceptor();
+        var options = new DbContextOptionsBuilder<NullableDeviceContext>()
+            .UseSonnetDB($"Data Source={_root}")
+            .AddInterceptors(interceptor)
+            .ConfigureWarnings(warnings => warnings.Ignore(RelationalEventId.PendingModelChangesWarning))
+            .Options;
+        using var context = new NullableDeviceContext(options);
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE \"Devices\" (\"Id\" INT NOT NULL, \"Name\" STRING NULL, \"Enabled\" BOOL NOT NULL, PRIMARY KEY (\"Id\"))");
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE UNIQUE INDEX \"UX_Devices_Name\" ON \"Devices\" (\"Name\")");
+        context.Devices.AddRange(
+            new Device { Id = 1, Name = "pump-001", Enabled = false },
+            new Device { Id = 2, Name = "pump-002", Enabled = true });
+        await context.SaveChangesAsync();
+        await context.Database.ExecuteSqlRawAsync(
+            "INSERT INTO \"Devices\" (\"Id\", \"Name\", \"Enabled\") VALUES (3, NULL, TRUE)");
+
+        string? name = "pump-002";
+        bool enabled = true;
+        long minimumId = 2;
+        var query = context.Devices.Where(item =>
+            item.Name == name && item.Enabled == enabled && item.Id >= minimumId);
+
+        interceptor.Reset();
+        Assert.True(await query.AnyAsync());
+        Assert.Contains("EXISTS", interceptor.CommandText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(interceptor.ParameterValues, static value => Equals(value, "pump-002"));
+        Assert.Contains(interceptor.ParameterValues, static value => Equals(value, 2L));
+
+        name = "missing";
+        interceptor.Reset();
+        Assert.False(await query.AnyAsync());
+        Assert.Contains(interceptor.ParameterValues, static value => Equals(value, "missing"));
+
+        name = null;
+        interceptor.Reset();
+        Assert.True(await query.AnyAsync());
+        Assert.Contains("EXISTS", interceptor.CommandText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("IS NULL", interceptor.CommandText, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public void GenerateCreateScript_WithIntegerValueGeneratedOnAdd_EmitsAutoIncrement()
     {
@@ -1921,6 +1969,25 @@ public sealed class SonnetDbProviderTests : IDisposable
         }
     }
 
+    /// <summary>为 AnyAsync NULL 回归提供可空索引键，而不改变通用 DeviceContext 合同。</summary>
+    private sealed class NullableDeviceContext(DbContextOptions<NullableDeviceContext> options) : DbContext(options)
+    {
+        public DbSet<Device> Devices => Set<Device>();
+
+        /// <summary>配置与 DeviceContext 相同的表，并仅把 Name 调整为可空列。</summary>
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<Device>(entity =>
+            {
+                entity.ToTable("Devices");
+                entity.HasKey(item => item.Id);
+                entity.Property(item => item.Id).HasColumnType("INT").ValueGeneratedNever();
+                entity.Property(item => item.Name).HasColumnType("STRING").IsRequired(false);
+                entity.Property(item => item.Enabled).HasColumnType("BOOL");
+            });
+        }
+    }
+
     /// <summary>捕获 EF 实际交给 ADO.NET provider 的非查询命令。</summary>
     private sealed class CommandTimeoutCaptureInterceptor : DbCommandInterceptor
     {
@@ -1945,6 +2012,73 @@ public sealed class SonnetDbProviderTests : IDisposable
         {
             LastCommand = command;
             return ValueTask.FromResult(result);
+        }
+    }
+
+    /// <summary>捕获 EF 实际执行的查询命令及其参数快照。</summary>
+    private sealed class ReaderCommandCaptureInterceptor : DbCommandInterceptor
+    {
+        public string CommandText { get; private set; } = string.Empty;
+
+        public IReadOnlyList<object?> ParameterValues { get; private set; } = [];
+
+        /// <summary>清空上一次命令快照，避免把准备数据阶段的命令误当成被测查询。</summary>
+        public void Reset()
+        {
+            CommandText = string.Empty;
+            ParameterValues = [];
+        }
+
+        /// <summary>捕获同步 reader 查询。</summary>
+        public override InterceptionResult<DbDataReader> ReaderExecuting(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result)
+        {
+            Capture(command);
+            return result;
+        }
+
+        /// <summary>捕获异步 reader 查询。</summary>
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            Capture(command);
+            return ValueTask.FromResult(result);
+        }
+
+        /// <summary>捕获同步 scalar 查询，兼容 provider 对布尔终结操作的执行选择。</summary>
+        public override InterceptionResult<object> ScalarExecuting(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<object> result)
+        {
+            Capture(command);
+            return result;
+        }
+
+        /// <summary>捕获异步 scalar 查询，兼容 provider 对布尔终结操作的执行选择。</summary>
+        public override ValueTask<InterceptionResult<object>> ScalarExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<object> result,
+            CancellationToken cancellationToken = default)
+        {
+            Capture(command);
+            return ValueTask.FromResult(result);
+        }
+
+        /// <summary>复制命令文本和参数值，避免命令释放后测试再读取可变集合。</summary>
+        private void Capture(DbCommand command)
+        {
+            CommandText = command.CommandText;
+            ParameterValues = command.Parameters
+                .Cast<DbParameter>()
+                .Select(static parameter => parameter.Value is DBNull ? null : parameter.Value)
+                .ToArray();
         }
     }
 

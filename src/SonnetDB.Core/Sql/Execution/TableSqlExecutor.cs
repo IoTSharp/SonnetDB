@@ -1487,6 +1487,124 @@ internal static class TableSqlExecutor
     }
 
     /// <summary>
+    /// 为单表 EXISTS 生成与实际候选读取共用的访问计划。
+    /// </summary>
+    /// <param name="schema">目标关系表结构。</param>
+    /// <param name="where">已完成参数和相关外层值绑定的谓词。</param>
+    /// <returns>主键、二级索引或全表扫描计划。</returns>
+    internal static TableExistsAccessPlan PlanExistsAccess(TableSchema schema, SqlExpression? where)
+    {
+        ArgumentNullException.ThrowIfNull(schema);
+
+        if (SqlTransactionContext.Current is { } transaction
+            && transaction.TryGetBufferedMutations(schema.Name, out _))
+        {
+            return CreateTransactionOverlayExistsPlan(where);
+        }
+
+        if (CanUsePrimaryKeyLookup(schema, where))
+        {
+            bool predicateCovered = IsWhereFullyCoveredByPrimaryKey(where, schema);
+            return new TableExistsAccessPlan(
+                AccessPath: "primary_key",
+                IndexName: "primary",
+                UsesPrimaryKey: true,
+                IndexPlan: null,
+                PredicateCovered: predicateCovered,
+                HasResidualPredicate: !predicateCovered);
+        }
+
+        if (ChooseBestIndexAccessPlan(schema, where) is { } indexPlan)
+        {
+            bool predicateCovered = IsWhereFullyCoveredByIndexPlan(where, schema, indexPlan);
+            return new TableExistsAccessPlan(
+                AccessPath: FormatIndexAccessPath(indexPlan),
+                IndexName: indexPlan.Index.Name,
+                UsesPrimaryKey: false,
+                IndexPlan: indexPlan,
+                PredicateCovered: predicateCovered,
+                HasResidualPredicate: !predicateCovered);
+        }
+
+        return new TableExistsAccessPlan(
+            AccessPath: "table_scan",
+            IndexName: null,
+            UsesPrimaryKey: false,
+            IndexPlan: null,
+            PredicateCovered: where is null,
+            HasResidualPredicate: where is not null,
+            FallbackReason: where is null ? null : "no_sargable_predicate");
+    }
+
+    /// <summary>
+    /// 按 EXISTS 访问计划加载候选行；完整覆盖的谓词最多读取一行，残余谓词保留全部必要候选。
+    /// </summary>
+    /// <param name="store">目标表存储。</param>
+    /// <param name="schema">目标关系表结构。</param>
+    /// <param name="where">已完成参数和相关外层值绑定的谓词。</param>
+    /// <returns>实际计划和待复检候选行。</returns>
+    internal static TableExistsCandidateRows LoadExistsCandidateRows(
+        TableStore store,
+        TableSchema schema,
+        SqlExpression? where)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(schema);
+
+        var plan = PlanExistsAccess(schema, where);
+        var transaction = SqlTransactionContext.Current;
+        if (transaction is not null && transaction.TryGetBufferedMutations(schema.Name, out var buffered))
+        {
+            var overlayRows = ApplyMutationOverlay(schema, store.Scan(), buffered);
+            return new TableExistsCandidateRows(plan, overlayRows);
+        }
+
+        if (plan.UsesPrimaryKey)
+        {
+            _ = TryExtractPrimaryKeyValues(
+                schema,
+                where,
+                allowExtraPredicates: true,
+                out var keyValues,
+                allowNonEqualityExtraPredicates: true);
+            var row = store.GetByPrimaryKey(keyValues);
+            return new TableExistsCandidateRows(
+                plan,
+                row is null ? Array.Empty<TableRow>() : [row]);
+        }
+
+        int? candidateLimit = plan.PredicateCovered ? 1 : null;
+        if (plan.IndexPlan is { } indexPlan)
+        {
+            IReadOnlyList<TableRow> rows = indexPlan.Range is not null
+                ? store.GetByIndexRange(
+                    indexPlan.Index,
+                    indexPlan.EqualityPrefixValues,
+                    indexPlan.Range,
+                    candidateLimit)
+                : indexPlan.IsFullEquality
+                    ? store.GetByIndex(indexPlan.Index, indexPlan.EqualityPrefixValues, candidateLimit)
+                    : store.GetByIndexPrefix(indexPlan.Index, indexPlan.EqualityPrefixValues, candidateLimit);
+            return new TableExistsCandidateRows(plan, rows);
+        }
+
+        return new TableExistsCandidateRows(plan, store.Scan(candidateLimit));
+    }
+
+    /// <summary>
+    /// 构造事务写集要求的全表扫描计划，确保 EXPLAIN 与实际 overlay 读取保持一致。
+    /// </summary>
+    private static TableExistsAccessPlan CreateTransactionOverlayExistsPlan(SqlExpression? where)
+        => new(
+            AccessPath: "table_scan",
+            IndexName: null,
+            UsesPrimaryKey: false,
+            IndexPlan: null,
+            PredicateCovered: false,
+            HasResidualPredicate: where is not null,
+            FallbackReason: "transaction_overlay_requires_scan");
+
+    /// <summary>
     /// 为普通关系 SELECT 加载候选行；仅在范围索引满足升序且 WHERE 无残余时安全下推分页候选上限。
     /// </summary>
     private static (IReadOnlyList<TableRow> Rows, bool RangeOrderSatisfied) LoadSelectCandidateRowsForStatement(
@@ -1641,8 +1759,38 @@ internal static class TableSqlExecutor
         SqlExpression? where,
         TableSchema schema,
         TableIndexAccessPlan plan)
+        => plan.Range is not null && IsWhereFullyCoveredByIndexPlan(where, schema, plan);
+
+    /// <summary>
+    /// 确认 WHERE 只包含完整主键等值约束，用于 EXPLAIN 标记残余谓词。
+    /// </summary>
+    private static bool IsWhereFullyCoveredByPrimaryKey(SqlExpression? where, TableSchema schema)
     {
-        if (where is null || plan.Range is null)
+        if (where is null
+            || !TryCollectEqualityExpressions(where, allowNonEquality: false, out var equalityByColumn)
+            || equalityByColumn.Count != schema.PrimaryKey.Count)
+        {
+            return false;
+        }
+
+        foreach (var columnName in schema.PrimaryKey)
+        {
+            if (!equalityByColumn.ContainsKey(columnName))
+                return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// 确认 WHERE 的每个 AND 叶子都已由当前索引计划表达，避免在残余过滤前错误截断候选。
+    /// </summary>
+    private static bool IsWhereFullyCoveredByIndexPlan(
+        SqlExpression? where,
+        TableSchema schema,
+        TableIndexAccessPlan plan)
+    {
+        if (where is null)
             return false;
 
         foreach (var leaf in FlattenAnd(where))
@@ -1685,7 +1833,8 @@ internal static class TableSqlExecutor
                 continue;
             }
 
-            if (leaf is BinaryExpression rangeComparison
+            if (plan.Range is not null
+                && leaf is BinaryExpression rangeComparison
                 && TryNormalizeRangeComparison(
                     rangeComparison,
                     plan.Range.Column.Name,
@@ -1701,6 +1850,16 @@ internal static class TableSqlExecutor
 
         return true;
     }
+
+    /// <summary>
+    /// 把二级索引计划映射为稳定的访问路径名称，供运行时指标与 EXPLAIN 对拍。
+    /// </summary>
+    private static string FormatIndexAccessPath(TableIndexAccessPlan plan)
+        => !string.IsNullOrWhiteSpace(plan.Index.JsonPath)
+            ? "json_path_index"
+            : plan.Range is not null
+                ? "secondary_index_range"
+                : plan.IsFullEquality ? "secondary_index" : "secondary_index_prefix";
 
     /// <summary>
     /// 把轻事务缓冲的 insert/update/delete 叠加到已提交基线行上（按主键合并，保序追加新插入）。
@@ -1764,17 +1923,24 @@ internal static class TableSqlExecutor
         return values;
     }
 
+    /// <summary>
+    /// 提取完整主键等值；调用方可分别允许额外等值谓词或任意非等值残余谓词。
+    /// </summary>
     private static bool TryExtractPrimaryKeyValues(
         TableSchema schema,
         SqlExpression? where,
         bool allowExtraPredicates,
-        out IReadOnlyList<object?> keyValues)
+        out IReadOnlyList<object?> keyValues,
+        bool allowNonEqualityExtraPredicates = false)
     {
         keyValues = Array.Empty<object?>();
         if (where is null)
             return false;
 
-        if (!TryCollectEqualityExpressions(where, allowNonEquality: false, out var equalityByColumn))
+        if (!TryCollectEqualityExpressions(
+            where,
+            allowNonEquality: allowNonEqualityExtraPredicates,
+            out var equalityByColumn))
             return false;
 
         var values = new object?[schema.PrimaryKey.Count];
@@ -1892,14 +2058,23 @@ internal static class TableSqlExecutor
             }
 
             var candidatePlan = new TableIndexAccessPlan(candidate, candidateValues, candidateRange);
-            if (bestPlan is null
-                || candidatePlan.MatchedColumnCount > bestPlan.MatchedColumnCount
-                || (candidatePlan.MatchedColumnCount == bestPlan.MatchedColumnCount
-                    && candidatePlan.EqualityPrefixValues.Count > bestPlan.EqualityPrefixValues.Count)
-                || (candidatePlan.MatchedColumnCount == bestPlan.MatchedColumnCount
-                    && candidatePlan.EqualityPrefixValues.Count == bestPlan.EqualityPrefixValues.Count
-                    && candidatePlan.IsFullEquality
-                    && !bestPlan.IsFullEquality))
+            if (bestPlan is null)
+            {
+                bestPlan = candidatePlan;
+                continue;
+            }
+
+            bool candidateIsUniquePoint = candidatePlan.Index.IsUnique && candidatePlan.IsFullEquality;
+            bool bestIsUniquePoint = bestPlan.Index.IsUnique && bestPlan.IsFullEquality;
+            if ((candidateIsUniquePoint && !bestIsUniquePoint)
+                || (candidateIsUniquePoint == bestIsUniquePoint
+                    && (candidatePlan.MatchedColumnCount > bestPlan.MatchedColumnCount
+                        || (candidatePlan.MatchedColumnCount == bestPlan.MatchedColumnCount
+                            && candidatePlan.EqualityPrefixValues.Count > bestPlan.EqualityPrefixValues.Count)
+                        || (candidatePlan.MatchedColumnCount == bestPlan.MatchedColumnCount
+                            && candidatePlan.EqualityPrefixValues.Count == bestPlan.EqualityPrefixValues.Count
+                            && candidatePlan.IsFullEquality
+                            && !bestPlan.IsFullEquality))))
             {
                 bestPlan = candidatePlan;
             }
@@ -1912,7 +2087,12 @@ internal static class TableSqlExecutor
     /// 判断 WHERE 是否能按完整主键字面量执行点查，供执行与 EXPLAIN 复用同一判定。
     /// </summary>
     internal static bool CanUsePrimaryKeyLookup(TableSchema schema, SqlExpression? where)
-        => TryExtractPrimaryKeyValues(schema, where, allowExtraPredicates: true, out _);
+        => TryExtractPrimaryKeyValues(
+            schema,
+            where,
+            allowExtraPredicates: true,
+            out _,
+            allowNonEqualityExtraPredicates: true);
 
     /// <summary>
     /// 判断 SQL 等值字面量是否能由单个物理键完整覆盖，避免数值折叠或多种位表示漏行。
@@ -1937,6 +2117,10 @@ internal static class TableSqlExecutor
             else if (expression is DurationLiteralExpression duration)
             {
                 value = duration.Milliseconds;
+            }
+            else if (expression is MaterializedSubqueryValueExpression materialized)
+            {
+                value = materialized.Value;
             }
             else
             {
@@ -2590,6 +2774,7 @@ internal static class TableSqlExecutor
             LiteralExpression literal => EvaluateLiteral(literal),
             UnaryExpression { Operator: SqlUnaryOperator.Negate, Operand: LiteralExpression literal } => NegateLiteral(literal),
             DurationLiteralExpression duration => duration.Milliseconds,
+            MaterializedSubqueryValueExpression materialized => materialized.Value,
             _ => throw new InvalidOperationException(
                 $"列 '{column.Name}' 的值必须是字面量，不支持表达式 ({expression.GetType().Name})。"),
         };

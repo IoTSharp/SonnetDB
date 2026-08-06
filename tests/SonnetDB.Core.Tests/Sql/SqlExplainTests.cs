@@ -16,6 +16,70 @@ public sealed class SqlExplainTests : IDisposable
         Directory.CreateDirectory(_root);
     }
 
+    /// <summary>
+    /// 新增 EXPLAIN 字段时必须保留原 15 参数构造器和解构签名，避免破坏既有调用方。
+    /// </summary>
+    [Fact]
+    public void SqlExplainExecutionResult_ExtensionPreservesOriginalPositionalContract()
+    {
+        var result = new SqlExplainExecutionResult(
+            Database: "compat",
+            StatementType: "select",
+            Measurement: "events",
+            MatchedSeriesCount: 1,
+            EstimatedSegmentCount: 2,
+            EstimatedBlockCount: 3,
+            EstimatedScannedRows: 4,
+            EstimatedMemTableRows: 5,
+            EstimatedSegmentRows: 6,
+            HasTimeFilter: true,
+            TagFilterCount: 7,
+            AccessPath: "table_scan",
+            IndexName: null,
+            DocumentPlan: null,
+            ScanFilter: null)
+        {
+            EarlyExit = true,
+        };
+
+        var (
+            database,
+            statementType,
+            measurement,
+            matchedSeriesCount,
+            estimatedSegmentCount,
+            estimatedBlockCount,
+            estimatedScannedRows,
+            estimatedMemTableRows,
+            estimatedSegmentRows,
+            hasTimeFilter,
+            tagFilterCount,
+            accessPath,
+            indexName,
+            documentPlan,
+            scanFilter) = result;
+
+        Assert.Equal("compat", database);
+        Assert.Equal("select", statementType);
+        Assert.Equal("events", measurement);
+        Assert.Equal(1, matchedSeriesCount);
+        Assert.Equal(2, estimatedSegmentCount);
+        Assert.Equal(3, estimatedBlockCount);
+        Assert.Equal(4, estimatedScannedRows);
+        Assert.Equal(5, estimatedMemTableRows);
+        Assert.Equal(6, estimatedSegmentRows);
+        Assert.True(hasTimeFilter);
+        Assert.Equal(7, tagFilterCount);
+        Assert.Equal("table_scan", accessPath);
+        Assert.Null(indexName);
+        Assert.Null(documentPlan);
+        Assert.Null(scanFilter);
+        Assert.True(result.EarlyExit);
+        Assert.Contains(
+            typeof(SqlExplainExecutionResult).GetConstructors(),
+            static constructor => constructor.GetParameters().Length == 15);
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_root, recursive: true); } catch { /* ignore */ }
@@ -143,5 +207,116 @@ public sealed class SqlExplainTests : IDisposable
         Assert.Contains("table:secondary_index_range", (string)values["access_path"]!);
         Assert.Equal("hosts_range.idx_hosts_range_rank", values["index_name"]);
         Assert.Equal(3L, Convert.ToInt64(values["estimated_scanned_rows"]));
+    }
+
+    /// <summary>
+    /// 验证独立 EXISTS 的 EXPLAIN 与运行时共享索引、残余谓词和早停计划，且解释本身不读取业务行。
+    /// </summary>
+    [Fact]
+    public void Execute_ExplainExists_ReportsActualFastPathWithoutScanningData()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE explain_audits (id INT, request_key STRING, status STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE UNIQUE INDEX ux_explain_audits_key ON explain_audits (request_key)");
+        SqlExecutor.Execute(db, """
+            INSERT INTO explain_audits (id, request_key, status) VALUES
+                (1, 'key-1', 'blocked'), (2, 'key-2', 'ready')
+            """);
+        var store = db.Tables.Open("explain_audits");
+        long scansBefore = store.FullScanCount;
+        const string existsSql = """
+            SELECT EXISTS (
+                SELECT 1 FROM explain_audits a
+                WHERE A.REQUEST_KEY = 'key-2' AND A.STATUS = 'ready'
+            )
+            """;
+
+        var explain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, "EXPLAIN " + existsSql));
+        var values = explain.Rows.ToDictionary(
+            static row => (string)row[0]!,
+            static row => row[1],
+            StringComparer.Ordinal);
+
+        Assert.Equal("select_exists", values["statement_type"]);
+        Assert.Equal("explain_audits", values["measurement"]);
+        Assert.Equal("secondary_index", values["access_path"]);
+        Assert.Equal("ux_explain_audits_key", values["index_name"]);
+        Assert.Equal(1L, Convert.ToInt64(values["estimated_scanned_rows"]));
+        Assert.True((bool)values["early_exit"]!);
+        Assert.True((bool)values["has_residual_predicate"]!);
+        Assert.Null(values["fallback_reason"]);
+        Assert.Equal(scansBefore, store.FullScanCount);
+
+        var statement = Assert.IsType<SelectStatement>(SqlParser.Parse(existsSql));
+        var metrics = new RelationalSelectExecutionMetrics();
+        var actual = RelationalSelectExecutor.Execute(db, statement, metrics);
+        Assert.True(Assert.IsType<bool>(Assert.Single(actual.Rows)[0]));
+        Assert.Equal(values["access_path"], metrics.LastExistsAccessPath);
+        Assert.Equal(values["index_name"], metrics.LastExistsIndexName);
+        Assert.Equal(values["has_residual_predicate"], metrics.LastExistsHasResidualPredicate);
+    }
+
+    /// <summary>
+    /// 活动事务存在写集时，EXPLAIN 与实际 EXISTS 都必须报告 overlay 所需的全表扫描。
+    /// </summary>
+    [Fact]
+    public void Execute_ExplainExistsWithTransactionOverlay_ReportsRuntimeScanFallback()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE explain_overlay (id INT, request_key STRING, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "CREATE UNIQUE INDEX ux_explain_overlay_key ON explain_overlay (request_key)");
+
+        var results = SqlExecutor.ExecuteScript(db, """
+            BEGIN;
+            INSERT INTO explain_overlay (id, request_key) VALUES (1, 'buffered');
+            EXPLAIN SELECT EXISTS (
+                SELECT 1 FROM explain_overlay WHERE request_key = 'buffered'
+            );
+            SELECT EXISTS (
+                SELECT 1 FROM explain_overlay WHERE request_key = 'buffered'
+            );
+            ROLLBACK;
+            """);
+        var explain = Assert.IsType<SelectExecutionResult>(results[2]);
+        var values = explain.Rows.ToDictionary(
+            static row => (string)row[0]!,
+            static row => row[1],
+            StringComparer.Ordinal);
+        var exists = Assert.IsType<SelectExecutionResult>(results[3]);
+
+        Assert.Equal("table_scan", values["access_path"]);
+        Assert.Null(values["index_name"]);
+        Assert.Equal(1L, Convert.ToInt64(values["estimated_scanned_rows"]));
+        Assert.True((bool)values["has_residual_predicate"]!);
+        Assert.Equal("transaction_overlay_requires_scan", values["fallback_reason"]);
+        Assert.True(Assert.IsType<bool>(Assert.Single(exists.Rows)[0]));
+    }
+
+    /// <summary>
+    /// 聚合 EXISTS 必须解释为完整关系执行器回退，不能宣称会使用单表早停路径。
+    /// </summary>
+    [Fact]
+    public void Execute_ExplainAggregateExists_ReportsRelationalFallback()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE explain_groups (id INT, status STRING, PRIMARY KEY (id))");
+
+        var explain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            EXPLAIN SELECT EXISTS (
+                SELECT status FROM explain_groups
+                GROUP BY status
+                HAVING count(*) > 99
+            )
+            """));
+        var values = explain.Rows.ToDictionary(
+            static row => (string)row[0]!,
+            static row => row[1],
+            StringComparer.Ordinal);
+
+        Assert.Equal("relational_fallback", values["access_path"]);
+        Assert.Null(values["index_name"]);
+        Assert.False((bool)values["early_exit"]!);
+        Assert.False((bool)values["has_residual_predicate"]!);
+        Assert.Equal("aggregate_or_distinct", values["fallback_reason"]);
     }
 }

@@ -128,6 +128,7 @@ internal static class RelationalSelectExecutor
     private sealed class SubqueryMemo
     {
         private readonly Dictionary<SelectStatement, SelectExecutionResult> _cache = new(ReferenceEqualityComparer.Instance);
+        private readonly Dictionary<SelectStatement, bool> _existsCache = new(ReferenceEqualityComparer.Instance);
         private readonly HashSet<SelectStatement> _correlated = new(ReferenceEqualityComparer.Instance);
         private readonly RelationalSelectExecutionMetrics? _metrics;
 
@@ -136,16 +137,35 @@ internal static class RelationalSelectExecutor
         public bool TryGetCached(SelectStatement subquery, out SelectExecutionResult result)
             => _cache.TryGetValue(subquery, out result!);
 
+        /// <summary>尝试读取非相关 EXISTS 的布尔缓存。</summary>
+        public bool TryGetExistsCached(SelectStatement subquery, out bool result)
+            => _existsCache.TryGetValue(subquery, out result);
+
         public bool IsKnownCorrelated(SelectStatement subquery) => _correlated.Contains(subquery);
 
         public void CacheNonCorrelated(SelectStatement subquery, SelectExecutionResult result)
             => _cache[subquery] = result;
+
+        /// <summary>缓存一次已证明非相关的 EXISTS 结果。</summary>
+        public void CacheNonCorrelatedExists(SelectStatement subquery, bool result)
+            => _existsCache[subquery] = result;
 
         public void MarkCorrelated(SelectStatement subquery) => _correlated.Add(subquery);
 
         public void RecordExecution() => _metrics?.RecordSubqueryExecution();
 
         public void RecordCacheHit() => _metrics?.RecordSubqueryCacheHit();
+
+        /// <summary>转发一次 EXISTS 快速路径的执行证据。</summary>
+        public void RecordExistsFastPath(
+            TableExistsAccessPlan plan,
+            int examinedRows,
+            bool earlyExit)
+            => _metrics?.RecordExistsFastPath(plan, examinedRows, earlyExit);
+
+        /// <summary>转发一次 EXISTS 完整关系路径回退原因。</summary>
+        public void RecordExistsFallback(string reason, bool hasResidualPredicate)
+            => _metrics?.RecordExistsFallback(reason, hasResidualPredicate);
     }
 
     public static bool NeedsRelationalPath(SelectStatement statement)
@@ -157,6 +177,89 @@ internal static class RelationalSelectExecutor
             || statement.Having is not null
             || ContainsAggregate(statement.Projections)
             || ContainsSubquery(statement);
+    }
+
+    /// <summary>
+    /// 为独立的单表 EXISTS 生成与运行时快速路径共用的访问计划描述，不执行业务数据扫描。
+    /// </summary>
+    /// <param name="tsdb">目标数据库。</param>
+    /// <param name="subquery">EXISTS 内层 SELECT。</param>
+    /// <returns>访问路径、索引、残余谓词和回退原因。</returns>
+    internal static RelationalExistsExplainPlan ExplainExists(Tsdb tsdb, SelectStatement subquery)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(subquery);
+
+        if (!TryGetSingleTableExistsSchema(tsdb, subquery, out var schema, out string fallbackReason))
+            return BuildExistsFallbackPlan(tsdb, subquery, fallbackReason);
+        if (!TryBindExistsWhere(
+            subquery.Where,
+            schema,
+            subquery.TableAlias ?? subquery.Measurement,
+            outerScope: null,
+            out var boundWhere))
+        {
+            return BuildExistsFallbackPlan(tsdb, subquery, "correlated_value_requires_runtime_binding");
+        }
+
+        var access = TableSqlExecutor.PlanExistsAccess(schema, boundWhere);
+        long tableRows = EstimateExistsTableRows(tsdb, schema);
+        long estimatedRows = access.UsesPrimaryKey
+            || (access.IndexPlan is { Index.IsUnique: true, IsFullEquality: true })
+            || access.PredicateCovered
+                ? Math.Min(1, tableRows)
+                : tableRows;
+        return new RelationalExistsExplainPlan(
+            Measurement: schema.Name,
+            AccessPath: access.AccessPath,
+            IndexName: access.IndexName,
+            EstimatedCandidateRows: estimatedRows,
+            EarlyExit: true,
+            HasResidualPredicate: access.HasResidualPredicate,
+            FallbackReason: access.FallbackReason);
+    }
+
+    /// <summary>
+    /// 估算当前事务可见的表行数；只叠加已规范化写集的净行数变化，不读取业务行。
+    /// </summary>
+    private static long EstimateExistsTableRows(Tsdb tsdb, TableSchema schema)
+    {
+        long rows = tsdb.Tables.Open(schema.Name).RowCount;
+        if (SqlTransactionContext.Current is not { } transaction
+            || !transaction.TryGetBufferedMutations(schema.Name, out var mutations))
+        {
+            return rows;
+        }
+
+        foreach (var mutation in mutations)
+        {
+            if (mutation.PrimaryKeyValues is null && mutation.NewValues is not null)
+                rows++;
+            else if (mutation.PrimaryKeyValues is not null && mutation.NewValues is null)
+                rows--;
+        }
+
+        return Math.Max(0, rows);
+    }
+
+    /// <summary>
+    /// 构造完整关系执行器回退计划，明确该路径会先物化关系输入。
+    /// </summary>
+    private static RelationalExistsExplainPlan BuildExistsFallbackPlan(
+        Tsdb tsdb,
+        SelectStatement subquery,
+        string fallbackReason)
+    {
+        var schema = tsdb.Tables.Catalog.TryGet(subquery.Measurement);
+        long estimatedRows = schema is null ? 0 : EstimateExistsTableRows(tsdb, schema);
+        return new RelationalExistsExplainPlan(
+            Measurement: subquery.Measurement,
+            AccessPath: "relational_fallback",
+            IndexName: null,
+            EstimatedCandidateRows: estimatedRows,
+            EarlyExit: false,
+            HasResidualPredicate: subquery.Where is not null,
+            FallbackReason: fallbackReason);
     }
 
     private static Relation LoadFrom(Tsdb tsdb, SelectStatement statement)
@@ -1577,7 +1680,456 @@ internal static class RelationalSelectExecutor
         if (tsdb is null)
             throw new InvalidOperationException("EXISTS 子查询需要数据库上下文。");
 
-        return ExecuteSubqueryMemoized(tsdb, exists.Select, columns, row, outerScope, memo).Rows.Count != 0;
+        return ExecuteExistsMemoized(tsdb, exists.Select, columns, row, outerScope, memo);
+    }
+
+    /// <summary>
+    /// 按子查询 AST 身份记忆非相关 EXISTS 的布尔结果；相关查询继续逐外层行执行。
+    /// </summary>
+    private static bool ExecuteExistsMemoized(
+        Tsdb tsdb,
+        SelectStatement subquery,
+        IReadOnlyList<RelColumn> columns,
+        IReadOnlyList<object?> row,
+        RelationalScope? outerScope,
+        SubqueryMemo? memo)
+    {
+        if (memo is not null && memo.TryGetCached(subquery, out var cachedRows))
+        {
+            memo.RecordCacheHit();
+            return cachedRows.Rows.Count != 0;
+        }
+        if (memo is not null && memo.TryGetExistsCached(subquery, out bool cachedExists))
+        {
+            memo.RecordCacheHit();
+            return cachedExists;
+        }
+
+        var activeMemo = memo ?? new SubqueryMemo(metrics: null);
+        if (memo is null || memo.IsKnownCorrelated(subquery))
+        {
+            var innerScope = new RelationalScope(columns, row, outerScope);
+            memo?.RecordExecution();
+            return ExecuteExistsCore(tsdb, subquery, innerScope, activeMemo);
+        }
+
+        // 先绑定外层值再读取候选，保证索引 miss 时也能识别相关性，避免错误缓存 false。
+        var probe = new CorrelationProbe();
+        var probedScope = new RelationalScope(columns, row, outerScope, probe);
+        memo.RecordExecution();
+        bool result = ExecuteExistsCore(tsdb, subquery, probedScope, activeMemo);
+        if (probe.Tripped)
+            memo.MarkCorrelated(subquery);
+        else
+            memo.CacheNonCorrelatedExists(subquery, result);
+        return result;
+    }
+
+    /// <summary>
+    /// 优先执行单表 EXISTS 快速路径；无法证明等价时回退完整关系子查询执行器。
+    /// </summary>
+    private static bool ExecuteExistsCore(
+        Tsdb tsdb,
+        SelectStatement subquery,
+        RelationalScope outerScope,
+        SubqueryMemo memo)
+    {
+        if (TryExecuteSingleTableExists(tsdb, subquery, outerScope, memo, out bool result, out string fallbackReason))
+            return result;
+
+        memo.RecordExistsFallback(fallbackReason, subquery.Where is not null);
+        return Execute(tsdb, subquery, outerScope, memo).Rows.Count != 0;
+    }
+
+    /// <summary>
+    /// 对可证明等价的普通单表 EXISTS 复用 PK/二级索引候选规划，并在首个真值行停止。
+    /// </summary>
+    private static bool TryExecuteSingleTableExists(
+        Tsdb tsdb,
+        SelectStatement subquery,
+        RelationalScope outerScope,
+        SubqueryMemo memo,
+        out bool result,
+        out string fallbackReason)
+    {
+        result = false;
+        if (!TryGetSingleTableExistsSchema(tsdb, subquery, out var schema, out fallbackReason))
+            return false;
+        if (!TryBindExistsWhere(subquery.Where, schema, subquery.TableAlias ?? subquery.Measurement, outerScope, out var boundWhere))
+        {
+            fallbackReason = "outer_reference_not_safely_bindable";
+            return false;
+        }
+
+        SqlExecutor.ThrowIfCancellationRequested();
+        var candidates = TableSqlExecutor.LoadExistsCandidateRows(
+            tsdb.Tables.Open(schema.Name),
+            schema,
+            boundWhere);
+        int examinedRows = 0;
+        foreach (var candidate in candidates.Rows)
+        {
+            SqlExecutor.ThrowIfCancellationRequested();
+            examinedRows++;
+            if (!TableSqlExecutor.EvaluateWhere(boundWhere, schema, candidate.Values))
+                continue;
+
+            memo.RecordExistsFastPath(candidates.Plan, examinedRows, earlyExit: true);
+            result = true;
+            fallbackReason = string.Empty;
+            return true;
+        }
+
+        memo.RecordExistsFastPath(candidates.Plan, examinedRows, earlyExit: false);
+        fallbackReason = string.Empty;
+        return true;
+    }
+
+    /// <summary>
+    /// 校验 EXISTS 子查询是否属于无副作用、无阻塞算子的普通单表安全形状。
+    /// </summary>
+    private static bool TryGetSingleTableExistsSchema(
+        Tsdb tsdb,
+        SelectStatement subquery,
+        out TableSchema schema,
+        out string fallbackReason)
+    {
+        schema = null!;
+        if (subquery.FromSubquery is not null
+            || subquery.TableValuedFunction is not null
+            || subquery.JoinClauses.Count != 0
+            || subquery.UnionStatements.Count != 0)
+        {
+            fallbackReason = "complex_source";
+            return false;
+        }
+        if (subquery.GroupBy.Count != 0
+            || subquery.Having is not null
+            || subquery.Distinct)
+        {
+            fallbackReason = "aggregate_or_distinct";
+            return false;
+        }
+        if (subquery.OrderByList.Count != 0 || subquery.Pagination is not null)
+        {
+            fallbackReason = "ordering_or_pagination";
+            return false;
+        }
+
+        schema = tsdb.Tables.Catalog.TryGet(subquery.Measurement)!;
+        if (schema is null)
+        {
+            fallbackReason = "source_is_not_table";
+            return false;
+        }
+
+        string qualifier = subquery.TableAlias ?? subquery.Measurement;
+        foreach (var projection in subquery.Projections)
+        {
+            if (!IsSafeExistsProjection(projection, schema, qualifier))
+            {
+                fallbackReason = "projection_requires_evaluation";
+                return false;
+            }
+        }
+
+        fallbackReason = string.Empty;
+        return true;
+    }
+
+    /// <summary>
+    /// EXISTS 可跳过常量、星号及有效内表列投影；其他表达式保留旧执行路径以维持异常语义。
+    /// </summary>
+    private static bool IsSafeExistsProjection(SelectItem projection, TableSchema schema, string qualifier)
+    {
+        if (projection.Expression is StarExpression)
+            return projection.Alias is null;
+        if (projection.Expression is LiteralExpression)
+            return true;
+        return projection.Expression is IdentifierExpression identifier
+            && IsInnerTableIdentifier(identifier, schema, qualifier);
+    }
+
+    /// <summary>
+    /// 把 WHERE 中解析到外层作用域的标识符绑定为运行时值，内表列保持原 AST。
+    /// </summary>
+    private static bool TryBindExistsWhere(
+        SqlExpression? where,
+        TableSchema schema,
+        string qualifier,
+        RelationalScope? outerScope,
+        out SqlExpression? boundWhere)
+    {
+        if (where is null)
+        {
+            boundWhere = null;
+            return true;
+        }
+
+        if (TryBindExistsExpression(where, schema, qualifier, outerScope, out var bound))
+        {
+            boundWhere = bound;
+            return true;
+        }
+
+        boundWhere = null;
+        return false;
+    }
+
+    /// <summary>
+    /// 递归绑定 EXISTS 谓词；嵌套子查询和单表执行器不支持的节点返回 false 触发回退。
+    /// </summary>
+    private static bool TryBindExistsExpression(
+        SqlExpression expression,
+        TableSchema schema,
+        string qualifier,
+        RelationalScope? outerScope,
+        out SqlExpression bound)
+    {
+        switch (expression)
+        {
+            case LiteralExpression or DurationLiteralExpression:
+                bound = expression;
+                return true;
+
+            case IdentifierExpression identifier:
+                if (TryGetInnerTableColumn(identifier, schema, qualifier, out var innerColumn, out bool ambiguous))
+                {
+                    bound = string.Equals(identifier.Name, innerColumn.Name, StringComparison.Ordinal)
+                        ? identifier
+                        : identifier with { Name = innerColumn.Name };
+                    return true;
+                }
+                if (ambiguous)
+                {
+                    bound = expression;
+                    return false;
+                }
+                if (outerScope is null || !TryResolveOuterValue(outerScope, identifier, out var outerValue))
+                {
+                    bound = expression;
+                    return false;
+                }
+                bound = new MaterializedSubqueryValueExpression(outerValue);
+                return true;
+
+            case BinaryExpression binary:
+                if (!TryBindExistsExpression(binary.Left, schema, qualifier, outerScope, out var left)
+                    || !TryBindExistsExpression(binary.Right, schema, qualifier, outerScope, out var right))
+                {
+                    bound = expression;
+                    return false;
+                }
+                bound = ReferenceEquals(left, binary.Left) && ReferenceEquals(right, binary.Right)
+                    ? binary
+                    : binary with { Left = left, Right = right };
+                return true;
+
+            case UnaryExpression unary:
+                if (!TryBindExistsExpression(unary.Operand, schema, qualifier, outerScope, out var operand))
+                {
+                    bound = expression;
+                    return false;
+                }
+                bound = ReferenceEquals(operand, unary.Operand) ? unary : unary with { Operand = operand };
+                return true;
+
+            case IsNullExpression isNull:
+                if (!TryBindExistsExpression(isNull.Operand, schema, qualifier, outerScope, out var nullOperand))
+                {
+                    bound = expression;
+                    return false;
+                }
+                bound = ReferenceEquals(nullOperand, isNull.Operand)
+                    ? isNull
+                    : isNull with { Operand = nullOperand };
+                return true;
+
+            case InExpression { Subquery: null } inExpression:
+                if (!TryBindExistsExpression(inExpression.Value, schema, qualifier, outerScope, out var inValue)
+                    || !TryBindExistsExpressionList(
+                        inExpression.Values,
+                        schema,
+                        qualifier,
+                        outerScope,
+                        out var inValues))
+                {
+                    bound = expression;
+                    return false;
+                }
+                bound = ReferenceEquals(inValue, inExpression.Value) && ReferenceEquals(inValues, inExpression.Values)
+                    ? inExpression
+                    : inExpression with { Value = inValue, Values = inValues };
+                return true;
+
+            case FunctionCallExpression function:
+                if (!TryBindExistsExpressionList(
+                    function.Arguments,
+                    schema,
+                    qualifier,
+                    outerScope,
+                    out var arguments))
+                {
+                    bound = expression;
+                    return false;
+                }
+                bound = ReferenceEquals(arguments, function.Arguments)
+                    ? function
+                    : function with { Arguments = arguments };
+                return true;
+
+            case CaseExpression caseExpression:
+                return TryBindExistsCase(caseExpression, schema, qualifier, outerScope, out bound);
+
+            default:
+                bound = expression;
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// 绑定表达式列表，并仅在至少一项变化时分配副本。
+    /// </summary>
+    private static bool TryBindExistsExpressionList(
+        IReadOnlyList<SqlExpression> expressions,
+        TableSchema schema,
+        string qualifier,
+        RelationalScope? outerScope,
+        out IReadOnlyList<SqlExpression> boundExpressions)
+    {
+        SqlExpression[]? copy = null;
+        for (int i = 0; i < expressions.Count; i++)
+        {
+            if (!TryBindExistsExpression(expressions[i], schema, qualifier, outerScope, out var bound))
+            {
+                boundExpressions = expressions;
+                return false;
+            }
+            if (!ReferenceEquals(bound, expressions[i]))
+            {
+                copy ??= expressions.ToArray();
+                copy[i] = bound;
+            }
+        }
+
+        boundExpressions = copy ?? expressions;
+        return true;
+    }
+
+    /// <summary>
+    /// 绑定 CASE 的条件、结果和 ELSE 分支，保持未变化节点的引用身份。
+    /// </summary>
+    private static bool TryBindExistsCase(
+        CaseExpression expression,
+        TableSchema schema,
+        string qualifier,
+        RelationalScope? outerScope,
+        out SqlExpression bound)
+    {
+        CaseWhenClause[]? clauses = null;
+        for (int i = 0; i < expression.WhenClauses.Count; i++)
+        {
+            var clause = expression.WhenClauses[i];
+            if (!TryBindExistsExpression(clause.Condition, schema, qualifier, outerScope, out var condition)
+                || !TryBindExistsExpression(clause.Result, schema, qualifier, outerScope, out var result))
+            {
+                bound = expression;
+                return false;
+            }
+            if (!ReferenceEquals(condition, clause.Condition) || !ReferenceEquals(result, clause.Result))
+            {
+                clauses ??= expression.WhenClauses.ToArray();
+                clauses[i] = clause with { Condition = condition, Result = result };
+            }
+        }
+
+        SqlExpression? elseExpression = null;
+        if (expression.Else is not null
+            && !TryBindExistsExpression(expression.Else, schema, qualifier, outerScope, out elseExpression))
+        {
+            bound = expression;
+            return false;
+        }
+
+        bound = clauses is null && ReferenceEquals(elseExpression, expression.Else)
+            ? expression
+            : expression with { WhenClauses = clauses ?? expression.WhenClauses, Else = elseExpression };
+        return true;
+    }
+
+    /// <summary>
+    /// 判断标识符是否由当前内表解析；未限定同名列始终优先绑定内层。
+    /// </summary>
+    private static bool IsInnerTableIdentifier(
+        IdentifierExpression identifier,
+        TableSchema schema,
+        string qualifier)
+        => TryGetInnerTableColumn(identifier, schema, qualifier, out _, out _);
+
+    /// <summary>
+    /// 按关系执行器的大小写不敏感规则解析唯一内表列，并显式报告多列歧义。
+    /// </summary>
+    private static bool TryGetInnerTableColumn(
+        IdentifierExpression identifier,
+        TableSchema schema,
+        string qualifier,
+        out TableColumn column,
+        out bool ambiguous)
+    {
+        column = null!;
+        ambiguous = false;
+        if (identifier.Qualifier is not null && !QualifierEquals(identifier.Qualifier, qualifier))
+            return false;
+
+        TableColumn? match = null;
+        foreach (var schemaColumn in schema.Columns)
+        {
+            if (!NameEquals(schemaColumn.Name, identifier.Name))
+                continue;
+            if (match is not null)
+            {
+                ambiguous = true;
+                return false;
+            }
+            match = schemaColumn;
+        }
+
+        if (match is null)
+            return false;
+
+        column = match;
+        return true;
+    }
+
+    /// <summary>
+    /// 沿外层作用域解析唯一列值，并置位从起点到命中层的相关性探针。
+    /// </summary>
+    private static bool TryResolveOuterValue(
+        RelationalScope outerScope,
+        IdentifierExpression identifier,
+        out object? value)
+    {
+        for (RelationalScope? scope = outerScope; scope is not null; scope = scope.Parent)
+        {
+            int? hit = TryResolveInScope(scope, identifier);
+            if (!hit.HasValue)
+                continue;
+
+            for (RelationalScope? probeScope = outerScope;
+                 probeScope is not null;
+                 probeScope = probeScope.Parent)
+            {
+                probeScope.Probe?.Trip();
+                if (ReferenceEquals(probeScope, scope))
+                    break;
+            }
+
+            value = scope.Row[hit.Value];
+            return true;
+        }
+
+        value = null;
+        return false;
     }
 
     private static object? GetColumnValue(
@@ -2081,6 +2633,25 @@ internal static class RelationalSelectExecutor
 }
 
 /// <summary>
+/// 单表 EXISTS 的 EXPLAIN 描述，字段直接对应运行时快速路径证据。
+/// </summary>
+/// <param name="Measurement">内层关系表名。</param>
+/// <param name="AccessPath">运行时将使用的访问路径。</param>
+/// <param name="IndexName">命中的索引名。</param>
+/// <param name="EstimatedCandidateRows">基于当前行数上界的候选估算。</param>
+/// <param name="EarlyExit">候选复检是否启用首个真值行早停；不表示存储层流式读取。</param>
+/// <param name="HasResidualPredicate">是否仍需完整谓词复检。</param>
+/// <param name="FallbackReason">索引或快速路径回退原因。</param>
+internal sealed record RelationalExistsExplainPlan(
+    string Measurement,
+    string AccessPath,
+    string? IndexName,
+    long EstimatedCandidateRows,
+    bool EarlyExit,
+    bool HasResidualPredicate,
+    string? FallbackReason);
+
+/// <summary>
 /// 关系 SELECT 子查询记忆化的内部执行指标，仅用于回归测试和性能基准。
 /// </summary>
 internal sealed class RelationalSelectExecutionMetrics
@@ -2091,9 +2662,56 @@ internal sealed class RelationalSelectExecutionMetrics
     /// <summary>非相关子查询结果的缓存命中次数。</summary>
     public int SubqueryCacheHitCount { get; private set; }
 
+    /// <summary>成功进入单表 EXISTS 快速路径的执行次数。</summary>
+    public int ExistsFastPathExecutionCount { get; private set; }
+
+    /// <summary>EXISTS 快速路径实际复检的候选行总数。</summary>
+    public long ExistsRowsExamined { get; private set; }
+
+    /// <summary>EXISTS 在首个真值候选处提前停止的次数。</summary>
+    public int ExistsEarlyExitCount { get; private set; }
+
+    /// <summary>因查询形状不安全而回退完整关系执行器的次数。</summary>
+    public int ExistsFallbackExecutionCount { get; private set; }
+
+    /// <summary>最近一次 EXISTS 快速路径实际使用的访问路径。</summary>
+    public string? LastExistsAccessPath { get; private set; }
+
+    /// <summary>最近一次 EXISTS 快速路径实际使用的索引名。</summary>
+    public string? LastExistsIndexName { get; private set; }
+
+    /// <summary>最近一次 EXISTS 访问是否仍需执行残余谓词。</summary>
+    public bool? LastExistsHasResidualPredicate { get; private set; }
+
+    /// <summary>最近一次 EXISTS 回退完整关系执行器的稳定原因。</summary>
+    public string? LastExistsFallbackReason { get; private set; }
+
     /// <summary>记录一次实际子查询执行。</summary>
     internal void RecordSubqueryExecution() => SubqueryExecutionCount++;
 
     /// <summary>记录一次非相关子查询缓存命中。</summary>
     internal void RecordSubqueryCacheHit() => SubqueryCacheHitCount++;
+
+    /// <summary>记录一次 EXISTS 快速路径及其候选检查证据。</summary>
+    internal void RecordExistsFastPath(TableExistsAccessPlan plan, int examinedRows, bool earlyExit)
+    {
+        ExistsFastPathExecutionCount++;
+        ExistsRowsExamined += examinedRows;
+        if (earlyExit)
+            ExistsEarlyExitCount++;
+        LastExistsAccessPath = plan.AccessPath;
+        LastExistsIndexName = plan.IndexName;
+        LastExistsHasResidualPredicate = plan.HasResidualPredicate;
+        LastExistsFallbackReason = plan.FallbackReason;
+    }
+
+    /// <summary>记录一次无法证明等价的 EXISTS 回退。</summary>
+    internal void RecordExistsFallback(string reason, bool hasResidualPredicate)
+    {
+        ExistsFallbackExecutionCount++;
+        LastExistsAccessPath = "relational_fallback";
+        LastExistsIndexName = null;
+        LastExistsHasResidualPredicate = hasResidualPredicate;
+        LastExistsFallbackReason = reason;
+    }
 }

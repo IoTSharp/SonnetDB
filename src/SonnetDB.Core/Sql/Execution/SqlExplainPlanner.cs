@@ -1,8 +1,8 @@
 using SonnetDB.Catalog;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
-using SonnetDB.Modbus;
 using SonnetDB.Memory;
+using SonnetDB.Modbus;
 using SonnetDB.Model;
 using SonnetDB.Query;
 using SonnetDB.Query.Functions;
@@ -30,7 +30,17 @@ public sealed record SqlExplainExecutionResult(
     string? AccessPath = null,
     string? IndexName = null,
     DocumentQueryPlan? DocumentPlan = null,
-    string? ScanFilter = null);
+    string? ScanFilter = null)
+{
+    /// <summary>候选复检是否允许在首个匹配行处停止；不表示存储层已使用流式 cursor。</summary>
+    public bool? EarlyExit { get; init; }
+
+    /// <summary>候选读取后是否仍需执行残余谓词。</summary>
+    public bool? HasResidualPredicate { get; init; }
+
+    /// <summary>未使用期望访问路径时的稳定回退原因。</summary>
+    public string? FallbackReason { get; init; }
+}
 
 /// <summary>
 /// 为只读 SQL 估算查询将扫描的段数、block 数和行数。
@@ -121,6 +131,9 @@ public static class SqlExplainPlanner
             new object?[] { "access_path", result.AccessPath },
             new object?[] { "index_name", result.IndexName },
             new object?[] { "scan_filter", result.ScanFilter },
+            new object?[] { "early_exit", result.EarlyExit },
+            new object?[] { "has_residual_predicate", result.HasResidualPredicate },
+            new object?[] { "fallback_reason", result.FallbackReason },
         };
 
         if (result.DocumentPlan is { } documentPlan)
@@ -544,6 +557,9 @@ public static class SqlExplainPlanner
         Tsdb tsdb,
         SelectStatement statement)
     {
+        if (TryGetStandaloneExists(statement, out var existsSubquery))
+            return ExplainStandaloneExists(databaseName, tsdb, existsSubquery);
+
         if (statement.FromSubquery is null
             && statement.TableValuedFunction is null
             && tsdb.Views.Catalog.TryGet(statement.Measurement) is { } view)
@@ -809,6 +825,64 @@ public static class SqlExplainPlanner
             AccessPath: where.TagFilter.Count > 0 ? "tag_index" : "measurement_scan",
             IndexName: null,
             ScanFilter: scanFilter);
+    }
+
+    /// <summary>
+    /// 识别无 FROM 的独立 <c>SELECT EXISTS (...)</c>，避免把空 measurement 误交给普通查询解释器。
+    /// </summary>
+    private static bool TryGetStandaloneExists(SelectStatement statement, out SelectStatement subquery)
+    {
+        if (string.IsNullOrEmpty(statement.Measurement)
+            && statement.FromSubquery is null
+            && statement.TableValuedFunction is null
+            && statement.JoinClauses.Count == 0
+            && statement.UnionStatements.Count == 0
+            && statement.GroupBy.Count == 0
+            && statement.Having is null
+            && statement.Where is null
+            && !statement.Distinct
+            && statement.OrderByList.Count == 0
+            && statement.Pagination is null
+            && statement.Projections.Count == 1
+            && statement.Projections[0].Expression is ExistsExpression exists)
+        {
+            subquery = exists.Select;
+            return true;
+        }
+
+        subquery = null!;
+        return false;
+    }
+
+    /// <summary>
+    /// 使用关系执行器的共享 EXISTS 计划生成 EXPLAIN，不读取候选业务行。
+    /// </summary>
+    private static SqlExplainExecutionResult ExplainStandaloneExists(
+        string? databaseName,
+        Tsdb tsdb,
+        SelectStatement subquery)
+    {
+        var plan = RelationalSelectExecutor.ExplainExists(tsdb, subquery);
+        return new SqlExplainExecutionResult(
+            Database: databaseName,
+            StatementType: "select_exists",
+            Measurement: plan.Measurement,
+            MatchedSeriesCount: 0,
+            EstimatedSegmentCount: 0,
+            EstimatedBlockCount: 0,
+            EstimatedScannedRows: plan.EstimatedCandidateRows,
+            EstimatedMemTableRows: plan.EstimatedCandidateRows,
+            EstimatedSegmentRows: 0,
+            HasTimeFilter: subquery.Where is not null,
+            TagFilterCount: 0,
+            AccessPath: plan.AccessPath,
+            IndexName: plan.IndexName,
+            ScanFilter: DescribeScanFilter(subquery.Where))
+        {
+            EarlyExit = plan.EarlyExit,
+            HasResidualPredicate = plan.HasResidualPredicate,
+            FallbackReason = plan.FallbackReason,
+        };
     }
 
     private static string? DescribeScanFilter(SqlExpression? expression)
