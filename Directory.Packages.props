@@ -9,7 +9,7 @@
     <PackageVersion Include="System.Numerics.Tensors" Version="10.0.10" />
     <PackageVersion Include="ModelContextProtocol" Version="1.4.1" />
     <PackageVersion Include="Microsoft.Extensions.AI" Version="10.8.1" />
-    <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="1.4.1" />
+    <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="2.1.0" />
     <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.10" />
     <PackageVersion Include="NativeWebHost" Version="2.0.0" />
     <PackageVersion Include="NativeWebHost.Windows" Version="2.0.0" />
