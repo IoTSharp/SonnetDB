@@ -135,8 +135,13 @@ internal sealed class ModbusMasterService : BackgroundService
             ModbusSourceRuntimeHealth.Starting));
 
         DateTimeOffset? lastSuccess = null;
+        DateTimeOffset? lastAttempt = null;
+        DateTimeOffset? lastError = null;
+        string? lastErrorCode = null;
+        long consecutiveFailures = 0;
         long lastSampleUnixMilliseconds = 0;
         int reconnectDelay = _options.ReconnectBaseDelayMilliseconds;
+        var tableWriterState = new ModbusTableWriterState();
         await using var client = new ModbusTcpMasterClient();
         try
         {
@@ -157,7 +162,13 @@ internal sealed class ModbusMasterService : BackgroundService
                     TryReportStatus(database, source.Name, new ModbusSourceRuntimeStatus(
                         RuntimeEnabled: true,
                         ModbusSourceRuntimeHealth.Idle,
-                        lastSuccess));
+                        lastSuccess,
+                        lastErrorCode)
+                    {
+                        LastAttemptAtUtc = lastAttempt,
+                        LastErrorAtUtc = lastError,
+                        ConsecutiveFailures = consecutiveFailures,
+                    });
                     await Task.Delay(source.PollIntervalMilliseconds, cancellationToken).ConfigureAwait(false);
                     continue;
                 }
@@ -165,32 +176,121 @@ internal sealed class ModbusMasterService : BackgroundService
                 long started = Stopwatch.GetTimestamp();
                 try
                 {
+                    bool pollFailed = false;
+                    int failureDelay = 0;
                     await using (ModbusSourceOperationCoordinator.Lease operationLease =
                                  await _operationCoordinator.AcquireAsync(
                                      databaseName,
                                      source.Name,
                                      cancellationToken).ConfigureAwait(false))
                     {
-                        ModbusReadSnapshot snapshot = await ReadWithRetriesAsync(
+                        DateTimeOffset sampledAt = NextSampleTime(ref lastSampleUnixMilliseconds);
+                        lastAttempt = sampledAt;
+                        ModbusReadAttempt readAttempt = await ReadWithRetriesAsync(
                             client,
                             source,
                             batches,
                             cancellationToken).ConfigureAwait(false);
-                        DateTimeOffset sampledAt = NextSampleTime(ref lastSampleUnixMilliseconds);
-                        int rowsWritten = ModbusTableWriter.WriteSuccessfulSample(
-                            database,
-                            bindings,
-                            snapshot,
-                            sampledAt);
-                        lastSuccess = sampledAt;
-                        reconnectDelay = _options.ReconnectBaseDelayMilliseconds;
-                        TryReportStatus(database, source.Name, new ModbusSourceRuntimeStatus(
-                            RuntimeEnabled: true,
-                            ModbusSourceRuntimeHealth.Healthy,
-                            lastSuccess));
-                        double elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-                        _metrics.RecordModbusPoll(succeeded: true, rowsWritten);
-                        ModbusMasterDiagnostics.RecordPoll(succeeded: true, elapsed, rowsWritten);
+                        Exception? failure = readAttempt.Error;
+                        int rowsWritten = 0;
+                        if (failure is null)
+                        {
+                            try
+                            {
+                                rowsWritten = ModbusTableWriter.WriteSuccessfulSample(
+                                    database,
+                                    bindings,
+                                    readAttempt.Snapshot,
+                                    sampledAt,
+                                    tableWriterState);
+                            }
+                            catch (Exception exception)
+                            {
+                                failure = exception;
+                            }
+                        }
+
+                        if (failure is not null)
+                        {
+                            try
+                            {
+                                rowsWritten = ModbusTableWriter.WriteFailedSample(
+                                    database,
+                                    bindings,
+                                    readAttempt.Snapshot,
+                                    sampledAt,
+                                    tableWriterState);
+                            }
+                            catch (Exception exception)
+                            {
+                                failure = new InvalidOperationException(
+                                    "Modbus 失败采样策略无法写入本地关系表。",
+                                    exception);
+                                rowsWritten = 0;
+                            }
+
+                            string errorCode = GetErrorCode(failure);
+                            lastError = sampledAt;
+                            lastErrorCode = errorCode;
+                            consecutiveFailures = consecutiveFailures == long.MaxValue
+                                ? long.MaxValue
+                                : consecutiveFailures + 1;
+                            TryReportStatus(database, source.Name, new ModbusSourceRuntimeStatus(
+                                RuntimeEnabled: true,
+                                ModbusSourceRuntimeHealth.Degraded,
+                                lastSuccess,
+                                lastErrorCode)
+                            {
+                                LastAttemptAtUtc = lastAttempt,
+                                LastErrorAtUtc = lastError,
+                                ConsecutiveFailures = consecutiveFailures,
+                            });
+                            double failedElapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                            _metrics.RecordModbusPoll(succeeded: false, rowsWritten);
+                            ModbusMasterDiagnostics.RecordPoll(
+                                succeeded: false,
+                                failedElapsed,
+                                rowsWritten);
+                            _logger.ModbusSourcePollFailed(
+                                failure,
+                                databaseName,
+                                source.Name,
+                                errorCode,
+                                reconnectDelay);
+                            client.Disconnect();
+                            _metrics.RecordModbusReconnect();
+                            ModbusMasterDiagnostics.RecordReconnect();
+                            failureDelay = reconnectDelay;
+                            reconnectDelay = DoubleWithLimit(
+                                reconnectDelay,
+                                _options.MaxReconnectDelayMilliseconds);
+                            pollFailed = true;
+                        }
+
+                        if (!pollFailed)
+                        {
+                            lastSuccess = sampledAt;
+                            consecutiveFailures = 0;
+                            reconnectDelay = _options.ReconnectBaseDelayMilliseconds;
+                            TryReportStatus(database, source.Name, new ModbusSourceRuntimeStatus(
+                                RuntimeEnabled: true,
+                                ModbusSourceRuntimeHealth.Healthy,
+                                lastSuccess,
+                                lastErrorCode)
+                            {
+                                LastAttemptAtUtc = lastAttempt,
+                                LastErrorAtUtc = lastError,
+                                ConsecutiveFailures = consecutiveFailures,
+                            });
+                            double elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                            _metrics.RecordModbusPoll(succeeded: true, rowsWritten);
+                            ModbusMasterDiagnostics.RecordPoll(succeeded: true, elapsed, rowsWritten);
+                        }
+                    }
+                    if (pollFailed)
+                    {
+                        await Task.Delay(failureDelay, cancellationToken).ConfigureAwait(false);
+                        continue;
                     }
                     await Task.Delay(source.PollIntervalMilliseconds, cancellationToken).ConfigureAwait(false);
                 }
@@ -201,12 +301,24 @@ internal sealed class ModbusMasterService : BackgroundService
                 catch (Exception exception)
                 {
                     string errorCode = GetErrorCode(exception);
+                    DateTimeOffset failedAt = NextSampleTime(ref lastSampleUnixMilliseconds);
+                    lastAttempt = failedAt;
+                    lastError = failedAt;
+                    lastErrorCode = errorCode;
+                    consecutiveFailures = consecutiveFailures == long.MaxValue
+                        ? long.MaxValue
+                        : consecutiveFailures + 1;
                     double elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
                     TryReportStatus(database, source.Name, new ModbusSourceRuntimeStatus(
                         RuntimeEnabled: true,
                         ModbusSourceRuntimeHealth.Degraded,
                         lastSuccess,
-                        errorCode));
+                        lastErrorCode)
+                    {
+                        LastAttemptAtUtc = lastAttempt,
+                        LastErrorAtUtc = lastError,
+                        ConsecutiveFailures = consecutiveFailures,
+                    });
                     _metrics.RecordModbusPoll(succeeded: false, rowsWritten: 0);
                     ModbusMasterDiagnostics.RecordPoll(succeeded: false, elapsed, rowsWritten: 0);
                     _logger.ModbusSourcePollFailed(
@@ -247,11 +359,17 @@ internal sealed class ModbusMasterService : BackgroundService
             TryReportStatus(database, source.Name, new ModbusSourceRuntimeStatus(
                 RuntimeEnabled: false,
                 ModbusSourceRuntimeHealth.Disabled,
-                lastSuccess));
+                lastSuccess,
+                lastErrorCode)
+            {
+                LastAttemptAtUtc = lastAttempt,
+                LastErrorAtUtc = lastError,
+                ConsecutiveFailures = consecutiveFailures,
+            });
         }
     }
 
-    private async Task<ModbusReadSnapshot> ReadWithRetriesAsync(
+    private async Task<ModbusReadAttempt> ReadWithRetriesAsync(
         ModbusTcpMasterClient client,
         ModbusSourceDefinition source,
         IReadOnlyList<ModbusReadBatch> batches,
@@ -271,7 +389,11 @@ internal sealed class ModbusMasterService : BackgroundService
                     ModbusMasterDiagnostics.RecordRead(batch.Area);
                 }
 
-                return snapshot;
+                return new ModbusReadAttempt(snapshot, Error: null);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception exception) when (IsRetryable(exception) && attempt < source.RetryCount)
             {
@@ -285,6 +407,10 @@ internal sealed class ModbusMasterService : BackgroundService
                 _logger.ModbusSourceRetry(source.Name, attempt + 1, source.RetryCount, delay);
                 await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
             }
+            catch (Exception exception)
+            {
+                return new ModbusReadAttempt(snapshot, exception);
+            }
         }
     }
 
@@ -293,14 +419,14 @@ internal sealed class ModbusMasterService : BackgroundService
 
     private static string GetErrorCode(Exception exception) => exception switch
     {
-        TimeoutException => "timeout",
+        TimeoutException => ModbusErrorCodes.Timeout,
         ModbusProtocolException protocolException => protocolException.ErrorCode,
-        InvalidDataException => "decode_error",
-        SocketException => "connection_error",
-        IOException => "connection_error",
-        ObjectDisposedException => "database_closed",
-        InvalidOperationException => "ingest_error",
-        _ => "runtime_error",
+        InvalidDataException or OverflowException => ModbusErrorCodes.Decode,
+        SocketException => ModbusErrorCodes.Connection,
+        IOException => ModbusErrorCodes.Connection,
+        ObjectDisposedException => ModbusErrorCodes.DatabaseClosed,
+        InvalidOperationException => ModbusErrorCodes.Ingest,
+        _ => ModbusErrorCodes.Runtime,
     };
 
     private static DateTimeOffset NextSampleTime(ref long previousUnixMilliseconds)
@@ -351,4 +477,8 @@ internal sealed class ModbusMasterService : BackgroundService
         ModbusSourceDefinition Source,
         CancellationTokenSource Cancellation,
         Task Task);
+
+    private sealed record ModbusReadAttempt(
+        ModbusReadSnapshot Snapshot,
+        Exception? Error);
 }

@@ -78,7 +78,7 @@ SELECT modbus_float32(16256, 0, 'ABCD');   -- 1.0
 
 当前版本已经支持 `CREATE MODBUS SOURCE`、`CREATE MODBUS ENDPOINT`、列级 `FROM MODBUS` / `EXPOSE AS MODBUS`、表级 `USING MODBUS`，以及 `SHOW/DESCRIBE MODBUS` 本地元数据查询。DDL 会把连接定义和规范化地址持久化到独立的版本化 catalog，并在建表时校验四类地址空间、跨度、访问权限、字节序、缩放及 wire type。
 
-Server 的 TCP master runtime 默认关闭；只有 `SonnetDBServer:Modbus:Enabled=true` 与 source `ENABLED TRUE` 同时满足时，后台 worker 才会批量轮询四类地址并把成功样本写入本地 LATEST/HISTORY 表。source timeout、取消、按 `RETRY` 指数退避、断线重连和指标均在后台执行，普通 `SELECT` 始终只读取已采集的本地状态，不同步访问 PLC。远端寄存器写入、从站端口监听和外部写审批仍未实现；创建 source、endpoint 或映射表需要当前数据库的 Admin 权限，`SHOW/DESCRIBE MODBUS` 只需要数据库读权限。
+Server 的 TCP master runtime 默认关闭；只有 `SonnetDBServer:Modbus:Enabled=true` 与 source `ENABLED TRUE` 同时满足时，后台 worker 才会批量轮询四类地址并把采样写入本地 LATEST/HISTORY 表。source timeout、取消、按 `RETRY` 指数退避、断线重连和指标均在后台执行；`INT QUALITY` 列公开 `GOOD/STALE/BAD/PARTIAL/NO_VALUE` 位，最终失败按 `KEEP_LAST/NULL/SKIP/MARK_BAD` 落表并更新稳定错误码、最后尝试/错误时间和连续失败数。普通 `SELECT` 始终只读取已采集的本地状态，不同步访问 PLC。受限 source 寄存器写入已提供 preview/confirm、Admin 权限与持久审计；从站端口监听和外部写审批仍未实现。创建 source、endpoint 或映射表需要当前数据库的 Admin 权限，`SHOW/DESCRIBE MODBUS` 只需要数据库读权限。
 
 完整语法、安全边界、地址归一化、类型表和示例见 [Modbus TCP 内建映射表合同]({{ site.docs_baseurl | default: '/help' }}/modbus-tcp/)。
 

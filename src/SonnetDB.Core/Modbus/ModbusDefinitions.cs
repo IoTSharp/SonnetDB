@@ -151,6 +151,90 @@ public enum ModbusErrorPolicy : byte
 }
 
 /// <summary>
+/// Modbus 采样质量位。值可以按位组合；<see cref="Good"/> 固定为 0。
+/// </summary>
+[Flags]
+public enum ModbusSampleQuality : long
+{
+    /// <summary>本轮读取、解码和本地写入全部成功。</summary>
+    Good = 0,
+
+    /// <summary>当前行沿用了上一次成功采样的值。</summary>
+    Stale = 1L << 0,
+
+    /// <summary>当前采样不能作为正常值使用。</summary>
+    Bad = 1L << 1,
+
+    /// <summary>当前行只包含本轮能够成功读取并解码的部分字段。</summary>
+    Partial = 1L << 2,
+
+    /// <summary>当前行至少有一个映射字段没有可用值。</summary>
+    NoValue = 1L << 3,
+}
+
+/// <summary>
+/// Modbus source health 使用的稳定机器可读错误码。
+/// </summary>
+public static class ModbusErrorCodes
+{
+    /// <summary>连接、请求或响应超过 source TIMEOUT。</summary>
+    public const string Timeout = "timeout";
+
+    /// <summary>TCP 连接建立或传输失败。</summary>
+    public const string Connection = "connection_error";
+
+    /// <summary>设备响应或本地映射值无法解码。</summary>
+    public const string Decode = "decode_error";
+
+    /// <summary>数据库已关闭或正在释放。</summary>
+    public const string DatabaseClosed = "database_closed";
+
+    /// <summary>关系表校验或本地写入失败。</summary>
+    public const string Ingest = "ingest_error";
+
+    /// <summary>未归类的 source runtime 失败。</summary>
+    public const string Runtime = "runtime_error";
+
+    /// <summary>Modbus TCP transaction id 与请求不一致。</summary>
+    public const string TransactionMismatch = "transaction_mismatch";
+
+    /// <summary>MBAP protocol id 不是 0。</summary>
+    public const string InvalidProtocol = "invalid_protocol";
+
+    /// <summary>响应 unit id 与 source 配置不一致。</summary>
+    public const string UnitMismatch = "unit_mismatch";
+
+    /// <summary>MBAP length 不在合法范围内。</summary>
+    public const string InvalidLength = "invalid_length";
+
+    /// <summary>设备异常响应的 PDU 结构无效。</summary>
+    public const string InvalidException = "invalid_exception";
+
+    /// <summary>响应 function code 与请求不一致。</summary>
+    public const string FunctionMismatch = "function_mismatch";
+
+    /// <summary>响应 PDU 结构无效。</summary>
+    public const string InvalidPayload = "invalid_payload";
+
+    /// <summary>读取响应的 byte count 与请求数量不一致。</summary>
+    public const string InvalidByteCount = "invalid_byte_count";
+
+    /// <summary>写响应回显的地址与请求不一致。</summary>
+    public const string AddressMismatch = "address_mismatch";
+
+    /// <summary>写响应回显的值或数量与请求不一致。</summary>
+    public const string WriteEchoMismatch = "write_echo_mismatch";
+
+    /// <summary>
+    /// 返回设备 exception code 对应的稳定错误码。
+    /// </summary>
+    /// <param name="exceptionCode">设备返回的单字节 exception code。</param>
+    /// <returns><c>device_exception_xx</c>，其中 xx 为两位小写十六进制。</returns>
+    public static string DeviceException(byte exceptionCode)
+        => $"device_exception_{exceptionCode:x2}";
+}
+
+/// <summary>
 /// endpoint 收到外部写请求时的入口策略。
 /// </summary>
 public enum ModbusEndpointWritePolicy : byte
@@ -235,6 +319,15 @@ public sealed record ModbusSourceRuntimeStatus(
     DateTimeOffset? LastSuccessAtUtc = null,
     string? LastErrorCode = null)
 {
+    /// <summary>最近一次开始执行采集的 UTC 时间。</summary>
+    public DateTimeOffset? LastAttemptAtUtc { get; init; }
+
+    /// <summary>最近一次采集失败的 UTC 时间。</summary>
+    public DateTimeOffset? LastErrorAtUtc { get; init; }
+
+    /// <summary>自最近一次成功采集后连续失败的轮数。</summary>
+    public long ConsecutiveFailures { get; init; }
+
     /// <summary>返回默认关闭状态。</summary>
     public static ModbusSourceRuntimeStatus Disabled { get; } = new(
         RuntimeEnabled: false,

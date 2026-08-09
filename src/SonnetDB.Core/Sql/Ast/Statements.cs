@@ -350,6 +350,9 @@ public sealed record TableColumnDefinition(
 
     /// <summary>是否由该列记录 Modbus 采样时间。</summary>
     public bool IsModbusSampleTime { get; init; }
+
+    /// <summary>是否由该列记录 Modbus 采样质量位。</summary>
+    public bool IsModbusQuality { get; init; }
 }
 
 /// <summary>

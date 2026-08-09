@@ -121,6 +121,7 @@ public sealed class ModbusParserTests
                 alarm BOOL
                     FROM MODBUS HOLDING_REGISTER(40020).BIT(3)
                     AS BIT ACCESS READ,
+                quality INT QUALITY,
                 PRIMARY KEY (sample_time)
             )
             USING MODBUS SOURCE line1_plc
@@ -133,6 +134,7 @@ public sealed class ModbusParserTests
         Assert.Equal(ModbusErrorPolicy.MarkBad, statement.ModbusBinding.ErrorPolicy);
         Assert.True(statement.ModbusBinding.StoreHistory);
         Assert.True(statement.Columns[0].IsModbusSampleTime);
+        Assert.True(statement.Columns[4].IsModbusQuality);
 
         ModbusColumnMappingClause temperature = statement.Columns[1].ModbusMapping!;
         Assert.Equal(30001, temperature.DeclaredAddress);
@@ -147,6 +149,23 @@ public sealed class ModbusParserTests
         Assert.Equal(ModbusByteOrder.BigEndian, flow.ByteOrderOverride);
         Assert.Equal(ModbusWordOrder.LittleEndian, flow.WordOrderOverride);
         Assert.Equal(3, statement.Columns[3].ModbusMapping!.BitIndex);
+    }
+
+    /// <summary>
+    /// 验证 QUALITY 只能声明一次、必须使用 INT，且只能用于 source 表。
+    /// </summary>
+    [Fact]
+    public void Parse_ModbusQualityWithInvalidShape_Throws()
+    {
+        string[] invalidSql =
+        [
+            "CREATE TABLE t (id INT, q STRING QUALITY, v INT FROM MODBUS HOLDING_REGISTER(1) AS UINT16, PRIMARY KEY (id)) USING MODBUS SOURCE s WITH (TABLE_MODE LATEST)",
+            "CREATE TABLE t (id INT, q1 INT QUALITY, q2 INT QUALITY, v INT FROM MODBUS HOLDING_REGISTER(1) AS UINT16, PRIMARY KEY (id)) USING MODBUS SOURCE s WITH (TABLE_MODE LATEST)",
+            "CREATE TABLE t (id INT, q INT QUALITY, v INT EXPOSE AS MODBUS HOLDING_REGISTER(1) AS UINT16, PRIMARY KEY (id)) USING MODBUS ENDPOINT e WITH (ROW KEY 1)",
+        ];
+
+        foreach (string sql in invalidSql)
+            Assert.Throws<SqlParseException>(() => SqlParser.Parse(sql));
     }
 
     /// <summary>

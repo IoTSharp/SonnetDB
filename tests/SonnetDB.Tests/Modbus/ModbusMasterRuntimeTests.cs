@@ -5,6 +5,7 @@ using SonnetDB.Engine;
 using SonnetDB.Hosting;
 using SonnetDB.Modbus;
 using SonnetDB.Sql.Execution;
+using SonnetDB.Tables;
 using Xunit;
 
 namespace SonnetDB.Tests.Modbus;
@@ -106,6 +107,68 @@ public sealed class ModbusMasterRuntimeTests
             Assert.False(Assert.IsType<bool>(sourceRow[10]));
             Assert.Equal("disabled", sourceRow[11]);
             Assert.NotNull(sourceRow[12]);
+        }
+        finally
+        {
+            DeleteRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task Runtime_WithRepeatedFailure_PublishesHealthWritesBadQualityAndRecovers()
+    {
+        await using var server = new ModbusTestServer { DropRequestsRemaining = 100 };
+        server.Start();
+        string root = CreateRoot();
+        try
+        {
+            using var registry = new TsdbRegistry(root);
+            Assert.True(registry.TryCreate("quality", out Tsdb database));
+            CreateQualitySourceAndTable(database, server.Port);
+            var metrics = new ServerMetrics();
+            var service = CreateService(registry, metrics, enabled: true);
+
+            await service.StartAsync(CancellationToken.None);
+            await WaitUntilAsync(
+                () => database.Modbus.GetSourceRuntimeStatus("plc").ConsecutiveFailures >= 2,
+                TimeSpan.FromSeconds(5));
+
+            ModbusSourceRuntimeStatus degraded = database.Modbus.GetSourceRuntimeStatus("plc");
+            Assert.Equal(ModbusSourceRuntimeHealth.Degraded, degraded.Health);
+            Assert.Equal(ModbusErrorCodes.Connection, degraded.LastErrorCode);
+            Assert.NotNull(degraded.LastAttemptAtUtc);
+            Assert.NotNull(degraded.LastErrorAtUtc);
+            Assert.True(degraded.ConsecutiveFailures >= 2);
+            TableRow failedRow = Assert.Single(database.Tables.Open("quality_values").Scan());
+            Assert.Equal(
+                (long)(ModbusSampleQuality.Bad | ModbusSampleQuality.NoValue),
+                failedRow.Values[2]);
+            Assert.Null(failedRow.Values[3]);
+
+            var shown = Assert.IsType<SelectExecutionResult>(
+                SqlExecutor.Execute(database, "SHOW MODBUS SOURCES"));
+            IReadOnlyList<object?> sourceRow = Assert.Single(shown.Rows);
+            Assert.NotNull(sourceRow[17]);
+            Assert.NotNull(sourceRow[18]);
+            Assert.True(Assert.IsType<long>(sourceRow[19]) >= 2);
+
+            server.SetValue(ModbusRegisterArea.HoldingRegister, 0, 77);
+            server.DropRequestsRemaining = 0;
+            await WaitUntilAsync(
+                () => database.Modbus.GetSourceRuntimeStatus("plc").Health
+                      == ModbusSourceRuntimeHealth.Healthy,
+                TimeSpan.FromSeconds(5));
+
+            ModbusSourceRuntimeStatus recovered = database.Modbus.GetSourceRuntimeStatus("plc");
+            Assert.Equal(0, recovered.ConsecutiveFailures);
+            Assert.NotNull(recovered.LastSuccessAtUtc);
+            Assert.Equal(ModbusErrorCodes.Connection, recovered.LastErrorCode);
+            Assert.True(recovered.LastErrorAtUtc!.Value >= degraded.LastErrorAtUtc!.Value);
+            TableRow recoveredRow = Assert.Single(database.Tables.Open("quality_values").Scan());
+            Assert.Equal((long)ModbusSampleQuality.Good, recoveredRow.Values[2]);
+            Assert.Equal(77L, recoveredRow.Values[3]);
+
+            await service.StopAsync(CancellationToken.None);
         }
         finally
         {
@@ -263,6 +326,33 @@ public sealed class ModbusMasterRuntimeTests
             )
             USING MODBUS SOURCE plc
             WITH (TABLE_MODE HISTORY, ON_ERROR KEEP_LAST)
+            """);
+    }
+
+    private static void CreateQualitySourceAndTable(Tsdb database, int port)
+    {
+        _ = SqlExecutor.Execute(database, $"""
+            CREATE MODBUS SOURCE plc
+            WITH (
+                ENDPOINT '127.0.0.1:{port}',
+                POLL_INTERVAL '25ms',
+                TIMEOUT '200ms',
+                RETRY 0,
+                BYTE_ORDER BIG_ENDIAN,
+                WORD_ORDER BIG_ENDIAN,
+                ENABLED TRUE
+            )
+            """);
+        _ = SqlExecutor.Execute(database, """
+            CREATE TABLE quality_values (
+                id INT NOT NULL,
+                sampled_at DATETIME SAMPLE_TIME,
+                quality INT QUALITY,
+                value INT NULL FROM MODBUS HOLDING_REGISTER(40001) AS UINT16,
+                PRIMARY KEY (id)
+            )
+            USING MODBUS SOURCE plc
+            WITH (TABLE_MODE LATEST, ON_ERROR NULL)
             """);
     }
 

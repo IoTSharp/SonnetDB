@@ -1026,6 +1026,7 @@ public sealed class SqlParser
         ParseTableColumnModifiers(ref nullability, ref defaultExpression, ref isRowVersion, ref isAutoIncrement);
 
         var isModbusSampleTime = false;
+        var isModbusQuality = false;
         ModbusColumnMappingClause? modbusMapping = null;
         while (true)
         {
@@ -1034,6 +1035,15 @@ public sealed class SqlParser
                 if (isModbusSampleTime)
                     throw Error("SAMPLE_TIME 子句重复声明");
                 isModbusSampleTime = true;
+                Advance();
+                continue;
+            }
+
+            if (IsIdentifier("quality"))
+            {
+                if (isModbusQuality)
+                    throw Error("QUALITY 子句重复声明");
+                isModbusQuality = true;
                 Advance();
                 continue;
             }
@@ -1065,6 +1075,12 @@ public sealed class SqlParser
             throw Error("SAMPLE_TIME 列必须使用 DATETIME 类型");
         if (isModbusSampleTime && modbusMapping is not null)
             throw Error("SAMPLE_TIME 列不能同时声明 Modbus 地址映射");
+        if (isModbusQuality && dataType != SqlDataType.Int64)
+            throw Error("QUALITY 列必须使用 INT 类型");
+        if (isModbusQuality && modbusMapping is not null)
+            throw Error("QUALITY 列不能同时声明 Modbus 地址映射");
+        if (isModbusSampleTime && isModbusQuality)
+            throw Error("同一列不能同时声明 SAMPLE_TIME 和 QUALITY");
 
         return new TableColumnDefinition(columnName, dataType, nullability, isRowVersion)
         {
@@ -1072,6 +1088,7 @@ public sealed class SqlParser
             DefaultExpression = defaultExpression,
             ModbusMapping = modbusMapping,
             IsModbusSampleTime = isModbusSampleTime,
+            IsModbusQuality = isModbusQuality,
         };
     }
 
@@ -1365,7 +1382,7 @@ public sealed class SqlParser
     }
 
     /// <summary>
-    /// 校验表级 target 与列级方向一致，并约束 SAMPLE_TIME 的使用范围。
+    /// 校验表级 target 与列级方向一致，并约束 SAMPLE_TIME / QUALITY 的使用范围。
     /// </summary>
     private void ValidateModbusTableSyntax(
         IReadOnlyList<TableColumnDefinition> columns,
@@ -1373,13 +1390,16 @@ public sealed class SqlParser
     {
         var mappings = columns.Where(static column => column.ModbusMapping is not null).ToArray();
         var sampleTimeColumns = columns.Where(static column => column.IsModbusSampleTime).ToArray();
+        var qualityColumns = columns.Where(static column => column.IsModbusQuality).ToArray();
         if (sampleTimeColumns.Length > 1)
             throw Error("一张 Modbus 表只能声明一个 SAMPLE_TIME 列");
+        if (qualityColumns.Length > 1)
+            throw Error("一张 Modbus 表只能声明一个 QUALITY 列");
 
         if (binding is null)
         {
-            if (mappings.Length > 0 || sampleTimeColumns.Length > 0)
-                throw Error("声明 Modbus 列映射或 SAMPLE_TIME 时必须提供 USING MODBUS 绑定");
+            if (mappings.Length > 0 || sampleTimeColumns.Length > 0 || qualityColumns.Length > 0)
+                throw Error("声明 Modbus 列映射、SAMPLE_TIME 或 QUALITY 时必须提供 USING MODBUS 绑定");
             return;
         }
 
@@ -1398,6 +1418,8 @@ public sealed class SqlParser
 
         if (binding.Direction == ModbusMappingDirection.TableToEndpoint && sampleTimeColumns.Length > 0)
             throw Error("SAMPLE_TIME 仅适用于 USING MODBUS SOURCE 表");
+        if (binding.Direction == ModbusMappingDirection.TableToEndpoint && qualityColumns.Length > 0)
+            throw Error("QUALITY 仅适用于 USING MODBUS SOURCE 表");
     }
 
     private AlterTableAddColumnStatement ParseAlterTableAddColumn(string tableName)

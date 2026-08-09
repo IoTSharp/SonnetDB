@@ -60,6 +60,7 @@ public sealed class ModbusSqlExecutorTests : IDisposable
                 flow FLOAT
                     FROM MODBUS HOLDING_REGISTER(40010, 2)
                     AS FLOAT32 WORD_ORDER LITTLE_ENDIAN,
+                quality INT QUALITY,
                 PRIMARY KEY (id)
             )
             USING MODBUS SOURCE line_source
@@ -71,6 +72,7 @@ public sealed class ModbusSqlExecutorTests : IDisposable
         Assert.Equal(ModbusMappingDirection.SourceToTable, binding.Direction);
         Assert.True(binding.Enabled);
         Assert.Equal(2, binding.Columns.Count);
+        Assert.Equal("quality", binding.QualityColumn);
 
         ModbusColumnMapping temperature = binding.Columns[0];
         Assert.Equal(300001, temperature.DeclaredAddress);
@@ -189,14 +191,24 @@ public sealed class ModbusSqlExecutorTests : IDisposable
             new ModbusSourceRuntimeStatus(
                 RuntimeEnabled: true,
                 ModbusSourceRuntimeHealth.Healthy,
-                succeededAt));
+                succeededAt,
+                ModbusErrorCodes.Timeout)
+            {
+                LastAttemptAtUtc = succeededAt.AddSeconds(1),
+                LastErrorAtUtc = succeededAt,
+                ConsecutiveFailures = 2,
+            });
 
         var sources = ExecuteSelect(database, "SHOW MODBUS SOURCES");
         IReadOnlyList<object?> row = Assert.Single(sources.Rows);
         Assert.True(Assert.IsType<bool>(row[10]));
         Assert.Equal("healthy", row[11]);
         Assert.Equal(succeededAt.ToString("O"), row[12]);
-        Assert.Null(row[13]);
+        Assert.Equal(ModbusErrorCodes.Timeout, row[13]);
+        Assert.Equal("last_attempt_at", sources.Columns[17]);
+        Assert.Equal(succeededAt.AddSeconds(1).ToString("O"), row[17]);
+        Assert.Equal(succeededAt.ToString("O"), row[18]);
+        Assert.Equal(2L, row[19]);
         Assert.Equal(revision, database.Modbus.Revision);
     }
 
@@ -229,7 +241,7 @@ public sealed class ModbusSqlExecutorTests : IDisposable
             for (int iteration = 0; iteration < 5_000; iteration++)
             {
                 SelectExecutionResult shown = ModbusSqlExecutor.ShowSources(catalog);
-                int revisionColumn = shown.Columns.Count - 1;
+                int revisionColumn = Array.IndexOf(shown.Columns.ToArray(), "catalog_revision");
                 Assert.Equal("catalog_revision", shown.Columns[revisionColumn]);
                 long revision = Assert.IsType<long>(shown.Rows[0][revisionColumn]);
                 Assert.All(shown.Rows, row => Assert.Equal(revision, Assert.IsType<long>(row[revisionColumn])));
@@ -529,6 +541,33 @@ public sealed class ModbusSqlExecutorTests : IDisposable
             """));
         Assert.Contains("重叠", overlap.Message, StringComparison.Ordinal);
         Assert.Null(database.Tables.Catalog.TryGet("invalid_overlap"));
+    }
+
+    /// <summary>
+    /// 验证可能写入缺值的失败策略要求可读映射列允许 NULL。
+    /// </summary>
+    [Fact]
+    public void Execute_NullProducingErrorPolicyWithRequiredMapping_RejectsBeforePublishingTable()
+    {
+        using var database = OpenDatabase();
+        CreateSource(database, "quality_source");
+
+        foreach (string policy in new[] { "NULL", "MARK_BAD" })
+        {
+            string tableName = "required_" + policy.ToLowerInvariant();
+            var error = Assert.Throws<ArgumentException>(() => SqlExecutor.Execute(database, $"""
+                CREATE TABLE {tableName} (
+                    id INT NOT NULL,
+                    value INT NOT NULL FROM MODBUS HOLDING_REGISTER(40001) AS UINT16,
+                    PRIMARY KEY (id)
+                )
+                USING MODBUS SOURCE quality_source
+                WITH (TABLE_MODE LATEST, ON_ERROR {policy})
+                """));
+
+            Assert.Contains("允许 NULL", error.Message, StringComparison.Ordinal);
+            Assert.Null(database.Tables.Catalog.TryGet(tableName));
+        }
     }
 
     /// <summary>

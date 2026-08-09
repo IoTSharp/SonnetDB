@@ -8,7 +8,7 @@ description: "Milestone 34 的 SQL DDL、TCP master 轮询、地址归一化、�
 
 本文记录 Milestone 34（#288～#292）已经落地的 SQL、安全、catalog、地址校验、编解码、TCP master 轮询与受限远端写合同，也是后续 slave endpoint、管理面和 parity 测试的共同输入。
 
-> 当前状态：Phase A 的 DDL、Parser/AST、独立版本化 catalog、`SHOW/DESCRIBE MODBUS`、地址冲突校验和类型编解码已经可用；#291 的默认关闭 TCP client/master 轮询与 #292 的受限 Source 写已经接入 Server。TCP server/slave 监听、外部写 staging/审批、完整质量诊断和管理界面仍属于 #293～#296。
+> 当前状态：Phase A 的 DDL、Parser/AST、独立版本化 catalog、`SHOW/DESCRIBE MODBUS`、地址冲突校验和类型编解码已经可用；#291 的默认关闭 TCP client/master 轮询、#292 的受限 Source 写以及 #293 的采集质量、失败策略和 source health 已接入 Server。TCP server/slave 监听、外部写 staging/审批和管理界面仍属于 #294～#296。
 
 ## 角色与方向
 
@@ -55,6 +55,8 @@ WITH (
 
 ```sql
 CREATE TABLE <table_name> (
+    <sample_time_column> DATETIME SAMPLE_TIME,
+    <quality_column> INT QUALITY,
     <column_definition>
         FROM MODBUS <area>(<address> [, <count>]) [ .BIT(<bit_index>) ]
         AS <wire_type>
@@ -73,7 +75,7 @@ WITH (
 );
 ```
 
-`TABLE_MODE`、`ON_ERROR` 和 `STORE HISTORY` 都可以省略，也可以按任意顺序声明。默认使用 `TABLE_MODE LATEST`、`ON_ERROR KEEP_LAST`，且不额外保存 history；只有显式声明 `STORE HISTORY` 才额外保留每次成功采样的历史行。
+`SAMPLE_TIME` 与 `QUALITY` 都是可选的列角色，且每张 source 表最多各声明一列。`QUALITY` 必须使用 `INT`，runtime 写入下面定义的稳定质量位。`TABLE_MODE`、`ON_ERROR` 和 `STORE HISTORY` 都可以省略，也可以按任意顺序声明；默认使用 `TABLE_MODE LATEST` 与 `ON_ERROR KEEP_LAST`。`LATEST` 表使用非自增 `INT` 单列主键，runtime 固定 upsert 主键 `0`；`HISTORY` 表使用 `DATETIME` 单列主键或自增 `INT` 单列主键，每次未被 `SKIP` 的采样追加一行。`STORE HISTORY` 保留为 catalog 中的 history retention 声明；当前关系表的可查询行形态仍由 `TABLE_MODE` 决定，不会为 `LATEST` 表隐式创建第二张关系表。
 
 一张表只能绑定一个 Modbus source 或 endpoint。绑定对象必须已经存在于同一数据库，映射在建表时完成地址归一化和冲突校验。
 
@@ -100,7 +102,7 @@ Server 配置默认值如下；缺少整个 `Modbus` 节点与显式写出 `Enab
 
 每轮采集先汇总该 source 的所有 `FROM MODBUS` 绑定，按 Coil、Discrete Input、Input Register、Holding Register 四个独立地址空间排序；连续或重叠区间合并读取，bit 区每个请求最多 2,000 点，register 区每个请求最多 125 个寄存器，超过上限的单个映射会拆成多个请求并在解码前重组。四类读取分别使用 function `0x01`、`0x02`、`0x04`、`0x03`，响应必须匹配 transaction id、protocol id 0、unit id、length、function 和 byte count；设备 exception 返回稳定的 `device_exception_xx` 错误码。
 
-source 的 `TIMEOUT` 覆盖连接、写请求和读响应；宿主停止、数据库/source 移除与调用方取消会直接打断等待和 socket I/O。单轮失败最多按 source `RETRY` 重试，每次重试都丢弃旧连接并按 `RetryBaseDelayMilliseconds` 指数退避到配置上限；一轮彻底失败后按独立的 reconnect 退避继续尝试，成功后恢复初始延迟。成功响应经同一 `ModbusValueCodec` 解码，再按 `TABLE_MODE LATEST` upsert 或 `HISTORY` insert 到本地关系表。
+source 的 `TIMEOUT` 覆盖连接、写请求和读响应；宿主停止、数据库/source 移除与调用方取消会直接打断等待和 socket I/O。单轮失败最多按 source `RETRY` 重试，每次重试都丢弃旧连接并按 `RetryBaseDelayMilliseconds` 指数退避到配置上限；一轮彻底失败后按独立的 reconnect 退避继续尝试，成功后恢复初始延迟。成功响应经同一 `ModbusValueCodec` 解码，再按 `TABLE_MODE LATEST` upsert 或 `HISTORY` insert 到本地关系表并写入 `GOOD` 质量。最终失败会保留该次重试最后一个部分快照，按每张绑定的 `ON_ERROR` 独立生成本地行；source 级互斥只覆盖实际 I/O 与本地提交，不覆盖 poll/reconnect 延时。
 
 兼容 `/metrics` 暴露 `sonnetdb_modbus_master_polls_total`、`sonnetdb_modbus_master_poll_failures_total`、`sonnetdb_modbus_master_read_batches_total`、`sonnetdb_modbus_master_rows_written_total` 和 `sonnetdb_modbus_master_reconnects_total`。启用 OpenTelemetry 时，`SonnetDB.Server` meter 还提供对应 poll/read/row/reconnect counter 与 `sonnetdb.modbus.master.poll.duration` histogram；指标不使用数据库名、source 名或地址作为高基数标签。
 
@@ -272,8 +274,6 @@ preview、dry-run 和提交必须调用同一编解码与校验实现，不能�
 
 ## 采集错误策略
 
-> 当前 #291 runtime 只在整轮成功时写入本地表；失败会保留既有数据、更新 source 的 `degraded` 状态、稳定错误码和失败指标并继续退避重连。下列逐列数据、质量和诊断行为仍由 #293 实现，当前不会执行 `NULL` / `MARK_BAD` 写入或额外质量转换。
-
 source 表的 `ON_ERROR` 使用以下四个稳定名称：
 
 | 策略 | 本地数据行为 | 质量与诊断行为 |
@@ -283,7 +283,29 @@ source 表的 `ON_ERROR` 使用以下四个稳定名称：
 | `SKIP` | 本轮不追加 history 行，也不更新 latest 行 | source health 和失败计数仍更新 |
 | `MARK_BAD` | 有可解码响应时保存本次值；无可解码值时保存 `NULL` | 明确标记为 bad，不能伪装成正常样本 |
 
-`KEEP_LAST` 不能把旧值重新标为 good。错误码、最后成功时间、连续失败数和字段质量的公开 metadata 由 #293 在不改变上述四种数据行为的前提下扩展。
+`KEEP_LAST` 不能把旧值重新标为 good；第一次失败且尚无成功行时没有可保留值，因此不创建本地行。`NULL` 与 `MARK_BAD` 可能产生缺值，所有可读映射列必须允许 `NULL`。`SKIP` 不写行，但仍推进 source 的最后尝试、最后错误时间和连续失败数。`LATEST` 更新主键 `0` 的当前行，`HISTORY` 对除 `SKIP` 外的策略追加本次失败行。
+
+`QUALITY` 列保存以下可组合的稳定 Int64 位；调用方必须按位判断，不能把组合值当成封闭枚举：
+
+| 名称 | 值 | 含义 |
+| --- | ---: | --- |
+| `GOOD` | 0 | 本轮读取、解码与本地写入成功 |
+| `STALE` | 1 | 沿用上一次成功值（`KEEP_LAST`） |
+| `BAD` | 2 | 本次采样不能作为正常值使用 |
+| `PARTIAL` | 4 | 只保存了部分快照中可读取、可解码的字段 |
+| `NO_VALUE` | 8 | 至少一个可读映射字段写为 `NULL` |
+
+因此 `NULL` 的常见质量为 `BAD | NO_VALUE`（10），部分 `MARK_BAD` 为 `BAD | PARTIAL | NO_VALUE`（14）。若 source 在别的读取批次失败、但某张绑定的全部字段已经成功解码，该绑定的 `MARK_BAD` 行只设置 `BAD`。
+
+source health 的稳定错误码如下；设备异常使用 `device_exception_xx`，其中 `xx` 为两位小写十六进制：
+
+| 类别 | 稳定错误码 |
+| --- | --- |
+| timeout / transport | `timeout`、`connection_error` |
+| MBAP / PDU | `transaction_mismatch`、`invalid_protocol`、`unit_mismatch`、`invalid_length`、`invalid_exception`、`function_mismatch`、`invalid_payload`、`invalid_byte_count` |
+| device | `device_exception_xx` |
+| local decode / ingest | `decode_error`、`ingest_error`、`database_closed` |
+| fallback | `runtime_error` |
 
 ## 写入、权限、审批与审计
 
@@ -488,7 +510,7 @@ poll_interval, timeout, retry, runtime_enabled, health,
 last_success_at, last_error_code
 ```
 
-当前 `poll_interval` 和 `timeout` 以 Int64 毫秒返回。结果还追加 `configured_enabled`、`configuration_source` 和 `catalog_revision`。`runtime_enabled` 只有在全局门禁、source 配置和 worker 共同启用时为 `TRUE`；`health` 使用 `disabled`、`starting`、`idle`、`healthy`、`degraded`，最近成功时间与错误码来自非持久化运行状态。执行元数据查询本身不会探测网络。
+当前 `poll_interval` 和 `timeout` 以 Int64 毫秒返回。结果还追加 `configured_enabled`、`configuration_source`、`catalog_revision`、`last_attempt_at`、`last_error_at` 和 `consecutive_failures`。`runtime_enabled` 只有在全局门禁、source 配置和 worker 共同启用时为 `TRUE`；`health` 使用 `disabled`、`starting`、`idle`、`healthy`、`degraded`。成功轮次把连续失败数归零，但保留最近错误码及其时间供恢复后诊断；这些运行状态不持久化，执行元数据查询本身也不会探测网络。
 
 `SHOW MODBUS ENDPOINTS` 至少稳定返回：
 

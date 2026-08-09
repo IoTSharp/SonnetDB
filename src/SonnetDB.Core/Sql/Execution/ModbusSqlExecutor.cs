@@ -19,6 +19,7 @@ internal static class ModbusSqlExecutor
         "name", "transport", "endpoint", "unit_id", "addressing", "byte_order", "word_order",
         "poll_interval", "timeout", "retry", "runtime_enabled", "health", "last_success_at",
         "last_error_code", "configured_enabled", "configuration_source", "catalog_revision",
+        "last_attempt_at", "last_error_at", "consecutive_failures",
     ];
 
     private static readonly IReadOnlyList<string> _endpointColumns =
@@ -77,16 +78,24 @@ internal static class ModbusSqlExecutor
         TableColumnDefinition[] sampleTimeColumns = statement.Columns
             .Where(static column => column.IsModbusSampleTime)
             .ToArray();
+        TableColumnDefinition[] qualityColumns = statement.Columns
+            .Where(static column => column.IsModbusQuality)
+            .ToArray();
 
         if (clause is null)
         {
-            if (mappedColumns.Length != 0 || sampleTimeColumns.Length != 0)
-                throw new InvalidOperationException("Modbus 列映射或 SAMPLE_TIME 必须配合 USING MODBUS 表绑定。");
+            if (mappedColumns.Length != 0 || sampleTimeColumns.Length != 0 || qualityColumns.Length != 0)
+            {
+                throw new InvalidOperationException(
+                    "Modbus 列映射、SAMPLE_TIME 或 QUALITY 必须配合 USING MODBUS 表绑定。");
+            }
             return null;
         }
 
         if (sampleTimeColumns.Length > 1)
             throw new InvalidOperationException("一张 Modbus 表只能声明一个 SAMPLE_TIME 列。");
+        if (qualityColumns.Length > 1)
+            throw new InvalidOperationException("一张 Modbus 表只能声明一个 QUALITY 列。");
 
         ModbusAddressingMode addressingMode;
         ModbusByteOrder defaultByteOrder;
@@ -154,7 +163,7 @@ internal static class ModbusSqlExecutor
             clause.ApprovedWriteAction,
             clause.StoreHistory,
             sampleTimeColumns.FirstOrDefault()?.Name,
-            QualityColumn: null,
+            qualityColumns.FirstOrDefault()?.Name,
             Enabled: true);
         tsdb.Modbus.ValidateBinding(binding, schema);
         return binding;
@@ -298,6 +307,9 @@ internal static class ModbusSqlExecutor
                 source.Enabled,
                 "catalog",
                 snapshot.Revision,
+                runtimeStatus.LastAttemptAtUtc?.ToString("O", CultureInfo.InvariantCulture),
+                runtimeStatus.LastErrorAtUtc?.ToString("O", CultureInfo.InvariantCulture),
+                runtimeStatus.ConsecutiveFailures,
             });
         }
 

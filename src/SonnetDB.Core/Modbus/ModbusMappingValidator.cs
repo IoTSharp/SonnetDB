@@ -205,6 +205,8 @@ public static class ModbusMappingValidator
         ValidateSampleTimeColumn(binding, schema);
         ValidateQualityColumn(binding, schema);
         ValidateRowKey(binding, schema);
+        ValidateSourceTableIdentity(binding, schema);
+        ValidateErrorPolicyNullability(binding, schema);
     }
 
     /// <summary>
@@ -425,12 +427,12 @@ public static class ModbusMappingValidator
         if (binding.QualityColumn is null)
             return;
 
-        if (schema.TryGetColumn(binding.QualityColumn) is null)
-        {
-            throw new ArgumentException(
+        TableColumn quality = schema.TryGetColumn(binding.QualityColumn)
+            ?? throw new ArgumentException(
                 $"表 '{schema.Name}' 不存在质量列 '{binding.QualityColumn}'。",
                 nameof(schema));
-        }
+        if (quality.DataType != TableColumnType.Int64)
+            throw new ArgumentException("QUALITY 列必须使用 Int64 类型保存质量位。", nameof(schema));
         if (binding.Columns.Any(mapping => string.Equals(
                 mapping.ColumnName,
                 binding.QualityColumn,
@@ -456,5 +458,73 @@ public static class ModbusMappingValidator
             ?? throw new ArgumentException("关系表 schema 的主键列不存在。", nameof(schema));
         if (primaryKey.DataType != TableColumnType.Int64)
             throw new ArgumentException("Modbus ROW KEY 第一版要求主键列使用 Int64 类型。", nameof(schema));
+    }
+
+    /// <summary>
+    /// 校验 source runtime 可以确定性生成 LATEST 固定键或 HISTORY 采样键。
+    /// </summary>
+    private static void ValidateSourceTableIdentity(ModbusTableBinding binding, TableSchema schema)
+    {
+        if (binding.Direction != ModbusMappingDirection.SourceToTable)
+            return;
+        if (schema.PrimaryKey.Count != 1)
+        {
+            throw new ArgumentException(
+                "Modbus source 表必须使用单列主键，以便 runtime 生成确定性的采样行标识。",
+                nameof(schema));
+        }
+
+        TableColumn primaryKey = schema.TryGetColumn(schema.PrimaryKey[0])
+            ?? throw new ArgumentException("关系表 schema 的主键列不存在。", nameof(schema));
+        if (binding.TableMode == ModbusTableMode.Latest)
+        {
+            if (primaryKey.DataType != TableColumnType.Int64 || primaryKey.IsAutoIncrement)
+            {
+                throw new ArgumentException(
+                    "Modbus LATEST 表必须使用非自增 Int64 单列主键；runtime 固定写入键 0。",
+                    nameof(schema));
+            }
+            return;
+        }
+
+        bool generatedHistoryKey = primaryKey.DataType == TableColumnType.DateTime
+                                   || (primaryKey.DataType == TableColumnType.Int64
+                                       && primaryKey.IsAutoIncrement);
+        if (!generatedHistoryKey)
+        {
+            throw new ArgumentException(
+                "Modbus HISTORY 表必须使用 DateTime 单列主键或自增 Int64 单列主键。",
+                nameof(schema));
+        }
+    }
+
+    /// <summary>
+    /// 校验会产生缺值的失败策略只能写入允许 NULL 的可读映射列。
+    /// </summary>
+    private static void ValidateErrorPolicyNullability(ModbusTableBinding binding, TableSchema schema)
+    {
+        if (binding.Direction != ModbusMappingDirection.SourceToTable
+            || binding.ErrorPolicy is not (ModbusErrorPolicy.Null or ModbusErrorPolicy.MarkBad))
+        {
+            return;
+        }
+
+        foreach (ModbusColumnMapping mapping in binding.Columns)
+        {
+            if (mapping.Access == ModbusAccessMode.Write)
+                continue;
+
+            TableColumn column = schema.TryGetColumn(mapping.ColumnName)
+                ?? throw new ArgumentException(
+                    $"表 '{schema.Name}' 不存在映射列 '{mapping.ColumnName}'。",
+                    nameof(schema));
+            if (!column.IsNullable)
+            {
+                throw new ArgumentException(
+                    $"ON_ERROR {binding.ErrorPolicy.ToString().ToUpperInvariant()} 要求可读映射列 "
+                    + $"'{mapping.ColumnName}' 允许 NULL。",
+                    nameof(schema));
+            }
+        }
     }
 }

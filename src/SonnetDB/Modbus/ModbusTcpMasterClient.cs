@@ -143,13 +143,13 @@ internal sealed class ModbusTcpMasterClient : IAsyncDisposable
         ushort protocolId = BinaryPrimitives.ReadUInt16BigEndian(header[2..]);
         ushort length = BinaryPrimitives.ReadUInt16BigEndian(header[4..]);
         if (transactionId != expectedTransactionId)
-            throw new ModbusProtocolException("transaction_mismatch", "Modbus TCP transaction id 不匹配。");
+            throw new ModbusProtocolException(ModbusErrorCodes.TransactionMismatch, "Modbus TCP transaction id 不匹配。");
         if (protocolId != 0)
-            throw new ModbusProtocolException("invalid_protocol", "Modbus TCP protocol id 必须为 0。");
+            throw new ModbusProtocolException(ModbusErrorCodes.InvalidProtocol, "Modbus TCP protocol id 必须为 0。");
         if (header[6] != expectedUnitId)
-            throw new ModbusProtocolException("unit_mismatch", "Modbus TCP unit id 不匹配。");
+            throw new ModbusProtocolException(ModbusErrorCodes.UnitMismatch, "Modbus TCP unit id 不匹配。");
         if (length is < 3 or > 254)
-            throw new ModbusProtocolException("invalid_length", $"Modbus TCP 响应长度 {length} 无效。");
+            throw new ModbusProtocolException(ModbusErrorCodes.InvalidLength, $"Modbus TCP 响应长度 {length} 无效。");
 
         pduLength = length - 1;
     }
@@ -163,15 +163,15 @@ internal sealed class ModbusTcpMasterClient : IAsyncDisposable
         if (actualFunction == (expectedFunction | 0x80))
         {
             if (pdu.Length != 2)
-                throw new ModbusProtocolException("invalid_exception", "Modbus TCP 异常响应长度无效。");
+                throw new ModbusProtocolException(ModbusErrorCodes.InvalidException, "Modbus TCP 异常响应长度无效。");
             throw new ModbusProtocolException(
-                $"device_exception_{pdu[1]:x2}",
+                ModbusErrorCodes.DeviceException(pdu[1]),
                 $"Modbus 设备返回异常码 0x{pdu[1]:X2}。");
         }
         if (actualFunction != expectedFunction)
-            throw new ModbusProtocolException("function_mismatch", "Modbus TCP function code 不匹配。");
+            throw new ModbusProtocolException(ModbusErrorCodes.FunctionMismatch, "Modbus TCP function code 不匹配。");
         if (pdu.Length < 2)
-            throw new ModbusProtocolException("invalid_payload", "Modbus TCP 读取响应缺少 byte count。");
+            throw new ModbusProtocolException(ModbusErrorCodes.InvalidPayload, "Modbus TCP 读取响应缺少 byte count。");
 
         int expectedByteCount = batch.Area is ModbusRegisterArea.Coil or ModbusRegisterArea.DiscreteInput
             ? (batch.Count + 7) / 8
@@ -180,7 +180,7 @@ internal sealed class ModbusTcpMasterClient : IAsyncDisposable
         if (byteCount != expectedByteCount || pdu.Length != byteCount + 2)
         {
             throw new ModbusProtocolException(
-                "invalid_byte_count",
+                ModbusErrorCodes.InvalidByteCount,
                 $"Modbus TCP 读取响应 byte count 为 {byteCount}，预期 {expectedByteCount}。");
         }
 
@@ -265,24 +265,24 @@ internal sealed class ModbusTcpMasterClient : IAsyncDisposable
     {
         byte expectedFunction = payload.FunctionCode;
         if (pdu.Length == 0)
-            throw new ModbusProtocolException("invalid_payload", "Modbus TCP 写响应为空。");
+            throw new ModbusProtocolException(ModbusErrorCodes.InvalidPayload, "Modbus TCP 写响应为空。");
         byte actualFunction = pdu[0];
         if (actualFunction == (expectedFunction | 0x80))
         {
             if (pdu.Length != 2)
-                throw new ModbusProtocolException("invalid_exception", "Modbus TCP 异常响应长度无效。");
+                throw new ModbusProtocolException(ModbusErrorCodes.InvalidException, "Modbus TCP 异常响应长度无效。");
             throw new ModbusProtocolException(
-                $"device_exception_{pdu[1]:x2}",
+                ModbusErrorCodes.DeviceException(pdu[1]),
                 $"Modbus 设备返回异常码 0x{pdu[1]:X2}。");
         }
         if (actualFunction != expectedFunction)
-            throw new ModbusProtocolException("function_mismatch", "Modbus TCP function code 不匹配。");
+            throw new ModbusProtocolException(ModbusErrorCodes.FunctionMismatch, "Modbus TCP function code 不匹配。");
         if (pdu.Length != 5)
-            throw new ModbusProtocolException("invalid_payload", "Modbus TCP 写响应长度无效。");
+            throw new ModbusProtocolException(ModbusErrorCodes.InvalidPayload, "Modbus TCP 写响应长度无效。");
 
         ushort address = BinaryPrimitives.ReadUInt16BigEndian(pdu[1..]);
         if (address != payload.StartAddress)
-            throw new ModbusProtocolException("address_mismatch", "Modbus TCP 写响应地址不匹配。");
+            throw new ModbusProtocolException(ModbusErrorCodes.AddressMismatch, "Modbus TCP 写响应地址不匹配。");
 
         ushort echoed = BinaryPrimitives.ReadUInt16BigEndian(pdu[3..]);
         ushort expected = expectedFunction switch
@@ -293,7 +293,7 @@ internal sealed class ModbusTcpMasterClient : IAsyncDisposable
             _ => throw new ArgumentOutOfRangeException(nameof(payload), expectedFunction, "未知的写功能码。"),
         };
         if (echoed != expected)
-            throw new ModbusProtocolException("write_echo_mismatch", "Modbus TCP 写响应回显值不匹配。");
+            throw new ModbusProtocolException(ModbusErrorCodes.WriteEchoMismatch, "Modbus TCP 写响应回显值不匹配。");
     }
 }
 
