@@ -128,6 +128,7 @@ public sealed class SqlParser
             TokenKind.KeywordDelete => ParseDelete(),
             TokenKind.KeywordTruncate => ParseTruncate(),
             TokenKind.KeywordUpdate => ParseUpdate(),
+            TokenKind.KeywordWrite => ParseWrite(),
             TokenKind.KeywordDrop => ParseDrop(),
             TokenKind.KeywordAlter => ParseAlter(),
             TokenKind.KeywordGrant => ParseGrant(),
@@ -137,8 +138,55 @@ public sealed class SqlParser
             TokenKind.KeywordIssue => ParseIssue(),
             TokenKind.KeywordDescribe => ParseDescribe(),
             TokenKind.KeywordDesc => ParseDescribe(),
-            _ => throw Error("期望 CREATE / REFRESH / CALL / INSERT / IMPORT / SELECT / DELETE / TRUNCATE / UPDATE / DROP / ALTER / GRANT / REVOKE / SHOW / EXPLAIN / ISSUE / DESCRIBE / BEGIN / COMMIT / ROLLBACK 关键字"),
+            _ => throw Error("期望 CREATE / REFRESH / CALL / INSERT / IMPORT / SELECT / DELETE / TRUNCATE / UPDATE / WRITE / DROP / ALTER / GRANT / REVOKE / SHOW / EXPLAIN / ISSUE / DESCRIBE / BEGIN / COMMIT / ROLLBACK 关键字"),
         };
+    }
+
+    /// <summary>解析单表、单列、显式阶段的受限 Modbus source 写入。</summary>
+    private WriteModbusStatement ParseWrite()
+    {
+        Expect(TokenKind.KeywordWrite);
+        ExpectIdentifier("modbus", "WRITE 后面期望 MODBUS");
+        string tableName = ExpectIdentifierName();
+        Expect(TokenKind.KeywordSet);
+        string columnName = ExpectIdentifierName();
+        Expect(TokenKind.Equal);
+        SqlExpression value = ParseExpression();
+
+        if (IsIdentifier("preview"))
+        {
+            Advance();
+            return new WriteModbusStatement(
+                tableName,
+                columnName,
+                value,
+                ModbusWriteMode.Preview);
+        }
+
+        if (IsIdentifier("dry"))
+        {
+            Advance();
+            ExpectIdentifier("run", "WRITE MODBUS DRY 后面期望 RUN");
+            return new WriteModbusStatement(
+                tableName,
+                columnName,
+                value,
+                ModbusWriteMode.DryRun);
+        }
+
+        if (IsIdentifier("confirm"))
+        {
+            Advance();
+            SqlExpression confirmationToken = ParseExpression();
+            return new WriteModbusStatement(
+                tableName,
+                columnName,
+                value,
+                ModbusWriteMode.Confirm,
+                confirmationToken);
+        }
+
+        throw Error("WRITE MODBUS 必须以 DRY RUN、PREVIEW 或 CONFIRM <token> 结束");
     }
 
     // ── CREATE 分发：MEASUREMENT / USER / DATABASE ─────────────────────────
@@ -4384,7 +4432,13 @@ public sealed class SqlParser
                         Advance();
                         return new ShowModbusEndpointsStatement();
                     }
-                    throw Error("SHOW MODBUS 后面期望 SOURCES / ENDPOINTS");
+                    if (Current.Kind == TokenKind.KeywordWrite)
+                    {
+                        Advance();
+                        ExpectIdentifier("audit", "SHOW MODBUS WRITE 后面期望 AUDIT");
+                        return new ShowModbusWriteAuditStatement();
+                    }
+                    throw Error("SHOW MODBUS 后面期望 SOURCES / ENDPOINTS / WRITE AUDIT");
                 }
 
                 if (IsIdentifier("materialized"))

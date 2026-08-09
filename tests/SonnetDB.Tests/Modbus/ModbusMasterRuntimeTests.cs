@@ -135,6 +135,80 @@ public sealed class ModbusMasterRuntimeTests
         }
     }
 
+    [Fact]
+    public async Task TcpClient_WriteAsync_UsesStandardWriteFunctionsAndUpdatesDeviceValues()
+    {
+        await using var server = new ModbusTestServer();
+        server.Start();
+        ModbusSourceDefinition source = Source(server.Port, timeoutMilliseconds: 1_000, retryCount: 0);
+        await using var client = new ModbusTcpMasterClient();
+
+        await client.WriteAsync(
+            source,
+            new ModbusWritePayload(ModbusRegisterArea.Coil, 3, [(ushort)1]),
+            CancellationToken.None);
+        await client.WriteAsync(
+            source,
+            new ModbusWritePayload(ModbusRegisterArea.HoldingRegister, 7, [(ushort)0x1234]),
+            CancellationToken.None);
+        await client.WriteAsync(
+            source,
+            new ModbusWritePayload(
+                ModbusRegisterArea.HoldingRegister,
+                9,
+                [(ushort)0x1111, (ushort)0x2222]),
+            CancellationToken.None);
+
+        Assert.Equal((ushort)1, server.GetValue(ModbusRegisterArea.Coil, 3));
+        Assert.Equal((ushort)0x1234, server.GetValue(ModbusRegisterArea.HoldingRegister, 7));
+        Assert.Equal((ushort)0x1111, server.GetValue(ModbusRegisterArea.HoldingRegister, 9));
+        Assert.Equal((ushort)0x2222, server.GetValue(ModbusRegisterArea.HoldingRegister, 10));
+        Assert.Contains(server.Requests, request => request is { FunctionCode: 0x05, StartAddress: 3, Count: 1 });
+        Assert.Contains(server.Requests, request => request is { FunctionCode: 0x06, StartAddress: 7, Count: 1 });
+        Assert.Contains(server.Requests, request => request is { FunctionCode: 0x10, StartAddress: 9, Count: 2 });
+    }
+
+    [Fact]
+    public async Task TcpClient_WriteAsync_WithDeviceExceptionOrMismatchedEcho_RejectsResponse()
+    {
+        await using var exceptionServer = new ModbusTestServer { WriteExceptionCode = 0x02 };
+        exceptionServer.Start();
+        await using (var client = new ModbusTcpMasterClient())
+        {
+            ModbusProtocolException exception = await Assert.ThrowsAsync<ModbusProtocolException>(() =>
+                client.WriteAsync(
+                    Source(exceptionServer.Port, timeoutMilliseconds: 1_000, retryCount: 0),
+                    new ModbusWritePayload(ModbusRegisterArea.HoldingRegister, 0, [(ushort)7]),
+                    CancellationToken.None));
+            Assert.Equal("device_exception_02", exception.ErrorCode);
+        }
+
+        await using var mismatchServer = new ModbusTestServer { WriteResponseAddressOverride = 5 };
+        mismatchServer.Start();
+        await using (var client = new ModbusTcpMasterClient())
+        {
+            ModbusProtocolException mismatch = await Assert.ThrowsAsync<ModbusProtocolException>(() =>
+                client.WriteAsync(
+                    Source(mismatchServer.Port, timeoutMilliseconds: 1_000, retryCount: 0),
+                    new ModbusWritePayload(ModbusRegisterArea.Coil, 0, [(ushort)1]),
+                    CancellationToken.None));
+            Assert.Equal("address_mismatch", mismatch.ErrorCode);
+        }
+    }
+
+    [Fact]
+    public async Task TcpClient_WriteAsync_WithSlowResponse_HonorsTimeout()
+    {
+        await using var server = new ModbusTestServer { ResponseDelay = TimeSpan.FromSeconds(5) };
+        server.Start();
+        await using var client = new ModbusTcpMasterClient();
+
+        await Assert.ThrowsAsync<TimeoutException>(() => client.WriteAsync(
+            Source(server.Port, timeoutMilliseconds: 50, retryCount: 0),
+            new ModbusWritePayload(ModbusRegisterArea.HoldingRegister, 0, [(ushort)7]),
+            CancellationToken.None));
+    }
+
     private static ModbusMasterService CreateService(
         TsdbRegistry registry,
         ServerMetrics metrics,
@@ -155,6 +229,7 @@ public sealed class ModbusMasterRuntimeTests
         return new ModbusMasterService(
             registry,
             metrics,
+            new ModbusSourceOperationCoordinator(),
             Options.Create(options),
             NullLogger<ModbusMasterService>.Instance);
     }

@@ -16,6 +16,7 @@ internal sealed class ModbusTestServer : IAsyncDisposable
     private int _connectionCount;
     private int _requestCount;
     private int _dropRequestsRemaining;
+    private int _dropWriteRequestsRemaining;
 
     internal int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;
 
@@ -29,12 +30,25 @@ internal sealed class ModbusTestServer : IAsyncDisposable
         set => Volatile.Write(ref _dropRequestsRemaining, value);
     }
 
+    internal int DropWriteRequestsRemaining
+    {
+        get => Volatile.Read(ref _dropWriteRequestsRemaining);
+        set => Volatile.Write(ref _dropWriteRequestsRemaining, value);
+    }
+
+    internal byte? WriteExceptionCode { get; set; }
+
+    internal ushort? WriteResponseAddressOverride { get; set; }
+
     internal TimeSpan ResponseDelay { get; set; }
 
     internal ConcurrentQueue<ModbusTestRequest> Requests { get; } = new();
 
     internal void SetValue(ModbusRegisterArea area, ushort address, ushort value)
         => _values[GetKey(area, address)] = value;
+
+    internal ushort GetValue(ModbusRegisterArea area, ushort address)
+        => _values.GetValueOrDefault(GetKey(area, address));
 
     internal void Start()
     {
@@ -101,29 +115,63 @@ internal sealed class ModbusTestServer : IAsyncDisposable
                     return;
                 byte[] pdu = new byte[length - 1];
                 await stream.ReadExactlyAsync(pdu, cancellationToken).ConfigureAwait(false);
-                if (pdu.Length != 5)
-                    return;
-
-                var request = new ModbusTestRequest(
-                    pdu[0],
-                    BinaryPrimitives.ReadUInt16BigEndian(pdu.AsSpan(1)),
-                    BinaryPrimitives.ReadUInt16BigEndian(pdu.AsSpan(3)));
+                ModbusTestRequest request = ParseRequest(pdu);
                 Requests.Enqueue(request);
                 Interlocked.Increment(ref _requestCount);
-                if (TryConsumeDropRequest())
+                if (TryConsumeDropRequest()
+                    || (request.FunctionCode is 0x05 or 0x06 or 0x10 && TryConsumeDropWriteRequest()))
                     return;
 
                 if (ResponseDelay > TimeSpan.Zero)
                     await Task.Delay(ResponseDelay, cancellationToken).ConfigureAwait(false);
 
-                byte[] response = BuildResponse(header, request);
+                byte[] response = request.FunctionCode switch
+                {
+                    0x01 or 0x02 or 0x03 or 0x04 => BuildReadResponse(header, request),
+                    0x05 or 0x06 or 0x10 => BuildWriteResponse(header, request),
+                    _ => throw new InvalidOperationException(
+                        $"测试 Modbus server 不支持 function 0x{request.FunctionCode:X2}。"),
+                };
                 await stream.WriteAsync(response, cancellationToken).ConfigureAwait(false);
                 await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
             }
         }
     }
 
-    private byte[] BuildResponse(ReadOnlySpan<byte> requestHeader, ModbusTestRequest request)
+    private static ModbusTestRequest ParseRequest(ReadOnlySpan<byte> pdu)
+    {
+        if (pdu.Length < 5)
+            throw new InvalidDataException("测试 Modbus server 收到的 PDU 太短。");
+        byte functionCode = pdu[0];
+        ushort startAddress = BinaryPrimitives.ReadUInt16BigEndian(pdu[1..]);
+        if (functionCode == 0x10)
+        {
+            ushort count = BinaryPrimitives.ReadUInt16BigEndian(pdu[3..]);
+            int byteCount = pdu[5];
+            if (count == 0 || byteCount != count * sizeof(ushort) || pdu.Length != 6 + byteCount)
+                throw new InvalidDataException("测试 Modbus server 收到的多寄存器写 PDU 无效。");
+            var values = new ushort[count];
+            for (int index = 0; index < values.Length; index++)
+                values[index] = BinaryPrimitives.ReadUInt16BigEndian(pdu[(6 + (index * sizeof(ushort)))..]);
+            return new ModbusTestRequest(functionCode, startAddress, count, values);
+        }
+
+        if (pdu.Length != 5)
+            throw new InvalidDataException("测试 Modbus server 收到的 PDU 长度无效。");
+        ushort thirdField = BinaryPrimitives.ReadUInt16BigEndian(pdu[3..]);
+        return functionCode switch
+        {
+            0x05 => new ModbusTestRequest(
+                functionCode,
+                startAddress,
+                1,
+                [thirdField == 0xFF00 ? (ushort)1 : thirdField == 0 ? (ushort)0 : throw new InvalidDataException("线圈写值无效。")]),
+            0x06 => new ModbusTestRequest(functionCode, startAddress, 1, [thirdField]),
+            _ => new ModbusTestRequest(functionCode, startAddress, thirdField),
+        };
+    }
+
+    private byte[] BuildReadResponse(ReadOnlySpan<byte> requestHeader, ModbusTestRequest request)
     {
         ModbusRegisterArea area = request.FunctionCode switch
         {
@@ -131,7 +179,7 @@ internal sealed class ModbusTestServer : IAsyncDisposable
             0x02 => ModbusRegisterArea.DiscreteInput,
             0x03 => ModbusRegisterArea.HoldingRegister,
             0x04 => ModbusRegisterArea.InputRegister,
-            _ => throw new InvalidOperationException($"测试 Modbus server 不支持 function 0x{request.FunctionCode:X2}。"),
+            _ => throw new InvalidOperationException($"测试 Modbus server 不支持读 function 0x{request.FunctionCode:X2}。"),
         };
         int byteCount = area is ModbusRegisterArea.Coil or ModbusRegisterArea.DiscreteInput
             ? (request.Count + 7) / 8
@@ -163,8 +211,45 @@ internal sealed class ModbusTestServer : IAsyncDisposable
         return response;
     }
 
-    private ushort GetValue(ModbusRegisterArea area, ushort address)
-        => _values.GetValueOrDefault(GetKey(area, address));
+    private byte[] BuildWriteResponse(ReadOnlySpan<byte> requestHeader, ModbusTestRequest request)
+    {
+        if (WriteExceptionCode is { } exceptionCode)
+        {
+            byte[] exception = new byte[9];
+            requestHeader[..4].CopyTo(exception);
+            BinaryPrimitives.WriteUInt16BigEndian(exception.AsSpan(4), 3);
+            exception[6] = requestHeader[6];
+            exception[7] = (byte)(request.FunctionCode | 0x80);
+            exception[8] = exceptionCode;
+            return exception;
+        }
+
+        IReadOnlyList<ushort> values = request.Values
+            ?? throw new InvalidDataException("测试 Modbus 写请求缺少值。");
+        ModbusRegisterArea area = request.FunctionCode == 0x05
+            ? ModbusRegisterArea.Coil
+            : ModbusRegisterArea.HoldingRegister;
+        for (int index = 0; index < values.Count; index++)
+            SetValue(area, checked((ushort)(request.StartAddress + index)), values[index]);
+
+        byte[] response = new byte[12];
+        requestHeader[..4].CopyTo(response);
+        BinaryPrimitives.WriteUInt16BigEndian(response.AsSpan(4), 6);
+        response[6] = requestHeader[6];
+        response[7] = request.FunctionCode;
+        BinaryPrimitives.WriteUInt16BigEndian(
+            response.AsSpan(8),
+            WriteResponseAddressOverride ?? request.StartAddress);
+        ushort echoed = request.FunctionCode switch
+        {
+            0x05 => values[0] == 0 ? (ushort)0 : (ushort)0xFF00,
+            0x06 => values[0],
+            0x10 => request.Count,
+            _ => throw new InvalidOperationException("未知写功能码。"),
+        };
+        BinaryPrimitives.WriteUInt16BigEndian(response.AsSpan(10), echoed);
+        return response;
+    }
 
     private bool TryConsumeDropRequest()
     {
@@ -178,6 +263,18 @@ internal sealed class ModbusTestServer : IAsyncDisposable
         }
     }
 
+    private bool TryConsumeDropWriteRequest()
+    {
+        while (true)
+        {
+            int remaining = Volatile.Read(ref _dropWriteRequestsRemaining);
+            if (remaining <= 0)
+                return false;
+            if (Interlocked.CompareExchange(ref _dropWriteRequestsRemaining, remaining - 1, remaining) == remaining)
+                return true;
+        }
+    }
+
     private static int GetKey(ModbusRegisterArea area, ushort address)
         => ((int)area << 16) | address;
 }
@@ -185,4 +282,5 @@ internal sealed class ModbusTestServer : IAsyncDisposable
 internal readonly record struct ModbusTestRequest(
     byte FunctionCode,
     ushort StartAddress,
-    ushort Count);
+    ushort Count,
+    IReadOnlyList<ushort>? Values = null);

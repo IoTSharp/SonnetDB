@@ -89,3 +89,37 @@ public sealed record DescribeModbusEndpointStatement(string Name) : SqlStatement
 /// <summary><c>DESCRIBE MODBUS TABLE name</c>：描述指定表的 Modbus 映射。</summary>
 /// <param name="Name">关系表名称。</param>
 public sealed record DescribeModbusTableStatement(string Name) : SqlStatement;
+
+/// <summary>
+/// 受限 Modbus source 写入的执行阶段。
+/// </summary>
+public enum ModbusWriteMode
+{
+    /// <summary>只执行目录、当前行与编码校验，不签发确认令牌。</summary>
+    DryRun = 0,
+
+    /// <summary>执行完整预览并签发一次性确认令牌。</summary>
+    Preview = 1,
+
+    /// <summary>消费一次性确认令牌并执行远端写入。</summary>
+    Confirm = 2,
+}
+
+/// <summary>
+/// <c>WRITE MODBUS table SET column = value DRY RUN|PREVIEW|CONFIRM token</c>：
+/// 对单个 LATEST source 映射列执行受治理的远端写入。
+/// </summary>
+/// <param name="TableName">唯一目标关系表。</param>
+/// <param name="ColumnName">唯一目标 Modbus 映射列。</param>
+/// <param name="Value">待编码的逻辑值表达式；执行前必须绑定为字面量。</param>
+/// <param name="Mode">dry-run、preview 或确认执行阶段。</param>
+/// <param name="ConfirmationToken">确认阶段的一次性令牌表达式；其他阶段为 <c>null</c>。</param>
+public sealed record WriteModbusStatement(
+    string TableName,
+    string ColumnName,
+    SqlExpression Value,
+    ModbusWriteMode Mode,
+    SqlExpression? ConfirmationToken = null) : SqlStatement;
+
+/// <summary><c>SHOW MODBUS WRITE AUDIT</c>：列出持久化的受限远端写审计。</summary>
+public sealed record ShowModbusWriteAuditStatement : SqlStatement;

@@ -54,7 +54,7 @@
 2. 恢复 M20 Parity nightly 的有效报告，并补齐 M19/M25 目标硬件容量证据。
 3. 完成 M27 的真实 provider/Agent 接线、双网客户端 Copilot、工业 Demo 和 eval，消除历史虚标。
 4. 收口 M29 Studio 安装包/宿主生命周期实机验收。
-5. M34 的默认关闭 TCP master runtime 已完成，下一步进入 #292 的受限远端写、preview/确认、权限和审计；M35 在过滤 ANN 与内容生命周期地基完成后再做媒体场景。
+5. M34 的默认关闭 TCP master runtime 与 #292 受限远端写已完成，下一步进入 #293 的质量位、错误策略和 source health 完整合同；M35 在过滤 ANN 与内容生命周期地基完成后再做媒体场景。
 6. M36 先完成八模型 golden journey 与 gap catalog；实现顺序为高频客户端工作流 -> 查询诊断 -> 高级治理，Document 复用已完成的 M32 结果，向量高级项复用 M35 地基。
 7. M39 先执行 #333 触发器 V2 证据门禁；未证明 V1 在真实 journey 上存在缺口前，不直接扩展 BEFORE、statement-level 或多模型触发器。
 8. M40 先完成 #341 的 workload/合同证据和 #342~#346 公共存储地基，再进入原生 Graph Preview；Phase 2 的关系映射规划和流式执行必须复用 M41 的公共计划/算子合同，不得另建一套关系优化器。正式产品定位在 M40 发布门禁通过前继续保持“八种数据模型，一套引擎”。
@@ -159,7 +159,7 @@ mixed Bulk 已统一 Core、HTTP、.NET SDK 与 Web/Studio 的 ordered/unordered
 
 SonnetDB 同时支持两个明确角色：主站/client 主动轮询外部 PLC/RTU 并写入表；从站/server 暴露受控寄存器映射供外部主站读取或 staged 写入。协议运行时默认关闭，普通 `SELECT` 只读已采集状态，不同步阻塞访问 PLC。
 
-Phase A 已完成本地合同与持久化地基：DDL、Parser/AST、独立版本化 catalog、`SHOW/DESCRIBE MODBUS`、四类地址空间校验和严格值编解码均已落地。#291 已新增必须由服务端全局配置显式开启的 TCP master 后台轮询；catalog `ENABLED` 仍不能绕过全局门禁，远端写入和从站监听继续保持未实现。
+Phase A 已完成本地合同与持久化地基：DDL、Parser/AST、独立版本化 catalog、`SHOW/DESCRIBE MODBUS`、四类地址空间校验和严格值编解码均已落地。#291 已新增必须由服务端全局配置显式开启的 TCP master 后台轮询；#292 已新增仅限 Server REST SQL 的 dry-run、五分钟一次性 preview/confirm、数据库 Admin 控制权限、标准 `0x05/0x06/0x10` 写入、source 级互斥和持久审计。catalog `ENABLED` 仍不能绕过全局门禁；从站监听继续保持未实现。
 
 | PR | 交付 | 状态 |
 |---|---|---|
@@ -167,7 +167,7 @@ Phase A 已完成本地合同与持久化地基：DDL、Parser/AST、独立版�
 | #289 | Parser/AST/catalog、版本兼容和 `SHOW/DESCRIBE MODBUS` 元数据。 | ✅ |
 | #290 | 地址冲突校验及 BIT、整数、浮点、BCD、STRING 的 Span/BinaryPrimitives 编解码。 | ✅ |
 | #291 | 默认关闭的 TCP master runtime、批量读取、轮询、取消、退避、超时、重连和指标。 | ✅ |
-| #292 | 受限 SQL 写寄存器、preview/dry-run、权限和审计；远端失败不得伪造本地成功。 | 📋 |
+| #292 | 受限 SQL 写寄存器、preview/dry-run、权限和审计；远端失败不得伪造本地成功。 | ✅ |
 | #293 | 质量位、错误码、source health、latest/history 与 KEEP_LAST/NULL/SKIP/MARK_BAD 策略。 | 📋 |
 | #294 | 默认关闭的 TCP slave endpoint、读请求、绑定/白名单/unit id/最大连接数。 | 📋 |
 | #295 | 外部写入的 REJECT/STAGED/UPDATE_TABLE 策略、待确认队列和审计；默认 STAGED。 | 📋 |

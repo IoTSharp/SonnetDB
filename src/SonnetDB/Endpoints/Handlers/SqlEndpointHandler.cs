@@ -1,4 +1,6 @@
 ﻿using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,6 +12,7 @@ using SonnetDB.Engine;
 using SonnetDB.Exceptions;
 using SonnetDB.Hosting;
 using SonnetDB.Json;
+using SonnetDB.Modbus;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
@@ -197,6 +200,7 @@ internal static class SqlEndpointHandler
         IControlPlane? controlPlane)
     {
         var diagnostics = context.RequestServices.GetService<SlowQueryDiagnostics>();
+        ModbusWriteService? modbusWriteService = null;
         context.Response.StatusCode = StatusCodes.Status200OK;
         context.Response.ContentType = "application/x-ndjson; charset=utf-8";
         var writerOptions = new JsonWriterOptions { Indented = false, SkipValidation = false };
@@ -205,6 +209,7 @@ internal static class SqlEndpointHandler
         for (int s = 0; s < statements.Count; s++)
         {
             var stmt = statements[s];
+            string diagnosticsSql = RedactSqlForDiagnostics(stmt.Sql);
             metrics.RecordSqlRequest();
             var sw = Stopwatch.StartNew();
 
@@ -216,7 +221,7 @@ internal static class SqlEndpointHandler
             catch (Exception ex)
             {
                 metrics.RecordSqlError();
-                RecordSlow(diagnostics, databaseName, stmt.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                RecordSlow(diagnostics, databaseName, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
                 await WriteErrorAsync(context, "sql_error", ex.Message).ConfigureAwait(false);
                 return;
             }
@@ -233,7 +238,7 @@ internal static class SqlEndpointHandler
                 out var authorizationError))
             {
                 metrics.RecordSqlError();
-                RecordSlow(diagnostics, diagnosticsDatabase, stmt.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
                 await WriteErrorAsync(context, "forbidden", authorizationError).ConfigureAwait(false);
                 return;
             }
@@ -241,7 +246,7 @@ internal static class SqlEndpointHandler
             if (!IsControlPlaneStatement(parsed) && RequiresWritePermission(parsed) && !canWrite)
             {
                 metrics.RecordSqlError();
-                RecordSlow(diagnostics, diagnosticsDatabase, stmt.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
                 await WriteErrorAsync(context, "forbidden", "当前凭据对该数据库没有写权限。").ConfigureAwait(false);
                 return;
             }
@@ -253,20 +258,42 @@ internal static class SqlEndpointHandler
 
                 if (executable is BeginTransactionStatement && transaction is not null && !transaction.IsCompleted)
                     throw new InvalidOperationException("当前已有活动轻事务，不能嵌套 BEGIN。");
+                if (executable is WriteModbusStatement && transaction is not null && !transaction.IsCompleted)
+                {
+                    throw new InvalidOperationException(
+                        "WRITE MODBUS 不能在活动轻事务内执行；远端设备写入不属于本地关系表事务。");
+                }
 
-                object? result = SqlExecutor.ExecuteStatement(
-                    tsdb,
-                    databaseName,
-                    executable,
-                    controlPlane,
-                    transaction,
-                    new SqlExecutionOptions
-                    {
-                        CancellationToken = context.RequestAborted,
-                        Caller = ResolveRoutineCaller(context, isServerAdmin),
-                        CanWrite = canWrite,
-                        CanAdminister = canAdministerDatabase,
-                    });
+                string caller = ResolveRoutineCaller(context, isServerAdmin);
+                object? result = executable switch
+                {
+                    WriteModbusStatement writeModbus => await GetModbusWriteService(
+                        context,
+                        ref modbusWriteService).ExecuteAsync(
+                        tsdb,
+                        databaseName,
+                        writeModbus,
+                        ResolveModbusWritePrincipal(context, caller),
+                        canWrite,
+                        canAdministerDatabase,
+                        context.RequestAborted).ConfigureAwait(false),
+                    ShowModbusWriteAuditStatement => GetModbusWriteService(
+                        context,
+                        ref modbusWriteService).ShowAudit(databaseName),
+                    _ => SqlExecutor.ExecuteStatement(
+                        tsdb,
+                        databaseName,
+                        executable,
+                        controlPlane,
+                        transaction,
+                        new SqlExecutionOptions
+                        {
+                            CancellationToken = context.RequestAborted,
+                            Caller = caller,
+                            CanWrite = canWrite,
+                            CanAdminister = canAdministerDatabase,
+                        }),
+                };
                 if (result is SqlTransactionContext started)
                     transaction = started;
                 else if (executable is CommitTransactionStatement or RollbackTransactionStatement)
@@ -280,7 +307,7 @@ internal static class SqlEndpointHandler
                             metrics.AddReturnedRows(rowCount);
                             var elapsed = sw.Elapsed.TotalMilliseconds;
                             await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: -1, elapsed).ConfigureAwait(false);
-                            RecordSlow(diagnostics, diagnosticsDatabase, stmt.Sql, elapsed, rowCount, -1, failed: false);
+                            RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, rowCount, -1, failed: false);
                             break;
                         }
                     case InsertExecutionResult ins:
@@ -288,7 +315,7 @@ internal static class SqlEndpointHandler
                             if (!canWrite)
                             {
                                 metrics.RecordSqlError();
-                                RecordSlow(diagnostics, diagnosticsDatabase, stmt.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
                                 await WriteErrorAsync(context, "forbidden", "INSERT 需要 readwrite 或 admin 角色。").ConfigureAwait(false);
                                 return;
                             }
@@ -301,7 +328,7 @@ internal static class SqlEndpointHandler
                             }
                             var elapsed = sw.Elapsed.TotalMilliseconds;
                             await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: ins.RowsInserted, elapsed).ConfigureAwait(false);
-                            RecordSlow(diagnostics, diagnosticsDatabase, stmt.Sql, elapsed, rowCount, ins.RowsInserted, failed: false);
+                            RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, rowCount, ins.RowsInserted, failed: false);
                             break;
                         }
                     case DeleteExecutionResult del:
@@ -309,13 +336,13 @@ internal static class SqlEndpointHandler
                             if (!canWrite)
                             {
                                 metrics.RecordSqlError();
-                                RecordSlow(diagnostics, diagnosticsDatabase, stmt.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
                                 await WriteErrorAsync(context, "forbidden", "DELETE 需要 readwrite 或 admin 角色。").ConfigureAwait(false);
                                 return;
                             }
                             var elapsed = sw.Elapsed.TotalMilliseconds;
                             await WriteEndAsync(context, writerOptions, rowCount: 0, recordsAffected: del.TombstonesAdded, elapsed).ConfigureAwait(false);
-                            RecordSlow(diagnostics, diagnosticsDatabase, stmt.Sql, elapsed, 0, del.TombstonesAdded, failed: false);
+                            RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, 0, del.TombstonesAdded, failed: false);
                             break;
                         }
                     case RowsAffectedExecutionResult affected:
@@ -323,13 +350,13 @@ internal static class SqlEndpointHandler
                             if (!canWrite)
                             {
                                 metrics.RecordSqlError();
-                                RecordSlow(diagnostics, diagnosticsDatabase, stmt.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
                                 await WriteErrorAsync(context, "forbidden", "该语句需要 readwrite 或 admin 角色。").ConfigureAwait(false);
                                 return;
                             }
                             var elapsed = sw.Elapsed.TotalMilliseconds;
                             await WriteEndAsync(context, writerOptions, rowCount: 0, recordsAffected: affected.RowsAffected, elapsed).ConfigureAwait(false);
-                            RecordSlow(diagnostics, diagnosticsDatabase, stmt.Sql, elapsed, 0, affected.RowsAffected, failed: false);
+                            RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, 0, affected.RowsAffected, failed: false);
                             break;
                         }
                     default:
@@ -339,13 +366,13 @@ internal static class SqlEndpointHandler
                             if (!IsControlPlaneStatement(executable) && !canWrite)
                             {
                                 metrics.RecordSqlError();
-                                RecordSlow(diagnostics, diagnosticsDatabase, stmt.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
                                 await WriteErrorAsync(context, "forbidden", "DDL 需要 readwrite 或 admin 角色。").ConfigureAwait(false);
                                 return;
                             }
                             var elapsed = sw.Elapsed.TotalMilliseconds;
                             await WriteEndAsync(context, writerOptions, rowCount: 0, recordsAffected: 0, elapsed).ConfigureAwait(false);
-                            RecordSlow(diagnostics, diagnosticsDatabase, stmt.Sql, elapsed, 0, 0, failed: false);
+                            RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, 0, 0, failed: false);
                             break;
                         }
                 }
@@ -353,28 +380,35 @@ internal static class SqlEndpointHandler
             catch (ControlPlaneAccessDeniedException ex)
             {
                 metrics.RecordSqlError();
-                RecordSlow(diagnostics, diagnosticsDatabase, stmt.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
                 await WriteErrorAsync(context, "forbidden", ex.Message).ConfigureAwait(false);
                 return;
             }
             catch (TableConstraintException ex)
             {
                 metrics.RecordSqlError();
-                RecordSlow(diagnostics, diagnosticsDatabase, stmt.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
                 await WriteErrorAsync(context, ex.ErrorCode, ex.Message).ConfigureAwait(false);
                 return;
             }
             catch (RoutineExecutionException ex)
             {
                 metrics.RecordSqlError();
-                RecordSlow(diagnostics, diagnosticsDatabase, stmt.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                await WriteErrorAsync(context, ex.Code, ex.Message).ConfigureAwait(false);
+                return;
+            }
+            catch (ModbusWriteException ex)
+            {
+                metrics.RecordSqlError();
+                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
                 await WriteErrorAsync(context, ex.Code, ex.Message).ConfigureAwait(false);
                 return;
             }
             catch (Exception ex)
             {
                 metrics.RecordSqlError();
-                RecordSlow(diagnostics, diagnosticsDatabase, stmt.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
                 await WriteErrorAsync(context, "sql_error", ex.Message).ConfigureAwait(false);
                 return;
             }
@@ -465,6 +499,9 @@ internal static class SqlEndpointHandler
                 "forbidden" or RoutineErrorCodes.Forbidden => StatusCodes.Status403Forbidden,
                 "db_not_found" => StatusCodes.Status404NotFound,
                 "unauthorized" => StatusCodes.Status401Unauthorized,
+                "modbus_write_audit_unavailable" => StatusCodes.Status503ServiceUnavailable,
+                "modbus_write_timeout" => StatusCodes.Status504GatewayTimeout,
+                "modbus_write_connection_error" => StatusCodes.Status502BadGateway,
                 _ => StatusCodes.Status400BadRequest,
             };
             context.Response.ContentType = "application/json; charset=utf-8";
@@ -495,7 +532,7 @@ internal static class SqlEndpointHandler
     {
         if (IsAdminOnlyModbusStatement(statement) && !canAdministerDatabase)
         {
-            errorMessage = "Modbus source、endpoint 及表映射 DDL 需要当前数据库的 Admin 权限。";
+            errorMessage = "Modbus 基础设施定义、远端控制写和写审计需要当前数据库的 Admin 权限。";
             return false;
         }
 
@@ -544,7 +581,9 @@ internal static class SqlEndpointHandler
     private static bool IsAdminOnlyModbusStatement(SqlStatement statement) => statement is
         CreateModbusSourceStatement or
         CreateModbusEndpointStatement or
-        CreateTableStatement { ModbusBinding: not null };
+        CreateTableStatement { ModbusBinding: not null } or
+        WriteModbusStatement or
+        ShowModbusWriteAuditStatement;
 
     /// <summary>
     /// 判别是否为需要数据库写权限的数据面语句。
@@ -564,6 +603,7 @@ internal static class SqlEndpointHandler
         ShowFullTextIndexesStatement or
         ShowModbusSourcesStatement or
         ShowModbusEndpointsStatement or
+        ShowModbusWriteAuditStatement or
         DescribeMeasurementStatement or
         DescribeTableStatement or
         DescribeViewStatement or
@@ -582,6 +622,50 @@ internal static class SqlEndpointHandler
         if (BearerAuthMiddleware.GetUser(context) is { } user)
             return user.UserName;
         return isAdmin ? "admin" : "remote";
+    }
+
+    private static string ResolveModbusWritePrincipal(HttpContext context, string caller)
+    {
+        if (BearerAuthMiddleware.GetUser(context) is not null)
+            return caller;
+
+        string authorization = context.Request.Headers.Authorization.ToString();
+        byte[] digest = SHA256.HashData(Encoding.UTF8.GetBytes(authorization));
+        return "credential:" + Convert.ToHexString(digest.AsSpan(0, 16));
+    }
+
+    internal static string RedactSqlForDiagnostics(string sql)
+    {
+        int writeIndex = sql.IndexOf("WRITE", StringComparison.OrdinalIgnoreCase);
+        if (writeIndex >= 0
+            && sql.AsSpan(writeIndex + "WRITE".Length)
+                .IndexOf("MODBUS", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return "WRITE MODBUS <redacted>";
+        }
+
+        return sql;
+    }
+
+    private static ModbusWriteService GetModbusWriteService(
+        HttpContext context,
+        ref ModbusWriteService? service)
+    {
+        if (service is not null)
+            return service;
+
+        try
+        {
+            service = context.RequestServices.GetRequiredService<ModbusWriteService>();
+            return service;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            throw new ModbusWriteException(
+                "modbus_write_audit_unavailable",
+                "Modbus 写审计无法加载；操作已失败关闭。",
+                exception);
+        }
     }
 
     internal static void RecordSlow(

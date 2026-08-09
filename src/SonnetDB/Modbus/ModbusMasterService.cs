@@ -13,6 +13,7 @@ internal sealed class ModbusMasterService : BackgroundService
 {
     private readonly TsdbRegistry _registry;
     private readonly ServerMetrics _metrics;
+    private readonly ModbusSourceOperationCoordinator _operationCoordinator;
     private readonly ModbusRuntimeOptions _options;
     private readonly ILogger<ModbusMasterService> _logger;
     private readonly Dictionary<SourceKey, SourceWorker> _workers = [];
@@ -20,11 +21,13 @@ internal sealed class ModbusMasterService : BackgroundService
     public ModbusMasterService(
         TsdbRegistry registry,
         ServerMetrics metrics,
+        ModbusSourceOperationCoordinator operationCoordinator,
         IOptions<ServerOptions> options,
         ILogger<ModbusMasterService> logger)
     {
         _registry = registry;
         _metrics = metrics;
+        _operationCoordinator = operationCoordinator;
         _options = options.Value.Modbus;
         _logger = logger;
     }
@@ -162,26 +165,33 @@ internal sealed class ModbusMasterService : BackgroundService
                 long started = Stopwatch.GetTimestamp();
                 try
                 {
-                    ModbusReadSnapshot snapshot = await ReadWithRetriesAsync(
-                        client,
-                        source,
-                        batches,
-                        cancellationToken).ConfigureAwait(false);
-                    DateTimeOffset sampledAt = NextSampleTime(ref lastSampleUnixMilliseconds);
-                    int rowsWritten = ModbusTableWriter.WriteSuccessfulSample(
-                        database,
-                        bindings,
-                        snapshot,
-                        sampledAt);
-                    lastSuccess = sampledAt;
-                    reconnectDelay = _options.ReconnectBaseDelayMilliseconds;
-                    TryReportStatus(database, source.Name, new ModbusSourceRuntimeStatus(
-                        RuntimeEnabled: true,
-                        ModbusSourceRuntimeHealth.Healthy,
-                        lastSuccess));
-                    double elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-                    _metrics.RecordModbusPoll(succeeded: true, rowsWritten);
-                    ModbusMasterDiagnostics.RecordPoll(succeeded: true, elapsed, rowsWritten);
+                    await using (ModbusSourceOperationCoordinator.Lease operationLease =
+                                 await _operationCoordinator.AcquireAsync(
+                                     databaseName,
+                                     source.Name,
+                                     cancellationToken).ConfigureAwait(false))
+                    {
+                        ModbusReadSnapshot snapshot = await ReadWithRetriesAsync(
+                            client,
+                            source,
+                            batches,
+                            cancellationToken).ConfigureAwait(false);
+                        DateTimeOffset sampledAt = NextSampleTime(ref lastSampleUnixMilliseconds);
+                        int rowsWritten = ModbusTableWriter.WriteSuccessfulSample(
+                            database,
+                            bindings,
+                            snapshot,
+                            sampledAt);
+                        lastSuccess = sampledAt;
+                        reconnectDelay = _options.ReconnectBaseDelayMilliseconds;
+                        TryReportStatus(database, source.Name, new ModbusSourceRuntimeStatus(
+                            RuntimeEnabled: true,
+                            ModbusSourceRuntimeHealth.Healthy,
+                            lastSuccess));
+                        double elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                        _metrics.RecordModbusPoll(succeeded: true, rowsWritten);
+                        ModbusMasterDiagnostics.RecordPoll(succeeded: true, elapsed, rowsWritten);
+                    }
                     await Task.Delay(source.PollIntervalMilliseconds, cancellationToken).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

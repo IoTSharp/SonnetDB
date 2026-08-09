@@ -4,6 +4,7 @@ using SonnetDB.Contracts;
 using SonnetDB.Copilot;
 using SonnetDB.Mcp;
 using SonnetDB.Model;
+using SonnetDB.Modbus;
 using SonnetDB.SemanticSearch;
 
 namespace SonnetDB.Json;
@@ -24,6 +25,7 @@ namespace SonnetDB.Json;
 [JsonSerializable(typeof(ErrorResponse))]
 [JsonSerializable(typeof(ResultMeta))]
 [JsonSerializable(typeof(ResultEnd))]
+[JsonSerializable(typeof(ModbusWriteAuditEntry))]
 [JsonSerializable(typeof(GeoPoint))]
 [JsonSerializable(typeof(CreateDatabaseRequest))]
 [JsonSerializable(typeof(DatabaseOperationResponse))]

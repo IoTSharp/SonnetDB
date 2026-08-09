@@ -548,13 +548,58 @@ public sealed class ModbusSqlExecutorTests : IDisposable
             USING MODBUS SOURCE offline_source
             WITH (TABLE_MODE LATEST, ON_ERROR KEEP_LAST)
             """);
-        _ = SqlExecutor.Execute(database, "INSERT INTO local_shadow (id, value) VALUES (1, 42)");
 
         var selected = ExecuteSelect(database, "SELECT id, value FROM local_shadow WHERE id = 1");
-        IReadOnlyList<object?> row = Assert.Single(selected.Rows);
-        Assert.Equal(1L, row[0]);
-        Assert.Equal(42L, row[1]);
+        Assert.Empty(selected.Rows);
         Assert.False(Assert.IsType<bool>(ExecuteSelect(database, "SHOW MODBUS SOURCES").Rows[0][10]));
+    }
+
+    /// <summary>
+    /// 验证普通 INSERT（包括省略映射列）和 UPDATE 都不能伪造 source 映射值。
+    /// </summary>
+    [Fact]
+    public void Execute_DirectDmlAgainstSourceMappedState_RejectsLocalWriteBypass()
+    {
+        using var database = OpenDatabase();
+        CreateSource(database, "guarded_source");
+        _ = SqlExecutor.Execute(database, """
+            CREATE TABLE guarded_values (
+                id INT NOT NULL,
+                note STRING NULL,
+                value INT NULL FROM MODBUS HOLDING_REGISTER(40001) AS UINT16 ACCESS READ_WRITE,
+                PRIMARY KEY (id)
+            )
+            USING MODBUS SOURCE guarded_source
+            WITH (TABLE_MODE LATEST, ON_ERROR KEEP_LAST)
+            """);
+
+        string[] deniedSql =
+        [
+            "INSERT INTO guarded_values (id, value) VALUES (1, 42)",
+            "INSERT INTO guarded_values (id, note) VALUES (1, 'local-only')",
+            "UPDATE guarded_values SET value = 42 WHERE id = 1",
+            "IMPORT JSON 'does-not-exist.json' INTO guarded_values",
+        ];
+        foreach (string sql in deniedSql)
+        {
+            InvalidOperationException error = Assert.Throws<InvalidOperationException>(() =>
+                SqlExecutor.Execute(database, sql));
+            Assert.Contains("WRITE MODBUS", error.Message, StringComparison.Ordinal);
+        }
+
+        Assert.Empty(database.Tables.Open("guarded_values").Scan());
+    }
+
+    /// <summary>验证嵌入式执行器不会绕过 Server 的令牌、审计和网络边界。</summary>
+    [Fact]
+    public void Execute_ModbusRuntimeStatementsEmbedded_RejectsWithoutSideEffects()
+    {
+        using var database = OpenDatabase();
+
+        Assert.Throws<NotSupportedException>(() =>
+            SqlExecutor.Execute(database, "WRITE MODBUS controls SET value = 1 DRY RUN"));
+        Assert.Throws<NotSupportedException>(() =>
+            SqlExecutor.Execute(database, "SHOW MODBUS WRITE AUDIT"));
     }
 
     /// <summary>

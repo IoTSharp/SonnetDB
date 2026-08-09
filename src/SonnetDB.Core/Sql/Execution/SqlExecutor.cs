@@ -3,6 +3,7 @@ using SonnetDB.Catalog;
 using SonnetDB.Diagnostics;
 using SonnetDB.Engine;
 using SonnetDB.Model;
+using SonnetDB.Modbus;
 using SonnetDB.Routines;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Storage.Format;
@@ -303,6 +304,7 @@ public static class SqlExecutor
         using var transactionScope = SqlTransactionContext.EnterScope(transaction);
         // UDF 解析必须覆盖 DML 的绑定与求值阶段，不能只在 SELECT 分发器内建立作用域。
         using var functionScope = SonnetDB.Query.Functions.UserFunctionRegistry.EnterScope(tsdb.Functions);
+        RejectDirectModbusSourceWrites(tsdb, statement);
 
         return statement switch
         {
@@ -315,6 +317,8 @@ public static class SqlExecutor
                 ModbusSqlExecutor.ExecuteCreateSource(tsdb, createModbusSource),
             CreateModbusEndpointStatement createModbusEndpoint =>
                 ModbusSqlExecutor.ExecuteCreateEndpoint(tsdb, createModbusEndpoint),
+            WriteModbusStatement => throw new NotSupportedException(
+                "WRITE MODBUS 只能通过具备确认令牌、持久审计和网络运行时的 Server REST SQL 端点执行。"),
             CreateMeasurementStatement create => ExecuteCreateMeasurement(tsdb, create),
             CreateTableStatement createTable => TableSqlExecutor.ExecuteCreateTable(tsdb, createTable),
             CreateDocumentCollectionStatement createDocumentCollection => DocumentSqlExecutor.ExecuteCreateCollection(tsdb, createDocumentCollection),
@@ -379,6 +383,8 @@ public static class SqlExecutor
             ShowFullTextIndexesStatement showFullTextIndexes => DocumentSqlExecutor.ShowFullTextIndexes(tsdb, showFullTextIndexes.CollectionName),
             ShowModbusSourcesStatement => ModbusSqlExecutor.ShowSources(tsdb.Modbus),
             ShowModbusEndpointsStatement => ModbusSqlExecutor.ShowEndpoints(tsdb.Modbus.Catalog),
+            ShowModbusWriteAuditStatement => throw new NotSupportedException(
+                "SHOW MODBUS WRITE AUDIT 只能通过持有服务端审计存储的 Server REST SQL 端点执行。"),
             DescribeMeasurementStatement describe => DescribeMeasurement(tsdb, describe.Name),
             DescribeTableStatement describeTable => TableSqlExecutor.DescribeTable(tsdb, describeTable.Name),
             DescribeViewStatement describeView => DescribeView(tsdb, describeView.Name),
@@ -426,6 +432,45 @@ public static class SqlExecutor
         => RoutineExecutionContext.Current?.CheckCancellation();
 
     /// <summary>
+    /// 拒绝普通关系表 DML 直接改写 source 映射列；这些列只能由轮询或受治理的 WRITE MODBUS 更新。
+    /// </summary>
+    private static void RejectDirectModbusSourceWrites(Tsdb tsdb, SqlStatement statement)
+    {
+        string? tableName = statement switch
+        {
+            InsertStatement insert => insert.Measurement,
+            UpdateStatement update => update.TableName,
+            ImportJsonStatement importJson => importJson.TargetName,
+            _ => null,
+        };
+        if (tableName is null)
+            return;
+
+        ModbusTableBinding? binding = tsdb.Modbus.Catalog.TryGetBinding(tableName);
+        if (binding is not { Direction: ModbusMappingDirection.SourceToTable })
+            return;
+
+        HashSet<string> mappedColumns = binding.Columns
+            .Select(static mapping => mapping.ColumnName)
+            .ToHashSet(StringComparer.Ordinal);
+        bool writesMappedColumn = statement switch
+        {
+            // Source 表的逻辑行由采集 runtime 创建。即使 INSERT 省略映射列，
+            // DEFAULT/NULL 也会形成一个伪造的本地设备影子，因此整条 INSERT 都拒绝。
+            InsertStatement => true,
+            UpdateStatement update => update.Assignments.Any(assignment => mappedColumns.Contains(assignment.ColumnName)),
+            ImportJsonStatement => true,
+            _ => false,
+        };
+        if (writesMappedColumn)
+        {
+            throw new InvalidOperationException(
+                $"table '{tableName}' 的 FROM MODBUS 当前行或映射列不能通过普通 INSERT/UPDATE/IMPORT JSON 改写；"
+                + "控制写必须使用 WRITE MODBUS ... PREVIEW/CONFIRM，采集写入由后台 runtime 完成。");
+        }
+    }
+
+    /// <summary>
     /// 创建可能在后续版本连接外部设备或监听端口的 Modbus 定义时，强制要求当前数据库的 Admin 权限。
     /// </summary>
     private static void EnsureModbusAdministrationAllowed(
@@ -436,12 +481,14 @@ public static class SqlExecutor
             return;
         if (statement is not CreateModbusSourceStatement
             and not CreateModbusEndpointStatement
-            and not CreateTableStatement { ModbusBinding: not null })
+            and not CreateTableStatement { ModbusBinding: not null }
+            and not WriteModbusStatement
+            and not ShowModbusWriteAuditStatement)
         {
             return;
         }
 
-        throw new InvalidOperationException("Modbus source、endpoint 及表映射 DDL 需要当前数据库的 Admin 权限。");
+        throw new InvalidOperationException("Modbus 基础设施定义、远端控制写和写审计需要当前数据库的 Admin 权限。");
     }
 
     // 轻事务只缓冲关系表 DML；schema、控制面和文件导入必须在进入执行分支前拒绝。
@@ -456,6 +503,12 @@ public static class SqlExecutor
         {
             throw new NotSupportedException(
                 "IMPORT JSON 不能在活动轻事务内执行；文件导入不会进入事务缓冲。请在事务外执行。");
+        }
+
+        if (statement is WriteModbusStatement)
+        {
+            throw new NotSupportedException(
+                "WRITE MODBUS 不能在活动轻事务内执行；远端设备写入不属于本地关系表事务。请在事务外执行。");
         }
 
         if (!IsDdlStatement(statement))

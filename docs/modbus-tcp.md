@@ -6,9 +6,9 @@ description: "Milestone 34 的 SQL DDL、TCP master 轮询、地址归一化、�
 
 # Modbus TCP 内建映射表合同
 
-本文记录 Milestone 34（#288～#291）已经落地的 SQL、安全、catalog、地址校验、编解码与 TCP master 轮询合同，也是后续远端写、slave endpoint、管理面和 parity 测试的共同输入。
+本文记录 Milestone 34（#288～#292）已经落地的 SQL、安全、catalog、地址校验、编解码、TCP master 轮询与受限远端写合同，也是后续 slave endpoint、管理面和 parity 测试的共同输入。
 
-> 当前状态：Phase A 的 DDL、Parser/AST、独立版本化 catalog、`SHOW/DESCRIBE MODBUS`、地址冲突校验和类型编解码已经可用；#291 的默认关闭 TCP client/master 轮询已经接入 Server。远端写寄存器、TCP server/slave 监听、外部写 staging/审批、完整质量诊断和管理界面仍属于 #292～#296。
+> 当前状态：Phase A 的 DDL、Parser/AST、独立版本化 catalog、`SHOW/DESCRIBE MODBUS`、地址冲突校验和类型编解码已经可用；#291 的默认关闭 TCP client/master 轮询与 #292 的受限 Source 写已经接入 Server。TCP server/slave 监听、外部写 staging/审批、完整质量诊断和管理界面仍属于 #293～#296。
 
 ## 角色与方向
 
@@ -21,7 +21,7 @@ SonnetDB 只定义两个互不混淆的 Modbus TCP 角色：
 
 `SOURCE` 和 `ENDPOINT` 的上下文已经决定角色。第一版 DDL 不再接受冗余的 `ROLE MASTER` 或 `ROLE SLAVE`，也不允许用同一个对象同时承担两个方向。
 
-Modbus runtime 全局默认关闭。创建 source、endpoint 或映射表只持久化 catalog；只有同时设置 `SonnetDBServer:Modbus:Enabled=true` 且 source 声明 `ENABLED TRUE` 时，#291 master worker 才会连接和轮询。DDL 不能绕过该全局门禁；endpoint 监听仍等待 #294。
+Modbus runtime 全局默认关闭。创建 source、endpoint 或映射表只持久化 catalog；只有同时设置 `SonnetDBServer:Modbus:Enabled=true` 且 source 声明 `ENABLED TRUE` 时，#291 master worker 才会连接和轮询，#292 `PREVIEW/CONFIRM` 才允许进入联网写流程。`DRY RUN` 只做本地校验和编码，不要求启用 runtime。DDL 不能绕过全局门禁；endpoint 监听仍等待 #294。
 
 普通 `SELECT`、`SHOW` 和 `DESCRIBE` 始终读取 SonnetDB 本地状态，不在查询线程中连接 PLC，也不等待现场设备响应。实时采集只由后台 master worker 完成；显式维护命令也不得改变普通查询的这一合同。
 
@@ -287,19 +287,31 @@ source 表的 `ON_ERROR` 使用以下四个稳定名称：
 
 ## 写入、权限、审批与审计
 
-> 后续运行时合同：Source 远端写、preview 和确认属于 #292；Endpoint 外部写 staging、审批、应用及相关审计属于 #295。Phase A（#288～#290）只持久化和校验 DDL，不会执行本节描述的远端写、staging、审批或运行时审计。
+> Source 远端写、preview、确认和持久审计已由 #292 实现；Endpoint 外部写 staging、审批、应用及相关审计仍属于 #295。
 
-### Source 的受限 SQL 写（#292 后续合同）
+### Source 的受限 SQL 写（#292）
 
-#292 实现联网写入后，只有映射到 Coil 或完整 Holding Register 且声明 `ACCESS WRITE` / `READ_WRITE` 的列才允许产生远端写。受限 SQL 写必须在联网前证明只命中一个 Modbus 绑定、一个当前逻辑行和一个映射列；无法证明、命中零行、可能命中多行或同时修改多个映射列时必须直接拒绝，不能展开成无界现场写入。
+联网写只在 Server REST SQL 端点 `/v1/db/{db}/sql` 和 batch 端点执行；嵌入式 `SqlExecutor` 与 Frame SQL 明确拒绝，因为它们不持有服务端确认令牌、持久审计和网络运行时。语法为：
 
-#292 的写入流程必须固定为：
+```sql
+WRITE MODBUS <table> SET <column> = <value> DRY RUN;
+WRITE MODBUS <table> SET <column> = <value> PREVIEW;
+WRITE MODBUS <table> SET <column> = <value> CONFIRM '<one-time-token>';
+SHOW MODBUS WRITE AUDIT;
+```
 
-1. 检查当前数据库身份的表写权限和 Modbus 控制写权限。
-2. 使用实际 catalog 版本生成 preview / dry-run，列出 source、Unit ID、功能码、声明地址、PDU 地址、wire type、编码后的 bit/register 和缩放结果。
-3. 服务端签发绑定用户、数据库、source、表、列、规范化值、catalog 版本和过期时间的一次性确认；客户端传入普通 `confirmed=true` 不构成授权。
-4. 确认有效后执行远端写，收到成功响应后才记录成功；超时、连接失败、Modbus exception 或部分写失败均按失败处理。
-5. 历史样本永不因控制写而回写。latest/shadow 状态只有在远端成功后才能更新，并保留“控制写”来源；后续轮询仍是现场状态的权威确认。
+只有 `FROM MODBUS SOURCE`、`TABLE_MODE LATEST`、映射到完整 Coil 或完整 Holding Register 且声明 `ACCESS WRITE` / `READ_WRITE` 的列允许写入。执行前必须证明 catalog 中只有一个目标绑定、表中恰好一个当前逻辑行且语句只指定一个映射列；HISTORY、输入区、寄存器 `BIT(n)`、零行/多行和超过 123 个 Holding Register 的单次编码都直接拒绝，不拆成可能部分成功的多个请求。
+
+普通关系 `INSERT` 和 `IMPORT JSON` 不允许向 Source 映射表创建本地影子行，普通 `UPDATE` 不允许修改映射列；非映射辅助列仍可按普通表约束更新。这样不能绕过远端确认和审计制造“本地已成功”的假象。
+
+执行流程固定为：
+
+1. 同时检查当前数据库的 `Write` 和 `Admin`；`Admin` 是 #292 的专用 Modbus 控制权限，`SHOW MODBUS WRITE AUDIT` 同样只允许数据库 Admin。
+2. `DRY RUN` 使用实际 catalog、唯一当前行和 `ModbusValueCodec` 完成校验与编码，返回 source、Unit ID、功能码、声明/PDU 地址、wire type、规范化值和编码寄存器；不联网，也不签发令牌。
+3. `PREVIEW` 执行相同校验，并签发五分钟、一次性、仅存于当前 Server 进程的随机令牌。令牌绑定认证用户或静态凭据指纹、数据库、source、表、列、规范化编码值、catalog revision 和整行 SHA-256 指纹；服务重启、过期、重放或任一绑定变化后都必须重新 preview。
+4. `CONFIRM` 必须再次提交相同逻辑值和令牌。等待 source 级互斥锁后会在联网前重新核对全部绑定，并先持久化 `started` 审计；轮询与控制写只在实际 TCP I/O 和采集提交期间互斥，不跨 poll interval 持锁。
+5. Coil 使用 `0x05`，单 Holding Register 使用 `0x06`，多 Holding Register 使用一个 `0x10` ADU。MBAP transaction/protocol/unit/length、功能码、地址和值/数量回显必须全部匹配；控制写不按 source `RETRY` 自动重放。
+6. 设备返回合法成功响应后先把 `remote_succeeded` 审计强制落盘，再在数据库 schema 和表锁内重新核对 catalog revision、整行指纹和 ROWVERSION，最后更新 LATEST 镜像。若本地提交冲突，会记录 `local_failed` 并明确报告“设备已成功、本地未更新”，不会伪造本地成功。
 
 远端失败不得伪造本地表成功、成功审计或 good quality。
 
@@ -311,11 +323,11 @@ Modbus TCP 没有可等价为数据库用户的内建身份。#295 实现 Endpoi
 
 #295 执行审批后的 `UPDATE_TABLE` 时仍必须走普通表约束、事务和审计；约束失败不得报告为已应用。`REJECT`、staging 持久化失败、审批拒绝、审批过期和应用失败都不能改变表值。
 
-### 审计不变量（#292/#295 后续合同）
+### 审计不变量（#292 已实现 / #295 后续合同）
 
-#292/#295 落地后，运行时审计必须覆盖 runtime 启停、source 写 preview/确认/成功/失败，以及 endpoint 外部写拒绝/staged/批准/拒批/应用/失败；现有 DDL 审计继续沿用服务端审计入口。运行时事件至少包含操作 ID、时间、数据库身份或远端 peer、source/endpoint、表列、Unit ID、功能码、声明地址、PDU 地址、结果、错误码、审批 ID 和 catalog 版本；值载荷遵循现有脱敏策略。
+#292 Source 写审计保存在 Server `.system/modbus-write-audit.ndjson`，每条 source-generated JSON 追加后执行 durable flush；启动时遇到损坏行会拒绝加载。`SHOW MODBUS WRITE AUDIT` 返回当前数据库最近 200 条事件，覆盖 dry-run、preview、确认开始、联网前拒绝、远端成功/失败和本地更新失败；记录操作 ID、时间、凭据身份、source、表列、Unit ID、功能码、声明/PDU 地址、结果、错误码、审批 ID 和 catalog revision，不保存逻辑值、寄存器载荷或确认令牌。#295 后续仍需覆盖 endpoint 外部写拒绝/staged/批准/拒批/应用/失败；现有 DDL 审计继续沿用服务端审计入口。
 
-#292/#295 不得提供通过 DDL、配置或调用参数关闭上述审计的入口。需要产生运行时审计的写操作在审计持久化不可用时必须失败关闭，不执行远端写或本地业务表更新。
+#292/#295 不得提供通过 DDL、配置或调用参数关闭上述审计的入口。需要产生运行时审计的写操作在审计持久化不可用时必须失败关闭；`started` 无法落盘时不执行远端写，`remote_succeeded` 无法落盘时不更新本地业务表。
 
 ## 完整示例
 
@@ -332,7 +344,8 @@ WITH (
     RETRY 3,
     ADDRESSING MODICON,
     BYTE_ORDER BIG_ENDIAN,
-    WORD_ORDER BIG_ENDIAN
+    WORD_ORDER BIG_ENDIAN,
+    ENABLED TRUE
 );
 
 CREATE TABLE pump_runtime (
@@ -382,9 +395,32 @@ WITH (
     TABLE_MODE HISTORY,
     ON_ERROR MARK_BAD
 );
+
+CREATE TABLE pump_controls (
+    id INT NOT NULL,
+    running BOOL
+        FROM MODBUS COIL(10)
+        AS BIT
+        ACCESS READ_WRITE,
+    speed_setpoint INT
+        FROM MODBUS HOLDING_REGISTER(40050)
+        AS UINT16
+        ACCESS READ_WRITE,
+    PRIMARY KEY (id)
+)
+USING MODBUS SOURCE line1_plc
+WITH (
+    TABLE_MODE LATEST,
+    ON_ERROR KEEP_LAST
+);
+
+WRITE MODBUS pump_controls SET speed_setpoint = 1500 DRY RUN;
+WRITE MODBUS pump_controls SET speed_setpoint = 1500 PREVIEW;
+-- 从 PREVIEW 结果读取 confirmation_token，并在五分钟内提交相同值：
+WRITE MODBUS pump_controls SET speed_setpoint = 1500 CONFIRM '<one-time-token>';
 ```
 
-该配置中 `DISCRETE_INPUT(10002)` 归一化为 Discrete Input PDU 地址 `1`，`HOLDING_REGISTER(40001)` 和 `INPUT_REGISTER(30001)` 分别归一化为各自地址空间的 PDU 地址 `0`。`flow_rate` 的有效布局是 `CDAB`。
+该配置中 `DISCRETE_INPUT(10002)` 归一化为 Discrete Input PDU 地址 `1`，`HOLDING_REGISTER(40001)` 和 `INPUT_REGISTER(30001)` 分别归一化为各自地址空间的 PDU 地址 `0`。`flow_rate` 的有效布局是 `CDAB`。HISTORY 表 `pump_runtime` 只保留采集样本，控制写使用恰好一个当前行的 LATEST 表 `pump_controls`。
 
 ### SonnetDB 作为 server / slave
 

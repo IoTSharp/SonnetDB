@@ -59,6 +59,45 @@ internal sealed class ModbusTcpMasterClient : IAsyncDisposable
         }
     }
 
+    internal async Task WriteAsync(
+        ModbusSourceDefinition source,
+        ModbusWritePayload payload,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(payload.Values);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(source.TimeoutMilliseconds);
+
+        try
+        {
+            await EnsureConnectedAsync(source, timeout.Token).ConfigureAwait(false);
+            NetworkStream stream = _stream!;
+            ushort transactionId = unchecked(++_transactionId);
+            byte[] request = BuildWriteRequest(source, payload, transactionId);
+            await stream.WriteAsync(request, timeout.Token).ConfigureAwait(false);
+            await stream.FlushAsync(timeout.Token).ConfigureAwait(false);
+
+            byte[] header = new byte[MbapHeaderLength];
+            await stream.ReadExactlyAsync(header, timeout.Token).ConfigureAwait(false);
+            ValidateHeader(header, transactionId, source.UnitId, out int pduLength);
+            byte[] pdu = new byte[pduLength];
+            await stream.ReadExactlyAsync(pdu, timeout.Token).ConfigureAwait(false);
+            ValidateWriteResponse(pdu, payload);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            Disconnect();
+            throw new TimeoutException(
+                $"Modbus TCP 请求在 {source.TimeoutMilliseconds}ms 内未完成。");
+        }
+        catch
+        {
+            Disconnect();
+            throw;
+        }
+    }
+
     internal void Disconnect()
     {
         _stream?.Dispose();
@@ -160,6 +199,116 @@ internal sealed class ModbusTcpMasterClient : IAsyncDisposable
 
         return values;
     }
+
+    private static byte[] BuildWriteRequest(
+        ModbusSourceDefinition source,
+        ModbusWritePayload payload,
+        ushort transactionId)
+    {
+        if (payload.Values.Count == 0)
+            throw new ArgumentException("Modbus 写入至少需要一个地址值。", nameof(payload));
+
+        byte functionCode = payload.FunctionCode;
+        if (functionCode == 0x10 && payload.Values.Count > 123)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(payload),
+                payload.Values.Count,
+                "单次 Holding Register 写入最多支持 123 个寄存器；受限控制写不会拆成部分请求。");
+        }
+
+        int pduLength = functionCode == 0x10
+            ? checked(6 + (payload.Values.Count * sizeof(ushort)))
+            : 5;
+        byte[] request = new byte[MbapHeaderLength + pduLength];
+        BinaryPrimitives.WriteUInt16BigEndian(request, transactionId);
+        BinaryPrimitives.WriteUInt16BigEndian(request.AsSpan(2), 0);
+        BinaryPrimitives.WriteUInt16BigEndian(request.AsSpan(4), checked((ushort)(pduLength + 1)));
+        request[6] = source.UnitId;
+        request[7] = functionCode;
+        BinaryPrimitives.WriteUInt16BigEndian(request.AsSpan(8), payload.StartAddress);
+
+        if (functionCode == 0x05)
+        {
+            ushort coil = payload.Values[0] switch
+            {
+                0 => 0x0000,
+                1 => 0xFF00,
+                _ => throw new ArgumentException("Coil 写入值必须为 0 或 1。", nameof(payload)),
+            };
+            BinaryPrimitives.WriteUInt16BigEndian(request.AsSpan(10), coil);
+        }
+        else if (functionCode == 0x06)
+        {
+            BinaryPrimitives.WriteUInt16BigEndian(request.AsSpan(10), payload.Values[0]);
+        }
+        else
+        {
+            BinaryPrimitives.WriteUInt16BigEndian(
+                request.AsSpan(10),
+                checked((ushort)payload.Values.Count));
+            request[12] = checked((byte)(payload.Values.Count * sizeof(ushort)));
+            for (int index = 0; index < payload.Values.Count; index++)
+            {
+                BinaryPrimitives.WriteUInt16BigEndian(
+                    request.AsSpan(13 + (index * sizeof(ushort))),
+                    payload.Values[index]);
+            }
+        }
+
+        return request;
+    }
+
+    private static void ValidateWriteResponse(
+        ReadOnlySpan<byte> pdu,
+        ModbusWritePayload payload)
+    {
+        byte expectedFunction = payload.FunctionCode;
+        if (pdu.Length == 0)
+            throw new ModbusProtocolException("invalid_payload", "Modbus TCP 写响应为空。");
+        byte actualFunction = pdu[0];
+        if (actualFunction == (expectedFunction | 0x80))
+        {
+            if (pdu.Length != 2)
+                throw new ModbusProtocolException("invalid_exception", "Modbus TCP 异常响应长度无效。");
+            throw new ModbusProtocolException(
+                $"device_exception_{pdu[1]:x2}",
+                $"Modbus 设备返回异常码 0x{pdu[1]:X2}。");
+        }
+        if (actualFunction != expectedFunction)
+            throw new ModbusProtocolException("function_mismatch", "Modbus TCP function code 不匹配。");
+        if (pdu.Length != 5)
+            throw new ModbusProtocolException("invalid_payload", "Modbus TCP 写响应长度无效。");
+
+        ushort address = BinaryPrimitives.ReadUInt16BigEndian(pdu[1..]);
+        if (address != payload.StartAddress)
+            throw new ModbusProtocolException("address_mismatch", "Modbus TCP 写响应地址不匹配。");
+
+        ushort echoed = BinaryPrimitives.ReadUInt16BigEndian(pdu[3..]);
+        ushort expected = expectedFunction switch
+        {
+            0x05 => payload.Values[0] == 0 ? (ushort)0x0000 : (ushort)0xFF00,
+            0x06 => payload.Values[0],
+            0x10 => checked((ushort)payload.Values.Count),
+            _ => throw new ArgumentOutOfRangeException(nameof(payload), expectedFunction, "未知的写功能码。"),
+        };
+        if (echoed != expected)
+            throw new ModbusProtocolException("write_echo_mismatch", "Modbus TCP 写响应回显值不匹配。");
+    }
+}
+
+internal sealed record ModbusWritePayload(
+    ModbusRegisterArea Area,
+    ushort StartAddress,
+    IReadOnlyList<ushort> Values)
+{
+    internal byte FunctionCode => Area switch
+    {
+        ModbusRegisterArea.Coil when Values.Count == 1 => 0x05,
+        ModbusRegisterArea.HoldingRegister when Values.Count == 1 => 0x06,
+        ModbusRegisterArea.HoldingRegister => 0x10,
+        _ => throw new ArgumentOutOfRangeException(nameof(Area), Area, "该 Modbus 地址空间不支持远端写入。"),
+    };
 }
 
 internal sealed class ModbusProtocolException : IOException

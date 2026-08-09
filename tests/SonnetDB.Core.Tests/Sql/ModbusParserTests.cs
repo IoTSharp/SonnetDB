@@ -216,6 +216,43 @@ public sealed class ModbusParserTests
         Assert.Null(contextualTable.ModbusBinding);
     }
 
+    /// <summary>验证受限写的 dry-run、preview、confirm 与审计查询形成显式 AST。</summary>
+    [Fact]
+    public void Parse_ModbusWriteModes_ReturnsRestrictedStatements()
+    {
+        var dryRun = Assert.IsType<WriteModbusStatement>(SqlParser.Parse(
+            "WRITE MODBUS controls SET setpoint = -1 DRY RUN"));
+        Assert.Equal("controls", dryRun.TableName);
+        Assert.Equal("setpoint", dryRun.ColumnName);
+        Assert.Equal(ModbusWriteMode.DryRun, dryRun.Mode);
+        Assert.Null(dryRun.ConfirmationToken);
+
+        var preview = Assert.IsType<WriteModbusStatement>(SqlParser.Parse(
+            "WRITE MODBUS controls SET enabled = @value PREVIEW"));
+        Assert.Equal(ModbusWriteMode.Preview, preview.Mode);
+        Assert.IsType<ParameterExpression>(preview.Value);
+
+        var confirm = Assert.IsType<WriteModbusStatement>(SqlParser.Parse(
+            "WRITE MODBUS controls SET enabled = @value CONFIRM @token"));
+        Assert.Equal(ModbusWriteMode.Confirm, confirm.Mode);
+        Assert.IsType<ParameterExpression>(confirm.ConfirmationToken);
+        Assert.IsType<ShowModbusWriteAuditStatement>(SqlParser.Parse("SHOW MODBUS WRITE AUDIT"));
+    }
+
+    /// <summary>验证受限写的值与确认令牌均通过 AST 参数绑定。</summary>
+    [Fact]
+    public void Bind_ModbusWriteParameters_ReturnsLiteralValues()
+    {
+        SqlStatement parsed = SqlParser.Parse(
+            "WRITE MODBUS controls SET setpoint = @value CONFIRM @token");
+        var bound = Assert.IsType<WriteModbusStatement>(SqlParameterBinder.Bind(
+            parsed,
+            new SqlParameters().AddNamed("value", 42).AddNamed("token", "one-time")));
+
+        Assert.Equal(42, Assert.IsType<LiteralExpression>(bound.Value).IntegerValue);
+        Assert.Equal("one-time", Assert.IsType<LiteralExpression>(bound.ConfirmationToken).StringValue);
+    }
+
     /// <summary>
     /// 验证不安全、方向冲突或与 wire type 不一致的 Modbus DDL 会在 parser 阶段拒绝。
     /// </summary>
@@ -233,6 +270,9 @@ public sealed class ModbusParserTests
     [InlineData("CREATE TABLE t (v BOOL FROM MODBUS COIL(0) AS BIT SCALE 1) USING MODBUS SOURCE s WITH (TABLE_MODE LATEST, ON_ERROR KEEP_LAST)")]
     [InlineData("CREATE TABLE t (id INT, v BOOL EXPOSE AS MODBUS COIL(0) AS BIT, PRIMARY KEY (id)) USING MODBUS ENDPOINT e WITH (ROW KEY 1, ROW_KEY 2)")]
     [InlineData("CREATE TABLE t (id INT, v BOOL EXPOSE AS MODBUS COIL(0) AS BIT, PRIMARY KEY (id)) USING MODBUS ENDPOINT e WITH (ROW KEY 9223372036854775808)")]
+    [InlineData("WRITE MODBUS controls SET value = 1")]
+    [InlineData("WRITE MODBUS controls SET value = 1 DRY")]
+    [InlineData("WRITE MODBUS controls SET value = 1 CONFIRM")]
     public void Parse_ModbusInvalidContract_Throws(string sql)
     {
         Assert.Throws<SqlParseException>(() => SqlParser.Parse(sql));
