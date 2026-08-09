@@ -11,6 +11,9 @@ namespace SonnetDB.Sql.Execution;
 /// </summary>
 internal static class ModbusSqlExecutor
 {
+    private static readonly IReadOnlyDictionary<string, ModbusSourceRuntimeStatus> _emptyRuntimeStatuses =
+        new Dictionary<string, ModbusSourceRuntimeStatus>(StringComparer.Ordinal);
+
     private static readonly IReadOnlyList<string> _sourceColumns =
     [
         "name", "transport", "endpoint", "unit_id", "addressing", "byte_order", "word_order",
@@ -152,7 +155,7 @@ internal static class ModbusSqlExecutor
             clause.StoreHistory,
             sampleTimeColumns.FirstOrDefault()?.Name,
             QualityColumn: null,
-            Enabled: false);
+            Enabled: true);
         tsdb.Modbus.ValidateBinding(binding, schema);
         return binding;
     }
@@ -161,7 +164,17 @@ internal static class ModbusSqlExecutor
     internal static SelectExecutionResult ShowSources(ModbusCatalog catalog)
     {
         ArgumentNullException.ThrowIfNull(catalog);
-        return BuildSourcesResult(catalog.CaptureSnapshot(), name: null);
+        return BuildSourcesResult(catalog.CaptureSnapshot(), _emptyRuntimeStatuses, name: null);
+    }
+
+    /// <summary>列出全部 Modbus source 的本地配置与瞬时运行状态。</summary>
+    internal static SelectExecutionResult ShowSources(ModbusManager manager)
+    {
+        ArgumentNullException.ThrowIfNull(manager);
+        return BuildSourcesResult(
+            manager.Catalog.CaptureSnapshot(),
+            manager.CaptureSourceRuntimeStatuses(),
+            name: null);
     }
 
     /// <summary>列出全部 Modbus endpoint 的本地配置与禁用状态。</summary>
@@ -176,7 +189,18 @@ internal static class ModbusSqlExecutor
     {
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        return BuildSourcesResult(catalog.CaptureSnapshot(), name);
+        return BuildSourcesResult(catalog.CaptureSnapshot(), _emptyRuntimeStatuses, name);
+    }
+
+    /// <summary>返回一个指定 Modbus source 的完整有效配置与瞬时运行状态。</summary>
+    internal static SelectExecutionResult DescribeSource(ModbusManager manager, string name)
+    {
+        ArgumentNullException.ThrowIfNull(manager);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        return BuildSourcesResult(
+            manager.Catalog.CaptureSnapshot(),
+            manager.CaptureSourceRuntimeStatuses(),
+            name);
     }
 
     /// <summary>返回一个指定 Modbus endpoint 的完整有效配置。</summary>
@@ -235,7 +259,10 @@ internal static class ModbusSqlExecutor
     }
 
     /// <summary>构造 source 元数据结果，可选按名称过滤。</summary>
-    private static SelectExecutionResult BuildSourcesResult(ModbusCatalogSnapshot snapshot, string? name)
+    private static SelectExecutionResult BuildSourcesResult(
+        ModbusCatalogSnapshot snapshot,
+        IReadOnlyDictionary<string, ModbusSourceRuntimeStatus> runtimeStatuses,
+        string? name)
     {
         IReadOnlyList<ModbusSourceDefinition> definitions = snapshot.Sources.Values
             .OrderBy(static definition => definition.Name, StringComparer.Ordinal)
@@ -250,6 +277,8 @@ internal static class ModbusSqlExecutor
         var rows = new List<IReadOnlyList<object?>>(definitions.Count);
         foreach (ModbusSourceDefinition source in definitions)
         {
+            ModbusSourceRuntimeStatus runtimeStatus = runtimeStatuses.GetValueOrDefault(source.Name)
+                ?? ModbusSourceRuntimeStatus.Disabled;
             rows.Add(new object?[]
             {
                 source.Name,
@@ -262,10 +291,10 @@ internal static class ModbusSqlExecutor
                 (long)source.PollIntervalMilliseconds,
                 (long)source.TimeoutMilliseconds,
                 (long)source.RetryCount,
-                false,
-                "disabled",
-                null,
-                null,
+                runtimeStatus.RuntimeEnabled,
+                FormatRuntimeHealth(runtimeStatus.Health),
+                runtimeStatus.LastSuccessAtUtc?.ToString("O", CultureInfo.InvariantCulture),
+                runtimeStatus.LastErrorCode,
                 source.Enabled,
                 "catalog",
                 snapshot.Revision,
@@ -274,6 +303,17 @@ internal static class ModbusSqlExecutor
 
         return new SelectExecutionResult(_sourceColumns, rows);
     }
+
+    /// <summary>格式化 source 运行健康状态的稳定 SQL 名称。</summary>
+    private static string FormatRuntimeHealth(ModbusSourceRuntimeHealth health) => health switch
+    {
+        ModbusSourceRuntimeHealth.Disabled => "disabled",
+        ModbusSourceRuntimeHealth.Starting => "starting",
+        ModbusSourceRuntimeHealth.Idle => "idle",
+        ModbusSourceRuntimeHealth.Healthy => "healthy",
+        ModbusSourceRuntimeHealth.Degraded => "degraded",
+        _ => throw new ArgumentOutOfRangeException(nameof(health), health, "未知的 Modbus source 运行状态。"),
+    };
 
     /// <summary>构造 endpoint 元数据结果，可选按名称过滤。</summary>
     private static SelectExecutionResult BuildEndpointsResult(ModbusCatalogSnapshot snapshot, string? name)

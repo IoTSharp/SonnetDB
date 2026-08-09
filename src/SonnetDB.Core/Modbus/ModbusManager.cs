@@ -10,6 +10,8 @@ public sealed class ModbusManager : IDisposable
     private readonly object _sync = new();
     private readonly object _schemaSync;
     private readonly TableCatalog _tables;
+    private readonly Dictionary<string, ModbusSourceRuntimeStatus> _sourceRuntimeStatuses =
+        new(StringComparer.Ordinal);
     private bool _disposed;
 
     /// <summary>仅供测试在候选目录落盘后、内存快照发布前建立确定性同步点。</summary>
@@ -53,6 +55,53 @@ public sealed class ModbusManager : IDisposable
 
     /// <summary>当前目录的单调递增逻辑修订号。</summary>
     public long Revision => Catalog.Revision;
+
+    /// <summary>
+    /// 返回指定 source 的瞬时运行状态；尚未由协议 runtime 发布状态时返回默认关闭状态。
+    /// </summary>
+    /// <param name="sourceName">Source 名称。</param>
+    /// <returns>当前运行状态快照。</returns>
+    public ModbusSourceRuntimeStatus GetSourceRuntimeStatus(string sourceName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceName);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            return _sourceRuntimeStatuses.GetValueOrDefault(sourceName)
+                ?? ModbusSourceRuntimeStatus.Disabled;
+        }
+    }
+
+    /// <summary>
+    /// 发布指定 source 的瞬时运行状态；状态只保存在内存中，不修改 catalog 修订号或磁盘格式。
+    /// </summary>
+    /// <param name="sourceName">Source 名称。</param>
+    /// <param name="status">待发布状态。</param>
+    public void ReportSourceRuntimeStatus(string sourceName, ModbusSourceRuntimeStatus status)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceName);
+        ArgumentNullException.ThrowIfNull(status);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            if (Catalog.TryGetSource(sourceName) is not null)
+                _sourceRuntimeStatuses[sourceName] = status;
+        }
+    }
+
+    /// <summary>
+    /// 清除指定 source 的瞬时运行状态，使元数据恢复为默认关闭状态。
+    /// </summary>
+    /// <param name="sourceName">Source 名称。</param>
+    public void ClearSourceRuntimeStatus(string sourceName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceName);
+        lock (_sync)
+        {
+            if (!_disposed)
+                _sourceRuntimeStatuses.Remove(sourceName);
+        }
+    }
 
     /// <summary>
     /// 创建 source 定义并立即持久化。
@@ -146,6 +195,7 @@ public sealed class ModbusManager : IDisposable
             ModbusCatalog candidate = CreateCandidateCatalog();
             _ = candidate.RemoveSource(name);
             PersistAndPublish(candidate);
+            _sourceRuntimeStatuses.Remove(name);
             return true;
         }
     }
@@ -220,7 +270,20 @@ public sealed class ModbusManager : IDisposable
         lock (_schemaSync)
         lock (_sync)
         {
+            _sourceRuntimeStatuses.Clear();
             _disposed = true;
+        }
+    }
+
+    /// <summary>捕获 source 运行状态的一致只读副本，供单次元数据查询使用。</summary>
+    internal IReadOnlyDictionary<string, ModbusSourceRuntimeStatus> CaptureSourceRuntimeStatuses()
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            return new Dictionary<string, ModbusSourceRuntimeStatus>(
+                _sourceRuntimeStatuses,
+                StringComparer.Ordinal);
         }
     }
 

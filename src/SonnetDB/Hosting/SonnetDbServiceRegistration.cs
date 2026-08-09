@@ -14,6 +14,7 @@ using SonnetDB.Kv;
 using SonnetDB.LineProtocolUdp;
 using SonnetDB.Mcp;
 using SonnetDB.Mqtt;
+using SonnetDB.Modbus;
 using SonnetDB.SemanticSearch;
 using SonnetMQ;
 
@@ -207,6 +208,8 @@ internal static class SonnetDbServiceRegistration
 
         // 在应用关闭时优雅释放所有 Tsdb 实例。
         builder.Services.AddSingleton<IHostedService>(sp => new RegistryShutdownHook(sp.GetRequiredService<TsdbRegistry>()));
+        // 注册在 RegistryShutdownHook 之后，使停止时先取消所有 TCP 轮询，再释放 Tsdb。
+        builder.Services.AddHostedService<ModbusMasterService>();
         // 注册在 RegistryShutdownHook 之后，使停止时先取消派生任务，再释放 Tsdb。
         builder.Services.AddSingleton<IHostedService>(sp =>
             sp.GetRequiredService<ObjectSemanticProcessingService>());

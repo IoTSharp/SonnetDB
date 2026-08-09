@@ -377,7 +377,7 @@ public static class SqlExecutor
             ShowTableIndexesStatement showIndexes => TableSqlExecutor.ShowIndexes(tsdb, showIndexes.TableName),
             ShowDocumentIndexesStatement showDocumentIndexes => DocumentSqlExecutor.ShowIndexes(tsdb, showDocumentIndexes.CollectionName),
             ShowFullTextIndexesStatement showFullTextIndexes => DocumentSqlExecutor.ShowFullTextIndexes(tsdb, showFullTextIndexes.CollectionName),
-            ShowModbusSourcesStatement => ModbusSqlExecutor.ShowSources(tsdb.Modbus.Catalog),
+            ShowModbusSourcesStatement => ModbusSqlExecutor.ShowSources(tsdb.Modbus),
             ShowModbusEndpointsStatement => ModbusSqlExecutor.ShowEndpoints(tsdb.Modbus.Catalog),
             DescribeMeasurementStatement describe => DescribeMeasurement(tsdb, describe.Name),
             DescribeTableStatement describeTable => TableSqlExecutor.DescribeTable(tsdb, describeTable.Name),
@@ -387,7 +387,7 @@ public static class SqlExecutor
             DescribeTriggerStatement describeTrigger => DescribeTrigger(tsdb, describeTrigger.Name),
             DescribeDocumentCollectionStatement describeDocumentCollection => DocumentSqlExecutor.DescribeCollection(tsdb, describeDocumentCollection.Name),
             DescribeModbusSourceStatement describeModbusSource =>
-                ModbusSqlExecutor.DescribeSource(tsdb.Modbus.Catalog, describeModbusSource.Name),
+                ModbusSqlExecutor.DescribeSource(tsdb.Modbus, describeModbusSource.Name),
             DescribeModbusEndpointStatement describeModbusEndpoint =>
                 ModbusSqlExecutor.DescribeEndpoint(tsdb.Modbus.Catalog, describeModbusEndpoint.Name),
             DescribeModbusTableStatement describeModbusTable =>

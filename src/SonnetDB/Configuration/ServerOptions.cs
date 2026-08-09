@@ -87,6 +87,12 @@ public sealed class ServerOptions
     public LineProtocolUdpOptions LineProtocolUdp { get; set; } = new();
 
     /// <summary>
+    /// Modbus TCP 协议运行时配置（M34）。全局门禁默认关闭，catalog 中的 <c>ENABLED</c>
+    /// 不能单独启动网络连接。
+    /// </summary>
+    public ModbusRuntimeOptions Modbus { get; set; } = new();
+
+    /// <summary>
     /// Copilot 子系统配置。
     /// </summary>
     public CopilotOptions Copilot { get; set; } = new();
@@ -488,6 +494,39 @@ public sealed class LineProtocolUdpOptions
     /// 默认 <c>ns</c>，对齐 InfluxDB 写入语义。
     /// </summary>
     public string Precision { get; set; } = "ns";
+}
+
+/// <summary>
+/// Modbus TCP 运行时配置。第一版仅包含主动轮询外部设备的 master/client。
+/// </summary>
+public sealed class ModbusRuntimeOptions
+{
+    /// <summary>
+    /// 是否启用 Modbus TCP master 运行时。默认关闭；启用后仍只运行 catalog 中
+    /// <c>ENABLED TRUE</c> 的 source。
+    /// </summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>
+    /// 扫描数据库与 catalog 变化的周期，单位为毫秒。默认 <c>250</c>。
+    /// </summary>
+    public int DiscoveryIntervalMilliseconds { get; set; } = 250;
+
+    /// <summary>
+    /// 单轮请求内首次重试的退避时间，单位为毫秒。后续重试指数增长。
+    /// </summary>
+    public int RetryBaseDelayMilliseconds { get; set; } = 100;
+
+    /// <summary>单轮请求内重试退避的最大时间，单位为毫秒。</summary>
+    public int MaxRetryDelayMilliseconds { get; set; } = 2_000;
+
+    /// <summary>
+    /// 一轮采集彻底失败后首次重连的退避时间，单位为毫秒。
+    /// </summary>
+    public int ReconnectBaseDelayMilliseconds { get; set; } = 1_000;
+
+    /// <summary>连续失败时重连退避的最大时间，单位为毫秒。</summary>
+    public int MaxReconnectDelayMilliseconds { get; set; } = 30_000;
 }
 
 /// <summary>

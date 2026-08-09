@@ -1,14 +1,14 @@
 ---
 layout: default
 title: "Modbus TCP 内建映射表合同"
-description: "Milestone 34 Phase A 的 SQL DDL、地址归一化、类型编解码、写入审批与运行时安全边界。"
+description: "Milestone 34 的 SQL DDL、TCP master 轮询、地址归一化、类型编解码、写入审批与运行时安全边界。"
 ---
 
 # Modbus TCP 内建映射表合同
 
-本文记录 Milestone 34 Phase A（#288～#290）已经落地的 SQL、安全、catalog、地址校验与编解码合同，也是后续 Modbus TCP runtime、管理面和 parity 测试的共同输入。
+本文记录 Milestone 34（#288～#291）已经落地的 SQL、安全、catalog、地址校验、编解码与 TCP master 轮询合同，也是后续远端写、slave endpoint、管理面和 parity 测试的共同输入。
 
-> 当前状态：Phase A 的 DDL、Parser/AST、独立版本化 catalog、`SHOW/DESCRIBE MODBUS`、地址冲突校验和类型编解码已经可用。TCP client 轮询、远端写寄存器、TCP server 监听、外部写 staging/审批 runtime、诊断和管理界面仍属于 #291～#296，当前不会连接、监听或收发 Modbus TCP 数据。
+> 当前状态：Phase A 的 DDL、Parser/AST、独立版本化 catalog、`SHOW/DESCRIBE MODBUS`、地址冲突校验和类型编解码已经可用；#291 的默认关闭 TCP client/master 轮询已经接入 Server。远端写寄存器、TCP server/slave 监听、外部写 staging/审批、完整质量诊断和管理界面仍属于 #292～#296。
 
 ## 角色与方向
 
@@ -21,9 +21,9 @@ SonnetDB 只定义两个互不混淆的 Modbus TCP 角色：
 
 `SOURCE` 和 `ENDPOINT` 的上下文已经决定角色。第一版 DDL 不再接受冗余的 `ROLE MASTER` 或 `ROLE SLAVE`，也不允许用同一个对象同时承担两个方向。
 
-后续 Modbus runtime 的合同是全局默认关闭。Phase A 创建 source、endpoint 或映射表只持久化 catalog，不启动连接、轮询或监听；#291/#294 落地后，服务端也必须通过运行时配置显式启用 Modbus，DDL 不能绕过该全局门禁。
+Modbus runtime 全局默认关闭。创建 source、endpoint 或映射表只持久化 catalog；只有同时设置 `SonnetDBServer:Modbus:Enabled=true` 且 source 声明 `ENABLED TRUE` 时，#291 master worker 才会连接和轮询。DDL 不能绕过该全局门禁；endpoint 监听仍等待 #294。
 
-普通 `SELECT`、`SHOW` 和 `DESCRIBE` 始终读取 SonnetDB 本地状态，不在查询线程中连接 PLC，也不等待现场设备响应。#291 落地后，实时采集将由后台轮询 runtime 完成；显式维护命令也不得改变普通查询的这一合同。
+普通 `SELECT`、`SHOW` 和 `DESCRIBE` 始终读取 SonnetDB 本地状态，不在查询线程中连接 PLC，也不等待现场设备响应。实时采集只由后台 master worker 完成；显式维护命令也不得改变普通查询的这一合同。
 
 ## 上下文语法
 
@@ -49,7 +49,7 @@ WITH (
 
 `TRANSPORT` 第一版只能是 `TCP`。source 级 `ADDRESSING`、`BYTE_ORDER` 和 `WORD_ORDER` 是其列映射的默认值；列可以覆盖字节序和字序，但不能覆盖寻址模式。
 
-`ENDPOINT`、`BYTE_ORDER` 和 `WORD_ORDER` 必须显式声明。`TRANSPORT` 可省略且固定为 `TCP`；其余默认值为 `UNIT_ID 1`、`POLL_INTERVAL '1s'`、`TIMEOUT '3s'`、`RETRY 3`、`ADDRESSING MODICON`、`ENABLED FALSE`。`ENABLED` 只是 catalog 中的对象期望状态，不能打开全局 runtime 门禁。Phase A 没有协议 runtime，因此即使保存为 `TRUE`，稳定元数据中的 `runtime_enabled` 仍为 `FALSE`。
+`ENDPOINT`、`BYTE_ORDER` 和 `WORD_ORDER` 必须显式声明。`TRANSPORT` 可省略且固定为 `TCP`；其余默认值为 `UNIT_ID 1`、`POLL_INTERVAL '1s'`、`TIMEOUT '3s'`、`RETRY 3`、`ADDRESSING MODICON`、`ENABLED FALSE`。`ENABLED` 只是 catalog 中的对象期望状态，不能打开全局 runtime 门禁；只有全局门禁和对象状态都启用且 worker 正在运行时，稳定元数据中的 `runtime_enabled` 才为 `TRUE`。
 
 主站采集表使用以下形式：
 
@@ -76,6 +76,33 @@ WITH (
 `TABLE_MODE`、`ON_ERROR` 和 `STORE HISTORY` 都可以省略，也可以按任意顺序声明。默认使用 `TABLE_MODE LATEST`、`ON_ERROR KEEP_LAST`，且不额外保存 history；只有显式声明 `STORE HISTORY` 才额外保留每次成功采样的历史行。
 
 一张表只能绑定一个 Modbus source 或 endpoint。绑定对象必须已经存在于同一数据库，映射在建表时完成地址归一化和冲突校验。
+
+### TCP master runtime（#291）
+
+Server 配置默认值如下；缺少整个 `Modbus` 节点与显式写出 `Enabled: false` 等价：
+
+```json
+{
+  "SonnetDBServer": {
+    "Modbus": {
+      "Enabled": false,
+      "DiscoveryIntervalMilliseconds": 250,
+      "RetryBaseDelayMilliseconds": 100,
+      "MaxRetryDelayMilliseconds": 2000,
+      "ReconnectBaseDelayMilliseconds": 1000,
+      "MaxReconnectDelayMilliseconds": 30000
+    }
+  }
+}
+```
+
+显式启用后，Server 周期扫描已注册数据库，为每个 `ENABLED TRUE` 的 source 建立独立 worker。新增数据库、source 或关系表绑定无需重启；source 被移除、数据库关闭或宿主停止会取消对应 worker。#291 起 SQL 新建的 binding 会记录 `binding_enabled=TRUE`；升级前 Phase A 已持久化的 binding 因当时不存在启停 DDL，继续按存在即参与处理，避免升级后永久静默禁用。没有可读绑定或只有 `ACCESS WRITE` 映射时状态为 `idle`，不会建立 TCP 连接。
+
+每轮采集先汇总该 source 的所有 `FROM MODBUS` 绑定，按 Coil、Discrete Input、Input Register、Holding Register 四个独立地址空间排序；连续或重叠区间合并读取，bit 区每个请求最多 2,000 点，register 区每个请求最多 125 个寄存器，超过上限的单个映射会拆成多个请求并在解码前重组。四类读取分别使用 function `0x01`、`0x02`、`0x04`、`0x03`，响应必须匹配 transaction id、protocol id 0、unit id、length、function 和 byte count；设备 exception 返回稳定的 `device_exception_xx` 错误码。
+
+source 的 `TIMEOUT` 覆盖连接、写请求和读响应；宿主停止、数据库/source 移除与调用方取消会直接打断等待和 socket I/O。单轮失败最多按 source `RETRY` 重试，每次重试都丢弃旧连接并按 `RetryBaseDelayMilliseconds` 指数退避到配置上限；一轮彻底失败后按独立的 reconnect 退避继续尝试，成功后恢复初始延迟。成功响应经同一 `ModbusValueCodec` 解码，再按 `TABLE_MODE LATEST` upsert 或 `HISTORY` insert 到本地关系表。
+
+兼容 `/metrics` 暴露 `sonnetdb_modbus_master_polls_total`、`sonnetdb_modbus_master_poll_failures_total`、`sonnetdb_modbus_master_read_batches_total`、`sonnetdb_modbus_master_rows_written_total` 和 `sonnetdb_modbus_master_reconnects_total`。启用 OpenTelemetry 时，`SonnetDB.Server` meter 还提供对应 poll/read/row/reconnect counter 与 `sonnetdb.modbus.master.poll.duration` histogram；指标不使用数据库名、source 名或地址作为高基数标签。
 
 ### Endpoint DDL
 
@@ -245,7 +272,7 @@ preview、dry-run 和提交必须调用同一编解码与校验实现，不能�
 
 ## 采集错误策略
 
-> 后续运行时合同：Phase A 仅解析、校验并持久化 `ON_ERROR`。下列采集失败后的数据、质量和诊断行为由 #293 实现，当前没有轮询任务会执行这些策略。
+> 当前 #291 runtime 只在整轮成功时写入本地表；失败会保留既有数据、更新 source 的 `degraded` 状态、稳定错误码和失败指标并继续退避重连。下列逐列数据、质量和诊断行为仍由 #293 实现，当前不会执行 `NULL` / `MARK_BAD` 写入或额外质量转换。
 
 source 表的 `ON_ERROR` 使用以下四个稳定名称：
 
@@ -407,7 +434,7 @@ WITH (
 
 ## SHOW / DESCRIBE 稳定合同
 
-Phase A 固定以下只读语句：
+以下只读语句保持稳定：
 
 ```sql
 SHOW MODBUS SOURCES;
@@ -425,7 +452,7 @@ poll_interval, timeout, retry, runtime_enabled, health,
 last_success_at, last_error_code
 ```
 
-当前 `poll_interval` 和 `timeout` 以 Int64 毫秒返回。结果还追加 `configured_enabled`、`configuration_source` 和 `catalog_revision`；Phase A 的 `runtime_enabled` 固定为 `FALSE`、`health` 为 `disabled`，不会因为执行元数据查询而探测网络。
+当前 `poll_interval` 和 `timeout` 以 Int64 毫秒返回。结果还追加 `configured_enabled`、`configuration_source` 和 `catalog_revision`。`runtime_enabled` 只有在全局门禁、source 配置和 worker 共同启用时为 `TRUE`；`health` 使用 `disabled`、`starting`、`idle`、`healthy`、`degraded`，最近成功时间与错误码来自非持久化运行状态。执行元数据查询本身不会探测网络。
 
 `SHOW MODBUS ENDPOINTS` 至少稳定返回：
 
@@ -437,7 +464,7 @@ last_error_code
 
 Endpoint 结果同样追加 `configured_enabled`、`configuration_source` 和 `catalog_revision`。`DESCRIBE MODBUS SOURCE` / `ENDPOINT` 使用与对应 `SHOW` 相同的列合同并只返回指定对象的一行。
 
-`DESCRIBE MODBUS SOURCE` 和 `DESCRIBE MODBUS ENDPOINT` 返回对应对象的全部有效配置及配置来源，不返回凭据或其他敏感值。Phase A 将 `runtime_enabled` 硬编码为 `FALSE`；同时反映全局门禁与对象可运行状态的语义只在 #291 的 source runtime 和 #294 的 endpoint runtime 落地后适用，DDL 存在不等于 runtime 已启用。
+`DESCRIBE MODBUS SOURCE` 和 `DESCRIBE MODBUS ENDPOINT` 返回对应对象的全部有效配置及配置来源，不返回凭据或其他敏感值。Source 已反映 #291 全局门禁与 worker 状态；Endpoint 在 #294 前仍固定为 `runtime_enabled=FALSE`、`health=disabled`。DDL 存在不等于 runtime 已启用。
 
 `DESCRIBE MODBUS TABLE` 每个映射列返回一行，至少稳定包含：
 
@@ -462,7 +489,7 @@ scale, offset, access, table_mode, on_error, external_write_action
 
 ## 后续实现门禁
 
-Phase A 后续实现不得弱化本文合同：
+后续实现不得弱化本文合同：
 
 1. Parser/AST/catalog round-trip 必须覆盖所有 contextual 产生式、三种寻址模式和 SHOW/DESCRIBE，并保持 catalog 版本兼容。
 2. codec 必须对四类区域、全部 wire type、四种 32 位字节布局、缩放逆变换、边界与非法输入进行 encode/decode 对拍。

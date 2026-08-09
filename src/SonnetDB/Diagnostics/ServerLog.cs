@@ -141,6 +141,38 @@ internal static partial class ServerLog
         string hostId,
         string state);
 
+    [LoggerMessage(EventId = 1030, EventName = "Write.ModbusMasterStarted", Level = LogLevel.Information,
+        Message = "Modbus TCP master runtime 已显式启用")]
+    internal static partial void ModbusMasterStarted(this ILogger logger);
+
+    [LoggerMessage(EventId = 1031, EventName = "Write.ModbusSourceWorkerStarted", Level = LogLevel.Information,
+        Message = "Modbus source worker 已启动：Database={Database}, Source={Source}, Endpoint={Host}:{Port}")]
+    internal static partial void ModbusSourceWorkerStarted(
+        this ILogger logger,
+        string database,
+        string source,
+        string host,
+        int port);
+
+    [LoggerMessage(EventId = 1032, EventName = "Write.ModbusSourcePollFailed", Level = LogLevel.Warning,
+        Message = "Modbus source 轮询失败：Database={Database}, Source={Source}, ErrorCode={ErrorCode}, ReconnectDelayMs={ReconnectDelayMs}")]
+    internal static partial void ModbusSourcePollFailed(
+        this ILogger logger,
+        Exception exception,
+        string database,
+        string source,
+        string errorCode,
+        int reconnectDelayMs);
+
+    [LoggerMessage(EventId = 1033, EventName = "Write.ModbusSourceRetry", Level = LogLevel.Debug,
+        Message = "Modbus source 请求重试：Source={Source}, Attempt={Attempt}/{RetryCount}, DelayMs={DelayMs}")]
+    internal static partial void ModbusSourceRetry(
+        this ILogger logger,
+        string source,
+        int attempt,
+        int retryCount,
+        int delayMs);
+
     // Copilot：6000~6999
     [LoggerMessage(EventId = 6001, EventName = "Copilot.PlannerInvalidResponse", Level = LogLevel.Warning,
         Message = "Copilot planner returned non-JSON content: {Response}")]

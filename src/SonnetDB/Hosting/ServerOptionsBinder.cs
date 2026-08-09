@@ -63,6 +63,27 @@ internal static class ServerOptionsBinder
             0,
             4096);
 
+        options.Modbus.DiscoveryIntervalMilliseconds = Math.Clamp(
+            options.Modbus.DiscoveryIntervalMilliseconds,
+            10,
+            60_000);
+        options.Modbus.RetryBaseDelayMilliseconds = Math.Clamp(
+            options.Modbus.RetryBaseDelayMilliseconds,
+            1,
+            60_000);
+        options.Modbus.MaxRetryDelayMilliseconds = Math.Clamp(
+            options.Modbus.MaxRetryDelayMilliseconds,
+            options.Modbus.RetryBaseDelayMilliseconds,
+            60_000);
+        options.Modbus.ReconnectBaseDelayMilliseconds = Math.Clamp(
+            options.Modbus.ReconnectBaseDelayMilliseconds,
+            1,
+            60_000);
+        options.Modbus.MaxReconnectDelayMilliseconds = Math.Clamp(
+            options.Modbus.MaxReconnectDelayMilliseconds,
+            options.Modbus.ReconnectBaseDelayMilliseconds,
+            600_000);
+
         // 索引恢复预算必须保持正数和明确上限，避免配置错误导致无界 WAL 或内存增长。
         options.Kv.IndexRebuildMaxOverlayEntries = Math.Clamp(
             options.Kv.IndexRebuildMaxOverlayEntries,

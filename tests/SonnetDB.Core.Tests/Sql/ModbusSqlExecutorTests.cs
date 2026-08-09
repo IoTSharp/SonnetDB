@@ -69,6 +69,7 @@ public sealed class ModbusSqlExecutorTests : IDisposable
         ModbusTableBinding binding = Assert.IsType<ModbusTableBinding>(
             database.Modbus.Catalog.TryGetBinding("source_values"));
         Assert.Equal(ModbusMappingDirection.SourceToTable, binding.Direction);
+        Assert.True(binding.Enabled);
         Assert.Equal(2, binding.Columns.Count);
 
         ModbusColumnMapping temperature = binding.Columns[0];
@@ -172,6 +173,31 @@ public sealed class ModbusSqlExecutorTests : IDisposable
         Assert.Equal("catalog", plan["access_path"]);
         Assert.Equal(1L, plan["estimated_scanned_rows"]);
         Assert.Equal(0, plan["estimated_segment_count"]);
+    }
+
+    /// <summary>验证 source runtime 状态只影响瞬时元数据，不推进 catalog 修订号。</summary>
+    [Fact]
+    public void Execute_ShowSources_WithRuntimeStatus_ReturnsLiveStateWithoutCatalogMutation()
+    {
+        using var database = OpenDatabase();
+        CreateSource(database, "runtime_source", enabled: true);
+        long revision = database.Modbus.Revision;
+        var succeededAt = new DateTimeOffset(2026, 8, 9, 1, 2, 3, TimeSpan.Zero);
+
+        database.Modbus.ReportSourceRuntimeStatus(
+            "runtime_source",
+            new ModbusSourceRuntimeStatus(
+                RuntimeEnabled: true,
+                ModbusSourceRuntimeHealth.Healthy,
+                succeededAt));
+
+        var sources = ExecuteSelect(database, "SHOW MODBUS SOURCES");
+        IReadOnlyList<object?> row = Assert.Single(sources.Rows);
+        Assert.True(Assert.IsType<bool>(row[10]));
+        Assert.Equal("healthy", row[11]);
+        Assert.Equal(succeededAt.ToString("O"), row[12]);
+        Assert.Null(row[13]);
+        Assert.Equal(revision, database.Modbus.Revision);
     }
 
     /// <summary>

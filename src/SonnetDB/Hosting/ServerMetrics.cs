@@ -20,6 +20,11 @@ public sealed class ServerMetrics
     private long _sparkplugLifecycleMessages;
     private long _sparkplugSequenceGaps;
     private long _sparkplugRebirthCommands;
+    private long _modbusPolls;
+    private long _modbusPollFailures;
+    private long _modbusReadBatches;
+    private long _modbusRowsWritten;
+    private long _modbusReconnects;
 
     /// <summary>服务运行时间（秒）。</summary>
     public double UptimeSeconds => _uptime.Elapsed.TotalSeconds;
@@ -57,6 +62,21 @@ public sealed class ServerMetrics
     /// <summary>累计发布的自动 Rebirth 命令数。</summary>
     public long SparkplugRebirthCommands => Interlocked.Read(ref _sparkplugRebirthCommands);
 
+    /// <summary>累计完成的 Modbus master 轮询次数。</summary>
+    public long ModbusPolls => Interlocked.Read(ref _modbusPolls);
+
+    /// <summary>累计失败的 Modbus master 轮询次数。</summary>
+    public long ModbusPollFailures => Interlocked.Read(ref _modbusPollFailures);
+
+    /// <summary>累计发送的 Modbus 批量读取请求数。</summary>
+    public long ModbusReadBatches => Interlocked.Read(ref _modbusReadBatches);
+
+    /// <summary>累计由 Modbus 成功采样写入的关系表行数。</summary>
+    public long ModbusRowsWritten => Interlocked.Read(ref _modbusRowsWritten);
+
+    /// <summary>Modbus 失败后触发的累计重连次数。</summary>
+    public long ModbusReconnects => Interlocked.Read(ref _modbusReconnects);
+
     /// <summary>记录一次 SQL 请求。</summary>
     public void RecordSqlRequest() => Interlocked.Increment(ref _sqlRequests);
 
@@ -88,6 +108,22 @@ public sealed class ServerMetrics
 
     /// <summary>记录一条由 host application 发布的 Rebirth 命令。</summary>
     public void RecordSparkplugRebirthCommand() => Interlocked.Increment(ref _sparkplugRebirthCommands);
+
+    /// <summary>记录一次完成的 Modbus master 轮询。</summary>
+    public void RecordModbusPoll(bool succeeded, int rowsWritten)
+    {
+        Interlocked.Increment(ref _modbusPolls);
+        if (!succeeded)
+            Interlocked.Increment(ref _modbusPollFailures);
+        if (rowsWritten > 0)
+            Interlocked.Add(ref _modbusRowsWritten, rowsWritten);
+    }
+
+    /// <summary>记录一个成功返回的 Modbus 批量读取请求。</summary>
+    public void RecordModbusReadBatch() => Interlocked.Increment(ref _modbusReadBatches);
+
+    /// <summary>记录一次失败后的 Modbus 重连。</summary>
+    public void RecordModbusReconnect() => Interlocked.Increment(ref _modbusReconnects);
 }
 
 /// <summary>
@@ -180,6 +216,26 @@ public static class PrometheusFormatter
         sb.AppendLine("# HELP sonnetdb_sparkplug_rebirth_commands_total Sparkplug B automatic rebirth commands.");
         sb.AppendLine("# TYPE sonnetdb_sparkplug_rebirth_commands_total counter");
         sb.Append("sonnetdb_sparkplug_rebirth_commands_total ").Append(metrics.SparkplugRebirthCommands).AppendLine();
+
+        sb.AppendLine("# HELP sonnetdb_modbus_master_polls_total Completed Modbus master poll rounds.");
+        sb.AppendLine("# TYPE sonnetdb_modbus_master_polls_total counter");
+        sb.Append("sonnetdb_modbus_master_polls_total ").Append(metrics.ModbusPolls).AppendLine();
+
+        sb.AppendLine("# HELP sonnetdb_modbus_master_poll_failures_total Failed Modbus master poll rounds.");
+        sb.AppendLine("# TYPE sonnetdb_modbus_master_poll_failures_total counter");
+        sb.Append("sonnetdb_modbus_master_poll_failures_total ").Append(metrics.ModbusPollFailures).AppendLine();
+
+        sb.AppendLine("# HELP sonnetdb_modbus_master_read_batches_total Successful Modbus batched read requests.");
+        sb.AppendLine("# TYPE sonnetdb_modbus_master_read_batches_total counter");
+        sb.Append("sonnetdb_modbus_master_read_batches_total ").Append(metrics.ModbusReadBatches).AppendLine();
+
+        sb.AppendLine("# HELP sonnetdb_modbus_master_rows_written_total Local table rows written by Modbus polls.");
+        sb.AppendLine("# TYPE sonnetdb_modbus_master_rows_written_total counter");
+        sb.Append("sonnetdb_modbus_master_rows_written_total ").Append(metrics.ModbusRowsWritten).AppendLine();
+
+        sb.AppendLine("# HELP sonnetdb_modbus_master_reconnects_total Modbus reconnects after failures.");
+        sb.AppendLine("# TYPE sonnetdb_modbus_master_reconnects_total counter");
+        sb.Append("sonnetdb_modbus_master_reconnects_total ").Append(metrics.ModbusReconnects).AppendLine();
 
         // 每个 db 的活跃 segment 数 + memtable 点数（粗粒度，后续可扩展）
         sb.AppendLine("# HELP sonnetdb_segments Active segment count per database.");

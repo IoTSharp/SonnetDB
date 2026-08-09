@@ -30,6 +30,35 @@ public sealed class ServerOptionsTests
         Assert.Equal("pooler_output", options.SemanticSearch.TextOutputName);
         Assert.Equal("pixel_values", options.SemanticSearch.VisionInputName);
         Assert.Equal("pooler_output", options.SemanticSearch.VisionOutputName);
+        Assert.False(options.Modbus.Enabled);
+        Assert.Equal(250, options.Modbus.DiscoveryIntervalMilliseconds);
+        Assert.Equal(1_000, options.Modbus.ReconnectBaseDelayMilliseconds);
+        Assert.Equal(30_000, options.Modbus.MaxReconnectDelayMilliseconds);
+    }
+
+    [Fact]
+    public void Bind_WithModbusRuntimeValues_AppliesAndBoundsConfiguration()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SonnetDBServer:Modbus:Enabled"] = "true",
+                ["SonnetDBServer:Modbus:DiscoveryIntervalMilliseconds"] = "1",
+                ["SonnetDBServer:Modbus:RetryBaseDelayMilliseconds"] = "50",
+                ["SonnetDBServer:Modbus:MaxRetryDelayMilliseconds"] = "10",
+                ["SonnetDBServer:Modbus:ReconnectBaseDelayMilliseconds"] = "100",
+                ["SonnetDBServer:Modbus:MaxReconnectDelayMilliseconds"] = "10",
+            })
+            .Build();
+
+        ModbusRuntimeOptions options = ServerOptionsBinder.Bind(configuration).Modbus;
+
+        Assert.True(options.Enabled);
+        Assert.Equal(10, options.DiscoveryIntervalMilliseconds);
+        Assert.Equal(50, options.RetryBaseDelayMilliseconds);
+        Assert.Equal(50, options.MaxRetryDelayMilliseconds);
+        Assert.Equal(100, options.ReconnectBaseDelayMilliseconds);
+        Assert.Equal(100, options.MaxReconnectDelayMilliseconds);
     }
 
     [Fact]

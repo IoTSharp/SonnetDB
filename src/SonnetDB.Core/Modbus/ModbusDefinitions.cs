@@ -202,6 +202,46 @@ public sealed record ModbusSourceDefinition(
     bool Enabled = false);
 
 /// <summary>
+/// Modbus source 的瞬时运行健康状态。
+/// </summary>
+public enum ModbusSourceRuntimeHealth : byte
+{
+    /// <summary>全局门禁或 source 配置未启用。</summary>
+    Disabled = 0,
+
+    /// <summary>后台 worker 已创建，正在建立首次连接。</summary>
+    Starting = 1,
+
+    /// <summary>source 已启用，但当前没有可轮询的关系表绑定。</summary>
+    Idle = 2,
+
+    /// <summary>最近一轮采集成功。</summary>
+    Healthy = 3,
+
+    /// <summary>最近一轮采集失败，后台 worker 将继续退避重试。</summary>
+    Degraded = 4,
+}
+
+/// <summary>
+/// Modbus source 的非持久化运行时状态快照。
+/// </summary>
+/// <param name="RuntimeEnabled">全局门禁、source 配置和后台 worker 是否共同启用。</param>
+/// <param name="Health">当前健康状态。</param>
+/// <param name="LastSuccessAtUtc">最近成功完成采集并写入本地表的 UTC 时间。</param>
+/// <param name="LastErrorCode">最近失败的稳定错误码；没有错误时为 <c>null</c>。</param>
+public sealed record ModbusSourceRuntimeStatus(
+    bool RuntimeEnabled,
+    ModbusSourceRuntimeHealth Health,
+    DateTimeOffset? LastSuccessAtUtc = null,
+    string? LastErrorCode = null)
+{
+    /// <summary>返回默认关闭状态。</summary>
+    public static ModbusSourceRuntimeStatus Disabled { get; } = new(
+        RuntimeEnabled: false,
+        ModbusSourceRuntimeHealth.Disabled);
+}
+
+/// <summary>
 /// 定义一个供外部主站访问的 Modbus TCP endpoint。
 /// </summary>
 /// <param name="Name">endpoint 的唯一名称。</param>
