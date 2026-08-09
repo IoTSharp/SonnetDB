@@ -219,6 +219,8 @@ internal static class SonnetDbServiceRegistration
             sp.GetRequiredService<TimeProvider>()));
         // 注册在 RegistryShutdownHook 之后，使停止时先取消所有 TCP 轮询，再释放 Tsdb。
         builder.Services.AddHostedService<ModbusMasterService>();
+        // 注册在 RegistryShutdownHook 之后，使停止时先关闭全部 TCP listener 和客户端连接，再释放 Tsdb。
+        builder.Services.AddHostedService<ModbusSlaveService>();
         // 注册在 RegistryShutdownHook 之后，使停止时先取消派生任务，再释放 Tsdb。
         builder.Services.AddSingleton<IHostedService>(sp =>
             sp.GetRequiredService<ObjectSemanticProcessingService>());

@@ -173,6 +173,48 @@ internal static partial class ServerLog
         int retryCount,
         int delayMs);
 
+    [LoggerMessage(EventId = 1034, EventName = "Write.ModbusSlaveStarted", Level = LogLevel.Information,
+        Message = "Modbus TCP slave runtime 已显式启用")]
+    internal static partial void ModbusSlaveStarted(this ILogger logger);
+
+    [LoggerMessage(EventId = 1035, EventName = "Write.ModbusEndpointListening", Level = LogLevel.Information,
+        Message = "Modbus endpoint 已监听：Database={Database}, Endpoint={Endpoint}, Bind={Bind}, UnitId={UnitId}, MaxConnections={MaxConnections}")]
+    internal static partial void ModbusEndpointListening(
+        this ILogger logger,
+        string database,
+        string endpoint,
+        string bind,
+        byte unitId,
+        int maxConnections);
+
+    [LoggerMessage(EventId = 1036, EventName = "Write.ModbusEndpointListenerFailed", Level = LogLevel.Warning,
+        Message = "Modbus endpoint 监听失败：Database={Database}, Endpoint={Endpoint}, Bind={Bind}, ErrorCode={ErrorCode}")]
+    internal static partial void ModbusEndpointListenerFailed(
+        this ILogger logger,
+        Exception exception,
+        string database,
+        string endpoint,
+        string bind,
+        string errorCode);
+
+    [LoggerMessage(EventId = 1037, EventName = "Write.ModbusEndpointClientRejected", Level = LogLevel.Warning,
+        Message = "Modbus endpoint 拒绝客户端：Database={Database}, Endpoint={Endpoint}, Remote={Remote}, Reason={Reason}")]
+    internal static partial void ModbusEndpointClientRejected(
+        this ILogger logger,
+        string database,
+        string endpoint,
+        string remote,
+        string reason);
+
+    [LoggerMessage(EventId = 1038, EventName = "Write.ModbusEndpointClientFailed", Level = LogLevel.Debug,
+        Message = "Modbus endpoint 客户端处理失败：Database={Database}, Endpoint={Endpoint}, Remote={Remote}")]
+    internal static partial void ModbusEndpointClientFailed(
+        this ILogger logger,
+        Exception exception,
+        string database,
+        string endpoint,
+        string remote);
+
     // Copilot：6000~6999
     [LoggerMessage(EventId = 6001, EventName = "Copilot.PlannerInvalidResponse", Level = LogLevel.Warning,
         Message = "Copilot planner returned non-JSON content: {Response}")]

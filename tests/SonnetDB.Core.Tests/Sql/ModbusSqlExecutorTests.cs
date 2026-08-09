@@ -212,6 +212,29 @@ public sealed class ModbusSqlExecutorTests : IDisposable
         Assert.Equal(revision, database.Modbus.Revision);
     }
 
+    /// <summary>验证 endpoint runtime 状态只影响瞬时元数据，不推进 catalog 修订号。</summary>
+    [Fact]
+    public void Execute_ShowEndpoints_WithRuntimeStatus_ReturnsLiveStateWithoutCatalogMutation()
+    {
+        using var database = OpenDatabase();
+        CreateEndpoint(database, "runtime_endpoint");
+        long revision = database.Modbus.Revision;
+
+        database.Modbus.ReportEndpointRuntimeStatus(
+            "runtime_endpoint",
+            new ModbusEndpointRuntimeStatus(
+                RuntimeEnabled: true,
+                ModbusEndpointRuntimeHealth.Listening,
+                ModbusErrorCodes.EndpointBind));
+
+        var endpoints = ExecuteSelect(database, "SHOW MODBUS ENDPOINTS");
+        IReadOnlyList<object?> row = Assert.Single(endpoints.Rows);
+        Assert.True(Assert.IsType<bool>(row[10]));
+        Assert.Equal("listening", row[11]);
+        Assert.Equal(ModbusErrorCodes.EndpointBind, row[12]);
+        Assert.Equal(revision, database.Modbus.Revision);
+    }
+
     /// <summary>
     /// 验证并发修改目录时，SHOW 与 DESCRIBE 的行内容和 revision 始终来自同一份目录快照。
     /// </summary>

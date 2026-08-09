@@ -497,13 +497,13 @@ public sealed class LineProtocolUdpOptions
 }
 
 /// <summary>
-/// Modbus TCP 运行时配置。第一版仅包含主动轮询外部设备的 master/client。
+/// Modbus TCP 运行时配置，统一控制主动轮询 master/client 与被动监听 slave/server。
 /// </summary>
 public sealed class ModbusRuntimeOptions
 {
     /// <summary>
-    /// 是否启用 Modbus TCP master 运行时。默认关闭；启用后仍只运行 catalog 中
-    /// <c>ENABLED TRUE</c> 的 source。
+    /// 是否启用 Modbus TCP 协议运行时。默认关闭；启用后仍只运行 catalog 中
+    /// <c>ENABLED TRUE</c> 的 source 与 endpoint。
     /// </summary>
     public bool Enabled { get; set; }
 

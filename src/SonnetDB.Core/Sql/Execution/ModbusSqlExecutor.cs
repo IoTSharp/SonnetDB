@@ -13,6 +13,8 @@ internal static class ModbusSqlExecutor
 {
     private static readonly IReadOnlyDictionary<string, ModbusSourceRuntimeStatus> _emptyRuntimeStatuses =
         new Dictionary<string, ModbusSourceRuntimeStatus>(StringComparer.Ordinal);
+    private static readonly IReadOnlyDictionary<string, ModbusEndpointRuntimeStatus> _emptyEndpointRuntimeStatuses =
+        new Dictionary<string, ModbusEndpointRuntimeStatus>(StringComparer.Ordinal);
 
     private static readonly IReadOnlyList<string> _sourceColumns =
     [
@@ -190,7 +192,17 @@ internal static class ModbusSqlExecutor
     internal static SelectExecutionResult ShowEndpoints(ModbusCatalog catalog)
     {
         ArgumentNullException.ThrowIfNull(catalog);
-        return BuildEndpointsResult(catalog.CaptureSnapshot(), name: null);
+        return BuildEndpointsResult(catalog.CaptureSnapshot(), _emptyEndpointRuntimeStatuses, name: null);
+    }
+
+    /// <summary>列出全部 Modbus endpoint 的本地配置与瞬时运行状态。</summary>
+    internal static SelectExecutionResult ShowEndpoints(ModbusManager manager)
+    {
+        ArgumentNullException.ThrowIfNull(manager);
+        return BuildEndpointsResult(
+            manager.Catalog.CaptureSnapshot(),
+            manager.CaptureEndpointRuntimeStatuses(),
+            name: null);
     }
 
     /// <summary>返回一个指定 Modbus source 的完整有效配置。</summary>
@@ -217,7 +229,18 @@ internal static class ModbusSqlExecutor
     {
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        return BuildEndpointsResult(catalog.CaptureSnapshot(), name);
+        return BuildEndpointsResult(catalog.CaptureSnapshot(), _emptyEndpointRuntimeStatuses, name);
+    }
+
+    /// <summary>返回一个指定 Modbus endpoint 的完整有效配置与瞬时运行状态。</summary>
+    internal static SelectExecutionResult DescribeEndpoint(ModbusManager manager, string name)
+    {
+        ArgumentNullException.ThrowIfNull(manager);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        return BuildEndpointsResult(
+            manager.Catalog.CaptureSnapshot(),
+            manager.CaptureEndpointRuntimeStatuses(),
+            name);
     }
 
     /// <summary>按列返回指定关系表的完整 Modbus 映射。</summary>
@@ -328,7 +351,10 @@ internal static class ModbusSqlExecutor
     };
 
     /// <summary>构造 endpoint 元数据结果，可选按名称过滤。</summary>
-    private static SelectExecutionResult BuildEndpointsResult(ModbusCatalogSnapshot snapshot, string? name)
+    private static SelectExecutionResult BuildEndpointsResult(
+        ModbusCatalogSnapshot snapshot,
+        IReadOnlyDictionary<string, ModbusEndpointRuntimeStatus> runtimeStatuses,
+        string? name)
     {
         IReadOnlyList<ModbusEndpointDefinition> definitions = snapshot.Endpoints.Values
             .OrderBy(static definition => definition.Name, StringComparer.Ordinal)
@@ -343,6 +369,8 @@ internal static class ModbusSqlExecutor
         var rows = new List<IReadOnlyList<object?>>(definitions.Count);
         foreach (ModbusEndpointDefinition endpoint in definitions)
         {
+            ModbusEndpointRuntimeStatus runtimeStatus = runtimeStatuses.GetValueOrDefault(endpoint.Name)
+                ?? ModbusEndpointRuntimeStatus.Disabled;
             rows.Add(new object?[]
             {
                 endpoint.Name,
@@ -357,9 +385,9 @@ internal static class ModbusSqlExecutor
                     ? string.Empty
                     : string.Join(",", endpoint.AllowedClientNetworks),
                 (long)endpoint.MaxConnections,
-                false,
-                "disabled",
-                null,
+                runtimeStatus.RuntimeEnabled,
+                FormatEndpointRuntimeHealth(runtimeStatus.Health),
+                runtimeStatus.LastErrorCode,
                 endpoint.Enabled,
                 "catalog",
                 snapshot.Revision,
@@ -368,6 +396,16 @@ internal static class ModbusSqlExecutor
 
         return new SelectExecutionResult(_endpointColumns, rows);
     }
+
+    /// <summary>格式化 endpoint 运行健康状态的稳定 SQL 名称。</summary>
+    private static string FormatEndpointRuntimeHealth(ModbusEndpointRuntimeHealth health) => health switch
+    {
+        ModbusEndpointRuntimeHealth.Disabled => "disabled",
+        ModbusEndpointRuntimeHealth.Starting => "starting",
+        ModbusEndpointRuntimeHealth.Listening => "listening",
+        ModbusEndpointRuntimeHealth.Degraded => "degraded",
+        _ => throw new ArgumentOutOfRangeException(nameof(health), health, "未知的 Modbus endpoint 运行状态。"),
+    };
 
     /// <summary>格式化主机与端口，并为 IPv6 地址补充方括号。</summary>
     private static string FormatHostAndPort(string host, int port)

@@ -382,7 +382,7 @@ public static class SqlExecutor
             ShowDocumentIndexesStatement showDocumentIndexes => DocumentSqlExecutor.ShowIndexes(tsdb, showDocumentIndexes.CollectionName),
             ShowFullTextIndexesStatement showFullTextIndexes => DocumentSqlExecutor.ShowFullTextIndexes(tsdb, showFullTextIndexes.CollectionName),
             ShowModbusSourcesStatement => ModbusSqlExecutor.ShowSources(tsdb.Modbus),
-            ShowModbusEndpointsStatement => ModbusSqlExecutor.ShowEndpoints(tsdb.Modbus.Catalog),
+            ShowModbusEndpointsStatement => ModbusSqlExecutor.ShowEndpoints(tsdb.Modbus),
             ShowModbusWriteAuditStatement => throw new NotSupportedException(
                 "SHOW MODBUS WRITE AUDIT 只能通过持有服务端审计存储的 Server REST SQL 端点执行。"),
             DescribeMeasurementStatement describe => DescribeMeasurement(tsdb, describe.Name),
@@ -395,7 +395,7 @@ public static class SqlExecutor
             DescribeModbusSourceStatement describeModbusSource =>
                 ModbusSqlExecutor.DescribeSource(tsdb.Modbus, describeModbusSource.Name),
             DescribeModbusEndpointStatement describeModbusEndpoint =>
-                ModbusSqlExecutor.DescribeEndpoint(tsdb.Modbus.Catalog, describeModbusEndpoint.Name),
+                ModbusSqlExecutor.DescribeEndpoint(tsdb.Modbus, describeModbusEndpoint.Name),
             DescribeModbusTableStatement describeModbusTable =>
                 ModbusSqlExecutor.DescribeTable(tsdb.Modbus.Catalog, describeModbusTable.Name),
             ExplainStatement explain => ExecuteExplain(tsdb, databaseName, explain),

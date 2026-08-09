@@ -195,6 +195,12 @@ public static class ModbusErrorCodes
     /// <summary>未归类的 source runtime 失败。</summary>
     public const string Runtime = "runtime_error";
 
+    /// <summary>Modbus endpoint 无法绑定配置的本地监听地址。</summary>
+    public const string EndpointBind = "endpoint_bind_error";
+
+    /// <summary>Modbus endpoint 监听循环意外失败。</summary>
+    public const string EndpointListener = "endpoint_listener_error";
+
     /// <summary>Modbus TCP transaction id 与请求不一致。</summary>
     public const string TransactionMismatch = "transaction_mismatch";
 
@@ -360,6 +366,41 @@ public sealed record ModbusEndpointDefinition(
     ModbusWordOrder WordOrder = ModbusWordOrder.BigEndian,
     ModbusEndpointWritePolicy WritePolicy = ModbusEndpointWritePolicy.Staged,
     bool Enabled = false);
+
+/// <summary>
+/// Modbus endpoint 的瞬时运行健康状态。
+/// </summary>
+public enum ModbusEndpointRuntimeHealth : byte
+{
+    /// <summary>全局门禁或 endpoint 配置未启用。</summary>
+    Disabled = 0,
+
+    /// <summary>后台 worker 已创建，正在绑定监听地址。</summary>
+    Starting = 1,
+
+    /// <summary>TCP listener 已绑定并接受允许的客户端连接。</summary>
+    Listening = 2,
+
+    /// <summary>监听器启动或运行失败，后台 worker 将继续重试。</summary>
+    Degraded = 3,
+}
+
+/// <summary>
+/// Modbus endpoint 的非持久化运行时状态快照。
+/// </summary>
+/// <param name="RuntimeEnabled">全局门禁、endpoint 配置和后台 worker 是否共同启用。</param>
+/// <param name="Health">当前健康状态。</param>
+/// <param name="LastErrorCode">最近失败的稳定错误码；没有错误时为 <c>null</c>。</param>
+public sealed record ModbusEndpointRuntimeStatus(
+    bool RuntimeEnabled,
+    ModbusEndpointRuntimeHealth Health,
+    string? LastErrorCode = null)
+{
+    /// <summary>返回默认关闭状态。</summary>
+    public static ModbusEndpointRuntimeStatus Disabled { get; } = new(
+        RuntimeEnabled: false,
+        ModbusEndpointRuntimeHealth.Disabled);
+}
 
 /// <summary>
 /// 定义一个关系表列与 Modbus 地址区间之间的映射。

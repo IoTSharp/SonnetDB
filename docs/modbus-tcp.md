@@ -1,14 +1,14 @@
 ---
 layout: default
 title: "Modbus TCP 内建映射表合同"
-description: "Milestone 34 的 SQL DDL、TCP master 轮询、地址归一化、类型编解码、写入审批与运行时安全边界。"
+description: "Milestone 34 的 SQL DDL、TCP master 轮询、TCP slave 读取、地址归一化、类型编解码、写入审批与运行时安全边界。"
 ---
 
 # Modbus TCP 内建映射表合同
 
-本文记录 Milestone 34（#288～#292）已经落地的 SQL、安全、catalog、地址校验、编解码、TCP master 轮询与受限远端写合同，也是后续 slave endpoint、管理面和 parity 测试的共同输入。
+本文记录 Milestone 34（#288～#294）已经落地的 SQL、安全、catalog、地址校验、编解码、TCP master 轮询、受限远端写与 TCP slave 读取合同，也是后续外部写治理、管理面和 parity 测试的共同输入。
 
-> 当前状态：Phase A 的 DDL、Parser/AST、独立版本化 catalog、`SHOW/DESCRIBE MODBUS`、地址冲突校验和类型编解码已经可用；#291 的默认关闭 TCP client/master 轮询、#292 的受限 Source 写以及 #293 的采集质量、失败策略和 source health 已接入 Server。TCP server/slave 监听、外部写 staging/审批和管理界面仍属于 #294～#296。
+> 当前状态：Phase A 的 DDL、Parser/AST、独立版本化 catalog、`SHOW/DESCRIBE MODBUS`、地址冲突校验和类型编解码已经可用；#291 的默认关闭 TCP client/master 轮询、#292 的受限 Source 写、#293 的采集质量与 source health，以及 #294 的默认关闭 TCP server/slave 读取均已接入 Server。外部写 staging/审批和管理界面仍属于 #295～#296。
 
 ## 角色与方向
 
@@ -21,7 +21,7 @@ SonnetDB 只定义两个互不混淆的 Modbus TCP 角色：
 
 `SOURCE` 和 `ENDPOINT` 的上下文已经决定角色。第一版 DDL 不再接受冗余的 `ROLE MASTER` 或 `ROLE SLAVE`，也不允许用同一个对象同时承担两个方向。
 
-Modbus runtime 全局默认关闭。创建 source、endpoint 或映射表只持久化 catalog；只有同时设置 `SonnetDBServer:Modbus:Enabled=true` 且 source 声明 `ENABLED TRUE` 时，#291 master worker 才会连接和轮询，#292 `PREVIEW/CONFIRM` 才允许进入联网写流程。`DRY RUN` 只做本地校验和编码，不要求启用 runtime。DDL 不能绕过全局门禁；endpoint 监听仍等待 #294。
+Modbus runtime 全局默认关闭。创建 source、endpoint 或映射表只持久化 catalog；只有同时设置 `SonnetDBServer:Modbus:Enabled=true` 且对应 source 或 endpoint 声明 `ENABLED TRUE` 时，master worker 才会连接和轮询、slave endpoint 才会监听。#292 `PREVIEW/CONFIRM` 同样要求全局门禁与 source 均启用；`DRY RUN` 只做本地校验和编码，不要求启用 runtime。DDL 不能绕过全局门禁。
 
 普通 `SELECT`、`SHOW` 和 `DESCRIBE` 始终读取 SonnetDB 本地状态，不在查询线程中连接 PLC，也不等待现场设备响应。实时采集只由后台 master worker 完成；显式维护命令也不得改变普通查询的这一合同。
 
@@ -106,6 +106,18 @@ source 的 `TIMEOUT` 覆盖连接、写请求和读响应；宿主停止、数�
 
 兼容 `/metrics` 暴露 `sonnetdb_modbus_master_polls_total`、`sonnetdb_modbus_master_poll_failures_total`、`sonnetdb_modbus_master_read_batches_total`、`sonnetdb_modbus_master_rows_written_total` 和 `sonnetdb_modbus_master_reconnects_total`。启用 OpenTelemetry 时，`SonnetDB.Server` meter 还提供对应 poll/read/row/reconnect counter 与 `sonnetdb.modbus.master.poll.duration` histogram；指标不使用数据库名、source 名或地址作为高基数标签。
 
+### TCP slave runtime（#294）
+
+显式启用全局 Modbus runtime 后，Server 周期扫描已注册数据库，为每个 `ENABLED TRUE` 的 endpoint 建立独立 listener。新增数据库、endpoint 或关系表绑定无需重启；endpoint 被移除、数据库关闭或宿主停止会取消 accept、活动连接和正在等待的 socket 读取。客户端连接可连续处理多个顺序请求，`MAX_CONNECTIONS` 限制的是 endpoint 的活动 TCP 长连接数；超额连接立即关闭，连接退出后配额立即归还。
+
+连接先按 `ALLOWLIST` 校验，再占用连接配额。规则支持精确 IPv4/IPv6 地址和 CIDR；空 allowlist 只允许回环客户端。该网络边界不等价于数据库身份或写权限。非回环 `BIND` 仍必须配置非空 allowlist。
+
+读取支持四个标准 function：Coil `0x01`、Discrete Input `0x02`、Holding Register `0x03` 和 Input Register `0x04`。bit 区单次最多 2,000 点，register 区单次最多 125 个寄存器；MBAP protocol id、长度、PDU 形态、地址范围和数量均严格校验。endpoint 的所有表绑定会汇总成同一地址空间，并按各自固定 `ROW KEY` 直接读取当前关系行，再复用 catalog 中已解析的字节序、字序、类型、scale、offset 和 `.BIT(n)` 映射编码响应。请求跨越未映射间隙、只写映射或不存在的固定行时不会返回部分或伪造值。
+
+异常响应保持确定性：不支持的 function（包括 #295 前的全部写请求）返回 `0x01 Illegal Function`；未映射、映射间隙或只写地址返回 `0x02 Illegal Data Address`；非法数量、越界或 PDU 形态返回 `0x03 Illegal Data Value`；固定行缺失、值为 `NULL`、编码失败或 endpoint 内跨表映射歧义返回 `0x04 Server Device Failure`；Unit ID 不匹配返回 `0x0B Gateway Target Device Failed to Respond`。#294 不接收、不暂存也不应用外部写入，catalog 中的 `WRITE_POLICY` 与 `ON_EXTERNAL_WRITE` 继续作为 #295 合同保留。
+
+`SHOW/DESCRIBE MODBUS ENDPOINT` 公开非持久化的 `disabled`、`starting`、`listening`、`degraded` health；绑定失败与监听循环失败分别报告稳定错误码 `endpoint_bind_error`、`endpoint_listener_error`，不会修改 catalog revision。兼容 `/metrics` 暴露 `sonnetdb_modbus_slave_connections_total`、`sonnetdb_modbus_slave_connection_rejections_total`、`sonnetdb_modbus_slave_active_connections`、`sonnetdb_modbus_slave_read_requests_total` 和 `sonnetdb_modbus_slave_read_failures_total`。`SonnetDB.Server` meter 同时提供 `sonnetdb.modbus.slave.connections`、`sonnetdb.modbus.slave.connection.rejections`、`sonnetdb.modbus.slave.connections.active` 和 `sonnetdb.modbus.slave.read.requests`；标签只包含有限的结果、拒绝原因和地址区类型。
+
 ### Endpoint DDL
 
 ```sql
@@ -124,9 +136,9 @@ WITH (
 );
 ```
 
-endpoint 级 `WRITE_POLICY` 默认是 `STAGED`。Phase A 只持久化以下两种策略；#294/#295 runtime 落地后按对应合同执行：
+endpoint 级 `WRITE_POLICY` 默认是 `STAGED`。当前只持久化以下两种策略，#294 读取 runtime 对所有写 function 统一返回 `0x01 Illegal Function`；#295 落地后再按对应写入合同执行：
 
-- `REJECT`：后续 runtime 拒绝全部外部 Modbus 写请求，并记录拒绝审计。
+- `REJECT`：#295 runtime 拒绝全部外部 Modbus 写请求，并记录拒绝审计。
 - `STAGED`：#295 runtime 先校验并持久化不可变的待审批请求；协议接受只表示请求已可靠进入待审批队列，不表示业务表已经改变。
 
 后续 runtime 不存在 endpoint 级 `UPDATE_TABLE` 入口策略，也不存在 `AUDIT FALSE`。审计是不可关闭的运行时不变量。
@@ -156,7 +168,7 @@ WITH (
 
 `ROW KEY` 固定 endpoint 暴露的单行。第一版不从 Unit ID 或寄存器块推导关系表游标。
 
-`ON_EXTERNAL_WRITE` 可以省略，默认是 `STAGE_ONLY`。`STAGE_ONLY` 只记录审批结果，不更新绑定表；`UPDATE_TABLE` 定义后续 #295 runtime 在审批通过后的应用动作：授权审批者确认待审批请求后，SonnetDB 才按同一份已校验映射更新固定行。两种动作都不能覆盖 endpoint 的 `REJECT`，也不能把 `STAGED` 变成直接写表；Phase A 只持久化并展示该配置，不会接收或审批外部写请求。
+`ON_EXTERNAL_WRITE` 可以省略，默认是 `STAGE_ONLY`。`STAGE_ONLY` 只记录审批结果，不更新绑定表；`UPDATE_TABLE` 定义后续 #295 runtime 在审批通过后的应用动作：授权审批者确认待审批请求后，SonnetDB 才按同一份已校验映射更新固定行。两种动作都不能覆盖 endpoint 的 `REJECT`，也不能把 `STAGED` 变成直接写表；#294 只读取并展示该配置，不会接收或审批外部写请求。
 
 ## Catalog 持久化与恢复边界
 
@@ -457,7 +469,8 @@ WITH (
     WORD_ORDER BIG_ENDIAN,
     ALLOWLIST ('192.168.10.0/24'),
     MAX_CONNECTIONS 32,
-    WRITE_POLICY STAGED
+    WRITE_POLICY STAGED,
+    ENABLED TRUE
 );
 
 CREATE TABLE line_shadow (
@@ -488,7 +501,7 @@ WITH (
 );
 ```
 
-上述示例当前只保存 #295 的未来运行时合同，Phase A 不会监听端口或接收外部 client 请求。#295 落地后，外部 client 对 Coil 1 或 Holding Register 40001 的写请求必须先进入 staging，只有授权审批完成后才更新 `line_shadow` 的主键 `1` 行；Input Register 30001 始终只读，DDL 不得提供关闭审计或绕过 staging 的选项。
+当全局 `SonnetDBServer:Modbus:Enabled=true` 且主键 `1` 的固定行存在时，上述 endpoint 会监听 `192.168.10.20:1502`，允许白名单网段读取 Coil 1、Holding Register 40001 和 Input Register 30001。#295 落地前，外部 client 对 Coil 1 或 Holding Register 40001 的写请求统一收到 `0x01 Illegal Function`，不会进入 staging 或改变表值；后续写入必须先进入 staging，只有授权审批完成后才可按策略更新固定行。Input Register 30001 始终只读，DDL 不得提供关闭审计或绕过 staging 的选项。
 
 ## SHOW / DESCRIBE 稳定合同
 
@@ -522,7 +535,7 @@ last_error_code
 
 Endpoint 结果同样追加 `configured_enabled`、`configuration_source` 和 `catalog_revision`。`DESCRIBE MODBUS SOURCE` / `ENDPOINT` 使用与对应 `SHOW` 相同的列合同并只返回指定对象的一行。
 
-`DESCRIBE MODBUS SOURCE` 和 `DESCRIBE MODBUS ENDPOINT` 返回对应对象的全部有效配置及配置来源，不返回凭据或其他敏感值。Source 已反映 #291 全局门禁与 worker 状态；Endpoint 在 #294 前仍固定为 `runtime_enabled=FALSE`、`health=disabled`。DDL 存在不等于 runtime 已启用。
+`DESCRIBE MODBUS SOURCE` 和 `DESCRIBE MODBUS ENDPOINT` 返回对应对象的全部有效配置及配置来源，不返回凭据或其他敏感值。Source 反映 #291 全局门禁与 worker 状态；Endpoint 反映 #294 全局门禁与 listener 状态，health 使用 `disabled`、`starting`、`listening`、`degraded`。DDL 存在不等于 runtime 已启用，元数据查询本身也不会建立连接或探测网络。
 
 `DESCRIBE MODBUS TABLE` 每个映射列返回一行，至少稳定包含：
 

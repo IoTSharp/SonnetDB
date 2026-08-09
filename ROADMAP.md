@@ -38,7 +38,7 @@
 | 31 | 时序聚合类型语义 | ✅ | selector / categorical aggregates 已落地。 |
 | 32 | Document MongoDB-like 易用性 | ✅ | SDK、查询/更新、multikey/wildcard 索引、aggregation、mixed Bulk、迁移 CLI、Workbench、Quickstart 与结构化 gap report 已闭环。 |
 | 33 | 时序聚合执行与下推 | ✅ | Geo 正确性、多聚合复用、残差流式化、count(*)、LIMIT/latest-N 下推已落地。 |
-| 34 | Modbus TCP 内建映射表 | 🚧 | #288~#293 已完成合同、DDL/catalog、地址/codec、默认关闭的 TCP master、受限远端写与失败质量/source health；slave endpoint、外部写治理、诊断和管理面仍待实现。 |
+| 34 | Modbus TCP 内建映射表 | 🚧 | #288~#294 已完成合同、DDL/catalog、地址/codec、默认关闭的 TCP master/slave 读取、受限远端写与失败质量/health；外部写治理和管理面仍待实现。 |
 | 35 | 语义内容与多模态检索 | 📋 | 尚未开始。 |
 | 36 | 八模型专用品类易用性对齐 | 📋 | 已完成参照分析；按真实缺口吸收高频工作流，不做协议或产品全集兼容。 |
 | 37 | 视图与物化视图 | ✅ | #327 逻辑视图与 #328 显式全量刷新物化视图均已实现。 |
@@ -54,7 +54,7 @@
 2. 恢复 M20 Parity nightly 的有效报告，并补齐 M19/M25 目标硬件容量证据。
 3. 完成 M27 的真实 provider/Agent 接线、双网客户端 Copilot、工业 Demo 和 eval，消除历史虚标。
 4. 收口 M29 Studio 安装包/宿主生命周期实机验收。
-5. M34 的默认关闭 TCP master runtime、#292 受限远端写和 #293 失败质量/source health 已完成，下一步进入 #294 默认关闭的 TCP slave endpoint；M35 在过滤 ANN 与内容生命周期地基完成后再做媒体场景。
+5. M34 的默认关闭 TCP master/slave runtime、#292 受限远端写和 #293 失败质量/source health 已完成，下一步进入 #295 endpoint 外部写治理；M35 在过滤 ANN 与内容生命周期地基完成后再做媒体场景。
 6. M36 先完成八模型 golden journey 与 gap catalog；实现顺序为高频客户端工作流 -> 查询诊断 -> 高级治理，Document 复用已完成的 M32 结果，向量高级项复用 M35 地基。
 7. M39 先执行 #333 触发器 V2 证据门禁；未证明 V1 在真实 journey 上存在缺口前，不直接扩展 BEFORE、statement-level 或多模型触发器。
 8. M40 先完成 #341 的 workload/合同证据和 #342~#346 公共存储地基，再进入原生 Graph Preview；Phase 2 的关系映射规划和流式执行必须复用 M41 的公共计划/算子合同，不得另建一套关系优化器。正式产品定位在 M40 发布门禁通过前继续保持“八种数据模型，一套引擎”。
@@ -169,7 +169,7 @@ Phase A 已完成本地合同与持久化地基：DDL、Parser/AST、独立版�
 | #291 | 默认关闭的 TCP master runtime、批量读取、轮询、取消、退避、超时、重连和指标。 | ✅ |
 | #292 | 受限 SQL 写寄存器、preview/dry-run、权限和审计；远端失败不得伪造本地成功。 | ✅ |
 | #293 | 质量位、错误码、source health、latest/history 与 KEEP_LAST/NULL/SKIP/MARK_BAD 策略。 | ✅ |
-| #294 | 默认关闭的 TCP slave endpoint、读请求、绑定/白名单/unit id/最大连接数。 | 📋 |
+| #294 | 默认关闭的 TCP slave endpoint、读请求、绑定/白名单/unit id/最大连接数。 | ✅ |
 | #295 | 外部写入的 REJECT/STAGED/UPDATE_TABLE 策略、待确认队列和审计；默认 STAGED。 | 📋 |
 | #296 | Web/Studio 管理面、模拟 PLC parity、文档，以及 IoTSharp Product/Collection Template/Gateway/EdgeNode 合同边界。 | 📋 |
 

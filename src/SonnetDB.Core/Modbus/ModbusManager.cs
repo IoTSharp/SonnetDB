@@ -12,6 +12,8 @@ public sealed class ModbusManager : IDisposable
     private readonly TableCatalog _tables;
     private readonly Dictionary<string, ModbusSourceRuntimeStatus> _sourceRuntimeStatuses =
         new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ModbusEndpointRuntimeStatus> _endpointRuntimeStatuses =
+        new(StringComparer.Ordinal);
     private bool _disposed;
 
     /// <summary>仅供测试在候选目录落盘后、内存快照发布前建立确定性同步点。</summary>
@@ -100,6 +102,53 @@ public sealed class ModbusManager : IDisposable
         {
             if (!_disposed)
                 _sourceRuntimeStatuses.Remove(sourceName);
+        }
+    }
+
+    /// <summary>
+    /// 返回指定 endpoint 的瞬时运行状态；尚未由协议 runtime 发布状态时返回默认关闭状态。
+    /// </summary>
+    /// <param name="endpointName">Endpoint 名称。</param>
+    /// <returns>当前运行状态快照。</returns>
+    public ModbusEndpointRuntimeStatus GetEndpointRuntimeStatus(string endpointName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(endpointName);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            return _endpointRuntimeStatuses.GetValueOrDefault(endpointName)
+                ?? ModbusEndpointRuntimeStatus.Disabled;
+        }
+    }
+
+    /// <summary>
+    /// 发布指定 endpoint 的瞬时运行状态；状态只保存在内存中，不修改 catalog 修订号或磁盘格式。
+    /// </summary>
+    /// <param name="endpointName">Endpoint 名称。</param>
+    /// <param name="status">待发布状态。</param>
+    public void ReportEndpointRuntimeStatus(string endpointName, ModbusEndpointRuntimeStatus status)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(endpointName);
+        ArgumentNullException.ThrowIfNull(status);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            if (Catalog.TryGetEndpoint(endpointName) is not null)
+                _endpointRuntimeStatuses[endpointName] = status;
+        }
+    }
+
+    /// <summary>
+    /// 清除指定 endpoint 的瞬时运行状态，使元数据恢复为默认关闭状态。
+    /// </summary>
+    /// <param name="endpointName">Endpoint 名称。</param>
+    public void ClearEndpointRuntimeStatus(string endpointName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(endpointName);
+        lock (_sync)
+        {
+            if (!_disposed)
+                _endpointRuntimeStatuses.Remove(endpointName);
         }
     }
 
@@ -219,6 +268,7 @@ public sealed class ModbusManager : IDisposable
             ModbusCatalog candidate = CreateCandidateCatalog();
             _ = candidate.RemoveEndpoint(name);
             PersistAndPublish(candidate);
+            _endpointRuntimeStatuses.Remove(name);
             return true;
         }
     }
@@ -271,6 +321,7 @@ public sealed class ModbusManager : IDisposable
         lock (_sync)
         {
             _sourceRuntimeStatuses.Clear();
+            _endpointRuntimeStatuses.Clear();
             _disposed = true;
         }
     }
@@ -283,6 +334,18 @@ public sealed class ModbusManager : IDisposable
             ThrowIfDisposed();
             return new Dictionary<string, ModbusSourceRuntimeStatus>(
                 _sourceRuntimeStatuses,
+                StringComparer.Ordinal);
+        }
+    }
+
+    /// <summary>捕获 endpoint 运行状态的一致只读副本，供单次元数据查询使用。</summary>
+    internal IReadOnlyDictionary<string, ModbusEndpointRuntimeStatus> CaptureEndpointRuntimeStatuses()
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            return new Dictionary<string, ModbusEndpointRuntimeStatus>(
+                _endpointRuntimeStatuses,
                 StringComparer.Ordinal);
         }
     }
