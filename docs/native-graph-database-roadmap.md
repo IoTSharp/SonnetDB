@@ -58,6 +58,31 @@ SonnetDB 的图能力采用两种数据来源、一个图计划和一套执行�
 
 这些改造必须由实际 benchmark 和分配证据约束。Phase 0 不引入分片、MVCC page tree 或复杂缓存。
 
+### 2.2 Couplet 上层工作负载与缺口回收门禁
+
+[Couplet](https://github.com/IoTSharp/Couplet) 是面向 Codex、Claude Code 等编码 Agent 的独立本地代码知识产品。两个仓库保持同级独立，不互相作为 Git submodule；依赖方向固定为 `Couplet -> SonnetDB.Core`，正式构建固定已发布 package version，本地联调可用不提交的 composite solution 或 opt-in `ProjectReference`。Couplet 负责工作区/Git、解析器、代码领域 schema、增量协调、本地 embedding、上下文组装、首版只读 typed MCP 和 Agent 产品面；SonnetDB 负责通用多模型存储、查询、事务、恢复、资源治理与性能。Couplet 不读取内部 key layout，不复制 Core，也不能建立替代数据引擎。
+
+代码知识、依赖分析和 Agent 上下文检索是原生图与多模型组合的正式 golden journey。该边界不允许上层绕过 Core：
+
+- 一旦 golden journey、执行计划、分配/锁/I/O 计数或固定硬件报告稳定复现通用缺口，就必须登记到 capability gap catalog，标明复现语料、规模、复杂度、责任里程碑和关闭证据，并阻塞依赖该能力的预览、Beta 或正式发布。
+- GraphStore、邻接、事务、路径算子、统计、恢复和图查询计划缺口归 M40；`KvKeyspace` 的 snapshot lease、range cursor、atomic batch、checkpoint/compaction、锁范围和分配缺口归 M40 公共地基或对应 Core 性能里程碑；共享关系算子缺口归 M41；Document、FullText、Vector、filtered ANN、混合召回和派生索引生命周期缺口分别回收到 M32、M35、M36 或其后续公共里程碑。不得在上层复制一套存储、索引、遍历或查询执行器。
+- 修复优先级固定为：正确性、原子性与恢复不变量；随后是有界内存/锁/取消以及消除声明路径中的非预期全扫、全量物化和重复遍历；再处理固定硬件容量、P95/P99 延迟和资源放大；最后才开放新 API、算法、UI 和产品文案。
+- 对尚未由证据触发的优化继续遵守“不预建复杂机制”；一旦受支持的工作负载触发缺口，就不再以“未来优化”延期，也不得以关系边表、应用层 BFS/DFS、第二套图数据库、隐藏全量 vector/document scan 或提高默认资源上限作为发布兜底。
+- 能力暂缺时，上层只能 fail fast、降级产品能力等级或保持未发布；所有允许的 scan fallback 必须有显式预算、可取消、在 `EXPLAIN`/诊断中可见，并在目标规模报告中证明满足已冻结的 SLO。
+
+Couplet 仓库/路线基线已经建立，但 C0-C4 产品实现仍按证据推进；详细产品待办以 Couplet 的 [ROADMAP.md](https://github.com/IoTSharp/Couplet/blob/main/ROADMAP.md) 为准：
+
+| Couplet 阶段 | 产品交付 | 联调/开发开始条件 | 联合退出/发布门禁 | 状态边界 |
+|---|---|---|---|---|
+| 仓库/路线基线 | README/ADR、MCP 合同语义、golden journeys、质量/性能门禁和 gap catalog | 无 | 输入 #341 workload/SLO | ✅ 仅规划基线完成，不代表任何运行能力 |
+| C0 基础与合同 | 可运行骨架、代码 schema、capability/version handshake、fixture/eval runner | 基线已建立 | 与 #341 同步冻结 | 📋 不宣称图检索可用 |
+| C1 增量代码索引 | Git/worktree/revision、语言适配、Document/FullText 和基础 MCP | 与 #342~#346 public API 并行 | #343/#346 所需合同 + Couplet revision/crash/capacity gate | 📋 不用 Document/KV 边表旁路图 |
+| C2 原生图代码智能 | 定义/引用/调用/继承/依赖路径/影响与测试选择 | #347~#351 目标 public API 可联调 | #352 + Couplet C2 correctness/performance 同时 PASS | 才可发布 Native Graph Preview |
+| C3 混合检索与 context pack | FullText + 本地 embedding/Vector + Native Graph、证据和 Agent eval | #353~#358 与相关 M35/M36 API 可联调 | #359 + Couplet C3 gate 同时 PASS | 才可发布 Beta，不得产品侧 merge/遍历 |
+| C4 生产与 Agent 体验 | 7 天长稳、恢复、安全、容量、分发和双客户端验收 | 与 #360~#366 并行取证 | #367 + Couplet C4 门禁同时 PASS | 才可发布 Production/1.0 |
+
+Couplet 可以提前开发不依赖缺失 Core 能力的 Git、解析、协议和评测代码；任何阶段不得以产品侧替代实现绕过未通过的 SonnetDB 门禁。
+
 ## 3. 原生图架构
 
 ```text
@@ -187,7 +212,7 @@ GraphDistinct / GraphLimit
 
 | 编号 | 交付 | 验收门禁 |
 |---|---|---|
-| #341 | ADR、术语、目标 workload、原生/映射图边界、golden journey 和 capability gap catalog。 | 至少覆盖社交多跳、设备拓扑、知识证据链、关系表 SQL/PGQ 映射；每条给出数据规模、更新模式、查询和不做项。 |
+| #341 | ADR、术语、目标 workload、原生/映射图边界、golden journey 和 capability gap catalog。 | 至少覆盖社交多跳、设备拓扑、知识证据链、Couplet 代码符号/引用/调用/测试影响分析、关系表 SQL/PGQ 映射；每条给出数据规模、更新模式、查询、冻结 SLO 和不做项。 |
 | #342 | 抽取通用 sortable scalar codec，冻结 GraphElementId、LabelId、GraphPropertyValue 和版本化 record/key 格式。 | Table 编码回归不变；graph codec round-trip、排序、损坏拒绝、旧版拒绝/迁移策略齐全。 |
 | #343 | KV snapshot lease、前向 range cursor、页缓冲所有权和取消合同。 | 遍历不在 keyspace 锁内执行消费逻辑；分页不从头重扫；页同时受条目数和 payload 字节数约束，内存随 page/frontier 上限而不是 keyspace 总量增长。 |
 | #344 | `GraphCatalog`、`GraphManager`、目录、命名/依赖和 `Tsdb.Graphs` 生命周期。 | create/open/drop/reopen、同名对象阻断、目录损坏和版本不兼容测试通过；仍不暴露虚假查询能力。 |
@@ -205,7 +230,7 @@ Phase 0 已完成：frozen V1 vectors、Table V1 兼容、snapshot/cursor 有界
 | #349 | BFS/DFS、固定/受限可变长度路径、无权 shortest path、path uniqueness 和预算。 | cycle、self-loop、parallel edge、取消、超时、深度/frontier/path 上限测试完整。 |
 | #350 | label/property cardinality、degree histogram、index selectivity、统计刷新和基础 Graph EXPLAIN。 | 选择性 anchor 可验证；统计缺失/陈旧有稳定 fallback；统计是可重建派生数据。 |
 | #351 | Server/typed .NET SDK、Frame/HTTP 流式读取、幂等 bulk import，以及 CSV/JSON/Graphify `graph.json` importer。 | 嵌入式/远程同语义；导入可 checkpoint/resume；Graphify 只作为输入，不进入 Core。 |
-| #352 | Phase 1 correctness/performance gate：CrashTests、BenchmarkDotNet、Neo4j 对照和固定硬件报告。 | 100k/1m vertex、1m/10m edge 分档报告；1~6 hop、supernode、混合读写、冷/热重启均有结果，不设无证据营销阈值。 |
+| #352 | Phase 1 correctness/performance gate：CrashTests、BenchmarkDotNet、Neo4j 对照和固定硬件报告。 | 正确性/恢复与性能/容量是两个独立 gate：前者要求语义对拍零 mismatch、零 orphan/index drift，crash/replay/checkpoint/backup/repair 全 PASS；后者在 100k/1m vertex、1m/10m edge 下对 1~6 hop、supernode、代码知识影响分析、混合读写和冷/热重启达到 #341 预先冻结的复杂度、内存及 P95/P99 SLO。任一 gate 未达即阻断 Phase 1；不得遗留不可解释的全扫/全量物化，也不得事后按实现结果改低阈值。 |
 
 Phase 1 对外名称只能是 **Native Graph Preview**。它已经是真正的邻接图存储，但 SQL 图模式和完整产品面尚未完成。
 
@@ -219,7 +244,7 @@ Phase 1 对外名称只能是 **Native Graph Preview**。它已经是真正的�
 | #356 | `GRAPH_TABLE MATCH COLUMNS` 固定模式、方向、label、property predicate 和变量投影。 | PostgreSQL SQL/PGQ 参考用例对拍；原生 graph 使用 adjacency，映射 graph 使用关系访问器。 |
 | #357 | SQL 可变长度路径、path mode/uniqueness、shortest path、最大深度与结果预算。 | 路径爆炸 fail bounded；循环语义确定；结果通过 ADO.NET/远程流式读取。 |
 | #358 | cost planner、join/expand 顺序、bidirectional BFS 准入、`EXPLAIN ANALYZE` 实际 rows/expansions/frontier/fallback。 | 计划估算和实际指标可解释；优化前后结果完全一致；无基准收益不引入复杂算法。 |
-| #359 | SQL + Graph + Table/Document/Vector 组合、权限、备份、Studio 查询页和 Parity Graph capability。 | 同一 SQL 可组合图行集与现有模型；Neo4j 验原生语义、PostgreSQL 验 SQL/PGQ 语义；UI 不绕过 Server。 |
+| #359 | SQL + Graph + Table/Document/Vector/FullText 组合、复用 M35/M36 的 Hybrid Search 候选合同，以及权限、备份、Studio 查询页和 Parity Graph capability。 | 同一 SQL/typed plan 可组合图行集与现有模型；实际 access path、候选规模和 fallback 可见，声明 journey 不在产品侧 merge、遍历或隐藏全扫；Neo4j 验原生语义、PostgreSQL 验 SQL/PGQ 语义，UI 不绕过 Server。 |
 
 Phase 2 完成后可称为 **SonnetDB Graph Beta**：具备原生存储、事务、遍历、SQL/PGQ 和跨模型组合，但长期并发、维护和容量证据仍未收口。
 
@@ -234,7 +259,7 @@ Phase 2 完成后可称为 **SonnetDB Graph Beta**：具备原生存储、事务
 | #364 | 可选 GQL 风格直接查询入口，只复用 Graph AST/Plan，不承诺完整 Cypher。 | 与等价 SQL/PGQ 计划和结果对拍；无新增执行器；语法能力矩阵公开。 |
 | #365 | 知识图谱/GraphRAG 上层合同：provenance、confidence、source/chunk、valid time、alias/claim、community/summary 引用。 | Core 只存通用属性图；抽取/消歧/LLM job 在 Server/SDK；Document/Object/Vector 仍是权威内容存储。 |
 | #366 | 运维产品面：schema/index/degree/slow traversal、可视化、受限编辑、import/export、repair/rebuild 和权限审计。 | Web/Studio/CLI/SDK 能力矩阵一致；危险 mutation 使用现有 staged approval。 |
-| #367 | 发布门禁：LDBC SNB 子集、Graphalytics 子集、7 天 mixed workload、kill/reopen、backup/restore、Native AOT 和固定硬件容量报告。 | 报告可复现且包含 commit/硬件/数据规模/P50/P95/P99/内存/WAL/恢复/正确性；门禁通过后才更改九模型定位。 |
+| #367 | 发布门禁：LDBC SNB 子集、Graphalytics 子集、代码知识/Agent 组合语料、7 天 mixed workload、kill/reopen、backup/restore、Native AOT 和固定硬件容量报告。 | 报告可复现且包含 commit/硬件/数据规模/P50/P95/P99/内存/WAL/恢复/正确性、实际 access path/fallback 和 gap catalog 关闭状态；正确性/恢复 gate 必须全 PASS，性能/容量 gate 必须达到 #341 冻结的生产 SLO，任一失败或存在生产阻塞缺口都不得更改九模型定位。 |
 
 Phase 3 完成后，SonnetDB 才能对外称为**生产可用的单机原生属性图数据库**。这不包含分布式图数据库、完整 Cypher/GQL 或 RDF 推理能力。
 
@@ -250,11 +275,12 @@ Phase 3 完成后，SonnetDB 才能对外称为**生产可用的单机原生属�
 
 ### 7.2 性能与容量
 
-- 数据形态：均匀度数、幂律分布、supernode、深链、宽 frontier、稠密子图和频繁属性更新。
+- 数据形态：均匀度数、幂律分布、supernode、深链、宽 frontier、稠密子图、频繁属性更新，以及代码仓库常见的高扇出公共符号、海量引用边和 revision 切换/增量重建。
 - 规模档：开发 quick、100k/1m、固定硬件 1m vertex/10m edge；更大档只在前档稳定后加入。
-- 操作：批量导入、point lookup、1/2/3/6 hop、shortest path、属性 anchor、混合读写、checkpoint、reopen 和 repair。
-- 记录：吞吐、P50/P95/P99、working set、托管分配、WAL bytes、read amplification、expanded edges、frontier peak 和恢复时间。
+- 操作：批量导入、point lookup、1/2/3/6 hop、shortest path、属性 anchor、符号定义/引用/调用链、依赖路径、变更影响与测试选择、全文/向量候选后的原生图扩展、混合读写、checkpoint、reopen 和 repair。
+- 记录：吞吐、P50/P95/P99、working set、托管分配、WAL bytes、read amplification、候选/检查/返回元素数、expanded edges、frontier peak、实际 access path/fallback 和恢复时间。
 - 原生遍历必须通过 trace/plan 证明没有 Table JOIN；关系映射图必须如实报告 index seek 或 scan。
+- 声明支持的 workload 若出现复杂度随全图规模而非命中邻接/候选集增长、无界物化、锁内消费、重复全扫或跨模型隐藏全量扫描，即判定门禁失败并回收到责任里程碑优先修复。
 
 ### 7.3 竞品与标准对照
 

@@ -141,6 +141,8 @@
 
 ### Changed
 
+- **Couplet 独立仓库与跨仓门禁**：正式记录代码智能产品仓库 [IoTSharp/Couplet](https://github.com/IoTSharp/Couplet)，冻结 `Couplet -> SonnetDB.Core` 单向依赖、同级独立仓库而非 Git submodule 的协作方式、双方责任边界，以及仓库/路线基线和 C0-C4 对 #341/#342~#346/#352/#359/#367 的阶段映射；区分前序 public API 的并行联调与双方共同关闭的阶段发布 gate，仅确认仓库与路线基线已经建立，不将 Couplet 功能、原生图或发布门禁误标为完成。
+- **M40 上层工作负载性能缺口门禁**：把代码知识、依赖分析和 Agent 上下文检索纳入原生图 golden journey 与固定硬件证据；任何由执行计划、分配/锁/I/O 计数或容量报告复现的通用 Graph/KV/Document/FullText/Vector/混合检索缺口，必须回收到对应 Core 里程碑并阻塞依赖阶段，按正确性/恢复、有界执行与消除非预期全扫、容量/延迟、API/产品面的顺序优先修复。正确性/恢复与性能/容量作为两个独立 gate，任一未达到预先冻结的 SLO 都不得发布；明确禁止上层使用关系边表、应用层遍历、第二套图存储、隐藏全量扫描或单纯提高资源上限作为兜底。
 - SonnetDB Dockerfile 支持通过构建参数替换 Node、.NET SDK 和 ASP.NET Runtime 基础镜像；构建阶段使用 `BUILDPLATFORM`，运行阶段继承 Compose 的 `TARGETPLATFORM`，同一构建定义可输出 AMD64 与 ARM64 镜像。
 - **#182 产品定位校准**：README、文档首页、`llms.txt`、产品欢迎页和路线图统一使用“八种数据模型，一套引擎”；核心产品定义为不绑定实现语言、部署方式或行业场景的多模型数据引擎，嵌入式、服务端、工业边缘和 AI 应用按能力与场景表达，并移除“八种模型都由一套 SQL 完整覆盖”和 `AI-native` 等易误解表述。
 - 依据代码入口、自动化、CI/容量和发布证据重新核查并压缩 `ROADMAP.md`；重新打开 M14/M19/M20/M25/M27/M29 的未接线或待补证部分，M32 只保留尚未实现的 Document 能力，完成里程碑改为结果摘要。
