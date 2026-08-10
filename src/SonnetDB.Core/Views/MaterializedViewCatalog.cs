@@ -12,6 +12,9 @@ public sealed class MaterializedViewCatalog
     private FrozenDictionary<string, MaterializedViewDefinition> _snapshot =
         FrozenDictionary<string, MaterializedViewDefinition>.Empty;
 
+    /// <summary>由所属 MaterializedViewManager 安装的目录变更守卫；独立 catalog 默认不限制直接变更。</summary>
+    internal Action<string, string>? MutationGuard { get; set; }
+
     /// <summary>当前物化视图数量。</summary>
     public int Count => Volatile.Read(ref _snapshot).Count;
 
@@ -22,6 +25,7 @@ public sealed class MaterializedViewCatalog
     public void Add(MaterializedViewDefinition definition)
     {
         ArgumentNullException.ThrowIfNull(definition);
+        MutationGuard?.Invoke(definition.Name, "ADD");
         lock (_sync)
         {
             if (_mutable.ContainsKey(definition.Name))
@@ -38,6 +42,7 @@ public sealed class MaterializedViewCatalog
     public void LoadOrReplace(MaterializedViewDefinition definition)
     {
         ArgumentNullException.ThrowIfNull(definition);
+        MutationGuard?.Invoke(definition.Name, "LOAD OR REPLACE");
         lock (_sync)
         {
             _mutable[definition.Name] = definition;
@@ -53,6 +58,7 @@ public sealed class MaterializedViewCatalog
     public bool Remove(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
+        MutationGuard?.Invoke(name, "REMOVE");
         lock (_sync)
         {
             if (!_mutable.Remove(name))

@@ -322,8 +322,10 @@ public static class SqlExecutor
             CreateMeasurementStatement create => ExecuteCreateMeasurement(tsdb, create),
             CreateTableStatement createTable => TableSqlExecutor.ExecuteCreateTable(tsdb, createTable),
             CreateDocumentCollectionStatement createDocumentCollection => DocumentSqlExecutor.ExecuteCreateCollection(tsdb, createDocumentCollection),
-            CreateViewStatement createView => ExecuteCreateView(tsdb, createView),
-            CreateMaterializedViewStatement createMaterializedView => ExecuteCreateMaterializedView(tsdb, createMaterializedView),
+            CreateViewStatement createView => tsdb.ExecuteSchemaMutation(
+                () => ExecuteCreateView(tsdb, createView)),
+            CreateMaterializedViewStatement createMaterializedView => tsdb.ExecuteSchemaMutation(
+                () => ExecuteCreateMaterializedView(tsdb, createMaterializedView)),
             CreateProcedureStatement createProcedure => SqlRoutineRuntime.CreateProcedure(tsdb, createProcedure),
             CreateTriggerStatement createTrigger => SqlRoutineRuntime.CreateTrigger(tsdb, createTrigger),
             CreateTableIndexStatement createIndex => ExecuteCreateIndex(tsdb, createIndex),
@@ -353,8 +355,10 @@ public static class SqlExecutor
             DropMeasurementStatement dropMeasurement => ExecuteDropMeasurement(tsdb, dropMeasurement),
             DropTableStatement dropTable => TableSqlExecutor.ExecuteDropTable(tsdb, dropTable),
             DropDocumentCollectionStatement dropDocumentCollection => DocumentSqlExecutor.ExecuteDropCollection(tsdb, dropDocumentCollection),
-            DropViewStatement dropView => ExecuteDropView(tsdb, dropView),
-            DropMaterializedViewStatement dropMaterializedView => ExecuteDropMaterializedView(tsdb, dropMaterializedView),
+            DropViewStatement dropView => tsdb.ExecuteSchemaMutation(
+                () => ExecuteDropView(tsdb, dropView)),
+            DropMaterializedViewStatement dropMaterializedView => tsdb.ExecuteSchemaMutation(
+                () => ExecuteDropMaterializedView(tsdb, dropMaterializedView)),
             DropProcedureStatement dropProcedure => SqlRoutineRuntime.DropProcedure(tsdb, dropProcedure),
             DropTriggerStatement dropTrigger => SqlRoutineRuntime.DropTrigger(tsdb, dropTrigger),
             DropTableIndexStatement dropIndex => TableSqlExecutor.ExecuteDropIndex(tsdb, dropIndex),
@@ -604,6 +608,7 @@ public static class SqlExecutor
         if (tsdb.Tables.Catalog.TryGet(statement.Name) is not null
             || tsdb.Measurements.Contains(statement.Name)
             || tsdb.Documents.Catalog.TryGet(statement.Name) is not null
+            || tsdb.Graphs.Catalog.TryGet(statement.Name) is not null
             || tsdb.MaterializedViews.Catalog.TryGet(statement.Name) is not null)
         {
             throw new InvalidOperationException(
@@ -650,6 +655,7 @@ public static class SqlExecutor
         if (tsdb.Tables.Catalog.TryGet(statement.Name) is not null
             || tsdb.Measurements.Contains(statement.Name)
             || tsdb.Documents.Catalog.TryGet(statement.Name) is not null
+            || tsdb.Graphs.Catalog.TryGet(statement.Name) is not null
             || tsdb.Views.Catalog.TryGet(statement.Name) is not null)
         {
             throw new InvalidOperationException(
@@ -763,6 +769,7 @@ public static class SqlExecutor
                 || name.Equals("information_schema.materialized_views", StringComparison.OrdinalIgnoreCase);
         }
 
+        // Phase 0 的 graph 只有生命周期和元数据；不得伪装成可查询的 SQL/view source。
         return tsdb.Tables.Catalog.TryGet(name) is not null
             || tsdb.Measurements.Contains(name)
             || tsdb.Documents.Catalog.TryGet(name) is not null
@@ -784,6 +791,11 @@ public static class SqlExecutor
         {
             throw new InvalidOperationException(
                 $"无法创建 {objectType} '{objectName}'：同名 materialized view 已存在。");
+        }
+        if (tsdb.Graphs.Catalog.TryGet(objectName) is not null)
+        {
+            throw new InvalidOperationException(
+                $"无法创建 {objectType} '{objectName}'：同名 graph 已存在。");
         }
     }
 

@@ -469,7 +469,7 @@ internal sealed class CliApplication
         _output.WriteLine(FormattableString.Invariant(
             $"一致性: checkpoint_lsn={manifest.Consistency.CheckpointLsn}, next_segment_id={manifest.Consistency.NextSegmentId}, segments={manifest.Consistency.SegmentCount}"));
         _output.WriteLine(FormattableString.Invariant(
-            $"模型: measurements={manifest.Models.Measurements.Count}, tables={manifest.Models.Tables.Count}, keyspaces={manifest.Models.Keyspaces.Count}, documents={manifest.Models.DocumentCollections.Count}"));
+            $"模型: measurements={manifest.Models.Measurements.Count}, tables={manifest.Models.Tables.Count}, keyspaces={manifest.Models.Keyspaces.Count}, documents={manifest.Models.DocumentCollections.Count}, graphs={manifest.Models.GraphCatalog?.Graphs.Count ?? 0}"));
         _output.WriteLine(FormattableString.Invariant(
             $"文件: {manifest.Files.Count} 个, {manifest.Consistency.TotalBytes} bytes"));
     }

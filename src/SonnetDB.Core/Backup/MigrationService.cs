@@ -198,7 +198,10 @@ public sealed class MigrationService
                 manifest.Models.Measurements.Count,
                 manifest.Models.Tables.Count,
                 manifest.Models.Keyspaces.Count,
-                manifest.Models.DocumentCollections.Count),
+                manifest.Models.DocumentCollections.Count)
+            {
+                GraphCount = manifest.Models.GraphCatalog?.Graphs.Count ?? 0,
+            },
             manifest.Consistency,
             fileKinds);
     }

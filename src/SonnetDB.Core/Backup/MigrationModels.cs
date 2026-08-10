@@ -40,7 +40,11 @@ public sealed record MigrationModelCounts(
     int Measurements,
     int Tables,
     int Keyspaces,
-    int DocumentCollections);
+    int DocumentCollections)
+{
+    /// <summary>迁移包中的原生属性图数量。</summary>
+    public int GraphCount { get; init; }
+}
 
 /// <summary>
 /// 迁移包只读扫描结果。

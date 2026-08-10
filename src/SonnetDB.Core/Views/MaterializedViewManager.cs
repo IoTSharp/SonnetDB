@@ -12,6 +12,8 @@ public sealed class MaterializedViewManager
     private const string SnapshotPrefix = "generation-";
     private const string SnapshotExtension = ".sdbmvsnap";
     private readonly object _sync = new();
+    private readonly object _schemaSync;
+    private readonly Action<string, string>? _nameAvailabilityGuard;
     private readonly Dictionary<(Guid StorageId, long Generation), SelectExecutionResult> _snapshotCache = new();
 
     /// <summary>
@@ -19,8 +21,25 @@ public sealed class MaterializedViewManager
     /// </summary>
     /// <param name="rootDirectory">物化视图根目录。</param>
     public MaterializedViewManager(string rootDirectory)
+        : this(rootDirectory, nameAvailabilityGuard: null, synchronizationRoot: new object())
+    {
+    }
+
+    /// <summary>
+    /// 使用数据库级 schema 锁和跨模型名称守卫初始化物化视图管理器。
+    /// </summary>
+    /// <param name="rootDirectory">物化视图根目录。</param>
+    /// <param name="nameAvailabilityGuard">跨模型名称占用检查。</param>
+    /// <param name="synchronizationRoot">数据库级 schema 同步根。</param>
+    internal MaterializedViewManager(
+        string rootDirectory,
+        Action<string, string>? nameAvailabilityGuard,
+        object synchronizationRoot)
     {
         ArgumentNullException.ThrowIfNull(rootDirectory);
+        ArgumentNullException.ThrowIfNull(synchronizationRoot);
+        _schemaSync = synchronizationRoot;
+        _nameAvailabilityGuard = nameAvailabilityGuard;
         RootDirectory = rootDirectory;
         Directory.CreateDirectory(rootDirectory);
         Directory.CreateDirectory(DataDirectory);
@@ -37,6 +56,7 @@ public sealed class MaterializedViewManager
         }
         RecoverInterruptedRefreshes();
         CleanupUnpublishedArtifacts();
+        Catalog.MutationGuard = EnsureManagedCatalogMutation;
     }
 
     /// <summary>物化视图定义目录。</summary>
@@ -57,8 +77,10 @@ public sealed class MaterializedViewManager
     public void Create(MaterializedViewDefinition definition)
     {
         ArgumentNullException.ThrowIfNull(definition);
+        lock (_schemaSync)
         lock (_sync)
         {
+            _nameAvailabilityGuard?.Invoke(definition.Name, "materialized view");
             if (Catalog.TryGet(definition.Name) is not null)
                 throw new InvalidOperationException($"materialized view '{definition.Name}' 已存在。");
             PersistProjectedCatalog(definition, removeName: null);
@@ -75,6 +97,7 @@ public sealed class MaterializedViewManager
     {
         ArgumentNullException.ThrowIfNull(name);
         string? storageDirectory = null;
+        lock (_schemaSync)
         lock (_sync)
         {
             var existing = Catalog.TryGet(name);
@@ -113,6 +136,7 @@ public sealed class MaterializedViewManager
 
         MaterializedViewDefinition started;
         long generation;
+        lock (_schemaSync)
         lock (_sync)
         {
             var existing = Catalog.TryGet(name)
@@ -130,6 +154,7 @@ public sealed class MaterializedViewManager
             SelectExecutionResult result = materialize();
             MaterializedViewSnapshotCodec.Save(generationPath, result);
             long completedAt = DateTime.UtcNow.Ticks;
+            lock (_schemaSync)
             lock (_sync)
             {
                 var current = Catalog.TryGet(name)
@@ -150,6 +175,7 @@ public sealed class MaterializedViewManager
         {
             try
             {
+                lock (_schemaSync)
                 lock (_sync)
                 {
                     var current = Catalog.TryGet(name);
@@ -283,6 +309,16 @@ public sealed class MaterializedViewManager
         if (replacement is not null)
             projected.Add(replacement);
         MaterializedViewDefinitionCodec.Save(CatalogPath, projected);
+    }
+
+    /// <summary>阻止调用方绕过 MaterializedViewManager 的 schema 锁和持久化路径直接修改目录。</summary>
+    private void EnsureManagedCatalogMutation(string viewName, string operation)
+    {
+        if (!Monitor.IsEntered(_schemaSync))
+        {
+            throw new InvalidOperationException(
+                $"不能直接对受管理的 MaterializedViewCatalog 执行 {operation} '{viewName}'；请使用 MaterializedViewManager 的 schema API。");
+        }
     }
 
     private long GetNextGeneration(Guid storageId)

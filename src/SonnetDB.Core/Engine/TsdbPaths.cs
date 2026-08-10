@@ -23,6 +23,10 @@
 /// └── materialized-views/
 ///     ├── materialized-views.sdbmv
 ///     └── data/
+/// ├── graphs/
+/// │   ├── graphs.sdbgraph
+/// │   └── stores/
+/// │       └── {storageId:N}/
 /// ├── routines/
 ///     └── routines.sdbrtn
 /// └── modbus/
@@ -61,6 +65,15 @@ public static class TsdbPaths
 
     /// <summary>物化视图定义和派生存储子目录名。</summary>
     public const string MaterializedViewsDirName = "materialized-views";
+
+    /// <summary>原生属性图目录和物理存储子目录名。</summary>
+    public const string GraphsDirName = "graphs";
+
+    /// <summary>原生属性图目录文件名。</summary>
+    public const string GraphCatalogFileName = "graphs.sdbgraph";
+
+    /// <summary>原生属性图物理存储父目录名。</summary>
+    public const string GraphStoresDirName = "stores";
 
     /// <summary>SQL 过程与触发器目录名。</summary>
     public const string RoutinesDirName = "routines";
@@ -181,6 +194,43 @@ public static class TsdbPaths
     /// <returns>物化视图目录路径。</returns>
     public static string MaterializedViewsDir(string root) =>
         Path.Combine(root, MaterializedViewsDirName);
+
+    /// <summary>
+    /// 返回原生属性图子目录：<c>{root}/graphs</c>。
+    /// </summary>
+    /// <param name="root">数据库根目录路径。</param>
+    /// <returns>原生属性图目录路径。</returns>
+    public static string GraphsDir(string root) =>
+        Path.Combine(root, GraphsDirName);
+
+    /// <summary>
+    /// 返回原生属性图目录文件：<c>{root}/graphs/graphs.sdbgraph</c>。
+    /// </summary>
+    /// <param name="root">数据库根目录路径。</param>
+    /// <returns>原生属性图目录文件路径。</returns>
+    public static string GraphCatalogPath(string root) =>
+        Path.Combine(root, GraphsDirName, GraphCatalogFileName);
+
+    /// <summary>
+    /// 返回原生属性图物理存储父目录：<c>{root}/graphs/stores</c>。
+    /// </summary>
+    /// <param name="root">数据库根目录路径。</param>
+    /// <returns>图物理存储父目录路径。</returns>
+    public static string GraphStoresDir(string root) =>
+        Path.Combine(root, GraphsDirName, GraphStoresDirName);
+
+    /// <summary>
+    /// 返回指定稳定存储标识的图物理目录：<c>{root}/graphs/stores/{storageId:N}</c>。
+    /// </summary>
+    /// <param name="root">数据库根目录路径。</param>
+    /// <param name="storageId">图物理存储标识符。</param>
+    /// <returns>图物理存储目录路径。</returns>
+    public static string GraphStoreDir(string root, Guid storageId)
+    {
+        if (storageId == Guid.Empty)
+            throw new ArgumentException("图物理存储标识符不能为空。", nameof(storageId));
+        return Path.Combine(root, GraphsDirName, GraphStoresDirName, storageId.ToString("N"));
+    }
 
     /// <summary>
     /// 返回 SQL 过程与触发器目录：<c>{root}/routines</c>。

@@ -1,6 +1,6 @@
 # 原生属性图数据库路线图
 
-> 本文定义 SonnetDB Milestone 40 的工程路线。当前仅完成规划，不表示任何图能力已经实现。
+> 本文定义 SonnetDB Milestone 40 的工程路线。Phase 0（#341～#346）公共地基已完成；vertex/edge CRUD、遍历、SQL/PGQ、Server/SDK 与固定硬件发布证据仍未完成，不表示 Native Graph Preview 已可用。
 
 ## 1. 决策与目标
 
@@ -49,8 +49,8 @@ SonnetDB 的图能力采用两种数据来源、一个图计划和一套执行�
 
 以下改造不是“为图预写一个新引擎”，而是现有 KV/SQL 已经存在、图场景会放大的通用缺口：
 
-- KV 稳定读快照和前向范围游标：游标生命周期内保持一致视图，按页解码，不在 keyspace 写锁内执行用户回调。
-- 有界 key/value 所有权：明确 borrowed memory、页缓冲和复制边界；公共 API 不暴露失效 Span。
+- KV 稳定读快照和前向范围游标：游标生命周期内保持一致视图，按页解码，不在 keyspace 写锁内执行用户回调；每页同时受条目数和 key/value payload 字节预算约束，单条超限稳定失败。
+- 有界 key/value 所有权：明确 borrowed memory、页缓冲、单条预取和复制边界；公共 API 不暴露失效 Span，游标驻留不随 keyspace 总量增长。
 - 通用可排序标量 codec：支持 null、Int64、Float64、Boolean、String、DateTime、Blob/Json 的类型标签和确定性排序；复用现有表索引规则。
 - `GraphPropertyValue` 可以作为图公共 API 的必要类型化包装，但 Phase 0 不迁移或替换现有 `FieldValue`、`TableColumnType` 和公开 Table API；只抽取双方真正共享的内部编码原语和测试向量。
 - 流式执行结果合同：复用 ADO.NET `DbDataReader`、远程 Frame 流和取消链路，不再以 `SelectExecutionResult` 承载大路径集合。
@@ -100,16 +100,16 @@ Native Graph API       SQL/PGQ + GRAPH_TABLE       后续可选 GQL 子集
 ```text
 N | VertexId                                      -> labels + properties + version
 E | EdgeId                                        -> type + source + target + properties + version
-O | VertexId | EdgeTypeId | NeighborId | EdgeId   -> compact edge projection
-I | VertexId | EdgeTypeId | NeighborId | EdgeId   -> compact edge projection
-L | Kind | LabelId | ElementId                    -> label membership
-P | Kind | LabelId | PropertyId | Value | Id      -> property index entry
-U | Kind | LabelId | PropertyId | Value           -> unique external-key mapping
+O | VertexId | EdgeTypeId | NeighborId | EdgeId   -> empty/reserved value (V1)
+I | VertexId | EdgeTypeId | NeighborId | EdgeId   -> empty/reserved value (V1)
+L | Kind | LabelId | ElementId                    -> empty/reserved value (V1)
+P | Kind | LabelId | PropertyId | Value | Id      -> empty/reserved value (V1)
+U | Kind | LabelId | PropertyId | Value           -> versioned owner element mapping
 S | StatisticKind | ...                           -> cardinality/degree/selectivity statistics
 M | MetadataKind | ...                            -> id high-water/generation/maintenance state
 ```
 
-邻接必须按 key 分条保存，不能把超级节点的全部边列表编码成单个 value。邻接 value 保存 traversal 所需的 `NeighborId`/edge projection，普通扩展不必先读取完整 Edge record。
+邻接必须按 key 分条保存，不能把超级节点的全部边列表编码成单个 value。V1 把 traversal 所需的 `EdgeTypeId`、`NeighborId` 和 `EdgeId` 紧凑投影在 O/I key 中，value 固定为空并保留给显式格式升级；普通扩展可直接解码 key，不必先读取完整 Edge record。L/P 同样把完整派生投影放在 key 中并使用空 value。U key 的 value 例外：它使用 `GraphRecordKind.UniquePropertyOwner = 4` 的带版本和 CRC 固定 owner envelope 保存 element kind 与内部 element ID，从而提供确定性的 external-key point lookup，并让 invariant checker 校验 owner record 与对应 P projection。owner payload 固定为 `int32 little-endian version = 1`、`byte element kind`、3 个零保留字节和 `int64 little-endian owner ID > 0`；任何 kind/version/reserved/长度/CRC 不匹配都必须稳定拒绝。
 
 ### 4.3 每次写入必须保持的不变量
 
@@ -181,7 +181,7 @@ GraphDistinct / GraphLimit
 
 ## 6. 分阶段交付
 
-### Phase 0：基础改造与设计冻结
+### Phase 0：基础改造与设计冻结（✅ 已完成）
 
 此阶段没有对外 Graph 产品能力，目标是消除会导致后续返工的存储、读取和合同缺口。
 
@@ -189,12 +189,12 @@ GraphDistinct / GraphLimit
 |---|---|---|
 | #341 | ADR、术语、目标 workload、原生/映射图边界、golden journey 和 capability gap catalog。 | 至少覆盖社交多跳、设备拓扑、知识证据链、关系表 SQL/PGQ 映射；每条给出数据规模、更新模式、查询和不做项。 |
 | #342 | 抽取通用 sortable scalar codec，冻结 GraphElementId、LabelId、GraphPropertyValue 和版本化 record/key 格式。 | Table 编码回归不变；graph codec round-trip、排序、损坏拒绝、旧版拒绝/迁移策略齐全。 |
-| #343 | KV snapshot lease、前向 range cursor、页缓冲所有权和取消合同。 | 遍历不在 keyspace 锁内执行消费逻辑；分页不从头重扫；内存随 page/frontier 上限而不是 keyspace 总量增长。 |
+| #343 | KV snapshot lease、前向 range cursor、页缓冲所有权和取消合同。 | 遍历不在 keyspace 锁内执行消费逻辑；分页不从头重扫；页同时受条目数和 payload 字节数约束，内存随 page/frontier 上限而不是 keyspace 总量增长。 |
 | #344 | `GraphCatalog`、`GraphManager`、目录、命名/依赖和 `Tsdb.Graphs` 生命周期。 | create/open/drop/reopen、同名对象阻断、目录损坏和版本不兼容测试通过；仍不暴露虚假查询能力。 |
 | #345 | 单 graph transaction、element version、写预算、commit-unknown 和 vertex delete `RESTRICT` 合同。 | 并发冲突、取消、超限、重复请求和 WAL 故障不会产生半条边或孤立邻接。 |
 | #346 | Graph backup manifest、checkpoint、verify/restore、invariant checker 和 CrashTests 骨架。 | 任意注入点重启后要么看到提交前、要么看到提交后状态；校验器能发现故意构造的 orphan/mismatch。 |
 
-Phase 0 完成标准：能够证明底层结构可安全提交和恢复，但仍不得宣称“图数据库已可用”。
+Phase 0 已完成：frozen V1 vectors、Table V1 兼容、snapshot/cursor 有界读取、catalog/lifecycle、条件原子事务、manifest v1/v2、backup/restore/invariant 与跨进程 CrashTests 均有自动回归。该结论只证明公共结构可安全提交和恢复，仍不得宣称“图数据库已可用”或进入 Native Graph Preview；#347～#352 及两个 Preview gate 仍未完成。
 
 ### Phase 1：可用的原生图数据库第一阶段
 

@@ -16,7 +16,13 @@ public sealed record BackupManifest(
     IReadOnlyList<BackupIndexEntry> Indexes)
 {
     /// <summary>当前 manifest 格式版本。</summary>
-    public const int CurrentFormatVersion = 1;
+    public const int CurrentFormatVersion = 2;
+
+    /// <summary>当前 reader 可读取的最早 manifest 格式版本。</summary>
+    public const int MinimumSupportedFormatVersion = 1;
+
+    /// <summary>当前备份与迁移包绑定的数据库格式标识。</summary>
+    public const string CurrentDatabaseFormat = "SonnetDB/MM9";
 
     /// <summary>备份 manifest 文件名。</summary>
     public const string FileName = "sonnetdb.backup.json";
@@ -34,7 +40,30 @@ public sealed record BackupModelSummary(
     IReadOnlyList<BackupMeasurementEntry> Measurements,
     IReadOnlyList<BackupTableEntry> Tables,
     IReadOnlyList<BackupKeyspaceEntry> Keyspaces,
-    IReadOnlyList<BackupDocumentCollectionEntry> DocumentCollections);
+    IReadOnlyList<BackupDocumentCollectionEntry> DocumentCollections)
+{
+    /// <summary>原生属性图目录摘要；旧版 manifest 中不存在时为空。</summary>
+    public BackupGraphCatalogEntry? GraphCatalog { get; init; }
+}
+
+/// <summary>原生属性图目录摘要。</summary>
+public sealed record BackupGraphCatalogEntry(
+    long Revision,
+    IReadOnlyList<BackupGraphEntry> Graphs);
+
+/// <summary>单个原生属性图的备份摘要。</summary>
+public sealed record BackupGraphEntry(
+    string Name,
+    Guid StorageId,
+    int RecordFormatVersion,
+    bool CheckpointedDuringBackup,
+    IReadOnlyList<BackupGraphIndexEntry> Indexes);
+
+/// <summary>原生属性图内嵌派生索引摘要。</summary>
+public sealed record BackupGraphIndexEntry(
+    string Kind,
+    bool Included,
+    bool Rebuildable);
 
 /// <summary>时序 measurement 摘要。</summary>
 public sealed record BackupMeasurementEntry(
@@ -106,18 +135,20 @@ public sealed record BackupIndexEntry(
 [JsonConverter(typeof(JsonStringEnumConverter<BackupFileKind>))]
 public enum BackupFileKind
 {
-    Catalog,
-    Schema,
-    Wal,
-    Segment,
-    Tombstone,
-    Kv,
-    Table,
-    Document,
-    FullTextIndex,
-    VectorIndex,
-    AggregateIndex,
-    Other,
+    Catalog = 0,
+    Schema = 1,
+    Wal = 2,
+    Segment = 3,
+    Tombstone = 4,
+    Kv = 5,
+    Table = 6,
+    Document = 7,
+    FullTextIndex = 8,
+    VectorIndex = 9,
+    AggregateIndex = 10,
+    Other = 11,
+    GraphCatalog = 12,
+    GraphData = 13,
 }
 
 /// <summary>备份创建选项。</summary>

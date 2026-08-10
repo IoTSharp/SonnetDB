@@ -10,6 +10,7 @@ namespace SonnetDB.Documents;
 public sealed class DocumentCollectionManager : IDisposable
 {
     private readonly object _sync = new();
+    private readonly object _schemaSync;
     private readonly string _rootDirectory;
     private readonly KvOptions _kvOptions;
     private readonly Action<string, string>? _nameAvailabilityGuard;
@@ -23,7 +24,12 @@ public sealed class DocumentCollectionManager : IDisposable
     /// <param name="rootDirectory">documents 根目录。</param>
     /// <param name="kvOptions">底层 KV 选项。</param>
     public DocumentCollectionManager(string rootDirectory, KvOptions kvOptions)
-        : this(rootDirectory, kvOptions, nameAvailabilityGuard: null, schemaMutationGuard: null)
+        : this(
+            rootDirectory,
+            kvOptions,
+            nameAvailabilityGuard: null,
+            schemaMutationGuard: null,
+            synchronizationRoot: new object())
     {
     }
 
@@ -31,11 +37,14 @@ public sealed class DocumentCollectionManager : IDisposable
         string rootDirectory,
         KvOptions kvOptions,
         Action<string, string>? nameAvailabilityGuard,
-        Action<string, string>? schemaMutationGuard)
+        Action<string, string>? schemaMutationGuard,
+        object synchronizationRoot)
     {
         ArgumentNullException.ThrowIfNull(rootDirectory);
         ArgumentNullException.ThrowIfNull(kvOptions);
+        ArgumentNullException.ThrowIfNull(synchronizationRoot);
 
+        _schemaSync = synchronizationRoot;
         _rootDirectory = rootDirectory;
         _kvOptions = kvOptions;
         _nameAvailabilityGuard = nameAvailabilityGuard;
@@ -45,6 +54,7 @@ public sealed class DocumentCollectionManager : IDisposable
         Catalog = new DocumentCollectionCatalog();
         foreach (var schema in DocumentCollectionSchemaCodec.Load(SchemaPath))
             Catalog.LoadOrReplace(schema);
+        Catalog.MutationGuard = EnsureManagedCatalogMutation;
     }
 
     /// <summary>文档集合 catalog。</summary>
@@ -60,10 +70,11 @@ public sealed class DocumentCollectionManager : IDisposable
     public void Create(DocumentCollectionSchema schema)
     {
         ArgumentNullException.ThrowIfNull(schema);
-        _nameAvailabilityGuard?.Invoke(schema.Name, "document collection");
+        lock (_schemaSync)
         lock (_sync)
         {
             ThrowIfDisposed();
+            _nameAvailabilityGuard?.Invoke(schema.Name, "document collection");
             Catalog.Add(schema);
             try
             {
@@ -88,6 +99,7 @@ public sealed class DocumentCollectionManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
         ArgumentNullException.ThrowIfNull(definition);
+        lock (_schemaSync)
         lock (_sync)
         {
             ThrowIfDisposed();
@@ -124,6 +136,7 @@ public sealed class DocumentCollectionManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
         ArgumentNullException.ThrowIfNull(definition);
+        lock (_schemaSync)
         lock (_sync)
         {
             ThrowIfDisposed();
@@ -160,6 +173,7 @@ public sealed class DocumentCollectionManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
         ArgumentNullException.ThrowIfNull(definition);
+        lock (_schemaSync)
         lock (_sync)
         {
             ThrowIfDisposed();
@@ -196,9 +210,10 @@ public sealed class DocumentCollectionManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
         ArgumentNullException.ThrowIfNull(definition);
-        _schemaMutationGuard?.Invoke(collectionName, "ALTER DOCUMENT COLLECTION");
+        lock (_schemaSync)
         lock (_sync)
         {
+            _schemaMutationGuard?.Invoke(collectionName, "ALTER DOCUMENT COLLECTION");
             ThrowIfDisposed();
             var current = Catalog.TryGet(collectionName)
                 ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
@@ -231,9 +246,10 @@ public sealed class DocumentCollectionManager : IDisposable
     public bool DropValidator(string collectionName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
-        _schemaMutationGuard?.Invoke(collectionName, "ALTER DOCUMENT COLLECTION");
+        lock (_schemaSync)
         lock (_sync)
         {
+            _schemaMutationGuard?.Invoke(collectionName, "ALTER DOCUMENT COLLECTION");
             ThrowIfDisposed();
             var current = Catalog.TryGet(collectionName)
                 ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
@@ -269,6 +285,7 @@ public sealed class DocumentCollectionManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
         ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
+        lock (_schemaSync)
         lock (_sync)
         {
             ThrowIfDisposed();
@@ -306,6 +323,7 @@ public sealed class DocumentCollectionManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
         ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
+        lock (_schemaSync)
         lock (_sync)
         {
             ThrowIfDisposed();
@@ -346,6 +364,7 @@ public sealed class DocumentCollectionManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
         ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
+        lock (_schemaSync)
         lock (_sync)
         {
             ThrowIfDisposed();
@@ -448,10 +467,11 @@ public sealed class DocumentCollectionManager : IDisposable
     public bool Drop(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
-        _schemaMutationGuard?.Invoke(name, "DROP DOCUMENT COLLECTION");
+        lock (_schemaSync)
         lock (_sync)
         {
             ThrowIfDisposed();
+            _schemaMutationGuard?.Invoke(name, "DROP DOCUMENT COLLECTION");
             if (!Catalog.Remove(name))
                 return false;
 
@@ -562,6 +582,16 @@ public sealed class DocumentCollectionManager : IDisposable
 
     private void PersistCatalogLocked()
         => DocumentCollectionSchemaCodec.Save(SchemaPath, Catalog.Snapshot());
+
+    /// <summary>阻止调用方绕过 DocumentCollectionManager 的 schema 锁和持久化路径直接修改目录。</summary>
+    private void EnsureManagedCatalogMutation(string collectionName, string operation)
+    {
+        if (!Monitor.IsEntered(_schemaSync))
+        {
+            throw new InvalidOperationException(
+                $"不能直接对受管理的 DocumentCollectionCatalog 执行 {operation} '{collectionName}'；请使用 DocumentCollectionManager 的 schema API。");
+        }
+    }
 
     private static string EncodeName(string name)
     {

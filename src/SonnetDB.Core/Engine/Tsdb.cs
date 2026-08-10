@@ -4,6 +4,7 @@ using SonnetDB.Diagnostics;
 using SonnetDB.Documents;
 using SonnetDB.Engine.Compaction;
 using SonnetDB.Engine.Retention;
+using SonnetDB.Graphs;
 using SonnetDB.Kv;
 using SonnetDB.Memory;
 using SonnetDB.Model;
@@ -33,13 +34,14 @@ public sealed class Tsdb : IDisposable
     private readonly FlushCoordinator _flushCoordinator;
     private readonly WalGroupCommitCoordinator _walGroupCommit;
     private readonly object _writeSync = new();
-    // 锁序固定为 _schemaSync（外）→ _writeSync / TableManager / ModbusManager（内）。
-    // 映射表 DDL 在一次持锁期间串行提交 table 与 Modbus catalog，备份也持锁到文件复制完成。
+    // 锁序固定为 _schemaSync（外）→ _writeSync / 各模型 manager（内）。
+    // 隐式 measurement 建立、跨模型 DDL 与备份均持有 schema 锁，保证名称检查和发布不可交错。
     private readonly object _schemaSync = new();
     // 维护操作串行锁：序列化 Compaction / Retention / DropMeasurement 的段读-规划-执行-替换，
     // 防止"compaction 把 retention 刚删的过期数据重新物化"以及后台 worker 无租约读段导致的
-    // use-after-dispose（#191）。锁序约定：_maintenanceSync（外）→ _writeSync（内）。
-    // 任何同时需要两把锁的路径都必须先取 _maintenanceSync；写路径只取 _writeSync，flush 泵两把都不取。
+    // use-after-dispose（#191）。组合锁序固定为 _schemaSync → _maintenanceSync → _writeSync；
+    // 不涉及 schema 的维护路径仍按 _maintenanceSync → _writeSync，直接写路径按 _schemaSync → _writeSync，
+    // flush 泵不获取这些锁。
     private readonly object _maintenanceSync = new();
     private MemTable _activeMemTable;
     private readonly HashSet<ulong> _seriesWithWalRecord;
@@ -50,6 +52,7 @@ public sealed class Tsdb : IDisposable
     private readonly ViewManager _views;
     private readonly MaterializedViewManager _materializedViews;
     private readonly RoutineManager _routines;
+    private readonly GraphManager _graphs;
 
     private WalSegmentSet? _walSet;
     private long _nextSegmentId;
@@ -140,6 +143,11 @@ public sealed class Tsdb : IDisposable
 
     /// <summary>SQL 过程、关系表触发器及其治理诊断管理器。</summary>
     public RoutineManager Routines => _routines;
+
+    /// <summary>
+    /// 原生属性图目录和存储生命周期管理器。Phase 0 只开放 create/open/drop 与元数据，不开放查询能力。
+    /// </summary>
+    public GraphManager Graphs => _graphs;
 
     /// <summary>进程内墓碑集合，支持查询过滤与 Compaction 消化。</summary>
     public TombstoneTable Tombstones { get; private set; } = new TombstoneTable();
@@ -345,9 +353,14 @@ public sealed class Tsdb : IDisposable
             Tombstones,
             options.UseSimdNumericAggregates);
         Functions = new UserFunctionRegistry(options.AllowUserFunctions);
-        _views = new ViewManager(TsdbPaths.ViewsDir(options.RootDirectory));
+        _views = new ViewManager(
+            TsdbPaths.ViewsDir(options.RootDirectory),
+            EnsureViewDefinitionNameAvailable,
+            _schemaSync);
         _materializedViews = new MaterializedViewManager(
-            TsdbPaths.MaterializedViewsDir(options.RootDirectory));
+            TsdbPaths.MaterializedViewsDir(options.RootDirectory),
+            EnsureViewDefinitionNameAvailable,
+            _schemaSync);
         _routines = new RoutineManager(TsdbPaths.RoutinesDir(options.RootDirectory));
         _keyspaces = new KvKeyspaceManager(TsdbPaths.KvDir(options.RootDirectory), options.Kv);
         _tables = new TableManager(
@@ -364,7 +377,15 @@ public sealed class Tsdb : IDisposable
             TsdbPaths.DocumentsDir(options.RootDirectory),
             options.Kv,
             EnsureViewNameAvailable,
-            EnsureNoViewDependents);
+            EnsureNoViewDependents,
+            _schemaSync);
+        _graphs = new GraphManager(
+            TsdbPaths.GraphsDir(options.RootDirectory),
+            options.Kv,
+            EnsureGraphNameAvailable,
+            EnsureNoViewDependents,
+            _schemaSync);
+        Measurements.MutationGuard = EnsureManagedMeasurementCatalogMutation;
         _checkpointLsn = checkpointLsn;
         _lastTombstoneCheckpointUtcTicks = DateTime.UtcNow.Ticks;
     }
@@ -389,6 +410,7 @@ public sealed class Tsdb : IDisposable
         Directory.CreateDirectory(TsdbPaths.MaterializedViewsDir(root));
         Directory.CreateDirectory(TsdbPaths.RoutinesDir(root));
         Directory.CreateDirectory(TsdbPaths.ModbusDir(root));
+        Directory.CreateDirectory(TsdbPaths.GraphsDir(root));
 
         // 加载 measurement schema 集合（文件不存在时返回空集合）
         var measurements = new MeasurementCatalog();
@@ -537,6 +559,7 @@ public sealed class Tsdb : IDisposable
 
         WalGroupCommitTicket walSync = default;
         FlushPump.FlushRequest? hardCapFlush;
+        lock (_schemaSync)
         lock (_writeSync)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -641,6 +664,7 @@ public sealed class Tsdb : IDisposable
         int written = 0;
         WalGroupCommitTicket walSync = default;
         FlushPump.FlushRequest? hardCapFlush = null;
+        lock (_schemaSync)
         lock (_writeSync)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -776,11 +800,11 @@ public sealed class Tsdb : IDisposable
     public MeasurementSchema CreateMeasurement(MeasurementSchema schema)
     {
         ArgumentNullException.ThrowIfNull(schema);
-        EnsureViewNameAvailable(schema.Name, "measurement");
-
+        lock (_schemaSync)
         lock (_writeSync)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+            EnsureViewNameAvailable(schema.Name, "measurement");
             Measurements.Add(schema);
 
             // 立即把全量 schema 集合原子写入磁盘，确保 CREATE 语义具备崩溃安全性
@@ -799,37 +823,37 @@ public sealed class Tsdb : IDisposable
     public bool DropMeasurement(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
-        EnsureNoViewDependents(name, "DROP MEASUREMENT");
-
-        // 先取维护锁（外），再取写锁（内）：与 Compaction / Retention 互斥，杜绝它们并发变更段集合
-        // 导致的 use-after-dispose / 数据复活；锁序 _maintenanceSync → _writeSync 全局一致。
+        // schema 锁覆盖依赖检查与目录发布；随后按 maintenance → write 获取底层存储锁，
+        // 与 Compaction / Retention 互斥，杜绝检查后并发建依赖和段集合数据复活。
+        lock (_schemaSync)
         lock (_maintenanceSync)
-            lock (_writeSync)
-            {
-                ObjectDisposedException.ThrowIf(_disposed, this);
+        lock (_writeSync)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            EnsureNoViewDependents(name, "DROP MEASUREMENT");
 
-                if (!Measurements.Contains(name))
-                    return false;
+            if (!Measurements.Contains(name))
+                return false;
 
-                SealAndWaitLocked();
+            SealAndWaitLocked();
 
-                var removedSeries = Catalog.RemoveMeasurement(name);
-                var removedSeriesIds = removedSeries.Select(static entry => entry.Id).ToHashSet();
-                foreach (ulong seriesId in removedSeriesIds)
-                    _seriesWithWalRecord.Remove(seriesId);
+            var removedSeries = Catalog.RemoveMeasurement(name);
+            var removedSeriesIds = removedSeries.Select(static entry => entry.Id).ToHashSet();
+            foreach (ulong seriesId in removedSeriesIds)
+                _seriesWithWalRecord.Remove(seriesId);
 
-                MemTable.RemoveSeries(removedSeriesIds);
-                RemoveMeasurementSegmentsLocked(removedSeriesIds);
+            MemTable.RemoveSeries(removedSeriesIds);
+            RemoveMeasurementSegmentsLocked(removedSeriesIds);
 
-                Measurements.Remove(name);
-                MarkMeasurementSchemasDirty();
-                PersistMeasurementSchemasLocked();
+            Measurements.Remove(name);
+            MarkMeasurementSchemasDirty();
+            PersistMeasurementSchemasLocked();
 
-                _catalogDirty = true;
-                PersistCatalogCheckpointLocked();
+            _catalogDirty = true;
+            PersistCatalogCheckpointLocked();
 
-                return true;
-            }
+            return true;
+        }
     }
 
     /// <summary>
@@ -900,9 +924,11 @@ public sealed class Tsdb : IDisposable
 
                 Tables.CheckpointAll();
                 Documents.CompactAll();
-                var checkpointedKeyspaces = Keyspaces.CheckpointOpened();
-
-                return afterCheckpoint(this, options, checkpointedKeyspaces);
+                return Graphs.ExecuteConsistentBackup(() =>
+                {
+                    var checkpointedKeyspaces = Keyspaces.CheckpointOpened();
+                    return afterCheckpoint(this, options, checkpointedKeyspaces);
+                });
             }
         }
     }
@@ -1075,11 +1101,18 @@ public sealed class Tsdb : IDisposable
                             {
                                 try
                                 {
-                                    _keyspaces.Dispose();
+                                    _graphs.Dispose();
                                 }
                                 finally
                                 {
-                                    Segments.Dispose();
+                                    try
+                                    {
+                                        _keyspaces.Dispose();
+                                    }
+                                    finally
+                                    {
+                                        Segments.Dispose();
+                                    }
                                 }
                             }
                         }
@@ -1483,6 +1516,7 @@ public sealed class Tsdb : IDisposable
         var schema = Measurements.TryGet(point.Measurement);
         if (schema is null)
         {
+            EnsureViewNameAvailable(point.Measurement, "measurement");
             var created = CreateSchemaFromPoint(point);
             Measurements.Add(created);
             MarkMeasurementSchemasDirty();
@@ -1794,6 +1828,52 @@ public sealed class Tsdb : IDisposable
             throw new InvalidOperationException(
                 $"无法创建 {objectType} '{objectName}'：同名 materialized view 已存在。");
         }
+        if (_graphs.Catalog.TryGet(objectName) is not null)
+        {
+            throw new InvalidOperationException(
+                $"无法创建 {objectType} '{objectName}'：同名 graph 已存在。");
+        }
+    }
+
+    /// <summary>拒绝与现有基础对象或视图同名的原生图定义。</summary>
+    private void EnsureGraphNameAvailable(string objectName, string objectType)
+    {
+        if (_tables.Catalog.TryGet(objectName) is not null)
+        {
+            throw new InvalidOperationException(
+                $"无法创建 {objectType} '{objectName}'：同名 table 已存在。");
+        }
+        if (Measurements.Contains(objectName))
+        {
+            throw new InvalidOperationException(
+                $"无法创建 {objectType} '{objectName}'：同名 measurement 已存在。");
+        }
+        if (_documents.Catalog.TryGet(objectName) is not null)
+        {
+            throw new InvalidOperationException(
+                $"无法创建 {objectType} '{objectName}'：同名 document collection 已存在。");
+        }
+        if (_views.Catalog.TryGet(objectName) is not null)
+        {
+            throw new InvalidOperationException(
+                $"无法创建 {objectType} '{objectName}'：同名 view 已存在。");
+        }
+        if (_materializedViews.Catalog.TryGet(objectName) is not null)
+        {
+            throw new InvalidOperationException(
+                $"无法创建 {objectType} '{objectName}'：同名 materialized view 已存在。");
+        }
+    }
+
+    /// <summary>拒绝与任一基础对象、其它视图类别或原生图同名的视图定义。</summary>
+    private void EnsureViewDefinitionNameAvailable(string objectName, string objectType)
+    {
+        EnsureGraphNameAvailable(objectName, objectType);
+        if (_graphs.Catalog.TryGet(objectName) is not null)
+        {
+            throw new InvalidOperationException(
+                $"无法创建 {objectType} '{objectName}'：同名 graph 已存在。");
+        }
     }
 
     private void EnsureNoViewDependents(string objectName, string operation)
@@ -1812,6 +1892,16 @@ public sealed class Tsdb : IDisposable
         throw new InvalidOperationException(
             $"无法执行 {operation}：view/materialized view "
             + $"'{dependents}' 依赖对象 '{objectName}'。");
+    }
+
+    /// <summary>阻止调用方绕过 Tsdb 的 schema 锁和持久化路径直接修改 measurement 目录。</summary>
+    private void EnsureManagedMeasurementCatalogMutation(string measurementName, string operation)
+    {
+        if (!Monitor.IsEntered(_schemaSync))
+        {
+            throw new InvalidOperationException(
+                $"不能直接对受管理的 MeasurementCatalog 执行 {operation} '{measurementName}'；请使用 Tsdb 的 measurement schema API。");
+        }
     }
 
     /// <summary>拒绝会使 Modbus、例程或视图引用失效的关系表 schema 变更。</summary>
@@ -1844,6 +1934,7 @@ public sealed class Tsdb : IDisposable
             _modbus.Dispose();
             _tables.Dispose();
             _documents.Dispose();
+            _graphs.Dispose();
             _keyspaces.Dispose();
             _walSet = null;
         }

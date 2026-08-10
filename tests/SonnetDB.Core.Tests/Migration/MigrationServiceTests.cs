@@ -1,6 +1,7 @@
 using System.Text;
 using SonnetDB.Backup;
 using SonnetDB.Engine;
+using SonnetDB.Graphs;
 using SonnetDB.Model;
 using SonnetDB.ObjectStorage;
 using SonnetDB.Query;
@@ -38,6 +39,8 @@ public sealed class MigrationServiceTests : IDisposable
             SqlExecutor.Execute(source, "CREATE TABLE products (id INT, name STRING, PRIMARY KEY (id))");
             SqlExecutor.Execute(source, "INSERT INTO products (id, name) VALUES (1, 'sensor')");
             source.Keyspaces.Open("cache").Put("product:1", Encoding.UTF8.GetBytes("ready"));
+            GraphStore graph = source.Graphs.Create("topology");
+            Assert.Equal("topology", graph.Name);
 
             var objects = new SndbObjectStore(source);
             objects.CreateBucket("artifacts", SndbBucketPurpose.Artifact);
@@ -58,6 +61,7 @@ public sealed class MigrationServiceTests : IDisposable
             Assert.Equal(1, exported.Scan.Models.Measurements);
             Assert.Equal(1, exported.Scan.Models.Tables);
             Assert.True(exported.Scan.Models.Keyspaces >= 1);
+            Assert.Equal(1, exported.Scan.Models.GraphCount);
         }
 
         var scan = service.Scan(packageRoot);

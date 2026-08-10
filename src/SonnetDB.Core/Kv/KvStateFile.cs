@@ -299,10 +299,15 @@ internal sealed class KvDiskState : IDisposable
     private readonly object _sync = new();
     private readonly KvDiskIndexEntry[] _entries;
     private readonly FileStream _stream;
+    private int _referenceCount = 1;
+    private bool _ownerReleased;
     private bool _disposed;
 
     /// <summary>测试扫描时记录实际检查的磁盘索引位置。</summary>
     internal Action<int>? ScanIndexVisitedTestHook { get; set; }
+
+    /// <summary>测试范围扫描底层枚举器实际开始执行的次数。</summary>
+    internal Action? ScanStartedTestHook { get; set; }
 
     public KvDiskState(string path, long sequence, long generation, IReadOnlyList<KvDiskIndexEntry> entries)
     {
@@ -312,7 +317,11 @@ internal sealed class KvDiskState : IDisposable
         Sequence = sequence;
         Generation = generation;
         _entries = entries.ToArray();
-        _stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        _stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read | FileShare.Delete);
     }
 
     public string Path { get; }
@@ -322,6 +331,17 @@ internal sealed class KvDiskState : IDisposable
     public long Generation { get; }
 
     public int Count => _entries.Length;
+
+    /// <summary>取得共享当前不可变磁盘状态的读租约。</summary>
+    public KvDiskStateLease AcquireLease()
+    {
+        lock (_sync)
+        {
+            ObjectDisposedException.ThrowIf(_ownerReleased || _disposed, this);
+            _referenceCount = checked(_referenceCount + 1);
+            return new KvDiskStateLease(this);
+        }
+    }
 
     public bool Contains(ReadOnlySpan<byte> key) => FindIndex(key) >= 0;
 
@@ -355,6 +375,7 @@ internal sealed class KvDiskState : IDisposable
         byte[]? afterKey)
     {
         ArgumentNullException.ThrowIfNull(prefix);
+        ScanStartedTestHook?.Invoke();
 
         byte[] lowerBound = prefix;
         bool lowerBoundExclusive = false;
@@ -450,12 +471,31 @@ internal sealed class KvDiskState : IDisposable
     {
         lock (_sync)
         {
-            if (_disposed)
+            if (_ownerReleased)
                 return;
 
-            _disposed = true;
-            _stream.Dispose();
+            _ownerReleased = true;
+            ReleaseReferenceLocked();
         }
+    }
+
+    internal void ReleaseLease()
+    {
+        lock (_sync)
+            ReleaseReferenceLocked();
+    }
+
+    private void ReleaseReferenceLocked()
+    {
+        if (_referenceCount <= 0)
+            throw new InvalidOperationException("KV disk state reference count is invalid.");
+
+        _referenceCount--;
+        if (_referenceCount != 0)
+            return;
+
+        _disposed = true;
+        _stream.Dispose();
     }
 
     private int FindIndex(ReadOnlySpan<byte> key)
@@ -522,6 +562,22 @@ internal sealed class KvDiskState : IDisposable
 
         return total;
     }
+}
+
+internal sealed class KvDiskStateLease : IDisposable
+{
+    private KvDiskState? _owner;
+
+    public KvDiskStateLease(KvDiskState state)
+    {
+        State = state;
+        _owner = state;
+    }
+
+    public KvDiskState State { get; }
+
+    public void Dispose()
+        => Interlocked.Exchange(ref _owner, null)?.ReleaseLease();
 }
 
 internal sealed class KvDiskIndexEntry

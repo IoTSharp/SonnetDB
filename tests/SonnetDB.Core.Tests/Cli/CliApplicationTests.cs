@@ -225,6 +225,7 @@ public sealed class CliApplicationTests : IDisposable
 
         var inspect = app.Run(["backup", "inspect", "--path", backupPath]);
         Assert.Equal(0, inspect);
+        Assert.Contains("graphs=0", stdout.ToString());
         Assert.Contains("table/devices/idx_devices_site: json_path", stdout.ToString());
         Assert.Contains("document/docs/ft_docs_body: fulltext, excluded, rebuildable", stdout.ToString());
         Assert.Equal(string.Empty, stderr.ToString());

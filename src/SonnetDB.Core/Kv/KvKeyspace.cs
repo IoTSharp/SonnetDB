@@ -226,6 +226,19 @@ public sealed class KvKeyspace : IDisposable
     /// <summary>测试稳定前缀扫描是否只创建一次底层可见项枚举。</summary>
     internal Action<ReadOnlyMemory<byte>>? StablePrefixScanTestHook { get; set; }
 
+    /// <summary>为当前不可变磁盘状态设置快照范围扫描测试钩子。</summary>
+    internal void ConfigureSnapshotDiskScanTestHooks(Action? scanStarted, Action<int>? indexVisited)
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            if (_diskState is null)
+                throw new InvalidOperationException("KV keyspace has no disk state to observe.");
+            _diskState.ScanStartedTestHook = scanStarted;
+            _diskState.ScanIndexVisitedTestHook = indexVisited;
+        }
+    }
+
     internal Action? WalDisposeFlushTestHook
     {
         set
@@ -985,6 +998,73 @@ public sealed class KvKeyspace : IDisposable
     }
 
     /// <summary>
+    /// 在 keyspace 写锁内校验全部条件，并仅在条件成立时把 mixed put/delete 作为一个 WAL record
+    /// 发布。取消只在 WAL 追加前生效；返回冲突时不会追加 WAL。
+    /// </summary>
+    /// <param name="mutations">要原子发布的变更。</param>
+    /// <param name="preconditions">必须同时成立的精确 key-version 或 prefix-empty 条件。</param>
+    /// <param name="cancellationToken">WAL 追加前可取消本次提交。</param>
+    /// <returns>提交 sequence，或第一个失败条件的下标。</returns>
+    internal KvConditionalBatchResult ApplyConditionalBatch(
+        IReadOnlyList<KvBatchMutation> mutations,
+        IReadOnlyList<KvBatchPrecondition> preconditions,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(mutations);
+        ArgumentNullException.ThrowIfNull(preconditions);
+        KvBatchMutation[] batch = CanonicalizeBatchMutations(mutations);
+        KvBatchPrecondition[] conditions = CanonicalizeBatchPreconditions(preconditions);
+
+        using CancellationTokenRegistration cancellationRegistration = cancellationToken.CanBeCanceled
+            ? cancellationToken.UnsafeRegister(
+                static state =>
+                {
+                    object synchronizationRoot = (object)state!;
+                    lock (synchronizationRoot)
+                        Monitor.PulseAll(synchronizationRoot);
+                },
+                _sync)
+            : default;
+
+        long lockWait = SonnetDbMeter.StartLockWaitTiming();
+        lock (_sync)
+        {
+            SonnetDbMeter.RecordKvKeyspaceLockWait(lockWait);
+            ThrowIfDisposed();
+            while (true)
+            {
+                ThrowIfWriteFaultedLocked();
+                cancellationToken.ThrowIfCancellationRequested();
+
+                int failedCondition = FindFailedPreconditionLocked(conditions, DateTimeOffset.UtcNow);
+                if (failedCondition >= 0)
+                    return KvConditionalBatchResult.Conflict(_lastSequence, failedCondition);
+                if (batch.Length == 0)
+                    return KvConditionalBatchResult.Success(_lastSequence);
+
+                long expectedSequence = _wal!.NextSequence;
+                long requiredWalBytes = KvWalFile.CalculateMutationBatchRecordBytes(batch);
+                var publishPlan = PrepareMutationPublishPlanLocked(batch, expectedSequence);
+                if (TryAdmitAtomicBatchLocked(
+                    publishPlan.OverlayEntryCount,
+                    publishPlan.PostCheckpointOverlayEntryCount,
+                    requiredWalBytes,
+                    "conditional atomic mutation batch"))
+                {
+                    // This is the final cancellation point. Once append starts, callers must treat
+                    // failures as commit-outcome-unknown and resolve them by their idempotency key.
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return KvConditionalBatchResult.Success(
+                        CommitPlannedMutationBatchLocked(batch, publishPlan, expectedSequence));
+                }
+
+                WaitForWriteBudgetLocked(cancellationToken);
+                // Monitor.Wait releases the write lock. Re-check both cancellation and conditions.
+            }
+        }
+    }
+
+    /// <summary>
     /// 为索引恢复提交一页变更。当前覆盖层放不下批次时等待已排队的后台检查点；
     /// 整页超过空白 WAL 预算时按顺序有界二分，单条仍超限则保留明确失败。
     /// </summary>
@@ -1280,6 +1360,72 @@ public sealed class KvKeyspace : IDisposable
         return canonical.Values.ToArray();
     }
 
+    /// <summary>在锁外校验并复制批次条件，避免调用方随后改变 key/prefix。</summary>
+    private KvBatchPrecondition[] CanonicalizeBatchPreconditions(
+        IReadOnlyList<KvBatchPrecondition> preconditions)
+    {
+        var copied = new KvBatchPrecondition[preconditions.Count];
+        for (int i = 0; i < preconditions.Count; i++)
+        {
+            KvBatchPrecondition condition = preconditions[i]
+                ?? throw new ArgumentException("KV batch precondition 不能为 null。", nameof(preconditions));
+            if (!Enum.IsDefined(condition.Kind))
+                throw new ArgumentOutOfRangeException(nameof(preconditions), "KV batch precondition kind 无效。");
+            ArgumentNullException.ThrowIfNull(condition.Operand);
+            if (condition.Kind == KvBatchPreconditionKind.KeyVersionEquals)
+            {
+                ValidateKey(condition.Operand, _options);
+                ArgumentOutOfRangeException.ThrowIfNegative(condition.ExpectedVersion);
+            }
+            else
+            {
+                if (condition.Operand.Length == 0 || condition.Operand.Length > _options.MaxKeyBytes)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        nameof(preconditions),
+                        $"KV prefix 长度必须在 1 到 {_options.MaxKeyBytes} 字节之间。");
+                }
+                if (condition.ExpectedVersion != 0)
+                    throw new ArgumentException("KV prefix-empty 条件不能携带 expected version。", nameof(preconditions));
+            }
+
+            copied[i] = condition with { Operand = condition.Operand.ToArray() };
+        }
+        return copied;
+    }
+
+    /// <summary>返回第一个不成立条件的下标；全部成立时返回 -1。</summary>
+    private int FindFailedPreconditionLocked(
+        IReadOnlyList<KvBatchPrecondition> conditions,
+        DateTimeOffset utcNow)
+    {
+        for (int i = 0; i < conditions.Count; i++)
+        {
+            KvBatchPrecondition condition = conditions[i];
+            if (condition.Kind == KvBatchPreconditionKind.KeyVersionEquals)
+            {
+                long currentVersion = 0;
+                if (TryGetEntryLocked(condition.Operand, out var entry)
+                    && !entry.IsExpired(utcNow))
+                {
+                    currentVersion = entry.Version;
+                }
+                if (currentVersion != condition.ExpectedVersion)
+                    return i;
+                continue;
+            }
+
+            bool hasVisibleEntry = EnumerateVisibleEntriesLocked(
+                condition.Operand,
+                afterKey: null,
+                readDiskValues: true)
+                .Any(pair => !pair.Value.IsExpired(utcNow));
+            if (hasVisibleEntry)
+                return i;
+        }
+        return -1;
+    }
+
     /// <summary>
     /// 批量删除多个 key。
     /// </summary>
@@ -1523,6 +1669,71 @@ public sealed class KvKeyspace : IDisposable
     {
         ArgumentNullException.ThrowIfNull(name);
         return new KvNamespace(this, name);
+    }
+
+    /// <summary>
+    /// 取得当前 keyspace 的稳定只读快照。快照只在短锁内复制可变与已冻结覆盖层，
+    /// 后续游标枚举、磁盘读取和调用方消费均不持有 keyspace 锁。
+    /// </summary>
+    /// <returns>固定当前版本与 UTC 读取时刻的只读快照租约。</returns>
+    /// <exception cref="InvalidOperationException">
+    /// 快照覆盖层上限配置无效，或当前可变与已冻结覆盖层合计超过
+    /// <see cref="KvOptions.MaxSnapshotOverlayEntries"/>。
+    /// </exception>
+    public KvReadSnapshot AcquireReadSnapshot()
+    {
+        KeyValuePair<byte[], KvValueEntry>[] mutableValues;
+        KeyValuePair<byte[], KvValueEntry>[] frozenValues;
+        KvDiskStateLease? diskLease;
+        long sequence;
+        DateTimeOffset readTimestampUtc;
+
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            int maximumEntries = _options.MaxSnapshotOverlayEntries;
+            if (maximumEntries <= 0)
+            {
+                throw new InvalidOperationException(
+                    "KvOptions.MaxSnapshotOverlayEntries must be greater than zero.");
+            }
+            long overlayEntryCount = (long)_values.Count + (_frozenValues?.Count ?? 0);
+            if (overlayEntryCount > maximumEntries)
+            {
+                throw new InvalidOperationException(
+                    $"KV read snapshot rejected because the mutable and frozen overlays contain " +
+                    $"{overlayEntryCount} entries in total, " +
+                    $"which exceeds MaxSnapshotOverlayEntries ({maximumEntries}); checkpoint the keyspace first.");
+            }
+
+            mutableValues = _values.ToArray();
+            frozenValues = _frozenValues?.ToArray() ?? [];
+            diskLease = _diskState?.AcquireLease();
+            sequence = _lastSequence;
+            readTimestampUtc = DateTimeOffset.UtcNow;
+        }
+
+        try
+        {
+            Array.Sort(
+                mutableValues,
+                static (left, right) => KvKeyComparer.Instance.Compare(left.Key, right.Key));
+            Array.Sort(
+                frozenValues,
+                static (left, right) => KvKeyComparer.Instance.Compare(left.Key, right.Key));
+            var state = new KvReadSnapshotState(
+                mutableValues,
+                frozenValues,
+                diskLease,
+                sequence,
+                readTimestampUtc);
+            return new KvReadSnapshot(state);
+        }
+        catch
+        {
+            diskLease?.Dispose();
+            throw;
+        }
     }
 
     /// <summary>
@@ -2515,9 +2726,10 @@ public sealed class KvKeyspace : IDisposable
             ? _options.IndexRebuildMaxOverlayEntries
             : _options.MaxOverlayEntries;
 
-    private void WaitForWriteBudgetLocked()
+    private void WaitForWriteBudgetLocked(CancellationToken cancellationToken = default)
     {
         ThrowIfWriteFaultedLocked();
+        cancellationToken.ThrowIfCancellationRequested();
         if (!_options.AutoCheckpointEnabled || !IsWriteBudgetExhaustedLocked())
             return;
 
@@ -2531,6 +2743,7 @@ public sealed class KvKeyspace : IDisposable
         long started = Stopwatch.GetTimestamp();
         while (IsWriteBudgetExhaustedLocked())
         {
+            cancellationToken.ThrowIfCancellationRequested();
             ScheduleAutoCheckpointLocked(force: true);
             if (LastCheckpointException is { } checkpointFailure
                 && _checkpointState?.IsRunning != true)
@@ -2552,6 +2765,7 @@ public sealed class KvKeyspace : IDisposable
                 ? TimeSpan.FromMilliseconds(int.MaxValue)
                 : remaining;
             WriteBackpressureTestHook?.Invoke();
+            cancellationToken.ThrowIfCancellationRequested();
             if (!Monitor.Wait(_sync, wait))
             {
                 RecordCheckpointBackpressure(started, rejected: true);
@@ -2559,6 +2773,7 @@ public sealed class KvKeyspace : IDisposable
             }
 
             ThrowIfDisposed();
+            cancellationToken.ThrowIfCancellationRequested();
         }
 
         RecordCheckpointBackpressure(started, rejected: false);
@@ -3079,7 +3294,7 @@ public sealed class KvKeyspace : IDisposable
             startInclusive,
             endExclusive);
 
-    private static IEnumerable<KeyValuePair<byte[], KvValueEntry>> EnumerateVisibleEntries(
+    internal static IEnumerable<KeyValuePair<byte[], KvValueEntry>> EnumerateVisibleEntries(
         IReadOnlyDictionary<byte[], KvValueEntry> primary,
         IReadOnlyDictionary<byte[], KvValueEntry>? secondary,
         KvDiskState? diskState,

@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Text;
 using SonnetDB.Documents;
+using SonnetDB.Storage.Codecs;
 
 namespace SonnetDB.Tables;
 
@@ -262,20 +263,20 @@ internal static class TableIndexCodec
         switch (column.DataType)
         {
             case TableColumnType.Int64:
-                BinaryPrimitives.WriteInt64BigEndian(
+                SortableScalarCodec.WriteTableLegacyInt64(
                     payload,
                     Convert.ToInt64(value, System.Globalization.CultureInfo.InvariantCulture));
                 return 9;
             case TableColumnType.Float64:
-                BinaryPrimitives.WriteInt64BigEndian(
+                SortableScalarCodec.WriteTableLegacyDouble(
                     payload,
-                    BitConverter.DoubleToInt64Bits(Convert.ToDouble(value, System.Globalization.CultureInfo.InvariantCulture)));
+                    Convert.ToDouble(value, System.Globalization.CultureInfo.InvariantCulture));
                 return 9;
             case TableColumnType.Boolean:
                 payload[0] = (bool)value ? (byte)1 : (byte)0;
                 return 2;
             case TableColumnType.DateTime:
-                BinaryPrimitives.WriteInt64BigEndian(payload, ToUnixMilliseconds(value));
+                SortableScalarCodec.WriteTableLegacyDateTime(payload, ToUnixMilliseconds(value));
                 return 9;
             case TableColumnType.String:
             case TableColumnType.Json:
@@ -302,8 +303,7 @@ internal static class TableIndexCodec
 
     private static int WriteLengthPrefixed(Span<byte> destination, byte[] bytes)
     {
-        BinaryPrimitives.WriteInt32BigEndian(destination[..4], bytes.Length);
-        bytes.CopyTo(destination[4..]);
+        SortableScalarCodec.WriteTableLegacyLengthPrefixed(destination, bytes);
         return 4 + bytes.Length;
     }
 

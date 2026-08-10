@@ -29,6 +29,12 @@ public sealed record KvOptions
     public int MaxOverlayEntries { get; init; } = 100_000;
 
     /// <summary>
+    /// 单个 KV 读快照创建时允许复制的可变与已冻结覆盖层合计最大条目数，默认 100,000。
+    /// 必须为正数；两层合计超过该上限的快照会在创建时立即失败，不受 WAL 或检查点预算影响。
+    /// </summary>
+    public int MaxSnapshotOverlayEntries { get; init; } = 100_000;
+
+    /// <summary>
     /// 索引恢复期间允许的活跃 WAL 最大字节数，默认 256 MB；小于等于 0 时关闭字节预算。
     /// 该预算只在关系表索引恢复 scope 内生效，不改变普通业务写入预算；若单条索引 mutation
     /// 连同空 WAL 文件头也无法装入该预算，恢复会在追加 WAL 前失败并要求提高或关闭预算。

@@ -44,7 +44,7 @@
 | 37 | 视图与物化视图 | ✅ | #327 逻辑视图与 #328 显式全量刷新物化视图均已实现。 |
 | 38 | SQL 存储过程与触发器 | ✅ | #329~#332 已完成 SQL 过程、关系表 AFTER ROW 触发器及治理收口；外部脚本运行时保持暂停。 |
 | 39 | SQL 触发器第二版 | 🚧 | #333 证据 runner、三条关系表 journey、三种 DML 成本/回滚矩阵和真进程 crash 场景已接入；固定目标硬件矩阵仍待归档，再决定高级语义与多模型范围。 |
-| 40 | 原生属性图数据库 | 📋 | 路线已定稿；按公共地基、Native Graph Preview、SQL/PGQ Graph Beta、生产级单机图数据库四阶段推进，当前尚未实现。 |
+| 40 | 原生属性图数据库 | 🚧 | Phase 0（#341~#346）公共地基已完成；Native Graph Preview、SQL/PGQ Graph Beta、生产级单机图数据库及其发布门禁仍待实现。 |
 | 41 | 关系查询规划与执行性能加固 | 📋 | 木垒生产证据已确认关系查询存在扫描、物化、锁等待和 GC 放大；按可观测性与快速路径、流式执行、统计成本模型、高级 JOIN/spill/并行和生产门禁推进。 |
 | MM9 | 多模型备份恢复第一批 | ✅ | `BackupService` 与 `sndb backup` 已落地。 |
 
@@ -57,7 +57,7 @@
 5. M34 的默认关闭 TCP master/slave runtime、#292 受限远端写和 #293 失败质量/source health 已完成，下一步进入 #295 endpoint 外部写治理；M35 在过滤 ANN 与内容生命周期地基完成后再做媒体场景。
 6. M36 先完成八模型 golden journey 与 gap catalog；实现顺序为高频客户端工作流 -> 查询诊断 -> 高级治理，Document 复用已完成的 M32 结果，向量高级项复用 M35 地基。
 7. M39 先执行 #333 触发器 V2 证据门禁；未证明 V1 在真实 journey 上存在缺口前，不直接扩展 BEFORE、statement-level 或多模型触发器。
-8. M40 先完成 #341 的 workload/合同证据和 #342~#346 公共存储地基，再进入原生 Graph Preview；Phase 2 的关系映射规划和流式执行必须复用 M41 的公共计划/算子合同，不得另建一套关系优化器。正式产品定位在 M40 发布门禁通过前继续保持“八种数据模型，一套引擎”。
+8. M40 已完成 #341 的 workload/合同证据和 #342~#346 公共存储地基，下一步进入 #347~#352 Native Graph Preview；Phase 2 的关系映射规划和流式执行必须复用 M41 的公共计划/算子合同，不得另建一套关系优化器。正式产品定位在 M40 发布门禁通过前继续保持“八种数据模型，一套引擎”。
 
 ## 待补验收证据
 
@@ -294,7 +294,7 @@ Phase A 已完成本地合同与持久化地基：DDL、Parser/AST、独立版�
 
 | 阶段 | PR 范围 | 交付边界 | 状态 |
 |---|---|---|---|
-| Phase 0：公共地基 | #341~#346 | ADR/golden journey、共享 sortable codec、KV snapshot cursor、Graph Catalog、单 graph 原子事务、backup/invariant/crash 骨架；无对外 Graph 能力宣称。 | 📋 |
+| Phase 0：公共地基 | #341~#346 | ADR/golden journey、共享 sortable codec、KV snapshot cursor、Graph Catalog、单 graph 原子事务、backup/invariant/crash 骨架；无对外 Graph 能力宣称。 | ✅ 已完成；仅公共地基，不代表 Native Graph Preview |
 | Phase 1：Native Graph Preview | #347~#352 | 原生 GraphStore、双向邻接、属性索引、流式 Expand/BFS/DFS/shortest path、Server/SDK/import 和首轮 Neo4j/容量证据。 | 📋 |
 | Phase 2：SQL/PGQ Graph Beta | #353~#359 | 共享 Graph Logical Plan、原生 graph SQL DDL/DML、SQL/PGQ 关系映射、`GRAPH_TABLE MATCH`、planner/EXPLAIN 和跨模型 SQL 组合。 | 📋 |
 | Phase 3：生产级单机图数据库 | #360~#367 | statement snapshot、supernode/维护、按证据准入的高级路径/算法、可选 GQL 风格入口、知识图谱组合、运维产品面和发布门禁。 | 📋 |

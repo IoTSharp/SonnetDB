@@ -13,6 +13,9 @@ public sealed class MeasurementCatalog
     private readonly Dictionary<string, MeasurementSchema> _mutable = new(StringComparer.Ordinal);
     private FrozenDictionary<string, MeasurementSchema> _snapshot = EmptySnapshot();
 
+    /// <summary>由所属 Tsdb 安装的目录变更守卫；独立 catalog 默认不限制直接变更。</summary>
+    internal Action<string, string>? MutationGuard { get; set; }
+
     /// <summary>当前已注册的 measurement 数量。</summary>
     public int Count => Volatile.Read(ref _snapshot).Count;
 
@@ -25,6 +28,7 @@ public sealed class MeasurementCatalog
     public void Add(MeasurementSchema schema)
     {
         ArgumentNullException.ThrowIfNull(schema);
+        MutationGuard?.Invoke(schema.Name, "ADD");
         lock (_sync)
         {
             if (_mutable.ContainsKey(schema.Name))
@@ -43,6 +47,7 @@ public sealed class MeasurementCatalog
     public bool Remove(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
+        MutationGuard?.Invoke(name, "REMOVE");
         lock (_sync)
         {
             if (!_mutable.Remove(name))
@@ -60,6 +65,7 @@ public sealed class MeasurementCatalog
     internal void LoadOrReplace(MeasurementSchema schema)
     {
         ArgumentNullException.ThrowIfNull(schema);
+        MutationGuard?.Invoke(schema.Name, "LOAD OR REPLACE");
         lock (_sync)
         {
             _mutable[schema.Name] = schema;

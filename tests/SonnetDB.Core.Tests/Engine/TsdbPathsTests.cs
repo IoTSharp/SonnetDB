@@ -41,6 +41,25 @@ public sealed class TsdbPathsTests
     }
 
     [Fact]
+    public void GraphPaths_ReturnIndependentCatalogAndStableStorageDirectory()
+    {
+        string root = Path.Combine("data", "db");
+        Guid storageId = Guid.Parse("11111111-2222-3333-4444-555555555555");
+
+        Assert.Equal(Path.Combine(root, "graphs"), TsdbPaths.GraphsDir(root));
+        Assert.Equal(
+            Path.Combine(root, "graphs", "graphs.sdbgraph"),
+            TsdbPaths.GraphCatalogPath(root));
+        Assert.Equal(
+            Path.Combine(root, "graphs", "stores"),
+            TsdbPaths.GraphStoresDir(root));
+        Assert.Equal(
+            Path.Combine(root, "graphs", "stores", storageId.ToString("N")),
+            TsdbPaths.GraphStoreDir(root, storageId));
+        Assert.Throws<ArgumentException>(() => TsdbPaths.GraphStoreDir(root, Guid.Empty));
+    }
+
+    [Fact]
     public void SegmentPath_FormatsSegmentIdAsHex16()
     {
         string root = Path.Combine("data", "db");
