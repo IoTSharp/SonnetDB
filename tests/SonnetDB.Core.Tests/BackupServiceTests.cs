@@ -7,6 +7,7 @@ using SonnetDB.Engine.Compaction;
 using SonnetDB.Graphs;
 using SonnetDB.Graphs.Storage;
 using SonnetDB.Model;
+using SonnetDB.Sql.Execution;
 using SonnetDB.Storage.Segments;
 using Xunit;
 
@@ -300,6 +301,114 @@ public sealed class BackupServiceTests : IDisposable
     }
 
     [Fact]
+    public void CreateRestore_WithPropertyGraph_RecordsMappingSummaryAndReopensCatalog()
+    {
+        string dbRoot = Path.Combine(_rootDirectory, "db-property-graph");
+        string backupDirectory = Path.Combine(_rootDirectory, "backup-property-graph");
+        string restoreRoot = Path.Combine(_rootDirectory, "restored-property-graph");
+        using (var db = Tsdb.Open(new TsdbOptions
+        {
+            RootDirectory = dbRoot,
+            BackgroundFlush = new BackgroundFlushOptions { Enabled = false },
+            Compaction = new CompactionPolicy { Enabled = false },
+        }))
+        {
+            _ = SqlExecutor.Execute(db, "CREATE TABLE person (id INT NOT NULL, name STRING, PRIMARY KEY (id))");
+            _ = SqlExecutor.Execute(db, """
+                CREATE TABLE follows (
+                    id INT NOT NULL,
+                    source_id INT NOT NULL,
+                    target_id INT NOT NULL,
+                    PRIMARY KEY (id),
+                    FOREIGN KEY (source_id) REFERENCES person (id),
+                    FOREIGN KEY (target_id) REFERENCES person (id)
+                )
+                """);
+            _ = SqlExecutor.Execute(db, "CREATE INDEX ix_follows_source ON follows (source_id)");
+            _ = SqlExecutor.Execute(db, "INSERT INTO person (id, name) VALUES (1, 'Ada'), (2, 'Lin')");
+            _ = SqlExecutor.Execute(db, "INSERT INTO follows (id, source_id, target_id) VALUES (10, 1, 2)");
+            _ = SqlExecutor.Execute(db, """
+                CREATE PROPERTY GRAPH social
+                VERTEX TABLES (person KEY (id) LABEL person PROPERTIES (id, name))
+                EDGE TABLES (
+                    follows KEY (id)
+                        SOURCE KEY (source_id) REFERENCES person (id)
+                        DESTINATION KEY (target_id) REFERENCES person (id)
+                        LABEL follows PROPERTIES (id)
+                )
+                """);
+
+            BackupManifest manifest = new BackupService().Create(db, new BackupCreateOptions
+            {
+                DestinationDirectory = backupDirectory,
+            });
+
+            BackupPropertyGraphCatalogEntry catalog = Assert.IsType<BackupPropertyGraphCatalogEntry>(
+                manifest.Models.PropertyGraphCatalog);
+            BackupPropertyGraphEntry graph = Assert.Single(catalog.Graphs);
+            Assert.Equal("social", graph.Name);
+            Assert.Equal("person", Assert.Single(graph.VertexTables).TableName);
+            Assert.Equal("follows", Assert.Single(graph.EdgeTables).TableName);
+            Assert.Contains(manifest.Files, static file =>
+                file.Kind == BackupFileKind.PropertyGraphCatalog
+                && file.Path == "graphs/property-graphs.sdbpgq"
+                && file.Required);
+        }
+
+        BackupVerificationResult verification = new BackupService().Verify(backupDirectory);
+        Assert.True(verification.IsValid, string.Join(Environment.NewLine, verification.Errors));
+        _ = new BackupService().Restore(new BackupRestoreOptions
+        {
+            BackupDirectory = backupDirectory,
+            TargetDirectory = restoreRoot,
+        });
+
+        using var restored = Tsdb.Open(new TsdbOptions
+        {
+            RootDirectory = restoreRoot,
+            BackgroundFlush = new BackgroundFlushOptions { Enabled = false },
+            Compaction = new CompactionPolicy { Enabled = false },
+        });
+        Assert.NotNull(restored.Graphs.PropertyGraphs.TryGet("social"));
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(restored, """
+            SELECT source_id, target_id FROM GRAPH_TABLE (
+                social
+                MATCH (a IS person)-[e IS follows]->(b IS person)
+                COLUMNS (a.id AS source_id, b.id AS target_id)
+            )
+            """));
+        Assert.Equal(new object?[] { 1L, 2L }, Assert.Single(result.Rows));
+
+        var service = new BackupService();
+        BackupManifest storedManifest = service.ReadManifest(backupDirectory);
+        BackupPropertyGraphCatalogEntry storedCatalog = Assert.IsType<BackupPropertyGraphCatalogEntry>(
+            storedManifest.Models.PropertyGraphCatalog);
+        BackupPropertyGraphEntry storedGraph = Assert.Single(storedCatalog.Graphs);
+        BackupPropertyGraphVertexTableEntry storedVertex = Assert.Single(storedGraph.VertexTables);
+        WriteBackupManifest(backupDirectory, storedManifest with
+        {
+            Models = storedManifest.Models with
+            {
+                PropertyGraphCatalog = storedCatalog with
+                {
+                    Graphs =
+                    [
+                        storedGraph with
+                        {
+                            VertexTables = [storedVertex with { Label = "tampered_person" }],
+                        },
+                    ],
+                },
+            },
+        });
+
+        BackupVerificationResult tamperedVerification = service.Verify(backupDirectory);
+        Assert.False(tamperedVerification.IsValid);
+        Assert.Contains(tamperedVerification.Errors, static error =>
+            error.Contains("restored mapping does not match", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task Create_DuringGraphCommit_BlocksPublishAndRestoresCheckpointState()
     {
         string dbRoot = Path.Combine(_rootDirectory, "db-graph-concurrent-backup");
@@ -584,6 +693,7 @@ public sealed class BackupServiceTests : IDisposable
         Assert.Equal(11, (int)BackupFileKind.Other);
         Assert.Equal(12, (int)BackupFileKind.GraphCatalog);
         Assert.Equal(13, (int)BackupFileKind.GraphData);
+        Assert.Equal(14, (int)BackupFileKind.PropertyGraphCatalog);
     }
 
     [Fact]

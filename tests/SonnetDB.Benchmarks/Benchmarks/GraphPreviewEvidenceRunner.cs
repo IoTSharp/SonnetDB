@@ -89,7 +89,8 @@ public static class GraphPreviewEvidenceRunner
             EdgeCount = Math.Max(0, vertexCount - 1),
             CommitSequence = sequence,
             Correctness = invariantPass && pathPass && restartPass && repairPass ? "PASS" : "FAIL",
-            CorrectnessRecovery = "NOT_RUN",
+            // 本地 runner 覆盖 reopen/replay、path、invariant 和 index repair；真进程 crash、固定硬件和竞品仍是独立发布证据。
+            CorrectnessRecovery = invariantPass && pathPass && restartPass && repairPass ? "LOCAL_PASS" : "FAIL",
             PerformanceCapacity = "NOT_RUN",
             ReleaseDecision = "NOT_RUN",
             CorrectnessDetails = new GraphPreviewEvidenceGate
@@ -121,7 +122,7 @@ public static class GraphPreviewEvidenceRunner
                 GraphPreviewEvidenceJsonContext.Default.GraphPreviewEvidenceReport));
         File.WriteAllText(
             Path.Combine(outputDirectory, "m40-native-graph-preview.md"),
-            $"# M40 Native Graph Preview Evidence\n\n- Local correctness smoke: `{reportModel.Correctness}`\n- Correctness/recovery gate: `{reportModel.CorrectnessRecovery}`\n- Performance/capacity gate: `{reportModel.PerformanceCapacity}`\n- Release decision: `{reportModel.ReleaseDecision}`\n- Fixed hardware: `{reportModel.FixedHardware}`\n- Neo4j comparison: `{reportModel.Neo4jComparison}`\n");
+            $"# M40 Native Graph Preview Evidence\n\n- Local correctness smoke: `{reportModel.Correctness}`\n- Correctness/recovery gate: `{reportModel.CorrectnessRecovery}` (local smoke only)\n- Performance/capacity gate: `{reportModel.PerformanceCapacity}`\n- Release decision: `{reportModel.ReleaseDecision}`\n- Fixed hardware: `{reportModel.FixedHardware}`\n- Neo4j comparison: `{reportModel.Neo4jComparison}`\n");
         return reportModel;
     }
 }

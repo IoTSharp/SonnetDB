@@ -384,6 +384,7 @@ public sealed class Tsdb : IDisposable
             options.Kv,
             EnsureGraphNameAvailable,
             EnsureNoViewDependents,
+            _tables,
             _schemaSync);
         Measurements.MutationGuard = EnsureManagedMeasurementCatalogMutation;
         _checkpointLsn = checkpointLsn;
@@ -1833,6 +1834,11 @@ public sealed class Tsdb : IDisposable
             throw new InvalidOperationException(
                 $"无法创建 {objectType} '{objectName}'：同名 graph 已存在。");
         }
+        if (_graphs.PropertyGraphs.TryGet(objectName) is not null)
+        {
+            throw new InvalidOperationException(
+                $"无法创建 {objectType} '{objectName}'：同名 property graph 已存在。");
+        }
     }
 
     /// <summary>拒绝与现有基础对象或视图同名的原生图定义。</summary>
@@ -1874,6 +1880,11 @@ public sealed class Tsdb : IDisposable
             throw new InvalidOperationException(
                 $"无法创建 {objectType} '{objectName}'：同名 graph 已存在。");
         }
+        if (_graphs.PropertyGraphs.TryGet(objectName) is not null)
+        {
+            throw new InvalidOperationException(
+                $"无法创建 {objectType} '{objectName}'：同名 property graph 已存在。");
+        }
     }
 
     private void EnsureNoViewDependents(string objectName, string operation)
@@ -1908,6 +1919,16 @@ public sealed class Tsdb : IDisposable
     private void EnsureNoTableDependents(string tableName, string operation)
     {
         _modbus.EnsureTableCanMutate(tableName, operation);
+        IReadOnlyList<PropertyGraphDefinition> propertyGraphDependents =
+            _graphs.PropertyGraphs.FindDependents(tableName);
+        if (propertyGraphDependents.Count != 0)
+        {
+            string dependents = string.Join(
+                "', '",
+                propertyGraphDependents.Select(static definition => definition.Name));
+            throw new InvalidOperationException(
+                $"无法执行 {operation}：property graph '{dependents}' 依赖 table '{tableName}'。");
+        }
         EnsureNoViewDependents(tableName, operation);
     }
 

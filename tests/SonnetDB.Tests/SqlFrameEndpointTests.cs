@@ -280,6 +280,53 @@ public sealed class SqlFrameEndpointTests : IAsyncLifetime
         Assert.Equal(3L, rows[0][0]);
     }
 
+    [Fact]
+    public async Task Query_GraphTableShortestPath_StreamsTypedFrames()
+    {
+        using var admin = CreateClient();
+        await ExecRestSqlAsync(admin, "CREATE GRAPH sf_paths");
+        await ExecRestSqlAsync(admin, """
+            INSERT INTO GRAPH sf_paths VERTEX (id, labels)
+            VALUES (1, 1), (2, 1), (3, 1)
+            """);
+        await ExecRestSqlAsync(admin, """
+            INSERT INTO GRAPH sf_paths EDGE (id, source_id, target_id, label_id)
+            VALUES (10, 1, 2, 2), (11, 2, 3, 2), (12, 1, 3, 2)
+            """);
+
+        (string[] columns, List<object?[]> rows, long rowCount, int rowsFrameCount) =
+            await QueryFrameAsync(admin, """
+                SELECT end_id, hops, vertex_ids
+                FROM GRAPH_TABLE (
+                    sf_paths
+                    MATCH p = ANY SHORTEST SIMPLE (a IS 1)-[e IS 2]->{2,4}(b IS 1)
+                    WHERE a.id = 1 AND b.id = 3
+                    COLUMNS (b.id AS end_id, p.length AS hops, p.vertex_ids AS vertex_ids)
+                )
+                """, streamId: 23);
+
+        Assert.Equal(["end_id", "hops", "vertex_ids"], columns);
+        Assert.Equal(1, rowCount);
+        Assert.Equal(1, rowsFrameCount);
+        Assert.Equal(new object?[] { 3L, 2L, "1,2,3" }, Assert.Single(rows));
+
+        using var readOnly = CreateClient(_readOnlyToken);
+        (_, List<object?[]> analyzedRows, _, _) = await QueryFrameAsync(readOnly, """
+            EXPLAIN ANALYZE SELECT end_id, hops
+            FROM GRAPH_TABLE (
+                sf_paths
+                MATCH p = ANY SHORTEST SIMPLE (a IS 1)-[e IS 2]->{1,4}(b IS 1)
+                WHERE a.id = 1 AND b.id = 3
+                COLUMNS (b.id AS end_id, p.length AS hops)
+            )
+            """, streamId: 24);
+        var metrics = analyzedRows.ToDictionary(row => (string)row[0]!, row => row[1]);
+        Assert.Equal("graph_cost_v1", metrics["planner"]);
+        Assert.Equal(1L, metrics["actual_rows"]);
+        Assert.True((long)metrics["actual_expansions"]! > 0);
+        Assert.True((long)metrics["actual_generated_paths"]! > 0);
+    }
+
     // ────────────────────────────── 5. 只读门禁与错误 ──────────────────────────────
 
     [Fact]

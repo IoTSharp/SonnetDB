@@ -105,7 +105,7 @@ internal static class HybridSearchExecutor
             resultRows);
     }
 
-    public static (string AccessPath, string? IndexName, int EstimatedRows) ExplainAccess(
+    public static HybridSearchExplainPlan ExplainAccess(
         Tsdb tsdb,
         SelectStatement statement,
         DocumentCollectionSchema schema)
@@ -119,10 +119,17 @@ internal static class HybridSearchExecutor
         var options = BindDocumentOptions(schema, call, statement.Pagination);
         var store = tsdb.Documents.Open(schema.Name);
         int documentCount = store.Count();
-        return ("hybrid_search", options.FullTextIndex.Name, documentCount);
+        int textCandidates = Math.Min(options.TextCandidateLimit, documentCount);
+        int outputCandidates = Math.Min(options.K, documentCount);
+        return new HybridSearchExplainPlan(
+            "hybrid_search",
+            options.FullTextIndex.Name,
+            documentCount,
+            $"fulltext<={textCandidates};vector_scan<={documentCount};fused<={documentCount};output<={outputCandidates}",
+            "document_vector_scan_no_ann_candidate_path");
     }
 
-    public static (string AccessPath, string? IndexName, int EstimatedRows) ExplainAccess(
+    public static HybridSearchExplainPlan ExplainAccess(
         Tsdb tsdb,
         SelectStatement statement,
         MeasurementSchema schema)
@@ -150,7 +157,21 @@ internal static class HybridSearchExecutor
         string accessPath = relationPlan is null
             ? "hybrid_search_measurement_knn_documents"
             : $"hybrid_search_measurement_knn_documents;relation_filter:{relationPlan.AccessPath}";
-        return (accessPath, indexName, matchedSeries + documentCount + relationCount);
+        string candidateContract =
+            $"measurement_knn<={options.MeasurementCandidateLimit};"
+            + $"fulltext<={Math.Min(options.TextCandidateLimit, documentCount)};"
+            + $"documents<={documentCount};relation<={relationCount};output<={options.K}";
+        var fallbackReasons = new List<string>(2);
+        if (options.DocumentJoinIndex is null)
+            fallbackReasons.Add("document_join_scan_no_index");
+        if (options.DocumentVectorPath is not null)
+            fallbackReasons.Add("document_vector_scan_no_ann_candidate_path");
+        return new HybridSearchExplainPlan(
+            accessPath,
+            indexName,
+            matchedSeries + documentCount + relationCount,
+            candidateContract,
+            fallbackReasons.Count == 0 ? null : string.Join(";", fallbackReasons));
     }
 
     private static IReadOnlyList<KnowledgeHybridRow> ScoreMeasurementKnowledgeRows(
@@ -1809,3 +1830,10 @@ internal static class HybridSearchExecutor
         }
     }
 }
+
+internal sealed record HybridSearchExplainPlan(
+    string AccessPath,
+    string? IndexName,
+    int EstimatedRows,
+    string CandidateContract,
+    string? FallbackReason);

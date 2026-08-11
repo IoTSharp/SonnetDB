@@ -1,5 +1,6 @@
 using SonnetDB.Graphs.Storage;
 using SonnetDB.Kv;
+using SonnetDB.Tables;
 
 namespace SonnetDB.Graphs;
 
@@ -24,6 +25,7 @@ public sealed class GraphManager : IDisposable
     private readonly KvOptions _kvOptions;
     private readonly Action<string, string>? _nameAvailabilityGuard;
     private readonly Action<string, string>? _dependencyGuard;
+    private readonly TableManager? _tables;
     private readonly Dictionary<string, GraphStore> _stores = new(StringComparer.Ordinal);
     private readonly string _ownerKey;
     private FileStream? _lifecycleLease;
@@ -51,6 +53,7 @@ public sealed class GraphManager : IDisposable
             kvOptions ?? KvOptions.Default,
             nameAvailabilityGuard: null,
             dependencyGuard: null,
+            tableManager: null,
             synchronizationRoot: new object())
     {
     }
@@ -69,6 +72,24 @@ public sealed class GraphManager : IDisposable
         Action<string, string>? nameAvailabilityGuard,
         Action<string, string>? dependencyGuard,
         object synchronizationRoot)
+        : this(
+            rootDirectory,
+            kvOptions,
+            nameAvailabilityGuard,
+            dependencyGuard,
+            tableManager: null,
+            synchronizationRoot)
+    {
+    }
+
+    /// <summary>使用关系表管理器初始化支持 SQL/PGQ 映射的图管理器。</summary>
+    internal GraphManager(
+        string rootDirectory,
+        KvOptions kvOptions,
+        Action<string, string>? nameAvailabilityGuard,
+        Action<string, string>? dependencyGuard,
+        TableManager? tableManager,
+        object synchronizationRoot)
     {
         ArgumentNullException.ThrowIfNull(rootDirectory);
         ArgumentNullException.ThrowIfNull(kvOptions);
@@ -80,6 +101,7 @@ public sealed class GraphManager : IDisposable
         _kvOptions = kvOptions;
         _nameAvailabilityGuard = nameAvailabilityGuard;
         _dependencyGuard = dependencyGuard;
+        _tables = tableManager;
         _schemaSync = synchronizationRoot;
         AcquireRootOwner(_ownerKey);
         try
@@ -91,6 +113,18 @@ public sealed class GraphManager : IDisposable
             Catalog = new GraphCatalog(GraphCatalogCodec.Load(CatalogPath));
             foreach (GraphDefinition definition in Catalog.Snapshot())
                 _nameAvailabilityGuard?.Invoke(definition.Name, "graph");
+            PropertyGraphs = new PropertyGraphCatalog(PropertyGraphCatalogCodec.Load(PropertyGraphCatalogPath));
+            foreach (PropertyGraphDefinition definition in PropertyGraphs.Snapshot())
+            {
+                if (Catalog.TryGet(definition.Name) is not null)
+                {
+                    throw new InvalidDataException(
+                        $"graph 与 property graph 不能共享名称 '{definition.Name}'。");
+                }
+                _nameAvailabilityGuard?.Invoke(definition.Name, "property graph");
+                if (_tables is not null)
+                    ValidatePropertyGraphDefinition(definition, _tables);
+            }
             Catalog.MutationGuard = EnsureManagedCatalogMutation;
         }
         catch (Exception initializationFailure)
@@ -124,11 +158,17 @@ public sealed class GraphManager : IDisposable
     /// <summary>图定义目录。</summary>
     public GraphCatalog Catalog { get; }
 
+    /// <summary>SQL/PGQ 关系映射图目录。</summary>
+    public PropertyGraphCatalog PropertyGraphs { get; }
+
     /// <summary>图根目录。</summary>
     public string RootDirectory => _rootDirectory;
 
     /// <summary>图目录文件完整路径。</summary>
     public string CatalogPath => Path.Combine(_rootDirectory, GraphCatalogCodec.FileName);
+
+    /// <summary>SQL/PGQ 关系映射图目录文件完整路径。</summary>
+    public string PropertyGraphCatalogPath => Path.Combine(_rootDirectory, PropertyGraphCatalogCodec.FileName);
 
     /// <summary>所有图物理存储的父目录。</summary>
     public string StoresDirectory => Path.Combine(_rootDirectory, "stores");
@@ -159,6 +199,8 @@ public sealed class GraphManager : IDisposable
                 _nameAvailabilityGuard?.Invoke(definition.Name, "graph");
                 if (Catalog.TryGet(definition.Name) is not null)
                     throw new InvalidOperationException($"graph '{definition.Name}' 已存在。");
+                if (PropertyGraphs.TryGet(definition.Name) is not null)
+                    throw new InvalidOperationException($"property graph '{definition.Name}' 已存在。");
                 if (Catalog.TryGet(definition.StorageId) is not null)
                 {
                     throw new InvalidOperationException(
@@ -269,6 +311,135 @@ public sealed class GraphManager : IDisposable
                     throw;
                 }
             }
+    }
+
+    /// <summary>
+    /// 创建只读 SQL/PGQ 关系映射图。此操作仅持久化 schema mapping，不复制关系行。
+    /// </summary>
+    /// <param name="definition">待创建的映射定义。</param>
+    /// <returns>已发布的映射定义。</returns>
+    public PropertyGraphDefinition CreatePropertyGraph(PropertyGraphDefinition definition)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        lock (_schemaSync)
+            lock (_sync)
+            {
+                ThrowIfUnavailable();
+                TableManager tables = _tables
+                    ?? throw new NotSupportedException("独立 GraphManager 未绑定关系表管理器，不能创建 property graph。");
+                _nameAvailabilityGuard?.Invoke(definition.Name, "property graph");
+                if (Catalog.TryGet(definition.Name) is not null)
+                    throw new InvalidOperationException($"graph '{definition.Name}' 已存在。");
+                if (PropertyGraphs.TryGet(definition.Name) is not null)
+                    throw new InvalidOperationException($"property graph '{definition.Name}' 已存在。");
+                ValidatePropertyGraphDefinition(definition, tables);
+
+                PropertyGraphCatalogState previousState = PropertyGraphs.CaptureState();
+                PropertyGraphCatalogState candidateState = new(
+                    checked(previousState.Revision + 1),
+                    previousState.Definitions.Concat([definition]).ToArray());
+                try
+                {
+                    PropertyGraphCatalogCodec.Save(PropertyGraphCatalogPath, candidateState);
+                }
+                catch (Exception exception)
+                {
+                    throw MarkCatalogFault($"创建 property graph '{definition.Name}'", exception);
+                }
+
+                try
+                {
+                    PropertyGraphs.Add(definition);
+                    return definition;
+                }
+                catch (Exception publicationException)
+                {
+                    var failures = new List<Exception> { publicationException };
+                    try
+                    {
+                        PropertyGraphs.Restore(previousState);
+                        PropertyGraphCatalogCodec.Save(PropertyGraphCatalogPath, previousState);
+                    }
+                    catch (Exception rollbackException)
+                    {
+                        failures.Add(rollbackException);
+                        throw MarkCatalogFault(
+                            $"回滚 property graph '{definition.Name}' 创建",
+                            CombineFailures(failures));
+                    }
+                    throw;
+                }
+            }
+    }
+
+    /// <summary>删除 SQL/PGQ 关系映射图，不删除任何关系表或关系行。</summary>
+    /// <param name="name">映射图名称。</param>
+    /// <returns>存在并删除时返回 <c>true</c>。</returns>
+    public bool DropPropertyGraph(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        lock (_schemaSync)
+            lock (_sync)
+            {
+                ThrowIfUnavailable();
+                if (PropertyGraphs.TryGet(name) is null)
+                    return false;
+                _dependencyGuard?.Invoke(name, "DROP PROPERTY GRAPH");
+
+                PropertyGraphCatalogState previousState = PropertyGraphs.CaptureState();
+                PropertyGraphCatalogState candidateState = new(
+                    checked(previousState.Revision + 1),
+                    previousState.Definitions
+                        .Where(item => !string.Equals(item.Name, name, StringComparison.Ordinal))
+                        .ToArray());
+                try
+                {
+                    PropertyGraphCatalogCodec.Save(PropertyGraphCatalogPath, candidateState);
+                }
+                catch (Exception exception)
+                {
+                    throw MarkCatalogFault($"删除 property graph '{name}'", exception);
+                }
+
+                try
+                {
+                    return PropertyGraphs.Remove(name);
+                }
+                catch (Exception publicationException)
+                {
+                    var failures = new List<Exception> { publicationException };
+                    try
+                    {
+                        PropertyGraphs.Restore(previousState);
+                        PropertyGraphCatalogCodec.Save(PropertyGraphCatalogPath, previousState);
+                    }
+                    catch (Exception rollbackException)
+                    {
+                        failures.Add(rollbackException);
+                        throw MarkCatalogFault(
+                            $"回滚 property graph '{name}' 删除",
+                            CombineFailures(failures));
+                    }
+                    throw;
+                }
+            }
+    }
+
+    /// <summary>打开关系映射图访问器；访问器直接读取当前关系表主数据。</summary>
+    /// <param name="name">映射图名称。</param>
+    /// <returns>无副本的关系图访问器。</returns>
+    public RelationalGraphAccessor OpenPropertyGraph(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        lock (_sync)
+        {
+            ThrowIfUnavailable();
+            TableManager tables = _tables
+                ?? throw new NotSupportedException("独立 GraphManager 未绑定关系表管理器，不能打开 property graph。");
+            PropertyGraphDefinition definition = PropertyGraphs.TryGet(name)
+                ?? throw new InvalidOperationException($"property graph '{name}' 不存在。");
+            return new RelationalGraphAccessor(tables, definition);
+        }
     }
 
     /// <summary>
@@ -565,6 +736,111 @@ public sealed class GraphManager : IDisposable
 
     private static Exception CombineFailures(List<Exception> failures)
         => failures.Count == 1 ? failures[0] : new AggregateException(failures);
+
+    private static void ValidatePropertyGraphDefinition(
+        PropertyGraphDefinition definition,
+        TableManager tables)
+    {
+        foreach (PropertyGraphVertexTable vertex in definition.VertexTables)
+        {
+            TableSchema schema = tables.Catalog.TryGet(vertex.TableName)
+                ?? throw new InvalidOperationException(
+                    $"property graph '{definition.Name}' 的 vertex table '{vertex.TableName}' 不存在。");
+            ValidateUniqueKey(schema, vertex.KeyColumns, "vertex");
+            ValidateColumns(schema, vertex.PropertyColumns, "vertex property");
+        }
+
+        foreach (PropertyGraphEdgeTable edge in definition.EdgeTables)
+        {
+            TableSchema edgeSchema = tables.Catalog.TryGet(edge.TableName)
+                ?? throw new InvalidOperationException(
+                    $"property graph '{definition.Name}' 的 edge table '{edge.TableName}' 不存在。");
+            ValidateUniqueKey(edgeSchema, edge.KeyColumns, "edge");
+            ValidateColumns(edgeSchema, edge.PropertyColumns, "edge property");
+
+            PropertyGraphVertexTable source = definition.TryGetVertexTable(edge.SourceTable)
+                ?? throw new InvalidOperationException(
+                    $"edge table '{edge.TableName}' 的 source table '{edge.SourceTable}' 未声明为 vertex table。");
+            PropertyGraphVertexTable destination = definition.TryGetVertexTable(edge.DestinationTable)
+                ?? throw new InvalidOperationException(
+                    $"edge table '{edge.TableName}' 的 destination table '{edge.DestinationTable}' 未声明为 vertex table。");
+            ValidateEndpoint(
+                tables,
+                edgeSchema,
+                edge.TableName,
+                "source",
+                edge.SourceColumns,
+                source,
+                edge.SourceReferenceColumns);
+            ValidateEndpoint(
+                tables,
+                edgeSchema,
+                edge.TableName,
+                "destination",
+                edge.DestinationColumns,
+                destination,
+                edge.DestinationReferenceColumns);
+        }
+    }
+
+    private static void ValidateUniqueKey(
+        TableSchema schema,
+        IReadOnlyList<string> keyColumns,
+        string mappingKind)
+    {
+        ValidateColumns(schema, keyColumns, mappingKind + " key");
+        if (schema.PrimaryKey.SequenceEqual(keyColumns, StringComparer.Ordinal))
+            return;
+        if (schema.Indexes.Any(index =>
+                index.IsUnique && index.Columns.SequenceEqual(keyColumns, StringComparer.Ordinal)))
+            return;
+        throw new InvalidOperationException(
+            $"{mappingKind} table '{schema.Name}' 的 KEY ({string.Join(", ", keyColumns)}) "
+            + "必须匹配 PRIMARY KEY 或完整 UNIQUE INDEX。");
+    }
+
+    private static void ValidateColumns(
+        TableSchema schema,
+        IReadOnlyList<string> columns,
+        string description)
+    {
+        foreach (string column in columns)
+            if (schema.TryGetColumn(column) is null)
+                throw new InvalidOperationException(
+                    $"{description} 引用了 table '{schema.Name}' 中不存在的列 '{column}'。");
+    }
+
+    private static void ValidateEndpoint(
+        TableManager tables,
+        TableSchema edgeSchema,
+        string edgeTable,
+        string endpoint,
+        IReadOnlyList<string> endpointColumns,
+        PropertyGraphVertexTable vertex,
+        IReadOnlyList<string> referenceColumns)
+    {
+        if (!referenceColumns.SequenceEqual(vertex.KeyColumns, StringComparer.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"edge table '{edgeTable}' 的 {endpoint} REFERENCES 必须匹配 vertex table "
+                + $"'{vertex.TableName}' 的 KEY ({string.Join(", ", vertex.KeyColumns)})。");
+        }
+
+        ValidateColumns(edgeSchema, endpointColumns, endpoint + " key");
+        TableSchema vertexSchema = tables.Catalog.TryGet(vertex.TableName)
+            ?? throw new InvalidOperationException($"vertex table '{vertex.TableName}' 不存在。");
+        for (int index = 0; index < endpointColumns.Count; index++)
+        {
+            TableColumn edgeColumn = edgeSchema.TryGetColumn(endpointColumns[index])!;
+            TableColumn vertexColumn = vertexSchema.TryGetColumn(referenceColumns[index])!;
+            if (edgeColumn.DataType != vertexColumn.DataType)
+            {
+                throw new InvalidOperationException(
+                    $"edge table '{edgeTable}' 的 {endpoint} 列 '{edgeColumn.Name}' 与 "
+                    + $"vertex key '{vertex.TableName}.{vertexColumn.Name}' 类型不一致。");
+            }
+        }
+    }
 
     private static void ValidateKvCapacity(KvOptions kvOptions)
     {

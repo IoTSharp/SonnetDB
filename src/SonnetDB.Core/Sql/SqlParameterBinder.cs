@@ -37,6 +37,16 @@ public static class SqlParameterBinder
         {
             SelectStatement select => BindSelect(select, parameters),
             InsertStatement insert => BindInsert(insert, parameters),
+            InsertGraphStatement graphInsert => graphInsert with
+            {
+                Rows = graphInsert.Rows
+                    .Select(row => (IReadOnlyList<SqlExpression>)BindExprList(row, parameters))
+                    .ToArray(),
+            },
+            ExplainStatement explain => explain with
+            {
+                Statement = Bind(explain.Statement, parameters),
+            },
             UpdateStatement update => BindUpdate(update, parameters),
             WriteModbusStatement writeModbus => writeModbus with
             {
@@ -62,6 +72,18 @@ public static class SqlParameterBinder
         var fromSubquery = select.FromSubquery is null ? null : BindSelect(select.FromSubquery, p);
         var unions = select.UnionStatements.Select(union => BindSelect(union, p)).ToArray();
         var pagination = BindPagination(select.Pagination, p);
+        var tableValuedFunction = select.TableValuedFunction is null
+            ? null
+            : (FunctionCallExpression)BindExpr(select.TableValuedFunction, p);
+        GraphTableSource? graphTable = select.GraphTable is null
+            ? null
+            : select.GraphTable with
+            {
+                Predicate = select.GraphTable.Predicate is null
+                    ? null
+                    : BindExpr(select.GraphTable.Predicate, p),
+                Columns = BindProjections(select.GraphTable.Columns, p),
+            };
 
         return select with
         {
@@ -76,6 +98,8 @@ public static class SqlParameterBinder
             Joins = joins,
             FromSubquery = fromSubquery,
             Unions = unions,
+            TableValuedFunction = tableValuedFunction,
+            GraphTable = graphTable,
         };
     }
 

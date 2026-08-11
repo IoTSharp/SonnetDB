@@ -241,6 +241,51 @@ public sealed class FrameTransportParityTests : IAsyncLifetime
     }
 
     [Fact]
+    public void AdoSql_GraphTableShortestPath_StreamsRowsOverRest()
+    {
+        const string graphName = "pgq_rest";
+        using (var setup = new SndbConnection(ExactTransportConnString("rest")))
+        {
+            setup.Open();
+            using var command = setup.CreateCommand();
+            command.CommandText = $"CREATE GRAPH {graphName}";
+            command.ExecuteNonQuery();
+            command.CommandText = $"""
+                INSERT INTO GRAPH {graphName} VERTEX (id, labels)
+                VALUES (1, 1), (2, 1), (3, 1)
+                """;
+            Assert.Equal(3, command.ExecuteNonQuery());
+            command.CommandText = $"""
+                INSERT INTO GRAPH {graphName} EDGE (id, source_id, target_id, label_id)
+                VALUES (10, 1, 2, 2), (11, 2, 3, 2), (12, 1, 3, 2)
+                """;
+            Assert.Equal(3, command.ExecuteNonQuery());
+        }
+
+        using var connection = new SndbConnection(ExactTransportConnString("rest"));
+        connection.Open();
+        using var select = connection.CreateCommand();
+        select.CommandText = $$"""
+            SELECT end_id, hops, vertex_ids
+            FROM GRAPH_TABLE (
+                {{graphName}}
+                MATCH p = ANY SHORTEST SIMPLE (a IS 1)-[e IS 2]->{2,4}(b IS 1)
+                WHERE a.id = 1 AND b.id = 3
+                COLUMNS (b.id AS end_id, p.length AS hops, p.vertex_ids AS vertex_ids)
+            )
+            """;
+        using var reader = select.ExecuteReader();
+
+        Assert.Equal(["end_id", "hops", "vertex_ids"],
+            new[] { reader.GetName(0), reader.GetName(1), reader.GetName(2) });
+        Assert.True(reader.Read());
+        Assert.Equal(3L, reader.GetInt64(0));
+        Assert.Equal(2L, reader.GetInt64(1));
+        Assert.Equal("1,2,3", reader.GetString(2));
+        Assert.False(reader.Read());
+    }
+
+    [Fact]
     public void AdoSql_Write_FallsBackToRest_UnderFrameProtocol()
     {
         using var c = new SndbConnection(ExactTransportConnString("frame-http2"));

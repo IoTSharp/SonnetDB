@@ -79,7 +79,11 @@ public sealed class SonnetDbAdapter : IDataPlane, IRelationalOps, ITimeSeriesOps
         Capability.SqlWindowFunction |
         Capability.AnalyticsTopN |
         Capability.AnalyticsCompressionRatio |
-        Capability.AccuracyPercentile;
+        Capability.AccuracyPercentile |
+        Capability.Graph |
+        Capability.GraphSqlPgq |
+        Capability.GraphNativeTraversal |
+        Capability.GraphCrossModelSql;
 
     /// <inheritdoc />
     public IRelationalOps Relational => this;

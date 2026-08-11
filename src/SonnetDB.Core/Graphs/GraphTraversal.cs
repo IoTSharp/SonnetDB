@@ -222,26 +222,18 @@ public static class GraphTraversalExtensions
         traversalOptions.Validate();
         if (maxDepth is not null && traversalOptions.MaxDepth < maxDepth.Value)
             throw new ArgumentOutOfRangeException(nameof(options));
-        KvReadSnapshot snapshot = session.AcquireTraversalSnapshot();
-        try
-        {
-            return new GraphCursor<GraphPath>(
-                new GraphTraversalCursorSource(
-                    snapshot,
-                    startId,
-                    mode,
-                    minDepth,
-                    maxDepth ?? traversalOptions.MaxDepth,
-                    direction,
-                    edgeLabelId,
-                    traversalOptions),
-                traversalOptions.MaxPaths);
-        }
-        catch
-        {
-            snapshot.Dispose();
-            throw;
-        }
+        return session.OpenPathPlan(
+            new GraphPathPlan(
+                startId,
+                mode == GraphTraversalMode.BreadthFirst
+                    ? GraphPathSearchMode.BreadthFirst
+                    : GraphPathSearchMode.DepthFirst,
+                minDepth,
+                maxDepth ?? traversalOptions.MaxDepth,
+                direction,
+                edgeLabelId,
+                traversalOptions),
+            traversalOptions);
     }
 
     private static void ValidateElementId(GraphElementId id, string parameterName)

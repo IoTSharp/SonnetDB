@@ -129,6 +129,10 @@ internal static class SqlRoutineAnalyzer
         {
             VisitSelect(select.FromSubquery, parameterNames, triggerEvent, objects, procedures, rowColumns);
         }
+        else if (select.GraphTable is { } graphTable)
+        {
+            objects.Add(graphTable.GraphName);
+        }
         else if (!string.IsNullOrEmpty(select.Measurement)
                  && !string.Equals(select.Measurement, "__json_file__", StringComparison.Ordinal))
         {
@@ -153,6 +157,29 @@ internal static class SqlRoutineAnalyzer
         }
         if (select.TableValuedFunction is not null)
             VisitExpression(select.TableValuedFunction, parameterNames, triggerEvent, objects, procedures, rowColumns);
+        if (select.GraphTable is { } graphSource)
+        {
+            if (graphSource.Predicate is not null)
+            {
+                VisitExpression(
+                    graphSource.Predicate,
+                    parameterNames,
+                    triggerEvent,
+                    objects,
+                    procedures,
+                    rowColumns);
+            }
+            foreach (var column in graphSource.Columns)
+            {
+                VisitExpression(
+                    column.Expression,
+                    parameterNames,
+                    triggerEvent,
+                    objects,
+                    procedures,
+                    rowColumns);
+            }
+        }
         foreach (var join in select.JoinClauses)
         {
             if (join.Subquery is null)

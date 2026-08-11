@@ -219,7 +219,7 @@ GraphDistinct / GraphLimit
 | #345 | 单 graph transaction、element version、写预算、commit-unknown 和 vertex delete `RESTRICT` 合同。 | 并发冲突、取消、超限、重复请求和 WAL 故障不会产生半条边或孤立邻接。 |
 | #346 | Graph backup manifest、checkpoint、verify/restore、invariant checker 和 CrashTests 骨架。 | 任意注入点重启后要么看到提交前、要么看到提交后状态；校验器能发现故意构造的 orphan/mismatch。 |
 
-Phase 0 已完成：frozen V1 vectors、Table V1 兼容、snapshot/cursor 有界读取、catalog/lifecycle、条件原子事务、manifest v1/v2、backup/restore/invariant 与跨进程 CrashTests 均有自动回归。该结论只证明公共结构可安全提交和恢复，仍不得宣称“图数据库已可用”或进入 Native Graph Preview；#347～#352 及两个 Preview gate 仍未完成。
+Phase 0 已完成：frozen V1 vectors、Table V1 兼容、snapshot/cursor 有界读取、catalog/lifecycle、条件原子事务、manifest v1/v2、backup/restore/invariant 与跨进程 CrashTests 均有自动回归。Phase 1 的 #347～#351 功能实现和本机 correctness smoke 已闭环；#352 的固定硬件、Neo4j、完整恢复/容量 artifact 仍后置，因此不把本机结果提升为发布 gate。
 
 ### Phase 1：可用的原生图数据库第一阶段
 
@@ -232,13 +232,13 @@ Phase 0 已完成：frozen V1 vectors、Table V1 兼容、snapshot/cursor 有界
 | #351 | Server/typed .NET SDK、Frame/HTTP 流式读取、幂等 bulk import，以及 CSV/JSON/Graphify `graph.json` importer。 | 嵌入式/远程同语义；导入可 checkpoint/resume；Graphify 只作为输入，不进入 Core。当前支持 native numeric profile 和 normalized string `nodes/relationships` profile；通过确定性 batch request ID 重放恢复，未引入 Graphify runtime。 |
 | #352 | Phase 1 correctness/performance gate：CrashTests、BenchmarkDotNet、Neo4j 对照和固定硬件报告。 | 正确性/恢复与性能/容量是两个独立 gate：前者要求语义对拍零 mismatch、零 orphan/index drift，crash/replay/checkpoint/backup/repair 全 PASS；后者在 100k/1m vertex、1m/10m edge 下对 1~6 hop、supernode、代码知识影响分析、混合读写和冷/热重启达到 #341 预先冻结的复杂度、内存及 P95/P99 SLO。任一 gate 未达即阻断 Phase 1；不得遗留不可解释的全扫/全量物化，也不得事后按实现结果改低阈值。 |
 
-Phase 1 对外名称只能是 **Native Graph Preview**。它已经是真正的邻接图存储，但 SQL 图模式和完整产品面尚未完成。
+Phase 1 功能边界已闭环；在 #352 外部证据通过前，对外名称仍只能是 **Native Graph Preview**。它已经是真正的邻接图存储，SQL 图模式和完整产品面由 Phase 2 继续建设。
 
 ### Phase 1 当前实现边界（2026-08-11）
 
 - `GraphStore.RebuildIndexes` 在提交门内按稳定快照和 KV index-rebuild budget 分页补建/删除 adjacency、label/property、unique 派生键；冻结 V1 元素记录不保存 unique 声明，若声明的全部 key 已丢失，调用方必须通过 `GraphIndexRebuildOptions.UniqueIndexes` 重新提供声明。
 - `SndbGraphImporter` 先把单个 JSON element 写入临时 NDJSON spool，再按确定性 request ID 以有界 batch 重放；CSV 同样按 batch 流式提交。`nodes/relationships` normalized profile 接受字符串 ID、label/type、对象属性和 provenance/confidence 元数据，映射函数为 `GetStableElementId`、`GetStableLabelId`、`GetStablePropertyId`。
-- `tests/SonnetDB.Benchmarks --m40-graph-evidence --quick` 会真正 reopen/replay 并执行 path/invariant/index-repair smoke；报告固定输出 `correctness_recovery=NOT_RUN`、`performance_capacity=NOT_RUN`、`release_decision=NOT_RUN`，不能代替 #352 的固定硬件、Neo4j 或完整 crash/replay/checkpoint/backup artifact。
+- `tests/SonnetDB.Benchmarks --m40-graph-evidence --quick` 会真正 reopen/replay 并执行 path/invariant/index-repair smoke；本机报告输出 `correctness=PASS`、`correctness_recovery=LOCAL_PASS`，而 `performance_capacity=NOT_RUN`、`release_decision=NOT_RUN`，不能代替 #352 的固定硬件、Neo4j 或完整 crash/replay/checkpoint/backup artifact。
 
 ### Phase 2：SQL 可组合与实用查询阶段
 
@@ -251,6 +251,20 @@ Phase 1 对外名称只能是 **Native Graph Preview**。它已经是真正的�
 | #357 | SQL 可变长度路径、path mode/uniqueness、shortest path、最大深度与结果预算。 | 路径爆炸 fail bounded；循环语义确定；结果通过 ADO.NET/远程流式读取。 |
 | #358 | cost planner、join/expand 顺序、bidirectional BFS 准入、`EXPLAIN ANALYZE` 实际 rows/expansions/frontier/fallback。 | 计划估算和实际指标可解释；优化前后结果完全一致；无基准收益不引入复杂算法。 |
 | #359 | SQL + Graph + Table/Document/Vector/FullText 组合、复用 M35/M36 的 Hybrid Search 候选合同，以及权限、备份、Studio 查询页和 Parity Graph capability。 | 同一 SQL/typed plan 可组合图行集与现有模型；实际 access path、候选规模和 fallback 可见，声明 journey 不在产品侧 merge、遍历或隐藏全扫；Neo4j 验原生语义、PostgreSQL 验 SQL/PGQ 语义，UI 不绕过 Server。 |
+
+Phase 2 #353~#359 功能已完成：`GraphLogicalPlan`、共享 pull cursor 和原生 API 计划执行已接入；原生 SQL 已提供 `CREATE/DROP/SHOW/DESCRIBE GRAPH`、参数化 `graph_nodes/graph_edges`、有界投影/过滤/排序/分页，以及受限的 `INSERT INTO GRAPH ... VERTEX|EDGE`；关系映射已提供持久化 `CREATE/DROP/SHOW/DESCRIBE PROPERTY GRAPH` catalog、`RelationalGraphAccessor`，`GRAPH_TABLE MATCH COLUMNS` 已覆盖固定一跳、受限可变长度和 shortest path，并具有端点成本规划、实际执行指标及共享 SQL 跨模型组合。固定硬件、PostgreSQL/Neo4j 外部语义对拍和 Couplet C3 联合发布证据仍为 `NOT_RUN`，因此这里只关闭功能切片，不宣称 Beta 发布 gate 已通过。
+
+#354 当前 DML 边界是：元素 ID 仅接受正整数；顶点 labels 接受单个正整数或逗号分隔的正整数文本；edge label 使用 Int32 范围内的正整数。此切片尚不承诺属性列写入，typed property mutation 继续通过 Graph API；property SQL、upsert/update/delete 在冻结完整 DML 合同后接入。
+
+#355 当前映射边界是：`CREATE PROPERTY GRAPH` 按 SQL/PGQ 形状声明 `VERTEX TABLES`、`EDGE TABLES`、唯一 key、source/destination reference、label 和 property columns；独立 `SDBPGQ01` catalog 只保存 mapping 并随数据库备份文件复制，不生成 vertex/edge 副本。创建时校验表、列、主键或完整唯一索引、endpoint key 数量/类型；被映射表的破坏性 schema 变更受依赖守卫阻断。`RelationalGraphAccessor` 顶点 point lookup 与边 endpoint expand 显式报告 `relation_primary_key_seek`、`relation_index_seek` 或 `relation_scan_fallback`，fallback 默认受行数、时间与取消预算约束；`DESCRIBE`/`EXPLAIN DESCRIBE PROPERTY GRAPH` 展示实际路径。
+
+#356 当前查询边界是：typed `GRAPH_TABLE(... MATCH (a IS label)-[e IS label]->(b IS label) [WHERE ...] COLUMNS (...))` 支持固定一跳的出、入和无向模式，变量属性谓词与参数绑定，显式变量投影，以及外层 WHERE/投影/DISTINCT/ORDER BY/分页。原生 graph 使用 label anchor 与 adjacency plan，映射 graph 使用关系主键/索引 seek 或 scan fallback；同 label 多 edge table 以 mapping branch union，无向自环每个 edge/anchor 只产生一次。整条关系映射查询共享 10,000 anchor、10,000 fallback scan 行、50 ms fallback 与 100,000 匹配行预算；Graph DDL/DML 不伪装进入轻事务，view/materialized view/procedure 会记录 graph 依赖。
+
+#357 当前路径边界是：`MATCH p = WALK|TRAIL|SIMPLE|ACYCLIC (a IS label)-[e IS label]->{min,max}(b IS label)` 支持 1~64 hop 的出、入和无向路径；`ANY SHORTEST` 按 BFS 为每个终点选择一条满足深度下界的最短合法路径，普通变量路径按 DFS 枚举。`WALK` 允许重复元素，`TRAIL` 保证路径内 edge 唯一，`SIMPLE/ACYCLIC` 保证 vertex 唯一；路径变量公开 `length`、`vertex_ids`、`edge_ids`、`start_id` 和 `end_id`，edge group 不伪装成单 edge 标量。原生 graph 复用 `GraphPathPlan`/`GraphPlanExecutor`，映射 graph 复用 `RelationalGraphAccessor`，共享 10,000 anchor/frontier、100,000 path/result 和关系 fallback 预算；typed AST 的深度、enum 和变量冲突会在访问 graph 前拒绝。Core cycle/min-depth 回归、直接 Frame 流以及远程 ADO.NET REST 读取已通过；外部 PostgreSQL SQL/PGQ 对拍、固定硬件和容量报告仍为 `NOT_RUN`。
+
+#358 当前规划边界是：`graph_cost_v1` 比较左右端点的完整 key predicate、关系表当前 `RowCount`、edge endpoint index/fallback 和路径最大深度，选择成本更低的 anchor 与 expand 方向；右端执行时顶点变量绑定保持不变，路径变量会反转回原 SQL 方向。原生图没有已刷新统计时使用公开预算上界并优先精确 ID，不在 `EXPLAIN` 中触发隐藏统计全扫。`EXPLAIN ANALYZE` 第一版只开放给 `GRAPH_TABLE`，返回估算计划以及实际 output/matched rows、anchor rows、expansions、generated paths、peak frontier、fallback rows/ms 和 elapsed ms；普通 `EXPLAIN` 不执行查询。native `ANY SHORTEST` 同时绑定两端时会进入 bidirectional admission 检查，但在没有可复现基准收益前明确保持 `bidirectional_bfs_admitted=false`、reason=`benchmark_evidence_missing`，不引入第二套 BFS。
+
+#359 当前组合边界是：图查询先作为有界派生行集进入现有 `RelationalSelectExecutor`，可在同一 SQL 中与关系表、Document 投影，以及 FullText + Vector `hybrid_search(...)` 候选子查询做 hash join；不新增第二套 JOIN 或应用层 merge。组合 `EXPLAIN` 以 `cross_model_select` 展示每个 source/join 的 graph adjacency/关系索引/document/hybrid access path、候选上限和 fallback reason；Hybrid Search 明示全文候选上限及 document vector scan fallback。property-graph catalog 进入备份 manifest 的完整 mapping 摘要、独立文件类型与 restore 后逐字段复核；Graph SQL metadata/read 与 DDL/DML 分别沿数据库 read/write 权限，Studio Quick SQL 仍走 `/v1/db/{db}/sql` 和共享结果面板。Parity 增加 Graph/SQL-PGQ/native traversal/cross-model capability 与本地 correctness scenario，PostgreSQL/Neo4j outcome 明确保持 `not_run`。当前不支持把 `JOIN/GROUP BY` 直接写进 `GRAPH_TABLE` 外层执行器内部，调用方必须使用标准派生表组合；property alias 和多 pattern 仍不在此 Beta 子集。
 
 Phase 2 完成后可称为 **SonnetDB Graph Beta**：具备原生存储、事务、遍历、SQL/PGQ 和跨模型组合，但长期并发、维护和容量证据仍未收口。
 

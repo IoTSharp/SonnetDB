@@ -130,6 +130,18 @@ internal static class RoutineRowBinder
             TableValuedFunction = select.TableValuedFunction is null
                 ? null
                 : (FunctionCallExpression)BindExpression(select.TableValuedFunction, context),
+            GraphTable = select.GraphTable is null
+                ? null
+                : select.GraphTable with
+                {
+                    Predicate = select.GraphTable.Predicate is null
+                        ? null
+                        : BindExpression(select.GraphTable.Predicate, context),
+                    Columns = select.GraphTable.Columns.Select(item => item with
+                    {
+                        Expression = BindExpression(item.Expression, context),
+                    }).ToArray(),
+                },
             Pagination = select.Pagination is null ? null : new PaginationSpec(
                 BindExpression(select.Pagination.OffsetExpression, context),
                 select.Pagination.FetchExpression is null

@@ -81,6 +81,9 @@ public enum Capability : long
     /// <summary>分析（大规模 GROUP BY / 窗口函数）。</summary>
     Analytics = 1L << 7,
 
+    /// <summary>原生属性图与 SQL/PGQ Graph Beta；该能力位不等同于九模型生产发布。</summary>
+    Graph = 1L << 8,
+
     // ── 细粒度能力标志（每个场景按需声明依赖） ──────────────────────────────
 
     /// <summary>KV 原子自增 / 自减。</summary>
@@ -184,4 +187,13 @@ public enum Capability : long
 
     /// <summary>分析压缩率指标能力。</summary>
     AnalyticsCompressionRatio = 1L << 49,
+
+    /// <summary>SQL/PGQ property graph 与 GRAPH_TABLE 核心子集。</summary>
+    GraphSqlPgq = 1L << 50,
+
+    /// <summary>原生 adjacency 图的有界遍历能力。</summary>
+    GraphNativeTraversal = 1L << 51,
+
+    /// <summary>图行集通过共享 SQL pipeline 与其他模型组合。</summary>
+    GraphCrossModelSql = 1L << 52,
 }

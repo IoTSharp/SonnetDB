@@ -26,7 +26,7 @@ public sealed class SqlLexer
     private static readonly SearchValues<char> _durationSuffixStarts = SearchValues.Create("numshd");
 
     private static readonly SearchValues<char> _operatorOrPunctuationStarts =
-        SearchValues.Create("()[],;.*+-/%=!<>");
+        SearchValues.Create("()[]{},;.*+-/%=!<>");
 
     private static readonly Dictionary<string, TokenKind> _keywords = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -230,6 +230,8 @@ public sealed class SqlLexer
             case ')': _position++; return new Token(TokenKind.RightParen, ")", start);
             case '[': _position++; return new Token(TokenKind.LeftBracket, "[", start);
             case ']': _position++; return new Token(TokenKind.RightBracket, "]", start);
+            case '{': _position++; return new Token(TokenKind.LeftBrace, "{", start);
+            case '}': _position++; return new Token(TokenKind.RightBrace, "}", start);
             case ',': _position++; return new Token(TokenKind.Comma, ",", start);
             case ';': _position++; return new Token(TokenKind.Semicolon, ";", start);
             case '.': _position++; return new Token(TokenKind.Dot, ".", start);

@@ -63,6 +63,19 @@ public sealed class GraphReadSession : IDisposable
         return result;
     }
 
+    /// <summary>按稳定内部 ID 顺序扫描全部顶点。</summary>
+    /// <param name="options">读取分页和结果预算。</param>
+    /// <returns>顶点结果游标。</returns>
+    public GraphCursor<GraphVertex> ScanVertices(GraphCursorOptions? options = null)
+        => GraphPlanExecutor.Execute(this, new GraphNodeScanPlan(Options: options));
+
+    internal GraphCursor<GraphVertex> ScanVerticesCore(GraphCursorOptions? options)
+        => OpenElementCursor(
+            GraphKeyCodec.VertexRecordPrefix(),
+            isVertex: true,
+            options,
+            GraphKeyKind.VertexRecord);
+
     /// <summary>
     /// 按 label/property 索引 seek 顶点。
     /// </summary>
@@ -76,12 +89,20 @@ public sealed class GraphReadSession : IDisposable
         int propertyId,
         GraphPropertyValue value,
         GraphCursorOptions? options = null)
+        => GraphPlanExecutor.Execute(this, new GraphNodeScanPlan(labelId, propertyId, value, options));
+
+    internal GraphCursor<GraphVertex> SeekVerticesCore(
+        LabelId labelId,
+        int propertyId,
+        GraphPropertyValue value,
+        GraphCursorOptions? options)
     {
         ValidateLabelId(labelId, nameof(labelId));
         return OpenElementCursor(
             GraphKeyCodec.PropertyIndexPrefix(GraphElementKind.Vertex, labelId, propertyId, value),
             isVertex: true,
-            options);
+            options,
+            GraphKeyKind.VertexPropertyIndex);
     }
 
     /// <summary>按 label 索引读取顶点。</summary>
@@ -91,13 +112,31 @@ public sealed class GraphReadSession : IDisposable
     public GraphCursor<GraphVertex> SeekVerticesByLabel(
         LabelId labelId,
         GraphCursorOptions? options = null)
+        => GraphPlanExecutor.Execute(this, new GraphNodeScanPlan(LabelId: labelId, Options: options));
+
+    internal GraphCursor<GraphVertex> SeekVerticesByLabelCore(
+        LabelId labelId,
+        GraphCursorOptions? options)
     {
         ValidateLabelId(labelId, nameof(labelId));
         return OpenElementCursor(
             GraphKeyCodec.LabelPrefix(GraphElementKind.Vertex, labelId),
             isVertex: true,
-            options);
+            options,
+            GraphKeyKind.VertexLabel);
     }
+
+    /// <summary>按稳定内部 ID 顺序扫描全部边。</summary>
+    /// <param name="options">读取分页和结果预算。</param>
+    /// <returns>边结果游标。</returns>
+    public GraphCursor<GraphEdge> ScanEdges(GraphCursorOptions? options = null)
+        => GraphPlanExecutor.Execute(this, new GraphEdgeScanPlan(Options: options));
+
+    internal GraphCursor<GraphEdge> ScanEdgesCore(GraphCursorOptions? options)
+        => OpenEdgeCursor(
+            GraphKeyCodec.EdgeRecordPrefix(),
+            options,
+            GraphKeyKind.EdgeRecord);
 
     /// <summary>按 label/property 索引 seek 边。</summary>
     /// <param name="labelId">边标签标识符。</param>
@@ -110,11 +149,19 @@ public sealed class GraphReadSession : IDisposable
         int propertyId,
         GraphPropertyValue value,
         GraphCursorOptions? options = null)
+        => GraphPlanExecutor.Execute(this, new GraphEdgeScanPlan(labelId, propertyId, value, options));
+
+    internal GraphCursor<GraphEdge> SeekEdgesCore(
+        LabelId labelId,
+        int propertyId,
+        GraphPropertyValue value,
+        GraphCursorOptions? options)
     {
         ValidateLabelId(labelId, nameof(labelId));
         return OpenEdgeCursor(
             GraphKeyCodec.PropertyIndexPrefix(GraphElementKind.Edge, labelId, propertyId, value),
-            options);
+            options,
+            GraphKeyKind.EdgePropertyIndex);
     }
 
     /// <summary>按 label 索引读取边。</summary>
@@ -124,11 +171,17 @@ public sealed class GraphReadSession : IDisposable
     public GraphCursor<GraphEdge> SeekEdgesByLabel(
         LabelId labelId,
         GraphCursorOptions? options = null)
+        => GraphPlanExecutor.Execute(this, new GraphEdgeScanPlan(LabelId: labelId, Options: options));
+
+    internal GraphCursor<GraphEdge> SeekEdgesByLabelCore(
+        LabelId labelId,
+        GraphCursorOptions? options)
     {
         ValidateLabelId(labelId, nameof(labelId));
         return OpenEdgeCursor(
             GraphKeyCodec.LabelPrefix(GraphElementKind.Edge, labelId),
-            options);
+            options,
+            GraphKeyKind.EdgeLabel);
     }
 
     /// <summary>从一个顶点流式扩展出边、入边或双向边。</summary>
@@ -142,6 +195,13 @@ public sealed class GraphReadSession : IDisposable
         GraphDirection direction = GraphDirection.Outgoing,
         LabelId? edgeLabelId = null,
         GraphCursorOptions? options = null)
+        => GraphPlanExecutor.Execute(this, new GraphExpandPlan(vertexId, direction, edgeLabelId, options));
+
+    internal GraphCursor<GraphExpansion> ExpandCore(
+        GraphElementId vertexId,
+        GraphDirection direction,
+        LabelId? edgeLabelId,
+        GraphCursorOptions? options)
     {
         ValidateElementId(vertexId, nameof(vertexId));
         if (edgeLabelId is { } label)
@@ -268,7 +328,8 @@ public sealed class GraphReadSession : IDisposable
     private GraphCursor<GraphVertex> OpenElementCursor(
         byte[] prefix,
         bool isVertex,
-        GraphCursorOptions? options)
+        GraphCursorOptions? options,
+        GraphKeyKind expectedKeyKind)
     {
         GraphCursorOptions cursorOptions = options ?? new GraphCursorOptions();
         cursorOptions.Validate();
@@ -287,8 +348,8 @@ public sealed class GraphReadSession : IDisposable
                 entry =>
                 {
                     GraphStorageKey key = GraphKeyCodec.Decode(entry.Key.Span);
-                    if (key.Kind is not (GraphKeyKind.VertexLabel or GraphKeyKind.VertexPropertyIndex))
-                        return null;
+                    if (key.Kind != expectedKeyKind)
+                        throw new InvalidDataException("Graph vertex scan 返回了错误的 key family。");
                     return ReadVertex(snapshot, key.ElementId);
                 });
             return new GraphCursor<GraphVertex>(source, cursorOptions.MaxResults);
@@ -300,7 +361,10 @@ public sealed class GraphReadSession : IDisposable
         }
     }
 
-    private GraphCursor<GraphEdge> OpenEdgeCursor(byte[] prefix, GraphCursorOptions? options)
+    private GraphCursor<GraphEdge> OpenEdgeCursor(
+        byte[] prefix,
+        GraphCursorOptions? options,
+        GraphKeyKind expectedKeyKind)
     {
         GraphCursorOptions cursorOptions = options ?? new GraphCursorOptions();
         cursorOptions.Validate();
@@ -319,8 +383,8 @@ public sealed class GraphReadSession : IDisposable
                 entry =>
                 {
                     GraphStorageKey key = GraphKeyCodec.Decode(entry.Key.Span);
-                    if (key.Kind is not (GraphKeyKind.EdgeLabel or GraphKeyKind.EdgePropertyIndex))
-                        return null;
+                    if (key.Kind != expectedKeyKind)
+                        throw new InvalidDataException("Graph edge scan 返回了错误的 key family。");
                     return ReadEdge(snapshot, key.ElementId);
                 });
             return new GraphCursor<GraphEdge>(source, cursorOptions.MaxResults);
@@ -343,6 +407,50 @@ public sealed class GraphReadSession : IDisposable
     }
 
     internal KvReadSnapshot AcquireTraversalSnapshot() => AcquireCursorSnapshot();
+
+    internal GraphCursor<GraphPath> OpenPathPlan(
+        GraphPathPlan plan,
+        GraphTraversalOptions options,
+        GraphTraversalDiagnostics? diagnostics = null)
+    {
+        if (plan.StartId.Value <= 0)
+            throw new ArgumentOutOfRangeException(nameof(plan));
+        if (!Enum.IsDefined(plan.Direction) || !Enum.IsDefined(plan.Mode))
+            throw new ArgumentOutOfRangeException(nameof(plan));
+        if (plan.EdgeLabelId is { Value: <= 0 })
+            throw new ArgumentOutOfRangeException(nameof(plan));
+        ArgumentOutOfRangeException.ThrowIfNegative(plan.MinDepth);
+        if (plan.MaxDepth < plan.MinDepth)
+            throw new ArgumentOutOfRangeException(nameof(plan));
+        options.Validate();
+        if (options.MaxDepth < plan.MaxDepth)
+            throw new ArgumentOutOfRangeException(nameof(options), "MaxDepth 不能小于计划的 MaxDepth。");
+
+        KvReadSnapshot snapshot = AcquireTraversalSnapshot();
+        try
+        {
+            return new GraphCursor<GraphPath>(
+                new GraphTraversalCursorSource(
+                    snapshot,
+                    plan.StartId,
+                    plan.Mode == GraphPathSearchMode.BreadthFirst
+                        ? GraphTraversalMode.BreadthFirst
+                        : GraphTraversalMode.DepthFirst,
+                    plan.MinDepth,
+                    plan.MaxDepth,
+                    plan.Direction,
+                    plan.EdgeLabelId,
+                    options,
+                    plan.DeduplicateBreadthFirstEndpoints,
+                    diagnostics),
+                options.MaxPaths);
+        }
+        catch
+        {
+            snapshot.Dispose();
+            throw;
+        }
+    }
 
     private KvReadSnapshot Snapshot
     {

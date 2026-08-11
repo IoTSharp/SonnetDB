@@ -25,6 +25,7 @@
 ///     └── data/
 /// ├── graphs/
 /// │   ├── graphs.sdbgraph
+/// │   ├── property-graphs.sdbpgq
 /// │   └── stores/
 /// │       └── {storageId:N}/
 /// ├── routines/
@@ -71,6 +72,9 @@ public static class TsdbPaths
 
     /// <summary>原生属性图目录文件名。</summary>
     public const string GraphCatalogFileName = "graphs.sdbgraph";
+
+    /// <summary>SQL/PGQ 关系映射图目录文件名。</summary>
+    public const string PropertyGraphCatalogFileName = "property-graphs.sdbpgq";
 
     /// <summary>原生属性图物理存储父目录名。</summary>
     public const string GraphStoresDirName = "stores";
@@ -202,6 +206,12 @@ public static class TsdbPaths
     /// <returns>原生属性图目录路径。</returns>
     public static string GraphsDir(string root) =>
         Path.Combine(root, GraphsDirName);
+
+    /// <summary>返回 SQL/PGQ 关系映射图目录文件路径。</summary>
+    /// <param name="root">数据库根目录。</param>
+    /// <returns><c>{root}/graphs/property-graphs.sdbpgq</c>。</returns>
+    public static string PropertyGraphCatalogPath(string root) =>
+        Path.Combine(root, GraphsDirName, PropertyGraphCatalogFileName);
 
     /// <summary>
     /// 返回原生属性图目录文件：<c>{root}/graphs/graphs.sdbgraph</c>。

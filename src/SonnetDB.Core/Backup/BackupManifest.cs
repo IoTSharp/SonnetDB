@@ -44,6 +44,9 @@ public sealed record BackupModelSummary(
 {
     /// <summary>原生属性图目录摘要；旧版 manifest 中不存在时为空。</summary>
     public BackupGraphCatalogEntry? GraphCatalog { get; init; }
+
+    /// <summary>SQL/PGQ 关系映射图目录摘要；旧版 manifest 中不存在时为空。</summary>
+    public BackupPropertyGraphCatalogEntry? PropertyGraphCatalog { get; init; }
 }
 
 /// <summary>原生属性图目录摘要。</summary>
@@ -64,6 +67,38 @@ public sealed record BackupGraphIndexEntry(
     string Kind,
     bool Included,
     bool Rebuildable);
+
+/// <summary>SQL/PGQ 关系映射图目录摘要。</summary>
+public sealed record BackupPropertyGraphCatalogEntry(
+    long Revision,
+    IReadOnlyList<BackupPropertyGraphEntry> Graphs);
+
+/// <summary>单个 SQL/PGQ 关系映射图的完整声明摘要。</summary>
+public sealed record BackupPropertyGraphEntry(
+    string Name,
+    long CreatedAtUtcTicks,
+    IReadOnlyList<BackupPropertyGraphVertexTableEntry> VertexTables,
+    IReadOnlyList<BackupPropertyGraphEdgeTableEntry> EdgeTables);
+
+/// <summary>关系映射图中的顶点表声明摘要。</summary>
+public sealed record BackupPropertyGraphVertexTableEntry(
+    string TableName,
+    IReadOnlyList<string> KeyColumns,
+    string Label,
+    IReadOnlyList<string> PropertyColumns);
+
+/// <summary>关系映射图中的边表声明摘要。</summary>
+public sealed record BackupPropertyGraphEdgeTableEntry(
+    string TableName,
+    IReadOnlyList<string> KeyColumns,
+    string SourceTable,
+    IReadOnlyList<string> SourceColumns,
+    IReadOnlyList<string> SourceReferenceColumns,
+    string DestinationTable,
+    IReadOnlyList<string> DestinationColumns,
+    IReadOnlyList<string> DestinationReferenceColumns,
+    string Label,
+    IReadOnlyList<string> PropertyColumns);
 
 /// <summary>时序 measurement 摘要。</summary>
 public sealed record BackupMeasurementEntry(
@@ -149,6 +184,7 @@ public enum BackupFileKind
     Other = 11,
     GraphCatalog = 12,
     GraphData = 13,
+    PropertyGraphCatalog = 14,
 }
 
 /// <summary>备份创建选项。</summary>

@@ -11,6 +11,8 @@ internal sealed class GraphTraversalCursorSource : IGraphCursorSource<GraphPath>
     private readonly GraphDirection _direction;
     private readonly LabelId? _edgeLabelId;
     private readonly GraphTraversalOptions _options;
+    private readonly bool _deduplicateBreadthFirstEndpoints;
+    private readonly GraphTraversalDiagnostics? _diagnostics;
     private readonly Queue<TraversalPath> _queue = new();
     private readonly Stack<TraversalPath> _stack = new();
     private readonly Queue<GraphPath> _pendingResults = new();
@@ -28,7 +30,9 @@ internal sealed class GraphTraversalCursorSource : IGraphCursorSource<GraphPath>
         int maxDepth,
         GraphDirection direction,
         LabelId? edgeLabelId,
-        GraphTraversalOptions options)
+        GraphTraversalOptions options,
+        bool deduplicateBreadthFirstEndpoints,
+        GraphTraversalDiagnostics? diagnostics)
     {
         if (!Enum.IsDefined(direction))
             throw new ArgumentOutOfRangeException(nameof(direction));
@@ -39,6 +43,8 @@ internal sealed class GraphTraversalCursorSource : IGraphCursorSource<GraphPath>
         _direction = direction;
         _edgeLabelId = edgeLabelId;
         _options = options;
+        _deduplicateBreadthFirstEndpoints = deduplicateBreadthFirstEndpoints;
+        _diagnostics = diagnostics;
         SnapshotSequence = snapshot.Sequence;
         if (GraphReadSession.ReadVertex(snapshot, startId) is null)
             throw new InvalidOperationException($"Graph traversal 起点 vertex {startId} 不存在。");
@@ -101,6 +107,8 @@ internal sealed class GraphTraversalCursorSource : IGraphCursorSource<GraphPath>
             }
 
             IReadOnlyList<GraphExpansion> expansions = _activeExpansion.ReadNextPage(cancellationToken);
+            if (_diagnostics is not null)
+                _diagnostics.ExpansionCount = checked(_diagnostics.ExpansionCount + expansions.Count);
             if (expansions.Count == 0)
             {
                 _activeExpansion.Dispose();
@@ -114,6 +122,8 @@ internal sealed class GraphTraversalCursorSource : IGraphCursorSource<GraphPath>
                 TraversalPath child = _activePath.Extend(expansion.NeighborId, expansion.Edge.Id);
                 if (!IsAllowed(child))
                     continue;
+                if (_diagnostics is not null)
+                    _diagnostics.GeneratedPathCount++;
                 children.Add(child);
                 if (child.Edges.Count >= _minDepth)
                     _pendingResults.Enqueue(ToPublicPath(child));
@@ -153,6 +163,8 @@ internal sealed class GraphTraversalCursorSource : IGraphCursorSource<GraphPath>
         else
             _stack.Push(path);
         _visitedVertices.Add(path.Vertices[^1]);
+        if (_diagnostics is not null)
+            _diagnostics.PeakFrontier = Math.Max(_diagnostics.PeakFrontier, 1);
     }
 
     private bool TryTakePending(out TraversalPath? path)
@@ -186,6 +198,7 @@ internal sealed class GraphTraversalCursorSource : IGraphCursorSource<GraphPath>
             return false;
         if (_mode == GraphTraversalMode.BreadthFirst
             && _options.PathUniqueness == GraphPathUniqueness.Vertex
+            && _deduplicateBreadthFirstEndpoints
             && !_visitedVertices.Add(path.Vertices[^1]))
             return false;
         return true;
@@ -209,6 +222,11 @@ internal sealed class GraphTraversalCursorSource : IGraphCursorSource<GraphPath>
                 _queue.Enqueue(child);
             else
                 _stack.Push(child);
+            if (_diagnostics is not null)
+            {
+                int updatedFrontier = _mode == GraphTraversalMode.BreadthFirst ? _queue.Count : _stack.Count;
+                _diagnostics.PeakFrontier = Math.Max(_diagnostics.PeakFrontier, updatedFrontier);
+            }
         }
     }
 

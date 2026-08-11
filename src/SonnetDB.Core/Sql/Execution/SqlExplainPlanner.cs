@@ -1,3 +1,4 @@
+using System.Globalization;
 using SonnetDB.Catalog;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
@@ -9,6 +10,7 @@ using SonnetDB.Query.Functions;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Storage.Format;
 using SonnetDB.Tables;
+using SonnetDB.Views;
 
 namespace SonnetDB.Sql.Execution;
 
@@ -40,6 +42,9 @@ public sealed record SqlExplainExecutionResult(
 
     /// <summary>未使用期望访问路径时的稳定回退原因。</summary>
     public string? FallbackReason { get; init; }
+
+    /// <summary>多路候选源的有界规模与融合输出上限。</summary>
+    public string? CandidateContract { get; init; }
 }
 
 /// <summary>
@@ -53,6 +58,14 @@ public static class SqlExplainPlanner
     private readonly record struct ExplainWhereClause(
         IReadOnlyDictionary<string, string> TagFilter,
         TimeRange TimeRange);
+
+    private sealed record ComposedSourceExplain(
+        string Alias,
+        string AccessPath,
+        string? IndexName,
+        long EstimatedRows,
+        string? CandidateContract,
+        string? FallbackReason);
 
     /// <summary>
     /// 解释一条只读 SQL AST。
@@ -134,6 +147,7 @@ public static class SqlExplainPlanner
             new object?[] { "early_exit", result.EarlyExit },
             new object?[] { "has_residual_predicate", result.HasResidualPredicate },
             new object?[] { "fallback_reason", result.FallbackReason },
+            new object?[] { "candidate_contract", result.CandidateContract },
         };
 
         if (result.DocumentPlan is { } documentPlan)
@@ -560,6 +574,9 @@ public static class SqlExplainPlanner
         if (TryGetStandaloneExists(statement, out var existsSubquery))
             return ExplainStandaloneExists(databaseName, tsdb, existsSubquery);
 
+        if (statement.FromSubquery is not null)
+            return ExplainRelationalComposition(databaseName, tsdb, statement);
+
         if (statement.FromSubquery is null
             && statement.TableValuedFunction is null
             && tsdb.Views.Catalog.TryGet(statement.Measurement) is { } view)
@@ -634,7 +651,7 @@ public static class SqlExplainPlanner
             var hybridDocumentSchema = tsdb.Documents.Catalog.TryGet(statement.Measurement);
             if (hybridDocumentSchema is not null)
             {
-                var (hybridAccessPath, hybridIndexName, hybridRowCount) =
+                HybridSearchExplainPlan hybridPlan =
                     HybridSearchExecutor.ExplainAccess(tsdb, statement, hybridDocumentSchema);
                 return new SqlExplainExecutionResult(
                     Database: databaseName,
@@ -643,20 +660,24 @@ public static class SqlExplainPlanner
                     MatchedSeriesCount: 0,
                     EstimatedSegmentCount: 0,
                     EstimatedBlockCount: 0,
-                    EstimatedScannedRows: hybridRowCount,
-                    EstimatedMemTableRows: hybridRowCount,
+                    EstimatedScannedRows: hybridPlan.EstimatedRows,
+                    EstimatedMemTableRows: hybridPlan.EstimatedRows,
                     EstimatedSegmentRows: 0,
                     HasTimeFilter: statement.Where is not null,
                     TagFilterCount: 0,
-                    AccessPath: hybridAccessPath,
-                    IndexName: hybridIndexName,
-                    ScanFilter: scanFilter);
+                    AccessPath: hybridPlan.AccessPath,
+                    IndexName: hybridPlan.IndexName,
+                    ScanFilter: scanFilter)
+                {
+                    CandidateContract = hybridPlan.CandidateContract,
+                    FallbackReason = hybridPlan.FallbackReason,
+                };
             }
 
             var hybridMeasurementSchema = tsdb.Measurements.TryGet(statement.Measurement)
                 ?? throw new InvalidOperationException(
                     $"Measurement '{statement.Measurement}' 不存在；请先执行 CREATE MEASUREMENT。");
-            var (measurementAccessPath, measurementIndexName, measurementRowCount) =
+            HybridSearchExplainPlan measurementPlan =
                 HybridSearchExecutor.ExplainAccess(tsdb, statement, hybridMeasurementSchema);
             return new SqlExplainExecutionResult(
                 Database: databaseName,
@@ -665,14 +686,18 @@ public static class SqlExplainPlanner
                 MatchedSeriesCount: 0,
                 EstimatedSegmentCount: 0,
                 EstimatedBlockCount: 0,
-                EstimatedScannedRows: measurementRowCount,
-                EstimatedMemTableRows: measurementRowCount,
+                EstimatedScannedRows: measurementPlan.EstimatedRows,
+                EstimatedMemTableRows: measurementPlan.EstimatedRows,
                 EstimatedSegmentRows: 0,
                 HasTimeFilter: statement.Where is not null,
                 TagFilterCount: 0,
-                AccessPath: measurementAccessPath,
-                IndexName: measurementIndexName,
-                ScanFilter: scanFilter);
+                AccessPath: measurementPlan.AccessPath,
+                IndexName: measurementPlan.IndexName,
+                ScanFilter: scanFilter)
+            {
+                CandidateContract = measurementPlan.CandidateContract,
+                FallbackReason = measurementPlan.FallbackReason,
+            };
         }
 
         if (statement.Join is not null)
@@ -826,6 +851,183 @@ public static class SqlExplainPlanner
             IndexName: null,
             ScanFilter: scanFilter);
     }
+
+    private static SqlExplainExecutionResult ExplainRelationalComposition(
+        string? databaseName,
+        Tsdb tsdb,
+        SelectStatement statement)
+    {
+        var sources = new List<ComposedSourceExplain>(statement.JoinClauses.Count + 1)
+        {
+            ExplainComposedSubquery(
+                tsdb,
+                statement.FromSubquery!,
+                statement.TableAlias ?? "source"),
+        };
+        foreach (JoinClause join in statement.JoinClauses)
+        {
+            sources.Add(join.Subquery is not null
+                ? ExplainComposedSubquery(tsdb, join.Subquery, join.Alias)
+                : ExplainComposedRelation(tsdb, join.TableName, join.Alias));
+        }
+
+        long estimatedRows = 0;
+        foreach (ComposedSourceExplain source in sources)
+            estimatedRows = SaturatingAdd(estimatedRows, source.EstimatedRows);
+        string accessPath = string.Join(
+            ";",
+            sources.Select((source, position) =>
+                $"{(position == 0 ? "source" : "join")}:{source.Alias}[{source.AccessPath}]"));
+        if (sources.Count > 1)
+            accessPath += ";join_operator=hash";
+        string? indexName = JoinNonEmpty(sources.Select(static source => source.IndexName));
+        string? candidateContract = JoinNonEmpty(sources
+            .Where(static source => source.CandidateContract is not null)
+            .Select(static source => $"{source.Alias}:{source.CandidateContract}"));
+        string? fallbackReason = JoinNonEmpty(sources
+            .Where(static source => source.FallbackReason is not null)
+            .Select(static source => $"{source.Alias}:{source.FallbackReason}"));
+
+        return new SqlExplainExecutionResult(
+            Database: databaseName,
+            StatementType: "cross_model_select",
+            Measurement: string.Join(",", sources.Select(static source => source.Alias)),
+            MatchedSeriesCount: 0,
+            EstimatedSegmentCount: 0,
+            EstimatedBlockCount: 0,
+            EstimatedScannedRows: estimatedRows,
+            EstimatedMemTableRows: estimatedRows,
+            EstimatedSegmentRows: 0,
+            HasTimeFilter: false,
+            TagFilterCount: 0,
+            AccessPath: accessPath,
+            IndexName: indexName,
+            ScanFilter: DescribeScanFilter(statement.Where))
+        {
+            CandidateContract = candidateContract,
+            FallbackReason = fallbackReason,
+        };
+    }
+
+    private static ComposedSourceExplain ExplainComposedSubquery(
+        Tsdb tsdb,
+        SelectStatement subquery,
+        string alias)
+    {
+        if (subquery.GraphTable is not null)
+        {
+            SelectExecutionResult graphExplain = GraphTableSqlExecutor.Explain(tsdb, subquery);
+            string graphKind = Convert.ToString(
+                FindGraphExplainValue(graphExplain, static key => key == "graph_kind"),
+                CultureInfo.InvariantCulture) ?? "unknown";
+            string anchorPath = Convert.ToString(
+                FindGraphExplainValue(graphExplain, static key =>
+                    key == "anchor_access_path" || key.StartsWith("anchor.", StringComparison.Ordinal)),
+                CultureInfo.InvariantCulture) ?? "unknown";
+            string edgePath = Convert.ToString(
+                FindGraphExplainValue(graphExplain, static key =>
+                    key == "edge_access_path"
+                    || (key.StartsWith("edge.", StringComparison.Ordinal)
+                        && key.EndsWith(".access_path", StringComparison.Ordinal))),
+                CultureInfo.InvariantCulture) ?? "unknown";
+            long anchorRows = Convert.ToInt64(
+                FindGraphExplainValue(graphExplain, static key => key == "estimated_anchor_rows") ?? 0L,
+                CultureInfo.InvariantCulture);
+            long expansionRows = Convert.ToInt64(
+                FindGraphExplainValue(graphExplain, static key => key == "estimated_expansions") ?? 0L,
+                CultureInfo.InvariantCulture);
+            bool fallback = graphExplain.Rows.Any(static row =>
+                row.Count > 1 && string.Equals(
+                    Convert.ToString(row[1], CultureInfo.InvariantCulture),
+                    "relation_scan_fallback",
+                    StringComparison.Ordinal));
+            return new ComposedSourceExplain(
+                alias,
+                $"graph_table:{graphKind};anchor={anchorPath};edge={edgePath}",
+                FindGraphIndexes(graphExplain),
+                expansionRows,
+                $"anchor<={anchorRows};expansions<={expansionRows}",
+                fallback ? "relation_scan_fallback" : null);
+        }
+
+        SqlExplainExecutionResult nested = ExplainSelect(databaseName: null, tsdb, subquery);
+        return new ComposedSourceExplain(
+            alias,
+            nested.AccessPath ?? nested.StatementType,
+            nested.IndexName,
+            nested.EstimatedScannedRows,
+            nested.CandidateContract,
+            nested.FallbackReason);
+    }
+
+    private static ComposedSourceExplain ExplainComposedRelation(
+        Tsdb tsdb,
+        string relationName,
+        string alias)
+    {
+        TableSchema? table = tsdb.Tables.Catalog.TryGet(relationName);
+        if (table is not null)
+        {
+            var (accessPath, indexName, estimatedRows) = ExplainTableAccess(
+                tsdb.Tables.Open(table.Name),
+                table,
+                where: null);
+            return new ComposedSourceExplain(
+                alias,
+                accessPath,
+                indexName,
+                estimatedRows,
+                $"rows<={estimatedRows}",
+                null);
+        }
+
+        MaterializedViewDefinition? materialized = tsdb.MaterializedViews.Catalog.TryGet(relationName);
+        if (materialized is not null)
+        {
+            return new ComposedSourceExplain(
+                alias,
+                materialized.ActiveGeneration == 0
+                    ? "materialized_view_uninitialized"
+                    : "materialized_view_snapshot",
+                null,
+                materialized.RowCount,
+                $"rows<={materialized.RowCount}",
+                null);
+        }
+
+        throw new InvalidOperationException($"table/materialized view '{relationName}' 不存在。");
+    }
+
+    private static object? FindGraphExplainValue(
+        SelectExecutionResult explain,
+        Func<string, bool> matches)
+    {
+        foreach (IReadOnlyList<object?> row in explain.Rows)
+        {
+            if (row.Count > 1 && row[0] is string key && matches(key))
+                return row[1];
+        }
+        return null;
+    }
+
+    private static string? FindGraphIndexes(SelectExecutionResult explain)
+        => JoinNonEmpty(explain.Rows
+            .Where(static row => row.Count > 1
+                && row[0] is string key
+                && key.EndsWith(".index", StringComparison.Ordinal))
+            .Select(static row => Convert.ToString(row[1], CultureInfo.InvariantCulture)));
+
+    private static string? JoinNonEmpty(IEnumerable<string?> values)
+    {
+        string[] materialized = values
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .Select(static value => value!)
+            .ToArray();
+        return materialized.Length == 0 ? null : string.Join(";", materialized);
+    }
+
+    private static long SaturatingAdd(long left, long right)
+        => left > long.MaxValue - right ? long.MaxValue : left + right;
 
     /// <summary>
     /// 识别无 FROM 的独立 <c>SELECT EXISTS (...)</c>，避免把空 measurement 误交给普通查询解释器。

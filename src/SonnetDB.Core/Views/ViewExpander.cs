@@ -26,6 +26,7 @@ internal static class ViewExpander
             fromSubquery = ExpandSelect(catalog, select.FromSubquery, expansionPath);
         }
         else if (select.TableValuedFunction is null
+                 && select.GraphTable is null
                  && catalog.TryGet(select.Measurement) is { } view)
         {
             fromSubquery = ExpandDefinition(catalog, view, expansionPath);
@@ -70,6 +71,18 @@ internal static class ViewExpander
                 catalog,
                 select.TableValuedFunction,
                 expansionPath);
+        var graphTable = select.GraphTable is null
+            ? null
+            : select.GraphTable with
+            {
+                Predicate = select.GraphTable.Predicate is null
+                    ? null
+                    : ExpandExpression(catalog, select.GraphTable.Predicate, expansionPath),
+                Columns = select.GraphTable.Columns.Select(item => item with
+                {
+                    Expression = ExpandExpression(catalog, item.Expression, expansionPath),
+                }).ToArray(),
+            };
         var pagination = select.Pagination is null
             ? null
             : select.Pagination with
@@ -101,6 +114,7 @@ internal static class ViewExpander
             Joins = joins,
             Unions = unions,
             TableValuedFunction = tableValuedFunction,
+            GraphTable = graphTable,
             Pagination = pagination,
         };
     }

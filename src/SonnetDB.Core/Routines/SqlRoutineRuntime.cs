@@ -327,11 +327,7 @@ internal static class SqlRoutineRuntime
             switch (statement)
             {
                 case SelectStatement select:
-                    foreach (string dependency in CollectSelectSources(select))
-                    {
-                        if (!SqlExecutor.IsKnownViewSource(tsdb, dependency))
-                            throw DependencyError($"{ownerKind} '{ownerName}' 引用了不存在的数据源 '{dependency}'。");
-                    }
+                    ValidateSelectSources(tsdb, select, ownerName, ownerKind);
                     break;
                 case InsertStatement insert:
                     EnsureRelationTable(tsdb, ownerKind, ownerName, insert.Measurement);
@@ -346,27 +342,124 @@ internal static class SqlRoutineRuntime
         }
     }
 
-    private static IReadOnlyList<string> CollectSelectSources(SelectStatement select)
+    private static void ValidateSelectSources(
+        Tsdb tsdb,
+        SelectStatement select,
+        string ownerName,
+        string ownerKind)
     {
-        var result = new HashSet<string>(StringComparer.Ordinal);
-        Collect(select, result);
-        return result.ToArray();
-
-        static void Collect(SelectStatement current, HashSet<string> target)
+        if (select.FromSubquery is not null)
         {
-            if (current.FromSubquery is not null)
-                Collect(current.FromSubquery, target);
-            else if (!string.Equals(current.Measurement, "__json_file__", StringComparison.Ordinal))
-                target.Add(current.Measurement);
-            foreach (var join in current.JoinClauses)
+            ValidateSelectSources(tsdb, select.FromSubquery, ownerName, ownerKind);
+        }
+        else if (select.GraphTable is { } graphTable)
+        {
+            if (!SqlExecutor.IsKnownGraphSource(tsdb, graphTable.GraphName))
             {
-                if (join.Subquery is null)
-                    target.Add(join.TableName);
-                else
-                    Collect(join.Subquery, target);
+                throw DependencyError(
+                    $"{ownerKind} '{ownerName}' 引用了不存在的 graph '{graphTable.GraphName}'。");
             }
-            foreach (var union in current.UnionStatements)
-                Collect(union, target);
+        }
+        else if (!string.IsNullOrEmpty(select.Measurement)
+                 && !string.Equals(select.Measurement, "__json_file__", StringComparison.Ordinal)
+                 && !SqlExecutor.IsKnownViewSource(tsdb, select.Measurement))
+        {
+            throw DependencyError(
+                $"{ownerKind} '{ownerName}' 引用了不存在的数据源 '{select.Measurement}'。");
+        }
+
+        foreach (var projection in select.Projections)
+            ValidateSelectExpressionSources(tsdb, projection.Expression, ownerName, ownerKind);
+        if (select.Where is not null)
+            ValidateSelectExpressionSources(tsdb, select.Where, ownerName, ownerKind);
+        foreach (var expression in select.GroupBy)
+            ValidateSelectExpressionSources(tsdb, expression, ownerName, ownerKind);
+        if (select.Having is not null)
+            ValidateSelectExpressionSources(tsdb, select.Having, ownerName, ownerKind);
+        foreach (var orderBy in select.OrderByList)
+            ValidateSelectExpressionSources(tsdb, orderBy.Expression, ownerName, ownerKind);
+        if (select.Pagination is { } pagination)
+        {
+            ValidateSelectExpressionSources(tsdb, pagination.OffsetExpression, ownerName, ownerKind);
+            if (pagination.FetchExpression is not null)
+                ValidateSelectExpressionSources(tsdb, pagination.FetchExpression, ownerName, ownerKind);
+        }
+        if (select.TableValuedFunction is not null)
+            ValidateSelectExpressionSources(tsdb, select.TableValuedFunction, ownerName, ownerKind);
+        if (select.GraphTable is { } graphSource)
+        {
+            if (graphSource.Predicate is not null)
+                ValidateSelectExpressionSources(tsdb, graphSource.Predicate, ownerName, ownerKind);
+            foreach (var column in graphSource.Columns)
+                ValidateSelectExpressionSources(tsdb, column.Expression, ownerName, ownerKind);
+        }
+        foreach (var join in select.JoinClauses)
+        {
+            if (join.Subquery is null)
+            {
+                if (!SqlExecutor.IsKnownViewSource(tsdb, join.TableName))
+                {
+                    throw DependencyError(
+                        $"{ownerKind} '{ownerName}' 引用了不存在的数据源 '{join.TableName}'。");
+                }
+            }
+            else
+            {
+                ValidateSelectSources(tsdb, join.Subquery, ownerName, ownerKind);
+            }
+            ValidateSelectExpressionSources(tsdb, join.On, ownerName, ownerKind);
+        }
+        foreach (var union in select.UnionStatements)
+            ValidateSelectSources(tsdb, union, ownerName, ownerKind);
+    }
+
+    private static void ValidateSelectExpressionSources(
+        Tsdb tsdb,
+        SqlExpression expression,
+        string ownerName,
+        string ownerKind)
+    {
+        switch (expression)
+        {
+            case BinaryExpression binary:
+                ValidateSelectExpressionSources(tsdb, binary.Left, ownerName, ownerKind);
+                ValidateSelectExpressionSources(tsdb, binary.Right, ownerName, ownerKind);
+                break;
+            case UnaryExpression unary:
+                ValidateSelectExpressionSources(tsdb, unary.Operand, ownerName, ownerKind);
+                break;
+            case IsNullExpression isNull:
+                ValidateSelectExpressionSources(tsdb, isNull.Operand, ownerName, ownerKind);
+                break;
+            case InExpression @in:
+                ValidateSelectExpressionSources(tsdb, @in.Value, ownerName, ownerKind);
+                foreach (var value in @in.Values)
+                    ValidateSelectExpressionSources(tsdb, value, ownerName, ownerKind);
+                if (@in.Subquery is not null)
+                    ValidateSelectSources(tsdb, @in.Subquery, ownerName, ownerKind);
+                break;
+            case FunctionCallExpression function:
+                foreach (var argument in function.Arguments)
+                    ValidateSelectExpressionSources(tsdb, argument, ownerName, ownerKind);
+                break;
+            case NamedArgumentExpression named:
+                ValidateSelectExpressionSources(tsdb, named.Value, ownerName, ownerKind);
+                break;
+            case CaseExpression @case:
+                foreach (var clause in @case.WhenClauses)
+                {
+                    ValidateSelectExpressionSources(tsdb, clause.Condition, ownerName, ownerKind);
+                    ValidateSelectExpressionSources(tsdb, clause.Result, ownerName, ownerKind);
+                }
+                if (@case.Else is not null)
+                    ValidateSelectExpressionSources(tsdb, @case.Else, ownerName, ownerKind);
+                break;
+            case SubqueryExpression subquery:
+                ValidateSelectSources(tsdb, subquery.Select, ownerName, ownerKind);
+                break;
+            case ExistsExpression exists:
+                ValidateSelectSources(tsdb, exists.Select, ownerName, ownerKind);
+                break;
         }
     }
 

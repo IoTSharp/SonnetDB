@@ -182,6 +182,8 @@ export function statementTitle(sqlText: string): string {
 export function quickSqlOptions(isSuperuser: boolean, hasSelectedMeasurement: boolean): DropdownOption[] {
   const options: DropdownOption[] = [
     { label: 'SHOW MEASUREMENTS', key: 'show-measurements' },
+    { label: 'SHOW GRAPHS', key: 'show-graphs' },
+    { label: 'SHOW PROPERTY GRAPHS', key: 'show-property-graphs' },
     { label: 'SELECT active measurement', key: 'select-active', disabled: !hasSelectedMeasurement },
     { label: 'DESCRIBE active measurement', key: 'describe-active', disabled: !hasSelectedMeasurement },
     { label: 'CREATE MEASUREMENT draft', key: 'create-active', disabled: !hasSelectedMeasurement },

@@ -320,6 +320,9 @@ public static class SqlExecutor
             WriteModbusStatement => throw new NotSupportedException(
                 "WRITE MODBUS 只能通过具备确认令牌、持久审计和网络运行时的 Server REST SQL 端点执行。"),
             CreateMeasurementStatement create => ExecuteCreateMeasurement(tsdb, create),
+            CreateGraphStatement createGraph => GraphSqlExecutor.CreateGraph(tsdb, createGraph),
+            CreatePropertyGraphStatement createPropertyGraph =>
+                GraphSqlExecutor.CreatePropertyGraph(tsdb, createPropertyGraph),
             CreateTableStatement createTable => TableSqlExecutor.ExecuteCreateTable(tsdb, createTable),
             CreateDocumentCollectionStatement createDocumentCollection => DocumentSqlExecutor.ExecuteCreateCollection(tsdb, createDocumentCollection),
             CreateViewStatement createView => tsdb.ExecuteSchemaMutation(
@@ -346,6 +349,7 @@ public static class SqlExecutor
                 importJson,
                 controlPlane),
             InsertStatement insert => ExecuteInsert(tsdb, databaseName, insert, controlPlane, transaction),
+            InsertGraphStatement insertGraph => GraphSqlExecutor.InsertGraph(tsdb, insertGraph),
             SelectStatement select => ExecuteSelect(tsdb, select),
             CallProcedureStatement call => SqlRoutineRuntime.ExecuteCall(tsdb, databaseName, call, controlPlane, transaction),
             RefreshMaterializedViewStatement refreshMaterializedView => ExecuteRefreshMaterializedView(tsdb, refreshMaterializedView),
@@ -353,6 +357,9 @@ public static class SqlExecutor
             TruncateTableStatement truncate => ExecuteTruncate(tsdb, truncate),
             UpdateStatement update => ExecuteUpdate(tsdb, databaseName, update, controlPlane, transaction),
             DropMeasurementStatement dropMeasurement => ExecuteDropMeasurement(tsdb, dropMeasurement),
+            DropGraphStatement dropGraph => GraphSqlExecutor.DropGraph(tsdb, dropGraph),
+            DropPropertyGraphStatement dropPropertyGraph =>
+                GraphSqlExecutor.DropPropertyGraph(tsdb, dropPropertyGraph),
             DropTableStatement dropTable => TableSqlExecutor.ExecuteDropTable(tsdb, dropTable),
             DropDocumentCollectionStatement dropDocumentCollection => DocumentSqlExecutor.ExecuteDropCollection(tsdb, dropDocumentCollection),
             DropViewStatement dropView => tsdb.ExecuteSchemaMutation(
@@ -376,6 +383,8 @@ public static class SqlExecutor
             AlterDocumentCollectionSetValidatorStatement setValidator => DocumentSqlExecutor.ExecuteSetValidator(tsdb, setValidator),
             AlterDocumentCollectionDropValidatorStatement dropValidator => DocumentSqlExecutor.ExecuteDropValidator(tsdb, dropValidator),
             ShowMeasurementsStatement => ShowMeasurements(tsdb),
+            ShowGraphsStatement => GraphSqlExecutor.ShowGraphs(tsdb),
+            ShowPropertyGraphsStatement => GraphSqlExecutor.ShowPropertyGraphs(tsdb),
             ShowTablesStatement => TableSqlExecutor.ShowTables(tsdb),
             ShowViewsStatement => ShowViews(tsdb),
             ShowMaterializedViewsStatement => ShowMaterializedViews(tsdb),
@@ -390,6 +399,9 @@ public static class SqlExecutor
             ShowModbusWriteAuditStatement => throw new NotSupportedException(
                 "SHOW MODBUS WRITE AUDIT 只能通过持有服务端审计存储的 Server REST SQL 端点执行。"),
             DescribeMeasurementStatement describe => DescribeMeasurement(tsdb, describe.Name),
+            DescribeGraphStatement describeGraph => GraphSqlExecutor.DescribeGraph(tsdb, describeGraph.Name),
+            DescribePropertyGraphStatement describePropertyGraph =>
+                GraphSqlExecutor.DescribePropertyGraph(tsdb, describePropertyGraph.Name),
             DescribeTableStatement describeTable => TableSqlExecutor.DescribeTable(tsdb, describeTable.Name),
             DescribeViewStatement describeView => DescribeView(tsdb, describeView.Name),
             DescribeMaterializedViewStatement describeMaterializedView => DescribeMaterializedView(tsdb, describeMaterializedView.Name),
@@ -515,6 +527,12 @@ public static class SqlExecutor
                 "WRITE MODBUS 不能在活动轻事务内执行；远端设备写入不属于本地关系表事务。请在事务外执行。");
         }
 
+        if (statement is InsertGraphStatement)
+        {
+            throw new NotSupportedException(
+                "INSERT INTO GRAPH 不能在活动轻事务内执行；Graph mutation 不会进入关系表事务缓冲。请在事务外执行。");
+        }
+
         if (!IsDdlStatement(statement))
             return;
 
@@ -525,6 +543,8 @@ public static class SqlExecutor
     private static bool IsDdlStatement(SqlStatement statement)
         => statement is
             CreateMeasurementStatement
+            or CreateGraphStatement
+            or CreatePropertyGraphStatement
             or CreateModbusSourceStatement
             or CreateModbusEndpointStatement
             or CreateTableStatement
@@ -550,6 +570,8 @@ public static class SqlExecutor
             or AlterDocumentCollectionSetValidatorStatement
             or AlterDocumentCollectionDropValidatorStatement
             or DropMeasurementStatement
+            or DropGraphStatement
+            or DropPropertyGraphStatement
             or DropTableStatement
             or DropDocumentCollectionStatement
             or DropViewStatement
@@ -609,6 +631,7 @@ public static class SqlExecutor
             || tsdb.Measurements.Contains(statement.Name)
             || tsdb.Documents.Catalog.TryGet(statement.Name) is not null
             || tsdb.Graphs.Catalog.TryGet(statement.Name) is not null
+            || tsdb.Graphs.PropertyGraphs.TryGet(statement.Name) is not null
             || tsdb.MaterializedViews.Catalog.TryGet(statement.Name) is not null)
         {
             throw new InvalidOperationException(
@@ -626,20 +649,13 @@ public static class SqlExecutor
             statement.Name,
             statement.DefinitionSql,
             statement.Query);
-        foreach (string dependency in definition.Dependencies)
-        {
-            if (string.Equals(dependency, statement.Name, StringComparison.Ordinal))
-            {
-                throw new InvalidOperationException(
-                    $"view '{statement.Name}' 不能直接或间接引用自身。");
-            }
-
-            if (!IsKnownViewSource(tsdb, dependency))
-            {
-                throw new InvalidOperationException(
-                    $"view '{statement.Name}' 引用了不存在的数据源 '{dependency}'。");
-            }
-        }
+        var analysis = ViewDependencyCollector.Analyze(statement.Query);
+        ValidateViewDependencies(
+            tsdb,
+            definition.Name,
+            definition.Dependencies,
+            analysis.GraphDependencies,
+            "view");
 
         tsdb.Views.Create(definition);
         return definition;
@@ -656,6 +672,7 @@ public static class SqlExecutor
             || tsdb.Measurements.Contains(statement.Name)
             || tsdb.Documents.Catalog.TryGet(statement.Name) is not null
             || tsdb.Graphs.Catalog.TryGet(statement.Name) is not null
+            || tsdb.Graphs.PropertyGraphs.TryGet(statement.Name) is not null
             || tsdb.Views.Catalog.TryGet(statement.Name) is not null)
         {
             throw new InvalidOperationException(
@@ -673,7 +690,13 @@ public static class SqlExecutor
             statement.Name,
             statement.DefinitionSql,
             statement.Query);
-        ValidateViewDependencies(tsdb, definition.Name, definition.Dependencies, "materialized view");
+        var analysis = ViewDependencyCollector.Analyze(statement.Query);
+        ValidateViewDependencies(
+            tsdb,
+            definition.Name,
+            definition.Dependencies,
+            analysis.GraphDependencies,
+            "materialized view");
         tsdb.MaterializedViews.Create(definition);
         return definition;
     }
@@ -743,13 +766,18 @@ public static class SqlExecutor
         Tsdb tsdb,
         string name,
         IReadOnlyList<string> dependencies,
+        IReadOnlyList<string> graphDependencies,
         string objectType)
     {
+        var graphNames = new HashSet<string>(graphDependencies, StringComparer.Ordinal);
         foreach (string dependency in dependencies)
         {
             if (string.Equals(dependency, name, StringComparison.Ordinal))
                 throw new InvalidOperationException($"{objectType} '{name}' 不能直接或间接引用自身。");
-            if (!IsKnownViewSource(tsdb, dependency))
+            bool exists = graphNames.Contains(dependency)
+                ? IsKnownGraphSource(tsdb, dependency)
+                : IsKnownViewSource(tsdb, dependency);
+            if (!exists)
             {
                 throw new InvalidOperationException(
                     $"{objectType} '{name}' 引用了不存在的数据源 '{dependency}'。");
@@ -769,13 +797,16 @@ public static class SqlExecutor
                 || name.Equals("information_schema.materialized_views", StringComparison.OrdinalIgnoreCase);
         }
 
-        // Phase 0 的 graph 只有生命周期和元数据；不得伪装成可查询的 SQL/view source。
         return tsdb.Tables.Catalog.TryGet(name) is not null
             || tsdb.Measurements.Contains(name)
             || tsdb.Documents.Catalog.TryGet(name) is not null
             || tsdb.Views.Catalog.TryGet(name) is not null
             || tsdb.MaterializedViews.Catalog.TryGet(name) is not null;
     }
+
+    internal static bool IsKnownGraphSource(Tsdb tsdb, string name)
+        => tsdb.Graphs.Catalog.TryGet(name) is not null
+            || tsdb.Graphs.PropertyGraphs.TryGet(name) is not null;
 
     internal static void EnsureNameDoesNotBelongToView(
         Tsdb tsdb,
@@ -796,6 +827,11 @@ public static class SqlExecutor
         {
             throw new InvalidOperationException(
                 $"无法创建 {objectType} '{objectName}'：同名 graph 已存在。");
+        }
+        if (tsdb.Graphs.PropertyGraphs.TryGet(objectName) is not null)
+        {
+            throw new InvalidOperationException(
+                $"无法创建 {objectType} '{objectName}'：同名 property graph 已存在。");
         }
     }
 
@@ -827,6 +863,20 @@ public static class SqlExecutor
 
     private static SelectExecutionResult ExecuteExplain(Tsdb tsdb, string? databaseName, ExplainStatement statement)
     {
+        if (statement.Statement is SelectStatement select && GraphSqlExecutor.IsGraphSelect(select))
+            return select.GraphTable is null
+                ? statement.Analyze
+                    ? throw new NotSupportedException("EXPLAIN ANALYZE 当前仅支持 GRAPH_TABLE 查询。")
+                    : GraphSqlExecutor.ExplainSelect(select)
+                : statement.Analyze
+                    ? GraphTableSqlExecutor.ExplainAnalyze(tsdb, select)
+                    : GraphTableSqlExecutor.Explain(tsdb, select);
+        if (statement.Analyze)
+            throw new NotSupportedException("EXPLAIN ANALYZE 当前仅支持 GRAPH_TABLE 查询。");
+        if (statement.Statement is DescribePropertyGraphStatement describePropertyGraph)
+            return GraphSqlExecutor.ExplainPropertyGraph(tsdb, describePropertyGraph.Name);
+        if (statement.Statement is ShowPropertyGraphsStatement)
+            return GraphSqlExecutor.ExplainShowPropertyGraphs(tsdb);
         var explain = SqlExplainPlanner.Explain(databaseName, tsdb, statement.Statement);
         return SqlExplainPlanner.ToSelectExecutionResult(explain);
     }
@@ -1696,6 +1746,9 @@ public static class SqlExecutor
 
     private static SelectExecutionResult ExecuteSelectDispatch(Tsdb tsdb, SelectStatement statement)
     {
+        if (GraphSqlExecutor.IsGraphSelect(statement))
+            return GraphSqlExecutor.ExecuteSelect(tsdb, statement);
+
         if (TryExecuteInformationSchemaSelect(tsdb, statement, out var informationSchemaResult))
             return informationSchemaResult;
 

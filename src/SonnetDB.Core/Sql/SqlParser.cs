@@ -1,6 +1,7 @@
 ﻿using SonnetDB.Sql.Ast;
 
 using System.Globalization;
+using SonnetDB.Graphs;
 using SonnetDB.Modbus;
 
 namespace SonnetDB.Sql;
@@ -223,6 +224,24 @@ public sealed class SqlParser
             return ParseCreateModbusBody();
         }
 
+        if (IsIdentifier("property"))
+        {
+            if (unique || sparse || ttl)
+                throw Error("CREATE PROPERTY GRAPH 不支持 UNIQUE / SPARSE / TTL 修饰符");
+            Advance();
+            ExpectIdentifier("graph", "CREATE PROPERTY 后面期望 GRAPH");
+            return ParseCreatePropertyGraphBody();
+        }
+
+        if (IsIdentifier("graph"))
+        {
+            if (unique || sparse || ttl)
+                throw Error("CREATE GRAPH 不支持 UNIQUE / SPARSE / TTL 修饰符");
+            Advance();
+            bool ifNotExists = ParseOptionalIfNotExists();
+            return new CreateGraphStatement(ExpectIdentifierName(), ifNotExists);
+        }
+
         if (IsIdentifier("materialized"))
         {
             if (unique || sparse || ttl)
@@ -266,6 +285,109 @@ public sealed class SqlParser
             TokenKind.KeywordDatabase => ParseCreateDatabaseBody(),
             _ => throw Error("CREATE 后面期望 MODBUS / MEASUREMENT / TABLE / VIEW / PROCEDURE / TRIGGER / DOCUMENT COLLECTION / JSON INDEX / FULLTEXT INDEX / VECTOR INDEX / INDEX / USER / DATABASE"),
         };
+    }
+
+    private CreatePropertyGraphStatement ParseCreatePropertyGraphBody()
+    {
+        bool ifNotExists = ParseOptionalIfNotExists();
+        string name = ExpectIdentifierName();
+        ExpectIdentifier("vertex", "CREATE PROPERTY GRAPH 后面期望 VERTEX TABLES");
+        Expect(TokenKind.KeywordTables);
+        IReadOnlyList<PropertyGraphVertexTableClause> vertices = ParsePropertyGraphVertexTables();
+
+        var edges = new List<PropertyGraphEdgeTableClause>();
+        if (IsIdentifier("edge"))
+        {
+            Advance();
+            Expect(TokenKind.KeywordTables);
+            edges.AddRange(ParsePropertyGraphEdgeTables());
+        }
+        return new CreatePropertyGraphStatement(name, vertices, edges, ifNotExists);
+    }
+
+    private IReadOnlyList<PropertyGraphVertexTableClause> ParsePropertyGraphVertexTables()
+    {
+        Expect(TokenKind.LeftParen);
+        var mappings = new List<PropertyGraphVertexTableClause>();
+        while (true)
+        {
+            string tableName = ExpectIdentifierName();
+            Expect(TokenKind.KeywordKey);
+            IReadOnlyList<string> keys = ParsePropertyGraphColumnList();
+            ExpectIdentifier("label", "VERTEX TABLE KEY 后面期望 LABEL");
+            string label = ExpectIdentifierName();
+            ExpectIdentifier("properties", "VERTEX TABLE LABEL 后面期望 PROPERTIES");
+            IReadOnlyList<string> properties = ParsePropertyGraphColumnList(allowEmpty: true);
+            mappings.Add(new PropertyGraphVertexTableClause(tableName, keys, label, properties));
+            if (Current.Kind != TokenKind.Comma)
+                break;
+            Advance();
+        }
+        Expect(TokenKind.RightParen);
+        return mappings;
+    }
+
+    private IReadOnlyList<PropertyGraphEdgeTableClause> ParsePropertyGraphEdgeTables()
+    {
+        Expect(TokenKind.LeftParen);
+        var mappings = new List<PropertyGraphEdgeTableClause>();
+        while (true)
+        {
+            string tableName = ExpectIdentifierName();
+            Expect(TokenKind.KeywordKey);
+            IReadOnlyList<string> keys = ParsePropertyGraphColumnList();
+            ExpectIdentifier("source", "EDGE TABLE KEY 后面期望 SOURCE KEY");
+            Expect(TokenKind.KeywordKey);
+            IReadOnlyList<string> sourceColumns = ParsePropertyGraphColumnList();
+            Expect(TokenKind.KeywordReferences);
+            string sourceTable = ExpectIdentifierName();
+            IReadOnlyList<string> sourceReferences = ParsePropertyGraphColumnList();
+            ExpectIdentifier("destination", "EDGE TABLE SOURCE 后面期望 DESTINATION KEY");
+            Expect(TokenKind.KeywordKey);
+            IReadOnlyList<string> destinationColumns = ParsePropertyGraphColumnList();
+            Expect(TokenKind.KeywordReferences);
+            string destinationTable = ExpectIdentifierName();
+            IReadOnlyList<string> destinationReferences = ParsePropertyGraphColumnList();
+            ExpectIdentifier("label", "EDGE TABLE DESTINATION 后面期望 LABEL");
+            string label = ExpectIdentifierName();
+            ExpectIdentifier("properties", "EDGE TABLE LABEL 后面期望 PROPERTIES");
+            IReadOnlyList<string> properties = ParsePropertyGraphColumnList(allowEmpty: true);
+            mappings.Add(new PropertyGraphEdgeTableClause(
+                tableName,
+                keys,
+                sourceTable,
+                sourceColumns,
+                sourceReferences,
+                destinationTable,
+                destinationColumns,
+                destinationReferences,
+                label,
+                properties));
+            if (Current.Kind != TokenKind.Comma)
+                break;
+            Advance();
+        }
+        Expect(TokenKind.RightParen);
+        return mappings;
+    }
+
+    private IReadOnlyList<string> ParsePropertyGraphColumnList(bool allowEmpty = false)
+    {
+        Expect(TokenKind.LeftParen);
+        var columns = new List<string>();
+        if (allowEmpty && Current.Kind == TokenKind.RightParen)
+        {
+            Advance();
+            return columns;
+        }
+        columns.Add(ExpectColumnName());
+        while (Current.Kind == TokenKind.Comma)
+        {
+            Advance();
+            columns.Add(ExpectColumnName());
+        }
+        Expect(TokenKind.RightParen);
+        return columns;
     }
 
     /// <summary>
@@ -1976,10 +2098,12 @@ public sealed class SqlParser
 
     // ── INSERT INTO ────────────────────────────────────────────────────────
 
-    private InsertStatement ParseInsert()
+    private SqlStatement ParseInsert()
     {
         Expect(TokenKind.KeywordInsert);
         Expect(TokenKind.KeywordInto);
+        if (IsGraphInsertStart())
+            return ParseGraphInsert();
         var measurement = ExpectIdentifierName();
 
         if (Current.Kind == TokenKind.KeywordDefault)
@@ -2016,6 +2140,38 @@ public sealed class SqlParser
         }
 
         return ParseInsertReturning(new InsertStatement(measurement, columns, rows));
+    }
+
+    private InsertGraphStatement ParseGraphInsert()
+    {
+        Advance();
+        string graphName = ExpectIdentifierName();
+        GraphMutationKind kind;
+        if (IsIdentifier("vertex"))
+            kind = GraphMutationKind.Vertex;
+        else if (IsIdentifier("edge"))
+            kind = GraphMutationKind.Edge;
+        else
+            throw Error("INSERT INTO GRAPH 后面期望 VERTEX 或 EDGE");
+        Advance();
+
+        Expect(TokenKind.LeftParen);
+        var columns = new List<string> { ExpectColumnName() };
+        while (Current.Kind == TokenKind.Comma)
+        {
+            Advance();
+            columns.Add(ExpectColumnName());
+        }
+        Expect(TokenKind.RightParen);
+        Expect(TokenKind.KeywordValues);
+
+        var rows = new List<IReadOnlyList<SqlExpression>> { ParseValueRow(columns.Count) };
+        while (Current.Kind == TokenKind.Comma)
+        {
+            Advance();
+            rows.Add(ParseValueRow(columns.Count));
+        }
+        return new InsertGraphStatement(graphName, kind, columns, rows);
     }
 
     private InsertStatement ParseInsertReturning(InsertStatement statement)
@@ -2157,6 +2313,7 @@ public sealed class SqlParser
         string? tableAlias = null;
         var joins = new List<JoinClause>();
         FunctionCallExpression? tvf = null;
+        GraphTableSource? graphTable = null;
         SelectStatement? fromSubquery = null;
         if (Current.Kind == TokenKind.LeftParen && _index + 1 < _tokens.Count && _tokens[_index + 1].Kind == TokenKind.KeywordSelect)
         {
@@ -2165,6 +2322,14 @@ public sealed class SqlParser
             Expect(TokenKind.RightParen);
             tableAlias = ParseRequiredTableAlias("FROM 子查询必须声明别名");
             measurement = tableAlias;
+        }
+        else if (IsIdentifier("graph_table")
+            && _index + 1 < _tokens.Count
+            && _tokens[_index + 1].Kind == TokenKind.LeftParen)
+        {
+            graphTable = ParseGraphTableSource();
+            measurement = "__graph_table__";
+            tableAlias = ParseOptionalTableAlias();
         }
         else if (Current.Kind == TokenKind.IdentifierLiteral
             && _index + 1 < _tokens.Count
@@ -2179,6 +2344,10 @@ public sealed class SqlParser
             if (IsJsonFileTableValuedFunction(name))
             {
                 measurement = "__json_file__";
+            }
+            else if (IsGraphTableValuedFunction(name))
+            {
+                measurement = "__graph__";
             }
             else
             {
@@ -2235,7 +2404,178 @@ public sealed class SqlParser
             FromSubquery: fromSubquery,
             Joins: joins,
             Having: having,
-            Distinct: distinct);
+            Distinct: distinct)
+        {
+            GraphTable = graphTable,
+        };
+    }
+
+    private GraphTableSource ParseGraphTableSource()
+    {
+        Advance();
+        Expect(TokenKind.LeftParen);
+        string graphName = ExpectIdentifierName();
+        ExpectIdentifier("match", "GRAPH_TABLE graph 名称后面期望 MATCH");
+        string? pathVariable = null;
+        if (Current.Kind == TokenKind.IdentifierLiteral
+            && _index + 1 < _tokens.Count
+            && _tokens[_index + 1].Kind == TokenKind.Equal)
+        {
+            pathVariable = ExpectIdentifierName();
+            Expect(TokenKind.Equal);
+        }
+
+        bool isAnyShortest = false;
+        if (IsIdentifier("any"))
+        {
+            Advance();
+            ExpectIdentifier("shortest", "GRAPH_TABLE MATCH ANY 后面期望 SHORTEST");
+            isAnyShortest = true;
+        }
+
+        GraphPathUniqueness uniqueness = GraphPathUniqueness.Vertex;
+        if (IsIdentifier("walk"))
+        {
+            Advance();
+            uniqueness = GraphPathUniqueness.None;
+        }
+        else if (IsIdentifier("trail"))
+        {
+            Advance();
+            uniqueness = GraphPathUniqueness.Edge;
+        }
+        else if (IsIdentifier("simple") || IsIdentifier("acyclic"))
+        {
+            Advance();
+            uniqueness = GraphPathUniqueness.Vertex;
+        }
+
+        GraphPatternVertex left = ParseGraphPatternVertex();
+
+        GraphDirection direction;
+        GraphPatternEdge edge;
+        if (Current.Kind == TokenKind.Minus)
+        {
+            Advance();
+            edge = ParseGraphPatternEdge();
+            Expect(TokenKind.Minus);
+            if (Current.Kind == TokenKind.GreaterThan)
+            {
+                Advance();
+                direction = GraphDirection.Outgoing;
+            }
+            else
+            {
+                direction = GraphDirection.Both;
+            }
+        }
+        else if (Current.Kind == TokenKind.LessThan)
+        {
+            Advance();
+            Expect(TokenKind.Minus);
+            edge = ParseGraphPatternEdge();
+            Expect(TokenKind.Minus);
+            direction = GraphDirection.Incoming;
+        }
+        else
+        {
+            throw Error("GRAPH_TABLE MATCH 顶点后面期望 -[edge]->、<-[edge]- 或 -[edge]-");
+        }
+
+        GraphPathPattern? path = ParseOptionalGraphPathPattern(
+            pathVariable,
+            uniqueness,
+            isAnyShortest);
+        GraphPatternVertex right = ParseGraphPatternVertex();
+        if (string.Equals(left.Variable, edge.Variable, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(left.Variable, right.Variable, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(edge.Variable, right.Variable, StringComparison.OrdinalIgnoreCase))
+        {
+            throw Error("GRAPH_TABLE MATCH 的 vertex/edge 变量名必须互不相同");
+        }
+        if (pathVariable is not null
+            && (string.Equals(pathVariable, left.Variable, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(pathVariable, edge.Variable, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(pathVariable, right.Variable, StringComparison.OrdinalIgnoreCase)))
+        {
+            throw Error("GRAPH_TABLE MATCH 的 path/vertex/edge 变量名必须互不相同");
+        }
+
+        SqlExpression? predicate = null;
+        if (Current.Kind == TokenKind.KeywordWhere)
+        {
+            Advance();
+            predicate = ParseExpression();
+        }
+
+        ExpectIdentifier("columns", "GRAPH_TABLE MATCH 后面期望 COLUMNS");
+        Expect(TokenKind.LeftParen);
+        IReadOnlyList<SelectItem> columns = ParseSelectList();
+        Expect(TokenKind.RightParen);
+        Expect(TokenKind.RightParen);
+        return new GraphTableSource(graphName, left, edge, right, direction, predicate, columns)
+        {
+            Path = path,
+        };
+    }
+
+    private GraphPathPattern? ParseOptionalGraphPathPattern(
+        string? pathVariable,
+        GraphPathUniqueness uniqueness,
+        bool isAnyShortest)
+    {
+        if (Current.Kind != TokenKind.LeftBrace)
+        {
+            return pathVariable is null && !isAnyShortest && uniqueness == GraphPathUniqueness.Vertex
+                ? null
+                : new GraphPathPattern(pathVariable, 1, 1, uniqueness, isAnyShortest);
+        }
+
+        Advance();
+        int minDepth = ExpectNonNegativeInt("GRAPH_TABLE path 最小深度必须是非负整数");
+        Expect(TokenKind.Comma);
+        int maxDepth = ExpectNonNegativeInt("GRAPH_TABLE path 最大深度必须是非负整数");
+        Expect(TokenKind.RightBrace);
+        if (minDepth < 1)
+            throw Error("GRAPH_TABLE path 第一版要求最小深度至少为 1");
+        if (maxDepth < minDepth)
+            throw Error("GRAPH_TABLE path 最大深度不能小于最小深度");
+        if (maxDepth > 64)
+            throw Error("GRAPH_TABLE path 最大深度不能超过 64");
+        return new GraphPathPattern(pathVariable, minDepth, maxDepth, uniqueness, isAnyShortest);
+    }
+
+    private GraphPatternVertex ParseGraphPatternVertex()
+    {
+        Expect(TokenKind.LeftParen);
+        string variable = ExpectIdentifierName();
+        Expect(TokenKind.KeywordIs);
+        string label = ExpectGraphPatternLabel();
+        Expect(TokenKind.RightParen);
+        return new GraphPatternVertex(variable, label);
+    }
+
+    private GraphPatternEdge ParseGraphPatternEdge()
+    {
+        Expect(TokenKind.LeftBracket);
+        string variable = ExpectIdentifierName();
+        Expect(TokenKind.KeywordIs);
+        string label = ExpectGraphPatternLabel();
+        Expect(TokenKind.RightBracket);
+        return new GraphPatternEdge(variable, label);
+    }
+
+    private string ExpectGraphPatternLabel()
+    {
+        if (Current.Kind == TokenKind.IdentifierLiteral)
+            return ExpectIdentifierName();
+        if (Current.Kind == TokenKind.IntegerLiteral && Current.IntegerValue > 0)
+        {
+            string label = Current.IntegerValue.ToString(CultureInfo.InvariantCulture);
+            Advance();
+            return label;
+        }
+        throw Error("GRAPH_TABLE pattern label 必须是标识符或正整数 label ID");
     }
 
     private string ResolveTableValuedSourceName(string functionName, FunctionCallExpression call)
@@ -2275,6 +2615,10 @@ public sealed class SqlParser
 
         throw Error($"表值函数 {functionName}(...) 第 1 个参数必须是 source 名称");
     }
+
+    private static bool IsGraphTableValuedFunction(string name)
+        => string.Equals(name, "graph_nodes", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(name, "graph_edges", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsJsonFileTableValuedFunction(string name)
         => string.Equals(name, "json_each", StringComparison.OrdinalIgnoreCase)
@@ -3798,6 +4142,14 @@ public sealed class SqlParser
         => Current.Kind == TokenKind.IdentifierLiteral
            && string.Equals(Current.Text, text, StringComparison.OrdinalIgnoreCase);
 
+    private bool IsGraphInsertStart()
+        => IsIdentifier("graph")
+           && _index + 2 < _tokens.Count
+           && _tokens[_index + 1].Kind == TokenKind.IdentifierLiteral
+           && _tokens[_index + 2].Kind == TokenKind.IdentifierLiteral
+           && (string.Equals(_tokens[_index + 2].Text, "vertex", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(_tokens[_index + 2].Text, "edge", StringComparison.OrdinalIgnoreCase));
+
     private bool IsIndexKeyword()
         => Current.Kind == TokenKind.KeywordIndex || IsIdentifier("index");
 
@@ -4003,6 +4355,19 @@ public sealed class SqlParser
                 Advance();
                 return new DropDatabaseStatement(ExpectIdentifierName());
             default:
+                if (IsIdentifier("property"))
+                {
+                    Advance();
+                    ExpectIdentifier("graph", "DROP PROPERTY 后面期望 GRAPH");
+                    bool ifExists = ParseOptionalIfExists();
+                    return new DropPropertyGraphStatement(ExpectIdentifierName(), ifExists);
+                }
+                if (IsIdentifier("graph"))
+                {
+                    Advance();
+                    bool ifExists = ParseOptionalIfExists();
+                    return new DropGraphStatement(ExpectIdentifierName(), ifExists);
+                }
                 if (IsIdentifier("materialized"))
                 {
                     Advance();
@@ -4441,6 +4806,17 @@ public sealed class SqlParser
 
                 throw Error("SHOW FULLTEXT 后面期望 INDEXES");
             default:
+                if (IsIdentifier("property"))
+                {
+                    Advance();
+                    ExpectIdentifier("graphs", "SHOW PROPERTY 后面期望 GRAPHS");
+                    return new ShowPropertyGraphsStatement();
+                }
+                if (IsIdentifier("graphs"))
+                {
+                    Advance();
+                    return new ShowGraphsStatement();
+                }
                 if (IsIdentifier("modbus"))
                 {
                     Advance();
@@ -4514,6 +4890,12 @@ public sealed class SqlParser
     private ExplainStatement ParseExplain()
     {
         Expect(TokenKind.KeywordExplain);
+        bool analyze = false;
+        if (IsIdentifier("analyze"))
+        {
+            Advance();
+            analyze = true;
+        }
 
         SqlStatement statement = Current.Kind switch
         {
@@ -4533,6 +4915,8 @@ public sealed class SqlParser
             and not ShowDocumentCollectionsStatement
             and not ShowDocumentIndexesStatement
             and not ShowFullTextIndexesStatement
+            and not ShowGraphsStatement
+            and not ShowPropertyGraphsStatement
             and not ShowModbusSourcesStatement
             and not ShowModbusEndpointsStatement
             and not DescribeMeasurementStatement
@@ -4540,6 +4924,8 @@ public sealed class SqlParser
             and not DescribeViewStatement
             and not DescribeMaterializedViewStatement
             and not DescribeDocumentCollectionStatement
+            and not DescribeGraphStatement
+            and not DescribePropertyGraphStatement
             and not DescribeModbusSourceStatement
             and not DescribeModbusEndpointStatement
             and not DescribeModbusTableStatement)
@@ -4547,7 +4933,7 @@ public sealed class SqlParser
             throw Error("EXPLAIN 仅支持 SELECT 及受支持的 SHOW / DESCRIBE 只读语句");
         }
 
-        return new ExplainStatement(statement);
+        return new ExplainStatement(statement) { Analyze = analyze };
     }
 
     /// <summary>
@@ -4582,6 +4968,19 @@ public sealed class SqlParser
         {
             Advance();
             return new DescribeTableStatement(ExpectIdentifierName());
+        }
+
+        if (IsIdentifier("graph"))
+        {
+            Advance();
+            return new DescribeGraphStatement(ExpectIdentifierName());
+        }
+
+        if (IsIdentifier("property"))
+        {
+            Advance();
+            ExpectIdentifier("graph", "DESCRIBE PROPERTY 后面期望 GRAPH");
+            return new DescribePropertyGraphStatement(ExpectIdentifierName());
         }
 
         if (Current.Kind == TokenKind.KeywordDocument)

@@ -601,6 +601,8 @@ internal static class SqlEndpointHandler
         ShowDocumentCollectionsStatement or
         ShowDocumentIndexesStatement or
         ShowFullTextIndexesStatement or
+        ShowGraphsStatement or
+        ShowPropertyGraphsStatement or
         ShowModbusSourcesStatement or
         ShowModbusEndpointsStatement or
         ShowModbusWriteAuditStatement or
@@ -611,6 +613,8 @@ internal static class SqlEndpointHandler
         DescribeProcedureStatement or
         DescribeTriggerStatement or
         DescribeDocumentCollectionStatement or
+        DescribeGraphStatement or
+        DescribePropertyGraphStatement or
         DescribeModbusSourceStatement or
         DescribeModbusEndpointStatement or
         DescribeModbusTableStatement or

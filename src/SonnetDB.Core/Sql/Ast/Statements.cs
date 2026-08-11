@@ -582,6 +582,60 @@ public sealed record SelectStatement(
 
     /// <summary>当前 SELECT 后续的 UNION 分支。</summary>
     public IReadOnlyList<SelectStatement> UnionStatements => Unions ?? Array.Empty<SelectStatement>();
+
+    /// <summary>
+    /// FROM 子句中的 SQL/PGQ <c>GRAPH_TABLE</c> 固定模式源；为保持既有构造器兼容而使用 init 属性扩展。
+    /// </summary>
+    public GraphTableSource? GraphTable { get; init; }
+}
+
+/// <summary>SQL/PGQ 固定模式中的顶点变量。</summary>
+/// <param name="Variable">变量名。</param>
+/// <param name="Label">要求匹配的 label；原生图当前使用正整数 label ID 文本。</param>
+public sealed record GraphPatternVertex(string Variable, string Label);
+
+/// <summary>SQL/PGQ 固定模式中的边变量。</summary>
+/// <param name="Variable">变量名。</param>
+/// <param name="Label">要求匹配的 label；原生图当前使用正整数 label ID 文本。</param>
+public sealed record GraphPatternEdge(string Variable, string Label);
+
+/// <summary>SQL/PGQ 路径模式的有界量词、唯一性和 shortest 语义。</summary>
+/// <param name="Variable">可选路径变量；声明后可投影 length、vertex_ids、edge_ids、start_id 和 end_id。</param>
+/// <param name="MinDepth">最小 hop 数。</param>
+/// <param name="MaxDepth">最大 hop 数。</param>
+/// <param name="Uniqueness">路径内顶点或边的唯一性约束。</param>
+/// <param name="IsAnyShortest">是否只保留每个可达终点的一条最短路径。</param>
+public sealed record GraphPathPattern(
+    string? Variable,
+    int MinDepth,
+    int MaxDepth,
+    SonnetDB.Graphs.GraphPathUniqueness Uniqueness,
+    bool IsAnyShortest);
+
+/// <summary>
+/// <c>GRAPH_TABLE(graph MATCH (a IS label)-[e IS type]-&gt;(b IS label)
+/// [WHERE predicate] COLUMNS (...))</c> 的 typed AST。
+/// </summary>
+/// <param name="GraphName">原生图或关系映射图名称。</param>
+/// <param name="LeftVertex">模式左侧顶点。</param>
+/// <param name="Edge">边变量。</param>
+/// <param name="RightVertex">模式右侧顶点。</param>
+/// <param name="Direction">相对于左侧顶点的方向。</param>
+/// <param name="Predicate">可选变量属性谓词。</param>
+/// <param name="Columns">转换为关系行的列投影。</param>
+public sealed record GraphTableSource(
+    string GraphName,
+    GraphPatternVertex LeftVertex,
+    GraphPatternEdge Edge,
+    GraphPatternVertex RightVertex,
+    SonnetDB.Graphs.GraphDirection Direction,
+    SqlExpression? Predicate,
+    IReadOnlyList<SelectItem> Columns)
+{
+    /// <summary>
+    /// 可选的受限可变长度或 shortest path 模式；为空时保持固定一跳语义。
+    /// </summary>
+    public GraphPathPattern? Path { get; init; }
 }
 
 /// <summary>
@@ -901,9 +955,110 @@ public sealed record DescribeTriggerStatement(string Name) : SqlStatement;
 /// <param name="Name">目标文档集合名称。</param>
 public sealed record DescribeDocumentCollectionStatement(string Name) : SqlStatement;
 
+/// <summary><c>CREATE GRAPH [IF NOT EXISTS] name</c>。</summary>
+/// <param name="Name">原生属性图名称。</param>
+/// <param name="IfNotExists">图已存在时是否视为成功。</param>
+public sealed record CreateGraphStatement(string Name, bool IfNotExists = false) : SqlStatement;
+
+/// <summary><c>DROP GRAPH [IF EXISTS] name</c>。</summary>
+/// <param name="Name">原生属性图名称。</param>
+/// <param name="IfExists">图不存在时是否视为成功。</param>
+public sealed record DropGraphStatement(string Name, bool IfExists = false) : SqlStatement;
+
+/// <summary><c>SHOW GRAPHS</c>：列出当前数据库中的原生属性图。</summary>
+public sealed record ShowGraphsStatement : SqlStatement;
+
+/// <summary><c>DESCRIBE GRAPH name</c>：返回图目录和格式元数据。</summary>
+/// <param name="Name">原生属性图名称。</param>
+public sealed record DescribeGraphStatement(string Name) : SqlStatement;
+
+/// <summary><c>CREATE PROPERTY GRAPH</c> 中的顶点表映射。</summary>
+/// <param name="TableName">关系表名称。</param>
+/// <param name="KeyColumns">唯一 key 列。</param>
+/// <param name="Label">顶点 label。</param>
+/// <param name="PropertyColumns">属性列。</param>
+public sealed record PropertyGraphVertexTableClause(
+    string TableName,
+    IReadOnlyList<string> KeyColumns,
+    string Label,
+    IReadOnlyList<string> PropertyColumns);
+
+/// <summary><c>CREATE PROPERTY GRAPH</c> 中的边表映射。</summary>
+/// <param name="TableName">关系表名称。</param>
+/// <param name="KeyColumns">唯一 key 列。</param>
+/// <param name="SourceTable">源顶点表。</param>
+/// <param name="SourceColumns">边表 source key 列。</param>
+/// <param name="SourceReferenceColumns">源顶点被引用 key 列。</param>
+/// <param name="DestinationTable">目标顶点表。</param>
+/// <param name="DestinationColumns">边表 destination key 列。</param>
+/// <param name="DestinationReferenceColumns">目标顶点被引用 key 列。</param>
+/// <param name="Label">边 label。</param>
+/// <param name="PropertyColumns">属性列。</param>
+public sealed record PropertyGraphEdgeTableClause(
+    string TableName,
+    IReadOnlyList<string> KeyColumns,
+    string SourceTable,
+    IReadOnlyList<string> SourceColumns,
+    IReadOnlyList<string> SourceReferenceColumns,
+    string DestinationTable,
+    IReadOnlyList<string> DestinationColumns,
+    IReadOnlyList<string> DestinationReferenceColumns,
+    string Label,
+    IReadOnlyList<string> PropertyColumns);
+
+/// <summary>创建只读 SQL/PGQ 关系映射图。</summary>
+/// <param name="Name">映射图名称。</param>
+/// <param name="VertexTables">顶点表映射。</param>
+/// <param name="EdgeTables">边表映射。</param>
+/// <param name="IfNotExists">同名映射已存在时是否视为成功。</param>
+public sealed record CreatePropertyGraphStatement(
+    string Name,
+    IReadOnlyList<PropertyGraphVertexTableClause> VertexTables,
+    IReadOnlyList<PropertyGraphEdgeTableClause> EdgeTables,
+    bool IfNotExists = false) : SqlStatement;
+
+/// <summary>删除 SQL/PGQ 关系映射图。</summary>
+/// <param name="Name">映射图名称。</param>
+/// <param name="IfExists">映射不存在时是否视为成功。</param>
+public sealed record DropPropertyGraphStatement(string Name, bool IfExists = false) : SqlStatement;
+
+/// <summary>列出 SQL/PGQ 关系映射图。</summary>
+public sealed record ShowPropertyGraphsStatement : SqlStatement;
+
+/// <summary>描述 SQL/PGQ 关系映射图及实际 endpoint 访问路径。</summary>
+/// <param name="Name">映射图名称。</param>
+public sealed record DescribePropertyGraphStatement(string Name) : SqlStatement;
+
+/// <summary>图 SQL 写入元素类别。</summary>
+public enum GraphMutationKind : byte
+{
+    /// <summary>顶点。</summary>
+    Vertex = 1,
+    /// <summary>边。</summary>
+    Edge = 2,
+}
+
+/// <summary>
+/// <c>INSERT INTO GRAPH graph VERTEX|EDGE (... ) VALUES (...)</c>。
+/// 第一版 DML 使用数值 ID；顶点 labels 使用逗号分隔的 label ID 字符串，属性通过 Graph API 写入。
+/// </summary>
+/// <param name="GraphName">目标图名称。</param>
+/// <param name="Kind">元素类别。</param>
+/// <param name="Columns">列名。</param>
+/// <param name="Rows">待插入行。</param>
+public sealed record InsertGraphStatement(
+    string GraphName,
+    GraphMutationKind Kind,
+    IReadOnlyList<string> Columns,
+    IReadOnlyList<IReadOnlyList<SqlExpression>> Rows) : SqlStatement;
+
 /// <summary>
 /// <c>EXPLAIN &lt;read-only statement&gt;</c>：对只读语句返回估算扫描与命中统计。
 /// 当前支持 <c>SELECT</c>、各类只读 <c>SHOW</c> 与 <c>DESCRIBE</c> 语句。
 /// </summary>
 /// <param name="Statement">被解释的只读语句。</param>
-public sealed record ExplainStatement(SqlStatement Statement) : SqlStatement;
+public sealed record ExplainStatement(SqlStatement Statement) : SqlStatement
+{
+    /// <summary>是否实际执行只读语句并返回运行指标。</summary>
+    public bool Analyze { get; init; }
+}

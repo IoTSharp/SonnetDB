@@ -4,6 +4,7 @@ namespace SonnetDB.Views;
 
 internal readonly record struct ViewDependencyAnalysis(
     IReadOnlyList<string> Dependencies,
+    IReadOnlyList<string> GraphDependencies,
     bool HasParameters);
 
 internal static class ViewDependencyCollector
@@ -12,21 +13,29 @@ internal static class ViewDependencyCollector
     {
         ArgumentNullException.ThrowIfNull(query);
         var dependencies = new HashSet<string>(StringComparer.Ordinal);
+        var graphDependencies = new HashSet<string>(StringComparer.Ordinal);
         var hasParameters = false;
-        VisitSelect(query, dependencies, ref hasParameters);
+        VisitSelect(query, dependencies, graphDependencies, ref hasParameters);
         return new ViewDependencyAnalysis(
             dependencies.OrderBy(static name => name, StringComparer.Ordinal).ToArray(),
+            graphDependencies.OrderBy(static name => name, StringComparer.Ordinal).ToArray(),
             hasParameters);
     }
 
     private static void VisitSelect(
         SelectStatement select,
         HashSet<string> dependencies,
+        HashSet<string> graphDependencies,
         ref bool hasParameters)
     {
         if (select.FromSubquery is not null)
         {
-            VisitSelect(select.FromSubquery, dependencies, ref hasParameters);
+            VisitSelect(select.FromSubquery, dependencies, graphDependencies, ref hasParameters);
+        }
+        else if (select.GraphTable is { } graphTable)
+        {
+            dependencies.Add(graphTable.GraphName);
+            graphDependencies.Add(graphTable.GraphName);
         }
         else if (!string.IsNullOrEmpty(select.Measurement)
                  && !string.Equals(select.Measurement, "__json_file__", StringComparison.Ordinal))
@@ -35,41 +44,49 @@ internal static class ViewDependencyCollector
         }
 
         foreach (var projection in select.Projections)
-            VisitExpression(projection.Expression, dependencies, ref hasParameters);
+            VisitExpression(projection.Expression, dependencies, graphDependencies, ref hasParameters);
         if (select.Where is not null)
-            VisitExpression(select.Where, dependencies, ref hasParameters);
+            VisitExpression(select.Where, dependencies, graphDependencies, ref hasParameters);
         foreach (var expression in select.GroupBy)
-            VisitExpression(expression, dependencies, ref hasParameters);
+            VisitExpression(expression, dependencies, graphDependencies, ref hasParameters);
         if (select.Having is not null)
-            VisitExpression(select.Having, dependencies, ref hasParameters);
+            VisitExpression(select.Having, dependencies, graphDependencies, ref hasParameters);
         foreach (var orderBy in select.OrderByList)
-            VisitExpression(orderBy.Expression, dependencies, ref hasParameters);
+            VisitExpression(orderBy.Expression, dependencies, graphDependencies, ref hasParameters);
         if (select.Pagination is { } pagination)
         {
-            VisitExpression(pagination.OffsetExpression, dependencies, ref hasParameters);
+            VisitExpression(pagination.OffsetExpression, dependencies, graphDependencies, ref hasParameters);
             if (pagination.FetchExpression is not null)
-                VisitExpression(pagination.FetchExpression, dependencies, ref hasParameters);
+                VisitExpression(pagination.FetchExpression, dependencies, graphDependencies, ref hasParameters);
         }
 
         if (select.TableValuedFunction is not null)
-            VisitExpression(select.TableValuedFunction, dependencies, ref hasParameters);
+            VisitExpression(select.TableValuedFunction, dependencies, graphDependencies, ref hasParameters);
+        if (select.GraphTable is { } graphSource)
+        {
+            if (graphSource.Predicate is not null)
+                VisitExpression(graphSource.Predicate, dependencies, graphDependencies, ref hasParameters);
+            foreach (var column in graphSource.Columns)
+                VisitExpression(column.Expression, dependencies, graphDependencies, ref hasParameters);
+        }
 
         foreach (var join in select.JoinClauses)
         {
             if (join.Subquery is null)
                 dependencies.Add(join.TableName);
             else
-                VisitSelect(join.Subquery, dependencies, ref hasParameters);
-            VisitExpression(join.On, dependencies, ref hasParameters);
+                VisitSelect(join.Subquery, dependencies, graphDependencies, ref hasParameters);
+            VisitExpression(join.On, dependencies, graphDependencies, ref hasParameters);
         }
 
         foreach (var union in select.UnionStatements)
-            VisitSelect(union, dependencies, ref hasParameters);
+            VisitSelect(union, dependencies, graphDependencies, ref hasParameters);
     }
 
     private static void VisitExpression(
         SqlExpression expression,
         HashSet<string> dependencies,
+        HashSet<string> graphDependencies,
         ref bool hasParameters)
     {
         switch (expression)
@@ -78,43 +95,43 @@ internal static class ViewDependencyCollector
                 hasParameters = true;
                 break;
             case BinaryExpression binary:
-                VisitExpression(binary.Left, dependencies, ref hasParameters);
-                VisitExpression(binary.Right, dependencies, ref hasParameters);
+                VisitExpression(binary.Left, dependencies, graphDependencies, ref hasParameters);
+                VisitExpression(binary.Right, dependencies, graphDependencies, ref hasParameters);
                 break;
             case UnaryExpression unary:
-                VisitExpression(unary.Operand, dependencies, ref hasParameters);
+                VisitExpression(unary.Operand, dependencies, graphDependencies, ref hasParameters);
                 break;
             case IsNullExpression isNull:
-                VisitExpression(isNull.Operand, dependencies, ref hasParameters);
+                VisitExpression(isNull.Operand, dependencies, graphDependencies, ref hasParameters);
                 break;
             case InExpression inExpression:
-                VisitExpression(inExpression.Value, dependencies, ref hasParameters);
+                VisitExpression(inExpression.Value, dependencies, graphDependencies, ref hasParameters);
                 foreach (var value in inExpression.Values)
-                    VisitExpression(value, dependencies, ref hasParameters);
+                    VisitExpression(value, dependencies, graphDependencies, ref hasParameters);
                 if (inExpression.Subquery is not null)
-                    VisitSelect(inExpression.Subquery, dependencies, ref hasParameters);
+                    VisitSelect(inExpression.Subquery, dependencies, graphDependencies, ref hasParameters);
                 break;
             case FunctionCallExpression function:
                 foreach (var argument in function.Arguments)
-                    VisitExpression(argument, dependencies, ref hasParameters);
+                    VisitExpression(argument, dependencies, graphDependencies, ref hasParameters);
                 break;
             case NamedArgumentExpression named:
-                VisitExpression(named.Value, dependencies, ref hasParameters);
+                VisitExpression(named.Value, dependencies, graphDependencies, ref hasParameters);
                 break;
             case CaseExpression @case:
                 foreach (var when in @case.WhenClauses)
                 {
-                    VisitExpression(when.Condition, dependencies, ref hasParameters);
-                    VisitExpression(when.Result, dependencies, ref hasParameters);
+                    VisitExpression(when.Condition, dependencies, graphDependencies, ref hasParameters);
+                    VisitExpression(when.Result, dependencies, graphDependencies, ref hasParameters);
                 }
                 if (@case.Else is not null)
-                    VisitExpression(@case.Else, dependencies, ref hasParameters);
+                    VisitExpression(@case.Else, dependencies, graphDependencies, ref hasParameters);
                 break;
             case SubqueryExpression subquery:
-                VisitSelect(subquery.Select, dependencies, ref hasParameters);
+                VisitSelect(subquery.Select, dependencies, graphDependencies, ref hasParameters);
                 break;
             case ExistsExpression exists:
-                VisitSelect(exists.Select, dependencies, ref hasParameters);
+                VisitSelect(exists.Select, dependencies, graphDependencies, ref hasParameters);
                 break;
         }
     }

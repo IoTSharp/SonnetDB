@@ -15,6 +15,7 @@ using SonnetDB.Parity.Scenarios;
 using SonnetDB.Parity.Scenarios.Analytics;
 using SonnetDB.Parity.Scenarios.Document;
 using SonnetDB.Parity.Scenarios.FullText;
+using SonnetDB.Parity.Scenarios.Graph;
 using SonnetDB.Parity.Scenarios.Kv;
 using SonnetDB.Parity.Scenarios.Mq;
 using SonnetDB.Parity.Scenarios.Object;
@@ -31,6 +32,45 @@ namespace SonnetDB.Parity.Runner;
 /// </summary>
 public sealed class ParityRunner
 {
+    /// <summary>
+    /// Graph Beta 本地 correctness suite。外部 PostgreSQL SQL/PGQ 与 Neo4j 对拍在固定目标环境执行前保持 not_run。
+    /// </summary>
+    [Fact]
+    public async Task GraphBetaSuite_SonnetDbPassesAndExternalParityRemainsNotRun()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+        var scenario = new GraphSqlPgqBetaScenario();
+        var runId = "graph-" + Guid.NewGuid().ToString("N")[..8];
+        var startedAt = DateTimeOffset.UtcNow;
+        var reportDir = ResolveReportDirectory(runId);
+        var ctx = new ScenarioContext
+        {
+            RunId = runId,
+            ReportDirectory = reportDir,
+            Cancellation = cts.Token,
+        };
+
+        await using var sonnet = new SonnetDbAdapter();
+        ScenarioResult sonnetResult = await RunBackendAsync(scenario, sonnet, ctx);
+        var outcomes = new List<BackendOutcome>
+        {
+            ToOutcome(sonnet.BackendName, sonnetResult),
+            new("postgres", "not_run", "external SQL/PGQ parity deferred to the target environment", 0, new Dictionary<string, object?>()),
+            new("neo4j", "not_run", "external native graph parity deferred to the target environment", 0, new Dictionary<string, object?>()),
+        };
+        var scenarioReport = new ScenarioReport(scenario.Name, null, [], outcomes);
+        var report = new ParityReport(
+            runId,
+            startedAt,
+            [scenarioReport],
+            BuildCapabilityGaps([scenario], [scenarioReport], ["sonnetdb", "postgres", "neo4j"]),
+            ["sonnetdb", "postgres", "neo4j"]);
+
+        await JsonReporter.WriteAsync(report, reportDir);
+        await MarkdownReporter.WriteAsync(report, reportDir);
+        Assert.True(sonnetResult.Pass, sonnetResult.GapReason);
+    }
+
     /// <summary>关系型场景套件：SonnetDB 自检通过或结构化 SKIP，Postgres 可达时参与 diff。</summary>
     [Fact]
     public async Task RelationalSuite_SonnetDbMatchesPostgres()

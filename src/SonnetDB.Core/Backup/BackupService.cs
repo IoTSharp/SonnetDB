@@ -549,12 +549,41 @@ public sealed class BackupService
                 CheckpointedDuringBackup: true,
                 GraphIndexes()))
             .ToArray();
+        PropertyGraphCatalogState propertyGraphCatalogState = tsdb.Graphs.PropertyGraphs.CaptureState();
 
         return new BackupModelSummary(measurements, tables, openedKeyspaces, documents)
         {
             GraphCatalog = new BackupGraphCatalogEntry(graphCatalogState.Revision, graphs),
+            PropertyGraphCatalog = BuildPropertyGraphCatalogEntry(propertyGraphCatalogState),
         };
     }
+
+    private static BackupPropertyGraphCatalogEntry BuildPropertyGraphCatalogEntry(
+        PropertyGraphCatalogState state)
+        => new(
+            state.Revision,
+            state.Definitions
+                .OrderBy(static graph => graph.Name, StringComparer.Ordinal)
+                .Select(static graph => new BackupPropertyGraphEntry(
+                    graph.Name,
+                    graph.CreatedAtUtcTicks,
+                    graph.VertexTables.Select(static vertex => new BackupPropertyGraphVertexTableEntry(
+                        vertex.TableName,
+                        vertex.KeyColumns.ToArray(),
+                        vertex.Label,
+                        vertex.PropertyColumns.ToArray())).ToArray(),
+                    graph.EdgeTables.Select(static edge => new BackupPropertyGraphEdgeTableEntry(
+                        edge.TableName,
+                        edge.KeyColumns.ToArray(),
+                        edge.SourceTable,
+                        edge.SourceColumns.ToArray(),
+                        edge.SourceReferenceColumns.ToArray(),
+                        edge.DestinationTable,
+                        edge.DestinationColumns.ToArray(),
+                        edge.DestinationReferenceColumns.ToArray(),
+                        edge.Label,
+                        edge.PropertyColumns.ToArray())).ToArray()))
+                .ToArray());
 
     private static IReadOnlyList<BackupIndexEntry> BuildIndexEntries(Tsdb tsdb, bool includeFullTextIndexes)
     {
@@ -664,6 +693,13 @@ public sealed class BackupService
                 StringComparison.OrdinalIgnoreCase))
         {
             return BackupFileKind.GraphCatalog;
+        }
+        if (string.Equals(
+                normalized,
+                TsdbPaths.GraphsDirName + "/" + TsdbPaths.PropertyGraphCatalogFileName,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return BackupFileKind.PropertyGraphCatalog;
         }
         if (normalized.StartsWith(
                 TsdbPaths.GraphsDirName + "/" + TsdbPaths.GraphStoresDirName + "/",
@@ -959,6 +995,7 @@ public sealed class BackupService
         }
 
         BackupGraphCatalogEntry? graphCatalog = manifest.Models.GraphCatalog;
+        BackupPropertyGraphCatalogEntry? propertyGraphCatalog = manifest.Models.PropertyGraphCatalog;
         if (manifest.FormatVersion >= 2 && graphCatalog is null)
             errors.Add("Backup manifest v2 is missing models.graphCatalog.");
         if (graphCatalog is not null)
@@ -968,13 +1005,23 @@ public sealed class BackupService
             if (graphCatalog.Revision < 0)
                 errors.Add("Backup manifest Graph catalog revision cannot be negative.");
         }
+        if (propertyGraphCatalog is not null)
+        {
+            if (propertyGraphCatalog.Graphs is null)
+                errors.Add("Backup manifest Property Graph catalog is missing its graph list.");
+            if (propertyGraphCatalog.Revision < 0)
+                errors.Add("Backup manifest Property Graph catalog revision cannot be negative.");
+        }
 
         if (manifest.FormatVersion < 2)
         {
             bool containsGraphContent = graphCatalog is not null
+                || propertyGraphCatalog is not null
                 || manifest.Files?.Any(static entry => entry is not null
                     && !string.IsNullOrWhiteSpace(entry.Path)
-                    && (entry.Kind is BackupFileKind.GraphCatalog or BackupFileKind.GraphData
+                    && (entry.Kind is BackupFileKind.GraphCatalog
+                        or BackupFileKind.GraphData
+                        or BackupFileKind.PropertyGraphCatalog
                         || NormalizeRelativePath(entry.Path).StartsWith(
                             TsdbPaths.GraphsDirName + "/",
                             StringComparison.OrdinalIgnoreCase))) == true
@@ -987,6 +1034,8 @@ public sealed class BackupService
 
         if (graphCatalog?.Graphs is not null && manifest.Indexes is not null)
             ValidateGraphCatalogContract(graphCatalog, manifest.Indexes, errors);
+        if (propertyGraphCatalog?.Graphs is not null)
+            ValidatePropertyGraphCatalogContract(propertyGraphCatalog, errors);
 
         if (manifest.Files is null)
             return;
@@ -996,7 +1045,9 @@ public sealed class BackupService
                 continue;
             string normalized = NormalizeRelativePath(entry.Path);
             BackupFileKind? expectedKind = GetGraphFileKind(normalized);
-            bool declaredGraph = entry.Kind is BackupFileKind.GraphCatalog or BackupFileKind.GraphData;
+            bool declaredGraph = entry.Kind is BackupFileKind.GraphCatalog
+                or BackupFileKind.GraphData
+                or BackupFileKind.PropertyGraphCatalog;
             if (expectedKind is null && !declaredGraph)
                 continue;
             if (expectedKind != entry.Kind)
@@ -1008,11 +1059,12 @@ public sealed class BackupService
         }
 
         if (graphCatalog?.Graphs is not null)
-            ValidateGraphFileOwnership(graphCatalog, manifest.Files, errors);
+            ValidateGraphFileOwnership(graphCatalog, propertyGraphCatalog, manifest.Files, errors);
     }
 
     private static void ValidateGraphFileOwnership(
         BackupGraphCatalogEntry graphCatalog,
+        BackupPropertyGraphCatalogEntry? propertyGraphCatalog,
         IReadOnlyList<BackupFileEntry> files,
         List<string> errors)
     {
@@ -1022,6 +1074,7 @@ public sealed class BackupService
             .ToHashSet();
         var markerStorageIds = new HashSet<Guid>();
         int graphCatalogFiles = 0;
+        int propertyGraphCatalogFiles = 0;
         foreach (BackupFileEntry entry in files)
         {
             if (entry is null || string.IsNullOrWhiteSpace(entry.Path))
@@ -1033,6 +1086,13 @@ public sealed class BackupService
                 graphCatalogFiles++;
                 if (!entry.Required)
                     AddGraphVerificationError(errors, "The Graph catalog backup file must be required.");
+                continue;
+            }
+            if (kind == BackupFileKind.PropertyGraphCatalog)
+            {
+                propertyGraphCatalogFiles++;
+                if (!entry.Required)
+                    AddGraphVerificationError(errors, "The Property Graph catalog backup file must be required.");
                 continue;
             }
             if (kind != BackupFileKind.GraphData)
@@ -1070,6 +1130,16 @@ public sealed class BackupService
             AddGraphVerificationError(errors, "Backup manifest contains duplicate Graph catalog files.");
         if ((graphCatalog.Revision > 0 || storageIds.Count > 0) && graphCatalogFiles != 1)
             AddGraphVerificationError(errors, "Backup manifest is missing its required Graph catalog file.");
+        if (propertyGraphCatalogFiles > 1)
+            AddGraphVerificationError(errors, "Backup manifest contains duplicate Property Graph catalog files.");
+        if (propertyGraphCatalog is null && propertyGraphCatalogFiles != 0)
+            AddGraphVerificationError(errors, "Backup manifest contains a Property Graph catalog file without models.propertyGraphCatalog.");
+        if (propertyGraphCatalog is { } propertyCatalog
+            && (propertyCatalog.Revision > 0 || propertyCatalog.Graphs.Count > 0)
+            && propertyGraphCatalogFiles != 1)
+        {
+            AddGraphVerificationError(errors, "Backup manifest is missing its required Property Graph catalog file.");
+        }
         foreach (Guid storageId in storageIds)
         {
             if (!markerStorageIds.Contains(storageId))
@@ -1210,6 +1280,80 @@ public sealed class BackupService
         }
 
         ValidateTopLevelGraphIndexes(validGraphs, requiredKinds, topLevelIndexes, errors);
+    }
+
+    private static void ValidatePropertyGraphCatalogContract(
+        BackupPropertyGraphCatalogEntry catalog,
+        List<string> errors)
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        foreach (BackupPropertyGraphEntry graph in catalog.Graphs)
+        {
+            if (graph is null)
+            {
+                AddGraphVerificationError(errors, "Backup manifest Property Graph catalog contains a null graph entry.");
+                continue;
+            }
+            if (!names.Add(graph.Name))
+            {
+                AddGraphVerificationError(
+                    errors,
+                    $"Backup manifest Property Graph catalog contains duplicate graph '{graph.Name}'.");
+                continue;
+            }
+            try
+            {
+                if (graph.VertexTables is null || graph.EdgeTables is null)
+                    throw new InvalidDataException("vertexTables or edgeTables is missing.");
+                PropertyGraphVertexTable[] vertices = graph.VertexTables
+                    .Select(static vertex => vertex is null
+                        ? throw new InvalidDataException("vertexTables contains a null entry.")
+                        : new PropertyGraphVertexTable(
+                            vertex.TableName,
+                            vertex.KeyColumns,
+                            vertex.Label,
+                            vertex.PropertyColumns))
+                    .ToArray();
+                PropertyGraphEdgeTable[] edges = graph.EdgeTables
+                    .Select(static edge => edge is null
+                        ? throw new InvalidDataException("edgeTables contains a null entry.")
+                        : new PropertyGraphEdgeTable(
+                            edge.TableName,
+                            edge.KeyColumns,
+                            edge.SourceTable,
+                            edge.SourceColumns,
+                            edge.SourceReferenceColumns,
+                            edge.DestinationTable,
+                            edge.DestinationColumns,
+                            edge.DestinationReferenceColumns,
+                            edge.Label,
+                            edge.PropertyColumns))
+                    .ToArray();
+                PropertyGraphDefinition definition = PropertyGraphDefinition.Restore(
+                    graph.Name,
+                    vertices,
+                    edges,
+                    graph.CreatedAtUtcTicks);
+                var vertexNames = definition.VertexTables
+                    .Select(static vertex => vertex.TableName)
+                    .ToHashSet(StringComparer.Ordinal);
+                foreach (PropertyGraphEdgeTable edge in definition.EdgeTables)
+                {
+                    if (!vertexNames.Contains(edge.SourceTable)
+                        || !vertexNames.Contains(edge.DestinationTable))
+                    {
+                        throw new InvalidDataException(
+                            $"edge table '{edge.TableName}' references an unmapped vertex table.");
+                    }
+                }
+            }
+            catch (Exception exception) when (exception is ArgumentException or InvalidDataException)
+            {
+                AddGraphVerificationError(
+                    errors,
+                    $"Backup manifest Property Graph '{graph.Name}' is invalid: {exception.Message}");
+            }
+        }
     }
 
     private static void ValidatePerGraphIndexes(
@@ -1389,6 +1533,7 @@ public sealed class BackupService
         bool isolateSource)
     {
         BackupGraphCatalogEntry? expectedCatalog = manifest.Models.GraphCatalog;
+        BackupPropertyGraphCatalogEntry? expectedPropertyCatalog = manifest.Models.PropertyGraphCatalog;
         if (expectedCatalog is null)
         {
             if (manifest.FormatVersion >= 2)
@@ -1405,11 +1550,21 @@ public sealed class BackupService
             AddGraphVerificationError(errors, "Backup manifest Graph catalog revision cannot be negative.");
             return;
         }
+        if (expectedPropertyCatalog is { Graphs: null })
+        {
+            AddGraphVerificationError(errors, "Backup manifest Property Graph catalog is missing its graph list.");
+            return;
+        }
 
         string graphRoot = TsdbPaths.GraphsDir(databaseRoot);
-        if (expectedCatalog.Revision == 0
+        bool nativeCatalogEmpty = expectedCatalog.Revision == 0
             && expectedCatalog.Graphs.Count == 0
-            && !File.Exists(TsdbPaths.GraphCatalogPath(databaseRoot)))
+            && !File.Exists(TsdbPaths.GraphCatalogPath(databaseRoot));
+        bool propertyCatalogEmpty = expectedPropertyCatalog is null
+            || (expectedPropertyCatalog.Revision == 0
+                && expectedPropertyCatalog.Graphs.Count == 0
+                && !File.Exists(TsdbPaths.PropertyGraphCatalogPath(databaseRoot)));
+        if (nativeCatalogEmpty && propertyCatalogEmpty)
         {
             return;
         }
@@ -1488,6 +1643,9 @@ public sealed class BackupService
                         $"Graph '{actual.Name}' exists in the restored catalog but not in the manifest summary.");
                 }
             }
+
+            if (expectedPropertyCatalog is not null)
+                VerifyPropertyGraphCatalog(manager.PropertyGraphs, expectedPropertyCatalog, errors);
         }
         catch (Exception exception) when (
             exception is IOException
@@ -1503,6 +1661,96 @@ public sealed class BackupService
             if (temporaryGraphRoot is not null)
                 DeleteVerificationDirectory(temporaryGraphRoot, errors);
         }
+    }
+
+    private static void VerifyPropertyGraphCatalog(
+        PropertyGraphCatalog actualCatalog,
+        BackupPropertyGraphCatalogEntry expectedCatalog,
+        List<string> errors)
+    {
+        PropertyGraphCatalogState actualState = actualCatalog.CaptureState();
+        if (actualState.Revision != expectedCatalog.Revision)
+        {
+            AddGraphVerificationError(
+                errors,
+                $"Property Graph catalog revision mismatch: expected {expectedCatalog.Revision}, actual {actualState.Revision}.");
+        }
+
+        var expectedByName = expectedCatalog.Graphs.ToDictionary(
+            static graph => graph.Name,
+            StringComparer.Ordinal);
+        var actualByName = actualState.Definitions.ToDictionary(
+            static graph => graph.Name,
+            StringComparer.Ordinal);
+        foreach (BackupPropertyGraphEntry expected in expectedCatalog.Graphs)
+        {
+            if (!actualByName.TryGetValue(expected.Name, out PropertyGraphDefinition? actual))
+            {
+                AddGraphVerificationError(
+                    errors,
+                    $"Property Graph '{expected.Name}' is missing from restored catalog.");
+                continue;
+            }
+            if (!PropertyGraphDefinitionMatches(expected, actual))
+            {
+                AddGraphVerificationError(
+                    errors,
+                    $"Property Graph '{expected.Name}' restored mapping does not match the manifest summary.");
+            }
+        }
+        foreach (PropertyGraphDefinition actual in actualState.Definitions)
+        {
+            if (!expectedByName.ContainsKey(actual.Name))
+            {
+                AddGraphVerificationError(
+                    errors,
+                    $"Property Graph '{actual.Name}' exists in the restored catalog but not in the manifest summary.");
+            }
+        }
+    }
+
+    private static bool PropertyGraphDefinitionMatches(
+        BackupPropertyGraphEntry expected,
+        PropertyGraphDefinition actual)
+    {
+        if (!string.Equals(expected.Name, actual.Name, StringComparison.Ordinal)
+            || expected.CreatedAtUtcTicks != actual.CreatedAtUtcTicks
+            || expected.VertexTables.Count != actual.VertexTables.Count
+            || expected.EdgeTables.Count != actual.EdgeTables.Count)
+        {
+            return false;
+        }
+        for (int i = 0; i < expected.VertexTables.Count; i++)
+        {
+            BackupPropertyGraphVertexTableEntry left = expected.VertexTables[i];
+            PropertyGraphVertexTable right = actual.VertexTables[i];
+            if (!string.Equals(left.TableName, right.TableName, StringComparison.Ordinal)
+                || !string.Equals(left.Label, right.Label, StringComparison.Ordinal)
+                || !left.KeyColumns.SequenceEqual(right.KeyColumns, StringComparer.Ordinal)
+                || !left.PropertyColumns.SequenceEqual(right.PropertyColumns, StringComparer.Ordinal))
+            {
+                return false;
+            }
+        }
+        for (int i = 0; i < expected.EdgeTables.Count; i++)
+        {
+            BackupPropertyGraphEdgeTableEntry left = expected.EdgeTables[i];
+            PropertyGraphEdgeTable right = actual.EdgeTables[i];
+            if (!string.Equals(left.TableName, right.TableName, StringComparison.Ordinal)
+                || !string.Equals(left.SourceTable, right.SourceTable, StringComparison.Ordinal)
+                || !string.Equals(left.DestinationTable, right.DestinationTable, StringComparison.Ordinal)
+                || !string.Equals(left.Label, right.Label, StringComparison.Ordinal)
+                || !left.KeyColumns.SequenceEqual(right.KeyColumns, StringComparer.Ordinal)
+                || !left.SourceColumns.SequenceEqual(right.SourceColumns, StringComparer.Ordinal)
+                || !left.SourceReferenceColumns.SequenceEqual(right.SourceReferenceColumns, StringComparer.Ordinal)
+                || !left.DestinationColumns.SequenceEqual(right.DestinationColumns, StringComparer.Ordinal)
+                || !left.DestinationReferenceColumns.SequenceEqual(right.DestinationReferenceColumns, StringComparer.Ordinal)
+                || !left.PropertyColumns.SequenceEqual(right.PropertyColumns, StringComparer.Ordinal))
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static void AddGraphVerificationError(List<string> errors, string error)
@@ -1522,7 +1770,9 @@ public sealed class BackupService
         {
             string normalized = NormalizeRelativePath(entry.Path);
             BackupFileKind? expectedKind = GetGraphFileKind(normalized);
-            bool declaredGraph = entry.Kind is BackupFileKind.GraphCatalog or BackupFileKind.GraphData;
+            bool declaredGraph = entry.Kind is BackupFileKind.GraphCatalog
+                or BackupFileKind.GraphData
+                or BackupFileKind.PropertyGraphCatalog;
             if (expectedKind is null && !declaredGraph)
                 continue;
             if (expectedKind != entry.Kind)
@@ -1547,6 +1797,13 @@ public sealed class BackupService
                 StringComparison.OrdinalIgnoreCase))
         {
             return BackupFileKind.GraphCatalog;
+        }
+        if (string.Equals(
+                normalizedPath,
+                TsdbPaths.GraphsDirName + "/" + TsdbPaths.PropertyGraphCatalogFileName,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return BackupFileKind.PropertyGraphCatalog;
         }
         if (normalizedPath.StartsWith(
                 TsdbPaths.GraphsDirName + "/" + TsdbPaths.GraphStoresDirName + "/",

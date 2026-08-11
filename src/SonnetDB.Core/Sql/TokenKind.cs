@@ -230,4 +230,9 @@ public enum TokenKind
     /// 仅承载十进制幅度 9223372036854775808；产生式只能在显式负号后把它解释为 Int64 最小值。
     /// </summary>
     Int64MinMagnitudeLiteral,
+
+    /// <summary><c>{</c>：Graph path 有界量词起始符。</summary>
+    LeftBrace,
+    /// <summary><c>}</c>：Graph path 有界量词结束符。</summary>
+    RightBrace,
 }

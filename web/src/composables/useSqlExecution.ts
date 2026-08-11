@@ -371,6 +371,16 @@ export function useSqlExecution(options: SqlExecutionOptions) {
       return;
     }
 
+    if (action === 'show-graphs') {
+      setSqlDraft('SHOW GRAPHS;');
+      return;
+    }
+
+    if (action === 'show-property-graphs') {
+      setSqlDraft('SHOW PROPERTY GRAPHS;');
+      return;
+    }
+
     if (action === 'select-active' && selectedMeasurement.value) {
       setSqlDraft(buildSelectDraft(selectedMeasurement.value, true));
       return;
