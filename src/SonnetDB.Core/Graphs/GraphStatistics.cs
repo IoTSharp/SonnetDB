@@ -5,6 +5,38 @@ using SonnetDB.Storage.Codecs;
 
 namespace SonnetDB.Graphs;
 
+/// <summary>Graph 统计刷新的扫描和内存预算。</summary>
+public sealed record GraphStatisticsRefreshOptions
+{
+    /// <summary>每页最多扫描的 KV 条目数。</summary>
+    public int PageSize { get; init; } = 512;
+
+    /// <summary>每页最多复制的 key/value payload 字节数。</summary>
+    public int MaxPageBytes { get; init; } = 4 * 1024 * 1024;
+
+    /// <summary>允许扫描的最大 KV 条目数。</summary>
+    public long MaxScannedEntries { get; init; } = 250_000_000;
+
+    /// <summary>label、degree、property 和 value 统计组的合计上限。</summary>
+    public int MaxStatisticGroups { get; init; } = 1_000_000;
+
+    internal void Validate()
+    {
+        if (PageSize is <= 0 or > 4_096)
+            throw new ArgumentOutOfRangeException(nameof(PageSize));
+        if (MaxPageBytes is <= 0 or > 64 * 1024 * 1024)
+            throw new ArgumentOutOfRangeException(nameof(MaxPageBytes));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxScannedEntries);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxStatisticGroups);
+    }
+}
+
+/// <summary>Graph 统计刷新超过显式扫描或分组预算。</summary>
+public sealed class GraphStatisticsLimitExceededException : InvalidOperationException
+{
+    internal GraphStatisticsLimitExceededException(string message) : base(message) { }
+}
+
 /// <summary>图统计刷新结果。</summary>
 public sealed class GraphStatistics
 {
@@ -230,17 +262,29 @@ public sealed record GraphExplain
 internal static class GraphStatisticsCalculator
 {
     internal static GraphStatistics Refresh(KvReadSnapshot snapshot, CancellationToken cancellationToken)
+        => Refresh(snapshot, new GraphStatisticsRefreshOptions(), cancellationToken);
+
+    internal static GraphStatistics Refresh(
+        KvReadSnapshot snapshot,
+        GraphStatisticsRefreshOptions options,
+        CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(options);
+        options.Validate();
         long vertexCount = 0;
         long edgeCount = 0;
+        long scannedEntries = 0;
+        long verticesWithOutgoing = 0;
+        GraphElementId currentSource = default;
+        int currentDegree = 0;
         var labels = new Dictionary<LabelId, long>();
-        var degrees = new Dictionary<GraphElementId, int>();
+        var histogram = new Dictionary<int, long>();
         var properties = new Dictionary<GraphIndexStatisticKey, long>();
         var values = new Dictionary<GraphValueStatisticKey, long>();
         using KvRangeCursor cursor = snapshot.OpenRangeCursor(new KvRangeScanOptions
         {
-            PageSize = 512,
-            MaxPageBytes = 32 * 1024 * 1024,
+            PageSize = options.PageSize,
+            MaxPageBytes = options.MaxPageBytes,
         });
         while (true)
         {
@@ -250,6 +294,12 @@ internal static class GraphStatisticsCalculator
                 break;
             foreach (KvEntry entry in page)
             {
+                if (scannedEntries >= options.MaxScannedEntries)
+                {
+                    throw new GraphStatisticsLimitExceededException(
+                        $"Graph statistics 扫描超过 MaxScannedEntries={options.MaxScannedEntries}。");
+                }
+                scannedEntries++;
                 GraphStorageKey key = GraphKeyCodec.Decode(entry.Key.Span);
                 switch (key.Kind)
                 {
@@ -257,64 +307,108 @@ internal static class GraphStatisticsCalculator
                     {
                         vertexCount++;
                         GraphVertexRecord record = GraphElementRecordCodec.DecodeVertex(entry.Value.Span);
-                        degrees.TryAdd(record.Id, 0);
                         foreach (LabelId label in record.Labels)
-                            Increment(labels, label);
+                            IncrementBounded(labels, label, options, labels, histogram, properties, values);
                         break;
                     }
                     case GraphKeyKind.EdgeRecord:
                     {
                         edgeCount++;
                         GraphEdgeRecord record = GraphElementRecordCodec.DecodeEdge(entry.Value.Span);
-                        Increment(labels, record.LabelId);
+                        IncrementBounded(labels, record.LabelId, options, labels, histogram, properties, values);
                         break;
                     }
                     case GraphKeyKind.OutgoingAdjacency:
-                        degrees[key.SourceId] = degrees.GetValueOrDefault(key.SourceId) + 1;
+                        if (currentSource != key.SourceId)
+                        {
+                            FlushDegree(
+                                currentSource,
+                                currentDegree,
+                                histogram,
+                                options,
+                                labels,
+                                properties,
+                                values,
+                                ref verticesWithOutgoing);
+                            currentSource = key.SourceId;
+                            currentDegree = 0;
+                        }
+                        currentDegree = checked(currentDegree + 1);
                         break;
                     case GraphKeyKind.VertexPropertyIndex:
                     {
-                        Increment(
+                        IncrementBounded(
                             properties,
                             new GraphIndexStatisticKey(
                                 GraphElementType.Vertex,
                                 key.LabelId,
                                 key.PropertyId,
-                                key.PropertyValue.Kind));
-                        Increment(
+                                key.PropertyValue.Kind),
+                            options,
+                            labels,
+                            histogram,
+                            properties,
+                            values);
+                        IncrementBounded(
                             values,
                             GraphValueStatisticKey.Create(
                                 GraphElementType.Vertex,
                                 key.LabelId,
                                 key.PropertyId,
-                                key.PropertyValue));
+                                key.PropertyValue),
+                            options,
+                            labels,
+                            histogram,
+                            properties,
+                            values);
                         break;
                     }
                     case GraphKeyKind.EdgePropertyIndex:
                     {
-                        Increment(
+                        IncrementBounded(
                             properties,
                             new GraphIndexStatisticKey(
                                 GraphElementType.Edge,
                                 key.LabelId,
                                 key.PropertyId,
-                                key.PropertyValue.Kind));
-                        Increment(
+                                key.PropertyValue.Kind),
+                            options,
+                            labels,
+                            histogram,
+                            properties,
+                            values);
+                        IncrementBounded(
                             values,
                             GraphValueStatisticKey.Create(
                                 GraphElementType.Edge,
                                 key.LabelId,
                                 key.PropertyId,
-                                key.PropertyValue));
+                                key.PropertyValue),
+                            options,
+                            labels,
+                            histogram,
+                            properties,
+                            values);
                         break;
                     }
                 }
             }
         }
 
-        var histogram = new Dictionary<int, long>();
-        foreach (int degree in degrees.Values)
-            Increment(histogram, degree);
+        FlushDegree(
+            currentSource,
+            currentDegree,
+            histogram,
+            options,
+            labels,
+            properties,
+            values,
+            ref verticesWithOutgoing);
+        long zeroDegreeVertices = vertexCount - verticesWithOutgoing;
+        if (zeroDegreeVertices < 0)
+            throw new InvalidDataException("Graph outgoing adjacency 引用了不存在的 vertex，不能刷新统计。");
+        if (zeroDegreeVertices > 0)
+            AddBounded(histogram, 0, zeroDegreeVertices, options, labels, histogram, properties, values);
         return new GraphStatistics(
             snapshot.Sequence,
             vertexCount,
@@ -325,6 +419,50 @@ internal static class GraphStatisticsCalculator
             new Dictionary<GraphValueStatisticKey, long>(values));
     }
 
-    private static void Increment<TKey>(Dictionary<TKey, long> values, TKey key) where TKey : notnull
-        => values[key] = values.GetValueOrDefault(key) + 1;
+    private static void FlushDegree(
+        GraphElementId source,
+        int degree,
+        Dictionary<int, long> histogram,
+        GraphStatisticsRefreshOptions options,
+        Dictionary<LabelId, long> labels,
+        Dictionary<GraphIndexStatisticKey, long> properties,
+        Dictionary<GraphValueStatisticKey, long> values,
+        ref long verticesWithOutgoing)
+    {
+        if (source.Value <= 0)
+            return;
+        AddBounded(histogram, degree, 1, options, labels, histogram, properties, values);
+        verticesWithOutgoing++;
+    }
+
+    private static void IncrementBounded<TKey>(
+        Dictionary<TKey, long> destination,
+        TKey key,
+        GraphStatisticsRefreshOptions options,
+        Dictionary<LabelId, long> labels,
+        Dictionary<int, long> histogram,
+        Dictionary<GraphIndexStatisticKey, long> properties,
+        Dictionary<GraphValueStatisticKey, long> values)
+        where TKey : notnull
+        => AddBounded(destination, key, 1, options, labels, histogram, properties, values);
+
+    private static void AddBounded<TKey>(
+        Dictionary<TKey, long> destination,
+        TKey key,
+        long amount,
+        GraphStatisticsRefreshOptions options,
+        Dictionary<LabelId, long> labels,
+        Dictionary<int, long> histogram,
+        Dictionary<GraphIndexStatisticKey, long> properties,
+        Dictionary<GraphValueStatisticKey, long> values)
+        where TKey : notnull
+    {
+        if (!destination.ContainsKey(key)
+            && checked(labels.Count + histogram.Count + properties.Count + values.Count) >= options.MaxStatisticGroups)
+        {
+            throw new GraphStatisticsLimitExceededException(
+                $"Graph statistics 分组超过 MaxStatisticGroups={options.MaxStatisticGroups}。");
+        }
+        destination[key] = checked(destination.GetValueOrDefault(key) + amount);
+    }
 }

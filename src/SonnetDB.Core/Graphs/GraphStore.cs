@@ -26,12 +26,16 @@ public sealed class GraphStore : IDisposable
     private static readonly Encoding Utf8 = new UTF8Encoding(false, true);
 
     private readonly object _sync = new();
+    private readonly object _maintenanceGate = new();
     private readonly object _commitGate;
     private readonly KvKeyspace _keyspace;
     private bool _disposed;
 
     /// <summary>测试在 transaction 已构造条件、进入 KV 条件提交前建立同步点。</summary>
     internal Action? BeforeTransactionConditionalCommitTestHook { get; set; }
+
+    /// <summary>测试在 durable work unit 完成且已经释放提交门后建立同步点。</summary>
+    internal Action<GraphMaintenancePhase, long>? AfterMaintenanceWorkUnitTestHook { get; set; }
 
     private GraphStore(
         GraphDefinition definition,
@@ -65,6 +69,9 @@ public sealed class GraphStore : IDisposable
 
     /// <summary>图目录 marker 的完整路径。</summary>
     internal string MarkerPath => Path.Combine(RootDirectory, MarkerFileName);
+
+    /// <summary>可恢复维护 sidecar 的完整路径。</summary>
+    internal string MaintenanceManifestPath => Path.Combine(RootDirectory, GraphMaintenanceManifestCodec.FileName);
 
     /// <summary>
     /// 创建新的图存储 marker 并打开底层 KV keyspace。
@@ -188,8 +195,12 @@ public sealed class GraphStore : IDisposable
         }
     }
 
-    /// <summary>创建固定当前序列的稳定 Graph 读快照。</summary>
+    /// <summary>创建固定当前序列的 Graph statement 读快照。</summary>
     /// <returns>可执行点读、索引 seek 与流式邻接扩展的读会话。</returns>
+    /// <remarks>
+    /// 同一会话及其所有游标只观察创建时已经提交的状态；会话创建后的并发写仅对后续会话可见。
+    /// 读快照不持有 Graph 提交锁，长遍历不会阻塞并发 writer。
+    /// </remarks>
     public GraphReadSession BeginRead()
     {
         lock (_sync)
@@ -214,11 +225,69 @@ public sealed class GraphStore : IDisposable
         options ??= new GraphIndexRebuildOptions();
         options.Validate();
         options = options with { UniqueIndexes = options.UniqueIndexes.ToArray() };
+        var maintenanceOptions = new GraphMaintenanceOptions
+        {
+            UniqueIndexes = options.UniqueIndexes,
+            PageSize = options.PageSize,
+            MaxPageBytes = 32 * 1024 * 1024,
+            MaxWorkUnits = int.MaxValue,
+            MaxUniqueIndexDefinitions = options.MaxUniqueIndexDefinitions,
+            CheckpointEveryWorkUnits = 64,
+        };
+        GraphMaintenanceResult result;
+        lock (_maintenanceGate)
+            result = RunMaintenanceCore(maintenanceOptions, cancellationToken);
+        return new GraphIndexRebuildResult(
+            result.Sequence,
+            result.ScannedRecords,
+            result.RepairedEntries,
+            result.RemovedEntries,
+            result.UniqueIndexDefinitionCount,
+            options.UniqueIndexes.Count > 0);
+    }
+
+    /// <summary>
+    /// 执行有限数量的 Graph repair/checkpoint work unit，并把续作位置持久化到 graph 目录。
+    /// </summary>
+    /// <param name="options">分页、续作、checkpoint 和可选 compaction 预算。</param>
+    /// <param name="cancellationToken">取消令牌；已提交页保持 durable，下一次调用从最后保存的位置续作。</param>
+    /// <returns>当前阶段、累计计数和稳定 operation ID。</returns>
+    /// <remarks>
+    /// 每个 work unit 单独获取 manager 提交门，页与页之间允许业务 writer 继续提交。任务完成前的
+    /// sidecar 是唯一声明和 continuation 的修复来源；损坏时会明确拒绝，绝不静默从头覆盖。
+    /// </remarks>
+    public GraphMaintenanceResult RunMaintenance(
+        GraphMaintenanceOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        options ??= new GraphMaintenanceOptions();
+        options.Validate();
+        options = options with { UniqueIndexes = options.UniqueIndexes.ToArray() };
+        lock (_maintenanceGate)
+            return RunMaintenanceCore(options, cancellationToken);
+    }
+
+    /// <summary>为当前 Graph 创建完整 KV checkpoint，并回收已覆盖的 WAL。</summary>
+    /// <returns>checkpoint 覆盖到的 KV sequence。</returns>
+    public long Checkpoint()
+    {
         lock (_commitGate)
         lock (_sync)
         {
             ThrowIfDisposed();
-            return GraphIndexRepair.Rebuild(_keyspace, options, cancellationToken);
+            return _keyspace.CreateSnapshot();
+        }
+    }
+
+    /// <summary>将当前 Graph 压实为新的不可变 KV generation。</summary>
+    /// <returns>compaction 覆盖到的 KV sequence。</returns>
+    public long Compact()
+    {
+        lock (_commitGate)
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            return _keyspace.Compact();
         }
     }
 
@@ -260,6 +329,50 @@ public sealed class GraphStore : IDisposable
                 return _keyspace;
             }
         }
+    }
+
+    private GraphMaintenanceResult RunMaintenanceCore(
+        GraphMaintenanceOptions options,
+        CancellationToken cancellationToken)
+    {
+        GraphMaintenanceState state;
+        bool resumed;
+        lock (_commitGate)
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            state = GraphMaintenanceRunner.LoadOrCreate(
+                MaintenanceManifestPath,
+                StorageId,
+                _keyspace,
+                options,
+                out resumed);
+        }
+
+        for (int index = 0;
+             index < options.MaxWorkUnits && state.Phase != GraphMaintenancePhase.Completed;
+             index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (_commitGate)
+            lock (_sync)
+            {
+                ThrowIfDisposed();
+                GraphMaintenanceRunner.RunNextWorkUnit(
+                    _keyspace,
+                    state,
+                    options,
+                    cancellationToken);
+                GraphMaintenanceRunner.RunPeriodicCheckpointIfDue(_keyspace, state, options);
+                if (state.Phase == GraphMaintenancePhase.Completed)
+                    GraphMaintenanceManifestCodec.Delete(MaintenanceManifestPath);
+                else
+                    GraphMaintenanceManifestCodec.Save(MaintenanceManifestPath, state);
+            }
+            AfterMaintenanceWorkUnitTestHook?.Invoke(state.Phase, state.WorkUnits);
+        }
+
+        return new GraphMaintenanceResult(state, resumed);
     }
 
     /// <summary>

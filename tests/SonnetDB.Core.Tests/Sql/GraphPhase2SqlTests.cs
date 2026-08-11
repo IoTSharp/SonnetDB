@@ -494,6 +494,9 @@ public sealed class GraphPhase2SqlTests : IDisposable
         Assert.True((long)actual["actual_expansions"]! > 0);
         Assert.True((long)actual["actual_generated_paths"]! > 0);
         Assert.True((int)actual["actual_peak_frontier"]! > 0);
+        Assert.Equal("statement_snapshot", actual["read_consistency"]);
+        Assert.Equal("statement_snapshot", actual["actual_read_consistency"]);
+        Assert.True((long)actual["actual_snapshot_sequence"]! > 0);
         Assert.Equal(false, actual["bidirectional_bfs_admitted"]);
         Assert.Equal("benchmark_evidence_missing", actual["bidirectional_bfs_reason"]);
         Assert.True((double)actual["actual_elapsed_ms"]! >= 0);

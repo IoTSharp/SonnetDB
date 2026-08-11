@@ -6,6 +6,11 @@ namespace SonnetDB.Graphs;
 /// <summary>
 /// 单个 Graph 稳定读快照上的点读、索引 seek 和邻接扩展入口。
 /// </summary>
+/// <remarks>
+/// 会话提供 statement snapshot：点读、会话创建前后打开的游标以及长路径遍历共享同一
+/// <see cref="Sequence"/>。并发提交不会改变当前会话的可见结果，也不会被当前会话阻塞。
+/// 这不是跨多个读会话或读写语句的 snapshot-isolation transaction。
+/// </remarks>
 public sealed class GraphReadSession : IDisposable
 {
     private readonly object _sync = new();
@@ -232,6 +237,18 @@ public sealed class GraphReadSession : IDisposable
     /// <returns>不包含原始属性值的统计结果。</returns>
     public GraphStatistics RefreshStatistics(CancellationToken cancellationToken = default)
         => GraphStatisticsCalculator.Refresh(Snapshot, cancellationToken);
+
+    /// <summary>在当前稳定快照上按显式扫描和分组预算重建内存统计。</summary>
+    /// <param name="options">页、扫描条目和统计分组预算。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>不包含原始属性值的统计结果。</returns>
+    public GraphStatistics RefreshStatistics(
+        GraphStatisticsRefreshOptions options,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        return GraphStatisticsCalculator.Refresh(Snapshot, options, cancellationToken);
+    }
 
     /// <summary>解释一次原生邻接扩展计划。</summary>
     /// <param name="vertexId">扩展锚点。</param>

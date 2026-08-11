@@ -281,6 +281,18 @@ Phase 2 完成后可称为 **SonnetDB Graph Beta**：具备原生存储、事务
 | #366 | 运维产品面：schema/index/degree/slow traversal、可视化、受限编辑、import/export、repair/rebuild 和权限审计。 | Web/Studio/CLI/SDK 能力矩阵一致；危险 mutation 使用现有 staged approval。 |
 | #367 | 发布门禁：LDBC SNB 子集、Graphalytics 子集、代码知识/Agent 组合语料、7 天 mixed workload、kill/reopen、backup/restore、Native AOT 和固定硬件容量报告。 | 报告可复现且包含 commit/硬件/数据规模/P50/P95/P99/内存/WAL/恢复/正确性、实际 access path/fallback 和 gap catalog 关闭状态；正确性/恢复 gate 必须全 PASS，性能/容量 gate 必须达到 #341 冻结的生产 SLO，任一失败或存在生产阻塞缺口都不得更改九模型定位。 |
 
+#360 已完成：`GraphStore.BeginRead` 明确冻结单一 KV sequence，同一 `GraphReadSession` 上的点读、在并发提交前后创建的游标和分页长遍历都复用该 snapshot；cursor lease 只保留不可变内存视图和 disk generation lease，不持有 Graph commit gate 或 store lock。`EXPLAIN ANALYZE GRAPH_TABLE` 对原生图新增 `read_consistency=statement_snapshot`、`actual_read_consistency` 和 `actual_snapshot_sequence`；关系映射如实返回 `relation_accessor_current` 与 null sequence，其 statement snapshot 仍归 M41 #374，不在本项虚构跨模型 MVCC。
+
+#360 并发矩阵覆盖：分页 BFS 期间原子 re-parent 只对下一 statement 可见且 writer 在旧 cursor 存活时可完成；同一 session 在并发提交后新建的 cursor 仍固定旧 sequence；不同 element 且不推进共享 metadata 的更新都提交；同 unique property claim 通过 unique key version 条件恰有一个提交；endpoint delete 与 edge insert 通过 endpoint version + adjacency `PrefixEmpty` 条件恰有一个提交。所有竞态设置超时并在完成后运行 `GraphInvariantChecker`。现有 workload 没有跨多个读会话/读写 statement 保持同一快照的需求，因此本项不扩展 snapshot-isolation transaction，也不进行无证据 MVCC 重构。详细合同见 [m40-graph-360-statement-snapshot.md](m40-graph-360-statement-snapshot.md)。
+
+### #361 当前功能切片
+
+Graph V1 adjacency 继续保持每条边一个紧凑 key 和空 value；supernode 不会把全部边物化为一个 value。KV state v5 在 checkpoint/compaction 时对有序 key 做固定 restart 的前缀压缩，并保留 v1-v4 读取兼容。`GraphCursorOptions` 的 page size、page bytes 和 result limit 是硬预算。
+
+`GraphStore.RunMaintenance` 按 work unit 扫描并修复一页，页间释放提交门；`maintenance.sdbgraph` 以 CRC、原子替换和 WAL sync 保存阶段、continuation key、计数和 unique 声明。取消、进程重开或 checkpoint 失败会从最后 durable 页重复执行，坏 sidecar 明确拒绝。最终 checkpoint 是必做的，compaction 由 `CompactOnCompletion` 显式选择；`GraphStore.Checkpoint/Compact` 也提供单独维护边界。统计刷新按 outgoing anchor 流式生成 degree histogram，并受扫描条目与统计分组预算约束。
+
+功能和恢复回归见 [#361 contract](m40-graph-361-maintenance.md)。这些证据不替代 #352/#367 固定硬件、7 天 mixed workload 或外部数据库对拍门禁。
+
 Phase 3 完成后，SonnetDB 才能对外称为**生产可用的单机原生属性图数据库**。这不包含分布式图数据库、完整 Cypher/GQL 或 RDF 推理能力。
 
 ## 7. 测试与验收矩阵

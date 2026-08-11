@@ -9,7 +9,9 @@ internal static class KvStateFile
     private const int HeaderSize = 64;
     private const int EntryPrefixBytesV1 = 16;
     private const int EntryPrefixBytesV2 = 24;
-    private const int CurrentVersion = 4;
+    private const int EntryPrefixBytesV5 = 32;
+    private const int KeyPrefixRestartInterval = 16;
+    private const int CurrentVersion = 5;
 
     private static ReadOnlySpan<byte> SnapshotMagic => "SDBKVSNP"u8;
     private static ReadOnlySpan<byte> SegmentMagic => "SDBKVSEG"u8;
@@ -50,10 +52,11 @@ internal static class KvStateFile
 
         using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
         var header = ReadHeader(fs);
-        int entryPrefixBytes = header.Version >= 2 ? EntryPrefixBytesV2 : EntryPrefixBytesV1;
+        int entryPrefixBytes = GetEntryPrefixBytes(header.Version);
         byte[] prefixBuffer = new byte[entryPrefixBytes];
         byte[] crcBuffer = new byte[4];
         var entries = new List<KvDiskIndexEntry>(header.Count);
+        byte[] previousKey = [];
 
         for (int i = 0; i < header.Count; i++)
         {
@@ -68,11 +71,25 @@ internal static class KvStateFile
             long expiresAtUtcTicks = entryPrefixBytes >= EntryPrefixBytesV2
                 ? BinaryPrimitives.ReadInt64LittleEndian(prefix.Slice(16, 8))
                 : 0;
-            ValidateEntryHeader(keyLength, valueLength, expiresAtUtcTicks);
+            int sharedKeyBytes = header.Version >= 5
+                ? BinaryPrimitives.ReadInt32LittleEndian(prefix.Slice(24, 4))
+                : 0;
+            int storedKeyBytes = header.Version >= 5
+                ? BinaryPrimitives.ReadInt32LittleEndian(prefix.Slice(28, 4))
+                : keyLength;
+            ValidateEntryHeader(
+                keyLength,
+                valueLength,
+                expiresAtUtcTicks,
+                sharedKeyBytes,
+                storedKeyBytes,
+                previousKey.Length,
+                header.Version >= 5 && i % KeyPrefixRestartInterval == 0);
 
             long payloadOffset = fs.Position;
             byte[] key = new byte[keyLength];
-            if (ReadExact(fs, key) < keyLength)
+            previousKey.AsSpan(0, sharedKeyBytes).CopyTo(key);
+            if (ReadExact(fs, key.AsSpan(sharedKeyBytes, storedKeyBytes)) < storedKeyBytes)
                 throw new InvalidDataException("KV state entry key is truncated.");
 
             fs.Position += valueLength;
@@ -93,8 +110,13 @@ internal static class KvStateFile
                 expiresAtUtc,
                 prefixOffset,
                 payloadOffset,
-                expectedCrc));
+                expectedCrc,
+                storedKeyBytes));
+            previousKey = key;
         }
+
+        if (fs.Position != fs.Length)
+            throw new InvalidDataException("KV state file contains trailing data.");
 
         return new KvDiskState(path, header.Sequence, header.Generation, entries);
     }
@@ -106,9 +128,10 @@ internal static class KvStateFile
         using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
         var header = ReadHeader(fs);
         var values = new Dictionary<byte[], KvValueEntry>(header.Count, KvKeyComparer.Instance);
-        int entryPrefixBytes = header.Version >= 2 ? EntryPrefixBytesV2 : EntryPrefixBytesV1;
+        int entryPrefixBytes = GetEntryPrefixBytes(header.Version);
         byte[] prefixBuffer = new byte[entryPrefixBytes];
         byte[] crcBuffer = new byte[4];
+        byte[] previousKey = [];
         for (int i = 0; i < header.Count; i++)
         {
             Span<byte> prefix = prefixBuffer;
@@ -121,27 +144,46 @@ internal static class KvStateFile
             long expiresAtUtcTicks = entryPrefixBytes >= EntryPrefixBytesV2
                 ? BinaryPrimitives.ReadInt64LittleEndian(prefix.Slice(16, 8))
                 : 0;
-            ValidateEntryHeader(keyLength, valueLength, expiresAtUtcTicks);
+            int sharedKeyBytes = header.Version >= 5
+                ? BinaryPrimitives.ReadInt32LittleEndian(prefix.Slice(24, 4))
+                : 0;
+            int storedKeyBytes = header.Version >= 5
+                ? BinaryPrimitives.ReadInt32LittleEndian(prefix.Slice(28, 4))
+                : keyLength;
+            ValidateEntryHeader(
+                keyLength,
+                valueLength,
+                expiresAtUtcTicks,
+                sharedKeyBytes,
+                storedKeyBytes,
+                previousKey.Length,
+                header.Version >= 5 && i % KeyPrefixRestartInterval == 0);
 
-            byte[] payload = new byte[keyLength + valueLength];
-            if (ReadExact(fs, payload) < payload.Length)
-                throw new InvalidDataException("KV state entry payload is truncated.");
+            byte[] key = new byte[keyLength];
+            previousKey.AsSpan(0, sharedKeyBytes).CopyTo(key);
+            if (ReadExact(fs, key.AsSpan(sharedKeyBytes, storedKeyBytes)) < storedKeyBytes)
+                throw new InvalidDataException("KV state entry key is truncated.");
+            byte[] value = new byte[valueLength];
+            if (ReadExact(fs, value) < valueLength)
+                throw new InvalidDataException("KV state entry value is truncated.");
 
             if (ReadExact(fs, crcBuffer) < crcBuffer.Length)
                 throw new InvalidDataException("KV state entry CRC is truncated.");
 
             uint expectedCrc = BinaryPrimitives.ReadUInt32LittleEndian(crcBuffer);
-            uint actualCrc = Crc32.HashToUInt32(payload);
+            uint actualCrc = ComputeEntryCrc(key, value);
             if (expectedCrc != actualCrc)
                 throw new InvalidDataException("KV state entry CRC mismatch.");
 
-            byte[] key = payload.AsSpan(0, keyLength).ToArray();
-            byte[] value = payload.AsSpan(keyLength, valueLength).ToArray();
             DateTimeOffset? expiresAtUtc = expiresAtUtcTicks > 0
                 ? new DateTimeOffset(expiresAtUtcTicks, TimeSpan.Zero)
                 : null;
             values[key] = new KvValueEntry(value, entryVersion, expiresAtUtc);
+            previousKey = key;
         }
+
+        if (fs.Position != fs.Length)
+            throw new InvalidDataException("KV state file contains trailing data.");
 
         return new KvStateSnapshot(header.Sequence, header.Generation, values, diskState: null);
     }
@@ -176,26 +218,34 @@ internal static class KvStateFile
             BinaryPrimitives.WriteUInt32LittleEndian(header.Slice(60, 4), Crc32.HashToUInt32(header[..60]));
             fs.Write(header);
 
-            byte[] prefixBuffer = new byte[EntryPrefixBytesV2];
+            byte[] prefixBuffer = new byte[EntryPrefixBytesV5];
             byte[] crcBuffer = new byte[4];
+            byte[] previousKey = [];
             int written = 0;
             foreach (var pair in orderedValues)
             {
                 if (pair.Value.IsDeleted)
                     continue;
-
+                int sharedKeyBytes = written % KeyPrefixRestartInterval == 0
+                    ? 0
+                    : CommonPrefixLength(previousKey, pair.Key);
+                int storedKeyBytes = pair.Key.Length - sharedKeyBytes;
                 Span<byte> prefix = prefixBuffer;
+                prefix.Clear();
                 BinaryPrimitives.WriteInt32LittleEndian(prefix[..4], pair.Key.Length);
                 BinaryPrimitives.WriteInt32LittleEndian(prefix.Slice(4, 4), pair.Value.Value.Length);
                 BinaryPrimitives.WriteInt64LittleEndian(prefix.Slice(8, 8), pair.Value.Version);
                 BinaryPrimitives.WriteInt64LittleEndian(prefix.Slice(16, 8), pair.Value.ExpiresAtUtc?.UtcTicks ?? 0);
+                BinaryPrimitives.WriteInt32LittleEndian(prefix.Slice(24, 4), sharedKeyBytes);
+                BinaryPrimitives.WriteInt32LittleEndian(prefix.Slice(28, 4), storedKeyBytes);
                 fs.Write(prefix);
-                fs.Write(pair.Key);
+                fs.Write(pair.Key.AsSpan(sharedKeyBytes));
                 fs.Write(pair.Value.Value);
 
                 uint crc = ComputeEntryCrc(pair.Key, pair.Value.Value);
                 BinaryPrimitives.WriteUInt32LittleEndian(crcBuffer, crc);
                 fs.Write(crcBuffer);
+                previousKey = pair.Key;
                 written++;
             }
 
@@ -238,12 +288,45 @@ internal static class KvStateFile
         return new KvStateHeader(version, sequence, count, generation);
     }
 
-    private static void ValidateEntryHeader(int keyLength, int valueLength, long expiresAtUtcTicks)
+    private static int GetEntryPrefixBytes(int version)
+        => version switch
+        {
+            1 => EntryPrefixBytesV1,
+            >= 2 and <= 4 => EntryPrefixBytesV2,
+            5 => EntryPrefixBytesV5,
+            _ => throw new InvalidDataException("KV state entry version is unsupported."),
+        };
+
+    private static void ValidateEntryHeader(
+        int keyLength,
+        int valueLength,
+        long expiresAtUtcTicks,
+        int sharedKeyBytes,
+        int storedKeyBytes,
+        int previousKeyLength,
+        bool requiresRestart)
     {
         if (keyLength <= 0 || valueLength < 0)
             throw new InvalidDataException("KV state entry length is invalid.");
         if (expiresAtUtcTicks < 0)
             throw new InvalidDataException("KV state entry expires-at is invalid.");
+        if (sharedKeyBytes < 0
+            || storedKeyBytes < 0
+            || sharedKeyBytes > previousKeyLength
+            || sharedKeyBytes + storedKeyBytes != keyLength
+            || requiresRestart && sharedKeyBytes != 0)
+        {
+            throw new InvalidDataException("KV state entry key prefix encoding is invalid.");
+        }
+    }
+
+    private static int CommonPrefixLength(ReadOnlySpan<byte> left, ReadOnlySpan<byte> right)
+    {
+        int maximum = Math.Min(left.Length, right.Length);
+        int length = 0;
+        while (length < maximum && left[length] == right[length])
+            length++;
+        return length;
     }
 
     private static uint ComputeEntryCrc(byte[] key, byte[] value)
@@ -589,7 +672,8 @@ internal sealed class KvDiskIndexEntry
         DateTimeOffset? expiresAtUtc,
         long prefixOffset,
         long payloadOffset,
-        uint payloadCrc)
+        uint payloadCrc,
+        int? storedKeyLength = null)
     {
         Key = key;
         ValueLength = valueLength;
@@ -598,6 +682,7 @@ internal sealed class KvDiskIndexEntry
         PrefixOffset = prefixOffset;
         PayloadOffset = payloadOffset;
         PayloadCrc = payloadCrc;
+        StoredKeyLength = storedKeyLength ?? key.Length;
     }
 
     public byte[] Key { get; }
@@ -612,7 +697,9 @@ internal sealed class KvDiskIndexEntry
 
     public long PayloadOffset { get; }
 
-    public long ValueOffset => PayloadOffset + Key.Length;
+    public int StoredKeyLength { get; }
+
+    public long ValueOffset => PayloadOffset + StoredKeyLength;
 
     public uint PayloadCrc { get; }
 

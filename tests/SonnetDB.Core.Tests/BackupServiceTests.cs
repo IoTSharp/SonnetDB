@@ -301,6 +301,102 @@ public sealed class BackupServiceTests : IDisposable
     }
 
     [Fact]
+    public void CreateRestore_WithIncompleteGraphMaintenance_PreservesAndResumesSidecar()
+    {
+        string dbRoot = Path.Combine(_rootDirectory, "db-graph-maintenance");
+        string backupDirectory = Path.Combine(_rootDirectory, "backup-graph-maintenance");
+        string restoreRoot = Path.Combine(_rootDirectory, "restored-graph-maintenance");
+        Guid operationId;
+        Guid storageId;
+        var unique = new GraphUniqueIndexDefinition(GraphElementType.Vertex, new LabelId(1), 7);
+
+        using (var db = Tsdb.Open(new TsdbOptions
+        {
+            RootDirectory = dbRoot,
+            BackgroundFlush = new BackgroundFlushOptions { Enabled = false },
+            Compaction = new CompactionPolicy { Enabled = false },
+        }))
+        {
+            GraphStore store = db.Graphs.Create("repairable");
+            storageId = store.StorageId;
+            GraphTransaction transaction = store.BeginTransaction(Guid.NewGuid());
+            transaction.UpsertVertex(
+                new GraphElementId(1),
+                0,
+                [new LabelId(1)],
+                [new GraphProperty(7, GraphPropertyValue.FromString("alpha"))],
+                uniquePropertyIds: [7]);
+            transaction.Commit();
+            Assert.True(store.Keyspace.Delete(GraphKeyCodec.EncodeUniqueProperty(
+                GraphElementKind.Vertex,
+                new LabelId(1),
+                7,
+                GraphPropertyValue.FromString("alpha"))));
+
+            GraphMaintenanceResult first = store.RunMaintenance(new GraphMaintenanceOptions
+            {
+                UniqueIndexes = [unique],
+                PageSize = 1,
+                MaxWorkUnits = 1,
+                CheckpointEveryWorkUnits = 0,
+            });
+            Assert.False(first.IsComplete);
+            operationId = first.OperationId;
+
+            BackupManifest manifest = new BackupService().Create(db, new BackupCreateOptions
+            {
+                DestinationDirectory = backupDirectory,
+            });
+            Assert.Contains(manifest.Files, file =>
+                file.Kind == BackupFileKind.GraphData
+                && file.Path.EndsWith("/maintenance.sdbgraph", StringComparison.Ordinal));
+        }
+
+        new BackupService().Restore(new BackupRestoreOptions
+        {
+            BackupDirectory = backupDirectory,
+            TargetDirectory = restoreRoot,
+        });
+        using var restored = Tsdb.Open(new TsdbOptions
+        {
+            RootDirectory = restoreRoot,
+            BackgroundFlush = new BackgroundFlushOptions { Enabled = false },
+            Compaction = new CompactionPolicy { Enabled = false },
+        });
+        GraphStore restoredStore = restored.Graphs.Open("repairable");
+        GraphMaintenanceResult? result = null;
+        for (int attempt = 0; attempt < 100 && (result is null || !result.IsComplete); attempt++)
+        {
+            result = restoredStore.RunMaintenance(new GraphMaintenanceOptions
+            {
+                MaxWorkUnits = 16,
+                CheckpointEveryWorkUnits = 0,
+            });
+        }
+
+        Assert.NotNull(result);
+        Assert.True(result.IsComplete);
+        Assert.True(result.WasResumed);
+        Assert.Equal(operationId, result.OperationId);
+        Assert.False(File.Exists(Path.Combine(
+            restoreRoot,
+            "graphs",
+            "stores",
+            storageId.ToString("N"),
+            GraphMaintenanceManifestCodec.FileName)));
+        Assert.True(GraphInvariantChecker.Check(restoredStore).IsValid);
+
+        GraphTransaction conflict = restoredStore.BeginTransaction(Guid.NewGuid());
+        conflict.UpsertVertex(
+            new GraphElementId(2),
+            0,
+            [new LabelId(1)],
+            [new GraphProperty(7, GraphPropertyValue.FromString("alpha"))],
+            uniquePropertyIds: [7]);
+        Assert.Throws<GraphUniqueConstraintException>(() => conflict.Commit());
+    }
+
+    [Fact]
     public void CreateRestore_WithPropertyGraph_RecordsMappingSummaryAndReopensCatalog()
     {
         string dbRoot = Path.Combine(_rootDirectory, "db-property-graph");

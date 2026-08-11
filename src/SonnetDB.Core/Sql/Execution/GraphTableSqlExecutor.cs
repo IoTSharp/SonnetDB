@@ -50,6 +50,8 @@ internal static class GraphTableSqlExecutor
         rows.Add(new object?[] { "actual_peak_frontier", outcome.Metrics.PeakFrontier });
         rows.Add(new object?[] { "actual_fallback_rows", outcome.Metrics.FallbackRows });
         rows.Add(new object?[] { "actual_fallback_ms", outcome.Metrics.FallbackDuration.TotalMilliseconds });
+        rows.Add(new object?[] { "actual_read_consistency", outcome.Metrics.ReadConsistency });
+        rows.Add(new object?[] { "actual_snapshot_sequence", outcome.Metrics.SnapshotSequence });
         rows.Add(new object?[] { "actual_elapsed_ms", outcome.Metrics.Elapsed.TotalMilliseconds });
         return new SelectExecutionResult(["key", "value"], rows);
     }
@@ -124,6 +126,7 @@ internal static class GraphTableSqlExecutor
             RelationalPattern pattern = ResolveRelationalPattern(tsdb, source);
             rows.Add(new object?[] { "graph_kind", "relational_mapping" });
             rows.Add(new object?[] { "accessor", "RelationalGraphAccessor" });
+            rows.Add(new object?[] { "read_consistency", "relation_accessor_current" });
             rows.Add(new object?[] { "copies_relational_rows", false });
             rows.Add(new object?[] { "mapping_branch_count", pattern.Branches.Count });
             RelationalGraphAccessor accessor = tsdb.Graphs.OpenPropertyGraph(source.GraphName);
@@ -172,6 +175,7 @@ internal static class GraphTableSqlExecutor
                 out _);
             rows.Add(new object?[] { "graph_kind", "native" });
             rows.Add(new object?[] { "accessor", "NativeGraphAccessor" });
+            rows.Add(new object?[] { "read_consistency", "statement_snapshot" });
             rows.Add(new object?[] { "anchor_access_path", anchorSeek ? "native_vertex_id_seek" : "native_label_index" });
             rows.Add(new object?[] { "edge_access_path", "native_adjacency" });
         }
@@ -787,6 +791,8 @@ internal static class GraphTableSqlExecutor
         IReadOnlyList<string> columns = BuildOutputColumns(source.Columns);
         var rows = new List<IReadOnlyList<object?>>();
         using GraphReadSession session = tsdb.Graphs.Open(source.GraphName).BeginRead();
+        metrics.ReadConsistency = "statement_snapshot";
+        metrics.SnapshotSequence = session.Sequence;
         IReadOnlyList<GraphVertex> anchors;
         if (TryExtractKeyValues(source.Predicate, source.LeftVertex.Variable, ["id"], out IReadOnlyList<object?> key))
         {
@@ -870,6 +876,8 @@ internal static class GraphTableSqlExecutor
         var rows = new List<IReadOnlyList<object?>>();
         int remainingPaths = MaxMatchedRows;
         using GraphReadSession session = tsdb.Graphs.Open(source.GraphName).BeginRead();
+        metrics.ReadConsistency = "statement_snapshot";
+        metrics.SnapshotSequence = session.Sequence;
         IReadOnlyList<GraphVertex> anchors;
         if (TryExtractKeyValues(source.Predicate, source.LeftVertex.Variable, ["id"], out IReadOnlyList<object?> key))
         {
@@ -1581,6 +1589,10 @@ internal static class GraphTableSqlExecutor
 
     private sealed class GraphTableExecutionMetrics
     {
+        internal string ReadConsistency { get; set; } = "relation_accessor_current";
+
+        internal long? SnapshotSequence { get; set; }
+
         internal long AnchorRows { get; set; }
 
         internal long Expansions { get; set; }

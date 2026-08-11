@@ -68,6 +68,8 @@ kv.Delete("device:1001");
 
 KV 使用独立文件格式，不复用时序写入路径的 `.SDBWAL` 或 `.SDBSEG`。因此新增 KV 不改变已有 measurement 的 WAL、Segment、Catalog 二进制格式。
 
+当前 state 写格式为 v5：有序 key 使用每 16 条强制 restart 的前缀压缩，entry CRC 仍覆盖解压后的完整 key 与 value。读取路径兼容 v1-v4；写出 v5 后，旧版 SonnetDB 二进制不能直接降级打开该 state，降级前应使用当前版本导出/备份并由目标版本重新导入。
+
 关系表 MVP 基于同一套 KV 存储能力实现，但目录独立放在 `tables/rowstore/<table-name-hex>/`，schema 放在 `tables/tables.tblschema`。这些文件同样不改变时序 measurement 的二进制格式。
 
 ## 崩溃恢复

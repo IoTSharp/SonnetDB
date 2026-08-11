@@ -41,7 +41,7 @@ EF Core provider 把 `Regex.IsMatch(input, pattern)` 和使用常量 `RegexOptio
 4. 轮转 active KV WAL；
 5. 写入 `cleanup.manifest.json`，列出旧 generation 的 snapshot/segment 文件。
 
-任一崩溃点恢复时，WAL clear 或 `generation.meta` 至少有一个能阻止旧 state 重新可见。KV state 文件格式升级为 v4，在 header 中记录 generation；v1-v3 文件仍按 generation 0 读取。写出 v4 state 后不保证旧版 SonnetDB 二进制可回滚读取，降级前应使用当前版本导出/备份并由目标版本重新导入。
+任一崩溃点恢复时，WAL clear 或 `generation.meta` 至少有一个能阻止旧 state 重新可见。M19 当时把 KV state 文件格式升级为 v4，在 header 中记录 generation；v1-v3 文件仍按 generation 0 读取。M40 #361 后当前写格式为 v5，并继续读取 v1-v4。写出较新 state 后不保证旧版 SonnetDB 二进制可回滚读取，降级前应使用当前版本导出/备份并由目标版本重新导入。
 
 存在入站外键时，`TRUNCATE TABLE` 明确拒绝；`DELETE ... WHERE TRUE` 回退到既有约束、CASCADE/SET NULL 执行路径，不绕过关系完整性。
 

@@ -9,7 +9,7 @@ namespace SonnetDB.Core.Tests.Kv;
 public sealed class KvStateFileTests : IDisposable
 {
     private const int HeaderSize = 64;
-    private const int EntryPrefixSize = 24;
+    private const int EntryPrefixSize = 32;
     private const int LargeValueBytes = 4 * 1024 * 1024;
     private const long AllocationSlackBytes = 256 * 1024;
 
@@ -212,12 +212,136 @@ public sealed class KvStateFileTests : IDisposable
         Assert.Equal("KV state entry value is truncated.", error.Message);
     }
 
+    [Fact]
+    public void OpenDiskState_V4UncompressedFile_RemainsReadable()
+    {
+        string path = Path.Combine(_root, "legacy-v4.SDBKVSNP");
+        byte[] key = Encoding.UTF8.GetBytes("legacy:key");
+        byte[] value = [4, 3, 2, 1];
+        WriteLegacyV4(path, key, value, version: 9, generation: 3);
+
+        using KvDiskState state = KvStateFile.OpenDiskState(path);
+        KvValueEntry? restored = state.Get(key);
+
+        Assert.NotNull(restored);
+        Assert.Equal(9, state.Sequence);
+        Assert.Equal(3, state.Generation);
+        Assert.Equal(9, restored.Version);
+        Assert.Equal(value, restored.Value);
+    }
+
+    [Fact]
+    public void OpenDiskState_V5RestartWithSharedPrefix_IsRejected()
+    {
+        string path = Path.Combine(_root, "invalid-restart.SDBKVSNP");
+        KeyValuePair<byte[], KvValueEntry>[] entries = Enumerable.Range(0, 17)
+            .Select(static index => new KeyValuePair<byte[], KvValueEntry>(
+                Encoding.UTF8.GetBytes($"restart:{index:D2}"),
+                new KvValueEntry([], index + 1)))
+            .ToArray();
+        KvStateFile.SaveSnapshot(path, entries.Length, entries, entries.Length);
+        byte[] encoded = File.ReadAllBytes(path);
+        int restartOffset = FindV5EntryPrefixOffset(encoded, 16);
+        int keyLength = BinaryPrimitives.ReadInt32LittleEndian(encoded.AsSpan(restartOffset, 4));
+        BinaryPrimitives.WriteInt32LittleEndian(encoded.AsSpan(restartOffset + 24, 4), 1);
+        BinaryPrimitives.WriteInt32LittleEndian(encoded.AsSpan(restartOffset + 28, 4), keyLength - 1);
+        File.WriteAllBytes(path, encoded);
+
+        InvalidDataException error = Assert.Throws<InvalidDataException>(
+            () => KvStateFile.OpenDiskState(path));
+        Assert.Contains("prefix encoding", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ValidateAllEntries_V5CompressedKeyDamage_ThrowsCrcMismatch()
+    {
+        string path = Path.Combine(_root, "corrupt-compressed-key.SDBKVSNP");
+        KeyValuePair<byte[], KvValueEntry>[] entries =
+        [
+            new(Encoding.UTF8.GetBytes("shared-prefix:a"), new KvValueEntry([1], 1)),
+            new(Encoding.UTF8.GetBytes("shared-prefix:b"), new KvValueEntry([2], 2)),
+        ];
+        KvStateFile.SaveSnapshot(path, entries.Length, entries, entries.Length);
+        byte[] encoded = File.ReadAllBytes(path);
+        int secondPrefixOffset = FindV5EntryPrefixOffset(encoded, 1);
+        int secondSuffixOffset = secondPrefixOffset + EntryPrefixSize;
+        encoded[secondSuffixOffset] ^= 0x01;
+        File.WriteAllBytes(path, encoded);
+
+        using KvDiskState state = KvStateFile.OpenDiskState(path);
+        InvalidDataException error = Assert.Throws<InvalidDataException>(state.ValidateAllEntries);
+        Assert.Equal("KV state entry CRC mismatch.", error.Message);
+    }
+
+    [Fact]
+    public void OpenDiskState_V5TrailingData_IsRejected()
+    {
+        string path = Path.Combine(_root, "trailing-data.SDBKVSNP");
+        KeyValuePair<byte[], KvValueEntry>[] entries =
+        [
+            new(Encoding.UTF8.GetBytes("key"), new KvValueEntry([], 1)),
+        ];
+        KvStateFile.SaveSnapshot(path, 1, entries, 1);
+        using (var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.None))
+            stream.WriteByte(0xFF);
+
+        InvalidDataException error = Assert.Throws<InvalidDataException>(
+            () => KvStateFile.OpenDiskState(path));
+        Assert.Contains("trailing data", error.Message, StringComparison.Ordinal);
+    }
+
     private static byte[] CreateLargeValue()
     {
         byte[] value = new byte[LargeValueBytes];
         for (int i = 0; i < value.Length; i++)
             value[i] = (byte)(i * 31);
         return value;
+    }
+
+    private static void WriteLegacyV4(
+        string path,
+        byte[] key,
+        byte[] value,
+        long version,
+        long generation)
+    {
+        using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+        Span<byte> header = stackalloc byte[HeaderSize];
+        "SDBKVSNP"u8.CopyTo(header);
+        BinaryPrimitives.WriteInt32LittleEndian(header[8..], 4);
+        BinaryPrimitives.WriteInt32LittleEndian(header[12..], HeaderSize);
+        BinaryPrimitives.WriteInt64LittleEndian(header[16..], DateTime.UtcNow.Ticks);
+        BinaryPrimitives.WriteInt64LittleEndian(header[24..], version);
+        BinaryPrimitives.WriteInt32LittleEndian(header[32..], 1);
+        BinaryPrimitives.WriteInt64LittleEndian(header[36..], generation);
+        BinaryPrimitives.WriteUInt32LittleEndian(header[60..], Crc32.HashToUInt32(header[..60]));
+        stream.Write(header);
+
+        Span<byte> prefix = stackalloc byte[24];
+        BinaryPrimitives.WriteInt32LittleEndian(prefix, key.Length);
+        BinaryPrimitives.WriteInt32LittleEndian(prefix[4..], value.Length);
+        BinaryPrimitives.WriteInt64LittleEndian(prefix[8..], version);
+        stream.Write(prefix);
+        stream.Write(key);
+        stream.Write(value);
+        var crc = new Crc32();
+        crc.Append(key);
+        crc.Append(value);
+        Span<byte> checksum = stackalloc byte[sizeof(uint)];
+        BinaryPrimitives.WriteUInt32LittleEndian(checksum, crc.GetCurrentHashAsUInt32());
+        stream.Write(checksum);
+    }
+
+    private static int FindV5EntryPrefixOffset(byte[] encoded, int targetIndex)
+    {
+        int offset = HeaderSize;
+        for (int index = 0; index < targetIndex; index++)
+        {
+            int valueLength = BinaryPrimitives.ReadInt32LittleEndian(encoded.AsSpan(offset + 4, 4));
+            int storedKeyLength = BinaryPrimitives.ReadInt32LittleEndian(encoded.AsSpan(offset + 28, 4));
+            offset = checked(offset + EntryPrefixSize + storedKeyLength + valueLength + sizeof(uint));
+        }
+        return offset;
     }
 
     private static long MeasureAllocatedBytes(Action action)

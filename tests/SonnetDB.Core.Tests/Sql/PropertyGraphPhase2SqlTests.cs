@@ -543,6 +543,9 @@ public sealed class PropertyGraphPhase2SqlTests : IDisposable
         Assert.Equal(3L, plan["actual_fallback_rows"]);
         Assert.True((long)plan["actual_expansions"]! > 0);
         Assert.True((double)plan["actual_fallback_ms"]! >= 0);
+        Assert.Equal("relation_accessor_current", plan["read_consistency"]);
+        Assert.Equal("relation_accessor_current", plan["actual_read_consistency"]);
+        Assert.Null(plan["actual_snapshot_sequence"]);
     }
 
     [Fact]
