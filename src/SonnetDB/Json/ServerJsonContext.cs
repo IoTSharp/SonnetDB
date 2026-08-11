@@ -49,6 +49,8 @@ namespace SonnetDB.Json;
 [JsonSerializable(typeof(GraphShortestPathRequest))]
 [JsonSerializable(typeof(GraphPathDto))]
 [JsonSerializable(typeof(GraphShortestPathResponse))]
+[JsonSerializable(typeof(GraphWeightedShortestPathRequest))]
+[JsonSerializable(typeof(GraphWeightedShortestPathResponse))]
 [JsonSerializable(typeof(GraphExpansionDto))]
 [JsonSerializable(typeof(GraphImportVertexDto))]
 [JsonSerializable(typeof(GraphImportEdgeDto))]

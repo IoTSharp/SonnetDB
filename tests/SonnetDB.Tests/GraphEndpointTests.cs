@@ -292,6 +292,40 @@ public sealed class GraphEndpointTests : IAsyncLifetime
         });
     }
 
+    [Fact]
+    public async Task GraphApi_RemoteWeightedShortestPath_UsesSharedGraphContract()
+    {
+        using SndbGraphClient client = CreateGraphClient(AdminToken);
+        await client.CreateGraphAsync("weighted");
+        for (long id = 1; id <= 4; id++)
+        {
+            await client.UpsertVertexAsync(
+                "weighted",
+                new GraphUpsertVertexRequest { Id = id, RequestId = Guid.NewGuid(), Labels = [1] });
+        }
+
+        await client.UpsertEdgeAsync("weighted", WeightedEdge(11, 1, 2, 10));
+        await client.UpsertEdgeAsync("weighted", WeightedEdge(12, 1, 3, 1));
+        await client.UpsertEdgeAsync("weighted", WeightedEdge(13, 3, 2, 1));
+        await client.UpsertEdgeAsync("weighted", WeightedEdge(14, 2, 4, 1));
+        await client.UpsertEdgeAsync("weighted", WeightedEdge(15, 3, 4, 20));
+
+        GraphWeightedPath result = Assert.IsType<GraphWeightedPath>(await client.WeightedShortestPathAsync(
+            "weighted",
+            new GraphWeightedShortestPathRequest
+            {
+                StartId = 1,
+                TargetId = 4,
+                WeightPropertyId = 1,
+                Algorithm = GraphWeightedShortestPathAlgorithm.BidirectionalDijkstra,
+            }));
+
+        Assert.Equal(3d, result.TotalWeight);
+        Assert.Equal([1L, 3L, 2L, 4L], result.VertexIds.Select(static id => id.Value).ToArray());
+        Assert.Equal(GraphWeightedShortestPathAlgorithm.BidirectionalDijkstra, result.Algorithm);
+        Assert.True(result.SnapshotSequence > 0);
+    }
+
     private SndbGraphClient CreateGraphClient(
         string token,
         SndbTransportProtocol protocol = SndbTransportProtocol.Auto)
@@ -309,4 +343,26 @@ public sealed class GraphEndpointTests : IAsyncLifetime
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return client;
     }
+
+    private static GraphUpsertEdgeRequest WeightedEdge(long id, long source, long target, long weight)
+        => new()
+        {
+            Id = id,
+            RequestId = Guid.NewGuid(),
+            SourceId = source,
+            TargetId = target,
+            LabelId = 2,
+            Properties =
+            [
+                new GraphPropertyDto
+                {
+                    PropertyId = 1,
+                    Value = new GraphValueDto
+                    {
+                        Kind = GraphPropertyKind.Int64,
+                        Int64 = weight,
+                    },
+                },
+            ],
+        };
 }

@@ -502,6 +502,78 @@ internal static partial class SonnetDbEndpoints
                 ctx.RequestAborted).ConfigureAwait(false);
         });
 
+        app.MapPost("/v1/db/{db}/graphs/{graph}/weighted-shortest-path", async (HttpContext ctx, string db, string graph) =>
+        {
+            if (!await RequireGraphAccess(ctx, registry, grants, db, DatabasePermission.Read).ConfigureAwait(false))
+                return;
+            GraphWeightedShortestPathRequest? request = await ReadJsonAsync(
+                ctx,
+                ServerJsonContext.Default.GraphWeightedShortestPathRequest).ConfigureAwait(false);
+            if (!TryValidateWeightedShortestPathRequest(request, out string error))
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", error).ConfigureAwait(false);
+                return;
+            }
+            GraphStore? store = await TryOpenGraphAsync(ctx, registry, db, graph).ConfigureAwait(false);
+            if (store is null)
+                return;
+            try
+            {
+                using GraphReadSession read = store.BeginRead();
+                if (read.GetVertex(new GraphElementId(request.StartId)) is null
+                    || read.GetVertex(new GraphElementId(request.TargetId)) is null)
+                {
+                    await WriteSimpleErrorAsync(
+                        ctx,
+                        StatusCodes.Status404NotFound,
+                        "vertex_not_found",
+                        "weighted shortest path 的起点或目标不存在。").ConfigureAwait(false);
+                    return;
+                }
+                GraphWeightedPath? path = read.WeightedShortestPath(
+                    new GraphElementId(request.StartId),
+                    new GraphElementId(request.TargetId),
+                    GraphWeightedShortestPathOptions.ForProperty(request.WeightPropertyId) with
+                    {
+                        Algorithm = request.Algorithm,
+                        Direction = request.Direction,
+                        EdgeLabelId = ToOptionalLabel(request.EdgeLabelId),
+                        MaxDepth = request.MaxDepth,
+                        MaxFrontier = request.MaxFrontier,
+                        MaxVisitedVertices = request.MaxVisitedVertices,
+                        MaxExpandedEdges = request.MaxExpandedEdges,
+                        MaxTotalWeight = request.MaxTotalWeight ?? double.PositiveInfinity,
+                        PageSize = request.PageSize,
+                        MaxPageBytes = request.MaxPageBytes,
+                    },
+                    ctx.RequestAborted);
+                await JsonSerializer.SerializeAsync(
+                    ctx.Response.Body,
+                    new GraphWeightedShortestPathResponse
+                    {
+                        SnapshotSequence = read.Sequence,
+                        Algorithm = request.Algorithm,
+                        TotalWeight = path?.TotalWeight,
+                        ExpandedVertices = path?.ExpandedVertices ?? 0,
+                        ExpandedEdges = path?.ExpandedEdges ?? 0,
+                        Path = path is null ? null : ToDto(path.Path),
+                    },
+                    ServerJsonContext.Default.GraphWeightedShortestPathResponse,
+                    ctx.RequestAborted).ConfigureAwait(false);
+            }
+            catch (GraphWeightedPathLimitExceededException exception)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "graph_budget_exceeded", exception.Message).ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is GraphNegativeWeightException
+                or GraphMissingWeightException
+                or GraphWeightTypeException
+                or GraphWeightOverflowException)
+            {
+                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "invalid_edge_weight", exception.Message).ConfigureAwait(false);
+            }
+        });
+
         app.MapPost("/v1/db/{db}/graphs/{graph}/import", async (HttpContext ctx, string db, string graph) =>
         {
             if (!await RequireGraphAccess(ctx, registry, grants, db, DatabasePermission.Write).ConfigureAwait(false))
@@ -700,6 +772,37 @@ internal static partial class SonnetDbEndpoints
             || request.MaxFrontier is <= 0 or > 10_000)
         {
             validationError = "Shortest path 的端点、方向、深度或 frontier 预算无效。";
+            return false;
+        }
+        validationError = string.Empty;
+        return true;
+    }
+
+    private static bool TryValidateWeightedShortestPathRequest(
+        [NotNullWhen(true)] GraphWeightedShortestPathRequest? request,
+        out string validationError)
+    {
+        if (request is null
+            || request.StartId <= 0
+            || request.TargetId <= 0
+            || request.WeightPropertyId <= 0
+            || !Enum.IsDefined(request.Algorithm)
+            || !Enum.IsDefined(request.Direction)
+            || request.EdgeLabelId is <= 0
+            || request.MaxDepth is < 0 or > 64
+            || request.MaxFrontier is <= 0 or > 100_000
+            || request.MaxVisitedVertices is <= 0 or > 1_000_000
+            || request.MaxExpandedEdges is <= 0 or > 10_000_000
+            || request.PageSize is <= 0 or > 1_000
+            || request.MaxPageBytes is <= 0 or > 128 * 1024 * 1024)
+        {
+            validationError = "加权 shortest path 的权重属性、端点、算法或执行预算无效。";
+            return false;
+        }
+        if (request.MaxTotalWeight is { } maxWeight
+            && (!double.IsFinite(maxWeight) || maxWeight < 0))
+        {
+            validationError = "加权 shortest path 的 MaxTotalWeight 必须为空或非负有限数。";
             return false;
         }
         validationError = string.Empty;

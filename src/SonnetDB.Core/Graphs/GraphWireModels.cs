@@ -322,6 +322,71 @@ public sealed record GraphShortestPathResponse
     public GraphPathDto? Path { get; init; }
 }
 
+/// <summary>Graph 加权最短路径请求。</summary>
+public sealed record GraphWeightedShortestPathRequest
+{
+    /// <summary>起点标识符。</summary>
+    public long StartId { get; init; }
+
+    /// <summary>目标标识符。</summary>
+    public long TargetId { get; init; }
+
+    /// <summary>边权重属性标识符。</summary>
+    public int WeightPropertyId { get; init; }
+
+    /// <summary>使用的加权路径算法。</summary>
+    public GraphWeightedShortestPathAlgorithm Algorithm { get; init; } = GraphWeightedShortestPathAlgorithm.Dijkstra;
+
+    /// <summary>扩展方向。</summary>
+    public GraphDirection Direction { get; init; } = GraphDirection.Outgoing;
+
+    /// <summary>可选边标签过滤。</summary>
+    public int? EdgeLabelId { get; init; }
+
+    /// <summary>最大 hop 数。</summary>
+    public int MaxDepth { get; init; } = 64;
+
+    /// <summary>frontier 条目上限。</summary>
+    public int MaxFrontier { get; init; } = 10_000;
+
+    /// <summary>访问顶点上限。</summary>
+    public int MaxVisitedVertices { get; init; } = 1_000_000;
+
+    /// <summary>检查邻接边上限。</summary>
+    public long MaxExpandedEdges { get; init; } = 10_000_000;
+
+    /// <summary>可选的路径总权重上限。</summary>
+    public double? MaxTotalWeight { get; init; }
+
+    /// <summary>邻接页大小。</summary>
+    public int PageSize { get; init; } = 256;
+
+    /// <summary>邻接页 payload 字节上限。</summary>
+    public int MaxPageBytes { get; init; } = 32 * 1024 * 1024;
+}
+
+/// <summary>Graph 加权最短路径响应。</summary>
+public sealed record GraphWeightedShortestPathResponse
+{
+    /// <summary>查询使用的稳定快照序列号。</summary>
+    public long SnapshotSequence { get; init; }
+
+    /// <summary>实际使用的算法。</summary>
+    public GraphWeightedShortestPathAlgorithm Algorithm { get; init; }
+
+    /// <summary>路径总权重；没有路径时为空。</summary>
+    public double? TotalWeight { get; init; }
+
+    /// <summary>从 frontier 取出的顶点数。</summary>
+    public int ExpandedVertices { get; init; }
+
+    /// <summary>检查过的邻接边数。</summary>
+    public long ExpandedEdges { get; init; }
+
+    /// <summary>找到的路径；不可达时为 null。</summary>
+    public GraphPathDto? Path { get; init; }
+}
+
 /// <summary>批量导入顶点。</summary>
 public sealed record GraphImportVertexDto
 {

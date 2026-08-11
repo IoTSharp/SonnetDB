@@ -571,6 +571,61 @@ public sealed class SndbGraphClient : IDisposable
         return result.Path is null ? null : ToPath(result.Path);
     }
 
+    /// <summary>查找一条加权最短路径，嵌入式和远程模式使用同一执行合同。</summary>
+    /// <param name="graph">图名称。</param>
+    /// <param name="request">权重属性、算法、端点和执行预算。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>存在时返回加权路径，否则返回 null。</returns>
+    public async Task<GraphWeightedPath?> WeightedShortestPathAsync(
+        string graph,
+        GraphWeightedShortestPathRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(request);
+        ValidateName(graph, nameof(graph));
+        ValidateWeightedShortestPathRequest(request);
+        if (_embedded is not null)
+        {
+            using GraphReadSession read = _embedded.Graphs.Open(graph).BeginRead();
+            return read.WeightedShortestPath(
+                new GraphElementId(request.StartId),
+                new GraphElementId(request.TargetId),
+                GraphWeightedShortestPathOptions.ForProperty(request.WeightPropertyId) with
+                {
+                    Algorithm = request.Algorithm,
+                    Direction = request.Direction,
+                    EdgeLabelId = ToOptionalLabel(request.EdgeLabelId),
+                    MaxDepth = request.MaxDepth,
+                    MaxFrontier = request.MaxFrontier,
+                    MaxVisitedVertices = request.MaxVisitedVertices,
+                    MaxExpandedEdges = request.MaxExpandedEdges,
+                    MaxTotalWeight = request.MaxTotalWeight ?? double.PositiveInfinity,
+                    PageSize = request.PageSize,
+                    MaxPageBytes = request.MaxPageBytes,
+                },
+                cancellationToken);
+        }
+        using HttpResponseMessage response = await PostJsonAsync(
+            WeightedShortestPathUrl(graph),
+            request,
+            RemoteJsonContext.Default.GraphWeightedShortestPathRequest,
+            cancellationToken).ConfigureAwait(false);
+        GraphWeightedShortestPathResponse result = await ReadJsonAsync(
+            response,
+            RemoteJsonContext.Default.GraphWeightedShortestPathResponse,
+            cancellationToken).ConfigureAwait(false);
+        if (result.Path is null || result.TotalWeight is null)
+            return null;
+        return new GraphWeightedPath(
+            ToPath(result.Path),
+            result.TotalWeight.Value,
+            result.Algorithm,
+            result.ExpandedVertices,
+            result.ExpandedEdges,
+            result.SnapshotSequence);
+    }
+
     /// <inheritdoc />
     public void Dispose()
     {
@@ -713,6 +768,7 @@ public sealed class SndbGraphClient : IDisposable
     private string EdgeSeekUrl(string graph) => GraphUrl(graph) + "/edges/seek/stream";
     private string TraverseUrl(string graph) => GraphUrl(graph) + "/traverse/stream";
     private string ShortestPathUrl(string graph) => GraphUrl(graph) + "/shortest-path";
+    private string WeightedShortestPathUrl(string graph) => GraphUrl(graph) + "/weighted-shortest-path";
     private string ImportUrl(string graph) => GraphUrl(graph) + "/import";
 
     private static void ValidateName(string value, string parameterName)
@@ -865,6 +921,23 @@ public sealed class SndbGraphClient : IDisposable
         if (request.StartId <= 0 || request.TargetId <= 0 || !Enum.IsDefined(request.Direction)
             || request.EdgeLabelId is <= 0 || request.MaxDepth is < 0 or > 64 || request.MaxFrontier is <= 0 or > 10_000)
             throw new ArgumentException("Shortest path 的端点、方向、深度或 frontier 预算无效。", nameof(request));
+    }
+
+    private static void ValidateWeightedShortestPathRequest(GraphWeightedShortestPathRequest request)
+    {
+        if (request.StartId <= 0 || request.TargetId <= 0 || request.WeightPropertyId <= 0
+            || !Enum.IsDefined(request.Algorithm) || !Enum.IsDefined(request.Direction)
+            || request.EdgeLabelId is <= 0
+            || request.MaxDepth is < 0 or > 64
+            || request.MaxFrontier is <= 0 or > 100_000
+            || request.MaxVisitedVertices is <= 0 or > 1_000_000
+            || request.MaxExpandedEdges is <= 0 or > 10_000_000
+            || request.PageSize is <= 0 or > 1_000
+            || request.MaxPageBytes is <= 0 or > 128 * 1024 * 1024)
+            throw new ArgumentException("加权 shortest path 的权重属性、端点、算法或执行预算无效。", nameof(request));
+        if (request.MaxTotalWeight is { } maxWeight
+            && (!double.IsFinite(maxWeight) || maxWeight < 0))
+            throw new ArgumentException("加权 shortest path 的 MaxTotalWeight 必须为空或非负有限数。", nameof(request));
     }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);

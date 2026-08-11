@@ -1,6 +1,6 @@
 # 原生属性图数据库路线图
 
-> 本文定义 SonnetDB Milestone 40 的工程路线。Phase 0（#341～#346）公共地基已完成；Phase 1 的 Native Graph Core、Server/typed SDK、Frame/HTTP streaming、bounded import 和本地 smoke evidence 已接线，但固定硬件、Neo4j 对照与完整 correctness/performance gate 尚未通过，因此仍不得宣称 Preview 发布。
+> 本文定义 SonnetDB Milestone 40 的工程路线。Phase 0（#341～#346）公共地基 ✅ 已完成；Phase 1 的 Native Graph Core、Server/typed SDK、Frame/HTTP streaming、bounded import 和本地 smoke evidence ✅ 已接线，但固定硬件、Neo4j 对照与完整 correctness/performance gate 📋 尚未通过，因此仍不得宣称 Preview 发布。
 
 ## 1. 决策与目标
 
@@ -77,9 +77,9 @@ Couplet 仓库/路线基线已经建立，但 C0-C4 产品实现仍按证据推�
 | 仓库/路线基线 | README/ADR、MCP 合同语义、golden journeys、质量/性能门禁和 gap catalog | 无 | 输入 #341 workload/SLO | ✅ 仅规划基线完成，不代表任何运行能力 |
 | C0 基础与合同 | 可运行骨架、代码 schema、capability/version handshake、fixture/eval runner | 基线已建立 | 与 #341 同步冻结 | 📋 不宣称图检索可用 |
 | C1 增量代码索引 | Git/worktree/revision、语言适配、Document/FullText 和基础 MCP | 与 #342~#346 public API 并行 | #343/#346 所需合同 + Couplet revision/crash/capacity gate | 📋 不用 Document/KV 边表旁路图 |
-| C2 原生图代码智能 | 定义/引用/调用/继承/依赖路径/影响与测试选择 | #347~#351 目标 public API 可联调 | #352 + Couplet C2 correctness/performance 同时 PASS | 才可发布 Native Graph Preview |
-| C3 混合检索与 context pack | FullText + 本地 embedding/Vector + Native Graph、证据和 Agent eval | #353~#358 与相关 M35/M36 API 可联调 | #359 + Couplet C3 gate 同时 PASS | 才可发布 Beta，不得产品侧 merge/遍历 |
-| C4 生产与 Agent 体验 | 7 天长稳、恢复、安全、容量、分发和双客户端验收 | 与 #360~#366 并行取证 | #367 + Couplet C4 门禁同时 PASS | 才可发布 Production/1.0 |
+| C2 原生图代码智能 | 定义/引用/调用/继承/依赖路径/影响与测试选择 | #347~#351 目标 public API 可联调 | #352 + Couplet C2 correctness/performance 同时 PASS | 📋 才可发布 Native Graph Preview |
+| C3 混合检索与 context pack | FullText + 本地 embedding/Vector + Native Graph、证据和 Agent eval | #353~#358 与相关 M35/M36 API 可联调 | #359 + Couplet C3 gate 同时 PASS | 📋 才可发布 Beta，不得产品侧 merge/遍历 |
+| C4 生产与 Agent 体验 | 7 天长稳、恢复、安全、容量、分发和双客户端验收 | 与 #360~#366 并行取证 | #367 + Couplet C4 门禁同时 PASS | 📋 才可发布 Production/1.0 |
 
 Couplet 可以提前开发不依赖缺失 Core 能力的 Git、解析、协议和评测代码；任何阶段不得以产品侧替代实现绕过未通过的 SonnetDB 门禁。
 
@@ -212,47 +212,47 @@ GraphDistinct / GraphLimit
 
 | 编号 | 交付 | 验收门禁 |
 |---|---|---|
-| #341 | ADR、术语、目标 workload、原生/映射图边界、golden journey 和 capability gap catalog。 | 至少覆盖社交多跳、设备拓扑、知识证据链、Couplet 代码符号/引用/调用/测试影响分析、关系表 SQL/PGQ 映射；每条给出数据规模、更新模式、查询、冻结 SLO 和不做项。 |
-| #342 | 抽取通用 sortable scalar codec，冻结 GraphElementId、LabelId、GraphPropertyValue 和版本化 record/key 格式。 | Table 编码回归不变；graph codec round-trip、排序、损坏拒绝、旧版拒绝/迁移策略齐全。 |
-| #343 | KV snapshot lease、前向 range cursor、页缓冲所有权和取消合同。 | 遍历不在 keyspace 锁内执行消费逻辑；分页不从头重扫；页同时受条目数和 payload 字节数约束，内存随 page/frontier 上限而不是 keyspace 总量增长。 |
-| #344 | `GraphCatalog`、`GraphManager`、目录、命名/依赖和 `Tsdb.Graphs` 生命周期。 | create/open/drop/reopen、同名对象阻断、目录损坏和版本不兼容测试通过；仍不暴露虚假查询能力。 |
-| #345 | 单 graph transaction、element version、写预算、commit-unknown 和 vertex delete `RESTRICT` 合同。 | 并发冲突、取消、超限、重复请求和 WAL 故障不会产生半条边或孤立邻接。 |
-| #346 | Graph backup manifest、checkpoint、verify/restore、invariant checker 和 CrashTests 骨架。 | 任意注入点重启后要么看到提交前、要么看到提交后状态；校验器能发现故意构造的 orphan/mismatch。 |
+| ✅ #341 | ADR、术语、目标 workload、原生/映射图边界、golden journey 和 capability gap catalog。 | 至少覆盖社交多跳、设备拓扑、知识证据链、Couplet 代码符号/引用/调用/测试影响分析、关系表 SQL/PGQ 映射；每条给出数据规模、更新模式、查询、冻结 SLO 和不做项。 |
+| ✅ #342 | 抽取通用 sortable scalar codec，冻结 GraphElementId、LabelId、GraphPropertyValue 和版本化 record/key 格式。 | Table 编码回归不变；graph codec round-trip、排序、损坏拒绝、旧版拒绝/迁移策略齐全。 |
+| ✅ #343 | KV snapshot lease、前向 range cursor、页缓冲所有权和取消合同。 | 遍历不在 keyspace 锁内执行消费逻辑；分页不从头重扫；页同时受条目数和 payload 字节数约束，内存随 page/frontier 上限而不是 keyspace 总量增长。 |
+| ✅ #344 | `GraphCatalog`、`GraphManager`、目录、命名/依赖和 `Tsdb.Graphs` 生命周期。 | create/open/drop/reopen、同名对象阻断、目录损坏和版本不兼容测试通过；仍不暴露虚假查询能力。 |
+| ✅ #345 | 单 graph transaction、element version、写预算、commit-unknown 和 vertex delete `RESTRICT` 合同。 | 并发冲突、取消、超限、重复请求和 WAL 故障不会产生半条边或孤立邻接。 |
+| ✅ #346 | Graph backup manifest、checkpoint、verify/restore、invariant checker 和 CrashTests 骨架。 | 任意注入点重启后要么看到提交前、要么看到提交后状态；校验器能发现故意构造的 orphan/mismatch。 |
 
-Phase 0 已完成：frozen V1 vectors、Table V1 兼容、snapshot/cursor 有界读取、catalog/lifecycle、条件原子事务、manifest v1/v2、backup/restore/invariant 与跨进程 CrashTests 均有自动回归。Phase 1 的 #347～#351 功能实现和本机 correctness smoke 已闭环；#352 的固定硬件、Neo4j、完整恢复/容量 artifact 仍后置，因此不把本机结果提升为发布 gate。
+✅ Phase 0 已完成：frozen V1 vectors、Table V1 兼容、snapshot/cursor 有界读取、catalog/lifecycle、条件原子事务、manifest v1/v2、backup/restore/invariant 与跨进程 CrashTests 均有自动回归。✅ Phase 1 的 #347～#351 功能实现和本机 correctness smoke 已闭环；📋 #352 的固定硬件、Neo4j、完整恢复/容量 artifact 仍后置，因此不把本机结果提升为发布 gate。
 
-### Phase 1：可用的原生图数据库第一阶段
-
-| 编号 | 交付 | 验收门禁 |
-|---|---|---|
-| #347 | `GraphStore` vertex/edge CRUD、多 label、typed property、双向邻接、label/property/unique index。 | 所有 mutation 都通过单 keyspace 原子 batch；重启、索引重建和 invariant check 对拍。当前已有 `RebuildIndexes` 有界修复和 Crash/backup 回归，唯一声明缺失边界仍需显式输入。 |
-| #348 | 原生 Graph API 与 streaming cursor：seek、ExpandOut/In/Both、过滤和批量读取。 | 单跳访问不调用关系 JOIN；I/O/CPU 随命中度数增长；嵌入式遍历不全量复制图。当前 Core、REST、NDJSON、Frame 和 typed SDK 已接线，固定规模复杂度证据待跑。 |
-| #349 | BFS/DFS、固定/受限可变长度路径、无权 shortest path、path uniqueness 和预算。 | cycle、self-loop、parallel edge、取消、超时、深度/frontier/path 上限测试完整。当前有分页/cancel/cycle/self-loop/parallel-edge 回归，完整超时和目标硬件矩阵待跑。 |
-| #350 | label/property cardinality、degree histogram、index selectivity、统计刷新和基础 Graph EXPLAIN。 | 选择性 anchor 可验证；统计缺失/陈旧有稳定 fallback；统计是可重建派生数据。当前含 fingerprint cardinality、stale/missing explain 回归，容量校准待跑。 |
-| #351 | Server/typed .NET SDK、Frame/HTTP 流式读取、幂等 bulk import，以及 CSV/JSON/Graphify `graph.json` importer。 | 嵌入式/远程同语义；导入可 checkpoint/resume；Graphify 只作为输入，不进入 Core。当前支持 native numeric profile 和 normalized string `nodes/relationships` profile；通过确定性 batch request ID 重放恢复，未引入 Graphify runtime。 |
-| #352 | Phase 1 correctness/performance gate：CrashTests、BenchmarkDotNet、Neo4j 对照和固定硬件报告。 | 正确性/恢复与性能/容量是两个独立 gate：前者要求语义对拍零 mismatch、零 orphan/index drift，crash/replay/checkpoint/backup/repair 全 PASS；后者在 100k/1m vertex、1m/10m edge 下对 1~6 hop、supernode、代码知识影响分析、混合读写和冷/热重启达到 #341 预先冻结的复杂度、内存及 P95/P99 SLO。任一 gate 未达即阻断 Phase 1；不得遗留不可解释的全扫/全量物化，也不得事后按实现结果改低阈值。 |
-
-Phase 1 功能边界已闭环；在 #352 外部证据通过前，对外名称仍只能是 **Native Graph Preview**。它已经是真正的邻接图存储，SQL 图模式和完整产品面由 Phase 2 继续建设。
-
-### Phase 1 当前实现边界（2026-08-11）
-
-- `GraphStore.RebuildIndexes` 在提交门内按稳定快照和 KV index-rebuild budget 分页补建/删除 adjacency、label/property、unique 派生键；冻结 V1 元素记录不保存 unique 声明，若声明的全部 key 已丢失，调用方必须通过 `GraphIndexRebuildOptions.UniqueIndexes` 重新提供声明。
-- `SndbGraphImporter` 先把单个 JSON element 写入临时 NDJSON spool，再按确定性 request ID 以有界 batch 重放；CSV 同样按 batch 流式提交。`nodes/relationships` normalized profile 接受字符串 ID、label/type、对象属性和 provenance/confidence 元数据，映射函数为 `GetStableElementId`、`GetStableLabelId`、`GetStablePropertyId`。
-- `tests/SonnetDB.Benchmarks --m40-graph-evidence --quick` 会真正 reopen/replay 并执行 path/invariant/index-repair smoke；本机报告输出 `correctness=PASS`、`correctness_recovery=LOCAL_PASS`，而 `performance_capacity=NOT_RUN`、`release_decision=NOT_RUN`，不能代替 #352 的固定硬件、Neo4j 或完整 crash/replay/checkpoint/backup artifact。
-
-### Phase 2：SQL 可组合与实用查询阶段
+### Phase 1：可用的原生图数据库第一阶段（✅ 功能切片完成；📋 #352 发布门禁待完成）
 
 | 编号 | 交付 | 验收门禁 |
 |---|---|---|
-| #353 | Graph Logical Plan 与共享 pull operators；原生 API 改为消费相同计划。 | API 与计划执行结果对拍；不存在第二套 BFS/Expand 实现。 |
-| #354 | 原生 graph SQL DDL/DML、`SHOW/DESCRIBE`、`graph_nodes/graph_edges` 和参数绑定。 | SQL mutation 与 Graph API 使用同一 GraphStore/transaction；权限、审计、错误位置和取消一致。 |
-| #355 | SQL/PGQ `CREATE PROPERTY GRAPH` 关系映射 catalog 与 `RelationalGraphAccessor`。 | 映射不复制数据；主外键/显式 key 校验；索引 seek/scan fallback 在 EXPLAIN 可见。 |
-| #356 | `GRAPH_TABLE MATCH COLUMNS` 固定模式、方向、label、property predicate 和变量投影。 | PostgreSQL SQL/PGQ 参考用例对拍；原生 graph 使用 adjacency，映射 graph 使用关系访问器。 |
-| #357 | SQL 可变长度路径、path mode/uniqueness、shortest path、最大深度与结果预算。 | 路径爆炸 fail bounded；循环语义确定；结果通过 ADO.NET/远程流式读取。 |
-| #358 | cost planner、join/expand 顺序、bidirectional BFS 准入、`EXPLAIN ANALYZE` 实际 rows/expansions/frontier/fallback。 | 计划估算和实际指标可解释；优化前后结果完全一致；无基准收益不引入复杂算法。 |
-| #359 | SQL + Graph + Table/Document/Vector/FullText 组合、复用 M35/M36 的 Hybrid Search 候选合同，以及权限、备份、Studio 查询页和 Parity Graph capability。 | 同一 SQL/typed plan 可组合图行集与现有模型；实际 access path、候选规模和 fallback 可见，声明 journey 不在产品侧 merge、遍历或隐藏全扫；Neo4j 验原生语义、PostgreSQL 验 SQL/PGQ 语义，UI 不绕过 Server。 |
+| ✅ #347 | `GraphStore` vertex/edge CRUD、多 label、typed property、双向邻接、label/property/unique index。 | 所有 mutation 都通过单 keyspace 原子 batch；重启、索引重建和 invariant check 对拍。当前已有 `RebuildIndexes` 有界修复和 Crash/backup 回归，唯一声明缺失边界仍需显式输入。 |
+| ✅ #348 | 原生 Graph API 与 streaming cursor：seek、ExpandOut/In/Both、过滤和批量读取。 | 单跳访问不调用关系 JOIN；I/O/CPU 随命中度数增长；嵌入式遍历不全量复制图。当前 Core、REST、NDJSON、Frame 和 typed SDK 已接线，固定规模复杂度证据待跑。 |
+| ✅ #349 | BFS/DFS、固定/受限可变长度路径、无权 shortest path、path uniqueness 和预算。 | cycle、self-loop、parallel edge、取消、超时、深度/frontier/path 上限测试完整。当前有分页/cancel/cycle/self-loop/parallel-edge 回归，完整超时和目标硬件矩阵待跑。 |
+| ✅ #350 | label/property cardinality、degree histogram、index selectivity、统计刷新和基础 Graph EXPLAIN。 | 选择性 anchor 可验证；统计缺失/陈旧有稳定 fallback；统计是可重建派生数据。当前含 fingerprint cardinality、stale/missing explain 回归，容量校准待跑。 |
+| ✅ #351 | Server/typed .NET SDK、Frame/HTTP 流式读取、幂等 bulk import，以及 CSV/JSON/Graphify `graph.json` importer。 | 嵌入式/远程同语义；导入可 checkpoint/resume；Graphify 只作为输入，不进入 Core。当前支持 native numeric profile 和 normalized string `nodes/relationships` profile；通过确定性 batch request ID 重放恢复，未引入 Graphify runtime。 |
+| 📋 #352 | Phase 1 correctness/performance gate：CrashTests、BenchmarkDotNet、Neo4j 对照和固定硬件报告。 | 正确性/恢复与性能/容量是两个独立 gate：前者要求语义对拍零 mismatch、零 orphan/index drift，crash/replay/checkpoint/backup/repair 全 PASS；后者在 100k/1m vertex、1m/10m edge 下对 1~6 hop、supernode、代码知识影响分析、混合读写和冷/热重启达到 #341 预先冻结的复杂度、内存及 P95/P99 SLO。任一 gate 未达即阻断 Phase 1；不得遗留不可解释的全扫/全量物化，也不得事后按实现结果改低阈值。 |
 
-Phase 2 #353~#359 功能已完成：`GraphLogicalPlan`、共享 pull cursor 和原生 API 计划执行已接入；原生 SQL 已提供 `CREATE/DROP/SHOW/DESCRIBE GRAPH`、参数化 `graph_nodes/graph_edges`、有界投影/过滤/排序/分页，以及受限的 `INSERT INTO GRAPH ... VERTEX|EDGE`；关系映射已提供持久化 `CREATE/DROP/SHOW/DESCRIBE PROPERTY GRAPH` catalog、`RelationalGraphAccessor`，`GRAPH_TABLE MATCH COLUMNS` 已覆盖固定一跳、受限可变长度和 shortest path，并具有端点成本规划、实际执行指标及共享 SQL 跨模型组合。固定硬件、PostgreSQL/Neo4j 外部语义对拍和 Couplet C3 联合发布证据仍为 `NOT_RUN`，因此这里只关闭功能切片，不宣称 Beta 发布 gate 已通过。
+✅ Phase 1 功能边界已闭环；📋 在 #352 外部证据通过前，对外名称仍只能是 **Native Graph Preview**。它已经是真正的邻接图存储，SQL 图模式和完整产品面由 Phase 2 继续建设。
+
+### Phase 1 当前实现边界（✅ 功能切片完成；📋 发布证据待完成，2026-08-11）
+
+- ✅ `GraphStore.RebuildIndexes` 在提交门内按稳定快照和 KV index-rebuild budget 分页补建/删除 adjacency、label/property、unique 派生键；冻结 V1 元素记录不保存 unique 声明，若声明的全部 key 已丢失，调用方必须通过 `GraphIndexRebuildOptions.UniqueIndexes` 重新提供声明。
+- ✅ `SndbGraphImporter` 先把单个 JSON element 写入临时 NDJSON spool，再按确定性 request ID 以有界 batch 重放；CSV 同样按 batch 流式提交。`nodes/relationships` normalized profile 接受字符串 ID、label/type、对象属性和 provenance/confidence 元数据，映射函数为 `GetStableElementId`、`GetStableLabelId`、`GetStablePropertyId`。
+- ✅ `tests/SonnetDB.Benchmarks --m40-graph-evidence --quick` 会真正 reopen/replay 并执行 path/invariant/index-repair smoke；本机报告输出 `correctness=PASS`、`correctness_recovery=LOCAL_PASS`；📋 `performance_capacity=NOT_RUN`、`release_decision=NOT_RUN`，不能代替 #352 的固定硬件、Neo4j 或完整 crash/replay/checkpoint/backup artifact。
+
+### Phase 2：SQL 可组合与实用查询阶段（✅ 功能切片完成；📋 外部语义、硬件和 Couplet 发布证据待完成）
+
+| 编号 | 交付 | 验收门禁 |
+|---|---|---|
+| ✅ #353 | Graph Logical Plan 与共享 pull operators；原生 API 改为消费相同计划。 | API 与计划执行结果对拍；不存在第二套 BFS/Expand 实现。 |
+| ✅ #354 | 原生 graph SQL DDL/DML、`SHOW/DESCRIBE`、`graph_nodes/graph_edges` 和参数绑定。 | SQL mutation 与 Graph API 使用同一 GraphStore/transaction；权限、审计、错误位置和取消一致。 |
+| ✅ #355 | SQL/PGQ `CREATE PROPERTY GRAPH` 关系映射 catalog 与 `RelationalGraphAccessor`。 | 映射不复制数据；主外键/显式 key 校验；索引 seek/scan fallback 在 EXPLAIN 可见。 |
+| ✅ #356 | `GRAPH_TABLE MATCH COLUMNS` 固定模式、方向、label、property predicate 和变量投影。 | PostgreSQL SQL/PGQ 参考用例对拍；原生 graph 使用 adjacency，映射 graph 使用关系访问器。 |
+| ✅ #357 | SQL 可变长度路径、path mode/uniqueness、shortest path、最大深度与结果预算。 | 路径爆炸 fail bounded；循环语义确定；结果通过 ADO.NET/远程流式读取。 |
+| ✅ #358 | cost planner、join/expand 顺序、bidirectional BFS 准入、`EXPLAIN ANALYZE` 实际 rows/expansions/frontier/fallback。 | 计划估算和实际指标可解释；优化前后结果完全一致；无基准收益不引入复杂算法。 |
+| ✅ #359 | SQL + Graph + Table/Document/Vector/FullText 组合、复用 M35/M36 的 Hybrid Search 候选合同，以及权限、备份、Studio 查询页和 Parity Graph capability。 | 同一 SQL/typed plan 可组合图行集与现有模型；实际 access path、候选规模和 fallback 可见，声明 journey 不在产品侧 merge、遍历或隐藏全扫；Neo4j 验原生语义、PostgreSQL 验 SQL/PGQ 语义，UI 不绕过 Server。 |
+
+✅ Phase 2 #353~#359 功能已完成：`GraphLogicalPlan`、共享 pull cursor 和原生 API 计划执行已接入；原生 SQL 已提供 `CREATE/DROP/SHOW/DESCRIBE GRAPH`、参数化 `graph_nodes/graph_edges`、有界投影/过滤/排序/分页，以及受限的 `INSERT INTO GRAPH ... VERTEX|EDGE`；关系映射已提供持久化 `CREATE/DROP/SHOW/DESCRIBE PROPERTY GRAPH` catalog、`RelationalGraphAccessor`，`GRAPH_TABLE MATCH COLUMNS` 已覆盖固定一跳、受限可变长度和 shortest path，并具有端点成本规划、实际执行指标及共享 SQL 跨模型组合。📋 固定硬件、PostgreSQL/Neo4j 外部语义对拍和 Couplet C3 联合发布证据仍为 `NOT_RUN`，因此这里只关闭功能切片，不宣称 Beta 发布 gate 已通过。
 
 #354 当前 DML 边界是：元素 ID 仅接受正整数；顶点 labels 接受单个正整数或逗号分隔的正整数文本；edge label 使用 Int32 范围内的正整数。此切片尚不承诺属性列写入，typed property mutation 继续通过 Graph API；property SQL、upsert/update/delete 在冻结完整 DML 合同后接入。
 
@@ -266,34 +266,42 @@ Phase 2 #353~#359 功能已完成：`GraphLogicalPlan`、共享 pull cursor 和�
 
 #359 当前组合边界是：图查询先作为有界派生行集进入现有 `RelationalSelectExecutor`，可在同一 SQL 中与关系表、Document 投影，以及 FullText + Vector `hybrid_search(...)` 候选子查询做 hash join；不新增第二套 JOIN 或应用层 merge。组合 `EXPLAIN` 以 `cross_model_select` 展示每个 source/join 的 graph adjacency/关系索引/document/hybrid access path、候选上限和 fallback reason；Hybrid Search 明示全文候选上限及 document vector scan fallback。property-graph catalog 进入备份 manifest 的完整 mapping 摘要、独立文件类型与 restore 后逐字段复核；Graph SQL metadata/read 与 DDL/DML 分别沿数据库 read/write 权限，Studio Quick SQL 仍走 `/v1/db/{db}/sql` 和共享结果面板。Parity 增加 Graph/SQL-PGQ/native traversal/cross-model capability 与本地 correctness scenario，PostgreSQL/Neo4j outcome 明确保持 `not_run`。当前不支持把 `JOIN/GROUP BY` 直接写进 `GRAPH_TABLE` 外层执行器内部，调用方必须使用标准派生表组合；property alias 和多 pattern 仍不在此 Beta 子集。
 
-Phase 2 完成后可称为 **SonnetDB Graph Beta**：具备原生存储、事务、遍历、SQL/PGQ 和跨模型组合，但长期并发、维护和容量证据仍未收口。
+✅ Phase 2 功能切片完成后具备原生存储、事务、遍历、SQL/PGQ 和跨模型组合；📋 长期并发、维护和容量证据仍未收口，外部 Beta 发布 gate 尚未通过。
 
-### Phase 3：生产级单机图数据库
+### Phase 3：生产级单机图数据库（✅ #360/#361；🚧 #362；📋 #363~#367）
 
 | 编号 | 交付 | 验收门禁 |
 |---|---|---|
-| #360 | statement snapshot、长遍历读一致性、并发写冲突矩阵；按证据决定是否扩展 snapshot isolation。 | 遍历期间并发 mutation 的可见性确定；无死锁/锁饥饿；不做无证据 MVCC 重构。 |
-| #361 | supernode 治理、邻接分页/压缩、索引 repair、统计维护、checkpoint/compaction 热点治理。 | 高度数节点内存有界；维护可暂停/续作；故障后不丢唯一修复来源。 |
-| #362 | weighted shortest path（Dijkstra）、可选 A*、bidirectional search 和批量图算法执行框架。 | 只有真实 journey 和 benchmark 证明收益的算法进入 Core；权重负值、溢出、取消合同明确。 |
-| #363 | 首批离线算法：connected components、PageRank、degree/community 基础结果，输出到 graph/table 而非常驻第二份状态。 | 算法可 checkpoint/cancel，结果版本可追溯；大图内存预算与 spill 策略明确。 |
-| #364 | 可选 GQL 风格直接查询入口，只复用 Graph AST/Plan，不承诺完整 Cypher。 | 与等价 SQL/PGQ 计划和结果对拍；无新增执行器；语法能力矩阵公开。 |
-| #365 | 知识图谱/GraphRAG 上层合同：provenance、confidence、source/chunk、valid time、alias/claim、community/summary 引用。 | Core 只存通用属性图；抽取/消歧/LLM job 在 Server/SDK；Document/Object/Vector 仍是权威内容存储。 |
-| #366 | 运维产品面：schema/index/degree/slow traversal、可视化、受限编辑、import/export、repair/rebuild 和权限审计。 | Web/Studio/CLI/SDK 能力矩阵一致；危险 mutation 使用现有 staged approval。 |
-| #367 | 发布门禁：LDBC SNB 子集、Graphalytics 子集、代码知识/Agent 组合语料、7 天 mixed workload、kill/reopen、backup/restore、Native AOT 和固定硬件容量报告。 | 报告可复现且包含 commit/硬件/数据规模/P50/P95/P99/内存/WAL/恢复/正确性、实际 access path/fallback 和 gap catalog 关闭状态；正确性/恢复 gate 必须全 PASS，性能/容量 gate 必须达到 #341 冻结的生产 SLO，任一失败或存在生产阻塞缺口都不得更改九模型定位。 |
+| ✅ #360 | statement snapshot、长遍历读一致性、并发写冲突矩阵；按证据决定是否扩展 snapshot isolation。 | 遍历期间并发 mutation 的可见性确定；无死锁/锁饥饿；不做无证据 MVCC 重构。 |
+| ✅ #361 | supernode 治理、邻接分页/压缩、索引 repair、统计维护、checkpoint/compaction 热点治理。 | 高度数节点内存有界；维护可暂停/续作；故障后不丢唯一修复来源。 |
+| 🚧 #362 | weighted shortest path（Dijkstra）、可选 A*、bidirectional search 和批量图算法执行框架。 | 只有真实 journey 和 benchmark 证明收益的算法进入 Core；权重负值、溢出、取消合同明确。 |
+| 📋 #363 | 首批离线算法：connected components、PageRank、degree/community 基础结果，输出到 graph/table 而非常驻第二份状态。 | 算法可 checkpoint/cancel，结果版本可追溯；大图内存预算与 spill 策略明确。 |
+| 📋 #364 | 可选 GQL 风格直接查询入口，只复用 Graph AST/Plan，不承诺完整 Cypher。 | 与等价 SQL/PGQ 计划和结果对拍；无新增执行器；语法能力矩阵公开。 |
+| 📋 #365 | 知识图谱/GraphRAG 上层合同：provenance、confidence、source/chunk、valid time、alias/claim、community/summary 引用。 | Core 只存通用属性图；抽取/消歧/LLM job 在 Server/SDK；Document/Object/Vector 仍是权威内容存储。 |
+| 📋 #366 | 运维产品面：schema/index/degree/slow traversal、可视化、受限编辑、import/export、repair/rebuild 和权限审计。 | Web/Studio/CLI/SDK 能力矩阵一致；危险 mutation 使用现有 staged approval。 |
+| 📋 #367 | 发布门禁：LDBC SNB 子集、Graphalytics 子集、代码知识/Agent 组合语料、7 天 mixed workload、kill/reopen、backup/restore、Native AOT 和固定硬件容量报告。 | 报告可复现且包含 commit/硬件/数据规模/P50/P95/P99/内存/WAL/恢复/正确性、实际 access path/fallback 和 gap catalog 关闭状态；正确性/恢复 gate 必须全 PASS，性能/容量 gate 必须达到 #341 冻结的生产 SLO，任一失败或存在生产阻塞缺口都不得更改九模型定位。 |
 
-#360 已完成：`GraphStore.BeginRead` 明确冻结单一 KV sequence，同一 `GraphReadSession` 上的点读、在并发提交前后创建的游标和分页长遍历都复用该 snapshot；cursor lease 只保留不可变内存视图和 disk generation lease，不持有 Graph commit gate 或 store lock。`EXPLAIN ANALYZE GRAPH_TABLE` 对原生图新增 `read_consistency=statement_snapshot`、`actual_read_consistency` 和 `actual_snapshot_sequence`；关系映射如实返回 `relation_accessor_current` 与 null sequence，其 statement snapshot 仍归 M41 #374，不在本项虚构跨模型 MVCC。
+✅ #360 已完成：`GraphStore.BeginRead` 明确冻结单一 KV sequence，同一 `GraphReadSession` 上的点读、在并发提交前后创建的游标和分页长遍历都复用该 snapshot；cursor lease 只保留不可变内存视图和 disk generation lease，不持有 Graph commit gate 或 store lock。`EXPLAIN ANALYZE GRAPH_TABLE` 对原生图新增 `read_consistency=statement_snapshot`、`actual_read_consistency` 和 `actual_snapshot_sequence`；关系映射如实返回 `relation_accessor_current` 与 null sequence，其 statement snapshot 仍归 M41 #374，不在本项虚构跨模型 MVCC。
 
-#360 并发矩阵覆盖：分页 BFS 期间原子 re-parent 只对下一 statement 可见且 writer 在旧 cursor 存活时可完成；同一 session 在并发提交后新建的 cursor 仍固定旧 sequence；不同 element 且不推进共享 metadata 的更新都提交；同 unique property claim 通过 unique key version 条件恰有一个提交；endpoint delete 与 edge insert 通过 endpoint version + adjacency `PrefixEmpty` 条件恰有一个提交。所有竞态设置超时并在完成后运行 `GraphInvariantChecker`。现有 workload 没有跨多个读会话/读写 statement 保持同一快照的需求，因此本项不扩展 snapshot-isolation transaction，也不进行无证据 MVCC 重构。详细合同见 [m40-graph-360-statement-snapshot.md](m40-graph-360-statement-snapshot.md)。
+✅ #360 并发矩阵覆盖：分页 BFS 期间原子 re-parent 只对下一 statement 可见且 writer 在旧 cursor 存活时可完成；同一 session 在并发提交后新建的 cursor 仍固定旧 sequence；不同 element 且不推进共享 metadata 的更新都提交；同 unique property claim 通过 unique key version 条件恰有一个提交；endpoint delete 与 edge insert 通过 endpoint version + adjacency `PrefixEmpty` 条件恰有一个提交。所有竞态设置超时并在完成后运行 `GraphInvariantChecker`。现有 workload 没有跨多个读会话/读写 statement 保持同一快照的需求，因此本项不扩展 snapshot-isolation transaction，也不进行无证据 MVCC 重构。详细合同见 [m40-graph-360-statement-snapshot.md](m40-graph-360-statement-snapshot.md)。
 
-### #361 当前功能切片
+### #361 当前功能切片（✅ 已完成）
 
 Graph V1 adjacency 继续保持每条边一个紧凑 key 和空 value；supernode 不会把全部边物化为一个 value。KV state v5 在 checkpoint/compaction 时对有序 key 做固定 restart 的前缀压缩，并保留 v1-v4 读取兼容。`GraphCursorOptions` 的 page size、page bytes 和 result limit 是硬预算。
 
 `GraphStore.RunMaintenance` 按 work unit 扫描并修复一页，页间释放提交门；`maintenance.sdbgraph` 以 CRC、原子替换和 WAL sync 保存阶段、continuation key、计数和 unique 声明。取消、进程重开或 checkpoint 失败会从最后 durable 页重复执行，坏 sidecar 明确拒绝。最终 checkpoint 是必做的，compaction 由 `CompactOnCompletion` 显式选择；`GraphStore.Checkpoint/Compact` 也提供单独维护边界。统计刷新按 outgoing anchor 流式生成 degree histogram，并受扫描条目与统计分组预算约束。
 
-功能和恢复回归见 [#361 contract](m40-graph-361-maintenance.md)。这些证据不替代 #352/#367 固定硬件、7 天 mixed workload 或外部数据库对拍门禁。
+✅ 功能和恢复回归见 [#361 contract](m40-graph-361-maintenance.md)；📋 这些证据不替代 #352/#367 固定硬件、7 天 mixed workload 或外部数据库对拍门禁。
 
-Phase 3 完成后，SonnetDB 才能对外称为**生产可用的单机原生属性图数据库**。这不包含分布式图数据库、完整 Cypher/GQL 或 RDF 推理能力。
+### #362 当前功能切片（🚧 首批实现完成，收益证据待补）
+
+`GraphReadSession` 现在提供 `WeightedShortestPath`、`Dijkstra`、`AStar`、`BidirectionalDijkstra` 和 `ShortestPathWeighted` 入口。权重可以来自边的 `Int64`/`Float64` 属性或嵌入式调用方 selector；结果包含总权重、实际算法、路径和扩展计数。Dijkstra、显式可选的 A*（非负启发式）与双向 Dijkstra 共享同一 statement snapshot 和有界邻接 cursor，不复制 GraphStore 或建立第二套执行器。
+
+`GraphAlgorithmExecutor.ExecuteShortestPaths`/`RunShortestPaths` 在同一 snapshot 上按输入顺序执行批量加权路径查询。负权、缺失/错误类型、NaN/Infinity、累加溢出、最大深度、frontier、访问顶点数、扩展边数和取消都在实际工作前或工作中稳定拒绝/停止。HTTP/typed SDK 新增 source-generated `/weighted-shortest-path` 合同，嵌入式与远程响应携带相同路径与诊断字段。
+
+✅ Core/HTTP correctness smoke 已覆盖总权重选路、A*/双向结果对拍、入向路径、深度状态、错误权重、溢出、取消、批量顺序，以及随机有向图与有界穷举 oracle 对拍；📋 #362 的真实 journey、算法收益 benchmark、固定目标硬件和 #367 发布证据仍后置，因此 #362 保持 `🚧`，不据此宣称 Production。详细合同见 [#362 weighted path contract](m40-graph-362-weighted-path.md)。
+
+📋 Phase 3 完成后，SonnetDB 才能对外称为**生产可用的单机原生属性图数据库**。这不包含分布式图数据库、完整 Cypher/GQL 或 RDF 推理能力。
 
 ## 7. 测试与验收矩阵
 
