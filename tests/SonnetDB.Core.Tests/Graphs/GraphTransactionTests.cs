@@ -24,7 +24,7 @@ public sealed class GraphTransactionTests : IDisposable
         var sourceId = new GraphElementId(1);
         var targetId = new GraphElementId(2);
         var labelId = new LabelId(7);
-        var property = new GraphPropertyEntry(9, GraphPropertyValue.FromString("calls"));
+        var property = new GraphProperty(9, GraphPropertyValue.FromString("calls"));
 
         GraphTransaction transaction = store.BeginTransaction(Guid.NewGuid());
         transaction.UpsertEdge(edgeId, 0, sourceId, targetId, labelId, [property]);
@@ -73,13 +73,13 @@ public sealed class GraphTransactionTests : IDisposable
             new GraphElementId(1),
             1,
             [new LabelId(1)],
-            [new GraphPropertyEntry(1, GraphPropertyValue.FromString("first"))]);
+            [new GraphProperty(1, GraphPropertyValue.FromString("first"))]);
         GraphTransaction second = store.BeginTransaction(Guid.NewGuid());
         second.UpsertVertex(
             new GraphElementId(1),
             1,
             [new LabelId(1)],
-            [new GraphPropertyEntry(1, GraphPropertyValue.FromString("second"))]);
+            [new GraphProperty(1, GraphPropertyValue.FromString("second"))]);
 
         Task<Exception?> firstResult = Task.Run<Exception?>(() => Record.Exception(() => first.Commit()));
         Task<Exception?> secondResult = Task.Run<Exception?>(() => Record.Exception(() => second.Commit()));
@@ -199,7 +199,7 @@ public sealed class GraphTransactionTests : IDisposable
             sourceId,
             targetId,
             labelId,
-            [new GraphPropertyEntry(8, GraphPropertyValue.FromInt64(42))]);
+            [new GraphProperty(8, GraphPropertyValue.FromInt64(42))]);
         store.Keyspace.WalSyncTestHook = static () =>
             throw new InvalidOperationException("simulated fsync failure");
 
@@ -216,7 +216,7 @@ public sealed class GraphTransactionTests : IDisposable
             sourceId,
             targetId,
             labelId,
-            [new GraphPropertyEntry(8, GraphPropertyValue.FromInt64(42))]);
+            [new GraphProperty(8, GraphPropertyValue.FromInt64(42))]);
         GraphCommitResult resolved = retry.Commit();
 
         Assert.True(resolved.IsDuplicate);

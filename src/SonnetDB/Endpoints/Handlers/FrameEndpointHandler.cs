@@ -10,6 +10,7 @@ using SonnetDB.Diagnostics;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
 using SonnetDB.Exceptions;
+using SonnetDB.Graphs;
 using SonnetDB.Hosting;
 using SonnetDB.Ingest;
 using SonnetDB.Json;
@@ -26,7 +27,7 @@ namespace SonnetDB.Endpoints;
 
 /// <summary>
 /// 通用二进制帧端点处理器（M28 P5b #235；#237 挂载 tsdb service；#238 挂载 sql service；
-/// #239 挂载 vector service；#240 挂载 kv / object / doc service——七个 service 全部就位）。
+/// #239 挂载 vector service；#240 挂载 kv / object / doc service；M40 #351 追加 graph service）。
 /// 请求体 = 1..N 个请求帧，逐帧解析、鉴权、分发到引擎、逐帧写回响应帧（streamId 回显）。
 /// sql 查询与 vector 检索响应为同 streamId 的流式帧序列（meta → rows × N → end），
 /// object get 响应为 meta → data × N → end，均逐块 flush。
@@ -104,6 +105,8 @@ internal static class FrameEndpointHandler
                             await ExecuteVectorSearchAsync(ctx, registry, grants, metrics, writer, header, payload).ConfigureAwait(false);
                         else if (header.Service == (byte)FrameService.Object)
                             await ExecuteObjectOpAsync(ctx, registry, grants, writer, header, payload).ConfigureAwait(false);
+                        else if (header.Service == (byte)FrameService.Graph)
+                            await ExecuteGraphExpandAsync(ctx, registry, grants, writer, header, payload).ConfigureAwait(false);
                         else
                             DispatchFrame(ctx, registry, grants, mqStore, metrics, writer, header, payload);
                         await writer.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
@@ -255,10 +258,18 @@ internal static class FrameEndpointHandler
                 return $"doc service 不支持 op {header.Op}。";
             }
         }
+        else if (header.Service == (byte)FrameService.Graph)
+        {
+            if (header.Op != (byte)GraphFrameOp.Expand)
+            {
+                errorCode = "unsupported_op";
+                return $"graph service 不支持 op {header.Op}。";
+            }
+        }
         else
         {
             errorCode = "unsupported_service";
-            return $"service {header.Service} 未定义（mq=1、tsdb=2、sql=3、vector=4、kv=5、object=6、doc=7）。";
+            return $"service {header.Service} 未定义（mq=1、tsdb=2、sql=3、vector=4、kv=5、object=6、doc=7、graph=8）。";
         }
 
         errorCode = string.Empty;
@@ -820,6 +831,109 @@ internal static class FrameEndpointHandler
             default:
                 FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "unsupported_op", $"doc service 不支持 op {header.Op}。");
                 return;
+        }
+    }
+
+    private static async Task ExecuteGraphExpandAsync(
+        HttpContext ctx,
+        TsdbRegistry registry,
+        GrantsStore grants,
+        PipeWriter writer,
+        FrameHeader header,
+        ReadOnlySequence<byte> payload)
+    {
+        byte[]? rented = null;
+        try
+        {
+            ReadOnlyMemory<byte> payloadMemory;
+            if (payload.IsSingleSegment)
+            {
+                payloadMemory = payload.First;
+            }
+            else
+            {
+                rented = ArrayPool<byte>.Shared.Rent((int)payload.Length);
+                payload.CopyTo(rented);
+                payloadMemory = rented.AsMemory(0, (int)payload.Length);
+            }
+
+            GraphExpandFrameRequest request = GraphFrameCodec.DecodeExpandRequest(payloadMemory.Span);
+            SonnetDbEndpoints.MqAccessResult access = SonnetDbEndpoints.EvaluateDatabaseAccess(
+                ctx,
+                registry,
+                grants,
+                request.Database,
+                DatabasePermission.Read,
+                out Tsdb tsdb);
+            if (access.Status != SonnetDbEndpoints.MqAccessStatus.Ok)
+            {
+                string code = access.Status switch
+                {
+                    SonnetDbEndpoints.MqAccessStatus.DbNotFound => "db_not_found",
+                    SonnetDbEndpoints.MqAccessStatus.Forbidden => "forbidden",
+                    _ => "bad_request",
+                };
+                FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, code, access.Message);
+                return;
+            }
+
+            GraphStore? store = tsdb.Graphs.TryOpen(request.Graph);
+            if (store is null)
+            {
+                FrameCodec.WriteErrorFrame(
+                    writer,
+                    header.Service,
+                    header.Op,
+                    header.StreamId,
+                    "graph_not_found",
+                    $"graph '{request.Graph}' 不存在。");
+                return;
+            }
+
+            using GraphReadSession read = store.BeginRead();
+            using GraphCursor<GraphExpansion> cursor = read.Expand(
+                request.VertexId,
+                request.Direction,
+                request.EdgeLabelId,
+                new GraphCursorOptions
+                {
+                    PageSize = request.PageSize,
+                    MaxResults = request.MaxResults,
+                });
+            GraphFrameCodec.EncodeExpandMetaFrame(writer, header.StreamId, cursor.SnapshotSequence);
+            await writer.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
+            long rowCount = 0;
+            while (true)
+            {
+                IReadOnlyList<GraphExpansion> page = cursor.ReadNextPage(ctx.RequestAborted);
+                if (page.Count == 0)
+                    break;
+                foreach (GraphExpansion expansion in page)
+                {
+                    GraphFrameCodec.EncodeExpandRowFrame(writer, header.StreamId, expansion);
+                    rowCount++;
+                }
+                await writer.FlushAsync(ctx.RequestAborted).ConfigureAwait(false);
+            }
+            GraphFrameCodec.EncodeExpandEndFrame(writer, header.StreamId, rowCount);
+        }
+        catch (OperationCanceledException) when (ctx.RequestAborted.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception) when (exception is FrameFormatException or ArgumentException or InvalidOperationException)
+        {
+            string code = exception is FrameFormatException ? "bad_frame" : "bad_request";
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, code, exception.Message);
+        }
+        catch (InvalidDataException exception)
+        {
+            FrameCodec.WriteErrorFrame(writer, header.Service, header.Op, header.StreamId, "graph_corrupt", exception.Message);
+        }
+        finally
+        {
+            if (rented is not null)
+                ArrayPool<byte>.Shared.Return(rented);
         }
     }
 

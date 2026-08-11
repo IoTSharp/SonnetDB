@@ -313,6 +313,28 @@ public sealed class BackupService
             }
         }
 
+        foreach (var graph in tsdb.Graphs.Catalog.Snapshot())
+        {
+            try
+            {
+                GraphIndexRebuildResult rebuild = tsdb.Graphs.Open(graph.Name).RebuildIndexes();
+                entries.Add(new BackupIndexRebuildEntry(
+                    "graph",
+                    graph.Name,
+                    "__derived__",
+                    "adjacency/property/unique",
+                    "rebuilt",
+                    rebuild.UniqueDeclarationsWereSupplied
+                        ? "graph derived indexes rebuilt from element records and supplied unique declarations."
+                        : "graph derived indexes rebuilt; unique declarations were limited to discoverable existing keys.",
+                    rebuild.RepairedEntries));
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidDataException or InvalidOperationException or IOException or UnauthorizedAccessException)
+            {
+                entries.Add(FailedIndex("graph", graph.Name, "__derived__", "adjacency/property/unique", ex.Message));
+            }
+        }
+
         foreach (var schema in tsdb.Measurements.Snapshot())
         {
             foreach (var column in schema.Columns)

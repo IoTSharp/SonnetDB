@@ -9,7 +9,6 @@ namespace SonnetDB.Graphs;
 /// 单个原生属性图的存储句柄。
 /// </summary>
 /// <remarks>
-/// Phase 0 只公开稳定的图元数据和生命周期；顶点、边、遍历及事务 API 在后续里程碑中加入。
 /// 图存储身份由固定 marker 绑定到目录定义，打开时会先校验 marker，再获取底层 KV 生命周期租约。
 /// </remarks>
 public sealed class GraphStore : IDisposable
@@ -174,11 +173,11 @@ public sealed class GraphStore : IDisposable
         }
     }
 
-    /// <summary>创建单 graph、单 keyspace 的内部乐观 transaction。</summary>
+    /// <summary>创建单 graph、单 keyspace 的乐观原子 transaction。</summary>
     /// <param name="requestId">用于未知提交结果解析和重复请求去重的稳定 ID。</param>
     /// <param name="limits">可选 transaction 写预算。</param>
     /// <returns>尚未提交的 transaction。</returns>
-    internal GraphTransaction BeginTransaction(
+    public GraphTransaction BeginTransaction(
         Guid requestId,
         GraphTransactionLimits? limits = null)
     {
@@ -186,6 +185,40 @@ public sealed class GraphStore : IDisposable
         {
             ThrowIfDisposed();
             return new GraphTransaction(this, requestId, limits);
+        }
+    }
+
+    /// <summary>创建固定当前序列的稳定 Graph 读快照。</summary>
+    /// <returns>可执行点读、索引 seek 与流式邻接扩展的读会话。</returns>
+    public GraphReadSession BeginRead()
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            return new GraphReadSession(this, _keyspace.AcquireReadSnapshot());
+        }
+    }
+
+    /// <summary>按稳定快照有界重建图的邻接、label、property 和可识别 unique 派生索引。</summary>
+    /// <param name="options">页大小和可选的唯一索引声明。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>扫描、修复、删除计数及最后序列号。</returns>
+    /// <remarks>
+    /// 冻结 V1 元素记录不包含 unique 声明。未提供声明时，方法只能从现存 unique key 推断声明；
+    /// 若某个声明的全部 key 均已丢失，调用方必须通过 <paramref name="options"/> 重新提供该声明。
+    /// </remarks>
+    public GraphIndexRebuildResult RebuildIndexes(
+        GraphIndexRebuildOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        options ??= new GraphIndexRebuildOptions();
+        options.Validate();
+        options = options with { UniqueIndexes = options.UniqueIndexes.ToArray() };
+        lock (_commitGate)
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            return GraphIndexRepair.Rebuild(_keyspace, options, cancellationToken);
         }
     }
 

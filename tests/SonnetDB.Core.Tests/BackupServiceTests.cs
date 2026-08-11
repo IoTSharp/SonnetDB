@@ -317,7 +317,7 @@ public sealed class BackupServiceTests : IDisposable
             new GraphElementId(1),
             expectedElementVersion: 0,
             [new LabelId(1)],
-            [new GraphPropertyEntry(1, GraphPropertyValue.FromString("after-backup"))]);
+            [new GraphProperty(1, GraphPropertyValue.FromString("after-backup"))]);
 
         using var graphCatalogCopied = new ManualResetEventSlim();
         using var releaseFileCopy = new ManualResetEventSlim();
@@ -947,19 +947,19 @@ public sealed class BackupServiceTests : IDisposable
             new GraphElementId(1),
             expectedElementVersion: 0,
             [new LabelId(1)],
-            [new GraphPropertyEntry(1, GraphPropertyValue.FromString("source"))]);
+            [new GraphProperty(1, GraphPropertyValue.FromString("source"))]);
         transaction.UpsertVertex(
             new GraphElementId(2),
             expectedElementVersion: 0,
             [new LabelId(2)],
-            [new GraphPropertyEntry(2, GraphPropertyValue.FromString("target"))]);
+            [new GraphProperty(2, GraphPropertyValue.FromString("target"))]);
         transaction.UpsertEdge(
             new GraphElementId(10),
             expectedElementVersion: 0,
             new GraphElementId(1),
             new GraphElementId(2),
             new LabelId(3),
-            [new GraphPropertyEntry(3, GraphPropertyValue.FromString("calls"))]);
+            [new GraphProperty(3, GraphPropertyValue.FromString("calls"))]);
         _ = transaction.Commit();
     }
 }

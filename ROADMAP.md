@@ -57,7 +57,7 @@
 5. M34 的默认关闭 TCP master/slave runtime、#292 受限远端写和 #293 失败质量/source health 已完成，下一步进入 #295 endpoint 外部写治理；M35 在过滤 ANN 与内容生命周期地基完成后再做媒体场景。
 6. M36 先完成八模型 golden journey 与 gap catalog；实现顺序为高频客户端工作流 -> 查询诊断 -> 高级治理，Document 复用已完成的 M32 结果，向量高级项复用 M35 地基。
 7. M39 先执行 #333 触发器 V2 证据门禁；未证明 V1 在真实 journey 上存在缺口前，不直接扩展 BEFORE、statement-level 或多模型触发器。
-8. M40 已完成 #341 的 workload/合同证据和 #342~#346 公共存储地基，下一步进入 #347~#352 Native Graph Preview；Phase 2 的关系映射规划和流式执行必须复用 M41 的公共计划/算子合同，不得另建一套关系优化器。正式上层产品 [Couplet](https://github.com/IoTSharp/Couplet) 的仓库/路线基线已经建立，产品实现仍按 C0-C4 推进；其 golden journey、执行计划或固定硬件报告一旦复现通用 Core 缺口，该缺口即成为对应阶段的阻塞项，并按“正确性与恢复 -> 有界执行及消除非预期全扫/物化 -> 容量与延迟 -> API/产品面”优先修复；不得在上层以关系边表、应用层遍历、第二套图存储或隐藏全量扫描兜底。正式产品定位在 M40 发布门禁通过前继续保持“八种数据模型，一套引擎”。
+8. M40 已完成 #341 的 workload/合同证据和 #342~#346 公共存储地基，#347~#351 Native Graph Preview Core/Server/SDK/import 正在实现与回归，#352 固定硬件、Neo4j 和完整双 gate 证据仍未通过；Phase 2 的关系映射规划和流式执行必须复用 M41 的公共计划/算子合同，不得另建一套关系优化器。正式上层产品 [Couplet](https://github.com/IoTSharp/Couplet) 的仓库/路线基线已经建立，产品实现仍按 C0-C4 推进；其 golden journey、执行计划或固定硬件报告一旦复现通用 Core 缺口，该缺口即成为对应阶段的阻塞项，并按“正确性与恢复 -> 有界执行及消除非预期全扫/物化 -> 容量与延迟 -> API/产品面”优先修复；不得在上层以关系边表、应用层遍历、第二套图存储或隐藏全量扫描兜底。正式产品定位在 M40 发布门禁通过前继续保持“八种数据模型，一套引擎”。
 
 ## 待补验收证据
 
@@ -308,7 +308,7 @@ Phase A 已完成本地合同与持久化地基：DDL、Parser/AST、独立版�
 | 阶段 | PR 范围 | 交付边界 | 状态 |
 |---|---|---|---|
 | Phase 0：公共地基 | #341~#346 | ADR/golden journey、共享 sortable codec、KV snapshot cursor、Graph Catalog、单 graph 原子事务、backup/invariant/crash 骨架；无对外 Graph 能力宣称。 | ✅ 已完成；仅公共地基，不代表 Native Graph Preview |
-| Phase 1：Native Graph Preview | #347~#352 | 原生 GraphStore、双向邻接、属性索引、流式 Expand/BFS/DFS/shortest path、Server/SDK/import 和首轮 Neo4j/容量证据。 | 📋 |
+| Phase 1：Native Graph Preview | #347~#352 | 原生 GraphStore、双向邻接、属性索引、流式 Expand/BFS/DFS/shortest path、Server/SDK/import 和首轮 Neo4j/容量证据。Core/Server/SDK/import 已进入实现与回归，固定硬件、Neo4j 和完整恢复/容量报告仍未通过。 | 🚧 |
 | Phase 2：SQL/PGQ Graph Beta | #353~#359 | 共享 Graph Logical Plan、原生 graph SQL DDL/DML、SQL/PGQ 关系映射、`GRAPH_TABLE MATCH`、planner/EXPLAIN、跨模型 SQL 组合与 M35/M36 Hybrid Search 候选合同复用。 | 📋 |
 | Phase 3：生产级单机图数据库 | #360~#367 | statement snapshot、supernode/维护、按证据准入的高级路径/算法、可选 GQL 风格入口、知识图谱组合、运维产品面和发布门禁。 | 📋 |
 

@@ -53,6 +53,17 @@ public sealed class KvReadSnapshot : IDisposable
         }
     }
 
+    /// <summary>为同一稳定可见视图取得独立生命周期租约。</summary>
+    internal KvReadSnapshot AcquireLease()
+    {
+        lock (_sync)
+        {
+            ObjectDisposedException.ThrowIf(_state is null, this);
+            _state.AddReference();
+            return new KvReadSnapshot(_state);
+        }
+    }
+
     /// <summary>释放快照自身持有的状态租约。</summary>
     public void Dispose()
     {
@@ -411,7 +422,7 @@ internal sealed class KvReadSnapshotState
         diskLease?.Dispose();
     }
 
-    private void AddReference()
+    internal void AddReference()
     {
         lock (_sync)
         {

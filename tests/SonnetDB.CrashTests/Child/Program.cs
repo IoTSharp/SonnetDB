@@ -246,9 +246,9 @@ static void RunKillGraphBatchDuringFsync(string root, string readyFile)
         Thread.Sleep(Timeout.Infinite);
     };
 
-    GraphPropertyEntry[] sourceProperties = BuildGraphProperties("source");
-    GraphPropertyEntry[] targetProperties = BuildGraphProperties("target");
-    GraphPropertyEntry[] edgeProperties = BuildGraphProperties("edge");
+    GraphProperty[] sourceProperties = BuildGraphProperties("source");
+    GraphProperty[] targetProperties = BuildGraphProperties("target");
+    GraphProperty[] edgeProperties = BuildGraphProperties("edge");
     GraphTransaction transaction = store.BeginTransaction(Guid.Parse("34600000-0000-0000-0000-000000000001"));
     transaction.UpsertVertex(
         new GraphElementId(1),
@@ -279,12 +279,12 @@ static void RunHoldGraphManagerLifecycleLease(string root, string readyFile)
     Thread.Sleep(Timeout.Infinite);
 }
 
-static GraphPropertyEntry[] BuildGraphProperties(string prefix)
+static GraphProperty[] BuildGraphProperties(string prefix)
 {
-    var properties = new GraphPropertyEntry[512];
+    var properties = new GraphProperty[512];
     for (int index = 0; index < properties.Length; index++)
     {
-        properties[index] = new GraphPropertyEntry(
+        properties[index] = new GraphProperty(
             index + 1,
             GraphPropertyValue.FromString(prefix + ":" + index + ":" + new string('x', 256)));
     }

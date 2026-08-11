@@ -17,6 +17,7 @@ using SonnetDB.Benchmarks.Benchmarks;
 //   dotnet run -c Release -- --table-delete-smoke （#126.1 delete/truncate 路径烟测）
 //   dotnet run -c Release -- --m39-trigger-baseline-smoke （#333 触发器基线证据）
 //   dotnet run -c Release -- --m39-trigger-evidence --output artifacts/m39-trigger-v2 （#333 JSON/Markdown 报告）
+//   dotnet run -c Release -- --m40-graph-evidence --quick （M40 Native Graph Preview 本地 evidence）
 //   dotnet run -c Release -- --filter *         （运行所有基准）
 //
 // 运行前请先启动外部数据库（见 docker/docker-compose.yml）：
@@ -41,11 +42,24 @@ if (args.Contains("--m39-trigger-baseline-smoke", StringComparer.OrdinalIgnoreCa
 
 if (args.Contains("--m39-trigger-evidence", StringComparer.OrdinalIgnoreCase))
 {
-    string outputDirectory = ReadOutputDirectory(args);
+    string outputDirectory = ReadOutputDirectory(args, Path.Combine("artifacts", "m39-trigger-v2"));
     TriggerEvidenceReportRunner.Run(
         outputDirectory,
         args.Contains("--quick", StringComparer.OrdinalIgnoreCase) ? [1] : [1, 100, 10_000]);
     Console.WriteLine($"m39-trigger-evidence=PASS output={outputDirectory}");
+    return;
+}
+
+if (args.Contains("--m40-graph-evidence", StringComparer.OrdinalIgnoreCase))
+{
+    string outputDirectory = ReadOutputDirectory(args, Path.Combine("artifacts", "m40-native-graph-preview"));
+    GraphPreviewEvidenceReport report = GraphPreviewEvidenceRunner.Run(
+        outputDirectory,
+        args.Contains("--quick", StringComparer.OrdinalIgnoreCase));
+    Console.WriteLine(
+        $"m40-graph-local-smoke={report.Correctness} output={outputDirectory} "
+        + $"correctness-recovery={report.CorrectnessRecovery} performance-capacity={report.PerformanceCapacity} "
+        + $"release-decision={report.ReleaseDecision} fixed-hardware={report.FixedHardware} neo4j={report.Neo4jComparison}");
     return;
 }
 
@@ -224,7 +238,7 @@ static void CollectBetweenEvidenceSamples()
 }
 
 // 读取报告输出目录；未指定时返回仓库内的默认 artifact 路径。
-static string ReadOutputDirectory(string[] args)
+static string ReadOutputDirectory(string[] args, string defaultDirectory)
 {
     const string option = "--output";
     for (int index = 0; index < args.Length - 1; index++)
@@ -237,5 +251,5 @@ static string ReadOutputDirectory(string[] args)
         }
     }
 
-    return Path.Combine("artifacts", "m39-trigger-v2");
+    return defaultDirectory;
 }

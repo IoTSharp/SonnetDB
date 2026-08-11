@@ -145,10 +145,41 @@ internal static class GraphKeyCodec
         return prefix;
     }
 
+    public static byte[] OutgoingPrefix(GraphElementId sourceId, LabelId edgeTypeId)
+    {
+        byte[] prefix = Prefix(GraphKeyKind.OutgoingAdjacency, sizeof(long) + sizeof(int));
+        Span<byte> payload = prefix.AsSpan(GraphStorageFormat.KeyHeaderSize);
+        WriteElementId(payload, sourceId);
+        WriteLabelId(payload[sizeof(long)..], edgeTypeId);
+        return prefix;
+    }
+
     public static byte[] IncomingPrefix(GraphElementId targetId)
     {
         byte[] prefix = Prefix(GraphKeyKind.IncomingAdjacency, sizeof(long));
         WriteElementId(prefix.AsSpan(GraphStorageFormat.KeyHeaderSize), targetId);
+        return prefix;
+    }
+
+    public static byte[] IncomingPrefix(GraphElementId targetId, LabelId edgeTypeId)
+    {
+        byte[] prefix = Prefix(GraphKeyKind.IncomingAdjacency, sizeof(long) + sizeof(int));
+        Span<byte> payload = prefix.AsSpan(GraphStorageFormat.KeyHeaderSize);
+        WriteElementId(payload, targetId);
+        WriteLabelId(payload[sizeof(long)..], edgeTypeId);
+        return prefix;
+    }
+
+    public static byte[] LabelPrefix(GraphElementKind elementKind, LabelId labelId)
+    {
+        GraphKeyKind kind = elementKind switch
+        {
+            GraphElementKind.Vertex => GraphKeyKind.VertexLabel,
+            GraphElementKind.Edge => GraphKeyKind.EdgeLabel,
+            _ => throw new ArgumentOutOfRangeException(nameof(elementKind)),
+        };
+        byte[] prefix = Prefix(kind, sizeof(int));
+        WriteLabelId(prefix.AsSpan(GraphStorageFormat.KeyHeaderSize), labelId);
         return prefix;
     }
 
@@ -178,6 +209,25 @@ internal static class GraphKeyCodec
         WriteLabelId(payload, labelId);
         BinaryPrimitives.WriteInt32BigEndian(payload[sizeof(int)..], propertyId);
         scalar.CopyTo(payload[(sizeof(int) * 2)..]);
+        return prefix;
+    }
+
+    internal static byte[] PropertyIndexFamilyPrefix(
+        GraphElementKind elementKind,
+        LabelId labelId,
+        int propertyId)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(propertyId);
+        GraphKeyKind kind = elementKind switch
+        {
+            GraphElementKind.Vertex => GraphKeyKind.VertexPropertyIndex,
+            GraphElementKind.Edge => GraphKeyKind.EdgePropertyIndex,
+            _ => throw new ArgumentOutOfRangeException(nameof(elementKind)),
+        };
+        byte[] prefix = Prefix(kind, sizeof(int) + sizeof(int));
+        Span<byte> payload = prefix.AsSpan(GraphStorageFormat.KeyHeaderSize);
+        WriteLabelId(payload, labelId);
+        BinaryPrimitives.WriteInt32BigEndian(payload[sizeof(int)..], propertyId);
         return prefix;
     }
 

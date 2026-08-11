@@ -3,9 +3,6 @@ using SonnetDB.Storage.Codecs;
 
 namespace SonnetDB.Graphs.Storage;
 
-/// <summary>图记录中的类型化 property。</summary>
-internal readonly record struct GraphPropertyEntry(int PropertyId, GraphPropertyValue Value);
-
 /// <summary>已规范化的 vertex 持久记录。</summary>
 internal sealed class GraphVertexRecord
 {
@@ -13,7 +10,7 @@ internal sealed class GraphVertexRecord
         GraphElementId id,
         long elementVersion,
         IEnumerable<LabelId> labels,
-        IEnumerable<GraphPropertyEntry> properties)
+        IEnumerable<GraphProperty> properties)
     {
         if (id.Value <= 0)
             throw new ArgumentOutOfRangeException(nameof(id));
@@ -32,7 +29,7 @@ internal sealed class GraphVertexRecord
 
     internal IReadOnlyList<LabelId> Labels { get; }
 
-    internal IReadOnlyList<GraphPropertyEntry> Properties { get; }
+    internal IReadOnlyList<GraphProperty> Properties { get; }
 }
 
 /// <summary>已规范化的 edge 持久记录。</summary>
@@ -44,7 +41,7 @@ internal sealed class GraphEdgeRecord
         GraphElementId sourceId,
         GraphElementId targetId,
         LabelId labelId,
-        IEnumerable<GraphPropertyEntry> properties)
+        IEnumerable<GraphProperty> properties)
     {
         if (id.Value <= 0)
             throw new ArgumentOutOfRangeException(nameof(id));
@@ -74,7 +71,7 @@ internal sealed class GraphEdgeRecord
 
     internal LabelId LabelId { get; }
 
-    internal IReadOnlyList<GraphPropertyEntry> Properties { get; }
+    internal IReadOnlyList<GraphProperty> Properties { get; }
 }
 
 /// <summary>Graph vertex/edge V1 payload 编解码器。</summary>
@@ -135,7 +132,7 @@ internal static class GraphElementRecordCodec
             labels[i] = new LabelId(value);
             previousLabel = value;
         }
-        GraphPropertyEntry[] properties = ReadProperties(payload, ref offset, propertyCount);
+        GraphProperty[] properties = ReadProperties(payload, ref offset, propertyCount);
         EnsureComplete(payload, offset);
         return new GraphVertexRecord(id, envelope.ElementVersion, labels, properties);
     }
@@ -183,7 +180,7 @@ internal static class GraphElementRecordCodec
         if (labelValue <= 0)
             throw new InvalidDataException("Graph edge label ID 无效。");
         int propertyCount = ReadBoundedCount(payload, ref offset, MaxProperties, "property");
-        GraphPropertyEntry[] properties = ReadProperties(payload, ref offset, propertyCount);
+        GraphProperty[] properties = ReadProperties(payload, ref offset, propertyCount);
         EnsureComplete(payload, offset);
         return new GraphEdgeRecord(
             id,
@@ -217,13 +214,13 @@ internal static class GraphElementRecordCodec
         return result;
     }
 
-    internal static GraphPropertyEntry[] NormalizeProperties(
-        IEnumerable<GraphPropertyEntry> properties,
+    internal static GraphProperty[] NormalizeProperties(
+        IEnumerable<GraphProperty> properties,
         string parameterName)
     {
-        var bounded = new List<GraphPropertyEntry>();
+        var bounded = new List<GraphProperty>();
         long encodedBytes = 0;
-        foreach (GraphPropertyEntry property in properties)
+        foreach (GraphProperty property in properties)
         {
             if (bounded.Count == MaxProperties)
             {
@@ -247,7 +244,7 @@ internal static class GraphElementRecordCodec
             }
             bounded.Add(property);
         }
-        GraphPropertyEntry[] result = [.. bounded];
+        GraphProperty[] result = [.. bounded];
         Array.Sort(result, static (left, right) => left.PropertyId.CompareTo(right.PropertyId));
         for (int i = 0; i < result.Length; i++)
         {
@@ -263,7 +260,7 @@ internal static class GraphElementRecordCodec
     private static void WriteProperties(
         Span<byte> destination,
         ref int offset,
-        IReadOnlyList<GraphPropertyEntry> properties,
+        IReadOnlyList<GraphProperty> properties,
         IReadOnlyList<int> scalarSizes)
     {
         for (int i = 0; i < properties.Count; i++)
@@ -286,12 +283,12 @@ internal static class GraphElementRecordCodec
         }
     }
 
-    private static GraphPropertyEntry[] ReadProperties(
+    private static GraphProperty[] ReadProperties(
         ReadOnlySpan<byte> payload,
         ref int offset,
         int count)
     {
-        var properties = new GraphPropertyEntry[count];
+        var properties = new GraphProperty[count];
         int previousPropertyId = 0;
         for (int i = 0; i < properties.Length; i++)
         {
@@ -311,7 +308,7 @@ internal static class GraphElementRecordCodec
             if (consumed <= 0 || consumed > payload.Length - offset)
                 throw new InvalidDataException("Graph property scalar 长度无效。");
             offset += consumed;
-            properties[i] = new GraphPropertyEntry(propertyId, value);
+            properties[i] = new GraphProperty(propertyId, value);
             previousPropertyId = propertyId;
         }
         return properties;

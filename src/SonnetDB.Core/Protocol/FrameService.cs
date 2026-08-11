@@ -1,8 +1,7 @@
 namespace SonnetDB.Protocol;
 
 /// <summary>
-/// 二进制帧的目标 service。全部 7 个 service 编号在 #235 一次性保留，
-/// #237~#240 逐个挂载 opcode，编号不再变更。
+/// 二进制帧的目标 service。既有 1~7 编号保持不变；后续服务仅向末尾扩展。
 /// </summary>
 public enum FrameService : byte
 {
@@ -26,4 +25,7 @@ public enum FrameService : byte
 
     /// <summary>文档集合（#240）。</summary>
     Doc = 7,
+
+    /// <summary>原生属性图（M40 #351）。</summary>
+    Graph = 8,
 }

@@ -50,6 +50,7 @@
 
 ### Added
 
+- **M40 Phase 1 #347～#351 Native Graph Preview implementation**：在冻结 Graph V1 key/record 和单 graph 原子事务之上接入 vertex/edge CRUD、双向 adjacency、label/property/unique 索引、按页 `RebuildIndexes`、seek/Expand、BFS/DFS/paths/shortest path、cardinality/degree/statistics/EXPLAIN、REST/NDJSON、Graph Frame service 8、embedded/remote typed SDK，以及无全量内存化的 CSV/native JSON/normalized `nodes/relationships` importer。导入用确定性 batch request ID 支持重放恢复；证据 runner 真实 reopen/replay 并输出 source-generated JSON，但固定硬件、Neo4j、完整 correctness/recovery 和 performance/capacity gate 仍为 `NOT_RUN`，因此不宣称 Native Graph Preview 发布。
 - **M40 Phase 0 #341 公共合同与证据基线**：冻结原生图/关系映射图术语边界、五条 golden journey、目标规模与复杂度/内存/P95/P99 SLO、正确性/恢复和性能/容量双 gate，以及可追溯的 capability gap catalog；该合同不开放 Graph CRUD、遍历、SQL/PGQ 或产品能力。
 - **M40 Phase 0 #342 图类型与版本化格式**：新增 `GraphElementId`、`LabelId`、`GraphPropertyValue`、通用 sortable scalar codec 和带版本/CRC 的 Graph key/record V1；以 frozen byte vectors 固定 vertex、edge、scalar、metadata 与唯一属性 owner 编码，冻结严格 UTF-8、64 KiB 完整 key 与 16 MiB 完整 record 上限，并证明现有 Table V1 编码字节不变。
 - **M40 Phase 0 #343 KV 稳定读取地基**：新增持有 checkpoint/segment lease 的 `KvReadSnapshot`、可取消的前向 `KvRangeCursor`、固定快照时刻的 TTL 判断、二分 seek，以及同时受条目数和 key/value payload 字节数约束的有界页所有权；内存表、WAL overlay 与磁盘段按三层惰性归并，不在 keyspace 写锁内执行消费逻辑，也不从头重扫后续页。

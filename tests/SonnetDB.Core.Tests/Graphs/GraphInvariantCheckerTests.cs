@@ -234,7 +234,7 @@ public sealed class GraphInvariantCheckerTests : IDisposable
             new GraphElementId(3),
             expectedElementVersion: 0,
             [new LabelId(1)],
-            [new GraphPropertyEntry(1, GraphPropertyValue.FromString("source"))]);
+            [new GraphProperty(1, GraphPropertyValue.FromString("source"))]);
         transaction.Commit();
         store.Keyspace.Put(
             GraphKeyCodec.EncodeUniqueProperty(
@@ -318,7 +318,7 @@ public sealed class GraphInvariantCheckerTests : IDisposable
                     new GraphElementId(id),
                     expectedElementVersion: 0,
                     [new LabelId(1)],
-                    [new GraphPropertyEntry(1, GraphPropertyValue.FromInt64(id))]);
+                    [new GraphProperty(1, GraphPropertyValue.FromInt64(id))]);
             }
             transaction.Commit();
         }
@@ -353,19 +353,19 @@ public sealed class GraphInvariantCheckerTests : IDisposable
             new GraphElementId(1),
             expectedElementVersion: 0,
             [new LabelId(1)],
-            [new GraphPropertyEntry(1, GraphPropertyValue.FromString("source"))]);
+            [new GraphProperty(1, GraphPropertyValue.FromString("source"))]);
         transaction.UpsertVertex(
             new GraphElementId(2),
             expectedElementVersion: 0,
             [new LabelId(2)],
-            [new GraphPropertyEntry(2, GraphPropertyValue.FromString("target"))]);
+            [new GraphProperty(2, GraphPropertyValue.FromString("target"))]);
         transaction.UpsertEdge(
             new GraphElementId(10),
             expectedElementVersion: 0,
             new GraphElementId(1),
             new GraphElementId(2),
             new LabelId(3),
-            [new GraphPropertyEntry(3, GraphPropertyValue.FromString("calls"))]);
+            [new GraphProperty(3, GraphPropertyValue.FromString("calls"))]);
         GraphCommitResult result = transaction.Commit();
         Assert.False(result.IsDuplicate);
     }

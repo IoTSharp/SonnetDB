@@ -6,6 +6,7 @@ using SonnetDB.Mcp;
 using SonnetDB.Model;
 using SonnetDB.Modbus;
 using SonnetDB.SemanticSearch;
+using SonnetDB.Graphs;
 
 namespace SonnetDB.Json;
 
@@ -30,6 +31,29 @@ namespace SonnetDB.Json;
 [JsonSerializable(typeof(CreateDatabaseRequest))]
 [JsonSerializable(typeof(DatabaseOperationResponse))]
 [JsonSerializable(typeof(DatabaseListResponse))]
+[JsonSerializable(typeof(GraphCreateRequest))]
+[JsonSerializable(typeof(GraphInfoDto))]
+[JsonSerializable(typeof(GraphInfoDto[]))]
+[JsonSerializable(typeof(GraphValueDto))]
+[JsonSerializable(typeof(GraphPropertyDto))]
+[JsonSerializable(typeof(GraphVertexDto))]
+[JsonSerializable(typeof(GraphEdgeDto))]
+[JsonSerializable(typeof(GraphUpsertVertexRequest))]
+[JsonSerializable(typeof(GraphUpsertEdgeRequest))]
+[JsonSerializable(typeof(GraphDeleteRequest))]
+[JsonSerializable(typeof(GraphMutationResponse))]
+[JsonSerializable(typeof(GraphExpandRequest))]
+[JsonSerializable(typeof(GraphExpandResponse))]
+[JsonSerializable(typeof(GraphSeekRequest))]
+[JsonSerializable(typeof(GraphTraversalRequest))]
+[JsonSerializable(typeof(GraphShortestPathRequest))]
+[JsonSerializable(typeof(GraphPathDto))]
+[JsonSerializable(typeof(GraphShortestPathResponse))]
+[JsonSerializable(typeof(GraphExpansionDto))]
+[JsonSerializable(typeof(GraphImportVertexDto))]
+[JsonSerializable(typeof(GraphImportEdgeDto))]
+[JsonSerializable(typeof(GraphImportRequest))]
+[JsonSerializable(typeof(GraphImportResponse))]
 [JsonSerializable(typeof(HealthResponse))]
 [JsonSerializable(typeof(LoginRequest))]
 [JsonSerializable(typeof(LoginResponse))]

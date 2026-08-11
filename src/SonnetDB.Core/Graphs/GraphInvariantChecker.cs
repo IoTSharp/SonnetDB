@@ -270,7 +270,7 @@ internal static class GraphInvariantChecker
                     $"Vertex {record.Id.Value} is missing label index {label.Value}.");
             }
 
-            foreach (GraphPropertyEntry property in record.Properties)
+            foreach (GraphProperty property in record.Properties)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 byte[] propertyKey = GraphKeyCodec.EncodePropertyIndex(
@@ -374,7 +374,7 @@ internal static class GraphInvariantChecker
                 $"Edge {record.Id.Value} is missing label index {record.LabelId.Value}.");
         }
 
-        foreach (GraphPropertyEntry property in record.Properties)
+        foreach (GraphProperty property in record.Properties)
         {
             cancellationToken.ThrowIfCancellationRequested();
             byte[] propertyKey = GraphKeyCodec.EncodePropertyIndex(
@@ -663,11 +663,11 @@ internal static class GraphInvariantChecker
     }
 
     private static bool ContainsProperty(
-        IReadOnlyList<GraphPropertyEntry> properties,
+        IReadOnlyList<GraphProperty> properties,
         int propertyId,
         GraphPropertyValue value)
     {
-        foreach (GraphPropertyEntry property in properties)
+        foreach (GraphProperty property in properties)
         {
             if (property.PropertyId == propertyId)
                 return property.Value == value;
@@ -827,7 +827,7 @@ internal static class GraphInvariantChecker
             MaximumVertexId = Math.Max(MaximumVertexId, vertex.Id.Value);
             foreach (LabelId label in vertex.Labels)
                 MaximumLabelId = Math.Max(MaximumLabelId, label.Value);
-            foreach (GraphPropertyEntry property in vertex.Properties)
+            foreach (GraphProperty property in vertex.Properties)
                 MaximumPropertyId = Math.Max(MaximumPropertyId, property.PropertyId);
         }
 
@@ -837,7 +837,7 @@ internal static class GraphInvariantChecker
             MaximumEdgeId = Math.Max(MaximumEdgeId, edge.Id.Value);
             MaximumVertexId = Math.Max(MaximumVertexId, Math.Max(edge.SourceId.Value, edge.TargetId.Value));
             MaximumLabelId = Math.Max(MaximumLabelId, edge.LabelId.Value);
-            foreach (GraphPropertyEntry property in edge.Properties)
+            foreach (GraphProperty property in edge.Properties)
                 MaximumPropertyId = Math.Max(MaximumPropertyId, property.PropertyId);
         }
 

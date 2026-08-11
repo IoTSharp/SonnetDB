@@ -21,9 +21,9 @@ public sealed class GraphTransactionLimitTests : IDisposable
         GraphStore store = CreateStore("encoded-plan-limit");
         var vertexId = new GraphElementId(1);
         LabelId[] labels = [new LabelId(1)];
-        GraphPropertyEntry[] properties =
+        GraphProperty[] properties =
         [
-            new GraphPropertyEntry(1, GraphPropertyValue.FromString("bounded")),
+            new GraphProperty(1, GraphPropertyValue.FromString("bounded")),
         ];
         byte[] encodedRecord = GraphElementRecordCodec.EncodeVertex(
             new GraphVertexRecord(vertexId, 1, labels, properties));
@@ -84,13 +84,13 @@ public sealed class GraphTransactionLimitTests : IDisposable
         return _manager.Create(name);
     }
 
-    private static IEnumerable<GraphPropertyEntry> InfiniteProperties(Action onEnumerated)
+    private static IEnumerable<GraphProperty> InfiniteProperties(Action onEnumerated)
     {
         int propertyId = 1;
         while (true)
         {
             onEnumerated();
-            yield return new GraphPropertyEntry(
+            yield return new GraphProperty(
                 propertyId,
                 GraphPropertyValue.FromInt64(propertyId));
             propertyId++;

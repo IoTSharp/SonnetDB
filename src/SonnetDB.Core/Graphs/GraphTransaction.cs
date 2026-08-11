@@ -5,12 +5,14 @@ using SonnetDB.Kv;
 
 namespace SonnetDB.Graphs;
 
-/// <summary>Phase 0 graph transaction 的显式写预算。</summary>
-internal sealed record GraphTransactionLimits
+/// <summary>单 graph 原子事务的显式写预算。</summary>
+public sealed record GraphTransactionLimits
 {
-    internal int MaxKvMutations { get; init; } = 10_000;
+    /// <summary>事务展开后允许的最大 KV mutation 数。</summary>
+    public int MaxKvMutations { get; init; } = 10_000;
 
-    internal long MaxEncodedBytes { get; init; } = 64L * 1024 * 1024;
+    /// <summary>事务展开后允许的最大编码字节数。</summary>
+    public long MaxEncodedBytes { get; init; } = 64L * 1024 * 1024;
 
     internal static GraphTransactionLimits Default { get; } = new();
 
@@ -23,17 +25,46 @@ internal sealed record GraphTransactionLimits
     }
 }
 
-/// <summary>Graph transaction 提交结果。</summary>
-internal readonly record struct GraphCommitResult(long Sequence, bool IsDuplicate);
+/// <summary>
+/// Graph transaction 提交结果。
+/// </summary>
+/// <param name="Sequence">事务发布后的 KV 单调序列号。</param>
+/// <param name="IsDuplicate">相同 request ID 与内容是否解析为已有提交。</param>
+public readonly record struct GraphCommitResult(long Sequence, bool IsDuplicate);
 
 /// <summary>Graph element version 或 endpoint 条件冲突。</summary>
-internal sealed class GraphConcurrencyException : InvalidOperationException
+public sealed class GraphConcurrencyException : InvalidOperationException
 {
     internal GraphConcurrencyException(string message) : base(message) { }
 }
 
+/// <summary>Graph unique property 已由另一个元素占用。</summary>
+public sealed class GraphUniqueConstraintException : InvalidOperationException
+{
+    internal GraphUniqueConstraintException(
+        LabelId labelId,
+        int propertyId,
+        GraphElementId existingOwnerId)
+        : base(
+            $"Graph label {labelId} 的 unique property {propertyId} 已由元素 {existingOwnerId} 占用。")
+    {
+        LabelId = labelId;
+        PropertyId = propertyId;
+        ExistingOwnerId = existingOwnerId;
+    }
+
+    /// <summary>发生冲突的标签标识符。</summary>
+    public LabelId LabelId { get; }
+
+    /// <summary>发生冲突的属性标识符。</summary>
+    public int PropertyId { get; }
+
+    /// <summary>当前占用唯一值的元素标识符。</summary>
+    public GraphElementId ExistingOwnerId { get; }
+}
+
 /// <summary>Vertex 仍有 incoming/outgoing adjacency 时的 RESTRICT 错误。</summary>
-internal sealed class GraphVertexDeleteRestrictedException : InvalidOperationException
+public sealed class GraphVertexDeleteRestrictedException : InvalidOperationException
 {
     internal GraphVertexDeleteRestrictedException(GraphElementId vertexId)
         : base($"Graph vertex {vertexId} 仍有邻接边；Phase 0 delete 使用 RESTRICT。")
@@ -41,17 +72,18 @@ internal sealed class GraphVertexDeleteRestrictedException : InvalidOperationExc
         VertexId = vertexId;
     }
 
-    internal GraphElementId VertexId { get; }
+    /// <summary>仍具有邻接边的顶点标识符。</summary>
+    public GraphElementId VertexId { get; }
 }
 
 /// <summary>Graph transaction 超过显式 mutation/bytes 预算。</summary>
-internal sealed class GraphTransactionLimitExceededException : InvalidOperationException
+public sealed class GraphTransactionLimitExceededException : InvalidOperationException
 {
     internal GraphTransactionLimitExceededException(string message) : base(message) { }
 }
 
 /// <summary>同一 request ID 被不同 transaction 内容复用。</summary>
-internal sealed class GraphRequestConflictException : InvalidOperationException
+public sealed class GraphRequestConflictException : InvalidOperationException
 {
     internal GraphRequestConflictException(Guid requestId)
         : base($"Graph transaction request ID '{requestId:D}' 已绑定到不同内容。")
@@ -59,11 +91,12 @@ internal sealed class GraphRequestConflictException : InvalidOperationException
         RequestId = requestId;
     }
 
-    internal Guid RequestId { get; }
+    /// <summary>被不同事务内容复用的 request ID。</summary>
+    public Guid RequestId { get; }
 }
 
 /// <summary>WAL append/fsync 已开始，必须通过 request ID 重试解析的未知提交结果。</summary>
-internal sealed class GraphCommitOutcomeUnknownException : IOException
+public sealed class GraphCommitOutcomeUnknownException : IOException
 {
     internal GraphCommitOutcomeUnknownException(Guid requestId, Exception innerException)
         : base(
@@ -73,14 +106,14 @@ internal sealed class GraphCommitOutcomeUnknownException : IOException
         RequestId = requestId;
     }
 
-    internal Guid RequestId { get; }
+    /// <summary>提交结果未知、必须原样重试的 request ID。</summary>
+    public Guid RequestId { get; }
 }
 
 /// <summary>
-/// 单 graph、单 keyspace 的 Phase 0 乐观 transaction。该类型保持 internal，避免在 Phase 1 CRUD
-/// 合同冻结前暴露不完整的产品 API。
+/// 单 graph、单 keyspace 的乐观原子事务。
 /// </summary>
-internal sealed class GraphTransaction
+public sealed class GraphTransaction
 {
     private readonly GraphStore _store;
     private readonly Guid _requestId;
@@ -104,36 +137,62 @@ internal sealed class GraphTransaction
         _requestId = requestId;
     }
 
-    internal Guid RequestId => _requestId;
+    /// <summary>用于幂等重试和未知提交结果解析的稳定 request ID。</summary>
+    public Guid RequestId => _requestId;
 
-    internal void UpsertVertex(
+    /// <summary>
+    /// 新建或替换一个顶点，并原子维护 label、property 和指定的 unique property 索引。
+    /// </summary>
+    /// <param name="vertexId">顶点标识符。</param>
+    /// <param name="expectedElementVersion">新建时为 0，更新时为当前元素版本。</param>
+    /// <param name="labels">顶点标签。</param>
+    /// <param name="properties">顶点属性。</param>
+    /// <param name="uniquePropertyIds">需要按每个标签保持唯一的属性标识符完整集合；null 或空集合会移除该顶点原有的唯一值占用。</param>
+    public void UpsertVertex(
         GraphElementId vertexId,
         long expectedElementVersion,
         IEnumerable<LabelId> labels,
-        IEnumerable<GraphPropertyEntry> properties)
+        IEnumerable<GraphProperty> properties,
+        IEnumerable<int>? uniquePropertyIds = null)
     {
         EnsureMutable();
         EnsureOperationCapacity();
         ArgumentOutOfRangeException.ThrowIfNegative(expectedElementVersion);
         long nextVersion = checked(expectedElementVersion + 1);
         var record = new GraphVertexRecord(vertexId, nextVersion, labels, properties);
+        int[] normalizedUniquePropertyIds = NormalizeUniquePropertyIds(
+            record.Properties,
+            uniquePropertyIds,
+            nameof(uniquePropertyIds));
         byte[] encodedRecord = GraphElementRecordCodec.EncodeVertex(record);
         long bufferedEncodedBytes = GetBufferedEncodedBytes(encodedRecord.Length);
         AddElement(GraphElementKind.Vertex, vertexId);
         _operations.Add(new UpsertVertexOperation(
             record,
             encodedRecord,
-            expectedElementVersion));
+            expectedElementVersion,
+            normalizedUniquePropertyIds));
         _bufferedEncodedBytes = bufferedEncodedBytes;
     }
 
-    internal void UpsertEdge(
+    /// <summary>
+    /// 新建或替换一条边，并原子维护双向邻接、label、property 和指定的 unique property 索引。
+    /// </summary>
+    /// <param name="edgeId">边标识符。</param>
+    /// <param name="expectedElementVersion">新建时为 0，更新时为当前元素版本。</param>
+    /// <param name="sourceId">源顶点标识符。</param>
+    /// <param name="targetId">目标顶点标识符。</param>
+    /// <param name="labelId">边类型标签。</param>
+    /// <param name="properties">边属性。</param>
+    /// <param name="uniquePropertyIds">需要在该边标签内保持唯一的属性标识符完整集合；null 或空集合会移除该边原有的唯一值占用。</param>
+    public void UpsertEdge(
         GraphElementId edgeId,
         long expectedElementVersion,
         GraphElementId sourceId,
         GraphElementId targetId,
         LabelId labelId,
-        IEnumerable<GraphPropertyEntry> properties)
+        IEnumerable<GraphProperty> properties,
+        IEnumerable<int>? uniquePropertyIds = null)
     {
         EnsureMutable();
         EnsureOperationCapacity();
@@ -146,17 +205,25 @@ internal sealed class GraphTransaction
             targetId,
             labelId,
             properties);
+        int[] normalizedUniquePropertyIds = NormalizeUniquePropertyIds(
+            record.Properties,
+            uniquePropertyIds,
+            nameof(uniquePropertyIds));
         byte[] encodedRecord = GraphElementRecordCodec.EncodeEdge(record);
         long bufferedEncodedBytes = GetBufferedEncodedBytes(encodedRecord.Length);
         AddElement(GraphElementKind.Edge, edgeId);
         _operations.Add(new UpsertEdgeOperation(
             record,
             encodedRecord,
-            expectedElementVersion));
+            expectedElementVersion,
+            normalizedUniquePropertyIds));
         _bufferedEncodedBytes = bufferedEncodedBytes;
     }
 
-    internal void DeleteVertex(GraphElementId vertexId, long expectedElementVersion)
+    /// <summary>删除没有任何邻接边的顶点。</summary>
+    /// <param name="vertexId">顶点标识符。</param>
+    /// <param name="expectedElementVersion">当前元素版本。</param>
+    public void DeleteVertex(GraphElementId vertexId, long expectedElementVersion)
     {
         EnsureMutable();
         EnsureOperationCapacity();
@@ -165,7 +232,10 @@ internal sealed class GraphTransaction
         _operations.Add(new DeleteVertexOperation(vertexId, expectedElementVersion));
     }
 
-    internal void DeleteEdge(GraphElementId edgeId, long expectedElementVersion)
+    /// <summary>删除一条边及其双向邻接和索引投影。</summary>
+    /// <param name="edgeId">边标识符。</param>
+    /// <param name="expectedElementVersion">当前元素版本。</param>
+    public void DeleteEdge(GraphElementId edgeId, long expectedElementVersion)
     {
         EnsureMutable();
         EnsureOperationCapacity();
@@ -174,7 +244,10 @@ internal sealed class GraphTransaction
         _operations.Add(new DeleteEdgeOperation(edgeId, expectedElementVersion));
     }
 
-    internal GraphCommitResult Commit(CancellationToken cancellationToken = default)
+    /// <summary>原子提交事务。</summary>
+    /// <param name="cancellationToken">进入 WAL 提交前生效的取消令牌。</param>
+    /// <returns>提交序列号和幂等解析状态。</returns>
+    public GraphCommitResult Commit(CancellationToken cancellationToken = default)
     {
         EnsureMutable();
         _completed = true;
@@ -256,7 +329,7 @@ internal sealed class GraphTransaction
                     vertexHighWater = Math.Max(vertexHighWater, vertex.Record.Id.Value);
                     foreach (LabelId label in vertex.Record.Labels)
                         labelHighWater = Math.Max(labelHighWater, label.Value);
-                    foreach (GraphPropertyEntry property in vertex.Record.Properties)
+                    foreach (GraphProperty property in vertex.Record.Properties)
                         propertyHighWater = Math.Max(propertyHighWater, property.PropertyId);
                     break;
                 case UpsertEdgeOperation edge:
@@ -275,7 +348,7 @@ internal sealed class GraphTransaction
                     ApplyEdgeUpsert(keyspace, builder, edge);
                     edgeHighWater = Math.Max(edgeHighWater, edge.Record.Id.Value);
                     labelHighWater = Math.Max(labelHighWater, edge.Record.LabelId.Value);
-                    foreach (GraphPropertyEntry property in edge.Record.Properties)
+                    foreach (GraphProperty property in edge.Record.Properties)
                         propertyHighWater = Math.Max(propertyHighWater, property.PropertyId);
                     break;
                 case DeleteVertexOperation deleteVertex:
@@ -314,9 +387,20 @@ internal sealed class GraphTransaction
             out long currentKvVersion);
         builder.AddKeyVersion(recordKey, currentKvVersion);
         if (current is not null)
+        {
             RemoveVertexIndexes(builder, current);
+            RemoveOwnedUniqueIndexes(keyspace, builder, GraphElementKind.Vertex, current.Id, current.Labels, current.Properties);
+        }
         builder.Put(recordKey, operation.EncodedRecord);
         AddVertexIndexes(builder, operation.Record);
+        AddUniqueIndexes(
+            keyspace,
+            builder,
+            GraphElementKind.Vertex,
+            operation.Record.Id,
+            operation.Record.Labels,
+            operation.Record.Properties,
+            operation.UniquePropertyIds);
     }
 
     private static void ApplyEdgeUpsert(
@@ -332,9 +416,26 @@ internal sealed class GraphTransaction
             out long currentKvVersion);
         builder.AddKeyVersion(recordKey, currentKvVersion);
         if (current is not null)
+        {
             RemoveEdgeProjection(builder, current);
+            RemoveOwnedUniqueIndexes(
+                keyspace,
+                builder,
+                GraphElementKind.Edge,
+                current.Id,
+                [current.LabelId],
+                current.Properties);
+        }
         builder.Put(recordKey, operation.EncodedRecord);
         AddEdgeProjection(builder, operation.Record);
+        AddUniqueIndexes(
+            keyspace,
+            builder,
+            GraphElementKind.Edge,
+            operation.Record.Id,
+            [operation.Record.LabelId],
+            operation.Record.Properties,
+            operation.UniquePropertyIds);
     }
 
     private static void ApplyVertexDelete(
@@ -358,6 +459,7 @@ internal sealed class GraphTransaction
             new RestrictConditionBinding(operation.VertexId));
         builder.Delete(recordKey);
         RemoveVertexIndexes(builder, current);
+        RemoveOwnedUniqueIndexes(keyspace, builder, GraphElementKind.Vertex, current.Id, current.Labels, current.Properties);
     }
 
     private static void ApplyEdgeDelete(
@@ -375,6 +477,13 @@ internal sealed class GraphTransaction
         builder.AddKeyVersion(recordKey, currentKvVersion);
         builder.Delete(recordKey);
         RemoveEdgeProjection(builder, current);
+        RemoveOwnedUniqueIndexes(
+            keyspace,
+            builder,
+            GraphElementKind.Edge,
+            current.Id,
+            [current.LabelId],
+            current.Properties);
     }
 
     private static void EnsureEndpoint(
@@ -459,7 +568,7 @@ internal sealed class GraphTransaction
             builder.Put(
                 GraphKeyCodec.EncodeLabelMembership(GraphElementKind.Vertex, label, record.Id),
                 []);
-            foreach (GraphPropertyEntry property in record.Properties)
+            foreach (GraphProperty property in record.Properties)
             {
                 builder.Put(
                     GraphKeyCodec.EncodePropertyIndex(
@@ -478,7 +587,7 @@ internal sealed class GraphTransaction
         foreach (LabelId label in record.Labels)
         {
             builder.Delete(GraphKeyCodec.EncodeLabelMembership(GraphElementKind.Vertex, label, record.Id));
-            foreach (GraphPropertyEntry property in record.Properties)
+            foreach (GraphProperty property in record.Properties)
             {
                 builder.Delete(GraphKeyCodec.EncodePropertyIndex(
                     GraphElementKind.Vertex,
@@ -509,7 +618,7 @@ internal sealed class GraphTransaction
         builder.Put(
             GraphKeyCodec.EncodeLabelMembership(GraphElementKind.Edge, record.LabelId, record.Id),
             []);
-        foreach (GraphPropertyEntry property in record.Properties)
+        foreach (GraphProperty property in record.Properties)
         {
             builder.Put(
                 GraphKeyCodec.EncodePropertyIndex(
@@ -538,7 +647,7 @@ internal sealed class GraphTransaction
             GraphElementKind.Edge,
             record.LabelId,
             record.Id));
-        foreach (GraphPropertyEntry property in record.Properties)
+        foreach (GraphProperty property in record.Properties)
         {
             builder.Delete(GraphKeyCodec.EncodePropertyIndex(
                 GraphElementKind.Edge,
@@ -546,6 +655,73 @@ internal sealed class GraphTransaction
                 property.PropertyId,
                 property.Value,
                 record.Id));
+        }
+    }
+
+    private static void AddUniqueIndexes(
+        KvKeyspace keyspace,
+        CommitPlanBuilder builder,
+        GraphElementKind elementKind,
+        GraphElementId ownerId,
+        IReadOnlyList<LabelId> labels,
+        IReadOnlyList<GraphProperty> properties,
+        IReadOnlyList<int> uniquePropertyIds)
+    {
+        foreach (int propertyId in uniquePropertyIds)
+        {
+            GraphProperty property = properties.First(item => item.PropertyId == propertyId);
+            foreach (LabelId label in labels)
+            {
+                byte[] key = GraphKeyCodec.EncodeUniqueProperty(
+                    elementKind,
+                    label,
+                    property.PropertyId,
+                    property.Value);
+                byte[]? currentValue = builder.GetEffectiveValue(keyspace, key);
+                if (currentValue is not null)
+                {
+                    GraphElementId existingOwner = GraphUniquePropertyOwnerCodec.Decode(
+                        currentValue,
+                        elementKind);
+                    if (existingOwner != ownerId)
+                    {
+                        throw new GraphUniqueConstraintException(
+                            label,
+                            property.PropertyId,
+                            existingOwner);
+                    }
+                }
+
+                builder.Put(key, GraphUniquePropertyOwnerCodec.Encode(elementKind, ownerId));
+            }
+        }
+    }
+
+    private static void RemoveOwnedUniqueIndexes(
+        KvKeyspace keyspace,
+        CommitPlanBuilder builder,
+        GraphElementKind elementKind,
+        GraphElementId ownerId,
+        IReadOnlyList<LabelId> labels,
+        IReadOnlyList<GraphProperty> properties)
+    {
+        foreach (LabelId label in labels)
+        foreach (GraphProperty property in properties)
+        {
+            byte[] key = GraphKeyCodec.EncodeUniqueProperty(
+                elementKind,
+                label,
+                property.PropertyId,
+                property.Value);
+            byte[]? currentValue = builder.GetEffectiveValue(keyspace, key);
+            if (currentValue is null)
+                continue;
+            GraphElementId existingOwner = GraphUniquePropertyOwnerCodec.Decode(
+                currentValue,
+                elementKind);
+            if (existingOwner != ownerId)
+                continue;
+            builder.Delete(key);
         }
     }
 
@@ -636,8 +812,62 @@ internal sealed class GraphTransaction
                 }
                 hash.AppendData(record);
             }
+
+            IReadOnlyList<int> uniquePropertyIds = operation switch
+            {
+                UpsertVertexOperation vertex => vertex.UniquePropertyIds,
+                UpsertEdgeOperation edge => edge.UniquePropertyIds,
+                _ => [],
+            };
+            // 空集合保持 Phase 0 request digest 字节不变，使升级后的幂等重试仍能解析旧提交。
+            if (uniquePropertyIds.Count > 0)
+            {
+                BinaryPrimitives.WriteInt64LittleEndian(integer, uniquePropertyIds.Count);
+                hash.AppendData(integer);
+                foreach (int propertyId in uniquePropertyIds)
+                {
+                    BinaryPrimitives.WriteInt64LittleEndian(integer, propertyId);
+                    hash.AppendData(integer);
+                }
+            }
         }
         return hash.GetHashAndReset();
+    }
+
+    private static int[] NormalizeUniquePropertyIds(
+        IReadOnlyList<GraphProperty> properties,
+        IEnumerable<int>? uniquePropertyIds,
+        string parameterName)
+    {
+        if (uniquePropertyIds is null)
+            return [];
+        var result = new List<int>();
+        foreach (int propertyId in uniquePropertyIds)
+        {
+            if (result.Count >= properties.Count)
+            {
+                throw new ArgumentOutOfRangeException(
+                    parameterName,
+                    "Unique property 数量不能超过元素属性数量。");
+            }
+            if (propertyId <= 0)
+                throw new ArgumentOutOfRangeException(parameterName, "Unique property ID 必须为正数。");
+            result.Add(propertyId);
+        }
+
+        result.Sort();
+        for (int index = 0; index < result.Count; index++)
+        {
+            if (index > 0 && result[index] == result[index - 1])
+                throw new ArgumentException("Unique property ID 不能重复。", parameterName);
+            if (!properties.Any(property => property.PropertyId == result[index]))
+            {
+                throw new ArgumentException(
+                    $"Unique property ID {result[index]} 不存在于元素属性中。",
+                    parameterName);
+            }
+        }
+        return [.. result];
     }
 
     private void AddElement(GraphElementKind kind, GraphElementId id)
@@ -689,7 +919,8 @@ internal sealed class GraphTransaction
     private sealed record UpsertVertexOperation(
         GraphVertexRecord Record,
         byte[] EncodedRecord,
-        long ExpectedVersion)
+        long ExpectedVersion,
+        IReadOnlyList<int> UniquePropertyIds)
         : GraphWriteOperation(
             GraphWriteOperationKind.UpsertVertex,
             Record.Id,
@@ -698,7 +929,8 @@ internal sealed class GraphTransaction
     private sealed record UpsertEdgeOperation(
         GraphEdgeRecord Record,
         byte[] EncodedRecord,
-        long ExpectedVersion)
+        long ExpectedVersion,
+        IReadOnlyList<int> UniquePropertyIds)
         : GraphWriteOperation(
             GraphWriteOperationKind.UpsertEdge,
             Record.Id,
@@ -787,6 +1019,16 @@ internal sealed class GraphTransaction
             AddCondition(
                 KvBatchPrecondition.KeyVersion(key, expectedVersion),
                 new OptimisticConditionBinding());
+        }
+
+        internal byte[]? GetEffectiveValue(KvKeyspace keyspace, byte[] key)
+        {
+            if (_mutations.TryGetValue(key, out KvBatchMutation? mutation))
+                return mutation.Value;
+
+            KvEntry? entry = keyspace.GetEntry(key);
+            AddKeyVersion(key, entry?.Version ?? 0);
+            return entry?.Value.ToArray();
         }
 
         internal void AddCondition(KvBatchPrecondition condition, ConditionBinding binding)

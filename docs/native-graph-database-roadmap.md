@@ -1,6 +1,6 @@
 # 原生属性图数据库路线图
 
-> 本文定义 SonnetDB Milestone 40 的工程路线。Phase 0（#341～#346）公共地基已完成；vertex/edge CRUD、遍历、SQL/PGQ、Server/SDK 与固定硬件发布证据仍未完成，不表示 Native Graph Preview 已可用。
+> 本文定义 SonnetDB Milestone 40 的工程路线。Phase 0（#341～#346）公共地基已完成；Phase 1 的 Native Graph Core、Server/typed SDK、Frame/HTTP streaming、bounded import 和本地 smoke evidence 已接线，但固定硬件、Neo4j 对照与完整 correctness/performance gate 尚未通过，因此仍不得宣称 Preview 发布。
 
 ## 1. 决策与目标
 
@@ -225,14 +225,20 @@ Phase 0 已完成：frozen V1 vectors、Table V1 兼容、snapshot/cursor 有界
 
 | 编号 | 交付 | 验收门禁 |
 |---|---|---|
-| #347 | `GraphStore` vertex/edge CRUD、多 label、typed property、双向邻接、label/property/unique index。 | 所有 mutation 都通过单 keyspace 原子 batch；重启、索引重建和 invariant check 对拍。 |
-| #348 | 原生 Graph API 与 streaming cursor：seek、ExpandOut/In/Both、过滤和批量读取。 | 单跳访问不调用关系 JOIN；I/O/CPU 随命中度数增长；嵌入式遍历不全量复制图。 |
-| #349 | BFS/DFS、固定/受限可变长度路径、无权 shortest path、path uniqueness 和预算。 | cycle、self-loop、parallel edge、取消、超时、深度/frontier/path 上限测试完整。 |
-| #350 | label/property cardinality、degree histogram、index selectivity、统计刷新和基础 Graph EXPLAIN。 | 选择性 anchor 可验证；统计缺失/陈旧有稳定 fallback；统计是可重建派生数据。 |
-| #351 | Server/typed .NET SDK、Frame/HTTP 流式读取、幂等 bulk import，以及 CSV/JSON/Graphify `graph.json` importer。 | 嵌入式/远程同语义；导入可 checkpoint/resume；Graphify 只作为输入，不进入 Core。 |
+| #347 | `GraphStore` vertex/edge CRUD、多 label、typed property、双向邻接、label/property/unique index。 | 所有 mutation 都通过单 keyspace 原子 batch；重启、索引重建和 invariant check 对拍。当前已有 `RebuildIndexes` 有界修复和 Crash/backup 回归，唯一声明缺失边界仍需显式输入。 |
+| #348 | 原生 Graph API 与 streaming cursor：seek、ExpandOut/In/Both、过滤和批量读取。 | 单跳访问不调用关系 JOIN；I/O/CPU 随命中度数增长；嵌入式遍历不全量复制图。当前 Core、REST、NDJSON、Frame 和 typed SDK 已接线，固定规模复杂度证据待跑。 |
+| #349 | BFS/DFS、固定/受限可变长度路径、无权 shortest path、path uniqueness 和预算。 | cycle、self-loop、parallel edge、取消、超时、深度/frontier/path 上限测试完整。当前有分页/cancel/cycle/self-loop/parallel-edge 回归，完整超时和目标硬件矩阵待跑。 |
+| #350 | label/property cardinality、degree histogram、index selectivity、统计刷新和基础 Graph EXPLAIN。 | 选择性 anchor 可验证；统计缺失/陈旧有稳定 fallback；统计是可重建派生数据。当前含 fingerprint cardinality、stale/missing explain 回归，容量校准待跑。 |
+| #351 | Server/typed .NET SDK、Frame/HTTP 流式读取、幂等 bulk import，以及 CSV/JSON/Graphify `graph.json` importer。 | 嵌入式/远程同语义；导入可 checkpoint/resume；Graphify 只作为输入，不进入 Core。当前支持 native numeric profile 和 normalized string `nodes/relationships` profile；通过确定性 batch request ID 重放恢复，未引入 Graphify runtime。 |
 | #352 | Phase 1 correctness/performance gate：CrashTests、BenchmarkDotNet、Neo4j 对照和固定硬件报告。 | 正确性/恢复与性能/容量是两个独立 gate：前者要求语义对拍零 mismatch、零 orphan/index drift，crash/replay/checkpoint/backup/repair 全 PASS；后者在 100k/1m vertex、1m/10m edge 下对 1~6 hop、supernode、代码知识影响分析、混合读写和冷/热重启达到 #341 预先冻结的复杂度、内存及 P95/P99 SLO。任一 gate 未达即阻断 Phase 1；不得遗留不可解释的全扫/全量物化，也不得事后按实现结果改低阈值。 |
 
 Phase 1 对外名称只能是 **Native Graph Preview**。它已经是真正的邻接图存储，但 SQL 图模式和完整产品面尚未完成。
+
+### Phase 1 当前实现边界（2026-08-11）
+
+- `GraphStore.RebuildIndexes` 在提交门内按稳定快照和 KV index-rebuild budget 分页补建/删除 adjacency、label/property、unique 派生键；冻结 V1 元素记录不保存 unique 声明，若声明的全部 key 已丢失，调用方必须通过 `GraphIndexRebuildOptions.UniqueIndexes` 重新提供声明。
+- `SndbGraphImporter` 先把单个 JSON element 写入临时 NDJSON spool，再按确定性 request ID 以有界 batch 重放；CSV 同样按 batch 流式提交。`nodes/relationships` normalized profile 接受字符串 ID、label/type、对象属性和 provenance/confidence 元数据，映射函数为 `GetStableElementId`、`GetStableLabelId`、`GetStablePropertyId`。
+- `tests/SonnetDB.Benchmarks --m40-graph-evidence --quick` 会真正 reopen/replay 并执行 path/invariant/index-repair smoke；报告固定输出 `correctness_recovery=NOT_RUN`、`performance_capacity=NOT_RUN`、`release_decision=NOT_RUN`，不能代替 #352 的固定硬件、Neo4j 或完整 crash/replay/checkpoint/backup artifact。
 
 ### Phase 2：SQL 可组合与实用查询阶段
 

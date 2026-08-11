@@ -1,8 +1,8 @@
 # M40 #341 原生图工作负载与证据合同
 
 本文是 Milestone 40 Phase 0 的设计决策和验收输入。它冻结术语、原生图与关系映射图的边界、
-五条 golden journey、性能与容量 SLO，以及 capability gap 的归责方式。它不表示 Graph
-存储、查询、SQL/PGQ 或产品入口已经实现。
+五条 golden journey、性能与容量 SLO，以及 capability gap 的归责方式。Phase 1 Core/Server/SDK
+实现可以引用本文，但本文仍不是 Native Graph Preview 的 correctness/performance PASS 报告。
 
 | 属性 | 值 |
 |---|---|
@@ -403,7 +403,7 @@ Gate A 失败时，Gate B 数字仍可用于诊断，但不能形成容量声明
 | `M40-GAP-003` | GraphCatalog、GraphManager、命名/依赖和 `Tsdb.Graphs` 生命周期尚未交付 | SonnetDB M40 #344 | Phase 0、Preview | `closed`；`GraphCatalogCodecTests`、`GraphManagerTests`、`GraphStoreMarkerTests` 与 `GraphManagedCatalogGuardTests` 覆盖目录 CRC/版本、create/open/reopen/drop、原子替换 outcome unknown、固定 marker 有界拒绝、跨模型名称与依赖竞态、异常释放和单 owner；`CrashReliabilityTests` 覆盖跨进程 lease 退出后重开 |
 | `M40-GAP-004` | 单 graph transaction、element version、写预算、commit-unknown、vertex `RESTRICT` 尚未交付 | SonnetDB M40 #345 | Phase 0、Preview | `closed`；`GraphTransactionTests` 与 `GraphTransactionLimitTests` 覆盖版本冲突、幂等 request、取消、commit unknown、vertex `RESTRICT`、展开后预算、无限 enumerable 有界停止，以及拒绝时零 WAL/sequence/state 副作用 |
 | `M40-GAP-005` | Graph backup manifest、checkpoint、verify/restore、invariant checker 和 CrashTests 骨架尚未交付 | SonnetDB M40 #346 | Phase 0、Preview、Couplet C1 | `closed`；`BackupServiceTests` 覆盖 manifest v2、v1 无 Graph 兼容、checkpoint/verify/restore 和发布前 reopen + invariant；`GraphInvariantCheckerTests` 检出 orphan/mismatch，`CrashReliabilityTests` 覆盖事务注入点与备份/提交一致性 |
-| `M40-GAP-006` | Native GraphStore、双向 adjacency、索引、streaming API、路径、统计、Server/SDK/import 尚未交付 | SonnetDB M40 #347～#351 | Preview、Couplet C2 | `open`；禁止 Table edge workaround |
+| `M40-GAP-006` | Native GraphStore、双向 adjacency、索引、streaming API、路径、统计、Server/SDK/import 的完整验收证据尚未收口 | SonnetDB M40 #347～#351 | Preview、Couplet C2 | `in_progress`；Core/REST/Frame/SDK/import 和本地回归已实现，固定规模复杂度、完整 Graphify fixture 与恢复边界仍待 reviewer/门禁证据，禁止 Table edge workaround |
 | `M40-GAP-007` | Preview correctness/recovery 和 performance/capacity 证据尚未交付 | SonnetDB M40 #352 | Preview、Couplet C2 | `open`；本文只冻结门禁，不是 PASS 报告 |
 | `M40-GAP-008` | 共享 Graph plan、原生 SQL、SQL/PGQ mapping、GRAPH_TABLE、planner 和组合查询尚未交付 | SonnetDB M40 #353～#359 | Beta、Couplet C3 | `open` |
 | `M40-GAP-009` | statement snapshot、supernode/维护、高级算法准入、运维面和生产证据尚未交付 | SonnetDB M40 #360～#367 | Production、Couplet C4 | `open` |

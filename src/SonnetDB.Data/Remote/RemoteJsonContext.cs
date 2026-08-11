@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using SonnetDB.Data.Kv;
 using SonnetDB.Data.Mq;
+using SonnetDB.Graphs;
 
 namespace SonnetDB.Data.Remote;
 
@@ -72,6 +73,28 @@ namespace SonnetDB.Data.Remote;
 [JsonSerializable(typeof(MqPublishBatchResponse))]
 [JsonSerializable(typeof(List<MqPublishBatchEntry>))]
 [JsonSerializable(typeof(List<long>))]
+[JsonSerializable(typeof(GraphCreateRequest))]
+[JsonSerializable(typeof(GraphInfoDto))]
+[JsonSerializable(typeof(GraphInfoDto[]))]
+[JsonSerializable(typeof(GraphValueDto))]
+[JsonSerializable(typeof(GraphPropertyDto))]
+[JsonSerializable(typeof(GraphVertexDto))]
+[JsonSerializable(typeof(GraphEdgeDto))]
+[JsonSerializable(typeof(GraphExpansionDto))]
+[JsonSerializable(typeof(GraphUpsertVertexRequest))]
+[JsonSerializable(typeof(GraphUpsertEdgeRequest))]
+[JsonSerializable(typeof(GraphMutationResponse))]
+[JsonSerializable(typeof(GraphDeleteRequest))]
+[JsonSerializable(typeof(GraphExpandRequest))]
+[JsonSerializable(typeof(GraphSeekRequest))]
+[JsonSerializable(typeof(GraphTraversalRequest))]
+[JsonSerializable(typeof(GraphShortestPathRequest))]
+[JsonSerializable(typeof(GraphPathDto))]
+[JsonSerializable(typeof(GraphShortestPathResponse))]
+[JsonSerializable(typeof(GraphImportVertexDto))]
+[JsonSerializable(typeof(GraphImportEdgeDto))]
+[JsonSerializable(typeof(GraphImportRequest))]
+[JsonSerializable(typeof(GraphImportResponse))]
 [JsonSerializable(typeof(MqPullRequest))]
 [JsonSerializable(typeof(MqMessageResponse))]
 [JsonSerializable(typeof(MqPullResponse))]

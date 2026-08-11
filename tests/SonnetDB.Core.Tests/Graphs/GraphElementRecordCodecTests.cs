@@ -15,8 +15,8 @@ public sealed class GraphElementRecordCodecTests
             elementVersion: 3,
             [new LabelId(9), new LabelId(2)],
             [
-                new GraphPropertyEntry(8, GraphPropertyValue.FromString("value")),
-                new GraphPropertyEntry(1, GraphPropertyValue.FromInt64(-7)),
+                new GraphProperty(8, GraphPropertyValue.FromString("value")),
+                new GraphProperty(1, GraphPropertyValue.FromInt64(-7)),
             ]);
 
         GraphVertexRecord decoded = GraphElementRecordCodec.DecodeVertex(
@@ -40,8 +40,8 @@ public sealed class GraphElementRecordCodecTests
             new GraphElementId(4),
             new LabelId(6),
             [
-                new GraphPropertyEntry(1, GraphPropertyValue.FromBoolean(true)),
-                new GraphPropertyEntry(2, GraphPropertyValue.FromBlob([0, 1, 2])),
+                new GraphProperty(1, GraphPropertyValue.FromBoolean(true)),
+                new GraphProperty(2, GraphPropertyValue.FromBlob([0, 1, 2])),
             ]);
 
         GraphEdgeRecord decoded = GraphElementRecordCodec.DecodeEdge(
@@ -69,8 +69,8 @@ public sealed class GraphElementRecordCodecTests
             1,
             [],
             [
-                new GraphPropertyEntry(3, GraphPropertyValue.Null),
-                new GraphPropertyEntry(3, GraphPropertyValue.FromInt64(1)),
+                new GraphProperty(3, GraphPropertyValue.Null),
+                new GraphProperty(3, GraphPropertyValue.FromInt64(1)),
             ]));
 
         byte[] payload = new byte[sizeof(int) + sizeof(long) + sizeof(int) + sizeof(int) + (sizeof(int) * 2)];
@@ -107,8 +107,8 @@ public sealed class GraphElementRecordCodecTests
     public void VertexRecord_MaximumEmptyStringProperties_DecodesWithLinearAllocation()
     {
         const int propertyCount = 16_384;
-        GraphPropertyEntry[] properties = Enumerable.Range(1, propertyCount)
-            .Select(static propertyId => new GraphPropertyEntry(
+        GraphProperty[] properties = Enumerable.Range(1, propertyCount)
+            .Select(static propertyId => new GraphProperty(
                 propertyId,
                 GraphPropertyValue.FromString(string.Empty)))
             .ToArray();
@@ -134,7 +134,7 @@ public sealed class GraphElementRecordCodecTests
             new GraphElementId(1),
             1,
             [new LabelId(1)],
-            [new GraphPropertyEntry(1, GraphPropertyValue.FromString(new string('a', maximumTextBytes)))]);
+            [new GraphProperty(1, GraphPropertyValue.FromString(new string('a', maximumTextBytes)))]);
 
         byte[] encoded = GraphElementRecordCodec.EncodeVertex(record);
         GraphVertexRecord decoded = GraphElementRecordCodec.DecodeVertex(encoded);
@@ -152,7 +152,7 @@ public sealed class GraphElementRecordCodecTests
             new GraphElementId(2),
             1,
             [new LabelId(1)],
-            [new GraphPropertyEntry(
+            [new GraphProperty(
                 1,
                 GraphPropertyValue.FromString(new string('a', maximumTextBytes + 1)))]));
     }
@@ -167,7 +167,7 @@ public sealed class GraphElementRecordCodecTests
             new GraphElementId(1),
             1,
             [new LabelId(1)],
-            [new GraphPropertyEntry(1, value)]));
+            [new GraphProperty(1, value)]));
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
         Assert.True(allocated < 256 * 1024, $"Oversized Graph text validation allocated {allocated:N0} bytes.");

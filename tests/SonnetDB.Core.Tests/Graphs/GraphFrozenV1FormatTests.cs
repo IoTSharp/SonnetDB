@@ -19,8 +19,8 @@ public sealed class GraphFrozenV1FormatTests
             9,
             [new LabelId(7), new LabelId(2)],
             [
-                new GraphPropertyEntry(11, GraphPropertyValue.FromString("v\0")),
-                new GraphPropertyEntry(3, GraphPropertyValue.FromInt64(-2)),
+                new GraphProperty(11, GraphPropertyValue.FromString("v\0")),
+                new GraphProperty(3, GraphPropertyValue.FromInt64(-2)),
             ]);
 
         Assert.Equal(ExpectedHex, Convert.ToHexString(GraphElementRecordCodec.EncodeVertex(record)));
@@ -49,7 +49,7 @@ public sealed class GraphFrozenV1FormatTests
             new GraphElementId(3),
             new GraphElementId(5),
             new LabelId(7),
-            [new GraphPropertyEntry(2, GraphPropertyValue.FromBoolean(false))]);
+            [new GraphProperty(2, GraphPropertyValue.FromBoolean(false))]);
 
         Assert.Equal(ExpectedHex, Convert.ToHexString(GraphElementRecordCodec.EncodeEdge(record)));
 
@@ -60,7 +60,7 @@ public sealed class GraphFrozenV1FormatTests
         Assert.Equal(record.SourceId, decoded.SourceId);
         Assert.Equal(record.TargetId, decoded.TargetId);
         Assert.Equal(record.LabelId, decoded.LabelId);
-        GraphPropertyEntry property = Assert.Single(decoded.Properties);
+        GraphProperty property = Assert.Single(decoded.Properties);
         Assert.Equal(2, property.PropertyId);
         Assert.Equal(GraphPropertyValue.FromBoolean(false), property.Value);
         Assert.Equal(ExpectedHex, Convert.ToHexString(GraphElementRecordCodec.EncodeEdge(decoded)));

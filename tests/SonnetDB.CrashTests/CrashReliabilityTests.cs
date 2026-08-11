@@ -154,6 +154,22 @@ public sealed class CrashReliabilityTests : IDisposable
             Assert.Equal(10, report.HighWater.EdgeId);
             Assert.Equal(3, report.HighWater.LabelId);
             Assert.Equal(512, report.HighWater.PropertyId);
+
+            using GraphReadSession read = store.BeginRead();
+            GraphVertex vertex = Assert.Single(read.SeekVertices(
+                new LabelId(1),
+                1,
+                GraphPropertyValue.FromString("source:0:" + new string('x', 256))).ReadNextPage());
+            Assert.Equal(new GraphElementId(1), vertex.Id);
+            Assert.Single(read.Expand(new GraphElementId(1), GraphDirection.Outgoing).ReadNextPage());
+            GraphPath path = Assert.IsType<GraphPath>(read.ShortestPath(
+                new GraphElementId(1),
+                new GraphElementId(2),
+                options: new GraphTraversalOptions { MaxDepth = 1 }));
+            Assert.Equal(1, path.Depth);
+            GraphIndexRebuildResult rebuild = store.RebuildIndexes();
+            Assert.Equal(0, rebuild.RemovedEntries);
+            Assert.Equal(0, rebuild.RepairedEntries);
         }
     }
 
