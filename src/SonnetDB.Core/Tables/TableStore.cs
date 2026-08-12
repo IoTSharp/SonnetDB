@@ -95,6 +95,9 @@ public sealed class TableStore : IDisposable
     /// <summary>测试范围分页是否从上一页索引键继续扫描。</summary>
     internal Action<bool>? RangeScanContinuationTestHook { get; set; }
 
+    /// <summary>测试普通查询实际解码的关系行数，验证分页完成后是否提前停止。</summary>
+    internal Action<int>? RowDecodedTestHook { get; set; }
+
     /// <summary>底层 rowstore generation 旧文件回收状态。</summary>
     public KvCleanupStatus GetCleanupStatus() => _keyspace.GetCleanupStatus();
 
@@ -361,19 +364,50 @@ public sealed class TableStore : IDisposable
     /// <param name="limit">最多返回行数。</param>
     public IReadOnlyList<TableRow> Scan(int? limit = null)
     {
-        Interlocked.Increment(ref _fullScanCount);
-        lock (_sync)
-        {
-            var schema = _schema;
-            var entries = _keyspace.ScanPrefix(new byte[] { (byte)'r' }, limit ?? int.MaxValue);
-            var rows = new List<TableRow>(entries.Count);
-            foreach (var entry in entries)
-            {
-                var primaryKey = TableIndexCodec.DecodePrimaryKeyFromRowKey(entry.Key);
-                rows.Add(new TableRow(TableRowCodec.Decode(schema, entry.Value.Span), primaryKey.ToArray()));
-            }
+        return EnumerateScan(limit).ToArray();
+    }
 
-            return rows;
+    /// <summary>
+    /// 按主键顺序惰性扫描关系表。每次只保留一个 KV 页，调用方停止枚举时立即释放快照。
+    /// </summary>
+    /// <param name="limit">最多返回的行数；为空表示扫描到末尾。</param>
+    /// <returns>按主键升序排列的关系行序列。</returns>
+    internal IEnumerable<TableRow> EnumerateScan(int? limit = null)
+    {
+        Interlocked.Increment(ref _fullScanCount);
+        if (limit is <= 0)
+            yield break;
+
+        TableSchema schema;
+        lock (_sync)
+            schema = _schema;
+
+        using var snapshot = _keyspace.AcquireReadSnapshot();
+        using var cursor = snapshot.OpenRangeCursor(new KvRangeScanOptions
+        {
+            Prefix = new byte[] { (byte)'r' },
+            PageSize = 256,
+        });
+
+        int emitted = 0;
+        while (!cursor.IsExhausted && (limit is null || emitted < limit.Value))
+        {
+            IReadOnlyList<KvEntry> page = cursor.ReadNextPage();
+            if (page.Count == 0)
+                yield break;
+
+            foreach (var entry in page)
+            {
+                if (limit is int && emitted >= limit.Value)
+                    yield break;
+
+                var primaryKey = TableIndexCodec.DecodePrimaryKeyFromRowKey(entry.Key);
+                emitted++;
+                RowDecodedTestHook?.Invoke(emitted);
+                yield return new TableRow(
+                    TableRowCodec.Decode(schema, entry.Value.Span),
+                    primaryKey.ToArray());
+            }
         }
     }
 
@@ -420,6 +454,150 @@ public sealed class TableStore : IDisposable
             }
 
             return GetByIndexPrefixLocked(index, indexColumnValues, limit);
+        }
+    }
+
+    /// <summary>
+    /// 按二级索引前缀惰性读取候选行，使用同一 KV 快照完成索引项和回表读取。
+    /// </summary>
+    /// <param name="index">索引声明。</param>
+    /// <param name="indexColumnValues">从索引首列开始连续匹配的等值谓词值。</param>
+    /// <param name="limit">最多返回的有效行数。</param>
+    /// <returns>按索引键顺序返回的候选行。</returns>
+    internal IEnumerable<TableRow> EnumerateByIndexPrefix(
+        TableIndex index,
+        IReadOnlyList<object?> indexColumnValues,
+        int? limit = null)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        ArgumentNullException.ThrowIfNull(indexColumnValues);
+
+        TableSchema schema;
+        byte[] prefix;
+        lock (_sync)
+        {
+            schema = _schema;
+            prefix = TableIndexCodec.EncodeLookupPrefix(index, indexColumnValues, schema)
+                ?? throw new InvalidOperationException($"索引 '{index.Name}' 的等值前缀无法编码。");
+        }
+
+        if (limit is <= 0)
+            yield break;
+
+        using var snapshot = _keyspace.AcquireReadSnapshot();
+        using var cursor = snapshot.OpenRangeCursor(new KvRangeScanOptions
+        {
+            Prefix = prefix,
+            PageSize = 256,
+        });
+
+        int emitted = 0;
+        while (!cursor.IsExhausted && (limit is null || emitted < limit.Value))
+        {
+            IReadOnlyList<KvEntry> page = cursor.ReadNextPage();
+            if (page.Count == 0)
+                yield break;
+
+            foreach (var entry in page)
+            {
+                if (limit is int && emitted >= limit.Value)
+                    yield break;
+
+                byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(entry.Value.Span);
+                var payload = snapshot.GetEntry(rowKey);
+                if (payload is null)
+                    continue;
+
+                emitted++;
+                yield return new TableRow(
+                    TableRowCodec.Decode(schema, payload.Value.Span),
+                    entry.Value.ToArray());
+            }
+        }
+    }
+
+    /// <summary>
+    /// 按范围索引的物理区间惰性读取候选行；不改变范围值的逻辑排序语义。
+    /// </summary>
+    /// <param name="index">普通联合索引。</param>
+    /// <param name="equalityPrefixValues">索引连续等值前缀。</param>
+    /// <param name="range">范围列约束。</param>
+    /// <param name="limit">最多返回的有效行数。</param>
+    /// <returns>按索引范围物理顺序返回的候选行。</returns>
+    internal IEnumerable<TableRow> EnumerateByIndexRange(
+        TableIndex index,
+        IReadOnlyList<object?> equalityPrefixValues,
+        TableIndexRange range,
+        int? limit = null)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        ArgumentNullException.ThrowIfNull(equalityPrefixValues);
+        ArgumentNullException.ThrowIfNull(range);
+
+        TableSchema schema;
+        byte[] prefix;
+        IReadOnlyList<TableIndexKeyRange> keyRanges;
+        lock (_sync)
+        {
+            schema = _schema;
+            if (!string.IsNullOrWhiteSpace(index.JsonPath)
+                || equalityPrefixValues.Count >= index.Columns.Count)
+            {
+                throw new ArgumentException("范围扫描要求普通联合索引仍有一个未绑定的下一列。", nameof(equalityPrefixValues));
+            }
+
+            var expectedColumn = schema.TryGetColumn(index.Columns[equalityPrefixValues.Count])
+                ?? throw new InvalidOperationException($"索引 '{index.Name}' 引用了未知列。");
+            if (!string.Equals(expectedColumn.Name, range.Column.Name, StringComparison.Ordinal)
+                || expectedColumn.DataType is not (TableColumnType.Int64 or TableColumnType.DateTime))
+            {
+                throw new ArgumentException("范围列必须是索引等值前缀后的 Int64 或 DATETIME 列。", nameof(range));
+            }
+
+            prefix = TableIndexCodec.EncodeLookupPrefix(index, equalityPrefixValues, schema)
+                ?? throw new InvalidOperationException($"索引 '{index.Name}' 的等值前缀无法编码。");
+            keyRanges = BuildSignedKeyRanges(index, equalityPrefixValues, range, schema);
+        }
+
+        int take = limit ?? int.MaxValue;
+        if (take <= 0)
+            yield break;
+        RangeScanLimitTestHook?.Invoke(take);
+
+        using var snapshot = _keyspace.AcquireReadSnapshot();
+        int emitted = 0;
+        foreach (var keyRange in keyRanges)
+        {
+            using var cursor = snapshot.OpenRangeCursor(new KvRangeScanOptions
+            {
+                Prefix = prefix,
+                StartInclusive = keyRange.StartInclusive,
+                EndExclusive = keyRange.EndExclusive,
+                PageSize = 256,
+            });
+
+            while (!cursor.IsExhausted && emitted < take)
+            {
+                IReadOnlyList<KvEntry> page = cursor.ReadNextPage();
+                if (page.Count == 0)
+                    break;
+
+                foreach (var entry in page)
+                {
+                    if (emitted >= take)
+                        yield break;
+
+                    byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(entry.Value.Span);
+                    var payload = snapshot.GetEntry(rowKey);
+                    if (payload is null)
+                        continue;
+
+                    emitted++;
+                    yield return new TableRow(
+                        TableRowCodec.Decode(schema, payload.Value.Span),
+                        entry.Value.ToArray());
+                }
+            }
         }
     }
 

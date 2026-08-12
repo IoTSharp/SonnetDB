@@ -7,6 +7,7 @@
 
 ### Fixed
 
+- 修正关系表 `WHERE + ORDER BY + LIMIT/OFFSET` 的整表物化：普通扫描、二级索引等值/前缀与范围候选现在按稳定快照分页惰性读取，先过滤再投影；无排序分页达到窗口后提前停止，带排序分页使用有界 Top-N。单表 `DISTINCT` 在排序键已投影时也下推去重与分页，避免把整表候选和排序结果同时保留在内存。
 - 修复 SonnetMQ 恢复：单文件日志或分段模式最后活跃段的全零尾部、不完整头部及不完整正文会截回上一条完整记录并同步落盘；封存历史段和活跃段中间的非零损坏仍严格拒绝打开。
 - 优化关系表单列正向 `IN (...)`：主键或单列二级索引按键逐项点查并去重，保留原 WHERE 残余谓词复检；`NOT IN`、子查询、复合/JSON 索引、浮点键和事务 overlay 继续走原路径，运行时与 `EXPLAIN` 统一报告 `primary_key_in` / `secondary_index_in`。
 - **M41 #369 EXISTS 查询规划第一批**：普通单表 `EXISTS` 现在复用主键与二级索引候选规划，保留完整残余谓词、SQL NULL 三值逻辑和参数绑定，并在候选复检遇到首个真值行时停止；相关子查询会在索引探测前绑定外层值，避免首次 miss 被错误缓存。活动轻事务继续通过全表扫描叠加写集以保持 read-your-writes，`EXPLAIN SELECT EXISTS (...)` 与运行时共享 access path、index、residual、early-exit 和 fallback reason。复杂来源、聚合、排序/分页及不可安全绑定表达式仍显式回退原关系执行器；本批不宣称完成 #369 的标量 `IN`、MultiGet 或通用 semijoin。

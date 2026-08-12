@@ -196,6 +196,49 @@ public sealed class SqlExecutorTableTests : IDisposable
         Assert.Equal([3L], result.Rows.Select(r => (long)r[0]!).ToArray());
     }
 
+    /// <summary>
+    /// 验证无索引 WHERE + LIMIT 在投影前逐行过滤，并在窗口完成后停止整表扫描。
+    /// </summary>
+    [Fact]
+    public void Select_WhereLimit_StopsScanAfterRequestedWindow()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, enabled BOOL, PRIMARY KEY (id))");
+        var values = string.Join(
+            ",",
+            Enumerable.Range(1, 200).Select(static id => $"({id}, TRUE)"));
+        SqlExecutor.Execute(db, $"INSERT INTO devices (id, enabled) VALUES {values}");
+
+        var store = db.Tables.Open("devices");
+        var decoded = 0;
+        store.RowDecodedTestHook = _ => decoded++;
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM devices WHERE enabled = TRUE LIMIT 3 OFFSET 2"));
+
+        Assert.Equal([3L, 4L, 5L], result.Rows.Select(static row => (long)row[0]!).ToArray());
+        Assert.Equal(5, decoded);
+    }
+
+    /// <summary>
+    /// 验证无索引 ORDER BY + LIMIT 使用有界 Top-N，而不是先物化整表排序。
+    /// </summary>
+    [Fact]
+    public void Select_OrderByLimit_UsesStreamingTopNForTableScan()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE devices (id INT, score INT, PRIMARY KEY (id))");
+        var values = string.Join(
+            ",",
+            Enumerable.Range(1, 200).Select(static id => $"({id}, {200 - id})"));
+        SqlExecutor.Execute(db, $"INSERT INTO devices (id, score) VALUES {values}");
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM devices ORDER BY score ASC LIMIT 3"));
+
+        Assert.Equal([200L, 199L, 198L], result.Rows.Select(static row => (long)row[0]!).ToArray());
+    }
+
     [Fact]
     public void Select_WithNumericConstantWhere_EvaluatesAsBoolean()
     {

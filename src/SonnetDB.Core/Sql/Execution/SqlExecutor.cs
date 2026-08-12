@@ -1546,6 +1546,18 @@ public static class SqlExecutor
         if (!statement.Distinct)
             return ExecuteSelectDispatch(tsdb, statement);
 
+        // 单表且排序键已在投影中的 DISTINCT 可安全下推到表执行器，按过滤→去重→Top-N 流式执行。
+        // 隐藏排序列、JOIN、子查询等路径仍保留统一收敛点，避免改变 SQL 语义。
+        if (statement.UnionStatements.Count == 0
+            && statement.FromSubquery is null
+            && statement.JoinClauses.Count == 0
+            && !RelationalSelectExecutor.NeedsRelationalPath(statement)
+            && tsdb.Tables.Catalog.TryGet(statement.Measurement) is { } distinctSchema
+            && TableSqlExecutor.CanStreamDistinct(statement, distinctSchema))
+        {
+            return TableSqlExecutor.ExecuteSelect(tsdb, statement, distinctSchema);
+        }
+
         // DISTINCT 在单一收敛点去重，覆盖 measurement / 关系 / 文档等所有 SELECT 路径。
         // 标准 SQL 求值顺序为 SELECT → DISTINCT → LIMIT，故先剥离分页交由子执行器算出全量投影行，
         // 去重后再施加 LIMIT/OFFSET；否则"先分页再去重"会少返回不足 k 行的去重结果。
@@ -1586,7 +1598,7 @@ public static class SqlExecutor
     /// （整型统一装箱为 <see cref="long"/>，浮点为 <see cref="double"/>），避免把大 long 折成 double
     /// 时的精度误合并；<see cref="byte"/>[] 按内容序列比较。
     /// </summary>
-    private sealed class DistinctRowComparer : IEqualityComparer<IReadOnlyList<object?>>
+    internal sealed class DistinctRowComparer : IEqualityComparer<IReadOnlyList<object?>>
     {
         public static readonly DistinctRowComparer Instance = new();
 

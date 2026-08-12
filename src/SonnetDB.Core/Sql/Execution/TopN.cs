@@ -12,6 +12,43 @@ namespace SonnetDB.Sql.Execution;
 internal static class TopN
 {
     /// <summary>
+    /// 从惰性候选序列中选择排序分页结果，避免为 Top-N 查询先物化整表。
+    /// </summary>
+    /// <typeparam name="T">行类型。</typeparam>
+    /// <param name="rows">惰性候选行序列。</param>
+    /// <param name="comparer">行排序比较器。</param>
+    /// <param name="offset">跳过的行数。</param>
+    /// <param name="fetch">取的行数；为空表示取到末尾。</param>
+    /// <returns>排序并分页后的行数组。</returns>
+    public static T[] OrderByThenPaginate<T>(
+        IEnumerable<T> rows,
+        IComparer<T> comparer,
+        int offset,
+        int? fetch)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+        ArgumentNullException.ThrowIfNull(comparer);
+
+        if (rows is IReadOnlyList<T> list)
+            return OrderByThenPaginate(list, comparer, offset, fetch);
+        if (fetch is not int take)
+            return OrderByThenPaginate(rows.ToArray(), comparer, offset, fetch);
+        if (offset < 0)
+            offset = 0;
+        if (take <= 0)
+            return [];
+
+        long neededLong = (long)offset + take;
+        int needed = neededLong > int.MaxValue ? int.MaxValue : (int)neededLong;
+        if (needed <= 0)
+            return [];
+
+        var topPrefix = SelectTopPrefix(rows, comparer, needed);
+        int available = topPrefix.Length - offset;
+        return available <= 0 ? [] : Slice(topPrefix, offset, Math.Min(take, available));
+    }
+
+    /// <summary>
     /// 按 <paramref name="comparer"/> 排序 <paramref name="rows"/>，应用 <paramref name="offset"/> /
     /// <paramref name="fetch"/> 分页；有 fetch 上限时走有界堆 Top-N，否则全量排序。稳定：同序保持输入相对顺序。
     /// </summary>
@@ -96,6 +133,47 @@ internal static class TopN
         Array.Sort(heap, 0, size, Comparer<(T Row, int Index)>.Create(
             (a, b) => CompareStable(a, b, comparer)));
 
+        var result = new T[size];
+        for (int i = 0; i < size; i++)
+            result[i] = heap[i].Row;
+        return result;
+    }
+
+    /// <summary>
+    /// 单遍消费惰性候选序列，维护固定容量的最大堆。
+    /// </summary>
+    private static T[] SelectTopPrefix<T>(IEnumerable<T> rows, IComparer<T> comparer, int count)
+    {
+        // 不按超大 OFFSET 一次性申请数组；只有实际候选数增长时才扩容。
+        var heap = new (T Row, int Index)[Math.Min(count, 256)];
+        int size = 0;
+        int index = 0;
+        foreach (var row in rows)
+        {
+            var candidate = (Row: row, Index: index++);
+            if (size < count)
+            {
+                if (size == heap.Length)
+                {
+                    int nextCapacity = Math.Min(
+                        count,
+                        heap.Length >= count / 2 ? count : heap.Length * 2);
+                    Array.Resize(ref heap, Math.Max(size + 1, nextCapacity));
+                }
+
+                heap[size] = candidate;
+                SiftUp(heap, size, comparer);
+                size++;
+            }
+            else if (CompareStable(candidate, heap[0], comparer) < 0)
+            {
+                heap[0] = candidate;
+                SiftDown(heap, 0, size, comparer);
+            }
+        }
+
+        Array.Sort(heap, 0, size, Comparer<(T Row, int Index)>.Create(
+            (a, b) => CompareStable(a, b, comparer)));
         var result = new T[size];
         for (int i = 0; i < size; i++)
             result[i] = heap[i].Row;

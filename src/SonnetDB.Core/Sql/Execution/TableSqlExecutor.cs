@@ -593,32 +593,72 @@ internal static class TableSqlExecutor
             schema,
             statement,
             projections);
-        var filtered = new List<IReadOnlyList<object?>>();
-        foreach (var row in rows)
-        {
-            SqlExecutor.ThrowIfCancellationRequested();
-            if (!EvaluateWhere(statement.Where, schema, row.Values))
-                continue;
 
-            var output = new object?[projections.Length + hiddenOrderColumns.Length];
-            for (int i = 0; i < projections.Length; i++)
-                output[i] = EvaluateProjection(projections[i], schema, row.Values);
-            for (int i = 0; i < hiddenOrderColumns.Length; i++)
-                output[projections.Length + i] = row.Values[hiddenOrderColumns[i].Ordinal];
-            filtered.Add(output);
+        IEnumerable<IReadOnlyList<object?>> ProjectMatchingRows()
+        {
+            foreach (var row in rows)
+            {
+                SqlExecutor.ThrowIfCancellationRequested();
+                if (!EvaluateWhere(statement.Where, schema, row.Values))
+                    continue;
+
+                var output = new object?[projections.Length + hiddenOrderColumns.Length];
+                for (int i = 0; i < projections.Length; i++)
+                    output[i] = EvaluateProjection(projections[i], schema, row.Values);
+                for (int i = 0; i < hiddenOrderColumns.Length; i++)
+                    output[projections.Length + i] = row.Values[hiddenOrderColumns[i].Ordinal];
+                yield return output;
+            }
         }
 
-        var result = new SelectExecutionResult(
-            projections.Select(static projection => projection.ColumnName)
-                .Concat(hiddenOrderColumns.Select(static column => column.Name))
-                .ToArray(),
-            filtered);
+        var columns = projections.Select(static projection => projection.ColumnName)
+            .Concat(hiddenOrderColumns.Select(static column => column.Name))
+            .ToArray();
+        var projected = statement.Distinct
+            ? DistinctRows(ProjectMatchingRows())
+            : ProjectMatchingRows();
         var ordered = rangeOrderSatisfied
-            ? ApplyPagination(result, statement.Pagination)
-            : ApplyOrderByAndPagination(result, statement.OrderByList, statement.Pagination);
+            ? ApplyPagination(columns, projected, statement.Pagination)
+            : statement.OrderByList.Count == 0
+                ? ApplyPagination(columns, projected, statement.Pagination)
+                : ApplyOrderByAndPagination(columns, projected, statement.OrderByList, statement.Pagination);
         return hiddenOrderColumns.Length == 0
             ? ordered
             : RemoveHiddenOrderColumns(ordered, projections.Length);
+    }
+
+    /// <summary>
+    /// 判断单表 DISTINCT 是否能在表扫描阶段安全完成去重并下推分页。
+    /// </summary>
+    internal static bool CanStreamDistinct(SelectStatement statement, TableSchema schema)
+    {
+        ArgumentNullException.ThrowIfNull(statement);
+        ArgumentNullException.ThrowIfNull(schema);
+        if (!statement.Distinct
+            || statement.FromSubquery is not null
+            || statement.JoinClauses.Count != 0
+            || statement.GroupBy.Count != 0
+            || statement.Having is not null)
+        {
+            return false;
+        }
+
+        var projections = BuildProjections(statement.Projections, schema);
+        return ResolveHiddenOrderColumns(projections, statement.OrderByList, schema).Length == 0;
+    }
+
+    /// <summary>
+    /// 按逐列 SQL 相等语义去重惰性投影行，首个出现的行保留其输入顺序。
+    /// </summary>
+    private static IEnumerable<IReadOnlyList<object?>> DistinctRows(
+        IEnumerable<IReadOnlyList<object?>> rows)
+    {
+        var seen = new HashSet<IReadOnlyList<object?>>(SqlExecutor.DistinctRowComparer.Instance);
+        foreach (var row in rows)
+        {
+            if (seen.Add(row))
+                yield return row;
+        }
     }
 
     internal static IReadOnlyList<string> ResolveProjectionColumnNames(
@@ -1769,7 +1809,7 @@ internal static class TableSqlExecutor
     /// <summary>
     /// 为普通关系 SELECT 加载候选行；仅在范围索引满足升序且 WHERE 无残余时安全下推分页候选上限。
     /// </summary>
-    private static (IReadOnlyList<TableRow> Rows, bool RangeOrderSatisfied) LoadSelectCandidateRowsForStatement(
+    private static (IEnumerable<TableRow> Rows, bool RangeOrderSatisfied) LoadSelectCandidateRowsForStatement(
         TableStore store,
         TableSchema schema,
         SelectStatement statement,
@@ -1778,6 +1818,15 @@ internal static class TableSqlExecutor
         var transaction = SqlTransactionContext.Current;
         if (transaction is not null && transaction.TryGetBufferedMutations(schema.Name, out var buffered))
             return (ApplyMutationOverlay(schema, store.Scan(), buffered), false);
+
+        if (TryLoadInCandidateRows(store, schema, statement.Where, out var inRows))
+            return (inRows, false);
+
+        if (TryExtractPrimaryKeyValues(schema, statement.Where, allowExtraPredicates: true, out var keyValues))
+        {
+            var row = store.GetByPrimaryKey(keyValues);
+            return (row is null ? Array.Empty<TableRow>() : [row], false);
+        }
 
         var plan = ChooseBestIndexAccessPlan(schema, statement.Where);
         if (plan?.Range is not null
@@ -1804,7 +1853,21 @@ internal static class TableSqlExecutor
                 true);
         }
 
-        return (LoadCandidateRows(store, schema, statement.Where), false);
+        if (plan?.Range is not null)
+            return (store.EnumerateByIndexRange(plan.Index, plan.EqualityPrefixValues, plan.Range), false);
+
+        if (plan is { Range: null })
+        {
+            return (
+                store.EnumerateByIndexPrefix(plan.Index, plan.EqualityPrefixValues),
+                false);
+        }
+
+        if (statement.Where is null)
+            return (store.EnumerateScan(), false);
+
+        // 没有可用访问计划时按页扫描；主键 IN / JSON 等点查已在上方返回其专用候选路径。
+        return (store.EnumerateScan(), false);
     }
 
     /// <summary>
@@ -3217,7 +3280,7 @@ internal static class TableSqlExecutor
         if (orderBy.Count == 0)
             return ApplyPagination(result, pagination);
 
-        var sortItems = ResolveSortItems(result, orderBy);
+        var sortItems = ResolveSortItems(result.Columns, orderBy);
         var comparer = new ResultRowSortComparer(sortItems);
 
         int offset = pagination?.Offset ?? 0;
@@ -3227,8 +3290,27 @@ internal static class TableSqlExecutor
         return new SelectExecutionResult(result.Columns, rows);
     }
 
+    /// <summary>
+    /// 从惰性投影序列直接执行 ORDER BY + LIMIT，避免先构造候选结果全集。
+    /// </summary>
+    private static SelectExecutionResult ApplyOrderByAndPagination(
+        IReadOnlyList<string> columns,
+        IEnumerable<IReadOnlyList<object?>> rows,
+        IReadOnlyList<OrderBySpec> orderBy,
+        PaginationSpec? pagination)
+    {
+        var sortItems = ResolveSortItems(columns, orderBy);
+        var comparer = new ResultRowSortComparer(sortItems);
+        var selected = TopN.OrderByThenPaginate(
+            rows,
+            comparer,
+            pagination?.Offset ?? 0,
+            pagination?.Fetch);
+        return new SelectExecutionResult(columns, selected);
+    }
+
     private static (int ColumnIndex, SortDirection Direction)[] ResolveSortItems(
-        SelectExecutionResult result,
+        IReadOnlyList<string> columns,
         IReadOnlyList<OrderBySpec> orderBy)
         => orderBy.Select(order =>
             {
@@ -3236,9 +3318,9 @@ internal static class TableSqlExecutor
                     throw new InvalidOperationException("关系表 ORDER BY 当前仅支持列名。");
 
                 int columnIndex = -1;
-                for (int i = 0; i < result.Columns.Count; i++)
+                for (int i = 0; i < columns.Count; i++)
                 {
-                    if (string.Equals(result.Columns[i], name, StringComparison.Ordinal))
+                    if (string.Equals(columns[i], name, StringComparison.Ordinal))
                     {
                         columnIndex = i;
                         break;
@@ -3330,6 +3412,40 @@ internal static class TableSqlExecutor
         return new SelectExecutionResult(
             result.Columns,
             result.Rows.Skip(offset).Take(Math.Min(take, result.Rows.Count - offset)).ToArray());
+    }
+
+    /// <summary>
+    /// 对惰性投影序列应用无排序分页，只保留所需窗口并在窗口完成后停止扫描。
+    /// </summary>
+    private static SelectExecutionResult ApplyPagination(
+        IReadOnlyList<string> columns,
+        IEnumerable<IReadOnlyList<object?>> rows,
+        PaginationSpec? pagination)
+    {
+        if (pagination is null)
+            return new SelectExecutionResult(columns, rows.ToArray());
+
+        int offset = pagination.Offset;
+        int take = pagination.Fetch ?? int.MaxValue;
+        if (take <= 0)
+            return new SelectExecutionResult(columns, []);
+
+        var selected = new List<IReadOnlyList<object?>>(Math.Min(take, 256));
+        int skipped = 0;
+        foreach (var row in rows)
+        {
+            if (skipped < offset)
+            {
+                skipped++;
+                continue;
+            }
+
+            selected.Add(row);
+            if (selected.Count >= take)
+                break;
+        }
+
+        return new SelectExecutionResult(columns, selected);
     }
 
     private static IEnumerable<SqlExpression> FlattenAnd(SqlExpression expression)
