@@ -115,6 +115,27 @@ public class SqlExecutorCreateMeasurementTests : IDisposable
     }
 
     [Fact]
+    public async Task Execute_CreateMeasurement_IfNotExists_IsConcurrentIdempotent()
+    {
+        using var db = Tsdb.Open(Options());
+        using var gate = new ManualResetEventSlim(false);
+        var tasks = Enumerable.Range(0, 32).Select(_ => Task.Run(() =>
+        {
+            gate.Wait();
+            return SqlExecutor.Execute(db,
+                "CREATE MEASUREMENT IF NOT EXISTS concurrent_cpu (host TAG, usage FIELD FLOAT)");
+        })).ToArray();
+
+        // 同时释放多个首次创建者，验证检查和 schema 发布处于同一临界区。
+        gate.Set();
+        var results = await Task.WhenAll(tasks);
+
+        var schema = Assert.IsType<MeasurementSchema>(results[0]);
+        Assert.All(results, result => Assert.Same(schema, Assert.IsType<MeasurementSchema>(result)));
+        Assert.Equal(1, db.Measurements.Snapshot().Count(item => item.Name == "concurrent_cpu"));
+    }
+
+    [Fact]
     public void Execute_CreateMeasurement_WithoutIfNotExists_ThrowsOnDuplicate()
     {
         using var db = Tsdb.Open(Options());

@@ -817,6 +817,48 @@ public sealed class Tsdb : IDisposable
     }
 
     /// <summary>
+    /// 在 schema 锁内按名称读取或创建 measurement，保证幂等 DDL 的并发首次创建只有一个发布者。
+    /// </summary>
+    /// <param name="name">Measurement 名称。</param>
+    /// <param name="schemaFactory">确认同名 measurement 不存在后调用的 schema 工厂。</param>
+    /// <returns>已存在或本次新建的 schema。</returns>
+    /// <exception cref="ArgumentException"><paramref name="name"/> 为空，或工厂返回了不同名称的 schema。</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="schemaFactory"/> 为 null。</exception>
+    /// <exception cref="ObjectDisposedException">实例已关闭。</exception>
+    internal MeasurementSchema GetOrCreateMeasurement(
+        string name,
+        Func<MeasurementSchema> schemaFactory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(schemaFactory);
+
+        lock (_schemaSync)
+        lock (_writeSync)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            var existing = Measurements.TryGet(name);
+            if (existing is not null)
+            {
+                return existing;
+            }
+
+            EnsureViewNameAvailable(name, "measurement");
+            var schema = schemaFactory();
+            if (!string.Equals(schema.Name, name, StringComparison.Ordinal))
+            {
+                throw new ArgumentException(
+                    $"Measurement schema 工厂返回名称 '{schema.Name}'，预期为 '{name}'。",
+                    nameof(schemaFactory));
+            }
+
+            Measurements.Add(schema);
+            MarkMeasurementSchemasDirty();
+            PersistMeasurementSchemasLocked();
+            return schema;
+        }
+    }
+
+    /// <summary>
     /// 删除指定 measurement 的 schema、series catalog 与对应时序数据。
     /// </summary>
     /// <param name="name">measurement 名称。</param>

@@ -1218,33 +1218,16 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
 
-        EnsureNameDoesNotBelongToView(tsdb, statement.Name, "measurement");
-
-        // IF NOT EXISTS：同名 measurement 已存在则直接复用，不校验列定义是否一致。
         if (statement.IfNotExists)
         {
-            var existing = tsdb.Measurements.TryGet(statement.Name);
-            if (existing is not null)
-            {
-                return existing;
-            }
+            // 存在检查和首次发布必须处于同一 schema 锁内，避免并发启动时其中一个幂等 DDL 误报重复。
+            return tsdb.GetOrCreateMeasurement(
+                statement.Name,
+                () => BuildMeasurementSchema(statement));
         }
 
-        RejectUnsupportedDefaults(statement);
-
-        var columns = new List<MeasurementColumn>(statement.Columns.Count);
-        foreach (var col in statement.Columns)
-        {
-            columns.Add(new MeasurementColumn(
-                col.Name,
-                MapRole(col.Kind),
-                MapType(col.DataType),
-                col.VectorDimension,
-                MapVectorIndex(col.VectorIndex)));
-        }
-
-        var schema = MeasurementSchema.Create(statement.Name, columns);
-        return tsdb.CreateMeasurement(schema);
+        EnsureNameDoesNotBelongToView(tsdb, statement.Name, "measurement");
+        return tsdb.CreateMeasurement(BuildMeasurementSchema(statement));
     }
 
     /// <summary>
@@ -1280,6 +1263,29 @@ public static class SqlExecutor
                     "SonnetDB 使用稀疏字段语义，请在 INSERT 时显式写入该 FIELD，或省略该字段让查询结果返回 NULL。");
             }
         }
+    }
+
+    /// <summary>
+    /// 校验 CREATE MEASUREMENT 列定义并构造 catalog schema。
+    /// </summary>
+    /// <param name="statement">已解析的 measurement 定义。</param>
+    /// <returns>尚未发布到数据库目录的 schema。</returns>
+    private static MeasurementSchema BuildMeasurementSchema(CreateMeasurementStatement statement)
+    {
+        RejectUnsupportedDefaults(statement);
+
+        var columns = new List<MeasurementColumn>(statement.Columns.Count);
+        foreach (var col in statement.Columns)
+        {
+            columns.Add(new MeasurementColumn(
+                col.Name,
+                MapRole(col.Kind),
+                MapType(col.DataType),
+                col.VectorDimension,
+                MapVectorIndex(col.VectorIndex)));
+        }
+
+        return MeasurementSchema.Create(statement.Name, columns);
     }
 
     private static MeasurementColumnRole MapRole(ColumnKind kind) => kind switch

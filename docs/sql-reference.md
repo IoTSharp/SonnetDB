@@ -423,6 +423,15 @@ WHERE id = 1;
 
 DELETE FROM devices
 WHERE id = 2;
+
+DELETE FROM acquisitions
+WHERE guid IN (
+    SELECT guid
+    FROM acquisitions
+    WHERE upload_time < @cutoff
+    ORDER BY capture_time
+    LIMIT 500
+);
 ```
 
 当前行为：
@@ -434,6 +443,8 @@ WHERE id = 2;
 - 关系表 `JSON` 列支持 `json_value(metadata, '$.site')` 这类 path 表达式；对象或数组结果会以紧凑 JSON 字符串返回。
 - `WHERE` 覆盖完整主键等值条件时会走主键读取；二级索引按最长连续左前缀选择，并可在首个未绑定的 `INT` / `DATETIME` 列继续做范围扫描；其它条件在候选行上过滤。
 - `ORDER BY` 支持结果集中的任意列名；`LIMIT` / `OFFSET` / `FETCH` 语法与 measurement 查询一致。
+- 关系表 `UPDATE` / `DELETE` 的 `WHERE` 支持非相关 `IN (SELECT ...)`；子查询必须只返回一列，可使用参数、`JOIN`、派生表、`UNION`、`ORDER BY` 和分页。结果会在修改目标行前物化，并保持 `IN` / `NOT IN` 对 `NULL` 和空集的三值逻辑。
+- 写操作的 `IN` 子查询当前只接受普通关系表或 measurement 来源，不支持 document、vector/hybrid search、表值函数或引用待修改外层行的相关子查询。轻事务中如果目标表已有缓冲写，也会明确拒绝对该表执行带 `IN` 子查询的后续 `UPDATE` / `DELETE`，避免子查询看到不一致视图。
 
 ### 关系表轻事务
 
@@ -906,7 +917,7 @@ ORDER BY score DESC;
 定义 measurement schema：
 
 ```sql
-CREATE MEASUREMENT cpu (
+CREATE MEASUREMENT IF NOT EXISTS cpu (
     host TAG,
     region TAG STRING,
     usage FIELD FLOAT NULL,
@@ -922,6 +933,7 @@ CREATE MEASUREMENT cpu (
 - `FIELD` 列支持 `FLOAT`、`INT`、`BOOL`、`STRING`、`VECTOR(N)`、`GEOPOINT`。
 - schema 中至少要有一个 `FIELD` 列。
 - `time` 不属于 schema 定义的一部分。
+- `IF NOT EXISTS` 提供并发安全的幂等创建；同名 measurement 已存在时直接成功并保留现有 schema，不使用本次列定义覆盖它。
 - `NULL` / `NOT NULL` 可作为 DDL 兼容修饰符出现在列类型后；当前仅保留在 SQL AST 中，执行层不把它持久化为 catalog 约束，也不强制 `NOT NULL`。
 - `DEFAULT <expr>` 目前会被 parser 接受，但执行 `CREATE MEASUREMENT` 时会返回明确的 `DEFAULT` 暂不支持错误。
 

@@ -149,6 +149,29 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         Assert.Equal(-1, r.RecordsAffected);
     }
 
+    [Fact]
+    public async Task Remote_CreateMeasurementIfNotExists_ConcurrentRequestsAreIdempotent()
+    {
+        var tasks = Enumerable.Range(0, 12).Select(async _ =>
+        {
+            await using var connection = new SndbConnection(RemoteConnString());
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "CREATE MEASUREMENT IF NOT EXISTS remote_device_status (device TAG, online FIELD BOOL)";
+            return await command.ExecuteNonQueryAsync();
+        });
+
+        var affected = await Task.WhenAll(tasks);
+
+        Assert.All(affected, count => Assert.Equal(0, count));
+        await using var verifyConnection = new SndbConnection(RemoteConnString());
+        await verifyConnection.OpenAsync();
+        await using var verify = verifyConnection.CreateCommand();
+        verify.CommandText = "DESCRIBE MEASUREMENT remote_device_status";
+        await using var reader = await verify.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync());
+    }
+
     [Theory]
     [InlineData("embedded")]
     [InlineData("remote")]
@@ -231,6 +254,64 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         Assert.Equal("o'reilly", r.GetString(0));
         Assert.Equal(7.25, r.GetDouble(1));
         Assert.False(r.Read());
+    }
+
+    /// <summary>验证远程 ADO 可执行清理任务使用的参数化同表 IN 子查询，并严格遵守排序和批量上限。</summary>
+    [Fact]
+    public async Task Remote_DeleteInSubqueryWithDateTimeParameter_DeletesBoundedBatch()
+    {
+        await using var connection = new SndbConnection(RemoteConnString());
+        await connection.OpenAsync();
+        await using (var setup = connection.CreateCommand())
+        {
+            setup.CommandText = """
+                CREATE TABLE remote_cleanup_acquisitions (
+                    guid STRING,
+                    uploadTime DATETIME,
+                    captureTime DATETIME,
+                    PRIMARY KEY (guid)
+                )
+                """;
+            Assert.Equal(0, await setup.ExecuteNonQueryAsync());
+        }
+
+        var start = new DateTimeOffset(2026, 7, 10, 0, 0, 0, TimeSpan.Zero);
+        for (int i = 0; i < 5; i++)
+        {
+            await using var insert = connection.CreateCommand();
+            insert.CommandText = """
+                INSERT INTO remote_cleanup_acquisitions (guid, uploadTime, captureTime)
+                VALUES (@guid, @uploadTime, @captureTime)
+                """;
+            insert.Parameters.AddWithValue("@guid", $"g{i:D2}");
+            insert.Parameters.AddWithValue("@uploadTime", i < 4 ? start : start.AddDays(2));
+            insert.Parameters.AddWithValue("@captureTime", start.AddMinutes(i));
+            Assert.Equal(1, await insert.ExecuteNonQueryAsync());
+        }
+
+        await using (var delete = connection.CreateCommand())
+        {
+            delete.CommandText = """
+                DELETE FROM remote_cleanup_acquisitions
+                WHERE guid IN (
+                    SELECT guid
+                    FROM remote_cleanup_acquisitions
+                    WHERE uploadTime < @cutoff
+                    ORDER BY captureTime
+                    LIMIT 2
+                )
+                """;
+            delete.Parameters.AddWithValue("@cutoff", start.AddDays(1));
+            Assert.Equal(2, await delete.ExecuteNonQueryAsync());
+        }
+
+        await using var verify = connection.CreateCommand();
+        verify.CommandText = "SELECT guid FROM remote_cleanup_acquisitions ORDER BY guid";
+        await using var reader = await verify.ExecuteReaderAsync();
+        var remaining = new List<string>();
+        while (await reader.ReadAsync())
+            remaining.Add(reader.GetString(0));
+        Assert.Equal(["g02", "g03", "g04"], remaining);
     }
 
     [Theory]
