@@ -1370,6 +1370,10 @@ internal static class TableSqlExecutor
         TableSchema schema,
         SqlExpression? where)
     {
+        // 现场批量合成查询通常是单列主键 IN；逐键点查可避免读取包含图片的大量无关行。
+        if (TryLoadInCandidateRows(store, schema, where, out var inRows))
+            return inRows;
+
         if (TryExtractPrimaryKeyValues(schema, where, allowExtraPredicates: true, out var keyValues))
         {
             var row = store.GetByPrimaryKey(keyValues);
@@ -1388,6 +1392,134 @@ internal static class TableSqlExecutor
 
         return store.Scan();
     }
+
+    /// <summary>按安全的单列正向 IN 形状加载候选行，失败时返回 false 交给既有规划器。</summary>
+    private static bool TryLoadInCandidateRows(
+        TableStore store,
+        TableSchema schema,
+        SqlExpression? where,
+        out IReadOnlyList<TableRow> rows)
+    {
+        rows = Array.Empty<TableRow>();
+        if (!TryChooseInAccessPlan(schema, where, out var plan))
+            return false;
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var result = new List<TableRow>();
+        foreach (var value in plan.Values)
+        {
+            IReadOnlyList<TableRow> candidates = plan.UsesPrimaryKey
+                ? (store.GetByPrimaryKey([value]) is { } primary ? [primary] : Array.Empty<TableRow>())
+                : store.GetByIndex(plan.Index!, [value]);
+            foreach (var candidate in candidates)
+            {
+                var key = Convert.ToHexString(TableKeyCodec.EncodePrimaryKey(schema, candidate.Values));
+                if (seen.Add(key))
+                    result.Add(candidate);
+            }
+        }
+
+        rows = result;
+        return true;
+    }
+
+    /// <summary>识别单列主键或单列非 JSON 二级索引的正向 IN，并完成键值转换。</summary>
+    internal static bool TryChooseInAccessPlan(
+        TableSchema schema,
+        SqlExpression? where,
+        out TableInAccessPlan plan)
+    {
+        plan = null!;
+        if (where is null)
+            return false;
+
+        InExpression? inExpression = null;
+        foreach (var leaf in FlattenAnd(where))
+        {
+            if (leaf is not InExpression { Negated: false, Subquery: null } candidate)
+                continue;
+            if (inExpression is not null)
+                return false;
+            inExpression = candidate;
+        }
+
+        if (inExpression?.Value is not IdentifierExpression identifier)
+        {
+            return false;
+        }
+
+        TableColumn? column = schema.TryGetColumn(identifier.Name);
+        if (column is null)
+            return false;
+
+        TableIndex? index = null;
+        bool usesPrimaryKey = schema.PrimaryKey.Count == 1
+            && string.Equals(schema.PrimaryKey[0], column.Name, StringComparison.Ordinal);
+        if (!usesPrimaryKey)
+        {
+            index = schema.Indexes.FirstOrDefault(candidate =>
+                candidate.Columns.Count == 1
+                && string.IsNullOrWhiteSpace(candidate.JsonPath)
+                && string.Equals(candidate.Columns[0], column.Name, StringComparison.Ordinal));
+            if (index is null)
+                return false;
+        }
+
+        var values = new List<object>(inExpression.Values.Count);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var expression in inExpression.Values)
+        {
+            object? value;
+            try
+            {
+                value = expression switch
+                {
+                    LiteralExpression literal => EvaluateLiteral(literal),
+                    UnaryExpression
+                    {
+                        Operator: SqlUnaryOperator.Negate,
+                        Operand: LiteralExpression negatedLiteral,
+                    } => NegateLiteral(negatedLiteral),
+                    DurationLiteralExpression duration => duration.Milliseconds,
+                    MaterializedSubqueryValueExpression materialized => materialized.Value,
+                    _ => throw new InvalidOperationException("IN 值不是可直接绑定的字面量。"),
+                };
+                if (value is null)
+                    continue;
+                if (!CanUsePrimaryKeyPointLookup(column.DataType, value))
+                    return false;
+                value = ConvertTableValue(value, column);
+                if (value is null)
+                    continue;
+            }
+            catch (Exception exception) when (exception is InvalidOperationException
+                or ArgumentOutOfRangeException
+                or InvalidCastException
+                or FormatException
+                or OverflowException)
+            {
+                return false;
+            }
+
+            var encoded = Convert.ToHexString(EncodeInLookupKey(schema, column, index, usesPrimaryKey, value));
+            if (seen.Add(encoded))
+                values.Add(value);
+        }
+
+        plan = new TableInAccessPlan(index, usesPrimaryKey, values);
+        return true;
+    }
+
+    /// <summary>为主键或二级索引点查生成稳定去重键。</summary>
+    private static byte[] EncodeInLookupKey(
+        TableSchema schema,
+        TableColumn column,
+        TableIndex? index,
+        bool usesPrimaryKey,
+        object value)
+        => usesPrimaryKey
+            ? TableKeyCodec.EncodePrimaryKeyValues(schema, [value])
+            : TableIndexCodec.EncodeLookupPrefix(index!, [value], schema)!;
 
     /// <summary>
     /// A materialized positive IN over a single-column primary key can use point reads. This is
@@ -1514,6 +1646,18 @@ internal static class TableSqlExecutor
                 HasResidualPredicate: !predicateCovered);
         }
 
+        if (TryChooseInAccessPlan(schema, where, out var inPlan))
+        {
+            return new TableExistsAccessPlan(
+                AccessPath: inPlan.UsesPrimaryKey ? "primary_key_in" : "secondary_index_in",
+                IndexName: inPlan.UsesPrimaryKey ? "primary" : inPlan.Index!.Name,
+                UsesPrimaryKey: false,
+                IndexPlan: null,
+                PredicateCovered: IsWhereOnlyInPredicate(where),
+                HasResidualPredicate: !IsWhereOnlyInPredicate(where),
+                InPlan: inPlan);
+        }
+
         if (ChooseBestIndexAccessPlan(schema, where) is { } indexPlan)
         {
             bool predicateCovered = IsWhereFullyCoveredByIndexPlan(where, schema, indexPlan);
@@ -1571,6 +1715,24 @@ internal static class TableSqlExecutor
             return new TableExistsCandidateRows(
                 plan,
                 row is null ? Array.Empty<TableRow>() : [row]);
+        }
+
+        if (plan.InPlan is { } inPlan)
+        {
+            var rows = new List<TableRow>();
+            foreach (var value in inPlan.Values)
+            {
+                if (inPlan.UsesPrimaryKey)
+                {
+                    if (store.GetByPrimaryKey([value]) is { } primary)
+                        rows.Add(primary);
+                }
+                else
+                {
+                    rows.AddRange(store.GetByIndex(inPlan.Index!, [value]));
+                }
+            }
+            return new TableExistsCandidateRows(plan, rows);
         }
 
         int? candidateLimit = plan.PredicateCovered ? 1 : null;
@@ -1860,6 +2022,10 @@ internal static class TableSqlExecutor
             : plan.Range is not null
                 ? "secondary_index_range"
                 : plan.IsFullEquality ? "secondary_index" : "secondary_index_prefix";
+
+    /// <summary>判断 WHERE 是否仅由一个正向 IN 谓词组成。</summary>
+    private static bool IsWhereOnlyInPredicate(SqlExpression? where)
+        => where is InExpression { Negated: false, Subquery: null };
 
     /// <summary>
     /// 把轻事务缓冲的 insert/update/delete 叠加到已提交基线行上（按主键合并，保序追加新插入）。

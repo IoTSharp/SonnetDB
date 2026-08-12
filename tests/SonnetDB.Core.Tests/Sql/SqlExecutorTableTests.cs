@@ -1745,6 +1745,34 @@ public sealed class SqlExecutorTableTests : IDisposable
         }
     }
 
+    /// <summary>验证单列主键和二级索引的正向 IN 使用点查，同时保留 AND 残余谓词语义。</summary>
+    [Fact]
+    public void PositiveIn_UsesPointLookupsAndExplainReportsInPath()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db, "CREATE TABLE captures (id INT, weighing_id INT, lane INT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db, "INSERT INTO captures (id, weighing_id, lane) VALUES (1, 101, 1), (2, 102, 1), (3, 103, 2), (4, 102, 2)");
+        SqlExecutor.Execute(db, "CREATE INDEX idx_captures_weighing_id ON captures (weighing_id)");
+
+        var indexed = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM captures WHERE weighing_id IN (102, 103) AND lane = 1 ORDER BY id"));
+        Assert.Equal([2L], indexed.Rows.Select(static row => (long)row[0]!).ToArray());
+        var indexedExplain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "EXPLAIN SELECT id FROM captures WHERE weighing_id IN (102, 103) AND lane = 1"));
+        var indexedPlan = indexedExplain.Rows.ToDictionary(static row => (string)row[0]!, static row => row[1], StringComparer.Ordinal);
+        Assert.Equal("secondary_index_in", indexedPlan["access_path"]);
+        Assert.Equal("idx_captures_weighing_id", indexedPlan["index_name"]);
+
+        var primary = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "SELECT id FROM captures WHERE id IN (1, 3) ORDER BY id"));
+        Assert.Equal([1L, 3L], primary.Rows.Select(static row => (long)row[0]!).ToArray());
+        var primaryExplain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
+            "EXPLAIN SELECT id FROM captures WHERE id IN (1, 3)"));
+        var primaryPlan = primaryExplain.Rows.ToDictionary(static row => (string)row[0]!, static row => row[1], StringComparer.Ordinal);
+        Assert.Equal("primary_key_in", primaryPlan["access_path"]);
+        Assert.Equal("primary", primaryPlan["index_name"]);
+    }
+
     /// <summary>
     /// 验证优化器优先选择绑定列数更多的联合索引，并把索引外谓词留给残余过滤。
     /// </summary>

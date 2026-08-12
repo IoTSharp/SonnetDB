@@ -7,6 +7,8 @@
 
 ### Fixed
 
+- 修复 SonnetMQ 恢复：单文件日志或分段模式最后活跃段的全零尾部、不完整头部及不完整正文会截回上一条完整记录并同步落盘；封存历史段和活跃段中间的非零损坏仍严格拒绝打开。
+- 优化关系表单列正向 `IN (...)`：主键或单列二级索引按键逐项点查并去重，保留原 WHERE 残余谓词复检；`NOT IN`、子查询、复合/JSON 索引、浮点键和事务 overlay 继续走原路径，运行时与 `EXPLAIN` 统一报告 `primary_key_in` / `secondary_index_in`。
 - **M41 #369 EXISTS 查询规划第一批**：普通单表 `EXISTS` 现在复用主键与二级索引候选规划，保留完整残余谓词、SQL NULL 三值逻辑和参数绑定，并在候选复检遇到首个真值行时停止；相关子查询会在索引探测前绑定外层值，避免首次 miss 被错误缓存。活动轻事务继续通过全表扫描叠加写集以保持 read-your-writes，`EXPLAIN SELECT EXISTS (...)` 与运行时共享 access path、index、residual、early-exit 和 fallback reason。复杂来源、聚合、排序/分页及不可安全绑定表达式仍显式回退原关系执行器；本批不宣称完成 #369 的标量 `IN`、MultiGet 或通用 semijoin。
 - 修复 M34 映射表绑定创建与关系表 DROP/ALTER 的跨 catalog 竞态，以及在线备份可能复制到不一致 table/Modbus schema 的问题；两类 DDL 与备份现共享数据库级 schema 串行边界，同时保持 Dispose/Crash 的无反向锁序。Modbus catalog 打开失败会释放 WAL、Segment 和启动资源，修复文件后可在同一进程立即重开；`CREATE TABLE IF NOT EXISTS ... USING MODBUS` 遇到已有表但缺少绑定的崩溃中间态会明确拒绝，不再静默报告成功。
 - 修复关系表异常退出后因缺少 `indexes.clean` 而先删除全部有效索引、再以小预算反复重写大表段的问题；恢复流程现在分页核对并仅原子补写缺失或错值索引、删除 stale/orphan 条目，索引恢复可使用独立的有界 WAL/overlay 预算。自动 checkpoint 只在运行期间的新覆盖层实际达到预算时追加下一轮，避免低于 fresh budget 的写入形成连续压实。

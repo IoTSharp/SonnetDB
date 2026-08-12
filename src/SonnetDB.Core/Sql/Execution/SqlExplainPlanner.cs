@@ -1119,6 +1119,21 @@ public static class SqlExplainPlanner
         TableSchema schema,
         SqlExpression? where)
     {
+        if (TableSqlExecutor.TryChooseInAccessPlan(schema, where, out var inPlan))
+        {
+            int rows = 0;
+            foreach (var value in inPlan.Values)
+            {
+                rows += inPlan.UsesPrimaryKey
+                    ? store.GetByPrimaryKey([value]) is null ? 0 : 1
+                    : store.GetByIndex(inPlan.Index!, [value]).Count;
+            }
+            return (
+                inPlan.UsesPrimaryKey ? "primary_key_in" : "secondary_index_in",
+                inPlan.UsesPrimaryKey ? "primary" : inPlan.Index!.Name,
+                rows);
+        }
+
         if (TableSqlExecutor.ChooseBestIndexAccessPlan(schema, where) is { } plan)
         {
             string accessPath = !string.IsNullOrWhiteSpace(plan.Index.JsonPath)

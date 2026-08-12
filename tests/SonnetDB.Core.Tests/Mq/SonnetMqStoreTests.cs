@@ -161,6 +161,83 @@ public sealed class SonnetMqStoreTests : IDisposable
         Assert.Equal(Enumerable.Range(0, 12).Select(i => (long)i).ToArray(), messages.Select(m => m.Offset).ToArray());
     }
 
+    /// <summary>验证最后活跃段追加全零撕裂尾部后会截回完整边界，并可继续发布和再次重开。</summary>
+    [Fact]
+    public void Open_WithZeroFilledActiveSegmentTail_TruncatesAndContinues()
+    {
+        var options = new SonnetMqOptions { Path = _root, RetentionInterval = TimeSpan.Zero };
+        using (var store = SonnetMqStore.Open(options))
+        {
+            store.Publish("iot.telemetry", Encoding.UTF8.GetBytes("before"));
+        }
+
+        string segment = Assert.Single(Directory.GetFiles(_root, "*.smqseg", SearchOption.AllDirectories));
+        long validLength = new FileInfo(segment).Length;
+        using (var stream = File.Open(segment, FileMode.Append, FileAccess.Write, FileShare.None))
+            stream.Write(new byte[8194]);
+
+        using (var reopened = SonnetMqStore.Open(options))
+        {
+            Assert.Equal(validLength, new FileInfo(segment).Length);
+            Assert.Equal("before", Encoding.UTF8.GetString(Assert.Single(reopened.Pull("iot.telemetry", 0, 10)).Payload));
+            reopened.Publish("iot.telemetry", Encoding.UTF8.GetBytes("after"));
+        }
+
+        using var verified = SonnetMqStore.Open(options);
+        Assert.Equal(["before", "after"], verified.Pull("iot.telemetry", 0, 10)
+            .Select(static message => Encoding.UTF8.GetString(message.Payload)).ToArray());
+    }
+
+    /// <summary>验证最后记录正文发生物理尾部撕裂时只丢弃该记录，前序消息和 offset 继续保持一致。</summary>
+    [Fact]
+    public void Open_WithTruncatedActiveRecord_DropsOnlyIncompleteRecord()
+    {
+        var options = new SonnetMqOptions { Path = _root, RetentionInterval = TimeSpan.Zero };
+        using (var store = SonnetMqStore.Open(options))
+        {
+            store.Publish("iot.telemetry", Encoding.UTF8.GetBytes("complete"));
+            store.Publish("iot.telemetry", Encoding.UTF8.GetBytes("torn-record"));
+        }
+
+        string segment = Assert.Single(Directory.GetFiles(_root, "*.smqseg", SearchOption.AllDirectories));
+        using (var stream = File.Open(segment, FileMode.Open, FileAccess.Write, FileShare.None))
+            stream.SetLength(stream.Length - 5);
+
+        using var reopened = SonnetMqStore.Open(options);
+        var message = Assert.Single(reopened.Pull("iot.telemetry", 0, 10));
+        Assert.Equal("complete", Encoding.UTF8.GetString(message.Payload));
+        Assert.Equal(1, reopened.GetStats("iot.telemetry").NextOffset);
+    }
+
+    /// <summary>验证已封存历史段仍执行严格校验，不能把历史损坏当作活跃段尾部自动丢弃。</summary>
+    [Fact]
+    public void Open_WithZeroFilledSealedSegmentTail_ThrowsInvalidData()
+    {
+        var options = new SonnetMqOptions
+        {
+            Path = _root,
+            SegmentMaxBytes = 128,
+            RetentionInterval = TimeSpan.Zero,
+        };
+        using (var store = SonnetMqStore.Open(options))
+        {
+            store.PublishMany(
+                "iot.telemetry",
+                Enumerable.Range(0, 12)
+                    .Select(i => new SonnetMqPublishEntry(Encoding.UTF8.GetBytes("payload-" + i)))
+                    .ToArray());
+        }
+
+        string[] segments = Directory.GetFiles(_root, "*.smqseg", SearchOption.AllDirectories)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        Assert.True(segments.Length > 1);
+        using (var stream = File.Open(segments[0], FileMode.Append, FileAccess.Write, FileShare.None))
+            stream.Write(new byte[64]);
+
+        Assert.Throws<InvalidDataException>(() => SonnetMqStore.Open(options));
+    }
+
     [Fact]
     public void TombstoneBefore_TrimsMessagesAndSurvivesRestart()
     {

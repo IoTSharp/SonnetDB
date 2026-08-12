@@ -37,7 +37,17 @@ internal sealed record TableExistsAccessPlan(
     TableIndexAccessPlan? IndexPlan,
     bool PredicateCovered,
     bool HasResidualPredicate,
-    string? FallbackReason = null);
+    string? FallbackReason = null,
+    TableInAccessPlan? InPlan = null);
+
+/// <summary>单列正向 IN 的点查访问计划。</summary>
+/// <param name="Index">使用的单列二级索引；主键点查时为空。</param>
+/// <param name="UsesPrimaryKey">是否使用单列主键点查。</param>
+/// <param name="Values">已按列类型转换并去除 NULL 的键值。</param>
+internal sealed record TableInAccessPlan(
+    TableIndex? Index,
+    bool UsesPrimaryKey,
+    IReadOnlyList<object> Values);
 
 /// <summary>
 /// 单表 <c>EXISTS</c> 已加载的候选行及其实际访问计划。

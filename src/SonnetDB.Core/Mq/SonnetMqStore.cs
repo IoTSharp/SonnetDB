@@ -484,7 +484,11 @@ public sealed class SonnetMqStore : IDisposable
     {
         if (_options.OpenMode == SonnetMqOpenMode.SingleFile)
         {
-            ReplayStream(_singleFileStream ?? throw new InvalidOperationException("Single-file stream is not open."), null);
+            // 单文件模式的唯一日志同时也是活跃文件，只允许收敛其物理尾部撕裂。
+            ReplayStream(
+                _singleFileStream ?? throw new InvalidOperationException("Single-file stream is not open."),
+                null,
+                repairTornTail: true);
             return;
         }
 
@@ -499,24 +503,48 @@ public sealed class SonnetMqStore : IDisposable
         {
             string topic = DecodeTopicDirectory(Path.GetFileName(topicDirectory));
             var state = GetOrCreateTopic(topic);
-            foreach (string segmentPath in EnumerateSegmentPaths(topicDirectory))
+            string[] segmentPaths = EnumerateSegmentPaths(topicDirectory).ToArray();
+            for (int index = 0; index < segmentPaths.Length; index++)
             {
+                string segmentPath = segmentPaths[index];
                 long baseOffset = ParseSegmentBaseOffset(segmentPath);
                 state.AddSegment(new SegmentState(segmentPath, baseOffset));
-                using var stream = File.Open(segmentPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                ReplayStream(stream, state, baseOffset);
+                bool isActiveSegment = index == segmentPaths.Length - 1;
+                using var stream = File.Open(
+                    segmentPath,
+                    FileMode.Open,
+                    isActiveSegment ? FileAccess.ReadWrite : FileAccess.Read,
+                    FileShare.Read);
+                ReplayStream(stream, state, baseOffset, repairTornTail: isActiveSegment);
             }
         }
     }
 
-    private void ReplayStream(Stream stream, TopicState? knownTopicState, long segmentBaseOffset = -1)
+    /// <summary>重放单个日志流；仅最后活跃段允许收敛可证明位于物理尾部的不完整记录。</summary>
+    private void ReplayStream(
+        Stream stream,
+        TopicState? knownTopicState,
+        long segmentBaseOffset = -1,
+        bool repairTornTail = false)
     {
         stream.Seek(0, SeekOrigin.Begin);
         Span<byte> header = stackalloc byte[HeaderSize];
         long recordPosition = 0;
 
-        while (TryReadExact(stream, header))
+        while (recordPosition < stream.Length)
         {
+            long remainingBytes = stream.Length - recordPosition;
+            if (remainingBytes < HeaderSize)
+            {
+                if (repairTornTail)
+                {
+                    TruncateTornTail(stream, recordPosition);
+                    break;
+                }
+                throw new InvalidDataException("SonnetMQ log header is truncated.");
+            }
+
+            ReadExactOrThrow(stream, header);
             uint magic = BinaryPrimitives.ReadUInt32LittleEndian(header);
             ushort version = BinaryPrimitives.ReadUInt16LittleEndian(header[4..]);
             byte type = header[6];
@@ -527,9 +555,27 @@ public sealed class SonnetMqStore : IDisposable
             long ticks = BinaryPrimitives.ReadInt64LittleEndian(header[28..]);
 
             if (magic != Magic || version != Version || topicLength < 0 || metaLength < 0 || payloadLength < 0)
+            {
+                if (repairTornTail && IsZeroFilledTail(stream, recordPosition))
+                {
+                    TruncateTornTail(stream, recordPosition);
+                    break;
+                }
                 throw new InvalidDataException("SonnetMQ log header is invalid.");
+            }
             if (topicLength > MaxNameBytes || metaLength > MaxHeadersBytes || payloadLength > MaxPayloadBytes)
                 throw new InvalidDataException("SonnetMQ log record exceeds configured bounds.");
+
+            long recordBytes = HeaderSize + (long)topicLength + metaLength + payloadLength;
+            if (recordBytes > remainingBytes)
+            {
+                if (repairTornTail)
+                {
+                    TruncateTornTail(stream, recordPosition);
+                    break;
+                }
+                throw new InvalidDataException("SonnetMQ log record is truncated.");
+            }
 
             byte[] topicBytes = ArrayPool<byte>.Shared.Rent(topicLength);
             byte[] metaBytes = ArrayPool<byte>.Shared.Rent(Math.Max(metaLength, 1));
@@ -576,6 +622,34 @@ public sealed class SonnetMqStore : IDisposable
 
             recordPosition += HeaderSize + topicLength + metaLength + payloadLength;
         }
+    }
+
+    /// <summary>确认从当前记录起点到物理文件尾部全部为零，避免把中间非零损坏误判为撕裂尾部。</summary>
+    private static bool IsZeroFilledTail(Stream stream, long recordPosition)
+    {
+        stream.Seek(recordPosition, SeekOrigin.Begin);
+        Span<byte> buffer = stackalloc byte[4096];
+        int read;
+        while ((read = stream.Read(buffer)) > 0)
+        {
+            if (buffer[..read].ContainsAnyExcept((byte)0))
+                return false;
+        }
+        return true;
+    }
+
+    /// <summary>把最后活跃段截到上一条完整记录，并同步元数据和内容后继续启动。</summary>
+    private static void TruncateTornTail(Stream stream, long validLength)
+    {
+        if (!stream.CanWrite)
+            throw new InvalidDataException("SonnetMQ active segment tail cannot be repaired on a read-only stream.");
+
+        stream.SetLength(validLength);
+        stream.Seek(validLength, SeekOrigin.Begin);
+        if (stream is FileStream fileStream)
+            fileStream.Flush(flushToDisk: true);
+        else
+            stream.Flush();
     }
 
     private void SeekWritableSegmentsToEnd()
