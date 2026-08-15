@@ -50,7 +50,7 @@
 
 ## 当前推进顺序
 
-1. M41 P0 作为生产稳定性最高优先级：#368 基线与可观测性已经完成，继续交付 #369~#371 的 `EXISTS/IN`、索引并集和倒序 Top-N 快速路径；不得用增加 SQL permit、内存或索引数量代替根因修复。
+1. M41 P0 作为生产稳定性最高优先级：#368 基线与可观测性、#369~#371 的 `EXISTS/IN`、索引并集和倒序 Top-N 快速路径已完成本地实现、差分回归与 BenchmarkDotNet 对拍接线；木垒同语料、固定硬件和生产 gate 仍为 `NOT_RUN`。下一步按既定顺序推进 #372/#374，不得用增加 SQL permit、内存或索引数量代替根因修复。
 2. 恢复 M20 Parity nightly 的有效报告，并补齐 M19/M25 目标硬件容量证据。
 3. 完成 M27 的真实 provider/Agent 接线、双网客户端 Copilot、工业 Demo 和 eval，消除历史虚标。
 4. 收口 M29 Studio 安装包/宿主生命周期实机验收。
@@ -378,9 +378,9 @@ SELECT EXISTS (...)
 | 优先级 | PR | 交付 | 状态 |
 |---|---|---|---|
 | P0 | #368 | 性能合同与可观测性基线：固化木垒慢查询语料和合成数据集；按规范化 query fingerprint 记录访问路径、候选/检查/返回行数、SQL permit 队列等待、表/KV 锁等待、执行时间、分配量、GC、逻辑/物理读写及 fallback reason。指标标签必须有界且不得记录参数值或行内容；慢查询环满载不得丢失聚合计数。 | ✅ |
-| P0 | #369 | `EXISTS`/`Any`、semijoin 与标量 `IN` 快速路径：唯一键/主键条件使用直接探测，普通主键或索引 `IN` 使用去重后的批量 MultiGet；保留残余谓词、NULL 三值逻辑、事务 overlay、稳定输出和参数绑定，无法证明等价时回退现有执行器。 | 📋 |
-| P0 | #370 | `OR` 与多索引候选集合：为可索引分支实现主键集合 union，并按证据准入 intersection；支持 nullable 时间条件等常见形式，统一去重、残余过滤、排序/分页边界和内存阈值，超阈值或不可索引分支使用可解释 fallback。 | 📋 |
-| P0 | #371 | 双向索引 cursor 与早停 Top-N：支持满足排序合同的升/降序索引遍历，将 `LIMIT/OFFSET` 安全下推到候选读取；多列方向、NULL 顺序、非覆盖谓词或事务 overlay 无法保证顺序时继续走现有排序路径。 | 📋 |
+| P0 | #369 | `EXISTS`/`Any`、semijoin 与标量 `IN` 快速路径：唯一键/主键条件使用直接探测，普通主键或索引 `IN` 使用去重后的批量 MultiGet；保留残余谓词、NULL 三值逻辑、事务 overlay、稳定输出和参数绑定，无法证明等价时回退现有执行器。 | ✅ |
+| P0 | #370 | `OR` 与多索引候选集合：为可索引分支实现主键集合 union，并按证据准入 intersection；支持 nullable 时间条件等常见形式，统一去重、残余过滤、排序/分页边界和内存阈值，超阈值或不可索引分支使用可解释 fallback。 | ✅ |
+| P0 | #371 | 双向索引 cursor 与早停 Top-N：支持满足排序合同的升/降序索引遍历，将 `LIMIT/OFFSET` 安全下推到候选读取；多列方向、NULL 顺序、非覆盖谓词或事务 overlay 无法保证顺序时继续走现有排序路径。 | ✅ |
 | P1 | #372 | 关系输入谓词与投影下推：在 JOIN 前按绑定列归属拆分并下推单表 WHERE、所需列和安全 LIMIT；顶层残余谓词始终保留，外连接、相关子查询、聚合和视图展开必须有独立等价性测试。 | 📋 |
 | P1 | #373 | 流式关系算子与延迟物化：定义公共 row/candidate cursor，使 scan/filter/project/Top-N/JOIN 可逐批消费；增加 covering/index-only scan，仅在输出或残余谓词需要时读取并解码基表全行；所有阻塞算子必须声明内存行为。 | 📋 |
 | P1 | #374 | KV/Table 快照读取与锁范围收缩：在短锁内取得不可变可见视图或版本化 cursor，在锁外枚举、复制和解码；保持同一 statement snapshot、事务内 read-your-writes、删除/更新 overlay、checkpoint/compaction/WAL replay 和异常释放语义。与 M40 #342~#346 共享 cursor/codec 地基，不重复实现。 | 📋 |
@@ -397,6 +397,8 @@ SELECT EXISTS (...)
 参考 PostgreSQL 的统计信息、扩展统计、Bitmap Scan、有限 join-order 搜索、计划树和 `EXPLAIN ANALYZE`，参考 MySQL 的持久统计/直方图、range optimizer、Index Merge、semijoin/antijoin、Hash Join 内存界限与 spill；学习其机制和验证方法，不复制 wire protocol、完整 SQL 方言、系统目录或分布式能力。计划缓存只有在参数敏感选择和数据倾斜证据完成后另行准入，不能把单一计划盲目复用于所有参数。
 
 固定执行顺序为 `#368 -> #369/#370/#371 -> #372/#374 -> #373 -> #375/#376/#377 -> #378/#379 -> #380 -> #381`。P0 完成后立即在木垒同语料只读复测；P1 完成后必须证明长扫描不再在表级锁内完成全行解码；P2 完成后必须报告 estimated/actual rows 偏差；P3 不以线程数或单条最佳数字验收，而以混合负载尾延迟、吞吐和内存上界验收。
+
+#369~#371 当前仅完成本地自动化门禁：固定随机种子差分覆盖主键/二级索引 semijoin、索引 OR 与有符号倒序窗口，事务写集验证安全回退，BenchmarkDotNet 使用值相同的未索引镜像列作为关系扫描/全扫 Top-N 参考。木垒生产同语料只读复测、固定 ARM64/x64 硬件数字和生产发布 gate 均保持 `NOT_RUN`，不以开发机 smoke 冒充发布证据。
 
 所有快速路径必须满足以下不变量：索引 union/MultiGet 按主键去重；残余谓词不得丢失；NULL/三值逻辑、排序稳定性、LIMIT/OFFSET、相关子查询和事务可见性不变；WAL/checkpoint/compaction/backup/recovery 合同不变；公开 API 与 EXPLAIN schema 采用 extend-only 演进；Core 保持零第三方运行时依赖、Safe-only 和 Native AOT。每个新计划先与当前执行器做随机化及木垒固定语料差分测试，再按 feature gate/canary 放量；无法证明等价、统计过期或资源预算不足时必须回退到已验证路径并暴露原因。
 

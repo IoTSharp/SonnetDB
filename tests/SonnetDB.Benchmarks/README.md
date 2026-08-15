@@ -55,6 +55,9 @@ dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --table-delete-smok
 # M41 #368 五类固定关系查询与执行证据报告（本地 smoke，不代表固定硬件门禁）
 dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --m41-baseline-evidence --quick --output artifacts/m41-performance-baseline
 
+# M41 #369～#371 IN semijoin / 索引并集 / 倒序 Top-N 对拍（不需要外部数据库）
+dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --filter '*M41P0AccessPath*'
+
 # 仅运行向量召回基准
 dotnet run --project eng/benchmarks/run-benchmarks/run-benchmarks.csproj -- --filter *Vector*
 
@@ -169,6 +172,12 @@ IoTDB 使用 `GROUP BY ([start,end), 60000ms)`；TimescaleDB 使用 `time_bucket
 `FullIndexRebuildReference` 复现 #207 前对全部存活段执行 `SegmentIndex.Build` 的参考成本。
 输出 Median、P90 与维护线程托管分配，具体边界与解释见
 [M19 优化项复核](../../docs/benchmarks/m19-optimization-reassessment.md)。
+
+### M41P0AccessPathBenchmark（M41 #369～#371）
+
+在 30k 行固定关系数据上保留值完全相同的已索引列和未索引镜像列，逐组比较主键/二级索引 `IN (SELECT ...)` MultiGet 与关系扫描、两个索引 OR 分支与全表扫描、反向索引 Top-N 与全扫有界堆 Top-N。数据刻意保留在 mutable overlay，不通过 setup checkpoint 隐藏快照复制成本；索引并集因此也覆盖全部分支复用单一稳定快照的回归。每次迭代都会核对结果校验和、目标表全扫次数和 MultiGet 次数；setup 还会确认快速查询的共享 `EXPLAIN` access path，避免错误计划产生无效性能数据。
+
+该基准输出只用于同机回归。木垒同语料、固定 ARM64/x64 硬件和生产发布 gate 在获得独立证据前保持 `NOT_RUN`。
 
 ### PidBenchmark（PID 控制函数）
 

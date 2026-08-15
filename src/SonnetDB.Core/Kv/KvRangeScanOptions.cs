@@ -1,7 +1,7 @@
 namespace SonnetDB.Kv;
 
 /// <summary>
-/// KV 稳定读快照的前向范围游标选项。
+/// KV 稳定读快照的双向范围游标选项。
 /// </summary>
 public sealed record KvRangeScanOptions
 {
@@ -17,8 +17,14 @@ public sealed record KvRangeScanOptions
     /// <summary>不包含的结束 key；为空时不设置上界。</summary>
     public ReadOnlyMemory<byte> EndExclusive { get; init; }
 
-    /// <summary>初始 continuation key；为空时从范围起点开始，否则严格从该 key 之后开始。</summary>
+    /// <summary>
+    /// 初始 continuation key；为空时从扫描方向起点开始，否则严格从该 key 之后继续。
+    /// 升序读取更大的 key，降序读取更小的 key。
+    /// </summary>
     public ReadOnlyMemory<byte> AfterKey { get; init; }
+
+    /// <summary>是否按 key 字节序降序读取；默认 false 保持升序合同。</summary>
+    public bool Descending { get; init; }
 
     /// <summary>每页最多返回的条目数，默认 256，必须为正数。</summary>
     public int PageSize { get; init; } = 256;

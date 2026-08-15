@@ -4,6 +4,7 @@ using System.Text;
 using SonnetDB.Documents;
 using SonnetDB.Engine;
 using SonnetDB.Exceptions;
+using SonnetDB.Kv;
 using SonnetDB.Modbus;
 using SonnetDB.Query.Functions;
 using SonnetDB.Routines;
@@ -17,6 +18,8 @@ namespace SonnetDB.Sql.Execution;
 /// </summary>
 internal static class TableSqlExecutor
 {
+    private const int MaxIndexUnionBranches = 32;
+    private const int MaxIndexUnionCandidates = 65_536;
     private static readonly IReadOnlyList<string> _nameColumns =
         new List<string>(1) { "name" }.AsReadOnly();
     private static readonly IReadOnlyList<string> _describeTableColumns =
@@ -1410,15 +1413,20 @@ internal static class TableSqlExecutor
         TableSchema schema,
         SqlExpression? where)
     {
-        // 现场批量合成查询通常是单列主键 IN；逐键点查可避免读取包含图片的大量无关行。
-        if (TryLoadInCandidateRows(store, schema, where, out var inRows))
-            return inRows;
-
-        if (TryExtractPrimaryKeyValues(schema, where, allowExtraPredicates: true, out var keyValues))
+        if (TryExtractPrimaryKeyValues(
+            schema,
+            where,
+            allowExtraPredicates: true,
+            out var keyValues,
+            allowNonEqualityExtraPredicates: true))
         {
             var row = store.GetByPrimaryKey(keyValues);
             return row is null ? Array.Empty<TableRow>() : [row];
         }
+
+        // 现场批量合成查询通常是单列主键 IN；批量点读可避免读取包含图片的大量无关行。
+        if (TryLoadInCandidateRows(store, schema, where, out var inRows))
+            return inRows;
 
         if (ChooseBestIndexAccessPlan(schema, where) is { } plan)
         {
@@ -1428,6 +1436,12 @@ internal static class TableSqlExecutor
             return plan.IsFullEquality
                 ? store.GetByIndex(plan.Index, plan.EqualityPrefixValues)
                 : store.GetByIndexPrefix(plan.Index, plan.EqualityPrefixValues);
+        }
+
+        if (TryChooseIndexUnionPlan(schema, where, out var unionPlan, out _)
+            && TryLoadIndexUnionRows(store, schema, unionPlan, out var unionRows, out _))
+        {
+            return unionRows;
         }
 
         return store.Scan();
@@ -1444,22 +1458,9 @@ internal static class TableSqlExecutor
         if (!TryChooseInAccessPlan(schema, where, out var plan))
             return false;
 
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        var result = new List<TableRow>();
-        foreach (var value in plan.Values)
-        {
-            IReadOnlyList<TableRow> candidates = plan.UsesPrimaryKey
-                ? (store.GetByPrimaryKey([value]) is { } primary ? [primary] : Array.Empty<TableRow>())
-                : store.GetByIndex(plan.Index!, [value]);
-            foreach (var candidate in candidates)
-            {
-                var key = Convert.ToHexString(TableKeyCodec.EncodePrimaryKey(schema, candidate.Values));
-                if (seen.Add(key))
-                    result.Add(candidate);
-            }
-        }
-
-        rows = result;
+        rows = plan.UsesPrimaryKey
+            ? store.GetByPrimaryKeys(plan.Values)
+            : store.GetByIndexValues(plan.Index!, plan.Values);
         return true;
     }
 
@@ -1506,7 +1507,7 @@ internal static class TableSqlExecutor
         }
 
         var values = new List<object>(inExpression.Values.Count);
-        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var seen = new HashSet<byte[]>(inExpression.Values.Count, KvKeyComparer.Instance);
         foreach (var expression in inExpression.Values)
         {
             object? value;
@@ -1541,7 +1542,7 @@ internal static class TableSqlExecutor
                 return false;
             }
 
-            var encoded = Convert.ToHexString(EncodeInLookupKey(schema, column, index, usesPrimaryKey, value));
+            byte[] encoded = EncodeInLookupKey(schema, column, index, usesPrimaryKey, value);
             if (seen.Add(encoded))
                 values.Add(value);
         }
@@ -1672,6 +1673,13 @@ internal static class TableSqlExecutor
     /// <param name="where">已完成参数和相关外层值绑定的谓词。</param>
     /// <returns>主键、二级索引或全表扫描计划。</returns>
     internal static TableExistsAccessPlan PlanExistsAccess(TableSchema schema, SqlExpression? where)
+        => PlanExistsAccess(schema, where, allowIndexUnion: true);
+
+    /// <summary>生成单表候选访问计划；OR 分支规划时关闭递归索引并集。</summary>
+    private static TableExistsAccessPlan PlanExistsAccess(
+        TableSchema schema,
+        SqlExpression? where,
+        bool allowIndexUnion)
     {
         ArgumentNullException.ThrowIfNull(schema);
 
@@ -1717,6 +1725,33 @@ internal static class TableSqlExecutor
                 HasResidualPredicate: !predicateCovered);
         }
 
+        if (allowIndexUnion)
+        {
+            if (TryChooseIndexUnionPlan(schema, where, out var unionPlan, out var unionFallback))
+            {
+                return new TableExistsAccessPlan(
+                    AccessPath: "index_union",
+                    IndexName: null,
+                    UsesPrimaryKey: false,
+                    IndexPlan: null,
+                    PredicateCovered: false,
+                    HasResidualPredicate: where is not null,
+                    UnionPlan: unionPlan);
+            }
+
+            if (unionFallback is not null)
+            {
+                return new TableExistsAccessPlan(
+                    AccessPath: "table_scan",
+                    IndexName: null,
+                    UsesPrimaryKey: false,
+                    IndexPlan: null,
+                    PredicateCovered: false,
+                    HasResidualPredicate: where is not null,
+                    FallbackReason: unionFallback);
+            }
+        }
+
         return new TableExistsAccessPlan(
             AccessPath: "table_scan",
             IndexName: null,
@@ -1725,6 +1760,294 @@ internal static class TableSqlExecutor
             PredicateCovered: where is null,
             HasResidualPredicate: where is not null,
             FallbackReason: where is null ? null : "no_sargable_predicate");
+    }
+
+    /// <summary>
+    /// 为一个顶层 OR 合取项构造有界索引并集；全部有效分支都必须能使用主键、IN 或二级索引。
+    /// </summary>
+    internal static bool TryChooseIndexUnionPlan(
+        TableSchema schema,
+        SqlExpression? where,
+        out TableIndexUnionAccessPlan plan,
+        out string? fallbackReason)
+    {
+        ArgumentNullException.ThrowIfNull(schema);
+        plan = null!;
+        fallbackReason = null;
+        if (where is null)
+            return false;
+
+        if (SqlTransactionContext.Current is { } transaction
+            && transaction.TryGetBufferedMutations(schema.Name, out _))
+        {
+            fallbackReason = "transaction_overlay_requires_scan";
+            return false;
+        }
+
+        SqlExpression? disjunction = null;
+        foreach (var conjunct in FlattenAnd(where))
+        {
+            if (conjunct is not BinaryExpression { Operator: SqlBinaryOperator.Or })
+                continue;
+            if (disjunction is not null)
+            {
+                fallbackReason = "multiple_index_unions_not_supported";
+                return false;
+            }
+            disjunction = conjunct;
+        }
+
+        if (disjunction is null)
+            return false;
+
+        var predicates = new List<SqlExpression>(MaxIndexUnionBranches);
+        if (!TryCollectOrPredicates(disjunction, predicates))
+        {
+            fallbackReason = "index_union_branch_limit_exceeded";
+            return false;
+        }
+
+        foreach (var predicate in predicates)
+        {
+            if (TryEvaluateConstantPredicate(predicate, schema, out bool? constant)
+                && constant == true)
+            {
+                fallbackReason = "index_union_branch_matches_all";
+                return false;
+            }
+        }
+
+        var branches = new List<TableIndexUnionBranch>(predicates.Count);
+        foreach (var predicate in predicates)
+        {
+            if (TryEvaluateConstantPredicate(predicate, schema, out bool? constant))
+            {
+                // FALSE 与 UNKNOWN 在 WHERE 中都不会选中行，不需要访问分支。
+                continue;
+            }
+
+            TableExistsAccessPlan access = PlanExistsAccess(schema, predicate, allowIndexUnion: false);
+            if (string.Equals(access.AccessPath, "table_scan", StringComparison.Ordinal))
+            {
+                string? branchFallback = access.FallbackReason;
+                if (!TryChooseIsNullIndexAccessPlan(schema, predicate, out access))
+                {
+                    fallbackReason = branchFallback == "transaction_overlay_requires_scan"
+                        ? branchFallback
+                        : "index_union_unindexed_branch";
+                    return false;
+                }
+            }
+
+            branches.Add(new TableIndexUnionBranch(predicate, access));
+        }
+
+        plan = new TableIndexUnionAccessPlan(branches);
+        return true;
+    }
+
+    /// <summary>为单列 IS NULL 分支选择保存 NULL 键的非唯一普通二级索引。</summary>
+    private static bool TryChooseIsNullIndexAccessPlan(
+        TableSchema schema,
+        SqlExpression predicate,
+        out TableExistsAccessPlan access)
+    {
+        access = null!;
+        if (predicate is not IsNullExpression
+            {
+                Negated: false,
+                Operand: IdentifierExpression identifier,
+            })
+        {
+            return false;
+        }
+
+        TableIndex? index = null;
+        foreach (var candidate in schema.Indexes)
+        {
+            if (!candidate.IsUnique
+                && string.IsNullOrWhiteSpace(candidate.JsonPath)
+                && candidate.Columns.Count > 0
+                && string.Equals(candidate.Columns[0], identifier.Name, StringComparison.Ordinal))
+            {
+                index = candidate;
+                break;
+            }
+        }
+        if (index is null)
+            return false;
+
+        var indexPlan = new TableIndexAccessPlan(index, [null], Range: null);
+        access = new TableExistsAccessPlan(
+            AccessPath: indexPlan.IsFullEquality ? "secondary_index" : "secondary_index_prefix",
+            IndexName: index.Name,
+            UsesPrimaryKey: false,
+            IndexPlan: indexPlan,
+            PredicateCovered: indexPlan.IsFullEquality,
+            HasResidualPredicate: !indexPlan.IsFullEquality);
+        return true;
+    }
+
+    /// <summary>加载并按主键去重 OR 分支候选；超过固定阈值时放弃已加载集合并要求全扫回退。</summary>
+    internal static bool TryLoadIndexUnionRows(
+        TableStore store,
+        TableSchema schema,
+        TableIndexUnionAccessPlan plan,
+        out IReadOnlyList<TableRow> rows,
+        out string? fallbackReason,
+        int candidateLimit = MaxIndexUnionCandidates)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(schema);
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(candidateLimit);
+        fallbackReason = null;
+
+        int initialCapacity = Math.Min(256, Math.Min(candidateLimit, store.RowCount));
+        var seen = new HashSet<byte[]>(initialCapacity, KvKeyComparer.Instance);
+        var result = new List<TableRow>(initialCapacity);
+        if (plan.Branches.Count == 0)
+        {
+            rows = result;
+            return true;
+        }
+
+        using var snapshot = store.AcquireReadSnapshot();
+        foreach (var branch in plan.Branches)
+        {
+            foreach (var candidate in LoadIndexUnionBranchRows(store, snapshot, schema, branch))
+            {
+                byte[] primaryKey = candidate.PrimaryKey.IsEmpty
+                    ? TableKeyCodec.EncodePrimaryKey(schema, candidate.Values)
+                    : candidate.PrimaryKey.ToArray();
+                if (!seen.Add(primaryKey))
+                    continue;
+                if (result.Count == candidateLimit)
+                {
+                    rows = [];
+                    fallbackReason = "index_union_candidate_limit_exceeded";
+                    return false;
+                }
+                result.Add(candidate);
+            }
+        }
+
+        result.Sort(static (left, right) => left.PrimaryKey.Span.SequenceCompareTo(right.PrimaryKey.Span));
+        rows = result;
+        return true;
+    }
+
+    /// <summary>按单个 OR 分支的已选访问计划读取有界候选。</summary>
+    private static IEnumerable<TableRow> LoadIndexUnionBranchRows(
+        TableStore store,
+        KvReadSnapshot snapshot,
+        TableSchema schema,
+        TableIndexUnionBranch branch)
+    {
+        TableExistsAccessPlan access = branch.AccessPlan;
+        if (access.UsesPrimaryKey)
+        {
+            _ = TryExtractPrimaryKeyValues(
+                schema,
+                branch.Predicate,
+                allowExtraPredicates: true,
+                out var keyValues,
+                allowNonEqualityExtraPredicates: true);
+            if (store.GetByPrimaryKey(snapshot, schema, keyValues) is { } row)
+                yield return row;
+            yield break;
+        }
+
+        if (access.InPlan is { } inPlan)
+        {
+            foreach (var value in inPlan.Values)
+            {
+                if (inPlan.UsesPrimaryKey)
+                {
+                    if (store.GetByPrimaryKey(snapshot, schema, [value]) is { } primary)
+                        yield return primary;
+                    continue;
+                }
+
+                foreach (var row in store.EnumerateByIndexPrefix(
+                    snapshot,
+                    schema,
+                    inPlan.Index!,
+                    [value]))
+                    yield return row;
+            }
+            yield break;
+        }
+
+        if (access.IndexPlan is not { } indexPlan)
+            yield break;
+
+        IEnumerable<TableRow> candidates = indexPlan.Range is not null
+            ? store.EnumerateByIndexRange(
+                snapshot,
+                schema,
+                indexPlan.Index,
+                indexPlan.EqualityPrefixValues,
+                indexPlan.Range)
+            : store.EnumerateByIndexPrefix(
+                snapshot,
+                schema,
+                indexPlan.Index,
+                indexPlan.EqualityPrefixValues);
+        foreach (var row in candidates)
+            yield return row;
+    }
+
+    /// <summary>尝试计算不依赖行值的布尔分支，供 nullable 参数 OR 消去恒假/UNKNOWN 分支。</summary>
+    private static bool TryEvaluateConstantPredicate(
+        SqlExpression expression,
+        TableSchema schema,
+        out bool? value)
+    {
+        value = null;
+        if (!IsConstantPredicateExpression(expression))
+            return false;
+
+        try
+        {
+            value = EvaluateKleene(expression, schema, Array.Empty<object?>());
+            return true;
+        }
+        catch (Exception exception) when (exception is InvalidOperationException
+            or ArgumentOutOfRangeException
+            or InvalidCastException
+            or FormatException
+            or OverflowException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>判断表达式是否只由字面量、物化值和基础逻辑/比较节点组成。</summary>
+    private static bool IsConstantPredicateExpression(SqlExpression expression)
+        => expression switch
+        {
+            LiteralExpression or DurationLiteralExpression or MaterializedSubqueryValueExpression => true,
+            UnaryExpression unary => IsConstantPredicateExpression(unary.Operand),
+            BinaryExpression binary => IsConstantPredicateExpression(binary.Left)
+                && IsConstantPredicateExpression(binary.Right),
+            IsNullExpression isNull => IsConstantPredicateExpression(isNull.Operand),
+            InExpression { Subquery: null } inExpression =>
+                IsConstantPredicateExpression(inExpression.Value)
+                && AreAllConstantPredicateExpressions(inExpression.Values),
+            _ => false,
+        };
+
+    /// <summary>判断表达式集合是否全部不依赖行值。</summary>
+    private static bool AreAllConstantPredicateExpressions(IReadOnlyList<SqlExpression> expressions)
+    {
+        foreach (var expression in expressions)
+        {
+            if (!IsConstantPredicateExpression(expression))
+                return false;
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -1750,6 +2073,23 @@ internal static class TableSqlExecutor
             return new TableExistsCandidateRows(plan, overlayRows);
         }
 
+        if (plan.UnionPlan is { } unionPlan)
+        {
+            if (TryLoadIndexUnionRows(store, schema, unionPlan, out var unionRows, out var unionFallback))
+                return new TableExistsCandidateRows(plan, unionRows);
+
+            var fallbackPlan = plan with
+            {
+                AccessPath = "table_scan",
+                IndexName = null,
+                PredicateCovered = false,
+                HasResidualPredicate = where is not null,
+                FallbackReason = unionFallback,
+                UnionPlan = null,
+            };
+            return new TableExistsCandidateRows(fallbackPlan, store.Scan());
+        }
+
         if (plan.UsesPrimaryKey)
         {
             _ = TryExtractPrimaryKeyValues(
@@ -1764,25 +2104,15 @@ internal static class TableSqlExecutor
                 row is null ? Array.Empty<TableRow>() : [row]);
         }
 
+        int? candidateLimit = plan.PredicateCovered ? 1 : null;
         if (plan.InPlan is { } inPlan)
         {
-            var rows = new List<TableRow>();
-            foreach (var value in inPlan.Values)
-            {
-                if (inPlan.UsesPrimaryKey)
-                {
-                    if (store.GetByPrimaryKey([value]) is { } primary)
-                        rows.Add(primary);
-                }
-                else
-                {
-                    rows.AddRange(store.GetByIndex(inPlan.Index!, [value]));
-                }
-            }
+            IReadOnlyList<TableRow> rows = inPlan.UsesPrimaryKey
+                ? store.GetByPrimaryKeys(inPlan.Values, candidateLimit)
+                : store.GetByIndexValues(inPlan.Index!, inPlan.Values, candidateLimit);
             return new TableExistsCandidateRows(plan, rows);
         }
 
-        int? candidateLimit = plan.PredicateCovered ? 1 : null;
         if (plan.IndexPlan is { } indexPlan)
         {
             IReadOnlyList<TableRow> rows = indexPlan.Range is not null
@@ -1814,7 +2144,7 @@ internal static class TableSqlExecutor
             FallbackReason: "transaction_overlay_requires_scan");
 
     /// <summary>
-    /// 为普通关系 SELECT 加载候选行；仅在范围索引满足升序且 WHERE 无残余时安全下推分页候选上限。
+    /// 为普通关系 SELECT 加载候选行；仅在索引顺序满足 ORDER BY 且 WHERE 无残余时安全下推分页候选上限。
     /// </summary>
     private static (IEnumerable<TableRow> Rows, bool RangeOrderSatisfied) LoadSelectCandidateRowsForStatement(
         TableStore store,
@@ -1834,6 +2164,23 @@ internal static class TableSqlExecutor
                 false);
         }
 
+        if (TryExtractPrimaryKeyValues(
+            schema,
+            statement.Where,
+            allowExtraPredicates: true,
+            out var keyValues,
+            allowNonEqualityExtraPredicates: true))
+        {
+            var row = store.GetByPrimaryKey(keyValues);
+            return (
+                ObserveCandidateRows(
+                    row is null ? Array.Empty<TableRow>() : [row],
+                    "primary_key",
+                    "primary",
+                    fallbackReason: null),
+                false);
+        }
+
         if (TryChooseInAccessPlan(schema, statement.Where, out var inPlan)
             && TryLoadInCandidateRows(store, schema, statement.Where, out var inRows))
         {
@@ -1846,47 +2193,41 @@ internal static class TableSqlExecutor
                 false);
         }
 
-        if (TryExtractPrimaryKeyValues(schema, statement.Where, allowExtraPredicates: true, out var keyValues))
-        {
-            var row = store.GetByPrimaryKey(keyValues);
-            return (
-                ObserveCandidateRows(
-                    row is null ? Array.Empty<TableRow>() : [row],
-                    "primary_key",
-                    "primary",
-                    fallbackReason: null),
-                false);
-        }
-
         var plan = ChooseBestIndexAccessPlan(schema, statement.Where);
-        if (plan?.Range is not null
-            && TryGetOrderedRangeCandidateLimit(
-                statement,
-                schema,
-                projections,
-                plan,
-                out int candidateLimit))
+        if (TryChooseOrderedRangeAccessPlan(
+            schema,
+            statement,
+            projections,
+            plan,
+            out var orderedPlan,
+            out int candidateLimit,
+            out bool descending))
         {
             if (statement.OrderByList.Count > 1)
             {
                 return (
                     ObserveCandidateRows(
                         store.GetByIndexRangeThroughValueGroup(
-                            plan.Index,
-                            plan.EqualityPrefixValues,
-                            plan.Range,
+                            orderedPlan.Index,
+                            orderedPlan.EqualityPrefixValues,
+                            orderedPlan.Range!,
                             candidateLimit),
-                        FormatIndexAccessPath(plan),
-                        plan.Index.Name,
+                        FormatIndexAccessPath(orderedPlan),
+                        orderedPlan.Index.Name,
                         fallbackReason: null),
                     false);
             }
 
             return (
                 ObserveCandidateRows(
-                    store.GetByIndexRange(plan.Index, plan.EqualityPrefixValues, plan.Range, candidateLimit),
-                    FormatIndexAccessPath(plan),
-                    plan.Index.Name,
+                    store.GetByIndexRange(
+                        orderedPlan.Index,
+                        orderedPlan.EqualityPrefixValues,
+                        orderedPlan.Range!,
+                        candidateLimit,
+                        descending),
+                    FormatIndexAccessPath(orderedPlan),
+                    orderedPlan.Index.Name,
                     fallbackReason: null),
                 true);
         }
@@ -1913,6 +2254,23 @@ internal static class TableSqlExecutor
                 false);
         }
 
+        string? unionFallback = null;
+        if (TryChooseIndexUnionPlan(schema, statement.Where, out var unionPlan, out unionFallback))
+        {
+            if (TryLoadIndexUnionRows(store, schema, unionPlan, out var unionRows, out var unionLoadFallback))
+            {
+                return (
+                    ObserveCandidateRows(
+                        unionRows,
+                        "index_union",
+                        indexName: null,
+                        fallbackReason: null),
+                    false);
+            }
+
+            unionFallback = unionLoadFallback;
+        }
+
         if (statement.Where is null)
         {
             return (
@@ -1930,7 +2288,7 @@ internal static class TableSqlExecutor
                 store.EnumerateScan(),
                 "table_scan",
                 indexName: null,
-                "no_sargable_predicate"),
+                unionFallback ?? "no_sargable_predicate"),
             false);
     }
 
@@ -1953,26 +2311,119 @@ internal static class TableSqlExecutor
     /// <summary>
     /// 判断范围索引能否同时满足 ORDER BY ASC 与 LIMIT/OFFSET，并计算安全的分页边界。
     /// </summary>
-    private static bool TryGetOrderedRangeCandidateLimit(
-        SelectStatement statement,
+    internal static bool TryChooseOrderedRangeAccessPlan(
         TableSchema schema,
+        SelectStatement statement,
+        out TableIndexAccessPlan plan,
+        out int candidateLimit,
+        out bool descending)
+        => TryChooseOrderedRangeAccessPlan(
+            schema,
+            statement,
+            BuildProjections(statement.Projections, schema),
+            ChooseBestIndexAccessPlan(schema, statement.Where),
+            out plan,
+            out candidateLimit,
+            out descending);
+
+    /// <summary>
+    /// 选择能完整满足单表排序与分页的有符号范围索引；必要时为无界有序扫描合成全范围。
+    /// </summary>
+    private static bool TryChooseOrderedRangeAccessPlan(
+        TableSchema schema,
+        SelectStatement statement,
         IReadOnlyList<Projection> projections,
-        TableIndexAccessPlan plan,
-        out int candidateLimit)
+        TableIndexAccessPlan? existingPlan,
+        out TableIndexAccessPlan plan,
+        out int candidateLimit,
+        out bool descending)
     {
+        plan = null!;
         candidateLimit = 0;
-        if (plan.Range is null
-            || !OrderByMatchesRangeIndexSequence(
-                statement.OrderByList,
-                schema,
-                projections,
-                plan)
-            || !IsWhereFullyCoveredByRangePlan(statement.Where, schema, plan))
+        descending = false;
+        if (statement.Distinct
+            || statement.OrderByList.Count == 0
+            || !TryGetPaginationCandidateLimit(statement.Pagination, out candidateLimit)
+            || (SqlTransactionContext.Current is { } transaction
+                && transaction.TryGetBufferedMutations(schema.Name, out _)))
         {
             return false;
         }
 
-        return TryGetPaginationCandidateLimit(statement.Pagination, out candidateLimit);
+        bool synthesizedRange = false;
+        if (existingPlan is { Range: not null })
+        {
+            plan = existingPlan;
+        }
+        else if (existingPlan is { Range: null } prefixPlan
+            && TryCreateUnboundedOrderRange(schema, prefixPlan, out plan))
+        {
+            synthesizedRange = true;
+        }
+        else if (existingPlan is null && statement.Where is null)
+        {
+            foreach (var index in schema.Indexes)
+            {
+                var candidate = new TableIndexAccessPlan(index, [], Range: null);
+                if (!TryCreateUnboundedOrderRange(schema, candidate, out var rangedCandidate)
+                    || !OrderByMatchesRangeIndexSequence(
+                        statement.OrderByList,
+                        schema,
+                        projections,
+                        rangedCandidate,
+                        out _))
+                {
+                    continue;
+                }
+
+                plan = rangedCandidate;
+                synthesizedRange = true;
+                break;
+            }
+        }
+
+        if (plan?.Range is null
+            || !OrderByMatchesRangeIndexSequence(
+                statement.OrderByList,
+                schema,
+                projections,
+                plan,
+                out descending)
+            || (statement.Where is null
+                ? !synthesizedRange || plan.EqualityPrefixValues.Count != 0
+                : !IsWhereFullyCoveredByRangePlan(statement.Where, schema, plan)))
+        {
+            plan = null!;
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>在等值前缀后的非空 Int64/DATETIME 列上合成无界范围，供 ORDER BY cursor 使用。</summary>
+    private static bool TryCreateUnboundedOrderRange(
+        TableSchema schema,
+        TableIndexAccessPlan prefixPlan,
+        out TableIndexAccessPlan rangePlan)
+    {
+        rangePlan = null!;
+        if (!string.IsNullOrWhiteSpace(prefixPlan.Index.JsonPath)
+            || prefixPlan.EqualityPrefixValues.Count >= prefixPlan.Index.Columns.Count)
+        {
+            return false;
+        }
+
+        var column = schema.TryGetColumn(prefixPlan.Index.Columns[prefixPlan.EqualityPrefixValues.Count])
+            ?? throw new InvalidOperationException(
+                $"索引 '{prefixPlan.Index.Name}' 引用了未知列。");
+        if (column.IsNullable
+            || column.DataType is not (TableColumnType.Int64 or TableColumnType.DateTime))
+        {
+            return false;
+        }
+
+        rangePlan = prefixPlan with { Range = new TableIndexRange(column, Lower: null, Upper: null) };
+        return true;
     }
 
     /// <summary>
@@ -2001,9 +2452,16 @@ internal static class TableSqlExecutor
         IReadOnlyList<OrderBySpec> orderBy,
         TableSchema schema,
         IReadOnlyList<Projection> projections,
-        TableIndexAccessPlan plan)
+        TableIndexAccessPlan plan,
+        out bool descending)
     {
+        descending = false;
         if (plan.Range is null || orderBy.Count == 0)
+            return false;
+
+        SortDirection direction = orderBy[0].Direction;
+        descending = direction == SortDirection.Descending;
+        if (descending && orderBy.Count > 1)
             return false;
 
         int explicitStart = plan.EqualityPrefixValues.Count;
@@ -2014,11 +2472,8 @@ internal static class TableSqlExecutor
 
         for (int i = 0; i < orderBy.Count; i++)
         {
-            if (orderBy[i] is not
-                {
-                    Direction: SortDirection.Ascending,
-                    Expression: IdentifierExpression orderIdentifier,
-                })
+            if (orderBy[i].Direction != direction
+                || orderBy[i].Expression is not IdentifierExpression orderIdentifier)
             {
                 return false;
             }
@@ -2290,7 +2745,12 @@ internal static class TableSqlExecutor
         TableSchema schema,
         SqlExpression? where)
     {
-        if (TryExtractPrimaryKeyValues(schema, where, allowExtraPredicates: true, out _))
+        if (TryExtractPrimaryKeyValues(
+            schema,
+            where,
+            allowExtraPredicates: true,
+            out _,
+            allowNonEqualityExtraPredicates: true))
             return null;
         if (where is null || schema.Indexes.Count == 0)
             return null;
@@ -3540,6 +4000,36 @@ internal static class TableSqlExecutor
         }
 
         yield return expression;
+    }
+
+    /// <summary>按原有从左到右顺序收集顶层 OR 叶子，并在固定分支预算处停止。</summary>
+    private static bool TryCollectOrPredicates(
+        SqlExpression expression,
+        List<SqlExpression> predicates)
+    {
+        int maximumNodes = (MaxIndexUnionBranches * 2) - 1;
+        int visitedNodes = 0;
+        var pending = new Stack<SqlExpression>(maximumNodes);
+        pending.Push(expression);
+        while (pending.Count > 0)
+        {
+            if (++visitedNodes > maximumNodes)
+                return false;
+
+            SqlExpression current = pending.Pop();
+            if (current is BinaryExpression { Operator: SqlBinaryOperator.Or } binary)
+            {
+                pending.Push(binary.Right);
+                pending.Push(binary.Left);
+                continue;
+            }
+
+            if (predicates.Count == MaxIndexUnionBranches)
+                return false;
+            predicates.Add(current);
+        }
+
+        return true;
     }
 
     private static void ValidateTableAliasReferences(SelectStatement statement)

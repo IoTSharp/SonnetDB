@@ -18,6 +18,7 @@ public sealed class TableStore : IDisposable
     private int _rowCount;
     private long _fullScanCount;
     private long _primaryKeyLookupCount;
+    private long _multiGetCount;
     private long _uniqueIndexValidationScanCount;
     private bool _disposed;
 
@@ -86,6 +87,9 @@ public sealed class TableStore : IDisposable
     /// <summary>公开主键点读累计次数，供访问计划回归测试观测。</summary>
     internal long PrimaryKeyLookupCount => Interlocked.Read(ref _primaryKeyLookupCount);
 
+    /// <summary>公开单快照批量点读累计次数，供 IN/MultiGet 回归测试观测。</summary>
+    internal long MultiGetCount => Interlocked.Read(ref _multiGetCount);
+
     /// <summary>公开唯一索引持久扫描累计次数，供未变化索引回归测试观测。</summary>
     internal long UniqueIndexValidationScanCount => Interlocked.Read(ref _uniqueIndexValidationScanCount);
 
@@ -97,6 +101,16 @@ public sealed class TableStore : IDisposable
 
     /// <summary>测试普通查询实际解码的关系行数，验证分页完成后是否提前停止。</summary>
     internal Action<int>? RowDecodedTestHook { get; set; }
+
+    /// <summary>测试复合访问路径取得稳定读快照的次数。</summary>
+    internal Action? ReadSnapshotAcquiredTestHook { get; set; }
+
+    /// <summary>取得当前 rowstore 的稳定读快照，供一个复合访问路径共享。</summary>
+    internal KvReadSnapshot AcquireReadSnapshot()
+    {
+        ReadSnapshotAcquiredTestHook?.Invoke();
+        return _keyspace.AcquireReadSnapshot();
+    }
 
     /// <summary>底层 rowstore generation 旧文件回收状态。</summary>
     public KvCleanupStatus GetCleanupStatus() => _keyspace.GetCleanupStatus();
@@ -319,6 +333,71 @@ public sealed class TableStore : IDisposable
         }
     }
 
+    /// <summary>在调用方持有的稳定读快照内按主键读取一行。</summary>
+    internal TableRow? GetByPrimaryKey(
+        KvReadSnapshot snapshot,
+        TableSchema schema,
+        IReadOnlyList<object?> primaryKeyValues)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(schema);
+        ArgumentNullException.ThrowIfNull(primaryKeyValues);
+        Interlocked.Increment(ref _primaryKeyLookupCount);
+
+        byte[] key = TableKeyCodec.EncodePrimaryKeyValues(schema, primaryKeyValues);
+        byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(key);
+        KvEntry? payload = snapshot.GetEntry(rowKey);
+        return payload is null
+            ? null
+            : new TableRow(TableRowCodec.Decode(schema, payload.Value.Span), key);
+    }
+
+    /// <summary>
+    /// 在同一个稳定读快照内按单列主键批量读取，保持输入键顺序并跳过未命中项。
+    /// </summary>
+    /// <param name="primaryKeyValues">已完成类型转换和物理键去重的单列主键值。</param>
+    /// <returns>按输入键顺序排列的命中行。</returns>
+    internal IReadOnlyList<TableRow> GetByPrimaryKeys(
+        IReadOnlyList<object> primaryKeyValues,
+        int? limit = null)
+    {
+        ArgumentNullException.ThrowIfNull(primaryKeyValues);
+        Interlocked.Increment(ref _multiGetCount);
+
+        TableSchema schema;
+        lock (_sync)
+        {
+            schema = _schema;
+            if (schema.PrimaryKey.Count != 1)
+                throw new InvalidOperationException("批量主键点读仅支持单列主键。");
+        }
+
+        int take = limit ?? int.MaxValue;
+        if (primaryKeyValues.Count == 0 || take <= 0)
+            return [];
+
+        using var snapshot = AcquireReadSnapshot();
+        var rows = new List<TableRow>(Math.Min(primaryKeyValues.Count, take));
+        foreach (var value in primaryKeyValues)
+        {
+            if (rows.Count >= take)
+                break;
+
+            Interlocked.Increment(ref _primaryKeyLookupCount);
+            byte[] primaryKey = TableKeyCodec.EncodePrimaryKeyValues(schema, [value]);
+            byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(primaryKey);
+            KvEntry? payload = snapshot.GetEntry(rowKey);
+            if (payload is not null)
+            {
+                rows.Add(new TableRow(
+                    TableRowCodec.Decode(schema, payload.Value.Span),
+                    primaryKey));
+            }
+        }
+
+        return rows;
+    }
+
     /// <summary>
     /// 删除主键对应的行。
     /// </summary>
@@ -382,7 +461,7 @@ public sealed class TableStore : IDisposable
         lock (_sync)
             schema = _schema;
 
-        using var snapshot = _keyspace.AcquireReadSnapshot();
+        using var snapshot = AcquireReadSnapshot();
         using var cursor = snapshot.OpenRangeCursor(new KvRangeScanOptions
         {
             Prefix = new byte[] { (byte)'r' },
@@ -431,6 +510,74 @@ public sealed class TableStore : IDisposable
     }
 
     /// <summary>
+    /// 在同一个稳定读快照内批量探测单列二级索引，保持输入键及索引项顺序。
+    /// </summary>
+    /// <param name="index">单列普通二级索引。</param>
+    /// <param name="indexValues">已完成类型转换和物理键去重的索引值。</param>
+    /// <param name="limit">最多返回的有效行数；为空表示读取全部命中。</param>
+    /// <returns>批量索引探测命中的候选行。</returns>
+    internal IReadOnlyList<TableRow> GetByIndexValues(
+        TableIndex index,
+        IReadOnlyList<object> indexValues,
+        int? limit = null)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        ArgumentNullException.ThrowIfNull(indexValues);
+        Interlocked.Increment(ref _multiGetCount);
+
+        TableSchema schema;
+        lock (_sync)
+        {
+            schema = _schema;
+            if (index.Columns.Count != 1 || !string.IsNullOrWhiteSpace(index.JsonPath))
+                throw new InvalidOperationException("批量二级索引点读仅支持单列普通索引。");
+        }
+
+        int take = limit ?? int.MaxValue;
+        if (take <= 0 || indexValues.Count == 0)
+            return [];
+
+        using var snapshot = AcquireReadSnapshot();
+        var rows = new List<TableRow>(Math.Min(indexValues.Count, take));
+        foreach (var value in indexValues)
+        {
+            if (rows.Count >= take)
+                break;
+
+            byte[] prefix = TableIndexCodec.EncodeLookupPrefix(index, [value], schema)
+                ?? throw new InvalidOperationException($"索引 '{index.Name}' 的批量等值键无法编码。");
+            using var cursor = snapshot.OpenRangeCursor(new KvRangeScanOptions
+            {
+                Prefix = prefix,
+                PageSize = Math.Min(256, take - rows.Count),
+            });
+
+            while (!cursor.IsExhausted && rows.Count < take)
+            {
+                IReadOnlyList<KvEntry> page = cursor.ReadNextPage();
+                if (page.Count == 0)
+                    break;
+
+                foreach (var entry in page)
+                {
+                    if (rows.Count >= take)
+                        break;
+
+                    byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(entry.Value.Span);
+                    KvEntry? payload = snapshot.GetEntry(rowKey);
+                    if (payload is null)
+                        continue;
+                    rows.Add(new TableRow(
+                        TableRowCodec.Decode(schema, payload.Value.Span),
+                        entry.Value.ToArray()));
+                }
+            }
+        }
+
+        return rows;
+    }
+
+    /// <summary>
     /// 按联合二级索引的连续首列等值前缀读取候选行。
     /// </summary>
     /// <param name="index">索引声明。</param>
@@ -473,18 +620,32 @@ public sealed class TableStore : IDisposable
         ArgumentNullException.ThrowIfNull(indexColumnValues);
 
         TableSchema schema;
-        byte[] prefix;
         lock (_sync)
-        {
             schema = _schema;
-            prefix = TableIndexCodec.EncodeLookupPrefix(index, indexColumnValues, schema)
-                ?? throw new InvalidOperationException($"索引 '{index.Name}' 的等值前缀无法编码。");
-        }
+
+        using var snapshot = AcquireReadSnapshot();
+        foreach (var row in EnumerateByIndexPrefix(snapshot, schema, index, indexColumnValues, limit))
+            yield return row;
+    }
+
+    /// <summary>在调用方持有的稳定读快照内按二级索引前缀惰性读取候选行。</summary>
+    internal IEnumerable<TableRow> EnumerateByIndexPrefix(
+        KvReadSnapshot snapshot,
+        TableSchema schema,
+        TableIndex index,
+        IReadOnlyList<object?> indexColumnValues,
+        int? limit = null)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(schema);
+        ArgumentNullException.ThrowIfNull(index);
+        ArgumentNullException.ThrowIfNull(indexColumnValues);
 
         if (limit is <= 0)
             yield break;
 
-        using var snapshot = _keyspace.AcquireReadSnapshot();
+        byte[] prefix = TableIndexCodec.EncodeLookupPrefix(index, indexColumnValues, schema)
+            ?? throw new InvalidOperationException($"索引 '{index.Name}' 的等值前缀无法编码。");
         using var cursor = snapshot.OpenRangeCursor(new KvRangeScanOptions
         {
             Prefix = prefix,
@@ -528,35 +689,59 @@ public sealed class TableStore : IDisposable
         TableIndex index,
         IReadOnlyList<object?> equalityPrefixValues,
         TableIndexRange range,
-        int? limit = null)
+        int? limit = null,
+        bool descending = false)
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(equalityPrefixValues);
         ArgumentNullException.ThrowIfNull(range);
 
         TableSchema schema;
-        byte[] prefix;
-        IReadOnlyList<TableIndexKeyRange> keyRanges;
         lock (_sync)
-        {
             schema = _schema;
-            if (!string.IsNullOrWhiteSpace(index.JsonPath)
-                || equalityPrefixValues.Count >= index.Columns.Count)
-            {
-                throw new ArgumentException("范围扫描要求普通联合索引仍有一个未绑定的下一列。", nameof(equalityPrefixValues));
-            }
 
-            var expectedColumn = schema.TryGetColumn(index.Columns[equalityPrefixValues.Count])
-                ?? throw new InvalidOperationException($"索引 '{index.Name}' 引用了未知列。");
-            if (!string.Equals(expectedColumn.Name, range.Column.Name, StringComparison.Ordinal)
-                || expectedColumn.DataType is not (TableColumnType.Int64 or TableColumnType.DateTime))
-            {
-                throw new ArgumentException("范围列必须是索引等值前缀后的 Int64 或 DATETIME 列。", nameof(range));
-            }
+        using var snapshot = AcquireReadSnapshot();
+        foreach (var row in EnumerateByIndexRange(
+            snapshot,
+            schema,
+            index,
+            equalityPrefixValues,
+            range,
+            limit,
+            descending))
+        {
+            yield return row;
+        }
+    }
 
-            prefix = TableIndexCodec.EncodeLookupPrefix(index, equalityPrefixValues, schema)
-                ?? throw new InvalidOperationException($"索引 '{index.Name}' 的等值前缀无法编码。");
-            keyRanges = BuildSignedKeyRanges(index, equalityPrefixValues, range, schema);
+    /// <summary>在调用方持有的稳定读快照内按范围索引惰性读取候选行。</summary>
+    internal IEnumerable<TableRow> EnumerateByIndexRange(
+        KvReadSnapshot snapshot,
+        TableSchema schema,
+        TableIndex index,
+        IReadOnlyList<object?> equalityPrefixValues,
+        TableIndexRange range,
+        int? limit = null,
+        bool descending = false)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(schema);
+        ArgumentNullException.ThrowIfNull(index);
+        ArgumentNullException.ThrowIfNull(equalityPrefixValues);
+        ArgumentNullException.ThrowIfNull(range);
+
+        if (!string.IsNullOrWhiteSpace(index.JsonPath)
+            || equalityPrefixValues.Count >= index.Columns.Count)
+        {
+            throw new ArgumentException("范围扫描要求普通联合索引仍有一个未绑定的下一列。", nameof(equalityPrefixValues));
+        }
+
+        var expectedColumn = schema.TryGetColumn(index.Columns[equalityPrefixValues.Count])
+            ?? throw new InvalidOperationException($"索引 '{index.Name}' 引用了未知列。");
+        if (!string.Equals(expectedColumn.Name, range.Column.Name, StringComparison.Ordinal)
+            || expectedColumn.DataType is not (TableColumnType.Int64 or TableColumnType.DateTime))
+        {
+            throw new ArgumentException("范围列必须是索引等值前缀后的 Int64 或 DATETIME 列。", nameof(range));
         }
 
         int take = limit ?? int.MaxValue;
@@ -564,15 +749,25 @@ public sealed class TableStore : IDisposable
             yield break;
         RangeScanLimitTestHook?.Invoke(take);
 
-        using var snapshot = _keyspace.AcquireReadSnapshot();
+        byte[] prefix = TableIndexCodec.EncodeLookupPrefix(index, equalityPrefixValues, schema)
+            ?? throw new InvalidOperationException($"索引 '{index.Name}' 的等值前缀无法编码。");
+        IReadOnlyList<TableIndexKeyRange> keyRanges = BuildSignedKeyRanges(
+            index,
+            equalityPrefixValues,
+            range,
+            schema);
         int emitted = 0;
-        foreach (var keyRange in keyRanges)
+        for (int rangeIndex = 0; rangeIndex < keyRanges.Count; rangeIndex++)
         {
+            TableIndexKeyRange keyRange = descending
+                ? keyRanges[keyRanges.Count - 1 - rangeIndex]
+                : keyRanges[rangeIndex];
             using var cursor = snapshot.OpenRangeCursor(new KvRangeScanOptions
             {
                 Prefix = prefix,
                 StartInclusive = keyRange.StartInclusive,
                 EndExclusive = keyRange.EndExclusive,
+                Descending = descending,
                 PageSize = 256,
             });
 
@@ -609,11 +804,15 @@ public sealed class TableStore : IDisposable
         TableIndex index,
         IReadOnlyList<object?> equalityPrefixValues,
         TableIndexRange range,
-        int? limit = null)
+        int? limit = null,
+        bool descending = false)
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(equalityPrefixValues);
         ArgumentNullException.ThrowIfNull(range);
+        if (descending)
+            return EnumerateByIndexRange(index, equalityPrefixValues, range, limit, descending: true).ToArray();
+
         lock (_sync)
         {
             var schema = _schema;

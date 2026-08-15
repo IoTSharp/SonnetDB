@@ -59,6 +59,17 @@ internal static class RelationalSelectExecutor
                 branch => Execute(tsdb, branch, outerScope, memo));
         }
 
+        if (outerScope is null
+            && TryRewriteNonCorrelatedInSemijoin(
+                tsdb,
+                statement,
+                memo,
+                out var semijoinStatement,
+                out var semijoinSchema))
+        {
+            return TableSqlExecutor.ExecuteSelect(tsdb, semijoinStatement, semijoinSchema);
+        }
+
         if (statement.TableValuedFunction is not null)
             throw new InvalidOperationException("关系型 SELECT 暂不支持 FROM 表值函数。");
 
@@ -98,6 +109,120 @@ internal static class RelationalSelectExecutor
         if (statement.OrderByList.Count > 0 && !canApplyRelationOrderBy)
             return ApplyOrderByAndPagination(projected, statement.OrderByList, statement.Pagination);
         return ApplyPagination(projected, statement.Pagination);
+    }
+
+    /// <summary>
+    /// 把可证明非相关的单表正向 IN 子查询一次性物化为键集合，再交回普通表访问规划执行 MultiGet。
+    /// </summary>
+    internal static bool TryRewriteNonCorrelatedInSemijoin(
+        Tsdb tsdb,
+        SelectStatement statement,
+        out SelectStatement rewritten,
+        out TableSchema schema)
+        => TryRewriteNonCorrelatedInSemijoin(
+            tsdb,
+            statement,
+            memo: null,
+            out rewritten,
+            out schema);
+
+    /// <summary>运行时 semijoin 重写核心；可选记录内表实际执行次数。</summary>
+    private static bool TryRewriteNonCorrelatedInSemijoin(
+        Tsdb tsdb,
+        SelectStatement statement,
+        SubqueryMemo? memo,
+        out SelectStatement rewritten,
+        out TableSchema schema)
+    {
+        rewritten = statement;
+        schema = null!;
+        if (statement.Where is null
+            || statement.FromSubquery is not null
+            || statement.JoinClauses.Count != 0
+            || tsdb.Tables.Catalog.TryGet(statement.Measurement) is not { } tableSchema)
+        {
+            return false;
+        }
+        schema = tableSchema;
+
+        InExpression? target = null;
+        foreach (var conjunct in FlattenAndExpr(statement.Where))
+        {
+            if (conjunct is InExpression
+                {
+                    Negated: false,
+                    Subquery: not null,
+                    Value: IdentifierExpression,
+                } candidate)
+            {
+                if (target is not null)
+                    return false;
+                target = candidate;
+                continue;
+            }
+
+            if (ContainsSubquery(conjunct))
+                return false;
+        }
+
+        if (target?.Subquery is not { } subquery
+            || !TableInSubqueryExecutor.IsNonCorrelated(
+                tsdb,
+                subquery,
+                tableSchema,
+                statement.TableAlias ?? statement.Measurement))
+        {
+            return false;
+        }
+
+        var emptyReplacement = target with { Values = [], Subquery = null };
+        SqlExpression preflightWhere = ReplaceTopLevelConjunct(
+            statement.Where,
+            target,
+            emptyReplacement);
+        var preflight = statement with { Where = preflightWhere };
+        if (NeedsRelationalPath(preflight)
+            || !TableSqlExecutor.TryChooseInAccessPlan(tableSchema, preflightWhere, out _))
+        {
+            return false;
+        }
+
+        memo?.RecordExecution();
+        SelectExecutionResult inner = SqlExecutor.ExecuteSelect(tsdb, subquery);
+        if (inner.Columns.Count != 1)
+            throw new InvalidOperationException("SELECT 的 IN 子查询必须只返回一列。");
+
+        var values = new SqlExpression[inner.Rows.Count];
+        for (int i = 0; i < inner.Rows.Count; i++)
+        {
+            IReadOnlyList<object?> row = inner.Rows[i];
+            if (row.Count != 1)
+                throw new InvalidOperationException("SELECT 的 IN 子查询必须只返回一列。");
+            values[i] = new MaterializedSubqueryValueExpression(row[0]);
+        }
+
+        var replacement = target with { Values = values, Subquery = null };
+        SqlExpression rewrittenWhere = ReplaceTopLevelConjunct(statement.Where, target, replacement);
+        rewritten = statement with { Where = rewrittenWhere };
+        return true;
+    }
+
+    /// <summary>在顶层 AND 树中按节点身份替换已识别的 IN 子查询。</summary>
+    private static SqlExpression ReplaceTopLevelConjunct(
+        SqlExpression expression,
+        SqlExpression target,
+        SqlExpression replacement)
+    {
+        if (ReferenceEquals(expression, target))
+            return replacement;
+        if (expression is not BinaryExpression { Operator: SqlBinaryOperator.And } binary)
+            return expression;
+
+        SqlExpression left = ReplaceTopLevelConjunct(binary.Left, target, replacement);
+        SqlExpression right = ReplaceTopLevelConjunct(binary.Right, target, replacement);
+        return ReferenceEquals(left, binary.Left) && ReferenceEquals(right, binary.Right)
+            ? binary
+            : binary with { Left = left, Right = right };
     }
 
     /// <summary>

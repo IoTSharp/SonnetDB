@@ -1,3 +1,4 @@
+using SonnetDB.Sql.Ast;
 using SonnetDB.Tables;
 
 namespace SonnetDB.Sql.Execution;
@@ -30,6 +31,8 @@ internal sealed record TableIndexAccessPlan(
 /// <param name="PredicateCovered">访问约束是否完整覆盖 WHERE；为真时可把候选上限安全压到一行。</param>
 /// <param name="HasResidualPredicate">是否仍需对候选执行完整 WHERE 残余复检。</param>
 /// <param name="FallbackReason">未使用常规索引计划时的可解释原因。</param>
+/// <param name="InPlan">可选单列正向 IN 批量点读计划。</param>
+/// <param name="UnionPlan">可选有界 OR 索引并集计划。</param>
 internal sealed record TableExistsAccessPlan(
     string AccessPath,
     string? IndexName,
@@ -38,7 +41,8 @@ internal sealed record TableExistsAccessPlan(
     bool PredicateCovered,
     bool HasResidualPredicate,
     string? FallbackReason = null,
-    TableInAccessPlan? InPlan = null);
+    TableInAccessPlan? InPlan = null,
+    TableIndexUnionAccessPlan? UnionPlan = null);
 
 /// <summary>单列正向 IN 的点查访问计划。</summary>
 /// <param name="Index">使用的单列二级索引；主键点查时为空。</param>
@@ -48,6 +52,18 @@ internal sealed record TableInAccessPlan(
     TableIndex? Index,
     bool UsesPrimaryKey,
     IReadOnlyList<object> Values);
+
+/// <summary>OR 索引并集中的单个可索引分支。</summary>
+/// <param name="Predicate">分支原始谓词，最终结果仍按完整 WHERE 复检。</param>
+/// <param name="AccessPlan">分支使用的主键、IN 或二级索引访问计划。</param>
+internal sealed record TableIndexUnionBranch(
+    SqlExpression Predicate,
+    TableExistsAccessPlan AccessPlan);
+
+/// <summary>有界 OR 索引候选并集计划。</summary>
+/// <param name="Branches">全部可索引分支；空集合表示 OR 恒不为 TRUE。</param>
+internal sealed record TableIndexUnionAccessPlan(
+    IReadOnlyList<TableIndexUnionBranch> Branches);
 
 /// <summary>
 /// 单表 <c>EXISTS</c> 已加载的候选行及其实际访问计划。

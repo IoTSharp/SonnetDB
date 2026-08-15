@@ -574,6 +574,15 @@ public static class SqlExplainPlanner
         if (TryGetStandaloneExists(statement, out var existsSubquery))
             return ExplainStandaloneExists(databaseName, tsdb, existsSubquery);
 
+        if (RelationalSelectExecutor.TryRewriteNonCorrelatedInSemijoin(
+            tsdb,
+            statement,
+            out var semijoinStatement,
+            out _))
+        {
+            statement = semijoinStatement;
+        }
+
         if (statement.FromSubquery is not null)
             return ExplainRelationalComposition(databaseName, tsdb, statement);
 
@@ -746,7 +755,11 @@ public static class SqlExplainPlanner
         if (tableSchema is not null)
         {
             var store = tsdb.Tables.Open(tableSchema.Name);
-            var (accessPath, indexName, rowCount) = ExplainTableAccess(store, tableSchema, statement.Where);
+            var (accessPath, indexName, rowCount, fallbackReason) = ExplainTableAccess(
+                store,
+                tableSchema,
+                statement.Where,
+                statement);
             return new SqlExplainExecutionResult(
                 Database: databaseName,
                 StatementType: "select_table",
@@ -761,7 +774,10 @@ public static class SqlExplainPlanner
                 TagFilterCount: 0,
                 AccessPath: accessPath,
                 IndexName: indexName,
-                ScanFilter: scanFilter);
+                ScanFilter: scanFilter)
+            {
+                FallbackReason = fallbackReason,
+            };
         }
 
         if (statement.TableValuedFunction is FunctionCallExpression { Name: var tvfName }
@@ -968,7 +984,7 @@ public static class SqlExplainPlanner
         TableSchema? table = tsdb.Tables.Catalog.TryGet(relationName);
         if (table is not null)
         {
-            var (accessPath, indexName, estimatedRows) = ExplainTableAccess(
+            var (accessPath, indexName, estimatedRows, fallbackReason) = ExplainTableAccess(
                 tsdb.Tables.Open(table.Name),
                 table,
                 where: null);
@@ -978,7 +994,7 @@ public static class SqlExplainPlanner
                 indexName,
                 estimatedRows,
                 $"rows<={estimatedRows}",
-                null);
+                fallbackReason);
         }
 
         MaterializedViewDefinition? materialized = tsdb.MaterializedViews.Catalog.TryGet(relationName);
@@ -1114,24 +1130,40 @@ public static class SqlExplainPlanner
         };
     }
 
-    private static (string AccessPath, string? IndexName, int EstimatedRows) ExplainTableAccess(
+    private static (string AccessPath, string? IndexName, int EstimatedRows, string? FallbackReason) ExplainTableAccess(
         TableStore store,
         TableSchema schema,
-        SqlExpression? where)
+        SqlExpression? where,
+        SelectStatement? statement = null)
     {
+        if (TableSqlExecutor.CanUsePrimaryKeyLookup(schema, where))
+            return ("primary_key", "primary", 1, null);
+
         if (TableSqlExecutor.TryChooseInAccessPlan(schema, where, out var inPlan))
         {
-            int rows = 0;
-            foreach (var value in inPlan.Values)
-            {
-                rows += inPlan.UsesPrimaryKey
-                    ? store.GetByPrimaryKey([value]) is null ? 0 : 1
-                    : store.GetByIndex(inPlan.Index!, [value]).Count;
-            }
+            int rows = inPlan.UsesPrimaryKey
+                ? store.GetByPrimaryKeys(inPlan.Values).Count
+                : store.GetByIndexValues(inPlan.Index!, inPlan.Values).Count;
             return (
                 inPlan.UsesPrimaryKey ? "primary_key_in" : "secondary_index_in",
                 inPlan.UsesPrimaryKey ? "primary" : inPlan.Index!.Name,
-                rows);
+                rows,
+                null);
+        }
+
+        if (statement is not null
+            && TableSqlExecutor.TryChooseOrderedRangeAccessPlan(
+                schema,
+                statement,
+                out var orderedPlan,
+                out int candidateLimit,
+                out _))
+        {
+            return (
+                "secondary_index_range",
+                orderedPlan.Index.Name,
+                Math.Min(candidateLimit, store.RowCount),
+                null);
         }
 
         if (TableSqlExecutor.ChooseBestIndexAccessPlan(schema, where) is { } plan)
@@ -1146,13 +1178,34 @@ public static class SqlExplainPlanner
                 : plan.IsFullEquality
                     ? store.GetByIndex(plan.Index, plan.EqualityPrefixValues).Count
                     : store.GetByIndexPrefix(plan.Index, plan.EqualityPrefixValues).Count;
-            return (accessPath, plan.Index.Name, rows);
+            return (accessPath, plan.Index.Name, rows, null);
         }
 
-        if (TableSqlExecutor.CanUsePrimaryKeyLookup(schema, where))
-            return ("primary_key", "primary", 1);
+        string? unionFallback = null;
+        if (TableSqlExecutor.TryChooseIndexUnionPlan(
+            schema,
+            where,
+            out var unionPlan,
+            out unionFallback))
+        {
+            if (TableSqlExecutor.TryLoadIndexUnionRows(
+                store,
+                schema,
+                unionPlan,
+                out var unionRows,
+                out var unionLoadFallback))
+            {
+                return ("index_union", null, unionRows.Count, null);
+            }
 
-        return ("table_scan", null, store.Scan().Count);
+            unionFallback = unionLoadFallback;
+        }
+
+        return (
+            "table_scan",
+            null,
+            store.Scan().Count,
+            where is null ? null : unionFallback ?? "no_sargable_predicate");
     }
 
     private static IReadOnlyList<string> ResolveScannedFields(SelectStatement statement, MeasurementSchema schema)

@@ -1,7 +1,7 @@
 namespace SonnetDB.Kv;
 
 /// <summary>
-/// 在单个 KV 稳定读快照上按 key 字节序升序读取的前向范围游标。
+/// 在单个 KV 稳定读快照上按 key 字节序升序或降序读取的范围游标。
 /// </summary>
 /// <remarks>
 /// 游标不持有 keyspace 锁。每页中的 key/value 都是该页独立拥有的副本，

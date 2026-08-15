@@ -39,6 +39,7 @@ public sealed class KvReadSnapshotTests : IDisposable
 
         Task<long> checkpoint = Task.Run(keyspace.Compact);
         KvRangeCursor? cursor = null;
+        KvRangeCursor? descendingCursor = null;
         try
         {
             Assert.True(checkpointFrozen.Wait(TimeSpan.FromSeconds(10)));
@@ -50,6 +51,12 @@ public sealed class KvReadSnapshotTests : IDisposable
             cursor = snapshot.OpenRangeCursor(new KvRangeScanOptions
             {
                 Prefix = Bytes("item:"),
+                PageSize = 1,
+            });
+            descendingCursor = snapshot.OpenRangeCursor(new KvRangeScanOptions
+            {
+                Prefix = Bytes("item:"),
+                Descending = true,
                 PageSize = 1,
             });
             snapshot.Dispose();
@@ -78,6 +85,21 @@ public sealed class KvReadSnapshotTests : IDisposable
 
             Assert.Equal("mutable-two", Text(firstPage[0].Value));
             Assert.Equal("item:02", Text(firstPage[0].Key));
+        }
+
+        Assert.NotNull(descendingCursor);
+        using (descendingCursor)
+        {
+            IReadOnlyList<KvEntry> firstPage = descendingCursor.ReadNextPage();
+            IReadOnlyList<KvEntry> secondPage = descendingCursor.ReadNextPage();
+            IReadOnlyList<KvEntry> end = descendingCursor.ReadNextPage();
+
+            Assert.Equal("item:04", Text(Assert.Single(firstPage).Key));
+            Assert.Equal("mutable-four", Text(firstPage[0].Value));
+            Assert.Equal("item:02", Text(Assert.Single(secondPage).Key));
+            Assert.Equal("mutable-two", Text(secondPage[0].Value));
+            Assert.Empty(end);
+            Assert.True(descendingCursor.IsExhausted);
         }
     }
 
@@ -161,6 +183,65 @@ public sealed class KvReadSnapshotTests : IDisposable
         Assert.Equal("item:visible", Text(entry.Key));
         Assert.True(entry.ExpiresAtUtc < DateTimeOffset.UtcNow);
         Assert.Equal(readTimestampUtc, snapshot.ReadTimestampUtc);
+    }
+
+    [Fact]
+    public void ReadNextPage_DescendingMergesLayersAndHonorsRangeContinuation()
+    {
+        using var keyspace = KvKeyspace.Open("descending-cursor", _root, Options());
+        keyspace.Put("item:01", [1]);
+        keyspace.Put("item:02", [2]);
+        keyspace.Put("item:03", [3]);
+        keyspace.Put("item:04", [4]);
+        keyspace.Compact();
+        keyspace.Put("item:02", [22]);
+        Assert.True(keyspace.Delete("item:03"));
+        keyspace.Put("item:05", [5]);
+
+        using KvReadSnapshot snapshot = keyspace.AcquireReadSnapshot();
+        using KvRangeCursor cursor = snapshot.OpenRangeCursor(new KvRangeScanOptions
+        {
+            Prefix = Bytes("item:"),
+            StartInclusive = Bytes("item:02"),
+            EndExclusive = Bytes("item:06"),
+            AfterKey = Bytes("item:05"),
+            Descending = true,
+            PageSize = 2,
+        });
+
+        IReadOnlyList<KvEntry> first = cursor.ReadNextPage();
+        IReadOnlyList<KvEntry> second = cursor.ReadNextPage();
+
+        Assert.Equal(["item:04", "item:02"], first.Select(static entry => Text(entry.Key)).ToArray());
+        Assert.Equal([4, 22], first.Select(static entry => (int)entry.Value.Span[0]).ToArray());
+        Assert.Empty(second);
+        Assert.True(cursor.IsExhausted);
+    }
+
+    [Fact]
+    public void ReadNextPage_DescendingDiskRangeSeeksFromUpperBound()
+    {
+        using var keyspace = KvKeyspace.Open("descending-disk-seek", _root, Options());
+        for (int i = 0; i < 8; i++)
+            keyspace.Put($"item:{i:D2}", [(byte)i]);
+        keyspace.Compact();
+
+        var visited = new List<int>();
+        keyspace.ConfigureSnapshotDiskScanTestHooks(
+            scanStarted: null,
+            index => visited.Add(index));
+        using KvReadSnapshot snapshot = keyspace.AcquireReadSnapshot();
+        using KvRangeCursor cursor = snapshot.OpenRangeCursor(new KvRangeScanOptions
+        {
+            Prefix = Bytes("item:"),
+            Descending = true,
+            PageSize = 2,
+        });
+
+        IReadOnlyList<KvEntry> page = cursor.ReadNextPage();
+
+        Assert.Equal(["item:07", "item:06"], page.Select(static entry => Text(entry.Key)).ToArray());
+        Assert.Equal([7, 6], visited);
     }
 
     [Fact]

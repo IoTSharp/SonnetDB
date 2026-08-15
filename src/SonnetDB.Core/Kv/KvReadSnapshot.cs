@@ -26,10 +26,10 @@ public sealed class KvReadSnapshot : IDisposable
     public DateTimeOffset ReadTimestampUtc { get; }
 
     /// <summary>
-    /// 创建一个按 key 字节序升序读取当前快照的前向范围游标。
+    /// 创建一个按 key 字节序升序或降序读取当前快照的范围游标。
     /// </summary>
     /// <param name="options">范围、页条目数与页字节预算；为 null 时扫描全部 key。</param>
-    /// <returns>持有独立快照租约的前向游标。</returns>
+    /// <returns>持有独立快照租约的范围游标。</returns>
     /// <exception cref="ArgumentOutOfRangeException">页条目数或页字节预算不是正数。</exception>
     /// <exception cref="ObjectDisposedException">快照已经释放。</exception>
     public KvRangeCursor OpenRangeCursor(KvRangeScanOptions? options = null)
@@ -138,7 +138,8 @@ internal sealed class KvReadSnapshotState
                 prefix,
                 afterKey,
                 startInclusive,
-                endExclusive)
+                endExclusive,
+                options.Descending)
             .GetEnumerator();
     }
 
@@ -173,7 +174,8 @@ internal sealed class KvReadSnapshotState
         byte[] prefix,
         byte[]? afterKey,
         byte[]? startInclusive,
-        byte[]? endExclusive)
+        byte[]? endExclusive,
+        bool descending)
     {
         IEnumerable<KeyValuePair<byte[], KvValueEntry>> lowerLayer = EnumerateOverlayAndDisk(
             frozenValues,
@@ -181,14 +183,16 @@ internal sealed class KvReadSnapshotState
             prefix,
             afterKey,
             startInclusive,
-            endExclusive);
+            endExclusive,
+            descending);
         foreach (KeyValuePair<byte[], KvValueEntry> pair in MergeOverlayAndLowerLayer(
             mutableValues,
             lowerLayer,
             prefix,
             afterKey,
             startInclusive,
-            endExclusive))
+            endExclusive,
+            descending))
         {
             yield return pair;
         }
@@ -200,14 +204,16 @@ internal sealed class KvReadSnapshotState
         byte[] prefix,
         byte[]? afterKey,
         byte[]? startInclusive,
-        byte[]? endExclusive)
+        byte[]? endExclusive,
+        bool descending)
     {
         using IEnumerator<KeyValuePair<byte[], KvValueEntry>> memory = EnumerateOverlayRange(
             overlay,
             prefix,
             afterKey,
             startInclusive,
-            endExclusive).GetEnumerator();
+            endExclusive,
+            descending).GetEnumerator();
         using IEnumerator<KeyValuePair<byte[], KvValueEntry>> lower = lowerLayer.GetEnumerator();
 
         bool hasMemory = memory.MoveNext();
@@ -229,7 +235,7 @@ internal sealed class KvReadSnapshotState
                 continue;
             }
 
-            int comparison = KvKeyComparer.Instance.Compare(memory.Current.Key, lower.Current.Key);
+            int comparison = CompareInDirection(memory.Current.Key, lower.Current.Key, descending);
             if (comparison < 0)
             {
                 if (!memory.Current.Value.IsDeleted)
@@ -258,17 +264,19 @@ internal sealed class KvReadSnapshotState
         byte[] prefix,
         byte[]? afterKey,
         byte[]? startInclusive,
-        byte[]? endExclusive)
+        byte[]? endExclusive,
+        bool descending)
     {
         using IEnumerator<KeyValuePair<byte[], KvValueEntry>> memory = EnumerateOverlayRange(
             overlay,
             prefix,
             afterKey,
             startInclusive,
-            endExclusive).GetEnumerator();
+            endExclusive,
+            descending).GetEnumerator();
         IEnumerable<KvDiskIndexEntry> diskEntries = diskState is null
             ? Array.Empty<KvDiskIndexEntry>()
-            : diskState.ScanRange(prefix, startInclusive, endExclusive, afterKey);
+            : diskState.ScanRange(prefix, startInclusive, endExclusive, afterKey, descending);
         using IEnumerator<KvDiskIndexEntry> disk = diskEntries.GetEnumerator();
 
         bool hasMemory = memory.MoveNext();
@@ -293,7 +301,7 @@ internal sealed class KvReadSnapshotState
                 continue;
             }
 
-            int comparison = KvKeyComparer.Instance.Compare(memory.Current.Key, disk.Current.Key);
+            int comparison = CompareInDirection(memory.Current.Key, disk.Current.Key, descending);
             if (comparison < 0)
             {
                 if (!memory.Current.Value.IsDeleted)
@@ -324,8 +332,23 @@ internal sealed class KvReadSnapshotState
         byte[] prefix,
         byte[]? afterKey,
         byte[]? startInclusive,
-        byte[]? endExclusive)
+        byte[]? endExclusive,
+        bool descending)
     {
+        if (descending)
+        {
+            foreach (var entry in EnumerateOverlayRangeDescending(
+                entries,
+                prefix,
+                afterKey,
+                startInclusive,
+                endExclusive))
+            {
+                yield return entry;
+            }
+            yield break;
+        }
+
         byte[] lowerBound = prefix;
         bool lowerBoundExclusive = false;
         if (startInclusive is not null
@@ -361,6 +384,74 @@ internal sealed class KvReadSnapshotState
 
             yield return entry;
         }
+    }
+
+    /// <summary>按 key 字节序降序枚举内存层的指定前缀与半开区间。</summary>
+    private static IEnumerable<KeyValuePair<byte[], KvValueEntry>> EnumerateOverlayRangeDescending(
+        KeyValuePair<byte[], KvValueEntry>[] entries,
+        byte[] prefix,
+        byte[]? afterKey,
+        byte[]? startInclusive,
+        byte[]? endExclusive)
+    {
+        byte[] lowerBound = prefix;
+        if (startInclusive is not null
+            && KvKeyComparer.Instance.Compare(startInclusive, lowerBound) > 0)
+        {
+            lowerBound = startInclusive;
+        }
+
+        byte[]? upperExclusive = endExclusive;
+        byte[]? prefixUpper = GetPrefixUpperBound(prefix);
+        if (prefixUpper is not null
+            && (upperExclusive is null
+                || KvKeyComparer.Instance.Compare(prefixUpper, upperExclusive) < 0))
+        {
+            upperExclusive = prefixUpper;
+        }
+        if (afterKey is not null
+            && (upperExclusive is null
+                || KvKeyComparer.Instance.Compare(afterKey, upperExclusive) < 0))
+        {
+            upperExclusive = afterKey;
+        }
+
+        int startIndex = upperExclusive is null
+            ? entries.Length - 1
+            : LowerBound(entries, upperExclusive) - 1;
+        for (int i = startIndex; i >= 0; i--)
+        {
+            KeyValuePair<byte[], KvValueEntry> entry = entries[i];
+            if (KvKeyComparer.Instance.Compare(entry.Key, lowerBound) < 0)
+                yield break;
+            if (!entry.Key.AsSpan().StartsWith(prefix))
+                yield break;
+            yield return entry;
+        }
+    }
+
+    /// <summary>按扫描方向比较两个 key，使较早返回的 key 排在前面。</summary>
+    private static int CompareInDirection(byte[] left, byte[] right, bool descending)
+    {
+        int comparison = KvKeyComparer.Instance.Compare(left, right);
+        return descending ? -comparison : comparison;
+    }
+
+    /// <summary>计算覆盖指定前缀的最小排他上界；空前缀或全 0xFF 前缀没有有限上界。</summary>
+    private static byte[]? GetPrefixUpperBound(ReadOnlySpan<byte> prefix)
+    {
+        if (prefix.IsEmpty)
+            return null;
+
+        byte[] upper = prefix.ToArray();
+        for (int i = upper.Length - 1; i >= 0; i--)
+        {
+            if (upper[i] == byte.MaxValue)
+                continue;
+            upper[i]++;
+            return upper[..(i + 1)];
+        }
+        return null;
     }
 
     private static int FindIndex(

@@ -11,6 +11,9 @@ namespace SonnetDB.Sql.Execution;
 /// </summary>
 internal static class TableInSubqueryExecutor
 {
+    private const string CorrelatedReferenceMessagePrefix =
+        "DELETE/UPDATE 的 IN 子查询不支持相关子查询引用";
+
     public static bool ContainsInSubquery(SqlExpression expression)
         => expression switch
         {
@@ -37,6 +40,32 @@ internal static class TableInSubqueryExecutor
         var cache = new Dictionary<SelectStatement, IReadOnlyList<SqlExpression>>(
             ReferenceEqualityComparer.Instance);
         return Rewrite(tsdb, expression, outerSchema, cache);
+    }
+
+    /// <summary>
+    /// 静态确认子查询不会解析到指定外层关系表；相关形状返回 false，其他稳定校验错误继续抛出。
+    /// </summary>
+    internal static bool IsNonCorrelated(
+        Tsdb tsdb,
+        SelectStatement statement,
+        TableSchema outerSchema,
+        string outerQualifier)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+        ArgumentNullException.ThrowIfNull(outerSchema);
+        ArgumentException.ThrowIfNullOrWhiteSpace(outerQualifier);
+
+        try
+        {
+            EnsureNonCorrelated(tsdb, statement, outerSchema, outerQualifier);
+            return true;
+        }
+        catch (InvalidOperationException exception)
+            when (exception.Message.StartsWith(CorrelatedReferenceMessagePrefix, StringComparison.Ordinal))
+        {
+            return false;
+        }
     }
 
     private static SqlExpression Rewrite(
@@ -104,7 +133,7 @@ internal static class TableInSubqueryExecutor
         {
             EnsureSupportedSources(tsdb, expression.Subquery);
             EnsureSingleColumnProjection(tsdb, expression.Subquery);
-            EnsureNonCorrelated(tsdb, expression.Subquery, outerSchema);
+            EnsureNonCorrelated(tsdb, expression.Subquery, outerSchema, outerSchema.Name);
             var result = SqlExecutor.ExecuteSelect(tsdb, expression.Subquery);
             if (result.Columns.Count != 1)
                 throw new InvalidOperationException("DELETE/UPDATE 的 IN 子查询必须只返回一列。");
@@ -227,10 +256,14 @@ internal static class TableInSubqueryExecutor
             : expression with { WhenClauses = clauses ?? expression.WhenClauses, Else = elseExpression };
     }
 
-    private static void EnsureNonCorrelated(Tsdb tsdb, SelectStatement statement, TableSchema outerSchema)
+    private static void EnsureNonCorrelated(
+        Tsdb tsdb,
+        SelectStatement statement,
+        TableSchema outerSchema,
+        string outerQualifier)
     {
         var outerSource = new StaticSource(
-            outerSchema.Name,
+            outerQualifier,
             outerSchema.Columns.Select(static column => column.Name).ToHashSet(StringComparer.OrdinalIgnoreCase));
         ValidateSelect(tsdb, statement, new StaticScope([outerSource], Parent: null, IsDeleteOuter: true));
     }

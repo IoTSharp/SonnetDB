@@ -82,4 +82,25 @@ public sealed class M41PerformanceBaselineReportTests : IDisposable
         Assert.Contains("descending_pagination", markdown, StringComparison.Ordinal);
         Assert.Contains("Fixed hardware: `NOT_RUN`", markdown, StringComparison.Ordinal);
     }
+
+    /// <summary>验证 #369～#371 对拍基准的 setup、八条执行合同和 cleanup 可完整运行。</summary>
+    [Fact]
+    public void P0AccessPathBenchmark_Smoke_ExecutesAllReferenceAndFastPaths()
+    {
+        var benchmark = new M41P0AccessPathBenchmark();
+        try
+        {
+            benchmark.Setup();
+            Assert.Equal(benchmark.PrimaryIn_RelationalScanReference(), benchmark.PrimaryIn_MultiGet());
+            Assert.Equal(benchmark.SecondaryIn_RelationalScanReference(), benchmark.SecondaryIn_MultiGet());
+            Assert.Equal(benchmark.IndexUnion_FullScanReference(), benchmark.IndexUnion_BoundedCandidates());
+            Assert.Equal(
+                benchmark.DescendingTopN_FullScanHeapReference(),
+                benchmark.DescendingTopN_ReverseIndexCursor());
+        }
+        finally
+        {
+            benchmark.Cleanup();
+        }
+    }
 }

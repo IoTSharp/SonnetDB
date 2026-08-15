@@ -455,10 +455,18 @@ internal sealed class KvDiskState : IDisposable
         byte[] prefix,
         byte[]? startInclusive,
         byte[]? endExclusive,
-        byte[]? afterKey)
+        byte[]? afterKey,
+        bool descending = false)
     {
         ArgumentNullException.ThrowIfNull(prefix);
         ScanStartedTestHook?.Invoke();
+
+        if (descending)
+        {
+            foreach (var entry in ScanRangeDescending(prefix, startInclusive, endExclusive, afterKey))
+                yield return entry;
+            yield break;
+        }
 
         byte[] lowerBound = prefix;
         bool lowerBoundExclusive = false;
@@ -489,6 +497,62 @@ internal sealed class KvDiskState : IDisposable
 
             yield return entry;
         }
+    }
+
+    /// <summary>按前缀和半开区间从上界向下扫描磁盘索引。</summary>
+    private IEnumerable<KvDiskIndexEntry> ScanRangeDescending(
+        byte[] prefix,
+        byte[]? startInclusive,
+        byte[]? endExclusive,
+        byte[]? afterKey)
+    {
+        byte[] lowerBound = prefix;
+        if (startInclusive is not null && Compare(startInclusive, lowerBound) > 0)
+            lowerBound = startInclusive;
+
+        byte[]? upperExclusive = endExclusive;
+        byte[]? prefixUpper = GetPrefixUpperBound(prefix);
+        if (prefixUpper is not null
+            && (upperExclusive is null || Compare(prefixUpper, upperExclusive) < 0))
+        {
+            upperExclusive = prefixUpper;
+        }
+        if (afterKey is not null
+            && (upperExclusive is null || Compare(afterKey, upperExclusive) < 0))
+        {
+            upperExclusive = afterKey;
+        }
+
+        int startIndex = upperExclusive is null
+            ? _entries.Length - 1
+            : LowerBound(upperExclusive) - 1;
+        for (int i = startIndex; i >= 0; i--)
+        {
+            KvDiskIndexEntry entry = _entries[i];
+            ScanIndexVisitedTestHook?.Invoke(i);
+            if (Compare(entry.Key, lowerBound) < 0)
+                yield break;
+            if (!entry.Key.AsSpan().StartsWith(prefix))
+                yield break;
+            yield return entry;
+        }
+    }
+
+    /// <summary>计算指定前缀的最小排他上界。</summary>
+    private static byte[]? GetPrefixUpperBound(ReadOnlySpan<byte> prefix)
+    {
+        if (prefix.IsEmpty)
+            return null;
+
+        byte[] upper = prefix.ToArray();
+        for (int i = upper.Length - 1; i >= 0; i--)
+        {
+            if (upper[i] == byte.MaxValue)
+                continue;
+            upper[i]++;
+            return upper[..(i + 1)];
+        }
+        return null;
     }
 
     public KvValueEntry Read(KvDiskIndexEntry entry)
