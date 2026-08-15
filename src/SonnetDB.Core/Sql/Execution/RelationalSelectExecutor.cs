@@ -73,11 +73,13 @@ internal static class RelationalSelectExecutor
         if (statement.TableValuedFunction is not null)
             throw new InvalidOperationException("关系型 SELECT 暂不支持 FROM 表值函数。");
 
-        var relation = LoadFrom(tsdb, statement);
-        foreach (var join in statement.JoinClauses)
+        var inputPushdown = PlanRelationInputs(tsdb, statement, outerScope);
+        var relation = LoadFrom(tsdb, statement, inputPushdown.From, memo);
+        for (int joinIndex = 0; joinIndex < statement.JoinClauses.Count; joinIndex++)
         {
             SqlExecutor.ThrowIfCancellationRequested();
-            var right = LoadJoin(tsdb, join);
+            var join = statement.JoinClauses[joinIndex];
+            var right = LoadJoin(tsdb, join, inputPushdown.Joins[joinIndex], memo);
             relation = Join(tsdb, relation, right, join.On, join.Kind, outerScope, memo);
         }
 
@@ -300,6 +302,21 @@ internal static class RelationalSelectExecutor
             _metrics?.RecordExistsFallback(reason, hasResidualPredicate);
             SqlExecutionTelemetry.RecordAccessPath("relational_fallback", fallbackReason: reason);
         }
+
+        /// <summary>记录一次关系输入谓词、投影或 LIMIT 下推的执行证据。</summary>
+        public void RecordRelationInput(
+            RelationInputPlan plan,
+            int sourceColumns,
+            int projectedColumns,
+            int candidateRows,
+            int retainedRows)
+            => _metrics?.RecordRelationInput(
+                plan.Predicate is not null,
+                plan.RowLimit is not null,
+                sourceColumns,
+                projectedColumns,
+                candidateRows,
+                retainedRows);
     }
 
     public static bool NeedsRelationalPath(SelectStatement statement)
@@ -396,7 +413,474 @@ internal static class RelationalSelectExecutor
             FallbackReason: fallbackReason);
     }
 
-    private static Relation LoadFrom(Tsdb tsdb, SelectStatement statement)
+    private sealed record RelationInputDescriptor(string Alias, TableSchema Schema);
+
+    private sealed record RelationInputPlan(
+        SqlExpression? Predicate,
+        IReadOnlySet<string>? RequiredColumns,
+        int? RowLimit)
+    {
+        public static RelationInputPlan Disabled { get; } = new(null, null, null);
+    }
+
+    private sealed record RelationInputPushdownPlan(
+        RelationInputPlan From,
+        IReadOnlyList<RelationInputPlan> Joins)
+    {
+        public static RelationInputPushdownPlan Disabled(int joinCount)
+        {
+            var joins = new RelationInputPlan[joinCount];
+            Array.Fill(joins, RelationInputPlan.Disabled);
+            return new RelationInputPushdownPlan(RelationInputPlan.Disabled, joins);
+        }
+    }
+
+    private static RelationInputPushdownPlan PlanRelationInputs(
+        Tsdb tsdb,
+        SelectStatement statement,
+        RelationalScope? outerScope)
+    {
+        if (statement.JoinClauses.Count == 0 || outerScope is not null)
+            return RelationInputPushdownPlan.Disabled(statement.JoinClauses.Count);
+
+        var inputs = new List<RelationInputDescriptor>(statement.JoinClauses.Count + 1);
+        if (!TryCreateInputDescriptor(
+                tsdb,
+                statement.Measurement,
+                statement.TableAlias ?? statement.Measurement,
+                statement.FromSubquery,
+                out var from))
+        {
+            return RelationInputPushdownPlan.Disabled(statement.JoinClauses.Count);
+        }
+        inputs.Add(from);
+
+        foreach (var join in statement.JoinClauses)
+        {
+            if (!TryCreateInputDescriptor(tsdb, join.TableName, join.Alias, join.Subquery, out var input))
+                return RelationInputPushdownPlan.Disabled(statement.JoinClauses.Count);
+            inputs.Add(input);
+        }
+
+        if (HasDuplicateInputAlias(inputs))
+        {
+            return RelationInputPushdownPlan.Disabled(statement.JoinClauses.Count);
+        }
+
+        bool hasSubquery = ContainsSubquery(statement);
+        var pushedPredicates = new List<SqlExpression>[inputs.Count];
+        for (int i = 0; i < pushedPredicates.Length; i++)
+            pushedPredicates[i] = [];
+
+        if (!hasSubquery && statement.Where is not null && HasOnlyInnerJoins(statement.JoinClauses))
+        {
+            foreach (var conjunct in FlattenAndExpr(statement.Where))
+            {
+                if (TryResolveExpressionInput(conjunct, inputs, out int inputIndex, out var normalized))
+                    pushedPredicates[inputIndex].Add(normalized);
+            }
+        }
+
+        var requiredColumns = new HashSet<string>[inputs.Count];
+        for (int i = 0; i < requiredColumns.Length; i++)
+            requiredColumns[i] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        bool projectionPushdown = !hasSubquery
+            && !HasStarProjection(statement.Projections)
+            && TryCollectRequiredColumns(statement, inputs, requiredColumns);
+
+        int? fromLimit = TryGetSafeFromInputLimit(statement, hasSubquery);
+        var plans = new RelationInputPlan[inputs.Count];
+        for (int i = 0; i < inputs.Count; i++)
+        {
+            plans[i] = new RelationInputPlan(
+                CombineConjuncts(pushedPredicates[i]),
+                projectionPushdown ? requiredColumns[i] : null,
+                i == 0 ? fromLimit : null);
+        }
+
+        return new RelationInputPushdownPlan(plans[0], plans[1..]);
+    }
+
+    private static bool HasDuplicateInputAlias(IReadOnlyList<RelationInputDescriptor> inputs)
+    {
+        for (int i = 0; i < inputs.Count; i++)
+        {
+            for (int j = i + 1; j < inputs.Count; j++)
+            {
+                if (NameEquals(inputs[i].Alias, inputs[j].Alias))
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool HasOnlyInnerJoins(IReadOnlyList<JoinClause> joins)
+    {
+        foreach (var join in joins)
+        {
+            if (join.Kind != JoinKind.Inner)
+                return false;
+        }
+        return true;
+    }
+
+    private static bool HasStarProjection(IReadOnlyList<SelectItem> projections)
+    {
+        foreach (var projection in projections)
+        {
+            if (projection.Expression is StarExpression)
+                return true;
+        }
+        return false;
+    }
+
+    private static bool TryCreateInputDescriptor(
+        Tsdb tsdb,
+        string sourceName,
+        string alias,
+        SelectStatement? subquery,
+        out RelationInputDescriptor descriptor)
+    {
+        descriptor = null!;
+        if (subquery is not null)
+            return false;
+
+        var schema = tsdb.Tables.Catalog.TryGet(sourceName);
+        if (schema is null)
+            return false;
+
+        descriptor = new RelationInputDescriptor(alias, schema);
+        return true;
+    }
+
+    private static bool TryResolveExpressionInput(
+        SqlExpression expression,
+        IReadOnlyList<RelationInputDescriptor> inputs,
+        out int inputIndex,
+        out SqlExpression normalized)
+    {
+        inputIndex = -1;
+        normalized = expression;
+        if (ContainsFunctionCall(expression))
+            return false;
+
+        bool foundIdentifier = false;
+        foreach (var identifier in EnumerateLocalIdentifiers(expression))
+        {
+            if (!TryResolveIdentifierInput(identifier, inputs, out int resolved))
+                return false;
+            if (foundIdentifier && inputIndex != resolved)
+                return false;
+            foundIdentifier = true;
+            inputIndex = resolved;
+        }
+        if (!foundIdentifier)
+            return false;
+
+        normalized = NormalizeInputExpression(expression, inputs[inputIndex]);
+        return true;
+    }
+
+    private static bool ContainsFunctionCall(SqlExpression expression)
+    {
+        switch (expression)
+        {
+            case FunctionCallExpression:
+                return true;
+            case UnaryExpression unary:
+                return ContainsFunctionCall(unary.Operand);
+            case BinaryExpression binary:
+                return ContainsFunctionCall(binary.Left) || ContainsFunctionCall(binary.Right);
+            case IsNullExpression isNull:
+                return ContainsFunctionCall(isNull.Operand);
+            case InExpression inExpression:
+                if (ContainsFunctionCall(inExpression.Value))
+                    return true;
+                foreach (var value in inExpression.Values)
+                {
+                    if (ContainsFunctionCall(value))
+                        return true;
+                }
+                return false;
+            case CaseExpression caseExpression:
+                foreach (var clause in caseExpression.WhenClauses)
+                {
+                    if (ContainsFunctionCall(clause.Condition)
+                        || ContainsFunctionCall(clause.Result))
+                    {
+                        return true;
+                    }
+                }
+                return caseExpression.Else is not null
+                    && ContainsFunctionCall(caseExpression.Else);
+            case NamedArgumentExpression named:
+                return ContainsFunctionCall(named.Value);
+            default:
+                return false;
+        }
+    }
+
+    private static bool TryCollectRequiredColumns(
+        SelectStatement statement,
+        IReadOnlyList<RelationInputDescriptor> inputs,
+        IReadOnlyList<HashSet<string>> requiredColumns)
+    {
+        foreach (var expression in EnumerateRelationExpressions(statement))
+        {
+            foreach (var identifier in EnumerateLocalIdentifiers(expression))
+            {
+                if (!TryResolveIdentifierInput(identifier, inputs, out int inputIndex))
+                    return false;
+                requiredColumns[inputIndex].Add(identifier.Name);
+            }
+        }
+        return true;
+    }
+
+    private static IEnumerable<SqlExpression> EnumerateRelationExpressions(SelectStatement statement)
+    {
+        foreach (var projection in statement.Projections)
+            yield return projection.Expression;
+        if (statement.Where is not null)
+            yield return statement.Where;
+        foreach (var groupBy in statement.GroupBy)
+            yield return groupBy;
+        if (statement.Having is not null)
+            yield return statement.Having;
+        foreach (var orderBy in statement.OrderByList)
+            yield return orderBy.Expression;
+        foreach (var join in statement.JoinClauses)
+            yield return join.On;
+    }
+
+    private static IEnumerable<IdentifierExpression> EnumerateLocalIdentifiers(SqlExpression expression)
+    {
+        switch (expression)
+        {
+            case IdentifierExpression identifier:
+                yield return identifier;
+                yield break;
+            case UnaryExpression unary:
+                foreach (var identifier in EnumerateLocalIdentifiers(unary.Operand))
+                    yield return identifier;
+                yield break;
+            case BinaryExpression binary:
+                foreach (var identifier in EnumerateLocalIdentifiers(binary.Left))
+                    yield return identifier;
+                foreach (var identifier in EnumerateLocalIdentifiers(binary.Right))
+                    yield return identifier;
+                yield break;
+            case IsNullExpression isNull:
+                foreach (var identifier in EnumerateLocalIdentifiers(isNull.Operand))
+                    yield return identifier;
+                yield break;
+            case InExpression inExpression:
+                foreach (var identifier in EnumerateLocalIdentifiers(inExpression.Value))
+                    yield return identifier;
+                foreach (var value in inExpression.Values)
+                    foreach (var identifier in EnumerateLocalIdentifiers(value))
+                        yield return identifier;
+                yield break;
+            case CaseExpression caseExpression:
+                foreach (var clause in caseExpression.WhenClauses)
+                {
+                    foreach (var identifier in EnumerateLocalIdentifiers(clause.Condition))
+                        yield return identifier;
+                    foreach (var identifier in EnumerateLocalIdentifiers(clause.Result))
+                        yield return identifier;
+                }
+                if (caseExpression.Else is not null)
+                    foreach (var identifier in EnumerateLocalIdentifiers(caseExpression.Else))
+                        yield return identifier;
+                yield break;
+            case FunctionCallExpression function:
+                foreach (var argument in function.Arguments)
+                    foreach (var identifier in EnumerateLocalIdentifiers(argument))
+                        yield return identifier;
+                yield break;
+            case NamedArgumentExpression named:
+                foreach (var identifier in EnumerateLocalIdentifiers(named.Value))
+                    yield return identifier;
+                yield break;
+            case SubqueryExpression or ExistsExpression:
+                yield break;
+        }
+    }
+
+    private static bool TryResolveIdentifierInput(
+        IdentifierExpression identifier,
+        IReadOnlyList<RelationInputDescriptor> inputs,
+        out int inputIndex)
+    {
+        inputIndex = -1;
+        int matches = 0;
+        for (int i = 0; i < inputs.Count; i++)
+        {
+            var input = inputs[i];
+            if (identifier.Qualifier is not null
+                && !NameEquals(identifier.Qualifier, input.Alias))
+            {
+                continue;
+            }
+            if (!TryGetCanonicalColumn(input.Schema, identifier.Name, out _))
+                continue;
+
+            inputIndex = i;
+            matches++;
+            if (matches > 1)
+                return false;
+        }
+        return matches == 1;
+    }
+
+    private static bool TryGetCanonicalColumn(
+        TableSchema schema,
+        string name,
+        out TableColumn column)
+    {
+        column = null!;
+        int matches = 0;
+        foreach (var candidate in schema.Columns)
+        {
+            if (!NameEquals(candidate.Name, name))
+                continue;
+            column = candidate;
+            matches++;
+            if (matches > 1)
+                return false;
+        }
+        return matches == 1;
+    }
+
+    private static SqlExpression NormalizeInputExpression(
+        SqlExpression expression,
+        RelationInputDescriptor input)
+        => expression switch
+        {
+            IdentifierExpression identifier => identifier with
+            {
+                Name = GetCanonicalColumn(input.Schema, identifier.Name).Name,
+                Qualifier = input.Schema.Name,
+            },
+            UnaryExpression unary => unary with
+            {
+                Operand = NormalizeInputExpression(unary.Operand, input),
+            },
+            BinaryExpression binary => binary with
+            {
+                Left = NormalizeInputExpression(binary.Left, input),
+                Right = NormalizeInputExpression(binary.Right, input),
+            },
+            IsNullExpression isNull => isNull with
+            {
+                Operand = NormalizeInputExpression(isNull.Operand, input),
+            },
+            InExpression inExpression => inExpression with
+            {
+                Value = NormalizeInputExpression(inExpression.Value, input),
+                Values = NormalizeInputExpressions(inExpression.Values, input),
+            },
+            CaseExpression caseExpression => caseExpression with
+            {
+                WhenClauses = NormalizeCaseClauses(caseExpression.WhenClauses, input),
+                Else = caseExpression.Else is null
+                    ? null
+                    : NormalizeInputExpression(caseExpression.Else, input),
+            },
+            FunctionCallExpression function => function with
+            {
+                Arguments = NormalizeInputExpressions(function.Arguments, input),
+            },
+            NamedArgumentExpression named => named with
+            {
+                Value = NormalizeInputExpression(named.Value, input),
+            },
+            _ => expression,
+        };
+
+    private static TableColumn GetCanonicalColumn(TableSchema schema, string name)
+        => TryGetCanonicalColumn(schema, name, out var column)
+            ? column
+            : throw new InvalidOperationException($"关系输入列 '{name}' 的绑定不再唯一。");
+
+    private static SqlExpression[] NormalizeInputExpressions(
+        IReadOnlyList<SqlExpression> expressions,
+        RelationInputDescriptor input)
+    {
+        var normalized = new SqlExpression[expressions.Count];
+        for (int i = 0; i < expressions.Count; i++)
+            normalized[i] = NormalizeInputExpression(expressions[i], input);
+        return normalized;
+    }
+
+    private static CaseWhenClause[] NormalizeCaseClauses(
+        IReadOnlyList<CaseWhenClause> clauses,
+        RelationInputDescriptor input)
+    {
+        var normalized = new CaseWhenClause[clauses.Count];
+        for (int i = 0; i < clauses.Count; i++)
+        {
+            normalized[i] = clauses[i] with
+            {
+                Condition = NormalizeInputExpression(clauses[i].Condition, input),
+                Result = NormalizeInputExpression(clauses[i].Result, input),
+            };
+        }
+        return normalized;
+    }
+
+    private static SqlExpression? CombineConjuncts(IReadOnlyList<SqlExpression> conjuncts)
+    {
+        if (conjuncts.Count == 0)
+            return null;
+
+        SqlExpression combined = conjuncts[0];
+        for (int i = 1; i < conjuncts.Count; i++)
+            combined = new BinaryExpression(SqlBinaryOperator.And, combined, conjuncts[i]);
+        return combined;
+    }
+
+    private static int? TryGetSafeFromInputLimit(SelectStatement statement, bool hasSubquery)
+    {
+        if (hasSubquery
+            || statement.Pagination?.Fetch is not int fetch
+            || statement.OrderByList.Count != 0
+            || statement.Distinct
+            || statement.Where is not null
+            || statement.GroupBy.Count != 0
+            || statement.Having is not null
+            || ContainsAggregate(statement.Projections)
+            || !HasOnlyLeftJoins(statement.JoinClauses))
+        {
+            return null;
+        }
+
+        try
+        {
+            return checked(statement.Pagination.Offset + fetch);
+        }
+        catch (OverflowException)
+        {
+            return null;
+        }
+    }
+
+    private static bool HasOnlyLeftJoins(IReadOnlyList<JoinClause> joins)
+    {
+        foreach (var join in joins)
+        {
+            if (join.Kind != JoinKind.Left)
+                return false;
+        }
+        return true;
+    }
+
+    private static Relation LoadFrom(
+        Tsdb tsdb,
+        SelectStatement statement,
+        RelationInputPlan plan,
+        SubqueryMemo memo)
     {
         if (string.IsNullOrEmpty(statement.Measurement) && statement.FromSubquery is null)
             return new Relation(Array.Empty<RelColumn>(), [Array.Empty<object?>()]);
@@ -407,35 +891,91 @@ internal static class RelationalSelectExecutor
 
         var schema = tsdb.Tables.Catalog.TryGet(statement.Measurement);
         if (schema is not null)
-            return LoadTable(tsdb, schema, alias);
+            return LoadTable(tsdb, schema, alias, plan, memo);
         if (tsdb.MaterializedViews.Catalog.TryGet(statement.Measurement) is not null)
             return LoadMaterializedView(tsdb.MaterializedViews, statement.Measurement, alias);
         throw new InvalidOperationException($"table/materialized view '{statement.Measurement}' 不存在。");
     }
 
-    private static Relation LoadJoin(Tsdb tsdb, JoinClause join)
+    private static Relation LoadJoin(
+        Tsdb tsdb,
+        JoinClause join,
+        RelationInputPlan plan,
+        SubqueryMemo memo)
     {
         if (join.Subquery is not null)
             return LoadSubquery(tsdb, join.Subquery, join.Alias);
 
         var schema = tsdb.Tables.Catalog.TryGet(join.TableName);
         if (schema is not null)
-            return LoadTable(tsdb, schema, join.Alias);
+            return LoadTable(tsdb, schema, join.Alias, plan, memo);
         if (tsdb.MaterializedViews.Catalog.TryGet(join.TableName) is not null)
             return LoadMaterializedView(tsdb.MaterializedViews, join.TableName, join.Alias);
         throw new InvalidOperationException($"JOIN 右侧 table/materialized view '{join.TableName}' 不存在。");
     }
 
-    private static Relation LoadTable(Tsdb tsdb, TableSchema schema, string alias)
+    private static Relation LoadTable(
+        Tsdb tsdb,
+        TableSchema schema,
+        string alias,
+        RelationInputPlan plan,
+        SubqueryMemo memo)
     {
-        var columns = schema.Columns
-            .Select(column => new RelColumn(alias, column.Name, column.Name, column.DataType))
-            .ToArray();
+        var selectedColumns = SelectInputColumns(schema, plan.RequiredColumns);
+        var columns = new RelColumn[selectedColumns.Length];
+        for (int i = 0; i < selectedColumns.Length; i++)
+        {
+            var column = selectedColumns[i];
+            columns[i] = new RelColumn(alias, column.Name, column.Name, column.DataType);
+        }
         // read-your-writes：叠加当前 ambient 轻事务对本表的缓冲写（#218）。
-        var rows = TableSqlExecutor.LoadSelectCandidateRows(tsdb.Tables.Open(schema.Name), schema, where: null)
-            .Select(row => row.Values.ToArray())
-            .ToArray();
+        var candidates = TableSqlExecutor.LoadSelectCandidateRows(
+            tsdb.Tables.Open(schema.Name),
+            schema,
+            plan.Predicate);
+        var rows = new List<object?[]>(Math.Min(candidates.Count, plan.RowLimit ?? candidates.Count));
+        if (plan.RowLimit != 0)
+        {
+            foreach (var candidate in candidates)
+            {
+                SqlExecutor.ThrowIfCancellationRequested();
+                if (!TableSqlExecutor.EvaluateWhere(plan.Predicate, schema, candidate.Values))
+                    continue;
+
+                var row = new object?[selectedColumns.Length];
+                for (int i = 0; i < selectedColumns.Length; i++)
+                    row[i] = candidate.Values[selectedColumns[i].Ordinal];
+                rows.Add(row);
+                if (plan.RowLimit is int rowLimit && rows.Count >= rowLimit)
+                    break;
+            }
+        }
+        memo.RecordRelationInput(
+            plan,
+            schema.Columns.Count,
+            selectedColumns.Length,
+            candidates.Count,
+            rows.Count);
         return new Relation(columns, rows);
+    }
+
+    private static TableColumn[] SelectInputColumns(
+        TableSchema schema,
+        IReadOnlySet<string>? requiredColumns)
+    {
+        if (requiredColumns is null)
+            return schema.Columns.ToArray();
+
+        var selected = new TableColumn[requiredColumns.Count];
+        int index = 0;
+        foreach (var column in schema.Columns)
+        {
+            if (requiredColumns.Contains(column.Name))
+                selected[index++] = column;
+        }
+        if (index != selected.Length)
+            throw new InvalidOperationException("关系输入投影包含无法绑定的列。");
+        return selected;
     }
 
     private static Relation LoadMaterializedView(
@@ -2820,6 +3360,27 @@ internal sealed class RelationalSelectExecutionMetrics
     /// <summary>最近一次 EXISTS 回退完整关系执行器的稳定原因。</summary>
     public string? LastExistsFallbackReason { get; private set; }
 
+    /// <summary>实际收到单表 WHERE 谓词的关系输入数。</summary>
+    public int InputPredicatePushdownCount { get; private set; }
+
+    /// <summary>实际裁剪了至少一列的关系输入数。</summary>
+    public int InputProjectionPushdownCount { get; private set; }
+
+    /// <summary>实际收到安全 LIMIT 窗口的关系输入数。</summary>
+    public int InputLimitPushdownCount { get; private set; }
+
+    /// <summary>关系输入访问路径返回的候选行总数。</summary>
+    public long InputCandidateRows { get; private set; }
+
+    /// <summary>关系输入谓词复检及安全 LIMIT 后保留的行总数。</summary>
+    public long InputRetainedRows { get; private set; }
+
+    /// <summary>关系输入裁剪前的列数总和。</summary>
+    public long InputSourceColumns { get; private set; }
+
+    /// <summary>关系输入裁剪后的列数总和。</summary>
+    public long InputProjectedColumns { get; private set; }
+
     /// <summary>记录一次实际子查询执行。</summary>
     internal void RecordSubqueryExecution() => SubqueryExecutionCount++;
 
@@ -2847,5 +3408,26 @@ internal sealed class RelationalSelectExecutionMetrics
         LastExistsIndexName = null;
         LastExistsHasResidualPredicate = hasResidualPredicate;
         LastExistsFallbackReason = reason;
+    }
+
+    /// <summary>累加一次关系输入下推的执行证据。</summary>
+    internal void RecordRelationInput(
+        bool predicatePushed,
+        bool limitPushed,
+        int sourceColumns,
+        int projectedColumns,
+        int candidateRows,
+        int retainedRows)
+    {
+        if (predicatePushed)
+            InputPredicatePushdownCount++;
+        if (projectedColumns < sourceColumns)
+            InputProjectionPushdownCount++;
+        if (limitPushed)
+            InputLimitPushdownCount++;
+        InputCandidateRows += candidateRows;
+        InputRetainedRows += retainedRows;
+        InputSourceColumns += sourceColumns;
+        InputProjectedColumns += projectedColumns;
     }
 }

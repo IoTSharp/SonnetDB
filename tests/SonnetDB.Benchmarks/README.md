@@ -58,6 +58,9 @@ dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --m41-baseline-evid
 # M41 #369～#371 IN semijoin / 索引并集 / 倒序 Top-N 对拍（不需要外部数据库）
 dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --filter '*M41P0AccessPath*'
 
+# M41 #372 JOIN 前单表谓词、索引候选和投影裁剪对拍（不需要外部数据库）
+dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --filter '*M41RelationInputPushdown*'
+
 # 仅运行向量召回基准
 dotnet run --project eng/benchmarks/run-benchmarks/run-benchmarks.csproj -- --filter *Vector*
 
