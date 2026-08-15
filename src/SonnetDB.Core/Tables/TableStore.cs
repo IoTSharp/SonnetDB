@@ -9,6 +9,8 @@ namespace SonnetDB.Tables;
 public sealed class TableStore : IDisposable
 {
     private static readonly byte[] _autoIncrementStateKey = [(byte)'m', (byte)'a'];
+    private static readonly byte[] _statisticsStateKey = [(byte)'m', (byte)'s'];
+    private const int AutomaticStatisticsSampleRows = 4_096;
     private const int MaintenanceKeyPageSize = 256;
     private const int IndexRebuildRowPageSize = 4;
     private const int IndexRepairMutationPageSize = 1024;
@@ -20,6 +22,9 @@ public sealed class TableStore : IDisposable
     private long _primaryKeyLookupCount;
     private long _multiGetCount;
     private long _uniqueIndexValidationScanCount;
+    private TableStatistics? _statistics;
+    private string? _statisticsLoadFailureReason;
+    private int _automaticStatisticsRefreshActive;
     private bool _disposed;
 
     internal TableStore(TableSchema schema, KvKeyspace keyspace)
@@ -51,6 +56,7 @@ public sealed class TableStore : IDisposable
             RebuildIndexesLocked();
         }
         _rowCount = _keyspace.CountPrefix([(byte)'r']);
+        LoadStatisticsLocked();
     }
 
     /// <summary>表 schema。</summary>
@@ -75,6 +81,26 @@ public sealed class TableStore : IDisposable
 
     /// <summary>底层 rowstore 当前 generation。</summary>
     public long Generation => _keyspace.Generation;
+
+    /// <summary>最近一次持久化的统计快照；缺失或格式损坏时为空。</summary>
+    public TableStatistics? Statistics
+    {
+        get
+        {
+            lock (_sync)
+                return GetUsableStatisticsLocked(includeStale: true);
+        }
+    }
+
+    /// <summary>统计缺失、generation/schema 不匹配或采样后已有写入时为 true。</summary>
+    public bool AreStatisticsStale
+    {
+        get
+        {
+            lock (_sync)
+                return IsStatisticsStaleLocked(_statistics);
+        }
+    }
 
     /// <summary>
     /// 返回当前表 active WAL 的逻辑长度，供基准和恢复证据读取。
@@ -134,22 +160,121 @@ public sealed class TableStore : IDisposable
     {
         TableSchema schema;
         KvReadSnapshot snapshot;
+        int rowCount;
+        long generation;
         lock (_sync)
         {
             ThrowIfDisposedLocked();
             schema = _schema;
             snapshot = _keyspace.AcquireReadSnapshot();
+            rowCount = _rowCount;
+            generation = _keyspace.Generation;
         }
 
         try
         {
             ReadSnapshotAcquiredTestHook?.Invoke();
-            return new TableReadSnapshot(schema, snapshot);
+            return new TableReadSnapshot(schema, snapshot, rowCount, generation);
         }
         catch
         {
             snapshot.Dispose();
             throw;
+        }
+    }
+
+    /// <summary>
+    /// 在稳定 KV 快照上逐页刷新关系表统计；扫描期间不持有表锁，完成后通过 WAL 持久化派生元数据。
+    /// </summary>
+    /// <param name="options">采样、分页和统计项预算；为空时使用默认预算。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>完成刷新的统计快照。</returns>
+    public TableStatistics RefreshStatistics(
+        TableStatisticsRefreshOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        options ??= new TableStatisticsRefreshOptions();
+        options.Validate();
+        using TableReadSnapshot snapshot = AcquireTableReadSnapshot();
+        TableStatistics statistics = TableStatisticsCalculator.Refresh(snapshot, options, cancellationToken);
+        byte[] schemaFingerprint = TableStoreMaintenanceFile.ComputeSchemaFingerprint(snapshot.Schema);
+
+        lock (_sync)
+        {
+            ThrowIfDisposedLocked();
+            byte[] currentFingerprint = TableStoreMaintenanceFile.ComputeSchemaFingerprint(_schema);
+            if (_keyspace.Generation != statistics.Generation
+                || !schemaFingerprint.AsSpan().SequenceEqual(currentFingerprint))
+            {
+                throw new InvalidOperationException(
+                    $"table '{_schema.Name}' 在统计刷新期间发生 generation 或 schema 变更；本次结果未发布。");
+            }
+
+            _keyspace.Put(_statisticsStateKey, TableStatisticsCodec.Encode(_schema, statistics));
+            _statistics = statistics;
+            _statisticsLoadFailureReason = null;
+            return statistics;
+        }
+    }
+
+    /// <summary>在固定小样本预算内补齐缺失或明显过期的统计，供运行时规划使用。</summary>
+    internal TableStatistics? TryAutomaticStatisticsRefresh()
+    {
+        bool shouldRefresh;
+        lock (_sync)
+        {
+            ThrowIfDisposedLocked();
+            TableStatistics? current = GetUsableStatisticsLocked(includeStale: true);
+            long sequenceDelta = current is null
+                ? long.MaxValue
+                : Math.Max(0, _keyspace.LastSequence - current.SourceSequence - 1);
+            long refreshThreshold = current is null
+                ? 0
+                : Math.Max(128, current.RowCount / 5);
+            shouldRefresh = current is null || sequenceDelta >= refreshThreshold;
+            if (!shouldRefresh)
+                return current;
+            if (Interlocked.CompareExchange(ref _automaticStatisticsRefreshActive, 1, 0) != 0)
+                return current;
+        }
+
+        try
+        {
+            return RefreshStatistics(new TableStatisticsRefreshOptions
+            {
+                MaxSampleRows = AutomaticStatisticsSampleRows,
+                MaxHistogramSamples = 1_024,
+            });
+        }
+        catch (InvalidOperationException)
+        {
+            // Automatic refresh is opportunistic. A concurrent schema/generation
+            // change must leave planning on the existing or heuristic path.
+            lock (_sync)
+                return GetUsableStatisticsLocked(includeStale: true);
+        }
+        finally
+        {
+            Volatile.Write(ref _automaticStatisticsRefreshActive, 0);
+        }
+    }
+
+    /// <summary>返回统计及其稳定状态，默认 EXPLAIN 只读取此元数据，不触发采样。</summary>
+    internal TableStatisticsState GetStatisticsState()
+    {
+        lock (_sync)
+        {
+            TableStatistics? statistics = GetUsableStatisticsLocked(includeStale: true);
+            bool stale = IsStatisticsStaleLocked(statistics);
+            string source = statistics is null
+                ? string.Equals(_statisticsLoadFailureReason, "statistics_corrupt", StringComparison.Ordinal)
+                    ? "statistics_corrupt"
+                    : "statistics_missing"
+                : stale ? "statistics_stale" : "refreshed";
+            long? freshnessMs = statistics is null
+                ? null
+                : Math.Max(0, (long)(DateTimeOffset.UtcNow - statistics.RefreshedAtUtc).TotalMilliseconds);
+            return new TableStatisticsState(statistics, stale, source, freshnessMs);
         }
     }
 
@@ -457,6 +582,8 @@ public sealed class TableStore : IDisposable
             int rows = _rowCount;
             KvClearResult result = _keyspace.Clear();
             _rowCount = 0;
+            _statistics = null;
+            _statisticsLoadFailureReason = null;
             return (rows, result);
         }
     }
@@ -1037,14 +1164,18 @@ public sealed class TableStore : IDisposable
         lock (_sync)
         {
             var previous = _schema;
+            TableStatistics? previousStatistics = _statistics;
             _schema = schema;
             try
             {
                 RebuildIndexesLocked();
+                _statistics = null;
+                _statisticsLoadFailureReason = "schema_changed";
             }
             catch
             {
                 _schema = previous;
+                _statistics = previousStatistics;
                 RebuildIndexesLocked();
                 throw;
             }
@@ -1055,7 +1186,11 @@ public sealed class TableStore : IDisposable
     {
         ArgumentNullException.ThrowIfNull(schema);
         lock (_sync)
+        {
             _schema = schema;
+            _statistics = null;
+            _statisticsLoadFailureReason = "schema_changed";
+        }
     }
 
     internal void ValidateExistingRows(
@@ -1152,6 +1287,40 @@ public sealed class TableStore : IDisposable
             RebuildIndexesLocked();
         }
     }
+
+    private void LoadStatisticsLocked()
+    {
+        byte[]? payload = _keyspace.Get(_statisticsStateKey);
+        if (payload is null)
+            return;
+
+        try
+        {
+            _statistics = TableStatisticsCodec.Decode(_schema, _keyspace.Generation, payload);
+            _statisticsLoadFailureReason = null;
+        }
+        catch (InvalidDataException)
+        {
+            // Statistics are rebuildable derived metadata. Keep the rowstore usable and
+            // report the stable missing/corrupt source to EXPLAIN until ANALYZE repairs it.
+            _statistics = null;
+            _statisticsLoadFailureReason = "statistics_corrupt";
+        }
+    }
+
+    private TableStatistics? GetUsableStatisticsLocked(bool includeStale)
+    {
+        if (_statistics is null)
+            return null;
+        if (_statistics.Generation != _keyspace.Generation)
+            return null;
+        return includeStale || !IsStatisticsStaleLocked(_statistics) ? _statistics : null;
+    }
+
+    private bool IsStatisticsStaleLocked(TableStatistics? statistics)
+        => statistics is null
+            || statistics.Generation != _keyspace.Generation
+            || _keyspace.LastSequence > statistics.SourceSequence + 1;
 
     internal void Compact() => _keyspace.Compact();
 

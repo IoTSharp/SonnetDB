@@ -1861,7 +1861,8 @@ public sealed class SqlExecutorTableTests : IDisposable
             StringComparer.Ordinal);
         Assert.Equal("secondary_index_prefix", prefixValues["access_path"]);
         Assert.Equal("idx_routes_abcd", prefixValues["index_name"]);
-        Assert.Equal(2L, Convert.ToInt64(prefixValues["estimated_scanned_rows"]));
+        // EXPLAIN no longer materializes the prefix candidates; without ANALYZE it reports the table-row upper bound.
+        Assert.Equal(4L, Convert.ToInt64(prefixValues["estimated_scanned_rows"]));
 
         SqlExecutor.Execute(db, "DROP INDEX idx_routes_abcd ON routes");
         var fullExplain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
@@ -1874,7 +1875,7 @@ public sealed class SqlExecutorTableTests : IDisposable
             StringComparer.Ordinal);
         Assert.Equal("secondary_index", fullValues["access_path"]);
         Assert.Equal("idx_routes_ab", fullValues["index_name"]);
-        Assert.Equal(3L, Convert.ToInt64(fullValues["estimated_scanned_rows"]));
+        Assert.Equal(4L, Convert.ToInt64(fullValues["estimated_scanned_rows"]));
 
         var noLeadingColumnExplain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db,
             "EXPLAIN SELECT id FROM routes WHERE b = 'y' AND c = 'z'"));
@@ -2020,7 +2021,8 @@ public sealed class SqlExecutorTableTests : IDisposable
             StringComparer.Ordinal);
         Assert.Equal("secondary_index_range", explainValues["access_path"]);
         Assert.Equal("idx_samples_value", explainValues["index_name"]);
-        Assert.Equal(5L, Convert.ToInt64(explainValues["estimated_scanned_rows"]));
+        // The range estimate is metadata-only until ANALYZE provides a histogram.
+        Assert.Equal(9L, Convert.ToInt64(explainValues["estimated_scanned_rows"]));
     }
 
     /// <summary>
@@ -2074,7 +2076,8 @@ public sealed class SqlExecutorTableTests : IDisposable
             StringComparer.Ordinal);
         Assert.Equal("secondary_index_range", rangeValues["access_path"]);
         Assert.Equal("idx_route_events_tenant_lane_occurred_suffix", rangeValues["index_name"]);
-        Assert.Equal(4L, Convert.ToInt64(rangeValues["estimated_scanned_rows"]));
+        // No business-row read is allowed during EXPLAIN, so stale/missing stats use the table bound.
+        Assert.Equal(7L, Convert.ToInt64(rangeValues["estimated_scanned_rows"]));
 
         var missingMiddleExplain = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
             EXPLAIN SELECT id FROM route_events

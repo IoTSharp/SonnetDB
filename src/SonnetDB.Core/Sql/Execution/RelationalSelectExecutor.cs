@@ -353,13 +353,33 @@ internal static class RelationalSelectExecutor
             return BuildExistsFallbackPlan(tsdb, subquery, "correlated_value_requires_runtime_binding");
         }
 
-        var access = TableSqlExecutor.PlanExistsAccess(schema, boundWhere);
+        TableStore store = tsdb.Tables.Open(schema.Name);
+        var access = TableSqlExecutor.PlanExistsAccessForExplain(store, schema, boundWhere);
         long tableRows = EstimateExistsTableRows(tsdb, schema);
-        long estimatedRows = access.UsesPrimaryKey
-            || (access.IndexPlan is { Index.IsUnique: true, IsFullEquality: true })
-            || access.PredicateCovered
-                ? Math.Min(1, tableRows)
-                : tableRows;
+        TableAccessCostEstimate? costEstimate = access.UsesPrimaryKey
+            ? new TableAccessCostEstimate(
+                "primary_key", "primary", 1, 1, 0, 1,
+                "catalog", null, null, "primary_key rows<=1", null, null)
+            : access.InPlan is { } inPlan
+                ? new TableAccessCostEstimate(
+                    access.AccessPath,
+                    access.IndexName,
+                    Math.Min(tableRows, inPlan.Values.Count),
+                    Math.Max(1, Math.Min(tableRows, inPlan.Values.Count)),
+                    0,
+                    Math.Max(1, Math.Min(tableRows, inPlan.Values.Count)),
+                    "catalog",
+                    null,
+                    null,
+                    $"{access.AccessPath} rows<={Math.Min(tableRows, inPlan.Values.Count)}",
+                    access.FallbackReason,
+                    null)
+                : TableCostPlanner.Estimate(
+                    store,
+                    schema,
+                    boundWhere,
+                    allowAutomaticRefresh: false);
+        long estimatedRows = EstimateExistsCandidateRows(store, schema, access, tableRows);
         return new RelationalExistsExplainPlan(
             Measurement: schema.Name,
             AccessPath: access.AccessPath,
@@ -367,7 +387,43 @@ internal static class RelationalSelectExecutor
             EstimatedCandidateRows: estimatedRows,
             EarlyExit: true,
             HasResidualPredicate: access.HasResidualPredicate,
-            FallbackReason: access.FallbackReason);
+            FallbackReason: access.FallbackReason,
+            EstimatedRowWidth: costEstimate?.EstimatedRowWidth,
+            EstimatedLogicalReads: costEstimate?.EstimatedLogicalReads,
+            EstimatedCost: costEstimate?.EstimatedCost,
+            EstimateSource: costEstimate?.EstimateSource,
+            StatisticsSequence: costEstimate?.StatisticsSequence,
+            StatisticsFreshnessMilliseconds: costEstimate?.StatisticsFreshnessMilliseconds,
+            CandidatePlans: costEstimate?.CandidatePlans);
+    }
+
+    /// <summary>使用新鲜统计估算 EXISTS 残余复检候选；统计不可用时保持稳定上界。</summary>
+    private static long EstimateExistsCandidateRows(
+        TableStore store,
+        TableSchema schema,
+        TableExistsAccessPlan access,
+        long tableRows)
+    {
+        if (tableRows == 0)
+            return 0;
+        if (access.PredicateCovered
+            || access.UsesPrimaryKey
+            || access.IndexPlan is { Index.IsUnique: true, IsFullEquality: true })
+        {
+            return 1;
+        }
+
+        if (access.InPlan is { } inPlan)
+            return Math.Min(tableRows, inPlan.Values.Count);
+
+        TableStatisticsState state = store.GetStatisticsState();
+        if (access.IndexPlan is { } indexPlan
+            && state is { Statistics: { } statistics, IsStale: false })
+        {
+            return TableCostPlanner.EstimateIndexRows(tableRows, schema, indexPlan, statistics);
+        }
+
+        return tableRows;
     }
 
     /// <summary>
@@ -3323,7 +3379,14 @@ internal sealed record RelationalExistsExplainPlan(
     long EstimatedCandidateRows,
     bool EarlyExit,
     bool HasResidualPredicate,
-    string? FallbackReason);
+    string? FallbackReason,
+    double? EstimatedRowWidth = null,
+    long? EstimatedLogicalReads = null,
+    double? EstimatedCost = null,
+    string? EstimateSource = null,
+    long? StatisticsSequence = null,
+    long? StatisticsFreshnessMilliseconds = null,
+    string? CandidatePlans = null);
 
 /// <summary>
 /// 关系 SELECT 子查询记忆化的内部执行指标，仅用于回归测试和性能基准。

@@ -403,6 +403,7 @@ public static class SqlExecutor
             DescribePropertyGraphStatement describePropertyGraph =>
                 GraphSqlExecutor.DescribePropertyGraph(tsdb, describePropertyGraph.Name),
             DescribeTableStatement describeTable => TableSqlExecutor.DescribeTable(tsdb, describeTable.Name),
+            AnalyzeTableStatement analyzeTable => TableSqlExecutor.ExecuteAnalyze(tsdb, analyzeTable),
             DescribeViewStatement describeView => DescribeView(tsdb, describeView.Name),
             DescribeMaterializedViewStatement describeMaterializedView => DescribeMaterializedView(tsdb, describeMaterializedView.Name),
             DescribeProcedureStatement describeProcedure => DescribeProcedure(tsdb, describeProcedure.Name),
@@ -872,7 +873,42 @@ public static class SqlExecutor
                     ? GraphTableSqlExecutor.ExplainAnalyze(tsdb, select)
                     : GraphTableSqlExecutor.Explain(tsdb, select);
         if (statement.Analyze)
-            throw new NotSupportedException("EXPLAIN ANALYZE 当前仅支持 GRAPH_TABLE 查询。");
+        {
+            if (statement.Statement is not SelectStatement analyzedSelect)
+                throw new NotSupportedException("EXPLAIN ANALYZE 当前仅支持 SELECT 与 GRAPH_TABLE 查询。");
+
+            SqlExplainExecutionResult estimated = SqlExplainPlanner.Explain(
+                databaseName,
+                tsdb,
+                analyzedSelect);
+            var metrics = new SqlExecutionMetrics();
+            SelectExecutionResult actual;
+            SqlExecutionMetricsSnapshot snapshot;
+            using (SqlExecutionTelemetry.Enter(metrics))
+            {
+                actual = ExecuteSelect(tsdb, analyzedSelect);
+                snapshot = metrics.Complete();
+            }
+
+            estimated = estimated with
+            {
+                AccessPath = estimated.AccessPath,
+                ActualAccessPath = snapshot.AccessPath,
+                ActualIndexName = snapshot.IndexName,
+                ActualFallbackReason = snapshot.FallbackReason,
+                ActualRows = actual.Rows.Count,
+                ActualCandidateRows = snapshot.CandidateRows,
+                ActualExaminedRows = snapshot.ExaminedRows,
+                ActualRowsRemoved = Math.Max(0, snapshot.ExaminedRows - actual.Rows.Count),
+                ActualLoops = 1,
+                ActualExecutionMilliseconds = snapshot.ExecutionElapsedMs,
+                ActualAllocatedBytes = snapshot.AllocatedBytes,
+                ActualLockWaitMilliseconds = snapshot.TableLockWaitMs + snapshot.KvLockWaitMs,
+                ActualWalFsyncCount = snapshot.WalFsyncCount,
+                ActualSpillCount = 0,
+            };
+            return SqlExplainPlanner.ToSelectExecutionResult(estimated);
+        }
         if (statement.Statement is DescribePropertyGraphStatement describePropertyGraph)
             return GraphSqlExecutor.ExplainPropertyGraph(tsdb, describePropertyGraph.Name);
         if (statement.Statement is ShowPropertyGraphsStatement)

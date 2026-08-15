@@ -116,6 +116,8 @@ public sealed class SqlParser
             return ParseRefreshMaterializedView();
         if (IsIdentifier("call"))
             return ParseCallProcedure();
+        if (IsIdentifier("analyze"))
+            return ParseAnalyzeTable();
 
         return Current.Kind switch
         {
@@ -4934,6 +4936,15 @@ public sealed class SqlParser
         }
 
         return new ExplainStatement(statement) { Analyze = analyze };
+    }
+
+    /// <summary>解析 <c>ANALYZE [TABLE] name</c>。</summary>
+    private AnalyzeTableStatement ParseAnalyzeTable()
+    {
+        ExpectIdentifier("analyze", "ANALYZE 后面期望 TABLE 或表名");
+        if (Current.Kind == TokenKind.KeywordTable || IsIdentifier("table"))
+            Advance();
+        return new AnalyzeTableStatement(ExpectIdentifierName());
     }
 
     /// <summary>

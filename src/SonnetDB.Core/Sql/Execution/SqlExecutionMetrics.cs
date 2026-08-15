@@ -153,7 +153,18 @@ internal static class SqlExecutionTelemetry
 {
     internal static bool IsEnabled => Current is not null;
 
-    private static SqlExecutionMetrics? Current => RoutineExecutionContext.Current?.Options.Metrics;
+    private static readonly AsyncLocal<SqlExecutionMetrics?> OverrideSlot = new();
+
+    private static SqlExecutionMetrics? Current
+        => OverrideSlot.Value ?? RoutineExecutionContext.Current?.Options.Metrics;
+
+    internal static Scope Enter(SqlExecutionMetrics metrics)
+    {
+        ArgumentNullException.ThrowIfNull(metrics);
+        SqlExecutionMetrics? previous = OverrideSlot.Value;
+        OverrideSlot.Value = metrics;
+        return new Scope(previous);
+    }
 
     internal static void RecordAccessPath(string accessPath, string? indexName = null, string? fallbackReason = null)
         => Current?.RecordAccessPath(accessPath, indexName, fallbackReason);
@@ -170,4 +181,13 @@ internal static class SqlExecutionTelemetry
         => Current?.RecordLockWait(tableManager, elapsedMs);
 
     internal static void RecordWalFsync(double elapsedMs) => Current?.RecordWalFsync(elapsedMs);
+
+    internal readonly struct Scope : IDisposable
+    {
+        private readonly SqlExecutionMetrics? _previous;
+
+        internal Scope(SqlExecutionMetrics? previous) => _previous = previous;
+
+        public void Dispose() => OverrideSlot.Value = _previous;
+    }
 }

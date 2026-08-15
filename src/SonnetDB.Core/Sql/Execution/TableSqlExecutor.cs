@@ -29,6 +29,12 @@ internal static class TableSqlExecutor
         }.AsReadOnly();
     private static readonly IReadOnlyList<string> _showIndexColumns =
         new List<string>(4) { "index_name", "is_unique", "columns", "created_utc" }.AsReadOnly();
+    private static readonly IReadOnlyList<string> _analyzeColumns =
+        new List<string>(10)
+        {
+            "table_name", "row_count", "logical_page_count", "average_row_width",
+            "sampled_rows", "sample_rate", "is_complete", "refreshed_utc", "source_sequence", "index_count"
+        }.AsReadOnly();
 
     /// <summary>
     /// 创建关系表；带 Modbus 映射时在数据库级 schema 锁内串行提交表与绑定。
@@ -1024,6 +1030,33 @@ internal static class TableSqlExecutor
         return new SelectExecutionResult(_describeTableColumns, rows);
     }
 
+    /// <summary>执行 <c>ANALYZE TABLE</c> 并返回本次统计摘要。</summary>
+    /// <param name="tsdb">目标数据库。</param>
+    /// <param name="statement">ANALYZE 语句。</param>
+    /// <returns>统计快照的摘要行。</returns>
+    public static SelectExecutionResult ExecuteAnalyze(Tsdb tsdb, AnalyzeTableStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+        TableStore store = tsdb.Tables.Open(statement.TableName);
+        TableStatistics statistics = store.RefreshStatistics();
+        return new SelectExecutionResult(
+            _analyzeColumns,
+            [new object?[]
+            {
+                statement.TableName,
+                statistics.RowCount,
+                statistics.LogicalPageCount,
+                statistics.AverageRowWidth,
+                statistics.SampledRows,
+                statistics.SampleRate,
+                statistics.IsComplete,
+                statistics.RefreshedAtUtc,
+                statistics.SourceSequence,
+                statistics.Indexes.Count,
+            }]);
+    }
+
     public static SelectExecutionResult ShowIndexes(Tsdb tsdb, string tableName)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
@@ -1428,7 +1461,7 @@ internal static class TableSqlExecutor
         if (TryLoadInCandidateRows(store, schema, where, out var inRows))
             return inRows;
 
-        if (ChooseBestIndexAccessPlan(schema, where) is { } plan)
+        if (ChooseBestIndexAccessPlan(store, schema, where) is { } plan)
         {
             if (plan.Range is not null)
                 return store.GetByIndexRange(plan.Index, plan.EqualityPrefixValues, plan.Range);
@@ -1652,7 +1685,7 @@ internal static class TableSqlExecutor
         TableSchema schema,
         SqlExpression? where)
     {
-        var plan = PlanExistsAccess(schema, where);
+        var plan = PlanExistsAccess(store, schema, where);
         var transaction = SqlTransactionContext.Current;
         IReadOnlyList<TableRow> rows;
         if (transaction is not null && transaction.TryGetBufferedMutations(schema.Name, out var buffered))
@@ -1673,13 +1706,44 @@ internal static class TableSqlExecutor
     /// <param name="where">已完成参数和相关外层值绑定的谓词。</param>
     /// <returns>主键、二级索引或全表扫描计划。</returns>
     internal static TableExistsAccessPlan PlanExistsAccess(TableSchema schema, SqlExpression? where)
-        => PlanExistsAccess(schema, where, allowIndexUnion: true);
+        => PlanExistsAccess(
+            store: null,
+            schema,
+            where,
+            allowIndexUnion: true,
+            allowAutomaticStatisticsRefresh: false);
+
+    /// <summary>生成带统计成本选择的 EXISTS 访问计划。</summary>
+    internal static TableExistsAccessPlan PlanExistsAccess(
+        TableStore store,
+        TableSchema schema,
+        SqlExpression? where)
+        => PlanExistsAccess(
+            store,
+            schema,
+            where,
+            allowIndexUnion: true,
+            allowAutomaticStatisticsRefresh: true);
+
+    /// <summary>生成 EXPLAIN 使用的只读 EXISTS 访问计划，不触发统计采样。</summary>
+    internal static TableExistsAccessPlan PlanExistsAccessForExplain(
+        TableStore store,
+        TableSchema schema,
+        SqlExpression? where)
+        => PlanExistsAccess(
+            store,
+            schema,
+            where,
+            allowIndexUnion: true,
+            allowAutomaticStatisticsRefresh: false);
 
     /// <summary>生成单表候选访问计划；OR 分支规划时关闭递归索引并集。</summary>
     private static TableExistsAccessPlan PlanExistsAccess(
+        TableStore? store,
         TableSchema schema,
         SqlExpression? where,
-        bool allowIndexUnion)
+        bool allowIndexUnion,
+        bool allowAutomaticStatisticsRefresh)
     {
         ArgumentNullException.ThrowIfNull(schema);
 
@@ -1713,7 +1777,16 @@ internal static class TableSqlExecutor
                 InPlan: inPlan);
         }
 
-        if (ChooseBestIndexAccessPlan(schema, where) is { } indexPlan)
+        TableAccessCostEstimate? costEstimate = store is null
+            ? null
+            : TableCostPlanner.Estimate(
+                store,
+                schema,
+                where,
+                allowAutomaticRefresh: allowAutomaticStatisticsRefresh);
+        TableIndexAccessPlan? indexPlan = costEstimate?.IndexPlan
+            ?? (store is null ? ChooseBestIndexAccessPlan(schema, where) : null);
+        if (indexPlan is not null)
         {
             bool predicateCovered = IsWhereFullyCoveredByIndexPlan(where, schema, indexPlan);
             return new TableExistsAccessPlan(
@@ -1759,7 +1832,9 @@ internal static class TableSqlExecutor
             IndexPlan: null,
             PredicateCovered: where is null,
             HasResidualPredicate: where is not null,
-            FallbackReason: where is null ? null : "no_sargable_predicate");
+            FallbackReason: where is null
+                ? null
+                : costEstimate?.FallbackReason ?? "no_sargable_predicate");
     }
 
     /// <summary>
@@ -1826,7 +1901,12 @@ internal static class TableSqlExecutor
                 continue;
             }
 
-            TableExistsAccessPlan access = PlanExistsAccess(schema, predicate, allowIndexUnion: false);
+            TableExistsAccessPlan access = PlanExistsAccess(
+                store: null,
+                schema,
+                predicate,
+                allowIndexUnion: false,
+                allowAutomaticStatisticsRefresh: false);
             if (string.Equals(access.AccessPath, "table_scan", StringComparison.Ordinal))
             {
                 string? branchFallback = access.FallbackReason;
@@ -2065,7 +2145,7 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(schema);
 
-        var plan = PlanExistsAccess(schema, where);
+        var plan = PlanExistsAccess(store, schema, where);
         var transaction = SqlTransactionContext.Current;
         if (transaction is not null && transaction.TryGetBufferedMutations(schema.Name, out var buffered))
         {
@@ -2193,7 +2273,7 @@ internal static class TableSqlExecutor
                 false);
         }
 
-        var plan = ChooseBestIndexAccessPlan(schema, statement.Where);
+        var plan = ChooseBestIndexAccessPlan(store, schema, statement.Where);
         if (TryChooseOrderedRangeAccessPlan(
             schema,
             statement,
@@ -2745,31 +2825,47 @@ internal static class TableSqlExecutor
         TableSchema schema,
         SqlExpression? where)
     {
+        TableIndexAccessPlan? bestPlan = null;
+        foreach (TableIndexAccessPlan candidatePlan in CollectIndexAccessPlans(schema, where))
+        {
+            if (bestPlan is null || IsHeuristicallyBetter(candidatePlan, bestPlan))
+                bestPlan = candidatePlan;
+        }
+
+        return bestPlan;
+    }
+
+    /// <summary>枚举 WHERE 可表达的全部二级索引候选，不读取业务数据。</summary>
+    internal static IReadOnlyList<TableIndexAccessPlan> CollectIndexAccessPlans(
+        TableSchema schema,
+        SqlExpression? where)
+    {
+        ArgumentNullException.ThrowIfNull(schema);
         if (TryExtractPrimaryKeyValues(
             schema,
             where,
             allowExtraPredicates: true,
             out _,
-            allowNonEqualityExtraPredicates: true))
-            return null;
-        if (where is null || schema.Indexes.Count == 0)
-            return null;
+            allowNonEqualityExtraPredicates: true)
+            || where is null
+            || schema.Indexes.Count == 0)
+        {
+            return Array.Empty<TableIndexAccessPlan>();
+        }
 
         bool hasColumnEqualities = TryCollectEqualityExpressions(
             where,
             allowNonEquality: true,
             out var equalityByColumn);
-        TableIndexAccessPlan? bestPlan = null;
-
-        foreach (var candidate in schema.Indexes.OrderByDescending(static i => i.Columns.Count))
+        var plans = new List<TableIndexAccessPlan>(schema.Indexes.Count);
+        foreach (TableIndex candidate in schema.Indexes.OrderByDescending(static index => index.Columns.Count))
         {
             IReadOnlyList<object?> candidateValues;
             TableIndexRange? candidateRange = null;
             if (!string.IsNullOrWhiteSpace(candidate.JsonPath))
             {
-                if (!TryExtractJsonPathIndexValue(candidate, where, out var jsonPathValue))
+                if (!TryExtractJsonPathIndexValue(candidate, where, out object? jsonPathValue))
                     continue;
-
                 candidateValues = [jsonPathValue];
             }
             else
@@ -2777,13 +2873,13 @@ internal static class TableSqlExecutor
                 var values = new List<object?>(candidate.Columns.Count);
                 if (hasColumnEqualities)
                 {
-                    for (int i = 0; i < candidate.Columns.Count; i++)
+                    for (int index = 0; index < candidate.Columns.Count; index++)
                     {
-                        if (!equalityByColumn.TryGetValue(candidate.Columns[i], out var expression))
+                        if (!equalityByColumn.TryGetValue(candidate.Columns[index], out SqlExpression? expression))
                             break;
-
-                        var column = schema.TryGetColumn(candidate.Columns[i])
-                            ?? throw new InvalidOperationException($"索引 '{candidate.Name}' 引用了未知列 '{candidate.Columns[i]}'。");
+                        TableColumn column = schema.TryGetColumn(candidate.Columns[index])
+                            ?? throw new InvalidOperationException(
+                                $"索引 '{candidate.Name}' 引用了未知列 '{candidate.Columns[index]}'。");
                         if (!CanUseIndexEqualityLookup(column, expression))
                             break;
                         try
@@ -2796,7 +2892,6 @@ internal static class TableSqlExecutor
                             or FormatException
                             or OverflowException)
                         {
-                            // 已成功绑定的前导列仍可缩小候选集，当前列及其后缀留给残余谓词判断。
                             break;
                         }
                     }
@@ -2804,52 +2899,70 @@ internal static class TableSqlExecutor
 
                 if (values.Count < candidate.Columns.Count)
                 {
-                    var rangeColumn = schema.TryGetColumn(candidate.Columns[values.Count])
-                        ?? throw new InvalidOperationException($"索引 '{candidate.Name}' 引用了未知列 '{candidate.Columns[values.Count]}'。");
+                    TableColumn rangeColumn = schema.TryGetColumn(candidate.Columns[values.Count])
+                        ?? throw new InvalidOperationException(
+                            $"索引 '{candidate.Name}' 引用了未知列 '{candidate.Columns[values.Count]}'。");
                     if (rangeColumn.DataType is TableColumnType.Int64 or TableColumnType.DateTime)
                         _ = TryExtractIndexRange(where, rangeColumn, out candidateRange);
                 }
 
                 if (values.Count == 0 && candidateRange is null)
                     continue;
-
                 int matchedColumnCount = values.Count + (candidateRange is null ? 0 : 1);
                 bool isFullEquality = candidateRange is null && values.Count == candidate.Columns.Count;
                 if (!isFullEquality
                     && candidate.IsUnique
                     && HasNullableUnmatchedIndexColumn(schema, candidate, matchedColumnCount))
                 {
-                    // 唯一索引不保存任何含 NULL 的键；未绑定可空后缀会使前缀或范围扫描漏行。
                     continue;
                 }
-
                 candidateValues = values;
             }
 
-            var candidatePlan = new TableIndexAccessPlan(candidate, candidateValues, candidateRange);
-            if (bestPlan is null)
-            {
-                bestPlan = candidatePlan;
-                continue;
-            }
-
-            bool candidateIsUniquePoint = candidatePlan.Index.IsUnique && candidatePlan.IsFullEquality;
-            bool bestIsUniquePoint = bestPlan.Index.IsUnique && bestPlan.IsFullEquality;
-            if ((candidateIsUniquePoint && !bestIsUniquePoint)
-                || (candidateIsUniquePoint == bestIsUniquePoint
-                    && (candidatePlan.MatchedColumnCount > bestPlan.MatchedColumnCount
-                        || (candidatePlan.MatchedColumnCount == bestPlan.MatchedColumnCount
-                            && candidatePlan.EqualityPrefixValues.Count > bestPlan.EqualityPrefixValues.Count)
-                        || (candidatePlan.MatchedColumnCount == bestPlan.MatchedColumnCount
-                            && candidatePlan.EqualityPrefixValues.Count == bestPlan.EqualityPrefixValues.Count
-                            && candidatePlan.IsFullEquality
-                            && !bestPlan.IsFullEquality))))
-            {
-                bestPlan = candidatePlan;
-            }
+            plans.Add(new TableIndexAccessPlan(candidate, candidateValues, candidateRange));
         }
+        return plans;
+    }
 
-        return bestPlan;
+    private static bool IsHeuristicallyBetter(
+        TableIndexAccessPlan candidate,
+        TableIndexAccessPlan current)
+    {
+        bool candidateIsUniquePoint = candidate.Index.IsUnique && candidate.IsFullEquality;
+        bool currentIsUniquePoint = current.Index.IsUnique && current.IsFullEquality;
+        return (candidateIsUniquePoint && !currentIsUniquePoint)
+            || (candidateIsUniquePoint == currentIsUniquePoint
+                && (candidate.MatchedColumnCount > current.MatchedColumnCount
+                    || (candidate.MatchedColumnCount == current.MatchedColumnCount
+                        && candidate.EqualityPrefixValues.Count > current.EqualityPrefixValues.Count)
+                    || (candidate.MatchedColumnCount == current.MatchedColumnCount
+                        && candidate.EqualityPrefixValues.Count == current.EqualityPrefixValues.Count
+                        && candidate.IsFullEquality
+                        && !current.IsFullEquality)));
+    }
+
+    /// <summary>
+    /// 使用统计成本模型选择二级索引；统计缺失或过期时保持旧启发式结果。
+    /// </summary>
+    internal static TableIndexAccessPlan? ChooseBestIndexAccessPlan(
+        TableStore store,
+        TableSchema schema,
+        SqlExpression? where)
+        => ChooseBestIndexAccessPlan(store, schema, where, allowAutomaticStatisticsRefresh: true);
+
+    private static TableIndexAccessPlan? ChooseBestIndexAccessPlan(
+        TableStore store,
+        TableSchema schema,
+        SqlExpression? where,
+        bool allowAutomaticStatisticsRefresh)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(schema);
+        return TableCostPlanner.Estimate(
+            store,
+            schema,
+            where,
+            allowAutomaticRefresh: allowAutomaticStatisticsRefresh).IndexPlan;
     }
 
     /// <summary>

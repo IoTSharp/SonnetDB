@@ -929,6 +929,10 @@ public sealed record DescribeMeasurementStatement(string Name) : SqlStatement;
 /// <param name="Name">目标关系表名称。</param>
 public sealed record DescribeTableStatement(string Name) : SqlStatement;
 
+/// <summary><c>ANALYZE [TABLE] name</c>：刷新关系表轻量统计。</summary>
+/// <param name="TableName">待分析的关系表名称。</param>
+public sealed record AnalyzeTableStatement(string TableName) : SqlStatement;
+
 /// <summary>
 /// <c>DESCRIBE VIEW name</c>：返回逻辑视图定义和直接依赖。
 /// </summary>

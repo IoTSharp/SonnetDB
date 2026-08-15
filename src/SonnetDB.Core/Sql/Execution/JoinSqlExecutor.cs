@@ -40,7 +40,7 @@ internal static class JoinSqlExecutor
         var measurementPushdown = filterPlan.MeasurementWhere;
         var matchedSeries = tsdb.Catalog.Find(statement.Measurement, measurementPushdown.TagFilter);
 
-        var tableCandidateRows = TableSqlExecutor.LoadCandidateRows(
+        var tableCandidateRows = TableSqlExecutor.LoadSelectCandidateRows(
             tsdb.Tables.Open(tableSchema.Name),
             tableSchema,
             filterPlan.TableExpression);
@@ -126,20 +126,23 @@ internal static class JoinSqlExecutor
         var filterPlan = PlanFilters(statement.Where, scope);
         var matchedSeries = tsdb.Catalog.Find(statement.Measurement, filterPlan.MeasurementWhere.TagFilter);
         var tableStore = tsdb.Tables.Open(tableSchema.Name);
-        var (tableAccessPath, tableIndexName, tableRows) =
-            ExplainTableAccess(tableStore, tableSchema, filterPlan.TableExpression);
+        TableAccessCostEstimate tableEstimate = ExplainTableAccessCost(
+            tableStore,
+            tableSchema,
+            filterPlan.TableExpression);
 
         string measurementAccessPath = filterPlan.MeasurementWhere.TagFilter.Count > 0 ? "tag_index" : "measurement_scan";
-        string accessPath = $"measurement:{measurementAccessPath};table:{tableAccessPath};join:hash";
-        string? indexName = tableIndexName is null ? null : $"{tableSchema.Name}.{tableIndexName}";
+        string accessPath = $"measurement:{measurementAccessPath};table:{tableEstimate.AccessPath};join:hash";
+        string? indexName = tableEstimate.IndexName is null ? null : $"{tableSchema.Name}.{tableEstimate.IndexName}";
         return new JoinPlan(
             measurementSchema,
             tableSchema,
             filterPlan,
             matchedSeries.Count,
-            tableRows,
+            checked((int)Math.Min(int.MaxValue, tableEstimate.EstimatedRows)),
             accessPath,
-            indexName);
+            indexName,
+            tableEstimate);
     }
 
     private static JoinKeys ResolveJoinKeys(SqlExpression on, JoinScope scope)
@@ -193,25 +196,46 @@ internal static class JoinSqlExecutor
         TableSchema schema,
         SqlExpression? where)
     {
-        if (TableSqlExecutor.ChooseBestIndexAccessPlan(schema, where) is { } plan)
-        {
-            string accessPath = !string.IsNullOrWhiteSpace(plan.Index.JsonPath)
-                ? "json_path_index"
-                : plan.Range is not null
-                    ? "secondary_index_range"
-                    : plan.IsFullEquality ? "secondary_index" : "secondary_index_prefix";
-            int rows = plan.Range is not null
-                ? store.GetByIndexRange(plan.Index, plan.EqualityPrefixValues, plan.Range).Count
-                : plan.IsFullEquality
-                    ? store.GetByIndex(plan.Index, plan.EqualityPrefixValues).Count
-                    : store.GetByIndexPrefix(plan.Index, plan.EqualityPrefixValues).Count;
-            return (accessPath, plan.Index.Name, rows);
-        }
+        TableAccessCostEstimate estimate = ExplainTableAccessCost(store, schema, where);
+        return (
+            estimate.AccessPath,
+            estimate.IndexName,
+            checked((int)Math.Min(int.MaxValue, estimate.EstimatedRows)));
+    }
+
+    /// <summary>为 JOIN 表侧生成不读取业务行的轻量成本估算。</summary>
+    private static TableAccessCostEstimate ExplainTableAccessCost(
+        TableStore store,
+        TableSchema schema,
+        SqlExpression? where)
+    {
+        TableAccessCostEstimate estimate = TableCostPlanner.Estimate(
+            store,
+            schema,
+            where,
+            allowAutomaticRefresh: false);
+        if (string.Equals(estimate.EstimateSource, "transaction_overlay", StringComparison.Ordinal))
+            return estimate;
 
         if (TableSqlExecutor.CanUsePrimaryKeyLookup(schema, where))
-            return ("primary_key", "primary", 1);
+        {
+            return new TableAccessCostEstimate(
+                "primary_key", "primary", 1, 1, 0, 1,
+                "catalog", null, null, "primary_key rows<=1", null, null);
+        }
 
-        return ("table_scan", null, store.Scan().Count);
+        if (TableSqlExecutor.TryChooseInAccessPlan(schema, where, out var inPlan))
+        {
+            long rows = Math.Min(store.RowCount, inPlan.Values.Count);
+            return new TableAccessCostEstimate(
+                inPlan.UsesPrimaryKey ? "primary_key_in" : "secondary_index_in",
+                inPlan.UsesPrimaryKey ? "primary" : inPlan.Index!.Name,
+                rows, Math.Max(1, rows), 0, rows, "catalog", null, null,
+                $"{(inPlan.UsesPrimaryKey ? "primary_key_in" : "secondary_index_in")} rows<={rows}",
+                null, null);
+        }
+
+        return estimate;
     }
 
     private static IReadOnlyDictionary<JoinKey, IReadOnlyList<TableRow>> BuildTableHash(
@@ -676,7 +700,8 @@ internal static class JoinSqlExecutor
         int MatchedSeriesCount,
         int TableCandidateRows,
         string AccessPath,
-        string? IndexName);
+        string? IndexName,
+        TableAccessCostEstimate TableEstimate);
 
     private sealed record Projection(
         ProjectionKind Kind,

@@ -206,7 +206,9 @@ public sealed class SqlExplainTests : IDisposable
 
         Assert.Contains("table:secondary_index_range", (string)values["access_path"]!);
         Assert.Equal("hosts_range.idx_hosts_range_rank", values["index_name"]);
-        Assert.Equal(3L, Convert.ToInt64(values["estimated_scanned_rows"]));
+        // EXPLAIN 只读取目录元数据；没有 ANALYZE 统计时表侧使用 3 行稳定上界，
+        // 再加 1 个 measurement series，不再物化索引范围的实际 2 行。
+        Assert.Equal(4L, Convert.ToInt64(values["estimated_scanned_rows"]));
     }
 
     /// <summary>
@@ -245,6 +247,8 @@ public sealed class SqlExplainTests : IDisposable
         Assert.True((bool)values["early_exit"]!);
         Assert.True((bool)values["has_residual_predicate"]!);
         Assert.Null(values["fallback_reason"]);
+        Assert.Equal("statistics_missing", values["estimate_source"]);
+        Assert.NotNull(values["estimated_cost"]);
         Assert.Equal(scansBefore, store.FullScanCount);
 
         var statement = Assert.IsType<SelectStatement>(SqlParser.Parse(existsSql));

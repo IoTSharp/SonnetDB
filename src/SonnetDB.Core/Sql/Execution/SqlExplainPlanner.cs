@@ -45,6 +45,72 @@ public sealed record SqlExplainExecutionResult(
 
     /// <summary>多路候选源的有界规模与融合输出上限。</summary>
     public string? CandidateContract { get; init; }
+
+    /// <summary>轻量成本模型估算的返回行数。</summary>
+    public long? EstimatedOutputRows { get; init; }
+
+    /// <summary>估算的平均行宽。</summary>
+    public double? EstimatedRowWidth { get; init; }
+
+    /// <summary>估算的逻辑读取量。</summary>
+    public long? EstimatedLogicalReads { get; init; }
+
+    /// <summary>有限成本模型估算的相对成本。</summary>
+    public double? EstimatedCost { get; init; }
+
+    /// <summary>估算来源：refreshed、statistics_stale 或 statistics_missing。</summary>
+    public string? EstimateSource { get; init; }
+
+    /// <summary>估算使用的统计 sequence。</summary>
+    public long? StatisticsSequence { get; init; }
+
+    /// <summary>统计刷新距当前的毫秒数。</summary>
+    public long? StatisticsFreshnessMilliseconds { get; init; }
+
+    /// <summary>有界候选计划摘要；不包含参数值和行内容。</summary>
+    public string? CandidatePlans { get; init; }
+
+    /// <summary>计划节点的稳定名称。</summary>
+    public string? PlanNode { get; init; }
+
+    /// <summary>EXPLAIN ANALYZE 实际访问路径。</summary>
+    public string? ActualAccessPath { get; init; }
+
+    /// <summary>EXPLAIN ANALYZE 实际使用的索引。</summary>
+    public string? ActualIndexName { get; init; }
+
+    /// <summary>EXPLAIN ANALYZE 实际回退原因。</summary>
+    public string? ActualFallbackReason { get; init; }
+
+    /// <summary>EXPLAIN ANALYZE 实际返回行数。</summary>
+    public long? ActualRows { get; init; }
+
+    /// <summary>EXPLAIN ANALYZE 实际候选行数。</summary>
+    public long? ActualCandidateRows { get; init; }
+
+    /// <summary>EXPLAIN ANALYZE 实际谓词检查行数。</summary>
+    public long? ActualExaminedRows { get; init; }
+
+    /// <summary>EXPLAIN ANALYZE 被残余谓词移除的行数估算。</summary>
+    public long? ActualRowsRemoved { get; init; }
+
+    /// <summary>EXPLAIN ANALYZE 执行循环数。</summary>
+    public long? ActualLoops { get; init; }
+
+    /// <summary>EXPLAIN ANALYZE 核心执行耗时（毫秒）。</summary>
+    public double? ActualExecutionMilliseconds { get; init; }
+
+    /// <summary>EXPLAIN ANALYZE 当前线程托管分配字节数。</summary>
+    public long? ActualAllocatedBytes { get; init; }
+
+    /// <summary>EXPLAIN ANALYZE 观测到的表/KV 锁等待毫秒数。</summary>
+    public double? ActualLockWaitMilliseconds { get; init; }
+
+    /// <summary>EXPLAIN ANALYZE WAL fsync 次数。</summary>
+    public long? ActualWalFsyncCount { get; init; }
+
+    /// <summary>EXPLAIN ANALYZE spill 次数；当前受限执行器固定为 0。</summary>
+    public long? ActualSpillCount { get; init; }
 }
 
 /// <summary>
@@ -148,7 +214,33 @@ public static class SqlExplainPlanner
             new object?[] { "has_residual_predicate", result.HasResidualPredicate },
             new object?[] { "fallback_reason", result.FallbackReason },
             new object?[] { "candidate_contract", result.CandidateContract },
+            new object?[] { "plan_node", result.PlanNode },
+            new object?[] { "actual_access_path", result.ActualAccessPath },
+            new object?[] { "actual_index_name", result.ActualIndexName },
+            new object?[] { "actual_fallback_reason", result.ActualFallbackReason },
+            new object?[] { "estimated_row_width", result.EstimatedRowWidth },
+            new object?[] { "estimated_logical_reads", result.EstimatedLogicalReads },
+            new object?[] { "estimated_cost", result.EstimatedCost },
+            new object?[] { "estimate_source", result.EstimateSource },
+            new object?[] { "statistics_sequence", result.StatisticsSequence },
+            new object?[] { "statistics_freshness_ms", result.StatisticsFreshnessMilliseconds },
+            new object?[] { "actual_rows", result.ActualRows },
+            new object?[] { "actual_candidate_rows", result.ActualCandidateRows },
+            new object?[] { "actual_examined_rows", result.ActualExaminedRows },
+            new object?[] { "actual_rows_removed", result.ActualRowsRemoved },
+            new object?[] { "actual_loops", result.ActualLoops },
+            new object?[] { "actual_execution_ms", result.ActualExecutionMilliseconds },
+            new object?[] { "actual_allocated_bytes", result.ActualAllocatedBytes },
+            new object?[] { "actual_lock_wait_ms", result.ActualLockWaitMilliseconds },
+            new object?[] { "actual_wal_fsync_count", result.ActualWalFsyncCount },
+            new object?[] { "actual_spill_count", result.ActualSpillCount },
         };
+
+        if (result.DocumentPlan is null && result.EstimatedOutputRows is not null)
+            rows.Add(new object?[] { "estimated_output_rows", result.EstimatedOutputRows });
+
+        if (result.DocumentPlan is null && result.CandidatePlans is not null)
+            rows.Add(new object?[] { "candidate_plans", result.CandidatePlans });
 
         if (result.DocumentPlan is { } documentPlan)
         {
@@ -726,7 +818,19 @@ public static class SqlExplainPlanner
                 TagFilterCount: joinPlan.FilterPlan.MeasurementWhere.TagFilter.Count,
                 AccessPath: joinPlan.AccessPath,
                 IndexName: joinPlan.IndexName,
-                ScanFilter: scanFilter);
+                ScanFilter: scanFilter)
+            {
+                FallbackReason = joinPlan.TableEstimate.FallbackReason,
+                EstimatedOutputRows = joinPlan.TableEstimate.EstimatedRows,
+                EstimatedRowWidth = joinPlan.TableEstimate.EstimatedRowWidth,
+                EstimatedLogicalReads = joinPlan.TableEstimate.EstimatedLogicalReads,
+                EstimatedCost = joinPlan.TableEstimate.EstimatedCost,
+                EstimateSource = joinPlan.TableEstimate.EstimateSource,
+                StatisticsSequence = joinPlan.TableEstimate.StatisticsSequence,
+                StatisticsFreshnessMilliseconds = joinPlan.TableEstimate.StatisticsFreshnessMilliseconds,
+                CandidatePlans = joinPlan.TableEstimate.CandidatePlans,
+                PlanNode = "hash_join",
+            };
         }
 
         var documentSchema = tsdb.Documents.Catalog.TryGet(statement.Measurement);
@@ -755,7 +859,7 @@ public static class SqlExplainPlanner
         if (tableSchema is not null)
         {
             var store = tsdb.Tables.Open(tableSchema.Name);
-            var (accessPath, indexName, rowCount, fallbackReason) = ExplainTableAccess(
+            TableAccessCostEstimate tablePlan = ExplainTableAccess(
                 store,
                 tableSchema,
                 statement.Where,
@@ -767,16 +871,25 @@ public static class SqlExplainPlanner
                 MatchedSeriesCount: 0,
                 EstimatedSegmentCount: 0,
                 EstimatedBlockCount: 0,
-                EstimatedScannedRows: rowCount,
-                EstimatedMemTableRows: rowCount,
+                EstimatedScannedRows: tablePlan.EstimatedRows,
+                EstimatedMemTableRows: tablePlan.EstimatedRows,
                 EstimatedSegmentRows: 0,
                 HasTimeFilter: statement.Where is not null,
                 TagFilterCount: 0,
-                AccessPath: accessPath,
-                IndexName: indexName,
+                AccessPath: tablePlan.AccessPath,
+                IndexName: tablePlan.IndexName,
                 ScanFilter: scanFilter)
             {
-                FallbackReason = fallbackReason,
+                FallbackReason = tablePlan.FallbackReason,
+                EstimatedOutputRows = tablePlan.EstimatedRows,
+                EstimatedRowWidth = tablePlan.EstimatedRowWidth,
+                EstimatedLogicalReads = tablePlan.EstimatedLogicalReads,
+                EstimatedCost = tablePlan.EstimatedCost,
+                EstimateSource = tablePlan.EstimateSource,
+                StatisticsSequence = tablePlan.StatisticsSequence,
+                StatisticsFreshnessMilliseconds = tablePlan.StatisticsFreshnessMilliseconds,
+                CandidatePlans = tablePlan.CandidatePlans,
+                PlanNode = tablePlan.AccessPath,
             };
         }
 
@@ -984,17 +1097,17 @@ public static class SqlExplainPlanner
         TableSchema? table = tsdb.Tables.Catalog.TryGet(relationName);
         if (table is not null)
         {
-            var (accessPath, indexName, estimatedRows, fallbackReason) = ExplainTableAccess(
+            TableAccessCostEstimate tablePlan = ExplainTableAccess(
                 tsdb.Tables.Open(table.Name),
                 table,
                 where: null);
             return new ComposedSourceExplain(
                 alias,
-                accessPath,
-                indexName,
-                estimatedRows,
-                $"rows<={estimatedRows}",
-                fallbackReason);
+                tablePlan.AccessPath,
+                tablePlan.IndexName,
+                tablePlan.EstimatedRows,
+                $"rows<={tablePlan.EstimatedRows}",
+                tablePlan.FallbackReason);
         }
 
         MaterializedViewDefinition? materialized = tsdb.MaterializedViews.Catalog.TryGet(relationName);
@@ -1100,6 +1213,15 @@ public static class SqlExplainPlanner
             EarlyExit = plan.EarlyExit,
             HasResidualPredicate = plan.HasResidualPredicate,
             FallbackReason = plan.FallbackReason,
+            EstimatedOutputRows = plan.EstimatedCandidateRows,
+            EstimatedRowWidth = plan.EstimatedRowWidth,
+            EstimatedLogicalReads = plan.EstimatedLogicalReads,
+            EstimatedCost = plan.EstimatedCost,
+            EstimateSource = plan.EstimateSource,
+            StatisticsSequence = plan.StatisticsSequence,
+            StatisticsFreshnessMilliseconds = plan.StatisticsFreshnessMilliseconds,
+            CandidatePlans = plan.CandidatePlans,
+            PlanNode = plan.AccessPath,
         };
     }
 
@@ -1130,82 +1252,109 @@ public static class SqlExplainPlanner
         };
     }
 
-    private static (string AccessPath, string? IndexName, int EstimatedRows, string? FallbackReason) ExplainTableAccess(
+    private static TableAccessCostEstimate ExplainTableAccess(
         TableStore store,
         TableSchema schema,
         SqlExpression? where,
         SelectStatement? statement = null)
     {
+        TableAccessCostEstimate estimate = TableCostPlanner.Estimate(
+            store,
+            schema,
+            where,
+            allowAutomaticRefresh: false);
+        if (string.Equals(estimate.EstimateSource, "transaction_overlay", StringComparison.Ordinal))
+            return estimate;
+
         if (TableSqlExecutor.CanUsePrimaryKeyLookup(schema, where))
-            return ("primary_key", "primary", 1, null);
+        {
+            return new TableAccessCostEstimate(
+                "primary_key", "primary", 1, 1, 0, 1,
+                "catalog", null, null, "primary_key rows<=1", null, null);
+        }
 
         if (TableSqlExecutor.TryChooseInAccessPlan(schema, where, out var inPlan))
         {
-            int rows = inPlan.UsesPrimaryKey
-                ? store.GetByPrimaryKeys(inPlan.Values).Count
-                : store.GetByIndexValues(inPlan.Index!, inPlan.Values).Count;
-            return (
+            long rows = inPlan.Values.Count;
+            return new TableAccessCostEstimate(
                 inPlan.UsesPrimaryKey ? "primary_key_in" : "secondary_index_in",
                 inPlan.UsesPrimaryKey ? "primary" : inPlan.Index!.Name,
-                rows,
-                null);
+                rows, rows, 0, rows, "catalog", null, null,
+                $"{(inPlan.UsesPrimaryKey ? "primary_key_in" : "secondary_index_in")} rows<={rows}",
+                null, null);
         }
 
-        if (statement is not null
+        if ((estimate.IndexPlan is not null || where is null)
+            && statement is not null
             && TableSqlExecutor.TryChooseOrderedRangeAccessPlan(
                 schema,
                 statement,
                 out var orderedPlan,
-                out int candidateLimit,
+                out int orderedCandidateLimit,
                 out _))
         {
-            return (
+            TableStatisticsState state = store.GetStatisticsState();
+            long rows = Math.Min(orderedCandidateLimit, store.RowCount);
+            return new TableAccessCostEstimate(
                 "secondary_index_range",
                 orderedPlan.Index.Name,
-                Math.Min(candidateLimit, store.RowCount),
-                null);
+                rows,
+                rows,
+                state.Statistics?.AverageRowWidth ?? 0,
+                rows,
+                state.EstimateSource,
+                state.Statistics?.SourceSequence,
+                state.FreshnessMilliseconds,
+                $"secondary_index_range:{orderedPlan.Index.Name} rows<={rows};ordered_window<={orderedCandidateLimit}",
+                null,
+                orderedPlan);
         }
 
-        if (TableSqlExecutor.ChooseBestIndexAccessPlan(schema, where) is { } plan)
-        {
-            string accessPath = !string.IsNullOrWhiteSpace(plan.Index.JsonPath)
-                ? "json_path_index"
-                : plan.Range is not null
-                    ? "secondary_index_range"
-                    : plan.IsFullEquality ? "secondary_index" : "secondary_index_prefix";
-            int rows = plan.Range is not null
-                ? store.GetByIndexRange(plan.Index, plan.EqualityPrefixValues, plan.Range).Count
-                : plan.IsFullEquality
-                    ? store.GetByIndex(plan.Index, plan.EqualityPrefixValues).Count
-                    : store.GetByIndexPrefix(plan.Index, plan.EqualityPrefixValues).Count;
-            return (accessPath, plan.Index.Name, rows, null);
-        }
+        if (estimate.IndexPlan is not null)
+            return estimate;
 
-        string? unionFallback = null;
         if (TableSqlExecutor.TryChooseIndexUnionPlan(
             schema,
             where,
             out var unionPlan,
-            out unionFallback))
+            out string? unionFallback))
         {
-            if (TableSqlExecutor.TryLoadIndexUnionRows(
-                store,
-                schema,
-                unionPlan,
-                out var unionRows,
-                out var unionLoadFallback))
+            TableStatisticsState state = store.GetStatisticsState();
+            long estimatedRows = 0;
+            foreach (TableIndexUnionBranch branch in unionPlan.Branches)
             {
-                return ("index_union", null, unionRows.Count, null);
+                long branchRows = branch.AccessPlan switch
+                {
+                    { UsesPrimaryKey: true } => 1,
+                    { InPlan: { } branchIn } => branchIn.Values.Count,
+                    { IndexPlan: { Index.IsUnique: true, IsFullEquality: true } } => 1,
+                    { IndexPlan: { } branchIndex } when state.Statistics is not null && !state.IsStale
+                        => TableCostPlanner.EstimateIndexRows(
+                            store.RowCount,
+                            schema,
+                            branchIndex,
+                            state.Statistics),
+                    _ => store.RowCount,
+                };
+                estimatedRows = Math.Min(store.RowCount, SaturatingAdd(estimatedRows, branchRows));
             }
 
-            unionFallback = unionLoadFallback;
+            return new TableAccessCostEstimate(
+                "index_union",
+                null,
+                estimatedRows,
+                estimatedRows,
+                state.Statistics?.AverageRowWidth ?? 0,
+                estimatedRows,
+                state.EstimateSource,
+                state.Statistics?.SourceSequence,
+                state.FreshnessMilliseconds,
+                $"index_union branches={unionPlan.Branches.Count} rows<={estimatedRows};table_scan rows<={store.RowCount}",
+                unionFallback,
+                null);
         }
 
-        return (
-            "table_scan",
-            null,
-            store.Scan().Count,
-            where is null ? null : unionFallback ?? "no_sargable_predicate");
+        return estimate;
     }
 
     private static IReadOnlyList<string> ResolveScannedFields(SelectStatement statement, MeasurementSchema schema)

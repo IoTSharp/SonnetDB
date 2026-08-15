@@ -57,6 +57,8 @@
 
 ### Added
 
+- **M41 #375/#376/#377 统计、有限成本规划与 EXPLAIN 证据**：关系表新增带 CRC/schema/generation 校验的持久统计快照，记录行数/逻辑页、平均行宽、NULL fraction、distinct、仅保存 `XxHash64` fingerprint 的 MCV 和数值等深直方图；新增 `ANALYZE [TABLE]`、固定样本/页字节预算和 4,096 行自动刷新，统计扫描通过稳定 KV 快照完成且不在表锁内解码。新成本模型统一 point/range/full/index-union 候选，按选择率、行宽和逻辑读取在新鲜统计可用时选择索引或表扫，统计缺失/过期、事务 overlay、预算或 schema 竞态时回退稳定启发式并暴露原因。默认关系 `EXPLAIN` 只读取 catalog/统计元数据，不物化业务行；普通 `SELECT`、EXISTS 和 measurement JOIN 现在报告计划节点、估算行数/行宽/逻辑读/cost、statistics freshness、候选摘要；`EXPLAIN ANALYZE SELECT` 追加实际访问路径、候选/检查/移除行、loops、耗时、分配、锁等待、WAL fsync 与 spill 证据。新增持久化、重启、INT64 极值、成本选择、JOIN/EXISTS 计划一致性和 EXPLAIN 不扫描回归。固定 ARM64/x64、木垒生产同语料、7 天 mixed workload 与 #381 发布门禁继续保持 `NOT_RUN`。
+
 - **M41 #368 性能合同与可观测性基线**：固定木垒 indexed `EXISTS`、scalar `IN`、nullable `OR`、多表 JOIN 和倒序分页五类关系查询及确定性合成数据，新增 source-generated JSON/Markdown evidence runner；每条 REST/Frame SQL 现可归属访问路径、候选/检查/返回行、permit/表/KV 锁等待、执行时间、分配/GC、逻辑/物理 I/O、WAL fsync 与稳定 fallback。`SonnetDB.Server` SQL 指标仅使用有限 outcome/access-path/fallback 标签；Top-N fingerprint 聚合与慢查询样本环独立有界，样本覆盖不清零生命周期计数，聚合容量耗尽会显式累计未归属调用。本地报告不宣称固定硬件或生产门禁，两者保持 `NOT_RUN`。
 
 - **M40 Phase 3 #362 加权最短路径与批量算法执行**：Graph statement snapshot 上新增带边属性/selector 权重的 Dijkstra、显式启用的 A*、双向 Dijkstra 和共享快照批量执行器；路径结果携带总权重、实际算法和扩展计数。负权、缺失/错误类型、NaN/Infinity、累加溢出、frontier/访问/扩展预算和取消均稳定 fail fast。新增 `/weighted-shortest-path` source-generated HTTP/typed SDK 合同，嵌入式与远程路径结果保持一致；本项不宣称 #367 固定硬件、7 天 mixed workload 或 Production gate 已通过。
