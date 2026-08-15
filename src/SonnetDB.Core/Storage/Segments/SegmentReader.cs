@@ -439,6 +439,7 @@ public sealed class SegmentReader : IDisposable
 
         Diagnostics.SonnetDbMeter.SegmentBlockReads.Add(1);
         Diagnostics.SonnetDbMeter.SegmentBlockReadBytes.Add(payloadBytes);
+        Sql.Execution.SqlExecutionTelemetry.RecordPhysicalRead(payloadBytes);
 
         var source = _source!;
 

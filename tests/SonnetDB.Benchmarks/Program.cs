@@ -18,6 +18,7 @@ using SonnetDB.Benchmarks.Benchmarks;
 //   dotnet run -c Release -- --m39-trigger-baseline-smoke （#333 触发器基线证据）
 //   dotnet run -c Release -- --m39-trigger-evidence --output artifacts/m39-trigger-v2 （#333 JSON/Markdown 报告）
 //   dotnet run -c Release -- --m40-graph-evidence --quick （M40 Native Graph Preview 本地 evidence）
+//   dotnet run -c Release -- --m41-baseline-evidence --quick （#368 性能合同与可观测性基线）
 //   dotnet run -c Release -- --filter *         （运行所有基准）
 //
 // 运行前请先启动外部数据库（见 docker/docker-compose.yml）：
@@ -60,6 +61,18 @@ if (args.Contains("--m40-graph-evidence", StringComparer.OrdinalIgnoreCase))
         $"m40-graph-local-smoke={report.Correctness} output={outputDirectory} "
         + $"correctness-recovery={report.CorrectnessRecovery} performance-capacity={report.PerformanceCapacity} "
         + $"release-decision={report.ReleaseDecision} fixed-hardware={report.FixedHardware} neo4j={report.Neo4jComparison}");
+    return;
+}
+
+if (args.Contains("--m41-baseline-evidence", StringComparer.OrdinalIgnoreCase))
+{
+    string outputDirectory = ReadOutputDirectory(args, Path.Combine("artifacts", "m41-performance-baseline"));
+    M41PerformanceBaselineReport report = M41PerformanceBaselineRunner.Run(
+        outputDirectory,
+        args.Contains("--quick", StringComparer.OrdinalIgnoreCase));
+    Console.WriteLine(
+        $"m41-baseline-local={report.LocalCorrectness} output={outputDirectory} "
+        + $"fixed-hardware={report.FixedHardware} production-gate={report.ProductionGate}");
     return;
 }
 

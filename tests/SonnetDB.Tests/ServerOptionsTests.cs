@@ -18,6 +18,7 @@ public sealed class ServerOptionsTests
         Assert.Equal(30_000, slowQuery.WarningThresholdMs);
         Assert.Equal(60_000, slowQuery.CriticalThresholdMs);
         Assert.Equal(256, slowQuery.Capacity);
+        Assert.Equal(1024, slowQuery.AggregateCapacity);
         Assert.False(options.Observability.DiagnosticDump.Enabled);
         Assert.Equal(4, options.SqlHttpAdmission.PermitLimit);
         Assert.Equal(8, options.SqlHttpAdmission.QueueLimit);
@@ -134,6 +135,23 @@ public sealed class ServerOptionsTests
         var options = ServerOptionsBinder.Bind(configuration).Observability.SlowQueryLog;
 
         Assert.Equal(125, options.ThresholdMs);
+    }
+
+    [Fact]
+    public void Bind_WithSlowQueryCapacities_AppliesAndBoundsConfiguration()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SonnetDBServer:Observability:SlowQueryLog:Capacity"] = "1",
+                ["SonnetDBServer:Observability:SlowQueryLog:AggregateCapacity"] = "20000",
+            })
+            .Build();
+
+        var options = ServerOptionsBinder.Bind(configuration).Observability.SlowQueryLog;
+
+        Assert.Equal(16, options.Capacity);
+        Assert.Equal(16_384, options.AggregateCapacity);
     }
 
     [Fact]

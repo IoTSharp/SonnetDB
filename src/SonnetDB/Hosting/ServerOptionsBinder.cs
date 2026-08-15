@@ -53,6 +53,10 @@ internal static class ServerOptionsBinder
             options.Observability.SlowQueryLog.Capacity,
             16,
             4096);
+        options.Observability.SlowQueryLog.AggregateCapacity = Math.Clamp(
+            options.Observability.SlowQueryLog.AggregateCapacity,
+            16,
+            16_384);
 
         options.SqlHttpAdmission.PermitLimit = Math.Clamp(
             options.SqlHttpAdmission.PermitLimit,

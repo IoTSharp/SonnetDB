@@ -11,7 +11,7 @@ SonnetDB Core 只使用 BCL `Meter` 与 `ActivitySource` 插桩，OpenTelemetry 
 
 ## 指标
 
-Core Meter 名为 `SonnetDB.Core`，Copilot Meter 名为 `SonnetDB.Copilot`。下表不包含 ASP.NET Core 和 `HttpClient` instrumentation 自动产生的框架指标。
+Core Meter 名为 `SonnetDB.Core`，Server SQL Meter 名为 `SonnetDB.Server`，Copilot Meter 名为 `SonnetDB.Copilot`。下表不包含 ASP.NET Core 和 `HttpClient` instrumentation 自动产生的框架指标。
 
 | 指标 | 类型 | 单位 | 含义与主要标签 |
 | --- | --- | --- | --- |
@@ -29,6 +29,26 @@ Core Meter 名为 `SonnetDB.Core`，Copilot Meter 名为 `SonnetDB.Copilot`。�
 | `sonnetdb.memtable.points` | Gauge | point | 活跃 MemTable 点数；`sonnetdb.database` |
 | `sonnetdb.segments.count` | Gauge | segment | 活跃 Segment 数；`sonnetdb.database` |
 | `sonnetdb.flush.pending` | Gauge | request | 排队或执行中的 Flush 数；`sonnetdb.database` |
+| `sonnetdb.sql.query.count` | Counter | query | 完成的 SQL 语句数 |
+| `sonnetdb.sql.query.duration` | Histogram | ms | SQL 端到端耗时 |
+| `sonnetdb.sql.queue.wait.duration` | Histogram | ms | REST/Frame SQL permit 队列等待 |
+| `sonnetdb.sql.candidate.rows` | Histogram | row | 访问路径产生的候选行数 |
+| `sonnetdb.sql.examined.rows` | Histogram | row | 完整残余谓词检查的候选行数 |
+| `sonnetdb.sql.returned.rows` | Histogram | row | 返回行数 |
+| `sonnetdb.sql.allocated.bytes` | Histogram | byte | 同步 SQL 执行线程的托管分配；跨线程未知样本不记录 |
+| `sonnetdb.sql.lock.wait.duration` | Histogram | ms | 归属于当前语句的关系表与 KV 关键锁等待 |
+| `sonnetdb.sql.logical.reads` | Histogram | read | 按候选行解码口径统计的逻辑读取 |
+| `sonnetdb.sql.logical.writes` | Histogram | write | 按受影响行口径统计的逻辑写入 |
+| `sonnetdb.sql.physical.reads` | Histogram | read | Segment block 等物理读取 |
+| `sonnetdb.sql.physical.read.bytes` | Histogram | byte | Segment block 等物理读取 payload 字节数 |
+| `sonnetdb.sql.physical.writes` | Histogram | write | WAL record 等物理写入 |
+| `sonnetdb.sql.physical.write.bytes` | Histogram | byte | WAL record 等物理写入字节数 |
+| `sonnetdb.sql.execution.duration` | Histogram | ms | 不含 HTTP 响应编码的 Core SQL 执行耗时 |
+| `sonnetdb.sql.wal.fsync.duration` | Histogram | ms | 归属于当前语句的 WAL fsync 等待 |
+| `sonnetdb.sql.wal.fsync.count` | Histogram | fsync | 归属于当前语句的 WAL fsync 次数 |
+| `sonnetdb.sql.gc.gen0.collections` | Histogram | collection | 语句执行窗口内观测到的 Gen0 GC 次数 |
+| `sonnetdb.sql.gc.gen1.collections` | Histogram | collection | 语句执行窗口内观测到的 Gen1 GC 次数 |
+| `sonnetdb.sql.gc.gen2.collections` | Histogram | collection | 语句执行窗口内观测到的 Gen2 GC 次数 |
 | `copilot.chat.requests` | Counter | request | Copilot 请求数；`model`、`mode`、`succeeded` |
 | `copilot.chat.duration` | Histogram | ms | Copilot 请求耗时；标签同上 |
 | `copilot.chat.tokens` | Counter | token | 输入/输出 token；`direction`、`model` |
@@ -36,7 +56,30 @@ Core Meter 名为 `SonnetDB.Core`，Copilot Meter 名为 `SonnetDB.Copilot`。�
 | `copilot.knowledge.recall.hits` | Counter | recall | 文档知识召回命中次数 |
 | `copilot.knowledge.recall.misses` | Counter | recall | 文档知识召回未命中次数 |
 
-热路径 Counter/Histogram 不携带数据库名，避免形成高基数标签；逐数据库状态只由四个 Gauge 暴露。不要把 measurement、SQL 原文或用户数据添加为 metric label。
+SQL 指标只允许 `outcome`、`access.path` 和 `fallback.reason` 三个有限标签；fingerprint、SQL、数据库、索引名、参数值和行内容均不进入 metric label。其他热路径 Counter/Histogram 也不携带数据库名，逐数据库状态只由四个 Gauge 暴露。不要把 measurement、SQL 原文或用户数据添加为 metric label。
+
+## SQL 诊断聚合
+
+启用慢查询诊断后，每条完成的 REST/Frame SQL 都进入有界 fingerprint 聚合器；只有达到 `ThresholdMs` 的语句才进入最近慢查询样本环、结构化日志、Activity 事件和 SSE `slow_query`。因此 `/v1/diagnostics/top-queries` 的生命周期计数不会因最近样本环覆盖而清零，`/v1/diagnostics/slow-queries` 仍只表示最近的阈值样本。
+
+```json
+{
+  "Observability": {
+    "SlowQueryLog": {
+      "Enabled": true,
+      "ThresholdMs": 10000,
+      "WarningThresholdMs": 30000,
+      "CriticalThresholdMs": 60000,
+      "Capacity": 256,
+      "AggregateCapacity": 1024
+    }
+  }
+}
+```
+
+`Capacity` 有效范围为 16～4096，控制最近慢查询样本数；`AggregateCapacity` 有效范围为 16～16384，控制独立 fingerprint 分组数。聚合容量耗尽后不会继续增长字典，无法归属到新 fingerprint 的调用累计在 `unattributedSampleCount`；该全局值只向 Server Admin 返回。Top-N 条目包含访问路径、索引名、fallback、候选/检查/返回行、逻辑/物理 I/O、SQL permit/锁等待与分配量；数据库权限过滤继续适用。
+
+指标适合低基数告警和趋势图，fingerprint Top-N 适合进程内诊断，两者都不是持久审计。进程重启会清空样本和聚合计数；需要跨重启留存时应由受控采集器周期拉取并在外部系统保留。
 
 ## Trace 与 span 树
 

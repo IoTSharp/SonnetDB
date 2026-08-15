@@ -30,6 +30,9 @@ public sealed record SqlExecutionOptions
     /// <summary>单次过程调用累计允许返回的最大结果行数。</summary>
     public int MaxRoutineResultRows { get; init; } = 10_000;
 
+    /// <summary>可选的内部执行证据收集器；不进入公开 JSON 或持久化合同。</summary>
+    internal SqlExecutionMetrics? Metrics { get; init; }
+
     internal void Validate()
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(Caller);

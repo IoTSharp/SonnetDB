@@ -43,7 +43,8 @@ internal static class SqlEndpointHandler
         bool canWrite,
         bool canAdministerDatabase,
         bool isServerAdmin,
-        IControlPlane? controlPlane)
+        IControlPlane? controlPlane,
+        double queueWaitMs)
     {
         await ExecuteAsync(
             context,
@@ -54,7 +55,8 @@ internal static class SqlEndpointHandler
             canWrite,
             canAdministerDatabase,
             isServerAdmin,
-            controlPlane).ConfigureAwait(false);
+            controlPlane,
+            queueWaitMs).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -69,7 +71,8 @@ internal static class SqlEndpointHandler
         bool canWrite,
         bool canAdministerDatabase,
         bool isServerAdmin,
-        IControlPlane? controlPlane)
+        IControlPlane? controlPlane,
+        double queueWaitMs)
     {
         await ExecuteAsync(
             context,
@@ -80,7 +83,8 @@ internal static class SqlEndpointHandler
             canWrite,
             canAdministerDatabase,
             isServerAdmin,
-            controlPlane).ConfigureAwait(false);
+            controlPlane,
+            queueWaitMs).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -197,7 +201,8 @@ internal static class SqlEndpointHandler
         bool canWrite,
         bool canAdministerDatabase,
         bool isServerAdmin,
-        IControlPlane? controlPlane)
+        IControlPlane? controlPlane,
+        double queueWaitMs)
     {
         var diagnostics = context.RequestServices.GetService<SlowQueryDiagnostics>();
         ModbusWriteService? modbusWriteService = null;
@@ -221,7 +226,8 @@ internal static class SqlEndpointHandler
             catch (Exception ex)
             {
                 metrics.RecordSqlError();
-                RecordSlow(diagnostics, databaseName, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                RecordSlow(diagnostics, databaseName, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                    queueWaitMs: queueWaitMs);
                 await WriteErrorAsync(context, "sql_error", ex.Message).ConfigureAwait(false);
                 return;
             }
@@ -238,7 +244,8 @@ internal static class SqlEndpointHandler
                 out var authorizationError))
             {
                 metrics.RecordSqlError();
-                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                    queueWaitMs: queueWaitMs);
                 await WriteErrorAsync(context, "forbidden", authorizationError).ConfigureAwait(false);
                 return;
             }
@@ -246,12 +253,19 @@ internal static class SqlEndpointHandler
             if (!IsControlPlaneStatement(parsed) && RequiresWritePermission(parsed) && !canWrite)
             {
                 metrics.RecordSqlError();
-                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                    queueWaitMs: queueWaitMs);
                 await WriteErrorAsync(context, "forbidden", "当前凭据对该数据库没有写权限。").ConfigureAwait(false);
                 return;
             }
 
             SqlStatement executable;
+            var executionMetrics = diagnostics is not null
+                && diagnostics.Options.Enabled
+                && diagnostics.Options.ThresholdMs >= 0
+                    ? new SqlExecutionMetrics()
+                    : null;
+            SqlExecutionMetricsSnapshot? executionSnapshot = null;
             try
             {
                 executable = BindParameters(parsed, stmt);
@@ -292,8 +306,10 @@ internal static class SqlEndpointHandler
                             Caller = caller,
                             CanWrite = canWrite,
                             CanAdminister = canAdministerDatabase,
+                            Metrics = executionMetrics,
                         }),
                 };
+                executionSnapshot = executionMetrics?.Complete();
                 if (result is SqlTransactionContext started)
                     transaction = started;
                 else if (executable is CommitTransactionStatement or RollbackTransactionStatement)
@@ -307,7 +323,8 @@ internal static class SqlEndpointHandler
                             metrics.AddReturnedRows(rowCount);
                             var elapsed = sw.Elapsed.TotalMilliseconds;
                             await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: -1, elapsed).ConfigureAwait(false);
-                            RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, rowCount, -1, failed: false);
+                            RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, rowCount, -1, failed: false,
+                                executionSnapshot, queueWaitMs);
                             break;
                         }
                     case InsertExecutionResult ins:
@@ -315,7 +332,8 @@ internal static class SqlEndpointHandler
                             if (!canWrite)
                             {
                                 metrics.RecordSqlError();
-                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                                    executionSnapshot, queueWaitMs);
                                 await WriteErrorAsync(context, "forbidden", "INSERT 需要 readwrite 或 admin 角色。").ConfigureAwait(false);
                                 return;
                             }
@@ -328,7 +346,8 @@ internal static class SqlEndpointHandler
                             }
                             var elapsed = sw.Elapsed.TotalMilliseconds;
                             await WriteEndAsync(context, writerOptions, rowCount, recordsAffected: ins.RowsInserted, elapsed).ConfigureAwait(false);
-                            RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, rowCount, ins.RowsInserted, failed: false);
+                            RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, rowCount, ins.RowsInserted, failed: false,
+                                executionSnapshot, queueWaitMs);
                             break;
                         }
                     case DeleteExecutionResult del:
@@ -336,13 +355,15 @@ internal static class SqlEndpointHandler
                             if (!canWrite)
                             {
                                 metrics.RecordSqlError();
-                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                                    executionSnapshot, queueWaitMs);
                                 await WriteErrorAsync(context, "forbidden", "DELETE 需要 readwrite 或 admin 角色。").ConfigureAwait(false);
                                 return;
                             }
                             var elapsed = sw.Elapsed.TotalMilliseconds;
                             await WriteEndAsync(context, writerOptions, rowCount: 0, recordsAffected: del.TombstonesAdded, elapsed).ConfigureAwait(false);
-                            RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, 0, del.TombstonesAdded, failed: false);
+                            RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, 0, del.TombstonesAdded, failed: false,
+                                executionSnapshot, queueWaitMs);
                             break;
                         }
                     case RowsAffectedExecutionResult affected:
@@ -350,13 +371,15 @@ internal static class SqlEndpointHandler
                             if (!canWrite)
                             {
                                 metrics.RecordSqlError();
-                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                                    executionSnapshot, queueWaitMs);
                                 await WriteErrorAsync(context, "forbidden", "该语句需要 readwrite 或 admin 角色。").ConfigureAwait(false);
                                 return;
                             }
                             var elapsed = sw.Elapsed.TotalMilliseconds;
                             await WriteEndAsync(context, writerOptions, rowCount: 0, recordsAffected: affected.RowsAffected, elapsed).ConfigureAwait(false);
-                            RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, 0, affected.RowsAffected, failed: false);
+                            RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, 0, affected.RowsAffected, failed: false,
+                                executionSnapshot, queueWaitMs);
                             break;
                         }
                     default:
@@ -366,13 +389,15 @@ internal static class SqlEndpointHandler
                             if (!IsControlPlaneStatement(executable) && !canWrite)
                             {
                                 metrics.RecordSqlError();
-                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                                    executionSnapshot, queueWaitMs);
                                 await WriteErrorAsync(context, "forbidden", "DDL 需要 readwrite 或 admin 角色。").ConfigureAwait(false);
                                 return;
                             }
                             var elapsed = sw.Elapsed.TotalMilliseconds;
                             await WriteEndAsync(context, writerOptions, rowCount: 0, recordsAffected: 0, elapsed).ConfigureAwait(false);
-                            RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, 0, 0, failed: false);
+                            RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, elapsed, 0, 0, failed: false,
+                                executionSnapshot, queueWaitMs);
                             break;
                         }
                 }
@@ -380,35 +405,40 @@ internal static class SqlEndpointHandler
             catch (ControlPlaneAccessDeniedException ex)
             {
                 metrics.RecordSqlError();
-                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                    executionSnapshot ?? executionMetrics?.Complete(), queueWaitMs);
                 await WriteErrorAsync(context, "forbidden", ex.Message).ConfigureAwait(false);
                 return;
             }
             catch (TableConstraintException ex)
             {
                 metrics.RecordSqlError();
-                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                    executionSnapshot ?? executionMetrics?.Complete(), queueWaitMs);
                 await WriteErrorAsync(context, ex.ErrorCode, ex.Message).ConfigureAwait(false);
                 return;
             }
             catch (RoutineExecutionException ex)
             {
                 metrics.RecordSqlError();
-                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                    executionSnapshot ?? executionMetrics?.Complete(), queueWaitMs);
                 await WriteErrorAsync(context, ex.Code, ex.Message).ConfigureAwait(false);
                 return;
             }
             catch (ModbusWriteException ex)
             {
                 metrics.RecordSqlError();
-                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                    executionSnapshot ?? executionMetrics?.Complete(), queueWaitMs);
                 await WriteErrorAsync(context, ex.Code, ex.Message).ConfigureAwait(false);
                 return;
             }
             catch (Exception ex)
             {
                 metrics.RecordSqlError();
-                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+                RecordSlow(diagnostics, diagnosticsDatabase, diagnosticsSql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true,
+                    executionSnapshot ?? executionMetrics?.Complete(), queueWaitMs);
                 await WriteErrorAsync(context, "sql_error", ex.Message).ConfigureAwait(false);
                 return;
             }
@@ -679,8 +709,18 @@ internal static class SqlEndpointHandler
         double elapsedMs,
         long rowCount,
         int recordsAffected,
-        bool failed)
+        bool failed,
+        SqlExecutionMetricsSnapshot? executionMetrics = null,
+        double queueWaitMs = 0)
     {
-        diagnostics?.Record(database, sql, elapsedMs, rowCount, recordsAffected, failed);
+        diagnostics?.Record(
+            database,
+            sql,
+            elapsedMs,
+            rowCount,
+            recordsAffected,
+            failed,
+            executionMetrics,
+            queueWaitMs);
     }
 }

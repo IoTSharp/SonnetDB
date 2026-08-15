@@ -249,6 +249,9 @@ public sealed class SlowQueryLogOptions
 
     /// <summary>进程内慢查询环形缓冲容量。默认 <c>256</c>，有效范围为 16～4096。</summary>
     public int Capacity { get; set; } = 256;
+
+    /// <summary>进程内查询指纹聚合分组上限。默认 <c>1024</c>，有效范围为 16～16384。</summary>
+    public int AggregateCapacity { get; set; } = 1024;
 }
 
 /// <summary>

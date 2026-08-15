@@ -1,4 +1,5 @@
-﻿using System.Globalization;
+﻿using System.Diagnostics;
+using System.Globalization;
 using System.Text.Json;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Builder;
@@ -37,7 +38,8 @@ internal static partial class SonnetDbEndpoints
             var databasePermission = DatabaseAccessEvaluator.GetEffectivePermission(ctx, grants, db);
             if (!await TryRequireDatabasePermissionAsync(ctx, db, databasePermission, DatabasePermission.Read).ConfigureAwait(false))
                 return;
-            using var admissionLease = await TryAcquireSqlHttpAdmissionAsync(ctx, admission, db).ConfigureAwait(false);
+            var admissionResult = await TryAcquireSqlHttpAdmissionAsync(ctx, admission, db).ConfigureAwait(false);
+            using var admissionLease = admissionResult.Lease;
             if (admissionLease is null)
                 return;
             var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.SqlRequest).ConfigureAwait(false);
@@ -54,7 +56,8 @@ internal static partial class SonnetDbEndpoints
                 canWrite,
                 canAdministerDatabase,
                 isServerAdmin,
-                scopedControlPlane).ConfigureAwait(false);
+                scopedControlPlane,
+                admissionResult.QueueWaitMs).ConfigureAwait(false);
         });
 
         app.MapPost("/v1/db/{db}/sql/batch", async (HttpContext ctx, string db) =>
@@ -64,7 +67,8 @@ internal static partial class SonnetDbEndpoints
             var databasePermission = DatabaseAccessEvaluator.GetEffectivePermission(ctx, grants, db);
             if (!await TryRequireDatabasePermissionAsync(ctx, db, databasePermission, DatabasePermission.Read).ConfigureAwait(false))
                 return;
-            using var admissionLease = await TryAcquireSqlHttpAdmissionAsync(ctx, admission, db).ConfigureAwait(false);
+            var admissionResult = await TryAcquireSqlHttpAdmissionAsync(ctx, admission, db).ConfigureAwait(false);
+            using var admissionLease = admissionResult.Lease;
             if (admissionLease is null)
                 return;
             var req = await ReadJsonAsync(ctx, ServerJsonContext.Default.SqlBatchRequest).ConfigureAwait(false);
@@ -81,15 +85,17 @@ internal static partial class SonnetDbEndpoints
                 canWrite,
                 canAdministerDatabase,
                 isServerAdmin,
-                scopedControlPlane).ConfigureAwait(false);
+                scopedControlPlane,
+                admissionResult.QueueWaitMs).ConfigureAwait(false);
         });
     }
 
-    private static async Task<RateLimitLease?> TryAcquireSqlHttpAdmissionAsync(
+    private static async Task<SqlAdmissionResult> TryAcquireSqlHttpAdmissionAsync(
         HttpContext ctx,
         SqlHttpRequestAdmission admission,
         string database)
     {
+        long startedTimestamp = Stopwatch.GetTimestamp();
         RateLimitLease lease;
         try
         {
@@ -97,11 +103,15 @@ internal static partial class SonnetDbEndpoints
         }
         catch (OperationCanceledException) when (ctx.RequestAborted.IsCancellationRequested)
         {
-            return null;
+            return new SqlAdmissionResult(null, Stopwatch.GetElapsedTime(startedTimestamp).TotalMilliseconds);
         }
 
         if (lease.IsAcquired)
-            return lease;
+        {
+            return new SqlAdmissionResult(
+                lease,
+                Stopwatch.GetElapsedTime(startedTimestamp).TotalMilliseconds);
+        }
 
         lease.Dispose();
         ctx.Response.Headers["Retry-After"] = SqlHttpRequestAdmission.RetryAfterSeconds
@@ -111,6 +121,8 @@ internal static partial class SonnetDbEndpoints
             StatusCodes.Status503ServiceUnavailable,
             "sql_overloaded",
             $"数据库 '{database}' 的 SQL 请求已达到并发与等待队列上限，请稍后重试。").ConfigureAwait(false);
-        return null;
+        return new SqlAdmissionResult(null, Stopwatch.GetElapsedTime(startedTimestamp).TotalMilliseconds);
     }
+
+    private readonly record struct SqlAdmissionResult(RateLimitLease? Lease, double QueueWaitMs);
 }

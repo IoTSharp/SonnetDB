@@ -159,13 +159,22 @@ internal static class RelationalSelectExecutor
         /// <summary>转发一次 EXISTS 快速路径的执行证据。</summary>
         public void RecordExistsFastPath(
             TableExistsAccessPlan plan,
+            int candidateRows,
             int examinedRows,
             bool earlyExit)
-            => _metrics?.RecordExistsFastPath(plan, examinedRows, earlyExit);
+        {
+            _metrics?.RecordExistsFastPath(plan, examinedRows, earlyExit);
+            SqlExecutionTelemetry.RecordAccessPath(plan.AccessPath, plan.IndexName, plan.FallbackReason);
+            SqlExecutionTelemetry.RecordCandidateRows(candidateRows);
+            SqlExecutionTelemetry.RecordExaminedRows(examinedRows);
+        }
 
         /// <summary>转发一次 EXISTS 完整关系路径回退原因。</summary>
         public void RecordExistsFallback(string reason, bool hasResidualPredicate)
-            => _metrics?.RecordExistsFallback(reason, hasResidualPredicate);
+        {
+            _metrics?.RecordExistsFallback(reason, hasResidualPredicate);
+            SqlExecutionTelemetry.RecordAccessPath("relational_fallback", fallbackReason: reason);
+        }
     }
 
     public static bool NeedsRelationalPath(SelectStatement statement)
@@ -1774,13 +1783,13 @@ internal static class RelationalSelectExecutor
             if (!TableSqlExecutor.EvaluateWhere(boundWhere, schema, candidate.Values))
                 continue;
 
-            memo.RecordExistsFastPath(candidates.Plan, examinedRows, earlyExit: true);
+            memo.RecordExistsFastPath(candidates.Plan, candidates.Rows.Count, examinedRows, earlyExit: true);
             result = true;
             fallbackReason = string.Empty;
             return true;
         }
 
-        memo.RecordExistsFastPath(candidates.Plan, examinedRows, earlyExit: false);
+        memo.RecordExistsFastPath(candidates.Plan, candidates.Rows.Count, examinedRows, earlyExit: false);
         fallbackReason = string.Empty;
         return true;
     }

@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using SonnetDB.Engine;
+using SonnetDB.Sql.Execution;
 
 namespace SonnetDB.Diagnostics;
 
@@ -53,15 +54,15 @@ public static class SonnetDbMeter
 
     /// <summary>仅在 WAL fsync 直方图启用时取得计时起点。</summary>
     internal static long StartWalFsyncTiming()
-        => WalFsyncDuration.Enabled ? Stopwatch.GetTimestamp() : 0;
+        => WalFsyncDuration.Enabled || SqlExecutionTelemetry.IsEnabled ? Stopwatch.GetTimestamp() : 0;
 
     /// <summary>记录 TSDB WAL fsync 耗时。</summary>
     internal static void RecordTsdbWalFsync(long startTimestamp)
-        => RecordElapsed(WalFsyncDuration, startTimestamp, WalKindTsdb);
+        => RecordWalFsync(startTimestamp, WalKindTsdb);
 
     /// <summary>记录 KV WAL fsync 耗时。</summary>
     internal static void RecordKvWalFsync(long startTimestamp)
-        => RecordElapsed(WalFsyncDuration, startTimestamp, WalKindKv);
+        => RecordWalFsync(startTimestamp, WalKindKv);
 
     // ── 锁等待 ──────────────────────────────────────────────────────────────
 
@@ -75,15 +76,15 @@ public static class SonnetDbMeter
 
     /// <summary>仅在锁等待直方图启用时取得计时起点。</summary>
     internal static long StartLockWaitTiming()
-        => LockWaitDuration.Enabled ? Stopwatch.GetTimestamp() : 0;
+        => LockWaitDuration.Enabled || SqlExecutionTelemetry.IsEnabled ? Stopwatch.GetTimestamp() : 0;
 
     /// <summary>记录关系事务管理器全局锁的等待耗时。</summary>
     internal static void RecordTableManagerLockWait(long startTimestamp)
-        => RecordElapsed(LockWaitDuration, startTimestamp, LockTableManager);
+        => RecordLockWait(startTimestamp, LockTableManager, tableManager: true);
 
     /// <summary>记录 KV keyspace 锁的等待耗时。</summary>
     internal static void RecordKvKeyspaceLockWait(long startTimestamp)
-        => RecordElapsed(LockWaitDuration, startTimestamp, LockKvKeyspace);
+        => RecordLockWait(startTimestamp, LockKvKeyspace, tableManager: false);
 
     // ── Flush ────────────────────────────────────────────────────────────────
 
@@ -205,6 +206,33 @@ public static class SonnetDbMeter
             return;
 
         histogram.Record(Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds, tag);
+    }
+
+    private static void RecordWalFsync(
+        long startTimestamp,
+        KeyValuePair<string, object?> tag)
+    {
+        if (startTimestamp == 0)
+            return;
+
+        double elapsedMs = Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;
+        if (WalFsyncDuration.Enabled)
+            WalFsyncDuration.Record(elapsedMs, tag);
+        SqlExecutionTelemetry.RecordWalFsync(elapsedMs);
+    }
+
+    private static void RecordLockWait(
+        long startTimestamp,
+        KeyValuePair<string, object?> tag,
+        bool tableManager)
+    {
+        if (startTimestamp == 0)
+            return;
+
+        double elapsedMs = Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;
+        if (LockWaitDuration.Enabled)
+            LockWaitDuration.Record(elapsedMs, tag);
+        SqlExecutionTelemetry.RecordLockWait(tableManager, elapsedMs);
     }
 
     // ── per-db ObservableGauge（引擎实例注册表） ──────────────────────────────

@@ -13,8 +13,8 @@ using SonnetDB.Json;
 using SonnetDB.Kv;
 using SonnetDB.LineProtocolUdp;
 using SonnetDB.Mcp;
-using SonnetDB.Mqtt;
 using SonnetDB.Modbus;
+using SonnetDB.Mqtt;
 using SonnetDB.SemanticSearch;
 using SonnetMQ;
 
@@ -48,7 +48,9 @@ internal static class SonnetDbServiceRegistration
         builder.Services.AddSingleton(sp =>
         {
             var options = sp.GetRequiredService<IOptions<ServerOptions>>().Value.Observability.SlowQueryLog;
-            return new SlowQueryRing(Math.Clamp(options.Capacity, 16, 4096));
+            return new SlowQueryRing(
+                Math.Clamp(options.Capacity, 16, 4096),
+                Math.Clamp(options.AggregateCapacity, 16, 16_384));
         });
         builder.Services.AddSingleton<SlowQueryDiagnostics>();
         builder.Services.AddSingleton<DiagnosticDumpService>();

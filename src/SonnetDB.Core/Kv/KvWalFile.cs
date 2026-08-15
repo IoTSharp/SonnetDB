@@ -585,6 +585,7 @@ internal sealed class KvWalFile : IDisposable
 
             _stream!.Write(header);
             _stream.Write(payload);
+            Sql.Execution.SqlExecutionTelemetry.RecordPhysicalWrite(RecordHeaderSize + payloadLength);
             _length = checked(_length + RecordHeaderSize + payloadLength);
         }
         finally

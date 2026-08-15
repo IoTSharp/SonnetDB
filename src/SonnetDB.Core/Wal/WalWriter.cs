@@ -311,6 +311,7 @@ public sealed class WalWriter : IDisposable
         }
 
         _bytesWritten += recordSize;
+        Sql.Execution.SqlExecutionTelemetry.RecordPhysicalWrite(recordSize);
         _nextLsn++;
         _footerDirty = true;
         return lsn;

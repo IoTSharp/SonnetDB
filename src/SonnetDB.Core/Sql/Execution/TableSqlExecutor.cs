@@ -1651,11 +1651,18 @@ internal static class TableSqlExecutor
         TableSchema schema,
         SqlExpression? where)
     {
+        var plan = PlanExistsAccess(schema, where);
         var transaction = SqlTransactionContext.Current;
+        IReadOnlyList<TableRow> rows;
         if (transaction is not null && transaction.TryGetBufferedMutations(schema.Name, out var buffered))
-            return ApplyMutationOverlay(schema, store.Scan(), buffered);
+            rows = ApplyMutationOverlay(schema, store.Scan(), buffered);
+        else
+            rows = LoadCandidateRows(store, schema, where);
 
-        return LoadCandidateRows(store, schema, where);
+        SqlExecutionTelemetry.RecordAccessPath(plan.AccessPath, plan.IndexName, plan.FallbackReason);
+        SqlExecutionTelemetry.RecordCandidateRows(rows.Count);
+        SqlExecutionTelemetry.RecordExaminedRows(rows.Count);
+        return rows;
     }
 
     /// <summary>
@@ -1817,15 +1824,38 @@ internal static class TableSqlExecutor
     {
         var transaction = SqlTransactionContext.Current;
         if (transaction is not null && transaction.TryGetBufferedMutations(schema.Name, out var buffered))
-            return (ApplyMutationOverlay(schema, store.Scan(), buffered), false);
+        {
+            return (
+                ObserveCandidateRows(
+                    ApplyMutationOverlay(schema, store.Scan(), buffered),
+                    "table_scan",
+                    indexName: null,
+                    "transaction_overlay_requires_scan"),
+                false);
+        }
 
-        if (TryLoadInCandidateRows(store, schema, statement.Where, out var inRows))
-            return (inRows, false);
+        if (TryChooseInAccessPlan(schema, statement.Where, out var inPlan)
+            && TryLoadInCandidateRows(store, schema, statement.Where, out var inRows))
+        {
+            return (
+                ObserveCandidateRows(
+                    inRows,
+                    inPlan.UsesPrimaryKey ? "primary_key_in" : "secondary_index_in",
+                    inPlan.UsesPrimaryKey ? "primary" : inPlan.Index!.Name,
+                    fallbackReason: null),
+                false);
+        }
 
         if (TryExtractPrimaryKeyValues(schema, statement.Where, allowExtraPredicates: true, out var keyValues))
         {
             var row = store.GetByPrimaryKey(keyValues);
-            return (row is null ? Array.Empty<TableRow>() : [row], false);
+            return (
+                ObserveCandidateRows(
+                    row is null ? Array.Empty<TableRow>() : [row],
+                    "primary_key",
+                    "primary",
+                    fallbackReason: null),
+                false);
         }
 
         var plan = ChooseBestIndexAccessPlan(schema, statement.Where);
@@ -1840,34 +1870,84 @@ internal static class TableSqlExecutor
             if (statement.OrderByList.Count > 1)
             {
                 return (
-                    store.GetByIndexRangeThroughValueGroup(
-                        plan.Index,
-                        plan.EqualityPrefixValues,
-                        plan.Range,
-                        candidateLimit),
+                    ObserveCandidateRows(
+                        store.GetByIndexRangeThroughValueGroup(
+                            plan.Index,
+                            plan.EqualityPrefixValues,
+                            plan.Range,
+                            candidateLimit),
+                        FormatIndexAccessPath(plan),
+                        plan.Index.Name,
+                        fallbackReason: null),
                     false);
             }
 
             return (
-                store.GetByIndexRange(plan.Index, plan.EqualityPrefixValues, plan.Range, candidateLimit),
+                ObserveCandidateRows(
+                    store.GetByIndexRange(plan.Index, plan.EqualityPrefixValues, plan.Range, candidateLimit),
+                    FormatIndexAccessPath(plan),
+                    plan.Index.Name,
+                    fallbackReason: null),
                 true);
         }
 
         if (plan?.Range is not null)
-            return (store.EnumerateByIndexRange(plan.Index, plan.EqualityPrefixValues, plan.Range), false);
+        {
+            return (
+                ObserveCandidateRows(
+                    store.EnumerateByIndexRange(plan.Index, plan.EqualityPrefixValues, plan.Range),
+                    FormatIndexAccessPath(plan),
+                    plan.Index.Name,
+                    fallbackReason: null),
+                false);
+        }
 
         if (plan is { Range: null })
         {
             return (
-                store.EnumerateByIndexPrefix(plan.Index, plan.EqualityPrefixValues),
+                ObserveCandidateRows(
+                    store.EnumerateByIndexPrefix(plan.Index, plan.EqualityPrefixValues),
+                    FormatIndexAccessPath(plan),
+                    plan.Index.Name,
+                    fallbackReason: null),
                 false);
         }
 
         if (statement.Where is null)
-            return (store.EnumerateScan(), false);
+        {
+            return (
+                ObserveCandidateRows(
+                    store.EnumerateScan(),
+                    "table_scan",
+                    indexName: null,
+                    fallbackReason: null),
+                false);
+        }
 
         // 没有可用访问计划时按页扫描；主键 IN / JSON 等点查已在上方返回其专用候选路径。
-        return (store.EnumerateScan(), false);
+        return (
+            ObserveCandidateRows(
+                store.EnumerateScan(),
+                "table_scan",
+                indexName: null,
+                "no_sargable_predicate"),
+            false);
+    }
+
+    /// <summary>在不物化惰性候选的前提下记录实际访问路径和逐行检查数量。</summary>
+    private static IEnumerable<TableRow> ObserveCandidateRows(
+        IEnumerable<TableRow> rows,
+        string accessPath,
+        string? indexName,
+        string? fallbackReason)
+    {
+        SqlExecutionTelemetry.RecordAccessPath(accessPath, indexName, fallbackReason);
+        foreach (var row in rows)
+        {
+            SqlExecutionTelemetry.RecordCandidateRows(1);
+            SqlExecutionTelemetry.RecordExaminedRows(1);
+            yield return row;
+        }
     }
 
     /// <summary>

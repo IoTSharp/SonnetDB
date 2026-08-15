@@ -55,6 +55,97 @@ public sealed class SlowQueryRingTests
         Assert.Equal(100, first.MaxMs);
     }
 
+    [Fact]
+    public void Top_WhenSampleRingWraps_PreservesLifetimeFingerprintCounts()
+    {
+        var ring = new SlowQueryRing(capacity: 2, aggregateCapacity: 4);
+        for (int index = 1; index <= 7; index++)
+            ring.Add(CreateEntry(index, $"SELECT {index}", "shape-a", index));
+
+        var snapshot = ring.Snapshot(static _ => true);
+        var (items, sampleCount) = ring.Top(static _ => true, 10);
+
+        Assert.Equal(2, snapshot.Count);
+        Assert.Equal(7, sampleCount);
+        var item = Assert.Single(items);
+        Assert.Equal(7, item.Count);
+        Assert.Equal(7, item.LifetimeCount);
+    }
+
+    [Fact]
+    public void Observe_WhenFingerprintCapacityIsFull_CountsUnattributedSamplesWithoutGrowth()
+    {
+        var ring = new SlowQueryRing(capacity: 2, aggregateCapacity: 1);
+        ring.Observe(CreateEntry(1, "SELECT 1", "shape-a", 1));
+        ring.Observe(CreateEntry(2, "SELECT 2", "shape-b", 2));
+        ring.Observe(CreateEntry(3, "SELECT 3", "shape-c", 3));
+
+        var (items, sampleCount) = ring.Top(static _ => true, 10);
+
+        Assert.Single(items);
+        Assert.Equal(1, sampleCount);
+        Assert.Equal(2, ring.UnattributedSampleCount);
+        Assert.Equal(1, ring.AggregateCapacity);
+    }
+
+    [Fact]
+    public void Top_WithExecutionEvidence_AggregatesRowsWaitsAndAllocations()
+    {
+        var ring = new SlowQueryRing(4);
+        ring.Add(CreateEntry(1, "SELECT 1", "shape-a", 10) with
+        {
+            CandidateRows = 4,
+            ExaminedRows = 3,
+            LogicalReads = 4,
+            QueueWaitMs = 2,
+            TableLockWaitMs = 1,
+            PhysicalReadBytes = 10,
+            PhysicalWriteBytes = 20,
+            WalFsyncMs = 0.5,
+            WalFsyncCount = 1,
+            ExecutionElapsedMs = 8,
+            Gen0Collections = 1,
+            AllocatedBytes = 128,
+            AccessPath = "secondary_index",
+        });
+        ring.Add(CreateEntry(2, "SELECT 2", "shape-a", 20) with
+        {
+            CandidateRows = 2,
+            ExaminedRows = 2,
+            LogicalReads = 2,
+            QueueWaitMs = 3,
+            KvLockWaitMs = 4,
+            PhysicalReadBytes = 30,
+            PhysicalWriteBytes = 40,
+            WalFsyncMs = 1.5,
+            WalFsyncCount = 2,
+            ExecutionElapsedMs = 16,
+            Gen1Collections = 1,
+            AllocatedBytes = 256,
+            AccessPath = "secondary_index",
+        });
+
+        var (items, _) = ring.Top(static _ => true, 10);
+        var item = Assert.Single(items);
+
+        Assert.Equal(6, item.CandidateRows);
+        Assert.Equal(5, item.ExaminedRows);
+        Assert.Equal(6, item.LogicalReads);
+        Assert.Equal(5, item.QueueWaitMs);
+        Assert.Equal(5, item.LockWaitMs);
+        Assert.Equal(1, item.TableLockWaitMs);
+        Assert.Equal(4, item.KvLockWaitMs);
+        Assert.Equal(40, item.PhysicalReadBytes);
+        Assert.Equal(60, item.PhysicalWriteBytes);
+        Assert.Equal(2, item.WalFsyncMs);
+        Assert.Equal(3, item.WalFsyncCount);
+        Assert.Equal(24, item.ExecutionElapsedMs);
+        Assert.Equal(1, item.Gen0Collections);
+        Assert.Equal(1, item.Gen1Collections);
+        Assert.Equal(384, item.AllocatedBytes);
+        Assert.Equal("secondary_index", item.AccessPath);
+    }
+
     private static SlowQueryDiagnosticEntry CreateEntry(
         long timestamp,
         string sql,

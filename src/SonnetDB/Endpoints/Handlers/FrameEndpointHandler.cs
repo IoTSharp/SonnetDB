@@ -361,6 +361,9 @@ internal static class FrameEndpointHandler
         metrics.RecordSqlRequest();
         var sw = Stopwatch.StartNew();
         var diagnostics = ctx.RequestServices.GetService<SlowQueryDiagnostics>();
+        double queueWaitMs = 0;
+        SqlExecutionMetrics? executionMetrics = null;
+        SqlExecutionMetricsSnapshot? executionSnapshot = null;
 
         SqlQueryFrameRequest request;
         try
@@ -413,10 +416,12 @@ internal static class FrameEndpointHandler
                 return;
             }
 
+            long queueStartedTimestamp = Stopwatch.GetTimestamp();
             using var admissionLease = await ctx.RequestServices
                 .GetRequiredService<SqlHttpRequestAdmission>()
                 .AcquireAsync(request.Db, ctx.RequestAborted)
                 .ConfigureAwait(false);
+            queueWaitMs = Stopwatch.GetElapsedTime(queueStartedTimestamp).TotalMilliseconds;
             if (!admissionLease.IsAcquired)
             {
                 metrics.RecordSqlError();
@@ -454,6 +459,11 @@ internal static class FrameEndpointHandler
                 return;
             }
 
+            executionMetrics = diagnostics is not null
+                && diagnostics.Options.Enabled
+                && diagnostics.Options.ThresholdMs >= 0
+                    ? new SqlExecutionMetrics()
+                    : null;
             object? result = SqlExecutor.ExecuteStatement(
                 tsdb,
                 request.Db,
@@ -466,7 +476,9 @@ internal static class FrameEndpointHandler
                     Caller = BearerAuthMiddleware.GetUser(ctx)?.UserName ?? "frame",
                     CanWrite = false,
                     CanAdminister = false,
+                    Metrics = executionMetrics,
                 });
+            executionSnapshot = executionMetrics?.Complete();
             if (result is not SelectExecutionResult select)
             {
                 metrics.RecordSqlError();
@@ -492,7 +504,16 @@ internal static class FrameEndpointHandler
             double elapsed = sw.Elapsed.TotalMilliseconds;
             SqlFrameCodec.EncodeQueryEndFrame(writer, header.StreamId, select.Rows.Count, elapsed);
             metrics.AddReturnedRows(select.Rows.Count);
-            SqlEndpointHandler.RecordSlow(diagnostics, request.Db, request.Sql, elapsed, select.Rows.Count, -1, failed: false);
+            SqlEndpointHandler.RecordSlow(
+                diagnostics,
+                request.Db,
+                request.Sql,
+                elapsed,
+                select.Rows.Count,
+                -1,
+                failed: false,
+                executionSnapshot,
+                queueWaitMs);
         }
         catch (OperationCanceledException) when (ctx.RequestAborted.IsCancellationRequested)
         {
@@ -501,7 +522,16 @@ internal static class FrameEndpointHandler
         catch (Exception ex)
         {
             metrics.RecordSqlError();
-            SqlEndpointHandler.RecordSlow(diagnostics, request.Db, request.Sql, sw.Elapsed.TotalMilliseconds, 0, 0, failed: true);
+            SqlEndpointHandler.RecordSlow(
+                diagnostics,
+                request.Db,
+                request.Sql,
+                sw.Elapsed.TotalMilliseconds,
+                0,
+                0,
+                failed: true,
+                executionSnapshot ?? executionMetrics?.Complete(),
+                queueWaitMs);
             // meta/rows 帧可能已写出：错误帧同 streamId 追加，客户端按「end 前收到错误帧」终止该查询
             string code = ex switch
             {

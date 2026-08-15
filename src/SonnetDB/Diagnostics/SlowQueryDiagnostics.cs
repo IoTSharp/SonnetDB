@@ -5,6 +5,7 @@ using SonnetDB.Configuration;
 using SonnetDB.Contracts;
 using SonnetDB.Endpoints;
 using SonnetDB.Hosting;
+using SonnetDB.Sql.Execution;
 
 namespace SonnetDB.Diagnostics;
 
@@ -42,7 +43,7 @@ internal sealed partial class SlowQueryDiagnostics
     public SlowQueryRing Ring => _ring;
 
     /// <summary>
-    /// 在 SQL 完成后记录达到阈值的诊断数据。
+    /// 在 SQL 完成后更新指标和有界指纹聚合；达到阈值时额外写入慢查询样本与事件。
     /// </summary>
     /// <param name="database">数据库名。</param>
     /// <param name="sql">原始 SQL。</param>
@@ -56,12 +57,12 @@ internal sealed partial class SlowQueryDiagnostics
         double elapsedMs,
         long rowCount,
         int recordsAffected,
-        bool failed)
+        bool failed,
+        SqlExecutionMetricsSnapshot? executionMetrics = null,
+        double queueWaitMs = 0)
     {
         var options = Options;
         if (!options.Enabled || options.ThresholdMs < 0)
-            return;
-        if (options.ThresholdMs > 0 && elapsedMs < options.ThresholdMs)
             return;
 
         var truncatedSql = sql.Length > SqlMaxLength ? sql[..SqlMaxLength] : sql;
@@ -79,9 +80,37 @@ internal sealed partial class SlowQueryDiagnostics
             rowCount,
             recordsAffected,
             failed,
-            severity);
+            severity)
+        {
+            AccessPath = executionMetrics?.AccessPath,
+            IndexName = executionMetrics?.IndexName,
+            FallbackReason = executionMetrics?.FallbackReason,
+            CandidateRows = executionMetrics?.CandidateRows ?? 0,
+            ExaminedRows = executionMetrics?.ExaminedRows ?? 0,
+            LogicalReads = executionMetrics?.LogicalReads ?? 0,
+            LogicalWrites = Math.Max(0, recordsAffected),
+            PhysicalReads = executionMetrics?.PhysicalReads ?? 0,
+            PhysicalReadBytes = executionMetrics?.PhysicalReadBytes ?? 0,
+            PhysicalWrites = executionMetrics?.PhysicalWrites ?? 0,
+            PhysicalWriteBytes = executionMetrics?.PhysicalWriteBytes ?? 0,
+            QueueWaitMs = Math.Max(0, queueWaitMs),
+            TableLockWaitMs = executionMetrics?.TableLockWaitMs ?? 0,
+            KvLockWaitMs = executionMetrics?.KvLockWaitMs ?? 0,
+            WalFsyncMs = executionMetrics?.WalFsyncMs ?? 0,
+            WalFsyncCount = executionMetrics?.WalFsyncCount ?? 0,
+            ExecutionElapsedMs = executionMetrics?.ExecutionElapsedMs ?? elapsedMs,
+            AllocatedBytes = executionMetrics?.AllocatedBytes ?? -1,
+            Gen0Collections = executionMetrics?.Gen0Collections ?? 0,
+            Gen1Collections = executionMetrics?.Gen1Collections ?? 0,
+            Gen2Collections = executionMetrics?.Gen2Collections ?? 0,
+        };
 
-        _ring.Add(entry);
+        SqlQueryDiagnostics.Record(entry);
+        _ring.Observe(entry);
+        if (options.ThresholdMs > 0 && elapsedMs < options.ThresholdMs)
+            return;
+
+        _ring.AddSample(entry);
         AddActivityEvent(entry);
         WriteStructuredLog(entry);
 

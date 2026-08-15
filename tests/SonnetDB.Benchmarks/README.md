@@ -52,6 +52,9 @@ dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --filter '*TableDel
 # 快速验证 #126.1 四条 delete/truncate 路径
 dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --table-delete-smoke
 
+# M41 #368 五类固定关系查询与执行证据报告（本地 smoke，不代表固定硬件门禁）
+dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --m41-baseline-evidence --quick --output artifacts/m41-performance-baseline
+
 # 仅运行向量召回基准
 dotnet run --project eng/benchmarks/run-benchmarks/run-benchmarks.csproj -- --filter *Vector*
 

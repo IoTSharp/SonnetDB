@@ -70,7 +70,14 @@ internal static partial class SonnetDbEndpoints
                 options.Enabled && options.ThresholdMs >= 0,
                 diagnostics.Ring.Capacity,
                 sampleCount,
-                items);
+                items)
+            {
+                AggregateCapacity = diagnostics.Ring.AggregateCapacity,
+                LifetimeSampleCount = diagnostics.Ring.CountAttributed(filter!),
+                UnattributedSampleCount = DatabaseAccessEvaluator.IsServerAdmin(ctx)
+                    ? diagnostics.Ring.UnattributedSampleCount
+                    : 0,
+            };
             return Results.Json(response, ServerJsonContext.Default.TopQueryListResponse);
         });
     }
