@@ -181,7 +181,7 @@ Phase A 已完成本地合同与持久化地基：DDL、Parser/AST、独立版�
 
 | PR | 交付 | 状态 |
 |---|---|---|
-| #297 | Semantic Content 清单、object reference、chunk/segment、状态机和 Embedding Profile 合同。当前图片清单、对象引用、派生状态机和 profile 隔离已落地；通用 chunk/segment 合同仍未完成。 | 🚧 |
+| #297 | Semantic Content 清单、object reference、chunk/segment、状态机和 Embedding Profile 合同。通用内容清单、稳定 chunk/segment、对象引用、派生状态机、profile 隔离、外发策略和 source-generated JSON 合同已落地。 | ✅ |
 | #298 | metadata-filtered ANN、精确补偿/回退、similar-by-id 和可解释 EXPLAIN。当前已落地 metadata/tag/source 精确过滤扫描、similar-by-id、自身排除和按需候选解释；预过滤 ANN 优化仍未完成。 | 🚧 |
 | #299 | 异步摄取、幂等 hash、重试/取消/背压/重启恢复，以及对象覆盖删除后的对账。已落地 KV 持久化任务、幂等对象版本、5 次退避重试、取消/替代、有界 Channel 背压补偿、重启恢复，以及普通删除、批量删除和生命周期过期后的语义索引/缩略图清理。 | ✅ |
 | #300 | provider-neutral text/image/object embedding 能力发现、外发策略和调用审计。当前已落地 text/image provider 合同、SigLIP2 ONNX 与状态发现；object embedding、外发策略和调用审计仍未完成。 | 🚧 |
