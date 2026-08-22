@@ -21,6 +21,10 @@ internal static class ModbusSlaveDiagnostics
         "sonnetdb.modbus.slave.read.requests",
         unit: "{request}",
         description: "Modbus slave read requests.");
+    private static readonly Counter<long> WriteRequests = Meter.CreateCounter<long>(
+        "sonnetdb.modbus.slave.write.requests",
+        unit: "{request}",
+        description: "Modbus slave external write requests staged or rejected by governance.");
 
     private static readonly KeyValuePair<string, object?> OutcomeOk = new("outcome", "ok");
     private static readonly KeyValuePair<string, object?> OutcomeError = new("outcome", "error");
@@ -44,6 +48,9 @@ internal static class ModbusSlaveDiagnostics
 
     internal static void RecordRead(ModbusRegisterArea area, bool succeeded)
         => ReadRequests.Add(1, AreaTag(area), succeeded ? OutcomeOk : OutcomeError);
+
+    internal static void RecordWrite(ModbusRegisterArea area, bool succeeded)
+        => WriteRequests.Add(1, AreaTag(area), succeeded ? OutcomeOk : OutcomeError);
 
     private static KeyValuePair<string, object?> AreaTag(ModbusRegisterArea area) => area switch
     {

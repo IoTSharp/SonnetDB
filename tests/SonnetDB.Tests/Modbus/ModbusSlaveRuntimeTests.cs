@@ -369,9 +369,14 @@ public sealed class ModbusSlaveRuntimeTests
                 DiscoveryIntervalMilliseconds = 20,
             },
         };
+        var endpointWriteService = new ModbusEndpointWriteService(
+            new InMemoryEndpointWriteStore(),
+            Options.Create(options),
+            TimeProvider.System);
         return new ModbusSlaveService(
             registry,
             metrics,
+            endpointWriteService,
             Options.Create(options),
             NullLogger<ModbusSlaveService>.Instance);
     }
@@ -496,5 +501,29 @@ public sealed class ModbusSlaveRuntimeTests
         try { Directory.Delete(root, recursive: true); }
         catch (IOException) { }
         catch (UnauthorizedAccessException) { }
+    }
+
+    private sealed class InMemoryEndpointWriteStore : IModbusEndpointWriteStore
+    {
+        private readonly List<ModbusEndpointWriteEvent> _events = [];
+
+        public void Append(ModbusEndpointWriteEvent entry) => _events.Add(entry);
+
+        public ModbusEndpointWriteEvent? TryGetLatest(Guid requestId)
+            => _events.LastOrDefault(entry => entry.RequestId == requestId);
+
+        public IReadOnlyList<ModbusEndpointWriteEvent> ListLatest(string database, int maxEntries)
+            => _events
+                .Where(entry => string.Equals(entry.Database, database, StringComparison.OrdinalIgnoreCase))
+                .GroupBy(static entry => entry.RequestId)
+                .Select(static group => group.Last())
+                .Take(maxEntries)
+                .ToArray();
+
+        public IReadOnlyList<ModbusEndpointWriteEvent> ListEvents(string database, int maxEntries)
+            => _events
+                .Where(entry => string.Equals(entry.Database, database, StringComparison.OrdinalIgnoreCase))
+                .TakeLast(maxEntries)
+                .ToArray();
     }
 }

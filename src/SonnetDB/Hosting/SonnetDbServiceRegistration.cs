@@ -92,6 +92,8 @@ internal static class SonnetDbServiceRegistration
         builder.Services.AddSingleton(sp => new InstallationStore(GetSystemDirectory(sp)));
         builder.Services.AddSingleton<IModbusWriteAuditStore>(sp =>
             new FileModbusWriteAuditStore(GetSystemDirectory(sp)));
+        builder.Services.AddSingleton<IModbusEndpointWriteStore>(sp =>
+            new FileModbusEndpointWriteStore(GetSystemDirectory(sp)));
         builder.Services.AddSingleton(sp =>
         {
             var systemDirectory = GetSystemDirectory(sp);
@@ -214,8 +216,13 @@ internal static class SonnetDbServiceRegistration
         // 在应用关闭时优雅释放所有 Tsdb 实例。
         builder.Services.AddSingleton<IHostedService>(sp => new RegistryShutdownHook(sp.GetRequiredService<TsdbRegistry>()));
         builder.Services.AddSingleton<ModbusSourceOperationCoordinator>();
+        builder.Services.AddSingleton(sp => new ModbusEndpointWriteService(
+            sp.GetRequiredService<IModbusEndpointWriteStore>(),
+            sp.GetRequiredService<IOptions<ServerOptions>>(),
+            sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton(sp => new ModbusWriteService(
             sp.GetRequiredService<IModbusWriteAuditStore>(),
+            sp.GetRequiredService<IModbusEndpointWriteStore>(),
             sp.GetRequiredService<ModbusSourceOperationCoordinator>(),
             sp.GetRequiredService<IOptions<ServerOptions>>(),
             sp.GetRequiredService<TimeProvider>()));

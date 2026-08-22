@@ -38,7 +38,7 @@
 | 31 | 时序聚合类型语义 | ✅ | selector / categorical aggregates 已落地。 |
 | 32 | Document MongoDB-like 易用性 | ✅ | SDK、查询/更新、multikey/wildcard 索引、aggregation、mixed Bulk、迁移 CLI、Workbench、Quickstart 与结构化 gap report 已闭环。 |
 | 33 | 时序聚合执行与下推 | ✅ | Geo 正确性、多聚合复用、残差流式化、count(*)、LIMIT/latest-N 下推已落地。 |
-| 34 | Modbus TCP 内建映射表 | 🚧 | #288~#294 已完成合同、DDL/catalog、地址/codec、默认关闭的 TCP master/slave 读取、受限远端写与失败质量/health；外部写治理和管理面仍待实现。 |
+| 34 | Modbus TCP 内建映射表 | ✅ | #288~#296 已完成 DDL/catalog、地址/codec、TCP master/slave、受限 Source 写、Endpoint 外部写治理、管理面、审计与文档。 |
 | 35 | 语义内容与多模态检索 | 📋 | 尚未开始。 |
 | 36 | 八模型专用品类易用性对齐 | 📋 | 已完成参照分析；按真实缺口吸收高频工作流，不做协议或产品全集兼容。 |
 | 37 | 视图与物化视图 | ✅ | #327 逻辑视图与 #328 显式全量刷新物化视图均已实现。 |
@@ -54,7 +54,7 @@
 2. 恢复 M20 Parity nightly 的有效报告，并补齐 M19/M25 目标硬件容量证据。
 3. 完成 M27 的真实 provider/Agent 接线、双网客户端 Copilot、工业 Demo 和 eval，消除历史虚标。
 4. 收口 M29 Studio 安装包/宿主生命周期实机验收。
-5. M34 的默认关闭 TCP master/slave runtime、#292 受限远端写和 #293 失败质量/source health 已完成，下一步进入 #295 endpoint 外部写治理；M35 在过滤 ANN 与内容生命周期地基完成后再做媒体场景。
+5. M34 已完成 TCP master/slave runtime、受限 Source 写、Endpoint 外部写治理与管理面闭环；M35 在过滤 ANN 与内容生命周期地基完成后再做媒体场景。
 6. M36 先完成八模型 golden journey 与 gap catalog；实现顺序为高频客户端工作流 -> 查询诊断 -> 高级治理，Document 复用已完成的 M32 结果，向量高级项复用 M35 地基。
 7. M39 先执行 #333 触发器 V2 证据门禁；未证明 V1 在真实 journey 上存在缺口前，不直接扩展 BEFORE、statement-level 或多模型触发器。
 8. M40 已完成 #341 的 workload/合同证据、#342~#346 公共存储地基、#347~#351 Native Graph Preview 功能、Phase 2 #353~#359 功能、Phase 3 #360 statement snapshot/并发写冲突矩阵和 #361 supernode/维护功能切片。#362 已进入首批实现：加权 Dijkstra、显式 A*、双向 Dijkstra、共享 snapshot 批量执行与 HTTP/typed SDK correctness smoke 已接线，但真实 journey、算法收益 benchmark 和固定硬件证据仍待补，因此保持 `🚧`；#363~#367 仍未完成。固定硬件、七天 mixed workload、PostgreSQL/Neo4j、Couplet 联合 gate 和完整报告继续保持 `NOT_RUN`。关系映射的 statement snapshot 继续归 M41 #374，不在 M40 另建关系 MVCC；关系映射规划和流式执行必须继续复用 M41 的公共计划/算子合同，不得另建一套关系优化器。正式上层产品 [Couplet](https://github.com/IoTSharp/Couplet) 的仓库/路线基线已经建立，产品实现仍按 C0-C4 推进；其 golden journey、执行计划或固定硬件报告一旦复现通用 Core 缺口，该缺口即成为对应阶段的阻塞项，并按“正确性与恢复 -> 有界执行及消除非预期全扫/物化 -> 容量与延迟 -> API/产品面”优先修复；不得在上层以关系边表、应用层遍历、第二套图存储或隐藏全量扫描兜底。正式产品定位在 M40 发布门禁通过前继续保持“八种数据模型，一套引擎”。
@@ -159,7 +159,7 @@ mixed Bulk 已统一 Core、HTTP、.NET SDK 与 Web/Studio 的 ordered/unordered
 
 SonnetDB 同时支持两个明确角色：主站/client 主动轮询外部 PLC/RTU 并写入表；从站/server 暴露受控寄存器映射供外部主站读取或 staged 写入。协议运行时默认关闭，普通 `SELECT` 只读已采集状态，不同步阻塞访问 PLC。
 
-Phase A 已完成本地合同与持久化地基：DDL、Parser/AST、独立版本化 catalog、`SHOW/DESCRIBE MODBUS`、四类地址空间校验和严格值编解码均已落地。#291 已新增必须由服务端全局配置显式开启的 TCP master 后台轮询；#292 已新增仅限 Server REST SQL 的 dry-run、五分钟一次性 preview/confirm、数据库 Admin 控制权限、标准 `0x05/0x06/0x10` 写入、source 级互斥和持久审计；#293 已接通质量位、稳定错误码、source health 以及 LATEST/HISTORY 下四种失败策略。catalog `ENABLED` 仍不能绕过全局门禁；从站监听继续保持未实现。
+M34 已完成本地合同与持久化地基、默认关闭的 TCP master/slave runtime、Source 受限写、采集质量与失败策略，以及 Endpoint 外部写治理。Endpoint 支持 `0x05/0x06/0x0F/0x10` 写请求的 `REJECT` 或 durable `STAGED` 入口，审批后按 `STAGE_ONLY/UPDATE_TABLE` 执行；待审批队列、统一审计、REST 管理合同和 Web 管理页均已接线。catalog `ENABLED` 仍不能绕过全局门禁，IoTSharp 只通过公开合同消费能力。
 
 | PR | 交付 | 状态 |
 |---|---|---|
@@ -170,8 +170,8 @@ Phase A 已完成本地合同与持久化地基：DDL、Parser/AST、独立版�
 | #292 | 受限 SQL 写寄存器、preview/dry-run、权限和审计；远端失败不得伪造本地成功。 | ✅ |
 | #293 | 质量位、错误码、source health、latest/history 与 KEEP_LAST/NULL/SKIP/MARK_BAD 策略。 | ✅ |
 | #294 | 默认关闭的 TCP slave endpoint、读请求、绑定/白名单/unit id/最大连接数。 | ✅ |
-| #295 | 外部写入的 REJECT/STAGED/UPDATE_TABLE 策略、待确认队列和审计；默认 STAGED。 | 📋 |
-| #296 | Web/Studio 管理面、模拟 PLC parity、文档，以及 IoTSharp Product/Collection Template/Gateway/EdgeNode 合同边界。 | 📋 |
+| #295 | 外部写入的 REJECT/STAGED/UPDATE_TABLE 策略、待确认队列和审计；默认 STAGED。 | ✅ |
+| #296 | Web/Studio 管理面、模拟 PLC parity、文档，以及 IoTSharp Product/Collection Template/Gateway/EdgeNode 合同边界。 | ✅ |
 
 验收要求：四类寄存器读写与类型转换可对拍；写入不绕过审批、权限和审计；IoTSharp 只通过稳定合同消费，不依赖 SonnetDB 内部 catalog。第一版只做 Modbus TCP，不扩张到 RTU/ASCII、OPC UA、S7 或完整 SCADA。
 

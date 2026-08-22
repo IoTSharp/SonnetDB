@@ -14,6 +14,7 @@ internal sealed class ModbusTcpSlaveListener
     private readonly Tsdb _database;
     private readonly ModbusEndpointDefinition _endpoint;
     private readonly ModbusClientAllowlist _allowlist;
+    private readonly ModbusEndpointWriteService _endpointWriteService;
     private readonly ServerMetrics _metrics;
     private readonly ILogger _logger;
     private readonly SemaphoreSlim _connectionSlots;
@@ -24,12 +25,14 @@ internal sealed class ModbusTcpSlaveListener
         string databaseName,
         Tsdb database,
         ModbusEndpointDefinition endpoint,
+        ModbusEndpointWriteService endpointWriteService,
         ServerMetrics metrics,
         ILogger logger)
     {
         _databaseName = databaseName;
         _database = database;
         _endpoint = endpoint;
+        _endpointWriteService = endpointWriteService;
         _allowlist = new ModbusClientAllowlist(endpoint.AllowedClientNetworks);
         _metrics = metrics;
         _logger = logger;
@@ -136,7 +139,10 @@ internal sealed class ModbusTcpSlaveListener
                     ushort transactionId = BinaryPrimitives.ReadUInt16BigEndian(header);
                     ModbusSlaveResponse response = ModbusTcpSlaveProtocol.ProcessRequest(
                         _database,
+                        _databaseName,
                         _endpoint,
+                        _endpointWriteService,
+                        client.Client.RemoteEndPoint?.ToString() ?? "unknown",
                         transactionId,
                         header[6],
                         pdu);
@@ -144,6 +150,11 @@ internal sealed class ModbusTcpSlaveListener
                     {
                         _metrics.RecordModbusSlaveRead(response.Succeeded);
                         ModbusSlaveDiagnostics.RecordRead(area, response.Succeeded);
+                    }
+                    else if (response.IsWriteRequest && response.Area is { } writeArea)
+                    {
+                        _metrics.RecordModbusSlaveWrite(response.Succeeded);
+                        ModbusSlaveDiagnostics.RecordWrite(writeArea, response.Succeeded);
                     }
 
                     await stream.WriteAsync(response.Adu, cancellationToken).ConfigureAwait(false);

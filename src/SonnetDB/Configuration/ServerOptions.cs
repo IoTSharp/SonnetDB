@@ -530,6 +530,18 @@ public sealed class ModbusRuntimeOptions
 
     /// <summary>连续失败时重连退避的最大时间，单位为毫秒。</summary>
     public int MaxReconnectDelayMilliseconds { get; set; } = 30_000;
+
+    /// <summary>
+    /// Endpoint 外部写请求在待审批队列中的有效期，单位为秒。默认 <c>900</c>（15 分钟），
+    /// 最大按 24 小时处理。
+    /// </summary>
+    public int EndpointWriteRequestLifetimeSeconds { get; set; } = 900;
+
+    /// <summary>
+    /// 每个数据库允许同时保留的 endpoint 待审批写请求上限。默认 <c>4096</c>。
+    /// 达到上限后新请求返回 Modbus <c>Server Device Busy</c>，不会改变关系表。
+    /// </summary>
+    public int MaxPendingEndpointWrites { get; set; } = 4_096;
 }
 
 /// <summary>

@@ -9,6 +9,7 @@ internal static class ModbusTcpExceptionCodes
     internal const byte IllegalDataAddress = 0x02;
     internal const byte IllegalDataValue = 0x03;
     internal const byte ServerDeviceFailure = 0x04;
+    internal const byte ServerDeviceBusy = 0x06;
     internal const byte GatewayTargetDeviceFailedToRespond = 0x0B;
 }
 
@@ -19,18 +20,25 @@ internal static class ModbusTcpSlaveProtocol
 
     internal static ModbusSlaveResponse ProcessRequest(
         Tsdb database,
+        string databaseName,
         ModbusEndpointDefinition endpoint,
+        ModbusEndpointWriteService endpointWriteService,
+        string remoteEndpoint,
         ushort transactionId,
         byte requestUnitId,
         ReadOnlySpan<byte> pdu)
     {
         ArgumentNullException.ThrowIfNull(database);
+        ArgumentException.ThrowIfNullOrWhiteSpace(databaseName);
         ArgumentNullException.ThrowIfNull(endpoint);
+        ArgumentNullException.ThrowIfNull(endpointWriteService);
+        ArgumentException.ThrowIfNullOrWhiteSpace(remoteEndpoint);
         if (pdu.IsEmpty)
         {
             return new ModbusSlaveResponse(
                 BuildException(transactionId, requestUnitId, 0, ModbusTcpExceptionCodes.IllegalDataValue),
                 IsReadRequest: false,
+                IsWriteRequest: false,
                 Succeeded: false,
                 Area: null);
         }
@@ -38,6 +46,7 @@ internal static class ModbusTcpSlaveProtocol
         byte functionCode = pdu[0];
         ModbusRegisterArea? area = GetReadArea(functionCode);
         bool isReadRequest = area is not null;
+        bool isWriteRequest = IsWriteFunction(functionCode);
         if (requestUnitId != endpoint.UnitId)
         {
             return new ModbusSlaveResponse(
@@ -47,11 +56,12 @@ internal static class ModbusTcpSlaveProtocol
                     functionCode,
                     ModbusTcpExceptionCodes.GatewayTargetDeviceFailedToRespond),
                 isReadRequest,
+                isWriteRequest,
                 Succeeded: false,
                 area);
         }
 
-        if (area is null)
+        if (!isReadRequest && !isWriteRequest)
         {
             return new ModbusSlaveResponse(
                 BuildException(
@@ -60,8 +70,47 @@ internal static class ModbusTcpSlaveProtocol
                     functionCode,
                     ModbusTcpExceptionCodes.IllegalFunction),
                 IsReadRequest: false,
+                IsWriteRequest: false,
                 Succeeded: false,
                 Area: null);
+        }
+
+        if (isWriteRequest)
+        {
+            if (!TryParseWriteCommand(pdu, out ModbusEndpointWriteCommand command, out byte exceptionCode))
+            {
+                return new ModbusSlaveResponse(
+                    BuildException(transactionId, requestUnitId, functionCode, exceptionCode),
+                    IsReadRequest: false,
+                    IsWriteRequest: true,
+                    Succeeded: false,
+                    Area: GetWriteArea(functionCode));
+            }
+
+            ModbusEndpointStageResult staged = endpointWriteService.Stage(
+                database,
+                databaseName,
+                endpoint,
+                remoteEndpoint,
+                transactionId,
+                requestUnitId,
+                command);
+            if (!staged.Succeeded)
+            {
+                return new ModbusSlaveResponse(
+                    BuildException(transactionId, requestUnitId, functionCode, staged.ExceptionCode),
+                    IsReadRequest: false,
+                    IsWriteRequest: true,
+                    Succeeded: false,
+                    command.Area);
+            }
+
+            return new ModbusSlaveResponse(
+                BuildWriteResponse(transactionId, requestUnitId, pdu, command),
+                IsReadRequest: false,
+                IsWriteRequest: true,
+                Succeeded: true,
+                command.Area);
         }
 
         if (pdu.Length != 5)
@@ -73,6 +122,7 @@ internal static class ModbusTcpSlaveProtocol
                     functionCode,
                     ModbusTcpExceptionCodes.IllegalDataValue),
                 IsReadRequest: true,
+                IsWriteRequest: false,
                 Succeeded: false,
                 area);
         }
@@ -91,6 +141,7 @@ internal static class ModbusTcpSlaveProtocol
                     functionCode,
                     ModbusTcpExceptionCodes.IllegalDataValue),
                 IsReadRequest: true,
+                IsWriteRequest: false,
                 Succeeded: false,
                 area);
         }
@@ -98,7 +149,7 @@ internal static class ModbusTcpSlaveProtocol
         ModbusEndpointReadResult read = ModbusEndpointValueReader.Read(
             database,
             endpoint.Name,
-            area.Value,
+            area.GetValueOrDefault(),
             startAddress,
             count);
         if (!read.Succeeded)
@@ -106,15 +157,106 @@ internal static class ModbusTcpSlaveProtocol
             return new ModbusSlaveResponse(
                 BuildException(transactionId, requestUnitId, functionCode, read.ExceptionCode),
                 IsReadRequest: true,
+                IsWriteRequest: false,
                 Succeeded: false,
                 area);
         }
 
         return new ModbusSlaveResponse(
-            BuildReadResponse(transactionId, requestUnitId, functionCode, area.Value, read.Values!),
+            BuildReadResponse(transactionId, requestUnitId, functionCode, area.GetValueOrDefault(), read.Values!),
             IsReadRequest: true,
+            IsWriteRequest: false,
             Succeeded: true,
             area);
+    }
+
+    private static bool TryParseWriteCommand(
+        ReadOnlySpan<byte> pdu,
+        out ModbusEndpointWriteCommand command,
+        out byte exceptionCode)
+    {
+        command = default;
+        exceptionCode = ModbusTcpExceptionCodes.IllegalDataValue;
+        byte functionCode = pdu[0];
+        ModbusRegisterArea area = GetWriteArea(functionCode)
+            ?? throw new ArgumentOutOfRangeException(nameof(pdu), "未知的 Modbus 写 function code。");
+        if (functionCode is 0x05 or 0x06)
+        {
+            if (pdu.Length != 5)
+                return false;
+            ushort address = BinaryPrimitives.ReadUInt16BigEndian(pdu[1..]);
+            ushort wireValue = BinaryPrimitives.ReadUInt16BigEndian(pdu[3..]);
+            ushort value;
+            if (functionCode == 0x05)
+            {
+                if (wireValue is not 0x0000 and not 0xFF00)
+                    return false;
+                value = wireValue == 0xFF00 ? (ushort)1 : (ushort)0;
+            }
+            else
+            {
+                value = wireValue;
+            }
+
+            command = new ModbusEndpointWriteCommand(functionCode, area, address, [value]);
+            return true;
+        }
+
+        if (pdu.Length < 7)
+            return false;
+        ushort startAddress = BinaryPrimitives.ReadUInt16BigEndian(pdu[1..]);
+        ushort count = BinaryPrimitives.ReadUInt16BigEndian(pdu[3..]);
+        byte byteCount = pdu[5];
+        int expectedByteCount;
+        if (functionCode == 0x0F)
+        {
+            if (count is 0 or > 1_968)
+                return false;
+            expectedByteCount = (count + 7) / 8;
+        }
+        else
+        {
+            if (count is 0 or > 123)
+                return false;
+            expectedByteCount = count * sizeof(ushort);
+        }
+        if (startAddress + count > 65_536
+            || byteCount != expectedByteCount
+            || pdu.Length != 6 + byteCount)
+        {
+            return false;
+        }
+
+        var values = new ushort[count];
+        if (functionCode == 0x0F)
+        {
+            for (int index = 0; index < count; index++)
+                values[index] = (ushort)((pdu[6 + (index / 8)] >> (index % 8)) & 0x01);
+        }
+        else
+        {
+            for (int index = 0; index < count; index++)
+            {
+                values[index] = BinaryPrimitives.ReadUInt16BigEndian(
+                    pdu[(6 + (index * sizeof(ushort)))..]);
+            }
+        }
+
+        command = new ModbusEndpointWriteCommand(functionCode, area, startAddress, values);
+        return true;
+    }
+
+    private static byte[] BuildWriteResponse(
+        ushort transactionId,
+        byte unitId,
+        ReadOnlySpan<byte> requestPdu,
+        ModbusEndpointWriteCommand command)
+    {
+        var response = new byte[12];
+        WriteHeader(response, transactionId, length: 6, unitId);
+        response[7] = command.FunctionCode;
+        requestPdu[1..5].CopyTo(response.AsSpan(8));
+        return response;
     }
 
     private static byte[] BuildReadResponse(
@@ -181,10 +323,21 @@ internal static class ModbusTcpSlaveProtocol
         0x04 => ModbusRegisterArea.InputRegister,
         _ => null,
     };
+
+    private static bool IsWriteFunction(byte functionCode)
+        => functionCode is 0x05 or 0x06 or 0x0F or 0x10;
+
+    private static ModbusRegisterArea? GetWriteArea(byte functionCode) => functionCode switch
+    {
+        0x05 or 0x0F => ModbusRegisterArea.Coil,
+        0x06 or 0x10 => ModbusRegisterArea.HoldingRegister,
+        _ => null,
+    };
 }
 
 internal readonly record struct ModbusSlaveResponse(
     byte[] Adu,
     bool IsReadRequest,
+    bool IsWriteRequest,
     bool Succeeded,
     ModbusRegisterArea? Area);

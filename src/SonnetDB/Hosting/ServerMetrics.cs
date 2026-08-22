@@ -30,6 +30,8 @@ public sealed class ServerMetrics
     private long _modbusSlaveActiveConnections;
     private long _modbusSlaveReadRequests;
     private long _modbusSlaveReadFailures;
+    private long _modbusSlaveWriteRequests;
+    private long _modbusSlaveWriteFailures;
 
     /// <summary>服务运行时间（秒）。</summary>
     public double UptimeSeconds => _uptime.Elapsed.TotalSeconds;
@@ -96,6 +98,12 @@ public sealed class ServerMetrics
 
     /// <summary>累计返回异常响应的 Modbus slave 读请求数。</summary>
     public long ModbusSlaveReadFailures => Interlocked.Read(ref _modbusSlaveReadFailures);
+
+    /// <summary>累计收到的 Modbus slave 外部写请求数。</summary>
+    public long ModbusSlaveWriteRequests => Interlocked.Read(ref _modbusSlaveWriteRequests);
+
+    /// <summary>累计未能持久 staging 或被策略拒绝的 Modbus slave 外部写请求数。</summary>
+    public long ModbusSlaveWriteFailures => Interlocked.Read(ref _modbusSlaveWriteFailures);
 
     /// <summary>记录一次 SQL 请求。</summary>
     public void RecordSqlRequest() => Interlocked.Increment(ref _sqlRequests);
@@ -166,6 +174,15 @@ public sealed class ServerMetrics
         Interlocked.Increment(ref _modbusSlaveReadRequests);
         if (!succeeded)
             Interlocked.Increment(ref _modbusSlaveReadFailures);
+    }
+
+    /// <summary>记录一个 Modbus slave 外部写请求。</summary>
+    /// <param name="succeeded">是否已持久化进入待审批队列。</param>
+    public void RecordModbusSlaveWrite(bool succeeded)
+    {
+        Interlocked.Increment(ref _modbusSlaveWriteRequests);
+        if (!succeeded)
+            Interlocked.Increment(ref _modbusSlaveWriteFailures);
     }
 }
 
@@ -299,6 +316,14 @@ public static class PrometheusFormatter
         sb.AppendLine("# HELP sonnetdb_modbus_slave_read_failures_total Modbus slave read requests returning exceptions.");
         sb.AppendLine("# TYPE sonnetdb_modbus_slave_read_failures_total counter");
         sb.Append("sonnetdb_modbus_slave_read_failures_total ").Append(metrics.ModbusSlaveReadFailures).AppendLine();
+
+        sb.AppendLine("# HELP sonnetdb_modbus_slave_write_requests_total Modbus slave external write requests.");
+        sb.AppendLine("# TYPE sonnetdb_modbus_slave_write_requests_total counter");
+        sb.Append("sonnetdb_modbus_slave_write_requests_total ").Append(metrics.ModbusSlaveWriteRequests).AppendLine();
+
+        sb.AppendLine("# HELP sonnetdb_modbus_slave_write_failures_total Modbus slave writes rejected or not durably staged.");
+        sb.AppendLine("# TYPE sonnetdb_modbus_slave_write_failures_total counter");
+        sb.Append("sonnetdb_modbus_slave_write_failures_total ").Append(metrics.ModbusSlaveWriteFailures).AppendLine();
 
         // 每个 db 的活跃 segment 数 + memtable 点数（粗粒度，后续可扩展）
         sb.AppendLine("# HELP sonnetdb_segments Active segment count per database.");

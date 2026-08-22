@@ -32,17 +32,20 @@ internal sealed class ModbusWriteService
     private readonly object _confirmationSync = new();
     private readonly Dictionary<string, PendingConfirmation> _confirmations = new(StringComparer.Ordinal);
     private readonly IModbusWriteAuditStore _auditStore;
+    private readonly IModbusEndpointWriteStore _endpointWriteStore;
     private readonly ModbusSourceOperationCoordinator _operationCoordinator;
     private readonly ModbusRuntimeOptions _options;
     private readonly TimeProvider _timeProvider;
 
     internal ModbusWriteService(
         IModbusWriteAuditStore auditStore,
+        IModbusEndpointWriteStore endpointWriteStore,
         ModbusSourceOperationCoordinator operationCoordinator,
         IOptions<ServerOptions> options,
         TimeProvider timeProvider)
     {
         _auditStore = auditStore;
+        _endpointWriteStore = endpointWriteStore;
         _operationCoordinator = operationCoordinator;
         _options = options.Value.Modbus;
         _timeProvider = timeProvider;
@@ -79,35 +82,63 @@ internal sealed class ModbusWriteService
     internal SelectExecutionResult ShowAudit(string databaseName)
     {
         IReadOnlyList<ModbusWriteAuditEntry> entries;
+        IReadOnlyList<ModbusEndpointWriteEvent> endpointEntries;
         try
         {
             entries = _auditStore.List(databaseName, MaxAuditEntries);
+            endpointEntries = _endpointWriteStore.ListEvents(databaseName, MaxAuditEntries);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
         {
             throw AuditUnavailable(exception);
         }
 
-        var rows = entries.Select(static entry => (IReadOnlyList<object?>)new object?[]
-        {
-            entry.EventId.ToString("D", CultureInfo.InvariantCulture),
-            entry.OperationId.ToString("D", CultureInfo.InvariantCulture),
-            entry.OccurredAtUtc.ToString("O", CultureInfo.InvariantCulture),
-            entry.Principal,
-            entry.Database,
-            entry.Source,
-            entry.Table,
-            entry.Column,
-            (long)entry.UnitId,
-            $"0x{entry.FunctionCode:X2}",
-            (long)entry.DeclaredAddress,
-            (long)entry.PduAddress,
-            entry.EventType,
-            entry.Result,
-            entry.ErrorCode,
-            entry.ApprovalId?.ToString("D", CultureInfo.InvariantCulture),
-            entry.CatalogRevision,
-        }).ToArray();
+        var rows = entries.Select(static entry => new AuditResultRow(
+                entry.OccurredAtUtc,
+                [
+                    entry.EventId.ToString("D", CultureInfo.InvariantCulture),
+                    entry.OperationId.ToString("D", CultureInfo.InvariantCulture),
+                    entry.OccurredAtUtc.ToString("O", CultureInfo.InvariantCulture),
+                    entry.Principal,
+                    entry.Database,
+                    entry.Source,
+                    entry.Table,
+                    entry.Column,
+                    (long)entry.UnitId,
+                    $"0x{entry.FunctionCode:X2}",
+                    (long)entry.DeclaredAddress,
+                    (long)entry.PduAddress,
+                    entry.EventType,
+                    entry.Result,
+                    entry.ErrorCode,
+                    entry.ApprovalId?.ToString("D", CultureInfo.InvariantCulture),
+                    entry.CatalogRevision,
+                ]))
+            .Concat(endpointEntries.Select(static entry => new AuditResultRow(
+                entry.OccurredAtUtc,
+                [
+                    entry.EventId.ToString("D", CultureInfo.InvariantCulture),
+                    entry.RequestId.ToString("D", CultureInfo.InvariantCulture),
+                    entry.OccurredAtUtc.ToString("O", CultureInfo.InvariantCulture),
+                    entry.Principal,
+                    entry.Database,
+                    entry.Endpoint,
+                    entry.Table ?? string.Empty,
+                    entry.Column ?? string.Empty,
+                    (long)entry.UnitId,
+                    $"0x{entry.FunctionCode:X2}",
+                    (long)entry.DeclaredAddress,
+                    (long)entry.PduAddress,
+                    entry.EventType,
+                    entry.State,
+                    entry.ErrorCode,
+                    entry.RequestId.ToString("D", CultureInfo.InvariantCulture),
+                    entry.CatalogRevision,
+                ])))
+            .OrderBy(static entry => entry.OccurredAtUtc)
+            .TakeLast(MaxAuditEntries)
+            .Select(static entry => entry.Values)
+            .ToArray();
         return new SelectExecutionResult(_auditColumns, rows);
     }
 
@@ -748,6 +779,10 @@ internal sealed class ModbusWriteService
         int DeclaredAddress,
         ushort PduAddress,
         DateTimeOffset ExpiresAt);
+
+    private sealed record AuditResultRow(
+        DateTimeOffset OccurredAtUtc,
+        IReadOnlyList<object?> Values);
 }
 
 internal sealed class ModbusWriteException : InvalidOperationException

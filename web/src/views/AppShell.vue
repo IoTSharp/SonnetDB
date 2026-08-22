@@ -109,6 +109,7 @@ import {
   FlaskConical,
   Gauge,
   KeyRound,
+  Network,
   LayoutDashboard,
   LogOut,
   RadioTower,
@@ -152,6 +153,7 @@ const baseNavigation: NavigationItem[] = [
 ];
 
 const adminNavigation: NavigationItem[] = [
+  { label: 'Modbus', key: 'modbus', icon: Network },
   { label: '用户', key: 'users', icon: Users },
   { label: '权限', key: 'grants', icon: ShieldCheck },
   { label: 'Token', key: 'tokens', icon: KeyRound },
@@ -169,6 +171,7 @@ const titleByKey: Record<string, string> = {
   sql: 'Studio',
   events: '事件流',
   monitoring: '监控',
+  modbus: 'Modbus TCP',
   users: '用户',
   grants: '权限',
   tokens: 'Token',

@@ -13,6 +13,7 @@ internal sealed class ModbusSlaveService : BackgroundService
 {
     private readonly TsdbRegistry _registry;
     private readonly ServerMetrics _metrics;
+    private readonly ModbusEndpointWriteService _endpointWriteService;
     private readonly ModbusRuntimeOptions _options;
     private readonly ILogger<ModbusSlaveService> _logger;
     private readonly Dictionary<EndpointKey, EndpointWorker> _workers = [];
@@ -20,11 +21,13 @@ internal sealed class ModbusSlaveService : BackgroundService
     public ModbusSlaveService(
         TsdbRegistry registry,
         ServerMetrics metrics,
+        ModbusEndpointWriteService endpointWriteService,
         IOptions<ServerOptions> options,
         ILogger<ModbusSlaveService> logger)
     {
         _registry = registry;
         _metrics = metrics;
+        _endpointWriteService = endpointWriteService;
         _options = options.Value.Modbus;
         _logger = logger;
     }
@@ -142,6 +145,7 @@ internal sealed class ModbusSlaveService : BackgroundService
                         databaseName,
                         database,
                         endpoint,
+                        _endpointWriteService,
                         _metrics,
                         _logger);
                     await listener.RunAsync(

@@ -16,6 +16,7 @@ const GrantsView = () => import('@/views/GrantsView.vue');
 const TokensView = () => import('@/views/TokensView.vue');
 const AiSettingsView = () => import('@/views/AiSettingsView.vue');
 const CopilotTestView = () => import('@/views/CopilotTestView.vue');
+const ModbusView = () => import('@/views/ModbusView.vue');
 
 const router = createRouter({
   history: createWebHistory('/'),
@@ -45,6 +46,7 @@ const router = createRouter({
         { path: 'databases', name: 'databases', redirect: { name: 'sql' } },
         { path: 'events', name: 'events', component: EventsView },
         { path: 'monitoring', name: 'monitoring', component: MonitoringView },
+        { path: 'modbus', name: 'modbus', component: ModbusView, meta: { admin: true } },
         { path: 'users', name: 'users', component: UsersView, meta: { admin: true } },
         { path: 'grants', name: 'grants', component: GrantsView, meta: { admin: true } },
         { path: 'tokens', name: 'tokens', component: TokensView, meta: { admin: true } },

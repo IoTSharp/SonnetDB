@@ -2,11 +2,11 @@
 using System.Text.Json.Serialization;
 using SonnetDB.Contracts;
 using SonnetDB.Copilot;
-using SonnetDB.Mcp;
-using SonnetDB.Model;
-using SonnetDB.Modbus;
-using SonnetDB.SemanticSearch;
 using SonnetDB.Graphs;
+using SonnetDB.Mcp;
+using SonnetDB.Modbus;
+using SonnetDB.Model;
+using SonnetDB.SemanticSearch;
 
 namespace SonnetDB.Json;
 
@@ -27,6 +27,20 @@ namespace SonnetDB.Json;
 [JsonSerializable(typeof(ResultMeta))]
 [JsonSerializable(typeof(ResultEnd))]
 [JsonSerializable(typeof(ModbusWriteAuditEntry))]
+[JsonSerializable(typeof(ModbusEndpointWriteEvent))]
+[JsonSerializable(typeof(ModbusOverviewResponse))]
+[JsonSerializable(typeof(ModbusSourceResponse))]
+[JsonSerializable(typeof(ModbusEndpointResponse))]
+[JsonSerializable(typeof(ModbusBindingResponse))]
+[JsonSerializable(typeof(ModbusMappingResponse))]
+[JsonSerializable(typeof(ModbusEndpointWriteResponse))]
+[JsonSerializable(typeof(ModbusEndpointWriteListResponse))]
+[JsonSerializable(typeof(ModbusEndpointWriteDecisionRequest))]
+[JsonSerializable(typeof(List<ModbusSourceResponse>))]
+[JsonSerializable(typeof(List<ModbusEndpointResponse>))]
+[JsonSerializable(typeof(List<ModbusBindingResponse>))]
+[JsonSerializable(typeof(List<ModbusMappingResponse>))]
+[JsonSerializable(typeof(List<ModbusEndpointWriteResponse>))]
 [JsonSerializable(typeof(GeoPoint))]
 [JsonSerializable(typeof(CreateDatabaseRequest))]
 [JsonSerializable(typeof(DatabaseOperationResponse))]

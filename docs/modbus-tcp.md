@@ -1,14 +1,14 @@
 ---
 layout: default
 title: "Modbus TCP 内建映射表合同"
-description: "Milestone 34 的 SQL DDL、TCP master 轮询、TCP slave 读取、地址归一化、类型编解码、写入审批与运行时安全边界。"
+description: "Milestone 34 的 SQL DDL、TCP master/slave、地址归一化、类型编解码、外部写治理、管理 API 与运行时安全边界。"
 ---
 
 # Modbus TCP 内建映射表合同
 
-本文记录 Milestone 34（#288～#294）已经落地的 SQL、安全、catalog、地址校验、编解码、TCP master 轮询、受限远端写与 TCP slave 读取合同，也是后续外部写治理、管理面和 parity 测试的共同输入。
+本文记录 Milestone 34（#288～#296）已经落地的 SQL、安全、catalog、地址校验、编解码、TCP master/slave、受限 Source 写、Endpoint 外部写治理与管理合同。
 
-> 当前状态：Phase A 的 DDL、Parser/AST、独立版本化 catalog、`SHOW/DESCRIBE MODBUS`、地址冲突校验和类型编解码已经可用；#291 的默认关闭 TCP client/master 轮询、#292 的受限 Source 写、#293 的采集质量与 source health，以及 #294 的默认关闭 TCP server/slave 读取均已接入 Server。外部写 staging/审批和管理界面仍属于 #295～#296。
+> 当前状态：#288～#296 已闭环。协议运行时保持默认关闭；显式启用后可执行 TCP client/master 轮询与受限写、TCP server/slave 读写、持久 staging、人工审批、统一审计，并通过 Web Admin 与稳定 REST API 管理。
 
 ## 角色与方向
 
@@ -17,7 +17,7 @@ SonnetDB 只定义两个互不混淆的 Modbus TCP 角色：
 | SQL 对象 | Modbus 角色 | 网络方向 | 列映射 | 数据语义 |
 | --- | --- | --- | --- | --- |
 | `MODBUS SOURCE` | client / master | SonnetDB 主动连接外部 PLC、RTU 或仪表 | `FROM MODBUS` | #291 周期读取外部地址并写入本地表；#292 经审批后可写远端 Coil 或 Holding Register |
-| `MODBUS ENDPOINT` | server / slave | SonnetDB 监听端口，外部 client / master 连接 | `EXPOSE AS MODBUS` | #294 把本地表当前值编码为地址空间；#295 将外部写入拒绝或先放入待审批队列 |
+| `MODBUS ENDPOINT` | server / slave | SonnetDB 监听端口，外部 client / master 连接 | `EXPOSE AS MODBUS` | 把本地表当前值编码为地址空间；外部写按 `REJECT` 拒绝或 durable `STAGED` 后进入待审批队列 |
 
 `SOURCE` 和 `ENDPOINT` 的上下文已经决定角色。第一版 DDL 不再接受冗余的 `ROLE MASTER` 或 `ROLE SLAVE`，也不允许用同一个对象同时承担两个方向。
 
@@ -92,7 +92,9 @@ Server 配置默认值如下；缺少整个 `Modbus` 节点与显式写出 `Enab
       "RetryBaseDelayMilliseconds": 100,
       "MaxRetryDelayMilliseconds": 2000,
       "ReconnectBaseDelayMilliseconds": 1000,
-      "MaxReconnectDelayMilliseconds": 30000
+      "MaxReconnectDelayMilliseconds": 30000,
+      "EndpointWriteRequestLifetimeSeconds": 900,
+      "MaxPendingEndpointWrites": 4096
     }
   }
 }
@@ -114,9 +116,11 @@ source 的 `TIMEOUT` 覆盖连接、写请求和读响应；宿主停止、数�
 
 读取支持四个标准 function：Coil `0x01`、Discrete Input `0x02`、Holding Register `0x03` 和 Input Register `0x04`。bit 区单次最多 2,000 点，register 区单次最多 125 个寄存器；MBAP protocol id、长度、PDU 形态、地址范围和数量均严格校验。endpoint 的所有表绑定会汇总成同一地址空间，并按各自固定 `ROW KEY` 直接读取当前关系行，再复用 catalog 中已解析的字节序、字序、类型、scale、offset 和 `.BIT(n)` 映射编码响应。请求跨越未映射间隙、只写映射或不存在的固定行时不会返回部分或伪造值。
 
-异常响应保持确定性：不支持的 function（包括 #295 前的全部写请求）返回 `0x01 Illegal Function`；未映射、映射间隙或只写地址返回 `0x02 Illegal Data Address`；非法数量、越界或 PDU 形态返回 `0x03 Illegal Data Value`；固定行缺失、值为 `NULL`、编码失败或 endpoint 内跨表映射歧义返回 `0x04 Server Device Failure`；Unit ID 不匹配返回 `0x0B Gateway Target Device Failed to Respond`。#294 不接收、不暂存也不应用外部写入，catalog 中的 `WRITE_POLICY` 与 `ON_EXTERNAL_WRITE` 继续作为 #295 合同保留。
+写入支持 Coil `0x05/0x0F` 与 Holding Register `0x06/0x10`。只有完整命中单个 `ACCESS WRITE/READ_WRITE` 映射的请求才可进入治理；输入区、只读映射、跨映射或歧义区间均拒绝。`STAGED` 的协议成功仅表示请求已 durable flush 到待审批事件存储，不表示关系表已经改变。
 
-`SHOW/DESCRIBE MODBUS ENDPOINT` 公开非持久化的 `disabled`、`starting`、`listening`、`degraded` health；绑定失败与监听循环失败分别报告稳定错误码 `endpoint_bind_error`、`endpoint_listener_error`，不会修改 catalog revision。兼容 `/metrics` 暴露 `sonnetdb_modbus_slave_connections_total`、`sonnetdb_modbus_slave_connection_rejections_total`、`sonnetdb_modbus_slave_active_connections`、`sonnetdb_modbus_slave_read_requests_total` 和 `sonnetdb_modbus_slave_read_failures_total`。`SonnetDB.Server` meter 同时提供 `sonnetdb.modbus.slave.connections`、`sonnetdb.modbus.slave.connection.rejections`、`sonnetdb.modbus.slave.connections.active` 和 `sonnetdb.modbus.slave.read.requests`；标签只包含有限的结果、拒绝原因和地址区类型。
+异常响应保持确定性：不支持的 function 或 `WRITE_POLICY REJECT` 返回 `0x01 Illegal Function`；未映射、映射间隙或只读地址返回 `0x02 Illegal Data Address`；非法数量、越界或 PDU 形态返回 `0x03 Illegal Data Value`；固定行缺失、值为 `NULL`、编码失败、staging 持久化失败或 endpoint 内跨表映射歧义返回 `0x04 Server Device Failure`；队列达到上限返回 `0x06 Server Device Busy`；Unit ID 不匹配返回 `0x0B Gateway Target Device Failed to Respond`。
+
+`SHOW/DESCRIBE MODBUS ENDPOINT` 公开非持久化的 `disabled`、`starting`、`listening`、`degraded` health；绑定失败与监听循环失败分别报告稳定错误码 `endpoint_bind_error`、`endpoint_listener_error`，不会修改 catalog revision。兼容 `/metrics` 暴露 slave 连接、拒绝、活动连接、读写请求与读写失败累计指标；`SonnetDB.Server` meter 同时提供对应连接、读取和写入 counter。标签只包含有限的结果、拒绝原因和地址区类型。
 
 ### Endpoint DDL
 
@@ -136,12 +140,12 @@ WITH (
 );
 ```
 
-endpoint 级 `WRITE_POLICY` 默认是 `STAGED`。当前只持久化以下两种策略，#294 读取 runtime 对所有写 function 统一返回 `0x01 Illegal Function`；#295 落地后再按对应写入合同执行：
+endpoint 级 `WRITE_POLICY` 默认是 `STAGED`，只允许以下两种入口策略：
 
-- `REJECT`：#295 runtime 拒绝全部外部 Modbus 写请求，并记录拒绝审计。
-- `STAGED`：#295 runtime 先校验并持久化不可变的待审批请求；协议接受只表示请求已可靠进入待审批队列，不表示业务表已经改变。
+- `REJECT`：拒绝全部外部 Modbus 写请求，并记录 `protocol_rejected` 审计。
+- `STAGED`：先校验并持久化不可变的待审批请求；协议接受只表示请求已可靠进入队列，不表示业务表已经改变。
 
-后续 runtime 不存在 endpoint 级 `UPDATE_TABLE` 入口策略，也不存在 `AUDIT FALSE`。审计是不可关闭的运行时不变量。
+runtime 不存在 endpoint 级 `UPDATE_TABLE` 入口策略，也不存在 `AUDIT FALSE`。审批后的动作由表绑定 `ON_EXTERNAL_WRITE STAGE_ONLY | UPDATE_TABLE` 决定，审计是不可关闭的运行时不变量。
 
 `BIND`、`BYTE_ORDER` 和 `WORD_ORDER` 必须显式声明。`TRANSPORT` 可省略且固定为 `TCP`；其余默认值为 `UNIT_ID 1`、`ADDRESSING MODICON`、`MAX_CONNECTIONS 32`、`WRITE_POLICY STAGED`、空 `ALLOWLIST` 和 `ENABLED FALSE`。非回环 `BIND` 必须配置非空 `ALLOWLIST`；回环地址可以使用空 allowlist。`ENABLED` 不能绕过全局 runtime 门禁。解析器仅为旧草案兼容接受冗余的 `AUDIT TRUE`，`AUDIT FALSE` 始终拒绝；新 DDL 不应写 `AUDIT`。
 
@@ -321,7 +325,7 @@ source health 的稳定错误码如下；设备异常使用 `device_exception_xx
 
 ## 写入、权限、审批与审计
 
-> Source 远端写、preview、确认和持久审计已由 #292 实现；Endpoint 外部写 staging、审批、应用及相关审计仍属于 #295。
+> Source 远端写、preview/confirm 与 Endpoint 外部写 staging/审批均已实现；两条路径共享数据库权限和统一审计查询，但保持独立的网络与状态机语义。
 
 ### Source 的受限 SQL 写（#292）
 
@@ -349,19 +353,35 @@ SHOW MODBUS WRITE AUDIT;
 
 远端失败不得伪造本地表成功、成功审计或 good quality。
 
-### Endpoint 的外部写（#295 后续合同）
+### Endpoint 的外部写（#295）
 
-Modbus TCP 没有可等价为数据库用户的内建身份。#295 实现 Endpoint 外部写后，`ALLOWLIST` 仍只能作为网络边界，不能授予业务表写权限；外部写不得以对端 IP、Unit ID 或 function code 冒充数据库 principal。
+Modbus TCP 没有可等价为数据库用户的内建身份。`ALLOWLIST` 仍只能作为网络边界，不能授予业务表写权限；外部写以固定 principal `external_modbus_client` 进入 staging，不得以对端 IP、Unit ID 或 function code 冒充数据库用户。
 
-#295 必须让持久化后的 `STAGED` 请求至少绑定 endpoint、对端、Unit ID、transaction、function code、声明地址、PDU 地址、原始寄存器、解码值、映射表与 catalog 版本。审批者必须同时具有目标表写权限和 Modbus 审批权限。映射变化、目标行变化、请求过期或权限撤销后，旧请求必须拒绝并重新 staging。
+持久化后的 `STAGED` 请求绑定 endpoint、对端、Unit ID、transaction、function code、声明/PDU 地址、原始寄存器、解码值、映射表列、固定行指纹、审批动作与 catalog revision。有效期由 `EndpointWriteRequestLifetimeSeconds` 控制，默认 900 秒、最大按 86400 秒处理；`MaxPendingEndpointWrites` 控制每个数据库的 pending 上限，默认 4096、最大按 100000 处理。过期事件在读取队列或接收新写入时落盘，旧请求不能恢复为 pending。
 
-#295 执行审批后的 `UPDATE_TABLE` 时仍必须走普通表约束、事务和审计；约束失败不得报告为已应用。`REJECT`、staging 持久化失败、审批拒绝、审批过期和应用失败都不能改变表值。
+批准需要当前数据库同时具备 `Write` 与 `Admin`；拒绝与查看队列需要 `Admin`。审批会重新核验 endpoint、binding、catalog revision、固定行和整行指纹。`STAGE_ONLY` 只记录 `approved` 终态；`UPDATE_TABLE` 在 `approval_started` 中持久化提交前与预期提交后行指纹，再通过关系表事务、ROWVERSION 和普通约束提交，成功后记录 `applied`。如果表事务提交后最终审计暂时无法落盘，请求保持可操作的 `applying` 状态；再次批准会按两个指纹判断是补写终态还是执行尚未发生的事务，不会重复递增 `ROWVERSION`。`REJECT`、staging 持久化失败、审批拒绝、过期、失效和应用失败都不能改变表值。
 
-### 审计不变量（#292 已实现 / #295 后续合同）
+### 审计不变量
 
-#292 Source 写审计保存在 Server `.system/modbus-write-audit.ndjson`，每条 source-generated JSON 追加后执行 durable flush；启动时遇到损坏行会拒绝加载。`SHOW MODBUS WRITE AUDIT` 返回当前数据库最近 200 条事件，覆盖 dry-run、preview、确认开始、联网前拒绝、远端成功/失败和本地更新失败；记录操作 ID、时间、凭据身份、source、表列、Unit ID、功能码、声明/PDU 地址、结果、错误码、审批 ID 和 catalog revision，不保存逻辑值、寄存器载荷或确认令牌。#295 后续仍需覆盖 endpoint 外部写拒绝/staged/批准/拒批/应用/失败；现有 DDL 审计继续沿用服务端审计入口。
+Source 写审计保存在 Server `.system/modbus-write-audit.ndjson`，Endpoint 治理事件保存在 `.system/modbus-endpoint-writes.ndjson`；两者均使用 source-generated JSON、逐条追加与 durable flush，启动时遇到损坏行会拒绝加载。Endpoint 事件覆盖 `protocol_rejected`、`staged`、`approval_started`、`approved`、`rejected_by_approver`、`expired`、`invalidated`、`applied` 与 `apply_failed`，并保留完整请求与状态转换证据供治理 API 使用。
+
+`SHOW MODBUS WRITE AUDIT` 把当前数据库的 Source 与 Endpoint 最近事件合并成统一时间线，保持现有列合同并对逻辑值、原始寄存器、确认令牌和慢查询文本脱敏。REST 待审批队列会返回审批所需的解码值和寄存器证据；调用者必须具备数据库 Admin 权限。现有 DDL 审计继续沿用服务端审计入口。
 
 #292/#295 不得提供通过 DDL、配置或调用参数关闭上述审计的入口。需要产生运行时审计的写操作在审计持久化不可用时必须失败关闭；`started` 无法落盘时不执行远端写，`remote_succeeded` 无法落盘时不更新本地业务表。
+
+### 管理 API 与 Web Admin（#296）
+
+| API | 权限 | 合同 |
+| --- | --- | --- |
+| `GET /v1/db/{db}/modbus` | `Read` | 返回全局门禁、source、endpoint、health 和表映射摘要 |
+| `GET /v1/db/{db}/modbus/writes?state=pending&limit=200` | `Admin` | 返回 `staged` 与可恢复的 `applying` 请求；也可按具体状态过滤，`limit` 限制在 `1..2000` |
+| `GET /v1/db/{db}/modbus/write-audit?limit=200` | `Admin` | 返回 Endpoint 治理事件时间线 |
+| `POST /v1/db/{db}/modbus/writes/{requestId}/approve` | `Write + Admin` | 重新核验并执行 `STAGE_ONLY` 或 `UPDATE_TABLE` |
+| `POST /v1/db/{db}/modbus/writes/{requestId}/reject` | `Admin` | 记录拒绝终态，可提交可选 `reason` |
+
+Web Admin 的 Modbus 页面消费上述公开 DTO，展示 runtime、source、endpoint、binding、pending 和 audit。Bearer 用户在决策事件中记录用户名；静态凭据只记录 SHA-256 派生指纹，不保存或返回明文 token。
+
+IoTSharp 集成也只能消费这些 `/v1` API 或稳定 SQL metadata。Product 与 Collection Template 负责能力和采集模板，Gateway 负责南向协议执行，EdgeNode 负责任务和运行时生命周期；SonnetDB 只提供映射、数据与写治理，不允许上层读取内部 catalog 文件或依赖数据库目录布局。
 
 ## 完整示例
 
@@ -501,7 +521,7 @@ WITH (
 );
 ```
 
-当全局 `SonnetDBServer:Modbus:Enabled=true` 且主键 `1` 的固定行存在时，上述 endpoint 会监听 `192.168.10.20:1502`，允许白名单网段读取 Coil 1、Holding Register 40001 和 Input Register 30001。#295 落地前，外部 client 对 Coil 1 或 Holding Register 40001 的写请求统一收到 `0x01 Illegal Function`，不会进入 staging 或改变表值；后续写入必须先进入 staging，只有授权审批完成后才可按策略更新固定行。Input Register 30001 始终只读，DDL 不得提供关闭审计或绕过 staging 的选项。
+当全局 `SonnetDBServer:Modbus:Enabled=true` 且主键 `1` 的固定行存在时，上述 endpoint 会监听 `192.168.10.20:1502`，允许白名单网段读取 Coil 1、Holding Register 40001 和 Input Register 30001。外部 client 写 Coil 1 或 Holding Register 40001 时，只有 durable staging 成功后才收到 Modbus 成功响应；表值保持不变，直到具备 `Write + Admin` 的审批者批准并按 `UPDATE_TABLE` 提交。Input Register 30001 始终只读，DDL 不得提供关闭审计或绕过 staging 的选项。
 
 ## SHOW / DESCRIBE 稳定合同
 

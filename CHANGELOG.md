@@ -57,6 +57,8 @@
 
 ### Added
 
+- **M34 #295/#296 Modbus Endpoint 外部写治理与管理面闭环**：默认 `STAGED` 的 slave endpoint 现支持标准 `0x05/0x06/0x0F/0x10` 写请求；`REJECT` 直接返回协议异常并持久审计，`STAGED` 只有在请求以 source-generated NDJSON durable flush 成功后才返回协议成功，审计不可用、队列满、只读/歧义/非法映射均失败关闭且不改表。待审批请求绑定 endpoint、对端、Unit/transaction/function、地址、原始寄存器、解码值、目标表列、固定行指纹与 catalog revision，默认 15 分钟过期、每个数据库最多 4096 条；审批时重新核验权限、映射和目标行，按 `STAGE_ONLY` 或关系事务 `UPDATE_TABLE` 完成，拒批、过期、失效、约束失败和持久化失败均有终态事件。新增数据库级 Modbus 概览、队列、审批、拒绝和审计 REST API，Read/Admin/Write 权限矩阵，`SHOW MODBUS WRITE AUDIT` 的 Source/Endpoint 统一脱敏结果，低基数 slave 写指标，以及 Web Admin 的 runtime、binding、pending 和 audit 管理页。真实 TCP、恢复、失败关闭、REST 权限与桌面/移动端 UI 已覆盖；IoTSharp 集成边界固定为公开 `/v1` 与 SQL metadata 合同，不读取内部 catalog。
+
 - **M35 #297 Semantic Content 通用合同**：新增通用内容清单、稳定 chunk/segment、对象引用、命名向量绑定、Embedding Profile、内容外发策略和派生索引状态机；提供结构化合同校验与 source-generated JSON 元数据，并以单元测试覆盖 profile/模态兼容、重复标识、范围、状态迁移和 JSON round-trip。原始对象继续由 Object Bucket 唯一持有，合同不在 Core 中调用 embedding provider 或内嵌大对象字节。
 
 - **M41 #375/#376/#377 统计、有限成本规划与 EXPLAIN 证据**：关系表新增带 CRC/schema/generation 校验的持久统计快照，记录行数/逻辑页、平均行宽、NULL fraction、distinct、仅保存 `XxHash64` fingerprint 的 MCV 和数值等深直方图；新增 `ANALYZE [TABLE]`、固定样本/页字节预算和 4,096 行自动刷新，统计扫描通过稳定 KV 快照完成且不在表锁内解码。新成本模型统一 point/range/full/index-union 候选，按选择率、行宽和逻辑读取在新鲜统计可用时选择索引或表扫，统计缺失/过期、事务 overlay、预算或 schema 竞态时回退稳定启发式并暴露原因。默认关系 `EXPLAIN` 只读取 catalog/统计元数据，不物化业务行；普通 `SELECT`、EXISTS 和 measurement JOIN 现在报告计划节点、估算行数/行宽/逻辑读/cost、statistics freshness、候选摘要；`EXPLAIN ANALYZE SELECT` 追加实际访问路径、候选/检查/移除行、loops、耗时、分配、锁等待、WAL fsync 与 spill 证据。新增持久化、重启、INT64 极值、成本选择、JOIN/EXISTS 计划一致性和 EXPLAIN 不扫描回归。固定 ARM64/x64、木垒生产同语料、7 天 mixed workload 与 #381 发布门禁继续保持 `NOT_RUN`。
