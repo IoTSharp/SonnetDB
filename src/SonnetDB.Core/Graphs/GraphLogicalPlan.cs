@@ -83,6 +83,19 @@ public sealed record GraphPathPlan(
     public bool DeduplicateBreadthFirstEndpoints { get; init; } = true;
 }
 
+/// <summary>关系映射顶点的 scan 或 key seek 计划。</summary>
+internal sealed record RelationalGraphNodePlan(
+    string VertexTable,
+    IReadOnlyList<object?>? KeyValues = null,
+    RelationalGraphAccessOptions? Options = null) : GraphLogicalPlan;
+
+/// <summary>关系映射边表的 endpoint 扩展计划。</summary>
+internal sealed record RelationalGraphExpandPlan(
+    string EdgeTable,
+    GraphDirection Direction,
+    IReadOnlyList<object?> EndpointKeyValues,
+    RelationalGraphAccessOptions? Options = null) : GraphLogicalPlan;
+
 internal sealed class GraphTraversalDiagnostics
 {
     internal long ExpansionCount { get; set; }

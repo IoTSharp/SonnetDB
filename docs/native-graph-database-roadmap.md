@@ -1,6 +1,6 @@
 # 原生属性图数据库路线图
 
-> 本文定义 SonnetDB Milestone 40 的工程路线。2026-08-23 复盘结论：Phase 0（#341～#346）公共地基 ✅ 已完成；修复顺序步骤 1~3 的 Graph 正确性、#367 strict evaluator、Expand 过滤与 importer 字节预算合同已关闭；Phase 1 的 #352 证据和 Phase 2 共享流式执行/planner 缺口仍未闭环，#367 Production evidence 尚未运行。M40 整体保持 🚧，不得宣称 Preview/Beta/Production 已通过发布门禁。
+> 本文定义 SonnetDB Milestone 40 的工程路线。2026-08-24 核查结论：Phase 0（#341～#346）公共地基 ✅ 已完成；修复顺序步骤 1~4 的 Graph 正确性、#367 strict evaluator、Phase 1 合同和 Phase 2 共享流式/关系 statement snapshot 已关闭；Phase 1 的 #352 证据以及 Phase 2 完整 SQL/property-aware planner 仍未闭环，#367 Production evidence 尚未运行。M40 整体保持 🚧，不得宣称 Preview/Beta/Production 已通过发布门禁。
 
 ## 1. 决策与目标
 
@@ -213,13 +213,13 @@ M40 的权威执行顺序见主 [ROADMAP](../ROADMAP.md#m40-修复与发布执�
 1. ✅ 已修复 `Expand(Both)` 跨方向分页丢边和无权 shortest path 的 `MaxPaths` 静默 `null`；Core、遍历、SQL 和远程 typed SDK 回归通过。
 2. ✅ #367 evaluator 已按原始 artifact schema 独立重算并拒绝伪造摘要、脏工作树、无效 commit、缺少原始样本与不可复现命令。
 3. ✅ 已补齐 Expand 目标过滤、import batch byte budget/CSV 单行上限和 Phase 1 复杂度/拒绝测试。
-4. 完成 #353 共享 logical plan/pull operators，依赖 M41 #373 流式执行，并把 #374 statement snapshot 地基接入关系映射图。
+4. ✅ #353 共享 logical plan/pull operators、M41 #373 流式执行，以及 #374 statement snapshot 到关系映射图的接入已完成本地实现与自动化门禁。
 5. 完成 #354 SQL DDL/DML 与 #358 property-index/statistics planner/真实 `EXPLAIN`。
 6. 处理 adjacency/path/weighted/offline spill 的分配、GC、复制和随机 I/O 放大。
 7. 闭环 maintenance audit、torn NDJSON、真实 kill/reopen 与 Server/SDK/CLI/Studio parity。
 8. 最后运行 Neo4j/PostgreSQL、LDBC/Graphalytics、固定硬件 1m/10m、Native AOT、Couplet 和 7 天 8+1 发布证据。
 
-步骤 1~7 未全部通过前，只允许缺陷回归、evaluator 自测和用于设计决策的 quick/microbenchmark；不得启动或累计固定硬件、外部对拍和 168 小时证据。步骤 1~3 已通过，当前下一门禁为步骤 4 的共享 logical plan/pull operator、M41 #373 流式执行和关系 statement snapshot 接入。正式发布 gate 的原始 artifact、commit、命令、退出码、正确性、恢复、allocation/GC 与 access path 已由 schema-aware evaluator 独立重算，不能信任 manifest 自报结论。
+步骤 1~7 未全部通过前，只允许缺陷回归、evaluator 自测和用于设计决策的 quick/microbenchmark；不得启动或累计固定硬件、外部对拍和 168 小时证据。步骤 1~4 已通过，当前下一门禁为步骤 5 的完整 SQL 合同和 property-index/statistics planner。正式发布 gate 的原始 artifact、commit、命令、退出码、正确性、恢复、allocation/GC 与 access path 已由 schema-aware evaluator 独立重算，不能信任 manifest 自报结论。
 
 ### Phase 0：基础改造与设计冻结（✅ 已完成）
 
@@ -256,23 +256,23 @@ M40 的权威执行顺序见主 [ROADMAP](../ROADMAP.md#m40-修复与发布执�
 - ✅ `SndbGraphImporter` 先把完整 JSON/CSV 输入校验并写入临时 NDJSON spool，再按确定性 request ID 重放；批次同时受 `BatchSize` 和实际规范化 UTF-8 字节数约束，单项无法装入批次时明确拒绝。CSV 使用有界 UTF-8 行读取器，默认单行 1 MiB；Server 对 `Content-Length` 和未知长度流均强制 8 MiB，并返回 `graph_import_budget_exceeded`。`nodes/relationships` normalized profile 接受字符串 ID、label/type、对象属性和 provenance/confidence 元数据。
 - ✅ `tests/SonnetDB.Benchmarks --m40-graph-evidence --quick` 会真正 reopen/replay 并执行 path/invariant/index-repair smoke；本机报告输出 `correctness=PASS`、`correctness_recovery=LOCAL_PASS`；📋 `performance_capacity=NOT_RUN`、`release_decision=NOT_RUN`，不能代替 #352 的固定硬件、Neo4j 或完整 crash/replay/checkpoint/backup artifact。
 
-### Phase 2：SQL 可组合与实用查询阶段（🚧 受限切片；共享执行和 SQL/planner 待完成）
+### Phase 2：SQL 可组合与实用查询阶段（🚧 共享执行已完成；SQL/planner 待完成）
 
 | 编号 | 交付 | 验收门禁 |
 |---|---|---|
-| 🚧 #353 | Graph Logical Plan 与共享 pull operators；原生 API 改为消费相同计划。 | 当前仍有 SQL 侧全 cursor row 物化和逐 match binding dictionary 分配；必须依赖 M41 #373 完成真实流式执行，并证明 API/SQL 共享算子且不存在第二套 BFS/Expand。 |
+| ✅ #353 | Graph Logical Plan 与共享 pull operators；原生 API 改为消费相同计划。 | 原生 API/SQL 和关系映射共用 typed logical plan 与分页 pull cursor；Graph SQL 按页消费并以固定绑定槽替代逐 match dictionary，不新增第二套 BFS/Expand。 |
 | 🚧 #354 | 原生 graph SQL DDL/DML、`SHOW/DESCRIBE`、`graph_nodes/graph_edges` 和参数绑定。 | 当前只完成受限 insert/read；冻结合同中的 label/property-index DDL、property mutation/upsert/update/delete 尚未实现或正式收缩。SQL mutation 必须与 Graph API 共用 GraphStore/transaction。 |
-| 🚧 #355 | SQL/PGQ `CREATE PROPERTY GRAPH` 关系映射 catalog 与 `RelationalGraphAccessor`。 | catalog 和访问器切片已接线；仍需把 M41 #374 已完成的 KV/Table statement snapshot 接入整条关系图遍历，并保持 index seek/scan fallback 在 `EXPLAIN` 可见。 |
+| ✅ #355 | SQL/PGQ `CREATE PROPERTY GRAPH` 关系映射 catalog 与 `RelationalGraphAccessor`。 | 一次 read session 在 TableManager 捕获窗口固定全部映射表的 KV/Table snapshot；anchor、edge expand 和目标 seek 共用这些 lease，index seek/scan fallback 与逐表 sequence 在 `EXPLAIN [ANALYZE]` 可见。 |
 | ✅ #356 | `GRAPH_TABLE MATCH COLUMNS` 固定模式、方向、label、property predicate 和变量投影。 | PostgreSQL SQL/PGQ 参考用例对拍；原生 graph 使用 adjacency，映射 graph 使用关系访问器。 |
 | ✅ #357 | SQL 可变长度路径、path mode/uniqueness、shortest path、最大深度与结果预算。 | 路径爆炸 fail bounded；循环语义确定；结果通过 ADO.NET/远程流式读取。 |
 | 🚧 #358 | cost planner、join/expand 顺序、bidirectional BFS 准入、`EXPLAIN ANALYZE` 实际 rows/expansions/frontier/fallback。 | 当前原生 anchor 选择主要识别 endpoint `id`；必须接入 property index/statistics，报告真实 access path，并以结果对拍和基准约束计划变化。 |
 | ✅ #359 | SQL + Graph + Table/Document/Vector/FullText 组合、复用 M35/M36 的 Hybrid Search 候选合同，以及权限、备份、Studio 查询页和 Parity Graph capability。 | 同一 SQL/typed plan 可组合图行集与现有模型；实际 access path、候选规模和 fallback 可见，声明 journey 不在产品侧 merge、遍历或隐藏全扫；Neo4j 验原生语义、PostgreSQL 验 SQL/PGQ 语义，UI 不绕过 Server。 |
 
-🚧 Phase 2 已有可运行的受限切片：Graph/Property Graph catalog、`GRAPH_TABLE MATCH COLUMNS`、路径查询、部分计划指标和跨模型组合均已接线；但 #353 共享流式执行、#354 完整 SQL 合同、#355 关系 statement snapshot 接入和 #358 property-index/statistics planner 未闭环。固定硬件、PostgreSQL/Neo4j 外部语义对拍和 Couplet C3 联合发布证据继续保持 `NOT_RUN`，不得宣称 Beta 发布 gate 已通过。
+🚧 Phase 2 已有可运行的受限切片：#353 共享流式执行、#355 关系 statement snapshot、Graph/Property Graph catalog、`GRAPH_TABLE MATCH COLUMNS`、路径查询、计划指标和跨模型组合均已接线；#354 完整 SQL 合同与 #358 property-index/statistics planner 仍未闭环。固定硬件、PostgreSQL/Neo4j 外部语义对拍和 Couplet C3 联合发布证据继续保持 `NOT_RUN`，不得宣称 Beta 发布 gate 已通过。
 
 #354 当前 DML 边界是：元素 ID 仅接受正整数；顶点 labels 接受单个正整数或逗号分隔的正整数文本；edge label 使用 Int32 范围内的正整数。此切片尚不承诺属性列写入，typed property mutation 继续通过 Graph API；property SQL、upsert/update/delete 在冻结完整 DML 合同后接入。
 
-#355 当前映射边界是：`CREATE PROPERTY GRAPH` 按 SQL/PGQ 形状声明 `VERTEX TABLES`、`EDGE TABLES`、唯一 key、source/destination reference、label 和 property columns；独立 `SDBPGQ01` catalog 只保存 mapping 并随数据库备份文件复制，不生成 vertex/edge 副本。创建时校验表、列、主键或完整唯一索引、endpoint key 数量/类型；被映射表的破坏性 schema 变更受依赖守卫阻断。`RelationalGraphAccessor` 顶点 point lookup 与边 endpoint expand 显式报告 `relation_primary_key_seek`、`relation_index_seek` 或 `relation_scan_fallback`，fallback 默认受行数、时间与取消预算约束；`DESCRIBE`/`EXPLAIN DESCRIBE PROPERTY GRAPH` 展示实际路径。
+#355 当前映射边界是：`CREATE PROPERTY GRAPH` 按 SQL/PGQ 形状声明 `VERTEX TABLES`、`EDGE TABLES`、唯一 key、source/destination reference、label 和 property columns；独立 `SDBPGQ01` catalog 只保存 mapping 并随数据库备份文件复制，不生成 vertex/edge 副本。创建时校验表、列、主键或完整唯一索引、endpoint key 数量/类型；被映射表的破坏性 schema 变更受依赖守卫阻断。`RelationalGraphReadSession` 在同一个 TableManager 捕获窗口按固定锁序取得所有映射表的 `TableReadSnapshot`，遍历期间的 anchor、edge expand 和目标 seek 只消费这些不可变 lease，不持有表锁。`RelationalGraphAccessor` 显式报告 `relation_primary_key_seek`、`relation_index_seek` 或 `relation_scan_fallback`，fallback 受行数、时间、结果页和取消预算约束；`EXPLAIN ANALYZE GRAPH_TABLE` 返回 `statement_snapshot` 与 `table:sequence` 列表，不伪造单一跨表 sequence。
 
 #356 当前查询边界是：typed `GRAPH_TABLE(... MATCH (a IS label)-[e IS label]->(b IS label) [WHERE ...] COLUMNS (...))` 支持固定一跳的出、入和无向模式，变量属性谓词与参数绑定，显式变量投影，以及外层 WHERE/投影/DISTINCT/ORDER BY/分页。原生 graph 使用 label anchor 与 adjacency plan，映射 graph 使用关系主键/索引 seek 或 scan fallback；同 label 多 edge table 以 mapping branch union，无向自环每个 edge/anchor 只产生一次。整条关系映射查询共享 10,000 anchor、10,000 fallback scan 行、50 ms fallback 与 100,000 匹配行预算；Graph DDL/DML 不伪装进入轻事务，view/materialized view/procedure 会记录 graph 依赖。
 
@@ -282,7 +282,7 @@ M40 的权威执行顺序见主 [ROADMAP](../ROADMAP.md#m40-修复与发布执�
 
 #359 当前组合边界是：图查询先作为有界派生行集进入现有 `RelationalSelectExecutor`，可在同一 SQL 中与关系表、Document 投影，以及 FullText + Vector `hybrid_search(...)` 候选子查询做 hash join；不新增第二套 JOIN 或应用层 merge。组合 `EXPLAIN` 以 `cross_model_select` 展示每个 source/join 的 graph adjacency/关系索引/document/hybrid access path、候选上限和 fallback reason；Hybrid Search 明示全文候选上限及 document vector scan fallback。property-graph catalog 进入备份 manifest 的完整 mapping 摘要、独立文件类型与 restore 后逐字段复核；Graph SQL metadata/read 与 DDL/DML 分别沿数据库 read/write 权限，Studio Quick SQL 仍走 `/v1/db/{db}/sql` 和共享结果面板。Parity 增加 Graph/SQL-PGQ/native traversal/cross-model capability 与本地 correctness scenario，PostgreSQL/Neo4j outcome 明确保持 `not_run`。当前不支持把 `JOIN/GROUP BY` 直接写进 `GRAPH_TABLE` 外层执行器内部，调用方必须使用标准派生表组合；property alias 和多 pattern 仍不在此 Beta 子集。
 
-🚧 Phase 2 当前只能作为开发中受限切片使用；共享流式执行、关系 statement snapshot、完整 SQL 合同和 property-aware planner 完成后，才允许进入外部 Beta 语义/容量 gate。
+🚧 Phase 2 当前只能作为开发中受限切片使用；共享流式执行和关系 statement snapshot 已完成，完整 SQL 合同和 property-aware planner 完成后，才允许进入外部 Beta 语义/容量 gate。
 
 ### Phase 3：生产级单机图数据库（🚧 性能/恢复加固与 #367 发布门禁未完成）
 
@@ -297,7 +297,7 @@ M40 的权威执行顺序见主 [ROADMAP](../ROADMAP.md#m40-修复与发布执�
 | ✅ #366 | 运维产品面：schema/index/degree/slow traversal、可视化、受限编辑、import/export、repair/rebuild 和权限审计。 | Web/Studio/CLI/SDK 能力矩阵一致；危险 mutation 使用现有 staged approval。 |
 | 🚧 #367 | strict evaluator 已完成 schema-aware artifact 校验、逐轮原始样本重算、真实 clean commit、命令/退出码回放及 allocation/GC 阈值；LDBC、Graphalytics、代码知识/Agent、7 天 mixed workload、kill/reopen、backup/restore、Native AOT 和固定硬件容量仍待步骤 4~7 后执行。 | 伪造摘要、缺样本、脏/无效 commit 和复现失败回归已通过；候选报告仍须包含 commit/硬件/数据规模/P50/P95/P99/内存/GC/WAL/恢复/正确性、实际 access path/fallback 和 gap catalog。正确性/恢复与性能/容量 gate 全 PASS 前不得改为九模型；当前双 gate 为 `NOT_RUN`。 |
 
-✅ #360 已完成：`GraphStore.BeginRead` 明确冻结单一 KV sequence，同一 `GraphReadSession` 上的点读、在并发提交前后创建的游标和分页长遍历都复用该 snapshot；cursor lease 只保留不可变内存视图和 disk generation lease，不持有 Graph commit gate 或 store lock。`EXPLAIN ANALYZE GRAPH_TABLE` 对原生图新增 `read_consistency=statement_snapshot`、`actual_read_consistency` 和 `actual_snapshot_sequence`；关系映射如实返回 `relation_accessor_current` 与 null sequence，其 statement snapshot 仍归 M41 #374，不在本项虚构跨模型 MVCC。
+✅ #360 已完成：`GraphStore.BeginRead` 明确冻结单一 KV sequence，同一 `GraphReadSession` 上的点读、在并发提交前后创建的游标和分页长遍历都复用该 snapshot；cursor lease 只保留不可变内存视图和 disk generation lease，不持有 Graph commit gate 或 store lock。`EXPLAIN ANALYZE GRAPH_TABLE` 对原生图返回 `read_consistency=statement_snapshot`、`actual_read_consistency` 和 `actual_snapshot_sequence`；步骤 4 又让关系映射返回同样的 statement consistency，并以 `actual_snapshot_sequences=table:sequence` 如实表达多表捕获结果，单值 `actual_snapshot_sequence` 保持 null。
 
 ✅ #360 并发矩阵覆盖：分页 BFS 期间原子 re-parent 只对下一 statement 可见且 writer 在旧 cursor 存活时可完成；同一 session 在并发提交后新建的 cursor 仍固定旧 sequence；不同 element 且不推进共享 metadata 的更新都提交；同 unique property claim 通过 unique key version 条件恰有一个提交；endpoint delete 与 edge insert 通过 endpoint version + adjacency `PrefixEmpty` 条件恰有一个提交。所有竞态设置超时并在完成后运行 `GraphInvariantChecker`。现有 workload 没有跨多个读会话/读写 statement 保持同一快照的需求，因此本项不扩展 snapshot-isolation transaction，也不进行无证据 MVCC 重构。详细合同见 [m40-graph-360-statement-snapshot.md](m40-graph-360-statement-snapshot.md)。
 

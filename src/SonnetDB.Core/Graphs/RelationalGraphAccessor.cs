@@ -1,11 +1,13 @@
 using SonnetDB.Tables;
-using System.Diagnostics;
 
 namespace SonnetDB.Graphs;
 
 /// <summary>关系映射图读取的显式 scan/result 预算。</summary>
 public sealed record RelationalGraphAccessOptions
 {
+    /// <summary>pull cursor 每页最多返回的关系行数。</summary>
+    public int PageSize { get; init; } = 256;
+
     /// <summary>允许 scan fallback 检查的最大关系行数。</summary>
     public int MaxScanRows { get; init; } = 10_000;
 
@@ -17,6 +19,7 @@ public sealed record RelationalGraphAccessOptions
 
     internal void Validate()
     {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(PageSize);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxScanRows);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxResults);
         if (MaxScanDuration <= TimeSpan.Zero)
@@ -58,6 +61,10 @@ public sealed class RelationalGraphAccessor
     /// <summary>当前访问器绑定的映射定义。</summary>
     public PropertyGraphDefinition Definition { get; }
 
+    /// <summary>创建固定所有映射表的 statement snapshot。</summary>
+    internal RelationalGraphReadSession BeginRead()
+        => new(_tables, Definition);
+
     /// <summary>解释顶点 key 的关系访问路径，不读取关系行。</summary>
     /// <param name="vertexTable">顶点表名称。</param>
     /// <returns>主键或唯一索引点查计划。</returns>
@@ -88,26 +95,12 @@ public sealed class RelationalGraphAccessor
             ?? throw new InvalidOperationException(
                 $"property graph '{Definition.Name}' 没有 vertex table '{vertexTable}'。");
 
-        long scanStarted = Stopwatch.GetTimestamp();
-        int rowLimit = Math.Min(accessOptions.MaxScanRows, accessOptions.MaxResults);
-        IReadOnlyList<TableRow> rows = _tables.Open(mapping.TableName)
-            .Scan(IncrementUnlessMax(rowLimit));
-        if (rows.Count > accessOptions.MaxScanRows)
-        {
-            throw new GraphTraversalLimitExceededException(
-                $"Relational graph vertex scan 超过上限 {accessOptions.MaxScanRows} 行。");
-        }
-        if (rows.Count > accessOptions.MaxResults)
-        {
-            throw new GraphTraversalLimitExceededException(
-                $"Relational graph vertex scan 结果超过上限 {accessOptions.MaxResults} 行。");
-        }
-        ThrowIfScanDurationExceeded(scanStarted, accessOptions.MaxScanDuration);
-        cancellationToken.ThrowIfCancellationRequested();
-        return new RelationalGraphReadResult(
-            rows,
-            [new RelationalGraphAccessPlan("relation_scan_fallback", null, null)],
-            rows.Count);
+        using RelationalGraphReadSession session = BeginRead();
+        using RelationalGraphCursor cursor = GraphPlanExecutor.Execute(
+            session,
+            new RelationalGraphNodePlan(mapping.TableName, Options: accessOptions));
+        IReadOnlyList<TableRow> rows = ReadAll(cursor, cancellationToken);
+        return new RelationalGraphReadResult(rows, cursor.AccessPlans, cursor.ExaminedRows);
     }
 
     /// <summary>按映射顶点 key 定位关系行。</summary>
@@ -134,23 +127,12 @@ public sealed class RelationalGraphAccessor
         if (keyValues.Count != mapping.KeyColumns.Count)
             throw new ArgumentException("vertex key 值数量与映射 KEY 列数量不一致。", nameof(keyValues));
 
-        TableStore store = _tables.Open(mapping.TableName);
-        TableSchema schema = store.Schema;
-        RelationalGraphAccessPlan plan = PlanKeyAccess(schema, mapping.KeyColumns, direction: null);
-        IReadOnlyList<TableRow> rows;
-        if (plan.AccessPath == "relation_primary_key_seek")
-        {
-            TableRow? row = store.GetByPrimaryKey(keyValues);
-            rows = row is null ? [] : [row];
-        }
-        else
-        {
-            TableIndex index = schema.TryGetIndex(plan.IndexName!)
-                ?? throw new InvalidOperationException($"关系索引 '{plan.IndexName}' 不存在。");
-            rows = store.GetByIndex(index, keyValues, limit: 1);
-        }
-        cancellationToken.ThrowIfCancellationRequested();
-        return new RelationalGraphReadResult(rows, [plan], rows.Count);
+        using RelationalGraphReadSession session = BeginRead();
+        using RelationalGraphCursor cursor = GraphPlanExecutor.Execute(
+            session,
+            new RelationalGraphNodePlan(mapping.TableName, keyValues, accessOptions with { MaxResults = 1 }));
+        IReadOnlyList<TableRow> rows = ReadAll(cursor, cancellationToken);
+        return new RelationalGraphReadResult(rows, cursor.AccessPlans, cursor.ExaminedRows);
     }
 
     /// <summary>解释边表在指定方向上的 endpoint 访问路径，不读取关系行。</summary>
@@ -214,112 +196,33 @@ public sealed class RelationalGraphAccessor
                 nameof(endpointKeyValues));
         }
 
-        TableStore store = _tables.Open(mapping.TableName);
-        var rows = new List<TableRow>();
-        var plans = new List<RelationalGraphAccessPlan>();
-        var seenPrimaryKeys = new HashSet<string>(StringComparer.Ordinal);
-        int examinedRows = 0;
-        int remainingScanRows = accessOptions.MaxScanRows;
-        long? scanStarted = null;
-        foreach (GraphDirection item in Directions(direction))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            IReadOnlyList<string> endpointColumns = item == GraphDirection.Outgoing
-                ? mapping.SourceColumns
-                : mapping.DestinationColumns;
-            RelationalGraphAccessPlan plan = PlanEndpointAccess(store.Schema, endpointColumns, item);
-            plans.Add(plan);
-            if (plan.AccessPath == "relation_scan_fallback" && remainingScanRows <= 0)
-            {
-                throw new GraphTraversalLimitExceededException(
-                    $"Relational graph scan fallback 超过总预算 {accessOptions.MaxScanRows} 行。");
-            }
-            if (plan.AccessPath == "relation_scan_fallback")
-                scanStarted ??= Stopwatch.GetTimestamp();
-            (IReadOnlyList<TableRow> Rows, int ExaminedRows) read = ReadCandidates(
-                store,
-                endpointColumns,
+        using RelationalGraphReadSession session = BeginRead();
+        using RelationalGraphCursor cursor = GraphPlanExecutor.Execute(
+            session,
+            new RelationalGraphExpandPlan(
+                mapping.TableName,
+                direction,
                 endpointKeyValues,
-                plan,
-                plan.AccessPath == "relation_scan_fallback"
-                    ? accessOptions with { MaxScanRows = Math.Max(1, remainingScanRows) }
-                    : accessOptions,
-                scanStarted,
-                cancellationToken);
-            examinedRows = checked(examinedRows + read.ExaminedRows);
-            if (plan.AccessPath == "relation_scan_fallback")
-                remainingScanRows = checked(remainingScanRows - read.ExaminedRows);
-            foreach (TableRow row in read.Rows)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                string identity = Convert.ToHexString(row.PrimaryKey.Span);
-                if (seenPrimaryKeys.Add(identity))
-                    rows.Add(row);
-                if (rows.Count > accessOptions.MaxResults)
-                {
-                    throw new GraphTraversalLimitExceededException(
-                        $"Relational graph expand 结果超过上限 {accessOptions.MaxResults}。");
-                }
-            }
-        }
-        return new RelationalGraphReadResult(rows, plans, examinedRows);
+                accessOptions));
+        IReadOnlyList<TableRow> rows = ReadAll(cursor, cancellationToken);
+        return new RelationalGraphReadResult(rows, cursor.AccessPlans, cursor.ExaminedRows);
     }
 
-    private static (IReadOnlyList<TableRow> Rows, int ExaminedRows) ReadCandidates(
-        TableStore store,
-        IReadOnlyList<string> endpointColumns,
-        IReadOnlyList<object?> endpointKeyValues,
-        RelationalGraphAccessPlan plan,
-        RelationalGraphAccessOptions options,
-        long? scanStarted,
+    private static IReadOnlyList<TableRow> ReadAll(
+        RelationalGraphCursor cursor,
         CancellationToken cancellationToken)
     {
-        if (plan.AccessPath == "relation_primary_key_seek")
+        var rows = new List<TableRow>();
+        while (true)
         {
-            TableRow? row = store.GetByPrimaryKey(endpointKeyValues);
-            return row is null ? ([], 0) : ([row], 1);
+            IReadOnlyList<TableRow> page = cursor.ReadNextPage(cancellationToken);
+            if (page.Count == 0)
+                return rows;
+            rows.AddRange(page);
         }
-        if (plan.AccessPath == "relation_index_seek")
-        {
-            TableIndex index = store.Schema.TryGetIndex(plan.IndexName!)
-                ?? throw new InvalidOperationException($"关系索引 '{plan.IndexName}' 不存在。");
-            IReadOnlyList<TableRow> rows = store.GetByIndexPrefix(
-                index,
-                endpointKeyValues,
-                IncrementUnlessMax(options.MaxResults));
-            return (rows, rows.Count);
-        }
-
-        long started = scanStarted ?? Stopwatch.GetTimestamp();
-        IReadOnlyList<TableRow> scanned = store.Scan(IncrementUnlessMax(options.MaxScanRows));
-        if (scanned.Count > options.MaxScanRows)
-        {
-            throw new GraphTraversalLimitExceededException(
-                $"Relational graph scan fallback 超过上限 {options.MaxScanRows} 行。");
-        }
-        ThrowIfScanDurationExceeded(started, options.MaxScanDuration);
-        int[] ordinals = endpointColumns.Select(column => store.Schema.TryGetColumn(column)!.Ordinal).ToArray();
-        var matches = new List<TableRow>();
-        foreach (TableRow row in scanned)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            ThrowIfScanDurationExceeded(started, options.MaxScanDuration);
-            bool match = true;
-            for (int index = 0; index < ordinals.Length; index++)
-            {
-                if (!ValuesEqual(row.Values[ordinals[index]], endpointKeyValues[index]))
-                {
-                    match = false;
-                    break;
-                }
-            }
-            if (match)
-                matches.Add(row);
-        }
-        return (matches, scanned.Count);
     }
 
-    private static RelationalGraphAccessPlan PlanKeyAccess(
+    internal static RelationalGraphAccessPlan PlanKeyAccess(
         TableSchema schema,
         IReadOnlyList<string> columns,
         GraphDirection? direction)
@@ -331,7 +234,7 @@ public sealed class RelationalGraphAccessor
         return new RelationalGraphAccessPlan("relation_index_seek", index.Name, direction);
     }
 
-    private static RelationalGraphAccessPlan PlanEndpointAccess(
+    internal static RelationalGraphAccessPlan PlanEndpointAccess(
         TableSchema schema,
         IReadOnlyList<string> columns,
         GraphDirection direction)
@@ -358,7 +261,7 @@ public sealed class RelationalGraphAccessor
         return true;
     }
 
-    private static IReadOnlyList<GraphDirection> Directions(GraphDirection direction)
+    internal static IReadOnlyList<GraphDirection> Directions(GraphDirection direction)
         => direction switch
         {
             GraphDirection.Outgoing => [GraphDirection.Outgoing],
@@ -367,20 +270,8 @@ public sealed class RelationalGraphAccessor
             _ => throw new ArgumentOutOfRangeException(nameof(direction)),
         };
 
-    private static bool ValuesEqual(object? left, object? right)
+    internal static bool ValuesEqual(object? left, object? right)
         => left is byte[] leftBytes && right is byte[] rightBytes
             ? leftBytes.AsSpan().SequenceEqual(rightBytes)
             : Equals(left, right);
-
-    private static int IncrementUnlessMax(int value)
-        => value == int.MaxValue ? int.MaxValue : value + 1;
-
-    private static void ThrowIfScanDurationExceeded(long started, TimeSpan maximum)
-    {
-        if (Stopwatch.GetElapsedTime(started) > maximum)
-        {
-            throw new GraphTraversalLimitExceededException(
-                $"Relational graph scan fallback 超过时间上限 {maximum.TotalMilliseconds:F0} ms。");
-        }
-    }
 }

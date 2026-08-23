@@ -5,6 +5,26 @@ namespace SonnetDB.Graphs;
 /// </summary>
 public static class GraphPlanExecutor
 {
+    /// <summary>在关系映射 statement snapshot 上执行顶点 scan/seek 计划。</summary>
+    internal static RelationalGraphCursor Execute(
+        RelationalGraphReadSession session,
+        RelationalGraphNodePlan plan)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(plan);
+        return session.OpenNodeCursor(plan);
+    }
+
+    /// <summary>在关系映射 statement snapshot 上执行 endpoint expand 计划。</summary>
+    internal static RelationalGraphCursor Execute(
+        RelationalGraphReadSession session,
+        RelationalGraphExpandPlan plan)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(plan);
+        return session.OpenExpandCursor(plan);
+    }
+
     /// <summary>执行顶点扫描/seek 计划。</summary>
     /// <param name="session">稳定图读会话。</param>
     /// <param name="plan">顶点计划。</param>

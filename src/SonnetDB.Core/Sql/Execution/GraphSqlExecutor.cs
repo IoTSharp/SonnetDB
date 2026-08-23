@@ -357,9 +357,10 @@ internal static class GraphSqlExecutor
     internal static SelectExecutionResult ApplySelectShape(
         SelectStatement statement,
         IReadOnlyList<string> sourceColumns,
-        IReadOnlyList<IReadOnlyList<object?>> sourceRows,
+        IEnumerable<IReadOnlyList<object?>> sourceRows,
         string context)
     {
+        ArgumentNullException.ThrowIfNull(sourceRows);
         var lookup = sourceColumns
             .Select((name, ordinal) => (name, ordinal))
             .ToDictionary(static item => item.name, static item => item.ordinal, StringComparer.OrdinalIgnoreCase);
@@ -369,13 +370,7 @@ internal static class GraphSqlExecutor
             if (item.Expression is not StarExpression)
                 SqlProjectionExpressionEvaluator.Validate(item.Expression, id => lookup.ContainsKey(id.Name), context + " 投影");
 
-        IReadOnlyList<object?>[] filtered = sourceRows.Where(row => statement.Where is null
-            || SqlProjectionExpressionEvaluator.Evaluate(
-                statement.Where,
-                id => row[lookup[id.Name]],
-                context + " WHERE") is true).ToArray();
         var columns = new List<string>();
-        var projected = new List<IReadOnlyList<object?>>(filtered.Length);
         foreach (SelectItem item in statement.Projections)
         {
             if (item.Expression is StarExpression)
@@ -390,22 +385,36 @@ internal static class GraphSqlExecutor
             }
         }
 
-        foreach (IReadOnlyList<object?> row in filtered)
+        IEnumerable<IReadOnlyList<object?>> ProjectRows()
         {
-            var output = new List<object?>(columns.Count);
-            foreach (SelectItem item in statement.Projections)
+            foreach (IReadOnlyList<object?> row in sourceRows)
             {
-                if (item.Expression is StarExpression)
-                    output.AddRange(row);
-                else
-                    output.Add(SqlProjectionExpressionEvaluator.Evaluate(
-                        item.Expression,
+                SqlExecutor.ThrowIfCancellationRequested();
+                if (statement.Where is not null
+                    && SqlProjectionExpressionEvaluator.Evaluate(
+                        statement.Where,
                         id => row[lookup[id.Name]],
-                        context + " 投影"));
+                        context + " WHERE") is not true)
+                {
+                    continue;
+                }
+
+                var output = new List<object?>(columns.Count);
+                foreach (SelectItem item in statement.Projections)
+                {
+                    if (item.Expression is StarExpression)
+                        output.AddRange(row);
+                    else
+                        output.Add(SqlProjectionExpressionEvaluator.Evaluate(
+                            item.Expression,
+                            id => row[lookup[id.Name]],
+                            context + " 投影"));
+                }
+                yield return output;
             }
-            projected.Add(output);
         }
 
+        IEnumerable<IReadOnlyList<object?>> projected = ProjectRows();
         if (statement.OrderByList.Count != 0)
         {
             var outputLookup = columns
@@ -421,7 +430,7 @@ internal static class GraphSqlExecutor
                 }
                 return (Ordinal: ordinal, item.Direction);
             }).ToArray();
-            projected.Sort(Comparer<IReadOnlyList<object?>>.Create((left, right) =>
+            var comparer = Comparer<IReadOnlyList<object?>>.Create((left, right) =>
             {
                 foreach (var item in ordering)
                 {
@@ -430,7 +439,13 @@ internal static class GraphSqlExecutor
                         return item.Direction == SortDirection.Descending ? -comparison : comparison;
                 }
                 return 0;
-            }));
+            });
+            IReadOnlyList<IReadOnlyList<object?>> sorted = TopN.OrderByThenPaginate(
+                projected,
+                comparer,
+                statement.Pagination?.Offset ?? 0,
+                statement.Pagination?.Fetch);
+            return new SelectExecutionResult(columns, sorted);
         }
 
         int offset = statement.Pagination?.Offset ?? 0;

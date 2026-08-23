@@ -24,7 +24,7 @@ public sealed record GraphCursorOptions
 /// 固定 Graph 读快照上的前向结果游标。
 /// </summary>
 /// <typeparam name="T">每条结果的类型。</typeparam>
-public sealed class GraphCursor<T> : IDisposable where T : class
+public sealed class GraphCursor<T> : IGraphPullCursor<T> where T : class
 {
     private readonly object _sync = new();
     private IGraphCursorSource<T>? _source;
@@ -123,4 +123,12 @@ internal interface IGraphCursorSource<T> : IDisposable where T : class
     bool IsExhausted { get; }
 
     IReadOnlyList<T> ReadNextPage(CancellationToken cancellationToken);
+}
+
+/// <summary>原生和关系映射 Graph 执行器共享的分页 pull cursor 合同。</summary>
+internal interface IGraphPullCursor<T> : IDisposable where T : class
+{
+    bool IsExhausted { get; }
+
+    IReadOnlyList<T> ReadNextPage(CancellationToken cancellationToken = default);
 }

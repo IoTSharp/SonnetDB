@@ -1700,6 +1700,106 @@ internal static class TableSqlExecutor
     }
 
     /// <summary>
+    /// 惰性读取 SELECT 候选；scan 和单索引路径共享一个稳定 Table 快照并逐页消费。
+    /// 事务 overlay、IN 与 index-union 是显式有界/阻塞回退，保持既有 read-your-writes 和去重顺序。
+    /// </summary>
+    internal static IEnumerable<TableRow> EnumerateSelectCandidateRows(
+        TableStore store,
+        TableSchema schema,
+        SqlExpression? where,
+        IReadOnlySet<string>? requiredColumns = null)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(schema);
+        TableExistsAccessPlan access = PlanExistsAccess(store, schema, where);
+
+        IEnumerable<TableRow> candidates;
+        string actualAccessPath = access.AccessPath;
+        if (SqlTransactionContext.Current is { } transaction
+            && transaction.TryGetBufferedMutations(schema.Name, out var buffered))
+        {
+            candidates = ApplyMutationOverlay(schema, store.Scan(), buffered);
+        }
+        else if (TryExtractPrimaryKeyValues(
+            schema,
+            where,
+            allowExtraPredicates: true,
+            out var keyValues,
+            allowNonEqualityExtraPredicates: true))
+        {
+            TableRow? row = store.GetByPrimaryKey(keyValues);
+            candidates = row is null ? [] : [row];
+        }
+        else if (TryLoadInCandidateRows(store, schema, where, out var inRows))
+        {
+            candidates = inRows;
+        }
+        else if (ChooseBestIndexAccessPlan(store, schema, where) is { } indexPlan)
+        {
+            if (CanUseCoveringIndexOnly(schema, where, indexPlan, requiredColumns))
+            {
+                candidates = store.EnumerateCoveredIndexEquality(
+                    indexPlan.Index,
+                    indexPlan.EqualityPrefixValues);
+                actualAccessPath = "secondary_index_only";
+            }
+            else
+            {
+                candidates = indexPlan.Range is not null
+                    ? store.EnumerateByIndexRange(
+                        indexPlan.Index,
+                        indexPlan.EqualityPrefixValues,
+                        indexPlan.Range)
+                    : store.EnumerateByIndexPrefix(
+                        indexPlan.Index,
+                        indexPlan.EqualityPrefixValues);
+            }
+        }
+        else if (TryChooseIndexUnionPlan(schema, where, out var unionPlan, out _)
+            && TryLoadIndexUnionRows(store, schema, unionPlan, out var unionRows, out _))
+        {
+            candidates = unionRows;
+        }
+        else
+        {
+            candidates = store.EnumerateScan();
+        }
+
+        SqlExecutionTelemetry.RecordAccessPath(actualAccessPath, access.IndexName, access.FallbackReason);
+        return CountCandidates(candidates);
+
+        static IEnumerable<TableRow> CountCandidates(IEnumerable<TableRow> rows)
+        {
+            int count = 0;
+            try
+            {
+                foreach (TableRow row in rows)
+                {
+                    count++;
+                    yield return row;
+                }
+            }
+            finally
+            {
+                SqlExecutionTelemetry.RecordCandidateRows(count);
+                SqlExecutionTelemetry.RecordExaminedRows(count);
+            }
+        }
+    }
+
+    private static bool CanUseCoveringIndexOnly(
+        TableSchema schema,
+        SqlExpression? where,
+        TableIndexAccessPlan plan,
+        IReadOnlySet<string>? requiredColumns)
+        => requiredColumns is not null
+            && string.IsNullOrWhiteSpace(plan.Index.JsonPath)
+            && plan.IsFullEquality
+            && IsWhereFullyCoveredByIndexPlan(where, schema, plan)
+            && requiredColumns.All(column =>
+                plan.Index.Columns.Contains(column, StringComparer.OrdinalIgnoreCase));
+
+    /// <summary>
     /// 为单表 EXISTS 生成与实际候选读取共用的访问计划。
     /// </summary>
     /// <param name="schema">目标关系表结构。</param>

@@ -73,6 +73,9 @@ public sealed record SqlExplainExecutionResult(
     /// <summary>计划节点的稳定名称。</summary>
     public string? PlanNode { get; init; }
 
+    /// <summary>当前计划的流式、阻塞和有界内存行为。</summary>
+    public string? MemoryBehavior { get; init; }
+
     /// <summary>EXPLAIN ANALYZE 实际访问路径。</summary>
     public string? ActualAccessPath { get; init; }
 
@@ -149,7 +152,7 @@ public static class SqlExplainPlanner
             statement = explain.Statement;
 
         using var _ = UserFunctionRegistry.EnterScope(tsdb.Functions);
-        return statement switch
+        SqlExplainExecutionResult result = statement switch
         {
             ShowMeasurementsStatement => ExplainShowMeasurements(databaseName, tsdb),
             ShowTablesStatement => ExplainShowTables(databaseName, tsdb),
@@ -185,6 +188,11 @@ public static class SqlExplainPlanner
             _ => throw new InvalidOperationException(
                 "EXPLAIN 仅支持 SELECT、SHOW MEASUREMENTS / SHOW TABLES / SHOW VIEWS / SHOW DOCUMENT COLLECTIONS / SHOW INDEXES / SHOW JSON INDEXES / SHOW FULLTEXT INDEXES 与 DESCRIBE [MEASUREMENT|TABLE|VIEW|DOCUMENT COLLECTION]。"),
         };
+        return statement is SelectStatement selectStatement
+            && result.MemoryBehavior is null
+            && UsesRelationalExecution(tsdb, selectStatement)
+            ? result with { MemoryBehavior = DescribeMemoryBehavior(selectStatement) }
+            : result;
     }
 
     /// <summary>
@@ -215,6 +223,7 @@ public static class SqlExplainPlanner
             new object?[] { "fallback_reason", result.FallbackReason },
             new object?[] { "candidate_contract", result.CandidateContract },
             new object?[] { "plan_node", result.PlanNode },
+            new object?[] { "memory_behavior", result.MemoryBehavior },
             new object?[] { "actual_access_path", result.ActualAccessPath },
             new object?[] { "actual_index_name", result.ActualIndexName },
             new object?[] { "actual_fallback_reason", result.ActualFallbackReason },
@@ -256,6 +265,70 @@ public static class SqlExplainPlanner
         }
 
         return new SelectExecutionResult(_keyValueColumns, rows);
+    }
+
+    private static string DescribeMemoryBehavior(SelectStatement statement)
+    {
+        var operators = new List<string>
+        {
+            "scan_filter_project=streaming",
+        };
+        for (int index = 0; index < statement.JoinClauses.Count; index++)
+        {
+            operators.Add($"join_{index + 1}=right_input_blocking(hash_build_or_nested_replay)");
+        }
+        if (RelationalSelectExecutor.ContainsAggregateForExplain(statement)
+            || statement.GroupBy.Count > 0
+            || statement.Having is not null)
+        {
+            operators.Add("aggregate=blocking_full_input");
+        }
+        if (statement.Distinct)
+            operators.Add("distinct=blocking_projected_rows");
+        if (statement.OrderByList.Count > 0)
+        {
+            if (statement.Pagination?.Fetch is int fetch
+                && TryAdd(statement.Pagination.Offset, fetch, out int retainedRows))
+            {
+                operators.Add($"sort=bounded_top_n({retainedRows})");
+            }
+            else
+            {
+                operators.Add("sort=blocking_full_input");
+            }
+        }
+        else if (statement.Pagination is { } pagination)
+        {
+            string stopAfter = pagination.Fetch is int fetch
+                && TryAdd(pagination.Offset, fetch, out int retainedRows)
+                    ? retainedRows.ToString(CultureInfo.InvariantCulture)
+                    : "end";
+            operators.Add($"pagination=streaming_stop_after({stopAfter})");
+        }
+        operators.Add("result=materialized_public_boundary");
+        return string.Join(';', operators);
+    }
+
+    private static bool UsesRelationalExecution(Tsdb tsdb, SelectStatement statement)
+        => statement.FromSubquery is not null
+            || tsdb.Tables.Catalog.TryGet(statement.Measurement) is not null
+            || tsdb.MaterializedViews.Catalog.TryGet(statement.Measurement) is not null
+            || (string.IsNullOrEmpty(statement.Measurement)
+                && statement.TableValuedFunction is null
+                && statement.GraphTable is null);
+
+    private static bool TryAdd(int left, int right, out int result)
+    {
+        try
+        {
+            result = checked(left + right);
+            return true;
+        }
+        catch (OverflowException)
+        {
+            result = 0;
+            return false;
+        }
     }
 
     private static string FormatDocumentPlanCandidates(IReadOnlyList<DocumentQueryPlanCandidate> candidates)
@@ -675,8 +748,12 @@ public static class SqlExplainPlanner
             statement = semijoinStatement;
         }
 
-        if (statement.FromSubquery is not null)
+        if (statement.FromSubquery is not null
+            || (statement.JoinClauses.Count != 0
+                && tsdb.Tables.Catalog.TryGet(statement.Measurement) is not null))
+        {
             return ExplainRelationalComposition(databaseName, tsdb, statement);
+        }
 
         if (statement.FromSubquery is null
             && statement.TableValuedFunction is null
@@ -988,10 +1065,15 @@ public static class SqlExplainPlanner
     {
         var sources = new List<ComposedSourceExplain>(statement.JoinClauses.Count + 1)
         {
-            ExplainComposedSubquery(
-                tsdb,
-                statement.FromSubquery!,
-                statement.TableAlias ?? "source"),
+            statement.FromSubquery is not null
+                ? ExplainComposedSubquery(
+                    tsdb,
+                    statement.FromSubquery,
+                    statement.TableAlias ?? "source")
+                : ExplainComposedRelation(
+                    tsdb,
+                    statement.Measurement,
+                    statement.TableAlias ?? statement.Measurement),
         };
         foreach (JoinClause join in statement.JoinClauses)
         {
@@ -1008,7 +1090,7 @@ public static class SqlExplainPlanner
             sources.Select((source, position) =>
                 $"{(position == 0 ? "source" : "join")}:{source.Alias}[{source.AccessPath}]"));
         if (sources.Count > 1)
-            accessPath += ";join_operator=hash";
+            accessPath += ";join_operator=right_build_or_replay";
         string? indexName = JoinNonEmpty(sources.Select(static source => source.IndexName));
         string? candidateContract = JoinNonEmpty(sources
             .Where(static source => source.CandidateContract is not null)
@@ -1019,7 +1101,9 @@ public static class SqlExplainPlanner
 
         return new SqlExplainExecutionResult(
             Database: databaseName,
-            StatementType: "cross_model_select",
+            StatementType: statement.FromSubquery is null
+                ? "select_relational_join"
+                : "cross_model_select",
             Measurement: string.Join(",", sources.Select(static source => source.Alias)),
             MatchedSeriesCount: 0,
             EstimatedSegmentCount: 0,
@@ -1035,6 +1119,7 @@ public static class SqlExplainPlanner
         {
             CandidateContract = candidateContract,
             FallbackReason = fallbackReason,
+            PlanNode = sources.Count > 1 ? "right_input_blocking_join" : "streaming_relation",
         };
     }
 

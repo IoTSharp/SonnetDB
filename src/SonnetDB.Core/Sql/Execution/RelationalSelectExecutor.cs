@@ -85,32 +85,52 @@ internal static class RelationalSelectExecutor
 
         if (statement.Where is not null)
         {
-            var filteredRows = new List<object?[]>(relation.Rows.Count);
-            foreach (var row in relation.Rows)
+            relation = relation with
             {
-                SqlExecutor.ThrowIfCancellationRequested();
-                if (EvaluateBoolean(tsdb, statement.Where, relation.Columns, row, outerScope, memo))
-                    filteredRows.Add(row);
-            }
-            relation = relation with { Rows = filteredRows };
+                Rows = FilterRows(
+                    tsdb,
+                    relation.Columns,
+                    relation.Rows,
+                    statement.Where,
+                    outerScope,
+                    memo),
+            };
         }
 
         if (ContainsAggregate(statement.Projections)
             || statement.GroupBy.Count > 0
             || statement.Having is not null)
         {
+            relation = relation with { Rows = relation.Rows.ToArray() };
             var aggregateProjection = ExecuteAggregateProjection(tsdb, statement, relation, outerScope, memo);
             return ApplyOrderByAndPagination(aggregateProjection, statement.OrderByList, statement.Pagination);
         }
 
-        var canApplyRelationOrderBy = CanApplyRelationOrderBy(statement.OrderByList, relation);
-        var orderedRelation = canApplyRelationOrderBy
-            ? ApplyRelationOrderBy(tsdb, relation, statement.OrderByList, outerScope, memo)
-            : relation;
-        var projected = ExecuteRawProjection(tsdb, statement, orderedRelation, outerScope, memo);
+        bool canApplyRelationOrderBy = CanApplyRelationOrderBy(statement.OrderByList, relation);
+        if (canApplyRelationOrderBy && statement.OrderByList.Count > 0)
+        {
+            relation = ApplyRelationOrderByAndPagination(
+                tsdb,
+                relation,
+                statement.OrderByList,
+                statement.Pagination,
+                outerScope,
+                memo);
+        }
+
+        (IReadOnlyList<string> Columns, IEnumerable<IReadOnlyList<object?>> Rows) projected =
+            ProjectRawRows(tsdb, statement, relation, outerScope, memo);
         if (statement.OrderByList.Count > 0 && !canApplyRelationOrderBy)
-            return ApplyOrderByAndPagination(projected, statement.OrderByList, statement.Pagination);
-        return ApplyPagination(projected, statement.Pagination);
+        {
+            return ApplyOrderByAndPagination(
+                projected.Columns,
+                projected.Rows,
+                statement.OrderByList,
+                statement.Pagination);
+        }
+        if (canApplyRelationOrderBy && statement.OrderByList.Count > 0)
+            return new SelectExecutionResult(projected.Columns, projected.Rows.ToArray());
+        return ApplyPagination(projected.Columns, projected.Rows, statement.Pagination);
     }
 
     /// <summary>
@@ -328,6 +348,13 @@ internal static class RelationalSelectExecutor
             || statement.Having is not null
             || ContainsAggregate(statement.Projections)
             || ContainsSubquery(statement);
+    }
+
+    /// <summary>供 EXPLAIN 判断当前关系查询是否包含阻塞聚合边界。</summary>
+    internal static bool ContainsAggregateForExplain(SelectStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(statement);
+        return ContainsAggregate(statement.Projections);
     }
 
     /// <summary>
@@ -984,35 +1011,56 @@ internal static class RelationalSelectExecutor
             var column = selectedColumns[i];
             columns[i] = new RelColumn(alias, column.Name, column.Name, column.DataType);
         }
+        if (plan.RowLimit == 0)
+        {
+            memo.RecordRelationInput(
+                plan,
+                schema.Columns.Count,
+                selectedColumns.Length,
+                candidateRows: 0,
+                retainedRows: 0);
+            return new Relation(columns, []);
+        }
         // read-your-writes：叠加当前 ambient 轻事务对本表的缓冲写（#218）。
-        var candidates = TableSqlExecutor.LoadSelectCandidateRows(
+        IEnumerable<TableRow> candidates = TableSqlExecutor.EnumerateSelectCandidateRows(
             tsdb.Tables.Open(schema.Name),
             schema,
-            plan.Predicate);
-        var rows = new List<object?[]>(Math.Min(candidates.Count, plan.RowLimit ?? candidates.Count));
-        if (plan.RowLimit != 0)
-        {
-            foreach (var candidate in candidates)
-            {
-                SqlExecutor.ThrowIfCancellationRequested();
-                if (!TableSqlExecutor.EvaluateWhere(plan.Predicate, schema, candidate.Values))
-                    continue;
+            plan.Predicate,
+            plan.RequiredColumns);
+        return new Relation(columns, ProjectRows());
 
-                var row = new object?[selectedColumns.Length];
-                for (int i = 0; i < selectedColumns.Length; i++)
-                    row[i] = candidate.Values[selectedColumns[i].Ordinal];
-                rows.Add(row);
-                if (plan.RowLimit is int rowLimit && rows.Count >= rowLimit)
-                    break;
+        IEnumerable<object?[]> ProjectRows()
+        {
+            int candidateCount = 0;
+            int retainedCount = 0;
+            try
+            {
+                foreach (TableRow candidate in candidates)
+                {
+                    candidateCount++;
+                    SqlExecutor.ThrowIfCancellationRequested();
+                    if (!TableSqlExecutor.EvaluateWhere(plan.Predicate, schema, candidate.Values))
+                        continue;
+
+                    var row = new object?[selectedColumns.Length];
+                    for (int i = 0; i < selectedColumns.Length; i++)
+                        row[i] = candidate.Values[selectedColumns[i].Ordinal];
+                    retainedCount++;
+                    yield return row;
+                    if (plan.RowLimit is int rowLimit && retainedCount >= rowLimit)
+                        yield break;
+                }
+            }
+            finally
+            {
+                memo.RecordRelationInput(
+                    plan,
+                    schema.Columns.Count,
+                    selectedColumns.Length,
+                    candidateCount,
+                    retainedCount);
             }
         }
-        memo.RecordRelationInput(
-            plan,
-            schema.Columns.Count,
-            selectedColumns.Length,
-            candidates.Count,
-            rows.Count);
-        return new Relation(columns, rows);
     }
 
     private static TableColumn[] SelectInputColumns(
@@ -1097,36 +1145,36 @@ internal static class RelationalSelectExecutor
         SubqueryMemo memo)
     {
         var columns = left.Columns.Concat(right.Columns).ToArray();
-        var rows = new List<object?[]>();
-        foreach (var leftRow in left.Rows)
+        return new Relation(columns, JoinRows());
+
+        IEnumerable<object?[]> JoinRows()
         {
-            SqlExecutor.ThrowIfCancellationRequested();
-            var matched = false;
-            foreach (var rightRow in right.Rows)
+            object?[][] rightRows = right.Rows.ToArray();
+            foreach (object?[] leftRow in left.Rows)
             {
                 SqlExecutor.ThrowIfCancellationRequested();
-                var row = new object?[leftRow.Length + rightRow.Length];
-                Array.Copy(leftRow, row, leftRow.Length);
-                Array.Copy(rightRow, 0, row, leftRow.Length, rightRow.Length);
-                // M2 修复：JOIN ON 中如果出现引用外层列的标量子查询 / EXISTS，
-                // 旧实现丢掉 outerScope —— 那种写法会在 GetColumnValue 里报"未知列"。
-                // 现在把当前 SELECT 的 outerScope 透传给 JOIN ON 求值。
-                if (EvaluateBoolean(tsdb, on, columns, row, outerScope, memo))
+                var matched = false;
+                foreach (object?[] rightRow in rightRows)
                 {
-                    matched = true;
-                    rows.Add(row);
+                    SqlExecutor.ThrowIfCancellationRequested();
+                    var row = new object?[leftRow.Length + rightRow.Length];
+                    Array.Copy(leftRow, row, leftRow.Length);
+                    Array.Copy(rightRow, 0, row, leftRow.Length, rightRow.Length);
+                    if (EvaluateBoolean(tsdb, on, columns, row, outerScope, memo))
+                    {
+                        matched = true;
+                        yield return row;
+                    }
+                }
+
+                if (!matched && kind == JoinKind.Left)
+                {
+                    var row = new object?[leftRow.Length + right.Columns.Count];
+                    Array.Copy(leftRow, row, leftRow.Length);
+                    yield return row;
                 }
             }
-
-            if (!matched && kind == JoinKind.Left)
-            {
-                var row = new object?[leftRow.Length + right.Columns.Count];
-                Array.Copy(leftRow, row, leftRow.Length);
-                rows.Add(row);
-            }
         }
-
-        return new Relation(columns, rows);
     }
 
     /// <summary>一组等值连接键：左关系列下标 = 右关系列下标。</summary>
@@ -1208,56 +1256,56 @@ internal static class RelationalSelectExecutor
         SubqueryMemo memo)
     {
         var columns = left.Columns.Concat(right.Columns).ToArray();
-        var rows = new List<object?[]>();
+        return new Relation(columns, JoinRows());
 
-        // build 侧：对右关系按连接键建哈希（key 含 NULL 的行不入表——NULL 不参与等值匹配）。
-        var buildTable = new Dictionary<JoinValueKey, List<object?[]>>();
-        foreach (var rightRow in right.Rows)
+        IEnumerable<object?[]> JoinRows()
         {
-            SqlExecutor.ThrowIfCancellationRequested();
-            if (TryMakeKey(rightRow, keyPairs, useRight: true, out var key))
+            var buildTable = new Dictionary<JoinValueKey, List<object?[]>>();
+            foreach (object?[] rightRow in right.Rows)
             {
-                if (!buildTable.TryGetValue(key, out var bucket))
+                SqlExecutor.ThrowIfCancellationRequested();
+                if (TryMakeKey(rightRow, keyPairs, useRight: true, out var key))
                 {
-                    bucket = [];
-                    buildTable.Add(key, bucket);
+                    if (!buildTable.TryGetValue(key, out var bucket))
+                    {
+                        bucket = [];
+                        buildTable.Add(key, bucket);
+                    }
+                    bucket.Add(rightRow);
                 }
-                bucket.Add(rightRow);
             }
-        }
 
-        bool hasResidual = residual.Count > 0;
-        foreach (var leftRow in left.Rows)
-        {
-            SqlExecutor.ThrowIfCancellationRequested();
-            bool matched = false;
-            if (TryMakeKey(leftRow, keyPairs, useRight: false, out var probeKey)
-                && buildTable.TryGetValue(probeKey, out var candidates))
+            bool hasResidual = residual.Count > 0;
+            foreach (object?[] leftRow in left.Rows)
             {
-                foreach (var rightRow in candidates)
+                SqlExecutor.ThrowIfCancellationRequested();
+                bool matched = false;
+                if (TryMakeKey(leftRow, keyPairs, useRight: false, out var probeKey)
+                    && buildTable.TryGetValue(probeKey, out var candidates))
                 {
-                    SqlExecutor.ThrowIfCancellationRequested();
-                    var row = new object?[leftRow.Length + rightRow.Length];
+                    foreach (object?[] rightRow in candidates)
+                    {
+                        SqlExecutor.ThrowIfCancellationRequested();
+                        var row = new object?[leftRow.Length + rightRow.Length];
+                        Array.Copy(leftRow, row, leftRow.Length);
+                        Array.Copy(rightRow, 0, row, leftRow.Length, rightRow.Length);
+
+                        if (hasResidual && !ResidualHolds(tsdb, residual, columns, row, outerScope, memo))
+                            continue;
+
+                        matched = true;
+                        yield return row;
+                    }
+                }
+
+                if (!matched && kind == JoinKind.Left)
+                {
+                    var row = new object?[leftRow.Length + right.Columns.Count];
                     Array.Copy(leftRow, row, leftRow.Length);
-                    Array.Copy(rightRow, 0, row, leftRow.Length, rightRow.Length);
-
-                    if (hasResidual && !ResidualHolds(tsdb, residual, columns, row, outerScope, memo))
-                        continue;
-
-                    matched = true;
-                    rows.Add(row);
+                    yield return row;
                 }
             }
-
-            if (!matched && kind == JoinKind.Left)
-            {
-                var row = new object?[leftRow.Length + right.Columns.Count];
-                Array.Copy(leftRow, row, leftRow.Length);
-                rows.Add(row);
-            }
         }
-
-        return new Relation(columns, rows);
     }
 
     private static bool ResidualHolds(
@@ -1348,7 +1396,23 @@ internal static class RelationalSelectExecutor
         }
     }
 
-    private static SelectExecutionResult ExecuteRawProjection(
+    private static IEnumerable<object?[]> FilterRows(
+        Tsdb tsdb,
+        IReadOnlyList<RelColumn> columns,
+        IEnumerable<object?[]> rows,
+        SqlExpression predicate,
+        RelationalScope? outerScope,
+        SubqueryMemo memo)
+    {
+        foreach (object?[] row in rows)
+        {
+            SqlExecutor.ThrowIfCancellationRequested();
+            if (EvaluateBoolean(tsdb, predicate, columns, row, outerScope, memo))
+                yield return row;
+        }
+    }
+
+    private static (IReadOnlyList<string> Columns, IEnumerable<IReadOnlyList<object?>> Rows) ProjectRawRows(
         Tsdb tsdb,
         SelectStatement statement,
         Relation relation,
@@ -1356,17 +1420,19 @@ internal static class RelationalSelectExecutor
         SubqueryMemo memo)
     {
         var projections = BuildRawProjections(statement.Projections, relation);
-        var rows = new List<IReadOnlyList<object?>>(relation.Rows.Count);
-        foreach (var row in relation.Rows)
-        {
-            SqlExecutor.ThrowIfCancellationRequested();
-            var output = new object?[projections.Count];
-            for (int i = 0; i < projections.Count; i++)
-                output[i] = EvaluateScalar(tsdb, projections[i].Expression, relation.Columns, row, outerScope, memo);
-            rows.Add(output);
-        }
+        return (projections.Select(static projection => projection.Name).ToArray(), ProjectRows());
 
-        return new SelectExecutionResult(projections.Select(static p => p.Name).ToArray(), rows);
+        IEnumerable<IReadOnlyList<object?>> ProjectRows()
+        {
+            foreach (object?[] row in relation.Rows)
+            {
+                SqlExecutor.ThrowIfCancellationRequested();
+                var output = new object?[projections.Count];
+                for (int i = 0; i < projections.Count; i++)
+                    output[i] = EvaluateScalar(tsdb, projections[i].Expression, relation.Columns, row, outerScope, memo);
+                yield return output;
+            }
+        }
     }
 
     private static bool CanApplyRelationOrderBy(IReadOnlyList<OrderBySpec> orderBy, Relation relation)
@@ -1559,7 +1625,7 @@ internal static class RelationalSelectExecutor
         Tsdb tsdb,
         AggregateSpec aggregate,
         IReadOnlyList<RelColumn> columns,
-        IReadOnlyList<object?[]> allRows,
+        IEnumerable<object?[]> allRows,
         RelationalScope? outerScope,
         SubqueryMemo memo)
     {
@@ -2969,25 +3035,58 @@ internal static class RelationalSelectExecutor
         return new SelectExecutionResult(result.Columns, rows);
     }
 
-    private static Relation ApplyRelationOrderBy(
+    private static SelectExecutionResult ApplyOrderByAndPagination(
+        IReadOnlyList<string> columns,
+        IEnumerable<IReadOnlyList<object?>> rows,
+        IReadOnlyList<OrderBySpec> orderBy,
+        PaginationSpec? pagination)
+    {
+        var materializedColumns = columns as string[] ?? columns.ToArray();
+        var sortItems = orderBy.Select(order =>
+        {
+            if (order.Expression is not IdentifierExpression id)
+                throw new InvalidOperationException("关系型 ORDER BY 当前仅支持结果列名。");
+            string qualified = id.Qualifier is null ? id.Name : $"{id.Qualifier}.{id.Name}";
+            int columnIndex = FindResultColumn(materializedColumns, qualified);
+            if (columnIndex < 0)
+                columnIndex = FindResultColumn(materializedColumns, id.Name);
+            if (columnIndex < 0)
+                throw new InvalidOperationException($"ORDER BY 引用了结果集中不存在的列 '{qualified}'。");
+            return (ColumnIndex: columnIndex, order.Direction);
+        }).ToArray();
+        var comparer = new ResultRowSortComparer(sortItems);
+        IReadOnlyList<IReadOnlyList<object?>> selected = TopN.OrderByThenPaginate(
+            rows,
+            comparer,
+            pagination?.Offset ?? 0,
+            pagination?.Fetch);
+        return new SelectExecutionResult(materializedColumns, selected);
+    }
+
+    private static Relation ApplyRelationOrderByAndPagination(
         Tsdb tsdb,
         Relation relation,
         IReadOnlyList<OrderBySpec> orderBy,
+        PaginationSpec? pagination,
         RelationalScope? outerScope,
         SubqueryMemo memo)
     {
         if (orderBy.Count == 0)
             return relation;
 
-        var rows = relation.Rows
+        IEnumerable<RelationSortRow> candidates = relation.Rows
             .Select(row => new RelationSortRow(
                 row,
                 orderBy
                     .Select(order => EvaluateScalar(tsdb, order.Expression, relation.Columns, row, outerScope, memo))
-                    .ToArray()))
-            .OrderBy(row => row, new RelationSortComparer(orderBy.Select(static order => order.Direction).ToArray()))
-            .Select(static row => row.Row)
-            .ToArray();
+                    .ToArray()));
+        var comparer = new RelationSortComparer(orderBy.Select(static order => order.Direction).ToArray());
+        RelationSortRow[] selected = TopN.OrderByThenPaginate(
+            candidates,
+            comparer,
+            pagination?.Offset ?? 0,
+            pagination?.Fetch);
+        IEnumerable<object?[]> rows = selected.Select(static row => row.Row);
 
         return relation with { Rows = rows };
     }
@@ -3062,6 +3161,21 @@ internal static class RelationalSelectExecutor
         return new SelectExecutionResult(
             result.Columns,
             result.Rows.Skip(offset).Take(Math.Min(take, result.Rows.Count - offset)).ToArray());
+    }
+
+    private static SelectExecutionResult ApplyPagination(
+        IReadOnlyList<string> columns,
+        IEnumerable<IReadOnlyList<object?>> rows,
+        PaginationSpec? pagination)
+    {
+        IEnumerable<IReadOnlyList<object?>> selected = rows;
+        if (pagination is not null)
+        {
+            selected = selected.Skip(pagination.Offset);
+            if (pagination.Fetch is int fetch)
+                selected = selected.Take(fetch);
+        }
+        return new SelectExecutionResult(columns, selected.ToArray());
     }
 
     private static bool ContainsAggregate(IReadOnlyList<SelectItem> items)
@@ -3293,7 +3407,7 @@ internal static class RelationalSelectExecutor
     private static bool QualifierEquals(string? left, string? right)
         => string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
 
-    private sealed record Relation(IReadOnlyList<RelColumn> Columns, IReadOnlyList<object?[]> Rows);
+    private sealed record Relation(IReadOnlyList<RelColumn> Columns, IEnumerable<object?[]> Rows);
 
     /// <summary>
     /// 关系列描述。<see cref="StaticType"/> 为该列的 schema 静态类型（关系表列已知；子查询 /

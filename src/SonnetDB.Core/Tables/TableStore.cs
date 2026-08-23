@@ -131,6 +131,9 @@ public sealed class TableStore : IDisposable
     /// <summary>测试复合访问路径取得稳定读快照的次数。</summary>
     internal Action? ReadSnapshotAcquiredTestHook { get; set; }
 
+    /// <summary>供 TableManager 在固定顺序下原子捕获多表快照的 rowstore 同步根。</summary>
+    internal object SynchronizationRoot => _sync;
+
     /// <summary>取得当前 rowstore 的稳定读快照，供一个复合访问路径共享。</summary>
     internal KvReadSnapshot AcquireReadSnapshot()
     {
@@ -609,12 +612,32 @@ public sealed class TableStore : IDisposable
     /// <returns>按主键升序排列的关系行序列。</returns>
     internal IEnumerable<TableRow> EnumerateScan(int? limit = null)
     {
-        Interlocked.Increment(ref _fullScanCount);
         if (limit is <= 0)
             yield break;
 
         using TableReadSnapshot tableSnapshot = AcquireTableReadSnapshot();
-        using var cursor = tableSnapshot.Snapshot.OpenRangeCursor(new KvRangeScanOptions
+        foreach (TableRow row in EnumerateScan(
+            tableSnapshot.Snapshot,
+            tableSnapshot.Schema,
+            limit))
+        {
+            yield return row;
+        }
+    }
+
+    /// <summary>在调用方持有的稳定读快照内按主键顺序惰性扫描关系行。</summary>
+    internal IEnumerable<TableRow> EnumerateScan(
+        KvReadSnapshot snapshot,
+        TableSchema schema,
+        int? limit = null)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(schema);
+        Interlocked.Increment(ref _fullScanCount);
+        if (limit is <= 0)
+            yield break;
+
+        using var cursor = snapshot.OpenRangeCursor(new KvRangeScanOptions
         {
             Prefix = new byte[] { (byte)'r' },
             PageSize = 256,
@@ -636,7 +659,7 @@ public sealed class TableStore : IDisposable
                 emitted++;
                 RowDecodedTestHook?.Invoke(emitted);
                 yield return new TableRow(
-                    TableRowCodec.Decode(tableSnapshot.Schema, entry.Value.Span),
+                    TableRowCodec.Decode(schema, entry.Value.Span),
                     primaryKey.ToArray());
             }
         }
@@ -781,6 +804,58 @@ public sealed class TableStore : IDisposable
             indexColumnValues,
             limit))
             yield return row;
+    }
+
+    /// <summary>
+    /// 对完整普通索引等值键执行 index-only scan。返回行只填充索引列，
+    /// 调用方必须证明谓词和所需列均被该索引覆盖。
+    /// </summary>
+    internal IEnumerable<TableRow> EnumerateCoveredIndexEquality(
+        TableIndex index,
+        IReadOnlyList<object?> indexColumnValues,
+        int? limit = null)
+    {
+        ArgumentNullException.ThrowIfNull(index);
+        ArgumentNullException.ThrowIfNull(indexColumnValues);
+        if (!string.IsNullOrWhiteSpace(index.JsonPath)
+            || indexColumnValues.Count != index.Columns.Count)
+        {
+            throw new ArgumentException("Index-only scan 需要普通索引的完整等值键。", nameof(indexColumnValues));
+        }
+        if (limit is <= 0)
+            yield break;
+
+        using TableReadSnapshot tableSnapshot = AcquireTableReadSnapshot();
+        byte[] prefix = TableIndexCodec.EncodeLookupPrefix(
+            index,
+            indexColumnValues,
+            tableSnapshot.Schema)
+            ?? throw new InvalidOperationException($"索引 '{index.Name}' 的等值键无法编码。");
+        using var cursor = tableSnapshot.Snapshot.OpenRangeCursor(new KvRangeScanOptions
+        {
+            Prefix = prefix,
+            PageSize = 256,
+        });
+        int emitted = 0;
+        while (!cursor.IsExhausted && (limit is null || emitted < limit.Value))
+        {
+            IReadOnlyList<KvEntry> page = cursor.ReadNextPage();
+            if (page.Count == 0)
+                yield break;
+            foreach (KvEntry entry in page)
+            {
+                if (limit is int && emitted >= limit.Value)
+                    yield break;
+                var values = new object?[tableSnapshot.Schema.Columns.Count];
+                for (int indexOrdinal = 0; indexOrdinal < index.Columns.Count; indexOrdinal++)
+                {
+                    TableColumn column = tableSnapshot.Schema.TryGetColumn(index.Columns[indexOrdinal])!;
+                    values[column.Ordinal] = indexColumnValues[indexOrdinal];
+                }
+                emitted++;
+                yield return new TableRow(values, entry.Value.ToArray());
+            }
+        }
     }
 
     /// <summary>在调用方持有的稳定读快照内按二级索引前缀惰性读取候选行。</summary>

@@ -2,6 +2,7 @@ using SonnetDB.Engine;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
+using SonnetDB.Tables;
 using Xunit;
 
 namespace SonnetDB.Core.Tests.Sql;
@@ -242,6 +243,113 @@ public sealed class RelationalInputPushdownTests : IDisposable
         Assert.Equal(3, evaluatedIds.Count);
         Assert.Equal(0, metrics.InputPredicatePushdownCount);
         Assert.Equal(2, metrics.InputProjectionPushdownCount);
+    }
+
+    [Fact]
+    public void Execute_HashJoinLimit_StreamsProbeAndStopsAfterFirstMatch()
+    {
+        using var database = CreateDatabase();
+        TableStore tasks = database.Tables.Open("push_tasks");
+        int decoded = 0;
+        tasks.RowDecodedTestHook = _ => decoded++;
+
+        var (result, _) = Execute(database, """
+            SELECT t.id
+            FROM push_tasks t
+            JOIN push_devices d ON t.device_id = d.id
+            LIMIT 1
+            """);
+
+        Assert.Equal(1L, Assert.Single(result.Rows)[0]);
+        Assert.Equal(1, decoded);
+    }
+
+    [Fact]
+    public void Execute_JoinInputCoveredEquality_UsesIndexOnlyWithoutBaseRowDecode()
+    {
+        using var database = CreateDatabase();
+        SqlExecutor.Execute(
+            database,
+            "CREATE INDEX ix_join_cover ON push_tasks (status, device_id)");
+        SqlExecutor.Execute(database, """
+            CREATE TABLE push_targets (
+                id INT,
+                device_id INT,
+                region STRING,
+                PRIMARY KEY (id))
+            """);
+        SqlExecutor.Execute(
+            database,
+            "CREATE INDEX ix_join_cover ON push_targets (region, device_id)");
+        SqlExecutor.Execute(
+            database,
+            "INSERT INTO push_targets (id, device_id, region) VALUES (1, 10, 'north')");
+        TableStore tasks = database.Tables.Open("push_tasks");
+        TableStore targets = database.Tables.Open("push_targets");
+        int taskRowsDecoded = 0;
+        int targetRowsDecoded = 0;
+        tasks.RowDecodedTestHook = _ => taskRowsDecoded++;
+        targets.RowDecodedTestHook = _ => targetRowsDecoded++;
+        var metrics = new SqlExecutionMetrics();
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            database,
+            databaseName: null,
+            """
+            SELECT t.status, d.region
+            FROM push_tasks t
+            JOIN push_targets d ON t.device_id = d.device_id
+            WHERE t.status = 'ready' AND t.device_id = 10
+                AND d.region = 'north' AND d.device_id = 10
+            """,
+            parameters: null,
+            controlPlane: null,
+            new SqlExecutionOptions { Metrics = metrics }));
+        SqlExecutionMetricsSnapshot snapshot = metrics.Complete();
+
+        Assert.Equal(new object?[] { "ready", "north" }, Assert.Single(result.Rows));
+        Assert.Equal(0, taskRowsDecoded);
+        Assert.Equal(0, targetRowsDecoded);
+        Assert.Equal("secondary_index_only", snapshot.AccessPath);
+        Assert.Equal("ix_join_cover", snapshot.IndexName);
+    }
+
+    [Fact]
+    public void Explain_RelationalStreamingPlan_ReportsBlockingMemoryBoundaries()
+    {
+        using var database = CreateDatabase();
+
+        var topN = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(database, """
+            EXPLAIN SELECT t.id
+            FROM push_tasks t
+            JOIN push_devices d ON t.device_id = d.id
+            ORDER BY t.id
+            LIMIT 2 OFFSET 1
+            """));
+        var topNPlan = topN.Rows.ToDictionary(
+            static row => (string)row[0]!,
+            static row => row[1],
+            StringComparer.Ordinal);
+        string topNMemory = Assert.IsType<string>(topNPlan["memory_behavior"]);
+        Assert.Contains("scan_filter_project=streaming", topNMemory, StringComparison.Ordinal);
+        Assert.Contains("join_1=right_input_blocking", topNMemory, StringComparison.Ordinal);
+        Assert.Contains("sort=bounded_top_n(3)", topNMemory, StringComparison.Ordinal);
+        Assert.Contains("result=materialized_public_boundary", topNMemory, StringComparison.Ordinal);
+
+        var aggregate = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(database, """
+            EXPLAIN SELECT d.region, COUNT(*)
+            FROM push_tasks t
+            JOIN push_devices d ON t.device_id = d.id
+            GROUP BY d.region
+            """));
+        var aggregatePlan = aggregate.Rows.ToDictionary(
+            static row => (string)row[0]!,
+            static row => row[1],
+            StringComparer.Ordinal);
+        Assert.Contains(
+            "aggregate=blocking_full_input",
+            Assert.IsType<string>(aggregatePlan["memory_behavior"]),
+            StringComparison.Ordinal);
     }
 
     public void Dispose()

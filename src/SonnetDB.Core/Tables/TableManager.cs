@@ -707,6 +707,61 @@ public sealed class TableManager : IDisposable
     }
 
     /// <summary>
+    /// 在同一个 TableManager 临界区内取得多张表的稳定读快照。
+    /// SQL 多表提交无法穿过捕获窗口，返回后读取仅持有各 rowstore 的不可变 KV lease。
+    /// </summary>
+    internal IReadOnlyDictionary<string, TableReadBinding> AcquireReadSnapshots(
+        IEnumerable<string> tableNames)
+    {
+        ArgumentNullException.ThrowIfNull(tableNames);
+        string[] names = tableNames
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(static name => name, StringComparer.Ordinal)
+            .ToArray();
+        if (names.Any(string.IsNullOrWhiteSpace))
+            throw new ArgumentException("关系读快照的表名不能为空。", nameof(tableNames));
+
+        long lockWait = SonnetDbMeter.StartLockWaitTiming();
+        lock (_sync)
+        {
+            SonnetDbMeter.RecordTableManagerLockWait(lockWait);
+            ThrowIfDisposed();
+            var stores = new List<(string Name, TableStore Store)>(names.Length);
+            foreach (string name in names)
+            {
+                TableSchema schema = Catalog.TryGet(name)
+                    ?? throw new InvalidOperationException($"table '{name}' 不存在。");
+                stores.Add((name, OpenStoreLocked(schema)));
+            }
+
+            var bindings = new Dictionary<string, TableReadBinding>(names.Length, StringComparer.Ordinal);
+            int locksHeld = 0;
+            try
+            {
+                foreach ((string _, TableStore store) in stores)
+                {
+                    Monitor.Enter(store.SynchronizationRoot);
+                    locksHeld++;
+                }
+                foreach ((string name, TableStore store) in stores)
+                    bindings.Add(name, new TableReadBinding(store, store.AcquireTableReadSnapshot()));
+                return bindings;
+            }
+            catch
+            {
+                foreach (TableReadBinding binding in bindings.Values)
+                    binding.Snapshot.Dispose();
+                throw;
+            }
+            finally
+            {
+                for (int index = locksHeld - 1; index >= 0; index--)
+                    Monitor.Exit(stores[index].Store.SynchronizationRoot);
+            }
+        }
+    }
+
+    /// <summary>
     /// 通过 table/keyspace generation 快速清空整表。存在入站外键时拒绝，避免绕过引用约束或级联语义。
     /// </summary>
     /// <param name="name">关系表名称。</param>

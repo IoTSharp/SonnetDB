@@ -42,3 +42,6 @@ internal sealed class TableReadSnapshot : IDisposable
         Interlocked.Exchange(ref _snapshot, null)?.Dispose();
     }
 }
+
+/// <summary>TableManager 在同一捕获窗口内绑定的 store 与稳定快照。</summary>
+internal sealed record TableReadBinding(TableStore Store, TableReadSnapshot Snapshot);
