@@ -30,6 +30,7 @@ public sealed class GraphStore : IDisposable
     private readonly object _offlineAlgorithmGate = new();
     private readonly object _commitGate;
     private readonly KvKeyspace _keyspace;
+    private GraphStatistics? _statistics;
     private bool _disposed;
 
     /// <summary>测试在 transaction 已构造条件、进入 KV 条件提交前建立同步点。</summary>
@@ -211,6 +212,38 @@ public sealed class GraphStore : IDisposable
         {
             ThrowIfDisposed();
             return new GraphReadSession(this, _keyspace.AcquireReadSnapshot());
+        }
+    }
+
+    internal GraphStatistics? GetCachedStatistics()
+    {
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            return _statistics;
+        }
+    }
+
+    internal long CurrentSequence
+    {
+        get
+        {
+            lock (_sync)
+            {
+                ThrowIfDisposed();
+                return _keyspace.LastSequence;
+            }
+        }
+    }
+
+    internal void PublishStatistics(GraphStatistics statistics)
+    {
+        ArgumentNullException.ThrowIfNull(statistics);
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            if (_statistics is null || statistics.Sequence >= _statistics.Sequence)
+                _statistics = statistics;
         }
     }
 

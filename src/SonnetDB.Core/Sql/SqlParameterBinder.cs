@@ -43,6 +43,20 @@ public static class SqlParameterBinder
                     .Select(row => (IReadOnlyList<SqlExpression>)BindExprList(row, parameters))
                     .ToArray(),
             },
+            UpdateGraphStatement graphUpdate => graphUpdate with
+            {
+                Assignments = graphUpdate.Assignments
+                    .Select(assignment => assignment with
+                    {
+                        Value = BindExpr(assignment.Value, parameters),
+                    })
+                    .ToArray(),
+                Where = BindExpr(graphUpdate.Where, parameters),
+            },
+            DeleteGraphStatement graphDelete => graphDelete with
+            {
+                Where = BindExpr(graphDelete.Where, parameters),
+            },
             ExplainStatement explain => explain with
             {
                 Statement = Bind(explain.Statement, parameters),

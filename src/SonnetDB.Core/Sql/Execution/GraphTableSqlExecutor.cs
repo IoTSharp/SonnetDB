@@ -53,6 +53,8 @@ internal static class GraphTableSqlExecutor
         rows.Add(new object?[] { "actual_read_consistency", outcome.Metrics.ReadConsistency });
         rows.Add(new object?[] { "actual_snapshot_sequence", outcome.Metrics.SnapshotSequence });
         rows.Add(new object?[] { "actual_snapshot_sequences", outcome.Metrics.SnapshotSequences });
+        rows.Add(new object?[] { "actual_anchor_access_path", outcome.Plan.NativeAnchor?.AccessPath });
+        rows.Add(new object?[] { "actual_anchor_index", outcome.Plan.NativeAnchor?.Index });
         rows.Add(new object?[] { "actual_elapsed_ms", outcome.Metrics.Elapsed.TotalMilliseconds });
         return new SelectExecutionResult(["key", "value"], rows);
     }
@@ -69,7 +71,7 @@ internal static class GraphTableSqlExecutor
         (IReadOnlyList<string> Columns, IEnumerable<IReadOnlyList<object?>> Rows) relation =
             plan.IsRelational
                 ? ExecuteRelational(tsdb, plan.Source, plan.ReversePathProjection, metrics)
-                : ExecuteNative(tsdb, plan.Source, plan.ReversePathProjection, metrics);
+                : ExecuteNative(tsdb, plan, metrics);
         IEnumerable<IReadOnlyList<object?>> matchedRows = CountMatchedRows(relation.Rows, metrics);
         SelectExecutionResult result = GraphSqlExecutor.ApplySelectShape(
             statement,
@@ -172,16 +174,19 @@ internal static class GraphTableSqlExecutor
         else
         {
             _ = ResolveNativeLabels(tsdb, source);
-            bool anchorSeek = TryExtractKeyValues(
-                source.Predicate,
-                source.LeftVertex.Variable,
-                ["id"],
-                out _);
+            GraphNativeAnchorAccess anchor = plan.NativeAnchor
+                ?? throw new InvalidOperationException("Native graph plan 缺少 anchor access path。");
             rows.Add(new object?[] { "graph_kind", "native" });
             rows.Add(new object?[] { "accessor", "NativeGraphAccessor" });
             rows.Add(new object?[] { "read_consistency", "statement_snapshot" });
-            rows.Add(new object?[] { "anchor_access_path", anchorSeek ? "native_vertex_id_seek" : "native_label_index" });
+            rows.Add(new object?[] { "anchor_access_path", anchor.AccessPath });
+            rows.Add(new object?[] { "anchor_index", anchor.Index });
+            rows.Add(new object?[] { "anchor_property_id", anchor.PropertyId });
+            rows.Add(new object?[] { "statistics_sequence", anchor.StatisticsSequence });
+            rows.Add(new object?[] { "statistics_freshness", anchor.StatisticsFreshness });
+            rows.Add(new object?[] { "anchor_expand_order", "anchor_then_expand_then_residual_filter" });
             rows.Add(new object?[] { "edge_access_path", "native_adjacency" });
+            rows.Add(new object?[] { "fallback_reason", anchor.FallbackReason });
             rows.Add(new object?[] { "pull_operator", "paged_cursor" });
             rows.Add(new object?[] { "binding_storage", "fixed_slots" });
         }
@@ -203,11 +208,11 @@ internal static class GraphTableSqlExecutor
 
         GraphAnchorEstimate left = isRelational
             ? EstimateRelationalAnchor(tsdb, source)
-            : EstimateNativeAnchor(source);
+            : EstimateNativeAnchor(tsdb, source);
         GraphTableSource reversed = ReverseSource(source);
         GraphAnchorEstimate right = isRelational
             ? EstimateRelationalAnchor(tsdb, reversed)
-            : EstimateNativeAnchor(reversed);
+            : EstimateNativeAnchor(tsdb, reversed);
         bool useRight = right.Cost < left.Cost;
         GraphAnchorEstimate selected = useRight ? right : left;
         bool bothEndpointsBound = HasBoundAnchor(tsdb, source, isRelational)
@@ -228,29 +233,218 @@ internal static class GraphTableSqlExecutor
             selected.Expansions,
             selected.Cost,
             selected.Source,
+            selected.NativeAccess,
             BidirectionalBfsAdmitted: false,
             bidirectionalReason);
     }
 
-    private static GraphAnchorEstimate EstimateNativeAnchor(GraphTableSource source)
+    private static GraphAnchorEstimate EstimateNativeAnchor(Tsdb tsdb, GraphTableSource source)
     {
-        bool bound = TryExtractKeyValues(
+        (LabelId Label, _, _) = ResolveNativeLabels(tsdb, source);
+        GraphStore store = tsdb.Graphs.Open(source.GraphName);
+        GraphStatistics? statistics = store.GetCachedStatistics();
+        bool statisticsCurrent = statistics?.Sequence == store.CurrentSequence;
+        bool idBound = TryExtractKeyValues(
             source.Predicate,
             source.LeftVertex.Variable,
             ["id"],
             out _);
-        long anchorRows = bound ? 1 : MaxAnchorRows;
+        GraphNativeAnchorAccess access;
+        long anchorRows;
+        string estimateSource;
+        if (idBound)
+        {
+            anchorRows = 1;
+            estimateSource = "endpoint_id_predicate";
+            access = new GraphNativeAnchorAccess(
+                "native_vertex_id_seek",
+                "vertex_record_id",
+                null,
+                null,
+                statistics?.Sequence,
+                StatisticsFreshness(statistics, statisticsCurrent),
+                null);
+        }
+        else
+        {
+            IReadOnlyList<NativePropertyPredicate> predicates = ExtractNativePropertyPredicates(
+                source.Predicate,
+                source.LeftVertex.Variable);
+            NativePropertyPredicate? selected = predicates
+                .Select(predicate => new
+                {
+                    Predicate = predicate,
+                    Rows = statistics?.EstimateSeekRows(
+                        GraphElementType.Vertex,
+                        Label,
+                        predicate.PropertyId,
+                        predicate.Value) ?? Math.Min(MaxAnchorRows, 64),
+                })
+                .OrderBy(static candidate => candidate.Rows)
+                .ThenBy(static candidate => candidate.Predicate.PropertyId)
+                .Select(static candidate => candidate.Predicate)
+                .FirstOrDefault();
+            if (selected is not null)
+            {
+                anchorRows = statistics?.EstimateSeekRows(
+                    GraphElementType.Vertex,
+                    Label,
+                    selected.PropertyId,
+                    selected.Value) ?? Math.Min(MaxAnchorRows, 64);
+                estimateSource = statistics is null
+                    ? "property_index_bounded_heuristic"
+                    : statisticsCurrent ? "property_value_statistics_refreshed" : "property_value_statistics_stale";
+                access = new GraphNativeAnchorAccess(
+                    "native_property_index_seek",
+                    $"vertex_label_{Label.Value}_property_{selected.PropertyId}",
+                    selected.PropertyId,
+                    selected.Value,
+                    statistics?.Sequence,
+                    StatisticsFreshness(statistics, statisticsCurrent),
+                    null);
+            }
+            else
+            {
+                anchorRows = statistics?.LabelCardinality.GetValueOrDefault(Label) ?? MaxAnchorRows;
+                estimateSource = statistics is null
+                    ? "statistics_missing_bounded_cap"
+                    : statisticsCurrent ? "label_statistics_refreshed" : "label_statistics_stale";
+                access = new GraphNativeAnchorAccess(
+                    "native_label_index",
+                    $"vertex_label_{Label.Value}",
+                    null,
+                    null,
+                    statistics?.Sequence,
+                    StatisticsFreshness(statistics, statisticsCurrent),
+                    ContainsPropertyReference(source.Predicate, source.LeftVertex.Variable)
+                        ? "property_predicate_not_exact_or_unsupported"
+                        : null);
+            }
+        }
         int directionFactor = source.Direction == GraphDirection.Both ? 2 : 1;
         int depthFactor = source.Path?.MaxDepth ?? 1;
+        long averageDegree = EstimateAverageDegree(statistics);
         long expansions = Math.Min(
             MaxMatchedRows,
-            SaturatingMultiply(anchorRows, checked(directionFactor * depthFactor)));
+            SaturatingMultiply(
+                anchorRows,
+                SaturatingMultiply(averageDegree, checked(directionFactor * depthFactor))));
         return new GraphAnchorEstimate(
             anchorRows,
             expansions,
             anchorRows + (double)expansions,
-            bound ? "endpoint_id_predicate" : "statistics_missing_bounded_cap");
+            estimateSource,
+            access);
     }
+
+    private static IReadOnlyList<NativePropertyPredicate> ExtractNativePropertyPredicates(
+        SqlExpression? predicate,
+        string variable)
+    {
+        var result = new List<NativePropertyPredicate>();
+        Visit(predicate);
+        return result;
+
+        void Visit(SqlExpression? expression)
+        {
+            if (expression is BinaryExpression { Operator: SqlBinaryOperator.And } conjunction)
+            {
+                Visit(conjunction.Left);
+                Visit(conjunction.Right);
+                return;
+            }
+            if (expression is not BinaryExpression { Operator: SqlBinaryOperator.Equal } equality)
+                return;
+            if (TryGetPropertyComparison(equality.Left, equality.Right, variable, out NativePropertyPredicate? item)
+                || TryGetPropertyComparison(equality.Right, equality.Left, variable, out item))
+            {
+                if (!result.Any(existing => existing.PropertyId == item!.PropertyId && existing.Value == item.Value))
+                    result.Add(item!);
+            }
+        }
+    }
+
+    private static bool TryGetPropertyComparison(
+        SqlExpression identifierExpression,
+        SqlExpression valueExpression,
+        string variable,
+        out NativePropertyPredicate? predicate)
+    {
+        predicate = null;
+        if (identifierExpression is not IdentifierExpression identifier
+            || !string.Equals(identifier.Qualifier, variable, StringComparison.OrdinalIgnoreCase)
+            || !GraphSqlContract.TryParsePropertyColumn(identifier.Name, out int propertyId)
+            || !TryConvertNativePropertyValue(valueExpression, out GraphPropertyValue value))
+        {
+            return false;
+        }
+        predicate = new NativePropertyPredicate(propertyId, value);
+        return true;
+    }
+
+    private static bool TryConvertNativePropertyValue(
+        SqlExpression expression,
+        out GraphPropertyValue value)
+    {
+        value = default;
+        if (expression is not LiteralExpression and not UnaryExpression)
+            return false;
+        try
+        {
+            SqlProjectionExpressionEvaluator.Validate(
+                expression,
+                static _ => false,
+                "GRAPH_TABLE property index predicate");
+            object? scalar = SqlProjectionExpressionEvaluator.Evaluate(
+                expression,
+                static _ => null,
+                "GRAPH_TABLE property index predicate");
+            value = scalar switch
+            {
+                long integer => GraphPropertyValue.FromInt64(integer),
+                double number when double.IsFinite(number) => GraphPropertyValue.FromFloat64(number),
+                bool boolean => GraphPropertyValue.FromBoolean(boolean),
+                string text => GraphPropertyValue.FromString(text),
+                _ => default,
+            };
+            return scalar is long or bool or string || scalar is double finite && double.IsFinite(finite);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or ArgumentException or OverflowException)
+        {
+            return false;
+        }
+    }
+
+    private static bool ContainsPropertyReference(SqlExpression? expression, string variable)
+        => expression switch
+        {
+            IdentifierExpression identifier =>
+                string.Equals(identifier.Qualifier, variable, StringComparison.OrdinalIgnoreCase)
+                && GraphSqlContract.TryParsePropertyColumn(identifier.Name, out _),
+            BinaryExpression binary =>
+                ContainsPropertyReference(binary.Left, variable)
+                || ContainsPropertyReference(binary.Right, variable),
+            UnaryExpression unary => ContainsPropertyReference(unary.Operand, variable),
+            IsNullExpression isNull => ContainsPropertyReference(isNull.Operand, variable),
+            InExpression inExpression =>
+                ContainsPropertyReference(inExpression.Value, variable)
+                || inExpression.Values.Any(value => ContainsPropertyReference(value, variable)),
+            FunctionCallExpression function =>
+                function.Arguments.Any(argument => ContainsPropertyReference(argument, variable)),
+            _ => false,
+        };
+
+    private static long EstimateAverageDegree(GraphStatistics? statistics)
+    {
+        if (statistics is null)
+            return 1;
+        if (statistics.VertexCount == 0 || statistics.EdgeCount == 0)
+            return 0;
+        return Math.Max(1, DivideRoundUp(statistics.EdgeCount, statistics.VertexCount));
+    }
+
+    private static string StatisticsFreshness(GraphStatistics? statistics, bool current)
+        => statistics is null ? "missing" : current ? "refreshed" : "stale";
 
     private static GraphAnchorEstimate EstimateRelationalAnchor(Tsdb tsdb, GraphTableSource source)
     {
@@ -297,7 +491,8 @@ internal static class GraphTableSqlExecutor
             anchorRows,
             expansions,
             anchorRows + (double)expansions,
-            allBound ? "endpoint_key_predicate+relational_row_count" : "relational_row_count");
+            allBound ? "endpoint_key_predicate+relational_row_count" : "relational_row_count",
+            null);
     }
 
     private static bool HasBoundAnchor(Tsdb tsdb, GraphTableSource source, bool isRelational)
@@ -832,12 +1027,12 @@ internal static class GraphTableSqlExecutor
 
     private static (IReadOnlyList<string> Columns, IEnumerable<IReadOnlyList<object?>> Rows) ExecuteNative(
         Tsdb tsdb,
-        GraphTableSource source,
-        bool reversePathProjection,
+        GraphTableExecutionPlan plan,
         GraphTableExecutionMetrics metrics)
     {
+        GraphTableSource source = plan.Source;
         if (source.Path is not null)
-            return ExecuteNativePaths(tsdb, source, reversePathProjection, metrics);
+            return ExecuteNativePaths(tsdb, plan, metrics);
 
         (LabelId Left, LabelId Edge, LabelId Right) labels = ResolveNativeLabels(tsdb, source);
         ValidateNativeExpressions(source);
@@ -857,7 +1052,8 @@ internal static class GraphTableSqlExecutor
                 session,
                 source,
                 labels.Left,
-                "GRAPH_TABLE native anchor id"))
+                "GRAPH_TABLE native anchor id",
+                plan.NativeAnchor))
             {
                 SqlExecutor.ThrowIfCancellationRequested();
                 if (++anchorCount > MaxAnchorRows)
@@ -917,10 +1113,10 @@ internal static class GraphTableSqlExecutor
 
     private static (IReadOnlyList<string> Columns, IEnumerable<IReadOnlyList<object?>> Rows) ExecuteNativePaths(
         Tsdb tsdb,
-        GraphTableSource source,
-        bool reversePathProjection,
+        GraphTableExecutionPlan plan,
         GraphTableExecutionMetrics metrics)
     {
+        GraphTableSource source = plan.Source;
         GraphPathPattern pathPattern = source.Path
             ?? throw new InvalidOperationException("GRAPH_TABLE path source 缺少 typed path pattern。");
         (LabelId Left, LabelId Edge, LabelId Right) labels = ResolveNativeLabels(tsdb, source);
@@ -943,7 +1139,8 @@ internal static class GraphTableSqlExecutor
                 session,
                 source,
                 labels.Left,
-                "GRAPH_TABLE native path anchor id"))
+                "GRAPH_TABLE native path anchor id",
+                plan.NativeAnchor))
             {
                 SqlExecutor.ThrowIfCancellationRequested();
                 if (++anchorCount > MaxAnchorRows)
@@ -996,7 +1193,7 @@ internal static class GraphTableSqlExecutor
                                 continue;
                             if (pathPattern.IsAnyShortest && !shortestEndpoints.Add(endpoint.Id))
                                 continue;
-                            GraphPath projectedPath = reversePathProjection ? ReversePath(path) : path;
+                            GraphPath projectedPath = plan.ReversePathProjection ? ReversePath(path) : path;
                             bindings.UpdatePath(
                                 source.LeftVertex.Variable,
                                 new NativeBinding(anchor, null),
@@ -1510,7 +1707,8 @@ internal static class GraphTableSqlExecutor
         GraphReadSession session,
         GraphTableSource source,
         LabelId label,
-        string idDescription)
+        string idDescription,
+        GraphNativeAnchorAccess? access)
     {
         if (TryExtractKeyValues(
             source.Predicate,
@@ -1523,6 +1721,25 @@ internal static class GraphTableSqlExecutor
             if (vertex is not null && vertex.Labels.Contains(label))
                 yield return vertex;
             yield break;
+        }
+
+        if (access is { PropertyId: int propertyId, PropertyValue: GraphPropertyValue propertyValue })
+        {
+            using GraphCursor<GraphVertex> propertyCursor = GraphPlanExecutor.Execute(
+                session,
+                new GraphNodeScanPlan(
+                    label,
+                    propertyId,
+                    propertyValue,
+                    new GraphCursorOptions { PageSize = 256, MaxResults = MaxAnchorRows + 1 }));
+            while (true)
+            {
+                IReadOnlyList<GraphVertex> page = propertyCursor.ReadNextPage();
+                if (page.Count == 0)
+                    yield break;
+                foreach (GraphVertex vertex in page)
+                    yield return vertex;
+            }
         }
 
         using GraphCursor<GraphVertex> cursor = GraphPlanExecutor.Execute(
@@ -1617,7 +1834,19 @@ internal static class GraphTableSqlExecutor
         long AnchorRows,
         long Expansions,
         double Cost,
-        string Source);
+        string Source,
+        GraphNativeAnchorAccess? NativeAccess);
+
+    private sealed record NativePropertyPredicate(int PropertyId, GraphPropertyValue Value);
+
+    private sealed record GraphNativeAnchorAccess(
+        string AccessPath,
+        string Index,
+        int? PropertyId,
+        GraphPropertyValue? PropertyValue,
+        long? StatisticsSequence,
+        string StatisticsFreshness,
+        string? FallbackReason);
 
     private sealed record GraphTableExecutionPlan(
         GraphTableSource Source,
@@ -1628,6 +1857,7 @@ internal static class GraphTableSqlExecutor
         long EstimatedExpansions,
         double EstimatedCost,
         string EstimateSource,
+        GraphNativeAnchorAccess? NativeAnchor,
         bool BidirectionalBfsAdmitted,
         string BidirectionalBfsReason);
 

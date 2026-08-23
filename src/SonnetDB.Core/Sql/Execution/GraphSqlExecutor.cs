@@ -9,7 +9,10 @@ namespace SonnetDB.Sql.Execution;
 internal static class GraphSqlExecutor
 {
     private static readonly IReadOnlyList<string> GraphColumns =
-        ["name", "storage_id", "record_format_version", "created_utc"];
+    [
+        "name", "storage_id", "record_format_version", "created_utc", "sql_contract",
+        "label_index_policy", "property_index_policy",
+    ];
     private static readonly IReadOnlyList<string> PropertyGraphColumns =
         ["name", "vertex_table_count", "edge_table_count", "created_utc"];
     private static readonly IReadOnlyList<string> PropertyGraphMappingColumns =
@@ -105,50 +108,159 @@ internal static class GraphSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
         EnsureMutationKind(statement.Kind);
+        EnsureValuesMutationMode(statement.Mode);
         IReadOnlyDictionary<string, int> ordinals = BuildColumnOrdinals(statement.Columns);
         EnsureColumns(statement, ordinals);
         if (statement.Rows.Count == 0)
-            return new RowsAffectedExecutionResult(statement.GraphName, 0, "insert_graph");
+            return new RowsAffectedExecutionResult(statement.GraphName, 0, ValuesOperation(statement.Mode));
 
         GraphStore store = tsdb.Graphs.Open(statement.GraphName);
         GraphTransaction transaction = store.BeginTransaction(Guid.NewGuid());
         foreach (IReadOnlyList<SqlExpression> row in statement.Rows)
         {
             if (row.Count != statement.Columns.Count)
-                throw new InvalidOperationException("图 INSERT 的值数量必须与列数量一致。");
+                throw new InvalidOperationException("Graph values mutation 的值数量必须与列数量一致。");
             object?[] values = row.Select(static expression => EvaluateDmlExpression(expression)).ToArray();
+            IReadOnlyList<GraphProperty> properties = ParseProperties(statement.Columns, values);
+            IReadOnlyList<int> uniquePropertyIds = ParseUniquePropertyIds(ordinals, values, properties);
+            long expectedElementVersion = statement.Mode == GraphValuesMutationMode.Insert
+                ? 0
+                : ToNonNegativeInt64(values[ordinals["element_version"]], "element_version");
             if (statement.Kind == GraphMutationKind.Vertex)
             {
                 transaction.UpsertVertex(
                     new GraphElementId(ToPositiveInt64(values[ordinals["id"]], "id")),
-                    0,
+                    expectedElementVersion,
                     ParseLabels(values[ordinals["labels"]]),
-                    []);
+                    properties,
+                    uniquePropertyIds);
             }
             else
             {
                 transaction.UpsertEdge(
                     new GraphElementId(ToPositiveInt64(values[ordinals["id"]], "id")),
-                    0,
+                    expectedElementVersion,
                     new GraphElementId(ToPositiveInt64(values[ordinals["source_id"]], "source_id")),
                     new GraphElementId(ToPositiveInt64(values[ordinals["target_id"]], "target_id")),
                     new LabelId(ToPositiveInt32(values[ordinals["label_id"]], "label_id")),
-                    []);
+                    properties,
+                    uniquePropertyIds);
             }
         }
         transaction.Commit();
-        return new RowsAffectedExecutionResult(statement.GraphName, statement.Rows.Count, "insert_graph");
+        return new RowsAffectedExecutionResult(
+            statement.GraphName,
+            statement.Rows.Count,
+            ValuesOperation(statement.Mode));
+    }
+
+    internal static RowsAffectedExecutionResult UpdateGraph(Tsdb tsdb, UpdateGraphStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+        EnsureMutationKind(statement.Kind);
+        IReadOnlyDictionary<string, UpdateAssignment> assignments = BuildAssignments(statement.Assignments);
+        EnsureUpdateColumns(statement.Kind, assignments.Keys);
+        (GraphElementId Id, long Version) key = ParseMutationKey(statement.Where);
+        GraphStore store = tsdb.Graphs.Open(statement.GraphName);
+        using GraphReadSession read = store.BeginRead();
+        GraphTransaction transaction = store.BeginTransaction(Guid.NewGuid());
+        if (statement.Kind == GraphMutationKind.Vertex)
+        {
+            GraphVertex current = read.GetVertex(key.Id)
+                ?? throw VersionConflict("vertex", key.Id, key.Version, 0);
+            EnsureExpectedVersion("vertex", key, current.ElementVersion);
+            IReadOnlyList<LabelId> labels = assignments.TryGetValue("labels", out UpdateAssignment? labelsAssignment)
+                ? ParseLabels(EvaluateUpdateValue(labelsAssignment.Value, "labels"))
+                : current.Labels;
+            IReadOnlyList<GraphProperty> properties = ApplyPropertyAssignments(current.Properties, assignments);
+            IReadOnlyList<int> uniquePropertyIds = ResolveUpdatedUniquePropertyIds(
+                read.GetOwnedUniquePropertyIds(current),
+                assignments,
+                properties);
+            transaction.UpsertVertex(
+                key.Id,
+                key.Version,
+                labels,
+                properties,
+                uniquePropertyIds);
+        }
+        else
+        {
+            GraphEdge current = read.GetEdge(key.Id)
+                ?? throw VersionConflict("edge", key.Id, key.Version, 0);
+            EnsureExpectedVersion("edge", key, current.ElementVersion);
+            GraphElementId sourceId = assignments.TryGetValue("source_id", out UpdateAssignment? sourceAssignment)
+                ? new GraphElementId(ToPositiveInt64(EvaluateUpdateValue(sourceAssignment.Value, "source_id"), "source_id"))
+                : current.SourceId;
+            GraphElementId targetId = assignments.TryGetValue("target_id", out UpdateAssignment? targetAssignment)
+                ? new GraphElementId(ToPositiveInt64(EvaluateUpdateValue(targetAssignment.Value, "target_id"), "target_id"))
+                : current.TargetId;
+            LabelId labelId = assignments.TryGetValue("label_id", out UpdateAssignment? labelAssignment)
+                ? new LabelId(ToPositiveInt32(EvaluateUpdateValue(labelAssignment.Value, "label_id"), "label_id"))
+                : current.LabelId;
+            IReadOnlyList<GraphProperty> properties = ApplyPropertyAssignments(current.Properties, assignments);
+            IReadOnlyList<int> uniquePropertyIds = ResolveUpdatedUniquePropertyIds(
+                read.GetOwnedUniquePropertyIds(current),
+                assignments,
+                properties);
+            transaction.UpsertEdge(
+                key.Id,
+                key.Version,
+                sourceId,
+                targetId,
+                labelId,
+                properties,
+                uniquePropertyIds);
+        }
+        transaction.Commit();
+        return new RowsAffectedExecutionResult(statement.GraphName, 1, "update_graph");
+    }
+
+    internal static RowsAffectedExecutionResult DeleteGraph(Tsdb tsdb, DeleteGraphStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+        EnsureMutationKind(statement.Kind);
+        (GraphElementId Id, long Version) key = ParseMutationKey(statement.Where);
+        GraphTransaction transaction = tsdb.Graphs.Open(statement.GraphName).BeginTransaction(Guid.NewGuid());
+        if (statement.Kind == GraphMutationKind.Vertex)
+            transaction.DeleteVertex(key.Id, key.Version);
+        else
+            transaction.DeleteEdge(key.Id, key.Version);
+        transaction.Commit();
+        return new RowsAffectedExecutionResult(statement.GraphName, 1, "delete_graph");
+    }
+
+    internal static SelectExecutionResult AnalyzeGraph(Tsdb tsdb, AnalyzeGraphStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+        using GraphReadSession read = tsdb.Graphs.Open(statement.GraphName).BeginRead();
+        GraphStatistics statistics = read.RefreshStatistics();
+        return new SelectExecutionResult(
+            ["graph", "statistics_sequence", "vertex_count", "edge_count", "value_group_count"],
+            [[
+                statement.GraphName,
+                statistics.Sequence,
+                statistics.VertexCount,
+                statistics.EdgeCount,
+                statistics.ValueCardinality.Count,
+            ]]);
     }
 
     internal static SelectExecutionResult ShowGraphs(Tsdb tsdb)
         => new(
-            ["name", "storage_id", "record_format_version", "created_utc"],
+            GraphColumns,
             tsdb.Graphs.Catalog.Snapshot().Select(static definition =>
                 (IReadOnlyList<object?>)[
                     definition.Name,
                     definition.StorageId.ToString("D", CultureInfo.InvariantCulture),
                     definition.RecordFormatVersion,
                     new DateTime(definition.CreatedAtUtcTicks, DateTimeKind.Utc),
+                    GraphSqlContract.CurrentName,
+                    GraphSqlContract.LabelIndexPolicy,
+                    GraphSqlContract.PropertyIndexPolicy,
                 ]).ToArray());
 
     internal static SelectExecutionResult ShowPropertyGraphs(Tsdb tsdb)
@@ -174,6 +286,9 @@ internal static class GraphSqlExecutor
                     definition.StorageId.ToString("D", CultureInfo.InvariantCulture),
                     definition.RecordFormatVersion,
                     new DateTime(definition.CreatedAtUtcTicks, DateTimeKind.Utc),
+                    GraphSqlContract.CurrentName,
+                    GraphSqlContract.LabelIndexPolicy,
+                    GraphSqlContract.PropertyIndexPolicy,
                 ],
             ]);
     }
@@ -481,17 +596,43 @@ internal static class GraphSqlExecutor
         InsertGraphStatement statement,
         IReadOnlyDictionary<string, int> columns)
     {
-        string[] required = statement.Kind == GraphMutationKind.Vertex
+        var required = new List<string>(statement.Kind == GraphMutationKind.Vertex
             ? ["id", "labels"]
-            : ["id", "source_id", "target_id", "label_id"];
+            : ["id", "source_id", "target_id", "label_id"]);
+        if (statement.Mode == GraphValuesMutationMode.Upsert)
+            required.Add("element_version");
         foreach (string column in required)
             if (!columns.ContainsKey(column))
                 throw new InvalidOperationException(
-                    $"INSERT GRAPH {statement.Kind} 缺少必需列 '{column}'。");
+                    $"Graph {statement.Mode} {statement.Kind} 缺少必需列 '{column}'。");
         foreach (string column in columns.Keys)
-            if (!required.Contains(column, StringComparer.OrdinalIgnoreCase))
+        {
+            bool common = required.Contains(column, StringComparer.OrdinalIgnoreCase)
+                || string.Equals(column, "unique_property_ids", StringComparison.OrdinalIgnoreCase)
+                || GraphSqlContract.TryParsePropertyColumn(column, out _);
+            if (!common)
+            {
                 throw new NotSupportedException(
-                    $"INSERT GRAPH {statement.Kind} 当前不支持列 '{column}'；属性写入请使用 typed Graph API。");
+                    $"Graph {statement.Mode} {statement.Kind} 当前不支持列 '{column}'；"
+                    + "属性列必须使用 property_<positive-id>。");
+            }
+        }
+    }
+
+    private static void EnsureUpdateColumns(GraphMutationKind kind, IEnumerable<string> columns)
+    {
+        string[] fixedColumns = kind == GraphMutationKind.Vertex
+            ? ["labels", "unique_property_ids"]
+            : ["source_id", "target_id", "label_id", "unique_property_ids"];
+        foreach (string column in columns)
+        {
+            if (!fixedColumns.Contains(column, StringComparer.OrdinalIgnoreCase)
+                && !GraphSqlContract.TryParsePropertyColumn(column, out _))
+            {
+                throw new NotSupportedException(
+                    $"UPDATE GRAPH {kind} 不支持列 '{column}'；属性列必须使用 property_<positive-id>。");
+            }
+        }
     }
 
     private static void EnsureMutationKind(GraphMutationKind kind)
@@ -499,6 +640,15 @@ internal static class GraphSqlExecutor
         if (kind is not GraphMutationKind.Vertex and not GraphMutationKind.Edge)
             throw new InvalidOperationException($"图 INSERT 不支持 mutation kind 值 '{(byte)kind}'。");
     }
+
+    private static void EnsureValuesMutationMode(GraphValuesMutationMode mode)
+    {
+        if (mode is not GraphValuesMutationMode.Insert and not GraphValuesMutationMode.Upsert)
+            throw new InvalidOperationException($"Graph values mutation mode '{(byte)mode}' 无效。");
+    }
+
+    private static string ValuesOperation(GraphValuesMutationMode mode)
+        => mode == GraphValuesMutationMode.Insert ? "insert_graph" : "upsert_graph";
 
     private static IReadOnlyDictionary<string, int> BuildColumnOrdinals(IReadOnlyList<string> columns)
     {
@@ -512,8 +662,94 @@ internal static class GraphSqlExecutor
         return ordinals;
     }
 
+    private static IReadOnlyDictionary<string, UpdateAssignment> BuildAssignments(
+        IReadOnlyList<UpdateAssignment> assignments)
+    {
+        if (assignments.Count == 0)
+            throw new InvalidOperationException("UPDATE GRAPH 至少需要一个 assignment。");
+        var result = new Dictionary<string, UpdateAssignment>(assignments.Count, StringComparer.OrdinalIgnoreCase);
+        foreach (UpdateAssignment assignment in assignments)
+        {
+            if (!result.TryAdd(assignment.ColumnName, assignment))
+                throw new InvalidOperationException($"UPDATE GRAPH 列 '{assignment.ColumnName}' 重复声明。");
+        }
+        return result;
+    }
+
+    private static IReadOnlyList<GraphProperty> ParseProperties(
+        IReadOnlyList<string> columns,
+        IReadOnlyList<object?> values)
+    {
+        var properties = new List<GraphProperty>();
+        var ids = new HashSet<int>();
+        for (int ordinal = 0; ordinal < columns.Count; ordinal++)
+        {
+            if (!GraphSqlContract.TryParsePropertyColumn(columns[ordinal], out int propertyId))
+                continue;
+            if (!ids.Add(propertyId))
+                throw new InvalidOperationException($"Graph property {propertyId} 重复声明。");
+            if (values[ordinal] is not null)
+                properties.Add(new GraphProperty(propertyId, ToGraphPropertyValue(values[ordinal]!)));
+        }
+        properties.Sort(static (left, right) => left.PropertyId.CompareTo(right.PropertyId));
+        return properties;
+    }
+
+    private static IReadOnlyList<int> ParseUniquePropertyIds(
+        IReadOnlyDictionary<string, int> ordinals,
+        IReadOnlyList<object?> values,
+        IReadOnlyList<GraphProperty> properties)
+    {
+        if (!ordinals.TryGetValue("unique_property_ids", out int ordinal))
+            return [];
+        IReadOnlyList<int> ids = ParsePositiveInt32List(values[ordinal], "unique_property_ids", allowEmpty: true);
+        HashSet<int> available = properties.Select(static property => property.PropertyId).ToHashSet();
+        foreach (int id in ids)
+            if (!available.Contains(id))
+                throw new InvalidOperationException($"unique property {id} 必须同时出现在当前 property 列集合中。");
+        return ids;
+    }
+
+    private static IReadOnlyList<GraphProperty> ApplyPropertyAssignments(
+        IReadOnlyList<GraphProperty> current,
+        IReadOnlyDictionary<string, UpdateAssignment> assignments)
+    {
+        var properties = current.ToDictionary(static property => property.PropertyId);
+        foreach ((string column, UpdateAssignment assignment) in assignments)
+        {
+            if (!GraphSqlContract.TryParsePropertyColumn(column, out int propertyId))
+                continue;
+            object? value = EvaluateUpdateValue(assignment.Value, column, allowDefault: true);
+            if (value is null)
+                properties.Remove(propertyId);
+            else
+                properties[propertyId] = new GraphProperty(propertyId, ToGraphPropertyValue(value));
+        }
+        return properties.Values.OrderBy(static property => property.PropertyId).ToArray();
+    }
+
+    private static IReadOnlyList<int> ResolveUpdatedUniquePropertyIds(
+        IReadOnlyList<int> current,
+        IReadOnlyDictionary<string, UpdateAssignment> assignments,
+        IReadOnlyList<GraphProperty> properties)
+    {
+        IReadOnlyList<int> result = current;
+        if (assignments.TryGetValue("unique_property_ids", out UpdateAssignment? assignment))
+        {
+            result = ParsePositiveInt32List(
+                EvaluateUpdateValue(assignment.Value, "unique_property_ids", allowDefault: true),
+                "unique_property_ids",
+                allowEmpty: true);
+        }
+        HashSet<int> available = properties.Select(static property => property.PropertyId).ToHashSet();
+        return result.Where(available.Contains).Distinct().Order().ToArray();
+    }
+
     private static object? EvaluateDmlExpression(SqlExpression expression)
     {
+        if (expression is DefaultValueExpression)
+            return null;
+
         SqlProjectionExpressionEvaluator.Validate(
             expression,
             static _ => false,
@@ -522,6 +758,27 @@ internal static class GraphSqlExecutor
             expression,
             static _ => throw new InvalidOperationException("图 INSERT 不允许列引用。"),
             "图 INSERT");
+    }
+
+    private static object? EvaluateUpdateValue(
+        SqlExpression expression,
+        string column,
+        bool allowDefault = false)
+    {
+        if (expression is DefaultValueExpression)
+        {
+            if (allowDefault)
+                return null;
+            throw new InvalidOperationException($"UPDATE GRAPH 列 '{column}' 不支持 DEFAULT。");
+        }
+        SqlProjectionExpressionEvaluator.Validate(
+            expression,
+            static _ => false,
+            "UPDATE GRAPH");
+        return SqlProjectionExpressionEvaluator.Evaluate(
+            expression,
+            static _ => throw new InvalidOperationException("UPDATE GRAPH assignment 不允许列引用。"),
+            "UPDATE GRAPH");
     }
 
     private static IReadOnlyList<LabelId> ParseLabels(object? value)
@@ -539,6 +796,101 @@ internal static class GraphSqlExecutor
         throw new InvalidOperationException("图顶点 labels 必须是正整数或逗号分隔的正整数文本。");
     }
 
+    private static IReadOnlyList<int> ParsePositiveInt32List(
+        object? value,
+        string column,
+        bool allowEmpty)
+    {
+        if (value is null && allowEmpty)
+            return [];
+        if (value is long single)
+            return [ToPositiveInt32(single, column)];
+        if (value is string text)
+        {
+            int[] result = text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(item => ToPositiveInt32(item, column))
+                .Distinct()
+                .Order()
+                .ToArray();
+            if (result.Length != 0 || allowEmpty)
+                return result;
+        }
+        throw new InvalidOperationException($"Graph 列 '{column}' 必须是正整数或逗号分隔的正整数文本。");
+    }
+
+    private static GraphPropertyValue ToGraphPropertyValue(object value)
+        => value switch
+        {
+            long integer => GraphPropertyValue.FromInt64(integer),
+            double number when double.IsFinite(number) => GraphPropertyValue.FromFloat64(number),
+            double => throw new InvalidOperationException("Graph Float64 property 必须是有限值。"),
+            bool boolean => GraphPropertyValue.FromBoolean(boolean),
+            string text => GraphPropertyValue.FromString(text),
+            DateTimeOffset timestamp => GraphPropertyValue.FromDateTime(timestamp),
+            DateTime timestamp => GraphPropertyValue.FromDateTime(new DateTimeOffset(
+                timestamp.Kind == DateTimeKind.Unspecified
+                    ? DateTime.SpecifyKind(timestamp, DateTimeKind.Utc)
+                    : timestamp.ToUniversalTime())),
+            byte[] blob => GraphPropertyValue.FromBlob(blob),
+            _ => throw new NotSupportedException(
+                $"Graph SQL property 不支持 CLR 类型 {value.GetType().FullName}。"),
+        };
+
+    private static (GraphElementId Id, long Version) ParseMutationKey(SqlExpression where)
+    {
+        var values = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        Visit(where);
+        if (!values.TryGetValue("id", out object? idValue)
+            || !values.TryGetValue("element_version", out object? versionValue)
+            || values.Count != 2)
+        {
+            throw new InvalidOperationException(
+                "Graph UPDATE/DELETE WHERE 必须且只能包含 id = ... AND element_version = ...。");
+        }
+        return (
+            new GraphElementId(ToPositiveInt64(idValue, "id")),
+            ToPositiveInt64(versionValue, "element_version"));
+
+        void Visit(SqlExpression expression)
+        {
+            if (expression is BinaryExpression { Operator: SqlBinaryOperator.And } conjunction)
+            {
+                Visit(conjunction.Left);
+                Visit(conjunction.Right);
+                return;
+            }
+            if (expression is not BinaryExpression { Operator: SqlBinaryOperator.Equal } equality)
+                throw new InvalidOperationException("Graph UPDATE/DELETE WHERE 只支持 AND 连接的精确等值条件。");
+            IdentifierExpression? identifier = equality.Left as IdentifierExpression;
+            SqlExpression valueExpression = equality.Right;
+            if (identifier is null)
+            {
+                identifier = equality.Right as IdentifierExpression;
+                valueExpression = equality.Left;
+            }
+            if (identifier is null || identifier.Qualifier is not null)
+                throw new InvalidOperationException("Graph UPDATE/DELETE WHERE 条件必须直接引用 id 或 element_version。");
+            if (!values.TryAdd(identifier.Name, EvaluateDmlExpression(valueExpression)))
+                throw new InvalidOperationException($"Graph UPDATE/DELETE WHERE 条件 '{identifier.Name}' 重复声明。");
+        }
+    }
+
+    private static void EnsureExpectedVersion(
+        string kind,
+        (GraphElementId Id, long Version) key,
+        long actual)
+    {
+        if (key.Version != actual)
+            throw VersionConflict(kind, key.Id, key.Version, actual);
+    }
+
+    private static GraphConcurrencyException VersionConflict(
+        string kind,
+        GraphElementId id,
+        long expected,
+        long actual)
+        => new($"Graph {kind} {id} element version 冲突：期望 {expected}，实际 {actual}。");
+
     private static long ToPositiveInt64(object? value, string column)
     {
         try
@@ -551,6 +903,20 @@ internal static class GraphSqlExecutor
         {
         }
         throw new InvalidOperationException($"图 INSERT 列 '{column}' 必须是正整数。");
+    }
+
+    private static long ToNonNegativeInt64(object? value, string column)
+    {
+        try
+        {
+            long result = Convert.ToInt64(value, CultureInfo.InvariantCulture);
+            if (result >= 0)
+                return result;
+        }
+        catch (Exception exception) when (exception is FormatException or InvalidCastException or OverflowException)
+        {
+        }
+        throw new InvalidOperationException($"Graph 列 '{column}' 必须是非负整数。");
     }
 
     private static int ToPositiveInt32(object? value, string column)

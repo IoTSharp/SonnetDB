@@ -68,6 +68,57 @@ public sealed class GraphReadSession : IDisposable
         return result;
     }
 
+    internal IReadOnlyList<int> GetOwnedUniquePropertyIds(GraphVertex vertex)
+    {
+        ArgumentNullException.ThrowIfNull(vertex);
+        return GetOwnedUniquePropertyIds(
+            GraphElementKind.Vertex,
+            vertex.Id,
+            vertex.Labels,
+            vertex.Properties);
+    }
+
+    internal IReadOnlyList<int> GetOwnedUniquePropertyIds(GraphEdge edge)
+    {
+        ArgumentNullException.ThrowIfNull(edge);
+        return GetOwnedUniquePropertyIds(
+            GraphElementKind.Edge,
+            edge.Id,
+            [edge.LabelId],
+            edge.Properties);
+    }
+
+    private IReadOnlyList<int> GetOwnedUniquePropertyIds(
+        GraphElementKind kind,
+        GraphElementId ownerId,
+        IReadOnlyList<LabelId> labels,
+        IReadOnlyList<GraphProperty> properties)
+    {
+        KvReadSnapshot snapshot = Snapshot;
+        var result = new List<int>();
+        foreach (GraphProperty property in properties)
+        {
+            bool owned = false;
+            foreach (LabelId label in labels)
+            {
+                KvEntry? entry = snapshot.GetEntry(GraphKeyCodec.EncodeUniqueProperty(
+                    kind,
+                    label,
+                    property.PropertyId,
+                    property.Value));
+                if (entry is not null
+                    && GraphUniquePropertyOwnerCodec.Decode(entry.Value.Span, kind) == ownerId)
+                {
+                    owned = true;
+                    break;
+                }
+            }
+            if (owned)
+                result.Add(property.PropertyId);
+        }
+        return result;
+    }
+
     /// <summary>按稳定内部 ID 顺序扫描全部顶点。</summary>
     /// <param name="options">读取分页和结果预算。</param>
     /// <returns>顶点结果游标。</returns>
@@ -261,7 +312,11 @@ public sealed class GraphReadSession : IDisposable
     /// <param name="cancellationToken">取消令牌。</param>
     /// <returns>不包含原始属性值的统计结果。</returns>
     public GraphStatistics RefreshStatistics(CancellationToken cancellationToken = default)
-        => GraphStatisticsCalculator.Refresh(Snapshot, cancellationToken);
+    {
+        GraphStatistics statistics = GraphStatisticsCalculator.Refresh(Snapshot, cancellationToken);
+        _store.PublishStatistics(statistics);
+        return statistics;
+    }
 
     /// <summary>在当前稳定快照上按显式扫描和分组预算重建内存统计。</summary>
     /// <param name="options">页、扫描条目和统计分组预算。</param>
@@ -272,7 +327,12 @@ public sealed class GraphReadSession : IDisposable
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(options);
-        return GraphStatisticsCalculator.Refresh(Snapshot, options, cancellationToken);
+        GraphStatistics statistics = GraphStatisticsCalculator.Refresh(
+            Snapshot,
+            options,
+            cancellationToken);
+        _store.PublishStatistics(statistics);
+        return statistics;
     }
 
     /// <summary>解释一次原生邻接扩展计划。</summary>

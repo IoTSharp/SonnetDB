@@ -1042,9 +1042,19 @@ public enum GraphMutationKind : byte
     Edge = 2,
 }
 
+/// <summary>批量 Graph values mutation 的写入模式。</summary>
+public enum GraphValuesMutationMode : byte
+{
+    /// <summary>仅允许创建新元素，期望 element version 为 0。</summary>
+    Insert = 1,
+
+    /// <summary>按显式 <c>element_version</c> 创建或完整替换元素。</summary>
+    Upsert = 2,
+}
+
 /// <summary>
-/// <c>INSERT INTO GRAPH graph VERTEX|EDGE (... ) VALUES (...)</c>。
-/// 第一版 DML 使用数值 ID；顶点 labels 使用逗号分隔的 label ID 字符串，属性通过 Graph API 写入。
+/// <c>INSERT|UPSERT INTO GRAPH graph VERTEX|EDGE (... ) VALUES (...)</c>。
+/// V1 使用数值 ID、逗号分隔的 label/property ID，并以 <c>property_&lt;id&gt;</c> 表示属性列。
 /// </summary>
 /// <param name="GraphName">目标图名称。</param>
 /// <param name="Kind">元素类别。</param>
@@ -1054,7 +1064,39 @@ public sealed record InsertGraphStatement(
     string GraphName,
     GraphMutationKind Kind,
     IReadOnlyList<string> Columns,
-    IReadOnlyList<IReadOnlyList<SqlExpression>> Rows) : SqlStatement;
+    IReadOnlyList<IReadOnlyList<SqlExpression>> Rows) : SqlStatement
+{
+    /// <summary>INSERT 或带显式 element version 的 UPSERT 模式。</summary>
+    public GraphValuesMutationMode Mode { get; init; } = GraphValuesMutationMode.Insert;
+}
+
+/// <summary>
+/// <c>UPDATE GRAPH graph VERTEX|EDGE SET ... WHERE id = ... AND element_version = ...</c>。
+/// </summary>
+/// <param name="GraphName">目标原生图。</param>
+/// <param name="Kind">顶点或边。</param>
+/// <param name="Assignments">部分替换的 labels、endpoint、label 或 <c>property_&lt;id&gt;</c>。</param>
+/// <param name="Where">必须精确绑定 id 与当前 element version 的谓词。</param>
+public sealed record UpdateGraphStatement(
+    string GraphName,
+    GraphMutationKind Kind,
+    IReadOnlyList<UpdateAssignment> Assignments,
+    SqlExpression Where) : SqlStatement;
+
+/// <summary>
+/// <c>DELETE FROM GRAPH graph VERTEX|EDGE WHERE id = ... AND element_version = ...</c>。
+/// </summary>
+/// <param name="GraphName">目标原生图。</param>
+/// <param name="Kind">顶点或边。</param>
+/// <param name="Where">必须精确绑定 id 与当前 element version 的谓词。</param>
+public sealed record DeleteGraphStatement(
+    string GraphName,
+    GraphMutationKind Kind,
+    SqlExpression Where) : SqlStatement;
+
+/// <summary><c>ANALYZE GRAPH name</c>：刷新 planner 使用的可重建内存统计。</summary>
+/// <param name="GraphName">目标原生图。</param>
+public sealed record AnalyzeGraphStatement(string GraphName) : SqlStatement;
 
 /// <summary>
 /// <c>EXPLAIN &lt;read-only statement&gt;</c>：对只读语句返回估算扫描与命中统计。

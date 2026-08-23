@@ -200,6 +200,8 @@ public sealed class SqlParser
             return ParseCallProcedure();
         if (IsIdentifier("analyze"))
             return ParseAnalyzeTable();
+        if (IsIdentifier("upsert"))
+            return ParseGraphUpsert();
 
         return Current.Kind switch
         {
@@ -2227,6 +2229,20 @@ public sealed class SqlParser
     }
 
     private InsertGraphStatement ParseGraphInsert()
+        => ParseGraphValuesMutation(GraphValuesMutationMode.Insert, "INSERT INTO GRAPH");
+
+    private InsertGraphStatement ParseGraphUpsert()
+    {
+        ExpectIdentifier("upsert", "期望 UPSERT");
+        Expect(TokenKind.KeywordInto);
+        if (!IsGraphElementMutationStart())
+            throw Error("UPSERT INTO 仅支持 GRAPH graph_name VERTEX|EDGE");
+        return ParseGraphValuesMutation(GraphValuesMutationMode.Upsert, "UPSERT INTO GRAPH");
+    }
+
+    private InsertGraphStatement ParseGraphValuesMutation(
+        GraphValuesMutationMode mode,
+        string operation)
     {
         Advance();
         string graphName = ExpectIdentifierName();
@@ -2236,7 +2252,7 @@ public sealed class SqlParser
         else if (IsIdentifier("edge"))
             kind = GraphMutationKind.Edge;
         else
-            throw Error("INSERT INTO GRAPH 后面期望 VERTEX 或 EDGE");
+            throw Error($"{operation} 后面期望 VERTEX 或 EDGE");
         Advance();
 
         Expect(TokenKind.LeftParen);
@@ -2255,7 +2271,7 @@ public sealed class SqlParser
             Advance();
             rows.Add(ParseValueRow(columns.Count));
         }
-        return new InsertGraphStatement(graphName, kind, columns, rows);
+        return new InsertGraphStatement(graphName, kind, columns, rows) { Mode = mode };
     }
 
     private InsertStatement ParseInsertReturning(InsertStatement statement)
@@ -2964,14 +2980,25 @@ public sealed class SqlParser
 
     // ── DELETE ─────────────────────────────────────────────────────────────
 
-    private DeleteStatement ParseDelete()
+    private SqlStatement ParseDelete()
     {
         Expect(TokenKind.KeywordDelete);
         Expect(TokenKind.KeywordFrom);
+        if (IsGraphElementMutationStart())
+            return ParseGraphDelete();
         var measurement = ExpectIdentifierName();
         Expect(TokenKind.KeywordWhere);
         var where = ParseExpression();
         return new DeleteStatement(measurement, where);
+    }
+
+    private DeleteGraphStatement ParseGraphDelete()
+    {
+        Advance();
+        string graphName = ExpectIdentifierName();
+        GraphMutationKind kind = ParseGraphMutationKind("DELETE FROM GRAPH");
+        Expect(TokenKind.KeywordWhere);
+        return new DeleteGraphStatement(graphName, kind, ParseExpression());
     }
 
     private TruncateTableStatement ParseTruncate()
@@ -2983,9 +3010,11 @@ public sealed class SqlParser
 
     // ── UPDATE ─────────────────────────────────────────────────────────────
 
-    private UpdateStatement ParseUpdate()
+    private SqlStatement ParseUpdate()
     {
         Expect(TokenKind.KeywordUpdate);
+        if (IsGraphElementMutationStart())
+            return ParseGraphUpdate();
         var table = ExpectIdentifierName();
         Expect(TokenKind.KeywordSet);
 
@@ -3002,6 +3031,22 @@ public sealed class SqlParser
         Expect(TokenKind.KeywordWhere);
         var where = ParseExpression();
         return new UpdateStatement(table, assignments, where);
+    }
+
+    private UpdateGraphStatement ParseGraphUpdate()
+    {
+        Advance();
+        string graphName = ExpectIdentifierName();
+        GraphMutationKind kind = ParseGraphMutationKind("UPDATE GRAPH");
+        Expect(TokenKind.KeywordSet);
+        var assignments = new List<UpdateAssignment> { ParseUpdateAssignment() };
+        while (Current.Kind == TokenKind.Comma)
+        {
+            Advance();
+            assignments.Add(ParseUpdateAssignment());
+        }
+        Expect(TokenKind.KeywordWhere);
+        return new UpdateGraphStatement(graphName, kind, assignments, ParseExpression());
     }
 
     private UpdateAssignment ParseUpdateAssignment()
@@ -4244,12 +4289,30 @@ public sealed class SqlParser
            && string.Equals(Current.Text, text, StringComparison.OrdinalIgnoreCase);
 
     private bool IsGraphInsertStart()
+        => IsGraphElementMutationStart();
+
+    private bool IsGraphElementMutationStart()
         => IsIdentifier("graph")
            && _index + 2 < _tokens.Count
            && _tokens[_index + 1].Kind == TokenKind.IdentifierLiteral
            && _tokens[_index + 2].Kind == TokenKind.IdentifierLiteral
            && (string.Equals(_tokens[_index + 2].Text, "vertex", StringComparison.OrdinalIgnoreCase)
                || string.Equals(_tokens[_index + 2].Text, "edge", StringComparison.OrdinalIgnoreCase));
+
+    private GraphMutationKind ParseGraphMutationKind(string operation)
+    {
+        if (IsIdentifier("vertex"))
+        {
+            Advance();
+            return GraphMutationKind.Vertex;
+        }
+        if (IsIdentifier("edge"))
+        {
+            Advance();
+            return GraphMutationKind.Edge;
+        }
+        throw Error($"{operation} 后面期望 VERTEX 或 EDGE");
+    }
 
     private bool IsIndexKeyword()
         => Current.Kind == TokenKind.KeywordIndex || IsIdentifier("index");
@@ -5038,9 +5101,16 @@ public sealed class SqlParser
     }
 
     /// <summary>解析 <c>ANALYZE [TABLE] name</c>。</summary>
-    private AnalyzeTableStatement ParseAnalyzeTable()
+    private SqlStatement ParseAnalyzeTable()
     {
         ExpectIdentifier("analyze", "ANALYZE 后面期望 TABLE 或表名");
+        if (IsIdentifier("graph")
+            && _index + 1 < _tokens.Count
+            && _tokens[_index + 1].Kind == TokenKind.IdentifierLiteral)
+        {
+            Advance();
+            return new AnalyzeGraphStatement(ExpectIdentifierName());
+        }
         if (Current.Kind == TokenKind.KeywordTable || IsIdentifier("table"))
             Advance();
         return new AnalyzeTableStatement(ExpectIdentifierName());

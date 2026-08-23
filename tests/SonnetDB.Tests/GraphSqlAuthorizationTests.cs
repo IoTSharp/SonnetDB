@@ -23,6 +23,10 @@ public sealed class GraphSqlAuthorizationTests
     [InlineData("CREATE PROPERTY GRAPH social VERTEX TABLES (person KEY (id) LABEL person PROPERTIES (id))")]
     [InlineData("DROP PROPERTY GRAPH social")]
     [InlineData("INSERT INTO GRAPH topology VERTEX (id, labels) VALUES (1, 1)")]
+    [InlineData("UPSERT INTO GRAPH topology VERTEX (id, element_version, labels) VALUES (1, 0, 1)")]
+    [InlineData("UPDATE GRAPH topology VERTEX SET property_7 = 'value' WHERE id = 1 AND element_version = 1")]
+    [InlineData("DELETE FROM GRAPH topology EDGE WHERE id = 1 AND element_version = 1")]
+    [InlineData("ANALYZE GRAPH topology")]
     public void RequiresWritePermission_GraphMutations_ReturnsTrue(string sql)
         => Assert.True(SqlEndpointHandler.RequiresWritePermission(SqlParser.Parse(sql)));
 }

@@ -405,6 +405,8 @@ public static class SqlExecutor
                 controlPlane),
             InsertStatement insert => ExecuteInsert(tsdb, databaseName, insert, controlPlane, transaction),
             InsertGraphStatement insertGraph => GraphSqlExecutor.InsertGraph(tsdb, insertGraph),
+            UpdateGraphStatement updateGraph => GraphSqlExecutor.UpdateGraph(tsdb, updateGraph),
+            DeleteGraphStatement deleteGraph => GraphSqlExecutor.DeleteGraph(tsdb, deleteGraph),
             SelectStatement select => ExecuteSelect(tsdb, select),
             CallProcedureStatement call => SqlRoutineRuntime.ExecuteCall(tsdb, databaseName, call, controlPlane, transaction),
             RefreshMaterializedViewStatement refreshMaterializedView => ExecuteRefreshMaterializedView(tsdb, refreshMaterializedView),
@@ -457,6 +459,7 @@ public static class SqlExecutor
             DescribeGraphStatement describeGraph => GraphSqlExecutor.DescribeGraph(tsdb, describeGraph.Name),
             DescribePropertyGraphStatement describePropertyGraph =>
                 GraphSqlExecutor.DescribePropertyGraph(tsdb, describePropertyGraph.Name),
+            AnalyzeGraphStatement analyzeGraph => GraphSqlExecutor.AnalyzeGraph(tsdb, analyzeGraph),
             DescribeTableStatement describeTable => TableSqlExecutor.DescribeTable(tsdb, describeTable.Name),
             AnalyzeTableStatement analyzeTable => TableSqlExecutor.ExecuteAnalyze(tsdb, analyzeTable),
             DescribeViewStatement describeView => DescribeView(tsdb, describeView.Name),
@@ -583,10 +586,10 @@ public static class SqlExecutor
                 "WRITE MODBUS 不能在活动轻事务内执行；远端设备写入不属于本地关系表事务。请在事务外执行。");
         }
 
-        if (statement is InsertGraphStatement)
+        if (statement is InsertGraphStatement or UpdateGraphStatement or DeleteGraphStatement)
         {
             throw new NotSupportedException(
-                "INSERT INTO GRAPH 不能在活动轻事务内执行；Graph mutation 不会进入关系表事务缓冲。请在事务外执行。");
+                "Graph mutation 不能在活动轻事务内执行；Graph transaction 不会进入关系表事务缓冲。请在事务外执行。");
         }
 
         if (!IsDdlStatement(statement))
