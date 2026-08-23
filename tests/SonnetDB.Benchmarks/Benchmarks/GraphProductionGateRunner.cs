@@ -24,6 +24,41 @@ public static class GraphProductionGateRunner
     private const int QuickSamplesPerReader = 6;
     private const int QuickWriterMutations = 12;
 
+    /// <summary>按冻结 source-generated schema 验证单个 M40 #367 原始 artifact。</summary>
+    /// <param name="artifactPath">待验证 artifact 路径。</param>
+    public static void VerifyArtifact(string artifactPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(artifactPath);
+        string fullPath = Path.GetFullPath(artifactPath);
+        using FileStream documentStream = File.OpenRead(fullPath);
+        using JsonDocument document = JsonDocument.Parse(documentStream);
+        if (!document.RootElement.TryGetProperty("schema", out JsonElement schemaElement))
+            throw new InvalidDataException("M40 #367 原始 artifact 缺少 schema。");
+        string? schema = schemaElement.GetString();
+        using FileStream stream = File.OpenRead(fullPath);
+        object? artifact = schema switch
+        {
+            "m40-graph-dataset-evidence-v1" => JsonSerializer.Deserialize(
+                stream,
+                GraphProductionArtifactJsonContext.Default.GraphProductionDatasetArtifact),
+            "m40-graph-environment-evidence-v1" => JsonSerializer.Deserialize(
+                stream,
+                GraphProductionArtifactJsonContext.Default.GraphProductionEnvironmentArtifact),
+            "m40-graph-soak-evidence-v1" => JsonSerializer.Deserialize(
+                stream,
+                GraphProductionArtifactJsonContext.Default.GraphProductionSoakArtifact),
+            "m40-graph-journey-evidence-v1" => JsonSerializer.Deserialize(
+                stream,
+                GraphProductionArtifactJsonContext.Default.GraphProductionJourneyArtifact),
+            "m40-graph-check-evidence-v1" => JsonSerializer.Deserialize(
+                stream,
+                GraphProductionArtifactJsonContext.Default.GraphProductionCheckArtifact),
+            _ => throw new InvalidDataException($"未知 M40 #367 原始 artifact schema：{schema}。"),
+        };
+        if (artifact is null)
+            throw new InvalidDataException("M40 #367 原始 artifact 为空。");
+    }
+
     /// <summary>运行 8 reader + 1 writer、checkpoint、重开和 backup/restore 的 quick smoke。</summary>
     /// <param name="outputDirectory">报告输出目录。</param>
     /// <returns>保持 Production 双门禁为 NOT_RUN 的本地报告。</returns>
@@ -132,7 +167,18 @@ public static class GraphProductionGateRunner
             {
                 Path = artifactName,
                 Sha256 = HashFile(artifactPath),
-                Command = "dotnet run --project tests/SonnetDB.Benchmarks/SonnetDB.Benchmarks.csproj -c Release -- --m40-production-gate --quick",
+                Command = "dotnet",
+                Arguments =
+                [
+                    "run",
+                    "--project",
+                    "tests/SonnetDB.Benchmarks/SonnetDB.Benchmarks.csproj",
+                    "-c",
+                    "Release",
+                    "--",
+                    "--m40-production-gate",
+                    "--quick",
+                ],
             };
 
             double[] orderedLatencies = latencies.Order().ToArray();
@@ -247,12 +293,18 @@ public static class GraphProductionGateRunner
             Path = "artifacts/REPLACE_ME.json",
             Sha256 = new string('0', 64),
             Command = "REPLACE_ME",
+            Arguments = ["REPLACE_ME", "{artifact}"],
+        };
+        GraphProductionEnvironmentEvidence templateEnvironment = (environment
+            ?? new GraphProductionEnvironmentEvidence()) with
+        {
+            Artifact = missingArtifact,
         };
         var input = new GraphProductionGateInput
         {
             ProductionRun = true,
             CommitSha = new string('0', 40),
-            Environment = environment ?? new GraphProductionEnvironmentEvidence(),
+            Environment = templateEnvironment,
             Dataset = new GraphProductionDatasetEvidence
             {
                 Tier = "production-soak",
@@ -260,6 +312,7 @@ public static class GraphProductionGateRunner
                 EdgeCount = 10_000_000,
                 InputDigest = new string('0', 64),
                 OutputDigest = new string('0', 64),
+                Artifact = missingArtifact,
             },
             Soak = new GraphProductionSoakEvidence
             {
@@ -275,6 +328,7 @@ public static class GraphProductionGateRunner
                 AutoCheckpointEnabled = true,
                 MaxWalBytes = 256L * 1024 * 1024,
                 MaxOverlayEntries = 100_000,
+                Artifact = missingArtifact,
             },
             Journeys = GraphProductionGateEvaluator.GetRequiredJourneyIds()
                 .Select(id => new GraphProductionJourneyEvidence
@@ -614,13 +668,14 @@ public static class GraphProductionGateRunner
         text.AppendLine();
         text.AppendLine("## Journeys");
         text.AppendLine();
-        text.AppendLine("| ID | Status | Access path | Samples | ops/s | P50 ms | P95 ms | P99 ms | Peak live | Working set |");
-        text.AppendLine("| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
+        text.AppendLine("| ID | Status | Access path | Samples | ops/s | P50 ms | P95 ms | P99 ms | Alloc P95 | Gen0/1/2 | GC P99 ms | Peak live | Working set |");
+        text.AppendLine("| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
         foreach (GraphProductionJourneyEvidence journey in report.Input.Journeys)
         {
             text.AppendLine(CultureInfo.InvariantCulture,
                 $"| {journey.Id} | {journey.Status} | {journey.AccessPath} | {journey.Rounds} x {journey.SamplesPerRound:N0} | "
                 + $"{journey.ThroughputPerSecond:F3} | {journey.P50Milliseconds:F3} | {journey.P95Milliseconds:F3} | {journey.P99Milliseconds:F3} | "
+                + $"{journey.AllocatedBytesP95:N0} | {journey.Gen0Collections}/{journey.Gen1Collections}/{journey.Gen2Collections} | {journey.GcPauseP99Milliseconds:F3} | "
                 + $"{journey.QueryPeakLiveBytes:N0} | {journey.PeakWorkingSetBytes:N0} |");
         }
         text.AppendLine();

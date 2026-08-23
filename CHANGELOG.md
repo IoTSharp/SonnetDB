@@ -11,7 +11,9 @@
 
 ### Fixed
 
-- **M40 修复与发布步骤 1，Graph 正确性阻塞项**：`Expand(Both)` 现在会保留 Out 切换到 In 时尚未消费的底层 KV 页，避免 page size > 1 时丢失入边；Out/In/Both、self-loop、parallel edge、BFS、SQL 内部 256 条分页和远程 typed SDK 均增加回归。无权 shortest path 新增独立 `MaxPaths` 请求预算，并用额外一条探测区分完整不可达与预算截断；耗尽时 Core 抛出 `GraphTraversalLimitExceededException`，Server/SDK 稳定返回并解析 `graph_budget_exceeded`，不再把可达目标伪装为 `null`。M40 下一门禁仍为 #367 evaluator 加固，Phase 1/#352 和 Production gate 未完成。
+- **M40 修复与发布步骤 2，#367 strict evidence evaluator**：Production manifest 升级为 source-generated `m40-graph-production-input-v2`，dataset、environment、soak、journey 与 check/closed-gap artifact 使用独立 schema；判定器从三轮逐样本 latency/allocation/GC/I/O/访问计数、oracle assertion、checkpoint、真 kill/reopen、cold-open 和资源样本重算所有摘要，不再信任 manifest 自报 `PASS`。artifact 绑定真实 commit/HEAD 和 clean worktree，结构化 executable/argument/working-directory 命令不经过 shell，必须携带 `{artifact}` 并限制为仓库内 `dotnet run` harness 或当前 verifier，再实际回放退出码；回放前后重复校验 SHA-256。新增 allocation P95 不超过 query memory、每 1,000 样本 Gen0/Gen1/Gen2 不超过 100/10/1 次、GC pause P99 不超过 50 ms 的公开门禁，以及伪 `{ "status": "PASS" }`、缺样本、摘要漂移、复现失败、无效 commit 和脏工作树回归。步骤 3~7、固定硬件、外部对拍和 168 小时 Production evidence 仍未完成。
+
+- **M40 修复与发布步骤 1，Graph 正确性阻塞项**：`Expand(Both)` 现在会保留 Out 切换到 In 时尚未消费的底层 KV 页，避免 page size > 1 时丢失入边；Out/In/Both、self-loop、parallel edge、BFS、SQL 内部 256 条分页和远程 typed SDK 均增加回归。无权 shortest path 新增独立 `MaxPaths` 请求预算，并用额外一条探测区分完整不可达与预算截断；耗尽时 Core 抛出 `GraphTraversalLimitExceededException`，Server/SDK 稳定返回并解析 `graph_budget_exceeded`，不再把可达目标伪装为 `null`。M40 下一门禁为 Phase 1 Expand 过滤与 importer 字节预算合同，#352 和 Production gate 未完成。
 
 - **M41 #374 KV/Table 快照读取与锁范围收缩**：关系表点读、全表扫描、二级索引前缀/范围与并列组读取现在在短表锁内绑定不可变 schema 和 `KvReadSnapshot`，锁外通过既有分页 cursor 完成索引枚举、回表复制和行解码；同一读取路径共享稳定可见时刻，更新/删除不会产生半新半旧行，checkpoint/compaction/WAL replay 继续由快照 lease 保持恢复边界。新增并发写、范围读取和异常释放回归，未改变事务 read-your-writes 的 overlay 回退或既有访问路径合同。
 

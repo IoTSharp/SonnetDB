@@ -19,7 +19,8 @@ public static class GraphProductionEvidenceStatus
 public sealed record GraphProductionGateInput
 {
     /// <summary>输入 schema。</summary>
-    public string Schema { get; init; } = "m40-graph-production-input-v1";
+    [JsonRequired]
+    public string Schema { get; init; } = "m40-graph-production-input-v2";
 
     /// <summary>是否正在提交完整 Production 门禁证据。</summary>
     public bool ProductionRun { get; init; }
@@ -81,6 +82,9 @@ public sealed record GraphProductionDatasetEvidence
 
     /// <summary>生成结果 SHA-256。</summary>
     public string OutputDigest { get; init; } = string.Empty;
+
+    /// <summary>可独立解析的数据生成原始证据。</summary>
+    public GraphProductionArtifactEvidence Artifact { get; init; } = new();
 }
 
 /// <summary>M40 固定目标机和运行时证据。</summary>
@@ -124,6 +128,9 @@ public sealed record GraphProductionEnvironmentEvidence
 
     /// <summary>电源配置。</summary>
     public string PowerProfile { get; init; } = string.Empty;
+
+    /// <summary>可独立解析的环境采集原始证据。</summary>
+    public GraphProductionArtifactEvidence Artifact { get; init; } = new();
 }
 
 /// <summary>M40 7 天 mixed workload 的汇总证据。</summary>
@@ -191,6 +198,9 @@ public sealed record GraphProductionSoakEvidence
 
     /// <summary>overlay 条目上限。</summary>
     public int MaxOverlayEntries { get; init; }
+
+    /// <summary>可独立解析的长稳原始证据。</summary>
+    public GraphProductionArtifactEvidence Artifact { get; init; } = new();
 }
 
 /// <summary>M40 单个 golden journey 的聚合样本。</summary>
@@ -240,6 +250,18 @@ public sealed record GraphProductionJourneyEvidence
 
     /// <summary>每次样本 P95 托管分配字节数。</summary>
     public long AllocatedBytesP95 { get; init; }
+
+    /// <summary>正式样本累计 Gen0 GC 次数。</summary>
+    public long Gen0Collections { get; init; }
+
+    /// <summary>正式样本累计 Gen1 GC 次数。</summary>
+    public long Gen1Collections { get; init; }
+
+    /// <summary>正式样本累计 Gen2 GC 次数。</summary>
+    public long Gen2Collections { get; init; }
+
+    /// <summary>正式样本 GC pause P99 毫秒。</summary>
+    public double GcPauseP99Milliseconds { get; init; }
 
     /// <summary>逻辑读取字节数。</summary>
     public long LogicalReadBytes { get; init; }
@@ -300,8 +322,20 @@ public sealed record GraphProductionArtifactEvidence
     /// <summary>artifact SHA-256。</summary>
     public string Sha256 { get; init; } = string.Empty;
 
-    /// <summary>生成 artifact 的最小复现命令。</summary>
+    /// <summary>生成或验证 artifact 的可执行文件名。</summary>
     public string Command { get; init; } = string.Empty;
+
+    /// <summary>按原样传给可执行文件的参数列表；Production evidence 必须含唯一 <c>{artifact}</c> 占位符。</summary>
+    public IReadOnlyList<string> Arguments { get; init; } = [];
+
+    /// <summary>相对于仓库根目录的复现工作目录。</summary>
+    public string WorkingDirectory { get; init; } = ".";
+
+    /// <summary>复现命令的期望退出码。</summary>
+    public int ExpectedExitCode { get; init; }
+
+    /// <summary>复现命令的超时秒数。</summary>
+    public int TimeoutSeconds { get; init; } = 900;
 }
 
 /// <summary>#341 capability gap catalog 的一项。</summary>
@@ -327,7 +361,7 @@ public sealed record GraphProductionGapEvidence
 public sealed record GraphProductionGateReport
 {
     /// <summary>报告 schema。</summary>
-    public string Schema { get; init; } = "m40-graph-production-gate-v1";
+    public string Schema { get; init; } = "m40-graph-production-gate-v2";
 
     /// <summary>路线图编号。</summary>
     public string Issue { get; init; } = "#367";

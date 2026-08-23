@@ -2,7 +2,7 @@
 
 ## 状态与边界
 
-#367 已实现 evidence manifest、artifact SHA-256 校验、双 gate 判定、机器可读 JSON/Markdown 报告，以及本地 quick 管线 smoke 的原型。当前 evaluator 尚未按 artifact schema 独立解析并重算原始结果，也未完整验证逐轮样本、真实 clean commit、复现命令退出码及 allocation/GC 阈值，因此不能称为严格发布门禁。quick 会真实执行 8 个 reader worker、1 个 update worker、checkpoint、正常进程重开、完整 invariant check 和 `BackupService` verify/restore，但它不是 1m vertex/10m edge、真子进程 kill 或 168 小时运行，因此输出必须保持：
+#367 strict evaluator 已完成：`m40-graph-production-input-v2` 只接受带 schema 的 dataset、environment、soak、journey 和 check/closed-gap 原始 artifact，独立重算 manifest 摘要，并校验 artifact SHA-256、真实 commit/HEAD、clean worktree 及结构化复现命令退出码。quick 会真实执行 8 个 reader worker、1 个 update worker、checkpoint、正常进程重开、完整 invariant check 和 `BackupService` verify/restore，但它不是 1m vertex/10m edge、真子进程 kill 或 168 小时运行，因此输出必须保持：
 
 ```text
 correctness_recovery: NOT_RUN
@@ -10,7 +10,7 @@ performance_capacity: NOT_RUN
 release_decision: NOT_RUN
 ```
 
-截至当前提交，evaluator 加固尚未完成，LDBC SNB、Graphalytics、Neo4j/PostgreSQL 外部对拍、Couplet C2~C4、Native AOT 发布 artifact 和 7 天固定硬件报告也尚未归档。M40 仍为进行中，产品定位继续是“八种数据模型，一套引擎”。
+截至当前提交，evaluator 自身加固和防误报回归已经完成；M40 修复顺序步骤 3~7、LDBC SNB、Graphalytics、Neo4j/PostgreSQL 外部对拍、Couplet C2~C4、Native AOT 发布 artifact 和 7 天固定硬件报告仍未完成或归档。M40 仍为进行中，产品定位继续是“八种数据模型，一套引擎”。
 
 本项只增加 benchmark/evidence 工具和报告合同，不修改 Graph V1 key/record、WAL、checkpoint、backup format、Graph API 或 Server 权限。
 
@@ -35,13 +35,25 @@ dotnet run --project tests/SonnetDB.Benchmarks/SonnetDB.Benchmarks.csproj -c Rel
 dotnet run --project tests/SonnetDB.Benchmarks/SonnetDB.Benchmarks.csproj -c Release -- --m40-production-gate --manifest artifacts/m40-graph-production-input.json --output artifacts/m40-graph-production-gate
 ```
 
-清单中的相对 artifact 路径以清单所在目录为基准。当前实现会检查 artifact 存在性、SHA-256、manifest 摘要和最小复现命令字段，但尚未按各 artifact schema 独立解析原始测量值；仅含 `{ "status": "PASS" }` 的伪造文件仍可能满足现有测试。加固后的判定器必须要求逐轮原始样本并自行计算摘要，校验 commit 确实存在且工作树干净，回放命令并核对退出码；缺文件、摘要不匹配、重复 ID、占位摘要、`NOT_RUN` 或任一复现失败都不能形成 Production PASS。
+清单中的相对 artifact 路径以清单所在目录为基准，artifact 路径不得越过该目录；复现工作目录相对于 Git 仓库根目录，且不得越过仓库。复现命令由 `command`、`arguments[]`、`working_directory`、`expected_exit_code` 和 `timeout_seconds` 组成，通过 `ProcessStartInfo.ArgumentList` 直接执行，不接受 shell command line；参数必须且只能包含一个独立的 `{artifact}` 占位符，回放时替换为已校验的绝对 artifact 路径，成功退出码固定为 0。v2 allowlist 只接受仓库内的 `dotnet run --project ...` harness，或当前 Benchmarks 程序的 `dotnet exec ... --m40-verify-artifact {artifact}` schema 验证入口；Neo4j/PostgreSQL、LDBC、Graphalytics 与 Couplet 必须经仓库内 .NET evidence harness 归档，manifest 不能直接启动任意程序。判定器要求 artifact 内记录的 commit、命令、参数、工作目录和退出码与 manifest 一致，在回放前后重复校验 SHA-256，并在所有回放完成后再次确认 worktree 干净。
+
+原始 artifact schema 如下：
+
+| Schema | 原始内容 | evaluator 重算结果 |
+|---|---|---|
+| `m40-graph-dataset-evidence-v1` | generator/seed、输入/输出 digest、vertex/edge 数 | dataset 摘要与固定规模合同 |
+| `m40-graph-environment-evidence-v1` | OS/CPU/memory/disk/runtime/GC/power 快照 | 固定目标机合同 |
+| `m40-graph-soak-evidence-v1` | 运行区间、checkpoint 时间戳、kill/reopen/invariant、cold-open、working-set/WAL 样本 | 时长、最大 checkpoint 间隔、恢复/冷开分位数和资源峰值 |
+| `m40-graph-journey-evidence-v1` | 每轮逐样本 latency/allocation/GC/I/O/访问计数、access path 和 oracle assertion | 最差轮 nearest-rank P50/P95/P99、吞吐、资源汇总和 oracle 状态 |
+| `m40-graph-check-evidence-v1` | 具名 expected/actual assertion | correctness/performance check 与 closed gap 状态 |
+
+缺文件、未知/缺失 schema、仅含 `{ "status": "PASS" }`、manifest 摘要不匹配、样本列长度不一致、重复 ID、占位摘要、`NOT_RUN`、无效/非 HEAD commit、脏工作树或任一复现失败都不能形成 Production PASS。
 
 `--quick` 与 `--manifest` 必须显式选择其一。quick 仅在本地 smoke 失败时返回非零退出码；manifest 仅在 `release_decision=PASS` 时返回零，因此 CI/长测调度器不能把 `FAIL` 或 `NOT_RUN` 当作成功发布。
 
-## 目标严格判定
+## 严格判定
 
-本节是 evaluator 加固后的验收合同，不表示当前实现已经满足。
+本节是 evaluator 已实现的判定合同；各项真实 Production artifact 仍为 `NOT_RUN`，不表示实际发布门禁已经通过。
 
 Gate A `correctness_recovery` 要求以下检查全部 PASS：
 
@@ -66,6 +78,7 @@ Gate B `performance_capacity` 要求以下检查全部 PASS：
 - process working set 不超过 12 GiB，cold open P95/P99 不超过 2,000/5,000 ms；
 - native journey 不得出现 relation/Table/full scan，`PGQ-1/2` 必须是 `relation_index_seek`，`PGQ-3` 必须稳定返回有界 `relation_scan_fallback`；
 - candidates、examined、returned、expanded edges、frontier、logical/physical reads、allocation、Gen0/Gen1/Gen2、GC pause、WAL 和 cold-first-query 均有原始计数与阈值证据；仅报告非负值不构成资源门禁通过。
+- 每查询 allocation P95 不超过对应 journey 的 query-memory 上限；按每 1,000 个正式样本计，Gen0/Gen1/Gen2 分别不超过 100/10/1 次；GC pause P99 不超过 50 ms。
 
 Soak 清单固定为 168 小时、8 reader + 1 update worker、`m40-frozen-update-profile-v1`、最多 30 分钟 checkpoint 间隔、至少 7 个每日 kill/reopen 周期，并保持 `SyncWalOnEveryWrite=true`、`AutoCheckpointEnabled=true`、`MaxWalBytes=256 MiB`、`MaxOverlayEntries=100,000`。缩短时长、减少 worker、关闭 fsync/checkpoint 或放宽资源预算会直接失败。
 
@@ -77,9 +90,7 @@ Soak 清单固定为 168 小时、8 reader + 1 update worker、`m40-frozen-updat
 
 ## 当前待执行项
 
-- 先让 evaluator 按 schema 读取各类 artifact、从逐轮原始样本重算摘要，并加入伪造 `{ "status": "PASS" }` 必须失败的回归；
-- 验证 commit 对象真实存在且工作树干净，记录并回放复现命令及退出码，加入 allocation、Gen2 和 GC pause 阈值；
-- 完成 M40 主路线图步骤 1~7；在此之前只允许运行 evaluator 自测和用于修复决策的 quick/microbenchmark；
+- 完成 M40 主路线图步骤 3~7；在此之前只允许运行缺陷回归、evaluator 自测和用于修复决策的 quick/microbenchmark；
 - 在冻结目标机上生成 `preview-small`、`gate` 和 `production-soak` 数据并保留三个原始测量轮次；
 - 执行 Neo4j/PostgreSQL、LDBC SNB 与 Graphalytics 对拍；
 - 归档 Couplet C4 的代码知识/Agent 组合语料结果；

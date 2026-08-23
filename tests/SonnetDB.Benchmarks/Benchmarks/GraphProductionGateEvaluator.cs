@@ -1,5 +1,8 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Security.Cryptography;
+using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace SonnetDB.Benchmarks.Benchmarks;
 
@@ -10,6 +13,9 @@ public static class GraphProductionGateEvaluator
     private const long MiB = 1024L * 1024;
     private const long ExpectedWalBudget = 256L * MiB;
     private const long MaximumWorkingSet = 12L * GiB;
+    private const double MaximumGcPauseP99Milliseconds = 50;
+    private const int SamplesPerGcRateUnit = 1_000;
+    private const string ArtifactArgumentPlaceholder = "{artifact}";
     private static readonly string[] RequiredCorrectnessChecks =
     [
         "five_journey_oracle",
@@ -60,7 +66,7 @@ public static class GraphProductionGateEvaluator
             ["PGQ-3"] = new(0, 0, 64, JourneyPath.BoundedRelationFallback),
         };
 
-    /// <summary>判定证据清单；PASS artifact 必须存在且 SHA-256 匹配。</summary>
+    /// <summary>判定证据清单；Production PASS 只使用 schema-aware 原始 artifact 重算值。</summary>
     /// <param name="input">原始证据清单。</param>
     /// <param name="artifactBaseDirectory">相对 artifact 路径的基准目录。</param>
     /// <returns>带双 gate 和 findings 的报告。</returns>
@@ -77,11 +83,7 @@ public static class GraphProductionGateEvaluator
 
         if (!input.ProductionRun)
         {
-            AddFinding(
-                findings,
-                "release",
-                "production_not_attempted",
-                "quick/local evidence 不能替代 #367 Production 门禁。");
+            AddFinding(findings, "release", "production_not_attempted", "quick/local evidence 不能替代 #367 Production 门禁。");
             return CreateReport(
                 input,
                 localSmoke,
@@ -91,23 +93,18 @@ public static class GraphProductionGateEvaluator
         }
 
         ValidateCommon(input, findings);
-        ValidateRequiredChecks(
-            input.CorrectnessRecoveryChecks,
-            RequiredCorrectnessChecks,
-            "correctness_recovery",
-            artifactRoot,
-            findings);
-        ValidateRequiredChecks(
-            input.PerformanceCapacityChecks,
-            RequiredPerformanceChecks,
-            "performance_capacity",
-            artifactRoot,
-            findings);
-        ValidateJourneys(input.Journeys, artifactRoot, findings);
+        string repositoryRoot = ValidateRepository(input.CommitSha, artifactRoot, findings);
+        var context = new EvaluationContext(artifactRoot, repositoryRoot, input.CommitSha, findings);
+        input = RebuildInputFromArtifacts(input, context);
+
+        ValidateRequiredChecks(input.CorrectnessRecoveryChecks, RequiredCorrectnessChecks, "correctness_recovery", findings);
+        ValidateRequiredChecks(input.PerformanceCapacityChecks, RequiredPerformanceChecks, "performance_capacity", findings);
+        ValidateJourneys(input.Journeys, findings);
         ValidateDataset(input.Dataset, findings);
         ValidateEnvironment(input.Environment, findings);
         ValidateSoak(input, findings);
-        ValidateGaps(input.Gaps, artifactRoot, findings);
+        ValidateGaps(input.Gaps, context, findings);
+        ValidateRepositoryClean(repositoryRoot, findings, "git_worktree_dirty_after_replay");
 
         bool correctnessPass = !findings.Any(static finding =>
             string.Equals(finding.Gate, "correctness_recovery", StringComparison.Ordinal)
@@ -212,8 +209,8 @@ public static class GraphProductionGateEvaluator
         GraphProductionGateInput input,
         List<GraphProductionGateFinding> findings)
     {
-        if (!string.Equals(input.Schema, "m40-graph-production-input-v1", StringComparison.Ordinal))
-            AddFinding(findings, "both", "input_schema", "证据清单 schema 必须为 m40-graph-production-input-v1。");
+        if (!string.Equals(input.Schema, "m40-graph-production-input-v2", StringComparison.Ordinal))
+            AddFinding(findings, "both", "input_schema", "证据清单 schema 必须为 m40-graph-production-input-v2。");
         if (!IsSha1(input.CommitSha))
             AddFinding(findings, "both", "commit_sha", "Production 证据必须绑定 40 位 clean commit SHA。");
         if (input.StartedUtc == default || input.FinishedUtc <= input.StartedUtc)
@@ -222,17 +219,638 @@ public static class GraphProductionGateEvaluator
             AddFinding(findings, "both", "run_interval_future", "运行结束时间不能位于未来。");
     }
 
+    private static string ValidateRepository(
+        string commitSha,
+        string artifactRoot,
+        List<GraphProductionGateFinding> findings)
+    {
+        ProcessOutput rootResult = RunCapturedProcess(
+            "git",
+            ["-C", artifactRoot, "rev-parse", "--show-toplevel"],
+            artifactRoot,
+            30);
+        if (!rootResult.Started || rootResult.TimedOut || rootResult.ExitCode != 0)
+        {
+            AddFinding(findings, "both", "git_repository", "artifact 必须位于可验证的 Git worktree 内。");
+            return artifactRoot;
+        }
+
+        string repositoryRoot = Path.GetFullPath(rootResult.StandardOutput.Trim());
+        if (IsSha1(commitSha))
+        {
+            ProcessOutput objectResult = RunCapturedProcess(
+                "git",
+                ["cat-file", "-e", commitSha + "^{commit}"],
+                repositoryRoot,
+                30);
+            if (!objectResult.Started || objectResult.TimedOut || objectResult.ExitCode != 0)
+                AddFinding(findings, "both", "git_commit_missing", $"Git commit 不存在或不是 commit 对象：{commitSha}。");
+
+            ProcessOutput headResult = RunCapturedProcess("git", ["rev-parse", "HEAD"], repositoryRoot, 30);
+            if (!headResult.Started
+                || headResult.TimedOut
+                || headResult.ExitCode != 0
+                || !string.Equals(headResult.StandardOutput.Trim(), commitSha, StringComparison.OrdinalIgnoreCase))
+            {
+                AddFinding(findings, "both", "git_head_mismatch", "被测 commit 必须与 evidence worktree 的 HEAD 完全一致。");
+            }
+        }
+
+        ValidateRepositoryClean(repositoryRoot, findings, "git_worktree_dirty");
+        return repositoryRoot;
+    }
+
+    private static void ValidateRepositoryClean(
+        string repositoryRoot,
+        List<GraphProductionGateFinding> findings,
+        string findingCode)
+    {
+        ProcessOutput statusResult = RunCapturedProcess(
+            "git",
+            ["status", "--porcelain=v1", "--untracked-files=all"],
+            repositoryRoot,
+            30);
+        if (!statusResult.Started || statusResult.TimedOut || statusResult.ExitCode != 0)
+        {
+            AddFinding(findings, "both", "git_status", "无法验证 evidence worktree 状态。");
+            return;
+        }
+        if (!string.IsNullOrWhiteSpace(statusResult.StandardOutput))
+            AddFinding(findings, "both", findingCode, "Production evidence 要求被测 Git worktree 干净。");
+    }
+
+    private static GraphProductionGateInput RebuildInputFromArtifacts(
+        GraphProductionGateInput input,
+        EvaluationContext context)
+    {
+        GraphProductionDatasetEvidence dataset = RebuildDataset(input.Dataset, context);
+        GraphProductionEnvironmentEvidence environment = RebuildEnvironment(input.Environment, context);
+        (GraphProductionSoakEvidence soak, DateTimeOffset startedUtc, DateTimeOffset finishedUtc) =
+            RebuildSoak(input.Soak, input.StartedUtc, input.FinishedUtc, context);
+        IReadOnlyList<GraphProductionJourneyEvidence> journeys = input.Journeys
+            .Where(static journey => journey is not null)
+            .Select(journey => RebuildJourney(journey, context))
+            .ToArray();
+        IReadOnlyList<GraphProductionCheckEvidence> correctnessChecks = input.CorrectnessRecoveryChecks
+            .Where(static check => check is not null)
+            .Select(check => RebuildCheck(check, "correctness_recovery", context))
+            .ToArray();
+        IReadOnlyList<GraphProductionCheckEvidence> performanceChecks = input.PerformanceCapacityChecks
+            .Where(static check => check is not null)
+            .Select(check => RebuildCheck(check, "performance_capacity", context))
+            .ToArray();
+
+        return input with
+        {
+            StartedUtc = startedUtc,
+            FinishedUtc = finishedUtc,
+            Dataset = dataset,
+            Environment = environment,
+            Soak = soak,
+            Journeys = journeys,
+            CorrectnessRecoveryChecks = correctnessChecks,
+            PerformanceCapacityChecks = performanceChecks,
+        };
+    }
+
+    private static GraphProductionDatasetEvidence RebuildDataset(
+        GraphProductionDatasetEvidence summary,
+        EvaluationContext context)
+    {
+        GraphProductionDatasetArtifact? artifact = LoadArtifact(
+            summary.Artifact,
+            "m40-graph-dataset-evidence-v1",
+            "both",
+            "dataset",
+            GraphProductionArtifactJsonContext.Default.GraphProductionDatasetArtifact,
+            static value => value.Schema,
+            static value => value.Run,
+            context);
+        if (artifact is null)
+            return summary;
+
+        var rebuilt = new GraphProductionDatasetEvidence
+        {
+            Tier = artifact.Tier,
+            Generator = artifact.Generator,
+            Seed = artifact.Seed,
+            VertexCount = artifact.VertexCount,
+            EdgeCount = artifact.EdgeCount,
+            InputDigest = artifact.InputDigest,
+            OutputDigest = artifact.OutputDigest,
+            Artifact = summary.Artifact,
+        };
+        if (summary with { Artifact = new GraphProductionArtifactEvidence() }
+            != rebuilt with { Artifact = new GraphProductionArtifactEvidence() })
+        {
+            AddFinding(context.Findings, "both", "dataset_summary_mismatch", "dataset manifest 摘要与原始 artifact 不一致。");
+        }
+        return rebuilt;
+    }
+
+    private static GraphProductionEnvironmentEvidence RebuildEnvironment(
+        GraphProductionEnvironmentEvidence summary,
+        EvaluationContext context)
+    {
+        GraphProductionEnvironmentArtifact? artifact = LoadArtifact(
+            summary.Artifact,
+            "m40-graph-environment-evidence-v1",
+            "performance_capacity",
+            "environment",
+            GraphProductionArtifactJsonContext.Default.GraphProductionEnvironmentArtifact,
+            static value => value.Schema,
+            static value => value.Run,
+            context);
+        if (artifact is null || artifact.Environment is null)
+        {
+            if (artifact is not null)
+                AddFinding(context.Findings, "performance_capacity", "environment_raw_missing", "环境 artifact 缺少原始快照。");
+            return summary;
+        }
+
+        GraphProductionEnvironmentSnapshot raw = artifact.Environment;
+        var rebuilt = new GraphProductionEnvironmentEvidence
+        {
+            OsDescription = raw.OsDescription,
+            OsBuild = raw.OsBuild,
+            Architecture = raw.Architecture,
+            CpuName = raw.CpuName,
+            PhysicalCoreCount = raw.PhysicalCoreCount,
+            LogicalProcessorCount = raw.LogicalProcessorCount,
+            PhysicalMemoryBytes = raw.PhysicalMemoryBytes,
+            DiskName = raw.DiskName,
+            DiskFormat = raw.DiskFormat,
+            Runtime = raw.Runtime,
+            SdkVersion = raw.SdkVersion,
+            GcMode = raw.GcMode,
+            PowerProfile = raw.PowerProfile,
+            Artifact = summary.Artifact,
+        };
+        if (summary with { Artifact = new GraphProductionArtifactEvidence() }
+            != rebuilt with { Artifact = new GraphProductionArtifactEvidence() })
+        {
+            AddFinding(context.Findings, "performance_capacity", "environment_summary_mismatch", "environment manifest 摘要与原始 artifact 不一致。");
+        }
+        return rebuilt;
+    }
+
+    private static (GraphProductionSoakEvidence Soak, DateTimeOffset StartedUtc, DateTimeOffset FinishedUtc) RebuildSoak(
+        GraphProductionSoakEvidence summary,
+        DateTimeOffset manifestStartedUtc,
+        DateTimeOffset manifestFinishedUtc,
+        EvaluationContext context)
+    {
+        GraphProductionSoakArtifact? artifact = LoadArtifact(
+            summary.Artifact,
+            "m40-graph-soak-evidence-v1",
+            "both",
+            "soak",
+            GraphProductionArtifactJsonContext.Default.GraphProductionSoakArtifact,
+            static value => value.Schema,
+            static value => value.Run,
+            context);
+        if (artifact is null)
+            return (summary, manifestStartedUtc, manifestFinishedUtc);
+
+        IReadOnlyList<DateTimeOffset> checkpoints = artifact.CheckpointsUtc ?? [];
+        IReadOnlyList<GraphProductionKillReopenSample> kills = artifact.KillReopenSamples ?? [];
+        IReadOnlyList<double> coldOpen = artifact.ColdOpenMilliseconds ?? [];
+        IReadOnlyList<GraphProductionSoakResourceSample> resources = artifact.ResourceSamples ?? [];
+        ValidateSoakRawArtifact(artifact, checkpoints, kills, coldOpen, resources, context.Findings);
+
+        double maximumCheckpointInterval = ComputeMaximumIntervalMinutes(
+            artifact.StartedUtc,
+            artifact.FinishedUtc,
+            checkpoints);
+        double[] orderedColdOpen = coldOpen.Order().ToArray();
+        double[] orderedRecovery = kills
+            .Where(static sample => sample is not null)
+            .Select(static sample => sample.RecoveryMilliseconds)
+            .Order()
+            .ToArray();
+        var rebuilt = new GraphProductionSoakEvidence
+        {
+            DurationHours = (artifact.FinishedUtc - artifact.StartedUtc).TotalHours,
+            ReaderWorkers = artifact.ReaderWorkers,
+            UpdateWorkers = artifact.UpdateWorkers,
+            UpdateProfile = artifact.UpdateProfile,
+            MaximumCheckpointIntervalMinutes = maximumCheckpointInterval,
+            CheckpointCount = checkpoints.Count,
+            KillReopenCount = kills.Count(static sample => sample is not null && sample.ProcessKilled && sample.Reopened),
+            InvariantCheckCount = kills.Count(static sample => sample is not null && sample.InvariantPassed),
+            FailedOperationCount = artifact.FailedOperationCount,
+            UnexpectedRestartCount = artifact.UnexpectedRestartCount,
+            PeakWorkingSetBytes = resources.Count == 0 ? 0 : resources.Max(static sample => sample.WorkingSetBytes),
+            WalBytes = resources.Count == 0 ? 0 : resources.Max(static sample => sample.WalBytes),
+            ColdOpenP95Milliseconds = Percentile(orderedColdOpen, 0.95),
+            ColdOpenP99Milliseconds = Percentile(orderedColdOpen, 0.99),
+            RecoveryP50Milliseconds = Percentile(orderedRecovery, 0.50),
+            RecoveryP95Milliseconds = Percentile(orderedRecovery, 0.95),
+            RecoveryP99Milliseconds = Percentile(orderedRecovery, 0.99),
+            SyncWalOnEveryWrite = artifact.SyncWalOnEveryWrite,
+            AutoCheckpointEnabled = artifact.AutoCheckpointEnabled,
+            MaxWalBytes = artifact.MaxWalBytes,
+            MaxOverlayEntries = artifact.MaxOverlayEntries,
+            Artifact = summary.Artifact,
+        };
+        if (summary with { Artifact = new GraphProductionArtifactEvidence() }
+            != rebuilt with { Artifact = new GraphProductionArtifactEvidence() }
+            || manifestStartedUtc != artifact.StartedUtc
+            || manifestFinishedUtc != artifact.FinishedUtc)
+        {
+            AddFinding(context.Findings, "both", "soak_summary_mismatch", "soak manifest 摘要或运行区间与原始 artifact 不一致。");
+        }
+        return (rebuilt, artifact.StartedUtc, artifact.FinishedUtc);
+    }
+
+    private static void ValidateSoakRawArtifact(
+        GraphProductionSoakArtifact artifact,
+        IReadOnlyList<DateTimeOffset> checkpoints,
+        IReadOnlyList<GraphProductionKillReopenSample> kills,
+        IReadOnlyList<double> coldOpen,
+        IReadOnlyList<GraphProductionSoakResourceSample> resources,
+        List<GraphProductionGateFinding> findings)
+    {
+        bool intervalValid = artifact.StartedUtc != default && artifact.FinishedUtc > artifact.StartedUtc;
+        if (!intervalValid)
+            AddFinding(findings, "both", "soak_raw_interval", "soak artifact 的开始/结束时间无效。");
+        if (checkpoints.Count == 0
+            || checkpoints.Any(value => value < artifact.StartedUtc || value > artifact.FinishedUtc)
+            || !IsStrictlyIncreasing(checkpoints))
+        {
+            AddFinding(findings, "correctness_recovery", "soak_raw_checkpoints", "soak artifact 缺少有序、区间内的 checkpoint 原始时间戳。");
+        }
+        DateTimeOffset[] killTimestamps = kills
+            .Where(static sample => sample is not null)
+            .Select(static sample => sample.TimestampUtc)
+            .ToArray();
+        if (kills.Count < 7
+            || kills.Any(static sample => sample is null
+                || sample.TimestampUtc == default
+                || !sample.ProcessKilled
+                || !sample.Reopened
+                || !sample.InvariantPassed
+                || !IsFinitePositive(sample.RecoveryMilliseconds))
+            || killTimestamps.Any(value => value < artifact.StartedUtc || value > artifact.FinishedUtc)
+            || !IsStrictlyIncreasing(killTimestamps)
+            || ComputeMaximumIntervalHours(artifact.StartedUtc, artifact.FinishedUtc, killTimestamps) > 24)
+        {
+            AddFinding(findings, "correctness_recovery", "soak_raw_kill_reopen", "soak artifact 必须含按 24 小时分布的真 kill/reopen/invariant 原始样本。");
+        }
+        if (coldOpen.Count < 7 || coldOpen.Any(static value => !IsFinitePositive(value)))
+            AddFinding(findings, "performance_capacity", "soak_raw_cold_open", "soak artifact 必须含至少 7 个有效 cold-open 原始样本。");
+        if (resources.Count == 0
+            || resources.Any(sample => sample is null
+                || sample.TimestampUtc < artifact.StartedUtc
+                || sample.TimestampUtc > artifact.FinishedUtc
+                || sample.WorkingSetBytes <= 0
+                || sample.WalBytes < 0))
+        {
+            AddFinding(findings, "performance_capacity", "soak_raw_resources", "soak artifact 缺少区间内的 working-set/WAL 原始样本。");
+        }
+    }
+
+    private static GraphProductionJourneyEvidence RebuildJourney(
+        GraphProductionJourneyEvidence summary,
+        EvaluationContext context)
+    {
+        GraphProductionJourneyArtifact? artifact = LoadArtifact(
+            summary.Artifact,
+            "m40-graph-journey-evidence-v1",
+            "both",
+            summary.Id,
+            GraphProductionArtifactJsonContext.Default.GraphProductionJourneyArtifact,
+            static value => value.Schema,
+            static value => value.Run,
+            context);
+        if (artifact is null)
+            return summary;
+        if (!string.Equals(artifact.JourneyId, summary.Id, StringComparison.Ordinal))
+            AddFinding(context.Findings, "both", "journey_artifact_id", $"{summary.Id} artifact journey_id 不匹配。");
+
+        IReadOnlyList<GraphProductionJourneyRoundArtifact> rounds = artifact.Rounds ?? [];
+        bool rawValid = ValidateJourneyRounds(summary.Id, rounds, context.Findings);
+        GraphProductionJourneyEvidence rebuilt = SummarizeJourney(summary, rounds, rawValid, context.Findings);
+        if (!JourneySummariesEqual(summary, rebuilt))
+            AddFinding(context.Findings, "both", "journey_summary_mismatch", $"{summary.Id} manifest 摘要与逐轮原始样本重算结果不一致。");
+        return rebuilt;
+    }
+
+    private static bool ValidateJourneyRounds(
+        string journeyId,
+        IReadOnlyList<GraphProductionJourneyRoundArtifact> rounds,
+        List<GraphProductionGateFinding> findings)
+    {
+        bool valid = true;
+        if (rounds.Count < 3)
+        {
+            AddFinding(findings, "performance_capacity", "journey_raw_rounds", $"{journeyId} 必须提供至少 3 个原始轮次。");
+            valid = false;
+        }
+        var roundNumbers = new HashSet<int>();
+        foreach (GraphProductionJourneyRoundArtifact round in rounds)
+        {
+            if (round is null || round.Round <= 0 || !roundNumbers.Add(round.Round))
+            {
+                AddFinding(findings, "both", "journey_raw_round_id", $"{journeyId} 原始轮次号不能为空、非正数或重复。");
+                valid = false;
+                continue;
+            }
+
+            int count = round.ElapsedMicroseconds?.Count ?? 0;
+            if (round.WarmupCount < 1_000 || count < 10_000 || !AllSampleColumnsHaveCount(round, count))
+            {
+                AddFinding(findings, "performance_capacity", "journey_raw_samples", $"{journeyId} 第 {round.Round} 轮缺少 1,000 warmup、10,000 个逐样本值或样本列长度不一致。");
+                valid = false;
+            }
+            if (!AllSampleColumnsNonNegative(round))
+            {
+                AddFinding(findings, "performance_capacity", "journey_raw_values", $"{journeyId} 第 {round.Round} 轮包含负数资源或时间样本。");
+                valid = false;
+            }
+            IReadOnlyList<GraphProductionOracleAssertion> assertions = round.OracleAssertions ?? [];
+            if (assertions.Count == 0
+                || assertions.Any(static assertion => assertion is null
+                    || string.IsNullOrWhiteSpace(assertion.Name)
+                    || !IsSha256(assertion.ExpectedDigest)
+                    || !IsSha256(assertion.ActualDigest)))
+            {
+                AddFinding(findings, "correctness_recovery", "journey_raw_oracle", $"{journeyId} 第 {round.Round} 轮缺少逐 ID/property/path oracle 摘要。");
+                valid = false;
+            }
+            if (assertions
+                .Where(static assertion => assertion is not null)
+                .GroupBy(static assertion => assertion.Name, StringComparer.Ordinal)
+                .Any(static group => group.Count() != 1))
+            {
+                AddFinding(findings, "correctness_recovery", "journey_raw_oracle_id", $"{journeyId} 第 {round.Round} 轮 oracle 名称重复。");
+                valid = false;
+            }
+        }
+        return valid;
+    }
+
+    private static GraphProductionJourneyEvidence SummarizeJourney(
+        GraphProductionJourneyEvidence manifest,
+        IReadOnlyList<GraphProductionJourneyRoundArtifact> rounds,
+        bool rawValid,
+        List<GraphProductionGateFinding> findings)
+    {
+        if (rounds.Count == 0)
+            return manifest with { Status = GraphProductionEvidenceStatus.Fail };
+
+        bool oraclePass = rawValid && rounds.All(static round =>
+            (round.OracleAssertions ?? []).Count > 0
+            && (round.OracleAssertions ?? []).All(static assertion =>
+                assertion is not null
+                && string.Equals(assertion.ExpectedDigest, assertion.ActualDigest, StringComparison.OrdinalIgnoreCase)));
+        string[] paths = rounds.Select(static round => round.AccessPath).Distinct(StringComparer.Ordinal).ToArray();
+        string?[] fallbacks = rounds.Select(static round => round.FallbackReason).Distinct(StringComparer.Ordinal).ToArray();
+        if (paths.Length != 1 || fallbacks.Length != 1)
+            AddFinding(findings, "performance_capacity", "journey_raw_path_drift", $"{manifest.Id} 的 access path/fallback 在独立轮次间不稳定。");
+
+        return new GraphProductionJourneyEvidence
+        {
+            Id = manifest.Id,
+            Status = oraclePass ? GraphProductionEvidenceStatus.Pass : GraphProductionEvidenceStatus.Fail,
+            WarmupCount = rounds.Min(static round => round.WarmupCount),
+            Rounds = rounds.Count,
+            SamplesPerRound = rounds.Min(static round => round.ElapsedMicroseconds?.Count ?? 0),
+            P50Milliseconds = WorstRoundPercentile(rounds, static round => round.ElapsedMicroseconds, 0.50) / 1_000d,
+            P95Milliseconds = WorstRoundPercentile(rounds, static round => round.ElapsedMicroseconds, 0.95) / 1_000d,
+            P99Milliseconds = WorstRoundPercentile(rounds, static round => round.ElapsedMicroseconds, 0.99) / 1_000d,
+            MaxMilliseconds = rounds.Max(static round => Maximum(round.ElapsedMicroseconds)) / 1_000d,
+            ThroughputPerSecond = rounds.Min(static round => Throughput(round.ElapsedMicroseconds)),
+            TimeToFirstRowP99Milliseconds = WorstRoundPercentile(rounds, static round => round.TimeToFirstRowMicroseconds, 0.99) / 1_000d,
+            ColdFirstQueryP99Milliseconds = WorstRoundPercentile(rounds, static round => round.ColdFirstQueryMicroseconds, 0.99) / 1_000d,
+            QueryPeakLiveBytes = rounds.Max(static round => Maximum(round.QueryPeakLiveBytes)),
+            PeakWorkingSetBytes = rounds.Max(static round => Maximum(round.WorkingSetBytes)),
+            AllocatedBytesP95 = (long)WorstRoundPercentile(rounds, static round => round.AllocatedBytes, 0.95),
+            Gen0Collections = rounds.Sum(static round => Sum(round.Gen0Collections)),
+            Gen1Collections = rounds.Sum(static round => Sum(round.Gen1Collections)),
+            Gen2Collections = rounds.Sum(static round => Sum(round.Gen2Collections)),
+            GcPauseP99Milliseconds = WorstRoundPercentile(rounds, static round => round.GcPauseMicroseconds, 0.99) / 1_000d,
+            LogicalReadBytes = rounds.Max(static round => Maximum(round.LogicalReadBytes)),
+            PhysicalReadBytes = rounds.Max(static round => Maximum(round.PhysicalReadBytes)),
+            WalBytes = rounds.Max(static round => Maximum(round.WalBytes)),
+            Candidates = rounds.Max(static round => Maximum(round.Candidates)),
+            Examined = rounds.Max(static round => Maximum(round.Examined)),
+            Returned = rounds.Max(static round => Maximum(round.Returned)),
+            ExpandedEdges = rounds.Max(static round => Maximum(round.ExpandedEdges)),
+            FrontierPeak = rounds.Max(static round => Maximum(round.FrontierPeak)),
+            AccessPath = paths.Length == 1 ? paths[0] : string.Empty,
+            FallbackReason = fallbacks.Length == 1 ? fallbacks[0] : null,
+            Artifact = manifest.Artifact,
+        };
+    }
+
+    private static GraphProductionCheckEvidence RebuildCheck(
+        GraphProductionCheckEvidence summary,
+        string gate,
+        EvaluationContext context)
+    {
+        GraphProductionCheckArtifact? artifact = LoadArtifact(
+            summary.Artifact,
+            "m40-graph-check-evidence-v1",
+            gate,
+            summary.Id,
+            GraphProductionArtifactJsonContext.Default.GraphProductionCheckArtifact,
+            static value => value.Schema,
+            static value => value.Run,
+            context);
+        if (artifact is null)
+            return summary;
+        if (!string.Equals(artifact.CheckId, summary.Id, StringComparison.Ordinal))
+            AddFinding(context.Findings, gate, "check_artifact_id", $"{summary.Id} artifact check_id 不匹配。");
+        bool assertionsPass = ValidateCheckAssertions(artifact.Assertions, gate, summary.Id, context.Findings);
+        var rebuilt = new GraphProductionCheckEvidence
+        {
+            Id = summary.Id,
+            Status = assertionsPass ? GraphProductionEvidenceStatus.Pass : GraphProductionEvidenceStatus.Fail,
+            Summary = artifact.Summary,
+            Artifact = summary.Artifact,
+        };
+        if (!string.Equals(summary.Status, rebuilt.Status, StringComparison.Ordinal)
+            || !string.Equals(summary.Summary, rebuilt.Summary, StringComparison.Ordinal))
+        {
+            AddFinding(context.Findings, gate, "check_summary_mismatch", $"{summary.Id} manifest 摘要与原始 assertion 重算结果不一致。");
+        }
+        return rebuilt;
+    }
+
+    private static bool ValidateCheckAssertions(
+        IReadOnlyList<GraphProductionCheckAssertion>? assertions,
+        string gate,
+        string owner,
+        List<GraphProductionGateFinding> findings)
+    {
+        assertions ??= [];
+        bool pass = assertions.Count > 0;
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        foreach (GraphProductionCheckAssertion assertion in assertions)
+        {
+            if (assertion is null
+                || string.IsNullOrWhiteSpace(assertion.Name)
+                || !names.Add(assertion.Name)
+                || string.IsNullOrWhiteSpace(assertion.Expected)
+                || string.IsNullOrWhiteSpace(assertion.Actual))
+            {
+                pass = false;
+                continue;
+            }
+            pass &= string.Equals(assertion.Expected, assertion.Actual, StringComparison.Ordinal);
+        }
+        if (!pass)
+            AddFinding(findings, gate, "check_raw_assertions", $"{owner} 缺少非重复原始断言或期望/实际值不一致。");
+        return pass;
+    }
+
+    private static T? LoadArtifact<T>(
+        GraphProductionArtifactEvidence reference,
+        string expectedSchema,
+        string gate,
+        string owner,
+        JsonTypeInfo<T> typeInfo,
+        Func<T, string> schemaSelector,
+        Func<T, GraphProductionArtifactRun> runSelector,
+        EvaluationContext context)
+        where T : class
+    {
+        string? path = ValidateArtifactReference(reference, gate, owner, context);
+        if (path is null)
+            return null;
+
+        T? artifact;
+        try
+        {
+            using FileStream stream = File.OpenRead(path);
+            artifact = JsonSerializer.Deserialize(stream, typeInfo);
+        }
+        catch (Exception exception) when (exception is IOException
+            or UnauthorizedAccessException
+            or JsonException
+            or NotSupportedException)
+        {
+            AddFinding(context.Findings, gate, "artifact_schema", $"{owner} artifact 无法按 {expectedSchema} 解析：{exception.Message}");
+            return null;
+        }
+        if (artifact is null || !string.Equals(schemaSelector(artifact), expectedSchema, StringComparison.Ordinal))
+        {
+            AddFinding(context.Findings, gate, "artifact_schema", $"{owner} artifact schema 必须为 {expectedSchema}。");
+            return null;
+        }
+
+        GraphProductionArtifactRun? run = runSelector(artifact);
+        if (run is null
+            || run.Arguments is null
+            || !string.Equals(run.CommitSha, context.CommitSha, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(run.Command, reference.Command, StringComparison.Ordinal)
+            || !run.Arguments.SequenceEqual(reference.Arguments ?? [], StringComparer.Ordinal)
+            || !string.Equals(run.WorkingDirectory, reference.WorkingDirectory, StringComparison.Ordinal)
+            || run.ExitCode != reference.ExpectedExitCode)
+        {
+            AddFinding(context.Findings, gate, "artifact_run_metadata", $"{owner} artifact 的 commit、命令、参数、工作目录或退出码与 manifest 不一致。");
+            return null;
+        }
+
+        ReplayArtifact(reference, path, gate, owner, context);
+        return artifact;
+    }
+
+    private static string? ValidateArtifactReference(
+        GraphProductionArtifactEvidence reference,
+        string gate,
+        string owner,
+        EvaluationContext context)
+    {
+        if (reference is null
+            || reference.Arguments is null
+            || reference.Arguments.Any(static argument => string.IsNullOrWhiteSpace(argument))
+            || string.IsNullOrWhiteSpace(reference.Path)
+            || !IsSha256(reference.Sha256)
+            || string.IsNullOrWhiteSpace(reference.Command)
+            || string.IsNullOrWhiteSpace(reference.WorkingDirectory)
+            || reference.ExpectedExitCode != 0
+            || reference.TimeoutSeconds is < 1 or > 3_600
+            || reference.Arguments.Count(static argument =>
+                string.Equals(argument, ArtifactArgumentPlaceholder, StringComparison.Ordinal)) != 1
+            || !IsAllowedReplayCommand(reference.Command, reference.Arguments, context.RepositoryRoot)
+            || Path.IsPathFullyQualified(reference.Path)
+            || Path.IsPathFullyQualified(reference.WorkingDirectory))
+        {
+            AddFinding(context.Findings, gate, "artifact_metadata", $"{owner} 缺少可移植 path、SHA-256 或结构化复现命令元数据。");
+            return null;
+        }
+
+        if (!TryResolveWithin(context.ArtifactRoot, reference.Path, out string path))
+        {
+            AddFinding(context.Findings, gate, "artifact_path", $"{owner} artifact 路径越过 manifest 目录。");
+            return null;
+        }
+        if (!File.Exists(path))
+        {
+            AddFinding(context.Findings, gate, "artifact_missing", $"{owner} artifact 不存在：{reference.Path}。");
+            return null;
+        }
+        if (!DigestMatches(path, reference.Sha256))
+        {
+            AddFinding(context.Findings, gate, "artifact_digest", $"{owner} artifact SHA-256 不匹配。");
+            return null;
+        }
+
+        if (!TryResolveWithin(context.RepositoryRoot, reference.WorkingDirectory, out string workingDirectory)
+            || !Directory.Exists(workingDirectory))
+        {
+            AddFinding(context.Findings, gate, "artifact_working_directory", $"{owner} 复现工作目录不存在或越过仓库根目录。");
+            return null;
+        }
+        return path;
+    }
+
+    private static void ReplayArtifact(
+        GraphProductionArtifactEvidence reference,
+        string artifactPath,
+        string gate,
+        string owner,
+        EvaluationContext context)
+    {
+        string workingDirectory = Path.GetFullPath(Path.Combine(context.RepositoryRoot, reference.WorkingDirectory));
+        string cacheKey = string.Join('\u001f',
+            reference.Command,
+            workingDirectory,
+            artifactPath,
+            reference.ExpectedExitCode.ToString(CultureInfo.InvariantCulture),
+            reference.TimeoutSeconds.ToString(CultureInfo.InvariantCulture),
+            string.Join('\u001e', reference.Arguments));
+        if (!context.Replays.TryGetValue(cacheKey, out ReplayResult? result))
+        {
+            string[] arguments = reference.Arguments
+                .Select(argument => string.Equals(argument, ArtifactArgumentPlaceholder, StringComparison.Ordinal)
+                    ? artifactPath
+                    : argument)
+                .ToArray();
+            result = RunReplayProcess(reference.Command, arguments, workingDirectory, reference.TimeoutSeconds);
+            context.Replays.Add(cacheKey, result);
+        }
+        if (!result.Started || result.TimedOut || result.ExitCode != reference.ExpectedExitCode)
+        {
+            AddFinding(
+                context.Findings,
+                gate,
+                "artifact_reproduction",
+                $"{owner} 复现命令失败、超时或退出码不匹配（expected={reference.ExpectedExitCode}, actual={result.ExitCode}）。");
+        }
+        if (!DigestMatches(artifactPath, reference.Sha256))
+            AddFinding(context.Findings, gate, "artifact_changed_by_replay", $"{owner} artifact 在复现命令执行后发生变化。");
+    }
+
     private static void ValidateRequiredChecks(
         IReadOnlyList<GraphProductionCheckEvidence> checks,
         IReadOnlyList<string> requiredIds,
         string gate,
-        string artifactRoot,
         List<GraphProductionGateFinding> findings)
     {
-        IReadOnlyDictionary<string, GraphProductionCheckEvidence> byId = IndexById(
-            checks,
-            gate,
-            findings);
+        IReadOnlyDictionary<string, GraphProductionCheckEvidence> byId = IndexById(checks, gate, findings);
         foreach (string requiredId in requiredIds)
         {
             if (!byId.TryGetValue(requiredId, out GraphProductionCheckEvidence? check))
@@ -240,21 +858,15 @@ public static class GraphProductionGateEvaluator
                 AddFinding(findings, gate, "check_missing", $"缺少必需检查 {requiredId}。");
                 continue;
             }
-
             if (!string.Equals(check.Status, GraphProductionEvidenceStatus.Pass, StringComparison.Ordinal))
-            {
-                AddFinding(
-                    findings,
-                    gate,
-                    "check_not_pass",
-                    $"检查 {requiredId} 状态为 {check.Status}，Production 提交不允许缺项或重试后模糊通过。");
-                continue;
-            }
-
+                AddFinding(findings, gate, "check_not_pass", $"检查 {requiredId} 的原始 assertions 未 PASS。");
             if (string.IsNullOrWhiteSpace(check.Summary))
                 AddFinding(findings, gate, "check_summary", $"检查 {requiredId} 缺少可审计摘要。");
-
-            ValidateArtifact(check.Artifact, artifactRoot, gate, requiredId, findings);
+        }
+        foreach (string actualId in byId.Keys)
+        {
+            if (!requiredIds.Contains(actualId, StringComparer.Ordinal))
+                AddFinding(findings, gate, "check_unknown", $"Production 清单包含未冻结检查 {actualId}。");
         }
     }
 
@@ -279,7 +891,6 @@ public static class GraphProductionGateEvaluator
 
     private static void ValidateJourneys(
         IReadOnlyList<GraphProductionJourneyEvidence> journeys,
-        string artifactRoot,
         List<GraphProductionGateFinding> findings)
     {
         var byId = new Dictionary<string, GraphProductionJourneyEvidence>(StringComparer.Ordinal);
@@ -301,27 +912,19 @@ public static class GraphProductionGateEvaluator
                 AddFinding(findings, "both", "journey_missing", $"缺少冻结 journey {id}。");
                 continue;
             }
-
             if (!string.Equals(journey.Status, GraphProductionEvidenceStatus.Pass, StringComparison.Ordinal))
-            {
-                AddFinding(findings, "correctness_recovery", "journey_oracle", $"{id} 逐项 oracle 未 PASS。");
-            }
-            else
-            {
-                ValidateArtifact(journey.Artifact, artifactRoot, "both", id, findings);
-            }
-
+                AddFinding(findings, "correctness_recovery", "journey_oracle", $"{id} 原始逐项 oracle 未 PASS。");
             if (journey.WarmupCount < 1_000 || journey.Rounds < 3 || journey.SamplesPerRound < 10_000)
             {
-                AddFinding(
-                    findings,
-                    "performance_capacity",
-                    "journey_samples",
-                    $"{id} 必须有 1,000 warmup、3 个独立轮次且每轮至少 10,000 个完整消费样本。");
+                AddFinding(findings, "performance_capacity", "journey_samples", $"{id} 必须有 1,000 warmup、3 个独立轮次且每轮至少 10,000 个完整消费样本。");
             }
-
             ValidateJourneyMetrics(journey, spec, findings);
             ValidateJourneyPath(journey, spec.Path, findings);
+        }
+        foreach (string actualId in byId.Keys)
+        {
+            if (!JourneySpecs.ContainsKey(actualId))
+                AddFinding(findings, "both", "journey_unknown", $"Production 清单包含未冻结 journey {actualId}。");
         }
     }
 
@@ -330,19 +933,31 @@ public static class GraphProductionGateEvaluator
         JourneySpec spec,
         List<GraphProductionGateFinding> findings)
     {
-        if (journey.QueryPeakLiveBytes < 0
-            || journey.QueryPeakLiveBytes > spec.MemoryMiB * MiB)
-        {
-            AddFinding(
-                findings,
-                "performance_capacity",
-                "query_memory",
-                $"{journey.Id} query-owned peak 超过 {spec.MemoryMiB} MiB 或计数无效。");
-        }
+        if (journey.QueryPeakLiveBytes < 0 || journey.QueryPeakLiveBytes > spec.MemoryMiB * MiB)
+            AddFinding(findings, "performance_capacity", "query_memory", $"{journey.Id} query-owned peak 超过 {spec.MemoryMiB} MiB 或计数无效。");
         if (journey.PeakWorkingSetBytes <= 0 || journey.PeakWorkingSetBytes > MaximumWorkingSet)
             AddFinding(findings, "performance_capacity", "working_set", $"{journey.Id} working set 必须在 0~12 GiB 内。");
-        if (journey.AllocatedBytesP95 < 0
-            || journey.LogicalReadBytes < 0
+        if (journey.AllocatedBytesP95 < 0 || journey.AllocatedBytesP95 > spec.MemoryMiB * MiB)
+            AddFinding(findings, "performance_capacity", "allocation", $"{journey.Id} 每查询 allocation P95 必须在 0~{spec.MemoryMiB} MiB 内。");
+
+        long sampleUnits = Math.Max(1, (long)Math.Ceiling(
+            journey.Rounds * (double)journey.SamplesPerRound / SamplesPerGcRateUnit));
+        if (journey.Gen0Collections < 0
+            || journey.Gen1Collections < 0
+            || journey.Gen2Collections < 0
+            || journey.Gen0Collections > 100 * sampleUnits
+            || journey.Gen1Collections > 10 * sampleUnits
+            || journey.Gen2Collections > sampleUnits)
+        {
+            AddFinding(findings, "performance_capacity", "gc_rate", $"{journey.Id} 超过每 1,000 样本 Gen0/Gen1/Gen2 100/10/1 次阈值。");
+        }
+        if (!double.IsFinite(journey.GcPauseP99Milliseconds)
+            || journey.GcPauseP99Milliseconds < 0
+            || journey.GcPauseP99Milliseconds > MaximumGcPauseP99Milliseconds)
+        {
+            AddFinding(findings, "performance_capacity", "gc_pause", $"{journey.Id} GC pause P99 必须在 0~{MaximumGcPauseP99Milliseconds} ms 内。");
+        }
+        if (journey.LogicalReadBytes < 0
             || journey.PhysicalReadBytes < 0
             || journey.WalBytes < 0
             || journey.Candidates < 0
@@ -354,8 +969,7 @@ public static class GraphProductionGateEvaluator
             AddFinding(findings, "performance_capacity", "journey_counters", $"{journey.Id} 缺少非负资源/访问计数器。");
         }
         if (journey.ThroughputPerSecond <= 0
-            || (spec.Path != JourneyPath.BoundedRelationFallback
-                && (journey.Returned <= 0 || journey.ExpandedEdges <= 0)))
+            || (spec.Path != JourneyPath.BoundedRelationFallback && (journey.Returned <= 0 || journey.ExpandedEdges <= 0)))
         {
             AddFinding(findings, "performance_capacity", "journey_work", $"{journey.Id} 缺少有效吞吐或完整消费工作量计数。");
         }
@@ -369,25 +983,11 @@ public static class GraphProductionGateEvaluator
         {
             AddFinding(findings, "performance_capacity", "latency_order", $"{journey.Id} 延迟分位数顺序无效。");
         }
-        if (journey.P95Milliseconds > spec.P95Milliseconds
-            || journey.P99Milliseconds > spec.P99Milliseconds)
-        {
-            AddFinding(
-                findings,
-                "performance_capacity",
-                "latency_slo",
-                $"{journey.Id} 超过 Production P95/P99 {spec.P95Milliseconds}/{spec.P99Milliseconds} ms。");
-        }
+        if (journey.P95Milliseconds > spec.P95Milliseconds || journey.P99Milliseconds > spec.P99Milliseconds)
+            AddFinding(findings, "performance_capacity", "latency_slo", $"{journey.Id} 超过 Production P95/P99 {spec.P95Milliseconds}/{spec.P99Milliseconds} ms。");
         double coldFirstQueryLimit = Math.Max(4 * journey.P99Milliseconds, 2_000);
-        if (journey.ColdFirstQueryP99Milliseconds <= 0
-            || journey.ColdFirstQueryP99Milliseconds > coldFirstQueryLimit)
-        {
-            AddFinding(
-                findings,
-                "performance_capacity",
-                "cold_first_query",
-                $"{journey.Id} 冷首查 P99 必须在 0~{coldFirstQueryLimit:F3} ms 内。");
-        }
+        if (journey.ColdFirstQueryP99Milliseconds <= 0 || journey.ColdFirstQueryP99Milliseconds > coldFirstQueryLimit)
+            AddFinding(findings, "performance_capacity", "cold_first_query", $"{journey.Id} 冷首查 P99 必须在 0~{coldFirstQueryLimit:F3} ms 内。");
     }
 
     private static void ValidateJourneyPath(
@@ -407,20 +1007,14 @@ public static class GraphProductionGateEvaluator
                 && !path.Contains("full_scan", StringComparison.Ordinal),
             JourneyPath.RelationIndex => path.Contains("relation_index_seek", StringComparison.Ordinal)
                 && !path.Contains("relation_scan", StringComparison.Ordinal),
-            JourneyPath.BoundedRelationFallback => string.Equals(
-                path,
-                "relation_scan_fallback",
-                StringComparison.Ordinal)
+            JourneyPath.BoundedRelationFallback => string.Equals(path, "relation_scan_fallback", StringComparison.Ordinal)
                 && !string.IsNullOrWhiteSpace(journey.FallbackReason),
             _ => false,
         };
         if (!pathPass)
             AddFinding(findings, "performance_capacity", "access_path", $"{journey.Id} 实际 access path 不符合冻结合同：{path}。");
-        if (expected != JourneyPath.BoundedRelationFallback
-            && !string.IsNullOrWhiteSpace(journey.FallbackReason))
-        {
+        if (expected != JourneyPath.BoundedRelationFallback && !string.IsNullOrWhiteSpace(journey.FallbackReason))
             AddFinding(findings, "performance_capacity", "unexpected_fallback", $"{journey.Id} 出现未允许回退：{journey.FallbackReason}。");
-        }
     }
 
     private static void ValidateDataset(
@@ -443,8 +1037,7 @@ public static class GraphProductionGateEvaluator
         GraphProductionEnvironmentEvidence environment,
         List<GraphProductionGateFinding> findings)
     {
-        bool memoryMatches = environment.PhysicalMemoryBytes >= 63L * GiB
-            && environment.PhysicalMemoryBytes <= 65L * GiB;
+        bool memoryMatches = environment.PhysicalMemoryBytes >= 63L * GiB && environment.PhysicalMemoryBytes <= 65L * GiB;
         bool matches = environment.OsDescription.Contains("Windows 11", StringComparison.OrdinalIgnoreCase)
             && !string.IsNullOrWhiteSpace(environment.OsBuild)
             && string.Equals(environment.Architecture, "X64", StringComparison.OrdinalIgnoreCase)
@@ -511,7 +1104,7 @@ public static class GraphProductionGateEvaluator
 
     private static void ValidateGaps(
         IReadOnlyList<GraphProductionGapEvidence> gaps,
-        string artifactRoot,
+        EvaluationContext context,
         List<GraphProductionGateFinding> findings)
     {
         if (gaps.Count == 0)
@@ -533,20 +1126,39 @@ public static class GraphProductionGateEvaluator
                 AddFinding(findings, "both", "gap_id", "gap ID 不能为空或重复。");
                 continue;
             }
+            if (!RequiredGapIds.Contains(gap.Id, StringComparer.Ordinal))
+                AddFinding(findings, "both", "gap_unknown", $"capability gap catalog 包含未冻结 ID {gap.Id}。");
 
             bool blocksProduction = gap.Blocks.Contains("Production", StringComparison.OrdinalIgnoreCase)
                 || gap.Blocks.Contains("Couplet C4", StringComparison.OrdinalIgnoreCase);
-            if (blocksProduction
-                && gap.Status is "open" or "in_progress" or "not_planned")
+            if (blocksProduction && gap.Status is "open" or "in_progress" or "not_planned")
             {
                 AddFinding(findings, GateForSeverity(gap.Severity), "blocking_gap", $"{gap.Id} 仍阻塞 {gap.Blocks}。");
             }
             else if (string.Equals(gap.Status, "closed", StringComparison.Ordinal))
             {
                 if (gap.CloseEvidence is null)
+                {
                     AddFinding(findings, "both", "gap_close_evidence", $"{gap.Id} 标记 closed 但没有关闭 evidence。");
+                }
                 else
-                    ValidateArtifact(gap.CloseEvidence, artifactRoot, "both", gap.Id, findings);
+                {
+                    GraphProductionCheckArtifact? artifact = LoadArtifact(
+                        gap.CloseEvidence,
+                        "m40-graph-check-evidence-v1",
+                        "both",
+                        gap.Id,
+                        GraphProductionArtifactJsonContext.Default.GraphProductionCheckArtifact,
+                        static value => value.Schema,
+                        static value => value.Run,
+                        context);
+                    if (artifact is not null)
+                    {
+                        if (!string.Equals(artifact.CheckId, gap.Id, StringComparison.Ordinal))
+                            AddFinding(findings, "both", "gap_artifact_id", $"{gap.Id} 关闭 artifact ID 不匹配。");
+                        _ = ValidateCheckAssertions(artifact.Assertions, "both", gap.Id, findings);
+                    }
+                }
             }
             else if (gap.Status is not ("open" or "in_progress" or "not_planned"))
             {
@@ -568,39 +1180,323 @@ public static class GraphProductionGateEvaluator
             _ => "both",
         };
 
-    private static void ValidateArtifact(
-        GraphProductionArtifactEvidence artifact,
-        string artifactRoot,
-        string gate,
-        string owner,
-        List<GraphProductionGateFinding> findings)
+    private static bool JourneySummariesEqual(
+        GraphProductionJourneyEvidence left,
+        GraphProductionJourneyEvidence right)
+        => left with { Artifact = new GraphProductionArtifactEvidence() }
+            == right with { Artifact = new GraphProductionArtifactEvidence() };
+
+    private static bool AllSampleColumnsHaveCount(GraphProductionJourneyRoundArtifact round, int count)
+        => round.TimeToFirstRowMicroseconds?.Count == count
+            && round.ColdFirstQueryMicroseconds is { Count: > 0 }
+            && round.AllocatedBytes?.Count == count
+            && round.QueryPeakLiveBytes?.Count == count
+            && round.WorkingSetBytes?.Count == count
+            && round.LogicalReadBytes?.Count == count
+            && round.PhysicalReadBytes?.Count == count
+            && round.WalBytes?.Count == count
+            && round.Candidates?.Count == count
+            && round.Examined?.Count == count
+            && round.Returned?.Count == count
+            && round.ExpandedEdges?.Count == count
+            && round.FrontierPeak?.Count == count
+            && round.Gen0Collections?.Count == count
+            && round.Gen1Collections?.Count == count
+            && round.Gen2Collections?.Count == count
+            && round.GcPauseMicroseconds?.Count == count;
+
+    private static bool AllSampleColumnsNonNegative(GraphProductionJourneyRoundArtifact round)
+        => AllNonNegative(round.ElapsedMicroseconds)
+            && AllNonNegative(round.TimeToFirstRowMicroseconds)
+            && AllNonNegative(round.ColdFirstQueryMicroseconds)
+            && AllNonNegative(round.AllocatedBytes)
+            && AllNonNegative(round.QueryPeakLiveBytes)
+            && AllNonNegative(round.WorkingSetBytes)
+            && AllNonNegative(round.LogicalReadBytes)
+            && AllNonNegative(round.PhysicalReadBytes)
+            && AllNonNegative(round.WalBytes)
+            && AllNonNegative(round.Candidates)
+            && AllNonNegative(round.Examined)
+            && AllNonNegative(round.Returned)
+            && AllNonNegative(round.ExpandedEdges)
+            && AllNonNegative(round.FrontierPeak)
+            && AllNonNegative(round.Gen0Collections)
+            && AllNonNegative(round.Gen1Collections)
+            && AllNonNegative(round.Gen2Collections)
+            && AllNonNegative(round.GcPauseMicroseconds);
+
+    private static bool AllNonNegative(IReadOnlyList<long>? values)
+        => values is not null && values.All(static value => value >= 0);
+
+    private static bool IsStrictlyIncreasing(IReadOnlyList<DateTimeOffset> values)
     {
-        if (artifact is null)
+        for (int index = 1; index < values.Count; index++)
         {
-            AddFinding(findings, gate, "artifact_null", $"{owner} artifact 不能为 null。");
-            return;
+            if (values[index] <= values[index - 1])
+                return false;
         }
-        if (string.IsNullOrWhiteSpace(artifact.Path)
-            || !IsSha256(artifact.Sha256)
-            || string.IsNullOrWhiteSpace(artifact.Command))
-        {
-            AddFinding(findings, gate, "artifact_metadata", $"{owner} 缺少 path、SHA-256 或复现命令。");
-            return;
-        }
+        return true;
+    }
 
-        string path = Path.IsPathFullyQualified(artifact.Path)
-            ? Path.GetFullPath(artifact.Path)
-            : Path.GetFullPath(Path.Combine(artifactRoot, artifact.Path));
-        if (!File.Exists(path))
-        {
-            AddFinding(findings, gate, "artifact_missing", $"{owner} artifact 不存在：{artifact.Path}。");
-            return;
-        }
+    private static double ComputeMaximumIntervalMinutes(
+        DateTimeOffset startedUtc,
+        DateTimeOffset finishedUtc,
+        IReadOnlyList<DateTimeOffset> checkpoints)
+    {
+        if (checkpoints.Count == 0 || finishedUtc <= startedUtc)
+            return 0;
+        double maximum = (checkpoints[0] - startedUtc).TotalMinutes;
+        for (int index = 1; index < checkpoints.Count; index++)
+            maximum = Math.Max(maximum, (checkpoints[index] - checkpoints[index - 1]).TotalMinutes);
+        return Math.Max(maximum, (finishedUtc - checkpoints[^1]).TotalMinutes);
+    }
 
-        using FileStream stream = File.OpenRead(path);
-        string actual = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
-        if (!string.Equals(actual, artifact.Sha256, StringComparison.OrdinalIgnoreCase))
-            AddFinding(findings, gate, "artifact_digest", $"{owner} artifact SHA-256 不匹配。");
+    private static double ComputeMaximumIntervalHours(
+        DateTimeOffset startedUtc,
+        DateTimeOffset finishedUtc,
+        IReadOnlyList<DateTimeOffset> samples)
+    {
+        if (samples.Count == 0 || finishedUtc <= startedUtc)
+            return double.PositiveInfinity;
+        double maximum = (samples[0] - startedUtc).TotalHours;
+        for (int index = 1; index < samples.Count; index++)
+            maximum = Math.Max(maximum, (samples[index] - samples[index - 1]).TotalHours);
+        return Math.Max(maximum, (finishedUtc - samples[^1]).TotalHours);
+    }
+
+    private static double WorstRoundPercentile(
+        IReadOnlyList<GraphProductionJourneyRoundArtifact> rounds,
+        Func<GraphProductionJourneyRoundArtifact, IReadOnlyList<long>?> selector,
+        double percentile)
+        => rounds.Max(round => Percentile((selector(round) ?? []).Order().ToArray(), percentile));
+
+    private static double Percentile(IReadOnlyList<double> ordered, double percentile)
+    {
+        if (ordered.Count == 0)
+            return 0;
+        int index = Math.Clamp((int)Math.Ceiling(percentile * ordered.Count) - 1, 0, ordered.Count - 1);
+        return ordered[index];
+    }
+
+    private static long Percentile(IReadOnlyList<long> ordered, double percentile)
+    {
+        if (ordered.Count == 0)
+            return 0;
+        int index = Math.Clamp((int)Math.Ceiling(percentile * ordered.Count) - 1, 0, ordered.Count - 1);
+        return ordered[index];
+    }
+
+    private static long Maximum(IReadOnlyList<long>? values)
+        => values is null || values.Count == 0 ? 0 : values.Max();
+
+    private static long Sum(IReadOnlyList<long>? values)
+        => values is null ? 0 : values.Sum();
+
+    private static double Throughput(IReadOnlyList<long>? elapsedMicroseconds)
+    {
+        if (elapsedMicroseconds is null || elapsedMicroseconds.Count == 0)
+            return 0;
+        long total = elapsedMicroseconds.Sum();
+        return total <= 0 ? 0 : elapsedMicroseconds.Count * 1_000_000d / total;
+    }
+
+    private static bool IsFinitePositive(double value)
+        => double.IsFinite(value) && value > 0;
+
+    private static bool IsWithin(string path, string root)
+    {
+        string relative = Path.GetRelativePath(root, path);
+        return !Path.IsPathFullyQualified(relative)
+            && !string.Equals(relative, "..", StringComparison.Ordinal)
+            && !relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+            && !relative.StartsWith(".." + Path.AltDirectorySeparatorChar, StringComparison.Ordinal);
+    }
+
+    private static bool IsAllowedReplayCommand(
+        string command,
+        IReadOnlyList<string> arguments,
+        string repositoryRoot)
+    {
+        if (!string.Equals(command, "dotnet", StringComparison.OrdinalIgnoreCase) || arguments.Count == 0)
+            return false;
+        if (string.Equals(arguments[0], "exec", StringComparison.Ordinal))
+        {
+            return arguments.Count == 4
+                && PathsEqual(arguments[1], typeof(GraphProductionGateEvaluator).Assembly.Location)
+                && string.Equals(arguments[2], "--m40-verify-artifact", StringComparison.Ordinal)
+                && string.Equals(arguments[3], ArtifactArgumentPlaceholder, StringComparison.Ordinal);
+        }
+        if (string.Equals(arguments[0], "run", StringComparison.Ordinal))
+        {
+            int projectIndex = -1;
+            for (int index = 1; index < arguments.Count; index++)
+            {
+                if (string.Equals(arguments[index], "--project", StringComparison.Ordinal))
+                {
+                    projectIndex = index;
+                    break;
+                }
+            }
+            if (projectIndex < 0 || projectIndex + 1 >= arguments.Count)
+                return false;
+            return TryResolveWithin(repositoryRoot, arguments[projectIndex + 1], out _);
+        }
+        return false;
+    }
+
+    private static bool PathsEqual(string left, string right)
+    {
+        try
+        {
+            return string.Equals(
+                Path.GetFullPath(left),
+                Path.GetFullPath(right),
+                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException or IOException)
+        {
+            return false;
+        }
+    }
+
+    private static bool TryResolveWithin(string root, string relativePath, out string fullPath)
+    {
+        fullPath = string.Empty;
+        if (string.IsNullOrWhiteSpace(relativePath))
+            return false;
+        try
+        {
+            fullPath = Path.GetFullPath(Path.Combine(root, relativePath));
+            return IsWithin(fullPath, root);
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException or IOException)
+        {
+            fullPath = string.Empty;
+            return false;
+        }
+    }
+
+    private static bool DigestMatches(string path, string expected)
+    {
+        try
+        {
+            using FileStream stream = File.OpenRead(path);
+            string actual = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
+            return string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    private static ProcessOutput RunCapturedProcess(
+        string fileName,
+        IReadOnlyList<string> arguments,
+        string workingDirectory,
+        int timeoutSeconds)
+    {
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = fileName,
+                WorkingDirectory = workingDirectory,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+            };
+            foreach (string argument in arguments)
+                startInfo.ArgumentList.Add(argument);
+            using Process? process = Process.Start(startInfo);
+            if (process is null)
+                return new ProcessOutput(false, false, -1, string.Empty);
+            Task<string> outputTask = process.StandardOutput.ReadToEndAsync();
+            Task<string> errorTask = process.StandardError.ReadToEndAsync();
+            using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+            try
+            {
+                process.WaitForExitAsync(cancellation.Token).GetAwaiter().GetResult();
+            }
+            catch (OperationCanceledException)
+            {
+                TryKill(process);
+                return new ProcessOutput(true, true, -1, string.Empty);
+            }
+            Task.WhenAll(outputTask, errorTask).GetAwaiter().GetResult();
+            return new ProcessOutput(true, false, process.ExitCode, outputTask.Result);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException
+            or System.ComponentModel.Win32Exception
+            or IOException
+            or UnauthorizedAccessException)
+        {
+            return new ProcessOutput(false, false, -1, string.Empty);
+        }
+    }
+
+    private static ReplayResult RunReplayProcess(
+        string fileName,
+        IReadOnlyList<string> arguments,
+        string workingDirectory,
+        int timeoutSeconds)
+    {
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = fileName,
+                WorkingDirectory = workingDirectory,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+            };
+            foreach (string argument in arguments)
+                startInfo.ArgumentList.Add(argument);
+            using Process? process = Process.Start(startInfo);
+            if (process is null)
+                return new ReplayResult(false, false, -1);
+            Task outputTask = process.StandardOutput.BaseStream.CopyToAsync(Stream.Null);
+            Task errorTask = process.StandardError.BaseStream.CopyToAsync(Stream.Null);
+            using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+            try
+            {
+                process.WaitForExitAsync(cancellation.Token).GetAwaiter().GetResult();
+            }
+            catch (OperationCanceledException)
+            {
+                TryKill(process);
+                return new ReplayResult(true, true, -1);
+            }
+            Task.WhenAll(outputTask, errorTask).GetAwaiter().GetResult();
+            return new ReplayResult(true, false, process.ExitCode);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException
+            or System.ComponentModel.Win32Exception
+            or IOException
+            or UnauthorizedAccessException)
+        {
+            return new ReplayResult(false, false, -1);
+        }
+    }
+
+    private static void TryKill(Process process)
+    {
+        try
+        {
+            process.Kill(entireProcessTree: true);
+            process.WaitForExit();
+        }
+        catch (InvalidOperationException)
+        {
+            // 进程已退出。
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            // 超时 finding 优先于清理失败。
+        }
     }
 
     private static bool IsSha1(string value)
@@ -625,11 +1521,24 @@ public static class GraphProductionGateEvaluator
             Message = message,
         });
 
+    private sealed record EvaluationContext(
+        string ArtifactRoot,
+        string RepositoryRoot,
+        string CommitSha,
+        List<GraphProductionGateFinding> Findings)
+    {
+        public Dictionary<string, ReplayResult> Replays { get; } = new(StringComparer.Ordinal);
+    }
+
     private sealed record JourneySpec(
         double P95Milliseconds,
         double P99Milliseconds,
         int MemoryMiB,
         JourneyPath Path);
+
+    private sealed record ProcessOutput(bool Started, bool TimedOut, int ExitCode, string StandardOutput);
+
+    private sealed record ReplayResult(bool Started, bool TimedOut, int ExitCode);
 
     private enum JourneyPath : byte
     {

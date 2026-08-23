@@ -21,6 +21,7 @@ using SonnetDB.Benchmarks.Benchmarks;
 //   dotnet run -c Release -- --m40-weighted-path-evidence --quick （#362 加权路径收益矩阵）
 //   dotnet run -c Release -- --m40-production-gate --quick （#367 门禁管线 smoke）
 //   dotnet run -c Release -- --m40-production-gate --manifest <path> （#367 完整 evidence 判定）
+//   dotnet run -c Release -- --m40-verify-artifact <path> （#367 原始 artifact schema 验证）
 //   dotnet run -c Release -- --filter *GraphWeightedPath* （#362 Dijkstra/A*/双向 Dijkstra 基准）
 //   dotnet run -c Release -- --m41-baseline-evidence --quick （#368 性能合同与可观测性基线）
 //   dotnet run -c Release -- --filter *M41P0AccessPath* （#369～#371 P0 快速路径对拍）
@@ -29,6 +30,16 @@ using SonnetDB.Benchmarks.Benchmarks;
 //
 // 运行前请先启动外部数据库（见 docker/docker-compose.yml）：
 //   docker compose -f tests/SonnetDB.Benchmarks/docker/docker-compose.yml up -d
+if (args.Contains("--m40-verify-artifact", StringComparer.OrdinalIgnoreCase))
+{
+    string? artifactPath = ReadOption(args, "--m40-verify-artifact");
+    if (artifactPath is null || artifactPath.StartsWith("--", StringComparison.Ordinal))
+        throw new ArgumentException("--m40-verify-artifact 必须提供 artifact 路径。");
+    GraphProductionGateRunner.VerifyArtifact(artifactPath);
+    Console.WriteLine($"m40-artifact-schema=PASS path={artifactPath}");
+    return;
+}
+
 if (args.Contains("--segment-maintenance-smoke", StringComparer.OrdinalIgnoreCase))
 {
     RunSegmentMaintenanceSmoke();
