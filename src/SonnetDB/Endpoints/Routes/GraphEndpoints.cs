@@ -479,27 +479,38 @@ internal static partial class SonnetDbEndpoints
                 await WriteSimpleErrorAsync(ctx, StatusCodes.Status404NotFound, "vertex_not_found", "shortest path 的起点或目标不存在。").ConfigureAwait(false);
                 return;
             }
-            GraphPath? path = read.ShortestPath(
-                new GraphElementId(request.StartId),
-                new GraphElementId(request.TargetId),
-                request.Direction,
-                ToOptionalLabel(request.EdgeLabelId),
-                new GraphTraversalOptions
-                {
-                    MaxDepth = request.MaxDepth,
-                    MaxFrontier = request.MaxFrontier,
-                    MaxPaths = request.MaxFrontier,
-                },
-                ctx.RequestAborted);
-            await JsonSerializer.SerializeAsync(
-                ctx.Response.Body,
-                new GraphShortestPathResponse
-                {
-                    SnapshotSequence = read.Sequence,
-                    Path = path is null ? null : ToDto(path),
-                },
-                ServerJsonContext.Default.GraphShortestPathResponse,
-                ctx.RequestAborted).ConfigureAwait(false);
+            try
+            {
+                GraphPath? path = read.ShortestPath(
+                    new GraphElementId(request.StartId),
+                    new GraphElementId(request.TargetId),
+                    request.Direction,
+                    ToOptionalLabel(request.EdgeLabelId),
+                    new GraphTraversalOptions
+                    {
+                        MaxDepth = request.MaxDepth,
+                        MaxFrontier = request.MaxFrontier,
+                        MaxPaths = request.MaxPaths,
+                    },
+                    ctx.RequestAborted);
+                await JsonSerializer.SerializeAsync(
+                    ctx.Response.Body,
+                    new GraphShortestPathResponse
+                    {
+                        SnapshotSequence = read.Sequence,
+                        Path = path is null ? null : ToDto(path),
+                    },
+                    ServerJsonContext.Default.GraphShortestPathResponse,
+                    ctx.RequestAborted).ConfigureAwait(false);
+            }
+            catch (GraphTraversalLimitExceededException exception)
+            {
+                await WriteSimpleErrorAsync(
+                    ctx,
+                    StatusCodes.Status400BadRequest,
+                    "graph_budget_exceeded",
+                    exception.Message).ConfigureAwait(false);
+            }
         });
 
         app.MapPost("/v1/db/{db}/graphs/{graph}/weighted-shortest-path", async (HttpContext ctx, string db, string graph) =>
@@ -771,9 +782,10 @@ internal static partial class SonnetDbEndpoints
             || !Enum.IsDefined(request.Direction)
             || request.EdgeLabelId is <= 0
             || request.MaxDepth is < 0 or > 64
-            || request.MaxFrontier is <= 0 or > 10_000)
+            || request.MaxFrontier is <= 0 or > 10_000
+            || request.MaxPaths is <= 0 or > 10_000)
         {
-            validationError = "Shortest path 的端点、方向、深度或 frontier 预算无效。";
+            validationError = "Shortest path 的端点、方向、深度或执行预算无效。";
             return false;
         }
         validationError = string.Empty;

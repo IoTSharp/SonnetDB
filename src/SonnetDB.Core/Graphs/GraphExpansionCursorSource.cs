@@ -11,6 +11,8 @@ internal sealed class GraphExpansionCursorSource : IGraphCursorSource<GraphExpan
     private readonly LabelId? _labelId;
     private readonly GraphCursorOptions _options;
     private KvRangeCursor? _cursor;
+    private IReadOnlyList<KvEntry>? _pendingEntries;
+    private int _pendingEntryIndex;
     private GraphDirection _currentDirection;
     private bool _ended;
     private bool _disposed;
@@ -47,55 +49,63 @@ internal sealed class GraphExpansionCursorSource : IGraphCursorSource<GraphExpan
             cancellationToken.ThrowIfCancellationRequested();
             KvRangeCursor cursor = _cursor
                 ?? throw new InvalidOperationException("Graph expansion cursor 状态无效。");
-            IReadOnlyList<KvEntry> entries = cursor.ReadNextPage(cancellationToken);
-            if (entries.Count == 0)
+            if (_pendingEntries is null || _pendingEntryIndex >= _pendingEntries.Count)
             {
-                if (!TryAdvanceDirection())
-                    break;
-                continue;
-            }
-
-            foreach (KvEntry entry in entries)
-            {
-                GraphStorageKey key = GraphKeyCodec.Decode(entry.Key.Span);
-                if (_currentDirection == GraphDirection.Outgoing
-                    && key.Kind != GraphKeyKind.OutgoingAdjacency)
-                    throw new InvalidDataException("Graph outgoing adjacency key family 无效。");
-                if (_currentDirection == GraphDirection.Incoming
-                    && key.Kind != GraphKeyKind.IncomingAdjacency)
-                    throw new InvalidDataException("Graph incoming adjacency key family 无效。");
-                if (key.SourceId != _anchorId && _currentDirection == GraphDirection.Outgoing
-                    || key.TargetId != _anchorId && _currentDirection == GraphDirection.Incoming)
+                IReadOnlyList<KvEntry> entries = cursor.ReadNextPage(cancellationToken);
+                if (entries.Count == 0)
                 {
-                    throw new InvalidDataException("Graph adjacency key 与 anchor 不一致。");
-                }
-
-                // 双向扫描会分别看到自环的出/入投影；对外只暴露一次。
-                if (_direction == GraphDirection.Both
-                    && _currentDirection == GraphDirection.Incoming
-                    && key.SourceId == _anchorId
-                    && key.TargetId == _anchorId)
-                {
+                    if (!TryAdvanceDirection())
+                        break;
                     continue;
                 }
 
-                GraphEdge edge = GraphReadSession.ReadEdge(_snapshot, key.EdgeId);
-                if (edge.SourceId != key.SourceId
-                    || edge.TargetId != key.TargetId
-                    || edge.LabelId != key.LabelId)
-                {
-                    throw new InvalidDataException("Graph adjacency projection 与 edge record 不一致。");
-                }
-                result.Add(new GraphExpansion(
-                    _anchorId,
-                    _currentDirection == GraphDirection.Outgoing
-                        ? key.TargetId
-                        : key.SourceId,
-                    _currentDirection,
-                    edge));
-                if (result.Count == _options.PageSize)
-                    break;
+                _pendingEntries = entries;
+                _pendingEntryIndex = 0;
             }
+
+            KvEntry entry = _pendingEntries[_pendingEntryIndex++];
+            if (_pendingEntryIndex >= _pendingEntries.Count)
+            {
+                _pendingEntries = null;
+                _pendingEntryIndex = 0;
+            }
+
+            GraphStorageKey key = GraphKeyCodec.Decode(entry.Key.Span);
+            if (_currentDirection == GraphDirection.Outgoing
+                && key.Kind != GraphKeyKind.OutgoingAdjacency)
+                throw new InvalidDataException("Graph outgoing adjacency key family 无效。");
+            if (_currentDirection == GraphDirection.Incoming
+                && key.Kind != GraphKeyKind.IncomingAdjacency)
+                throw new InvalidDataException("Graph incoming adjacency key family 无效。");
+            if (key.SourceId != _anchorId && _currentDirection == GraphDirection.Outgoing
+                || key.TargetId != _anchorId && _currentDirection == GraphDirection.Incoming)
+            {
+                throw new InvalidDataException("Graph adjacency key 与 anchor 不一致。");
+            }
+
+            // 双向扫描会分别看到自环的出/入投影；对外只暴露一次。
+            if (_direction == GraphDirection.Both
+                && _currentDirection == GraphDirection.Incoming
+                && key.SourceId == _anchorId
+                && key.TargetId == _anchorId)
+            {
+                continue;
+            }
+
+            GraphEdge edge = GraphReadSession.ReadEdge(_snapshot, key.EdgeId);
+            if (edge.SourceId != key.SourceId
+                || edge.TargetId != key.TargetId
+                || edge.LabelId != key.LabelId)
+            {
+                throw new InvalidDataException("Graph adjacency projection 与 edge record 不一致。");
+            }
+            result.Add(new GraphExpansion(
+                _anchorId,
+                _currentDirection == GraphDirection.Outgoing
+                    ? key.TargetId
+                    : key.SourceId,
+                _currentDirection,
+                edge));
         }
 
         return result;
@@ -109,6 +119,8 @@ internal sealed class GraphExpansionCursorSource : IGraphCursorSource<GraphExpan
         _cursor?.Dispose();
         _snapshot.Dispose();
         _cursor = null;
+        _pendingEntries = null;
+        _pendingEntryIndex = 0;
         _ended = true;
     }
 
@@ -128,6 +140,8 @@ internal sealed class GraphExpansionCursorSource : IGraphCursorSource<GraphExpan
             PageSize = _options.PageSize,
             MaxPageBytes = _options.MaxPageBytes,
         });
+        _pendingEntries = null;
+        _pendingEntryIndex = 0;
         _currentDirection = direction;
     }
 

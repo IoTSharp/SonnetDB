@@ -300,6 +300,9 @@ public sealed record GraphShortestPathRequest
 
     /// <summary>frontier 条目上限。</summary>
     public int MaxFrontier { get; init; } = 10_000;
+
+    /// <summary>确认可达性前允许检查的路径上限。</summary>
+    public int MaxPaths { get; init; } = 10_000;
 }
 
 /// <summary>HTTP/SDK 图路径 DTO。</summary>

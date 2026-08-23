@@ -2,7 +2,7 @@
 
 ## 状态与边界
 
-#367 已实现严格的 evidence manifest、artifact SHA-256 校验、双 gate 判定、机器可读 JSON/Markdown 报告，以及本地 quick 管线 smoke。quick 会真实执行 8 个 reader worker、1 个 update worker、checkpoint、正常进程重开、完整 invariant check 和 `BackupService` verify/restore，但它不是 1m vertex/10m edge、真子进程 kill 或 168 小时运行，因此输出必须保持：
+#367 已实现 evidence manifest、artifact SHA-256 校验、双 gate 判定、机器可读 JSON/Markdown 报告，以及本地 quick 管线 smoke 的原型。当前 evaluator 尚未按 artifact schema 独立解析并重算原始结果，也未完整验证逐轮样本、真实 clean commit、复现命令退出码及 allocation/GC 阈值，因此不能称为严格发布门禁。quick 会真实执行 8 个 reader worker、1 个 update worker、checkpoint、正常进程重开、完整 invariant check 和 `BackupService` verify/restore，但它不是 1m vertex/10m edge、真子进程 kill 或 168 小时运行，因此输出必须保持：
 
 ```text
 correctness_recovery: NOT_RUN
@@ -10,7 +10,7 @@ performance_capacity: NOT_RUN
 release_decision: NOT_RUN
 ```
 
-截至当前提交，LDBC SNB、Graphalytics、Neo4j/PostgreSQL 外部对拍、Couplet C4、Native AOT 发布 artifact 和 7 天固定硬件报告尚未归档。M40 仍为进行中，产品定位继续是“八种数据模型，一套引擎”。
+截至当前提交，evaluator 加固尚未完成，LDBC SNB、Graphalytics、Neo4j/PostgreSQL 外部对拍、Couplet C2~C4、Native AOT 发布 artifact 和 7 天固定硬件报告也尚未归档。M40 仍为进行中，产品定位继续是“八种数据模型，一套引擎”。
 
 本项只增加 benchmark/evidence 工具和报告合同，不修改 Graph V1 key/record、WAL、checkpoint、backup format、Graph API 或 Server 权限。
 
@@ -29,17 +29,19 @@ dotnet run --project tests/SonnetDB.Benchmarks/SonnetDB.Benchmarks.csproj -c Rel
 - `m40-graph-production-gate.md`：可审查摘要；
 - `m40-graph-production-input.template.json`：完整 Production 清单模板，所有占位项默认不可通过。
 
-完整 evidence 判定：
+候选 evidence 判定入口（只能在 M40 修复顺序步骤 1~7 全部通过后用于正式取证）：
 
 ```powershell
 dotnet run --project tests/SonnetDB.Benchmarks/SonnetDB.Benchmarks.csproj -c Release -- --m40-production-gate --manifest artifacts/m40-graph-production-input.json --output artifacts/m40-graph-production-gate
 ```
 
-清单中的相对 artifact 路径以清单所在目录为基准。每个 `PASS` check、journey 和 closed gap 必须同时提供存在的文件、实际 SHA-256 和最小复现命令；缺文件、摘要不匹配、重复 ID、占位摘要或 `NOT_RUN` 都不能形成 Production PASS。
+清单中的相对 artifact 路径以清单所在目录为基准。当前实现会检查 artifact 存在性、SHA-256、manifest 摘要和最小复现命令字段，但尚未按各 artifact schema 独立解析原始测量值；仅含 `{ "status": "PASS" }` 的伪造文件仍可能满足现有测试。加固后的判定器必须要求逐轮原始样本并自行计算摘要，校验 commit 确实存在且工作树干净，回放命令并核对退出码；缺文件、摘要不匹配、重复 ID、占位摘要、`NOT_RUN` 或任一复现失败都不能形成 Production PASS。
 
 `--quick` 与 `--manifest` 必须显式选择其一。quick 仅在本地 smoke 失败时返回非零退出码；manifest 仅在 `release_decision=PASS` 时返回零，因此 CI/长测调度器不能把 `FAIL` 或 `NOT_RUN` 当作成功发布。
 
-## 严格判定
+## 目标严格判定
+
+本节是 evaluator 加固后的验收合同，不表示当前实现已经满足。
 
 Gate A `correctness_recovery` 要求以下检查全部 PASS：
 
@@ -63,7 +65,7 @@ Gate B `performance_capacity` 要求以下检查全部 PASS：
 - Production P95/P99 为 #341 热查询阈值的 2 倍，query memory 不放宽；
 - process working set 不超过 12 GiB，cold open P95/P99 不超过 2,000/5,000 ms；
 - native journey 不得出现 relation/Table/full scan，`PGQ-1/2` 必须是 `relation_index_seek`，`PGQ-3` 必须稳定返回有界 `relation_scan_fallback`；
-- candidates、examined、returned、expanded edges、frontier、logical/physical reads、allocation、WAL 和 cold-first-query 均有非负计数或阈值证据。
+- candidates、examined、returned、expanded edges、frontier、logical/physical reads、allocation、Gen0/Gen1/Gen2、GC pause、WAL 和 cold-first-query 均有原始计数与阈值证据；仅报告非负值不构成资源门禁通过。
 
 Soak 清单固定为 168 小时、8 reader + 1 update worker、`m40-frozen-update-profile-v1`、最多 30 分钟 checkpoint 间隔、至少 7 个每日 kill/reopen 周期，并保持 `SyncWalOnEveryWrite=true`、`AutoCheckpointEnabled=true`、`MaxWalBytes=256 MiB`、`MaxOverlayEntries=100,000`。缩短时长、减少 worker、关闭 fsync/checkpoint 或放宽资源预算会直接失败。
 
@@ -75,6 +77,9 @@ Soak 清单固定为 168 小时、8 reader + 1 update worker、`m40-frozen-updat
 
 ## 当前待执行项
 
+- 先让 evaluator 按 schema 读取各类 artifact、从逐轮原始样本重算摘要，并加入伪造 `{ "status": "PASS" }` 必须失败的回归；
+- 验证 commit 对象真实存在且工作树干净，记录并回放复现命令及退出码，加入 allocation、Gen2 和 GC pause 阈值；
+- 完成 M40 主路线图步骤 1~7；在此之前只允许运行 evaluator 自测和用于修复决策的 quick/microbenchmark；
 - 在冻结目标机上生成 `preview-small`、`gate` 和 `production-soak` 数据并保留三个原始测量轮次；
 - 执行 Neo4j/PostgreSQL、LDBC SNB 与 Graphalytics 对拍；
 - 归档 Couplet C4 的代码知识/Agent 组合语料结果；

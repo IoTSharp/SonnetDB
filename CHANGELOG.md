@@ -5,7 +5,13 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **M40 路线图复盘与执行门禁纠偏**：Phase 0 保持完成，Phase 1/2 改回进行中，明确记录 Expand 双向分页丢边、最短路径预算静默截断、导入字节预算、共享流式执行、关系 statement snapshot、SQL DDL/DML、property-aware planner 和 #367 evaluator 的真实缺口；新增“正确性 -> 证据门禁 -> 合同 -> 架构 -> SQL/planner -> 性能 -> 恢复/parity -> 发布证据”的强制顺序。步骤 1~7 未关闭前不得累计固定硬件、外部对拍或 7 天发布证据，M40 与九模型定位继续保持未完成。
+
 ### Fixed
+
+- **M40 修复与发布步骤 1，Graph 正确性阻塞项**：`Expand(Both)` 现在会保留 Out 切换到 In 时尚未消费的底层 KV 页，避免 page size > 1 时丢失入边；Out/In/Both、self-loop、parallel edge、BFS、SQL 内部 256 条分页和远程 typed SDK 均增加回归。无权 shortest path 新增独立 `MaxPaths` 请求预算，并用额外一条探测区分完整不可达与预算截断；耗尽时 Core 抛出 `GraphTraversalLimitExceededException`，Server/SDK 稳定返回并解析 `graph_budget_exceeded`，不再把可达目标伪装为 `null`。M40 下一门禁仍为 #367 evaluator 加固，Phase 1/#352 和 Production gate 未完成。
 
 - **M41 #374 KV/Table 快照读取与锁范围收缩**：关系表点读、全表扫描、二级索引前缀/范围与并列组读取现在在短表锁内绑定不可变 schema 和 `KvReadSnapshot`，锁外通过既有分页 cursor 完成索引枚举、回表复制和行解码；同一读取路径共享稳定可见时刻，更新/删除不会产生半新半旧行，checkpoint/compaction/WAL replay 继续由快照 lease 保持恢复边界。新增并发写、范围读取和异常释放回归，未改变事务 read-your-writes 的 overlay 回退或既有访问路径合同。
 

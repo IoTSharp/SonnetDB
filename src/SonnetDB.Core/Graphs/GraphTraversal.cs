@@ -165,7 +165,8 @@ public static class GraphTraversalExtensions
     /// <param name="edgeLabelId">可选边标签。</param>
     /// <param name="options">最大深度、frontier 和取消预算。</param>
     /// <param name="cancellationToken">取消令牌。</param>
-    /// <returns>找到时返回最短路径，否则返回 null。</returns>
+    /// <returns>找到时返回最短路径；完整搜索后不可达时返回 null。</returns>
+    /// <exception cref="GraphTraversalLimitExceededException">搜索在确认可达性前耗尽路径或 frontier 预算。</exception>
     public static GraphPath? ShortestPath(
         this GraphReadSession session,
         GraphElementId startId,
@@ -183,11 +184,14 @@ public static class GraphTraversalExtensions
         if (startId == targetId)
             return new GraphPath([startId], []);
 
+        int maximumPaths = traversalOptions.MaxPaths;
+        int probeLimit = maximumPaths == int.MaxValue ? int.MaxValue : maximumPaths + 1;
         using GraphCursor<GraphPath> cursor = session.Bfs(
             startId,
             direction,
             edgeLabelId,
-            traversalOptions with { MaxPaths = Math.Min(traversalOptions.MaxPaths, traversalOptions.MaxFrontier) });
+            traversalOptions with { MaxPaths = probeLimit });
+        int examinedPaths = 0;
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -196,6 +200,12 @@ public static class GraphTraversalExtensions
                 return null;
             foreach (GraphPath path in page)
             {
+                if (examinedPaths >= maximumPaths)
+                {
+                    throw new GraphTraversalLimitExceededException(
+                        $"Graph shortest path 搜索路径超过上限 {maximumPaths}。");
+                }
+                examinedPaths++;
                 if (path.VertexIds[^1] == targetId)
                     return path;
             }

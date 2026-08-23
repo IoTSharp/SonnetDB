@@ -44,7 +44,7 @@
 | 37 | 视图与物化视图 | ✅ | #327 逻辑视图与 #328 显式全量刷新物化视图均已实现。 |
 | 38 | SQL 存储过程与触发器 | ✅ | #329~#332 已完成 SQL 过程、关系表 AFTER ROW 触发器及治理收口；外部脚本运行时保持暂停。 |
 | 39 | SQL 触发器第二版 | 🚧 | #333 证据 runner、三条关系表 journey、三种 DML 成本/回滚矩阵和真进程 crash 场景已接入；固定目标硬件矩阵仍待归档，再决定高级语义与多模型范围。 |
-| 40 | 原生属性图数据库 | 🚧 | Phase 0（#341~#346）、Phase 1 #347~#351、Phase 2 #353~#359 与 Phase 3 #360~#366 功能已完成；#367 严格 evidence manifest/判定器和 quick 管线已实现。固定硬件、PostgreSQL/Neo4j、LDBC/Graphalytics、Couplet C4、Native AOT 与 7 天生产证据仍保持 `NOT_RUN`。 |
+| 40 | 原生属性图数据库 | 🚧 | Phase 0 已完成；修复与发布步骤 1 的 Expand/shortest-path 正确性阻塞项已关闭，Phase 1 仍有 Expand 过滤和导入预算合同，Phase 2 仅完成受限功能切片，共享流式执行、SQL DDL/DML、规划和关系快照接入仍未闭环；下一步先加固 #367 evidence evaluator。固定硬件、PostgreSQL/Neo4j、LDBC/Graphalytics、Couplet C2~C4、Native AOT 与 7 天生产证据均保持 `NOT_RUN`。 |
 | 41 | 关系查询规划与执行性能加固 | 🚧 | #368、#369~#372、#374~#377（含 KV/Table 快照、持久统计、有限成本选择与 EXPLAIN/ANALYZE 证据）已完成本地实现和自动化门禁；固定硬件、木垒生产同语料、7 天 mixed workload 与发布门禁保持 `NOT_RUN`，继续按流式执行、高级 JOIN/spill/并行推进。 |
 | MM9 | 多模型备份恢复第一批 | ✅ | `BackupService` 与 `sndb backup` 已落地。 |
 
@@ -57,7 +57,7 @@
 5. M34 已完成 TCP master/slave runtime、受限 Source 写、Endpoint 外部写治理与管理面闭环；M35 在过滤 ANN 与内容生命周期地基完成后再做媒体场景。
 6. M36 先完成八模型 golden journey 与 gap catalog；实现顺序为高频客户端工作流 -> 查询诊断 -> 高级治理，Document 复用已完成的 M32 结果，向量高级项复用 M35 地基。
 7. M39 先执行 #333 触发器 V2 证据门禁；未证明 V1 在真实 journey 上存在缺口前，不直接扩展 BEFORE、statement-level 或多模型触发器。
-8. M40 已完成 #341 的 workload/合同证据、#342~#346 公共存储地基、#347~#351 Native Graph Preview 功能、Phase 2 #353~#359 功能，以及 Phase 3 #360 statement snapshot/并发写冲突矩阵、#361 supernode/维护、#362 加权路径/批量执行与本地 topology 收益证据、#363 可恢复离线算法、#364 受限 GQL 风格直接查询入口、#365 知识图谱/GraphRAG 上层合同与 typed SDK 投影、#366 Server/SDK/CLI/Web 运维产品面和 staged maintenance 审计。#367 已实现严格 evidence manifest、artifact 摘要校验、双 gate 判定和 8+1 并发读写/checkpoint/reopen/backup-restore quick 管线；quick 不替代发布证据。Couplet/1m-10m、固定硬件和七天 mixed workload 继续归 #367；PostgreSQL/Neo4j、Graphalytics/LDBC、Native AOT、Couplet 联合 gate 和完整报告保持 `NOT_RUN`，因此 #367 与 M40 仍未完成。关系映射的 statement snapshot 继续归 M41 #374，不在 M40 另建关系 MVCC；关系映射规划和流式执行必须继续复用 M41 的公共计划/算子合同，不得另建一套关系优化器。正式上层产品 [Couplet](https://github.com/IoTSharp/Couplet) 的仓库/路线基线已经建立，产品实现仍按 C0-C4 推进；其 golden journey、执行计划或固定硬件报告一旦复现通用 Core 缺口，该缺口即成为对应阶段的阻塞项，并按“正确性与恢复 -> 有界执行及消除非预期全扫/物化 -> 容量与延迟 -> API/产品面”优先修复；不得在上层以关系边表、应用层遍历、第二套图存储或隐藏全量扫描兜底。正式产品定位在 M40 发布门禁通过前继续保持“八种数据模型，一套引擎”。
+8. M40 按本节新增的“修复与发布执行顺序”推进：步骤 1 的 Expand/shortest-path 正确性缺陷已关闭，下一步加固 #367 证据门禁，再补 Phase 1 合同、Phase 2 共享流式架构与 SQL/planner，随后完成性能、恢复和产品 parity；所有前置门禁通过后才运行固定硬件、外部对拍和 7 天发布证据。正式产品定位在 M40 发布门禁通过前继续保持“八种数据模型，一套引擎”。
 
 ## 待补验收证据
 
@@ -303,18 +303,35 @@ M34 已完成本地合同与持久化地基、默认关闭的 TCP master/slave r
 | C1 增量代码索引 | 工作区/Git、语言适配、Document/FullText、基础只读 MCP | 与 #342~#346 public API 并行联调 | #343/#346 所需合同与 Couplet revision/crash/capacity gate PASS | 📋 |
 | C2 原生图代码智能 | 关系、路径、影响与测试选择 | #347~#351 目标 public API 可联调 | #352 与 Couplet C2 两个 gate 同时 PASS | 📋（Preview 发布受联合门禁约束） |
 | C3 混合检索与 context pack | 本地 embedding、shared FullText/Vector/Graph typed plan 和 Agent eval | #353~#358 与相关 M35/M36 API 可联调 | #359 与 Couplet C3 gate 同时 PASS | 📋（Beta 发布受联合门禁约束） |
-| C4 生产与 Agent 体验 | 长稳、恢复、安全、分发和 Codex/Claude Code 验收 | 与 #360~#366 并行取证 | #367 与 Couplet C4 生产门禁同时 PASS | 📋（1.0 发布受联合门禁约束） |
+| C4 生产与 Agent 体验 | 长稳、恢复、安全、分发和 Codex/Claude Code 验收 | M40 修复顺序步骤 1~7 全部通过后取证 | #367 与 Couplet C4 生产门禁同时 PASS | 📋（1.0 发布受联合门禁约束） |
 
 | 阶段 | PR 范围 | 交付边界 | 状态 |
 |---|---|---|---|
 | Phase 0：公共地基 | #341~#346 | ADR/golden journey、共享 sortable codec、KV snapshot cursor、Graph Catalog、单 graph 原子事务、backup/invariant/crash 骨架；无对外 Graph 能力宣称。 | ✅ 已完成；仅公共地基，不代表 Native Graph Preview |
-| Phase 1：Native Graph Preview | #347~#352 | 原生 GraphStore、双向邻接、属性索引、流式 Expand/BFS/DFS/shortest path、Server/SDK/import 和本机 correctness smoke。固定硬件、Neo4j、完整恢复/容量报告属于后置发布证据。 | ✅ 功能完成；证据后置 |
-| Phase 2：SQL/PGQ Graph Beta | #353~#359 | 共享 Graph Logical Plan、原生 graph SQL DDL/DML、SQL/PGQ 关系映射、`GRAPH_TABLE MATCH`、planner/EXPLAIN、跨模型 SQL 组合与 M35/M36 Hybrid Search 候选合同复用。 | ✅ 功能完成；外部语义/硬件/Couplet 联合发布证据后置 |
-| Phase 3：生产级单机图数据库 | #360~#367 | statement snapshot、supernode/维护、按证据准入的高级路径/算法、可选 GQL 风格入口、知识图谱组合、运维产品面和发布门禁。 | 🚧 #360~#366 功能切片完成；#367 发布门禁待实施 |
+| Phase 1：Native Graph Preview | #347~#352 | 原生 GraphStore、双向邻接、属性索引、流式 Expand/BFS/DFS/shortest path、Server/SDK/import 和 correctness/performance gate。 | 🚧 步骤 1 正确性阻塞项已关闭；#348 过滤、#351 有界导入合同待修，#352 未运行 |
+| Phase 2：SQL/PGQ Graph Beta | #353~#359 | 共享 Graph Logical Plan、原生 graph SQL DDL/DML、SQL/PGQ 关系映射、`GRAPH_TABLE MATCH`、planner/EXPLAIN、跨模型 SQL 组合与 M35/M36 Hybrid Search 候选合同复用。 | 🚧 已有受限切片；#353/#354/#358 和关系 snapshot/streaming 集成待完成 |
+| Phase 3：生产级单机图数据库 | #360~#367 | statement snapshot、supernode/维护、按证据准入的高级路径/算法、可选 GQL 风格入口、知识图谱组合、运维产品面和发布门禁。 | 🚧 #360~#366 已有功能切片；性能/恢复加固及 #367 evaluator/发布证据未完成 |
+
+### M40 修复与发布执行顺序（2026-08-23 复盘）
+
+以下顺序是依赖顺序，不是可任意并行勾选的清单。前一步的退出门禁未通过时，不得把后一步的 quick、本机结果或文档摘要计为阶段完成证据。
+
+| 顺序 | 工作项 | 完成门禁 |
+|---|---|---|
+| 1 | ✅ **正确性阻塞项（#348/#349）已关闭**：`Expand(Both)` 保留跨方向底层页的未消费条目；无权 shortest path 以独立 `MaxPaths` 和一条额外探测区分不可达与预算截断。 | page size 3 的 Out/In/Both、self-loop/parallel edge、BFS，SQL 内部 page size 256，以及远程 typed SDK 回归通过；预算耗尽抛 `GraphTraversalLimitExceededException`，HTTP/SDK 返回稳定 `graph_budget_exceeded`。 |
+| 2 | **加固 #367 证据门禁**：按 schema 解析原始 artifact，不信任 manifest 自报摘要；要求逐轮原始样本、干净且真实存在的 Git commit、可复现命令与退出码，并加入 allocation/GC 阈值。 | 伪造 `{ "status": "PASS" }`、脏工作树、无效 commit、缺少原始样本或复现失败必须判定失败；判定器自身测试全部通过后才允许生成候选发布报告。 |
+| 3 | **补齐 Phase 1 合同（#348/#351，为 #352 准入）**：为 Expand 落实目标 label/property predicate，或先正式修订冻结合同和能力矩阵；为 importer 增加 batch byte budget 与 CSV 单行上限。 | 固定度数/supernode 复杂度、内存和导入拒绝测试通过；嵌入式、Server、SDK 的过滤、预算、错误合同一致。 |
+| 4 | **完成 Phase 2 共享架构（#353/#355/#359，依赖 M41 #373/#374）**：让原生 API、原生 SQL 和关系映射真正消费共享 logical plan/pull operators；完成 M41 #373 流式执行，并把已完成的 #374 KV/Table statement snapshot 地基接入关系图遍历。 | 不再为整条查询物化全部 cursor rows 或为每个 match 无界创建 binding dictionary；原生与映射图结果对拍，关系遍历在单一 statement snapshot 上执行且 `EXPLAIN` 如实报告。 |
+| 5 | **补齐 SQL 与 planner（#354/#358）**：实现 label/property-index DDL，或显式收缩并版本化公开合同；冻结并实现 property mutation/upsert/update/delete；用原生 property index/statistics 选择 anchor。 | `EXPLAIN [ANALYZE]` 报告实际索引、统计来源、anchor/expand 顺序和 fallback；除 endpoint `id` 外的高选择性属性能够驱动计划，SQL/API mutation 语义和事务边界一致。 |
+| 6 | **性能加固（#348/#349/#358/#361~#363）**：减少逐邻接 edge point-read/copy、path array 复制和 weighted-path 分配；offline spill 改为批量/分页 I/O。 | 固定 workload 同时满足 latency、allocation、Gen2、pause、working set 和 spill I/O 阈值；不以提高预算、关闭耐久或减少能力换取数字。 |
+| 7 | **恢复与产品闭环（#346/#359/#361/#366）**：收敛遗留 `applying` maintenance audit，定义 torn NDJSON tail 的恢复/修复规则，增加真实 kill/reopen；再回归 Server/SDK/CLI/Studio parity。 | 审计与维护在进程终止后具有确定终态或可恢复状态，损坏尾部不会被静默接受；Core、远程入口和管理面的结果、权限、错误及审计一致。 |
+| 8 | **最后采集发布证据（#352/#367 + Couplet C2~C4）**：依次运行 Neo4j/PostgreSQL 语义对拍、LDBC/Graphalytics、固定硬件 1m vertex/10m edge、Native AOT journey、Couplet 联合门禁和 7 天 8+1 mixed workload。 | correctness/recovery 与 performance/capacity 双 gate、Couplet C2~C4 对应 gate 全部 PASS，报告含原始样本、commit、硬件、命令、退出码和 access path；任一失败即保持 M40 🚧。 |
+
+准入规则：步骤 1~2 未完成前只允许运行缺陷回归和 evaluator 自测；步骤 3~7 未完成前可以运行用于设计决策的 microbenchmark/quick，但不得启动或累计 #352/#367 固定硬件、外部对拍和 168 小时发布证据。只有步骤 1~7 的阻塞项全部关闭后，步骤 8 才可开始；在两个生产 gate 与 Couplet 联合门禁全部通过前，不得宣称 Production，也不得把正式定位改为九模型。
 
 固定边界：一个 graph 一个 keyspace，第一阶段不支持跨 graph/跨模型原子事务；vertex 删除先用 `RESTRICT`，不以静默拆批伪装超大 `DETACH DELETE` 原子性；Graphify/实体抽取/LLM/GraphRAG job 留在 importer、Server 或 SDK；不引入第二套 WAL、SQL 表达式系统、向量/全文索引、权限和备份格式；不承诺 Bolt、完整 Cypher/GQL、RDF 推理或分布式图能力。
 
-阶段名称也是产品宣称门禁：Phase 1 只能称 Native Graph Preview，Phase 2 只能称 SonnetDB Graph Beta。只有 #367 的 LDBC/Graphalytics 子集、7 天 mixed workload、crash/backup/Native AOT 和固定硬件报告通过后，才可称“生产可用的单机原生属性图数据库”，并统一评估把产品定位从八模型更新为九模型。
+阶段名称也是产品宣称门禁：Phase 1 gate 通过后才可发布 Native Graph Preview，Phase 2 gate 通过后才可发布 SonnetDB Graph Beta。只有 #367 的 LDBC/Graphalytics 子集、7 天 mixed workload、crash/backup/Native AOT 和固定硬件报告通过后，才可称“生产可用的单机原生属性图数据库”，并统一评估把产品定位从八模型更新为九模型。
 
 ## Milestone 41 — 关系查询规划与执行性能加固
 

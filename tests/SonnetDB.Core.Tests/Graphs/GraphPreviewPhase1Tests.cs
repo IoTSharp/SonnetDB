@@ -1,6 +1,6 @@
+using SonnetDB.Data.Graphs;
 using SonnetDB.Graphs;
 using SonnetDB.Graphs.Storage;
-using SonnetDB.Data.Graphs;
 using SonnetDB.Kv;
 using Xunit;
 
@@ -181,16 +181,73 @@ public sealed class GraphPreviewPhase1Tests : IDisposable
         GraphExpansion[] incoming = ReadAll(read.Expand(
             new GraphElementId(1),
             GraphDirection.Incoming,
-            options: new GraphCursorOptions { PageSize = 1 }));
+            options: new GraphCursorOptions { PageSize = 3 }));
         Assert.Equal([10L, 11L, 12L, 14L], incoming.Select(static item => item.Edge.Id.Value).Order().ToArray());
         Assert.All(incoming, static item => Assert.Equal(GraphDirection.Incoming, item.Direction));
+
+        GraphExpansion[] outgoing = ReadAll(read.Expand(
+            new GraphElementId(1),
+            GraphDirection.Outgoing,
+            options: new GraphCursorOptions { PageSize = 3 }));
+        Assert.Equal([13L, 14L], outgoing.Select(static item => item.Edge.Id.Value).Order().ToArray());
+        Assert.All(outgoing, static item => Assert.Equal(GraphDirection.Outgoing, item.Direction));
 
         GraphExpansion[] both = ReadAll(read.Expand(
             new GraphElementId(1),
             GraphDirection.Both,
-            options: new GraphCursorOptions { PageSize = 1 }));
+            options: new GraphCursorOptions { PageSize = 3 }));
         Assert.Equal([10L, 11L, 12L, 13L, 14L], both.Select(static item => item.Edge.Id.Value).Order().ToArray());
         Assert.Single(both, static item => item.Edge.Id.Value == 14);
+
+        GraphPath[] traversed = ReadAll(read.Bfs(
+            new GraphElementId(1),
+            GraphDirection.Both,
+            options: new GraphTraversalOptions
+            {
+                MaxDepth = 1,
+                MaxFrontier = 8,
+                MaxPaths = 8,
+                PageSize = 3,
+                PathUniqueness = GraphPathUniqueness.Edge,
+            }));
+        Assert.Equal(6, traversed.Length);
+        Assert.Equal(
+            [10L, 11L, 12L, 13L, 14L],
+            traversed.Where(static path => path.Depth == 1).Select(static path => path.EdgeIds[0].Value).Order().ToArray());
+    }
+
+    [Fact]
+    public void ShortestPath_MaxPathsExhausted_ThrowsInsteadOfReturningNull()
+    {
+        GraphStore store = _manager.Create("shortest-path-budget");
+        GraphTransaction transaction = store.BeginTransaction(Guid.NewGuid());
+        for (int id = 1; id <= 4; id++)
+            transaction.UpsertVertex(new GraphElementId(id), 0, [new LabelId(1)], []);
+        transaction.UpsertEdge(new GraphElementId(10), 0, new GraphElementId(1), new GraphElementId(2), new LabelId(2), []);
+        transaction.UpsertEdge(new GraphElementId(11), 0, new GraphElementId(1), new GraphElementId(3), new LabelId(2), []);
+        transaction.Commit();
+
+        using GraphReadSession read = store.BeginRead();
+        GraphTraversalOptions exhausted = new()
+        {
+            MaxDepth = 1,
+            MaxFrontier = 8,
+            MaxPaths = 2,
+            PageSize = 8,
+        };
+        GraphTraversalLimitExceededException error = Assert.Throws<GraphTraversalLimitExceededException>(
+            () => read.ShortestPath(new GraphElementId(1), new GraphElementId(3), options: exhausted));
+        Assert.Contains("2", error.Message, StringComparison.Ordinal);
+
+        GraphPath withinBudget = Assert.IsType<GraphPath>(
+            read.ShortestPath(new GraphElementId(1), new GraphElementId(2), options: exhausted));
+        Assert.Equal([1L, 2L], withinBudget.VertexIds.Select(static id => id.Value).ToArray());
+
+        GraphPath? unreachable = read.ShortestPath(
+            new GraphElementId(1),
+            new GraphElementId(4),
+            options: exhausted with { MaxPaths = 3 });
+        Assert.Null(unreachable);
     }
 
     [Fact]

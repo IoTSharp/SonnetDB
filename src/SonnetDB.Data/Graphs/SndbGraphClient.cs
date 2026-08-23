@@ -559,7 +559,7 @@ public sealed class SndbGraphClient : IDisposable
                 {
                     MaxDepth = request.MaxDepth,
                     MaxFrontier = request.MaxFrontier,
-                    MaxPaths = request.MaxFrontier,
+                    MaxPaths = request.MaxPaths,
                 },
                 cancellationToken);
         }
@@ -1004,8 +1004,20 @@ public sealed class SndbGraphClient : IDisposable
     {
         if (response.IsSuccessStatusCode)
             return true;
-        string message = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-        throw new InvalidOperationException($"SonnetDB Graph HTTP {(int)response.StatusCode}: {message}");
+        string body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ServerErrorBody? error = JsonSerializer.Deserialize(body, RemoteJsonContext.Default.ServerErrorBody);
+            if (error is not null && !string.IsNullOrWhiteSpace(error.Error))
+                throw new SndbServerException(error.Error, error.Message, response.StatusCode);
+        }
+        catch (JsonException)
+        {
+        }
+        throw new SndbServerException(
+            "http_error",
+            string.IsNullOrWhiteSpace(body) ? response.ReasonPhrase ?? "SonnetDB Graph HTTP error." : body,
+            response.StatusCode);
     }
 
     private static GraphProperty ToProperty(GraphPropertyDto dto) => new(dto.PropertyId, ToValue(dto.Value));
@@ -1597,8 +1609,9 @@ public sealed class SndbGraphClient : IDisposable
     private static void ValidateShortestPathRequest(GraphShortestPathRequest request)
     {
         if (request.StartId <= 0 || request.TargetId <= 0 || !Enum.IsDefined(request.Direction)
-            || request.EdgeLabelId is <= 0 || request.MaxDepth is < 0 or > 64 || request.MaxFrontier is <= 0 or > 10_000)
-            throw new ArgumentException("Shortest path 的端点、方向、深度或 frontier 预算无效。", nameof(request));
+            || request.EdgeLabelId is <= 0 || request.MaxDepth is < 0 or > 64
+            || request.MaxFrontier is <= 0 or > 10_000 || request.MaxPaths is <= 0 or > 10_000)
+            throw new ArgumentException("Shortest path 的端点、方向、深度或执行预算无效。", nameof(request));
     }
 
     private static void ValidateWeightedShortestPathRequest(GraphWeightedShortestPathRequest request)

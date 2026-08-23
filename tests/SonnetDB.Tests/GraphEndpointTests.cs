@@ -295,6 +295,86 @@ public sealed class GraphEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GraphApi_BothPaginationAndShortestPathBudget_PropagateThroughTypedSdk()
+    {
+        using SndbGraphClient client = CreateGraphClient(AdminToken);
+        await client.CreateGraphAsync("pagination");
+        for (long id = 1; id <= 6; id++)
+        {
+            await client.UpsertVertexAsync(
+                "pagination",
+                new GraphUpsertVertexRequest { Id = id, RequestId = Guid.NewGuid(), Labels = [1] });
+        }
+
+        await client.UpsertEdgeAsync("pagination", Edge(10, 1, 2));
+        await client.UpsertEdgeAsync("pagination", Edge(11, 3, 1));
+        await client.UpsertEdgeAsync("pagination", Edge(12, 4, 1));
+        await client.UpsertEdgeAsync("pagination", Edge(13, 5, 1));
+        await client.UpsertEdgeAsync("pagination", Edge(14, 6, 1));
+
+        var expansions = new List<GraphExpansion>();
+        await foreach (GraphExpansion expansion in client.ExpandAsync(
+            "pagination",
+            new GraphExpandRequest
+            {
+                VertexId = 1,
+                Direction = GraphDirection.Both,
+                PageSize = 3,
+                MaxResults = 8,
+            }))
+        {
+            expansions.Add(expansion);
+        }
+        Assert.Equal([10L, 11L, 12L, 13L, 14L], expansions.Select(static item => item.Edge.Id.Value).Order().ToArray());
+
+        var paths = new List<GraphPath>();
+        await foreach (GraphPath path in client.TraverseAsync(
+            "pagination",
+            new GraphTraversalRequest
+            {
+                StartId = 1,
+                Kind = GraphTraversalKind.BreadthFirst,
+                Direction = GraphDirection.Both,
+                MaxDepth = 1,
+                MaxFrontier = 8,
+                MaxPaths = 8,
+                PageSize = 3,
+                PathUniqueness = GraphPathUniqueness.Edge,
+            }))
+        {
+            paths.Add(path);
+        }
+        Assert.Equal(6, paths.Count);
+
+        GraphPath withinBudget = Assert.IsType<GraphPath>(await client.ShortestPathAsync(
+            "pagination",
+            new GraphShortestPathRequest
+            {
+                StartId = 1,
+                TargetId = 2,
+                Direction = GraphDirection.Both,
+                MaxDepth = 1,
+                MaxFrontier = 8,
+                MaxPaths = 2,
+            }));
+        Assert.Equal(1, withinBudget.Depth);
+
+        SndbServerException error = await Assert.ThrowsAsync<SndbServerException>(() => client.ShortestPathAsync(
+            "pagination",
+            new GraphShortestPathRequest
+            {
+                StartId = 1,
+                TargetId = 3,
+                Direction = GraphDirection.Both,
+                MaxDepth = 1,
+                MaxFrontier = 8,
+                MaxPaths = 2,
+            }));
+        Assert.Equal(HttpStatusCode.BadRequest, error.StatusCode);
+        Assert.Equal("graph_budget_exceeded", error.Error);
+    }
+
+    [Fact]
     public async Task GraphApi_RemoteWeightedShortestPath_UsesSharedGraphContract()
     {
         using SndbGraphClient client = CreateGraphClient(AdminToken);
@@ -608,5 +688,15 @@ public sealed class GraphEndpointTests : IAsyncLifetime
                     },
                 },
             ],
+        };
+
+    private static GraphUpsertEdgeRequest Edge(long id, long source, long target)
+        => new()
+        {
+            Id = id,
+            RequestId = Guid.NewGuid(),
+            SourceId = source,
+            TargetId = target,
+            LabelId = 2,
         };
 }

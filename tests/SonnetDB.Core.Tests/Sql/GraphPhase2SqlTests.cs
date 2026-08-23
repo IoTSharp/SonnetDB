@@ -502,6 +502,50 @@ public sealed class GraphPhase2SqlTests : IDisposable
         Assert.True((double)actual["actual_elapsed_ms"]! >= 0);
     }
 
+    [Fact]
+    public void ExecuteGraphTable_NativeBothDirectionAcrossCursorPage_ReturnsEveryEdge()
+    {
+        Directory.CreateDirectory(_root);
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        GraphStore store = db.Graphs.Create("both_page");
+        GraphTransaction transaction = store.BeginTransaction(Guid.NewGuid());
+        for (int id = 1; id <= 259; id++)
+            transaction.UpsertVertex(new GraphElementId(id), 0, [new LabelId(1)], []);
+        transaction.UpsertEdge(
+            new GraphElementId(1_000),
+            0,
+            new GraphElementId(1),
+            new GraphElementId(2),
+            new LabelId(2),
+            []);
+        for (int sourceId = 3; sourceId <= 259; sourceId++)
+        {
+            transaction.UpsertEdge(
+                new GraphElementId(1_000 + sourceId - 1),
+                0,
+                new GraphElementId(sourceId),
+                new GraphElementId(1),
+                new LabelId(2),
+                []);
+        }
+        transaction.Commit();
+
+        var result = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT edge_id
+            FROM GRAPH_TABLE (
+                both_page
+                MATCH (a IS 1)-[e IS 2]-(b IS 1)
+                WHERE a.id = 1
+                COLUMNS (e.id AS edge_id)
+            )
+            ORDER BY edge_id
+            """));
+
+        Assert.Equal(258, result.Rows.Count);
+        Assert.Equal(1_000L, result.Rows[0][0]);
+        Assert.Equal(1_258L, result.Rows[^1][0]);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))
