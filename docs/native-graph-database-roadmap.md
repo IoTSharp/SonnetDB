@@ -1,6 +1,6 @@
 # 原生属性图数据库路线图
 
-> 本文定义 SonnetDB Milestone 40 的工程路线。2026-08-23 复盘结论：Phase 0（#341～#346）公共地基 ✅ 已完成；修复顺序步骤 1~2 的 Graph 正确性阻塞项和 #367 strict evaluator 已关闭；Phase 1 与 Phase 2 仍有冻结合同、共享流式执行和 planner 缺口，#367 Production evidence 尚未运行。M40 整体保持 🚧，不得宣称 Preview/Beta/Production 已通过发布门禁。
+> 本文定义 SonnetDB Milestone 40 的工程路线。2026-08-23 复盘结论：Phase 0（#341～#346）公共地基 ✅ 已完成；修复顺序步骤 1~3 的 Graph 正确性、#367 strict evaluator、Expand 过滤与 importer 字节预算合同已关闭；Phase 1 的 #352 证据和 Phase 2 共享流式执行/planner 缺口仍未闭环，#367 Production evidence 尚未运行。M40 整体保持 🚧，不得宣称 Preview/Beta/Production 已通过发布门禁。
 
 ## 1. 决策与目标
 
@@ -212,14 +212,14 @@ M40 的权威执行顺序见主 [ROADMAP](../ROADMAP.md#m40-修复与发布执�
 
 1. ✅ 已修复 `Expand(Both)` 跨方向分页丢边和无权 shortest path 的 `MaxPaths` 静默 `null`；Core、遍历、SQL 和远程 typed SDK 回归通过。
 2. ✅ #367 evaluator 已按原始 artifact schema 独立重算并拒绝伪造摘要、脏工作树、无效 commit、缺少原始样本与不可复现命令。
-3. 补齐 Expand 目标过滤、import batch byte budget/CSV 单行上限和 Phase 1 复杂度测试。
+3. ✅ 已补齐 Expand 目标过滤、import batch byte budget/CSV 单行上限和 Phase 1 复杂度/拒绝测试。
 4. 完成 #353 共享 logical plan/pull operators，依赖 M41 #373 流式执行，并把 #374 statement snapshot 地基接入关系映射图。
 5. 完成 #354 SQL DDL/DML 与 #358 property-index/statistics planner/真实 `EXPLAIN`。
 6. 处理 adjacency/path/weighted/offline spill 的分配、GC、复制和随机 I/O 放大。
 7. 闭环 maintenance audit、torn NDJSON、真实 kill/reopen 与 Server/SDK/CLI/Studio parity。
 8. 最后运行 Neo4j/PostgreSQL、LDBC/Graphalytics、固定硬件 1m/10m、Native AOT、Couplet 和 7 天 8+1 发布证据。
 
-步骤 1~7 未全部通过前，只允许缺陷回归、evaluator 自测和用于设计决策的 quick/microbenchmark；不得启动或累计固定硬件、外部对拍和 168 小时证据。步骤 1~2 已通过，当前下一门禁为步骤 3 的 Phase 1 Expand 过滤与 importer 字节预算合同。正式发布 gate 的原始 artifact、commit、命令、退出码、正确性、恢复、allocation/GC 与 access path 已由 schema-aware evaluator 独立重算，不能信任 manifest 自报结论。
+步骤 1~7 未全部通过前，只允许缺陷回归、evaluator 自测和用于设计决策的 quick/microbenchmark；不得启动或累计固定硬件、外部对拍和 168 小时证据。步骤 1~3 已通过，当前下一门禁为步骤 4 的共享 logical plan/pull operator、M41 #373 流式执行和关系 statement snapshot 接入。正式发布 gate 的原始 artifact、commit、命令、退出码、正确性、恢复、allocation/GC 与 access path 已由 schema-aware evaluator 独立重算，不能信任 manifest 自报结论。
 
 ### Phase 0：基础改造与设计冻结（✅ 已完成）
 
@@ -234,25 +234,26 @@ M40 的权威执行顺序见主 [ROADMAP](../ROADMAP.md#m40-修复与发布执�
 | ✅ #345 | 单 graph transaction、element version、写预算、commit-unknown 和 vertex delete `RESTRICT` 合同。 | 并发冲突、取消、超限、重复请求和 WAL 故障不会产生半条边或孤立邻接。 |
 | ✅ #346 | Graph backup manifest、checkpoint、verify/restore、invariant checker 和 CrashTests 骨架。 | 任意注入点重启后要么看到提交前、要么看到提交后状态；校验器能发现故意构造的 orphan/mismatch。 |
 
-✅ Phase 0 已完成：frozen V1 vectors、Table V1 兼容、snapshot/cursor 有界读取、catalog/lifecycle、条件原子事务、manifest v1/v2、backup/restore/invariant 与跨进程 CrashTests 均有自动回归。Phase 1 的主要入口虽已接线，步骤 1 的 #348/#349 正确性阻塞项已经关闭，但 #348 目标过滤和 #351 有界导入合同仍未闭环，不能标记为功能完成；#352 的固定硬件、Neo4j、完整恢复/容量 artifact 保持 `NOT_RUN`。
+✅ Phase 0 已完成：frozen V1 vectors、Table V1 兼容、snapshot/cursor 有界读取、catalog/lifecycle、条件原子事务、manifest v1/v2、backup/restore/invariant 与跨进程 CrashTests 均有自动回归。Phase 1 的步骤 1/3 已关闭 #348/#349 正确性、目标过滤和 #351 有界导入合同；#352 的固定硬件、Neo4j、完整恢复/容量 artifact 保持 `NOT_RUN`，因此 Phase 1 发布准入仍未完成。
 
-### Phase 1：可用的原生图数据库第一阶段（🚧 合同待修；#352 `NOT_RUN`）
+### Phase 1：可用的原生图数据库第一阶段（🚧 功能合同已闭环；#352 `NOT_RUN`）
 
 | 编号 | 交付 | 验收门禁 |
 |---|---|---|
 | ✅ #347 | `GraphStore` vertex/edge CRUD、多 label、typed property、双向邻接、label/property/unique index。 | 所有 mutation 都通过单 keyspace 原子 batch；重启、索引重建和 invariant check 对拍。当前已有 `RebuildIndexes` 有界修复和 Crash/backup 回归，唯一声明缺失边界仍需显式输入。 |
-| 🚧 #348 | 原生 Graph API 与 streaming cursor：seek、ExpandOut/In/Both、过滤和批量读取。 | `Expand(Both)` 已保留 Out/In 切换时尚未消费的底层页，并以 page size > 1 的 Out/In/Both、self-loop/parallel-edge、BFS、SQL 与 SDK 回归证明不丢边；冻结合同中的目标 label/property predicate 仍待步骤 3 落实。 |
+| ✅ #348 | 原生 Graph API 与 streaming cursor：seek、ExpandOut/In/Both、过滤和批量读取。 | `Expand(Both)` 保留跨方向底层页；`GraphVertexPredicate` 对目标 label/property 做 typed 等值过滤，未命中项不消耗结果预算。page size > 1、self-loop/parallel-edge、BFS、SQL、SDK 与 1,000 度跨页过滤回归通过。 |
 | ✅ #349 | BFS/DFS、固定/受限可变长度路径、无权 shortest path、path uniqueness 和预算。 | shortest path 以 `MaxPaths + 1` 探测区分完整不可达与预算截断，耗尽时 Core 抛 `GraphTraversalLimitExceededException`，Server/SDK 稳定传播 `graph_budget_exceeded`；page size > 1、cycle/self-loop/parallel-edge、取消和 frontier/path 预算均有回归。性能分配加固仍归步骤 6。 |
 | ✅ #350 | label/property cardinality、degree histogram、index selectivity、统计刷新和基础 Graph EXPLAIN。 | 选择性 anchor 可验证；统计缺失/陈旧有稳定 fallback；统计是可重建派生数据。当前含 fingerprint cardinality、stale/missing explain 回归，容量校准待跑。 |
-| 🚧 #351 | Server/typed .NET SDK、Frame/HTTP 流式读取、幂等 bulk import，以及 CSV/JSON/Graphify `graph.json` importer。 | 入口已接线，但 importer 仍需 batch byte budget 和 CSV 单行上限；补齐后再验证嵌入式/远程同语义、checkpoint/resume 和稳定超限错误。Graphify 只作为输入格式，不进入 Core。 |
+| ✅ #351 | Server/typed .NET SDK、Frame/HTTP 流式读取、幂等 bulk import，以及 CSV/JSON/Graphify `graph.json` importer。 | HTTP/SDK 过滤字段同构，Frame v1 带过滤请求兼容回退 HTTP；import 同时受 10,000 元素、8 MiB batch 与默认 1 MiB CSV 单行预算约束，未知长度请求和 SDK 超限使用稳定错误，输入拒绝不会发布部分批次。Graphify 只作为输入格式，不进入 Core。 |
 | 📋 #352 | Phase 1 correctness/performance gate：CrashTests、BenchmarkDotNet、Neo4j 对照和固定硬件报告。 | 正确性/恢复与性能/容量是两个独立 gate：前者要求语义对拍零 mismatch、零 orphan/index drift，crash/replay/checkpoint/backup/repair 全 PASS；后者在 100k/1m vertex、1m/10m edge 下对 1~6 hop、supernode、代码知识影响分析、混合读写和冷/热重启达到 #341 预先冻结的复杂度、内存及 P95/P99 SLO。任一 gate 未达即阻断 Phase 1；不得遗留不可解释的全扫/全量物化，也不得事后按实现结果改低阈值。 |
 
-🚧 Phase 1 仍未闭环：步骤 1 的 #348/#349 正确性阻塞项已关闭；#348 目标过滤合同和 #351 输入字节预算仍须在步骤 3 完成，随后才能进入 #352 correctness/performance gate。在 #352 通过前，最多描述为 Native Graph Preview 的开发中实现，不得宣称 Preview 已通过发布门禁。
+🚧 Phase 1 功能合同已闭环但发布准入仍未完成：步骤 1/3 已关闭 #348/#349/#351 的正确性、目标过滤和输入字节预算；#352 correctness/performance gate 仍保持 `NOT_RUN`。在 #352 通过前，最多描述为 Native Graph Preview 的开发中实现，不得宣称 Preview 已通过发布门禁。
 
 ### Phase 1 当前实现边界（🚧 受限切片；2026-08-23 复盘）
 
 - ✅ `GraphStore.RebuildIndexes` 在提交门内按稳定快照和 KV index-rebuild budget 分页补建/删除 adjacency、label/property、unique 派生键；冻结 V1 元素记录不保存 unique 声明，若声明的全部 key 已丢失，调用方必须通过 `GraphIndexRebuildOptions.UniqueIndexes` 重新提供声明。
-- ✅ `SndbGraphImporter` 先把单个 JSON element 写入临时 NDJSON spool，再按确定性 request ID 以有界 batch 重放；CSV 同样按 batch 流式提交。`nodes/relationships` normalized profile 接受字符串 ID、label/type、对象属性和 provenance/confidence 元数据，映射函数为 `GetStableElementId`、`GetStableLabelId`、`GetStablePropertyId`。
+- ✅ `GraphVertexPredicate` 在固定 statement snapshot 上按目标 label 和可选 typed property 等值过滤邻接；过滤项不占 `MaxResults`。`GraphExpandRequest` 使用 `targetLabelId` / `targetPropertyId` / `targetPropertyValue`，嵌入式与 HTTP 共用 Core cursor；旧 Frame v1 不扩展布局，带过滤的 typed SDK 请求走 source-generated HTTP NDJSON。
+- ✅ `SndbGraphImporter` 先把完整 JSON/CSV 输入校验并写入临时 NDJSON spool，再按确定性 request ID 重放；批次同时受 `BatchSize` 和实际规范化 UTF-8 字节数约束，单项无法装入批次时明确拒绝。CSV 使用有界 UTF-8 行读取器，默认单行 1 MiB；Server 对 `Content-Length` 和未知长度流均强制 8 MiB，并返回 `graph_import_budget_exceeded`。`nodes/relationships` normalized profile 接受字符串 ID、label/type、对象属性和 provenance/confidence 元数据。
 - ✅ `tests/SonnetDB.Benchmarks --m40-graph-evidence --quick` 会真正 reopen/replay 并执行 path/invariant/index-repair smoke；本机报告输出 `correctness=PASS`、`correctness_recovery=LOCAL_PASS`；📋 `performance_capacity=NOT_RUN`、`release_decision=NOT_RUN`，不能代替 #352 的固定硬件、Neo4j 或完整 crash/replay/checkpoint/backup artifact。
 
 ### Phase 2：SQL 可组合与实用查询阶段（🚧 受限切片；共享执行和 SQL/planner 待完成）
@@ -294,7 +295,7 @@ M40 的权威执行顺序见主 [ROADMAP](../ROADMAP.md#m40-修复与发布执�
 | ✅ #364 | 可选 GQL 风格直接查询入口，只复用 Graph AST/Plan，不承诺完整 Cypher。 | 与等价 SQL/PGQ 计划和结果对拍；无新增执行器；语法能力矩阵公开。 |
 | ✅ #365 | 知识图谱/GraphRAG 上层合同：provenance、confidence、source/chunk、valid time、alias/claim、community/summary 引用。 | Core 只存通用属性图；抽取/消歧/LLM job 在 Server/SDK；Document/Object/Vector 仍是权威内容存储。 |
 | ✅ #366 | 运维产品面：schema/index/degree/slow traversal、可视化、受限编辑、import/export、repair/rebuild 和权限审计。 | Web/Studio/CLI/SDK 能力矩阵一致；危险 mutation 使用现有 staged approval。 |
-| 🚧 #367 | strict evaluator 已完成 schema-aware artifact 校验、逐轮原始样本重算、真实 clean commit、命令/退出码回放及 allocation/GC 阈值；LDBC、Graphalytics、代码知识/Agent、7 天 mixed workload、kill/reopen、backup/restore、Native AOT 和固定硬件容量仍待步骤 3~7 后执行。 | 伪造摘要、缺样本、脏/无效 commit 和复现失败回归已通过；候选报告仍须包含 commit/硬件/数据规模/P50/P95/P99/内存/GC/WAL/恢复/正确性、实际 access path/fallback 和 gap catalog。正确性/恢复与性能/容量 gate 全 PASS 前不得改为九模型；当前双 gate 为 `NOT_RUN`。 |
+| 🚧 #367 | strict evaluator 已完成 schema-aware artifact 校验、逐轮原始样本重算、真实 clean commit、命令/退出码回放及 allocation/GC 阈值；LDBC、Graphalytics、代码知识/Agent、7 天 mixed workload、kill/reopen、backup/restore、Native AOT 和固定硬件容量仍待步骤 4~7 后执行。 | 伪造摘要、缺样本、脏/无效 commit 和复现失败回归已通过；候选报告仍须包含 commit/硬件/数据规模/P50/P95/P99/内存/GC/WAL/恢复/正确性、实际 access path/fallback 和 gap catalog。正确性/恢复与性能/容量 gate 全 PASS 前不得改为九模型；当前双 gate 为 `NOT_RUN`。 |
 
 ✅ #360 已完成：`GraphStore.BeginRead` 明确冻结单一 KV sequence，同一 `GraphReadSession` 上的点读、在并发提交前后创建的游标和分页长遍历都复用该 snapshot；cursor lease 只保留不可变内存视图和 disk generation lease，不持有 Graph commit gate 或 store lock。`EXPLAIN ANALYZE GRAPH_TABLE` 对原生图新增 `read_consistency=statement_snapshot`、`actual_read_consistency` 和 `actual_snapshot_sequence`；关系映射如实返回 `relation_accessor_current` 与 null sequence，其 statement snapshot 仍归 M41 #374，不在本项虚构跨模型 MVCC。
 
@@ -348,7 +349,7 @@ Graph V1 adjacency 继续保持每条边一个紧凑 key 和空 value；supernod
 
 新增 `--m40-production-gate --quick` 本地入口，真实执行 8 reader + 1 writer、native adjacency/path、默认 KV fsync/checkpoint 配置、checkpoint/reopen、完整 invariant 和 `BackupService` verify/restore；同时输出 source-generated JSON/Markdown、原始 quick log 和不可直接通过的 Production manifest 模板。quick 只验证 evidence 管线，不把正常重开冒充真进程 kill，也不把小数据外推为固定硬件容量。
 
-完整入口 `--m40-production-gate --manifest <path>` 使用 `m40-graph-production-input-v2`，冻结 16 个 SOC/TOP/EVD/CPL/PGQ 查询、1,000 warmup、3 x 10,000 正式样本、Production P95/P99、query memory、12 GiB working set、cold open/首查、访问路径、1m/10m 数据、目标硬件、168 小时 8+1 workload、30 分钟 checkpoint、每日 kill/reopen、默认耐久参数和 `M40-GAP-001~012`。evaluator 分别解析 dataset/environment/soak/journey/check artifact，从原始样本重算摘要并校验 SHA-256、commit/HEAD、clean worktree 和结构化命令回放；伪造 `{ "status": "PASS" }`、缺逐轮样本、摘要漂移、复现失败、allocation/GC 超阈值与 blocking gap 均稳定失败。没有步骤 3~7 和完整 Production 证据时双 gate 继续保持 `NOT_RUN`。运行方法和待执行项见 [#367 发布门禁](m40-graph-367-production-gate.md)。
+完整入口 `--m40-production-gate --manifest <path>` 使用 `m40-graph-production-input-v2`，冻结 16 个 SOC/TOP/EVD/CPL/PGQ 查询、1,000 warmup、3 x 10,000 正式样本、Production P95/P99、query memory、12 GiB working set、cold open/首查、访问路径、1m/10m 数据、目标硬件、168 小时 8+1 workload、30 分钟 checkpoint、每日 kill/reopen、默认耐久参数和 `M40-GAP-001~012`。evaluator 分别解析 dataset/environment/soak/journey/check artifact，从原始样本重算摘要并校验 SHA-256、commit/HEAD、clean worktree 和结构化命令回放；伪造 `{ "status": "PASS" }`、缺逐轮样本、摘要漂移、复现失败、allocation/GC 超阈值与 blocking gap 均稳定失败。没有步骤 4~7 和完整 Production 证据时双 gate 继续保持 `NOT_RUN`。运行方法和待执行项见 [#367 发布门禁](m40-graph-367-production-gate.md)。
 
 📋 Phase 3 完成后，SonnetDB 才能对外称为**生产可用的单机原生属性图数据库**。这不包含分布式图数据库、完整 Cypher/GQL 或 RDF 推理能力。
 

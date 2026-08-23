@@ -202,10 +202,34 @@ public sealed class GraphReadSession : IDisposable
         GraphCursorOptions? options = null)
         => GraphPlanExecutor.Execute(this, new GraphExpandPlan(vertexId, direction, edgeLabelId, options));
 
+    /// <summary>从一个顶点流式扩展，并按目标顶点 label/property 谓词过滤。</summary>
+    /// <param name="vertexId">扩展锚点。</param>
+    /// <param name="targetPredicate">目标顶点精确匹配谓词。</param>
+    /// <param name="direction">扩展方向。</param>
+    /// <param name="edgeLabelId">可选边标签过滤。</param>
+    /// <param name="options">读取预算。</param>
+    /// <returns>仅包含目标顶点匹配项的邻接命中游标。</returns>
+    public GraphCursor<GraphExpansion> Expand(
+        GraphElementId vertexId,
+        GraphVertexPredicate targetPredicate,
+        GraphDirection direction = GraphDirection.Outgoing,
+        LabelId? edgeLabelId = null,
+        GraphCursorOptions? options = null)
+    {
+        ArgumentNullException.ThrowIfNull(targetPredicate);
+        return GraphPlanExecutor.Execute(
+            this,
+            new GraphExpandPlan(vertexId, direction, edgeLabelId, options)
+            {
+                TargetPredicate = targetPredicate,
+            });
+    }
+
     internal GraphCursor<GraphExpansion> ExpandCore(
         GraphElementId vertexId,
         GraphDirection direction,
         LabelId? edgeLabelId,
+        GraphVertexPredicate? targetPredicate,
         GraphCursorOptions? options)
     {
         ValidateElementId(vertexId, nameof(vertexId));
@@ -222,6 +246,7 @@ public sealed class GraphReadSession : IDisposable
                     vertexId,
                     direction,
                     edgeLabelId,
+                    targetPredicate,
                     cursorOptions),
                 cursorOptions.MaxResults);
         }

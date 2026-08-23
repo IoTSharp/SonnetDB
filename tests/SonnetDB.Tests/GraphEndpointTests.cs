@@ -375,6 +375,95 @@ public sealed class GraphEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GraphApi_FilteredExpandAndImportBudgets_AreConsistentAcrossHttpAndTypedSdk()
+    {
+        using SndbGraphClient admin = CreateGraphClient(AdminToken);
+        await admin.CreateGraphAsync("filtered");
+        await admin.UpsertVertexAsync(
+            "filtered",
+            new GraphUpsertVertexRequest { Id = 1, RequestId = Guid.NewGuid(), Labels = [1] });
+        await admin.UpsertVertexAsync("filtered", FilterVertex(2, 10, "match"));
+        await admin.UpsertVertexAsync("filtered", FilterVertex(3, 20, "match"));
+        await admin.UpsertVertexAsync("filtered", FilterVertex(4, 20, "skip"));
+        await admin.UpsertEdgeAsync("filtered", Edge(20, 1, 2));
+        await admin.UpsertEdgeAsync("filtered", Edge(21, 1, 3));
+        await admin.UpsertEdgeAsync("filtered", Edge(22, 1, 4));
+
+        using SndbGraphClient frameClient = CreateGraphClient(
+            AdminToken,
+            SndbTransportProtocol.FrameHttp2);
+        var filtered = new List<GraphExpansion>();
+        await foreach (GraphExpansion expansion in frameClient.ExpandAsync(
+            "filtered",
+            new GraphExpandRequest
+            {
+                VertexId = 1,
+                Direction = GraphDirection.Outgoing,
+                TargetLabelId = 20,
+                TargetPropertyId = 7,
+                TargetPropertyValue = new GraphValueDto
+                {
+                    Kind = GraphPropertyKind.String,
+                    String = "match",
+                },
+                PageSize = 1,
+            }))
+        {
+            filtered.Add(expansion);
+        }
+        Assert.Equal(3, Assert.Single(filtered).NeighborId.Value);
+
+        using HttpClient http = CreateClient(AdminToken);
+        HttpResponseMessage invalidPredicate = await http.PostAsJsonAsync(
+            "/v1/db/graphapi/graphs/filtered/expand/stream",
+            new GraphExpandRequest { VertexId = 1, TargetPropertyId = 7 },
+            ServerJsonContext.Default.GraphExpandRequest);
+        Assert.Equal(HttpStatusCode.BadRequest, invalidPredicate.StatusCode);
+
+        using var oversizedContent = new UnknownLengthContent(GraphImportLimits.MaxBatchBytes + 1);
+        oversizedContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+        HttpResponseMessage oversizedResponse = await http.PostAsync(
+            "/v1/db/graphapi/graphs/filtered/import",
+            oversizedContent);
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, oversizedResponse.StatusCode);
+        Assert.Contains(
+            "graph_import_budget_exceeded",
+            await oversizedResponse.Content.ReadAsStringAsync(),
+            StringComparison.Ordinal);
+
+        string largeValue = new('x', 1024 * 1024);
+        GraphImportVertexDto[] oversizedVertices = Enumerable.Range(100, 9)
+            .Select(id => new GraphImportVertexDto
+            {
+                Id = id,
+                Labels = [10],
+                Properties =
+                [
+                    new GraphPropertyDto
+                    {
+                        PropertyId = 7,
+                        Value = new GraphValueDto
+                        {
+                            Kind = GraphPropertyKind.String,
+                            String = largeValue,
+                        },
+                    },
+                ],
+            })
+            .ToArray();
+        GraphImportLimitExceededException sdkError = await Assert.ThrowsAsync<GraphImportLimitExceededException>(
+            () => frameClient.ImportAsync(
+                "filtered",
+                new GraphImportRequest
+                {
+                    RequestId = Guid.NewGuid(),
+                    Vertices = oversizedVertices,
+                }));
+        Assert.Equal("batch", sdkError.LimitName);
+        Assert.Equal(GraphImportLimits.MaxBatchBytes, sdkError.MaximumBytes);
+    }
+
+    [Fact]
     public async Task GraphApi_RemoteWeightedShortestPath_UsesSharedGraphContract()
     {
         using SndbGraphClient client = CreateGraphClient(AdminToken);
@@ -699,4 +788,44 @@ public sealed class GraphEndpointTests : IAsyncLifetime
             TargetId = target,
             LabelId = 2,
         };
+
+    private static GraphUpsertVertexRequest FilterVertex(long id, int labelId, string value)
+        => new()
+        {
+            Id = id,
+            RequestId = Guid.NewGuid(),
+            Labels = [labelId],
+            Properties =
+            [
+                new GraphPropertyDto
+                {
+                    PropertyId = 7,
+                    Value = new GraphValueDto
+                    {
+                        Kind = GraphPropertyKind.String,
+                        String = value,
+                    },
+                },
+            ],
+        };
+
+    private sealed class UnknownLengthContent : HttpContent
+    {
+        private readonly byte[] _value;
+
+        internal UnknownLengthContent(int length)
+        {
+            _value = new byte[length];
+            Array.Fill(_value, (byte)' ');
+        }
+
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context)
+            => stream.WriteAsync(_value, 0, _value.Length);
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = 0;
+            return false;
+        }
+    }
 }

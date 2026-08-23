@@ -256,6 +256,16 @@ public sealed class SndbGraphClient : IDisposable
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(request);
         ValidateName(graph, nameof(graph));
+        int requestBytes = JsonSerializer.SerializeToUtf8Bytes(
+            request,
+            RemoteJsonContext.Default.GraphImportRequest).Length;
+        if (requestBytes > GraphImportLimits.MaxBatchBytes)
+        {
+            throw new GraphImportLimitExceededException(
+                "batch",
+                requestBytes,
+                GraphImportLimits.MaxBatchBytes);
+        }
         GraphImportVertexDto[] vertices = (request.Vertices ?? []).Concat(request.Nodes ?? []).ToArray();
         GraphImportEdgeDto[] edges = (request.Edges ?? []).Concat(request.Relationships ?? []).ToArray();
         ValidateImportRequest(vertices, edges, request.RequestId);
@@ -293,10 +303,25 @@ public sealed class SndbGraphClient : IDisposable
         ArgumentNullException.ThrowIfNull(request);
         ValidateName(graph, nameof(graph));
         ValidateExpandRequest(request);
+        GraphVertexPredicate? targetPredicate = ToTargetPredicate(request);
         if (_embedded is not null)
         {
             using GraphReadSession read = _embedded.Graphs.Open(graph).BeginRead();
-            using GraphCursor<GraphExpansion> cursor = read.Expand(new GraphElementId(request.VertexId), request.Direction, request.EdgeLabelId is { } label ? new LabelId(label) : null, new GraphCursorOptions { PageSize = request.PageSize, MaxResults = request.MaxResults });
+            LabelId? edgeLabelId = request.EdgeLabelId is { } label
+                ? new LabelId(label)
+                : null;
+            using GraphCursor<GraphExpansion> cursor = targetPredicate is null
+                ? read.Expand(
+                    new GraphElementId(request.VertexId),
+                    request.Direction,
+                    edgeLabelId,
+                    new GraphCursorOptions { PageSize = request.PageSize, MaxResults = request.MaxResults })
+                : read.Expand(
+                    new GraphElementId(request.VertexId),
+                    targetPredicate,
+                    request.Direction,
+                    edgeLabelId,
+                    new GraphCursorOptions { PageSize = request.PageSize, MaxResults = request.MaxResults });
             while (true)
             {
                 IReadOnlyList<GraphExpansion> page = cursor.ReadNextPage(cancellationToken);
@@ -307,7 +332,8 @@ public sealed class SndbGraphClient : IDisposable
             }
         }
 
-        if (_frames is { } frames && frames.ShouldTryFrames())
+        // Frame expand v1 没有目标谓词字段；过滤请求使用 HTTP 流，保持旧帧 wire layout 不变。
+        if (targetPredicate is null && _frames is { } frames && frames.ShouldTryFrames())
         {
             var writer = new ArrayBufferWriter<byte>();
             const uint StreamId = 1;
@@ -1545,8 +1571,12 @@ public sealed class SndbGraphClient : IDisposable
     {
         if (requestId == Guid.Empty)
             throw new ArgumentException("导入 request ID 不能为空。", nameof(requestId));
-        if (vertices.Count + edges.Count is <= 0 or > 10_000)
-            throw new ArgumentOutOfRangeException(nameof(vertices), "导入批次必须包含 1 到 10,000 个元素。");
+        if (vertices.Count + edges.Count is <= 0 or > GraphImportLimits.MaxBatchElements)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(vertices),
+                $"导入批次必须包含 1 到 {GraphImportLimits.MaxBatchElements} 个元素。");
+        }
         foreach (GraphImportVertexDto vertex in vertices)
         {
             if (vertex is null)
@@ -1582,8 +1612,23 @@ public sealed class SndbGraphClient : IDisposable
     private static void ValidateExpandRequest(GraphExpandRequest request)
     {
         if (request.VertexId <= 0 || request.EdgeLabelId is <= 0 || !Enum.IsDefined(request.Direction)
+            || request.TargetLabelId is <= 0
+            || request.TargetPropertyId is <= 0
+            || (request.TargetPropertyId is null) != (request.TargetPropertyValue is null)
             || request.PageSize is <= 0 or > 1_000 || request.MaxResults is <= 0 or > 10_000)
             throw new ArgumentOutOfRangeException(nameof(request), "expand 的顶点、方向或读取预算无效。");
+        if (request.TargetPropertyValue is not null)
+            _ = ToValue(request.TargetPropertyValue);
+    }
+
+    private static GraphVertexPredicate? ToTargetPredicate(GraphExpandRequest request)
+    {
+        if (request.TargetLabelId is null && request.TargetPropertyId is null)
+            return null;
+        return new GraphVertexPredicate(
+            request.TargetLabelId is { } labelId ? new LabelId(labelId) : null,
+            request.TargetPropertyId,
+            request.TargetPropertyValue is null ? null : ToValue(request.TargetPropertyValue));
     }
 
     private static void ValidateSeekRequest(GraphSeekRequest request)

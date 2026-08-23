@@ -154,6 +154,15 @@ public sealed record GraphExpandRequest
     /// <summary>可选边标签。</summary>
     public int? EdgeLabelId { get; init; }
 
+    /// <summary>目标顶点必须包含的可选标签。</summary>
+    public int? TargetLabelId { get; init; }
+
+    /// <summary>目标顶点必须包含的可选属性标识符。</summary>
+    public int? TargetPropertyId { get; init; }
+
+    /// <summary>目标顶点属性必须精确匹配的可选值。</summary>
+    public GraphValueDto? TargetPropertyValue { get; init; }
+
     /// <summary>分页大小。</summary>
     public int PageSize { get; init; } = 256;
 

@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using SonnetDB.Graphs;
 
 namespace SonnetDB.Data.Graphs;
@@ -15,13 +16,33 @@ public sealed record SndbGraphImportOptions
     /// <summary>每个原子批次最多包含的元素数。</summary>
     public int BatchSize { get; init; } = 1_000;
 
+    /// <summary>每个原子批次规范化 JSON 编码允许的最大字节数。</summary>
+    public int MaxBatchBytes { get; init; } = GraphImportLimits.MaxBatchBytes;
+
+    /// <summary>CSV 输入允许的最大单行 UTF-8 字节数。</summary>
+    public int MaxCsvLineBytes { get; init; } = GraphImportLimits.DefaultMaxCsvLineBytes;
+
     internal void Validate()
     {
         if (RequestId == Guid.Empty)
             throw new ArgumentException("导入 request ID 不能为空。", nameof(RequestId));
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(BatchSize);
-        if (BatchSize > 10_000)
-            throw new ArgumentOutOfRangeException(nameof(BatchSize), "BatchSize 不能超过 10,000。");
+        if (BatchSize > GraphImportLimits.MaxBatchElements)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(BatchSize),
+                $"BatchSize 不能超过 {GraphImportLimits.MaxBatchElements}。");
+        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxBatchBytes);
+        if (MaxBatchBytes > GraphImportLimits.MaxBatchBytes)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(MaxBatchBytes),
+                $"MaxBatchBytes 不能超过 {GraphImportLimits.MaxBatchBytes}。");
+        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxCsvLineBytes);
+        if (MaxCsvLineBytes > MaxBatchBytes)
+            throw new ArgumentOutOfRangeException(nameof(MaxCsvLineBytes), "MaxCsvLineBytes 不能超过 MaxBatchBytes。");
     }
 }
 
@@ -90,6 +111,7 @@ public static class SndbGraphImporter
             using (var vertexWriter = new StreamWriter(vertexFile, new UTF8Encoding(false), 16 * 1024, leaveOpen: true))
             using (var edgeWriter = new StreamWriter(edgeFile, new UTF8Encoding(false), 16 * 1024, leaveOpen: true))
             {
+                int emptyRequestBytes = MeasureEmptyRequestBytes(importOptions.RequestId);
                 long relationshipOrdinal = 0;
                 await ParseJsonToSpoolAsync(
                     source,
@@ -98,14 +120,20 @@ public static class SndbGraphImporter
                         if (arrayName is "vertices" or "nodes")
                         {
                             GraphImportVertexDto vertex = DeserializeVertex(document);
-                            vertexWriter.WriteLine(
-                                JsonSerializer.Serialize(vertex, Remote.RemoteJsonContext.Default.GraphImportVertexDto));
+                            WriteSpoolLine(
+                                vertexWriter,
+                                JsonSerializer.Serialize(vertex, Remote.RemoteJsonContext.Default.GraphImportVertexDto),
+                                emptyRequestBytes,
+                                importOptions.MaxBatchBytes);
                         }
                         else if (arrayName is "edges" or "relationships")
                         {
                             GraphImportEdgeDto edge = DeserializeEdge(document, relationshipOrdinal++);
-                            edgeWriter.WriteLine(
-                                JsonSerializer.Serialize(edge, Remote.RemoteJsonContext.Default.GraphImportEdgeDto));
+                            WriteSpoolLine(
+                                edgeWriter,
+                                JsonSerializer.Serialize(edge, Remote.RemoteJsonContext.Default.GraphImportEdgeDto),
+                                emptyRequestBytes,
+                                importOptions.MaxBatchBytes);
                         }
                     },
                     cancellationToken).ConfigureAwait(false);
@@ -159,92 +187,95 @@ public static class SndbGraphImporter
         ArgumentNullException.ThrowIfNull(edges);
         SndbGraphImportOptions importOptions = options ?? new SndbGraphImportOptions();
         importOptions.Validate();
-        int batchIndex = 0;
-        int vertexCount = 0;
-        int edgeCount = 0;
-        long lastSequence = 0;
-        int batchCount = 0;
-        using (var reader = new StreamReader(vertices, leaveOpen: true))
+        string spoolDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "sonnetdb-graph-import-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(spoolDirectory);
+        try
         {
-            var batch = new List<GraphImportVertexDto>(importOptions.BatchSize);
-            await ReadCsvLinesAsync(
-                reader,
-                expectedFields: 2,
-                line => new GraphImportVertexDto
-                {
-                    Id = ParsePositiveLong(line[0], "vertex id"),
-                    Labels = string.IsNullOrWhiteSpace(line[1])
-                        ? []
-                        : line[1].Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                            .Select(value => ParsePositiveInt(value, "label"))
-                            .ToArray(),
-                },
-                async item =>
-                {
-                    batch.Add(item);
-                    vertexCount++;
-                    if (batch.Count < importOptions.BatchSize)
-                        return;
-                    GraphImportResponse result = await client.ImportAsync(
-                        graph,
-                        new GraphImportRequest { RequestId = BatchRequestId(importOptions.RequestId, batchIndex++), Vertices = batch.ToArray() },
-                        cancellationToken).ConfigureAwait(false);
-                    lastSequence = result.Sequence;
-                    batchCount++;
-                    batch.Clear();
-                },
-                cancellationToken).ConfigureAwait(false);
-            if (batch.Count > 0)
+            string vertexPath = Path.Combine(spoolDirectory, "vertices.ndjson");
+            string edgePath = Path.Combine(spoolDirectory, "edges.ndjson");
+            await using (var vertexFile = new FileStream(vertexPath, FileMode.CreateNew, FileAccess.Write, FileShare.Read, 16 * 1024, FileOptions.SequentialScan))
+            await using (var edgeFile = new FileStream(edgePath, FileMode.CreateNew, FileAccess.Write, FileShare.Read, 16 * 1024, FileOptions.SequentialScan))
+            using (var vertexWriter = new StreamWriter(vertexFile, new UTF8Encoding(false), 16 * 1024, leaveOpen: true))
+            using (var edgeWriter = new StreamWriter(edgeFile, new UTF8Encoding(false), 16 * 1024, leaveOpen: true))
             {
-                GraphImportResponse result = await client.ImportAsync(
-                    graph,
-                    new GraphImportRequest { RequestId = BatchRequestId(importOptions.RequestId, batchIndex++), Vertices = batch.ToArray() },
+                int emptyRequestBytes = MeasureEmptyRequestBytes(importOptions.RequestId);
+                await using var vertexReader = new BoundedUtf8LineReader(
+                    vertices,
+                    importOptions.MaxCsvLineBytes,
+                    "csv_line");
+                await ReadCsvLinesAsync(
+                    vertexReader,
+                    expectedFields: 2,
+                    line => new GraphImportVertexDto
+                    {
+                        Id = ParsePositiveLong(line[0], "vertex id"),
+                        Labels = string.IsNullOrWhiteSpace(line[1])
+                            ? []
+                            : line[1].Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                                .Select(value => ParsePositiveInt(value, "label"))
+                                .ToArray(),
+                    },
+                    item =>
+                    {
+                        WriteSpoolLine(
+                            vertexWriter,
+                            JsonSerializer.Serialize(item, Remote.RemoteJsonContext.Default.GraphImportVertexDto),
+                            emptyRequestBytes,
+                            importOptions.MaxBatchBytes);
+                        return ValueTask.CompletedTask;
+                    },
                     cancellationToken).ConfigureAwait(false);
-                lastSequence = result.Sequence;
-                batchCount++;
+
+                await using var edgeReader = new BoundedUtf8LineReader(
+                    edges,
+                    importOptions.MaxCsvLineBytes,
+                    "csv_line");
+                await ReadCsvLinesAsync(
+                    edgeReader,
+                    expectedFields: 4,
+                    line => new GraphImportEdgeDto
+                    {
+                        Id = ParsePositiveLong(line[0], "edge id"),
+                        SourceId = ParsePositiveLong(line[1], "source id"),
+                        TargetId = ParsePositiveLong(line[2], "target id"),
+                        LabelId = ParsePositiveInt(line[3], "edge label"),
+                    },
+                    item =>
+                    {
+                        WriteSpoolLine(
+                            edgeWriter,
+                            JsonSerializer.Serialize(item, Remote.RemoteJsonContext.Default.GraphImportEdgeDto),
+                            emptyRequestBytes,
+                            importOptions.MaxBatchBytes);
+                        return ValueTask.CompletedTask;
+                    },
+                    cancellationToken).ConfigureAwait(false);
+                await vertexWriter.FlushAsync(cancellationToken).ConfigureAwait(false);
+                await edgeWriter.FlushAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            return await ImportSpoolAsync(
+                client,
+                graph,
+                vertexPath,
+                edgePath,
+                importOptions,
+                cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(spoolDirectory))
+                    Directory.Delete(spoolDirectory, recursive: true);
+            }
+            catch
+            {
+                // Preserve import outcome; the OS temporary directory can be cleaned later.
             }
         }
-
-        using (var reader = new StreamReader(edges, leaveOpen: true))
-        {
-            var batch = new List<GraphImportEdgeDto>(importOptions.BatchSize);
-            await ReadCsvLinesAsync(
-                reader,
-                expectedFields: 4,
-                line => new GraphImportEdgeDto
-                {
-                    Id = ParsePositiveLong(line[0], "edge id"),
-                    SourceId = ParsePositiveLong(line[1], "source id"),
-                    TargetId = ParsePositiveLong(line[2], "target id"),
-                    LabelId = ParsePositiveInt(line[3], "edge label"),
-                },
-                async item =>
-                {
-                    batch.Add(item);
-                    edgeCount++;
-                    if (batch.Count < importOptions.BatchSize)
-                        return;
-                    GraphImportResponse result = await client.ImportAsync(
-                        graph,
-                        new GraphImportRequest { RequestId = BatchRequestId(importOptions.RequestId, batchIndex++), Edges = batch.ToArray() },
-                        cancellationToken).ConfigureAwait(false);
-                    lastSequence = result.Sequence;
-                    batchCount++;
-                    batch.Clear();
-                },
-                cancellationToken).ConfigureAwait(false);
-            if (batch.Count > 0)
-            {
-                GraphImportResponse result = await client.ImportAsync(
-                    graph,
-                    new GraphImportRequest { RequestId = BatchRequestId(importOptions.RequestId, batchIndex++), Edges = batch.ToArray() },
-                    cancellationToken).ConfigureAwait(false);
-                lastSequence = result.Sequence;
-                batchCount++;
-            }
-        }
-
-        return new SndbGraphImportReport(vertexCount, edgeCount, batchCount, lastSequence);
     }
 
     private static async Task<SndbGraphImportReport> ImportSpoolAsync(
@@ -255,74 +286,145 @@ public static class SndbGraphImporter
         SndbGraphImportOptions options,
         CancellationToken cancellationToken)
     {
+        ImportBatchResult vertices = await ImportSpoolItemsAsync(
+            client,
+            graph,
+            vertexPath,
+            options,
+            startingBatchIndex: 0,
+            Remote.RemoteJsonContext.Default.GraphImportVertexDto,
+            static (requestId, items) => new GraphImportRequest
+            {
+                RequestId = requestId,
+                Vertices = items,
+            },
+            cancellationToken).ConfigureAwait(false);
+        ImportBatchResult edges = await ImportSpoolItemsAsync(
+            client,
+            graph,
+            edgePath,
+            options,
+            vertices.NextBatchIndex,
+            Remote.RemoteJsonContext.Default.GraphImportEdgeDto,
+            static (requestId, items) => new GraphImportRequest
+            {
+                RequestId = requestId,
+                Edges = items,
+            },
+            cancellationToken).ConfigureAwait(false);
+        return new SndbGraphImportReport(
+            vertices.ItemCount,
+            edges.ItemCount,
+            vertices.BatchCount + edges.BatchCount,
+            edges.BatchCount > 0 ? edges.LastSequence : vertices.LastSequence);
+    }
+
+    private static async Task<ImportBatchResult> ImportSpoolItemsAsync<T>(
+        SndbGraphClient client,
+        string graph,
+        string path,
+        SndbGraphImportOptions options,
+        int startingBatchIndex,
+        JsonTypeInfo<T> typeInfo,
+        Func<Guid, IReadOnlyList<T>, GraphImportRequest> createRequest,
+        CancellationToken cancellationToken)
+        where T : class
+    {
+        int batchIndex = startingBatchIndex;
         int batchCount = 0;
-        int vertexCount = 0;
-        int edgeCount = 0;
-        int batchIndex = 0;
+        int itemCount = 0;
         long lastSequence = 0;
-        using (var reader = new StreamReader(vertexPath, Encoding.UTF8, detectEncodingFromByteOrderMarks: true))
+        long batchItemBytes = 0;
+        int emptyRequestBytes = MeasureEmptyRequestBytes(options.RequestId);
+        var batch = new List<T>(options.BatchSize);
+        await using var source = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            16 * 1024,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        await using var reader = new BoundedUtf8LineReader(source, options.MaxBatchBytes, "batch_element");
+        while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
         {
-            var batch = new List<GraphImportVertexDto>(options.BatchSize);
-            while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
+            cancellationToken.ThrowIfCancellationRequested();
+            if (string.IsNullOrWhiteSpace(line))
+                continue;
+            T item = JsonSerializer.Deserialize(line, typeInfo)
+                ?? throw new InvalidDataException("Graph import spool 行为空。");
+            int itemBytes = Encoding.UTF8.GetByteCount(line);
+            long projectedBytes = MeasureBatchBytes(emptyRequestBytes, batchItemBytes, batch.Count, itemBytes);
+            if (projectedBytes > options.MaxBatchBytes && batch.Count > 0)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (string.IsNullOrWhiteSpace(line))
-                    continue;
-                batch.Add(JsonSerializer.Deserialize(line, Remote.RemoteJsonContext.Default.GraphImportVertexDto)
-                    ?? throw new InvalidDataException("Graph vertex spool 行为空。"));
-                vertexCount++;
-                if (batch.Count < options.BatchSize)
-                    continue;
-                GraphImportResponse result = await client.ImportAsync(
+                GraphImportResponse committed = await client.ImportAsync(
                     graph,
-                    new GraphImportRequest { RequestId = BatchRequestId(options.RequestId, batchIndex++), Vertices = batch.ToArray() },
+                    createRequest(BatchRequestId(options.RequestId, batchIndex++), batch.ToArray()),
                     cancellationToken).ConfigureAwait(false);
-                lastSequence = result.Sequence;
+                lastSequence = committed.Sequence;
                 batchCount++;
                 batch.Clear();
+                batchItemBytes = 0;
+                projectedBytes = MeasureBatchBytes(emptyRequestBytes, 0, 0, itemBytes);
             }
-            if (batch.Count > 0)
+            if (projectedBytes > options.MaxBatchBytes)
             {
-                GraphImportResponse result = await client.ImportAsync(
-                    graph,
-                    new GraphImportRequest { RequestId = BatchRequestId(options.RequestId, batchIndex++), Vertices = batch.ToArray() },
-                    cancellationToken).ConfigureAwait(false);
-                lastSequence = result.Sequence;
-                batchCount++;
+                throw new GraphImportLimitExceededException(
+                    "batch",
+                    projectedBytes,
+                    options.MaxBatchBytes);
             }
+
+            batch.Add(item);
+            batchItemBytes += itemBytes;
+            itemCount++;
+            if (batch.Count < options.BatchSize)
+                continue;
+
+            GraphImportResponse result = await client.ImportAsync(
+                graph,
+                createRequest(BatchRequestId(options.RequestId, batchIndex++), batch.ToArray()),
+                cancellationToken).ConfigureAwait(false);
+            lastSequence = result.Sequence;
+            batchCount++;
+            batch.Clear();
+            batchItemBytes = 0;
         }
-        using (var reader = new StreamReader(edgePath, Encoding.UTF8, detectEncodingFromByteOrderMarks: true))
+
+        if (batch.Count > 0)
         {
-            var batch = new List<GraphImportEdgeDto>(options.BatchSize);
-            while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (string.IsNullOrWhiteSpace(line))
-                    continue;
-                batch.Add(JsonSerializer.Deserialize(line, Remote.RemoteJsonContext.Default.GraphImportEdgeDto)
-                    ?? throw new InvalidDataException("Graph edge spool 行为空。"));
-                edgeCount++;
-                if (batch.Count < options.BatchSize)
-                    continue;
-                GraphImportResponse result = await client.ImportAsync(
-                    graph,
-                    new GraphImportRequest { RequestId = BatchRequestId(options.RequestId, batchIndex++), Edges = batch.ToArray() },
-                    cancellationToken).ConfigureAwait(false);
-                lastSequence = result.Sequence;
-                batchCount++;
-                batch.Clear();
-            }
-            if (batch.Count > 0)
-            {
-                GraphImportResponse result = await client.ImportAsync(
-                    graph,
-                    new GraphImportRequest { RequestId = BatchRequestId(options.RequestId, batchIndex++), Edges = batch.ToArray() },
-                    cancellationToken).ConfigureAwait(false);
-                lastSequence = result.Sequence;
-                batchCount++;
-            }
+            GraphImportResponse result = await client.ImportAsync(
+                graph,
+                createRequest(BatchRequestId(options.RequestId, batchIndex++), batch.ToArray()),
+                cancellationToken).ConfigureAwait(false);
+            lastSequence = result.Sequence;
+            batchCount++;
         }
-        return new SndbGraphImportReport(vertexCount, edgeCount, batchCount, lastSequence);
+
+        return new ImportBatchResult(itemCount, batchCount, lastSequence, batchIndex);
+    }
+
+    private static long MeasureBatchBytes(
+        int emptyRequestBytes,
+        long batchItemBytes,
+        int batchCount,
+        int nextItemBytes)
+        => checked(emptyRequestBytes + batchItemBytes + nextItemBytes + (batchCount == 0 ? 0 : batchCount));
+
+    private static int MeasureEmptyRequestBytes(Guid requestId)
+        => JsonSerializer.SerializeToUtf8Bytes(
+            new GraphImportRequest { RequestId = requestId },
+            Remote.RemoteJsonContext.Default.GraphImportRequest).Length;
+
+    private static void WriteSpoolLine(
+        StreamWriter writer,
+        string line,
+        int emptyRequestBytes,
+        int maximumBatchBytes)
+    {
+        long batchBytes = checked(emptyRequestBytes + Encoding.UTF8.GetByteCount(line));
+        if (batchBytes > maximumBatchBytes)
+            throw new GraphImportLimitExceededException("batch", batchBytes, maximumBatchBytes);
+        writer.WriteLine(line);
     }
 
     private static Guid BatchRequestId(Guid root, int batch)
@@ -691,7 +793,7 @@ public static class SndbGraphImporter
     }
 
     private static async Task ReadCsvLinesAsync<T>(
-        StreamReader reader,
+        BoundedUtf8LineReader reader,
         int expectedFields,
         Func<string[], T> parse,
         Func<T, ValueTask> consume,
@@ -710,6 +812,121 @@ public static class SndbGraphImporter
             }
             first = false;
             await consume(parse(SplitCsv(line, expectedFields))).ConfigureAwait(false);
+        }
+    }
+
+    private readonly record struct ImportBatchResult(
+        int ItemCount,
+        int BatchCount,
+        long LastSequence,
+        int NextBatchIndex);
+
+    private sealed class BoundedUtf8LineReader : IAsyncDisposable
+    {
+        private static readonly UTF8Encoding StrictUtf8 = new(false, true);
+        private readonly Stream _source;
+        private readonly int _maximumLineBytes;
+        private readonly string _limitName;
+        private byte[]? _readBuffer = System.Buffers.ArrayPool<byte>.Shared.Rent(16 * 1024);
+        private byte[]? _lineBuffer = System.Buffers.ArrayPool<byte>.Shared.Rent(16 * 1024);
+        private int _readOffset;
+        private int _readCount;
+        private int _lineLength;
+        private bool _completed;
+        private bool _firstLine = true;
+
+        internal BoundedUtf8LineReader(Stream source, int maximumLineBytes, string limitName)
+        {
+            _source = source;
+            _maximumLineBytes = maximumLineBytes;
+            _limitName = limitName;
+        }
+
+        internal async ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken)
+        {
+            ObjectDisposedException.ThrowIf(_readBuffer is null, this);
+            while (true)
+            {
+                if (_readOffset < _readCount)
+                {
+                    ReadOnlySpan<byte> remaining = _readBuffer.AsSpan(_readOffset, _readCount - _readOffset);
+                    int newline = remaining.IndexOf((byte)'\n');
+                    int count = newline < 0 ? remaining.Length : newline;
+                    Append(remaining[..count]);
+                    _readOffset += count + (newline < 0 ? 0 : 1);
+                    if (newline >= 0)
+                        return DecodeLine();
+                }
+
+                if (_completed)
+                    return _lineLength == 0 ? null : DecodeLine();
+
+                _readOffset = 0;
+                _readCount = await _source.ReadAsync(_readBuffer, cancellationToken).ConfigureAwait(false);
+                _completed = _readCount == 0;
+            }
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            if (_readBuffer is { } readBuffer)
+                System.Buffers.ArrayPool<byte>.Shared.Return(readBuffer);
+            if (_lineBuffer is { } lineBuffer)
+                System.Buffers.ArrayPool<byte>.Shared.Return(lineBuffer);
+            _readBuffer = null;
+            _lineBuffer = null;
+            return ValueTask.CompletedTask;
+        }
+
+        private void Append(ReadOnlySpan<byte> value)
+        {
+            int required = checked(_lineLength + value.Length);
+            if (required > _maximumLineBytes)
+            {
+                throw new GraphImportLimitExceededException(
+                    _limitName,
+                    required,
+                    _maximumLineBytes);
+            }
+            byte[] lineBuffer = _lineBuffer
+                ?? throw new ObjectDisposedException(nameof(BoundedUtf8LineReader));
+            if (required > lineBuffer.Length)
+            {
+                int nextLength = Math.Min(
+                    _maximumLineBytes,
+                    Math.Max(required, checked(lineBuffer.Length * 2)));
+                byte[] replacement = System.Buffers.ArrayPool<byte>.Shared.Rent(nextLength);
+                lineBuffer.AsSpan(0, _lineLength).CopyTo(replacement);
+                System.Buffers.ArrayPool<byte>.Shared.Return(lineBuffer);
+                _lineBuffer = lineBuffer = replacement;
+            }
+            value.CopyTo(lineBuffer.AsSpan(_lineLength));
+            _lineLength = required;
+        }
+
+        private string DecodeLine()
+        {
+            byte[] lineBuffer = _lineBuffer
+                ?? throw new ObjectDisposedException(nameof(BoundedUtf8LineReader));
+            ReadOnlySpan<byte> value = lineBuffer.AsSpan(0, _lineLength);
+            if (value.Length > 0 && value[^1] == (byte)'\r')
+                value = value[..^1];
+            if (_firstLine
+                && value.Length >= 3
+                && value[0] == 0xEF
+                && value[1] == 0xBB
+                && value[2] == 0xBF)
+                value = value[3..];
+            _firstLine = false;
+            _lineLength = 0;
+            try
+            {
+                return StrictUtf8.GetString(value);
+            }
+            catch (DecoderFallbackException exception)
+            {
+                throw new InvalidDataException("Graph import 文本必须是有效 UTF-8。", exception);
+            }
         }
     }
 

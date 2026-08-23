@@ -97,6 +97,7 @@ internal sealed class GraphTraversalCursorSource : IGraphCursorSource<GraphPath>
                     currentPath.Vertices[^1],
                     _direction,
                     _edgeLabelId,
+                    null,
                     new GraphCursorOptions
                     {
                         PageSize = _options.PageSize,

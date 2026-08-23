@@ -277,11 +277,7 @@ internal static partial class SonnetDbEndpoints
             if (store is null)
                 return;
             using GraphReadSession read = store.BeginRead();
-            using GraphCursor<GraphExpansion> cursor = read.Expand(
-                new GraphElementId(request.VertexId),
-                request.Direction,
-                request.EdgeLabelId is { } label ? new LabelId(label) : null,
-                new GraphCursorOptions { PageSize = request.PageSize, MaxResults = request.MaxResults });
+            using GraphCursor<GraphExpansion> cursor = OpenExpandCursor(read, request);
             var items = new List<GraphExpansionDto>();
             while (true)
             {
@@ -307,11 +303,7 @@ internal static partial class SonnetDbEndpoints
             if (store is null)
                 return;
             using GraphReadSession read = store.BeginRead();
-            using GraphCursor<GraphExpansion> cursor = read.Expand(
-                new GraphElementId(request.VertexId),
-                request.Direction,
-                request.EdgeLabelId is { } label ? new LabelId(label) : null,
-                new GraphCursorOptions { PageSize = request.PageSize, MaxResults = request.MaxResults });
+            using GraphCursor<GraphExpansion> cursor = OpenExpandCursor(read, request);
             ctx.Response.ContentType = "application/x-ndjson; charset=utf-8";
             while (true)
             {
@@ -589,18 +581,56 @@ internal static partial class SonnetDbEndpoints
         {
             if (!await RequireGraphAccess(ctx, registry, grants, db, DatabasePermission.Write).ConfigureAwait(false))
                 return;
-            GraphImportRequest? request = await ReadJsonAsync(ctx, ServerJsonContext.Default.GraphImportRequest).ConfigureAwait(false);
+            if (ctx.Request.ContentLength is > GraphImportLimits.MaxBatchBytes)
+            {
+                await WriteSimpleErrorAsync(
+                    ctx,
+                    StatusCodes.Status413PayloadTooLarge,
+                    "graph_import_budget_exceeded",
+                    $"Graph import batch 超过 {GraphImportLimits.MaxBatchBytes} 字节上限。").ConfigureAwait(false);
+                return;
+            }
+            GraphImportRequest? request;
+            try
+            {
+                request = await ReadGraphImportRequestAsync(ctx).ConfigureAwait(false);
+            }
+            catch (GraphImportLimitExceededException exception)
+            {
+                await WriteSimpleErrorAsync(
+                    ctx,
+                    StatusCodes.Status413PayloadTooLarge,
+                    "graph_import_budget_exceeded",
+                    exception.Message).ConfigureAwait(false);
+                return;
+            }
             if (request is null || request.RequestId == Guid.Empty)
             {
                 await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "导入 requestId 必须有效。").ConfigureAwait(false);
                 return;
             }
+            int requestBytes = JsonSerializer.SerializeToUtf8Bytes(
+                request,
+                ServerJsonContext.Default.GraphImportRequest).Length;
+            if (requestBytes > GraphImportLimits.MaxBatchBytes)
+            {
+                await WriteSimpleErrorAsync(
+                    ctx,
+                    StatusCodes.Status413PayloadTooLarge,
+                    "graph_import_budget_exceeded",
+                    $"Graph import batch 为 {requestBytes} 字节，超过上限 {GraphImportLimits.MaxBatchBytes} 字节。").ConfigureAwait(false);
+                return;
+            }
             GraphImportVertexDto[] vertices = (request.Vertices ?? []).Concat(request.Nodes ?? []).ToArray();
             GraphImportEdgeDto[] edges = (request.Edges ?? []).Concat(request.Relationships ?? []).ToArray();
             long importCount = (long)vertices.Length + edges.Length;
-            if (importCount == 0 || importCount > 10_000)
+            if (importCount == 0 || importCount > GraphImportLimits.MaxBatchElements)
             {
-                await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", "导入批次必须包含 1 到 10,000 个元素。").ConfigureAwait(false);
+                await WriteSimpleErrorAsync(
+                    ctx,
+                    StatusCodes.Status400BadRequest,
+                    "bad_request",
+                    $"导入批次必须包含 1 到 {GraphImportLimits.MaxBatchElements} 个元素。").ConfigureAwait(false);
                 return;
             }
             if (vertices.Any(static vertex => vertex is null)
@@ -665,6 +695,44 @@ internal static partial class SonnetDbEndpoints
         app.MapGraphOperationsEndpoints();
     }
 
+    private static async Task<GraphImportRequest?> ReadGraphImportRequestAsync(HttpContext ctx)
+    {
+        if (ctx.Request.ContentLength == 0)
+            return null;
+        using var limited = new GraphImportLimitedReadStream(
+            ctx.Request.Body,
+            GraphImportLimits.MaxBatchBytes);
+        try
+        {
+            return await JsonSerializer.DeserializeAsync(
+                limited,
+                ServerJsonContext.Default.GraphImportRequest,
+                ctx.RequestAborted).ConfigureAwait(false);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static GraphCursor<GraphExpansion> OpenExpandCursor(
+        GraphReadSession read,
+        GraphExpandRequest request)
+    {
+        LabelId? edgeLabelId = request.EdgeLabelId is { } edgeLabel
+            ? new LabelId(edgeLabel)
+            : null;
+        var options = new GraphCursorOptions
+        {
+            PageSize = request.PageSize,
+            MaxResults = request.MaxResults,
+        };
+        GraphVertexPredicate? targetPredicate = ToTargetPredicate(request);
+        return targetPredicate is null
+            ? read.Expand(new GraphElementId(request.VertexId), request.Direction, edgeLabelId, options)
+            : read.Expand(new GraphElementId(request.VertexId), targetPredicate, request.Direction, edgeLabelId, options);
+    }
+
     private static async Task<GraphStore?> TryOpenGraphAsync(
         HttpContext ctx,
         TsdbRegistry registry,
@@ -706,6 +774,9 @@ internal static partial class SonnetDbEndpoints
         }
         if (request.VertexId <= 0
             || request.EdgeLabelId is <= 0
+            || request.TargetLabelId is <= 0
+            || request.TargetPropertyId is <= 0
+            || (request.TargetPropertyId is null) != (request.TargetPropertyValue is null)
             || !Enum.IsDefined(request.Direction)
             || request.PageSize is <= 0 or > 1_000
             || request.MaxResults is <= 0 or > 10_000)
@@ -713,8 +784,27 @@ internal static partial class SonnetDbEndpoints
             validationError = "vertexId、direction、edgeLabelId 或读取预算无效。";
             return false;
         }
+        try
+        {
+            _ = ToTargetPredicate(request);
+        }
+        catch (Exception exception) when (exception is ArgumentException or FormatException or JsonException)
+        {
+            validationError = "target label/property/value 无效。";
+            return false;
+        }
         validationError = string.Empty;
         return true;
+    }
+
+    private static GraphVertexPredicate? ToTargetPredicate(GraphExpandRequest request)
+    {
+        if (request.TargetLabelId is null && request.TargetPropertyId is null)
+            return null;
+        return new GraphVertexPredicate(
+            request.TargetLabelId is { } labelId ? new LabelId(labelId) : null,
+            request.TargetPropertyId,
+            request.TargetPropertyValue is null ? null : ToValue(request.TargetPropertyValue));
     }
 
     private static bool TryValidateSeekRequest(
@@ -922,5 +1012,74 @@ internal static partial class SonnetDbEndpoints
             GraphPropertyKind.Json when value.Json is not null => GraphPropertyValue.FromJson(value.Json),
             _ => throw new ArgumentException("graph property value 与 kind 不匹配。", nameof(value)),
         };
+    }
+
+    private sealed class GraphImportLimitedReadStream(Stream inner, int maximumBytes) : Stream
+    {
+        private long _readBytes;
+
+        public override bool CanRead => inner.CanRead;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position
+        {
+            get => _readBytes;
+            set => throw new NotSupportedException();
+        }
+
+        public override void Flush() { }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            int read = inner.Read(buffer, offset, BoundedCount(count));
+            Record(read);
+            return read;
+        }
+
+        public override async ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            int read = await inner.ReadAsync(
+                buffer[..BoundedCount(buffer.Length)],
+                cancellationToken).ConfigureAwait(false);
+            Record(read);
+            return read;
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            // The request pipeline owns the inner body stream.
+            base.Dispose(disposing);
+        }
+
+        private int BoundedCount(int requested)
+        {
+            long remainingWithProbe = maximumBytes - _readBytes + 1;
+            return checked((int)Math.Min(requested, Math.Max(1, remainingWithProbe)));
+        }
+
+        private void Record(int read)
+        {
+            _readBytes = checked(_readBytes + read);
+            if (_readBytes > maximumBytes)
+            {
+                throw new GraphImportLimitExceededException(
+                    "batch",
+                    _readBytes,
+                    maximumBytes);
+            }
+        }
     }
 }

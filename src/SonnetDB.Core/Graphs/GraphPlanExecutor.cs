@@ -67,7 +67,12 @@ public static class GraphPlanExecutor
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(plan);
-        return session.ExpandCore(plan.AnchorId, plan.Direction, plan.EdgeLabelId, plan.Options);
+        return session.ExpandCore(
+            plan.AnchorId,
+            plan.Direction,
+            plan.EdgeLabelId,
+            plan.TargetPredicate,
+            plan.Options);
     }
 
     /// <summary>执行路径计划。</summary>

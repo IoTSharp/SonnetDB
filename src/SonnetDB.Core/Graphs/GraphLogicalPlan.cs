@@ -42,7 +42,11 @@ public sealed record GraphExpandPlan(
     GraphElementId AnchorId,
     GraphDirection Direction = GraphDirection.Outgoing,
     LabelId? EdgeLabelId = null,
-    GraphCursorOptions? Options = null) : GraphLogicalPlan;
+    GraphCursorOptions? Options = null) : GraphLogicalPlan
+{
+    /// <summary>可选的目标顶点 label/property 精确匹配谓词。</summary>
+    public GraphVertexPredicate? TargetPredicate { get; init; }
+}
 
 /// <summary>路径计划的搜索顺序。</summary>
 public enum GraphPathSearchMode : byte

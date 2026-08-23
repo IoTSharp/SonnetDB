@@ -9,6 +9,7 @@ internal sealed class GraphExpansionCursorSource : IGraphCursorSource<GraphExpan
     private readonly GraphElementId _anchorId;
     private readonly GraphDirection _direction;
     private readonly LabelId? _labelId;
+    private readonly GraphVertexPredicate? _targetPredicate;
     private readonly GraphCursorOptions _options;
     private KvRangeCursor? _cursor;
     private IReadOnlyList<KvEntry>? _pendingEntries;
@@ -22,6 +23,7 @@ internal sealed class GraphExpansionCursorSource : IGraphCursorSource<GraphExpan
         GraphElementId anchorId,
         GraphDirection direction,
         LabelId? labelId,
+        GraphVertexPredicate? targetPredicate,
         GraphCursorOptions options)
     {
         if (!Enum.IsDefined(direction))
@@ -30,6 +32,7 @@ internal sealed class GraphExpansionCursorSource : IGraphCursorSource<GraphExpan
         _anchorId = anchorId;
         _direction = direction;
         _labelId = labelId;
+        _targetPredicate = targetPredicate;
         _options = options;
         SnapshotSequence = snapshot.Sequence;
         OpenCursor(direction == GraphDirection.Incoming
@@ -99,11 +102,18 @@ internal sealed class GraphExpansionCursorSource : IGraphCursorSource<GraphExpan
             {
                 throw new InvalidDataException("Graph adjacency projection 与 edge record 不一致。");
             }
+            GraphElementId neighborId = _currentDirection == GraphDirection.Outgoing
+                ? key.TargetId
+                : key.SourceId;
+            if (_targetPredicate is not null
+                && !_targetPredicate.Matches(GraphReadSession.ReadVertex(_snapshot, neighborId)))
+            {
+                continue;
+            }
+
             result.Add(new GraphExpansion(
                 _anchorId,
-                _currentDirection == GraphDirection.Outgoing
-                    ? key.TargetId
-                    : key.SourceId,
+                neighborId,
                 _currentDirection,
                 edge));
         }

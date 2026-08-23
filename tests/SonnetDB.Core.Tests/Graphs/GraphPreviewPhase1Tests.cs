@@ -128,6 +128,68 @@ public sealed class GraphPreviewPhase1Tests : IDisposable
             new LabelId(1),
             1,
             (GraphPropertyKind)99));
+        Assert.Throws<ArgumentException>(() => new GraphVertexPredicate());
+        Assert.Throws<ArgumentException>(() => new GraphVertexPredicate(propertyId: 7));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new GraphVertexPredicate(labelId: default(LabelId)));
+    }
+
+    [Fact]
+    public void Expand_WithTargetLabelAndProperty_OnSupernodeRemainsPagedAndBounded()
+    {
+        GraphStore store = _manager.Create("filtered-supernode");
+        GraphTransaction transaction = store.BeginTransaction(Guid.NewGuid());
+        transaction.UpsertVertex(new GraphElementId(1), 0, [new LabelId(1)], []);
+        for (long id = 2; id <= 1_001; id++)
+        {
+            bool matches = id % 100 == 0;
+            transaction.UpsertVertex(
+                new GraphElementId(id),
+                0,
+                [new LabelId(matches ? 20 : 10)],
+                [new GraphProperty(7, GraphPropertyValue.FromString(matches ? "match" : "skip"))]);
+            transaction.UpsertEdge(
+                new GraphElementId(10_000 + id),
+                0,
+                new GraphElementId(1),
+                new GraphElementId(id),
+                new LabelId(30),
+                []);
+        }
+        transaction.Commit();
+
+        using GraphReadSession read = store.BeginRead();
+        using GraphCursor<GraphExpansion> cursor = read.Expand(
+            new GraphElementId(1),
+            new GraphVertexPredicate(
+                new LabelId(20),
+                7,
+                GraphPropertyValue.FromString("match")),
+            GraphDirection.Outgoing,
+            new LabelId(30),
+            new GraphCursorOptions
+            {
+                PageSize = 3,
+                MaxPageBytes = 4 * 1024,
+                MaxResults = 10,
+            });
+
+        long allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        var pages = new List<int>();
+        var neighborIds = new List<long>();
+        while (true)
+        {
+            IReadOnlyList<GraphExpansion> page = cursor.ReadNextPage();
+            if (page.Count == 0)
+                break;
+            pages.Add(page.Count);
+            neighborIds.AddRange(page.Select(static item => item.NeighborId.Value));
+        }
+        long allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+
+        Assert.Equal([3, 3, 3, 1], pages);
+        Assert.Equal(Enumerable.Range(1, 10).Select(static value => (long)value * 100), neighborIds);
+        Assert.True(allocatedBytes < 32L * 1024 * 1024, $"filtered expand allocated {allocatedBytes} bytes");
+        Assert.True(cursor.IsExhausted);
     }
 
     [Fact]
@@ -676,6 +738,62 @@ public sealed class GraphPreviewPhase1Tests : IDisposable
             await reopened.GetVertexAsync("code", new GraphElementId(1)));
         Assert.Equal([new LabelId(1), new LabelId(2)], vertex.Labels);
         Assert.NotNull(await reopened.GetEdgeAsync("code", new GraphElementId(10)));
+    }
+
+    [Fact]
+    public async Task CsvImporter_WithByteBudget_SplitsBatchesBeforeElementCountLimit()
+    {
+        string clientRoot = Path.Combine(_root, "csv-byte-batches");
+        using var client = new SndbGraphClient($"Data Source={clientRoot}");
+        await client.CreateGraphAsync("code");
+        string rows = "id,labels\n" + string.Join('\n', Enumerable.Range(1, 12).Select(static id => $"{id},1")) + "\n";
+        await using var vertices = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(rows));
+        await using var edges = new MemoryStream();
+
+        SndbGraphImportReport report = await SndbGraphImporter.ImportCsvAsync(
+            client,
+            "code",
+            vertices,
+            edges,
+            new SndbGraphImportOptions
+            {
+                RequestId = Guid.Parse("35100000-0000-0000-0000-000000000004"),
+                BatchSize = 100,
+                MaxBatchBytes = 512,
+                MaxCsvLineBytes = 128,
+            });
+
+        Assert.Equal(12, report.VertexCount);
+        Assert.True(report.BatchCount > 1);
+        Assert.NotNull(await client.GetVertexAsync("code", new GraphElementId(12)));
+    }
+
+    [Fact]
+    public async Task CsvImporter_WithOversizeLaterLine_RejectsBeforePublishingAnyBatch()
+    {
+        string clientRoot = Path.Combine(_root, "csv-line-limit");
+        using var client = new SndbGraphClient($"Data Source={clientRoot}");
+        await client.CreateGraphAsync("code");
+        string rows = "id,labels\n1,1\n2," + new string('9', 40) + "\n";
+        await using var vertices = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(rows));
+        await using var edges = new MemoryStream();
+
+        GraphImportLimitExceededException error = await Assert.ThrowsAsync<GraphImportLimitExceededException>(
+            () => SndbGraphImporter.ImportCsvAsync(
+                client,
+                "code",
+                vertices,
+                edges,
+                new SndbGraphImportOptions
+                {
+                    RequestId = Guid.Parse("35100000-0000-0000-0000-000000000005"),
+                    MaxBatchBytes = 512,
+                    MaxCsvLineBytes = 32,
+                }));
+
+        Assert.Equal("csv_line", error.LimitName);
+        Assert.Equal(32, error.MaximumBytes);
+        Assert.Null(await client.GetVertexAsync("code", new GraphElementId(1)));
     }
 
     [Fact]
