@@ -18,6 +18,8 @@ using SonnetDB.Benchmarks.Benchmarks;
 //   dotnet run -c Release -- --m39-trigger-baseline-smoke （#333 触发器基线证据）
 //   dotnet run -c Release -- --m39-trigger-evidence --output artifacts/m39-trigger-v2 （#333 JSON/Markdown 报告）
 //   dotnet run -c Release -- --m40-graph-evidence --quick （M40 Native Graph Preview 本地 evidence）
+//   dotnet run -c Release -- --m40-weighted-path-evidence --quick （#362 加权路径收益矩阵）
+//   dotnet run -c Release -- --filter *GraphWeightedPath* （#362 Dijkstra/A*/双向 Dijkstra 基准）
 //   dotnet run -c Release -- --m41-baseline-evidence --quick （#368 性能合同与可观测性基线）
 //   dotnet run -c Release -- --filter *M41P0AccessPath* （#369～#371 P0 快速路径对拍）
 //   dotnet run -c Release -- --filter *M41RelationInputPushdown* （#372 关系输入下推对拍）
@@ -63,6 +65,19 @@ if (args.Contains("--m40-graph-evidence", StringComparer.OrdinalIgnoreCase))
         $"m40-graph-local-smoke={report.Correctness} output={outputDirectory} "
         + $"correctness-recovery={report.CorrectnessRecovery} performance-capacity={report.PerformanceCapacity} "
         + $"release-decision={report.ReleaseDecision} fixed-hardware={report.FixedHardware} neo4j={report.Neo4jComparison}");
+    return;
+}
+
+if (args.Contains("--m40-weighted-path-evidence", StringComparer.OrdinalIgnoreCase))
+{
+    string outputDirectory = ReadOutputDirectory(args, Path.Combine("artifacts", "m40-graph-weighted-path"));
+    GraphWeightedPathEvidenceReport report = GraphWeightedPathEvidenceRunner.Run(
+        outputDirectory,
+        args.Contains("--quick", StringComparer.OrdinalIgnoreCase));
+    Console.WriteLine(
+        $"m40-weighted-path-local={report.LocalCorrectness} output={outputDirectory} "
+        + $"algorithm-benefit={report.AlgorithmBenefit} fixed-hardware={report.FixedHardware} "
+        + $"production-gate={report.ProductionGate}");
     return;
 }
 

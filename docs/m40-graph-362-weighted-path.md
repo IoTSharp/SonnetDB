@@ -2,8 +2,9 @@
 
 ## 状态
 
-- `🚧` 首批功能切片已实现：Core、HTTP 和 typed SDK correctness smoke 已通过。
-- `📋` 真实 journey、Dijkstra/A*/双向收益 benchmark、固定目标硬件和 #367 发布门禁尚未完成。
+- `✅` 功能与本地收益证据已闭环：Core、HTTP、typed SDK correctness smoke 和 topology journey 三算法收益矩阵均已通过。
+- `✅` quick smoke 三算法 correctness `PASS`，A* 与双向 Dijkstra 的 expanded-edge/P95 局部准入 `PASS`；固定目标硬件与生产发布证据继续归 #367。
+- `📋` Couplet 代码知识真实语料、1m/10m 固定规模、固定目标硬件 P50/P95/P99、退化矩阵、7 天 mixed workload 和 #367 发布门禁尚未完成。
 - 本合同不改变产品定位；在 #367 通过前仍不得宣称生产可用的九模型数据库。
 
 ## 公共入口
@@ -53,4 +54,18 @@
 - 固定随机有向图上 Dijkstra/双向 Dijkstra 与最大 4 hop 穷举 oracle 对拍。
 - 远程 typed SDK 经真实 HTTP endpoint round-trip，并保留 snapshot sequence 和诊断字段。
 
-尚未取得的证据必须保持 `NOT_RUN`：真实 Couplet/设备拓扑 journey、算法收益与退化矩阵、固定硬件 P50/P95/P99、峰值内存、7 天 mixed workload 和 #367 发布决定。
+### 本地 topology 收益矩阵（2026-08-22）
+
+运行入口：`dotnet run --project tests/SonnetDB.Benchmarks/SonnetDB.Benchmarks.csproj -c Release -- --m40-weighted-path-evidence --quick`。
+
+该 runner 使用固定 seed `0x534F4E4E45544442` 的 `gj-topology-weighted-route-v1` 缩小拓扑（256 vertex、960 directed edge、16x16 网格），在同一 statement snapshot 上完成 5 次正式样本；输入摘要、机器信息、path digest、分配、working set、P50/P95/P99、expanded vertices/edges 和实际 `native_adjacency` path 写入 source-generated JSON/Markdown。quick 结果如下：
+
+| 算法 | 正确性 | expanded edges | 相对 Dijkstra | P95 | P95 ratio | 局部准入 |
+|---|---|---:|---:|---:|---:|---|
+| Dijkstra | PASS | 704 | baseline | 4.437 ms | 1.000x | BASELINE |
+| A*（Manhattan） | PASS | 59 | -91.6% | 2.065 ms | 0.465x | PASS |
+| Bidirectional Dijkstra | PASS | 423 | -39.9% | 3.262 ms | 0.735x | PASS |
+
+A* 样本的启发式由嵌入式调用方提供，满足非负、可采纳和一致约束；远程零启发式 A* 不从该样本外推收益。该矩阵只证明当前缩小 topology 上的局部算法准入，不改变发布边界。
+
+尚未取得的证据必须保持 `NOT_RUN`：Couplet 代码知识真实语料、#341 gate 档 1m vertex/10m edge、固定目标硬件 P50/P95/P99 与峰值内存、退化/负向 workload、7 天 mixed workload 和 #367 发布决定。

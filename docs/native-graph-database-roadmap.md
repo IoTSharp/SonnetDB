@@ -268,14 +268,14 @@ GraphDistinct / GraphLimit
 
 ✅ Phase 2 功能切片完成后具备原生存储、事务、遍历、SQL/PGQ 和跨模型组合；📋 长期并发、维护和容量证据仍未收口，外部 Beta 发布 gate 尚未通过。
 
-### Phase 3：生产级单机图数据库（✅ #360/#361；🚧 #362；📋 #363~#367）
+### Phase 3：生产级单机图数据库（✅ #360~#363；📋 #364~#367）
 
 | 编号 | 交付 | 验收门禁 |
 |---|---|---|
 | ✅ #360 | statement snapshot、长遍历读一致性、并发写冲突矩阵；按证据决定是否扩展 snapshot isolation。 | 遍历期间并发 mutation 的可见性确定；无死锁/锁饥饿；不做无证据 MVCC 重构。 |
 | ✅ #361 | supernode 治理、邻接分页/压缩、索引 repair、统计维护、checkpoint/compaction 热点治理。 | 高度数节点内存有界；维护可暂停/续作；故障后不丢唯一修复来源。 |
-| 🚧 #362 | weighted shortest path（Dijkstra）、可选 A*、bidirectional search 和批量图算法执行框架。 | 只有真实 journey 和 benchmark 证明收益的算法进入 Core；权重负值、溢出、取消合同明确。 |
-| 📋 #363 | 首批离线算法：connected components、PageRank、degree/community 基础结果，输出到 graph/table 而非常驻第二份状态。 | 算法可 checkpoint/cancel，结果版本可追溯；大图内存预算与 spill 策略明确。 |
+| ✅ #362 | weighted shortest path（Dijkstra）、可选 A*、bidirectional search 和批量图算法执行框架。 | 只有真实 journey 和 benchmark 证明收益的算法进入 Core；权重负值、溢出、取消合同明确。 |
+| ✅ #363 | 首批离线算法：connected components、PageRank、degree/community 基础结果，输出到 graph/table 而非常驻第二份状态。 | 算法可 checkpoint/cancel，结果版本可追溯；大图内存预算与 spill 策略明确。 |
 | 📋 #364 | 可选 GQL 风格直接查询入口，只复用 Graph AST/Plan，不承诺完整 Cypher。 | 与等价 SQL/PGQ 计划和结果对拍；无新增执行器；语法能力矩阵公开。 |
 | 📋 #365 | 知识图谱/GraphRAG 上层合同：provenance、confidence、source/chunk、valid time、alias/claim、community/summary 引用。 | Core 只存通用属性图；抽取/消歧/LLM job 在 Server/SDK；Document/Object/Vector 仍是权威内容存储。 |
 | 📋 #366 | 运维产品面：schema/index/degree/slow traversal、可视化、受限编辑、import/export、repair/rebuild 和权限审计。 | Web/Studio/CLI/SDK 能力矩阵一致；危险 mutation 使用现有 staged approval。 |
@@ -293,13 +293,21 @@ Graph V1 adjacency 继续保持每条边一个紧凑 key 和空 value；supernod
 
 ✅ 功能和恢复回归见 [#361 contract](m40-graph-361-maintenance.md)；📋 这些证据不替代 #352/#367 固定硬件、7 天 mixed workload 或外部数据库对拍门禁。
 
-### #362 当前功能切片（🚧 首批实现完成，收益证据待补）
+### #362 当前功能切片（✅ 功能与本地收益证据已闭环）
 
 `GraphReadSession` 现在提供 `WeightedShortestPath`、`Dijkstra`、`AStar`、`BidirectionalDijkstra` 和 `ShortestPathWeighted` 入口。权重可以来自边的 `Int64`/`Float64` 属性或嵌入式调用方 selector；结果包含总权重、实际算法、路径和扩展计数。Dijkstra、显式可选的 A*（非负启发式）与双向 Dijkstra 共享同一 statement snapshot 和有界邻接 cursor，不复制 GraphStore 或建立第二套执行器。
 
 `GraphAlgorithmExecutor.ExecuteShortestPaths`/`RunShortestPaths` 在同一 snapshot 上按输入顺序执行批量加权路径查询。负权、缺失/错误类型、NaN/Infinity、累加溢出、最大深度、frontier、访问顶点数、扩展边数和取消都在实际工作前或工作中稳定拒绝/停止。HTTP/typed SDK 新增 source-generated `/weighted-shortest-path` 合同，嵌入式与远程响应携带相同路径与诊断字段。
 
-✅ Core/HTTP correctness smoke 已覆盖总权重选路、A*/双向结果对拍、入向路径、深度状态、错误权重、溢出、取消、批量顺序，以及随机有向图与有界穷举 oracle 对拍；📋 #362 的真实 journey、算法收益 benchmark、固定目标硬件和 #367 发布证据仍后置，因此 #362 保持 `🚧`，不据此宣称 Production。详细合同见 [#362 weighted path contract](m40-graph-362-weighted-path.md)。
+✅ Core/HTTP correctness smoke 已覆盖总权重选路、A*/双向结果对拍、入向路径、深度状态、错误权重、溢出、取消、批量顺序，以及随机有向图与有界穷举 oracle 对拍。✅ 新增 `--m40-weighted-path-evidence` topology journey runner 和 BenchmarkDotNet 三算法基准；固定 seed 的 quick topology 上 A* expanded edges -91.6%、双向 Dijkstra -39.9%，P95 分别为 Dijkstra 的 0.465x/0.735x，三者均命中 `native_adjacency`。#362 的功能与本地算法准入证据据此闭环。📋 Couplet/1m-10m 真实语料、退化矩阵、固定目标硬件和发布决定仍统一归 #367，不据此宣称 Production。详细合同见 [#362 weighted path contract](m40-graph-362-weighted-path.md)。
+
+### #363 当前功能切片（✅ 已完成）
+
+`GraphStore.RunOfflineAlgorithms` 在一个固定 statement snapshot 上采集 vertex/edge，并共用可恢复 sidecar 与 spill workspace 计算 directed degree、精确 weakly connected components、PageRank 和确定性 label-propagation community。采集按页、PageRank/community 按完整迭代、Graph/Table 输出按批次 durable checkpoint；取消保留上一个边界，采集续作若 sequence 漂移则明确拒绝。
+
+状态 vector 超过分配预算后切换固定 little-endian file-backed 访问；community vote 按预算生成排序 run 并最多 32 路多轮 merge。结果可写入带 `(operation_id, vertex_id)` 主键的标准 Table，或通过幂等 Graph transaction 写入显式 vertex property mapping；两者都携带 `operationId@sourceSequence` 版本。完成后删除输入和算法 spill，只保留 CRC manifest，不常驻第二份图状态。
+
+✅ correctness/resume/reopen/source-drift/Graph+Table output 与真实 file-backed spill 已覆盖自动回归。📋 Graphalytics/LDBC、1m/10m、固定目标硬件、7 天 mixed workload 和 Couplet C4 联合门禁仍归 #367。详细边界见 [#363 offline algorithms contract](m40-graph-363-offline-algorithms.md)。
 
 📋 Phase 3 完成后，SonnetDB 才能对外称为**生产可用的单机原生属性图数据库**。这不包含分布式图数据库、完整 Cypher/GQL 或 RDF 推理能力。
 

@@ -27,6 +27,7 @@ public sealed class GraphStore : IDisposable
 
     private readonly object _sync = new();
     private readonly object _maintenanceGate = new();
+    private readonly object _offlineAlgorithmGate = new();
     private readonly object _commitGate;
     private readonly KvKeyspace _keyspace;
     private bool _disposed;
@@ -72,6 +73,9 @@ public sealed class GraphStore : IDisposable
 
     /// <summary>可恢复维护 sidecar 的完整路径。</summary>
     internal string MaintenanceManifestPath => Path.Combine(RootDirectory, GraphMaintenanceManifestCodec.FileName);
+
+    /// <summary>离线算法 durable workspace 根目录。</summary>
+    internal string OfflineAlgorithmRootDirectory => Path.Combine(RootDirectory, "algorithms");
 
     /// <summary>
     /// 创建新的图存储 marker 并打开底层 KV keyspace。
@@ -265,6 +269,26 @@ public sealed class GraphStore : IDisposable
         options = options with { UniqueIndexes = options.UniqueIndexes.ToArray() };
         lock (_maintenanceGate)
             return RunMaintenanceCore(options, cancellationToken);
+    }
+
+    /// <summary>
+    /// 在固定 statement snapshot 上执行 degree、弱连通分量、PageRank 和确定性 community，
+    /// 并把结果发布到 Graph properties 或标准关系结果表。
+    /// </summary>
+    /// <param name="request">稳定 operation ID 与输出目标。</param>
+    /// <param name="options">分页、内存、迭代和单次续作预算。</param>
+    /// <param name="cancellationToken">取消令牌；最近完成的 work unit 保持 durable。</param>
+    /// <returns>当前阶段、输入版本、收敛状态和发布进度。</returns>
+    public GraphOfflineAlgorithmResult RunOfflineAlgorithms(
+        GraphOfflineAlgorithmRequest request,
+        GraphOfflineAlgorithmOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        options ??= new GraphOfflineAlgorithmOptions();
+        options.Validate();
+        lock (_offlineAlgorithmGate)
+            return GraphOfflineAlgorithmRunner.Run(this, request, options, cancellationToken);
     }
 
     /// <summary>为当前 Graph 创建完整 KV checkpoint，并回收已覆盖的 WAL。</summary>
