@@ -19,6 +19,8 @@ using SonnetDB.Benchmarks.Benchmarks;
 //   dotnet run -c Release -- --m39-trigger-evidence --output artifacts/m39-trigger-v2 （#333 JSON/Markdown 报告）
 //   dotnet run -c Release -- --m40-graph-evidence --quick （M40 Native Graph Preview 本地 evidence）
 //   dotnet run -c Release -- --m40-weighted-path-evidence --quick （#362 加权路径收益矩阵）
+//   dotnet run -c Release -- --m40-production-gate --quick （#367 门禁管线 smoke）
+//   dotnet run -c Release -- --m40-production-gate --manifest <path> （#367 完整 evidence 判定）
 //   dotnet run -c Release -- --filter *GraphWeightedPath* （#362 Dijkstra/A*/双向 Dijkstra 基准）
 //   dotnet run -c Release -- --m41-baseline-evidence --quick （#368 性能合同与可观测性基线）
 //   dotnet run -c Release -- --filter *M41P0AccessPath* （#369～#371 P0 快速路径对拍）
@@ -78,6 +80,35 @@ if (args.Contains("--m40-weighted-path-evidence", StringComparer.OrdinalIgnoreCa
         $"m40-weighted-path-local={report.LocalCorrectness} output={outputDirectory} "
         + $"algorithm-benefit={report.AlgorithmBenefit} fixed-hardware={report.FixedHardware} "
         + $"production-gate={report.ProductionGate}");
+    return;
+}
+
+if (args.Contains("--m40-production-gate", StringComparer.OrdinalIgnoreCase))
+{
+    string outputDirectory = ReadOutputDirectory(args, Path.Combine("artifacts", "m40-graph-production-gate"));
+    bool quick = args.Contains("--quick", StringComparer.OrdinalIgnoreCase);
+    bool manifestRequested = args.Contains("--manifest", StringComparer.OrdinalIgnoreCase);
+    string? manifestPath = ReadOption(args, "--manifest");
+    if (quick && manifestRequested)
+        throw new ArgumentException("--quick 与 --manifest 不能同时使用。");
+    if (manifestRequested
+        && (manifestPath is null || manifestPath.StartsWith("--", StringComparison.Ordinal)))
+        throw new ArgumentException("--manifest 必须提供 M40 #367 evidence 清单路径。");
+    if (!quick && manifestPath is null)
+        throw new ArgumentException("--m40-production-gate 必须显式提供 --quick 或 --manifest <path>。");
+    GraphProductionGateReport report = manifestPath is null
+        ? GraphProductionGateRunner.RunQuick(outputDirectory)
+        : GraphProductionGateRunner.EvaluateManifest(manifestPath, outputDirectory);
+    Console.WriteLine(
+        $"m40-production-local={report.LocalSmoke} output={outputDirectory} "
+        + $"correctness-recovery={report.CorrectnessRecovery} "
+        + $"performance-capacity={report.PerformanceCapacity} "
+        + $"release-decision={report.ReleaseDecision} findings={report.Findings.Count}");
+    if ((manifestPath is null && report.LocalSmoke != GraphProductionEvidenceStatus.Pass)
+        || (manifestPath is not null && report.ReleaseDecision != GraphProductionEvidenceStatus.Pass))
+    {
+        Environment.ExitCode = 1;
+    }
     return;
 }
 
@@ -282,4 +313,19 @@ static string ReadOutputDirectory(string[] args, string defaultDirectory)
     }
 
     return defaultDirectory;
+}
+
+// 读取单值命令行选项；未提供时返回 null。
+static string? ReadOption(string[] args, string option)
+{
+    for (int index = 0; index < args.Length - 1; index++)
+    {
+        if (string.Equals(args[index], option, StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(args[index + 1]))
+        {
+            return args[index + 1];
+        }
+    }
+
+    return null;
 }

@@ -279,7 +279,7 @@ GraphDistinct / GraphLimit
 | ✅ #364 | 可选 GQL 风格直接查询入口，只复用 Graph AST/Plan，不承诺完整 Cypher。 | 与等价 SQL/PGQ 计划和结果对拍；无新增执行器；语法能力矩阵公开。 |
 | ✅ #365 | 知识图谱/GraphRAG 上层合同：provenance、confidence、source/chunk、valid time、alias/claim、community/summary 引用。 | Core 只存通用属性图；抽取/消歧/LLM job 在 Server/SDK；Document/Object/Vector 仍是权威内容存储。 |
 | ✅ #366 | 运维产品面：schema/index/degree/slow traversal、可视化、受限编辑、import/export、repair/rebuild 和权限审计。 | Web/Studio/CLI/SDK 能力矩阵一致；危险 mutation 使用现有 staged approval。 |
-| 📋 #367 | 发布门禁：LDBC SNB 子集、Graphalytics 子集、代码知识/Agent 组合语料、7 天 mixed workload、kill/reopen、backup/restore、Native AOT 和固定硬件容量报告。 | 报告可复现且包含 commit/硬件/数据规模/P50/P95/P99/内存/WAL/恢复/正确性、实际 access path/fallback 和 gap catalog 关闭状态；正确性/恢复 gate 必须全 PASS，性能/容量 gate 必须达到 #341 冻结的生产 SLO，任一失败或存在生产阻塞缺口都不得更改九模型定位。 |
+| 🚧 #367 | 发布门禁：严格 evidence manifest/判定器与 quick 管线已实现；仍需 LDBC SNB 子集、Graphalytics 子集、代码知识/Agent 组合语料、7 天 mixed workload、kill/reopen、backup/restore、Native AOT 和固定硬件容量报告。 | 报告可复现且包含 commit/硬件/数据规模/P50/P95/P99/内存/WAL/恢复/正确性、实际 access path/fallback 和 gap catalog 关闭状态；正确性/恢复 gate 必须全 PASS，性能/容量 gate 必须达到 #341 冻结的生产 SLO，任一失败或存在生产阻塞缺口都不得更改九模型定位。当前双 gate 为 `NOT_RUN`。 |
 
 ✅ #360 已完成：`GraphStore.BeginRead` 明确冻结单一 KV sequence，同一 `GraphReadSession` 上的点读、在并发提交前后创建的游标和分页长遍历都复用该 snapshot；cursor lease 只保留不可变内存视图和 disk generation lease，不持有 Graph commit gate 或 store lock。`EXPLAIN ANALYZE GRAPH_TABLE` 对原生图新增 `read_consistency=statement_snapshot`、`actual_read_consistency` 和 `actual_snapshot_sequence`；关系映射如实返回 `relation_accessor_current` 与 null sequence，其 statement snapshot 仍归 M41 #374，不在本项虚构跨模型 MVCC。
 
@@ -328,6 +328,12 @@ Graph V1 adjacency 继续保持每条边一个紧凑 key 和空 value；supernod
 新增 Server Graph operations overview、有界 statement-snapshot visualization、流式 importer-compatible JSON export，以及 repair/rebuild、checkpoint、compact 的 10 分钟两阶段审批和 durable NDJSON 审计。数据库 `Read` 权限覆盖概览/可视化/导出，既有受限元素编辑与导入保持 `Write`，维护暂存/批准/拒绝/审计要求 `Admin`；维护继续调用 #361 的可恢复 runner、checkpoint 和 compact，不新增存储或权限旁路。
 
 `SndbGraphClient` 在嵌入式和远程模式提供一致的 overview、visualization、export、stage/approve/reject/audit 方法；`sndb graph` 提供 list/overview/visualize/export/import 和 maintenance 子命令，嵌入式审批通过数据库 `.system` 下的持久审计支持跨进程决策。Web/Studio Explorer 可直接打开 Graph Workbench，提供 Canvas、schema/diagnostics、带 element version 的编辑、导入导出和 maintenance/audit 五个任务页。Server/SDK/CLI、权限、持久恢复和桌面/移动端 ECharts 像素回归均已覆盖；公开预算、命令和边界见 [#366 Graph 运维产品面](m40-graph-366-operations.md)。📋 #367 Production gate 仍保持 open/`NOT_RUN`。
+
+### #367 当前证据管线（🚧 runner 已完成；Production gate `NOT_RUN`）
+
+新增 `--m40-production-gate --quick` 本地入口，真实执行 8 reader + 1 writer、native adjacency/path、默认 KV fsync/checkpoint 配置、checkpoint/reopen、完整 invariant 和 `BackupService` verify/restore；同时输出 source-generated JSON/Markdown、原始 quick log 和不可直接通过的 Production manifest 模板。quick 只验证 evidence 管线，不把正常重开冒充真进程 kill，也不把小数据外推为固定硬件容量。
+
+完整入口 `--m40-production-gate --manifest <path>` 对每个 PASS journey/check/closed gap 校验存在的 artifact、SHA-256 和复现命令，并从原始清单计算双 gate，调用方不能手工设置 release decision。判定器冻结 16 个 SOC/TOP/EVD/CPL/PGQ 查询、1,000 warmup、3 x 10,000 正式样本、Production P95/P99、query memory、12 GiB working set、cold open/首查、访问路径、1m/10m 数据、目标硬件、168 小时 8+1 workload、30 分钟 checkpoint、每日 kill/reopen、默认耐久参数和 `M40-GAP-001~012`。任何缺项、摘要不匹配、错误 fallback 或 blocking gap 均失败；没有提交完整 Production 证据时保持 `NOT_RUN`。运行方法和待执行项见 [#367 发布门禁](m40-graph-367-production-gate.md)。
 
 📋 Phase 3 完成后，SonnetDB 才能对外称为**生产可用的单机原生属性图数据库**。这不包含分布式图数据库、完整 Cypher/GQL 或 RDF 推理能力。
 
