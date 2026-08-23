@@ -79,6 +79,88 @@ public sealed class SqlParser
         return statement;
     }
 
+    /// <summary>解析 M40 #364 受限 GQL 风格只读查询。</summary>
+    internal static SqlStatement ParseGql(string source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        var parser = new SqlParser(SqlLexer.Tokenize(source), source);
+        SqlStatement statement = parser.ParseGqlStatement();
+        parser.ConsumeOptionalSemicolon();
+        parser.ExpectEndOfFile();
+        return statement;
+    }
+
+    private SqlStatement ParseGqlStatement()
+    {
+        bool explain = false;
+        bool analyze = false;
+        if (Current.Kind == TokenKind.KeywordExplain)
+        {
+            explain = true;
+            Advance();
+            if (IsIdentifier("analyze"))
+            {
+                analyze = true;
+                Advance();
+            }
+        }
+
+        ExpectIdentifier("use", "GQL 查询必须以 USE GRAPH 开始");
+        ExpectIdentifier("graph", "GQL USE 后面期望 GRAPH");
+        string graphName = ExpectIdentifierName();
+        ExpectIdentifier("match", "GQL graph 名称后面期望 MATCH");
+        ParsedGraphMatch match = ParseGraphMatch();
+        ExpectIdentifier("return", "GQL MATCH 后面期望 RETURN");
+
+        bool distinct = false;
+        if (Current.Kind == TokenKind.KeywordDistinct)
+        {
+            distinct = true;
+            Advance();
+        }
+
+        IReadOnlyList<SelectItem> columns = ParseSelectList();
+        IReadOnlyList<SelectItem> projections = BuildGqlOutputProjections(columns);
+        IReadOnlyList<OrderBySpec> orderByItems = ParseOptionalOrderBy();
+        PaginationSpec? pagination = ParseOptionalPagination();
+        var select = new SelectStatement(
+            projections,
+            "__graph_table__",
+            Where: null,
+            GroupBy: Array.Empty<SqlExpression>(),
+            Pagination: pagination,
+            OrderBy: orderByItems.Count == 0 ? null : orderByItems[0],
+            OrderByItems: orderByItems,
+            Distinct: distinct)
+        {
+            GraphTable = match.ToSource(graphName, columns),
+        };
+        return explain
+            ? new ExplainStatement(select) { Analyze = analyze }
+            : select;
+    }
+
+    private SqlParseException GqlError(string message) => Error("GQL: " + message);
+
+    private IReadOnlyList<SelectItem> BuildGqlOutputProjections(IReadOnlyList<SelectItem> columns)
+    {
+        var projections = new List<SelectItem>(columns.Count);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (SelectItem column in columns)
+        {
+            if (column.Expression is StarExpression)
+                throw GqlError("RETURN 必须显式列出变量属性，不支持 '*'");
+
+            string name = column.Alias
+                ?? (column.Expression as IdentifierExpression)?.Name
+                ?? "expression";
+            if (!seen.Add(name))
+                throw GqlError($"RETURN 输出列 '{name}' 重复，请使用 AS 区分");
+            projections.Add(new SelectItem(new IdentifierExpression(name), Alias: null));
+        }
+        return projections;
+    }
+
     /// <summary>解析 1 ~ N 条以分号分隔的语句（末尾分号可选）。</summary>
     /// <param name="source">SQL 源文本。</param>
     /// <returns>语句列表。</returns>
@@ -2418,6 +2500,17 @@ public sealed class SqlParser
         Expect(TokenKind.LeftParen);
         string graphName = ExpectIdentifierName();
         ExpectIdentifier("match", "GRAPH_TABLE graph 名称后面期望 MATCH");
+        ParsedGraphMatch match = ParseGraphMatch();
+        ExpectIdentifier("columns", "GRAPH_TABLE MATCH 后面期望 COLUMNS");
+        Expect(TokenKind.LeftParen);
+        IReadOnlyList<SelectItem> columns = ParseSelectList();
+        Expect(TokenKind.RightParen);
+        Expect(TokenKind.RightParen);
+        return match.ToSource(graphName, columns);
+    }
+
+    private ParsedGraphMatch ParseGraphMatch()
+    {
         string? pathVariable = null;
         if (Current.Kind == TokenKind.IdentifierLiteral
             && _index + 1 < _tokens.Count
@@ -2509,16 +2602,7 @@ public sealed class SqlParser
             Advance();
             predicate = ParseExpression();
         }
-
-        ExpectIdentifier("columns", "GRAPH_TABLE MATCH 后面期望 COLUMNS");
-        Expect(TokenKind.LeftParen);
-        IReadOnlyList<SelectItem> columns = ParseSelectList();
-        Expect(TokenKind.RightParen);
-        Expect(TokenKind.RightParen);
-        return new GraphTableSource(graphName, left, edge, right, direction, predicate, columns)
-        {
-            Path = path,
-        };
+        return new ParsedGraphMatch(left, edge, right, direction, predicate, path);
     }
 
     private GraphPathPattern? ParseOptionalGraphPathPattern(
@@ -2578,6 +2662,21 @@ public sealed class SqlParser
             return label;
         }
         throw Error("GRAPH_TABLE pattern label 必须是标识符或正整数 label ID");
+    }
+
+    private sealed record ParsedGraphMatch(
+        GraphPatternVertex Left,
+        GraphPatternEdge Edge,
+        GraphPatternVertex Right,
+        GraphDirection Direction,
+        SqlExpression? Predicate,
+        GraphPathPattern? Path)
+    {
+        public GraphTableSource ToSource(string graphName, IReadOnlyList<SelectItem> columns)
+            => new(graphName, Left, Edge, Right, Direction, Predicate, columns)
+            {
+                Path = Path,
+            };
     }
 
     private string ResolveTableValuedSourceName(string functionName, FunctionCallExpression call)

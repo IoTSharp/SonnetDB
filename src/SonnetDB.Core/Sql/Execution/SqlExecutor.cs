@@ -147,6 +147,61 @@ public static class SqlExecutor
     }
 
     /// <summary>
+    /// 执行一条 M40 #364 受限 GQL 风格只读查询，并复用现有 SQL/PGQ Graph AST、规划器和执行器。
+    /// </summary>
+    /// <param name="tsdb">目标数据库实例。</param>
+    /// <param name="gql">以 <c>USE GRAPH</c> 开始的查询文本。</param>
+    /// <returns>查询或 EXPLAIN 结果。</returns>
+    public static SelectExecutionResult ExecuteGql(Tsdb tsdb, string gql)
+        => ExecuteGql(tsdb, databaseName: null, gql, parameters: null, SqlExecutionOptions.Default);
+
+    /// <summary>
+    /// 执行一条参数化的 M40 #364 受限 GQL 风格只读查询。
+    /// </summary>
+    /// <param name="tsdb">目标数据库实例。</param>
+    /// <param name="gql">以 <c>USE GRAPH</c> 开始的查询文本。</param>
+    /// <param name="parameters">参数值集合；为 <c>null</c> 时不做参数绑定。</param>
+    /// <returns>查询或 EXPLAIN 结果。</returns>
+    public static SelectExecutionResult ExecuteGql(
+        Tsdb tsdb,
+        string gql,
+        SqlParameters? parameters)
+        => ExecuteGql(tsdb, databaseName: null, gql, parameters, SqlExecutionOptions.Default);
+
+    /// <summary>
+    /// 使用显式数据库名和治理选项执行一条参数化的受限 GQL 风格只读查询。
+    /// </summary>
+    /// <param name="tsdb">目标数据库实例。</param>
+    /// <param name="databaseName">当前数据库名；未知可为 <c>null</c>。</param>
+    /// <param name="gql">以 <c>USE GRAPH</c> 开始的查询文本。</param>
+    /// <param name="parameters">参数值集合；为 <c>null</c> 时不做参数绑定。</param>
+    /// <param name="options">取消、调用方、权限和例程上限。</param>
+    /// <returns>查询或 EXPLAIN 结果。</returns>
+    public static SelectExecutionResult ExecuteGql(
+        Tsdb tsdb,
+        string? databaseName,
+        string gql,
+        SqlParameters? parameters,
+        SqlExecutionOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(gql);
+        ArgumentNullException.ThrowIfNull(options);
+
+        SqlStatement statement = GqlParser.Parse(gql);
+        statement = SqlParameterBinder.Bind(statement, parameters);
+        object? result = ExecuteStatement(
+            tsdb,
+            databaseName,
+            statement,
+            controlPlane: null,
+            transaction: null,
+            options);
+        return result as SelectExecutionResult
+            ?? throw new InvalidOperationException("GQL 只读入口返回了非查询结果。");
+    }
+
+    /// <summary>
     /// 解析并执行一段 SQL 脚本，支持 <c>BEGIN</c> / <c>COMMIT</c> / <c>ROLLBACK</c> 轻事务。
     /// </summary>
     /// <param name="tsdb">目标数据库实例。</param>

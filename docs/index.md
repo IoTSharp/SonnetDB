@@ -48,6 +48,7 @@ SonnetDB 是一款多模型数据引擎。它在一套引擎中提供时序、�
 | 构建工业 AI 应用或 Industrial Data Agent | [使用 SonnetDB 构建工业 AI 应用]({{ site.docs_baseurl | default: '/help' }}/industrial-ai-applications/) |
 | 在进程内直接使用引擎 | [嵌入式与 in-proc API]({{ site.docs_baseurl | default: '/help' }}/embedded-api/) |
 | 使用轻量 KV keyspace 存储 metadata 或小对象 | [KV Keyspace]({{ site.docs_baseurl | default: '/help' }}/kv-keyspace/) |
+| 试用受限 GQL 风格的原生图或关系映射图查询 | [Graph GQL 风格查询入口]({{ site.docs_baseurl | default: '/help' }}/graph-gql/) |
 | 使用 JSON 文档集合或从 MongoDB-like 负载迁移 | [Document Store 能力矩阵]({{ site.docs_baseurl | default: '/help' }}/document-store/) 和 [迁移指南]({{ site.docs_baseurl | default: '/help' }}/mongodb-migration/) |
 | 使用 SigLIP2 做文搜图或图搜图 | [语义图片检索]({{ site.docs_baseurl | default: '/help' }}/semantic-image-search/) 和 [可运行工业图片样例](https://github.com/IoTSharp/SonnetDB/tree/main/samples/SonnetDB.SemanticImages) |
 | 评估 Document Store 推荐规模、恢复时间和内存曲线 | [Document Store 容量与长稳报告]({{ site.docs_baseurl | default: '/help' }}/benchmarks/document-store-capacity/) |

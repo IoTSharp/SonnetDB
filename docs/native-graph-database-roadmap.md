@@ -268,7 +268,7 @@ GraphDistinct / GraphLimit
 
 ✅ Phase 2 功能切片完成后具备原生存储、事务、遍历、SQL/PGQ 和跨模型组合；📋 长期并发、维护和容量证据仍未收口，外部 Beta 发布 gate 尚未通过。
 
-### Phase 3：生产级单机图数据库（✅ #360~#363；📋 #364~#367）
+### Phase 3：生产级单机图数据库（✅ #360~#364；📋 #365~#367）
 
 | 编号 | 交付 | 验收门禁 |
 |---|---|---|
@@ -276,7 +276,7 @@ GraphDistinct / GraphLimit
 | ✅ #361 | supernode 治理、邻接分页/压缩、索引 repair、统计维护、checkpoint/compaction 热点治理。 | 高度数节点内存有界；维护可暂停/续作；故障后不丢唯一修复来源。 |
 | ✅ #362 | weighted shortest path（Dijkstra）、可选 A*、bidirectional search 和批量图算法执行框架。 | 只有真实 journey 和 benchmark 证明收益的算法进入 Core；权重负值、溢出、取消合同明确。 |
 | ✅ #363 | 首批离线算法：connected components、PageRank、degree/community 基础结果，输出到 graph/table 而非常驻第二份状态。 | 算法可 checkpoint/cancel，结果版本可追溯；大图内存预算与 spill 策略明确。 |
-| 📋 #364 | 可选 GQL 风格直接查询入口，只复用 Graph AST/Plan，不承诺完整 Cypher。 | 与等价 SQL/PGQ 计划和结果对拍；无新增执行器；语法能力矩阵公开。 |
+| ✅ #364 | 可选 GQL 风格直接查询入口，只复用 Graph AST/Plan，不承诺完整 Cypher。 | 与等价 SQL/PGQ 计划和结果对拍；无新增执行器；语法能力矩阵公开。 |
 | 📋 #365 | 知识图谱/GraphRAG 上层合同：provenance、confidence、source/chunk、valid time、alias/claim、community/summary 引用。 | Core 只存通用属性图；抽取/消歧/LLM job 在 Server/SDK；Document/Object/Vector 仍是权威内容存储。 |
 | 📋 #366 | 运维产品面：schema/index/degree/slow traversal、可视化、受限编辑、import/export、repair/rebuild 和权限审计。 | Web/Studio/CLI/SDK 能力矩阵一致；危险 mutation 使用现有 staged approval。 |
 | 📋 #367 | 发布门禁：LDBC SNB 子集、Graphalytics 子集、代码知识/Agent 组合语料、7 天 mixed workload、kill/reopen、backup/restore、Native AOT 和固定硬件容量报告。 | 报告可复现且包含 commit/硬件/数据规模/P50/P95/P99/内存/WAL/恢复/正确性、实际 access path/fallback 和 gap catalog 关闭状态；正确性/恢复 gate 必须全 PASS，性能/容量 gate 必须达到 #341 冻结的生产 SLO，任一失败或存在生产阻塞缺口都不得更改九模型定位。 |
@@ -308,6 +308,12 @@ Graph V1 adjacency 继续保持每条边一个紧凑 key 和空 value；supernod
 状态 vector 超过分配预算后切换固定 little-endian file-backed 访问；community vote 按预算生成排序 run 并最多 32 路多轮 merge。结果可写入带 `(operation_id, vertex_id)` 主键的标准 Table，或通过幂等 Graph transaction 写入显式 vertex property mapping；两者都携带 `operationId@sourceSequence` 版本。完成后删除输入和算法 spill，只保留 CRC manifest，不常驻第二份图状态。
 
 ✅ correctness/resume/reopen/source-drift/Graph+Table output 与真实 file-backed spill 已覆盖自动回归。📋 Graphalytics/LDBC、1m/10m、固定目标硬件、7 天 mixed workload 和 Couplet C4 联合门禁仍归 #367。详细边界见 [#363 offline algorithms contract](m40-graph-363-offline-algorithms.md)。
+
+### #364 当前功能切片（✅ 已完成）
+
+新增显式 opt-in 的 `GqlParser.Parse` 和 `SqlExecutor.ExecuteGql` 嵌入式只读入口，解析 `USE GRAPH ... MATCH ... RETURN`、固定/有界路径、变量谓词、参数、投影、去重、排序/分页与 `EXPLAIN [ANALYZE]`。GQL 与 SQL/PGQ `GRAPH_TABLE` 调用同一个 MATCH parser，直接生成既有 `GraphTableSource`/`SelectStatement` 并进入同一个 Graph planner/executor；没有 GQL 专用执行器、GraphStore、权限或 wire endpoint。
+
+✅ typed AST、关系 mapping index plan、原生 shortest-path plan 和结果逐行对拍已覆盖自动回归；写语法、多语句、`RETURN *` 和 Cypher label 形式在解析阶段拒绝。公开语法与不支持项见 [#364 GQL 风格入口能力矩阵](m40-graph-364-gql-entry.md)。📋 完整 GQL/Cypher、远程专用入口和 #367 Production gate 不在本项范围。
 
 📋 Phase 3 完成后，SonnetDB 才能对外称为**生产可用的单机原生属性图数据库**。这不包含分布式图数据库、完整 Cypher/GQL 或 RDF 推理能力。
 
