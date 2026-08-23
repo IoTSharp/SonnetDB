@@ -112,6 +112,7 @@ export function useSqlExplorerRouting(options: SqlExplorerRoutingOptions) {
       || item.model === 'index'
       || item.model === 'vector'
       || item.model === 'fulltext'
+      || item.model === 'graph'
       || item.model === 'backup';
   }
 
@@ -138,6 +139,8 @@ export function useSqlExplorerRouting(options: SqlExplorerRoutingOptions) {
           ? { tool: 'fulltext', model: item.model, node: item.name }
         : item.model === 'bucket'
           ? { tool: 'bucket', model: item.model, node: item.name }
+        : item.model === 'graph'
+          ? { tool: 'graph', model: item.model, node: item.name }
         : item.model === 'measurement'
           ? { tool: 'measurement', model: item.model, node: item.name }
           : { model: item.model, node: item.name },

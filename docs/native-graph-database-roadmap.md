@@ -268,7 +268,7 @@ GraphDistinct / GraphLimit
 
 ✅ Phase 2 功能切片完成后具备原生存储、事务、遍历、SQL/PGQ 和跨模型组合；📋 长期并发、维护和容量证据仍未收口，外部 Beta 发布 gate 尚未通过。
 
-### Phase 3：生产级单机图数据库（✅ #360~#365；📋 #366~#367）
+### Phase 3：生产级单机图数据库（✅ #360~#366；📋 #367）
 
 | 编号 | 交付 | 验收门禁 |
 |---|---|---|
@@ -278,7 +278,7 @@ GraphDistinct / GraphLimit
 | ✅ #363 | 首批离线算法：connected components、PageRank、degree/community 基础结果，输出到 graph/table 而非常驻第二份状态。 | 算法可 checkpoint/cancel，结果版本可追溯；大图内存预算与 spill 策略明确。 |
 | ✅ #364 | 可选 GQL 风格直接查询入口，只复用 Graph AST/Plan，不承诺完整 Cypher。 | 与等价 SQL/PGQ 计划和结果对拍；无新增执行器；语法能力矩阵公开。 |
 | ✅ #365 | 知识图谱/GraphRAG 上层合同：provenance、confidence、source/chunk、valid time、alias/claim、community/summary 引用。 | Core 只存通用属性图；抽取/消歧/LLM job 在 Server/SDK；Document/Object/Vector 仍是权威内容存储。 |
-| 📋 #366 | 运维产品面：schema/index/degree/slow traversal、可视化、受限编辑、import/export、repair/rebuild 和权限审计。 | Web/Studio/CLI/SDK 能力矩阵一致；危险 mutation 使用现有 staged approval。 |
+| ✅ #366 | 运维产品面：schema/index/degree/slow traversal、可视化、受限编辑、import/export、repair/rebuild 和权限审计。 | Web/Studio/CLI/SDK 能力矩阵一致；危险 mutation 使用现有 staged approval。 |
 | 📋 #367 | 发布门禁：LDBC SNB 子集、Graphalytics 子集、代码知识/Agent 组合语料、7 天 mixed workload、kill/reopen、backup/restore、Native AOT 和固定硬件容量报告。 | 报告可复现且包含 commit/硬件/数据规模/P50/P95/P99/内存/WAL/恢复/正确性、实际 access path/fallback 和 gap catalog 关闭状态；正确性/恢复 gate 必须全 PASS，性能/容量 gate 必须达到 #341 冻结的生产 SLO，任一失败或存在生产阻塞缺口都不得更改九模型定位。 |
 
 ✅ #360 已完成：`GraphStore.BeginRead` 明确冻结单一 KV sequence，同一 `GraphReadSession` 上的点读、在并发提交前后创建的游标和分页长遍历都复用该 snapshot；cursor lease 只保留不可变内存视图和 disk generation lease，不持有 Graph commit gate 或 store lock。`EXPLAIN ANALYZE GRAPH_TABLE` 对原生图新增 `read_consistency=statement_snapshot`、`actual_read_consistency` 和 `actual_snapshot_sequence`；关系映射如实返回 `relation_accessor_current` 与 null sequence，其 statement snapshot 仍归 M41 #374，不在本项虚构跨模型 MVCC。
@@ -321,7 +321,13 @@ Graph V1 adjacency 继续保持每条边一个紧凑 key 和空 value；supernod
 
 `KnowledgeGraphMapper` 以固定 `m40-kg-v1` 投影把合同编译为现有 `GraphImportRequest`：稳定外部 ID、label/property ID、unique external ID、expected element version 和 request ID 都进入同一个 Graph transaction，不修改 record/WAL 或新增 endpoint。`ImportKnowledgeGraphAsync` 在嵌入式与远程客户端复用相同 import API；单批节点与关系总数限制为 256，跨批次不宣称原子。source-generated `KnowledgeGraphJsonContext` 可用于 AOT job 边界。抽取、消歧、事实判断、embedding 和 LLM/community summary 生成仍明确留在 Server/SDK/上层产品；Core 只持久化通用属性图。
 
-✅ 合同、非法 confidence/time/chunk/claim/relation shape、稳定投影、Document/Object/Vector 引用、嵌入式与远程写入读取、相同 request ID 重放均已覆盖自动回归。公开边界与示例见 [#365 知识图谱与 GraphRAG 合同](m40-graph-365-knowledge-contract.md)。📋 #366 运维产品面和 #367 固定硬件/恢复/长稳/联合发布 gate 不在本项范围。
+✅ 合同、非法 confidence/time/chunk/claim/relation shape、稳定投影、Document/Object/Vector 引用、嵌入式与远程写入读取、相同 request ID 重放均已覆盖自动回归。公开边界与示例见 [#365 知识图谱与 GraphRAG 合同](m40-graph-365-knowledge-contract.md)。#367 固定硬件/恢复/长稳/联合发布 gate 不在本项范围。
+
+### #366 当前功能切片（✅ 已完成）
+
+新增 Server Graph operations overview、有界 statement-snapshot visualization、流式 importer-compatible JSON export，以及 repair/rebuild、checkpoint、compact 的 10 分钟两阶段审批和 durable NDJSON 审计。数据库 `Read` 权限覆盖概览/可视化/导出，既有受限元素编辑与导入保持 `Write`，维护暂存/批准/拒绝/审计要求 `Admin`；维护继续调用 #361 的可恢复 runner、checkpoint 和 compact，不新增存储或权限旁路。
+
+`SndbGraphClient` 在嵌入式和远程模式提供一致的 overview、visualization、export、stage/approve/reject/audit 方法；`sndb graph` 提供 list/overview/visualize/export/import 和 maintenance 子命令，嵌入式审批通过数据库 `.system` 下的持久审计支持跨进程决策。Web/Studio Explorer 可直接打开 Graph Workbench，提供 Canvas、schema/diagnostics、带 element version 的编辑、导入导出和 maintenance/audit 五个任务页。Server/SDK/CLI、权限、持久恢复和桌面/移动端 ECharts 像素回归均已覆盖；公开预算、命令和边界见 [#366 Graph 运维产品面](m40-graph-366-operations.md)。📋 #367 Production gate 仍保持 open/`NOT_RUN`。
 
 📋 Phase 3 完成后，SonnetDB 才能对外称为**生产可用的单机原生属性图数据库**。这不包含分布式图数据库、完整 Cypher/GQL 或 RDF 推理能力。
 

@@ -16,6 +16,7 @@ using SonnetDB.Mcp;
 using SonnetDB.Modbus;
 using SonnetDB.Mqtt;
 using SonnetDB.SemanticSearch;
+using SonnetDB.Server.Graphs;
 using SonnetMQ;
 
 namespace SonnetDB.Hosting;
@@ -94,6 +95,11 @@ internal static class SonnetDbServiceRegistration
             new FileModbusWriteAuditStore(GetSystemDirectory(sp)));
         builder.Services.AddSingleton<IModbusEndpointWriteStore>(sp =>
             new FileModbusEndpointWriteStore(GetSystemDirectory(sp)));
+        builder.Services.AddSingleton<IGraphMaintenanceAuditStore>(sp =>
+            new FileGraphMaintenanceAuditStore(GetSystemDirectory(sp)));
+        builder.Services.AddSingleton(sp => new GraphMaintenanceApprovalService(
+            sp.GetRequiredService<IGraphMaintenanceAuditStore>(),
+            sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton(sp =>
         {
             var systemDirectory = GetSystemDirectory(sp);

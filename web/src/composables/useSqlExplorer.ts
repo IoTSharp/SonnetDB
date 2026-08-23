@@ -12,6 +12,7 @@ import {
   fetchObjectBuckets,
   fetchVectorIndexes,
 } from '@/api/management';
+import { fetchGraphs } from '@/api/graphs';
 import {
   fetchSchema,
   type MeasurementInfo,
@@ -101,6 +102,7 @@ export function useSqlExplorer(options: SqlExplorerOptions) {
       const fullTextIndexes = management.fullTextIndexes;
       const mqTopics = management.mqTopics;
       const buckets = management.buckets;
+      const graphs = management.graphs;
       const backupStatus = dbSchema?.backupStatus ?? null;
       const loaded = hasCachedSchema(name);
       const loading = Boolean(schemaLoadingByDb.value[name]);
@@ -133,6 +135,9 @@ export function useSqlExplorer(options: SqlExplorerOptions) {
       const filteredBuckets = !keyword || dbMatches
         ? buckets
         : buckets.filter((bucket) => bucket.name.toLowerCase().includes(keyword));
+      const filteredGraphs = !keyword || dbMatches
+        ? graphs
+        : graphs.filter((graph) => graph.name.toLowerCase().includes(keyword));
 
       if (keyword && !dbMatches
         && filteredMeasurements.length === 0
@@ -143,7 +148,8 @@ export function useSqlExplorer(options: SqlExplorerOptions) {
         && filteredVectorIndexes.length === 0
         && filteredFullTextIndexes.length === 0
         && filteredMqTopics.length === 0
-        && filteredBuckets.length === 0) {
+        && filteredBuckets.length === 0
+        && filteredGraphs.length === 0) {
         return [];
       }
 
@@ -160,6 +166,7 @@ export function useSqlExplorer(options: SqlExplorerOptions) {
           kvKeyspaces.length,
           mqTopics.length,
           buckets.length,
+          graphs.length,
         ),
         measurements: filteredMeasurements,
         tables: filteredTables,
@@ -170,6 +177,7 @@ export function useSqlExplorer(options: SqlExplorerOptions) {
         fullTextIndexes: filteredFullTextIndexes,
         mqTopics: filteredMqTopics,
         buckets: filteredBuckets,
+        graphs: filteredGraphs,
         backupStatus,
         loading,
         error,
@@ -431,15 +439,16 @@ export function useSqlExplorer(options: SqlExplorerOptions) {
   }
 
   async function loadManagementExplorerInfo(db: string): Promise<ManagementExplorerInfo> {
-    const [kv, vector, fullText, mq, buckets] = await Promise.allSettled([
+    const [kv, vector, fullText, mq, buckets, graphs] = await Promise.allSettled([
       fetchKvKeyspaces(auth.api, db),
       fetchVectorIndexes(auth.api, db),
       fetchFullTextIndexes(auth.api, db),
       fetchMqTopics(auth.api, db),
       fetchObjectBuckets(auth.api, db),
+      fetchGraphs(auth.api, db),
     ]);
 
-    const errors = [kv, vector, fullText, mq, buckets]
+    const errors = [kv, vector, fullText, mq, buckets, graphs]
       .filter((item): item is PromiseRejectedResult => item.status === 'rejected')
       .map((item) => item.reason instanceof Error ? item.reason.message : String(item.reason))
       .filter(Boolean);
@@ -450,6 +459,7 @@ export function useSqlExplorer(options: SqlExplorerOptions) {
       fullTextIndexes: fullText.status === 'fulfilled' ? fullText.value : [],
       mqTopics: mq.status === 'fulfilled' ? mq.value : [],
       buckets: buckets.status === 'fulfilled' ? buckets.value : [],
+      graphs: graphs.status === 'fulfilled' ? graphs.value : [],
       error: errors[0] ?? '',
     };
   }

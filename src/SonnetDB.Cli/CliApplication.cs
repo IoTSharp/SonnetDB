@@ -62,6 +62,7 @@ internal sealed class CliApplication
                 "document" => new DocumentImportCommandRunner(_output, _error, _profileStore).Run(args),
                 "copilot" => new CopilotCommandRunner(_output, _error).Run(args),
                 "diag" => new DiagnosticCommandRunner(_output, _error).Run(args),
+                "graph" => new GraphCommandRunner(_output, _error).Run(args),
                 _ => FailParse($"未知命令 '{command}'。"),
             };
         }
@@ -1038,6 +1039,12 @@ SonnetDB CLI __VERSION__
   sndb document import --input ./dump/devices.bson --collection devices --path ./data [--dry-run] [--report ./migration-report.json]
   sndb copilot ingest [--root ./docs]... [--endpoint http://host] [--token t] [--force] [--dry-run]
   sndb diag dump [--endpoint http://host] [--token admin-token] [--output ./diagnostic-dump.json]
+  sndb graph overview --connection "<conn>" --graph knowledge
+  sndb graph visualize --connection "<conn>" --graph knowledge [--limit 250]
+  sndb graph export --connection "<conn>" --graph knowledge --output ./knowledge.graph.json
+  sndb graph import --connection "<conn>" --graph knowledge --input ./knowledge.graph.json
+  sndb graph maintenance stage --connection "<conn>" --graph knowledge --action repair|checkpoint|compact
+  sndb graph maintenance approve --connection "<conn>" --graph knowledge --approval <id>
 
 示例:
   sndb local  --path ./demo-data --save-profile home --default

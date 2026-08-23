@@ -42,6 +42,7 @@ export function useSqlWorkbenchChrome(options: SqlWorkbenchChromeOptions) {
     if (route.query.tool === 'vector' || route.query.model === 'vector') return 'vector';
     if (route.query.tool === 'fulltext' || route.query.model === 'fulltext') return 'fulltext';
     if (route.query.tool === 'bucket' || route.query.model === 'bucket') return 'bucket';
+    if (route.query.tool === 'graph' || route.query.model === 'graph') return 'graph';
     if (route.query.tool === 'table' || route.query.model === 'table') return 'table';
     return 'sql';
   });
@@ -128,6 +129,8 @@ export function useSqlWorkbenchChrome(options: SqlWorkbenchChromeOptions) {
           ? { tool: 'fulltext' }
         : tool === 'bucket'
           ? { tool: 'bucket' }
+        : tool === 'graph'
+          ? { tool: 'graph' }
         : tool === 'table'
           ? { tool: 'table' }
           : {},

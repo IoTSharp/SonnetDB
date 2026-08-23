@@ -279,6 +279,7 @@ import {
   Rows3,
   Search,
   ServerCog,
+  Share2,
   Table2,
   Waves,
 } from 'lucide-vue-next';
@@ -346,6 +347,7 @@ function activeGroup(): string {
   if (key.startsWith('fulltext:')) return 'fulltext';
   if (key.startsWith('mq:')) return 'mq';
   if (key.startsWith('bucket:')) return 'buckets';
+  if (key.startsWith('graph:')) return 'graphs';
   if (key === 'backup-status') return 'backup';
   return 'measurements';
 }
@@ -372,6 +374,7 @@ function groupIcon(group: string): Component {
     fulltext: FileSearch,
     mq: MessageSquareMore,
     buckets: FolderArchive,
+    graphs: Share2,
     backup: Archive,
   }[group] ?? Database;
 }
@@ -387,6 +390,7 @@ function modelIcon(model: ExplorerModel): Component {
     fulltext: 'fulltext',
     mq: 'mq',
     bucket: 'buckets',
+    graph: 'graphs',
     backup: 'backup',
   }[model]);
 }

@@ -25,6 +25,13 @@ namespace SonnetDB.Cli;
 [JsonSerializable(typeof(List<DocumentImportGap>))]
 [JsonSerializable(typeof(List<DocumentImportIndexSuggestion>))]
 [JsonSerializable(typeof(System.Text.Json.JsonElement))]
+[JsonSerializable(typeof(SonnetDB.Graphs.GraphInfoDto))]
+[JsonSerializable(typeof(SonnetDB.Graphs.GraphInfoDto[]))]
+[JsonSerializable(typeof(SonnetDB.Graphs.GraphOperationsOverviewDto))]
+[JsonSerializable(typeof(SonnetDB.Graphs.GraphVisualizationDto))]
+[JsonSerializable(typeof(SonnetDB.Graphs.GraphMaintenanceApprovalDto))]
+[JsonSerializable(typeof(SonnetDB.Graphs.GraphMaintenanceAuditListDto))]
+[JsonSerializable(typeof(List<SonnetDB.Graphs.GraphMaintenanceApprovalDto>))]
 internal sealed partial class CliJsonContext : JsonSerializerContext;
 
 /// <summary>

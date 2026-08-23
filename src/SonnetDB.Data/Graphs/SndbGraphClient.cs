@@ -20,6 +20,10 @@ public sealed class SndbGraphClient : IDisposable
     private FrameChannel? _frames;
     private Tsdb? _embedded;
     private string _database = string.Empty;
+    private readonly object _operationsSync = new();
+    private readonly Dictionary<Guid, GraphMaintenanceApprovalDto> _embeddedApprovals = [];
+    private readonly List<GraphMaintenanceApprovalDto> _embeddedAudit = [];
+    private string? _embeddedAuditPath;
     private bool _disposed;
 
     /// <summary>使用 SonnetDB 连接字符串创建 Graph 客户端。</summary>
@@ -626,6 +630,275 @@ public sealed class SndbGraphClient : IDisposable
             result.SnapshotSequence);
     }
 
+    /// <summary>读取 schema、索引、degree 和慢遍历组成的 Graph 运维概览。</summary>
+    /// <param name="graph">图名称。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>共享的 Graph 运维能力与当前统计。</returns>
+    public async Task<GraphOperationsOverviewDto> GetOperationsOverviewAsync(
+        string graph,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ValidateName(graph, nameof(graph));
+        if (_embedded is not null)
+        {
+            GraphStore store = _embedded.Graphs.Open(graph);
+            using GraphReadSession read = store.BeginRead();
+            GraphStatistics statistics = read.RefreshStatistics(cancellationToken);
+            return new GraphOperationsOverviewDto(
+                ToGraphInfo(store),
+                statistics.Sequence,
+                statistics.VertexCount,
+                statistics.EdgeCount,
+                statistics.LabelCardinality
+                    .OrderBy(static item => item.Key.Value)
+                    .Select(static item => new GraphLabelStatisticDto(item.Key.Value, item.Value))
+                    .ToArray(),
+                statistics.PropertyIndexCardinality
+                    .OrderBy(static item => item.Key.ElementKind)
+                    .ThenBy(static item => item.Key.LabelId.Value)
+                    .ThenBy(static item => item.Key.PropertyId)
+                    .ThenBy(static item => item.Key.ValueKind)
+                    .Select(static item => new GraphIndexStatisticDto(
+                        item.Key.ElementKind.ToString().ToLowerInvariant(),
+                        item.Key.LabelId.Value,
+                        item.Key.PropertyId,
+                        item.Key.ValueKind.ToString().ToLowerInvariant(),
+                        item.Value))
+                    .ToArray(),
+                statistics.DegreeHistogram
+                    .OrderBy(static item => item.Key)
+                    .Select(static item => new GraphDegreeBucketDto(item.Key, item.Value))
+                    .ToArray(),
+                [],
+                "not_available_embedded",
+                CreateOperationsCapabilities(slowTraversalDiagnostics: false, audit: true));
+        }
+
+        using HttpResponseMessage response = await _http!.GetAsync(
+            OperationsUrl(graph) + "/overview",
+            cancellationToken).ConfigureAwait(false);
+        await EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+        return await ReadJsonAsync(
+            response,
+            RemoteJsonContext.Default.GraphOperationsOverviewDto,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>读取适合运维界面渲染的有界 Graph 快照。</summary>
+    /// <param name="graph">图名称。</param>
+    /// <param name="limit">最多返回的顶点数，范围 1 到 1,000。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>同一 statement snapshot 上的顶点、内部边和截断状态。</returns>
+    public async Task<GraphVisualizationDto> GetVisualizationAsync(
+        string graph,
+        int limit = 250,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ValidateName(graph, nameof(graph));
+        if (limit is < 1 or > 1_000)
+            throw new ArgumentOutOfRangeException(nameof(limit));
+        if (_embedded is not null)
+            return BuildEmbeddedVisualization(_embedded.Graphs.Open(graph), limit, cancellationToken);
+
+        using HttpResponseMessage response = await _http!.GetAsync(
+            OperationsUrl(graph) + "/visualization?limit="
+                + limit.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            cancellationToken).ConfigureAwait(false);
+        await EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+        return await ReadJsonAsync(
+            response,
+            RemoteJsonContext.Default.GraphVisualizationDto,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>把兼容 <see cref="SndbGraphImporter.ImportJsonAsync"/> 的有界 Graph JSON 写入目标流。</summary>
+    /// <param name="graph">图名称。</param>
+    /// <param name="destination">导出目标流；调用完成后保持打开。</param>
+    /// <param name="maxElements">顶点与边合计上限，范围 1 到 1,000,000。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    public async Task ExportJsonAsync(
+        string graph,
+        Stream destination,
+        int maxElements = 100_000,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ValidateName(graph, nameof(graph));
+        ArgumentNullException.ThrowIfNull(destination);
+        if (!destination.CanWrite)
+            throw new ArgumentException("Graph 导出目标流必须可写。", nameof(destination));
+        if (maxElements is < 1 or > 1_000_000)
+            throw new ArgumentOutOfRangeException(nameof(maxElements));
+
+        if (_embedded is not null)
+        {
+            await WriteEmbeddedExportAsync(
+                destination,
+                _embedded.Graphs.Open(graph),
+                maxElements,
+                cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        string url = OperationsUrl(graph) + "/export?maxElements="
+            + maxElements.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        using HttpResponseMessage response = await _http!.GetAsync(
+            url,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken).ConfigureAwait(false);
+        await EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+        await using Stream source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        await source.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>暂存一项 Graph 危险维护；本方法不会执行维护。</summary>
+    /// <param name="graph">图名称。</param>
+    /// <param name="request">动作和显式执行预算。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>十分钟有效的审批记录。</returns>
+    public async Task<GraphMaintenanceApprovalDto> StageMaintenanceAsync(
+        string graph,
+        GraphMaintenanceStageRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ValidateName(graph, nameof(graph));
+        ValidateMaintenanceRequest(request);
+        if (_embedded is not null)
+        {
+            _ = _embedded.Graphs.Open(graph);
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            var staged = new GraphMaintenanceApprovalDto
+            {
+                ApprovalId = Guid.NewGuid(),
+                OccurredAtUtc = now,
+                Database = _database,
+                Graph = graph,
+                Action = request.Action,
+                State = "staged",
+                Principal = "embedded-sdk",
+                ExpiresAtUtc = now.AddMinutes(10),
+                CompactOnCompletion = request.CompactOnCompletion,
+                MaxWorkUnits = request.MaxWorkUnits,
+            };
+            lock (_operationsSync)
+                AppendEmbeddedAudit(staged);
+            return staged;
+        }
+
+        using HttpResponseMessage response = await PostJsonAsync(
+            MaintenanceUrl(graph) + "/stage",
+            request,
+            RemoteJsonContext.Default.GraphMaintenanceStageRequest,
+            cancellationToken).ConfigureAwait(false);
+        return await ReadJsonAsync(
+            response,
+            RemoteJsonContext.Default.GraphMaintenanceApprovalDto,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>批准并执行一项已暂存的 Graph 维护。</summary>
+    /// <param name="graph">图名称。</param>
+    /// <param name="approvalId">暂存返回的审批标识符。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>完成、暂停或失败前的最终可见审批状态。</returns>
+    public async Task<GraphMaintenanceApprovalDto> ApproveMaintenanceAsync(
+        string graph,
+        Guid approvalId,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ValidateName(graph, nameof(graph));
+        if (approvalId == Guid.Empty)
+            throw new ArgumentException("Graph maintenance approval ID 不能为空。", nameof(approvalId));
+        if (_embedded is not null)
+            return ApproveEmbeddedMaintenance(_embedded.Graphs.Open(graph), graph, approvalId, cancellationToken);
+
+        using HttpResponseMessage response = await _http!.PostAsync(
+            MaintenanceUrl(graph) + "/" + approvalId.ToString("D") + "/approve",
+            content: null,
+            cancellationToken).ConfigureAwait(false);
+        await EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+        return await ReadJsonAsync(
+            response,
+            RemoteJsonContext.Default.GraphMaintenanceApprovalDto,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>拒绝一项已暂存的 Graph 维护。</summary>
+    /// <param name="graph">图名称。</param>
+    /// <param name="approvalId">审批标识符。</param>
+    /// <param name="reason">可选拒绝原因，最多 512 个字符。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>拒绝审计事件。</returns>
+    public async Task<GraphMaintenanceApprovalDto> RejectMaintenanceAsync(
+        string graph,
+        Guid approvalId,
+        string? reason = null,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ValidateName(graph, nameof(graph));
+        if (approvalId == Guid.Empty)
+            throw new ArgumentException("Graph maintenance approval ID 不能为空。", nameof(approvalId));
+        if (reason?.Length > 512)
+            throw new ArgumentOutOfRangeException(nameof(reason));
+        if (_embedded is not null)
+            return RejectEmbeddedMaintenance(graph, approvalId, reason);
+
+        using HttpResponseMessage response = await PostJsonAsync(
+            MaintenanceUrl(graph) + "/" + approvalId.ToString("D") + "/reject",
+            new GraphMaintenanceDecisionRequest(reason),
+            RemoteJsonContext.Default.GraphMaintenanceDecisionRequest,
+            cancellationToken).ConfigureAwait(false);
+        return await ReadJsonAsync(
+            response,
+            RemoteJsonContext.Default.GraphMaintenanceApprovalDto,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>读取 Graph 维护审批与执行审计。</summary>
+    /// <param name="graph">图名称。</param>
+    /// <param name="limit">最近事件上限，范围 1 到 2,000。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>按时间倒序排列的审计事件。</returns>
+    public async Task<IReadOnlyList<GraphMaintenanceApprovalDto>> ListMaintenanceAuditAsync(
+        string graph,
+        int limit = 200,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ValidateName(graph, nameof(graph));
+        if (limit is < 1 or > 2_000)
+            throw new ArgumentOutOfRangeException(nameof(limit));
+        if (_embedded is not null)
+        {
+            _ = _embedded.Graphs.Open(graph);
+            lock (_operationsSync)
+            {
+                LoadEmbeddedAudit();
+                return _embeddedAudit
+                    .Where(entry => string.Equals(entry.Graph, graph, StringComparison.Ordinal))
+                    .TakeLast(limit)
+                    .Reverse()
+                    .ToArray();
+            }
+        }
+
+        using HttpResponseMessage response = await _http!.GetAsync(
+            MaintenanceUrl(graph) + "/audit?limit="
+                + limit.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            cancellationToken).ConfigureAwait(false);
+        await EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+        GraphMaintenanceAuditListDto result = await ReadJsonAsync(
+            response,
+            RemoteJsonContext.Default.GraphMaintenanceAuditListDto,
+            cancellationToken).ConfigureAwait(false);
+        return result.Items;
+    }
+
     /// <inheritdoc />
     public void Dispose()
     {
@@ -650,6 +923,10 @@ public sealed class SndbGraphClient : IDisposable
                 throw new InvalidOperationException("Graph 客户端缺少 Data Source。");
             _database = dataSource;
             _embedded = SharedSndbRegistry.Acquire(_builder.CreateEmbeddedOptions(dataSource));
+            string systemDirectory = Path.Combine(_embedded.RootDirectory, ".system");
+            Directory.CreateDirectory(systemDirectory);
+            _embeddedAuditPath = Path.Combine(systemDirectory, "graph-maintenance-audit.ndjson");
+            LoadEmbeddedAudit();
             return;
         }
         _database = _builder.ResolveDatabase();
@@ -759,6 +1036,405 @@ public sealed class SndbGraphClient : IDisposable
     private static GraphExpansion ToExpansion(GraphExpansionDto dto)
         => new GraphVertexFactory().CreateExpansion(dto);
 
+    private static GraphInfoDto ToGraphInfo(GraphStore store)
+        => new()
+        {
+            Name = store.Name,
+            StorageId = store.StorageId,
+            RecordFormatVersion = store.RecordFormatVersion,
+        };
+
+    private static GraphVisualizationDto BuildEmbeddedVisualization(
+        GraphStore store,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        using GraphReadSession read = store.BeginRead();
+        var vertices = new List<GraphVertexDto>(limit + 1);
+        using (GraphCursor<GraphVertex> cursor = read.ScanVertices(new GraphCursorOptions
+        {
+            PageSize = 256,
+            MaxResults = limit + 1,
+        }))
+        {
+            while (vertices.Count <= limit)
+            {
+                IReadOnlyList<GraphVertex> page = cursor.ReadNextPage(cancellationToken);
+                if (page.Count == 0)
+                    break;
+                vertices.AddRange(page.Select(ToDto));
+            }
+        }
+        bool truncated = vertices.Count > limit;
+        if (truncated)
+            vertices.RemoveAt(vertices.Count - 1);
+
+        var ids = vertices.Select(static vertex => vertex.Id).ToHashSet();
+        int edgeResultLimit = checked((limit * 2) + 1);
+        int edgeScanLimit = Math.Min(100_000, Math.Max(edgeResultLimit, limit * 100));
+        var edges = new List<GraphEdgeDto>(edgeResultLimit);
+        int scanned = 0;
+        using (GraphCursor<GraphEdge> cursor = read.ScanEdges(new GraphCursorOptions
+        {
+            PageSize = 256,
+            MaxResults = edgeScanLimit,
+        }))
+        {
+            while (edges.Count < edgeResultLimit)
+            {
+                IReadOnlyList<GraphEdge> page = cursor.ReadNextPage(cancellationToken);
+                if (page.Count == 0)
+                    break;
+                scanned += page.Count;
+                edges.AddRange(page
+                    .Where(edge => ids.Contains(edge.SourceId.Value) && ids.Contains(edge.TargetId.Value))
+                    .Select(ToDto));
+            }
+        }
+        if (edges.Count >= edgeResultLimit)
+        {
+            edges.RemoveRange(edgeResultLimit - 1, edges.Count - (edgeResultLimit - 1));
+            truncated = true;
+        }
+        if (scanned >= edgeScanLimit)
+            truncated = true;
+        return new GraphVisualizationDto(read.Sequence, truncated, vertices, edges);
+    }
+
+    private static async Task WriteEmbeddedExportAsync(
+        Stream destination,
+        GraphStore store,
+        int maxElements,
+        CancellationToken cancellationToken)
+    {
+        using GraphReadSession read = store.BeginRead();
+        await using var writer = new Utf8JsonWriter(destination);
+        writer.WriteStartObject();
+        writer.WriteNumber("snapshotSequence", read.Sequence);
+        writer.WriteStartArray("vertices");
+        int written = 0;
+        bool truncated = false;
+        using (GraphCursor<GraphVertex> cursor = read.ScanVertices(new GraphCursorOptions
+        {
+            PageSize = 256,
+            MaxResults = maxElements + 1,
+        }))
+        {
+            while (written <= maxElements)
+            {
+                IReadOnlyList<GraphVertex> page = cursor.ReadNextPage(cancellationToken);
+                if (page.Count == 0)
+                    break;
+                foreach (GraphVertex vertex in page)
+                {
+                    if (written >= maxElements)
+                    {
+                        truncated = true;
+                        break;
+                    }
+                    JsonSerializer.Serialize(writer, ToDto(vertex), RemoteJsonContext.Default.GraphVertexDto);
+                    written++;
+                }
+                if (truncated)
+                    break;
+                await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+        writer.WriteEndArray();
+        writer.WriteStartArray("edges");
+        if (!truncated && written < maxElements)
+        {
+            int remaining = maxElements - written;
+            using GraphCursor<GraphEdge> cursor = read.ScanEdges(new GraphCursorOptions
+            {
+                PageSize = 256,
+                MaxResults = remaining + 1,
+            });
+            while (written <= maxElements)
+            {
+                IReadOnlyList<GraphEdge> page = cursor.ReadNextPage(cancellationToken);
+                if (page.Count == 0)
+                    break;
+                foreach (GraphEdge edge in page)
+                {
+                    if (written >= maxElements)
+                    {
+                        truncated = true;
+                        break;
+                    }
+                    JsonSerializer.Serialize(writer, ToDto(edge), RemoteJsonContext.Default.GraphEdgeDto);
+                    written++;
+                }
+                if (truncated)
+                    break;
+                await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+        writer.WriteEndArray();
+        writer.WriteBoolean("truncated", truncated);
+        writer.WriteNumber("elementCount", written);
+        writer.WriteEndObject();
+        await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private GraphMaintenanceApprovalDto ApproveEmbeddedMaintenance(
+        GraphStore store,
+        string graph,
+        Guid approvalId,
+        CancellationToken cancellationToken)
+    {
+        lock (_operationsSync)
+        {
+            GraphMaintenanceApprovalDto staged = ResolveEmbeddedApproval(graph, approvalId);
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            if (now > staged.ExpiresAtUtc)
+            {
+                var expired = staged with
+                {
+                    OccurredAtUtc = now,
+                    State = "expired",
+                    ErrorCode = "graph_maintenance_approval_expired",
+                    Reason = "Graph 维护审批已过期，请重新暂存。",
+                };
+                AppendEmbeddedAudit(expired);
+                throw new InvalidOperationException(expired.Reason);
+            }
+
+            GraphMaintenanceExecutionDto result = ExecuteEmbeddedMaintenance(store, staged, cancellationToken);
+            var completed = staged with
+            {
+                OccurredAtUtc = DateTimeOffset.UtcNow,
+                State = result.IsComplete ? "completed" : "paused",
+                Result = result,
+            };
+            AppendEmbeddedAudit(completed);
+            return completed;
+        }
+    }
+
+    private GraphMaintenanceApprovalDto RejectEmbeddedMaintenance(
+        string graph,
+        Guid approvalId,
+        string? reason)
+    {
+        lock (_operationsSync)
+        {
+            GraphMaintenanceApprovalDto staged = ResolveEmbeddedApproval(graph, approvalId);
+            var rejected = staged with
+            {
+                OccurredAtUtc = DateTimeOffset.UtcNow,
+                State = "rejected",
+                Reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim(),
+            };
+            AppendEmbeddedAudit(rejected);
+            return rejected;
+        }
+    }
+
+    private GraphMaintenanceApprovalDto ResolveEmbeddedApproval(string graph, Guid approvalId)
+    {
+        LoadEmbeddedAudit();
+        if (!_embeddedApprovals.TryGetValue(approvalId, out GraphMaintenanceApprovalDto? approval)
+            || !string.Equals(approval.Graph, graph, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("未找到当前 Graph 的维护审批。");
+        }
+        if (!string.Equals(approval.State, "staged", StringComparison.Ordinal))
+            throw new InvalidOperationException($"Graph 维护审批当前状态为 '{approval.State}'，不能重复决策。");
+        return approval;
+    }
+
+    private void LoadEmbeddedAudit()
+    {
+        if (_embeddedAuditPath is null)
+            return;
+        _embeddedApprovals.Clear();
+        _embeddedAudit.Clear();
+        if (!File.Exists(_embeddedAuditPath))
+            return;
+
+        int lineNumber = 0;
+        foreach (string line in File.ReadLines(_embeddedAuditPath))
+        {
+            lineNumber++;
+            if (string.IsNullOrWhiteSpace(line))
+                continue;
+            try
+            {
+                GraphMaintenanceApprovalDto entry = JsonSerializer.Deserialize(
+                        line,
+                        RemoteJsonContext.Default.GraphMaintenanceApprovalDto)
+                    ?? throw new InvalidDataException("Graph embedded 维护审计记录不能为 null。");
+                ValidateEmbeddedAuditEntry(entry, lineNumber);
+                _embeddedAudit.Add(entry);
+                _embeddedApprovals[entry.ApprovalId] = entry;
+            }
+            catch (JsonException exception)
+            {
+                throw new InvalidDataException($"Graph embedded 维护审计文件第 {lineNumber} 行损坏。", exception);
+            }
+        }
+    }
+
+    private void AppendEmbeddedAudit(GraphMaintenanceApprovalDto entry)
+    {
+        if (_embeddedAuditPath is null)
+            throw new InvalidOperationException("Graph embedded 维护审计路径尚未初始化。");
+        ValidateEmbeddedAuditEntry(entry, lineNumber: null);
+        using var buffer = new MemoryStream();
+        JsonSerializer.Serialize(buffer, entry, RemoteJsonContext.Default.GraphMaintenanceApprovalDto);
+        buffer.WriteByte((byte)'\n');
+        using var stream = new FileStream(
+            _embeddedAuditPath,
+            FileMode.OpenOrCreate,
+            FileAccess.ReadWrite,
+            FileShare.Read,
+            bufferSize: 4096,
+            FileOptions.WriteThrough);
+        long originalLength = stream.Length;
+        stream.Position = originalLength;
+        try
+        {
+            buffer.Position = 0;
+            buffer.CopyTo(stream);
+            stream.Flush(flushToDisk: true);
+        }
+        catch
+        {
+            try
+            {
+                stream.SetLength(originalLength);
+                stream.Flush(flushToDisk: true);
+            }
+            catch (Exception rollbackException) when (rollbackException is IOException or UnauthorizedAccessException)
+            {
+                // 保留原始写异常；下次打开会拒绝损坏的审计文件。
+            }
+            throw;
+        }
+        _embeddedAudit.Add(entry);
+        _embeddedApprovals[entry.ApprovalId] = entry;
+    }
+
+    private static void ValidateEmbeddedAuditEntry(GraphMaintenanceApprovalDto entry, int? lineNumber)
+    {
+        bool valid = entry.ApprovalId != Guid.Empty
+            && entry.OccurredAtUtc != default
+            && !string.IsNullOrWhiteSpace(entry.Database)
+            && !string.IsNullOrWhiteSpace(entry.Graph)
+            && Enum.IsDefined(entry.Action)
+            && !string.IsNullOrWhiteSpace(entry.State)
+            && !string.IsNullOrWhiteSpace(entry.Principal)
+            && entry.ExpiresAtUtc != default
+            && entry.MaxWorkUnits is >= 1 and <= 4_096;
+        if (valid)
+            return;
+        string location = lineNumber is null ? string.Empty : $"第 {lineNumber.Value} 行";
+        throw new InvalidDataException($"Graph embedded 维护审计记录{location}字段无效。");
+    }
+
+    private static GraphMaintenanceExecutionDto ExecuteEmbeddedMaintenance(
+        GraphStore store,
+        GraphMaintenanceApprovalDto approval,
+        CancellationToken cancellationToken)
+    {
+        if (approval.Action == GraphMaintenanceAction.RepairRebuild)
+        {
+            GraphMaintenanceResult result = store.RunMaintenance(
+                new GraphMaintenanceOptions
+                {
+                    MaxWorkUnits = approval.MaxWorkUnits,
+                    CompactOnCompletion = approval.CompactOnCompletion,
+                },
+                cancellationToken);
+            return new GraphMaintenanceExecutionDto
+            {
+                Action = approval.Action,
+                IsComplete = result.IsComplete,
+                OperationId = result.OperationId,
+                Phase = result.Phase.ToString(),
+                Sequence = result.Sequence,
+                ScannedRecords = result.ScannedRecords,
+                RepairedEntries = result.RepairedEntries,
+                RemovedEntries = result.RemovedEntries,
+                WorkUnits = result.WorkUnits,
+            };
+        }
+        long sequence = approval.Action switch
+        {
+            GraphMaintenanceAction.Checkpoint => store.Checkpoint(),
+            GraphMaintenanceAction.Compact => store.Compact(),
+            _ => throw new ArgumentOutOfRangeException(nameof(approval)),
+        };
+        return new GraphMaintenanceExecutionDto
+        {
+            Action = approval.Action,
+            IsComplete = true,
+            Sequence = sequence,
+        };
+    }
+
+    private static void ValidateMaintenanceRequest(GraphMaintenanceStageRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (!Enum.IsDefined(request.Action))
+            throw new ArgumentOutOfRangeException(nameof(request));
+        if (request.MaxWorkUnits is < 1 or > 4_096)
+            throw new ArgumentOutOfRangeException(nameof(request));
+        if (request.Action != GraphMaintenanceAction.RepairRebuild && request.CompactOnCompletion)
+            throw new ArgumentException("CompactOnCompletion 只适用于 repair/rebuild。", nameof(request));
+    }
+
+    private static GraphOperationsCapabilitiesDto CreateOperationsCapabilities(
+        bool slowTraversalDiagnostics,
+        bool audit)
+        => new(
+            SchemaAndIndexes: true,
+            DegreeHistogram: true,
+            SlowTraversalDiagnostics: slowTraversalDiagnostics,
+            BoundedVisualization: true,
+            RestrictedEditing: true,
+            JsonImportExport: true,
+            StagedMaintenance: true,
+            Audit: audit);
+
+    private static GraphVertexDto ToDto(GraphVertex vertex)
+        => new()
+        {
+            Id = vertex.Id.Value,
+            ElementVersion = vertex.ElementVersion,
+            Labels = vertex.Labels.Select(static label => label.Value).ToArray(),
+            Properties = vertex.Properties.Select(ToDto).ToArray(),
+        };
+
+    private static GraphEdgeDto ToDto(GraphEdge edge)
+        => new()
+        {
+            Id = edge.Id.Value,
+            ElementVersion = edge.ElementVersion,
+            SourceId = edge.SourceId.Value,
+            TargetId = edge.TargetId.Value,
+            LabelId = edge.LabelId.Value,
+            Properties = edge.Properties.Select(ToDto).ToArray(),
+        };
+
+    private static GraphPropertyDto ToDto(GraphProperty property)
+        => new() { PropertyId = property.PropertyId, Value = ToDto(property.Value) };
+
+    private static GraphValueDto ToDto(GraphPropertyValue value)
+        => value.Kind switch
+        {
+            GraphPropertyKind.Null => new GraphValueDto { Kind = value.Kind },
+            GraphPropertyKind.Int64 => new GraphValueDto { Kind = value.Kind, Int64 = value.AsInt64() },
+            GraphPropertyKind.Float64 => new GraphValueDto { Kind = value.Kind, Float64 = value.AsFloat64() },
+            GraphPropertyKind.Boolean => new GraphValueDto { Kind = value.Kind, Boolean = value.AsBoolean() },
+            GraphPropertyKind.String => new GraphValueDto { Kind = value.Kind, String = value.AsString() },
+            GraphPropertyKind.DateTime => new GraphValueDto { Kind = value.Kind, DateTime = value.AsDateTime() },
+            GraphPropertyKind.Blob => new GraphValueDto { Kind = value.Kind, BlobBase64 = Convert.ToBase64String(value.AsBlob()) },
+            GraphPropertyKind.Json => new GraphValueDto { Kind = value.Kind, Json = value.AsJson() },
+            _ => throw new ArgumentOutOfRangeException(nameof(value)),
+        };
+
     private string GraphsUrl() => $"v1/db/{Uri.EscapeDataString(_database)}/graphs";
     private string GraphUrl(string graph) => GraphsUrl() + "/" + Uri.EscapeDataString(graph);
     private string VertexUrl(string graph, GraphElementId id) => GraphUrl(graph) + "/vertices/" + id.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -770,6 +1446,8 @@ public sealed class SndbGraphClient : IDisposable
     private string ShortestPathUrl(string graph) => GraphUrl(graph) + "/shortest-path";
     private string WeightedShortestPathUrl(string graph) => GraphUrl(graph) + "/weighted-shortest-path";
     private string ImportUrl(string graph) => GraphUrl(graph) + "/import";
+    private string OperationsUrl(string graph) => GraphUrl(graph) + "/operations";
+    private string MaintenanceUrl(string graph) => GraphUrl(graph) + "/maintenance";
 
     private static void ValidateName(string value, string parameterName)
     {

@@ -101,6 +101,7 @@ import {
   ActivitySquare,
   MessageSquareMore,
   Network,
+  Share2,
   Plus,
   PlugZap,
   RefreshCw,
@@ -179,6 +180,7 @@ function tabIcon(tool: WorkbenchTool): Component {
     vector: Network,
     fulltext: FileSearch,
     bucket: FolderArchive,
+    graph: Share2,
   }[tool];
 }
 </script>

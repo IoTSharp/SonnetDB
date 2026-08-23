@@ -9,7 +9,7 @@ import {
   type WriteApprovalPlan,
 } from '@/utils/writeApproval';
 
-export type WorkbenchTool = 'sql' | 'trajectory' | 'measurement' | 'table' | 'document' | 'kv' | 'mq' | 'vector' | 'fulltext' | 'bucket';
+export type WorkbenchTool = 'sql' | 'trajectory' | 'measurement' | 'table' | 'document' | 'kv' | 'mq' | 'vector' | 'fulltext' | 'bucket' | 'graph';
 
 export interface EditorCursorInfo {
   line: number;

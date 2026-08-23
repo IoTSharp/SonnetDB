@@ -209,6 +209,16 @@
         @refresh-schema="loadSchema(targetDb, true)"
         />
 
+        <GraphWorkbench
+        v-else-if="activeWorkbenchTool === 'graph'"
+        :target-db="targetDb"
+        :graph="selectedGraph"
+        :graphs="currentGraphs"
+        :loading="loadingSchema"
+        @select-graph="selectGraph"
+        @refresh-graphs="loadSchema(targetDb, true)"
+        />
+
         <main v-else class="query-workspace">
           <TrajectoryMap
             class="trajectory-workbench"
@@ -274,6 +284,10 @@ const DocumentCollectionWorkbench = defineAsyncComponent({
 const FullTextSearchWorkbench = defineAsyncComponent({
   ...asyncWorkbenchOptions,
   loader: () => import('@/components/FullTextSearchWorkbench.vue'),
+});
+const GraphWorkbench = defineAsyncComponent({
+  ...asyncWorkbenchOptions,
+  loader: () => import('@/components/GraphWorkbench.vue'),
 });
 const KvKeyspaceWorkbench = defineAsyncComponent({
   ...asyncWorkbenchOptions,
@@ -508,6 +522,19 @@ const selectedObjectBucket = computed(() => {
   return currentObjectBuckets.value[0]?.name ?? active;
 });
 
+const currentGraphs = computed(() =>
+  targetDb.value && targetDb.value !== CONTROL_PLANE_KEY
+    ? managementByDb.value[targetDb.value]?.graphs ?? []
+    : []);
+
+const selectedGraph = computed(() => {
+  const active = activeExplorerKey.value.startsWith('graph:')
+    ? activeExplorerKey.value.slice('graph:'.length)
+    : '';
+  if (active && currentGraphs.value.some((graph) => graph.name === active)) return active;
+  return currentGraphs.value[0]?.name ?? active;
+});
+
 const activeObjectIdentity = computed(() => {
   switch (activeWorkbenchTool.value) {
     case 'measurement':
@@ -530,6 +557,8 @@ const activeObjectIdentity = computed(() => {
     }
     case 'bucket':
       return { label: selectedObjectBucket.value || '对象桶', key: selectedObjectBucket.value ? `bucket:${selectedObjectBucket.value}` : 'bucket' };
+    case 'graph':
+      return { label: selectedGraph.value || '属性图', key: selectedGraph.value ? `graph:${selectedGraph.value}` : 'graph' };
     case 'trajectory':
       return { label: '轨迹分析', key: activeExplorerKey.value || 'trajectory' };
     default:
@@ -821,6 +850,12 @@ function selectObjectBucket(bucket: string): void {
   if (!bucket) return;
   activeExplorerKey.value = `bucket:${bucket}`;
   setWorkbenchTool('bucket');
+}
+
+function selectGraph(graph: string): void {
+  if (!graph) return;
+  activeExplorerKey.value = `graph:${graph}`;
+  setWorkbenchTool('graph');
 }
 
 watch([activeWorkbenchTool, activeObjectIdentity, targetDb], ([tool, identity, db]) => {

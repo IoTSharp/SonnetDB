@@ -4,6 +4,7 @@ import type {
   ObjectBucketInfo,
   VectorIndexStat,
 } from '@/api/management';
+import type { GraphInfo } from '@/api/graphs';
 import type {
   BackupStatusInfo,
   DocumentCollectionInfo,
@@ -23,6 +24,7 @@ export type ExplorerModel =
   | 'fulltext'
   | 'mq'
   | 'bucket'
+  | 'graph'
   | 'backup';
 
 export interface ManagementExplorerInfo {
@@ -31,6 +33,7 @@ export interface ManagementExplorerInfo {
   fullTextIndexes: FullTextIndexStat[];
   mqTopics: MqTopicInfo[];
   buckets: ObjectBucketInfo[];
+  graphs: GraphInfo[];
   error: string;
 }
 
@@ -50,6 +53,7 @@ export interface ExplorerItem {
     | FullTextIndexStat
     | MqTopicInfo
     | ObjectBucketInfo
+    | GraphInfo
     | null;
 }
 
@@ -72,6 +76,7 @@ export interface DatabaseTreeNode {
   fullTextIndexes: FullTextIndexStat[];
   mqTopics: MqTopicInfo[];
   buckets: ObjectBucketInfo[];
+  graphs: GraphInfo[];
   backupStatus: BackupStatusInfo | null;
   loading: boolean;
   error: string;
@@ -98,6 +103,7 @@ export function emptyManagementInfo(error = ''): ManagementExplorerInfo {
     fullTextIndexes: [],
     mqTopics: [],
     buckets: [],
+    graphs: [],
     error,
   };
 }
@@ -117,6 +123,7 @@ export function normalizeActiveExplorerKey(
   if (management.fullTextIndexes.some((index) => `fulltext:${index.collection}:${index.name}` === key)) return key;
   if (management.mqTopics.some((topic) => `mq:${topic.topic}` === key)) return key;
   if (management.buckets.some((bucket) => `bucket:${bucket.name}` === key)) return key;
+  if (management.graphs.some((graph) => `graph:${graph.name}` === key)) return key;
   if (key === 'backup-status' && dbSchema.backupStatus) return key;
   return firstExplorerKey(dbSchema, management);
 }
@@ -130,6 +137,7 @@ export function firstExplorerKey(dbSchema: SchemaResponse, management: Managemen
     ?? (management.fullTextIndexes[0] ? `fulltext:${management.fullTextIndexes[0].collection}:${management.fullTextIndexes[0].name}` : undefined)
     ?? (management.mqTopics[0] ? `mq:${management.mqTopics[0].topic}` : undefined)
     ?? (management.buckets[0] ? `bucket:${management.buckets[0].name}` : undefined)
+    ?? (management.graphs[0] ? `graph:${management.graphs[0].name}` : undefined)
     ?? (dbSchema.backupStatus ? 'backup-status' : '');
 }
 
@@ -144,12 +152,13 @@ export function databaseMeta(
   kvCount: number,
   mqCount: number,
   bucketCount: number,
+  graphCount: number,
 ): string {
   if (loading) return 'loading schema...';
   if (error) return error;
   if (!loaded) return 'click to load schema';
-  if (measurementCount + tableCount + documentCount + kvCount + mqCount + bucketCount === 0) return 'empty database';
-  return `${measurementCount}M · ${tableCount}T · ${documentCount}D · ${kvCount}KV · ${mqCount}MQ · ${bucketCount}B · ${indexCount}I`;
+  if (measurementCount + tableCount + documentCount + kvCount + mqCount + bucketCount + graphCount === 0) return 'empty database';
+  return `${measurementCount}M · ${tableCount}T · ${documentCount}D · ${kvCount}KV · ${mqCount}MQ · ${bucketCount}B · ${graphCount}G · ${indexCount}I`;
 }
 
 export function databaseEmptyText(loaded: boolean, loading: boolean, error: string, keyword: string): string {
@@ -333,6 +342,20 @@ export function explorerGroups(dbNode: DatabaseTreeNode): ExplorerGroup[] {
         title: `${bucket.objectCount ?? 0} objects · ${bucket.totalBytes ?? 0} bytes`,
         className: 'schema-item--bucket',
         payload: bucket,
+      })),
+    },
+    {
+      key: 'graphs',
+      label: 'Graphs',
+      count: dbNode.graphs.length,
+      items: dbNode.graphs.map((graph) => ({
+        key: `graph:${graph.name}`,
+        model: 'graph',
+        name: graph.name,
+        meta: `format v${graph.recordFormatVersion}`,
+        title: `storage ${graph.storageId}`,
+        className: 'schema-item--graph',
+        payload: graph,
       })),
     },
   ];

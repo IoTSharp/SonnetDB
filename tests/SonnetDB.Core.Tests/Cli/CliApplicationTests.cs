@@ -1,5 +1,8 @@
 ﻿using SonnetDB.Cli;
 using Xunit;
+using SonnetDB.Data.Graphs;
+using SonnetDB.Graphs;
+using System.Text.Json;
 
 namespace SonnetDB.Core.Tests.Cli;
 
@@ -69,6 +72,55 @@ public sealed class CliApplicationTests : IDisposable
         Assert.Contains($"Data Source={_rootDirectory}", stdout.ToString());
         Assert.Contains("Mode=Embedded", stdout.ToString());
         Assert.Equal(string.Empty, stderr.ToString());
+    }
+
+    [Fact]
+    public async Task Run_GraphCommands_ExposeOperationsTransferAndStagedMaintenance()
+    {
+        string connection = $"Data Source={_rootDirectory};Mode=Embedded";
+        using (var seed = new SndbGraphClient(connection))
+        {
+            await seed.CreateGraphAsync("cli_graph");
+            await seed.CreateGraphAsync("cli_copy");
+            await seed.UpsertVertexAsync(
+                "cli_graph",
+                new GraphUpsertVertexRequest { Id = 1, RequestId = Guid.NewGuid(), Labels = [5] });
+        }
+
+        CommandResult list = RunCli("graph", "list", "--connection", connection);
+        Assert.Equal(0, list.ExitCode);
+        Assert.Contains("cli_graph", list.Stdout);
+
+        CommandResult overview = RunCli(
+            "graph", "overview", "--connection", connection, "--graph", "cli_graph");
+        Assert.Equal(0, overview.ExitCode);
+        using (JsonDocument overviewJson = JsonDocument.Parse(overview.Stdout))
+            Assert.Equal(1, overviewJson.RootElement.GetProperty("vertexCount").GetInt64());
+
+        string exportPath = Path.Combine(_rootDirectory, "cli.graph.json");
+        CommandResult export = RunCli(
+            "graph", "export", "--connection", connection, "--graph", "cli_graph", "--output", exportPath);
+        Assert.Equal(0, export.ExitCode);
+        Assert.True(File.Exists(exportPath));
+
+        CommandResult import = RunCli(
+            "graph", "import", "--connection", connection, "--graph", "cli_copy", "--input", exportPath);
+        Assert.Equal(0, import.ExitCode);
+        Assert.Contains("vertices=1", import.Stdout);
+
+        CommandResult stage = RunCli(
+            "graph", "maintenance", "stage", "--connection", connection, "--graph", "cli_graph", "--action", "checkpoint");
+        Assert.Equal(0, stage.ExitCode);
+        using JsonDocument staged = JsonDocument.Parse(stage.Stdout);
+        string approvalId = staged.RootElement.GetProperty("approvalId").GetString()
+            ?? throw new InvalidOperationException("CLI 未返回 Graph 审批 ID。");
+        Assert.Equal("staged", staged.RootElement.GetProperty("state").GetString());
+
+        CommandResult approve = RunCli(
+            "graph", "maintenance", "approve", "--connection", connection, "--graph", "cli_graph", "--approval", approvalId);
+        Assert.Equal(0, approve.ExitCode);
+        using JsonDocument approved = JsonDocument.Parse(approve.Stdout);
+        Assert.Equal("completed", approved.RootElement.GetProperty("state").GetString());
     }
 
     [Fact]
@@ -567,6 +619,15 @@ public sealed class CliApplicationTests : IDisposable
         var exitCode = app.Run(
             ["sql", "--connection", connectionString, "--command", sql]);
 
+        return new CommandResult(exitCode, stdout.ToString(), stderr.ToString());
+    }
+
+    private static CommandResult RunCli(params string[] args)
+    {
+        var stdout = new StringWriter();
+        var stderr = new StringWriter();
+        var app = new CliApplication(new StringReader(string.Empty), stdout, stderr);
+        int exitCode = app.Run(args);
         return new CommandResult(exitCode, stdout.ToString(), stderr.ToString());
     }
 

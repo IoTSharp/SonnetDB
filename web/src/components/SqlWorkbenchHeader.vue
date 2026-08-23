@@ -128,6 +128,15 @@
           >
             Bucket
           </button>
+          <button
+            v-if="activeTool === 'graph'"
+            type="button"
+            class="workbench-mode-switch__button"
+            :class="{ 'is-active': activeTool === 'graph' }"
+            @click="$emit('set-tool', 'graph')"
+          >
+            Graph
+          </button>
         </div>
 
         <div class="workbench-context__badges">

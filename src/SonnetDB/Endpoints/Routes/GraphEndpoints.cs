@@ -650,6 +650,8 @@ internal static partial class SonnetDbEndpoints
                 await WriteSimpleErrorAsync(ctx, StatusCodes.Status400BadRequest, "bad_request", exception.Message).ConfigureAwait(false);
             }
         });
+
+        app.MapGraphOperationsEndpoints();
     }
 
     private static async Task<GraphStore?> TryOpenGraphAsync(

@@ -409,6 +409,167 @@ public sealed class GraphEndpointTests : IAsyncLifetime
                 .Value.AsString());
     }
 
+    [Fact]
+    public async Task GraphOperations_ReadSurfaceAndJsonExport_RoundTripsThroughTypedSdk()
+    {
+        using SndbGraphClient admin = CreateGraphClient(AdminToken);
+        await admin.CreateGraphAsync("operations");
+        await admin.UpsertVertexAsync(
+            "operations",
+            new GraphUpsertVertexRequest
+            {
+                Id = 1,
+                RequestId = Guid.NewGuid(),
+                Labels = [10],
+                Properties =
+                [
+                    new GraphPropertyDto
+                    {
+                        PropertyId = 20,
+                        Value = new GraphValueDto { Kind = GraphPropertyKind.String, String = "pump" },
+                    },
+                ],
+            });
+        await admin.UpsertVertexAsync(
+            "operations",
+            new GraphUpsertVertexRequest { Id = 2, RequestId = Guid.NewGuid(), Labels = [10] });
+        await admin.UpsertEdgeAsync(
+            "operations",
+            new GraphUpsertEdgeRequest
+            {
+                Id = 100,
+                RequestId = Guid.NewGuid(),
+                SourceId = 1,
+                TargetId = 2,
+                LabelId = 30,
+            });
+
+        using SndbGraphClient reader = CreateGraphClient(ReadOnlyToken);
+        GraphOperationsOverviewDto overview = await reader.GetOperationsOverviewAsync("operations");
+        Assert.Equal(2, overview.VertexCount);
+        Assert.Equal(1, overview.EdgeCount);
+        Assert.Contains(overview.Labels, item => item.LabelId == 10 && item.ElementCount == 2);
+        Assert.Contains(overview.DegreeHistogram, item => item.Degree == 1 && item.VertexCount == 1);
+        Assert.True(overview.Capabilities.BoundedVisualization);
+        Assert.True(overview.Capabilities.RestrictedEditing);
+        Assert.Equal("server_sql_diagnostics", overview.SlowTraversalSource);
+
+        GraphVisualizationDto visualization = await reader.GetVisualizationAsync("operations", limit: 10);
+        Assert.False(visualization.Truncated);
+        Assert.Equal([1L, 2L], visualization.Vertices.Select(static vertex => vertex.Id).ToArray());
+        Assert.Equal(100, Assert.Single(visualization.Edges).Id);
+
+        using var export = new MemoryStream();
+        await reader.ExportJsonAsync("operations", export, maxElements: 10);
+        export.Position = 0;
+        using JsonDocument exported = await JsonDocument.ParseAsync(export);
+        Assert.False(exported.RootElement.GetProperty("truncated").GetBoolean());
+        Assert.Equal(3, exported.RootElement.GetProperty("elementCount").GetInt32());
+        Assert.Equal(2, exported.RootElement.GetProperty("vertices").GetArrayLength());
+        Assert.Equal(1, exported.RootElement.GetProperty("edges").GetArrayLength());
+
+        await admin.CreateGraphAsync("operations_copy");
+        export.Position = 0;
+        SndbGraphImportReport report = await SndbGraphImporter.ImportJsonAsync(
+            admin,
+            "operations_copy",
+            export,
+            new SndbGraphImportOptions { RequestId = Guid.NewGuid(), BatchSize = 10 });
+        Assert.Equal(2, report.VertexCount);
+        Assert.Equal(1, report.EdgeCount);
+        GraphOperationsOverviewDto copy = await reader.GetOperationsOverviewAsync("operations_copy");
+        Assert.Equal(overview.VertexCount, copy.VertexCount);
+        Assert.Equal(overview.EdgeCount, copy.EdgeCount);
+    }
+
+    [Fact]
+    public async Task GraphMaintenance_RequiresAdminAndPersistsStagedDecisionAuditAcrossRestart()
+    {
+        using SndbGraphClient admin = CreateGraphClient(AdminToken);
+        await admin.CreateGraphAsync("maintained");
+        await admin.UpsertVertexAsync(
+            "maintained",
+            new GraphUpsertVertexRequest { Id = 1, RequestId = Guid.NewGuid(), Labels = [1] });
+        GraphOperationsOverviewDto before = await admin.GetOperationsOverviewAsync("maintained");
+
+        using HttpClient readOnly = CreateClient(ReadOnlyToken);
+        HttpResponseMessage forbidden = await readOnly.PostAsJsonAsync(
+            "/v1/db/graphapi/graphs/maintained/maintenance/stage",
+            new GraphMaintenanceStageRequest { Action = GraphMaintenanceAction.Checkpoint },
+            ServerJsonContext.Default.GraphMaintenanceStageRequest);
+        Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+        Assert.Equal(
+            HttpStatusCode.Forbidden,
+            (await readOnly.GetAsync("/v1/db/graphapi/graphs/maintained/maintenance/audit")).StatusCode);
+
+        GraphMaintenanceApprovalDto staged = await admin.StageMaintenanceAsync(
+            "maintained",
+            new GraphMaintenanceStageRequest { Action = GraphMaintenanceAction.Checkpoint });
+        Assert.Equal("staged", staged.State);
+        GraphOperationsOverviewDto afterStage = await admin.GetOperationsOverviewAsync("maintained");
+        Assert.Equal(before.SnapshotSequence, afterStage.SnapshotSequence);
+        Assert.Equal(before.VertexCount, afterStage.VertexCount);
+
+        GraphMaintenanceApprovalDto completed = await admin.ApproveMaintenanceAsync(
+            "maintained",
+            staged.ApprovalId);
+        Assert.Equal("completed", completed.State);
+        Assert.True(completed.Result?.IsComplete);
+
+        using HttpClient adminHttp = CreateClient(AdminToken);
+        Assert.Equal(
+            HttpStatusCode.Conflict,
+            (await adminHttp.PostAsync(
+                $"/v1/db/graphapi/graphs/maintained/maintenance/{staged.ApprovalId:D}/approve",
+                content: null)).StatusCode);
+
+        GraphMaintenanceApprovalDto rejectable = await admin.StageMaintenanceAsync(
+            "maintained",
+            new GraphMaintenanceStageRequest { Action = GraphMaintenanceAction.Compact });
+        GraphMaintenanceApprovalDto rejected = await admin.RejectMaintenanceAsync(
+            "maintained",
+            rejectable.ApprovalId,
+            "maintenance window closed");
+        Assert.Equal("rejected", rejected.State);
+        Assert.Equal("maintenance window closed", rejected.Reason);
+
+        IReadOnlyList<GraphMaintenanceApprovalDto> beforeRestart = await admin.ListMaintenanceAuditAsync("maintained");
+        Assert.Contains(beforeRestart, entry => entry.ApprovalId == staged.ApprovalId && entry.State == "completed");
+        Assert.Contains(beforeRestart, entry => entry.ApprovalId == rejectable.ApprovalId && entry.State == "rejected");
+
+        admin.Dispose();
+        await RestartAsync();
+        using SndbGraphClient reopened = CreateGraphClient(AdminToken);
+        IReadOnlyList<GraphMaintenanceApprovalDto> afterRestart = await reopened.ListMaintenanceAuditAsync("maintained");
+        Assert.Contains(afterRestart, entry => entry.ApprovalId == staged.ApprovalId && entry.State == "completed");
+        Assert.Contains(afterRestart, entry => entry.ApprovalId == rejectable.ApprovalId && entry.State == "rejected");
+    }
+
+    private async Task RestartAsync()
+    {
+        if (_app is not null)
+        {
+            await _app.StopAsync();
+            await _app.DisposeAsync();
+        }
+
+        _app = TestServerHost.Build(new ServerOptions
+        {
+            DataRoot = _dataRoot!,
+            AutoLoadExistingDatabases = true,
+            Tokens = new Dictionary<string, string>
+            {
+                [AdminToken] = ServerRoles.Admin,
+                [ReadOnlyToken] = ServerRoles.ReadOnly,
+            },
+        });
+        await _app.StartAsync();
+        IServerAddressesFeature addresses = _app.Services.GetRequiredService<IServer>()
+            .Features.Get<IServerAddressesFeature>()
+            ?? throw new InvalidOperationException("Kestrel 未暴露监听地址。");
+        _baseUrl = addresses.Addresses.First();
+    }
+
     private SndbGraphClient CreateGraphClient(
         string token,
         SndbTransportProtocol protocol = SndbTransportProtocol.Auto)

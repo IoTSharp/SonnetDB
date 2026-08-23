@@ -75,6 +75,16 @@ const fullTextIndexes = [{
 
 const mqTopics = [{ topic: 'telemetry.raw', messageCount: 48, nextOffset: 48 }];
 const buckets = [{ name: 'inspection-media', purpose: 'field evidence', createdUtc: now, updatedUtc: now, objectCount: 1, totalBytes: 2048 }];
+const graphs = [{ name: 'plant_topology', storageId: '36600000-0000-0000-0000-000000000001', recordFormatVersion: 1 }];
+const graphVertices = [
+  { id: 1, elementVersion: 1, labels: [10], properties: [{ propertyId: 20, value: { kind: 4, string: 'Gateway' } }] },
+  { id: 2, elementVersion: 1, labels: [11], properties: [{ propertyId: 20, value: { kind: 4, string: 'Pump 01' } }] },
+  { id: 3, elementVersion: 1, labels: [11], properties: [{ propertyId: 20, value: { kind: 4, string: 'Pump 02' } }] },
+];
+const graphEdges = [
+  { id: 100, elementVersion: 1, sourceId: 1, targetId: 2, labelId: 30, properties: [] },
+  { id: 101, elementVersion: 1, sourceId: 1, targetId: 3, labelId: 30, properties: [] },
+];
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
@@ -198,6 +208,7 @@ const workbenches = [
   { tool: 'vector', testId: 'workbench-vector', identity: 'sensor_readings.embedding' },
   { tool: 'fulltext', testId: 'workbench-fulltext', identity: 'device_profiles.profile_text' },
   { tool: 'bucket', testId: 'workbench-bucket', identity: 'inspection-media' },
+  { tool: 'graph', testId: 'workbench-graph', identity: 'plant_topology' },
 ] as const;
 
 for (const workbench of workbenches) {
@@ -248,6 +259,54 @@ for (const workbench of workbenches) {
     }
   });
 }
+
+test('Graph workbench renders a nonblank topology and enforces staged maintenance approval', async ({ page }) => {
+  await page.goto('/admin/app/sql?tool=graph');
+  const surface = page.getByTestId('workbench-graph');
+  await expect(surface).toContainText('3 vertices');
+  await expect(surface).toContainText('2 edges');
+
+  const canvas = surface.locator('.graph-canvas canvas');
+  await expect(canvas).toBeVisible();
+  await expect.poll(async () => canvas.evaluate((element) => {
+    const context = (element as HTMLCanvasElement).getContext('2d');
+    if (!context) return 0;
+    const pixels = context.getImageData(0, 0, element.width, element.height).data;
+    let colored = 0;
+    for (let index = 0; index < pixels.length; index += 4) {
+      if (pixels[index + 3] > 0 && (pixels[index] < 245 || pixels[index + 1] < 245 || pixels[index + 2] < 245)) colored += 1;
+    }
+    return colored;
+  })).toBeGreaterThan(100);
+
+  if (process.env.SONNETDB_CAPTURE_M40 === '1') await captureM40(page, 'graph-workbench-desktop');
+
+  await surface.locator('.workbench-section-tabs').getByRole('button', { name: /Schema & diagnostics/u }).click();
+  await expect(surface).toContainText('Label 基数');
+  await expect(surface).toContainText('server_sql_diagnostics');
+
+  await surface.locator('.workbench-section-tabs').getByRole('button', { name: /Maintenance/u }).click();
+  await surface.getByRole('button', { name: '预览并暂存' }).click();
+  let approval = page.locator('.write-approval');
+  await approval.getByRole('checkbox').check();
+  await approval.getByRole('button', { name: /确认执行 1 项高风险操作/u }).click();
+  await expect(surface).toContainText('36600000-0000-0000-0000-000000000099');
+
+  await surface.getByRole('button', { name: '批准并执行' }).click();
+  approval = page.locator('.write-approval');
+  await approval.getByRole('checkbox').check();
+  await approval.getByRole('button', { name: /确认执行 1 项高风险操作/u }).click();
+  await expect(surface).toContainText('completed');
+});
+
+test('Graph canvas remains usable at a mobile viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/admin/app/sql?tool=graph');
+  const surface = page.getByTestId('workbench-graph');
+  await expect(surface.locator('.graph-canvas canvas')).toBeVisible();
+  await expect(page.locator('html')).not.toHaveCSS('overflow-x', 'scroll');
+  if (process.env.SONNETDB_CAPTURE_M40 === '1') await captureM40(page, 'graph-workbench-mobile');
+});
 
 const taskViews = [
   { tool: 'measurement', testId: 'workbench-measurement', tab: '文件导入', content: 'Measurement 文件导入' },
@@ -739,6 +798,31 @@ async function mockManagementContracts(page: Page): Promise<void> {
     if (path === `/v1/db/${database}/vector/indexes`) return json(route, { indexes: vectorIndexes });
     if (path === `/v1/db/${database}/fulltext/indexes`) return json(route, { indexes: fullTextIndexes });
     if (path === `/v1/db/${database}/mq/topics`) return json(route, { topics: mqTopics });
+    if (path === `/v1/db/${database}/graphs`) return json(route, graphs);
+    if (path === `/v1/db/${database}/graphs/plant_topology/operations/overview`) {
+      return json(route, {
+        graph: graphs[0], snapshotSequence: 41, vertexCount: 3, edgeCount: 2,
+        labels: [{ labelId: 10, elementCount: 1 }, { labelId: 11, elementCount: 2 }, { labelId: 30, elementCount: 2 }],
+        indexes: [{ elementType: 'vertex', labelId: 11, propertyId: 20, valueKind: 'string', entryCount: 2 }],
+        degreeHistogram: [{ degree: 0, vertexCount: 2 }, { degree: 2, vertexCount: 1 }],
+        slowTraversals: [{ timestampMs: Date.parse(now), fingerprint: 'graph-e2e', elapsedMs: 1240.5, rowCount: 3, accessPath: 'adjacency_index', fallbackReason: null, sql: 'SELECT * FROM GRAPH_TABLE(plant_topology)' }],
+        slowTraversalSource: 'server_sql_diagnostics',
+        capabilities: { schemaAndIndexes: true, degreeHistogram: true, slowTraversalDiagnostics: true, boundedVisualization: true, restrictedEditing: true, jsonImportExport: true, stagedMaintenance: true, audit: true },
+      });
+    }
+    if (path === `/v1/db/${database}/graphs/plant_topology/operations/visualization`) {
+      return json(route, { snapshotSequence: 41, truncated: false, vertices: graphVertices, edges: graphEdges });
+    }
+    if (path === `/v1/db/${database}/graphs/plant_topology/maintenance/stage`) {
+      return json(route, graphApproval('staged'), 202);
+    }
+    if (path === `/v1/db/${database}/graphs/plant_topology/maintenance/36600000-0000-0000-0000-000000000099/approve`) {
+      return json(route, { ...graphApproval('completed'), result: { action: 'RepairRebuild', isComplete: true, operationId: '36600000-0000-0000-0000-000000000088', phase: 'Completed', sequence: 42, scannedRecords: 5, repairedEntries: 0, removedEntries: 0, workUnits: 3 } });
+    }
+    if (path === `/v1/db/${database}/graphs/plant_topology/maintenance/audit`) {
+      return json(route, { items: [graphApproval('completed'), graphApproval('staged')] });
+    }
+    if (path === `/v1/db/${database}/graphs/plant_topology/vertices/1`) return json(route, graphVertices[0]);
     if (path === `/v1/db/${database}/sql`) return ndjson(route);
     if (path === `/v1/db/${database}/documents/device_profiles/find`) {
       return json(route, {
@@ -927,6 +1011,14 @@ async function json(route: Route, body: unknown, status = 200): Promise<void> {
   await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 }
 
+function graphApproval(state: string): Record<string, unknown> {
+  return {
+    approvalId: '36600000-0000-0000-0000-000000000099', occurredAtUtc: now,
+    database, graph: 'plant_topology', action: 'RepairRebuild', state, principal: 'admin',
+    expiresAtUtc: '2026-07-10T08:10:00Z', compactOnCompletion: false, maxWorkUnits: 64,
+  };
+}
+
 async function ndjson(route: Route): Promise<void> {
   const request = route.request().postDataJSON() as { sql?: string } | null;
   const isMeasurementQuery = /\bFROM\s+sensor_readings\b/iu.test(request?.sql ?? '');
@@ -955,6 +1047,12 @@ async function captureM29(page: Page, name: string): Promise<void> {
 
 async function captureM35(page: Page, name: string): Promise<void> {
   const directory = resolve(process.cwd(), '../output/playwright/semantic-images');
+  mkdirSync(directory, { recursive: true });
+  await page.screenshot({ path: resolve(directory, `${name}.png`), fullPage: true });
+}
+
+async function captureM40(page: Page, name: string): Promise<void> {
+  const directory = resolve(process.cwd(), '../output/playwright/m40-graph-operations');
   mkdirSync(directory, { recursive: true });
   await page.screenshot({ path: resolve(directory, `${name}.png`), fullPage: true });
 }
