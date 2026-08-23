@@ -10,8 +10,10 @@ using SonnetDB.Configuration;
 using SonnetDB.Contracts;
 using SonnetDB.Data;
 using SonnetDB.Data.Graphs;
+using SonnetDB.Data.KnowledgeGraphs;
 using SonnetDB.Graphs;
 using SonnetDB.Json;
+using SonnetDB.KnowledgeGraphs;
 using Xunit;
 
 namespace SonnetDB.Tests;
@@ -324,6 +326,87 @@ public sealed class GraphEndpointTests : IAsyncLifetime
         Assert.Equal([1L, 3L, 2L, 4L], result.VertexIds.Select(static id => id.Value).ToArray());
         Assert.Equal(GraphWeightedShortestPathAlgorithm.BidirectionalDijkstra, result.Algorithm);
         Assert.True(result.SnapshotSequence > 0);
+    }
+
+    [Fact]
+    public async Task GraphApi_RemoteKnowledgeContract_UsesExistingGraphImportAndReferencesOnly()
+    {
+        using SndbGraphClient client = CreateGraphClient(AdminToken);
+        await client.CreateGraphAsync("knowledge");
+        var source = new KnowledgeContentReference(
+            KnowledgeContentStoreKind.Object,
+            "evidence",
+            "manuals/alarm.pdf",
+            "etag-7",
+            chunkId: "page-12",
+            contentHash: "sha256:page-12");
+        var provenance = new KnowledgeProvenance(
+            "test-extractor",
+            "v1",
+            "remote-run",
+            DateTimeOffset.Parse("2026-08-23T00:00:00Z"),
+            source);
+        KnowledgeValidTime validTime = KnowledgeValidTime.Unbounded;
+        var batch = new KnowledgeGraphBatch(
+            Guid.Parse("36500000-0000-0000-0000-000000000002"),
+            [
+                new KnowledgeGraphNode("entity:alarm", KnowledgeGraphNodeKind.Entity, provenance)
+                {
+                    Name = "Alarm",
+                },
+                new KnowledgeGraphNode("claim:alarm-critical", KnowledgeGraphNodeKind.Claim, provenance)
+                {
+                    Claim = new KnowledgeClaimValue
+                    {
+                        SubjectId = "entity:alarm",
+                        Predicate = "severity",
+                        LiteralValue = "critical",
+                    },
+                    Confidence = 0.98,
+                    ValidTime = validTime,
+                },
+                new KnowledgeGraphNode("chunk:alarm-page", KnowledgeGraphNodeKind.Chunk, provenance)
+                {
+                    Content = source,
+                },
+            ],
+            [
+                new KnowledgeGraphRelation(
+                    "assert:alarm-critical",
+                    KnowledgeGraphRelationKind.Asserts,
+                    "entity:alarm",
+                    "claim:alarm-critical",
+                    provenance)
+                {
+                    Confidence = 0.98,
+                    ValidTime = validTime,
+                },
+                new KnowledgeGraphRelation(
+                    "evidence:alarm-critical",
+                    KnowledgeGraphRelationKind.SupportedBy,
+                    "claim:alarm-critical",
+                    "chunk:alarm-page",
+                    provenance)
+                {
+                    Confidence = 0.99,
+                    ValidTime = validTime,
+                },
+            ]);
+
+        GraphImportResponse first = await client.ImportKnowledgeGraphAsync("knowledge", batch);
+        GraphImportResponse replay = await client.ImportKnowledgeGraphAsync("knowledge", batch);
+
+        Assert.False(first.IsDuplicate);
+        Assert.True(replay.IsDuplicate);
+        GraphVertex claim = Assert.IsType<GraphVertex>(await client.GetVertexAsync(
+            "knowledge",
+            KnowledgeGraphMapper.GetNodeId("claim:alarm-critical")));
+        Assert.Contains(KnowledgeGraphMapper.GetNodeLabelId(KnowledgeGraphNodeKind.Claim), claim.Labels);
+        Assert.Equal(
+            "manuals/alarm.pdf",
+            claim.Properties.Single(property =>
+                property.PropertyId == SndbGraphImporter.GetStablePropertyId("__kg_provenance_source_id"))
+                .Value.AsString());
     }
 
     private SndbGraphClient CreateGraphClient(
