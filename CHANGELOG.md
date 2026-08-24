@@ -7,6 +7,8 @@
 
 ### Changed
 
+- **M41 #378 JOIN build side 成本选择首个切片**：关系 INNER Hash Join 不再固定物化右侧，而是复用输入谓词/投影下推后的估算行数，并按统计平均行宽或稳定类型权重估算投影行宽，选择预计字节更小的一侧 build、另一侧保持流式 probe；等成本继续右建以保持稳定。LEFT JOIN 为保留未匹配左行强制右建，NULL 键和残余谓词语义不变。运行时内部指标记录计划/实际 build、probe 行数，`EXPLAIN` 使用同一绑定与成本选择报告 `hash_join`、build side、估算行数/字节和阻塞边界。新增 5 项专项测试并通过 175 项既有关系 JOIN/下推/EXPLAIN 回归；#378 的 index nested-loop、merge join 与有限 join-order 枚举仍未完成，固定硬件和生产证据保持 `NOT_RUN`。
+
 - **M40 路线图复盘与执行门禁纠偏**：Phase 0 保持完成，Phase 1/2 改回进行中，明确记录 Expand 双向分页丢边、最短路径预算静默截断、导入字节预算、共享流式执行、关系 statement snapshot、SQL DDL/DML、property-aware planner 和 #367 evaluator 的真实缺口；新增“正确性 -> 证据门禁 -> 合同 -> 架构 -> SQL/planner -> 性能 -> 恢复/parity -> 发布证据”的强制顺序。步骤 1~7 未关闭前不得累计固定硬件、外部对拍或 7 天发布证据，M40 与九模型定位继续保持未完成。
 
 ### Fixed

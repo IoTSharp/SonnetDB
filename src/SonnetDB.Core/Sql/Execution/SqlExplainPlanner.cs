@@ -267,7 +267,9 @@ public static class SqlExplainPlanner
         return new SelectExecutionResult(_keyValueColumns, rows);
     }
 
-    private static string DescribeMemoryBehavior(SelectStatement statement)
+    private static string DescribeMemoryBehavior(
+        SelectStatement statement,
+        IReadOnlyList<RelationalJoinOperatorPlan>? joinPlans = null)
     {
         var operators = new List<string>
         {
@@ -275,7 +277,21 @@ public static class SqlExplainPlanner
         };
         for (int index = 0; index < statement.JoinClauses.Count; index++)
         {
-            operators.Add($"join_{index + 1}=right_input_blocking(hash_build_or_nested_replay)");
+            RelationalJoinOperatorPlan? plan = joinPlans is not null && index < joinPlans.Count
+                ? joinPlans[index]
+                : null;
+            if (plan is { Operator: "hash_join", BuildSide: RelationalHashBuildSide.Left })
+            {
+                operators.Add($"join_{index + 1}=left_input_blocking(hash_build),right_input=streaming_probe");
+            }
+            else if (plan is { Operator: "hash_join" })
+            {
+                operators.Add($"join_{index + 1}=right_input_blocking(hash_build),left_input=streaming_probe");
+            }
+            else
+            {
+                operators.Add($"join_{index + 1}=right_input_blocking(hash_build_or_nested_replay)");
+            }
         }
         if (RelationalSelectExecutor.ContainsAggregateForExplain(statement)
             || statement.GroupBy.Count > 0
@@ -1085,19 +1101,30 @@ public static class SqlExplainPlanner
         long estimatedRows = 0;
         foreach (ComposedSourceExplain source in sources)
             estimatedRows = SaturatingAdd(estimatedRows, source.EstimatedRows);
+        IReadOnlyList<RelationalJoinOperatorPlan> joinPlans =
+            RelationalSelectExecutor.ExplainJoinOperators(tsdb, statement);
         string accessPath = string.Join(
             ";",
             sources.Select((source, position) =>
                 $"{(position == 0 ? "source" : "join")}:{source.Alias}[{source.AccessPath}]"));
-        if (sources.Count > 1)
-            accessPath += ";join_operator=right_build_or_replay";
+        if (joinPlans.Count > 0)
+            accessPath += ";" + string.Join(";", joinPlans.Select(FormatJoinOperatorPlan));
         string? indexName = JoinNonEmpty(sources.Select(static source => source.IndexName));
         string? candidateContract = JoinNonEmpty(sources
             .Where(static source => source.CandidateContract is not null)
             .Select(static source => $"{source.Alias}:{source.CandidateContract}"));
-        string? fallbackReason = JoinNonEmpty(sources
-            .Where(static source => source.FallbackReason is not null)
-            .Select(static source => $"{source.Alias}:{source.FallbackReason}"));
+        string? fallbackReason = JoinNonEmpty(
+            sources
+                .Where(static source => source.FallbackReason is not null)
+                .Select(static source => $"{source.Alias}:{source.FallbackReason}")
+                .Concat(joinPlans
+                    .Where(static plan => plan.FallbackReason is not null)
+                    .Select(static plan => $"join_{plan.Ordinal}:{plan.FallbackReason}")));
+
+        RelationalJoinInputEstimate? outputEstimate = joinPlans.Count == 0
+            || joinPlans[^1].OutputEstimate.Rows == long.MaxValue
+            ? null
+            : joinPlans[^1].OutputEstimate;
 
         return new SqlExplainExecutionResult(
             Database: databaseName,
@@ -1119,8 +1146,30 @@ public static class SqlExplainPlanner
         {
             CandidateContract = candidateContract,
             FallbackReason = fallbackReason,
-            PlanNode = sources.Count > 1 ? "right_input_blocking_join" : "streaming_relation",
+            EstimatedOutputRows = outputEstimate?.Rows,
+            EstimatedRowWidth = outputEstimate?.RowWidth,
+            PlanNode = joinPlans.Count switch
+            {
+                0 => "streaming_relation",
+                1 => joinPlans[0].Operator,
+                _ => "join_pipeline",
+            },
+            MemoryBehavior = DescribeMemoryBehavior(statement, joinPlans),
         };
+    }
+
+    private static string FormatJoinOperatorPlan(RelationalJoinOperatorPlan plan)
+    {
+        if (string.Equals(plan.Operator, "runtime_join", StringComparison.Ordinal))
+            return $"join_{plan.Ordinal}:runtime_join(binding=deferred)";
+
+        string buildSide = plan.BuildSide == RelationalHashBuildSide.Left ? "left" : "right";
+        string estimatedBytes = Math.Ceiling(plan.BuildEstimate.EstimatedBytes)
+            .ToString("F0", CultureInfo.InvariantCulture);
+        string inputRole = string.Equals(plan.Operator, "hash_join", StringComparison.Ordinal)
+            ? $"build={buildSide}"
+            : "replay=right";
+        return $"join_{plan.Ordinal}:{plan.Operator}({inputRole},rows={plan.BuildEstimate.Rows},bytes={estimatedBytes})";
     }
 
     private static ComposedSourceExplain ExplainComposedSubquery(

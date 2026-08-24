@@ -337,6 +337,14 @@ internal static class RelationalSelectExecutor
                 projectedColumns,
                 candidateRows,
                 retainedRows);
+
+        /// <summary>记录一次 Hash Join 的实际 build/probe 证据。</summary>
+        public void RecordHashJoin(
+            RelationalHashBuildSide buildSide,
+            RelationalJoinInputEstimate buildEstimate,
+            long actualBuildRows,
+            long actualProbeRows)
+            => _metrics?.RecordHashJoin(buildSide, buildEstimate, actualBuildRows, actualProbeRows);
     }
 
     public static bool NeedsRelationalPath(SelectStatement statement)
@@ -356,6 +364,179 @@ internal static class RelationalSelectExecutor
         ArgumentNullException.ThrowIfNull(statement);
         return ContainsAggregate(statement.Projections);
     }
+
+    /// <summary>为关系 JOIN 生成与运行时共用的物理算子和 Hash build side 计划。</summary>
+    internal static IReadOnlyList<RelationalJoinOperatorPlan> ExplainJoinOperators(
+        Tsdb tsdb,
+        SelectStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        if (statement.JoinClauses.Count == 0)
+            return [];
+
+        RelationInputPushdownPlan inputPushdown = PlanRelationInputs(tsdb, statement, outerScope: null);
+        if (!TryCreateExplainRelation(
+                tsdb,
+                statement.Measurement,
+                statement.TableAlias ?? statement.Measurement,
+                statement.FromSubquery,
+                inputPushdown.From,
+                out Relation relation))
+        {
+            return BuildExplainFallbackPlans(statement.JoinClauses, "left_input_requires_runtime_materialization");
+        }
+
+        var plans = new List<RelationalJoinOperatorPlan>(statement.JoinClauses.Count);
+        for (int joinIndex = 0; joinIndex < statement.JoinClauses.Count; joinIndex++)
+        {
+            JoinClause join = statement.JoinClauses[joinIndex];
+            if (!TryCreateExplainRelation(
+                    tsdb,
+                    join.TableName,
+                    join.Alias,
+                    join.Subquery,
+                    inputPushdown.Joins[joinIndex],
+                    out Relation right))
+            {
+                plans.Add(CreateRuntimeJoinPlan(
+                    joinIndex + 1,
+                    join.Kind,
+                    relation.Estimate,
+                    new RelationalJoinInputEstimate(long.MaxValue, 1),
+                    "right_input_requires_runtime_materialization"));
+                relation = new Relation(
+                    relation.Columns,
+                    [],
+                    RelationalJoinCostPlanner.Combine(
+                        join.Kind,
+                        relation.Estimate,
+                        new RelationalJoinInputEstimate(long.MaxValue, 1)));
+                continue;
+            }
+
+            if (TryPlanHashJoin(relation, right, join.On, out _, out _))
+            {
+                RelationalHashBuildSide buildSide = RelationalJoinCostPlanner.ChooseHashBuildSide(
+                    join.Kind,
+                    relation.Estimate,
+                    right.Estimate);
+                plans.Add(CreateHashJoinPlan(
+                    joinIndex + 1,
+                    join.Kind,
+                    buildSide,
+                    relation.Estimate,
+                    right.Estimate));
+            }
+            else
+            {
+                plans.Add(CreateNestedLoopPlan(
+                    joinIndex + 1,
+                    join.Kind,
+                    relation.Estimate,
+                    right.Estimate,
+                    "hash_key_not_proven"));
+            }
+
+            relation = new Relation(
+                relation.Columns.Concat(right.Columns).ToArray(),
+                [],
+                RelationalJoinCostPlanner.Combine(join.Kind, relation.Estimate, right.Estimate));
+        }
+
+        return plans;
+    }
+
+    private static bool TryCreateExplainRelation(
+        Tsdb tsdb,
+        string sourceName,
+        string alias,
+        SelectStatement? subquery,
+        RelationInputPlan inputPlan,
+        out Relation relation)
+    {
+        relation = null!;
+        if (subquery is not null || tsdb.Tables.Catalog.TryGet(sourceName) is not { } schema)
+            return false;
+
+        TableColumn[] selectedColumns = SelectInputColumns(schema, inputPlan.RequiredColumns);
+        var columns = new RelColumn[selectedColumns.Length];
+        for (int index = 0; index < selectedColumns.Length; index++)
+        {
+            TableColumn column = selectedColumns[index];
+            columns[index] = new RelColumn(alias, column.Name, column.Name, column.DataType);
+        }
+
+        relation = new Relation(
+            columns,
+            [],
+            EstimateTableInput(tsdb.Tables.Open(schema.Name), schema, selectedColumns, inputPlan));
+        return true;
+    }
+
+    private static IReadOnlyList<RelationalJoinOperatorPlan> BuildExplainFallbackPlans(
+        IReadOnlyList<JoinClause> joins,
+        string fallbackReason)
+    {
+        var plans = new RelationalJoinOperatorPlan[joins.Count];
+        var unknown = new RelationalJoinInputEstimate(long.MaxValue, 1);
+        for (int index = 0; index < plans.Length; index++)
+            plans[index] = CreateRuntimeJoinPlan(index + 1, joins[index].Kind, unknown, unknown, fallbackReason);
+        return plans;
+    }
+
+    private static RelationalJoinOperatorPlan CreateHashJoinPlan(
+        int ordinal,
+        JoinKind kind,
+        RelationalHashBuildSide buildSide,
+        RelationalJoinInputEstimate left,
+        RelationalJoinInputEstimate right)
+        => buildSide == RelationalHashBuildSide.Left
+            ? new RelationalJoinOperatorPlan(
+                ordinal,
+                "hash_join",
+                buildSide,
+                left,
+                right,
+                RelationalJoinCostPlanner.Combine(kind, left, right))
+            : new RelationalJoinOperatorPlan(
+                ordinal,
+                "hash_join",
+                buildSide,
+                right,
+                left,
+                RelationalJoinCostPlanner.Combine(kind, left, right));
+
+    private static RelationalJoinOperatorPlan CreateNestedLoopPlan(
+        int ordinal,
+        JoinKind kind,
+        RelationalJoinInputEstimate left,
+        RelationalJoinInputEstimate right,
+        string fallbackReason)
+        => new(
+            ordinal,
+            "nested_loop",
+            RelationalHashBuildSide.Right,
+            right,
+            left,
+            RelationalJoinCostPlanner.Combine(kind, left, right),
+            fallbackReason);
+
+    private static RelationalJoinOperatorPlan CreateRuntimeJoinPlan(
+        int ordinal,
+        JoinKind kind,
+        RelationalJoinInputEstimate left,
+        RelationalJoinInputEstimate right,
+        string fallbackReason)
+        => new(
+            ordinal,
+            "runtime_join",
+            RelationalHashBuildSide.Right,
+            right,
+            left,
+            RelationalJoinCostPlanner.Combine(kind, left, right),
+            fallbackReason);
 
     /// <summary>
     /// 为独立的单表 EXISTS 生成与运行时快速路径共用的访问计划描述，不执行业务数据扫描。
@@ -966,7 +1147,10 @@ internal static class RelationalSelectExecutor
         SubqueryMemo memo)
     {
         if (string.IsNullOrEmpty(statement.Measurement) && statement.FromSubquery is null)
-            return new Relation(Array.Empty<RelColumn>(), [Array.Empty<object?>()]);
+            return new Relation(
+                Array.Empty<RelColumn>(),
+                [Array.Empty<object?>()],
+                new RelationalJoinInputEstimate(1, 1));
 
         var alias = statement.TableAlias ?? statement.Measurement;
         if (statement.FromSubquery is not null)
@@ -1011,6 +1195,8 @@ internal static class RelationalSelectExecutor
             var column = selectedColumns[i];
             columns[i] = new RelColumn(alias, column.Name, column.Name, column.DataType);
         }
+        TableStore store = tsdb.Tables.Open(schema.Name);
+        RelationalJoinInputEstimate estimate = EstimateTableInput(store, schema, selectedColumns, plan);
         if (plan.RowLimit == 0)
         {
             memo.RecordRelationInput(
@@ -1019,15 +1205,15 @@ internal static class RelationalSelectExecutor
                 selectedColumns.Length,
                 candidateRows: 0,
                 retainedRows: 0);
-            return new Relation(columns, []);
+            return new Relation(columns, [], estimate);
         }
         // read-your-writes：叠加当前 ambient 轻事务对本表的缓冲写（#218）。
         IEnumerable<TableRow> candidates = TableSqlExecutor.EnumerateSelectCandidateRows(
-            tsdb.Tables.Open(schema.Name),
+            store,
             schema,
             plan.Predicate,
             plan.RequiredColumns);
-        return new Relation(columns, ProjectRows());
+        return new Relation(columns, ProjectRows(), estimate);
 
         IEnumerable<object?[]> ProjectRows()
         {
@@ -1082,6 +1268,27 @@ internal static class RelationalSelectExecutor
         return selected;
     }
 
+    private static RelationalJoinInputEstimate EstimateTableInput(
+        TableStore store,
+        TableSchema schema,
+        IReadOnlyList<TableColumn> selectedColumns,
+        RelationInputPlan plan)
+    {
+        TableAccessCostEstimate cost = TableCostPlanner.Estimate(
+            store,
+            schema,
+            plan.Predicate,
+            allowAutomaticRefresh: false);
+        long rows = plan.RowLimit is int rowLimit
+            ? Math.Min(cost.EstimatedRows, rowLimit)
+            : cost.EstimatedRows;
+        double width = RelationalJoinCostPlanner.EstimateProjectedRowWidth(
+            schema.Columns,
+            selectedColumns,
+            cost.EstimatedRowWidth);
+        return new RelationalJoinInputEstimate(rows, width);
+    }
+
     private static Relation LoadMaterializedView(
         MaterializedViewManager manager,
         string name,
@@ -1094,7 +1301,12 @@ internal static class RelationalSelectExecutor
         var rows = snapshot.Rows
             .Select(static row => row.ToArray())
             .ToArray();
-        return new Relation(columns, rows);
+        return new Relation(
+            columns,
+            rows,
+            new RelationalJoinInputEstimate(
+                rows.Length,
+                RelationalJoinCostPlanner.EstimateUnknownRowWidth(columns.Length)));
     }
 
     private static Relation LoadSubquery(Tsdb tsdb, SelectStatement subquery, string alias)
@@ -1106,7 +1318,12 @@ internal static class RelationalSelectExecutor
         var rows = result.Rows
             .Select(row => row.ToArray())
             .ToArray();
-        return new Relation(columns, rows);
+        return new Relation(
+            columns,
+            rows,
+            new RelationalJoinInputEstimate(
+                rows.Length,
+                RelationalJoinCostPlanner.EstimateUnknownRowWidth(columns.Length)));
     }
 
     private static string NormalizeSubqueryColumnName(string column)
@@ -1130,7 +1347,13 @@ internal static class RelationalSelectExecutor
         // 仅当 ON 能拆出至少一组 left_col = right_col 等值键、且无相关子查询等复杂依赖时启用；
         // 否则回退嵌套循环。残差（非等值）合取项在候选对上再求值，保持语义完全一致。
         if (TryPlanHashJoin(left, right, on, out var keyPairs, out var residual))
-            return HashJoin(tsdb, left, right, keyPairs, residual, kind, outerScope, memo);
+        {
+            RelationalHashBuildSide buildSide = RelationalJoinCostPlanner.ChooseHashBuildSide(
+                kind,
+                left.Estimate,
+                right.Estimate);
+            return HashJoin(tsdb, left, right, keyPairs, residual, kind, buildSide, outerScope, memo);
+        }
 
         return NestedLoopJoin(tsdb, left, right, on, kind, outerScope, memo);
     }
@@ -1145,7 +1368,10 @@ internal static class RelationalSelectExecutor
         SubqueryMemo memo)
     {
         var columns = left.Columns.Concat(right.Columns).ToArray();
-        return new Relation(columns, JoinRows());
+        return new Relation(
+            columns,
+            JoinRows(),
+            RelationalJoinCostPlanner.Combine(kind, left.Estimate, right.Estimate));
 
         IEnumerable<object?[]> JoinRows()
         {
@@ -1252,58 +1478,79 @@ internal static class RelationalSelectExecutor
         List<JoinKeyPair> keyPairs,
         List<SqlExpression> residual,
         JoinKind kind,
+        RelationalHashBuildSide buildSide,
         RelationalScope? outerScope,
         SubqueryMemo memo)
     {
         var columns = left.Columns.Concat(right.Columns).ToArray();
-        return new Relation(columns, JoinRows());
+        RelationalJoinInputEstimate estimate = RelationalJoinCostPlanner.Combine(kind, left.Estimate, right.Estimate);
+        return new Relation(columns, JoinRows(), estimate);
 
         IEnumerable<object?[]> JoinRows()
         {
-            var buildTable = new Dictionary<JoinValueKey, List<object?[]>>();
-            foreach (object?[] rightRow in right.Rows)
+            long actualBuildRows = 0;
+            long actualProbeRows = 0;
+            try
             {
-                SqlExecutor.ThrowIfCancellationRequested();
-                if (TryMakeKey(rightRow, keyPairs, useRight: true, out var key))
+                bool buildRight = buildSide == RelationalHashBuildSide.Right;
+                IEnumerable<object?[]> buildRows = buildRight ? right.Rows : left.Rows;
+                IEnumerable<object?[]> probeRows = buildRight ? left.Rows : right.Rows;
+                var buildTable = new Dictionary<JoinValueKey, List<object?[]>>();
+                foreach (object?[] buildRow in buildRows)
                 {
-                    if (!buildTable.TryGetValue(key, out var bucket))
+                    actualBuildRows++;
+                    SqlExecutor.ThrowIfCancellationRequested();
+                    if (TryMakeKey(buildRow, keyPairs, useRight: buildRight, out JoinValueKey key))
                     {
-                        bucket = [];
-                        buildTable.Add(key, bucket);
+                        if (!buildTable.TryGetValue(key, out List<object?[]>? bucket))
+                        {
+                            bucket = [];
+                            buildTable.Add(key, bucket);
+                        }
+                        bucket.Add(buildRow);
                     }
-                    bucket.Add(rightRow);
                 }
-            }
 
-            bool hasResidual = residual.Count > 0;
-            foreach (object?[] leftRow in left.Rows)
-            {
-                SqlExecutor.ThrowIfCancellationRequested();
-                bool matched = false;
-                if (TryMakeKey(leftRow, keyPairs, useRight: false, out var probeKey)
-                    && buildTable.TryGetValue(probeKey, out var candidates))
+                bool hasResidual = residual.Count > 0;
+                foreach (object?[] probeRow in probeRows)
                 {
-                    foreach (object?[] rightRow in candidates)
+                    actualProbeRows++;
+                    SqlExecutor.ThrowIfCancellationRequested();
+                    bool matched = false;
+                    if (TryMakeKey(probeRow, keyPairs, useRight: !buildRight, out JoinValueKey probeKey)
+                        && buildTable.TryGetValue(probeKey, out List<object?[]>? candidates))
                     {
-                        SqlExecutor.ThrowIfCancellationRequested();
-                        var row = new object?[leftRow.Length + rightRow.Length];
-                        Array.Copy(leftRow, row, leftRow.Length);
-                        Array.Copy(rightRow, 0, row, leftRow.Length, rightRow.Length);
+                        foreach (object?[] buildRow in candidates)
+                        {
+                            SqlExecutor.ThrowIfCancellationRequested();
+                            object?[] leftRow = buildRight ? probeRow : buildRow;
+                            object?[] rightRow = buildRight ? buildRow : probeRow;
+                            var row = new object?[leftRow.Length + rightRow.Length];
+                            Array.Copy(leftRow, row, leftRow.Length);
+                            Array.Copy(rightRow, 0, row, leftRow.Length, rightRow.Length);
 
-                        if (hasResidual && !ResidualHolds(tsdb, residual, columns, row, outerScope, memo))
-                            continue;
+                            if (hasResidual && !ResidualHolds(tsdb, residual, columns, row, outerScope, memo))
+                                continue;
 
-                        matched = true;
+                            matched = true;
+                            yield return row;
+                        }
+                    }
+
+                    if (!matched && kind == JoinKind.Left)
+                    {
+                        var row = new object?[probeRow.Length + right.Columns.Count];
+                        Array.Copy(probeRow, row, probeRow.Length);
                         yield return row;
                     }
                 }
-
-                if (!matched && kind == JoinKind.Left)
-                {
-                    var row = new object?[leftRow.Length + right.Columns.Count];
-                    Array.Copy(leftRow, row, leftRow.Length);
-                    yield return row;
-                }
+            }
+            finally
+            {
+                RelationalJoinInputEstimate buildEstimate = buildSide == RelationalHashBuildSide.Left
+                    ? left.Estimate
+                    : right.Estimate;
+                memo.RecordHashJoin(buildSide, buildEstimate, actualBuildRows, actualProbeRows);
             }
         }
     }
@@ -3407,7 +3654,10 @@ internal static class RelationalSelectExecutor
     private static bool QualifierEquals(string? left, string? right)
         => string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
 
-    private sealed record Relation(IReadOnlyList<RelColumn> Columns, IEnumerable<object?[]> Rows);
+    private sealed record Relation(
+        IReadOnlyList<RelColumn> Columns,
+        IEnumerable<object?[]> Rows,
+        RelationalJoinInputEstimate Estimate);
 
     /// <summary>
     /// 关系列描述。<see cref="StaticType"/> 为该列的 schema 静态类型（关系表列已知；子查询 /
@@ -3558,6 +3808,30 @@ internal sealed class RelationalSelectExecutionMetrics
     /// <summary>关系输入裁剪后的列数总和。</summary>
     public long InputProjectedColumns { get; private set; }
 
+    /// <summary>实际执行的 Hash Join 次数。</summary>
+    public int HashJoinExecutionCount { get; private set; }
+
+    /// <summary>选择左侧作为 Hash build 输入的次数。</summary>
+    public int HashJoinLeftBuildCount { get; private set; }
+
+    /// <summary>选择右侧作为 Hash build 输入的次数。</summary>
+    public int HashJoinRightBuildCount { get; private set; }
+
+    /// <summary>最近一次 Hash Join 的 build side。</summary>
+    public string? LastHashJoinBuildSide { get; private set; }
+
+    /// <summary>最近一次 Hash Join 的估算 build 行数。</summary>
+    public long LastHashJoinEstimatedBuildRows { get; private set; }
+
+    /// <summary>最近一次 Hash Join 的估算 build 字节数。</summary>
+    public double LastHashJoinEstimatedBuildBytes { get; private set; }
+
+    /// <summary>最近一次 Hash Join 实际枚举的 build 行数。</summary>
+    public long LastHashJoinActualBuildRows { get; private set; }
+
+    /// <summary>最近一次 Hash Join 实际枚举的 probe 行数。</summary>
+    public long LastHashJoinActualProbeRows { get; private set; }
+
     /// <summary>记录一次实际子查询执行。</summary>
     internal void RecordSubqueryExecution() => SubqueryExecutionCount++;
 
@@ -3606,5 +3880,24 @@ internal sealed class RelationalSelectExecutionMetrics
         InputRetainedRows += retainedRows;
         InputSourceColumns += sourceColumns;
         InputProjectedColumns += projectedColumns;
+    }
+
+    /// <summary>记录一次 Hash Join build side 选择及实际输入规模。</summary>
+    internal void RecordHashJoin(
+        RelationalHashBuildSide buildSide,
+        RelationalJoinInputEstimate buildEstimate,
+        long actualBuildRows,
+        long actualProbeRows)
+    {
+        HashJoinExecutionCount++;
+        if (buildSide == RelationalHashBuildSide.Left)
+            HashJoinLeftBuildCount++;
+        else
+            HashJoinRightBuildCount++;
+        LastHashJoinBuildSide = buildSide == RelationalHashBuildSide.Left ? "left" : "right";
+        LastHashJoinEstimatedBuildRows = buildEstimate.Rows;
+        LastHashJoinEstimatedBuildBytes = buildEstimate.EstimatedBytes;
+        LastHashJoinActualBuildRows = actualBuildRows;
+        LastHashJoinActualProbeRows = actualProbeRows;
     }
 }

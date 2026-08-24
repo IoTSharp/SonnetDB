@@ -45,12 +45,12 @@
 | 38 | SQL 存储过程与触发器 | ✅ | #329~#332 已完成 SQL 过程、关系表 AFTER ROW 触发器及治理收口；外部脚本运行时保持暂停。 |
 | 39 | SQL 触发器第二版 | 🚧 | #333 证据 runner、三条关系表 journey、三种 DML 成本/回滚矩阵和真进程 crash 场景已接入；固定目标硬件矩阵仍待归档，再决定高级语义与多模型范围。 |
 | 40 | 原生属性图数据库 | 🚧 | Phase 0 已完成；修复与发布步骤 1~5 的正确性、strict evaluator、Phase 1 合同、Phase 2 共享流式/关系 snapshot、`graph_sql_v1` DML 与 property-aware planner 已关闭，Phase 1 仍缺 #352 正式准入证据；下一步推进步骤 6 的性能加固。固定硬件、PostgreSQL/Neo4j、LDBC/Graphalytics、Couplet C2~C4、Native AOT 与 7 天生产证据均保持 `NOT_RUN`。 |
-| 41 | 关系查询规划与执行性能加固 | 🚧 | #368~#377（含流式算子、covering/index-only、KV/Table 快照、持久统计、有限成本选择与 EXPLAIN/ANALYZE 证据）已完成本地实现和自动化门禁；固定硬件、木垒生产同语料、7 天 mixed workload 与发布门禁保持 `NOT_RUN`，继续按高级 JOIN/spill/并行推进。 |
+| 41 | 关系查询规划与执行性能加固 | 🚧 | #368~#377 已完成本地实现和自动化门禁；#378 已落地按估算行数/投影行宽选择 Hash build side 的首个切片，index nested-loop、merge join 与 join-order 仍未完成。固定硬件、木垒生产同语料、7 天 mixed workload 与发布门禁保持 `NOT_RUN`。 |
 | MM9 | 多模型备份恢复第一批 | ✅ | `BackupService` 与 `sndb backup` 已落地。 |
 
 ## 当前推进顺序
 
-1. M41 P0/P2 作为生产稳定性最高优先级：#368~#377 的性能合同、快速路径、关系输入下推、流式算子、covering/index-only、KV/Table 快照、统计成本模型和 EXPLAIN 证据已完成本地实现与自动化门禁；木垒同语料、固定硬件、7 天 mixed workload 和生产 gate 仍为 `NOT_RUN`。下一步按既定顺序推进 #378/#379，不得用增加 SQL permit、内存或索引数量代替根因修复。
+1. M41 P0/P2 作为生产稳定性最高优先级：#368~#377 已完成本地实现与自动化门禁；#378 的 Hash build side 成本选择首个切片已落地，下一步继续 index nested-loop、按收益准入 merge join、有限 join-order，再推进 #379。木垒同语料、固定硬件、7 天 mixed workload 和生产 gate 仍为 `NOT_RUN`；不得用增加 SQL permit、内存或索引数量代替根因修复。
 2. 恢复 M20 Parity nightly 的有效报告，并补齐 M19/M25 目标硬件容量证据。
 3. 完成 M27 的真实 provider/Agent 接线、双网客户端 Copilot、工业 Demo 和 eval，消除历史虚标。
 4. 收口 M29 Studio 安装包/宿主生命周期实机验收。
@@ -404,7 +404,7 @@ SELECT EXISTS (...)
 | P2 | #375 | 轻量统计信息：持久化表/索引行数与页数、平均行宽、NULL fraction、distinct、MCV 和等深直方图；支持显式 `ANALYZE` 与有预算的自动刷新，采样不得长时间阻塞业务，不保存原始敏感值，并记录 freshness/sample rate。 | ✅ 本地完成；发布证据后置 |
 | P2 | #376 | 逻辑/物理计划与成本选择：统一 point/range/full/index-union access path，基于基数、选择率、行宽、解码、排序、内存和逻辑 I/O 估算选择计划；首版保持小而确定，不引入无界搜索，统计缺失或估算不可信时使用稳定启发式回退。 | ✅ 本地完成；发布证据后置 |
 | P2 | #377 | 可解释计划与实际执行证据：默认 `EXPLAIN` 只读目录/统计元数据，不为估算候选数实际扫描业务数据；为 M36 #313 提供计划树、估算/实际行数、耗时、loops、rows removed、锁/队列等待、峰值内存、spill 和 fallback reason。M36 负责用户侧错误/取消/超时合同，本项只建设共享规划与算子证据源。 | ✅ 本地完成；发布证据后置 |
-| P3 | #378 | JOIN 优化：按估算行数和行宽选择 Hash build side，支持 semijoin/antijoin、index nested-loop，并在有序输入和收益证据成立时准入 merge join；建立有限 join-order 枚举与大连接图回退，外连接和 NULL 语义不得被重写破坏。 | 📋 |
+| P3 | #378 | JOIN 优化：按估算行数和行宽选择 Hash build side，支持 semijoin/antijoin、index nested-loop，并在有序输入和收益证据成立时准入 merge join；建立有限 join-order 枚举与大连接图回退，外连接和 NULL 语义不得被重写破坏。 | 🚧 Hash build side 已落地；LEFT JOIN 固定右建并有 EXPLAIN/实际计数。index nested-loop、merge join 与有限 join-order 待完成。 |
 | P3 | #379 | 阻塞算子内存预算与 spill：为 hash join、sort、Top-N、group、distinct 和索引候选集合设置按查询/全局预算、取消和临时文件生命周期；落盘结果必须与内存路径对拍，崩溃后可清理，禁止因预算不足静默截断结果。 | 📋 |
 | P3 | #380 | 受控并行与运行时反馈：仅对估算收益成立的 scan/JOIN/aggregate 启用有界并行，服从 SQL permit、查询内存和取消；记录估算偏差供统计刷新或下一次规划使用，不在执行中改变可观察结果顺序。必须在 #369~#379 已减少扫描并使内存有界后准入。 | 📋 |
 | 发布门禁 | #381 | 生产收口：运行语义差分、并发/事务、crash/replay、backup/restore、Native AOT、固定 ARM64/x64 硬件基准和 7 天 mixed workload；木垒语料分别报告 P50/P95/P99、examined/returned amplification、RSS/分配/GC、锁/队列等待和逻辑/物理 I/O。任一优化回归正确性或恢复保证时不得默认开启。 | 📋 |
