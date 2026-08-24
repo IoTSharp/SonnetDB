@@ -86,7 +86,10 @@ public sealed class MeiliAdapter : IDataPlane, IFullTextOps
         using (var delete = await _http.DeleteAsync($"indexes/{index}", ct).ConfigureAwait(false))
         {
             if (delete.IsSuccessStatusCode)
-                await WaitTaskAsync(await ReadTaskUidAsync(delete, ct).ConfigureAwait(false), ct).ConfigureAwait(false);
+                await WaitTaskAsync(
+                    await ReadTaskUidAsync(delete, ct).ConfigureAwait(false),
+                    ct,
+                    ignoredErrorCode: "index_not_found").ConfigureAwait(false);
             else if (delete.StatusCode != HttpStatusCode.NotFound)
                 await ThrowAsync(delete, ct).ConfigureAwait(false);
         }
@@ -180,7 +183,7 @@ public sealed class MeiliAdapter : IDataPlane, IFullTextOps
         return ValueTask.CompletedTask;
     }
 
-    private async Task WaitTaskAsync(long taskUid, CancellationToken ct)
+    private async Task WaitTaskAsync(long taskUid, CancellationToken ct, string? ignoredErrorCode = null)
     {
         var deadline = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(30);
         while (true)
@@ -192,7 +195,12 @@ public sealed class MeiliAdapter : IDataPlane, IFullTextOps
             if (task is not null && string.Equals(task.Status, "succeeded", StringComparison.OrdinalIgnoreCase))
                 return;
             if (task is not null && string.Equals(task.Status, "failed", StringComparison.OrdinalIgnoreCase))
+            {
+                if (ignoredErrorCode is not null
+                    && string.Equals(task.Error?.Code, ignoredErrorCode, StringComparison.OrdinalIgnoreCase))
+                    return;
                 throw new InvalidOperationException($"Meilisearch task {taskUid} failed: {task.Error?.Message}");
+            }
             if (DateTimeOffset.UtcNow >= deadline)
                 throw new TimeoutException($"Meilisearch task {taskUid} did not finish within 30 seconds.");
             await Task.Delay(100, ct).ConfigureAwait(false);
@@ -232,7 +240,7 @@ public sealed class MeiliAdapter : IDataPlane, IFullTextOps
 
     private sealed record MeiliTaskResponse(string Status, MeiliTaskError? Error);
 
-    private sealed record MeiliTaskError(string? Message);
+    private sealed record MeiliTaskError(string? Code, string? Message);
 
     private sealed record MeiliSearchResponse(IReadOnlyList<MeiliHit> Hits);
 

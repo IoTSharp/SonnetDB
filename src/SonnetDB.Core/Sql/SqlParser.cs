@@ -1,8 +1,7 @@
-﻿using SonnetDB.Sql.Ast;
-
-using System.Globalization;
+﻿using System.Globalization;
 using SonnetDB.Graphs;
 using SonnetDB.Modbus;
+using SonnetDB.Sql.Ast;
 
 namespace SonnetDB.Sql;
 

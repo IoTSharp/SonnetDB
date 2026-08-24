@@ -706,23 +706,23 @@ public sealed class GraphTransaction
         IReadOnlyList<GraphProperty> properties)
     {
         foreach (LabelId label in labels)
-        foreach (GraphProperty property in properties)
-        {
-            byte[] key = GraphKeyCodec.EncodeUniqueProperty(
-                elementKind,
-                label,
-                property.PropertyId,
-                property.Value);
-            byte[]? currentValue = builder.GetEffectiveValue(keyspace, key);
-            if (currentValue is null)
-                continue;
-            GraphElementId existingOwner = GraphUniquePropertyOwnerCodec.Decode(
-                currentValue,
-                elementKind);
-            if (existingOwner != ownerId)
-                continue;
-            builder.Delete(key);
-        }
+            foreach (GraphProperty property in properties)
+            {
+                byte[] key = GraphKeyCodec.EncodeUniqueProperty(
+                    elementKind,
+                    label,
+                    property.PropertyId,
+                    property.Value);
+                byte[]? currentValue = builder.GetEffectiveValue(keyspace, key);
+                if (currentValue is null)
+                    continue;
+                GraphElementId existingOwner = GraphUniquePropertyOwnerCodec.Decode(
+                    currentValue,
+                    elementKind);
+                if (existingOwner != ownerId)
+                    continue;
+                builder.Delete(key);
+            }
     }
 
     private static void EnsureHighWater(

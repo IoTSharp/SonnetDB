@@ -222,28 +222,28 @@ internal sealed class GraphWeightedPathBenchmarkFixture : IDisposable
         GraphTransaction transaction = store.BeginTransaction(Guid.NewGuid());
         int buffered = 0;
         for (int row = 0; row < Side; row++)
-        for (int column = 0; column < Side; column++)
-        {
-            GraphElementId current = GetVertexId(row, column);
-            if (column + 1 < Side)
+            for (int column = 0; column < Side; column++)
             {
-                AddDirectedEdge(transaction, edgeId++, current, GetVertexId(row, column + 1));
-                AddDirectedEdge(transaction, edgeId++, GetVertexId(row, column + 1), current);
-                buffered += 2;
-            }
-            if (row + 1 < Side)
-            {
-                AddDirectedEdge(transaction, edgeId++, current, GetVertexId(row + 1, column));
-                AddDirectedEdge(transaction, edgeId++, GetVertexId(row + 1, column), current);
-                buffered += 2;
-            }
+                GraphElementId current = GetVertexId(row, column);
+                if (column + 1 < Side)
+                {
+                    AddDirectedEdge(transaction, edgeId++, current, GetVertexId(row, column + 1));
+                    AddDirectedEdge(transaction, edgeId++, GetVertexId(row, column + 1), current);
+                    buffered += 2;
+                }
+                if (row + 1 < Side)
+                {
+                    AddDirectedEdge(transaction, edgeId++, current, GetVertexId(row + 1, column));
+                    AddDirectedEdge(transaction, edgeId++, GetVertexId(row + 1, column), current);
+                    buffered += 2;
+                }
 
-            if (buffered < MutationBatchSize)
-                continue;
-            transaction.Commit();
-            transaction = store.BeginTransaction(Guid.NewGuid());
-            buffered = 0;
-        }
+                if (buffered < MutationBatchSize)
+                    continue;
+                transaction.Commit();
+                transaction = store.BeginTransaction(Guid.NewGuid());
+                buffered = 0;
+            }
 
         if (buffered > 0)
             transaction.Commit();

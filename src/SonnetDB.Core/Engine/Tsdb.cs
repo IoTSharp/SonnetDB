@@ -7,8 +7,8 @@ using SonnetDB.Engine.Retention;
 using SonnetDB.Graphs;
 using SonnetDB.Kv;
 using SonnetDB.Memory;
-using SonnetDB.Model;
 using SonnetDB.Modbus;
+using SonnetDB.Model;
 using SonnetDB.Query;
 using SonnetDB.Query.Functions;
 using SonnetDB.Routines;
@@ -561,18 +561,18 @@ public sealed class Tsdb : IDisposable
         WalGroupCommitTicket walSync = default;
         FlushPump.FlushRequest? hardCapFlush;
         lock (_schemaSync)
-        lock (_writeSync)
-        {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            var normalized = EnsureMeasurementSchemaLocked(point, persistImmediately: true);
-            WritePointLocked(normalized);
-            hardCapFlush = FlushForHardCapIfNeededLocked();
+            lock (_writeSync)
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                var normalized = EnsureMeasurementSchemaLocked(point, persistImmediately: true);
+                WritePointLocked(normalized);
+                hardCapFlush = FlushForHardCapIfNeededLocked();
 
-            if (_options.SyncWalOnEveryWrite)
-                walSync = _walGroupCommit.Prepare(_walSet!);
-            else
-                FlushWalToOsIfEnabledLocked();
-        }
+                if (_options.SyncWalOnEveryWrite)
+                    walSync = _walGroupCommit.Prepare(_walSet!);
+                else
+                    FlushWalToOsIfEnabledLocked();
+            }
 
         walSync.Wait();
 
@@ -666,41 +666,41 @@ public sealed class Tsdb : IDisposable
         WalGroupCommitTicket walSync = default;
         FlushPump.FlushRequest? hardCapFlush = null;
         lock (_schemaSync)
-        lock (_writeSync)
-        {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-
-            var normalizedPoints = new Point?[chunk.Length];
-
-            for (int i = 0; i < chunk.Length; i++)
+            lock (_writeSync)
             {
-                var point = chunk[i];
-                if (point is null)
-                    continue;
+                ObjectDisposedException.ThrowIf(_disposed, this);
 
-                normalizedPoints[i] = EnsureMeasurementSchemaLocked(point, persistImmediately: false);
-                written++;
-            }
+                var normalizedPoints = new Point?[chunk.Length];
 
-            if (written > 0)
-            {
-                PersistMeasurementSchemasLocked();
-
-                for (int i = 0; i < normalizedPoints.Length; i++)
+                for (int i = 0; i < chunk.Length; i++)
                 {
-                    var normalized = normalizedPoints[i];
-                    if (normalized is not null)
-                        WritePointLocked(NormalizePointAgainstCurrentSchemaLocked(normalized));
+                    var point = chunk[i];
+                    if (point is null)
+                        continue;
+
+                    normalizedPoints[i] = EnsureMeasurementSchemaLocked(point, persistImmediately: false);
+                    written++;
                 }
 
-                hardCapFlush = FlushForHardCapIfNeededLocked();
-            }
+                if (written > 0)
+                {
+                    PersistMeasurementSchemasLocked();
 
-            if (_options.SyncWalOnEveryWrite && written > 0)
-                walSync = _walGroupCommit.Prepare(_walSet!);
-            else if (written > 0)
-                FlushWalToOsIfEnabledLocked();
-        }
+                    for (int i = 0; i < normalizedPoints.Length; i++)
+                    {
+                        var normalized = normalizedPoints[i];
+                        if (normalized is not null)
+                            WritePointLocked(NormalizePointAgainstCurrentSchemaLocked(normalized));
+                    }
+
+                    hardCapFlush = FlushForHardCapIfNeededLocked();
+                }
+
+                if (_options.SyncWalOnEveryWrite && written > 0)
+                    walSync = _walGroupCommit.Prepare(_walSet!);
+                else if (written > 0)
+                    FlushWalToOsIfEnabledLocked();
+            }
 
         walSync.Wait();
 
@@ -802,16 +802,16 @@ public sealed class Tsdb : IDisposable
     {
         ArgumentNullException.ThrowIfNull(schema);
         lock (_schemaSync)
-        lock (_writeSync)
-        {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            EnsureViewNameAvailable(schema.Name, "measurement");
-            Measurements.Add(schema);
+            lock (_writeSync)
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                EnsureViewNameAvailable(schema.Name, "measurement");
+                Measurements.Add(schema);
 
-            // 立即把全量 schema 集合原子写入磁盘，确保 CREATE 语义具备崩溃安全性
-            MarkMeasurementSchemasDirty();
-            PersistMeasurementSchemasLocked();
-        }
+                // 立即把全量 schema 集合原子写入磁盘，确保 CREATE 语义具备崩溃安全性
+                MarkMeasurementSchemasDirty();
+                PersistMeasurementSchemasLocked();
+            }
 
         return schema;
     }
@@ -833,29 +833,29 @@ public sealed class Tsdb : IDisposable
         ArgumentNullException.ThrowIfNull(schemaFactory);
 
         lock (_schemaSync)
-        lock (_writeSync)
-        {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            var existing = Measurements.TryGet(name);
-            if (existing is not null)
+            lock (_writeSync)
             {
-                return existing;
-            }
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                var existing = Measurements.TryGet(name);
+                if (existing is not null)
+                {
+                    return existing;
+                }
 
-            EnsureViewNameAvailable(name, "measurement");
-            var schema = schemaFactory();
-            if (!string.Equals(schema.Name, name, StringComparison.Ordinal))
-            {
-                throw new ArgumentException(
-                    $"Measurement schema 工厂返回名称 '{schema.Name}'，预期为 '{name}'。",
-                    nameof(schemaFactory));
-            }
+                EnsureViewNameAvailable(name, "measurement");
+                var schema = schemaFactory();
+                if (!string.Equals(schema.Name, name, StringComparison.Ordinal))
+                {
+                    throw new ArgumentException(
+                        $"Measurement schema 工厂返回名称 '{schema.Name}'，预期为 '{name}'。",
+                        nameof(schemaFactory));
+                }
 
-            Measurements.Add(schema);
-            MarkMeasurementSchemasDirty();
-            PersistMeasurementSchemasLocked();
-            return schema;
-        }
+                Measurements.Add(schema);
+                MarkMeasurementSchemasDirty();
+                PersistMeasurementSchemasLocked();
+                return schema;
+            }
     }
 
     /// <summary>
@@ -869,34 +869,34 @@ public sealed class Tsdb : IDisposable
         // schema 锁覆盖依赖检查与目录发布；随后按 maintenance → write 获取底层存储锁，
         // 与 Compaction / Retention 互斥，杜绝检查后并发建依赖和段集合数据复活。
         lock (_schemaSync)
-        lock (_maintenanceSync)
-        lock (_writeSync)
-        {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            EnsureNoViewDependents(name, "DROP MEASUREMENT");
+            lock (_maintenanceSync)
+                lock (_writeSync)
+                {
+                    ObjectDisposedException.ThrowIf(_disposed, this);
+                    EnsureNoViewDependents(name, "DROP MEASUREMENT");
 
-            if (!Measurements.Contains(name))
-                return false;
+                    if (!Measurements.Contains(name))
+                        return false;
 
-            SealAndWaitLocked();
+                    SealAndWaitLocked();
 
-            var removedSeries = Catalog.RemoveMeasurement(name);
-            var removedSeriesIds = removedSeries.Select(static entry => entry.Id).ToHashSet();
-            foreach (ulong seriesId in removedSeriesIds)
-                _seriesWithWalRecord.Remove(seriesId);
+                    var removedSeries = Catalog.RemoveMeasurement(name);
+                    var removedSeriesIds = removedSeries.Select(static entry => entry.Id).ToHashSet();
+                    foreach (ulong seriesId in removedSeriesIds)
+                        _seriesWithWalRecord.Remove(seriesId);
 
-            MemTable.RemoveSeries(removedSeriesIds);
-            RemoveMeasurementSegmentsLocked(removedSeriesIds);
+                    MemTable.RemoveSeries(removedSeriesIds);
+                    RemoveMeasurementSegmentsLocked(removedSeriesIds);
 
-            Measurements.Remove(name);
-            MarkMeasurementSchemasDirty();
-            PersistMeasurementSchemasLocked();
+                    Measurements.Remove(name);
+                    MarkMeasurementSchemasDirty();
+                    PersistMeasurementSchemasLocked();
 
-            _catalogDirty = true;
-            PersistCatalogCheckpointLocked();
+                    _catalogDirty = true;
+                    PersistCatalogCheckpointLocked();
 
-            return true;
-        }
+                    return true;
+                }
     }
 
     /// <summary>
@@ -1024,137 +1024,138 @@ public sealed class Tsdb : IDisposable
         // 关闭提交段与 DDL、备份使用相同的 schema → write 锁序；在途 schema 变更先完成，
         // 关闭取得 schema 锁后再处置各 manager，防止关闭返回后继续发布 Modbus 绑定。
         lock (_schemaSync)
-        lock (_writeSync)
-        {
-            if (_disposed)
-                return;
-            _disposed = true;
-
-            WalSegmentSet? walSetToDispose = _walSet;
-            _walSet = null;
-
-            try
+            lock (_writeSync)
             {
-                if (walSetToDispose != null)
+                if (_disposed)
+                    return;
+                _disposed = true;
+
+                WalSegmentSet? walSetToDispose = _walSet;
+                _walSet = null;
+
+                try
                 {
-                    _walGroupCommit.FlushPending(walSetToDispose);
-
-                    // 尝试 Flush 剩余数据（Flush 内部会保存 manifest）
-                    if (MemTable.PointCount > 0)
+                    if (walSetToDispose != null)
                     {
-                        try
-                        {
-                            PersistMeasurementSchemasLocked();
-                            PersistCatalogCheckpointLocked();
-                            var flushing = _activeMemTable;
-                            long lsnBeforeFlush = flushing.LastLsn;
-                            var result = _flushCoordinator.Flush(
-                                flushing,
-                                walSetToDispose,
-                                _nextSegmentId++,
-                                Tombstones,
-                                Catalog,
-                                Measurements);
-                            if (result != null)
-                            {
-                                _checkpointLsn = lsnBeforeFlush;
-                                // 关闭路径不发布段索引（进程即将退出），换空表保持不变式一致。
-                                _activeMemTable = new MemTable();
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            // Flush 失败不应阻止 catalog 保存和 WAL 关闭
-                            ReportDiagnostic(
-                                "Dispose.FinalFlush",
-                                TsdbDiagnosticSeverity.Error,
-                                "Dispose final flush 失败；异常已被捕获，WAL 将保留为恢复来源。",
-                                ex);
-                        }
-                    }
-                    else
-                    {
-                        // MemTable 为空时，仍需持久化 manifest（可能有 Delete 操作但没有写入）
-                        try
-                        {
-                            TombstoneManifestCodec.Save(TsdbPaths.TombstoneManifestPath(RootDirectory), Tombstones.All);
-                        }
-                        catch
-                        {
-                            // manifest 保存失败不阻止关闭（WAL 仍可作为恢复手段）
+                        _walGroupCommit.FlushPending(walSetToDispose);
 
-                            // 保存 measurement schema
+                        // 尝试 Flush 剩余数据（Flush 内部会保存 manifest）
+                        if (MemTable.PointCount > 0)
+                        {
                             try
                             {
-                                MeasurementSchemaCodec.Save(
-                                    TsdbPaths.MeasurementSchemaPath(RootDirectory),
-                                    Measurements.Snapshot());
+                                PersistMeasurementSchemasLocked();
+                                PersistCatalogCheckpointLocked();
+                                var flushing = _activeMemTable;
+                                long lsnBeforeFlush = flushing.LastLsn;
+                                var result = _flushCoordinator.Flush(
+                                    flushing,
+                                    walSetToDispose,
+                                    _nextSegmentId++,
+                                    Tombstones,
+                                    Catalog,
+                                    Measurements);
+                                if (result != null)
+                                {
+                                    _checkpointLsn = lsnBeforeFlush;
+                                    // 关闭路径不发布段索引（进程即将退出），换空表保持不变式一致。
+                                    _activeMemTable = new MemTable();
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                // Flush 失败不应阻止 catalog 保存和 WAL 关闭
+                                ReportDiagnostic(
+                                    "Dispose.FinalFlush",
+                                    TsdbDiagnosticSeverity.Error,
+                                    "Dispose final flush 失败；异常已被捕获，WAL 将保留为恢复来源。",
+                                    ex);
+                            }
+                        }
+                        else
+                        {
+                            // MemTable 为空时，仍需持久化 manifest（可能有 Delete 操作但没有写入）
+                            try
+                            {
+                                TombstoneManifestCodec.Save(TsdbPaths.TombstoneManifestPath(RootDirectory), Tombstones.All);
                             }
                             catch
                             {
-                                // schema 保存失败不阻止关闭（已写入磁盘的版本仍可恢复）
+                                // manifest 保存失败不阻止关闭（WAL 仍可作为恢复手段）
+
+                                // 保存 measurement schema
+                                try
+                                {
+                                    MeasurementSchemaCodec.Save(
+                                        TsdbPaths.MeasurementSchemaPath(RootDirectory),
+                                        Measurements.Snapshot());
+                                }
+                                catch
+                                {
+                                    // schema 保存失败不阻止关闭（已写入磁盘的版本仍可恢复）
+                                }
                             }
                         }
+
+                        // 保存 schema/catalog
+                        PersistMeasurementSchemasLocked();
+                        CatalogFileCodec.Save(Catalog, TsdbPaths.CatalogPath(RootDirectory));
+                        _catalogDirty = false;
                     }
-
-                    // 保存 schema/catalog
-                    PersistMeasurementSchemasLocked();
-                    CatalogFileCodec.Save(Catalog, TsdbPaths.CatalogPath(RootDirectory));
-                    _catalogDirty = false;
-                }
-            }
-            finally
-            {
-                try
-                {
-                    walSetToDispose?.Dispose();
-                }
-                catch (Exception ex)
-                {
-                    ReportDiagnostic(
-                        "Dispose.WalClose",
-                        TsdbDiagnosticSeverity.Warning,
-                        "Dispose 关闭 WAL 时发生异常；资源释放会继续执行。",
-                        ex);
-                }
-
-                try
-                {
-                    _walGroupCommit.Dispose();
                 }
                 finally
                 {
                     try
                     {
-                        _modbus.Dispose();
+                        walSetToDispose?.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        ReportDiagnostic(
+                            "Dispose.WalClose",
+                            TsdbDiagnosticSeverity.Warning,
+                            "Dispose 关闭 WAL 时发生异常；资源释放会继续执行。",
+                            ex);
+                    }
+
+                    try
+                    {
+                        _walGroupCommit.Dispose();
                     }
                     finally
                     {
                         try
                         {
-                            _tables.Dispose();
+                            _modbus.Dispose();
                         }
                         finally
                         {
                             try
                             {
-                                _documents.Dispose();
+                                _tables.Dispose();
                             }
                             finally
                             {
                                 try
                                 {
-                                    _graphs.Dispose();
+                                    _documents.Dispose();
                                 }
                                 finally
                                 {
                                     try
                                     {
-                                        _keyspaces.Dispose();
+                                        _graphs.Dispose();
                                     }
                                     finally
                                     {
-                                        Segments.Dispose();
+                                        try
+                                        {
+                                            _keyspaces.Dispose();
+                                        }
+                                        finally
+                                        {
+                                            Segments.Dispose();
+                                        }
                                     }
                                 }
                             }
@@ -1162,7 +1163,6 @@ public sealed class Tsdb : IDisposable
                     }
                 }
             }
-        }
     }
 
     // ── 内部辅助 ─────────────────────────────────────────────────────────────
@@ -1985,21 +1985,21 @@ public sealed class Tsdb : IDisposable
         _flushPump = null;
 
         lock (_schemaSync)
-        lock (_writeSync)
-        {
-            if (_disposed)
-                return;
-            _disposed = true;
-            if (_walSet is not null)
-                _walGroupCommit.FlushPending(_walSet);
-            _walSet?.Dispose();
-            _walGroupCommit.Dispose();
-            _modbus.Dispose();
-            _tables.Dispose();
-            _documents.Dispose();
-            _graphs.Dispose();
-            _keyspaces.Dispose();
-            _walSet = null;
-        }
+            lock (_writeSync)
+            {
+                if (_disposed)
+                    return;
+                _disposed = true;
+                if (_walSet is not null)
+                    _walGroupCommit.FlushPending(_walSet);
+                _walSet?.Dispose();
+                _walGroupCommit.Dispose();
+                _modbus.Dispose();
+                _tables.Dispose();
+                _documents.Dispose();
+                _graphs.Dispose();
+                _keyspaces.Dispose();
+                _walSet = null;
+            }
     }
 }

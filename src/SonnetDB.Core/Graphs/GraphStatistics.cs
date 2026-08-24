@@ -304,20 +304,20 @@ internal static class GraphStatisticsCalculator
                 switch (key.Kind)
                 {
                     case GraphKeyKind.VertexRecord:
-                    {
-                        vertexCount++;
-                        GraphVertexRecord record = GraphElementRecordCodec.DecodeVertex(entry.Value.Span);
-                        foreach (LabelId label in record.Labels)
-                            IncrementBounded(labels, label, options, labels, histogram, properties, values);
-                        break;
-                    }
+                        {
+                            vertexCount++;
+                            GraphVertexRecord record = GraphElementRecordCodec.DecodeVertex(entry.Value.Span);
+                            foreach (LabelId label in record.Labels)
+                                IncrementBounded(labels, label, options, labels, histogram, properties, values);
+                            break;
+                        }
                     case GraphKeyKind.EdgeRecord:
-                    {
-                        edgeCount++;
-                        GraphEdgeRecord record = GraphElementRecordCodec.DecodeEdge(entry.Value.Span);
-                        IncrementBounded(labels, record.LabelId, options, labels, histogram, properties, values);
-                        break;
-                    }
+                        {
+                            edgeCount++;
+                            GraphEdgeRecord record = GraphElementRecordCodec.DecodeEdge(entry.Value.Span);
+                            IncrementBounded(labels, record.LabelId, options, labels, histogram, properties, values);
+                            break;
+                        }
                     case GraphKeyKind.OutgoingAdjacency:
                         if (currentSource != key.SourceId)
                         {
@@ -336,61 +336,61 @@ internal static class GraphStatisticsCalculator
                         currentDegree = checked(currentDegree + 1);
                         break;
                     case GraphKeyKind.VertexPropertyIndex:
-                    {
-                        IncrementBounded(
-                            properties,
-                            new GraphIndexStatisticKey(
-                                GraphElementType.Vertex,
-                                key.LabelId,
-                                key.PropertyId,
-                                key.PropertyValue.Kind),
-                            options,
-                            labels,
-                            histogram,
-                            properties,
-                            values);
-                        IncrementBounded(
-                            values,
-                            GraphValueStatisticKey.Create(
-                                GraphElementType.Vertex,
-                                key.LabelId,
-                                key.PropertyId,
-                                key.PropertyValue),
-                            options,
-                            labels,
-                            histogram,
-                            properties,
-                            values);
-                        break;
-                    }
+                        {
+                            IncrementBounded(
+                                properties,
+                                new GraphIndexStatisticKey(
+                                    GraphElementType.Vertex,
+                                    key.LabelId,
+                                    key.PropertyId,
+                                    key.PropertyValue.Kind),
+                                options,
+                                labels,
+                                histogram,
+                                properties,
+                                values);
+                            IncrementBounded(
+                                values,
+                                GraphValueStatisticKey.Create(
+                                    GraphElementType.Vertex,
+                                    key.LabelId,
+                                    key.PropertyId,
+                                    key.PropertyValue),
+                                options,
+                                labels,
+                                histogram,
+                                properties,
+                                values);
+                            break;
+                        }
                     case GraphKeyKind.EdgePropertyIndex:
-                    {
-                        IncrementBounded(
-                            properties,
-                            new GraphIndexStatisticKey(
-                                GraphElementType.Edge,
-                                key.LabelId,
-                                key.PropertyId,
-                                key.PropertyValue.Kind),
-                            options,
-                            labels,
-                            histogram,
-                            properties,
-                            values);
-                        IncrementBounded(
-                            values,
-                            GraphValueStatisticKey.Create(
-                                GraphElementType.Edge,
-                                key.LabelId,
-                                key.PropertyId,
-                                key.PropertyValue),
-                            options,
-                            labels,
-                            histogram,
-                            properties,
-                            values);
-                        break;
-                    }
+                        {
+                            IncrementBounded(
+                                properties,
+                                new GraphIndexStatisticKey(
+                                    GraphElementType.Edge,
+                                    key.LabelId,
+                                    key.PropertyId,
+                                    key.PropertyValue.Kind),
+                                options,
+                                labels,
+                                histogram,
+                                properties,
+                                values);
+                            IncrementBounded(
+                                values,
+                                GraphValueStatisticKey.Create(
+                                    GraphElementType.Edge,
+                                    key.LabelId,
+                                    key.PropertyId,
+                                    key.PropertyValue),
+                                options,
+                                labels,
+                                histogram,
+                                properties,
+                                values);
+                            break;
+                        }
                 }
             }
         }

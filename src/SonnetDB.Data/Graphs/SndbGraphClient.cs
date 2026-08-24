@@ -1052,17 +1052,17 @@ public sealed class SndbGraphClient : IDisposable
     {
         ArgumentNullException.ThrowIfNull(value);
         return value.Kind switch
-    {
-        GraphPropertyKind.Null => GraphPropertyValue.Null,
-        GraphPropertyKind.Int64 when value.Int64 is { } number => GraphPropertyValue.FromInt64(number),
-        GraphPropertyKind.Float64 when value.Float64 is { } number => GraphPropertyValue.FromFloat64(number),
-        GraphPropertyKind.Boolean when value.Boolean is { } boolean => GraphPropertyValue.FromBoolean(boolean),
-        GraphPropertyKind.String when value.String is not null => GraphPropertyValue.FromString(value.String),
-        GraphPropertyKind.DateTime when value.DateTime is { } dateTime => GraphPropertyValue.FromDateTime(dateTime),
-        GraphPropertyKind.Blob when value.BlobBase64 is not null => GraphPropertyValue.FromBlob(Convert.FromBase64String(value.BlobBase64)),
-        GraphPropertyKind.Json when value.Json is not null => GraphPropertyValue.FromJson(value.Json),
-        _ => throw new ArgumentException("graph property value 与 kind 不匹配。", nameof(value)),
-    };
+        {
+            GraphPropertyKind.Null => GraphPropertyValue.Null,
+            GraphPropertyKind.Int64 when value.Int64 is { } number => GraphPropertyValue.FromInt64(number),
+            GraphPropertyKind.Float64 when value.Float64 is { } number => GraphPropertyValue.FromFloat64(number),
+            GraphPropertyKind.Boolean when value.Boolean is { } boolean => GraphPropertyValue.FromBoolean(boolean),
+            GraphPropertyKind.String when value.String is not null => GraphPropertyValue.FromString(value.String),
+            GraphPropertyKind.DateTime when value.DateTime is { } dateTime => GraphPropertyValue.FromDateTime(dateTime),
+            GraphPropertyKind.Blob when value.BlobBase64 is not null => GraphPropertyValue.FromBlob(Convert.FromBase64String(value.BlobBase64)),
+            GraphPropertyKind.Json when value.Json is not null => GraphPropertyValue.FromJson(value.Json),
+            _ => throw new ArgumentException("graph property value 与 kind 不匹配。", nameof(value)),
+        };
     }
 
     private static GraphVertex ToVertex(GraphVertexDto dto)
@@ -1821,16 +1821,16 @@ internal sealed class GraphVertexFactory
     {
         ArgumentNullException.ThrowIfNull(value);
         return value.Kind switch
-    {
-        GraphPropertyKind.Null => GraphPropertyValue.Null,
-        GraphPropertyKind.Int64 when value.Int64 is { } number => GraphPropertyValue.FromInt64(number),
-        GraphPropertyKind.Float64 when value.Float64 is { } number => GraphPropertyValue.FromFloat64(number),
-        GraphPropertyKind.Boolean when value.Boolean is { } boolean => GraphPropertyValue.FromBoolean(boolean),
-        GraphPropertyKind.String when value.String is not null => GraphPropertyValue.FromString(value.String),
-        GraphPropertyKind.DateTime when value.DateTime is { } dateTime => GraphPropertyValue.FromDateTime(dateTime),
-        GraphPropertyKind.Blob when value.BlobBase64 is not null => GraphPropertyValue.FromBlob(Convert.FromBase64String(value.BlobBase64)),
-        GraphPropertyKind.Json when value.Json is not null => GraphPropertyValue.FromJson(value.Json),
-        _ => throw new ArgumentException("graph property value 与 kind 不匹配。", nameof(value)),
-    };
+        {
+            GraphPropertyKind.Null => GraphPropertyValue.Null,
+            GraphPropertyKind.Int64 when value.Int64 is { } number => GraphPropertyValue.FromInt64(number),
+            GraphPropertyKind.Float64 when value.Float64 is { } number => GraphPropertyValue.FromFloat64(number),
+            GraphPropertyKind.Boolean when value.Boolean is { } boolean => GraphPropertyValue.FromBoolean(boolean),
+            GraphPropertyKind.String when value.String is not null => GraphPropertyValue.FromString(value.String),
+            GraphPropertyKind.DateTime when value.DateTime is { } dateTime => GraphPropertyValue.FromDateTime(dateTime),
+            GraphPropertyKind.Blob when value.BlobBase64 is not null => GraphPropertyValue.FromBlob(Convert.FromBase64String(value.BlobBase64)),
+            GraphPropertyKind.Json when value.Json is not null => GraphPropertyValue.FromJson(value.Json),
+            _ => throw new ArgumentException("graph property value 与 kind 不匹配。", nameof(value)),
+        };
     }
 }

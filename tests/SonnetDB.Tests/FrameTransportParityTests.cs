@@ -79,9 +79,6 @@ public sealed class FrameTransportParityTests : IAsyncLifetime
         }
     }
 
-    private string ConnString(string protocol)
-        => $"Data Source=sonnetdb+http://{new Uri(_baseUrl).Authority}/{_dbName};Token={_adminToken};Timeout=30;Protocol={protocol}";
-
     private string ExactTransportConnString(string protocol)
     {
         string baseUrl = protocol == "frame-http2" ? _frameH2Url : _baseUrl;
@@ -132,7 +129,7 @@ public sealed class FrameTransportParityTests : IAsyncLifetime
     [InlineData("rest")]
     public async Task Kv_Set_Get_Scan_WithNamespace(string protocol)
     {
-        using var kv = new SndbKvClient(ConnString(protocol));
+        using var kv = new SndbKvClient(ExactTransportConnString(protocol));
         string keyspace = "ks_" + protocol.Replace('-', '_');
         const string ns = "dev";
 
@@ -158,7 +155,7 @@ public sealed class FrameTransportParityTests : IAsyncLifetime
     [Fact]
     public async Task Kv_UnsupportedOp_FallsBackToRest_UnderFrameProtocol()
     {
-        using var kv = new SndbKvClient(ConnString("frame-http2"));
+        using var kv = new SndbKvClient(ExactTransportConnString("frame-http2"));
         // Increment 无帧 op → 无条件走 REST，即使 Protocol=frame-http2
         var (value, version) = await kv.IncrementAsync("ks_incr", "n", "counter", 5);
         Assert.Equal(5, value);
@@ -172,7 +169,7 @@ public sealed class FrameTransportParityTests : IAsyncLifetime
     [InlineData("rest")]
     public async Task Document_Insert_FindOne_FindByIds(string protocol)
     {
-        using var doc = new SndbDocumentClient(ConnString(protocol));
+        using var doc = new SndbDocumentClient(ExactTransportConnString(protocol));
         string coll = "coll_" + protocol.Replace('-', '_');
         await doc.CreateCollectionAsync(coll);
 
@@ -196,7 +193,7 @@ public sealed class FrameTransportParityTests : IAsyncLifetime
     [Fact]
     public async Task Document_AdvancedFind_FallsBackToRest_UnderFrameProtocol()
     {
-        using var doc = new SndbDocumentClient(ConnString("frame-http2"));
+        using var doc = new SndbDocumentClient(ExactTransportConnString("frame-http2"));
         const string coll = "coll_adv";
         await doc.CreateCollectionAsync(coll);
         await doc.InsertManyAsync(coll, new[]

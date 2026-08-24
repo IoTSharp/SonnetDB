@@ -83,8 +83,8 @@ internal static class SqlRoutineAnalyzer
                     requiresWrite = true;
                     objects.Add(insert.Measurement);
                     foreach (var row in insert.Rows)
-                    foreach (var expression in row)
-                        VisitExpression(expression, parameterNames, triggerEvent, objects, procedures, rowColumns);
+                        foreach (var expression in row)
+                            VisitExpression(expression, parameterNames, triggerEvent, objects, procedures, rowColumns);
                     break;
                 case UpdateStatement update:
                     requiresWrite = true;

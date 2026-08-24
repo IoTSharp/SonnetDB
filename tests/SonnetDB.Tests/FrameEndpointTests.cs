@@ -394,8 +394,8 @@ public sealed class FrameEndpointTests : IAsyncLifetime
 
         var writer = new ArrayBufferWriter<byte>();
         MqFrameCodec.EncodePublishRequest(writer, 1, db, "t", null, [1]);
-        // service 8 未定义（mq..doc = 1..7 已全部挂载）
-        var kvFrame = new FrameHeader(0, FrameHeader.CurrentVersion, 8, 1, 0, 2);
+        // service 9 未定义（mq..graph = 1..8 已全部挂载）
+        var kvFrame = new FrameHeader(0, FrameHeader.CurrentVersion, 9, 1, 0, 2);
         Span<byte> headerBytes = stackalloc byte[FrameHeader.Size];
         kvFrame.Write(headerBytes);
         writer.Write(headerBytes);

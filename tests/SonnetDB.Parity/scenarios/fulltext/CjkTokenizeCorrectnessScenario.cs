@@ -22,7 +22,8 @@ public sealed class CjkTokenizeCorrectnessScenario : FullTextScenarioBase
 
         var hits = await ops.SearchAsync(index, new FullTextSearchRequest("水泵 报警", 10), ctx.Cancellation).ConfigureAwait(false);
         bool containsExpected = hits.Any(static h => h.Id == "cjk-1");
-        var result = MetricRow(containsExpected ? 1L : 0L, (long)hits.Count);
+        var result = MetricRow(containsExpected ? 1L : 0L);
+        result.Metrics["hit_count"] = hits.Count;
         result.Pass = containsExpected;
         return result;
     }

@@ -79,11 +79,11 @@ public sealed class RedisAdapter : IDataPlane, IKvOps
     {
         RedisKey dataKey = Qualify(scope, key);
         RedisKey versionKey = VersionKey(dataKey);
-        long expiryMs = expiresAtUtc?.ToUnixTimeMilliseconds() ?? -1L;
+        long ttlMs = RelativeTtlMilliseconds(expiresAtUtc);
         await _db.ScriptEvaluateAsync(
             SetScript,
             [dataKey, versionKey],
-            [value, expiryMs]).WaitAsync(ct).ConfigureAwait(false);
+            [value, ttlMs]).WaitAsync(ct).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -156,11 +156,11 @@ public sealed class RedisAdapter : IDataPlane, IKvOps
         CancellationToken ct)
     {
         RedisKey dataKey = Qualify(scope, key);
-        long expiryMs = expiresAtUtc?.ToUnixTimeMilliseconds() ?? -1L;
+        long ttlMs = RelativeTtlMilliseconds(expiresAtUtc);
         RedisResult raw = await _db.ScriptEvaluateAsync(
             CasScript,
             [dataKey, VersionKey(dataKey)],
-            [expectedVersion, value, expiryMs]).WaitAsync(ct).ConfigureAwait(false);
+            [expectedVersion, value, ttlMs]).WaitAsync(ct).ConfigureAwait(false);
         var result = (RedisResult[]?)raw
             ?? throw new InvalidOperationException("Redis CAS script returned an unexpected null result.");
 
@@ -176,9 +176,10 @@ public sealed class RedisAdapter : IDataPlane, IKvOps
     public async Task<bool> ExpireAsync(string scope, string key, DateTimeOffset expiresAtUtc, CancellationToken ct)
     {
         RedisKey dataKey = Qualify(scope, key);
-        bool ok = await _db.KeyExpireAsync(dataKey, expiresAtUtc.UtcDateTime).WaitAsync(ct).ConfigureAwait(false);
+        var ttl = TimeSpan.FromMilliseconds(RelativeTtlMilliseconds(expiresAtUtc));
+        bool ok = await _db.KeyExpireAsync(dataKey, ttl).WaitAsync(ct).ConfigureAwait(false);
         if (ok)
-            await _db.KeyExpireAsync(VersionKey(dataKey), expiresAtUtc.UtcDateTime).WaitAsync(ct).ConfigureAwait(false);
+            await _db.KeyExpireAsync(VersionKey(dataKey), ttl).WaitAsync(ct).ConfigureAwait(false);
         return ok;
     }
 
@@ -218,6 +219,11 @@ public sealed class RedisAdapter : IDataPlane, IKvOps
 
     private static RedisKey VersionKey(RedisKey key) => key.ToString() + "::__ver";
 
+    private static long RelativeTtlMilliseconds(DateTimeOffset? expiresAtUtc)
+        => expiresAtUtc is { } expiry
+            ? Math.Max(0L, (long)Math.Ceiling((expiry - DateTimeOffset.UtcNow).TotalMilliseconds))
+            : -1L;
+
     private static string Env(string key, string fallback)
     {
         var value = Environment.GetEnvironmentVariable(key);
@@ -228,8 +234,8 @@ public sealed class RedisAdapter : IDataPlane, IKvOps
         local newver = redis.call('INCR', KEYS[2])
         redis.call('SET', KEYS[1], ARGV[1])
         if tonumber(ARGV[2]) >= 0 then
-          redis.call('PEXPIREAT', KEYS[1], ARGV[2])
-          redis.call('PEXPIREAT', KEYS[2], ARGV[2])
+          redis.call('PEXPIRE', KEYS[1], ARGV[2])
+          redis.call('PEXPIRE', KEYS[2], ARGV[2])
         else
           redis.call('PERSIST', KEYS[1])
           redis.call('PERSIST', KEYS[2])
@@ -248,8 +254,8 @@ public sealed class RedisAdapter : IDataPlane, IKvOps
         local newver = redis.call('INCR', KEYS[2])
         redis.call('SET', KEYS[1], ARGV[2])
         if tonumber(ARGV[3]) >= 0 then
-          redis.call('PEXPIREAT', KEYS[1], ARGV[3])
-          redis.call('PEXPIREAT', KEYS[2], ARGV[3])
+          redis.call('PEXPIRE', KEYS[1], ARGV[3])
+          redis.call('PEXPIRE', KEYS[2], ARGV[3])
         else
           redis.call('PERSIST', KEYS[1])
           redis.call('PERSIST', KEYS[2])

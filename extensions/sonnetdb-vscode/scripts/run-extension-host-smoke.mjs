@@ -52,20 +52,27 @@ function resolveCodeLaunch() {
   }
 
   if (process.platform === 'win32') {
-    const installRoot = path.join(process.env.LOCALAPPDATA ?? '', 'Programs', 'Microsoft VS Code');
-    const installed = path.join(installRoot, 'Code.exe');
-    if (existsSync(installed)) {
-      const cli = readdirSync(installRoot, { withFileTypes: true })
-        .filter((entry) => entry.isDirectory())
-        .map((entry) => path.join(installRoot, entry.name, 'resources', 'app', 'out', 'cli.js'))
-        .find(existsSync);
-      if (cli) {
-        return {
-          command: installed,
-          prefixArgs: [cli],
-          environment: { ELECTRON_RUN_AS_NODE: '1', VSCODE_DEV: '' },
-        };
-      }
+    const installRoots = [
+      path.join(process.env.LOCALAPPDATA ?? '', 'Programs', 'Microsoft VS Code'),
+      path.join(process.env.ProgramFiles ?? '', 'Microsoft VS Code'),
+      path.join(process.env['ProgramFiles(x86)'] ?? '', 'Microsoft VS Code'),
+    ];
+    for (const installRoot of installRoots) {
+      const installed = path.join(installRoot, 'Code.exe');
+      if (!existsSync(installed)) continue;
+
+      const cli = [
+        path.join(installRoot, 'resources', 'app', 'out', 'cli.js'),
+        ...readdirSync(installRoot, { withFileTypes: true })
+          .filter((entry) => entry.isDirectory())
+          .map((entry) => path.join(installRoot, entry.name, 'resources', 'app', 'out', 'cli.js')),
+      ].find(existsSync);
+      if (!cli) return { command: installed, prefixArgs: [], environment: {} };
+      return {
+        command: installed,
+        prefixArgs: [cli],
+        environment: { ELECTRON_RUN_AS_NODE: '1', VSCODE_DEV: '' },
+      };
     }
   }
   if (commandExists('code')) return { command: 'code', prefixArgs: [], environment: {} };

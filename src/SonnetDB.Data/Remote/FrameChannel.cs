@@ -35,6 +35,11 @@ internal sealed class FrameChannel
     {
         _http = http ?? throw new ArgumentNullException(nameof(http));
         _protocol = protocol;
+        if (protocol == SndbTransportProtocol.FrameHttp2)
+        {
+            _http.DefaultRequestVersion = HttpVersion.Version20;
+            _http.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionExact;
+        }
         _state = protocol switch
         {
             SndbTransportProtocol.FrameHttp2 => CapabilityState.Frames,
@@ -64,8 +69,12 @@ internal sealed class FrameChannel
             using var response = await _http.PostAsync(FrameUrl, content, cancellationToken).ConfigureAwait(false);
 
             if (!response.IsSuccessStatusCode)
+            {
+                string responseBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                string detail = string.IsNullOrWhiteSpace(responseBody) ? string.Empty : $" 响应：{responseBody}";
                 return HandleTransportFailure(
-                    $"帧端点返回 HTTP {(int)response.StatusCode}，服务端可能不支持帧协议。");
+                    $"帧端点返回 HTTP {(int)response.StatusCode}，服务端可能不支持帧协议。{detail}");
+            }
 
             byte[] body = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
             List<FrameMessage>? frames = TryParseFrames(body);

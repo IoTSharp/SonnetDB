@@ -329,11 +329,11 @@ public sealed class GraphStore : IDisposable
     public long Checkpoint()
     {
         lock (_commitGate)
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            return _keyspace.CreateSnapshot();
-        }
+            lock (_sync)
+            {
+                ThrowIfDisposed();
+                return _keyspace.CreateSnapshot();
+            }
     }
 
     /// <summary>将当前 Graph 压实为新的不可变 KV generation。</summary>
@@ -341,11 +341,11 @@ public sealed class GraphStore : IDisposable
     public long Compact()
     {
         lock (_commitGate)
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            return _keyspace.Compact();
-        }
+            lock (_sync)
+            {
+                ThrowIfDisposed();
+                return _keyspace.Compact();
+            }
     }
 
     /// <summary>
@@ -358,11 +358,11 @@ public sealed class GraphStore : IDisposable
         CancellationToken cancellationToken)
     {
         lock (_commitGate)
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            return _keyspace.ApplyConditionalBatch(mutations, preconditions, cancellationToken);
-        }
+            lock (_sync)
+            {
+                ThrowIfDisposed();
+                return _keyspace.ApplyConditionalBatch(mutations, preconditions, cancellationToken);
+            }
     }
 
     /// <summary>当前图是否已经释放。</summary>
@@ -395,16 +395,16 @@ public sealed class GraphStore : IDisposable
         GraphMaintenanceState state;
         bool resumed;
         lock (_commitGate)
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            state = GraphMaintenanceRunner.LoadOrCreate(
-                MaintenanceManifestPath,
-                StorageId,
-                _keyspace,
-                options,
-                out resumed);
-        }
+            lock (_sync)
+            {
+                ThrowIfDisposed();
+                state = GraphMaintenanceRunner.LoadOrCreate(
+                    MaintenanceManifestPath,
+                    StorageId,
+                    _keyspace,
+                    options,
+                    out resumed);
+            }
 
         for (int index = 0;
              index < options.MaxWorkUnits && state.Phase != GraphMaintenancePhase.Completed;
@@ -412,20 +412,20 @@ public sealed class GraphStore : IDisposable
         {
             cancellationToken.ThrowIfCancellationRequested();
             lock (_commitGate)
-            lock (_sync)
-            {
-                ThrowIfDisposed();
-                GraphMaintenanceRunner.RunNextWorkUnit(
-                    _keyspace,
-                    state,
-                    options,
-                    cancellationToken);
-                GraphMaintenanceRunner.RunPeriodicCheckpointIfDue(_keyspace, state, options);
-                if (state.Phase == GraphMaintenancePhase.Completed)
-                    GraphMaintenanceManifestCodec.Delete(MaintenanceManifestPath);
-                else
-                    GraphMaintenanceManifestCodec.Save(MaintenanceManifestPath, state);
-            }
+                lock (_sync)
+                {
+                    ThrowIfDisposed();
+                    GraphMaintenanceRunner.RunNextWorkUnit(
+                        _keyspace,
+                        state,
+                        options,
+                        cancellationToken);
+                    GraphMaintenanceRunner.RunPeriodicCheckpointIfDue(_keyspace, state, options);
+                    if (state.Phase == GraphMaintenancePhase.Completed)
+                        GraphMaintenanceManifestCodec.Delete(MaintenanceManifestPath);
+                    else
+                        GraphMaintenanceManifestCodec.Save(MaintenanceManifestPath, state);
+                }
             AfterMaintenanceWorkUnitTestHook?.Invoke(state.Phase, state.WorkUnits);
         }
 

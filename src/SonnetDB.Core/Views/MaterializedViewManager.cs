@@ -78,14 +78,14 @@ public sealed class MaterializedViewManager
     {
         ArgumentNullException.ThrowIfNull(definition);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            _nameAvailabilityGuard?.Invoke(definition.Name, "materialized view");
-            if (Catalog.TryGet(definition.Name) is not null)
-                throw new InvalidOperationException($"materialized view '{definition.Name}' 已存在。");
-            PersistProjectedCatalog(definition, removeName: null);
-            Catalog.Add(definition);
-        }
+            lock (_sync)
+            {
+                _nameAvailabilityGuard?.Invoke(definition.Name, "materialized view");
+                if (Catalog.TryGet(definition.Name) is not null)
+                    throw new InvalidOperationException($"materialized view '{definition.Name}' 已存在。");
+                PersistProjectedCatalog(definition, removeName: null);
+                Catalog.Add(definition);
+            }
     }
 
     /// <summary>
@@ -98,18 +98,18 @@ public sealed class MaterializedViewManager
         ArgumentNullException.ThrowIfNull(name);
         string? storageDirectory = null;
         lock (_schemaSync)
-        lock (_sync)
-        {
-            var existing = Catalog.TryGet(name);
-            if (existing is null)
-                return false;
+            lock (_sync)
+            {
+                var existing = Catalog.TryGet(name);
+                if (existing is null)
+                    return false;
 
-            PersistProjectedCatalog(replacement: null, removeName: name);
-            Catalog.Remove(name);
-            foreach (var key in _snapshotCache.Keys.Where(key => key.StorageId == existing.StorageId).ToArray())
-                _snapshotCache.Remove(key);
-            storageDirectory = GetStorageDirectory(existing.StorageId);
-        }
+                PersistProjectedCatalog(replacement: null, removeName: name);
+                Catalog.Remove(name);
+                foreach (var key in _snapshotCache.Keys.Where(key => key.StorageId == existing.StorageId).ToArray())
+                    _snapshotCache.Remove(key);
+                storageDirectory = GetStorageDirectory(existing.StorageId);
+            }
 
         if (Directory.Exists(storageDirectory))
             Directory.Delete(storageDirectory, recursive: true);
@@ -137,16 +137,16 @@ public sealed class MaterializedViewManager
         MaterializedViewDefinition started;
         long generation;
         lock (_schemaSync)
-        lock (_sync)
-        {
-            var existing = Catalog.TryGet(name)
-                ?? throw new InvalidOperationException($"materialized view '{name}' 不存在。");
-            if (existing.Status == MaterializedViewRefreshStatus.Refreshing)
-                throw new InvalidOperationException($"materialized view '{name}' 已在刷新。");
-            generation = GetNextGeneration(existing.StorageId);
-            started = existing.WithRefreshStarted();
-            PersistAndPublish(started);
-        }
+            lock (_sync)
+            {
+                var existing = Catalog.TryGet(name)
+                    ?? throw new InvalidOperationException($"materialized view '{name}' 不存在。");
+                if (existing.Status == MaterializedViewRefreshStatus.Refreshing)
+                    throw new InvalidOperationException($"materialized view '{name}' 已在刷新。");
+                generation = GetNextGeneration(existing.StorageId);
+                started = existing.WithRefreshStarted();
+                PersistAndPublish(started);
+            }
 
         string generationPath = GetGenerationPath(started.StorageId, generation);
         try
@@ -155,20 +155,20 @@ public sealed class MaterializedViewManager
             MaterializedViewSnapshotCodec.Save(generationPath, result);
             long completedAt = DateTime.UtcNow.Ticks;
             lock (_schemaSync)
-            lock (_sync)
-            {
-                var current = Catalog.TryGet(name)
-                    ?? throw new InvalidOperationException($"materialized view '{name}' 在刷新期间被删除。");
-                if (current.Status != MaterializedViewRefreshStatus.Refreshing
-                    || current.StorageId != started.StorageId)
+                lock (_sync)
                 {
-                    throw new InvalidOperationException($"materialized view '{name}' 的刷新状态已发生冲突。");
-                }
+                    var current = Catalog.TryGet(name)
+                        ?? throw new InvalidOperationException($"materialized view '{name}' 在刷新期间被删除。");
+                    if (current.Status != MaterializedViewRefreshStatus.Refreshing
+                        || current.StorageId != started.StorageId)
+                    {
+                        throw new InvalidOperationException($"materialized view '{name}' 的刷新状态已发生冲突。");
+                    }
 
-                var completed = current.WithRefreshSucceeded(generation, result.Rows.Count, completedAt);
-                PersistAndPublish(completed);
-                _snapshotCache[(completed.StorageId, generation)] = result;
-            }
+                    var completed = current.WithRefreshSucceeded(generation, result.Rows.Count, completedAt);
+                    PersistAndPublish(completed);
+                    _snapshotCache[(completed.StorageId, generation)] = result;
+                }
             return result;
         }
         catch (Exception refreshException)
@@ -176,18 +176,18 @@ public sealed class MaterializedViewManager
             try
             {
                 lock (_schemaSync)
-                lock (_sync)
-                {
-                    var current = Catalog.TryGet(name);
-                    if (current is not null
-                        && current.StorageId == started.StorageId
-                        && current.Status == MaterializedViewRefreshStatus.Refreshing)
+                    lock (_sync)
                     {
-                        PersistAndPublish(current.WithRefreshFailed(
-                            DateTime.UtcNow.Ticks,
-                            NormalizeError(refreshException.Message)));
+                        var current = Catalog.TryGet(name);
+                        if (current is not null
+                            && current.StorageId == started.StorageId
+                            && current.Status == MaterializedViewRefreshStatus.Refreshing)
+                        {
+                            PersistAndPublish(current.WithRefreshFailed(
+                                DateTime.UtcNow.Ticks,
+                                NormalizeError(refreshException.Message)));
+                        }
                     }
-                }
             }
             catch (Exception persistenceException)
             {

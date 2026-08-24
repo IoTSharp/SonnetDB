@@ -136,7 +136,7 @@ services:
 
   victoriametrics:
     image: victoriametrics/victoria-metrics:v1.106.1
-    command: ["--storageDataPath=/vm-data"]
+    command: ["--storageDataPath=/vm-data", "--retentionPeriod=100y"]
     networks: [parity-net]
     ports:
       - "${PARITY_VM_PORT:-28428}:8428"
@@ -175,7 +175,7 @@ services:
     profiles: [full]
 
   qdrant:
-    image: qdrant/qdrant:v1.11.5
+    image: qdrant/qdrant:v1.18.3
     networks: [parity-net]
     ports:
       - "${PARITY_QDRANT_PORT:-26333}:6333"

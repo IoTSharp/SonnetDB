@@ -1,31 +1,38 @@
 import { spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 
-const baseUrl = 'http://127.0.0.1:4173';
+const port = process.env.SONNETDB_E2E_PORT ?? '4173';
+const baseUrl = `http://127.0.0.1:${port}`;
+process.env.SONNETDB_E2E_BASE_URL = baseUrl;
 const forwardedArgs = process.argv.slice(2);
 let server = null;
 
 try {
-  if (!await isReady()) {
-    server = spawn(
-      process.execPath,
-      [
-        './node_modules/vite/bin/vite.js',
-        '--mode',
-        'e2e',
-        '--host',
-        '127.0.0.1',
-        '--port',
-        '4173',
-      ],
-      {
-        cwd: process.cwd(),
-        stdio: 'ignore',
-        windowsHide: true,
-      },
+  if (await isReady()) {
+    throw new Error(
+      `E2E port ${port} is already serving HTTP. Set SONNETDB_E2E_PORT to an unused port.`,
     );
-    await waitUntilReady(server);
   }
+
+  server = spawn(
+    process.execPath,
+    [
+      './node_modules/vite/bin/vite.js',
+      '--mode',
+      'e2e',
+      '--host',
+      '127.0.0.1',
+      '--port',
+      port,
+      '--strictPort',
+    ],
+    {
+      cwd: process.cwd(),
+      stdio: 'ignore',
+      windowsHide: true,
+    },
+  );
+  await waitUntilReady(server);
 
   process.exitCode = await run(
     process.execPath,
@@ -54,6 +61,7 @@ async function isReady() {
 
 async function waitUntilReady(processHandle) {
   const deadline = Date.now() + 60_000;
+  await delay(250);
   while (Date.now() < deadline) {
     if (processHandle.exitCode !== null) {
       throw new Error(`Vite e2e server exited with code ${processHandle.exitCode}.`);

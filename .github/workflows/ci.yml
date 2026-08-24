@@ -52,7 +52,7 @@ jobs:
         run: dotnet build SonnetDB.slnx --configuration Release --no-restore /warnaserror
 
       - name: Test
-        run: dotnet test SonnetDB.slnx --configuration Release --no-build --logger "trx;LogFileName=test-results.trx" --collect:"XPlat Code Coverage" --results-directory ./TestResults
+        run: dotnet test SonnetDB.slnx --configuration Release --no-build -m:1 --logger trx --results-directory ./TestResults
 
       - name: Upload test results
         if: always()

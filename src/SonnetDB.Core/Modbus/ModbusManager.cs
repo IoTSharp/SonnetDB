@@ -160,13 +160,13 @@ public sealed class ModbusManager : IDisposable
     {
         ModbusMappingValidator.ValidateSource(definition);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            ModbusCatalog candidate = CreateCandidateCatalog();
-            candidate.AddSource(definition);
-            PersistAndPublish(candidate);
-        }
+            lock (_sync)
+            {
+                ThrowIfDisposed();
+                ModbusCatalog candidate = CreateCandidateCatalog();
+                candidate.AddSource(definition);
+                PersistAndPublish(candidate);
+            }
     }
 
     /// <summary>
@@ -178,13 +178,13 @@ public sealed class ModbusManager : IDisposable
         ModbusEndpointDefinition snapshot = SnapshotEndpoint(definition);
         ModbusMappingValidator.ValidateEndpoint(snapshot);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            ModbusCatalog candidate = CreateCandidateCatalog();
-            candidate.AddEndpoint(snapshot);
-            PersistAndPublish(candidate);
-        }
+            lock (_sync)
+            {
+                ThrowIfDisposed();
+                ModbusCatalog candidate = CreateCandidateCatalog();
+                candidate.AddEndpoint(snapshot);
+                PersistAndPublish(candidate);
+            }
     }
 
     /// <summary>
@@ -195,17 +195,17 @@ public sealed class ModbusManager : IDisposable
     {
         ModbusTableBinding snapshot = SnapshotBinding(binding);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            TableSchema schema = _tables.TryGet(snapshot.TableName)
-                ?? throw new InvalidOperationException($"table '{snapshot.TableName}' 不存在，无法创建 MODBUS 绑定。");
-            ValidateBindingCore(snapshot, schema);
+            lock (_sync)
+            {
+                ThrowIfDisposed();
+                TableSchema schema = _tables.TryGet(snapshot.TableName)
+                    ?? throw new InvalidOperationException($"table '{snapshot.TableName}' 不存在，无法创建 MODBUS 绑定。");
+                ValidateBindingCore(snapshot, schema);
 
-            ModbusCatalog candidate = CreateCandidateCatalog();
-            candidate.AddBinding(snapshot);
-            PersistAndPublish(candidate);
-        }
+                ModbusCatalog candidate = CreateCandidateCatalog();
+                candidate.AddBinding(snapshot);
+                PersistAndPublish(candidate);
+            }
     }
 
     /// <summary>
@@ -218,11 +218,11 @@ public sealed class ModbusManager : IDisposable
         ModbusTableBinding snapshot = SnapshotBinding(binding);
         ArgumentNullException.ThrowIfNull(schema);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            ValidateBindingCore(snapshot, schema);
-        }
+            lock (_sync)
+            {
+                ThrowIfDisposed();
+                ValidateBindingCore(snapshot, schema);
+            }
     }
 
     /// <summary>
@@ -234,19 +234,19 @@ public sealed class ModbusManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            if (Catalog.TryGetSource(name) is null)
-                return false;
-            EnsureTargetHasNoBindings(name, ModbusMappingDirection.SourceToTable, "SOURCE");
+            lock (_sync)
+            {
+                ThrowIfDisposed();
+                if (Catalog.TryGetSource(name) is null)
+                    return false;
+                EnsureTargetHasNoBindings(name, ModbusMappingDirection.SourceToTable, "SOURCE");
 
-            ModbusCatalog candidate = CreateCandidateCatalog();
-            _ = candidate.RemoveSource(name);
-            PersistAndPublish(candidate);
-            _sourceRuntimeStatuses.Remove(name);
-            return true;
-        }
+                ModbusCatalog candidate = CreateCandidateCatalog();
+                _ = candidate.RemoveSource(name);
+                PersistAndPublish(candidate);
+                _sourceRuntimeStatuses.Remove(name);
+                return true;
+            }
     }
 
     /// <summary>
@@ -258,19 +258,19 @@ public sealed class ModbusManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            if (Catalog.TryGetEndpoint(name) is null)
-                return false;
-            EnsureTargetHasNoBindings(name, ModbusMappingDirection.TableToEndpoint, "ENDPOINT");
+            lock (_sync)
+            {
+                ThrowIfDisposed();
+                if (Catalog.TryGetEndpoint(name) is null)
+                    return false;
+                EnsureTargetHasNoBindings(name, ModbusMappingDirection.TableToEndpoint, "ENDPOINT");
 
-            ModbusCatalog candidate = CreateCandidateCatalog();
-            _ = candidate.RemoveEndpoint(name);
-            PersistAndPublish(candidate);
-            _endpointRuntimeStatuses.Remove(name);
-            return true;
-        }
+                ModbusCatalog candidate = CreateCandidateCatalog();
+                _ = candidate.RemoveEndpoint(name);
+                PersistAndPublish(candidate);
+                _endpointRuntimeStatuses.Remove(name);
+                return true;
+            }
     }
 
     /// <summary>
@@ -282,17 +282,17 @@ public sealed class ModbusManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            if (Catalog.TryGetBinding(tableName) is null)
-                return false;
+            lock (_sync)
+            {
+                ThrowIfDisposed();
+                if (Catalog.TryGetBinding(tableName) is null)
+                    return false;
 
-            ModbusCatalog candidate = CreateCandidateCatalog();
-            _ = candidate.RemoveBinding(tableName);
-            PersistAndPublish(candidate);
-            return true;
-        }
+                ModbusCatalog candidate = CreateCandidateCatalog();
+                _ = candidate.RemoveBinding(tableName);
+                PersistAndPublish(candidate);
+                return true;
+            }
     }
 
     /// <summary>拒绝会使现有 Modbus 绑定失效的关系表 schema 变更。</summary>
@@ -301,15 +301,15 @@ public sealed class ModbusManager : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(operation);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            if (Catalog.TryGetBinding(tableName) is not null)
+            lock (_sync)
             {
-                throw new InvalidOperationException(
-                    $"无法执行 {operation}：table '{tableName}' 存在 MODBUS 绑定；请先删除该绑定。");
+                ThrowIfDisposed();
+                if (Catalog.TryGetBinding(tableName) is not null)
+                {
+                    throw new InvalidOperationException(
+                        $"无法执行 {operation}：table '{tableName}' 存在 MODBUS 绑定；请先删除该绑定。");
+                }
             }
-        }
     }
 
     /// <summary>
@@ -318,12 +318,12 @@ public sealed class ModbusManager : IDisposable
     public void Dispose()
     {
         lock (_schemaSync)
-        lock (_sync)
-        {
-            _sourceRuntimeStatuses.Clear();
-            _endpointRuntimeStatuses.Clear();
-            _disposed = true;
-        }
+            lock (_sync)
+            {
+                _sourceRuntimeStatuses.Clear();
+                _endpointRuntimeStatuses.Clear();
+                _disposed = true;
+            }
     }
 
     /// <summary>捕获 source 运行状态的一致只读副本，供单次元数据查询使用。</summary>
