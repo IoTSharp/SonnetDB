@@ -34,6 +34,106 @@ public sealed record SqlExplainExecutionResult(
     DocumentQueryPlan? DocumentPlan = null,
     string? ScanFilter = null)
 {
+    /// <summary>
+    /// 使用 3.0.1 的十四参数合同创建 SQL 解释结果。
+    /// </summary>
+    /// <param name="Database">当前数据库名。</param>
+    /// <param name="StatementType">语句类型。</param>
+    /// <param name="Measurement">目标 measurement 名称。</param>
+    /// <param name="MatchedSeriesCount">匹配的序列数量。</param>
+    /// <param name="EstimatedSegmentCount">估算段数量。</param>
+    /// <param name="EstimatedBlockCount">估算 block 数量。</param>
+    /// <param name="EstimatedScannedRows">估算扫描行数。</param>
+    /// <param name="EstimatedMemTableRows">估算内存表行数。</param>
+    /// <param name="EstimatedSegmentRows">估算段内行数。</param>
+    /// <param name="HasTimeFilter">是否包含时间过滤。</param>
+    /// <param name="TagFilterCount">Tag 过滤器数量。</param>
+    /// <param name="AccessPath">访问路径。</param>
+    /// <param name="IndexName">索引名称。</param>
+    /// <param name="DocumentPlan">文档查询计划。</param>
+    public SqlExplainExecutionResult(
+        string? Database,
+        string StatementType,
+        string? Measurement,
+        int MatchedSeriesCount,
+        int EstimatedSegmentCount,
+        int EstimatedBlockCount,
+        long EstimatedScannedRows,
+        long EstimatedMemTableRows,
+        long EstimatedSegmentRows,
+        bool HasTimeFilter,
+        int TagFilterCount,
+        string? AccessPath,
+        string? IndexName,
+        DocumentQueryPlan? DocumentPlan)
+        : this(
+            Database,
+            StatementType,
+            Measurement,
+            MatchedSeriesCount,
+            EstimatedSegmentCount,
+            EstimatedBlockCount,
+            EstimatedScannedRows,
+            EstimatedMemTableRows,
+            EstimatedSegmentRows,
+            HasTimeFilter,
+            TagFilterCount,
+            AccessPath,
+            IndexName,
+            DocumentPlan,
+            ScanFilter: null)
+    {
+    }
+
+    /// <summary>
+    /// 按 3.0.1 的十四元素位置合同解构 SQL 解释结果。
+    /// </summary>
+    /// <param name="Database">当前数据库名。</param>
+    /// <param name="StatementType">语句类型。</param>
+    /// <param name="Measurement">目标 measurement 名称。</param>
+    /// <param name="MatchedSeriesCount">匹配的序列数量。</param>
+    /// <param name="EstimatedSegmentCount">估算段数量。</param>
+    /// <param name="EstimatedBlockCount">估算 block 数量。</param>
+    /// <param name="EstimatedScannedRows">估算扫描行数。</param>
+    /// <param name="EstimatedMemTableRows">估算内存表行数。</param>
+    /// <param name="EstimatedSegmentRows">估算段内行数。</param>
+    /// <param name="HasTimeFilter">是否包含时间过滤。</param>
+    /// <param name="TagFilterCount">Tag 过滤器数量。</param>
+    /// <param name="AccessPath">访问路径。</param>
+    /// <param name="IndexName">索引名称。</param>
+    /// <param name="DocumentPlan">文档查询计划。</param>
+    public void Deconstruct(
+        out string? Database,
+        out string StatementType,
+        out string? Measurement,
+        out int MatchedSeriesCount,
+        out int EstimatedSegmentCount,
+        out int EstimatedBlockCount,
+        out long EstimatedScannedRows,
+        out long EstimatedMemTableRows,
+        out long EstimatedSegmentRows,
+        out bool HasTimeFilter,
+        out int TagFilterCount,
+        out string? AccessPath,
+        out string? IndexName,
+        out DocumentQueryPlan? DocumentPlan)
+    {
+        Database = this.Database;
+        StatementType = this.StatementType;
+        Measurement = this.Measurement;
+        MatchedSeriesCount = this.MatchedSeriesCount;
+        EstimatedSegmentCount = this.EstimatedSegmentCount;
+        EstimatedBlockCount = this.EstimatedBlockCount;
+        EstimatedScannedRows = this.EstimatedScannedRows;
+        EstimatedMemTableRows = this.EstimatedMemTableRows;
+        EstimatedSegmentRows = this.EstimatedSegmentRows;
+        HasTimeFilter = this.HasTimeFilter;
+        TagFilterCount = this.TagFilterCount;
+        AccessPath = this.AccessPath;
+        IndexName = this.IndexName;
+        DocumentPlan = this.DocumentPlan;
+    }
+
     /// <summary>候选复检是否允许在首个匹配行处停止；不表示存储层已使用流式 cursor。</summary>
     public bool? EarlyExit { get; init; }
 

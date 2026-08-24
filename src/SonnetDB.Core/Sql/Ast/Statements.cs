@@ -33,6 +33,46 @@ public sealed record CreateTableStatement(
     IReadOnlyList<TableForeignKeyClause>? ForeignKeys = null,
     IReadOnlyList<TableCheckConstraintClause>? CheckConstraints = null) : SqlStatement
 {
+    /// <summary>
+    /// 使用 3.0.1 的位置参数合同创建关系表语句。
+    /// </summary>
+    /// <param name="Name">关系表名称。</param>
+    /// <param name="Columns">列定义（按声明顺序）。</param>
+    /// <param name="PrimaryKey">主键列名（按声明顺序）。</param>
+    /// <param name="IfNotExists">是否带 <c>IF NOT EXISTS</c> 修饰。</param>
+    /// <param name="ForeignKeys">表级外键声明。</param>
+    public CreateTableStatement(
+        string Name,
+        IReadOnlyList<TableColumnDefinition> Columns,
+        IReadOnlyList<string> PrimaryKey,
+        bool IfNotExists,
+        IReadOnlyList<TableForeignKeyClause>? ForeignKeys)
+        : this(Name, Columns, PrimaryKey, IfNotExists, ForeignKeys, CheckConstraints: null)
+    {
+    }
+
+    /// <summary>
+    /// 按 3.0.1 的五元素位置合同解构关系表语句。
+    /// </summary>
+    /// <param name="Name">关系表名称。</param>
+    /// <param name="Columns">列定义（按声明顺序）。</param>
+    /// <param name="PrimaryKey">主键列名（按声明顺序）。</param>
+    /// <param name="IfNotExists">是否带 <c>IF NOT EXISTS</c> 修饰。</param>
+    /// <param name="ForeignKeys">表级外键声明。</param>
+    public void Deconstruct(
+        out string Name,
+        out IReadOnlyList<TableColumnDefinition> Columns,
+        out IReadOnlyList<string> PrimaryKey,
+        out bool IfNotExists,
+        out IReadOnlyList<TableForeignKeyClause>? ForeignKeys)
+    {
+        Name = this.Name;
+        Columns = this.Columns;
+        PrimaryKey = this.PrimaryKey;
+        IfNotExists = this.IfNotExists;
+        ForeignKeys = this.ForeignKeys;
+    }
+
     /// <summary>当前表级外键声明。</summary>
     public IReadOnlyList<TableForeignKeyClause> ForeignKeyClauses { get; } = ForeignKeys ?? Array.Empty<TableForeignKeyClause>();
 
@@ -572,6 +612,106 @@ public sealed record SelectStatement(
     bool Distinct = false,
     IReadOnlyList<SelectStatement>? Unions = null) : SqlStatement
 {
+    /// <summary>
+    /// 使用 3.0.1 的位置参数合同创建 SELECT 语句。
+    /// </summary>
+    /// <param name="Projections">投影列表。</param>
+    /// <param name="Measurement">目标 measurement 名称。</param>
+    /// <param name="Where">可选 WHERE 表达式。</param>
+    /// <param name="GroupBy">GROUP BY 表达式列表。</param>
+    /// <param name="TableValuedFunction">可选表值函数。</param>
+    /// <param name="Pagination">可选分页子句。</param>
+    /// <param name="OrderBy">可选排序子句。</param>
+    /// <param name="TableAlias">可选表别名。</param>
+    /// <param name="Join">可选兼容 JOIN 子句。</param>
+    /// <param name="FromSubquery">可选 FROM 子查询。</param>
+    /// <param name="Joins">JOIN 子句列表。</param>
+    /// <param name="Having">可选 HAVING 表达式。</param>
+    /// <param name="OrderByItems">完整排序列表。</param>
+    /// <param name="Distinct">是否对结果去重。</param>
+    public SelectStatement(
+        IReadOnlyList<SelectItem> Projections,
+        string Measurement,
+        SqlExpression? Where,
+        IReadOnlyList<SqlExpression> GroupBy,
+        FunctionCallExpression? TableValuedFunction,
+        PaginationSpec? Pagination,
+        OrderBySpec? OrderBy,
+        string? TableAlias,
+        JoinClause? Join,
+        SelectStatement? FromSubquery,
+        IReadOnlyList<JoinClause>? Joins,
+        SqlExpression? Having,
+        IReadOnlyList<OrderBySpec>? OrderByItems,
+        bool Distinct)
+        : this(
+            Projections,
+            Measurement,
+            Where,
+            GroupBy,
+            TableValuedFunction,
+            Pagination,
+            OrderBy,
+            TableAlias,
+            Join,
+            FromSubquery,
+            Joins,
+            Having,
+            OrderByItems,
+            Distinct,
+            Unions: null)
+    {
+    }
+
+    /// <summary>
+    /// 按 3.0.1 的十四元素位置合同解构 SELECT 语句。
+    /// </summary>
+    /// <param name="Projections">投影列表。</param>
+    /// <param name="Measurement">目标 measurement 名称。</param>
+    /// <param name="Where">可选 WHERE 表达式。</param>
+    /// <param name="GroupBy">GROUP BY 表达式列表。</param>
+    /// <param name="TableValuedFunction">可选表值函数。</param>
+    /// <param name="Pagination">可选分页子句。</param>
+    /// <param name="OrderBy">可选排序子句。</param>
+    /// <param name="TableAlias">可选表别名。</param>
+    /// <param name="Join">可选兼容 JOIN 子句。</param>
+    /// <param name="FromSubquery">可选 FROM 子查询。</param>
+    /// <param name="Joins">JOIN 子句列表。</param>
+    /// <param name="Having">可选 HAVING 表达式。</param>
+    /// <param name="OrderByItems">完整排序列表。</param>
+    /// <param name="Distinct">是否对结果去重。</param>
+    public void Deconstruct(
+        out IReadOnlyList<SelectItem> Projections,
+        out string Measurement,
+        out SqlExpression? Where,
+        out IReadOnlyList<SqlExpression> GroupBy,
+        out FunctionCallExpression? TableValuedFunction,
+        out PaginationSpec? Pagination,
+        out OrderBySpec? OrderBy,
+        out string? TableAlias,
+        out JoinClause? Join,
+        out SelectStatement? FromSubquery,
+        out IReadOnlyList<JoinClause>? Joins,
+        out SqlExpression? Having,
+        out IReadOnlyList<OrderBySpec>? OrderByItems,
+        out bool Distinct)
+    {
+        Projections = this.Projections;
+        Measurement = this.Measurement;
+        Where = this.Where;
+        GroupBy = this.GroupBy;
+        TableValuedFunction = this.TableValuedFunction;
+        Pagination = this.Pagination;
+        OrderBy = this.OrderBy;
+        TableAlias = this.TableAlias;
+        Join = this.Join;
+        FromSubquery = this.FromSubquery;
+        Joins = this.Joins;
+        Having = this.Having;
+        OrderByItems = this.OrderByItems;
+        Distinct = this.Distinct;
+    }
+
     /// <summary>当前 SELECT 的 JOIN 列表。</summary>
     public IReadOnlyList<JoinClause> JoinClauses =>
         Joins ?? (Join is null ? Array.Empty<JoinClause>() : new[] { Join });

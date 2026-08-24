@@ -86,6 +86,35 @@ public sealed class TableSchema
             columnDefaults: null);
 
     /// <summary>
+    /// 使用 3.0.1 的七参数合同创建并校验关系表 schema。
+    /// </summary>
+    /// <param name="name">表名。</param>
+    /// <param name="columns">列定义。</param>
+    /// <param name="primaryKey">主键列名。</param>
+    /// <param name="indexes">二级索引声明。</param>
+    /// <param name="foreignKeys">外键声明。</param>
+    /// <param name="rowVersionColumns">乐观并发版本列名。</param>
+    /// <param name="createdAtUtcTicks">创建时间 UTC ticks；为 0 时使用当前时间。</param>
+    /// <returns>通过校验的关系表 schema。</returns>
+    public static TableSchema Create(
+        string name,
+        IReadOnlyList<(string Name, TableColumnType DataType, bool IsNullable)> columns,
+        IReadOnlyList<string> primaryKey,
+        IReadOnlyList<TableIndexDefinition>? indexes,
+        IReadOnlyList<TableForeignKeyDefinition>? foreignKeys,
+        IReadOnlySet<string>? rowVersionColumns,
+        long createdAtUtcTicks)
+        => Create(
+            name,
+            columns,
+            primaryKey,
+            indexes,
+            foreignKeys,
+            rowVersionColumns,
+            createdAtUtcTicks,
+            checkConstraints: null);
+
+    /// <summary>
     /// 创建关系表 schema，并附带可持久化的列默认值定义。
     /// </summary>
     /// <param name="name">表名。</param>

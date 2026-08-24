@@ -83,8 +83,8 @@ public enum TokenKind
     /// <summary>DISTINCT（SELECT DISTINCT 去重）。</summary>
     KeywordDistinct,
     /// <summary>UNION（合并 SELECT 结果并去重）。</summary>
-    KeywordUnion,
-    KeywordFrom,
+    KeywordUnion = 136,
+    KeywordFrom = 47,
     /// <summary>JOIN（MM4 时序 measurement JOIN 关系维表）。</summary>
     KeywordJoin,
     /// <summary>INNER（可选 INNER JOIN 修饰词）。</summary>
@@ -104,9 +104,9 @@ public enum TokenKind
     KeywordTime,
     KeywordDelete,
     /// <summary>TRUNCATE TABLE generation 快速清表。</summary>
-    KeywordTruncate,
+    KeywordTruncate = 137,
     /// <summary>UPDATE（关系表 DML）。</summary>
-    KeywordUpdate,
+    KeywordUpdate = 60,
     /// <summary>SET（UPDATE SET 子句）。</summary>
     KeywordSet,
     KeywordAnd,
@@ -182,9 +182,9 @@ public enum TokenKind
     /// <summary>FOREIGN（FOREIGN KEY 子句）。</summary>
     KeywordForeign,
     /// <summary>CHECK（关系表检查约束）。</summary>
-    KeywordCheck,
+    KeywordCheck = 138,
     /// <summary>REFERENCES（FOREIGN KEY 引用子句）。</summary>
-    KeywordReferences,
+    KeywordReferences = 111,
     /// <summary>ROWVERSION（关系表乐观并发列）。</summary>
     KeywordRowVersion,
 
@@ -224,15 +224,15 @@ public enum TokenKind
     /// <summary>ROLLBACK 轻事务回滚。</summary>
     KeywordRollback,
     /// <summary>TRANSACTION，可选轻事务修饰词。</summary>
-    KeywordTransaction,
+    KeywordTransaction = 135,
 
     /// <summary>
     /// 仅承载十进制幅度 9223372036854775808；产生式只能在显式负号后把它解释为 Int64 最小值。
     /// </summary>
-    Int64MinMagnitudeLiteral,
+    Int64MinMagnitudeLiteral = 139,
 
     /// <summary><c>{</c>：Graph path 有界量词起始符。</summary>
-    LeftBrace,
+    LeftBrace = 140,
     /// <summary><c>}</c>：Graph path 有界量词结束符。</summary>
-    RightBrace,
+    RightBrace = 141,
 }

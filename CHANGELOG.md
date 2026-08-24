@@ -5,6 +5,12 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **SonnetDB.Core 公共 API 兼容性**：恢复 `3.0.1` 的 `TableSchema.Create`、`CreateTableStatement`、`SelectStatement` 与 `SqlExplainExecutionResult` 位置参数/解构合同，并固定已发布 `TokenKind` 数值；修复已发布 `3.1.0` 的 ApiCompat 回归，供后续 patch 版本交付，不通过 suppression 隐藏破坏性变更。
+
+## [3.1.0] - 2026-08-24
+
 ### Changed
 
 - **面向任意大模型的 AI/Agent 发现与使用合同**：重写短版 `llms.txt`，新增完整 `llms-full.txt` 与中文 AI/Agent 指南，按 SonnetDB 3.1.0 的真实能力公开八模型定位、接入决策、SQL/代码示例、MCP 九个只读工具与三个资源、推荐调用顺序、安全规则、provider-neutral 边界、原生图未完成门禁和可复用系统提示词；Server 构建产物与 GitHub Pages 均发布 `/llms.txt`、`/llms-full.txt`，Server 根端点不依赖管理后台是否打包，README、文档首页、工业 AI 文档和 3.1.0 公告同步加入入口。
@@ -79,6 +85,7 @@
 
 ### Added
 
+- **SonnetDB.Core 3.1.0 原生图依赖交付**：NuGet 包公开 `SonnetDB.Graphs.GraphStore` 及当前 typed transaction、snapshot、cursor、遍历和路径合同，供 Couplet CPL-007 通过固定 `PackageReference` 消费；`3.0.1` 不包含该命名空间，不能作为图能力包。
 - **M40 修复与发布步骤 5（#354/#358）Graph SQL V1 与属性感知规划**：冻结可由 `SHOW/DESCRIBE GRAPH` 发现的 `graph_sql_v1`，明确全部 label/非空 property 自动维护等值索引，不增加无不同物理行为的命名索引 DDL，也不修改 Graph V1 record/key/WAL/backup。`INSERT` 新增 `property_<id>`/unique claim，新增带显式 `element_version` 的完整 `UPSERT`、部分 `UPDATE`、`DELETE` 与 `ANALYZE GRAPH`；每条语句复用一个 `GraphTransaction`，版本冲突不部分发布，vertex delete 保持 `RESTRICT`。`graph_cost_v1` 现在从 MATCH 等值属性谓词选择真实 `native_property_index_seek`，按已刷新 value cardinality 比较左右 anchor，并在 `EXPLAIN [ANALYZE]` 报告实际索引、统计 sequence/freshness、anchor/expand 顺序和 fallback。固定硬件、外部对拍、Couplet 联合与 7 天发布证据仍保持 `NOT_RUN`。
 
 - **M40 Phase 3 #367 Production evidence gate 管线**：新增 source-generated `m40-graph-production-input-v1` 清单、artifact SHA-256/复现命令校验和不可手工覆盖的 correctness/recovery、performance/capacity 双 gate 判定器；冻结检查 16 个 SOC/TOP/EVD/CPL/PGQ 查询的三轮样本、P50/P95/P99、query memory、12 GiB working set、cold open/首查、实际 access path/fallback 与资源计数，严格验证 1m vertex/10m edge、目标硬件、168 小时 8 reader + 1 update worker、30 分钟 checkpoint、每日 kill/reopen、默认耐久参数和 `M40-GAP-001~012`。新增 CLI quick/manifest 入口；quick 真实覆盖并发读写、checkpoint/reopen、invariant 和 backup/restore，但双 gate、外部对拍、LDBC/Graphalytics、Couplet C4、Native AOT 与 7 天证据继续如实为 `NOT_RUN`，不改变八模型定位。
@@ -1445,7 +1452,8 @@
 
 ---
 
-[Unreleased]: https://github.com/IoTSharp/SonnetDB/compare/v3.0.0...HEAD
+[Unreleased]: https://github.com/IoTSharp/SonnetDB/compare/v3.1.0...HEAD
+[3.1.0]: https://github.com/IoTSharp/SonnetDB/compare/v3.0.1...v3.1.0
 [3.0.0]: https://github.com/IoTSharp/SonnetDB/compare/v2.5.0...v3.0.0
 [2.5.0]: https://github.com/IoTSharp/SonnetDB/releases/tag/v2.5.0
 [0.1.0]: https://github.com/maikebing/SonnetDB/releases/tag/v0.1.0
