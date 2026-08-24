@@ -4,9 +4,9 @@ This repository-only document describes the internal structure, design boundarie
 
 ## Prerequisites
 
-- Node.js and npm compatible with the checked-in lockfile
+- Node.js 22 or later and npm compatible with the checked-in lockfile
 - .NET 10 SDK
-- Visual Studio Code 1.100 or later for Extension Host smoke tests
+- Network access for the Extension Host smoke test to download the pinned VS Code 1.100.3 runtime
 
 Install dependencies from `extensions/sonnetdb-vscode`:
 
@@ -94,7 +94,7 @@ Run the isolated VS Code Extension Host smoke test:
 npm run test:host
 ```
 
-The smoke runner creates isolated user-data and extension directories, starts a real VS Code Extension Host, verifies activation and editor features, and removes the temporary profile after completion.
+The smoke runner downloads and caches VS Code 1.100.3 outside the repository, creates isolated user-data and extension directories, starts a real Extension Host, verifies activation and editor features, and removes the temporary profile after completion. Set `VSCODE_TEST_VERSION` to exercise another VS Code release or `VSCODE_EXECUTABLE_PATH` to use a specific local executable.
 
 ## Package verification
 

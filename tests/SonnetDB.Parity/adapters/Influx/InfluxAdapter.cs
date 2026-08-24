@@ -158,7 +158,7 @@ public sealed class InfluxAdapter : IDataPlane, ITimeSeriesOps
         var rows = tables.SelectMany(static t => t.Records)
             .Select(r => Row(TimeMs(r), Number(r.GetValue())))
             .ToArray();
-        return Result(["time", "derivative"], rows);
+        return Result(["time", "derivative"], PrependInitialNull(rows));
     }
 
     /// <inheritdoc />
@@ -185,10 +185,10 @@ public sealed class InfluxAdapter : IDataPlane, ITimeSeriesOps
             """, ct).ConfigureAwait(false);
 
         var rows = tables.SelectMany(static t => t.Records)
-            .Take(horizon)
-            .Select((r, i) => Row((long)i, Number(r.GetValue())))
+            .Select(r => Row(TimeMs(r), Number(r.GetValue())))
+            .TakeLast(horizon)
             .ToArray();
-        return Result(["step", "forecast"], rows);
+        return Result(["time", "forecast"], rows);
     }
 
     /// <inheritdoc />
@@ -266,6 +266,19 @@ public sealed class InfluxAdapter : IDataPlane, ITimeSeriesOps
         => new(columns, rows, -1);
 
     private static RelationalSqlRow Row(params object?[] values) => new(values);
+
+    private IReadOnlyList<RelationalSqlRow> PrependInitialNull(IReadOnlyList<RelationalSqlRow> rows)
+    {
+        if (rows.Count == 0 || Convert.ToInt64(rows[0].Values[0], CultureInfo.InvariantCulture) <= _minTimestamp)
+            return rows;
+
+        var normalized = new List<RelationalSqlRow>(rows.Count + 1)
+        {
+            Row(_minTimestamp, null),
+        };
+        normalized.AddRange(rows);
+        return normalized;
+    }
 
     private static long TimeMs(FluxRecord record)
     {

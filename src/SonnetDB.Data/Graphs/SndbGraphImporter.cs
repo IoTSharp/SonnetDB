@@ -619,11 +619,11 @@ public static class SndbGraphImporter
         if (element.ValueKind != JsonValueKind.Object)
             throw new InvalidDataException("Graph JSON 元素必须是对象。");
         foreach (JsonProperty property in element.EnumerateObject())
-        foreach (string name in names)
-        {
-            if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))
-                return property.Value;
-        }
+            foreach (string name in names)
+            {
+                if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase))
+                    return property.Value;
+            }
         return null;
     }
 

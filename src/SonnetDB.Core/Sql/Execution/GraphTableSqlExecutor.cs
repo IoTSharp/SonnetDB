@@ -137,37 +137,37 @@ internal static class GraphTableSqlExecutor
             rows.Add(new object?[] { "mapping_branch_count", pattern.Branches.Count });
             RelationalGraphAccessor accessor = tsdb.Graphs.OpenPropertyGraph(source.GraphName);
             foreach (RelationalPatternBranch branch in pattern.Branches)
-            foreach (RelationalPatternOrientation orientation in branch.Orientations)
-            {
-                bool anchorSeek = TryExtractKeyValues(
-                    source.Predicate,
-                    source.LeftVertex.Variable,
-                    orientation.Left.KeyColumns,
-                    out _);
-                RelationalGraphAccessPlan anchorPlan = anchorSeek
-                    ? accessor.ExplainVertexAccess(orientation.Left.TableName)
-                    : new RelationalGraphAccessPlan("relation_scan_fallback", null, null);
-                string anchorKey = $"anchor.{orientation.Left.TableName}.access_path";
-                if (!rows.Any(row => Equals(row[0], anchorKey)))
+                foreach (RelationalPatternOrientation orientation in branch.Orientations)
                 {
-                    rows.Add(new object?[] { anchorKey, anchorPlan.AccessPath });
-                }
-                foreach (RelationalGraphAccessPlan edgePlan in accessor.ExplainEdgeAccess(
-                    branch.Edge.TableName,
-                    orientation.Direction))
-                {
-                    rows.Add(new object?[]
+                    bool anchorSeek = TryExtractKeyValues(
+                        source.Predicate,
+                        source.LeftVertex.Variable,
+                        orientation.Left.KeyColumns,
+                        out _);
+                    RelationalGraphAccessPlan anchorPlan = anchorSeek
+                        ? accessor.ExplainVertexAccess(orientation.Left.TableName)
+                        : new RelationalGraphAccessPlan("relation_scan_fallback", null, null);
+                    string anchorKey = $"anchor.{orientation.Left.TableName}.access_path";
+                    if (!rows.Any(row => Equals(row[0], anchorKey)))
                     {
+                        rows.Add(new object?[] { anchorKey, anchorPlan.AccessPath });
+                    }
+                    foreach (RelationalGraphAccessPlan edgePlan in accessor.ExplainEdgeAccess(
+                        branch.Edge.TableName,
+                        orientation.Direction))
+                    {
+                        rows.Add(new object?[]
+                        {
                         $"edge.{branch.Edge.TableName}.{edgePlan.Direction!.Value.ToString().ToLowerInvariant()}.access_path",
                         edgePlan.AccessPath,
-                    });
-                    rows.Add(new object?[]
-                    {
+                        });
+                        rows.Add(new object?[]
+                        {
                         $"edge.{branch.Edge.TableName}.{edgePlan.Direction!.Value.ToString().ToLowerInvariant()}.index",
                         edgePlan.IndexName,
-                    });
+                        });
+                    }
                 }
-            }
             rows.Add(new object?[] { "scan_fallback_max_rows", MaxRelationScanRows });
             rows.Add(new object?[] { "scan_fallback_max_ms", MaxRelationScanDuration.TotalMilliseconds });
         }
@@ -470,20 +470,20 @@ internal static class GraphTableSqlExecutor
             long mappingAnchors = bound ? Math.Min(1, tableRows) : tableRows;
             anchorRows = SaturatingAdd(anchorRows, mappingAnchors);
             foreach (RelationalPatternBranch branch in pattern.Branches)
-            foreach (RelationalPatternOrientation orientation in branch.Orientations)
-            {
-                if (!string.Equals(orientation.Left.TableName, mapping.TableName, StringComparison.Ordinal))
-                    continue;
-                int edgeRows = tsdb.Tables.Open(branch.Edge.TableName).RowCount;
-                bool fallback = accessor.ExplainEdgeAccess(branch.Edge.TableName, orientation.Direction)
-                    .Any(static plan => plan.AccessPath == "relation_scan_fallback");
-                long perAnchor = fallback
-                    ? edgeRows
-                    : Math.Max(1, DivideRoundUp(edgeRows, Math.Max(1, tableRows)));
-                expansions = SaturatingAdd(
-                    expansions,
-                    SaturatingMultiply(mappingAnchors, perAnchor));
-            }
+                foreach (RelationalPatternOrientation orientation in branch.Orientations)
+                {
+                    if (!string.Equals(orientation.Left.TableName, mapping.TableName, StringComparison.Ordinal))
+                        continue;
+                    int edgeRows = tsdb.Tables.Open(branch.Edge.TableName).RowCount;
+                    bool fallback = accessor.ExplainEdgeAccess(branch.Edge.TableName, orientation.Direction)
+                        .Any(static plan => plan.AccessPath == "relation_scan_fallback");
+                    long perAnchor = fallback
+                        ? edgeRows
+                        : Math.Max(1, DivideRoundUp(edgeRows, Math.Max(1, tableRows)));
+                    expansions = SaturatingAdd(
+                        expansions,
+                        SaturatingMultiply(mappingAnchors, perAnchor));
+                }
         }
         if (source.Path is { } path)
             expansions = SaturatingMultiply(expansions, path.MaxDepth);
@@ -574,162 +574,162 @@ internal static class GraphTableSqlExecutor
             Func<IdentifierExpression, object?> resolveBindings = bindings.Resolve;
 
             foreach (RelationalPatternBranch branch in pattern.Branches)
-            foreach (RelationalPatternOrientation orientation in branch.Orientations)
-            {
-                IReadOnlyList<object?>? anchorKey = TryExtractKeyValues(
-                    source.Predicate,
-                    source.LeftVertex.Variable,
-                    orientation.Left.KeyColumns,
-                    out IReadOnlyList<object?> extractedAnchorKey)
-                    ? extractedAnchorKey
-                    : null;
-                if (anchorKey is null && (remainingScanRows <= 0 || remainingAnchorRows <= 0))
+                foreach (RelationalPatternOrientation orientation in branch.Orientations)
                 {
-                    throw new GraphTraversalLimitExceededException(
-                        "GRAPH_TABLE relation anchor 或 scan fallback 超过整条查询预算。");
-                }
-                using RelationalGraphCursor anchors = GraphPlanExecutor.Execute(
-                    session,
-                    new RelationalGraphNodePlan(
-                        orientation.Left.TableName,
-                        anchorKey,
-                        new RelationalGraphAccessOptions
-                        {
-                            PageSize = 256,
-                            MaxScanRows = Math.Max(1, remainingScanRows),
-                            MaxResults = remainingAnchorRows,
-                            MaxScanDuration = remainingScanDuration,
-                        }));
-                bool anchorFallback = anchors.AccessPlans.Any(
-                    static plan => plan.AccessPath == "relation_scan_fallback");
-                try
-                {
-                    while (true)
+                    IReadOnlyList<object?>? anchorKey = TryExtractKeyValues(
+                        source.Predicate,
+                        source.LeftVertex.Variable,
+                        orientation.Left.KeyColumns,
+                        out IReadOnlyList<object?> extractedAnchorKey)
+                        ? extractedAnchorKey
+                        : null;
+                    if (anchorKey is null && (remainingScanRows <= 0 || remainingAnchorRows <= 0))
                     {
-                        IReadOnlyList<TableRow> anchorPage = anchors.ReadNextPage();
-                        if (anchorPage.Count == 0)
-                            break;
-                        foreach (TableRow anchor in anchorPage)
+                        throw new GraphTraversalLimitExceededException(
+                            "GRAPH_TABLE relation anchor 或 scan fallback 超过整条查询预算。");
+                    }
+                    using RelationalGraphCursor anchors = GraphPlanExecutor.Execute(
+                        session,
+                        new RelationalGraphNodePlan(
+                            orientation.Left.TableName,
+                            anchorKey,
+                            new RelationalGraphAccessOptions
+                            {
+                                PageSize = 256,
+                                MaxScanRows = Math.Max(1, remainingScanRows),
+                                MaxResults = remainingAnchorRows,
+                                MaxScanDuration = remainingScanDuration,
+                            }));
+                    bool anchorFallback = anchors.AccessPlans.Any(
+                        static plan => plan.AccessPath == "relation_scan_fallback");
+                    try
+                    {
+                        while (true)
                         {
-                            SqlExecutor.ThrowIfCancellationRequested();
-                            metrics.AnchorRows = checked(metrics.AnchorRows + 1);
-                            if (--remainingAnchorRows < 0)
-                                throw new GraphTraversalLimitExceededException(
-                                    $"GRAPH_TABLE anchor 超过上限 {MaxAnchorRows} 行。");
-                            TableSchema leftSchema = session.GetSchema(orientation.Left.TableName);
-                            IReadOnlyList<object?> anchorKeyValues = ReadValues(
-                                leftSchema,
-                                anchor,
-                                orientation.Left.KeyColumns);
-                            IReadOnlyList<RelationalGraphAccessPlan> edgePlans = accessor.ExplainEdgeAccess(
-                                branch.Edge.TableName,
-                                orientation.Direction);
-                            bool edgeUsesFallback = edgePlans.Any(
-                                static plan => plan.AccessPath == "relation_scan_fallback");
-                            if (remainingScanRows <= 0 && edgeUsesFallback)
+                            IReadOnlyList<TableRow> anchorPage = anchors.ReadNextPage();
+                            if (anchorPage.Count == 0)
+                                break;
+                            foreach (TableRow anchor in anchorPage)
                             {
-                                throw new GraphTraversalLimitExceededException(
-                                    $"GRAPH_TABLE relation scan fallback 超过总预算 {MaxRelationScanRows} 行。");
-                            }
-                            using RelationalGraphCursor edges = GraphPlanExecutor.Execute(
-                                session,
-                                new RelationalGraphExpandPlan(
+                                SqlExecutor.ThrowIfCancellationRequested();
+                                metrics.AnchorRows = checked(metrics.AnchorRows + 1);
+                                if (--remainingAnchorRows < 0)
+                                    throw new GraphTraversalLimitExceededException(
+                                        $"GRAPH_TABLE anchor 超过上限 {MaxAnchorRows} 行。");
+                                TableSchema leftSchema = session.GetSchema(orientation.Left.TableName);
+                                IReadOnlyList<object?> anchorKeyValues = ReadValues(
+                                    leftSchema,
+                                    anchor,
+                                    orientation.Left.KeyColumns);
+                                IReadOnlyList<RelationalGraphAccessPlan> edgePlans = accessor.ExplainEdgeAccess(
                                     branch.Edge.TableName,
-                                    orientation.Direction,
-                                    anchorKeyValues,
-                                    new RelationalGraphAccessOptions
-                                    {
-                                        PageSize = 256,
-                                        MaxScanRows = Math.Max(1, remainingScanRows),
-                                        MaxResults = Math.Max(1, remainingMatchedRows),
-                                        MaxScanDuration = edgeUsesFallback
-                                            ? remainingScanDuration
-                                            : MaxRelationScanDuration,
-                                    }));
-                            try
-                            {
-                                while (true)
+                                    orientation.Direction);
+                                bool edgeUsesFallback = edgePlans.Any(
+                                    static plan => plan.AccessPath == "relation_scan_fallback");
+                                if (remainingScanRows <= 0 && edgeUsesFallback)
                                 {
-                                    IReadOnlyList<TableRow> edgePage = edges.ReadNextPage();
-                                    if (edgePage.Count == 0)
-                                        break;
-                                    metrics.Expansions = checked(metrics.Expansions + edgePage.Count);
-                                    TableSchema edgeSchema = session.GetSchema(branch.Edge.TableName);
-                                    foreach (TableRow edgeRow in edgePage)
-                                    foreach ((PropertyGraphVertexTable Right, IReadOnlyList<object?> Key) neighbor in
-                                        ResolveRelationalNeighbors(
-                                            branch.Edge,
-                                            orientation,
-                                            leftSchema,
-                                            anchor,
-                                            edgeSchema,
-                                            edgeRow,
-                                            anchorKeyValues))
+                                    throw new GraphTraversalLimitExceededException(
+                                        $"GRAPH_TABLE relation scan fallback 超过总预算 {MaxRelationScanRows} 行。");
+                                }
+                                using RelationalGraphCursor edges = GraphPlanExecutor.Execute(
+                                    session,
+                                    new RelationalGraphExpandPlan(
+                                        branch.Edge.TableName,
+                                        orientation.Direction,
+                                        anchorKeyValues,
+                                        new RelationalGraphAccessOptions
+                                        {
+                                            PageSize = 256,
+                                            MaxScanRows = Math.Max(1, remainingScanRows),
+                                            MaxResults = Math.Max(1, remainingMatchedRows),
+                                            MaxScanDuration = edgeUsesFallback
+                                                ? remainingScanDuration
+                                                : MaxRelationScanDuration,
+                                        }));
+                                try
+                                {
+                                    while (true)
                                     {
-                                        using RelationalGraphCursor neighborCursor = GraphPlanExecutor.Execute(
-                                            session,
-                                            new RelationalGraphNodePlan(
-                                                neighbor.Right.TableName,
-                                                neighbor.Key,
-                                                new RelationalGraphAccessOptions { PageSize = 1, MaxResults = 1 }));
-                                        IReadOnlyList<TableRow> neighborPage = neighborCursor.ReadNextPage();
-                                        if (neighborPage.Count == 0)
-                                            continue;
-                                        TableSchema rightSchema = session.GetSchema(neighbor.Right.TableName);
-                                        bindings.Update(
-                                            source.LeftVertex.Variable,
-                                            new RelationalBinding(leftSchema, anchor, orientation.Left.PropertyColumns),
-                                            source.Edge.Variable,
-                                            new RelationalBinding(edgeSchema, edgeRow, branch.Edge.PropertyColumns),
-                                            source.RightVertex.Variable,
-                                            new RelationalBinding(
-                                                rightSchema,
-                                                neighborPage[0],
-                                                neighbor.Right.PropertyColumns));
-                                        if (source.Predicate is not null
-                                            && SqlProjectionExpressionEvaluator.Evaluate(
-                                                source.Predicate,
-                                                resolveBindings,
-                                                "GRAPH_TABLE MATCH WHERE") is not true)
-                                        {
-                                            continue;
-                                        }
-                                        if (remainingMatchedRows-- <= 0)
-                                        {
-                                            throw new GraphTraversalLimitExceededException(
-                                                $"GRAPH_TABLE 匹配结果超过上限 {MaxMatchedRows} 行。");
-                                        }
-                                        yield return Project(
-                                            source.Columns,
-                                            resolveBindings,
-                                            "GRAPH_TABLE COLUMNS");
+                                        IReadOnlyList<TableRow> edgePage = edges.ReadNextPage();
+                                        if (edgePage.Count == 0)
+                                            break;
+                                        metrics.Expansions = checked(metrics.Expansions + edgePage.Count);
+                                        TableSchema edgeSchema = session.GetSchema(branch.Edge.TableName);
+                                        foreach (TableRow edgeRow in edgePage)
+                                            foreach ((PropertyGraphVertexTable Right, IReadOnlyList<object?> Key) neighbor in
+                                                ResolveRelationalNeighbors(
+                                                    branch.Edge,
+                                                    orientation,
+                                                    leftSchema,
+                                                    anchor,
+                                                    edgeSchema,
+                                                    edgeRow,
+                                                    anchorKeyValues))
+                                            {
+                                                using RelationalGraphCursor neighborCursor = GraphPlanExecutor.Execute(
+                                                    session,
+                                                    new RelationalGraphNodePlan(
+                                                        neighbor.Right.TableName,
+                                                        neighbor.Key,
+                                                        new RelationalGraphAccessOptions { PageSize = 1, MaxResults = 1 }));
+                                                IReadOnlyList<TableRow> neighborPage = neighborCursor.ReadNextPage();
+                                                if (neighborPage.Count == 0)
+                                                    continue;
+                                                TableSchema rightSchema = session.GetSchema(neighbor.Right.TableName);
+                                                bindings.Update(
+                                                    source.LeftVertex.Variable,
+                                                    new RelationalBinding(leftSchema, anchor, orientation.Left.PropertyColumns),
+                                                    source.Edge.Variable,
+                                                    new RelationalBinding(edgeSchema, edgeRow, branch.Edge.PropertyColumns),
+                                                    source.RightVertex.Variable,
+                                                    new RelationalBinding(
+                                                        rightSchema,
+                                                        neighborPage[0],
+                                                        neighbor.Right.PropertyColumns));
+                                                if (source.Predicate is not null
+                                                    && SqlProjectionExpressionEvaluator.Evaluate(
+                                                        source.Predicate,
+                                                        resolveBindings,
+                                                        "GRAPH_TABLE MATCH WHERE") is not true)
+                                                {
+                                                    continue;
+                                                }
+                                                if (remainingMatchedRows-- <= 0)
+                                                {
+                                                    throw new GraphTraversalLimitExceededException(
+                                                        $"GRAPH_TABLE 匹配结果超过上限 {MaxMatchedRows} 行。");
+                                                }
+                                                yield return Project(
+                                                    source.Columns,
+                                                    resolveBindings,
+                                                    "GRAPH_TABLE COLUMNS");
+                                            }
                                     }
                                 }
-                            }
-                            finally
-                            {
-                                if (edgeUsesFallback)
+                                finally
                                 {
-                                    remainingScanRows = checked(remainingScanRows - edges.ExaminedRows);
-                                    remainingScanDuration -= edges.FallbackDuration;
-                                    metrics.FallbackRows = checked(metrics.FallbackRows + edges.ExaminedRows);
-                                    metrics.FallbackDuration += edges.FallbackDuration;
+                                    if (edgeUsesFallback)
+                                    {
+                                        remainingScanRows = checked(remainingScanRows - edges.ExaminedRows);
+                                        remainingScanDuration -= edges.FallbackDuration;
+                                        metrics.FallbackRows = checked(metrics.FallbackRows + edges.ExaminedRows);
+                                        metrics.FallbackDuration += edges.FallbackDuration;
+                                    }
                                 }
                             }
                         }
                     }
-                }
-                finally
-                {
-                    if (anchorFallback)
+                    finally
                     {
-                        remainingScanRows = checked(remainingScanRows - anchors.ExaminedRows);
-                        remainingScanDuration -= anchors.FallbackDuration;
-                        metrics.FallbackRows = checked(metrics.FallbackRows + anchors.ExaminedRows);
-                        metrics.FallbackDuration += anchors.FallbackDuration;
+                        if (anchorFallback)
+                        {
+                            remainingScanRows = checked(remainingScanRows - anchors.ExaminedRows);
+                            remainingScanDuration -= anchors.FallbackDuration;
+                            metrics.FallbackRows = checked(metrics.FallbackRows + anchors.ExaminedRows);
+                            metrics.FallbackDuration += anchors.FallbackDuration;
+                        }
                     }
                 }
-            }
         }
     }
 
@@ -864,143 +864,143 @@ internal static class GraphTableSqlExecutor
             RelationalTraversalVertex currentVertex = current.Vertices[^1];
             var children = new List<RelationalTraversalPath>();
             foreach (RelationalPatternBranch branch in pattern.Branches)
-            foreach (RelationalPatternOrientation orientation in branch.Orientations)
-            {
-                if (!string.Equals(
-                    orientation.Left.TableName,
-                    currentVertex.Mapping.TableName,
-                    StringComparison.Ordinal))
+                foreach (RelationalPatternOrientation orientation in branch.Orientations)
                 {
-                    continue;
-                }
-                IReadOnlyList<object?> endpointKey = ReadValues(
-                    currentVertex.Schema,
-                    currentVertex.Row,
-                    orientation.Left.KeyColumns);
-                if (state.RemainingScanRows <= 0)
-                    throw new GraphTraversalLimitExceededException(
-                        $"GRAPH_TABLE relation path scan fallback 超过总预算 {MaxRelationScanRows} 行。");
-                using RelationalGraphCursor edges = GraphPlanExecutor.Execute(
-                    session,
-                    new RelationalGraphExpandPlan(
-                        branch.Edge.TableName,
-                        orientation.Direction,
-                        endpointKey,
-                        new RelationalGraphAccessOptions
-                        {
-                            PageSize = 256,
-                            MaxScanRows = Math.Max(1, state.RemainingScanRows),
-                            MaxResults = Math.Max(1, Math.Min(state.RemainingPaths, MaxAnchorRows + 1)),
-                            MaxScanDuration = state.RemainingScanDuration,
-                        }));
-                bool usesFallback = edges.AccessPlans.Any(
-                    static plan => plan.AccessPath == "relation_scan_fallback");
-                try
-                {
-                    while (true)
+                    if (!string.Equals(
+                        orientation.Left.TableName,
+                        currentVertex.Mapping.TableName,
+                        StringComparison.Ordinal))
                     {
-                        IReadOnlyList<TableRow> edgePage = edges.ReadNextPage();
-                        if (edgePage.Count == 0)
-                            break;
-                        metrics.Expansions = checked(metrics.Expansions + edgePage.Count);
-                        TableSchema edgeSchema = session.GetSchema(branch.Edge.TableName);
-                        foreach (TableRow edgeRow in edgePage)
-                        foreach ((PropertyGraphVertexTable Right, IReadOnlyList<object?> Key) neighbor in
-                            ResolveRelationalNeighbors(
-                                branch.Edge,
-                                orientation,
-                                currentVertex.Schema,
-                                currentVertex.Row,
-                                edgeSchema,
-                                edgeRow,
-                                endpointKey))
+                        continue;
+                    }
+                    IReadOnlyList<object?> endpointKey = ReadValues(
+                        currentVertex.Schema,
+                        currentVertex.Row,
+                        orientation.Left.KeyColumns);
+                    if (state.RemainingScanRows <= 0)
+                        throw new GraphTraversalLimitExceededException(
+                            $"GRAPH_TABLE relation path scan fallback 超过总预算 {MaxRelationScanRows} 行。");
+                    using RelationalGraphCursor edges = GraphPlanExecutor.Execute(
+                        session,
+                        new RelationalGraphExpandPlan(
+                            branch.Edge.TableName,
+                            orientation.Direction,
+                            endpointKey,
+                            new RelationalGraphAccessOptions
+                            {
+                                PageSize = 256,
+                                MaxScanRows = Math.Max(1, state.RemainingScanRows),
+                                MaxResults = Math.Max(1, Math.Min(state.RemainingPaths, MaxAnchorRows + 1)),
+                                MaxScanDuration = state.RemainingScanDuration,
+                            }));
+                    bool usesFallback = edges.AccessPlans.Any(
+                        static plan => plan.AccessPath == "relation_scan_fallback");
+                    try
+                    {
+                        while (true)
                         {
-                            string edgeIdentity = FormatRelationalIdentity(branch.Edge.TableName, edgeRow);
-                            if (pathPattern.Uniqueness == GraphPathUniqueness.Edge
-                                && current.EdgeIdentities.Contains(edgeIdentity, StringComparer.Ordinal))
-                            {
-                                continue;
-                            }
-                            using RelationalGraphCursor neighborCursor = GraphPlanExecutor.Execute(
-                                session,
-                                new RelationalGraphNodePlan(
-                                    neighbor.Right.TableName,
-                                    neighbor.Key,
-                                    new RelationalGraphAccessOptions { PageSize = 1, MaxResults = 1 }));
-                            IReadOnlyList<TableRow> neighborPage = neighborCursor.ReadNextPage();
-                            if (neighborPage.Count == 0)
-                                continue;
-                            TableSchema neighborSchema = session.GetSchema(neighbor.Right.TableName);
-                            TableRow neighborRow = neighborPage[0];
-                            string neighborIdentity = FormatRelationalIdentity(neighbor.Right.TableName, neighborRow);
-                            if (pathPattern.Uniqueness == GraphPathUniqueness.Vertex
-                                && current.Vertices.Any(vertex => string.Equals(
-                                    vertex.Identity,
-                                    neighborIdentity,
-                                    StringComparison.Ordinal)))
-                            {
-                                continue;
-                            }
-                            var neighborVertex = new RelationalTraversalVertex(
-                                neighbor.Right,
-                                neighborSchema,
-                                neighborRow,
-                                neighborIdentity);
-                            var child = current.Extend(neighborVertex, edgeIdentity);
-                            metrics.GeneratedPaths++;
-                            children.Add(child);
+                            IReadOnlyList<TableRow> edgePage = edges.ReadNextPage();
+                            if (edgePage.Count == 0)
+                                break;
+                            metrics.Expansions = checked(metrics.Expansions + edgePage.Count);
+                            TableSchema edgeSchema = session.GetSchema(branch.Edge.TableName);
+                            foreach (TableRow edgeRow in edgePage)
+                                foreach ((PropertyGraphVertexTable Right, IReadOnlyList<object?> Key) neighbor in
+                                    ResolveRelationalNeighbors(
+                                        branch.Edge,
+                                        orientation,
+                                        currentVertex.Schema,
+                                        currentVertex.Row,
+                                        edgeSchema,
+                                        edgeRow,
+                                        endpointKey))
+                                {
+                                    string edgeIdentity = FormatRelationalIdentity(branch.Edge.TableName, edgeRow);
+                                    if (pathPattern.Uniqueness == GraphPathUniqueness.Edge
+                                        && current.EdgeIdentities.Contains(edgeIdentity, StringComparer.Ordinal))
+                                    {
+                                        continue;
+                                    }
+                                    using RelationalGraphCursor neighborCursor = GraphPlanExecutor.Execute(
+                                        session,
+                                        new RelationalGraphNodePlan(
+                                            neighbor.Right.TableName,
+                                            neighbor.Key,
+                                            new RelationalGraphAccessOptions { PageSize = 1, MaxResults = 1 }));
+                                    IReadOnlyList<TableRow> neighborPage = neighborCursor.ReadNextPage();
+                                    if (neighborPage.Count == 0)
+                                        continue;
+                                    TableSchema neighborSchema = session.GetSchema(neighbor.Right.TableName);
+                                    TableRow neighborRow = neighborPage[0];
+                                    string neighborIdentity = FormatRelationalIdentity(neighbor.Right.TableName, neighborRow);
+                                    if (pathPattern.Uniqueness == GraphPathUniqueness.Vertex
+                                        && current.Vertices.Any(vertex => string.Equals(
+                                            vertex.Identity,
+                                            neighborIdentity,
+                                            StringComparison.Ordinal)))
+                                    {
+                                        continue;
+                                    }
+                                    var neighborVertex = new RelationalTraversalVertex(
+                                        neighbor.Right,
+                                        neighborSchema,
+                                        neighborRow,
+                                        neighborIdentity);
+                                    var child = current.Extend(neighborVertex, edgeIdentity);
+                                    metrics.GeneratedPaths++;
+                                    children.Add(child);
 
-                            if (child.EdgeIdentities.Count < pathPattern.MinDepth)
-                                continue;
-                            if (state.RemainingPaths-- <= 0)
-                            {
-                                throw new GraphTraversalLimitExceededException(
-                                    $"GRAPH_TABLE relation path 生成数量超过上限 {MaxMatchedRows}。");
-                            }
-                            if (pathPattern.IsAnyShortest && !shortestEndpoints.Add(neighborIdentity))
-                                continue;
-                            RelationalTraversalPath projectedPath = reversePathProjection
-                                ? ReversePath(child)
-                                : child;
-                            bindings.Update(
-                                source.LeftVertex.Variable,
-                                new RelationalBinding(
-                                    anchor.Schema,
-                                    anchor.Row,
-                                    anchor.Mapping.PropertyColumns),
-                                source.RightVertex.Variable,
-                                new RelationalBinding(
-                                    neighborSchema,
-                                    neighborRow,
-                                    neighbor.Right.PropertyColumns),
-                                pathPattern.Variable,
-                                projectedPath);
-                            if (source.Predicate is not null
-                                && SqlProjectionExpressionEvaluator.Evaluate(
-                                    source.Predicate,
-                                    resolveBindings,
-                                    "GRAPH_TABLE relation path MATCH WHERE") is not true)
-                            {
-                                continue;
-                            }
-                            if (state.RemainingMatchedRows-- <= 0)
-                            {
-                                throw new GraphTraversalLimitExceededException(
-                                    $"GRAPH_TABLE relation path 匹配结果超过上限 {MaxMatchedRows} 行。");
-                            }
-                            yield return Project(
-                                source.Columns,
-                                resolveBindings,
-                                "GRAPH_TABLE relation path COLUMNS");
+                                    if (child.EdgeIdentities.Count < pathPattern.MinDepth)
+                                        continue;
+                                    if (state.RemainingPaths-- <= 0)
+                                    {
+                                        throw new GraphTraversalLimitExceededException(
+                                            $"GRAPH_TABLE relation path 生成数量超过上限 {MaxMatchedRows}。");
+                                    }
+                                    if (pathPattern.IsAnyShortest && !shortestEndpoints.Add(neighborIdentity))
+                                        continue;
+                                    RelationalTraversalPath projectedPath = reversePathProjection
+                                        ? ReversePath(child)
+                                        : child;
+                                    bindings.Update(
+                                        source.LeftVertex.Variable,
+                                        new RelationalBinding(
+                                            anchor.Schema,
+                                            anchor.Row,
+                                            anchor.Mapping.PropertyColumns),
+                                        source.RightVertex.Variable,
+                                        new RelationalBinding(
+                                            neighborSchema,
+                                            neighborRow,
+                                            neighbor.Right.PropertyColumns),
+                                        pathPattern.Variable,
+                                        projectedPath);
+                                    if (source.Predicate is not null
+                                        && SqlProjectionExpressionEvaluator.Evaluate(
+                                            source.Predicate,
+                                            resolveBindings,
+                                            "GRAPH_TABLE relation path MATCH WHERE") is not true)
+                                    {
+                                        continue;
+                                    }
+                                    if (state.RemainingMatchedRows-- <= 0)
+                                    {
+                                        throw new GraphTraversalLimitExceededException(
+                                            $"GRAPH_TABLE relation path 匹配结果超过上限 {MaxMatchedRows} 行。");
+                                    }
+                                    yield return Project(
+                                        source.Columns,
+                                        resolveBindings,
+                                        "GRAPH_TABLE relation path COLUMNS");
+                                }
                         }
                     }
+                    finally
+                    {
+                        if (usesFallback)
+                            ConsumeRelationalCursorBudget(edges, state, metrics);
+                    }
                 }
-                finally
-                {
-                    if (usesFallback)
-                        ConsumeRelationalCursorBudget(edges, state, metrics);
-                }
-            }
 
             foreach (RelationalTraversalPath child in pathPattern.IsAnyShortest
                 ? children
@@ -1365,15 +1365,15 @@ internal static class GraphTableSqlExecutor
             [source.RightVertex.Variable] = [],
         };
         foreach (RelationalPatternBranch branch in pattern.Branches)
-        foreach (RelationalPatternOrientation orientation in branch.Orientations)
-        {
-            schemas[source.LeftVertex.Variable].Add((
-                tsdb.Tables.Catalog.TryGet(orientation.Left.TableName)!,
-                orientation.Left.PropertyColumns));
-            schemas[source.RightVertex.Variable].Add((
-                tsdb.Tables.Catalog.TryGet(orientation.Right.TableName)!,
-                orientation.Right.PropertyColumns));
-        }
+            foreach (RelationalPatternOrientation orientation in branch.Orientations)
+            {
+                schemas[source.LeftVertex.Variable].Add((
+                    tsdb.Tables.Catalog.TryGet(orientation.Left.TableName)!,
+                    orientation.Left.PropertyColumns));
+                schemas[source.RightVertex.Variable].Add((
+                    tsdb.Tables.Catalog.TryGet(orientation.Right.TableName)!,
+                    orientation.Right.PropertyColumns));
+            }
 
         bool Exists(IdentifierExpression identifier)
         {

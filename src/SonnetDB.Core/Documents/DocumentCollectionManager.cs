@@ -71,22 +71,22 @@ public sealed class DocumentCollectionManager : IDisposable
     {
         ArgumentNullException.ThrowIfNull(schema);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            _nameAvailabilityGuard?.Invoke(schema.Name, "document collection");
-            Catalog.Add(schema);
-            try
+            lock (_sync)
             {
-                PersistCatalogLocked();
-                _ = OpenStoreLocked(schema);
+                ThrowIfDisposed();
+                _nameAvailabilityGuard?.Invoke(schema.Name, "document collection");
+                Catalog.Add(schema);
+                try
+                {
+                    PersistCatalogLocked();
+                    _ = OpenStoreLocked(schema);
+                }
+                catch
+                {
+                    Catalog.Remove(schema.Name);
+                    throw;
+                }
             }
-            catch
-            {
-                Catalog.Remove(schema.Name);
-                throw;
-            }
-        }
     }
 
     /// <summary>
@@ -100,30 +100,30 @@ public sealed class DocumentCollectionManager : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
         ArgumentNullException.ThrowIfNull(definition);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            var current = Catalog.TryGet(collectionName)
-                ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
-
-            var updated = current.WithIndex(definition);
-            var store = OpenStoreLocked(current);
-            store.ApplySchema(updated);
-            Catalog.LoadOrReplace(updated);
-            try
+            lock (_sync)
             {
-                PersistCatalogLocked();
-            }
-            catch
-            {
-                store.ApplySchema(current);
-                Catalog.LoadOrReplace(current);
-                throw;
-            }
+                ThrowIfDisposed();
+                var current = Catalog.TryGet(collectionName)
+                    ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
 
-            return updated.TryGetIndex(definition.Name)
-                ?? throw new InvalidOperationException("内部错误：文档索引创建后未能读取 schema。");
-        }
+                var updated = current.WithIndex(definition);
+                var store = OpenStoreLocked(current);
+                store.ApplySchema(updated);
+                Catalog.LoadOrReplace(updated);
+                try
+                {
+                    PersistCatalogLocked();
+                }
+                catch
+                {
+                    store.ApplySchema(current);
+                    Catalog.LoadOrReplace(current);
+                    throw;
+                }
+
+                return updated.TryGetIndex(definition.Name)
+                    ?? throw new InvalidOperationException("内部错误：文档索引创建后未能读取 schema。");
+            }
     }
 
     /// <summary>
@@ -137,30 +137,30 @@ public sealed class DocumentCollectionManager : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
         ArgumentNullException.ThrowIfNull(definition);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            var current = Catalog.TryGet(collectionName)
-                ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
-
-            var updated = current.WithFullTextIndex(definition);
-            var store = OpenStoreLocked(current);
-            store.ApplySchema(updated);
-            Catalog.LoadOrReplace(updated);
-            try
+            lock (_sync)
             {
-                PersistCatalogLocked();
-            }
-            catch
-            {
-                store.ApplySchema(current);
-                Catalog.LoadOrReplace(current);
-                throw;
-            }
+                ThrowIfDisposed();
+                var current = Catalog.TryGet(collectionName)
+                    ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
 
-            return updated.TryGetFullTextIndex(definition.Name)
-                ?? throw new InvalidOperationException("内部错误：全文索引创建后未能读取 schema。");
-        }
+                var updated = current.WithFullTextIndex(definition);
+                var store = OpenStoreLocked(current);
+                store.ApplySchema(updated);
+                Catalog.LoadOrReplace(updated);
+                try
+                {
+                    PersistCatalogLocked();
+                }
+                catch
+                {
+                    store.ApplySchema(current);
+                    Catalog.LoadOrReplace(current);
+                    throw;
+                }
+
+                return updated.TryGetFullTextIndex(definition.Name)
+                    ?? throw new InvalidOperationException("内部错误：全文索引创建后未能读取 schema。");
+            }
     }
 
     /// <summary>
@@ -174,30 +174,30 @@ public sealed class DocumentCollectionManager : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
         ArgumentNullException.ThrowIfNull(definition);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            var current = Catalog.TryGet(collectionName)
-                ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
-
-            var updated = current.WithVectorIndex(definition);
-            var store = OpenStoreLocked(current);
-            store.ApplySchema(updated);
-            Catalog.LoadOrReplace(updated);
-            try
+            lock (_sync)
             {
-                PersistCatalogLocked();
-            }
-            catch
-            {
-                store.ApplySchema(current);
-                Catalog.LoadOrReplace(current);
-                throw;
-            }
+                ThrowIfDisposed();
+                var current = Catalog.TryGet(collectionName)
+                    ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
 
-            return updated.TryGetVectorIndex(definition.Name)
-                ?? throw new InvalidOperationException("内部错误：向量索引创建后未能读取 schema。");
-        }
+                var updated = current.WithVectorIndex(definition);
+                var store = OpenStoreLocked(current);
+                store.ApplySchema(updated);
+                Catalog.LoadOrReplace(updated);
+                try
+                {
+                    PersistCatalogLocked();
+                }
+                catch
+                {
+                    store.ApplySchema(current);
+                    Catalog.LoadOrReplace(current);
+                    throw;
+                }
+
+                return updated.TryGetVectorIndex(definition.Name)
+                    ?? throw new InvalidOperationException("内部错误：向量索引创建后未能读取 schema。");
+            }
     }
 
     /// <summary>
@@ -211,31 +211,31 @@ public sealed class DocumentCollectionManager : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
         ArgumentNullException.ThrowIfNull(definition);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            _schemaMutationGuard?.Invoke(collectionName, "ALTER DOCUMENT COLLECTION");
-            ThrowIfDisposed();
-            var current = Catalog.TryGet(collectionName)
-                ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
-
-            var updated = current.WithValidator(definition);
-            var store = OpenStoreLocked(current);
-            store.ApplySchema(updated);
-            Catalog.LoadOrReplace(updated);
-            try
+            lock (_sync)
             {
-                PersistCatalogLocked();
-            }
-            catch
-            {
-                store.ApplySchema(current);
-                Catalog.LoadOrReplace(current);
-                throw;
-            }
+                _schemaMutationGuard?.Invoke(collectionName, "ALTER DOCUMENT COLLECTION");
+                ThrowIfDisposed();
+                var current = Catalog.TryGet(collectionName)
+                    ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
 
-            return updated.Validator
-                ?? throw new InvalidOperationException("内部错误：文档 validator 设置后未能读取 schema。");
-        }
+                var updated = current.WithValidator(definition);
+                var store = OpenStoreLocked(current);
+                store.ApplySchema(updated);
+                Catalog.LoadOrReplace(updated);
+                try
+                {
+                    PersistCatalogLocked();
+                }
+                catch
+                {
+                    store.ApplySchema(current);
+                    Catalog.LoadOrReplace(current);
+                    throw;
+                }
+
+                return updated.Validator
+                    ?? throw new InvalidOperationException("内部错误：文档 validator 设置后未能读取 schema。");
+            }
     }
 
     /// <summary>
@@ -247,32 +247,32 @@ public sealed class DocumentCollectionManager : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            _schemaMutationGuard?.Invoke(collectionName, "ALTER DOCUMENT COLLECTION");
-            ThrowIfDisposed();
-            var current = Catalog.TryGet(collectionName)
-                ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
-            if (current.Validator is null)
-                return false;
-
-            var updated = current.WithoutValidator();
-            var store = OpenStoreLocked(current);
-            store.ApplySchema(updated);
-            Catalog.LoadOrReplace(updated);
-            try
+            lock (_sync)
             {
-                PersistCatalogLocked();
-            }
-            catch
-            {
-                store.ApplySchema(current);
-                Catalog.LoadOrReplace(current);
-                throw;
-            }
+                _schemaMutationGuard?.Invoke(collectionName, "ALTER DOCUMENT COLLECTION");
+                ThrowIfDisposed();
+                var current = Catalog.TryGet(collectionName)
+                    ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
+                if (current.Validator is null)
+                    return false;
 
-            return true;
-        }
+                var updated = current.WithoutValidator();
+                var store = OpenStoreLocked(current);
+                store.ApplySchema(updated);
+                Catalog.LoadOrReplace(updated);
+                try
+                {
+                    PersistCatalogLocked();
+                }
+                catch
+                {
+                    store.ApplySchema(current);
+                    Catalog.LoadOrReplace(current);
+                    throw;
+                }
+
+                return true;
+            }
     }
 
     /// <summary>
@@ -286,31 +286,31 @@ public sealed class DocumentCollectionManager : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
         ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            var current = Catalog.TryGet(collectionName)
-                ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
-            if (current.TryGetIndex(indexName) is null)
-                return false;
-
-            var updated = current.WithoutIndex(indexName);
-            var store = OpenStoreLocked(current);
-            store.ApplySchema(updated);
-            Catalog.LoadOrReplace(updated);
-            try
+            lock (_sync)
             {
-                PersistCatalogLocked();
-            }
-            catch
-            {
-                store.ApplySchema(current);
-                Catalog.LoadOrReplace(current);
-                throw;
-            }
+                ThrowIfDisposed();
+                var current = Catalog.TryGet(collectionName)
+                    ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
+                if (current.TryGetIndex(indexName) is null)
+                    return false;
 
-            return true;
-        }
+                var updated = current.WithoutIndex(indexName);
+                var store = OpenStoreLocked(current);
+                store.ApplySchema(updated);
+                Catalog.LoadOrReplace(updated);
+                try
+                {
+                    PersistCatalogLocked();
+                }
+                catch
+                {
+                    store.ApplySchema(current);
+                    Catalog.LoadOrReplace(current);
+                    throw;
+                }
+
+                return true;
+            }
     }
 
     /// <summary>
@@ -324,34 +324,34 @@ public sealed class DocumentCollectionManager : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
         ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            var current = Catalog.TryGet(collectionName)
-                ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
-            if (current.TryGetFullTextIndex(indexName) is null)
-                return false;
-
-            var updated = current.WithoutFullTextIndex(indexName);
-            var store = OpenStoreLocked(current);
-            store.ApplySchema(updated);
-            Catalog.LoadOrReplace(updated);
-            try
+            lock (_sync)
             {
-                PersistCatalogLocked();
-                string indexDirectory = FullTextIndexDirectory(collectionName, indexName);
-                if (Directory.Exists(indexDirectory))
-                    Directory.Delete(indexDirectory, recursive: true);
-            }
-            catch
-            {
-                store.ApplySchema(current);
-                Catalog.LoadOrReplace(current);
-                throw;
-            }
+                ThrowIfDisposed();
+                var current = Catalog.TryGet(collectionName)
+                    ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
+                if (current.TryGetFullTextIndex(indexName) is null)
+                    return false;
 
-            return true;
-        }
+                var updated = current.WithoutFullTextIndex(indexName);
+                var store = OpenStoreLocked(current);
+                store.ApplySchema(updated);
+                Catalog.LoadOrReplace(updated);
+                try
+                {
+                    PersistCatalogLocked();
+                    string indexDirectory = FullTextIndexDirectory(collectionName, indexName);
+                    if (Directory.Exists(indexDirectory))
+                        Directory.Delete(indexDirectory, recursive: true);
+                }
+                catch
+                {
+                    store.ApplySchema(current);
+                    Catalog.LoadOrReplace(current);
+                    throw;
+                }
+
+                return true;
+            }
     }
 
     /// <summary>
@@ -365,34 +365,34 @@ public sealed class DocumentCollectionManager : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(collectionName);
         ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            var current = Catalog.TryGet(collectionName)
-                ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
-            if (current.TryGetVectorIndex(indexName) is null)
-                return false;
-
-            var updated = current.WithoutVectorIndex(indexName);
-            var store = OpenStoreLocked(current);
-            store.ApplySchema(updated);
-            Catalog.LoadOrReplace(updated);
-            try
+            lock (_sync)
             {
-                PersistCatalogLocked();
-                string indexDirectory = VectorIndexDirectory(collectionName, indexName);
-                if (Directory.Exists(indexDirectory))
-                    Directory.Delete(indexDirectory, recursive: true);
-            }
-            catch
-            {
-                store.ApplySchema(current);
-                Catalog.LoadOrReplace(current);
-                throw;
-            }
+                ThrowIfDisposed();
+                var current = Catalog.TryGet(collectionName)
+                    ?? throw new InvalidOperationException($"document collection '{collectionName}' 不存在。");
+                if (current.TryGetVectorIndex(indexName) is null)
+                    return false;
 
-            return true;
-        }
+                var updated = current.WithoutVectorIndex(indexName);
+                var store = OpenStoreLocked(current);
+                store.ApplySchema(updated);
+                Catalog.LoadOrReplace(updated);
+                try
+                {
+                    PersistCatalogLocked();
+                    string indexDirectory = VectorIndexDirectory(collectionName, indexName);
+                    if (Directory.Exists(indexDirectory))
+                        Directory.Delete(indexDirectory, recursive: true);
+                }
+                catch
+                {
+                    store.ApplySchema(current);
+                    Catalog.LoadOrReplace(current);
+                    throw;
+                }
+
+                return true;
+            }
     }
 
     /// <summary>
@@ -468,29 +468,29 @@ public sealed class DocumentCollectionManager : IDisposable
     {
         ArgumentNullException.ThrowIfNull(name);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            _schemaMutationGuard?.Invoke(name, "DROP DOCUMENT COLLECTION");
-            if (!Catalog.Remove(name))
-                return false;
+            lock (_sync)
+            {
+                ThrowIfDisposed();
+                _schemaMutationGuard?.Invoke(name, "DROP DOCUMENT COLLECTION");
+                if (!Catalog.Remove(name))
+                    return false;
 
-            if (_stores.Remove(name, out var store))
-                store.Dispose();
+                if (_stores.Remove(name, out var store))
+                    store.Dispose();
 
-            PersistCatalogLocked();
-            string collectionDirectory = CollectionDirectory(name);
-            if (Directory.Exists(collectionDirectory))
-                Directory.Delete(collectionDirectory, recursive: true);
-            string fullTextDirectory = Path.Combine(_rootDirectory, "fulltext", EncodeName(name));
-            if (Directory.Exists(fullTextDirectory))
-                Directory.Delete(fullTextDirectory, recursive: true);
-            string vectorDirectory = Path.Combine(_rootDirectory, "vector", EncodeName(name));
-            if (Directory.Exists(vectorDirectory))
-                Directory.Delete(vectorDirectory, recursive: true);
+                PersistCatalogLocked();
+                string collectionDirectory = CollectionDirectory(name);
+                if (Directory.Exists(collectionDirectory))
+                    Directory.Delete(collectionDirectory, recursive: true);
+                string fullTextDirectory = Path.Combine(_rootDirectory, "fulltext", EncodeName(name));
+                if (Directory.Exists(fullTextDirectory))
+                    Directory.Delete(fullTextDirectory, recursive: true);
+                string vectorDirectory = Path.Combine(_rootDirectory, "vector", EncodeName(name));
+                if (Directory.Exists(vectorDirectory))
+                    Directory.Delete(vectorDirectory, recursive: true);
 
-            return true;
-        }
+                return true;
+            }
     }
 
     /// <summary>

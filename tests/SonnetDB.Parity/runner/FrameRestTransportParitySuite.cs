@@ -1,5 +1,6 @@
 using System.Buffers;
 using System.Data;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -32,6 +33,7 @@ public sealed class FrameRestTransportParitySuite : IAsyncLifetime
 
     private WebApplication? _app;
     private string _baseUrl = string.Empty;
+    private string _frameH2Url = string.Empty;
     private string? _dataRoot;
 
     public async Task InitializeAsync()
@@ -49,8 +51,18 @@ public sealed class FrameRestTransportParitySuite : IAsyncLifetime
 
         _app = BuildTestServer(options);
         await _app.StartAsync();
-        _baseUrl = _app.Services.GetRequiredService<IServer>()
-            .Features.Get<IServerAddressesFeature>()!.Addresses.First();
+        var addresses = _app.Services.GetRequiredService<IServer>()
+            .Features.Get<IServerAddressesFeature>()
+            ?? throw new InvalidOperationException("Kestrel 未暴露监听地址。");
+        foreach (string address in addresses.Addresses)
+        {
+            if (await ProbeIsHttp11Async(address))
+                _baseUrl = address;
+            else
+                _frameH2Url = address;
+        }
+        Assert.NotEmpty(_baseUrl);
+        Assert.NotEmpty(_frameH2Url);
 
         using var http = CreateHttpClient();
         using var body = new StringContent($"{{\"name\":\"{DbName}\"}}", Encoding.UTF8, "application/json");
@@ -191,7 +203,7 @@ public sealed class FrameRestTransportParitySuite : IAsyncLifetime
 
     private async Task<QuerySnapshot> QueryVectorFrameAsync()
     {
-        using var http = CreateHttpClient();
+        using var http = CreateHttpClient(frameHttp2: true);
         var writer = new ArrayBufferWriter<byte>();
         VectorFrameCodec.EncodeSearchRequest(writer, 7, DbName, "vec_docs", "embedding", [1f, 0f, 0f], 3, KnnMetric.Cosine);
         var frames = await PostFramesAsync(http, writer.WrittenMemory.ToArray());
@@ -350,11 +362,19 @@ public sealed class FrameRestTransportParitySuite : IAsyncLifetime
     }
 
     private string ConnString(string protocol)
-        => $"Data Source=sonnetdb+http://{new Uri(_baseUrl).Authority}/{DbName};Token={AdminToken};Timeout=30;Protocol={protocol}";
-
-    private HttpClient CreateHttpClient()
     {
-        var client = new HttpClient { BaseAddress = new Uri(_baseUrl) };
+        string baseUrl = protocol == "frame-http2" ? _frameH2Url : _baseUrl;
+        return $"Data Source=sonnetdb+http://{new Uri(baseUrl).Authority}/{DbName};Token={AdminToken};Timeout=30;Protocol={protocol}";
+    }
+
+    private HttpClient CreateHttpClient(bool frameHttp2 = false)
+    {
+        var client = new HttpClient { BaseAddress = new Uri(frameHttp2 ? _frameH2Url : _baseUrl) };
+        if (frameHttp2)
+        {
+            client.DefaultRequestVersion = HttpVersion.Version20;
+            client.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionExact;
+        }
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", AdminToken);
         return client;
     }
@@ -384,7 +404,12 @@ public sealed class FrameRestTransportParitySuite : IAsyncLifetime
         File.WriteAllText(Path.Combine(contentRoot, "appsettings.json"), settings);
 
         var app = global::SonnetDB.Program.BuildApp(
-            ["--contentRoot", contentRoot, "--Kestrel:Endpoints:Http:Url=http://127.0.0.1:0"]);
+            [
+                "--contentRoot", contentRoot,
+                "--Kestrel:Endpoints:Http:Url=http://127.0.0.1:0",
+                "--Kestrel:Endpoints:FrameH2:Url=http://127.0.0.1:0",
+                "--Kestrel:Endpoints:FrameH2:Protocols=Http2",
+            ]);
         app.Lifetime.ApplicationStopped.Register(static state =>
         {
             var root = (string)state!;
@@ -399,6 +424,25 @@ public sealed class FrameRestTransportParitySuite : IAsyncLifetime
             }
         }, contentRoot);
         return app;
+    }
+
+    private static async Task<bool> ProbeIsHttp11Async(string address)
+    {
+        using var client = new HttpClient();
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, address + "/healthz")
+            {
+                Version = HttpVersion.Version11,
+                VersionPolicy = HttpVersionPolicy.RequestVersionExact,
+            };
+            using var response = await client.SendAsync(request);
+            return response.IsSuccessStatusCode;
+        }
+        catch (HttpRequestException)
+        {
+            return false;
+        }
     }
 
     private static void AssertRowsEqual(IReadOnlyList<object?[]> expected, IReadOnlyList<object?[]> actual)

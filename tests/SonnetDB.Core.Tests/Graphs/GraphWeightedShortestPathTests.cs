@@ -238,29 +238,29 @@ public sealed class GraphWeightedShortestPathTests : IDisposable
 
         using GraphReadSession read = store.BeginRead();
         for (long start = 1; start <= vertexCount; start++)
-        for (long target = 1; target <= vertexCount; target++)
-        {
-            double? expected = ExhaustiveShortestPath(edges, start, target, maxDepth);
-            foreach (GraphWeightedShortestPathAlgorithm algorithm in new[]
+            for (long target = 1; target <= vertexCount; target++)
             {
+                double? expected = ExhaustiveShortestPath(edges, start, target, maxDepth);
+                foreach (GraphWeightedShortestPathAlgorithm algorithm in new[]
+                {
                 GraphWeightedShortestPathAlgorithm.Dijkstra,
                 GraphWeightedShortestPathAlgorithm.BidirectionalDijkstra,
             })
-            {
-                GraphWeightedPath? actual = read.WeightedShortestPath(
-                    new GraphElementId(start),
-                    new GraphElementId(target),
-                    GraphWeightedShortestPathOptions.ForProperty(1) with
-                    {
-                        Algorithm = algorithm,
-                        MaxDepth = maxDepth,
-                        MaxFrontier = 100_000,
-                    });
-                Assert.Equal(expected.HasValue, actual is not null);
-                if (expected.HasValue)
-                    Assert.Equal(expected.Value, actual!.TotalWeight);
+                {
+                    GraphWeightedPath? actual = read.WeightedShortestPath(
+                        new GraphElementId(start),
+                        new GraphElementId(target),
+                        GraphWeightedShortestPathOptions.ForProperty(1) with
+                        {
+                            Algorithm = algorithm,
+                            MaxDepth = maxDepth,
+                            MaxFrontier = 100_000,
+                        });
+                    Assert.Equal(expected.HasValue, actual is not null);
+                    if (expected.HasValue)
+                        Assert.Equal(expected.Value, actual!.TotalWeight);
+                }
             }
-        }
     }
 
     public void Dispose()

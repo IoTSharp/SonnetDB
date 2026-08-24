@@ -24,7 +24,7 @@ public sealed class TypoTolerantQueryScenario : FullTextScenarioBase
             new("typo-2", "fan normal", "fan airflow normal station south", "fan", ["south"]),
         ], ctx.Cancellation).ConfigureAwait(false);
 
-        var hits = await ops.SearchAsync(index, new FullTextSearchRequest("pmp alrm", 5, TypoTolerant: true), ctx.Cancellation).ConfigureAwait(false);
+        var hits = await ops.SearchAsync(index, new FullTextSearchRequest("pumpp alarmm", 5, TypoTolerant: true), ctx.Cancellation).ConfigureAwait(false);
         bool found = hits.Any(static h => h.Id == "typo-1");
         var result = MetricRow(found ? 1L : 0L, (long)hits.Count);
         result.Pass = found;

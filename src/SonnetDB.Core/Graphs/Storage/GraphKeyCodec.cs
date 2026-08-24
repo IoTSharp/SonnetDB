@@ -243,52 +243,52 @@ internal static class GraphKeyCodec
         {
             case GraphKeyKind.VertexRecord:
             case GraphKeyKind.EdgeRecord:
-            {
-                GraphElementId id = ReadElementId(payload, ref offset);
-                EnsureComplete(payload, offset);
-                return new GraphStorageKey(kind, id, default, default, default, default, 0, default, 0);
-            }
+                {
+                    GraphElementId id = ReadElementId(payload, ref offset);
+                    EnsureComplete(payload, offset);
+                    return new GraphStorageKey(kind, id, default, default, default, default, 0, default, 0);
+                }
             case GraphKeyKind.OutgoingAdjacency:
             case GraphKeyKind.IncomingAdjacency:
-            {
-                GraphElementId anchor = ReadElementId(payload, ref offset);
-                LabelId label = ReadLabelId(payload, ref offset);
-                GraphElementId neighbor = ReadElementId(payload, ref offset);
-                GraphElementId edge = ReadElementId(payload, ref offset);
-                EnsureComplete(payload, offset);
-                return kind == GraphKeyKind.OutgoingAdjacency
-                    ? new GraphStorageKey(kind, edge, anchor, neighbor, edge, label, 0, default, 0)
-                    : new GraphStorageKey(kind, edge, neighbor, anchor, edge, label, 0, default, 0);
-            }
+                {
+                    GraphElementId anchor = ReadElementId(payload, ref offset);
+                    LabelId label = ReadLabelId(payload, ref offset);
+                    GraphElementId neighbor = ReadElementId(payload, ref offset);
+                    GraphElementId edge = ReadElementId(payload, ref offset);
+                    EnsureComplete(payload, offset);
+                    return kind == GraphKeyKind.OutgoingAdjacency
+                        ? new GraphStorageKey(kind, edge, anchor, neighbor, edge, label, 0, default, 0)
+                        : new GraphStorageKey(kind, edge, neighbor, anchor, edge, label, 0, default, 0);
+                }
             case GraphKeyKind.VertexLabel:
             case GraphKeyKind.EdgeLabel:
-            {
-                LabelId label = ReadLabelId(payload, ref offset);
-                GraphElementId element = ReadElementId(payload, ref offset);
-                EnsureComplete(payload, offset);
-                return new GraphStorageKey(kind, element, default, default, default, label, 0, default, 0);
-            }
+                {
+                    LabelId label = ReadLabelId(payload, ref offset);
+                    GraphElementId element = ReadElementId(payload, ref offset);
+                    EnsureComplete(payload, offset);
+                    return new GraphStorageKey(kind, element, default, default, default, label, 0, default, 0);
+                }
             case GraphKeyKind.VertexPropertyIndex:
             case GraphKeyKind.EdgePropertyIndex:
-            {
-                LabelId label = ReadLabelId(payload, ref offset);
-                int propertyId = ReadPropertyId(payload, ref offset);
-                GraphPropertyValue value = SortableScalarCodec.DecodeGraph(payload[offset..], out int consumed);
-                offset += consumed;
-                GraphElementId element = ReadElementId(payload, ref offset);
-                EnsureComplete(payload, offset);
-                return new GraphStorageKey(kind, element, default, default, default, label, propertyId, value, 0);
-            }
+                {
+                    LabelId label = ReadLabelId(payload, ref offset);
+                    int propertyId = ReadPropertyId(payload, ref offset);
+                    GraphPropertyValue value = SortableScalarCodec.DecodeGraph(payload[offset..], out int consumed);
+                    offset += consumed;
+                    GraphElementId element = ReadElementId(payload, ref offset);
+                    EnsureComplete(payload, offset);
+                    return new GraphStorageKey(kind, element, default, default, default, label, propertyId, value, 0);
+                }
             case GraphKeyKind.VertexUniqueProperty:
             case GraphKeyKind.EdgeUniqueProperty:
-            {
-                LabelId label = ReadLabelId(payload, ref offset);
-                int propertyId = ReadPropertyId(payload, ref offset);
-                GraphPropertyValue value = SortableScalarCodec.DecodeGraph(payload[offset..], out int consumed);
-                offset += consumed;
-                EnsureComplete(payload, offset);
-                return new GraphStorageKey(kind, default, default, default, default, label, propertyId, value, 0);
-            }
+                {
+                    LabelId label = ReadLabelId(payload, ref offset);
+                    int propertyId = ReadPropertyId(payload, ref offset);
+                    GraphPropertyValue value = SortableScalarCodec.DecodeGraph(payload[offset..], out int consumed);
+                    offset += consumed;
+                    EnsureComplete(payload, offset);
+                    return new GraphStorageKey(kind, default, default, default, default, label, propertyId, value, 0);
+                }
             case GraphKeyKind.Metadata:
                 if (payload.Length != 1 || payload[0] == 0)
                     throw new InvalidDataException("Graph V1 metadata key 无效。");

@@ -24,6 +24,7 @@ public sealed class GraphEndpointTests : IAsyncLifetime
     private const string ReadOnlyToken = "readonly-graph-token";
     private WebApplication? _app;
     private string? _baseUrl;
+    private string? _frameH2Url;
     private string? _dataRoot;
 
     public async Task InitializeAsync()
@@ -32,21 +33,9 @@ public sealed class GraphEndpointTests : IAsyncLifetime
             Path.GetTempPath(),
             "sonnetdb-graph-endpoint-tests-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_dataRoot);
-        _app = TestServerHost.Build(new ServerOptions
-        {
-            DataRoot = _dataRoot,
-            AutoLoadExistingDatabases = true,
-            Tokens = new Dictionary<string, string>
-            {
-                [AdminToken] = ServerRoles.Admin,
-                [ReadOnlyToken] = ServerRoles.ReadOnly,
-            },
-        });
+        _app = BuildTestServer();
         await _app.StartAsync();
-        IServerAddressesFeature addresses = _app.Services.GetRequiredService<IServer>()
-            .Features.Get<IServerAddressesFeature>()
-            ?? throw new InvalidOperationException("Kestrel 未暴露监听地址。");
-        _baseUrl = addresses.Addresses.First();
+        await ResolveServerAddressesAsync();
 
         using HttpClient admin = CreateClient(AdminToken);
         HttpResponseMessage create = await admin.PostAsJsonAsync(
@@ -54,6 +43,62 @@ public sealed class GraphEndpointTests : IAsyncLifetime
             new CreateDatabaseRequest("graphapi"),
             ServerJsonContext.Default.CreateDatabaseRequest);
         Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+    }
+
+    private WebApplication BuildTestServer()
+        => TestServerHost.Build(new ServerOptions
+        {
+            DataRoot = _dataRoot!,
+            AutoLoadExistingDatabases = true,
+            Tokens = new Dictionary<string, string>
+            {
+                [AdminToken] = ServerRoles.Admin,
+                [ReadOnlyToken] = ServerRoles.ReadOnly,
+            },
+        }, extraArgs:
+        [
+            "--Kestrel:Endpoints:FrameH2:Url=http://127.0.0.1:0",
+            "--Kestrel:Endpoints:FrameH2:Protocols=Http2",
+        ]);
+
+    private async Task ResolveServerAddressesAsync()
+    {
+        IServerAddressesFeature addresses = _app!.Services.GetRequiredService<IServer>()
+            .Features.Get<IServerAddressesFeature>()
+            ?? throw new InvalidOperationException("Kestrel 未暴露监听地址。");
+        Assert.Equal(2, addresses.Addresses.Count);
+
+        _baseUrl = null;
+        _frameH2Url = null;
+        foreach (string address in addresses.Addresses)
+        {
+            if (await ProbeIsHttp11Async(address))
+                _baseUrl = address;
+            else
+                _frameH2Url = address;
+        }
+
+        Assert.NotNull(_baseUrl);
+        Assert.NotNull(_frameH2Url);
+    }
+
+    private static async Task<bool> ProbeIsHttp11Async(string address)
+    {
+        using var client = new HttpClient();
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, address + "/healthz")
+            {
+                Version = HttpVersion.Version11,
+                VersionPolicy = HttpVersionPolicy.RequestVersionExact,
+            };
+            using var response = await client.SendAsync(request);
+            return response.IsSuccessStatusCode;
+        }
+        catch (HttpRequestException)
+        {
+            return false;
+        }
     }
 
     public async Task DisposeAsync()
@@ -722,21 +767,9 @@ public sealed class GraphEndpointTests : IAsyncLifetime
             await _app.DisposeAsync();
         }
 
-        _app = TestServerHost.Build(new ServerOptions
-        {
-            DataRoot = _dataRoot!,
-            AutoLoadExistingDatabases = true,
-            Tokens = new Dictionary<string, string>
-            {
-                [AdminToken] = ServerRoles.Admin,
-                [ReadOnlyToken] = ServerRoles.ReadOnly,
-            },
-        });
+        _app = BuildTestServer();
         await _app.StartAsync();
-        IServerAddressesFeature addresses = _app.Services.GetRequiredService<IServer>()
-            .Features.Get<IServerAddressesFeature>()
-            ?? throw new InvalidOperationException("Kestrel 未暴露监听地址。");
-        _baseUrl = addresses.Addresses.First();
+        await ResolveServerAddressesAsync();
     }
 
     private SndbGraphClient CreateGraphClient(
@@ -744,7 +777,7 @@ public sealed class GraphEndpointTests : IAsyncLifetime
         SndbTransportProtocol protocol = SndbTransportProtocol.Auto)
         => new(new SndbConnectionStringBuilder
         {
-            DataSource = $"sonnetdb+http://{new Uri(_baseUrl!).Authority}/graphapi",
+            DataSource = $"sonnetdb+http://{new Uri(protocol == SndbTransportProtocol.FrameHttp2 ? _frameH2Url! : _baseUrl!).Authority}/graphapi",
             Token = token,
             Timeout = 30,
             Protocol = protocol,

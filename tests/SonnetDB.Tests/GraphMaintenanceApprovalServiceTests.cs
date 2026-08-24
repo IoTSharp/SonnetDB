@@ -1,7 +1,7 @@
+using System.Text.Json;
 using SonnetDB.Graphs;
 using SonnetDB.Json;
 using SonnetDB.Server.Graphs;
-using System.Text.Json;
 using Xunit;
 
 namespace SonnetDB.Tests;

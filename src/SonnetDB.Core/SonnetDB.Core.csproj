@@ -8,6 +8,8 @@
     <Title>SonnetDB.Core</Title>
     <Description>SonnetDB 嵌入式多模型数据库核心库，提供 SQL、时序、关系表、KV、文档、搜索、向量、本地消息队列和公开原生属性图 API。</Description>
     <PackageReadmeFile>PackageReadme.md</PackageReadmeFile>
+    <EnablePackageValidation>true</EnablePackageValidation>
+    <PackageValidationBaselineVersion>3.0.1</PackageValidationBaselineVersion>
     <JiebaDictionaryCompilerProject>$(MSBuildThisFileDirectory)FullText\Tools\DictionaryCompiler\SonnetDB.FullText.DictionaryCompiler.csproj</JiebaDictionaryCompilerProject>
     <JiebaDictionaryCompilerOutput>$(MSBuildThisFileDirectory)FullText\Tools\DictionaryCompiler\bin\$(Configuration)\$(TargetFramework)\</JiebaDictionaryCompilerOutput>
     <JiebaDictionaryCompilerDll>$(JiebaDictionaryCompilerOutput)SonnetDB.FullText.DictionaryCompiler.dll</JiebaDictionaryCompilerDll>

@@ -271,7 +271,9 @@ public sealed class SonnetDbMeterTests : IDisposable
         kv.Clear();
 
         Assert.True(SpinWait.SpinUntil(
-            () => db.GetKvMaintenanceStatus().ThrottledRounds > 0,
+            () => db.GetKvMaintenanceStatus().ThrottledRounds > 0
+                && db.KvCleanupPendingFiles >= 1
+                && db.KvCleanupPendingBytes > 0,
             TimeSpan.FromSeconds(3)));
         collector.RecordObservable();
         string database = Path.GetFileName(_tempDir);
@@ -280,7 +282,11 @@ public sealed class SonnetDbMeterTests : IDisposable
         Assert.True(collector.LongLast("sonnetdb.kv.cleanup.pending.bytes", database) > 0);
 
         db._kvCleanupThrottleHook = static () => KvCleanupThrottleReason.None;
-        Assert.True(SpinWait.SpinUntil(() => !File.Exists(segment), TimeSpan.FromSeconds(3)));
+        Assert.True(SpinWait.SpinUntil(
+            () => !File.Exists(segment)
+                && db.KvCleanupPendingFiles == 0
+                && db.KvCleanupBytesPerSecond > 0,
+            TimeSpan.FromSeconds(3)));
         collector.RecordObservable();
         Assert.Equal(0, collector.LongLast("sonnetdb.kv.cleanup.pending.files", database));
         Assert.True(collector.Doubles("sonnetdb.kv.cleanup.rate")

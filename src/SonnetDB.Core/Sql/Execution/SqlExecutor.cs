@@ -2,8 +2,8 @@
 using SonnetDB.Catalog;
 using SonnetDB.Diagnostics;
 using SonnetDB.Engine;
-using SonnetDB.Model;
 using SonnetDB.Modbus;
+using SonnetDB.Model;
 using SonnetDB.Routines;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Storage.Format;

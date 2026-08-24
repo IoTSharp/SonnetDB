@@ -130,37 +130,37 @@ internal static class SortableScalarCodec
                 return GraphPropertyValue.FromBoolean(source[offset] == 1);
             case GraphPropertyKind.String:
             case GraphPropertyKind.Json:
-            {
-                byte[] payload = ReadEscaped(source, ref offset);
-                string text;
-                try
                 {
-                    text = StrictUtf8.GetString(payload);
-                }
-                catch (DecoderFallbackException exception)
-                {
-                    throw new InvalidDataException("Graph V1 字符串不是合法 UTF-8。", exception);
-                }
+                    byte[] payload = ReadEscaped(source, ref offset);
+                    string text;
+                    try
+                    {
+                        text = StrictUtf8.GetString(payload);
+                    }
+                    catch (DecoderFallbackException exception)
+                    {
+                        throw new InvalidDataException("Graph V1 字符串不是合法 UTF-8。", exception);
+                    }
 
-                bytesConsumed = offset;
-                if (kind == GraphPropertyKind.String)
-                    return GraphPropertyValue.FromString(text);
+                    bytesConsumed = offset;
+                    if (kind == GraphPropertyKind.String)
+                        return GraphPropertyValue.FromString(text);
 
-                try
-                {
-                    return GraphPropertyValue.FromJson(text);
+                    try
+                    {
+                        return GraphPropertyValue.FromJson(text);
+                    }
+                    catch (JsonException exception)
+                    {
+                        throw new InvalidDataException("Graph V1 Json 标量语法无效。", exception);
+                    }
                 }
-                catch (JsonException exception)
-                {
-                    throw new InvalidDataException("Graph V1 Json 标量语法无效。", exception);
-                }
-            }
             case GraphPropertyKind.Blob:
-            {
-                byte[] payload = ReadEscaped(source, ref offset);
-                bytesConsumed = offset;
-                return GraphPropertyValue.FromBlob(payload);
-            }
+                {
+                    byte[] payload = ReadEscaped(source, ref offset);
+                    bytesConsumed = offset;
+                    return GraphPropertyValue.FromBlob(payload);
+                }
             default:
                 throw new InvalidDataException($"Graph V1 标量类型标签 {(byte)kind} 未知。");
         }

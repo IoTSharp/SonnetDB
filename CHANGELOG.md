@@ -5,6 +5,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **SonnetDB.Core 公共 API 兼容性**：恢复 `3.0.1` 的 `TableSchema.Create`、`CreateTableStatement`、`SelectStatement` 与 `SqlExplainExecutionResult` 位置参数/解构合同，并固定已发布 `TokenKind` 数值；修复已发布 `3.1.0` 的 ApiCompat 回归，供后续 patch 版本交付，不通过 suppression 隐藏破坏性变更。
+
 ## [3.1.0] - 2026-08-24
 
 ### Changed
@@ -13,7 +17,10 @@
 
 ### Fixed
 
-- **SonnetDB.Core 3.1.0 公共 API 兼容性**：恢复 `3.0.1` 的 `TableSchema.Create`、`CreateTableStatement`、`SelectStatement` 与 `SqlExplainExecutionResult` 位置参数/解构合同，并固定已发布 `TokenKind` 数值；新增能力只扩展 API，不通过 ApiCompat suppression 隐藏破坏性变更。
+- **发布前 CI 可复现性**：Management workbench smoke 不再依赖 GitHub Windows runner 预装 VS Code 或猜测用户级/系统级安装路径；改由官方 `@vscode/test-electron` 下载并缓存固定的 VS Code 1.100.3，同时保留显式版本和本地可执行文件覆盖，使 Windows 2025/VS 2026 runner 镜像移除 VS Code 后仍能执行真实扩展宿主门禁。KV cleanup 指标与恢复测试改为等待后台 worker 发布完整 pending/rate 状态，避免空轮询先发生时把尚未更新的 gauge 误判为产品回归；锁文件同步升级 `brace-expansion`、`fast-uri`、`js-yaml` 与 `undici`，清除 4 个高危开发依赖告警，生产依赖保持 0 告警。
+
+- **发布前 CI 与 Parity 门禁恢复**：升级 Testcontainers 以移除存在高危漏洞的 SSH.NET 传递依赖；CI 串行调度测试项目、限制 Core 测试 collection 并行度并保留唯一 TRX，移除未设置阈值、未被消费且会干扰 timing/concurrency 测试的 inline Coverlet 收集；Management workbench smoke 递归检出 CoAP/MQTT 子模块，并让 Web E2E 对端口冲突快速失败且支持显式测试端口。Parity 使用独立 h2c endpoint 严格验证 Frame HTTP/2 并保留服务端错误详情，容忍 Meilisearch 删除缺失索引的异步终态，更新 Qdrant 参考服务，改用 Redis 相对 TTL 避免宿主与容器时钟偏差，以语义断言兼容不同全文检索引擎的有效命中差异，并修正 VictoriaMetrics/InfluxDB 的历史保留、写入可见性、范围聚合、导数和预测结果规范化；同步整理既有格式漂移，使在线 format-check 恢复通过。
+
 - **M40 修复与发布步骤 6 / 7 quick 闭环**：Graph traversal 改为 parent-linked path，避免 frontier child 逐条复制完整 vertex/edge 数组；file-backed offline algorithm vector 增加有界 little-endian page cache，spill 状态按页批量读写。Server 与 embedded SDK 的 maintenance NDJSON 审计统一恢复规则：未终止尾记录可补换行或截回上一条完整记录，已终止坏行仍拒绝；重开发现 `applying` 时追加 durable `interrupted` 终态并保留 maintenance sidecar。#367 quick smoke 新增真实子进程 kill/reopen 验证。固定目标硬件、外部对拍、Native AOT、Couplet 与 168 小时 Production evidence 仍保持 `NOT_RUN`。
 
 - **M40 修复与发布步骤 4 / M41 #373 共享流式执行**：原生 Graph API、原生 SQL 与关系映射 `GRAPH_TABLE` 统一消费 typed logical plan 和分页 pull cursor；固定一跳/路径不再先物化整条 cursor，也不再为每个 match 分配 binding dictionary，外层 `LIMIT` 可停止上游读取。`RelationalGraphReadSession` 在一个 TableManager 捕获窗口按固定锁序冻结全部映射表的 `TableReadSnapshot`，anchor、edge expand 与目标 seek 共用同一组 lease；`EXPLAIN [ANALYZE]` 报告 `paged_cursor`、`fixed_slots`、`statement_snapshot` 和逐表实际 sequence。关系 scan/filter/project 改为惰性枚举，hash join 只 materialize 右侧 build、nested loop 只 materialize 右侧 replay，排序分页使用有界 Top-N，聚合/full sort 保留显式阻塞边界；完整等值 covering index 在谓词和所需列均覆盖时走 `secondary_index_only`，不读取或解码基表行。通用 EXPLAIN 新增 `memory_behavior`，关系 table-to-table JOIN 不再误分派到 measurement JOIN planner。固定硬件、木垒同语料、外部对拍、Native AOT、Couplet 和 168 小时证据保持 `NOT_RUN`；M40 下一门禁为步骤 5，M40 整体仍为 🚧。

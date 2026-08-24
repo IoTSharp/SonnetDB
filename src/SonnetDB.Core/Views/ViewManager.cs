@@ -55,20 +55,20 @@ public sealed class ViewManager
     {
         ArgumentNullException.ThrowIfNull(definition);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            _nameAvailabilityGuard?.Invoke(definition.Name, "view");
-            Catalog.Add(definition);
-            try
+            lock (_sync)
             {
-                PersistLocked();
+                _nameAvailabilityGuard?.Invoke(definition.Name, "view");
+                Catalog.Add(definition);
+                try
+                {
+                    PersistLocked();
+                }
+                catch
+                {
+                    Catalog.Remove(definition.Name);
+                    throw;
+                }
             }
-            catch
-            {
-                Catalog.Remove(definition.Name);
-                throw;
-            }
-        }
     }
 
     /// <summary>
@@ -80,23 +80,23 @@ public sealed class ViewManager
     {
         ArgumentNullException.ThrowIfNull(name);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            var existing = Catalog.TryGet(name);
-            if (existing is null)
-                return false;
-            Catalog.Remove(name);
-            try
+            lock (_sync)
             {
-                PersistLocked();
-                return true;
+                var existing = Catalog.TryGet(name);
+                if (existing is null)
+                    return false;
+                Catalog.Remove(name);
+                try
+                {
+                    PersistLocked();
+                    return true;
+                }
+                catch
+                {
+                    Catalog.Add(existing);
+                    throw;
+                }
             }
-            catch
-            {
-                Catalog.Add(existing);
-                throw;
-            }
-        }
     }
 
     /// <summary>

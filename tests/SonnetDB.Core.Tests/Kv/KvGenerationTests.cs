@@ -180,7 +180,11 @@ public sealed class KvGenerationTests : IDisposable
         Assert.True(File.Exists(oldSegment));
 
         db._kvCleanupThrottleHook = static () => KvCleanupThrottleReason.None;
-        Assert.True(SpinWait.SpinUntil(() => !File.Exists(oldSegment), TimeSpan.FromSeconds(3)));
+        Assert.True(SpinWait.SpinUntil(
+            () => !File.Exists(oldSegment)
+                && db.KvCleanupPendingFiles == 0
+                && db.KvCleanupBytesPerSecond > 0,
+            TimeSpan.FromSeconds(3)));
         KvMaintenanceStatus completed = db.GetKvMaintenanceStatus();
         Assert.True(completed.CleanupRounds >= 1);
         Assert.True(completed.RemovedFiles >= 1);

@@ -23,7 +23,8 @@ public sealed class FacetFilterQueryScenario : FullTextScenarioBase
 
         var hits = await ops.SearchAsync(index, new FullTextSearchRequest("station warning", 100, CategoryFilter: "pump"), ctx.Cancellation).ConfigureAwait(false);
         bool allPump = hits.Count > 0 && hits.All(static h => h.Category == "pump");
-        var result = MetricRow((long)hits.Count, allPump ? 1L : 0L);
+        var result = MetricRow(allPump ? 1L : 0L);
+        result.Metrics["hit_count"] = hits.Count;
         result.Pass = allPump;
         return result;
     }

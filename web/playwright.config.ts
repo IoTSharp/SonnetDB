@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const baseURL = process.env.SONNETDB_E2E_BASE_URL ?? 'http://127.0.0.1:4173';
+
 export default defineConfig({
   testDir: './e2e',
   outputDir: '../artifacts/playwright/management-workbench',
@@ -9,7 +11,7 @@ export default defineConfig({
   workers: 1,
   reporter: process.env.CI ? [['list'], ['html', { outputFolder: '../artifacts/playwright/report', open: 'never' }]] : 'list',
   use: {
-    baseURL: 'http://127.0.0.1:4173',
+    baseURL,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

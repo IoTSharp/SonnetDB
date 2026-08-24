@@ -1,8 +1,8 @@
-﻿using SonnetDB.Cli;
-using Xunit;
+﻿using System.Text.Json;
+using SonnetDB.Cli;
 using SonnetDB.Data.Graphs;
 using SonnetDB.Graphs;
-using System.Text.Json;
+using Xunit;
 
 namespace SonnetDB.Core.Tests.Cli;
 

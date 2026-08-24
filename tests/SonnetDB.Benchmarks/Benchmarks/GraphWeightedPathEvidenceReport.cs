@@ -63,8 +63,8 @@ public static class GraphWeightedPathEvidenceRunner
         fixture.ValidateAlgorithms();
         int warmupIterations = mode == "local_benefit" ? 3 : 1;
         for (int iteration = 0; iteration < warmupIterations; iteration++)
-        foreach (GraphWeightedShortestPathAlgorithm algorithm in Algorithms)
-            _ = fixture.Execute(algorithm);
+            foreach (GraphWeightedShortestPathAlgorithm algorithm in Algorithms)
+                _ = fixture.Execute(algorithm);
 
         Dictionary<GraphWeightedShortestPathAlgorithm, List<GraphWeightedPathSample>> samples = Algorithms
             .ToDictionary(
@@ -73,11 +73,11 @@ public static class GraphWeightedPathEvidenceRunner
         using (Process process = Process.GetCurrentProcess())
         {
             for (int iteration = 0; iteration < iterations; iteration++)
-            for (int offset = 0; offset < Algorithms.Length; offset++)
-            {
-                GraphWeightedShortestPathAlgorithm algorithm = Algorithms[(iteration + offset) % Algorithms.Length];
-                samples[algorithm].Add(Measure(fixture, algorithm, process));
-            }
+                for (int offset = 0; offset < Algorithms.Length; offset++)
+                {
+                    GraphWeightedShortestPathAlgorithm algorithm = Algorithms[(iteration + offset) % Algorithms.Length];
+                    samples[algorithm].Add(Measure(fixture, algorithm, process));
+                }
         }
 
         GraphWeightedPathAggregate baseline = Aggregate(

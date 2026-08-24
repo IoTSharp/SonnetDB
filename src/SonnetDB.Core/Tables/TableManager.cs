@@ -95,80 +95,80 @@ public sealed class TableManager : IDisposable
     {
         ArgumentNullException.ThrowIfNull(schema);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            _nameAvailabilityGuard?.Invoke(schema.Name, "table");
-            ThrowIfDisposed();
-            if (Catalog.TryGet(schema.Name) is not null)
-                throw new InvalidOperationException($"table '{schema.Name}' 已存在。");
-
-            IReadOnlyList<TableSchema> previousSchemas = Catalog.Snapshot();
-            TableStore? openedStore = null;
-            var catalogPersisted = false;
-            try
+            lock (_sync)
             {
-                // 先打开 rowstore，再把包含新表的候选 schema 文件落盘；两步都成功后才发布无锁读快照。
-                // 失败期间 SHOW、查询和 Modbus 绑定均不会观察到尚未提交的关系表。
-                openedStore = OpenStoreLocked(schema);
-                var candidateSchemas = previousSchemas.ToList();
-                candidateSchemas.Add(schema);
-                TableSchemaCodec.Save(SchemaPath, candidateSchemas);
-                catalogPersisted = true;
-                AfterCatalogPersistedBeforePublishTestHook?.Invoke();
-                Catalog.Add(schema);
-            }
-            catch (Exception createException)
-            {
-                var rollbackErrors = new List<Exception>();
+                _nameAvailabilityGuard?.Invoke(schema.Name, "table");
+                ThrowIfDisposed();
+                if (Catalog.TryGet(schema.Name) is not null)
+                    throw new InvalidOperationException($"table '{schema.Name}' 已存在。");
 
-                // 发布失败时同时恢复内存目录和已替换的 schema 文件，避免 API 报错后重启却出现新表。
+                IReadOnlyList<TableSchema> previousSchemas = Catalog.Snapshot();
+                TableStore? openedStore = null;
+                var catalogPersisted = false;
                 try
                 {
-                    _ = Catalog.Remove(schema.Name);
+                    // 先打开 rowstore，再把包含新表的候选 schema 文件落盘；两步都成功后才发布无锁读快照。
+                    // 失败期间 SHOW、查询和 Modbus 绑定均不会观察到尚未提交的关系表。
+                    openedStore = OpenStoreLocked(schema);
+                    var candidateSchemas = previousSchemas.ToList();
+                    candidateSchemas.Add(schema);
+                    TableSchemaCodec.Save(SchemaPath, candidateSchemas);
+                    catalogPersisted = true;
+                    AfterCatalogPersistedBeforePublishTestHook?.Invoke();
+                    Catalog.Add(schema);
                 }
-                catch (Exception rollbackException)
+                catch (Exception createException)
                 {
-                    rollbackErrors.Add(rollbackException);
-                }
+                    var rollbackErrors = new List<Exception>();
 
-                if (catalogPersisted)
-                {
+                    // 发布失败时同时恢复内存目录和已替换的 schema 文件，避免 API 报错后重启却出现新表。
                     try
                     {
-                        TableSchemaCodec.Save(SchemaPath, previousSchemas, ".rollback.tmp");
+                        _ = Catalog.Remove(schema.Name);
                     }
                     catch (Exception rollbackException)
                     {
                         rollbackErrors.Add(rollbackException);
                     }
-                }
 
-                // 创建失败时，本次打开的 store 必须移出管理器并释放文件租约，
-                // 使同一进程和重启后的同名 CREATE 都可以立即重试。
-                if (openedStore is not null
-                    && _stores.Remove(schema.Name, out TableStore? store))
-                {
-                    try
+                    if (catalogPersisted)
                     {
-                        store.Dispose();
+                        try
+                        {
+                            TableSchemaCodec.Save(SchemaPath, previousSchemas, ".rollback.tmp");
+                        }
+                        catch (Exception rollbackException)
+                        {
+                            rollbackErrors.Add(rollbackException);
+                        }
                     }
-                    catch (Exception rollbackException)
+
+                    // 创建失败时，本次打开的 store 必须移出管理器并释放文件租约，
+                    // 使同一进程和重启后的同名 CREATE 都可以立即重试。
+                    if (openedStore is not null
+                        && _stores.Remove(schema.Name, out TableStore? store))
                     {
-                        rollbackErrors.Add(rollbackException);
+                        try
+                        {
+                            store.Dispose();
+                        }
+                        catch (Exception rollbackException)
+                        {
+                            rollbackErrors.Add(rollbackException);
+                        }
                     }
-                }
 
-                if (rollbackErrors.Count != 0)
-                {
-                    rollbackErrors.Insert(0, createException);
-                    throw new InvalidOperationException(
-                        $"table '{schema.Name}' 创建失败，且目录或 rowstore 回滚失败。",
-                        new AggregateException(rollbackErrors));
-                }
+                    if (rollbackErrors.Count != 0)
+                    {
+                        rollbackErrors.Insert(0, createException);
+                        throw new InvalidOperationException(
+                            $"table '{schema.Name}' 创建失败，且目录或 rowstore 回滚失败。",
+                            new AggregateException(rollbackErrors));
+                    }
 
-                throw;
+                    throw;
+                }
             }
-        }
     }
 
     /// <summary>
@@ -182,29 +182,29 @@ public sealed class TableManager : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentNullException.ThrowIfNull(definition);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            var current = Catalog.TryGet(tableName)
-                ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
-            var updated = current.WithIndex(definition);
-            var store = OpenStoreLocked(current);
-            store.ApplySchema(updated);
-            Catalog.LoadOrReplace(updated);
-            try
+            lock (_sync)
             {
-                PersistCatalogLocked();
-            }
-            catch
-            {
-                store.ApplySchema(current);
-                Catalog.LoadOrReplace(current);
-                throw;
-            }
+                ThrowIfDisposed();
+                var current = Catalog.TryGet(tableName)
+                    ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+                var updated = current.WithIndex(definition);
+                var store = OpenStoreLocked(current);
+                store.ApplySchema(updated);
+                Catalog.LoadOrReplace(updated);
+                try
+                {
+                    PersistCatalogLocked();
+                }
+                catch
+                {
+                    store.ApplySchema(current);
+                    Catalog.LoadOrReplace(current);
+                    throw;
+                }
 
-            return updated.TryGetIndex(definition.Name)
-                ?? throw new InvalidOperationException("内部错误：索引创建后未能读取 schema。");
-        }
+                return updated.TryGetIndex(definition.Name)
+                    ?? throw new InvalidOperationException("内部错误：索引创建后未能读取 schema。");
+            }
     }
 
     /// <summary>
@@ -218,31 +218,31 @@ public sealed class TableManager : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            var current = Catalog.TryGet(tableName)
-                ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
-            if (current.TryGetIndex(indexName) is null)
-                return false;
-
-            var updated = current.WithoutIndex(indexName);
-            var store = OpenStoreLocked(current);
-            store.ApplySchema(updated);
-            Catalog.LoadOrReplace(updated);
-            try
+            lock (_sync)
             {
-                PersistCatalogLocked();
-            }
-            catch
-            {
-                store.ApplySchema(current);
-                Catalog.LoadOrReplace(current);
-                throw;
-            }
+                ThrowIfDisposed();
+                var current = Catalog.TryGet(tableName)
+                    ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+                if (current.TryGetIndex(indexName) is null)
+                    return false;
 
-            return true;
-        }
+                var updated = current.WithoutIndex(indexName);
+                var store = OpenStoreLocked(current);
+                store.ApplySchema(updated);
+                Catalog.LoadOrReplace(updated);
+                try
+                {
+                    PersistCatalogLocked();
+                }
+                catch
+                {
+                    store.ApplySchema(current);
+                    Catalog.LoadOrReplace(current);
+                    throw;
+                }
+
+                return true;
+            }
     }
 
     /// <summary>
@@ -256,32 +256,32 @@ public sealed class TableManager : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(constraintName);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
-            ThrowIfDisposed();
-            var current = Catalog.TryGet(tableName)
-                ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
-            var updated = current.WithoutForeignKey(constraintName);
-            if (ReferenceEquals(updated, current))
-                return false;
-
-            var store = OpenStoreLocked(current);
-            store.ApplySchema(updated);
-            Catalog.LoadOrReplace(updated);
-            try
+            lock (_sync)
             {
-                PersistCatalogLocked();
-            }
-            catch
-            {
-                store.ApplySchema(current);
-                Catalog.LoadOrReplace(current);
-                throw;
-            }
+                _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
+                ThrowIfDisposed();
+                var current = Catalog.TryGet(tableName)
+                    ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+                var updated = current.WithoutForeignKey(constraintName);
+                if (ReferenceEquals(updated, current))
+                    return false;
 
-            return true;
-        }
+                var store = OpenStoreLocked(current);
+                store.ApplySchema(updated);
+                Catalog.LoadOrReplace(updated);
+                try
+                {
+                    PersistCatalogLocked();
+                }
+                catch
+                {
+                    store.ApplySchema(current);
+                    Catalog.LoadOrReplace(current);
+                    throw;
+                }
+
+                return true;
+            }
     }
 
     /// <summary>
@@ -295,36 +295,36 @@ public sealed class TableManager : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentNullException.ThrowIfNull(definition);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
-            ThrowIfDisposed();
-            var current = Catalog.TryGet(tableName)
-                ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
-            var updated = current.WithForeignKey(definition);
-            var foreignKey = string.IsNullOrWhiteSpace(definition.Name)
-                ? updated.ForeignKeys[^1]
-                : updated.TryGetForeignKey(definition.Name)
-                    ?? throw new InvalidOperationException("内部错误：外键创建后未能读取 schema。");
-
-            ValidateAddedForeignKeyLocked(updated, foreignKey);
-
-            var store = OpenStoreLocked(current);
-            store.ApplySchema(updated);
-            Catalog.LoadOrReplace(updated);
-            try
+            lock (_sync)
             {
-                PersistCatalogLocked();
-            }
-            catch
-            {
-                store.ApplySchema(current);
-                Catalog.LoadOrReplace(current);
-                throw;
-            }
+                _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
+                ThrowIfDisposed();
+                var current = Catalog.TryGet(tableName)
+                    ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+                var updated = current.WithForeignKey(definition);
+                var foreignKey = string.IsNullOrWhiteSpace(definition.Name)
+                    ? updated.ForeignKeys[^1]
+                    : updated.TryGetForeignKey(definition.Name)
+                        ?? throw new InvalidOperationException("内部错误：外键创建后未能读取 schema。");
 
-            return foreignKey;
-        }
+                ValidateAddedForeignKeyLocked(updated, foreignKey);
+
+                var store = OpenStoreLocked(current);
+                store.ApplySchema(updated);
+                Catalog.LoadOrReplace(updated);
+                try
+                {
+                    PersistCatalogLocked();
+                }
+                catch
+                {
+                    store.ApplySchema(current);
+                    Catalog.LoadOrReplace(current);
+                    throw;
+                }
+
+                return foreignKey;
+            }
     }
 
     /// <summary>
@@ -338,32 +338,32 @@ public sealed class TableManager : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(constraintName);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
-            ThrowIfDisposed();
-            var current = Catalog.TryGet(tableName)
-                ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
-            var updated = current.WithoutCheckConstraint(constraintName);
-            if (ReferenceEquals(updated, current))
-                return false;
-
-            var store = OpenStoreLocked(current);
-            store.ApplySchema(updated);
-            Catalog.LoadOrReplace(updated);
-            try
+            lock (_sync)
             {
-                PersistCatalogLocked();
-            }
-            catch
-            {
-                store.ApplySchema(current);
-                Catalog.LoadOrReplace(current);
-                throw;
-            }
+                _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
+                ThrowIfDisposed();
+                var current = Catalog.TryGet(tableName)
+                    ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+                var updated = current.WithoutCheckConstraint(constraintName);
+                if (ReferenceEquals(updated, current))
+                    return false;
 
-            return true;
-        }
+                var store = OpenStoreLocked(current);
+                store.ApplySchema(updated);
+                Catalog.LoadOrReplace(updated);
+                try
+                {
+                    PersistCatalogLocked();
+                }
+                catch
+                {
+                    store.ApplySchema(current);
+                    Catalog.LoadOrReplace(current);
+                    throw;
+                }
+
+                return true;
+            }
     }
 
     /// <summary>
@@ -379,36 +379,36 @@ public sealed class TableManager : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentNullException.ThrowIfNull(definition);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
-            ThrowIfDisposed();
-            var current = Catalog.TryGet(tableName)
-                ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
-            var updated = current.WithCheckConstraint(definition);
-            var checkConstraint = string.IsNullOrWhiteSpace(definition.Name)
-                ? updated.CheckConstraints[^1]
-                : updated.TryGetCheckConstraint(definition.Name)
-                    ?? throw new InvalidOperationException("内部错误：检查约束创建后未能读取 schema。");
-
-            ValidateAddedCheckConstraintLocked(updated, checkConstraint);
-
-            var store = OpenStoreLocked(current);
-            store.ApplySchema(updated);
-            Catalog.LoadOrReplace(updated);
-            try
+            lock (_sync)
             {
-                PersistCatalogLocked();
-            }
-            catch
-            {
-                store.ApplySchema(current);
-                Catalog.LoadOrReplace(current);
-                throw;
-            }
+                _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
+                ThrowIfDisposed();
+                var current = Catalog.TryGet(tableName)
+                    ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+                var updated = current.WithCheckConstraint(definition);
+                var checkConstraint = string.IsNullOrWhiteSpace(definition.Name)
+                    ? updated.CheckConstraints[^1]
+                    : updated.TryGetCheckConstraint(definition.Name)
+                        ?? throw new InvalidOperationException("内部错误：检查约束创建后未能读取 schema。");
 
-            return checkConstraint;
-        }
+                ValidateAddedCheckConstraintLocked(updated, checkConstraint);
+
+                var store = OpenStoreLocked(current);
+                store.ApplySchema(updated);
+                Catalog.LoadOrReplace(updated);
+                try
+                {
+                    PersistCatalogLocked();
+                }
+                catch
+                {
+                    store.ApplySchema(current);
+                    Catalog.LoadOrReplace(current);
+                    throw;
+                }
+
+                return checkConstraint;
+            }
     }
 
     /// <summary>向关系表追加一列，并用指定默认值回填已有行。</summary>
@@ -438,23 +438,23 @@ public sealed class TableManager : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
-            ThrowIfDisposed();
-            var current = Catalog.TryGet(tableName)
-                ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
-            var updated = current.WithAddedColumn(columnName, dataType, isNullable, defaultExpressionSql);
-            var store = OpenStoreLocked(current);
-            ApplySchemaTransformLocked(current, updated, store, (_, row) =>
+            lock (_sync)
             {
-                var values = new object?[updated.Columns.Count];
-                for (var i = 0; i < row.Values.Count; i++)
-                    values[i] = row.Values[i];
-                values[^1] = defaultValue;
-                return values;
-            });
-        }
+                _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
+                ThrowIfDisposed();
+                var current = Catalog.TryGet(tableName)
+                    ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+                var updated = current.WithAddedColumn(columnName, dataType, isNullable, defaultExpressionSql);
+                var store = OpenStoreLocked(current);
+                ApplySchemaTransformLocked(current, updated, store, (_, row) =>
+                {
+                    var values = new object?[updated.Columns.Count];
+                    for (var i = 0; i < row.Values.Count; i++)
+                        values[i] = row.Values[i];
+                    values[^1] = defaultValue;
+                    return values;
+                });
+            }
     }
 
     /// <summary>修改关系表列定义，并在需要时转换已有行的列值。</summary>
@@ -469,48 +469,48 @@ public sealed class TableManager : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
-            ThrowIfDisposed();
-            var current = Catalog.TryGet(tableName)
-                ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
-            var currentColumn = current.TryGetColumn(columnName)
-                ?? throw new InvalidOperationException($"table '{tableName}' 中不存在列 '{columnName}'。");
-            var changesType = currentColumn.DataType != dataType;
-            if (changesType)
+            lock (_sync)
             {
-                ArgumentNullException.ThrowIfNull(convertValue);
-                EnsureColumnTypeIsNotReferencedByForeignKeyLocked(current, currentColumn);
-            }
-
-            var updated = current.WithAlteredColumn(
-                columnName,
-                dataType,
-                isNullable,
-                defaultExpressionSql);
-            var store = OpenStoreLocked(current);
-            if (!changesType)
-            {
-                if (currentColumn.IsNullable && !isNullable)
-                    store.ValidateExistingRows(updated);
-                ApplyMetadataSchemaLocked(current, updated, store);
-                return;
-            }
-
-            ApplySchemaTransformLocked(
-                current,
-                updated,
-                store,
-                (_, row) =>
+                _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
+                ThrowIfDisposed();
+                var current = Catalog.TryGet(tableName)
+                    ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+                var currentColumn = current.TryGetColumn(columnName)
+                    ?? throw new InvalidOperationException($"table '{tableName}' 中不存在列 '{columnName}'。");
+                var changesType = currentColumn.DataType != dataType;
+                if (changesType)
                 {
-                    var values = row.Values.ToArray();
-                    if (changesType && values[currentColumn.Ordinal] is not null)
-                        values[currentColumn.Ordinal] = convertValue!(values[currentColumn.Ordinal]);
-                    return values;
-                },
-                ValidateAlteredRowCheckConstraints);
-        }
+                    ArgumentNullException.ThrowIfNull(convertValue);
+                    EnsureColumnTypeIsNotReferencedByForeignKeyLocked(current, currentColumn);
+                }
+
+                var updated = current.WithAlteredColumn(
+                    columnName,
+                    dataType,
+                    isNullable,
+                    defaultExpressionSql);
+                var store = OpenStoreLocked(current);
+                if (!changesType)
+                {
+                    if (currentColumn.IsNullable && !isNullable)
+                        store.ValidateExistingRows(updated);
+                    ApplyMetadataSchemaLocked(current, updated, store);
+                    return;
+                }
+
+                ApplySchemaTransformLocked(
+                    current,
+                    updated,
+                    store,
+                    (_, row) =>
+                    {
+                        var values = row.Values.ToArray();
+                        if (changesType && values[currentColumn.Ordinal] is not null)
+                            values[currentColumn.Ordinal] = convertValue!(values[currentColumn.Ordinal]);
+                        return values;
+                    },
+                    ValidateAlteredRowCheckConstraints);
+            }
     }
 
     /// <summary>删除关系表列，并重写已有行以移除对应值。</summary>
@@ -521,30 +521,30 @@ public sealed class TableManager : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(columnName);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
-            ThrowIfDisposed();
-            var current = Catalog.TryGet(tableName)
-                ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
-            var dropped = current.TryGetColumn(columnName)
-                ?? throw new InvalidOperationException($"table '{tableName}' 中不存在列 '{columnName}'。");
-            var updated = current.WithoutColumn(columnName);
-            var store = OpenStoreLocked(current);
-            ApplySchemaTransformLocked(current, updated, store, (oldSchema, row) =>
+            lock (_sync)
             {
-                var values = new object?[updated.Columns.Count];
-                var target = 0;
-                foreach (var column in oldSchema.Columns)
+                _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
+                ThrowIfDisposed();
+                var current = Catalog.TryGet(tableName)
+                    ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+                var dropped = current.TryGetColumn(columnName)
+                    ?? throw new InvalidOperationException($"table '{tableName}' 中不存在列 '{columnName}'。");
+                var updated = current.WithoutColumn(columnName);
+                var store = OpenStoreLocked(current);
+                ApplySchemaTransformLocked(current, updated, store, (oldSchema, row) =>
                 {
-                    if (column.Ordinal == dropped.Ordinal)
-                        continue;
-                    values[target++] = row.Values[column.Ordinal];
-                }
+                    var values = new object?[updated.Columns.Count];
+                    var target = 0;
+                    foreach (var column in oldSchema.Columns)
+                    {
+                        if (column.Ordinal == dropped.Ordinal)
+                            continue;
+                        values[target++] = row.Values[column.Ordinal];
+                    }
 
-                return values;
-            });
-        }
+                    return values;
+                });
+            }
     }
 
     /// <summary>重命名关系表列并同步更新持久化 schema。</summary>
@@ -557,16 +557,16 @@ public sealed class TableManager : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(oldColumnName);
         ArgumentException.ThrowIfNullOrWhiteSpace(newColumnName);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
-            ThrowIfDisposed();
-            var current = Catalog.TryGet(tableName)
-                ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
-            var updated = current.WithRenamedColumn(oldColumnName, newColumnName);
-            var store = OpenStoreLocked(current);
-            ApplyMetadataSchemaLocked(current, updated, store);
-        }
+            lock (_sync)
+            {
+                _schemaMutationGuard?.Invoke(tableName, "ALTER TABLE");
+                ThrowIfDisposed();
+                var current = Catalog.TryGet(tableName)
+                    ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+                var updated = current.WithRenamedColumn(oldColumnName, newColumnName);
+                var store = OpenStoreLocked(current);
+                ApplyMetadataSchemaLocked(current, updated, store);
+            }
     }
 
     /// <summary>重命名关系表及其 rowstore 目录。</summary>
@@ -577,47 +577,47 @@ public sealed class TableManager : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(oldName);
         ArgumentException.ThrowIfNullOrWhiteSpace(newName);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            _schemaMutationGuard?.Invoke(oldName, "ALTER TABLE RENAME");
-            _nameAvailabilityGuard?.Invoke(newName, "table");
-            ThrowIfDisposed();
-            var current = Catalog.TryGet(oldName)
-                ?? throw new InvalidOperationException($"table '{oldName}' 不存在。");
-            if (Catalog.TryGet(newName) is not null)
-                throw new InvalidOperationException($"table '{newName}' 已存在。");
-            EnsureTableIsNotReferencedByForeignKeyLocked(oldName, "重命名");
-
-            var updated = current.WithName(newName);
-            var oldDirectory = TableDirectory(oldName);
-            var newDirectory = TableDirectory(newName);
-            if (Directory.Exists(newDirectory))
-                throw new InvalidOperationException($"table '{newName}' 的 rowstore 目录已存在。");
-
-            TableStore? existingStore = null;
-            if (_stores.Remove(oldName, out existingStore))
-                existingStore.Dispose();
-
-            Catalog.Remove(oldName);
-            Catalog.Add(updated);
-            try
+            lock (_sync)
             {
-                if (Directory.Exists(oldDirectory))
-                    Directory.Move(oldDirectory, newDirectory);
-                PersistCatalogLocked();
-                _ = OpenStoreLocked(updated);
+                _schemaMutationGuard?.Invoke(oldName, "ALTER TABLE RENAME");
+                _nameAvailabilityGuard?.Invoke(newName, "table");
+                ThrowIfDisposed();
+                var current = Catalog.TryGet(oldName)
+                    ?? throw new InvalidOperationException($"table '{oldName}' 不存在。");
+                if (Catalog.TryGet(newName) is not null)
+                    throw new InvalidOperationException($"table '{newName}' 已存在。");
+                EnsureTableIsNotReferencedByForeignKeyLocked(oldName, "重命名");
+
+                var updated = current.WithName(newName);
+                var oldDirectory = TableDirectory(oldName);
+                var newDirectory = TableDirectory(newName);
+                if (Directory.Exists(newDirectory))
+                    throw new InvalidOperationException($"table '{newName}' 的 rowstore 目录已存在。");
+
+                TableStore? existingStore = null;
+                if (_stores.Remove(oldName, out existingStore))
+                    existingStore.Dispose();
+
+                Catalog.Remove(oldName);
+                Catalog.Add(updated);
+                try
+                {
+                    if (Directory.Exists(oldDirectory))
+                        Directory.Move(oldDirectory, newDirectory);
+                    PersistCatalogLocked();
+                    _ = OpenStoreLocked(updated);
+                }
+                catch
+                {
+                    if (Directory.Exists(newDirectory) && !Directory.Exists(oldDirectory))
+                        Directory.Move(newDirectory, oldDirectory);
+                    Catalog.Remove(newName);
+                    Catalog.Add(current);
+                    PersistCatalogLocked();
+                    _ = OpenStoreLocked(current);
+                    throw;
+                }
             }
-            catch
-            {
-                if (Directory.Exists(newDirectory) && !Directory.Exists(oldDirectory))
-                    Directory.Move(newDirectory, oldDirectory);
-                Catalog.Remove(newName);
-                Catalog.Add(current);
-                PersistCatalogLocked();
-                _ = OpenStoreLocked(current);
-                throw;
-            }
-        }
     }
 
     /// <summary>
@@ -631,16 +631,16 @@ public sealed class TableManager : IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
         ArgumentException.ThrowIfNullOrWhiteSpace(indexName);
         lock (_schemaSync)
-        lock (_sync)
-        {
-            ThrowIfDisposed();
-            var schema = Catalog.TryGet(tableName)
-                ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
-            var index = schema.TryGetIndex(indexName)
-                ?? throw new InvalidOperationException($"table '{tableName}' 中索引 '{indexName}' 不存在。");
-            OpenStoreLocked(schema).ApplySchema(schema);
-            return index;
-        }
+            lock (_sync)
+            {
+                ThrowIfDisposed();
+                var schema = Catalog.TryGet(tableName)
+                    ?? throw new InvalidOperationException($"table '{tableName}' 不存在。");
+                var index = schema.TryGetIndex(indexName)
+                    ?? throw new InvalidOperationException($"table '{tableName}' 中索引 '{indexName}' 不存在。");
+                OpenStoreLocked(schema).ApplySchema(schema);
+                return index;
+            }
     }
 
     /// <summary>

@@ -100,12 +100,17 @@ public sealed class VictoriaMetricsAdapter : IDataPlane, ITimeSeriesOps
             throw new InvalidOperationException(
                 $"VictoriaMetrics remote_write failed: {(int)response.StatusCode} {await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false)}");
         }
+
+        await WaitUntilQueryableAsync(points[0].Measurement, ct).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
     public async Task<RelationalSqlResult> CountAsync(string measurement, CancellationToken ct)
     {
-        var value = await QueryScalarAsync($"count({measurement})", _maxTimestamp, ct).ConfigureAwait(false);
+        var value = await QueryScalarAsync(
+            $"sum(count_over_time({measurement}[{FullRangeDuration}]))",
+            _maxTimestamp,
+            ct).ConfigureAwait(false);
         return Result(["count"], [Row(value)]);
     }
 
@@ -114,7 +119,7 @@ public sealed class VictoriaMetricsAdapter : IDataPlane, ITimeSeriesOps
     {
         var rows = await QueryRangeAsync(
             $"avg(avg_over_time({measurement}[{FormatPromDuration(window)}]))",
-            _minTimestamp + (long)window.TotalMilliseconds,
+            _minTimestamp + Math.Max(0L, (long)window.TotalMilliseconds - 1_000L),
             _maxTimestamp,
             window,
             ct).ConfigureAwait(false);
@@ -130,7 +135,7 @@ public sealed class VictoriaMetricsAdapter : IDataPlane, ITimeSeriesOps
             _maxTimestamp,
             TimeSpan.FromSeconds(1),
             ct).ConfigureAwait(false);
-        return Result(["time", "derivative"], rows);
+        return Result(["time", "derivative"], PrependInitialNull(rows));
     }
 
     /// <inheritdoc />
@@ -148,6 +153,8 @@ public sealed class VictoriaMetricsAdapter : IDataPlane, ITimeSeriesOps
             _maxTimestamp,
             TimeSpan.FromSeconds(1),
             ct).ConfigureAwait(false);
+        rate = PrependInitialNull(rate);
+        irate = PrependInitialNull(irate);
 
         var rows = new List<RelationalSqlRow>(Math.Min(rate.Count, irate.Count));
         for (var i = 0; i < Math.Min(rate.Count, irate.Count); i++)
@@ -165,14 +172,20 @@ public sealed class VictoriaMetricsAdapter : IDataPlane, ITimeSeriesOps
     /// <inheritdoc />
     public async Task<RelationalSqlResult> PercentileP95Async(string measurement, CancellationToken ct)
     {
-        var value = await QueryScalarAsync($"quantile(0.95, {measurement})", _maxTimestamp, ct).ConfigureAwait(false);
+        var value = await QueryScalarAsync(
+            $"quantile_over_time(0.95, {measurement}[{FullRangeDuration}])",
+            _maxTimestamp,
+            ct).ConfigureAwait(false);
         return Result(["p95"], [Row(value)]);
     }
 
     /// <inheritdoc />
     public async Task<RelationalSqlResult> DistinctDeviceCountAsync(string measurement, CancellationToken ct)
     {
-        var value = await QueryScalarAsync($"count(count by (device) ({measurement}))", _maxTimestamp, ct).ConfigureAwait(false);
+        var value = await QueryScalarAsync(
+            $"count(count_over_time({measurement}[{FullRangeDuration}]))",
+            _maxTimestamp,
+            ct).ConfigureAwait(false);
         return Result(["distinct_count"], [Row(value)]);
     }
 
@@ -186,7 +199,7 @@ public sealed class VictoriaMetricsAdapter : IDataPlane, ITimeSeriesOps
     private async Task<double> QueryScalarAsync(string query, long timestampMs, CancellationToken ct)
     {
         using var doc = await QueryAsync(
-            "/api/v1/query?query=" + Uri.EscapeDataString(query) + "&time=" + FormatUnixSeconds(timestampMs),
+            "/api/v1/query?query=" + Uri.EscapeDataString(query) + "&time=" + FormatUnixSeconds(timestampMs) + "&nocache=1",
             ct).ConfigureAwait(false);
         var result = doc.RootElement.GetProperty("data").GetProperty("result");
         if (result.GetArrayLength() == 0)
@@ -204,7 +217,8 @@ public sealed class VictoriaMetricsAdapter : IDataPlane, ITimeSeriesOps
         var url = "/api/v1/query_range?query=" + Uri.EscapeDataString(query)
                   + "&start=" + FormatUnixSeconds(startMs)
                   + "&end=" + FormatUnixSeconds(endMs)
-                  + "&step=" + Math.Max(1, (long)step.TotalSeconds).ToString(CultureInfo.InvariantCulture);
+                  + "&step=" + Math.Max(1, (long)step.TotalSeconds).ToString(CultureInfo.InvariantCulture)
+                  + "&nocache=1";
         using var doc = await QueryAsync(url, ct).ConfigureAwait(false);
         var result = doc.RootElement.GetProperty("data").GetProperty("result");
         if (result.GetArrayLength() == 0)
@@ -240,6 +254,39 @@ public sealed class VictoriaMetricsAdapter : IDataPlane, ITimeSeriesOps
         => new(columns, rows, -1);
 
     private static RelationalSqlRow Row(params object?[] values) => new(values);
+
+    private string FullRangeDuration
+        => FormatPromDuration(TimeSpan.FromMilliseconds(Math.Max(1_000L, _maxTimestamp - _minTimestamp + 1_000L)));
+
+    private IReadOnlyList<RelationalSqlRow> PrependInitialNull(IReadOnlyList<RelationalSqlRow> rows)
+    {
+        if (rows.Count == 0 || Convert.ToInt64(rows[0].Values[0], CultureInfo.InvariantCulture) <= _minTimestamp)
+            return rows;
+
+        var normalized = new List<RelationalSqlRow>(rows.Count + 1)
+        {
+            Row(_minTimestamp, null),
+        };
+        normalized.AddRange(rows);
+        return normalized;
+    }
+
+    private async Task WaitUntilQueryableAsync(string measurement, CancellationToken ct)
+    {
+        var deadline = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(15);
+        string url = "/api/v1/query?query=" + Uri.EscapeDataString(measurement)
+                     + "&time=" + FormatUnixSeconds(_maxTimestamp)
+                     + "&nocache=1";
+        while (true)
+        {
+            using var doc = await QueryAsync(url, ct).ConfigureAwait(false);
+            if (doc.RootElement.GetProperty("data").GetProperty("result").GetArrayLength() > 0)
+                return;
+            if (DateTimeOffset.UtcNow >= deadline)
+                throw new TimeoutException($"VictoriaMetrics measurement '{measurement}' was not queryable within 15 seconds.");
+            await Task.Delay(100, ct).ConfigureAwait(false);
+        }
+    }
 
     private static string FormatUnixSeconds(long timestampMs)
         => (timestampMs / 1000d).ToString("0.###", CultureInfo.InvariantCulture);

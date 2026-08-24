@@ -1,7 +1,7 @@
+using System.IO.Pipelines;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using System.IO.Pipelines;
 using SonnetDB.Auth;
 using SonnetDB.Contracts;
 using SonnetDB.Diagnostics;
