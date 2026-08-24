@@ -404,6 +404,7 @@
   "devDependencies": {
     "@types/node": "^22.13.10",
     "@types/vscode": "^1.100.0",
+    "@vscode/test-electron": "3.1.0",
     "@vscode/vsce": "^3.9.2",
     "typescript": "^5.8.3"
   }

@@ -11,7 +11,9 @@
 
 ### Fixed
 
-- **发布前 CI 与 Parity 门禁恢复**：升级 Testcontainers 以移除存在高危漏洞的 SSH.NET 传递依赖；CI 串行调度测试项目、限制 Core 测试 collection 并行度并保留唯一 TRX，移除未设置阈值、未被消费且会干扰 timing/concurrency 测试的 inline Coverlet 收集；Management workbench smoke 递归检出 CoAP/MQTT 子模块，覆盖 GitHub Windows runner 的系统级 VS Code 安装，并让 Web E2E 对端口冲突快速失败且支持显式测试端口。Parity 使用独立 h2c endpoint 严格验证 Frame HTTP/2 并保留服务端错误详情，容忍 Meilisearch 删除缺失索引的异步终态，更新 Qdrant 参考服务，改用 Redis 相对 TTL 避免宿主与容器时钟偏差，以语义断言兼容不同全文检索引擎的有效命中差异，并修正 VictoriaMetrics/InfluxDB 的历史保留、写入可见性、范围聚合、导数和预测结果规范化；同步整理既有格式漂移，使在线 format-check 恢复通过。
+- **发布前 CI 可复现性**：Management workbench smoke 不再依赖 GitHub Windows runner 预装 VS Code 或猜测用户级/系统级安装路径；改由官方 `@vscode/test-electron` 下载并缓存固定的 VS Code 1.100.3，同时保留显式版本和本地可执行文件覆盖，使 Windows 2025/VS 2026 runner 镜像移除 VS Code 后仍能执行真实扩展宿主门禁。KV cleanup 指标与恢复测试改为等待后台 worker 发布完整 pending/rate 状态，避免空轮询先发生时把尚未更新的 gauge 误判为产品回归；锁文件同步升级 `brace-expansion`、`fast-uri`、`js-yaml` 与 `undici`，清除 4 个高危开发依赖告警，生产依赖保持 0 告警。
+
+- **发布前 CI 与 Parity 门禁恢复**：升级 Testcontainers 以移除存在高危漏洞的 SSH.NET 传递依赖；CI 串行调度测试项目、限制 Core 测试 collection 并行度并保留唯一 TRX，移除未设置阈值、未被消费且会干扰 timing/concurrency 测试的 inline Coverlet 收集；Management workbench smoke 递归检出 CoAP/MQTT 子模块，并让 Web E2E 对端口冲突快速失败且支持显式测试端口。Parity 使用独立 h2c endpoint 严格验证 Frame HTTP/2 并保留服务端错误详情，容忍 Meilisearch 删除缺失索引的异步终态，更新 Qdrant 参考服务，改用 Redis 相对 TTL 避免宿主与容器时钟偏差，以语义断言兼容不同全文检索引擎的有效命中差异，并修正 VictoriaMetrics/InfluxDB 的历史保留、写入可见性、范围聚合、导数和预测结果规范化；同步整理既有格式漂移，使在线 format-check 恢复通过。
 
 - **M40 修复与发布步骤 6 / 7 quick 闭环**：Graph traversal 改为 parent-linked path，避免 frontier child 逐条复制完整 vertex/edge 数组；file-backed offline algorithm vector 增加有界 little-endian page cache，spill 状态按页批量读写。Server 与 embedded SDK 的 maintenance NDJSON 审计统一恢复规则：未终止尾记录可补换行或截回上一条完整记录，已终止坏行仍拒绝；重开发现 `applying` 时追加 durable `interrupted` 终态并保留 maintenance sidecar。#367 quick smoke 新增真实子进程 kill/reopen 验证。固定目标硬件、外部对拍、Native AOT、Couplet 与 168 小时 Production evidence 仍保持 `NOT_RUN`。
 
