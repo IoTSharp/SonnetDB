@@ -45,6 +45,7 @@ RUN dotnet restore src/SonnetDB/SonnetDB.csproj
 RUN dotnet tool restore
 
 # Copy full source and assets needed for the actual build.
+COPY llms.txt llms-full.txt ./
 COPY src/SonnetDB/ src/SonnetDB/
 COPY src/SonnetDB.Core/ src/SonnetDB.Core/
 COPY extensions/IoTSharp.CoAP.NET/ extensions/IoTSharp.CoAP.NET/
