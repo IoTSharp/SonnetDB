@@ -80,6 +80,20 @@ public sealed class AdminUiEndToEndTests : IAsyncLifetime
         Assert.Contains("<div id=\"app\">", body);
     }
 
+    [Theory]
+    [InlineData("/llms.txt")]
+    [InlineData("/llms-full.txt")]
+    public async Task GetAiDiscoveryFile_AnonymouslyReturnsPlainText(string path)
+    {
+        using var client = CreateClient();
+        using var response = await client.GetAsync(path);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("text/plain", response.Content.Headers.ContentType?.MediaType);
+        Assert.True(response.Content.Headers.ContentLength > 0);
+        Assert.Contains("SonnetDB", await response.Content.ReadAsStringAsync());
+    }
+
     [Fact]
     public async Task GetAdminSubpath_FallsBackToIndexHtml()
     {

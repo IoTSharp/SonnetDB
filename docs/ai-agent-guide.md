@@ -12,7 +12,7 @@ SonnetDB 为大模型提供两个标准、厂商中立的机器入口：
 - [`/llms.txt`](https://iotsharp.github.io/SonnetDB/llms.txt)：短版身份、能力、工作流和边界，适合先放入模型上下文。
 - [`/llms-full.txt`](https://iotsharp.github.io/SonnetDB/llms-full.txt)：完整能力矩阵、接入决策、代码示例、MCP 合同、安全规则和可复用系统提示词。
 
-这两个文件会同时发布到 GitHub Pages 和 SonnetDB Server 根路径。模型不需要先知道 SonnetDB，也不需要绑定某一家模型供应商；只要宿主能读取文档、调用 HTTP 工具或连接 Streamable HTTP MCP，就可以理解和使用 SonnetDB。
+这两个文件会发布到 GitHub Pages；`v3.1.0` 之后的 Server 版本还会在 Server 根路径直接提供它们。模型不需要先知道 SonnetDB，也不需要绑定某一家模型供应商；只要宿主能读取文档、调用 HTTP 工具或连接 Streamable HTTP MCP，就可以理解和使用 SonnetDB。
 
 ## 先告诉模型 SonnetDB 是什么
 

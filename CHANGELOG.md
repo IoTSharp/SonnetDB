@@ -5,17 +5,19 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **面向任意大模型的 AI/Agent 发现与使用合同**：重写短版 `llms.txt`，新增完整 `llms-full.txt` 与中文 AI/Agent 指南，按 SonnetDB 3.1.0 的真实能力公开八模型定位、接入决策、SQL/代码示例、MCP 九个只读工具与三个资源、推荐调用顺序、安全规则、provider-neutral 边界、原生图未完成门禁和可复用系统提示词；GitHub Pages 发布 `/llms.txt`、`/llms-full.txt`，后续 Server 版本的构建产物和根端点同步提供这两个文件，README、文档首页、工业 AI 文档和 3.1.0 公告加入入口。
+
+- **3.1.0 发布公告**：新增从 `v3.0.1` 到 3.1.0 的面向用户发布说明，按管理工具、工业协议、关系 SQL/查询规划、Document/语义内容、可观测性、可靠性和开发中原生图能力归纳变更，并明确 HTTP/2、轻事务、KV state v5、默认关闭服务、ApiCompat 回归及 M40 未完成发布门禁；发布文档索引同步加入 3.1.0。
+
 ### Fixed
 
-- **SonnetDB.Core 公共 API 兼容性**：恢复 `3.0.1` 的 `TableSchema.Create`、`CreateTableStatement`、`SelectStatement` 与 `SqlExplainExecutionResult` 位置参数/解构合同，并固定已发布 `TokenKind` 数值；修复已发布 `3.1.0` 的 ApiCompat 回归，供后续 patch 版本交付，不通过 suppression 隐藏破坏性变更。
+- **SonnetDB.Core 公共 API 兼容性**：恢复 `3.0.1` 的 `TableSchema.Create`、`CreateTableStatement`、`SelectStatement` 与 `SqlExplainExecutionResult` 位置参数/解构合同，并恢复 `3.0.1` 的 `TokenKind` 数值，不通过 suppression 隐藏破坏性变更。由于 `3.1.0` 已发布另一套枚举数值，后续版本必须先明确兼容策略，不能把当前修复直接视为同时兼容 `3.0.1` 与 `3.1.0` 的 patch。
 
 ## [3.1.0] - 2026-08-24
 
 ### Changed
-
-- **面向任意大模型的 AI/Agent 发现与使用合同**：重写短版 `llms.txt`，新增完整 `llms-full.txt` 与中文 AI/Agent 指南，按 SonnetDB 3.1.0 的真实能力公开八模型定位、接入决策、SQL/代码示例、MCP 九个只读工具与三个资源、推荐调用顺序、安全规则、provider-neutral 边界、原生图未完成门禁和可复用系统提示词；Server 构建产物与 GitHub Pages 均发布 `/llms.txt`、`/llms-full.txt`，Server 根端点不依赖管理后台是否打包，README、文档首页、工业 AI 文档和 3.1.0 公告同步加入入口。
-
-- **3.1.0 发布公告**：新增从 `v3.0.1` 到 3.1.0 的面向用户发布说明，按管理工具、工业协议、关系 SQL/查询规划、Document/语义内容、可观测性、可靠性和开发中原生图能力归纳变更，并明确 HTTP/2、轻事务、KV state v5、默认关闭服务及 M40 未完成发布门禁的兼容性边界；发布文档索引同步加入 3.1.0。
 
 - **M40 路线图复盘与执行门禁纠偏**：Phase 0 保持完成，Phase 1/2 改回进行中，明确记录 Expand 双向分页丢边、最短路径预算静默截断、导入字节预算、共享流式执行、关系 statement snapshot、SQL DDL/DML、property-aware planner 和 #367 evaluator 的真实缺口；新增“正确性 -> 证据门禁 -> 合同 -> 架构 -> SQL/planner -> 性能 -> 恢复/parity -> 发布证据”的强制顺序。步骤 1~7 未关闭前不得累计固定硬件、外部对拍或 7 天发布证据，M40 与九模型定位继续保持未完成。
 
