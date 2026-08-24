@@ -14,6 +14,16 @@ Graph V1 key bytes or logical range order. KV state v1-v4 remains readable.
 the cursor owns only the current page and one pending KV entry, and a supernode
 does not cause its complete adjacency to be materialized.
 
+Path traversal keeps an internal parent-linked path until a result is emitted;
+it no longer copies the complete vertex/edge arrays for every frontier child.
+One-way weighted Dijkstra/A* results materialize their final arrays once with
+the known depth instead of growing temporary lists and reversing them; the
+bidirectional path builder keeps its existing deterministic merge path.
+File-backed offline vectors use a bounded 64 KiB little-endian page cache and
+write dirty pages in batches, while in-memory vectors retain their existing
+budget selection. This keeps spill memory bounded and removes one random file
+read/write per vector value without changing the algorithm or result contract.
+
 ## Resumable maintenance
 
 `GraphStore.RunMaintenance(GraphMaintenanceOptions)` executes a bounded number
@@ -37,6 +47,14 @@ repeat the last page idempotently. A malformed sidecar is rejected; it is never
 silently discarded or replaced with a new repair source. Supplied unique
 declarations are therefore still available after a crash even when every
 corresponding unique owner key was lost.
+
+The Server and embedded SDK maintenance audit files use the same torn-tail
+rule: a final unterminated JSON record is either completed with its newline
+(when the JSON is valid) or truncated back to the previous newline (when the
+record is incomplete). A malformed record that already has a newline remains a
+hard open failure. An `applying` record found during reopen is appended with a
+durable `interrupted` terminal event and the existing maintenance sidecar is
+left available for a later staged approval.
 
 `CheckpointEveryWorkUnits` limits WAL/generation pressure during a long repair.
 `CompactOnCompletion` is opt-in because compaction is an I/O hotspot. The

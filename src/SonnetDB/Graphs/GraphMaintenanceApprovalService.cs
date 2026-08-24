@@ -100,26 +100,108 @@ internal sealed class FileGraphMaintenanceAuditStore : IGraphMaintenanceAuditSto
         if (!File.Exists(_path))
             return;
 
+        byte[] data = File.ReadAllBytes(_path);
+        int offset = 0;
         int lineNumber = 0;
-        foreach (string line in File.ReadLines(_path))
+        while (offset < data.Length)
         {
             lineNumber++;
-            if (string.IsNullOrWhiteSpace(line))
+            ReadOnlySpan<byte> remaining = data.AsSpan(offset);
+            int newline = remaining.IndexOf((byte)'\n');
+            bool terminated = newline >= 0;
+            int end = terminated ? offset + newline : data.Length;
+            ReadOnlySpan<byte> line = TrimAsciiWhitespace(data.AsSpan(offset, end - offset));
+            if (line.Length == 0)
+            {
+                if (!terminated)
+                    RepairTornTail(offset, appendNewline: false);
+                if (!terminated)
+                    break;
+                offset = end + 1;
                 continue;
+            }
+
+            GraphMaintenanceApprovalDto entry;
             try
             {
-                GraphMaintenanceApprovalDto entry = JsonSerializer.Deserialize(
+                entry = JsonSerializer.Deserialize(
                         line,
                         ServerJsonContext.Default.GraphMaintenanceApprovalDto)
                     ?? throw new InvalidDataException("Graph 维护审计记录不能为 null。");
-                Validate(entry, lineNumber);
-                _entries.Add(entry);
             }
             catch (JsonException exception)
             {
+                // A process can terminate between the final write and its newline.
+                // Only an unterminated final JSON record is repairable; a terminated
+                // malformed line remains a hard corruption signal.
+                if (!terminated)
+                {
+                    RepairTornTail(offset, appendNewline: false);
+                    break;
+                }
                 throw new InvalidDataException($"Graph 维护审计文件第 {lineNumber} 行损坏。", exception);
             }
+            Validate(entry, lineNumber);
+            _entries.Add(entry);
+            if (!terminated)
+            {
+                RepairTornTail(data.Length, appendNewline: true);
+                break;
+            }
+            offset = end + 1;
         }
+
+        RecoverApplyingEntries();
+    }
+
+    private void RecoverApplyingEntries()
+    {
+        GraphMaintenanceApprovalDto[] applying = _entries
+            .Where(static entry => string.Equals(entry.State, "applying", StringComparison.Ordinal))
+            .ToArray();
+        foreach (GraphMaintenanceApprovalDto entry in applying)
+        {
+            Append(entry with
+            {
+                OccurredAtUtc = DateTimeOffset.UtcNow,
+                State = "interrupted",
+                ErrorCode = "graph_maintenance_interrupted",
+                Reason = "进程在 Graph 维护执行期间终止；维护 sidecar 可由下一次审批继续处理。",
+            });
+        }
+    }
+
+    private void RepairTornTail(long offset, bool appendNewline)
+    {
+        using var stream = new FileStream(
+            _path,
+            FileMode.OpenOrCreate,
+            FileAccess.ReadWrite,
+            FileShare.Read,
+            bufferSize: 4096,
+            FileOptions.WriteThrough);
+        if (appendNewline)
+        {
+            stream.Position = stream.Length;
+            stream.WriteByte((byte)'\n');
+        }
+        else
+        {
+            stream.SetLength(offset);
+            stream.Position = offset;
+        }
+        stream.Flush(flushToDisk: true);
+    }
+
+    private static ReadOnlySpan<byte> TrimAsciiWhitespace(ReadOnlySpan<byte> value)
+    {
+        int start = 0;
+        while (start < value.Length && value[start] is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n')
+            start++;
+        int end = value.Length;
+        while (end > start && value[end - 1] is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n')
+            end--;
+        return value[start..end];
     }
 
     private static void Validate(GraphMaintenanceApprovalDto entry, int? lineNumber)

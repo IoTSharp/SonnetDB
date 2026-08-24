@@ -58,6 +58,7 @@ public sealed class GraphProductionGateTests : IDisposable
         Assert.False(report.Input.ProductionRun);
         Assert.Equal(8, report.Input.Soak.ReaderWorkers);
         Assert.Equal(1, report.Input.Soak.UpdateWorkers);
+        Assert.Equal(1, report.Input.Soak.KillReopenCount);
         Assert.Equal(64, report.Input.Dataset.VertexCount);
         Assert.Equal(192, report.Input.Dataset.EdgeCount);
         Assert.All(report.Input.CorrectnessRecoveryChecks, static check =>

@@ -40,6 +40,15 @@ if (args.Contains("--m40-verify-artifact", StringComparer.OrdinalIgnoreCase))
     return;
 }
 
+if (args.Contains("--m40-production-crash-child", StringComparer.OrdinalIgnoreCase))
+{
+    string? crashRoot = ReadOption(args, "--root");
+    if (crashRoot is null || crashRoot.StartsWith("--", StringComparison.Ordinal))
+        throw new ArgumentException("--m40-production-crash-child 必须提供 --root <path>。");
+    GraphProductionGateRunner.RunCrashReopenChild(crashRoot);
+    return;
+}
+
 if (args.Contains("--segment-maintenance-smoke", StringComparer.OrdinalIgnoreCase))
 {
     RunSegmentMaintenanceSmoke();

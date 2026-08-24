@@ -819,7 +819,7 @@ function formatProperties(properties: GraphProperty[]): string { return JSON.str
 function auditTagType(state: string): 'success' | 'warning' | 'error' | 'info' | 'default' {
   if (state === 'completed') return 'success';
   if (state === 'staged' || state === 'paused' || state === 'applying') return 'warning';
-  if (state === 'failed' || state === 'expired' || state === 'rejected') return 'error';
+  if (state === 'failed' || state === 'expired' || state === 'rejected' || state === 'interrupted') return 'error';
   return 'default';
 }
 function auditSummary(row: GraphMaintenanceApproval): string {

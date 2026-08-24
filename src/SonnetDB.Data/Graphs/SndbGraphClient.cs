@@ -1238,15 +1238,36 @@ public sealed class SndbGraphClient : IDisposable
                 throw new InvalidOperationException(expired.Reason);
             }
 
-            GraphMaintenanceExecutionDto result = ExecuteEmbeddedMaintenance(store, staged, cancellationToken);
-            var completed = staged with
+            AppendEmbeddedAudit(staged with
             {
-                OccurredAtUtc = DateTimeOffset.UtcNow,
-                State = result.IsComplete ? "completed" : "paused",
-                Result = result,
-            };
-            AppendEmbeddedAudit(completed);
-            return completed;
+                OccurredAtUtc = now,
+                State = "applying",
+            });
+            try
+            {
+                GraphMaintenanceExecutionDto result = ExecuteEmbeddedMaintenance(store, staged, cancellationToken);
+                var completed = staged with
+                {
+                    OccurredAtUtc = DateTimeOffset.UtcNow,
+                    State = result.IsComplete ? "completed" : "paused",
+                    Result = result,
+                };
+                AppendEmbeddedAudit(completed);
+                return completed;
+            }
+            catch (Exception exception)
+            {
+                AppendEmbeddedAudit(staged with
+                {
+                    OccurredAtUtc = DateTimeOffset.UtcNow,
+                    State = "failed",
+                    ErrorCode = exception is OperationCanceledException
+                        ? "graph_maintenance_cancelled"
+                        : "graph_maintenance_failed",
+                    Reason = exception.Message.Length <= 512 ? exception.Message : exception.Message[..512],
+                });
+                throw;
+            }
         }
     }
 
@@ -1291,27 +1312,101 @@ public sealed class SndbGraphClient : IDisposable
         if (!File.Exists(_embeddedAuditPath))
             return;
 
+        byte[] data = File.ReadAllBytes(_embeddedAuditPath);
+        int offset = 0;
         int lineNumber = 0;
-        foreach (string line in File.ReadLines(_embeddedAuditPath))
+        while (offset < data.Length)
         {
             lineNumber++;
-            if (string.IsNullOrWhiteSpace(line))
+            ReadOnlySpan<byte> remaining = data.AsSpan(offset);
+            int newline = remaining.IndexOf((byte)'\n');
+            bool terminated = newline >= 0;
+            int end = terminated ? offset + newline : data.Length;
+            ReadOnlySpan<byte> line = TrimEmbeddedAsciiWhitespace(data.AsSpan(offset, end - offset));
+            if (line.Length == 0)
+            {
+                if (!terminated)
+                    RepairEmbeddedTornTail(offset, appendNewline: false);
+                if (!terminated)
+                    break;
+                offset = end + 1;
                 continue;
+            }
+
+            GraphMaintenanceApprovalDto entry;
             try
             {
-                GraphMaintenanceApprovalDto entry = JsonSerializer.Deserialize(
+                entry = JsonSerializer.Deserialize(
                         line,
                         RemoteJsonContext.Default.GraphMaintenanceApprovalDto)
                     ?? throw new InvalidDataException("Graph embedded 维护审计记录不能为 null。");
-                ValidateEmbeddedAuditEntry(entry, lineNumber);
-                _embeddedAudit.Add(entry);
-                _embeddedApprovals[entry.ApprovalId] = entry;
             }
             catch (JsonException exception)
             {
+                if (!terminated)
+                {
+                    RepairEmbeddedTornTail(offset, appendNewline: false);
+                    break;
+                }
                 throw new InvalidDataException($"Graph embedded 维护审计文件第 {lineNumber} 行损坏。", exception);
             }
+            ValidateEmbeddedAuditEntry(entry, lineNumber);
+            _embeddedAudit.Add(entry);
+            _embeddedApprovals[entry.ApprovalId] = entry;
+            if (!terminated)
+            {
+                RepairEmbeddedTornTail(data.Length, appendNewline: true);
+                break;
+            }
+            offset = end + 1;
         }
+
+        GraphMaintenanceApprovalDto[] applying = _embeddedAudit
+            .Where(static entry => string.Equals(entry.State, "applying", StringComparison.Ordinal))
+            .ToArray();
+        foreach (GraphMaintenanceApprovalDto entry in applying)
+        {
+            AppendEmbeddedAudit(entry with
+            {
+                OccurredAtUtc = DateTimeOffset.UtcNow,
+                State = "interrupted",
+                ErrorCode = "graph_maintenance_interrupted",
+                Reason = "进程在 Graph 维护执行期间终止；维护 sidecar 可由下一次审批继续处理。",
+            });
+        }
+    }
+
+    private void RepairEmbeddedTornTail(long offset, bool appendNewline)
+    {
+        using var stream = new FileStream(
+            _embeddedAuditPath!,
+            FileMode.OpenOrCreate,
+            FileAccess.ReadWrite,
+            FileShare.Read,
+            bufferSize: 4096,
+            FileOptions.WriteThrough);
+        if (appendNewline)
+        {
+            stream.Position = stream.Length;
+            stream.WriteByte((byte)'\n');
+        }
+        else
+        {
+            stream.SetLength(offset);
+            stream.Position = offset;
+        }
+        stream.Flush(flushToDisk: true);
+    }
+
+    private static ReadOnlySpan<byte> TrimEmbeddedAsciiWhitespace(ReadOnlySpan<byte> value)
+    {
+        int start = 0;
+        while (start < value.Length && value[start] is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n')
+            start++;
+        int end = value.Length;
+        while (end > start && value[end - 1] is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n')
+            end--;
+        return value[start..end];
     }
 
     private void AppendEmbeddedAudit(GraphMaintenanceApprovalDto entry)

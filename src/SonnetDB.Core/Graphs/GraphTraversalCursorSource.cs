@@ -15,10 +15,11 @@ internal sealed class GraphTraversalCursorSource : IGraphCursorSource<GraphPath>
     private readonly GraphTraversalDiagnostics? _diagnostics;
     private readonly Queue<TraversalPath> _queue = new();
     private readonly Stack<TraversalPath> _stack = new();
-    private readonly Queue<GraphPath> _pendingResults = new();
+    private readonly Queue<TraversalPath> _pendingResults = new();
     private readonly HashSet<GraphElementId> _visitedVertices = [];
     private GraphExpansionCursorSource? _activeExpansion;
     private bool _emitStart;
+    private readonly TraversalPath _startPath;
     private bool _ended;
     private bool _disposed;
 
@@ -49,8 +50,8 @@ internal sealed class GraphTraversalCursorSource : IGraphCursorSource<GraphPath>
         if (GraphReadSession.ReadVertex(snapshot, startId) is null)
             throw new InvalidOperationException($"Graph traversal 起点 vertex {startId} 不存在。");
 
-        var start = new TraversalPath([startId], []);
-        AddPending(start);
+        _startPath = TraversalPath.Start(startId);
+        AddPending(_startPath);
         _emitStart = minDepth == 0;
     }
 
@@ -64,21 +65,15 @@ internal sealed class GraphTraversalCursorSource : IGraphCursorSource<GraphPath>
         while (result.Count < _options.PageSize && !_ended)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (_pendingResults.TryDequeue(out GraphPath? pendingResult))
+            if (_pendingResults.TryDequeue(out TraversalPath? pendingResult))
             {
-                result.Add(pendingResult);
+                result.Add(ToPublicPath(pendingResult));
                 continue;
             }
             if (_emitStart)
             {
                 _emitStart = false;
-                result.Add(ToPublicPath(new TraversalPath(
-                    _mode == GraphTraversalMode.BreadthFirst
-                        ? _queue.Peek().Vertices
-                        : _stack.Peek().Vertices,
-                    _mode == GraphTraversalMode.BreadthFirst
-                        ? _queue.Peek().Edges
-                        : _stack.Peek().Edges)));
+                result.Add(ToPublicPath(_startPath));
                 continue;
             }
 
@@ -90,11 +85,11 @@ internal sealed class GraphTraversalCursorSource : IGraphCursorSource<GraphPath>
                     break;
                 }
                 TraversalPath currentPath = path!;
-                if (currentPath.Edges.Count >= _maxDepth)
+                if (currentPath.Depth >= _maxDepth)
                     continue;
                 _activeExpansion = new GraphExpansionCursorSource(
                     _snapshot.AcquireLease(),
-                    currentPath.Vertices[^1],
+                    currentPath.VertexId,
                     _direction,
                     _edgeLabelId,
                     null,
@@ -126,8 +121,8 @@ internal sealed class GraphTraversalCursorSource : IGraphCursorSource<GraphPath>
                 if (_diagnostics is not null)
                     _diagnostics.GeneratedPathCount++;
                 children.Add(child);
-                if (child.Edges.Count >= _minDepth)
-                    _pendingResults.Enqueue(ToPublicPath(child));
+                if (child.Depth >= _minDepth)
+                    _pendingResults.Enqueue(child);
             }
 
             AddChildren(children);
@@ -163,7 +158,7 @@ internal sealed class GraphTraversalCursorSource : IGraphCursorSource<GraphPath>
             _queue.Enqueue(path);
         else
             _stack.Push(path);
-        _visitedVertices.Add(path.Vertices[^1]);
+        _visitedVertices.Add(path.VertexId);
         if (_diagnostics is not null)
             _diagnostics.PeakFrontier = Math.Max(_diagnostics.PeakFrontier, 1);
     }
@@ -192,15 +187,15 @@ internal sealed class GraphTraversalCursorSource : IGraphCursorSource<GraphPath>
     private bool IsAllowed(TraversalPath path)
     {
         if (_options.PathUniqueness == GraphPathUniqueness.Vertex
-            && path.Vertices.Skip(0).Take(path.Vertices.Count - 1).Contains(path.Vertices[^1]))
+            && path.ContainsVertex(path.VertexId, includeCurrent: false))
             return false;
         if (_options.PathUniqueness == GraphPathUniqueness.Edge
-            && path.Edges.Count != path.Edges.Distinct().Count())
+            && path.ContainsEdge(path.EdgeId, includeCurrent: false))
             return false;
         if (_mode == GraphTraversalMode.BreadthFirst
             && _options.PathUniqueness == GraphPathUniqueness.Vertex
             && _deduplicateBreadthFirstEndpoints
-            && !_visitedVertices.Add(path.Vertices[^1]))
+            && !_visitedVertices.Add(path.VertexId))
             return false;
         return true;
     }
@@ -211,7 +206,7 @@ internal sealed class GraphTraversalCursorSource : IGraphCursorSource<GraphPath>
             ? children.Reverse()
             : children)
         {
-            if (child.Edges.Count >= _maxDepth)
+            if (child.Depth >= _maxDepth)
                 continue;
             int frontier = _mode == GraphTraversalMode.BreadthFirst ? _queue.Count : _stack.Count;
             if (frontier >= _options.MaxFrontier)
@@ -232,31 +227,70 @@ internal sealed class GraphTraversalCursorSource : IGraphCursorSource<GraphPath>
     }
 
     private static GraphPath ToPublicPath(TraversalPath path)
-        => new(path.Vertices.ToArray(), path.Edges.ToArray());
+    {
+        var vertices = new GraphElementId[path.Depth + 1];
+        var edges = new GraphElementId[path.Depth];
+        TraversalPath? current = path;
+        for (int index = path.Depth; index >= 0; index--)
+        {
+            vertices[index] = current!.VertexId;
+            if (index > 0)
+                edges[index - 1] = current.EdgeId;
+            current = current.Parent;
+        }
+        return new GraphPath(vertices, edges);
+    }
 
     private sealed class TraversalPath
     {
-        internal TraversalPath(IReadOnlyList<GraphElementId> vertices, IReadOnlyList<GraphElementId> edges)
+        private TraversalPath(
+            TraversalPath? parent,
+            GraphElementId vertexId,
+            GraphElementId edgeId,
+            int depth)
         {
-            Vertices = vertices;
-            Edges = edges;
+            Parent = parent;
+            VertexId = vertexId;
+            EdgeId = edgeId;
+            Depth = depth;
         }
 
-        internal IReadOnlyList<GraphElementId> Vertices { get; }
+        internal TraversalPath? Parent { get; }
 
-        internal IReadOnlyList<GraphElementId> Edges { get; }
+        internal GraphElementId VertexId { get; }
+
+        internal GraphElementId EdgeId { get; }
+
+        internal int Depth { get; }
+
+        internal static TraversalPath Start(GraphElementId vertexId)
+            => new(null, vertexId, default, 0);
 
         internal TraversalPath Extend(GraphElementId vertexId, GraphElementId edgeId)
+            => new(this, vertexId, edgeId, checked(Depth + 1));
+
+        internal bool ContainsVertex(GraphElementId vertexId, bool includeCurrent)
         {
-            var vertices = new GraphElementId[Vertices.Count + 1];
-            for (int index = 0; index < Vertices.Count; index++)
-                vertices[index] = Vertices[index];
-            vertices[^1] = vertexId;
-            var edges = new GraphElementId[Edges.Count + 1];
-            for (int index = 0; index < Edges.Count; index++)
-                edges[index] = Edges[index];
-            edges[^1] = edgeId;
-            return new TraversalPath(vertices, edges);
+            TraversalPath? current = includeCurrent ? this : Parent;
+            while (current is not null)
+            {
+                if (current.VertexId == vertexId)
+                    return true;
+                current = current.Parent;
+            }
+            return false;
+        }
+
+        internal bool ContainsEdge(GraphElementId edgeId, bool includeCurrent)
+        {
+            TraversalPath? current = includeCurrent ? this : Parent;
+            while (current is not null && current.Depth > 0)
+            {
+                if (current.EdgeId == edgeId)
+                    return true;
+                current = current.Parent;
+            }
+            return false;
         }
     }
 }

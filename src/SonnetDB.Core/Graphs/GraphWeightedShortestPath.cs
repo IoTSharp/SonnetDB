@@ -685,19 +685,20 @@ public static class GraphWeightedShortestPathExtensions
         long expandedEdges,
         long snapshotSequence)
     {
-        var vertices = new List<GraphElementId> { targetState.VertexId };
-        var edges = new List<GraphElementId>();
+        var vertices = new GraphElementId[targetState.Depth + 1];
+        var edges = new GraphElementId[targetState.Depth];
+        int vertexIndex = targetState.Depth;
+        int edgeIndex = targetState.Depth - 1;
+        vertices[vertexIndex] = targetState.VertexId;
         SearchState current = targetState;
         while (current.VertexId != startId || current.Depth != 0)
         {
             if (!predecessors.TryGetValue(current, out PathLink predecessor))
                 throw new InvalidDataException("加权路径 predecessor 链不完整。");
-            edges.Add(predecessor.EdgeId);
+            edges[edgeIndex--] = predecessor.EdgeId;
             current = predecessor.State;
-            vertices.Add(current.VertexId);
+            vertices[--vertexIndex] = current.VertexId;
         }
-        vertices.Reverse();
-        edges.Reverse();
         return new GraphWeightedPath(
             new GraphPath(vertices, edges),
             distance,

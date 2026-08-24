@@ -23,6 +23,7 @@ public static class GraphProductionGateRunner
     private const int QuickReaderWorkers = 8;
     private const int QuickSamplesPerReader = 6;
     private const int QuickWriterMutations = 12;
+    private const string CrashReadyFileName = "m40-crash-ready";
 
     /// <summary>按冻结 source-generated schema 验证单个 M40 #367 原始 artifact。</summary>
     /// <param name="artifactPath">待验证 artifact 路径。</param>
@@ -82,6 +83,8 @@ public static class GraphProductionGateRunner
         bool mixedWorkloadPass = false;
         bool checkpointReopenPass = false;
         bool backupRestorePass = false;
+        bool killReopenPass = false;
+        int killReopenCount = 0;
         long peakWorkingSet = Process.GetCurrentProcess().WorkingSet64;
         try
         {
@@ -102,6 +105,9 @@ public static class GraphProductionGateRunner
                     && invariant.VertexCount == QuickVertexCount
                     && invariant.EdgeCount == QuickEdgeCount;
             }
+
+            killReopenPass = RunRealKillReopen(root);
+            killReopenCount = killReopenPass ? 1 : 0;
 
             using (var reopened = Tsdb.Open(CreateQuickOptions(databaseRoot)))
             {
@@ -156,6 +162,7 @@ public static class GraphProductionGateRunner
                     mixed_workload={Status(mixedWorkloadPass)}
                     checkpoint_reopen={Status(checkpointReopenPass)}
                     backup_restore={Status(backupRestorePass)}
+                    kill_reopen={Status(killReopenPass)}
                     reader_workers={QuickReaderWorkers}
                     update_workers=1
                     samples={latencies.Count}
@@ -205,9 +212,9 @@ public static class GraphProductionGateRunner
                     UpdateProfile = "quick-smoke",
                     MaximumCheckpointIntervalMinutes = 0,
                     CheckpointCount = 1,
-                    KillReopenCount = 0,
-                    InvariantCheckCount = 2,
-                    FailedOperationCount = mixedWorkloadPass && checkpointReopenPass && backupRestorePass ? 0 : 1,
+                    KillReopenCount = killReopenCount,
+                    InvariantCheckCount = 2 + killReopenCount,
+                    FailedOperationCount = mixedWorkloadPass && checkpointReopenPass && backupRestorePass && killReopenPass ? 0 : 1,
                     PeakWorkingSetBytes = peakWorkingSet,
                     SyncWalOnEveryWrite = true,
                     AutoCheckpointEnabled = true,
@@ -224,6 +231,7 @@ public static class GraphProductionGateRunner
                     Check("mixed_workload_smoke", mixedWorkloadPass, artifact),
                     Check("checkpoint_reopen_smoke", checkpointReopenPass, artifact),
                     Check("backup_restore_smoke", backupRestorePass, artifact),
+                    Check("kill_reopen_smoke", killReopenPass, artifact),
                 ],
                 PerformanceCapacityChecks =
                 [
@@ -237,7 +245,7 @@ public static class GraphProductionGateRunner
                 Limitations =
                 [
                     "quick 数据不等于 1m vertex/10m edge production-soak。",
-                    "本次仅做正常进程重开，不等于真子进程 kill matrix。",
+                    "本次只覆盖单次 quick 真子进程 kill/reopen，不等于 Production 的每日 kill matrix。",
                     "未执行 Neo4j/PostgreSQL、LDBC、Graphalytics、Couplet C4 或 Native AOT 发布 artifact 验证。",
                     "未运行 168 小时 mixed workload，不能据此改变八模型产品定位。",
                 ],
@@ -251,6 +259,21 @@ public static class GraphProductionGateRunner
         {
             TryDeleteDirectory(root);
         }
+    }
+
+    /// <summary>供 quick 恢复 harness 使用的子进程入口；父进程会在 marker 持久化后主动终止它。</summary>
+    /// <param name="databaseRoot">子进程数据库根目录。</param>
+    public static void RunCrashReopenChild(string databaseRoot)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(databaseRoot);
+        Directory.CreateDirectory(databaseRoot);
+        using Tsdb database = Tsdb.Open(CreateQuickOptions(databaseRoot));
+        GraphStore store = database.Graphs.Create("production_crash");
+        long sequence = WriteQuickFixture(store);
+        string marker = Path.Combine(databaseRoot, CrashReadyFileName);
+        File.WriteAllText(marker, sequence.ToString(CultureInfo.InvariantCulture));
+        using var wait = new ManualResetEventSlim(false);
+        wait.Wait();
     }
 
     /// <summary>读取完整证据清单、校验 artifact 并输出双门禁报告。</summary>
@@ -382,6 +405,69 @@ public static class GraphProductionGateRunner
                 CleanupEnabled = false,
             },
         };
+
+    private static bool RunRealKillReopen(string parentRoot)
+    {
+        string childRoot = Path.Combine(parentRoot, "crash-reopen");
+        string marker = Path.Combine(childRoot, CrashReadyFileName);
+        Directory.CreateDirectory(childRoot);
+        ProcessStartInfo startInfo = CreateSelfStartInfo(childRoot);
+        using Process child = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("无法启动 M40 crash/reopen child process。");
+        try
+        {
+            DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(30);
+            while (!File.Exists(marker) && !child.HasExited && DateTimeOffset.UtcNow < deadline)
+                Thread.Sleep(25);
+            if (!File.Exists(marker) || child.HasExited)
+            {
+                string error = child.StandardError.ReadToEnd();
+                string output = child.StandardOutput.ReadToEnd();
+                throw new InvalidOperationException(
+                    $"M40 crash/reopen child 未发布 durable marker；exit={child.HasExited} code={(child.HasExited ? child.ExitCode : -1)} "
+                    + $"stdout={output} stderr={error}");
+            }
+
+            child.Kill(entireProcessTree: true);
+            child.WaitForExit(10_000);
+            using Tsdb reopened = Tsdb.Open(CreateQuickOptions(childRoot));
+            GraphStore store = reopened.Graphs.Open("production_crash");
+            GraphInvariantReport invariant = GraphInvariantChecker.Check(store);
+            using GraphReadSession read = store.BeginRead();
+            return invariant.IsComplete
+                && invariant.IsValid
+                && invariant.VertexCount == QuickVertexCount
+                && invariant.EdgeCount == QuickEdgeCount
+                && read.GetVertex(new GraphElementId(QuickVertexCount)) is not null;
+        }
+        finally
+        {
+            if (!child.HasExited)
+            {
+                try { child.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+            }
+        }
+    }
+
+    private static ProcessStartInfo CreateSelfStartInfo(string databaseRoot)
+    {
+        string assemblyPath = Path.Combine(AppContext.BaseDirectory, "SonnetDB.Benchmarks.dll");
+        if (!File.Exists(assemblyPath))
+            throw new FileNotFoundException("M40 crash/reopen child benchmark assembly 不存在。", assemblyPath);
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "dotnet",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+        };
+        startInfo.ArgumentList.Add(assemblyPath);
+        startInfo.ArgumentList.Add("--m40-production-crash-child");
+        startInfo.ArgumentList.Add("--root");
+        startInfo.ArgumentList.Add(databaseRoot);
+        return startInfo;
+    }
 
     private static long WriteQuickFixture(GraphStore store)
     {

@@ -6,9 +6,15 @@ namespace SonnetDB.Graphs;
 internal sealed class GraphAlgorithmLongVector : IDisposable
 {
     private const int ValueSize = sizeof(long);
+    private const int PageBytes = 64 * 1024;
     private readonly FileStream _stream;
     private readonly SafeFileHandle _handle;
     private readonly long[]? _memory;
+    private readonly byte[]? _page;
+    private readonly long _pageValueCount = 0;
+    private long _pageStart = -1;
+    private int _pageValues;
+    private bool _pageDirty;
     private bool _dirty;
     private bool _disposed;
 
@@ -37,6 +43,14 @@ internal sealed class GraphAlgorithmLongVector : IDisposable
             if (!create && count > 0)
                 ReadAll(_memory);
         }
+        else
+        {
+            // Keep a bounded page cache for spill vectors. Offline algorithms repeatedly
+            // touch nearby vertex state; one read/write per value amplified random I/O.
+            long pageBytes = Math.Max(ValueSize, Math.Min((long)PageBytes, memoryBudgetBytes));
+            _pageValueCount = Math.Max(1, pageBytes / ValueSize);
+            _page = new byte[checked((int)Math.Min(_pageValueCount * ValueSize, length))];
+        }
     }
 
     internal long Count { get; }
@@ -53,9 +67,9 @@ internal sealed class GraphAlgorithmLongVector : IDisposable
         if (_memory is not null)
             return _memory[checked((int)index)];
 
-        Span<byte> encoded = stackalloc byte[ValueSize];
-        ReadExactly(encoded, checked(index * ValueSize));
-        return BinaryPrimitives.ReadInt64LittleEndian(encoded);
+        EnsurePage(index);
+        return BinaryPrimitives.ReadInt64LittleEndian(
+            _page!.AsSpan(checked((int)((index - _pageStart) * ValueSize)), ValueSize));
     }
 
     internal void Set(long index, long value)
@@ -68,9 +82,11 @@ internal sealed class GraphAlgorithmLongVector : IDisposable
             return;
         }
 
-        Span<byte> encoded = stackalloc byte[ValueSize];
-        BinaryPrimitives.WriteInt64LittleEndian(encoded, value);
-        RandomAccess.Write(_handle, encoded, checked(index * ValueSize));
+        EnsurePage(index);
+        BinaryPrimitives.WriteInt64LittleEndian(
+            _page!.AsSpan(checked((int)((index - _pageStart) * ValueSize)), ValueSize),
+            value);
+        _pageDirty = true;
         _dirty = true;
     }
 
@@ -105,6 +121,8 @@ internal sealed class GraphAlgorithmLongVector : IDisposable
             return;
         if (_memory is not null)
             WriteAll(_memory);
+        else
+            FlushPage();
         _stream.Flush(flushToDisk: true);
         _dirty = false;
     }
@@ -120,6 +138,7 @@ internal sealed class GraphAlgorithmLongVector : IDisposable
         finally
         {
             _disposed = true;
+            _pageStart = -1;
             _stream.Dispose();
         }
     }
@@ -175,6 +194,31 @@ internal sealed class GraphAlgorithmLongVector : IDisposable
                 throw new EndOfStreamException("Graph algorithm vector 被截断。");
             consumed += read;
         }
+    }
+
+    private void EnsurePage(long index)
+    {
+        if (_page is null)
+            throw new InvalidOperationException("Graph algorithm spill page 未初始化。");
+        long pageStart = index - (index % _pageValueCount);
+        if (_pageStart == pageStart)
+            return;
+
+        FlushPage();
+        _pageStart = pageStart;
+        _pageValues = checked((int)Math.Min(_pageValueCount, Count - pageStart));
+        int bytes = checked(_pageValues * ValueSize);
+        Array.Clear(_page, 0, _page.Length);
+        ReadExactly(_page.AsSpan(0, bytes), checked(pageStart * ValueSize));
+    }
+
+    private void FlushPage()
+    {
+        if (!_pageDirty || _page is null || _pageStart < 0)
+            return;
+        int bytes = checked(_pageValues * ValueSize);
+        RandomAccess.Write(_handle, _page.AsSpan(0, bytes), checked(_pageStart * ValueSize));
+        _pageDirty = false;
     }
 
     private void ValidateIndex(long index)

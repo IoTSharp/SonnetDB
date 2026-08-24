@@ -1,6 +1,6 @@
 # 原生属性图数据库路线图
 
-> 本文定义 SonnetDB Milestone 40 的工程路线。2026-08-24 核查结论：Phase 0（#341～#346）公共地基 ✅ 已完成；修复顺序步骤 1~5 的 Graph 正确性、#367 strict evaluator、Phase 1 合同、Phase 2 共享流式/关系 snapshot、`graph_sql_v1` 与 property-aware planner 已关闭；Phase 1 的 #352 证据以及步骤 6~7 的性能/恢复产品闭环仍未完成，#367 Production evidence 尚未运行。M40 整体保持 🚧，不得宣称 Preview/Beta/Production 已通过发布门禁。
+> 本文定义 SonnetDB Milestone 40 的工程路线。2026-08-24 核查结论：Phase 0（#341～#346）公共地基 ✅ 已完成；修复顺序步骤 1~5 的 Graph 正确性、#367 strict evaluator、Phase 1 合同、Phase 2 共享流式/关系 snapshot、`graph_sql_v1` 与 property-aware planner 已关闭；步骤 6~7 的实现加固（路径/离线 spill 分配、维护审计尾部恢复、真实 quick kill/reopen）已落地并通过本地回归，但固定 workload/7 天 parity 证据仍未完成，#367 Production evidence 尚未运行。M40 整体保持 🚧，不得宣称 Preview/Beta/Production 已通过发布门禁。
 
 ## 1. 决策与目标
 
@@ -215,8 +215,8 @@ M40 的权威执行顺序见主 [ROADMAP](../ROADMAP.md#m40-修复与发布执�
 3. ✅ 已补齐 Expand 目标过滤、import batch byte budget/CSV 单行上限和 Phase 1 复杂度/拒绝测试。
 4. ✅ #353 共享 logical plan/pull operators、M41 #373 流式执行，以及 #374 statement snapshot 到关系映射图的接入已完成本地实现与自动化门禁。
 5. ✅ #354 冻结 `graph_sql_v1` 并完成属性 mutation/upsert/update/delete；#358 已用原生 property index/value cardinality 选择 anchor，真实 `EXPLAIN [ANALYZE]` 报告索引、统计来源和 fallback。
-6. 处理 adjacency/path/weighted/offline spill 的分配、GC、复制和随机 I/O 放大。
-7. 闭环 maintenance audit、torn NDJSON、真实 kill/reopen 与 Server/SDK/CLI/Studio parity。
+6. ✅ 已处理 path array 复制和 file-backed offline spill 的随机 I/O 放大：遍历使用 parent-linked path，spill vector 使用有界 page cache；固定 workload 的 latency/allocation/GC/working-set/spill I/O 证据仍待采集。
+7. ✅ Server 与 embedded SDK 已闭环 maintenance audit 的 `applying` 恢复和 torn NDJSON 规则，#367 quick 已覆盖真实子进程 kill/reopen；7 天 kill matrix 与 Server/SDK/CLI/Studio parity 发布证据仍待采集。
 8. 最后运行 Neo4j/PostgreSQL、LDBC/Graphalytics、固定硬件 1m/10m、Native AOT、Couplet 和 7 天 8+1 发布证据。
 
 步骤 1~7 未全部通过前，只允许缺陷回归、evaluator 自测和用于设计决策的 quick/microbenchmark；不得启动或累计固定硬件、外部对拍和 168 小时证据。步骤 1~5 已通过，当前下一门禁为步骤 6 的 adjacency/path/weighted/offline spill 性能加固。正式发布 gate 的原始 artifact、commit、命令、退出码、正确性、恢复、allocation/GC 与 access path 已由 schema-aware evaluator 独立重算，不能信任 manifest 自报结论。

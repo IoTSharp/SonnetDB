@@ -175,7 +175,7 @@ public sealed record GraphMaintenanceApprovalDto
     /// <summary>维护动作。</summary>
     public GraphMaintenanceAction Action { get; init; }
 
-    /// <summary>当前状态：staged、applying、completed、paused、rejected、expired 或 failed。</summary>
+    /// <summary>当前状态：staged、applying、interrupted、completed、paused、rejected、expired 或 failed。</summary>
     public required string State { get; init; }
 
     /// <summary>发起或决策主体。</summary>

@@ -2,7 +2,7 @@
 
 ## 状态与边界
 
-#367 strict evaluator 已完成：`m40-graph-production-input-v2` 只接受带 schema 的 dataset、environment、soak、journey 和 check/closed-gap 原始 artifact，独立重算 manifest 摘要，并校验 artifact SHA-256、真实 commit/HEAD、clean worktree 及结构化复现命令退出码。quick 会真实执行 8 个 reader worker、1 个 update worker、checkpoint、正常进程重开、完整 invariant check 和 `BackupService` verify/restore，但它不是 1m vertex/10m edge、真子进程 kill 或 168 小时运行，因此输出必须保持：
+#367 strict evaluator 已完成：`m40-graph-production-input-v2` 只接受带 schema 的 dataset、environment、soak、journey 和 check/closed-gap 原始 artifact，独立重算 manifest 摘要，并校验 artifact SHA-256、真实 commit/HEAD、clean worktree 及结构化复现命令退出码。quick 会真实执行 8 个 reader worker、1 个 update worker、checkpoint、正常进程重开、一次独立子进程 kill/reopen、完整 invariant check 和 `BackupService` verify/restore，但它不是 1m vertex/10m edge、每日 kill matrix 或 168 小时运行，因此输出必须保持：
 
 ```text
 correctness_recovery: NOT_RUN
@@ -90,7 +90,7 @@ Soak 清单固定为 168 小时、8 reader + 1 update worker、`m40-frozen-updat
 
 ## 当前待执行项
 
-- 完成 M40 主路线图步骤 3~7；在此之前只允许运行缺陷回归、evaluator 自测和用于修复决策的 quick/microbenchmark；
+- 固定并归档步骤 6~7 的性能、恢复与 parity 证据；当前实现 quick 已通过，但在这些证据齐全前仍只允许运行缺陷回归、evaluator 自测和用于修复决策的 quick/microbenchmark；
 - 在冻结目标机上生成 `preview-small`、`gate` 和 `production-soak` 数据并保留三个原始测量轮次；
 - 执行 Neo4j/PostgreSQL、LDBC SNB 与 Graphalytics 对拍；
 - 归档 Couplet C4 的代码知识/Agent 组合语料结果；

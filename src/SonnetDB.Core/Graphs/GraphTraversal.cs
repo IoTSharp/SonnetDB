@@ -57,6 +57,14 @@ public sealed class GraphTraversalLimitExceededException : InvalidOperationExcep
 /// <summary>图中的一条不可变路径。</summary>
 public sealed class GraphPath
 {
+    internal GraphPath(GraphElementId[] vertexIds, GraphElementId[] edgeIds)
+    {
+        ArgumentNullException.ThrowIfNull(vertexIds);
+        ArgumentNullException.ThrowIfNull(edgeIds);
+        VertexIds = vertexIds;
+        EdgeIds = edgeIds;
+    }
+
     /// <summary>创建一条不可变路径。</summary>
     /// <param name="vertexIds">按顺序排列的顶点，数量必须比边多一。</param>
     /// <param name="edgeIds">按顺序排列的边。</param>
