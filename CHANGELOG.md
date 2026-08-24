@@ -5,12 +5,15 @@
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-08-24
+
 ### Changed
 
 - **M40 路线图复盘与执行门禁纠偏**：Phase 0 保持完成，Phase 1/2 改回进行中，明确记录 Expand 双向分页丢边、最短路径预算静默截断、导入字节预算、共享流式执行、关系 statement snapshot、SQL DDL/DML、property-aware planner 和 #367 evaluator 的真实缺口；新增“正确性 -> 证据门禁 -> 合同 -> 架构 -> SQL/planner -> 性能 -> 恢复/parity -> 发布证据”的强制顺序。步骤 1~7 未关闭前不得累计固定硬件、外部对拍或 7 天发布证据，M40 与九模型定位继续保持未完成。
 
 ### Fixed
 
+- **SonnetDB.Core 3.1.0 公共 API 兼容性**：恢复 `3.0.1` 的 `TableSchema.Create`、`CreateTableStatement`、`SelectStatement` 与 `SqlExplainExecutionResult` 位置参数/解构合同，并固定已发布 `TokenKind` 数值；新增能力只扩展 API，不通过 ApiCompat suppression 隐藏破坏性变更。
 - **M40 修复与发布步骤 6 / 7 quick 闭环**：Graph traversal 改为 parent-linked path，避免 frontier child 逐条复制完整 vertex/edge 数组；file-backed offline algorithm vector 增加有界 little-endian page cache，spill 状态按页批量读写。Server 与 embedded SDK 的 maintenance NDJSON 审计统一恢复规则：未终止尾记录可补换行或截回上一条完整记录，已终止坏行仍拒绝；重开发现 `applying` 时追加 durable `interrupted` 终态并保留 maintenance sidecar。#367 quick smoke 新增真实子进程 kill/reopen 验证。固定目标硬件、外部对拍、Native AOT、Couplet 与 168 小时 Production evidence 仍保持 `NOT_RUN`。
 
 - **M40 修复与发布步骤 4 / M41 #373 共享流式执行**：原生 Graph API、原生 SQL 与关系映射 `GRAPH_TABLE` 统一消费 typed logical plan 和分页 pull cursor；固定一跳/路径不再先物化整条 cursor，也不再为每个 match 分配 binding dictionary，外层 `LIMIT` 可停止上游读取。`RelationalGraphReadSession` 在一个 TableManager 捕获窗口按固定锁序冻结全部映射表的 `TableReadSnapshot`，anchor、edge expand 与目标 seek 共用同一组 lease；`EXPLAIN [ANALYZE]` 报告 `paged_cursor`、`fixed_slots`、`statement_snapshot` 和逐表实际 sequence。关系 scan/filter/project 改为惰性枚举，hash join 只 materialize 右侧 build、nested loop 只 materialize 右侧 replay，排序分页使用有界 Top-N，聚合/full sort 保留显式阻塞边界；完整等值 covering index 在谓词和所需列均覆盖时走 `secondary_index_only`，不读取或解码基表行。通用 EXPLAIN 新增 `memory_behavior`，关系 table-to-table JOIN 不再误分派到 measurement JOIN planner。固定硬件、木垒同语料、外部对拍、Native AOT、Couplet 和 168 小时证据保持 `NOT_RUN`；M40 下一门禁为步骤 5，M40 整体仍为 🚧。
@@ -71,6 +74,7 @@
 
 ### Added
 
+- **SonnetDB.Core 3.1.0 原生图依赖交付**：NuGet 包公开 `SonnetDB.Graphs.GraphStore` 及当前 typed transaction、snapshot、cursor、遍历和路径合同，供 Couplet CPL-007 通过固定 `PackageReference` 消费；`3.0.1` 不包含该命名空间，不能作为图能力包。
 - **M40 修复与发布步骤 5（#354/#358）Graph SQL V1 与属性感知规划**：冻结可由 `SHOW/DESCRIBE GRAPH` 发现的 `graph_sql_v1`，明确全部 label/非空 property 自动维护等值索引，不增加无不同物理行为的命名索引 DDL，也不修改 Graph V1 record/key/WAL/backup。`INSERT` 新增 `property_<id>`/unique claim，新增带显式 `element_version` 的完整 `UPSERT`、部分 `UPDATE`、`DELETE` 与 `ANALYZE GRAPH`；每条语句复用一个 `GraphTransaction`，版本冲突不部分发布，vertex delete 保持 `RESTRICT`。`graph_cost_v1` 现在从 MATCH 等值属性谓词选择真实 `native_property_index_seek`，按已刷新 value cardinality 比较左右 anchor，并在 `EXPLAIN [ANALYZE]` 报告实际索引、统计 sequence/freshness、anchor/expand 顺序和 fallback。固定硬件、外部对拍、Couplet 联合与 7 天发布证据仍保持 `NOT_RUN`。
 
 - **M40 Phase 3 #367 Production evidence gate 管线**：新增 source-generated `m40-graph-production-input-v1` 清单、artifact SHA-256/复现命令校验和不可手工覆盖的 correctness/recovery、performance/capacity 双 gate 判定器；冻结检查 16 个 SOC/TOP/EVD/CPL/PGQ 查询的三轮样本、P50/P95/P99、query memory、12 GiB working set、cold open/首查、实际 access path/fallback 与资源计数，严格验证 1m vertex/10m edge、目标硬件、168 小时 8 reader + 1 update worker、30 分钟 checkpoint、每日 kill/reopen、默认耐久参数和 `M40-GAP-001~012`。新增 CLI quick/manifest 入口；quick 真实覆盖并发读写、checkpoint/reopen、invariant 和 backup/restore，但双 gate、外部对拍、LDBC/Graphalytics、Couplet C4、Native AOT 与 7 天证据继续如实为 `NOT_RUN`，不改变八模型定位。
@@ -1437,7 +1441,8 @@
 
 ---
 
-[Unreleased]: https://github.com/IoTSharp/SonnetDB/compare/v3.0.0...HEAD
+[Unreleased]: https://github.com/IoTSharp/SonnetDB/compare/v3.1.0...HEAD
+[3.1.0]: https://github.com/IoTSharp/SonnetDB/compare/v3.0.1...v3.1.0
 [3.0.0]: https://github.com/IoTSharp/SonnetDB/compare/v2.5.0...v3.0.0
 [2.5.0]: https://github.com/IoTSharp/SonnetDB/releases/tag/v2.5.0
 [0.1.0]: https://github.com/maikebing/SonnetDB/releases/tag/v0.1.0
