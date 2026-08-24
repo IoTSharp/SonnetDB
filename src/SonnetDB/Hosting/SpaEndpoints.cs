@@ -34,6 +34,8 @@ internal static class SpaEndpoints
     /// <param name="app">当前 web 应用。</param>
     public static void MapSpa(this WebApplication app)
     {
+        MapAiDiscoveryFiles(app);
+
         if (app.Environment.IsDevelopment())
         {
             MapDevelopmentSpa(app);
@@ -75,6 +77,38 @@ internal static class SpaEndpoints
             }
             return ServeSpaIndexAsync(ctx, webRoot);
         });
+    }
+
+    private static void MapAiDiscoveryFiles(WebApplication app)
+    {
+        app.MapMethods("/llms.txt", ["GET", "HEAD"], (RequestDelegate)(ctx =>
+            ServeAiDiscoveryFileAsync(ctx, app.Environment.WebRootPath, "llms.txt")));
+        app.MapMethods("/llms-full.txt", ["GET", "HEAD"], (RequestDelegate)(ctx =>
+            ServeAiDiscoveryFileAsync(ctx, app.Environment.WebRootPath, "llms-full.txt")));
+    }
+
+    private static async Task ServeAiDiscoveryFileAsync(HttpContext ctx, string? webRoot, string fileName)
+    {
+        var path = string.IsNullOrWhiteSpace(webRoot)
+            ? string.Empty
+            : Path.Combine(webRoot, fileName);
+        if (string.IsNullOrEmpty(path) || !File.Exists(path))
+            path = Path.Combine(AppContext.BaseDirectory, "wwwroot", fileName);
+
+        if (!File.Exists(path))
+        {
+            ctx.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+
+        var bytes = await File.ReadAllBytesAsync(path, ctx.RequestAborted).ConfigureAwait(false);
+        ctx.Response.StatusCode = StatusCodes.Status200OK;
+        ctx.Response.ContentType = "text/plain; charset=utf-8";
+        ctx.Response.Headers.CacheControl = "public, max-age=300";
+        ctx.Response.ContentLength = bytes.Length;
+        if (HttpMethods.IsHead(ctx.Request.Method))
+            return;
+        await ctx.Response.Body.WriteAsync(bytes, ctx.RequestAborted).ConfigureAwait(false);
     }
 
     private static async Task ServeSpaIndexAsync(HttpContext ctx, string webRoot)

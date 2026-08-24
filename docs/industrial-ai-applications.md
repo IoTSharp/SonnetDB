@@ -100,7 +100,9 @@ docker run --rm -p 5080:5080 -v ./sonnetdb-data:/data iotsharp/sonnetdb:latest
 
 为了让开发者和 AI Agent 更容易理解 SonnetDB，仓库维护以下入口：
 
-- `llms.txt`：给模型和 Agent 读取的项目定位、适用场景和关键链接。
+- `llms.txt`：给模型和 Agent 快速读取的项目定位、适用场景、工作流和边界。
+- `llms-full.txt`：给任意大模型使用的完整能力矩阵、接入决策、MCP 合同、安全规则和系统提示词。
+- `docs/ai-agent-guide.md`：面向用户与 Agent 开发者的中文接入指南。
 - `README.md` / `README.en.md`：项目门面，统一说明多模型数据引擎及其能力边界。
 - `docs/sql-reference.md`：SonnetDB SQL 方言的事实来源。
 - `docs/sql-cookbook.md`：可直接复制的查询模板。

@@ -274,7 +274,9 @@ Scan the QR code to join the SonnetDB WeCom (Enterprise WeChat) group for releas
 - Roadmap: [ROADMAP.md](ROADMAP.md)
 - Changelog: [CHANGELOG.md](CHANGELOG.md)
 - AI collaboration guide: [AGENTS.md](AGENTS.md)
-- AI / Agent index: [llms.txt](llms.txt)
+- AI / Agent quick index: [llms.txt](llms.txt)
+- Complete vendor-neutral model context: [llms-full.txt](llms-full.txt)
+- External agents, MCP, and safety: [AI / Agent guide](docs/ai-agent-guide.md)
 
 ## 📄 License
 

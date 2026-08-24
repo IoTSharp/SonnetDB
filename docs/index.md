@@ -45,6 +45,7 @@ SonnetDB 是一款多模型数据引擎。它在一套引擎中提供时序、�
 | 对比 Web Admin、Studio 桌面、VS Code 的八模型管理能力 | [管理工具与三面能力矩阵]({{ site.docs_baseurl | default: '/help' }}/management-tools/) |
 | 了解 Copilot 如何辅助 SQL、排障和知识检索 | [SonnetDB Studio]({{ site.docs_baseurl | default: '/help' }}/web-workbench/) 和 [Copilot 技能库](https://github.com/IoTSharp/SonnetDB/tree/main/copilot/skills) |
 | 配置 Copilot Provider、模型分组或本地模型 | [Copilot Provider 与模型目录]({{ site.docs_baseurl | default: '/help' }}/copilot-providers/) |
+| 让任意大模型或外部 Agent 正确理解并安全使用 SonnetDB | [面向大模型与 AI Agent 使用 SonnetDB]({{ site.docs_baseurl | default: '/help' }}/ai-agent-guide/) |
 | 构建工业 AI 应用或 Industrial Data Agent | [使用 SonnetDB 构建工业 AI 应用]({{ site.docs_baseurl | default: '/help' }}/industrial-ai-applications/) |
 | 在进程内直接使用引擎 | [嵌入式与 in-proc API]({{ site.docs_baseurl | default: '/help' }}/embedded-api/) |
 | 使用轻量 KV keyspace 存储 metadata 或小对象 | [KV Keyspace]({{ site.docs_baseurl | default: '/help' }}/kv-keyspace/) |
@@ -77,7 +78,7 @@ SonnetDB 现在由这些主线组成：
 6. SonnetDB Studio 与 CopilotDock
 7. C、Go、Rust、Java、Python、VB6、PureBasic 等连接器
 8. [SonnetDB for VS Code](https://marketplace.visualstudio.com/items?itemName=iotsharp.sonnetdb-vscode)
-9. 面向 AI / Agent 的 `llms.txt`、MCP 工具和工业应用文档
+9. 面向 AI / Agent 的 `llms.txt`、`llms-full.txt`、MCP 工具和厂商中立使用指南
 
 这几部分共享同一套底层存储格式和大部分 SQL 行为。服务端额外增加了：
 

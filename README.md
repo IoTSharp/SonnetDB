@@ -282,7 +282,9 @@ C# / .NET 是 SonnetDB 的核心实现与主要集成生态；嵌入式、服务
 - 路线图见 [ROADMAP.md](ROADMAP.md)
 - 变更记录见 [CHANGELOG.md](CHANGELOG.md)
 - AI 协作规范见 [AGENTS.md](AGENTS.md)
-- AI / Agent 索引见 [llms.txt](llms.txt)
+- AI / Agent 快速索引见 [llms.txt](llms.txt)
+- 面向任意大模型的完整机器上下文见 [llms-full.txt](llms-full.txt)
+- 外部 Agent、MCP 与安全使用见 [AI / Agent 指南](docs/ai-agent-guide.md)
 
 ## 📄 License
 

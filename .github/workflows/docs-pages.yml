@@ -5,6 +5,8 @@ on:
     branches: [ main ]
     paths:
       - 'docs/**'
+      - 'llms.txt'
+      - 'llms-full.txt'
       - '.config/dotnet-tools.json'
       - '.github/workflows/docs-pages.yml'
   workflow_dispatch:
@@ -68,6 +70,7 @@ jobs:
           dotnet tool run jekyllnet build \
             --source "$RUNNER_TEMP/docs-pages-src" \
             --destination "$RUNNER_TEMP/docs-pages-site"
+          cp llms.txt llms-full.txt "$RUNNER_TEMP/docs-pages-site/"
           touch "$RUNNER_TEMP/docs-pages-site/.nojekyll"
 
       - name: Upload GitHub Pages artifact

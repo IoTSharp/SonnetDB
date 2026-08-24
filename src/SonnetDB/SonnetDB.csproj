@@ -87,6 +87,22 @@
     </None>
   </ItemGroup>
 
+  <!-- 面向任意大模型/Agent 的标准发现入口，发布后由 Server 根路径直接提供。 -->
+  <ItemGroup>
+    <Content Include="$(MSBuildThisFileDirectory)..\..\llms.txt">
+      <Link>wwwroot\llms.txt</Link>
+      <TargetPath>wwwroot\llms.txt</TargetPath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="$(MSBuildThisFileDirectory)..\..\llms-full.txt">
+      <Link>wwwroot\llms-full.txt</Link>
+      <TargetPath>wwwroot\llms-full.txt</TargetPath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
   <!-- Copilot prompt 模板：作为嵌入式资源打包，运行时通过 PromptTemplates 读取 -->
   <ItemGroup>
     <EmbeddedResource Include="Copilot\Prompts\*.md" />
