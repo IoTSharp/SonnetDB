@@ -47,6 +47,8 @@ SQL/PGQ 迁移路径。如果两条路径各自实现 parser、计划、遍历�
   不能作为发布证据。
 - Couplet 可以并行开发 Git、语言解析、代码 schema、只读 MCP 和评测，但只能使用 SonnetDB
   公开合同。缺失 Graph 能力时必须 fail fast 或保持对应功能未发布。
+- Couplet 跨仓联调直接引用最新 SonnetDB 源码；独立 NuGet package consumer 只证明发布兼容，不能让
+  Couplet 固定在缺少新公共合同的旧 package，也不能替代联合门禁。
 - 性能优化如果改变结果、隔离、耐久性或错误语义，即使数字更好也判定失败。
 
 ## 2. 术语
@@ -410,6 +412,15 @@ Gate A 失败时，Gate B 数字仍可用于诊断，但不能形成容量声明
 | `M40-GAP-010` | 关系 mapping 所需共享 pull operator、索引访问和可解释 fallback 若缺失 | SonnetDB M41，重点 #374～#381 | Beta/Production | `open`；由 PGQ trace 触发和关闭，不在 M40 复制关系优化器 |
 | `M40-GAP-011` | filtered ANN、FullText/Vector 候选与 hybrid lifecycle 若不能满足 `CPL-4` | SonnetDB M35/M36 或后续公共里程碑 | Beta、Couplet C3 | `open`；不得隐藏全量 scan |
 | `M40-GAP-012` | Git/worktree、语言解析、代码 schema、增量协调、MCP 和 Agent eval 产品能力 | Couplet C0～C4 | 对应 Couplet 阶段 | `open`；不是 SonnetDB Core 能力，不得反向进入 Core |
+| `M40-GAP-013` | #343 的单 KV snapshot/cursor 与 #346 的既有模型 checkpoint/recovery 无法共同表达跨 KV、Document、FullText 的 generation 原子发布、跨分页 query lease、revision-bound cursor 和 lease-aware retired cleanup | SonnetDB 通用 generation lifecycle + Couplet C1 integration | Couplet C1 / `CG-005` | `core_implemented_joint_verification_pending`；新增 `Tsdb.Generations`、`DatabaseGenerationPublishRequest`、`DatabaseGenerationQueryLease` 和稳定错误码，内部 KV 条件批次只发布完整 descriptor/ownership/active pointer，不持久化 staging。`DatabaseGenerationManagerTests` 已覆盖 A/B reopen、publish 前后 fault、双 lease、cursor stale/tamper、取消/异常、真实 Document+FullText、backup/restore，public API 与独立 package consumer 通过；Couplet 尚未切到最新 SonnetDB 源码并完成双客户端及 correctness/recovery、performance/capacity 联合回归，因此 `CG-005` 保持 active |
+
+`M40-GAP-013` 是对 Phase 0 范围边界的纠偏，不回退 #343/#346 的原验收结论，也不把 Couplet
+产品 schema、MCP 或代码知识合同下沉到 Core。发布后的资源必须由调用方视为 generation 独占且不可变；
+查询先通过 `AcquireActive` 取得 lease，再按逻辑 role 打开该 descriptor 中的真实模型资源，分页 cursor
+始终由同一 lease 创建和校验。`CleanupRetired` 先等待该 revision 的全部进程内 lease 归零，再删除物理
+资源和 ownership/descriptor；active pointer 只在所有资源 checkpoint 与一致性校验成功后通过单个 durable
+条件 batch 改变。publish 前故障没有 catalog staging 可暴露，publish 后故障可由同一个 active descriptor
+恢复完整新 generation，上层不需要第二提交日志。
 
 归责规则：GraphStore、adjacency、事务、路径、统计、恢复和 Graph plan 归 M40；共享关系算子归 M41；
 Document、FullText、Vector、filtered ANN 和 hybrid lifecycle 归 M32/M35/M36 或后续公共里程碑；

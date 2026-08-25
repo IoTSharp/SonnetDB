@@ -1,3 +1,5 @@
+using SonnetDB.Engine;
+using SonnetDB.Generations;
 using SonnetDB.Sql;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
@@ -8,6 +10,40 @@ namespace SonnetDB.Core.Tests.Compatibility;
 
 public sealed class PublicApiCompatibilityTests
 {
+    [Fact]
+    public void DatabaseGeneration_ExtendOnlyPublicContract_IsConsumable()
+    {
+        var resource = new DatabaseGenerationResource(
+            "state",
+            DatabaseGenerationResourceKind.KvKeyspace,
+            "workspace-a");
+        var request = new DatabaseGenerationPublishRequest
+        {
+            Stream = "workspace",
+            GenerationId = "commit-a",
+            ExpectedRevision = 0,
+            Resources = [resource],
+        };
+
+        Assert.Equal("workspace", request.Stream);
+        Assert.Equal("commit-a", request.GenerationId);
+        Assert.Equal(0, request.ExpectedRevision);
+        Assert.Same(resource, Assert.Single(request.Resources));
+        Assert.Equal(typeof(DatabaseGenerationManager), typeof(Tsdb).GetProperty(nameof(Tsdb.Generations))!.PropertyType);
+        Assert.NotNull(typeof(DatabaseGenerationManager).GetMethod(
+            nameof(DatabaseGenerationManager.Publish),
+            [typeof(DatabaseGenerationPublishRequest), typeof(CancellationToken)]));
+        Assert.NotNull(typeof(DatabaseGenerationManager).GetMethod(
+            nameof(DatabaseGenerationManager.AcquireActive),
+            [typeof(string)]));
+        Assert.NotNull(typeof(DatabaseGenerationManager).GetMethod(
+            nameof(DatabaseGenerationManager.CleanupRetired),
+            [typeof(string), typeof(CancellationToken)]));
+        Assert.Equal(1, (int)DatabaseGenerationResourceKind.KvKeyspace);
+        Assert.Equal(2, (int)DatabaseGenerationResourceKind.DocumentCollection);
+        Assert.Equal(3, (int)DatabaseGenerationResourceKind.DocumentFullTextIndex);
+    }
+
     [Fact]
     public void TokenKind_NewMembers_PreserveVersion301NumericValues()
     {

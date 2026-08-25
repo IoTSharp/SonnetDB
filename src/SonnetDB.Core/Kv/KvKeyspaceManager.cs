@@ -95,6 +95,27 @@ public sealed class KvKeyspaceManager : IDisposable
         }
     }
 
+    /// <summary>删除 generation manager 已确认不再被查询租用的独占 keyspace。</summary>
+    /// <param name="name">Keyspace 名称。</param>
+    /// <returns>物理目录存在并删除时返回 <see langword="true"/>。</returns>
+    internal bool Drop(string name)
+    {
+        ValidateName(name);
+
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            if (_opened.Remove(name, out KvKeyspace? keyspace))
+                keyspace.Dispose();
+
+            string root = Path.Combine(KeyspacesDirectory, name);
+            if (!Directory.Exists(root))
+                return false;
+            Directory.Delete(root, recursive: true);
+            return true;
+        }
+    }
+
     /// <summary>
     /// 清理当前已打开 keyspace 中的过期 key。
     /// </summary>

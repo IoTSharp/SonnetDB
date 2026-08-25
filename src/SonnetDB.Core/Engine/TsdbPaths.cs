@@ -55,6 +55,9 @@ public static class TsdbPaths
     /// <summary>KV 子目录名。</summary>
     public const string KvDirName = "kv";
 
+    /// <summary>跨模型 generation catalog 子目录名。</summary>
+    public const string GenerationsDirName = "generations";
+
     /// <summary>关系表子目录名。</summary>
     public const string TablesDirName = "tables";
 
@@ -166,6 +169,14 @@ public static class TsdbPaths
     /// <returns>KV 目录路径。</returns>
     public static string KvDir(string root) =>
         Path.Combine(root, KvDirName);
+
+    /// <summary>
+    /// 返回跨模型 generation catalog 子目录：<c>{root}/generations</c>。
+    /// </summary>
+    /// <param name="root">数据库根目录路径。</param>
+    /// <returns>generation catalog 目录路径。</returns>
+    public static string GenerationsDir(string root) =>
+        Path.Combine(root, GenerationsDirName);
 
     /// <summary>
     /// 返回关系表子目录的完整路径：<c>{root}/tables</c>。

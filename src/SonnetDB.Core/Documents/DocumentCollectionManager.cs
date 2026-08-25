@@ -472,24 +472,20 @@ public sealed class DocumentCollectionManager : IDisposable
             {
                 ThrowIfDisposed();
                 _schemaMutationGuard?.Invoke(name, "DROP DOCUMENT COLLECTION");
-                if (!Catalog.Remove(name))
-                    return false;
+                return DropLocked(name, cleanupOrphanedStorage: false);
+            }
+    }
 
-                if (_stores.Remove(name, out var store))
-                    store.Dispose();
-
-                PersistCatalogLocked();
-                string collectionDirectory = CollectionDirectory(name);
-                if (Directory.Exists(collectionDirectory))
-                    Directory.Delete(collectionDirectory, recursive: true);
-                string fullTextDirectory = Path.Combine(_rootDirectory, "fulltext", EncodeName(name));
-                if (Directory.Exists(fullTextDirectory))
-                    Directory.Delete(fullTextDirectory, recursive: true);
-                string vectorDirectory = Path.Combine(_rootDirectory, "vector", EncodeName(name));
-                if (Directory.Exists(vectorDirectory))
-                    Directory.Delete(vectorDirectory, recursive: true);
-
-                return true;
+    /// <summary>幂等删除 retired generation 独占的 collection 及崩溃遗留目录。</summary>
+    internal bool DropGenerationResource(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        lock (_schemaSync)
+            lock (_sync)
+            {
+                ThrowIfDisposed();
+                _schemaMutationGuard?.Invoke(name, "DROP DOCUMENT COLLECTION");
+                return DropLocked(name, cleanupOrphanedStorage: true);
             }
     }
 
@@ -570,6 +566,31 @@ public sealed class DocumentCollectionManager : IDisposable
             index => DocumentVectorIndexStore.Open(VectorIndexDirectory(schema.Name, index.Name), index, _kvOptions));
         _stores[schema.Name] = store;
         return store;
+    }
+
+    private bool DropLocked(string name, bool cleanupOrphanedStorage)
+    {
+        bool removedCatalog = Catalog.Remove(name);
+        if (!removedCatalog && !cleanupOrphanedStorage)
+            return false;
+
+        if (_stores.Remove(name, out DocumentCollectionStore? store))
+            store.Dispose();
+        if (removedCatalog)
+            PersistCatalogLocked();
+
+        bool removedStorage = DeleteDirectoryIfExists(CollectionDirectory(name));
+        removedStorage |= DeleteDirectoryIfExists(Path.Combine(_rootDirectory, "fulltext", EncodeName(name)));
+        removedStorage |= DeleteDirectoryIfExists(Path.Combine(_rootDirectory, "vector", EncodeName(name)));
+        return removedCatalog || removedStorage;
+    }
+
+    private static bool DeleteDirectoryIfExists(string directory)
+    {
+        if (!Directory.Exists(directory))
+            return false;
+        Directory.Delete(directory, recursive: true);
+        return true;
     }
 
     private string CollectionDirectory(string name) => Path.Combine(_rootDirectory, "collections", EncodeName(name));

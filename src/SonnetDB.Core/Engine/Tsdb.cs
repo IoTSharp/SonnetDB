@@ -4,6 +4,7 @@ using SonnetDB.Diagnostics;
 using SonnetDB.Documents;
 using SonnetDB.Engine.Compaction;
 using SonnetDB.Engine.Retention;
+using SonnetDB.Generations;
 using SonnetDB.Graphs;
 using SonnetDB.Kv;
 using SonnetDB.Memory;
@@ -49,6 +50,7 @@ public sealed class Tsdb : IDisposable
     private readonly TableManager _tables;
     private readonly ModbusManager _modbus;
     private readonly DocumentCollectionManager _documents;
+    private readonly DatabaseGenerationManager _generations;
     private readonly ViewManager _views;
     private readonly MaterializedViewManager _materializedViews;
     private readonly RoutineManager _routines;
@@ -132,6 +134,11 @@ public sealed class Tsdb : IDisposable
     /// JSON 文档集合管理器，提供 document collection schema catalog 与 KV-backed 主数据。
     /// </summary>
     public DocumentCollectionManager Documents => _documents;
+
+    /// <summary>
+    /// 跨 KV、Document 与 FullText 资源的原子 generation 发布、查询租约和 retired 清理管理器。
+    /// </summary>
+    public DatabaseGenerationManager Generations => _generations;
 
     /// <summary>
     /// 逻辑视图管理器，提供持久化定义目录与依赖查询。
@@ -386,6 +393,12 @@ public sealed class Tsdb : IDisposable
             EnsureNoViewDependents,
             _tables,
             _schemaSync);
+        _generations = new DatabaseGenerationManager(
+            TsdbPaths.GenerationsDir(options.RootDirectory),
+            options.Kv,
+            _keyspaces,
+            _documents,
+            _schemaSync);
         Measurements.MutationGuard = EnsureManagedMeasurementCatalogMutation;
         _checkpointLsn = checkpointLsn;
         _lastTombstoneCheckpointUtcTicks = DateTime.UtcNow.Ticks;
@@ -405,6 +418,7 @@ public sealed class Tsdb : IDisposable
         Directory.CreateDirectory(TsdbPaths.WalDir(root));
         Directory.CreateDirectory(TsdbPaths.SegmentsDir(root));
         Directory.CreateDirectory(TsdbPaths.KvDir(root));
+        Directory.CreateDirectory(TsdbPaths.GenerationsDir(root));
         Directory.CreateDirectory(TsdbPaths.TablesDir(root));
         Directory.CreateDirectory(TsdbPaths.DocumentsDir(root));
         Directory.CreateDirectory(TsdbPaths.ViewsDir(root));
@@ -967,11 +981,12 @@ public sealed class Tsdb : IDisposable
 
                 Tables.CheckpointAll();
                 Documents.CompactAll();
-                return Graphs.ExecuteConsistentBackup(() =>
-                {
-                    var checkpointedKeyspaces = Keyspaces.CheckpointOpened();
-                    return afterCheckpoint(this, options, checkpointedKeyspaces);
-                });
+                return Generations.ExecuteConsistentBackup(() =>
+                    Graphs.ExecuteConsistentBackup(() =>
+                    {
+                        var checkpointedKeyspaces = Keyspaces.CheckpointOpened();
+                        return afterCheckpoint(this, options, checkpointedKeyspaces);
+                    }));
             }
         }
     }
@@ -1138,23 +1153,30 @@ public sealed class Tsdb : IDisposable
                             {
                                 try
                                 {
-                                    _documents.Dispose();
+                                    _generations.Dispose();
                                 }
                                 finally
                                 {
                                     try
                                     {
-                                        _graphs.Dispose();
+                                        _documents.Dispose();
                                     }
                                     finally
                                     {
                                         try
                                         {
-                                            _keyspaces.Dispose();
+                                            _graphs.Dispose();
                                         }
                                         finally
                                         {
-                                            Segments.Dispose();
+                                            try
+                                            {
+                                                _keyspaces.Dispose();
+                                            }
+                                            finally
+                                            {
+                                                Segments.Dispose();
+                                            }
                                         }
                                     }
                                 }
@@ -1996,6 +2018,7 @@ public sealed class Tsdb : IDisposable
                 _walGroupCommit.Dispose();
                 _modbus.Dispose();
                 _tables.Dispose();
+                _generations.Dispose();
                 _documents.Dispose();
                 _graphs.Dispose();
                 _keyspaces.Dispose();
