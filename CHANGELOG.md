@@ -17,6 +17,8 @@
 
 ### Fixed
 
+- **Testcontainers Docker 构建上下文**：为 Server Dockerfile 增加专属 `Dockerfile.dockerignore`，匹配 Testcontainers 4.14.0 从 Dockerfile 目录读取 ignore 文件的行为，避免 IoTSharp 集成测试把 `artifacts`、`bin`、`obj` 等并发变化的构建输出打入临时 tar；新增真实归档回归验证必要源码保留且构建输出全部排除。
+
 - **SonnetDB.Core 公共 API 兼容性**：恢复 `3.0.1` 的 `TableSchema.Create`、`CreateTableStatement`、`SelectStatement` 与 `SqlExplainExecutionResult` 位置参数/解构合同，并恢复 `3.0.1` 的 `TokenKind` 数值，不通过 suppression 隐藏破坏性变更。由于 `3.1.0` 已发布另一套枚举数值，后续版本必须先明确兼容策略，不能把当前修复直接视为同时兼容 `3.0.1` 与 `3.1.0` 的 patch。
 
 ## [3.1.0] - 2026-08-24
