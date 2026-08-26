@@ -709,6 +709,7 @@ internal static class TableSqlExecutor
         var store = tsdb.Tables.Open(schema.Name);
         var mutations = new List<TableRowMutation>();
         var candidateRows = LoadMutationCandidateRows(store, schema, where, out bool predicateSatisfied);
+        RecordMutationCandidateRows(store, schema, where, candidateRows.Count);
         foreach (var row in candidateRows)
         {
             SqlExecutor.ThrowIfCancellationRequested();
@@ -734,10 +735,15 @@ internal static class TableSqlExecutor
 
         var schema = tsdb.Tables.Catalog.TryGet(statement.TableName)
             ?? throw new InvalidOperationException($"table '{statement.TableName}' 不存在。");
+        MutationAliasValidator.Validate(statement);
         var store = tsdb.Tables.Open(schema.Name);
         var assignments = BindAssignments(statement, schema);
         // IN 子查询可能间接执行用户代码，必须在表管理锁之外完成物化；赋值表达式仍在锁内按最新行求值。
-        var where = TableInSubqueryExecutor.Materialize(tsdb, statement.Where, schema);
+        var where = TableInSubqueryExecutor.Materialize(
+            tsdb,
+            statement.Where,
+            schema,
+            statement.TableAlias ?? schema.Name);
 
         // UDF 是任意用户回调，可能等待另一个 SQL 线程，不能在全局表管理锁内执行。
         if (ContainsUserScalarFunction(tsdb.Functions, where)
@@ -762,6 +768,7 @@ internal static class TableSqlExecutor
     {
         var mutations = new List<TableRowMutation>();
         var candidateRows = LoadMutationCandidateRows(store, schema, where, out bool predicateSatisfied);
+        RecordMutationCandidateRows(store, schema, where, candidateRows.Count);
         foreach (var row in candidateRows)
         {
             SqlExecutor.ThrowIfCancellationRequested();
@@ -841,10 +848,15 @@ internal static class TableSqlExecutor
 
         var schema = tsdb.Tables.Catalog.TryGet(statement.TableName)
             ?? throw new InvalidOperationException($"table '{statement.TableName}' 不存在。");
+        MutationAliasValidator.Validate(statement);
         ThrowIfBufferedTargetMakesSubqueryViewInconsistent(transaction, schema, statement.Where);
         var store = tsdb.Tables.Open(schema.Name);
         var assignments = BindAssignments(statement, schema);
-        var where = TableInSubqueryExecutor.Materialize(tsdb, statement.Where, schema);
+        var where = TableInSubqueryExecutor.Materialize(
+            tsdb,
+            statement.Where,
+            schema,
+            statement.TableAlias ?? schema.Name);
 
         var mutations = new List<TableRowMutation>();
         var rowChanges = new List<TableRowChange>();
@@ -852,13 +864,21 @@ internal static class TableSqlExecutor
         bool predicateSatisfied;
         if (transaction.TryGetBufferedMutations(schema.Name, out var buffered))
         {
-            candidateRows = ApplyMutationOverlay(schema, store.Scan(), buffered);
+            candidateRows = TryLoadPrimaryKeyCandidateRowsWithOverlay(
+                store,
+                schema,
+                where,
+                buffered,
+                out var primaryKeyRows)
+                ? primaryKeyRows
+                : ApplyMutationOverlay(schema, store.Scan(), buffered);
             predicateSatisfied = false;
         }
         else
         {
             candidateRows = LoadMutationCandidateRows(store, schema, where, out predicateSatisfied);
         }
+        RecordMutationCandidateRows(store, schema, where, candidateRows.Count);
         foreach (var row in candidateRows)
         {
             if (!predicateSatisfied && !EvaluateWhere(where, schema, row.Values))
@@ -913,14 +933,22 @@ internal static class TableSqlExecutor
         bool predicateSatisfied;
         if (transaction.TryGetBufferedMutations(schema.Name, out var buffered))
         {
-            // DELETE 必须读取本事务前序写入；叠加后索引谓词已不能直接视为满足。
-            candidateRows = ApplyMutationOverlay(schema, store.Scan(), buffered);
+            // 完整主键条件只需合并目标键；其他条件仍扫描叠加，避免漏掉事务内新增或改键行。
+            candidateRows = TryLoadPrimaryKeyCandidateRowsWithOverlay(
+                store,
+                schema,
+                where,
+                buffered,
+                out var primaryKeyRows)
+                ? primaryKeyRows
+                : ApplyMutationOverlay(schema, store.Scan(), buffered);
             predicateSatisfied = false;
         }
         else
         {
             candidateRows = LoadMutationCandidateRows(store, schema, where, out predicateSatisfied);
         }
+        RecordMutationCandidateRows(store, schema, where, candidateRows.Count);
 
         foreach (var row in candidateRows)
         {
@@ -1659,6 +1687,22 @@ internal static class TableSqlExecutor
         return rows;
     }
 
+    /// <summary>把关系 UPDATE/DELETE 的实际候选访问路径归属到当前 SQL 指标。</summary>
+    private static void RecordMutationCandidateRows(
+        TableStore store,
+        TableSchema schema,
+        SqlExpression where,
+        int candidateRows)
+    {
+        if (!SqlExecutionTelemetry.IsEnabled)
+            return;
+
+        TableExistsAccessPlan plan = PlanExistsAccess(store, schema, where);
+        SqlExecutionTelemetry.RecordAccessPath(plan.AccessPath, plan.IndexName, plan.FallbackReason);
+        SqlExecutionTelemetry.RecordCandidateRows(candidateRows);
+        SqlExecutionTelemetry.RecordExaminedRows(candidateRows);
+    }
+
     private static bool CanUsePrimaryKeyPointLookup(TableColumnType type, object value)
         => type switch
         {
@@ -1676,9 +1720,9 @@ internal static class TableSqlExecutor
 
     /// <summary>
     /// SELECT 候选行加载：在已提交基线上叠加当前 ambient 轻事务对本表的缓冲写（read-your-writes，#218）。
-    /// 无活动事务、事务已结束或该表无缓冲写时走既有 PK/二级索引/scan 快路径；一旦本表有缓冲写，
-    /// 则改为全表 scan 后叠加缓冲变更（快路径可能漏掉尚未提交的插入行或返回被缓冲更新覆盖前的旧值），
-    /// 由调用方 WHERE 再过滤。事务 UPDATE/DELETE 也复用该叠加逻辑读取自身前序缓冲。
+    /// 无活动事务、事务已结束或该表无缓冲写时走既有 PK/二级索引/scan 快路径。完整主键等值条件
+    /// 只合并目标键的已提交行与事务 mutation；其他条件仍全表 scan 后叠加缓冲变更，避免漏掉尚未
+    /// 提交的插入行或返回被缓冲更新覆盖前的旧值。事务 UPDATE/DELETE 也复用该语义。
     /// </summary>
     internal static IReadOnlyList<TableRow> LoadSelectCandidateRows(
         TableStore store,
@@ -1689,7 +1733,14 @@ internal static class TableSqlExecutor
         var transaction = SqlTransactionContext.Current;
         IReadOnlyList<TableRow> rows;
         if (transaction is not null && transaction.TryGetBufferedMutations(schema.Name, out var buffered))
-            rows = ApplyMutationOverlay(schema, store.Scan(), buffered);
+            rows = TryLoadPrimaryKeyCandidateRowsWithOverlay(
+                store,
+                schema,
+                where,
+                buffered,
+                out var primaryKeyRows)
+                ? primaryKeyRows
+                : ApplyMutationOverlay(schema, store.Scan(), buffered);
         else
             rows = LoadCandidateRows(store, schema, where);
 
@@ -1718,7 +1769,14 @@ internal static class TableSqlExecutor
         if (SqlTransactionContext.Current is { } transaction
             && transaction.TryGetBufferedMutations(schema.Name, out var buffered))
         {
-            candidates = ApplyMutationOverlay(schema, store.Scan(), buffered);
+            candidates = TryLoadPrimaryKeyCandidateRowsWithOverlay(
+                store,
+                schema,
+                where,
+                buffered,
+                out var primaryKeyRows)
+                ? primaryKeyRows
+                : ApplyMutationOverlay(schema, store.Scan(), buffered);
         }
         else if (TryExtractPrimaryKeyValues(
             schema,
@@ -1847,12 +1905,6 @@ internal static class TableSqlExecutor
     {
         ArgumentNullException.ThrowIfNull(schema);
 
-        if (SqlTransactionContext.Current is { } transaction
-            && transaction.TryGetBufferedMutations(schema.Name, out _))
-        {
-            return CreateTransactionOverlayExistsPlan(where);
-        }
-
         if (CanUsePrimaryKeyLookup(schema, where))
         {
             bool predicateCovered = IsWhereFullyCoveredByPrimaryKey(where, schema);
@@ -1863,6 +1915,12 @@ internal static class TableSqlExecutor
                 IndexPlan: null,
                 PredicateCovered: predicateCovered,
                 HasResidualPredicate: !predicateCovered);
+        }
+
+        if (SqlTransactionContext.Current is { } transaction
+            && transaction.TryGetBufferedMutations(schema.Name, out _))
+        {
+            return CreateTransactionOverlayExistsPlan(where);
         }
 
         if (TryChooseInAccessPlan(schema, where, out var inPlan))
@@ -2245,10 +2303,20 @@ internal static class TableSqlExecutor
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(schema);
 
-        var plan = PlanExistsAccess(store, schema, where);
         var transaction = SqlTransactionContext.Current;
+        var plan = PlanExistsAccess(store, schema, where);
         if (transaction is not null && transaction.TryGetBufferedMutations(schema.Name, out var buffered))
         {
+            if (TryLoadPrimaryKeyCandidateRowsWithOverlay(
+                store,
+                schema,
+                where,
+                buffered,
+                out var primaryKeyRows))
+            {
+                return new TableExistsCandidateRows(plan, primaryKeyRows);
+            }
+
             var overlayRows = ApplyMutationOverlay(schema, store.Scan(), buffered);
             return new TableExistsCandidateRows(plan, overlayRows);
         }
@@ -2335,6 +2403,22 @@ internal static class TableSqlExecutor
         var transaction = SqlTransactionContext.Current;
         if (transaction is not null && transaction.TryGetBufferedMutations(schema.Name, out var buffered))
         {
+            if (TryLoadPrimaryKeyCandidateRowsWithOverlay(
+                store,
+                schema,
+                statement.Where,
+                buffered,
+                out var primaryKeyRows))
+            {
+                return (
+                    ObserveCandidateRows(
+                        primaryKeyRows,
+                        "primary_key",
+                        "primary",
+                        fallbackReason: null),
+                    false);
+            }
+
             return (
                 ObserveCandidateRows(
                     ApplyMutationOverlay(schema, store.Scan(), buffered),
@@ -2804,6 +2888,50 @@ internal static class TableSqlExecutor
     /// <summary>判断 WHERE 是否仅由一个正向 IN 谓词组成。</summary>
     private static bool IsWhereOnlyInPredicate(SqlExpression? where)
         => where is InExpression { Negated: false, Subquery: null };
+
+    /// <summary>
+    /// 对完整主键等值条件执行事务内点查：先读取已提交目标行，再仅检查当前事务的小型 mutation 集。
+    /// mutation 若修改主键，会先从旧键移除、再按新键加入，保持与全表 overlay 相同的可见性。
+    /// </summary>
+    private static bool TryLoadPrimaryKeyCandidateRowsWithOverlay(
+        TableStore store,
+        TableSchema schema,
+        SqlExpression? where,
+        IReadOnlyList<TableRowMutation> mutations,
+        out IReadOnlyList<TableRow> rows)
+    {
+        rows = [];
+        if (!TryExtractPrimaryKeyValues(
+            schema,
+            where,
+            allowExtraPredicates: true,
+            out var keyValues,
+            allowNonEqualityExtraPredicates: true))
+        {
+            return false;
+        }
+
+        byte[] targetKey = TableKeyCodec.EncodePrimaryKeyValues(schema, keyValues);
+        TableRow? current = store.GetByPrimaryKey(keyValues);
+        foreach (var mutation in mutations)
+        {
+            byte[]? oldKey = mutation.PrimaryKeyValues is null
+                ? null
+                : TableKeyCodec.EncodePrimaryKeyValues(schema, mutation.PrimaryKeyValues);
+            if (oldKey is not null && oldKey.AsSpan().SequenceEqual(targetKey))
+                current = null;
+
+            if (mutation.NewValues is null)
+                continue;
+
+            byte[] newKey = TableKeyCodec.EncodePrimaryKey(schema, mutation.NewValues);
+            if (newKey.AsSpan().SequenceEqual(targetKey))
+                current = new TableRow(mutation.NewValues.ToArray(), newKey);
+        }
+
+        rows = current is null ? [] : [current];
+        return true;
+    }
 
     /// <summary>
     /// 把轻事务缓冲的 insert/update/delete 叠加到已提交基线行上（按主键合并，保序追加新插入）。

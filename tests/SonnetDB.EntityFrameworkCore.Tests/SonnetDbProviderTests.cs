@@ -94,6 +94,42 @@ public sealed class SonnetDbProviderTests : IDisposable
     }
 
     /// <summary>
+    /// 验证 EF Core ExecuteUpdateAsync 生成的目标表别名可由 SonnetDB 完整解析并执行。
+    /// </summary>
+    [Fact]
+    public async Task ExecuteUpdateAsync_WithTargetAlias_PerformsConditionalUpdate()
+    {
+        var interceptor = new CommandTimeoutCaptureInterceptor();
+        var options = new DbContextOptionsBuilder<DeviceContext>()
+            .UseSonnetDB($"Data Source={_root}")
+            .AddInterceptors(interceptor)
+            .ConfigureWarnings(warnings => warnings.Ignore(RelationalEventId.PendingModelChangesWarning))
+            .Options;
+        using var context = new DeviceContext(options);
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE \"Devices\" (\"Id\" INT NOT NULL, \"Name\" STRING NOT NULL, \"Enabled\" BOOL NOT NULL, PRIMARY KEY (\"Id\"))");
+        context.Devices.AddRange(
+            new Device { Id = 1, Name = "pump", Enabled = true },
+            new Device { Id = 2, Name = "fan", Enabled = false });
+        await context.SaveChangesAsync();
+
+        var id = 1L;
+        var changed = await context.Devices
+            .Where(item => item.Id == id && item.Enabled)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(item => item.Enabled, false)
+                .SetProperty(item => item.Name, "pump-offline"));
+
+        Assert.Equal(1, changed);
+        Assert.Contains("UPDATE \"Devices\" AS ", interceptor.LastCommand!.CommandText, StringComparison.Ordinal);
+        context.ChangeTracker.Clear();
+        var updated = await context.Devices.SingleAsync(item => item.Id == id);
+        Assert.False(updated.Enabled);
+        Assert.Equal("pump-offline", updated.Name);
+        Assert.True(await context.Devices.Where(item => item.Id == 2).Select(item => item.Enabled).SingleAsync() is false);
+    }
+
+    /// <summary>
     /// 验证 EF Core 的参数化 AnyAsync 生成 EXISTS，并在同一查询形状下保持命中、未命中和 NULL 语义。
     /// </summary>
     [Fact]

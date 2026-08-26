@@ -124,6 +124,36 @@ public sealed class TableReadSnapshotTests : IDisposable
         keyspace.Compact();
     }
 
+    /// <summary>验证主键单点读取不会复制大型覆盖层，且分配量不随表规模线性增长。</summary>
+    [Fact]
+    public void GetByPrimaryKey_WithLargeOverlay_DoesNotAcquireSnapshotOrScanTable()
+    {
+        TableSchema schema = CreateSchema();
+        using var keyspace = KvKeyspace.Open("table.primary-key", _root, Options());
+        using var store = new TableStore(schema, keyspace);
+        for (var index = 0; index < 8_192; index++)
+            store.Upsert([(long)index, "north", "idle"]);
+
+        Assert.Equal(4_096L, store.GetByPrimaryKey([4_096L])!.Values[0]);
+
+        var snapshotsAcquired = 0;
+        store.ReadSnapshotAcquiredTestHook = () => snapshotsAcquired++;
+        long scansBefore = store.FullScanCount;
+        long lookupsBefore = store.PrimaryKeyLookupCount;
+        long allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+
+        for (var index = 0; index < 64; index++)
+            Assert.Equal(4_096L, store.GetByPrimaryKey([4_096L])!.Values[0]);
+
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+        Assert.Equal(0, snapshotsAcquired);
+        Assert.Equal(scansBefore, store.FullScanCount);
+        Assert.Equal(lookupsBefore + 64, store.PrimaryKeyLookupCount);
+        Assert.True(
+            allocated < 1024 * 1024,
+            $"64 primary-key lookups allocated {allocated:N0} bytes over an 8,192-row overlay.");
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_root, recursive: true); } catch { }

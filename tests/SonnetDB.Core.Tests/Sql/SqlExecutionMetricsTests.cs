@@ -1,4 +1,6 @@
 using SonnetDB.Engine;
+using SonnetDB.Sql;
+using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
 using Xunit;
 
@@ -65,6 +67,226 @@ public sealed class SqlExecutionMetricsTests : IDisposable
         Assert.Equal(3, snapshot.CandidateRows);
         Assert.Equal(3, snapshot.ExaminedRows);
         Assert.Equal(3, snapshot.LogicalReads);
+    }
+
+    /// <summary>主键 UPDATE 应报告点读路径及单行候选，不再表现为无证据的高分配写入。</summary>
+    [Fact]
+    public void Execute_PrimaryKeyUpdate_ReportsPointMutationEvidence()
+    {
+        using var db = CreateDatabase();
+        var metrics = new SqlExecutionMetrics();
+
+        var result = Assert.IsType<RowsAffectedExecutionResult>(SqlExecutor.Execute(
+            db,
+            databaseName: "m41_metrics",
+            "UPDATE audits AS a SET status = 'done' WHERE a.id = 2 AND a.status = 'ready'",
+            parameters: null,
+            controlPlane: null,
+            new SqlExecutionOptions { Metrics = metrics }));
+        SqlExecutionMetricsSnapshot snapshot = metrics.Complete();
+
+        Assert.Equal(1, result.RowsAffected);
+        Assert.Equal("primary_key", snapshot.AccessPath);
+        Assert.Equal("primary", snapshot.IndexName);
+        Assert.Equal(1, snapshot.CandidateRows);
+        Assert.Equal(1, snapshot.ExaminedRows);
+        Assert.Equal(1, snapshot.LogicalReads);
+    }
+
+    /// <summary>无索引 DELETE 应明确报告候选扫描放大，便于从 Top Query 定位写路径。</summary>
+    [Fact]
+    public void Execute_UnindexedDelete_ReportsMutationScanEvidence()
+    {
+        using var db = CreateDatabase();
+        var metrics = new SqlExecutionMetrics();
+
+        var result = Assert.IsType<DeleteExecutionResult>(SqlExecutor.Execute(
+            db,
+            databaseName: "m41_metrics",
+            "DELETE FROM audits WHERE status = 'missing'",
+            parameters: null,
+            controlPlane: null,
+            new SqlExecutionOptions { Metrics = metrics }));
+        SqlExecutionMetricsSnapshot snapshot = metrics.Complete();
+
+        Assert.Equal(0, result.SeriesAffected);
+        Assert.Equal("table_scan", snapshot.AccessPath);
+        Assert.Equal("no_sargable_predicate", snapshot.FallbackReason);
+        Assert.Equal(3, snapshot.CandidateRows);
+        Assert.Equal(3, snapshot.ExaminedRows);
+        Assert.Equal(3, snapshot.LogicalReads);
+    }
+
+    /// <summary>事务已有同表写入时，完整复合主键 UPDATE 仍应只合并目标键而不扫描全表。</summary>
+    [Fact]
+    public void QueueUpdate_CompositePrimaryKeyWithBufferedWrite_UsesPointLookup()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.Execute(db, """
+            CREATE TABLE attribute_latest (
+                catalog INT,
+                device_id STRING,
+                key_name STRING,
+                value INT,
+                PRIMARY KEY (catalog, device_id, key_name))
+            """);
+        var store = db.Tables.Open("attribute_latest");
+        for (var index = 0; index < 8_192; index++)
+            store.Upsert([1L, $"device-{index:D5}", "last_activity", 0L]);
+
+        var transaction = new SqlTransactionContext();
+        using var transactionScope = SqlTransactionContext.EnterScope(transaction);
+        TableSqlExecutor.QueueUpdate(
+            transaction,
+            db,
+            Assert.IsType<UpdateStatement>(SqlParser.Parse("""
+                UPDATE attribute_latest
+                SET value = 1
+                WHERE catalog = 1 AND device_id = 'device-00001' AND key_name = 'last_activity'
+                """)));
+
+        var targetUpdate = Assert.IsType<UpdateStatement>(SqlParser.Parse("""
+            UPDATE attribute_latest
+            SET value = 2
+            WHERE catalog = 1 AND device_id = 'device-04096' AND key_name = 'last_activity'
+            """));
+        long scansBefore = store.FullScanCount;
+        long lookupsBefore = store.PrimaryKeyLookupCount;
+        var metrics = new SqlExecutionMetrics();
+        RowsAffectedExecutionResult result;
+        using (SqlExecutionTelemetry.Enter(metrics))
+            result = TableSqlExecutor.QueueUpdate(transaction, db, targetUpdate);
+        SqlExecutionMetricsSnapshot snapshot = metrics.Complete();
+
+        Assert.Equal(1, result.RowsAffected);
+        Assert.Equal(scansBefore, store.FullScanCount);
+        Assert.Equal(lookupsBefore + 1, store.PrimaryKeyLookupCount);
+        Assert.Equal("primary_key", snapshot.AccessPath);
+        Assert.Equal("primary", snapshot.IndexName);
+        Assert.Null(snapshot.FallbackReason);
+        Assert.Equal(1, snapshot.CandidateRows);
+        Assert.Equal(1, snapshot.ExaminedRows);
+        Assert.True(
+            snapshot.AllocatedBytes < 1024 * 1024,
+            $"事务内复合主键 UPDATE 分配了 {snapshot.AllocatedBytes:N0} bytes。");
+
+        Assert.Equal(2, TableSqlExecutor.CommitTransaction(db, transaction).RowsAffected);
+        var selected = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT value FROM attribute_latest
+            WHERE catalog = 1 AND device_id = 'device-04096' AND key_name = 'last_activity'
+            """));
+        Assert.Equal(2L, Assert.Single(selected.Rows)[0]);
+    }
+
+    /// <summary>事务内同键 UPDATE 后按复合主键 DELETE 应合并目标 mutation，不得扫描全表。</summary>
+    [Fact]
+    public void QueueDelete_CompositePrimaryKeyAfterBufferedUpdate_UsesPointLookup()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.Execute(db, """
+            CREATE TABLE delete_latest (
+                catalog INT,
+                device_id STRING,
+                key_name STRING,
+                value INT,
+                PRIMARY KEY (catalog, device_id, key_name))
+            """);
+        SqlExecutor.Execute(db, """
+            INSERT INTO delete_latest (catalog, device_id, key_name, value)
+            VALUES (1, 'device-00001', 'last_activity', 0)
+            """);
+        var schema = db.Tables.Catalog.TryGet("delete_latest")!;
+        var store = db.Tables.Open(schema.Name);
+        var transaction = new SqlTransactionContext();
+        using var transactionScope = SqlTransactionContext.EnterScope(transaction);
+        TableSqlExecutor.QueueUpdate(
+            transaction,
+            db,
+            Assert.IsType<UpdateStatement>(SqlParser.Parse("""
+                UPDATE delete_latest
+                SET value = 1
+                WHERE catalog = 1 AND device_id = 'device-00001' AND key_name = 'last_activity'
+                """)));
+
+        var targetDelete = Assert.IsType<DeleteStatement>(SqlParser.Parse("""
+            DELETE FROM delete_latest
+            WHERE catalog = 1 AND device_id = 'device-00001' AND key_name = 'last_activity'
+            """));
+        long scansBefore = store.FullScanCount;
+        long lookupsBefore = store.PrimaryKeyLookupCount;
+        var metrics = new SqlExecutionMetrics();
+        RowsAffectedExecutionResult result;
+        using (SqlExecutionTelemetry.Enter(metrics))
+            result = TableSqlExecutor.QueueDelete(transaction, db, targetDelete, schema);
+        SqlExecutionMetricsSnapshot snapshot = metrics.Complete();
+
+        Assert.Equal(1, result.RowsAffected);
+        Assert.Equal(scansBefore, store.FullScanCount);
+        Assert.Equal(lookupsBefore + 1, store.PrimaryKeyLookupCount);
+        Assert.Equal("primary_key", snapshot.AccessPath);
+        Assert.Equal("primary", snapshot.IndexName);
+        Assert.Null(snapshot.FallbackReason);
+        Assert.Equal(1, snapshot.CandidateRows);
+        Assert.Equal(1, snapshot.ExaminedRows);
+
+        Assert.Equal(1, TableSqlExecutor.CommitTransaction(db, transaction).RowsAffected);
+        var selected = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(db, """
+            SELECT value FROM delete_latest
+            WHERE catalog = 1 AND device_id = 'device-00001' AND key_name = 'last_activity'
+            """));
+        Assert.Empty(selected.Rows);
+    }
+
+    /// <summary>事务内复合主键 EXISTS 应读取缓冲后的目标值，并保持单次主键点查。</summary>
+    [Fact]
+    public void Exists_CompositePrimaryKeyWithBufferedUpdate_UsesPointLookup()
+    {
+        using var db = Tsdb.Open(new TsdbOptions { RootDirectory = _root });
+        SqlExecutor.Execute(db, """
+            CREATE TABLE exists_latest (
+                catalog INT,
+                device_id STRING,
+                key_name STRING,
+                value INT,
+                PRIMARY KEY (catalog, device_id, key_name))
+            """);
+        SqlExecutor.Execute(db, """
+            INSERT INTO exists_latest (catalog, device_id, key_name, value)
+            VALUES (1, 'device-00001', 'last_activity', 0)
+            """);
+        var store = db.Tables.Open("exists_latest");
+        var transaction = new SqlTransactionContext();
+        using var transactionScope = SqlTransactionContext.EnterScope(transaction);
+        TableSqlExecutor.QueueUpdate(
+            transaction,
+            db,
+            Assert.IsType<UpdateStatement>(SqlParser.Parse("""
+                UPDATE exists_latest
+                SET value = 1
+                WHERE catalog = 1 AND device_id = 'device-00001' AND key_name = 'last_activity'
+                """)));
+
+        long scansBefore = store.FullScanCount;
+        long lookupsBefore = store.PrimaryKeyLookupCount;
+        var metrics = new RelationalSelectExecutionMetrics();
+        var statement = Assert.IsType<SelectStatement>(SqlParser.Parse("""
+            SELECT EXISTS (
+                SELECT 1 FROM exists_latest
+                WHERE catalog = 1
+                    AND device_id = 'device-00001'
+                    AND key_name = 'last_activity'
+                    AND value = 1)
+            """));
+        var result = RelationalSelectExecutor.Execute(db, statement, metrics);
+
+        Assert.True(Assert.IsType<bool>(Assert.Single(result.Rows)[0]));
+        Assert.Equal(scansBefore, store.FullScanCount);
+        Assert.Equal(lookupsBefore + 1, store.PrimaryKeyLookupCount);
+        Assert.Equal(1, metrics.ExistsRowsExamined);
+        Assert.Equal(1, metrics.ExistsEarlyExitCount);
+        Assert.Equal("primary_key", metrics.LastExistsAccessPath);
+        Assert.Equal("primary", metrics.LastExistsIndexName);
+        Assert.Null(metrics.LastExistsFallbackReason);
     }
 
     /// <summary>关系写入应把实际 WAL record 写入及 fsync 等待归属到当前 SQL。</summary>

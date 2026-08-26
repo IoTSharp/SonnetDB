@@ -31,7 +31,11 @@ internal static class TableInSubqueryExecutor
             _ => false,
         };
 
-    public static SqlExpression Materialize(Tsdb tsdb, SqlExpression expression, TableSchema outerSchema)
+    public static SqlExpression Materialize(
+        Tsdb tsdb,
+        SqlExpression expression,
+        TableSchema outerSchema,
+        string? outerQualifier = null)
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(expression);
@@ -39,7 +43,7 @@ internal static class TableInSubqueryExecutor
 
         var cache = new Dictionary<SelectStatement, IReadOnlyList<SqlExpression>>(
             ReferenceEqualityComparer.Instance);
-        return Rewrite(tsdb, expression, outerSchema, cache);
+        return Rewrite(tsdb, expression, outerSchema, outerQualifier ?? outerSchema.Name, cache);
     }
 
     /// <summary>
@@ -72,42 +76,43 @@ internal static class TableInSubqueryExecutor
         Tsdb tsdb,
         SqlExpression expression,
         TableSchema outerSchema,
+        string outerQualifier,
         Dictionary<SelectStatement, IReadOnlyList<SqlExpression>> cache)
     {
         switch (expression)
         {
             case BinaryExpression binary:
-                var left = Rewrite(tsdb, binary.Left, outerSchema, cache);
-                var right = Rewrite(tsdb, binary.Right, outerSchema, cache);
+                var left = Rewrite(tsdb, binary.Left, outerSchema, outerQualifier, cache);
+                var right = Rewrite(tsdb, binary.Right, outerSchema, outerQualifier, cache);
                 return ReferenceEquals(left, binary.Left) && ReferenceEquals(right, binary.Right)
                     ? binary
                     : binary with { Left = left, Right = right };
 
             case UnaryExpression unary:
-                var operand = Rewrite(tsdb, unary.Operand, outerSchema, cache);
+                var operand = Rewrite(tsdb, unary.Operand, outerSchema, outerQualifier, cache);
                 return ReferenceEquals(operand, unary.Operand) ? unary : unary with { Operand = operand };
 
             case IsNullExpression isNull:
-                var nullOperand = Rewrite(tsdb, isNull.Operand, outerSchema, cache);
+                var nullOperand = Rewrite(tsdb, isNull.Operand, outerSchema, outerQualifier, cache);
                 return ReferenceEquals(nullOperand, isNull.Operand)
                     ? isNull
                     : isNull with { Operand = nullOperand };
 
             case InExpression inExpression:
-                return RewriteIn(tsdb, inExpression, outerSchema, cache);
+                return RewriteIn(tsdb, inExpression, outerSchema, outerQualifier, cache);
 
             case FunctionCallExpression function:
-                var arguments = RewriteList(tsdb, function.Arguments, outerSchema, cache);
+                var arguments = RewriteList(tsdb, function.Arguments, outerSchema, outerQualifier, cache);
                 return ReferenceEquals(arguments, function.Arguments)
                     ? function
                     : function with { Arguments = arguments };
 
             case NamedArgumentExpression named:
-                var value = Rewrite(tsdb, named.Value, outerSchema, cache);
+                var value = Rewrite(tsdb, named.Value, outerSchema, outerQualifier, cache);
                 return ReferenceEquals(value, named.Value) ? named : named with { Value = value };
 
             case CaseExpression caseExpression:
-                return RewriteCase(tsdb, caseExpression, outerSchema, cache);
+                return RewriteCase(tsdb, caseExpression, outerSchema, outerQualifier, cache);
 
             default:
                 return expression;
@@ -118,12 +123,13 @@ internal static class TableInSubqueryExecutor
         Tsdb tsdb,
         InExpression expression,
         TableSchema outerSchema,
+        string outerQualifier,
         Dictionary<SelectStatement, IReadOnlyList<SqlExpression>> cache)
     {
-        var value = Rewrite(tsdb, expression.Value, outerSchema, cache);
+        var value = Rewrite(tsdb, expression.Value, outerSchema, outerQualifier, cache);
         if (expression.Subquery is null)
         {
-            var values = RewriteList(tsdb, expression.Values, outerSchema, cache);
+            var values = RewriteList(tsdb, expression.Values, outerSchema, outerQualifier, cache);
             return ReferenceEquals(value, expression.Value) && ReferenceEquals(values, expression.Values)
                 ? expression
                 : expression with { Value = value, Values = values };
@@ -133,7 +139,7 @@ internal static class TableInSubqueryExecutor
         {
             EnsureSupportedSources(tsdb, expression.Subquery);
             EnsureSingleColumnProjection(tsdb, expression.Subquery);
-            EnsureNonCorrelated(tsdb, expression.Subquery, outerSchema, outerSchema.Name);
+            EnsureNonCorrelated(tsdb, expression.Subquery, outerSchema, outerQualifier);
             var result = SqlExecutor.ExecuteSelect(tsdb, expression.Subquery);
             if (result.Columns.Count != 1)
                 throw new InvalidOperationException("DELETE/UPDATE 的 IN 子查询必须只返回一列。");
@@ -213,12 +219,13 @@ internal static class TableInSubqueryExecutor
         Tsdb tsdb,
         IReadOnlyList<SqlExpression> expressions,
         TableSchema outerSchema,
+        string outerQualifier,
         Dictionary<SelectStatement, IReadOnlyList<SqlExpression>> cache)
     {
         SqlExpression[]? copy = null;
         for (int i = 0; i < expressions.Count; i++)
         {
-            var rewritten = Rewrite(tsdb, expressions[i], outerSchema, cache);
+            var rewritten = Rewrite(tsdb, expressions[i], outerSchema, outerQualifier, cache);
             if (!ReferenceEquals(rewritten, expressions[i]))
             {
                 copy ??= expressions.ToArray();
@@ -233,13 +240,14 @@ internal static class TableInSubqueryExecutor
         Tsdb tsdb,
         CaseExpression expression,
         TableSchema outerSchema,
+        string outerQualifier,
         Dictionary<SelectStatement, IReadOnlyList<SqlExpression>> cache)
     {
         CaseWhenClause[]? clauses = null;
         for (int i = 0; i < expression.WhenClauses.Count; i++)
         {
-            var condition = Rewrite(tsdb, expression.WhenClauses[i].Condition, outerSchema, cache);
-            var result = Rewrite(tsdb, expression.WhenClauses[i].Result, outerSchema, cache);
+            var condition = Rewrite(tsdb, expression.WhenClauses[i].Condition, outerSchema, outerQualifier, cache);
+            var result = Rewrite(tsdb, expression.WhenClauses[i].Result, outerSchema, outerQualifier, cache);
             if (!ReferenceEquals(condition, expression.WhenClauses[i].Condition)
                 || !ReferenceEquals(result, expression.WhenClauses[i].Result))
             {
@@ -250,7 +258,7 @@ internal static class TableInSubqueryExecutor
 
         var elseExpression = expression.Else is null
             ? null
-            : Rewrite(tsdb, expression.Else, outerSchema, cache);
+            : Rewrite(tsdb, expression.Else, outerSchema, outerQualifier, cache);
         return clauses is null && ReferenceEquals(elseExpression, expression.Else)
             ? expression
             : expression with { WhenClauses = clauses ?? expression.WhenClauses, Else = elseExpression };

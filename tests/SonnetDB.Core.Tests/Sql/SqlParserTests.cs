@@ -341,6 +341,24 @@ public class SqlParserTests
         Assert.IsType<DefaultValueExpression>(Assert.Single(statement.Assignments).Value);
     }
 
+    /// <summary>
+    /// 验证 UPDATE 目标表别名和限定列会完整进入 AST。
+    /// </summary>
+    [Fact]
+    public void Parse_Update_WithTargetAlias_ReturnsQualifiedAst()
+    {
+        var statement = Assert.IsType<UpdateStatement>(SqlParser.Parse(
+            "UPDATE \"DataStorage\" AS \"d\" SET \"Value_Boolean\" = @active WHERE \"d\".\"Catalog\" = @catalog"));
+
+        Assert.Equal("DataStorage", statement.TableName);
+        Assert.Equal("d", statement.TableAlias);
+        Assert.IsType<ParameterExpression>(Assert.Single(statement.Assignments).Value);
+        var predicate = Assert.IsType<BinaryExpression>(statement.Where);
+        var column = Assert.IsType<IdentifierExpression>(predicate.Left);
+        Assert.Equal("Catalog", column.Name);
+        Assert.Equal("d", column.Qualifier);
+    }
+
     [Theory]
     [InlineData("INSERT INTO devices (id) VALUES (DEFAULT + 1)")]
     [InlineData("UPDATE devices SET id = DEFAULT + 1 WHERE id = 1")]

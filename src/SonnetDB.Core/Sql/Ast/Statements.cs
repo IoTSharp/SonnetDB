@@ -908,15 +908,17 @@ public sealed record DeleteStatement(
 public sealed record TruncateTableStatement(string TableName) : SqlStatement;
 
 /// <summary>
-/// <c>UPDATE table SET col = expr [, ...] WHERE expr</c>。
+/// <c>UPDATE table [AS alias] SET col = expr [, ...] WHERE expr</c>。
 /// </summary>
 /// <param name="TableName">目标关系表名称。</param>
 /// <param name="Assignments">SET 子句中的列赋值列表。</param>
 /// <param name="Where">WHERE 表达式（必填）。</param>
+/// <param name="TableAlias">目标表可选别名。</param>
 public sealed record UpdateStatement(
     string TableName,
     IReadOnlyList<UpdateAssignment> Assignments,
-    SqlExpression Where) : SqlStatement;
+    SqlExpression Where,
+    string? TableAlias = null) : SqlStatement;
 
 /// <summary>UPDATE SET 子句中的一个列赋值。</summary>
 /// <param name="ColumnName">列名。</param>

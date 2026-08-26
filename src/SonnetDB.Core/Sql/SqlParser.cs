@@ -3015,6 +3015,7 @@ public sealed class SqlParser
         if (IsGraphElementMutationStart())
             return ParseGraphUpdate();
         var table = ExpectIdentifierName();
+        var tableAlias = ParseOptionalTableAlias();
         Expect(TokenKind.KeywordSet);
 
         var assignments = new List<UpdateAssignment>
@@ -3029,7 +3030,7 @@ public sealed class SqlParser
 
         Expect(TokenKind.KeywordWhere);
         var where = ParseExpression();
-        return new UpdateStatement(table, assignments, where);
+        return new UpdateStatement(table, assignments, where, tableAlias);
     }
 
     private UpdateGraphStatement ParseGraphUpdate()

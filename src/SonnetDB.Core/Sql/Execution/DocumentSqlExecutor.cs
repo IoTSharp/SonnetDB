@@ -297,6 +297,7 @@ internal static class DocumentSqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
         ArgumentNullException.ThrowIfNull(schema);
+        MutationAliasValidator.Validate(statement);
 
         if (statement.Assignments.Any(static assignment => assignment.Value is DefaultValueExpression))
         {

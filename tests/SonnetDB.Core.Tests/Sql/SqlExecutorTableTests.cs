@@ -161,6 +161,55 @@ public sealed class SqlExecutorTableTests : IDisposable
         Assert.Equal(1L, all.Rows.Single()[0]);
     }
 
+    /// <summary>
+    /// 验证 UPDATE 目标别名可用于 WHERE 和 SET 右值，并保持参数化执行。
+    /// </summary>
+    [Fact]
+    public void Update_WithTargetAlias_ExecutesQualifiedPredicatesAndAssignments()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db,
+            "CREATE TABLE devices (id INT, name STRING NOT NULL, enabled BOOL, temp FLOAT, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "INSERT INTO devices (id, name, enabled, temp) VALUES (1, 'pump', TRUE, 12.5), (2, 'fan', FALSE, 20.0)");
+
+        var result = Assert.IsType<RowsAffectedExecutionResult>(SqlExecutor.Execute(
+            db,
+            databaseName: null,
+            "UPDATE devices AS d SET name = @name, temp = d.temp + 1 WHERE d.id = @id AND d.enabled = TRUE",
+            new SqlParameters().AddNamed("name", "pump-offline").AddNamed("id", 1L),
+            controlPlane: null));
+
+        Assert.Equal(1, result.RowsAffected);
+        var selected = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            db,
+            "SELECT name, temp FROM devices WHERE id = 1"));
+        Assert.Equal(new object?[] { "pump-offline", 13.5 }, selected.Rows.Single());
+    }
+
+    /// <summary>
+    /// 验证未知 UPDATE 别名不会被当作目标表列静默执行。
+    /// </summary>
+    [Fact]
+    public void Update_WithUnknownTargetAlias_Throws()
+    {
+        using var db = Tsdb.Open(Options());
+        SqlExecutor.Execute(db,
+            "CREATE TABLE devices (id INT, enabled BOOL, PRIMARY KEY (id))");
+        SqlExecutor.Execute(db,
+            "INSERT INTO devices (id, enabled) VALUES (1, TRUE)");
+
+        var exception = Assert.Throws<InvalidOperationException>(() => SqlExecutor.Execute(
+            db,
+            "UPDATE devices AS d SET enabled = FALSE WHERE other.id = 1"));
+
+        Assert.Contains("未知别名", exception.Message, StringComparison.Ordinal);
+        var selected = Assert.IsType<SelectExecutionResult>(SqlExecutor.Execute(
+            db,
+            "SELECT enabled FROM devices WHERE id = 1"));
+        Assert.True(Assert.IsType<bool>(selected.Rows.Single()[0]));
+    }
+
     [Fact]
     public void Insert_DuplicatePrimaryKey_Throws()
     {

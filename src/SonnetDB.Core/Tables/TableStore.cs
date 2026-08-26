@@ -490,8 +490,19 @@ public sealed class TableStore : IDisposable
     public TableRow? GetByPrimaryKey(IReadOnlyList<object?> primaryKeyValues)
     {
         ArgumentNullException.ThrowIfNull(primaryKeyValues);
-        using TableReadSnapshot tableSnapshot = AcquireTableReadSnapshot();
-        return GetByPrimaryKey(tableSnapshot.Snapshot, tableSnapshot.Schema, primaryKeyValues);
+        lock (_sync)
+        {
+            ThrowIfDisposedLocked();
+            TableSchema schema = _schema;
+            Interlocked.Increment(ref _primaryKeyLookupCount);
+
+            byte[] key = TableKeyCodec.EncodePrimaryKeyValues(schema, primaryKeyValues);
+            byte[] rowKey = TableIndexCodec.EncodePrimaryRowKey(key);
+            KvEntry? payload = _keyspace.GetEntry(rowKey);
+            return payload is null
+                ? null
+                : new TableRow(TableRowCodec.Decode(schema, payload.Value.Span), key);
+        }
     }
 
     /// <summary>在调用方持有的稳定读快照内按主键读取一行。</summary>
