@@ -48,6 +48,7 @@ public sealed class SonnetDbUpdateSqlGenerator : UpdateSqlGenerator
             [],
             operations.Where(static operation => operation.IsCondition).ToList(),
             appendReturningOneClause: false);
+        // SonnetDbModificationCommandBatch 从 SndbDataReader.RecordsAffected 校验实际影响行数。
         return ResultSetMapping.NoResults;
     }
 
@@ -67,6 +68,7 @@ public sealed class SonnetDbUpdateSqlGenerator : UpdateSqlGenerator
             [],
             operations.Where(static operation => operation.IsCondition).ToList(),
             appendReturningOneClause: false);
+        // SonnetDbModificationCommandBatch 从 SndbDataReader.RecordsAffected 校验实际影响行数。
         return ResultSetMapping.NoResults;
     }
 }

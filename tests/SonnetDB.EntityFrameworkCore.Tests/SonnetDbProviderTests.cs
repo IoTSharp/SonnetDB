@@ -93,6 +93,73 @@ public sealed class SonnetDbProviderTests : IDisposable
         Assert.Empty(await context.Devices.ToListAsync());
     }
 
+    /// <summary>普通跟踪 UPDATE 实际命中零行时必须按 EF Core 契约报告乐观并发冲突。</summary>
+    [Fact]
+    public void SaveChanges_TrackedUpdateMatchesNoRows_ThrowsConcurrencyException()
+    {
+        using var context = new DeviceContext(CreateOptions<DeviceContext>());
+        context.Database.ExecuteSqlRaw(
+            "CREATE TABLE \"Devices\" (\"Id\" INT NOT NULL, \"Name\" STRING NOT NULL, \"Enabled\" BOOL NOT NULL, PRIMARY KEY (\"Id\"))");
+
+        var missing = new Device { Id = 404, Name = "missing", Enabled = true };
+        context.Attach(missing);
+        context.Entry(missing).Property(item => item.Name).IsModified = true;
+
+        var exception = Assert.Throws<DbUpdateConcurrencyException>(() => context.SaveChanges());
+        Assert.Same(missing, Assert.Single(exception.Entries).Entity);
+    }
+
+    /// <summary>并发令牌已被其他上下文更新后，陈旧实体的异步保存必须可靠检测冲突。</summary>
+    [Fact]
+    public async Task SaveChangesAsync_StaleConcurrencyToken_ThrowsConcurrencyException()
+    {
+        var options = CreateOptions<IdentitySubsetContext>();
+        await using (var setup = new IdentitySubsetContext(options))
+        {
+            await setup.Database.ExecuteSqlRawAsync(
+                "CREATE TABLE \"AspNetUsers\" (\"Id\" STRING NOT NULL, \"UserName\" STRING NULL, \"NormalizedUserName\" STRING NULL, \"EmailConfirmed\" BOOL NOT NULL, \"ConcurrencyStamp\" STRING NULL, PRIMARY KEY (\"Id\"))");
+            setup.Users.Add(new IdentityUserSubset
+            {
+                Id = "user-stale",
+                UserName = "original",
+                ConcurrencyStamp = "stamp-1",
+            });
+            await setup.SaveChangesAsync();
+        }
+
+        await using var staleContext = new IdentitySubsetContext(options);
+        var stale = await staleContext.Users.SingleAsync(item => item.Id == "user-stale");
+
+        await using (var winnerContext = new IdentitySubsetContext(options))
+        {
+            var winner = await winnerContext.Users.SingleAsync(item => item.Id == "user-stale");
+            winner.UserName = "winner";
+            winner.ConcurrencyStamp = "stamp-2";
+            await winnerContext.SaveChangesAsync();
+        }
+
+        stale.UserName = "stale";
+        var exception = await Assert.ThrowsAsync<DbUpdateConcurrencyException>(
+            () => staleContext.SaveChangesAsync());
+        Assert.Same(stale, Assert.Single(exception.Entries).Entity);
+    }
+
+    /// <summary>普通跟踪 DELETE 实际命中零行时，异步保存必须报告乐观并发冲突。</summary>
+    [Fact]
+    public async Task SaveChangesAsync_TrackedDeleteMatchesNoRows_ThrowsConcurrencyException()
+    {
+        await using var context = new DeviceContext(CreateOptions<DeviceContext>());
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE \"Devices\" (\"Id\" INT NOT NULL, \"Name\" STRING NOT NULL, \"Enabled\" BOOL NOT NULL, PRIMARY KEY (\"Id\"))");
+
+        var missing = new Device { Id = 405, Name = "missing", Enabled = false };
+        context.Attach(missing);
+        context.Remove(missing);
+
+        var exception = await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => context.SaveChangesAsync());
+        Assert.Same(missing, Assert.Single(exception.Entries).Entity);
+    }
+
     /// <summary>
     /// 验证 EF Core ExecuteUpdateAsync 生成的目标表别名可由 SonnetDB 完整解析并执行。
     /// </summary>
@@ -127,6 +194,36 @@ public sealed class SonnetDbProviderTests : IDisposable
         Assert.False(updated.Enabled);
         Assert.Equal("pump-offline", updated.Name);
         Assert.True(await context.Devices.Where(item => item.Id == 2).Select(item => item.Enabled).SingleAsync() is false);
+
+        Assert.Equal(
+            0,
+            await context.Devices
+                .Where(item => item.Id == 404)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.Enabled, true)));
+        Assert.Equal(
+            2,
+            await context.Devices
+                .Where(item => !item.Enabled)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.Enabled, true)));
+    }
+
+    /// <summary>ExecuteDeleteAsync 返回命中、未命中和多行删除的真实行数。</summary>
+    [Fact]
+    public async Task ExecuteDeleteAsync_ReturnsActualRowCount()
+    {
+        await using var context = new DeviceContext(CreateOptions<DeviceContext>());
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE \"Devices\" (\"Id\" INT NOT NULL, \"Name\" STRING NOT NULL, \"Enabled\" BOOL NOT NULL, PRIMARY KEY (\"Id\"))");
+        context.Devices.AddRange(
+            new Device { Id = 1, Name = "pump", Enabled = false },
+            new Device { Id = 2, Name = "fan", Enabled = true },
+            new Device { Id = 3, Name = "valve", Enabled = true });
+        await context.SaveChangesAsync();
+
+        Assert.Equal(1, await context.Devices.Where(item => item.Id == 1).ExecuteDeleteAsync());
+        Assert.Equal(0, await context.Devices.Where(item => item.Id == 404).ExecuteDeleteAsync());
+        Assert.Equal(2, await context.Devices.Where(item => item.Enabled).ExecuteDeleteAsync());
+        Assert.Empty(await context.Devices.AsNoTracking().ToListAsync());
     }
 
     /// <summary>
@@ -1586,6 +1683,90 @@ public sealed class SonnetDbProviderTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// Frame HTTP/2 远程 EF 在事务内外均使用真实影响行数，并对零行 UPDATE/DELETE 抛并发异常。
+    /// </summary>
+    [Fact]
+    public async Task RemoteSaveChanges_FrameHttp2_UsesActualRecordsAffectedInsideAndOutsideTransaction()
+    {
+        const string token = "ef-remote-h2-concurrency";
+        var database = "ef_remote_h2_concurrency_" + Guid.NewGuid().ToString("N");
+        var dataRoot = Path.Combine(Path.GetTempPath(), "sndb-ef-remote-h2-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dataRoot);
+        var requests = new ConcurrentQueue<(string Path, string Protocol)>();
+
+        await using var app = EfTestServerHost.Build(
+            new ServerOptions
+            {
+                DataRoot = dataRoot,
+                AutoLoadExistingDatabases = true,
+                AllowAnonymousProbes = true,
+                Tokens = new Dictionary<string, string> { [token] = ServerRoles.Admin },
+            },
+            extraArgs: ["--Kestrel:Endpoints:Http:Protocols=Http2"]);
+        app.Use(async (httpContext, next) =>
+        {
+            requests.Enqueue((httpContext.Request.Path.Value ?? string.Empty, httpContext.Request.Protocol));
+            await next(httpContext);
+        });
+
+        try
+        {
+            await app.StartAsync();
+            var addresses = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()
+                ?? throw new InvalidOperationException("Kestrel 未暴露监听地址。");
+            var baseUrl = Assert.Single(addresses.Addresses);
+            var options = new DbContextOptionsBuilder<DeviceContext>()
+                .UseSonnetDB(
+                    $"Data Source=sonnetdb+http://{new Uri(baseUrl).Authority}/{database};" +
+                    $"Token={token};Timeout=30;Protocol=frame-http2")
+                .ConfigureWarnings(warnings => warnings.Ignore(RelationalEventId.PendingModelChangesWarning))
+                .Options;
+
+            await using var context = new DeviceContext(options);
+            var creator = context.Database.GetService<IRelationalDatabaseCreator>();
+            await creator.CreateAsync();
+            await context.Database.ExecuteSqlRawAsync(
+                "CREATE TABLE \"Devices\" (\"Id\" INT NOT NULL, \"Name\" STRING NOT NULL, \"Enabled\" BOOL NOT NULL, PRIMARY KEY (\"Id\"))");
+
+            var device = new Device { Id = 1, Name = "pump", Enabled = true };
+            context.Devices.Add(device);
+            Assert.Equal(1, context.SaveChanges());
+            device.Name = "pump-outside";
+            Assert.Equal(1, await context.SaveChangesAsync());
+
+            var missing = new Device { Id = 404, Name = "missing", Enabled = false };
+            context.Attach(missing);
+            context.Remove(missing);
+            Assert.Throws<DbUpdateConcurrencyException>(() => context.SaveChanges());
+            context.ChangeTracker.Clear();
+
+            await using var transaction = await context.Database.BeginTransactionAsync();
+            device = await context.Devices.SingleAsync(item => item.Id == 1);
+            device.Name = "pump-transaction";
+            Assert.Equal(1, await context.SaveChangesAsync());
+
+            var stale = new Device { Id = 405, Name = "stale", Enabled = false };
+            context.Attach(stale);
+            context.Entry(stale).Property(item => item.Name).IsModified = true;
+            await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => context.SaveChangesAsync());
+            await transaction.RollbackAsync();
+
+            var observed = requests.ToArray();
+            Assert.Contains(observed, request => request.Path == $"/v1/db/{database}/sql");
+            Assert.Contains(observed, request => request.Path == $"/v1/db/{database}/sql/batch");
+            Assert.All(observed, request => Assert.Equal("HTTP/2", request.Protocol));
+        }
+        finally
+        {
+            await app.StopAsync();
+            if (Directory.Exists(dataRoot))
+            {
+                try { Directory.Delete(dataRoot, recursive: true); } catch { /* best-effort */ }
+            }
+        }
+    }
+
     [Fact]
     public async Task RemoteDatabaseMigrate_WithMissingDatabase_CreatesDatabaseAndAppliesMigrations()
     {
@@ -2300,7 +2481,7 @@ public sealed class SonnetDbProviderTests : IDisposable
                 entity.Property(item => item.UserName).HasColumnType("STRING");
                 entity.Property(item => item.NormalizedUserName).HasColumnType("STRING");
                 entity.Property(item => item.EmailConfirmed).HasColumnType("BOOL");
-                entity.Property(item => item.ConcurrencyStamp).HasColumnType("STRING");
+                entity.Property(item => item.ConcurrencyStamp).HasColumnType("STRING").IsConcurrencyToken();
             });
         }
     }

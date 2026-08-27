@@ -20,5 +20,5 @@ public sealed class SonnetDbModificationCommandBatchFactory : IModificationComma
 
     /// <inheritdoc />
     public ModificationCommandBatch Create()
-        => new SingularModificationCommandBatch(_dependencies);
+        => new SonnetDbModificationCommandBatch(_dependencies);
 }

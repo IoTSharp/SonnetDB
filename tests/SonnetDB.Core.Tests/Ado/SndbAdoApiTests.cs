@@ -492,6 +492,69 @@ public sealed class TsdbAdoApiTests : IDisposable
         Assert.Equal(2, n);
     }
 
+    /// <summary>关系表 UPDATE 的同步与异步执行均返回命中、未命中和多行修改的真实行数。</summary>
+    [Fact]
+    public async Task ExecuteNonQuery_TableUpdate_ReturnsActualRowCount()
+    {
+        await using var connection = new SndbConnection(ConnString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE update_counts (id INT, enabled BOOL, PRIMARY KEY (id))";
+        Assert.Equal(0, command.ExecuteNonQuery());
+        command.CommandText = "INSERT INTO update_counts (id, enabled) VALUES (1, false), (2, false), (3, true)";
+        Assert.Equal(3, await command.ExecuteNonQueryAsync());
+
+        command.CommandText = "UPDATE update_counts SET enabled = true WHERE id = 1";
+        Assert.Equal(1, command.ExecuteNonQuery());
+        command.CommandText = "UPDATE update_counts SET enabled = false WHERE id = 404";
+        Assert.Equal(0, await command.ExecuteNonQueryAsync());
+        command.CommandText = "UPDATE update_counts SET enabled = false WHERE enabled = true";
+        Assert.Equal(2, await command.ExecuteNonQueryAsync());
+    }
+
+    /// <summary>关系表 DELETE 的同步与异步执行均返回命中、未命中和多行删除的真实行数。</summary>
+    [Fact]
+    public async Task ExecuteNonQuery_TableDelete_ReturnsActualRowCount()
+    {
+        await using var connection = new SndbConnection(ConnString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE delete_counts (id INT, enabled BOOL, PRIMARY KEY (id))";
+        Assert.Equal(0, await command.ExecuteNonQueryAsync());
+        command.CommandText = "INSERT INTO delete_counts (id, enabled) VALUES (1, false), (2, true), (3, true)";
+        Assert.Equal(3, command.ExecuteNonQuery());
+
+        command.CommandText = "DELETE FROM delete_counts WHERE id = 1";
+        Assert.Equal(1, await command.ExecuteNonQueryAsync());
+        command.CommandText = "DELETE FROM delete_counts WHERE id = 404";
+        Assert.Equal(0, command.ExecuteNonQuery());
+        command.CommandText = "DELETE FROM delete_counts WHERE enabled = true";
+        Assert.Equal(2, await command.ExecuteNonQueryAsync());
+    }
+
+    /// <summary>嵌入式轻事务中的 INSERT、UPDATE、DELETE 在提交前即返回事务视图内的真实行数。</summary>
+    [Fact]
+    public async Task ExecuteNonQuery_InTransaction_ReturnsActualDmlRowCount()
+    {
+        await using var connection = new SndbConnection(ConnString);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE transaction_counts (id INT, value STRING, PRIMARY KEY (id))";
+        Assert.Equal(0, await command.ExecuteNonQueryAsync());
+
+        await using var transaction = await connection.BeginTransactionAsync();
+        command.Transaction = transaction;
+        command.CommandText = "INSERT INTO transaction_counts (id, value) VALUES (1, 'a'), (2, 'b'), (3, 'c')";
+        Assert.Equal(3, await command.ExecuteNonQueryAsync());
+        command.CommandText = "UPDATE transaction_counts SET value = 'updated' WHERE id <= 2";
+        Assert.Equal(2, command.ExecuteNonQuery());
+        command.CommandText = "UPDATE transaction_counts SET value = 'missing' WHERE id = 404";
+        Assert.Equal(0, await command.ExecuteNonQueryAsync());
+        command.CommandText = "DELETE FROM transaction_counts WHERE id >= 2";
+        Assert.Equal(2, command.ExecuteNonQuery());
+        await transaction.CommitAsync();
+    }
+
     [Fact]
     public void ExecuteNonQuery_Delete_ReturnsTombstoneCount()
     {

@@ -15,8 +15,9 @@ namespace SonnetDB.Data;
 /// 线协议只接受 SQL 字符串，仍在客户端把命名占位符按安全字面量替换后发送，保留既有类型序列化保真度。
 /// </para>
 /// <para>
-/// <see cref="ExecuteNonQuery"/> 返回值约定：INSERT 返回写入行数；DELETE 返回新增墓碑数；
-/// CREATE MEASUREMENT 返回 0；SELECT 返回 -1（与 <see cref="DbCommand"/> 标准一致）。
+/// <see cref="ExecuteNonQuery"/> 返回值约定：INSERT、关系表 UPDATE/DELETE 返回实际影响行数；
+/// measurement DELETE 返回新增墓碑数；CREATE MEASUREMENT 返回 0；SELECT 返回 -1
+/// （与 <see cref="DbCommand"/> 标准一致）。
 /// </para>
 /// </remarks>
 public sealed class SndbCommand : DbCommand

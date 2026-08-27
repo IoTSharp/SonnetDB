@@ -465,9 +465,9 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
             await using var cmd = c.CreateCommand();
             cmd.Transaction = tx;
             cmd.CommandText = "INSERT INTO tx_devices (id, name) VALUES (1, 'pump')";
-            Assert.Equal(0, await cmd.ExecuteNonQueryAsync());
+            Assert.Equal(1, await cmd.ExecuteNonQueryAsync());
             cmd.CommandText = "INSERT INTO tx_devices (id, name) VALUES (2, 'fan')";
-            Assert.Equal(0, await cmd.ExecuteNonQueryAsync());
+            Assert.Equal(1, await cmd.ExecuteNonQueryAsync());
             await tx.CommitAsync();
         }
 
@@ -493,9 +493,9 @@ public sealed class RemoteAdoEndToEndTests : IAsyncLifetime
         {
             cmd.Transaction = tx;
             cmd.CommandText = "INSERT INTO tx_a (id, name) VALUES (1, 'a')";
-            Assert.Equal(0, await cmd.ExecuteNonQueryAsync());
+            Assert.Equal(1, await cmd.ExecuteNonQueryAsync());
             cmd.CommandText = "INSERT INTO tx_b (id, name) VALUES (1, 'b')";
-            Assert.Equal(0, await cmd.ExecuteNonQueryAsync());
+            Assert.Equal(1, await cmd.ExecuteNonQueryAsync());
         }
 
         await tx.CommitAsync();

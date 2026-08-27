@@ -133,6 +133,13 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                     .GetResult();
             }
 
+            if (IsTransactionalRowCountDml(sql))
+            {
+                return ExecuteTransactionalNonQueryRequestAsync(transaction, sql, CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult();
+            }
+
             transaction.Add(sql);
             return MaterializedExecutionResult.NonQuery(0);
         }
@@ -177,6 +184,9 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
 
             if (TryParseReturningInsert(sql, out var insert))
                 return ExecuteTransactionalInsertReturningRequestAsync(transaction, insert, cancellationToken);
+
+            if (IsTransactionalRowCountDml(sql))
+                return ExecuteTransactionalNonQueryRequestAsync(transaction, sql, cancellationToken);
 
             transaction.Add(sql);
             return Task.FromResult<IExecutionResult>(MaterializedExecutionResult.NonQuery(0));
@@ -276,6 +286,22 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
 
         statement = null!;
         return false;
+    }
+
+    /// <summary>
+    /// 判断远程轻事务中的普通 DML 是否需要通过回滚预览取得真实影响行数。
+    /// </summary>
+    private static bool IsTransactionalRowCountDml(string sql)
+    {
+        try
+        {
+            return SqlParser.Parse(sql) is InsertStatement or UpdateStatement or DeleteStatement;
+        }
+        catch (SqlParseException)
+        {
+            // 无法解析的语句仍保留到提交批次，由服务端返回权威 SQL 错误。
+            return false;
+        }
     }
 
     /// <summary>
@@ -690,6 +716,110 @@ internal sealed class RemoteConnectionImpl : IConnectionImpl
                 returningColumns.Select(static column => column.Name).ToArray(),
                 projectedRows),
             preview.RecordsAffected);
+    }
+
+    /// <summary>
+    /// 在回滚事务中重放已排队语句并执行当前 DML，读取目标语句的真实影响行数后再加入提交队列。
+    /// </summary>
+    private async Task<IExecutionResult> ExecuteTransactionalNonQueryRequestAsync(
+        RemoteTransactionState transaction,
+        string sql,
+        CancellationToken cancellationToken)
+    {
+        int recordsAffected = await ExecuteTransactionNonQueryPreviewAsync(transaction, sql, cancellationToken)
+            .ConfigureAwait(false);
+        transaction.Add(sql);
+        return MaterializedExecutionResult.NonQuery(recordsAffected);
+    }
+
+    /// <summary>
+    /// 执行 BEGIN、已有队列、目标 DML、ROLLBACK，并按语句位置提取目标 DML 的 end 影响行数。
+    /// </summary>
+    private async Task<int> ExecuteTransactionNonQueryPreviewAsync(
+        RemoteTransactionState transaction,
+        string sql,
+        CancellationToken cancellationToken)
+    {
+        var statements = new List<SqlRequestBody>(transaction.Statements.Count + 3)
+        {
+            new() { Sql = "BEGIN" },
+        };
+        statements.AddRange(transaction.Statements.Select(static statement => new SqlRequestBody { Sql = statement }));
+        statements.Add(new SqlRequestBody { Sql = sql });
+        statements.Add(new SqlRequestBody { Sql = "ROLLBACK" });
+
+        int targetResultIndex = transaction.Statements.Count + 1;
+        IReadOnlyList<int> recordsAffected = await ExecuteBatchForRecordsAffectedAsync(statements, cancellationToken)
+            .ConfigureAwait(false);
+        if (recordsAffected.Count != statements.Count)
+        {
+            throw new InvalidDataException(
+                $"远程事务 DML 预览返回 {recordsAffected.Count} 个结果，预期 {statements.Count} 个。");
+        }
+
+        return recordsAffected[targetResultIndex];
+    }
+
+    /// <summary>
+    /// 执行 SQL 批次并按响应顺序读取每条语句 end 中的真实影响行数。
+    /// </summary>
+    private async Task<IReadOnlyList<int>> ExecuteBatchForRecordsAffectedAsync(
+        IReadOnlyList<SqlRequestBody> statements,
+        CancellationToken cancellationToken)
+    {
+        if (_http is null || _state != ConnectionState.Open)
+            throw new InvalidOperationException("连接未打开。");
+
+        var url = $"v1/db/{Uri.EscapeDataString(_database)}/sql/batch";
+        var json = JsonSerializer.Serialize(
+            new SqlBatchRequestBody { Statements = [.. statements] },
+            RemoteJsonContext.Default.SqlBatchRequestBody);
+        using var request = CreateRequest(
+            HttpMethod.Post,
+            url,
+            new StringContent(json, Encoding.UTF8, "application/json"));
+        using var response = await _http.SendAsync(
+                request,
+                HttpCompletionOption.ResponseContentRead,
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            throw await BuildHttpErrorAsync(response, cancellationToken).ConfigureAwait(false);
+
+        var result = new List<int>(statements.Count);
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: false);
+        while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
+        {
+            if (line.Length == 0)
+                continue;
+
+            using var document = JsonDocument.Parse(line);
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+                continue;
+            if (root.TryGetProperty("error", out var errorProperty)
+                && errorProperty.ValueKind == JsonValueKind.String)
+            {
+                var error = errorProperty.GetString() ?? "sql_error";
+                var message = root.TryGetProperty("message", out var messageProperty)
+                    && messageProperty.ValueKind == JsonValueKind.String
+                        ? messageProperty.GetString() ?? string.Empty
+                        : string.Empty;
+                throw new SndbServerException(error, message, HttpStatusCode.OK);
+            }
+
+            if (root.TryGetProperty("type", out var typeProperty)
+                && typeProperty.ValueKind == JsonValueKind.String
+                && string.Equals(typeProperty.GetString(), "end", StringComparison.Ordinal)
+                && root.TryGetProperty("recordsAffected", out var recordsAffectedProperty)
+                && recordsAffectedProperty.ValueKind == JsonValueKind.Number)
+            {
+                result.Add(recordsAffectedProperty.GetInt32());
+            }
+        }
+
+        return result;
     }
 
     private async Task<TransactionPreviewResult> ExecuteTransactionPreviewAsync(

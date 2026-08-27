@@ -9,6 +9,8 @@ namespace SonnetDB.EntityFrameworkCore.Query.Internal;
 /// </summary>
 public sealed class SonnetDbQuerySqlGenerator : QuerySqlGenerator
 {
+    private string? _unqualifiedDeleteAlias;
+
     /// <summary>
     /// 创建 SonnetDB 查询 SQL 生成器。
     /// </summary>
@@ -49,6 +51,68 @@ public sealed class SonnetDbQuerySqlGenerator : QuerySqlGenerator
         }
 
         return base.VisitSqlBinary(sqlBinaryExpression);
+    }
+
+    /// <summary>
+    /// 生成 SonnetDB 支持的无目标别名 DELETE；谓词中的目标列同时去除 EF 内部表别名限定。
+    /// </summary>
+    /// <param name="deleteExpression">待生成的删除表达式。</param>
+    /// <returns>已访问的删除表达式。</returns>
+    protected override Expression VisitDelete(DeleteExpression deleteExpression)
+    {
+        var selectExpression = deleteExpression.SelectExpression;
+        if (selectExpression is
+            {
+                Tables: [var table],
+                GroupBy: [],
+                Having: null,
+                Projection: [],
+                Orderings: [],
+                Offset: null,
+                Limit: null,
+            }
+            && table.Equals(deleteExpression.Table))
+        {
+            Sql.Append("DELETE FROM ")
+                .Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(
+                    deleteExpression.Table.Name,
+                    deleteExpression.Table.Schema));
+
+            if (selectExpression.Predicate is not null)
+            {
+                Sql.AppendLine().Append("WHERE ");
+                var previousAlias = _unqualifiedDeleteAlias;
+                _unqualifiedDeleteAlias = deleteExpression.Table.Alias;
+                try
+                {
+                    Visit(selectExpression.Predicate);
+                }
+                finally
+                {
+                    _unqualifiedDeleteAlias = previousAlias;
+                }
+            }
+
+            return deleteExpression;
+        }
+
+        return base.VisitDelete(deleteExpression);
+    }
+
+    /// <summary>
+    /// DELETE 谓词引用目标表时只输出列名，因为 SonnetDB DELETE 语法不声明目标别名。
+    /// </summary>
+    /// <param name="columnExpression">待生成的列表达式。</param>
+    /// <returns>已访问的列表达式。</returns>
+    protected override Expression VisitColumn(ColumnExpression columnExpression)
+    {
+        if (string.Equals(columnExpression.TableAlias, _unqualifiedDeleteAlias, StringComparison.Ordinal))
+        {
+            Sql.Append(Dependencies.SqlGenerationHelper.DelimitIdentifier(columnExpression.Name));
+            return columnExpression;
+        }
+
+        return base.VisitColumn(columnExpression);
     }
 
     /// <inheritdoc />

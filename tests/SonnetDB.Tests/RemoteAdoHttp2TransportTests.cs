@@ -126,6 +126,38 @@ public sealed class RemoteAdoHttp2TransportTests : IAsyncLifetime
         Assert.All(h2Requests, r => Assert.Equal("HTTP/2", r.Protocol));
     }
 
+    /// <summary>Frame HTTP/2 远程连接在事务内外均返回 INSERT、UPDATE、DELETE 的真实影响行数。</summary>
+    [Fact]
+    public async Task FrameHttp2_DmlRecordsAffected_IsConsistentInsideAndOutsideTransaction()
+    {
+        await using var connection = new SndbConnection(ConnectionString(_frameH2Url, "frame-http2"));
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE h2_dml_counts (id INT, enabled BOOL, PRIMARY KEY (id))";
+        Assert.Equal(0, await command.ExecuteNonQueryAsync());
+        command.CommandText = "INSERT INTO h2_dml_counts (id, enabled) VALUES (1, false), (2, false), (3, true)";
+        Assert.Equal(3, command.ExecuteNonQuery());
+        command.CommandText = "UPDATE h2_dml_counts SET enabled = true WHERE id <= 2";
+        Assert.Equal(2, await command.ExecuteNonQueryAsync());
+        command.CommandText = "DELETE FROM h2_dml_counts WHERE id = 404";
+        Assert.Equal(0, command.ExecuteNonQuery());
+
+        await using var transaction = await connection.BeginTransactionAsync();
+        command.Transaction = transaction;
+        command.CommandText = "UPDATE h2_dml_counts SET enabled = false WHERE enabled = true";
+        Assert.Equal(3, await command.ExecuteNonQueryAsync());
+        command.CommandText = "UPDATE h2_dml_counts SET enabled = true WHERE id = 404";
+        Assert.Equal(0, command.ExecuteNonQuery());
+        command.CommandText = "DELETE FROM h2_dml_counts WHERE id >= 2";
+        Assert.Equal(2, await command.ExecuteNonQueryAsync());
+        await transaction.CommitAsync();
+
+        int h2Port = new Uri(_frameH2Url).Port;
+        ObservedRequest[] h2Requests = _requests.Where(request => request.LocalPort == h2Port).ToArray();
+        Assert.Contains(h2Requests, request => request.Path == $"/v1/db/{DatabaseName}/sql/batch");
+        Assert.All(h2Requests, request => Assert.Equal("HTTP/2", request.Protocol));
+    }
+
     [Theory]
     [InlineData("rest")]
     [InlineData("auto")]
