@@ -49,6 +49,11 @@ internal static class ServerOptionsBinder
         if (options.Copilot.Docs.Roots.Count == 0)
             options.Copilot.Docs.Roots.AddRange(DefaultCopilotDocsRoots);
 
+        options.RelationalTableWarmupConcurrency = Math.Clamp(
+            options.RelationalTableWarmupConcurrency,
+            1,
+            16);
+
         options.Observability.SlowQueryLog.Capacity = Math.Clamp(
             options.Observability.SlowQueryLog.Capacity,
             16,

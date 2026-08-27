@@ -75,6 +75,10 @@ internal static class SonnetDbServiceRegistration
             return registry;
         });
 
+        // 在 Kestrel 和 Frame 服务接入流量前完成关系表冷开，避免首个业务查询触发全局锁排队。
+        builder.Services.AddSingleton<RelationalTableWarmupState>();
+        builder.Services.AddHostedService<RelationalTableWarmupService>();
+
         // PR #34c：周期性指标快照后台服务。
         builder.Services.AddHostedService<MetricsTickService>();
 
@@ -114,6 +118,10 @@ internal static class SonnetDbServiceRegistration
         builder.Services.AddSingleton<CopilotInFlightTracker>();
         builder.Services.AddHttpClient();
         builder.Services.AddHealthChecks()
+            .AddCheck<RelationalTableWarmupHealthCheck>(
+                "relational_table_warmup",
+                failureStatus: HealthStatus.Unhealthy,
+                tags: ["ready", "storage"])
             .AddCheck<SegmentStoreWritableHealthCheck>(
                 "segment_store_writable",
                 failureStatus: HealthStatus.Unhealthy,

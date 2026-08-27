@@ -34,6 +34,9 @@ public sealed class TableManager : IDisposable
     /// <summary>仅供测试在候选表目录落盘后、内存快照发布前建立确定性同步点。</summary>
     internal Action? AfterCatalogPersistedBeforePublishTestHook { get; set; }
 
+    /// <summary>仅供测试确认多张关系表的冷开阶段能够并行进入。</summary>
+    internal Action<string>? WarmUpBeforeOpenTestHook { get; set; }
+
     /// <summary>
     /// 初始化表管理器。
     /// </summary>
@@ -951,6 +954,85 @@ public sealed class TableManager : IDisposable
     }
 
     /// <summary>
+    /// 打开 catalog 中已有的关系表，使索引恢复、行数统计和状态加载在业务流量进入前完成。
+    /// </summary>
+    /// <param name="cancellationToken">在两张表之间停止后续预热的取消令牌。</param>
+    /// <param name="maxDegreeOfParallelism">不同关系表允许同时执行冷开的最大数量。</param>
+    /// <returns>本轮确认已打开的关系表名称。</returns>
+    public IReadOnlyList<string> WarmUpAll(
+        CancellationToken cancellationToken = default,
+        int maxDegreeOfParallelism = 1)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxDegreeOfParallelism);
+        lock (_schemaSync)
+        lock (_sync)
+        {
+            ThrowIfDisposed();
+            IReadOnlyList<TableSchema> schemas = Catalog.Snapshot();
+            var warmedTables = new List<string>(schemas.Count);
+            var unopenedSchemas = new List<TableSchema>(schemas.Count);
+            foreach (TableSchema catalogSchema in schemas)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                TableSchema? current = Catalog.TryGet(catalogSchema.Name);
+                if (current is null)
+                    continue;
+                warmedTables.Add(current.Name);
+                if (_stores.ContainsKey(current.Name))
+                    continue;
+                unopenedSchemas.Add(current);
+            }
+
+            if (maxDegreeOfParallelism == 1 || unopenedSchemas.Count <= 1)
+            {
+                foreach (TableSchema schema in unopenedSchemas)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    WarmUpBeforeOpenTestHook?.Invoke(schema.Name);
+                    _ = OpenStoreLocked(schema);
+                }
+                return warmedTables;
+            }
+
+            // 管理器锁在整个阶段阻止查询和 DDL 观察半完成状态；各表目录相互独立，可安全并行恢复。
+            var openedStores = new System.Collections.Concurrent.ConcurrentDictionary<string, TableStore>(
+                StringComparer.Ordinal);
+            try
+            {
+                Parallel.ForEach(
+                    unopenedSchemas,
+                    new ParallelOptions
+                    {
+                        CancellationToken = cancellationToken,
+                        MaxDegreeOfParallelism = maxDegreeOfParallelism,
+                    },
+                    schema =>
+                    {
+                        WarmUpBeforeOpenTestHook?.Invoke(schema.Name);
+                        TableStore store = CreateStore(schema);
+                        if (!openedStores.TryAdd(schema.Name, store))
+                        {
+                            store.Dispose();
+                            throw new InvalidOperationException($"table '{schema.Name}' 被重复安排启动预热。");
+                        }
+                    });
+
+                foreach (TableSchema schema in unopenedSchemas)
+                    _stores.Add(schema.Name, openedStores[schema.Name]);
+                return warmedTables;
+            }
+            catch
+            {
+                foreach (TableStore store in openedStores.Values)
+                {
+                    try { store.Dispose(); } catch { }
+                }
+                throw;
+            }
+        }
+    }
+
+    /// <summary>
     /// 为所有关系表 rowstore 创建 KV 快照，确保备份可独立恢复最近写入。
     /// </summary>
     public IReadOnlyList<string> CheckpointAll()
@@ -983,6 +1065,19 @@ public sealed class TableManager : IDisposable
         }
     }
 
+    /// <summary>返回当前已完成冷开的关系表数量，供恢复与启动回归测试观测。</summary>
+    internal int OpenedStoreCountForEvidence
+    {
+        get
+        {
+            lock (_sync)
+            {
+                ThrowIfDisposed();
+                return _stores.Count;
+            }
+        }
+    }
+
     /// <summary>
     /// 关闭所有已打开的关系表 rowstore。
     /// </summary>
@@ -1005,13 +1100,19 @@ public sealed class TableManager : IDisposable
         if (_stores.TryGetValue(schema.Name, out var existing))
             return existing;
 
+        TableStore store = CreateStore(schema);
+        _stores[schema.Name] = store;
+        return store;
+    }
+
+    /// <summary>打开单张关系表的独立 KV 存储；失败时释放已经取得的目录租约。</summary>
+    private TableStore CreateStore(TableSchema schema)
+    {
         string tableDirectory = TableDirectory(schema.Name);
         var kv = KvKeyspace.Open("table." + schema.Name, tableDirectory, _kvOptions);
         try
         {
-            var store = new TableStore(schema, kv);
-            _stores[schema.Name] = store;
-            return store;
+            return new TableStore(schema, kv);
         }
         catch
         {

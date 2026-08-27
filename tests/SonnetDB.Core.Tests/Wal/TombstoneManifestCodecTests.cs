@@ -157,4 +157,59 @@ public sealed class TombstoneManifestCodecTests : IDisposable
         Assert.Contains(updated[0], loaded);
         Assert.Contains(updated[1], loaded);
     }
+
+    /// <summary>主清单损坏时应读取上一代已校验备份。</summary>
+    [Fact]
+    public void LoadWithFallback_PrimaryCorrupted_LoadsLastVerifiedGeneration()
+    {
+        string path = ManifestPath();
+        var initial = new[] { MakeTombstone(1UL, "initial", 100L, 200L, 10L) };
+        var updated = new[] { MakeTombstone(2UL, "updated", 300L, 400L, 20L) };
+        TombstoneManifestCodec.Save(path, initial);
+        TombstoneManifestCodec.Save(path, updated);
+
+        byte[] bytes = File.ReadAllBytes(path);
+        bytes[0] ^= 0xFF;
+        File.WriteAllBytes(path, bytes);
+
+        var recovered = TombstoneManifestCodec.LoadWithFallback(path);
+
+        Assert.Equal(initial, recovered);
+    }
+
+    /// <summary>主清单已损坏时，后续保存不能用损坏内容覆盖有效备份。</summary>
+    [Fact]
+    public void Save_CorruptedPrimary_DoesNotOverwriteVerifiedBackup()
+    {
+        string path = ManifestPath();
+        var initial = new[] { MakeTombstone(1UL, "initial", 100L, 200L, 10L) };
+        var updated = new[] { MakeTombstone(2UL, "updated", 300L, 400L, 20L) };
+        TombstoneManifestCodec.Save(path, initial);
+
+        byte[] bytes = File.ReadAllBytes(path);
+        bytes[0] ^= 0xFF;
+        File.WriteAllBytes(path, bytes);
+
+        TombstoneManifestCodec.Save(path, updated);
+
+        Assert.Equal(updated, TombstoneManifestCodec.Load(path));
+        Assert.Equal(initial, TombstoneManifestCodec.Load(path + TombstoneManifestCodec.BackupSuffix));
+    }
+
+    /// <summary>并发保存应串行完成，且不遗留唯一临时文件。</summary>
+    [Fact]
+    public async Task Save_ConcurrentCalls_LeavesValidManifestWithoutTemporaryFiles()
+    {
+        string path = ManifestPath();
+        var generations = Enumerable.Range(1, 32)
+            .Select(index => new[] { MakeTombstone((ulong)index, $"field-{index}", index, index + 1, index) })
+            .ToArray();
+
+        await Task.WhenAll(generations.Select(generation => Task.Run(() =>
+            TombstoneManifestCodec.Save(path, generation))));
+
+        var loaded = TombstoneManifestCodec.Load(path);
+        Assert.Contains(generations, generation => generation.SequenceEqual(loaded));
+        Assert.Empty(Directory.EnumerateFiles(_tempDir, TombstoneManifestCodec.FileName + ".tmp.*"));
+    }
 }
