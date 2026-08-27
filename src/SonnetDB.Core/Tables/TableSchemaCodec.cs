@@ -21,6 +21,8 @@ public static class TableSchemaCodec
     private const int _formatVersion = 8;
     private const int _headerSize = 32;
     private const int _footerSize = 16;
+    private const int _moveRetryCount = 7;
+    private const int _moveRetryInitialDelayMilliseconds = 10;
 
     /// <summary>
     /// 从文件加载全部表 schema；文件不存在时返回空集合。
@@ -60,7 +62,28 @@ public static class TableSchemaCodec
             fs.Flush(flushToDisk: true);
         }
 
-        File.Move(tmpPath, path, overwrite: true);
+        MoveWithTransientRetry(tmpPath, path);
+    }
+
+    /// <summary>对杀毒扫描或并发读句柄造成的短暂占用执行有上限的原子移动重试。</summary>
+    private static void MoveWithTransientRetry(string sourcePath, string destinationPath)
+    {
+        int delayMilliseconds = _moveRetryInitialDelayMilliseconds;
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                File.Move(sourcePath, destinationPath, overwrite: true);
+                return;
+            }
+            catch (Exception exception) when (
+                exception is IOException or UnauthorizedAccessException
+                && attempt < _moveRetryCount)
+            {
+                Thread.Sleep(delayMilliseconds);
+                delayMilliseconds *= 2;
+            }
+        }
     }
 
     private static IReadOnlyList<TableSchema> Load(Stream source)

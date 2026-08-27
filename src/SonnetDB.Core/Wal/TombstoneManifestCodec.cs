@@ -52,6 +52,8 @@ public static class TombstoneManifestCodec
     private const int _formatVersion = 1;
     private const int _headerSize = 32;
     private const int _footerSize = 16;
+    private const int _moveRetryCount = 7;
+    private const int _moveRetryInitialDelayMilliseconds = 10;
 
     // ── Header layout constants ──────────────────────────────────────────────
     // Magic(8) + FormatVersion(4) + HeaderSize(4) + TombstoneCount(4) + Reserved(12) = 32
@@ -145,7 +147,7 @@ public static class TombstoneManifestCodec
                 WriteManifest(tempPath, tombstones);
                 PreserveVerifiedGeneration(fullPath);
 
-                File.Move(tempPath, fullPath, overwrite: true);
+                MoveWithTransientRetry(tempPath, fullPath);
                 EnsureInitialBackup(fullPath);
                 WalCheckpointFile.FlushDirectoryBestEffort(directory);
             }
@@ -209,11 +211,32 @@ public static class TombstoneManifestCodec
                 destination.Flush(true);
             }
 
-            File.Move(tempPath, destinationPath, overwrite: true);
+            MoveWithTransientRetry(tempPath, destinationPath);
         }
         finally
         {
             TryDeleteTemporaryFile(tempPath);
+        }
+    }
+
+    /// <summary>对杀毒扫描或并发读句柄造成的短暂占用执行有上限的原子移动重试。</summary>
+    private static void MoveWithTransientRetry(string sourcePath, string destinationPath)
+    {
+        int delayMilliseconds = _moveRetryInitialDelayMilliseconds;
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                File.Move(sourcePath, destinationPath, overwrite: true);
+                return;
+            }
+            catch (Exception exception) when (
+                exception is IOException or UnauthorizedAccessException
+                && attempt < _moveRetryCount)
+            {
+                Thread.Sleep(delayMilliseconds);
+                delayMilliseconds *= 2;
+            }
         }
     }
 

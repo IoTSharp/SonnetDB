@@ -212,4 +212,29 @@ public sealed class TombstoneManifestCodecTests : IDisposable
         Assert.Contains(generations, generation => generation.SequenceEqual(loaded));
         Assert.Empty(Directory.EnumerateFiles(_tempDir, TombstoneManifestCodec.FileName + ".tmp.*"));
     }
+
+    /// <summary>Windows 上备份文件被短暂占用时，释放句柄后保存应在重试窗口内完成。</summary>
+    [Fact]
+    public async Task Save_BackupTemporarilyLocked_RetriesAfterHandleIsReleased()
+    {
+        string path = ManifestPath();
+        var initial = new[] { MakeTombstone(1UL, "initial", 100L, 200L, 10L) };
+        var updated = new[] { MakeTombstone(2UL, "updated", 300L, 400L, 20L) };
+        TombstoneManifestCodec.Save(path, initial);
+
+        using (var backupLock = new FileStream(
+                   path + TombstoneManifestCodec.BackupSuffix,
+                   FileMode.Open,
+                   FileAccess.Read,
+                   FileShare.Read))
+        {
+            var saveTask = Task.Run(() => TombstoneManifestCodec.Save(path, updated));
+            await Task.Delay(75);
+            backupLock.Dispose();
+            await saveTask;
+        }
+
+        Assert.Equal(updated, TombstoneManifestCodec.Load(path));
+        Assert.Empty(Directory.EnumerateFiles(_tempDir, TombstoneManifestCodec.FileName + ".tmp.*"));
+    }
 }
