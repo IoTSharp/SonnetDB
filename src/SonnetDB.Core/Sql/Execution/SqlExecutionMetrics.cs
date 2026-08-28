@@ -29,6 +29,10 @@ internal sealed class SqlExecutionMetrics
     private double _kvLockWaitMs;
     private double _walFsyncMs;
     private int _walFsyncCount;
+    private long _peakMemoryBytes;
+    private long _spillCount;
+    private long _spillBytes;
+    private long _spillCleanupFailures;
 
     /// <summary>记录运行时实际选择的访问路径。</summary>
     internal void RecordAccessPath(string accessPath, string? indexName, string? fallbackReason)
@@ -88,6 +92,32 @@ internal sealed class SqlExecutionMetrics
         _walFsyncMs += elapsedMs;
     }
 
+    /// <summary>记录阻塞算子查询级内存峰值。</summary>
+    internal void RecordPeakMemory(long bytes)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(bytes);
+        if (bytes > _peakMemoryBytes)
+            _peakMemoryBytes = bytes;
+    }
+
+    /// <summary>记录一次 spill 及其写入字节数。</summary>
+    internal void RecordSpill(long bytes)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(bytes);
+        _spillCount++;
+        _spillBytes = checked(_spillBytes + bytes);
+    }
+
+    /// <summary>在不新增 spill 事件的情况下累计后续写入字节。</summary>
+    internal void RecordSpillBytes(long bytes)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(bytes);
+        _spillBytes = checked(_spillBytes + bytes);
+    }
+
+    /// <summary>记录一次临时文件删除失败。</summary>
+    internal void RecordSpillCleanupFailure() => _spillCleanupFailures++;
+
     /// <summary>冻结执行结果；重复调用返回同一快照。</summary>
     internal SqlExecutionMetricsSnapshot Complete()
     {
@@ -112,6 +142,10 @@ internal sealed class SqlExecutionMetrics
             _kvLockWaitMs,
             _walFsyncMs,
             _walFsyncCount,
+            _peakMemoryBytes,
+            _spillCount,
+            _spillBytes,
+            _spillCleanupFailures,
             Stopwatch.GetElapsedTime(_startedTimestamp).TotalMilliseconds,
             allocatedBytes,
             Math.Max(0, GC.CollectionCount(0) - _gen0Start),
@@ -142,6 +176,10 @@ internal sealed record SqlExecutionMetricsSnapshot(
     double KvLockWaitMs,
     double WalFsyncMs,
     int WalFsyncCount,
+    long PeakMemoryBytes,
+    long SpillCount,
+    long SpillBytes,
+    long SpillCleanupFailures,
     double ExecutionElapsedMs,
     long AllocatedBytes,
     int Gen0Collections,
@@ -181,6 +219,14 @@ internal static class SqlExecutionTelemetry
         => Current?.RecordLockWait(tableManager, elapsedMs);
 
     internal static void RecordWalFsync(double elapsedMs) => Current?.RecordWalFsync(elapsedMs);
+
+    internal static void RecordPeakMemory(long bytes) => Current?.RecordPeakMemory(bytes);
+
+    internal static void RecordSpill(long bytes) => Current?.RecordSpill(bytes);
+
+    internal static void RecordSpillBytes(long bytes) => Current?.RecordSpillBytes(bytes);
+
+    internal static void RecordSpillCleanupFailure() => Current?.RecordSpillCleanupFailure();
 
     internal readonly struct Scope : IDisposable
     {

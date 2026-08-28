@@ -350,9 +350,11 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
         ArgumentNullException.ThrowIfNull(options);
+        options.Validate();
         RejectUnsupportedStatementInActiveTransaction(statement, transaction);
         EnsureModbusAdministrationAllowed(statement, options);
 
+        using var queryResourcesScope = SqlQueryResources.EnterRoot(tsdb, options);
         using var routineExecutionScope = RoutineExecutionContext.EnterRoot(options);
         ThrowIfCancellationRequested();
         // read-your-writes：把活动轻事务设为 ambient，供 SELECT 读路径叠加本事务缓冲写（#218）。
@@ -963,7 +965,9 @@ public static class SqlExecutor
                 ActualAllocatedBytes = snapshot.AllocatedBytes,
                 ActualLockWaitMilliseconds = snapshot.TableLockWaitMs + snapshot.KvLockWaitMs,
                 ActualWalFsyncCount = snapshot.WalFsyncCount,
-                ActualSpillCount = 0,
+                ActualSpillCount = snapshot.SpillCount,
+                ActualPeakMemoryBytes = snapshot.PeakMemoryBytes,
+                ActualSpillBytes = snapshot.SpillBytes,
             };
             return SqlExplainPlanner.ToSelectExecutionResult(estimated);
         }
@@ -1633,6 +1637,7 @@ public static class SqlExecutor
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
+        using var queryResourcesScope = SqlQueryResources.EnterRoot(tsdb, SqlExecutionOptions.Default);
         using var queryLoad = QueryActivityTracker.Enter();
         // ExecuteSelect 也是公开入口，直接调用时仍需建立当前数据库的 UDF 作用域。
         using var functionScope = SonnetDB.Query.Functions.UserFunctionRegistry.EnterScope(tsdb.Functions);
@@ -1671,13 +1676,9 @@ public static class SqlExecutor
 
     private static SelectExecutionResult ApplyDistinct(SelectExecutionResult result)
     {
-        var seen = new HashSet<IReadOnlyList<object?>>(DistinctRowComparer.Instance);
-        var deduped = new List<IReadOnlyList<object?>>(result.Rows.Count);
-        foreach (var row in result.Rows)
-        {
-            if (seen.Add(row))
-                deduped.Add(row);
-        }
+        var deduped = SqlBlockingOperators
+            .DistinctRows(result.Rows, DistinctRowComparer.Instance)
+            .ToList();
         return deduped.Count == result.Rows.Count
             ? result
             : new SelectExecutionResult(result.Columns, deduped);
@@ -1821,7 +1822,8 @@ public static class SqlExecutor
             result.Rows,
             comparer,
             pagination?.Offset ?? 0,
-            pagination?.Fetch);
+            pagination?.Fetch,
+            SqlSpillCodecs.ReadOnlyRows);
         return new SelectExecutionResult(result.Columns, rows);
     }
 

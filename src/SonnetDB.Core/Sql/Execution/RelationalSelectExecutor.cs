@@ -2899,13 +2899,41 @@ internal static class RelationalSelectExecutor
                 bool buildRight = buildSide == RelationalHashBuildSide.Right;
                 IEnumerable<object?[]> buildRows = buildRight ? right.Rows : left.Rows;
                 IEnumerable<object?[]> probeRows = buildRight ? left.Rows : right.Rows;
+                SqlQueryResources? resources = SqlQueryResources.Current;
+                using var reservation = resources?.CreateReservation();
                 var buildTable = new Dictionary<JoinValueKey, List<object?[]>>();
+                HashJoinSpillTable? spillTable = null;
                 foreach (object?[] buildRow in buildRows)
                 {
                     actualBuildRows++;
                     SqlExecutor.ThrowIfCancellationRequested();
                     if (TryMakeKey(buildRow, keyPairs, useRight: buildRight, out JoinValueKey key))
                     {
+                        if (resources is not null && spillTable is null)
+                        {
+                            long bytes = checked(SqlSpillRowCodec.EstimateRowBytes(buildRow) + 80);
+                            if (!reservation!.TryReserve(bytes))
+                            {
+                                spillTable = new HashJoinSpillTable(
+                                    resources,
+                                    keyPairs,
+                                    buildRight);
+                                foreach (List<object?[]> existingRows in buildTable.Values)
+                                {
+                                    foreach (object?[] existingRow in existingRows)
+                                        spillTable.Add(existingRow);
+                                }
+                                buildTable.Clear();
+                                reservation.ReleaseAll();
+                            }
+                        }
+
+                        if (spillTable is not null)
+                        {
+                            spillTable.Add(buildRow);
+                            continue;
+                        }
+
                         if (!buildTable.TryGetValue(key, out List<object?[]>? bucket))
                         {
                             bucket = [];
@@ -2921,9 +2949,13 @@ internal static class RelationalSelectExecutor
                     actualProbeRows++;
                     SqlExecutor.ThrowIfCancellationRequested();
                     bool matched = false;
-                    if (TryMakeKey(probeRow, keyPairs, useRight: !buildRight, out JoinValueKey probeKey)
-                        && buildTable.TryGetValue(probeKey, out List<object?[]>? candidates))
+                    if (TryMakeKey(probeRow, keyPairs, useRight: !buildRight, out JoinValueKey probeKey))
                     {
+                        IEnumerable<object?[]> candidates = spillTable is null
+                            ? buildTable.TryGetValue(probeKey, out List<object?[]>? inMemory)
+                                ? inMemory
+                                : []
+                            : spillTable.Find(probeKey);
                         foreach (object?[] buildRow in candidates)
                         {
                             SqlExecutor.ThrowIfCancellationRequested();
@@ -2976,7 +3008,11 @@ internal static class RelationalSelectExecutor
     }
 
     /// <summary>提取一行在连接键上的取值构成哈希 key；任一键值为 NULL 返回 false（NULL 不匹配）。</summary>
-    private static bool TryMakeKey(IReadOnlyList<object?> row, List<JoinKeyPair> keyPairs, bool useRight, out JoinValueKey key)
+    private static bool TryMakeKey(
+        IReadOnlyList<object?> row,
+        IReadOnlyList<JoinKeyPair> keyPairs,
+        bool useRight,
+        out JoinValueKey key)
     {
         if (keyPairs.Count == 1)
         {
@@ -3056,7 +3092,7 @@ internal static class RelationalSelectExecutor
         }
 
         // 数值统一按 double 归一化，使 1 (int) 与 1.0 (double) 落同一桶（与 ValuesEqual 的数值相等一致）。
-        private static int GetValueHashCode(object? value)
+        internal static int GetValueHashCode(object? value)
         {
             if (value is byte[] bytes)
             {
@@ -3075,6 +3111,86 @@ internal static class RelationalSelectExecutor
                 _ => value,
             };
             return normalized.GetHashCode();
+        }
+    }
+
+    /// <summary>Hash Join 构建侧的磁盘哈希分桶；只读取探测键对应的桶。</summary>
+    private sealed class HashJoinSpillTable
+    {
+        private const int BucketCount = 64;
+        private readonly SqlQueryResources _resources;
+        private readonly IReadOnlyList<JoinKeyPair> _keyPairs;
+        private readonly bool _buildRight;
+        private readonly string?[] _bucketPaths = new string?[BucketCount];
+        private bool _recordedSpill;
+
+        internal HashJoinSpillTable(
+            SqlQueryResources resources,
+            IReadOnlyList<JoinKeyPair> keyPairs,
+            bool buildRight)
+        {
+            _resources = resources;
+            _keyPairs = keyPairs;
+            _buildRight = buildRight;
+        }
+
+        internal void Add(object?[] row)
+        {
+            _resources.ThrowIfCancellationRequested();
+            if (!TryMakeKey(row, _keyPairs, _buildRight, out JoinValueKey key))
+                return;
+            int bucket = (int)((uint)key.GetHashCode() % BucketCount);
+            string path = _bucketPaths[bucket]
+                ??= _resources.GetWorkspace().CreateFilePath($"hash-join-{bucket:D2}");
+            long before;
+            if (!File.Exists(path))
+            {
+                using BinaryWriter initial = SqlSpillRowCodec.CreateWriter(path);
+                initial.Write(0);
+            }
+            before = new FileInfo(path).Length;
+            using (var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.Read, 64 * 1024))
+            {
+                using var reader = new BinaryReader(stream, System.Text.Encoding.UTF8, leaveOpen: true);
+                int count = reader.ReadInt32();
+                stream.Position = 0;
+                using var writer = new BinaryWriter(stream, System.Text.Encoding.UTF8, leaveOpen: true);
+                writer.Write(checked(count + 1));
+                stream.Position = stream.Length;
+                SqlSpillRowCodec.WriteRow(writer, row);
+            }
+            RecordWrite(new FileInfo(path).Length - before);
+        }
+
+        internal IEnumerable<object?[]> Find(JoinValueKey probeKey)
+        {
+            int bucket = (int)((uint)probeKey.GetHashCode() % BucketCount);
+            string? path = _bucketPaths[bucket];
+            if (path is null)
+                yield break;
+            using BinaryReader reader = SqlSpillRowCodec.CreateReader(path);
+            int count = reader.ReadInt32();
+            for (int i = 0; i < count; i++)
+            {
+                _resources.ThrowIfCancellationRequested();
+                object?[] row = SqlSpillRowCodec.ReadRow(reader);
+                if (TryMakeKey(row, _keyPairs, _buildRight, out JoinValueKey candidateKey)
+                    && candidateKey.Equals(probeKey))
+                {
+                    yield return row;
+                }
+            }
+        }
+
+        private void RecordWrite(long bytes)
+        {
+            if (_recordedSpill)
+                SqlExecutionTelemetry.RecordSpillBytes(bytes);
+            else
+            {
+                SqlExecutionTelemetry.RecordSpill(bytes);
+                _recordedSpill = true;
+            }
         }
     }
 
@@ -3191,7 +3307,10 @@ internal static class RelationalSelectExecutor
         SubqueryMemo memo)
     {
         var projections = BuildAggregateProjections(statement.Projections, statement.GroupBy, relation);
+        SqlQueryResources? resources = SqlQueryResources.Current;
+        using var reservation = resources?.CreateReservation();
         var groups = new Dictionary<GroupKey, List<object?[]>>();
+        DiskGroupStore? diskGroups = null;
         foreach (var row in relation.Rows)
         {
             SqlExecutor.ThrowIfCancellationRequested();
@@ -3199,6 +3318,27 @@ internal static class RelationalSelectExecutor
                 .Select(group => EvaluateScalar(tsdb, group, relation.Columns, row, outerScope, memo))
                 .ToArray();
             var key = new GroupKey(keyValues);
+            if (resources is not null && diskGroups is null)
+            {
+                long bytes = checked(SqlSpillRowCodec.EstimateRowBytes(row) + 80);
+                if (!reservation!.TryReserve(bytes))
+                {
+                    diskGroups = new DiskGroupStore(resources);
+                    foreach ((GroupKey existingKey, List<object?[]> existingRows) in groups)
+                    {
+                        foreach (object?[] existingRow in existingRows)
+                            diskGroups.Add(existingKey, existingRow);
+                    }
+                    groups.Clear();
+                    reservation.ReleaseAll();
+                }
+            }
+
+            if (diskGroups is not null)
+            {
+                diskGroups.Add(key, row);
+                continue;
+            }
             if (!groups.TryGetValue(key, out var bucket))
             {
                 bucket = new List<object?[]>();
@@ -3209,6 +3349,10 @@ internal static class RelationalSelectExecutor
 
         if (groups.Count == 0 && statement.GroupBy.Count == 0)
             groups.Add(new GroupKey([]), []);
+
+        IEnumerable<IReadOnlyList<object?[]>> groupedRows = diskGroups is null
+            ? groups.Values
+            : diskGroups.EnumerateGroups();
 
         var rows = new List<IReadOnlyList<object?>>(groups.Count);
 
@@ -3247,7 +3391,7 @@ internal static class RelationalSelectExecutor
             }
         }
 
-        foreach (var group in groups.Values)
+        foreach (IReadOnlyList<object?[]> group in groupedRows)
         {
             SqlExecutor.ThrowIfCancellationRequested();
             var representative = group.Count == 0
@@ -4742,7 +4886,12 @@ internal static class RelationalSelectExecutor
         }).ToArray();
 
         var comparer = new ResultRowSortComparer(sortItems);
-        var rows = TopN.OrderByThenPaginate(result.Rows, comparer, pagination?.Offset ?? 0, pagination?.Fetch);
+        var rows = TopN.OrderByThenPaginate(
+            result.Rows,
+            comparer,
+            pagination?.Offset ?? 0,
+            pagination?.Fetch,
+            SqlSpillCodecs.ReadOnlyRows);
         return new SelectExecutionResult(result.Columns, rows);
     }
 
@@ -4770,7 +4919,8 @@ internal static class RelationalSelectExecutor
             rows,
             comparer,
             pagination?.Offset ?? 0,
-            pagination?.Fetch);
+            pagination?.Fetch,
+            SqlSpillCodecs.ReadOnlyRows);
         return new SelectExecutionResult(materializedColumns, selected);
     }
 
@@ -4796,13 +4946,26 @@ internal static class RelationalSelectExecutor
             candidates,
             comparer,
             pagination?.Offset ?? 0,
-            pagination?.Fetch);
+            pagination?.Fetch,
+            RelationSortRowSpillCodec);
         IEnumerable<object?[]> rows = selected.Select(static row => row.Row);
 
         return relation with { Rows = rows };
     }
 
     private sealed record RelationSortRow(object?[] Row, IReadOnlyList<object?> SortValues);
+
+    private static SqlSpillCodec<RelationSortRow> RelationSortRowSpillCodec { get; } = new(
+        static item => [(long)item.Row.Length, .. item.Row, .. item.SortValues],
+        static values =>
+        {
+            int rowLength = checked((int)(long)values[0]!);
+            var row = new object?[rowLength];
+            Array.Copy(values, 1, row, 0, rowLength);
+            var sortValues = new object?[values.Length - rowLength - 1];
+            Array.Copy(values, rowLength + 1, sortValues, 0, sortValues.Length);
+            return new RelationSortRow(row, sortValues);
+        });
 
     private sealed class RelationSortComparer(IReadOnlyList<SortDirection> directions) : IComparer<RelationSortRow>
     {
@@ -5147,6 +5310,8 @@ internal static class RelationalSelectExecutor
 
         public GroupKey(object?[] values) => _values = values;
 
+        internal object?[] Values => _values;
+
         public bool Equals(GroupKey? other)
         {
             if (other is null || other._values.Length != _values.Length)
@@ -5163,22 +5328,190 @@ internal static class RelationalSelectExecutor
         {
             var hash = new HashCode();
             foreach (var value in _values)
-            {
-                if (value is null)
-                {
-                    hash.Add(0);
-                }
-                else if (IsNumeric(value))
-                {
-                    hash.Add(Convert.ToDouble(value, CultureInfo.InvariantCulture));
-                }
-                else
-                {
-                    hash.Add(value);
-                }
-            }
+                hash.Add(JoinValueKey.GetValueHashCode(value));
             return hash.ToHashCode();
         }
+    }
+
+    /// <summary>分组键和组内行的磁盘哈希目录，按首次出现顺序枚举组。</summary>
+    private sealed class DiskGroupStore
+    {
+        private const int BucketCount = 64;
+        private readonly SqlQueryResources _resources;
+        private readonly string?[] _indexPaths = new string?[BucketCount];
+        private readonly string _metadataPath;
+        private long _nextGroupId;
+        private bool _recordedSpill;
+
+        internal DiskGroupStore(SqlQueryResources resources)
+        {
+            _resources = resources;
+            _metadataPath = resources.GetWorkspace().CreateFilePath("group-metadata");
+            using BinaryWriter writer = SqlSpillRowCodec.CreateWriter(_metadataPath);
+            writer.Write(0L);
+        }
+
+        internal void Add(GroupKey key, object?[] row)
+        {
+            _resources.ThrowIfCancellationRequested();
+            string groupPath = FindGroupPath(key) ?? CreateGroup(key);
+            long before = new FileInfo(groupPath).Length;
+            using (var stream = new FileStream(groupPath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read, 64 * 1024))
+            {
+                using var reader = new BinaryReader(stream, System.Text.Encoding.UTF8, leaveOpen: true);
+                int count = reader.ReadInt32();
+                stream.Position = 0;
+                using var writer = new BinaryWriter(stream, System.Text.Encoding.UTF8, leaveOpen: true);
+                writer.Write(checked(count + 1));
+                stream.Position = stream.Length;
+                SqlSpillRowCodec.WriteRow(writer, row);
+            }
+            RecordWrite(new FileInfo(groupPath).Length - before);
+        }
+
+        internal IEnumerable<IReadOnlyList<object?[]>> EnumerateGroups()
+        {
+            using BinaryReader reader = SqlSpillRowCodec.CreateReader(_metadataPath);
+            long count = reader.ReadInt64();
+            for (long i = 0; i < count; i++)
+            {
+                _resources.ThrowIfCancellationRequested();
+                _ = reader.ReadInt64();
+                string path = reader.ReadString();
+                yield return new DiskGroupRows(path, _resources);
+            }
+        }
+
+        private string? FindGroupPath(GroupKey key)
+        {
+            int bucket = (int)((uint)key.GetHashCode() % BucketCount);
+            string? path = _indexPaths[bucket];
+            if (path is null)
+                return null;
+            using BinaryReader reader = SqlSpillRowCodec.CreateReader(path);
+            int count = reader.ReadInt32();
+            for (int i = 0; i < count; i++)
+            {
+                _resources.ThrowIfCancellationRequested();
+                _ = reader.ReadInt64();
+                string groupPath = reader.ReadString();
+                var candidate = new GroupKey(SqlSpillRowCodec.ReadRow(reader));
+                if (candidate.Equals(key))
+                    return groupPath;
+            }
+            return null;
+        }
+
+        private string CreateGroup(GroupKey key)
+        {
+            long id = _nextGroupId++;
+            string groupPath = _resources.GetWorkspace().CreateFilePath($"group-{id:D8}");
+            using (BinaryWriter writer = SqlSpillRowCodec.CreateWriter(groupPath))
+                writer.Write(0);
+
+            int bucket = (int)((uint)key.GetHashCode() % BucketCount);
+            string indexPath = _indexPaths[bucket]
+                ??= _resources.GetWorkspace().CreateFilePath($"group-index-{bucket:D2}");
+            if (!File.Exists(indexPath))
+            {
+                using BinaryWriter initial = SqlSpillRowCodec.CreateWriter(indexPath);
+                initial.Write(0);
+            }
+            AppendIndex(indexPath, id, groupPath, key.Values);
+            AppendMetadata(id, groupPath);
+            return groupPath;
+        }
+
+        private static void AppendIndex(string path, long id, string groupPath, object?[] key)
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.Read, 64 * 1024);
+            using var reader = new BinaryReader(stream, System.Text.Encoding.UTF8, leaveOpen: true);
+            int count = reader.ReadInt32();
+            stream.Position = 0;
+            using var writer = new BinaryWriter(stream, System.Text.Encoding.UTF8, leaveOpen: true);
+            writer.Write(checked(count + 1));
+            stream.Position = stream.Length;
+            writer.Write(id);
+            writer.Write(groupPath);
+            SqlSpillRowCodec.WriteRow(writer, key);
+        }
+
+        private void AppendMetadata(long id, string groupPath)
+        {
+            long before = new FileInfo(_metadataPath).Length;
+            using (var stream = new FileStream(_metadataPath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read, 64 * 1024))
+            {
+                using var reader = new BinaryReader(stream, System.Text.Encoding.UTF8, leaveOpen: true);
+                long count = reader.ReadInt64();
+                stream.Position = 0;
+                using var writer = new BinaryWriter(stream, System.Text.Encoding.UTF8, leaveOpen: true);
+                writer.Write(checked(count + 1));
+                stream.Position = stream.Length;
+                writer.Write(id);
+                writer.Write(groupPath);
+            }
+            RecordWrite(new FileInfo(_metadataPath).Length - before);
+        }
+
+        private void RecordWrite(long bytes)
+        {
+            if (_recordedSpill)
+                SqlExecutionTelemetry.RecordSpillBytes(bytes);
+            else
+            {
+                SqlExecutionTelemetry.RecordSpill(bytes);
+                _recordedSpill = true;
+            }
+        }
+    }
+
+    /// <summary>不把超大单组重新物化到内存的只读行列表。</summary>
+    private sealed class DiskGroupRows : IReadOnlyList<object?[]>
+    {
+        private readonly string _path;
+        private readonly SqlQueryResources _resources;
+
+        internal DiskGroupRows(string path, SqlQueryResources resources)
+        {
+            _path = path;
+            _resources = resources;
+            using BinaryReader reader = SqlSpillRowCodec.CreateReader(path);
+            Count = reader.ReadInt32();
+        }
+
+        public int Count { get; }
+
+        public object?[] this[int index]
+        {
+            get
+            {
+                ArgumentOutOfRangeException.ThrowIfNegative(index);
+                if (index >= Count)
+                    throw new ArgumentOutOfRangeException(nameof(index));
+                using BinaryReader reader = SqlSpillRowCodec.CreateReader(_path);
+                _ = reader.ReadInt32();
+                object?[] row = [];
+                for (int i = 0; i <= index; i++)
+                {
+                    _resources.ThrowIfCancellationRequested();
+                    row = SqlSpillRowCodec.ReadRow(reader);
+                }
+                return row;
+            }
+        }
+
+        public IEnumerator<object?[]> GetEnumerator()
+        {
+            using BinaryReader reader = SqlSpillRowCodec.CreateReader(_path);
+            int count = reader.ReadInt32();
+            for (int i = 0; i < count; i++)
+            {
+                _resources.ThrowIfCancellationRequested();
+                yield return SqlSpillRowCodec.ReadRow(reader);
+            }
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
     private sealed class ScalarComparer : IComparer<object?>

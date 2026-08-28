@@ -661,14 +661,7 @@ internal static class TableSqlExecutor
     /// </summary>
     private static IEnumerable<IReadOnlyList<object?>> DistinctRows(
         IEnumerable<IReadOnlyList<object?>> rows)
-    {
-        var seen = new HashSet<IReadOnlyList<object?>>(SqlExecutor.DistinctRowComparer.Instance);
-        foreach (var row in rows)
-        {
-            if (seen.Add(row))
-                yield return row;
-        }
-    }
+        => SqlBlockingOperators.DistinctRows(rows, SqlExecutor.DistinctRowComparer.Instance);
 
     internal static IReadOnlyList<string> ResolveProjectionColumnNames(
         SelectStatement statement,
@@ -2142,7 +2135,10 @@ internal static class TableSqlExecutor
         fallbackReason = null;
 
         int initialCapacity = Math.Min(256, Math.Min(candidateLimit, store.RowCount));
+        SqlQueryResources? resources = SqlQueryResources.Current;
+        using var reservation = resources?.CreateReservation();
         var seen = new HashSet<byte[]>(initialCapacity, KvKeyComparer.Instance);
+        SqlSpillableRowSet? diskSeen = null;
         var result = new List<TableRow>(initialCapacity);
         if (plan.Branches.Count == 0)
         {
@@ -2155,11 +2151,36 @@ internal static class TableSqlExecutor
         {
             foreach (var candidate in LoadIndexUnionBranchRows(store, snapshot, schema, branch))
             {
+                resources?.ThrowIfCancellationRequested();
                 byte[] primaryKey = candidate.PrimaryKey.IsEmpty
                     ? TableKeyCodec.EncodePrimaryKey(schema, candidate.Values)
                     : candidate.PrimaryKey.ToArray();
-                if (!seen.Add(primaryKey))
+                if (diskSeen is null)
+                {
+                    if (seen.Contains(primaryKey))
+                        continue;
+                    long bytes = checked(primaryKey.Length + 48L);
+                    if (resources is null || reservation!.TryReserve(bytes))
+                    {
+                        _ = seen.Add(primaryKey);
+                    }
+                    else
+                    {
+                        diskSeen = new SqlSpillableRowSet(
+                            resources.GetWorkspace(),
+                            SqlExecutor.DistinctRowComparer.Instance);
+                        foreach (byte[] existing in seen)
+                            _ = diskSeen.Add([existing]);
+                        seen.Clear();
+                        reservation.ReleaseAll();
+                        if (!diskSeen.Add([primaryKey]))
+                            continue;
+                    }
+                }
+                else if (!diskSeen.Add([primaryKey]))
+                {
                     continue;
+                }
                 if (result.Count == candidateLimit)
                 {
                     rows = [];
@@ -2171,6 +2192,7 @@ internal static class TableSqlExecutor
         }
 
         result.Sort(static (left, right) => left.PrimaryKey.Span.SequenceCompareTo(right.PrimaryKey.Span));
+        diskSeen?.Dispose();
         rows = result;
         return true;
     }
@@ -4167,7 +4189,8 @@ internal static class TableSqlExecutor
         int offset = pagination?.Offset ?? 0;
         int? fetch = pagination?.Fetch;
 
-        var rows = TopN.OrderByThenPaginate(result.Rows, comparer, offset, fetch);
+        var rows = TopN.OrderByThenPaginate(
+            result.Rows, comparer, offset, fetch, SqlSpillCodecs.ReadOnlyRows);
         return new SelectExecutionResult(result.Columns, rows);
     }
 
@@ -4186,7 +4209,8 @@ internal static class TableSqlExecutor
             rows,
             comparer,
             pagination?.Offset ?? 0,
-            pagination?.Fetch);
+            pagination?.Fetch,
+            SqlSpillCodecs.ReadOnlyRows);
         return new SelectExecutionResult(columns, selected);
     }
 

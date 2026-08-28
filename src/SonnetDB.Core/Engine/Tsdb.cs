@@ -13,6 +13,7 @@ using SonnetDB.Model;
 using SonnetDB.Query;
 using SonnetDB.Query.Functions;
 using SonnetDB.Routines;
+using SonnetDB.Sql.Execution;
 using SonnetDB.Storage.Segments;
 using SonnetDB.Tables;
 using SonnetDB.Views;
@@ -55,6 +56,7 @@ public sealed class Tsdb : IDisposable
     private readonly MaterializedViewManager _materializedViews;
     private readonly RoutineManager _routines;
     private readonly GraphManager _graphs;
+    private readonly SqlGlobalMemoryBudget _sqlMemoryBudget;
 
     private WalSegmentSet? _walSet;
     private long _nextSegmentId;
@@ -87,6 +89,12 @@ public sealed class Tsdb : IDisposable
 
     /// <summary>数据库根目录路径。</summary>
     public string RootDirectory => _options.RootDirectory;
+
+    /// <summary>当前数据库的 SQL 阻塞算子内存配置。</summary>
+    internal SqlMemoryOptions SqlMemoryOptions => _options.SqlMemory;
+
+    /// <summary>当前数据库实例内所有 SQL 查询共享的内存预算。</summary>
+    internal SqlGlobalMemoryBudget SqlMemoryBudget => _sqlMemoryBudget;
 
     /// <summary>当前序列目录。</summary>
     public SeriesCatalog Catalog { get; }
@@ -343,6 +351,7 @@ public sealed class Tsdb : IDisposable
         bool catalogDirty)
     {
         _options = options;
+        _sqlMemoryBudget = new SqlGlobalMemoryBudget(options.SqlMemory.GlobalLimitBytes);
         Catalog = catalog;
         Measurements = measurements;
         _activeMemTable = memTable;
@@ -412,6 +421,8 @@ public sealed class Tsdb : IDisposable
     public static Tsdb Open(TsdbOptions? options = null)
     {
         options ??= TsdbOptions.Default;
+        ArgumentNullException.ThrowIfNull(options.SqlMemory);
+        options.SqlMemory.Validate();
 
         string root = options.RootDirectory;
         Directory.CreateDirectory(root);
@@ -453,6 +464,7 @@ public sealed class Tsdb : IDisposable
         Tsdb? tsdb = null;
         try
         {
+            _ = SqlSpillWorkspace.CleanupStale(root);
             long durableCheckpointLsn = WalCheckpointFile
                 .TryLoad(
                     WalSegmentLayout.CheckpointPath(walDir),

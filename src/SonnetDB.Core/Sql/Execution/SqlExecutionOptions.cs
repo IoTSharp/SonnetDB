@@ -30,6 +30,12 @@ public sealed record SqlExecutionOptions
     /// <summary>单次过程调用累计允许返回的最大结果行数。</summary>
     public int MaxRoutineResultRows { get; init; } = 10_000;
 
+    /// <summary>
+    /// 可选的单查询阻塞算子内存上限（字节）；为空时使用数据库的
+    /// <see cref="SonnetDB.Engine.SqlMemoryOptions.QueryLimitBytes"/>。
+    /// </summary>
+    public long? BlockingOperatorMemoryLimitBytes { get; init; }
+
     /// <summary>可选的内部执行证据收集器；不进入公开 JSON 或持久化合同。</summary>
     internal SqlExecutionMetrics? Metrics { get; init; }
 
@@ -39,5 +45,7 @@ public sealed record SqlExecutionOptions
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxRoutineStatements);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxRoutineDepth);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxRoutineResultRows);
+        if (BlockingOperatorMemoryLimitBytes is { } memoryLimit)
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(memoryLimit);
     }
 }

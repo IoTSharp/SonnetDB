@@ -285,7 +285,12 @@ internal static class SelectExecutor
         bool descending = orderBy.Direction == SortDirection.Descending;
         var comparer = new TimeColumnComparer(timeColumnIndex, descending);
 
-        var rows = TopN.OrderByThenPaginate(result.Rows, comparer, pagination?.Offset ?? 0, pagination?.Fetch);
+        var rows = TopN.OrderByThenPaginate(
+            result.Rows,
+            comparer,
+            pagination?.Offset ?? 0,
+            pagination?.Fetch,
+            SqlSpillCodecs.ReadOnlyRows);
         return new SelectExecutionResult(result.Columns, rows);
     }
 

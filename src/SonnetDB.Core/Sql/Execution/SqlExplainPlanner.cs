@@ -212,8 +212,14 @@ public sealed record SqlExplainExecutionResult(
     /// <summary>EXPLAIN ANALYZE WAL fsync 次数。</summary>
     public long? ActualWalFsyncCount { get; init; }
 
-    /// <summary>EXPLAIN ANALYZE spill 次数；当前受限执行器固定为 0。</summary>
+    /// <summary>EXPLAIN ANALYZE spill 次数。</summary>
     public long? ActualSpillCount { get; init; }
+
+    /// <summary>EXPLAIN ANALYZE 阻塞算子的查询级内存峰值（字节）。</summary>
+    public long? ActualPeakMemoryBytes { get; init; }
+
+    /// <summary>EXPLAIN ANALYZE spill 文件累计写入字节数。</summary>
+    public long? ActualSpillBytes { get; init; }
 }
 
 /// <summary>
@@ -343,6 +349,8 @@ public static class SqlExplainPlanner
             new object?[] { "actual_lock_wait_ms", result.ActualLockWaitMilliseconds },
             new object?[] { "actual_wal_fsync_count", result.ActualWalFsyncCount },
             new object?[] { "actual_spill_count", result.ActualSpillCount },
+            new object?[] { "actual_peak_memory_bytes", result.ActualPeakMemoryBytes },
+            new object?[] { "actual_spill_bytes", result.ActualSpillBytes },
         };
 
         if (result.DocumentPlan is null && result.EstimatedOutputRows is not null)

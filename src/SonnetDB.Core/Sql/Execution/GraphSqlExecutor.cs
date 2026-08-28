@@ -559,7 +559,8 @@ internal static class GraphSqlExecutor
                 projected,
                 comparer,
                 statement.Pagination?.Offset ?? 0,
-                statement.Pagination?.Fetch);
+                statement.Pagination?.Fetch,
+                SqlSpillCodecs.ReadOnlyRows);
             return new SelectExecutionResult(columns, sorted);
         }
 

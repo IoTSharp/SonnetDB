@@ -24,13 +24,16 @@ internal static class TopN
         IEnumerable<T> rows,
         IComparer<T> comparer,
         int offset,
-        int? fetch)
+        int? fetch,
+        SqlSpillCodec<T>? spillCodec = null)
     {
         ArgumentNullException.ThrowIfNull(rows);
         ArgumentNullException.ThrowIfNull(comparer);
 
+        if (SqlQueryResources.Current is not null && spillCodec is { } codec)
+            return SqlSpillSorter.OrderByThenPaginate(rows, comparer, offset, fetch, codec);
         if (rows is IReadOnlyList<T> list)
-            return OrderByThenPaginate(list, comparer, offset, fetch);
+            return OrderByThenPaginate(list, comparer, offset, fetch, spillCodec);
         if (fetch is not int take)
             return OrderByThenPaginate(rows.ToArray(), comparer, offset, fetch);
         if (offset < 0)
@@ -62,10 +65,14 @@ internal static class TopN
         IReadOnlyList<T> rows,
         IComparer<T> comparer,
         int offset,
-        int? fetch)
+        int? fetch,
+        SqlSpillCodec<T>? spillCodec = null)
     {
         ArgumentNullException.ThrowIfNull(rows);
         ArgumentNullException.ThrowIfNull(comparer);
+
+        if (SqlQueryResources.Current is not null && spillCodec is { } codec)
+            return SqlSpillSorter.OrderByThenPaginate(rows, comparer, offset, fetch, codec);
 
         if (offset < 0)
             offset = 0;

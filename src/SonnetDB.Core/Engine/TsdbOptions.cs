@@ -79,6 +79,9 @@ public sealed record TsdbOptions
     /// <summary>内置 KV Keyspace 存储选项。</summary>
     public KvOptions Kv { get; init; } = KvOptions.Default;
 
+    /// <summary>SQL 阻塞算子的单查询与数据库实例全局内存预算。</summary>
+    public SqlMemoryOptions SqlMemory { get; init; } = SqlMemoryOptions.Default;
+
     /// <summary>
     /// 是否允许通过 <c>Tsdb.Functions</c> 注册用户自定义函数（UDF）。
     /// 默认 <c>true</c>（嵌入式场景启用）；SonnetDB 默认设为 <c>false</c> 以保证 AOT 兼容。
