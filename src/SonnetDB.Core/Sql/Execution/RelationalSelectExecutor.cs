@@ -2892,6 +2892,7 @@ internal static class RelationalSelectExecutor
 
         IEnumerable<object?[]> JoinRows()
         {
+            SqlExecutionTelemetry.RecordEstimatedRows(estimate.Rows);
             long actualBuildRows = 0;
             long actualProbeRows = 0;
             try
@@ -2944,6 +2945,39 @@ internal static class RelationalSelectExecutor
                 }
 
                 bool hasResidual = residual.Count > 0;
+
+                // 仅对已物化 probe 输入启用并行；残差和 spill 路径保留原有逐行执行，
+                // 以避免共享子查询状态或临时文件迭代器改变可观察语义。
+                if (spillTable is null
+                    && !hasResidual
+                    && probeRows is IReadOnlyList<object?[]> probeList)
+                {
+                    actualProbeRows = probeList.Count;
+                    IReadOnlyList<IReadOnlyList<object?[]>> mapped = SqlParallelExecution.MapOrdered(
+                        probeList,
+                        probeRow => BuildHashJoinProbeRows(
+                            probeRow,
+                            buildRight,
+                            kind,
+                            buildTable,
+                            keyPairs,
+                            right),
+                        "hash_join",
+                        estimate.Rows);
+                    foreach (IReadOnlyList<object?[]> rows in mapped)
+                    {
+                        foreach (object?[] row in rows)
+                            yield return row;
+                    }
+
+                    yield break;
+                }
+
+                SqlExecutionTelemetry.RecordParallelDecision(
+                    "hash_join",
+                    enabled: false,
+                    workerCount: 1,
+                    hasResidual ? "residual_predicate" : "probe_not_materialized_or_spill");
                 foreach (object?[] probeRow in probeRows)
                 {
                     actualProbeRows++;
@@ -2988,6 +3022,42 @@ internal static class RelationalSelectExecutor
                     : right.Estimate;
                 memo.RecordHashJoin(buildSide, buildEstimate, actualBuildRows, actualProbeRows);
             }
+        }
+
+        IReadOnlyList<object?[]> BuildHashJoinProbeRows(
+            object?[] probeRow,
+            bool buildRight,
+            JoinKind joinKind,
+            IReadOnlyDictionary<JoinValueKey, List<object?[]>> hash,
+            IReadOnlyList<JoinKeyPair> keys,
+            Relation rightRelation)
+        {
+            SqlExecutor.ThrowIfCancellationRequested();
+            var output = new List<object?[]>();
+            bool matched = false;
+            if (TryMakeKey(probeRow, keys, useRight: !buildRight, out JoinValueKey probeKey)
+                && hash.TryGetValue(probeKey, out List<object?[]>? candidates))
+            {
+                foreach (object?[] buildRow in candidates)
+                {
+                    object?[] leftRow = buildRight ? probeRow : buildRow;
+                    object?[] rightRow = buildRight ? buildRow : probeRow;
+                    var row = new object?[leftRow.Length + rightRow.Length];
+                    Array.Copy(leftRow, row, leftRow.Length);
+                    Array.Copy(rightRow, 0, row, leftRow.Length, rightRow.Length);
+                    matched = true;
+                    output.Add(row);
+                }
+            }
+
+            if (!matched && joinKind == JoinKind.Left)
+            {
+                var row = new object?[probeRow.Length + rightRelation.Columns.Count];
+                Array.Copy(probeRow, row, probeRow.Length);
+                output.Add(row);
+            }
+
+            return output;
         }
     }
 

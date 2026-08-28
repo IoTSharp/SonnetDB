@@ -143,7 +143,13 @@ public static class SqlExecutor
 
         var statement = SqlParser.Parse(sql);
         statement = SqlParameterBinder.Bind(statement, parameters);
-        return ExecuteStatement(tsdb, databaseName, statement, controlPlane, transaction: null, options);
+        return ExecuteStatement(
+            tsdb,
+            databaseName,
+            statement,
+            controlPlane,
+            transaction: null,
+            options with { QueryFingerprint = options.QueryFingerprint ?? SqlStatementFingerprint.Create(statement) });
     }
 
     /// <summary>
@@ -351,6 +357,8 @@ public static class SqlExecutor
         ArgumentNullException.ThrowIfNull(statement);
         ArgumentNullException.ThrowIfNull(options);
         options.Validate();
+        if (options.QueryFingerprint is null)
+            options = options with { QueryFingerprint = SqlStatementFingerprint.Create(statement) };
         RejectUnsupportedStatementInActiveTransaction(statement, transaction);
         EnsureModbusAdministrationAllowed(statement, options);
 
@@ -1637,7 +1645,12 @@ public static class SqlExecutor
     {
         ArgumentNullException.ThrowIfNull(tsdb);
         ArgumentNullException.ThrowIfNull(statement);
-        using var queryResourcesScope = SqlQueryResources.EnterRoot(tsdb, SqlExecutionOptions.Default);
+        using var queryResourcesScope = SqlQueryResources.EnterRoot(
+            tsdb,
+            SqlExecutionOptions.Default with
+            {
+                QueryFingerprint = SqlStatementFingerprint.Create(statement),
+            });
         using var queryLoad = QueryActivityTracker.Enter();
         // ExecuteSelect 也是公开入口，直接调用时仍需建立当前数据库的 UDF 作用域。
         using var functionScope = SonnetDB.Query.Functions.UserFunctionRegistry.EnterScope(tsdb.Functions);

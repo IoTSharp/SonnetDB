@@ -36,6 +36,20 @@ public sealed record SqlExecutionOptions
     /// </summary>
     public long? BlockingOperatorMemoryLimitBytes { get; init; }
 
+    /// <summary>是否允许在估算收益成立且资源足够时启用受控 SQL 并行。</summary>
+    public bool EnableParallelism { get; init; } = true;
+
+    /// <summary>单条 SQL 的并行 worker 上限；为空时使用数据库配置。</summary>
+    public int? MaxDegreeOfParallelism { get; init; }
+
+    /// <summary>覆盖数据库默认并行准入行数阈值；为空时使用数据库配置。</summary>
+    public long? ParallelismMinRows { get; init; }
+
+    /// <summary>
+    /// 参数无关的查询 fingerprint。未提供时由 AST 生成；不会保存 SQL 参数或行内容。
+    /// </summary>
+    public string? QueryFingerprint { get; init; }
+
     /// <summary>可选的内部执行证据收集器；不进入公开 JSON 或持久化合同。</summary>
     internal SqlExecutionMetrics? Metrics { get; init; }
 
@@ -47,5 +61,9 @@ public sealed record SqlExecutionOptions
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaxRoutineResultRows);
         if (BlockingOperatorMemoryLimitBytes is { } memoryLimit)
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(memoryLimit);
+        if (MaxDegreeOfParallelism is { } degree)
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(degree);
+        if (ParallelismMinRows is { } minRows)
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(minRows);
     }
 }

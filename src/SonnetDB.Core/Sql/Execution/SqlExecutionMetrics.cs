@@ -8,6 +8,7 @@ namespace SonnetDB.Sql.Execution;
 /// </summary>
 internal sealed class SqlExecutionMetrics
 {
+    private readonly object _sync = new();
     private readonly int _originThreadId = Environment.CurrentManagedThreadId;
     private readonly long _allocatedBytesStart = GC.GetAllocatedBytesForCurrentThread();
     private readonly int _gen0Start = GC.CollectionCount(0);
@@ -33,94 +34,165 @@ internal sealed class SqlExecutionMetrics
     private long _spillCount;
     private long _spillBytes;
     private long _spillCleanupFailures;
+    private string? _parallelOperator;
+    private string? _parallelFallbackReason;
+    private int _parallelWorkerCount = 1;
+    private long _parallelCompletedItems;
+    private long _estimatedRows;
 
     /// <summary>记录运行时实际选择的访问路径。</summary>
     internal void RecordAccessPath(string accessPath, string? indexName, string? fallbackReason)
     {
+        lock (_sync)
+        {
         ArgumentException.ThrowIfNullOrWhiteSpace(accessPath);
         _accessPath = Merge(_accessPath, accessPath);
         if (indexName is not null)
             _indexName = Merge(_indexName, indexName);
         if (fallbackReason is not null)
             _fallbackReason = Merge(_fallbackReason, fallbackReason);
+        }
     }
 
     /// <summary>记录存储访问产生的候选行；逻辑读取按候选行解码次数计量。</summary>
     internal void RecordCandidateRows(long count)
     {
+        lock (_sync)
+        {
         ArgumentOutOfRangeException.ThrowIfNegative(count);
         _candidateRows = checked(_candidateRows + count);
         _logicalReads = checked(_logicalReads + count);
+        }
     }
 
     /// <summary>记录执行完整残余谓词的候选行。</summary>
     internal void RecordExaminedRows(long count)
     {
+        lock (_sync)
+        {
         ArgumentOutOfRangeException.ThrowIfNegative(count);
         _examinedRows = checked(_examinedRows + count);
+        }
     }
 
     /// <summary>记录一次物理读取及其 payload 字节数。</summary>
     internal void RecordPhysicalRead(long bytes)
     {
+        lock (_sync)
+        {
         ArgumentOutOfRangeException.ThrowIfNegative(bytes);
         _physicalReads++;
         _physicalReadBytes = checked(_physicalReadBytes + bytes);
+        }
     }
 
     /// <summary>记录一次物理写入及其字节数。</summary>
     internal void RecordPhysicalWrite(long bytes)
     {
+        lock (_sync)
+        {
         ArgumentOutOfRangeException.ThrowIfNegative(bytes);
         _physicalWrites++;
         _physicalWriteBytes = checked(_physicalWriteBytes + bytes);
+        }
     }
 
     /// <summary>记录固定类别的关键存储锁等待。</summary>
     internal void RecordLockWait(bool tableManager, double elapsedMs)
     {
+        lock (_sync)
+        {
         if (tableManager)
             _tableLockWaitMs += elapsedMs;
         else
             _kvLockWaitMs += elapsedMs;
+        }
     }
 
     /// <summary>记录一次 WAL fsync。</summary>
     internal void RecordWalFsync(double elapsedMs)
     {
+        lock (_sync)
+        {
         _walFsyncCount++;
         _walFsyncMs += elapsedMs;
+        }
     }
 
     /// <summary>记录阻塞算子查询级内存峰值。</summary>
     internal void RecordPeakMemory(long bytes)
     {
+        lock (_sync)
+        {
         ArgumentOutOfRangeException.ThrowIfNegative(bytes);
         if (bytes > _peakMemoryBytes)
             _peakMemoryBytes = bytes;
+        }
     }
 
     /// <summary>记录一次 spill 及其写入字节数。</summary>
     internal void RecordSpill(long bytes)
     {
+        lock (_sync)
+        {
         ArgumentOutOfRangeException.ThrowIfNegative(bytes);
         _spillCount++;
         _spillBytes = checked(_spillBytes + bytes);
+        }
     }
 
     /// <summary>在不新增 spill 事件的情况下累计后续写入字节。</summary>
     internal void RecordSpillBytes(long bytes)
     {
+        lock (_sync)
+        {
         ArgumentOutOfRangeException.ThrowIfNegative(bytes);
         _spillBytes = checked(_spillBytes + bytes);
+        }
     }
 
     /// <summary>记录一次临时文件删除失败。</summary>
-    internal void RecordSpillCleanupFailure() => _spillCleanupFailures++;
+    internal void RecordSpillCleanupFailure()
+    {
+        lock (_sync)
+            _spillCleanupFailures++;
+    }
+
+    /// <summary>记录计划估算的候选行数。</summary>
+    internal void RecordEstimatedRows(long rows)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(rows);
+        lock (_sync)
+            _estimatedRows = Math.Max(_estimatedRows, rows);
+    }
+
+    /// <summary>记录受控并行决策及 worker 上限。</summary>
+    internal void RecordParallelDecision(string operatorName, bool enabled, int workerCount, string? fallbackReason)
+    {
+        lock (_sync)
+        {
+            _parallelOperator = Merge(_parallelOperator, operatorName);
+            _parallelWorkerCount = Math.Max(_parallelWorkerCount, enabled ? workerCount : 1);
+            if (fallbackReason is not null)
+                _parallelFallbackReason = Merge(_parallelFallbackReason, fallbackReason);
+        }
+    }
+
+    /// <summary>记录并行映射完成的输入项。</summary>
+    internal void RecordParallelCompleted(string operatorName, int itemCount)
+    {
+        lock (_sync)
+        {
+            _parallelOperator = Merge(_parallelOperator, operatorName);
+            _parallelCompletedItems = checked(_parallelCompletedItems + itemCount);
+        }
+    }
 
     /// <summary>冻结执行结果；重复调用返回同一快照。</summary>
     internal SqlExecutionMetricsSnapshot Complete()
     {
+        lock (_sync)
+        {
         if (_completed is not null)
             return _completed;
 
@@ -150,8 +222,15 @@ internal sealed class SqlExecutionMetrics
             allocatedBytes,
             Math.Max(0, GC.CollectionCount(0) - _gen0Start),
             Math.Max(0, GC.CollectionCount(1) - _gen1Start),
-            Math.Max(0, GC.CollectionCount(2) - _gen2Start));
+            Math.Max(0, GC.CollectionCount(2) - _gen2Start),
+            _estimatedRows,
+            _parallelOperator,
+            _parallelWorkerCount > 1,
+            _parallelWorkerCount,
+            _parallelCompletedItems,
+            _parallelFallbackReason);
         return _completed;
+        }
     }
 
     private static string Merge(string? current, string next)
@@ -184,7 +263,17 @@ internal sealed record SqlExecutionMetricsSnapshot(
     long AllocatedBytes,
     int Gen0Collections,
     int Gen1Collections,
-    int Gen2Collections);
+    int Gen2Collections,
+    long EstimatedRows = 0,
+    string? ParallelOperator = null,
+    bool ParallelismEnabled = false,
+    int ParallelWorkerCount = 1,
+    long ParallelCompletedItems = 0,
+    string? ParallelFallbackReason = null)
+{
+    /// <summary>实际/估算候选行数比率；估算为零时返回 1。</summary>
+    public double ActualToEstimatedRowsRatio => EstimatedRows <= 0 ? 1 : (double)CandidateRows / EstimatedRows;
+}
 
 /// <summary>把存储与执行器中的低开销计数转发到当前 SQL 根作用域。</summary>
 internal static class SqlExecutionTelemetry
@@ -207,7 +296,11 @@ internal static class SqlExecutionTelemetry
     internal static void RecordAccessPath(string accessPath, string? indexName = null, string? fallbackReason = null)
         => Current?.RecordAccessPath(accessPath, indexName, fallbackReason);
 
-    internal static void RecordCandidateRows(long count) => Current?.RecordCandidateRows(count);
+    internal static void RecordCandidateRows(long count)
+    {
+        Current?.RecordCandidateRows(count);
+        SqlQueryResources.Current?.RecordActualRows(count);
+    }
 
     internal static void RecordExaminedRows(long count) => Current?.RecordExaminedRows(count);
 
@@ -227,6 +320,18 @@ internal static class SqlExecutionTelemetry
     internal static void RecordSpillBytes(long bytes) => Current?.RecordSpillBytes(bytes);
 
     internal static void RecordSpillCleanupFailure() => Current?.RecordSpillCleanupFailure();
+
+    internal static void RecordEstimatedRows(long rows)
+    {
+        Current?.RecordEstimatedRows(rows);
+        SqlQueryResources.Current?.RecordEstimatedRows(rows);
+    }
+
+    internal static void RecordParallelDecision(string operatorName, bool enabled, int workerCount, string? fallbackReason)
+        => Current?.RecordParallelDecision(operatorName, enabled, workerCount, fallbackReason);
+
+    internal static void RecordParallelCompleted(string operatorName, int itemCount)
+        => Current?.RecordParallelCompleted(operatorName, itemCount);
 
     internal readonly struct Scope : IDisposable
     {

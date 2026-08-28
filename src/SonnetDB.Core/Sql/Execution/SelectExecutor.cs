@@ -29,6 +29,7 @@ internal static class SelectExecutor
 
         var where = WhereClauseDecomposer.Decompose(statement.Where, schema);
         var matchedSeries = tsdb.Catalog.Find(statement.Measurement, where.TagFilter);
+        RecordEstimatedRows(tsdb, statement);
 
         // 分类投影
         var classified = ClassifyProjections(statement.Projections, schema);
@@ -788,6 +789,9 @@ internal static class SelectExecutor
         // 有残差谓词时强制走物化路径：残差会跳过部分时间戳，流式窗口状态按 ts 连续推进会被破坏（#217）。
         if (where.Residual is not null)
             useStreamingWindowPath = false;
+        string? parallelFallbackReason = ContainsUserDefinedFunction(projections, where.Residual)
+            ? "user_defined_function"
+            : null;
 
         // 收集 raw 模式中所有需要查询的 field 列（含残差谓词引用的 field 列）。
         var fieldCols = projections
@@ -800,13 +804,13 @@ internal static class SelectExecutor
             .Distinct(StringComparer.Ordinal)
             .ToList();
 
-        var rows = new List<IReadOnlyList<object?>>();
         var geoFiltersByField = where.GeoFilters
             .GroupBy(f => f.FieldName, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.Ordinal);
 
-        foreach (var series in matchedSeries)
+        IReadOnlyList<IReadOnlyList<object?>> BuildSeriesRows(SeriesEntry series)
         {
+            var seriesRows = new List<IReadOnlyList<object?>>();
             // 每个 series 内：以所有目标 field 列时间戳的并集作为行集合（外连接）。
             // 缺失字段输出 null。若没有 field 投影，则用 schema 第一个 field 的时间戳作为时间轴。
             var fieldData = new Dictionary<string, IReadOnlyList<DataPoint>>(StringComparer.Ordinal);
@@ -828,7 +832,8 @@ internal static class SelectExecutor
             var timestampSet = new SortedSet<long>();
             foreach (var (_, list) in fieldData)
                 foreach (var dp in list) timestampSet.Add(dp.Timestamp);
-            if (timestampSet.Count == 0) continue;
+            if (timestampSet.Count == 0)
+                return seriesRows;
 
             // 每个 field 的 ts→value 字典（按需）
             var fieldLookups = new Dictionary<string, Dictionary<long, FieldValue>>(StringComparer.Ordinal);
@@ -841,16 +846,136 @@ internal static class SelectExecutor
 
             if (useStreamingWindowPath)
             {
-                AppendStreamingRawRows(rows, projections, windowEvaluators, timestampSet, series, fieldLookups);
+                AppendStreamingRawRows(seriesRows, projections, windowEvaluators, timestampSet, series, fieldLookups);
             }
             else
             {
-                AppendMaterializedRawRows(rows, projections, windowEvaluators, timestampSet, series, fieldLookups, where.Residual);
+                AppendMaterializedRawRows(seriesRows, projections, windowEvaluators, timestampSet, series, fieldLookups, where.Residual);
             }
+
+            return seriesRows;
         }
+
+        long estimatedRows = SqlQueryResources.Current?.EstimatedRows ?? matchedSeries.Count;
+        var perSeries = SqlParallelExecution.MapOrdered(
+            matchedSeries,
+            BuildSeriesRows,
+            "measurement_scan",
+            estimatedRows,
+            parallelFallbackReason);
+        var rows = new List<IReadOnlyList<object?>>(perSeries.Sum(static value => value.Count));
+        foreach (var seriesRows in perSeries)
+            rows.AddRange(seriesRows);
 
         var columnNames = projections.Select(p => p.ColumnName).ToList();
         return new SelectExecutionResult(columnNames, rows);
+    }
+
+    private static void RecordEstimatedRows(Tsdb tsdb, SelectStatement statement)
+    {
+        try
+        {
+            SqlExplainExecutionResult estimate = SqlExplainPlanner.Explain(null, tsdb, statement);
+            SqlExecutionTelemetry.RecordEstimatedRows(Math.Max(0, estimate.EstimatedScannedRows));
+        }
+        catch (InvalidOperationException)
+        {
+            // 估算失败不应改变查询语义；该查询仍可按串行路径执行并记录实际行数。
+        }
+        catch (NotSupportedException)
+        {
+            // 某些扩展算子没有统一成本模型，跳过估算即可。
+        }
+    }
+
+    private static bool ContainsUserDefinedFunction(SelectStatement statement)
+    {
+        UserFunctionRegistry? functions = UserFunctionRegistry.Current;
+        if (functions is null)
+            return false;
+
+        foreach (SelectItem projection in statement.Projections)
+            if (ContainsUserDefinedFunction(projection.Expression, functions))
+                return true;
+        if (statement.Where is not null && ContainsUserDefinedFunction(statement.Where, functions))
+            return true;
+        foreach (SqlExpression expression in statement.GroupBy)
+            if (ContainsUserDefinedFunction(expression, functions))
+                return true;
+        if (statement.Having is not null && ContainsUserDefinedFunction(statement.Having, functions))
+            return true;
+        foreach (OrderBySpec orderBy in statement.OrderByList)
+            if (ContainsUserDefinedFunction(orderBy.Expression, functions))
+                return true;
+        if (statement.TableValuedFunction is not null
+            && ContainsUserDefinedFunction(statement.TableValuedFunction, functions))
+            return true;
+        foreach (JoinClause join in statement.JoinClauses)
+        {
+            if (ContainsUserDefinedFunction(join.On, functions)
+                || (join.Subquery is not null && ContainsUserDefinedFunction(join.Subquery)))
+                return true;
+        }
+        if (statement.FromSubquery is not null && ContainsUserDefinedFunction(statement.FromSubquery))
+            return true;
+        if (statement.GraphTable is { } graph)
+        {
+            if (graph.Predicate is not null && ContainsUserDefinedFunction(graph.Predicate, functions))
+                return true;
+            foreach (SelectItem column in graph.Columns)
+                if (ContainsUserDefinedFunction(column.Expression, functions))
+                    return true;
+        }
+        return statement.UnionStatements.Any(ContainsUserDefinedFunction);
+    }
+
+    private static bool ContainsUserDefinedFunction(
+        IReadOnlyList<Projection> projections,
+        SqlExpression? residual)
+    {
+        UserFunctionRegistry? functions = UserFunctionRegistry.Current;
+        if (functions is null)
+            return false;
+        foreach (Projection projection in projections)
+            if ((projection.Function is not null
+                    && ContainsUserDefinedFunction(projection.Function, functions))
+                || (projection.ScalarExpression is not null
+                    && ContainsUserDefinedFunction(projection.ScalarExpression, functions)))
+                return true;
+        return residual is not null && ContainsUserDefinedFunction(residual, functions);
+    }
+
+    private static bool ContainsUserDefinedFunction(
+        SqlExpression expression,
+        UserFunctionRegistry functions)
+    {
+        if (expression is FunctionCallExpression call
+            && (functions.TryGetScalar(call.Name, out _)
+                || functions.TryGetWindow(call.Name, out _)
+                || functions.TryGetAggregate(call.Name, out _)))
+            return true;
+
+        return expression switch
+        {
+            FunctionCallExpression functionCall => functionCall.Arguments.Any(argument =>
+                ContainsUserDefinedFunction(argument, functions)),
+            NamedArgumentExpression named => ContainsUserDefinedFunction(named.Value, functions),
+            UnaryExpression unary => ContainsUserDefinedFunction(unary.Operand, functions),
+            BinaryExpression binary => ContainsUserDefinedFunction(binary.Left, functions)
+                || ContainsUserDefinedFunction(binary.Right, functions),
+            InExpression inExpression => ContainsUserDefinedFunction(inExpression.Value, functions)
+                || inExpression.Values.Any(value => ContainsUserDefinedFunction(value, functions))
+                || (inExpression.Subquery is not null && ContainsUserDefinedFunction(inExpression.Subquery)),
+            IsNullExpression isNull => ContainsUserDefinedFunction(isNull.Operand, functions),
+            ExistsExpression exists => ContainsUserDefinedFunction(exists.Select),
+            SubqueryExpression subquery => ContainsUserDefinedFunction(subquery.Select),
+            CaseExpression caseExpression => caseExpression.WhenClauses.Any(clause =>
+                    ContainsUserDefinedFunction(clause.Condition, functions)
+                    || ContainsUserDefinedFunction(clause.Result, functions))
+                || (caseExpression.Else is not null
+                    && ContainsUserDefinedFunction(caseExpression.Else, functions)),
+            _ => false,
+        };
     }
 
     private static bool CanUseStreamingWindowPath(IReadOnlyList<IWindowEvaluator?> windowEvaluators)
@@ -1504,7 +1629,7 @@ internal static class SelectExecutor
         Tsdb tsdb, ulong seriesId, string fieldName, TimeRange range)
     {
         var query = new PointQuery(seriesId, fieldName, range);
-        return tsdb.Query.Execute(query);
+        return TrackPointReads(tsdb.Query.Execute(query));
     }
 
     private static IEnumerable<DataPoint> QueryPointsStream(
@@ -1518,7 +1643,7 @@ internal static class SelectExecutor
         {
             Direction = direction,
         };
-        return tsdb.Query.Execute(query);
+        return TrackPointReads(tsdb.Query.Execute(query));
     }
 
     private static IEnumerable<DataPoint> QueryPointsStream(
@@ -1532,8 +1657,17 @@ internal static class SelectExecutor
             return QueryPointsStream(tsdb, seriesId, fieldName, range);
 
         var query = new PointQuery(seriesId, fieldName, range, GeoFilter: geoFilters[0].QueryFilter);
-        return tsdb.Query.Execute(query)
-            .Where(dp => MatchesGeoFilters(dp, geoFilters));
+        return TrackPointReads(tsdb.Query.Execute(query)
+            .Where(dp => MatchesGeoFilters(dp, geoFilters)));
+    }
+
+    private static IEnumerable<DataPoint> TrackPointReads(IEnumerable<DataPoint> points)
+    {
+        foreach (DataPoint point in points)
+        {
+            SqlExecutionTelemetry.RecordCandidateRows(1);
+            yield return point;
+        }
     }
 
     private static IReadOnlyList<DataPoint> QueryPoints(Tsdb tsdb, ulong seriesId, string fieldName, TimeRange range)
@@ -1665,10 +1799,21 @@ internal static class SelectExecutor
         // 仅当无 Geo/残差谓词（CanUseLegacyAggregateFastPath 已隐含此门控）时启用，故完全不触碰 #282 的逐点 Geo 约束。
         var multiScanHandled = TryAccumulateSharedFieldMultiAggregates(
             tsdb, schema, matchedSeries, where, bucketSizeMs, aggSpecs, bucketAccumulators);
+        var parallelAggregateHandled = TryAccumulateLegacyAggregatesParallel(
+            tsdb,
+            schema,
+            matchedSeries,
+            where,
+            bucketSizeMs,
+            aggSpecs,
+            multiScanHandled,
+            bucketAccumulators);
 
         for (int specIdx = 0; specIdx < aggSpecs.Count; specIdx++)
         {
             if (multiScanHandled is not null && multiScanHandled.Contains(specIdx))
+                continue;
+            if (parallelAggregateHandled is not null && parallelAggregateHandled.Contains(specIdx))
                 continue;
 
             var spec = aggSpecs[specIdx];
@@ -1714,6 +1859,7 @@ internal static class SelectExecutor
                                 where.TimeRange,
                                 out long observedCount))
                         {
+                            SqlExecutionTelemetry.RecordCandidateRows(observedCount);
                             if (!existed && observedCount > 0)
                                 bucketAccumulators[long.MinValue] = slots;
 
@@ -1799,6 +1945,63 @@ internal static class SelectExecutor
 
         var columnNames = projections.Select(p => p.ColumnName).ToList();
         return new SelectExecutionResult(columnNames, rows);
+    }
+
+    private static HashSet<int>? TryAccumulateLegacyAggregatesParallel(
+        Tsdb tsdb,
+        MeasurementSchema schema,
+        IReadOnlyList<SeriesEntry> matchedSeries,
+        WhereClause where,
+        long bucketSizeMs,
+        IReadOnlyList<AggSpec> aggSpecs,
+        HashSet<int>? alreadyHandled,
+        SortedDictionary<long, AggSlot[]> bucketAccumulators)
+    {
+        HashSet<int>? handled = null;
+        long estimatedRows = SqlQueryResources.Current?.EstimatedRows ?? matchedSeries.Count;
+
+        for (int specIdx = 0; specIdx < aggSpecs.Count; specIdx++)
+        {
+            if (alreadyHandled?.Contains(specIdx) == true)
+                continue;
+
+            AggSpec spec = aggSpecs[specIdx];
+            if (spec.FieldName is null
+                || !CanUseLegacyAggregateFastPath(spec, schema.TryGetColumn(spec.FieldName), where))
+                continue;
+
+            IReadOnlyList<IReadOnlyList<AggregateBucket>> bucketsBySeries = SqlParallelExecution.MapOrdered(
+                matchedSeries,
+                series => tsdb.Query.Execute(new AggregateQuery(
+                    series.Id,
+                    spec.FieldName,
+                    where.TimeRange,
+                    spec.LegacyAggregator,
+                    bucketSizeMs)).Where(static bucket => bucket.Count > 0).ToArray(),
+                "aggregate_scan",
+                estimatedRows);
+
+            foreach (var buckets in bucketsBySeries)
+            {
+                foreach (AggregateBucket bucket in buckets)
+                {
+                    SqlExecutionTelemetry.RecordCandidateRows(bucket.Count);
+                    long bucketStart = bucketSizeMs > 0 ? bucket.BucketStart : long.MinValue;
+                    if (!bucketAccumulators.TryGetValue(bucketStart, out var slots))
+                    {
+                        slots = CreateAggSlots(aggSpecs);
+                        bucketAccumulators[bucketStart] = slots;
+                    }
+
+                    slots[specIdx].MergeLegacyBucket(bucket);
+                }
+            }
+
+            handled ??= [];
+            handled.Add(specIdx);
+        }
+
+        return handled;
     }
 
     /// <summary>
@@ -2117,6 +2320,7 @@ internal static class SelectExecutor
                 {
                     if (multiBucket.Count <= 0)
                         continue;
+                    SqlExecutionTelemetry.RecordCandidateRows(multiBucket.Count);
 
                     long bucketStart = bucketSizeMs > 0 ? multiBucket.BucketStart : long.MinValue;
                     if (!bucketAccumulators.TryGetValue(bucketStart, out var slots))
@@ -2356,6 +2560,7 @@ internal static class SelectExecutor
         {
             if (bucket.Count <= 0)
                 continue;
+            SqlExecutionTelemetry.RecordCandidateRows(bucket.Count);
 
             long bucketStart = bucketSizeMs > 0 ? bucket.BucketStart : long.MinValue;
             if (!bucketAccumulators.TryGetValue(bucketStart, out var slots))

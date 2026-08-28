@@ -57,6 +57,8 @@ public sealed class Tsdb : IDisposable
     private readonly RoutineManager _routines;
     private readonly GraphManager _graphs;
     private readonly SqlGlobalMemoryBudget _sqlMemoryBudget;
+    private readonly SqlParallelCoordinator _sqlParallelCoordinator;
+    private readonly SqlRuntimeFeedbackStore _sqlRuntimeFeedback;
 
     private WalSegmentSet? _walSet;
     private long _nextSegmentId;
@@ -95,6 +97,12 @@ public sealed class Tsdb : IDisposable
 
     /// <summary>当前数据库实例内所有 SQL 查询共享的内存预算。</summary>
     internal SqlGlobalMemoryBudget SqlMemoryBudget => _sqlMemoryBudget;
+
+    /// <summary>当前数据库 SQL 并行 worker 协调器。</summary>
+    internal SqlParallelCoordinator SqlParallelCoordinator => _sqlParallelCoordinator;
+
+    /// <summary>当前数据库内存中的 SQL 运行时估算反馈。</summary>
+    internal SqlRuntimeFeedbackStore SqlRuntimeFeedback => _sqlRuntimeFeedback;
 
     /// <summary>当前序列目录。</summary>
     public SeriesCatalog Catalog { get; }
@@ -352,6 +360,8 @@ public sealed class Tsdb : IDisposable
     {
         _options = options;
         _sqlMemoryBudget = new SqlGlobalMemoryBudget(options.SqlMemory.GlobalLimitBytes);
+        _sqlParallelCoordinator = new SqlParallelCoordinator(options.SqlMemory.MaxParallelWorkers);
+        _sqlRuntimeFeedback = new SqlRuntimeFeedbackStore();
         Catalog = catalog;
         Measurements = measurements;
         _activeMemTable = memTable;
@@ -1188,6 +1198,7 @@ public sealed class Tsdb : IDisposable
                                             finally
                                             {
                                                 Segments.Dispose();
+                                                _sqlParallelCoordinator.Dispose();
                                             }
                                         }
                                     }
@@ -2034,6 +2045,7 @@ public sealed class Tsdb : IDisposable
                 _documents.Dispose();
                 _graphs.Dispose();
                 _keyspaces.Dispose();
+                _sqlParallelCoordinator.Dispose();
                 _walSet = null;
             }
     }

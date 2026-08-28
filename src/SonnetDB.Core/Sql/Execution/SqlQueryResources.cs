@@ -45,23 +45,35 @@ internal sealed class SqlQueryResources : IDisposable
     private readonly SqlGlobalMemoryBudget _globalBudget;
     private readonly long _queryLimitBytes;
     private readonly string _rootDirectory;
+    private readonly Tsdb _tsdb;
+    private readonly SqlExecutionOptions _options;
+    private readonly string? _queryFingerprint;
     private long _reservedBytes;
     private long _peakReservedBytes;
+    private long _estimatedRows;
+    private long _actualRows;
     private SqlSpillWorkspace? _workspace;
     private bool _disposed;
 
     private SqlQueryResources(Tsdb tsdb, SqlExecutionOptions options)
     {
+        _tsdb = tsdb;
+        _options = options;
         _globalBudget = tsdb.SqlMemoryBudget;
         _queryLimitBytes = options.BlockingOperatorMemoryLimitBytes
             ?? tsdb.SqlMemoryOptions.QueryLimitBytes;
         _rootDirectory = tsdb.RootDirectory;
+        _queryFingerprint = options.QueryFingerprint;
         CancellationToken = options.CancellationToken;
     }
 
     internal static SqlQueryResources? Current => CurrentSlot.Value;
 
     internal CancellationToken CancellationToken { get; }
+
+    internal SqlExecutionOptions Options => _options;
+
+    internal long EstimatedRows => Volatile.Read(ref _estimatedRows);
 
     internal static Scope EnterRoot(Tsdb tsdb, SqlExecutionOptions options)
     {
@@ -89,6 +101,63 @@ internal sealed class SqlQueryResources : IDisposable
 
     internal void ThrowIfCancellationRequested()
         => CancellationToken.ThrowIfCancellationRequested();
+
+    internal int ChooseParallelWorkerCount(int inputCount, long estimatedRows)
+    {
+        if (!_options.EnableParallelism
+            || SqlTransactionContext.Current is not null
+            || inputCount < 2
+            || estimatedRows < (_options.ParallelismMinRows ?? _tsdb.SqlMemoryOptions.ParallelismMinRows))
+        {
+            return 1;
+        }
+
+        int configured = _options.MaxDegreeOfParallelism ?? _tsdb.SqlMemoryOptions.MaxParallelWorkers;
+        return Math.Clamp(configured, 1, Math.Min(inputCount, _tsdb.SqlMemoryOptions.MaxParallelWorkers));
+    }
+
+    internal bool TryAcquireParallelWorker(out SqlParallelWorkerLease lease)
+    {
+        lease = null!;
+        ThrowIfCancellationRequested();
+        if (!_tsdb.SqlParallelCoordinator.TryAcquire(CancellationToken, out IDisposable coordinatorLease))
+            return false;
+
+        var reservation = CreateReservation();
+        long bytes = _tsdb.SqlMemoryOptions.ParallelWorkerMemoryBytes;
+        if (!reservation.TryReserve(bytes))
+        {
+            reservation.Dispose();
+            coordinatorLease.Dispose();
+            return false;
+        }
+
+        lease = new SqlParallelWorkerLease(coordinatorLease, reservation);
+        return true;
+    }
+
+    internal void RecordParallelDecision(string operatorName, bool enabled, int workerCount, string? fallbackReason)
+        => SqlExecutionTelemetry.RecordParallelDecision(operatorName, enabled, workerCount, fallbackReason);
+
+    internal void RecordParallelCompleted(string operatorName, int itemCount)
+        => SqlExecutionTelemetry.RecordParallelCompleted(operatorName, itemCount);
+
+    internal void RecordEstimatedRows(long rows)
+    {
+        if (rows >= 0)
+        {
+            long corrected = _queryFingerprint is null
+                ? rows
+                : _tsdb.SqlRuntimeFeedback.CorrectEstimate(_queryFingerprint, rows);
+            Interlocked.Exchange(ref _estimatedRows, Math.Max(Volatile.Read(ref _estimatedRows), corrected));
+        }
+    }
+
+    internal void RecordActualRows(long rows)
+    {
+        if (rows >= 0)
+            Interlocked.Add(ref _actualRows, rows);
+    }
 
     private bool TryReserve(long bytes)
     {
@@ -141,6 +210,13 @@ internal sealed class SqlQueryResources : IDisposable
         }
         finally
         {
+            if (_queryFingerprint is not null)
+            {
+                _tsdb.SqlRuntimeFeedback.Record(
+                    _queryFingerprint,
+                    Volatile.Read(ref _estimatedRows),
+                    Volatile.Read(ref _actualRows));
+            }
             long remaining = Interlocked.Exchange(ref _reservedBytes, 0);
             if (remaining != 0)
                 _globalBudget.Release(remaining);
@@ -176,6 +252,26 @@ internal sealed class SqlQueryResources : IDisposable
         {
             ReleaseAll();
             _owner = null;
+        }
+    }
+
+    internal sealed class SqlParallelWorkerLease : IDisposable
+    {
+        private IDisposable? _coordinator;
+        private SqlOperatorMemoryReservation? _reservation;
+
+        internal SqlParallelWorkerLease(
+            IDisposable coordinator,
+            SqlOperatorMemoryReservation reservation)
+        {
+            _coordinator = coordinator;
+            _reservation = reservation;
+        }
+
+        public void Dispose()
+        {
+            Interlocked.Exchange(ref _reservation, null)?.Dispose();
+            Interlocked.Exchange(ref _coordinator, null)?.Dispose();
         }
     }
 
