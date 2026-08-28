@@ -7,9 +7,13 @@
 
 ### Added
 
+- **M20 Parity nightly 证据验证器**：新增只读 PowerShell verifier，通过 GitHub Actions artifact 或同构离线 fixture 检查最近至少七次 scheduled run 的 `light` / `full` 双 profile、完整 schema v2 字段与计数不变量、run/commit 绑定，并将 summary suites 与 `raw/<runId>/report.json` 的实际场景数一一对账。`RequiredRunCount` 下限固定为 7，只能扩大窗口；默认 `NOT_READY` 会失败退出。离线合同覆盖当前“三次成功 + 四次失败”、不足七次、缺字段/`gap_reason`、计数或 raw 对账不一致和七次连续成功。2026-08-28 的真实 artifact 审计结果仍为 `NOT_READY`（3/7，42.86%），M20 未完成。
+
 - **跨模型 generation 原子发布合同**：新增 `Tsdb.Generations`、`DatabaseGenerationPublishRequest`、查询 `DatabaseGenerationQueryLease`、generation-bound opaque cursor 与 lease-aware retired cleanup。发布会先校验并 checkpoint generation 独占的 KV、Document 及其全部 FullText 派生资源，再以内部 durable KV 条件批次一次写入 descriptor、resource ownership 和 active revision；不持久化或暴露 staging，也不要求上层建立第二提交日志。新增 A/B reopen、publish 前后故障注入、双 lease 并发清理、cursor continuation/stale/tamper、取消/异常释放、真实 Document+FullText 不混代、backup/restore、公共 API 与独立 NuGet package consumer 回归。该条目只表示 Core 公共合同和本仓证据完成；Couplet 仍需直接消费最新 SonnetDB 源码并通过 C1 联合 correctness/recovery 与 performance/capacity 门禁，`CG-005` 尚未关闭。
 
 ### Changed
+
+- **M41 #378 JOIN 优化**：Hash Join 现在按估算行数与投影行宽选择 build side，LEFT JOIN 固定保留右侧 build；Hash 键保持数值、DATETIME/Unix 毫秒与 BLOB 内容相等合同。非相关 `IN` / `NOT IN` 复用 NULL-aware Hash membership，右侧主键/普通索引可按成本选择 index nested-loop，兼容有序 INT64/布尔/时间索引且收益成立时可选择 merge join；merge 游标按 Table V1 实际补码索引顺序推进，Float64、字符串/JSON 等物理顺序无法证明兼容的类型保守回退。3～6 个基础表的纯 INNER JOIN 使用有界连通枚举，外连接、事务 overlay、派生输入、不可证明谓词、断连或超过 6 个输入时保持声明顺序并报告稳定 fallback；运行指标与 `EXPLAIN` 同步公开算子、索引、build side、join order、候选数和内存行为。新增 Hash/index/merge、semijoin/antijoin、NULL/空集、重复键、稀疏有符号键、跨类型/BLOB 回退、自连接重排、外连接和大图回退测试，以及同语义 BenchmarkDotNet 对拍。本机样本中 index nested-loop 相对 Hash 扫描均值为 6.11 ms / 17.41 ms、分配为 0.54 MiB / 14.49 MiB；merge join 相对 Hash 均值为 20.91 ms / 23.81 ms，并从该样本的 Gen2 回收降为 0，但总分配为 14.90 MiB / 13.64 MiB。固定 ARM64/x64、木垒生产同语料、7 天 mixed workload 与生产发布 gate 仍为 `NOT_RUN`。
 
 - **面向任意大模型的 AI/Agent 发现与使用合同**：重写短版 `llms.txt`，新增完整 `llms-full.txt` 与中文 AI/Agent 指南，按 SonnetDB 3.1.0 的真实能力公开八模型定位、接入决策、SQL/代码示例、MCP 九个只读工具与三个资源、推荐调用顺序、安全规则、provider-neutral 边界、原生图未完成门禁和可复用系统提示词；GitHub Pages 发布 `/llms.txt`、`/llms-full.txt`，后续 Server 版本的构建产物和根端点同步提供这两个文件，README、文档首页、工业 AI 文档和 3.1.0 公告加入入口。
 

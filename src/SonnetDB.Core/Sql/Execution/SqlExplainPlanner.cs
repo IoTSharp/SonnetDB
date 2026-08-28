@@ -367,7 +367,9 @@ public static class SqlExplainPlanner
         return new SelectExecutionResult(_keyValueColumns, rows);
     }
 
-    private static string DescribeMemoryBehavior(SelectStatement statement)
+    private static string DescribeMemoryBehavior(
+        SelectStatement statement,
+        IReadOnlyList<RelationalJoinOperatorPlan>? joinPlans = null)
     {
         var operators = new List<string>
         {
@@ -375,7 +377,29 @@ public static class SqlExplainPlanner
         };
         for (int index = 0; index < statement.JoinClauses.Count; index++)
         {
-            operators.Add($"join_{index + 1}=right_input_blocking(hash_build_or_nested_replay)");
+            RelationalJoinOperatorPlan? plan = joinPlans is not null && index < joinPlans.Count
+                ? joinPlans[index]
+                : null;
+            if (plan is { Operator: "hash_join", BuildSide: RelationalHashBuildSide.Left })
+            {
+                operators.Add($"join_{index + 1}=left_input_blocking(hash_build),right_input=streaming_probe");
+            }
+            else if (plan is { Operator: "hash_join" })
+            {
+                operators.Add($"join_{index + 1}=right_input_blocking(hash_build),left_input=streaming_probe");
+            }
+            else if (plan is { Operator: "index_nested_loop" })
+            {
+                operators.Add($"join_{index + 1}=streaming_probe,index_lookup=bounded_per_probe");
+            }
+            else if (plan is { Operator: "merge_join" })
+            {
+                operators.Add($"join_{index + 1}=streaming_ordered_inputs,duplicate_group=bounded_by_key");
+            }
+            else
+            {
+                operators.Add($"join_{index + 1}=right_input_blocking(hash_build_or_nested_replay)");
+            }
         }
         if (RelationalSelectExecutor.ContainsAggregateForExplain(statement)
             || statement.GroupBy.Count > 0
@@ -848,6 +872,34 @@ public static class SqlExplainPlanner
             statement = semijoinStatement;
         }
 
+        if (RelationalSelectExecutor.ExplainMembershipJoin(tsdb, statement) is { } membershipPlan)
+        {
+            long scannedRows = SaturatingAdd(membershipPlan.OuterRows, membershipPlan.InnerRows);
+            return new SqlExplainExecutionResult(
+                Database: databaseName,
+                StatementType: "select_membership_join",
+                Measurement: statement.Measurement,
+                MatchedSeriesCount: 0,
+                EstimatedSegmentCount: 0,
+                EstimatedBlockCount: 0,
+                EstimatedScannedRows: scannedRows,
+                EstimatedMemTableRows: scannedRows,
+                EstimatedSegmentRows: 0,
+                HasTimeFilter: false,
+                TagFilterCount: 0,
+                AccessPath: $"source:table_scan;join:{membershipPlan.Operator}(build=inner,rows={membershipPlan.InnerRows})",
+                IndexName: null,
+                ScanFilter: DescribeScanFilter(statement.Where))
+            {
+                EstimatedOutputRows = membershipPlan.OuterRows,
+                CandidateContract = membershipPlan.NullAware
+                    ? "null_aware_not_in_membership"
+                    : "in_membership",
+                PlanNode = membershipPlan.Operator,
+                MemoryBehavior = "inner_membership=blocking_hash;outer_probe=streaming;result=materialized_public_boundary",
+            };
+        }
+
         if (statement.FromSubquery is not null
             || (statement.JoinClauses.Count != 0
                 && tsdb.Tables.Catalog.TryGet(statement.Measurement) is not null))
@@ -1185,19 +1237,40 @@ public static class SqlExplainPlanner
         long estimatedRows = 0;
         foreach (ComposedSourceExplain source in sources)
             estimatedRows = SaturatingAdd(estimatedRows, source.EstimatedRows);
+        RelationalJoinPipelinePlan joinPipeline =
+            RelationalSelectExecutor.ExplainJoinOperators(tsdb, statement);
+        IReadOnlyList<RelationalJoinOperatorPlan> joinPlans = joinPipeline.Operators;
         string accessPath = string.Join(
             ";",
             sources.Select((source, position) =>
                 $"{(position == 0 ? "source" : "join")}:{source.Alias}[{source.AccessPath}]"));
-        if (sources.Count > 1)
-            accessPath += ";join_operator=right_build_or_replay";
-        string? indexName = JoinNonEmpty(sources.Select(static source => source.IndexName));
+        if (joinPlans.Count > 0)
+        {
+            accessPath += $";join_order={joinPipeline.JoinOrder}"
+                + $";join_order_candidates={joinPipeline.JoinOrderCandidateCount}"
+                + ";" + string.Join(";", joinPlans.Select(FormatJoinOperatorPlan));
+        }
+        string? indexName = JoinNonEmpty(
+            sources.Select(static source => source.IndexName)
+                .Concat(joinPlans.Select(static plan => plan.IndexName)));
         string? candidateContract = JoinNonEmpty(sources
             .Where(static source => source.CandidateContract is not null)
             .Select(static source => $"{source.Alias}:{source.CandidateContract}"));
-        string? fallbackReason = JoinNonEmpty(sources
-            .Where(static source => source.FallbackReason is not null)
-            .Select(static source => $"{source.Alias}:{source.FallbackReason}"));
+        string? fallbackReason = JoinNonEmpty(
+            sources
+                .Where(static source => source.FallbackReason is not null)
+                .Select(static source => $"{source.Alias}:{source.FallbackReason}")
+                .Concat(joinPlans
+                    .Where(static plan => plan.FallbackReason is not null)
+                    .Select(static plan => $"join_{plan.Ordinal}:{plan.FallbackReason}"))
+                .Append(joinPipeline.JoinOrderFallbackReason is null
+                    ? null
+                    : $"join_order:{joinPipeline.JoinOrderFallbackReason}"));
+
+        RelationalJoinInputEstimate? outputEstimate = joinPlans.Count == 0
+            || joinPlans[^1].OutputEstimate.Rows == long.MaxValue
+            ? null
+            : joinPlans[^1].OutputEstimate;
 
         return new SqlExplainExecutionResult(
             Database: databaseName,
@@ -1219,8 +1292,42 @@ public static class SqlExplainPlanner
         {
             CandidateContract = candidateContract,
             FallbackReason = fallbackReason,
-            PlanNode = sources.Count > 1 ? "right_input_blocking_join" : "streaming_relation",
+            EstimatedOutputRows = outputEstimate?.Rows,
+            EstimatedRowWidth = outputEstimate?.RowWidth,
+            PlanNode = joinPlans.Count switch
+            {
+                0 => "streaming_relation",
+                1 => joinPlans[0].Operator,
+                _ => "join_pipeline",
+            },
+            MemoryBehavior = DescribeMemoryBehavior(statement, joinPlans),
         };
+    }
+
+    private static string FormatJoinOperatorPlan(RelationalJoinOperatorPlan plan)
+    {
+        if (string.Equals(plan.Operator, "runtime_join", StringComparison.Ordinal))
+            return $"join_{plan.Ordinal}:runtime_join(binding=deferred)";
+
+        if (string.Equals(plan.Operator, "index_nested_loop", StringComparison.Ordinal))
+        {
+            return $"join_{plan.Ordinal}:index_nested_loop(index={plan.IndexName},"
+                + $"probes<={plan.ProbeEstimate.Rows})";
+        }
+
+        if (string.Equals(plan.Operator, "merge_join", StringComparison.Ordinal))
+        {
+            return $"join_{plan.Ordinal}:merge_join(indexes={plan.IndexName},"
+                + $"rows<={SaturatingAdd(plan.BuildEstimate.Rows, plan.ProbeEstimate.Rows)})";
+        }
+
+        string buildSide = plan.BuildSide == RelationalHashBuildSide.Left ? "left" : "right";
+        string estimatedBytes = Math.Ceiling(plan.BuildEstimate.EstimatedBytes)
+            .ToString("F0", CultureInfo.InvariantCulture);
+        string inputRole = string.Equals(plan.Operator, "hash_join", StringComparison.Ordinal)
+            ? $"build={buildSide}"
+            : "replay=right";
+        return $"join_{plan.Ordinal}:{plan.Operator}({inputRole},rows={plan.BuildEstimate.Rows},bytes={estimatedBytes})";
     }
 
     private static ComposedSourceExplain ExplainComposedSubquery(

@@ -26,6 +26,7 @@ using SonnetDB.Benchmarks.Benchmarks;
 //   dotnet run -c Release -- --m41-baseline-evidence --quick （#368 性能合同与可观测性基线）
 //   dotnet run -c Release -- --filter *M41P0AccessPath* （#369～#371 P0 快速路径对拍）
 //   dotnet run -c Release -- --filter *M41RelationInputPushdown* （#372 关系输入下推对拍）
+//   dotnet run -c Release -- --filter *M41JoinAlgorithm* （#378 JOIN 算法对拍）
 //   dotnet run -c Release -- --filter *         （运行所有基准）
 //
 // 运行前请先启动外部数据库（见 docker/docker-compose.yml）：

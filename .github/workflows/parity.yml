@@ -74,10 +74,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-parity-nuget-
 
-      - name: Validate parity reporter contract
+      - name: Validate parity reporting contracts
         if: steps.selection.outputs.run == 'true'
         shell: pwsh
-        run: ./tests/SonnetDB.Parity/scripts/test-summarize-parity.ps1
+        run: |
+          ./tests/SonnetDB.Parity/scripts/test-summarize-parity.ps1
+          ./tests/SonnetDB.Parity/scripts/test-verify-parity-nightly-evidence.ps1
 
       - name: Restore parity projects
         id: restore

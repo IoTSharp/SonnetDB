@@ -74,13 +74,59 @@ internal static class RelationalSelectExecutor
             throw new InvalidOperationException("关系型 SELECT 暂不支持 FROM 表值函数。");
 
         var inputPushdown = PlanRelationInputs(tsdb, statement, outerScope);
-        var relation = LoadFrom(tsdb, statement, inputPushdown.From, memo);
-        for (int joinIndex = 0; joinIndex < statement.JoinClauses.Count; joinIndex++)
+        Relation relation;
+        if (outerScope is null
+            && statement.JoinClauses.Count >= 2
+            && TryLoadJoinOrderSources(tsdb, statement, inputPushdown, memo, out Relation[] joinSources))
         {
-            SqlExecutor.ThrowIfCancellationRequested();
-            var join = statement.JoinClauses[joinIndex];
-            var right = LoadJoin(tsdb, join, inputPushdown.Joins[joinIndex], memo);
-            relation = Join(tsdb, relation, right, join.On, join.Kind, outerScope, memo);
+            JoinOrderPlan joinOrder = PlanJoinOrder(statement, joinSources);
+            memo.RecordJoinOrder(joinOrder, joinSources);
+            if (joinOrder.FallbackReason is null)
+            {
+                relation = joinSources[joinOrder.SourceOrder[0]];
+                for (int step = 1; step < joinOrder.SourceOrder.Count; step++)
+                {
+                    SqlExecutor.ThrowIfCancellationRequested();
+                    Relation right = joinSources[joinOrder.SourceOrder[step]];
+                    relation = Join(
+                        tsdb,
+                        relation,
+                        right,
+                        joinOrder.StepPredicates[step - 1],
+                        JoinKind.Inner,
+                        outerScope,
+                        memo);
+                }
+                relation = RestoreDeclaredColumnOrder(relation, joinSources);
+            }
+            else
+            {
+                relation = joinSources[0];
+                for (int joinIndex = 0; joinIndex < statement.JoinClauses.Count; joinIndex++)
+                {
+                    SqlExecutor.ThrowIfCancellationRequested();
+                    JoinClause join = statement.JoinClauses[joinIndex];
+                    relation = Join(
+                        tsdb,
+                        relation,
+                        joinSources[joinIndex + 1],
+                        join.On,
+                        join.Kind,
+                        outerScope,
+                        memo);
+                }
+            }
+        }
+        else
+        {
+            relation = LoadFrom(tsdb, statement, inputPushdown.From, memo);
+            for (int joinIndex = 0; joinIndex < statement.JoinClauses.Count; joinIndex++)
+            {
+                SqlExecutor.ThrowIfCancellationRequested();
+                var join = statement.JoinClauses[joinIndex];
+                var right = LoadJoin(tsdb, join, inputPushdown.Joins[joinIndex], memo);
+                relation = Join(tsdb, relation, right, join.On, join.Kind, outerScope, memo);
+            }
         }
 
         if (statement.Where is not null)
@@ -229,6 +275,59 @@ internal static class RelationalSelectExecutor
         return true;
     }
 
+    /// <summary>为无法改写成外表 MultiGet 的非相关 IN/NOT IN 返回 Hash membership 计划。</summary>
+    internal static RelationalMembershipExplainPlan? ExplainMembershipJoin(
+        Tsdb tsdb,
+        SelectStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+        if (statement.Where is null
+            || statement.FromSubquery is not null
+            || statement.JoinClauses.Count != 0
+            || tsdb.Tables.Catalog.TryGet(statement.Measurement) is not { } outerSchema)
+        {
+            return null;
+        }
+
+        InExpression? target = null;
+        foreach (SqlExpression conjunct in FlattenAndExpr(statement.Where))
+        {
+            if (conjunct is InExpression
+                {
+                    Subquery: not null,
+                    Value: IdentifierExpression,
+                } candidate)
+            {
+                if (target is not null)
+                    return null;
+                target = candidate;
+                continue;
+            }
+            if (ContainsSubquery(conjunct))
+                return null;
+        }
+        if (target?.Subquery is not { } subquery
+            || !TableInSubqueryExecutor.IsNonCorrelated(
+                tsdb,
+                subquery,
+                outerSchema,
+                statement.TableAlias ?? statement.Measurement))
+        {
+            return null;
+        }
+
+        long outerRows = tsdb.Tables.Open(outerSchema.Name).RowCount;
+        long innerRows = tsdb.Tables.Catalog.TryGet(subquery.Measurement) is { } innerSchema
+            ? tsdb.Tables.Open(innerSchema.Name).RowCount
+            : 0;
+        return new RelationalMembershipExplainPlan(
+            target.Negated ? "hash_antijoin" : "hash_semijoin",
+            outerRows,
+            innerRows,
+            target.Negated);
+    }
+
     /// <summary>在顶层 AND 树中按节点身份替换已识别的 IN 子查询。</summary>
     private static SqlExpression ReplaceTopLevelConjunct(
         SqlExpression expression,
@@ -276,6 +375,7 @@ internal static class RelationalSelectExecutor
     {
         private readonly Dictionary<SelectStatement, SelectExecutionResult> _cache = new(ReferenceEqualityComparer.Instance);
         private readonly Dictionary<SelectStatement, bool> _existsCache = new(ReferenceEqualityComparer.Instance);
+        private readonly Dictionary<SelectStatement, SubqueryMembership> _membershipCache = new(ReferenceEqualityComparer.Instance);
         private readonly HashSet<SelectStatement> _correlated = new(ReferenceEqualityComparer.Instance);
         private readonly RelationalSelectExecutionMetrics? _metrics;
 
@@ -298,6 +398,28 @@ internal static class RelationalSelectExecutor
             => _existsCache[subquery] = result;
 
         public void MarkCorrelated(SelectStatement subquery) => _correlated.Add(subquery);
+
+        public bool TryGetOrCreateMembership(
+            SelectStatement subquery,
+            SelectExecutionResult result,
+            out SubqueryMembership membership,
+            out bool built)
+        {
+            membership = null!;
+            built = false;
+            if (!_cache.TryGetValue(subquery, out SelectExecutionResult? cached)
+                || !ReferenceEquals(cached, result))
+            {
+                return false;
+            }
+            if (_membershipCache.TryGetValue(subquery, out membership!))
+                return true;
+
+            membership = SubqueryMembership.Create(result);
+            _membershipCache.Add(subquery, membership);
+            built = true;
+            return true;
+        }
 
         public void RecordExecution() => _metrics?.RecordSubqueryExecution();
 
@@ -328,8 +450,8 @@ internal static class RelationalSelectExecutor
             RelationInputPlan plan,
             int sourceColumns,
             int projectedColumns,
-            int candidateRows,
-            int retainedRows)
+            long candidateRows,
+            long retainedRows)
             => _metrics?.RecordRelationInput(
                 plan.Predicate is not null,
                 plan.RowLimit is not null,
@@ -337,6 +459,66 @@ internal static class RelationalSelectExecutor
                 projectedColumns,
                 candidateRows,
                 retainedRows);
+
+        /// <summary>记录一次 Hash Join 的实际 build/probe 证据。</summary>
+        public void RecordHashJoin(
+            RelationalHashBuildSide buildSide,
+            RelationalJoinInputEstimate buildEstimate,
+            long actualBuildRows,
+            long actualProbeRows)
+            => _metrics?.RecordHashJoin(buildSide, buildEstimate, actualBuildRows, actualProbeRows);
+
+        /// <summary>记录一次非 Hash JOIN 物理算子的实际执行证据。</summary>
+        public void RecordJoinOperator(
+            string operatorName,
+            string? indexName,
+            long probeRows,
+            long lookupCount,
+            long candidateRows)
+            => _metrics?.RecordJoinOperator(
+                operatorName,
+                indexName,
+                probeRows,
+                lookupCount,
+                candidateRows);
+
+        /// <summary>记录一次非相关 IN/NOT IN 集合连接探测。</summary>
+        public void RecordMembershipJoin(bool negated, bool built, int buildRows)
+            => _metrics?.RecordMembershipJoin(negated, built, buildRows);
+
+        /// <summary>记录有限 join-order 枚举结果。</summary>
+        public void RecordJoinOrder(JoinOrderPlan plan, IReadOnlyList<Relation> sources)
+        {
+            if (_metrics is null)
+                return;
+            string order = string.Join(
+                ",",
+                plan.SourceOrder.Select(index => sources[index].TableInput?.Alias ?? $"source_{index}"));
+            _metrics.RecordJoinOrder(order, plan.CandidateCount, plan.Reordered, plan.FallbackReason);
+        }
+    }
+
+    private sealed record SubqueryMembership(HashSet<JoinValueKey> Values, bool HasNull)
+    {
+        public static SubqueryMembership Create(SelectExecutionResult result)
+        {
+            var values = new HashSet<JoinValueKey>();
+            bool hasNull = false;
+            foreach (IReadOnlyList<object?> row in result.Rows)
+            {
+                if (row.Count != 1)
+                    throw new InvalidOperationException("IN 子查询必须只返回一列。");
+                if (row[0] is null)
+                {
+                    hasNull = true;
+                    continue;
+                }
+                values.Add(new JoinValueKey(row[0]!));
+            }
+            return new SubqueryMembership(values, hasNull);
+        }
+
+        public bool Contains(object value) => Values.Contains(new JoinValueKey(value));
     }
 
     public static bool NeedsRelationalPath(SelectStatement statement)
@@ -356,6 +538,254 @@ internal static class RelationalSelectExecutor
         ArgumentNullException.ThrowIfNull(statement);
         return ContainsAggregate(statement.Projections);
     }
+
+    /// <summary>为关系 JOIN 生成与运行时共用的物理算子和 Hash build side 计划。</summary>
+    internal static RelationalJoinPipelinePlan ExplainJoinOperators(
+        Tsdb tsdb,
+        SelectStatement statement)
+    {
+        ArgumentNullException.ThrowIfNull(tsdb);
+        ArgumentNullException.ThrowIfNull(statement);
+
+        if (statement.JoinClauses.Count == 0)
+        {
+            return new RelationalJoinPipelinePlan(
+                [],
+                statement.TableAlias ?? statement.Measurement,
+                0,
+                JoinOrderReordered: false,
+                JoinOrderFallbackReason: null);
+        }
+
+        RelationInputPushdownPlan inputPushdown = PlanRelationInputs(tsdb, statement, outerScope: null);
+        var sources = new Relation[statement.JoinClauses.Count + 1];
+        if (!TryCreateExplainRelation(
+                tsdb,
+                statement.Measurement,
+                statement.TableAlias ?? statement.Measurement,
+                statement.FromSubquery,
+                inputPushdown.From,
+                out sources[0]))
+        {
+            return BuildExplainFallbackPipeline(
+                statement,
+                "left_input_requires_runtime_materialization");
+        }
+
+        for (int joinIndex = 0; joinIndex < statement.JoinClauses.Count; joinIndex++)
+        {
+            JoinClause join = statement.JoinClauses[joinIndex];
+            if (!TryCreateExplainRelation(
+                    tsdb,
+                    join.TableName,
+                    join.Alias,
+                    join.Subquery,
+                    inputPushdown.Joins[joinIndex],
+                    out sources[joinIndex + 1]))
+            {
+                return BuildExplainFallbackPipeline(
+                    statement,
+                    "right_input_requires_runtime_materialization");
+            }
+        }
+
+        JoinOrderPlan joinOrder = PlanJoinOrder(statement, sources);
+        IReadOnlyList<int> sourceOrder = joinOrder.SourceOrder;
+        IReadOnlyList<SqlExpression> predicates = joinOrder.StepPredicates;
+        bool declaredOrderFallback = joinOrder.FallbackReason is not null;
+        var plans = new List<RelationalJoinOperatorPlan>(statement.JoinClauses.Count);
+        Relation relation = sources[sourceOrder[0]];
+        for (int step = 1; step < sourceOrder.Count; step++)
+        {
+            int sourceIndex = declaredOrderFallback ? step : sourceOrder[step];
+            Relation right = sources[sourceIndex];
+            JoinKind kind = declaredOrderFallback
+                ? statement.JoinClauses[step - 1].Kind
+                : JoinKind.Inner;
+            SqlExpression predicate = declaredOrderFallback
+                ? statement.JoinClauses[step - 1].On
+                : predicates[step - 1];
+            if (TryPlanHashJoin(relation, right, predicate, out List<JoinKeyPair> explainKeys, out _))
+            {
+                JoinExecutionPlan executionPlan = ChooseJoinExecutionPlan(
+                    relation,
+                    right,
+                    explainKeys,
+                    kind);
+                plans.Add(CreateJoinOperatorPlan(
+                    step,
+                    kind,
+                    executionPlan,
+                    relation.Estimate,
+                    right.Estimate));
+            }
+            else
+            {
+                plans.Add(CreateNestedLoopPlan(
+                    step,
+                    kind,
+                    relation.Estimate,
+                    right.Estimate,
+                    "hash_key_not_proven"));
+            }
+
+            relation = new Relation(
+                relation.Columns.Concat(right.Columns).ToArray(),
+                [],
+                RelationalJoinCostPlanner.Combine(kind, relation.Estimate, right.Estimate));
+        }
+
+        string order = string.Join(
+            ",",
+            sourceOrder.Select(index => sources[index].TableInput!.Alias));
+        return new RelationalJoinPipelinePlan(
+            plans,
+            order,
+            joinOrder.CandidateCount,
+            joinOrder.Reordered,
+            joinOrder.FallbackReason);
+    }
+
+    private static RelationalJoinPipelinePlan BuildExplainFallbackPipeline(
+        SelectStatement statement,
+        string fallbackReason)
+        => new(
+            BuildExplainFallbackPlans(statement.JoinClauses, fallbackReason),
+            string.Join(
+                ",",
+                new[] { statement.TableAlias ?? statement.Measurement }
+                    .Concat(statement.JoinClauses.Select(static join => join.Alias))),
+            0,
+            JoinOrderReordered: false,
+            fallbackReason);
+
+    private static bool TryCreateExplainRelation(
+        Tsdb tsdb,
+        string sourceName,
+        string alias,
+        SelectStatement? subquery,
+        RelationInputPlan inputPlan,
+        out Relation relation)
+    {
+        relation = null!;
+        if (subquery is not null || tsdb.Tables.Catalog.TryGet(sourceName) is not { } schema)
+            return false;
+
+        TableColumn[] selectedColumns = SelectInputColumns(schema, inputPlan.RequiredColumns);
+        var columns = new RelColumn[selectedColumns.Length];
+        for (int index = 0; index < selectedColumns.Length; index++)
+        {
+            TableColumn column = selectedColumns[index];
+            columns[index] = new RelColumn(alias, column.Name, column.Name, column.DataType);
+        }
+
+        relation = new Relation(
+            columns,
+            [],
+            EstimateTableInput(tsdb.Tables.Open(schema.Name), schema, selectedColumns, inputPlan),
+            new TableRelationInput(
+                tsdb.Tables.Open(schema.Name),
+                schema,
+                alias,
+                selectedColumns,
+                inputPlan));
+        return true;
+    }
+
+    private static IReadOnlyList<RelationalJoinOperatorPlan> BuildExplainFallbackPlans(
+        IReadOnlyList<JoinClause> joins,
+        string fallbackReason)
+    {
+        var plans = new RelationalJoinOperatorPlan[joins.Count];
+        var unknown = new RelationalJoinInputEstimate(long.MaxValue, 1);
+        for (int index = 0; index < plans.Length; index++)
+            plans[index] = CreateRuntimeJoinPlan(index + 1, joins[index].Kind, unknown, unknown, fallbackReason);
+        return plans;
+    }
+
+    private static RelationalJoinOperatorPlan CreateHashJoinPlan(
+        int ordinal,
+        JoinKind kind,
+        RelationalHashBuildSide buildSide,
+        RelationalJoinInputEstimate left,
+        RelationalJoinInputEstimate right)
+        => buildSide == RelationalHashBuildSide.Left
+            ? new RelationalJoinOperatorPlan(
+                ordinal,
+                "hash_join",
+                buildSide,
+                left,
+                right,
+                RelationalJoinCostPlanner.Combine(kind, left, right))
+            : new RelationalJoinOperatorPlan(
+                ordinal,
+                "hash_join",
+                buildSide,
+                right,
+                left,
+                RelationalJoinCostPlanner.Combine(kind, left, right));
+
+    private static RelationalJoinOperatorPlan CreateJoinOperatorPlan(
+        int ordinal,
+        JoinKind kind,
+        JoinExecutionPlan executionPlan,
+        RelationalJoinInputEstimate left,
+        RelationalJoinInputEstimate right)
+        => executionPlan.Operator switch
+        {
+            RelationalJoinOperator.IndexNestedLoop => new RelationalJoinOperatorPlan(
+                ordinal,
+                "index_nested_loop",
+                RelationalHashBuildSide.Right,
+                right,
+                left,
+                RelationalJoinCostPlanner.Combine(kind, left, right),
+                IndexName: executionPlan.IndexNestedLoop!.IndexName),
+            RelationalJoinOperator.Merge => new RelationalJoinOperatorPlan(
+                ordinal,
+                "merge_join",
+                executionPlan.HashBuildSide,
+                executionPlan.HashBuildSide == RelationalHashBuildSide.Left ? left : right,
+                executionPlan.HashBuildSide == RelationalHashBuildSide.Left ? right : left,
+                RelationalJoinCostPlanner.Combine(kind, left, right),
+                IndexName: $"{executionPlan.Merge!.Left.IndexName},{executionPlan.Merge.Right.IndexName}"),
+            _ => CreateHashJoinPlan(
+                ordinal,
+                kind,
+                executionPlan.HashBuildSide,
+                left,
+                right),
+        };
+
+    private static RelationalJoinOperatorPlan CreateNestedLoopPlan(
+        int ordinal,
+        JoinKind kind,
+        RelationalJoinInputEstimate left,
+        RelationalJoinInputEstimate right,
+        string fallbackReason)
+        => new(
+            ordinal,
+            "nested_loop",
+            RelationalHashBuildSide.Right,
+            right,
+            left,
+            RelationalJoinCostPlanner.Combine(kind, left, right),
+            fallbackReason);
+
+    private static RelationalJoinOperatorPlan CreateRuntimeJoinPlan(
+        int ordinal,
+        JoinKind kind,
+        RelationalJoinInputEstimate left,
+        RelationalJoinInputEstimate right,
+        string fallbackReason)
+        => new(
+            ordinal,
+            "runtime_join",
+            RelationalHashBuildSide.Right,
+            right,
+            left,
+            RelationalJoinCostPlanner.Combine(kind, left, right),
+            fallbackReason);
 
     /// <summary>
     /// 为独立的单表 EXISTS 生成与运行时快速路径共用的访问计划描述，不执行业务数据扫描。
@@ -959,6 +1389,363 @@ internal static class RelationalSelectExecutor
         return true;
     }
 
+    private const int MaxJoinOrderInputs = 6;
+
+    private sealed record JoinOrderPlan(
+        IReadOnlyList<int> SourceOrder,
+        IReadOnlyList<SqlExpression> StepPredicates,
+        int CandidateCount,
+        bool Reordered,
+        string? FallbackReason);
+
+    private sealed class JoinPredicateEdge
+    {
+        public JoinPredicateEdge(int leftSource, int rightSource)
+        {
+            LeftSource = leftSource;
+            RightSource = rightSource;
+        }
+
+        public int LeftSource { get; }
+
+        public int RightSource { get; }
+
+        public List<SqlExpression> Predicates { get; } = [];
+
+        public bool HasEquality { get; set; }
+    }
+
+    private static bool TryLoadJoinOrderSources(
+        Tsdb tsdb,
+        SelectStatement statement,
+        RelationInputPushdownPlan inputPushdown,
+        SubqueryMemo memo,
+        out Relation[] sources)
+    {
+        sources = [];
+        if (statement.FromSubquery is not null
+            || tsdb.Tables.Catalog.TryGet(statement.Measurement) is not { } fromSchema)
+        {
+            return false;
+        }
+
+        var loaded = new Relation[statement.JoinClauses.Count + 1];
+        loaded[0] = LoadTable(
+            tsdb,
+            fromSchema,
+            statement.TableAlias ?? statement.Measurement,
+            inputPushdown.From,
+            memo);
+        for (int index = 0; index < statement.JoinClauses.Count; index++)
+        {
+            JoinClause join = statement.JoinClauses[index];
+            if (join.Subquery is not null
+                || tsdb.Tables.Catalog.TryGet(join.TableName) is not { } schema)
+            {
+                return false;
+            }
+            loaded[index + 1] = LoadTable(
+                tsdb,
+                schema,
+                join.Alias,
+                inputPushdown.Joins[index],
+                memo);
+        }
+        sources = loaded;
+        return true;
+    }
+
+    private static JoinOrderPlan PlanJoinOrder(
+        SelectStatement statement,
+        IReadOnlyList<Relation> sources)
+    {
+        JoinOrderPlan Original(string? fallbackReason, int candidateCount = 0)
+            => new(
+                Enumerable.Range(0, sources.Count).ToArray(),
+                statement.JoinClauses.Select(static join => join.On).ToArray(),
+                candidateCount,
+                Reordered: false,
+                fallbackReason);
+
+        if (sources.Count < 3)
+            return Original(fallbackReason: null);
+        if (!HasOnlyInnerJoins(statement.JoinClauses))
+            return Original("outer_join_preserves_declared_order");
+        if (sources.Count > MaxJoinOrderInputs)
+            return Original("join_graph_exceeds_enumeration_limit");
+        if (sources.Any(static source => source.TableInput is null))
+            return Original("runtime_materialized_input_preserves_declared_order");
+        if (sources.Any(static source => HasTransactionOverlay(source.TableInput!.Schema.Name)))
+            return Original("transaction_overlay_preserves_declared_order");
+
+        if (!TryBuildJoinPredicateEdges(statement, sources, out Dictionary<(int, int), JoinPredicateEdge>? edges))
+            return Original("join_predicate_not_reorderable");
+
+        int[] workingOrder = new int[sources.Count];
+        bool[] used = new bool[sources.Count];
+        int[]? bestOrder = null;
+        double bestCost = double.MaxValue;
+        int candidateCount = 0;
+
+        void Search(int depth, Relation? current, double cost)
+        {
+            if (depth == sources.Count)
+            {
+                candidateCount++;
+                if (cost < bestCost
+                    || cost.Equals(bestCost) && IsLexicographicallyEarlier(workingOrder, bestOrder))
+                {
+                    bestCost = cost;
+                    bestOrder = workingOrder.ToArray();
+                }
+                return;
+            }
+
+            for (int sourceIndex = 0; sourceIndex < sources.Count; sourceIndex++)
+            {
+                if (used[sourceIndex])
+                    continue;
+
+                if (depth == 0)
+                {
+                    used[sourceIndex] = true;
+                    workingOrder[0] = sourceIndex;
+                    Search(1, sources[sourceIndex], sources[sourceIndex].Estimate.EstimatedBytes / 4096);
+                    used[sourceIndex] = false;
+                    continue;
+                }
+
+                SqlExpression? predicate = BuildJoinStepPredicate(sourceIndex, used, edges);
+                if (predicate is null
+                    || !TryPlanHashJoin(current!, sources[sourceIndex], predicate, out List<JoinKeyPair> keys, out _))
+                {
+                    continue;
+                }
+
+                JoinExecutionPlan executionPlan = ChooseJoinExecutionPlan(
+                    current!,
+                    sources[sourceIndex],
+                    keys,
+                    JoinKind.Inner);
+                double stepCost = EstimateJoinExecutionCost(
+                    current!,
+                    sources[sourceIndex],
+                    executionPlan);
+                RelationalJoinInputEstimate outputEstimate = RelationalJoinCostPlanner.Combine(
+                    JoinKind.Inner,
+                    current!.Estimate,
+                    sources[sourceIndex].Estimate);
+                var next = new Relation(
+                    current.Columns.Concat(sources[sourceIndex].Columns).ToArray(),
+                    [],
+                    outputEstimate);
+                used[sourceIndex] = true;
+                workingOrder[depth] = sourceIndex;
+                Search(
+                    depth + 1,
+                    next,
+                    cost + stepCost + outputEstimate.EstimatedBytes / 4096);
+                used[sourceIndex] = false;
+            }
+        }
+
+        Search(0, current: null, cost: 0);
+        if (bestOrder is null)
+            return Original("disconnected_join_graph_preserves_declared_order", candidateCount);
+
+        var predicates = new SqlExpression[sources.Count - 1];
+        Array.Clear(used);
+        used[bestOrder[0]] = true;
+        for (int step = 1; step < bestOrder.Length; step++)
+        {
+            predicates[step - 1] = BuildJoinStepPredicate(bestOrder[step], used, edges)
+                ?? throw new InvalidOperationException("JOIN 顺序计划缺少连接谓词。");
+            used[bestOrder[step]] = true;
+        }
+
+        bool reordered = false;
+        for (int index = 0; index < bestOrder.Length; index++)
+            reordered |= bestOrder[index] != index;
+        return new JoinOrderPlan(bestOrder, predicates, candidateCount, reordered, FallbackReason: null);
+    }
+
+    private static bool TryBuildJoinPredicateEdges(
+        SelectStatement statement,
+        IReadOnlyList<Relation> sources,
+        out Dictionary<(int, int), JoinPredicateEdge> edges)
+    {
+        edges = [];
+        foreach (JoinClause join in statement.JoinClauses)
+        {
+            foreach (SqlExpression conjunct in FlattenAndExpr(join.On))
+            {
+                if (ContainsSubquery(conjunct) || ContainsFunctionCall(conjunct))
+                    return false;
+
+                var referenced = new HashSet<int>();
+                foreach (IdentifierExpression identifier in EnumerateLocalIdentifiers(conjunct))
+                {
+                    if (!TryResolveIdentifierSource(sources, identifier, out int sourceIndex))
+                        return false;
+                    referenced.Add(sourceIndex);
+                }
+                if (referenced.Count != 2)
+                    return false;
+
+                int leftSource = referenced.Min();
+                int rightSource = referenced.Max();
+                if (!edges.TryGetValue((leftSource, rightSource), out JoinPredicateEdge? edge))
+                {
+                    edge = new JoinPredicateEdge(leftSource, rightSource);
+                    edges.Add((leftSource, rightSource), edge);
+                }
+                edge.Predicates.Add(conjunct);
+                edge.HasEquality |= IsCrossSourceEquality(conjunct, sources, leftSource, rightSource);
+            }
+        }
+        return edges.Count > 0;
+    }
+
+    private static bool TryResolveIdentifierSource(
+        IReadOnlyList<Relation> sources,
+        IdentifierExpression identifier,
+        out int sourceIndex)
+    {
+        sourceIndex = -1;
+        int matches = 0;
+        for (int index = 0; index < sources.Count; index++)
+        {
+            Relation source = sources[index];
+            if (identifier.Qualifier is not null
+                && !NameEquals(identifier.Qualifier, source.TableInput!.Alias))
+            {
+                continue;
+            }
+            if (!source.Columns.Any(column => NameEquals(column.Name, identifier.Name)))
+                continue;
+            sourceIndex = index;
+            matches++;
+            if (matches > 1)
+                return false;
+        }
+        return matches == 1;
+    }
+
+    private static bool IsCrossSourceEquality(
+        SqlExpression expression,
+        IReadOnlyList<Relation> sources,
+        int expectedLeft,
+        int expectedRight)
+    {
+        if (expression is not BinaryExpression
+            {
+                Operator: SqlBinaryOperator.Equal,
+                Left: IdentifierExpression left,
+                Right: IdentifierExpression right,
+            }
+            || !TryResolveIdentifierSource(sources, left, out int leftSource)
+            || !TryResolveIdentifierSource(sources, right, out int rightSource))
+        {
+            return false;
+        }
+        return Math.Min(leftSource, rightSource) == expectedLeft
+            && Math.Max(leftSource, rightSource) == expectedRight;
+    }
+
+    private static SqlExpression? BuildJoinStepPredicate(
+        int sourceIndex,
+        IReadOnlyList<bool> joined,
+        IReadOnlyDictionary<(int, int), JoinPredicateEdge> edges)
+    {
+        var predicates = new List<SqlExpression>();
+        bool hasEquality = false;
+        for (int other = 0; other < joined.Count; other++)
+        {
+            if (!joined[other])
+                continue;
+            var key = (Math.Min(sourceIndex, other), Math.Max(sourceIndex, other));
+            if (!edges.TryGetValue(key, out JoinPredicateEdge? edge))
+                continue;
+            predicates.AddRange(edge.Predicates);
+            hasEquality |= edge.HasEquality;
+        }
+        return hasEquality ? CombineConjuncts(predicates) : null;
+    }
+
+    private static double EstimateJoinExecutionCost(
+        Relation left,
+        Relation right,
+        JoinExecutionPlan plan)
+        => plan.Operator switch
+        {
+            RelationalJoinOperator.IndexNestedLoop => RelationalJoinCostPlanner.EstimateIndexNestedLoopCost(
+                left.Estimate,
+                right.Estimate,
+                plan.IndexNestedLoop!.IsUnique),
+            RelationalJoinOperator.Merge => RelationalJoinCostPlanner.EstimateMergeJoinCost(
+                new RelationalJoinInputEstimate(left.TableInput!.Store.RowCount, left.Estimate.RowWidth),
+                new RelationalJoinInputEstimate(right.TableInput!.Store.RowCount, right.Estimate.RowWidth)),
+            _ => RelationalJoinCostPlanner.EstimateHashJoinCost(
+                left.Estimate,
+                right.Estimate,
+                plan.HashBuildSide),
+        };
+
+    private static bool IsLexicographicallyEarlier(IReadOnlyList<int> candidate, IReadOnlyList<int>? current)
+    {
+        if (current is null)
+            return true;
+        for (int index = 0; index < candidate.Count; index++)
+        {
+            if (candidate[index] == current[index])
+                continue;
+            return candidate[index] < current[index];
+        }
+        return false;
+    }
+
+    private static Relation RestoreDeclaredColumnOrder(
+        Relation relation,
+        IReadOnlyList<Relation> declaredSources)
+    {
+        RelColumn[] declaredColumns = declaredSources
+            .SelectMany(static source => source.Columns)
+            .ToArray();
+        var mapping = new int[declaredColumns.Length];
+        bool identity = true;
+        for (int target = 0; target < declaredColumns.Length; target++)
+        {
+            int source = -1;
+            for (int candidate = 0; candidate < relation.Columns.Count; candidate++)
+            {
+                if (ReferenceEquals(declaredColumns[target], relation.Columns[candidate]))
+                {
+                    source = candidate;
+                    break;
+                }
+            }
+            if (source < 0)
+                throw new InvalidOperationException("JOIN 顺序恢复无法定位声明列。");
+            mapping[target] = source;
+            identity &= source == target;
+        }
+        if (identity)
+            return relation;
+
+        return new Relation(declaredColumns, ReorderRows(), relation.Estimate);
+
+        IEnumerable<object?[]> ReorderRows()
+        {
+            foreach (object?[] row in relation.Rows)
+            {
+                var reordered = new object?[mapping.Length];
+                for (int index = 0; index < mapping.Length; index++)
+                    reordered[index] = row[mapping[index]];
+                yield return reordered;
+            }
+        }
+    }
+
     private static Relation LoadFrom(
         Tsdb tsdb,
         SelectStatement statement,
@@ -966,7 +1753,10 @@ internal static class RelationalSelectExecutor
         SubqueryMemo memo)
     {
         if (string.IsNullOrEmpty(statement.Measurement) && statement.FromSubquery is null)
-            return new Relation(Array.Empty<RelColumn>(), [Array.Empty<object?>()]);
+            return new Relation(
+                Array.Empty<RelColumn>(),
+                [Array.Empty<object?>()],
+                new RelationalJoinInputEstimate(1, 1));
 
         var alias = statement.TableAlias ?? statement.Measurement;
         if (statement.FromSubquery is not null)
@@ -1011,6 +1801,8 @@ internal static class RelationalSelectExecutor
             var column = selectedColumns[i];
             columns[i] = new RelColumn(alias, column.Name, column.Name, column.DataType);
         }
+        TableStore store = tsdb.Tables.Open(schema.Name);
+        RelationalJoinInputEstimate estimate = EstimateTableInput(store, schema, selectedColumns, plan);
         if (plan.RowLimit == 0)
         {
             memo.RecordRelationInput(
@@ -1019,20 +1811,28 @@ internal static class RelationalSelectExecutor
                 selectedColumns.Length,
                 candidateRows: 0,
                 retainedRows: 0);
-            return new Relation(columns, []);
+            return new Relation(
+                columns,
+                [],
+                estimate,
+                new TableRelationInput(store, schema, alias, selectedColumns, plan));
         }
         // read-your-writes：叠加当前 ambient 轻事务对本表的缓冲写（#218）。
         IEnumerable<TableRow> candidates = TableSqlExecutor.EnumerateSelectCandidateRows(
-            tsdb.Tables.Open(schema.Name),
+            store,
             schema,
             plan.Predicate,
             plan.RequiredColumns);
-        return new Relation(columns, ProjectRows());
+        return new Relation(
+            columns,
+            ProjectRows(),
+            estimate,
+            new TableRelationInput(store, schema, alias, selectedColumns, plan));
 
         IEnumerable<object?[]> ProjectRows()
         {
-            int candidateCount = 0;
-            int retainedCount = 0;
+            long candidateCount = 0;
+            long retainedCount = 0;
             try
             {
                 foreach (TableRow candidate in candidates)
@@ -1082,6 +1882,31 @@ internal static class RelationalSelectExecutor
         return selected;
     }
 
+    private static RelationalJoinInputEstimate EstimateTableInput(
+        TableStore store,
+        TableSchema schema,
+        IReadOnlyList<TableColumn> selectedColumns,
+        RelationInputPlan plan)
+    {
+        TableAccessCostEstimate cost = TableCostPlanner.Estimate(
+            store,
+            schema,
+            plan.Predicate,
+            allowAutomaticRefresh: false);
+        TableExistsAccessPlan access = TableSqlExecutor.PlanExistsAccess(schema, plan.Predicate);
+        long accessRows = access.UsesPrimaryKey
+            ? Math.Min(1, cost.EstimatedRows)
+            : cost.EstimatedRows;
+        long rows = plan.RowLimit is int rowLimit
+            ? Math.Min(accessRows, rowLimit)
+            : accessRows;
+        double width = RelationalJoinCostPlanner.EstimateProjectedRowWidth(
+            schema.Columns,
+            selectedColumns,
+            cost.EstimatedRowWidth);
+        return new RelationalJoinInputEstimate(rows, width);
+    }
+
     private static Relation LoadMaterializedView(
         MaterializedViewManager manager,
         string name,
@@ -1094,7 +1919,12 @@ internal static class RelationalSelectExecutor
         var rows = snapshot.Rows
             .Select(static row => row.ToArray())
             .ToArray();
-        return new Relation(columns, rows);
+        return new Relation(
+            columns,
+            rows,
+            new RelationalJoinInputEstimate(
+                rows.Length,
+                RelationalJoinCostPlanner.EstimateUnknownRowWidth(columns.Length)));
     }
 
     private static Relation LoadSubquery(Tsdb tsdb, SelectStatement subquery, string alias)
@@ -1106,7 +1936,12 @@ internal static class RelationalSelectExecutor
         var rows = result.Rows
             .Select(row => row.ToArray())
             .ToArray();
-        return new Relation(columns, rows);
+        return new Relation(
+            columns,
+            rows,
+            new RelationalJoinInputEstimate(
+                rows.Length,
+                RelationalJoinCostPlanner.EstimateUnknownRowWidth(columns.Length)));
     }
 
     private static string NormalizeSubqueryColumnName(string column)
@@ -1130,7 +1965,41 @@ internal static class RelationalSelectExecutor
         // 仅当 ON 能拆出至少一组 left_col = right_col 等值键、且无相关子查询等复杂依赖时启用；
         // 否则回退嵌套循环。残差（非等值）合取项在候选对上再求值，保持语义完全一致。
         if (TryPlanHashJoin(left, right, on, out var keyPairs, out var residual))
-            return HashJoin(tsdb, left, right, keyPairs, residual, kind, outerScope, memo);
+        {
+            JoinExecutionPlan plan = ChooseJoinExecutionPlan(left, right, keyPairs, kind);
+            return plan.Operator switch
+            {
+                RelationalJoinOperator.IndexNestedLoop => IndexNestedLoopJoin(
+                    tsdb,
+                    left,
+                    right,
+                    keyPairs,
+                    residual,
+                    kind,
+                    plan.IndexNestedLoop!,
+                    outerScope,
+                    memo),
+                RelationalJoinOperator.Merge => MergeJoin(
+                    tsdb,
+                    left,
+                    right,
+                    keyPairs,
+                    residual,
+                    plan.Merge!,
+                    outerScope,
+                    memo),
+                _ => HashJoin(
+                    tsdb,
+                    left,
+                    right,
+                    keyPairs,
+                    residual,
+                    kind,
+                    plan.HashBuildSide,
+                    outerScope,
+                    memo),
+            };
+        }
 
         return NestedLoopJoin(tsdb, left, right, on, kind, outerScope, memo);
     }
@@ -1145,7 +2014,10 @@ internal static class RelationalSelectExecutor
         SubqueryMemo memo)
     {
         var columns = left.Columns.Concat(right.Columns).ToArray();
-        return new Relation(columns, JoinRows());
+        return new Relation(
+            columns,
+            JoinRows(),
+            RelationalJoinCostPlanner.Combine(kind, left.Estimate, right.Estimate));
 
         IEnumerable<object?[]> JoinRows()
         {
@@ -1179,6 +2051,40 @@ internal static class RelationalSelectExecutor
 
     /// <summary>一组等值连接键：左关系列下标 = 右关系列下标。</summary>
     private readonly record struct JoinKeyPair(int LeftColumnIndex, int RightColumnIndex);
+
+    private enum RelationalJoinOperator
+    {
+        Hash,
+        IndexNestedLoop,
+        Merge,
+    }
+
+    private sealed record JoinExecutionPlan(
+        RelationalJoinOperator Operator,
+        RelationalHashBuildSide HashBuildSide,
+        IndexNestedLoopAccess? IndexNestedLoop = null,
+        MergeJoinAccess? Merge = null);
+
+    private sealed record IndexNestedLoopAccess(
+        bool UsesPrimaryKey,
+        TableIndex? Index,
+        IReadOnlyList<int> ProbeColumnIndices,
+        bool IsUnique)
+    {
+        public string IndexName => UsesPrimaryKey ? "primary" : Index!.Name;
+    }
+
+    private sealed record OrderedTableAccess(
+        bool UsesPrimaryKey,
+        TableIndex? Index,
+        IReadOnlyList<int> JoinColumnIndices)
+    {
+        public string IndexName => UsesPrimaryKey ? "primary" : Index!.Name;
+    }
+
+    private sealed record MergeJoinAccess(
+        OrderedTableAccess Left,
+        OrderedTableAccess Right);
 
     /// <summary>
     /// 尝试把 ON 谓词规划为哈希连接：拆出顶层 AND 合取，识别形如 <c>left_col = right_col</c> 的等值项
@@ -1245,72 +2151,817 @@ internal static class RelationalSelectExecutor
         return (leftIndex >= 0) ^ (rightIndex >= 0);
     }
 
+    private static JoinExecutionPlan ChooseJoinExecutionPlan(
+        Relation left,
+        Relation right,
+        IReadOnlyList<JoinKeyPair> keyPairs,
+        JoinKind kind)
+    {
+        RelationalHashBuildSide hashBuildSide = RelationalJoinCostPlanner.ChooseHashBuildSide(
+            kind,
+            left.Estimate,
+            right.Estimate);
+        double bestCost = RelationalJoinCostPlanner.EstimateHashJoinCost(
+            left.Estimate,
+            right.Estimate,
+            hashBuildSide);
+        var best = new JoinExecutionPlan(RelationalJoinOperator.Hash, hashBuildSide);
+
+        if (TryPlanIndexNestedLoop(left, right, keyPairs, out IndexNestedLoopAccess? indexAccess))
+        {
+            double indexCost = RelationalJoinCostPlanner.EstimateIndexNestedLoopCost(
+                left.Estimate,
+                right.Estimate,
+                indexAccess!.IsUnique);
+            if (indexCost < bestCost)
+            {
+                bestCost = indexCost;
+                best = new JoinExecutionPlan(
+                    RelationalJoinOperator.IndexNestedLoop,
+                    RelationalHashBuildSide.Right,
+                    IndexNestedLoop: indexAccess);
+            }
+        }
+
+        if (kind == JoinKind.Inner
+            && TryPlanMergeJoin(left, right, keyPairs, out MergeJoinAccess? mergeAccess)
+            && Math.Min(left.Estimate.EstimatedBytes, right.Estimate.EstimatedBytes)
+                >= RelationalJoinCostPlanner.MergeJoinMinimumAvoidedBuildBytes)
+        {
+            double mergeCost = RelationalJoinCostPlanner.EstimateMergeJoinCost(
+                new RelationalJoinInputEstimate(left.TableInput!.Store.RowCount, left.Estimate.RowWidth),
+                new RelationalJoinInputEstimate(right.TableInput!.Store.RowCount, right.Estimate.RowWidth));
+            if (mergeCost < bestCost)
+            {
+                best = new JoinExecutionPlan(
+                    RelationalJoinOperator.Merge,
+                    hashBuildSide,
+                    Merge: mergeAccess);
+            }
+        }
+
+        return best;
+    }
+
+    private static bool TryPlanIndexNestedLoop(
+        Relation left,
+        Relation right,
+        IReadOnlyList<JoinKeyPair> keyPairs,
+        out IndexNestedLoopAccess? access)
+    {
+        access = null;
+        if (right.TableInput is not { Plan.RowLimit: null } input
+            || HasTransactionOverlay(input.Schema.Name))
+        {
+            return false;
+        }
+
+        foreach (JoinKeyPair pair in keyPairs)
+        {
+            TableColumnType? probeType = left.Columns[pair.LeftColumnIndex].StaticType;
+            TableColumnType? indexedType = right.Columns[pair.RightColumnIndex].StaticType;
+            if (probeType is null || probeType != indexedType)
+                return false;
+        }
+
+        var probeByRightColumn = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (JoinKeyPair pair in keyPairs)
+        {
+            string columnName = right.Columns[pair.RightColumnIndex].Name;
+            if (!probeByRightColumn.TryAdd(columnName, pair.LeftColumnIndex))
+                return false;
+        }
+
+        if (TryMapOrderedColumns(input.Schema.PrimaryKey, probeByRightColumn, out int[] primaryProbeColumns)
+            && primaryProbeColumns.Length == input.Schema.PrimaryKey.Count)
+        {
+            access = new IndexNestedLoopAccess(
+                UsesPrimaryKey: true,
+                Index: null,
+                primaryProbeColumns,
+                IsUnique: true);
+            return true;
+        }
+
+        TableIndex? bestIndex = null;
+        int[] bestProbeColumns = [];
+        foreach (TableIndex index in input.Schema.Indexes)
+        {
+            if (!string.IsNullOrWhiteSpace(index.JsonPath)
+                || !TryMapOrderedPrefix(index.Columns, probeByRightColumn, out int[] probeColumns))
+            {
+                continue;
+            }
+
+            bool candidateUnique = index.IsUnique && probeColumns.Length == index.Columns.Count;
+            bool bestUnique = bestIndex is not null
+                && bestIndex.IsUnique
+                && bestProbeColumns.Length == bestIndex.Columns.Count;
+            if (bestIndex is null
+                || candidateUnique && !bestUnique
+                || candidateUnique == bestUnique && probeColumns.Length > bestProbeColumns.Length
+                || candidateUnique == bestUnique
+                    && probeColumns.Length == bestProbeColumns.Length
+                    && string.CompareOrdinal(index.Name, bestIndex.Name) < 0)
+            {
+                bestIndex = index;
+                bestProbeColumns = probeColumns;
+            }
+        }
+
+        if (bestIndex is null)
+            return false;
+
+        access = new IndexNestedLoopAccess(
+            UsesPrimaryKey: false,
+            bestIndex,
+            bestProbeColumns,
+            bestIndex.IsUnique && bestProbeColumns.Length == bestIndex.Columns.Count);
+        return true;
+    }
+
+    private static bool TryPlanMergeJoin(
+        Relation left,
+        Relation right,
+        IReadOnlyList<JoinKeyPair> keyPairs,
+        out MergeJoinAccess? access)
+    {
+        access = null;
+        if (left.TableInput is not { Plan.RowLimit: null } leftInput
+            || right.TableInput is not { Plan.RowLimit: null } rightInput
+            || HasTransactionOverlay(leftInput.Schema.Name)
+            || HasTransactionOverlay(rightInput.Schema.Name))
+        {
+            return false;
+        }
+
+        IReadOnlyList<OrderedTableAccess> leftCandidates = CollectOrderedAccesses(
+            left,
+            leftInput,
+            keyPairs,
+            useRight: false);
+        IReadOnlyList<OrderedTableAccess> rightCandidates = CollectOrderedAccesses(
+            right,
+            rightInput,
+            keyPairs,
+            useRight: true);
+        foreach (OrderedTableAccess leftCandidate in leftCandidates)
+        {
+            foreach (OrderedTableAccess rightCandidate in rightCandidates)
+            {
+                if (leftCandidate.JoinColumnIndices.Count != rightCandidate.JoinColumnIndices.Count)
+                    continue;
+
+                bool samePairOrder = true;
+                for (int index = 0; index < leftCandidate.JoinColumnIndices.Count; index++)
+                {
+                    JoinKeyPair pair = keyPairs[leftCandidate.JoinColumnIndices[index]];
+                    int rightPairIndex = rightCandidate.JoinColumnIndices[index];
+                    if (rightPairIndex != leftCandidate.JoinColumnIndices[index]
+                        || !AreMergeTypesCompatible(
+                            left.Columns[pair.LeftColumnIndex].StaticType,
+                            right.Columns[pair.RightColumnIndex].StaticType))
+                    {
+                        samePairOrder = false;
+                        break;
+                    }
+                }
+
+                if (samePairOrder)
+                {
+                    access = new MergeJoinAccess(leftCandidate, rightCandidate);
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static IReadOnlyList<OrderedTableAccess> CollectOrderedAccesses(
+        Relation relation,
+        TableRelationInput input,
+        IReadOnlyList<JoinKeyPair> keyPairs,
+        bool useRight)
+    {
+        var pairByColumn = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (int pairIndex = 0; pairIndex < keyPairs.Count; pairIndex++)
+        {
+            JoinKeyPair pair = keyPairs[pairIndex];
+            int columnIndex = useRight ? pair.RightColumnIndex : pair.LeftColumnIndex;
+            if (!pairByColumn.TryAdd(relation.Columns[columnIndex].Name, pairIndex))
+                return [];
+        }
+
+        var result = new List<OrderedTableAccess>();
+        if (TryMapOrderedColumns(input.Schema.PrimaryKey, pairByColumn, out int[] primaryPairs)
+            && primaryPairs.Length == keyPairs.Count)
+        {
+            result.Add(new OrderedTableAccess(true, null, primaryPairs));
+        }
+
+        foreach (TableIndex index in input.Schema.Indexes)
+        {
+            if (string.IsNullOrWhiteSpace(index.JsonPath)
+                && TryMapOrderedPrefix(index.Columns, pairByColumn, out int[] indexPairs)
+                && indexPairs.Length == keyPairs.Count)
+            {
+                result.Add(new OrderedTableAccess(false, index, indexPairs));
+            }
+        }
+
+        return result;
+    }
+
+    private static bool TryMapOrderedColumns(
+        IReadOnlyList<string> columns,
+        IReadOnlyDictionary<string, int> valueByColumn,
+        out int[] values)
+    {
+        values = new int[columns.Count];
+        for (int index = 0; index < columns.Count; index++)
+        {
+            if (!valueByColumn.TryGetValue(columns[index], out values[index]))
+            {
+                values = [];
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static bool TryMapOrderedPrefix(
+        IReadOnlyList<string> columns,
+        IReadOnlyDictionary<string, int> valueByColumn,
+        out int[] values)
+    {
+        var mapped = new List<int>(columns.Count);
+        foreach (string column in columns)
+        {
+            if (!valueByColumn.TryGetValue(column, out int value))
+                break;
+            mapped.Add(value);
+        }
+        values = [.. mapped];
+        return values.Length > 0;
+    }
+
+    private static bool HasTransactionOverlay(string tableName)
+        => SqlTransactionContext.Current is { } transaction
+            && transaction.TryGetBufferedMutations(tableName, out _);
+
+    private static bool AreMergeTypesCompatible(TableColumnType? left, TableColumnType? right)
+        => left == right && left is TableColumnType.Boolean
+            or TableColumnType.Int64
+            or TableColumnType.DateTime;
+
+    private static Relation IndexNestedLoopJoin(
+        Tsdb tsdb,
+        Relation left,
+        Relation right,
+        IReadOnlyList<JoinKeyPair> keyPairs,
+        IReadOnlyList<SqlExpression> residual,
+        JoinKind kind,
+        IndexNestedLoopAccess access,
+        RelationalScope? outerScope,
+        SubqueryMemo memo)
+    {
+        TableRelationInput input = right.TableInput!;
+        var columns = left.Columns.Concat(right.Columns).ToArray();
+        RelationalJoinInputEstimate estimate = RelationalJoinCostPlanner.Combine(kind, left.Estimate, right.Estimate);
+        return new Relation(columns, JoinRows(), estimate);
+
+        IEnumerable<object?[]> JoinRows()
+        {
+            long probeRows = 0;
+            long lookupCount = 0;
+            long candidateRows = 0;
+            long retainedRows = 0;
+            using TableReadSnapshot snapshot = input.Store.AcquireTableReadSnapshot();
+            try
+            {
+                foreach (object?[] leftRow in left.Rows)
+                {
+                    probeRows++;
+                    SqlExecutor.ThrowIfCancellationRequested();
+                    bool matched = false;
+                    if (TryCollectProbeValues(leftRow, access.ProbeColumnIndices, out object?[] probeValues))
+                    {
+                        lookupCount++;
+                        IEnumerable<TableRow> candidates = access.UsesPrimaryKey
+                            ? GetPrimaryCandidate(
+                                input.Store.GetByPrimaryKey(snapshot.Snapshot, snapshot.Schema, probeValues))
+                            : input.Store.EnumerateByIndexPrefix(
+                                snapshot.Snapshot,
+                                snapshot.Schema,
+                                access.Index!,
+                                probeValues);
+                        foreach (TableRow candidate in candidates)
+                        {
+                            candidateRows++;
+                            SqlExecutor.ThrowIfCancellationRequested();
+                            if (!TableSqlExecutor.EvaluateWhere(input.Plan.Predicate, snapshot.Schema, candidate.Values))
+                                continue;
+
+                            retainedRows++;
+                            object?[] rightRow = ProjectTableRow(candidate, input.SelectedColumns);
+                            if (!JoinKeysMatch(leftRow, rightRow, keyPairs))
+                                continue;
+
+                            object?[] row = CombineRows(leftRow, rightRow);
+                            if (residual.Count > 0
+                                && !ResidualHolds(tsdb, residual, columns, row, outerScope, memo))
+                            {
+                                continue;
+                            }
+
+                            matched = true;
+                            yield return row;
+                        }
+                    }
+
+                    if (!matched && kind == JoinKind.Left)
+                    {
+                        var row = new object?[leftRow.Length + right.Columns.Count];
+                        Array.Copy(leftRow, row, leftRow.Length);
+                        yield return row;
+                    }
+                }
+            }
+            finally
+            {
+                memo.RecordRelationInput(
+                    input.Plan,
+                    input.Schema.Columns.Count,
+                    input.SelectedColumns.Count,
+                    candidateRows,
+                    retainedRows);
+                memo.RecordJoinOperator(
+                    "index_nested_loop",
+                    access.IndexName,
+                    probeRows,
+                    lookupCount,
+                    candidateRows);
+            }
+        }
+    }
+
+    private static IEnumerable<TableRow> GetPrimaryCandidate(TableRow? row)
+    {
+        if (row is not null)
+            yield return row;
+    }
+
+    private static bool TryCollectProbeValues(
+        IReadOnlyList<object?> row,
+        IReadOnlyList<int> columnIndices,
+        out object?[] values)
+    {
+        values = new object?[columnIndices.Count];
+        for (int index = 0; index < columnIndices.Count; index++)
+        {
+            object? value = row[columnIndices[index]];
+            if (value is null)
+                return false;
+            values[index] = value;
+        }
+        return true;
+    }
+
+    private static object?[] ProjectTableRow(
+        TableRow row,
+        IReadOnlyList<TableColumn> selectedColumns)
+    {
+        var projected = new object?[selectedColumns.Count];
+        for (int index = 0; index < selectedColumns.Count; index++)
+            projected[index] = row.Values[selectedColumns[index].Ordinal];
+        return projected;
+    }
+
+    private static bool JoinKeysMatch(
+        IReadOnlyList<object?> left,
+        IReadOnlyList<object?> right,
+        IReadOnlyList<JoinKeyPair> keyPairs)
+    {
+        foreach (JoinKeyPair pair in keyPairs)
+        {
+            object? leftValue = left[pair.LeftColumnIndex];
+            object? rightValue = right[pair.RightColumnIndex];
+            if (leftValue is null || rightValue is null || !ValuesEqual(leftValue, rightValue))
+                return false;
+        }
+        return true;
+    }
+
+    private static object?[] CombineRows(IReadOnlyList<object?> left, IReadOnlyList<object?> right)
+    {
+        var row = new object?[left.Count + right.Count];
+        for (int index = 0; index < left.Count; index++)
+            row[index] = left[index];
+        for (int index = 0; index < right.Count; index++)
+            row[left.Count + index] = right[index];
+        return row;
+    }
+
+    private static Relation MergeJoin(
+        Tsdb tsdb,
+        Relation left,
+        Relation right,
+        IReadOnlyList<JoinKeyPair> keyPairs,
+        IReadOnlyList<SqlExpression> residual,
+        MergeJoinAccess access,
+        RelationalScope? outerScope,
+        SubqueryMemo memo)
+    {
+        TableRelationInput leftInput = left.TableInput!;
+        TableRelationInput rightInput = right.TableInput!;
+        var columns = left.Columns.Concat(right.Columns).ToArray();
+        RelationalJoinInputEstimate estimate = RelationalJoinCostPlanner.Combine(
+            JoinKind.Inner,
+            left.Estimate,
+            right.Estimate);
+        return new Relation(columns, JoinRows(), estimate);
+
+        IEnumerable<object?[]> JoinRows()
+        {
+            TableColumnType[] keyTypes = access.Left.JoinColumnIndices
+                .Select(pairIndex => left.Columns[keyPairs[pairIndex].LeftColumnIndex].StaticType!.Value)
+                .ToArray();
+            IReadOnlyDictionary<string, TableReadBinding> bindings = tsdb.Tables.AcquireReadSnapshots(
+                [leftInput.Schema.Name, rightInput.Schema.Name]);
+            try
+            {
+                IEnumerable<object?[]> leftRows = EnumerateOrderedTableRows(
+                    leftInput,
+                    access.Left,
+                    bindings[leftInput.Schema.Name].Snapshot,
+                    memo);
+                IEnumerable<object?[]> rightRows = EnumerateOrderedTableRows(
+                    rightInput,
+                    access.Right,
+                    bindings[rightInput.Schema.Name].Snapshot,
+                    memo);
+                using IEnumerator<object?[]> leftEnumerator = leftRows.GetEnumerator();
+                using IEnumerator<object?[]> rightEnumerator = rightRows.GetEnumerator();
+                bool hasLeft = MoveNextNonNullJoinRow(
+                    leftEnumerator,
+                    keyPairs,
+                    access.Left.JoinColumnIndices,
+                    useRight: false,
+                    out object?[]? leftRow);
+                bool hasRight = MoveNextNonNullJoinRow(
+                    rightEnumerator,
+                    keyPairs,
+                    access.Right.JoinColumnIndices,
+                    useRight: true,
+                    out object?[]? rightRow);
+                long comparedRows = 0;
+                long emittedRows = 0;
+                try
+                {
+                    while (hasLeft && hasRight)
+                    {
+                        SqlExecutor.ThrowIfCancellationRequested();
+                        comparedRows++;
+                        int comparison = CompareJoinRows(
+                            leftRow!,
+                            rightRow!,
+                            keyPairs,
+                            access.Left.JoinColumnIndices,
+                            keyTypes);
+                        if (comparison < 0)
+                        {
+                            hasLeft = MoveNextNonNullJoinRow(
+                                leftEnumerator,
+                                keyPairs,
+                                access.Left.JoinColumnIndices,
+                                useRight: false,
+                                out leftRow);
+                            continue;
+                        }
+                        if (comparison > 0)
+                        {
+                            hasRight = MoveNextNonNullJoinRow(
+                                rightEnumerator,
+                                keyPairs,
+                                access.Right.JoinColumnIndices,
+                                useRight: true,
+                                out rightRow);
+                            continue;
+                        }
+
+                        object?[] leftGroupKey = leftRow!;
+                        object?[] rightGroupKey = rightRow!;
+                        var leftGroup = new List<object?[]> { leftRow! };
+                        var rightGroup = new List<object?[]> { rightRow! };
+                        hasLeft = CollectMergeGroup(
+                            leftEnumerator,
+                            leftGroup,
+                            leftGroupKey,
+                            keyPairs,
+                            access.Left.JoinColumnIndices,
+                            keyTypes,
+                            useRight: false,
+                            out leftRow);
+                        hasRight = CollectMergeGroup(
+                            rightEnumerator,
+                            rightGroup,
+                            rightGroupKey,
+                            keyPairs,
+                            access.Right.JoinColumnIndices,
+                            keyTypes,
+                            useRight: true,
+                            out rightRow);
+
+                        foreach (object?[] leftMatch in leftGroup)
+                        {
+                            foreach (object?[] rightMatch in rightGroup)
+                            {
+                                object?[] row = CombineRows(leftMatch, rightMatch);
+                                if (residual.Count > 0
+                                    && !ResidualHolds(tsdb, residual, columns, row, outerScope, memo))
+                                {
+                                    continue;
+                                }
+                                emittedRows++;
+                                yield return row;
+                            }
+                        }
+                    }
+                }
+                finally
+                {
+                    memo.RecordJoinOperator(
+                        "merge_join",
+                        $"{access.Left.IndexName},{access.Right.IndexName}",
+                        comparedRows,
+                        lookupCount: 0,
+                        candidateRows: emittedRows);
+                }
+            }
+            finally
+            {
+                foreach (TableReadBinding binding in bindings.Values)
+                    binding.Snapshot.Dispose();
+            }
+        }
+    }
+
+    private static IEnumerable<object?[]> EnumerateOrderedTableRows(
+        TableRelationInput input,
+        OrderedTableAccess access,
+        TableReadSnapshot snapshot,
+        SubqueryMemo memo)
+    {
+        IEnumerable<TableRow> candidates = access.UsesPrimaryKey
+            ? input.Store.EnumerateScan(snapshot.Snapshot, snapshot.Schema)
+            : input.Store.EnumerateByIndexPrefix(
+                snapshot.Snapshot,
+                snapshot.Schema,
+                access.Index!,
+                Array.Empty<object?>());
+        long candidateCount = 0;
+        long retainedCount = 0;
+        try
+        {
+            foreach (TableRow candidate in candidates)
+            {
+                candidateCount++;
+                SqlExecutor.ThrowIfCancellationRequested();
+                if (!TableSqlExecutor.EvaluateWhere(input.Plan.Predicate, snapshot.Schema, candidate.Values))
+                    continue;
+                retainedCount++;
+                yield return ProjectTableRow(candidate, input.SelectedColumns);
+            }
+        }
+        finally
+        {
+            memo.RecordRelationInput(
+                input.Plan,
+                input.Schema.Columns.Count,
+                input.SelectedColumns.Count,
+                candidateCount,
+                retainedCount);
+        }
+    }
+
+    private static bool MoveNextNonNullJoinRow(
+        IEnumerator<object?[]> enumerator,
+        IReadOnlyList<JoinKeyPair> keyPairs,
+        IReadOnlyList<int> pairOrder,
+        bool useRight,
+        out object?[]? row)
+    {
+        while (enumerator.MoveNext())
+        {
+            object?[] candidate = enumerator.Current;
+            bool hasNull = false;
+            foreach (int pairIndex in pairOrder)
+            {
+                JoinKeyPair pair = keyPairs[pairIndex];
+                if (candidate[useRight ? pair.RightColumnIndex : pair.LeftColumnIndex] is null)
+                {
+                    hasNull = true;
+                    break;
+                }
+            }
+            if (!hasNull)
+            {
+                row = candidate;
+                return true;
+            }
+        }
+        row = null;
+        return false;
+    }
+
+    private static bool CollectMergeGroup(
+        IEnumerator<object?[]> enumerator,
+        List<object?[]> group,
+        IReadOnlyList<object?> groupKeyRow,
+        IReadOnlyList<JoinKeyPair> keyPairs,
+        IReadOnlyList<int> pairOrder,
+        IReadOnlyList<TableColumnType> keyTypes,
+        bool useRight,
+        out object?[]? next)
+    {
+        while (MoveNextNonNullJoinRow(enumerator, keyPairs, pairOrder, useRight, out object?[]? candidate))
+        {
+            if (CompareSameSideJoinRows(groupKeyRow, candidate!, keyPairs, pairOrder, keyTypes, useRight) != 0)
+            {
+                next = candidate;
+                return true;
+            }
+            group.Add(candidate!);
+        }
+        next = null;
+        return false;
+    }
+
+    private static int CompareJoinRows(
+        IReadOnlyList<object?> left,
+        IReadOnlyList<object?> right,
+        IReadOnlyList<JoinKeyPair> keyPairs,
+        IReadOnlyList<int> pairOrder,
+        IReadOnlyList<TableColumnType> keyTypes)
+    {
+        for (int orderIndex = 0; orderIndex < pairOrder.Count; orderIndex++)
+        {
+            int pairIndex = pairOrder[orderIndex];
+            JoinKeyPair pair = keyPairs[pairIndex];
+            int comparison = CompareMergeJoinValues(
+                left[pair.LeftColumnIndex]!,
+                right[pair.RightColumnIndex]!,
+                keyTypes[orderIndex]);
+            if (comparison != 0)
+                return comparison;
+        }
+        return 0;
+    }
+
+    private static int CompareSameSideJoinRows(
+        IReadOnlyList<object?> left,
+        IReadOnlyList<object?> right,
+        IReadOnlyList<JoinKeyPair> keyPairs,
+        IReadOnlyList<int> pairOrder,
+        IReadOnlyList<TableColumnType> keyTypes,
+        bool useRight)
+    {
+        for (int orderIndex = 0; orderIndex < pairOrder.Count; orderIndex++)
+        {
+            int pairIndex = pairOrder[orderIndex];
+            JoinKeyPair pair = keyPairs[pairIndex];
+            int columnIndex = useRight ? pair.RightColumnIndex : pair.LeftColumnIndex;
+            int comparison = CompareMergeJoinValues(
+                left[columnIndex]!,
+                right[columnIndex]!,
+                keyTypes[orderIndex]);
+            if (comparison != 0)
+                return comparison;
+        }
+        return 0;
+    }
+
+    private static int CompareMergeJoinValues(object left, object right, TableColumnType type)
+    {
+        if (ValuesEqual(left, right))
+            return 0;
+
+        return type switch
+        {
+            TableColumnType.Boolean => ((bool)left).CompareTo((bool)right),
+            TableColumnType.Int64 => CompareLegacySignedIndexOrder(
+                Convert.ToInt64(left, CultureInfo.InvariantCulture),
+                Convert.ToInt64(right, CultureInfo.InvariantCulture)),
+            TableColumnType.DateTime => CompareLegacySignedIndexOrder(
+                ToUnixMilliseconds(left),
+                ToUnixMilliseconds(right)),
+            _ => throw new InvalidOperationException($"Merge Join 不支持 {type} 索引顺序。"),
+        };
+    }
+
+    private static int CompareLegacySignedIndexOrder(long left, long right)
+        => unchecked((ulong)left).CompareTo(unchecked((ulong)right));
+
+    private static long ToUnixMilliseconds(object value)
+        => value switch
+        {
+            DateTimeOffset dateTimeOffset => dateTimeOffset.ToUnixTimeMilliseconds(),
+            DateTime dateTime => new DateTimeOffset(
+                dateTime.Kind == DateTimeKind.Unspecified
+                    ? DateTime.SpecifyKind(dateTime, DateTimeKind.Utc)
+                    : dateTime).ToUnixTimeMilliseconds(),
+            long milliseconds => milliseconds,
+            _ => throw new InvalidOperationException($"无法把 {value.GetType().Name} 转换为 DATETIME。"),
+        };
+
     private static Relation HashJoin(
         Tsdb tsdb,
         Relation left,
         Relation right,
         List<JoinKeyPair> keyPairs,
-        List<SqlExpression> residual,
+        IReadOnlyList<SqlExpression> residual,
         JoinKind kind,
+        RelationalHashBuildSide buildSide,
         RelationalScope? outerScope,
         SubqueryMemo memo)
     {
         var columns = left.Columns.Concat(right.Columns).ToArray();
-        return new Relation(columns, JoinRows());
+        RelationalJoinInputEstimate estimate = RelationalJoinCostPlanner.Combine(kind, left.Estimate, right.Estimate);
+        return new Relation(columns, JoinRows(), estimate);
 
         IEnumerable<object?[]> JoinRows()
         {
-            var buildTable = new Dictionary<JoinValueKey, List<object?[]>>();
-            foreach (object?[] rightRow in right.Rows)
+            long actualBuildRows = 0;
+            long actualProbeRows = 0;
+            try
             {
-                SqlExecutor.ThrowIfCancellationRequested();
-                if (TryMakeKey(rightRow, keyPairs, useRight: true, out var key))
+                bool buildRight = buildSide == RelationalHashBuildSide.Right;
+                IEnumerable<object?[]> buildRows = buildRight ? right.Rows : left.Rows;
+                IEnumerable<object?[]> probeRows = buildRight ? left.Rows : right.Rows;
+                var buildTable = new Dictionary<JoinValueKey, List<object?[]>>();
+                foreach (object?[] buildRow in buildRows)
                 {
-                    if (!buildTable.TryGetValue(key, out var bucket))
+                    actualBuildRows++;
+                    SqlExecutor.ThrowIfCancellationRequested();
+                    if (TryMakeKey(buildRow, keyPairs, useRight: buildRight, out JoinValueKey key))
                     {
-                        bucket = [];
-                        buildTable.Add(key, bucket);
+                        if (!buildTable.TryGetValue(key, out List<object?[]>? bucket))
+                        {
+                            bucket = [];
+                            buildTable.Add(key, bucket);
+                        }
+                        bucket.Add(buildRow);
                     }
-                    bucket.Add(rightRow);
                 }
-            }
 
-            bool hasResidual = residual.Count > 0;
-            foreach (object?[] leftRow in left.Rows)
-            {
-                SqlExecutor.ThrowIfCancellationRequested();
-                bool matched = false;
-                if (TryMakeKey(leftRow, keyPairs, useRight: false, out var probeKey)
-                    && buildTable.TryGetValue(probeKey, out var candidates))
+                bool hasResidual = residual.Count > 0;
+                foreach (object?[] probeRow in probeRows)
                 {
-                    foreach (object?[] rightRow in candidates)
+                    actualProbeRows++;
+                    SqlExecutor.ThrowIfCancellationRequested();
+                    bool matched = false;
+                    if (TryMakeKey(probeRow, keyPairs, useRight: !buildRight, out JoinValueKey probeKey)
+                        && buildTable.TryGetValue(probeKey, out List<object?[]>? candidates))
                     {
-                        SqlExecutor.ThrowIfCancellationRequested();
-                        var row = new object?[leftRow.Length + rightRow.Length];
-                        Array.Copy(leftRow, row, leftRow.Length);
-                        Array.Copy(rightRow, 0, row, leftRow.Length, rightRow.Length);
+                        foreach (object?[] buildRow in candidates)
+                        {
+                            SqlExecutor.ThrowIfCancellationRequested();
+                            object?[] leftRow = buildRight ? probeRow : buildRow;
+                            object?[] rightRow = buildRight ? buildRow : probeRow;
+                            var row = new object?[leftRow.Length + rightRow.Length];
+                            Array.Copy(leftRow, row, leftRow.Length);
+                            Array.Copy(rightRow, 0, row, leftRow.Length, rightRow.Length);
 
-                        if (hasResidual && !ResidualHolds(tsdb, residual, columns, row, outerScope, memo))
-                            continue;
+                            if (hasResidual && !ResidualHolds(tsdb, residual, columns, row, outerScope, memo))
+                                continue;
 
-                        matched = true;
+                            matched = true;
+                            yield return row;
+                        }
+                    }
+
+                    if (!matched && kind == JoinKind.Left)
+                    {
+                        var row = new object?[probeRow.Length + right.Columns.Count];
+                        Array.Copy(probeRow, row, probeRow.Length);
                         yield return row;
                     }
                 }
-
-                if (!matched && kind == JoinKind.Left)
-                {
-                    var row = new object?[leftRow.Length + right.Columns.Count];
-                    Array.Copy(leftRow, row, leftRow.Length);
-                    yield return row;
-                }
+            }
+            finally
+            {
+                RelationalJoinInputEstimate buildEstimate = buildSide == RelationalHashBuildSide.Left
+                    ? left.Estimate
+                    : right.Estimate;
+                memo.RecordHashJoin(buildSide, buildEstimate, actualBuildRows, actualProbeRows);
             }
         }
     }
 
     private static bool ResidualHolds(
         Tsdb tsdb,
-        List<SqlExpression> residual,
+        IReadOnlyList<SqlExpression> residual,
         IReadOnlyList<RelColumn> columns,
         IReadOnlyList<object?> row,
         RelationalScope? outerScope,
@@ -1327,6 +2978,19 @@ internal static class RelationalSelectExecutor
     /// <summary>提取一行在连接键上的取值构成哈希 key；任一键值为 NULL 返回 false（NULL 不匹配）。</summary>
     private static bool TryMakeKey(IReadOnlyList<object?> row, List<JoinKeyPair> keyPairs, bool useRight, out JoinValueKey key)
     {
+        if (keyPairs.Count == 1)
+        {
+            JoinKeyPair pair = keyPairs[0];
+            object? value = row[useRight ? pair.RightColumnIndex : pair.LeftColumnIndex];
+            if (value is null)
+            {
+                key = default;
+                return false;
+            }
+            key = new JoinValueKey(value);
+            return true;
+        }
+
         var values = new object?[keyPairs.Count];
         for (int i = 0; i < keyPairs.Count; i++)
         {
@@ -1346,16 +3010,33 @@ internal static class RelationalSelectExecutor
     /// <summary>多列连接键的值组合，基于 <see cref="ValuesEqual"/> / 归一化数值实现相等与哈希。</summary>
     private readonly struct JoinValueKey : IEquatable<JoinValueKey>
     {
-        private readonly object?[] _values;
-        public JoinValueKey(object?[] values) => _values = values;
+        private readonly object? _singleValue;
+        private readonly object?[]? _values;
+        private readonly int _count;
+
+        public JoinValueKey(object value)
+        {
+            _singleValue = value;
+            _values = null;
+            _count = 1;
+        }
+
+        public JoinValueKey(object?[] values)
+        {
+            _singleValue = null;
+            _values = values;
+            _count = values.Length;
+        }
 
         public bool Equals(JoinValueKey other)
         {
-            if (_values.Length != other._values.Length)
+            if (_count != other._count)
                 return false;
-            for (int i = 0; i < _values.Length; i++)
+            if (_count == 1)
+                return ValuesEqual(_singleValue, other._singleValue);
+            for (int i = 0; i < _count; i++)
             {
-                if (!ValuesEqual(_values[i], other._values[i]))
+                if (!ValuesEqual(_values![i], other._values![i]))
                     return false;
             }
             return true;
@@ -1365,20 +3046,36 @@ internal static class RelationalSelectExecutor
 
         public override int GetHashCode()
         {
+            if (_count == 1)
+                return GetValueHashCode(_singleValue);
+
             var hash = new HashCode();
-            foreach (var v in _values)
-                hash.Add(NormalizeForHash(v));
+            foreach (object? value in _values ?? [])
+                hash.Add(GetValueHashCode(value));
             return hash.ToHashCode();
         }
 
         // 数值统一按 double 归一化，使 1 (int) 与 1.0 (double) 落同一桶（与 ValuesEqual 的数值相等一致）。
-        private static object NormalizeForHash(object? v) => v switch
+        private static int GetValueHashCode(object? value)
         {
-            null => 0,
-            byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal
-                => Convert.ToDouble(v, System.Globalization.CultureInfo.InvariantCulture),
-            _ => v,
-        };
+            if (value is byte[] bytes)
+            {
+                var hash = new HashCode();
+                foreach (byte item in bytes)
+                    hash.Add(item);
+                return hash.ToHashCode();
+            }
+
+            object normalized = value switch
+            {
+                null => 0d,
+                DateTime or DateTimeOffset => (double)ToUnixMilliseconds(value),
+                byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal
+                    => Convert.ToDouble(value, CultureInfo.InvariantCulture),
+                _ => value,
+            };
+            return normalized.GetHashCode();
+        }
     }
 
     private static IEnumerable<SqlExpression> FlattenAndExpr(SqlExpression expression)
@@ -2253,7 +3950,21 @@ internal static class RelationalSelectExecutor
             var result = ExecuteSubqueryMemoized(tsdb, expression.Subquery, columns, row, outerScope, memo);
             if (result.Columns.Count != 1)
                 throw new InvalidOperationException("IN 子查询必须只返回一列。");
-            matched = result.Rows.Any(candidate => Matches(candidate[0]));
+            if (memo is not null
+                && memo.TryGetOrCreateMembership(
+                    expression.Subquery,
+                    result,
+                    out SubqueryMembership membership,
+                    out bool built))
+            {
+                matched = value is not null && membership.Contains(value);
+                sawNull |= membership.HasNull || value is null && result.Rows.Count > 0;
+                memo.RecordMembershipJoin(expression.Negated, built, result.Rows.Count);
+            }
+            else
+            {
+                matched = result.Rows.Any(candidate => Matches(candidate[0]));
+            }
         }
         else
         {
@@ -3407,7 +5118,18 @@ internal static class RelationalSelectExecutor
     private static bool QualifierEquals(string? left, string? right)
         => string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
 
-    private sealed record Relation(IReadOnlyList<RelColumn> Columns, IEnumerable<object?[]> Rows);
+    private sealed record Relation(
+        IReadOnlyList<RelColumn> Columns,
+        IEnumerable<object?[]> Rows,
+        RelationalJoinInputEstimate Estimate,
+        TableRelationInput? TableInput = null);
+
+    private sealed record TableRelationInput(
+        TableStore Store,
+        TableSchema Schema,
+        string Alias,
+        IReadOnlyList<TableColumn> SelectedColumns,
+        RelationInputPlan Plan);
 
     /// <summary>
     /// 关系列描述。<see cref="StaticType"/> 为该列的 schema 静态类型（关系表列已知；子查询 /
@@ -3502,6 +5224,13 @@ internal sealed record RelationalExistsExplainPlan(
     long? StatisticsFreshnessMilliseconds = null,
     string? CandidatePlans = null);
 
+/// <summary>非相关 IN/NOT IN 的 Hash membership 物理计划。</summary>
+internal sealed record RelationalMembershipExplainPlan(
+    string Operator,
+    long OuterRows,
+    long InnerRows,
+    bool NullAware);
+
 /// <summary>
 /// 关系 SELECT 子查询记忆化的内部执行指标，仅用于回归测试和性能基准。
 /// </summary>
@@ -3558,6 +5287,66 @@ internal sealed class RelationalSelectExecutionMetrics
     /// <summary>关系输入裁剪后的列数总和。</summary>
     public long InputProjectedColumns { get; private set; }
 
+    /// <summary>实际执行的 Hash Join 次数。</summary>
+    public int HashJoinExecutionCount { get; private set; }
+
+    /// <summary>选择左侧作为 Hash build 输入的次数。</summary>
+    public int HashJoinLeftBuildCount { get; private set; }
+
+    /// <summary>选择右侧作为 Hash build 输入的次数。</summary>
+    public int HashJoinRightBuildCount { get; private set; }
+
+    /// <summary>最近一次 Hash Join 的 build side。</summary>
+    public string? LastHashJoinBuildSide { get; private set; }
+
+    /// <summary>最近一次 Hash Join 的估算 build 行数。</summary>
+    public long LastHashJoinEstimatedBuildRows { get; private set; }
+
+    /// <summary>最近一次 Hash Join 的估算 build 字节数。</summary>
+    public double LastHashJoinEstimatedBuildBytes { get; private set; }
+
+    /// <summary>最近一次 Hash Join 实际枚举的 build 行数。</summary>
+    public long LastHashJoinActualBuildRows { get; private set; }
+
+    /// <summary>最近一次 Hash Join 实际枚举的 probe 行数。</summary>
+    public long LastHashJoinActualProbeRows { get; private set; }
+
+    /// <summary>最近一次关系 JOIN 使用的物理算子。</summary>
+    public string? LastJoinOperator { get; private set; }
+
+    /// <summary>最近一次索引或有序 JOIN 使用的索引名。</summary>
+    public string? LastJoinIndexName { get; private set; }
+
+    /// <summary>最近一次非 Hash JOIN 实际枚举的 probe/比较行数。</summary>
+    public long LastJoinProbeRows { get; private set; }
+
+    /// <summary>最近一次 index nested-loop 的索引探测次数。</summary>
+    public long LastJoinLookupCount { get; private set; }
+
+    /// <summary>最近一次非 Hash JOIN 读取或生成的候选行数。</summary>
+    public long LastJoinCandidateRows { get; private set; }
+
+    /// <summary>非相关 IN 子查询 Hash membership 的 probe 次数。</summary>
+    public long SemiJoinProbeCount { get; private set; }
+
+    /// <summary>非相关 NOT IN 子查询 Hash membership 的 probe 次数。</summary>
+    public long AntiJoinProbeCount { get; private set; }
+
+    /// <summary>最近一次 membership Hash 构建读取的内表行数。</summary>
+    public long LastMembershipBuildRows { get; private set; }
+
+    /// <summary>最近一次有限枚举选出的输入别名顺序。</summary>
+    public string? LastJoinOrder { get; private set; }
+
+    /// <summary>最近一次 join-order 枚举评估的有效候选数。</summary>
+    public int LastJoinOrderCandidateCount { get; private set; }
+
+    /// <summary>最近一次 join-order 是否改变声明顺序。</summary>
+    public bool LastJoinOrderReordered { get; private set; }
+
+    /// <summary>join-order 未枚举或回退时的稳定原因。</summary>
+    public string? LastJoinOrderFallbackReason { get; private set; }
+
     /// <summary>记录一次实际子查询执行。</summary>
     internal void RecordSubqueryExecution() => SubqueryExecutionCount++;
 
@@ -3593,8 +5382,8 @@ internal sealed class RelationalSelectExecutionMetrics
         bool limitPushed,
         int sourceColumns,
         int projectedColumns,
-        int candidateRows,
-        int retainedRows)
+        long candidateRows,
+        long retainedRows)
     {
         if (predicatePushed)
             InputPredicatePushdownCount++;
@@ -3606,5 +5395,68 @@ internal sealed class RelationalSelectExecutionMetrics
         InputRetainedRows += retainedRows;
         InputSourceColumns += sourceColumns;
         InputProjectedColumns += projectedColumns;
+    }
+
+    /// <summary>记录一次 Hash Join build side 选择及实际输入规模。</summary>
+    internal void RecordHashJoin(
+        RelationalHashBuildSide buildSide,
+        RelationalJoinInputEstimate buildEstimate,
+        long actualBuildRows,
+        long actualProbeRows)
+    {
+        HashJoinExecutionCount++;
+        if (buildSide == RelationalHashBuildSide.Left)
+            HashJoinLeftBuildCount++;
+        else
+            HashJoinRightBuildCount++;
+        LastHashJoinBuildSide = buildSide == RelationalHashBuildSide.Left ? "left" : "right";
+        LastHashJoinEstimatedBuildRows = buildEstimate.Rows;
+        LastHashJoinEstimatedBuildBytes = buildEstimate.EstimatedBytes;
+        LastHashJoinActualBuildRows = actualBuildRows;
+        LastHashJoinActualProbeRows = actualProbeRows;
+        LastJoinOperator = "hash_join";
+        LastJoinIndexName = null;
+        LastJoinProbeRows = actualProbeRows;
+        LastJoinLookupCount = 0;
+        LastJoinCandidateRows = actualBuildRows;
+    }
+
+    /// <summary>记录 index nested-loop 或 merge join 的实际输入证据。</summary>
+    internal void RecordJoinOperator(
+        string operatorName,
+        string? indexName,
+        long probeRows,
+        long lookupCount,
+        long candidateRows)
+    {
+        LastJoinOperator = operatorName;
+        LastJoinIndexName = indexName;
+        LastJoinProbeRows = probeRows;
+        LastJoinLookupCount = lookupCount;
+        LastJoinCandidateRows = candidateRows;
+    }
+
+    /// <summary>记录一次 semijoin/antijoin membership probe。</summary>
+    internal void RecordMembershipJoin(bool negated, bool built, int buildRows)
+    {
+        if (negated)
+            AntiJoinProbeCount++;
+        else
+            SemiJoinProbeCount++;
+        if (built)
+            LastMembershipBuildRows = buildRows;
+    }
+
+    /// <summary>记录有限 join-order 搜索的决策。</summary>
+    internal void RecordJoinOrder(
+        string order,
+        int candidateCount,
+        bool reordered,
+        string? fallbackReason)
+    {
+        LastJoinOrder = order;
+        LastJoinOrderCandidateCount = candidateCount;
+        LastJoinOrderReordered = reordered;
+        LastJoinOrderFallbackReason = fallbackReason;
     }
 }

@@ -1,0 +1,194 @@
+{
+  "repository": "IoTSharp/SonnetDB",
+  "runs": [
+    {
+      "runId": "33071879124", "event": "schedule", "conclusion": "success", "createdAtUtc": "2026-08-27T12:26:38Z", "commitSha": "0360873a767d4343559c72272ae0fb277c71d617", "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/33071879124",
+      "profiles": {
+        "light": {
+          "artifactPresent": true, "summaryFileCount": 1, "parseError": "",
+          "summary": {
+            "schemaVersion": 2, "label": "parity", "message": "100%", "color": "brightgreen", "profile": "light", "status": "passing", "passRate": 100,
+            "totalScenarios": 4, "passedScenarios": 4, "skippedScenarios": 0, "failedScenarios": 0, "warningOnlyScenarios": 0,
+            "generatedAtUtc": "2026-08-27T12:35:00Z", "repository": "IoTSharp/SonnetDB", "runId": "33071879124", "runNumber": "438", "commitSha": "0360873a767d4343559c72272ae0fb277c71d617", "badgeUrl": "https://img.shields.io/badge/parity-100%25-brightgreen",
+            "suites": [{ "suite": "light-33071879124", "total": 4, "passed": 4, "skipped": 0, "failed": 0, "source": "raw/light-33071879124/report.json" }],
+            "gateFailures": [], "performanceWarnings": []
+          },
+          "rawReportFileCount": 1, "rawReports": [{ "source": "raw/light-33071879124/report.json", "parseError": "", "runId": "light-33071879124", "scenarioCount": 4 }]
+        },
+        "full": {
+          "artifactPresent": true, "summaryFileCount": 1, "parseError": "",
+          "summary": {
+            "schemaVersion": 2, "label": "parity", "message": "100%", "color": "brightgreen", "profile": "full", "status": "passing", "passRate": 100,
+            "totalScenarios": 6, "passedScenarios": 5, "skippedScenarios": 1, "failedScenarios": 0, "warningOnlyScenarios": 0,
+            "generatedAtUtc": "2026-08-27T12:36:00Z", "repository": "IoTSharp/SonnetDB", "runId": "33071879124", "runNumber": "438", "commitSha": "0360873a767d4343559c72272ae0fb277c71d617", "badgeUrl": "https://img.shields.io/badge/parity-100%25-brightgreen",
+            "suites": [{ "suite": "full-33071879124", "total": 6, "passed": 5, "skipped": 1, "failed": 0, "source": "raw/full-33071879124/report.json" }],
+            "gateFailures": [], "performanceWarnings": []
+          },
+          "rawReportFileCount": 1, "rawReports": [{ "source": "raw/full-33071879124/report.json", "parseError": "", "runId": "full-33071879124", "scenarioCount": 6 }]
+        }
+      }
+    },
+    {
+      "runId": "32925204255", "event": "schedule", "conclusion": "success", "createdAtUtc": "2026-08-26T03:06:30Z", "commitSha": "e642063b16d11a9495e2db9843e95cf513af97a0", "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/32925204255",
+      "profiles": {
+        "light": {
+          "artifactPresent": true, "summaryFileCount": 1, "parseError": "",
+          "summary": {
+            "schemaVersion": 2, "label": "parity", "message": "100%", "color": "brightgreen", "profile": "light", "status": "passing", "passRate": 100,
+            "totalScenarios": 4, "passedScenarios": 4, "skippedScenarios": 0, "failedScenarios": 0, "warningOnlyScenarios": 0,
+            "generatedAtUtc": "2026-08-26T03:15:00Z", "repository": "IoTSharp/SonnetDB", "runId": "32925204255", "runNumber": "437", "commitSha": "e642063b16d11a9495e2db9843e95cf513af97a0", "badgeUrl": "https://img.shields.io/badge/parity-100%25-brightgreen",
+            "suites": [{ "suite": "light-32925204255", "total": 4, "passed": 4, "skipped": 0, "failed": 0, "source": "raw/light-32925204255/report.json" }],
+            "gateFailures": [], "performanceWarnings": []
+          },
+          "rawReportFileCount": 1, "rawReports": [{ "source": "raw/light-32925204255/report.json", "parseError": "", "runId": "light-32925204255", "scenarioCount": 4 }]
+        },
+        "full": {
+          "artifactPresent": true, "summaryFileCount": 1, "parseError": "",
+          "summary": {
+            "schemaVersion": 2, "label": "parity", "message": "100%", "color": "brightgreen", "profile": "full", "status": "passing", "passRate": 100,
+            "totalScenarios": 6, "passedScenarios": 5, "skippedScenarios": 1, "failedScenarios": 0, "warningOnlyScenarios": 0,
+            "generatedAtUtc": "2026-08-26T03:16:00Z", "repository": "IoTSharp/SonnetDB", "runId": "32925204255", "runNumber": "437", "commitSha": "e642063b16d11a9495e2db9843e95cf513af97a0", "badgeUrl": "https://img.shields.io/badge/parity-100%25-brightgreen",
+            "suites": [{ "suite": "full-32925204255", "total": 6, "passed": 5, "skipped": 1, "failed": 0, "source": "raw/full-32925204255/report.json" }],
+            "gateFailures": [], "performanceWarnings": []
+          },
+          "rawReportFileCount": 1, "rawReports": [{ "source": "raw/full-32925204255/report.json", "parseError": "", "runId": "full-32925204255", "scenarioCount": 6 }]
+        }
+      }
+    },
+    {
+      "runId": "32803489709", "event": "schedule", "conclusion": "success", "createdAtUtc": "2026-08-25T02:59:57Z", "commitSha": "f2cad5af8b33a3473ada3d3e7047f75a1e8f5f5f", "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/32803489709",
+      "profiles": {
+        "light": {
+          "artifactPresent": true, "summaryFileCount": 1, "parseError": "",
+          "summary": {
+            "schemaVersion": 2, "label": "parity", "message": "100%", "color": "brightgreen", "profile": "light", "status": "passing", "passRate": 100,
+            "totalScenarios": 4, "passedScenarios": 4, "skippedScenarios": 0, "failedScenarios": 0, "warningOnlyScenarios": 0,
+            "generatedAtUtc": "2026-08-25T03:08:00Z", "repository": "IoTSharp/SonnetDB", "runId": "32803489709", "runNumber": "436", "commitSha": "f2cad5af8b33a3473ada3d3e7047f75a1e8f5f5f", "badgeUrl": "https://img.shields.io/badge/parity-100%25-brightgreen",
+            "suites": [{ "suite": "light-32803489709", "total": 4, "passed": 4, "skipped": 0, "failed": 0, "source": "raw/light-32803489709/report.json" }],
+            "gateFailures": [], "performanceWarnings": []
+          },
+          "rawReportFileCount": 1, "rawReports": [{ "source": "raw/light-32803489709/report.json", "parseError": "", "runId": "light-32803489709", "scenarioCount": 4 }]
+        },
+        "full": {
+          "artifactPresent": true, "summaryFileCount": 1, "parseError": "",
+          "summary": {
+            "schemaVersion": 2, "label": "parity", "message": "100%", "color": "brightgreen", "profile": "full", "status": "passing", "passRate": 100,
+            "totalScenarios": 6, "passedScenarios": 5, "skippedScenarios": 1, "failedScenarios": 0, "warningOnlyScenarios": 0,
+            "generatedAtUtc": "2026-08-25T03:09:00Z", "repository": "IoTSharp/SonnetDB", "runId": "32803489709", "runNumber": "436", "commitSha": "f2cad5af8b33a3473ada3d3e7047f75a1e8f5f5f", "badgeUrl": "https://img.shields.io/badge/parity-100%25-brightgreen",
+            "suites": [{ "suite": "full-32803489709", "total": 6, "passed": 5, "skipped": 1, "failed": 0, "source": "raw/full-32803489709/report.json" }],
+            "gateFailures": [], "performanceWarnings": []
+          },
+          "rawReportFileCount": 1, "rawReports": [{ "source": "raw/full-32803489709/report.json", "parseError": "", "runId": "full-32803489709", "scenarioCount": 6 }]
+        }
+      }
+    },
+    {
+      "runId": "32685178665", "event": "schedule", "conclusion": "failure", "createdAtUtc": "2026-08-24T03:04:46Z", "commitSha": "a0fefe15c4ea4d3a5f2a4a2c4f69d6930b9c6c70", "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/32685178665",
+      "profiles": {
+        "light": {
+          "artifactPresent": true, "summaryFileCount": 1, "parseError": "",
+          "summary": {
+            "schemaVersion": 2, "label": "parity", "message": "75%", "color": "red", "profile": "light", "status": "failing", "passRate": 75,
+            "totalScenarios": 4, "passedScenarios": 3, "skippedScenarios": 0, "failedScenarios": 1, "warningOnlyScenarios": 0,
+            "generatedAtUtc": "2026-08-24T03:13:00Z", "repository": "IoTSharp/SonnetDB", "runId": "32685178665", "runNumber": "435", "commitSha": "a0fefe15c4ea4d3a5f2a4a2c4f69d6930b9c6c70", "badgeUrl": "https://img.shields.io/badge/parity-75%25-red",
+            "suites": [{ "suite": "light-32685178665", "total": 4, "passed": 3, "skipped": 0, "failed": 1, "source": "raw/light-32685178665/report.json" }],
+            "gateFailures": [{ "gate": "capability", "suite": "light-32685178665", "scenario": "smoke-4", "reason": "backend reported fail", "gap_reason": "scenario_failed" }], "performanceWarnings": []
+          },
+          "rawReportFileCount": 1, "rawReports": [{ "source": "raw/light-32685178665/report.json", "parseError": "", "runId": "light-32685178665", "scenarioCount": 4 }]
+        },
+        "full": {
+          "artifactPresent": true, "summaryFileCount": 1, "parseError": "",
+          "summary": {
+            "schemaVersion": 2, "label": "parity", "message": "83.33%", "color": "red", "profile": "full", "status": "failing", "passRate": 83.33,
+            "totalScenarios": 6, "passedScenarios": 4, "skippedScenarios": 1, "failedScenarios": 1, "warningOnlyScenarios": 0,
+            "generatedAtUtc": "2026-08-24T03:14:00Z", "repository": "IoTSharp/SonnetDB", "runId": "32685178665", "runNumber": "435", "commitSha": "a0fefe15c4ea4d3a5f2a4a2c4f69d6930b9c6c70", "badgeUrl": "https://img.shields.io/badge/parity-83.33%25-red",
+            "suites": [{ "suite": "full-32685178665", "total": 6, "passed": 4, "skipped": 1, "failed": 1, "source": "raw/full-32685178665/report.json" }],
+            "gateFailures": [{ "gate": "capability", "suite": "full-32685178665", "scenario": "smoke-6", "reason": "backend reported fail", "gap_reason": "scenario_failed" }], "performanceWarnings": []
+          },
+          "rawReportFileCount": 1, "rawReports": [{ "source": "raw/full-32685178665/report.json", "parseError": "", "runId": "full-32685178665", "scenarioCount": 6 }]
+        }
+      }
+    },
+    {
+      "runId": "32614388339", "event": "schedule", "conclusion": "failure", "createdAtUtc": "2026-08-23T03:03:37Z", "commitSha": "a7fae42978c5311acc3b6f11b63adeac6fd55f3f", "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/32614388339",
+      "profiles": {
+        "light": {
+          "artifactPresent": true, "summaryFileCount": 1, "parseError": "",
+          "summary": {
+            "schemaVersion": 2, "label": "parity", "message": "75%", "color": "red", "profile": "light", "status": "failing", "passRate": 75,
+            "totalScenarios": 4, "passedScenarios": 3, "skippedScenarios": 0, "failedScenarios": 1, "warningOnlyScenarios": 0,
+            "generatedAtUtc": "2026-08-23T03:12:00Z", "repository": "IoTSharp/SonnetDB", "runId": "32614388339", "runNumber": "434", "commitSha": "a7fae42978c5311acc3b6f11b63adeac6fd55f3f", "badgeUrl": "https://img.shields.io/badge/parity-75%25-red",
+            "suites": [{ "suite": "light-32614388339", "total": 4, "passed": 3, "skipped": 0, "failed": 1, "source": "raw/light-32614388339/report.json" }],
+            "gateFailures": [{ "gate": "capability", "suite": "light-32614388339", "scenario": "smoke-4", "reason": "backend reported fail", "gap_reason": "scenario_failed" }], "performanceWarnings": []
+          },
+          "rawReportFileCount": 1, "rawReports": [{ "source": "raw/light-32614388339/report.json", "parseError": "", "runId": "light-32614388339", "scenarioCount": 4 }]
+        },
+        "full": {
+          "artifactPresent": true, "summaryFileCount": 1, "parseError": "",
+          "summary": {
+            "schemaVersion": 2, "label": "parity", "message": "83.33%", "color": "red", "profile": "full", "status": "failing", "passRate": 83.33,
+            "totalScenarios": 6, "passedScenarios": 4, "skippedScenarios": 1, "failedScenarios": 1, "warningOnlyScenarios": 0,
+            "generatedAtUtc": "2026-08-23T03:13:00Z", "repository": "IoTSharp/SonnetDB", "runId": "32614388339", "runNumber": "434", "commitSha": "a7fae42978c5311acc3b6f11b63adeac6fd55f3f", "badgeUrl": "https://img.shields.io/badge/parity-83.33%25-red",
+            "suites": [{ "suite": "full-32614388339", "total": 6, "passed": 4, "skipped": 1, "failed": 1, "source": "raw/full-32614388339/report.json" }],
+            "gateFailures": [{ "gate": "capability", "suite": "full-32614388339", "scenario": "smoke-6", "reason": "backend reported fail", "gap_reason": "scenario_failed" }], "performanceWarnings": []
+          },
+          "rawReportFileCount": 1, "rawReports": [{ "source": "raw/full-32614388339/report.json", "parseError": "", "runId": "full-32614388339", "scenarioCount": 6 }]
+        }
+      }
+    },
+    {
+      "runId": "32547559079", "event": "schedule", "conclusion": "failure", "createdAtUtc": "2026-08-22T02:55:27Z", "commitSha": "b86bf7c94b7e47f810bf1ff49387772adb922e5f", "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/32547559079",
+      "profiles": {
+        "light": {
+          "artifactPresent": true, "summaryFileCount": 1, "parseError": "",
+          "summary": {
+            "schemaVersion": 2, "label": "parity", "message": "75%", "color": "red", "profile": "light", "status": "failing", "passRate": 75,
+            "totalScenarios": 4, "passedScenarios": 3, "skippedScenarios": 0, "failedScenarios": 1, "warningOnlyScenarios": 0,
+            "generatedAtUtc": "2026-08-22T03:04:00Z", "repository": "IoTSharp/SonnetDB", "runId": "32547559079", "runNumber": "433", "commitSha": "b86bf7c94b7e47f810bf1ff49387772adb922e5f", "badgeUrl": "https://img.shields.io/badge/parity-75%25-red",
+            "suites": [{ "suite": "light-32547559079", "total": 4, "passed": 3, "skipped": 0, "failed": 1, "source": "raw/light-32547559079/report.json" }],
+            "gateFailures": [{ "gate": "capability", "suite": "light-32547559079", "scenario": "smoke-4", "reason": "backend reported fail", "gap_reason": "scenario_failed" }], "performanceWarnings": []
+          },
+          "rawReportFileCount": 1, "rawReports": [{ "source": "raw/light-32547559079/report.json", "parseError": "", "runId": "light-32547559079", "scenarioCount": 4 }]
+        },
+        "full": {
+          "artifactPresent": true, "summaryFileCount": 1, "parseError": "",
+          "summary": {
+            "schemaVersion": 2, "label": "parity", "message": "83.33%", "color": "red", "profile": "full", "status": "failing", "passRate": 83.33,
+            "totalScenarios": 6, "passedScenarios": 4, "skippedScenarios": 1, "failedScenarios": 1, "warningOnlyScenarios": 0,
+            "generatedAtUtc": "2026-08-22T03:05:00Z", "repository": "IoTSharp/SonnetDB", "runId": "32547559079", "runNumber": "433", "commitSha": "b86bf7c94b7e47f810bf1ff49387772adb922e5f", "badgeUrl": "https://img.shields.io/badge/parity-83.33%25-red",
+            "suites": [{ "suite": "full-32547559079", "total": 6, "passed": 4, "skipped": 1, "failed": 1, "source": "raw/full-32547559079/report.json" }],
+            "gateFailures": [{ "gate": "capability", "suite": "full-32547559079", "scenario": "smoke-6", "reason": "backend reported fail", "gap_reason": "scenario_failed" }], "performanceWarnings": []
+          },
+          "rawReportFileCount": 1, "rawReports": [{ "source": "raw/full-32547559079/report.json", "parseError": "", "runId": "full-32547559079", "scenarioCount": 6 }]
+        }
+      }
+    },
+    {
+      "runId": "32442052820", "event": "schedule", "conclusion": "failure", "createdAtUtc": "2026-08-21T03:04:13Z", "commitSha": "7546c53a6207f0919018bcd613568404058fa924", "url": "https://github.com/IoTSharp/SonnetDB/actions/runs/32442052820",
+      "profiles": {
+        "light": {
+          "artifactPresent": true, "summaryFileCount": 1, "parseError": "",
+          "summary": {
+            "schemaVersion": 2, "label": "parity", "message": "75%", "color": "red", "profile": "light", "status": "failing", "passRate": 75,
+            "totalScenarios": 4, "passedScenarios": 3, "skippedScenarios": 0, "failedScenarios": 1, "warningOnlyScenarios": 0,
+            "generatedAtUtc": "2026-08-21T03:13:00Z", "repository": "IoTSharp/SonnetDB", "runId": "32442052820", "runNumber": "432", "commitSha": "7546c53a6207f0919018bcd613568404058fa924", "badgeUrl": "https://img.shields.io/badge/parity-75%25-red",
+            "suites": [{ "suite": "light-32442052820", "total": 4, "passed": 3, "skipped": 0, "failed": 1, "source": "raw/light-32442052820/report.json" }],
+            "gateFailures": [{ "gate": "capability", "suite": "light-32442052820", "scenario": "smoke-4", "reason": "backend reported fail", "gap_reason": "scenario_failed" }], "performanceWarnings": []
+          },
+          "rawReportFileCount": 1, "rawReports": [{ "source": "raw/light-32442052820/report.json", "parseError": "", "runId": "light-32442052820", "scenarioCount": 4 }]
+        },
+        "full": {
+          "artifactPresent": true, "summaryFileCount": 1, "parseError": "",
+          "summary": {
+            "schemaVersion": 2, "label": "parity", "message": "83.33%", "color": "red", "profile": "full", "status": "failing", "passRate": 83.33,
+            "totalScenarios": 6, "passedScenarios": 4, "skippedScenarios": 1, "failedScenarios": 1, "warningOnlyScenarios": 0,
+            "generatedAtUtc": "2026-08-21T03:14:00Z", "repository": "IoTSharp/SonnetDB", "runId": "32442052820", "runNumber": "432", "commitSha": "7546c53a6207f0919018bcd613568404058fa924", "badgeUrl": "https://img.shields.io/badge/parity-83.33%25-red",
+            "suites": [{ "suite": "full-32442052820", "total": 6, "passed": 4, "skipped": 1, "failed": 1, "source": "raw/full-32442052820/report.json" }],
+            "gateFailures": [{ "gate": "capability", "suite": "full-32442052820", "scenario": "smoke-6", "reason": "backend reported fail", "gap_reason": "scenario_failed" }], "performanceWarnings": []
+          },
+          "rawReportFileCount": 1, "rawReports": [{ "source": "raw/full-32442052820/report.json", "parseError": "", "runId": "full-32442052820", "scenarioCount": 6 }]
+        }
+      }
+    }
+  ]
+}
