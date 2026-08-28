@@ -103,4 +103,32 @@ public sealed class M41PerformanceBaselineReportTests : IDisposable
             benchmark.Cleanup();
         }
     }
+
+    /// <summary>验证 #381 本地收口通过但现场验证保持后置，不形成虚假的发布通过。</summary>
+    [Fact]
+    public void ProductionCloseout_Quick_LeavesFieldValidationDeferred()
+    {
+        string closeoutDirectory = Path.Combine(_outputDirectory, "closeout");
+        M41ProductionCloseoutReport report = M41ProductionCloseoutRunner.Run(closeoutDirectory, quick: true);
+
+        Assert.Equal("m41-production-closeout-v1", report.Schema);
+        Assert.Equal("#381", report.Issue);
+        Assert.Equal(M41ProductionCloseoutStatus.Pass, report.LocalCloseout);
+        Assert.Equal(M41ProductionCloseoutStatus.Deferred, report.ReleaseDecision);
+        Assert.Contains(report.LocalChecks, static check => check.Id == "m41_baseline_contract");
+        Assert.NotEmpty(report.DeferredValidations);
+        Assert.All(
+            report.DeferredValidations,
+            static validation => Assert.Equal(M41ProductionCloseoutStatus.Deferred, validation.Status));
+
+        string jsonPath = Path.Combine(closeoutDirectory, "m41-production-closeout.json");
+        string markdownPath = Path.Combine(closeoutDirectory, "m41-production-closeout.md");
+        Assert.True(File.Exists(jsonPath));
+        Assert.True(File.Exists(markdownPath));
+        string json = File.ReadAllText(jsonPath);
+        using JsonDocument document = JsonDocument.Parse(json);
+        Assert.Equal(M41ProductionCloseoutStatus.Deferred, document.RootElement.GetProperty("release_decision").GetString());
+        Assert.Contains("seven_day_mixed_workload", json, StringComparison.Ordinal);
+        Assert.Contains("DEFERRED", File.ReadAllText(markdownPath), StringComparison.Ordinal);
+    }
 }

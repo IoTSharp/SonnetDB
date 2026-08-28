@@ -24,6 +24,7 @@ using SonnetDB.Benchmarks.Benchmarks;
 //   dotnet run -c Release -- --m40-verify-artifact <path> （#367 原始 artifact schema 验证）
 //   dotnet run -c Release -- --filter *GraphWeightedPath* （#362 Dijkstra/A*/双向 Dijkstra 基准）
 //   dotnet run -c Release -- --m41-baseline-evidence --quick （#368 性能合同与可观测性基线）
+//   dotnet run -c Release -- --m41-production-closeout --quick （#381 本地收口，现场验证后置）
 //   dotnet run -c Release -- --filter *M41P0AccessPath* （#369～#371 P0 快速路径对拍）
 //   dotnet run -c Release -- --filter *M41RelationInputPushdown* （#372 关系输入下推对拍）
 //   dotnet run -c Release -- --filter *M41JoinAlgorithm* （#378 JOIN 算法对拍）
@@ -142,6 +143,20 @@ if (args.Contains("--m41-baseline-evidence", StringComparer.OrdinalIgnoreCase))
     Console.WriteLine(
         $"m41-baseline-local={report.LocalCorrectness} output={outputDirectory} "
         + $"fixed-hardware={report.FixedHardware} production-gate={report.ProductionGate}");
+    return;
+}
+
+if (args.Contains("--m41-production-closeout", StringComparer.OrdinalIgnoreCase))
+{
+    string outputDirectory = ReadOutputDirectory(args, Path.Combine("artifacts", "m41-production-closeout"));
+    M41ProductionCloseoutReport report = M41ProductionCloseoutRunner.Run(
+        outputDirectory,
+        args.Contains("--quick", StringComparer.OrdinalIgnoreCase));
+    Console.WriteLine(
+        $"m41-production-local={report.LocalCloseout} output={outputDirectory} "
+        + $"release-decision={report.ReleaseDecision} deferred={report.DeferredValidations.Count}");
+    if (report.LocalCloseout != M41ProductionCloseoutStatus.Pass)
+        Environment.ExitCode = 1;
     return;
 }
 

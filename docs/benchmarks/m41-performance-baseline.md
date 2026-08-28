@@ -32,4 +32,4 @@ dotnet run -c Release --project tests/SonnetDB.Benchmarks -- --m41-baseline-evid
 
 runner 使用嵌入式 SQL 执行以隔离 Core 查询成本，不经过 Server SQL permit，因此 `sqlPermitQueueEvidence` 固定为 `NOT_APPLICABLE_EMBEDDED`，队列等待证据必须在 REST/Frame 生产复测中采集。quick 与本地完整运行都只验证工作负载、正确性和报告合同，不代表固定硬件容量、尾延迟 SLO 或生产发布结论。
 
-在固定目标硬件报告归档前，`fixedHardware` 与 `productionGate` 必须保持 `NOT_RUN`。后续 #369～#380 使用同一数据与查询名称做前后对比；#381 才负责 x64/ARM64 固定硬件、七天 mixed workload 和最终生产门禁。
+在固定目标硬件报告归档前，`fixedHardware` 与 `productionGate` 必须保持 `NOT_RUN`。后续 #369～#380 使用同一数据与查询名称做前后对比；#381 负责本地收口合同并登记 x64/ARM64 固定硬件、七天 mixed workload 和最终生产门禁的后置验证，不把本地报告视为生产通过。

@@ -20,7 +20,7 @@ SQL 并行只用于可以按输入项独立计算、且结果可以按输入序�
 
 SQL 根作用域为 AST 生成不含参数值和行内容的 SHA-256 fingerprint。现有 `SqlExplainPlanner` 的扫描估算写入执行资源，点读取和聚合 bucket 的实际计数写入同一反馈记录。`SqlRuntimeFeedbackStore` 在内存中保留最多 1,024 个 fingerprint，滚动平均 estimated/actual rows，并提供有限比例修正给后续同形状查询的并行准入；目录不持久化业务数据，超限按最旧记录淘汰。
 
-`SqlExecutionMetricsSnapshot` 追加 `EstimatedRows`、`ActualToEstimatedRowsRatio`、`ParallelOperator`、`ParallelismEnabled`、`ParallelWorkerCount`、`ParallelCompletedItems` 和 `ParallelFallbackReason`。这些字段属于内部执行证据，HTTP/JSON 合同保持 extend-only；固定硬件、生产 mixed workload 和发布门禁仍需在 #381 验证，不能用本机数字替代。
+`SqlExecutionMetricsSnapshot` 追加 `EstimatedRows`、`ActualToEstimatedRowsRatio`、`ParallelOperator`、`ParallelismEnabled`、`ParallelWorkerCount`、`ParallelCompletedItems` 和 `ParallelFallbackReason`。这些字段属于内部执行证据，HTTP/JSON 合同保持 extend-only；#381 已完成本地收口，固定硬件、生产 mixed workload 和发布门禁作为现场观察项后置，不能用本机数字替代。
 
 ## 自动化门禁
 

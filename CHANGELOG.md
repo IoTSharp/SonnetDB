@@ -13,6 +13,8 @@
 
 ### Changed
 
+- **M41 #381 本地生产收口、现场验证后置**：新增 `--m41-production-closeout` 报告 runner 和 source-generated JSON/Markdown 合同；#368 基线与 #369~#380 自动化回归作为本地 `PASS`，固定 x64/ARM64、木垒同语料、真进程 crash/replay、backup/restore、部署 Native AOT 和 7 天 mixed workload 按稳定 ID 明确登记为 `DEFERRED`，不得将本机结果解释为生产发布通过，后续部署或现场分析时可直接补证。
+
 - **M41 #380 受控并行与运行时反馈**：新增数据库级 worker semaphore、每 worker 查询/全局内存预留和 SQL 执行并行准入选项；measurement per-series scan、legacy numeric aggregate 与安全物化 probe Hash JOIN 仅在估算行数达到阈值、非事务且资源足够时启用有界并行，固定输入索引回收结果顺序，残差、spill、未物化输入、用户函数、预算竞争、取消和关闭路径稳定回退并释放资源。执行根作用域按不含参数值/行内容的完整 AST fingerprint 记录 estimated/actual rows，滚动反馈可为后续同形状规划修正估算；内部指标追加并行算子、worker、完成项、回退原因和实际/估算比率。新增并发上界、预算竞争、取消、异常解包、事务/NULL/LEFT JOIN、串并行逐行对拍与反馈测试；固定硬件、生产 mixed workload、Native AOT 发布门禁继续保持 `NOT_RUN`。
 
 - **M41 #379 阻塞算子内存预算与 spill**：新增 `TsdbOptions.SqlMemory` 的单查询默认/数据库实例全局预算，以及 `SqlExecutionOptions.BlockingOperatorMemoryLimitBytes` 单查询覆盖；Hash Join 构建侧、稳定排序/Top-N、关系分组、全局/单表 DISTINCT 与索引 OR 候选去重在预算拒绝预留时切换查询所有的二进制临时文件，不因额度不足丢行。spill 编解码不使用反射 JSON，保持 Core Safe-only、零第三方运行时依赖和 Native AOT 边界；查询成功、异常或取消后统一清理，启动只回收带 SonnetDB 所有权标记的遗留目录。`EXPLAIN ANALYZE` 新增实际查询内存峰值和 spill 字节数，并使用真实 spill 次数。新增六类算子 96-byte 强制落盘/内存逐行对拍、取消释放、崩溃遗留清理、全局额度竞争和指标回归；固定硬件、木垒生产同语料、7 天 mixed workload 与 #381 发布门禁仍为 `NOT_RUN`。
