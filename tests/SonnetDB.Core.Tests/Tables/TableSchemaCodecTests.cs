@@ -80,6 +80,27 @@ public sealed class TableSchemaCodecTests : IDisposable
         Assert.Equal(["id"], foreignKey.PrincipalColumns);
     }
 
+    /// <summary>Windows 上 schema 文件被短暂占用时，释放句柄后保存应在重试窗口内完成。</summary>
+    [Fact]
+    public async Task Save_DestinationTemporarilyLocked_RetriesAfterHandleIsReleased()
+    {
+        var initial = TableSchema.Create("initial", [("id", TableColumnType.Int64, false)], ["id"]);
+        var updated = TableSchema.Create("updated", [("id", TableColumnType.Int64, false)], ["id"]);
+        string path = Path.Combine(_root, TableSchemaCodec.FileName);
+        TableSchemaCodec.Save(path, [initial]);
+
+        using (var schemaLock = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            var saveTask = Task.Run(() => TableSchemaCodec.Save(path, [updated]));
+            await Task.Delay(75);
+            schemaLock.Dispose();
+            await saveTask;
+        }
+
+        Assert.Equal("updated", Assert.Single(TableSchemaCodec.Load(path)).Name);
+        Assert.False(File.Exists(path + ".tmp"));
+    }
+
     [Fact]
     public void Create_WithPrimaryKeyColumn_ForcesNotNull()
     {

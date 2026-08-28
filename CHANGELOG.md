@@ -23,6 +23,8 @@
 
 - **EF Core SaveChanges 影响行数与乐观并发**：SonnetDB EF Core 单语句修改批处理现在读取 `SndbDataReader.RecordsAffected`，普通跟踪 UPDATE/DELETE 实际命中零行时同步与异步路径均抛出 `DbUpdateConcurrencyException`，并发令牌陈旧实体不再被误报为保存成功；`ExecuteUpdateAsync` / `ExecuteDeleteAsync` 返回命中、未命中和多行修改的真实行数，DELETE SQL 同步去除内核不支持的目标表别名。远程轻事务不再为普通 INSERT/UPDATE/DELETE 固定返回 `0`，而是通过回滚预览取得事务视图中的真实影响行数后排队提交；嵌入式、REST 与 Frame HTTP/2 在事务内外保持一致。
 
+- **关系表冷开启动预热**：Server 自动加载已有数据库后，会在业务端口就绪前逐库打开全部关系表，提前完成索引恢复、行数统计和状态加载；不同表的独立 KV 恢复默认使用四并发，并通过 `RelationalTableWarmupConcurrency` 限制在 1～16，管理器在并行阶段继续阻止查询和 DDL 观察半完成状态；新增 `relational_table_warmup` readiness 门禁与完成数量，预热失败时保留诊断入口但不再让首个业务查询在 `TableManager` 全局锁后承担冷开阻塞。
+
 - **Testcontainers Docker 构建上下文**：为 Server Dockerfile 增加专属 `Dockerfile.dockerignore`，匹配 Testcontainers 4.14.0 从 Dockerfile 目录读取 ignore 文件的行为，避免 IoTSharp 集成测试把 `artifacts`、`bin`、`obj` 等并发变化的构建输出打入临时 tar；新增真实归档回归验证必要源码保留且构建输出全部排除。
 
 - **SonnetDB.Core 公共 API 兼容性**：恢复 `3.0.1` 的 `TableSchema.Create`、`CreateTableStatement`、`SelectStatement` 与 `SqlExplainExecutionResult` 位置参数/解构合同，并恢复 `3.0.1` 的 `TokenKind` 数值，不通过 suppression 隐藏破坏性变更。由于 `3.1.0` 已发布另一套枚举数值，后续版本必须先明确兼容策略，不能把当前修复直接视为同时兼容 `3.0.1` 与 `3.1.0` 的 patch。

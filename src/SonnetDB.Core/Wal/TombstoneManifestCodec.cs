@@ -42,12 +42,18 @@ public static class TombstoneManifestCodec
     /// <summary>清单文件名。</summary>
     public const string FileName = "tombstones.tslmanifest";
 
+    /// <summary>上一代已校验清单的备份后缀。</summary>
+    public const string BackupSuffix = ".bak";
+
     private static readonly byte[] _magic = "SDBTOMB!"u8.ToArray();
     private static readonly Encoding _utf8 = Encoding.UTF8;
+    private static readonly object _saveSync = new();
 
     private const int _formatVersion = 1;
     private const int _headerSize = 32;
     private const int _footerSize = 16;
+    private const int _moveRetryCount = 7;
+    private const int _moveRetryInitialDelayMilliseconds = 10;
 
     // ── Header layout constants ──────────────────────────────────────────────
     // Magic(8) + FormatVersion(4) + HeaderSize(4) + TombstoneCount(4) + Reserved(12) = 32
@@ -69,8 +75,49 @@ public static class TombstoneManifestCodec
         if (!File.Exists(path))
             return [];
 
-        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        // Windows 原子替换要求并发读句柄允许删除共享；读者仍持有原文件代次，不会读到半写内容。
+        using var fs = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read | FileShare.Delete);
         return Load(fs);
+    }
+
+    /// <summary>
+    /// 加载墓碑清单；主文件损坏或缺失时读取上一代已校验备份。
+    /// 主文件和备份均不可用时保留原始异常，避免静默丢弃删除语义。
+    /// </summary>
+    /// <param name="path">主清单文件完整路径。</param>
+    /// <returns>主清单或上一代备份中的墓碑列表。</returns>
+    public static IReadOnlyList<Tombstone> LoadWithFallback(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        string backupPath = path + BackupSuffix;
+        if (!File.Exists(path))
+            return File.Exists(backupPath) ? Load(backupPath) : [];
+
+        try
+        {
+            return Load(path);
+        }
+        catch (Exception primaryException) when (IsRecoverableReadFailure(primaryException) && File.Exists(backupPath))
+        {
+            try
+            {
+                var recovered = Load(backupPath);
+                System.Diagnostics.Trace.TraceWarning(
+                    $"Tombstone manifest '{path}' is unavailable; loaded last verified backup '{backupPath}'.");
+                return recovered;
+            }
+            catch (Exception backupException) when (IsRecoverableReadFailure(backupException))
+            {
+                throw new InvalidDataException(
+                    $"Tombstone manifest '{path}' and its backup are both unavailable.",
+                    new AggregateException(primaryException, backupException));
+            }
+        }
     }
 
     /// <summary>
@@ -84,20 +131,132 @@ public static class TombstoneManifestCodec
     {
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(tombstones);
-        ArgumentNullException.ThrowIfNull(tempSuffix);
+        ArgumentException.ThrowIfNullOrEmpty(tempSuffix);
 
-        string tmpPath = path + tempSuffix;
+        string fullPath = Path.GetFullPath(path);
+        string directory = Path.GetDirectoryName(fullPath) ?? string.Empty;
+        if (directory.Length > 0)
+            Directory.CreateDirectory(directory);
 
-        using (var fs = new FileStream(tmpPath, FileMode.Create, FileAccess.Write, FileShare.None))
-        using (var bs = new BufferedStream(fs, 65536))
+        lock (_saveSync)
         {
-            Save(tombstones, bs);
-            bs.Flush();
-            fs.Flush(true);
+            // 每次写入使用唯一临时文件，避免同进程并发保存或异常遗留的固定 .tmp 相互覆盖。
+            string tempPath = CreateTemporaryPath(fullPath, tempSuffix);
+            try
+            {
+                WriteManifest(tempPath, tombstones);
+                PreserveVerifiedGeneration(fullPath);
+
+                MoveWithTransientRetry(tempPath, fullPath);
+                EnsureInitialBackup(fullPath);
+                WalCheckpointFile.FlushDirectoryBestEffort(directory);
+            }
+            finally
+            {
+                TryDeleteTemporaryFile(tempPath);
+            }
+        }
+    }
+
+    /// <summary>生成同目录唯一临时文件路径，保证 rename 不跨文件系统。</summary>
+    private static string CreateTemporaryPath(string path, string tempSuffix) =>
+        $"{path}{tempSuffix}.{Guid.NewGuid():N}";
+
+    /// <summary>将完整清单写入临时文件并强制刷新到稳定存储。</summary>
+    private static void WriteManifest(string path, IReadOnlyList<Tombstone> tombstones)
+    {
+        using var fs = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+        using var bs = new BufferedStream(fs, 65536);
+        Save(tombstones, bs);
+        bs.Flush();
+        fs.Flush(true);
+    }
+
+    /// <summary>主清单有效时，将其原子复制为上一代备份；损坏主文件不会污染已有备份。</summary>
+    private static void PreserveVerifiedGeneration(string path)
+    {
+        if (!File.Exists(path))
+            return;
+
+        try
+        {
+            _ = Load(path);
+        }
+        catch (InvalidDataException)
+        {
+            return;
         }
 
-        File.Move(tmpPath, path, overwrite: true);
-        WalCheckpointFile.FlushDirectoryBestEffort(Path.GetDirectoryName(path) ?? string.Empty);
+        WriteDurableCopy(path, path + BackupSuffix);
+    }
+
+    /// <summary>首次创建清单时同步建立有效备份，确保第一次异常写入后也可恢复。</summary>
+    private static void EnsureInitialBackup(string path)
+    {
+        string backupPath = path + BackupSuffix;
+        if (!File.Exists(backupPath))
+            WriteDurableCopy(path, backupPath);
+    }
+
+    /// <summary>通过唯一临时文件和原子 rename 创建持久化副本。</summary>
+    private static void WriteDurableCopy(string sourcePath, string destinationPath)
+    {
+        string tempPath = CreateTemporaryPath(destinationPath, ".tmp");
+        try
+        {
+            using (var source = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (var destination = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                source.CopyTo(destination);
+                destination.Flush(true);
+            }
+
+            MoveWithTransientRetry(tempPath, destinationPath);
+        }
+        finally
+        {
+            TryDeleteTemporaryFile(tempPath);
+        }
+    }
+
+    /// <summary>对杀毒扫描或并发读句柄造成的短暂占用执行有上限的原子移动重试。</summary>
+    private static void MoveWithTransientRetry(string sourcePath, string destinationPath)
+    {
+        int delayMilliseconds = _moveRetryInitialDelayMilliseconds;
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                File.Move(sourcePath, destinationPath, overwrite: true);
+                return;
+            }
+            catch (Exception exception) when (
+                exception is IOException or UnauthorizedAccessException
+                && attempt < _moveRetryCount)
+            {
+                Thread.Sleep(delayMilliseconds);
+                delayMilliseconds *= 2;
+            }
+        }
+    }
+
+    /// <summary>判断读取失败是否允许尝试上一代备份。</summary>
+    private static bool IsRecoverableReadFailure(Exception exception) =>
+        exception is InvalidDataException or IOException;
+
+    /// <summary>清理尚未 rename 的临时文件，不掩盖主流程异常。</summary>
+    private static void TryDeleteTemporaryFile(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
     }
 
     // ── 私有实现 ──────────────────────────────────────────────────────────────

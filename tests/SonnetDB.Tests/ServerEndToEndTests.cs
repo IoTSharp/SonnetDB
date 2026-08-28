@@ -104,6 +104,7 @@ public sealed class ServerEndToEndTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, ready.StatusCode);
         using var readyDocument = JsonDocument.Parse(await ready.Content.ReadAsStringAsync());
         var entries = readyDocument.RootElement.GetProperty("entries");
+        Assert.Equal("Healthy", entries.GetProperty("relational_table_warmup").GetProperty("status").GetString());
         Assert.Equal("Healthy", entries.GetProperty("segment_store_writable").GetProperty("status").GetString());
         Assert.Equal("Healthy", entries.GetProperty("wal_writable").GetProperty("status").GetString());
         Assert.Equal("Degraded", entries.GetProperty("copilot_provider_reachable").GetProperty("status").GetString());

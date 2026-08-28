@@ -463,7 +463,7 @@ public sealed class Tsdb : IDisposable
             var memTable = new MemTable();
             int catalogCountBeforeReplay = catalog.Count;
             string tombstoneManifestPath = TsdbPaths.TombstoneManifestPath(root);
-            IReadOnlyList<Tombstone> manifestTombstones = TombstoneManifestCodec.Load(tombstoneManifestPath);
+            IReadOnlyList<Tombstone> manifestTombstones = TombstoneManifestCodec.LoadWithFallback(tombstoneManifestPath);
             long durableTombstoneCheckpointLsn = GetMaxTombstoneLsn(manifestTombstones);
             var result = walSet.ReplayWithCheckpoint(catalog, durableCheckpointLsn, durableTombstoneCheckpointLsn);
             memTable.ReplayFrom(result.WritePoints);

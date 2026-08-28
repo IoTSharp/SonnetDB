@@ -22,6 +22,7 @@ public sealed class ServerOptionsTests
         Assert.False(options.Observability.DiagnosticDump.Enabled);
         Assert.Equal(4, options.SqlHttpAdmission.PermitLimit);
         Assert.Equal(8, options.SqlHttpAdmission.QueueLimit);
+        Assert.Equal(4, options.RelationalTableWarmupConcurrency);
         Assert.Equal(256L * 1024 * 1024, options.Kv.IndexRebuildMaxWalBytes);
         Assert.Equal(100_000, options.Kv.IndexRebuildMaxOverlayEntries);
         Assert.False(options.SemanticSearch.Enabled);
@@ -213,5 +214,34 @@ public sealed class ServerOptionsTests
 
         Assert.Equal(64L * 1024 * 1024 * 1024, boundedOptions.IndexRebuildMaxWalBytes);
         Assert.Equal(1, boundedOptions.IndexRebuildMaxOverlayEntries);
+    }
+
+    /// <summary>验证关系表启动预热并发可配置，并限制在明确的资源边界内。</summary>
+    [Fact]
+    public void Bind_WithRelationalTableWarmupConcurrency_AppliesAndBoundsConfiguration()
+    {
+        var configured = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SonnetDBServer:RelationalTableWarmupConcurrency"] = "8",
+            })
+            .Build();
+        Assert.Equal(8, ServerOptionsBinder.Bind(configured).RelationalTableWarmupConcurrency);
+
+        var tooLow = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SonnetDBServer:RelationalTableWarmupConcurrency"] = "0",
+            })
+            .Build();
+        var tooHigh = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["SonnetDBServer:RelationalTableWarmupConcurrency"] = "64",
+            })
+            .Build();
+
+        Assert.Equal(1, ServerOptionsBinder.Bind(tooLow).RelationalTableWarmupConcurrency);
+        Assert.Equal(16, ServerOptionsBinder.Bind(tooHigh).RelationalTableWarmupConcurrency);
     }
 }
