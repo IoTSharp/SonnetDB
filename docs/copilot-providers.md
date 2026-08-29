@@ -122,7 +122,7 @@ Embedding 与 Chat 独立配置，避免为了切换 Chat 模型重建知识索�
 | Provider | 配置重点 | 适用场景 |
 |---|---|---|
 | `builtin` | 无外部配置，固定 384 维 | 首次启动、离线兜底、功能验证 |
-| `local` | `LocalModelPath` | 本地模型文件校验；未提供明确 tokenizer/input profile 时使用本地确定性 hash fallback |
+| `local` | `LocalModelPath` | 本地模型文件路径校验；未提供明确 tokenizer/input profile 时使用本地确定性 hash fallback |
 | `openai` | `Endpoint`、`ApiKey`、`Model` | OpenAI-compatible 云端或私有 embedding 服务 |
 
 ```json
@@ -138,7 +138,7 @@ Embedding 与 Chat 独立配置，避免为了切换 Chat 模型重建知识索�
 }
 ```
 
-> `LocalOnnxEmbeddingProvider` 会加载并校验 `LocalModelPath`。由于 ONNX 文本模型的 tokenizer、输入名和 pooling 规则并不统一，当前配置未携带 model profile 时不会猜测输入；provider 会在本地自动回落到与 `builtin` 相同的 384 维确定性 hash 向量，并在知识库状态中标记 `EmbeddingFallback=true`。这条路径可用于离线功能验证，但不等价于真实语义模型，也不应宣称已完成 ONNX 推理质量验收。需要真实 ONNX 语义质量时，必须为目标模型补充 tokenizer/input profile 和回归样本。
+> `LocalOnnxEmbeddingProvider` 会校验 `LocalModelPath`。由于 ONNX 文本模型的 tokenizer、输入名和 pooling 规则并不统一，当前配置未携带 model profile 时不会加载 native session 或猜测输入；provider 会在本地自动回落到与 `builtin` 相同的 384 维确定性 hash 向量，并在知识库状态中标记 `EmbeddingFallback=true`。这条路径可用于离线功能验证，但不等价于真实语义模型，也不应宣称已完成 ONNX 推理质量验收。需要真实 ONNX 语义质量时，必须为目标模型补充 tokenizer/input profile 和回归样本。
 
 ## 本地/在线 Chat 接线
 

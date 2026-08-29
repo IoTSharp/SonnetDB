@@ -51,7 +51,7 @@
 ## 当前推进顺序
 
 1. M41 P0/P2/P3 已完成本地实现、自动化门禁与 #381 收口报告；木垒同语料、固定硬件、7 天 mixed workload、真进程 crash/replay、部署 Native AOT 和生产 gate 作为现场观察项后置，仍不得用本机数字代替发布证据，也不得用增加 SQL permit、内存或索引数量代替根因修复。
-2. 恢复 M20 Parity nightly 的有效报告，并补齐 M19/M25 目标硬件容量证据。
+2. M20 Parity nightly、M19 #125 与 M25 #174 的研发 runner/verifier 已收口；连续 nightly 与固定目标硬件容量报告作为后续现场验证，暂不阻塞其他研发。
 3. 收口 M27 的真实 provider/Agent 接线与双网客户端 Copilot；#184 工业 Demo、#187 eval 已完成研发闭环，真实 provider 运行证据后续补验。
 4. 收口 M29 Studio 安装包/宿主生命周期实机验收。
 5. M34 已完成 TCP master/slave runtime、受限 Source 写、Endpoint 外部写治理与管理面闭环；M35 在过滤 ANN 与内容生命周期地基完成后再做媒体场景。
@@ -100,7 +100,7 @@ Web/Bridge smoke、Server 管理合同、Web Admin、Studio Release build 和 VS
 
 ## Milestone 27 — AI / Agent 数据访问与治理
 
-目标是在不改变 SonnetDB“八种数据模型，一套引擎”核心定位的前提下，为 Copilot、MCP 和外部 Agent 提供受权限、审计与人工确认约束的数据访问能力。工业数据诊断是验证该能力的示例之一，不是产品类别。当前实现不是 Microsoft Agent Framework：实际为 `Microsoft.Extensions.AI` 抽象加自研 `CopilotAgent`；在线 `/v1/copilot/chat` 已支持云 Gateway 与配置的 `IChatProvider` 两条路径；`LocalOnnxEmbeddingProvider` 仍只校验/加载模型并在缺少 tokenizer/input profile 时显式回退 hash provider，尚未完成真实 ONNX 语义推理。文档和报告必须如实描述这些边界。
+目标是在不改变 SonnetDB“八种数据模型，一套引擎”核心定位的前提下，为 Copilot、MCP 和外部 Agent 提供受权限、审计与人工确认约束的数据访问能力。工业数据诊断是验证该能力的示例之一，不是产品类别。当前实现不是 Microsoft Agent Framework：实际为 `Microsoft.Extensions.AI` 抽象加自研 `CopilotAgent`；在线 `/v1/copilot/chat` 已支持云 Gateway 与配置的 `IChatProvider` 两条路径；`LocalOnnxEmbeddingProvider` 仍只校验模型路径并在缺少 tokenizer/input profile 时显式回退 hash provider，尚未完成真实 ONNX 语义推理。文档和报告必须如实描述这些边界。
 
 | 项目 | 剩余交付 | 状态 |
 |---|---|---|

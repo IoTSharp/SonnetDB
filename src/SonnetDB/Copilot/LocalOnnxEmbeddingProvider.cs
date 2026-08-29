@@ -1,4 +1,3 @@
-using Microsoft.ML.OnnxRuntime;
 using SonnetDB.Configuration;
 
 namespace SonnetDB.Copilot;
@@ -6,14 +5,13 @@ namespace SonnetDB.Copilot;
 /// <summary>
 /// 本地 ONNX embedding provider。
 ///
-/// 当前版本会验证并加载模型文件，但不假设某一个 tokenizer/input schema。
+/// 当前版本会验证模型文件路径，但不假设某一个 tokenizer/input schema。
 /// 无法安全推断模型输入时，使用内置 hash provider 作为显式本地降级路径，
 /// 保证离线摄入仍可运行，同时通过 <see cref="IsFallback"/> 暴露真实边界。
 /// </summary>
 public sealed class LocalOnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
 {
     private readonly CopilotEmbeddingOptions _options;
-    private InferenceSession? _session;
     private BuiltinHashEmbeddingProvider? _fallbackProvider;
     private string? _fallbackReason;
     private bool _disposed;
@@ -26,6 +24,7 @@ public sealed class LocalOnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
     {
         ArgumentNullException.ThrowIfNull(options);
         _options = options;
+        EnsureFallback(GetFallbackReason());
     }
 
     /// <summary>
@@ -38,6 +37,12 @@ public sealed class LocalOnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
     /// </summary>
     public string? FallbackReason => _fallbackReason;
 
+    /// <summary>
+    /// 为文本生成 embedding；当前没有 model profile 时使用可观测的本地 hash fallback。
+    /// </summary>
+    /// <param name="text">待编码的非空文本。</param>
+    /// <param name="cancellationToken">取消令牌。</param>
+    /// <returns>embedding 向量。</returns>
     public async ValueTask<float[]> EmbedAsync(string text, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -47,55 +52,45 @@ public sealed class LocalOnnxEmbeddingProvider : IEmbeddingProvider, IDisposable
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (_fallbackProvider is not null)
-            return await _fallbackProvider.EmbedAsync(text, cancellationToken).ConfigureAwait(false);
-
-        try
-        {
-            _ = EnsureSession();
-
-            // 不同本地模型的 tokenizer、输入名和 pooling 规则并不统一。
-            // 在没有显式模型 profile 时不能猜测并宣称 ONNX 结果有效，
-            // 因此把这一边界转为可运行的本地确定性 fallback。
-            throw new NotSupportedException("Local ONNX model input profile is not configured.");
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception exception)
-        {
-            _fallbackReason ??= exception.Message;
-            _fallbackProvider ??= new BuiltinHashEmbeddingProvider(
-                new CopilotEmbeddingOptions { Provider = "local" });
-            return await _fallbackProvider.EmbedAsync(text, cancellationToken).ConfigureAwait(false);
-        }
+        // 当前配置没有显式 model profile，不能猜测输入并加载 native runtime；
+        // provider 在构造时已建立可观测的本地确定性 fallback，避免无效模型触发
+        // ONNX native 初始化崩溃，也不把 fallback 宣称为真实语义推理。
+        return await _fallbackProvider!.EmbedAsync(text, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// 释放 provider 资源。
+    /// </summary>
     public void Dispose()
     {
         if (_disposed)
             return;
 
-        _session?.Dispose();
-        _session = null;
         _fallbackProvider = null;
         _disposed = true;
     }
 
-    private InferenceSession EnsureSession()
+    private void EnsureFallback(string reason)
     {
-        if (_session is not null)
-            return _session;
+        _fallbackReason ??= reason;
+        _fallbackProvider ??= new BuiltinHashEmbeddingProvider(
+            new CopilotEmbeddingOptions { Provider = "local" });
+    }
 
+    private string GetFallbackReason()
+    {
         if (string.IsNullOrWhiteSpace(_options.LocalModelPath))
-            throw new InvalidOperationException("Copilot local embedding model path is missing.");
+            return "Copilot local embedding model path is missing.";
 
-        var modelPath = Path.GetFullPath(_options.LocalModelPath);
-        if (!File.Exists(modelPath))
-            throw new FileNotFoundException("Copilot local embedding model file was not found.", modelPath);
-
-        _session = new InferenceSession(modelPath);
-        return _session;
+        try
+        {
+            return File.Exists(Path.GetFullPath(_options.LocalModelPath))
+                ? "Local ONNX model input profile is not configured."
+                : "Copilot local embedding model file was not found.";
+        }
+        catch (Exception exception) when (exception is ArgumentException or IOException or NotSupportedException or System.Security.SecurityException)
+        {
+            return $"Copilot local embedding model path is invalid: {exception.Message}";
+        }
     }
 }

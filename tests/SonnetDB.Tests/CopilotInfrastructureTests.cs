@@ -230,6 +230,8 @@ public sealed class CopilotInfrastructureTests : IAsyncLifetime
             LocalModelPath = modelPath,
         });
 
+        Assert.True(provider.IsFallback);
+        Assert.False(string.IsNullOrWhiteSpace(provider.FallbackReason));
         var embedding = await provider.EmbedAsync("offline local embedding");
 
         Assert.Equal(BuiltinHashEmbeddingProvider.VectorDimension, embedding.Length);
