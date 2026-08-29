@@ -105,7 +105,7 @@ Web/Bridge smoke、Server 管理合同、Web Admin、Studio Release build 和 VS
 | 项目 | 剩余交付 | 状态 |
 |---|---|---|
 | #182 产品定位校准 | README / README.en、文档首页、`llms.txt` 和产品欢迎页统一为“八种数据模型，一套引擎”；实现语言、部署方式、行业场景和 Agent 能力按层表达，不进入一级定位。 | ✅ |
-| #183 MCP 合同 | 为现有 list/describe/sample/query/explain/docs 工具形成稳定 typed contract，写清参数、返回、权限、错误和版本兼容；不新增大工具面。 | 🚧 |
+| #183 MCP 合同 | 现有九个只读工具已发布机器可验证 input/output schema、v1 合同版本、稳定错误码与兼容文本，并以端到端测试冻结权限 annotation、既有 required 集合和字段类型；参数、返回、权限、错误与 extend-only 版本规则见 `docs/mcp-contract.md`，未扩大工具面。 | ✅ |
 | #184 工业 Demo | 用 MQTT/HTTP 写入温度、电流、振动，演示异常设备查询、维修建议、引用和报告；数据模型、脚本、文档和视频口径一致。 | 📋 |
 | #185 Provider 接线 | 配置样例和模型分组已完成；仍需让在线 Chat 按配置走 `IChatProvider` 或云 Gateway，并实现可运行的本地 embedding/provider 路径。 | 🚧 |
 | M14 纠偏 | 接入最新 Microsoft Agent Framework 并以测试证明，或继续明确标注“自研 orchestrator”；实现本地 ONNX 前不得宣称 bge-small-zh 已可用。 | 🚧 |

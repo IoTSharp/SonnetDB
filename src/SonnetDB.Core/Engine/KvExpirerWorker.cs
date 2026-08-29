@@ -12,8 +12,11 @@ internal sealed class KvExpirerWorker : IDisposable
     private readonly Tsdb _owner;
     private readonly KvOptions _options;
     private readonly CancellationTokenSource _cts = new();
+    private readonly ManualResetEventSlim _disposeCompleted = new(initialState: false);
     private Thread? _thread;
-    private bool _disposed;
+    private int _disposeState;
+    private int _workerExited;
+    private Exception? _disposeError;
     private long _executedRounds;
     private long _removedKeys;
     private long _cleanupRounds;
@@ -62,6 +65,10 @@ internal sealed class KvExpirerWorker : IDisposable
 
     public Exception? LastError => Volatile.Read(ref _lastError);
 
+    internal Action? BeforeMaintenanceRoundTestHook { get; set; }
+
+    internal bool HasExited => Volatile.Read(ref _workerExited) != 0;
+
     public void Start()
     {
         if (_thread != null)
@@ -77,100 +84,128 @@ internal sealed class KvExpirerWorker : IDisposable
 
     public void Dispose()
     {
-        if (_disposed)
-            return;
+        Thread? thread = _thread;
+        if (thread is not null && ReferenceEquals(Thread.CurrentThread, thread))
+            throw new InvalidOperationException("KvExpirerWorker 不能从自身后台线程执行 Dispose。");
 
-        _disposed = true;
-        _cts.Cancel();
-        if (_thread != null)
+        if (Interlocked.CompareExchange(ref _disposeState, 1, 0) != 0)
         {
-            _thread.Interrupt();
-            bool exited = _thread.Join(_options.ExpirerShutdownTimeout);
-            if (!exited)
-            {
-                Volatile.Write(ref _lastError,
-                    new TimeoutException($"KvExpirerWorker 关闭超时（{_options.ExpirerShutdownTimeout}）。"));
-            }
+            WaitForDisposeCompletion();
+            return;
         }
 
-        _cts.Dispose();
+        try
+        {
+            _cts.Cancel();
+
+            if (thread is not null && !thread.Join(_options.ExpirerShutdownTimeout))
+            {
+                Volatile.Write(ref _lastError,
+                    new TimeoutException($"KvExpirerWorker 关闭超时（{_options.ExpirerShutdownTimeout}）；将继续等待线程安全退出。"));
+                thread.Join();
+            }
+
+            _cts.Dispose();
+        }
+        catch (Exception exception)
+        {
+            Volatile.Write(ref _disposeError, exception);
+            throw;
+        }
+        finally
+        {
+            Volatile.Write(ref _disposeState, 2);
+            _disposeCompleted.Set();
+        }
+    }
+
+    private void WaitForDisposeCompletion()
+    {
+        _disposeCompleted.Wait();
+        if (Volatile.Read(ref _disposeError) is { } error)
+            throw new InvalidOperationException("KvExpirerWorker 关闭失败。", error);
     }
 
     private void WorkerLoop()
     {
-        while (!_cts.IsCancellationRequested)
+        try
         {
-            try
+            while (!_cts.IsCancellationRequested)
             {
-                Thread.Sleep(PollInterval());
-            }
-            catch (ThreadInterruptedException)
-            {
-                break;
-            }
+                if (_cts.Token.WaitHandle.WaitOne(PollInterval()))
+                    break;
 
-            if (_cts.IsCancellationRequested)
-                break;
+                if (_cts.IsCancellationRequested)
+                    break;
 
-            if (_options.ExpirerEnabled && IsDue(ref _lastExpirerTimestamp, _options.ExpirerPollInterval))
-            {
-                try
-                {
-                    int limit = _options.ExpirerBatchSize <= 0 ? int.MaxValue : _options.ExpirerBatchSize;
-                    int removed = _owner.CleanExpiredKeyspacesFromBackground(limit);
-                    Interlocked.Add(ref _removedKeys, removed);
-                    Interlocked.Increment(ref _executedRounds);
-                }
-                catch (Exception ex)
-                {
-                    ReportFailure(
-                        "KvExpirerWorker.CleanExpired",
-                        "后台 KV 过期清理失败；异常已被捕获，后续轮询会继续尝试。",
-                        ex);
-                }
-            }
+                BeforeMaintenanceRoundTestHook?.Invoke();
+                if (_cts.IsCancellationRequested)
+                    break;
 
-            if (_options.CleanupEnabled && IsDue(ref _lastCleanupTimestamp, _options.CleanupPollInterval))
-            {
-                try
+                if (_options.ExpirerEnabled && IsDue(ref _lastExpirerTimestamp, _options.ExpirerPollInterval))
                 {
-                    KvCleanupThrottleReason throttleReason = GetCleanupThrottleReason();
-                    if (throttleReason != KvCleanupThrottleReason.None)
+                    try
                     {
-                        KvCleanupRoundResult pending = _owner.GetCleanupStatusFromBackground();
-                        UpdatePending(pending);
-                        Volatile.Write(ref _lastThrottleReason, (int)throttleReason);
-                        Interlocked.Increment(ref _throttledRounds);
-                        SonnetDbMeter.KvCleanupThrottled.Add(1, ThrottleReasonTag(throttleReason));
-                        continue;
+                        int limit = _options.ExpirerBatchSize <= 0 ? int.MaxValue : _options.ExpirerBatchSize;
+                        int removed = _owner.CleanExpiredKeyspacesFromBackground(limit);
+                        Interlocked.Add(ref _removedKeys, removed);
+                        Interlocked.Increment(ref _executedRounds);
                     }
-
-                    Volatile.Write(ref _lastThrottleReason, (int)KvCleanupThrottleReason.None);
-                    int limit = _options.CleanupMaxFilesPerRound <= 0
-                        ? 1
-                        : _options.CleanupMaxFilesPerRound;
-                    long started = Stopwatch.GetTimestamp();
-                    KvCleanupRoundResult result = _owner.CleanupKeyspacesFromBackground(limit);
-                    TimeSpan elapsed = Stopwatch.GetElapsedTime(started);
-                    Interlocked.Add(ref _cleanupFiles, result.DeletedFiles);
-                    if (result.ProcessedEntries > 0)
-                        Interlocked.Increment(ref _cleanupRounds);
-                    UpdatePending(result);
-                    if (result.RemovedBytes > 0 && elapsed > TimeSpan.Zero)
+                    catch (Exception ex)
                     {
-                        double rate = result.RemovedBytes / elapsed.TotalSeconds;
-                        Interlocked.Exchange(ref _cleanupRateBits, BitConverter.DoubleToInt64Bits(rate));
+                        ReportFailure(
+                            "KvExpirerWorker.CleanExpired",
+                            "后台 KV 过期清理失败；异常已被捕获，后续轮询会继续尝试。",
+                            ex);
                     }
                 }
-                catch (Exception ex)
+
+                if (_options.CleanupEnabled && IsDue(ref _lastCleanupTimestamp, _options.CleanupPollInterval))
                 {
-                    SonnetDbMeter.KvCleanupFailures.Add(1);
-                    ReportFailure(
-                        "KvExpirerWorker.CleanupGeneration",
-                        "后台 KV generation 文件回收失败；异常已被捕获，后续轮询会继续尝试。",
-                        ex);
+                    try
+                    {
+                        KvCleanupThrottleReason throttleReason = GetCleanupThrottleReason();
+                        if (throttleReason != KvCleanupThrottleReason.None)
+                        {
+                            KvCleanupRoundResult pending = _owner.GetCleanupStatusFromBackground();
+                            UpdatePending(pending);
+                            Volatile.Write(ref _lastThrottleReason, (int)throttleReason);
+                            Interlocked.Increment(ref _throttledRounds);
+                            SonnetDbMeter.KvCleanupThrottled.Add(1, ThrottleReasonTag(throttleReason));
+                            continue;
+                        }
+
+                        Volatile.Write(ref _lastThrottleReason, (int)KvCleanupThrottleReason.None);
+                        int limit = _options.CleanupMaxFilesPerRound <= 0
+                            ? 1
+                            : _options.CleanupMaxFilesPerRound;
+                        long started = Stopwatch.GetTimestamp();
+                        KvCleanupRoundResult result = _owner.CleanupKeyspacesFromBackground(limit);
+                        TimeSpan elapsed = Stopwatch.GetElapsedTime(started);
+                        Interlocked.Add(ref _cleanupFiles, result.DeletedFiles);
+                        if (result.ProcessedEntries > 0)
+                            Interlocked.Increment(ref _cleanupRounds);
+                        UpdatePending(result);
+                        if (result.RemovedBytes > 0 && elapsed > TimeSpan.Zero)
+                        {
+                            double rate = result.RemovedBytes / elapsed.TotalSeconds;
+                            Interlocked.Exchange(ref _cleanupRateBits, BitConverter.DoubleToInt64Bits(rate));
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        SonnetDbMeter.KvCleanupFailures.Add(1);
+                        ReportFailure(
+                            "KvExpirerWorker.CleanupGeneration",
+                            "后台 KV generation 文件回收失败；异常已被捕获，后续轮询会继续尝试。",
+                            ex);
+                    }
                 }
             }
+        }
+        finally
+        {
+            Volatile.Write(ref _workerExited, 1);
         }
     }
 

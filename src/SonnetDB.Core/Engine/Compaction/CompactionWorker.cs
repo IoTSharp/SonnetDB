@@ -8,7 +8,7 @@ using SonnetDB.Wal;
 /// 生命周期模型：
 /// <list type="bullet">
 ///   <item><description>构造后调用 <see cref="Start"/> 启动后台线程；</description></item>
-///   <item><description><see cref="Dispose"/> 取消 token → 等待线程退出（超时不抛）。</description></item>
+///   <item><description><see cref="Dispose"/> 取消 token，并在后台线程真正退出后才返回。</description></item>
 /// </list>
 /// </para>
 /// </summary>
@@ -18,8 +18,11 @@ internal sealed class CompactionWorker : IDisposable
     private readonly CompactionPolicy _policy;
     private readonly SegmentCompactor _compactor;
     private readonly CancellationTokenSource _cts = new();
+    private readonly ManualResetEventSlim _disposeCompleted = new(initialState: false);
     private Thread? _thread;
-    private bool _disposed;
+    private int _disposeState;
+    private int _workerExited;
+    private Exception? _disposeError;
 
     private long _executedCount;
     private long _failureCount;
@@ -33,6 +36,10 @@ internal sealed class CompactionWorker : IDisposable
 
     /// <summary>最近一次执行失败的异常（仅诊断用）。</summary>
     public Exception? LastError => Volatile.Read(ref _lastError);
+
+    internal Action? BeforeMaintenanceRoundTestHook { get; set; }
+
+    internal bool HasExited => Volatile.Read(ref _workerExited) != 0;
 
     /// <summary>
     /// 创建 <see cref="CompactionWorker"/> 实例（尚未启动）。
@@ -65,66 +72,91 @@ internal sealed class CompactionWorker : IDisposable
     }
 
     /// <summary>
-    /// 取消后台线程并等待其退出（超时记录但不抛异常）。
+    /// 取消后台线程并等待其真实退出；超过关闭预算时记录诊断，但仍阻止 owner 继续释放依赖。
     /// </summary>
     public void Dispose()
     {
-        if (_disposed)
-            return;
-        _disposed = true;
+        Thread? thread = _thread;
+        if (thread is not null && ReferenceEquals(Thread.CurrentThread, thread))
+            throw new InvalidOperationException("CompactionWorker 不能从自身后台线程执行 Dispose。");
 
-        _cts.Cancel();
-
-        if (_thread != null)
+        if (Interlocked.CompareExchange(ref _disposeState, 1, 0) != 0)
         {
-            // 中断 Thread.Sleep 以加快退出
-            _thread.Interrupt();
-            bool exited = _thread.Join(_policy.ShutdownTimeout);
-            if (!exited)
-            {
-                Volatile.Write(ref _lastError,
-                    new TimeoutException($"CompactionWorker 关闭超时（{_policy.ShutdownTimeout}）。"));
-            }
+            WaitForDisposeCompletion();
+            return;
         }
 
-        _cts.Dispose();
+        try
+        {
+            _cts.Cancel();
+
+            if (thread is not null && !thread.Join(_policy.ShutdownTimeout))
+            {
+                Volatile.Write(ref _lastError,
+                    new TimeoutException($"CompactionWorker 关闭超时（{_policy.ShutdownTimeout}）；将继续等待线程安全退出。"));
+                thread.Join();
+            }
+
+            _cts.Dispose();
+        }
+        catch (Exception exception)
+        {
+            Volatile.Write(ref _disposeError, exception);
+            throw;
+        }
+        finally
+        {
+            Volatile.Write(ref _disposeState, 2);
+            _disposeCompleted.Set();
+        }
+    }
+
+    private void WaitForDisposeCompletion()
+    {
+        _disposeCompleted.Wait();
+        if (Volatile.Read(ref _disposeError) is { } error)
+            throw new InvalidOperationException("CompactionWorker 关闭失败。", error);
     }
 
     // ── 私有 ──────────────────────────────────────────────────────────────────
 
     private void WorkerLoop()
     {
-        while (!_cts.IsCancellationRequested)
+        try
         {
-            // 等待轮询周期（专用后台线程使用 Thread.Sleep，避免线程池饥饿）
-            try
+            while (!_cts.IsCancellationRequested)
             {
-                Thread.Sleep(_policy.PollInterval);
-            }
-            catch (ThreadInterruptedException)
-            {
-                break;
-            }
+                if (_cts.Token.WaitHandle.WaitOne(_policy.PollInterval))
+                    break;
 
-            if (_cts.IsCancellationRequested)
-                break;
+                if (_cts.IsCancellationRequested)
+                    break;
 
-            // 整轮在维护串行锁内执行，序列化与 Retention / DropMeasurement 的段变更（防过期数据复活）；
-            // 外层 try/catch 兜住 plan 获取与 lease 获取阶段的异常，避免后台线程静默死亡（C6）。
-            try
-            {
-                _owner.RunUnderMaintenanceLock(RunCompactionRound);
+                BeforeMaintenanceRoundTestHook?.Invoke();
+                if (_cts.IsCancellationRequested)
+                    break;
+
+                // 整轮在维护串行锁内执行，序列化与 Retention / DropMeasurement 的段变更（防过期数据复活）；
+                // 外层 try/catch 兜住 plan 获取与 lease 获取阶段的异常，避免后台线程静默死亡（C6）。
+                try
+                {
+                    _owner.RunUnderMaintenanceLock(RunCompactionRound);
+                }
+                catch (Exception ex)
+                {
+                    Interlocked.Increment(ref _failureCount);
+                    Volatile.Write(ref _lastError, ex);
+                    _owner.ReportBackgroundWorkerDiagnostic(
+                        "CompactionWorker.Plan",
+                        TsdbDiagnosticSeverity.Error,
+                        "后台 Compaction 规划阶段失败；异常已被捕获，后续轮询会继续尝试。",
+                        ex);
+                }
             }
-            catch (Exception ex)
-            {
-                Interlocked.Increment(ref _failureCount);
-                Volatile.Write(ref _lastError, ex);
-                _owner.ReportBackgroundWorkerDiagnostic(
-                    "CompactionWorker.Plan",
-                    TsdbDiagnosticSeverity.Error,
-                    "后台 Compaction 规划阶段失败；异常已被捕获，后续轮询会继续尝试。",
-                    ex);
-            }
+        }
+        finally
+        {
+            Volatile.Write(ref _workerExited, 1);
         }
     }
 

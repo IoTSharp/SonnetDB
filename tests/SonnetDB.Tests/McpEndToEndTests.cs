@@ -13,6 +13,7 @@ using SonnetDB.Configuration;
 using SonnetDB.Contracts;
 using SonnetDB.Hosting;
 using SonnetDB.Json;
+using SonnetDB.Mcp;
 using Xunit;
 
 namespace SonnetDB.Tests;
@@ -93,12 +94,112 @@ public sealed class McpEndToEndTests : IAsyncLifetime
         var tools = await client.ListToolsAsync();
         var names = tools.Select(t => t.Name).OrderBy(static name => name, StringComparer.Ordinal).ToArray();
 
-        Assert.Contains("describe_measurement", names);
-        Assert.Contains("explain_sql", names);
-        Assert.Contains("list_databases", names);
-        Assert.Contains("list_measurements", names);
-        Assert.Contains("query_sql", names);
-        Assert.Contains("sample_rows", names);
+        string[] establishedToolNames =
+        [
+            "describe_measurement",
+            "docs_search",
+            "explain_sql",
+            "list_databases",
+            "list_measurements",
+            "query_sql",
+            "sample_rows",
+            "skill_load",
+            "skill_search",
+        ];
+        foreach (var toolName in establishedToolNames)
+            Assert.Contains(toolName, names);
+
+        var establishedTools = tools.Where(tool => establishedToolNames.Contains(tool.Name, StringComparer.Ordinal));
+        foreach (var tool in establishedTools)
+        {
+            Assert.True(tool.ProtocolTool.Annotations?.ReadOnlyHint);
+            Assert.False(tool.ProtocolTool.Annotations?.DestructiveHint);
+            Assert.True(tool.ProtocolTool.Annotations?.IdempotentHint);
+            Assert.False(tool.ProtocolTool.Annotations?.OpenWorldHint);
+            Assert.False(string.IsNullOrWhiteSpace(tool.Description));
+        }
+    }
+
+    [Fact]
+    public async Task ListTools_AdvertisesVersionedInputAndOutputSchemas()
+    {
+        await using var client = await CreateMcpClientAsync();
+
+        var tools = (await client.ListToolsAsync()).ToDictionary(static tool => tool.Name, StringComparer.Ordinal);
+
+        AssertToolSchema(tools["list_databases"], [], [], ["contractVersion", "currentDatabase", "databases"]);
+        AssertToolSchema(tools["list_measurements"], ["maxRows"], [],
+            ["contractVersion", "database", "measurements", "truncated"]);
+        AssertToolSchema(tools["describe_measurement"], ["name"], ["name"],
+            ["contractVersion", "database", "measurement", "columns"]);
+        AssertToolSchema(tools["sample_rows"], ["measurement", "n"], ["measurement"],
+            ["contractVersion", "database", "measurement", "requestedRows", "columns", "rows", "returnedRows", "truncated"]);
+        AssertToolSchema(tools["query_sql"], ["sql", "maxRows"], ["sql"],
+            ["contractVersion", "database", "statementType", "columns", "rows", "returnedRows", "truncated"]);
+        AssertToolSchema(tools["explain_sql"], ["sql"], ["sql"],
+            [
+                "contractVersion", "database", "statementType", "measurement", "matchedSeriesCount",
+                "estimatedSegmentCount", "estimatedBlockCount", "estimatedScannedRows",
+                "estimatedMemTableRows", "estimatedSegmentRows", "hasTimeFilter", "tagFilterCount",
+            ]);
+        AssertToolSchema(tools["docs_search"], ["query", "k"], ["query"],
+            ["contractVersion", "query", "requested", "hits"]);
+        AssertToolSchema(tools["skill_search"], ["query", "k"], ["query"],
+            ["contractVersion", "query", "requested", "hits"]);
+        AssertToolSchema(tools["skill_load"], ["name"], ["name"],
+            ["contractVersion", "name", "description", "triggers", "requiresTools", "body", "source"]);
+    }
+
+    [Fact]
+    public async Task QuerySql_WithWriteStatement_ReturnsCompatibleTextAndTypedError()
+    {
+        await using var client = await CreateMcpClientAsync();
+
+        var result = await client.CallToolAsync(
+            "query_sql",
+            new Dictionary<string, object?>
+            {
+                ["sql"] = "DELETE FROM cpu WHERE time = 1000",
+            });
+
+        Assert.True(result.IsError.GetValueOrDefault());
+        Assert.Equal(2, result.Content.Count);
+        var text = Assert.IsType<TextContentBlock>(result.Content[0]).Text;
+        Assert.Contains("query_sql 仅支持", text, StringComparison.Ordinal);
+
+        Assert.False(result.StructuredContent.HasValue);
+        var typedText = Assert.IsType<TextContentBlock>(result.Content[1]).Text;
+        using var errorDocument = JsonDocument.Parse(typedText);
+        var error = errorDocument.RootElement;
+        Assert.Equal(SonnetDbMcpContract.Version, error.GetProperty("contractVersion").GetString());
+        Assert.Equal(SonnetDbMcpErrorCodes.ReadOnlyViolation, error.GetProperty("code").GetString());
+        Assert.Equal(text, error.GetProperty("message").GetString());
+        Assert.False(error.GetProperty("retryable").GetBoolean());
+    }
+
+    [Fact]
+    public async Task QuerySql_WithInvalidRowLimit_ReturnsStableInvalidArgumentCode()
+    {
+        await using var client = await CreateMcpClientAsync();
+
+        var result = await client.CallToolAsync(
+            "query_sql",
+            new Dictionary<string, object?>
+            {
+                ["sql"] = "SELECT * FROM cpu",
+                ["maxRows"] = 0,
+            });
+
+        Assert.True(result.IsError.GetValueOrDefault());
+        Assert.Equal(2, result.Content.Count);
+        var text = Assert.IsType<TextContentBlock>(result.Content[0]).Text;
+        Assert.Contains("maxRows", text, StringComparison.Ordinal);
+
+        var typedText = Assert.IsType<TextContentBlock>(result.Content[1]).Text;
+        using var errorDocument = JsonDocument.Parse(typedText);
+        Assert.Equal(
+            SonnetDbMcpErrorCodes.InvalidArgument,
+            errorDocument.RootElement.GetProperty("code").GetString());
     }
 
     [Fact]
@@ -119,6 +220,7 @@ public sealed class McpEndToEndTests : IAsyncLifetime
 
         var structured = result.StructuredContent.Value;
         Assert.Equal(_dbName, structured.GetProperty("database").GetString());
+        Assert.Equal(SonnetDbMcpContract.Version, structured.GetProperty("contractVersion").GetString());
         Assert.Equal("select", structured.GetProperty("statementType").GetString());
         Assert.Equal(2, structured.GetProperty("returnedRows").GetInt32());
         Assert.True(structured.GetProperty("truncated").GetBoolean());
@@ -272,6 +374,7 @@ public sealed class McpEndToEndTests : IAsyncLifetime
         var measurementsText = Assert.IsType<TextResourceContents>(measurements.Contents[0]).Text;
         using (var doc = JsonDocument.Parse(measurementsText))
         {
+            Assert.Equal(SonnetDbMcpContract.Version, doc.RootElement.GetProperty("contractVersion").GetString());
             var names = doc.RootElement.GetProperty("measurements")
                 .EnumerateArray()
                 .Select(static element => element.GetString())
@@ -389,5 +492,73 @@ public sealed class McpEndToEndTests : IAsyncLifetime
             JsonContent.Create(new SqlRequest(sql), ServerJsonContext.Default.SqlRequest));
         var body = await response.Content.ReadAsStringAsync();
         Assert.True(response.IsSuccessStatusCode, $"执行 SQL 失败：{(int)response.StatusCode} {body}");
+    }
+
+    private static void AssertToolSchema(
+        McpClientTool tool,
+        IReadOnlyList<string> inputProperties,
+        IReadOnlyList<string> requiredInputProperties,
+        IReadOnlyList<string> outputProperties)
+    {
+        Assert.Equal("object", tool.JsonSchema.GetProperty("type").GetString());
+        var actualInputProperties = tool.JsonSchema.GetProperty("properties");
+        foreach (var property in inputProperties)
+        {
+            Assert.True(actualInputProperties.TryGetProperty(property, out var propertySchema));
+            AssertSchemaIncludesType(propertySchema, GetEstablishedPropertyType(property));
+        }
+
+        IEnumerable<string> actualRequired = tool.JsonSchema.TryGetProperty("required", out var required)
+            ? required.EnumerateArray().Select(static item => item.GetString()!).Order(StringComparer.Ordinal)
+            : Enumerable.Empty<string>();
+        Assert.Equal(requiredInputProperties.Order(StringComparer.Ordinal), actualRequired);
+
+        Assert.True(tool.ReturnJsonSchema.HasValue);
+        var outputSchema = tool.ReturnJsonSchema.Value;
+        Assert.Equal("object", outputSchema.GetProperty("type").GetString());
+        var actualOutputProperties = outputSchema.GetProperty("properties");
+        foreach (var property in outputProperties)
+        {
+            Assert.True(actualOutputProperties.TryGetProperty(property, out var propertySchema));
+            AssertSchemaIncludesType(propertySchema, GetEstablishedPropertyType(property));
+        }
+
+        Assert.False(actualOutputProperties.TryGetProperty("content", out _));
+        Assert.False(actualOutputProperties.TryGetProperty("isError", out _));
+    }
+
+    private static string GetEstablishedPropertyType(string propertyName) => propertyName switch
+    {
+        "maxRows" or "n" or "k" or "requestedRows" or "returnedRows" or "requested"
+            or "matchedSeriesCount" or "estimatedSegmentCount" or "estimatedBlockCount"
+            or "estimatedScannedRows" or "estimatedMemTableRows" or "estimatedSegmentRows"
+            or "tagFilterCount" => "integer",
+        "truncated" or "hasTimeFilter" => "boolean",
+        "databases" or "measurements" or "columns" or "rows" or "hits" or "triggers"
+            or "requiresTools" => "array",
+        _ => "string",
+    };
+
+    private static void AssertSchemaIncludesType(JsonElement schema, string expectedType)
+    {
+        if (schema.TryGetProperty("type", out var type))
+        {
+            if (type.ValueKind == JsonValueKind.String)
+            {
+                Assert.Equal(expectedType, type.GetString());
+                return;
+            }
+
+            if (type.ValueKind == JsonValueKind.Array)
+            {
+                Assert.Contains(type.EnumerateArray(), item => item.GetString() == expectedType);
+                return;
+            }
+        }
+
+        Assert.True(schema.TryGetProperty("anyOf", out var anyOf));
+        Assert.Contains(
+            anyOf.EnumerateArray(),
+            option => option.TryGetProperty("type", out var optionType) && optionType.GetString() == expectedType);
     }
 }

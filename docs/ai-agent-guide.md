@@ -78,6 +78,9 @@ Authorization: Bearer <token>
 
 不要把真实 Token 写进仓库、提示词、截图或日志。具体宿主不支持环境变量插值时，应使用它自己的 Secret/credential store。
 
+完整的机器可验证输入/输出 schema、错误码、权限与版本兼容规则见
+[MCP Typed Contract]({{ site.docs_baseurl | default: '/help' }}/mcp-contract/)。
+
 ### MCP 工具
 
 3.1.0 暴露以下只读工具：

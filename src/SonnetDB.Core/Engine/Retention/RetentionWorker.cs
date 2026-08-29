@@ -15,8 +15,11 @@ public sealed class RetentionWorker : IDisposable
     private readonly Tsdb _owner;
     private readonly RetentionPolicy _policy;
     private readonly CancellationTokenSource _cts = new();
+    private readonly ManualResetEventSlim _disposeCompleted = new(initialState: false);
     private Thread? _thread;
-    private bool _disposed;
+    private int _disposeState;
+    private int _workerExited;
+    private Exception? _disposeError;
 
     private long _executedRounds;
     private long _droppedSegmentCount;
@@ -38,6 +41,10 @@ public sealed class RetentionWorker : IDisposable
 
     /// <summary>最近一次失败的异常（仅诊断用）。</summary>
     public Exception? LastError => Volatile.Read(ref _lastError);
+
+    internal Action? BeforeMaintenanceRoundTestHook { get; set; }
+
+    internal bool HasExited => Volatile.Read(ref _workerExited) != 0;
 
     /// <summary>
     /// 创建 <see cref="RetentionWorker"/> 实例（尚未启动）。
@@ -133,63 +140,90 @@ public sealed class RetentionWorker : IDisposable
     }
 
     /// <summary>
-    /// 取消后台线程并等待其退出（超时记录但不抛异常）。
+    /// 取消后台线程并等待其真实退出；超过关闭预算时记录诊断，但仍阻止 owner 继续释放依赖。
     /// </summary>
     public void Dispose()
     {
-        if (_disposed)
-            return;
-        _disposed = true;
+        Thread? thread = _thread;
+        if (thread is not null && ReferenceEquals(Thread.CurrentThread, thread))
+            throw new InvalidOperationException("RetentionWorker 不能从自身后台线程执行 Dispose。");
 
-        _cts.Cancel();
-
-        if (_thread != null)
+        if (Interlocked.CompareExchange(ref _disposeState, 1, 0) != 0)
         {
-            _thread.Interrupt();
-            bool exited = _thread.Join(_policy.ShutdownTimeout);
-            if (!exited)
-            {
-                Volatile.Write(ref _lastError,
-                    new TimeoutException($"RetentionWorker 关闭超时（{_policy.ShutdownTimeout}）。"));
-            }
+            WaitForDisposeCompletion();
+            return;
         }
 
-        _cts.Dispose();
+        try
+        {
+            _cts.Cancel();
+
+            if (thread is not null && !thread.Join(_policy.ShutdownTimeout))
+            {
+                Volatile.Write(ref _lastError,
+                    new TimeoutException($"RetentionWorker 关闭超时（{_policy.ShutdownTimeout}）；将继续等待线程安全退出。"));
+                thread.Join();
+            }
+
+            _cts.Dispose();
+        }
+        catch (Exception exception)
+        {
+            Volatile.Write(ref _disposeError, exception);
+            throw;
+        }
+        finally
+        {
+            Volatile.Write(ref _disposeState, 2);
+            _disposeCompleted.Set();
+        }
+    }
+
+    private void WaitForDisposeCompletion()
+    {
+        _disposeCompleted.Wait();
+        if (Volatile.Read(ref _disposeError) is { } error)
+            throw new InvalidOperationException("RetentionWorker 关闭失败。", error);
     }
 
     // ── 私有 ──────────────────────────────────────────────────────────────────
 
     private void WorkerLoop()
     {
-        while (!_cts.IsCancellationRequested)
+        try
         {
-            try
+            while (!_cts.IsCancellationRequested)
             {
-                Thread.Sleep(_policy.PollInterval);
-            }
-            catch (ThreadInterruptedException)
-            {
-                break;
-            }
+                if (_cts.Token.WaitHandle.WaitOne(_policy.PollInterval))
+                    break;
 
-            if (_cts.IsCancellationRequested)
-                break;
+                if (_cts.IsCancellationRequested)
+                    break;
 
-            try
-            {
-                RunOnce();
-                Interlocked.Increment(ref _executedRounds);
+                BeforeMaintenanceRoundTestHook?.Invoke();
+                if (_cts.IsCancellationRequested)
+                    break;
+
+                try
+                {
+                    RunOnce();
+                    Interlocked.Increment(ref _executedRounds);
+                }
+                catch (Exception ex)
+                {
+                    Interlocked.Increment(ref _failureCount);
+                    Volatile.Write(ref _lastError, ex);
+                    _owner.ReportBackgroundWorkerDiagnostic(
+                        "RetentionWorker.RunOnce",
+                        TsdbDiagnosticSeverity.Error,
+                        "后台 Retention 执行失败；异常已被捕获，后续轮询会继续尝试。",
+                        ex);
+                }
             }
-            catch (Exception ex)
-            {
-                Interlocked.Increment(ref _failureCount);
-                Volatile.Write(ref _lastError, ex);
-                _owner.ReportBackgroundWorkerDiagnostic(
-                    "RetentionWorker.RunOnce",
-                    TsdbDiagnosticSeverity.Error,
-                    "后台 Retention 执行失败；异常已被捕获，后续轮询会继续尝试。",
-                    ex);
-            }
+        }
+        finally
+        {
+            Volatile.Write(ref _workerExited, 1);
         }
     }
 

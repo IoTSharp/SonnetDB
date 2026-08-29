@@ -2,10 +2,50 @@ using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 using ModelContextProtocol.Protocol;
 using SonnetDB.Contracts;
+using SonnetDB.Json;
 using SonnetDB.Sql.Ast;
 using SonnetDB.Sql.Execution;
 
 namespace SonnetDB.Mcp;
+
+/// <summary>
+/// SonnetDB MCP typed contract 的版本与输入预算。
+/// </summary>
+internal static class SonnetDbMcpContract
+{
+    public const string Version = "1.0";
+}
+
+/// <summary>
+/// MCP 工具的稳定错误码。
+/// </summary>
+internal static class SonnetDbMcpErrorCodes
+{
+    public const string InvalidArgument = "invalid_argument";
+    public const string InvalidSql = "invalid_sql";
+    public const string ReadOnlyViolation = "read_only_violation";
+    public const string MeasurementNotFound = "measurement_not_found";
+    public const string SkillNotFound = "skill_not_found";
+    public const string ProviderUnavailable = "provider_unavailable";
+    public const string RequestCancelled = "request_cancelled";
+    public const string OperationFailed = "operation_failed";
+}
+
+/// <summary>
+/// MCP typed contract 返回体的共同版本字段。
+/// </summary>
+internal abstract record McpContractResult
+{
+    /// <summary>
+    /// 当前返回体遵循的 MCP 合同版本。
+    /// </summary>
+    public string ContractVersion => SonnetDbMcpContract.Version;
+}
+
+/// <summary>
+/// MCP 工具失败时写入文本 content 的稳定 JSON 返回体。
+/// </summary>
+internal sealed record McpToolErrorResult(string Code, string Message, bool Retryable) : McpContractResult;
 
 /// <summary>
 /// MCP 端点返回的 measurement 列描述。
@@ -15,12 +55,14 @@ internal sealed record McpMeasurementColumnResult(string Name, string ColumnType
 /// <summary>
 /// MCP tool <c>list_measurements</c> 的返回体。
 /// </summary>
-internal sealed record McpMeasurementListResult(string Database, IReadOnlyList<string> Measurements, bool Truncated);
+internal sealed record McpMeasurementListResult(string Database, IReadOnlyList<string> Measurements, bool Truncated)
+    : McpContractResult;
 
 /// <summary>
 /// MCP tool <c>list_databases</c> 的返回体。
 /// </summary>
-internal sealed record McpDatabaseListResult(string CurrentDatabase, IReadOnlyList<string> Databases);
+internal sealed record McpDatabaseListResult(string CurrentDatabase, IReadOnlyList<string> Databases)
+    : McpContractResult;
 
 /// <summary>
 /// MCP tool/resource 的 measurement schema 返回体。
@@ -28,7 +70,7 @@ internal sealed record McpDatabaseListResult(string CurrentDatabase, IReadOnlyLi
 internal sealed record McpMeasurementSchemaResult(
     string Database,
     string Measurement,
-    IReadOnlyList<McpMeasurementColumnResult> Columns);
+    IReadOnlyList<McpMeasurementColumnResult> Columns) : McpContractResult;
 
 /// <summary>
 /// MCP tool <c>query_sql</c> 的返回体。
@@ -39,7 +81,7 @@ internal sealed record McpSqlQueryResult(
     IReadOnlyList<string> Columns,
     IReadOnlyList<IReadOnlyList<JsonElementValue>> Rows,
     int ReturnedRows,
-    bool Truncated);
+    bool Truncated) : McpContractResult;
 
 /// <summary>
 /// 数据库统计资源返回体。
@@ -50,7 +92,7 @@ internal sealed record McpDatabaseStatsResult(
     int SegmentCount,
     long MemTablePointCount,
     long NextSegmentId,
-    long CheckpointLsn);
+    long CheckpointLsn) : McpContractResult;
 
 /// <summary>
 /// MCP tool <c>docs_search</c> 的单条命中（PR #64）。
@@ -68,7 +110,7 @@ internal sealed record McpDocsSearchHit(
 internal sealed record McpDocsSearchResult(
     string Query,
     int Requested,
-    IReadOnlyList<McpDocsSearchHit> Hits);
+    IReadOnlyList<McpDocsSearchHit> Hits) : McpContractResult;
 
 /// <summary>
 /// MCP tool <c>skill_search</c> 的单条命中（PR #65）。
@@ -86,7 +128,7 @@ internal sealed record McpSkillSearchHit(
 internal sealed record McpSkillSearchResult(
     string Query,
     int Requested,
-    IReadOnlyList<McpSkillSearchHit> Hits);
+    IReadOnlyList<McpSkillSearchHit> Hits) : McpContractResult;
 
 /// <summary>
 /// MCP tool <c>skill_load</c> 的返回体（PR #65）。
@@ -97,7 +139,7 @@ internal sealed record McpSkillLoadResult(
     IReadOnlyList<string> Triggers,
     IReadOnlyList<string> RequiresTools,
     string Body,
-    string Source);
+    string Source) : McpContractResult;
 
 /// <summary>
 /// MCP tool <c>sample_rows</c> 的返回体。
@@ -109,7 +151,7 @@ internal sealed record McpSampleRowsResult(
     IReadOnlyList<string> Columns,
     IReadOnlyList<IReadOnlyList<JsonElementValue>> Rows,
     int ReturnedRows,
-    bool Truncated);
+    bool Truncated) : McpContractResult;
 
 /// <summary>
 /// MCP tool <c>explain_sql</c> 的返回体。
@@ -125,7 +167,7 @@ internal sealed record McpExplainSqlResult(
     long EstimatedMemTableRows,
     long EstimatedSegmentRows,
     bool HasTimeFilter,
-    int TagFilterCount);
+    int TagFilterCount) : McpContractResult;
 
 /// <summary>
 /// Copilot <c>draft_sql</c> 工具的返回体：仅做语法/语义校验，不执行写入，
@@ -267,8 +309,13 @@ internal static class SonnetDbMcpResults
     /// <summary>
     /// 生成失败的 MCP tool 返回值。
     /// </summary>
-    public static CallToolResult Error(string message)
-        => new()
+    public static CallToolResult Error(string code, string message, bool retryable = false)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(code);
+        ArgumentException.ThrowIfNullOrWhiteSpace(message);
+
+        var payload = new McpToolErrorResult(code, message, retryable);
+        return new CallToolResult
         {
             Content =
             [
@@ -276,9 +323,22 @@ internal static class SonnetDbMcpResults
                 {
                     Text = message,
                 },
+                new TextContentBlock
+                {
+                    Text = JsonSerializer.Serialize(payload, ServerJsonContext.Default.McpToolErrorResult),
+                },
             ],
             IsError = true,
         };
+    }
+
+    /// <summary>
+    /// 校验来自 MCP 调用方的必填文本和字符预算。
+    /// </summary>
+    public static void ValidateRequiredText(string? value, string parameterName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value, parameterName);
+    }
 
     /// <summary>
     /// 生成 JSON 文本资源。
@@ -317,9 +377,9 @@ internal static class SonnetDbMcpResults
     {
         var limit = requestedLimit ?? defaultLimit;
         if (limit <= 0)
-            throw new InvalidOperationException($"{parameterName} 必须大于 0。");
+            throw new ArgumentOutOfRangeException(parameterName, limit, $"{parameterName} 必须大于 0。");
         if (limit > maxLimit)
-            throw new InvalidOperationException($"{parameterName} 不能超过 {maxLimit}。");
+            throw new ArgumentOutOfRangeException(parameterName, limit, $"{parameterName} 不能超过 {maxLimit}。");
         return limit;
     }
 }

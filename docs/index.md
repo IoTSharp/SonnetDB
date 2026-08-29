@@ -46,6 +46,7 @@ SonnetDB 是一款多模型数据引擎。它在一套引擎中提供时序、�
 | 了解 Copilot 如何辅助 SQL、排障和知识检索 | [SonnetDB Studio]({{ site.docs_baseurl | default: '/help' }}/web-workbench/) 和 [Copilot 技能库](https://github.com/IoTSharp/SonnetDB/tree/main/copilot/skills) |
 | 配置 Copilot Provider、模型分组或本地模型 | [Copilot Provider 与模型目录]({{ site.docs_baseurl | default: '/help' }}/copilot-providers/) |
 | 让任意大模型或外部 Agent 正确理解并安全使用 SonnetDB | [面向大模型与 AI Agent 使用 SonnetDB]({{ site.docs_baseurl | default: '/help' }}/ai-agent-guide/) |
+| 对接版本化 MCP typed contract | [MCP Typed Contract]({{ site.docs_baseurl | default: '/help' }}/mcp-contract/) |
 | 构建工业 AI 应用或 Industrial Data Agent | [使用 SonnetDB 构建工业 AI 应用]({{ site.docs_baseurl | default: '/help' }}/industrial-ai-applications/) |
 | 在进程内直接使用引擎 | [嵌入式与 in-proc API]({{ site.docs_baseurl | default: '/help' }}/embedded-api/) |
 | 使用轻量 KV keyspace 存储 metadata 或小对象 | [KV Keyspace]({{ site.docs_baseurl | default: '/help' }}/kv-keyspace/) |

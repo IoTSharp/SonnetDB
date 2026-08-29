@@ -363,6 +363,7 @@ Key links:
 
 - Docs index: https://iotsharp.github.io/SonnetDB/
 - AI/Agent guide: https://iotsharp.github.io/SonnetDB/ai-agent-guide/
+- MCP typed contract: https://iotsharp.github.io/SonnetDB/mcp-contract/
 - Getting started: https://iotsharp.github.io/SonnetDB/getting-started/
 - Data model: https://iotsharp.github.io/SonnetDB/data-model/
 - SQL reference: https://iotsharp.github.io/SonnetDB/sql-reference/

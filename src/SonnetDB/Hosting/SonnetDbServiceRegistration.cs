@@ -217,6 +217,7 @@ internal static class SonnetDbServiceRegistration
                     {
                         mcpServerOptions.ServerInstructions =
                             $"SonnetDB MCP endpoint for database '{databaseName}'. " +
+                            $"Typed contract version {SonnetDbMcpContract.Version}; 1.x changes are extend-only. " +
                             "Only read-only tools and resources are exposed. " +
                             "Prefer bounded queries via SQL LIMIT / FETCH or the maxRows tool parameter.";
                     }

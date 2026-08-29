@@ -7,6 +7,8 @@
 
 ### Added
 
+- **M27 #183 MCP typed contract**：现有九个只读 MCP 工具现在通过 `tools/list` 发布真实业务 input/output JSON Schema，并在成功结果与三个 JSON resource 中携带 `contractVersion: "1.0"`；所有工具显式声明只读、非破坏、幂等与 closed-world annotation。失败继续以首个纯文本块兼容旧客户端，同时增加 source-generated JSON 错误块及稳定 `invalid_argument`、`invalid_sql`、`read_only_violation`、`measurement_not_found`、`skill_not_found`、`provider_unavailable`、`request_cancelled`、`operation_failed` code。新增端到端合同/权限/错误测试和 extend-only 兼容测试，并以 `docs/mcp-contract.md` 冻结参数、返回、权限、错误及 1.x 版本规则；未新增工具。
+
 - **M20 Parity nightly 证据验证器**：新增只读 PowerShell verifier，通过 GitHub Actions artifact 或同构离线 fixture 检查最近至少七次 scheduled run 的 `light` / `full` 双 profile、完整 schema v2 字段与计数不变量、run/commit 绑定，并将 summary suites 与 `raw/<runId>/report.json` 的实际场景数一一对账。`RequiredRunCount` 下限固定为 7，只能扩大窗口；默认 `NOT_READY` 会失败退出。离线合同覆盖当前“三次成功 + 四次失败”、不足七次、缺字段/`gap_reason`、计数或 raw 对账不一致和七次连续成功。2026-08-28 的真实 artifact 审计结果仍为 `NOT_READY`（3/7，42.86%），M20 未完成。
 
 - **跨模型 generation 原子发布合同**：新增 `Tsdb.Generations`、`DatabaseGenerationPublishRequest`、查询 `DatabaseGenerationQueryLease`、generation-bound opaque cursor 与 lease-aware retired cleanup。发布会先校验并 checkpoint generation 独占的 KV、Document 及其全部 FullText 派生资源，再以内部 durable KV 条件批次一次写入 descriptor、resource ownership 和 active revision；不持久化或暴露 staging，也不要求上层建立第二提交日志。新增 A/B reopen、publish 前后故障注入、双 lease 并发清理、cursor continuation/stale/tamper、取消/异常释放、真实 Document+FullText 不混代、backup/restore、公共 API 与独立 NuGet package consumer 回归。该条目只表示 Core 公共合同和本仓证据完成；Couplet 仍需直接消费最新 SonnetDB 源码并通过 C1 联合 correctness/recovery 与 performance/capacity 门禁，`CG-005` 尚未关闭。
@@ -26,6 +28,8 @@
 - **3.1.0 发布公告**：新增从 `v3.0.1` 到 3.1.0 的面向用户发布说明，按管理工具、工业协议、关系 SQL/查询规划、Document/语义内容、可观测性、可靠性和开发中原生图能力归纳变更，并明确 HTTP/2、轻事务、KV state v5、默认关闭服务、ApiCompat 回归及 M40 未完成发布门禁；发布文档索引同步加入 3.1.0。
 
 ### Fixed
+
+- **Native AOT 后台维护关闭（CG-006）**：Compaction、Retention 与 KV expirer/cleanup worker 不再依赖 Native AOT 不支持的 `Thread.Interrupt()`，长轮询改为由 cancellation wait handle 立即唤醒；关闭超时不会提前释放仍可能被 worker 访问的同步对象，线程真实退出后再执行一次性回收。新增三类长周期 worker 的快速、无异常和幂等 Dispose 回归，并以真实 `win-x64` Native AOT 可执行文件完成打开数据库、启动默认维护线程及重复关闭烟测。
 
 - **EF Core SaveChanges 影响行数与乐观并发**：SonnetDB EF Core 单语句修改批处理现在读取 `SndbDataReader.RecordsAffected`，普通跟踪 UPDATE/DELETE 实际命中零行时同步与异步路径均抛出 `DbUpdateConcurrencyException`，并发令牌陈旧实体不再被误报为保存成功；`ExecuteUpdateAsync` / `ExecuteDeleteAsync` 返回命中、未命中和多行修改的真实行数，DELETE SQL 同步去除内核不支持的目标表别名。远程轻事务不再为普通 INSERT/UPDATE/DELETE 固定返回 `0`，而是通过回滚预览取得事务视图中的真实影响行数后排队提交；嵌入式、REST 与 Frame HTTP/2 在事务内外保持一致。
 

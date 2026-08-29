@@ -309,6 +309,7 @@ namespace SonnetDB.Json;
 [JsonSerializable(typeof(List<DatabaseDiagnosticSnapshot>))]
 [JsonSerializable(typeof(List<WalFileDiagnosticEntry>))]
 [JsonSerializable(typeof(McpDatabaseStatsResult))]
+[JsonSerializable(typeof(McpToolErrorResult))]
 [JsonSerializable(typeof(McpDatabaseListResult))]
 [JsonSerializable(typeof(McpMeasurementColumnResult))]
 [JsonSerializable(typeof(McpMeasurementListResult))]
