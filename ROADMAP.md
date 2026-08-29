@@ -13,14 +13,14 @@
 3. 涉及 CI、nightly、容量、发布或 Marketplace 的声明，必须有对应 workflow、报告或已发布产物证据。
 4. 文档描述与实际依赖、调用链和限制一致；“计划采用”不能写成“已经基于”。
 
-本轮核查基于合并提交 `59ecd3a`，并复核 Core、Server、EF Provider、IoTSharp compatibility、Web/Studio、VS Code、Parity、容量报告和发布流程。
+本轮核查基于合并提交 `510efbf8`，并复核 Core、Server、EF Provider、IoTSharp compatibility、Web/Studio、VS Code、Parity、容量报告和发布流程。
 
 ## 里程碑总览
 
 | Milestone | 主题 | 状态 | 核查结论 |
 |---|---|---|---|
 | 0~13 | 引擎、SQL、服务端、函数、向量底座 | ✅ | 实现与测试已落地，详情归档。 |
-| 14 | SonnetDB Copilot | 🚧 | MCP、知识库、skills 和自研 `CopilotAgent` 已落地；Microsoft Agent Framework、本地 ONNX 执行和在线 provider-neutral 接线未完成，转入 M27。 |
+| 14 | SonnetDB Copilot | 🚧 | MCP、知识库、skills 和自研 `CopilotAgent` 已落地；Microsoft Agent Framework 未接入；本地 ONNX 的显式 profile 执行合同已转入 M27 推进，真实目标模型证据仍未完成；在线 provider-neutral 接线也转入 M27。 |
 | 15~17 | GEO/轨迹、Copilot UX、可观测性 | ✅ | 功能与测试已落地；会话以服务端持久化为准，不回退 `localStorage`。 |
 | 18 | SonnetDB for VS Code | ✅ | `0.4.1` 已发布；smoke、隔离 VSIX 安装和本地/Marketplace SHA256 对拍通过。 |
 | 19 | 生态适配底座 | ✅（待验证） | #109~#124、#126/#126.1 与 #125 runner、workflow、报告 verifier 已实现；四个默认容量档固定目标硬件报告待后续真机验证。 |
@@ -31,7 +31,7 @@
 | 24 | Document 管理面 | ✅ | Explorer、Validator、导入导出和维护入口已接入共享工作台。 |
 | 25 | Document 验收与发布治理 | ✅（待验证） | parity、runner、schema v2 报告和发布 verifier 已实现；#174 百万/千万固定目标硬件档待后续真机验证。 |
 | 26 | 连接器路线 | ✅ | C ABI 与多语言入口已交付，连接器 release workflow 通过。 |
-| 27 | AI / Agent 数据访问与治理 | 🚧 | 产品定位与 MCP 合同已校准；工业 Demo 和 eval 已完成研发闭环（真实 provider 运行待验证），本地 ONNX 语义执行与双网客户端 Copilot 仍有研发缺口。 |
+| 27 | AI / Agent 数据访问与治理 | 🚧 | 产品定位与 MCP 合同已校准；工业 Demo 和 eval 已完成研发闭环（真实 provider 运行待验证），本地 ONNX 真实目标模型语义证据与双网客户端 Copilot 仍有研发缺口；#185 profile 合同与证据门禁见 [专页](docs/benchmarks/m27-provider-model-profile.md)。 |
 | 28 | 可靠性、并发与热路径加固 | ✅ | P0~P5 与 SDK 补口已收官。 |
 | 29 | 多模型统一管理工作台 | ✅（待验证） | Web/Studio/VS Code 功能、Studio 独立 bundle/MSI、宿主生命周期合同和自动化测试已落地；干净 Windows 安装、WebView2、升级/卸载保留及端口冲突仍待真机验收。 |
 | 30 | Sparkplug B / CoAP / UDP 接入 | ✅ | 协议入口、生命周期、安全、parity 和基准已落地。 |
@@ -100,15 +100,15 @@ Web/Bridge smoke、Server 管理合同、Web Admin、Studio Release build 和 VS
 
 ## Milestone 27 — AI / Agent 数据访问与治理
 
-目标是在不改变 SonnetDB“八种数据模型，一套引擎”核心定位的前提下，为 Copilot、MCP 和外部 Agent 提供受权限、审计与人工确认约束的数据访问能力。工业数据诊断是验证该能力的示例之一，不是产品类别。当前实现不是 Microsoft Agent Framework：实际为 `Microsoft.Extensions.AI` 抽象加自研 `CopilotAgent`；在线 `/v1/copilot/chat` 已支持云 Gateway 与配置的 `IChatProvider` 两条路径；`LocalOnnxEmbeddingProvider` 仍只校验模型路径并在缺少 tokenizer/input profile 时显式回退 hash provider，尚未完成真实 ONNX 语义推理。文档和报告必须如实描述这些边界。
+目标是在不改变 SonnetDB“八种数据模型，一套引擎”核心定位的前提下，为 Copilot、MCP 和外部 Agent 提供受权限、审计与人工确认约束的数据访问能力。工业数据诊断是验证该能力的示例之一，不是产品类别。当前实现不是 Microsoft Agent Framework：实际为 `Microsoft.Extensions.AI` 抽象加自研 `CopilotAgent`；在线 `/v1/copilot/chat` 已支持云 Gateway 与配置的 `IChatProvider` 两条路径；`LocalOnnxEmbeddingProvider` 已在显式 `ModelProfile` 下执行 tokenizer、输入绑定、输出形状、pooling 和归一化，并在缺少 profile、资源或运行时不可用时显式回退 hash provider；真实目标模型语义质量、性能和现场证据仍未完成。#185 的合同字段、tiny fixture 测试和真实模型证据门禁见 [provider model profile 证据专页](docs/benchmarks/m27-provider-model-profile.md)。文档和报告必须如实描述这些边界。
 
 | 项目 | 剩余交付 | 状态 |
 |---|---|---|
 | #182 产品定位校准 | README / README.en、文档首页、`llms.txt` 和产品欢迎页统一为“八种数据模型，一套引擎”；实现语言、部署方式、行业场景和 Agent 能力按层表达，不进入一级定位。 | ✅ |
 | #183 MCP 合同 | 现有九个只读工具已发布机器可验证 input/output schema、v1 合同版本、稳定错误码与兼容文本，并以端到端测试冻结权限 annotation、既有 required 集合和字段类型；参数、返回、权限、错误与 extend-only 版本规则见 `docs/mcp-contract.md`，未扩大工具面。 | ✅ |
 | #184 工业 Demo | 用 MQTT/HTTP 写入温度、电流、振动，演示异常设备查询、维修建议、引用和报告；数据模型、脚本、文档和视频口径一致；新增可运行 sample、结构化状态和不可达 provider 的 `NOT_READY` 门禁。真实 broker/provider journey 后续验证。 | ✅（待验证） |
-| #185 Provider 接线 | 配置样例和模型分组已完成；在线 Chat 已按配置接入 `IChatProvider` 或云 Gateway，并复用本地 Agent/权限/会话合同；本地 embedding 当前为可观测的 hash fallback，仍需目标模型 tokenizer/input profile 与真实 ONNX 语义推理。 | 🚧 |
-| M14 纠偏 | 接入最新 Microsoft Agent Framework 并以测试证明，或继续明确标注“自研 orchestrator”；实现本地 ONNX 前不得宣称 bge-small-zh 已可用。 | 🚧 |
+| #185 Provider 接线 | 配置样例和模型分组已完成；在线 Chat 已按配置接入 `IChatProvider` 或云 Gateway，并复用本地 Agent/权限/会话合同；本地 embedding 已完成显式 profile 的 tokenizer/input/pooling 执行合同与 tiny fixture 测试，但目标模型 tokenizer/profile、语义质量、性能和真实 ONNX 证据仍待完成；profile 字段和验收门禁见 [证据专页](docs/benchmarks/m27-provider-model-profile.md)。 | 🚧 |
+| M14 纠偏 | 接入最新 Microsoft Agent Framework 并以测试证明，或继续明确标注“自研 orchestrator”；在真实目标模型 profile、质量和可追溯报告归档前，不得宣称 bge-small-zh 已可用。 | 🚧 |
 | #186 写审批 | 已移交 M29，共享 staged preview/dry-run/confirm 已完成；M27 只消费。 | ➡️ |
 | #187 Eval/成本 | 增加异常设备、慢查询、schema、维修建议和审批场景，记录 provider/model/tool/失败原因/token 成本，并给出可复现报告；已冻结 `m27-copilot-eval-v1` verifier 和诚实的 `NOT_READY` fixture，真实 provider usage/质量门禁后续验证。 | ✅（待验证） |
 | #188 上层边界 | IoTSharp 联合样例归 IoTSharp；SonnetDB 只提供授权 MCP、通用引擎和 Agent 素材。 | ✅ |

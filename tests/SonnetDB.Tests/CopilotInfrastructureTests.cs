@@ -166,6 +166,56 @@ public sealed class CopilotInfrastructureTests : IAsyncLifetime
     }
 
     [Fact]
+    public void Healthz_ReportsEmbeddingNotReady_WhenBertSpecialTokenBudgetCannotRetainContent()
+    {
+        var options = CreateServerOptions();
+        options.Copilot.Embedding.Provider = "local";
+        options.Copilot.Embedding.LocalModelPath = CreateTempFile("model.onnx", "placeholder");
+        options.Copilot.Embedding.ModelProfile = new CopilotEmbeddingModelProfile
+        {
+            TokenizerType = "bert-wordpiece",
+            TokenizerModelPath = CreateTempFile("vocab.txt", "[PAD]\n[UNK]\n[CLS]\n[SEP]\nhello\n"),
+            MaxTokens = 2,
+        };
+        options.Copilot.Chat.Provider = "openai";
+        options.Copilot.Chat.Endpoint = "https://example.com/v1/";
+        options.Copilot.Chat.ApiKey = "chat-key";
+        options.Copilot.Chat.Model = "chat-model";
+
+        var readiness = new CopilotReadiness(Options.Create(options)).Evaluate();
+
+        Assert.False(readiness.EmbeddingReady);
+        Assert.True(readiness.ChatReady);
+        Assert.Equal("embedding.local_model_profile_invalid", readiness.Reason);
+    }
+
+    [Fact]
+    public void Healthz_ReportsEmbeddingNotReady_WhenSentencePieceSpecialTokenBudgetCannotRetainContent()
+    {
+        var options = CreateServerOptions();
+        options.Copilot.Embedding.Provider = "local";
+        options.Copilot.Embedding.LocalModelPath = CreateTempFile("model.onnx", "placeholder");
+        options.Copilot.Embedding.ModelProfile = new CopilotEmbeddingModelProfile
+        {
+            TokenizerType = "sentencepiece",
+            TokenizerModelPath = CreateTempFile("tokenizer.model", "placeholder"),
+            AddBeginningOfSentence = false,
+            AddEndOfSentence = true,
+            MaxTokens = 1,
+        };
+        options.Copilot.Chat.Provider = "openai";
+        options.Copilot.Chat.Endpoint = "https://example.com/v1/";
+        options.Copilot.Chat.ApiKey = "chat-key";
+        options.Copilot.Chat.Model = "chat-model";
+
+        var readiness = new CopilotReadiness(Options.Create(options)).Evaluate();
+
+        Assert.False(readiness.EmbeddingReady);
+        Assert.True(readiness.ChatReady);
+        Assert.Equal("embedding.local_model_profile_invalid", readiness.Reason);
+    }
+
+    [Fact]
     public void DependencyInjection_ResolvesOpenAiProviders_ForOpenAiConfiguration()
     {
         var services = new ServiceCollection();

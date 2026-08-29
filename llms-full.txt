@@ -290,11 +290,11 @@ This is protocol-level interoperability, not a claim that SonnetDB ships a separ
 
 Built-in Copilot details:
 
-- Web CopilotDock currently uses the SonnetDB cloud runtime and an internal custom `CopilotAgent` path.
+- Web CopilotDock uses the SonnetDB cloud runtime when a Cloud Token is bound; the server also exposes the configured OpenAI-compatible direct `IChatProvider` path when local Chat readiness is complete. Orchestration remains the internal custom `CopilotAgent` path.
 - Server code has provider-neutral `IChatProvider` and `IEmbeddingProvider` abstractions.
 - The implemented direct chat adapter uses an OpenAI-compatible HTTP contract; OpenAI-compatible gateways can front other hosted or local models.
 - A native Azure deployment URL that requires `api-key` and `api-version` is not directly interchangeable with that adapter; use a compatible gateway/adapter.
-- The local ONNX text embedding provider is configuration/type scaffolding and currently does not execute a real model.
+- The local ONNX text embedding provider executes only with an explicit model profile covering tokenizer, tensor names/types, sequence handling, pooling, normalization, and output dimension. Missing profiles/resources use an observable hash fallback; invalid profile contracts fail closed. The built-in docs/skills knowledge index is currently fixed at `VECTOR(384)`; non-384 profiles are limited to direct provider use or a separately provisioned index. Synthetic contract tests do not constitute target-model quality evidence, which remains pending until a traceable model/profile report is archived.
 - A fully local model can still operate SonnetDB today through an external local agent host plus MCP.
 - This release is not a completed Microsoft Agent Framework integration.
 

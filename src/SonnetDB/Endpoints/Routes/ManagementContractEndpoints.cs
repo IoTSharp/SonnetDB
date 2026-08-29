@@ -240,7 +240,7 @@ internal static partial class SonnetDbEndpoints
                 await Results.Json(new VectorEmbedPreviewResponse(embedding, embedding.Length), ServerJsonContext.Default.VectorEmbedPreviewResponse)
                     .ExecuteAsync(ctx).ConfigureAwait(false);
             }
-            catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException or HttpRequestException)
+            catch (Exception ex) when (ex is ArgumentException or InvalidDataException or InvalidOperationException or NotSupportedException or HttpRequestException)
             {
                 await WriteSimpleErrorAsync(ctx, StatusCodes.Status503ServiceUnavailable, "embedding_failed", ex.Message).ConfigureAwait(false);
             }

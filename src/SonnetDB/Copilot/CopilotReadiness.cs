@@ -18,14 +18,24 @@ public sealed record CopilotReadinessResult(
 /// </summary>
 public sealed class CopilotReadiness
 {
+    private const int MaximumLocalTokenCount = 32_768;
+    private const int MaximumLocalEmbeddingDimension = 65_536;
     private readonly ServerOptions _serverOptions;
 
+    /// <summary>
+    /// 创建 Copilot 就绪状态计算器。
+    /// </summary>
+    /// <param name="serverOptions">当前服务端配置。</param>
     public CopilotReadiness(IOptions<ServerOptions> serverOptions)
     {
         ArgumentNullException.ThrowIfNull(serverOptions);
         _serverOptions = serverOptions.Value;
     }
 
+    /// <summary>
+    /// 计算当前 Copilot 的 embedding、Chat 和总就绪状态。
+    /// </summary>
+    /// <returns>包含稳定原因码的就绪结果。</returns>
     public CopilotReadinessResult Evaluate()
     {
         var copilot = _serverOptions.Copilot;
@@ -73,10 +83,80 @@ public sealed class CopilotReadiness
                 return false;
             }
 
-            var modelPath = Path.GetFullPath(options.LocalModelPath);
+            if (!TryGetFullPath(options.LocalModelPath, out var modelPath))
+            {
+                reason = "embedding.local_model_path_invalid";
+                return false;
+            }
+
             if (!File.Exists(modelPath))
             {
                 reason = "embedding.local_model_not_found";
+                return false;
+            }
+
+            var profile = options.ModelProfile;
+            if (profile is null)
+            {
+                reason = "embedding.local_model_profile_missing";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(profile.TokenizerModelPath))
+            {
+                reason = "embedding.local_tokenizer_path_missing";
+                return false;
+            }
+
+            if (!TryGetFullPath(profile.TokenizerModelPath, out var tokenizerPath))
+            {
+                reason = "embedding.local_tokenizer_path_invalid";
+                return false;
+            }
+
+            if (!File.Exists(tokenizerPath))
+            {
+                reason = "embedding.local_tokenizer_not_found";
+                return false;
+            }
+
+            if (profile.MaxTokens <= 0 || profile.MaxTokens > MaximumLocalTokenCount
+                || profile.Dimensions <= 0 || profile.Dimensions > MaximumLocalEmbeddingDimension
+                || profile.PadTokenId is < 0
+                || profile.MaxTokens < profile.GetMinimumContentTokenCount())
+            {
+                reason = "embedding.local_model_profile_invalid";
+                return false;
+            }
+
+            var tokenizerType = profile.TokenizerType?.Trim().ToLowerInvariant()
+                .Replace("_", string.Empty)
+                .Replace("-", string.Empty)
+                .Replace(" ", string.Empty);
+            if (tokenizerType is not ("bertwordpiece" or "bert" or "wordpiece" or "sentencepiece" or "sentencepiecebpe"))
+            {
+                reason = "embedding.local_model_profile_invalid";
+                return false;
+            }
+
+            var pooling = profile.Pooling?.Trim().ToLowerInvariant();
+            if (pooling is not ("mean" or "cls" or "first" or "firsttoken" or "auto" or null or ""))
+            {
+                reason = "embedding.local_model_profile_invalid";
+                return false;
+            }
+
+            var paddingSide = profile.PaddingSide?.Trim().ToLowerInvariant();
+            if (paddingSide is not ("right" or "left" or null or ""))
+            {
+                reason = "embedding.local_model_profile_invalid";
+                return false;
+            }
+
+            if (profile.IgnoredInputNames is null
+                || profile.IgnoredInputNames.Any(string.IsNullOrWhiteSpace))
+            {
+                reason = "embedding.local_model_profile_invalid";
                 return false;
             }
 
@@ -148,5 +228,25 @@ public sealed class CopilotReadiness
             return false;
 
         return uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp;
+    }
+
+    private static bool TryGetFullPath(string? raw, out string path)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            path = string.Empty;
+            return false;
+        }
+
+        try
+        {
+            path = Path.GetFullPath(raw);
+            return true;
+        }
+        catch (Exception exception) when (exception is ArgumentException or IOException or NotSupportedException or System.Security.SecurityException)
+        {
+            path = string.Empty;
+            return false;
+        }
     }
 }

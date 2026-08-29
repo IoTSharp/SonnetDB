@@ -58,7 +58,7 @@ Available MCP resources: `sonnetdb://schema/measurements`, `sonnetdb://schema/me
 - Document features are MongoDB-like SonnetDB APIs, not MongoDB wire protocol or official MongoDB Driver compatibility.
 - Object storage and messaging are local engine capabilities, not distributed MinIO/S3-cluster or Kafka replacements.
 - Native Graph code is present as a development implementation in 3.1.0, but its Preview/Beta/Production evidence gates are not complete and it is not a ninth supported model.
-- Built-in Copilot currently uses a cloud runtime and a custom `CopilotAgent`; it is not a completed Microsoft Agent Framework integration. The local ONNX text embedding provider is not executable yet.
+- Built-in Copilot uses a cloud runtime when a Cloud Token is bound, or the configured OpenAI-compatible `IChatProvider` path when local Chat readiness is complete; orchestration remains the custom `CopilotAgent`, not a completed Microsoft Agent Framework integration. Local ONNX text embeddings require an explicit model profile (tokenizer, tensor binding, pooling, normalization, and dimension); missing profiles/resources use an observable hash fallback, while invalid profile contracts fail closed. The built-in docs/skills knowledge index currently requires `VECTOR(384)`, so non-384 profiles need direct provider use or a separate index; real target-model quality evidence is still pending.
 - CoAP, Line Protocol UDP, Modbus TCP, and semantic image models are opt-in and disabled by default.
 
 ## Source precedence

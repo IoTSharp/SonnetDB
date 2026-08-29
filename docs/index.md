@@ -55,6 +55,7 @@ SonnetDB 是一款多模型数据引擎。它在一套引擎中提供时序、�
 | 使用 JSON 文档集合或从 MongoDB-like 负载迁移 | [Document Store 能力矩阵]({{ site.docs_baseurl | default: '/help' }}/document-store/) 和 [迁移指南]({{ site.docs_baseurl | default: '/help' }}/mongodb-migration/) |
 | 使用 SigLIP2 做文搜图或图搜图 | [语义图片检索]({{ site.docs_baseurl | default: '/help' }}/semantic-image-search/) 和 [可运行工业图片样例](https://github.com/IoTSharp/SonnetDB/tree/main/samples/SonnetDB.SemanticImages) |
 | 评估 Document Store 推荐规模、恢复时间和内存曲线 | [Document Store 容量与长稳报告]({{ site.docs_baseurl | default: '/help' }}/benchmarks/document-store-capacity/) |
+| 复核 M27 #185 本地 ONNX model profile 与语义执行门禁 | [M27 #185 provider model profile 证据]({{ site.docs_baseurl | default: '/help' }}/benchmarks/m27-provider-model-profile/) |
 | 复核 M41 查询优化本地收口和现场验证后置项 | [M41 #381 生产收口]({{ site.docs_baseurl | default: '/help' }}/benchmarks/m41-production-closeout/) |
 | 通过 ADO.NET 访问本地或远程实例 | [ADO.NET 参考]({{ site.docs_baseurl | default: '/help' }}/ado-net/) |
 | 通过 EF Core DbContext 与现有 .NET 应用集成 | [EF Core Provider]({{ site.docs_baseurl | default: '/help' }}/efcore/) |

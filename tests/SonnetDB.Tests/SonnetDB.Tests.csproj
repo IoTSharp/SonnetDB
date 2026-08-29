@@ -5,12 +5,22 @@
     <OutputType>Exe</OutputType>
     <!-- xUnit / Mvc.Testing 大量反射，AOT 分析不适用。 -->
     <IsAotCompatible>false</IsAotCompatible>
+    <!--
+      Microsoft.ML.OnnxRuntime ships platform-native assets.  A RID-less test
+      build can otherwise omit the host library and resolve an unrelated
+      system DLL at runtime.  Use the SDK host RID by default while preserving
+      an explicit -r supplied by CI or a developer.
+    -->
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and '$(NETCoreSdkRuntimeIdentifier)' != ''">$(NETCoreSdkRuntimeIdentifier)</RuntimeIdentifier>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="ModelContextProtocol" />
+    <!-- Local ONNX contract tests execute a synthetic graph; keep ORT native assets in the test host. -->
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" />
+    <PackageReference Include="Microsoft.ML.Tokenizers" />
     <PackageReference Include="Snappier" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
     <PackageReference Include="OpenTelemetry.Exporter.InMemory" />

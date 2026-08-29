@@ -115,7 +115,7 @@ public sealed record CopilotSkillsListResponse(IReadOnlyList<CopilotSkillsSearch
 /// <param name="Enabled">Copilot 子系统是否启用。</param>
 /// <param name="EmbeddingProvider">当前 embedding provider 名（builtin / local / openai）。</param>
 /// <param name="EmbeddingFallback">是否处于降级状态（用户配 local，但模型输入 profile/runtime 不可用而退化为 builtin hash）。</param>
-/// <param name="VectorDimension">向量维度，固定 384。</param>
+/// <param name="VectorDimension">当前 embedding provider/profile 的向量维度。</param>
 /// <param name="DocsRoots">实际扫描的文档根目录（绝对路径）。</param>
 /// <param name="IndexedFiles">已建索引的文档源数。</param>
 /// <param name="IndexedChunks">已写入向量库的块数。</param>

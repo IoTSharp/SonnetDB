@@ -122,7 +122,7 @@ Embedding 与 Chat 独立配置，避免为了切换 Chat 模型重建知识索�
 | Provider | 配置重点 | 适用场景 |
 |---|---|---|
 | `builtin` | 无外部配置，固定 384 维 | 首次启动、离线兜底、功能验证 |
-| `local` | `LocalModelPath` | 本地模型文件路径校验；未提供明确 tokenizer/input profile 时使用本地确定性 hash fallback |
+| `local` | `LocalModelPath` + `ModelProfile` | 显式 tokenizer/input/pooling 语义的本地 ONNX；缺少 profile 或资源时使用可观测 hash fallback，无效合同 fail closed。接入内置 docs/skills 知识库时维度必须为 384 |
 | `openai` | `Endpoint`、`ApiKey`、`Model` | OpenAI-compatible 云端或私有 embedding 服务 |
 
 ```json
@@ -139,6 +139,94 @@ Embedding 与 Chat 独立配置，避免为了切换 Chat 模型重建知识索�
 ```
 
 > `LocalOnnxEmbeddingProvider` 会校验 `LocalModelPath`。由于 ONNX 文本模型的 tokenizer、输入名和 pooling 规则并不统一，当前配置未携带 model profile 时不会加载 native session 或猜测输入；provider 会在本地自动回落到与 `builtin` 相同的 384 维确定性 hash 向量，并在知识库状态中标记 `EmbeddingFallback=true`。这条路径可用于离线功能验证，但不等价于真实语义模型，也不应宣称已完成 ONNX 推理质量验收。需要真实 ONNX 语义质量时，必须为目标模型补充 tokenizer/input profile 和回归样本。
+
+### 本地 ONNX model profile（M27 #185）
+
+为目标模型配置 `ModelProfile` 后，provider 会在首次 `EmbedAsync` 时创建 ONNX
+Runtime session。profile 把 tokenizer、输入/输出 tensor、序列长度、pooling、
+归一化和维度固定为一个向量兼容边界；更换其中任一语义时必须记录新的 profile
+标识并重建知识库索引。示例：
+
+```json
+{
+  "Provider": "local",
+  "LocalModelPath": "./models/example/model.onnx",
+  "ModelProfile": {
+    "TokenizerType": "bert-wordpiece",
+    "TokenizerModelPath": "./models/example/vocab.txt",
+    "InputIdsName": "input_ids",
+    "AttentionMaskName": "attention_mask",
+    "TokenTypeIdsName": "token_type_ids",
+    "PositionIdsName": null,
+    "SendAttentionMask": null,
+    "SendTokenTypeIds": null,
+    "SendPositionIds": null,
+    "IgnoredInputNames": [],
+    "MaxTokens": 128,
+    "PaddingSide": "right",
+    "Pooling": "mean",
+    "OutputName": "last_hidden_state",
+    "Normalize": true,
+    "Dimensions": 384,
+    "AddSpecialTokens": true,
+    "UnknownToken": "[UNK]",
+    "ClassificationToken": "[CLS]",
+    "SeparatorToken": "[SEP]",
+    "PaddingToken": "[PAD]",
+    "MaskingToken": "[MASK]",
+    "LowerCaseBeforeTokenization": true,
+    "ApplyBasicTokenization": true,
+    "IndividuallyTokenizeCjk": true,
+    "ConsiderPreTokenization": true,
+    "ConsiderNormalization": true,
+    "AddBeginningOfSentence": false,
+    "AddEndOfSentence": true,
+    "PadTokenId": 0,
+    "ExcludeSpecialTokensFromPooling": false
+  }
+}
+```
+
+`TokenizerType` 当前支持 `bert-wordpiece` 和 `sentencepiece`。BERT 使用
+`vocab.txt`，SentencePiece 使用 tokenizer model 文件；大小写、特殊 token、
+截断和 padding 规则必须与目标导出物一致。`AddSpecialTokens` 仅控制 BERT 的
+特殊 token；SentencePiece 使用 `AddBeginningOfSentence` / `AddEndOfSentence`。
+`PaddingSide` 支持 `right` 和 `left`：
+左填充时有效 token 保持顺序，`position_ids` 对有效 token 从 0 重新编号，padding
+槽为 0。`MaxTokens` 是固定 shape 模型要求的精确序列长度，也是动态 shape 模型的
+padding 上限（1..32768）；provider 使用 tokenizer 的有界 max-token overload，避免
+先完整展开超长输入。`mean`/`auto` pooling 按 attention/pooling mask 排除 padding，
+`cls` 取首个未屏蔽行（左填充时不是固定行 0），`auto` 对 pooled 输出直接采用该
+向量。`Normalize=true` 时对最终向量执行 L2 归一化。
+
+`SendAttentionMask`、`SendTokenTypeIds` 和 `SendPositionIds` 均为三态：`null`
+按稳定的常用名称自动绑定，`true` 要求相应 tensor 存在且类型/形状正确，`false`
+明确禁用；如果图仍声明被禁用的 tensor，还必须同时列入 `IgnoredInputNames`。没有绑定或列入 `IgnoredInputNames` 的其它输入会使 profile 合同失败，
+避免把必需输入静默丢给 ONNX Runtime。SentencePiece 的 padding id 优先使用
+`PadTokenId`，否则从 `PaddingToken`（默认 `<pad>`）词汇表/特殊 token 表推导；
+无法确定时 fail closed，不会默认假定为 0。
+
+`InputIdsName` 和 `OutputName` 可以留空以启用实现提供的稳定候选解析，但实际选中
+的名称必须通过模型元数据校验，并由部署者在 profile/运行报告中留存；候选不唯一、元素类型不是
+`int32`/`int64`、输入形状不兼容、输出维度不等于 `Dimensions` 或 tokenizer 无法
+加载时，provider 必须 fail closed 或进入可观测 fallback，不能静默生成向量。
+
+`CopilotReadiness`、`/healthz/ready` 和 `/v1/copilot/knowledge/status` 只执行
+路径/profile 基本检查并读取已记录的 provider 状态，属于 lazy readiness；它们不会
+主动加载 ONNX graph 或执行 tokenizer。首次推理前 readiness 通过、状态里的
+`EmbeddingFallback=false` 都不能当作模型已加载或语义质量证据。profile/合同错误
+会在首次调用时 fail closed；缺少 profile/资源或明确 native/runtime 装载失败时才
+允许进入可观测的 384 维 hash fallback。
+
+当前内置 `__copilot__` 文档与技能索引的 schema 固定为 `VECTOR(384)`，摄入和检索
+路径会拒绝其它维度。`ModelProfile.Dimensions` 可以在 provider 直调或合同测试中
+使用其它值，但这类 profile 必须使用独立的向量索引；仅修改配置不会自动迁移内置
+知识库。
+
+本地 ONNX profile 的字段定义、tiny ONNX 合同测试和真实模型证据要求见
+[`M27 #185 provider model profile 证据`](benchmarks/m27-provider-model-profile.md)。
+合成 fixture 只证明输入绑定和 pooling 数值语义；在目标模型 SHA-256、语义质量、
+延迟/内存及可重放报告归档前，真实模型状态仍为 `NOT_READY`。
 
 ## 本地/在线 Chat 接线
 
@@ -161,7 +249,9 @@ Embedding 与 Chat 独立配置，避免为了切换 Chat 模型重建知识索�
 
 Cloud Token 与本地 Chat 配置同时存在时，云端模式优先；本地 provider 不会绕过权限边界。当前本地 HTTP 分支拒绝 `read-write` 请求并返回 `local_write_confirmation_required`，写入仍需云端风险审查或另一个显式确认入口。未配置 Cloud Token 且 Chat readiness 不满足时，端点仍返回 `cloud_not_bound`，避免把“配置存在”误报为模型可用。
 
-切换 embedding 模型或向量维度后必须重建文档与技能索引。API Key 应通过环境变量、Secret Manager 或容器 secret 注入，不要提交到配置文件。
+切换 embedding 模型、profile 语义或向量维度后必须重建文档与技能索引；当前内置
+docs/skills 索引只接受 384 维，非 384 维需要独立 schema/index。API Key 应通过环境
+变量、Secret Manager 或容器 secret 注入，不要提交到配置文件。
 
 ## 兼容边界
 

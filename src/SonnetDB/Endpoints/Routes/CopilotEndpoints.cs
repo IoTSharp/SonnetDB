@@ -325,6 +325,15 @@ internal static partial class SonnetDbEndpoints
                     _ => false,
                 };
 
+                // Local ONNX profiles may intentionally use a dimension other than the
+                // builtin compatibility dimension.  Report the provider's contract so
+                // operators can detect an index/profile mismatch from the status endpoint.
+                var vectorDimension = embeddingProvider switch
+                {
+                    LocalOnnxEmbeddingProvider local => local.VectorDimension,
+                    _ => BuiltinHashEmbeddingProvider.VectorDimension,
+                };
+
                 var docsRoots = copilotOptions.Docs.Roots
                     .Where(static root => !string.IsNullOrWhiteSpace(root))
                     .Select(static root => Path.IsPathRooted(root) ? Path.GetFullPath(root) : Path.GetFullPath(root, Directory.GetCurrentDirectory()))
@@ -335,7 +344,7 @@ internal static partial class SonnetDbEndpoints
                     Enabled: true,
                     EmbeddingProvider: providerName,
                     EmbeddingFallback: fallback,
-                    VectorDimension: BuiltinHashEmbeddingProvider.VectorDimension,
+                    VectorDimension: vectorDimension,
                     DocsRoots: docsRoots,
                     IndexedFiles: indexState.IndexedFiles,
                     IndexedChunks: indexState.IndexedChunks,

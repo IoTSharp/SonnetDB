@@ -144,13 +144,9 @@ internal static class SonnetDbServiceRegistration
             if (string.Equals(options.Provider, "openai", StringComparison.OrdinalIgnoreCase))
                 return new OpenAICompatibleEmbeddingProvider(options, sp.GetRequiredService<IHttpClientFactory>());
             if (string.Equals(options.Provider, "local", StringComparison.OrdinalIgnoreCase))
-            {
-                // 本地 ONNX 骨架还未接入 tokenizer；若模型文件不存在则自动降级到 builtin，
-                // 避免首次部署者后 Copilot 在运行时装载报错。
-                if (!string.IsNullOrWhiteSpace(options.LocalModelPath) && File.Exists(options.LocalModelPath))
-                    return new LocalOnnxEmbeddingProvider(options);
-                return new BuiltinHashEmbeddingProvider(options);
-            }
+                // LocalOnnxEmbeddingProvider 自己保留 profile/path/runtime fallback 状态，
+                // 因此即使资源缺失也必须实例化它，才能在 readiness/status 中如实暴露原因。
+                return new LocalOnnxEmbeddingProvider(options);
             if (string.Equals(options.Provider, "builtin", StringComparison.OrdinalIgnoreCase))
                 return new BuiltinHashEmbeddingProvider(options);
 

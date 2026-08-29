@@ -1465,8 +1465,11 @@ SonnetDB Copilot 是一个内建 AI 助手，当前使用 `Microsoft.Extensions.
 | 提供程序 | 说明 | 默认 |
 |----------|------|------|
 | BuiltinHashEmbedding | 零依赖，SHA-256+词袋哈希投影 384 维 | 默认 |
-| LocalOnnxEmbedding | bge-small-zh-v1.5 ONNX 配置占位；执行尚未接通 | 不可用 |
+| LocalOnnxEmbedding | 配置完整 `ModelProfile` 后执行 tokenizer + ONNX Runtime；缺少 profile 或资源时为可观测 384 维 hash fallback，无效 profile 合同则拒绝执行；tiny 合同可验证，真实目标模型证据仍待归档 | 合同可用（真实模型待验证） |
 | OpenAICompatibleEmbedding | OpenAI 兼容 API | 可选 |
+
+内置 `__copilot__` 文档和技能知识库当前固定使用 `VECTOR(384)`；非 384 维 profile
+只能直调 provider 或接入独立 schema/index，不能直接用于现有知识库摄入与检索。
 
 ### 19.4 聊天提供程序
 
